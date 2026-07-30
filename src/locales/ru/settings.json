@@ -626,6 +626,35 @@
         "ipAddress": "IP-адрес",
         "macAddress": "MAC-адрес"
       }
+    },
+    "managedCore": {
+      "entry": "Управляемое ядро (самообновление)",
+      "title": "Управляемое ядро Mihomo",
+      "useManaged": "Использовать управляемое ядро",
+      "useManagedHint": "Запускать самостоятельно скачанное ядро вместо встроенного",
+      "channel": "Канал",
+      "stable": "Стабильный",
+      "alpha": "Альфа",
+      "autoCheck": "Проверять раз в день",
+      "running": "Запущено:",
+      "managedTag": "управляемое",
+      "bundledTag": "встроенное",
+      "available": "Доступно обновление: {{version}}",
+      "upToDate": "Ядро актуально",
+      "check": "Проверить обновление",
+      "update": "Скачать и применить",
+      "revert": "Откатить на {{version}}",
+      "updated": "Ядро обновлено",
+      "reverted": "Ядро откачено",
+      "phase": {
+        "checking": "Проверка…",
+        "downloading": "Скачивание…",
+        "verifying": "Проверка…",
+        "applying": "Применение…",
+        "done": "Готово"
+      },
+      "updatedTo": "Ядро обновлено до {{msg}}",
+      "updateNotice": "Доступно новое ядро: {{msg}}"
     }
   },
   "feedback": {

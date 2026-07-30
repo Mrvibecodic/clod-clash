@@ -21,6 +21,7 @@ import { ControllerViewer } from './mods/controller-viewer'
 import { DnsViewer } from './mods/dns-viewer'
 import { HeaderConfiguration } from './mods/external-controller-cors'
 import { GuardState } from './mods/guard-state'
+import { ManagedCoreViewer } from './mods/managed-core-viewer'
 import { NetworkInterfaceViewer } from './mods/network-interface-viewer'
 import { SettingItem, SettingList } from './mods/setting-comp'
 import { TunnelsViewer } from './mods/tunnels-viewer'
@@ -67,6 +68,7 @@ const SettingClash = ({ onError }: Props) => {
   const portRef = useRef<DialogRef>(null)
   const ctrlRef = useRef<DialogRef>(null)
   const coreRef = useRef<DialogRef>(null)
+  const managedCoreRef = useRef<DialogRef>(null)
   const networkRef = useRef<DialogRef>(null)
   const dnsRef = useRef<DialogRef>(null)
   const corsRef = useRef<DialogRef>(null)
@@ -310,6 +312,13 @@ const SettingClash = ({ onError }: Props) => {
       >
         <Typography sx={{ py: '7px', pr: 1 }}>{version}</Typography>
       </SettingItem>
+
+      {/* clod:F5 — managed core (self-updating Mihomo) */}
+      <SettingItem
+        onClick={() => managedCoreRef.current?.open()}
+        label={t('settings.modals.managedCore.entry')}
+      />
+      <ManagedCoreViewer ref={managedCoreRef} />
 
       {isWIN && (
         <SettingItem

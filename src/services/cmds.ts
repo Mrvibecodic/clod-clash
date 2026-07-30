@@ -531,3 +531,38 @@ export const isPortInUse = async (port: number) => {
     return false
   }
 }
+
+// clod:F5 — managed Mihomo core
+export interface CoreUpdaterStatus {
+  managed_active: boolean
+  current?: string
+  previous?: string
+  running?: string
+}
+
+export interface CoreUpdateCheck {
+  channel: string
+  current?: string
+  latest: string
+  update_available: boolean
+}
+
+export async function getCoreUpdaterStatus() {
+  return invoke<CoreUpdaterStatus>('get_core_updater_status')
+}
+
+export async function checkCoreUpdate() {
+  return invoke<CoreUpdateCheck>('check_core_update')
+}
+
+export async function downloadAndApplyCore() {
+  return invoke<CoreUpdateCheck>('download_and_apply_core')
+}
+
+export async function revertCore() {
+  return invoke<void>('revert_core')
+}
+
+export async function disableManagedCore() {
+  return invoke<void>('disable_managed_core')
+}

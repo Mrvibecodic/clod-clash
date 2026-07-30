@@ -1024,6 +1024,13 @@ interface IVergeConfig {
   brand_name?: string
   /** brand mark (data: URL or loadable path); unset shows the placeholder */
   brand_logo?: string
+  // clod: managed Mihomo core (F5)
+  /** run the self-downloaded core instead of the bundled sidecar; default off */
+  use_managed_core?: boolean
+  /** managed core channel: 'stable' | 'alpha' */
+  managed_core_channel?: string
+  /** daily check for a newer core (notification only); default on */
+  core_auto_check?: boolean
 }
 
 interface IWebDavFile {

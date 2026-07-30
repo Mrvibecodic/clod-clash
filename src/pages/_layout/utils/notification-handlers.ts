@@ -42,6 +42,11 @@ export const handleNoticeMessage = (
       ),
     'clod_sub::fallback_used': () =>
       showNotice.info('profiles.page.feedback.notifications.fallbackUsed', msg),
+    // clod:F5 managed core
+    'clod_core::updated': () =>
+      showNotice.success('settings.modals.managedCore.updatedTo', msg),
+    'clod_core::update_available': () =>
+      showNotice.info('settings.modals.managedCore.updateNotice', msg),
     'reactivate_profiles::error': () => showNotice.error(msg),
     update_failed: () => showNotice.error(msg),
     'config_validate::boot_error': () =>

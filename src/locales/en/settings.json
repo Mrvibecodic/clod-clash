@@ -626,6 +626,35 @@
         "ipAddress": "IP Address",
         "macAddress": "MAC Address"
       }
+    },
+    "managedCore": {
+      "entry": "Managed core (self-updating)",
+      "title": "Managed Mihomo core",
+      "useManaged": "Use the managed core",
+      "useManagedHint": "Run a self-downloaded core instead of the bundled one",
+      "channel": "Channel",
+      "stable": "Stable",
+      "alpha": "Alpha",
+      "autoCheck": "Check daily",
+      "running": "Running:",
+      "managedTag": "managed",
+      "bundledTag": "bundled",
+      "available": "Update available: {{version}}",
+      "upToDate": "The core is up to date",
+      "check": "Check for update",
+      "update": "Download & apply",
+      "revert": "Revert to {{version}}",
+      "updated": "Core updated",
+      "reverted": "Core reverted",
+      "phase": {
+        "checking": "Checking…",
+        "downloading": "Downloading…",
+        "verifying": "Verifying…",
+        "applying": "Applying…",
+        "done": "Done"
+      },
+      "updatedTo": "Core updated to {{msg}}",
+      "updateNotice": "A newer core is available: {{msg}}"
     }
   },
   "feedback": {

@@ -1011,6 +1011,35 @@ export interface TranslationResources {
             autoEnter: string
           }
         }
+        managedCore: {
+          alpha: string
+          autoCheck: string
+          available: string
+          bundledTag: string
+          channel: string
+          check: string
+          entry: string
+          managedTag: string
+          phase: {
+            applying: string
+            checking: string
+            done: string
+            downloading: string
+            verifying: string
+          }
+          revert: string
+          reverted: string
+          running: string
+          stable: string
+          title: string
+          update: string
+          updated: string
+          updatedTo: string
+          updateNotice: string
+          upToDate: string
+          useManaged: string
+          useManagedHint: string
+        }
         misc: {
           fields: {
             appLogLevel: string
