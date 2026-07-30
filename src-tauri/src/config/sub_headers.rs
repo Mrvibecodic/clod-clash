@@ -207,8 +207,16 @@ fn value(headers: &HeaderMap, name: &str) -> Option<String> {
             continue;
         }
 
-        let Ok(text) = raw.to_str() else { continue };
-        let decoded = decode_value(text);
+        // `to_str` rejects bytes above 0x7F, but panels do put raw UTF-8 into
+        // `profile-title` / `announce` instead of base64 encoding it. Reading
+        // those bytes as UTF-8 is the difference between showing the provider's
+        // name and silently ignoring the header.
+        let text = match raw.to_str() {
+            Ok(text) => std::borrow::Cow::Borrowed(text),
+            Err(_) => std::string::String::from_utf8_lossy(raw.as_bytes()),
+        };
+
+        let decoded = decode_value(&text);
         if !decoded.is_empty() {
             return Some(decoded);
         }
@@ -439,6 +447,23 @@ mod tests {
         assert_eq!(decode_value("base64:!!!not-base64!!!"), "base64:!!!not-base64!!!");
         // plain values pass through, trimmed
         assert_eq!(decode_value("  plain  "), "plain");
+    }
+
+    #[test]
+    fn reads_raw_utf8_header_values() {
+        // Panels are supposed to base64 encode non-ASCII values, and some do
+        // not: they put raw UTF-8 bytes into the header. Those must still be
+        // read rather than silently dropped.
+        let mut map = HeaderMap::new();
+        let Ok(name) = HeaderName::from_bytes(b"profile-title") else {
+            unreachable!("static header name")
+        };
+        let Ok(raw) = HeaderValue::from_bytes("Тариф Pro".as_bytes()) else {
+            unreachable!("byte header value")
+        };
+        map.insert(name, raw);
+
+        assert_eq!(SubHeaders::parse(&map).profile_title.as_deref(), Some("Тариф Pro"));
     }
 
     #[test]
