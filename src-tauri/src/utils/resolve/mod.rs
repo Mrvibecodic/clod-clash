@@ -164,6 +164,10 @@ async fn init_silent_updater() {
     // clod:F5 — daily managed-core check (notification only, opt-in)
     crate::core::core_updater::spawn_auto_check();
 
+    // clod:F7 — subscription expiry/traffic watcher (startup catch-up +30 s,
+    // then hourly; deliberately independent of profile updates)
+    crate::module::sub_watcher::spawn();
+
     logging!(info, Type::Setup, "Silent updater initialized");
 }
 

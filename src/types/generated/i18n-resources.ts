@@ -671,12 +671,14 @@ export interface TranslationResources {
               misc: string
               startPage: string
               startupScript: string
+              subNotifications: string
               themeMode: string
               themeSetting: string
               trayClickEvent: string
             }
             hints: {
               connectTun: string
+              subNotifications: string
             }
             options: {
               sysproxy: string

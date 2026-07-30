@@ -1031,6 +1031,9 @@ interface IVergeConfig {
   managed_core_channel?: string
   /** daily check for a newer core (notification only); default on */
   core_auto_check?: boolean
+  // clod: subscription watcher (F7)
+  /** expiry/traffic notifications; the user's off wins over the panel; default on */
+  enable_sub_notifications?: boolean
 }
 
 interface IWebDavFile {

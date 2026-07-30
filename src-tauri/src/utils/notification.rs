@@ -16,6 +16,10 @@ pub enum NotificationEvent<'a> {
     AppQuit,
     #[cfg(target_os = "macos")]
     AppHidden,
+    // clod:F7 — subscription watcher alerts.
+    SubExpired,
+    SubExpiresIn { days: u32 },
+    SubTraffic { percent: u32 },
 }
 
 fn notify(title: Cow<'_, str>, body: Cow<'_, str>) {
@@ -77,6 +81,26 @@ pub async fn notify_event<'a>(event: NotificationEvent<'a>) {
         NotificationEvent::AppHidden => {
             let title = clash_verge_i18n::t!("notifications.appHidden.title");
             let body = clash_verge_i18n::t!("notifications.appHidden.body");
+            notify(title, body);
+        }
+        // clod:F7
+        NotificationEvent::SubExpired => {
+            let title = clash_verge_i18n::t!("notifications.subExpired.title");
+            let body = clash_verge_i18n::t!("notifications.subExpired.body");
+            notify(title, body);
+        }
+        NotificationEvent::SubExpiresIn { days } => {
+            let title = clash_verge_i18n::t!("notifications.subExpiresIn.title");
+            let body = clash_verge_i18n::t!("notifications.subExpiresIn.body")
+                .replace("{days}", &days.to_string())
+                .into();
+            notify(title, body);
+        }
+        NotificationEvent::SubTraffic { percent } => {
+            let title = clash_verge_i18n::t!("notifications.subTraffic.title");
+            let body = clash_verge_i18n::t!("notifications.subTraffic.body")
+                .replace("{percent}", &percent.to_string())
+                .into();
             notify(title, body);
         }
     }

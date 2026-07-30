@@ -371,6 +371,10 @@ pub async fn update_profile(
             Ok(outcome) if outcome.is_valid() => {
                 logging!(info, Type::Config, "[订阅更新] 更新成功");
                 handle::Handle::refresh_clash();
+                // clod:F7 — fresh panel data, recompute the notification state
+                crate::process::AsyncHandler::spawn(|| async {
+                    crate::module::sub_watcher::run_check().await;
+                });
             }
             Ok(outcome @ (ValidationOutcome::Skipped { .. } | ValidationOutcome::Busy)) if !is_mannual_trigger => {
                 logging!(info, Type::Config, "[订阅更新] 本次配置刷新已跳过: {}", outcome);

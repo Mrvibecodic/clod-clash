@@ -309,6 +309,14 @@ pub struct IVerge {
     pub core_auto_check: Option<bool>,
     // clod:core-updater end
 
+    // clod:sub-watcher begin
+    /// Subscription expiry/traffic notifications (F7). The user's global
+    /// switch — off silences the watcher no matter what the panel sends.
+    /// Default: on.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_sub_notifications: Option<bool>,
+    // clod:sub-watcher end
+
     // clod:branding begin
     /// White-label display name shown in the sidebar (and, later, the tray
     /// tooltip). `None` falls back to the product name.
@@ -670,6 +678,9 @@ impl IVerge {
         patch!(managed_core_channel);
         patch!(core_auto_check);
         // clod:core-updater end
+        // clod:sub-watcher begin
+        patch!(enable_sub_notifications);
+        // clod:sub-watcher end
         // clod:branding begin
         patch!(brand_name);
         patch!(brand_logo);

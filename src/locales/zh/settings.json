@@ -174,14 +174,16 @@
           "hotkeySetting": "热键设置",
           "advancedMode": "Advanced mode",
           "connectSysproxy": "Connect: system proxy",
-          "connectTun": "Connect: TUN mode"
+          "connectTun": "Connect: TUN mode",
+          "subNotifications": "订阅通知"
         },
         "options": {
           "sysproxy": "System proxy",
           "tun": "TUN"
         },
         "hints": {
-          "connectTun": "The Connect button also brings the TUN device up. System proxy and TUN can run together; the TUN device needs the service installed."
+          "connectTun": "The Connect button also brings the TUN device up. System proxy and TUN can run together; the TUN device needs the service installed.",
+          "subNotifications": "在流量或订阅时长即将耗尽时提醒。关闭后无论服务商如何设置都不再提醒。"
         }
       },
       "advanced": {

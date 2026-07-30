@@ -64,6 +64,7 @@ const SettingVergeBasic = ({ onError }: Props) => {
     start_page,
     connect_system_proxy,
     connect_tun_mode,
+    enable_sub_notifications,
   } = verge ?? {}
   const { simpleMode, setSimpleMode } = useSimpleMode()
   const { current } = useProfiles()
@@ -158,6 +159,32 @@ const SettingVergeBasic = ({ onError }: Props) => {
           </SettingItem>
         </>
       )}
+
+      {/* clod:F7 — the user's global switch for the subscription
+          expiry/traffic notifications; off wins over the panel. */}
+      <SettingItem
+        label={t('settings.components.verge.basic.fields.subNotifications')}
+        extra={
+          <TooltipIcon
+            title={t('settings.components.verge.basic.hints.subNotifications')}
+          />
+        }
+      >
+        <GuardState
+          value={enable_sub_notifications ?? true}
+          valueProps="checked"
+          onCatch={onError}
+          onFormat={(_e: any, checked: boolean) => checked}
+          onChange={(checked) =>
+            onChangeData({ enable_sub_notifications: checked })
+          }
+          onGuard={(checked) =>
+            patchVerge({ enable_sub_notifications: checked })
+          }
+        >
+          <Switch edge="end" />
+        </GuardState>
+      </SettingItem>
 
       <SettingItem label={t('settings.components.verge.basic.fields.language')}>
         <GuardState

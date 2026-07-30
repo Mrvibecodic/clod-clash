@@ -22,19 +22,30 @@ notifications:
     body: 订阅已激活。
   appQuit:
     title: 即将退出
-    body: Clash Verge 即将退出。
+    body: 应用即将退出。
   appHidden:
     title: 应用已隐藏
-    body: Clash Verge 正在后台运行。
+    body: 应用正在后台运行。
   updateReady:
-    title: Clash Verge 更新
+    title: 应用更新
     body: 新版本 (v{version}) 已下载完成，是否立即安装？
     installNow: 立即安装
     later: 稍后
+  subExpired:
+    title: 订阅
+    body: 订阅已到期。
+  subExpiresIn:
+    title: 订阅
+    body: '订阅将在 {days} 天后到期。'
+  subTraffic:
+    title: 订阅
+    body: '流量已使用 {percent}%。'
+common:
+  modeLocked: 路由模式由您的服务商管理。
 service:
-  adminInstallPrompt: 安装 Clash Verge 服务需要管理员权限
-  adminUninstallPrompt: 卸载 Clash Verge 服务需要管理员权限
-  translocatedCorePath: 检测到 Clash Verge 从临时路径（App Translocation）运行，无法定位内核。请将 Clash Verge 移动到「应用程序」文件夹后重新打开。
+  adminInstallPrompt: 安装系统服务需要管理员权限
+  adminUninstallPrompt: 卸载系统服务需要管理员权限
+  translocatedCorePath: 检测到应用从临时路径（App Translocation）运行，无法定位内核。请将应用移动到「应用程序」文件夹后重新打开。
 tray:
   dashboard: 仪表板
   ruleMode: 规则模式
