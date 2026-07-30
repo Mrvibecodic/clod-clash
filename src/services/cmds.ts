@@ -538,6 +538,8 @@ export interface CoreUpdaterStatus {
   current?: string
   previous?: string
   running?: string
+  /** ядро сейчас запускает служба — managed-ядро работает только в sidecar-режиме */
+  service_mode: boolean
 }
 
 export interface CoreUpdateCheck {

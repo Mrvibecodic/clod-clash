@@ -128,10 +128,13 @@ export function ManagedCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
     setBusy(true)
     try {
       if (enabled) {
+        // The backend maps a `use_managed_core` change to a core restart,
+        // so the toggle takes effect immediately.
         await patchVerge({ use_managed_core: true })
       } else {
+        // Patches `use_managed_core: false` internally (with the restart);
+        // a second patchVerge here would restart the core twice.
         await disableManagedCore()
-        await patchVerge({ use_managed_core: false })
       }
       await refreshStatus()
     } catch (error) {
@@ -252,6 +255,13 @@ export function ManagedCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
                 : t('settings.modals.managedCore.upToDate')}
             </Typography>
           ) : null}
+          {status?.service_mode ? (
+            // Managed core is sidecar-only: the elevated service must not
+            // execute a user-writable binary (privilege boundary).
+            <Typography variant="caption" color="warning.main">
+              {t('settings.modals.managedCore.serviceModeNote')}
+            </Typography>
+          ) : null}
         </Stack>
 
         {progress ? (
@@ -289,7 +299,10 @@ export function ManagedCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
           >
             {t('settings.modals.managedCore.update')}
           </Button>
-          {status?.previous ? (
+          {managedOn && status?.previous ? (
+            // Only while the managed core is on — a revert with the toggle
+            // off would shuffle pointers and restart onto the sidecar while
+            // claiming "reverted".
             <Button
               size="small"
               color="inherit"
