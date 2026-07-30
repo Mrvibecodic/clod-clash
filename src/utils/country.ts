@@ -560,3 +560,14 @@ export const countryFromName = (name: string): string | undefined => {
 /** Path of the bundled flag for a code; the neutral placeholder otherwise. */
 export const flagSrc = (code?: string): string =>
   code && FLAG_CODES.has(code) ? `/flags/${code}.svg` : '/flags/xx.svg'
+
+/**
+ * Node name without its flag emoji, for rows that draw their own flag —
+ * otherwise the list shows the flag twice (and on Windows the emoji
+ * degrades into bare letters in front of the name).
+ */
+export const nameWithoutFlag = (name: string): string =>
+  name
+    .replace(/[\u{1F1E6}-\u{1F1FF}]{2}/gu, '')
+    .replace(/\s{2,}/gu, ' ')
+    .trim() || name

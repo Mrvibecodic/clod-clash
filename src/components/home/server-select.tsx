@@ -25,6 +25,7 @@ import { useProxySelection } from '@/hooks/use-proxy-selection'
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
 import delayManager from '@/services/delay'
 import { showNotice } from '@/services/notice-service'
+import { nameWithoutFlag } from '@/utils/country'
 import { delayColor } from '@/utils/delay-color'
 
 interface ProxyNode {
@@ -124,7 +125,7 @@ export const ServerSelect = ({ open, onClose }: Props) => {
       >
         <CountryFlag name={node.name} />
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography noWrap>{node.name}</Typography>
+          <Typography noWrap>{nameWithoutFlag(node.name)}</Typography>
           {node.type ? (
             <Typography variant="caption" color="text.secondary">
               {node.type}
@@ -268,7 +269,9 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
           {t('home.components.serverSelect.current')}
         </Typography>
         <Typography noWrap>
-          {current ?? t('home.components.serverSelect.none')}
+          {current
+            ? nameWithoutFlag(current)
+            : t('home.components.serverSelect.none')}
         </Typography>
       </Box>
 
