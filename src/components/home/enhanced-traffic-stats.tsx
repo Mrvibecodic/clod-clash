@@ -74,6 +74,7 @@ const CompactStatCard = memo(
         sx={{
           display: 'flex',
           alignItems: 'center',
+          minWidth: 0,
           borderRadius: 2,
           bgcolor: alpha(colorValue, 0.05),
           border: `1px solid ${alpha(colorValue, 0.15)}`,
@@ -111,7 +112,14 @@ const CompactStatCard = memo(
 
         {/* 文本内容 */}
         <Grid component="div" sx={{ flexGrow: 1, minWidth: 0 }}>
-          <Typography variant="caption" color="text.secondary" noWrap>
+          {/* clod: block display, otherwise noWrap cannot clip the inline
+              span and long labels bleed into the neighbouring card */}
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            noWrap
+            sx={{ display: 'block' }}
+          >
             {title}
           </Typography>
           <Grid
@@ -270,7 +278,9 @@ export const EnhancedTrafficStats = () => {
         console.error('[EnhancedTrafficStats] 组件错误:', error, errorInfo)
       }}
     >
-      <Grid container spacing={1} columns={{ xs: 8, sm: 8, md: 12 }}>
+      {/* clod: the stats live in the narrow advanced column now, so three
+          cards per row only fit from the lg viewport up. */}
+      <Grid container spacing={1} columns={{ xs: 8, sm: 8, md: 8, lg: 12 }}>
         {trafficGraph && (
           <Grid size={12}>
             {/* 流量图表区域 */}
@@ -278,8 +288,11 @@ export const EnhancedTrafficStats = () => {
           </Grid>
         )}
         {/* 统计卡片区域 */}
+        {/* clod: minWidth 0 lets the cards shrink inside the narrow advanced
+            column — without it the grid overflows the window horizontally
+            with the longer Russian labels. */}
         {statCards.map((card) => (
-          <Grid key={card.title} size={4}>
+          <Grid key={card.title} size={4} sx={{ minWidth: 0 }}>
             <CompactStatCard {...card} />
           </Grid>
         ))}
