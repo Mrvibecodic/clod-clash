@@ -20,6 +20,7 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { delayGroup } from 'tauri-plugin-mihomo-api'
 
+import { CountryFlag } from '@/components/home/country-flag'
 import { useProxySelection } from '@/hooks/use-proxy-selection'
 import { useProxiesData } from '@/providers/app-data-context'
 import delayManager from '@/services/delay'
@@ -107,8 +108,9 @@ export const ServerSelect = ({ open, onClose }: Props) => {
         key={node.name}
         selected={selected}
         onClick={() => void select(node.name)}
-        sx={{ borderRadius: 1, height: ROW_HEIGHT }}
+        sx={{ borderRadius: 1, height: ROW_HEIGHT, gap: 1.25 }}
       >
+        <CountryFlag name={node.name} />
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography noWrap>{node.name}</Typography>
           {node.type ? (
@@ -248,6 +250,7 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
         '&:hover': { borderColor: 'primary.main' },
       }}
     >
+      {current ? <CountryFlag name={current} size={26} /> : null}
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography variant="caption" color="text.secondary">
           {t('home.components.serverSelect.current')}
