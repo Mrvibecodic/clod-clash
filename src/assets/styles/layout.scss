@@ -304,6 +304,12 @@
         display: none !important;
       }
 
+      // clod:branding — AppBrand renders the name as text, not an svg; the
+      // collapsed rail shows the mark alone.
+      .the-logo .the-brand-name {
+        display: none !important;
+      }
+
       .the-logo .MuiSvgIcon-root {
         margin: 0 !important;
       }

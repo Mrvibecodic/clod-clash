@@ -49,6 +49,8 @@ export const AppBrand = ({ isDark }: { isDark: boolean }) => {
       )}
       <Typography
         noWrap
+        // the collapsed sidebar hides the wordmark through this class
+        className="the-brand-name"
         sx={{
           fontSize: 19,
           fontWeight: 700,
