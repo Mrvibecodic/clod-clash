@@ -50,6 +50,14 @@ export const ConnectButton = ({
   } as const
   const color = palette[state]
 
+  /** Palette the tinted circle background is taken from, per state. */
+  const bgKey = {
+    off: 'primary',
+    connecting: 'info',
+    on: 'success',
+    error: 'error',
+  } as const
+
   const label = {
     off: t('home.components.connect.states.off'),
     connecting: t('home.components.connect.states.connecting'),
@@ -80,7 +88,7 @@ export const ConnectButton = ({
           border: `2px solid ${theme.palette.divider}`,
           borderColor: color,
           background: alpha(
-            theme.palette[state === 'off' ? 'primary' : 'success'].main,
+            theme.palette[bgKey[state]].main,
             state === 'on' ? 0.16 : 0.06,
           ),
           color,
