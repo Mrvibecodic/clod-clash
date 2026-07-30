@@ -8,6 +8,7 @@ import { closeAllConnections } from 'tauri-plugin-mihomo-api'
 import { BasePage, TooltipIcon } from '@/components/base'
 import { ProviderButton } from '@/components/proxy/provider-button'
 import { ProxyGroups } from '@/components/proxy/proxy-groups'
+import { useProfiles } from '@/hooks/use-profiles'
 import { useVerge } from '@/hooks/use-verge'
 import {
   useAppRefreshers,
@@ -55,6 +56,10 @@ const ProxyPage = () => {
 
   const normalizedMode = clashConfig?.mode?.toLowerCase()
   const curMode = isMode(normalizedMode) ? normalizedMode : undefined
+  // clod: `clod-lock-mode` hides every mode switch, this page included —
+  // the settings page alone would leave the lock trivially bypassable.
+  const { current } = useProfiles()
+  const modeLocked = Boolean(current?.lock_mode)
   const chainWarning = t('proxies.page.chain.warning')
 
   const onChangeMode = useLockFn(async (mode: Mode) => {
@@ -163,18 +168,20 @@ const ProxyPage = () => {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <ProviderButton />
 
-          <ButtonGroup size="small">
-            {MODES.map((mode) => (
-              <Button
-                key={mode}
-                variant={mode === curMode ? 'contained' : 'outlined'}
-                onClick={() => onChangeMode(mode)}
-                sx={{ textTransform: 'capitalize' }}
-              >
-                {t(`proxies.page.modes.${mode}`)}
-              </Button>
-            ))}
-          </ButtonGroup>
+          {!modeLocked && (
+            <ButtonGroup size="small">
+              {MODES.map((mode) => (
+                <Button
+                  key={mode}
+                  variant={mode === curMode ? 'contained' : 'outlined'}
+                  onClick={() => onChangeMode(mode)}
+                  sx={{ textTransform: 'capitalize' }}
+                >
+                  {t(`proxies.page.modes.${mode}`)}
+                </Button>
+              ))}
+            </ButtonGroup>
+          )}
 
           <Button
             size="small"

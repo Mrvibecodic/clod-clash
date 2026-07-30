@@ -667,6 +667,18 @@ async fn create_tray_menu(
         .unwrap_or("default");
     let show_outbound_modes_inline = verge_settings.tray_inline_outbound_modes.unwrap_or(false);
 
+    // clod: `clod-lock-mode` — the panel forbids mode changes, so the tray
+    // shows no mode items at all (feat::change_clash_mode refuses anyway,
+    // but a menu that never works is worse than no menu).
+    let mode_locked = {
+        let profiles = Config::profiles().await.latest_arc();
+        profiles
+            .get_current()
+            .and_then(|uid| profiles.get_item(uid).ok())
+            .and_then(|item| item.lock_mode)
+            .unwrap_or(false)
+    };
+
     let version = env!("CARGO_PKG_VERSION");
 
     let hotkeys = create_hotkeys(&verge_settings.hotkeys);
@@ -716,7 +728,7 @@ async fn create_tray_menu(
         hotkeys.get("clash_mode_direct").copied(),
     )?;
 
-    let outbound_modes = if show_outbound_modes_inline {
+    let outbound_modes = if show_outbound_modes_inline || mode_locked {
         None
     } else {
         let current_mode_text = match current_proxy_mode {
@@ -858,7 +870,9 @@ async fn create_tray_menu(
     // 动态构建菜单项
     let mut menu_items: Vec<&dyn IsMenuItem<Wry>> = vec![open_window, separator];
 
-    if show_outbound_modes_inline {
+    if mode_locked {
+        // clod: no mode items while the panel locks the mode.
+    } else if show_outbound_modes_inline {
         menu_items.extend_from_slice(&[
             rule_mode as &dyn IsMenuItem<Wry>,
             global_mode as &dyn IsMenuItem<Wry>,

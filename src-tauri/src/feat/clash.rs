@@ -83,7 +83,23 @@ fn after_change_clash_mode() {
 ///
 /// mihomo `/configs` PATCH 失败时返回 `Err`，以便命令层把失败上抛给前端。
 /// （此前该函数吞掉错误并始终视为成功，导致 UI 误判"切换成功"、看似"切不动"。）
+/// clod: `clod-lock-mode` — the panel forbids mode changes. This is the one
+/// funnel the tray clicks and the global hotkeys go through, so the check
+/// here is what turns the hidden UI into an actual lock.
+async fn mode_locked_by_panel() -> bool {
+    let profiles = Config::profiles().await.latest_arc();
+    profiles
+        .get_current()
+        .and_then(|uid| profiles.get_item(uid).ok())
+        .and_then(|item| item.lock_mode)
+        .unwrap_or(false)
+}
+
 pub async fn change_clash_mode(mode: String) -> Result<(), String> {
+    if mode_locked_by_panel().await {
+        logging!(info, Type::Core, "mode change refused: locked by the panel (clod-lock-mode)");
+        return Err(clash_verge_i18n::t!("common.modeLocked").into_owned().into());
+    }
     let mut mapping = Mapping::new();
     mapping.insert(Value::from("mode"), Value::from(mode.as_str()));
     // Convert YAML mapping to JSON Value
