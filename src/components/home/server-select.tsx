@@ -22,7 +22,7 @@ import { delayGroup } from 'tauri-plugin-mihomo-api'
 
 import { CountryFlag } from '@/components/home/country-flag'
 import { useProxySelection } from '@/hooks/use-proxy-selection'
-import { useProxiesData } from '@/providers/app-data-context'
+import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
 import delayManager from '@/services/delay'
 import { showNotice } from '@/services/notice-service'
 import { delayColor } from '@/utils/delay-color'
@@ -61,7 +61,16 @@ interface Props {
 export const ServerSelect = ({ open, onClose }: Props) => {
   const { t } = useTranslation()
   const { proxies } = useProxiesData()
-  const { changeProxy } = useProxySelection()
+  const { refreshProxy } = useAppRefreshers()
+  // `selectNodeForGroup` talks straight to the core, so nothing tells the
+  // frontend to re-read the proxies — without the explicit refresh the tick
+  // and the "current server" row keep showing the previous node.
+  const { changeProxy } = useProxySelection({
+    onSuccess: () => {
+      refreshProxy().catch(() => {})
+    },
+    onError: (error) => showNotice.error(error),
+  })
   const [testing, setTesting] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -96,8 +105,11 @@ export const ServerSelect = ({ open, onClose }: Props) => {
       showNotice.error(error)
     } finally {
       setTesting(false)
+      // The core has fresh delay history now; re-read the proxies so the
+      // rows actually show it (the test itself emits no frontend event).
+      refreshProxy().catch(() => {})
     }
-  }, [group])
+  }, [group, refreshProxy])
 
   const renderRow = (node: ProxyNode) => {
     const delay = delayManager.getDelayFix(node as any, group?.name ?? '')
