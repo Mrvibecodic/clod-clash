@@ -204,6 +204,12 @@ pub(super) async fn init_core_manager() {
 
 pub(super) async fn init_system_proxy() {
     logging_error!(Type::Setup, sysopt::Sysopt::global().update_sysproxy().await);
+
+    // clod:simple-mode — when the app boots into an already-active proxy/TUN
+    // state, the Connect session starts now, not at some later toggle.
+    let verge = Config::verge().await.latest_arc();
+    let active = verge.enable_system_proxy.unwrap_or(false) || verge.enable_tun_mode.unwrap_or(false);
+    crate::feat::record_connect_targets(active);
 }
 
 pub(super) async fn init_system_proxy_guard() {

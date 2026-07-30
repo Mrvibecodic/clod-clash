@@ -32,6 +32,15 @@ pub fn open_web_url(url: String) -> CmdResult<()> {
     open::that(url.as_str()).stringify_err()
 }
 
+/// clod:simple-mode — epoch ms of the moment the Connect targets came up,
+/// or `null` when nothing is active. Source of truth for the session timer:
+/// the frontend cannot track this itself across page switches and tray
+/// toggles.
+#[tauri::command]
+pub fn get_connect_session_start() -> Option<i64> {
+    feat::connect_session_start()
+}
+
 /// 打开/关闭开发者工具
 #[tauri::command]
 pub fn open_devtools(app_handle: AppHandle) {

@@ -487,6 +487,12 @@ export const getAppUptime = async () => {
   return invoke<number>('get_app_uptime')
 }
 
+// clod: когда в последний раз поднялись цели Connect (epoch ms) — база
+// таймера сессии; null, когда ничего не активно
+export const getConnectSessionStart = async () => {
+  return invoke<number | null>('get_connect_session_start')
+}
+
 // 安装系统服务
 export const installService = async () => {
   return invoke<void>('install_service')

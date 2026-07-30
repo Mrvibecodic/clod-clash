@@ -288,6 +288,17 @@ pub async fn patch_verge(patch: &IVerge, not_save_file: bool) -> Result<()> {
         return Err(err);
     }
     Config::verge().await.apply();
+
+    // clod:simple-mode — every proxy/TUN toggle funnels through here, so this
+    // is the one place the Connect session stamp can track the combined state.
+    // After apply: a failed patch was discarded above and must not move it.
+    if patch.enable_system_proxy.is_some() || patch.enable_tun_mode.is_some() {
+        let latest = Config::verge().await.latest_arc();
+        let active =
+            latest.enable_system_proxy.unwrap_or(false) || latest.enable_tun_mode.unwrap_or(false);
+        crate::feat::record_connect_targets(active);
+    }
+
     logging_error!(Type::Backup, AutoBackupManager::global().refresh_settings().await);
     if !not_save_file {
         // 分离数据获取和异步调用
