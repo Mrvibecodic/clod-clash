@@ -112,6 +112,60 @@ impl CoreManager {
         self.start_core_inner().await
     }
 
+    /// clod:core-updater — stop the core, run `swap` (pointer writes on disk),
+    /// start again; when the new core fails to start, run `rollback` and start
+    /// once more. The lifecycle lock is held across the whole sequence so no
+    /// concurrent lifecycle operation can slip in between stop and start and
+    /// resurrect the old binary mid-swap. Every error path attempts to leave
+    /// a core running — an update must never cost the user their connection.
+    pub async fn restart_core_swapped(
+        &self,
+        swap: impl FnOnce() -> Result<()> + Send,
+        rollback: impl FnOnce() -> Result<()> + Send,
+    ) -> Result<()> {
+        let _life = self.lifecycle_lock.lock().await;
+        self.stop_core_inner().await?;
+
+        if let Err(swap_error) = swap() {
+            // Nothing switched; bring the old core back before reporting.
+            if let Err(start_error) = self.start_core_inner().await {
+                return Err(swap_error
+                    .context(format!("and restarting the old core failed too: {start_error:#}")));
+            }
+            return Err(swap_error);
+        }
+
+        match self.start_core_inner().await {
+            Ok(()) => Ok(()),
+            Err(start_error) => {
+                logging!(
+                    error,
+                    Type::Core,
+                    "new core failed to start, rolling back: {start_error:#}"
+                );
+                let rollback_result = rollback();
+                // Attempt a start even when the rollback write failed — a core
+                // resolved through whatever pointers remain (or the sidecar
+                // fallback) still beats no core at all.
+                let restart_result = self.start_core_inner().await;
+                match (rollback_result, restart_result) {
+                    (Ok(()), Ok(())) => {
+                        Err(start_error.context("the new core failed to start; the previous one is back"))
+                    }
+                    (Ok(()), Err(restart_error)) => Err(start_error.context(format!(
+                        "and restarting the previous core failed too: {restart_error:#}"
+                    ))),
+                    (Err(rollback_error), Ok(())) => Err(start_error.context(format!(
+                        "the rollback write failed ({rollback_error:#}) but a core is running again"
+                    ))),
+                    (Err(rollback_error), Err(restart_error)) => Err(start_error.context(format!(
+                        "the rollback failed ({rollback_error:#}) and so did the restart: {restart_error:#}"
+                    ))),
+                }
+            }
+        }
+    }
+
     pub async fn change_core(&self, clash_core: &String) -> Result<(), String> {
         if !IVerge::VALID_CLASH_CORES.contains(&clash_core.as_str()) {
             return Err(format!("Invalid clash core: {}", clash_core).into());

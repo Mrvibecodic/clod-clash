@@ -42,6 +42,7 @@ const RELEASE_API_STABLE: &str = "https://api.github.com/repos/MetaCubeX/mihomo/
 const RELEASE_API_ALPHA: &str = "https://api.github.com/repos/MetaCubeX/mihomo/releases/tags/Prerelease-Alpha";
 const DOWNLOAD_TIMEOUT_SECS: u64 = 300;
 const API_TIMEOUT_SECS: u64 = 30;
+const REACHABILITY_TIMEOUT_SECS: u64 = 15;
 const PROBE_TIMEOUT: Duration = Duration::from_secs(10);
 /// Progress event listened to by the settings dialog.
 const PROGRESS_EVENT: &str = "clod://core-update-progress";
@@ -63,6 +64,10 @@ pub struct CoreUpdaterStatus {
     pub previous: Option<String>,
     /// What the running core reports through its API, whoever provides it.
     pub running: Option<String>,
+    /// The core currently runs through the elevated service; the managed
+    /// core is sidecar-only (privilege boundary), so the dialog explains
+    /// why the managed binary is not what is running.
+    pub service_mode: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -145,7 +150,14 @@ fn read_pointer(name: &str) -> Option<String> {
 fn write_pointer(name: &str, version: Option<&str>) -> Result<()> {
     let path = pointer_file(name)?;
     match version {
-        Some(v) => std::fs::write(&path, v).context("failed to write core pointer")?,
+        Some(v) => {
+            // Write-then-rename: a crash mid-write must not leave a truncated
+            // pointer behind — an empty `current` silently drops the user
+            // back to the sidecar.
+            let staging = path.with_extension("tmp");
+            std::fs::write(&staging, v).context("failed to write core pointer")?;
+            std::fs::rename(&staging, &path).context("failed to move core pointer in place")?;
+        }
         None => {
             let _ = std::fs::remove_file(&path);
         }
@@ -209,6 +221,19 @@ fn target_os_arch() -> Result<(&'static str, &'static str)> {
     Ok((os, arch))
 }
 
+/// A remainder that is a release version and nothing else: `v1.19.2` or
+/// `alpha-g0a1b2c3`. Microarch variants (`v3-v1.19.2`), `compatible`, `-go1`
+/// and future suffixes all fail this — they would either mis-derive the
+/// version forever ("update available" for a build that is already running)
+/// or SIGILL on CPUs without the newer instruction sets.
+fn is_plain_version(version: &str) -> bool {
+    if let Some(rest) = version.strip_prefix('v') {
+        let digits = rest.chars().take_while(char::is_ascii_digit).count();
+        return digits > 0 && rest[digits..].starts_with('.');
+    }
+    version.starts_with("alpha-")
+}
+
 /// Choose the plain build for this machine and derive its version from the
 /// asset name (`mihomo-{os}-{arch}-{version}.{ext}`); the alpha channel has
 /// no usable tag, the hash lives only in the file name.
@@ -216,19 +241,27 @@ fn pick_asset(assets: &[GhAsset], os: &str, arch: &str) -> Result<(GhAsset, Stri
     let prefix = format!("mihomo-{os}-{arch}-");
     let ext = if os == "windows" { ".zip" } else { ".gz" };
 
-    let asset = assets
+    let version_of = |a: &GhAsset| -> Option<String> {
+        (a.name.starts_with(&prefix) && a.name.ends_with(ext))
+            .then(|| a.name[prefix.len()..a.name.len() - ext.len()].to_string())
+    };
+
+    // Strict pass first: the plain build, whatever order GitHub returns the
+    // assets in. The lenient tiers only exist for a future naming change:
+    // first refusing the known variant markers, then — with nothing else on
+    // offer — even a `compatible` build beats no core at all.
+    let picked = assets
         .iter()
-        .filter(|a| a.name.starts_with(&prefix) && a.name.ends_with(ext))
-        .find(|a| !a.name.contains("compatible") && !a.name.contains("-go1"))
+        .find_map(|a| version_of(a).filter(|v| is_plain_version(v)).map(|v| (a.clone(), v)))
         .or_else(|| {
             assets
                 .iter()
-                .find(|a| a.name.starts_with(&prefix) && a.name.ends_with(ext))
+                .filter(|a| !a.name.contains("compatible") && !a.name.contains("-go1"))
+                .find_map(|a| version_of(a).map(|v| (a.clone(), v)))
         })
-        .cloned()
-        .ok_or_else(|| anyhow!("no release asset for {os}/{arch}"))?;
+        .or_else(|| assets.iter().find_map(|a| version_of(a).map(|v| (a.clone(), v))));
 
-    let version = asset.name[prefix.len()..asset.name.len() - ext.len()].to_string();
+    let (asset, version) = picked.ok_or_else(|| anyhow!("no release asset for {os}/{arch}"))?;
     if version.is_empty() {
         bail!("could not derive a version from asset name {}", asset.name);
     }
@@ -281,11 +314,16 @@ pub async fn status() -> CoreUpdaterStatus {
     let enabled = verge.use_managed_core.unwrap_or(false);
     let current = read_pointer("current").filter(|v| version_binary(v).map(|p| p.is_file()).unwrap_or(false));
     let previous = read_pointer("previous").filter(|v| version_binary(v).map(|p| p.is_file()).unwrap_or(false));
+    let service_mode = matches!(
+        *CoreManager::global().get_running_mode(),
+        crate::core::manager::RunningMode::Service
+    );
     CoreUpdaterStatus {
-        managed_active: enabled && current.is_some(),
+        managed_active: enabled && current.is_some() && !service_mode,
         current,
         previous,
         running: running_core_version().await,
+        service_mode,
     }
 }
 
@@ -296,7 +334,9 @@ pub async fn check_core_update() -> Result<CoreUpdateCheck> {
     let release = fetch_release(&channel).await?;
     let (_, latest) = pick_asset(&release.assets, os, arch)?;
     let current = running_core_version().await;
-    let update_available = current.as_deref() != Some(latest.as_str());
+    // An unreachable core API (restart in flight, IPC hiccup) must not read
+    // as "update available" — that turns the daily check into noise.
+    let update_available = current.as_deref().is_some_and(|v| v != latest.as_str());
     Ok(CoreUpdateCheck {
         channel,
         current,
@@ -314,9 +354,27 @@ fn emit_progress(phase: &str, received: u64, total: u64) {
     let _ = handle::Handle::app_handle().emit(PROGRESS_EVENT, &payload);
 }
 
+/// A blackholed direct route (packets dropped, not refused — the audience the
+/// Localhost fallback exists for) would otherwise stall the download for the
+/// full `DOWNLOAD_TIMEOUT_SECS` before the fallback even starts. A cheap HEAD
+/// with a short timeout answers "is this route alive at all" first.
+async fn route_is_alive(proxy: ProxyType, url: &str) -> bool {
+    let attempt = async {
+        let client = http_client(proxy, REACHABILITY_TIMEOUT_SECS).await?;
+        let response = client.head(url).send().await?;
+        Ok::<bool, anyhow::Error>(response.status().is_success() || response.status().is_redirection())
+    };
+    attempt.await.unwrap_or(false)
+}
+
 async fn download_asset(asset: &GhAsset) -> Result<Vec<u8>> {
     let mut last_error = anyhow!("download not attempted");
     for proxy in [ProxyType::None, ProxyType::Localhost] {
+        if matches!(proxy, ProxyType::None) && !route_is_alive(proxy, &asset.browser_download_url).await {
+            logging!(warn, Type::Core, "direct route to GitHub looks dead, trying the core tunnel");
+            last_error = anyhow!("direct connection to GitHub timed out");
+            continue;
+        }
         let attempt = async {
             let client = http_client(proxy, DOWNLOAD_TIMEOUT_SECS).await?;
             let mut response = client.get(&asset.browser_download_url).send().await?;
@@ -451,7 +509,14 @@ async fn install_binary(version: &str, data: &[u8]) -> Result<PathBuf> {
 /// The unpacked binary must at least answer `-v`; everything else stays the
 /// core's own business.
 async fn probe_binary(binary: &PathBuf) -> Result<String> {
-    let output = tokio::time::timeout(PROBE_TIMEOUT, tokio::process::Command::new(binary).arg("-v").output())
+    let mut command = tokio::process::Command::new(binary);
+    command.arg("-v");
+    #[cfg(target_os = "windows")]
+    {
+        // No console flash for the probe, same as every other spawn here.
+        command.creation_flags(0x08000000);
+    }
+    let output = tokio::time::timeout(PROBE_TIMEOUT, command.output())
         .await
         .context("core -v probe timed out")??;
     if !output.status.success() {
@@ -514,35 +579,33 @@ async fn ensure_managed_enabled() -> Result<()> {
 }
 
 /// Switch the pointers and restart the core on the new binary; roll back and
-/// restart the old state when anything on the way explodes.
+/// restart the old state when anything on the way explodes. The whole
+/// stop→write→start sequence runs under the lifecycle lock (see
+/// `restart_core_swapped`), and every error path restarts a core.
 async fn swap_to_version(version: &str) -> Result<()> {
     let old_current = read_pointer("current");
     let old_previous = read_pointer("previous");
 
-    CoreManager::global().stop_core().await?;
+    let new_version = version.to_string();
+    let swap_current = old_current.clone();
+    let rollback_current = old_current.clone();
+    let rollback_previous = old_previous.clone();
 
-    write_pointer("previous", old_current.as_deref())?;
-    write_pointer("current", Some(version))?;
+    CoreManager::global()
+        .restart_core_swapped(
+            move || {
+                write_pointer("previous", swap_current.as_deref())?;
+                write_pointer("current", Some(&new_version))
+            },
+            move || {
+                write_pointer("current", rollback_current.as_deref())?;
+                write_pointer("previous", rollback_previous.as_deref())
+            },
+        )
+        .await?;
 
-    match CoreManager::global().start_core().await {
-        Ok(()) => {
-            cleanup_versions();
-            Ok(())
-        }
-        Err(start_error) => {
-            logging!(
-                error,
-                Type::Core,
-                "new core failed to start, rolling back: {start_error:#}"
-            );
-            write_pointer("current", old_current.as_deref())?;
-            write_pointer("previous", old_previous.as_deref())?;
-            if let Err(rollback_error) = CoreManager::global().start_core().await {
-                bail!("new core failed to start ({start_error:#}) and the rollback failed too: {rollback_error:#}");
-            }
-            Err(start_error.context("the new core failed to start; the previous one is back"))
-        }
-    }
+    cleanup_versions();
+    Ok(())
 }
 
 /// Full update: resolve the channel's latest build, download, verify, unpack,
@@ -608,14 +671,15 @@ pub async fn revert_core() -> Result<()> {
 }
 
 /// Turn the managed core off and go back to the bundled sidecar.
+/// `patch_verge` maps a `use_managed_core` change to a core restart
+/// (feat::config::determine_update_flags), so no explicit restart here.
 pub async fn disable_managed_core() -> Result<()> {
     let _guard = UpdateGuard::acquire()?;
     let patch = IVerge {
         use_managed_core: Some(false),
         ..IVerge::default()
     };
-    crate::feat::patch_verge(&patch, false).await?;
-    CoreManager::global().restart_core().await
+    crate::feat::patch_verge(&patch, false).await
 }
 
 // ---------------------------------------------------------------------------
@@ -624,6 +688,21 @@ pub async fn disable_managed_core() -> Result<()> {
 
 const AUTO_CHECK_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60);
 const AUTO_CHECK_STARTUP_DELAY: Duration = Duration::from_secs(90);
+
+/// The last version the daily check already notified about — one notice per
+/// version, not one per day for the same version.
+static LAST_NOTIFIED: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
+fn should_notify(version: &str) -> bool {
+    let Ok(mut last) = LAST_NOTIFIED.lock() else {
+        return true;
+    };
+    if last.as_deref() == Some(version) {
+        return false;
+    }
+    *last = Some(version.to_string());
+    true
+}
 
 /// Once a day, and only when the user opted in: check the channel and raise
 /// a notice — never download anything behind the user's back.
@@ -637,7 +716,7 @@ pub fn spawn_auto_check() {
 
             if enabled {
                 match check_core_update().await {
-                    Ok(check) if check.update_available => {
+                    Ok(check) if check.update_available && should_notify(&check.latest) => {
                         handle::Handle::notice_message("clod_core::update_available", check.latest.clone());
                     }
                     Ok(_) => {}
@@ -680,6 +759,36 @@ mod tests {
         let (picked, version) = pick_asset(&assets, "linux", "amd64").expect("linux asset");
         assert_eq!(picked.name, "mihomo-linux-amd64-v1.19.2.gz");
         assert_eq!(version, "v1.19.2");
+    }
+
+    #[test]
+    fn microarch_variants_lose_to_the_plain_build_regardless_of_order() {
+        // MetaCubeX ships x86-64-v3 builds too; GitHub returns assets in
+        // upload order, so the v3 build may come first. Picking it would
+        // derive the version as "v3-v1.19.2" (never equal to the running
+        // core → permanent "update available") and SIGILL older CPUs.
+        let assets = vec![
+            asset("mihomo-linux-amd64-v3-v1.19.2.gz"),
+            asset("mihomo-linux-amd64-v2-v1.19.2.gz"),
+            asset("mihomo-linux-amd64-v1.19.2.gz"),
+        ];
+        let (picked, version) = pick_asset(&assets, "linux", "amd64").expect("plain build");
+        assert_eq!(picked.name, "mihomo-linux-amd64-v1.19.2.gz");
+        assert_eq!(version, "v1.19.2");
+
+        // Same for the alpha channel naming.
+        let assets = vec![
+            asset("mihomo-windows-amd64-v3-alpha-g0a1b2c3.zip"),
+            asset("mihomo-windows-amd64-alpha-g0a1b2c3.zip"),
+        ];
+        let (picked, version) = pick_asset(&assets, "windows", "amd64").expect("plain alpha");
+        assert_eq!(picked.name, "mihomo-windows-amd64-alpha-g0a1b2c3.zip");
+        assert_eq!(version, "alpha-g0a1b2c3");
+
+        assert!(is_plain_version("v1.19.2"));
+        assert!(is_plain_version("alpha-g0a1b2c3"));
+        assert!(!is_plain_version("v3-v1.19.2"));
+        assert!(!is_plain_version("compatible-v1.19.2"));
     }
 
     #[test]

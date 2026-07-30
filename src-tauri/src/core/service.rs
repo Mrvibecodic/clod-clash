@@ -478,11 +478,19 @@ pub(super) async fn start_with_existing_service(config_file: &PathBuf) -> Result
     drop(verge_config);
 
     let bin_ext = if cfg!(windows) { ".exe" } else { "" };
-    // clod:F5 — the service too runs the managed core when one is active.
-    let bin_path = match crate::core::core_updater::managed_core_binary().await {
-        Some(path) => path,
-        None => service_core_path(&clash_core, bin_ext)?,
-    };
+    // clod:F5 — the managed core is deliberately NOT handed to the service:
+    // the service runs elevated, and `{app_home}/cores` is writable by the
+    // unprivileged user, so pointing the service there would turn "can write
+    // app-data" into "code runs as SYSTEM/root". Service mode always runs the
+    // admin-owned bundled core; the managed core is a sidecar-mode feature.
+    if crate::core::core_updater::managed_core_binary().await.is_some() {
+        logging!(
+            warn,
+            Type::Service,
+            "managed core is enabled but service mode runs the bundled core (privilege boundary)"
+        );
+    }
+    let bin_path = service_core_path(&clash_core, bin_ext)?;
 
     let payload = clash_verge_service_ipc::ClashConfig {
         core_config: CoreConfig {

@@ -122,6 +122,10 @@ fn determine_update_flags(patch: &IVerge) -> UpdateFlags {
         || socks_port.is_some()
         || http_port.is_some()
         || mixed_port.is_some()
+        // clod:core-updater — flipping the managed core on or off changes
+        // which binary should run; without a restart the UI claims "managed"
+        // while the old binary keeps serving traffic.
+        || patch.use_managed_core.is_some()
         || enable_external_controller.is_some();
     #[cfg(not(target_os = "windows"))]
     let mut restart_core_needed = socks_enabled.is_some()
@@ -129,6 +133,8 @@ fn determine_update_flags(patch: &IVerge) -> UpdateFlags {
         || socks_port.is_some()
         || http_port.is_some()
         || mixed_port.is_some()
+        // clod:core-updater — see the note in the windows branch above.
+        || patch.use_managed_core.is_some()
         || enable_external_controller.is_some();
     #[cfg(not(target_os = "windows"))]
     {
