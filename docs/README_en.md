@@ -1,130 +1,227 @@
 <h1 align="center">
-  <img src="../src-tauri/icons/icon.png" alt="Clash" width="128" />
-  <br>
-  Continuation of <a href="https://github.com/zzzgydi/clash-verge">Clash Verge</a>
-  <br>
+  Clod Clash
 </h1>
 
-<h3 align="center">
-A Clash Meta GUI built with <a href="https://github.com/tauri-apps/tauri">Tauri</a>.
-</h3>
-
 <p align="center">
-  Languages:
-  <a href="../README.md">简体中文</a> ·
-  <a href="./README_en.md">English</a> ·
-  <a href="./README_es.md">Español</a> ·
-  <a href="./README_ru.md">Русский</a> ·
-  <a href="./README_ja.md">日本語</a> ·
-  <a href="./README_ko.md">한국어</a> ·
-  <a href="./README_fa.md">فارسی</a>
+  A desktop client for Remnawave subscriptions, powered by the
+  <a href="https://github.com/MetaCubeX/mihomo">Mihomo</a> core.
+  <br>
+  A fork of <a href="https://github.com/clash-verge-rev/clash-verge-rev">Clash Verge Rev</a>.
 </p>
 
-## Preview
-
-| Dark                                | Light                                 |
-| ----------------------------------- | ------------------------------------- |
-| ![Dark Preview](./preview_dark.png) | ![Light Preview](./preview_light.png) |
-
-## Install
-
-Visit the [Release page](https://github.com/clash-verge-rev/clash-verge-rev/releases) to download the installer that matches your platform.<br>
-We provide packages for Windows (x64/x86), Linux (x64/arm64), and macOS 10.15+ (Intel/Apple).
-
-#### Choosing a Release Channel
-
-| Channel     | Description                                                           | Link                                                                                   |
-| :---------- | :-------------------------------------------------------------------- | :------------------------------------------------------------------------------------- |
-| Stable      | Official builds with high reliability, ideal for daily use.           | [Release](https://github.com/clash-verge-rev/clash-verge-rev/releases)                 |
-| Alpha (EOL) | Legacy builds used to validate the publish pipeline.                  | [Alpha](https://github.com/clash-verge-rev/clash-verge-rev/releases/tag/alpha)         |
-| AutoBuild   | Rolling builds for testing and feedback. Expect experimental changes. | [AutoBuild](https://github.com/clash-verge-rev/clash-verge-rev/releases/tag/autobuild) |
-
-#### Installation Guides & FAQ
-
-Read the [project documentation](https://clash-verge-rev.github.io/) for install steps, troubleshooting, and frequently asked questions.
-
-### Telegram Channel
-
-Join [@clash_verge_rev](https://t.me/clash_verge_re) for update announcements.
+<p align="center">
+  Languages: <a href="../README.md">Русский</a> · <b>English</b>
+</p>
 
 ---
 
-## Promotion
+## What this is
 
-### ✈️ [Doggygo VPN — A Technical-Grade Proxy Service](https://verge.dginv.click/#/register?code=oaxsAGo6)
+Clod Clash is Clash Verge Rev turned into a client for a panel's customers: the user
+pastes a subscription link and presses one button. Everything the panel wants to tell the
+client — plan name, logo, announcement, links to the customer portal and support, the
+device limit, a change of subscription address — is understood and shown.
 
-🚀 A high-performance, overseas, technical-grade proxy service offering free trials and discounted plans, fully unlocking streaming platforms and AI services. The world’s first provider to adopt the **QUIC protocol**.
+The Mihomo core is never modified: the official binary and its regular REST/IPC interface
+are used. All of Clash Verge Rev's technical surface (rules, connections, logs, config
+editors) is kept — it is simply moved out of sight into an advanced mode.
 
-🎁 Register via the **Clash Verge exclusive invitation link** to receive **3 days of free trial**, with **1GB traffic per day**: 👉 [Register here](https://verge.dginv.click/#/register?code=oaxsAGo6)
+> **Status: early alpha (0.0.1-alpha).** No releases yet, auto-update is not wired up.
 
-#### **Core Advantages:**
+## Differences from Clash Verge Rev
 
-- 📱 Self-developed iOS client (the industry’s “only one”), with technology proven in production and **significant ongoing R&D investment**
-- 🧑‍💻 **12-hour live customer support** (also assists with Clash Verge usage issues)
-- 💰 Discounted plans at **only CNY 21 per month, 160GB traffic, 20% off with annual billing**
-- 🌍 Overseas team, no risk of shutdown or exit scams, with up to **50% referral commission**
-- ⚙️ **Cluster-based load balancing** architecture with **real-time load monitoring and elastic scaling**, high-speed dedicated lines (compatible with legacy clients), ultra-low latency, unaffected by peak hours, **4K streaming loads instantly**
-- ⚡ The world’s first **QUIC-protocol-based proxy service**, now featuring faster **QUIC-family protocols** (best paired with the Clash Verge client)
-- 🎬 Unlocks **streaming platforms and mainstream AI services**
-
-🌐 Official Website: 👉 [https://狗狗加速.com](https://verge.dginv.click/#/register?code=oaxsAGo6)
-
-### 🤖 [GPTKefu — AI-Powered Customer Service Platform Deeply Integrated with Crisp](https://gptkefu.com)
-
-- 🧠 Deep understanding of full conversation context + image recognition, automatically providing professional and precise replies — no more robotic responses.
-- ♾️ **Unlimited replies**, no quota anxiety — unlike other AI customer service products that charge per message.
-- 💬 Pre-sales inquiries, after-sales support, complex Q&A — covers all scenarios effortlessly, with real user cases to prove it.
-- ⚡ 3-minute setup, zero learning curve — instantly boost customer service efficiency and satisfaction.
-- 🎁 Free 14-day trial of the Premium plan — try before you pay: 👉 [Start Free Trial](https://gptkefu.com)
-- 📢 AI Customer Service TG Channel: [@crisp_ai](https://t.me/crisp_ai)
+| Capability | Clash Verge Rev | Clod Clash |
+| --- | --- | --- |
+| Remnawave / Happ subscription headers | 4 headers | 21 headers, see below |
+| Device identity (`x-hwid`) | no | yes, including device-limit handling |
+| Spare subscription address | no | `fallback-url` and `fallback-domain` |
+| Provider-driven address change | no | `new-url` / `new-domain`, verified before adopting |
+| Logo, announcements, portal, support | partial | yes |
+| Unmetered traffic / no expiry | shows `0 B` and `-` | "Unlimited" / "No expiry" |
+| Updating the Mihomo core separately from the app | no | in progress |
+| Simple interface mode | no | in progress |
 
 ---
 
-## Features
+## Subscription headers
 
-- Built on high-performance Rust with the Tauri 2 framework
-- Ships with the embedded [Clash.Meta (mihomo)](https://github.com/MetaCubeX/mihomo) core and supports switching to the `Alpha` channel
-- Clean, polished UI with theme color controls, proxy group/tray icons, and `CSS Injection`
-- Enhanced profile management (Merge and Script helpers) with configuration syntax hints
-- System proxy controls, guard mode, and `TUN` (virtual network adapter) support
-- Visual editors for nodes and rules
-- WebDAV-based backup and sync for configurations
+This is the whole point of the fork. Below is everything the client sends and understands.
 
-### FAQ
+### What the client sends
 
-See the [FAQ page](https://clash-verge-rev.github.io/faq/windows.html) for platform-specific guidance.
+Sent with **every** subscription request — on import, on manual refresh and on the
+scheduled one.
 
-### Donation
+| Header | Value | Why |
+| --- | --- | --- |
+| `User-Agent` | `ClodClash/0.0.1-alpha (Mihomo; windows)` | how the panel recognises the client and decides which config format to serve. `windows` becomes `macos` / `linux` |
+| `Accept` | `*/*` | without it the panel may take the client for a browser and serve an HTML landing page instead of the config |
+| `x-hwid` | 32 hex characters | device id for the device limit |
+| `x-device-os` | `Windows` / `macOS` / `Linux` | shown in the panel's device list |
+| `x-ver-os` | OS version | same |
+| `x-device-model` | machine name | same |
 
-[Support Clash Verge Rev development](https://github.com/sponsors/clash-verge-rev)
+The four `x-*` headers are only sent while device identification is enabled (it is, by
+default). Turning it off stops all of them.
 
-## Development
+### What the client understands in the response
 
-See [CONTRIBUTING.md](../CONTRIBUTING.md) for detailed contribution guidelines.
+**Subscription description**
 
-After installing all **Tauri** prerequisites, run the development shell with:
+| Header | Meaning | What the app does |
+| --- | --- | --- |
+| `profile-title` | plan name | sets the profile name. A name the user typed is never overwritten |
+| `profile-logo` | provider logo URL | shown next to the subscription. Only `http`/`https` links are accepted |
+| `subscription-userinfo` | `upload`, `download`, `total`, `expire` | traffic and expiry on the subscription card. `total=0` → "Unlimited", `expire=0` → "No expiry" |
+| `subscription-refill-date` | unix time of the traffic reset | "Traffic resets on {date}" |
+| `profile-update-interval` | refresh interval in hours | sets the interval and marks it as dictated by the provider, so the user cannot override it |
+| `content-disposition` | file name | fallback source for the profile name when `profile-title` is absent |
 
-```shell
-pnpm i
-pnpm run prebuild
-pnpm dev
+**Contacting the provider**
+
+| Header | Meaning | What the app does |
+| --- | --- | --- |
+| `profile-web-page-url` | customer portal link | "Customer portal" button |
+| `support-url` | support link | "Support" button; a `t.me/…` link gets a Telegram icon |
+| `announce` | provider message | banner in the app. The user can dismiss it; a changed text brings it back |
+| `announce-url` | where clicking the banner leads | makes the banner clickable. `http`/`https` only |
+
+**Changing the subscription address**
+
+| Header | Meaning | What the app does |
+| --- | --- | --- |
+| `new-url` | replacement subscription URL | adopted **only** after a probe download of the candidate succeeds. The old address is kept in history |
+| `new-domain` | replacement host (`host:port` allowed) | only the host changes, path and query are preserved. Verified the same way as `new-url` |
+| `fallback-url` | full spare address | used only when the primary address fails. The stored address is **not** replaced |
+| `fallback-domain` | spare host for the primary address | tried after `fallback-url`. Order: primary → `fallback-url` → primary with the host swapped |
+
+At most **three** consecutive `new-url` / `new-domain` moves are followed — a guard against
+two panels bouncing the client back and forth. The counter resets as soon as an update
+arrives without a migration request.
+
+**Device limit**
+
+| Header | Meaning | What the app does |
+| --- | --- | --- |
+| `x-hwid-active` | the device is registered | nothing, informational |
+| `x-hwid-not-supported` | the panel wants an id the client did not send | dialog: "The provider requires device identification. Turn it on?" |
+| `x-hwid-max-devices-reached`<br>`x-hwid-limit` | device limit is full | dialog with the text from `announce` and a "Support" button. **A working profile is never overwritten** — the panel's body is a stub in this case |
+| `x-hwid-max-devices` | how many devices are allowed | filled into the dialog text |
+
+**Reminders**
+
+| Header | Meaning | What the app does |
+| --- | --- | --- |
+| `notify-expire-days` | how many days ahead to warn: `7,3,1` or `off` | stored on the profile (reacting to it is in progress) |
+| `notify-traffic-percent` | used-traffic thresholds: `80,90,100` or `off` | stored on the profile (reacting to it is in progress) |
+| `notification-subs-expire` | Happ compatibility | with none of our headers present, enables expiry reminders with the defaults |
+
+### Parsing rules
+
+These apply to every header above:
+
+* **Case does not matter.** `Profile-Title`, `profile-title` and `PROFILE-TITLE` are the same.
+* **Object-storage prefixes are accepted.** When a subscription is served from S3-compatible
+  storage the headers arrive as `x-amz-meta-profile-title`, `x-obs-meta-support-url` and
+  friends — those are recognised. An unrelated header such as `renew-url` is **not**
+  mistaken for `new-url`.
+* **A `base64:` prefixed value is decoded.** Four alphabets are understood: standard,
+  unpadded, url-safe and url-safe unpadded. If decoding fails, the raw string is used.
+* **Non-ASCII text is read in both forms:** as `base64:` and as raw UTF-8 straight in the
+  header value. The latter is not allowed by the spec, but panels do it, so the client
+  copes.
+* **A header value cannot contain a newline.** A multi-line announcement has to be sent as
+  `base64:` — otherwise it physically cannot arrive.
+* **Links are validated.** `profile-logo` and `announce-url` are only accepted as
+  `http`/`https`; `new-url` may not downgrade `https` to `http`.
+* **Empty values are ignored**, an announcement is capped at 500 characters, threshold
+  lists are range-checked (1–365 days, 1–100 percent) and limited to ten entries. A
+  completely invalid header behaves like a missing one.
+
+---
+
+## Configuring a Remnawave panel
+
+**User-Agent rule.** Remnawave's default subscription-response rules do not know about this
+client. Add a rule matching `^clodclash` with the **MIHOMO** format, otherwise the panel
+serves its default response and the app reports that the panel did not recognise the client.
+
+**Extra headers.** `announce`, `announce-url`, `profile-logo`, `support-url`, `new-url`,
+`fallback-url`, `notify-*` and the rest that are not part of Remnawave's standard set are
+configured through `customResponseHeaders`. Values with non-ASCII text are safer to send as
+`base64:<payload>`.
+
+**Device limit.** With the limit enabled the panel refuses to serve the subscription without
+`x-hwid`. The client sends it by default, and the id is stable across restarts and app
+updates, so a device is not registered twice.
+
+---
+
+## Device id
+
+Derived from the operating system's machine id:
+
+| System | Source |
+| --- | --- |
+| Windows | `HKLM\SOFTWARE\Microsoft\Cryptography\MachineGuid` |
+| macOS | `IOPlatformUUID` |
+| Linux | `/etc/machine-id`, falling back to `/var/lib/dbus/machine-id` |
+
+The value is salted, hashed with SHA-256, and the first 32 hex characters are what leaves
+the machine. **The machine id itself never does.** The result satisfies Remnawave 2.9's
+`^[a-zA-Z0-9=-]{10,64}$` check and is cached in the app config so it survives a change in
+how the underlying id is read. When no stable source is available a random id is generated
+and cached the same way.
+
+The id is sent **only** to the subscription address, nowhere else, and one switch in the
+settings turns it off.
+
+---
+
+## Building
+
+```bash
+pnpm install
+pnpm prebuild          # downloads the Mihomo core and helper binaries
+pnpm dev               # run in development mode
+pnpm build             # build an installer
 ```
 
-## Contributions
+Requires Rust (version pinned in `rust-toolchain.toml`), Node.js 22+ and pnpm. Tauri's
+system dependencies are listed in the [Tauri prerequisites](https://tauri.app/start/prerequisites/).
 
-Issues and pull requests are welcome!
+Checks before committing:
 
-## Acknowledgement
+```bash
+cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+cargo test --manifest-path src-tauri/Cargo.toml
+pnpm exec tsc --noEmit
+```
 
-Clash Verge Rev builds on or draws inspiration from these projects:
+---
 
-- [zzzgydi/clash-verge](https://github.com/zzzgydi/clash-verge): A Tauri-based Clash GUI for Windows, macOS, and Linux.
-- [tauri-apps/tauri](https://github.com/tauri-apps/tauri): Build smaller, faster, more secure desktop apps with a web frontend.
-- [Dreamacro/clash](https://github.com/Dreamacro/clash): A rule-based tunnel written in Go.
-- [MetaCubeX/mihomo](https://github.com/MetaCubeX/mihomo): A rule-based tunnel written in Go.
-- [Fndroid/clash_for_windows_pkg](https://github.com/Fndroid/clash_for_windows_pkg): A Clash GUI for Windows and macOS.
-- [vitejs/vite](https://github.com/vitejs/vite): Next-generation frontend tooling with blazing-fast DX.
+## Acknowledgements
+
+Clod Clash would not exist without these projects:
+
+* [MetaCubeX/mihomo](https://github.com/MetaCubeX/mihomo) — the core everything runs on.
+  We neither modify nor fork it: the official binary is used.
+* [clash-verge-rev/clash-verge-rev](https://github.com/clash-verge-rev/clash-verge-rev) —
+  the application Clod Clash forks. The entire interface, profile handling, system proxy,
+  TUN, service and tray are their work.
+* [zzzgydi/clash-verge](https://github.com/zzzgydi/clash-verge) — the original Clash Verge
+  this line of clients started from.
+* [tauri-apps/tauri](https://github.com/tauri-apps/tauri) — the application framework.
+* [Dreamacro/clash](https://github.com/Dreamacro/clash) — the ancestor of the core.
+* [remnawave/panel](https://github.com/remnawave/panel) — the panel this fork targets; the
+  base set of subscription headers comes from its implementation.
+
+Separately, to the projects whose product decisions and header sets we studied:
+[FlClash](https://github.com/chen08209/FlClash) and its fork
+[FlClashX](https://github.com/pluralplay/FlClashX),
+[koala-clash](https://github.com/coolcoala/koala-clash),
+[Prizrak-Box](https://github.com/legiz-ru/Prizrak-Box).
 
 ## License
 
-GPL-3.0 License. See the [license file](../LICENSE) for details.
+GPL-3.0, same as Clash Verge Rev. See [LICENSE](../LICENSE).

@@ -1,131 +1,230 @@
 <h1 align="center">
-  <img src="./src-tauri/icons/icon.png" alt="Clash" width="128" />
-  <br>
-  Continuation of <a href="https://github.com/zzzgydi/clash-verge">Clash Verge</a>
-  <br>
+  Clod Clash
 </h1>
 
-<h3 align="center">
-A Clash Meta GUI based on <a href="https://github.com/tauri-apps/tauri">Tauri</a>.
-</h3>
+<p align="center">
+  Десктопный клиент для подписок Remnawave на ядре
+  <a href="https://github.com/MetaCubeX/mihomo">Mihomo</a>.
+  <br>
+  Форк <a href="https://github.com/clash-verge-rev/clash-verge-rev">Clash Verge Rev</a>.
+</p>
 
 <p align="center">
-  Languages:
-  <a href="./README.md">简体中文</a> ·
-  <a href="./docs/README_en.md">English</a> ·
-  <a href="./docs/README_es.md">Español</a> ·
-  <a href="./docs/README_ru.md">Русский</a> ·
-  <a href="./docs/README_ja.md">日本語</a> ·
-  <a href="./docs/README_ko.md">한국어</a> ·
-  <a href="./docs/README_fa.md">فارسی</a>
+  Languages: <b>Русский</b> · <a href="./docs/README_en.md">English</a>
 </p>
 
-## Preview
+---
 
-| Dark                             | Light                             |
-| -------------------------------- | --------------------------------- |
-| ![预览](./docs/preview_dark.png) | ![预览](./docs/preview_light.png) |
+## Что это
 
-## Install
+Clod Clash — сборка Clash Verge Rev, доведённая до состояния «клиент для клиентов панели»:
+пользователь вставляет ссылку на подписку и нажимает одну кнопку. Всё, что панель хочет
+сообщить клиенту — название тарифа, логотип, объявление, ссылку на кабинет и поддержку,
+лимит устройств, смену адреса подписки — приложение понимает и показывает.
 
-请到发布页面下载对应的安装包：[Release page](https://github.com/clash-verge-rev/clash-verge-rev/releases)<br>
-Go to the [Release page](https://github.com/clash-verge-rev/clash-verge-rev/releases) to download the corresponding installation package<br>
-Supports Windows (x64/x86), Linux (x64/arm64) and macOS 11+ (intel/apple).
+Ядро Mihomo не модифицируется: используется официальный бинарник и штатный REST/IPC.
+Вся техническая часть Clash Verge Rev (правила, соединения, логи, редакторы конфигов)
+сохранена — она просто убирается с глаз в расширенный режим.
 
-#### 我应当怎样选择发行版
+> **Статус: ранняя альфа (0.0.1-alpha).** Релизов пока нет, автообновление не настроено.
 
-| 版本        | 特征                                     | 链接                                                                                   |
-| :---------- | :--------------------------------------- | :------------------------------------------------------------------------------------- |
-| Stable      | 正式版，高可靠性，适合日常使用。         | [Release](https://github.com/clash-verge-rev/clash-verge-rev/releases)                 |
-| Alpha(废弃) | 测试发布流程。                           | [Alpha](https://github.com/clash-verge-rev/clash-verge-rev/releases/tag/alpha)         |
-| AutoBuild   | 滚动更新版，适合测试反馈，可能存在缺陷。 | [AutoBuild](https://github.com/clash-verge-rev/clash-verge-rev/releases/tag/autobuild) |
+## Отличия от Clash Verge Rev
 
-#### 安装说明和常见问题，请到 [文档页](https://clash-verge-rev.github.io/) 查看
-
-### TG 频道: [@clash_verge_rev](https://t.me/clash_verge_re)
+| Возможность | Clash Verge Rev | Clod Clash |
+| --- | --- | --- |
+| Заголовки подписки Remnawave / Happ | 4 заголовка | 21 заголовок, см. ниже |
+| Идентификация устройства (`x-hwid`) | нет | есть, с обработкой лимита устройств |
+| Резервный адрес подписки | нет | `fallback-url` и `fallback-domain` |
+| Смена адреса подписки провайдером | нет | `new-url` / `new-domain`, с проверкой нового адреса |
+| Логотип, объявления, кабинет, поддержка | частично | есть |
+| Безлимитный трафик / бессрочная подписка | показывает `0 B` и `-` | «Безлимит» / «Бессрочно» |
+| Обновление ядра Mihomo отдельно от приложения | нет | в разработке |
+| Простой режим интерфейса | нет | в разработке |
 
 ---
 
-## Promotion
+## Заголовки подписки
 
-### ✈️ [狗狗加速 —— 技术流机场 Doggygo VPN](https://verge.dginv.click/#/register?code=oaxsAGo6)
+Это главное, ради чего сделан форк. Ниже — всё, что клиент отправляет и понимает.
 
-🚀 高性能海外技术流机场，支持免费试用与优惠套餐，全面解锁流媒体及 AI 服务，全球首家采用 **QUIC 协议**。
+### Что клиент отправляет панели
 
-🎁 使用 **Clash Verge 专属邀请链接** 注册即送 **3 天免费试用**，每日 **1GB 流量**：👉 [点此注册](https://verge.dginv.click/#/register?code=oaxsAGo6)
+Отправляется с **каждым** запросом подписки — при импорте, при ручном и при автоматическом
+обновлении.
 
-#### **核心优势：**
+| Заголовок | Значение | Зачем |
+| --- | --- | --- |
+| `User-Agent` | `ClodClash/0.0.1-alpha (Mihomo; windows)` | по нему панель узнаёт клиент и решает, в каком формате отдать конфиг. `windows` меняется на `macos` / `linux` |
+| `Accept` | `*/*` | без этого панель может принять клиент за браузер и отдать HTML-страницу вместо конфига |
+| `x-hwid` | 32 hex-символа | идентификатор устройства для лимита устройств |
+| `x-device-os` | `Windows` / `macOS` / `Linux` | показывается в списке устройств в панели |
+| `x-ver-os` | версия ОС | то же |
+| `x-device-model` | имя компьютера | то же |
 
-- 📱 自研 iOS 客户端（业内"唯一"）技术经得起考验，极大**持续研发**投入
-- 🧑‍💻 **12小时真人客服**(顺带解决 Clash Verge 使用问题)
-- 💰 优惠套餐每月**仅需 21 元，160G 流量，年付 8 折**
-- 🌍 海外团队，无跑路风险，高达 50% 返佣
-- ⚙️ **集群负载均衡**设计，**负载监控和随时扩容**，高速专线(兼容老客户端)，极低延迟，无视晚高峰，4K 秒开
-- ⚡ 全球首家**Quic 协议机场**，现已上线更快的 Quic 类协议(Clash Verge 客户端最佳搭配)
-- 🎬 解锁**流媒体及 主流 AI**
+Четыре заголовка `x-*` отправляются, только пока включена настройка «идентификация
+устройства» (по умолчанию включена). Если пользователь её выключит — не отправляется
+ни один из них.
 
-🌐 官网：👉 [https://狗狗加速.com](https://verge.dginv.click/#/register?code=oaxsAGo6)
+### Что клиент понимает в ответе панели
 
-### 🤖 [GPTKefu —— 与 Crisp 深度整合的 AI 智能客服平台](https://gptkefu.com)
+**Описание подписки**
 
-- 🧠 深度理解完整对话上下文 + 图片识别，自动给出专业、精准的回复，告别机械式客服。
-- ♾️ **不限回答数量**，无额度焦虑，区别于其他按条计费的 AI 客服产品。
-- 💬 售前咨询、售后服务、复杂问题解答，全场景轻松覆盖，真实用户案例已验证效果。
-- ⚡ 3 分钟极速接入，零门槛上手，即刻提升客服效率与客户满意度。
-- 🎁 高级套餐免费试用 14 天，先体验后付费：👉 [立即试用](https://gptkefu.com)
-- 📢 智能客服TG 频道：[@crisp_ai](https://t.me/crisp_ai)
+| Заголовок | Что означает | Что делает приложение |
+| --- | --- | --- |
+| `profile-title` | название тарифа | ставит имя профиля. Имя, заданное пользователем вручную, не перетирается |
+| `profile-logo` | ссылка на логотип провайдера | показывается рядом с подпиской. Принимаются только ссылки `http`/`https` |
+| `subscription-userinfo` | `upload`, `download`, `total`, `expire` | трафик и срок на карточке подписки. `total=0` → «Безлимит», `expire=0` → «Бессрочно» |
+| `subscription-refill-date` | unix-время пополнения трафика | «Трафик обновится {дата}» |
+| `profile-update-interval` | интервал автообновления в часах | ставит интервал и помечает его как заданный провайдером — пользователь не сможет его переопределить |
+| `content-disposition` | имя файла | запасной вариант имени профиля, если нет `profile-title` |
+
+**Связь с провайдером**
+
+| Заголовок | Что означает | Что делает приложение |
+| --- | --- | --- |
+| `profile-web-page-url` | ссылка на личный кабинет | кнопка «Личный кабинет» |
+| `support-url` | ссылка на поддержку | кнопка «Поддержка»; для `t.me/…` показывается иконка Telegram |
+| `announce` | объявление провайдера | баннер в приложении. Пользователь может его скрыть; при изменении текста баннер появляется снова |
+| `announce-url` | куда ведёт клик по баннеру | делает баннер кликабельным. Только `http`/`https` |
+
+**Смена адреса подписки**
+
+| Заголовок | Что означает | Что делает приложение |
+| --- | --- | --- |
+| `new-url` | новый адрес подписки | адрес заменяется **только** после успешной пробной загрузки по нему. Старый сохраняется в истории |
+| `new-domain` | новый домен (можно `host:port`) | меняется только хост, путь и параметры ссылки сохраняются. Проверка та же, что у `new-url` |
+| `fallback-url` | резервный полный адрес | используется, только если основной адрес не ответил. Основной адрес при этом **не** заменяется |
+| `fallback-domain` | резервный хост для основного адреса | пробуется после `fallback-url`. Порядок: основной → `fallback-url` → основной с подменённым хостом |
+
+Подряд разрешено не более **трёх** переездов по `new-url`/`new-domain`: это защита от двух
+панелей, которые перекидывают клиент друг на друга по кругу. Счётчик обнуляется, как только
+приходит обновление без запроса на переезд.
+
+**Лимит устройств**
+
+| Заголовок | Что означает | Что делает приложение |
+| --- | --- | --- |
+| `x-hwid-active` | устройство зарегистрировано | ничего, информационный |
+| `x-hwid-not-supported` | панель требует идентификатор, а клиент его не прислал | диалог «Провайдер требует идентификацию устройства. Включить?» |
+| `x-hwid-max-devices-reached`<br>`x-hwid-limit` | лимит устройств исчерпан | диалог с текстом из `announce` и кнопкой «Поддержка». **Рабочий профиль не затирается** — ответ панели в этом случае пустой |
+| `x-hwid-max-devices` | сколько устройств разрешено | подставляется в текст диалога |
+
+**Уведомления**
+
+| Заголовок | Что означает | Что делает приложение |
+| --- | --- | --- |
+| `notify-expire-days` | за сколько дней предупреждать: `7,3,1` или `off` | сохраняется в профиле (реакция — в разработке) |
+| `notify-traffic-percent` | пороги израсходованного трафика: `80,90,100` или `off` | сохраняется в профиле (реакция — в разработке) |
+| `notification-subs-expire` | Happ-совместимость | если наших заголовков нет — включает напоминания о сроке со значениями по умолчанию |
+
+### Правила разбора
+
+Действуют для всех заголовков выше:
+
+* **Регистр не важен.** `Profile-Title`, `profile-title` и `PROFILE-TITLE` — одно и то же.
+* **Префиксы объектных хранилищ принимаются.** Если подписка лежит в S3-совместимом
+  хранилище, заголовки приезжают как `x-amz-meta-profile-title`, `x-obs-meta-support-url`
+  и подобные — они распознаются. При этом посторонний заголовок вроде `renew-url`
+  **не** будет принят за `new-url`.
+* **Значение с префиксом `base64:` декодируется.** Понимаются четыре алфавита: обычный,
+  без выравнивания, url-safe и url-safe без выравнивания. Если декодировать не удалось,
+  берётся исходная строка.
+* **Кириллица и другой не-ASCII текст читаются в двух видах:** и как `base64:`, и как
+  сырой UTF-8 прямо в значении заголовка. Формально второе запрещено стандартом, но
+  панели так делают, поэтому клиент это переживает.
+* **Перевод строки в значении заголовка невозможен.** Многострочное объявление панель
+  обязана отдавать через `base64:` — иначе оно физически не доедет.
+* **Ссылки проверяются.** `profile-logo` и `announce-url` принимаются, только если это
+  `http`/`https`; `new-url` не может понизить `https` до `http`.
+* **Пустые значения игнорируются**, объявление обрезается до 500 символов, списки
+  порогов проверяются по диапазону (1–365 дней, 1–100 процентов) и ограничены десятью
+  значениями. Полностью некорректный заголовок обрабатывается так же, как отсутствующий.
 
 ---
 
-## Features
+## Настройка панели Remnawave
 
-- 基于性能强劲的 Rust 和 Tauri 2 框架
-- 内置[Clash.Meta(mihomo)](https://github.com/MetaCubeX/mihomo)内核，并支持切换 `Alpha` 版本内核。
-- 简洁美观的用户界面，支持自定义主题颜色、代理组/托盘图标以及 `CSS Injection`。
-- 配置文件管理和增强（Merge 和 Script），配置文件语法提示。
-- 系统代理和守卫、`TUN(虚拟网卡)` 模式。
-- 可视化节点和规则编辑
-- WebDav 配置备份和同步
+**Правило User-Agent.** Стандартные правила формата ответа (subscription-response rules)
+в Remnawave не знают про наш клиент. Добавьте правило с регулярным выражением
+`^clodclash` и форматом **MIHOMO**, иначе панель отдаст ответ по умолчанию, а приложение
+покажет ошибку «панель не распознала клиент».
 
-### FAQ
+**Дополнительные заголовки.** `announce`, `announce-url`, `profile-logo`, `support-url`,
+`new-url`, `fallback-url`, `notify-*` и остальные, которых нет в стандартном наборе
+Remnawave, задаются через `customResponseHeaders`. Значения с не-ASCII текстом надёжнее
+отдавать в виде `base64:<payload>`.
 
-Refer to [Doc FAQ Page](https://clash-verge-rev.github.io/faq/windows.html)
+**Лимит устройств.** При включённом лимите панель не отдаёт подписку без `x-hwid`.
+Клиент шлёт его по умолчанию, а идентификатор стабилен между перезапусками и
+обновлениями приложения — устройство не будет регистрироваться заново.
 
-### Donation
+---
 
-[捐助Clash Verge Rev的开发](https://github.com/sponsors/clash-verge-rev)
+## Идентификатор устройства
 
-## Development
+Считается из машинного идентификатора операционной системы:
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for more details.
+| Система | Источник |
+| --- | --- |
+| Windows | `HKLM\SOFTWARE\Microsoft\Cryptography\MachineGuid` |
+| macOS | `IOPlatformUUID` |
+| Linux | `/etc/machine-id`, при отсутствии — `/var/lib/dbus/machine-id` |
 
-To run the development server, execute the following commands after all prerequisites for **Tauri** are installed:
+Значение солится и хешируется SHA-256, наружу уходят первые 32 hex-символа.
+**Сам машинный идентификатор устройство не покидает.** Результат подходит под проверку
+Remnawave 2.9 (`^[a-zA-Z0-9=-]{10,64}$`) и кэшируется в конфигурации приложения, чтобы
+не измениться при обновлении. Если стабильный источник недоступен, генерируется
+случайный идентификатор и тоже кэшируется.
 
-```shell
-pnpm i
-pnpm run prebuild
-pnpm dev
+Идентификатор отправляется **только** на адрес подписки — больше никуда.
+Выключается в настройках одним переключателем.
+
+---
+
+## Сборка
+
+```bash
+pnpm install
+pnpm prebuild          # скачивает ядро Mihomo и служебные бинарники
+pnpm dev               # запуск в режиме разработки
+pnpm build             # сборка установщика
 ```
 
-## Contributions
+Требуется Rust (версия закреплена в `rust-toolchain.toml`), Node.js 22+ и pnpm.
+Системные зависимости Tauri — по [инструкции Tauri](https://tauri.app/start/prerequisites/).
 
-Issue and PR welcome!
+Проверки перед коммитом:
 
-## Acknowledgement
+```bash
+cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+cargo test --manifest-path src-tauri/Cargo.toml
+pnpm exec tsc --noEmit
+```
 
-Clash Verge rev was based on or inspired by these projects and so on:
+---
 
-- [zzzgydi/clash-verge](https://github.com/zzzgydi/clash-verge): A Clash GUI based on tauri. Supports Windows, macOS and Linux.
-- [tauri-apps/tauri](https://github.com/tauri-apps/tauri): Build smaller, faster, and more secure desktop applications with a web frontend.
-- [Dreamacro/clash](https://github.com/Dreamacro/clash): A rule-based tunnel in Go.
-- [MetaCubeX/mihomo](https://github.com/MetaCubeX/mihomo): A rule-based tunnel in Go.
-- [Fndroid/clash_for_windows_pkg](https://github.com/Fndroid/clash_for_windows_pkg): A Windows/macOS GUI based on Clash.
-- [vitejs/vite](https://github.com/vitejs/vite): Next generation frontend tooling. It's fast!
+## Благодарности
 
-## License
+Clod Clash не существовал бы без этих проектов:
 
-GPL-3.0 License. See [License here](./LICENSE) for details.
+* [MetaCubeX/mihomo](https://github.com/MetaCubeX/mihomo) — ядро, на котором всё работает.
+  Мы его не модифицируем и не форкаем: используется официальный бинарник.
+* [clash-verge-rev/clash-verge-rev](https://github.com/clash-verge-rev/clash-verge-rev) —
+  приложение, форком которого является Clod Clash. Весь интерфейс, работа с профилями,
+  системный прокси, TUN, служба, трей — их работа.
+* [zzzgydi/clash-verge](https://github.com/zzzgydi/clash-verge) — оригинальный Clash Verge,
+  с которого началась эта линия клиентов.
+* [tauri-apps/tauri](https://github.com/tauri-apps/tauri) — фреймворк приложения.
+* [Dreamacro/clash](https://github.com/Dreamacro/clash) — прародитель ядра.
+* [remnawave/panel](https://github.com/remnawave/panel) — панель, под которую сделан форк;
+  базовый набор заголовков подписки взят из её реализации.
 
-<p align="right">
-  <sub><a href="https://sponsorship.forztn.com/github/clash-verge-rev/clash-verge-rev">Supported By ForZTN</a></sub>
-</p>
+Отдельно — проектам, у которых мы подсмотрели продуктовые решения и состав заголовков:
+[FlClash](https://github.com/chen08209/FlClash) и его форк
+[FlClashX](https://github.com/pluralplay/FlClashX),
+[koala-clash](https://github.com/coolcoala/koala-clash),
+[Prizrak-Box](https://github.com/legiz-ru/Prizrak-Box).
+
+## Лицензия
+
+GPL-3.0, как и у Clash Verge Rev. Текст — в файле [LICENSE](./LICENSE).
