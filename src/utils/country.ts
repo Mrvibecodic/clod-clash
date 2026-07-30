@@ -292,10 +292,15 @@ const NAME_STEMS: [string, string][] = [
   ['ФИНЛЯНД', 'fi'],
   ['HELSINKI', 'fi'],
   ['ХЕЛЬСИНК', 'fi'],
+  // Before the shorter TURK stem: "TURKMENISTAN" must not read as Turkey.
+  ['TURKMEN', 'tm'],
+  ['ТУРКМЕН', 'tm'],
   ['TURK', 'tr'],
   ['ТУРЦ', 'tr'],
   ['ISTANBUL', 'tr'],
   ['СТАМБУЛ', 'tr'],
+  // NB: no bare 'USA' stem — as a substring it hides inside "JerUSAlem" and
+  // "BUSAn"; the token pre-check in countryFromName handles the word "USA".
   ['UNITED STATES', 'us'],
   ['AMERICA', 'us'],
   ['США', 'us'],
@@ -536,12 +541,18 @@ export const countryFromName = (name: string): string | undefined => {
   if (fromEmoji) return fromEmoji
 
   const upper = name.toUpperCase()
+  const tokens = upper.split(/[^A-Z0-9]+/u).filter(Boolean)
+
+  // Explicit US markers beat the name stems: "Georgia USA" is the US state,
+  // not the country in the Caucasus. A stem cannot express this ("USA" as a
+  // substring hides inside "JerUSAlem"), a whole word can.
+  if (tokens.includes('USA') || tokens.includes('US')) return 'us'
+
   for (const [stem, code] of NAME_STEMS) {
     if (upper.includes(stem)) return code
   }
 
   // "UK" is what people write, "gb" is what the flag file is called.
-  const tokens = upper.split(/[^A-Z0-9]+/u).filter(Boolean)
   for (const token of tokens) {
     if (token === 'UK') return 'gb'
     const lower = token.toLowerCase()
