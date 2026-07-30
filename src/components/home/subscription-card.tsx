@@ -16,6 +16,16 @@ const trafficColor = (usedPercent: number) => {
 
 const DAY = 24 * 60 * 60
 
+/**
+ * Normalize a panel timestamp to unix seconds. Anything above ~1e12 can only
+ * be milliseconds (that is the year 33658 in seconds) — some subscription
+ * backends emit ms where the spec says seconds.
+ */
+const toUnixSeconds = (ts: number) => (ts > 1e12 ? Math.round(ts / 1000) : ts)
+
+/** `parseTraffic` returns `[value, unit]`; join them the human way. */
+const traffic = (bytes: number) => parseTraffic(bytes).join(' ').trim()
+
 /** Days-left / traffic levels at which the plan counts as running out. */
 export const CRITICAL_DAYS = 3
 export const CRITICAL_TRAFFIC_PERCENT = 90
@@ -54,13 +64,16 @@ export const SubscriptionCard = ({ profile }: Props) => {
 
     const used = extra.upload + extra.download
     const unlimited = extra.total === 0
-    const forever = !extra.expire
+    // Some panels emit milliseconds where unix seconds are expected; a
+    // timestamp past ~33658 AD in seconds can only be milliseconds.
+    const expire = toUnixSeconds(extra.expire)
+    const forever = !expire
     const usedPercent = unlimited
       ? 0
       : Math.min(100, Math.round((used * 100) / extra.total))
     const daysLeft = forever
       ? undefined
-      : Math.max(0, Math.ceil((extra.expire - Date.now() / 1000) / DAY))
+      : Math.max(0, Math.ceil((expire - Date.now() / 1000) / DAY))
 
     const critical =
       (daysLeft !== undefined && daysLeft <= CRITICAL_DAYS) ||
@@ -75,7 +88,7 @@ export const SubscriptionCard = ({ profile }: Props) => {
       critical,
       expireDate: forever
         ? undefined
-        : dayjs(extra.expire * 1000).format('DD.MM.YYYY'),
+        : dayjs(expire * 1000).format('DD.MM.YYYY'),
       total: extra.total,
     }
   }, [profile.extra])
@@ -101,10 +114,10 @@ export const SubscriptionCard = ({ profile }: Props) => {
         sx={{ alignItems: 'center', gap: 1, flexWrap: 'wrap' }}
       >
         <Typography variant="body2" sx={{ flex: 1 }}>
-          {parseTraffic(info.used)} /{' '}
+          {traffic(info.used)} /{' '}
           {info.unlimited
             ? t('profiles.components.profileItem.labels.unlimited')
-            : parseTraffic(info.total)}
+            : traffic(info.total)}
         </Typography>
         {info.daysLeft !== undefined ? (
           <Chip
@@ -135,7 +148,7 @@ export const SubscriptionCard = ({ profile }: Props) => {
       {profile.refill_date && !info.critical ? (
         <Typography variant="caption" color="text.secondary">
           {t('home.components.subscription.refill', {
-            date: dayjs(profile.refill_date * 1000).format('DD.MM.YYYY'),
+            date: dayjs(toUnixSeconds(profile.refill_date) * 1000).format('DD.MM.YYYY'),
           })}
         </Typography>
       ) : null}
