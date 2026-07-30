@@ -287,6 +287,22 @@ pub struct IVerge {
     pub connect_tun_mode: Option<bool>,
     // clod:simple-mode end
 
+    // clod:core-updater begin
+    /// Run the managed (self-downloaded) Mihomo core instead of the bundled
+    /// sidecar. Conservative default: off.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub use_managed_core: Option<bool>,
+
+    /// Managed core release channel: `stable` (default) or `alpha`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_core_channel: Option<String>,
+
+    /// Check the channel for a newer core once a day. Only notifies —
+    /// downloading always stays a user action.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub core_auto_check: Option<bool>,
+    // clod:core-updater end
+
     // clod:branding begin
     /// White-label display name shown in the sidebar (and, later, the tray
     /// tooltip). `None` falls back to the product name.
@@ -632,6 +648,11 @@ impl IVerge {
         patch!(connect_system_proxy);
         patch!(connect_tun_mode);
         // clod:simple-mode end
+        // clod:core-updater begin
+        patch!(use_managed_core);
+        patch!(managed_core_channel);
+        patch!(core_auto_check);
+        // clod:core-updater end
         // clod:branding begin
         patch!(brand_name);
         patch!(brand_logo);

@@ -45,11 +45,20 @@ impl CoreManager {
         let clash_core = Config::verge().await.latest_arc().get_valid_clash_core();
         let config_dir = dirs::app_home_dir()?;
 
+        // clod:F5 — a managed core, when enabled and present, replaces the
+        // bundled sidecar binary; any doubt falls back to the sidecar.
+        let managed_binary = crate::core::core_updater::managed_core_binary().await;
+        let command = match &managed_binary {
+            Some(path) => {
+                logging!(info, Type::Core, "using managed core: {}", path.display());
+                app_handle.shell().command(path)
+            }
+            None => app_handle.shell().sidecar(clash_core.as_str())?,
+        };
+
         #[cfg(unix)]
         let previous_mask = unsafe { tauri_plugin_clash_verge_sysinfo::libc::umask(0o007) };
-        let (mut rx, child) = app_handle
-            .shell()
-            .sidecar(clash_core.as_str())?
+        let (mut rx, child) = command
             .args([
                 "-d",
                 dirs::path_to_str(&config_dir)?,

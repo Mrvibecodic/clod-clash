@@ -161,6 +161,9 @@ async fn init_silent_updater() {
         SilentUpdater::global().start_background_check(app_handle).await;
     });
 
+    // clod:F5 — daily managed-core check (notification only, opt-in)
+    crate::core::core_updater::spawn_auto_check();
+
     logging!(info, Type::Setup, "Silent updater initialized");
 }
 
