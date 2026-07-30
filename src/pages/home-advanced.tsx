@@ -23,8 +23,9 @@ import { ServerSelect, ServerSelectRow } from '@/components/home/server-select'
 import { SubscriptionCard } from '@/components/home/subscription-card'
 import { useConnectTargets } from '@/hooks/use-connect-targets'
 import { useProfiles } from '@/hooks/use-profiles'
+import { useSessionUptime } from '@/hooks/use-session-uptime'
 import { useSimpleMode } from '@/hooks/use-simple-mode'
-import { useClashConfigData, useUptimeData } from '@/providers/app-data-context'
+import { useClashConfigData } from '@/providers/app-data-context'
 import { openWebUrl, updateProfile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 
@@ -94,11 +95,11 @@ const HomeAdvancedPage = () => {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { current, mutateProfiles } = useProfiles()
-  const { uptime } = useUptimeData()
   const { clashConfig } = useClashConfigData()
   const { setSimpleMode } = useSimpleMode()
   const { connected, targetSys, targetTun, toggleConnection } =
     useConnectTargets()
+  const uptime = useSessionUptime(connected)
 
   const [busy, setBusy] = useState(false)
   const [errorText, setErrorText] = useState<string>()

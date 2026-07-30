@@ -16,15 +16,15 @@ import { ServerSelect, ServerSelectRow } from '@/components/home/server-select'
 import { SubscriptionCard } from '@/components/home/subscription-card'
 import { useConnectTargets } from '@/hooks/use-connect-targets'
 import { useProfiles } from '@/hooks/use-profiles'
-import { useUptimeData } from '@/providers/app-data-context'
+import { useSessionUptime } from '@/hooks/use-session-uptime'
 import { createProfile, importProfile, openWebUrl } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 
 const HomeSimplePage = () => {
   const { t } = useTranslation()
   const { current, mutateProfiles } = useProfiles()
-  const { uptime } = useUptimeData()
   const { connected, toggleConnection } = useConnectTargets()
+  const uptime = useSessionUptime(connected)
 
   const [busy, setBusy] = useState(false)
   const [errorText, setErrorText] = useState<string>()
