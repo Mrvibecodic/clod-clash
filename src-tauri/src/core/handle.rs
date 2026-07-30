@@ -76,6 +76,13 @@ impl Handle {
         });
     }
 
+    // clod:hwid begin
+    /// Tell the UI what the panel said about this device.
+    pub fn hwid_notice(payload: serde_json::Value) {
+        Self::send_event(FrontendEvent::HwidNotice { payload });
+    }
+    // clod:hwid end
+
     pub fn set_is_exiting(&self) {
         self.is_exiting.store(true, Ordering::Release);
     }

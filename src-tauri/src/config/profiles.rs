@@ -245,6 +245,18 @@ impl IProfiles {
                 patch!(each, item, extra);
                 patch!(each, item, updated);
                 patch!(each, item, option);
+                // clod:headers begin
+                // A name coming through an explicit patch is a user decision, so
+                // `profile-title` must stop overwriting it.
+                if item.name.is_some() {
+                    each.name_customized = Some(true);
+                }
+                patch!(each, item, announce_seen_hash);
+                patch!(each, item, name_customized);
+                patch!(each, item, fallback_url);
+                patch!(each, item, interval_locked);
+                patch!(each, item, notified);
+                // clod:headers end
 
                 self.items = Some(items);
                 return self.save_file().await;
@@ -290,6 +302,9 @@ impl IProfiles {
                     each.updated = item.updated;
                     each.home = item.home.to_owned();
                     each.option = PrfOption::merge(each.option.as_ref(), item.option.as_ref());
+                    // clod:headers begin
+                    each.merge_panel_meta(item);
+                    // clod:headers end
                     // save the file data
                     // move the field value after save
                     if let Some(file_data) = item.file_data.take() {

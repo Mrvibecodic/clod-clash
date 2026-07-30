@@ -178,6 +178,7 @@ impl NetworkManager {
         .await
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn get_with_tls_mode(
         &self,
         url: &str,
@@ -186,9 +187,19 @@ impl NetworkManager {
         user_agent: Option<String>,
         accept_invalid_certs: bool,
         tls_root_mode: TlsRootMode,
+        // clod: caller supplied headers (subscription identity, see config::sub_headers)
+        custom_headers: Option<&HeaderMap>,
     ) -> Result<HttpResponse> {
         let mut parsed = Url::parse(url)?;
         let mut extra_headers = HeaderMap::new();
+
+        // clod:headers begin
+        if let Some(custom) = custom_headers {
+            for (key, value) in custom.iter() {
+                extra_headers.insert(key.clone(), value.clone());
+            }
+        }
+        // clod:headers end
 
         if !parsed.username().is_empty() {
             let username = percent_encoding::percent_decode_str(parsed.username())
@@ -276,9 +287,10 @@ impl NetworkManager {
         if let Some(ua) = user_agent {
             headers.insert(USER_AGENT, HeaderValue::from_str(ua.as_str())?);
         } else {
+            // clod: fork identity, must stay in sync with panel SRR rules
             headers.insert(
                 USER_AGENT,
-                HeaderValue::from_str(&format!("clash-verge/v{}", env!("CARGO_PKG_VERSION")))?,
+                HeaderValue::from_str(crate::utils::hwid::user_agent().as_str())?,
             );
         }
 
@@ -293,6 +305,21 @@ impl NetworkManager {
         user_agent: Option<String>,
         accept_invalid_certs: bool,
     ) -> Result<HttpResponse> {
+        self.get_with_interrupt_and_headers(url, proxy_type, timeout_secs, user_agent, accept_invalid_certs, None)
+            .await
+    }
+
+    /// clod: same as [`Self::get_with_interrupt`] but lets the caller attach
+    /// extra request headers (used for the subscription identity headers).
+    pub async fn get_with_interrupt_and_headers(
+        &self,
+        url: &str,
+        proxy_type: ProxyType,
+        timeout_secs: Option<u64>,
+        user_agent: Option<String>,
+        accept_invalid_certs: bool,
+        custom_headers: Option<&HeaderMap>,
+    ) -> Result<HttpResponse> {
         let platform_result = self
             .get_with_tls_mode(
                 url,
@@ -301,6 +328,7 @@ impl NetworkManager {
                 user_agent.clone(),
                 accept_invalid_certs,
                 TlsRootMode::PlatformVerifier,
+                custom_headers,
             )
             .await;
 
@@ -314,6 +342,7 @@ impl NetworkManager {
                     user_agent,
                     accept_invalid_certs,
                     TlsRootMode::StaticWebpkiRoots,
+                    custom_headers,
                 )
                 .await
                 .map_err(|fallback_err| {

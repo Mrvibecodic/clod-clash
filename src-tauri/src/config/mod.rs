@@ -5,6 +5,8 @@ mod encrypt;
 mod prfitem;
 pub mod profiles;
 pub mod runtime;
+// clod: Remnawave / Happ subscription headers
+pub mod sub_headers;
 mod verge;
 
 pub use self::{clash::*, config::*, encrypt::*, prfitem::*, profiles::*, verge::*};

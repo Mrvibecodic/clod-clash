@@ -1,5 +1,5 @@
 use crate::{
-    config::profiles,
+    config::{profiles, sub_headers},
     utils::{
         dirs, help,
         network::{NetworkManager, ProxyType},
@@ -58,6 +58,72 @@ pub struct PrfItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub home: Option<String>,
 
+    // clod:headers begin
+    /// `support-url` header — provider support contact.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub support_url: Option<String>,
+
+    /// `announce` header — provider message shown as a banner.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub announce: Option<String>,
+
+    /// sha256 of the announce text the user already dismissed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub announce_seen_hash: Option<String>,
+
+    /// `subscription-refill-date` header, unix seconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refill_date: Option<i64>,
+
+    /// The update interval was dictated by the provider, so the UI locks it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interval_locked: Option<bool>,
+
+    /// `fallback-url` header — used when the primary URL fails.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fallback_url: Option<String>,
+
+    /// URLs this subscription was migrated away from, oldest first.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub previous_urls: Option<Vec<String>>,
+
+    /// Device registration state: `ok` | `limit` | `not_supported`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hwid_state: Option<String>,
+
+    /// The user renamed the profile, so `profile-title` must not overwrite it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name_customized: Option<bool>,
+
+    /// Expiry reminder thresholds in days; empty vector = disabled by provider.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notify_expire_days: Option<Vec<u32>>,
+
+    /// Traffic reminder thresholds in percent; empty vector = disabled.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notify_traffic_percent: Option<Vec<u32>>,
+
+    /// Reminder bookkeeping: threshold key -> unix seconds it fired at.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notified: Option<std::collections::BTreeMap<std::string::String, i64>>,
+
+    /// The payload came from `fallback_url` instead of `url`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub from_fallback: Option<bool>,
+
+    /// Transient: the name was taken from `profile-title` on this fetch.
+    #[serde(skip)]
+    pub name_from_header: Option<bool>,
+
+    /// Transient: URL the provider asked us to migrate to (`new-url` /
+    /// `new-domain`). Applied only after a successful probe download.
+    #[serde(skip)]
+    pub migrate_url: Option<String>,
+
+    /// Transient: device limit reported alongside a `limit` state.
+    #[serde(skip)]
+    pub hwid_max_devices: Option<u32>,
+    // clod:headers end
     /// the file data
     #[serde(skip)]
     pub file_data: Option<String>,
@@ -248,6 +314,8 @@ impl PrfItem {
             home: None,
             updated: Some(chrono::Local::now().timestamp() as usize),
             file_data: Some(file_data.unwrap_or_else(|| tmpl::ITEM_LOCAL.into())),
+            // clod: local profiles carry no panel metadata
+            ..Self::default()
         })
     }
 
@@ -283,14 +351,20 @@ impl PrfItem {
 
         let url = fix_dirty_url(url)?;
 
+        // clod:headers begin
+        // Device identity + `Accept: */*` on every subscription request.
+        let identity_headers = sub_headers::build_identity_headers().await;
+        // clod:headers end
+
         // 使用网络管理器发送请求
         let resp = match NetworkManager::new()
-            .get_with_interrupt(
+            .get_with_interrupt_and_headers(
                 url.as_str(),
                 proxy_type,
                 Some(timeout),
                 user_agent.clone(),
                 accept_invalid_certs,
+                Some(&identity_headers),
             )
             .await
         {
@@ -300,6 +374,16 @@ impl PrfItem {
                 return Err(e).context("failed to fetch remote profile");
             }
         };
+
+        // clod:headers begin
+        // Parsed before the status check: a device-limit response carries a stub
+        // body (and sometimes a non-2xx status) but still tells us what happened.
+        let sub = sub_headers::SubHeaders::parse(resp.headers());
+        sub.notify_device_state();
+        if sub.hwid_state == sub_headers::HwidState::LimitReached {
+            bail!("device limit reached for this subscription (x-hwid)")
+        }
+        // clod:headers end
 
         let status_code = resp.status();
         if !status_code.is_success() {
@@ -355,30 +439,35 @@ impl PrfItem {
                 Some(crate::utils::help::get_last_part_and_decode(url.as_str()).unwrap_or_else(|| "Remote File".into()))
             }
         };
-        let update_interval = match update_interval {
-            Some(val) => Some(val),
-            None => match header.get("profile-update-interval") {
-                Some(value) => match value.to_str().unwrap_or("").parse::<u64>() {
-                    Ok(val) => Some(val * 60), // hour -> min
-                    Err(_) => None,
-                },
-                None => None,
+        // clod:headers begin
+        // `profile-update-interval` is now read through SubHeaders so we can also
+        // record that the provider — not the user — decided the value.
+        let (update_interval, interval_locked) = match update_interval {
+            Some(val) => (Some(val), None),
+            None => match sub.update_interval_hours {
+                Some(hours) => (Some(hours * 60), Some(true)), // hour -> min
+                None => (None, None),
             },
         };
 
-        let home = match header.get("profile-web-page-url") {
-            Some(value) => {
-                let str_value = value.to_str().unwrap_or("");
-                Some(str_value.into())
-            }
-            None => None,
-        };
+        let home = sub.home.clone();
+        // clod:headers end
 
         let uid = help::get_uid("R").into();
         let file = format!("{uid}.yaml").into();
-        let name = name
-            .map(|s| s.to_owned())
-            .unwrap_or_else(|| filename.map(|s| s.into()).unwrap_or_else(|| "Remote File".into()));
+        // clod:headers begin
+        // Name priority: explicit user name > `profile-title` > content-disposition.
+        let (name, name_from_header) = match name {
+            Some(user_name) => (user_name.to_owned(), None),
+            None => match sub.profile_title.clone() {
+                Some(title) => (title, Some(true)),
+                None => (
+                    filename.map(Into::into).unwrap_or_else(|| String::from("Remote File")),
+                    None,
+                ),
+            },
+        };
+        // clod:headers end
         let data = resp.text_with_charset()?;
 
         // process the charset "UTF-8 with BOM"
@@ -437,6 +526,24 @@ impl PrfItem {
                 ..PrfOption::default()
             }),
             home,
+            // clod:headers begin
+            support_url: sub.support_url.clone(),
+            announce: sub.announce.clone(),
+            announce_seen_hash: None,
+            refill_date: sub.refill_date,
+            interval_locked,
+            fallback_url: sub.fallback_url.clone(),
+            previous_urls: None,
+            hwid_state: sub.hwid_state.as_str().map(Into::into),
+            name_customized: None,
+            notify_expire_days: sub.notify_expire_days.clone(),
+            notify_traffic_percent: sub.notify_traffic_percent.clone(),
+            notified: None,
+            from_fallback: None,
+            name_from_header,
+            migrate_url: sub.migration_target(url.as_str()),
+            hwid_max_devices: sub.hwid_max_devices,
+            // clod:headers end
             updated: Some(chrono::Local::now().timestamp() as usize),
             file_data: Some(data.into()),
         })
@@ -551,6 +658,67 @@ impl PrfItem {
             .context("failed to save the file")
     }
 }
+
+// clod:headers begin
+impl PrfItem {
+    /// Copy provider metadata from a freshly fetched item onto the stored one.
+    ///
+    /// Called from [`crate::config::profiles::IProfiles::update_item`] so a
+    /// subscription refresh picks up header changes without losing local state
+    /// (dismissed announce, migration history, a name the user chose).
+    pub fn merge_panel_meta(&mut self, fresh: &Self) {
+        // A provider name only applies while the user has not renamed the profile.
+        if fresh.name_from_header == Some(true) && self.name_customized != Some(true) && fresh.name.is_some() {
+            self.name = fresh.name.clone();
+        }
+
+        // Replace, do not merge: a header that disappeared must clear its value.
+        self.support_url = fresh.support_url.clone();
+        self.refill_date = fresh.refill_date;
+        self.interval_locked = fresh.interval_locked;
+        self.fallback_url = fresh.fallback_url.clone();
+        self.hwid_state = fresh.hwid_state.clone();
+        self.notify_expire_days = fresh.notify_expire_days.clone();
+        self.notify_traffic_percent = fresh.notify_traffic_percent.clone();
+        self.from_fallback = fresh.from_fallback;
+
+        // A changed announce text must be shown again, so drop the dismissal.
+        if self.announce != fresh.announce {
+            self.announce_seen_hash = None;
+        }
+        self.announce = fresh.announce.clone();
+
+        // `previous_urls` and `notified` are owned locally and never come from
+        // the panel; `url` migration is applied by `feat::profile`.
+    }
+
+    /// Whether the stored announce still needs to be shown.
+    pub fn announce_pending(&self) -> bool {
+        match self.announce.as_deref() {
+            Some(text) if !text.is_empty() => {
+                self.announce_seen_hash.as_deref() != Some(sub_headers::announce_hash(text).as_str())
+            }
+            _ => false,
+        }
+    }
+
+    /// Record that the primary URL was replaced by `new_url`.
+    pub fn record_url_migration(&mut self, new_url: String) {
+        if let Some(previous) = self.url.take() {
+            let history = self.previous_urls.get_or_insert_with(Vec::new);
+            if !history.iter().any(|entry| entry == &previous) {
+                history.push(previous);
+            }
+            // Keep the history bounded.
+            if history.len() > 10 {
+                let overflow = history.len() - 10;
+                history.drain(0..overflow);
+            }
+        }
+        self.url = Some(new_url);
+    }
+}
+// clod:headers end
 
 impl PrfItem {
     /// 获取current指向的订阅的merge
