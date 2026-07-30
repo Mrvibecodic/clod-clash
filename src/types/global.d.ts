@@ -251,18 +251,26 @@ interface IProfileItem {
   // clod: Remnawave / Happ subscription headers (see src-tauri/src/config/sub_headers.rs)
   /** `support-url` header */
   support_url?: string
+  /** `profile-logo` header, validated http(s) URL */
+  logo?: string
   /** `announce` header, may contain newlines */
   announce?: string
+  /** `announce-url` header, validated http(s) URL */
+  announce_url?: string
   /** sha256 of the announce text the user dismissed */
   announce_seen_hash?: string
   /** `subscription-refill-date` header, unix seconds */
   refill_date?: number
   /** the provider dictated the update interval, so the field is read-only */
   interval_locked?: boolean
-  /** `fallback-url` header */
+  /** `fallback-url` header — full spare address */
   fallback_url?: string
+  /** `fallback-domain` header — spare host for the primary address */
+  fallback_domain?: string
   /** URLs this subscription was migrated away from, oldest first */
   previous_urls?: string[]
+  /** consecutive provider-driven URL migrations already followed */
+  migration_hops?: number
   /** device registration state reported by the panel */
   hwid_state?: 'ok' | 'limit' | 'not_supported'
   /** the user renamed the profile, so `profile-title` must not overwrite it */

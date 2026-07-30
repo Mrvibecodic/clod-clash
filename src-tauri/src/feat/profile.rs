@@ -1,6 +1,6 @@
 use crate::{
     cmd,
-    config::{Config, PrfItem, PrfOption, profiles::profiles_draft_update_item_safe},
+    config::{Config, PrfItem, PrfOption, profiles::profiles_draft_update_item_safe, sub_headers},
     core::{CoreManager, handle, tray, validate::ValidationOutcome},
     utils::help::{mask_err, mask_url},
 };
@@ -63,10 +63,19 @@ pub async fn switch_proxy_node(group_name: &str, proxy_name: &str) {
     }
 }
 
-async fn should_update_profile(
-    uid: &String,
-    ignore_auto_update: bool,
-) -> Result<Option<(String, Option<PrfOption>, Option<String>)>> {
+// clod:fallback begin
+/// What `perform_profile_update` needs to know about a profile before it starts.
+struct UpdateTarget {
+    url: String,
+    option: Option<PrfOption>,
+    /// Full spare address from a previous `fallback-url` header.
+    fallback_url: Option<String>,
+    /// Spare host for the primary address, from `fallback-domain`.
+    fallback_domain: Option<String>,
+}
+// clod:fallback end
+
+async fn should_update_profile(uid: &String, ignore_auto_update: bool) -> Result<Option<UpdateTarget>> {
     let profiles = Config::profiles().await;
     let profiles = profiles.latest_arc();
     let item = profiles.get_item(uid)?;
@@ -93,12 +102,13 @@ async fn should_update_profile(
                     .ok_or_else(|| anyhow::anyhow!("Profile URL is None"))?
             )
         );
-        Ok(Some((
-            item.url.clone().ok_or_else(|| anyhow::anyhow!("Profile URL is None"))?,
-            item.option.clone(),
-            // clod: remembered from the previous `fallback-url` header
-            item.fallback_url.clone(),
-        )))
+        Ok(Some(UpdateTarget {
+            url: item.url.clone().ok_or_else(|| anyhow::anyhow!("Profile URL is None"))?,
+            option: item.option.clone(),
+            // clod: remembered from the previous fallback headers
+            fallback_url: item.fallback_url.clone(),
+            fallback_domain: item.fallback_domain.clone(),
+        }))
     }
 }
 
@@ -144,6 +154,23 @@ async fn apply_updated_item(uid: &String, item: &mut PrfItem) -> Result<()> {
         return Ok(());
     };
 
+    // Two panels can point at each other; stop following after a few hops.
+    let hops = Config::profiles()
+        .await
+        .latest_arc()
+        .get_item(uid)
+        .map_or(0, |item| item.migration_hops.unwrap_or(0));
+    if hops >= sub_headers::MAX_MIGRATION_HOPS {
+        logging!(
+            warn,
+            Type::Config,
+            "Warning: [订阅更新] [clod] ignoring migration to {}: {} consecutive hops already followed",
+            mask_url(&candidate),
+            hops
+        );
+        return Ok(());
+    }
+
     // Reuse the fresh item's option: it already references this profile's
     // merge/script/rules/proxies/groups, so the probe cannot leak new ones.
     match PrfItem::from_url(&candidate, None, None, request_option.as_ref()).await {
@@ -183,8 +210,9 @@ async fn perform_profile_update(
     opt: Option<&PrfOption>,
     option: Option<&PrfOption>,
     is_mannual_trigger: bool,
-    // clod: spare address from a previous `fallback-url` header
+    // clod: spare addresses from previous `fallback-*` headers
     fallback_url: Option<String>,
+    fallback_domain: Option<String>,
 ) -> Result<bool> {
     logging!(info, Type::Config, "[订阅更新] 开始下载新的订阅内容");
     let mut merged_opt = PrfOption::merge(opt, option);
@@ -266,15 +294,24 @@ async fn perform_profile_update(
     // Every attempt on the primary URL failed. The provider may have handed us a
     // spare address in a previous response (`fallback-url`); use it, but keep the
     // stored `url` untouched so the primary address is retried next time.
-    if let Some(fallback) = fallback_url.filter(|value| !value.trim().is_empty()) {
+    // `fallback-url` first, then the primary address with the spare host from
+    // `fallback-domain` — the order a panel expects.
+    let spare_addresses = [
+        fallback_url.filter(|value| !value.trim().is_empty()),
+        fallback_domain
+            .filter(|value| !value.trim().is_empty())
+            .and_then(|domain| sub_headers::swap_domain(url, &domain)),
+    ];
+
+    for spare in spare_addresses.into_iter().flatten() {
         logging!(
             info,
             Type::Config,
-            "[订阅更新] [clod] primary URL failed, trying the provider fallback {}",
-            mask_url(&fallback)
+            "[订阅更新] [clod] primary URL failed, trying the provider spare address {}",
+            mask_url(&spare)
         );
 
-        match fetch_with_proxy_ladder(&fallback, merged_opt.as_ref()).await {
+        match fetch_with_proxy_ladder(&spare, merged_opt.as_ref()).await {
             Ok(mut item) => {
                 item.from_fallback = Some(true);
                 apply_updated_item(uid, &mut item).await?;
@@ -286,7 +323,7 @@ async fn perform_profile_update(
                 logging!(
                     warn,
                     Type::Config,
-                    "Warning: [订阅更新] [clod] fallback URL failed as well: {}",
+                    "Warning: [订阅更新] [clod] spare address failed as well: {}",
                     mask_err(&err.to_string())
                 );
                 last_err = err;
@@ -312,8 +349,17 @@ pub async fn update_profile(
     let url_opt = should_update_profile(uid, ignore_auto_update).await?;
 
     let should_refresh = match url_opt {
-        Some((url, opt, fallback_url)) => {
-            perform_profile_update(uid, &url, opt.as_ref(), option, is_mannual_trigger, fallback_url).await?
+        Some(target) => {
+            perform_profile_update(
+                uid,
+                &target.url,
+                target.option.as_ref(),
+                option,
+                is_mannual_trigger,
+                target.fallback_url,
+                target.fallback_domain,
+            )
+            .await?
                 && auto_refresh
         }
         None => auto_refresh,

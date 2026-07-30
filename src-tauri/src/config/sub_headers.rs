@@ -30,6 +30,11 @@ pub const DEFAULT_NOTIFY_TRAFFIC_PERCENT: &[u32] = &[80, 90, 100];
 /// Upper bound for the amount of thresholds a panel may configure.
 const MAX_THRESHOLDS: usize = 10;
 
+/// How many times in a row a provider may move the subscription to a new
+/// address before we stop following. Guards against two panels bouncing the
+/// client back and forth.
+pub const MAX_MIGRATION_HOPS: u32 = 3;
+
 /// Build the identity headers sent with every subscription request.
 ///
 /// `Accept: */*` is mandatory: Remnawave's subscription-response rules serve an
@@ -92,18 +97,25 @@ impl HwidState {
 pub struct SubHeaders {
     /// `profile-title` — provider supplied display name.
     pub profile_title: Option<String>,
+    /// `profile-logo` — provider logo shown next to the subscription.
+    pub profile_logo: Option<String>,
     /// `profile-web-page-url` — customer dashboard.
     pub home: Option<String>,
     /// `support-url`.
     pub support_url: Option<String>,
     /// `announce` — provider message, newlines preserved.
     pub announce: Option<String>,
+    /// `announce-url` — where the announce banner leads when clicked.
+    pub announce_url: Option<String>,
     /// `subscription-refill-date` as a unix timestamp in seconds.
     pub refill_date: Option<i64>,
     /// `profile-update-interval`, in hours as sent by the panel.
     pub update_interval_hours: Option<u64>,
-    /// `fallback-url` — alternative host used when the primary one fails.
+    /// `fallback-url` — alternative full URL used when the primary one fails.
     pub fallback_url: Option<String>,
+    /// `fallback-domain` — alternative host for the primary URL, tried after
+    /// `fallback-url`.
+    pub fallback_domain: Option<String>,
     /// `new-url` — full replacement subscription URL.
     pub new_url: Option<String>,
     /// `new-domain` — host (optionally `host:port`) replacement.
@@ -144,12 +156,15 @@ impl SubHeaders {
 
         Self {
             profile_title: value(headers, "profile-title"),
+            profile_logo: value(headers, "profile-logo").and_then(|raw| http_url(&raw)),
             home: value(headers, "profile-web-page-url"),
             support_url: value(headers, "support-url"),
             announce: value(headers, "announce").map(|text| truncate_chars(&text, ANNOUNCE_MAX_CHARS)),
+            announce_url: value(headers, "announce-url").and_then(|raw| http_url(&raw)),
             refill_date: value(headers, "subscription-refill-date").and_then(|raw| raw.trim().parse::<i64>().ok()),
             update_interval_hours: value(headers, "profile-update-interval").and_then(|raw| raw.trim().parse().ok()),
             fallback_url: value(headers, "fallback-url"),
+            fallback_domain: value(headers, "fallback-domain"),
             new_url: value(headers, "new-url"),
             new_domain: value(headers, "new-domain"),
             hwid_state,
@@ -297,6 +312,19 @@ fn thresholds(raw: &str, min: u32, max: u32) -> Option<Vec<u32>> {
     values.truncate(MAX_THRESHOLDS);
 
     (!values.is_empty()).then_some(values)
+}
+
+/// Keep only values that are usable `http`/`https` links.
+///
+/// Used for the logo and announce links: the UI loads or opens them, so a
+/// `javascript:` or `file:` value from a compromised panel must never survive.
+fn http_url(value: &str) -> Option<String> {
+    let parsed = tauri::Url::parse(value.trim()).ok()?;
+    if !matches!(parsed.scheme(), "http" | "https") {
+        return None;
+    }
+    parsed.host_str().filter(|host| !host.is_empty())?;
+    Some(parsed.as_str().into())
 }
 
 fn truncate_chars(value: &str, limit: usize) -> String {
@@ -447,6 +475,49 @@ mod tests {
         assert_eq!(decode_value("base64:!!!not-base64!!!"), "base64:!!!not-base64!!!");
         // plain values pass through, trimmed
         assert_eq!(decode_value("  plain  "), "plain");
+    }
+
+    #[test]
+    fn only_http_links_survive_for_logo_and_announce_url() {
+        let parsed = SubHeaders::parse(&headers(&[
+            ("profile-logo", "https://cdn.example/logo.png"),
+            ("announce-url", "https://panel.example/news"),
+        ]));
+        assert_eq!(parsed.profile_logo.as_deref(), Some("https://cdn.example/logo.png"));
+        assert_eq!(parsed.announce_url.as_deref(), Some("https://panel.example/news"));
+
+        // A compromised panel must not be able to hand the UI a script or a
+        // local file to open.
+        let parsed = SubHeaders::parse(&headers(&[
+            ("profile-logo", "javascript:alert(1)"),
+            ("announce-url", "file:///etc/passwd"),
+        ]));
+        assert_eq!(parsed.profile_logo, None);
+        assert_eq!(parsed.announce_url, None);
+    }
+
+    #[test]
+    fn announce_and_announce_url_do_not_shadow_each_other() {
+        let parsed = SubHeaders::parse(&headers(&[
+            ("announce", "text"),
+            ("announce-url", "https://panel.example/news"),
+        ]));
+        assert_eq!(parsed.announce.as_deref(), Some("text"));
+        assert_eq!(parsed.announce_url.as_deref(), Some("https://panel.example/news"));
+    }
+
+    #[test]
+    fn fallback_domain_is_kept_separate_from_fallback_url() {
+        let parsed = SubHeaders::parse(&headers(&[
+            ("fallback-url", "https://spare.example/sub"),
+            ("fallback-domain", "spare2.example:8443"),
+        ]));
+        assert_eq!(parsed.fallback_url.as_deref(), Some("https://spare.example/sub"));
+        assert_eq!(parsed.fallback_domain.as_deref(), Some("spare2.example:8443"));
+        assert_eq!(
+            swap_domain("https://old.example/sub?t=1", "spare2.example:8443").as_deref(),
+            Some("https://spare2.example:8443/sub?t=1")
+        );
     }
 
     #[test]

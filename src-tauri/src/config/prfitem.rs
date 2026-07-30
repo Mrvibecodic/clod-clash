@@ -63,9 +63,17 @@ pub struct PrfItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub support_url: Option<String>,
 
+    /// `profile-logo` header — provider logo, an http(s) URL.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub logo: Option<String>,
+
     /// `announce` header — provider message shown as a banner.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub announce: Option<String>,
+
+    /// `announce-url` header — where the announce banner leads when clicked.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub announce_url: Option<String>,
 
     /// sha256 of the announce text the user already dismissed.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -79,13 +87,22 @@ pub struct PrfItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub interval_locked: Option<bool>,
 
-    /// `fallback-url` header — used when the primary URL fails.
+    /// `fallback-url` header — full spare address used when the primary fails.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fallback_url: Option<String>,
+
+    /// `fallback-domain` header — spare host for the primary URL.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fallback_domain: Option<String>,
 
     /// URLs this subscription was migrated away from, oldest first.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub previous_urls: Option<Vec<String>>,
+
+    /// Consecutive provider-driven URL migrations, reset once an update brings
+    /// no further migration. Guards against a redirect loop between panels.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub migration_hops: Option<u32>,
 
     /// Device registration state: `ok` | `limit` | `not_supported`.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -528,12 +545,16 @@ impl PrfItem {
             home,
             // clod:headers begin
             support_url: sub.support_url.clone(),
+            logo: sub.profile_logo.clone(),
             announce: sub.announce.clone(),
+            announce_url: sub.announce_url.clone(),
             announce_seen_hash: None,
             refill_date: sub.refill_date,
             interval_locked,
             fallback_url: sub.fallback_url.clone(),
+            fallback_domain: sub.fallback_domain.clone(),
             previous_urls: None,
+            migration_hops: None,
             hwid_state: sub.hwid_state.as_str().map(Into::into),
             name_customized: None,
             notify_expire_days: sub.notify_expire_days.clone(),
@@ -674,9 +695,12 @@ impl PrfItem {
 
         // Replace, do not merge: a header that disappeared must clear its value.
         self.support_url = fresh.support_url.clone();
+        self.logo = fresh.logo.clone();
+        self.announce_url = fresh.announce_url.clone();
         self.refill_date = fresh.refill_date;
         self.interval_locked = fresh.interval_locked;
         self.fallback_url = fresh.fallback_url.clone();
+        self.fallback_domain = fresh.fallback_domain.clone();
         self.hwid_state = fresh.hwid_state.clone();
         self.notify_expire_days = fresh.notify_expire_days.clone();
         self.notify_traffic_percent = fresh.notify_traffic_percent.clone();
@@ -687,6 +711,12 @@ impl PrfItem {
             self.announce_seen_hash = None;
         }
         self.announce = fresh.announce.clone();
+
+        // An update that asks for no migration ends the current migration chain,
+        // so the hop guard starts from zero again next time.
+        if fresh.migrate_url.is_none() {
+            self.migration_hops = None;
+        }
 
         // `previous_urls` and `notified` are owned locally and never come from
         // the panel; `url` migration is applied by `feat::profile`.
@@ -716,6 +746,7 @@ impl PrfItem {
             }
         }
         self.url = Some(new_url);
+        self.migration_hops = Some(self.migration_hops.unwrap_or(0).saturating_add(1));
     }
 }
 // clod:headers end
