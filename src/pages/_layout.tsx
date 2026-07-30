@@ -18,7 +18,6 @@ import {
   Menu,
   MenuItem,
   Paper,
-  SvgIcon,
   ThemeProvider,
 } from '@mui/material'
 import dayjs from 'dayjs'
@@ -36,10 +35,8 @@ import {
 import { useTranslation } from 'react-i18next'
 import { Outlet, useLocation, useNavigate } from 'react-router'
 
-import iconDark from '@/assets/image/icon_dark.svg?react'
-import iconLight from '@/assets/image/icon_light.svg?react'
-import LogoSvg from '@/assets/image/logo.svg?react'
 import { BaseErrorBoundary, BaseLoading } from '@/components/base'
+import { AppBrand } from '@/components/layout/app-brand'
 import { LayoutItem } from '@/components/layout/layout-item'
 import { LayoutTraffic } from '@/components/layout/layout-traffic'
 import { NoticeManager } from '@/components/layout/notice-manager'
@@ -370,18 +367,9 @@ const Layout = () => {
                   justifyContent: 'space-between',
                 }}
               >
-                <SvgIcon
-                  component={isDark ? iconDark : iconLight}
-                  style={{
-                    height: '36px',
-                    width: '36px',
-                    marginTop: '-3px',
-                    marginRight: '5px',
-                    marginLeft: '-3px',
-                  }}
-                  inheritViewBox
-                />
-                <LogoSvg fill={isDark ? 'white' : 'black'} />
+                {/* clod:branding — the white-label brand replaces the
+                    upstream cat + wordmark */}
+                <AppBrand isDark={isDark} />
               </div>
               <UpdateButton className="the-newbtn" />
             </div>

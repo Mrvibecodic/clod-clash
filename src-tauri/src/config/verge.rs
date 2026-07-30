@@ -286,6 +286,18 @@ pub struct IVerge {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub connect_tun_mode: Option<bool>,
     // clod:simple-mode end
+
+    // clod:branding begin
+    /// White-label display name shown in the sidebar (and, later, the tray
+    /// tooltip). `None` falls back to the product name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub brand_name: Option<String>,
+
+    /// White-label brand mark: a `data:` URL or a path the webview can load.
+    /// `None` falls back to the bundled placeholder.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub brand_logo: Option<String>,
+    // clod:branding end
 }
 
 #[derive(Default, Debug, Clone, Deserialize, Serialize)]
@@ -620,6 +632,10 @@ impl IVerge {
         patch!(connect_system_proxy);
         patch!(connect_tun_mode);
         // clod:simple-mode end
+        // clod:branding begin
+        patch!(brand_name);
+        patch!(brand_logo);
+        // clod:branding end
     }
 
     pub const fn get_singleton_port() -> u16 {

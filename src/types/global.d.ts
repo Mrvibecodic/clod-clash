@@ -1017,6 +1017,11 @@ interface IVergeConfig {
   connect_system_proxy?: boolean
   /** the Connect button also drives the TUN device; default false */
   connect_tun_mode?: boolean
+  // clod: white-label branding
+  /** display name in the sidebar; unset falls back to the product name */
+  brand_name?: string
+  /** brand mark (data: URL or loadable path); unset shows the placeholder */
+  brand_logo?: string
 }
 
 interface IWebDavFile {
