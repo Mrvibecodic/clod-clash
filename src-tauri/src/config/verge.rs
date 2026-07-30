@@ -268,6 +268,18 @@ pub struct IVerge {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hwid: Option<String>,
     // clod:hwid end
+
+    // clod:simple-mode begin
+    /// Simplified interface: only the home screen and a reduced settings page.
+    ///
+    /// `None` means the user never chose, so the provider's `clod-simple-mode`
+    /// header decides; with neither, the simple mode is on.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub simple_mode: Option<bool>,
+
+    /// What the main Connect button switches: `sysproxy` or `tun`.
+    pub main_switch_mode: Option<String>,
+    // clod:simple-mode end
 }
 
 #[derive(Default, Debug, Clone, Deserialize, Serialize)]
@@ -303,6 +315,25 @@ impl IVerge {
     /// not serve the subscription at all without `x-hwid`.
     pub const DEFAULT_ENABLE_HWID: bool = true;
     // clod:hwid end
+
+    // clod:simple-mode begin
+    /// Used when neither the user nor the provider expressed a preference.
+    pub const DEFAULT_SIMPLE_MODE: bool = true;
+
+    /// What the Connect button toggles unless configured otherwise.
+    pub const DEFAULT_MAIN_SWITCH_MODE: &'static str = "sysproxy";
+
+    /// Accepted values for [`Self::main_switch_mode`].
+    pub const VALID_MAIN_SWITCH_MODES: &'static [&'static str] = &["sysproxy", "tun"];
+
+    /// The Connect button target, falling back to the default on garbage input.
+    pub fn main_switch_mode(&self) -> &str {
+        self.main_switch_mode
+            .as_deref()
+            .filter(|mode| Self::VALID_MAIN_SWITCH_MODES.contains(mode))
+            .unwrap_or(Self::DEFAULT_MAIN_SWITCH_MODE)
+    }
+    // clod:simple-mode end
 
     /// 验证并修正配置文件中的clash_core值
     pub async fn validate_and_fix_config() -> Result<()> {
@@ -469,6 +500,11 @@ impl IVerge {
             // clod:hwid begin
             enable_hwid: Some(Self::DEFAULT_ENABLE_HWID),
             // clod:hwid end
+            // clod:simple-mode begin
+            // `simple_mode` stays unset on purpose: that is what lets the
+            // provider's header decide until the user picks a mode.
+            main_switch_mode: Some(Self::DEFAULT_MAIN_SWITCH_MODE.into()),
+            // clod:simple-mode end
             ..Self::default()
         }
     }
@@ -578,6 +614,10 @@ impl IVerge {
         patch!(enable_hwid);
         patch!(hwid);
         // clod:hwid end
+        // clod:simple-mode begin
+        patch!(simple_mode);
+        patch!(main_switch_mode);
+        // clod:simple-mode end
     }
 
     pub const fn get_singleton_port() -> u16 {

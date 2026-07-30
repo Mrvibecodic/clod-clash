@@ -15,7 +15,6 @@
 use crate::utils::hwid;
 use base64::engine::general_purpose;
 use reqwest::header::{ACCEPT, HeaderMap, HeaderName, HeaderValue};
-use sha2::{Digest as _, Sha256};
 use smartstring::alias::String;
 
 /// Maximum amount of characters of an announce banner we keep.
@@ -128,6 +127,10 @@ pub struct SubHeaders {
     pub notify_expire_days: Option<Vec<u32>>,
     /// `notify-traffic-percent`; `Some(vec![])` means the panel disabled them.
     pub notify_traffic_percent: Option<Vec<u32>>,
+    /// The provider's preferred interface mode. `None` means it did not say.
+    ///
+    /// A user who picked a mode themselves always wins over this.
+    pub simple_mode: Option<bool>,
 }
 
 impl SubHeaders {
@@ -171,6 +174,11 @@ impl SubHeaders {
             hwid_max_devices: value(headers, "x-hwid-max-devices").and_then(|raw| raw.trim().parse().ok()),
             notify_expire_days,
             notify_traffic_percent: value(headers, "notify-traffic-percent").and_then(|raw| thresholds(&raw, 1, 100)),
+            // Our own header wins; the other two keep panels that were already
+            // configured for FlClashX or Prizrak-Box working out of the box.
+            simple_mode: bool_value(headers, "clod-simple-mode")
+                .or_else(|| bool_value(headers, "pxa-simple-mode"))
+                .or_else(|| bool_value(headers, "flclashx-newboard")),
         }
     }
 }
@@ -283,10 +291,17 @@ fn strip_base64_prefix(value: &str) -> Option<&str> {
 }
 
 fn flag(headers: &HeaderMap, name: &str) -> bool {
-    value(headers, name).is_some_and(|raw| {
-        let lowered = raw.trim().to_ascii_lowercase();
-        matches!(lowered.as_str(), "true" | "1" | "yes" | "on")
-    })
+    bool_value(headers, name).unwrap_or(false)
+}
+
+/// Tri-state flag: `None` when the header is absent or not a boolean at all.
+fn bool_value(headers: &HeaderMap, name: &str) -> Option<bool> {
+    let raw = value(headers, name)?;
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "true" | "1" | "yes" | "on" => Some(true),
+        "false" | "0" | "no" | "off" => Some(false),
+        _ => None,
+    }
 }
 
 /// Parse a comma separated threshold list.
@@ -332,13 +347,6 @@ fn truncate_chars(value: &str, limit: usize) -> String {
         return value.into();
     }
     value.chars().take(limit).collect::<std::string::String>().into()
-}
-
-/// sha256 of an announce text, used to remember which banner was dismissed.
-pub fn announce_hash(text: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(text.as_bytes());
-    hex::encode(hasher.finalize()).into()
 }
 
 /// Replace host (and port when given) of `current`, keeping path and query.
@@ -398,8 +406,7 @@ pub fn validate_new_url(current: &str, candidate: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        DEFAULT_NOTIFY_EXPIRE_DAYS, HwidState, SubHeaders, announce_hash, decode_value, swap_domain, thresholds,
-        validate_new_url,
+        DEFAULT_NOTIFY_EXPIRE_DAYS, HwidState, SubHeaders, decode_value, swap_domain, thresholds, validate_new_url,
     };
     use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 
@@ -475,6 +482,30 @@ mod tests {
         assert_eq!(decode_value("base64:!!!not-base64!!!"), "base64:!!!not-base64!!!");
         // plain values pass through, trimmed
         assert_eq!(decode_value("  plain  "), "plain");
+    }
+
+    #[test]
+    fn simple_mode_reads_our_header_first_and_tolerates_the_others() {
+        let parsed = SubHeaders::parse(&headers(&[("clod-simple-mode", "1")]));
+        assert_eq!(parsed.simple_mode, Some(true));
+
+        let parsed = SubHeaders::parse(&headers(&[("clod-simple-mode", "false")]));
+        assert_eq!(parsed.simple_mode, Some(false));
+
+        // Panels already configured for other clients keep working.
+        let parsed = SubHeaders::parse(&headers(&[("pxa-simple-mode", "1")]));
+        assert_eq!(parsed.simple_mode, Some(true));
+        let parsed = SubHeaders::parse(&headers(&[("flclashx-newboard", "true")]));
+        assert_eq!(parsed.simple_mode, Some(true));
+
+        // Ours wins when several are present.
+        let parsed = SubHeaders::parse(&headers(&[("clod-simple-mode", "0"), ("pxa-simple-mode", "1")]));
+        assert_eq!(parsed.simple_mode, Some(false));
+
+        // Absent or nonsense means "the provider did not say".
+        assert_eq!(SubHeaders::parse(&headers(&[])).simple_mode, None);
+        let parsed = SubHeaders::parse(&headers(&[("clod-simple-mode", "maybe")]));
+        assert_eq!(parsed.simple_mode, None);
     }
 
     #[test]
@@ -652,12 +683,5 @@ mod tests {
             validate_new_url("https://old.example/sub", "https://old.example/sub"),
             None
         );
-    }
-
-    #[test]
-    fn announce_hash_is_stable_and_distinct() {
-        assert_eq!(announce_hash("hello"), announce_hash("hello"));
-        assert_ne!(announce_hash("hello"), announce_hash("hello!"));
-        assert_eq!(announce_hash("hello").len(), 64);
     }
 }

@@ -75,7 +75,8 @@ pub struct PrfItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub announce_url: Option<String>,
 
-    /// sha256 of the announce text the user already dismissed.
+    /// Set once the user dismissed the current announce. Cleared automatically
+    /// when the provider changes the text, so a new message shows up again.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub announce_seen_hash: Option<String>,
 
@@ -127,6 +128,11 @@ pub struct PrfItem {
     /// The payload came from `fallback_url` instead of `url`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub from_fallback: Option<bool>,
+
+    /// Interface mode the provider prefers for this subscription. Only a hint:
+    /// a user who picked a mode in the settings always wins.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub simple_mode: Option<bool>,
 
     /// Transient: the name was taken from `profile-title` on this fetch.
     #[serde(skip)]
@@ -561,6 +567,7 @@ impl PrfItem {
             notify_traffic_percent: sub.notify_traffic_percent.clone(),
             notified: None,
             from_fallback: None,
+            simple_mode: sub.simple_mode,
             name_from_header,
             migrate_url: sub.migration_target(url.as_str()),
             hwid_max_devices: sub.hwid_max_devices,
@@ -705,6 +712,7 @@ impl PrfItem {
         self.notify_expire_days = fresh.notify_expire_days.clone();
         self.notify_traffic_percent = fresh.notify_traffic_percent.clone();
         self.from_fallback = fresh.from_fallback;
+        self.simple_mode = fresh.simple_mode;
 
         // A changed announce text must be shown again, so drop the dismissal.
         if self.announce != fresh.announce {
@@ -723,13 +731,13 @@ impl PrfItem {
     }
 
     /// Whether the stored announce still needs to be shown.
+    ///
+    /// Dismissal is a plain marker rather than a comparison: `merge_panel_meta`
+    /// already clears it whenever the announce text changes, so a new message
+    /// reappears without the UI having to hash anything.
     pub fn announce_pending(&self) -> bool {
-        match self.announce.as_deref() {
-            Some(text) if !text.is_empty() => {
-                self.announce_seen_hash.as_deref() != Some(sub_headers::announce_hash(text).as_str())
-            }
-            _ => false,
-        }
+        self.announce.as_deref().is_some_and(|text| !text.is_empty())
+            && self.announce_seen_hash.as_deref().is_none_or(str::is_empty)
     }
 
     /// Record that the primary URL was replaced by `new_url`.
