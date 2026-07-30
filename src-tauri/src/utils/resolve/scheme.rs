@@ -39,7 +39,9 @@ pub(super) async fn resolve_scheme(param: &str) -> Result<()> {
 }
 
 fn extract_subscription_info(link_parsed: &Url) -> Option<(std::string::String, Option<String>)> {
-    if !matches!(link_parsed.scheme(), "clash" | "clash-verge") {
+    // clod: `clodclash` is our own scheme; the upstream ones keep working so
+    // links made for other Clash clients still import.
+    if !matches!(link_parsed.scheme(), "clash" | "clash-verge" | "clodclash") {
         return None;
     }
 
