@@ -378,7 +378,10 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
         gap: 1.5,
         px: 1.75,
         py: 1.5,
-        width: '100%',
+        // stretch to the column like every other card; an explicit
+        // width:100% + padding overflowed it by the padding width
+        alignSelf: 'stretch',
+        boxSizing: 'border-box',
         borderRadius: '14px',
         cursor: 'pointer',
         bgcolor: 'background.paper',
