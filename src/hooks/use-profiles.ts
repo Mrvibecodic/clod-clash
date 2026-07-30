@@ -61,7 +61,11 @@ export const useProfiles = () => {
     async (value: Partial<IProfileItem>) => {
       if (profiles?.current) {
         await patchProfile(profiles.current, value)
-        void mutateProfiles()
+        // Awaited on purpose: callers behind `useLockFn` (favorites star)
+        // compute the next value from this cache — releasing the lock before
+        // the revalidation lands lets a quick second click read a stale list
+        // and overwrite the first change.
+        await mutateProfiles()
       }
     },
     [mutateProfiles, profiles],
