@@ -90,6 +90,13 @@ jobs:
           workspaces: |
             . -> target
 
+      # Явный rustup: экшен тулчейна не добавляет цель к уже предустановленному
+      # stable на раннере, и кросс-сборки (win-arm64, mac-x64) падают без этого.
+      - name: Add Rust target
+        run: |
+          rustup target add ${{ matrix.target }}
+          rustup target list --installed
+
       - name: Install dependencies (ubuntu only)
         if: matrix.os == 'ubuntu-22.04'
         run: |
