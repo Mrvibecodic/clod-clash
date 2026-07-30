@@ -525,8 +525,11 @@ pub fn init_scheme() -> Result<()> {
 
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let (clash, _) = hkcu.create_subkey("Software\\Classes\\Clash")?;
-    clash.set_value("", &"Clash Verge")?;
-    clash.set_value("URL Protocol", &"Clash Verge URL Scheme Protocol")?;
+    clash.set_value("", &crate::constants::branding::APP_NAME)?;
+    clash.set_value(
+        "URL Protocol",
+        &format!("{} URL Scheme Protocol", crate::constants::branding::APP_NAME),
+    )?;
     let (default_icon, _) = hkcu.create_subkey("Software\\Classes\\Clash\\DefaultIcon")?;
     default_icon.set_value("", &app_exe)?;
     let (command, _) = hkcu.create_subkey("Software\\Classes\\Clash\\Shell\\Open\\Command")?;
@@ -536,13 +539,15 @@ pub fn init_scheme() -> Result<()> {
 }
 #[cfg(target_os = "linux")]
 pub fn init_scheme() -> Result<()> {
-    const DESKTOP_FILE: &str = "clash-verge.desktop";
+    // clod: derived from the bundle name Tauri generates out of `productName`
+    let desktop_file = format!("{}.desktop", crate::constants::branding::APP_SLUG);
+    let desktop_file = desktop_file.as_str();
 
     for scheme in DEEP_LINK_SCHEMES {
         let handler = format!("x-scheme-handler/{scheme}");
         let output = std::process::Command::new("xdg-mime")
             .arg("default")
-            .arg(DESKTOP_FILE)
+            .arg(desktop_file)
             .arg(&handler)
             .output()?;
         if !output.status.success() {
@@ -553,7 +558,7 @@ pub fn init_scheme() -> Result<()> {
         }
     }
 
-    crate::utils::linux::mime::ensure_mimeapps_entries(DESKTOP_FILE, DEEP_LINK_SCHEMES)?;
+    crate::utils::linux::mime::ensure_mimeapps_entries(desktop_file, DEEP_LINK_SCHEMES)?;
     Ok(())
 }
 #[cfg(target_os = "macos")]
@@ -562,7 +567,7 @@ pub const fn init_scheme() -> Result<()> {
 }
 
 #[cfg(target_os = "linux")]
-const DEEP_LINK_SCHEMES: &[&str] = &["clash", "clash-verge"];
+const DEEP_LINK_SCHEMES: &[&str] = &["clash", "clash-verge", "clodclash"];
 
 pub async fn startup_script() -> Result<()> {
     let app_handle = handle::Handle::app_handle();

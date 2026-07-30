@@ -7,4 +7,4 @@ Icon={{{icon}}}
 Name={{{name}}}
 Terminal=false
 Type=Application
-MimeType=x-scheme-handler/clash;
+MimeType=x-scheme-handler/clash;x-scheme-handler/clash-verge;x-scheme-handler/clodclash;

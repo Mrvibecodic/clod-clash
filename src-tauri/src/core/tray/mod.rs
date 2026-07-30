@@ -324,7 +324,8 @@ impl Tray {
         );
 
         let tooltip = format!(
-            "Clash Verge {}\n{}: {}\n{}: {}\n{}: {}",
+            "{} {}\n{}: {}\n{}: {}\n{}: {}",
+            crate::constants::branding::APP_NAME,
             reassembled_version,
             sys_proxy_text,
             switch_str(system_proxy),

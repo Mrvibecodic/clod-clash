@@ -1,5 +1,24 @@
 use std::time::Duration;
 
+// clod:branding begin
+/// Fork identity. Kept in one place so rebranding never leaks into feature code.
+pub mod branding {
+    /// Human readable product name (window titles, notifications).
+    pub const APP_NAME: &str = "Clod Clash";
+
+    /// Token used in the subscription `User-Agent`. Panels match it case
+    /// sensitively in their SRR rules, so it must never be built at runtime
+    /// from `APP_NAME`.
+    pub const UA_TOKEN: &str = "ClodClash";
+
+    /// Salt mixed into the raw machine id before hashing (see `utils::hwid`).
+    pub const HWID_SALT: &str = "clod-clash";
+
+    /// Short slug used for file names / desktop entries.
+    pub const APP_SLUG: &str = "clod-clash";
+}
+// clod:branding end
+
 pub mod network {
     pub const DEFAULT_EXTERNAL_CONTROLLER: &str = "127.0.0.1:9097";
 

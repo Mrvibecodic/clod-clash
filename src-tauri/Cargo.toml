@@ -1,6 +1,6 @@
 [package]
 name = "clash-verge"
-version = "2.5.2"
+version = "0.0.1-alpha"
 description = "clash verge"
 authors = ["zzzgydi", "Tunglies", "wonfen", "MystiPanda"]
 license = "GPL-3.0-only"
@@ -24,7 +24,7 @@ clippy = ["tauri/test"]
 tracing = []
 
 [package.metadata.bundle]
-identifier = "io.github.clash-verge-rev.clash-verge-rev"
+identifier = "io.clodclash.app"
 
 [build-dependencies]
 tauri-build = { version = "2.6.3", features = [] }
