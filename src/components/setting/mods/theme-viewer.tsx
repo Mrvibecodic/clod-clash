@@ -1,5 +1,6 @@
 import { EditRounded } from '@mui/icons-material'
 import {
+  Box,
   Button,
   List,
   ListItem,
@@ -21,7 +22,7 @@ import { useTranslation } from 'react-i18next'
 import { BaseDialog, DialogRef } from '@/components/base'
 import { EditorViewer } from '@/components/profile/editor-viewer'
 import { useVerge } from '@/hooks/use-verge'
-import { defaultDarkTheme, defaultTheme } from '@/pages/_theme'
+import { ACCENT_PRESETS, defaultDarkTheme, defaultTheme } from '@/pages/_theme'
 import { showNotice } from '@/services/notice-service'
 
 export function ThemeViewer(props: { ref?: React.Ref<DialogRef> }) {
@@ -154,6 +155,34 @@ export function ThemeViewer(props: { ref?: React.Ref<DialogRef> }) {
       onOk={onSave}
     >
       <List sx={{ pt: 0 }}>
+        {/* clod:design-v2 — the five accents from the mockups, one click each */}
+        <Item>
+          <ListItemText
+            primary={t('settings.components.verge.theme.fields.accentPresets')}
+          />
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            {ACCENT_PRESETS.map((color) => (
+              <Box
+                key={color}
+                onClick={() =>
+                  setTheme((prev) => ({ ...prev, primary_color: color }))
+                }
+                sx={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: '50%',
+                  bgcolor: color,
+                  cursor: 'pointer',
+                  border: (t2) =>
+                    (theme.primary_color ?? dt.primary_color) === color
+                      ? `2px solid ${t2.palette.text.primary}`
+                      : '2px solid transparent',
+                }}
+              />
+            ))}
+          </Box>
+        </Item>
+
         {fieldDefinitions.map((field) => renderItem(field.labelKey, field.key))}
 
         <Item>

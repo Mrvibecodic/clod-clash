@@ -226,7 +226,8 @@
           "errorColor": "Цвет ошибки",
           "successColor": "Цвет успеха",
           "fontFamily": "Семейство шрифтов",
-          "cssInjection": "Внедрение CSS"
+          "cssInjection": "Внедрение CSS",
+          "accentPresets": "Готовые акценты"
         },
         "actions": {
           "editCss": "Редактировать CSS"

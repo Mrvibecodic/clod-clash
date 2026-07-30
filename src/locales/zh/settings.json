@@ -226,7 +226,8 @@
           "errorColor": "错误颜色",
           "successColor": "成功颜色",
           "fontFamily": "字体系列",
-          "cssInjection": "CSS 注入"
+          "cssInjection": "CSS 注入",
+          "accentPresets": "预设强调色"
         },
         "actions": {
           "editCss": "编辑 CSS"

@@ -17,6 +17,7 @@ import { SubscriptionCard } from '@/components/home/subscription-card'
 import { useConnectTargets } from '@/hooks/use-connect-targets'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useSessionUptime } from '@/hooks/use-session-uptime'
+import { useSimpleMode } from '@/hooks/use-simple-mode'
 import { createProfile, importProfile, openWebUrl } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 
@@ -24,6 +25,7 @@ const HomeSimplePage = () => {
   const { t } = useTranslation()
   const { current, mutateProfiles } = useProfiles()
   const { connected, toggleConnection } = useConnectTargets()
+  const { setSimpleMode } = useSimpleMode()
   const uptime = useSessionUptime(connected)
 
   const [busy, setBusy] = useState(false)
@@ -115,6 +117,16 @@ const HomeSimplePage = () => {
             {t('shared.actions.new')}
           </Button>
         </Stack>
+        {/* clod:design-v2 — no sidebar: the advanced mode (and with it the
+            settings) must stay reachable even before a subscription exists */}
+        <Button
+          size="small"
+          color="inherit"
+          sx={{ color: 'text.secondary' }}
+          onClick={() => void setSimpleMode(false)}
+        >
+          {t('home.pages.simple.toAdvanced')}
+        </Button>
       </Stack>
     )
   }
@@ -179,6 +191,18 @@ const HomeSimplePage = () => {
             </Button>
           ) : null}
         </Stack>
+
+        {/* clod:design-v2 — the mockups' footlink into the advanced mode */}
+        <Box sx={{ mt: 'auto', textAlign: 'center', pt: 1 }}>
+          <Button
+            size="small"
+            color="inherit"
+            sx={{ color: 'text.secondary' }}
+            onClick={() => void setSimpleMode(false)}
+          >
+            {t('home.pages.simple.toAdvanced')}
+          </Button>
+        </Box>
       </Stack>
     </Stack>
   )

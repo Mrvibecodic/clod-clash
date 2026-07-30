@@ -341,7 +341,8 @@ const Layout = () => {
           }
         }}
         sx={[
-          ({ palette }) => ({ bgcolor: palette.background.paper }),
+          // clod:branding — the window is the canvas, the cards are the panels
+          ({ palette }) => ({ bgcolor: palette.background.default }),
           OS === 'linux'
             ? {
                 borderRadius: '8px',
@@ -357,7 +358,12 @@ const Layout = () => {
         {customTitlebar}
 
         <div className="layout-content">
-          <div className="layout-content__left">
+          {/* clod:design-v2 — the mockups have no sidebar at all: the home
+              screens are the navigation (tiles in the advanced mode, the
+              mode footlinks between them), inner pages carry a back arrow.
+              The column is kept in the tree but never displayed, so the
+              upstream menu machinery stays intact for a possible option. */}
+          <div className="layout-content__left" style={{ display: 'none' }}>
             <div className="the-logo" data-tauri-drag-region="false">
               <div
                 data-tauri-drag-region="true"

@@ -1,4 +1,10 @@
-import { alpha, createTheme, Theme as MuiTheme, Shadows } from '@mui/material'
+import {
+  alpha,
+  createTheme,
+  lighten,
+  Theme as MuiTheme,
+  Shadows,
+} from '@mui/material'
 import {
   getCurrentWebviewWindow,
   WebviewWindow,
@@ -164,7 +170,12 @@ export const useCustomTheme = () => {
             secondary: setting.secondary_text || dt.secondary_text,
           },
           background: {
-            paper: dt.background_color,
+            // clod:branding — the mockups draw white/slate panels on a
+            // slightly darker canvas; paper is the panel, default the canvas.
+            paper:
+              mode === 'light'
+                ? '#FFFFFF'
+                : lighten(dt.background_color, 0.045),
             default: dt.background_color,
           },
         },
@@ -191,7 +202,10 @@ export const useCustomTheme = () => {
           success: { main: dt.success_color },
           text: { primary: dt.primary_text, secondary: dt.secondary_text },
           background: {
-            paper: dt.background_color,
+            paper:
+              mode === 'light'
+                ? '#FFFFFF'
+                : lighten(dt.background_color, 0.045),
             default: dt.background_color,
           },
         },

@@ -164,7 +164,8 @@
       "welcomeHint": "Paste the link your provider gave you. You can connect right after that.",
       "subscriptionPlaceholder": "https://…",
       "portal": "Customer portal",
-      "daysLeft": "Days left: {{count}}"
+      "daysLeft": "Days left: {{count}}",
+      "toAdvanced": "高级模式 →"
     },
     "advanced": {
       "toSimple": "← Simple mode",

@@ -226,7 +226,8 @@
           "errorColor": "Error Color",
           "successColor": "Success Color",
           "fontFamily": "Font Family",
-          "cssInjection": "CSS Injection"
+          "cssInjection": "CSS Injection",
+          "accentPresets": "Accent presets"
         },
         "actions": {
           "editCss": "Edit CSS"

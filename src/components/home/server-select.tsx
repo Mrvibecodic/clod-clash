@@ -338,6 +338,7 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
         width: '100%',
         borderRadius: 2,
         cursor: 'pointer',
+        bgcolor: 'background.paper',
         border: (theme) => `1px solid ${theme.palette.divider}`,
         '&:hover': { borderColor: 'primary.main' },
       }}

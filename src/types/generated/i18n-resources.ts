@@ -209,6 +209,7 @@ export interface TranslationResources {
           daysLeft: string
           portal: string
           subscriptionPlaceholder: string
+          toAdvanced: string
           welcome: string
           welcomeHint: string
         }
@@ -744,6 +745,7 @@ export interface TranslationResources {
               editCssTitle: string
             }
             fields: {
+              accentPresets: string
               cssInjection: string
               errorColor: string
               fontFamily: string

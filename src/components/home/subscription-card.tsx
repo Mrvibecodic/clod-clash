@@ -106,6 +106,7 @@ export const SubscriptionCard = ({ profile }: Props) => {
         gap: 1,
         p: 2,
         borderRadius: 2,
+        bgcolor: 'background.paper',
         border: (theme) => `1px solid ${theme.palette.divider}`,
       }}
     >

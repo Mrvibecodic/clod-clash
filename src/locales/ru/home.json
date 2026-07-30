@@ -166,7 +166,8 @@
       "welcomeHint": "Вставьте ссылку, которую дал провайдер. Сразу после этого можно подключаться.",
       "subscriptionPlaceholder": "https://…",
       "portal": "Личный кабинет",
-      "daysLeft": "Осталось дней: {{count}}"
+      "daysLeft": "Осталось дней: {{count}}",
+      "toAdvanced": "Расширенный режим →"
     },
     "advanced": {
       "toSimple": "← Простой режим",
