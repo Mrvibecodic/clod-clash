@@ -120,6 +120,7 @@ export interface TranslationResources {
         serverSelect: {
           current: string
           empty: string
+          favorite: string
           none: string
           test: string
           title: string

@@ -297,6 +297,8 @@ interface IProfileItem {
   from_fallback?: boolean
   /** interface mode the provider prefers for this subscription */
   simple_mode?: boolean
+  /** clod: node names the user starred in the server list */
+  favorites?: string[]
 }
 
 interface IProfileOption {

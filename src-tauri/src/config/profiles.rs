@@ -261,6 +261,8 @@ impl IProfiles {
                 patch!(each, item, file);
                 patch!(each, item, url);
                 patch!(each, item, selected);
+                // clod: starred servers
+                patch!(each, item, favorites);
                 patch!(each, item, extra);
                 patch!(each, item, updated);
                 patch!(each, item, option);

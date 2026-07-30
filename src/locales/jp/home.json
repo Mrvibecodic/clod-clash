@@ -147,7 +147,8 @@
       "current": "Server",
       "none": "Not selected",
       "test": "Test",
-      "empty": "No servers in this subscription"
+      "empty": "No servers in this subscription",
+      "favorite": "お気に入り"
     },
     "subscription": {
       "expires": "{{count}} days left · until {{date}}",

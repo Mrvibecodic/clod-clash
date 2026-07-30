@@ -1,6 +1,8 @@
 import BoltRoundedIcon from '@mui/icons-material/BoltRounded'
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded'
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded'
+import StarBorderRoundedIcon from '@mui/icons-material/StarBorderRounded'
+import StarRoundedIcon from '@mui/icons-material/StarRounded'
 import {
   Box,
   Button,
@@ -21,6 +23,7 @@ import { useTranslation } from 'react-i18next'
 import { delayGroup } from 'tauri-plugin-mihomo-api'
 
 import { CountryFlag } from '@/components/home/country-flag'
+import { useProfiles } from '@/hooks/use-profiles'
 import { useProxySelection } from '@/hooks/use-proxy-selection'
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
 import delayManager from '@/services/delay'
@@ -81,7 +84,36 @@ export const ServerSelect = ({ open, onClose }: Props) => {
     () => groups.find((item) => item.name === groupName) ?? groups[0],
     [groups, groupName],
   )
-  const nodes = group?.all ?? []
+
+  // Starred servers float to the top of the list; the stars live on the
+  // profile, so they survive subscription updates and app restarts.
+  const { current, patchCurrent } = useProfiles()
+  const favorites = useMemo(
+    () => new Set(current?.favorites ?? []),
+    [current?.favorites],
+  )
+
+  const toggleFavorite = useLockFn(async (nodeName: string) => {
+    if (!current?.uid) return
+    const stored = current.favorites ?? []
+    const next = favorites.has(nodeName)
+      ? stored.filter((name) => name !== nodeName)
+      : [...stored, nodeName]
+    try {
+      await patchCurrent({ favorites: next })
+    } catch (error) {
+      showNotice.error(error)
+    }
+  })
+
+  const nodes = useMemo(() => {
+    const all = group?.all ?? []
+    if (favorites.size === 0) return all
+    return [
+      ...all.filter((node) => favorites.has(node.name)),
+      ...all.filter((node) => !favorites.has(node.name)),
+    ]
+  }, [group, favorites])
 
   const virtualizer = useVirtualizer({
     count: nodes.length,
@@ -115,6 +147,7 @@ export const ServerSelect = ({ open, onClose }: Props) => {
   const renderRow = (node: ProxyNode) => {
     const delay = delayManager.getDelayFix(node as any, group?.name ?? '')
     const selected = group?.now === node.name
+    const starred = favorites.has(node.name)
 
     return (
       <ListItemButton
@@ -138,8 +171,23 @@ export const ServerSelect = ({ open, onClose }: Props) => {
         >
           {delay > 0 ? `${delay} ms` : '—'}
         </Typography>
+        <IconButton
+          size="small"
+          aria-label={t('home.components.serverSelect.favorite')}
+          sx={{ color: starred ? 'warning.main' : 'text.disabled' }}
+          onClick={(event) => {
+            event.stopPropagation()
+            void toggleFavorite(node.name)
+          }}
+        >
+          {starred ? (
+            <StarRoundedIcon fontSize="small" />
+          ) : (
+            <StarBorderRoundedIcon fontSize="small" />
+          )}
+        </IconButton>
         {selected ? (
-          <CheckRoundedIcon color="success" sx={{ ml: 1 }} fontSize="small" />
+          <CheckRoundedIcon color="success" fontSize="small" />
         ) : null}
       </ListItemButton>
     )

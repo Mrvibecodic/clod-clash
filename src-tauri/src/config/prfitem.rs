@@ -43,6 +43,12 @@ pub struct PrfItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selected: Option<Vec<PrfSelected>>,
 
+    /// clod: node names the user starred; shown on top of the server list.
+    /// Never touched by subscription updates (`update_item` copies fields
+    /// explicitly), so the stars survive refreshes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub favorites: Option<Vec<String>>,
+
     /// subscription user info
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extra: Option<PrfExtra>,
@@ -562,6 +568,7 @@ impl PrfItem {
             file: Some(file),
             url: Some(url.as_str().into()),
             selected: None,
+            favorites: None,
             extra,
             option: Some(PrfOption {
                 update_interval,

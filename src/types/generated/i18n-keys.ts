@@ -105,6 +105,7 @@ export const translationKeys = [
   'home.components.serverSelect.none',
   'home.components.serverSelect.test',
   'home.components.serverSelect.empty',
+  'home.components.serverSelect.favorite',
   'home.components.subscription.expires',
   'home.components.subscription.refill',
   'home.components.subscription.renew',
