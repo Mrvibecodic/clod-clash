@@ -30,7 +30,7 @@
   "identifier": "io.clodclash.app",
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEQyOEMyRjBCQkVGOUJEREYKUldUZnZmbStDeStNMHU5Mmo1N24xQXZwSVRYbXA2NUpzZE5oVzlqeS9Bc0t6RVV4MmtwVjBZaHgK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEQ2NDVERjFCM0EyQjIxQzYKUldUR0lTczZHOTlGMXJCeXVaWUdPRkJOV09jdWdrUXZZVHFacVZFazJKeFJ2NUJhVTdHa1kvaEMK",
       "endpoints": [
         "https://github.com/Mrvibecodic/clod-clash/releases/latest/download/latest.json"
       ],
