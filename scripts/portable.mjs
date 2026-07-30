@@ -36,7 +36,15 @@ async function resolvePortable() {
   }
   const zip = new AdmZip()
 
-  zip.addLocalFile(path.join(releaseDir, 'clash-verge.exe'))
+  // clod:branding — the binary follows mainBinaryName from tauri.conf.json;
+  // fall back to the cargo bin name in case the toolchain leaves it as is.
+  const mainExe = ['clod-clash.exe', 'clash-verge.exe']
+    .map((name) => path.join(releaseDir, name))
+    .find((file) => fs.existsSync(file))
+  if (!mainExe) {
+    throw new Error('could not find the main executable in the release dir')
+  }
+  zip.addLocalFile(mainExe)
   zip.addLocalFile(path.join(releaseDir, 'verge-mihomo.exe'))
   zip.addLocalFile(path.join(releaseDir, 'verge-mihomo-alpha.exe'))
   zip.addLocalFolder(path.join(releaseDir, 'resources'), 'resources')

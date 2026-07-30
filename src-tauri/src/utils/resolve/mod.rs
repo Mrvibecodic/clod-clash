@@ -77,6 +77,7 @@ pub fn resolve_setup_async() {
             init_hotkey(),
             init_auto_lightweight_boot(),
             init_auto_backup(),
+            init_auto_launch_resync(),
             init_silent_updater(),
         );
 
@@ -136,6 +137,17 @@ pub(super) async fn init_auto_lightweight_boot() {
 
 pub(super) async fn init_auto_backup() {
     logging_error!(Type::Setup, AutoBackupManager::global().init().await);
+}
+
+// clod:branding — re-register auto-launch with the current executable path.
+// An app update can move or rename the binary (clash-verge → clod-clash),
+// and the scheduled task / autostart entry would silently keep pointing at
+// the dead path otherwise.
+pub(super) async fn init_auto_launch_resync() {
+    let enabled = Config::verge().await.latest_arc().enable_auto_launch.unwrap_or(false);
+    if enabled {
+        logging_error!(Type::Setup, crate::core::autostart::update_launch().await);
+    }
 }
 
 async fn init_silent_updater() {

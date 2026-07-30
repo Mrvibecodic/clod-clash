@@ -1,5 +1,5 @@
 {
-  "version": "0.0.1-alpha",
+  "version": "0.0.2-alpha",
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "bundle": {
     "active": true,
@@ -27,6 +27,7 @@
     "removeUnusedCommands": true
   },
   "productName": "Clod Clash",
+  "mainBinaryName": "clod-clash",
   "identifier": "io.clodclash.app",
   "plugins": {
     "updater": {
