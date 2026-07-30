@@ -285,6 +285,12 @@ pub struct IVerge {
     /// The Connect button also drives the TUN device. Off by default.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub connect_tun_mode: Option<bool>,
+
+    /// Legacy field of earlier builds (`sysproxy`/`tun`). Read only for the
+    /// migration in [`Self::new`], never written back; without it a user who
+    /// picked TUN would be silently downgraded to the system proxy.
+    #[serde(skip_serializing)]
+    pub main_switch_mode: Option<String>,
     // clod:simple-mode end
 
     // clod:core-updater begin
@@ -440,6 +446,17 @@ impl IVerge {
                         && start_page == "/home"
                     {
                         config.start_page = Some(String::from("/"));
+                    }
+                    // clod:simple-mode — migrate the legacy Connect target to
+                    // the two independent toggles, once, and only when the
+                    // user has not touched the new fields yet.
+                    if let Some(legacy) = config.main_switch_mode.take()
+                        && config.connect_system_proxy.is_none()
+                        && config.connect_tun_mode.is_none()
+                        && legacy == "tun"
+                    {
+                        config.connect_system_proxy = Some(false);
+                        config.connect_tun_mode = Some(true);
                     }
                     config
                 }
