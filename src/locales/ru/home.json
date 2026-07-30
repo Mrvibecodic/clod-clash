@@ -148,6 +148,12 @@
       "none": "Не выбран",
       "test": "Тест",
       "empty": "В подписке нет серверов"
+    },
+    "subscription": {
+      "expires": "осталось {{count}} дн. · до {{date}}",
+      "refill": "Месячный лимит трафика обновится {{date}}",
+      "renew": "Продлить",
+      "topup": "Докупить трафик"
     }
   },
   "pages": {
@@ -157,6 +163,13 @@
       "subscriptionPlaceholder": "https://…",
       "portal": "Личный кабинет",
       "daysLeft": "Осталось дней: {{count}}"
+    },
+    "advanced": {
+      "toSimple": "← Простой режим",
+      "tiles": {
+        "portalHint": "продление и оплата",
+        "refresh": "Обновить подписку"
+      }
     }
   }
 }

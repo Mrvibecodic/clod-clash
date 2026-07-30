@@ -148,6 +148,12 @@
       "none": "Not selected",
       "test": "Test",
       "empty": "No servers in this subscription"
+    },
+    "subscription": {
+      "expires": "{{count}} days left · until {{date}}",
+      "refill": "Monthly traffic resets on {{date}}",
+      "renew": "Renew",
+      "topup": "Add traffic"
     }
   },
   "pages": {
@@ -157,6 +163,13 @@
       "subscriptionPlaceholder": "https://…",
       "portal": "Customer portal",
       "daysLeft": "Days left: {{count}}"
+    },
+    "advanced": {
+      "toSimple": "← Simple mode",
+      "tiles": {
+        "portalHint": "renewal and payment",
+        "refresh": "Refresh subscription"
+      }
     }
   }
 }

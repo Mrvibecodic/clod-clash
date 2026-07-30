@@ -127,13 +127,15 @@
               "add": "新增",
               "addNew": "新增通道"
             }
-          }
+          },
+          "routingMode": "Routing mode"
         },
         "tooltips": {
           "networkInterface": "網路介面",
           "unifiedDelay": "開啟統一延遲時，會進行兩次延遲測試，以消除連線握手等帶來的不同類型節點的延遲差異",
           "logLevel": "僅對日誌目錄 Service 資料夾下的內核日誌檔案生效",
-          "openUwpTool": "Windows 8 開始限制 UWP 應用程式（如Microsoft Store）直接存取本機主機的網路服務，使用此工具可繞過該限制"
+          "openUwpTool": "Windows 8 開始限制 UWP 應用程式（如Microsoft Store）直接存取本機主機的網路服務，使用此工具可繞過該限制",
+          "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing."
         },
         "options": {
           "logLevel": {
@@ -171,11 +173,15 @@
           "misc": "雜項設定",
           "hotkeySetting": "快速鍵設定",
           "advancedMode": "Advanced mode",
-          "mainSwitchMode": "Connect button"
+          "connectSysproxy": "Connect: system proxy",
+          "connectTun": "Connect: TUN mode"
         },
         "options": {
           "sysproxy": "System proxy",
           "tun": "TUN"
+        },
+        "hints": {
+          "connectTun": "The Connect button also brings the TUN device up. System proxy and TUN can run together; the TUN device needs the service installed."
         }
       },
       "advanced": {

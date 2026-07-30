@@ -127,13 +127,15 @@
               "add": "Ekle",
               "addNew": "Yeni Tünel Ekle"
             }
-          }
+          },
+          "routingMode": "Routing mode"
         },
         "tooltips": {
           "networkInterface": "Ağ Arayüzü",
           "unifiedDelay": "Birleşik gecikme açıldığında, bağlantı el sıkışmaları vb. nedeniyle farklı tür düğümler arasındaki gecikme farklarını ortadan kaldırmak için iki gecikme testi gerçekleştirilir",
           "logLevel": "Bu parametre yalnızca günlük dizini Hizmet klasöründeki çekirdek günlük dosyaları için geçerlidir",
-          "openUwpTool": "Windows 8'den beri, UWP uygulamaları (Microsoft Store gibi) yerel ana bilgisayar ağ hizmetlerine doğrudan erişmekten kısıtlanmıştır ve bu araç bu kısıtlamayı atlatmak için kullanılabilir"
+          "openUwpTool": "Windows 8'den beri, UWP uygulamaları (Microsoft Store gibi) yerel ana bilgisayar ağ hizmetlerine doğrudan erişmekten kısıtlanmıştır ve bu araç bu kısıtlamayı atlatmak için kullanılabilir",
+          "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing."
         },
         "options": {
           "logLevel": {
@@ -171,11 +173,15 @@
           "misc": "Çeşitli",
           "hotkeySetting": "Kısayol Tuşu Ayarı",
           "advancedMode": "Advanced mode",
-          "mainSwitchMode": "Connect button"
+          "connectSysproxy": "Connect: system proxy",
+          "connectTun": "Connect: TUN mode"
         },
         "options": {
           "sysproxy": "System proxy",
           "tun": "TUN"
+        },
+        "hints": {
+          "connectTun": "The Connect button also brings the TUN device up. System proxy and TUN can run together; the TUN device needs the service installed."
         }
       },
       "advanced": {

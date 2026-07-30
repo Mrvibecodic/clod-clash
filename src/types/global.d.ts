@@ -257,8 +257,20 @@ interface IProfileItem {
   announce?: string
   /** `announce-url` header, validated http(s) URL */
   announce_url?: string
-  /** sha256 of the announce text the user dismissed */
-  announce_seen_hash?: string
+  /** `clod-portal-url` header — customer portal (renewal, payments) */
+  portal_url?: string
+  /** `clod-promo` header — temporary promotion banner, dismissable */
+  promo?: string
+  /** `clod-promo-url` header, validated http(s) URL */
+  promo_url?: string
+  /** the user dismissed the current promo text */
+  promo_seen?: boolean
+  /** `clod-renew-url` header — target of the "renew" button */
+  renew_url?: string
+  /** `clod-topup-url` header — target of the "buy more traffic" button */
+  topup_url?: string
+  /** `clod-lock-mode` header — mode switching is locked by the panel */
+  lock_mode?: boolean
   /** `subscription-refill-date` header, unix seconds */
   refill_date?: number
   /** the provider dictated the update interval, so the field is read-only */
@@ -1001,8 +1013,10 @@ interface IVergeConfig {
   // clod: interface mode
   /** simplified interface; unset means the provider's header decides */
   simple_mode?: boolean
-  /** what the Connect button toggles */
-  main_switch_mode?: 'sysproxy' | 'tun'
+  /** the Connect button drives the system proxy; default true */
+  connect_system_proxy?: boolean
+  /** the Connect button also drives the TUN device; default false */
+  connect_tun_mode?: boolean
 }
 
 interface IWebDavFile {

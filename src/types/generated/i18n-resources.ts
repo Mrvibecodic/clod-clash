@@ -124,6 +124,12 @@ export interface TranslationResources {
           test: string
           title: string
         }
+        subscription: {
+          expires: string
+          refill: string
+          renew: string
+          topup: string
+        }
         systemInfo: {
           actions: {
             settings: string
@@ -190,6 +196,13 @@ export interface TranslationResources {
         }
       }
       pages: {
+        advanced: {
+          tiles: {
+            portalHint: string
+            refresh: string
+          }
+          toSimple: string
+        }
         simple: {
           daysLeft: string
           portal: string
@@ -647,17 +660,21 @@ export interface TranslationResources {
             }
             fields: {
               advancedMode: string
+              connectSysproxy: string
+              connectTun: string
               copyEnvType: string
               hotkeySetting: string
               language: string
               layoutSetting: string
-              mainSwitchMode: string
               misc: string
               startPage: string
               startupScript: string
               themeMode: string
               themeSetting: string
               trayClickEvent: string
+            }
+            hints: {
+              connectTun: string
             }
             options: {
               sysproxy: string
@@ -1131,6 +1148,7 @@ export interface TranslationResources {
               logLevel: string
               openUwpTool: string
               portConfig: string
+              routingMode: string
               tunnels: {
                 actions: {
                   add: string
@@ -1172,6 +1190,7 @@ export interface TranslationResources {
               logLevel: string
               networkInterface: string
               openUwpTool: string
+              routingMode: string
               unifiedDelay: string
             }
           }

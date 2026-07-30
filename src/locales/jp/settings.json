@@ -127,13 +127,15 @@
               "add": "追加",
               "addNew": "新しいトンネルを追加"
             }
-          }
+          },
+          "routingMode": "Routing mode"
         },
         "tooltips": {
           "networkInterface": "ネットワークインターフェース",
           "unifiedDelay": "統一遅延を有効にすると、2回の遅延テストが行われ、接続ハンドシェイクなどによる異なるタイプのノードの遅延差を解消します。",
           "logLevel": "ログディレクトリのServiceフォルダ内のコアログファイルにのみ適用されます。",
-          "openUwpTool": "Windows 8以降では、UWPアプリケーション（Microsoft Storeなど）がローカルホストのネットワークサービスに直接アクセスすることが制限されています。このツールを使用すると、この制限を回避できます。"
+          "openUwpTool": "Windows 8以降では、UWPアプリケーション（Microsoft Storeなど）がローカルホストのネットワークサービスに直接アクセスすることが制限されています。このツールを使用すると、この制限を回避できます。",
+          "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing."
         },
         "options": {
           "logLevel": {
@@ -171,11 +173,15 @@
           "misc": "その他の設定",
           "hotkeySetting": "ホットキー設定",
           "advancedMode": "Advanced mode",
-          "mainSwitchMode": "Connect button"
+          "connectSysproxy": "Connect: system proxy",
+          "connectTun": "Connect: TUN mode"
         },
         "options": {
           "sysproxy": "System proxy",
           "tun": "TUN"
+        },
+        "hints": {
+          "connectTun": "The Connect button also brings the TUN device up. System proxy and TUN can run together; the TUN device needs the service installed."
         }
       },
       "advanced": {

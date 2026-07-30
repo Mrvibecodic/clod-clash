@@ -127,13 +127,15 @@
               "add": "Agregar",
               "addNew": "Agregar Nuevo Túnel"
             }
-          }
+          },
+          "routingMode": "Routing mode"
         },
         "tooltips": {
           "networkInterface": "Interfaz de red",
           "unifiedDelay": "Al habilitar la latencia unificada, se realizarán dos pruebas de latencia para eliminar las diferencias de latencia entre diferentes tipos de nodos causadas por el handshake de conexión, etc.",
           "logLevel": "Solo se aplica al archivo de registro del núcleo en la carpeta Service del directorio de registros.",
-          "openUwpTool": "A partir de Windows 8, las aplicaciones UWP (como la Tienda de Microsoft) tienen restricciones para acceder directamente a los servicios de red del host local. Use esta herramienta para evitar esta restricción."
+          "openUwpTool": "A partir de Windows 8, las aplicaciones UWP (como la Tienda de Microsoft) tienen restricciones para acceder directamente a los servicios de red del host local. Use esta herramienta para evitar esta restricción.",
+          "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing."
         },
         "options": {
           "logLevel": {
@@ -171,11 +173,15 @@
           "misc": "Ajustes varios",
           "hotkeySetting": "Configuración de atajos de teclado",
           "advancedMode": "Advanced mode",
-          "mainSwitchMode": "Connect button"
+          "connectSysproxy": "Connect: system proxy",
+          "connectTun": "Connect: TUN mode"
         },
         "options": {
           "sysproxy": "System proxy",
           "tun": "TUN"
+        },
+        "hints": {
+          "connectTun": "The Connect button also brings the TUN device up. System proxy and TUN can run together; the TUN device needs the service installed."
         }
       },
       "advanced": {
