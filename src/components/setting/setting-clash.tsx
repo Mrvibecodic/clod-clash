@@ -9,8 +9,9 @@ import { updateGeo, type LogLevel } from 'tauri-plugin-mihomo-api'
 import { DialogRef, Switch, TooltipIcon } from '@/components/base'
 import { useClash } from '@/hooks/use-clash'
 import { useClashLog } from '@/hooks/use-clash-log'
+import { useProfiles } from '@/hooks/use-profiles'
 import { useVerge } from '@/hooks/use-verge'
-import { invoke_uwp_tool } from '@/services/cmds'
+import { invoke_uwp_tool, patchClashMode } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import getSystem from '@/utils/get-system'
 
@@ -40,10 +41,20 @@ const SettingClash = ({ onError }: Props) => {
 
   const {
     ipv6,
+    mode,
     'allow-lan': allowLan,
     'log-level': logLevel,
     'unified-delay': unifiedDelay,
   } = clash ?? {}
+
+  // clod: routing mode selector state and the panel lock.
+  const { current } = useProfiles()
+  const modeLocked = Boolean(current?.lock_mode)
+  const normalizedMode = mode?.toLowerCase()
+  const routingMode =
+    normalizedMode === 'global' || normalizedMode === 'direct'
+      ? normalizedMode
+      : 'rule'
 
   const { verge_mixed_port } = verge ?? {}
 
@@ -101,6 +112,40 @@ const SettingClash = ({ onError }: Props) => {
       <DnsViewer ref={dnsRef} />
       <HeaderConfiguration ref={corsRef} />
       <TunnelsViewer ref={tunnelRef} />
+      {/* clod: the routing mode lives here, not on the home screen. Locked
+          entirely when the panel sent `clod-lock-mode`. */}
+      {modeLocked ? null : (
+        <SettingItem
+          label={t('settings.sections.clash.form.fields.routingMode')}
+          extra={
+            <TooltipIcon
+              title={t('settings.sections.clash.form.tooltips.routingMode')}
+              color={'inherit'}
+            />
+          }
+        >
+          <GuardState
+            value={routingMode}
+            onCatch={onError}
+            onFormat={(e: any) => e.target.value}
+            onChange={(mode) => onChangeData({ mode })}
+            onGuard={(mode) => patchClashMode(mode)}
+          >
+            <Select size="small" sx={{ width: 140, '> div': { py: '7.5px' } }}>
+              <MenuItem value="rule">
+                {t('home.components.clashMode.labels.rule')}
+              </MenuItem>
+              <MenuItem value="global">
+                {t('home.components.clashMode.labels.global')}
+              </MenuItem>
+              <MenuItem value="direct">
+                {t('home.components.clashMode.labels.direct')}
+              </MenuItem>
+            </Select>
+          </GuardState>
+        </SettingItem>
+      )}
+
       <SettingItem
         label={t('settings.sections.clash.form.fields.allowLan')}
         extra={
