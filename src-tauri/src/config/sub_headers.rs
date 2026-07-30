@@ -179,7 +179,7 @@ impl SubHeaders {
             profile_title: value(headers, "profile-title"),
             profile_logo: value(headers, "profile-logo").and_then(|raw| http_url(&raw)),
             home: value(headers, "profile-web-page-url"),
-            support_url: value(headers, "support-url"),
+            support_url: value(headers, "support-url").and_then(|raw| contact_url(&raw)),
             announce: value(headers, "announce").map(|text| truncate_chars(&text, ANNOUNCE_MAX_CHARS)),
             announce_url: value(headers, "announce-url").and_then(|raw| http_url(&raw)),
             refill_date: value(headers, "subscription-refill-date").and_then(|raw| raw.trim().parse::<i64>().ok()),
@@ -298,7 +298,9 @@ fn decode_value(raw: &str) -> String {
         }
     }
 
-    trimmed.into()
+    // The value claimed to be base64 and was not: treat it as absent rather
+    // than leaking the literal `base64:...` string into a user-facing banner.
+    String::new()
 }
 
 /// Tiny abstraction so several base64 alphabets can be tried in a loop.
@@ -369,6 +371,23 @@ fn http_url(value: &str) -> Option<String> {
     Some(parsed.as_str().into())
 }
 
+/// Like `http_url`, plus the contact schemes a support link legitimately
+/// uses. The value ends up behind a prominent one-click button, so a
+/// compromised panel must not be able to smuggle `file:` or a UNC path in.
+fn contact_url(value: &str) -> Option<String> {
+    let parsed = tauri::Url::parse(value.trim()).ok()?;
+    match parsed.scheme() {
+        "http" | "https" => {
+            parsed.host_str().filter(|host| !host.is_empty())?;
+        }
+        "tg" | "mailto" => {}
+        _ => return None,
+    }
+    // The original text, not `parsed.as_str()`: parsing is validation here,
+    // and normalising would append a trailing slash the panel never sent.
+    Some(value.trim().into())
+}
+
 fn truncate_chars(value: &str, limit: usize) -> String {
     if value.chars().count() <= limit {
         return value.into();
@@ -433,7 +452,8 @@ pub fn validate_new_url(current: &str, candidate: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        DEFAULT_NOTIFY_EXPIRE_DAYS, HwidState, SubHeaders, decode_value, swap_domain, thresholds, validate_new_url,
+        DEFAULT_NOTIFY_EXPIRE_DAYS, HwidState, SubHeaders, contact_url, decode_value, swap_domain, thresholds,
+        validate_new_url,
     };
     use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 
@@ -506,7 +526,9 @@ mod tests {
         // url-safe, unpadded
         assert_eq!(decode_value("base64:SGVsbG8_"), "Hello?");
         // broken payload keeps the raw value
-        assert_eq!(decode_value("base64:!!!not-base64!!!"), "base64:!!!not-base64!!!");
+        // A value that claims to be base64 but is not decodable is dropped —
+        // the literal prefix must never surface in a banner.
+        assert_eq!(decode_value("base64:!!!not-base64!!!"), "");
         // plain values pass through, trimmed
         assert_eq!(decode_value("  plain  "), "plain");
     }
@@ -737,6 +759,31 @@ mod tests {
             ("notify-expire-days", "off"),
         ]));
         assert_eq!(parsed.notify_expire_days, Some(Vec::new()));
+    }
+
+    #[test]
+    fn support_url_allows_contact_schemes_only() {
+        assert_eq!(
+            contact_url("https://help.example/chat").as_deref(),
+            Some("https://help.example/chat")
+        );
+        assert_eq!(
+            contact_url("tg://resolve?domain=support").as_deref(),
+            Some("tg://resolve?domain=support")
+        );
+        assert_eq!(
+            contact_url("mailto:help@example.com").as_deref(),
+            Some("mailto:help@example.com")
+        );
+        // one-click button — no local execution vectors from a panel
+        assert_eq!(contact_url("file:///etc/passwd"), None);
+        assert_eq!(contact_url(r"\\attacker\share\payload.exe"), None);
+        assert_eq!(contact_url("javascript:alert(1)"), None);
+
+        let parsed = SubHeaders::parse(&headers(&[("support-url", "file:///tmp/x")]));
+        assert_eq!(parsed.support_url, None);
+        let parsed = SubHeaders::parse(&headers(&[("support-url", "https://t.me/support")]));
+        assert_eq!(parsed.support_url.as_deref(), Some("https://t.me/support"));
     }
 
     #[test]

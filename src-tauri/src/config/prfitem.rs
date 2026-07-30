@@ -499,7 +499,10 @@ impl PrfItem {
         let (update_interval, interval_locked) = match update_interval {
             Some(val) => (Some(val), None),
             None => match sub.update_interval_hours {
-                Some(hours) => (Some(hours * 60), Some(true)), // hour -> min
+                // saturating: the header is parsed as an arbitrary u64 and
+                // release builds run without overflow checks — a hostile
+                // value must not wrap into a tiny interval.
+                Some(hours) => (Some(hours.saturating_mul(60)), Some(true)), // hour -> min
                 None => (None, None),
             },
         };
