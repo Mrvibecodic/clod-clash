@@ -282,7 +282,10 @@ export const EnhancedTrafficStats = () => {
           cards per row only fit from the lg viewport up. */}
       <Grid container spacing={1} columns={{ xs: 8, sm: 8, md: 8, lg: 12 }}>
         {trafficGraph && (
-          <Grid size={12}>
+          /* clod: the container is 8 columns below lg, so a hardcoded 12 here
+             renders the graph at 150% width and overflows the default-sized
+             window — the size has to follow the breakpoints. */
+          <Grid size={{ xs: 8, sm: 8, md: 8, lg: 12 }}>
             {/* 流量图表区域 */}
             {trafficGraphComponent}
           </Grid>
