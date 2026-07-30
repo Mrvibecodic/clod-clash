@@ -74,7 +74,12 @@ const Tile = ({ icon, label, hint, onClick }: TileProps) => (
         {label}
       </Typography>
       {hint ? (
-        <Typography variant="caption" color="text.secondary" noWrap>
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          noWrap
+          sx={{ display: 'block' }}
+        >
           {hint}
         </Typography>
       ) : null}
@@ -250,10 +255,15 @@ const HomeAdvancedPage = () => {
             <EnhancedTrafficStats />
           </EnhancedCard>
 
+          {/* minmax(0, …) lets the tiles shrink below their label width —
+              plain 1fr tracks refuse to and push the grid past the window. */}
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: { xs: '1fr 1fr', lg: '1fr 1fr 1fr' },
+              gridTemplateColumns: {
+                xs: 'repeat(2, minmax(0, 1fr))',
+                lg: 'repeat(3, minmax(0, 1fr))',
+              },
               gap: 1.25,
             }}
           >
