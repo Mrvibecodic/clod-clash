@@ -277,8 +277,14 @@ pub struct IVerge {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub simple_mode: Option<bool>,
 
-    /// What the main Connect button switches: `sysproxy` or `tun`.
-    pub main_switch_mode: Option<String>,
+    /// The Connect button drives the system proxy. On by default; system proxy
+    /// and TUN are independent and may be active at the same time.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub connect_system_proxy: Option<bool>,
+
+    /// The Connect button also drives the TUN device. Off by default.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub connect_tun_mode: Option<bool>,
     // clod:simple-mode end
 }
 
@@ -320,19 +326,13 @@ impl IVerge {
     /// Used when neither the user nor the provider expressed a preference.
     pub const DEFAULT_SIMPLE_MODE: bool = true;
 
-    /// What the Connect button toggles unless configured otherwise.
-    pub const DEFAULT_MAIN_SWITCH_MODE: &'static str = "sysproxy";
+    /// The Connect button drives the system proxy unless turned off. When both
+    /// targets end up disabled the app falls back to this one, because a
+    /// Connect button that switches nothing is a broken promise.
+    pub const DEFAULT_CONNECT_SYSTEM_PROXY: bool = true;
 
-    /// Accepted values for [`Self::main_switch_mode`].
-    pub const VALID_MAIN_SWITCH_MODES: &'static [&'static str] = &["sysproxy", "tun"];
-
-    /// The Connect button target, falling back to the default on garbage input.
-    pub fn main_switch_mode(&self) -> &str {
-        self.main_switch_mode
-            .as_deref()
-            .filter(|mode| Self::VALID_MAIN_SWITCH_MODES.contains(mode))
-            .unwrap_or(Self::DEFAULT_MAIN_SWITCH_MODE)
-    }
+    /// TUN participation of the Connect button is opt-in.
+    pub const DEFAULT_CONNECT_TUN_MODE: bool = false;
     // clod:simple-mode end
 
     /// 验证并修正配置文件中的clash_core值
@@ -503,7 +503,8 @@ impl IVerge {
             // clod:simple-mode begin
             // `simple_mode` stays unset on purpose: that is what lets the
             // provider's header decide until the user picks a mode.
-            main_switch_mode: Some(Self::DEFAULT_MAIN_SWITCH_MODE.into()),
+            connect_system_proxy: Some(Self::DEFAULT_CONNECT_SYSTEM_PROXY),
+            connect_tun_mode: Some(Self::DEFAULT_CONNECT_TUN_MODE),
             // clod:simple-mode end
             ..Self::default()
         }
@@ -616,7 +617,8 @@ impl IVerge {
         // clod:hwid end
         // clod:simple-mode begin
         patch!(simple_mode);
-        patch!(main_switch_mode);
+        patch!(connect_system_proxy);
+        patch!(connect_tun_mode);
         // clod:simple-mode end
     }
 

@@ -131,6 +131,24 @@ pub struct SubHeaders {
     ///
     /// A user who picked a mode themselves always wins over this.
     pub simple_mode: Option<bool>,
+    /// `clod-portal-url` — the customer portal where the plan is renewed.
+    ///
+    /// Deliberately separate from `profile-web-page-url`: Remnawave panels
+    /// usually point that one at the subscription page itself, which is not
+    /// where a customer pays.
+    pub portal_url: Option<String>,
+    /// `clod-promo` — a temporary promotion banner. Unlike `announce` it is
+    /// dismissable and expected to disappear once the panel stops sending it.
+    pub promo: Option<String>,
+    /// `clod-promo-url` — where the promo banner leads when clicked.
+    pub promo_url: Option<String>,
+    /// `clod-renew-url` — shows the "renew" action; absent means no button.
+    pub renew_url: Option<String>,
+    /// `clod-topup-url` — shows the "buy more traffic" action.
+    pub topup_url: Option<String>,
+    /// `clod-lock-mode` — the panel forbids changing proxy/routing modes in
+    /// the app. `global-mode: false` (Prizrak-Box) is honoured as a synonym.
+    pub lock_mode: Option<bool>,
 }
 
 impl SubHeaders {
@@ -179,6 +197,15 @@ impl SubHeaders {
             simple_mode: bool_value(headers, "clod-simple-mode")
                 .or_else(|| bool_value(headers, "pxa-simple-mode"))
                 .or_else(|| bool_value(headers, "flclashx-newboard")),
+            portal_url: value(headers, "clod-portal-url").and_then(|raw| http_url(&raw)),
+            promo: value(headers, "clod-promo").map(|text| truncate_chars(&text, ANNOUNCE_MAX_CHARS)),
+            promo_url: value(headers, "clod-promo-url").and_then(|raw| http_url(&raw)),
+            renew_url: value(headers, "clod-renew-url").and_then(|raw| http_url(&raw)),
+            topup_url: value(headers, "clod-topup-url").and_then(|raw| http_url(&raw)),
+            // `global-mode: false` means "hide the mode switch" for Prizrak-Box
+            // configured panels, which is exactly our lock.
+            lock_mode: bool_value(headers, "clod-lock-mode")
+                .or_else(|| bool_value(headers, "global-mode").map(|allowed| !allowed)),
         }
     }
 }
@@ -506,6 +533,77 @@ mod tests {
         assert_eq!(SubHeaders::parse(&headers(&[])).simple_mode, None);
         let parsed = SubHeaders::parse(&headers(&[("clod-simple-mode", "maybe")]));
         assert_eq!(parsed.simple_mode, None);
+    }
+
+    #[test]
+    fn parses_the_clod_action_headers() {
+        let parsed = SubHeaders::parse(&headers(&[
+            ("clod-portal-url", "https://my.provider.example/cabinet"),
+            ("clod-promo", "base64:0KHQutC40LTQutCwIDIwICU="),
+            ("clod-promo-url", "https://my.provider.example/promo"),
+            ("clod-renew-url", "https://my.provider.example/renew"),
+            ("clod-topup-url", "https://my.provider.example/topup"),
+        ]));
+
+        assert_eq!(
+            parsed.portal_url.as_deref(),
+            Some("https://my.provider.example/cabinet")
+        );
+        assert_eq!(parsed.promo.as_deref(), Some("Скидка 20 %"));
+        assert_eq!(parsed.promo_url.as_deref(), Some("https://my.provider.example/promo"));
+        assert_eq!(parsed.renew_url.as_deref(), Some("https://my.provider.example/renew"));
+        assert_eq!(parsed.topup_url.as_deref(), Some("https://my.provider.example/topup"));
+
+        // The portal is our own header on purpose; `profile-web-page-url`
+        // usually points at the subscription page and must not leak into it.
+        let parsed = SubHeaders::parse(&headers(&[("profile-web-page-url", "https://panel.example/sub/abc")]));
+        assert_eq!(parsed.portal_url, None);
+
+        // Action URLs go through the same http(s) filter as the logo.
+        let parsed = SubHeaders::parse(&headers(&[
+            ("clod-renew-url", "javascript:alert(1)"),
+            ("clod-topup-url", "tg://resolve?domain=x"),
+        ]));
+        assert_eq!(parsed.renew_url, None);
+        assert_eq!(parsed.topup_url, None);
+
+        // Absent headers mean absent buttons — that is the default.
+        let parsed = SubHeaders::parse(&headers(&[]));
+        assert_eq!(parsed.renew_url, None);
+        assert_eq!(parsed.topup_url, None);
+        assert_eq!(parsed.portal_url, None);
+        assert_eq!(parsed.promo, None);
+    }
+
+    #[test]
+    fn lock_mode_reads_our_header_and_the_prizrak_synonym() {
+        let parsed = SubHeaders::parse(&headers(&[("clod-lock-mode", "1")]));
+        assert_eq!(parsed.lock_mode, Some(true));
+
+        // Prizrak-Box panels say `global-mode: false` to hide the switch.
+        let parsed = SubHeaders::parse(&headers(&[("global-mode", "false")]));
+        assert_eq!(parsed.lock_mode, Some(true));
+        let parsed = SubHeaders::parse(&headers(&[("global-mode", "true")]));
+        assert_eq!(parsed.lock_mode, Some(false));
+
+        // Ours wins when both are present.
+        let parsed = SubHeaders::parse(&headers(&[("clod-lock-mode", "0"), ("global-mode", "false")]));
+        assert_eq!(parsed.lock_mode, Some(false));
+
+        assert_eq!(SubHeaders::parse(&headers(&[])).lock_mode, None);
+    }
+
+    #[test]
+    fn promo_does_not_shadow_its_url_and_renew_is_not_new_url() {
+        let parsed = SubHeaders::parse(&headers(&[
+            ("clod-promo", "sale"),
+            ("clod-promo-url", "https://p.example/sale"),
+            ("clod-renew-url", "https://p.example/renew"),
+        ]));
+        assert_eq!(parsed.promo.as_deref(), Some("sale"));
+        assert_eq!(parsed.promo_url.as_deref(), Some("https://p.example/sale"));
+        // `clod-renew-url` must never be picked up as a `new-url` migration.
+        assert_eq!(parsed.new_url, None);
     }
 
     #[test]

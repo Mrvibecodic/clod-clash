@@ -270,7 +270,7 @@ impl IProfiles {
                 if item.name.is_some() {
                     each.name_customized = Some(true);
                 }
-                patch!(each, item, announce_seen_hash);
+                patch!(each, item, promo_seen);
                 patch!(each, item, name_customized);
                 patch!(each, item, fallback_url);
                 patch!(each, item, interval_locked);

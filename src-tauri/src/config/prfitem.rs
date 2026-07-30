@@ -75,10 +75,35 @@ pub struct PrfItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub announce_url: Option<String>,
 
-    /// Set once the user dismissed the current announce. Cleared automatically
-    /// when the provider changes the text, so a new message shows up again.
+    /// `clod-portal-url` header — the customer portal (renewal, payments).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub announce_seen_hash: Option<String>,
+    pub portal_url: Option<String>,
+
+    /// `clod-promo` header — temporary promotion banner, dismissable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub promo: Option<String>,
+
+    /// `clod-promo-url` header — where the promo banner leads when clicked.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub promo_url: Option<String>,
+
+    /// Set once the user dismissed the current promo. Cleared automatically
+    /// when the provider changes the text, so a new promotion shows up again.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub promo_seen: Option<bool>,
+
+    /// `clod-renew-url` header — target of the "renew" action button.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub renew_url: Option<String>,
+
+    /// `clod-topup-url` header — target of the "buy more traffic" button.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub topup_url: Option<String>,
+
+    /// `clod-lock-mode` header — the panel forbids changing proxy and routing
+    /// modes inside the app.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lock_mode: Option<bool>,
 
     /// `subscription-refill-date` header, unix seconds.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -554,7 +579,13 @@ impl PrfItem {
             logo: sub.profile_logo.clone(),
             announce: sub.announce.clone(),
             announce_url: sub.announce_url.clone(),
-            announce_seen_hash: None,
+            portal_url: sub.portal_url.clone(),
+            promo: sub.promo.clone(),
+            promo_url: sub.promo_url.clone(),
+            promo_seen: None,
+            renew_url: sub.renew_url.clone(),
+            topup_url: sub.topup_url.clone(),
+            lock_mode: sub.lock_mode,
             refill_date: sub.refill_date,
             interval_locked,
             fallback_url: sub.fallback_url.clone(),
@@ -713,12 +744,22 @@ impl PrfItem {
         self.notify_traffic_percent = fresh.notify_traffic_percent.clone();
         self.from_fallback = fresh.from_fallback;
         self.simple_mode = fresh.simple_mode;
+        self.portal_url = fresh.portal_url.clone();
+        self.renew_url = fresh.renew_url.clone();
+        self.topup_url = fresh.topup_url.clone();
+        self.lock_mode = fresh.lock_mode;
 
-        // A changed announce text must be shown again, so drop the dismissal.
-        if self.announce != fresh.announce {
-            self.announce_seen_hash = None;
-        }
+        // The announce is permanent and never dismissable; it simply follows
+        // whatever the panel currently says.
         self.announce = fresh.announce.clone();
+
+        // A changed promo must be shown again, so drop the dismissal. A promo
+        // the panel stopped sending disappears entirely.
+        if self.promo != fresh.promo {
+            self.promo_seen = None;
+        }
+        self.promo = fresh.promo.clone();
+        self.promo_url = fresh.promo_url.clone();
 
         // An update that asks for no migration ends the current migration chain,
         // so the hop guard starts from zero again next time.
@@ -730,14 +771,13 @@ impl PrfItem {
         // the panel; `url` migration is applied by `feat::profile`.
     }
 
-    /// Whether the stored announce still needs to be shown.
+    /// Whether the stored promo still needs to be shown.
     ///
     /// Dismissal is a plain marker rather than a comparison: `merge_panel_meta`
-    /// already clears it whenever the announce text changes, so a new message
+    /// already clears it whenever the promo text changes, so a new promotion
     /// reappears without the UI having to hash anything.
-    pub fn announce_pending(&self) -> bool {
-        self.announce.as_deref().is_some_and(|text| !text.is_empty())
-            && self.announce_seen_hash.as_deref().is_none_or(str::is_empty)
+    pub fn promo_pending(&self) -> bool {
+        self.promo.as_deref().is_some_and(|text| !text.is_empty()) && !self.promo_seen.unwrap_or(false)
     }
 
     /// Record that the primary URL was replaced by `new_url`.
