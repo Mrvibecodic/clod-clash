@@ -102,6 +102,9 @@ const HomeSimplePage = () => {
             size="small"
             value={subUrl}
             onChange={(event) => setSubUrl(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') void addSubscription()
+            }}
             placeholder={t('home.pages.simple.subscriptionPlaceholder')}
           />
           <Button
