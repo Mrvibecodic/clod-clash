@@ -654,7 +654,8 @@
         "done": "Done"
       },
       "updatedTo": "Core updated to {{msg}}",
-      "updateNotice": "A newer core is available: {{msg}}"
+      "updateNotice": "A newer core is available: {{msg}}",
+      "serviceModeNote": "Service mode runs the bundled core; the managed core applies in sidecar mode only"
     }
   },
   "feedback": {

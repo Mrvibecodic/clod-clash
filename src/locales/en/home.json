@@ -151,7 +151,7 @@
       "favorite": "Favorite"
     },
     "subscription": {
-      "expires": "{{count}} days left · until {{date}}",
+      "expires": "{{count}} d left · until {{date}}",
       "refill": "Monthly traffic resets on {{date}}",
       "renew": "Renew",
       "topup": "Add traffic",

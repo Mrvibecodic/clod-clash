@@ -1030,6 +1030,7 @@ export interface TranslationResources {
           revert: string
           reverted: string
           running: string
+          serviceModeNote: string
           stable: string
           title: string
           update: string

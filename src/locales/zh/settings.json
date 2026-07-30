@@ -626,6 +626,36 @@
         "ipAddress": "IP 地址",
         "macAddress": "MAC 地址"
       }
+    },
+    "managedCore": {
+      "entry": "托管内核（自动更新）",
+      "title": "托管 Mihomo 内核",
+      "useManaged": "使用托管内核",
+      "useManagedHint": "运行自行下载的内核，替代内置内核",
+      "channel": "通道",
+      "stable": "稳定版",
+      "alpha": "Alpha",
+      "autoCheck": "每日检查",
+      "running": "运行中：",
+      "managedTag": "托管",
+      "bundledTag": "内置",
+      "available": "有可用更新：{{version}}",
+      "upToDate": "内核已是最新",
+      "check": "检查更新",
+      "update": "下载并应用",
+      "revert": "回退到 {{version}}",
+      "updated": "内核已更新",
+      "reverted": "内核已回退",
+      "phase": {
+        "checking": "检查中…",
+        "downloading": "下载中…",
+        "verifying": "校验中…",
+        "applying": "应用中…",
+        "done": "完成"
+      },
+      "updatedTo": "内核已更新到 {{msg}}",
+      "updateNotice": "有新的内核可用：{{msg}}",
+      "serviceModeNote": "服务模式运行内置内核；托管内核仅在 sidecar 模式下生效"
     }
   },
   "feedback": {

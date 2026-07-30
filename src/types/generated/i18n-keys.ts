@@ -744,6 +744,7 @@ export const translationKeys = [
   'settings.modals.managedCore.phase.done',
   'settings.modals.managedCore.updatedTo',
   'settings.modals.managedCore.updateNotice',
+  'settings.modals.managedCore.serviceModeNote',
   'settings.feedback.notifications.clash.restartSuccess',
   'settings.feedback.notifications.clash.versionUpdated',
   'settings.feedback.notifications.clash.alreadyLatestVersion',
