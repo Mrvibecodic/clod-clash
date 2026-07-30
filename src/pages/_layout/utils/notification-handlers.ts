@@ -34,6 +34,14 @@ export const handleNoticeMessage = (
         'settings.feedback.notifications.updater.withClashProxyFailed',
         msg,
       ),
+    // clod: provider driven subscription changes
+    'clod_sub::url_migrated': () =>
+      showNotice.success(
+        'profiles.page.feedback.notifications.urlMigrated',
+        msg,
+      ),
+    'clod_sub::fallback_used': () =>
+      showNotice.info('profiles.page.feedback.notifications.fallbackUsed', msg),
     'reactivate_profiles::error': () => showNotice.error(msg),
     update_failed: () => showNotice.error(msg),
     'config_validate::boot_error': () =>

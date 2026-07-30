@@ -248,6 +248,33 @@ interface IProfileItem {
   }
   option?: IProfileOption
   home?: string
+  // clod: Remnawave / Happ subscription headers (see src-tauri/src/config/sub_headers.rs)
+  /** `support-url` header */
+  support_url?: string
+  /** `announce` header, may contain newlines */
+  announce?: string
+  /** sha256 of the announce text the user dismissed */
+  announce_seen_hash?: string
+  /** `subscription-refill-date` header, unix seconds */
+  refill_date?: number
+  /** the provider dictated the update interval, so the field is read-only */
+  interval_locked?: boolean
+  /** `fallback-url` header */
+  fallback_url?: string
+  /** URLs this subscription was migrated away from, oldest first */
+  previous_urls?: string[]
+  /** device registration state reported by the panel */
+  hwid_state?: 'ok' | 'limit' | 'not_supported'
+  /** the user renamed the profile, so `profile-title` must not overwrite it */
+  name_customized?: boolean
+  /** expiry reminder thresholds in days; empty array = disabled by provider */
+  notify_expire_days?: number[]
+  /** traffic reminder thresholds in percent; empty array = disabled */
+  notify_traffic_percent?: number[]
+  /** reminder bookkeeping: threshold key -> unix seconds it fired at */
+  notified?: Record<string, number>
+  /** the last payload came from `fallback_url` instead of `url` */
+  from_fallback?: boolean
 }
 
 interface IProfileOption {
@@ -956,6 +983,11 @@ interface IVergeConfig {
   enable_hover_jump_navigator?: boolean
   hover_jump_navigator_delay?: number
   enable_external_controller?: boolean
+  // clod: device identity sent to the panel (src-tauri/src/utils/hwid.rs)
+  /** send the x-hwid family with subscription requests; default true */
+  enable_hwid?: boolean
+  /** cached device id, computed once on first use */
+  hwid?: string
 }
 
 interface IWebDavFile {

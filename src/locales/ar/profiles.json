@@ -38,7 +38,9 @@
         "profileSwitched": "تم التبديل إلى الملف الشخصي",
         "profileReactivated": "تم إعادة تنشيط الملف الشخصي",
         "switchBusy": "Profile switch is already in progress",
-        "batchDeleted": "Selected profiles deleted successfully"
+        "batchDeleted": "Selected profiles deleted successfully",
+        "urlMigrated": "The provider moved this subscription to a new address",
+        "fallbackUsed": "Updated from the provider's backup address"
       },
       "notices": {
         "forceRefreshCompleted": "Force refresh completed",
@@ -84,7 +86,8 @@
     "profileItem": {
       "tooltips": {
         "showLast": "Click to show last update time",
-        "showNext": "Click to show next update"
+        "showNext": "Click to show next update",
+        "refillDate": "Traffic resets on {{date}}"
       },
       "status": {
         "lastUpdateFailed": "Last Update failed",
@@ -92,7 +95,21 @@
         "noSchedule": "No schedule",
         "unknown": "Unknown",
         "autoUpdateDisabled": "Auto update disabled"
+      },
+      "labels": {
+        "unlimited": "Unlimited",
+        "neverExpires": "No expiry"
       }
+    },
+    "hwidDialog": {
+      "limitTitle": "Device limit reached",
+      "limitBody": "Your provider does not allow another device on this subscription. Sign out on a device you no longer use, or contact support.",
+      "limitBodyWithCount": "Your provider allows {{count}} device(s) on this subscription and the limit is full. Sign out on a device you no longer use, or contact support.",
+      "requiredTitle": "Device identification required",
+      "requiredBody": "Your provider identifies devices and will not serve the subscription without a device id. Turn identification on and try again?",
+      "enable": "Turn on",
+      "support": "Support",
+      "enabled": "Device identification enabled — update the subscription again"
     }
   },
   "modals": {

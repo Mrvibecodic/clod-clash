@@ -215,6 +215,16 @@ export interface TranslationResources {
         fileInput: {
           chooseFile: string
         }
+        hwidDialog: {
+          enable: string
+          enabled: string
+          limitBody: string
+          limitBodyWithCount: string
+          limitTitle: string
+          requiredBody: string
+          requiredTitle: string
+          support: string
+        }
         menu: {
           editFile: string
           editGroups: string
@@ -241,6 +251,10 @@ export interface TranslationResources {
           }
         }
         profileItem: {
+          labels: {
+            neverExpires: string
+            unlimited: string
+          }
           status: {
             autoUpdateDisabled: string
             lastUpdateFailed: string
@@ -249,6 +263,7 @@ export interface TranslationResources {
             unknown: string
           }
           tooltips: {
+            refillDate: string
             showLast: string
             showNext: string
           }
@@ -373,6 +388,7 @@ export interface TranslationResources {
           }
           notifications: {
             batchDeleted: string
+            fallbackUsed: string
             importFail: string
             importNeedsRefresh: string
             importRetry: string
@@ -380,6 +396,7 @@ export interface TranslationResources {
             profileReactivated: string
             profileSwitched: string
             switchBusy: string
+            urlMigrated: string
           }
         }
         importForm: {

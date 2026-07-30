@@ -38,7 +38,9 @@
         "profileSwitched": "프로필 전환됨",
         "profileReactivated": "프로필 재활성화됨",
         "switchBusy": "프로필 전환이 이미 진행 중입니다",
-        "batchDeleted": "선택한 프로필이 삭제되었습니다"
+        "batchDeleted": "선택한 프로필이 삭제되었습니다",
+        "urlMigrated": "The provider moved this subscription to a new address",
+        "fallbackUsed": "Updated from the provider's backup address"
       },
       "notices": {
         "forceRefreshCompleted": "강제 새로고침 완료",
@@ -84,7 +86,8 @@
     "profileItem": {
       "tooltips": {
         "showLast": "클릭하여 마지막 업데이트 시간 표시",
-        "showNext": "클릭하여 다음 업데이트 표시"
+        "showNext": "클릭하여 다음 업데이트 표시",
+        "refillDate": "Traffic resets on {{date}}"
       },
       "status": {
         "lastUpdateFailed": "마지막 업데이트 실패",
@@ -92,7 +95,21 @@
         "noSchedule": "예약 없음",
         "unknown": "알 수 없음",
         "autoUpdateDisabled": "자동 업데이트 비활성화됨"
+      },
+      "labels": {
+        "unlimited": "Unlimited",
+        "neverExpires": "No expiry"
       }
+    },
+    "hwidDialog": {
+      "limitTitle": "Device limit reached",
+      "limitBody": "Your provider does not allow another device on this subscription. Sign out on a device you no longer use, or contact support.",
+      "limitBodyWithCount": "Your provider allows {{count}} device(s) on this subscription and the limit is full. Sign out on a device you no longer use, or contact support.",
+      "requiredTitle": "Device identification required",
+      "requiredBody": "Your provider identifies devices and will not serve the subscription without a device id. Turn identification on and try again?",
+      "enable": "Turn on",
+      "support": "Support",
+      "enabled": "Device identification enabled — update the subscription again"
     }
   },
   "modals": {

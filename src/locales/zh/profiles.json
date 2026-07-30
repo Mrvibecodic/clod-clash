@@ -38,7 +38,9 @@
         "profileSwitched": "订阅已切换",
         "profileReactivated": "订阅已激活",
         "switchBusy": "正在切换订阅，请稍后重试",
-        "batchDeleted": "选中的订阅已成功删除"
+        "batchDeleted": "选中的订阅已成功删除",
+        "urlMigrated": "The provider moved this subscription to a new address",
+        "fallbackUsed": "Updated from the provider's backup address"
       },
       "notices": {
         "forceRefreshCompleted": "数据已强制刷新",
@@ -84,7 +86,8 @@
     "profileItem": {
       "tooltips": {
         "showLast": "点击查看上次更新时间",
-        "showNext": "点击查看下一次更新"
+        "showNext": "点击查看下一次更新",
+        "refillDate": "Traffic resets on {{date}}"
       },
       "status": {
         "lastUpdateFailed": "上次更新失败",
@@ -92,7 +95,21 @@
         "noSchedule": "没有计划",
         "unknown": "未知",
         "autoUpdateDisabled": "自动更新已禁用"
+      },
+      "labels": {
+        "unlimited": "Unlimited",
+        "neverExpires": "No expiry"
       }
+    },
+    "hwidDialog": {
+      "limitTitle": "Device limit reached",
+      "limitBody": "Your provider does not allow another device on this subscription. Sign out on a device you no longer use, or contact support.",
+      "limitBodyWithCount": "Your provider allows {{count}} device(s) on this subscription and the limit is full. Sign out on a device you no longer use, or contact support.",
+      "requiredTitle": "Device identification required",
+      "requiredBody": "Your provider identifies devices and will not serve the subscription without a device id. Turn identification on and try again?",
+      "enable": "Turn on",
+      "support": "Support",
+      "enabled": "Device identification enabled — update the subscription again"
     }
   },
   "modals": {

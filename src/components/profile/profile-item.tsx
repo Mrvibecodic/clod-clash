@@ -257,7 +257,16 @@ const ProfileItemBase = (props: ProfileItemProps) => {
   const { upload = 0, download = 0, total = 0 } = extra ?? {}
   const from = parseUrl(itemData.url)
   const description = itemData.desc
-  const expire = parseExpire(extra?.expire)
+  // clod: Remnawave sends total=0 for an unmetered plan and expire=0 for one
+  // that never ends, so both need their own label instead of "0 B" / "-".
+  const unlimitedTraffic = total === 0
+  const neverExpires = !extra?.expire
+  const expire = neverExpires
+    ? t('profiles.components.profileItem.labels.neverExpires')
+    : parseExpire(extra?.expire)
+  const refillDate = itemData.refill_date
+    ? parseExpire(itemData.refill_date)
+    : undefined
   const progress = Math.min(
     Math.round(((download + upload) * 100) / (total + 0.01)) + 1,
     100,
@@ -830,9 +839,22 @@ const ProfileItemBase = (props: ProfileItemProps) => {
         {hasExtra ? (
           <Box sx={{ ...boxStyle, fontSize: 14 }}>
             <span title={t('shared.labels.usedTotal')}>
-              {parseTraffic(upload + download)} / {parseTraffic(total)}
+              {parseTraffic(upload + download)} /{' '}
+              {unlimitedTraffic
+                ? t('profiles.components.profileItem.labels.unlimited')
+                : parseTraffic(total)}
             </span>
-            <span title={t('shared.labels.expireTime')}>{expire}</span>
+            <span
+              title={
+                refillDate
+                  ? t('profiles.components.profileItem.tooltips.refillDate', {
+                      date: refillDate,
+                    })
+                  : t('shared.labels.expireTime')
+              }
+            >
+              {expire}
+            </span>
           </Box>
         ) : (
           <Box sx={{ ...boxStyle, fontSize: 12, justifyContent: 'flex-end' }}>
