@@ -1,5 +1,5 @@
-import { GitHub, HelpOutlineRounded, Telegram } from '@mui/icons-material'
-import { Box, ButtonGroup, IconButton, Grid } from '@mui/material'
+import SupportAgentRoundedIcon from '@mui/icons-material/SupportAgentRounded'
+import { Box, IconButton, Grid } from '@mui/material'
 import { useLockFn } from 'ahooks'
 import { useTranslation } from 'react-i18next'
 
@@ -8,6 +8,7 @@ import SettingClash from '@/components/setting/setting-clash'
 import SettingSystem from '@/components/setting/setting-system'
 import SettingVergeAdvanced from '@/components/setting/setting-verge-advanced'
 import SettingVergeBasic from '@/components/setting/setting-verge-basic'
+import { useProfiles } from '@/hooks/use-profiles'
 import { openWebUrl } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { useThemeMode } from '@/services/states'
@@ -19,16 +20,19 @@ const SettingPage = () => {
     showNotice.error(err)
   }
 
-  const toGithubRepo = useLockFn(() => {
-    return openWebUrl('https://github.com/clash-verge-rev/clash-verge-rev')
-  })
+  // clod:branding — the upstream Telegram/GitHub/manual buttons linked to the
+  // upstream project; a white-label build can only point at the provider's
+  // own support channel, which comes from the subscription.
+  const { current } = useProfiles()
+  const supportUrl = current?.support_url
 
-  const toGithubDoc = useLockFn(() => {
-    return openWebUrl('https://clash-verge-rev.github.io/index.html')
-  })
-
-  const toTelegramChannel = useLockFn(() => {
-    return openWebUrl('https://t.me/clash_verge_re')
+  const toSupport = useLockFn(async () => {
+    if (!supportUrl) return
+    try {
+      await openWebUrl(supportUrl)
+    } catch (error) {
+      showNotice.error(error)
+    }
   })
 
   const mode = useThemeMode()
@@ -38,33 +42,16 @@ const SettingPage = () => {
     <BasePage
       title={t('settings.page.title')}
       header={
-        <ButtonGroup variant="contained" aria-label="Basic button group">
+        supportUrl ? (
           <IconButton
             size="medium"
             color="inherit"
-            title={t('settings.page.actions.manual')}
-            onClick={toGithubDoc}
+            title={t('profiles.components.hwidDialog.support')}
+            onClick={() => void toSupport()}
           >
-            <HelpOutlineRounded fontSize="inherit" />
+            <SupportAgentRoundedIcon fontSize="inherit" />
           </IconButton>
-          <IconButton
-            size="medium"
-            color="inherit"
-            title={t('settings.page.actions.telegram')}
-            onClick={toTelegramChannel}
-          >
-            <Telegram fontSize="inherit" />
-          </IconButton>
-
-          <IconButton
-            size="medium"
-            color="inherit"
-            title={t('settings.page.actions.github')}
-            onClick={toGithubRepo}
-          >
-            <GitHub fontSize="inherit" />
-          </IconButton>
-        </ButtonGroup>
+        ) : null
       }
     >
       <Grid container spacing={1.5} columns={{ xs: 6, sm: 6, md: 12 }}>
