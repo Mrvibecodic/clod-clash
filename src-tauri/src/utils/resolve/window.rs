@@ -4,10 +4,7 @@ use tauri::webview::PageLoadEvent;
 use tauri::{Theme, WebviewWindow};
 
 use crate::{config::Config, core::handle, utils::resolve::window_script::build_window_initial_script};
-use clash_verge_logging::{Type, logging_error};
-// logging 仅在 macOS 的渲染进程恢复逻辑中使用
-#[cfg(target_os = "macos")]
-use clash_verge_logging::logging;
+use clash_verge_logging::{Type, logging, logging_error};
 
 const DARK_BACKGROUND_COLOR: Color = Color(46, 48, 61, 255); // #2E303D
 const LIGHT_BACKGROUND_COLOR: Color = Color(245, 245, 245, 255); // #F5F5F5
@@ -44,6 +41,40 @@ fn restore_default_size_if_needed(window: &WebviewWindow) {
         window.set_size(tauri::LogicalSize::new(DEFAULT_WIDTH, DEFAULT_HEIGHT))
     );
     logging_error!(Type::Window, window.center());
+}
+
+// clod: minimum part of the window that must land on some monitor for the
+// restored position to count as reachable.
+const MIN_VISIBLE_WIDTH: i32 = 100;
+const MIN_VISIBLE_HEIGHT: i32 = 50;
+
+/// The window-state plugin restores the last position verbatim; after a
+/// monitor is unplugged or the display scale changes that spot may no longer
+/// exist and the window comes up unreachable off-screen. Centre it instead.
+fn restore_position_if_offscreen(window: &WebviewWindow) {
+    let (Ok(pos), Ok(size), Ok(monitors)) = (
+        window.outer_position(),
+        window.outer_size(),
+        window.available_monitors(),
+    ) else {
+        return;
+    };
+    if monitors.is_empty() {
+        return;
+    }
+
+    let reachable = monitors.iter().any(|monitor| {
+        let m_pos = monitor.position();
+        let m_size = monitor.size();
+        let overlap_x = (pos.x + size.width as i32).min(m_pos.x + m_size.width as i32) - pos.x.max(m_pos.x);
+        let overlap_y = (pos.y + size.height as i32).min(m_pos.y + m_size.height as i32) - pos.y.max(m_pos.y);
+        overlap_x >= MIN_VISIBLE_WIDTH && overlap_y >= MIN_VISIBLE_HEIGHT
+    });
+
+    if !reachable {
+        logging!(warn, Type::Window, "restored window position is off-screen, centering");
+        logging_error!(Type::Window, window.center());
+    }
 }
 
 /// 构建新的 WebView 窗口
@@ -112,6 +143,7 @@ pub async fn build_new_window() -> Result<WebviewWindow, String> {
         Ok(window) => {
             logging_error!(Type::Window, window.set_background_color(Some(background_color)));
             restore_default_size_if_needed(&window);
+            restore_position_if_offscreen(&window);
             // 全新窗口的页面即为最新状态，丢弃旧窗口遗留的待重载标记，避免多余 reload
             #[cfg(target_os = "macos")]
             take_webview_needs_reload();
