@@ -109,6 +109,7 @@ export const translationKeys = [
   'home.components.subscription.refill',
   'home.components.subscription.renew',
   'home.components.subscription.topup',
+  'home.components.subscription.updated',
   'home.pages.simple.welcome',
   'home.pages.simple.welcomeHint',
   'home.pages.simple.subscriptionPlaceholder',

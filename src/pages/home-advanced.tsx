@@ -129,7 +129,7 @@ const HomeAdvancedPage = () => {
     try {
       await updateProfile(current.uid)
       await mutateProfiles()
-      showNotice.success('profiles.feedback.notifications.updateSuccess')
+      showNotice.success('home.components.subscription.updated')
     } catch (error) {
       showNotice.error(error)
     }

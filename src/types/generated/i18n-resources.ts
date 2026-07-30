@@ -129,6 +129,7 @@ export interface TranslationResources {
           refill: string
           renew: string
           topup: string
+          updated: string
         }
         systemInfo: {
           actions: {

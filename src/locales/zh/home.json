@@ -153,7 +153,8 @@
       "expires": "{{count}} days left · until {{date}}",
       "refill": "Monthly traffic resets on {{date}}",
       "renew": "Renew",
-      "topup": "Add traffic"
+      "topup": "Add traffic",
+      "updated": "订阅已更新"
     }
   },
   "pages": {
