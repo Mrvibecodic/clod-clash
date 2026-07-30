@@ -63,7 +63,10 @@ pub async fn switch_proxy_node(group_name: &str, proxy_name: &str) {
     }
 }
 
-async fn should_update_profile(uid: &String, ignore_auto_update: bool) -> Result<Option<(String, Option<PrfOption>)>> {
+async fn should_update_profile(
+    uid: &String,
+    ignore_auto_update: bool,
+) -> Result<Option<(String, Option<PrfOption>, Option<String>)>> {
     let profiles = Config::profiles().await;
     let profiles = profiles.latest_arc();
     let item = profiles.get_item(uid)?;
@@ -93,9 +96,86 @@ async fn should_update_profile(uid: &String, ignore_auto_update: bool) -> Result
         Ok(Some((
             item.url.clone().ok_or_else(|| anyhow::anyhow!("Profile URL is None"))?,
             item.option.clone(),
+            // clod: remembered from the previous `fallback-url` header
+            item.fallback_url.clone(),
         )))
     }
 }
+
+// clod:fallback begin
+/// Fetch a subscription URL through the same escalation the primary path uses:
+/// as configured, then through our own core, then through the system proxy.
+///
+/// Only used for the `fallback-url` retry; the primary path below is left
+/// untouched so upstream changes to it stay easy to merge.
+async fn fetch_with_proxy_ladder(url: &String, base: Option<&PrfOption>) -> Result<PrfItem> {
+    let mut attempt = base.cloned();
+    let mut last_err = match PrfItem::from_url(url, None, None, attempt.as_ref()).await {
+        Ok(item) => return Ok(item),
+        Err(err) => err,
+    };
+
+    for (self_proxy, with_proxy) in [(true, false), (false, true)] {
+        let opt = attempt.get_or_insert_with(PrfOption::default);
+        opt.self_proxy = Some(self_proxy);
+        opt.with_proxy = Some(with_proxy);
+
+        match PrfItem::from_url(url, None, None, attempt.as_ref()).await {
+            Ok(item) => return Ok(item),
+            Err(err) => last_err = err,
+        }
+    }
+
+    Err(last_err)
+}
+
+/// Persist a freshly fetched subscription and honour a provider migration.
+///
+/// A `new-url` / `new-domain` header is only applied once a probe download of
+/// the candidate produced a valid mihomo config, so a typo in the panel cannot
+/// strand the user on a dead URL.
+async fn apply_updated_item(uid: &String, item: &mut PrfItem) -> Result<()> {
+    let migrate_url = item.migrate_url.clone();
+    let request_option = item.option.clone();
+
+    profiles_draft_update_item_safe(uid, item).await?;
+
+    let Some(candidate) = migrate_url else {
+        return Ok(());
+    };
+
+    // Reuse the fresh item's option: it already references this profile's
+    // merge/script/rules/proxies/groups, so the probe cannot leak new ones.
+    match PrfItem::from_url(&candidate, None, None, request_option.as_ref()).await {
+        Ok(_) => match crate::config::profiles::profiles_migrate_url_safe(uid, candidate.clone()).await {
+            Ok(()) => {
+                logging!(
+                    info,
+                    Type::Config,
+                    "[订阅更新] [clod] provider migrated the subscription URL to {}",
+                    mask_url(&candidate)
+                );
+                handle::Handle::notice_message("clod_sub::url_migrated", mask_url(&candidate));
+            }
+            Err(err) => logging!(
+                warn,
+                Type::Config,
+                "Warning: [订阅更新] [clod] failed to persist the migrated subscription URL: {}",
+                mask_err(&err.to_string())
+            ),
+        },
+        Err(err) => logging!(
+            warn,
+            Type::Config,
+            "Warning: [订阅更新] [clod] candidate URL {} failed verification, keeping the current one: {}",
+            mask_url(&candidate),
+            mask_err(&err.to_string())
+        ),
+    }
+
+    Ok(())
+}
+// clod:fallback end
 
 async fn perform_profile_update(
     uid: &String,
@@ -103,6 +183,8 @@ async fn perform_profile_update(
     opt: Option<&PrfOption>,
     option: Option<&PrfOption>,
     is_mannual_trigger: bool,
+    // clod: spare address from a previous `fallback-url` header
+    fallback_url: Option<String>,
 ) -> Result<bool> {
     logging!(info, Type::Config, "[订阅更新] 开始下载新的订阅内容");
     let mut merged_opt = PrfOption::merge(opt, option);
@@ -122,7 +204,7 @@ async fn perform_profile_update(
     match PrfItem::from_url(url, None, None, merged_opt.as_ref()).await {
         Ok(mut item) => {
             logging!(info, Type::Config, "[订阅更新] 更新订阅配置成功");
-            profiles_draft_update_item_safe(uid, &mut item).await?;
+            apply_updated_item(uid, &mut item).await?;
             return Ok(is_current);
         }
         Err(err) => {
@@ -142,7 +224,7 @@ async fn perform_profile_update(
     match PrfItem::from_url(url, None, None, merged_opt.as_ref()).await {
         Ok(mut item) => {
             logging!(info, Type::Config, "[订阅更新] 使用 Clash代理 更新订阅配置成功");
-            profiles_draft_update_item_safe(uid, &mut item).await?;
+            apply_updated_item(uid, &mut item).await?;
             handle::Handle::notice_message("update_with_clash_proxy", profile_name);
             drop(last_err);
             return Ok(is_current);
@@ -164,7 +246,7 @@ async fn perform_profile_update(
     match PrfItem::from_url(url, None, None, merged_opt.as_ref()).await {
         Ok(mut item) => {
             logging!(info, Type::Config, "[订阅更新] 使用 系统代理 更新订阅配置成功");
-            profiles_draft_update_item_safe(uid, &mut item).await?;
+            apply_updated_item(uid, &mut item).await?;
             handle::Handle::notice_message("update_with_clash_proxy", profile_name);
             drop(last_err);
             return Ok(is_current);
@@ -179,6 +261,39 @@ async fn perform_profile_update(
             last_err = err;
         }
     }
+
+    // clod:fallback begin
+    // Every attempt on the primary URL failed. The provider may have handed us a
+    // spare address in a previous response (`fallback-url`); use it, but keep the
+    // stored `url` untouched so the primary address is retried next time.
+    if let Some(fallback) = fallback_url.filter(|value| !value.trim().is_empty()) {
+        logging!(
+            info,
+            Type::Config,
+            "[订阅更新] [clod] primary URL failed, trying the provider fallback {}",
+            mask_url(&fallback)
+        );
+
+        match fetch_with_proxy_ladder(&fallback, merged_opt.as_ref()).await {
+            Ok(mut item) => {
+                item.from_fallback = Some(true);
+                apply_updated_item(uid, &mut item).await?;
+                handle::Handle::notice_message("clod_sub::fallback_used", profile_name);
+                drop(last_err);
+                return Ok(is_current);
+            }
+            Err(err) => {
+                logging!(
+                    warn,
+                    Type::Config,
+                    "Warning: [订阅更新] [clod] fallback URL failed as well: {}",
+                    mask_err(&err.to_string())
+                );
+                last_err = err;
+            }
+        }
+    }
+    // clod:fallback end
 
     if is_mannual_trigger {
         handle::Handle::notice_message("update_failed_even_with_clash", format!("{profile_name} - {last_err}"));
@@ -197,8 +312,9 @@ pub async fn update_profile(
     let url_opt = should_update_profile(uid, ignore_auto_update).await?;
 
     let should_refresh = match url_opt {
-        Some((url, opt)) => {
-            perform_profile_update(uid, &url, opt.as_ref(), option, is_mannual_trigger).await? && auto_refresh
+        Some((url, opt, fallback_url)) => {
+            perform_profile_update(uid, &url, opt.as_ref(), option, is_mannual_trigger, fallback_url).await?
+                && auto_refresh
         }
         None => auto_refresh,
     };

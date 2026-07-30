@@ -117,6 +117,25 @@ impl IProfiles {
         help::save_yaml(&dirs::profiles_path()?, self, Some("# Profiles Config for Clash Verge")).await
     }
 
+    // clod:headers begin
+    /// Point a subscription at a new URL, keeping the old one in the history.
+    pub async fn migrate_item_url(&mut self, uid: &String, new_url: String) -> Result<()> {
+        let found = self.items.as_mut().is_some_and(|items| {
+            items
+                .iter_mut()
+                .find(|each| each.uid.as_ref() == Some(uid))
+                .map(|each| each.record_url_migration(new_url))
+                .is_some()
+        });
+
+        if !found {
+            bail!("failed to find the profile item \"uid:{uid}\"");
+        }
+
+        self.save_file().await
+    }
+    // clod:headers end
+
     /// 只修改current，valid和chain
     pub fn patch_config(&mut self, patch: &Self) {
         if self.items.is_none() {
@@ -624,6 +643,20 @@ pub async fn profiles_reorder_safe(active_id: &String, over_id: &String) -> Resu
         })
         .await
 }
+
+// clod:headers begin
+/// Replace a subscription URL after the provider asked for a migration
+/// (`new-url` / `new-domain`) and the candidate was verified.
+pub async fn profiles_migrate_url_safe(index: &String, new_url: String) -> Result<()> {
+    Config::profiles()
+        .await
+        .with_data_modify(|mut profiles| async move {
+            profiles.migrate_item_url(index, new_url).await?;
+            Ok((profiles, ()))
+        })
+        .await
+}
+// clod:headers end
 
 pub async fn profiles_save_file_safe() -> Result<()> {
     Config::profiles()
