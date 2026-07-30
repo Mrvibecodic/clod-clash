@@ -1,0 +1,127 @@
+# clod:F6 — выпуск Clod Clash.
+#
+# Собирает инсталлеры под Windows (x64/arm64), macOS (arm64/x64) и Linux
+# (x64), подписывает артефакты апдейтера ключом из секретов и прикладывает
+# latest.json к черновику релиза. После публикации релиза эндпоинт
+# `releases/latest/download/latest.json` из tauri.conf.json начинает
+# отдавать обновление всем установленным клиентам.
+#
+# Требуемые секреты репозитория (см. docs/RELEASING.md):
+#   TAURI_PRIVATE_KEY       — приватный ключ подписи апдейтера
+#   TAURI_KEY_PASSWORD      — пароль к нему (если задан при генерации)
+#
+# Запуск: пуш тега `clod-v{версия}` (версия должна совпадать с package.json)
+# или вручную через workflow_dispatch.
+
+name: Release Clod Clash
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'clod-v*'
+
+permissions: write-all
+
+env:
+  CARGO_INCREMENTAL: 0
+  RUST_BACKTRACE: short
+  HUSKY: 0
+
+concurrency:
+  group: '${{ github.workflow }} - ${{ github.head_ref || github.ref }}'
+  cancel-in-progress: false
+
+jobs:
+  check_version:
+    name: Check tag and package.json version
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/clod-v')
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Compare versions
+        run: |
+          TAG_REF="${GITHUB_REF_NAME:-${GITHUB_REF##*/}}"
+          PKG_VERSION=$(jq -r .version package.json)
+          EXPECTED_TAG="clod-v$PKG_VERSION"
+          echo "tag: $TAG_REF, package.json: $PKG_VERSION"
+          if [[ "$TAG_REF" != "$EXPECTED_TAG" ]]; then
+            echo "::error::Tag $TAG_REF does not match package.json ($EXPECTED_TAG)"
+            exit 1
+          fi
+
+  release:
+    name: Build ${{ matrix.target }}
+    needs: [check_version]
+    if: always() && (needs.check_version.result == 'success' || needs.check_version.result == 'skipped')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: macos-latest
+            target: x86_64-apple-darwin
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: 'v1-rust-clod'
+          key: 'rust-${{ matrix.os }}-${{ matrix.target }}'
+          workspaces: |
+            . -> target
+
+      - name: Install dependencies (ubuntu only)
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxslt1.1 libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+
+      - name: Install Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24.18.0'
+
+      - uses: pnpm/action-setup@v6
+        name: Install pnpm
+        with:
+          run_install: false
+
+      - name: Pnpm install and prebuild
+        run: |
+          pnpm i
+          pnpm run prebuild ${{ matrix.target }}
+
+      - name: Tauri build
+        uses: tauri-apps/tauri-action@v1.0.0
+        env:
+          NODE_OPTIONS: '--max_old_space_size=4096'
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Clod Clash ${{ github.ref_name }}'
+          releaseBody: 'См. changelog в описании релиза.'
+          releaseDraft: true
+          prerelease: false
+          args: --target ${{ matrix.target }}

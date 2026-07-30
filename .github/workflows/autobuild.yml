@@ -2,9 +2,12 @@ name: Auto Build
 
 on:
   workflow_dispatch:
-  schedule:
-    # UTC+8 12:00, 18:00 -> UTC 4:00, 10:00
-    - cron: '0 4,10 * * *'
+  # clod: расписание апстрима отключено — форк не должен дважды в день
+  # собирать и публиковать autobuild-артефакты; выпуск идёт через
+  # release-clod.yml по тегу clod-v*.
+  # schedule:
+  #   # UTC+8 12:00, 18:00 -> UTC 4:00, 10:00
+  #   - cron: '0 4,10 * * *'
 permissions: write-all
 env:
   TAG_NAME: autobuild

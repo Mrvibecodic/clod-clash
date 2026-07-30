@@ -186,32 +186,22 @@ impl SilentUpdater {
 
         // Need a fresh Update object from the server to call install().
         // This is a lightweight HTTP request (< 1s), not a re-download.
-        let update = match app_handle.updater() {
-            Ok(updater) => match updater.check().await {
-                Ok(Some(u)) => u,
-                Ok(None) => {
-                    logging!(
-                        info,
-                        Type::System,
-                        "No update available from server, cache may be stale, cleaning up"
-                    );
-                    Self::delete_cache();
-                    return false;
-                }
-                Err(e) => {
-                    logging!(
-                        warn,
-                        Type::System,
-                        "Failed to check for update at startup: {e}, will retry next launch"
-                    );
-                    return false; // Keep cache for next attempt
-                }
-            },
+        let update = match check_update_with_fallback(app_handle).await {
+            Ok(Some(u)) => u,
+            Ok(None) => {
+                logging!(
+                    info,
+                    Type::System,
+                    "No update available from server, cache may be stale, cleaning up"
+                );
+                Self::delete_cache();
+                return false;
+            }
             Err(e) => {
                 logging!(
                     warn,
                     Type::System,
-                    "Failed to create updater: {e}, will retry next launch"
+                    "Failed to check for update at startup: {e}, will retry next launch"
                 );
                 return false;
             }
@@ -402,6 +392,31 @@ impl SilentUpdater {
 
 // ─── Background Check and Download ───────────────────────────────────────────
 
+/// clod:F6 — GitHub is unreachable directly for exactly the audience this
+/// app is built for. When the plain check fails, retry through the own
+/// core's mixed port, mirroring the managed-core downloader. The returned
+/// `Update` keeps the proxy configuration, so the download inherits it.
+async fn check_update_with_fallback(app_handle: &tauri::AppHandle) -> Result<Option<Update>> {
+    let updater = app_handle.updater()?;
+    match updater.check().await {
+        Ok(found) => Ok(found),
+        Err(direct_error) => {
+            let port = Config::verge().await.latest_arc().verge_mixed_port.unwrap_or(7897);
+            let proxy = format!("http://127.0.0.1:{port}");
+            logging!(
+                warn,
+                Type::System,
+                "update check failed directly ({direct_error}), retrying via {proxy}"
+            );
+            let updater = app_handle
+                .updater_builder()
+                .proxy(tauri::Url::parse(&proxy)?)
+                .build()?;
+            Ok(updater.check().await?)
+        }
+    }
+}
+
 impl SilentUpdater {
     async fn check_and_download(&self, app_handle: &tauri::AppHandle) -> Result<()> {
         let is_portable = *dirs::PORTABLE_FLAG.get().unwrap_or(&false);
@@ -423,8 +438,7 @@ impl SilentUpdater {
 
         logging!(info, Type::System, "Silent updater: checking for updates...");
 
-        let updater = app_handle.updater()?;
-        let update = match updater.check().await {
+        let update = match check_update_with_fallback(app_handle).await {
             Ok(Some(update)) => update,
             Ok(None) => {
                 logging!(info, Type::System, "Silent updater: no update available");
@@ -432,7 +446,7 @@ impl SilentUpdater {
             }
             Err(e) => {
                 logging!(warn, Type::System, "Silent updater: check failed: {e}");
-                return Err(e.into());
+                return Err(e);
             }
         };
 

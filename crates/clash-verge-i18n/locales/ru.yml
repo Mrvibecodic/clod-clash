@@ -22,21 +22,21 @@ notifications:
     body: Профиль повторно активирован.
   appQuit:
     title: Скорый выход
-    body: Clash Verge скоро завершит работу.
+    body: Приложение скоро завершит работу.
   appHidden:
     title: Приложение скрыто
-    body: Clash Verge работает в фоновом режиме.
+    body: Приложение работает в фоновом режиме.
   updateReady:
-    title: Clash Verge Update
-    body: A new version (v{version}) has been downloaded and is ready to install.
-    installNow: Install Now
-    later: Later
+    title: Обновление приложения
+    body: Новая версия (v{version}) скачана и готова к установке.
+    installNow: Установить сейчас
+    later: Позже
 common:
   modeLocked: Режим маршрутизации управляется вашим провайдером.
 service:
-  adminInstallPrompt: Для установки службы Clash Verge требуются права администратора.
-  adminUninstallPrompt: Для удаления службы Clash Verge требуются права администратора.
-  translocatedCorePath: Clash Verge is running from a temporary (App Translocation) path and can't locate the core. Please move Clash Verge into the Applications folder and reopen it.
+  adminInstallPrompt: Для установки системной службы требуются права администратора.
+  adminUninstallPrompt: Для удаления системной службы требуются права администратора.
+  translocatedCorePath: Приложение запущено из временного пути (App Translocation) и не может найти ядро. Переместите его в папку «Программы» и откройте заново.
 tray:
   dashboard: Панель
   ruleMode: Режим правил
