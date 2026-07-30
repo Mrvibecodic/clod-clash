@@ -257,6 +257,17 @@ pub struct IVerge {
 
     /// 启用外部控制器
     pub enable_external_controller: Option<bool>,
+
+    // clod:hwid begin
+    /// Send the device identity headers (`x-hwid` family) with subscription
+    /// requests. Panels with a device limit require them.
+    pub enable_hwid: Option<bool>,
+
+    /// Cached device id. Computed once on first use so the value stays stable
+    /// even if the underlying machine-id source changes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hwid: Option<String>,
+    // clod:hwid end
 }
 
 #[derive(Default, Debug, Clone, Deserialize, Serialize)]
@@ -286,6 +297,12 @@ pub struct IVergeTheme {
 impl IVerge {
     /// 有效的clash核心名称
     pub const VALID_CLASH_CORES: &'static [&'static str] = &["verge-mihomo", "verge-mihomo-alpha"];
+
+    // clod:hwid begin
+    /// Device identification is on by default: panels with a device limit do
+    /// not serve the subscription at all without `x-hwid`.
+    pub const DEFAULT_ENABLE_HWID: bool = true;
+    // clod:hwid end
 
     /// 验证并修正配置文件中的clash_core值
     pub async fn validate_and_fix_config() -> Result<()> {
@@ -449,6 +466,9 @@ impl IVerge {
             enable_dns_settings: Some(false),
             home_cards: None,
             enable_external_controller: Some(false),
+            // clod:hwid begin
+            enable_hwid: Some(Self::DEFAULT_ENABLE_HWID),
+            // clod:hwid end
             ..Self::default()
         }
     }
@@ -554,6 +574,10 @@ impl IVerge {
         patch!(enable_dns_settings);
         patch!(home_cards);
         patch!(enable_external_controller);
+        // clod:hwid begin
+        patch!(enable_hwid);
+        patch!(hwid);
+        // clod:hwid end
     }
 
     pub const fn get_singleton_port() -> u16 {

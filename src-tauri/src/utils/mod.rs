@@ -2,6 +2,7 @@
 pub mod connections_stream;
 pub mod dirs;
 pub mod help;
+pub mod hwid;
 pub mod init;
 #[cfg(target_os = "linux")]
 pub mod linux;

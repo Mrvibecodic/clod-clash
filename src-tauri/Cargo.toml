@@ -112,6 +112,11 @@ dark-light = { git = "https://github.com/rust-dark-light/dark-light" }
 windows-sys.workspace = true
 bytes = "1.12.0"
 tokio-util = { version = "0.7.18", features = ["time"] }
+# clod: device identity (see src/utils/hwid.rs) — all three are already in the
+# dependency tree transitively, so this adds no new compilation units.
+sha2 = "0.10.9"
+hex = "0.4.3"
+sysinfo = { version = "0.39.5", features = ["system"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6.4"
