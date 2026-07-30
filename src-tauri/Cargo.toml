@@ -154,6 +154,9 @@ tauri-plugin-updater = "2.10.1"
 
 [dev-dependencies]
 criterion = { workspace = true }
+# clod: integration test for the subscription request/response headers
+tokio = { workspace = true }
+reqwest = { version = "0.13.4", features = ["rustls"] }
 
 [lints]
 workspace = true
