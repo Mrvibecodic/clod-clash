@@ -36,7 +36,13 @@ pub async fn check_singleton() -> Result<()> {
             #[cfg(not(target_os = "macos"))]
             {
                 let param = argvs[1].as_str();
-                if param.starts_with("clash:") {
+                // clod: forward every scheme the parser accepts (scheme.rs),
+                // not just `clash:`; otherwise a link clicked while the app is
+                // running (tray) is silently dropped by the second instance.
+                if param.starts_with("clash:")
+                    || param.starts_with("clash-verge:")
+                    || param.starts_with("clodclash:")
+                {
                     client
                         .get(format!("http://127.0.0.1:{port}/commands/scheme?param={param}"))
                         .send()
