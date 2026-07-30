@@ -132,3 +132,16 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: --target ${{ matrix.target }}
+
+      # Портабл-zip для Windows: NSIS-инсталлер имеет 32-битную заглушку и не
+      # запускается на Windows Server без WoW64; портаблу нужен только
+      # предустановленный WebView2 Runtime.
+      - name: Portable bundle (windows only)
+        if: matrix.os == 'windows-latest'
+        run: pnpm portable ${{ matrix.target }}
+
+      - name: Upload portable to the release (windows only)
+        if: matrix.os == 'windows-latest'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload ${{ github.ref_name }} Clod.Clash_*_portable.zip --clobber

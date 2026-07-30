@@ -45,7 +45,8 @@ async function resolvePortable() {
   const require = createRequire(import.meta.url)
   const packageJson = require('../package.json')
   const { version } = packageJson
-  const zipFile = `Clash.Verge_${version}_${arch}_portable.zip`
+  // clod:branding — the portable zip carries the fork's name
+  const zipFile = `Clod.Clash_${version}_${arch}_portable.zip`
   zip.writeZip(zipFile)
   console.log('[INFO]: create portable zip successfully')
 }
