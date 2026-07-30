@@ -130,6 +130,33 @@
         "global": "모든 네트워크 요청을 선택한 프록시를 통해 전달합니다.",
         "direct": "프록시를 우회하여 직접 인터넷에 연결합니다."
       }
+    },
+    "connect": {
+      "states": {
+        "off": "Disconnected",
+        "connecting": "Connecting…",
+        "on": "Connected",
+        "error": "Connection failed"
+      },
+      "errors": {
+        "serviceRequired": "TUN mode needs the helper service. Install it in the advanced settings."
+      }
+    },
+    "serverSelect": {
+      "title": "Servers",
+      "current": "Server",
+      "none": "Not selected",
+      "test": "Test",
+      "empty": "No servers in this subscription"
+    }
+  },
+  "pages": {
+    "simple": {
+      "welcome": "Add your subscription",
+      "welcomeHint": "Paste the link your provider gave you. You can connect right after that.",
+      "subscriptionPlaceholder": "https://…",
+      "portal": "Customer portal",
+      "daysLeft": "Days left: {{count}}"
     }
   }
 }

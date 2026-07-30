@@ -130,6 +130,33 @@
         "global": "所有流量均通过代理服务器，适用于需要全局科学上网的场景",
         "direct": "所有流量不经过代理节点，但经过 Clash 内核转发连接目标服务器，适用于需要通过内核进行分流的特定场景"
       }
+    },
+    "connect": {
+      "states": {
+        "off": "Disconnected",
+        "connecting": "Connecting…",
+        "on": "Connected",
+        "error": "Connection failed"
+      },
+      "errors": {
+        "serviceRequired": "TUN mode needs the helper service. Install it in the advanced settings."
+      }
+    },
+    "serverSelect": {
+      "title": "Servers",
+      "current": "Server",
+      "none": "Not selected",
+      "test": "Test",
+      "empty": "No servers in this subscription"
+    }
+  },
+  "pages": {
+    "simple": {
+      "welcome": "Add your subscription",
+      "welcomeHint": "Paste the link your provider gave you. You can connect right after that.",
+      "subscriptionPlaceholder": "https://…",
+      "portal": "Customer portal",
+      "daysLeft": "Days left: {{count}}"
     }
   }
 }

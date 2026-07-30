@@ -169,7 +169,13 @@
           "themeSetting": "Тема көйләүләре",
           "layoutSetting": "Расположение көйләүләре",
           "misc": "Өстәмә көйләүләр",
-          "hotkeySetting": "Клавиатура төймәләре (hotkey) көйләүләре"
+          "hotkeySetting": "Клавиатура төймәләре (hotkey) көйләүләре",
+          "advancedMode": "Advanced mode",
+          "mainSwitchMode": "Connect button"
+        },
+        "options": {
+          "sysproxy": "System proxy",
+          "tun": "TUN"
         }
       },
       "advanced": {

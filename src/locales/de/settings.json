@@ -169,7 +169,13 @@
           "themeSetting": "Thema-Einstellungen",
           "layoutSetting": "Layout-Einstellungen",
           "misc": "Sonstige Einstellungen",
-          "hotkeySetting": "Tastenkombinationseinstellungen"
+          "hotkeySetting": "Tastenkombinationseinstellungen",
+          "advancedMode": "Advanced mode",
+          "mainSwitchMode": "Connect button"
+        },
+        "options": {
+          "sysproxy": "System proxy",
+          "tun": "TUN"
         }
       },
       "advanced": {

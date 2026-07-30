@@ -64,6 +64,17 @@ export interface TranslationResources {
             rule: string
           }
         }
+        connect: {
+          errors: {
+            serviceRequired: string
+          }
+          states: {
+            connecting: string
+            error: string
+            off: string
+            on: string
+          }
+        }
         currentProxy: {
           actions: {
             refreshDelay: string
@@ -105,6 +116,13 @@ export interface TranslationResources {
             systemProxy: string
             tunMode: string
           }
+        }
+        serverSelect: {
+          current: string
+          empty: string
+          none: string
+          test: string
+          title: string
         }
         systemInfo: {
           actions: {
@@ -169,6 +187,15 @@ export interface TranslationResources {
           lightweightMode: string
           manual: string
           settings: string
+        }
+      }
+      pages: {
+        simple: {
+          daysLeft: string
+          portal: string
+          subscriptionPlaceholder: string
+          welcome: string
+          welcomeHint: string
         }
       }
     }
@@ -619,16 +646,22 @@ export interface TranslationResources {
               browse: string
             }
             fields: {
+              advancedMode: string
               copyEnvType: string
               hotkeySetting: string
               language: string
               layoutSetting: string
+              mainSwitchMode: string
               misc: string
               startPage: string
               startupScript: string
               themeMode: string
               themeSetting: string
               trayClickEvent: string
+            }
+            options: {
+              sysproxy: string
+              tun: string
             }
             title: string
             trayOptions: {

@@ -1,10 +1,11 @@
 import { ContentCopyRounded } from '@mui/icons-material'
-import { Button, Input, MenuItem, Select } from '@mui/material'
+import { Button, Input, MenuItem, Select, Switch } from '@mui/material'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { DialogRef, TooltipIcon } from '@/components/base'
+import { type DialogRef, TooltipIcon } from '@/components/base'
+import { useSimpleMode } from '@/hooks/use-simple-mode'
 import { useVerge } from '@/hooks/use-verge'
 import { navigationItems } from '@/pages/_navigation-meta'
 import { copyClashEnv } from '@/services/cmds'
@@ -60,7 +61,9 @@ const SettingVergeBasic = ({ onError }: Props) => {
     env_type,
     startup_script,
     start_page,
+    main_switch_mode,
   } = verge ?? {}
+  const { simpleMode, setSimpleMode } = useSimpleMode()
   const configRef = useRef<DialogRef>(null)
   const hotkeyRef = useRef<DialogRef>(null)
   const miscRef = useRef<DialogRef>(null)
@@ -87,6 +90,43 @@ const SettingVergeBasic = ({ onError }: Props) => {
       <LayoutViewer ref={layoutRef} />
       <UpdateViewer ref={updateRef} />
       <BackupViewer ref={backupRef} />
+
+      {/* clod: advanced mode is an honest switch, not a hidden gesture */}
+      <SettingItem
+        label={t('settings.components.verge.basic.fields.advancedMode')}
+      >
+        <GuardState
+          value={!simpleMode}
+          valueProps="checked"
+          onCatch={onError}
+          onFormat={(_e: any, checked: boolean) => checked}
+          onChange={(advanced) => onChangeData({ simple_mode: !advanced })}
+          onGuard={(advanced) => setSimpleMode(!advanced)}
+        >
+          <Switch edge="end" />
+        </GuardState>
+      </SettingItem>
+
+      <SettingItem
+        label={t('settings.components.verge.basic.fields.mainSwitchMode')}
+      >
+        <GuardState
+          value={main_switch_mode ?? 'sysproxy'}
+          onCatch={onError}
+          onFormat={(e: any) => e.target.value}
+          onChange={(e) => onChangeData({ main_switch_mode: e })}
+          onGuard={(e) => patchVerge({ main_switch_mode: e })}
+        >
+          <Select size="small" sx={{ width: 150, '> div': { py: '7.5px' } }}>
+            <MenuItem value="sysproxy">
+              {t('settings.components.verge.basic.options.sysproxy')}
+            </MenuItem>
+            <MenuItem value="tun">
+              {t('settings.components.verge.basic.options.tun')}
+            </MenuItem>
+          </Select>
+        </GuardState>
+      </SettingItem>
 
       <SettingItem label={t('settings.components.verge.basic.fields.language')}>
         <GuardState

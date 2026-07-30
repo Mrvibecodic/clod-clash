@@ -33,8 +33,11 @@ import { EnhancedTrafficStats } from '@/components/home/enhanced-traffic-stats'
 import { HomeProfileCard } from '@/components/home/home-profile-card'
 import { ProxyTunCard } from '@/components/home/proxy-tun-card'
 import { useProfiles } from '@/hooks/use-profiles'
+import { useSimpleMode } from '@/hooks/use-simple-mode'
 import { useVerge } from '@/hooks/use-verge'
 import { entry_lightweight_mode, openWebUrl } from '@/services/cmds'
+
+import HomeSimplePage from './home-simple'
 
 const LazyTestCard = lazy(() =>
   import('@/components/home/test-card').then((module) => ({
@@ -209,6 +212,18 @@ const HomeSettingsDialog = ({
 }
 
 const HomePage = () => {
+  // clod: the simple interface replaces this dashboard entirely. The advanced
+  // page is untouched below so switching modes needs no restart and merges with
+  // upstream stay trivial.
+  const { simpleMode } = useSimpleMode()
+  if (simpleMode) {
+    return <HomeSimplePage />
+  }
+
+  return <HomeAdvancedPage />
+}
+
+const HomeAdvancedPage = () => {
   const { t } = useTranslation()
   const { verge } = useVerge()
   const { current, mutateProfiles } = useProfiles()

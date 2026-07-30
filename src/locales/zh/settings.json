@@ -169,7 +169,13 @@
           "themeSetting": "主题设置",
           "layoutSetting": "界面设置",
           "misc": "杂项设置",
-          "hotkeySetting": "热键设置"
+          "hotkeySetting": "热键设置",
+          "advancedMode": "Advanced mode",
+          "mainSwitchMode": "Connect button"
+        },
+        "options": {
+          "sysproxy": "System proxy",
+          "tun": "TUN"
         }
       },
       "advanced": {

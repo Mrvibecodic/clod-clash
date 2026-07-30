@@ -283,6 +283,8 @@ interface IProfileItem {
   notified?: Record<string, number>
   /** the last payload came from `fallback_url` instead of `url` */
   from_fallback?: boolean
+  /** interface mode the provider prefers for this subscription */
+  simple_mode?: boolean
 }
 
 interface IProfileOption {
@@ -996,6 +998,11 @@ interface IVergeConfig {
   enable_hwid?: boolean
   /** cached device id, computed once on first use */
   hwid?: string
+  // clod: interface mode
+  /** simplified interface; unset means the provider's header decides */
+  simple_mode?: boolean
+  /** what the Connect button toggles */
+  main_switch_mode?: 'sysproxy' | 'tun'
 }
 
 interface IWebDavFile {

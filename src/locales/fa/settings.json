@@ -169,7 +169,13 @@
           "themeSetting": "تنظیمات تم",
           "layoutSetting": "تنظیمات چیدمان",
           "misc": "متفرقه",
-          "hotkeySetting": "تنظیمات کلیدهای میانبر"
+          "hotkeySetting": "تنظیمات کلیدهای میانبر",
+          "advancedMode": "Advanced mode",
+          "mainSwitchMode": "Connect button"
+        },
+        "options": {
+          "sysproxy": "System proxy",
+          "tun": "TUN"
         }
       },
       "advanced": {

@@ -169,7 +169,13 @@
           "themeSetting": "إعدادات السمة",
           "layoutSetting": "إعدادات التخطيط",
           "misc": "متفرقات",
-          "hotkeySetting": "إعدادات الاختصارات"
+          "hotkeySetting": "إعدادات الاختصارات",
+          "advancedMode": "Advanced mode",
+          "mainSwitchMode": "Connect button"
+        },
+        "options": {
+          "sysproxy": "System proxy",
+          "tun": "TUN"
         }
       },
       "advanced": {

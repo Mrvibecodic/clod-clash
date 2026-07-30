@@ -169,7 +169,13 @@
           "themeSetting": "Настройки темы",
           "layoutSetting": "Настройки раскладки",
           "misc": "Расширенные настройки",
-          "hotkeySetting": "Настройки сочетаний клавиш"
+          "hotkeySetting": "Настройки сочетаний клавиш",
+          "advancedMode": "Расширенный режим",
+          "mainSwitchMode": "Кнопка подключения"
+        },
+        "options": {
+          "sysproxy": "Системный прокси",
+          "tun": "TUN"
         }
       },
       "advanced": {

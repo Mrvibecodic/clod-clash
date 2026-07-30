@@ -50,6 +50,7 @@ import {
 } from '@/components/layout/window-controller'
 import { HwidLimitDialog } from '@/components/profile/hwid-limit-dialog'
 import { useI18n } from '@/hooks/use-i18n'
+import { useSimpleMode } from '@/hooks/use-simple-mode'
 import { useVerge } from '@/hooks/use-verge'
 import { useVisibility } from '@/hooks/use-visibility'
 import { useWindowDecorations } from '@/hooks/use-window'
@@ -122,6 +123,9 @@ const SortableNavMenuItem = ({ item, label }: SortableNavMenuItemProps) => {
   )
 }
 
+// clod: sidebar entries kept in the simple interface
+const SIMPLE_MODE_PATHS = new Set<string>(['/', '/settings'])
+
 dayjs.extend(relativeTime)
 
 const OS = getSystem()
@@ -140,6 +144,18 @@ const Layout = () => {
   const isLogsPage = pathname === '/logs'
   const pageVisible = useVisibility()
   const themeReady = useMemo(() => Boolean(theme), [theme])
+
+  // clod: the simple interface keeps only Home and Settings in the sidebar.
+  // Nothing is unregistered — the routes stay live, so a deep link still works
+  // and switching modes needs no restart.
+  const { simpleMode } = useSimpleMode()
+  const visibleNavItems = useMemo(
+    () =>
+      simpleMode
+        ? navItems.filter((item) => SIMPLE_MODE_PATHS.has(item.path))
+        : navItems,
+    [simpleMode],
+  )
 
   const [menuUnlocked, setMenuUnlocked] = useState(false)
   const [menuContextPosition, setMenuContextPosition] =
@@ -182,7 +198,7 @@ const Layout = () => {
     resetMenuOrder,
   } = useNavMenuOrder({
     enabled: menuUnlocked,
-    items: navItems,
+    items: visibleNavItems,
     storedOrder: verge?.menu_order,
     onOptimisticUpdate: handleMenuOrderOptimisticUpdate,
     onPersist: handleMenuOrderPersist,

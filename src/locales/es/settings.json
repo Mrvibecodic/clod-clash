@@ -169,7 +169,13 @@
           "themeSetting": "Configuración de tema",
           "layoutSetting": "Configuración de la interfaz",
           "misc": "Ajustes varios",
-          "hotkeySetting": "Configuración de atajos de teclado"
+          "hotkeySetting": "Configuración de atajos de teclado",
+          "advancedMode": "Advanced mode",
+          "mainSwitchMode": "Connect button"
+        },
+        "options": {
+          "sysproxy": "System proxy",
+          "tun": "TUN"
         }
       },
       "advanced": {

@@ -169,7 +169,13 @@
           "themeSetting": "Tema Ayarı",
           "layoutSetting": "Düzen Ayarı",
           "misc": "Çeşitli",
-          "hotkeySetting": "Kısayol Tuşu Ayarı"
+          "hotkeySetting": "Kısayol Tuşu Ayarı",
+          "advancedMode": "Advanced mode",
+          "mainSwitchMode": "Connect button"
+        },
+        "options": {
+          "sysproxy": "System proxy",
+          "tun": "TUN"
         }
       },
       "advanced": {

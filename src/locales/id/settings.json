@@ -169,7 +169,13 @@
           "themeSetting": "Pengaturan Tema",
           "layoutSetting": "Pengaturan Tata Letak",
           "misc": "Lain-lain",
-          "hotkeySetting": "Pengaturan Pintasan"
+          "hotkeySetting": "Pengaturan Pintasan",
+          "advancedMode": "Advanced mode",
+          "mainSwitchMode": "Connect button"
+        },
+        "options": {
+          "sysproxy": "System proxy",
+          "tun": "TUN"
         }
       },
       "advanced": {

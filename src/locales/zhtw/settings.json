@@ -169,7 +169,13 @@
           "themeSetting": "主題設定",
           "layoutSetting": "介面設定",
           "misc": "雜項設定",
-          "hotkeySetting": "快速鍵設定"
+          "hotkeySetting": "快速鍵設定",
+          "advancedMode": "Advanced mode",
+          "mainSwitchMode": "Connect button"
+        },
+        "options": {
+          "sysproxy": "System proxy",
+          "tun": "TUN"
         }
       },
       "advanced": {

@@ -130,6 +130,33 @@
         "global": "Forward all network requests through the selected proxy.",
         "direct": "Bypass the proxy and connect to the internet directly."
       }
+    },
+    "connect": {
+      "states": {
+        "off": "Disconnected",
+        "connecting": "Connecting…",
+        "on": "Connected",
+        "error": "Connection failed"
+      },
+      "errors": {
+        "serviceRequired": "TUN mode needs the helper service. Install it in the advanced settings."
+      }
+    },
+    "serverSelect": {
+      "title": "Servers",
+      "current": "Server",
+      "none": "Not selected",
+      "test": "Test",
+      "empty": "No servers in this subscription"
+    }
+  },
+  "pages": {
+    "simple": {
+      "welcome": "Add your subscription",
+      "welcomeHint": "Paste the link your provider gave you. You can connect right after that.",
+      "subscriptionPlaceholder": "https://…",
+      "portal": "Customer portal",
+      "daysLeft": "Days left: {{count}}"
     }
   }
 }

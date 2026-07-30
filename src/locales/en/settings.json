@@ -169,7 +169,13 @@
           "themeSetting": "Theme Setting",
           "layoutSetting": "Layout Setting",
           "misc": "Miscellaneous",
-          "hotkeySetting": "Hotkey Setting"
+          "hotkeySetting": "Hotkey Setting",
+          "advancedMode": "Advanced mode",
+          "mainSwitchMode": "Connect button"
+        },
+        "options": {
+          "sysproxy": "System proxy",
+          "tun": "TUN"
         }
       },
       "advanced": {
