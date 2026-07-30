@@ -46,12 +46,43 @@ interface ProxyGroup {
 const VIRTUALIZE_FROM = 50
 const ROW_HEIGHT = 52
 
-/** Groups the user is meant to pick from — the ones the core lets us select. */
-const selectableGroups = (proxies: any): ProxyGroup[] =>
-  ((proxies?.groups ?? []) as ProxyGroup[]).filter(
+/** Entry types that are groups or built-ins, not actual servers. */
+const NON_NODE_TYPES = new Set([
+  'selector',
+  'urltest',
+  'fallback',
+  'loadbalance',
+  'relay',
+  'direct',
+  'reject',
+  'rejectdrop',
+  'pass',
+  'compatible',
+])
+
+/**
+ * Groups the user is meant to pick from — the ones the core lets us select.
+ *
+ * Panels often strip the template down to a flat `proxies:` list with no
+ * custom groups at all (mode: global does the routing). The built-in GLOBAL
+ * selector is the only way to pick a server there, so it serves as the
+ * fallback — with the group entries filtered out, leaving actual servers.
+ */
+const selectableGroups = (proxies: any): ProxyGroup[] => {
+  const groups = ((proxies?.groups ?? []) as ProxyGroup[]).filter(
     (group) =>
       group.type?.toLowerCase() === 'selector' && group.name !== 'GLOBAL',
   )
+  if (groups.length > 0) return groups
+
+  const global = proxies?.global as ProxyGroup | undefined
+  const records = proxies?.records ?? {}
+  const nodes = (global?.all ?? []).filter((node) => {
+    const type = (records[node.name]?.type ?? node.type ?? '').toLowerCase()
+    return !NON_NODE_TYPES.has(type)
+  })
+  return nodes.length > 0 ? [{ ...global, name: 'GLOBAL', all: nodes }] : []
+}
 
 interface Props {
   open: boolean
