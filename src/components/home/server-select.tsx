@@ -315,6 +315,49 @@ interface RowProps {
   onOpen: () => void
 }
 
+/** Mockup-style four-bar signal indicator, coloured by latency. */
+const SignalBars = ({ delay }: { delay?: number }) => {
+  const lit =
+    delay === undefined || delay <= 0
+      ? 0
+      : delay < 120
+        ? 4
+        : delay < 250
+          ? 3
+          : delay < 500
+            ? 2
+            : 1
+  const color = (index: number) =>
+    index < lit
+      ? lit >= 3
+        ? 'success.main'
+        : 'warning.main'
+      : 'divider'
+  return (
+    <Box
+      sx={{
+        display: 'flex',
+        alignItems: 'flex-end',
+        gap: '2px',
+        height: 16,
+        flex: 'none',
+      }}
+    >
+      {[5, 8, 11, 15].map((height, index) => (
+        <Box
+          key={height}
+          sx={{
+            width: '3.5px',
+            height,
+            borderRadius: '2px',
+            bgcolor: color(index),
+          }}
+        />
+      ))}
+    </Box>
+  )
+}
+
 /** The compact row on the home screen: current server, latency, one tap. */
 export const ServerSelectRow = ({ onOpen }: RowProps) => {
   const { t } = useTranslation()
@@ -332,11 +375,11 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
       onClick={onOpen}
       sx={{
         alignItems: 'center',
-        gap: 1,
-        px: 2,
-        py: 1.25,
+        gap: 1.5,
+        px: 1.75,
+        py: 1.5,
         width: '100%',
-        borderRadius: 2,
+        borderRadius: '14px',
         cursor: 'pointer',
         bgcolor: 'background.paper',
         border: (theme) => `1px solid ${theme.palette.divider}`,
@@ -345,24 +388,23 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
     >
       {current ? <CountryFlag name={current} size={26} /> : null}
       <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Typography variant="caption" color="text.secondary">
-          {t('home.components.serverSelect.current')}
-        </Typography>
-        <Typography noWrap>
+        <Typography noWrap sx={{ fontSize: 14, fontWeight: 700 }}>
           {current
             ? nameWithoutFlag(current)
             : t('home.components.serverSelect.none')}
         </Typography>
+        <Typography
+          noWrap
+          sx={{ fontSize: 12, display: 'block' }}
+          color="text.secondary"
+        >
+          {delay !== undefined && delay > 0
+            ? `${delay} ${t('home.components.serverSelect.ms')}`
+            : t('home.components.serverSelect.current')}
+        </Typography>
       </Box>
 
-      {delay !== undefined && delay > 0 ? (
-        <Typography
-          variant="body2"
-          sx={{ color: delayColor(delay), fontVariantNumeric: 'tabular-nums' }}
-        >
-          {delay} ms
-        </Typography>
-      ) : null}
+      <SignalBars delay={delay} />
 
       <IconButton
         size="small"

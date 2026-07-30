@@ -85,6 +85,8 @@ const STALE_DATA_THRESHOLD = 2500 // ms without fresh data => drop FPS
 
 interface EnhancedCanvasTrafficGraphProps {
   ref?: Ref<EnhancedCanvasTrafficGraphRef>
+  /** clod:design-v2 — bare sparkline: no legends, buttons or debug counters */
+  minimal?: boolean
 }
 
 const isSameTrafficData = (
@@ -123,6 +125,7 @@ const displayDataReducer = (
 export const EnhancedCanvasTrafficGraph = memo(
   function EnhancedCanvasTrafficGraph({
     ref,
+    minimal = false,
   }: EnhancedCanvasTrafficGraphProps) {
     const theme = useTheme()
     const { t } = useTranslation()
@@ -1141,6 +1144,7 @@ export const EnhancedCanvasTrafficGraph = memo(
             component="div"
             onClick={handleTimeRangeClick}
             sx={{
+              display: minimal ? 'none' : 'block',
               position: 'absolute',
               top: 6,
               left: 40, // 向右移动，避免与Y轴最大值标签重叠
@@ -1164,10 +1168,10 @@ export const EnhancedCanvasTrafficGraph = memo(
           {/* 图例 */}
           <Box
             sx={{
+              display: minimal ? 'none' : 'flex',
               position: 'absolute',
               top: 6,
               right: 8,
-              display: 'flex',
               flexDirection: 'column',
               gap: 0.5,
             }}
@@ -1197,6 +1201,7 @@ export const EnhancedCanvasTrafficGraph = memo(
           {/* 样式指示器 */}
           <Box
             sx={{
+              display: minimal ? 'none' : 'block',
               position: 'absolute',
               bottom: 6,
               right: 8,
@@ -1211,6 +1216,7 @@ export const EnhancedCanvasTrafficGraph = memo(
           {/* 数据统计指示器（左下角） */}
           <Box
             sx={{
+              display: minimal ? 'none' : 'block',
               position: 'absolute',
               bottom: 6,
               left: 8,

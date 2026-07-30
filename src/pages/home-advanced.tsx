@@ -4,11 +4,10 @@ import HomeWorkRoundedIcon from '@mui/icons-material/HomeWorkRounded'
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
 import RuleRoundedIcon from '@mui/icons-material/RuleRounded'
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded'
-import SpeedOutlinedIcon from '@mui/icons-material/SpeedOutlined'
 import SupportAgentRoundedIcon from '@mui/icons-material/SupportAgentRounded'
 import SwapVertRoundedIcon from '@mui/icons-material/SwapVertRounded'
 import TerminalRoundedIcon from '@mui/icons-material/TerminalRounded'
-import { Box, Button, ButtonBase, Stack, Typography } from '@mui/material'
+import { alpha, Box, Button, ButtonBase, Stack, Typography } from '@mui/material'
 import { useLockFn } from 'ahooks'
 import { type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -18,8 +17,7 @@ import {
   ConnectButton,
   type ConnectState,
 } from '@/components/home/connect-button'
-import { EnhancedCard } from '@/components/home/enhanced-card'
-import { EnhancedTrafficStats } from '@/components/home/enhanced-traffic-stats'
+import { NetCard } from '@/components/home/net-card'
 import { ProviderBanners } from '@/components/home/provider-banners'
 import { ProviderHeader } from '@/components/home/provider-header'
 import { ServerSelect, ServerSelectRow } from '@/components/home/server-select'
@@ -50,8 +48,8 @@ const Tile = ({ icon, label, hint, onClick }: TileProps) => (
       alignItems: 'center',
       justifyContent: 'flex-start',
       gap: 1.5,
-      p: 1.75,
-      borderRadius: 2,
+      p: 1.6,
+      borderRadius: '14px',
       textAlign: 'left',
       bgcolor: 'background.paper',
       border: (theme) => `1px solid ${theme.palette.divider}`,
@@ -62,12 +60,12 @@ const Tile = ({ icon, label, hint, onClick }: TileProps) => (
       sx={{
         width: 36,
         height: 36,
-        borderRadius: 1.5,
+        borderRadius: '10px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         color: 'primary.main',
-        bgcolor: 'action.hover',
+        bgcolor: (theme) => alpha(theme.palette.primary.main, 0.13),
         flex: 'none',
       }}
     >
@@ -251,13 +249,8 @@ const HomeAdvancedPage = () => {
 
           <SubscriptionCard profile={current} />
 
-          <EnhancedCard
-            title={t('home.page.cards.trafficStats')}
-            icon={<SpeedOutlinedIcon />}
-            iconColor="secondary"
-          >
-            <EnhancedTrafficStats />
-          </EnhancedCard>
+          {/* clod:design-v2 — the mockups' compact «Network» card */}
+          <NetCard />
 
           {/* minmax(0, …) lets the tiles shrink below their label width —
               plain 1fr tracks refuse to and push the grid past the window. */}
@@ -283,12 +276,14 @@ const HomeAdvancedPage = () => {
               <Tile
                 icon={<SupportAgentRoundedIcon fontSize="small" />}
                 label={t('profiles.components.hwidDialog.support')}
+                hint={t('home.pages.advanced.tiles.supportHint')}
                 onClick={() => void openLink(current.support_url)}
               />
             ) : null}
             <Tile
               icon={<DescriptionRoundedIcon fontSize="small" />}
               label={t('layout.components.navigation.tabs.profiles')}
+              hint={t('home.pages.advanced.tiles.profilesHint')}
               onClick={() => void navigate('/profile')}
             />
             {/* clod:design-v2 — with the sidebar gone the technical sections
@@ -296,21 +291,25 @@ const HomeAdvancedPage = () => {
             <Tile
               icon={<DnsRoundedIcon fontSize="small" />}
               label={t('layout.components.navigation.tabs.proxies')}
+              hint={t('home.pages.advanced.tiles.proxiesHint')}
               onClick={() => void navigate('/proxies')}
             />
             <Tile
               icon={<SwapVertRoundedIcon fontSize="small" />}
               label={t('layout.components.navigation.tabs.connections')}
+              hint={t('home.pages.advanced.tiles.connectionsHint')}
               onClick={() => void navigate('/connections')}
             />
             <Tile
               icon={<RuleRoundedIcon fontSize="small" />}
               label={t('layout.components.navigation.tabs.rules')}
+              hint={t('home.pages.advanced.tiles.rulesHint')}
               onClick={() => void navigate('/rules')}
             />
             <Tile
               icon={<TerminalRoundedIcon fontSize="small" />}
               label={t('layout.components.navigation.tabs.logs')}
+              hint={t('home.pages.advanced.tiles.logsHint')}
               onClick={() => void navigate('/logs')}
             />
             <Tile
@@ -321,6 +320,7 @@ const HomeAdvancedPage = () => {
             <Tile
               icon={<SettingsRoundedIcon fontSize="small" />}
               label={t('layout.components.navigation.tabs.settings')}
+              hint={t('home.pages.advanced.tiles.settingsHint')}
               onClick={() => void navigate('/settings')}
             />
           </Box>

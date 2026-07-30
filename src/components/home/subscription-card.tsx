@@ -103,9 +103,9 @@ export const SubscriptionCard = ({ profile }: Props) => {
   return (
     <Stack
       sx={{
-        gap: 1,
-        p: 2,
-        borderRadius: 2,
+        gap: 1.25,
+        p: 1.75,
+        borderRadius: '14px',
         bgcolor: 'background.paper',
         border: (theme) => `1px solid ${theme.palette.divider}`,
       }}
@@ -114,16 +114,25 @@ export const SubscriptionCard = ({ profile }: Props) => {
         direction="row"
         sx={{ alignItems: 'center', gap: 1, flexWrap: 'wrap' }}
       >
-        <Typography variant="body2" sx={{ flex: 1 }}>
-          {traffic(info.used)} /{' '}
-          {info.unlimited
-            ? t('profiles.components.profileItem.labels.unlimited')
-            : traffic(info.total)}
+        {/* mockup: «12,4 ГБ / 100 ГБ» — used in bold, the quota greyed */}
+        <Typography sx={{ flex: 1, fontSize: 13.5, fontWeight: 600 }}>
+          {traffic(info.used)}{' '}
+          <Typography
+            component="span"
+            sx={{ fontSize: 13.5, fontWeight: 500 }}
+            color="text.secondary"
+          >
+            /{' '}
+            {info.unlimited
+              ? t('profiles.components.profileItem.labels.unlimited')
+              : traffic(info.total)}
+          </Typography>
         </Typography>
         {info.daysLeft !== undefined ? (
           <Chip
             size="small"
             color={info.daysLeft <= CRITICAL_DAYS ? 'error' : 'default'}
+            sx={{ fontWeight: 600 }}
             label={t('home.components.subscription.expires', {
               count: info.daysLeft,
               date: info.expireDate,
@@ -132,6 +141,7 @@ export const SubscriptionCard = ({ profile }: Props) => {
         ) : (
           <Chip
             size="small"
+            sx={{ fontWeight: 600 }}
             label={t('profiles.components.profileItem.labels.neverExpires')}
           />
         )}
@@ -142,6 +152,7 @@ export const SubscriptionCard = ({ profile }: Props) => {
           variant="determinate"
           value={info.usedPercent}
           color={trafficColor(info.usedPercent)}
+          sx={{ height: 6, borderRadius: 3 }}
         />
       )}
 

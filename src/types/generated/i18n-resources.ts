@@ -104,6 +104,13 @@ export interface TranslationResources {
           }
           title: string
         }
+        net: {
+          title: string
+        }
+        providerHeader: {
+          active: string
+          expired: string
+        }
         proxyTun: {
           status: {
             systemProxyDisabled: string
@@ -121,6 +128,7 @@ export interface TranslationResources {
           current: string
           empty: string
           favorite: string
+          ms: string
           none: string
           test: string
           title: string
@@ -200,8 +208,15 @@ export interface TranslationResources {
       pages: {
         advanced: {
           tiles: {
+            connectionsHint: string
+            logsHint: string
             portalHint: string
+            profilesHint: string
+            proxiesHint: string
             refresh: string
+            rulesHint: string
+            settingsHint: string
+            supportHint: string
           }
           toSimple: string
         }

@@ -148,14 +148,22 @@
       "none": "Not selected",
       "test": "Test",
       "empty": "No servers in this subscription",
-      "favorite": "Favorite"
+      "favorite": "Favorite",
+      "ms": "ms"
     },
     "subscription": {
-      "expires": "{{count}} d left · until {{date}}",
+      "expires": "plan: {{count}} d · until {{date}}",
       "refill": "Monthly traffic resets on {{date}}",
       "renew": "Renew",
       "topup": "Add traffic",
       "updated": "Subscription updated"
+    },
+    "providerHeader": {
+      "active": "subscription active",
+      "expired": "subscription expired"
+    },
+    "net": {
+      "title": "Network"
     }
   },
   "pages": {
@@ -171,7 +179,14 @@
       "toSimple": "← Simple mode",
       "tiles": {
         "portalHint": "renewal and payment",
-        "refresh": "Refresh subscription"
+        "refresh": "Refresh subscription",
+        "supportHint": "Telegram chat",
+        "profilesHint": "subscriptions and rules",
+        "proxiesHint": "servers and groups",
+        "connectionsHint": "active connections",
+        "rulesHint": "routing",
+        "logsHint": "diagnostics",
+        "settingsHint": "language, autostart, theme"
       }
     }
   }

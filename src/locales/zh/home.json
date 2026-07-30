@@ -148,14 +148,22 @@
       "none": "Not selected",
       "test": "Test",
       "empty": "No servers in this subscription",
-      "favorite": "收藏"
+      "favorite": "收藏",
+      "ms": "ms"
     },
     "subscription": {
-      "expires": "{{count}} days left · until {{date}}",
+      "expires": "套餐：{{count}} 天 · 至 {{date}}",
       "refill": "Monthly traffic resets on {{date}}",
       "renew": "Renew",
       "topup": "Add traffic",
       "updated": "订阅已更新"
+    },
+    "providerHeader": {
+      "active": "订阅有效",
+      "expired": "订阅已到期"
+    },
+    "net": {
+      "title": "网络"
     }
   },
   "pages": {
@@ -171,7 +179,14 @@
       "toSimple": "← Simple mode",
       "tiles": {
         "portalHint": "renewal and payment",
-        "refresh": "Refresh subscription"
+        "refresh": "Refresh subscription",
+        "supportHint": "Telegram 聊天",
+        "profilesHint": "订阅与规则",
+        "proxiesHint": "服务器与分组",
+        "connectionsHint": "活跃连接",
+        "rulesHint": "路由规则",
+        "logsHint": "诊断",
+        "settingsHint": "语言、自启动、主题"
       }
     }
   }

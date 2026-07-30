@@ -1,7 +1,7 @@
 import HomeWorkRoundedIcon from '@mui/icons-material/HomeWorkRounded'
 import SupportAgentRoundedIcon from '@mui/icons-material/SupportAgentRounded'
 import TelegramIcon from '@mui/icons-material/Telegram'
-import { Box, Button, Stack, TextField, Typography } from '@mui/material'
+import { alpha, Box, Button, Stack, TextField, Typography } from '@mui/material'
 import { useLockFn } from 'ahooks'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -171,6 +171,10 @@ const HomeSimplePage = () => {
           {current.portal_url ? (
             <Button
               startIcon={<HomeWorkRoundedIcon />}
+              sx={(theme) => ({
+                bgcolor: alpha(theme.palette.primary.main, 0.13),
+                px: 1.75,
+              })}
               onClick={() => void openLink(current.portal_url)}
             >
               {t('home.pages.simple.portal')}
@@ -185,6 +189,11 @@ const HomeSimplePage = () => {
                   <SupportAgentRoundedIcon />
                 )
               }
+              sx={(theme) => ({
+                bgcolor: theme.palette.action.hover,
+                color: theme.palette.text.secondary,
+                px: 1.75,
+              })}
               onClick={() => void openLink(current.support_url)}
             >
               {t('profiles.components.hwidDialog.support')}

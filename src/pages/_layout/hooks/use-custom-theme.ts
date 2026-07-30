@@ -185,6 +185,19 @@ export const useCustomTheme = () => {
             ? `${setting.font_family}, ${dt.font_family}`
             : dt.font_family,
         },
+        components: {
+          // clod:design-v2 — mockup buttons: sentence case, 10px radius,
+          // semibold labels.
+          MuiButton: {
+            styleOverrides: {
+              root: {
+                textTransform: 'none',
+                borderRadius: 10,
+                fontWeight: 600,
+              },
+            },
+          },
+        },
       })
     } catch (e) {
       console.error('Error creating MUI theme, falling back to defaults:', e)

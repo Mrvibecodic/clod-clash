@@ -1,6 +1,7 @@
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
 import {
-  Avatar,
+  alpha,
+  Box,
   CircularProgress,
   IconButton,
   Stack,
@@ -18,7 +19,12 @@ interface Props {
   profile: IProfileItem
 }
 
-/** Provider identity row: logo, plan name, subscription refresh. */
+/**
+ * Provider identity row, 1:1 with the mockups: a 42 px rounded logo (the
+ * provider's image, or the first letter on an accent gradient), the plan
+ * name in bold with the subscription state underneath, and the refresh
+ * button on the right.
+ */
 export const ProviderHeader = ({ profile }: Props) => {
   const { t } = useTranslation()
   const { mutateProfiles } = useProfiles()
@@ -37,18 +43,68 @@ export const ProviderHeader = ({ profile }: Props) => {
     }
   })
 
+  // Read the clock once per mount: "expired" flipping a second later is not
+  // worth an impure render (and the watcher notifies about expiry anyway).
+  const [now] = useState(() => Date.now())
+  const expired = !!profile.extra?.expire && profile.extra.expire * 1000 < now
+  const letter = (profile.name ?? '?').trim().charAt(0).toUpperCase() || '?'
+
   return (
     <Stack direction="row" sx={{ alignItems: 'center', gap: 1.5 }}>
       {profile.logo ? (
-        <Avatar src={profile.logo} alt="" sx={{ width: 40, height: 40 }} />
-      ) : null}
-      <Typography variant="h6" noWrap sx={{ flex: 1, minWidth: 0 }}>
-        {profile.name}
-      </Typography>
+        <Box
+          component="img"
+          src={profile.logo}
+          alt=""
+          sx={{
+            width: 42,
+            height: 42,
+            borderRadius: '12px',
+            objectFit: 'cover',
+            flex: 'none',
+          }}
+        />
+      ) : (
+        <Box
+          sx={(theme) => ({
+            width: 42,
+            height: 42,
+            borderRadius: '12px',
+            flex: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 20,
+            fontWeight: 800,
+            color: '#fff',
+            background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${alpha(
+              theme.palette.primary.dark,
+              0.9,
+            )})`,
+          })}
+        >
+          {letter}
+        </Box>
+      )}
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Typography noWrap sx={{ fontSize: 15, fontWeight: 700 }}>
+          {profile.name}
+        </Typography>
+        <Typography
+          noWrap
+          sx={{ fontSize: 12 }}
+          color={expired ? 'error' : 'text.secondary'}
+        >
+          {expired
+            ? t('home.components.providerHeader.expired')
+            : t('home.components.providerHeader.active')}
+        </Typography>
+      </Box>
       <IconButton
         onClick={() => void refresh()}
         disabled={refreshing}
         aria-label={t('shared.actions.refresh')}
+        sx={{ borderRadius: '10px' }}
       >
         {refreshing ? <CircularProgress size={20} /> : <RefreshRoundedIcon />}
       </IconButton>
