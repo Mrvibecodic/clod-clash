@@ -410,6 +410,27 @@ fn ensure_lan_bind_address(mut config: Mapping) -> Mapping {
     config
 }
 
+// clod: the node choice must survive core restarts under any profile. The
+// default merge template sets `profile.store-selected`, but subscriptions
+// imported from a panel never get that merge item — the core then forgets
+// every manual selection the moment it reloads. Force the flag in the final
+// config so mihomo persists selections in its cache regardless of what the
+// panel (or a manual override) shipped.
+fn ensure_store_selected(mut config: Mapping) -> Mapping {
+    let key = Value::from("profile");
+    match config.get_mut(&key) {
+        Some(Value::Mapping(profile)) => {
+            profile.insert(Value::from("store-selected"), Value::from(true));
+        }
+        _ => {
+            let mut profile = Mapping::new();
+            profile.insert(Value::from("store-selected"), Value::from(true));
+            config.insert(key, Value::from(profile));
+        }
+    }
+    config
+}
+
 async fn process_profile_items(
     mut config: Mapping,
     mut exists_keys: Vec<String>,
@@ -763,6 +784,7 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
     let config = enforce_control_plane(config, control_plane);
     let config = enforce_dns_ipv6(config, dns_ipv6);
     let config = ensure_lan_bind_address(config);
+    let config = ensure_store_selected(config);
 
     let config = cleanup_proxy_groups(config);
     let config = use_sort(config);
@@ -777,13 +799,45 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
 #[cfg(test)]
 mod tests {
     use super::{
-        ChainItem, ChainType, cleanup_proxy_groups, ensure_lan_bind_address, process_global_items,
-        process_profile_items, use_keys,
+        ChainItem, ChainType, cleanup_proxy_groups, ensure_lan_bind_address, ensure_store_selected,
+        process_global_items, process_profile_items, use_keys,
     };
     use std::collections::HashMap;
 
     fn mapping(yaml: &str) -> serde_yaml_ng::Mapping {
         serde_yaml_ng::from_str(yaml).expect("test config should be valid")
+    }
+
+    // clod: selections must survive a core reload for every profile shape:
+    // no `profile` block at all, an unrelated one, and an explicit `false`.
+    #[test]
+    fn store_selected_is_forced_in_final_config() {
+        for source in [
+            "{mode: rule}",
+            "{profile: {store-fake-ip: true}}",
+            "{profile: {store-selected: false}}",
+        ] {
+            let config = ensure_store_selected(mapping(source));
+            let profile = config
+                .get("profile")
+                .and_then(|value| value.as_mapping())
+                .expect("profile block should exist");
+            assert_eq!(
+                profile.get("store-selected").and_then(|value| value.as_bool()),
+                Some(true),
+                "store-selected should be true for source {source}"
+            );
+        }
+        // an unrelated profile key is preserved, not clobbered
+        let config = ensure_store_selected(mapping("{profile: {store-fake-ip: true}}"));
+        let profile = config
+            .get("profile")
+            .and_then(|value| value.as_mapping())
+            .expect("profile");
+        assert_eq!(
+            profile.get("store-fake-ip").and_then(|value| value.as_bool()),
+            Some(true)
+        );
     }
 
     #[tokio::test]

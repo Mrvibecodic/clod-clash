@@ -216,6 +216,10 @@ pub(super) async fn init_service_manager() {
 
 pub(super) async fn init_core_manager() {
     logging_error!(Type::Setup, CoreManager::global().init().await);
+    // clod: with the core up, replay the saved node selection. The core's own
+    // store-selected cache covers plain restarts; this also applies the
+    // starred-server defaults and repairs choices that no longer exist.
+    logging_error!(Type::Setup, crate::config::profiles::activate_selected_nodes());
 }
 
 pub(super) async fn init_system_proxy() {

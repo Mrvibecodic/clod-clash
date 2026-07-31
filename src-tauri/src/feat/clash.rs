@@ -28,6 +28,16 @@ pub async fn restart_clash_core() {
     match CoreManager::global().restart_core().await {
         Ok(_) => {
             handle::Handle::refresh_clash();
+            // clod: a manually restarted core comes up on template defaults —
+            // put the saved node selection (and starred fallbacks) back, the
+            // same way a subscription update does
+            if let Err(err) = crate::config::profiles::activate_selected_nodes() {
+                logging!(
+                    warn,
+                    Type::Core,
+                    "Warning: restore selection after core restart failed: {err}"
+                );
+            }
             handle::Handle::notice_message("set_config::ok", "ok");
         }
         Err(err) => {
