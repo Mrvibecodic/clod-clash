@@ -80,12 +80,48 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           RELEASE_ID="${{ steps.publish.outputs.release_id }}"
+          RELEASE_TAG="${GITHUB_REF_NAME#publish-}"
+          VERSION="${RELEASE_TAG#clod-v}"
 
-          asset_id=$(gh api "repos/${{ github.repository }}/releases/$RELEASE_ID/assets?per_page=100" \
-            --jq '.[] | select(.name=="latest.json") | .id' | head -1)
+          gh api "repos/${{ github.repository }}/releases/$RELEASE_ID/assets?per_page=100" > assets.json
+          asset_id=$(jq -r '.[] | select(.name=="latest.json") | .id' assets.json | head -1)
           gh api -H "Accept: application/octet-stream" \
             "repos/${{ github.repository }}/releases/assets/$asset_id" > latest.json
           jq -e .version latest.json
+
+          # Английский ченджлог для окна обновления в приложении: секция
+          # `## v{версия}` из UPDATELOG.md. Пустые notes ломали кнопку Update
+          # у клиентов 0.0.2 (гард `if (!body) return`), поэтому фолбэк-текст
+          # обязателен.
+          notes=$(awk -v ver="## v$VERSION" '
+            $0 == ver { grab = 1; next }
+            /^## v/ || /^---/ { if (grab) exit }
+            grab { print }
+          ' UPDATELOG.md)
+          if [ -z "$notes" ]; then
+            echo "::warning::UPDATELOG.md has no section for v$VERSION"
+            notes="New version $VERSION is available."
+          fi
+
+          # tauri-action генерирует latest.json, пока релиз ещё черновик, и
+          # пишет api.github.com-ссылки на ассеты. После публикации меняем их
+          # на публичные browser_download_url — их апдейтер качает без
+          # заголовков API и без лимитов.
+          jq --arg notes "$notes" --slurpfile assets assets.json '
+            .notes = $notes
+            | .platforms |= with_entries(
+                .value.url = (
+                  if (.value.url | test("api\\.github\\.com/.*/assets/[0-9]+$")) then
+                    ((.value.url | capture("assets/(?<id>[0-9]+)$").id | tonumber) as $id
+                     | ($assets[0][] | select(.id == $id) | .browser_download_url) // .value.url)
+                  else
+                    .value.url
+                  end
+                )
+              )' latest.json > latest.patched.json
+          jq -e .version latest.patched.json
+          mv latest.patched.json latest.json
+          echo "patched latest.json:"; jq '{version, notes, url_sample: (.platforms | to_entries | .[0].value.url)}' latest.json
 
           updater_id=$(gh api "repos/${{ github.repository }}/releases/tags/updater" --jq .id)
           old_asset=$(gh api "repos/${{ github.repository }}/releases/$updater_id/assets?per_page=100" \

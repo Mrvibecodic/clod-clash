@@ -159,7 +159,9 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
   }, [updateInfo])
 
   const onUpdate = useLockFn(async () => {
-    if (!updateInfo?.body) return
+    // clod: an empty release-notes field must not disable the update itself —
+    // 0.0.2 shipped with `if (!body) return` here and the button looked dead.
+    if (!updateInfo) return
     if (breakChangeFlag) {
       showNotice.error('settings.modals.update.messages.breakChangeError')
       return
@@ -240,8 +242,9 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
             size="small"
             sx={{ whiteSpace: 'nowrap' }}
             onClick={() => {
+              // clod: our releases live in the fork and are tagged clod-v*
               openUrl(
-                `https://github.com/clash-verge-rev/clash-verge-rev/releases/tag/v${updateInfo?.version}`,
+                `https://github.com/Mrvibecodic/clod-clash/releases/tag/clod-v${updateInfo?.version}`,
               )
             }}
           >

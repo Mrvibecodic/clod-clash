@@ -183,3 +183,113 @@ jobs:
               --jq .state
             echo "uploaded $f"
           done
+
+  # После успеха всех платформ релиз публикуется сам (pre-release), тело —
+  # русские notes из сообщения аннотированного тега clod-v*. Ручной
+  # publish-тег (publish-clod.yml) остаётся для перезаливок latest.json.
+  publish_release:
+    name: Publish pre-release and roll the updater tag
+    needs: [prepare_release, release]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Publish the draft as a pre-release
+        id: publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RELEASE_TAG="${GITHUB_REF_NAME}"
+          RELEASE_ID="${{ needs.prepare_release.outputs.release_id }}"
+          echo "release tag: $RELEASE_TAG (id=$RELEASE_ID)"
+
+          # Не публиковать полупустую сборку: latest.json и артефакты всех
+          # трёх платформ (линукс собирается как deb+rpm, AppImage у нас нет).
+          assets=$(gh api "repos/${{ github.repository }}/releases/$RELEASE_ID/assets?per_page=100" --jq '.[].name')
+          echo "assets:"; echo "$assets"
+          for needle in latest.json setup.exe portable.zip .dmg .deb .rpm; do
+            if ! echo "$assets" | grep -qi -- "$needle"; then
+              echo "::error::Release $RELEASE_TAG has no asset matching '$needle'"
+              exit 1
+            fi
+          done
+
+          # actions/checkout разворачивает аннотированный тег в коммит;
+          # чтобы прочитать сообщение тега, дотягиваем сам тег-объект.
+          git fetch --force origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG" || true
+          NOTES=$(git tag -l --format='%(contents)' "$RELEASE_TAG")
+          if [ -n "$NOTES" ]; then
+            gh api -X PATCH "repos/${{ github.repository }}/releases/$RELEASE_ID" \
+              -F draft=false -F prerelease=true -f body="$NOTES" --jq .html_url
+          else
+            gh api -X PATCH "repos/${{ github.repository }}/releases/$RELEASE_ID" \
+              -F draft=false -F prerelease=true --jq .html_url
+          fi
+
+      - name: Roll latest.json into the updater release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RELEASE_ID="${{ needs.prepare_release.outputs.release_id }}"
+          RELEASE_TAG="${GITHUB_REF_NAME}"
+          VERSION="${RELEASE_TAG#clod-v}"
+
+          gh api "repos/${{ github.repository }}/releases/$RELEASE_ID/assets?per_page=100" > assets.json
+          asset_id=$(jq -r '.[] | select(.name=="latest.json") | .id' assets.json | head -1)
+          gh api -H "Accept: application/octet-stream" \
+            "repos/${{ github.repository }}/releases/assets/$asset_id" > latest.json
+          jq -e .version latest.json
+
+          # Английский ченджлог для окна обновления: секция `## v{версия}`
+          # из UPDATELOG.md. Пустые notes ломали кнопку Update у клиентов
+          # 0.0.2 (гард `if (!body) return`) — фолбэк-текст обязателен.
+          notes=$(awk -v ver="## v$VERSION" '
+            $0 == ver { grab = 1; next }
+            /^## v/ || /^---/ { if (grab) exit }
+            grab { print }
+          ' UPDATELOG.md)
+          if [ -z "$notes" ]; then
+            echo "::warning::UPDATELOG.md has no section for v$VERSION"
+            notes="New version $VERSION is available."
+          fi
+
+          # tauri-action пишет api.github.com-ссылки, пока релиз черновик;
+          # после публикации меняем их на публичные browser_download_url.
+          jq --arg notes "$notes" --slurpfile assets assets.json '
+            .notes = $notes
+            | .platforms |= with_entries(
+                .value.url = (
+                  if (.value.url | test("api\\.github\\.com/.*/assets/[0-9]+$")) then
+                    ((.value.url | capture("assets/(?<id>[0-9]+)$").id | tonumber) as $id
+                     | ($assets[0][] | select(.id == $id) | .browser_download_url) // .value.url)
+                  else
+                    .value.url
+                  end
+                )
+              )' latest.json > latest.patched.json
+          jq -e .version latest.patched.json
+          mv latest.patched.json latest.json
+          echo "patched latest.json:"; jq '{version, notes, url_sample: (.platforms | to_entries | .[0].value.url)}' latest.json
+
+          # Обновляем ассет и в самом релизе, чтобы фолбэк-эндпоинт
+          # releases/latest/download/latest.json тоже отдавал правленую версию.
+          gh api -X DELETE "repos/${{ github.repository }}/releases/assets/$asset_id"
+          gh api -X POST \
+            -H "Content-Type: application/json" \
+            --input latest.json \
+            "https://uploads.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets?name=latest.json" \
+            --jq .state
+
+          updater_id=$(gh api "repos/${{ github.repository }}/releases/tags/updater" --jq .id)
+          old_asset=$(gh api "repos/${{ github.repository }}/releases/$updater_id/assets?per_page=100" \
+            --jq '.[] | select(.name=="latest.json") | .id' | head -1)
+          if [ -n "$old_asset" ]; then
+            gh api -X DELETE "repos/${{ github.repository }}/releases/assets/$old_asset"
+            echo "removed old latest.json ($old_asset)"
+          fi
+          gh api -X POST \
+            -H "Content-Type: application/json" \
+            --input latest.json \
+            "https://uploads.github.com/repos/${{ github.repository }}/releases/$updater_id/assets?name=latest.json" \
+            --jq .state
