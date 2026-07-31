@@ -1,13 +1,16 @@
 import DescriptionRoundedIcon from '@mui/icons-material/DescriptionRounded'
-import DnsRoundedIcon from '@mui/icons-material/DnsRounded'
 import HomeWorkRoundedIcon from '@mui/icons-material/HomeWorkRounded'
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
-import RuleRoundedIcon from '@mui/icons-material/RuleRounded'
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded'
 import SupportAgentRoundedIcon from '@mui/icons-material/SupportAgentRounded'
-import SwapVertRoundedIcon from '@mui/icons-material/SwapVertRounded'
-import TerminalRoundedIcon from '@mui/icons-material/TerminalRounded'
-import { alpha, Box, Button, ButtonBase, Stack, Typography } from '@mui/material'
+import {
+  alpha,
+  Box,
+  Button,
+  ButtonBase,
+  Stack,
+  Typography,
+} from '@mui/material'
 import { useLockFn } from 'ahooks'
 import { type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -280,37 +283,15 @@ const HomeAdvancedPage = () => {
                 onClick={() => void openLink(current.support_url)}
               />
             ) : null}
+            {/* clod:design-v2 — the home screen keeps the everyday tiles
+                only; the technical sections (proxies, rules, connections,
+                logs) moved into the settings to leave room for the coming
+                account button */}
             <Tile
               icon={<DescriptionRoundedIcon fontSize="small" />}
-              label={t('layout.components.navigation.tabs.profiles')}
+              label={t('home.pages.advanced.tiles.subscriptions')}
               hint={t('home.pages.advanced.tiles.profilesHint')}
               onClick={() => void navigate('/profile')}
-            />
-            {/* clod:design-v2 — with the sidebar gone the technical sections
-                are reached from here, keeping the same tile look */}
-            <Tile
-              icon={<DnsRoundedIcon fontSize="small" />}
-              label={t('layout.components.navigation.tabs.proxies')}
-              hint={t('home.pages.advanced.tiles.proxiesHint')}
-              onClick={() => void navigate('/proxies')}
-            />
-            <Tile
-              icon={<SwapVertRoundedIcon fontSize="small" />}
-              label={t('layout.components.navigation.tabs.connections')}
-              hint={t('home.pages.advanced.tiles.connectionsHint')}
-              onClick={() => void navigate('/connections')}
-            />
-            <Tile
-              icon={<RuleRoundedIcon fontSize="small" />}
-              label={t('layout.components.navigation.tabs.rules')}
-              hint={t('home.pages.advanced.tiles.rulesHint')}
-              onClick={() => void navigate('/rules')}
-            />
-            <Tile
-              icon={<TerminalRoundedIcon fontSize="small" />}
-              label={t('layout.components.navigation.tabs.logs')}
-              hint={t('home.pages.advanced.tiles.logsHint')}
-              onClick={() => void navigate('/logs')}
             />
             <Tile
               icon={<RefreshRoundedIcon fontSize="small" />}

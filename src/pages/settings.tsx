@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { BasePage } from '@/components/base'
 import SettingClash from '@/components/setting/setting-clash'
 import SettingSystem from '@/components/setting/setting-system'
+import SettingTools from '@/components/setting/setting-tools'
 import SettingVergeAdvanced from '@/components/setting/setting-verge-advanced'
 import SettingVergeBasic from '@/components/setting/setting-verge-basic'
 import { useProfiles } from '@/hooks/use-profiles'
@@ -68,10 +69,21 @@ const SettingPage = () => {
           <Box
             sx={{
               borderRadius: 2,
+              marginBottom: 1.5,
               backgroundColor: isDark ? '#282a36' : '#ffffff',
             }}
           >
             <SettingClash onError={onError} />
+          </Box>
+          {/* clod:design-v2 — proxies/rules/connections/logs entrances,
+              moved here from the advanced home tiles */}
+          <Box
+            sx={{
+              borderRadius: 2,
+              backgroundColor: isDark ? '#282a36' : '#ffffff',
+            }}
+          >
+            <SettingTools />
           </Box>
         </Grid>
         <Grid size={6}>
