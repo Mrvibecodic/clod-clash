@@ -127,6 +127,23 @@ pub async fn change_clash_mode(mode: String) -> Result<(), String> {
     clash.edit_draft(|d| d.patch_config(&mapping));
     clash.apply();
 
+    // clod: раньше mode менялся только в ядре (PATCH) и в app-конфиге, а
+    // runtime (draft + runtime.yaml) оставался со старым значением. Из-за
+    // этого селектор режима в настройках «сбрасывался на правила» — фронт
+    // читает get_runtime_config, — а ближайшая перезагрузка конфига
+    // возвращала старый режим уже и в ядро: mihomo применяет mode из файла
+    // при каждом reload. Синхронизируем runtime сразу же.
+    let runtime = Config::runtime().await;
+    runtime.edit_draft(|d| d.patch_config(&mapping));
+    runtime.apply();
+    if let Err(err) = Config::generate_file(crate::config::ConfigType::Run).await {
+        logging!(
+            warn,
+            Type::Core,
+            "Warning: failed to refresh runtime config file after mode change: {err}"
+        );
+    }
+
     // 分离数据获取和异步调用
     let clash_data = clash.data_arc();
     if clash_data.save_config().await.is_ok() {

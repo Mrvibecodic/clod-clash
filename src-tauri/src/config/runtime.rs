@@ -4,7 +4,10 @@ use std::collections::{HashMap, HashSet};
 
 use crate::enhance::field::use_keys;
 
-const PATCH_CONFIG_INNER: [&str; 5] = ["allow-lan", "ipv6", "log-level", "unified-delay", "tunnels"];
+// clod: «mode» в списке обязателен — иначе смена режима маршрутизации не
+// попадает в runtime-конфиг, UI читает старое значение, а ближайший reload
+// возвращает старый режим в ядро.
+const PATCH_CONFIG_INNER: [&str; 6] = ["mode", "allow-lan", "ipv6", "log-level", "unified-delay", "tunnels"];
 
 #[derive(Default, Clone)]
 pub struct IRuntime {
