@@ -1,22 +1,20 @@
 # clod:F6 — выпуск Clod Clash.
 #
-# Собирает инсталлеры под Windows (x64/arm64), macOS (arm64/x64) и Linux
-# (x64), подписывает артефакты апдейтера ключом из секретов и прикладывает
-# latest.json к черновику релиза. После публикации релиза эндпоинт
-# `releases/latest/download/latest.json` из tauri.conf.json начинает
-# отдавать обновление всем установленным клиентам.
+# Собирает инсталлеры под Windows x64, macOS Apple Silicon и Linux x64,
+# подписывает артефакты апдейтера ключом из секретов и прикладывает
+# latest.json к черновику релиза. Черновик создаётся ОДИН раз отдельным
+# джобом (prepare_release): параллельное создание из матрицы даёт гонку
+# и 403 у проигравшего.
 #
 # Требуемые секреты репозитория (см. docs/RELEASING.md):
 #   TAURI_PRIVATE_KEY       — приватный ключ подписи апдейтера
 #   TAURI_KEY_PASSWORD      — пароль к нему (если задан при генерации)
 #
-# Запуск: пуш тега `clod-v{версия}` (версия должна совпадать с package.json)
-# или вручную через workflow_dispatch.
+# Запуск: пуш тега `clod-v{версия}` (версия должна совпадать с package.json).
 
 name: Release Clod Clash
 
 on:
-  workflow_dispatch:
   push:
     tags:
       - 'clod-v*'
@@ -36,7 +34,6 @@ jobs:
   check_version:
     name: Check tag and package.json version
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/clod-v')
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -52,19 +49,44 @@ jobs:
             exit 1
           fi
 
+  prepare_release:
+    name: Prepare draft release
+    needs: [check_version]
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.ensure.outputs.release_id }}
+    steps:
+      - name: Find or create the draft
+        id: ensure
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          id=$(gh api "repos/${{ github.repository }}/releases?per_page=100" \
+            --jq ".[] | select(.tag_name==\"$TAG\") | .id" | head -1)
+          if [ -z "$id" ]; then
+            id=$(gh api -X POST "repos/${{ github.repository }}/releases" \
+              -f tag_name="$TAG" \
+              -f name="Clod Clash $TAG" \
+              -f body="Черновик — наполняется сборкой." \
+              -F draft=true -F prerelease=true --jq .id)
+            echo "created draft $id"
+          else
+            echo "reusing release $id"
+          fi
+          echo "release_id=$id" >> "$GITHUB_OUTPUT"
+
   release:
     name: Build ${{ matrix.target }}
-    needs: [check_version]
-    if: always() && (needs.check_version.result == 'success' || needs.check_version.result == 'skipped')
+    needs: [check_version, prepare_release]
     strategy:
       fail-fast: false
       matrix:
         include:
-          # win-arm64 (Windows on ARM) сознательно не собираем — аудитории нет
+          # win-arm64 (Windows on ARM) и mac Intel сознательно не собираем —
+          # аудитории нет (решения от 30–31.07.2026)
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-          # mac Intel (x86_64-apple-darwin) выброшен по решению от 31.07.2026:
-          # Маки до 2020 года, аудитории нет
           - os: macos-latest
             target: aarch64-apple-darwin
           - os: ubuntu-22.04
@@ -86,11 +108,14 @@ jobs:
         with:
           prefix-key: 'v1-rust-clod'
           key: 'rust-${{ matrix.os }}-${{ matrix.target }}'
+          # сохранять кэш и при упавшем джобе: иначе падение на позднем шаге
+          # (upload) оставляет следующий прогон без кэша и +30 мин компиляции
+          cache-on-failure: true
           workspaces: |
             . -> target
 
       # Явный rustup: экшен тулчейна не добавляет цель к уже предустановленному
-      # stable на раннере, и кросс-сборки (win-arm64, mac-x64) падают без этого.
+      # stable на раннере
       - name: Add Rust target
         run: |
           rustup target add ${{ matrix.target }}
@@ -102,15 +127,17 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libxslt1.1 libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
 
-      - name: Install Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: '24.18.0'
-
       - uses: pnpm/action-setup@v6
         name: Install pnpm
         with:
           run_install: false
+
+      - name: Install Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24.18.0'
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Pnpm install and prebuild
         run: |
@@ -125,11 +152,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'Clod Clash ${{ github.ref_name }}'
-          releaseBody: 'См. changelog в описании релиза.'
-          releaseDraft: true
-          prerelease: false
+          releaseId: ${{ needs.prepare_release.outputs.release_id }}
           args: --target ${{ matrix.target }}
 
       # Портабл-zip для Windows: NSIS-инсталлер имеет 32-битную заглушку и не
@@ -141,6 +164,22 @@ jobs:
 
       - name: Upload portable to the release (windows only)
         if: matrix.os == 'windows-latest'
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload ${{ github.ref_name }} Clod.Clash_*_portable.zip --clobber
+        run: |
+          # заливаем по release_id: gh release upload по тегу не видит черновики
+          shopt -s nullglob
+          files=(Clod.Clash_*_portable.zip)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::error::portable zip not found"
+            exit 1
+          fi
+          for f in "${files[@]}"; do
+            gh api -X POST \
+              -H "Content-Type: application/zip" \
+              --input "$f" \
+              "https://uploads.github.com/repos/${{ github.repository }}/releases/${{ needs.prepare_release.outputs.release_id }}/assets?name=$f" \
+              --jq .state
+            echo "uploaded $f"
+          done
