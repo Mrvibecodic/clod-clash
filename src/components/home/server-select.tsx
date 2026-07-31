@@ -294,6 +294,9 @@ export const ServerSelect = ({ open, onClose }: Props) => {
             {groups.map((item) => {
               const active = item.name === (group?.name ?? '')
               const auto = AUTO_GROUP_TYPES.has(groupType(item))
+              // clod: the resolved node right on the chip, so checking what
+              // each group runs on does not require opening every group
+              const leaf = displayLeaf(records, item.name)
               return (
                 <ButtonBase
                   key={item.name}
@@ -302,11 +305,12 @@ export const ServerSelect = ({ open, onClose }: Props) => {
                     px: 1.5,
                     py: 0.75,
                     borderRadius: '10px',
-                    fontSize: 13,
-                    fontWeight: 600,
                     whiteSpace: 'nowrap',
                     flex: 'none',
-                    gap: 0.5,
+                    flexDirection: 'column',
+                    alignItems: 'flex-start',
+                    justifyContent: 'center',
+                    gap: 0.25,
                     color: active ? 'primary.main' : 'text.primary',
                     bgcolor: (theme) =>
                       active
@@ -318,8 +322,32 @@ export const ServerSelect = ({ open, onClose }: Props) => {
                       }`,
                   }}
                 >
-                  {auto ? <BoltRoundedIcon sx={{ fontSize: 15 }} /> : null}
-                  {nameWithoutFlag(item.name)}
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 0.5,
+                      fontSize: 13,
+                      fontWeight: 600,
+                    }}
+                  >
+                    {auto ? <BoltRoundedIcon sx={{ fontSize: 15 }} /> : null}
+                    {nameWithoutFlag(item.name)}
+                  </Box>
+                  {leaf ? (
+                    <Typography
+                      variant="caption"
+                      noWrap
+                      sx={{
+                        maxWidth: 180,
+                        color: active ? 'primary.main' : 'text.secondary',
+                        opacity: active ? 0.8 : 1,
+                        lineHeight: 1.2,
+                      }}
+                    >
+                      {nameWithoutFlag(leaf)}
+                    </Typography>
+                  ) : null}
                 </ButtonBase>
               )
             })}
