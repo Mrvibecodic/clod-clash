@@ -5,6 +5,23 @@ workflow (`publish-clod.yml`) extracts the section matching the released
 version and injects it into `latest.json` as the updater notes. Keep every
 section between `## v{version}` and `---`.
 
+## v0.0.9-alpha
+
+### Fixed
+
+- The server delay test and the automatic re-ping after a subscription update no longer reset the selected server
+- Subscription updates no longer interrupt active connections: the config is reloaded softly unless ports/TUN actually changed
+- The routing mode (Rules/Global/Direct) no longer flips back to Rules after picking Global in the settings
+
+### Changed
+
+- Starred servers no longer take over the selection: they float to the top of the list and are used automatically only when the selected server is missing or stops responding
+- Every link header from the panel is now accepted over https only
+- Device identity headers are koala-clash style: plain `ClodClash/<version>` User-Agent, human-readable OS version and system edition instead of the computer name
+- The simple home screen now shows the connect targets (system proxy / TUN) and the active routing mode under the Connect button
+
+---
+
 ## v0.0.8-alpha
 
 ### Added
