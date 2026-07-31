@@ -20,6 +20,7 @@ import {
   ConnectButton,
   type ConnectState,
 } from '@/components/home/connect-button'
+import { ModeStatus } from '@/components/home/mode-status'
 import { NetCard } from '@/components/home/net-card'
 import { ProviderBanners } from '@/components/home/provider-banners'
 import { ProviderHeader } from '@/components/home/provider-header'
@@ -29,7 +30,6 @@ import { useConnectTargets } from '@/hooks/use-connect-targets'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useSessionUptime } from '@/hooks/use-session-uptime'
 import { useSimpleMode } from '@/hooks/use-simple-mode'
-import { useClashConfigData } from '@/providers/app-data-context'
 import { openWebUrl, updateProfile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 
@@ -105,10 +105,8 @@ const HomeAdvancedPage = () => {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { current, mutateProfiles } = useProfiles()
-  const { clashConfig } = useClashConfigData()
   const { setSimpleMode } = useSimpleMode()
-  const { connected, targetSys, targetTun, toggleConnection } =
-    useConnectTargets()
+  const { connected, toggleConnection } = useConnectTargets()
   const uptime = useSessionUptime(connected)
 
   const [busy, setBusy] = useState(false)
@@ -161,19 +159,6 @@ const HomeAdvancedPage = () => {
     return <HomeSimplePage />
   }
 
-  const clashMode = clashConfig?.mode?.toLowerCase()
-  const modeLabel =
-    clashMode === 'global' || clashMode === 'direct' || clashMode === 'rule'
-      ? t(`home.components.clashMode.labels.${clashMode}`)
-      : t('home.components.clashMode.labels.rule')
-
-  const activeTargets = [
-    targetSys ? t('settings.components.verge.basic.options.sysproxy') : null,
-    targetTun ? t('settings.components.verge.basic.options.tun') : null,
-  ]
-    .filter(Boolean)
-    .join(' + ')
-
   return (
     <Stack sx={{ height: '100%', overflowY: 'auto' }}>
       <Box sx={{ px: 2, pt: 2 }}>
@@ -212,20 +197,7 @@ const HomeAdvancedPage = () => {
           {/* Which switches Connect drives and the routing mode. Read-only on
               purpose: the mode lives in the settings, or nowhere at all when
               the panel locked it. */}
-          {current.lock_mode ? (
-            <Typography variant="caption" color="text.secondary">
-              {activeTargets} · {modeLabel}
-            </Typography>
-          ) : (
-            <Button
-              size="small"
-              color="inherit"
-              sx={{ color: 'text.secondary', textTransform: 'none' }}
-              onClick={() => void navigate('/settings')}
-            >
-              {activeTargets} · {modeLabel}
-            </Button>
-          )}
+          <ModeStatus locked={Boolean(current.lock_mode)} />
 
           <ServerSelectRow onOpen={() => setServerOpen(true)} />
           <ServerSelect

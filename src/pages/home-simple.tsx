@@ -10,6 +10,7 @@ import {
   ConnectButton,
   type ConnectState,
 } from '@/components/home/connect-button'
+import { ModeStatus } from '@/components/home/mode-status'
 import { ProviderBanners } from '@/components/home/provider-banners'
 import { ProviderHeader } from '@/components/home/provider-header'
 import { ServerSelect, ServerSelectRow } from '@/components/home/server-select'
@@ -176,6 +177,12 @@ const HomeSimplePage = () => {
             errorText={errorText}
             onToggle={() => void toggle()}
           />
+        </Box>
+
+        {/* clod: и в простом режиме видно, что дёргает Connect (системный
+            прокси / TUN / оба) и какой режим маршрутизации активен */}
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: -1 }}>
+          <ModeStatus locked={Boolean(current.lock_mode)} />
         </Box>
 
         {/* clod: session totals (downloaded/uploaded since the core started) */}
