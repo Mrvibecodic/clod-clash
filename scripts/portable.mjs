@@ -21,14 +21,18 @@ const arch = target ? ARCH_MAP[target] : PROCESS_MAP[process.arch]
 async function resolvePortable() {
   if (process.platform !== 'win32') return
 
-  const releaseDir = target
-    ? `./src-tauri/target/${target}/release`
-    : `./src-tauri/target/release`
-  const configDir = path.join(releaseDir, '.config')
-
-  if (!fs.existsSync(releaseDir)) {
-    throw new Error('could not found the release dir')
+  // clod: the fork's cargo workspace lives at the repo root, so the build
+  // lands in ./target; keep the upstream location as a fallback.
+  const releaseDirCandidates = target
+    ? [`./target/${target}/release`, `./src-tauri/target/${target}/release`]
+    : [`./target/release`, `./src-tauri/target/release`]
+  const releaseDir = releaseDirCandidates.find((dir) => fs.existsSync(dir))
+  if (!releaseDir) {
+    throw new Error(
+      `could not find the release dir (checked: ${releaseDirCandidates.join(', ')})`,
+    )
   }
+  const configDir = path.join(releaseDir, '.config')
 
   await fsp.mkdir(configDir, { recursive: true })
   if (!fs.existsSync(path.join(configDir, 'PORTABLE'))) {
@@ -59,4 +63,8 @@ async function resolvePortable() {
   console.log('[INFO]: create portable zip successfully')
 }
 
-resolvePortable().catch(console.error)
+resolvePortable().catch((error) => {
+  // A missing portable must fail the CI step, not just log.
+  console.error(error)
+  process.exitCode = 1
+})
