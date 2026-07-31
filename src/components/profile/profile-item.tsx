@@ -891,13 +891,13 @@ const ProfileItemBase = (props: ProfileItemProps) => {
                 size="small"
                 variant="outlined"
                 startIcon={<HomeWorkRounded />}
-                sx={{ flex: 1, minWidth: 0 }}
+                sx={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap' }}
                 onClick={(e) => {
                   e.stopPropagation()
                   open(itemData.portal_url ?? '')
                 }}
               >
-                {t('home.pages.simple.portal')}
+                {t('profiles.components.profileItem.actions.portal')}
               </Button>
             )}
             {itemData.support_url && (
@@ -905,7 +905,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
                 size="small"
                 variant="outlined"
                 startIcon={<SupportAgentRounded />}
-                sx={{ flex: 1, minWidth: 0 }}
+                sx={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap' }}
                 onClick={(e) => {
                   e.stopPropagation()
                   open(itemData.support_url ?? '')

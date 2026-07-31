@@ -105,8 +105,12 @@ export interface TranslationResources {
           title: string
         }
         net: {
+          downloaded: string
+          downSpeed: string
           session: string
           title: string
+          uploaded: string
+          upSpeed: string
         }
         providerHeader: {
           active: string
@@ -143,10 +147,14 @@ export interface TranslationResources {
           }
         }
         subscription: {
+          daysShort: string
           expires: string
+          expiryTitle: string
           refill: string
           renew: string
           topup: string
+          trafficTitle: string
+          untilDate: string
           updated: string
         }
         systemInfo: {
@@ -319,6 +327,9 @@ export interface TranslationResources {
           }
         }
         profileItem: {
+          actions: {
+            portal: string
+          }
           labels: {
             expiresIn: string
             neverExpires: string

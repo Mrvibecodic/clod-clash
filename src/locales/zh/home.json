@@ -164,7 +164,11 @@
       "refill": "Monthly traffic resets on {{date}}",
       "renew": "Renew",
       "topup": "Add traffic",
-      "updated": "订阅已更新"
+      "updated": "订阅已更新",
+      "trafficTitle": "Traffic",
+      "expiryTitle": "Expires",
+      "daysShort": "{{count}} d",
+      "untilDate": "until {{date}}"
     },
     "providerHeader": {
       "active": "订阅有效",
@@ -172,7 +176,11 @@
     },
     "net": {
       "title": "网络",
-      "session": "This session"
+      "session": "This session",
+      "downSpeed": "Download",
+      "upSpeed": "Upload",
+      "downloaded": "Downloaded",
+      "uploaded": "Uploaded"
     }
   },
   "pages": {

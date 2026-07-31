@@ -1,6 +1,14 @@
-import { Button, Chip, LinearProgress, Stack, Typography } from '@mui/material'
+import CalendarMonthRoundedIcon from '@mui/icons-material/CalendarMonthRounded'
+import DataUsageRoundedIcon from '@mui/icons-material/DataUsageRounded'
+import {
+  Box,
+  Button,
+  LinearProgress,
+  Stack,
+  Typography,
+} from '@mui/material'
 import dayjs from 'dayjs'
-import { useCallback, useMemo } from 'react'
+import { type ReactNode, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { openWebUrl } from '@/services/cmds'
@@ -35,15 +43,63 @@ interface Props {
 }
 
 /**
- * The subscription card: traffic, time left and — when the panel provides the
- * URLs — the renew / top-up actions.
- *
- * Expiry and the monthly traffic reset are deliberately kept apart: "expires
- * in 2 days" next to "traffic resets on the 15th" reads as a contradiction,
- * so the reset line is dropped whenever the plan itself is about to end.
- *
- * The action buttons exist only if the panel sent `clod-renew-url` /
- * `clod-topup-url`. No headers — no buttons; the app never invents payment
+ * One tile of the subscription block: a small title, the content, and a big
+ * faded icon in the corner as the tile's «meaning» (traffic / calendar).
+ */
+const InfoTile = ({
+  title,
+  icon,
+  children,
+}: {
+  title: string
+  icon: ReactNode
+  children: ReactNode
+}) => (
+  <Box
+    sx={{
+      position: 'relative',
+      overflow: 'hidden',
+      minWidth: 0,
+      p: 1.75,
+      borderRadius: '14px',
+      bgcolor: 'background.paper',
+      border: (theme) => `1px solid ${theme.palette.divider}`,
+    }}
+  >
+    {/* фоновая иконка-смысл тайла */}
+    <Box
+      aria-hidden
+      sx={{
+        position: 'absolute',
+        right: -10,
+        bottom: -14,
+        opacity: 0.08,
+        pointerEvents: 'none',
+        color: 'primary.main',
+        '& svg': { fontSize: 88 },
+      }}
+    >
+      {icon}
+    </Box>
+    <Stack sx={{ gap: 0.75, position: 'relative', minWidth: 0 }}>
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        sx={{ fontWeight: 600, letterSpacing: 0.2 }}
+        noWrap
+      >
+        {title}
+      </Typography>
+      {children}
+    </Stack>
+  </Box>
+)
+
+/**
+ * The subscription block: two equal tiles — traffic and time left — that sit
+ * side by side and stack under each other when the window is narrow. The
+ * renew / top-up actions live in the expiry tile and exist only if the panel
+ * sent `clod-renew-url` / `clod-topup-url`; the app never invents payment
  * links on its own.
  */
 export const SubscriptionCard = ({ profile }: Props) => {
@@ -93,29 +149,28 @@ export const SubscriptionCard = ({ profile }: Props) => {
     }
   }, [profile.extra])
 
-  // Nothing to report: an unlimited, never expiring plan hides the card
+  // Nothing to report: an unlimited, never expiring plan hides the block
   // instead of showing a full bar that means nothing.
   if (!info || (info.unlimited && info.forever)) return null
 
   const showRenew = Boolean(profile.renew_url)
   const showTopup = Boolean(profile.topup_url)
+  const expiryCritical = info.daysLeft !== undefined && info.daysLeft <= CRITICAL_DAYS
 
   return (
-    <Stack
+    <Box
       sx={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
         gap: 1.25,
-        p: 1.75,
-        borderRadius: '14px',
-        bgcolor: 'background.paper',
-        border: (theme) => `1px solid ${theme.palette.divider}`,
       }}
     >
-      <Stack
-        direction="row"
-        sx={{ alignItems: 'center', gap: 1, flexWrap: 'wrap' }}
+      <InfoTile
+        title={t('home.components.subscription.trafficTitle')}
+        icon={<DataUsageRoundedIcon />}
       >
         {/* mockup: «12,4 ГБ / 100 ГБ» — used in bold, the quota greyed */}
-        <Typography sx={{ flex: 1, fontSize: 13.5, fontWeight: 600 }}>
+        <Typography noWrap sx={{ fontSize: 15, fontWeight: 700 }}>
           {traffic(info.used)}{' '}
           <Typography
             component="span"
@@ -128,65 +183,81 @@ export const SubscriptionCard = ({ profile }: Props) => {
               : traffic(info.total)}
           </Typography>
         </Typography>
-        {info.daysLeft !== undefined ? (
-          <Chip
-            size="small"
-            color={info.daysLeft <= CRITICAL_DAYS ? 'error' : 'default'}
-            sx={{ fontWeight: 600 }}
-            label={t('home.components.subscription.expires', {
-              count: info.daysLeft,
-              date: info.expireDate,
-            })}
-          />
-        ) : (
-          <Chip
-            size="small"
-            sx={{ fontWeight: 600 }}
-            label={t('profiles.components.profileItem.labels.neverExpires')}
+        {info.unlimited ? null : (
+          <LinearProgress
+            variant="determinate"
+            value={info.usedPercent}
+            color={trafficColor(info.usedPercent)}
+            sx={{ height: 6, borderRadius: 3 }}
           />
         )}
-      </Stack>
+        {/* The reset date is noise while the subscription itself is ending. */}
+        {profile.refill_date && !info.critical ? (
+          <Typography variant="caption" color="text.secondary" noWrap>
+            {t('home.components.subscription.refill', {
+              date: dayjs(toUnixSeconds(profile.refill_date) * 1000).format(
+                'DD.MM.YYYY',
+              ),
+            })}
+          </Typography>
+        ) : null}
+      </InfoTile>
 
-      {info.unlimited ? null : (
-        <LinearProgress
-          variant="determinate"
-          value={info.usedPercent}
-          color={trafficColor(info.usedPercent)}
-          sx={{ height: 6, borderRadius: 3 }}
-        />
-      )}
-
-      {/* The reset date is noise while the subscription itself is ending. */}
-      {profile.refill_date && !info.critical ? (
-        <Typography variant="caption" color="text.secondary">
-          {t('home.components.subscription.refill', {
-            date: dayjs(toUnixSeconds(profile.refill_date) * 1000).format('DD.MM.YYYY'),
-          })}
-        </Typography>
-      ) : null}
-
-      {showRenew || showTopup ? (
-        <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', mt: 0.5 }}>
-          {showRenew ? (
-            <Button
-              size="small"
-              variant={info.critical ? 'contained' : 'outlined'}
-              onClick={() => void openLink(profile.renew_url)}
+      <InfoTile
+        title={t('home.components.subscription.expiryTitle')}
+        icon={<CalendarMonthRoundedIcon />}
+      >
+        {info.daysLeft !== undefined ? (
+          <>
+            <Typography
+              noWrap
+              sx={{ fontSize: 15, fontWeight: 700 }}
+              color={expiryCritical ? 'error' : 'text.primary'}
             >
-              {t('home.components.subscription.renew')}
-            </Button>
-          ) : null}
-          {showTopup ? (
-            <Button
-              size="small"
-              variant="text"
-              onClick={() => void openLink(profile.topup_url)}
+              {t('home.components.subscription.daysShort', {
+                count: info.daysLeft,
+              })}
+            </Typography>
+            <Typography
+              variant="caption"
+              noWrap
+              color={expiryCritical ? 'error' : 'text.secondary'}
             >
-              {t('home.components.subscription.topup')}
-            </Button>
-          ) : null}
-        </Stack>
-      ) : null}
-    </Stack>
+              {t('home.components.subscription.untilDate', {
+                date: info.expireDate,
+              })}
+            </Typography>
+          </>
+        ) : (
+          <Typography noWrap sx={{ fontSize: 15, fontWeight: 700 }}>
+            {t('profiles.components.profileItem.labels.neverExpires')}
+          </Typography>
+        )}
+        {showRenew || showTopup ? (
+          <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', mt: 0.25 }}>
+            {showRenew ? (
+              <Button
+                size="small"
+                variant={info.critical ? 'contained' : 'outlined'}
+                sx={{ minWidth: 0 }}
+                onClick={() => void openLink(profile.renew_url)}
+              >
+                {t('home.components.subscription.renew')}
+              </Button>
+            ) : null}
+            {showTopup ? (
+              <Button
+                size="small"
+                variant="text"
+                sx={{ minWidth: 0 }}
+                onClick={() => void openLink(profile.topup_url)}
+              >
+                {t('home.components.subscription.topup')}
+              </Button>
+            ) : null}
+          </Stack>
+        ) : null}
+      </InfoTile>
+    </Box>
   )
 }

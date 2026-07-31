@@ -71,7 +71,7 @@ export const ConnectButton = ({
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        gap: 1.5,
+        gap: 1,
       }}
     >
       <Box
@@ -128,14 +128,21 @@ export const ConnectButton = ({
         {label}
       </Typography>
 
-      {state === 'on' && uptime !== undefined ? (
-        <Typography
-          variant="h6"
-          sx={{ fontVariantNumeric: 'tabular-nums', letterSpacing: 1 }}
-        >
-          {formatUptime(uptime)}
-        </Typography>
-      ) : null}
+      {/* clod: слот аптайма зарезервирован всегда — иначе при подключении
+          контент подрастает и в simple-окне выскакивает прокрутка */}
+      <Typography
+        variant="body1"
+        sx={{
+          fontVariantNumeric: 'tabular-nums',
+          letterSpacing: 1,
+          fontWeight: 600,
+          minHeight: 24,
+          visibility:
+            state === 'on' && uptime !== undefined ? 'visible' : 'hidden',
+        }}
+      >
+        {state === 'on' && uptime !== undefined ? formatUptime(uptime) : '00:00'}
+      </Typography>
 
       {state === 'error' && errorText ? (
         <Typography

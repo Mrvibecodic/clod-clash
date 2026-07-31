@@ -1,47 +1,50 @@
 import { Box, Stack, Typography } from '@mui/material'
-import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  EnhancedCanvasTrafficGraph,
-  type EnhancedCanvasTrafficGraphRef,
-} from '@/components/home/enhanced-canvas-traffic-graph'
 import { useTrafficData } from '@/hooks/use-traffic-data'
 import { useVisibility } from '@/hooks/use-visibility'
 import parseTraffic from '@/utils/parse-traffic'
 
-/** One legend entry: a coloured dot and the current speed. */
-const Legend = ({ color, value }: { color: string; value: string }) => (
-  <Stack
-    direction="row"
-    sx={{
-      alignItems: 'center',
-      gap: 0.75,
-      fontVariantNumeric: 'tabular-nums',
-    }}
-  >
-    <Box
+/** One stat cell: a small label over a bold tabular value. */
+const Stat = ({
+  label,
+  value,
+  color,
+}: {
+  label: string
+  value: string
+  color?: string
+}) => (
+  <Box sx={{ minWidth: 0 }}>
+    <Typography
+      variant="caption"
+      color="text.secondary"
+      noWrap
+      sx={{ display: 'block' }}
+    >
+      {label}
+    </Typography>
+    <Typography
+      noWrap
       sx={{
-        width: 8,
-        height: 8,
-        borderRadius: '50%',
-        bgcolor: color,
-        flex: 'none',
+        fontSize: 15,
+        fontWeight: 700,
+        fontVariantNumeric: 'tabular-nums',
+        color: color ?? 'text.primary',
       }}
-    />
-    <Typography sx={{ fontSize: 12.5 }} color="text.secondary">
+    >
       {value}
     </Typography>
-  </Stack>
+  </Box>
 )
 
 /**
- * The mockups' «Network» card: a title row with live up/down legends and a
- * compact traffic sparkline — instead of the upstream six-tile stats block.
+ * The «Network» card: four numbers instead of a graph — the momentary
+ * speeds and the session totals. A sparkline looked technical and told a
+ * subscription user nothing actionable (removed by request, 31.07).
  */
 export const NetCard = () => {
   const { t } = useTranslation()
-  const trafficRef = useRef<EnhancedCanvasTrafficGraphRef>(null)
   const pageVisible = useVisibility()
 
   const {
@@ -49,53 +52,48 @@ export const NetCard = () => {
   } = useTrafficData({ enabled: pageVisible })
 
   const speed = (bytes: number) => `${parseTraffic(bytes).join(' ')}/s`
+  const total = (bytes: number) => parseTraffic(bytes).join(' ')
 
   return (
     <Stack
       sx={{
-        gap: 1,
+        gap: 1.25,
         p: 1.75,
         borderRadius: '14px',
         bgcolor: 'background.paper',
         border: (theme) => `1px solid ${theme.palette.divider}`,
       }}
     >
-      <Stack direction="row" sx={{ alignItems: 'center', gap: 1.75 }}>
-        <Typography sx={{ fontSize: 13, fontWeight: 600, flex: 1 }}>
-          {t('home.components.net.title')}
-        </Typography>
-        <Legend color="#2E7CF6" value={`↓ ${speed(traffic?.down ?? 0)}`} />
-        <Legend color="#EA580C" value={`↑ ${speed(traffic?.up ?? 0)}`} />
-      </Stack>
+      <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
+        {t('home.components.net.title')}
+      </Typography>
       <Box
-        sx={{ height: 72, cursor: 'pointer' }}
-        onClick={() => trafficRef.current?.toggleStyle()}
-      >
-        <EnhancedCanvasTrafficGraph ref={trafficRef} minimal />
-      </Box>
-      {/* clod: session totals — what actually went through since the core
-          started, next to the momentary speeds above */}
-      <Stack
-        direction="row"
         sx={{
-          gap: 0.75,
-          alignItems: 'center',
-          fontVariantNumeric: 'tabular-nums',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+          rowGap: 1.25,
+          columnGap: 1,
         }}
       >
-        <Typography variant="caption" color="text.secondary">
-          {t('home.components.net.session')}:
-        </Typography>
-        <Typography variant="caption" color="text.secondary">
-          ↓ {parseTraffic(traffic?.downTotal ?? 0).join(' ')}
-        </Typography>
-        <Typography variant="caption" color="text.disabled">
-          ·
-        </Typography>
-        <Typography variant="caption" color="text.secondary">
-          ↑ {parseTraffic(traffic?.upTotal ?? 0).join(' ')}
-        </Typography>
-      </Stack>
+        <Stat
+          label={`↓ ${t('home.components.net.downSpeed')}`}
+          value={speed(traffic?.down ?? 0)}
+          color="#2E7CF6"
+        />
+        <Stat
+          label={`↑ ${t('home.components.net.upSpeed')}`}
+          value={speed(traffic?.up ?? 0)}
+          color="#EA580C"
+        />
+        <Stat
+          label={t('home.components.net.downloaded')}
+          value={total(traffic?.downTotal ?? 0)}
+        />
+        <Stat
+          label={t('home.components.net.uploaded')}
+          value={total(traffic?.upTotal ?? 0)}
+        />
+      </Box>
     </Stack>
   )
 }

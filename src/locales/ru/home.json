@@ -160,11 +160,15 @@
       }
     },
     "subscription": {
-      "expires": "подписка: {{count}} дн. · до {{date}}",
-      "refill": "Месячный лимит трафика обновится {{date}}",
+      "expires": "{{count}} дн · до {{date}}",
+      "refill": "Обновится {{date}}",
       "renew": "Продлить",
-      "topup": "Докупить трафик",
-      "updated": "Подписка обновлена"
+      "topup": "Докупить",
+      "updated": "Подписка обновлена",
+      "trafficTitle": "Трафик",
+      "expiryTitle": "Срок",
+      "daysShort": "{{count}} дн",
+      "untilDate": "до {{date}}"
     },
     "providerHeader": {
       "active": "подписка активна",
@@ -172,7 +176,11 @@
     },
     "net": {
       "title": "Сеть",
-      "session": "За сессию"
+      "session": "За сессию",
+      "downSpeed": "Загрузка",
+      "upSpeed": "Отдача",
+      "downloaded": "Скачано",
+      "uploaded": "Отправлено"
     }
   },
   "pages": {

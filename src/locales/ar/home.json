@@ -164,7 +164,11 @@
       "refill": "Monthly traffic resets on {{date}}",
       "renew": "Renew",
       "topup": "Add traffic",
-      "updated": "تم تحديث الاشتراك"
+      "updated": "تم تحديث الاشتراك",
+      "trafficTitle": "Traffic",
+      "expiryTitle": "Expires",
+      "daysShort": "{{count}} d",
+      "untilDate": "until {{date}}"
     },
     "providerHeader": {
       "active": "subscription active",
@@ -172,7 +176,11 @@
     },
     "net": {
       "title": "Network",
-      "session": "This session"
+      "session": "This session",
+      "downSpeed": "Download",
+      "upSpeed": "Upload",
+      "downloaded": "Downloaded",
+      "uploaded": "Uploaded"
     }
   },
   "pages": {
