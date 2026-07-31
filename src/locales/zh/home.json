@@ -149,7 +149,15 @@
       "test": "Test",
       "empty": "No servers in this subscription",
       "favorite": "收藏",
-      "ms": "ms"
+      "ms": "ms",
+      "autoHint": "The node in this group is picked automatically",
+      "types": {
+        "selector": "group",
+        "urltest": "auto · best ping",
+        "fallback": "auto · failover",
+        "loadbalance": "load balancing",
+        "smart": "smart pick"
+      }
     },
     "subscription": {
       "expires": "套餐：{{count}} 天 · 至 {{date}}",
@@ -163,7 +171,8 @@
       "expired": "订阅已到期"
     },
     "net": {
-      "title": "网络"
+      "title": "网络",
+      "session": "This session"
     }
   },
   "pages": {
@@ -181,6 +190,7 @@
         "portalHint": "renewal and payment",
         "refresh": "Refresh subscription",
         "supportHint": "Telegram 聊天",
+        "subscriptions": "Subscriptions",
         "profilesHint": "订阅与规则",
         "proxiesHint": "服务器与分组",
         "connectionsHint": "活跃连接",

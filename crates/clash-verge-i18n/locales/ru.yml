@@ -36,10 +36,10 @@ notifications:
     body: Подписка истекла.
   subExpiresIn:
     title: Подписка
-    body: 'Подписка истекает через {days} дн.'
+    body: Подписка истекает через {days} дн.
   subTraffic:
     title: Подписка
-    body: 'Израсходовано {percent}% трафика.'
+    body: Израсходовано {percent}% трафика.
 common:
   modeLocked: Режим маршрутизации управляется вашим провайдером.
 service:

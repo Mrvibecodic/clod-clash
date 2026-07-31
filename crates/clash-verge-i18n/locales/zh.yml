@@ -36,10 +36,10 @@ notifications:
     body: 订阅已到期。
   subExpiresIn:
     title: 订阅
-    body: '订阅将在 {days} 天后到期。'
+    body: 订阅将在 {days} 天后到期。
   subTraffic:
     title: 订阅
-    body: '流量已使用 {percent}%。'
+    body: 流量已使用 {percent}%。
 common:
   modeLocked: 路由模式由您的服务商管理。
 service:

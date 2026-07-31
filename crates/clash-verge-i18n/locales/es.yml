@@ -31,6 +31,17 @@ notifications:
     body: A new version (v{version}) has been downloaded and is ready to install.
     installNow: Install Now
     later: Later
+  subExpired:
+    title: Subscription
+    body: Your subscription has expired.
+  subExpiresIn:
+    title: Subscription
+    body: Your subscription expires in {days} d.
+  subTraffic:
+    title: Subscription
+    body: Traffic usage has reached {percent}%.
+common:
+  modeLocked: The routing mode is managed by your provider.
 service:
   adminInstallPrompt: Instalar el servicio de Clash Verge requiere privilegios de administrador.
   adminUninstallPrompt: Desinstalar el servicio de Clash Verge requiere privilegios de administrador.

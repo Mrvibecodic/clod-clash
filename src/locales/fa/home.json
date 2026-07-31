@@ -148,7 +148,16 @@
       "none": "Not selected",
       "test": "Test",
       "empty": "No servers in this subscription",
-      "favorite": "علاقه‌مندی"
+      "favorite": "علاقه‌مندی",
+      "ms": "ms",
+      "autoHint": "The node in this group is picked automatically",
+      "types": {
+        "selector": "group",
+        "urltest": "auto · best ping",
+        "fallback": "auto · failover",
+        "loadbalance": "load balancing",
+        "smart": "smart pick"
+      }
     },
     "subscription": {
       "expires": "{{count}} days left · until {{date}}",
@@ -156,6 +165,14 @@
       "renew": "Renew",
       "topup": "Add traffic",
       "updated": "اشتراک به‌روزرسانی شد"
+    },
+    "providerHeader": {
+      "active": "subscription active",
+      "expired": "subscription expired"
+    },
+    "net": {
+      "title": "Network",
+      "session": "This session"
     }
   },
   "pages": {
@@ -164,13 +181,22 @@
       "welcomeHint": "Paste the link your provider gave you. You can connect right after that.",
       "subscriptionPlaceholder": "https://…",
       "portal": "Customer portal",
-      "daysLeft": "Days left: {{count}}"
+      "daysLeft": "Days left: {{count}}",
+      "toAdvanced": "Advanced mode →"
     },
     "advanced": {
       "toSimple": "← Simple mode",
       "tiles": {
         "portalHint": "renewal and payment",
-        "refresh": "Refresh subscription"
+        "refresh": "Refresh subscription",
+        "supportHint": "Telegram chat",
+        "subscriptions": "Subscriptions",
+        "profilesHint": "manage subscriptions",
+        "proxiesHint": "servers and groups",
+        "connectionsHint": "active connections",
+        "rulesHint": "routing",
+        "logsHint": "diagnostics",
+        "settingsHint": "language, autostart, theme"
       }
     }
   }

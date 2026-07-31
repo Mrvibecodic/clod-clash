@@ -36,10 +36,10 @@ notifications:
     body: Your subscription has expired.
   subExpiresIn:
     title: Subscription
-    body: 'Your subscription expires in {days} d.'
+    body: Your subscription expires in {days} d.
   subTraffic:
     title: Subscription
-    body: 'Traffic usage has reached {percent}%.'
+    body: Traffic usage has reached {percent}%.
 common:
   modeLocked: The routing mode is managed by your provider.
 service:

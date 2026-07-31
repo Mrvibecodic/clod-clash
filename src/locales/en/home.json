@@ -149,7 +149,15 @@
       "test": "Test",
       "empty": "No servers in this subscription",
       "favorite": "Favorite",
-      "ms": "ms"
+      "ms": "ms",
+      "autoHint": "The node in this group is picked automatically",
+      "types": {
+        "selector": "group",
+        "urltest": "auto · best ping",
+        "fallback": "auto · failover",
+        "loadbalance": "load balancing",
+        "smart": "smart pick"
+      }
     },
     "subscription": {
       "expires": "plan: {{count}} d · until {{date}}",
@@ -163,7 +171,8 @@
       "expired": "subscription expired"
     },
     "net": {
-      "title": "Network"
+      "title": "Network",
+      "session": "This session"
     }
   },
   "pages": {
@@ -181,7 +190,8 @@
         "portalHint": "renewal and payment",
         "refresh": "Refresh subscription",
         "supportHint": "Telegram chat",
-        "profilesHint": "subscriptions and rules",
+        "subscriptions": "Subscriptions",
+        "profilesHint": "manage subscriptions",
         "proxiesHint": "servers and groups",
         "connectionsHint": "active connections",
         "rulesHint": "routing",

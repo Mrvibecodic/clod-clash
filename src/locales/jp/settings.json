@@ -174,14 +174,16 @@
           "hotkeySetting": "ホットキー設定",
           "advancedMode": "Advanced mode",
           "connectSysproxy": "Connect: system proxy",
-          "connectTun": "Connect: TUN mode"
+          "connectTun": "Connect: TUN mode",
+          "subNotifications": "Subscription notifications"
         },
         "options": {
           "sysproxy": "System proxy",
           "tun": "TUN"
         },
         "hints": {
-          "connectTun": "The Connect button also brings the TUN device up. System proxy and TUN can run together; the TUN device needs the service installed."
+          "connectTun": "The Connect button also brings the TUN device up. System proxy and TUN can run together; the TUN device needs the service installed.",
+          "subNotifications": "Warn about the subscription running out of traffic or time. Off silences these alerts regardless of the provider settings."
         }
       },
       "advanced": {
@@ -224,7 +226,8 @@
           "errorColor": "エラー色",
           "successColor": "成功色",
           "fontFamily": "フォントファミリー",
-          "cssInjection": "CSSインジェクション"
+          "cssInjection": "CSSインジェクション",
+          "accentPresets": "Accent presets"
         },
         "actions": {
           "editCss": "Edit CSS"
@@ -278,6 +281,9 @@
           }
         }
       }
+    },
+    "tools": {
+      "title": "Tools"
     }
   },
   "modals": {
@@ -626,6 +632,36 @@
         "ipAddress": "IPアドレス",
         "macAddress": "MACアドレス"
       }
+    },
+    "managedCore": {
+      "entry": "Managed core (self-updating)",
+      "title": "Managed Mihomo core",
+      "useManaged": "Use the managed core",
+      "useManagedHint": "Run a self-downloaded core instead of the bundled one",
+      "channel": "Channel",
+      "stable": "Stable",
+      "alpha": "Alpha",
+      "autoCheck": "Check daily",
+      "running": "Running:",
+      "managedTag": "managed",
+      "bundledTag": "bundled",
+      "available": "Update available: {{version}}",
+      "upToDate": "The core is up to date",
+      "check": "Check for update",
+      "update": "Download & apply",
+      "revert": "Revert to {{version}}",
+      "updated": "Core updated",
+      "reverted": "Core reverted",
+      "phase": {
+        "checking": "Checking…",
+        "downloading": "Downloading…",
+        "verifying": "Verifying…",
+        "applying": "Applying…",
+        "done": "Done"
+      },
+      "updatedTo": "Core updated to {{msg}}",
+      "updateNotice": "A newer core is available: {{msg}}",
+      "serviceModeNote": "Service mode runs the bundled core; the managed core applies in sidecar mode only"
     }
   },
   "feedback": {

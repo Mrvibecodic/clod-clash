@@ -281,6 +281,9 @@
           }
         }
       }
+    },
+    "tools": {
+      "title": "Tools"
     }
   },
   "modals": {

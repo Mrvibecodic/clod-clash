@@ -105,6 +105,7 @@ export interface TranslationResources {
           title: string
         }
         net: {
+          session: string
           title: string
         }
         providerHeader: {
@@ -125,6 +126,7 @@ export interface TranslationResources {
           }
         }
         serverSelect: {
+          autoHint: string
           current: string
           empty: string
           favorite: string
@@ -132,6 +134,13 @@ export interface TranslationResources {
           none: string
           test: string
           title: string
+          types: {
+            fallback: string
+            loadbalance: string
+            selector: string
+            smart: string
+            urltest: string
+          }
         }
         subscription: {
           expires: string
@@ -216,6 +225,7 @@ export interface TranslationResources {
             refresh: string
             rulesHint: string
             settingsHint: string
+            subscriptions: string
             supportHint: string
           }
           toSimple: string
@@ -643,6 +653,9 @@ export interface TranslationResources {
     }
     settings: {
       components: {
+        tools: {
+          title: string
+        }
         verge: {
           advanced: {
             actions: {
