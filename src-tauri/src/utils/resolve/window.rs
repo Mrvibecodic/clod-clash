@@ -108,13 +108,23 @@ const fn stored_mode_size(verge: &crate::config::IVerge, simple: bool) -> Option
     }
 }
 
+const fn stored_mode_pos(verge: &crate::config::IVerge, simple: bool) -> Option<(i32, i32)> {
+    if simple {
+        verge.window_pos_simple
+    } else {
+        verge.window_pos_advanced
+    }
+}
+
 const fn default_mode_size(simple: bool) -> (f64, f64) {
     if simple { SIMPLE_MODE_SIZE } else { ADVANCED_MODE_SIZE }
 }
 
-/// Remember the window's current logical size in the given mode's slot, so
-/// the next switch back restores what the user actually used. Maximized and
-/// fullscreen sizes are transient states, not a chosen size — skipped.
+/// Remember the window's current logical size — and its position — in the
+/// given mode's slots, so the next switch back restores where and how the
+/// user actually had it. Positions live in the verge config, which survives
+/// app updates, so the window does not jump around after an upgrade.
+/// Maximized and fullscreen states are transient, not a choice — skipped.
 pub async fn save_window_size_for_mode(window: &WebviewWindow, simple: bool) {
     if window.is_maximized().unwrap_or(false) || window.is_fullscreen().unwrap_or(false) {
         return;
@@ -125,23 +135,29 @@ pub async fn save_window_size_for_mode(window: &WebviewWindow, simple: bool) {
     if restored_window_size_is_too_small(logical.width as u32, logical.height as u32) {
         return;
     }
+    // Physical outer position: monitor coordinates are physical, and the
+    // outer frame is what the user actually placed on the screen.
+    let pos = window.outer_position().ok().map(|pos| (pos.x, pos.y));
     let patch = crate::config::IVerge {
         window_size_simple: simple.then_some((logical.width as u32, logical.height as u32)),
         window_size_advanced: (!simple).then_some((logical.width as u32, logical.height as u32)),
+        window_pos_simple: if simple { pos } else { None },
+        window_pos_advanced: if simple { None } else { pos },
         ..Default::default()
     };
     logging_error!(Type::Window, crate::feat::patch_verge(&patch, false).await);
 }
 
-/// Resize the window to the given mode's remembered (or default) size and
-/// make sure the result stays fully on the screen.
+/// Resize the window to the given mode's remembered (or default) size, move
+/// it to the mode's remembered position, and make sure the result stays on
+/// the screen (a vanished monitor or changed scale must not strand it).
 pub async fn apply_window_size_for_mode(window: &WebviewWindow, simple: bool) {
     if window.is_maximized().unwrap_or(false) || window.is_fullscreen().unwrap_or(false) {
         return;
     }
-    let stored = {
+    let (stored, stored_pos) = {
         let verge = Config::verge().await.latest_arc();
-        stored_mode_size(&verge, simple)
+        (stored_mode_size(&verge, simple), stored_mode_pos(&verge, simple))
     };
     let (width, height) = stored
         .map(|(w, h)| (f64::from(w), f64::from(h)))
@@ -153,6 +169,12 @@ pub async fn apply_window_size_for_mode(window: &WebviewWindow, simple: bool) {
             height.max(MINIMAL_HEIGHT),
         ))
     );
+    if let Some((x, y)) = stored_pos {
+        logging_error!(Type::Window, window.set_position(tauri::PhysicalPosition::new(x, y)));
+        // The stored spot may belong to a monitor that is gone — recentre
+        // rather than restore the window somewhere unreachable.
+        restore_position_if_offscreen(window);
+    }
     keep_window_on_screen(window);
 }
 

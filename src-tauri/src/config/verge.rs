@@ -301,6 +301,16 @@ pub struct IVerge {
     /// Last window size (logical `[width, height]`) in the advanced mode.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub window_size_advanced: Option<(u32, u32)>,
+
+    /// Last window position (physical `[x, y]`) in the simple mode. Saved in
+    /// the config (not the window-state cache) so the window comes back to
+    /// the same spot after a mode switch and survives app updates.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub window_pos_simple: Option<(i32, i32)>,
+
+    /// Last window position (physical `[x, y]`) in the advanced mode.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub window_pos_advanced: Option<(i32, i32)>,
     // clod:simple-mode end
 
     // clod:core-updater begin
@@ -684,6 +694,8 @@ impl IVerge {
         patch!(connect_tun_mode);
         patch!(window_size_simple);
         patch!(window_size_advanced);
+        patch!(window_pos_simple);
+        patch!(window_pos_advanced);
         // clod:simple-mode end
         // clod:core-updater begin
         patch!(use_managed_core);

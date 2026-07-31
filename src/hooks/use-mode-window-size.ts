@@ -7,10 +7,11 @@ import { saveWindowSizeForMode } from '@/services/cmds'
 const SAVE_DEBOUNCE_MS = 800
 
 /**
- * Keeps the per-mode window size fresh: after a manual resize settles, the
- * current size is written into the slot of whatever mode is active, so the
- * next launch (and the next switch back) restores it. The backend skips
- * maximized/fullscreen sizes on its own.
+ * Keeps the per-mode window geometry fresh: after a manual resize or move
+ * settles, the current size and position are written into the slots of
+ * whatever mode is active, so the next launch (and the next switch back)
+ * restores the window exactly where the user left it. The backend skips
+ * maximized/fullscreen states on its own.
  */
 export const useModeWindowSize = () => {
   const { simpleMode } = useSimpleMode()
@@ -24,16 +25,23 @@ export const useModeWindowSize = () => {
     const appWindow = getCurrentWebviewWindow()
     let timer: ReturnType<typeof setTimeout> | undefined
 
-    const unlistenPromise = appWindow.onResized(() => {
+    const scheduleSave = () => {
       if (timer) clearTimeout(timer)
       timer = setTimeout(() => {
         saveWindowSizeForMode(simpleModeRef.current).catch(() => {})
       }, SAVE_DEBOUNCE_MS)
-    })
+    }
+
+    const unlistenPromises = [
+      appWindow.onResized(scheduleSave),
+      appWindow.onMoved(scheduleSave),
+    ]
 
     return () => {
       if (timer) clearTimeout(timer)
-      unlistenPromise.then((unlisten) => unlisten()).catch(() => {})
+      for (const promise of unlistenPromises) {
+        promise.then((unlisten) => unlisten()).catch(() => {})
+      }
     }
   }, [])
 }
