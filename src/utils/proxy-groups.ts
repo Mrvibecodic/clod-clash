@@ -114,6 +114,16 @@ export const resolveLeaf = (
   return current
 }
 
+/**
+ * Delay history stores `0` for a failed test; `getDelayFix` maps it to this
+ * marker so it sorts last. It is an error state, not a number to display.
+ */
+const DELAY_ERROR = 1e6
+
+/** A delay worth showing as a number: positive and not the failure marker. */
+export const usableDelay = (delay?: number): delay is number =>
+  delay !== undefined && delay > 0 && delay < DELAY_ERROR
+
 /** Delay of an entry, resolving groups down to their active node. */
 export const entryDelay = (
   records: Record<string, any>,

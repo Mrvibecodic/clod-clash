@@ -109,6 +109,7 @@ export const translationKeys = [
   'home.components.serverSelect.ms',
   'home.components.serverSelect.autoHint',
   'home.components.serverSelect.failover',
+  'home.components.serverSelect.inUse',
   'home.components.serverSelect.types.selector',
   'home.components.serverSelect.types.urltest',
   'home.components.serverSelect.types.fallback',

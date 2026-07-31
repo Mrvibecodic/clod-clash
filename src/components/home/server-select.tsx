@@ -38,6 +38,7 @@ import {
   NON_NODE_TYPES,
   type ProxyNode,
   SELECTABLE_GROUP_TYPES,
+  usableDelay,
   visibleGroups,
 } from '@/utils/proxy-groups'
 
@@ -205,19 +206,32 @@ export const ServerSelect = ({ open, onClose }: Props) => {
         )}
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography noWrap>{nameWithoutFlag(node.name)}</Typography>
-          <Typography variant="caption" color="text.secondary" noWrap>
-            {isGroup
-              ? leaf
-                ? `${typeLabel(type)} · ${nameWithoutFlag(leaf)}`
-                : typeLabel(type)
-              : node.type}
+          {/* clod: у активного сервера подпись «Используется», не тип узла */}
+          <Typography
+            variant="caption"
+            color={selected ? 'success.main' : 'text.secondary'}
+            noWrap
+          >
+            {selected
+              ? isGroup && leaf
+                ? `${t('home.components.serverSelect.inUse')} · ${nameWithoutFlag(leaf)}`
+                : t('home.components.serverSelect.inUse')
+              : isGroup
+                ? leaf
+                  ? `${typeLabel(type)} · ${nameWithoutFlag(leaf)}`
+                  : typeLabel(type)
+                : node.type}
           </Typography>
         </Box>
+        {/* clod: маркер ошибки (1e6) — это не пинг, показываем прочерк */}
         <Typography
           variant="body2"
-          sx={{ color: delayColor(delay), fontVariantNumeric: 'tabular-nums' }}
+          sx={{
+            color: usableDelay(delay) ? delayColor(delay) : 'text.disabled',
+            fontVariantNumeric: 'tabular-nums',
+          }}
         >
-          {delay > 0 ? `${delay} ms` : '—'}
+          {usableDelay(delay) ? `${delay} ms` : '—'}
         </Typography>
         {isGroup ? null : (
           <IconButton
@@ -334,18 +348,29 @@ export const ServerSelect = ({ open, onClose }: Props) => {
                     {nameWithoutFlag(item.name)}
                   </Box>
                   {leaf ? (
-                    <Typography
-                      variant="caption"
-                      noWrap
+                    <Box
                       sx={{
-                        maxWidth: 180,
-                        color: active ? 'primary.main' : 'text.secondary',
-                        opacity: active ? 0.8 : 1,
-                        lineHeight: 1.2,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 0.5,
+                        minWidth: 0,
                       }}
                     >
-                      {nameWithoutFlag(leaf)}
-                    </Typography>
+                      {/* clod: тот же флаг, что и в строках списка */}
+                      <CountryFlag name={leaf} size={13} />
+                      <Typography
+                        variant="caption"
+                        noWrap
+                        sx={{
+                          maxWidth: 180,
+                          color: active ? 'primary.main' : 'text.secondary',
+                          opacity: active ? 0.8 : 1,
+                          lineHeight: 1.2,
+                        }}
+                      >
+                        {nameWithoutFlag(leaf)}
+                      </Typography>
+                    </Box>
                   ) : null}
                 </ButtonBase>
               )
@@ -407,16 +432,15 @@ interface RowProps {
 
 /** Mockup-style four-bar signal indicator, coloured by latency. */
 const SignalBars = ({ delay }: { delay?: number }) => {
-  const lit =
-    delay === undefined || delay <= 0
-      ? 0
-      : delay < 120
-        ? 4
-        : delay < 250
-          ? 3
-          : delay < 500
-            ? 2
-            : 1
+  const lit = !usableDelay(delay)
+    ? 0
+    : delay < 120
+      ? 4
+      : delay < 250
+        ? 3
+        : delay < 500
+          ? 2
+          : 1
   const color = (index: number) =>
     index < lit ? (lit >= 3 ? 'success.main' : 'warning.main') : 'divider'
   return (
@@ -486,14 +510,13 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
     return () => window.clearTimeout(timer)
   }, [groupName, updatedAt, runGroupDelayTest])
 
-  const caption =
-    delay !== undefined && delay > 0
-      ? leaf
-        ? `${nameWithoutFlag(leaf)} · ${delay} ${t('home.components.serverSelect.ms')}`
-        : `${delay} ${t('home.components.serverSelect.ms')}`
-      : leaf
-        ? nameWithoutFlag(leaf)
-        : t('home.components.serverSelect.current')
+  const caption = usableDelay(delay)
+    ? leaf
+      ? `${nameWithoutFlag(leaf)} · ${delay} ${t('home.components.serverSelect.ms')}`
+      : `${delay} ${t('home.components.serverSelect.ms')}`
+    : leaf
+      ? nameWithoutFlag(leaf)
+      : t('home.components.serverSelect.current')
 
   return (
     <Stack

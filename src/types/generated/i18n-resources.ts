@@ -135,6 +135,7 @@ export interface TranslationResources {
           empty: string
           failover: string
           favorite: string
+          inUse: string
           ms: string
           none: string
           test: string
