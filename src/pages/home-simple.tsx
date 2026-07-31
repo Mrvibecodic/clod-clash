@@ -156,10 +156,12 @@ const HomeSimplePage = () => {
     <Stack sx={{ height: '100%', overflowY: 'auto' }}>
       {/* One column at every window size: it fills a narrow window and stays
           a readable centred strip on a large display. */}
+      {/* clod: gap 1.5, не 2 — после появления строки режима под кнопкой
+          контент перестал влезать в simple-окно и вылезала прокрутка */}
       <Stack
         sx={{
           p: 2,
-          gap: 2,
+          gap: 1.5,
           width: '100%',
           maxWidth: 520,
           mx: 'auto',
@@ -170,7 +172,7 @@ const HomeSimplePage = () => {
 
         <ProviderBanners profile={current} onChanged={mutateProfiles} />
 
-        <Box sx={{ display: 'flex', justifyContent: 'center', pt: 1, pb: 0.5 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'center', pt: 0.5 }}>
           <ConnectButton
             state={state}
             uptime={uptime}

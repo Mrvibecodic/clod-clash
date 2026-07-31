@@ -35,6 +35,8 @@ export const ProviderHeader = ({ profile }: Props) => {
     try {
       await updateProfile(profile.uid)
       await mutateProfiles()
+      // clod: та же обратная связь, что у плитки «Обновить подписку»
+      showNotice.success('home.components.subscription.updated')
     } catch (error) {
       showNotice.error(error)
     } finally {

@@ -49,7 +49,13 @@ export const ModeStatus = ({ locked }: Props) => {
     <Button
       size="small"
       color="inherit"
-      sx={{ color: 'text.secondary', textTransform: 'none' }}
+      // compact: строка-статус не должна раздувать вертикаль простого режима
+      sx={{
+        color: 'text.secondary',
+        textTransform: 'none',
+        py: 0.25,
+        minHeight: 0,
+      }}
       onClick={() => void navigate('/settings')}
     >
       {activeTargets} · {modeLabel}

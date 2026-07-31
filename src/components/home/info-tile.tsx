@@ -44,7 +44,10 @@ export const InfoTile = ({
     >
       {icon}
     </Box>
-    <Stack sx={{ gap: 0.75, position: 'relative', minWidth: 0, pr: 7 }}>
+    {/* clod: контент (включая полоску трафика) заканчивается за 14px до
+        иконки — тот же отступ, что и слева от края плитки. Иконка: 72px
+        шириной, right:14; padding плитки 14 → 72 + 14 + 14 − 14 = 86px */}
+    <Stack sx={{ gap: 0.75, position: 'relative', minWidth: 0, pr: '86px' }}>
       <Typography
         variant="caption"
         color="text.secondary"
