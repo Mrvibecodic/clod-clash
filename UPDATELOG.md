@@ -5,6 +5,19 @@ workflow (`publish-clod.yml`) extracts the section matching the released
 version and injects it into `latest.json` as the updater notes. Keep every
 section between `## v{version}` and `---`.
 
+## v0.0.8-alpha
+
+### Added
+
+- Starred servers win: on app start and after a subscription update a starred server is picked automatically wherever no explicit choice exists
+
+### Fixed
+
+- The selected server no longer resets after a subscription update or profile reactivation
+- Banner links (`announce-url`, `clod-promo-url`) are now accepted only over https
+
+---
+
 ## v0.0.7-alpha
 
 ### Fixed
