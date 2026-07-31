@@ -8,9 +8,10 @@ import {
   Typography,
 } from '@mui/material'
 import dayjs from 'dayjs'
-import { type ReactNode, useCallback, useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { InfoTile } from '@/components/home/info-tile'
 import { openWebUrl } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import parseTraffic from '@/utils/parse-traffic'
@@ -41,59 +42,6 @@ export const CRITICAL_TRAFFIC_PERCENT = 90
 interface Props {
   profile: IProfileItem
 }
-
-/**
- * One tile of the subscription block: a small title, the content, and a big
- * faded icon in the corner as the tile's «meaning» (traffic / calendar).
- */
-const InfoTile = ({
-  title,
-  icon,
-  children,
-}: {
-  title: string
-  icon: ReactNode
-  children: ReactNode
-}) => (
-  <Box
-    sx={{
-      position: 'relative',
-      overflow: 'hidden',
-      minWidth: 0,
-      p: 1.75,
-      borderRadius: '14px',
-      bgcolor: 'background.paper',
-      border: (theme) => `1px solid ${theme.palette.divider}`,
-    }}
-  >
-    {/* фоновая иконка-смысл тайла */}
-    <Box
-      aria-hidden
-      sx={{
-        position: 'absolute',
-        right: -10,
-        bottom: -14,
-        opacity: 0.08,
-        pointerEvents: 'none',
-        color: 'primary.main',
-        '& svg': { fontSize: 88 },
-      }}
-    >
-      {icon}
-    </Box>
-    <Stack sx={{ gap: 0.75, position: 'relative', minWidth: 0 }}>
-      <Typography
-        variant="caption"
-        color="text.secondary"
-        sx={{ fontWeight: 600, letterSpacing: 0.2 }}
-        noWrap
-      >
-        {title}
-      </Typography>
-      {children}
-    </Stack>
-  </Box>
-)
 
 /**
  * The subscription block: two equal tiles — traffic and time left — that sit

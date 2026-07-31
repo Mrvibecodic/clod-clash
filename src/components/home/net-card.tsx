@@ -1,6 +1,8 @@
-import { Box, Stack, Typography } from '@mui/material'
+import NetworkCheckRoundedIcon from '@mui/icons-material/NetworkCheckRounded'
+import { Box, Typography } from '@mui/material'
 import { useTranslation } from 'react-i18next'
 
+import { InfoTile } from '@/components/home/info-tile'
 import { useTrafficData } from '@/hooks/use-traffic-data'
 import { useVisibility } from '@/hooks/use-visibility'
 import parseTraffic from '@/utils/parse-traffic'
@@ -55,18 +57,10 @@ export const NetCard = () => {
   const total = (bytes: number) => parseTraffic(bytes).join(' ')
 
   return (
-    <Stack
-      sx={{
-        gap: 1.25,
-        p: 1.75,
-        borderRadius: '14px',
-        bgcolor: 'background.paper',
-        border: (theme) => `1px solid ${theme.palette.divider}`,
-      }}
+    <InfoTile
+      title={t('home.components.net.title')}
+      icon={<NetworkCheckRoundedIcon />}
     >
-      <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
-        {t('home.components.net.title')}
-      </Typography>
       <Box
         sx={{
           display: 'grid',
@@ -94,6 +88,6 @@ export const NetCard = () => {
           value={total(traffic?.upTotal ?? 0)}
         />
       </Box>
-    </Stack>
+    </InfoTile>
   )
 }
