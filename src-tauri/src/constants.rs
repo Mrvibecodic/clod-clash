@@ -14,7 +14,10 @@ pub mod branding {
     /// Salt mixed into the raw machine id before hashing (see `utils::hwid`).
     pub const HWID_SALT: &str = "clod-clash";
 
-    /// Short slug used for file names / desktop entries.
+    /// Short slug used for file names / desktop entries. Only the Linux
+    /// scheme handler consumes it, so the cfg keeps mac/windows clippy
+    /// (`-D dead-code`) quiet.
+    #[cfg(target_os = "linux")]
     pub const APP_SLUG: &str = "clod-clash";
 }
 // clod:branding end
