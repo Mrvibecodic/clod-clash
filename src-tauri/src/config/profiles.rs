@@ -835,38 +835,10 @@ fn reconcile_selected_nodes(
         }
     }
 
-    // clod: избранные в приоритете там, где пользователь ещё ничего не выбирал:
-    // селекторная группа без сохранённого выбора получает первый доступный
-    // избранный узел — это и «звёздочка выигрывает при запуске», и при
-    // обновлении подписки.
-    if !favorites.is_empty() {
-        let covered: HashSet<String> = plan
-            .selected
-            .iter()
-            .filter_map(|item| item.name.clone())
-            .collect();
-        for (group_name, group) in proxies.proxies.iter() {
-            if covered.contains(&String::from(group_name.as_str())) {
-                continue;
-            }
-            if !matches!(&group.proxy_type, ProxyType::Selector) {
-                continue;
-            }
-            let Some(available_nodes) = group.all.as_deref().filter(|nodes| !nodes.is_empty()) else {
-                continue;
-            };
-            let Some(favorite) = first_available_favorite(favorites, available_nodes) else {
-                continue;
-            };
-            plan.selected.push(PrfSelected {
-                name: Some(group_name.as_str().into()),
-                now: Some(favorite.into()),
-            });
-            if group.now.as_deref() != Some(favorite) {
-                plan.activations.push((group_name.as_str().into(), favorite.into()));
-            }
-        }
-    }
+    // clod: избранные НЕ перехватывают выбор. Звёздочка — это только «вверху
+    // списка» и запасной узел на замену пропавшему (ветка выше). Группа без
+    // сохранённого выбора остаётся как есть: действует то, что пользователь
+    // выбрал руками, либо решение самого ядра.
 
     plan
 }
@@ -1104,11 +1076,11 @@ pub fn activate_selected_nodes() -> Result<()> {
             let current = profiles.get_current().context("no current profile running")?.clone();
             let item = profiles.get_item(&current).context("failed to get current profile")?;
             let selected = item.selected.clone().unwrap_or_default();
-            // clod: избранные участвуют в восстановлении даже когда явных
-            // выборов ещё нет — иначе звёздочки не работали бы на чистом старте
+            // clod: избранные нужны только как замена пропавшему сохранённому
+            // узлу — сами по себе они выбор не перехватывают
             let favorites = item.favorites.clone().unwrap_or_default();
 
-            if selected.is_empty() && favorites.is_empty() {
+            if selected.is_empty() {
                 if is_activation_current(generation) {
                     handle::Handle::refresh_clash();
                 }
@@ -1298,6 +1270,51 @@ mod tests {
         assert_eq!(immediate_plan.selected, saved);
         assert_eq!(immediate_plan.activations, vec![("valid-group".into(), "saved".into())]);
         assert_eq!(immediate_plan.repaired_count, 0);
+    }
+
+    #[test]
+    fn favorites_replace_a_confirmed_missing_node() {
+        // Выбранный узел пропал из подписки — на замену идёт первый доступный
+        // избранный, а не то, что ядро выбрало само.
+        let snapshot = proxies(vec![("group", &["other", "fav-b", "fav-a"], Some("other"))]);
+        let favorites: Vec<String> = vec!["fav-a".into(), "fav-b".into()];
+
+        let plan = reconcile_selected_nodes(&[selected("group", "gone")], &favorites, Some(&snapshot), &snapshot);
+
+        assert_eq!(plan.selected, vec![selected("group", "fav-a")]);
+        assert_eq!(plan.activations, vec![("group".into(), "fav-a".into())]);
+        assert_eq!(plan.repaired_count, 1);
+    }
+
+    #[test]
+    fn favorites_do_not_override_a_saved_selection() {
+        // Звёздочка — не выбор: сохранённый вручную узел строго сохраняется,
+        // даже когда в группе есть избранные.
+        let snapshot = proxies(vec![("group", &["manual", "fav"], Some("fav"))]);
+        let favorites: Vec<String> = vec!["fav".into()];
+
+        let plan = reconcile_selected_nodes(&[selected("group", "manual")], &favorites, None, &snapshot);
+
+        assert_eq!(plan.selected, vec![selected("group", "manual")]);
+        assert_eq!(plan.activations, vec![("group".into(), "manual".into())]);
+        assert_eq!(plan.repaired_count, 0);
+    }
+
+    #[test]
+    fn favorites_do_not_claim_groups_without_a_saved_selection() {
+        // Группа, где пользователь ничего не выбирал, избранным не достаётся:
+        // остаётся решение ядра (store-selected / первый узел).
+        let snapshot = proxies(vec![
+            ("picked", &["manual", "fav"], Some("manual")),
+            ("untouched", &["node", "fav"], Some("node")),
+        ]);
+        let favorites: Vec<String> = vec!["fav".into()];
+
+        let plan = reconcile_selected_nodes(&[selected("picked", "manual")], &favorites, None, &snapshot);
+
+        assert_eq!(plan.selected, vec![selected("picked", "manual")]);
+        assert!(plan.activations.is_empty());
+        assert_eq!(plan.repaired_count, 0);
     }
 
     #[test]

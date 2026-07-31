@@ -146,6 +146,17 @@ pub async fn create_profile(item: PrfItem, file_data: Option<String>) -> CmdResu
     }
 }
 
+/// clod: вернуть сохранённый выбор узлов после теста серверов.
+///
+/// Групповой тест задержек в mihomo сбрасывает «закреплённый» узел у групп
+/// url-test/fallback (`ForceSet("")` в обработчике `/group/{name}/delay`)
+/// и затирает его в store-selected кэше ядра. Фронтенд зовёт эту команду
+/// сразу после теста, чтобы выбор пользователя строго сохранялся.
+#[tauri::command]
+pub async fn restore_selected_nodes() -> CmdResult {
+    profiles::activate_selected_nodes().stringify_err()
+}
+
 /// 更新配置文件
 #[tauri::command]
 pub async fn update_profile(index: String, option: Option<PrfOption>) -> CmdResult {
