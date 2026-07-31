@@ -1,0 +1,108 @@
+# clod:F6 — публикация собранного релиза.
+#
+# Запуск: пуш тега `publish-clod-v{версия}` ПОСЛЕ того, как сборка
+# release-clod.yml по тегу `clod-v{версия}` закончилась успехом.
+#
+# Что делает:
+#   1. находит черновик релиза clod-v{версия} и проверяет, что сборка
+#      действительно приложила все артефакты (включая latest.json);
+#   2. публикует его как pre-release (тело релиза — из сообщения
+#      аннотированного publish-тега, если оно есть);
+#   3. переливает latest.json в плавающий релиз `updater`, из которого
+#      обновляются установленные клиенты (GitHub не считает pre-release
+#      «latest», поэтому основной эндпоинт апдейтера смотрит сюда);
+#   4. удаляет отработавший publish-тег.
+#
+# Раньше шаги 2–3 делались руками через API после каждой сборки.
+
+name: Publish Clod Clash release
+
+on:
+  push:
+    tags:
+      - 'publish-clod-v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: '${{ github.workflow }}'
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish and roll the updater tag
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Publish the draft as a pre-release
+        id: publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RELEASE_TAG="${GITHUB_REF_NAME#publish-}"
+          echo "release tag: $RELEASE_TAG"
+
+          id=$(gh api "repos/${{ github.repository }}/releases?per_page=100" \
+            --jq ".[] | select(.tag_name==\"$RELEASE_TAG\") | .id" | head -1)
+          if [ -z "$id" ]; then
+            echo "::error::No release found for tag $RELEASE_TAG"
+            exit 1
+          fi
+
+          # Не публиковать полупустую сборку: должен быть latest.json и
+          # артефакты всех трёх платформ.
+          assets=$(gh api "repos/${{ github.repository }}/releases/$id/assets?per_page=100" --jq '.[].name')
+          echo "assets:"; echo "$assets"
+          for needle in latest.json setup.exe portable.zip .dmg .AppImage; do
+            if ! echo "$assets" | grep -qi -- "$needle"; then
+              echo "::error::Release $RELEASE_TAG has no asset matching '$needle' — сборка не закончилась?"
+              exit 1
+            fi
+          done
+
+          # Тело релиза — из сообщения аннотированного publish-тега (если есть)
+          NOTES=$(git tag -l --format='%(contents)' "$GITHUB_REF_NAME")
+          if [ -n "$NOTES" ]; then
+            gh api -X PATCH "repos/${{ github.repository }}/releases/$id" \
+              -F draft=false -F prerelease=true -f body="$NOTES" --jq .html_url
+          else
+            gh api -X PATCH "repos/${{ github.repository }}/releases/$id" \
+              -F draft=false -F prerelease=true --jq .html_url
+          fi
+          echo "release_id=$id" >> "$GITHUB_OUTPUT"
+
+      - name: Roll latest.json into the updater release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RELEASE_ID="${{ steps.publish.outputs.release_id }}"
+
+          asset_id=$(gh api "repos/${{ github.repository }}/releases/$RELEASE_ID/assets?per_page=100" \
+            --jq '.[] | select(.name=="latest.json") | .id' | head -1)
+          gh api -H "Accept: application/octet-stream" \
+            "repos/${{ github.repository }}/releases/assets/$asset_id" > latest.json
+          jq -e .version latest.json
+
+          updater_id=$(gh api "repos/${{ github.repository }}/releases/tags/updater" --jq .id)
+          old_asset=$(gh api "repos/${{ github.repository }}/releases/$updater_id/assets?per_page=100" \
+            --jq '.[] | select(.name=="latest.json") | .id' | head -1)
+          if [ -n "$old_asset" ]; then
+            gh api -X DELETE "repos/${{ github.repository }}/releases/assets/$old_asset"
+            echo "removed old latest.json ($old_asset)"
+          fi
+
+          gh api -X POST \
+            -H "Content-Type: application/json" \
+            --input latest.json \
+            "https://uploads.github.com/repos/${{ github.repository }}/releases/$updater_id/assets?name=latest.json" \
+            --jq .state
+
+      - name: Drop the spent publish tag
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api -X DELETE "repos/${{ github.repository }}/git/refs/tags/${GITHUB_REF_NAME}" || true
