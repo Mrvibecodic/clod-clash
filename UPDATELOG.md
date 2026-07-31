@@ -5,6 +5,23 @@ workflow (`publish-clod.yml`) extracts the section matching the released
 version and injects it into `latest.json` as the updater notes. Keep every
 section between `## v{version}` and `---`.
 
+## v0.0.5-alpha
+
+### Fixed
+
+- Servers appear right after adding a subscription — no manual refresh needed
+- Latency values re-measure automatically after a subscription update instead of disappearing
+- Turning the proxy on no longer makes scrollbars appear in simple mode
+- Russian labels no longer overflow their buttons
+
+### Changed
+
+- The Network card shows speeds and downloaded/uploaded totals instead of a graph
+- The subscription block is now two matching tiles — traffic and expiry — with themed background icons
+- Windows CI builds got faster (relaxed release codegen for alpha builds)
+
+---
+
 ## v0.0.4-alpha
 
 ### Fixed
