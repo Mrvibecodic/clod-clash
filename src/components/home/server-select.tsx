@@ -1,18 +1,19 @@
+import AltRouteRoundedIcon from '@mui/icons-material/AltRouteRounded'
 import BoltRoundedIcon from '@mui/icons-material/BoltRounded'
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded'
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded'
 import StarBorderRoundedIcon from '@mui/icons-material/StarBorderRounded'
 import StarRoundedIcon from '@mui/icons-material/StarRounded'
 import {
+  alpha,
   Box,
   Button,
+  ButtonBase,
   CircularProgress,
   Drawer,
   IconButton,
   List,
   ListItemButton,
-  MenuItem,
-  Select,
   Stack,
   Typography,
 } from '@mui/material'
@@ -30,59 +31,19 @@ import delayManager from '@/services/delay'
 import { showNotice } from '@/services/notice-service'
 import { nameWithoutFlag } from '@/utils/country'
 import { delayColor } from '@/utils/delay-color'
-
-interface ProxyNode {
-  name: string
-  type?: string
-}
-
-interface ProxyGroup {
-  name: string
-  type?: string
-  now?: string
-  all?: ProxyNode[]
-}
+import {
+  AUTO_GROUP_TYPES,
+  entryDelay,
+  groupType,
+  NON_NODE_TYPES,
+  type ProxyNode,
+  resolveLeaf,
+  SELECTABLE_GROUP_TYPES,
+  visibleGroups,
+} from '@/utils/proxy-groups'
 
 const VIRTUALIZE_FROM = 50
 const ROW_HEIGHT = 52
-
-/** Entry types that are groups or built-ins, not actual servers. */
-const NON_NODE_TYPES = new Set([
-  'selector',
-  'urltest',
-  'fallback',
-  'loadbalance',
-  'relay',
-  'direct',
-  'reject',
-  'rejectdrop',
-  'pass',
-  'compatible',
-])
-
-/**
- * Groups the user is meant to pick from — the ones the core lets us select.
- *
- * Panels often strip the template down to a flat `proxies:` list with no
- * custom groups at all (mode: global does the routing). The built-in GLOBAL
- * selector is the only way to pick a server there, so it serves as the
- * fallback — with the group entries filtered out, leaving actual servers.
- */
-const selectableGroups = (proxies: any): ProxyGroup[] => {
-  const groups = ((proxies?.groups ?? []) as ProxyGroup[]).filter(
-    (group) =>
-      group.type?.toLowerCase() === 'selector' && group.name !== 'GLOBAL',
-  )
-  if (groups.length > 0) return groups
-
-  const global = proxies?.global as ProxyGroup | undefined
-  const records = proxies?.records ?? {}
-  const nodes = (global?.all ?? []).filter((node) => {
-    const type = (records[node.name]?.type ?? node.type ?? '').toLowerCase()
-    return !NON_NODE_TYPES.has(type)
-  })
-  return nodes.length > 0 ? [{ ...global, name: 'GLOBAL', all: nodes }] : []
-}
 
 interface Props {
   open: boolean
@@ -92,6 +53,10 @@ interface Props {
 /**
  * Full server list, opened over the home screen rather than as its own page:
  * picking a server is a detour from connecting, not a destination.
+ *
+ * Groups sit in a scrollable row of chips above the list — templates in the
+ * wild (Davoyan, legiz) ship half a dozen per-service groups plus balancers,
+ * and a dropdown hid all of that.
  */
 export const ServerSelect = ({ open, onClose }: Props) => {
   const { t } = useTranslation()
@@ -109,12 +74,14 @@ export const ServerSelect = ({ open, onClose }: Props) => {
   const [testing, setTesting] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  const groups = useMemo(() => selectableGroups(proxies), [proxies])
+  const records = (proxies?.records ?? {}) as Record<string, any>
+  const groups = useMemo(() => visibleGroups(proxies), [proxies])
   const [groupName, setGroupName] = useState<string>('')
   const group = useMemo(
     () => groups.find((item) => item.name === groupName) ?? groups[0],
     [groups, groupName],
   )
+  const canSelect = SELECTABLE_GROUP_TYPES.has(groupType(group))
 
   // Starred servers float to the top of the list; the stars live on the
   // profile, so they survive subscription updates and app restarts.
@@ -155,7 +122,7 @@ export const ServerSelect = ({ open, onClose }: Props) => {
   })
 
   const select = useLockFn(async (nodeName: string) => {
-    if (!group) return
+    if (!group || !canSelect) return
     await changeProxy(group.name, nodeName)
     onClose()
   })
@@ -175,26 +142,76 @@ export const ServerSelect = ({ open, onClose }: Props) => {
     }
   }, [group, refreshProxy])
 
+  const typeLabel = (type: string) => {
+    switch (type) {
+      case 'urltest':
+        return t('home.components.serverSelect.types.urltest')
+      case 'fallback':
+        return t('home.components.serverSelect.types.fallback')
+      case 'loadbalance':
+        return t('home.components.serverSelect.types.loadbalance')
+      case 'smart':
+        return t('home.components.serverSelect.types.smart')
+      case 'selector':
+        return t('home.components.serverSelect.types.selector')
+      default:
+        return type
+    }
+  }
+
   const renderRow = (node: ProxyNode) => {
-    const delay = delayManager.getDelayFix(node as any, group?.name ?? '')
+    const record = records[node.name]
+    const type = groupType(record ?? node)
+    const isGroup = Boolean(record?.all) || NON_NODE_TYPES.has(type)
+    const delay = entryDelay(records, node.name, group?.name ?? '')
     const selected = group?.now === node.name
     const starred = favorites.has(node.name)
+    const leaf = isGroup ? resolveLeaf(records, node.name) : node.name
 
     return (
       <ListItemButton
         key={node.name}
         selected={selected}
         onClick={() => void select(node.name)}
-        sx={{ borderRadius: 1, height: ROW_HEIGHT, gap: 1.25 }}
+        sx={{
+          borderRadius: 1,
+          height: ROW_HEIGHT,
+          gap: 1.25,
+          cursor: canSelect ? 'pointer' : 'default',
+        }}
       >
-        <CountryFlag name={node.name} />
+        {isGroup ? (
+          <Box
+            sx={{
+              width: 26,
+              height: 26,
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flex: 'none',
+              color: 'primary.main',
+              bgcolor: (theme) => alpha(theme.palette.primary.main, 0.13),
+            }}
+          >
+            {AUTO_GROUP_TYPES.has(type) ? (
+              <BoltRoundedIcon sx={{ fontSize: 17 }} />
+            ) : (
+              <AltRouteRoundedIcon sx={{ fontSize: 16 }} />
+            )}
+          </Box>
+        ) : (
+          <CountryFlag name={node.name} />
+        )}
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography noWrap>{nameWithoutFlag(node.name)}</Typography>
-          {node.type ? (
-            <Typography variant="caption" color="text.secondary">
-              {node.type}
-            </Typography>
-          ) : null}
+          <Typography variant="caption" color="text.secondary" noWrap>
+            {isGroup
+              ? leaf !== node.name
+                ? `${typeLabel(type)} · ${nameWithoutFlag(leaf)}`
+                : typeLabel(type)
+              : node.type}
+          </Typography>
         </Box>
         <Typography
           variant="body2"
@@ -202,21 +219,23 @@ export const ServerSelect = ({ open, onClose }: Props) => {
         >
           {delay > 0 ? `${delay} ms` : '—'}
         </Typography>
-        <IconButton
-          size="small"
-          aria-label={t('home.components.serverSelect.favorite')}
-          sx={{ color: starred ? 'warning.main' : 'text.disabled' }}
-          onClick={(event) => {
-            event.stopPropagation()
-            void toggleFavorite(node.name)
-          }}
-        >
-          {starred ? (
-            <StarRoundedIcon fontSize="small" />
-          ) : (
-            <StarBorderRoundedIcon fontSize="small" />
-          )}
-        </IconButton>
+        {isGroup ? null : (
+          <IconButton
+            size="small"
+            aria-label={t('home.components.serverSelect.favorite')}
+            sx={{ color: starred ? 'warning.main' : 'text.disabled' }}
+            onClick={(event) => {
+              event.stopPropagation()
+              void toggleFavorite(node.name)
+            }}
+          >
+            {starred ? (
+              <StarRoundedIcon fontSize="small" />
+            ) : (
+              <StarBorderRoundedIcon fontSize="small" />
+            )}
+          </IconButton>
+        )}
         {selected ? (
           <CheckRoundedIcon color="success" fontSize="small" />
         ) : null}
@@ -235,25 +254,9 @@ export const ServerSelect = ({ open, onClose }: Props) => {
     >
       <Stack sx={{ p: 2, gap: 1.5, minHeight: 0 }}>
         <Stack direction="row" sx={{ alignItems: 'center', gap: 1 }}>
-          {groups.length > 1 ? (
-            <Select
-              size="small"
-              value={group?.name ?? ''}
-              onChange={(event) => setGroupName(event.target.value)}
-              IconComponent={ExpandMoreRoundedIcon}
-              sx={{ minWidth: 160 }}
-            >
-              {groups.map((item) => (
-                <MenuItem key={item.name} value={item.name}>
-                  {item.name}
-                </MenuItem>
-              ))}
-            </Select>
-          ) : (
-            <Typography variant="h6">
-              {group?.name ?? t('home.components.serverSelect.title')}
-            </Typography>
-          )}
+          <Typography variant="h6">
+            {t('home.components.serverSelect.title')}
+          </Typography>
 
           <Box sx={{ flex: 1 }} />
 
@@ -268,6 +271,65 @@ export const ServerSelect = ({ open, onClose }: Props) => {
             {t('home.components.serverSelect.test')}
           </Button>
         </Stack>
+
+        {/* Group chips in a row: every visible group of the template, side
+            by side — never a dropdown. Scrolls when they don't fit. */}
+        {groups.length > 1 ? (
+          <Stack
+            direction="row"
+            sx={{
+              gap: 0.75,
+              overflowX: 'auto',
+              flex: 'none',
+              pb: 0.5,
+              // a slim scrollbar so a long chip row stays discoverable
+              '&::-webkit-scrollbar': { height: 4 },
+              '&::-webkit-scrollbar-thumb': {
+                bgcolor: 'divider',
+                borderRadius: 2,
+              },
+            }}
+          >
+            {groups.map((item) => {
+              const active = item.name === (group?.name ?? '')
+              const auto = AUTO_GROUP_TYPES.has(groupType(item))
+              return (
+                <ButtonBase
+                  key={item.name}
+                  onClick={() => setGroupName(item.name)}
+                  sx={{
+                    px: 1.5,
+                    py: 0.75,
+                    borderRadius: '10px',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    whiteSpace: 'nowrap',
+                    flex: 'none',
+                    gap: 0.5,
+                    color: active ? 'primary.main' : 'text.primary',
+                    bgcolor: (theme) =>
+                      active
+                        ? alpha(theme.palette.primary.main, 0.13)
+                        : theme.palette.action.hover,
+                    border: (theme) =>
+                      `1px solid ${
+                        active ? theme.palette.primary.main : 'transparent'
+                      }`,
+                  }}
+                >
+                  {auto ? <BoltRoundedIcon sx={{ fontSize: 15 }} /> : null}
+                  {nameWithoutFlag(item.name)}
+                </ButtonBase>
+              )
+            })}
+          </Stack>
+        ) : null}
+
+        {!canSelect && group ? (
+          <Typography variant="caption" color="text.secondary">
+            {t('home.components.serverSelect.autoHint')}
+          </Typography>
+        ) : null}
 
         {nodes.length === 0 ? (
           <Typography
@@ -328,11 +390,7 @@ const SignalBars = ({ delay }: { delay?: number }) => {
             ? 2
             : 1
   const color = (index: number) =>
-    index < lit
-      ? lit >= 3
-        ? 'success.main'
-        : 'warning.main'
-      : 'divider'
+    index < lit ? (lit >= 3 ? 'success.main' : 'warning.main') : 'divider'
   return (
     <Box
       sx={{
@@ -363,11 +421,24 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
   const { t } = useTranslation()
   const { proxies } = useProxiesData()
 
-  const group = selectableGroups(proxies)[0]
+  const records = (proxies?.records ?? {}) as Record<string, any>
+  const group = visibleGroups(proxies)[0]
   const current = group?.now
+  // The selection may be a balancer; the ping (and the flag) belong to the
+  // node the chain actually lands on.
+  const leaf = current ? resolveLeaf(records, current) : undefined
   const delay = current
-    ? delayManager.getDelayFix({ name: current } as any, group?.name ?? '')
+    ? entryDelay(records, current, group?.name ?? '')
     : undefined
+
+  const caption =
+    delay !== undefined && delay > 0
+      ? leaf && leaf !== current
+        ? `${nameWithoutFlag(leaf)} · ${delay} ${t('home.components.serverSelect.ms')}`
+        : `${delay} ${t('home.components.serverSelect.ms')}`
+      : leaf && leaf !== current
+        ? nameWithoutFlag(leaf)
+        : t('home.components.serverSelect.current')
 
   return (
     <Stack
@@ -389,7 +460,7 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
         '&:hover': { borderColor: 'primary.main' },
       }}
     >
-      {current ? <CountryFlag name={current} size={26} /> : null}
+      {leaf ? <CountryFlag name={leaf} size={26} /> : null}
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography noWrap sx={{ fontSize: 14, fontWeight: 700 }}>
           {current
@@ -401,9 +472,7 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
           sx={{ fontSize: 12, display: 'block' }}
           color="text.secondary"
         >
-          {delay !== undefined && delay > 0
-            ? `${delay} ${t('home.components.serverSelect.ms')}`
-            : t('home.components.serverSelect.current')}
+          {caption}
         </Typography>
       </Box>
 
