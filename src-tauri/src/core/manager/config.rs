@@ -159,7 +159,7 @@ impl CoreManager {
             Err(err) => {
                 // Мягкая перезагрузка не прошла — прежде чем перезапускать
                 // ядро (и ронять все соединения), пробуем полный reload.
-                if !force && let Ok(()) = self.reload_config(true, path).await {
+                if !force && matches!(self.reload_config(true, path).await, Ok(())) {
                     Config::runtime().await.apply();
                     logging!(info, Type::Core, "Configuration applied after forced reload");
                     return Ok(());
