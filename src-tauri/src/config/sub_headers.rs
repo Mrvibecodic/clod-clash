@@ -181,7 +181,7 @@ impl SubHeaders {
             home: value(headers, "profile-web-page-url"),
             support_url: value(headers, "support-url").and_then(|raw| contact_url(&raw)),
             announce: value(headers, "announce").map(|text| truncate_chars(&text, ANNOUNCE_MAX_CHARS)),
-            announce_url: value(headers, "announce-url").and_then(|raw| http_url(&raw)),
+            announce_url: value(headers, "announce-url").and_then(|raw| https_url(&raw)),
             refill_date: value(headers, "subscription-refill-date").and_then(|raw| raw.trim().parse::<i64>().ok()),
             update_interval_hours: value(headers, "profile-update-interval").and_then(|raw| raw.trim().parse().ok()),
             fallback_url: value(headers, "fallback-url"),
@@ -199,7 +199,7 @@ impl SubHeaders {
                 .or_else(|| bool_value(headers, "flclashx-newboard")),
             portal_url: value(headers, "clod-portal-url").and_then(|raw| http_url(&raw)),
             promo: value(headers, "clod-promo").map(|text| truncate_chars(&text, ANNOUNCE_MAX_CHARS)),
-            promo_url: value(headers, "clod-promo-url").and_then(|raw| http_url(&raw)),
+            promo_url: value(headers, "clod-promo-url").and_then(|raw| https_url(&raw)),
             renew_url: value(headers, "clod-renew-url").and_then(|raw| http_url(&raw)),
             topup_url: value(headers, "clod-topup-url").and_then(|raw| http_url(&raw)),
             // `global-mode: false` means "hide the mode switch" for Prizrak-Box
@@ -365,6 +365,18 @@ fn thresholds(raw: &str, min: u32, max: u32) -> Option<Vec<u32>> {
 fn http_url(value: &str) -> Option<String> {
     let parsed = tauri::Url::parse(value.trim()).ok()?;
     if !matches!(parsed.scheme(), "http" | "https") {
+        return None;
+    }
+    parsed.host_str().filter(|host| !host.is_empty())?;
+    Some(parsed.as_str().into())
+}
+
+/// Strictly-https variant for the banner links (`announce-url`,
+/// `clod-promo-url`): they open on a single click from a message the panel
+/// fully controls, so plain http is not accepted there at all.
+fn https_url(value: &str) -> Option<String> {
+    let parsed = tauri::Url::parse(value.trim()).ok()?;
+    if parsed.scheme() != "https" {
         return None;
     }
     parsed.host_str().filter(|host| !host.is_empty())?;
@@ -645,6 +657,25 @@ mod tests {
         ]));
         assert_eq!(parsed.profile_logo, None);
         assert_eq!(parsed.announce_url, None);
+    }
+
+    #[test]
+    fn banner_links_require_https() {
+        // clod: `announce-url` / `clod-promo-url` открываются в один клик из
+        // баннера — голый http там не принимается вовсе (решение 31.07).
+        let parsed = SubHeaders::parse(&headers(&[
+            ("announce-url", "http://panel.example/news"),
+            ("clod-promo-url", "http://p.example/sale"),
+        ]));
+        assert_eq!(parsed.announce_url, None);
+        assert_eq!(parsed.promo_url, None);
+
+        let parsed = SubHeaders::parse(&headers(&[
+            ("announce-url", "https://panel.example/news"),
+            ("clod-promo-url", "https://p.example/sale"),
+        ]));
+        assert_eq!(parsed.announce_url.as_deref(), Some("https://panel.example/news"));
+        assert_eq!(parsed.promo_url.as_deref(), Some("https://p.example/sale"));
     }
 
     #[test]

@@ -371,6 +371,12 @@ pub async fn update_profile(
             Ok(outcome) if outcome.is_valid() => {
                 logging!(info, Type::Config, "[订阅更新] 更新成功");
                 handle::Handle::refresh_clash();
+                // clod: перезагрузка конфига сбрасывает выбор узлов в ядре —
+                // восстанавливаем сохранённый выбор (и избранные) сразу же,
+                // иначе после каждого обновления подписки слетал сервер
+                if let Err(err) = crate::config::profiles::activate_selected_nodes() {
+                    logging!(warn, Type::Config, "Warning: [订阅更新] restore selection failed: {err}");
+                }
                 // clod:F7 — fresh panel data, recompute the notification state
                 crate::process::AsyncHandler::spawn(|| async {
                     crate::module::sub_watcher::run_check().await;

@@ -47,6 +47,11 @@ pub async fn enhance_profiles() -> CmdResult<ValidationOutcome> {
     match feat::enhance_profiles().await {
         Ok(outcome) if outcome.is_valid() => {
             handle::Handle::refresh_clash();
+            // clod: enhance тоже перезагружает конфиг ядра — вернуть выбор
+            // узлов и избранные, как и при обновлении подписки
+            if let Err(e) = profiles::activate_selected_nodes() {
+                logging!(warn, Type::Cmd, "Warning: restore selection after enhance failed: {e}");
+            }
             Ok(outcome)
         }
         Ok(outcome) => {

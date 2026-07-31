@@ -727,8 +727,17 @@ fn selected_nodes_need_confirmation(selected: &[PrfSelected], proxies: &Proxies)
     })
 }
 
+/// clod: pick the first starred node that a selector group actually contains.
+fn first_available_favorite<'a>(favorites: &'a [String], available_nodes: &[std::string::String]) -> Option<&'a str> {
+    favorites
+        .iter()
+        .map(|favorite| favorite.as_str())
+        .find(|favorite| node_is_available(available_nodes, favorite))
+}
+
 fn reconcile_selected_nodes(
     selected: &[PrfSelected],
+    favorites: &[String],
     previous: Option<&Proxies>,
     proxies: &Proxies,
 ) -> SelectedNodesPlan {
@@ -807,15 +816,55 @@ fn reconcile_selected_nodes(
         }
 
         plan.repaired_count += 1;
-        if let Some(current_node) = group
-            .now
-            .as_deref()
-            .filter(|current| node_is_available(available_nodes, current))
-        {
+        // clod: пропавший узел заменяем в первую очередь избранным (звёздочка),
+        // и только потом — тем, что ядро выбрало само.
+        let replacement = first_available_favorite(favorites, available_nodes).or_else(|| {
+            group
+                .now
+                .as_deref()
+                .filter(|current| node_is_available(available_nodes, current))
+        });
+        if let Some(replacement) = replacement {
             plan.selected.push(PrfSelected {
                 name: Some(group_name.clone()),
-                now: Some(current_node.into()),
+                now: Some(replacement.into()),
             });
+            if group.now.as_deref() != Some(replacement) {
+                plan.activations.push((group_name.clone(), replacement.into()));
+            }
+        }
+    }
+
+    // clod: избранные в приоритете там, где пользователь ещё ничего не выбирал:
+    // селекторная группа без сохранённого выбора получает первый доступный
+    // избранный узел — это и «звёздочка выигрывает при запуске», и при
+    // обновлении подписки.
+    if !favorites.is_empty() {
+        let covered: HashSet<String> = plan
+            .selected
+            .iter()
+            .filter_map(|item| item.name.clone())
+            .collect();
+        for (group_name, group) in proxies.proxies.iter() {
+            if covered.contains(&String::from(group_name.as_str())) {
+                continue;
+            }
+            if !matches!(&group.proxy_type, ProxyType::Selector) {
+                continue;
+            }
+            let Some(available_nodes) = group.all.as_deref().filter(|nodes| !nodes.is_empty()) else {
+                continue;
+            };
+            let Some(favorite) = first_available_favorite(favorites, available_nodes) else {
+                continue;
+            };
+            plan.selected.push(PrfSelected {
+                name: Some(group_name.as_str().into()),
+                now: Some(favorite.into()),
+            });
+            if group.now.as_deref() != Some(favorite) {
+                plan.activations.push((group_name.as_str().into(), favorite.into()));
+            }
         }
     }
 
@@ -964,6 +1013,7 @@ async fn persist_reconciled_selected(
 async fn activate_selected_nodes_worker(
     profile_uid: String,
     selected: Vec<PrfSelected>,
+    favorites: Vec<String>,
     generation: u64,
 ) -> Result<()> {
     let first_snapshot = fetch_proxies_with_timeout().await?;
@@ -972,7 +1022,7 @@ async fn activate_selected_nodes_worker(
     }
 
     let needs_confirmation = selected_nodes_need_confirmation(&selected, &first_snapshot);
-    let immediate_plan = reconcile_selected_nodes(&selected, None, &first_snapshot);
+    let immediate_plan = reconcile_selected_nodes(&selected, &favorites, None, &first_snapshot);
     logging!(
         debug,
         Type::Config,
@@ -1000,7 +1050,7 @@ async fn activate_selected_nodes_worker(
         if !is_activation_current(generation) {
             return Ok(());
         }
-        let confirmed_plan = reconcile_selected_nodes(&selected, Some(&first_snapshot), &second_snapshot);
+        let confirmed_plan = reconcile_selected_nodes(&selected, &favorites, Some(&first_snapshot), &second_snapshot);
         logging!(
             debug,
             Type::Config,
@@ -1052,20 +1102,19 @@ pub fn activate_selected_nodes() -> Result<()> {
         let result = async {
             let profiles = Config::profiles().await.latest_arc();
             let current = profiles.get_current().context("no current profile running")?.clone();
-            let selected = profiles
-                .get_item(&current)
-                .context("failed to get current profile")?
-                .selected
-                .clone()
-                .unwrap_or_default();
+            let item = profiles.get_item(&current).context("failed to get current profile")?;
+            let selected = item.selected.clone().unwrap_or_default();
+            // clod: избранные участвуют в восстановлении даже когда явных
+            // выборов ещё нет — иначе звёздочки не работали бы на чистом старте
+            let favorites = item.favorites.clone().unwrap_or_default();
 
-            if selected.is_empty() {
+            if selected.is_empty() && favorites.is_empty() {
                 if is_activation_current(generation) {
                     handle::Handle::refresh_clash();
                 }
                 return Ok(());
             }
-            activate_selected_nodes_worker(current, selected, generation).await
+            activate_selected_nodes_worker(current, selected, favorites, generation).await
         }
         .await;
 
@@ -1121,6 +1170,7 @@ mod tests {
         let saved = vec![selected("group", "saved")];
         let plan = reconcile_selected_nodes(
             &saved,
+            &[],
             None,
             &proxies(vec![("group", &["current", "saved"], Some("current"))]),
         );
@@ -1133,7 +1183,7 @@ mod tests {
     #[test]
     fn replaces_missing_node_with_valid_current_node() {
         let snapshot = proxies(vec![("group", &["current"], Some("current"))]);
-        let plan = reconcile_selected_nodes(&[selected("group", "renamed-node")], Some(&snapshot), &snapshot);
+        let plan = reconcile_selected_nodes(&[selected("group", "renamed-node")], &[], Some(&snapshot), &snapshot);
 
         assert_eq!(plan.selected, vec![selected("group", "current")]);
         assert!(plan.activations.is_empty());
@@ -1146,7 +1196,7 @@ mod tests {
             ("group", &["current"], Some("current")),
             ("other-node", &[], None),
         ]);
-        let plan = reconcile_selected_nodes(&[selected("group", "other-node")], Some(&snapshot), &snapshot);
+        let plan = reconcile_selected_nodes(&[selected("group", "other-node")], &[], Some(&snapshot), &snapshot);
 
         assert_eq!(plan.selected, vec![selected("group", "current")]);
         assert!(plan.activations.is_empty());
@@ -1168,7 +1218,7 @@ mod tests {
             )]),
         };
 
-        let plan = reconcile_selected_nodes(&[selected("group", "saved")], None, &snapshot);
+        let plan = reconcile_selected_nodes(&[selected("group", "saved")], &[], None, &snapshot);
 
         assert_eq!(plan.selected, vec![selected("group", "current")]);
         assert!(plan.activations.is_empty());
@@ -1184,6 +1234,7 @@ mod tests {
                 selected("group", "missing-node"),
                 PrfSelected::default(),
             ],
+            &[],
             Some(&snapshot),
             &snapshot,
         );
@@ -1199,8 +1250,8 @@ mod tests {
         let incomplete = proxies(vec![("group", &[], None)]);
         let complete = proxies(vec![("group", &["current"], Some("current"))]);
 
-        let incomplete_plan = reconcile_selected_nodes(&saved, None, &incomplete);
-        let one_snapshot_plan = reconcile_selected_nodes(&saved, None, &complete);
+        let incomplete_plan = reconcile_selected_nodes(&saved, &[], None, &incomplete);
+        let one_snapshot_plan = reconcile_selected_nodes(&saved, &[], None, &complete);
 
         assert_eq!(incomplete_plan.selected, saved);
         assert_eq!(incomplete_plan.repaired_count, 0);
@@ -1214,7 +1265,7 @@ mod tests {
         let incomplete = Proxies::default();
         let complete = proxies(vec![("group", &["current", "saved"], Some("current"))]);
 
-        let plan = reconcile_selected_nodes(&saved, Some(&incomplete), &complete);
+        let plan = reconcile_selected_nodes(&saved, &[], Some(&incomplete), &complete);
 
         assert_eq!(plan.selected, saved);
         assert_eq!(plan.activations, vec![("group".into(), "saved".into())]);
@@ -1226,7 +1277,7 @@ mod tests {
         let saved = vec![selected("group", "old"), selected("group", "new")];
         let snapshot = proxies(vec![("group", &["old", "new"], Some("old"))]);
 
-        let plan = reconcile_selected_nodes(&saved, None, &snapshot);
+        let plan = reconcile_selected_nodes(&saved, &[], None, &snapshot);
 
         assert_eq!(plan.selected, vec![selected("group", "new")]);
         assert_eq!(plan.activations, vec![("group".into(), "new".into())]);
@@ -1242,7 +1293,7 @@ mod tests {
         ]);
 
         assert!(selected_nodes_need_confirmation(&saved, &first_snapshot));
-        let immediate_plan = reconcile_selected_nodes(&saved, None, &first_snapshot);
+        let immediate_plan = reconcile_selected_nodes(&saved, &[], None, &first_snapshot);
 
         assert_eq!(immediate_plan.selected, saved);
         assert_eq!(immediate_plan.activations, vec![("valid-group".into(), "saved".into())]);
