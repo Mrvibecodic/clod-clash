@@ -16,9 +16,10 @@ import { useTranslation } from 'react-i18next'
 import type { Options as ReactMarkdownOptions } from 'react-markdown'
 
 import { BaseDialog, DialogRef } from '@/components/base'
-import { useUpdate } from '@/hooks/use-update'
 import { showNotice } from '@/services/notice-service'
+import { useQuery } from '@/services/query-client'
 import { useSetUpdateState, useUpdateState } from '@/services/states'
+import { checkUpdateSafe } from '@/services/update'
 
 type MarkdownNode = {
   type: string
@@ -127,7 +128,17 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const updateState = useUpdateState()
   const setUpdateState = useSetUpdateState()
 
-  const { updateInfo } = useUpdate()
+  // clod: НЕ через useUpdate() — тот отключает запрос при выключенной
+  // автопроверке (auto_check_update=false), и диалог оставался без данных:
+  // «Новая версия v», пустой ченджлог и мёртвая кнопка Update. Открытый
+  // диалог сам является поводом получить данные — независимо от флага.
+  const { data: updateInfo } = useQuery({
+    queryKey: ['checkUpdate'],
+    queryFn: checkUpdateSafe,
+    enabled: open,
+    staleTime: 60 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  })
 
   const [downloaded, setDownloaded] = useState(0)
   const [total, setTotal] = useState(0)
