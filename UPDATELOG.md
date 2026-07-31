@@ -5,6 +5,16 @@ workflow (`publish-clod.yml`) extracts the section matching the released
 version and injects it into `latest.json` as the updater notes. Keep every
 section between `## v{version}` and `---`.
 
+## v0.0.6-alpha
+
+### Changed
+
+- Update check lives on the **Clod Version** row now (gear icon, like the core row); the separate "Check for updates" entry is gone
+- Every home tile got its themed background icon — vertically centred at the right edge instead of bleeding out of a corner
+- Subscription updates log which panel headers were present (easier remote diagnostics)
+
+---
+
 ## v0.0.5-alpha
 
 ### Fixed
