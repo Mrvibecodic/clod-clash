@@ -1,11 +1,16 @@
 # Update Log
 
-The English changelog shown inside the app's update dialog. The publish
-workflow (`publish-clod.yml`) extracts the section matching the released
-version and injects it into `latest.json` as the updater notes. Keep every
-section between `## v{version}` and `---`.
+The bilingual changelog. Each `## v{version}` section (ended by `---`)
+contains an English part and a Russian part separated by `<!-- lang:en -->`
+and `<!-- lang:ru -->` markers. The release workflow injects the whole
+section into `latest.json` (updater notes) and into the GitHub release
+body; the app's update dialog picks the part matching the UI language
+(Russian UI → ru, anything else → en). Sections without markers are shown
+as-is.
 
 ## v0.0.9-alpha
+
+<!-- lang:en -->
 
 ### Fixed
 
@@ -19,6 +24,21 @@ section between `## v{version}` and `---`.
 - Every link header from the panel is now accepted over https only
 - Device identity headers are koala-clash style: plain `ClodClash/<version>` User-Agent, human-readable OS version and system edition instead of the computer name
 - The simple home screen now shows the connect targets (system proxy / TUN) and the active routing mode under the Connect button
+
+<!-- lang:ru -->
+
+### Исправлено
+
+- Тест серверов и автоперепинговка после обновления подписки больше не сбрасывают выбранный сервер
+- Обновление подписки не рвёт активные соединения: конфиг перезагружается мягко, если порты/TUN не менялись
+- Режим маршрутизации (Правила/Глобальный/Прямой) больше не слетает обратно на «Правила» после выбора «Глобальный»
+
+### Изменено
+
+- Избранные серверы не перехватывают выбор: они вверху списка и подхватываются автоматически, только когда выбранный сервер пропал или перестал отвечать
+- Все ссылки из заголовков панели принимаются только по https
+- Идентификация устройства как у koala-clash: User-Agent «ClodClash/версия», человекочитаемая версия ОС и редакция системы вместо имени компьютера
+- В простом режиме под кнопкой Connect видно, что включает Connect (системный прокси / TUN) и какой режим маршрутизации активен
 
 ---
 

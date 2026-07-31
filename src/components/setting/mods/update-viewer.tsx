@@ -20,6 +20,7 @@ import { showNotice } from '@/services/notice-service'
 import { useQuery } from '@/services/query-client'
 import { useSetUpdateState, useUpdateState } from '@/services/states'
 import { checkUpdateSafe } from '@/services/update'
+import { pickChangelogSection } from '@/utils/changelog'
 
 type MarkdownNode = {
   type: string
@@ -122,7 +123,7 @@ const remarkGitHubAlerts = () => {
 }
 
 export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
 
   const [open, setOpen] = useState(false)
   const updateState = useUpdateState()
@@ -159,8 +160,10 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
     if (!updateInfo?.body) {
       return 'New Version is available'
     }
-    return updateInfo?.body
-  }, [updateInfo])
+    // clod: notes двуязычные (маркеры <!-- lang:xx -->) — показываем часть,
+    // соответствующую языку интерфейса: русский → ru, иначе en
+    return pickChangelogSection(updateInfo.body, i18n.language)
+  }, [updateInfo, i18n.language])
 
   const breakChangeFlag = useMemo(() => {
     if (!updateInfo?.body) {

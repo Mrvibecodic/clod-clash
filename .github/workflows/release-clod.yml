@@ -191,8 +191,8 @@ jobs:
           done
 
   # После успеха всех платформ релиз публикуется сам (pre-release), тело —
-  # русские notes из сообщения аннотированного тега clod-v*. Ручной
-  # publish-тег (publish-clod.yml) остаётся для перезаливок latest.json.
+  # двуязычная (EN+RU) секция из UPDATELOG.md; сообщение тега — фолбэк.
+  # Ручной publish-тег (publish-clod.yml) остаётся для перезаливок latest.json.
   publish_release:
     name: Publish pre-release and roll the updater tag
     needs: [prepare_release, release]
@@ -221,10 +221,22 @@ jobs:
             fi
           done
 
-          # actions/checkout разворачивает аннотированный тег в коммит;
-          # чтобы прочитать сообщение тега, дотягиваем сам тег-объект.
-          git fetch --force origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG" || true
-          NOTES=$(git tag -l --format='%(contents)' "$RELEASE_TAG")
+          # Тело релиза — двуязычная секция (EN+RU, маркеры <!-- lang:xx -->)
+          # из UPDATELOG.md; сообщение тега — только фолбэк на случай, когда
+          # секцию забыли добавить.
+          VERSION="${RELEASE_TAG#clod-v}"
+          NOTES=$(awk -v ver="## v$VERSION" '
+            $0 == ver { grab = 1; next }
+            /^## v/ || /^---/ { if (grab) exit }
+            grab { print }
+          ' UPDATELOG.md)
+          if [ -z "$NOTES" ]; then
+            echo "::warning::UPDATELOG.md has no section for v$VERSION, falling back to the tag message"
+            # actions/checkout разворачивает аннотированный тег в коммит;
+            # чтобы прочитать сообщение тега, дотягиваем сам тег-объект.
+            git fetch --force origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG" || true
+            NOTES=$(git tag -l --format='%(contents)' "$RELEASE_TAG")
+          fi
           if [ -n "$NOTES" ]; then
             gh api -X PATCH "repos/${{ github.repository }}/releases/$RELEASE_ID" \
               -F draft=false -F prerelease=true -f body="$NOTES" --jq .html_url
@@ -247,9 +259,10 @@ jobs:
             "repos/${{ github.repository }}/releases/assets/$asset_id" > latest.json
           jq -e .version latest.json
 
-          # Английский ченджлог для окна обновления: секция `## v{версия}`
-          # из UPDATELOG.md. Пустые notes ломали кнопку Update у клиентов
-          # 0.0.2 (гард `if (!body) return`) — фолбэк-текст обязателен.
+          # Двуязычный (EN+RU) ченджлог для окна обновления: секция
+          # `## v{версия}` из UPDATELOG.md с маркерами <!-- lang:xx -->;
+          # приложение само выберет язык. Пустые notes ломали кнопку Update
+          # у клиентов 0.0.2 (гард `if (!body) return`) — фолбэк обязателен.
           notes=$(awk -v ver="## v$VERSION" '
             $0 == ver { grab = 1; next }
             /^## v/ || /^---/ { if (grab) exit }
