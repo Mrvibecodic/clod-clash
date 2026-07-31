@@ -433,6 +433,23 @@ impl PrfItem {
         // Parsed before the status check: a device-limit response carries a stub
         // body (and sometimes a non-2xx status) but still tells us what happened.
         let sub = sub_headers::SubHeaders::parse(resp.headers());
+        // Диагностика «удалил хедер в панели, а он висит»: фиксируем в логе,
+        // какие clod-заголовки реально пришли в ЭТОМ ответе. Если промо тут
+        // `false`, а баннер жив — баг клиента; если `true` — панель шлёт.
+        clash_verge_logging::logging!(
+            info,
+            clash_verge_logging::Type::Config,
+            "[clod] panel headers in response: title={} logo={} announce={} promo={} portal={} renew={} topup={} lock={} simple={}",
+            sub.profile_title.is_some(),
+            sub.profile_logo.is_some(),
+            sub.announce.is_some(),
+            sub.promo.is_some(),
+            sub.portal_url.is_some(),
+            sub.renew_url.is_some(),
+            sub.topup_url.is_some(),
+            sub.lock_mode.is_some(),
+            sub.simple_mode.is_some()
+        );
         sub.notify_device_state();
         if sub.hwid_state == sub_headers::HwidState::LimitReached {
             bail!("device limit reached for this subscription (x-hwid)")

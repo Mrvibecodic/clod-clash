@@ -8,7 +8,10 @@
 use std::time::Duration;
 
 use app_lib::{
-    config::sub_headers::{HwidState, SubHeaders},
+    config::{
+        PrfItem,
+        sub_headers::{HwidState, SubHeaders},
+    },
     utils::network::{NetworkManager, ProxyType},
 };
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
@@ -140,4 +143,95 @@ async fn identity_headers_go_out_and_panel_headers_come_back() {
         response.text_with_charset().unwrap_or_default().trim_start(),
         BODY.trim_start()
     );
+}
+
+/// Serve one request whose response has NO panel headers at all.
+async fn serve_once_bare(listener: TcpListener) {
+    let Ok((mut stream, _)) = listener.accept().await else {
+        return;
+    };
+
+    let mut buffer = [0_u8; 1024];
+    let mut request = Vec::new();
+    while let Ok(read) = stream.read(&mut buffer).await {
+        if read == 0 {
+            break;
+        }
+        request.extend_from_slice(&buffer[..read]);
+        if request.windows(4).any(|window| window == b"\r\n\r\n") {
+            break;
+        }
+    }
+
+    let response = format!(
+        "HTTP/1.1 200 OK\r\ncontent-type: text/yaml\r\ncontent-length: {}\r\n\r\n{BODY}",
+        BODY.len()
+    );
+    let _ = stream.write_all(response.as_bytes()).await;
+    let _ = stream.flush().await;
+}
+
+/// Регрессия «удалил хедер в панели, а он висит в клиенте»: ответ панели без
+/// clod-заголовков, пришедший поверх сохранённого профиля с промо/анонсом,
+/// обязан ОЧИСТИТЬ эти поля (merge_panel_meta — замена, не слияние).
+#[tokio::test]
+async fn removed_panel_headers_clear_stored_values() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap_or_else(|err| {
+        unreachable!("could not bind a loopback listener: {err}");
+    });
+    let Ok(address) = listener.local_addr() else {
+        unreachable!("listener has no local address");
+    };
+    let server = tokio::spawn(serve_once_bare(listener));
+
+    let url = format!("http://{address}/sub/token");
+    let response = NetworkManager::new()
+        .get_with_interrupt_and_headers(&url, ProxyType::None, Some(5), None, false, None)
+        .await
+        .unwrap_or_else(|err| unreachable!("request failed: {err}"));
+    let _ = tokio::time::timeout(Duration::from_secs(5), server).await;
+
+    // Parse the header-less response exactly the way `from_url` does.
+    let sub = SubHeaders::parse(response.headers());
+    assert_eq!(sub.promo, None);
+    assert_eq!(sub.announce, None);
+    assert_eq!(sub.portal_url, None);
+
+    // The fresh item a subscription update would build from these headers.
+    let fresh = PrfItem {
+        promo: sub.promo.clone(),
+        promo_url: sub.promo_url.clone(),
+        announce: sub.announce.clone(),
+        announce_url: sub.announce_url.clone(),
+        portal_url: sub.portal_url.clone(),
+        renew_url: sub.renew_url.clone(),
+        topup_url: sub.topup_url.clone(),
+        lock_mode: sub.lock_mode,
+        ..PrfItem::default()
+    };
+
+    // The stored profile as it was before the panel dropped the headers.
+    let mut stored = PrfItem {
+        promo: Some("test block".into()),
+        promo_url: Some("https://p.example/promo".into()),
+        promo_seen: Some(true),
+        announce: Some("Возникли проблемы?".into()),
+        announce_url: Some("https://p.example/help".into()),
+        portal_url: Some("https://p.example/cab".into()),
+        renew_url: Some("https://p.example/renew".into()),
+        topup_url: Some("https://p.example/topup".into()),
+        lock_mode: Some(true),
+        ..PrfItem::default()
+    };
+
+    stored.merge_panel_meta(&fresh);
+
+    assert_eq!(stored.promo, None, "a promo the panel stopped sending must disappear");
+    assert_eq!(stored.promo_url, None);
+    assert_eq!(stored.announce, None, "a removed announce must disappear");
+    assert_eq!(stored.announce_url, None);
+    assert_eq!(stored.portal_url, None);
+    assert_eq!(stored.renew_url, None);
+    assert_eq!(stored.topup_url, None);
+    assert_eq!(stored.lock_mode, None);
 }
