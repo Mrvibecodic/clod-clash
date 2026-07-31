@@ -1,4 +1,4 @@
-import { ContentCopyRounded } from '@mui/icons-material'
+import { ContentCopyRounded, SettingsRounded } from '@mui/icons-material'
 import { Typography } from '@mui/material'
 import { useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -122,11 +122,6 @@ const SettingVergeAdvanced = ({ onError: _ }: Props) => {
       />
 
       <SettingItem
-        onClick={onCheckUpdate}
-        label={t('settings.components.verge.advanced.fields.checkUpdates')}
-      />
-
-      <SettingItem
         onClick={openDevTools}
         label={t('settings.components.verge.advanced.fields.openDevTools')}
       />
@@ -159,14 +154,27 @@ const SettingVergeAdvanced = ({ onError: _ }: Props) => {
         }
       ></SettingItem>
 
+      {/* clod: шестерёнка проверяет обновления приложения — как у строки
+          ядра; отдельный пункт «Проверить обновления» из списка убран */}
       <SettingItem
         label={t('settings.components.verge.advanced.fields.vergeVersion')}
         extra={
-          <TooltipIcon
-            icon={ContentCopyRounded}
-            onClick={copyVersion}
-            title={t('settings.components.verge.advanced.actions.copyVersion')}
-          />
+          <>
+            <TooltipIcon
+              icon={SettingsRounded}
+              onClick={() => void onCheckUpdate()}
+              title={t(
+                'settings.components.verge.advanced.fields.checkUpdates',
+              )}
+            />
+            <TooltipIcon
+              icon={ContentCopyRounded}
+              onClick={copyVersion}
+              title={t(
+                'settings.components.verge.advanced.actions.copyVersion',
+              )}
+            />
+          </>
         }
       >
         <Typography sx={{ py: '7px', pr: 1 }}>v{version}</Typography>
