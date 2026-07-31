@@ -56,7 +56,8 @@ jobs:
           # артефакты всех трёх платформ.
           assets=$(gh api "repos/${{ github.repository }}/releases/$id/assets?per_page=100" --jq '.[].name')
           echo "assets:"; echo "$assets"
-          for needle in latest.json setup.exe portable.zip .dmg .AppImage; do
+          # линукс собирается как deb+rpm, AppImage у нас нет
+          for needle in latest.json setup.exe portable.zip .dmg .deb .rpm; do
             if ! echo "$assets" | grep -qi -- "$needle"; then
               echo "::error::Release $RELEASE_TAG has no asset matching '$needle' — сборка не закончилась?"
               exit 1
