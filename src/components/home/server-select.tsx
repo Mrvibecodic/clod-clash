@@ -19,7 +19,7 @@ import {
 } from '@mui/material'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useLockFn } from 'ahooks'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { delayGroup } from 'tauri-plugin-mihomo-api'
 
@@ -417,10 +417,18 @@ const SignalBars = ({ delay }: { delay?: number }) => {
   )
 }
 
+// clod: подписка обновилась → ядро перечитало конфиг → история задержек в
+// ядре обнулилась и пинги на главной «пропадали». Автотест гоняем один раз
+// на каждую пару (группа, момент обновления подписки) — module-scope, чтобы
+// ремоунт экрана не пинговал повторно.
+let lastAutoDelayKey = ''
+
 /** The compact row on the home screen: current server, latency, one tap. */
 export const ServerSelectRow = ({ onOpen }: RowProps) => {
   const { t } = useTranslation()
   const { proxies } = useProxiesData()
+  const { refreshProxy } = useAppRefreshers()
+  const { current: currentProfile } = useProfiles()
 
   const records = (proxies?.records ?? {}) as Record<string, any>
   const group = visibleGroups(proxies)[0]
@@ -433,6 +441,24 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
   const delay = current
     ? entryDelay(records, current, group?.name ?? '')
     : undefined
+
+  const groupName = group?.name
+  const updatedAt = currentProfile?.updated ?? 0
+  useEffect(() => {
+    if (!groupName) return
+    const key = `${groupName}|${updatedAt}`
+    if (lastAutoDelayKey === key) return
+    // подождать, пока ядро дожуёт свежий конфиг, и перепинговать сразу
+    const timer = window.setTimeout(() => {
+      lastAutoDelayKey = key
+      delayGroup(groupName, delayManager.getUrl(groupName), 10000)
+        .catch(() => {})
+        .finally(() => {
+          refreshProxy().catch(() => {})
+        })
+    }, 800)
+    return () => window.clearTimeout(timer)
+  }, [groupName, updatedAt, refreshProxy])
 
   const caption =
     delay !== undefined && delay > 0

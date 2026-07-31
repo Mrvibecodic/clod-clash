@@ -19,7 +19,12 @@ import { useConnectTargets } from '@/hooks/use-connect-targets'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useSessionUptime } from '@/hooks/use-session-uptime'
 import { useSimpleMode } from '@/hooks/use-simple-mode'
-import { createProfile, importProfile, openWebUrl } from '@/services/cmds'
+import {
+  createProfile,
+  enhanceProfiles,
+  importProfile,
+  openWebUrl,
+} from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 
 const HomeSimplePage = () => {
@@ -57,16 +62,26 @@ const HomeSimplePage = () => {
   const addSubscription = useLockFn(async () => {
     const url = subUrl.trim()
     if (!url) return
+    // clod: без enhance ядро не перечитывает конфиг после импорта — список
+    // серверов оставался пустым, пока подписку не обновишь руками
+    const activate = async () => {
+      await mutateProfiles()
+      try {
+        await enhanceProfiles()
+      } catch (error) {
+        console.error('[import] enhance after import failed:', error)
+      }
+    }
     try {
       await importProfile(url)
-      await mutateProfiles()
+      await activate()
       setSubUrl('')
     } catch {
       // A URL that is not a subscription is still a perfectly normal mistake;
       // fall back to creating a remote profile so the error names the cause.
       try {
         await createProfile({ type: 'remote', name: url, url })
-        await mutateProfiles()
+        await activate()
         setSubUrl('')
       } catch (error) {
         showNotice.error(error)
@@ -154,7 +169,7 @@ const HomeSimplePage = () => {
 
         <ProviderBanners profile={current} onChanged={mutateProfiles} />
 
-        <Box sx={{ display: 'flex', justifyContent: 'center', pt: 2, pb: 1 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'center', pt: 1, pb: 0.5 }}>
           <ConnectButton
             state={state}
             uptime={uptime}
