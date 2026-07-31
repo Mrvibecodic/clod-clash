@@ -1,6 +1,8 @@
 name: Clippy Lint
 
 on:
+  push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 env:
@@ -23,8 +25,11 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     steps:
+      # clod: paths-filter needs no checkout only on pull_request; on push
+      # it would fail without a repo, so the filter is PR-only and a direct
+      # push to main always runs the checks.
       - name: Check src-tauri changes
-        if: github.event_name != 'workflow_dispatch'
+        if: github.event_name == 'pull_request'
         id: check_changes
         uses: dorny/paths-filter@v4
         with:
@@ -33,11 +38,11 @@ jobs:
               - 'src-tauri/**'
 
       - name: Skip if src-tauri not changed
-        if: github.event_name != 'workflow_dispatch' && steps.check_changes.outputs.rust != 'true'
+        if: github.event_name == 'pull_request' && steps.check_changes.outputs.rust != 'true'
         run: echo "No src-tauri changes, skipping clippy lint."
 
       - name: Continue if src-tauri changed
-        if: github.event_name != 'workflow_dispatch' && steps.check_changes.outputs.rust == 'true'
+        if: github.event_name == 'pull_request' && steps.check_changes.outputs.rust == 'true'
         run: echo "src-tauri changed, running clippy lint."
 
       - name: Manual trigger - always run
@@ -77,6 +82,14 @@ jobs:
       - name: Run Clippy
         working-directory: ./src-tauri
         run: cargo clippy-all
+
+      # clod: the repo's unit and header-contract tests — clippy compiles
+      # them but never runs them, so this is where they actually execute
+      - name: Run Tests
+        working-directory: ./src-tauri
+        run: |
+          cargo test --lib
+          cargo test --test subscription_headers
 
       - name: Run Logging Check
         working-directory: ./src-tauri
