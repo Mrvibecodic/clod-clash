@@ -5,6 +5,14 @@ workflow (`publish-clod.yml`) extracts the section matching the released
 version and injects it into `latest.json` as the updater notes. Keep every
 section between `## v{version}` and `---`.
 
+## v0.0.7-alpha
+
+### Fixed
+
+- The update dialog opened empty («New Version v», no changelog, dead Update button) when automatic update checks were disabled — it now fetches update info on its own whenever it opens
+
+---
+
 ## v0.0.6-alpha
 
 ### Changed
