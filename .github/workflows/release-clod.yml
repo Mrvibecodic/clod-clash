@@ -63,10 +63,10 @@ jobs:
           # win-arm64 (Windows on ARM) сознательно не собираем — аудитории нет
           - os: windows-latest
             target: x86_64-pc-windows-msvc
+          # mac Intel (x86_64-apple-darwin) выброшен по решению от 31.07.2026:
+          # Маки до 2020 года, аудитории нет
           - os: macos-latest
             target: aarch64-apple-darwin
-          - os: macos-latest
-            target: x86_64-apple-darwin
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
 
