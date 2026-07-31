@@ -103,12 +103,12 @@ function useProxyRenderState(
       try {
         await Promise.race([
           delayManager.checkListDelay(proxies, groupName, timeout),
-          delayGroup(groupName, url, timeout).then((result) => {
+          delayGroup(groupName, url, timeout, true).then((result) => {
             debugLog(
               `[ProxyGroups] getGroupProxyDelays返回结果数量:`,
               Object.keys(result || {}).length,
             )
-          }), // 查询group delays 将清除fixed(不关注调用结果)
+          }), // clod: keepFixed=true — тест не сбрасывает закреплённый узел
         ])
         debugLog(`[ProxyGroups] 延迟测试完成，组: ${groupName}`)
       } catch (error) {

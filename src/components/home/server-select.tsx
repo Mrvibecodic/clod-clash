@@ -21,13 +21,12 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { useLockFn } from 'ahooks'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { delayGroup } from 'tauri-plugin-mihomo-api'
 
 import { CountryFlag } from '@/components/home/country-flag'
+import { useGroupDelayTest } from '@/hooks/use-group-delay-test'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useProxySelection } from '@/hooks/use-proxy-selection'
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
-import delayManager from '@/services/delay'
 import { showNotice } from '@/services/notice-service'
 import { nameWithoutFlag } from '@/utils/country'
 import { delayColor } from '@/utils/delay-color'
@@ -127,20 +126,20 @@ export const ServerSelect = ({ open, onClose }: Props) => {
     onClose()
   })
 
+  // clod: тест с keepFixed + восстановлением сохранённого выбора — иначе
+  // mihomo сбрасывал закреплённый узел url-test групп при каждом тесте.
+  const runGroupDelayTest = useGroupDelayTest()
   const runDelayTest = useCallback(async () => {
     if (!group) return
     setTesting(true)
     try {
-      await delayGroup(group.name, delayManager.getUrl(group.name), 10000)
+      await runGroupDelayTest(group.name)
     } catch (error) {
       showNotice.error(error)
     } finally {
       setTesting(false)
-      // The core has fresh delay history now; re-read the proxies so the
-      // rows actually show it (the test itself emits no frontend event).
-      refreshProxy().catch(() => {})
     }
-  }, [group, refreshProxy])
+  }, [group, runGroupDelayTest])
 
   const typeLabel = (type: string) => {
     switch (type) {
@@ -455,8 +454,8 @@ let lastAutoDelayKey = ''
 export const ServerSelectRow = ({ onOpen }: RowProps) => {
   const { t } = useTranslation()
   const { proxies } = useProxiesData()
-  const { refreshProxy } = useAppRefreshers()
   const { current: currentProfile } = useProfiles()
+  const runGroupDelayTest = useGroupDelayTest()
 
   const records = (proxies?.records ?? {}) as Record<string, any>
   const group = visibleGroups(proxies)[0]
@@ -476,17 +475,16 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
     if (!groupName) return
     const key = `${groupName}|${updatedAt}`
     if (lastAutoDelayKey === key) return
-    // подождать, пока ядро дожуёт свежий конфиг, и перепинговать сразу
+    // подождать, пока ядро дожуёт свежий конфиг, и перепинговать сразу.
+    // Тест идёт через useGroupDelayTest: keepFixed + восстановление выбора,
+    // так что автоперепинговка после обновления подписки НЕ сбрасывает
+    // выбранный сервер (и умеет уйти на избранный, если выбранный умер).
     const timer = window.setTimeout(() => {
       lastAutoDelayKey = key
-      delayGroup(groupName, delayManager.getUrl(groupName), 10000)
-        .catch(() => {})
-        .finally(() => {
-          refreshProxy().catch(() => {})
-        })
+      runGroupDelayTest(groupName).catch(() => {})
     }, 800)
     return () => window.clearTimeout(timer)
-  }, [groupName, updatedAt, refreshProxy])
+  }, [groupName, updatedAt, runGroupDelayTest])
 
   const caption =
     delay !== undefined && delay > 0

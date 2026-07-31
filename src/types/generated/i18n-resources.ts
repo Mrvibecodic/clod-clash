@@ -133,6 +133,7 @@ export interface TranslationResources {
           autoHint: string
           current: string
           empty: string
+          failover: string
           favorite: string
           ms: string
           none: string

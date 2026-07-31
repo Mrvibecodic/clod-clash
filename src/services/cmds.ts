@@ -67,6 +67,12 @@ export async function updateProfile(index: string, option?: IProfileOption) {
   return invoke<void>('update_profile', { index, option })
 }
 
+// clod: вернуть сохранённый выбор узлов — групповой тест задержек в mihomo
+// сбрасывает закреплённый узел url-test/fallback групп (ForceSet("")).
+export async function restoreSelectedNodes() {
+  return invoke<void>('restore_selected_nodes')
+}
+
 export async function deleteProfile(index: string) {
   return invoke<void>('delete_profile', { index })
 }

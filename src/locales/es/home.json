@@ -151,6 +151,7 @@
       "favorite": "Favorito",
       "ms": "ms",
       "autoHint": "The node in this group is picked automatically",
+      "failover": "“{{from}}” is unreachable — switched to starred server “{{to}}”",
       "types": {
         "selector": "group",
         "urltest": "auto · best ping",

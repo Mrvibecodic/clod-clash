@@ -694,7 +694,8 @@ export const CurrentProxyCard = () => {
       try {
         await Promise.race([
           delayManager.checkListDelay(delayProxies, groupName, timeout),
-          delayGroup(groupName, url, timeout),
+          // clod: keepFixed — групповой тест не должен сбрасывать закреплённый узел
+          delayGroup(groupName, url, timeout, true),
         ])
         debugLog(`[CurrentProxyCard] 延迟测试完成，组: ${groupName}`)
       } catch (error) {
