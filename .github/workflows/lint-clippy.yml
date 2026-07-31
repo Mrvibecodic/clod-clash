@@ -87,9 +87,11 @@ jobs:
       # them but never runs them, so this is where they actually execute
       - name: Run Tests
         working-directory: ./src-tauri
+        # the `clippy` feature stubs tauri_build - the runner has no dist/
+        # or sidecar binaries, without it the build script dies
         run: |
-          cargo test --lib
-          cargo test --test subscription_headers
+          cargo test --lib --features clippy
+          cargo test --test subscription_headers --features clippy
 
       - name: Run Logging Check
         working-directory: ./src-tauri
