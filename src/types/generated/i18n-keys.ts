@@ -213,6 +213,7 @@ export const translationKeys = [
   'profiles.components.profileItem.status.autoUpdateDisabled',
   'profiles.components.profileItem.labels.unlimited',
   'profiles.components.profileItem.labels.neverExpires',
+  'profiles.components.profileItem.labels.expiresIn',
   'profiles.components.hwidDialog.limitTitle',
   'profiles.components.hwidDialog.limitBody',
   'profiles.components.hwidDialog.limitBodyWithCount',

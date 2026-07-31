@@ -98,7 +98,8 @@
       },
       "labels": {
         "unlimited": "Безлимит",
-        "neverExpires": "Бессрочно"
+        "neverExpires": "Бессрочно",
+        "expiresIn": "{{count}} дн · {{date}}"
       }
     },
     "hwidDialog": {

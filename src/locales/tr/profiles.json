@@ -98,7 +98,8 @@
       },
       "labels": {
         "unlimited": "Unlimited",
-        "neverExpires": "No expiry"
+        "neverExpires": "No expiry",
+        "expiresIn": "{{count}} d · {{date}}"
       }
     },
     "hwidDialog": {

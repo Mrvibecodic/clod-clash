@@ -320,6 +320,7 @@ export interface TranslationResources {
         }
         profileItem: {
           labels: {
+            expiresIn: string
             neverExpires: string
             unlimited: string
           }

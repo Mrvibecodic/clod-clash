@@ -20,11 +20,9 @@ import {
   ContentPasteRounded,
   DeleteRounded,
   IndeterminateCheckBoxRounded,
-  LocalFireDepartmentRounded,
   RefreshRounded,
-  TextSnippetOutlined,
 } from '@mui/icons-material'
-import { Box, Button, Divider, Grid, IconButton, Stack } from '@mui/material'
+import { Box, Button, Grid, IconButton, Stack } from '@mui/material'
 import { listen, TauriEvent } from '@tauri-apps/api/event'
 import { readText } from '@tauri-apps/plugin-clipboard-manager'
 import { readTextFile } from '@tauri-apps/plugin-fs'
@@ -35,18 +33,12 @@ import { useTranslation } from 'react-i18next'
 import { useLocation } from 'react-router'
 import { closeAllConnections } from 'tauri-plugin-mihomo-api'
 
-import {
-  BasePage,
-  BaseStyledTextField,
-  type DialogRef,
-} from '@/components/base'
-import { ProfileMore } from '@/components/profile/profile-more'
+import { BasePage, BaseStyledTextField } from '@/components/base'
 import {
   ProfileViewer,
   type ProfileViewerRef,
 } from '@/components/profile/profile-viewer'
 import { SortableProfileItem } from '@/components/profile/sortable-profile-item'
-import { ConfigViewer } from '@/components/setting/mods/config-viewer'
 import { useListen } from '@/hooks/use-listen'
 import { useProfiles } from '@/hooks/use-profiles'
 import {
@@ -66,11 +58,7 @@ import {
   revalidateQueries,
   useQuery,
 } from '@/services/query-client'
-import {
-  useLoadingCache,
-  useSetLoadingCache,
-  useThemeMode,
-} from '@/services/states'
+import { useLoadingCache, useSetLoadingCache } from '@/services/states'
 import { debugLog } from '@/utils/debug'
 
 // 与 src-tauri/src/main.rs 的 worker_limit 上限(8)保持一致，避免前后端更新风暴不对齐
@@ -251,7 +239,7 @@ const ProfilePage = () => {
     }
   })
 
-  const { data: chainLogs = {}, refetch: refetchLogs } = useQuery({
+  const { refetch: refetchLogs } = useQuery({
     queryKey: ['getRuntimeLogs'],
     queryFn: getRuntimeLogs,
   })
@@ -260,7 +248,6 @@ const ProfilePage = () => {
   const mutateLogs = useCallback(() => refetchLogsRef.current(), [])
 
   const viewerRef = useRef<ProfileViewerRef>(null)
-  const configRef = useRef<DialogRef>(null)
 
   // distinguish type
   const profileItems = useMemo(() => {
@@ -764,12 +751,6 @@ const ProfilePage = () => {
     }
   })
 
-  const mode = useThemeMode()
-  const isLight = mode === 'light'
-  const dividercolor = isLight
-    ? 'rgba(0, 0, 0, 0.06)'
-    : 'rgba(255, 255, 255, 0.06)'
-
   // 卸载后不再执行尚未发送的切换意图。
   useEffect(() => {
     profilePageMountedRef.current = true
@@ -812,23 +793,8 @@ const ProfilePage = () => {
                 <RefreshRounded />
               </IconButton>
 
-              <IconButton
-                size="small"
-                color="inherit"
-                title={t('profiles.page.actions.viewRuntimeConfig')}
-                onClick={() => configRef.current?.open()}
-              >
-                <TextSnippetOutlined />
-              </IconButton>
-
-              <IconButton
-                size="small"
-                color="primary"
-                title={t('profiles.page.actions.reactivate')}
-                onClick={() => onEnhance(true)}
-              >
-                <LocalFireDepartmentRounded />
-              </IconButton>
+              {/* clod: рантайм-конфиг и «переактивировать» убраны — тулбар
+                  оставляет только действия над подписками */}
 
               {/* 故障检测和紧急恢复按钮 */}
               {(error || isStale) && (
@@ -1031,36 +997,8 @@ const ProfilePage = () => {
               </SortableContext>
             </Grid>
           </Box>
-          <Divider
-            variant="middle"
-            flexItem
-            sx={{ width: `calc(100% - 32px)`, borderColor: dividercolor }}
-          ></Divider>
-          <Box sx={{ mt: 1.5, mb: '10px' }}>
-            <Grid container spacing={{ xs: 1, lg: 1 }}>
-              <Grid size={{ xs: 12, sm: 6, md: 6, lg: 6 }}>
-                <ProfileMore
-                  id="Merge"
-                  onSave={async (prev, curr) => {
-                    if (prev !== curr) {
-                      await onEnhance(false)
-                    }
-                  }}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6, md: 6, lg: 6 }}>
-                <ProfileMore
-                  id="Script"
-                  logInfo={chainLogs['Script']}
-                  onSave={async (prev, curr) => {
-                    if (prev !== curr) {
-                      await onEnhance(false)
-                    }
-                  }}
-                />
-              </Grid>
-            </Grid>
-          </Box>
+          {/* clod: карточки Global Extend Config/Script убраны — странице
+              подписок нечего делать с механикой расширения конфигов */}
         </Box>
         <DragOverlay />
       </DndContext>
@@ -1075,7 +1013,6 @@ const ProfilePage = () => {
           }
         }}
       />
-      <ConfigViewer ref={configRef} />
     </BasePage>
   )
 }

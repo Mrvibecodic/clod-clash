@@ -6,10 +6,13 @@ import {
   CheckBoxOutlineBlankRounded,
   CheckBoxRounded,
   DragIndicatorRounded,
+  HomeWorkRounded,
   RefreshRounded,
+  SupportAgentRounded,
 } from '@mui/icons-material'
 import {
   Box,
+  Button,
   CircularProgress,
   IconButton,
   keyframes,
@@ -125,6 +128,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
   )
 
   const { uid, name = 'Profile', extra, updated = 0, option } = itemData
+  const [mountedAt] = useState(() => Date.now())
 
   // 获取下次更新时间的函数
   const fetchNextUpdateTimeCallback = useCallback(
@@ -261,9 +265,19 @@ const ProfileItemBase = (props: ProfileItemProps) => {
   // that never ends, so both need their own label instead of "0 B" / "-".
   const unlimitedTraffic = total === 0
   const neverExpires = !extra?.expire
+  // clod: срок с остатком дней — как в карточке подписки на главной. Часы
+  // читаем раз на маунт: чистота рендера важнее секундной точности.
+  const daysLeft = neverExpires
+    ? undefined
+    : Math.max(0, Math.ceil(((extra?.expire ?? 0) - mountedAt / 1000) / 86400))
   const expire = neverExpires
     ? t('profiles.components.profileItem.labels.neverExpires')
-    : parseExpire(extra?.expire)
+    : daysLeft !== undefined
+      ? t('profiles.components.profileItem.labels.expiresIn', {
+          count: daysLeft,
+          date: parseExpire(extra?.expire),
+        })
+      : parseExpire(extra?.expire)
   const refillDate = itemData.refill_date
     ? parseExpire(itemData.refill_date)
     : undefined
@@ -868,6 +882,40 @@ const ProfileItemBase = (props: ProfileItemProps) => {
           value={progress}
           style={{ opacity: total > 0 ? 1 : 0 }}
         />
+        {/* clod: ссылки провайдера из заголовков подписки — у каждой
+            подписки свои личный кабинет и поддержка */}
+        {(itemData.portal_url || itemData.support_url) && (
+          <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+            {itemData.portal_url && (
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<HomeWorkRounded />}
+                sx={{ flex: 1, minWidth: 0 }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  open(itemData.portal_url ?? '')
+                }}
+              >
+                {t('home.pages.simple.portal')}
+              </Button>
+            )}
+            {itemData.support_url && (
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<SupportAgentRounded />}
+                sx={{ flex: 1, minWidth: 0 }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  open(itemData.support_url ?? '')
+                }}
+              >
+                {t('profiles.components.hwidDialog.support')}
+              </Button>
+            )}
+          </Box>
+        )}
       </ProfileBox>
 
       <Menu
