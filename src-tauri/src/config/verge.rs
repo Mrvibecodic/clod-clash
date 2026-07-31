@@ -291,6 +291,16 @@ pub struct IVerge {
     /// picked TUN would be silently downgraded to the system proxy.
     #[serde(skip_serializing)]
     pub main_switch_mode: Option<String>,
+
+    /// Last window size (logical `[width, height]`) the user had in the
+    /// simple mode. Each mode remembers its own size so switching modes
+    /// resizes the window to what the user actually used there last time.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub window_size_simple: Option<(u32, u32)>,
+
+    /// Last window size (logical `[width, height]`) in the advanced mode.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub window_size_advanced: Option<(u32, u32)>,
     // clod:simple-mode end
 
     // clod:core-updater begin
@@ -672,6 +682,8 @@ impl IVerge {
         patch!(simple_mode);
         patch!(connect_system_proxy);
         patch!(connect_tun_mode);
+        patch!(window_size_simple);
+        patch!(window_size_advanced);
         // clod:simple-mode end
         // clod:core-updater begin
         patch!(use_managed_core);

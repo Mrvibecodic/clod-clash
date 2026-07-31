@@ -2,6 +2,7 @@ import { useCallback, useMemo } from 'react'
 
 import { useProfiles } from '@/hooks/use-profiles'
 import { useVerge } from '@/hooks/use-verge'
+import { applyWindowSizeForMode, saveWindowSizeForMode } from '@/services/cmds'
 
 /**
  * Which interface the user gets, and who decided.
@@ -28,8 +29,19 @@ export const useSimpleMode = () => {
   )
 
   const setSimpleMode = useCallback(
-    (enabled: boolean) => patchVerge({ simple_mode: enabled }),
-    [patchVerge],
+    async (enabled: boolean) => {
+      // Each mode remembers its own window size: store the size of the mode
+      // we are leaving, then resize for the one we are entering. Sizing is
+      // cosmetic — a failure must never block the actual mode switch.
+      if (enabled !== simpleMode) {
+        await saveWindowSizeForMode(simpleMode).catch(() => {})
+      }
+      await patchVerge({ simple_mode: enabled })
+      if (enabled !== simpleMode) {
+        await applyWindowSizeForMode(enabled).catch(() => {})
+      }
+    },
+    [patchVerge, simpleMode],
   )
 
   return {

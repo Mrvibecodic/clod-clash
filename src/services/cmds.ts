@@ -493,6 +493,16 @@ export const getConnectSessionStart = async () => {
   return invoke<number | null>('get_connect_session_start')
 }
 
+// clod:mode-window — per-mode window sizes: remember the size of the mode
+// being left, apply the remembered/default size of the mode being entered.
+export const saveWindowSizeForMode = async (simple: boolean) => {
+  return invoke<void>('save_window_size_for_mode', { simple })
+}
+
+export const applyWindowSizeForMode = async (simple: boolean) => {
+  return invoke<void>('apply_window_size_for_mode', { simple })
+}
+
 // 安装系统服务
 export const installService = async () => {
   return invoke<void>('install_service')

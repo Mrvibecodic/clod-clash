@@ -189,6 +189,8 @@ mod app_init {
             cmd::test_delay,
             cmd::get_app_dir,
             cmd::copy_icon_file,
+            cmd::save_window_size_for_mode,
+            cmd::apply_window_size_for_mode,
             cmd::download_icon_cache,
             cmd::open_devtools,
             cmd::exit_app,

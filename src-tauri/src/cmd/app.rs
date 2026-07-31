@@ -96,3 +96,24 @@ pub async fn download_icon_cache(url: String, name: String) -> CmdResult<String>
 pub async fn copy_icon_file(path: String, icon_info: feat::IconInfo) -> CmdResult<String> {
     feat::copy_icon_file(path, icon_info).await
 }
+
+// clod:mode-window begin
+/// Remember the current window size for the mode the user is leaving (or
+/// simply using — also called after a manual resize settles).
+#[tauri::command]
+pub async fn save_window_size_for_mode(simple: bool) -> CmdResult<()> {
+    if let Some(window) = crate::utils::window_manager::WindowManager::get_main_window() {
+        crate::utils::resolve::window::save_window_size_for_mode(&window, simple).await;
+    }
+    Ok(())
+}
+
+/// Resize the window for the mode the user is entering, keeping it on-screen.
+#[tauri::command]
+pub async fn apply_window_size_for_mode(simple: bool) -> CmdResult<()> {
+    if let Some(window) = crate::utils::window_manager::WindowManager::get_main_window() {
+        crate::utils::resolve::window::apply_window_size_for_mode(&window, simple).await;
+    }
+    Ok(())
+}
+// clod:mode-window end

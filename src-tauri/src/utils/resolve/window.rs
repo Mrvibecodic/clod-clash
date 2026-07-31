@@ -77,6 +77,124 @@ fn restore_position_if_offscreen(window: &WebviewWindow) {
     }
 }
 
+// clod:mode-window begin
+/// Default logical window sizes per interface mode. The simple mode is a
+/// single 520px column plus padding: anything wider is empty margin.
+const SIMPLE_MODE_SIZE: (f64, f64) = (560.0, 720.0);
+const ADVANCED_MODE_SIZE: (f64, f64) = (DEFAULT_WIDTH, DEFAULT_HEIGHT);
+
+/// The mode the interface actually starts in: the user's own choice wins,
+/// then the provider's `clod-simple-mode` header, then the simple default.
+/// Mirrors `useSimpleMode` on the frontend.
+async fn effective_simple_mode() -> bool {
+    let verge = Config::verge().await.latest_arc();
+    if let Some(choice) = verge.simple_mode {
+        return choice;
+    }
+    let profiles = Config::profiles().await.latest_arc();
+    profiles
+        .current
+        .as_ref()
+        .and_then(|uid| profiles.get_item(uid).ok())
+        .and_then(|item| item.simple_mode)
+        .unwrap_or(true)
+}
+
+const fn stored_mode_size(verge: &crate::config::IVerge, simple: bool) -> Option<(u32, u32)> {
+    if simple {
+        verge.window_size_simple
+    } else {
+        verge.window_size_advanced
+    }
+}
+
+const fn default_mode_size(simple: bool) -> (f64, f64) {
+    if simple { SIMPLE_MODE_SIZE } else { ADVANCED_MODE_SIZE }
+}
+
+/// Remember the window's current logical size in the given mode's slot, so
+/// the next switch back restores what the user actually used. Maximized and
+/// fullscreen sizes are transient states, not a chosen size — skipped.
+pub async fn save_window_size_for_mode(window: &WebviewWindow, simple: bool) {
+    if window.is_maximized().unwrap_or(false) || window.is_fullscreen().unwrap_or(false) {
+        return;
+    }
+    let Ok(size) = window.inner_size() else { return };
+    let scale = window.scale_factor().unwrap_or(1.0);
+    let logical: tauri::LogicalSize<f64> = size.to_logical(scale);
+    if restored_window_size_is_too_small(logical.width as u32, logical.height as u32) {
+        return;
+    }
+    let patch = crate::config::IVerge {
+        window_size_simple: simple.then_some((logical.width as u32, logical.height as u32)),
+        window_size_advanced: (!simple).then_some((logical.width as u32, logical.height as u32)),
+        ..Default::default()
+    };
+    logging_error!(Type::Window, crate::feat::patch_verge(&patch, false).await);
+}
+
+/// Resize the window to the given mode's remembered (or default) size and
+/// make sure the result stays fully on the screen.
+pub async fn apply_window_size_for_mode(window: &WebviewWindow, simple: bool) {
+    if window.is_maximized().unwrap_or(false) || window.is_fullscreen().unwrap_or(false) {
+        return;
+    }
+    let stored = {
+        let verge = Config::verge().await.latest_arc();
+        stored_mode_size(&verge, simple)
+    };
+    let (width, height) = stored
+        .map(|(w, h)| (f64::from(w), f64::from(h)))
+        .unwrap_or_else(|| default_mode_size(simple));
+    logging_error!(
+        Type::Window,
+        window.set_size(tauri::LogicalSize::new(
+            width.max(MINIMAL_WIDTH),
+            height.max(MINIMAL_HEIGHT),
+        ))
+    );
+    keep_window_on_screen(window);
+}
+
+/// Nudge (and if needed shrink) the window so it sits inside the current
+/// monitor's work area — a programmatic resize must never push it off-screen
+/// or under the taskbar.
+fn keep_window_on_screen(window: &WebviewWindow) {
+    let monitor = match window.current_monitor() {
+        Ok(Some(monitor)) => monitor,
+        _ => match window.primary_monitor() {
+            Ok(Some(monitor)) => monitor,
+            _ => return,
+        },
+    };
+    let area = monitor.work_area();
+    let (Ok(pos), Ok(size)) = (window.outer_position(), window.outer_size()) else {
+        return;
+    };
+
+    // Wider or taller than the work area: shrink to fit first.
+    let fit_width = size.width.min(area.size.width);
+    let fit_height = size.height.min(area.size.height);
+    if fit_width != size.width || fit_height != size.height {
+        logging_error!(
+            Type::Window,
+            window.set_size(tauri::PhysicalSize::new(fit_width, fit_height))
+        );
+    }
+
+    let max_x = area.position.x + area.size.width as i32 - fit_width as i32;
+    let max_y = area.position.y + area.size.height as i32 - fit_height as i32;
+    let new_x = pos.x.clamp(area.position.x, max_x.max(area.position.x));
+    let new_y = pos.y.clamp(area.position.y, max_y.max(area.position.y));
+    if new_x != pos.x || new_y != pos.y {
+        logging_error!(
+            Type::Window,
+            window.set_position(tauri::PhysicalPosition::new(new_x, new_y))
+        );
+    }
+}
+// clod:mode-window end
+
 /// 构建新的 WebView 窗口
 pub async fn build_new_window() -> Result<WebviewWindow, String> {
     let app_handle = handle::Handle::app_handle();
@@ -143,6 +261,10 @@ pub async fn build_new_window() -> Result<WebviewWindow, String> {
         Ok(window) => {
             logging_error!(Type::Window, window.set_background_color(Some(background_color)));
             restore_default_size_if_needed(&window);
+            // clod:mode-window — the window-state plugin restores one global
+            // size; the interface mode knows better what it needs, so the
+            // per-mode size (saved or default) wins before the window shows.
+            apply_window_size_for_mode(&window, effective_simple_mode().await).await;
             restore_position_if_offscreen(&window);
             // 全新窗口的页面即为最新状态，丢弃旧窗口遗留的待重载标记，避免多余 reload
             #[cfg(target_os = "macos")]

@@ -12,14 +12,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import {
-  Box,
-  List,
-  Menu,
-  MenuItem,
-  Paper,
-  ThemeProvider,
-} from '@mui/material'
+import { Box, List, Menu, MenuItem, Paper, ThemeProvider } from '@mui/material'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import type { CSSProperties } from 'react'
@@ -47,6 +40,7 @@ import {
 } from '@/components/layout/window-controller'
 import { HwidLimitDialog } from '@/components/profile/hwid-limit-dialog'
 import { useI18n } from '@/hooks/use-i18n'
+import { useModeWindowSize } from '@/hooks/use-mode-window-size'
 import { useSimpleMode } from '@/hooks/use-simple-mode'
 import { useVerge } from '@/hooks/use-verge'
 import { useVisibility } from '@/hooks/use-visibility'
@@ -146,6 +140,8 @@ const Layout = () => {
   // Nothing is unregistered — the routes stay live, so a deep link still works
   // and switching modes needs no restart.
   const { simpleMode } = useSimpleMode()
+  // clod:mode-window — a settled manual resize updates the active mode's slot
+  useModeWindowSize()
   const visibleNavItems = useMemo(
     () =>
       simpleMode
