@@ -48,6 +48,26 @@ export const groupType = (item: { type?: string } | undefined) =>
   (item?.type ?? '').toLowerCase()
 
 /**
+ * Internal placeholder names the core substitutes when a group has nothing
+ * real to point at (e.g. an untested urltest resolves to `COMPATIBLE`).
+ * They mean nothing to the user, so captions and flags must not show them.
+ */
+const INTERNAL_LEAF_NAMES = new Set(['COMPATIBLE', 'REJECT', 'REJECT-DROP', 'PASS'])
+
+/**
+ * The leaf worth showing next to a group: the resolved node, or `undefined`
+ * when the chain ends where it started or lands on a core placeholder.
+ */
+export const displayLeaf = (
+  records: Record<string, ProxyGroup | undefined>,
+  name: string,
+): string | undefined => {
+  const leaf = resolveLeaf(records, name)
+  if (leaf === name || INTERNAL_LEAF_NAMES.has(leaf)) return undefined
+  return leaf
+}
+
+/**
  * Groups worth showing to the user: everything the template author did not
  * hide — selectors and balancers alike, in the template's own order.
  *

@@ -1,6 +1,5 @@
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
 import {
-  alpha,
   Box,
   CircularProgress,
   IconButton,
@@ -47,10 +46,11 @@ export const ProviderHeader = ({ profile }: Props) => {
   // worth an impure render (and the watcher notifies about expiry anyway).
   const [now] = useState(() => Date.now())
   const expired = !!profile.extra?.expire && profile.extra.expire * 1000 < now
-  const letter = (profile.name ?? '?').trim().charAt(0).toUpperCase() || '?'
 
   return (
     <Stack direction="row" sx={{ alignItems: 'center', gap: 1.5 }}>
+      {/* clod: плитка — это лого бренда провайдера; нет лого — нет плитки.
+          Буквенный фолбэк спотыкался об эмодзи в имени (пол-суррогата → «?») */}
       {profile.logo ? (
         <Box
           component="img"
@@ -64,28 +64,7 @@ export const ProviderHeader = ({ profile }: Props) => {
             flex: 'none',
           }}
         />
-      ) : (
-        <Box
-          sx={(theme) => ({
-            width: 42,
-            height: 42,
-            borderRadius: '12px',
-            flex: 'none',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 20,
-            fontWeight: 800,
-            color: '#fff',
-            background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${alpha(
-              theme.palette.primary.dark,
-              0.9,
-            )})`,
-          })}
-        >
-          {letter}
-        </Box>
-      )}
+      ) : null}
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography noWrap sx={{ fontSize: 15, fontWeight: 700 }}>
           {profile.name}

@@ -33,11 +33,11 @@ import { nameWithoutFlag } from '@/utils/country'
 import { delayColor } from '@/utils/delay-color'
 import {
   AUTO_GROUP_TYPES,
+  displayLeaf,
   entryDelay,
   groupType,
   NON_NODE_TYPES,
   type ProxyNode,
-  resolveLeaf,
   SELECTABLE_GROUP_TYPES,
   visibleGroups,
 } from '@/utils/proxy-groups'
@@ -166,7 +166,8 @@ export const ServerSelect = ({ open, onClose }: Props) => {
     const delay = entryDelay(records, node.name, group?.name ?? '')
     const selected = group?.now === node.name
     const starred = favorites.has(node.name)
-    const leaf = isGroup ? resolveLeaf(records, node.name) : node.name
+    // clod: служебные имена ядра (COMPATIBLE и т.п.) в подписи не показываем
+    const leaf = isGroup ? displayLeaf(records, node.name) : undefined
 
     return (
       <ListItemButton
@@ -207,7 +208,7 @@ export const ServerSelect = ({ open, onClose }: Props) => {
           <Typography noWrap>{nameWithoutFlag(node.name)}</Typography>
           <Typography variant="caption" color="text.secondary" noWrap>
             {isGroup
-              ? leaf !== node.name
+              ? leaf
                 ? `${typeLabel(type)} · ${nameWithoutFlag(leaf)}`
                 : typeLabel(type)
               : node.type}
@@ -425,18 +426,20 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
   const group = visibleGroups(proxies)[0]
   const current = group?.now
   // The selection may be a balancer; the ping (and the flag) belong to the
-  // node the chain actually lands on.
-  const leaf = current ? resolveLeaf(records, current) : undefined
+  // node the chain actually lands on. Core placeholders (COMPATIBLE…) are
+  // hidden — the flag then falls back to the selection's own name.
+  const leaf = current ? displayLeaf(records, current) : undefined
+  const flagName = leaf ?? current
   const delay = current
     ? entryDelay(records, current, group?.name ?? '')
     : undefined
 
   const caption =
     delay !== undefined && delay > 0
-      ? leaf && leaf !== current
+      ? leaf
         ? `${nameWithoutFlag(leaf)} · ${delay} ${t('home.components.serverSelect.ms')}`
         : `${delay} ${t('home.components.serverSelect.ms')}`
-      : leaf && leaf !== current
+      : leaf
         ? nameWithoutFlag(leaf)
         : t('home.components.serverSelect.current')
 
@@ -460,7 +463,7 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
         '&:hover': { borderColor: 'primary.main' },
       }}
     >
-      {leaf ? <CountryFlag name={leaf} size={26} /> : null}
+      {flagName ? <CountryFlag name={flagName} size={26} /> : null}
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography noWrap sx={{ fontSize: 14, fontWeight: 700 }}>
           {current
