@@ -1,12 +1,6 @@
 import CalendarMonthRoundedIcon from '@mui/icons-material/CalendarMonthRounded'
 import DataUsageRoundedIcon from '@mui/icons-material/DataUsageRounded'
-import {
-  Box,
-  Button,
-  LinearProgress,
-  Stack,
-  Typography,
-} from '@mui/material'
+import { Box, Button, LinearProgress, Stack, Typography } from '@mui/material'
 import dayjs from 'dayjs'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -103,7 +97,8 @@ export const SubscriptionCard = ({ profile }: Props) => {
 
   const showRenew = Boolean(profile.renew_url)
   const showTopup = Boolean(profile.topup_url)
-  const expiryCritical = info.daysLeft !== undefined && info.daysLeft <= CRITICAL_DAYS
+  const expiryCritical =
+    info.daysLeft !== undefined && info.daysLeft <= CRITICAL_DAYS
 
   return (
     <Box

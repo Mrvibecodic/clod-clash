@@ -52,7 +52,12 @@ export const groupType = (item: { type?: string } | undefined) =>
  * real to point at (e.g. an untested urltest resolves to `COMPATIBLE`).
  * They mean nothing to the user, so captions and flags must not show them.
  */
-const INTERNAL_LEAF_NAMES = new Set(['COMPATIBLE', 'REJECT', 'REJECT-DROP', 'PASS'])
+const INTERNAL_LEAF_NAMES = new Set([
+  'COMPATIBLE',
+  'REJECT',
+  'REJECT-DROP',
+  'PASS',
+])
 
 /**
  * The leaf worth showing next to a group: the resolved node, or `undefined`

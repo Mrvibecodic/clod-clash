@@ -1,7 +1,4 @@
-import {
-  RestartAltRounded,
-  SystemUpdateAltRounded,
-} from '@mui/icons-material'
+import { RestartAltRounded, SystemUpdateAltRounded } from '@mui/icons-material'
 import {
   Box,
   Button,
@@ -230,7 +227,10 @@ export function ManagedCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
             <Typography variant="body2" color="text.secondary">
               {t('settings.modals.managedCore.running')}
             </Typography>
-            <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+            <Typography
+              variant="body2"
+              sx={{ fontVariantNumeric: 'tabular-nums' }}
+            >
               {status?.running ?? '—'}
             </Typography>
             {status?.managed_active ? (

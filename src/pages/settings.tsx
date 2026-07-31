@@ -57,10 +57,7 @@ const SettingPage = () => {
     >
       {/* clod: одна колонка «сверху простое, снизу сложное»:
           Система → Основные → Ядро → Инструменты → Расширенные */}
-      <Stack
-        spacing={1.5}
-        sx={{ maxWidth: 720, mx: 'auto', width: '100%' }}
-      >
+      <Stack spacing={1.5} sx={{ maxWidth: 720, mx: 'auto', width: '100%' }}>
         <Box
           sx={{
             borderRadius: 2,

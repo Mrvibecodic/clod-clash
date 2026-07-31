@@ -33,7 +33,8 @@ export const useSessionUptime = (connected: boolean): number | undefined => {
   useEffect(() => {
     if (!connected || sessionStartMs == null || !visible) return
 
-    const tick = () => setUptime(Math.max(0, (Date.now() - sessionStartMs) / 1000))
+    const tick = () =>
+      setUptime(Math.max(0, (Date.now() - sessionStartMs) / 1000))
 
     // The first tick goes through a zero timeout rather than a direct call:
     // a synchronous set inside an effect forces an extra render pass.

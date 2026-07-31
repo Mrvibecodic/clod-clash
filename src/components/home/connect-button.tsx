@@ -141,7 +141,9 @@ export const ConnectButton = ({
             state === 'on' && uptime !== undefined ? 'visible' : 'hidden',
         }}
       >
-        {state === 'on' && uptime !== undefined ? formatUptime(uptime) : '00:00'}
+        {state === 'on' && uptime !== undefined
+          ? formatUptime(uptime)
+          : '00:00'}
       </Typography>
 
       {state === 'error' && errorText ? (
