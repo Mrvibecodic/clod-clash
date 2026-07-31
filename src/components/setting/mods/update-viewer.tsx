@@ -133,11 +133,15 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
   // автопроверке (auto_check_update=false), и диалог оставался без данных:
   // «Новая версия v», пустой ченджлог и мёртвая кнопка Update. Открытый
   // диалог сам является поводом получить данные — независимо от флага.
+  // clod: каждое открытие — свежая проверка. Раньше здесь стоял staleTime
+  // в час, и SWR отдавал протухший null от проверки при старте приложения
+  // (до выхода релиза): диалог показывал «Новая версия v» с пустым телом
+  // и мёртвой кнопкой, хотя новая версия уже лежала в updater-манифесте.
   const { data: updateInfo } = useQuery({
     queryKey: ['checkUpdate'],
     queryFn: checkUpdateSafe,
     enabled: open,
-    staleTime: 60 * 60 * 1000,
+    revalidateOnMount: true,
     refetchOnWindowFocus: false,
   })
 

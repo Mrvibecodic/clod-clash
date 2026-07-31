@@ -41,8 +41,10 @@ export const useUpdate = (enabled: boolean = true) => {
     queryFn: fetchUpdate,
     enabled: shouldCheck,
     retry: 2,
-    staleTime: 60 * 60 * 1000,
-    refetchInterval: 24 * 60 * 60 * 1000,
+    // clod: релизы выходят часто — свежесть 10 минут и перепроверка каждые
+    // 3 часа, иначе запущенное приложение сутками не узнаёт об обновлении
+    staleTime: 10 * 60 * 1000,
+    refetchInterval: 3 * 60 * 60 * 1000,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: false,
   })
