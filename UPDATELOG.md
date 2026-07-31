@@ -8,6 +8,34 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.0.10-alpha
+
+<!-- lang:en -->
+
+### Fixed
+
+- The traffic progress bar no longer runs under the tile's background icon
+- The simple home screen fits its window again — no stray scrollbar
+- The refresh button in the header now confirms "Subscription updated" just like the advanced-mode tile
+
+### Changed
+
+- Changelogs and GitHub releases are now bilingual; the update dialog shows Russian for the Russian UI and English otherwise
+
+<!-- lang:ru -->
+
+### Исправлено
+
+- Полоска трафика больше не заезжает под фоновую иконку плитки
+- Простой режим снова помещается в окно — лишняя прокрутка исчезла
+- Кнопка обновления в шапке теперь показывает «Подписка обновлена», как плитка в расширенном режиме
+
+### Изменено
+
+- Ченджлоги и GitHub-релизы теперь двуязычные; окно обновления показывает русский текст при русском интерфейсе и английский в остальных случаях
+
+---
+
 ## v0.0.9-alpha
 
 <!-- lang:en -->
