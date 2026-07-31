@@ -1,5 +1,5 @@
 import SupportAgentRoundedIcon from '@mui/icons-material/SupportAgentRounded'
-import { Box, IconButton, Grid } from '@mui/material'
+import { Box, IconButton, Stack } from '@mui/material'
 import { useLockFn } from 'ahooks'
 import { useTranslation } from 'react-i18next'
 
@@ -55,57 +55,55 @@ const SettingPage = () => {
         ) : null
       }
     >
-      <Grid container spacing={1.5} columns={{ xs: 6, sm: 6, md: 12 }}>
-        <Grid size={6}>
-          <Box
-            sx={{
-              borderRadius: 2,
-              marginBottom: 1.5,
-              backgroundColor: isDark ? '#282a36' : '#ffffff',
-            }}
-          >
-            <SettingSystem onError={onError} />
-          </Box>
-          <Box
-            sx={{
-              borderRadius: 2,
-              marginBottom: 1.5,
-              backgroundColor: isDark ? '#282a36' : '#ffffff',
-            }}
-          >
-            <SettingClash onError={onError} />
-          </Box>
-          {/* clod:design-v2 — proxies/rules/connections/logs entrances,
-              moved here from the advanced home tiles */}
-          <Box
-            sx={{
-              borderRadius: 2,
-              backgroundColor: isDark ? '#282a36' : '#ffffff',
-            }}
-          >
-            <SettingTools />
-          </Box>
-        </Grid>
-        <Grid size={6}>
-          <Box
-            sx={{
-              borderRadius: 2,
-              marginBottom: 1.5,
-              backgroundColor: isDark ? '#282a36' : '#ffffff',
-            }}
-          >
-            <SettingVergeBasic onError={onError} />
-          </Box>
-          <Box
-            sx={{
-              borderRadius: 2,
-              backgroundColor: isDark ? '#282a36' : '#ffffff',
-            }}
-          >
-            <SettingVergeAdvanced onError={onError} />
-          </Box>
-        </Grid>
-      </Grid>
+      {/* clod: одна колонка «сверху простое, снизу сложное»:
+          Система → Основные → Ядро → Инструменты → Расширенные */}
+      <Stack
+        spacing={1.5}
+        sx={{ maxWidth: 720, mx: 'auto', width: '100%' }}
+      >
+        <Box
+          sx={{
+            borderRadius: 2,
+            backgroundColor: isDark ? '#282a36' : '#ffffff',
+          }}
+        >
+          <SettingSystem onError={onError} />
+        </Box>
+        <Box
+          sx={{
+            borderRadius: 2,
+            backgroundColor: isDark ? '#282a36' : '#ffffff',
+          }}
+        >
+          <SettingVergeBasic onError={onError} />
+        </Box>
+        <Box
+          sx={{
+            borderRadius: 2,
+            backgroundColor: isDark ? '#282a36' : '#ffffff',
+          }}
+        >
+          <SettingClash onError={onError} />
+        </Box>
+        {/* clod:design-v2 — proxies/rules/connections/logs entrances,
+            moved here from the advanced home tiles */}
+        <Box
+          sx={{
+            borderRadius: 2,
+            backgroundColor: isDark ? '#282a36' : '#ffffff',
+          }}
+        >
+          <SettingTools />
+        </Box>
+        <Box
+          sx={{
+            borderRadius: 2,
+            backgroundColor: isDark ? '#282a36' : '#ffffff',
+          }}
+        >
+          <SettingVergeAdvanced onError={onError} />
+        </Box>
+      </Stack>
     </BasePage>
   )
 }

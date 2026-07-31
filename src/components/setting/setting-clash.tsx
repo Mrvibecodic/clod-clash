@@ -173,6 +173,19 @@ const SettingClash = ({ onError }: Props) => {
         </GuardState>
       </SettingItem>
 
+      <SettingItem label={t('settings.sections.clash.form.fields.ipv6')}>
+        <GuardState
+          value={ipv6 ?? false}
+          valueProps="checked"
+          onCatch={onError}
+          onFormat={onSwitchFormat}
+          onChange={(e) => onChangeData({ ipv6: e })}
+          onGuard={(e) => patchClash({ ipv6: e })}
+        >
+          <Switch edge="end" />
+        </GuardState>
+      </SettingItem>
+
       <SettingItem
         label={t('settings.sections.clash.form.fields.dnsOverwrite')}
         extra={
@@ -187,19 +200,6 @@ const SettingClash = ({ onError }: Props) => {
           checked={dnsSettingsEnabled}
           onChange={(_, checked) => handleDnsToggle(checked)}
         />
-      </SettingItem>
-
-      <SettingItem label={t('settings.sections.clash.form.fields.ipv6')}>
-        <GuardState
-          value={ipv6 ?? false}
-          valueProps="checked"
-          onCatch={onError}
-          onFormat={onSwitchFormat}
-          onChange={(e) => onChangeData({ ipv6: e })}
-          onGuard={(e) => patchClash({ ipv6: e })}
-        >
-          <Switch edge="end" />
-        </GuardState>
       </SettingItem>
 
       <SettingItem

@@ -97,6 +97,38 @@ const SettingVergeBasic = ({ onError }: Props) => {
       <UpdateViewer ref={updateRef} />
       <BackupViewer ref={backupRef} />
 
+      {/* clod: простое и повседневное — сверху: язык и тема первыми */}
+      <SettingItem label={t('settings.components.verge.basic.fields.language')}>
+        <GuardState
+          value={language ?? 'en'}
+          onCatch={onError}
+          onFormat={(e: any) => e.target.value}
+          onChange={(e) => onChangeData({ language: e })}
+          onGuard={(e) => patchVerge({ language: e })}
+        >
+          <Select size="small" sx={{ width: 110, '> div': { py: '7.5px' } }}>
+            {languageOptions.map(({ code, label }) => (
+              <MenuItem key={code} value={code}>
+                {label}
+              </MenuItem>
+            ))}
+          </Select>
+        </GuardState>
+      </SettingItem>
+
+      <SettingItem
+        label={t('settings.components.verge.basic.fields.themeMode')}
+      >
+        <GuardState
+          value={theme_mode}
+          onCatch={onError}
+          onChange={(e) => onChangeData({ theme_mode: e })}
+          onGuard={(e) => patchVerge({ theme_mode: e })}
+        >
+          <ThemeModeSwitch />
+        </GuardState>
+      </SettingItem>
+
       {/* clod: advanced mode is an honest switch, not a hidden gesture */}
       <SettingItem
         label={t('settings.components.verge.basic.fields.advancedMode')}
@@ -186,37 +218,6 @@ const SettingVergeBasic = ({ onError }: Props) => {
         </GuardState>
       </SettingItem>
 
-      <SettingItem label={t('settings.components.verge.basic.fields.language')}>
-        <GuardState
-          value={language ?? 'en'}
-          onCatch={onError}
-          onFormat={(e: any) => e.target.value}
-          onChange={(e) => onChangeData({ language: e })}
-          onGuard={(e) => patchVerge({ language: e })}
-        >
-          <Select size="small" sx={{ width: 110, '> div': { py: '7.5px' } }}>
-            {languageOptions.map(({ code, label }) => (
-              <MenuItem key={code} value={code}>
-                {label}
-              </MenuItem>
-            ))}
-          </Select>
-        </GuardState>
-      </SettingItem>
-
-      <SettingItem
-        label={t('settings.components.verge.basic.fields.themeMode')}
-      >
-        <GuardState
-          value={theme_mode}
-          onCatch={onError}
-          onChange={(e) => onChangeData({ theme_mode: e })}
-          onGuard={(e) => patchVerge({ theme_mode: e })}
-        >
-          <ThemeModeSwitch />
-        </GuardState>
-      </SettingItem>
-
       {OS !== 'linux' && (
         <SettingItem
           label={t('settings.components.verge.basic.fields.trayClickEvent')}
@@ -252,6 +253,49 @@ const SettingVergeBasic = ({ onError }: Props) => {
       )}
 
       <SettingItem
+        label={t('settings.components.verge.basic.fields.startPage')}
+      >
+        <GuardState
+          value={start_page ?? '/'}
+          onCatch={onError}
+          onFormat={(e: any) => e.target.value}
+          onChange={(e) => onChangeData({ start_page: e })}
+          onGuard={(e) => patchVerge({ start_page: e })}
+        >
+          <Select size="small" sx={{ width: 140, '> div': { py: '7.5px' } }}>
+            {Object.values(navigationItems).map((page) => {
+              return (
+                <MenuItem key={page.path} value={page.path}>
+                  {t(page.label)}
+                </MenuItem>
+              )
+            })}
+          </Select>
+        </GuardState>
+      </SettingItem>
+
+      <SettingItem
+        onClick={() => themeRef.current?.open()}
+        label={t('settings.components.verge.basic.fields.themeSetting')}
+      />
+
+      <SettingItem
+        onClick={() => layoutRef.current?.open()}
+        label={t('settings.components.verge.basic.fields.layoutSetting')}
+      />
+
+      <SettingItem
+        onClick={() => miscRef.current?.open()}
+        label={t('settings.components.verge.basic.fields.misc')}
+      />
+
+      <SettingItem
+        onClick={() => hotkeyRef.current?.open()}
+        label={t('settings.components.verge.basic.fields.hotkeySetting')}
+      />
+
+      {/* clod: гиковское — в самый низ секции */}
+      <SettingItem
         label={t('settings.components.verge.basic.fields.copyEnvType')}
         extra={
           <TooltipIcon icon={ContentCopyRounded} onClick={onCopyClashEnv} />
@@ -270,28 +314,6 @@ const SettingVergeBasic = ({ onError }: Props) => {
             <MenuItem value="nushell">Nushell</MenuItem>
             <MenuItem value="cmd">CMD</MenuItem>
             <MenuItem value="powershell">PowerShell</MenuItem>
-          </Select>
-        </GuardState>
-      </SettingItem>
-
-      <SettingItem
-        label={t('settings.components.verge.basic.fields.startPage')}
-      >
-        <GuardState
-          value={start_page ?? '/'}
-          onCatch={onError}
-          onFormat={(e: any) => e.target.value}
-          onChange={(e) => onChangeData({ start_page: e })}
-          onGuard={(e) => patchVerge({ start_page: e })}
-        >
-          <Select size="small" sx={{ width: 140, '> div': { py: '7.5px' } }}>
-            {Object.values(navigationItems).map((page) => {
-              return (
-                <MenuItem key={page.path} value={page.path}>
-                  {t(page.label)}
-                </MenuItem>
-              )
-            })}
           </Select>
         </GuardState>
       </SettingItem>
@@ -348,26 +370,6 @@ const SettingVergeBasic = ({ onError }: Props) => {
           ></Input>
         </GuardState>
       </SettingItem>
-
-      <SettingItem
-        onClick={() => themeRef.current?.open()}
-        label={t('settings.components.verge.basic.fields.themeSetting')}
-      />
-
-      <SettingItem
-        onClick={() => layoutRef.current?.open()}
-        label={t('settings.components.verge.basic.fields.layoutSetting')}
-      />
-
-      <SettingItem
-        onClick={() => miscRef.current?.open()}
-        label={t('settings.components.verge.basic.fields.misc')}
-      />
-
-      <SettingItem
-        onClick={() => hotkeyRef.current?.open()}
-        label={t('settings.components.verge.basic.fields.hotkeySetting')}
-      />
     </SettingList>
   )
 }

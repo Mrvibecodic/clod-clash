@@ -194,11 +194,11 @@
           "liteMode": "关闭 GUI 界面，仅保留内核运行"
         },
         "actions": {
-          "copyVersion": "复制 Verge 版本号"
+          "copyVersion": "复制 Clod 版本号"
         },
         "notifications": {
           "latestVersion": "当前已是最新版本",
-          "versionCopied": "Verge 版本已复制到剪贴板"
+          "versionCopied": "Clod 版本已复制到剪贴板"
         },
         "fields": {
           "backupSetting": "备份设置",
@@ -211,7 +211,7 @@
           "liteModeSettings": "轻量模式设置",
           "exit": "退出",
           "exportDiagnostics": "导出诊断信息",
-          "vergeVersion": "Verge 版本"
+          "vergeVersion": "Clod 版本"
         }
       },
       "theme": {

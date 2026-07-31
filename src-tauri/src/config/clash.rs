@@ -72,7 +72,9 @@ impl IClashTemp {
         map.insert("port".into(), network::ports::DEFAULT_HTTP.into());
         map.insert("log-level".into(), "info".into());
         map.insert("allow-lan".into(), false.into());
-        map.insert("ipv6".into(), true.into());
+        // clod: IPv6 выключен по умолчанию на десктопе — у многих провайдеров
+        // v6-маршрут битый, а ядро при включённом ipv6 честно в него ходит
+        map.insert("ipv6".into(), false.into());
         map.insert("mode".into(), "rule".into());
         map.insert(
             "external-controller".into(),
