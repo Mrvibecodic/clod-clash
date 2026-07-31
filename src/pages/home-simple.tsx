@@ -13,6 +13,7 @@ import {
 import { ProviderBanners } from '@/components/home/provider-banners'
 import { ProviderHeader } from '@/components/home/provider-header'
 import { ServerSelect, ServerSelectRow } from '@/components/home/server-select'
+import { SessionTraffic } from '@/components/home/session-traffic'
 import { SubscriptionCard } from '@/components/home/subscription-card'
 import { useConnectTargets } from '@/hooks/use-connect-targets'
 import { useProfiles } from '@/hooks/use-profiles'
@@ -153,7 +154,7 @@ const HomeSimplePage = () => {
 
         <ProviderBanners profile={current} onChanged={mutateProfiles} />
 
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'center', pt: 2, pb: 1 }}>
           <ConnectButton
             state={state}
             uptime={uptime}
@@ -161,6 +162,9 @@ const HomeSimplePage = () => {
             onToggle={() => void toggle()}
           />
         </Box>
+
+        {/* clod: session totals (downloaded/uploaded since the core started) */}
+        <SessionTraffic />
 
         <ServerSelectRow onOpen={() => setServerOpen(true)} />
         <ServerSelect open={serverOpen} onClose={() => setServerOpen(false)} />

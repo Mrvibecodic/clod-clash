@@ -73,6 +73,29 @@ export const NetCard = () => {
       >
         <EnhancedCanvasTrafficGraph ref={trafficRef} minimal />
       </Box>
+      {/* clod: session totals — what actually went through since the core
+          started, next to the momentary speeds above */}
+      <Stack
+        direction="row"
+        sx={{
+          gap: 0.75,
+          alignItems: 'center',
+          fontVariantNumeric: 'tabular-nums',
+        }}
+      >
+        <Typography variant="caption" color="text.secondary">
+          {t('home.components.net.session')}:
+        </Typography>
+        <Typography variant="caption" color="text.secondary">
+          ↓ {parseTraffic(traffic?.downTotal ?? 0).join(' ')}
+        </Typography>
+        <Typography variant="caption" color="text.disabled">
+          ·
+        </Typography>
+        <Typography variant="caption" color="text.secondary">
+          ↑ {parseTraffic(traffic?.upTotal ?? 0).join(' ')}
+        </Typography>
+      </Stack>
     </Stack>
   )
 }
