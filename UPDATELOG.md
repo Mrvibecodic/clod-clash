@@ -8,6 +8,28 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.0.11-alpha
+
+<!-- lang:en -->
+
+### Fixed
+
+- The update dialog no longer shows a stale empty "New version" screen: opening it always runs a fresh check instead of reusing the result cached at app start
+- A found update now announces itself — the update dialog opens automatically (once per version per app run); previously the only notification lived in a hidden sidebar
+- The app re-checks for updates every 3 hours while running instead of once a day
+- Server list polish that missed 0.0.10: the active entry says "In use", a failed delay test shows a dash instead of "1000000 ms", group chips carry the country flag of the resolved node
+
+<!-- lang:ru -->
+
+### Исправлено
+
+- Окно обновления больше не показывает пустую «Новую версию»: каждое открытие запускает свежую проверку вместо результата, закэшированного при старте приложения
+- Найденное обновление теперь само даёт о себе знать — окно обновления открывается автоматически (один раз за версию на запуск); раньше единственное уведомление жило в скрытой боковой панели
+- Работающее приложение перепроверяет обновления каждые 3 часа, а не раз в сутки
+- Полировка списка серверов, не попавшая в 0.0.10: активная строка подписана «Используется», проваленный тест показывает прочерк вместо «1000000 мс», у чипов групп — флаг страны выбранного узла
+
+---
+
 ## v0.0.10-alpha
 
 <!-- lang:en -->
