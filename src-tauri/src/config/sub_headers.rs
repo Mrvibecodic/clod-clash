@@ -177,8 +177,8 @@ impl SubHeaders {
 
         Self {
             profile_title: value(headers, "profile-title"),
-            profile_logo: value(headers, "profile-logo").and_then(|raw| http_url(&raw)),
-            home: value(headers, "profile-web-page-url"),
+            profile_logo: value(headers, "profile-logo").and_then(|raw| https_url(&raw)),
+            home: value(headers, "profile-web-page-url").and_then(|raw| https_url(&raw)),
             support_url: value(headers, "support-url").and_then(|raw| contact_url(&raw)),
             announce: value(headers, "announce").map(|text| truncate_chars(&text, ANNOUNCE_MAX_CHARS)),
             announce_url: value(headers, "announce-url").and_then(|raw| https_url(&raw)),
@@ -197,11 +197,11 @@ impl SubHeaders {
             simple_mode: bool_value(headers, "clod-simple-mode")
                 .or_else(|| bool_value(headers, "pxa-simple-mode"))
                 .or_else(|| bool_value(headers, "flclashx-newboard")),
-            portal_url: value(headers, "clod-portal-url").and_then(|raw| http_url(&raw)),
+            portal_url: value(headers, "clod-portal-url").and_then(|raw| https_url(&raw)),
             promo: value(headers, "clod-promo").map(|text| truncate_chars(&text, ANNOUNCE_MAX_CHARS)),
             promo_url: value(headers, "clod-promo-url").and_then(|raw| https_url(&raw)),
-            renew_url: value(headers, "clod-renew-url").and_then(|raw| http_url(&raw)),
-            topup_url: value(headers, "clod-topup-url").and_then(|raw| http_url(&raw)),
+            renew_url: value(headers, "clod-renew-url").and_then(|raw| https_url(&raw)),
+            topup_url: value(headers, "clod-topup-url").and_then(|raw| https_url(&raw)),
             // `global-mode: false` means "hide the mode switch" for Prizrak-Box
             // configured panels, which is exactly our lock.
             lock_mode: bool_value(headers, "clod-lock-mode")
@@ -358,22 +358,12 @@ fn thresholds(raw: &str, min: u32, max: u32) -> Option<Vec<u32>> {
     (!values.is_empty()).then_some(values)
 }
 
-/// Keep only values that are usable `http`/`https` links.
+/// Strictly-https validation for every link and logo the panel sends.
 ///
-/// Used for the logo and announce links: the UI loads or opens them, so a
-/// `javascript:` or `file:` value from a compromised panel must never survive.
-fn http_url(value: &str) -> Option<String> {
-    let parsed = tauri::Url::parse(value.trim()).ok()?;
-    if !matches!(parsed.scheme(), "http" | "https") {
-        return None;
-    }
-    parsed.host_str().filter(|host| !host.is_empty())?;
-    Some(parsed.as_str().into())
-}
-
-/// Strictly-https variant for the banner links (`announce-url`,
-/// `clod-promo-url`): they open on a single click from a message the panel
-/// fully controls, so plain http is not accepted there at all.
+/// The UI loads or opens these values on a single click from content the
+/// panel fully controls, so `javascript:`, `file:` **and plain `http:`** must
+/// never survive: an http link is both a downgrade and a marker of a
+/// misconfigured panel.
 fn https_url(value: &str) -> Option<String> {
     let parsed = tauri::Url::parse(value.trim()).ok()?;
     if parsed.scheme() != "https" {
@@ -383,13 +373,14 @@ fn https_url(value: &str) -> Option<String> {
     Some(parsed.as_str().into())
 }
 
-/// Like `http_url`, plus the contact schemes a support link legitimately
-/// uses. The value ends up behind a prominent one-click button, so a
-/// compromised panel must not be able to smuggle `file:` or a UNC path in.
+/// Like `https_url`, plus the contact schemes a support link legitimately
+/// uses (`tg:`, `mailto:`). The value ends up behind a prominent one-click
+/// button, so a compromised panel must not be able to smuggle `file:`, a UNC
+/// path or a plain-http downgrade in.
 fn contact_url(value: &str) -> Option<String> {
     let parsed = tauri::Url::parse(value.trim()).ok()?;
     match parsed.scheme() {
-        "http" | "https" => {
+        "https" => {
             parsed.host_str().filter(|host| !host.is_empty())?;
         }
         "tg" | "mailto" => {}
@@ -593,7 +584,7 @@ mod tests {
         let parsed = SubHeaders::parse(&headers(&[("profile-web-page-url", "https://panel.example/sub/abc")]));
         assert_eq!(parsed.portal_url, None);
 
-        // Action URLs go through the same http(s) filter as the logo.
+        // Action URLs go through the same https-only filter as the logo.
         let parsed = SubHeaders::parse(&headers(&[
             ("clod-renew-url", "javascript:alert(1)"),
             ("clod-topup-url", "tg://resolve?domain=x"),
@@ -638,6 +629,41 @@ mod tests {
         assert_eq!(parsed.promo_url.as_deref(), Some("https://p.example/sale"));
         // `clod-renew-url` must never be picked up as a `new-url` migration.
         assert_eq!(parsed.new_url, None);
+    }
+
+    #[test]
+    fn every_link_header_requires_https() {
+        // clod: голый http запрещён во ВСЕХ URL-хедерах (решение 31.07) —
+        // это и защита от даунгрейда, и маркер кривой настройки панели.
+        let parsed = SubHeaders::parse(&headers(&[
+            ("profile-logo", "http://cdn.example/logo.png"),
+            ("profile-web-page-url", "http://panel.example/home"),
+            ("support-url", "http://help.example/chat"),
+            ("clod-portal-url", "http://my.provider.example/cabinet"),
+            ("clod-renew-url", "http://my.provider.example/renew"),
+            ("clod-topup-url", "http://my.provider.example/topup"),
+        ]));
+        assert_eq!(parsed.profile_logo, None);
+        assert_eq!(parsed.home, None);
+        assert_eq!(parsed.support_url, None);
+        assert_eq!(parsed.portal_url, None);
+        assert_eq!(parsed.renew_url, None);
+        assert_eq!(parsed.topup_url, None);
+
+        // https-versions of the same values survive untouched.
+        let parsed = SubHeaders::parse(&headers(&[
+            ("profile-logo", "https://cdn.example/logo.png"),
+            ("profile-web-page-url", "https://panel.example/home"),
+            ("support-url", "https://help.example/chat"),
+            ("clod-portal-url", "https://my.provider.example/cabinet"),
+        ]));
+        assert_eq!(parsed.profile_logo.as_deref(), Some("https://cdn.example/logo.png"));
+        assert_eq!(parsed.home.as_deref(), Some("https://panel.example/home"));
+        assert_eq!(parsed.support_url.as_deref(), Some("https://help.example/chat"));
+        assert_eq!(
+            parsed.portal_url.as_deref(),
+            Some("https://my.provider.example/cabinet")
+        );
     }
 
     #[test]
