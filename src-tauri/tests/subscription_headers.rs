@@ -110,8 +110,13 @@ async fn identity_headers_go_out_and_panel_headers_come_back() {
     assert!(request.contains("x-device-os: linux"), "{request}");
     assert!(request.contains("accept: */*"), "{request}");
     // The panel matches the fork token case-sensitively in its SRR rules.
-    assert!(request.contains("user-agent: clodclash/"), "{request}");
-    assert!(request.contains("(mihomo; "), "{request}");
+    // koala-style plain `name/version` — no `(Mihomo; os)` suffix anymore,
+    // so the panel's device list shows the client version cleanly.
+    assert!(
+        request.contains(&format!("user-agent: clodclash/{}", env!("CARGO_PKG_VERSION"))),
+        "{request}"
+    );
+    assert!(!request.contains("(mihomo"), "{request}");
 
     // --- incoming ---
     assert!(response.status().is_success());
