@@ -25,6 +25,12 @@ env:
   CARGO_INCREMENTAL: 0
   RUST_BACKTRACE: short
   HUSKY: 0
+  # Быстрее собираем релиз в CI: у корневого профиля codegen-units=1 и
+  # debug=1 — это самая дорогая (последовательная) часть компиляции.
+  # Переопределяем только для CI: бинарь чуть больше/чуть медленнее,
+  # для альфы неважно, а виндовый джоб перестаёт упираться в один поток.
+  CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 16
+  CARGO_PROFILE_RELEASE_DEBUG: 0
 
 concurrency:
   group: '${{ github.workflow }} - ${{ github.head_ref || github.ref }}'
