@@ -39,6 +39,7 @@ import {
   displayLeaf,
   entryDelay,
   groupType,
+  hasRealNodes,
   isCorePlaceholder,
   NON_NODE_TYPES,
   type ProxyNode,
@@ -113,15 +114,12 @@ export const ServerSelect = ({ open, onClose }: Props) => {
     }
   })
 
-  // Тот же вопрос, что и в строке на главной: есть ли к чему подключаться.
-  // `DIRECT` и служебные имена ядра сервером не считаются.
+  // Тот же вопрос, что и в строке на главной, и ровно тем же способом: есть ли
+  // во всём конфиге хоть один настоящий сервер. Пока `proxies` не загружены
+  // (старт приложения, рестарт ядра) — молчим: пустота ещё ничего не значит.
   const { show: noServers, onlySentinels } = useNoServersStatus(current)
-  const realNodeCount = (group?.all ?? []).filter((node) => {
-    const type = groupType(records[node.name] ?? node)
-    return !isCorePlaceholder(node.name) && !NON_NODE_TYPES.has(type)
-  }).length
-  const showStatus =
-    noServers && (onlySentinels || (Boolean(proxies) && realNodeCount === 0))
+  const listEmpty = Boolean(proxies) && !hasRealNodes(proxies)
+  const showStatus = noServers && (onlySentinels || listEmpty)
 
   const nodes = useMemo(() => {
     // clod: core placeholders (`REJECT`…) are what a group is left with once
@@ -552,15 +550,11 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
     show: noServers,
     onlySentinels,
   } = useNoServersStatus(currentProfile)
-  // Настоящими серверами считаем только узлы: `DIRECT` и служебные имена ядра
-  // остаются в группе и после чистки заглушек, но подключаться к ним нечем.
-  const realNodes = (group?.all ?? []).filter((node) => {
-    const type = groupType(records[node.name] ?? node)
-    return !isCorePlaceholder(node.name) && !NON_NODE_TYPES.has(type)
-  })
-  // `proxies` ещё не загружены (старт приложения, рестарт ядра) — молчим:
-  // отсутствие групп в этот момент не значит, что серверов нет.
-  const listEmpty = Boolean(proxies) && Boolean(group) && realNodes.length === 0
+  // Настоящими серверами считаем только узлы, и по всему конфигу сразу:
+  // `DIRECT` и служебные имена ядра остаются в группе и после чистки заглушек,
+  // но подключаться к ним нечем. `proxies` ещё не загружены (старт приложения,
+  // рестарт ядра) — молчим: отсутствие групп в этот момент ничего не значит.
+  const listEmpty = Boolean(proxies) && !hasRealNodes(proxies)
   const statusRow = noServers && (listEmpty || onlySentinels)
   const refillDate = currentProfile?.refill_date
     ? dayjs(toUnixSeconds(currentProfile.refill_date) * 1000).format(

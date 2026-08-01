@@ -16,9 +16,29 @@ export interface DelayUpdate {
 
 const CACHE_TTL = 30 * 60 * 1000
 
+/** Used when neither the user, the template nor the settings named a URL. */
+const BUILTIN_TEST_URL = 'http://cp.cloudflare.com/generate_204'
+
 class DelayManager {
   private cache = new Map<string, DelayUpdate>()
+
+  /**
+   * URL, выбранный пользователем для конкретной группы (страница «Прокси»).
+   * Живёт до тех пор, пока пользователь его не сменит.
+   */
   private urlMap = new Map<string, string>()
+
+  /**
+   * clod: URL групп, вычитанные из работающего конфига (`proxy-groups[].url`).
+   *
+   * Отдельная карта, а не общая с пользовательской: конфиг перечитывается
+   * целиком при каждой смене профиля, и замена этой карты не должна стирать
+   * выбор, который пользователь сделал руками.
+   */
+  private configUrlMap = new Map<string, string>()
+
+  /** `verge.default_latency_test` — общий запасной адрес. */
+  private defaultUrl = BUILTIN_TEST_URL
 
   // 每个节点的监听
   private listenerMap = new Map<string, (update: DelayUpdate) => void>()
@@ -108,23 +128,34 @@ class DelayManager {
   }
 
   /**
-   * clod: заменить карту URL целиком.
+   * clod: заменить URL, вычитанные из конфига, целиком.
    *
    * Именно заменить, а не дополнить: при смене профиля группа с тем же именем,
    * но без своего `url:`, не должна унаследовать адрес из прошлого профиля —
-   * иначе и тест, и чтение истории пойдут не туда.
+   * иначе и тест, и чтение истории пойдут не туда. Пользовательских URL это
+   * не касается, они в другой карте.
    */
-  replaceUrls(urls: Map<string, string>) {
-    this.urlMap = new Map(urls)
+  replaceConfigUrls(urls: Map<string, string>) {
+    this.configUrlMap = new Map(urls)
   }
 
+  /** Общий запасной адрес из настроек. Пустое значение возвращает встроенный. */
+  setDefaultUrl(url?: string) {
+    this.defaultUrl = url?.trim() || BUILTIN_TEST_URL
+  }
+
+  /**
+   * Адрес, по которому эту группу и надо проверять.
+   *
+   * Порядок: выбор пользователя для этой группы → `url:` группы из конфига →
+   * общий адрес из настроек → встроенный. Одно место на всё приложение: если
+   * тест и чтение истории разойдутся в адресе, пинг покажется как «—».
+   */
   getUrl(group: string) {
-    const url = this.urlMap.get(group)
-    debugLog(
-      `[DelayManager] 获取测试URL，组: ${group}, URL: ${url || '未设置'}`,
-    )
-    // 如果未设置URL，返回默认URL
-    return url || 'http://cp.cloudflare.com/generate_204'
+    const url =
+      this.urlMap.get(group) ?? this.configUrlMap.get(group) ?? this.defaultUrl
+    debugLog(`[DelayManager] 获取测试URL，组: ${group}, URL: ${url}`)
+    return url
   }
 
   setListener(
@@ -209,10 +240,7 @@ class DelayManager {
     // провайдера), и ядро складывает такие замеры не в `history`, а в
     // `extra[url]`. Без этого «Тест» показывал пинг до дефолтного адреса —
     // то есть не то, что реально происходит с YouTube-группой.
-    const groupUrl = this.urlMap.get(group)
-    const extraEntry = groupUrl
-      ? proxy.extra?.[groupUrl]?.history?.at(-1)
-      : undefined
+    const extraEntry = proxy.extra?.[this.getUrl(group)]?.history?.at(-1)
     const historyEntry = proxy.history?.at(-1)
 
     // Берём более свежий замер: старая запись в `extra` не должна перебивать

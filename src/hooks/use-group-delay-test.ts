@@ -6,7 +6,6 @@ import { useProfiles } from '@/hooks/use-profiles'
 import { useProxySelection } from '@/hooks/use-proxy-selection'
 import { useAppRefreshers } from '@/providers/app-data-context'
 import { restoreSelectedNodes } from '@/services/cmds'
-import delayManager from '@/services/delay'
 import { showNotice } from '@/services/notice-service'
 import { nameWithoutFlag } from '@/utils/country'
 import { SELECTABLE_GROUP_TYPES } from '@/utils/proxy-groups'
@@ -28,12 +27,16 @@ export const useGroupDelayTest = () => {
   const { current } = useProfiles()
   const { refreshProxy } = useAppRefreshers()
   const { urlFor } = useGroupTestUrls()
-  const { changeProxy } = useProxySelection({
-    onSuccess: () => {
-      refreshProxy().catch(() => {})
-    },
-    onError: (error) => showNotice.error(error),
-  })
+
+  // clod: обработчики обязаны быть стабильными. `useProxySelection` держит их
+  // в зависимостях `changeProxy`, а на нём висит вся цепочка до колбэка,
+  // который вызывает отложенный автотест: инлайновые стрелки пересоздавали бы
+  // её на каждом рендере, и таймер на 800 мс сбрасывался бы, не досчитав.
+  const onSuccess = useCallback(() => {
+    refreshProxy().catch(() => {})
+  }, [refreshProxy])
+  const onError = useCallback((error: unknown) => showNotice.error(error), [])
+  const { changeProxy } = useProxySelection({ onSuccess, onError })
 
   const favorites = current?.favorites
 
@@ -77,10 +80,10 @@ export const useGroupDelayTest = () => {
     async (groupName: string) => {
       try {
         // clod: у каждой группы шаблона свой `url:` — тестируем YouTube-группу
-        // по YouTube, а не по общему generate_204. Адрес запоминаем в
-        // delayManager: по нему же читается история замеров (`extra[url]`).
+        // по YouTube, а не по общему generate_204. Адрес спрашиваем у
+        // delayManager, а не записываем в него: по нему же он потом читает
+        // историю замеров (`extra[url]`), и разойтись они не должны.
         const testUrl = urlFor(groupName)
-        delayManager.setUrl(groupName, testUrl)
         const delays = await delayGroup(
           groupName,
           testUrl,

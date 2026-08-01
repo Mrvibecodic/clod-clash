@@ -6,15 +6,16 @@ use tauri::{AppHandle, Manager as _};
 
 /// clod: отчёт для поддержки — собрать и положить в буфер обмена.
 ///
-/// Возвращает тот же текст, что скопирован: диалог ошибки показывает по нему
-/// первые строки, а пользователь может вставить целиком куда угодно.
+/// Возвращает только размер: интерфейсу сам текст не нужен — он уже в буфере, —
+/// а отдавать наружу состояние подписки и хвосты логов лишний раз незачем.
 #[tauri::command]
-pub async fn copy_support_bundle(app: AppHandle, lines: Option<usize>) -> CmdResult<String> {
+pub async fn copy_support_bundle(app: AppHandle, lines: Option<usize>) -> CmdResult<usize> {
     use tauri_plugin_clipboard_manager::ClipboardExt as _;
 
     let bundle = crate::module::support_bundle::build(lines).await.stringify_err()?;
-    app.clipboard().write_text(bundle.clone()).stringify_err()?;
-    Ok(bundle.into())
+    let size = bundle.len();
+    app.clipboard().write_text(bundle).stringify_err()?;
+    Ok(size)
 }
 
 /// 打开应用程序所在目录

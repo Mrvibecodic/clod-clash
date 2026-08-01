@@ -158,10 +158,16 @@ impl SubHeaders {
         let hwid_not_supported = flag(headers, "x-hwid-not-supported");
         let hwid_active = flag(headers, "x-hwid-active");
 
-        let hwid_state = if hwid_limit {
-            HwidState::LimitReached
-        } else if hwid_not_supported {
+        // `x-hwid-not-supported` идёт первым намеренно. Remnawave 3.x в ветке
+        // блокировки по устройствам ставит `x-hwid-limit: true` **всегда**, а
+        // `x-hwid-max-devices-reached` — только при настоящем превышении. Пара
+        // «not-supported + limit» означает «клиент не прислал идентификатор», и
+        // пользователю надо предложить включить его, а не сообщать о лимите,
+        // которого он не достигал.
+        let hwid_state = if hwid_not_supported {
             HwidState::NotSupported
+        } else if hwid_limit {
+            HwidState::LimitReached
         } else if hwid_active {
             HwidState::Active
         } else {
@@ -893,6 +899,15 @@ mod tests {
         // A false-ish flag must not trip anything.
         let parsed = SubHeaders::parse(&headers(&[("x-hwid-limit", "false")]));
         assert_eq!(parsed.hwid_state, HwidState::Unknown);
+
+        // Remnawave шлёт `x-hwid-limit` в обеих ветках блокировки, поэтому
+        // «идентификатор не прислан» должен побеждать: пользователю надо
+        // предложить включить идентификацию, а не сообщить о чужом лимите.
+        let parsed = SubHeaders::parse(&headers(&[
+            ("x-hwid-not-supported", "true"),
+            ("x-hwid-limit", "true"),
+        ]));
+        assert_eq!(parsed.hwid_state, HwidState::NotSupported);
     }
 
     #[test]

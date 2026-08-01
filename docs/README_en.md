@@ -73,7 +73,7 @@ default). Turning it off stops all of them.
 | Header | Meaning | What the app does |
 | --- | --- | --- |
 | `profile-title` | plan name | sets the profile name. A name the user typed is never overwritten |
-| `profile-logo` | provider logo URL | downloaded on every subscription update and kept locally: the logo does not blink on a cold start, works offline and is not pulled from a third-party host on every screen. A subscription added before the cache existed fetches it once, on first show. `png`, `jpeg`, `webp`, `avif`, `gif`, `svg`, `bmp` and `ico` of at most 2 MiB are stored; anything else is not cached and the logo is loaded from the provider URL as before. `https` only |
+| `profile-logo` | provider logo URL | downloaded on every subscription update and kept locally: the logo does not blink on a cold start, works offline and is not pulled from a third-party host on every screen. A subscription added before the cache existed fetches it once, on first show. The fetch goes through the app's own core first and only then by the ordinary route — a decoration is not worth handing a third-party host the real address. `png`, `jpeg`, `webp`, `avif`, `gif`, `svg`, `bmp` and `ico` of at most 2 MiB are stored; anything else is not cached and the logo is loaded from the provider URL as before. `https` only, redirects included: a header cannot walk the client onto `http://` or into the local network |
 | `subscription-userinfo` | `upload`, `download`, `total`, `expire` | traffic and expiry on the subscription card. `total=0` → "Unlimited", `expire=0` → "No expiry" |
 | `subscription-refill-date` | unix time of the traffic reset | "Traffic resets on {date}" |
 | `profile-update-interval` | refresh interval in hours | sets the interval and marks it as dictated by the provider, so the user cannot override it |
@@ -118,9 +118,9 @@ arrives without a migration request.
 | Header | Meaning | What the app does |
 | --- | --- | --- |
 | `x-hwid-active` | the device is registered | nothing, informational |
-| `x-hwid-not-supported` | the panel wants an id the client did not send | dialog: "The provider requires device identification. Turn it on?" |
+| `x-hwid-not-supported` | the panel wants an id the client did not send | dialog: "The provider requires device identification. Turn it on?". Outranks `x-hwid-limit`, which Remnawave sets in both blocking branches — without that precedence the user would be told about a limit they never hit |
 | `x-hwid-max-devices-reached`<br>`x-hwid-limit` | device limit is full | dialog with the text from `announce` and a "Support" button. **A working profile is never overwritten** — the panel's body is a stub in this case |
-| `x-hwid-max-devices` | how many devices are allowed | filled into the dialog text |
+| `x-hwid-max-devices` | how many devices are allowed | filled into the dialog text. Remnawave 3.x does not send it — without it the dialog simply has no number |
 
 **Reminders**
 
@@ -189,10 +189,17 @@ The check is structural (address, port, nil identifier), not name-based — pane
 those names and change them at will. A loopback address (`127.0.0.1`) is **not** treated as
 a placeholder: a local relay is a legitimate setup.
 
-When a group ends up with no nodes at all, the client puts `REJECT` in it: the core rejects
-an empty group, and `DIRECT` would leak traffic around the tunnel. Two kinds of group are
-left alone: one that fills itself at runtime (`use:`, `include-all`, `include-all-proxies`,
-`include-all-providers` — the core will populate it), and one with no `proxies` key at all.
+When a group ends up with no nodes at all, the client puts `REJECT` in it: mihomo answers an
+empty group with `` `use` or `proxies` missing `` and refuses to start, and `DIRECT` would
+leak traffic around the tunnel. The check runs last, after dangling references are cleaned
+up, and does not depend on a placeholder having been found: a panel can simply send an empty
+`proxies` while the group's member names come from the template — same outcome.
+
+The only groups left alone are the ones the core fills itself: `include-all` or
+`include-all-proxies` (mihomo drops `COMPATIBLE` into those), `include-all-providers` when
+at least one `proxy-providers` entry exists, and `use:` naming a provider that is actually
+declared. `include-all-providers` with no providers does not save a group — it gets `REJECT`
+like any other.
 
 Instead of a silent empty list the app shows **why** there is nothing to connect to, derived
 from `subscription-userinfo` (which stays truthful in these responses):
@@ -248,13 +255,26 @@ message. The clipboard gets a ready-made text:
 * what the sentinel filter dropped last time;
 * the tail of the app log and of the core log (800 lines each, across rotated files).
 
-**Secrets are already masked**: the subscription URL goes through the same masker the logs
-use; whatever follows `secret`, `token`, `password`, `passwd`, `uuid`, `authorization`,
-`api-key`, `x-hwid`, `hwid` or `sub-url` becomes `***` (the list is not exhaustive and keeps
-growing), and so does whatever follows `Bearer`, `Basic` and `Token`. On top of that, any
-"word" of 20 characters or more drawn from `A–Z a–z 0–9 - _ = . + /` is cut when it contains
-a digit or mixed case — that covers tokens and base64 but not ordinary prose or file paths.
-Deliberately blunt — better to mask too much than to hand a subscription token to a chat.
+**The core's per-connection lines are not in the report.** At its normal level mihomo writes
+one line per connection including the destination (`[TCP] … --> example.com:443 match …`),
+and at the verbose level every DNS query as well. A raw tail of that log is a browsing
+history, which has no business in a support chat, so those lines are dropped entirely — the
+report says how many. Everything else — core startup, config parsing, provider errors —
+stays.
+
+**Secrets are already masked.** Any address, of any scheme — not just `http`, and including
+`vless://`, `ss://` and links inside a deep link — is reduced to scheme and host: path,
+query and `user:pass@` go under `***`. Whatever follows `secret`, `token`, `password`,
+`passwd`, `uuid`, `authorization`, `api-key`, `x-hwid`, `hwid` or `sub-url` becomes `***`
+(the list is not exhaustive and keeps growing), including when key and value are glued
+together as in JSON; same for what follows `Bearer`, `Basic` and `Token`. On top of that,
+any "word" of 20 characters or more drawn from `A–Z a–z 0–9 - _ = . + /` is cut when it
+contains a digit or mixed case, as is any hex run of 16 or more. The home directory is
+replaced with `~` so the user's own name does not travel inside a path. Deliberately blunt —
+better to mask too much than to hand a subscription token to a chat.
+
+Kept on purpose: the provider's domain (the report is useless without it), versions,
+connection settings and the subscription figures.
 
 The report is only as useful as the log that went into it, so a fresh install starts at
 `debug` (an already configured app keeps whatever level it had). Rotation keeps that at

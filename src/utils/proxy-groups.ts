@@ -109,6 +109,25 @@ export const visibleGroups = (proxies: any): ProxyGroup[] => {
 }
 
 /**
+ * clod: есть ли в конфиге хоть один настоящий сервер.
+ *
+ * Считаем по **всем** видимым группам, а не по выбранной: у шаблонов бывает
+ * группа-маршрутизатор из одних подгрупп и группа «без VPN» из одного `DIRECT`,
+ * и по любой из них поодиночке вышло бы «серверов нет», пока в соседней лежит
+ * рабочий список. Один ответ на двоих: строка на главной и шторка не должны
+ * расходиться в том, что видит пользователь.
+ */
+export const hasRealNodes = (proxies: any): boolean => {
+  const records = (proxies?.records ?? {}) as Record<string, ProxyGroup>
+  return visibleGroups(proxies).some((group) =>
+    (group.all ?? []).some((node) => {
+      const type = groupType(records[node.name] ?? node)
+      return !isCorePlaceholder(node.name) && !NON_NODE_TYPES.has(type)
+    }),
+  )
+}
+
+/**
  * Follow a chain of groups down to the node that actually carries traffic:
  * a selector may point at a balancer, which points at a server. Cycles and
  * dead ends fall back to the last resolvable name.

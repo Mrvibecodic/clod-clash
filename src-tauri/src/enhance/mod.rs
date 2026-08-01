@@ -658,35 +658,99 @@ fn is_sentinel_proxy(proxy: &Mapping) -> bool {
 
 /// У узла нет ни одного секрета: ни `uuid`, ни `password`, ни `psk`.
 /// Настоящий vless/trojan/ss без них не бывает.
+///
+/// Ключевые протоколы (wireguard, ssh) авторизуются не паролем, а ключом —
+/// без этой оговорки живой узел на порту 1 (порт легальный) уехал бы в заглушки.
 fn missing_credentials(proxy: &Mapping) -> bool {
-    ["uuid", "password", "psk"].iter().all(|key| {
-        proxy
-            .get(*key)
-            .and_then(Value::as_str)
-            .is_none_or(|value| value.trim().is_empty())
-    })
+    ["uuid", "password", "psk", "private-key", "auth", "auth-str", "token"]
+        .iter()
+        .all(|key| {
+            proxy
+                .get(*key)
+                .and_then(Value::as_str)
+                .is_none_or(|value| value.trim().is_empty())
+        })
 }
 
-/// Группа, которую ядро наполнит само: провайдеры или `include-all*`.
-/// Пустой список `proxies` у неё — норма, подставлять ничего не нужно.
-fn group_fills_at_runtime(group: &Mapping) -> bool {
-    ["use", "include-all", "include-all-proxies", "include-all-providers"]
-        .iter()
-        .any(|key| match group.get(*key) {
-            Some(Value::Bool(flag)) => *flag,
-            Some(Value::Sequence(seq)) => !seq.is_empty(),
-            Some(Value::Null) | None => false,
-            Some(_) => true,
+/// Правда ли ядро сумеет наполнить группу само.
+///
+/// Мало объявить `include-all` — наполнять должно быть чем. mihomo разбирает это
+/// так (`adapter/outboundgroup/parser.go`): `include-all` и `include-all-proxies`
+/// подставляют в пустую группу `COMPATIBLE` и потому спасают всегда, а вот
+/// `include-all-providers` без единого провайдера оставляет её пустой, и конфиг
+/// падает с ``use` or `proxies` missing`. `use:` спасает, только если названный
+/// провайдер существует.
+fn group_fills_at_runtime(group: &Mapping, providers: &HashSet<String>) -> bool {
+    let flag = |key: &str| matches!(group.get(key), Some(Value::Bool(true)));
+
+    if flag("include-all") || flag("include-all-proxies") {
+        return true;
+    }
+    if flag("include-all-providers") && !providers.is_empty() {
+        return true;
+    }
+
+    group
+        .get("use")
+        .and_then(Value::as_sequence)
+        .is_some_and(|names| {
+            names
+                .iter()
+                .filter_map(Value::as_str)
+                .any(|name| providers.contains(name))
         })
+}
+
+/// Имена объявленных `proxy-providers`.
+fn provider_names(config: &Mapping) -> HashSet<String> {
+    config
+        .get("proxy-providers")
+        .and_then(Value::as_mapping)
+        .map(|map| map.keys().filter_map(Value::as_str).map(Into::into).collect())
+        .unwrap_or_default()
+}
+
+/// clod: подставить `REJECT` в каждую группу, которую ядро не примет.
+///
+/// Запускается **после** `cleanup_proxy_groups`: тот вычищает из `proxies` и
+/// `use` ссылки на несуществующие узлы и провайдеров, так что опустеть группа
+/// может и там. mihomo на пустую группу отвечает ``use` or `proxies` missing` и
+/// не стартует вовсе, а пустая группа получается штатно: панель присылает конфиг
+/// с одними заглушками либо просто с пустым `proxies`, а имена узлов в группе
+/// прописаны шаблоном.
+///
+/// Удалять такую группу нельзя — на неё ссылаются правила (`MATCH,🌍 VPN`).
+/// Ставим `REJECT`, а не `DIRECT`: трафик не должен утечь мимо туннеля.
+fn backfill_empty_groups(mut config: Mapping) -> Mapping {
+    let providers = provider_names(&config);
+
+    if let Some(Value::Sequence(groups)) = config.get_mut("proxy-groups") {
+        for group in groups {
+            let Some(group_map) = group.as_mapping_mut() else {
+                continue;
+            };
+
+            let has_members = group_map
+                .get("proxies")
+                .and_then(Value::as_sequence)
+                .is_some_and(|items| !items.is_empty());
+            if has_members || group_fills_at_runtime(group_map, &providers) {
+                continue;
+            }
+
+            group_map.insert(Value::from("proxies"), Value::Sequence(vec![Value::from("REJECT")]));
+        }
+    }
+
+    config
 }
 
 /// clod: выкинуть узлы-заглушки из конфига до того, как он уедет в ядро.
 ///
 /// Заглушки приходят **вместо** серверов, а не вперемешку с ними, поэтому
-/// группы после чистки остаются пустыми. Удалять такие группы нельзя — на них
-/// ссылаются правила (`MATCH,🌍 VPN`), и ядро не примет конфиг. Поэтому в
-/// опустевшую группу подставляется `REJECT`: конфиг остаётся валидным, а
-/// трафик не утекает мимо туннеля, как утёк бы с `DIRECT`.
+/// группы после чистки остаются пустыми. Латает их не эта функция, а
+/// `backfill_empty_groups` — он запускается после `cleanup_proxy_groups`,
+/// когда список членов группы уже окончательный.
 fn drop_sentinel_proxies(config: Mapping) -> Mapping {
     let (config, report) = filter_sentinel_proxies(config);
     store_sentinel_report(report);
@@ -746,26 +810,17 @@ fn filter_sentinel_proxies(mut config: Mapping) -> (Mapping, SentinelReport) {
         dropped.len()
     );
 
+    // Ссылки на выброшенные узлы убираем сразу; опустевшие группы залатает
+    // `backfill_empty_groups` после того, как отработает `cleanup_proxy_groups`.
     if let Some(Value::Sequence(groups)) = config.get_mut("proxy-groups") {
         for group in groups {
-            let Some(group_map) = group.as_mapping_mut() else {
+            let Some(Value::Sequence(items)) = group.as_mapping_mut().and_then(|map| map.get_mut("proxies")) else {
                 continue;
             };
-
-            let emptied = match group_map.get_mut("proxies") {
-                Some(Value::Sequence(items)) => {
-                    items.retain(|item| match item.as_str() {
-                        Some(name) => !dropped.contains(name),
-                        None => true,
-                    });
-                    items.is_empty()
-                }
-                _ => false,
-            };
-
-            if emptied && !group_fills_at_runtime(group_map) {
-                group_map.insert(Value::from("proxies"), Value::Sequence(vec![Value::from("REJECT")]));
-            }
+            items.retain(|item| match item.as_str() {
+                Some(name) => !dropped.contains(name),
+                None => true,
+            });
         }
     }
 
@@ -1000,6 +1055,8 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
     // групп — тогда cleanup уберёт и повисшие на них ссылки.
     let config = drop_sentinel_proxies(config);
     let config = cleanup_proxy_groups(config);
+    // Латаем группы последними: до этого момента список их членов ещё меняется.
+    let config = backfill_empty_groups(config);
     let config = use_sort(config);
 
     let mut exists_keys_set = HashSet::new();
@@ -1012,8 +1069,8 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
 #[cfg(test)]
 mod tests {
     use super::{
-        ChainItem, ChainType, cleanup_proxy_groups, ensure_lan_bind_address, ensure_store_selected,
-        filter_sentinel_proxies, process_global_items, process_profile_items, use_keys,
+        ChainItem, ChainType, backfill_empty_groups, cleanup_proxy_groups, ensure_lan_bind_address,
+        ensure_store_selected, filter_sentinel_proxies, process_global_items, process_profile_items, use_keys,
     };
     use std::collections::HashMap;
 
@@ -1440,6 +1497,14 @@ proxy-groups:
         assert_eq!(proxies[0].as_str(), Some("DIRECT"));
     }
 
+    /// Тот же порядок, что и в `enhance`: фильтр → чистка ссылок → латание
+    /// пустых групп. Тесты должны видеть конфиг ровно таким, каким его увидит
+    /// ядро, — латание в одиночку ничего не значит.
+    fn sentinel_pass(config: serde_yaml_ng::Mapping) -> (serde_yaml_ng::Mapping, super::SentinelReport) {
+        let (config, report) = filter_sentinel_proxies(config);
+        (backfill_empty_groups(cleanup_proxy_groups(config)), report)
+    }
+
     fn group_members(config: &serde_yaml_ng::Mapping, name: &str) -> Vec<std::string::String> {
         config
             .get("proxy-groups")
@@ -1500,7 +1565,7 @@ proxy-groups:
 "#,
         );
 
-        let (config, report) = filter_sentinel_proxies(config);
+        let (config, report) = sentinel_pass(config);
 
         assert!(proxy_names(&config).is_empty());
         assert_eq!(group_members(&config, "VPN"), vec!["REJECT".to_owned()]);
@@ -1545,7 +1610,7 @@ proxy-groups:
 "#,
         );
 
-        let (config, report) = filter_sentinel_proxies(config);
+        let (config, report) = sentinel_pass(config);
 
         // Живые узлы остались — значит это не «панель не выдала серверы».
         assert!(!report.only_sentinels);
@@ -1572,7 +1637,7 @@ proxy-groups:
 "#,
         );
 
-        let (_, report) = filter_sentinel_proxies(config);
+        let (_, report) = sentinel_pass(config);
 
         assert!(report.only_sentinels);
         assert!(report.remarks.is_empty());
@@ -1613,7 +1678,7 @@ proxy-groups:
         );
 
         let expected = proxy_names(&config);
-        let (config, report) = filter_sentinel_proxies(config);
+        let (config, report) = sentinel_pass(config);
 
         assert_eq!(proxy_names(&config), expected);
         assert_eq!(group_members(&config, "VPN").len(), 4);
@@ -1652,7 +1717,7 @@ proxy-groups:
 "#,
         );
 
-        let (config, report) = filter_sentinel_proxies(config);
+        let (config, report) = sentinel_pass(config);
 
         // Узлы придут из провайдера в рантайме, поэтому пустой `proxies` здесь
         // ещё не значит «панель не выдала серверы».
@@ -1660,5 +1725,104 @@ proxy-groups:
         assert!(proxy_names(&config).is_empty());
         assert!(group_members(&config, "AUTO").is_empty());
         assert!(group_members(&config, "ALL").is_empty());
+    }
+
+    // `include-all-providers` без единого провайдера ядро не спасает: в отличие
+    // от `include-all`, оно не подставляет COMPATIBLE, и конфиг не грузится
+    // (mihomo, adapter/outboundgroup/parser.go). Такую группу латаем.
+    #[test]
+    fn include_all_providers_without_providers_still_needs_reject() {
+        let config = mapping(
+            r#"
+proxies:
+  - name: "⌛ Expired"
+    type: vless
+    server: 0.0.0.0
+    port: 1
+    uuid: 00000000-0000-0000-0000-000000000000
+proxy-groups:
+  - name: "ALL"
+    type: select
+    include-all-providers: true
+    proxies:
+      - "⌛ Expired"
+"#,
+        );
+
+        let (config, report) = sentinel_pass(config);
+
+        assert!(report.only_sentinels);
+        assert_eq!(group_members(&config, "ALL"), vec!["REJECT".to_owned()]);
+    }
+
+    // `use:` с несуществующим провайдером: `cleanup_proxy_groups` вычистит его
+    // уже после фильтра, и группа опустеет там, где фильтр её не видел.
+    #[test]
+    fn group_using_a_ghost_provider_is_repaired() {
+        let config = mapping(
+            r#"
+proxies: []
+proxy-groups:
+  - name: "VPN"
+    type: select
+    use:
+      - nowhere
+    proxies: []
+"#,
+        );
+
+        let (config, _) = sentinel_pass(config);
+
+        assert_eq!(group_members(&config, "VPN"), vec!["REJECT".to_owned()]);
+    }
+
+    // Панель умеет прислать пустой `proxies` вообще без заглушек, а имена узлов
+    // в группе прописаны шаблоном. Выбрасывать нечего — но чинить всё равно
+    // надо, иначе ядро не стартует и пользователь увидит ошибку парсинга
+    // вместо экрана «серверов нет».
+    #[test]
+    fn stale_template_group_is_repaired_even_when_nothing_was_dropped() {
+        let config = mapping(
+            r#"
+proxies: []
+proxy-groups:
+  - name: "→ Remnawave"
+    type: select
+    proxies:
+      - "NL-01"
+      - "DE-01"
+"#,
+        );
+
+        let (config, report) = sentinel_pass(config);
+
+        assert!(report.only_sentinels);
+        assert_eq!(group_members(&config, "→ Remnawave"), vec!["REJECT".to_owned()]);
+    }
+
+    // Wireguard авторизуется ключом, а порт 1 — легальный порт. Живой узел
+    // не должен уехать в заглушки только потому, что у него нет пароля.
+    #[test]
+    fn key_based_nodes_are_not_sentinels() {
+        let config = mapping(
+            r#"
+proxies:
+  - name: "WG relay"
+    type: wireguard
+    server: relay.example.net
+    port: 1
+    private-key: aGVsbG8gd29ybGQgdGhpcyBpcyBhIGtleQ==
+proxy-groups:
+  - name: "VPN"
+    type: select
+    proxies:
+      - "WG relay"
+"#,
+        );
+
+        let (config, report) = sentinel_pass(config);
+
+        assert!(!report.only_sentinels);
+        assert_eq!(group_members(&config, "VPN"), vec!["WG relay".to_owned()]);
     }
 }

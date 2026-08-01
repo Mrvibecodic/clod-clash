@@ -1,11 +1,8 @@
-import { useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 
 import { useRuntimeConfig } from '@/hooks/use-clash'
 import { useVerge } from '@/hooks/use-verge'
 import delayManager from '@/services/delay'
-
-/** Used when neither the template nor the user named a URL. */
-const FALLBACK_TEST_URL = 'http://cp.cloudflare.com/generate_204'
 
 /** Separators for the flattened "name → url" signature. */
 const PAIR_SEP = String.fromCharCode(31)
@@ -59,22 +56,27 @@ export const useGroupTestUrls = () => {
     return map
   }, [signature])
 
-  const fallback = verge?.default_latency_test?.trim() || FALLBACK_TEST_URL
+  const fallback = verge?.default_latency_test?.trim()
 
   // Delays measured earlier live under the URL they were taken with, so the
-  // list needs to know that URL before anything is tested again. Replacing the
-  // whole map (instead of adding to it) matters on a profile switch: a group of
-  // the same name without its own `url` must not inherit the previous one.
+  // manager has to know that URL before anything is tested again — it is the
+  // single place that resolves "which URL is this group tested against", and a
+  // disagreement between the test and the lookup shows up as a missing ping.
   useEffect(() => {
-    delayManager.replaceUrls(byGroup)
+    delayManager.replaceConfigUrls(byGroup)
   }, [byGroup])
 
-  return useMemo(
-    () => ({
-      byGroup,
-      urlFor: (group?: string) =>
-        (group ? byGroup.get(group) : undefined) ?? fallback,
-    }),
-    [byGroup, fallback],
+  useEffect(() => {
+    delayManager.setDefaultUrl(fallback)
+  }, [fallback])
+
+  // Стабильная навсегда: состояние живёт в менеджере, а не в замыкании. Иначе
+  // каждый ответ react-query пересоздавал бы колбэки, зависящие от неё, и
+  // сбрасывал отложенный автотест задержек.
+  const urlFor = useCallback(
+    (group?: string) => delayManager.getUrl(group ?? ''),
+    [],
   )
+
+  return useMemo(() => ({ byGroup, urlFor }), [byGroup, urlFor])
 }

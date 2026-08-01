@@ -333,12 +333,14 @@ export async function getSentinelReport() {
 /**
  * clod: build the support report and put it on the clipboard.
  *
- * Returns the very same text: versions, core and subscription state, the
- * sentinel report and the tail of both logs — already redacted, so it can be
- * pasted into a support chat without reading it first.
+ * Holds versions, core and subscription state, the sentinel report and the tail
+ * of both logs — already redacted, and without the core's per-connection lines,
+ * so it can be pasted into a support chat without reading it first. Returns its
+ * size rather than its text: the report is on the clipboard already, and it has
+ * no business passing back through the UI.
  */
 export async function copySupportBundle(lines?: number) {
-  return invoke<string>('copy_support_bundle', { lines })
+  return invoke<number>('copy_support_bundle', { lines })
 }
 
 export async function getSystemProxy() {

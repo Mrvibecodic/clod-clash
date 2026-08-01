@@ -3,11 +3,13 @@
 //! Rendering the panel's URL directly means the user's IP reaches a third-party
 //! host on every mount, the logo blinks on a cold start and disappears offline.
 //! The image is therefore downloaded once per subscription update — through the
-//! own core when a direct request fails, like every other panel request — and
-//! kept next to the profiles.
+//! own core first, falling back to the system route — and kept next to the
+//! profiles.
 //!
-//! Guards, mirroring what dropweb and Prizrak-Box learned the hard way: only
-//! `image/*` responses are stored, and never more than 2 MiB of them.
+//! Guards, mirroring what dropweb and Prizrak-Box learned the hard way: only a
+//! known image content type is stored, never more than 2 MiB of it, only from a
+//! public `https` host (a redirect into the local network is refused rather than
+//! cached), and only under a profile id that cannot leave the cache directory.
 
 use crate::{
     config::Config,
@@ -30,10 +32,57 @@ const MAX_LOGO_BYTES: usize = 2 * 1024 * 1024;
 const TIMEOUT_SECS: u64 = 15;
 
 /// Extensions we may have written, in the order they are probed.
-const KNOWN_EXTENSIONS: &[&str] = &["png", "svg", "jpg", "webp", "gif", "ico", "bmp"];
+///
+/// Must stay in sync with `extension_for` — an extension it can return but this
+/// list does not mention would be written once and then never read back, never
+/// cleaned up and re-downloaded forever. `extensions_round_trip` guards that.
+const KNOWN_EXTENSIONS: &[&str] = &["png", "svg", "jpg", "webp", "avif", "gif", "ico", "bmp"];
 
 fn cache_dir() -> Result<PathBuf> {
     Ok(dirs::app_home_dir()?.join("logos"))
+}
+
+/// clod: адрес, с которого мы согласны забрать картинку.
+///
+/// `profile-logo` проверяется на `https` при разборе заголовков, но это проверка
+/// только первого адреса: клиент ходит общим клиентом, который следует за
+/// редиректами, и панель может увести его на `http://127.0.0.1:9090/…` или в
+/// локальную сеть. Ответ оттуда попал бы в кэш и уехал в webview как `data:`-URL,
+/// то есть редирект стал бы каналом чтения внутренней сети. Поэтому конечный
+/// адрес ответа проверяется отдельно, и всё непубличное отбрасывается.
+fn is_public_https(url: &reqwest::Url) -> bool {
+    if url.scheme() != "https" {
+        return false;
+    }
+    let Some(host) = url.host_str() else {
+        return false;
+    };
+    let host = host.trim_start_matches('[').trim_end_matches(']');
+
+    if let Ok(ip) = host.parse::<std::net::IpAddr>() {
+        return match ip {
+            std::net::IpAddr::V4(ip) => {
+                !(ip.is_loopback() || ip.is_private() || ip.is_link_local() || ip.is_unspecified() || ip.is_broadcast())
+            }
+            std::net::IpAddr::V6(ip) => !(ip.is_loopback() || ip.is_unspecified()),
+        };
+    }
+
+    let name = host.trim_end_matches('.').to_ascii_lowercase();
+    !(name == "localhost"
+        || name.ends_with(".localhost")
+        || name.ends_with(".local")
+        || name.ends_with(".internal")
+        || name.ends_with(".home.arpa"))
+}
+
+/// clod: `uid` попадает в имя файла, поэтому в нём не должно быть ничего,
+/// кроме алфавита nanoid. Иначе `../../` в аргументе команды из webview
+/// превращает чтение кэша в чтение произвольного файла, а очистку — в удаление.
+fn is_safe_uid(uid: &str) -> bool {
+    !uid.is_empty()
+        && uid.len() <= 64
+        && uid.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_'))
 }
 
 fn extension_for(content_type: &str) -> Option<&'static str> {
@@ -81,6 +130,9 @@ async fn logo_url(uid: &str) -> Option<String> {
 /// Remove every cached file of a profile (the panel stopped sending a logo, or
 /// the profile itself is gone).
 pub async fn clear(uid: &str) {
+    if !is_safe_uid(uid) {
+        return;
+    }
     let Ok(dir) = cache_dir() else { return };
     for extension in KNOWN_EXTENSIONS {
         let _ = fs::remove_file(dir.join(format!("{uid}.{extension}"))).await;
@@ -92,16 +144,29 @@ pub async fn clear(uid: &str) {
 /// Errors are returned for the caller to log, never to surface: a provider with
 /// a broken logo URL must not break the subscription update.
 async fn download(uid: &str, url: &str) -> Result<()> {
+    if !is_safe_uid(uid) {
+        bail!("refusing to cache a logo under an unexpected profile id");
+    }
     let mut last_error = None;
 
-    for proxy in [ProxyType::None, ProxyType::Localhost] {
+    // clod: сначала через собственное ядро, и только потом напрямую. Смысл
+    // кэша в том, чтобы чужой хост не видел адрес пользователя, — начинать
+    // с прямого запроса значило бы отдавать ему настоящий IP ради картинки.
+    for proxy in [ProxyType::Localhost, ProxyType::System] {
         let attempt = async {
             let client = NetworkManager::new()
                 .create_request(proxy, Some(TIMEOUT_SECS), Some(hwid::user_agent()), false)
                 .await?;
-            let response = client.get(url).send().await?;
+            let response = client
+                .get(url)
+                .header(reqwest::header::ACCEPT, "image/*")
+                .send()
+                .await?;
             if !response.status().is_success() {
                 bail!("logo request returned {}", response.status());
+            }
+            if !is_public_https(response.url()) {
+                bail!("logo redirected somewhere we will not read from");
             }
 
             let content_type = response
@@ -137,9 +202,13 @@ async fn download(uid: &str, url: &str) -> Result<()> {
 
             let dir = cache_dir()?;
             fs::create_dir_all(&dir).await?;
-            // Write the new file first, then drop the stale ones: a failed
-            // write leaves the previous logo in place instead of nothing.
-            fs::write(dir.join(format!("{uid}.{extension}")), &bytes).await?;
+            // Пишем через временный файл: оборванная на середине запись иначе
+            // оставила бы обрезанную картинку под тем же именем, и `read`
+            // спокойно отдал бы её в интерфейс.
+            let target = dir.join(format!("{uid}.{extension}"));
+            let temporary = dir.join(format!("{uid}.{extension}.part"));
+            fs::write(&temporary, &bytes).await?;
+            fs::rename(&temporary, &target).await?;
             for stale in KNOWN_EXTENSIONS.iter().filter(|item| **item != extension) {
                 let _ = fs::remove_file(dir.join(format!("{uid}.{stale}"))).await;
             }
@@ -174,6 +243,9 @@ pub async fn sync(uid: &str) {
 
 /// Cached logo as a `data:` URL, or `None` when there is nothing cached.
 pub async fn read(uid: &str) -> Option<String> {
+    if !is_safe_uid(uid) {
+        return None;
+    }
     let dir = cache_dir().ok()?;
     for extension in KNOWN_EXTENSIONS {
         let path = dir.join(format!("{uid}.{extension}"));
@@ -208,9 +280,18 @@ fn cold_miss_recently(uid: &str) -> bool {
         .is_some_and(|at| at.elapsed() < RETRY_AFTER)
 }
 
+/// Сколько профилей помним. Ключ приходит аргументом команды, так что расти
+/// без предела карта не должна — при переполнении выкидываем протухшие записи.
+const MAX_COLD_MISSES: usize = 64;
+
 fn remember_cold_miss(uid: &str) {
     if let Ok(mut slot) = cold_misses().lock() {
-        slot.insert(uid.into(), std::time::Instant::now());
+        if slot.len() >= MAX_COLD_MISSES {
+            slot.retain(|_, at| at.elapsed() < RETRY_AFTER);
+        }
+        if slot.len() < MAX_COLD_MISSES {
+            slot.insert(uid.into(), std::time::Instant::now());
+        }
     }
 }
 
@@ -233,4 +314,74 @@ pub async fn read_or_fetch(uid: &str) -> Option<String> {
         remember_cold_miss(uid);
     }
     fresh
+}
+
+#[allow(clippy::expect_used, clippy::panic)]
+#[cfg(test)]
+mod tests {
+    use super::{KNOWN_EXTENSIONS, extension_for, is_public_https, is_safe_uid, mime_for};
+
+    /// Расширение, которое умеет вернуть `extension_for`, обязано быть в
+    /// `KNOWN_EXTENSIONS`: иначе файл пишется, но не читается, не чистится и
+    /// качается заново на каждом холодном чтении.
+    #[test]
+    fn extensions_round_trip() {
+        for content_type in [
+            "image/png",
+            "image/svg+xml",
+            "image/jpeg",
+            "image/jpg",
+            "image/webp",
+            "image/avif",
+            "image/gif",
+            "image/x-icon",
+            "image/vnd.microsoft.icon",
+            "image/bmp",
+            "image/PNG; charset=binary",
+        ] {
+            let extension = extension_for(content_type).unwrap_or_else(|| panic!("{content_type} must be accepted"));
+            assert!(
+                KNOWN_EXTENSIONS.contains(&extension),
+                "{content_type} -> {extension} is written but never read back"
+            );
+            assert!(!mime_for(extension).is_empty());
+        }
+
+        assert_eq!(extension_for("text/html"), None);
+        assert_eq!(extension_for("application/octet-stream"), None);
+    }
+
+    #[test]
+    fn profile_ids_never_leave_the_cache_directory() {
+        for uid in ["RRuvIA", "a-b_c9"] {
+            assert!(is_safe_uid(uid), "{uid}");
+        }
+        for uid in ["", "../../etc/passwd", "/etc/hosts", r"..\..\win.ini", "a/b", "a.b"] {
+            assert!(!is_safe_uid(uid), "{uid}");
+        }
+    }
+
+    #[test]
+    fn a_redirect_into_the_local_network_is_refused() {
+        let allowed = ["https://cdn.example.com/logo.png", "https://1.2.3.4/logo.png"];
+        for raw in allowed {
+            let url = reqwest::Url::parse(raw).expect("test url");
+            assert!(is_public_https(&url), "{raw}");
+        }
+
+        let refused = [
+            "http://cdn.example.com/logo.png",
+            "https://127.0.0.1:9090/configs",
+            "https://localhost/logo.png",
+            "https://192.168.1.1/logo.png",
+            "https://10.0.0.5/logo.png",
+            "https://169.254.169.254/latest/meta-data",
+            "https://[::1]/logo.png",
+            "https://router.local/logo.png",
+        ];
+        for raw in refused {
+            let url = reqwest::Url::parse(raw).expect("test url");
+            assert!(!is_public_https(&url), "{raw}");
+        }
+    }
 }
