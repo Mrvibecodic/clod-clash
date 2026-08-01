@@ -8,6 +8,48 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.0.12-alpha
+
+<!-- lang:en -->
+
+### Added
+
+- Empty server lists now explain themselves: an expired subscription, exhausted traffic or a panel that sent no servers each get their own status with the right buttons (Renew, Top up, Support) — on the home screen and in the server drawer
+- Placeholder "nodes" a panel sends instead of servers (0.0.0.0 stubs) are filtered out before they reach the core, so the app no longer pretends they are servers you could connect to
+- Providers can colour single words in `announce` and promo banners with `#RRGGBB` markers glued to a word
+- A "Device identification" switch in Settings → General, with a tooltip showing exactly what is sent to the panel
+- The provider logo is cached locally: it survives restarts, works offline and is fetched through the tunnel
+- Each proxy group is tested against its own `url:` from the config — the YouTube group is checked against YouTube, not a generic endpoint
+- "Copy report for support" under every error and in Settings: log tails with visited addresses removed and tokens, keys and URLs masked
+
+### Fixed
+
+- A panel demanding device identification can no longer wipe a working server list with its stub response
+- The "no servers" explanation always describes the config the core actually accepted, not one it rejected
+- Group test URLs no longer leak between profiles after a subscription switch
+- Redirects to IPv6 local addresses are refused when fetching the provider logo
+
+<!-- lang:ru -->
+
+### Добавлено
+
+- Пустой список серверов теперь объясняет себя: истёкшая подписка, исчерпанный трафик и «панель не выдала серверы» получили свои статусы с нужными кнопками («Продлить», «Докупить», «Поддержка») — на главной и в шторке серверов
+- Узлы-заглушки, которые панель шлёт вместо серверов (0.0.0.0), вырезаются до ядра — приложение больше не выдаёт их за серверы, к которым можно подключиться
+- Провайдер может красить отдельные слова в `announce` и промо-баннере маркерами `#RRGGBB`, приклеенными к слову
+- Тумблер «Идентификация устройства» в Настройки → Основные, с тултипом, показывающим, что именно уходит панели
+- Логотип провайдера кэшируется локально: переживает перезапуск, работает офлайн и скачивается через туннель
+- Каждая группа прокси проверяется по своему `url:` из конфига — YouTube-группа по YouTube, а не по общему адресу
+- «Скопировать отчёт для поддержки» под каждой ошибкой и в настройках: хвосты логов без посещённых адресов, токены, ключи и URL замаскированы
+
+### Исправлено
+
+- Панель, требующая идентификацию устройства, больше не может затереть рабочий список серверов своей заглушкой
+- Объяснение «серверов нет» всегда описывает конфиг, который ядро реально приняло, а не отвергнутый
+- Адреса теста групп больше не перетекают между профилями при смене подписки
+- Редиректы на локальные IPv6-адреса отклоняются при скачивании логотипа провайдера
+
+---
+
 ## v0.0.11-alpha
 
 <!-- lang:en -->
