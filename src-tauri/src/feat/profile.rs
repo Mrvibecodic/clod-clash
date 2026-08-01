@@ -375,7 +375,11 @@ pub async fn update_profile(
                 // восстанавливаем сохранённый выбор (и избранные) сразу же,
                 // иначе после каждого обновления подписки слетал сервер
                 if let Err(err) = crate::config::profiles::activate_selected_nodes() {
-                    logging!(warn, Type::Config, "Warning: [订阅更新] restore selection failed: {err}");
+                    logging!(
+                        warn,
+                        Type::Config,
+                        "Warning: [订阅更新] restore selection failed: {err}"
+                    );
                 }
                 // clod:F7 — fresh panel data, recompute the notification state
                 crate::process::AsyncHandler::spawn(|| async {

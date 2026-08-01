@@ -175,7 +175,8 @@
           "advancedMode": "Advanced mode",
           "connectSysproxy": "Connect: system proxy",
           "connectTun": "Connect: TUN mode",
-          "subNotifications": "Subscription notifications"
+          "subNotifications": "Subscription notifications",
+          "deviceIdentity": "Device identification"
         },
         "options": {
           "sysproxy": "System proxy",
@@ -183,7 +184,8 @@
         },
         "hints": {
           "connectTun": "The Connect button also brings the TUN device up. System proxy and TUN can run together; the TUN device needs the service installed.",
-          "subNotifications": "Warn about the subscription running out of traffic or time. Off silences these alerts regardless of the provider settings."
+          "subNotifications": "Warn about the subscription running out of traffic or time. Off silences these alerts regardless of the provider settings.",
+          "deviceIdentity": "Sends a hashed device id (x-hwid) with every subscription request so the provider can enforce its device limit. The raw machine id never leaves the device. Turning it off may make the panel refuse the subscription."
         }
       },
       "advanced": {

@@ -7,7 +7,9 @@ import {
 } from '@mui/material'
 
 interface Props extends IconButtonProps {
-  title?: string
+  /** clod: ReactNode, а не строка — тултипу настроек нужны многострочные
+      подсказки (например, фактические значения заголовков устройства). */
+  title?: React.ReactNode
   icon?: React.ElementType<SvgIconProps>
 }
 

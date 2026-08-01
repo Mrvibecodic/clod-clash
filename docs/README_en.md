@@ -228,8 +228,12 @@ the machine. **The machine id itself never does**, and the hostname is never sen
 how the underlying id is read. When no stable source is available a random id is generated
 and cached the same way.
 
-The id is sent **only** to the subscription address, nowhere else, and one switch in the
-settings turns it off.
+The id is sent **only** to the subscription address and nowhere else. The
+**"Device identification"** switch in Settings → General turns it off; the tooltip next to
+it shows exactly what goes to the panel — `x-hwid`, `x-device-os`, `x-ver-os`,
+`x-device-model` and the `User-Agent`. With identification off none of them is sent, and a
+panel that enforces a device limit may refuse the subscription — the app then offers to
+turn identification back on.
 
 ---
 

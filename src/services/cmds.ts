@@ -290,6 +290,20 @@ export async function patchVergeConfig(payload: IVergeConfig) {
   return invoke<void>('patch_verge_config', { payload })
 }
 
+/** clod: exactly what the panel sees about this device (`x-hwid` family). */
+export interface IDeviceIdentity {
+  /** `null` while device identification is switched off — nothing is sent. */
+  hwid: string | null
+  os: string
+  os_version: string
+  model: string
+  user_agent: string
+}
+
+export async function getDeviceIdentity() {
+  return invoke<IDeviceIdentity>('get_device_identity')
+}
+
 export async function getSystemProxy() {
   return invoke<{
     enable: boolean

@@ -186,6 +186,7 @@ mod app_init {
             cmd::get_clash_logs,
             cmd::get_verge_config,
             cmd::patch_verge_config,
+            cmd::get_device_identity,
             cmd::test_delay,
             cmd::get_app_dir,
             cmd::copy_icon_file,

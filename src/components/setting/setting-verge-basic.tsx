@@ -1,15 +1,16 @@
 import { ContentCopyRounded } from '@mui/icons-material'
-import { Button, Input, MenuItem, Select, Switch } from '@mui/material'
+import { Box, Button, Input, MenuItem, Select, Switch } from '@mui/material'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import useSWR from 'swr'
 
 import { type DialogRef, TooltipIcon } from '@/components/base'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useSimpleMode } from '@/hooks/use-simple-mode'
 import { useVerge } from '@/hooks/use-verge'
 import { navigationItems } from '@/pages/_navigation-meta'
-import { copyClashEnv } from '@/services/cmds'
+import { copyClashEnv, getDeviceIdentity } from '@/services/cmds'
 import { supportedLanguages } from '@/services/i18n'
 import { showNotice } from '@/services/notice-service'
 import getSystem from '@/utils/get-system'
@@ -65,7 +66,13 @@ const SettingVergeBasic = ({ onError }: Props) => {
     connect_system_proxy,
     connect_tun_mode,
     enable_sub_notifications,
+    enable_hwid,
   } = verge ?? {}
+  // clod: показываем в тултипе фактические значения, а не описание полей
+  const { data: identity, mutate: mutateIdentity } = useSWR(
+    'getDeviceIdentity',
+    getDeviceIdentity,
+  )
   const { simpleMode, setSimpleMode } = useSimpleMode()
   const { current } = useProfiles()
   // clod: the panel may forbid changing what Connect switches.
@@ -213,6 +220,47 @@ const SettingVergeBasic = ({ onError }: Props) => {
           onGuard={(checked) =>
             patchVerge({ enable_sub_notifications: checked })
           }
+        >
+          <Switch edge="end" />
+        </GuardState>
+      </SettingItem>
+
+      {/* clod: отправку отпечатка устройства пользователь должен видеть и
+          уметь выключить. Тултип показывает ровно те значения, которые уходят
+          в панель, — иначе «идентификация устройства» остаётся обещанием. */}
+      <SettingItem
+        label={t('settings.components.verge.basic.fields.deviceIdentity')}
+        extra={
+          <TooltipIcon
+            title={
+              <Box sx={{ whiteSpace: 'pre-line' }}>
+                {[
+                  t('settings.components.verge.basic.hints.deviceIdentity'),
+                  identity?.hwid ? `x-hwid: ${identity.hwid}` : null,
+                  identity ? `x-device-os: ${identity.os}` : null,
+                  identity ? `x-ver-os: ${identity.os_version}` : null,
+                  identity ? `x-device-model: ${identity.model}` : null,
+                  identity ? `User-Agent: ${identity.user_agent}` : null,
+                ]
+                  .filter(Boolean)
+                  .join('\n')}
+              </Box>
+            }
+          />
+        }
+      >
+        <GuardState
+          value={enable_hwid ?? true}
+          valueProps="checked"
+          onCatch={onError}
+          onFormat={(_e: any, checked: boolean) => checked}
+          onChange={(checked) => onChangeData({ enable_hwid: checked })}
+          onGuard={async (checked) => {
+            await patchVerge({ enable_hwid: checked })
+            // The id is computed lazily, so the tooltip only tells the truth
+            // once the backend has been asked again.
+            await mutateIdentity()
+          }}
         >
           <Switch edge="end" />
         </GuardState>

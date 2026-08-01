@@ -708,6 +708,7 @@ export interface TranslationResources {
               connectSysproxy: string
               connectTun: string
               copyEnvType: string
+              deviceIdentity: string
               hotkeySetting: string
               language: string
               layoutSetting: string
@@ -721,6 +722,7 @@ export interface TranslationResources {
             }
             hints: {
               connectTun: string
+              deviceIdentity: string
               subNotifications: string
             }
             options: {
