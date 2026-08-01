@@ -104,8 +104,14 @@ interface IProxyItem {
   /**
    * clod: per-test-URL history. The core keeps the default URL's results in
    * `history` and everything else here, keyed by the URL that was used.
+   * The shape mirrors the mihomo plugin's `Extra` (values are optional —
+   * `{ [key in string]?: … }` on the plugin side), or spreading a plugin
+   * `Proxy` into an `IProxyItem` stops typechecking.
    */
-  extra?: Record<string, { history: { time: string; delay: number }[] }>
+  extra?: Record<
+    string,
+    { alive?: boolean; history?: { time: string; delay: number }[] } | undefined
+  >
   all?: string[]
   now?: string
   hidden?: boolean

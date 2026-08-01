@@ -433,7 +433,7 @@ const PANEL_TEXT_MAX: usize = 200;
 /// Невидимые format-символы (категория Cf): bidi-переопределения, zero-width,
 /// BOM. `char::is_control` ловит только Cc, а RLO в имени заглушки позволил бы
 /// панели визуально переставить текст отчёта в чате поддержки.
-fn is_invisible_format(c: char) -> bool {
+const fn is_invisible_format(c: char) -> bool {
     matches!(c,
         '\u{200B}'..='\u{200F}' // zero-width + LRM/RLM
         | '\u{202A}'..='\u{202E}' // bidi embeddings/overrides

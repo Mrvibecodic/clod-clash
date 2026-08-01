@@ -82,7 +82,7 @@ fn is_public_https(url: &reqwest::Url) -> bool {
         || name.ends_with(".home.arpa"))
 }
 
-fn is_public_v4(ip: std::net::Ipv4Addr) -> bool {
+const fn is_public_v4(ip: std::net::Ipv4Addr) -> bool {
     !(ip.is_loopback() || ip.is_private() || ip.is_link_local() || ip.is_unspecified() || ip.is_broadcast())
 }
 
