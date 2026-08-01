@@ -85,9 +85,9 @@ default). Turning it off stops all of them.
 | --- | --- | --- |
 | `clod-portal-url` | customer portal link | "Customer portal" button. Our own header on purpose: Remnawave's `profile-web-page-url` usually points at the subscription page itself. `https` only |
 | `support-url` | support link | "Support" button; a `t.me/…` link gets a Telegram icon. `https`, `tg:` or `mailto:` only |
-| `announce` | permanent provider message | banner in the app **without a close button** — lives exactly as long as the panel keeps sending it |
+| `announce` | permanent provider message | banner in the app **without a close button** — lives exactly as long as the panel keeps sending it. Supports per-word colours (see below) |
 | `announce-url` | where clicking the banner leads | makes the `announce` banner clickable. `https` only |
-| `clod-promo` | temporary promo banner | a separate accent banner the user **can dismiss**; a changed text brings it back |
+| `clod-promo` | temporary promo banner | a separate accent banner the user **can dismiss**; a changed text brings it back. Same per-word colours as `announce` |
 | `clod-promo-url` | where the promo click leads | makes the `clod-promo` banner clickable. `https` only |
 | `clod-renew-url` | plan renewal link | shows the **"Renew"** button. No header — no button. `https` only |
 | `clod-topup-url` | traffic top-up link | shows the **"Top up"** button. No header — no button. `https` only |
@@ -152,6 +152,23 @@ These apply to every header above:
 * **Empty values are ignored**, an announcement is capped at 500 characters, threshold
   lists are range-checked (1–365 days, 1–100 percent) and limited to ten entries. A
   completely invalid header behaves like a missing one.
+
+### Colours in banners
+
+`announce` and `clod-promo` can paint single words. The colour code is glued to
+the word, with no space in between:
+
+```
+announce: #EF4444IMPORTANT: the #F59E0BNetherlands node is under maintenance until 05:00
+```
+
+* one word is painted — from the code to the next space;
+* the syntax is Prizrak-Box compatible, so a panel already configured for that
+  client works here unchanged;
+* the code does not count against the 500 character cap — only visible text does;
+* `#EF4444` **followed by a space**, `#XYZ`, `#12` and a plain hash stay text;
+* the colour is used exactly as sent, identically in light and dark themes — the
+  app does not bend a provider's brand colour to its own palette.
 
 ### Panel placeholder nodes
 

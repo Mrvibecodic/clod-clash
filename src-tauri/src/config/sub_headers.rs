@@ -180,7 +180,7 @@ impl SubHeaders {
             profile_logo: value(headers, "profile-logo").and_then(|raw| https_url(&raw)),
             home: value(headers, "profile-web-page-url").and_then(|raw| https_url(&raw)),
             support_url: value(headers, "support-url").and_then(|raw| contact_url(&raw)),
-            announce: value(headers, "announce").map(|text| truncate_chars(&text, ANNOUNCE_MAX_CHARS)),
+            announce: value(headers, "announce").map(|text| truncate_banner(&text, ANNOUNCE_MAX_CHARS)),
             announce_url: value(headers, "announce-url").and_then(|raw| https_url(&raw)),
             refill_date: value(headers, "subscription-refill-date").and_then(|raw| raw.trim().parse::<i64>().ok()),
             update_interval_hours: value(headers, "profile-update-interval").and_then(|raw| raw.trim().parse().ok()),
@@ -198,7 +198,7 @@ impl SubHeaders {
                 .or_else(|| bool_value(headers, "pxa-simple-mode"))
                 .or_else(|| bool_value(headers, "flclashx-newboard")),
             portal_url: value(headers, "clod-portal-url").and_then(|raw| https_url(&raw)),
-            promo: value(headers, "clod-promo").map(|text| truncate_chars(&text, ANNOUNCE_MAX_CHARS)),
+            promo: value(headers, "clod-promo").map(|text| truncate_banner(&text, ANNOUNCE_MAX_CHARS)),
             promo_url: value(headers, "clod-promo-url").and_then(|raw| https_url(&raw)),
             renew_url: value(headers, "clod-renew-url").and_then(|raw| https_url(&raw)),
             topup_url: value(headers, "clod-topup-url").and_then(|raw| https_url(&raw)),
@@ -398,6 +398,63 @@ fn truncate_chars(value: &str, limit: usize) -> String {
     value.chars().take(limit).collect::<std::string::String>().into()
 }
 
+/// Length of a `#RRGGBB` colour marker.
+const COLOUR_MARKER_LEN: usize = 7;
+
+/// Is there a `#RRGGBB` colour marker at `chars[index]`?
+///
+/// clod: a banner may paint single words — `#EF4444ВАЖНО` shows `ВАЖНО` in
+/// red. The syntax is Prizrak-Box's, so panels already configured for it work
+/// with us as they are: the marker binds to the word right after it, and a
+/// marker followed by a space is plain text.
+fn colour_marker_at(chars: &[char], index: usize) -> bool {
+    if chars.get(index) != Some(&'#') || index + COLOUR_MARKER_LEN > chars.len() {
+        return false;
+    }
+    // Same condition as the renderer: no word after the marker, no marker.
+    if chars
+        .get(index + COLOUR_MARKER_LEN)
+        .is_none_or(|next| next.is_whitespace())
+    {
+        return false;
+    }
+    chars[index + 1..index + COLOUR_MARKER_LEN]
+        .iter()
+        .all(char::is_ascii_hexdigit)
+}
+
+/// Trim a banner to `limit` *visible* characters.
+///
+/// Colour markers are formatting, not content, so they pass through without
+/// eating the budget — otherwise a provider who colours a few words silently
+/// loses the tail of the text.
+fn truncate_banner(value: &str, limit: usize) -> String {
+    if value.chars().count() <= limit {
+        return value.into();
+    }
+
+    let chars: Vec<char> = value.chars().collect();
+    let mut out = std::string::String::with_capacity(value.len());
+    let mut visible = 0;
+    let mut index = 0;
+
+    while index < chars.len() {
+        if colour_marker_at(&chars, index) {
+            out.extend(&chars[index..index + COLOUR_MARKER_LEN]);
+            index += COLOUR_MARKER_LEN;
+            continue;
+        }
+        if visible == limit {
+            break;
+        }
+        out.push(chars[index]);
+        visible += 1;
+        index += 1;
+    }
+
+    out.into()
+}
+
 /// Replace host (and port when given) of `current`, keeping path and query.
 ///
 /// Returns `None` when the result would not be a usable change.
@@ -455,8 +512,8 @@ pub fn validate_new_url(current: &str, candidate: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        DEFAULT_NOTIFY_EXPIRE_DAYS, HwidState, SubHeaders, contact_url, decode_value, swap_domain, thresholds,
-        validate_new_url,
+        ANNOUNCE_MAX_CHARS, DEFAULT_NOTIFY_EXPIRE_DAYS, HwidState, SubHeaders, contact_url, decode_value, swap_domain,
+        thresholds, validate_new_url,
     };
     use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 
@@ -702,6 +759,61 @@ mod tests {
         ]));
         assert_eq!(parsed.announce_url.as_deref(), Some("https://panel.example/news"));
         assert_eq!(parsed.promo_url.as_deref(), Some("https://p.example/sale"));
+    }
+
+    // clod: `#RRGGBB` — разметка, а не текст: она не должна съедать бюджет в
+    // 500 символов, иначе провайдер, покрасивший пару слов, молча теряет хвост
+    // объявления. Синтаксис общий с Prizrak-Box, поэтому маркер без слова
+    // после него (перед пробелом) — обычный текст и считается как текст.
+    #[test]
+    fn colour_markers_do_not_eat_the_announce_budget() {
+        let word = "СЛОВО";
+        let coloured = format!("#EF4444{word}");
+        // 100 покрашенных слов = 500 видимых символов ровно на лимите.
+        let announce = coloured.repeat(100);
+        let parsed = SubHeaders::parse(&headers(&[("announce", announce.as_str())]));
+        let kept = parsed.announce.expect("announce should be parsed");
+
+        assert_eq!(kept.as_str(), announce);
+        assert_eq!(kept.matches("#EF4444").count(), 100);
+
+        // Сто первое слово уже за лимитом: маркер сохранён быть не может,
+        // потому что красить нечего.
+        let overflow = format!("{announce}{coloured}");
+        let trimmed = SubHeaders::parse(&headers(&[("announce", overflow.as_str())]))
+            .announce
+            .expect("announce should be parsed");
+        assert_eq!(trimmed.as_str(), announce);
+    }
+
+    #[test]
+    fn colour_markers_only_count_when_a_word_follows() {
+        // Маркер перед пробелом и невалидный hex — это просто текст, поэтому
+        // они занимают место в лимите как обычные символы.
+        let text = format!("#EF4444 {}", "a".repeat(ANNOUNCE_MAX_CHARS));
+        let kept = SubHeaders::parse(&headers(&[("announce", text.as_str())]))
+            .announce
+            .expect("announce should be parsed");
+        assert_eq!(kept.chars().count(), ANNOUNCE_MAX_CHARS);
+        assert!(kept.starts_with("#EF4444 "));
+
+        let junk = format!("#XYZ123{}", "b".repeat(ANNOUNCE_MAX_CHARS));
+        let kept = SubHeaders::parse(&headers(&[("announce", junk.as_str())]))
+            .announce
+            .expect("announce should be parsed");
+        assert_eq!(kept.chars().count(), ANNOUNCE_MAX_CHARS);
+        assert!(kept.starts_with("#XYZ123"));
+    }
+
+    #[test]
+    fn promo_shares_the_announce_colour_rules() {
+        let promo = format!("#22C55EСкидка {}", "x".repeat(ANNOUNCE_MAX_CHARS));
+        let kept = SubHeaders::parse(&headers(&[("clod-promo", promo.as_str())]))
+            .promo
+            .expect("promo should be parsed");
+        assert!(kept.starts_with("#22C55EСкидка"));
+        // Видимых символов ровно лимит: семь символов маркера не в счёт.
+        assert_eq!(kept.chars().count() - "#22C55E".chars().count(), ANNOUNCE_MAX_CHARS);
     }
 
     #[test]

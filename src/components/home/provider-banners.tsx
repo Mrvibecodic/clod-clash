@@ -1,19 +1,36 @@
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import PercentRoundedIcon from '@mui/icons-material/PercentRounded'
-import { Alert, IconButton } from '@mui/material'
+import { Alert, Box, IconButton } from '@mui/material'
 import { useLockFn } from 'ahooks'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { patchProfile, openWebUrl } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
+import { parseBannerText } from '@/utils/banner-text'
 
 interface Props {
   profile: IProfileItem
   /** Called after the promo dismissal is persisted. */
   onChanged: () => Promise<unknown> | void
 }
+
+/**
+ * clod: render `#RRGGBB`-marked words in the colour the panel asked for.
+ * Uncoloured text keeps the banner's own colour, so a provider that never
+ * heard of the syntax sees exactly what it saw before.
+ */
+const bannerContent = (text: string) =>
+  parseBannerText(text).map((fragment, index) => (
+    <Box
+      component="span"
+      key={`${index}-${fragment.text}`}
+      sx={fragment.color ? { color: fragment.color, fontWeight: 600 } : null}
+    >
+      {fragment.text}
+    </Box>
+  ))
 
 /**
  * The two provider banners of the home screens.
@@ -74,7 +91,7 @@ export const ProviderBanners = ({ profile, onChanged }: Props) => {
             </IconButton>
           }
         >
-          {profile.promo}
+          {bannerContent(profile.promo ?? '')}
         </Alert>
       ) : null}
 
@@ -91,7 +108,7 @@ export const ProviderBanners = ({ profile, onChanged }: Props) => {
             '& .MuiAlert-icon': { color: 'text.secondary' },
           }}
         >
-          {profile.announce}
+          {bannerContent(profile.announce ?? '')}
         </Alert>
       ) : null}
     </>
