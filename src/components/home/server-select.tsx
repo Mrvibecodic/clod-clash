@@ -35,6 +35,7 @@ import {
   displayLeaf,
   entryDelay,
   groupType,
+  isCorePlaceholder,
   NON_NODE_TYPES,
   type ProxyNode,
   SELECTABLE_GROUP_TYPES,
@@ -105,7 +106,12 @@ export const ServerSelect = ({ open, onClose }: Props) => {
   })
 
   const nodes = useMemo(() => {
-    const all = group?.all ?? []
+    // clod: core placeholders (`REJECT`…) are what a group is left with once
+    // the sentinel filter dropped the panel's "subscription expired" stubs —
+    // showing them as servers would recreate exactly the problem it solves.
+    const all = (group?.all ?? []).filter(
+      (node) => !isCorePlaceholder(node.name),
+    )
     if (favorites.size === 0) return all
     return [
       ...all.filter((node) => favorites.has(node.name)),
@@ -483,7 +489,10 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
 
   const records = (proxies?.records ?? {}) as Record<string, any>
   const group = visibleGroups(proxies)[0]
-  const current = group?.now
+  // clod: an emptied group resolves to `REJECT` — that means "nothing to
+  // connect to", not a server called REJECT, so the row stays "not selected".
+  const selection = group?.now
+  const current = isCorePlaceholder(selection) ? undefined : selection
   // The selection may be a balancer; the ping (and the flag) belong to the
   // node the chain actually lands on. Core placeholders (COMPATIBLE…) are
   // hidden — the flag then falls back to the selection's own name.

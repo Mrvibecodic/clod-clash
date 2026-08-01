@@ -562,6 +562,132 @@ async fn apply_builtin_scripts(mut config: Mapping, clash_core: Option<String>, 
     config
 }
 
+/// clod: узел-заглушка, каким его отдаёт панель вместо серверов.
+///
+/// Remnawave (v3, `createFallbackHosts`) на истёкшую подписку, исчерпанный
+/// трафик, отключённого пользователя, ненастроенные хосты и лимит устройств
+/// отвечает **HTTP 200 и валидным конфигом**, в котором вместо серверов лежат
+/// узлы `server: 0.0.0.0`, `port: 1`, `uuid: 00000000-…`. Имена у них
+/// произвольные — лежат в БД панели, провайдер переписывает их под себя и на
+/// своём языке, — поэтому проверка только структурная.
+///
+/// Loopback заглушкой намеренно НЕ считается: `127.0.0.1` в подписке
+/// встречается у живых схем с локальным релеем (warp/sing-box на своём порту).
+fn is_sentinel_proxy(proxy: &Mapping) -> bool {
+    const NIL_UUID: &str = "00000000-0000-0000-0000-000000000000";
+    // Локальные типы mihomo живут без адреса и порта — это не заглушки.
+    const SERVERLESS_TYPES: &[&str] = &["direct", "reject", "reject-drop", "pass", "dns"];
+
+    if let Some(kind) = proxy.get("type").and_then(Value::as_str)
+        && SERVERLESS_TYPES.contains(&kind.trim().to_ascii_lowercase().as_str())
+    {
+        return false;
+    }
+
+    let unspecified_host = proxy
+        .get("server")
+        .map(|value| match value {
+            Value::String(host) => {
+                matches!(host.trim(), "" | "0.0.0.0" | "::" | "[::]" | "0:0:0:0:0:0:0:0")
+            }
+            Value::Null => true,
+            _ => false,
+        })
+        .unwrap_or(false);
+
+    let dead_port = proxy
+        .get("port")
+        .map(|value| match value {
+            Value::Number(port) => port.as_u64().map(|port| port <= 1).unwrap_or(true),
+            Value::String(port) => port.trim().parse::<u64>().map(|port| port <= 1).unwrap_or(true),
+            _ => true,
+        })
+        .unwrap_or(false);
+
+    let nil_uuid = proxy
+        .get("uuid")
+        .and_then(Value::as_str)
+        .map(|uuid| uuid.trim().eq_ignore_ascii_case(NIL_UUID))
+        .unwrap_or(false);
+
+    unspecified_host || dead_port || nil_uuid
+}
+
+/// Группа, которую ядро наполнит само: провайдеры или `include-all*`.
+/// Пустой список `proxies` у неё — норма, подставлять ничего не нужно.
+fn group_fills_at_runtime(group: &Mapping) -> bool {
+    ["use", "include-all", "include-all-proxies", "include-all-providers"]
+        .iter()
+        .any(|key| match group.get(*key) {
+            Some(Value::Bool(flag)) => *flag,
+            Some(Value::Sequence(seq)) => !seq.is_empty(),
+            Some(Value::Null) | None => false,
+            Some(_) => true,
+        })
+}
+
+/// clod: выкинуть узлы-заглушки из конфига до того, как он уедет в ядро.
+///
+/// Заглушки приходят **вместо** серверов, а не вперемешку с ними, поэтому
+/// группы после чистки остаются пустыми. Удалять такие группы нельзя — на них
+/// ссылаются правила (`MATCH,🌍 VPN`), и ядро не примет конфиг. Поэтому в
+/// опустевшую группу подставляется `REJECT`: конфиг остаётся валидным, а
+/// трафик не утекает мимо туннеля, как утёк бы с `DIRECT`.
+fn drop_sentinel_proxies(mut config: Mapping) -> Mapping {
+    let mut dropped: HashSet<String> = HashSet::new();
+
+    if let Some(Value::Sequence(proxies)) = config.get_mut("proxies") {
+        proxies.retain(|item| {
+            let Some(proxy) = item.as_mapping() else {
+                return true;
+            };
+            if !is_sentinel_proxy(proxy) {
+                return true;
+            }
+            if let Some(name) = proxy.get("name").and_then(Value::as_str) {
+                dropped.insert(name.into());
+            }
+            false
+        });
+    }
+
+    if dropped.is_empty() {
+        return config;
+    }
+
+    logging!(
+        info,
+        Type::Core,
+        "drop {} sentinel proxies from the subscription",
+        dropped.len()
+    );
+
+    if let Some(Value::Sequence(groups)) = config.get_mut("proxy-groups") {
+        for group in groups {
+            let Some(group_map) = group.as_mapping_mut() else {
+                continue;
+            };
+
+            let emptied = match group_map.get_mut("proxies") {
+                Some(Value::Sequence(items)) => {
+                    items.retain(|item| match item.as_str() {
+                        Some(name) => !dropped.contains(name),
+                        None => true,
+                    });
+                    items.is_empty()
+                }
+                _ => false,
+            };
+
+            if emptied && !group_fills_at_runtime(group_map) {
+                group_map.insert(Value::from("proxies"), Value::Sequence(vec![Value::from("REJECT")]));
+            }
+        }
+    }
+
+    config
+}
+
 fn cleanup_proxy_groups(mut config: Mapping) -> Mapping {
     const BUILTIN_POLICIES: &[&str] = &["DIRECT", "REJECT", "REJECT-DROP", "PASS"];
 
@@ -786,6 +912,9 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
     let config = ensure_lan_bind_address(config);
     let config = ensure_store_selected(config);
 
+    // clod: заглушки панели («подписка истекла» и т.п.) вырезаем до чистки
+    // групп — тогда cleanup уберёт и повисшие на них ссылки.
+    let config = drop_sentinel_proxies(config);
     let config = cleanup_proxy_groups(config);
     let config = use_sort(config);
 
@@ -799,8 +928,8 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
 #[cfg(test)]
 mod tests {
     use super::{
-        ChainItem, ChainType, cleanup_proxy_groups, ensure_lan_bind_address, ensure_store_selected,
-        process_global_items, process_profile_items, use_keys,
+        ChainItem, ChainType, cleanup_proxy_groups, drop_sentinel_proxies, ensure_lan_bind_address,
+        ensure_store_selected, process_global_items, process_profile_items, use_keys,
     };
     use std::collections::HashMap;
 
@@ -1225,5 +1354,194 @@ proxy-groups:
             .expect("proxies should be a sequence");
         assert_eq!(proxies.len(), 1);
         assert_eq!(proxies[0].as_str(), Some("DIRECT"));
+    }
+
+    fn group_members(config: &serde_yaml_ng::Mapping, name: &str) -> Vec<std::string::String> {
+        config
+            .get("proxy-groups")
+            .and_then(|v| v.as_sequence())
+            .expect("proxy-groups should be a sequence")
+            .iter()
+            .find(|group| group.get("name").and_then(serde_yaml_ng::Value::as_str) == Some(name))
+            .and_then(|group| group.get("proxies"))
+            .and_then(|v| v.as_sequence())
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(|item| item.as_str().map(std::borrow::ToOwned::to_owned))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    fn proxy_names(config: &serde_yaml_ng::Mapping) -> Vec<std::string::String> {
+        config
+            .get("proxies")
+            .and_then(|v| v.as_sequence())
+            .expect("proxies should be a sequence")
+            .iter()
+            .filter_map(|item| {
+                item.get("name")
+                    .and_then(serde_yaml_ng::Value::as_str)
+                    .map(std::borrow::ToOwned::to_owned)
+            })
+            .collect()
+    }
+
+    // clod: панель при истёкшей подписке отдаёт 200 и конфиг, где вместо
+    // серверов лежат заглушки 0.0.0.0:1 с нулевым uuid (remnawave v3).
+    // Группа после чистки пустеет, но удалять её нельзя — на неё ссылаются
+    // правила, поэтому в ней должен остаться REJECT.
+    #[test]
+    fn sentinel_proxies_are_dropped_and_empty_group_rejects() {
+        let config = mapping(
+            r#"
+proxies:
+  - name: "⌛ Subscription expired"
+    type: vless
+    server: 0.0.0.0
+    port: 1
+    uuid: 00000000-0000-0000-0000-000000000000
+  - name: "Contact support"
+    type: vless
+    server: 0.0.0.0
+    port: 1
+    uuid: 00000000-0000-0000-0000-000000000000
+proxy-groups:
+  - name: "VPN"
+    type: select
+    proxies:
+      - "⌛ Subscription expired"
+      - "Contact support"
+"#,
+        );
+
+        let config = drop_sentinel_proxies(config);
+
+        assert!(proxy_names(&config).is_empty());
+        assert_eq!(group_members(&config, "VPN"), vec!["REJECT".to_owned()]);
+    }
+
+    // Смешанный конфиг: сама панель заглушки и серверы вместе не отдаёт (это
+    // ветка раннего выхода), но живые узлы в тот же список добавляют шаблон
+    // провайдера и наша цепочка Proxies. Тогда чистим поштучно и группу не
+    // трогаем — REJECT появляется только у по-настоящему опустевшей.
+    #[test]
+    fn sentinels_are_dropped_next_to_live_nodes() {
+        let config = mapping(
+            r#"
+proxies:
+  - name: "🇳🇱 Amsterdam"
+    type: vless
+    server: nl02.example.net
+    port: 443
+    uuid: 6f1c0f6d-1a2b-4c3d-8e9f-0a1b2c3d4e5f
+  - name: "⌛ Subscription expired"
+    type: vless
+    server: 0.0.0.0
+    port: 1
+    uuid: 00000000-0000-0000-0000-000000000000
+  - name: "🇩🇪 Frankfurt"
+    type: vless
+    server: de01.example.net
+    port: 443
+    uuid: 7a2d1e7e-2b3c-4d5e-9f0a-1b2c3d4e5f60
+proxy-groups:
+  - name: "VPN"
+    type: select
+    proxies:
+      - "🇳🇱 Amsterdam"
+      - "⌛ Subscription expired"
+      - "🇩🇪 Frankfurt"
+      - "DIRECT"
+"#,
+        );
+
+        let config = drop_sentinel_proxies(config);
+
+        assert_eq!(proxy_names(&config), vec!["🇳🇱 Amsterdam", "🇩🇪 Frankfurt"]);
+        assert_eq!(
+            group_members(&config, "VPN"),
+            vec!["🇳🇱 Amsterdam", "🇩🇪 Frankfurt", "DIRECT"]
+        );
+    }
+
+    // Живые узлы фильтр не трогает: ни локальный релей на loopback, ни узел
+    // без `uuid` (ss/trojan), ни служебный `type: direct` без адреса вовсе.
+    #[test]
+    fn real_proxies_survive_sentinel_filter() {
+        let config = mapping(
+            r#"
+proxies:
+  - name: "🇳🇱 Amsterdam"
+    type: vless
+    server: nl02.example.net
+    port: 443
+    uuid: 6f1c0f6d-1a2b-4c3d-8e9f-0a1b2c3d4e5f
+  - name: "local-relay"
+    type: socks5
+    server: 127.0.0.1
+    port: 40000
+  - name: "shadow"
+    type: ss
+    server: ss.example.net
+    port: 8388
+    password: secret
+  - name: "direct-out"
+    type: direct
+proxy-groups:
+  - name: "VPN"
+    type: select
+    proxies:
+      - "🇳🇱 Amsterdam"
+      - "local-relay"
+      - "shadow"
+      - "direct-out"
+"#,
+        );
+
+        let expected = proxy_names(&config);
+        let config = drop_sentinel_proxies(config);
+
+        assert_eq!(proxy_names(&config), expected);
+        assert_eq!(group_members(&config, "VPN").len(), 4);
+    }
+
+    // Группу, которую ядро наполняет само (провайдеры / include-all),
+    // подменять на REJECT нельзя — пустой список у неё это норма.
+    #[test]
+    fn provider_backed_group_is_left_alone() {
+        let config = mapping(
+            r#"
+proxies:
+  - name: "🚧 Subscription limited"
+    type: vless
+    server: 0.0.0.0
+    port: 1
+    uuid: 00000000-0000-0000-0000-000000000000
+proxy-providers:
+  main:
+    type: http
+    url: https://example.net/sub
+proxy-groups:
+  - name: "AUTO"
+    type: url-test
+    use:
+      - main
+    proxies:
+      - "🚧 Subscription limited"
+  - name: "ALL"
+    type: select
+    include-all: true
+    proxies:
+      - "🚧 Subscription limited"
+"#,
+        );
+
+        let config = drop_sentinel_proxies(config);
+
+        assert!(proxy_names(&config).is_empty());
+        assert!(group_members(&config, "AUTO").is_empty());
+        assert!(group_members(&config, "ALL").is_empty());
     }
 }

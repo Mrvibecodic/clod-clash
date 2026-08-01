@@ -60,6 +60,18 @@ const INTERNAL_LEAF_NAMES = new Set([
 ])
 
 /**
+ * clod: `REJECT` and friends can end up as a group's only member — that is
+ * what the sentinel filter leaves behind when the panel sent nothing but
+ * placeholder nodes (expired subscription). They are not servers and must not
+ * be offered as a choice; an empty list reads far better than a "REJECT" row.
+ *
+ * `DIRECT` is deliberately not here: templates ship it as a real, pickable
+ * option ("no VPN" groups).
+ */
+export const isCorePlaceholder = (name?: string) =>
+  !!name && INTERNAL_LEAF_NAMES.has(name)
+
+/**
  * The leaf worth showing next to a group: the resolved node, or `undefined`
  * when the chain ends where it started or lands on a core placeholder.
  */

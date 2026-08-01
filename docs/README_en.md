@@ -153,6 +153,24 @@ These apply to every header above:
   lists are range-checked (1–365 days, 1–100 percent) and limited to ten entries. A
   completely invalid header behaves like a missing one.
 
+### Panel placeholder nodes
+
+For an expired subscription, exhausted traffic quota, a disabled user or unconfigured
+hosts Remnawave answers with **HTTP 200 and a valid config** rather than an error — one
+where the servers are replaced by placeholder nodes: `server: 0.0.0.0`, `port: 1`, a nil
+`uuid`. Their names are arbitrary — "Subscription expired", "Contact support",
+"→ No hosts found", or whatever the panel admin configured.
+
+The client **drops those nodes before the config reaches the core**: they never show up in
+the server list, never take part in a latency test and can never be picked automatically.
+The check is structural (address, port, nil identifier), not name-based — panels localise
+those names and change them at will. A loopback address (`127.0.0.1`) is **not** treated as
+a placeholder: a local relay is a legitimate setup.
+
+When a group ends up with no nodes at all, the client puts `REJECT` in it: the core rejects
+an empty group, and `DIRECT` would leak traffic around the tunnel. In the UI such a group
+reads as "no servers in the subscription".
+
 ---
 
 ## Configuring a Remnawave panel
