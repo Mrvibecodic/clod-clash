@@ -194,6 +194,16 @@ class DelayManager {
       }
     }
 
+    // clod: тест шёл по URL самой группы (`proxy-groups[].url` из шаблона
+    // провайдера), и ядро складывает такие замеры не в `history`, а в
+    // `extra[url]`. Без этого «Тест» показывал пинг до дефолтного адреса —
+    // то есть не то, что реально происходит с YouTube-группой.
+    const groupUrl = this.urlMap.get(group)
+    const extraHistory = groupUrl ? proxy.extra?.[groupUrl]?.history : undefined
+    if (extraHistory && extraHistory.length > 0) {
+      return extraHistory[extraHistory.length - 1].delay || 1e6
+    }
+
     // 添加 history 属性的安全检查
     if (proxy.history && proxy.history.length > 0) {
       // 0ms以error显示

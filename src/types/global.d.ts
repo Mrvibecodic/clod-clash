@@ -101,6 +101,11 @@ interface IProxyItem {
     delay: number
   }[]
   testUrl?: string
+  /**
+   * clod: per-test-URL history. The core keeps the default URL's results in
+   * `history` and everything else here, keyed by the URL that was used.
+   */
+  extra?: Record<string, { history: { time: string; delay: number }[] }>
   all?: string[]
   now?: string
   hidden?: boolean

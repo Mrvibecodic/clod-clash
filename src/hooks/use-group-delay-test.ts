@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { delayGroup, getProxies } from 'tauri-plugin-mihomo-api'
 
+import { useGroupTestUrls } from '@/hooks/use-group-test-urls'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useProxySelection } from '@/hooks/use-proxy-selection'
 import { useAppRefreshers } from '@/providers/app-data-context'
@@ -26,6 +27,7 @@ import { SELECTABLE_GROUP_TYPES } from '@/utils/proxy-groups'
 export const useGroupDelayTest = () => {
   const { current } = useProfiles()
   const { refreshProxy } = useAppRefreshers()
+  const { urlFor } = useGroupTestUrls()
   const { changeProxy } = useProxySelection({
     onSuccess: () => {
       refreshProxy().catch(() => {})
@@ -74,9 +76,14 @@ export const useGroupDelayTest = () => {
   return useCallback(
     async (groupName: string) => {
       try {
+        // clod: у каждой группы шаблона свой `url:` — тестируем YouTube-группу
+        // по YouTube, а не по общему generate_204. Адрес запоминаем в
+        // delayManager: по нему же читается история замеров (`extra[url]`).
+        const testUrl = urlFor(groupName)
+        delayManager.setUrl(groupName, testUrl)
         const delays = await delayGroup(
           groupName,
-          delayManager.getUrl(groupName),
+          testUrl,
           10000,
           true, // keepFixed — вернуть закреплённый узел после теста
         )
@@ -90,6 +97,6 @@ export const useGroupDelayTest = () => {
         refreshProxy().catch(() => {})
       }
     },
-    [failoverToFavorite, refreshProxy],
+    [failoverToFavorite, refreshProxy, urlFor],
   )
 }

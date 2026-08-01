@@ -24,6 +24,7 @@ import { useTranslation } from 'react-i18next'
 
 import { CountryFlag } from '@/components/home/country-flag'
 import { useGroupDelayTest } from '@/hooks/use-group-delay-test'
+import { useGroupTestUrls } from '@/hooks/use-group-test-urls'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useProxySelection } from '@/hooks/use-proxy-selection'
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
@@ -74,6 +75,9 @@ export const ServerSelect = ({ open, onClose }: Props) => {
   })
   const [testing, setTesting] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
+  // clod: подтягивает URL тестов групп из шаблона, чтобы показанные задержки
+  // соответствовали тому, чем группу реально мерили
+  useGroupTestUrls()
 
   const records = (proxies?.records ?? {}) as Record<string, any>
   const groups = useMemo(() => visibleGroups(proxies), [proxies])
