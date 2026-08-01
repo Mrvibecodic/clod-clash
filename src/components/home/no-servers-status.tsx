@@ -105,7 +105,11 @@ export const NoServersStatus = ({ profile, onRefreshed }: Props) => {
     reason === 'provider' ? remarks.filter(Boolean).join(' · ') : ''
 
   return (
-    <Alert severity={severity} icon={icon} sx={{ '& .MuiAlert-message': { width: '100%' } }}>
+    <Alert
+      severity={severity}
+      icon={icon}
+      sx={{ '& .MuiAlert-message': { width: '100%' } }}
+    >
       <AlertTitle sx={{ fontSize: 14, fontWeight: 600, mb: 0.25 }}>
         {title}
       </AlertTitle>
@@ -130,7 +134,7 @@ export const NoServersStatus = ({ profile, onRefreshed }: Props) => {
             {t('home.components.subscription.topup')}
           </Button>
         ) : null}
-        {profile.renew_url ? (
+        {reason !== 'provider' && profile.renew_url ? (
           <Button
             size="small"
             variant={reason === 'expired' ? 'contained' : 'outlined'}
@@ -151,7 +155,12 @@ export const NoServersStatus = ({ profile, onRefreshed }: Props) => {
           </Button>
         ) : null}
         {reason === 'provider' ? (
-          <Button size="small" variant="outlined" color={severity} onClick={() => void refresh()}>
+          <Button
+            size="small"
+            variant="outlined"
+            color={severity}
+            onClick={() => void refresh()}
+          >
             {t('home.components.serverStatus.refresh')}
           </Button>
         ) : null}

@@ -25,7 +25,13 @@ export const useNoServersStatus = (profile?: IProfileItem) => {
   // An expired or exhausted subscription explains itself; anything else needs
   // the config-side confirmation that the panel sent placeholders.
   const show =
-    Boolean(profile) && (reason !== 'provider' || Boolean(report?.only_sentinels))
+    Boolean(profile) &&
+    (reason !== 'provider' || Boolean(report?.only_sentinels))
 
-  return { reason, show, remarks: report?.remarks ?? [] }
+  return {
+    reason,
+    show,
+    onlySentinels: Boolean(report?.only_sentinels),
+    remarks: report?.remarks ?? [],
+  }
 }

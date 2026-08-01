@@ -172,7 +172,9 @@ export const NoticeManager: React.FC<NoticeManagerProps> = ({ position }) => {
   const handleSupportBundle = useCallback(async () => {
     try {
       await copySupportBundle()
-      showNotice.success('shared.feedback.notifications.common.supportBundleCopied')
+      showNotice.success(
+        'shared.feedback.notifications.common.supportBundleCopied',
+      )
     } catch (error) {
       showNotice.error(error)
     }
@@ -233,7 +235,12 @@ export const NoticeManager: React.FC<NoticeManagerProps> = ({ position }) => {
                 <Button
                   size="small"
                   color="inherit"
-                  sx={{ px: 1, py: 0, minHeight: 0, textDecoration: 'underline' }}
+                  sx={{
+                    px: 1,
+                    py: 0,
+                    minHeight: 0,
+                    textDecoration: 'underline',
+                  }}
                   onClick={() => void handleSupportBundle()}
                 >
                   {t('shared.actions.copySupportBundle')}

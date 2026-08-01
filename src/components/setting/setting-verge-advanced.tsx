@@ -176,7 +176,9 @@ const SettingVergeAdvanced = ({ onError: _ }: Props) => {
           <TooltipIcon
             icon={ContentCopyRounded}
             onClick={() => void onCopySupportBundle()}
-            title={t('settings.components.verge.advanced.tooltips.supportBundle')}
+            title={t(
+              'settings.components.verge.advanced.tooltips.supportBundle',
+            )}
           />
         }
       ></SettingItem>

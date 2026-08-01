@@ -38,23 +38,41 @@ const SECRET_KEYS: &[&str] = &[
     "api_key",
     "apikey",
     "x-hwid",
+    "hwid",
+    "sub-url",
 ];
 
-/// Длина, начиная с которой «слово» само по себе считается секретом.
-const TOKEN_LEN: usize = 24;
+/// Слова, которые стоят между именем секрета и самим секретом.
+const SECRET_PREFIXES: &[&str] = &["bearer", "basic", "token"];
 
-fn is_secret_key(word: &str) -> bool {
-    let key = word
-        .trim_matches(|c: char| !c.is_ascii_alphanumeric() && c != '-' && c != '_')
-        .to_ascii_lowercase();
-    SECRET_KEYS.contains(&key.as_str())
+/// Длина, начиная с которой «слово» само по себе считается секретом.
+const TOKEN_LEN: usize = 20;
+
+fn normalize_key(word: &str) -> std::string::String {
+    word.trim_matches(|c: char| !c.is_ascii_alphanumeric() && c != '-' && c != '_')
+        .to_ascii_lowercase()
 }
 
+fn is_secret_key(word: &str) -> bool {
+    SECRET_KEYS.contains(&normalize_key(word).as_str())
+}
+
+/// Похоже на токен: длинное, без пробелов, из «машинного» алфавита и с цифрой
+/// или сменой регистра. Обычные слова и пути под это не подходят.
 fn looks_like_token(word: &str) -> bool {
-    word.len() >= TOKEN_LEN
-        && word
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '=')
+    let body = word.trim_matches(|c: char| matches!(c, '"' | '\'' | ',' | ';' | ')' | '(' | '`'));
+    if body.len() < TOKEN_LEN {
+        return false;
+    }
+    if !body
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '=' | '.' | '+' | '/'))
+    {
+        return false;
+    }
+    let has_digit = body.chars().any(|c| c.is_ascii_digit());
+    let mixed_case = body.chars().any(char::is_uppercase) && body.chars().any(char::is_lowercase);
+    has_digit || mixed_case
 }
 
 /// Замаскировать одно «слово» лога.
@@ -87,18 +105,36 @@ pub fn redact(line: &str) -> std::string::String {
     let mut out = std::string::String::with_capacity(line.len());
     let mut expect_secret_value = false;
 
-    for (index, word) in line.split(' ').enumerate() {
-        if index > 0 {
-            out.push(' ');
+    for word in line.split_inclusive(char::is_whitespace) {
+        let (body, spacing) = match word.find(char::is_whitespace) {
+            Some(pos) => (&word[..pos], &word[pos..]),
+            None => (word, ""),
+        };
+
+        if body.is_empty() {
+            // Подряд идущие пробелы и табы не должны сбрасывать ожидание
+            // значения: `secret:<таб><секрет>` тоже обязан быть замазан.
+            out.push_str(spacing);
+            continue;
         }
-        if expect_secret_value && !word.is_empty() {
+
+        if expect_secret_value {
+            // `Authorization: Bearer <jwt>` — схема стоит между ключом и
+            // значением, поэтому ожидание держится до первого настоящего слова.
+            if SECRET_PREFIXES.contains(&normalize_key(body).as_str()) {
+                out.push_str(body);
+                out.push_str(spacing);
+                continue;
+            }
             out.push_str("***");
+            out.push_str(spacing);
             expect_secret_value = false;
             continue;
         }
-        // `secret: xxx` — ключ и значение разнесены пробелом.
-        expect_secret_value = word.ends_with(':') && is_secret_key(word);
-        out.push_str(&redact_word(word));
+
+        expect_secret_value = body.ends_with([':', '=']) && is_secret_key(body);
+        out.push_str(&redact_word(body));
+        out.push_str(spacing);
     }
 
     out
@@ -109,8 +145,8 @@ pub fn redact(line: &str) -> std::string::String {
 /// Лог ротируется по размеру, поэтому «последние N строк» почти всегда лежат
 /// в двух файлах: текущем и предыдущем. Берём оба, иначе на подробном уровне
 /// в отчёт попадает минута жизни приложения.
-async fn log_files(matches: impl Fn(&str) -> bool) -> Vec<PathBuf> {
-    let Ok(dir) = dirs::app_logs_dir() else {
+async fn log_files(dir: Option<PathBuf>, matches: impl Fn(&str) -> bool + Send) -> Vec<PathBuf> {
+    let Some(dir) = dir else {
         return Vec::new();
     };
     let Ok(mut entries) = fs::read_dir(&dir).await else {
@@ -133,7 +169,8 @@ async fn log_files(matches: impl Fn(&str) -> bool) -> Vec<PathBuf> {
         found.push((modified, path));
     }
 
-    found.sort_by(|left, right| right.0.cmp(&left.0));
+    // Свежие первыми: reverse-порядок по времени изменения.
+    found.sort_by_key(|(modified, _)| std::cmp::Reverse(*modified));
     found.into_iter().map(|(_, path)| path).collect()
 }
 
@@ -162,11 +199,11 @@ async fn tail_of(paths: &[PathBuf], lines: usize) -> Option<std::string::String>
     (!text.trim().is_empty()).then_some(text)
 }
 
-fn yes_no(value: bool) -> &'static str {
+const fn yes_no(value: bool) -> &'static str {
     if value { "да" } else { "нет" }
 }
 
-async fn app_section(out: &mut std::string::String) {
+fn app_section(out: &mut std::string::String) {
     let _ = writeln!(out, "## Приложение");
     let _ = writeln!(out, "- версия: {}", env!("CARGO_PKG_VERSION"));
     let _ = writeln!(out, "- User-Agent: {}", hwid::user_agent());
@@ -290,7 +327,11 @@ fn sentinel_section(out: &mut std::string::String) {
 }
 
 async fn logs_section(out: &mut std::string::String, lines: usize) {
-    let app_logs = log_files(|name| name.ends_with(".log") && !name.starts_with("sidecar")).await;
+    // Лог приложения лежит в корне logs/, лог ядра — в logs/sidecar/.
+    let app_logs = log_files(dirs::app_logs_dir().ok(), |name| {
+        name.ends_with(".log") && !name.starts_with("sidecar")
+    })
+    .await;
     let _ = writeln!(out, "\n## Лог приложения (последние {lines} строк, отредактирован)");
     match tail_of(&app_logs, lines).await {
         Some(tail) => {
@@ -301,7 +342,7 @@ async fn logs_section(out: &mut std::string::String, lines: usize) {
         }
     }
 
-    let core_logs = log_files(|name| name.starts_with("sidecar")).await;
+    let core_logs = log_files(dirs::sidecar_log_dir().ok(), |name| name.ends_with(".log")).await;
     let _ = writeln!(out, "\n## Лог ядра (последние {lines} строк, отредактирован)");
     match tail_of(&core_logs, lines).await {
         Some(tail) => {
@@ -324,7 +365,7 @@ pub async fn build(lines: Option<usize>) -> Result<std::string::String> {
     let _ = writeln!(out, "# Clod Clash — отчёт для поддержки");
     let _ = writeln!(out, "Секреты (адреса подписок, токены, пароли) заменены на `***`.\n");
 
-    app_section(&mut out).await;
+    app_section(&mut out);
     settings_section(&mut out).await;
     subscription_section(&mut out).await;
     sentinel_section(&mut out);
@@ -345,6 +386,19 @@ mod tests {
         assert!(!masked.contains("9f8e7d6c5b4a3f2e1d0c9b8a7"));
         assert!(!masked.contains("abcdef123456"));
         assert!(masked.contains("panel.example.com"));
+    }
+
+    #[test]
+    fn bearer_tokens_and_odd_spacing_survive_nothing() {
+        let jwt = redact("Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.abcdefghij");
+        assert!(!jwt.contains("eyJhbGciOiJIUzI1NiJ9"), "{jwt}");
+        assert!(jwt.contains("Bearer"), "{jwt}");
+
+        let spaced = redact("secret:  hunter2hunter2hunter2");
+        assert!(!spaced.contains("hunter2"), "{spaced}");
+
+        let tabbed = redact("token:\tZm9vYmFyYmF6cXV4MTIzNDU2");
+        assert!(!tabbed.contains("Zm9vYmFy"), "{tabbed}");
     }
 
     #[test]

@@ -391,13 +391,6 @@ fn contact_url(value: &str) -> Option<String> {
     Some(value.trim().into())
 }
 
-fn truncate_chars(value: &str, limit: usize) -> String {
-    if value.chars().count() <= limit {
-        return value.into();
-    }
-    value.chars().take(limit).collect::<std::string::String>().into()
-}
-
 /// Length of a `#RRGGBB` colour marker.
 const COLOUR_MARKER_LEN: usize = 7;
 
@@ -439,13 +432,15 @@ fn truncate_banner(value: &str, limit: usize) -> String {
     let mut index = 0;
 
     while index < chars.len() {
+        // Бюджет проверяется первым: иначе за границей лимита оставался бы
+        // висячий маркер, который рендерер показал бы как обычный текст.
+        if visible == limit {
+            break;
+        }
         if colour_marker_at(&chars, index) {
             out.extend(&chars[index..index + COLOUR_MARKER_LEN]);
             index += COLOUR_MARKER_LEN;
             continue;
-        }
-        if visible == limit {
-            break;
         }
         out.push(chars[index]);
         visible += 1;
@@ -509,6 +504,7 @@ pub fn validate_new_url(current: &str, candidate: &str) -> Option<String> {
     (candidate_url.as_str() != current).then(|| candidate_url.as_str().into())
 }
 
+#[allow(clippy::expect_used)]
 #[cfg(test)]
 mod tests {
     use super::{

@@ -15,7 +15,8 @@ export type NoServersReason = 'expired' | 'traffic' | 'provider'
  * be milliseconds (that is the year 33658 in seconds) — some subscription
  * backends emit ms where the spec says seconds.
  */
-export const toUnixSeconds = (ts: number) => (ts > 1e12 ? Math.round(ts / 1000) : ts)
+export const toUnixSeconds = (ts: number) =>
+  ts > 1e12 ? Math.round(ts / 1000) : ts
 
 export const noServersReason = (profile?: IProfileItem): NoServersReason => {
   const extra = profile?.extra

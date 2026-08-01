@@ -236,10 +236,12 @@ const SettingVergeBasic = ({ onError }: Props) => {
               <Box sx={{ whiteSpace: 'pre-line' }}>
                 {[
                   t('settings.components.verge.basic.hints.deviceIdentity'),
+                  // Все четыре x-* уходят вместе с отпечатком: нет hwid —
+                  // нет ни одного из них. User-Agent отправляется всегда.
                   identity?.hwid ? `x-hwid: ${identity.hwid}` : null,
-                  identity ? `x-device-os: ${identity.os}` : null,
-                  identity ? `x-ver-os: ${identity.os_version}` : null,
-                  identity ? `x-device-model: ${identity.model}` : null,
+                  identity?.hwid ? `x-device-os: ${identity.os}` : null,
+                  identity?.hwid ? `x-ver-os: ${identity.os_version}` : null,
+                  identity?.hwid ? `x-device-model: ${identity.model}` : null,
                   identity ? `User-Agent: ${identity.user_agent}` : null,
                 ]
                   .filter(Boolean)

@@ -34,7 +34,6 @@ import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
 import { showNotice } from '@/services/notice-service'
 import { nameWithoutFlag } from '@/utils/country'
 import { delayColor } from '@/utils/delay-color'
-import { toUnixSeconds } from '@/utils/subscription-status'
 import {
   AUTO_GROUP_TYPES,
   displayLeaf,
@@ -47,6 +46,7 @@ import {
   usableDelay,
   visibleGroups,
 } from '@/utils/proxy-groups'
+import { toUnixSeconds } from '@/utils/subscription-status'
 
 const VIRTUALIZE_FROM = 50
 const ROW_HEIGHT = 52
@@ -112,6 +112,16 @@ export const ServerSelect = ({ open, onClose }: Props) => {
       showNotice.error(error)
     }
   })
+
+  // Тот же вопрос, что и в строке на главной: есть ли к чему подключаться.
+  // `DIRECT` и служебные имена ядра сервером не считаются.
+  const { show: noServers, onlySentinels } = useNoServersStatus(current)
+  const realNodeCount = (group?.all ?? []).filter((node) => {
+    const type = groupType(records[node.name] ?? node)
+    return !isCorePlaceholder(node.name) && !NON_NODE_TYPES.has(type)
+  }).length
+  const showStatus =
+    noServers && (onlySentinels || (Boolean(proxies) && realNodeCount === 0))
 
   const nodes = useMemo(() => {
     // clod: core placeholders (`REJECT`…) are what a group is left with once
@@ -398,18 +408,20 @@ export const ServerSelect = ({ open, onClose }: Props) => {
           </Typography>
         ) : null}
 
+        {/* clod: пустой список честен, но ничего не объясняет — статус говорит,
+            почему серверов нет, и даёт ссылки провайдера. Показывается и когда
+            в группе остался один `DIRECT`: подключаться всё равно не к чему. */}
+        {showStatus ? (
+          <NoServersStatus profile={current} onRefreshed={mutateProfiles} />
+        ) : null}
+
         {nodes.length === 0 ? (
-          <>
-            {/* clod: пустой список честен, но ничего не объясняет — статус
-                говорит, почему серверов нет, и даёт ссылки провайдера */}
-            <NoServersStatus profile={current} onRefreshed={mutateProfiles} />
-            <Typography
-              color="text.secondary"
-              sx={{ py: 4, textAlign: 'center' }}
-            >
-              {t('home.components.serverSelect.empty')}
-            </Typography>
-          </>
+          <Typography
+            color="text.secondary"
+            sx={{ py: 4, textAlign: 'center' }}
+          >
+            {t('home.components.serverSelect.empty')}
+          </Typography>
         ) : nodes.length > VIRTUALIZE_FROM ? (
           <Box ref={scrollRef} sx={{ overflowY: 'auto', maxHeight: '60vh' }}>
             <Box
@@ -535,12 +547,21 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
   // clod: серверов может не быть вовсе — панель отдала одни заглушки. Тогда
   // строка не притворяется выбором, а называет причину: тот же статус, что и
   // в шторке, только одной строкой.
-  const { reason, show: noServers } = useNoServersStatus(currentProfile)
-  const listEmpty =
-    !current &&
-    (group?.all ?? []).filter((node) => !isCorePlaceholder(node.name)).length ===
-      0
-  const statusRow = listEmpty && noServers
+  const {
+    reason,
+    show: noServers,
+    onlySentinels,
+  } = useNoServersStatus(currentProfile)
+  // Настоящими серверами считаем только узлы: `DIRECT` и служебные имена ядра
+  // остаются в группе и после чистки заглушек, но подключаться к ним нечем.
+  const realNodes = (group?.all ?? []).filter((node) => {
+    const type = groupType(records[node.name] ?? node)
+    return !isCorePlaceholder(node.name) && !NON_NODE_TYPES.has(type)
+  })
+  // `proxies` ещё не загружены (старт приложения, рестарт ядра) — молчим:
+  // отсутствие групп в этот момент не значит, что серверов нет.
+  const listEmpty = Boolean(proxies) && Boolean(group) && realNodes.length === 0
+  const statusRow = noServers && (listEmpty || onlySentinels)
   const refillDate = currentProfile?.refill_date
     ? dayjs(toUnixSeconds(currentProfile.refill_date) * 1000).format(
         'DD.MM.YYYY',
@@ -585,7 +606,15 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
         cursor: 'pointer',
         bgcolor: 'background.paper',
         border: (theme) =>
-          `1px solid ${statusRow ? theme.palette.warning.main : theme.palette.divider}`,
+          `1px solid ${
+            statusRow
+              ? reason === 'expired'
+                ? theme.palette.error.main
+                : reason === 'traffic'
+                  ? theme.palette.warning.main
+                  : theme.palette.divider
+              : theme.palette.divider
+          }`,
         '&:hover': { borderColor: 'primary.main' },
       }}
     >

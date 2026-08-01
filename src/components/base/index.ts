@@ -1,3 +1,4 @@
+export { BannerText } from './base-banner-text'
 export { BaseDialog, type DialogRef } from './base-dialog'
 export { BaseEmpty } from './base-empty'
 export { BaseErrorBoundary } from './base-error-boundary'

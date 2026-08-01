@@ -649,7 +649,22 @@ fn is_sentinel_proxy(proxy: &Mapping) -> bool {
         .map(|uuid| uuid.trim().eq_ignore_ascii_case(NIL_UUID))
         .unwrap_or(false);
 
-    unspecified_host || dead_port || nil_uuid
+    // Неуказанный адрес и нулевой идентификатор — приговор сами по себе:
+    // такой узел не может ни соединиться, ни авторизоваться. А вот один лишь
+    // «мёртвый порт» — слишком слабый признак, чтобы выкидывать по нему живой
+    // узел, поэтому он считается только вместе с чем-то ещё.
+    unspecified_host || nil_uuid || (dead_port && missing_credentials(proxy))
+}
+
+/// У узла нет ни одного секрета: ни `uuid`, ни `password`, ни `psk`.
+/// Настоящий vless/trojan/ss без них не бывает.
+fn missing_credentials(proxy: &Mapping) -> bool {
+    ["uuid", "password", "psk"].iter().all(|key| {
+        proxy
+            .get(*key)
+            .and_then(Value::as_str)
+            .is_none_or(|value| value.trim().is_empty())
+    })
 }
 
 /// Группа, которую ядро наполнит само: провайдеры или `include-all*`.
@@ -694,29 +709,35 @@ fn filter_sentinel_proxies(mut config: Mapping) -> (Mapping, SentinelReport) {
             if !is_sentinel_proxy(proxy) {
                 return true;
             }
-            if let Some(name) = proxy.get("name").and_then(Value::as_str) {
-                if dropped.insert(name.into()) {
-                    remarks.push(name.into());
-                }
+            if let Some(name) = proxy.get("name").and_then(Value::as_str)
+                && dropped.insert(name.into())
+            {
+                remarks.push(name.into());
             }
             false
         });
     }
 
-    if dropped.is_empty() {
-        // Нормальный конфиг стирает прошлый отчёт: статус «серверов нет» не
-        // должен пережить обновление, которое всё починило.
-        return (config, SentinelReport::default());
-    }
-
+    // «Серверов не осталось» считаем и когда заглушек не было вовсе: панель
+    // умеет прислать просто пустой `proxies`, и для интерфейса это то же самое.
+    // Провайдеры (`proxy-providers`) наполняют группы уже в рантайме — при них
+    // пустой список ещё ничего не значит.
     let survivors = config
         .get("proxies")
         .and_then(|value| value.as_sequence())
         .map_or(0, Vec::len);
+    let has_providers = config
+        .get("proxy-providers")
+        .and_then(Value::as_mapping)
+        .is_some_and(|providers| !providers.is_empty());
     let report = SentinelReport {
         remarks: remarks.into_iter().take(MAX_REPORTED_REMARKS).collect(),
-        only_sentinels: survivors == 0,
+        only_sentinels: survivors == 0 && !has_providers,
     };
+
+    if dropped.is_empty() {
+        return (config, report);
+    }
 
     logging!(
         info,
@@ -1536,6 +1557,27 @@ proxy-groups:
         );
     }
 
+    // Панель умеет прислать просто пустой список — для интерфейса это то же
+    // самое «серверов нет», хотя выбрасывать было нечего.
+    #[test]
+    fn empty_proxy_list_counts_as_no_servers() {
+        let config = mapping(
+            r#"
+proxies: []
+proxy-groups:
+  - name: "VPN"
+    type: select
+    proxies:
+      - "DIRECT"
+"#,
+        );
+
+        let (_, report) = filter_sentinel_proxies(config);
+
+        assert!(report.only_sentinels);
+        assert!(report.remarks.is_empty());
+    }
+
     // Живые узлы фильтр не трогает: ни локальный релей на loopback, ни узел
     // без `uuid` (ss/trojan), ни служебный `type: direct` без адреса вовсе.
     #[test]
@@ -1612,7 +1654,9 @@ proxy-groups:
 
         let (config, report) = filter_sentinel_proxies(config);
 
-        assert!(report.only_sentinels);
+        // Узлы придут из провайдера в рантайме, поэтому пустой `proxies` здесь
+        // ещё не значит «панель не выдала серверы».
+        assert!(!report.only_sentinels);
         assert!(proxy_names(&config).is_empty());
         assert!(group_members(&config, "AUTO").is_empty());
         assert!(group_members(&config, "ALL").is_empty());

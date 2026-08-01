@@ -16,6 +16,8 @@ export interface BannerFragment {
   text: string
   /** `#RRGGBB` when the provider asked for a colour. */
   color?: string
+  /** Offset in the original text — a stable React key. */
+  start: number
 }
 
 const COLOUR_MARKER = /#([0-9a-fA-F]{6})(\S+)/g
@@ -28,14 +30,18 @@ export const parseBannerText = (text: string): BannerFragment[] => {
   for (const match of text.matchAll(COLOUR_MARKER)) {
     const start = match.index ?? 0
     if (start > cursor) {
-      fragments.push({ text: text.slice(cursor, start) })
+      fragments.push({ text: text.slice(cursor, start), start: cursor })
     }
-    fragments.push({ text: match[2], color: `#${match[1]}` })
+    fragments.push({
+      text: match[2],
+      color: `#${match[1]}`,
+      start: start + 7,
+    })
     cursor = start + match[0].length
   }
 
   if (cursor < text.length) {
-    fragments.push({ text: text.slice(cursor) })
+    fragments.push({ text: text.slice(cursor), start: cursor })
   }
 
   return fragments

@@ -14,6 +14,7 @@ import useSWR from 'swr'
 import { useProfiles } from '@/hooks/use-profiles'
 import { getProfileLogo, updateProfile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
+import { toUnixSeconds } from '@/utils/subscription-status'
 
 interface Props {
   profile: IProfileItem
@@ -50,15 +51,19 @@ export const ProviderHeader = ({ profile }: Props) => {
   // clod: логотип берём из локального кэша, а не с чужого хоста: он не мигает
   // при старте, работает офлайн и не отдаёт IP пользователя при каждом показе.
   // Ключ включает время обновления подписки — сменился логотип, сменился кэш.
-  const { data: cachedLogo } = useSWR(
+  const { data: cachedLogo, isLoading: logoLoading } = useSWR(
     profile.uid ? ['profileLogo', profile.uid, profile.updated ?? 0] : null,
     ([, uid]) => getProfileLogo(uid as string),
     { revalidateOnFocus: false },
   )
-  const logo = cachedLogo ?? profile.logo
+  // Пока кэш читается — не показываем ничего: подставить сюда URL из заголовка
+  // значило бы сходить на хост провайдера ровно в тот момент, которого мы и
+  // хотели избежать. URL остаётся фолбэком только когда кэша нет совсем.
+  const logo = logoLoading ? undefined : (cachedLogo ?? profile.logo)
 
   const [now] = useState(() => Date.now())
-  const expired = !!profile.extra?.expire && profile.extra.expire * 1000 < now
+  const expired =
+    !!profile.extra?.expire && toUnixSeconds(profile.extra.expire) * 1000 < now
 
   return (
     <Stack direction="row" sx={{ alignItems: 'center', gap: 1.5 }}>

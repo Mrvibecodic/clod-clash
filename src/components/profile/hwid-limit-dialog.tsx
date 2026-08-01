@@ -9,6 +9,7 @@ import {
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { BannerText } from '@/components/base'
 import { useListen } from '@/hooks/use-listen'
 import { useVerge } from '@/hooks/use-verge'
 import { openWebUrl } from '@/services/cmds'
@@ -109,7 +110,7 @@ export const HwidLimitDialog = () => {
         {/* Remnawave puts the provider's maxDevicesAnnounce into `announce`. */}
         {notice.announce ? (
           <DialogContentText sx={{ mt: 2, whiteSpace: 'pre-line' }}>
-            {notice.announce}
+            <BannerText text={notice.announce} />
           </DialogContentText>
         ) : null}
       </DialogContent>

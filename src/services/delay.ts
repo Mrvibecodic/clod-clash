@@ -107,6 +107,17 @@ class DelayManager {
     this.urlMap.set(group, url)
   }
 
+  /**
+   * clod: заменить карту URL целиком.
+   *
+   * Именно заменить, а не дополнить: при смене профиля группа с тем же именем,
+   * но без своего `url:`, не должна унаследовать адрес из прошлого профиля —
+   * иначе и тест, и чтение истории пойдут не туда.
+   */
+  replaceUrls(urls: Map<string, string>) {
+    this.urlMap = new Map(urls)
+  }
+
   getUrl(group: string) {
     const url = this.urlMap.get(group)
     debugLog(
@@ -199,15 +210,23 @@ class DelayManager {
     // `extra[url]`. Без этого «Тест» показывал пинг до дефолтного адреса —
     // то есть не то, что реально происходит с YouTube-группой.
     const groupUrl = this.urlMap.get(group)
-    const extraHistory = groupUrl ? proxy.extra?.[groupUrl]?.history : undefined
-    if (extraHistory && extraHistory.length > 0) {
-      return extraHistory[extraHistory.length - 1].delay || 1e6
-    }
+    const extraEntry = groupUrl
+      ? proxy.extra?.[groupUrl]?.history?.at(-1)
+      : undefined
+    const historyEntry = proxy.history?.at(-1)
 
-    // 添加 history 属性的安全检查
-    if (proxy.history && proxy.history.length > 0) {
+    // Берём более свежий замер: старая запись в `extra` не должна перебивать
+    // только что снятый пинг по дефолтному адресу (и наоборот).
+    const newest =
+      extraEntry && historyEntry
+        ? Date.parse(extraEntry.time) >= Date.parse(historyEntry.time)
+          ? extraEntry
+          : historyEntry
+        : (extraEntry ?? historyEntry)
+
+    if (newest) {
       // 0ms以error显示
-      return proxy.history[proxy.history.length - 1].delay || 1e6
+      return newest.delay || 1e6
     }
     return -1
   }

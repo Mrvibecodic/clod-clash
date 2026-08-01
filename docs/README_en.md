@@ -33,7 +33,7 @@ editors) is kept — it is simply moved out of sight into an advanced mode.
 
 | Capability | Clash Verge Rev | Clod Clash |
 | --- | --- | --- |
-| Remnawave / Happ subscription headers | 4 headers | 28 headers, see below |
+| Remnawave / Happ subscription headers | 4 headers | 27 headers plus 5 compatibility synonyms, see below |
 | Device identity (`x-hwid`) | no | yes, including device-limit handling |
 | Spare subscription address | no | `fallback-url` and `fallback-domain` |
 | Provider-driven address change | no | `new-url` / `new-domain`, verified before adopting |
@@ -73,7 +73,7 @@ default). Turning it off stops all of them.
 | Header | Meaning | What the app does |
 | --- | --- | --- |
 | `profile-title` | plan name | sets the profile name. A name the user typed is never overwritten |
-| `profile-logo` | provider logo URL | downloaded on every subscription update and kept locally: the logo does not blink on a cold start, works offline and is not pulled from a third-party host on every screen. Only an `image/*` response of at most 2 MiB is stored. `https` only |
+| `profile-logo` | provider logo URL | downloaded on every subscription update and kept locally: the logo does not blink on a cold start, works offline and is not pulled from a third-party host on every screen. A subscription added before the cache existed fetches it once, on first show. `png`, `jpeg`, `webp`, `avif`, `gif`, `svg`, `bmp` and `ico` of at most 2 MiB are stored; anything else is not cached and the logo is loaded from the provider URL as before. `https` only |
 | `subscription-userinfo` | `upload`, `download`, `total`, `expire` | traffic and expiry on the subscription card. `total=0` → "Unlimited", `expire=0` → "No expiry" |
 | `subscription-refill-date` | unix time of the traffic reset | "Traffic resets on {date}" |
 | `profile-update-interval` | refresh interval in hours | sets the interval and marks it as dictated by the provider, so the user cannot override it |
@@ -84,6 +84,7 @@ default). Turning it off stops all of them.
 | Header | Meaning | What the app does |
 | --- | --- | --- |
 | `clod-portal-url` | customer portal link | "Customer portal" button. Our own header on purpose: Remnawave's `profile-web-page-url` usually points at the subscription page itself. `https` only |
+| `profile-web-page-url` | the provider's subscription page | turns the plan name on the card into a link. `https` only |
 | `support-url` | support link | "Support" button; a `t.me/…` link gets a Telegram icon. `https`, `tg:` or `mailto:` only |
 | `announce` | permanent provider message | banner in the app **without a close button** — lives exactly as long as the panel keeps sending it. Supports per-word colours (see below) |
 | `announce-url` | where clicking the banner leads | makes the `announce` banner clickable. `https` only |
@@ -167,6 +168,10 @@ announce: #EF4444IMPORTANT: the #F59E0BNetherlands node is under maintenance unt
   client works here unchanged;
 * the code does not count against the 500 character cap — only visible text does;
 * `#EF4444` **followed by a space**, `#XYZ`, `#12` and a plain hash stay text;
+* exactly six characters after the hash are taken: in `#1234567` the leftover
+  `7` is what gets painted `#123456`;
+* separate two painted words with a space — `#EF4444one #00FF00two`. Without it
+  the second code lands inside the first word and shows up as text;
 * the colour is used exactly as sent, identically in light and dark themes — the
   app does not bend a provider's brand colour to its own palette.
 
@@ -185,7 +190,9 @@ those names and change them at will. A loopback address (`127.0.0.1`) is **not**
 a placeholder: a local relay is a legitimate setup.
 
 When a group ends up with no nodes at all, the client puts `REJECT` in it: the core rejects
-an empty group, and `DIRECT` would leak traffic around the tunnel.
+an empty group, and `DIRECT` would leak traffic around the tunnel. Two kinds of group are
+left alone: one that fills itself at runtime (`use:`, `include-all`, `include-all-proxies`,
+`include-all-providers` — the core will populate it), and one with no `proxies` key at all.
 
 Instead of a silent empty list the app shows **why** there is nothing to connect to, derived
 from `subscription-userinfo` (which stays truthful in these responses):
@@ -198,6 +205,11 @@ from `subscription-userinfo` (which stays truthful in these responses):
 
 The placeholder names are **only ever quoted** ("The panel says: …") — no logic is built on
 them. Buttons, as everywhere else, appear only when the matching header was sent.
+
+The last row needs confirmation from the config side: "The provider sent no servers" is
+shown only when nothing survived the filter **and** placeholders were actually there. A
+template that simply ships no groups is not blamed on the provider. "Renew" is not offered
+in that row — the subscription is alive, there is nothing to renew.
 
 ---
 
@@ -237,13 +249,17 @@ message. The clipboard gets a ready-made text:
 * the tail of the app log and of the core log (800 lines each, across rotated files).
 
 **Secrets are already masked**: the subscription URL goes through the same masker the logs
-use, values of `secret`, `token`, `password`, `uuid`, `x-hwid` become `***`, and so does any
-"word" longer than 24 alphanumeric characters. Deliberately blunt — better to mask too much
-than to hand a subscription token to a chat.
+use; whatever follows `secret`, `token`, `password`, `passwd`, `uuid`, `authorization`,
+`api-key`, `x-hwid`, `hwid` or `sub-url` becomes `***` (the list is not exhaustive and keeps
+growing), and so does whatever follows `Bearer`, `Basic` and `Token`. On top of that, any
+"word" of 20 characters or more drawn from `A–Z a–z 0–9 - _ = . + /` is cut when it contains
+a digit or mixed case — that covers tokens and base64 but not ordinary prose or file paths.
+Deliberately blunt — better to mask too much than to hand a subscription token to a chat.
 
-The app log level defaults to `debug`: the report is only as useful as the log that went
-into it. Rotation keeps that at 1 MB per file and eight files; the level is configurable in
-Settings → Core.
+The report is only as useful as the log that went into it, so a fresh install starts at
+`debug` (an already configured app keeps whatever level it had). Rotation keeps that at
+1 MB per file and eight files; the level lives in Settings → Basic → **"Advanced
+settings"**.
 
 ## Device id
 
@@ -264,9 +280,10 @@ and cached the same way.
 The id is sent **only** to the subscription address and nowhere else. The
 **"Device identification"** switch in Settings → General turns it off; the tooltip next to
 it shows exactly what goes to the panel — `x-hwid`, `x-device-os`, `x-ver-os`,
-`x-device-model` and the `User-Agent`. With identification off none of them is sent, and a
-panel that enforces a device limit may refuse the subscription — the app then offers to
-turn identification back on.
+`x-device-model` and the `User-Agent`. Turning it off drops all four `x-*` at once; the
+`User-Agent` is always sent — it is what tells the panel which client is asking and which
+response format to pick. A panel that enforces a device limit may then refuse the
+subscription — the app offers to turn identification back on.
 
 ---
 

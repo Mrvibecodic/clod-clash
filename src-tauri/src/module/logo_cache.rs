@@ -20,7 +20,7 @@ use anyhow::{Result, bail};
 use base64::{Engine as _, engine::general_purpose};
 use clash_verge_logging::{Type, logging};
 use smartstring::alias::String;
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf};
 use tokio::fs;
 
 /// Hard cap for a logo, matching what panels realistically send.
@@ -48,6 +48,7 @@ fn extension_for(content_type: &str) -> Option<&'static str> {
         "image/svg+xml" => Some("svg"),
         "image/jpeg" | "image/jpg" => Some("jpg"),
         "image/webp" => Some("webp"),
+        "image/avif" => Some("avif"),
         "image/gif" => Some("gif"),
         "image/x-icon" | "image/vnd.microsoft.icon" => Some("ico"),
         "image/bmp" => Some("bmp"),
@@ -60,6 +61,7 @@ const fn mime_for(extension: &str) -> &'static str {
         b"svg" => "image/svg+xml",
         b"jpg" => "image/jpeg",
         b"webp" => "image/webp",
+        b"avif" => "image/avif",
         b"gif" => "image/gif",
         b"ico" => "image/x-icon",
         b"bmp" => "image/bmp",
@@ -71,7 +73,7 @@ const fn mime_for(extension: &str) -> &'static str {
 async fn logo_url(uid: &str) -> Option<String> {
     let profiles = Config::profiles().await;
     let arc = profiles.latest_arc();
-    let url = arc.get_item(&uid.into()).ok().and_then(|item| item.logo.clone());
+    let url = arc.get_item(uid).ok().and_then(|item| item.logo.clone());
     drop(arc);
     url
 }
@@ -112,9 +114,25 @@ async fn download(uid: &str, url: &str) -> Result<()> {
                 bail!("logo is not an image ({content_type})");
             };
 
-            let bytes = response.bytes().await?;
-            if bytes.len() > MAX_LOGO_BYTES {
-                bail!("logo is too large ({} bytes)", bytes.len());
+            // Размер проверяем до чтения и по ходу чтения: чужой хост не
+            // должен уметь раздуть память приложения ответом на гигабайт.
+            if response
+                .content_length()
+                .is_some_and(|length| length > MAX_LOGO_BYTES as u64)
+            {
+                bail!("logo is too large ({} bytes)", response.content_length().unwrap_or(0));
+            }
+
+            let mut bytes: Vec<u8> = Vec::new();
+            let mut response = response;
+            while let Some(chunk) = response.chunk().await? {
+                bytes.extend_from_slice(&chunk);
+                if bytes.len() > MAX_LOGO_BYTES {
+                    bail!("logo is too large (over {MAX_LOGO_BYTES} bytes)");
+                }
+            }
+            if bytes.is_empty() {
+                bail!("logo response is empty");
             }
 
             let dir = cache_dir()?;
@@ -171,14 +189,48 @@ pub async fn read(uid: &str) -> Option<String> {
     None
 }
 
+/// Как долго не повторять неудачную попытку скачивания.
+const RETRY_AFTER: std::time::Duration = std::time::Duration::from_secs(10 * 60);
+
+/// Профили, для которых холодное чтение уже ходило в сеть и вернулось ни с чем.
+static COLD_MISSES: std::sync::OnceLock<std::sync::Mutex<HashMap<String, std::time::Instant>>> =
+    std::sync::OnceLock::new();
+
+fn cold_misses() -> &'static std::sync::Mutex<HashMap<String, std::time::Instant>> {
+    COLD_MISSES.get_or_init(|| std::sync::Mutex::new(HashMap::new()))
+}
+
+fn cold_miss_recently(uid: &str) -> bool {
+    cold_misses()
+        .lock()
+        .ok()
+        .and_then(|slot| slot.get(uid).copied())
+        .is_some_and(|at| at.elapsed() < RETRY_AFTER)
+}
+
+fn remember_cold_miss(uid: &str) {
+    if let Ok(mut slot) = cold_misses().lock() {
+        slot.insert(uid.into(), std::time::Instant::now());
+    }
+}
+
 /// Read the cached logo, downloading it first when the cache is cold.
 ///
 /// This is what makes an imported subscription show its logo without waiting
-/// for the first scheduled update.
+/// for the first scheduled update. A failed attempt is remembered for a while:
+/// the UI asks on every mount, and a dead logo host must not cost it two
+/// fifteen-second timeouts each time.
 pub async fn read_or_fetch(uid: &str) -> Option<String> {
     if let Some(cached) = read(uid).await {
         return Some(cached);
     }
+    if cold_miss_recently(uid) {
+        return None;
+    }
     sync(uid).await;
-    read(uid).await
+    let fresh = read(uid).await;
+    if fresh.is_none() {
+        remember_cold_miss(uid);
+    }
+    fresh
 }
