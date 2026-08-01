@@ -9,9 +9,10 @@ import {
 import { useLockFn } from 'ahooks'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import useSWR from 'swr'
 
 import { useProfiles } from '@/hooks/use-profiles'
-import { updateProfile } from '@/services/cmds'
+import { getProfileLogo, updateProfile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 
 interface Props {
@@ -46,6 +47,16 @@ export const ProviderHeader = ({ profile }: Props) => {
 
   // Read the clock once per mount: "expired" flipping a second later is not
   // worth an impure render (and the watcher notifies about expiry anyway).
+  // clod: логотип берём из локального кэша, а не с чужого хоста: он не мигает
+  // при старте, работает офлайн и не отдаёт IP пользователя при каждом показе.
+  // Ключ включает время обновления подписки — сменился логотип, сменился кэш.
+  const { data: cachedLogo } = useSWR(
+    profile.uid ? ['profileLogo', profile.uid, profile.updated ?? 0] : null,
+    ([, uid]) => getProfileLogo(uid as string),
+    { revalidateOnFocus: false },
+  )
+  const logo = cachedLogo ?? profile.logo
+
   const [now] = useState(() => Date.now())
   const expired = !!profile.extra?.expire && profile.extra.expire * 1000 < now
 
@@ -53,10 +64,10 @@ export const ProviderHeader = ({ profile }: Props) => {
     <Stack direction="row" sx={{ alignItems: 'center', gap: 1.5 }}>
       {/* clod: плитка — это лого бренда провайдера; нет лого — нет плитки.
           Буквенный фолбэк спотыкался об эмодзи в имени (пол-суррогата → «?») */}
-      {profile.logo ? (
+      {logo ? (
         <Box
           component="img"
-          src={profile.logo}
+          src={logo}
           alt=""
           sx={{
             width: 42,

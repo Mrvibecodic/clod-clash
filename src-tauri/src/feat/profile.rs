@@ -385,6 +385,12 @@ pub async fn update_profile(
                 crate::process::AsyncHandler::spawn(|| async {
                     crate::module::sub_watcher::run_check().await;
                 });
+                // clod: логотип провайдера кладём в локальный кэш — иначе он
+                // грузится с чужого хоста при каждом показе экрана
+                let logo_uid = uid.clone();
+                crate::process::AsyncHandler::spawn(move || async move {
+                    crate::module::logo_cache::sync(&logo_uid).await;
+                });
             }
             Ok(outcome @ (ValidationOutcome::Skipped { .. } | ValidationOutcome::Busy)) if !is_mannual_trigger => {
                 logging!(info, Type::Config, "[订阅更新] 本次配置刷新已跳过: {}", outcome);

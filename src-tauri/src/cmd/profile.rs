@@ -444,6 +444,15 @@ pub async fn get_next_update_time(uid: String) -> CmdResult<Option<i64>> {
     Ok(next_time)
 }
 
+/// clod: логотип провайдера из локального кэша (`data:`-URL).
+///
+/// Холодный кэш наполняется здесь же, поэтому только что импортированная
+/// подписка показывает логотип, не дожидаясь первого обновления.
+#[tauri::command]
+pub async fn get_profile_logo(uid: String) -> CmdResult<Option<String>> {
+    Ok(crate::module::logo_cache::read_or_fetch(&uid).await)
+}
+
 #[cfg(test)]
 mod tests {
     use super::commit_current_profile;

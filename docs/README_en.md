@@ -73,7 +73,7 @@ default). Turning it off stops all of them.
 | Header | Meaning | What the app does |
 | --- | --- | --- |
 | `profile-title` | plan name | sets the profile name. A name the user typed is never overwritten |
-| `profile-logo` | provider logo URL | shown next to the subscription. `https` only |
+| `profile-logo` | provider logo URL | downloaded on every subscription update and kept locally: the logo does not blink on a cold start, works offline and is not pulled from a third-party host on every screen. Only an `image/*` response of at most 2 MiB is stored. `https` only |
 | `subscription-userinfo` | `upload`, `download`, `total`, `expire` | traffic and expiry on the subscription card. `total=0` → "Unlimited", `expire=0` → "No expiry" |
 | `subscription-refill-date` | unix time of the traffic reset | "Traffic resets on {date}" |
 | `profile-update-interval` | refresh interval in hours | sets the interval and marks it as dictated by the provider, so the user cannot override it |

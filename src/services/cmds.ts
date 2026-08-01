@@ -304,6 +304,16 @@ export async function getDeviceIdentity() {
   return invoke<IDeviceIdentity>('get_device_identity')
 }
 
+/**
+ * clod: provider logo from the local cache, as a `data:` URL.
+ *
+ * `null` means the panel sent no logo (or it could not be fetched) — the UI
+ * then shows no tile at all rather than a broken image.
+ */
+export async function getProfileLogo(uid: string) {
+  return invoke<string | null>('get_profile_logo', { uid })
+}
+
 export async function getSystemProxy() {
   return invoke<{
     enable: boolean
