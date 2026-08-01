@@ -193,7 +193,8 @@
         "tooltips": {
           "backupInfo": "Unterstützt die Sicherung von Konfigurationsdateien über WebDAV",
           "openConfDir": "Wenn die Software fehlerhaft funktioniert, !sichern Sie! alle Dateien in diesem Verzeichnis, löschen Sie sie und starten Sie die Software neu.",
-          "liteMode": "GUI-Oberfläche schließen, nur den Kern laufen lassen"
+          "liteMode": "GUI-Oberfläche schließen, nur den Kern laufen lassen",
+          "supportBundle": "Copies versions, core and subscription state and the tail of both logs — with subscription addresses, tokens and secrets already masked. Paste it into the provider's support chat."
         },
         "actions": {
           "copyVersion": "Copy Version"
@@ -213,6 +214,7 @@
           "liteModeSettings": "Einstellungen für den Leichtgewichtigen Modus",
           "exit": "Beenden",
           "exportDiagnostics": "Diagnoseinformationen exportieren",
+          "supportBundle": "Support report",
           "vergeVersion": "Clod-Version"
         }
       },

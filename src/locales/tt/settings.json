@@ -193,7 +193,8 @@
         "tooltips": {
           "backupInfo": "WebDAV аша конфигурация файлын саклауны хуплый",
           "openConfDir": "Әгәр программада хаталар чыкса, бу папкадагы файлларны саклап калыгыз да, аннары барысын да бетереп, программаны яңадан башлагыз",
-          "liteMode": "GUI-ны ябыгыз һәм бары тик төшне генә эшләтеп калдырыгыз"
+          "liteMode": "GUI-ны ябыгыз һәм бары тик төшне генә эшләтеп калдырыгыз",
+          "supportBundle": "Copies versions, core and subscription state and the tail of both logs — with subscription addresses, tokens and secrets already masked. Paste it into the provider's support chat."
         },
         "actions": {
           "copyVersion": "Copy Version"
@@ -213,6 +214,7 @@
           "liteModeSettings": "LightWeight Mode Settings",
           "exit": "Чыгу",
           "exportDiagnostics": "Export Diagnostic Info",
+          "supportBundle": "Support report",
           "vergeVersion": "Clod версиясе"
         }
       },

@@ -193,7 +193,8 @@
         "tooltips": {
           "backupInfo": "Soporte para la copia de seguridad de archivos de configuración a través de WebDAV",
           "openConfDir": "Si el software no funciona correctamente, !realice una copia de seguridad! y elimine todos los archivos de esta carpeta, luego reinicie el software.",
-          "liteMode": "Cierra la interfaz gráfica y solo mantiene el núcleo en ejecución"
+          "liteMode": "Cierra la interfaz gráfica y solo mantiene el núcleo en ejecución",
+          "supportBundle": "Copies versions, core and subscription state and the tail of both logs — with subscription addresses, tokens and secrets already masked. Paste it into the provider's support chat."
         },
         "actions": {
           "copyVersion": "Copy Version"
@@ -213,6 +214,7 @@
           "liteModeSettings": "Configuración del modo ligero",
           "exit": "Salir",
           "exportDiagnostics": "Exportar información de diagnóstico",
+          "supportBundle": "Support report",
           "vergeVersion": "Versión de Clod"
         }
       },

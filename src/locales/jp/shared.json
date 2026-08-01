@@ -23,7 +23,8 @@
     "closeAll": "すべて閉じる",
     "clear": "クリア",
     "previous": "Previous",
-    "next": "Next"
+    "next": "Next",
+    "copySupportBundle": "Copy logs for support"
   },
   "labels": {
     "updateAt": "更新日時",
@@ -91,7 +92,8 @@
         "copySuccess": "コピー成功",
         "saveSuccess": "ランダム設定を保存完了",
         "saveFailed": "Failed to save configuration",
-        "refreshFailed": "更新に失敗しました"
+        "refreshFailed": "更新に失敗しました",
+        "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked"
       }
     },
     "validation": {

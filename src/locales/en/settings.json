@@ -193,7 +193,8 @@
         "tooltips": {
           "backupInfo": "Support local or WebDAV backup of configuration files",
           "openConfDir": "If the software runs abnormally, BACKUP and delete all files in this folder then restart the software",
-          "liteMode": "Close the GUI and keep only the kernel running"
+          "liteMode": "Close the GUI and keep only the kernel running",
+          "supportBundle": "Copies versions, core and subscription state and the tail of both logs — with subscription addresses, tokens and secrets already masked. Paste it into the provider's support chat."
         },
         "actions": {
           "copyVersion": "Copy Version"
@@ -213,6 +214,7 @@
           "liteModeSettings": "LightWeight Mode Settings",
           "exit": "Exit",
           "exportDiagnostics": "Export Diagnostic Info",
+          "supportBundle": "Support report",
           "vergeVersion": "Clod Version"
         }
       },

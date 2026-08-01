@@ -193,7 +193,8 @@
         "tooltips": {
           "backupInfo": "Support local or WebDAV backup of configuration files",
           "openConfDir": "إذا عمل البرنامج بشكل غير طبيعي، قم بالنسخ الاحتياطي ثم حذف جميع الملفات في هذا المجلد ثم أعد تشغيل البرنامج",
-          "liteMode": "إيقاف الواجهة الرسومية والإبقاء على تشغيل النواة"
+          "liteMode": "إيقاف الواجهة الرسومية والإبقاء على تشغيل النواة",
+          "supportBundle": "Copies versions, core and subscription state and the tail of both logs — with subscription addresses, tokens and secrets already masked. Paste it into the provider's support chat."
         },
         "actions": {
           "copyVersion": "Copy Version"
@@ -213,6 +214,7 @@
           "liteModeSettings": "LightWeight Mode Settings",
           "exit": "خروج",
           "exportDiagnostics": "Export Diagnostic Info",
+          "supportBundle": "Support report",
           "vergeVersion": "إصدار Clod"
         }
       },

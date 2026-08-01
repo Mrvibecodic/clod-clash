@@ -330,6 +330,17 @@ export async function getSentinelReport() {
   return invoke<ISentinelReport>('get_sentinel_report')
 }
 
+/**
+ * clod: build the support report and put it on the clipboard.
+ *
+ * Returns the very same text: versions, core and subscription state, the
+ * sentinel report and the tail of both logs — already redacted, so it can be
+ * pasted into a support chat without reading it first.
+ */
+export async function copySupportBundle(lines?: number) {
+  return invoke<string>('copy_support_bundle', { lines })
+}
+
 export async function getSystemProxy() {
   return invoke<{
     enable: boolean

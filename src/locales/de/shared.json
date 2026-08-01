@@ -23,7 +23,8 @@
     "closeAll": "Alle schließen",
     "clear": "Löschen",
     "previous": "Previous",
-    "next": "Next"
+    "next": "Next",
+    "copySupportBundle": "Copy logs for support"
   },
   "labels": {
     "updateAt": "Aktualisiert am",
@@ -91,7 +92,8 @@
         "copySuccess": "Kopieren erfolgreich",
         "saveSuccess": "Zufalls-Konfiguration erfolgreich gespeichert",
         "saveFailed": "Failed to save configuration",
-        "refreshFailed": "Aktualisierung fehlgeschlagen"
+        "refreshFailed": "Aktualisierung fehlgeschlagen",
+        "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked"
       }
     },
     "validation": {

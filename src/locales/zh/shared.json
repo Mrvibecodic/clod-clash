@@ -23,7 +23,8 @@
     "closeAll": "关闭全部",
     "clear": "清除",
     "previous": "上一页",
-    "next": "下一页"
+    "next": "下一页",
+    "copySupportBundle": "复制支持日志"
   },
   "labels": {
     "updateAt": "更新于",
@@ -91,7 +92,8 @@
         "copySuccess": "复制成功",
         "saveSuccess": "配置保存成功",
         "saveFailed": "配置保存失败",
-        "refreshFailed": "刷新失败"
+        "refreshFailed": "刷新失败",
+        "supportBundleCopied": "支持报告已复制 — 订阅地址和令牌已遮蔽"
       }
     },
     "validation": {

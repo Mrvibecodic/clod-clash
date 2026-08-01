@@ -193,7 +193,8 @@
         "tooltips": {
           "backupInfo": "WebDAV yedekleme yapılandırma dosyalarını destekler",
           "openConfDir": "Yazılım anormal çalışıyorsa, bu klasördeki tüm dosyaları YEDEKLEYİN ve silin, ardından yazılımı yeniden başlatın",
-          "liteMode": "GUI'yi kapatın ve yalnızca çekirdeği çalışır durumda tutun"
+          "liteMode": "GUI'yi kapatın ve yalnızca çekirdeği çalışır durumda tutun",
+          "supportBundle": "Copies versions, core and subscription state and the tail of both logs — with subscription addresses, tokens and secrets already masked. Paste it into the provider's support chat."
         },
         "actions": {
           "copyVersion": "Copy Version"
@@ -213,6 +214,7 @@
           "liteModeSettings": "Hafif Mod Ayarları",
           "exit": "Çıkış",
           "exportDiagnostics": "Tanılama Bilgilerini Dışa Aktar",
+          "supportBundle": "Support report",
           "vergeVersion": "Clod Sürümü"
         }
       },

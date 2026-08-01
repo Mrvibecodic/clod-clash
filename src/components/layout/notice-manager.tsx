@@ -2,13 +2,16 @@ import { CloseRounded } from '@mui/icons-material'
 import {
   Snackbar,
   Alert,
+  Button,
   IconButton,
   Box,
+  Stack,
   type SnackbarOrigin,
 } from '@mui/material'
 import React, { useCallback, useMemo, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { copySupportBundle } from '@/services/cmds'
 import {
   subscribeNotices,
   hideNotice,
@@ -162,6 +165,19 @@ export const NoticeManager: React.FC<NoticeManagerProps> = ({ position }) => {
     [t],
   )
 
+  // clod: у ошибки должна быть кнопка «что приложить к обращению». Отчёт уже
+  // отредактирован (адрес подписки, токены, secret), поэтому его можно слать
+  // в поддержку не вычитывая — в отличие от сырого лога, который пользователь
+  // отправлял до этого.
+  const handleSupportBundle = useCallback(async () => {
+    try {
+      await copySupportBundle()
+      showNotice.success('shared.feedback.notifications.common.supportBundleCopied')
+    } catch (error) {
+      showNotice.error(error)
+    }
+  }, [])
+
   return (
     <Box
       sx={{
@@ -211,7 +227,19 @@ export const NoticeManager: React.FC<NoticeManagerProps> = ({ position }) => {
               </IconButton>
             }
           >
-            {resolveNoticeMessage(notice, t)}
+            <Stack sx={{ gap: 0.5, alignItems: 'flex-start' }}>
+              <Box>{resolveNoticeMessage(notice, t)}</Box>
+              {notice.type === 'error' ? (
+                <Button
+                  size="small"
+                  color="inherit"
+                  sx={{ px: 1, py: 0, minHeight: 0, textDecoration: 'underline' }}
+                  onClick={() => void handleSupportBundle()}
+                >
+                  {t('shared.actions.copySupportBundle')}
+                </Button>
+              ) : null}
+            </Stack>
           </Alert>
         </Snackbar>
       ))}

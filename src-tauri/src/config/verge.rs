@@ -502,7 +502,12 @@ impl IVerge {
 
     pub fn template() -> Self {
         Self {
-            app_log_max_size: Some(128),
+            // clod: подробный лог по умолчанию — отчёт для поддержки полезен
+            // ровно настолько, насколько подробен лог, который в него попал.
+            // Ротация не даёт этому вырасти в проблему: 1 МБ × 8 файлов, а
+            // уровень остаётся настраиваемым в «Ядро → уровень логов».
+            app_log_level: Some("debug".into()),
+            app_log_max_size: Some(1024),
             app_log_max_count: Some(8),
             clash_core: Some("verge-mihomo".into()),
             language: Some(clash_verge_i18n::system_language().into()),

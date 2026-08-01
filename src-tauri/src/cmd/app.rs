@@ -4,6 +4,19 @@ use crate::{cmd::StringifyErr as _, feat, utils::dirs};
 use smartstring::alias::String;
 use tauri::{AppHandle, Manager as _};
 
+/// clod: отчёт для поддержки — собрать и положить в буфер обмена.
+///
+/// Возвращает тот же текст, что скопирован: диалог ошибки показывает по нему
+/// первые строки, а пользователь может вставить целиком куда угодно.
+#[tauri::command]
+pub async fn copy_support_bundle(app: AppHandle, lines: Option<usize>) -> CmdResult<String> {
+    use tauri_plugin_clipboard_manager::ClipboardExt as _;
+
+    let bundle = crate::module::support_bundle::build(lines).await.stringify_err()?;
+    app.clipboard().write_text(bundle.clone()).stringify_err()?;
+    Ok(bundle.into())
+}
+
 /// 打开应用程序所在目录
 #[tauri::command]
 pub async fn open_app_dir() -> CmdResult<()> {

@@ -193,7 +193,8 @@
         "tooltips": {
           "backupInfo": "WebDAVを使用した設定ファイルのバックアップをサポートします。",
           "openConfDir": "アプリケーションが正常に動作しない場合は、このフォルダ内のすべてのファイルを!バックアップ!して削除し、アプリケーションを再起動してください。",
-          "liteMode": "GUIを閉じて、コアのみを実行します。"
+          "liteMode": "GUIを閉じて、コアのみを実行します。",
+          "supportBundle": "Copies versions, core and subscription state and the tail of both logs — with subscription addresses, tokens and secrets already masked. Paste it into the provider's support chat."
         },
         "actions": {
           "copyVersion": "Copy Version"
@@ -213,6 +214,7 @@
           "liteModeSettings": "軽量モード設定",
           "exit": "終了",
           "exportDiagnostics": "診断情報をエクスポート",
+          "supportBundle": "Support report",
           "vergeVersion": "Clodバージョン"
         }
       },

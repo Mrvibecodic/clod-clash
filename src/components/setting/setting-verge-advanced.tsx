@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { DialogRef, TooltipIcon } from '@/components/base'
 import { updateLastCheckTime } from '@/hooks/use-update'
 import {
+  copySupportBundle,
   exitApp,
   exportDiagnosticInfo,
   openAppDir,
@@ -58,6 +59,19 @@ const SettingVergeAdvanced = ({ onError: _ }: Props) => {
       showNotice.error(err)
     }
   }
+
+  // clod: отчёт для поддержки провайдера — уже отредактированный, в отличие
+  // от сырого лога, который пользователь до этого отправлял руками
+  const onCopySupportBundle = useCallback(async () => {
+    try {
+      await copySupportBundle()
+      showNotice.success(
+        'shared.feedback.notifications.common.supportBundleCopied',
+      )
+    } catch (error) {
+      showNotice.error(error)
+    }
+  }, [])
 
   const onExportDiagnosticInfo = useCallback(async () => {
     await exportDiagnosticInfo()
@@ -150,6 +164,19 @@ const SettingVergeAdvanced = ({ onError: _ }: Props) => {
           <TooltipIcon
             icon={ContentCopyRounded}
             onClick={onExportDiagnosticInfo}
+          />
+        }
+      ></SettingItem>
+
+      {/* clod: то же самое, но для поддержки провайдера: состояние подписки и
+          ядра плюс хвосты обоих логов, уже без адресов подписки и токенов */}
+      <SettingItem
+        label={t('settings.components.verge.advanced.fields.supportBundle')}
+        extra={
+          <TooltipIcon
+            icon={ContentCopyRounded}
+            onClick={() => void onCopySupportBundle()}
+            title={t('settings.components.verge.advanced.tooltips.supportBundle')}
           />
         }
       ></SettingItem>

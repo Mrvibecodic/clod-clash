@@ -23,7 +23,8 @@
     "closeAll": "Барысын да ябу",
     "clear": "Чистарту",
     "previous": "Previous",
-    "next": "Next"
+    "next": "Next",
+    "copySupportBundle": "Copy logs for support"
   },
   "labels": {
     "updateAt": "Яңартылган вакыт",
@@ -91,7 +92,8 @@
         "copySuccess": "Күчерелде",
         "saveSuccess": "Configuration saved successfully",
         "saveFailed": "Failed to save configuration",
-        "refreshFailed": "Refresh failed"
+        "refreshFailed": "Refresh failed",
+        "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked"
       }
     },
     "validation": {

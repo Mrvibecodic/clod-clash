@@ -709,6 +709,7 @@ export interface TranslationResources {
               openDevTools: string
               openLogsDir: string
               runtimeConfig: string
+              supportBundle: string
               vergeVersion: string
             }
             notifications: {
@@ -720,6 +721,7 @@ export interface TranslationResources {
               backupInfo: string
               liteMode: string
               openConfDir: string
+              supportBundle: string
             }
           }
           basic: {
@@ -1394,6 +1396,7 @@ export interface TranslationResources {
         close: string
         closeAll: string
         confirm: string
+        copySupportBundle: string
         delete: string
         edit: string
         enable: string
@@ -1433,6 +1436,7 @@ export interface TranslationResources {
             refreshFailed: string
             saveFailed: string
             saveSuccess: string
+            supportBundleCopied: string
           }
           importSubscriptionSuccess: string
           importSuccess: string

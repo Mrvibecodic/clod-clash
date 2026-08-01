@@ -223,6 +223,28 @@ updates, so a device is not registered twice.
 
 ---
 
+## Support report
+
+Settings → Advanced → **"Support report"**, and the same button appears under any error
+message. The clipboard gets a ready-made text:
+
+* app version, OS, device, how the core is running;
+* the settings that affect connectivity: core and its channel, TUN, what Connect drives,
+  device identification, port, log level;
+* subscription state: name, traffic and expiry from `subscription-userinfo`, HWID state,
+  which headers the provider sent, whether a spare address was used;
+* what the sentinel filter dropped last time;
+* the tail of the app log and of the core log (800 lines each, across rotated files).
+
+**Secrets are already masked**: the subscription URL goes through the same masker the logs
+use, values of `secret`, `token`, `password`, `uuid`, `x-hwid` become `***`, and so does any
+"word" longer than 24 alphanumeric characters. Deliberately blunt — better to mask too much
+than to hand a subscription token to a chat.
+
+The app log level defaults to `debug`: the report is only as useful as the log that went
+into it. Rotation keeps that at 1 MB per file and eight files; the level is configurable in
+Settings → Core.
+
 ## Device id
 
 Derived from the operating system's machine id:
