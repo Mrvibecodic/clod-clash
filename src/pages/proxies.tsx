@@ -8,6 +8,7 @@ import { closeAllConnections } from 'tauri-plugin-mihomo-api'
 import { BasePage, TooltipIcon } from '@/components/base'
 import { ProviderButton } from '@/components/proxy/provider-button'
 import { ProxyGroups } from '@/components/proxy/proxy-groups'
+import { useGroupTestUrls } from '@/hooks/use-group-test-urls'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useVerge } from '@/hooks/use-verge'
 import {
@@ -53,6 +54,10 @@ const ProxyPage = () => {
     dispatchChainConfigData(value)
   }, [])
   const { verge } = useVerge()
+  // clod: наполняет delayManager адресами `url:` групп и общим дефолтом. Без
+  // этого страница «Прокси» видела бы их только после захода на главную —
+  // раньше пробел закрывали записи в urlMap, но они переживали смену профиля.
+  useGroupTestUrls()
 
   const normalizedMode = clashConfig?.mode?.toLowerCase()
   const curMode = isMode(normalizedMode) ? normalizedMode : undefined

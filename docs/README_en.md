@@ -118,7 +118,7 @@ arrives without a migration request.
 | Header | Meaning | What the app does |
 | --- | --- | --- |
 | `x-hwid-active` | the device is registered | nothing, informational |
-| `x-hwid-not-supported` | the panel wants an id the client did not send | dialog: "The provider requires device identification. Turn it on?". Outranks `x-hwid-limit`, which Remnawave sets in both blocking branches — without that precedence the user would be told about a limit they never hit |
+| `x-hwid-not-supported` | the panel wants an id the client did not send | dialog: "The provider requires device identification. Turn it on?". **A working profile is never overwritten** — the body is the same stub as on a device limit. Outranks `x-hwid-limit`, which Remnawave sets in both blocking branches — without that precedence the user would be told about a limit they never hit |
 | `x-hwid-max-devices-reached`<br>`x-hwid-limit` | device limit is full | dialog with the text from `announce` and a "Support" button. **A working profile is never overwritten** — the panel's body is a stub in this case |
 | `x-hwid-max-devices` | how many devices are allowed | filled into the dialog text. Remnawave 3.x does not send it — without it the dialog simply has no number |
 
@@ -278,8 +278,7 @@ connection settings and the subscription figures.
 
 The report is only as useful as the log that went into it, so a fresh install starts at
 `debug` (an already configured app keeps whatever level it had). Rotation keeps that at
-1 MB per file and eight files; the level lives in Settings → Basic → **"Advanced
-settings"**.
+1 MB per file and eight files; the level lives in Settings → General → **"Miscellaneous"**.
 
 ## Device id
 

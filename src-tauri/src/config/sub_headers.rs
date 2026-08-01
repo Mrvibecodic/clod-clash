@@ -163,7 +163,8 @@ impl SubHeaders {
         // `x-hwid-max-devices-reached` — только при настоящем превышении. Пара
         // «not-supported + limit» означает «клиент не прислал идентификатор», и
         // пользователю надо предложить включить его, а не сообщать о лимите,
-        // которого он не достигал.
+        // которого он не достигал. Тело в обеих ветках — заглушка, поэтому
+        // `PrfItem::from_url` прерывает обновление и на `NotSupported` тоже.
         let hwid_state = if hwid_not_supported {
             HwidState::NotSupported
         } else if hwid_limit {

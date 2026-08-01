@@ -61,10 +61,16 @@ fn is_public_https(url: &reqwest::Url) -> bool {
 
     if let Ok(ip) = host.parse::<std::net::IpAddr>() {
         return match ip {
-            std::net::IpAddr::V4(ip) => {
-                !(ip.is_loopback() || ip.is_private() || ip.is_link_local() || ip.is_unspecified() || ip.is_broadcast())
+            std::net::IpAddr::V4(ip) => is_public_v4(ip),
+            std::net::IpAddr::V6(ip) => {
+                // `::ffff:127.0.0.1` для `Ipv6Addr::is_loopback` не loopback —
+                // v4-mapped адрес обязан проходить проверки как его V4-форма.
+                if let Some(mapped) = ip.to_ipv4_mapped() {
+                    is_public_v4(mapped)
+                } else {
+                    !(ip.is_loopback() || ip.is_unspecified() || ip.is_unique_local() || ip.is_unicast_link_local())
+                }
             }
-            std::net::IpAddr::V6(ip) => !(ip.is_loopback() || ip.is_unspecified()),
         };
     }
 
@@ -74,6 +80,10 @@ fn is_public_https(url: &reqwest::Url) -> bool {
         || name.ends_with(".local")
         || name.ends_with(".internal")
         || name.ends_with(".home.arpa"))
+}
+
+fn is_public_v4(ip: std::net::Ipv4Addr) -> bool {
+    !(ip.is_loopback() || ip.is_private() || ip.is_link_local() || ip.is_unspecified() || ip.is_broadcast())
 }
 
 /// clod: `uid` попадает в имя файла, поэтому в нём не должно быть ничего,
@@ -137,6 +147,23 @@ pub async fn clear(uid: &str) {
     for extension in KNOWN_EXTENSIONS {
         let _ = fs::remove_file(dir.join(format!("{uid}.{extension}"))).await;
     }
+    sweep_parts(&dir, uid).await;
+}
+
+/// Убрать осиротевшие временные файлы профиля: оборванная запись прошлого
+/// запуска иначе копилась бы на диске вечно — `read` такие файлы не видит.
+async fn sweep_parts(dir: &std::path::Path, uid: &str) {
+    let Ok(mut entries) = fs::read_dir(dir).await else {
+        return;
+    };
+    let prefix = format!("{uid}.");
+    while let Ok(Some(entry)) = entries.next_entry().await {
+        let name = entry.file_name();
+        let Some(name) = name.to_str() else { continue };
+        if name.starts_with(&prefix) && name.ends_with(".part") {
+            let _ = fs::remove_file(entry.path()).await;
+        }
+    }
 }
 
 /// Download the logo of `uid` and replace whatever was cached before.
@@ -146,6 +173,9 @@ pub async fn clear(uid: &str) {
 async fn download(uid: &str, url: &str) -> Result<()> {
     if !is_safe_uid(uid) {
         bail!("refusing to cache a logo under an unexpected profile id");
+    }
+    if let Ok(dir) = cache_dir() {
+        sweep_parts(&dir, uid).await;
     }
     let mut last_error = None;
 
@@ -206,9 +236,19 @@ async fn download(uid: &str, url: &str) -> Result<()> {
             // оставила бы обрезанную картинку под тем же именем, и `read`
             // спокойно отдал бы её в интерфейс.
             let target = dir.join(format!("{uid}.{extension}"));
-            let temporary = dir.join(format!("{uid}.{extension}.part"));
-            fs::write(&temporary, &bytes).await?;
-            fs::rename(&temporary, &target).await?;
+            // Имя временного файла уникально на процесс и на попытку: общий
+            // `.part` при двух параллельных загрузках одного профиля дал бы
+            // гонку записи и rename рваного файла.
+            let attempt_id = PART_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let temporary = dir.join(format!("{uid}.{extension}.{}-{attempt_id}.part", std::process::id()));
+            if let Err(err) = fs::write(&temporary, &bytes).await {
+                let _ = fs::remove_file(&temporary).await;
+                return Err(err.into());
+            }
+            if let Err(err) = fs::rename(&temporary, &target).await {
+                let _ = fs::remove_file(&temporary).await;
+                return Err(err.into());
+            }
             for stale in KNOWN_EXTENSIONS.iter().filter(|item| **item != extension) {
                 let _ = fs::remove_file(dir.join(format!("{uid}.{stale}"))).await;
             }
@@ -260,6 +300,9 @@ pub async fn read(uid: &str) -> Option<String> {
     }
     None
 }
+
+/// Нумерует временные файлы записи внутри процесса.
+static PART_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 /// Как долго не повторять неудачную попытку скачивания.
 const RETRY_AFTER: std::time::Duration = std::time::Duration::from_secs(10 * 60);
@@ -363,7 +406,11 @@ mod tests {
 
     #[test]
     fn a_redirect_into_the_local_network_is_refused() {
-        let allowed = ["https://cdn.example.com/logo.png", "https://1.2.3.4/logo.png"];
+        let allowed = [
+            "https://cdn.example.com/logo.png",
+            "https://1.2.3.4/logo.png",
+            "https://[2606:4700::6810:84e5]/logo.png",
+        ];
         for raw in allowed {
             let url = reqwest::Url::parse(raw).expect("test url");
             assert!(is_public_https(&url), "{raw}");
@@ -377,6 +424,10 @@ mod tests {
             "https://10.0.0.5/logo.png",
             "https://169.254.169.254/latest/meta-data",
             "https://[::1]/logo.png",
+            "https://[fd00::1]/logo.png",
+            "https://[fe80::1]/logo.png",
+            "https://[::ffff:127.0.0.1]/logo.png",
+            "https://[::ffff:192.168.1.1]/logo.png",
             "https://router.local/logo.png",
         ];
         for raw in refused {

@@ -17,6 +17,11 @@ pub struct IRuntime {
     pub exists_keys: HashSet<String>,
     // TODO 或许可以用 FixMap 来存储以提升效率
     pub chain_logs: HashMap<String, Vec<(String, String)>>,
+    // clod: отчёт фильтра заглушек — часть этой же сборки конфига. Живёт в
+    // драфте и коммитится/откатывается вместе с ним: глобальный слот здесь
+    // переживал бы откат неудачной валидации и описывал бы конфиг, который
+    // ядро не приняло.
+    pub sentinel_report: crate::enhance::SentinelReport,
 }
 
 impl IRuntime {

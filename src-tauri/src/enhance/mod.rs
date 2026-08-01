@@ -53,6 +53,7 @@ struct ProfileItems {
     global_merge: ChainItem,
     global_script: ChainItem,
     profile_name: String,
+    profile_is_remote: bool,
 }
 
 impl Default for ProfileItems {
@@ -60,6 +61,7 @@ impl Default for ProfileItems {
         Self {
             config: Default::default(),
             profile_name: Default::default(),
+            profile_is_remote: false,
             merge_item: ChainItem {
                 uid: "".into(),
                 data: ChainType::Merge(Mapping::new()),
@@ -194,6 +196,7 @@ async fn collect_profile_items() -> Result<ProfileItems> {
         .unwrap_or_else(|| "Groups".into());
 
     let name = current_item.name.clone().unwrap_or_default();
+    let profile_is_remote = current_item.itype.as_deref() == Some("remote");
 
     let (merge_item, script_item, rules_item, proxies_item, groups_item, global_merge, global_script) = tokio::join!(
         chain_item_or_default(profiles_arc.get_item(&merge_uid).ok(), || ChainItem {
@@ -238,6 +241,7 @@ async fn collect_profile_items() -> Result<ProfileItems> {
         global_merge,
         global_script,
         profile_name: name,
+        profile_is_remote,
     })
 }
 
@@ -581,24 +585,18 @@ pub struct SentinelReport {
 /// одному на строку своего сообщения, показываем первые как цитату.
 const MAX_REPORTED_REMARKS: usize = 4;
 
-static SENTINEL_REPORT: std::sync::OnceLock<std::sync::RwLock<SentinelReport>> = std::sync::OnceLock::new();
-
-fn sentinel_report_slot() -> &'static std::sync::RwLock<SentinelReport> {
-    SENTINEL_REPORT.get_or_init(|| std::sync::RwLock::new(SentinelReport::default()))
-}
-
-/// Состояние последней сборки конфига (для команды `get_sentinel_report`).
-pub fn sentinel_report() -> SentinelReport {
-    sentinel_report_slot()
-        .read()
-        .map(|report| report.clone())
-        .unwrap_or_default()
-}
-
-fn store_sentinel_report(report: SentinelReport) {
-    if let Ok(mut slot) = sentinel_report_slot().write() {
-        *slot = report;
-    }
+/// Отчёт ПРИМЕНЁННОГО конфига (для команды `get_sentinel_report`).
+///
+/// Читается из закоммиченного `IRuntime`, а не из глобального слота: отчёт —
+/// часть сборки конфига и разделяет её судьбу. Слот перезаписывался бы уже при
+/// генерации, и неудачная валидация с откатом оставляла бы интерфейсу описание
+/// конфига, который ядро так и не приняло.
+pub async fn sentinel_report() -> SentinelReport {
+    crate::config::Config::runtime()
+        .await
+        .data_arc()
+        .sentinel_report
+        .clone()
 }
 
 /// clod: узел-заглушка, каким его отдаёт панель вместо серверов.
@@ -750,15 +748,8 @@ fn backfill_empty_groups(mut config: Mapping) -> Mapping {
 /// Заглушки приходят **вместо** серверов, а не вперемешку с ними, поэтому
 /// группы после чистки остаются пустыми. Латает их не эта функция, а
 /// `backfill_empty_groups` — он запускается после `cleanup_proxy_groups`,
-/// когда список членов группы уже окончательный.
-fn drop_sentinel_proxies(config: Mapping) -> Mapping {
-    let (config, report) = filter_sentinel_proxies(config);
-    store_sentinel_report(report);
-    config
-}
-
-/// Чистая половина фильтра: правит конфиг и рассказывает, что нашла.
-/// Отдельно от глобального отчёта, чтобы тесты не зависели друг от друга.
+/// когда список членов группы уже окончательный. Отчёт возвращается вызывающему
+/// и коммитится вместе с конфигом.
 fn filter_sentinel_proxies(mut config: Mapping) -> (Mapping, SentinelReport) {
     let mut dropped: HashSet<String> = HashSet::new();
     // Имена в том порядке, в каком их прислала панель: это её собственное
@@ -967,8 +958,8 @@ async fn apply_dns_settings(mut config: Mapping, enable_dns_settings: bool) -> M
 }
 
 /// Enhance mode
-/// 返回最终订阅、该订阅包含的键、和script执行的结果
-pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, ResultLog>)> {
+/// 返回最终订阅、该订阅包含的键、script执行的结果、和отчёт фильтра заглушек
+pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, ResultLog>, SentinelReport)> {
     // gather config values
     let cfg_vals = get_config_values().await;
     let ConfigValues {
@@ -996,6 +987,7 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
     let global_merge = profile.global_merge;
     let global_script = profile.global_script;
     let profile_name = profile.profile_name;
+    let profile_is_remote = profile.profile_is_remote;
 
     let result_map = HashMap::new();
 
@@ -1052,8 +1044,15 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
     let config = ensure_store_selected(config);
 
     // clod: заглушки панели («подписка истекла» и т.п.) вырезаем до чистки
-    // групп — тогда cleanup уберёт и повисшие на них ссылки.
-    let config = drop_sentinel_proxies(config);
+    // групп — тогда cleanup уберёт и повисшие на них ссылки. Отчёт уезжает
+    // наверх вместе с конфигом и коммитится только с принятой ядром сборкой.
+    let (config, mut sentinel_report) = filter_sentinel_proxies(config);
+    // Пустота в локальном профиле (rules-only, свои группы из DIRECT) — не
+    // «панель не выдала серверы»: без выброшенных заглушек флаг честен только
+    // для remote-подписки, иначе интерфейс обвинит провайдера, которого нет.
+    if !profile_is_remote && sentinel_report.remarks.is_empty() {
+        sentinel_report.only_sentinels = false;
+    }
     let config = cleanup_proxy_groups(config);
     // Латаем группы последними: до этого момента список их членов ещё меняется.
     let config = backfill_empty_groups(config);
@@ -1062,7 +1061,7 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
     let mut exists_keys_set = HashSet::new();
     exists_keys_set.extend(exists_keys);
 
-    Ok((config, exists_keys_set, result_map))
+    Ok((config, exists_keys_set, result_map, sentinel_report))
 }
 
 #[allow(clippy::expect_used)]

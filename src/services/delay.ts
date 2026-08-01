@@ -122,9 +122,19 @@ class DelayManager {
     this.scheduleGroupFlush()
   }
 
+  /**
+   * clod: только РЕАЛЬНЫЙ ввод пользователя. Всё, что пришло из конфига или
+   * настроек, живёт в `configUrlMap`/`defaultUrl` — положенное сюда переживает
+   * смену профиля и затеняет `url:` группы нового конфига.
+   */
   setUrl(group: string, url: string) {
     debugLog(`[DelayManager] 设置测试URL，组: ${group}, URL: ${url}`)
     this.urlMap.set(group, url)
+  }
+
+  /** Пользователь очистил своё поле — группа возвращается к `url:` из конфига. */
+  clearUrl(group: string) {
+    this.urlMap.delete(group)
   }
 
   /**
@@ -152,10 +162,11 @@ class DelayManager {
    * тест и чтение истории разойдутся в адресе, пинг покажется как «—».
    */
   getUrl(group: string) {
-    const url =
+    // Горячий путь: `getDelayFix` зовёт нас из компаратора сортировки и на
+    // каждую строку списка — никакой интерполяции строк здесь быть не должно.
+    return (
       this.urlMap.get(group) ?? this.configUrlMap.get(group) ?? this.defaultUrl
-    debugLog(`[DelayManager] 获取测试URL，组: ${group}, URL: ${url}`)
-    return url
+    )
   }
 
   setListener(

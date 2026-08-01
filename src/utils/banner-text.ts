@@ -11,6 +11,14 @@
  *
  * The colour is used exactly as the provider sent it, in both themes — the app
  * does not second-guess a brand colour.
+ *
+ * The scanner mirrors `colour_marker_at`/`truncate_banner` on the Rust side
+ * character for character: every marker is zero-width formatting, chained
+ * markers (`#AAAAAA#BBBBBBword`) are all consumed with the last one winning,
+ * and "whitespace" means Unicode White_Space (what `char::is_whitespace`
+ * uses), not the JS `\s` class. If the two sides ever disagree on what counts
+ * as a marker, the 500-visible-character limit enforced in Rust drifts from
+ * what the user actually sees.
  */
 export interface BannerFragment {
   text: string
@@ -20,29 +28,65 @@ export interface BannerFragment {
   start: number
 }
 
-const COLOUR_MARKER = /#([0-9a-fA-F]{6})(\S+)/g
+const HEX_DIGIT = /[0-9a-fA-F]/
+
+/** Unicode White_Space — same set as Rust's `char::is_whitespace`. */
+const isWhitespace = (ch: string) =>
+  (/\s/.test(ch) && ch !== '\uFEFF') || ch === '\u0085'
+
+/** `#RRGGBB` glued to a non-space character, or `null`. */
+const markerAt = (text: string, index: number): string | null => {
+  if (text[index] !== '#' || index + 7 > text.length) return null
+  const next = text[index + 7]
+  if (next === undefined || isWhitespace(next)) return null
+  const code = text.slice(index + 1, index + 7)
+  for (const ch of code) {
+    if (!HEX_DIGIT.test(ch)) return null
+  }
+  return code
+}
 
 /** Split banner text into plain and coloured fragments, in order. */
 export const parseBannerText = (text: string): BannerFragment[] => {
   const fragments: BannerFragment[] = []
-  let cursor = 0
+  let buf = ''
+  let bufStart = 0
+  let bufColor: string | undefined
 
-  for (const match of text.matchAll(COLOUR_MARKER)) {
-    const start = match.index ?? 0
-    if (start > cursor) {
-      fragments.push({ text: text.slice(cursor, start), start: cursor })
+  const flush = () => {
+    if (!buf) return
+    fragments.push(
+      bufColor
+        ? { text: buf, color: bufColor, start: bufStart }
+        : { text: buf, start: bufStart },
+    )
+    buf = ''
+  }
+
+  let color: string | undefined
+  let index = 0
+  while (index < text.length) {
+    const code = markerAt(text, index)
+    if (code) {
+      // Zero-width formatting, exactly like the Rust budget counter: chained
+      // markers are all consumed and the last one paints the word.
+      color = `#${code}`
+      index += 7
+      continue
     }
-    fragments.push({
-      text: match[2],
-      color: `#${match[1]}`,
-      start: start + 7,
-    })
-    cursor = start + match[0].length
+    const ch = text[index]
+    if (isWhitespace(ch)) {
+      color = undefined
+    }
+    if (!buf || bufColor !== color) {
+      flush()
+      bufStart = index
+      bufColor = color
+    }
+    buf += ch
+    index += 1
   }
-
-  if (cursor < text.length) {
-    fragments.push({ text: text.slice(cursor), start: cursor })
-  }
+  flush()
 
   return fragments
 }

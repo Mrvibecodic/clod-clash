@@ -435,8 +435,17 @@ impl PrfItem {
         let sub = sub_headers::SubHeaders::parse(resp.headers());
         log_panel_headers(&sub);
         sub.notify_device_state();
-        if sub.hwid_state == sub_headers::HwidState::LimitReached {
-            bail!("device limit reached for this subscription (x-hwid)")
+        // Обе блокирующие ветки Remnawave (лимит устройств и «клиент не прислал
+        // идентификатор») отвечают 200 и телом-заглушкой. Диалог уже показан
+        // строкой выше; рабочий конфиг заглушкой затирать нельзя ни в одной.
+        match sub.hwid_state {
+            sub_headers::HwidState::LimitReached => {
+                bail!("device limit reached for this subscription (x-hwid)")
+            }
+            sub_headers::HwidState::NotSupported => {
+                bail!("the panel requires device identification (x-hwid) and answered with a stub")
+            }
+            _ => {}
         }
         // clod:headers end
 

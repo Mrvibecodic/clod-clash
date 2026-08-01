@@ -190,7 +190,69 @@ fn redact_word(word: &str) -> std::string::String {
         return "***".into();
     }
 
+    if let Some(masked) = mask_host_port(word) {
+        return masked;
+    }
+
     word.to_owned()
+}
+
+/// Голый `host:port` — адрес назначения из нестандартной строки ядра
+/// (`dial ... failed`, ошибки lookup), которую denylist трафика не поймал.
+/// Ссылки на код (`help.rs:104`, `parser.go:88`) не трогаем: у имени файла
+/// расширение из известного короткого списка, а не TLD.
+fn mask_host_port(word: &str) -> Option<std::string::String> {
+    // `dial tcp 1.2.3.4:443: i/o timeout` — на конце слова знак препинания.
+    let core_len = word.trim_end_matches([':', ',', ';', '.', ')', '(']).len();
+    let (word, tail) = word.split_at(core_len);
+    let (host, port) = word.rsplit_once(':')?;
+    if port.is_empty() || port.len() > 5 || !port.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    let port_number: u32 = port.parse().ok()?;
+    if port_number == 0 || port_number > 65_535 {
+        return None;
+    }
+
+    // `[2001:db8::1]:443`
+    let bare = host
+        .strip_prefix('[')
+        .and_then(|rest| rest.strip_suffix(']'))
+        .unwrap_or(host);
+    if bare.parse::<std::net::IpAddr>().is_ok() {
+        return Some(format!("***:{port}{tail}"));
+    }
+
+    // `example.com:443`, но не `file.rs:12` и не `word:1` без точки.
+    let (_, last_label) = bare.rsplit_once('.')?;
+    let is_code_suffix = matches!(
+        last_label.to_ascii_lowercase().as_str(),
+        "rs" | "go"
+            | "ts"
+            | "tsx"
+            | "js"
+            | "jsx"
+            | "py"
+            | "c"
+            | "h"
+            | "cpp"
+            | "yaml"
+            | "yml"
+            | "json"
+            | "toml"
+            | "log"
+            | "txt"
+    );
+    let domain_like = !bare.is_empty()
+        && bare
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'-')
+        && last_label.bytes().all(|b| b.is_ascii_alphabetic())
+        && last_label.len() >= 2;
+    if domain_like && !is_code_suffix {
+        return Some(format!("***:{port}{tail}"));
+    }
+    None
 }
 
 /// Домашний каталог пользователя, чтобы вырезать его из путей в логе.
@@ -368,11 +430,25 @@ const PANEL_TEXT_MAX: usize = 200;
 /// что угодно, включая перевод строки и тройную кавычку. Отчёт пользователь
 /// вставляет в чат как есть, поэтому панель не должна уметь дорисовать в нём
 /// собственную секцию или закрыть блок кода.
+/// Невидимые format-символы (категория Cf): bidi-переопределения, zero-width,
+/// BOM. `char::is_control` ловит только Cc, а RLO в имени заглушки позволил бы
+/// панели визуально переставить текст отчёта в чате поддержки.
+fn is_invisible_format(c: char) -> bool {
+    matches!(c,
+        '\u{200B}'..='\u{200F}' // zero-width + LRM/RLM
+        | '\u{202A}'..='\u{202E}' // bidi embeddings/overrides
+        | '\u{2060}'..='\u{2064}' // word joiner, invisible operators
+        | '\u{2066}'..='\u{2069}' // bidi isolates
+        | '\u{061C}' // arabic letter mark
+        | '\u{FEFF}' // BOM
+    )
+}
+
 fn panel_text(value: &str) -> std::string::String {
     let cleaned: std::string::String = value
         .chars()
         .map(|c| if c.is_control() { ' ' } else { c })
-        .filter(|c| *c != '`')
+        .filter(|c| *c != '`' && !is_invisible_format(*c))
         .collect();
     let trimmed = cleaned.trim();
     match trimmed.char_indices().nth(PANEL_TEXT_MAX) {
@@ -497,8 +573,8 @@ async fn subscription_section(out: &mut std::string::String) {
     );
 }
 
-fn sentinel_section(out: &mut std::string::String) {
-    let report = enhance::sentinel_report();
+async fn sentinel_section(out: &mut std::string::String) {
+    let report = enhance::sentinel_report().await;
     let _ = writeln!(out, "\n## Узлы-заглушки панели");
     let _ = writeln!(out, "- серверов не осталось вовсе: {}", yes_no(report.only_sentinels));
     if report.remarks.is_empty() {
@@ -568,7 +644,7 @@ pub async fn build(lines: Option<usize>) -> Result<std::string::String> {
     app_section(&mut out);
     settings_section(&mut out).await;
     subscription_section(&mut out).await;
-    sentinel_section(&mut out);
+    sentinel_section(&mut out).await;
     logs_section(&mut out, lines).await;
 
     Ok(out)
@@ -708,5 +784,40 @@ mod tests {
 
         let long = super::panel_text(&"я".repeat(500));
         assert!(long.chars().count() <= super::PANEL_TEXT_MAX + 1, "{}", long.chars().count());
+    }
+
+    #[test]
+    fn the_panel_cannot_smuggle_invisible_characters() {
+        // RLO + zero-width + BOM: текст остаётся, невидимая разметка — нет.
+        let hostile = super::panel_text("тариф \u{202E}нэлто\u{202C} про\u{200B}длить\u{FEFF}");
+        assert!(!hostile.contains('\u{202E}'), "{hostile:?}");
+        assert!(!hostile.contains('\u{200B}'), "{hostile:?}");
+        assert!(!hostile.contains('\u{FEFF}'), "{hostile:?}");
+        assert!(hostile.contains("продлить"), "{hostile:?}");
+    }
+
+    #[test]
+    fn bare_destination_addresses_are_masked() {
+        // Строка ядра без маркеров трафика, но с адресом назначения.
+        let masked = redact("dns resolve failed: mail.example.com:443 no such host");
+        assert!(!masked.contains("mail.example.com"), "{masked}");
+        assert!(masked.contains("***:443"), "{masked}");
+
+        let ip = redact("dial tcp 93.184.216.34:8443: i/o timeout");
+        assert!(!ip.contains("93.184.216.34"), "{ip}");
+
+        let v6 = redact("connect [2001:db8::1]:443 refused");
+        assert!(!v6.contains("2001:db8::1"), "{v6}");
+    }
+
+    #[test]
+    fn code_locations_are_not_addresses() {
+        for line in [
+            "warn at help.rs:104 slow write",
+            "panic in parser.go:88",
+            "config.yaml:12 bad key",
+        ] {
+            assert_eq!(redact(line), line);
+        }
     }
 }

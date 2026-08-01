@@ -15,7 +15,6 @@ import { memo, useEffect } from 'react'
 import { flushSync } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
-import { useVerge } from '@/hooks/use-verge'
 import delayManager from '@/services/delay'
 
 import { BaseSearchBox, type SearchState } from '../base'
@@ -25,7 +24,6 @@ import type { HeadState } from './use-head-state'
 
 interface Props {
   sx?: SxProps
-  url?: string
   groupName: string
   headState: HeadState
   onLocation: () => void
@@ -34,15 +32,8 @@ interface Props {
 }
 
 export const ProxyGroupTools = memo(function ProxyGroupTools(props: Props) {
-  const {
-    sx,
-    url,
-    groupName,
-    headState,
-    onCheckDelay,
-    onHeadState,
-    onLocation,
-  } = props
+  const { sx, groupName, headState, onCheckDelay, onHeadState, onLocation } =
+    props
 
   const {
     showType,
@@ -57,14 +48,16 @@ export const ProxyGroupTools = memo(function ProxyGroupTools(props: Props) {
 
   const { t } = useTranslation()
 
-  const { verge } = useVerge()
-  const defaultLatencyUrl =
-    verge?.default_latency_test?.trim() ||
-    'http://cp.cloudflare.com/generate_204'
-
+  // clod: см. proxy-head — в менеджер уходит только ручной ввод пользователя,
+  // конфиг и настройки менеджер знает сам через useGroupTestUrls.
   useEffect(() => {
-    delayManager.setUrl(groupName, testUrl?.trim() || url || defaultLatencyUrl)
-  }, [groupName, testUrl, defaultLatencyUrl, url])
+    const custom = testUrl?.trim()
+    if (custom) {
+      delayManager.setUrl(groupName, custom)
+    } else {
+      delayManager.clearUrl(groupName)
+    }
+  }, [groupName, testUrl])
 
   // 过滤输入是高频操作，且每次都会触发整组代理的重新过滤/排序与虚拟列表重渲染，
   // 因此对写入 headState 的动作做防抖，避免每输入一个字符就过滤一次。

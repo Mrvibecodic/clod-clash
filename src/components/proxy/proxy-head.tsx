@@ -16,7 +16,6 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseSearchBox } from '@/components/base'
-import { useVerge } from '@/hooks/use-verge'
 import delayManager from '@/services/delay'
 import { debugLog } from '@/utils/debug'
 
@@ -25,7 +24,6 @@ import type { HeadState } from './use-head-state'
 
 interface Props {
   sx?: SxProps
-  url?: string
   groupName: string
   headState: HeadState
   onLocation: () => void
@@ -37,7 +35,6 @@ const defaultSx: SxProps = {}
 
 export const ProxyHead = ({
   sx = defaultSx,
-  url,
   groupName,
   headState,
   onHeadState,
@@ -64,14 +61,18 @@ export const ProxyHead = ({
     return () => clearTimeout(timer)
   }, [])
 
-  const { verge } = useVerge()
-  const defaultLatencyUrl =
-    verge?.default_latency_test?.trim() ||
-    'http://cp.cloudflare.com/generate_204'
-
+  // clod: в менеджер уходит только ручной ввод. `url:` группы и общий адрес из
+  // настроек менеджер знает сам (configUrlMap/defaultUrl из useGroupTestUrls);
+  // писать их сюда значило бы застолбить за группой адрес текущего профиля —
+  // запись пережила бы смену профиля и затенила бы `url:` нового конфига.
   useEffect(() => {
-    delayManager.setUrl(groupName, testUrl?.trim() || url || defaultLatencyUrl)
-  }, [groupName, testUrl, defaultLatencyUrl, url])
+    const custom = testUrl?.trim()
+    if (custom) {
+      delayManager.setUrl(groupName, custom)
+    } else {
+      delayManager.clearUrl(groupName)
+    }
+  }, [groupName, testUrl])
 
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ...sx }}>

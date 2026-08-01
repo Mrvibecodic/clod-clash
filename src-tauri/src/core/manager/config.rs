@@ -27,6 +27,8 @@ impl CoreManager {
                 config: Some(clash_config.to_owned()),
                 exists_keys: HashSet::new(),
                 chain_logs: Default::default(),
+                // Дефолтный конфиг — не от панели: заглушек в нём нет.
+                sentinel_report: Default::default(),
             }
         });
 
