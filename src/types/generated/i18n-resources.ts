@@ -148,6 +148,29 @@ export interface TranslationResources {
             urltest: string
           }
         }
+        serverStatus: {
+          body: {
+            expired: string
+            expiredNoDate: string
+            provider: string
+            traffic: string
+            trafficNoDate: string
+          }
+          noServers: string
+          panelSays: string
+          refresh: string
+          row: {
+            expired: string
+            provider: string
+            traffic: string
+            trafficNoDate: string
+          }
+          title: {
+            expired: string
+            provider: string
+            traffic: string
+          }
+        }
         subscription: {
           daysShort: string
           expires: string

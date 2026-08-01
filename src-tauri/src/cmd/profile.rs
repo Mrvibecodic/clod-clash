@@ -444,6 +444,16 @@ pub async fn get_next_update_time(uid: String) -> CmdResult<Option<i64>> {
     Ok(next_time)
 }
 
+/// clod: что фильтр заглушек увидел в последнем собранном конфиге.
+///
+/// Нужен интерфейсу, чтобы отличить «панель не выдала серверы» от «в шаблоне
+/// просто нет групп», и чтобы процитировать сообщение панели, когда причину
+/// нельзя вывести из срока и трафика.
+#[tauri::command]
+pub async fn get_sentinel_report() -> CmdResult<crate::enhance::SentinelReport> {
+    Ok(crate::enhance::sentinel_report())
+}
+
 /// clod: логотип провайдера из локального кэша (`data:`-URL).
 ///
 /// Холодный кэш наполняется здесь же, поэтому только что импортированная

@@ -9,6 +9,7 @@ import { InfoTile } from '@/components/home/info-tile'
 import { openWebUrl } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import parseTraffic from '@/utils/parse-traffic'
+import { toUnixSeconds } from '@/utils/subscription-status'
 
 /** Colour of the traffic bar: green, then amber, then red as the quota runs out. */
 const trafficColor = (usedPercent: number) => {
@@ -18,13 +19,6 @@ const trafficColor = (usedPercent: number) => {
 }
 
 const DAY = 24 * 60 * 60
-
-/**
- * Normalize a panel timestamp to unix seconds. Anything above ~1e12 can only
- * be milliseconds (that is the year 33658 in seconds) — some subscription
- * backends emit ms where the spec says seconds.
- */
-const toUnixSeconds = (ts: number) => (ts > 1e12 ? Math.round(ts / 1000) : ts)
 
 /** `parseTraffic` returns `[value, unit]`; join them the human way. */
 const traffic = (bytes: number) => parseTraffic(bytes).join(' ').trim()

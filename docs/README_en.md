@@ -185,8 +185,19 @@ those names and change them at will. A loopback address (`127.0.0.1`) is **not**
 a placeholder: a local relay is a legitimate setup.
 
 When a group ends up with no nodes at all, the client puts `REJECT` in it: the core rejects
-an empty group, and `DIRECT` would leak traffic around the tunnel. In the UI such a group
-reads as "no servers in the subscription".
+an empty group, and `DIRECT` would leak traffic around the tunnel.
+
+Instead of a silent empty list the app shows **why** there is nothing to connect to, derived
+from `subscription-userinfo` (which stays truthful in these responses):
+
+| Subscription data | What the user sees | Buttons |
+| --- | --- | --- |
+| `expire` in the past | "Subscription expired" | "Renew" (`clod-renew-url`), "Support" |
+| `total` used up | "Out of traffic" plus the reset date from `subscription-refill-date` | "Top up" (`clod-topup-url`), "Renew", "Support" |
+| both look healthy | "The provider sent no servers" plus a quote of the placeholder names | "Support", "Update subscription" |
+
+The placeholder names are **only ever quoted** ("The panel says: …") — no logic is built on
+them. Buttons, as everywhere else, appear only when the matching header was sent.
 
 ---
 

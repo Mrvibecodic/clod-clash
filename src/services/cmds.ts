@@ -314,6 +314,22 @@ export async function getProfileLogo(uid: string) {
   return invoke<string | null>('get_profile_logo', { uid })
 }
 
+/**
+ * clod: what the sentinel filter saw in the last generated config.
+ *
+ * `only_sentinels` separates "the panel refused to hand out servers" from "the
+ * template simply has no groups"; `remarks` are the panel's own words for the
+ * nodes it sent instead of servers.
+ */
+export interface ISentinelReport {
+  remarks: string[]
+  only_sentinels: boolean
+}
+
+export async function getSentinelReport() {
+  return invoke<ISentinelReport>('get_sentinel_report')
+}
+
 export async function getSystemProxy() {
   return invoke<{
     enable: boolean

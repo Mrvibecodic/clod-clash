@@ -19,18 +19,22 @@ import {
 } from '@mui/material'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useLockFn } from 'ahooks'
+import dayjs from 'dayjs'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { CountryFlag } from '@/components/home/country-flag'
+import { NoServersStatus } from '@/components/home/no-servers-status'
 import { useGroupDelayTest } from '@/hooks/use-group-delay-test'
 import { useGroupTestUrls } from '@/hooks/use-group-test-urls'
+import { useNoServersStatus } from '@/hooks/use-no-servers-status'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useProxySelection } from '@/hooks/use-proxy-selection'
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
 import { showNotice } from '@/services/notice-service'
 import { nameWithoutFlag } from '@/utils/country'
 import { delayColor } from '@/utils/delay-color'
+import { toUnixSeconds } from '@/utils/subscription-status'
 import {
   AUTO_GROUP_TYPES,
   displayLeaf,
@@ -90,7 +94,7 @@ export const ServerSelect = ({ open, onClose }: Props) => {
 
   // Starred servers float to the top of the list; the stars live on the
   // profile, so they survive subscription updates and app restarts.
-  const { current, patchCurrent } = useProfiles()
+  const { current, patchCurrent, mutateProfiles } = useProfiles()
   const favorites = useMemo(
     () => new Set(current?.favorites ?? []),
     [current?.favorites],
@@ -395,12 +399,17 @@ export const ServerSelect = ({ open, onClose }: Props) => {
         ) : null}
 
         {nodes.length === 0 ? (
-          <Typography
-            color="text.secondary"
-            sx={{ py: 4, textAlign: 'center' }}
-          >
-            {t('home.components.serverSelect.empty')}
-          </Typography>
+          <>
+            {/* clod: пустой список честен, но ничего не объясняет — статус
+                говорит, почему серверов нет, и даёт ссылки провайдера */}
+            <NoServersStatus profile={current} onRefreshed={mutateProfiles} />
+            <Typography
+              color="text.secondary"
+              sx={{ py: 4, textAlign: 'center' }}
+            >
+              {t('home.components.serverSelect.empty')}
+            </Typography>
+          </>
         ) : nodes.length > VIRTUALIZE_FROM ? (
           <Box ref={scrollRef} sx={{ overflowY: 'auto', maxHeight: '60vh' }}>
             <Box
@@ -523,6 +532,34 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
     return () => window.clearTimeout(timer)
   }, [groupName, updatedAt, runGroupDelayTest])
 
+  // clod: серверов может не быть вовсе — панель отдала одни заглушки. Тогда
+  // строка не притворяется выбором, а называет причину: тот же статус, что и
+  // в шторке, только одной строкой.
+  const { reason, show: noServers } = useNoServersStatus(currentProfile)
+  const listEmpty =
+    !current &&
+    (group?.all ?? []).filter((node) => !isCorePlaceholder(node.name)).length ===
+      0
+  const statusRow = listEmpty && noServers
+  const refillDate = currentProfile?.refill_date
+    ? dayjs(toUnixSeconds(currentProfile.refill_date) * 1000).format(
+        'DD.MM.YYYY',
+      )
+    : undefined
+  const statusCaption = statusRow
+    ? reason === 'traffic' && refillDate
+      ? t('home.components.serverStatus.row.traffic', { date: refillDate })
+      : t(
+          `home.components.serverStatus.row.${reason === 'traffic' ? 'trafficNoDate' : reason}`,
+        )
+    : undefined
+  const statusColor =
+    reason === 'expired'
+      ? 'error.main'
+      : reason === 'traffic'
+        ? 'warning.main'
+        : 'text.secondary'
+
   const caption = usableDelay(delay)
     ? leaf
       ? `${nameWithoutFlag(leaf)} · ${delay} ${t('home.components.serverSelect.ms')}`
@@ -547,7 +584,8 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
         borderRadius: '14px',
         cursor: 'pointer',
         bgcolor: 'background.paper',
-        border: (theme) => `1px solid ${theme.palette.divider}`,
+        border: (theme) =>
+          `1px solid ${statusRow ? theme.palette.warning.main : theme.palette.divider}`,
         '&:hover': { borderColor: 'primary.main' },
       }}
     >
@@ -556,14 +594,16 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
         <Typography noWrap sx={{ fontSize: 14, fontWeight: 700 }}>
           {current
             ? nameWithoutFlag(current)
-            : t('home.components.serverSelect.none')}
+            : statusRow
+              ? t('home.components.serverStatus.noServers')
+              : t('home.components.serverSelect.none')}
         </Typography>
         <Typography
           noWrap
           sx={{ fontSize: 12, display: 'block' }}
-          color="text.secondary"
+          color={statusRow ? statusColor : 'text.secondary'}
         >
-          {caption}
+          {statusCaption ?? caption}
         </Typography>
       </Box>
 

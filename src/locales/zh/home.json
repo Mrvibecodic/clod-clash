@@ -161,6 +161,29 @@
         "smart": "smart pick"
       }
     },
+    "serverStatus": {
+      "noServers": "没有可用服务器",
+      "title": {
+        "expired": "订阅已到期",
+        "traffic": "流量已用尽",
+        "provider": "服务商未下发服务器"
+      },
+      "body": {
+        "expired": "续费后服务商才会下发服务器。到期时间：{{date}}。",
+        "expiredNoDate": "续费后服务商才会下发服务器。",
+        "traffic": "已使用 {{used}} / {{total}}。配额将于 {{date}} 重置。",
+        "trafficNoDate": "已使用 {{used}} / {{total}}。请购买流量以继续使用。",
+        "provider": "订阅仍然有效，但面板的响应中没有任何服务器。这是服务商侧的问题。"
+      },
+      "panelSays": "面板提示：“{{text}}”",
+      "refresh": "更新订阅",
+      "row": {
+        "expired": "订阅已到期 — 续费后可连接",
+        "traffic": "流量已用尽 — {{date}} 重置",
+        "trafficNoDate": "流量已用尽",
+        "provider": "服务商未下发服务器"
+      }
+    },
     "subscription": {
       "expires": "套餐：{{count}} 天 · 至 {{date}}",
       "refill": "Monthly traffic resets on {{date}}",

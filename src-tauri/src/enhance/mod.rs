@@ -562,6 +562,45 @@ async fn apply_builtin_scripts(mut config: Mapping, clash_core: Option<String>, 
     config
 }
 
+/// clod: что фильтр заглушек увидел в последнем собранном конфиге.
+///
+/// Панель отвечает 200 и валидным конфигом даже когда выдавать нечего, поэтому
+/// «серверов нет» — это не ошибка загрузки, а состояние, о котором интерфейсу
+/// нужно рассказать. Причину он выводит из `subscription-userinfo` (срок и
+/// трафик там настоящие), а эти данные добавляют то, чего в подписке нет:
+/// факт «конфиг состоял только из заглушек» и слова самой панели.
+#[derive(Debug, Clone, Default, serde::Serialize)]
+pub struct SentinelReport {
+    /// Имена выброшенных узлов — как их назвал администратор панели.
+    pub remarks: Vec<String>,
+    /// После чистки не осталось ни одного настоящего узла.
+    pub only_sentinels: bool,
+}
+
+/// Сколько имён заглушек имеет смысл донести до интерфейса: панель шлёт их по
+/// одному на строку своего сообщения, показываем первые как цитату.
+const MAX_REPORTED_REMARKS: usize = 4;
+
+static SENTINEL_REPORT: std::sync::OnceLock<std::sync::RwLock<SentinelReport>> = std::sync::OnceLock::new();
+
+fn sentinel_report_slot() -> &'static std::sync::RwLock<SentinelReport> {
+    SENTINEL_REPORT.get_or_init(|| std::sync::RwLock::new(SentinelReport::default()))
+}
+
+/// Состояние последней сборки конфига (для команды `get_sentinel_report`).
+pub fn sentinel_report() -> SentinelReport {
+    sentinel_report_slot()
+        .read()
+        .map(|report| report.clone())
+        .unwrap_or_default()
+}
+
+fn store_sentinel_report(report: SentinelReport) {
+    if let Ok(mut slot) = sentinel_report_slot().write() {
+        *slot = report;
+    }
+}
+
 /// clod: узел-заглушка, каким его отдаёт панель вместо серверов.
 ///
 /// Remnawave (v3, `createFallbackHosts`) на истёкшую подписку, исчерпанный
@@ -633,8 +672,19 @@ fn group_fills_at_runtime(group: &Mapping) -> bool {
 /// ссылаются правила (`MATCH,🌍 VPN`), и ядро не примет конфиг. Поэтому в
 /// опустевшую группу подставляется `REJECT`: конфиг остаётся валидным, а
 /// трафик не утекает мимо туннеля, как утёк бы с `DIRECT`.
-fn drop_sentinel_proxies(mut config: Mapping) -> Mapping {
+fn drop_sentinel_proxies(config: Mapping) -> Mapping {
+    let (config, report) = filter_sentinel_proxies(config);
+    store_sentinel_report(report);
+    config
+}
+
+/// Чистая половина фильтра: правит конфиг и рассказывает, что нашла.
+/// Отдельно от глобального отчёта, чтобы тесты не зависели друг от друга.
+fn filter_sentinel_proxies(mut config: Mapping) -> (Mapping, SentinelReport) {
     let mut dropped: HashSet<String> = HashSet::new();
+    // Имена в том порядке, в каком их прислала панель: это её собственное
+    // сообщение пользователю, разбитое по узлам.
+    let mut remarks: Vec<String> = Vec::new();
 
     if let Some(Value::Sequence(proxies)) = config.get_mut("proxies") {
         proxies.retain(|item| {
@@ -645,15 +695,28 @@ fn drop_sentinel_proxies(mut config: Mapping) -> Mapping {
                 return true;
             }
             if let Some(name) = proxy.get("name").and_then(Value::as_str) {
-                dropped.insert(name.into());
+                if dropped.insert(name.into()) {
+                    remarks.push(name.into());
+                }
             }
             false
         });
     }
 
     if dropped.is_empty() {
-        return config;
+        // Нормальный конфиг стирает прошлый отчёт: статус «серверов нет» не
+        // должен пережить обновление, которое всё починило.
+        return (config, SentinelReport::default());
     }
+
+    let survivors = config
+        .get("proxies")
+        .and_then(|value| value.as_sequence())
+        .map_or(0, Vec::len);
+    let report = SentinelReport {
+        remarks: remarks.into_iter().take(MAX_REPORTED_REMARKS).collect(),
+        only_sentinels: survivors == 0,
+    };
 
     logging!(
         info,
@@ -685,7 +748,7 @@ fn drop_sentinel_proxies(mut config: Mapping) -> Mapping {
         }
     }
 
-    config
+    (config, report)
 }
 
 fn cleanup_proxy_groups(mut config: Mapping) -> Mapping {
@@ -928,8 +991,8 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
 #[cfg(test)]
 mod tests {
     use super::{
-        ChainItem, ChainType, cleanup_proxy_groups, drop_sentinel_proxies, ensure_lan_bind_address,
-        ensure_store_selected, process_global_items, process_profile_items, use_keys,
+        ChainItem, ChainType, cleanup_proxy_groups, ensure_lan_bind_address, ensure_store_selected,
+        filter_sentinel_proxies, process_global_items, process_profile_items, use_keys,
     };
     use std::collections::HashMap;
 
@@ -1416,10 +1479,14 @@ proxy-groups:
 "#,
         );
 
-        let config = drop_sentinel_proxies(config);
+        let (config, report) = filter_sentinel_proxies(config);
 
         assert!(proxy_names(&config).is_empty());
         assert_eq!(group_members(&config, "VPN"), vec!["REJECT".to_owned()]);
+        // Отчёт для интерфейса: серверов не осталось вовсе, а слова панели
+        // сохранены в том порядке, в каком она их прислала.
+        assert!(report.only_sentinels);
+        assert_eq!(report.remarks, vec!["⌛ Subscription expired", "Contact support"]);
     }
 
     // Смешанный конфиг: сама панель заглушки и серверы вместе не отдаёт (это
@@ -1457,8 +1524,11 @@ proxy-groups:
 "#,
         );
 
-        let config = drop_sentinel_proxies(config);
+        let (config, report) = filter_sentinel_proxies(config);
 
+        // Живые узлы остались — значит это не «панель не выдала серверы».
+        assert!(!report.only_sentinels);
+        assert_eq!(report.remarks, vec!["⌛ Subscription expired"]);
         assert_eq!(proxy_names(&config), vec!["🇳🇱 Amsterdam", "🇩🇪 Frankfurt"]);
         assert_eq!(
             group_members(&config, "VPN"),
@@ -1501,10 +1571,12 @@ proxy-groups:
         );
 
         let expected = proxy_names(&config);
-        let config = drop_sentinel_proxies(config);
+        let (config, report) = filter_sentinel_proxies(config);
 
         assert_eq!(proxy_names(&config), expected);
         assert_eq!(group_members(&config, "VPN").len(), 4);
+        assert!(!report.only_sentinels);
+        assert!(report.remarks.is_empty());
     }
 
     // Группу, которую ядро наполняет само (провайдеры / include-all),
@@ -1538,8 +1610,9 @@ proxy-groups:
 "#,
         );
 
-        let config = drop_sentinel_proxies(config);
+        let (config, report) = filter_sentinel_proxies(config);
 
+        assert!(report.only_sentinels);
         assert!(proxy_names(&config).is_empty());
         assert!(group_members(&config, "AUTO").is_empty());
         assert!(group_members(&config, "ALL").is_empty());

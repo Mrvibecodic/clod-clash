@@ -188,6 +188,7 @@ mod app_init {
             cmd::patch_verge_config,
             cmd::get_device_identity,
             cmd::get_profile_logo,
+            cmd::get_sentinel_report,
             cmd::test_delay,
             cmd::get_app_dir,
             cmd::copy_icon_file,
