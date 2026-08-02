@@ -562,6 +562,11 @@ export const applyWindowSizeForMode = async (simple: boolean) => {
   return invoke<void>('apply_window_size_for_mode', { simple })
 }
 
+// clod:traffic-estimate — сколько байт клиент насчитал сверх данных подписки
+export const getTrafficEstimate = async () => {
+  return invoke<ITrafficEstimate>('get_traffic_estimate')
+}
+
 // 安装系统服务
 export const installService = async () => {
   return invoke<void>('install_service')

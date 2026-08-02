@@ -195,6 +195,7 @@ mod app_init {
             cmd::copy_icon_file,
             cmd::save_window_size_for_mode,
             cmd::apply_window_size_for_mode,
+            cmd::get_traffic_estimate,
             cmd::download_icon_cache,
             cmd::open_devtools,
             cmd::exit_app,

@@ -131,3 +131,11 @@ pub async fn apply_window_size_for_mode(simple: bool) -> CmdResult<()> {
     Ok(())
 }
 // clod:mode-window end
+
+// clod:traffic-estimate — сколько клиент насчитал сверх данных подписки.
+// Само по себе это число ничего не решает: статусы «трафик закончился» и
+// критические состояния по-прежнему считаются только по подписке.
+#[tauri::command]
+pub fn get_traffic_estimate() -> crate::core::traffic_estimate::TrafficEstimate {
+    crate::core::traffic_estimate::snapshot()
+}

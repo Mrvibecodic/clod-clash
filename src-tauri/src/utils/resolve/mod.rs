@@ -81,6 +81,10 @@ pub fn resolve_setup_async() {
             init_silent_updater(),
         );
 
+        // clod:traffic-estimate — счётчик поднимаем после ядра: до него
+        // опрашивать нечего.
+        crate::core::traffic_estimate::init();
+
         Handle::refresh_clash();
         refresh_tray_menu().await;
         resolve_done();

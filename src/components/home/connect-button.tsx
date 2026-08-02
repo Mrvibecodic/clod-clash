@@ -67,6 +67,10 @@ export const ConnectButton = ({
 
   return (
     <Box
+      // clod: anchor for the server drawer's ceiling — the drawer sizes itself
+      // so that this block always stays uncovered. Read by
+      // `useDrawerCapHeight`; keep the attribute name in sync with it.
+      data-connect-anchor=""
       sx={{
         display: 'flex',
         flexDirection: 'column',

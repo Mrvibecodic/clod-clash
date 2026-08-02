@@ -148,6 +148,20 @@ interface IRuleProviderItem {
   vehicleType: string
 }
 
+/**
+ * clod: локальный счёт расхода трафика поверх данных подписки. Значение из
+ * подписки — истина; `localBytes` — то, что клиент досчитал после неё, и
+ * именно поэтому сумма показывается как примерная.
+ */
+interface ITrafficEstimate {
+  profile: string
+  baselineUpload: number
+  baselineDownload: number
+  localBytes: number
+  /** unix-секунды: когда данные подписки последний раз менялись */
+  baselineAt: number
+}
+
 interface ITrafficItem {
   up: number
   down: number

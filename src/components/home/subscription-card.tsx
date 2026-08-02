@@ -1,11 +1,24 @@
 import CalendarMonthRoundedIcon from '@mui/icons-material/CalendarMonthRounded'
 import DataUsageRoundedIcon from '@mui/icons-material/DataUsageRounded'
-import { Box, Button, LinearProgress, Stack, Typography } from '@mui/material'
+import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
+import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded'
+import {
+  alpha,
+  Box,
+  Button,
+  CircularProgress,
+  IconButton,
+  LinearProgress,
+  Stack,
+  Tooltip,
+  Typography,
+} from '@mui/material'
 import dayjs from 'dayjs'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { InfoTile } from '@/components/home/info-tile'
+import { useTrafficEstimate } from '@/hooks/use-traffic-estimate'
 import { openWebUrl } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import parseTraffic from '@/utils/parse-traffic'
@@ -40,6 +53,11 @@ interface Props {
  */
 export const SubscriptionCard = ({ profile }: Props) => {
   const { t } = useTranslation()
+  // clod: панель пересчитывает расход не чаще раза в час — то, что клиент
+  // досчитал после неё, идёт ТОЛЬКО в показываемое число и в хвост полосы.
+  // Пороги `critical`, «трафик закончился» и кнопки продления ниже считаются
+  // строго по данным подписки, иначе клиент соврёт при живых серверах.
+  const { estimate, refreshing, refresh } = useTrafficEstimate(profile)
 
   const openLink = useCallback(async (url?: string) => {
     if (!url) return
@@ -94,6 +112,14 @@ export const SubscriptionCard = ({ profile }: Props) => {
   const expiryCritical =
     info.daysLeft !== undefined && info.daysLeft <= CRITICAL_DAYS
 
+  // Сумма «подписка + досчитанное клиентом» и её доля — только для показа.
+  // Процент режем сотней, чтобы штриховка не выехала за полосу.
+  const approximate = estimate.approximate
+  const shownUsed = info.used + (approximate ? estimate.localBytes : 0)
+  const shownPercent = info.unlimited
+    ? 0
+    : Math.min(100, Math.round((shownUsed * 100) / info.total))
+
   return (
     <Box
       sx={{
@@ -107,20 +133,89 @@ export const SubscriptionCard = ({ profile }: Props) => {
         icon={<DataUsageRoundedIcon />}
       >
         {/* mockup: «12,4 ГБ / 100 ГБ» — used in bold, the quota greyed */}
-        <Typography noWrap sx={{ fontSize: 15, fontWeight: 700 }}>
-          {traffic(info.used)}{' '}
-          <Typography
-            component="span"
-            sx={{ fontSize: 13.5, fontWeight: 500 }}
-            color="text.secondary"
-          >
-            /{' '}
-            {info.unlimited
-              ? t('profiles.components.profileItem.labels.unlimited')
-              : traffic(info.total)}
+        <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5 }}>
+          <Typography noWrap sx={{ fontSize: 15, fontWeight: 700 }}>
+            {approximate ? '≈ ' : ''}
+            {traffic(shownUsed)}{' '}
+            <Typography
+              component="span"
+              sx={{ fontSize: 13.5, fontWeight: 500 }}
+              color="text.secondary"
+            >
+              /{' '}
+              {info.unlimited
+                ? t('profiles.components.profileItem.labels.unlimited')
+                : traffic(info.total)}
+            </Typography>
           </Typography>
-        </Typography>
-        {info.unlimited ? null : (
+          {approximate ? (
+            <>
+              <Tooltip
+                title={
+                  <>
+                    {t('home.components.subscription.approximate.hint')}
+                    {estimate.baselineAt ? (
+                      <Box component="span" sx={{ display: 'block', mt: 0.5 }}>
+                        {t('home.components.subscription.approximate.since', {
+                          time: dayjs(estimate.baselineAt * 1000).format(
+                            'HH:mm',
+                          ),
+                        })}
+                      </Box>
+                    ) : null}
+                  </>
+                }
+              >
+                <WarningAmberRoundedIcon
+                  sx={{ fontSize: 16, color: 'warning.main', flex: 'none' }}
+                />
+              </Tooltip>
+              <IconButton
+                size="small"
+                sx={{ p: 0.25 }}
+                disabled={refreshing}
+                aria-label={t(
+                  'home.components.subscription.approximate.refresh',
+                )}
+                title={t('home.components.subscription.approximate.refresh')}
+                onClick={() => void refresh()}
+              >
+                {refreshing ? (
+                  <CircularProgress size={14} />
+                ) : (
+                  <RefreshRoundedIcon sx={{ fontSize: 15 }} />
+                )}
+              </IconButton>
+            </>
+          ) : null}
+        </Stack>
+        {info.unlimited ? null : approximate ? (
+          // Две части в одной полосе: сплошная — подтверждённое подпиской,
+          // штриховка — досчитанное клиентом. Видно, какая часть на честном
+          // слове. `LinearProgress` двух сегментов не умеет.
+          <Box
+            sx={{
+              height: 6,
+              borderRadius: 3,
+              overflow: 'hidden',
+              display: 'flex',
+              bgcolor: 'action.hover',
+            }}
+          >
+            <Box
+              sx={{
+                width: `${info.usedPercent}%`,
+                bgcolor: `${trafficColor(shownPercent)}.main`,
+              }}
+            />
+            <Box
+              sx={(theme) => ({
+                width: `${Math.max(0, shownPercent - info.usedPercent)}%`,
+                backgroundImage: `repeating-linear-gradient(45deg, ${theme.palette.warning.main} 0 3px, ${alpha(theme.palette.warning.main, 0.25)} 3px 6px)`,
+              })}
+            />
+          </Box>
+        ) : (
           <LinearProgress
             variant="determinate"
             value={info.usedPercent}

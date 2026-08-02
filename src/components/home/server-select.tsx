@@ -25,6 +25,7 @@ import { useTranslation } from 'react-i18next'
 
 import { CountryFlag } from '@/components/home/country-flag'
 import { NoServersStatus } from '@/components/home/no-servers-status'
+import { useDrawerCapHeight } from '@/hooks/use-drawer-cap-height'
 import { useGroupDelayTest } from '@/hooks/use-group-delay-test'
 import { useGroupTestUrls } from '@/hooks/use-group-test-urls'
 import { useNoServersStatus } from '@/hooks/use-no-servers-status'
@@ -279,13 +280,27 @@ export const ServerSelect = ({ open, onClose }: Props) => {
     )
   }
 
+  // clod: the drawer grows with the group — three servers keep it low, twenty
+  // push it up to the connect button and no further. The paper stays
+  // content-sized (a bottom drawer does that on its own); only the ceiling
+  // moves, so nothing here has to compute a height.
+  const capHeight = useDrawerCapHeight(open)
+
   return (
     <Drawer
       anchor="bottom"
       open={open}
       onClose={onClose}
       slotProps={{
-        paper: { sx: { maxHeight: '80vh', borderRadius: '12px 12px 0 0' } },
+        paper: {
+          sx: {
+            maxHeight: capHeight,
+            borderRadius: '12px 12px 0 0',
+            // the paper scrolls on its own by default — with the list holding
+            // the only scrollbar that would make a second, nested one
+            overflow: 'hidden',
+          },
+        },
       }}
     >
       <Stack sx={{ p: 2, gap: 1.5, minHeight: 0 }}>
@@ -421,7 +436,7 @@ export const ServerSelect = ({ open, onClose }: Props) => {
             {t('home.components.serverSelect.empty')}
           </Typography>
         ) : nodes.length > VIRTUALIZE_FROM ? (
-          <Box ref={scrollRef} sx={{ overflowY: 'auto', maxHeight: '60vh' }}>
+          <Box ref={scrollRef} sx={{ overflowY: 'auto', minHeight: 0 }}>
             <Box
               sx={{
                 height: virtualizer.getTotalSize(),
@@ -446,7 +461,7 @@ export const ServerSelect = ({ open, onClose }: Props) => {
             </Box>
           </Box>
         ) : (
-          <List sx={{ overflowY: 'auto', maxHeight: '60vh' }}>
+          <List sx={{ overflowY: 'auto', minHeight: 0 }}>
             {nodes.map(renderRow)}
           </List>
         )}

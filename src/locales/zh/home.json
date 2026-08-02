@@ -193,7 +193,12 @@
       "trafficTitle": "Traffic",
       "expiryTitle": "Expires",
       "daysShort": "{{count}} d",
-      "untilDate": "until {{date}}"
+      "untilDate": "until {{date}}",
+      "approximate": {
+        "hint": "Traffic usage is estimated. Update the subscription for more precise numbers",
+        "since": "Exact data as of {{time}}",
+        "refresh": "Update subscription"
+      }
     },
     "providerHeader": {
       "active": "订阅有效",

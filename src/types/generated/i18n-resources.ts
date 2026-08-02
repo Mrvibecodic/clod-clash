@@ -172,6 +172,11 @@ export interface TranslationResources {
           }
         }
         subscription: {
+          approximate: {
+            hint: string
+            refresh: string
+            since: string
+          }
           daysShort: string
           expires: string
           expiryTitle: string

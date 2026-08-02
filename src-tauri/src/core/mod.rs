@@ -9,6 +9,7 @@ mod notification;
 pub mod service;
 pub mod sysopt;
 pub mod timer;
+pub mod traffic_estimate;
 pub mod tray;
 pub mod updater;
 pub mod validate;
