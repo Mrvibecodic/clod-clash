@@ -8,6 +8,32 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.0.15-alpha
+
+<!-- lang:en -->
+
+### Fixed
+
+- The app no longer asks for administrator rights over and over after an update. The service check used to treat "the service on disk is older than the app" as "reinstall it now" — and that check runs on every core start, which on Windows is retried five times, so a single update could raise the elevation prompt a dozen times in a row. It now only looks: one notice per session saying the service needs repair, and repairing happens when you press the button
+- The TUN switch no longer promises what it cannot deliver: a service left over from a previous version answers, but the core cannot start through it, so the app now checks that the versions match and offers to repair rather than looping on "TUN did not start"
+- A subscription profile can no longer switch TUN off — or on — behind your back: the `tun` section belongs to the app and is restored after any manual override or provider profile
+- macOS: the system DNS is restored even if the app was killed. The original value is remembered once, together with the network service it belongs to, and put back on the next start; the override is also no longer re-applied on every config change
+- Subscriptions are fetched through the tunnel when the direct route fails — for imports too, not just refreshes. Adding a subscription whose domain is blocked now works as long as the app is connected
+- The "New version" window fits the simple mode again: the width is computed from the window, the release button moved out of the title, and long lines wrap instead of pushing a horizontal scrollbar
+
+<!-- lang:ru -->
+
+### Исправлено
+
+- Приложение больше не просит права администратора снова и снова после обновления. Проверка службы считала «служба на диске старее приложения» поводом немедленно её переустановить — а проверка эта выполняется при каждом старте ядра, который на Windows повторяется до пяти раз, поэтому одно обновление выкатывало запрос прав по десятку раз подряд. Теперь проверка только смотрит: одно уведомление за сессию о том, что службу надо починить, а чинится она по нажатию кнопки
+- Тумблер TUN больше не обещает невозможного: служба от прошлой версии отвечает, но ядро через неё не поднимается — приложение проверяет совпадение версий и предлагает ремонт вместо бесконечного «TUN не запустился»
+- Профиль подписки больше не может выключить (или включить) TUN за вашей спиной: секция `tun` принадлежит приложению и восстанавливается после любых ручных правок и профилей провайдера
+- macOS: системный DNS возвращается, даже если приложение убили. Исходное значение запоминается один раз вместе с именем сетевого сервиса и возвращается при следующем запуске; подмена больше не повторяется при каждом изменении конфигурации
+- Подписка загружается через туннель, когда прямой путь не работает, — теперь и при импорте, а не только при обновлении. Добавить подписку с заблокированным доменом можно, пока приложение подключено
+- Окно «Новая версия» снова помещается в простом режиме: ширина считается от окна, кнопка релиза переехала из заголовка, а длинные строки переносятся вместо горизонтальной прокрутки
+
+---
+
 ## v0.0.14-alpha
 
 <!-- lang:en -->
