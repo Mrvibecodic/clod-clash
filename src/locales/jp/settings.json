@@ -23,8 +23,13 @@
       },
       "notifications": {
         "tunMode": {
-          "autoDisabled": "TUN Mode automatically disabled due to service unavailable",
-          "autoDisableFailed": "Failed to disable TUN Mode automatically"
+          "autoDisabled": "コアが TUN デバイスを起動できなかったため、TUN は無効のままです",
+          "setupStarted": "TUN モードを準備しています：バックグラウンドサービスをインストール中",
+          "setupDone": "TUN モードの準備ができました",
+          "setupFailed": "バックグラウンドサービスをインストールできず、TUN は無効のままです"
+        },
+        "core": {
+          "crashed": "コアが連続して停止したため、自動再起動を中止しました"
         }
       }
     },

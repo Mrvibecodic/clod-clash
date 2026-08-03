@@ -23,8 +23,13 @@
       },
       "notifications": {
         "tunMode": {
-          "autoDisabled": "由于服务不可用，TUN 模式已自动关闭",
-          "autoDisableFailed": "自动关闭 TUN 模式失败"
+          "autoDisabled": "内核未能启动 TUN 设备，TUN 模式暂时关闭",
+          "setupStarted": "正在配置 TUN 模式：安装后台服务",
+          "setupDone": "TUN 模式已就绪",
+          "setupFailed": "后台服务安装失败，TUN 模式保持关闭"
+        },
+        "core": {
+          "crashed": "内核连续崩溃，已停止自动重启"
         }
       }
     },

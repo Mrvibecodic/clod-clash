@@ -1,12 +1,17 @@
 import { Stack, Switch, Typography } from '@mui/material'
 import { useLockFn } from 'ahooks'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useConnectTargets } from '@/hooks/use-connect-targets'
 import { useSystemProxyState } from '@/hooks/use-system-proxy-state'
 import { useSystemState } from '@/hooks/use-system-state'
+import { useTunState } from '@/hooks/use-tun-state'
 import { useVerge } from '@/hooks/use-verge'
+import { ensureTunReady } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
+
+import { TunStatus } from './tun-status'
 
 interface Props {
   /** `clod-lock-mode`: the panel forbids changing how the app connects. */
@@ -50,10 +55,14 @@ export const QuickActions = ({ locked }: Props) => {
   const { t } = useTranslation()
   const { verge, mutateVerge, patchVerge } = useVerge()
   const { indicator: sysproxyOn, toggleSystemProxy } = useSystemProxyState()
-  const { isTunModeAvailable } = useSystemState()
+  const { isTunModeAvailable, mutateSystemState } = useSystemState()
   const { targetSys, targetTun } = useConnectTargets()
-
-  const tunOn = Boolean(verge?.enable_tun_mode)
+  // Реальное состояние, а не флаг из конфига: тумблер не должен гореть над
+  // мёртвым туннелем.
+  const { tunActive, mutateTunState } = useTunState()
+  // Установка службы идёт в фоне и требует подтверждения прав — тумблер на это
+  // время показывает, что происходит, а не замирает.
+  const [installing, setInstalling] = useState(false)
 
   const toggleSysproxy = useLockFn(async (next: boolean) => {
     try {
@@ -64,17 +73,30 @@ export const QuickActions = ({ locked }: Props) => {
   })
 
   const toggleTun = useLockFn(async (next: boolean) => {
-    // TUN needs the helper service; without it the core would fail to start
-    // the tunnel and the switch would silently bounce back.
-    if (next && !isTunModeAvailable) {
-      showNotice.error('settings.sections.proxyControl.tooltips.tunUnavailable')
-      return
-    }
     try {
+      // clod:tun-ready — TUN нужна фоновая служба. Раньше здесь была ошибка
+      // «поставьте службу сами»; теперь пользователь просит TUN — мы её и
+      // ставим (один запрос прав), и только отказ оставляет тумблер выключенным.
+      if (next && !isTunModeAvailable) {
+        setInstalling(true)
+        const ready = await ensureTunReady().finally(() => setInstalling(false))
+        await mutateSystemState()
+        if (!ready) {
+          showNotice.error(
+            'settings.sections.proxyControl.tooltips.tunUnavailable',
+          )
+          return
+        }
+      }
       mutateVerge({ ...verge, enable_tun_mode: next }, false)
       await patchVerge({ enable_tun_mode: next })
     } catch (error) {
       showNotice.error(error)
+      // Оптимистичное значение выше могло разойтись с бэкендом (там патч
+      // откатывается через discard), поэтому перечитываем конфиг.
+      mutateVerge()
+    } finally {
+      await mutateTunState()
     }
   })
 
@@ -129,11 +151,16 @@ export const QuickActions = ({ locked }: Props) => {
             onToggle={(next) => void toggleSysproxy(next)}
           />
           <Row
-            label={t('home.components.quickActions.tun')}
-            checked={tunOn}
-            disabled={!isTunModeAvailable && !tunOn}
+            label={
+              installing
+                ? t('home.components.quickActions.tunInstalling')
+                : t('home.components.quickActions.tun')
+            }
+            checked={tunActive}
+            disabled={installing}
             onToggle={(next) => void toggleTun(next)}
           />
+          <TunStatus />
         </>
       )}
 

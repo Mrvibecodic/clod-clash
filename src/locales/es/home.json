@@ -188,9 +188,15 @@
       "title": "Quick actions",
       "sysproxy": "System proxy",
       "tun": "TUN",
+      "tunInstalling": "TUN · configurando…",
       "autoLaunch": "Start with the system",
       "silentStart": "Start minimized",
       "lockedBy": "{{targets}} — the connection method is set by your provider"
+    },
+    "tunStatus": {
+      "settingUp": "Configurando TUN: confirma la solicitud del sistema",
+      "broken": "TUN no se inició y el tráfico va fuera del túnel",
+      "fix": "Configurar"
     },
     "subscription": {
       "expires": "{{count}} days left · until {{date}}",

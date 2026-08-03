@@ -577,6 +577,17 @@ export const uninstallService = async () => {
   return invoke<void>('uninstall_service')
 }
 
+// clod:tun-ready — что бэкенд знает про TUN прямо сейчас.
+export const getTunState = async () => {
+  return invoke<ITunState>('get_tun_state')
+}
+
+// clod:tun-ready — «сделай так, чтобы TUN работал»: если прав уже хватает,
+// вернётся true сразу; иначе будет один запрос прав на установку службы.
+export const ensureTunReady = async () => {
+  return invoke<boolean>('ensure_tun_ready')
+}
+
 // 系统服务是否可用
 export const isServiceAvailable = async () => {
   try {

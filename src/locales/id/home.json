@@ -188,9 +188,15 @@
       "title": "Quick actions",
       "sysproxy": "System proxy",
       "tun": "TUN",
+      "tunInstalling": "TUN · menyiapkan…",
       "autoLaunch": "Start with the system",
       "silentStart": "Start minimized",
       "lockedBy": "{{targets}} — the connection method is set by your provider"
+    },
+    "tunStatus": {
+      "settingUp": "Menyiapkan TUN — konfirmasi permintaan sistem",
+      "broken": "TUN tidak berjalan, lalu lintas melewati terowongan",
+      "fix": "Siapkan"
     },
     "subscription": {
       "expires": "{{count}} days left · until {{date}}",

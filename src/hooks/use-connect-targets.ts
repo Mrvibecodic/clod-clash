@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useSystemProxyState } from '@/hooks/use-system-proxy-state'
 import { useSystemState } from '@/hooks/use-system-state'
 import { useVerge } from '@/hooks/use-verge'
+import { ensureTunReady } from '@/services/cmds'
 
 /**
  * What the Connect button actually switches.
@@ -21,7 +22,7 @@ import { useVerge } from '@/hooks/use-verge'
 export const useConnectTargets = () => {
   const { t } = useTranslation()
   const { verge, patchVerge } = useVerge()
-  const { isTunModeAvailable } = useSystemState()
+  const { isTunModeAvailable, mutateSystemState } = useSystemState()
   const { indicator: sysproxyOn, toggleSystemProxy } = useSystemProxyState()
 
   const tunOn = Boolean(verge?.enable_tun_mode)
@@ -40,8 +41,15 @@ export const useConnectTargets = () => {
   const toggleConnection = useCallback(async () => {
     const next = !connected
 
+    // clod:tun-ready — TUN нужна фоновая служба. Раньше кнопка просто ругалась
+    // «установите её сами»; теперь ставим (один запрос прав) и продолжаем, а
+    // ошибка остаётся только для случая, когда пользователь отказал.
     if (next && targetTun && !isTunModeAvailable && !tunOn) {
-      throw new Error(t('home.components.connect.errors.serviceRequired'))
+      const ready = await ensureTunReady()
+      await mutateSystemState()
+      if (!ready) {
+        throw new Error(t('home.components.connect.errors.serviceRequired'))
+      }
     }
 
     if (targetTun && tunOn !== next) {
@@ -57,6 +65,7 @@ export const useConnectTargets = () => {
     tunOn,
     sysproxyOn,
     isTunModeAvailable,
+    mutateSystemState,
     patchVerge,
     toggleSystemProxy,
     t,

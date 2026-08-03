@@ -88,6 +88,31 @@ export const handleNoticeMessage = (
       showNotice.error('shared.feedback.validation.merge.keyError', msg),
     'config_validate::merge_error': () =>
       showNotice.error('shared.feedback.validation.merge.generalError', msg),
+    // clod:tun-ready — TUN больше не «зелёная кнопка при мёртвом туннеле»:
+    // бэкенд рассказывает и про установку службы, и про провал старта.
+    'tun::setup_started': () =>
+      showNotice.info(
+        'settings.sections.system.notifications.tunMode.setupStarted',
+      ),
+    'tun::setup_done': () =>
+      showNotice.success(
+        'settings.sections.system.notifications.tunMode.setupDone',
+      ),
+    'tun::setup_failed': () =>
+      showNotice.error(
+        'settings.sections.system.notifications.tunMode.setupFailed',
+        msg,
+      ),
+    'tun::start_failed': () =>
+      showNotice.error(
+        'settings.sections.system.notifications.tunMode.autoDisabled',
+        msg,
+      ),
+    'core::crashed': () =>
+      showNotice.error(
+        'settings.sections.system.notifications.core.crashed',
+        msg,
+      ),
     'config_core::change_success': () =>
       showNotice.success(
         'settings.feedback.notifications.clash.changeSuccess',

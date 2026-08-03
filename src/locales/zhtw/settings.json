@@ -23,8 +23,13 @@
       },
       "notifications": {
         "tunMode": {
-          "autoDisabled": "由於服務不可使用，虛擬網路介面卡模式已自動停用",
-          "autoDisableFailed": "自動停用虛擬網路介面卡模式失敗"
+          "autoDisabled": "核心無法啟動虛擬網路介面卡，該模式暫時停用",
+          "setupStarted": "正在設定虛擬網路介面卡模式：安裝背景服務",
+          "setupDone": "虛擬網路介面卡模式已就緒",
+          "setupFailed": "背景服務安裝失敗，該模式維持停用"
+        },
+        "core": {
+          "crashed": "核心連續當機，已停止自動重新啟動"
         }
       }
     },

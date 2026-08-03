@@ -23,8 +23,13 @@
       },
       "notifications": {
         "tunMode": {
-          "autoDisabled": "TUN Mode automatically disabled due to service unavailable",
-          "autoDisableFailed": "Failed to disable TUN Mode automatically"
+          "autoDisabled": "El núcleo no pudo levantar el dispositivo TUN, así que TUN está desactivado",
+          "setupStarted": "Configurando el modo TUN: instalando el servicio en segundo plano",
+          "setupDone": "El modo TUN está listo",
+          "setupFailed": "No se pudo instalar el servicio en segundo plano, TUN sigue desactivado"
+        },
+        "core": {
+          "crashed": "El núcleo se bloqueó varias veces y no se reinició"
         }
       }
     },

@@ -188,9 +188,15 @@
       "title": "Quick actions",
       "sysproxy": "System proxy",
       "tun": "TUN",
+      "tunInstalling": "TUN · در حال آماده‌سازی…",
       "autoLaunch": "Start with the system",
       "silentStart": "Start minimized",
       "lockedBy": "{{targets}} — the connection method is set by your provider"
+    },
+    "tunStatus": {
+      "settingUp": "در حال آماده‌سازی TUN — درخواست سیستم را تأیید کنید",
+      "broken": "TUN اجرا نشد و ترافیک از تونل عبور نمی‌کند",
+      "fix": "آماده‌سازی"
     },
     "subscription": {
       "expires": "{{count}} days left · until {{date}}",

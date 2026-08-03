@@ -23,8 +23,13 @@
       },
       "notifications": {
         "tunMode": {
-          "autoDisabled": "TUN Mode automatically disabled due to service unavailable",
-          "autoDisableFailed": "Failed to disable TUN Mode automatically"
+          "autoDisabled": "Der Core konnte das TUN-Gerät nicht starten, TUN bleibt vorerst aus",
+          "setupStarted": "TUN-Modus wird eingerichtet: Hintergrunddienst wird installiert",
+          "setupDone": "TUN-Modus ist bereit",
+          "setupFailed": "Hintergrunddienst konnte nicht installiert werden, TUN bleibt aus"
+        },
+        "core": {
+          "crashed": "Der Core ist mehrfach abgestürzt und wurde nicht neu gestartet"
         }
       }
     },

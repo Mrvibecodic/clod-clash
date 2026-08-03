@@ -43,6 +43,42 @@ editors) is kept — it is simply moved out of sight into an advanced mode.
 | Simple interface mode | no | yes — a single Connect button |
 | Connection switches | settings only | plus a "Quick actions" card on the advanced home screen |
 | Server selection | reset by delay tests and subscription updates | strictly preserved; starred servers float to the top and replace a dead selection |
+| TUN mode | the service is installed by hand; without it TUN silently turns itself off | the service installs itself on first launch (one elevation prompt), the user's choice is never erased, a failed start is visible |
+
+---
+
+## TUN mode
+
+TUN captures the traffic of every application, including those that ignore the system
+proxy. It needs a privileged helper — a background service. In Clash Verge Rev you install
+that service by hand from the settings, and until you do, the TUN switch is dead.
+
+Here the only thing the user touches is the switch itself:
+
+* **The service installs itself.** On first launch, once the window is up, the app checks
+  TUN and installs the helper if it is missing — a single elevation prompt (UAC on Windows,
+  an administrator password on macOS, `pkexec` on Linux). Only the **service installer**
+  runs elevated: the app and its WebView stay unprivileged.
+* **A refusal is respected.** If the prompt is dismissed or the install fails, the app keeps
+  running through the system proxy and never asks on its own again — until the next version.
+  The TUN switch still works: turning it on means "install the helper and turn TUN on",
+  because now the user is the one asking.
+* **The user's choice is never erased.** The app used to write `enable_tun_mode: false`
+  straight into the config at startup whenever the service had not answered yet — and on an
+  autostart it answers later than the app. Unavailability is now scoped to the running
+  session; the settings file is left alone.
+* **The core does not wait in silence.** If the service comes up slower than the app, the
+  core starts without it and moves over to the service as soon as it answers, without
+  dropping connections. This works on all three systems.
+* **Fact, not promise.** The core's output is parsed: when mihomo cannot bring the device up
+  (`Start TUN listening error: … operation not permitted`), TUN honestly turns off instead of
+  staying green over a dead tunnel. A core that dies on its own is restarted — up to three
+  times in a row.
+* **It is on the screen, not only in a toast.** While the service is being installed, a line
+  under the switches (under the Connect button in the simple mode) reads "Setting TUN up —
+  confirm the system prompt": it is visible behind the system dialog and explains who raised
+  it. If TUN failed to come up, the same line stays as "TUN did not start, traffic is going
+  around the tunnel" with a "Set up" button — a toast disappears, this does not.
 
 ---
 

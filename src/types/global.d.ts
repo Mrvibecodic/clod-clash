@@ -937,6 +937,18 @@ interface IProxyConfig
     | 'sudoku'
 }
 
+/** clod:tun-ready — what the backend knows about TUN right now. */
+interface ITunState {
+  /** the user wants TUN (the saved setting) */
+  desired: boolean
+  /** TUN actually reached the core: wanted and not suppressed */
+  active: boolean
+  /** privileges are there: elevated app or a service that answers */
+  capable: boolean
+  /** the automatic service setup was already refused on this version */
+  setup_declined: boolean
+}
+
 interface IVergeConfig {
   app_log_level?: 'trace' | 'debug' | 'info' | 'warn' | 'error' | string
   app_log_max_size?: number // KB
@@ -1044,6 +1056,8 @@ interface IVergeConfig {
   connect_system_proxy?: boolean
   /** the Connect button also drives the TUN device; default false */
   connect_tun_mode?: boolean
+  /** clod:tun-ready — app version whose automatic service setup was refused */
+  tun_setup_declined?: string
   // clod: white-label branding
   /** display name in the sidebar; unset falls back to the product name */
   brand_name?: string

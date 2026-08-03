@@ -188,9 +188,15 @@
       "title": "Quick actions",
       "sysproxy": "System proxy",
       "tun": "TUN",
+      "tunInstalling": "TUN · جارٍ الإعداد…",
       "autoLaunch": "Start with the system",
       "silentStart": "Start minimized",
       "lockedBy": "{{targets}} — the connection method is set by your provider"
+    },
+    "tunStatus": {
+      "settingUp": "جارٍ إعداد TUN — أكّد طلب النظام",
+      "broken": "لم يبدأ TUN، وتمر البيانات خارج النفق",
+      "fix": "إعداد"
     },
     "subscription": {
       "expires": "{{count}} days left · until {{date}}",

@@ -188,9 +188,15 @@
       "title": "Quick actions",
       "sysproxy": "System proxy",
       "tun": "TUN",
+      "tunInstalling": "TUN · 準備中…",
       "autoLaunch": "Start with the system",
       "silentStart": "Start minimized",
       "lockedBy": "{{targets}} — the connection method is set by your provider"
+    },
+    "tunStatus": {
+      "settingUp": "TUN を準備中です — システムの確認に応じてください",
+      "broken": "TUN が起動せず、通信はトンネルを経由していません",
+      "fix": "設定する"
     },
     "subscription": {
       "expires": "{{count}} days left · until {{date}}",

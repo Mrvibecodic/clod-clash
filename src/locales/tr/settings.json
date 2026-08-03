@@ -23,8 +23,13 @@
       },
       "notifications": {
         "tunMode": {
-          "autoDisabled": "TUN Mode automatically disabled due to service unavailable",
-          "autoDisableFailed": "Failed to disable TUN Mode automatically"
+          "autoDisabled": "Çekirdek TUN aygıtını açamadı, TUN şimdilik kapalı",
+          "setupStarted": "TUN modu hazırlanıyor: arka plan hizmeti kuruluyor",
+          "setupDone": "TUN modu hazır",
+          "setupFailed": "Arka plan hizmeti kurulamadı, TUN kapalı kalıyor"
+        },
+        "core": {
+          "crashed": "Çekirdek üst üste çöktü ve yeniden başlatılmadı"
         }
       }
     },

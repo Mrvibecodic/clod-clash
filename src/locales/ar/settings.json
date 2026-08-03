@@ -23,8 +23,13 @@
       },
       "notifications": {
         "tunMode": {
-          "autoDisabled": "TUN Mode automatically disabled due to service unavailable",
-          "autoDisableFailed": "Failed to disable TUN Mode automatically"
+          "autoDisabled": "تعذّر على النواة تشغيل جهاز TUN، لذلك يبقى الوضع معطّلاً",
+          "setupStarted": "جارٍ إعداد وضع TUN: تثبيت خدمة الخلفية",
+          "setupDone": "وضع TUN جاهز",
+          "setupFailed": "تعذّر تثبيت خدمة الخلفية، ويبقى وضع TUN معطّلاً"
+        },
+        "core": {
+          "crashed": "تعطّلت النواة عدة مرات ولم تُعد تشغيلها"
         }
       }
     },

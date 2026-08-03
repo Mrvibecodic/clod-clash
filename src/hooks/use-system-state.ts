@@ -1,10 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
-
 import { getRunningMode, isAdmin, isServiceAvailable } from '@/services/cmds'
-import { showNotice } from '@/services/notice-service'
 import { useQuery } from '@/services/query-client'
 
-import { useVerge } from './use-verge'
 import { useVisibility } from './use-visibility'
 
 interface SystemState {
@@ -19,23 +15,20 @@ const defaultSystemState = {
   isServiceOk: false,
 } as SystemState
 
-// Grace period for service initialization during startup
-const STARTUP_GRACE_MS = 10_000
-
 /**
  * 自定义 hook 用于获取系统运行状态
  * 包括运行模式、管理员状态、系统服务是否可用
+ *
+ * clod:tun-ready — раньше этот хук ещё и выключал TUN, если очередная проверка
+ * не нашла службу. Проверка одноразовая (в Rust это одна попытка `connect()`),
+ * грейс снимался по таймеру раньше, чем бэкенд успевал дождаться службы, а сам
+ * хук живёт в семи местах — получались параллельные `patchVerge` и одинаковые
+ * тосты. Теперь состоянием TUN распоряжается бэкенд: он подавляет режим на
+ * сессию, если ядро не смогло поднять устройство, и присылает уведомление.
+ * Хук снова только читает.
  */
 export function useSystemState() {
-  const { verge, patchVerge } = useVerge()
   const pageVisible = useVisibility()
-  const disablingTunRef = useRef(false)
-  const [isStartingUp, setIsStartingUp] = useState(true)
-
-  useEffect(() => {
-    const timer = setTimeout(() => setIsStartingUp(false), STARTUP_GRACE_MS)
-    return () => clearTimeout(timer)
-  }, [])
 
   const {
     data: systemState = defaultSystemState,
@@ -51,7 +44,7 @@ export function useSystemState() {
       ])
       return { runningMode, isAdminMode, isServiceOk } as SystemState
     },
-    refetchInterval: pageVisible ? (isStartingUp ? 2000 : 30000) : false,
+    refetchInterval: pageVisible ? 30000 : false,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   })
@@ -59,50 +52,6 @@ export function useSystemState() {
   const isSidecarMode = systemState.runningMode === 'Sidecar'
   const isServiceMode = systemState.runningMode === 'Service'
   const isTunModeAvailable = systemState.isAdminMode || systemState.isServiceOk
-
-  const enable_tun_mode = verge?.enable_tun_mode
-  const cooldownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  useEffect(() => {
-    if (enable_tun_mode === undefined) return
-
-    if (
-      !disablingTunRef.current &&
-      enable_tun_mode &&
-      !isTunModeAvailable &&
-      !isLoading &&
-      !isStartingUp
-    ) {
-      disablingTunRef.current = true
-      patchVerge({ enable_tun_mode: false })
-        .then(() => {
-          showNotice.info(
-            'settings.sections.system.notifications.tunMode.autoDisabled',
-          )
-        })
-        .catch((err) => {
-          console.error('[useVerge] 自动关闭TUN模式失败:', err)
-          showNotice.error(
-            'settings.sections.system.notifications.tunMode.autoDisableFailed',
-          )
-        })
-        .finally(() => {
-          // 避免 verge 数据更新不及时导致重复执行关闭 Tun 模式
-          cooldownTimerRef.current = setTimeout(() => {
-            disablingTunRef.current = false
-            cooldownTimerRef.current = null
-          }, 1000)
-        })
-    }
-
-    return () => {
-      if (cooldownTimerRef.current != null) {
-        clearTimeout(cooldownTimerRef.current)
-        cooldownTimerRef.current = null
-        disablingTunRef.current = false
-      }
-    }
-  }, [enable_tun_mode, isTunModeAvailable, patchVerge, isLoading, isStartingUp])
 
   return {
     runningMode: systemState.runningMode,

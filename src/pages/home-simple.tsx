@@ -16,6 +16,7 @@ import { ProviderHeader } from '@/components/home/provider-header'
 import { ServerSelect, ServerSelectRow } from '@/components/home/server-select'
 import { SessionTraffic } from '@/components/home/session-traffic'
 import { SubscriptionCard } from '@/components/home/subscription-card'
+import { TunStatus } from '@/components/home/tun-status'
 import { useConnectTargets } from '@/hooks/use-connect-targets'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useSessionUptime } from '@/hooks/use-session-uptime'
@@ -36,9 +37,14 @@ const HomeSimplePage = () => {
   const uptime = useSessionUptime(connected)
 
   const [busy, setBusy] = useState(false)
-  const [errorText, setErrorText] = useState<string>()
+  const [failure, setFailure] = useState<{ text: string; at: boolean }>()
   const [serverOpen, setServerOpen] = useState(false)
   const [subUrl, setSubUrl] = useState('')
+
+  // clod:tun-ready — ошибка запоминается вместе с состоянием подключения, в
+  // котором случилась, и перестаёт показываться, как только оно изменилось:
+  // поставил службу, включил TUN тумблером — кнопка больше не красная.
+  const errorText = failure?.at === connected ? failure.text : undefined
 
   const state: ConnectState = errorText
     ? 'error'
@@ -50,11 +56,14 @@ const HomeSimplePage = () => {
 
   const toggle = useLockFn(async () => {
     setBusy(true)
-    setErrorText(undefined)
+    setFailure(undefined)
     try {
       await toggleConnection()
     } catch (error) {
-      setErrorText(error instanceof Error ? error.message : String(error))
+      setFailure({
+        text: error instanceof Error ? error.message : String(error),
+        at: connected,
+      })
     } finally {
       setBusy(false)
     }
@@ -185,6 +194,12 @@ const HomeSimplePage = () => {
             прокси / TUN / оба) и какой режим маршрутизации активен */}
         <Box sx={{ display: 'flex', justifyContent: 'center', mt: -1 }}>
           <ModeStatus locked={Boolean(current.lock_mode)} />
+        </Box>
+
+        {/* clod:tun-ready — в простом режиме карточки быстрых действий нет, а
+            объяснить «TUN не поднялся» и дать кнопку починки надо и здесь */}
+        <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+          <TunStatus />
         </Box>
 
         {/* clod: session totals (downloaded/uploaded since the core started) */}

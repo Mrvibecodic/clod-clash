@@ -136,6 +136,7 @@ export interface TranslationResources {
           sysproxy: string
           title: string
           tun: string
+          tunInstalling: string
         }
         serverSelect: {
           autoHint: string
@@ -231,6 +232,11 @@ export interface TranslationResources {
           patterns: {
             minutes: string
           }
+        }
+        tunStatus: {
+          broken: string
+          fix: string
+          settingUp: string
         }
       }
       page: {
@@ -1376,9 +1382,14 @@ export interface TranslationResources {
             silentStart: string
           }
           notifications: {
+            core: {
+              crashed: string
+            }
             tunMode: {
               autoDisabled: string
-              autoDisableFailed: string
+              setupDone: string
+              setupFailed: string
+              setupStarted: string
             }
           }
           title: string

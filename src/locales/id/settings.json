@@ -23,8 +23,13 @@
       },
       "notifications": {
         "tunMode": {
-          "autoDisabled": "TUN Mode automatically disabled due to service unavailable",
-          "autoDisableFailed": "Failed to disable TUN Mode automatically"
+          "autoDisabled": "Core tidak dapat menyalakan perangkat TUN, jadi TUN dimatikan",
+          "setupStarted": "Menyiapkan mode TUN: memasang layanan latar belakang",
+          "setupDone": "Mode TUN siap digunakan",
+          "setupFailed": "Layanan latar belakang gagal dipasang, mode TUN tetap mati"
+        },
+        "core": {
+          "crashed": "Core berulang kali berhenti dan tidak dijalankan ulang"
         }
       }
     },

@@ -19,6 +19,7 @@ import { useServiceUninstaller } from '@/hooks/use-service-uninstaller'
 import { useSystemProxyState } from '@/hooks/use-system-proxy-state'
 import { useSystemState } from '@/hooks/use-system-state'
 import { useVerge } from '@/hooks/use-verge'
+import { ensureTunReady } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 
 interface ProxySwitchProps {
@@ -149,13 +150,27 @@ const ProxyControlSwitches = ({
   )
 
   const handleTunToggle = async (value: boolean) => {
-    if (!isTunModeAvailable) {
-      const msgKey = 'settings.sections.proxyControl.tooltips.tunUnavailable'
-      showErrorNotice(msgKey)
-      throw new Error(t(msgKey))
+    // clod:tun-ready — включение TUN само доводит систему до рабочего
+    // состояния: если службы нет, ставим её (один запрос прав). Ошибка
+    // остаётся только для случая, когда пользователь отказал.
+    if (value && !isTunModeAvailable) {
+      const ready = await ensureTunReady()
+      await mutateSystemState()
+      if (!ready) {
+        const msgKey = 'settings.sections.proxyControl.tooltips.tunUnavailable'
+        showErrorNotice(msgKey)
+        throw new Error(t(msgKey))
+      }
     }
     mutateVerge({ ...verge, enable_tun_mode: value }, false)
-    await patchVerge({ enable_tun_mode: value })
+    try {
+      await patchVerge({ enable_tun_mode: value })
+    } catch (err) {
+      // Бэкенд откатил патч (discard) — перечитываем конфиг, иначе в кэше
+      // останется оптимистичное значение, которого нет на диске.
+      mutateVerge()
+      throw err
+    }
   }
 
   const onInstallService = useLockFn(async () => {
@@ -205,7 +220,6 @@ const ProxyControlSwitches = ({
           onInfoClick={() => tunRef.current?.open()}
           onToggle={handleTunToggle}
           onError={onError}
-          disabled={!isTunModeAvailable}
           highlight={enable_tun_mode || false}
           extraIcons={
             <>

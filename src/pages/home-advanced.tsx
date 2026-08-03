@@ -111,8 +111,13 @@ const HomeAdvancedPage = () => {
   const uptime = useSessionUptime(connected)
 
   const [busy, setBusy] = useState(false)
-  const [errorText, setErrorText] = useState<string>()
+  const [failure, setFailure] = useState<{ text: string; at: boolean }>()
   const [serverOpen, setServerOpen] = useState(false)
+
+  // clod:tun-ready — ошибка запоминается вместе с состоянием подключения, в
+  // котором случилась, и перестаёт показываться, как только оно изменилось:
+  // поставил службу, включил TUN тумблером — кнопка больше не красная.
+  const errorText = failure?.at === connected ? failure.text : undefined
 
   const state: ConnectState = errorText
     ? 'error'
@@ -124,11 +129,14 @@ const HomeAdvancedPage = () => {
 
   const toggle = useLockFn(async () => {
     setBusy(true)
-    setErrorText(undefined)
+    setFailure(undefined)
     try {
       await toggleConnection()
     } catch (error) {
-      setErrorText(error instanceof Error ? error.message : String(error))
+      setFailure({
+        text: error instanceof Error ? error.message : String(error),
+        at: connected,
+      })
     } finally {
       setBusy(false)
     }

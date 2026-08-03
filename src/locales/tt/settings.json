@@ -23,8 +23,13 @@
       },
       "notifications": {
         "tunMode": {
-          "autoDisabled": "TUN Mode automatically disabled due to service unavailable",
-          "autoDisableFailed": "Failed to disable TUN Mode automatically"
+          "autoDisabled": "Төш TUN җайланмасын кабыза алмады, шуңа күрә TUN сүнгән",
+          "setupStarted": "TUN режимы әзерләнә: фон хезмәте урнаштырыла",
+          "setupDone": "TUN режимы әзер",
+          "setupFailed": "Фон хезмәтен урнаштырып булмады, TUN сүнгән килеш кала"
+        },
+        "core": {
+          "crashed": "Төш берничә тапкыр ауды һәм кабат җибәрелмәде"
         }
       }
     },
