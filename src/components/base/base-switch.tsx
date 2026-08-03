@@ -15,10 +15,15 @@ export const Switch = styled((props: SwitchProps) => (
     {...props}
   />
 ))(({ theme }) => {
+  // clod: 0.36 на светлой теме читалось всё ещё бледно — на белой карточке
+  // контур сливался почти так же, как прежняя серая полоса. Берём заметнее и
+  // добавляем едва различимую заливку: выключенный тумблер должен выглядеть
+  // как контрол, а не как контур-призрак.
   const outline =
     theme.palette.mode === 'light'
-      ? alpha(theme.palette.text.primary, 0.36)
-      : alpha(theme.palette.text.primary, 0.42)
+      ? alpha(theme.palette.text.primary, 0.5)
+      : alpha(theme.palette.text.primary, 0.5)
+  const idleFill = alpha(theme.palette.text.primary, 0.08)
 
   return {
     width: 42,
@@ -60,7 +65,7 @@ export const Switch = styled((props: SwitchProps) => (
       boxSizing: 'border-box',
       width: 18,
       height: 18,
-      color: outline,
+      color: alpha(theme.palette.text.primary, 0.62),
       boxShadow: 'none',
       transition: theme.transitions.create(['width', 'height', 'color'], {
         duration: 200,
@@ -73,7 +78,7 @@ export const Switch = styled((props: SwitchProps) => (
     },
     '& .MuiSwitch-track': {
       borderRadius: 26 / 2,
-      backgroundColor: 'transparent',
+      backgroundColor: idleFill,
       border: `1.5px solid ${outline}`,
       opacity: 1,
       transition: theme.transitions.create(
