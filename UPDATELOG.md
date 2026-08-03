@@ -8,6 +8,48 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.0.13-alpha
+
+<!-- lang:en -->
+
+### Added
+
+- TUN mode sets itself up: on the first launch, once the window is up, the app installs the background helper it needs with a single elevation prompt — for the installer alone, the app itself stays unprivileged. Refuse it and the app keeps working through the system proxy without ever nagging again; the TUN switch still installs it on demand, because then you are the one asking
+- A standing line under the switches (under the Connect button in the simple mode) explains what is happening: "Setting TUN up — confirm the system prompt" while the helper is installed, and "TUN did not start" with a "Set up" button if it failed. A toast disappears in five seconds; this does not
+- Quick actions on the advanced home screen: system proxy, TUN, start with the system and start minimized, all without opening the settings
+- The server drawer grows to fit the group instead of scrolling a fixed strip, up to the bottom edge of the Connect button
+- Traffic used between subscription refreshes is counted locally and shown as an estimate (≈) — panels report their number once an hour, so the card no longer looks frozen
+
+### Fixed
+
+- The app no longer erases your TUN choice: the check that wrote "TUN off" straight into the config ran before the helper could answer, which on an autostart it never did in time. Unavailability is now scoped to the running session
+- The TUN switch shows what is actually running, not what the config asks for — it can no longer glow over a dead tunnel
+- A helper that comes up slower than the app is now waited for on macOS and Linux too, and the core moves over to it without dropping connections
+- A core that fails to start through the helper falls back to the built-in one instead of leaving you with no core at all
+- A core that dies on its own is restarted, up to three times in a row
+- The error under the Connect button no longer stays red after the problem is fixed
+
+<!-- lang:ru -->
+
+### Добавлено
+
+- Режим TUN настраивается сам: при первом запуске, уже после появления окна, приложение ставит нужную ему фоновую службу — один запрос прав, и только для установщика, само приложение остаётся без привилегий. Откажетесь — приложение продолжит работать через системный прокси и больше не будет спрашивать; тумблер TUN при этом рабочий: нажали — поставит, потому что теперь просите вы
+- Постоянная строка под переключателями (в простом режиме — под кнопкой подключения) объясняет происходящее: «Настраиваем TUN — подтвердите запрос системы», пока идёт установка, и «TUN не запустился» с кнопкой «Настроить», если не вышло. Уведомление исчезает через пять секунд, строка — нет
+- Карточка быстрых действий на главной расширенного режима: системный прокси, TUN, запуск с системой и старт свёрнутым — без захода в настройки
+- Шторка выбора сервера растёт под размер группы, а не прокручивает узкую полосу, — до нижней кромки кнопки подключения
+- Расход трафика между обновлениями подписки досчитывается на месте и показывается как примерный (≈): панель отдаёт своё число раз в час, и карточка больше не выглядит замершей
+
+### Исправлено
+
+- Приложение больше не стирает ваш выбор TUN: проверка, писавшая «TUN выключен» прямо в конфиг, выполнялась раньше, чем служба успевала ответить, — а при автозапуске она не успевала никогда. Недоступность теперь действует только до перезапуска
+- Тумблер TUN показывает то, что работает, а не то, что записано в настройках, — гореть над мёртвым туннелем он больше не может
+- Службу, которая поднимается медленнее приложения, теперь ждут и на macOS с Linux, а ядро переезжает на неё без разрыва соединений
+- Ядро, не сумевшее запуститься через службу, откатывается на встроенный запуск вместо того, чтобы оставить вас вообще без ядра
+- Упавшее ядро перезапускается — до трёх попыток подряд
+- Ошибка под кнопкой подключения больше не остаётся красной после того, как причина устранена
+
+---
+
 ## v0.0.12-alpha
 
 <!-- lang:en -->
