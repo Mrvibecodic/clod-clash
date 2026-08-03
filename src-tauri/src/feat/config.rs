@@ -299,6 +299,15 @@ pub async fn patch_verge(patch: &IVerge, not_save_file: bool) -> Result<()> {
         crate::feat::record_connect_targets(active);
     }
 
+    // clod:tun-ready — пользователь сам включил TUN: сессионное подавление
+    // снимается (условия могли измениться), а если ядро крутится в sidecar без
+    // прав, переезжаем на службу — иначе тумблер зелёный, а туннеля нет.
+    if patch.enable_tun_mode == Some(true) {
+        crate::feat::tun::clear_suppression();
+        crate::core::CoreManager::global().handoff_to_service_if_needed().await;
+        crate::feat::tun::spawn_start_verification();
+    }
+
     logging_error!(Type::Backup, AutoBackupManager::global().refresh_settings().await);
     if !not_save_file {
         // 分离数据获取和异步调用

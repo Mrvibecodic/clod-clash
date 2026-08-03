@@ -11,6 +11,10 @@ use clash_verge_logging::Type;
 use compact_str::CompactString;
 use log::Level;
 use scopeguard::defer;
+use std::{
+    sync::atomic::{AtomicU32, Ordering},
+    time::Duration,
+};
 use tauri_plugin_shell::ShellExt as _;
 
 #[cfg(target_os = "windows")]
@@ -27,6 +31,63 @@ use {
         },
     },
 };
+
+// clod:tun-ready — счётчик аварийных перезапусков ядра. Три попытки подряд,
+// счётчик обнуляется, если ядро прожило SIDECAR_STABLE_AFTER.
+static CRASH_RESTARTS: AtomicU32 = AtomicU32::new(0);
+const MAX_CRASH_RESTARTS: u32 = 3;
+const SIDECAR_RESTART_DELAY: Duration = Duration::from_secs(1);
+const SIDECAR_STABLE_AFTER: Duration = Duration::from_secs(60);
+
+/// Ядро в режиме sidecar завершилось. Если это не наш собственный стоп —
+/// сбрасываем режим и пробуем поднять его обратно.
+fn handle_sidecar_exit(message: &str) {
+    let manager = CoreManager::global();
+    if handle::Handle::global().is_exiting() {
+        return;
+    }
+    // Свой стоп уже забрал ребёнка и выставил NotRunning.
+    if !matches!(*manager.get_running_mode(), RunningMode::Sidecar) {
+        return;
+    }
+
+    logging!(warn, Type::Core, "core exited unexpectedly: {}", message);
+    manager.set_running_mode(RunningMode::NotRunning);
+
+    let attempt = CRASH_RESTARTS.fetch_add(1, Ordering::AcqRel) + 1;
+    if attempt > MAX_CRASH_RESTARTS {
+        logging!(
+            error,
+            Type::Core,
+            "core crashed {} times in a row; not restarting automatically",
+            attempt
+        );
+        handle::Handle::notice_message("core::crashed", message.to_owned());
+        return;
+    }
+
+    AsyncHandler::spawn(move || async move {
+        tokio::time::sleep(SIDECAR_RESTART_DELAY).await;
+        let manager = CoreManager::global();
+        if handle::Handle::global().is_exiting() || !matches!(*manager.get_running_mode(), RunningMode::NotRunning) {
+            return;
+        }
+        logging!(
+            info,
+            Type::Core,
+            "restarting the core after a crash (attempt {})",
+            attempt
+        );
+        if let Err(e) = manager.start_core().await {
+            logging!(error, Type::Core, "failed to restart the core after a crash: {}", e);
+            return;
+        }
+        tokio::time::sleep(SIDECAR_STABLE_AFTER).await;
+        if !matches!(*CoreManager::global().get_running_mode(), RunningMode::NotRunning) {
+            CRASH_RESTARTS.store(0, Ordering::Release);
+        }
+    });
+}
 
 impl CoreManager {
     pub async fn get_clash_logs(&self) -> Result<Vec<CompactString>> {
@@ -112,6 +173,12 @@ impl CoreManager {
                     | tauri_plugin_shell::process::CommandEvent::Stderr(line) => {
                         let message = CompactString::from(&*String::from_utf8_lossy(&line));
                         Logger::global().writer_sidecar_log(Level::Error, &message);
+                        // clod:tun-ready — единственное место, где виден stderr
+                        // ядра. Провал старта TUN здесь и ловим, иначе UI
+                        // показывает «подключено» при мёртвом туннеле.
+                        if crate::feat::tun::line_reports_tun_failure(&message) {
+                            crate::feat::tun::report_start_failure(&message);
+                        }
                         CLASH_LOGGER.append_log(message).await;
                     }
                     tauri_plugin_shell::process::CommandEvent::Terminated(term) => {
@@ -124,6 +191,10 @@ impl CoreManager {
                         };
                         Logger::global().writer_sidecar_log(Level::Info, &message);
                         CLASH_LOGGER.clear_logs().await;
+                        // clod:tun-ready — раньше режим оставался Sidecar, и
+                        // следующий start_core считал мёртвое ядро живым
+                        // (no-op): TUN исчезал, а UI показывал «работает».
+                        handle_sidecar_exit(&message);
                         break;
                     }
                     _ => {}

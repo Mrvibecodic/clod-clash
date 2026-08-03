@@ -2,12 +2,7 @@ use super::{IClashTemp, IProfiles, IVerge};
 use crate::{
     config::{PrfItem, profiles_append_item_to_safe, runtime::IRuntime},
     constants::{files, timing},
-    core::{
-        CoreManager,
-        handle::{self, Handle},
-        service, tray,
-        validate::CoreConfigValidator,
-    },
+    core::{CoreManager, handle, validate::CoreConfigValidator},
     enhance,
     process::AsyncHandler,
     utils::{dirs, help},
@@ -19,7 +14,6 @@ use clash_verge_logging::{Type, logging, logging_error};
 use serde_yaml_ng::{Mapping, Value};
 use smartstring::alias::String;
 use std::{collections::HashSet, path::PathBuf};
-use tauri_plugin_clash_verge_sysinfo::is_current_app_handle_admin;
 use tokio::sync::OnceCell;
 use tokio::time::sleep;
 
@@ -73,22 +67,12 @@ impl Config {
         let verge = Self::verge().await.latest_arc();
         clash_verge_i18n::sync_locale(verge.language.as_deref());
 
-        // init Tun mode
-        let handle = Handle::app_handle();
-        let is_admin = is_current_app_handle_admin(handle);
-        let is_service_available = service::is_service_available().await.is_ok();
-        if !is_admin && !is_service_available {
-            let verge = Self::verge().await;
-            verge.edit_draft(|d| {
-                d.enable_tun_mode = Some(false);
-            });
-            verge.apply();
-            let _ = tray::Tray::global().update_menu().await;
-
-            // 分离数据获取和异步调用避免Send问题
-            let verge_data = Self::verge().await.latest_arc();
-            logging_error!(Type::Core, verge_data.save_file().await);
-        }
+        // clod:tun-ready — раньше здесь стоял «init Tun mode»: одна проверка
+        // прав ДО того, как поднят менеджер службы, и запись
+        // `enable_tun_mode: false` прямо в verge.yaml. На автозапуске служба
+        // отвечает позже приложения, так что выбор пользователя стирался
+        // навсегда. Готовность TUN теперь считается после старта ядра
+        // (`feat::tun`), а недоступность подавляется только на сессию.
 
         Ok(())
     }

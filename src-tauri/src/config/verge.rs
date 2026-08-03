@@ -286,6 +286,13 @@ pub struct IVerge {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub connect_tun_mode: Option<bool>,
 
+    /// clod:tun-ready — the app version whose automatic service setup the user
+    /// turned down (or which failed). While it matches the running version we
+    /// never raise the elevation prompt on our own again; the TUN switch still
+    /// does, because then the user asked for it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tun_setup_declined: Option<String>,
+
     /// Legacy field of earlier builds (`sysproxy`/`tun`). Read only for the
     /// migration in [`Self::new`], never written back; without it a user who
     /// picked TUN would be silently downgraded to the system proxy.
@@ -697,6 +704,7 @@ impl IVerge {
         patch!(simple_mode);
         patch!(connect_system_proxy);
         patch!(connect_tun_mode);
+        patch!(tun_setup_declined);
         patch!(window_size_simple);
         patch!(window_size_advanced);
         patch!(window_pos_simple);

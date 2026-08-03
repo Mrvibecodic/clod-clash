@@ -9,16 +9,13 @@ use clash_verge_logging::{Type, logging};
 use scopeguard::defer;
 use smartstring::alias::String;
 use tauri_plugin_clash_verge_sysinfo;
-#[cfg(target_os = "windows")]
 use tauri_plugin_clash_verge_sysinfo::is_current_app_handle_admin;
 
-#[cfg(any(target_os = "windows", test))]
 const fn should_wait_for_service(tun_enabled: bool, service_ready: bool, is_admin: bool) -> bool {
     tun_enabled && !service_ready && !is_admin
 }
 
 /// sidecar→service 交接结果
-#[cfg(target_os = "windows")]
 enum HandoffOutcome {
     /// 服务尚未就绪
     NotReady,
@@ -62,10 +59,26 @@ impl CoreManager {
             return Ok(());
         }
 
-        let result = match *self.get_running_mode() {
+        let mut result = match *self.get_running_mode() {
             RunningMode::Service => self.start_core_by_service().await,
             RunningMode::NotRunning | RunningMode::Sidecar => self.start_core_by_sidecar().await,
         };
+
+        // clod:tun-ready — служба может отказать (сломана, старой версии,
+        // пользователь отклонил переустановку). Раньше это означало «ядро не
+        // запущено вообще», то есть отсутствие интернета вместо потери TUN.
+        // Падаем в sidecar и продолжаем ждать службу в фоне.
+        if let Err(e) = &result
+            && matches!(*self.get_running_mode(), RunningMode::Service)
+        {
+            logging!(
+                warn,
+                Type::Core,
+                "service start failed ({}); falling back to sidecar",
+                e
+            );
+            result = self.start_core_by_sidecar().await;
+        }
 
         // 启动失败时回滚 mode,允许后续重试。
         if result.is_err() {
@@ -73,8 +86,13 @@ impl CoreManager {
             return result;
         }
 
+        // clod:tun-ready — проверяем факт, а не заявку: если ядро не смогло
+        // поднять устройство, честно гасим TUN и говорим об этом.
+        if crate::feat::tun::desired().await && !crate::feat::tun::is_suppressed() {
+            crate::feat::tun::spawn_start_verification();
+        }
+
         // 回退 sidecar 后,后台等待服务就绪再交接
-        #[cfg(target_os = "windows")]
         if matches!(*self.get_running_mode(), RunningMode::Sidecar) {
             self.spawn_service_handoff_watcher().await;
         }
@@ -184,7 +202,6 @@ impl CoreManager {
     }
 
     async fn prepare_startup(&self) {
-        #[cfg(target_os = "windows")]
         self.wait_for_service_if_needed().await;
         self.set_running_mode(match SERVICE_MANAGER.current().await {
             ServiceStatus::Ready => RunningMode::Service,
@@ -197,7 +214,6 @@ impl CoreManager {
         tauri_plugin_clash_verge_sysinfo::set_app_core_mode(app_handle, self.get_running_mode().to_string());
     }
 
-    #[cfg(target_os = "windows")]
     async fn wait_for_service_if_needed(&self) {
         use crate::{config::Config, constants::timing, core::service};
         use backon::{ConstantBuilder, Retryable as _};
@@ -246,8 +262,25 @@ impl CoreManager {
         .await;
     }
 
+    /// clod:tun-ready — служба появилась (например, мы её только что
+    /// установили): переезжаем на неё сразу, не дожидаясь окна watcher-а.
+    pub async fn handoff_to_service_if_needed(&self) {
+        if !matches!(*self.get_running_mode(), RunningMode::Sidecar) {
+            return;
+        }
+        if !crate::feat::tun::desired().await {
+            return;
+        }
+        match self.try_handoff_sidecar_to_service().await {
+            HandoffOutcome::Done => {}
+            HandoffOutcome::NotReady => self.spawn_service_handoff_watcher().await,
+            HandoffOutcome::Failed => {
+                logging!(warn, Type::Core, "immediate handoff failed; staying in sidecar mode");
+            }
+        }
+    }
+
     /// 在窗口内等待服务就绪,再从 sidecar 交接到 service
-    #[cfg(target_os = "windows")]
     async fn spawn_service_handoff_watcher(&self) {
         use crate::constants::timing;
         use crate::process::AsyncHandler;
@@ -305,7 +338,6 @@ impl CoreManager {
     }
 
     /// 服务就绪后停止 sidecar,再以 service 重启内核
-    #[cfg(target_os = "windows")]
     async fn try_handoff_sidecar_to_service(&self) -> HandoffOutcome {
         use crate::core::service;
 

@@ -68,6 +68,10 @@ pub fn resolve_setup_async() {
             init_core_manager().await;
             init_system_proxy().await;
             init_system_proxy_guard().await;
+            // clod:tun-ready — последним шагом: окно уже показано, ядро и
+            // прокси подняты, поэтому запрос прав не блокирует старт и
+            // пользователь видит, кто именно его просит.
+            init_tun_ready().await;
         });
 
         let _ = futures::join!(
@@ -234,6 +238,12 @@ pub(super) async fn init_system_proxy() {
     let verge = Config::verge().await.latest_arc();
     let active = verge.enable_system_proxy.unwrap_or(false) || verge.enable_tun_mode.unwrap_or(false);
     crate::feat::record_connect_targets(active);
+}
+
+// clod:tun-ready — один раз на установку доводим TUN до рабочего состояния:
+// служба ставится сама (один запрос прав), дальше остаются только проверки.
+pub(super) async fn init_tun_ready() {
+    crate::feat::tun::init_startup_setup().await;
 }
 
 pub(super) async fn init_system_proxy_guard() {

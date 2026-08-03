@@ -5,6 +5,8 @@ mod icon;
 mod profile;
 mod proxy;
 mod session;
+// clod:tun-ready — TUN живёт отдельным модулем: желание, заявка и факт.
+pub mod tun;
 mod window;
 
 // Re-export all functions from modules

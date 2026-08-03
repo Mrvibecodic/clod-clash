@@ -48,6 +48,12 @@ pub async fn toggle_tun_mode(not_save_file: Option<bool>) -> bool {
     let current = Config::verge().await.latest_arc().enable_tun_mode.unwrap_or(false);
     let enable = !current;
 
+    // clod:tun-ready — включение из трея тоже должно просто работать: если
+    // службы нет, ставим её здесь же (пользователь сам попросил TUN).
+    if enable {
+        crate::feat::tun::ensure_ready(true).await;
+    }
+
     match super::patch_verge(
         &IVerge {
             enable_tun_mode: Some(enable),
