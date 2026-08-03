@@ -27,12 +27,15 @@ interface RowProps {
 }
 
 const Row = ({ label, checked, disabled, onToggle }: RowProps) => (
-  <Stack direction="row" sx={{ alignItems: 'center', gap: 1 }}>
+  // clod: строке нужна собственная высота. Тумблер 26 px при плотной укладке
+  // почти касался соседнего — строки читались как наехавшие друг на друга.
+  // `size="small"` тут тоже лишний: наш Switch уже компактный, а мелкий размер
+  // MUI спорит с его геометрией (свой трек против нашего).
+  <Stack direction="row" sx={{ alignItems: 'center', gap: 1, minHeight: 34 }}>
     <Typography sx={{ flex: 1, minWidth: 0, fontSize: 13 }} noWrap>
       {label}
     </Typography>
     <Switch
-      size="small"
       checked={checked}
       disabled={disabled}
       slotProps={{ input: { 'aria-label': label } }}
@@ -118,7 +121,7 @@ export const QuickActions = ({ locked }: Props) => {
       sx={{
         alignSelf: 'stretch',
         boxSizing: 'border-box',
-        gap: 0.5,
+        gap: 0.25,
         px: 1.75,
         py: 1.25,
         borderRadius: '14px',
