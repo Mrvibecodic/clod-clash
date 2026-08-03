@@ -454,6 +454,7 @@ export const translationKeys = [
   'settings.sections.system.notifications.tunMode.setupDone',
   'settings.sections.system.notifications.tunMode.setupFailed',
   'settings.sections.system.notifications.core.crashed',
+  'settings.sections.system.notifications.service.needsRepair',
   'settings.sections.proxyControl.tooltips.systemProxy',
   'settings.sections.proxyControl.tooltips.tunMode',
   'settings.sections.proxyControl.tooltips.tunUnavailable',

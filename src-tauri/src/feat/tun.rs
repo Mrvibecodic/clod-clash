@@ -69,8 +69,24 @@ pub fn is_app_elevated() -> bool {
 }
 
 /// TUN технически возможен прямо сейчас.
+///
+/// clod: мало того, что служба отвечает — она должна быть той же версии, что и
+/// приложение. Служба, оставшаяся от прошлой версии, отвечает по IPC, но ядро
+/// через неё не поднимется: без этой проверки клиент считал бы TUN доступным и
+/// упирался бы в «TUN не запустился» по кругу.
 pub async fn is_capable() -> bool {
-    is_app_elevated() || is_service_available().await.is_ok()
+    if is_app_elevated() {
+        return true;
+    }
+    if is_service_available().await.is_err() {
+        return false;
+    }
+    !clash_verge_service_ipc::is_reinstall_service_needed().await
+}
+
+/// Служба установлена и отвечает, но устарела — её надо чинить, а не ставить.
+async fn service_needs_repair() -> bool {
+    is_service_available().await.is_ok() && clash_verge_service_ipc::is_reinstall_service_needed().await
 }
 
 /// Строка из вывода ядра похожа на провал старта TUN.
@@ -212,13 +228,22 @@ pub async fn ensure_ready(user_initiated: bool) -> SetupOutcome {
         SETUP_RUNNING.store(false, Ordering::Release);
     }
 
-    logging!(info, Type::Service, "installing the background service for TUN");
+    // Служба есть, но старая (обычно после обновления приложения) — это ремонт,
+    // а не установка с нуля.
+    let action = if service_needs_repair().await {
+        ServiceStatus::ReinstallRequired
+    } else {
+        ServiceStatus::InstallRequired
+    };
+    logging!(
+        info,
+        Type::Service,
+        "preparing the background service for TUN: {:?}",
+        action
+    );
     Handle::notice_message("tun::setup_started", "");
 
-    match SERVICE_MANAGER
-        .handle_service_status(ServiceStatus::InstallRequired)
-        .await
-    {
+    match SERVICE_MANAGER.handle_service_status(action).await {
         Ok(()) => {
             clear_suppression();
             logging!(info, Type::Service, "background service installed");

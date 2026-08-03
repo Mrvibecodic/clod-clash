@@ -1,5 +1,12 @@
 #!/bin/bash
 
+# clod: состояние пишем НЕ в текущий каталог (это ресурсы приложения, они
+# переживают не каждое обновление и могут быть только для чтения), а в файл,
+# путь к которому передаёт приложение вторым аргументом. В файле две строки:
+# имя сетевого сервиса, на котором мы подменили DNS, и сам исходный DNS.
+# Имя сервиса важно: после переключения Wi-Fi ↔ Ethernet «текущий» сервис уже
+# другой, и восстановление ушло бы не туда.
+
 # 验证IPv4地址格式
 function is_valid_ipv4() {
     local ip=$1
@@ -34,8 +41,10 @@ function is_valid_ip() {
 }
 
 # 检查参数
-[ $# -lt 1 ] && echo "Usage: $0 <IP address>" && exit 1
+[ $# -lt 1 ] && echo "Usage: $0 <IP address> [state file]" && exit 1
 ! is_valid_ip "$1" && echo "$1 is not a valid IP address." && exit 1
+
+state_file="${2:-.original_dns.txt}"
 
 # 获取网络接口和硬件端口
 nic=$(route -n get default | grep "interface" | awk '{print $2}')
@@ -45,23 +54,31 @@ hardware_port=$(networksetup -listnetworkserviceorder | awk -v dev="$nic" '
     /\(Hardware Port:/{interface=$NF;sub(/\)/, "", interface); if (interface == dev) {print port; exit}}
 ')
 
-# 获取当前DNS设置
-original_dns=$(networksetup -getdnsservers "$hardware_port")
+[ -z "$hardware_port" ] && echo "cannot resolve the network service for $nic" && exit 1
 
-# 检查当前DNS设置是否有效
-is_valid_dns=false
-for ip in $original_dns; do
-    ip=$(echo "$ip" | tr -d '[:space:]')
-    if [ -n "$ip" ] && (is_valid_ipv4 "$ip" || is_valid_ipv6 "$ip"); then
-        is_valid_dns=true
-        break
-    fi
-done
+# clod: оригинал запоминаем ОДИН раз. Если файл уже есть, значит подменяли мы
+# же — перечитывать «текущий» DNS нельзя, иначе нашей же подменой затрём
+# настоящую настройку пользователя и восстанавливать будет нечего.
+if [ ! -f "$state_file" ]; then
+    original_dns=$(networksetup -getdnsservers "$hardware_port")
 
-# 更新DNS设置
-if [ "$is_valid_dns" = false ]; then
-    echo "empty" >.original_dns.txt
-else
-    echo "$original_dns" >.original_dns.txt
+    is_valid_dns=false
+    for ip in $original_dns; do
+        ip=$(echo "$ip" | tr -d '[:space:]')
+        if [ -n "$ip" ] && (is_valid_ipv4 "$ip" || is_valid_ipv6 "$ip"); then
+            is_valid_dns=true
+            break
+        fi
+    done
+
+    {
+        echo "$hardware_port"
+        if [ "$is_valid_dns" = false ]; then
+            echo "empty"
+        else
+            echo "$original_dns"
+        fi
+    } >"$state_file"
 fi
+
 networksetup -setdnsservers "$hardware_port" "$1"

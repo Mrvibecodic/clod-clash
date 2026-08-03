@@ -280,6 +280,51 @@ impl PrfOption {
 impl PrfItem {
     /// From partial item
     /// must contain `itype`
+    /// clod: ответ «мы вас не пустили» повторять через прокси бессмысленно —
+    /// адрес доступен, отвечает панель. Повторяем только сетевые провалы.
+    fn is_worth_retrying_over_proxy(err: &anyhow::Error) -> bool {
+        let text = err.to_string();
+        !text.contains("(x-hwid)") && !text.contains("invalid profile item type")
+    }
+
+    /// clod: лесенка попыток — напрямую, затем через собственное ядро, затем
+    /// через системный прокси.
+    ///
+    /// Смысл средней ступени: когда домен подписки заблокирован, единственный
+    /// живой канал до него — уже поднятый туннель на прошлых узлах. Раньше
+    /// лесенка была только у обновления подписки, а импорт делал одну попытку
+    /// и сдавался — то есть добавить подписку на заблокированном домене было
+    /// нельзя даже при работающем VPN.
+    pub async fn from_url_with_ladder(
+        url: &str,
+        name: Option<&String>,
+        desc: Option<&String>,
+        option: Option<&PrfOption>,
+    ) -> Result<Self> {
+        let url = url.to_owned();
+        let mut attempt = option.cloned();
+        let mut last_err = match Self::from_url(&url, name, desc, attempt.as_ref()).await {
+            Ok(item) => return Ok(item),
+            Err(err) => err,
+        };
+
+        for (self_proxy, with_proxy) in [(true, false), (false, true)] {
+            if !Self::is_worth_retrying_over_proxy(&last_err) {
+                break;
+            }
+            let opt = attempt.get_or_insert_with(PrfOption::default);
+            opt.self_proxy = Some(self_proxy);
+            opt.with_proxy = Some(with_proxy);
+
+            match Self::from_url(&url, name, desc, attempt.as_ref()).await {
+                Ok(item) => return Ok(item),
+                Err(err) => last_err = err,
+            }
+        }
+
+        Err(last_err)
+    }
+
     pub async fn from(item: &Self, file_data: Option<String>) -> Result<Self> {
         if item.itype.is_none() {
             bail!("type should not be null");
@@ -298,7 +343,7 @@ impl PrfItem {
                 let name = item.name.as_ref();
                 let desc = item.desc.as_ref();
                 let option = item.option.as_ref();
-                Self::from_url(url, name, desc, option).await
+                Self::from_url_with_ladder(url, name, desc, option).await
             }
             "local" => {
                 let name = item.name.clone().unwrap_or_else(|| "Local File".into());

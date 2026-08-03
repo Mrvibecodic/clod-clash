@@ -74,6 +74,16 @@ Here the only thing the user touches is the switch itself:
   (`Start TUN listening error: … operation not permitted`), TUN honestly turns off instead of
   staying green over a dead tunnel. A core that dies on its own is restarted — up to three
   times in a row.
+* **The service is repaired by a button, never on its own.** Checking its state can no longer
+  install anything: after an app update, when the service on disk is older, the app says so once and
+  offers to repair it in the settings. That check used to run on every core start — and on Windows a
+  start is retried up to five times — so the elevation prompt appeared a dozen times in a row.
+* **The `tun` section belongs to the app.** A provider profile (or a manual merge/script) can
+  neither switch TUN off nor switch it on: a snapshot is taken before manual overrides and restored
+  after, and a key that was not there does not appear.
+* **The system DNS comes back even after a crash.** On macOS TUN overrides the system DNS; the
+  original value and the network service name are now written next to the configs, and if the
+  previous run never restored it (crash, kill, power cut), it is restored on the next start.
 * **It is on the screen, not only in a toast.** While the service is being installed, a line
   under the switches (under the Connect button in the simple mode) reads "Setting TUN up —
   confirm the system prompt": it is visible behind the system dialog and explains who raised
@@ -83,6 +93,12 @@ Here the only thing the user touches is the switch itself:
 ---
 
 ## The subscriptions screen
+
+**The subscription is fetched through the tunnel when the domain is blocked.** Every download —
+import and refresh alike — walks a ladder: directly first, then through the app's own core, then
+through the system proxy. When the provider's domain is blocked, the live channel to it is the
+tunnel already running on the previous nodes. A "device not recognised" answer is not retried
+through a proxy: the address is reachable, the service is answering.
 
 **Adding takes one field.** The "Add subscription" button opens a window showing only the link your
 service gave you: the name, expiry, traffic and servers arrive with it. Name, group, refresh

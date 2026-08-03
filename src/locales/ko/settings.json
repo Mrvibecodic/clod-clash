@@ -30,6 +30,9 @@
         },
         "core": {
           "crashed": "코어가 계속 중단되어 자동 재시작을 멈췄습니다"
+        },
+        "service": {
+          "needsRepair": "The background service is outdated after the update. Repair it in the settings — TUN may not work until then"
         }
       }
     },

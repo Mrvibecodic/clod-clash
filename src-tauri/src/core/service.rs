@@ -1,6 +1,6 @@
 use crate::{
     config::{Config, IClashTemp},
-    core::{logger::Logger, tray::Tray},
+    core::{handle::Handle, logger::Logger, tray::Tray},
     utils::dirs,
 };
 use anyhow::{Context as _, Result, bail};
@@ -655,14 +655,38 @@ impl ServiceManager {
         Tray::global().update_menu().await
     }
 
+    /// clod: только наблюдение, никаких привилегированных действий.
+    ///
+    /// Раньше `refresh()` при несовпадении версии службы уходил в переустановку
+    /// — а зовут его старт ядра, ожидание службы и хэндофф. После обновления
+    /// приложения (служба на диске старая) это давало запрос прав из ниоткуда,
+    /// причём по разу на каждую попытку: `start_core_by_service` на Windows
+    /// повторяет старт пять раз, плюс рестарты ядра и watcher — пользователь
+    /// видел «Разрешить внести изменения?» полтора десятка раз подряд.
+    /// Чинит службу теперь только явная команда из интерфейса.
     pub async fn refresh(&self) -> Result<()> {
         self.run_operation(async {
-            self.apply_service_status(if clash_verge_service_ipc::is_reinstall_service_needed().await {
-                ServiceStatus::NeedsReinstall
-            } else {
-                ServiceStatus::Ready
-            })
-            .await
+            if let Err(e) = is_service_available().await {
+                let reason = format!("service IPC is not answering: {e}");
+                self.set_status(ServiceStatus::Unavailable(reason.clone()));
+                bail!(reason);
+            }
+            if clash_verge_service_ipc::is_reinstall_service_needed().await {
+                self.set_status(ServiceStatus::NeedsReinstall);
+                // Одно уведомление на сессию: чинить будет пользователь кнопкой,
+                // а не мы молча с запросом прав.
+                if !REINSTALL_NOTICED.swap(true, Ordering::AcqRel) {
+                    logging!(
+                        warn,
+                        Type::Service,
+                        "service version mismatch; repair is up to the user"
+                    );
+                    Handle::notice_message("service::needs_repair", "");
+                }
+                bail!("service version mismatch");
+            }
+            self.set_status(ServiceStatus::Ready);
+            Ok(())
         })
         .await
     }
@@ -676,6 +700,7 @@ impl ServiceManager {
         match status {
             ServiceStatus::Ready => logging!(info, Type::Service, "服务就绪，直接启动"),
             ServiceStatus::NeedsReinstall | ServiceStatus::ReinstallRequired => {
+                REINSTALL_NOTICED.store(false, Ordering::Release);
                 logging!(info, Type::Service, "服务需要重装，执行重装流程");
                 run_service_command(reinstall_service, "reinstall service")?;
                 wait_for_service_ipc(self).await?;
@@ -686,6 +711,7 @@ impl ServiceManager {
                 wait_for_service_ipc(self).await?;
             }
             ServiceStatus::InstallRequired => {
+                REINSTALL_NOTICED.store(false, Ordering::Release);
                 logging!(info, Type::Service, "需要安装服务，执行安装流程");
                 run_service_command(install_service, "install service")?;
                 wait_for_service_ipc(self).await?;
@@ -714,6 +740,9 @@ impl ServiceManager {
 fn run_service_command(operation: impl FnOnce() -> Result<()>, label: &'static str) -> Result<()> {
     tokio::task::block_in_place(operation).with_context(|| format!("{label} failed"))
 }
+
+/// clod: про устаревшую службу говорим один раз за сессию.
+static REINSTALL_NOTICED: AtomicBool = AtomicBool::new(false);
 
 pub static SERVICE_MANAGER: Lazy<ServiceManager> = Lazy::new(|| ServiceManager {
     status: Mutex::new(ServiceStatus::Unavailable("Need Checks".into())),

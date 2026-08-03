@@ -30,6 +30,9 @@
         },
         "core": {
           "crashed": "El núcleo se bloqueó varias veces y no se reinició"
+        },
+        "service": {
+          "needsRepair": "The background service is outdated after the update. Repair it in the settings — TUN may not work until then"
         }
       }
     },

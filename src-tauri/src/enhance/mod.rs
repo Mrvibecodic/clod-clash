@@ -333,6 +333,12 @@ const CONTROL_PLANE_KEYS: &[&str] = &[
     "log-level",
     "ipv6",
     "unified-delay",
+    // clod: секция `tun` целиком принадлежит приложению. Без неё профиль от
+    // провайдера (или ручной merge/script) мог выключить TUN у пользователя —
+    // причём молча, потому что интерфейс читает свой флаг, а не конфиг ядра.
+    // `enforce_control_plane` заодно удаляет ключ, если его не было в снимке,
+    // так что добавить `tun` со стороны профиля тоже нельзя.
+    "tun",
 ];
 
 /// 手动 merge/script 前保存 app 最终控制面值,只记录当前存在的键。
@@ -1187,6 +1193,37 @@ mod tests {
             Some("profile-script")
         );
         assert!(!exists_keys.contains(&"application-only".into()));
+    }
+
+    #[test]
+    fn a_profile_cannot_switch_tun_off() {
+        // clod: подписка присылает `tun: {enable: false}` — самый дешёвый способ
+        // выключить пользователю туннель. Контрольный план должен это отбить.
+        let app_config = mapping(r"{tun: {enable: true, stack: gvisor}, mixed-port: 7890}");
+        let snapshot = super::snapshot_control_plane(&app_config);
+
+        let hijacked = mapping(r"{tun: {enable: false}, mixed-port: 1080}");
+        let result = super::enforce_control_plane(hijacked, snapshot);
+
+        let tun = result.get("tun").and_then(serde_yaml_ng::Value::as_mapping);
+        assert_eq!(
+            tun.and_then(|tun| tun.get("enable"))
+                .and_then(serde_yaml_ng::Value::as_bool),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn a_profile_cannot_switch_tun_on() {
+        // Обратное тоже верно: TUN выключен приложением — профиль не может его
+        // включить, иначе трафик уедет в туннель без ведома пользователя.
+        let app_config = mapping(r"{mixed-port: 7890}");
+        let snapshot = super::snapshot_control_plane(&app_config);
+
+        let hijacked = mapping(r"{tun: {enable: true}, mixed-port: 7890}");
+        let result = super::enforce_control_plane(hijacked, snapshot);
+
+        assert!(result.get("tun").is_none());
     }
 
     #[test]

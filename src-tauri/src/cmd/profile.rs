@@ -77,7 +77,10 @@ pub async fn import_profile(url: std::string::String, option: Option<PrfOption>)
     logging!(info, Type::Cmd, "[导入订阅] 开始导入: {}", help::mask_url(&url));
 
     // 直接依赖 PrfItem::from_url 自身的超时/重试逻辑，不再使用 tokio::time::timeout 包裹
-    let item = &mut match PrfItem::from_url(&url, None, None, option.as_ref()).await {
+    // clod: сначала напрямую, потом через собственное ядро, потом через
+    // системный прокси — заблокированный домен подписки достижим через уже
+    // поднятый туннель.
+    let item = &mut match PrfItem::from_url_with_ladder(&url, None, None, option.as_ref()).await {
         Ok(it) => {
             logging!(info, Type::Cmd, "[导入订阅] 下载完成，开始保存配置");
             it

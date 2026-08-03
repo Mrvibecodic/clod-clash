@@ -108,6 +108,10 @@ export const handleNoticeMessage = (
         'settings.sections.system.notifications.tunMode.autoDisabled',
         msg,
       ),
+    'service::needs_repair': () =>
+      showNotice.error(
+        'settings.sections.system.notifications.service.needsRepair',
+      ),
     'core::crashed': () =>
       showNotice.error(
         'settings.sections.system.notifications.core.crashed',

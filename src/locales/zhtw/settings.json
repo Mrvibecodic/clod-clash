@@ -30,6 +30,9 @@
         },
         "core": {
           "crashed": "核心連續當機，已停止自動重新啟動"
+        },
+        "service": {
+          "needsRepair": "The background service is outdated after the update. Repair it in the settings — TUN may not work until then"
         }
       }
     },

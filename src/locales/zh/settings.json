@@ -30,6 +30,9 @@
         },
         "core": {
           "crashed": "内核连续崩溃，已停止自动重启"
+        },
+        "service": {
+          "needsRepair": "The background service is outdated after the update. Repair it in the settings — TUN may not work until then"
         }
       }
     },

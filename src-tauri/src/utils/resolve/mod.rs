@@ -50,7 +50,13 @@ pub fn resolve_setup_async() {
         logging!(info, Type::ClashVergeRev, "Version: {}", env!("CARGO_PKG_VERSION"));
 
         #[cfg(target_os = "macos")]
-        resolve_dock_show().await;
+        {
+            resolve_dock_show().await;
+            // clod: до всего прочего — если прошлый запуск не успел вернуть
+            // системный DNS (упали, убили, выключили питание), возвращаем его
+            // сейчас. Иначе весь резолв так и идёт на подменённый сервер.
+            dns::restore_public_dns_if_pending().await;
+        }
         init_startup_script().await;
         let config_initialized = init_verge_config_before_window().await;
         init_window().await;

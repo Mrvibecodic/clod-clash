@@ -232,50 +232,33 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
   return (
     <BaseDialog
       open={open}
+      // clod: заголовок больше не держит кнопку. В простом режиме окно ~560 px,
+      // и связка «длинное имя версии + кнопка» не влезала: имя обрезалось
+      // многоточием, кнопка уезжала за правый край, а внизу появлялась
+      // горизонтальная прокрутка. Кнопка переехала под текст ченджлога, а
+      // заголовку разрешено занять две строки.
       title={
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 2,
-            minWidth: 0,
-          }}
-        >
-          <Box
-            component="span"
-            sx={{
-              minWidth: 0,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {t('settings.modals.update.title', {
-              version: updateInfo?.version ?? '',
-            })}
-          </Box>
-          <Button
-            variant="contained"
-            size="small"
-            sx={{ whiteSpace: 'nowrap' }}
-            onClick={() => {
-              // clod: our releases live in the fork and are tagged clod-v*
-              openUrl(
-                `https://github.com/Mrvibecodic/clod-clash/releases/tag/clod-v${updateInfo?.version}`,
-              )
-            }}
-          >
-            {t('settings.modals.update.actions.goToRelease')}
-          </Button>
+        <Box sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+          {t('settings.modals.update.title', {
+            version: updateInfo?.version ?? '',
+          })}
         </Box>
       }
+      fullWidth
+      maxWidth="sm"
+      paperSx={{
+        // Окно простого режима узкое — диалог считаем от него, а не от
+        // брейкпоинта: `maxWidth="sm"` это 600 px, что уже шире окна.
+        width: 'min(560px, calc(100vw - 32px))',
+        m: 2,
+      }}
       contentSx={{
-        width: { xs: 'calc(100vw - 56px)', sm: 560 },
-        maxWidth: 'calc(100vw - 56px)',
+        width: '100%',
+        maxWidth: '100%',
         height: 'min(64vh, 680px)',
         display: 'flex',
         flexDirection: 'column',
+        overflowX: 'hidden',
         pb: 1,
       }}
       okBtn={t('settings.modals.update.actions.update')}
@@ -289,12 +272,14 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
           flex: 1,
           minHeight: 0,
           overflow: 'auto',
+          overflowX: 'hidden',
           pr: 1.5,
           mr: -1,
           fontSize: 14,
           lineHeight: 1.65,
           color: 'text.primary',
-          overflowWrap: 'break-word',
+          overflowWrap: 'anywhere',
+          '& *': { maxWidth: '100%' },
           '& > :first-child': {
             mt: 0,
           },
@@ -461,6 +446,23 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
             </LazyReactMarkdown>
           </Suspense>
         )}
+      </Box>
+      {/* clod: кнопка релиза жила в заголовке и в узком окне обрезалась.
+          Здесь ей есть место, и она переносится, а не уезжает за край. */}
+      <Box sx={{ pt: 1, display: 'flex', justifyContent: 'flex-end' }}>
+        <Button
+          variant="outlined"
+          size="small"
+          sx={{ whiteSpace: 'normal', textAlign: 'center' }}
+          onClick={() => {
+            // clod: our releases live in the fork and are tagged clod-v*
+            openUrl(
+              `https://github.com/Mrvibecodic/clod-clash/releases/tag/clod-v${updateInfo?.version}`,
+            )
+          }}
+        >
+          {t('settings.modals.update.actions.goToRelease')}
+        </Button>
       </Box>
       {updateState && (
         <LinearProgress

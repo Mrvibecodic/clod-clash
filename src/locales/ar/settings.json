@@ -30,6 +30,9 @@
         },
         "core": {
           "crashed": "تعطّلت النواة عدة مرات ولم تُعد تشغيلها"
+        },
+        "service": {
+          "needsRepair": "The background service is outdated after the update. Repair it in the settings — TUN may not work until then"
         }
       }
     },

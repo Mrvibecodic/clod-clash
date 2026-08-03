@@ -30,6 +30,9 @@
         },
         "core": {
           "crashed": "The core keeps crashing and was not restarted"
+        },
+        "service": {
+          "needsRepair": "The background service is outdated after the update. Repair it in the settings — TUN may not work until then"
         }
       }
     },

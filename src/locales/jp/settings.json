@@ -30,6 +30,9 @@
         },
         "core": {
           "crashed": "コアが連続して停止したため、自動再起動を中止しました"
+        },
+        "service": {
+          "needsRepair": "The background service is outdated after the update. Repair it in the settings — TUN may not work until then"
         }
       }
     },

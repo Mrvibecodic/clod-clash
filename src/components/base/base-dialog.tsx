@@ -1,6 +1,7 @@
 import {
   Button,
   Dialog,
+  type DialogProps,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -19,6 +20,10 @@ interface Props {
   disableCancel?: boolean
   disableFooter?: boolean
   contentSx?: SxProps<Theme>
+  /** clod: узкое окно простого режима — диалог должен считаться от него. */
+  fullWidth?: boolean
+  maxWidth?: DialogProps['maxWidth']
+  paperSx?: SxProps<Theme>
   children?: ReactNode
   loading?: boolean
   onOk?: () => void
@@ -39,6 +44,9 @@ export const BaseDialog: React.FC<Props> = ({
   cancelBtn,
   disableEnforceFocus,
   contentSx,
+  fullWidth,
+  maxWidth,
+  paperSx,
   disableCancel,
   disableOk,
   disableFooter,
@@ -52,6 +60,9 @@ export const BaseDialog: React.FC<Props> = ({
       open={open}
       onClose={onClose}
       disableEnforceFocus={disableEnforceFocus}
+      fullWidth={fullWidth}
+      maxWidth={maxWidth}
+      slotProps={paperSx ? { paper: { sx: paperSx } } : undefined}
     >
       <DialogTitle>{title}</DialogTitle>
 

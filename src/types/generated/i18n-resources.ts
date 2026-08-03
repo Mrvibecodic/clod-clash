@@ -1418,6 +1418,9 @@ export interface TranslationResources {
             core: {
               crashed: string
             }
+            service: {
+              needsRepair: string
+            }
             tunMode: {
               autoDisabled: string
               setupDone: string

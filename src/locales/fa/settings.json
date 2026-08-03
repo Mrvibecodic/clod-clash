@@ -30,6 +30,9 @@
         },
         "core": {
           "crashed": "هسته پیوسته از کار افتاد و دوباره اجرا نشد"
+        },
+        "service": {
+          "needsRepair": "The background service is outdated after the update. Repair it in the settings — TUN may not work until then"
         }
       }
     },

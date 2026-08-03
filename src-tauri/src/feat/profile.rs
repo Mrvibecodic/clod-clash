@@ -118,27 +118,6 @@ async fn should_update_profile(uid: &String, ignore_auto_update: bool) -> Result
 ///
 /// Only used for the `fallback-url` retry; the primary path below is left
 /// untouched so upstream changes to it stay easy to merge.
-async fn fetch_with_proxy_ladder(url: &String, base: Option<&PrfOption>) -> Result<PrfItem> {
-    let mut attempt = base.cloned();
-    let mut last_err = match PrfItem::from_url(url, None, None, attempt.as_ref()).await {
-        Ok(item) => return Ok(item),
-        Err(err) => err,
-    };
-
-    for (self_proxy, with_proxy) in [(true, false), (false, true)] {
-        let opt = attempt.get_or_insert_with(PrfOption::default);
-        opt.self_proxy = Some(self_proxy);
-        opt.with_proxy = Some(with_proxy);
-
-        match PrfItem::from_url(url, None, None, attempt.as_ref()).await {
-            Ok(item) => return Ok(item),
-            Err(err) => last_err = err,
-        }
-    }
-
-    Err(last_err)
-}
-
 /// Persist a freshly fetched subscription and honour a provider migration.
 ///
 /// A `new-url` / `new-domain` header is only applied once a probe download of
@@ -311,7 +290,7 @@ async fn perform_profile_update(
             mask_url(&spare)
         );
 
-        match fetch_with_proxy_ladder(&spare, merged_opt.as_ref()).await {
+        match PrfItem::from_url_with_ladder(&spare, None, None, merged_opt.as_ref()).await {
             Ok(mut item) => {
                 item.from_fallback = Some(true);
                 apply_updated_item(uid, &mut item).await?;

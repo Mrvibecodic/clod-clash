@@ -64,10 +64,17 @@ pub fn use_tun(mut config: Mapping, enable: bool) -> Mapping {
 
             #[cfg(target_os = "macos")]
             {
-                AsyncHandler::spawn(move || async move {
-                    crate::utils::resolve::dns::restore_public_dns().await;
-                    crate::utils::resolve::dns::set_public_dns("114.114.114.114".to_string()).await;
-                });
+                // clod: раньше сюда прилетала пара «восстановить + подменить» на
+                // КАЖДУЮ генерацию конфига (а это каждый патч настроек и каждое
+                // обновление подписки): две задачи гонялись друг с другом, и при
+                // неудачном порядке системный DNS оставался нашим навсегда.
+                // Теперь подменяем один раз — пока файл состояния на месте,
+                // трогать нечего.
+                if !crate::utils::resolve::dns::has_pending_restore() {
+                    AsyncHandler::spawn(move || async move {
+                        crate::utils::resolve::dns::set_public_dns("114.114.114.114".to_string()).await;
+                    });
+                }
             }
         }
 
@@ -76,9 +83,11 @@ pub fn use_tun(mut config: Mapping, enable: bool) -> Mapping {
     } else {
         // TUN未启用时，仅恢复系统DNS，不修改配置文件中的DNS设置
         #[cfg(target_os = "macos")]
-        AsyncHandler::spawn(move || async move {
-            crate::utils::resolve::dns::restore_public_dns().await;
-        });
+        if crate::utils::resolve::dns::has_pending_restore() {
+            AsyncHandler::spawn(move || async move {
+                crate::utils::resolve::dns::restore_public_dns().await;
+            });
+        }
     }
 
     // 更新TUN配置
