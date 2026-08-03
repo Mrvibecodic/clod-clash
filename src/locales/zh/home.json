@@ -184,6 +184,14 @@
         "provider": "服务商未下发服务器"
       }
     },
+    "quickActions": {
+      "title": "Quick actions",
+      "sysproxy": "System proxy",
+      "tun": "TUN",
+      "autoLaunch": "Start with the system",
+      "silentStart": "Start minimized",
+      "lockedBy": "{{targets}} — the connection method is set by your provider"
+    },
     "subscription": {
       "expires": "套餐：{{count}} 天 · 至 {{date}}",
       "refill": "Monthly traffic resets on {{date}}",

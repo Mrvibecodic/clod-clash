@@ -184,6 +184,14 @@
         "provider": "Провайдер не выдал серверы"
       }
     },
+    "quickActions": {
+      "title": "Быстрые действия",
+      "sysproxy": "Системный прокси",
+      "tun": "TUN",
+      "autoLaunch": "Запускать с системой",
+      "silentStart": "Стартовать свёрнутым",
+      "lockedBy": "{{targets}} — способ подключения задан провайдером"
+    },
     "subscription": {
       "expires": "{{count}} дн · до {{date}}",
       "refill": "Обновится {{date}}",

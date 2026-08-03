@@ -8,17 +8,25 @@ import { useClashConfigData } from '@/providers/app-data-context'
 interface Props {
   /** `clod-lock-mode`: the panel forbids changing modes — plain text then. */
   locked?: boolean
+  /**
+   * clod: the advanced screen shows the connect targets as switches in
+   * `QuickActions`, so repeating them here would be the same fact twice —
+   * it keeps only the routing mode.
+   */
+  showTargets?: boolean
 }
 
 /**
  * clod: строка «Системный прокси + TUN · По правилам» под кнопкой Connect.
+ * В расширенном режиме таргеты показывает карточка быстрых действий, поэтому
+ * там от строки остаётся только режим маршрутизации.
  *
  * Показывается в обоих режимах интерфейса: и в расширенном, и в простом
  * пользователь должен видеть, какие таргеты дёргает Connect и какой режим
  * маршрутизации активен. Read-only намеренно: менять — в настройках, а при
  * `clod-lock-mode` не меняется вовсе (остаётся только строка-статус).
  */
-export const ModeStatus = ({ locked }: Props) => {
+export const ModeStatus = ({ locked, showTargets = true }: Props) => {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { clashConfig } = useClashConfigData()
@@ -37,10 +45,12 @@ export const ModeStatus = ({ locked }: Props) => {
     .filter(Boolean)
     .join(' + ')
 
+  const text = showTargets ? `${activeTargets} · ${modeLabel}` : modeLabel
+
   if (locked) {
     return (
       <Typography variant="caption" color="text.secondary">
-        {activeTargets} · {modeLabel}
+        {text}
       </Typography>
     )
   }
@@ -58,7 +68,7 @@ export const ModeStatus = ({ locked }: Props) => {
       }}
       onClick={() => void navigate('/settings')}
     >
-      {activeTargets} · {modeLabel}
+      {text}
     </Button>
   )
 }

@@ -24,6 +24,7 @@ import { ModeStatus } from '@/components/home/mode-status'
 import { NetCard } from '@/components/home/net-card'
 import { ProviderBanners } from '@/components/home/provider-banners'
 import { ProviderHeader } from '@/components/home/provider-header'
+import { QuickActions } from '@/components/home/quick-actions'
 import { ServerSelect, ServerSelectRow } from '@/components/home/server-select'
 import { SubscriptionCard } from '@/components/home/subscription-card'
 import { useConnectTargets } from '@/hooks/use-connect-targets'
@@ -197,13 +198,18 @@ const HomeAdvancedPage = () => {
           {/* Which switches Connect drives and the routing mode. Read-only on
               purpose: the mode lives in the settings, or nowhere at all when
               the panel locked it. */}
-          <ModeStatus locked={Boolean(current.lock_mode)} />
+          <ModeStatus locked={Boolean(current.lock_mode)} showTargets={false} />
 
           <ServerSelectRow onOpen={() => setServerOpen(true)} />
           <ServerSelect
             open={serverOpen}
             onClose={() => setServerOpen(false)}
           />
+
+          {/* clod: колонка кончалась строкой сервера и дальше пустовала до
+              самого низа — четыре переключателя, за которыми иначе лезут в
+              настройки, закрывают её и ничего не растягивают. */}
+          <QuickActions locked={Boolean(current.lock_mode)} />
 
           <Box sx={{ flex: 1 }} />
           <Button

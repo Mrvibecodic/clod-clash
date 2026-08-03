@@ -41,6 +41,7 @@ editors) is kept — it is simply moved out of sight into an advanced mode.
 | Unmetered traffic / no expiry | shows `0 B` and `-` | "Unlimited" / "No expiry" |
 | Updating the Mihomo core separately from the app | no | yes (managed core in the settings) |
 | Simple interface mode | no | yes — a single Connect button |
+| Connection switches | settings only | plus a "Quick actions" card on the advanced home screen |
 | Server selection | reset by delay tests and subscription updates | strictly preserved; starred servers float to the top and replace a dead selection |
 
 ---

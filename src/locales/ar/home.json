@@ -184,6 +184,14 @@
         "provider": "The provider sent no servers"
       }
     },
+    "quickActions": {
+      "title": "Quick actions",
+      "sysproxy": "System proxy",
+      "tun": "TUN",
+      "autoLaunch": "Start with the system",
+      "silentStart": "Start minimized",
+      "lockedBy": "{{targets}} — the connection method is set by your provider"
+    },
     "subscription": {
       "expires": "{{count}} days left · until {{date}}",
       "refill": "Monthly traffic resets on {{date}}",

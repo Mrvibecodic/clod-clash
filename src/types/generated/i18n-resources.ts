@@ -129,6 +129,14 @@ export interface TranslationResources {
             tunMode: string
           }
         }
+        quickActions: {
+          autoLaunch: string
+          lockedBy: string
+          silentStart: string
+          sysproxy: string
+          title: string
+          tun: string
+        }
         serverSelect: {
           autoHint: string
           current: string
