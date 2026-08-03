@@ -14,17 +14,16 @@ import {
   type SortingStrategy,
 } from '@dnd-kit/sortable'
 import {
+  AddRounded,
   CheckBoxOutlineBlankRounded,
   CheckBoxRounded,
   ClearRounded,
-  ContentPasteRounded,
   DeleteRounded,
   IndeterminateCheckBoxRounded,
   RefreshRounded,
 } from '@mui/icons-material'
-import { Box, Button, Grid, IconButton, Stack } from '@mui/material'
+import { Box, Button, Chip, Grid, IconButton, Stack } from '@mui/material'
 import { listen, TauriEvent } from '@tauri-apps/api/event'
-import { readText } from '@tauri-apps/plugin-clipboard-manager'
 import { readTextFile } from '@tauri-apps/plugin-fs'
 import { useLockFn } from 'ahooks'
 import { throttle } from 'lodash-es'
@@ -33,7 +32,7 @@ import { useTranslation } from 'react-i18next'
 import { useLocation } from 'react-router'
 import { closeAllConnections } from 'tauri-plugin-mihomo-api'
 
-import { BasePage, BaseStyledTextField } from '@/components/base'
+import { BasePage } from '@/components/base'
 import {
   ProfileViewer,
   type ProfileViewerRef,
@@ -45,19 +44,13 @@ import {
   createProfile,
   deleteProfile,
   enhanceProfiles,
-  getProfiles,
   //restartCore,
   getRuntimeLogs,
-  importProfile,
   reorderProfile,
   updateProfile,
 } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
-import {
-  fetchCacheData,
-  revalidateQueries,
-  useQuery,
-} from '@/services/query-client'
+import { revalidateQueries, useQuery } from '@/services/query-client'
 import { useLoadingCache, useSetLoadingCache } from '@/services/states'
 import { debugLog } from '@/utils/debug'
 
@@ -118,14 +111,11 @@ const ProfilePage = () => {
   const { t } = useTranslation()
   const location = useLocation()
   const { addListener } = useListen()
-  const [url, setUrl] = useState('')
-  const [disabled, setDisabled] = useState(false)
   const [activatings, setActivatings] = useState<string[]>([])
   const [switchTarget, setSwitchTarget] = useState<string | null>(null)
   const [visibleSwitchingProfile, setVisibleSwitchingProfile] = useState<
     string | null
   >(null)
-  const [loading, setLoading] = useState(false)
   const [timerUpdateRevisions, setTimerUpdateRevisions] = useState<
     Map<string, number>
   >(() => new Map())
@@ -258,106 +248,33 @@ const ProfilePage = () => {
     return items.filter((i) => i && type1.includes(i.type!))
   }, [profiles])
 
+  // clod:groups — группа это просто ярлык на подписке. Ряд фильтров строится
+  // из того, что реально проставлено: пустая группа исчезает сама, а если
+  // групп нет вовсе, ряда тоже нет.
+  const [group, setGroup] = useState('')
+  const groups = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const item of profileItems) {
+      const name = item.group?.trim()
+      if (name) counts.set(name, (counts.get(name) ?? 0) + 1)
+    }
+    return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+  }, [profileItems])
+
+  // Группу могли удалить или переименовать — тогда фильтр молча становится
+  // «Все», а не прячет весь список. Считаем, а не чиним эффектом.
+  const activeGroup = groups.some(([name]) => name === group) ? group : ''
+
+  const visibleItems = useMemo(
+    () =>
+      activeGroup
+        ? profileItems.filter((i) => i.group?.trim() === activeGroup)
+        : profileItems,
+    [activeGroup, profileItems],
+  )
+
   const currentActivatings = () => {
     return [...new Set([profiles.current ?? ''])].filter(Boolean)
-  }
-
-  const onImport = async () => {
-    if (!url) return
-    // 校验url是否为http/https
-    if (!/^https?:\/\//i.test(url)) {
-      showNotice.error('profiles.page.feedback.errors.invalidUrl')
-      return
-    }
-    setLoading(true)
-
-    const handleImportSuccess = async (noticeKey: string) => {
-      showNotice.success(noticeKey)
-      setUrl('')
-      await performRobustRefresh()
-    }
-    try {
-      // 尝试正常导入
-      await importProfile(url)
-      await handleImportSuccess('shared.feedback.notifications.importSuccess')
-    } catch (initialErr) {
-      console.warn('[订阅导入] 首次导入失败:', initialErr)
-
-      if (String(initialErr).toLowerCase().includes('legacy tls')) {
-        showNotice.error(String(initialErr))
-        return
-      }
-
-      showNotice.info('profiles.page.feedback.notifications.importRetry')
-      try {
-        // 使用自身代理尝试导入
-        await importProfile(url, {
-          with_proxy: false,
-          self_proxy: true,
-        })
-        await handleImportSuccess(
-          'shared.feedback.notifications.importWithClashProxy',
-        )
-      } catch (retryErr) {
-        // 回退导入也失败
-        showNotice.error(
-          'profiles.page.feedback.notifications.importFail',
-          String(retryErr),
-        )
-      }
-    } finally {
-      setDisabled(false)
-      setLoading(false)
-    }
-  }
-
-  // 强化的刷新策略
-  // maxRetries 设为 1：useProfiles 内部 useQuery 已配置 retry:3，业务层只需 1 次额外重试
-  const performRobustRefresh = async () => {
-    let retryCount = 0
-    const maxRetries = 1
-    const baseDelay = 200
-
-    while (retryCount < maxRetries) {
-      try {
-        debugLog(`[导入刷新] 第${retryCount + 1}次尝试刷新配置数据`)
-
-        // 强制刷新，绕过所有缓存
-        await mutateProfiles()
-
-        // 等待状态稳定
-        await new Promise((resolve) =>
-          setTimeout(resolve, baseDelay * (retryCount + 1)),
-        )
-
-        await onEnhance(false)
-        return
-      } catch (error) {
-        console.error(`[导入刷新] 第${retryCount + 1}次刷新失败:`, error)
-        retryCount++
-        await new Promise((resolve) =>
-          setTimeout(resolve, baseDelay * retryCount),
-        )
-      }
-    }
-
-    // 所有重试失败后的最后尝试
-    console.warn(`[导入刷新] 常规刷新失败，尝试清除缓存重新获取`)
-    try {
-      // 清除缓存并重新获取
-      await fetchCacheData(['getProfiles'], getProfiles)
-      await onEnhance(false)
-      showNotice.error(
-        'profiles.page.feedback.notifications.importNeedsRefresh',
-        3000,
-      )
-    } catch (finalError) {
-      console.error(`[导入刷新] 最终刷新尝试失败:`, finalError)
-      showNotice.error(
-        'profiles.page.feedback.notifications.importSuccess',
-        5000,
-      )
-    }
   }
 
   const onDragEnd = async (event: DragEndEvent) => {
@@ -664,11 +581,6 @@ const ProfilePage = () => {
     await runProfileUpdates(target)
   })
 
-  const onCopyLink = async () => {
-    const text = await readText()
-    if (text) setUrl(text)
-  }
-
   // Batch selection functions
   const toggleBatchMode = () => {
     setBatchMode(!batchMode)
@@ -862,6 +774,9 @@ const ProfilePage = () => {
         </Box>
       }
     >
+      {/* clod: раньше здесь были поле ввода, «Импорт» и «Новый» — три элемента
+          на одно действие. Осталась одна кнопка: ссылка спрашивается в окне,
+          там же всё остальное. */}
       <Stack
         direction="row"
         spacing={1}
@@ -869,70 +784,47 @@ const ProfilePage = () => {
           pt: 1,
           mb: 0.5,
           mx: '10px',
-          height: '36px',
           display: 'flex',
           alignItems: 'center',
         }}
       >
-        <BaseStyledTextField
-          value={url}
-          variant="outlined"
-          onChange={(e) => setUrl(e.target.value)}
-          onKeyDown={(event) => {
-            if (event.key !== 'Enter' || event.nativeEvent.isComposing) {
-              return
-            }
-            if (!url || disabled || loading) {
-              return
-            }
-            event.preventDefault()
-            void onImport()
-          }}
-          placeholder={t('profiles.page.importForm.placeholder')}
-          slotProps={{
-            input: {
-              sx: { pr: 1 },
-              endAdornment: !url ? (
-                <IconButton
-                  size="small"
-                  sx={{ p: 0.5 }}
-                  title={t('profiles.page.importForm.actions.paste')}
-                  onClick={onCopyLink}
-                >
-                  <ContentPasteRounded fontSize="inherit" />
-                </IconButton>
-              ) : (
-                <IconButton
-                  size="small"
-                  sx={{ p: 0.5 }}
-                  title={t('shared.actions.clear')}
-                  onClick={() => setUrl('')}
-                >
-                  <ClearRounded fontSize="inherit" />
-                </IconButton>
-              ),
-            },
-          }}
-        />
-        <Button
-          disabled={!url || disabled}
-          loading={loading}
-          variant="contained"
-          size="small"
-          sx={{ borderRadius: '6px' }}
-          onClick={onImport}
-        >
-          {t('profiles.page.actions.import')}
-        </Button>
         <Button
           variant="contained"
           size="small"
-          sx={{ borderRadius: '6px' }}
+          startIcon={<AddRounded />}
+          sx={{ borderRadius: '8px' }}
           onClick={() => viewerRef.current?.create()}
         >
-          {t('shared.actions.new')}
+          {t('profiles.page.actions.addSubscription')}
         </Button>
       </Stack>
+
+      {/* clod:groups — фильтр по группам; прячется целиком, если групп нет. */}
+      {groups.length > 0 && (
+        <Stack
+          direction="row"
+          spacing={0.75}
+          sx={{ mx: '10px', mb: 1, flexWrap: 'wrap', rowGap: 0.75 }}
+        >
+          <Chip
+            size="small"
+            label={`${t('profiles.page.groups.all')} · ${profileItems.length}`}
+            color={activeGroup ? 'default' : 'primary'}
+            variant={activeGroup ? 'outlined' : 'filled'}
+            onClick={() => setGroup('')}
+          />
+          {groups.map(([name, count]) => (
+            <Chip
+              key={name}
+              size="small"
+              label={`${name} · ${count}`}
+              color={activeGroup === name ? 'primary' : 'default'}
+              variant={activeGroup === name ? 'filled' : 'outlined'}
+              onClick={() => setGroup(name)}
+            />
+          ))}
+        </Stack>
+      )}
 
       <DndContext
         sensors={sensors}
@@ -951,11 +843,11 @@ const ProfilePage = () => {
             <Grid container spacing={{ xs: 1, lg: 1 }}>
               <SortableContext
                 strategy={profileRectSortingStrategy}
-                items={profileItems.map((x) => {
+                items={visibleItems.map((x) => {
                   return x.uid
                 })}
               >
-                {profileItems.map((item) => (
+                {visibleItems.map((item) => (
                   <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={item.file}>
                     <SortableProfileItem
                       id={item.uid}

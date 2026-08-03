@@ -11,8 +11,10 @@ import {
   SupportAgentRounded,
 } from '@mui/icons-material'
 import {
+  alpha,
   Box,
   Button,
+  Chip,
   CircularProgress,
   IconButton,
   keyframes,
@@ -285,6 +287,22 @@ const ProfileItemBase = (props: ProfileItemProps) => {
     Math.round(((download + upload) * 100) / (total + 0.01)) + 1,
     100,
   )
+
+  // clod: состояние карточки читается с одного взгляда — бейджем и цветом, а
+  // не датой мелким шрифтом. Пороги те же, что у карточки подписки на главной.
+  const trafficOut =
+    !unlimitedTraffic && total > 0 && download + upload >= total
+  const expired = daysLeft === 0 && !neverExpires
+  const expiring = !expired && daysLeft !== undefined && daysLeft <= 3
+  const badge = selected
+    ? { key: 'active' as const, color: 'primary' as const }
+    : expired
+      ? { key: 'expired' as const, color: 'error' as const }
+      : trafficOut
+        ? { key: 'trafficOut' as const, color: 'error' as const }
+        : expiring
+          ? { key: 'expiring' as const, color: 'warning' as const }
+          : undefined
 
   const loading = loadingCache.has(itemData.uid)
 
@@ -662,6 +680,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
     <Box sx={{ position: 'relative' }}>
       <ProfileBox
         aria-selected={selected}
+        dimmed={expired}
         onClick={(e) => {
           // 如果正在激活中，阻止重复点击
           if (activating) {
@@ -678,6 +697,36 @@ const ProfileItemBase = (props: ProfileItemProps) => {
           event.preventDefault()
         }}
       >
+        {badge && (
+          <Chip
+            size="small"
+            color={badge.color}
+            variant="outlined"
+            label={t(`profiles.components.profileItem.badges.${badge.key}`)}
+            sx={{
+              position: 'absolute',
+              top: 6,
+              right: 8,
+              height: 20,
+              fontSize: 10.5,
+              zIndex: 5,
+              bgcolor: (theme) => alpha(theme.palette[badge.color].main, 0.14),
+              '& .MuiChip-label': { px: 0.85 },
+            }}
+          />
+        )}
+        {expired && (
+          <Box
+            sx={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: '3px',
+              bgcolor: 'error.main',
+            }}
+          />
+        )}
         {activating && (
           <Box
             sx={{
@@ -804,7 +853,9 @@ const ProfileItemBase = (props: ProfileItemProps) => {
                     noWrap
                     title={`${t('shared.labels.from')} ${from}`}
                   >
-                    {from}
+                    {/* clod:groups — ярлык группы идёт первым: по нему карточку
+                        и ищут глазами в сетке. */}
+                    {itemData.group ? `${itemData.group} · ${from}` : from}
                   </Typography>
                 )
               )}

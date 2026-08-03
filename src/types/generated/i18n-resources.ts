@@ -374,6 +374,12 @@ export interface TranslationResources {
           actions: {
             portal: string
           }
+          badges: {
+            active: string
+            expired: string
+            expiring: string
+            trafficOut: string
+          }
           labels: {
             expiresIn: string
             neverExpires: string
@@ -445,7 +451,22 @@ export interface TranslationResources {
           title: string
         }
         profileForm: {
+          actions: {
+            useFile: string
+            useLink: string
+          }
+          errors: {
+            urlRequired: string
+          }
           feedback: {
+            added: string
+            failed: string
+            hint: string
+            loading1: string
+            loading2: string
+            loading3: string
+            loading4: string
+            loading5: string
             notifications: {
               creationRetry: string
               creationSuccess: string
@@ -453,9 +474,15 @@ export interface TranslationResources {
           }
           fields: {
             acceptInvalidCerts: string
+            advanced: string
             allowAutoUpdate: string
             description: string
+            displayName: string
+            group: string
             httpTimeout: string
+            newGroup: string
+            newGroupName: string
+            noGroup: string
             subscriptionUrl: string
             type: string
             updateInterval: string
@@ -463,7 +490,9 @@ export interface TranslationResources {
             useSystemProxy: string
           }
           title: {
+            added: string
             create: string
+            createLocal: string
             edit: string
           }
         }
@@ -483,6 +512,7 @@ export interface TranslationResources {
       }
       page: {
         actions: {
+          addSubscription: string
           import: string
           reactivate: string
           updateAll: string
@@ -522,6 +552,9 @@ export interface TranslationResources {
             switchBusy: string
             urlMigrated: string
           }
+        }
+        groups: {
+          all: string
         }
         importForm: {
           actions: {
@@ -1415,6 +1448,7 @@ export interface TranslationResources {
     }
     shared: {
       actions: {
+        add: string
         cancel: string
         clear: string
         close: string
@@ -1422,6 +1456,7 @@ export interface TranslationResources {
         confirm: string
         copySupportBundle: string
         delete: string
+        done: string
         edit: string
         enable: string
         hideDetails: string

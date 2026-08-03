@@ -267,6 +267,8 @@ impl IProfiles {
                 patch!(each, item, extra);
                 patch!(each, item, updated);
                 patch!(each, item, option);
+                // clod:groups — the card's group label is a user decision.
+                patch!(each, item, group);
                 // clod:headers begin
                 // A name coming through an explicit patch is a user decision, so
                 // `profile-title` must stop overwriting it.

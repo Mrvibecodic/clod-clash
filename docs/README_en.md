@@ -82,6 +82,27 @@ Here the only thing the user touches is the switch itself:
 
 ---
 
+## The subscriptions screen
+
+**Adding takes one field.** The "Add subscription" button opens a window showing only the link your
+service gave you: the name, expiry, traffic and servers arrive with it. Name, group, refresh
+interval, User-Agent, timeout and the switches live in a folded "Advanced" block — when editing an
+existing subscription it is open from the start, because that is what people come there for. A
+second step shows what the link resolved to, so it is clear the right subscription was added. Errors
+stay in the window next to the field instead of flying off as a toast, and nothing typed is lost.
+
+**State reads at a glance.** The active subscription is filled with the accent colour and labelled
+"Active", an expiring one (≤ 3 days or ≥ 90% of traffic) is amber, an expired one is dimmed and
+underlined in red, and traffic exhausted while the plan is still valid is its own state. The active
+subscription is never dimmed: even expired, it stays readable, because that is the one in use.
+
+**Groups.** A subscription can carry a group label (set in its properties, where a new group is also
+created), and a filter row with per-group counts appears above the grid. The group is purely visual —
+the core knows nothing about it. An empty group disappears by itself, and with no groups at all the
+row is not shown.
+
+---
+
 ## Subscription headers
 
 This is the whole point of the fork. Below is everything the client sends and understands.

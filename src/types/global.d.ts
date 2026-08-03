@@ -273,6 +273,8 @@ interface IProfileItem {
   }
   option?: IProfileOption
   home?: string
+  /** clod:groups — user label used to group the subscription cards */
+  group?: string
   // clod: Remnawave / Happ subscription headers (see src-tauri/src/config/sub_headers.rs)
   /** `support-url` header */
   support_url?: string

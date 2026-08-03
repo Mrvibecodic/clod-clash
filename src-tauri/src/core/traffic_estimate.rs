@@ -25,11 +25,22 @@ use crate::process::AsyncHandler;
 use crate::utils::dirs;
 use clash_verge_logging::{Type, logging};
 
-/// Как часто опрашиваем ядро. Пять секунд — компромисс между потерянными
-/// короткими соединениями и нагрузкой на большой таблице соединений.
-const SAMPLE_INTERVAL: Duration = Duration::from_secs(5);
-/// Раз во столько опросов состояние сбрасывается на диск (≈ раз в минуту).
-const PERSIST_EVERY_TICKS: u32 = 12;
+/// Как часто опрашиваем ядро, когда счёт вообще нужен.
+///
+/// clod: раньше опрос шёл каждые пять секунд — 720 запросов в час к таблице
+/// соединений ради числа, на которое смотрят раз в день. Теперь частота идёт
+/// от того, как часто обновляется сама подписка: чем свежее данные от сервиса,
+/// тем меньше досчитывать. Верхняя граница нужна не из вредности — соединение,
+/// успевшее открыться и закрыться между опросами, в счёт не попадает вовсе,
+/// так что редкий опрос занижает результат тем сильнее, чем он реже.
+const SAMPLE_MIN: Duration = Duration::from_secs(30);
+const SAMPLE_MAX: Duration = Duration::from_secs(300);
+/// Подписка обновляется не реже этого — досчитывать нечего, счёт выключен.
+const SUBSCRIPTION_FRESH_MINUTES: u64 = 60;
+/// Как часто перечитываем настройки, когда счёт выключен.
+const IDLE_INTERVAL: Duration = Duration::from_secs(300);
+/// Раз во столько опросов состояние сбрасывается на диск.
+const PERSIST_EVERY_TICKS: u32 = 4;
 const STATE_FILE: &str = "traffic_estimate.json";
 
 /// Цепочки, которые не идут через прокси подписки и в расход не попадают.
@@ -93,6 +104,43 @@ fn persist(estimate: &TrafficEstimate) {
     if let Err(err) = std::fs::write(path, raw) {
         logging!(warn, Type::Core, "не удалось сохранить счётчик трафика: {err}");
     }
+}
+
+/// Как часто опрашивать ядро для текущего профиля.
+///
+/// `None` — счёт не нужен: подписка сама обновляется достаточно часто, и число
+/// от сервиса и так свежее нашей оценки.
+async fn sample_interval() -> Option<Duration> {
+    let profiles = Config::profiles().await.latest_arc();
+    let uid = profiles.current.clone()?;
+    let minutes = profiles
+        .get_item(&uid)
+        .ok()
+        .and_then(|item| item.option.as_ref().and_then(|option| option.update_interval))
+        .unwrap_or(0) as u64;
+
+    interval_for_minutes(minutes)
+}
+
+/// Правило частоты в чистом виде — его и проверяет тест.
+const fn interval_for_minutes(minutes: u64) -> Option<Duration> {
+    // Автообновления нет вовсе — данные от сервиса стареют сами по себе,
+    // считаем с обычной частотой.
+    if minutes == 0 {
+        return Some(SAMPLE_MIN);
+    }
+    if minutes <= SUBSCRIPTION_FRESH_MINUTES {
+        return None;
+    }
+    // Половина интервала подписки, но не чаще SAMPLE_MIN и не реже SAMPLE_MAX.
+    let half = Duration::from_secs(minutes * 30);
+    Some(if half.as_secs() < SAMPLE_MIN.as_secs() {
+        SAMPLE_MIN
+    } else if half.as_secs() > SAMPLE_MAX.as_secs() {
+        SAMPLE_MAX
+    } else {
+        half
+    })
 }
 
 /// Текущий профиль и его данные из подписки.
@@ -195,6 +243,22 @@ pub fn snapshot() -> TrafficEstimate {
     runtime().lock().estimate.clone()
 }
 
+/// Сбросить досчитанное, оставив базу подписки. Нужно, когда счёт выключается:
+/// иначе последняя оценка застыла бы на карточке как вечная правда.
+fn clear_local() {
+    let changed = {
+        let mut guard = runtime().lock();
+        let had = guard.estimate.local_bytes != 0;
+        guard.estimate.local_bytes = 0;
+        guard.seen.clear();
+        guard.primed = false;
+        had
+    };
+    if changed {
+        persist(&snapshot());
+    }
+}
+
 /// Поднять счётчик и запустить опрос ядра.
 pub fn init() {
     if let Some(persisted) = load_persisted() {
@@ -208,15 +272,41 @@ pub fn init() {
                 persist(&estimate);
                 break;
             }
-            tick().await;
-            tokio::time::sleep(SAMPLE_INTERVAL).await;
+            match sample_interval().await {
+                Some(interval) => {
+                    tick().await;
+                    tokio::time::sleep(interval).await;
+                }
+                None => {
+                    // Счёт выключен: обнуляем досчитанное, чтобы интерфейс
+                    // показывал число подписки как есть, без пометки «≈».
+                    clear_local();
+                    tokio::time::sleep(IDLE_INTERVAL).await;
+                }
+            }
         }
     });
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Runtime, counts_as_proxy, reconcile};
+    use super::{Runtime, SAMPLE_MAX, SAMPLE_MIN, counts_as_proxy, interval_for_minutes, reconcile};
+
+    #[test]
+    fn sampling_follows_the_subscription_interval() {
+        // Подписка свежая — считать нечего.
+        assert_eq!(interval_for_minutes(30), None);
+        assert_eq!(interval_for_minutes(60), None);
+        // Раз в два часа — опрос раз в час, но не реже потолка.
+        assert_eq!(interval_for_minutes(120), Some(SAMPLE_MAX));
+        // Чуть больше часа — половина интервала, пока она укладывается в потолок.
+        assert_eq!(
+            interval_for_minutes(70),
+            Some(super::Duration::from_secs(2100).min(SAMPLE_MAX))
+        );
+        // Автообновления нет — считаем с обычной частотой.
+        assert_eq!(interval_for_minutes(0), Some(SAMPLE_MIN));
+    }
 
     fn chains(values: &[&str]) -> Vec<String> {
         values.iter().map(|value| (*value).to_owned()).collect()

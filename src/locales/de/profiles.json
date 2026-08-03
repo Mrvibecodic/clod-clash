@@ -4,7 +4,8 @@
       "updateAll": "Alle Abonnements aktualisieren",
       "viewRuntimeConfig": "Laufzeit-Abonnement anzeigen",
       "reactivate": "Abonnement erneut aktivieren",
-      "import": "Importieren"
+      "import": "Importieren",
+      "addSubscription": "Add subscription"
     },
     "batch": {
       "actions": {
@@ -47,7 +48,10 @@
         "emergencyRefreshFailed": "Emergency refresh failed: {{message}}"
       }
     },
-    "title": "Abonnement"
+    "title": "Abonnement",
+    "groups": {
+      "all": "All"
+    }
   },
   "components": {
     "card": {
@@ -103,6 +107,12 @@
       },
       "actions": {
         "portal": "Account"
+      },
+      "badges": {
+        "active": "Active",
+        "expiring": "Expiring",
+        "expired": "Expired",
+        "trafficOut": "Out of traffic"
       }
     },
     "hwidDialog": {
@@ -119,8 +129,10 @@
   "modals": {
     "profileForm": {
       "title": {
-        "create": "Neue Konfiguration erstellen",
-        "edit": "Konfiguration bearbeiten"
+        "create": "Add subscription",
+        "edit": "Konfiguration bearbeiten",
+        "createLocal": "Your own config file",
+        "added": "Subscription added"
       },
       "fields": {
         "type": "Typ",
@@ -131,13 +143,34 @@
         "useSystemProxy": "Systemproxy zur Aktualisierung verwenden",
         "useClashProxy": "Kernel-Proxy zur Aktualisierung verwenden",
         "acceptInvalidCerts": "Allows Invalid Certificates (Danger)",
-        "allowAutoUpdate": "Allow Auto Update"
+        "allowAutoUpdate": "Allow Auto Update",
+        "displayName": "Name (optional)",
+        "group": "Group",
+        "noGroup": "No group",
+        "newGroup": "+ New group…",
+        "newGroupName": "Group name",
+        "advanced": "Advanced"
       },
       "feedback": {
         "notifications": {
           "creationRetry": "Erstellung des Abonnements fehlgeschlagen. Versuche es mit dem Clash-Proxy erneut...",
           "creationSuccess": "Erstellung des Abonnements mit Clash-Proxy erfolgreich"
-        }
+        },
+        "added": "✓ Subscription added!",
+        "failed": "That did not work. Check the link or get a new one where you bought the subscription",
+        "hint": "Your service gives you the link. The name, expiry and traffic come with it",
+        "loading1": "Looking at what is behind that link. Usually faster than reading this line",
+        "loading2": "Fetching your servers. They are already running, honestly",
+        "loading3": "Asking where you would like to live on the internet today…",
+        "loading4": "Reading the link letter by letter. There are not many of them",
+        "loading5": "One second. The servers are pretending to be far away"
+      },
+      "errors": {
+        "urlRequired": "Paste the subscription link"
+      },
+      "actions": {
+        "useFile": "Your own config file",
+        "useLink": "Back to the link"
       }
     },
     "proxiesEditor": {

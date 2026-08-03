@@ -4,7 +4,8 @@
       "updateAll": "Tüm Profilleri Güncelle",
       "viewRuntimeConfig": "Çalışma Zamanı Yapılandırmasını Görüntüle",
       "reactivate": "Profilleri Yeniden Etkinleştir",
-      "import": "İçe Aktar"
+      "import": "İçe Aktar",
+      "addSubscription": "Add subscription"
     },
     "batch": {
       "actions": {
@@ -47,7 +48,10 @@
         "emergencyRefreshFailed": "Emergency refresh failed: {{message}}"
       }
     },
-    "title": "Profiller"
+    "title": "Profiller",
+    "groups": {
+      "all": "All"
+    }
   },
   "components": {
     "card": {
@@ -103,6 +107,12 @@
       },
       "actions": {
         "portal": "Account"
+      },
+      "badges": {
+        "active": "Active",
+        "expiring": "Expiring",
+        "expired": "Expired",
+        "trafficOut": "Out of traffic"
       }
     },
     "hwidDialog": {
@@ -119,8 +129,10 @@
   "modals": {
     "profileForm": {
       "title": {
-        "create": "Profil Oluştur",
-        "edit": "Profili Düzenle"
+        "create": "Add subscription",
+        "edit": "Profili Düzenle",
+        "createLocal": "Your own config file",
+        "added": "Subscription added"
       },
       "fields": {
         "type": "Tip",
@@ -131,13 +143,34 @@
         "useSystemProxy": "Sistem Vekil'ini Kullan",
         "useClashProxy": "Clash Vekil'ini Kullan",
         "acceptInvalidCerts": "Geçersiz Sertifikalara İzin Ver (Tehlikeli)",
-        "allowAutoUpdate": "Allow Auto Update"
+        "allowAutoUpdate": "Allow Auto Update",
+        "displayName": "Name (optional)",
+        "group": "Group",
+        "noGroup": "No group",
+        "newGroup": "+ New group…",
+        "newGroupName": "Group name",
+        "advanced": "Advanced"
       },
       "feedback": {
         "notifications": {
           "creationRetry": "Profil oluşturma başarısız oldu, Clash vekil ile yeniden deneniyor...",
           "creationSuccess": "Clash vekil ile profil oluşturma başarılı oldu"
-        }
+        },
+        "added": "✓ Subscription added!",
+        "failed": "That did not work. Check the link or get a new one where you bought the subscription",
+        "hint": "Your service gives you the link. The name, expiry and traffic come with it",
+        "loading1": "Looking at what is behind that link. Usually faster than reading this line",
+        "loading2": "Fetching your servers. They are already running, honestly",
+        "loading3": "Asking where you would like to live on the internet today…",
+        "loading4": "Reading the link letter by letter. There are not many of them",
+        "loading5": "One second. The servers are pretending to be far away"
+      },
+      "errors": {
+        "urlRequired": "Paste the subscription link"
+      },
+      "actions": {
+        "useFile": "Your own config file",
+        "useLink": "Back to the link"
       }
     },
     "proxiesEditor": {

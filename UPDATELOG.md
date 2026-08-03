@@ -8,6 +8,40 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.0.14-alpha
+
+<!-- lang:en -->
+
+### Added
+
+- Adding a subscription takes one field now: paste the link your service gave you and press Add. Name, group, refresh interval, User-Agent, timeout and the switches moved into a folded "Advanced" block — when editing an existing subscription it opens right away, because that is what you came for
+- After adding, the window shows what the link resolved to — name, traffic and expiry — so you can see the right subscription arrived before closing it
+- Subscription groups: give a subscription a label in its properties (a new group is created right there) and a filter row appears above the grid with a count per group. An empty group disappears by itself
+- The subscription cards say what state they are in: the active one is filled with the accent colour and labelled "Active", an expiring one is amber, an expired one is dimmed and underlined in red, and traffic exhausted while the plan is still valid is its own state
+
+### Fixed
+
+- Switches that are off no longer blend into the background in the light theme: they now have an outline instead of a pale grey bar. The quick actions on the home screen use the same switch as everywhere else
+- The core is polled for traffic far less often. How often follows the subscription's own refresh interval — with an hourly refresh the local estimate is not needed at all and is turned off, and beyond that the interval scales up to five minutes instead of the previous five seconds
+- Errors while adding a subscription stay in the window next to the field instead of flying off as a toast, and what you typed is not lost
+
+<!-- lang:ru -->
+
+### Добавлено
+
+- Подписка добавляется одним полем: вставьте ссылку, которую выдал ваш сервис, и нажмите «Добавить». Название, группа, интервал обновления, User-Agent, таймаут и тумблеры уехали в свёрнутый блок «Дополнительно» — при правке существующей подписки он раскрыт сразу, потому что заходят туда именно за ним
+- После добавления окно показывает, что нашлось по ссылке — название, трафик и срок, — чтобы было видно, та ли подписка пришла, ещё до закрытия
+- Группы подписок: поставьте подписке ярлык в её свойствах (там же создаётся новая группа), и над сеткой появится ряд фильтров с числом карточек в каждой. Пустая группа исчезает сама
+- Карточки подписок говорят, в каком они состоянии: активная залита цветом и подписана «Активна», истекающая — жёлтым, истёкшая приглушена и подчёркнута красным, а исчерпанный трафик при живом сроке — отдельное состояние
+
+### Исправлено
+
+- Выключенные тумблеры больше не сливаются с фоном на светлой теме: вместо бледной серой полосы у них теперь контур. Быстрые действия на главной используют тот же тумблер, что и все остальные экраны
+- Ядро опрашивается ради трафика заметно реже. Частота идёт от интервала обновления самой подписки: при обновлении раз в час местный досчёт не нужен и выключается, а дальше интервал растёт до пяти минут вместо прежних пяти секунд
+- Ошибка при добавлении подписки остаётся в окне рядом с полем, а не улетает уведомлением в угол, и введённое не теряется
+
+---
+
 ## v0.0.13-alpha
 
 <!-- lang:en -->

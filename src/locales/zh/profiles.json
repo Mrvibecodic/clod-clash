@@ -4,7 +4,8 @@
       "updateAll": "更新所有订阅",
       "viewRuntimeConfig": "查看运行时订阅",
       "reactivate": "重新激活订阅",
-      "import": "导入"
+      "import": "导入",
+      "addSubscription": "Add subscription"
     },
     "batch": {
       "actions": {
@@ -47,7 +48,10 @@
         "emergencyRefreshFailed": "紧急刷新失败: {{message}}"
       }
     },
-    "title": "订阅"
+    "title": "订阅",
+    "groups": {
+      "all": "All"
+    }
   },
   "components": {
     "card": {
@@ -103,6 +107,12 @@
       },
       "actions": {
         "portal": "Account"
+      },
+      "badges": {
+        "active": "Active",
+        "expiring": "Expiring",
+        "expired": "Expired",
+        "trafficOut": "Out of traffic"
       }
     },
     "hwidDialog": {
@@ -119,8 +129,10 @@
   "modals": {
     "profileForm": {
       "title": {
-        "create": "新建配置",
-        "edit": "编辑配置"
+        "create": "Add subscription",
+        "edit": "编辑配置",
+        "createLocal": "Your own config file",
+        "added": "Subscription added"
       },
       "fields": {
         "type": "类型",
@@ -131,13 +143,34 @@
         "useSystemProxy": "使用系统代理更新",
         "useClashProxy": "使用内核代理更新",
         "acceptInvalidCerts": "允许无效证书（危险）",
-        "allowAutoUpdate": "允许自动更新"
+        "allowAutoUpdate": "允许自动更新",
+        "displayName": "Name (optional)",
+        "group": "Group",
+        "noGroup": "No group",
+        "newGroup": "+ New group…",
+        "newGroupName": "Group name",
+        "advanced": "Advanced"
       },
       "feedback": {
         "notifications": {
           "creationRetry": "订阅创建失败，尝试使用 Clash 代理创建",
           "creationSuccess": "使用 Clash 代理创建订阅成功"
-        }
+        },
+        "added": "✓ Subscription added!",
+        "failed": "That did not work. Check the link or get a new one where you bought the subscription",
+        "hint": "Your service gives you the link. The name, expiry and traffic come with it",
+        "loading1": "Looking at what is behind that link. Usually faster than reading this line",
+        "loading2": "Fetching your servers. They are already running, honestly",
+        "loading3": "Asking where you would like to live on the internet today…",
+        "loading4": "Reading the link letter by letter. There are not many of them",
+        "loading5": "One second. The servers are pretending to be far away"
+      },
+      "errors": {
+        "urlRequired": "Paste the subscription link"
+      },
+      "actions": {
+        "useFile": "Your own config file",
+        "useLink": "Back to the link"
       }
     },
     "proxiesEditor": {

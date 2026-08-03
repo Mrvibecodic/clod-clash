@@ -64,6 +64,12 @@ pub struct PrfItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub home: Option<String>,
 
+    /// clod:groups — user label for sorting the subscription cards. Purely a
+    /// UI grouping: the core never sees it, and an empty group disappears on
+    /// its own once the last subscription leaves it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
+
     // clod:headers begin
     /// `support-url` header — provider support contact.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -582,6 +588,9 @@ impl PrfItem {
             url: Some(url.as_str().into()),
             selected: None,
             favorites: None,
+            // clod:groups — новая подписка приходит без группы; ярлык ставит
+            // пользователь, и `patch_item` его переживает.
+            group: None,
             extra,
             option: Some(PrfOption {
                 update_interval,
