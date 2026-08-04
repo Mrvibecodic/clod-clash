@@ -8,6 +8,36 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.0.17-alpha
+
+<!-- lang:en -->
+
+### Changed
+
+- The subscription deadline is counted on the panel's clock instead of your device's. Every answer from the panel already carries its own clock, so the app compares the two on each refresh and remembers the difference — a computer whose time is wrong no longer gets a wrong countdown or wrong reminders, and it keeps working offline. The warning next to the hours now appears only when there is something to warn about: the clocks disagree, or we have never seen the panel's
+- Nothing is polled behind a window you cannot see. The server list asked the core for delays every three seconds and the chain every five while the app sat in the tray; both are silent now and refresh the moment the window comes back. Window visibility is resolved once for the whole app instead of eleven times over, and the countdown wakes up once an hour while it shows days
+
+### Fixed
+
+- The traffic widget of the old sidebar kept two live connections to the core and redrew a chart nobody could see — the column itself has been hidden since the redesign. It is gone, and with it the two settings that pointed at it
+- The "automatic delay detection" switch has been removed: it saved a value nothing has read since the redesign
+- Expiry reminders no longer fall silent after a clock correction. A device running fast marked "7 / 3 / 1 day left" as already told, and once the real time arrived the reminders never came
+
+<!-- lang:ru -->
+
+### Изменено
+
+- Срок подписки считается по часам панели, а не вашего устройства. Каждый ответ панели и так несёт её собственные часы, поэтому приложение сверяет их при каждом обновлении и запоминает разницу — на компьютере с неверным временем срок и напоминания больше не врут, и работает это офлайн. Предупреждение рядом с часами теперь появляется, только когда есть о чём предупреждать: часы разошлись или часов панели мы ещё не видели
+- За окном, которого не видно, ничего не опрашивается. Список серверов дёргал ядро за задержками каждые три секунды, а цепочка — каждые пять, пока приложение лежало в трее; теперь оба молчат и обновляются в момент возврата окна. Видимость окна вычисляется один раз на всё приложение вместо одиннадцати, а отсчёт срока просыпается раз в час, пока показывает дни
+
+### Исправлено
+
+- Виджет трафика старой боковой колонки держал два живых соединения с ядром и перерисовывал график, которого никто не видел, — сама колонка спрятана ещё с редизайна. Он удалён, вместе с двумя настройками, которые им управляли
+- Убран переключатель «автоопределение задержек»: он сохранял значение, которое с редизайна никто не читал
+- Напоминания о сроке больше не замолкают после поправки часов. Устройство со спешащими часами помечало «осталось 7 / 3 / 1 день» как рассказанные, и когда приходило настоящее время, напоминания уже не приезжали
+
+---
+
 ## v0.0.16-alpha
 
 <!-- lang:en -->
