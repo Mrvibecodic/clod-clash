@@ -7,7 +7,7 @@ import {
   Typography,
 } from '@mui/material'
 import { useLockFn } from 'ahooks'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
 
@@ -46,8 +46,6 @@ export const ProviderHeader = ({ profile }: Props) => {
     }
   })
 
-  // Read the clock once per mount: "expired" flipping a second later is not
-  // worth an impure render (and the watcher notifies about expiry anyway).
   // clod: логотип берём из локального кэша, а не с чужого хоста: он не мигает
   // при старте, работает офлайн и не отдаёт IP пользователя при каждом показе.
   // Ключ включает время обновления подписки — сменился логотип, сменился кэш.
@@ -63,7 +61,9 @@ export const ProviderHeader = ({ profile }: Props) => {
 
   // clod: сверяемся с часами панели, а не устройства — иначе шапка и карточка
   // подписки под ней отвечают на один вопрос по-разному; см. `clockSkew`.
-  const [now] = useState(() => panelNow(profile))
+  // Часы читаем не чаще раза на профиль (рендер должен оставаться чистым), но
+  // и не один раз навсегда: со сменой подписки меняется и поправка.
+  const now = useMemo(() => panelNow(profile), [profile])
   const expired =
     !!profile.extra?.expire && toUnixSeconds(profile.extra.expire) < now
 

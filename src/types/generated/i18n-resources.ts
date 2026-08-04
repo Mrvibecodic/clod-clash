@@ -223,21 +223,6 @@ export interface TranslationResources {
         tests: {
           title: string
         }
-        traffic: {
-          legends: {
-            download: string
-            upload: string
-          }
-          metrics: {
-            activeConnections: string
-            downloadSpeed: string
-            memoryUsage: string
-            uploadSpeed: string
-          }
-          patterns: {
-            minutes: string
-          }
-        }
         tunStatus: {
           broken: string
           fix: string
@@ -828,7 +813,6 @@ export interface TranslationResources {
               enableTraySpeed: string
               hoverNavigator: string
               hoverNavigatorDelay: string
-              memoryUsage: string
               navIcon: string
               pauseRenderTrafficStatsOnBlur: string
               preferSystemTitlebar: string
@@ -837,7 +821,6 @@ export interface TranslationResources {
               showOutboundModesInline: string
               systemProxyTrayIcon: string
               toastPosition: string
-              trafficGraph: string
               trayIcon: string
               tunTrayIcon: string
             }

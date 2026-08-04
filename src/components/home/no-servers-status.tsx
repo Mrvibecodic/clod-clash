@@ -10,7 +10,7 @@ import { useNoServersStatus } from '@/hooks/use-no-servers-status'
 import { openWebUrl, updateProfile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import parseTraffic from '@/utils/parse-traffic'
-import { toUnixSeconds } from '@/utils/subscription-status'
+import { clockSkew, toUnixSeconds } from '@/utils/subscription-status'
 
 interface Props {
   profile?: IProfileItem
@@ -20,8 +20,15 @@ interface Props {
 
 const traffic = (bytes: number) => parseTraffic(bytes).join(' ').trim()
 
-const date = (unix?: number) =>
-  unix ? dayjs(toUnixSeconds(unix) * 1000).format('DD.MM.YYYY') : undefined
+// clod: дату ИСТЕЧЕНИЯ показываем в часах устройства (`- skew`) — так же, как
+// карточка подписки, иначе при разошедшихся часах два экрана назовут разные
+// дни. Дату пополнения не сдвигаем: её рисуют ещё три экрана без поправки, и
+// расхождение внутри одного окна было бы хуже, чем сдвиг в сутки у того, у
+// кого часы и так врут.
+const date = (unix?: number, skew = 0) =>
+  unix
+    ? dayjs((toUnixSeconds(unix) - skew) * 1000).format('DD.MM.YYYY')
+    : undefined
 
 /**
  * clod: why there is nothing to connect to.
@@ -64,7 +71,8 @@ export const NoServersStatus = ({ profile, onRefreshed }: Props) => {
 
   const extra = profile.extra
   const used = (extra?.upload ?? 0) + (extra?.download ?? 0)
-  const expireDate = date(extra?.expire)
+  const skew = clockSkew(profile) ?? 0
+  const expireDate = date(extra?.expire, skew)
   const refillDate = date(profile.refill_date)
 
   const severity =

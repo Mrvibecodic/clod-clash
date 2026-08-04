@@ -31,7 +31,6 @@ import { Outlet, useLocation, useNavigate } from 'react-router'
 import { BaseErrorBoundary, BaseLoading } from '@/components/base'
 import { AppBrand } from '@/components/layout/app-brand'
 import { LayoutItem } from '@/components/layout/layout-item'
-import { LayoutTraffic } from '@/components/layout/layout-traffic'
 import { NoticeManager } from '@/components/layout/notice-manager'
 import { UpdateButton } from '@/components/layout/update-button'
 import {
@@ -498,17 +497,6 @@ const Layout = () => {
                 {t('layout.components.navigation.menu.restoreDefaultOrder')}
               </MenuItem>
             </Menu>
-
-            {/* clod: за `display: none` этот блок держал живыми два сокета к
-                ядру (`/traffic`, `/memory`) и рисовал график в canvas через
-                requestAnimationFrame — всё это для колонки, которой в форке
-                нет. Счётчики сессии на главной берут трафик своим общим
-                сокетом, так что показывать тут нечего и некому. */}
-            {SIDEBAR_VISIBLE ? (
-              <div className="the-traffic">
-                <LayoutTraffic />
-              </div>
-            ) : null}
           </div>
 
           <div className="layout-content__right">

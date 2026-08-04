@@ -101,21 +101,6 @@
     "tests": {
       "title": "Website Tests"
     },
-    "traffic": {
-      "metrics": {
-        "uploadSpeed": "Kecepatan Unggah",
-        "downloadSpeed": "Kecepatan Unduh",
-        "activeConnections": "Active Connections",
-        "memoryUsage": "Penggunaan Memori"
-      },
-      "legends": {
-        "upload": "Upload",
-        "download": "Download"
-      },
-      "patterns": {
-        "minutes": "{{time}} Minutes"
-      }
-    },
     "clashMode": {
       "errors": {
         "communication": "Kesalahan komunikasi inti, mulai ulang komputer dan coba lagi"

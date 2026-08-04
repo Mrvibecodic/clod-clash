@@ -222,12 +222,33 @@ impl SubHeaders {
                 .or_else(|| bool_value(headers, "global-mode").map(|allowed| !allowed)),
             // Straight `get`: `Date` is a standard header, so neither the
             // suffix lookup nor the base64 decoding above applies to it.
-            server_time: headers
-                .get(reqwest::header::DATE)
-                .and_then(|raw| raw.to_str().ok())
-                .and_then(http_date_secs),
+            //
+            // A non-zero `Age` means the answer sat in a cache: its `Date` is
+            // the moment the cache took it, not now, and reading a clock off
+            // it would put the whole cache lifetime into the offset. Better no
+            // measurement than one that is a day out by construction.
+            server_time: (!is_cached(headers))
+                .then(|| {
+                    headers
+                        .get(reqwest::header::DATE)
+                        .and_then(|raw| raw.to_str().ok())
+                        .and_then(http_date_secs)
+                })
+                .flatten(),
         }
     }
+}
+
+/// Whether the answer came out of a cache rather than from the panel itself.
+///
+/// `Age` is only sent by caches, and a value above zero says how long the copy
+/// has been sitting there. Absent or `0` — treat it as first hand.
+fn is_cached(headers: &HeaderMap) -> bool {
+    headers
+        .get(reqwest::header::AGE)
+        .and_then(|raw| raw.to_str().ok())
+        .and_then(|raw| raw.trim().parse::<u64>().ok())
+        .is_some_and(|age| age > 0)
 }
 
 /// Unix seconds from an HTTP-date (RFC 9110 §5.6.7).
@@ -1070,5 +1091,30 @@ mod tests {
         assert_eq!(super::http_date_secs("not a date"), None);
         assert_eq!(super::http_date_secs("Thu, 01 Jan 1970 00:00:00 GMT"), None);
         assert_eq!(SubHeaders::parse(&headers(&[])).server_time, None);
+    }
+
+    #[test]
+    fn a_cached_answer_is_not_used_as_a_clock() {
+        // `Age` above zero: the date belongs to the cache, not to the panel.
+        assert_eq!(
+            SubHeaders::parse(&headers(
+                &[("date", "Tue, 04 Aug 2026 17:24:33 GMT"), ("age", "86400"),]
+            ))
+            .server_time,
+            None
+        );
+        // `Age: 0` and rubbish values mean nothing was cached.
+        assert_eq!(
+            SubHeaders::parse(&headers(&[("date", "Tue, 04 Aug 2026 17:24:33 GMT"), ("age", "0"),])).server_time,
+            Some(1_785_864_273)
+        );
+        assert_eq!(
+            SubHeaders::parse(&headers(&[
+                ("date", "Tue, 04 Aug 2026 17:24:33 GMT"),
+                ("age", "not a number"),
+            ]))
+            .server_time,
+            Some(1_785_864_273)
+        );
     }
 }

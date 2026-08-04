@@ -306,6 +306,12 @@ interface IProfileItem {
    * fetch. Absent when no panel clock was ever seen.
    */
   clock_skew?: number
+  /**
+   * Device clock when `clock_skew` was measured, in unix seconds — what its
+   * ageing is judged by. Not `updated`: that one also moves on refreshes that
+   * carried no `Date` and left the offset untouched.
+   */
+  clock_skew_at?: number
   /** the provider dictated the update interval, so the field is read-only */
   interval_locked?: boolean
   /** `fallback-url` header — full spare address */
@@ -973,8 +979,6 @@ interface IVergeConfig {
   start_page?: string
   clash_core?: string
   theme_mode?: 'light' | 'dark' | 'system'
-  traffic_graph?: boolean
-  enable_memory_usage?: boolean
   enable_group_icon?: boolean
   pause_render_traffic_stats_on_blur?: boolean
   menu_icon?: 'monochrome' | 'colorful' | 'disable'

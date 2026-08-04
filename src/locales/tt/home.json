@@ -101,21 +101,6 @@
     "tests": {
       "title": "Website Tests"
     },
-    "traffic": {
-      "metrics": {
-        "uploadSpeed": "Йөкләү (чыгару) тизлеге",
-        "downloadSpeed": "Йөкләү тизлеге",
-        "activeConnections": "Active Connections",
-        "memoryUsage": "Хәтер куллану"
-      },
-      "legends": {
-        "upload": "Upload",
-        "download": "Download"
-      },
-      "patterns": {
-        "minutes": "{{time}} Minutes"
-      }
-    },
     "clashMode": {
       "errors": {
         "communication": "Үзәк белән элемтә хатасы, компьютерны яңадан кабызып карагыз"

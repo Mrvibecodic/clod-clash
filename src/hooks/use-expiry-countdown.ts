@@ -61,6 +61,9 @@ export interface ExpiryCountdown {
  *    и к границе часа в последние сутки (плюс страховочный потолок сна выше).
  *    Состояние меняется, только если сменилась сама подпись: пробуждение,
  *    после которого на экране было бы то же число, не перерисовывает ничего.
+ *    Единственное исключение — первый проход после перезапуска таймера (когда
+ *    сменились срок, видимость или поправка часов): там значение пишется
+ *    всегда, иначе новая поправка доехала бы до экрана только к границе.
  *    Проснувшись, отсчёт заново смотрит на часы, а не досчитывает пропущенное.
  */
 export const useExpiryCountdown = (
@@ -75,11 +78,19 @@ export const useExpiryCountdown = (
 
     let timer: number | undefined
 
+    // Первый проход после запуска эффекта пишет значение всегда: поправка
+    // часов приезжает вместе с профилем, уже после монтирования, и сравнение
+    // подписей оставило бы `secondsLeft` со старым смещением до самой границы.
+    let force = true
+
     const schedule = () => {
       const current = Date.now() / 1000 + skew
       setNow((previous) =>
-        label(expire, previous) === label(expire, current) ? previous : current,
+        !force && label(expire, previous) === label(expire, current)
+          ? previous
+          : current,
       )
+      force = false
 
       const left = expire - current
       if (left <= 0) return
@@ -102,7 +113,7 @@ export const useExpiryCountdown = (
     schedule()
 
     return () => {
-      if (timer) window.clearTimeout(timer)
+      if (timer !== undefined) window.clearTimeout(timer)
     }
   }, [expire, visible, skew])
 

@@ -631,12 +631,17 @@ export const ProxyGroups = (props: Props) => {
   // опроса: иначе задержки на экране до трёх секунд остаются от прошлого показа.
   // Через ref: `refetch` — новая функция на каждый рендер, и в зависимостях
   // эффекта она превратила бы «спросить один раз» в опрос без остановки.
+  // Спрашиваем строго на переходе «не видно → видно»: на маунте запрос делает
+  // сам `useQuery`, дублировать его при каждом открытии страницы незачем.
   const refetchRef = useRef(refetch)
   useEffect(() => {
     refetchRef.current = refetch
   })
+  const wasVisible = useRef(pageVisible)
   useEffect(() => {
-    if (pageVisible) void refetchRef.current()
+    const returned = pageVisible && !wasVisible.current
+    wasVisible.current = pageVisible
+    if (returned) void refetchRef.current()
   }, [pageVisible])
 
   if (mode === 'direct') {

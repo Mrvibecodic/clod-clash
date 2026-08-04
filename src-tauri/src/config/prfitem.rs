@@ -132,6 +132,14 @@ pub struct PrfItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub clock_skew: Option<i64>,
 
+    /// Device clock when `clock_skew` was measured, in unix seconds.
+    ///
+    /// Deliberately not `updated`: that one moves on every successful refresh,
+    /// including the ones that carried no `Date` and left the offset untouched,
+    /// so a year-old measurement would keep looking fresh forever.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub clock_skew_at: Option<i64>,
+
     /// The update interval was dictated by the provider, so the UI locks it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub interval_locked: Option<bool>,
@@ -491,9 +499,10 @@ impl PrfItem {
             }
         };
 
-        // clod: часы устройства снимаются вплотную к ответу — до чтения тела,
-        // разбора YAML и записи файлов. Всё это заняло бы полсекунды-другую и
-        // легло бы в измеренный сдвиг как отставание панели.
+        // clod: часы устройства снимаются сразу, как ответ дошёл — до разбора
+        // YAML и записи файлов. Скачивание тела в сдвиг всё же попадает
+        // (сетевой слой отдаёт ответ уже вычитанным), но это секунды, а
+        // решения по сдвигу принимаются в масштабе минут.
         let answered_at = chrono::Local::now().timestamp();
 
         // clod:headers begin
@@ -640,6 +649,16 @@ impl PrfItem {
             groups = groups_item.uid.clone();
         }
 
+        // clod: сдвиг часов принимаем только правдоподобный. Год расхождения —
+        // это не «часы ушли», это сломанные часы у панели или у прокси перед
+        // ней, и коррекция по ним объявила бы подписку истёкшей на ровном
+        // месте. Своим часам в таком случае доверия больше.
+        const MAX_SKEW_SECS: i64 = 366 * 24 * 60 * 60;
+        let measured_skew = sub
+            .server_time
+            .map(|panel| panel - answered_at)
+            .filter(|skew| skew.abs() <= MAX_SKEW_SECS);
+
         Ok(Self {
             uid: Some(uid),
             itype: Some("remote".into()),
@@ -677,7 +696,8 @@ impl PrfItem {
             topup_url: sub.topup_url.clone(),
             lock_mode: sub.lock_mode,
             refill_date: sub.refill_date,
-            clock_skew: sub.server_time.map(|panel| panel - answered_at),
+            clock_skew: measured_skew,
+            clock_skew_at: measured_skew.map(|_| answered_at),
             interval_locked,
             fallback_url: sub.fallback_url.clone(),
             fallback_domain: sub.fallback_domain.clone(),
@@ -853,9 +873,11 @@ impl PrfItem {
         self.hwid_state = fresh.hwid_state.clone();
         // The exception to "replace, do not merge": this is a measurement, not
         // a provider setting. A response that arrived without a `Date` says
-        // nothing about the device clock, so the last real reading stands.
+        // nothing about the device clock, so the last real reading stands —
+        // with the moment it was taken, which is what its ageing is judged by.
         if fresh.clock_skew.is_some() {
             self.clock_skew = fresh.clock_skew;
+            self.clock_skew_at = fresh.clock_skew_at;
         }
         self.notify_expire_days = fresh.notify_expire_days.clone();
         self.notify_traffic_percent = fresh.notify_traffic_percent.clone();
@@ -898,16 +920,19 @@ impl PrfItem {
     pub fn panel_clock_skew(&self) -> i64 {
         const MAX_AGE_SECS: i64 = 30 * 24 * 60 * 60;
 
-        let Some(skew) = self.clock_skew else {
+        let (Some(skew), Some(measured_at)) = (self.clock_skew, self.clock_skew_at) else {
             return 0;
         };
-        let measured_at = self.updated.unwrap_or(0) as i64;
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs() as i64)
             .unwrap_or(0);
 
-        if now - measured_at > MAX_AGE_SECS { 0 } else { skew }
+        // A negative age means the device clock moved backwards under the
+        // measurement — exactly the "user fixed the clock" case the ageing
+        // rule exists for, and the stored offset is now wrong by its own size.
+        let age = now - measured_at;
+        if !(0..=MAX_AGE_SECS).contains(&age) { 0 } else { skew }
     }
 
     /// Whether the stored promo still needs to be shown.

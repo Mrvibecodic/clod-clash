@@ -101,21 +101,6 @@
     "tests": {
       "title": "網站測試"
     },
-    "traffic": {
-      "metrics": {
-        "uploadSpeed": "上傳速度",
-        "downloadSpeed": "下載速度",
-        "activeConnections": "作用中連線",
-        "memoryUsage": "內核佔用"
-      },
-      "legends": {
-        "upload": "上傳",
-        "download": "下載"
-      },
-      "patterns": {
-        "minutes": "{{time}} 分"
-      }
-    },
     "clashMode": {
       "errors": {
         "communication": "內核通信錯誤，請重新啟動電腦再試"

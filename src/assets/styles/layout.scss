@@ -68,15 +68,6 @@
           height: 0;
         }
       }
-
-      .the-traffic {
-        flex: 0 0 60px;
-
-        > div {
-          margin: 0 auto;
-          padding: 0 20px;
-        }
-      }
     }
 
     &__right {
@@ -275,10 +266,6 @@
       min-width: var(--layout-nav-collapsed-width) !important;
       max-width: var(--layout-nav-collapsed-width) !important;
       border-right: none !important;
-
-      .the-traffic {
-        display: none !important;
-      }
 
       > .MuiBox-root {
         display: none !important;

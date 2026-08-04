@@ -101,21 +101,6 @@
     "tests": {
       "title": "Pruebas de sitios web"
     },
-    "traffic": {
-      "metrics": {
-        "uploadSpeed": "Velocidad de subida",
-        "downloadSpeed": "Velocidad de descarga",
-        "activeConnections": "Conexiones activas",
-        "memoryUsage": "Uso de memoria del núcleo"
-      },
-      "legends": {
-        "upload": "Subir",
-        "download": "Descargar"
-      },
-      "patterns": {
-        "minutes": "{{time}} Minutes"
-      }
-    },
     "clashMode": {
       "errors": {
         "communication": "Error de comunicación del núcleo, reinicie el equipo e inténtelo de nuevo"

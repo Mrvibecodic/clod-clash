@@ -245,31 +245,39 @@ async fn removed_panel_headers_clear_stored_values() {
 /// a measurement, not a provider setting. An answer that arrived without a
 /// `Date` header says nothing about the device clock, so the last real reading
 /// has to survive it — otherwise a single such answer would silently throw the
-/// countdown back onto an unchecked clock.
+/// countdown back onto an unchecked clock. The moment it was taken travels with
+/// it, because that is what its ageing is judged by.
 #[test]
 fn a_date_less_answer_keeps_the_last_clock_reading() {
     let measured = PrfItem {
         clock_skew: Some(-4_000),
+        clock_skew_at: Some(1_785_000_000),
         ..PrfItem::default()
     };
     let mut stored = PrfItem::default();
     stored.merge_panel_meta(&measured);
     assert_eq!(stored.clock_skew, Some(-4_000));
+    assert_eq!(stored.clock_skew_at, Some(1_785_000_000));
 
-    // No `Date` in this answer: keep what we had.
+    // No `Date` in this answer: keep what we had, timestamp included.
     stored.merge_panel_meta(&PrfItem::default());
     assert_eq!(stored.clock_skew, Some(-4_000));
+    assert_eq!(stored.clock_skew_at, Some(1_785_000_000));
 
-    // A fresh reading replaces the old one.
+    // A fresh reading replaces both halves at once.
     stored.merge_panel_meta(&PrfItem {
         clock_skew: Some(7),
+        clock_skew_at: Some(1_785_900_000),
         ..PrfItem::default()
     });
     assert_eq!(stored.clock_skew, Some(7));
+    assert_eq!(stored.clock_skew_at, Some(1_785_900_000));
 }
 
-/// Ageing rule: a reading is applied while it is fresh and ignored once the
-/// user has had a month to move the clock under it.
+/// Ageing rule: a reading is applied while it is fresh, and dropped once it is
+/// a month old or once the device clock has moved backwards under it — the
+/// "user fixed the clock" case, where keeping the offset would introduce an
+/// error of exactly its own size.
 #[test]
 fn a_stale_clock_reading_is_not_applied() {
     let now = std::time::SystemTime::now()
@@ -279,18 +287,34 @@ fn a_stale_clock_reading_is_not_applied() {
 
     let fresh = PrfItem {
         clock_skew: Some(900),
-        updated: Some((now - 3_600) as usize),
+        clock_skew_at: Some(now - 3_600),
         ..PrfItem::default()
     };
     assert_eq!(fresh.panel_clock_skew(), 900);
 
     let stale = PrfItem {
         clock_skew: Some(900),
-        updated: Some((now - 31 * 24 * 60 * 60) as usize),
+        clock_skew_at: Some(now - 31 * 24 * 60 * 60),
         ..PrfItem::default()
     };
     assert_eq!(stale.panel_clock_skew(), 0);
 
-    // Never measured at all.
+    // Measured "in the future": the device clock was moved back since.
+    let from_the_future = PrfItem {
+        clock_skew: Some(900),
+        clock_skew_at: Some(now + 3_600),
+        ..PrfItem::default()
+    };
+    assert_eq!(from_the_future.panel_clock_skew(), 0);
+
+    // A reading without its timestamp (or none at all) is not applied either.
     assert_eq!(PrfItem::default().panel_clock_skew(), 0);
+    assert_eq!(
+        PrfItem {
+            clock_skew: Some(900),
+            ..PrfItem::default()
+        }
+        .panel_clock_skew(),
+        0
+    );
 }

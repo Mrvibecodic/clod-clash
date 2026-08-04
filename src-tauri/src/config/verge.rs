@@ -39,12 +39,6 @@ pub struct IVerge {
     /// startup script path
     pub startup_script: Option<String>,
 
-    /// enable traffic graph default is true
-    pub traffic_graph: Option<bool>,
-
-    /// show memory info (only for Clash Meta)
-    pub enable_memory_usage: Option<bool>,
-
     /// enable group icon
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_group_icon: Option<bool>,
@@ -527,8 +521,6 @@ impl IVerge {
             #[cfg(target_os = "windows")]
             env_type: Some("powershell".into()),
             start_page: Some("/".into()),
-            traffic_graph: Some(true),
-            enable_memory_usage: Some(true),
             enable_group_icon: Some(true),
             pause_render_traffic_stats_on_blur: Some(true),
             #[cfg(target_os = "macos")]
@@ -625,8 +617,6 @@ impl IVerge {
         patch!(env_type);
         patch!(start_page);
         patch!(startup_script);
-        patch!(traffic_graph);
-        patch!(enable_memory_usage);
         patch!(enable_group_icon);
         patch!(pause_render_traffic_stats_on_blur);
         #[cfg(target_os = "macos")]

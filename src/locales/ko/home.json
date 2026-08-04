@@ -101,21 +101,6 @@
     "tests": {
       "title": "웹사이트 테스트"
     },
-    "traffic": {
-      "metrics": {
-        "uploadSpeed": "업로드 속도",
-        "downloadSpeed": "다운로드 속도",
-        "activeConnections": "활성 연결",
-        "memoryUsage": "코어 사용량"
-      },
-      "legends": {
-        "upload": "업로드",
-        "download": "다운로드"
-      },
-      "patterns": {
-        "minutes": "{{time}}분"
-      }
-    },
     "clashMode": {
       "errors": {
         "communication": "코어 통신 오류입니다. 컴퓨터를 다시 시작한 후 다시 시도하세요"

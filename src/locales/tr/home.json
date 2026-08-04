@@ -101,21 +101,6 @@
     "tests": {
       "title": "Web Sitesi Testleri"
     },
-    "traffic": {
-      "metrics": {
-        "uploadSpeed": "Yükleme Hızı",
-        "downloadSpeed": "İndirme Hızı",
-        "activeConnections": "Aktif Bağlantılar",
-        "memoryUsage": "Çekirdek Kullanımı"
-      },
-      "legends": {
-        "upload": "Yükleme",
-        "download": "İndirme"
-      },
-      "patterns": {
-        "minutes": "{{time}} Minutes"
-      }
-    },
     "clashMode": {
       "errors": {
         "communication": "Çekirdek iletişim hatası, lütfen bilgisayarınızı yeniden başlatıp tekrar deneyin"

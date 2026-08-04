@@ -101,21 +101,6 @@
     "tests": {
       "title": "ウェブサイトテスト"
     },
-    "traffic": {
-      "metrics": {
-        "uploadSpeed": "アップロード速度",
-        "downloadSpeed": "ダウンロード速度",
-        "activeConnections": "アクティブな接続",
-        "memoryUsage": "コアメモリ使用量"
-      },
-      "legends": {
-        "upload": "アップロード",
-        "download": "ダウンロード"
-      },
-      "patterns": {
-        "minutes": "{{time}} Minutes"
-      }
-    },
     "clashMode": {
       "errors": {
         "communication": "コアの通信エラーです。パソコンを再起動してから再試行してください"

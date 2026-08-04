@@ -35,10 +35,16 @@ const SKEW_MAX_AGE_SECONDS = 30 * 24 * 60 * 60
 
 export const clockSkew = (profile?: IProfileItem): number | undefined => {
   const skew = profile?.clock_skew
-  if (skew === undefined) return undefined
+  const measuredAt = profile?.clock_skew_at
+  if (skew === undefined || measuredAt === undefined) return undefined
 
-  const age = Date.now() / 1000 - (profile?.updated ?? 0)
-  return age > SKEW_MAX_AGE_SECONDS ? undefined : skew
+  // Возраст считаем от момента ЗАМЕРА, а не от `updated`: обновление подписки
+  // без заголовка `Date` двигает `updated`, но поправку не трогает, и старый
+  // замер иначе выглядел бы вечно свежим. Отрицательный возраст — это часы,
+  // переведённые назад под уже снятой поправкой, то есть ровно тот случай,
+  // ради которого правило и заведено.
+  const age = Date.now() / 1000 - measuredAt
+  return age < 0 || age > SKEW_MAX_AGE_SECONDS ? undefined : skew
 }
 
 /** Сейчас по часам панели, в unix-секундах. */

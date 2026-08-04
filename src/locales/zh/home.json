@@ -101,21 +101,6 @@
     "tests": {
       "title": "网站测试"
     },
-    "traffic": {
-      "metrics": {
-        "uploadSpeed": "上传速度",
-        "downloadSpeed": "下载速度",
-        "activeConnections": "活跃连接",
-        "memoryUsage": "内核占用"
-      },
-      "legends": {
-        "upload": "上传",
-        "download": "下载"
-      },
-      "patterns": {
-        "minutes": "{{time}} 分钟"
-      }
-    },
     "clashMode": {
       "errors": {
         "communication": "内核通信错误，请重启电脑再试"

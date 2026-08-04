@@ -31,22 +31,30 @@ const set = (next: boolean) => {
 }
 
 /**
- * Сторож против залипания в «не видно».
+ * Сторож против залипания — в обе стороны.
  *
- * Ответ хранится один на всё приложение, и ошибиться он может в две стороны.
- * «Видно», когда на деле не видно, — это ровно то, как приложение работало
- * раньше: лишние опросы, не более. А вот застрять в «не видно» значит
- * заморозить экран целиком, поэтому именно этот случай и лечим: пока ответ
- * отрицательный, раз в минуту переспрашиваем окно. В трее это одно
- * пробуждение в минуту вместо двадцати, которые там были до правки, а зависеть
- * от одних только событий не хочется: `document.hidden` под Tauri врёт
- * (tauri-apps/tauri#10592), и события окна на разных платформах приходят
- * по-разному.
+ * Ответ хранится один на всё приложение, и ошибиться он может двояко.
+ * Застрять в «не видно» значит заморозить экран целиком; застрять в «видно»
+ * при окне в трее — вернуть ровно те опросы, ради которых всё это писалось.
+ * Полагаться на одни события нельзя: `document.hidden` под Tauri врёт
+ * (tauri-apps/tauri#10592), события окна на разных платформах приходят
+ * по-разному, а в «видно» стор попадает ещё и по клику с клавишей, без всякой
+ * проверки. Поэтому раз в минуту переспрашиваем окно безусловно — это один
+ * запрос против двадцати опросов ядра, которые тут были до правки.
  */
 const WATCHDOG_MS = 60_000
 
 const start = () => {
-  const appWindow = getCurrentWindow()
+  // Вне Tauri (`pnpm web:dev`) окна нет; тогда слушателей не заводим вовсе и
+  // видимость остаётся «да». Бросить отсюда нельзя: подписчик уже в списке, и
+  // следующий увидел бы size > 1 и не запустил бы слушателей уже никогда.
+  let appWindow: ReturnType<typeof getCurrentWindow>
+  try {
+    appWindow = getCurrentWindow()
+  } catch {
+    return undefined
+  }
+
   let stopped = false
   let timer: ReturnType<typeof setTimeout> | null = null
   let watchdog: ReturnType<typeof setInterval> | null = null
@@ -76,9 +84,7 @@ const start = () => {
   document.addEventListener('visibilitychange', checkSoon)
   window.addEventListener('focus', checkSoon)
 
-  watchdog = setInterval(() => {
-    if (!visible) void check()
-  }, WATCHDOG_MS)
+  watchdog = setInterval(() => void check(), WATCHDOG_MS)
 
   recheck = checkSoon
 
@@ -87,9 +93,10 @@ const start = () => {
     TauriEvent.WINDOW_CLOSE_REQUESTED,
     () => {
       // Закрытие окна — это уход в трей, и знать об этом надо сразу: опрос,
-      // который проснётся секундой позже, уже никому не нужен.
+      // который проснётся секундой позже, уже никому не нужен. Переспрашивать
+      // следом не надо — окно ещё может ответить «видно» (прячет его бэкенд, и
+      // не мгновенно), а событие о потере фокуса всё равно придёт.
       set(false)
-      checkSoon()
     },
   )
   void check()
@@ -114,17 +121,7 @@ const subscribe = (listener: () => void) => {
   // Каждый новый подписчик — повод переспросить: экран, который только что
   // смонтировался, видит окно живым, чем бы ни закончился прошлый ответ.
   recheck?.()
-  if (listeners.size === 1) {
-    try {
-      stop = start()
-    } catch {
-      // Вне Tauri (`pnpm web:dev`) окна нет и `getCurrentWindow` бросает.
-      // Бросить дальше значило бы оставить стор с подписчиком, но без
-      // слушателей: следующий подписчик увидел бы size > 1 и не запустил бы их
-      // уже никогда. Пусть в вебе видимость просто всегда «да».
-      stop = undefined
-    }
-  }
+  if (listeners.size === 1) stop = start()
 
   return () => {
     listeners.delete(listener)
@@ -136,6 +133,8 @@ const subscribe = (listener: () => void) => {
 }
 
 const snapshot = () => visible
+/** Рендера на сервере тут нет; отвечаем «видно», как и при первом запуске. */
+const serverSnapshot = () => true
 
 export const useVisibility = () =>
-  useSyncExternalStore(subscribe, snapshot, snapshot)
+  useSyncExternalStore(subscribe, snapshot, serverSnapshot)

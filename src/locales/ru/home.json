@@ -101,21 +101,6 @@
     "tests": {
       "title": "Проверка доступности сайтов"
     },
-    "traffic": {
-      "metrics": {
-        "uploadSpeed": "Скорость загрузки",
-        "downloadSpeed": "Скорость скачивания",
-        "activeConnections": "Активные соединения",
-        "memoryUsage": "Использование памяти"
-      },
-      "legends": {
-        "upload": "Загрузка",
-        "download": "Скачивание"
-      },
-      "patterns": {
-        "minutes": "{{time}} мин"
-      }
-    },
     "clashMode": {
       "errors": {
         "communication": "Ошибка связи с ядром. Перезагрузите компьютер и повторите попытку"

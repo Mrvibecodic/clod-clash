@@ -110,6 +110,21 @@ fn evaluate(snap: &Snapshot, now_secs: i64) -> Outcome {
 
         let remaining = base - now_secs;
 
+        // Re-arm what the clock has moved back out of reach, the way the
+        // traffic family re-arms on a refill. The remaining time can grow
+        // without `expire` moving: the panel-vs-device offset is measured
+        // later, or ages out, or the user fixes the system clock. Without this
+        // a device that was a week fast would mark 7/3/1 as "already told" and
+        // then say nothing at all when the subscription really ends.
+        if remaining > 0 {
+            map.remove(EXPIRED_KEY);
+        }
+        for days in &snap.expire_days {
+            if remaining > i64::from(*days) * DAY_SECS {
+                map.remove(&expire_key(*days));
+            }
+        }
+
         // Everything that has already passed, strictest first.
         let mut passed: Vec<(String, Option<Alert>)> = Vec::new();
         if remaining <= 0 {
@@ -234,6 +249,17 @@ async fn notify_alert(alert: Alert) {
     }
 }
 
+/// Normalise a panel timestamp to unix seconds.
+///
+/// Some panels put milliseconds where the spec says seconds; anything past
+/// ~1e12 can only be that (it is the year 33658 in seconds). The card does the
+/// same on the frontend — without it here the reminders would stay silent
+/// forever on such a subscription, since the deadline reads as tens of
+/// thousands of years away.
+fn to_unix_secs(ts: u64) -> u64 {
+    if ts > 1_000_000_000_000 { ts / 1000 } else { ts }
+}
+
 fn now_unix_secs() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -290,7 +316,7 @@ pub async fn run_check() {
     };
 
     let snap = Snapshot {
-        expire: extra.expire,
+        expire: to_unix_secs(extra.expire),
         total,
         used,
         expire_days,
@@ -433,6 +459,40 @@ mod tests {
         s.notified = outcome.notified;
         let later = evaluate(&s, now + DAY_SECS + DAY_SECS / 2);
         assert_eq!(later.alerts, vec![Alert::ExpiresInDays(1)]);
+    }
+
+    #[test]
+    fn a_corrected_clock_rearms_the_expiry_thresholds() {
+        let now = 1_000_000_000i64;
+        let mut s = snap();
+        // 40 days left, but the device clock is 41 days fast: the plan looks
+        // over, so "expired" and all three day thresholds get marked.
+        s.expire = (now + 40 * DAY_SECS) as u64;
+        let with_bad_clock = evaluate(&s, now + 41 * DAY_SECS);
+        assert_eq!(with_bad_clock.alerts, vec![Alert::Expired]);
+        assert!(with_bad_clock.notified.contains_key("expired"));
+        assert!(with_bad_clock.notified.contains_key("expire_7d"));
+
+        // The panel's clock arrives (or the user fixes the system one) and the
+        // deadline is 40 days out again — the marks must not survive it.
+        s.notified = with_bad_clock.notified;
+        let corrected = evaluate(&s, now);
+        assert!(corrected.alerts.is_empty());
+        assert!(!corrected.notified.contains_key("expired"));
+        assert!(!corrected.notified.contains_key("expire_7d"));
+        assert!(!corrected.notified.contains_key("expire_1d"));
+
+        // ...so the real 7-day mark is still news when it comes.
+        s.notified = corrected.notified;
+        let later = evaluate(&s, now + 34 * DAY_SECS);
+        assert_eq!(later.alerts, vec![Alert::ExpiresInDays(7)]);
+    }
+
+    #[test]
+    fn milliseconds_from_the_panel_are_normalised() {
+        assert_eq!(to_unix_secs(1_785_864_273), 1_785_864_273);
+        assert_eq!(to_unix_secs(1_785_864_273_000), 1_785_864_273);
+        assert_eq!(to_unix_secs(0), 0);
     }
 
     #[test]

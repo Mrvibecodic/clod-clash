@@ -141,38 +141,6 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
 
         <Item>
           <ListItemText
-            primary={t('settings.components.verge.layout.fields.trafficGraph')}
-          />
-          <GuardState
-            value={verge?.traffic_graph ?? true}
-            valueProps="checked"
-            onCatch={onError}
-            onFormat={onSwitchFormat}
-            onChange={(e) => onChangeData({ traffic_graph: e })}
-            onGuard={(e) => patchVerge({ traffic_graph: e })}
-          >
-            <Switch edge="end" />
-          </GuardState>
-        </Item>
-
-        <Item>
-          <ListItemText
-            primary={t('settings.components.verge.layout.fields.memoryUsage')}
-          />
-          <GuardState
-            value={verge?.enable_memory_usage ?? true}
-            valueProps="checked"
-            onCatch={onError}
-            onFormat={onSwitchFormat}
-            onChange={(e) => onChangeData({ enable_memory_usage: e })}
-            onGuard={(e) => patchVerge({ enable_memory_usage: e })}
-          >
-            <Switch edge="end" />
-          </GuardState>
-        </Item>
-
-        <Item>
-          <ListItemText
             primary={t(
               'settings.components.verge.layout.fields.proxyGroupIcon',
             )}

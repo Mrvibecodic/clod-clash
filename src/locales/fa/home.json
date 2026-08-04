@@ -101,21 +101,6 @@
     "tests": {
       "title": "Website Tests"
     },
-    "traffic": {
-      "metrics": {
-        "uploadSpeed": "سرعت بارگذاری",
-        "downloadSpeed": "سرعت دانلود",
-        "activeConnections": "Active Connections",
-        "memoryUsage": "استفاده از حافظه"
-      },
-      "legends": {
-        "upload": "Upload",
-        "download": "Download"
-      },
-      "patterns": {
-        "minutes": "{{time}} Minutes"
-      }
-    },
     "clashMode": {
       "errors": {
         "communication": "خطای ارتباط با هسته، لطفاً رایانه را مجدداً راه‌اندازی کرده و دوباره تلاش کنید"

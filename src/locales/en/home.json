@@ -101,21 +101,6 @@
     "tests": {
       "title": "Website Tests"
     },
-    "traffic": {
-      "metrics": {
-        "uploadSpeed": "Upload Speed",
-        "downloadSpeed": "Download Speed",
-        "activeConnections": "Active Connections",
-        "memoryUsage": "Core Usage"
-      },
-      "legends": {
-        "upload": "Upload",
-        "download": "Download"
-      },
-      "patterns": {
-        "minutes": "{{time}} Minutes"
-      }
-    },
     "clashMode": {
       "errors": {
         "communication": "Core communication error, please restart your computer and try again"

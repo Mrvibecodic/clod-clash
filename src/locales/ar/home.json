@@ -101,21 +101,6 @@
     "tests": {
       "title": "Website Tests"
     },
-    "traffic": {
-      "metrics": {
-        "uploadSpeed": "سرعة الرفع",
-        "downloadSpeed": "سرعة التنزيل",
-        "activeConnections": "Active Connections",
-        "memoryUsage": "استهلاك الذاكرة"
-      },
-      "legends": {
-        "upload": "Upload",
-        "download": "Download"
-      },
-      "patterns": {
-        "minutes": "{{time}} Minutes"
-      }
-    },
     "clashMode": {
       "errors": {
         "communication": "خطأ في الاتصال بالنواة، يرجى إعادة تشغيل الكمبيوتر والمحاولة مرة أخرى"

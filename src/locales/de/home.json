@@ -101,21 +101,6 @@
     "tests": {
       "title": "Website-Tests"
     },
-    "traffic": {
-      "metrics": {
-        "uploadSpeed": "Upload-Geschwindigkeit",
-        "downloadSpeed": "Download-Geschwindigkeit",
-        "activeConnections": "Aktive Verbindungen",
-        "memoryUsage": "Kern-Speichernutzung"
-      },
-      "legends": {
-        "upload": "Hochladen",
-        "download": "Herunterladen"
-      },
-      "patterns": {
-        "minutes": "{{time}} Minutes"
-      }
-    },
     "clashMode": {
       "errors": {
         "communication": "Kernkommunikationsfehler, bitte starten Sie den Computer neu und versuchen Sie es erneut"
