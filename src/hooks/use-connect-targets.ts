@@ -10,10 +10,13 @@ import { ensureTunReady } from '@/services/cmds'
  * What the Connect button actually switches.
  *
  * System proxy and TUN are independent targets which may be driven together
- * (`verge.connect_system_proxy` / `verge.connect_tun_mode`, configured in the
- * settings). The default is the system proxy alone; when the user manages to
- * disable both, the system proxy silently steps back in — a Connect button
- * that switches nothing is a broken promise.
+ * (`verge.connect_system_proxy` / `verge.connect_tun_mode`). There is no
+ * separate setting for them any more: the choice IS the pair of live switches
+ * («Настройки системы» / «Быстрые действия»). Whatever the user turns on by
+ * hand becomes what Connect restores next time — see `useRememberTargets`.
+ * The default is the system proxy alone; when both end up off, the system
+ * proxy silently steps back in — a Connect button that switches nothing is a
+ * broken promise.
  *
  * `connected` reads the real state of every enabled target, never an
  * optimistic flag: a system proxy dropped from outside the app must turn the
@@ -72,4 +75,27 @@ export const useConnectTargets = () => {
   ])
 
   return { connected, targetSys, targetTun, toggleConnection }
+}
+
+/**
+ * Пользователь дёрнул живой тумблер руками — значит, именно этот режим он и
+ * имеет в виду, когда жмёт Connect. Вызывать ТОЛЬКО из обработчиков самих
+ * тумблеров: кнопка Connect выключает те же флаги при отключении, и если бы
+ * запоминание жило внутри них, одно нажатие «отключиться» стирало бы выбор.
+ */
+export const useRememberTargets = () => {
+  const { patchVerge } = useVerge()
+
+  return useCallback(
+    (target: 'sys' | 'tun', enabled: boolean) =>
+      patchVerge(
+        target === 'sys'
+          ? { connect_system_proxy: enabled }
+          : { connect_tun_mode: enabled },
+      ).catch(() => {
+        // Запоминание — вторичное действие: сам тумблер уже сработал, и
+        // ронять его из-за не сохранившегося предпочтения незачем.
+      }),
+    [patchVerge],
+  )
 }

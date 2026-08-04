@@ -4,7 +4,10 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Switch } from '@/components/base'
-import { useConnectTargets } from '@/hooks/use-connect-targets'
+import {
+  useConnectTargets,
+  useRememberTargets,
+} from '@/hooks/use-connect-targets'
 import { useSystemProxyState } from '@/hooks/use-system-proxy-state'
 import { useSystemState } from '@/hooks/use-system-state'
 import { useTunState } from '@/hooks/use-tun-state'
@@ -61,6 +64,9 @@ export const QuickActions = ({ locked }: Props) => {
   const { indicator: sysproxyOn, toggleSystemProxy } = useSystemProxyState()
   const { isTunModeAvailable, mutateSystemState } = useSystemState()
   const { targetSys, targetTun } = useConnectTargets()
+  // Дёрнутый руками тумблер — это и есть выбор режима: отдельной настройки
+  // «что включает Connect» больше нет.
+  const rememberTarget = useRememberTargets()
   // Реальное состояние, а не флаг из конфига: тумблер не должен гореть над
   // мёртвым туннелем.
   const { tunActive, mutateTunState } = useTunState()
@@ -71,6 +77,7 @@ export const QuickActions = ({ locked }: Props) => {
   const toggleSysproxy = useLockFn(async (next: boolean) => {
     try {
       await toggleSystemProxy(next)
+      void rememberTarget('sys', next)
     } catch (error) {
       showNotice.error(error)
     }
@@ -94,6 +101,7 @@ export const QuickActions = ({ locked }: Props) => {
       }
       mutateVerge({ ...verge, enable_tun_mode: next }, false)
       await patchVerge({ enable_tun_mode: next })
+      void rememberTarget('tun', next)
     } catch (error) {
       showNotice.error(error)
       // Оптимистичное значение выше могло разойтись с бэкендом (там патч

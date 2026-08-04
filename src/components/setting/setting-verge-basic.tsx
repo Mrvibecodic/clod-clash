@@ -1,12 +1,11 @@
 import { ContentCopyRounded } from '@mui/icons-material'
-import { Box, Button, Input, MenuItem, Select, Switch } from '@mui/material'
+import { Box, Button, Input, MenuItem, Select } from '@mui/material'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
 
-import { type DialogRef, TooltipIcon } from '@/components/base'
-import { useProfiles } from '@/hooks/use-profiles'
+import { type DialogRef, Switch, TooltipIcon } from '@/components/base'
 import { useSimpleMode } from '@/hooks/use-simple-mode'
 import { useVerge } from '@/hooks/use-verge'
 import { navigationItems } from '@/pages/_navigation-meta'
@@ -63,8 +62,6 @@ const SettingVergeBasic = ({ onError }: Props) => {
     env_type,
     startup_script,
     start_page,
-    connect_system_proxy,
-    connect_tun_mode,
     enable_sub_notifications,
     enable_hwid,
   } = verge ?? {}
@@ -74,9 +71,6 @@ const SettingVergeBasic = ({ onError }: Props) => {
     getDeviceIdentity,
   )
   const { simpleMode, setSimpleMode } = useSimpleMode()
-  const { current } = useProfiles()
-  // clod: the panel may forbid changing what Connect switches.
-  const modeLocked = Boolean(current?.lock_mode)
   const configRef = useRef<DialogRef>(null)
   const hotkeyRef = useRef<DialogRef>(null)
   const miscRef = useRef<DialogRef>(null)
@@ -151,53 +145,6 @@ const SettingVergeBasic = ({ onError }: Props) => {
           <Switch edge="end" />
         </GuardState>
       </SettingItem>
-
-      {/* clod: what Connect drives. The two targets are independent and may
-          run together; `clod-lock-mode` from the panel removes the choice. */}
-      {modeLocked ? null : (
-        <>
-          <SettingItem
-            label={t('settings.components.verge.basic.fields.connectSysproxy')}
-          >
-            <GuardState
-              value={connect_system_proxy ?? true}
-              valueProps="checked"
-              onCatch={onError}
-              onFormat={(_e: any, checked: boolean) => checked}
-              onChange={(checked) =>
-                onChangeData({ connect_system_proxy: checked })
-              }
-              onGuard={(checked) =>
-                patchVerge({ connect_system_proxy: checked })
-              }
-            >
-              <Switch edge="end" />
-            </GuardState>
-          </SettingItem>
-
-          <SettingItem
-            label={t('settings.components.verge.basic.fields.connectTun')}
-            extra={
-              <TooltipIcon
-                title={t('settings.components.verge.basic.hints.connectTun')}
-              />
-            }
-          >
-            <GuardState
-              value={connect_tun_mode ?? false}
-              valueProps="checked"
-              onCatch={onError}
-              onFormat={(_e: any, checked: boolean) => checked}
-              onChange={(checked) =>
-                onChangeData({ connect_tun_mode: checked })
-              }
-              onGuard={(checked) => patchVerge({ connect_tun_mode: checked })}
-            >
-              <Switch edge="end" />
-            </GuardState>
-          </SettingItem>
-        </>
-      )}
 
       {/* clod:F7 — the user's global switch for the subscription
           expiry/traffic notifications; off wins over the panel. */}

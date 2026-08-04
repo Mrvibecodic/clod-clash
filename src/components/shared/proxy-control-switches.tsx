@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next'
 import { DialogRef, Switch, TooltipIcon } from '@/components/base'
 import { SysproxyViewer } from '@/components/setting/mods/sysproxy-viewer'
 import { TunViewer } from '@/components/setting/mods/tun-viewer'
+import { useRememberTargets } from '@/hooks/use-connect-targets'
 import { useServiceInstaller } from '@/hooks/use-service-installer'
 import { useServiceUninstaller } from '@/hooks/use-service-uninstaller'
 import { useSystemProxyState } from '@/hooks/use-system-proxy-state'
@@ -138,6 +139,9 @@ const ProxyControlSwitches = ({
     useSystemProxyState()
   const { isServiceOk, isTunModeAvailable, mutateSystemState } =
     useSystemState()
+  // Тумблеры здесь и есть выбор режима для кнопки Connect — отдельной пары
+  // настроек «Подключение: …» больше нет.
+  const rememberTarget = useRememberTargets()
 
   const sysproxyRef = useRef<DialogRef>(null)
   const tunRef = useRef<DialogRef>(null)
@@ -165,6 +169,7 @@ const ProxyControlSwitches = ({
     mutateVerge({ ...verge, enable_tun_mode: value }, false)
     try {
       await patchVerge({ enable_tun_mode: value })
+      void rememberTarget('tun', value)
     } catch (err) {
       // Бэкенд откатил патч (discard) — перечитываем конфиг, иначе в кэше
       // останется оптимистичное значение, которого нет на диске.
@@ -206,7 +211,10 @@ const ProxyControlSwitches = ({
           active={systemProxyIndicator}
           infoTitle={t('settings.sections.proxyControl.tooltips.systemProxy')}
           onInfoClick={() => sysproxyRef.current?.open()}
-          onToggle={(value) => toggleSystemProxy(value)}
+          onToggle={async (value) => {
+            await toggleSystemProxy(value)
+            void rememberTarget('sys', value)
+          }}
           onError={onError}
           highlight={systemProxyIndicator}
         />
