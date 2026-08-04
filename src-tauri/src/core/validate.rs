@@ -35,11 +35,16 @@ pub enum ValidationErrorKind {
 
 impl ValidationErrorKind {
     pub fn from_message(message: &str) -> Self {
-        let lower = message.to_ascii_lowercase();
+        // clod: сообщения об ошибках теперь русские (их читает и пользователь, и
+        // поддержка), поэтому классификатору нужны русские иглы — и полноценный
+        // to_lowercase: ASCII-версия кириллицу не опускает, «Таймаут» мимо
+        // «таймаут» проходил бы молча. Английские иглы остаются: их приносит
+        // само ядро.
+        let lower = message.to_lowercase();
 
-        if lower.contains("file not found") {
+        if lower.contains("file not found") || lower.contains("файл не найден") {
             Self::FileMissing
-        } else if lower.contains("failed to read") || lower.contains("无法读取") {
+        } else if lower.contains("failed to read") || lower.contains("не удалось прочитать") {
             Self::FileRead
         } else if lower.contains("script must contain a main function") {
             Self::ScriptMissingMain
@@ -52,9 +57,9 @@ impl ValidationErrorKind {
             Self::YamlMapping
         } else if lower.contains("yaml syntax error") || lower.contains("did not find expected key") {
             Self::YamlSyntax
-        } else if lower.contains("timeout") || lower.contains("超时") {
+        } else if lower.contains("timeout") || lower.contains("таймаут") {
             Self::Timeout
-        } else if lower.contains("terminated") || lower.contains("被终止") {
+        } else if lower.contains("terminated") || lower.contains("прерван") {
             Self::ProcessTerminated
         } else {
             Self::CoreRejected
@@ -146,7 +151,13 @@ impl CoreConfigValidator {
         let content = match fs::read_to_string(path).await {
             Ok(content) => content,
             Err(err) => {
-                logging!(warn, Type::Validate, "无法读取文件以检测类型: {}, 错误: {}", path, err);
+                logging!(
+                    warn,
+                    Type::Validate,
+                    "Не удалось прочитать файл для определения типа: {}, ошибка: {}",
+                    path,
+                    err
+                );
                 return Err(anyhow::anyhow!("Failed to read file to detect type: {}", err));
             }
         };
@@ -194,33 +205,38 @@ impl CoreConfigValidator {
         }
 
         // 默认情况：无法确定时，假设为非脚本文件（更安全）
-        logging!(debug, Type::Validate, "无法确定文件类型，默认当作YAML处理: {}", path);
+        logging!(
+            debug,
+            Type::Validate,
+            "Не удалось определить тип файла, обрабатывается как YAML по умолчанию: {}",
+            path
+        );
         Ok(false)
     }
 
     /// 只进行文件语法检查，不进行完整验证
     async fn validate_file_syntax_outcome(config_path: &str) -> Result<ValidationOutcome> {
-        logging!(info, Type::Validate, "开始检查文件: {}", config_path);
+        logging!(info, Type::Validate, "Начало проверки файла: {}", config_path);
 
         // 读取文件内容
         let content = match fs::read_to_string(config_path).await {
             Ok(content) => content,
             Err(err) => {
                 let error_msg: String = format!("Failed to read file: {err}").into();
-                logging!(error, Type::Validate, "无法读取文件: {}", error_msg);
+                logging!(error, Type::Validate, "Не удалось прочитать файл: {}", error_msg);
                 return Ok(ValidationOutcome::invalid_from_message(error_msg));
             }
         };
         // 对YAML文件尝试解析，只检查语法正确性
-        logging!(info, Type::Validate, "进行YAML语法检查");
+        logging!(info, Type::Validate, "Проверка синтаксиса YAML");
         match serde_yaml_ng::from_str::<serde_yaml_ng::Value>(&content) {
             Ok(_) => {
-                logging!(info, Type::Validate, "YAML语法检查通过");
+                logging!(info, Type::Validate, "Синтаксис YAML корректен");
                 Ok(ValidationOutcome::Valid)
             }
             Err(err) => {
                 let error_msg: String = format!("YAML syntax error: {err}").into();
-                logging!(error, Type::Validate, "YAML语法错误: {}", error_msg);
+                logging!(error, Type::Validate, "Ошибка синтаксиса YAML: {}", error_msg);
                 Ok(ValidationOutcome::invalid_from_message(error_msg))
             }
         }
@@ -233,12 +249,12 @@ impl CoreConfigValidator {
             Ok(content) => content,
             Err(err) => {
                 let error_msg: String = format!("Failed to read script file: {err}").into();
-                logging!(warn, Type::Validate, "脚本语法错误: {}", err);
+                logging!(warn, Type::Validate, "Ошибка синтаксиса скрипта: {}", err);
                 return Ok(ValidationOutcome::invalid_from_message(error_msg));
             }
         };
 
-        logging!(debug, Type::Validate, "验证脚本文件: {}", path);
+        logging!(debug, Type::Validate, "Проверка файла скрипта: {}", path);
 
         // 使用boa引擎进行基本语法检查
         use boa_engine::{Context, Source};
@@ -256,7 +272,7 @@ impl CoreConfigValidator {
 
         match result {
             Ok(_) => {
-                logging!(debug, Type::Validate, "脚本语法验证通过: {}", path);
+                logging!(debug, Type::Validate, "Синтаксис скрипта корректен: {}", path);
 
                 // 检查脚本是否包含main函数
                 if !content.contains("function main")
@@ -264,7 +280,7 @@ impl CoreConfigValidator {
                     && !content.contains("let main")
                 {
                     let error_msg = "Script must contain a main function";
-                    logging!(warn, Type::Validate, "脚本缺少main函数: {}", path);
+                    logging!(warn, Type::Validate, "В скрипте отсутствует функция main: {}", path);
                     return Ok(ValidationOutcome::invalid_from_message(error_msg));
                 }
 
@@ -272,7 +288,7 @@ impl CoreConfigValidator {
             }
             Err(err) => {
                 let error_msg: String = format!("Script syntax error: {err}").into();
-                logging!(warn, Type::Validate, "脚本语法错误: {}", err);
+                logging!(warn, Type::Validate, "Ошибка синтаксиса скрипта: {}", err);
                 Ok(ValidationOutcome::invalid_from_message(error_msg))
             }
         }
@@ -285,7 +301,7 @@ impl CoreConfigValidator {
     ) -> Result<ValidationOutcome> {
         // 检查程序是否正在退出，如果是则跳过验证
         if handle::Handle::global().is_exiting() {
-            logging!(info, Type::Core, "应用正在退出，跳过验证");
+            logging!(info, Type::Core, "Приложение завершает работу, проверка пропущена");
             return Ok(ValidationOutcome::Skipped {
                 reason: ValidationSkipReason::Exiting,
             });
@@ -299,7 +315,12 @@ impl CoreConfigValidator {
 
         // 如果是合并文件且不是强制验证，执行语法检查但不进行完整验证
         if is_merge_file.unwrap_or(false) {
-            logging!(info, Type::Validate, "检测到Merge文件，仅进行语法检查: {}", config_path);
+            logging!(
+                info,
+                Type::Validate,
+                "Обнаружен файл Merge, выполняется только проверка синтаксиса: {}",
+                config_path
+            );
             return Self::validate_file_syntax_outcome(config_path).await;
         }
 
@@ -307,7 +328,13 @@ impl CoreConfigValidator {
             Ok(result) => result,
             Err(err) => {
                 // 如果无法确定文件类型，尝试使用Clash内核验证
-                logging!(warn, Type::Validate, "无法确定文件类型: {}, 错误: {}", config_path, err);
+                logging!(
+                    warn,
+                    Type::Validate,
+                    "Не удалось определить тип файла: {}, ошибка: {}",
+                    config_path,
+                    err
+                );
                 return Self::validate_config_internal_outcome(config_path).await;
             }
         };
@@ -316,14 +343,14 @@ impl CoreConfigValidator {
             logging!(
                 info,
                 Type::Validate,
-                "检测到脚本文件，使用JavaScript验证: {}",
+                "Обнаружен файл скрипта, используется проверка JavaScript: {}",
                 config_path
             );
             return Self::validate_script_file_outcome(config_path).await;
         }
 
         // 对YAML配置文件使用Clash内核验证
-        logging!(info, Type::Validate, "使用Clash内核验证配置文件: {}", config_path);
+        logging!(info, Type::Validate, "Проверка конфига ядром Clash: {}", config_path);
         Self::validate_config_internal_outcome(config_path).await
     }
 
@@ -331,21 +358,21 @@ impl CoreConfigValidator {
     async fn validate_config_internal_outcome(config_path: &str) -> Result<ValidationOutcome> {
         // 检查程序是否正在退出，如果是则跳过验证
         if handle::Handle::global().is_exiting() {
-            logging!(info, Type::Validate, "应用正在退出，跳过验证");
+            logging!(info, Type::Validate, "Приложение завершает работу, проверка пропущена");
             return Ok(ValidationOutcome::Skipped {
                 reason: ValidationSkipReason::Exiting,
             });
         }
 
-        logging!(info, Type::Validate, "开始验证配置文件: {}", config_path);
+        logging!(info, Type::Validate, "Начало проверки конфига: {}", config_path);
 
         let clash_core = Config::verge().await.latest_arc().get_valid_clash_core();
-        logging!(info, Type::Validate, "使用内核: {}", clash_core);
+        logging!(info, Type::Validate, "Используется ядро: {}", clash_core);
 
         let app_handle = handle::Handle::app_handle();
         let app_dir = dirs::app_home_dir()?;
         let app_dir_str = dirs::path_to_str(&app_dir)?;
-        logging!(info, Type::Validate, "验证目录: {}", app_dir_str);
+        logging!(info, Type::Validate, "Каталог проверки: {}", app_dir_str);
 
         // 使用子进程运行clash验证配置
         let command =
@@ -363,25 +390,25 @@ impl CoreConfigValidator {
         let error_keywords = ["FATA", "fatal", "Parse config error", "level=fatal"];
         let has_error = !status.success() || contains_any_keyword(stderr, &error_keywords);
 
-        logging!(info, Type::Validate, "-------- 验证结果 --------");
+        logging!(info, Type::Validate, "-------- Результат проверки --------");
 
         if !stderr.is_empty() {
-            logging!(info, Type::Validate, "stderr输出:\n{:?}", stderr);
+            logging!(info, Type::Validate, "Вывод stderr:\n{:?}", stderr);
         }
 
         if has_error {
-            logging!(info, Type::Validate, "发现错误，开始处理错误信息");
+            logging!(info, Type::Validate, "Обнаружена ошибка, обработка сообщения об ошибке");
             let error_msg: String = if !stdout.is_empty() {
                 str::from_utf8(stdout).unwrap_or_default().into()
             } else if !stderr.is_empty() {
                 str::from_utf8(stderr).unwrap_or_default().into()
             } else if let Some(code) = status.code() {
-                format!("验证进程异常退出，退出码: {code}").into()
+                format!("Процесс проверки завершился аварийно, код выхода: {code}").into()
             } else {
-                "验证进程被终止".into()
+                "Процесс проверки был прерван".into()
             };
 
-            logging!(info, Type::Validate, "-------- 验证结束 --------");
+            logging!(info, Type::Validate, "-------- Проверка завершена --------");
             let outcome = if status.code().is_none() {
                 ValidationOutcome::invalid(ValidationErrorKind::ProcessTerminated, error_msg)
             } else {
@@ -389,8 +416,8 @@ impl CoreConfigValidator {
             };
             Ok(outcome)
         } else {
-            logging!(info, Type::Validate, "验证成功");
-            logging!(info, Type::Validate, "-------- 验证结束 --------");
+            logging!(info, Type::Validate, "Проверка успешна");
+            logging!(info, Type::Validate, "-------- Проверка завершена --------");
             Ok(ValidationOutcome::Valid)
         }
     }
@@ -398,13 +425,13 @@ impl CoreConfigValidator {
     /// 验证运行时配置
     pub async fn validate_config_outcome(&self) -> Result<ValidationOutcome> {
         if !self.try_start() {
-            logging!(info, Type::Validate, "验证已在进行中，跳过新的验证请求");
+            logging!(info, Type::Validate, "Проверка уже выполняется, новый запрос пропущен");
             return Ok(ValidationOutcome::Busy);
         }
         defer! {
             self.finish();
         }
-        logging!(info, Type::Validate, "生成临时配置文件用于验证");
+        logging!(info, Type::Validate, "Создание временного конфига для проверки");
 
         let config_path = Config::generate_file(ConfigType::Check).await?;
         let config_path = dirs::path_to_str(&config_path)?;

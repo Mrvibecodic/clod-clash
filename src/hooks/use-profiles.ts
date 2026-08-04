@@ -15,7 +15,7 @@ export const useProfiles = () => {
     queryFn: async () => {
       const data = await getProfiles()
       debugLog(
-        '[useProfiles] 配置数据更新成功，配置数量:',
+        '[useProfiles] Данные конфигурации успешно обновлены, количество конфигураций:',
         data?.items?.length || 0,
       )
       return data

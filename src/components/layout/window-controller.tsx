@@ -36,7 +36,10 @@ export const WindowResizeHandles = () => {
         void currentWindow
           .startResizeDragging(handle.direction)
           .catch((error) =>
-            console.warn('[WindowResizeHandles] 调整窗口大小失败:', error),
+            console.warn(
+              '[WindowResizeHandles] Не удалось изменить размер окна:',
+              error,
+            ),
           )
       }
     },

@@ -17,20 +17,20 @@ pub async fn open_or_close_dashboard() {
 }
 
 pub async fn quit() {
-    logging!(debug, Type::System, "启动退出流程");
+    logging!(debug, Type::System, "запуск процесса выхода");
     // 设置退出标志
     handle::Handle::global().set_is_exiting();
 
     utils::server::shutdown_embedded_server();
     Config::apply_all_and_save_file().await;
 
-    logging!(info, Type::System, "开始异步清理资源");
+    logging!(info, Type::System, "начало асинхронной очистки ресурсов");
     let cleanup_result = clean_async().await;
 
     logging!(
         info,
         Type::System,
-        "资源清理完成，退出代码: {}",
+        "очистка ресурсов завершена, код выхода: {}",
         if cleanup_result { 0 } else { 1 }
     );
 
@@ -39,28 +39,32 @@ pub async fn quit() {
 }
 
 pub async fn clean_async() -> bool {
-    logging!(info, Type::System, "开始执行异步清理操作...");
+    logging!(info, Type::System, "начало асинхронной очистки...");
 
     // 重置系统代理
     let proxy_task = tokio::task::spawn(async {
         let sys_proxy_enabled = Config::verge().await.data_arc().enable_system_proxy.unwrap_or(false);
         if !sys_proxy_enabled {
-            logging!(info, Type::Window, "系统代理未启用，跳过重置");
+            logging!(info, Type::Window, "системный прокси не включён, сброс пропущен");
             return true;
         }
 
-        logging!(info, Type::Window, "开始重置系统代理...");
+        logging!(info, Type::Window, "сброс системного прокси...");
         match timeout(Duration::from_millis(1500), sysopt::Sysopt::global().reset_sysproxy()).await {
             Ok(Ok(_)) => {
-                logging!(info, Type::Window, "系统代理已重置");
+                logging!(info, Type::Window, "системный прокси сброшен");
                 true
             }
             Ok(Err(e)) => {
-                logging!(warn, Type::Window, "Warning: 重置系统代理失败: {e}");
+                logging!(warn, Type::Window, "Warning: не удалось сбросить системный прокси: {e}");
                 false
             }
             Err(_) => {
-                logging!(warn, Type::Window, "Warning: 重置系统代理超时，继续退出");
+                logging!(
+                    warn,
+                    Type::Window,
+                    "Warning: таймаут сброса системного прокси, продолжаем выход"
+                );
                 false
             }
         }
@@ -81,16 +85,16 @@ pub async fn clean_async() -> bool {
             .await
             {
                 Ok(Ok(_)) => {
-                    logging!(info, Type::Window, "TUN模式已禁用");
+                    logging!(info, Type::Window, "режим TUN отключён");
                 }
                 Ok(Err(e)) => {
-                    logging!(warn, Type::Window, "Warning: 禁用TUN模式失败: {e}");
+                    logging!(warn, Type::Window, "Warning: не удалось отключить режим TUN: {e}");
                 }
                 Err(_) => {
                     logging!(
                         warn,
                         Type::Window,
-                        "Warning: 禁用TUN模式超时（可能系统正在关机），继续退出流程"
+                        "Warning: таймаут отключения режима TUN (возможно, система выключается), продолжаем выход"
                     );
                 }
             }
@@ -104,14 +108,14 @@ pub async fn clean_async() -> bool {
         logging!(info, Type::System, "stop core");
         match timeout(stop_timeout, CoreManager::global().stop_core()).await {
             Ok(_) => {
-                logging!(info, Type::Window, "core已停止");
+                logging!(info, Type::Window, "ядро остановлено");
                 true
             }
             Err(_) => {
                 logging!(
                     warn,
                     Type::Window,
-                    "Warning: 停止core超时（可能系统正在关机），继续退出"
+                    "Warning: таймаут остановки ядра (возможно, система выключается), продолжаем выход"
                 );
                 false
             }
@@ -128,11 +132,11 @@ pub async fn clean_async() -> bool {
         .await
         {
             Ok(_) => {
-                logging!(info, Type::Window, "DNS设置已恢复");
+                logging!(info, Type::Window, "настройки DNS восстановлены");
                 true
             }
             Err(_) => {
-                logging!(warn, Type::Window, "Warning: 恢复DNS设置超时");
+                logging!(warn, Type::Window, "Warning: таймаут восстановления настроек DNS");
                 false
             }
         }
@@ -152,7 +156,7 @@ pub async fn clean_async() -> bool {
     logging!(
         info,
         Type::System,
-        "异步关闭操作完成 - 代理: {}, 核心: {}, DNS: {}, 总体: {}",
+        "асинхронное завершение выполнено — прокси: {}, ядро: {}, DNS: {}, итог: {}",
         proxy_success,
         core_success,
         dns_success,

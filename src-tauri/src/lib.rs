@@ -34,7 +34,7 @@ mod app_init {
     /// Initialize singleton monitoring for other instances
     pub fn init_singleton_check() -> Result<()> {
         AsyncHandler::block_on(async move {
-            logging!(info, Type::Setup, "开始检查单例实例...");
+            logging!(info, Type::Setup, "проверка единственного экземпляра...");
             server::check_singleton().await?;
             Ok(())
         })
@@ -84,7 +84,7 @@ mod app_init {
     pub fn setup_deep_links(app: &tauri::App) {
         #[cfg(any(target_os = "linux", all(debug_assertions, windows)))]
         {
-            logging!(info, Type::Setup, "注册深层链接...");
+            logging!(info, Type::Setup, "регистрация deep link...");
             let _ = app.deep_link().register_all();
         }
 
@@ -119,7 +119,7 @@ mod app_init {
 
     /// Setup window state management
     pub fn setup_window_state(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-        logging!(info, Type::Setup, "初始化窗口状态管理...");
+        logging!(info, Type::Setup, "инициализация управления состоянием окна...");
         let window_state_plugin = tauri_plugin_window_state::Builder::new()
             .with_filename(files::WINDOW_STATE)
             .with_state_flags(tauri_plugin_window_state::StateFlags::default())
@@ -260,7 +260,7 @@ pub fn run() {
                 logging!(
                     error,
                     Type::Setup,
-                    "setup 阶段 panic（{}）—— 降级继续启动: {}",
+                    "panic на этапе setup ({}) — деградированный запуск продолжается: {}",
                     stage,
                     msg
                 );
@@ -278,7 +278,7 @@ pub fn run() {
                     logging!(error, Type::Setup, "Failed to init work dir/logger: {}", e);
                 }
 
-                logging!(info, Type::Setup, "开始应用初始化...");
+                logging!(info, Type::Setup, "начало инициализации приложения...");
                 if let Err(e) = app_init::setup_autostart(app) {
                     logging!(error, Type::Setup, "Failed to setup autostart: {}", e);
                 }
@@ -297,7 +297,7 @@ pub fn run() {
                 resolve::resolve_setup_async();
                 resolve::resolve_setup_sync();
                 resolve::init_signal();
-                logging!(info, Type::Setup, "初始化已启动");
+                logging!(info, Type::Setup, "инициализация запущена");
             })) {
                 log_setup_panic("window-core", panic);
             }
@@ -328,11 +328,11 @@ pub fn run() {
 
         pub fn handle_ready_resumed(_app_handle: &AppHandle) {
             if handle::Handle::global().is_exiting() {
-                logging!(debug, Type::System, "应用正在退出，跳过处理");
+                logging!(debug, Type::System, "приложение завершает работу, обработка пропущена");
                 return;
             }
 
-            logging!(info, Type::System, "应用就绪");
+            logging!(info, Type::System, "приложение готово");
 
             #[cfg(target_os = "macos")]
             if let Some(window) = _app_handle.get_webview_window("main") {

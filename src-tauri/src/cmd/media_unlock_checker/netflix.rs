@@ -27,7 +27,7 @@ pub(super) async fn check_netflix(client: &Client) -> UnlockItem {
         .await;
 
     if let Err(e) = &result1 {
-        logging!(error, Type::Network, "Netflix请求错误: {e}");
+        logging!(error, Type::Network, "Ошибка запроса к Netflix: {e}");
         return netflix_item("Failed", None);
     }
 
@@ -38,7 +38,7 @@ pub(super) async fn check_netflix(client: &Client) -> UnlockItem {
         .await;
 
     if let Err(e) = &result2 {
-        logging!(error, Type::Network, "Netflix请求错误: {e}");
+        logging!(error, Type::Network, "Ошибка запроса к Netflix: {e}");
         return netflix_item("Failed", None);
     }
 
@@ -88,12 +88,12 @@ pub(super) async fn check_netflix(client: &Client) -> UnlockItem {
                 UnlockItem::checked_region(NETFLIX, "Yes", "us")
             }
             Err(e) => {
-                logging!(error, Type::Network, "获取Netflix区域信息失败: {e}");
-                netflix_item("Yes (但无法获取区域)", None)
+                logging!(error, Type::Network, "Не удалось получить регион Netflix: {e}");
+                netflix_item("Yes (но регион не определён)", None)
             }
         }
     } else {
-        netflix_item(format!("Failed (状态码: {status1}_{status2}"), None)
+        netflix_item(format!("Failed (код статуса: {status1}_{status2}"), None)
     }
 }
 
@@ -119,13 +119,13 @@ async fn check_netflix_cdn(client: &Client) -> UnlockItem {
                     netflix_item("Unknown", None)
                 }
                 Err(e) => {
-                    logging!(error, Type::Network, "解析Fast.com API响应失败: {e}");
-                    netflix_item("Failed (解析错误)", None)
+                    logging!(error, Type::Network, "Не удалось разобрать ответ Fast.com API: {e}");
+                    netflix_item("Failed (ошибка разбора)", None)
                 }
             }
         }
         Err(e) => {
-            logging!(error, Type::Network, "Fast.com API请求失败: {e}");
+            logging!(error, Type::Network, "Ошибка запроса Fast.com API: {e}");
             netflix_item("Failed (CDN API)", None)
         }
     }

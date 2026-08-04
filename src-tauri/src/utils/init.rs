@@ -462,7 +462,7 @@ pub async fn init_config() -> Result<()> {
         if let Err(e) = delete_log().await {
             logging!(warn, Type::Setup, "Failed to clean old logs: {}", e);
         }
-        logging!(info, Type::Setup, "后台日志清理任务完成");
+        logging!(info, Type::Setup, "Фоновая задача очистки логов завершена");
     });
 
     Ok(())

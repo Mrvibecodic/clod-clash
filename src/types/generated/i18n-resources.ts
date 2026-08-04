@@ -563,6 +563,9 @@ export interface TranslationResources {
           placeholder: string
         }
         title: string
+        tooltips: {
+          emergencyRefresh: string
+        }
       }
     }
     proxies: {
@@ -613,6 +616,8 @@ export interface TranslationResources {
           instruction: string
           minimumNodes: string
           minimumNodesHint: string
+          nodeCount: string
+          noGroups: string
           warning: string
         }
         labels: {

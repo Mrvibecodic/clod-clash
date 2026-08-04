@@ -86,7 +86,9 @@ function useProxyRenderState(
   // 测全部延迟
   const handleCheckAll = useStableCallback(
     useLockFn(async (groupName: string) => {
-      debugLog(`[ProxyGroups] 开始测试所有延迟，组: ${groupName}`)
+      debugLog(
+        `[ProxyGroups] Начало тестирования всех задержек, группа: ${groupName}`,
+      )
 
       const proxies = renderList
         .filter(
@@ -95,24 +97,29 @@ function useProxyRenderState(
         .flatMap((e) => e.proxyCol || e.proxy!)
         .filter(Boolean)
 
-      debugLog(`[ProxyGroups] 找到代理数量: ${proxies.length}`)
+      debugLog(`[ProxyGroups] Найдено прокси: ${proxies.length}`)
 
       const url = delayManager.getUrl(groupName)
-      debugLog(`[ProxyGroups] 测试URL: ${url}, 超时: ${timeout}ms`)
+      debugLog(`[ProxyGroups] URL теста: ${url}, тайм-аут: ${timeout}ms`)
 
       try {
         await Promise.race([
           delayManager.checkListDelay(proxies, groupName, timeout),
           delayGroup(groupName, url, timeout, true).then((result) => {
             debugLog(
-              `[ProxyGroups] getGroupProxyDelays返回结果数量:`,
+              `[ProxyGroups] getGroupProxyDelays вернул количество результатов:`,
               Object.keys(result || {}).length,
             )
           }), // clod: keepFixed=true — тест не сбрасывает закреплённый узел
         ])
-        debugLog(`[ProxyGroups] 延迟测试完成，组: ${groupName}`)
+        debugLog(
+          `[ProxyGroups] Тестирование задержки завершено, группа: ${groupName}`,
+        )
       } catch (error) {
-        console.error(`[ProxyGroups] 延迟测试出错，组: ${groupName}`, error)
+        console.error(
+          `[ProxyGroups] Ошибка тестирования задержки, группа: ${groupName}`,
+          error,
+        )
       } finally {
         const headState = getGroupHeadState(groupName)
         if (headState?.sortType === 1) {
@@ -443,7 +450,7 @@ function NormalProxyGroups(props: { mode: string }) {
       onProxies()
     },
     onError: (error) => {
-      console.error('代理切换失败', error)
+      console.error('Ошибка переключения прокси', error)
       onProxies()
     },
   })

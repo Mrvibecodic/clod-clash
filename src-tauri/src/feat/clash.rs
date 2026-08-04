@@ -49,20 +49,20 @@ pub async fn restart_clash_core() {
 
 /// Restart the application
 pub async fn restart_app() {
-    logging!(debug, Type::System, "启动重启应用流程");
+    logging!(debug, Type::System, "Запуск процесса перезапуска приложения");
     // 设置退出标志
     handle::Handle::global().set_is_exiting();
 
     utils::server::shutdown_embedded_server();
     Config::apply_all_and_save_file().await;
 
-    logging!(info, Type::System, "开始异步清理资源");
+    logging!(info, Type::System, "Начало асинхронной очистки ресурсов");
     let cleanup_result = clean_async().await;
 
     logging!(
         info,
         Type::System,
-        "资源清理完成，退出代码: {}",
+        "Очистка ресурсов завершена, код выхода: {}",
         if cleanup_result { 0 } else { 1 }
     );
 
@@ -107,7 +107,11 @@ async fn mode_locked_by_panel() -> bool {
 
 pub async fn change_clash_mode(mode: String) -> Result<(), String> {
     if mode_locked_by_panel().await {
-        logging!(info, Type::Core, "mode change refused: locked by the panel (clod-lock-mode)");
+        logging!(
+            info,
+            Type::Core,
+            "mode change refused: locked by the panel (clod-lock-mode)"
+        );
         return Err(clash_verge_i18n::t!("common.modeLocked").into_owned().into());
     }
     let mut mapping = Mapping::new();

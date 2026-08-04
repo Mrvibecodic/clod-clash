@@ -52,7 +52,11 @@ impl TraySpeedController {
 
         // 关键步骤：托盘不可用时不启动速率任务，避免无效连接重试。
         if !Self::has_main_tray() {
-            logging!(warn, Type::Tray, "托盘不可用，跳过启动托盘速率任务");
+            logging!(
+                warn,
+                Type::Tray,
+                "трей недоступен, запуск задачи скорости в трее пропущен"
+            );
             return;
         }
 
@@ -69,7 +73,11 @@ impl TraySpeedController {
                 }
 
                 if !Self::has_main_tray() {
-                    logging!(warn, Type::Tray, "托盘已不可用，停止托盘速率任务");
+                    logging!(
+                        warn,
+                        Type::Tray,
+                        "трей стал недоступен, задача скорости в трее остановлена"
+                    );
                     break;
                 }
 
@@ -77,7 +85,11 @@ impl TraySpeedController {
                 let mut speed_stream = match stream_connect_result {
                     Ok(stream) => stream,
                     Err(err) => {
-                        logging!(debug, Type::Tray, "托盘速率流连接失败，稍后重试: {err}");
+                        logging!(
+                            debug,
+                            Type::Tray,
+                            "не удалось подключиться к потоку скорости трея, повтор позже: {err}"
+                        );
                         Self::apply_tray_speed(0, 0);
                         tokio::time::sleep(TRAY_SPEED_RETRY_DELAY).await;
                         continue;
@@ -98,7 +110,11 @@ impl TraySpeedController {
                             Self::apply_tray_speed(speed_event.up, speed_event.down);
                         }
                         connections_stream::StreamConsumeState::Stale => {
-                            logging!(debug, Type::Tray, "托盘速率流长时间未收到有效数据，触发重连");
+                            logging!(
+                                debug,
+                                Type::Tray,
+                                "поток скорости трея долго не получает данные, переподключение"
+                            );
                             Self::apply_tray_speed(0, 0);
                             break;
                         }
@@ -152,7 +168,11 @@ impl TraySpeedController {
                 }
             });
             if let Err(err) = result {
-                logging!(warn, Type::Tray, "清除富文本速率失败: {err}");
+                logging!(
+                    warn,
+                    Type::Tray,
+                    "не удалось очистить форматированный текст скорости: {err}"
+                );
             }
         }
     }
@@ -187,7 +207,11 @@ impl TraySpeedController {
                 }
             });
             if let Err(err) = result {
-                logging!(warn, Type::Tray, "设置富文本速率失败: {err}");
+                logging!(
+                    warn,
+                    Type::Tray,
+                    "не удалось установить форматированный текст скорости: {err}"
+                );
             }
         }
     }

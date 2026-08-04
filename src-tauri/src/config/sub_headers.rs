@@ -904,10 +904,7 @@ mod tests {
         // Remnawave шлёт `x-hwid-limit` в обеих ветках блокировки, поэтому
         // «идентификатор не прислан» должен побеждать: пользователю надо
         // предложить включить идентификацию, а не сообщить о чужом лимите.
-        let parsed = SubHeaders::parse(&headers(&[
-            ("x-hwid-not-supported", "true"),
-            ("x-hwid-limit", "true"),
-        ]));
+        let parsed = SubHeaders::parse(&headers(&[("x-hwid-not-supported", "true"), ("x-hwid-limit", "true")]));
         assert_eq!(parsed.hwid_state, HwidState::NotSupported);
     }
 

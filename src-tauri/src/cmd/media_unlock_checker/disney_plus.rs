@@ -298,7 +298,7 @@ pub(super) async fn check_disney_plus(client: &Client) -> UnlockItem {
     match in_supported_location {
         Some(false) => disney_item(
             "Soon",
-            Some(format!("{}（即将上线）", UnlockItem::region_label(&region))),
+            Some(format!("{} (скоро запуск)", UnlockItem::region_label(&region))),
         ),
         Some(true) => UnlockItem::checked_region(DISNEY_PLUS, "Yes", &region),
         None => disney_item(format!("Failed (Error: Unknown region status for {region})"), None),

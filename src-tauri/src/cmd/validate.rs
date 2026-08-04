@@ -23,16 +23,21 @@ pub async fn script_validate_notice(status: String, msg: String) -> CmdResult {
 /// 验证指定脚本文件
 #[tauri::command]
 pub async fn validate_script_file(file_path: String) -> CmdResult<ValidationOutcome> {
-    logging!(info, Type::Config, "验证脚本文件: {}", file_path);
+    logging!(info, Type::Config, "проверка файла скрипта: {}", file_path);
 
     match CoreConfigValidator::validate_config_file_outcome(&file_path, None).await {
         Ok(outcome) => {
-            handle_validation_notice(&outcome, ValidationNoticeTarget::Script, "脚本文件");
+            handle_validation_notice(&outcome, ValidationNoticeTarget::Script, "файл скрипта");
             Ok(outcome)
         }
         Err(e) => {
             let error_msg = e.to_string();
-            logging!(error, Type::Config, "验证脚本文件过程发生错误: {}", error_msg);
+            logging!(
+                error,
+                Type::Config,
+                "ошибка в процессе проверки файла скрипта: {}",
+                error_msg
+            );
             handle::Handle::notice_message("config_validate::process_terminated", &error_msg);
             Ok(ValidationOutcome::invalid(
                 ValidationErrorKind::ProcessTerminated,
@@ -70,12 +75,12 @@ pub fn handle_validation_notice(outcome: &ValidationOutcome, target: ValidationN
     match outcome {
         ValidationOutcome::Invalid { kind, message } => {
             let status = notice_key(*kind, target);
-            logging!(warn, Type::Config, "{} 验证失败: {}", file_type, message);
+            logging!(warn, Type::Config, "{}: проверка не пройдена: {}", file_type, message);
             handle::Handle::notice_message(status, message.to_owned());
         }
         ValidationOutcome::Busy | ValidationOutcome::Skipped { .. } => {
             let message = outcome.to_string();
-            logging!(warn, Type::Config, "{} 验证跳过: {}", file_type, message);
+            logging!(warn, Type::Config, "{}: проверка пропущена: {}", file_type, message);
             handle::Handle::notice_message("config_validate::error", message);
         }
         ValidationOutcome::Valid => {}

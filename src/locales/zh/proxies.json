@@ -52,7 +52,9 @@
       "disconnectFailed": "断开链式代理失败",
       "duplicateNode": "该节点已在链式代理表中",
       "entryNode": "入口",
-      "exitNode": "出口"
+      "exitNode": "出口",
+      "nodeCount": "{{count}} 个节点",
+      "noGroups": "暂无可用代理组"
     },
     "messages": {
       "directMode": "直连模式"

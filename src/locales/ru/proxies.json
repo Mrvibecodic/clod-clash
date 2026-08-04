@@ -52,7 +52,9 @@
       "disconnectFailed": "Не удалось отключиться от цепочки прокси",
       "duplicateNode": "Этот узел уже добавлен в цепочку",
       "entryNode": "Вход",
-      "exitNode": "Выход"
+      "exitNode": "Выход",
+      "nodeCount": "{{count}} узлов",
+      "noGroups": "Нет доступных групп прокси"
     },
     "messages": {
       "directMode": "Прямой режим"

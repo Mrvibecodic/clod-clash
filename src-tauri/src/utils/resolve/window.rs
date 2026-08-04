@@ -340,7 +340,7 @@ pub fn on_web_content_process_terminated(webview: &tauri::Webview) {
     logging!(
         warn,
         Type::Window,
-        "WebView 渲染进程已被系统终止（label={}），开始恢复",
+        "процесс рендеринга WebView завершён системой (label={}), начало восстановления",
         webview.label()
     );
 
@@ -354,7 +354,11 @@ pub fn on_web_content_process_terminated(webview: &tauri::Webview) {
     if !reload_now {
         // 主窗口不可见：置标记，延迟到下次 activate_window / reload_main_window_if_needed 再 reload
         WEBVIEW_NEEDS_RELOAD.store(true, std::sync::atomic::Ordering::SeqCst);
-        logging!(info, Type::Window, "窗口不可见，页面将在下次打开窗口时重载");
+        logging!(
+            info,
+            Type::Window,
+            "окно не видно, страница перезагрузится при следующем открытии окна"
+        );
     }
 
     // 清理全部 Mihomo WS 订阅，阻断 ChannelDataIpcQueue 泄漏（托盘速率任务约 1s 后自重连）。
@@ -362,9 +366,13 @@ pub fn on_web_content_process_terminated(webview: &tauri::Webview) {
     let webview = webview.clone();
     crate::process::AsyncHandler::spawn(move || async move {
         if let Err(err) = handle::Handle::mihomo().await.clear_all_ws_connections().await {
-            logging!(warn, Type::Window, "清理 Mihomo WebSocket 连接失败: {err}");
+            logging!(
+                warn,
+                Type::Window,
+                "не удалось очистить подключения Mihomo WebSocket: {err}"
+            );
         } else {
-            logging!(info, Type::Window, "已清理全部 Mihomo WebSocket 连接");
+            logging!(info, Type::Window, "все подключения Mihomo WebSocket очищены");
         }
         if reload_now {
             logging_error!(Type::Window, webview.reload());
@@ -383,9 +391,13 @@ pub fn reload_main_window_if_needed() {
     let Some(window) = crate::utils::window_manager::WindowManager::get_main_window() else {
         return;
     };
-    logging!(info, Type::Window, "渲染进程曾被系统终止，窗口聚焦后重载页面");
+    logging!(
+        info,
+        Type::Window,
+        "процесс рендеринга был завершён системой, страница перезагружена после фокуса окна"
+    );
     if let Err(e) = window.reload() {
-        logging!(warn, Type::Window, "重载页面失败: {e}");
+        logging!(warn, Type::Window, "не удалось перезагрузить страницу: {e}");
     }
 }
 

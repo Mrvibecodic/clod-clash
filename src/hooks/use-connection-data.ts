@@ -363,4 +363,3 @@ export const useConnectionData = (options?: { enabled?: boolean }) => {
     clearClosedConnections,
   }
 }
-

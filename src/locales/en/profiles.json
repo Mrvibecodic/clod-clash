@@ -7,6 +7,9 @@
       "import": "Import",
       "addSubscription": "Add subscription"
     },
+    "tooltips": {
+      "emergencyRefresh": "Data anomaly detected, click to force refresh"
+    },
     "batch": {
       "actions": {
         "delete": "Delete Selected Profiles",

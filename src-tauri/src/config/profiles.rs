@@ -474,7 +474,7 @@ impl IProfiles {
             logging!(
                 warn,
                 Type::Config,
-                "Profile items 为空，跳过孤儿文件清理以避免误删活跃的配置文件"
+                "Элементы Profile пусты, пропускаю очистку осиротевших файлов, чтобы не удалить активные конфиги"
             );
             return Ok(());
         }
@@ -505,7 +505,11 @@ impl IProfiles {
             {
                 // 检查是否为全局扩展文件
                 if protected_files.contains(file_name) {
-                    logging!(debug, Type::Config, "保护全局扩展配置文件: {file_name}");
+                    logging!(
+                        debug,
+                        Type::Config,
+                        "Защищаю глобальный расширенный конфиг: {file_name}"
+                    );
                     continue;
                 }
 
@@ -514,11 +518,15 @@ impl IProfiles {
                     match path.to_path_buf().remove_if_exists().await {
                         Ok(_) => {
                             deleted_files += 1;
-                            logging!(debug, Type::Config, "已清理冗余文件: {file_name}");
+                            logging!(debug, Type::Config, "Удалён лишний файл: {file_name}");
                         }
                         Err(e) => {
                             failed_deletions += 1;
-                            logging!(warn, Type::Config, "Warning: 清理文件失败: {file_name} - {e}");
+                            logging!(
+                                warn,
+                                Type::Config,
+                                "Warning: Не удалось удалить файл: {file_name} - {e}"
+                            );
                         }
                     }
                 }
@@ -534,7 +542,7 @@ impl IProfiles {
         logging!(
             info,
             Type::Config,
-            "Profile 文件清理完成: 总文件数={}, 删除文件数={}, 失败数={}",
+            "Очистка файлов Profile завершена: всего файлов={}, удалено={}, ошибок={}",
             result.total_files,
             result.deleted_files,
             result.failed_deletions

@@ -202,7 +202,9 @@ const ProfilePage = () => {
 
   // 添加紧急恢复功能
   const onEmergencyRefresh = useLockFn(async () => {
-    debugLog('[紧急刷新] 开始强制刷新所有数据')
+    debugLog(
+      '[Экстренное обновление] Начало принудительного обновления всех данных',
+    )
 
     try {
       // 只失效 profiles 相关 query，不影响 WS 订阅、IP 缓存等其他 query
@@ -220,7 +222,7 @@ const ProfilePage = () => {
         2000,
       )
     } catch (error) {
-      console.error('[紧急刷新] 失败:', error)
+      console.error('[Экстренное обновление] Ошибка:', error)
       showNotice.error(
         'profiles.page.feedback.notices.emergencyRefreshFailed',
         { message: String(error) },
@@ -327,7 +329,7 @@ const ProfilePage = () => {
           debugProfileSwitch('SWITCH_REJECTED', profile, outcome)
         }
       } catch (err: any) {
-        console.error(`[Profile] 切换失败:`, err)
+        console.error(`[Profile] Ошибка переключения:`, err)
         showNotice.error(err, 4000)
       } finally {
         debugProfileSwitch('SWITCH_END', profile)
@@ -427,7 +429,7 @@ const ProfilePage = () => {
   const onEnhance = useLockFn(async (notifySuccess: boolean) => {
     if (switchRunnerRef.current) {
       debugLog(
-        `[Profile] 有profile正在切换中(${latestSwitchTargetRef.current})，跳过enhance操作`,
+        `[Profile] Переключение профиля уже выполняется (${latestSwitchTargetRef.current}), пропускаем enhance`,
       )
       return
     }
@@ -549,7 +551,7 @@ const ProfilePage = () => {
           await updateProfile(uid)
           throttleMutate()
         } catch (err: any) {
-          console.error(`更新订阅 ${uid} 失败:`, err)
+          console.error(`Не удалось обновить подписку ${uid}:`, err)
         }
       }
 
@@ -713,7 +715,7 @@ const ProfilePage = () => {
                 <IconButton
                   size="small"
                   color="warning"
-                  title="数据异常，点击强制刷新"
+                  title={t('profiles.page.tooltips.emergencyRefresh')}
                   onClick={onEmergencyRefresh}
                   sx={{
                     animation: 'pulse 2s infinite',

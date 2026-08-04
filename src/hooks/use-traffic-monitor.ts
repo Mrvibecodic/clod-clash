@@ -25,13 +25,13 @@ class ReferenceCounter {
 
   increment(): () => void {
     this.count++
-    debugLog(`[ReferenceCounter] 引用计数增加: ${this.count}`)
+    debugLog(`[ReferenceCounter] Счётчик ссылок увеличен: ${this.count}`)
 
     this.notify()
 
     return () => {
       this.count--
-      debugLog(`[ReferenceCounter] 引用计数减少: ${this.count}`)
+      debugLog(`[ReferenceCounter] Счётчик ссылок уменьшен: ${this.count}`)
 
       this.notify()
     }
@@ -468,4 +468,3 @@ export const useTrafficMonitorEnhanced = (options?: {
     referenceCount: refCounter.getCount(),
   }
 }
-

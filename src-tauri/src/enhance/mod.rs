@@ -696,15 +696,12 @@ fn group_fills_at_runtime(group: &Mapping, providers: &HashSet<String>) -> bool 
         return true;
     }
 
-    group
-        .get("use")
-        .and_then(Value::as_sequence)
-        .is_some_and(|names| {
-            names
-                .iter()
-                .filter_map(Value::as_str)
-                .any(|name| providers.contains(name))
-        })
+    group.get("use").and_then(Value::as_sequence).is_some_and(|names| {
+        names
+            .iter()
+            .filter_map(Value::as_str)
+            .any(|name| providers.contains(name))
+    })
 }
 
 /// Имена объявленных `proxy-providers`.

@@ -462,16 +462,25 @@ fn reinstall_service() -> Result<()> {
 
 /// 强制重装服务（UI修复按钮）
 fn force_reinstall_service() -> Result<()> {
-    logging!(info, Type::Service, "用户请求强制重装服务");
+    logging!(
+        info,
+        Type::Service,
+        "Пользователь запросил принудительную переустановку службы"
+    );
     reinstall_service().map_err(|err| {
-        logging!(error, Type::Service, "强制重装服务失败: {}", err);
+        logging!(
+            error,
+            Type::Service,
+            "Принудительная переустановка службы не удалась: {}",
+            err
+        );
         err
     })
 }
 
 /// 尝试使用服务启动core
 pub(super) async fn start_with_existing_service(config_file: &PathBuf) -> Result<()> {
-    logging!(info, Type::Service, "尝试使用现有服务启动核心");
+    logging!(info, Type::Service, "Попытка запуска ядра через существующую службу");
 
     let verge_config = Config::verge().await;
     let clash_core = verge_config.latest_arc().get_valid_clash_core();
@@ -504,60 +513,69 @@ pub(super) async fn start_with_existing_service(config_file: &PathBuf) -> Result
 
     let response = clash_verge_service_ipc::start_clash(&payload)
         .await
-        .context("无法连接到Clash Verge Service")?;
+        .context("Не удалось подключиться к Clash Verge Service")?;
 
     if response.code > 0 {
         let err_msg = response.message;
-        logging!(error, Type::Service, "启动核心失败: {}", err_msg);
+        logging!(error, Type::Service, "Не удалось запустить ядро: {}", err_msg);
         bail!(err_msg);
     }
 
-    logging!(info, Type::Service, "服务成功启动核心");
+    logging!(info, Type::Service, "Служба успешно запустила ядро");
     Ok(())
 }
 
 // 以服务启动core
 pub(super) async fn run_core_by_service(config_file: &PathBuf) -> Result<()> {
-    logging!(info, Type::Service, "正在尝试通过服务启动核心");
+    logging!(info, Type::Service, "Попытка запуска ядра через службу");
 
     SERVICE_MANAGER.refresh().await?;
 
-    logging!(info, Type::Service, "服务已运行且版本匹配，直接使用");
+    logging!(
+        info,
+        Type::Service,
+        "Служба уже запущена и версия совпадает, используем напрямую"
+    );
     start_with_existing_service(config_file).await
 }
 
 pub(super) async fn get_clash_logs_by_service() -> Result<Vec<CompactString>> {
-    logging!(info, Type::Service, "正在获取服务模式下的 Clash 日志");
+    logging!(info, Type::Service, "Получение логов Clash в режиме службы");
 
     let response = clash_verge_service_ipc::get_clash_logs()
         .await
-        .context("无法连接到Clash Verge Service")?;
+        .context("Не удалось подключиться к Clash Verge Service")?;
 
     if response.code > 0 {
         let err_msg = response.message;
-        logging!(error, Type::Service, "获取服务模式下的 Clash 日志失败: {}", err_msg);
+        logging!(
+            error,
+            Type::Service,
+            "Не удалось получить логи Clash в режиме службы: {}",
+            err_msg
+        );
         bail!(err_msg);
     }
 
-    logging!(info, Type::Service, "成功获取服务模式下的 Clash 日志");
+    logging!(info, Type::Service, "Логи Clash в режиме службы успешно получены");
     Ok(response.data.unwrap_or_default())
 }
 
 /// 通过服务停止core
 pub(super) async fn stop_core_by_service() -> Result<()> {
-    logging!(info, Type::Service, "通过服务停止核心 (IPC)");
+    logging!(info, Type::Service, "Остановка ядра через службу (IPC)");
 
     let response = clash_verge_service_ipc::stop_clash()
         .await
-        .context("无法连接到Clash Verge Service")?;
+        .context("Не удалось подключиться к Clash Verge Service")?;
 
     if response.code > 0 {
         let err_msg = response.message;
-        logging!(error, Type::Service, "停止核心失败: {}", err_msg);
+        logging!(error, Type::Service, "Не удалось остановить ядро: {}", err_msg);
         bail!(err_msg);
     }
 
-    logging!(info, Type::Service, "服务成功停止核心");
+    logging!(info, Type::Service, "Служба успешно остановила ядро");
     Ok(())
 }
 
@@ -616,7 +634,9 @@ impl ServiceManager {
 
     pub async fn init(&self) -> Result<()> {
         if let Err(e) = clash_verge_service_ipc::connect().await {
-            self.set_status(ServiceStatus::Unavailable("服务连接失败: {e}".to_string()));
+            self.set_status(ServiceStatus::Unavailable(
+                "Ошибка подключения к службе: {e}".to_string(),
+            ));
             return Err(e);
         }
         Ok(())
@@ -698,38 +718,63 @@ impl ServiceManager {
     async fn apply_service_status(&self, status: ServiceStatus) -> Result<()> {
         self.set_status(status.clone());
         match status {
-            ServiceStatus::Ready => logging!(info, Type::Service, "服务就绪，直接启动"),
+            ServiceStatus::Ready => logging!(info, Type::Service, "Служба готова, запуск напрямую"),
             ServiceStatus::NeedsReinstall | ServiceStatus::ReinstallRequired => {
                 REINSTALL_NOTICED.store(false, Ordering::Release);
-                logging!(info, Type::Service, "服务需要重装，执行重装流程");
+                logging!(
+                    info,
+                    Type::Service,
+                    "Требуется переустановка службы, запуск процесса переустановки"
+                );
                 run_service_command(reinstall_service, "reinstall service")?;
                 wait_for_service_ipc(self).await?;
             }
             ServiceStatus::ForceReinstallRequired => {
-                logging!(info, Type::Service, "服务需要强制重装，执行强制重装流程");
+                logging!(
+                    info,
+                    Type::Service,
+                    "Требуется принудительная переустановка службы, запуск процесса"
+                );
                 run_service_command(force_reinstall_service, "force reinstall service")?;
                 wait_for_service_ipc(self).await?;
             }
             ServiceStatus::InstallRequired => {
                 REINSTALL_NOTICED.store(false, Ordering::Release);
-                logging!(info, Type::Service, "需要安装服务，执行安装流程");
+                logging!(
+                    info,
+                    Type::Service,
+                    "Требуется установка службы, запуск процесса установки"
+                );
                 run_service_command(install_service, "install service")?;
                 wait_for_service_ipc(self).await?;
                 if clash_verge_service_ipc::is_reinstall_service_needed().await {
-                    logging!(info, Type::Service, "服务版本不匹配，执行重装流程");
+                    logging!(
+                        info,
+                        Type::Service,
+                        "Версия службы не совпадает, запуск процесса переустановки"
+                    );
                     self.set_status(ServiceStatus::NeedsReinstall);
                     run_service_command(reinstall_service, "reinstall service")?;
                     wait_for_service_ipc(self).await?;
                 }
             }
             ServiceStatus::UninstallRequired => {
-                logging!(info, Type::Service, "服务需要卸载，执行卸载流程");
+                logging!(
+                    info,
+                    Type::Service,
+                    "Требуется удаление службы, запуск процесса удаления"
+                );
                 run_service_command(uninstall_service, "uninstall service")?;
                 self.set_status(ServiceStatus::Unavailable("Service Uninstalled".into()));
             }
             ServiceStatus::Unavailable(reason) => {
-                logging!(info, Type::Service, "服务不可用: {}，将使用Sidecar模式", reason);
-                bail!("服务不可用: {}", reason);
+                logging!(
+                    info,
+                    Type::Service,
+                    "Служба недоступна: {}, будет использован режим Sidecar",
+                    reason
+                );
+                bail!("Служба недоступна: {}", reason);
             }
         }
 

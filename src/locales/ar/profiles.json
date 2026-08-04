@@ -7,6 +7,9 @@
       "import": "استيراد",
       "addSubscription": "Add subscription"
     },
+    "tooltips": {
+      "emergencyRefresh": "تم اكتشاف خلل في البيانات، انقر للتحديث القسري"
+    },
     "batch": {
       "actions": {
         "delete": "Delete Selected Profiles",

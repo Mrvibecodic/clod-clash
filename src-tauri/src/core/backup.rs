@@ -111,7 +111,7 @@ impl WebDavClient {
                     .user_agent(format!("clash-verge/{APP_VERSION} ({OS} WebDAV-Client)"))
                     .redirect(reqwest::redirect::Policy::custom(|attempt| {
                         if attempt.previous().len() >= 5 {
-                            attempt.error("重定向次数过多")
+                            attempt.error("Слишком много перенаправлений")
                         } else {
                             attempt.follow()
                         }

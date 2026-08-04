@@ -122,7 +122,11 @@ fn sync_click_target_frame(button: &NSStatusBarButton) {
 /// * `show_speed` - 是否以速率富文本样式绘制；false 时清空为普通空标题
 fn apply_status_item_attributed_title(status_item: &NSStatusItem, text: &NSString, show_speed: bool) {
     let Some(mtm) = MainThreadMarker::new() else {
-        logging!(warn, Type::Tray, "托盘速率富文本设置跳过：非主线程调用");
+        logging!(
+            warn,
+            Type::Tray,
+            "Пропускаю установку форматированного текста скорости в трее: вызов не из главного потока"
+        );
         return;
     };
     let Some(button) = status_item.button(mtm) else {

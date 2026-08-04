@@ -7,6 +7,9 @@
       "import": "インポート",
       "addSubscription": "Add subscription"
     },
+    "tooltips": {
+      "emergencyRefresh": "データ異常を検出しました。クリックして強制更新してください"
+    },
     "batch": {
       "actions": {
         "delete": "選択したプロファイルを削除",

@@ -40,8 +40,8 @@ impl UnlockItem {
 }
 
 const DEFAULT_UNLOCK_ITEM_NAMES: [&str; 13] = [
-    "哔哩哔哩大陆",
-    "哔哩哔哩港澳台",
+    "Bilibili (материковый Китай)",
+    "Bilibili (Гонконг/Макао/Тайвань)",
     "ChatGPT iOS",
     "ChatGPT Web",
     "Claude",

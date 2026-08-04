@@ -408,10 +408,7 @@ async fn check_update_with_fallback(app_handle: &tauri::AppHandle) -> Result<Opt
                 Type::System,
                 "update check failed directly ({direct_error}), retrying via {proxy}"
             );
-            let updater = app_handle
-                .updater_builder()
-                .proxy(tauri::Url::parse(&proxy)?)
-                .build()?;
+            let updater = app_handle.updater_builder().proxy(tauri::Url::parse(&proxy)?).build()?;
             Ok(updater.check().await?)
         }
     }

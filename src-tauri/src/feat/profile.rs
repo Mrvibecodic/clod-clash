@@ -24,7 +24,13 @@ pub async fn switch_proxy_node(group_name: &str, proxy_name: &str) {
         .await
     {
         Ok(_) => {
-            logging!(info, Type::Tray, "切换代理成功: {} -> {}", group_name, proxy_name);
+            logging!(
+                info,
+                Type::Tray,
+                "Переключение прокси успешно: {} -> {}",
+                group_name,
+                proxy_name
+            );
             let _ = handle::Handle::app_handle().emit("verge://refresh-proxy-config", ());
             let _ = tray::Tray::global().update_menu().await;
             return;
@@ -33,7 +39,7 @@ pub async fn switch_proxy_node(group_name: &str, proxy_name: &str) {
             logging!(
                 error,
                 Type::Tray,
-                "切换代理失败: {} -> {}, 错误: {:?}",
+                "Не удалось переключить прокси: {} -> {}, ошибка: {:?}",
                 group_name,
                 proxy_name,
                 err
@@ -47,14 +53,20 @@ pub async fn switch_proxy_node(group_name: &str, proxy_name: &str) {
         .await
     {
         Ok(_) => {
-            logging!(info, Type::Tray, "代理切换回退成功: {} -> {}", group_name, proxy_name);
+            logging!(
+                info,
+                Type::Tray,
+                "Откат переключения прокси успешен: {} -> {}",
+                group_name,
+                proxy_name
+            );
             let _ = tray::Tray::global().update_menu().await;
         }
         Err(err) => {
             logging!(
                 error,
                 Type::Tray,
-                "代理切换最终失败: {} -> {}, 错误: {:?}",
+                "Переключение прокси окончательно не удалось: {} -> {}, ошибка: {:?}",
                 group_name,
                 proxy_name,
                 err
@@ -82,19 +94,32 @@ async fn should_update_profile(uid: &String, ignore_auto_update: bool) -> Result
     let is_remote = item.itype.as_ref().is_some_and(|s| s == "remote");
 
     if !is_remote {
-        logging!(info, Type::Config, "[订阅更新] {uid} 不是远程订阅，跳过更新");
+        logging!(
+            info,
+            Type::Config,
+            "[Обновление подписки] {uid} не является удалённой подпиской, пропускаю обновление"
+        );
         Ok(None)
     } else if item.url.is_none() {
-        logging!(warn, Type::Config, "Warning: [订阅更新] {uid} 缺少URL，无法更新");
+        logging!(
+            warn,
+            Type::Config,
+            "Warning: [Обновление подписки] {uid} отсутствует URL, обновление невозможно"
+        );
         bail!("failed to get the profile item url");
     } else if !ignore_auto_update && !item.option.as_ref().and_then(|o| o.allow_auto_update).unwrap_or(true) {
-        logging!(info, Type::Config, "[订阅更新] {} 禁止自动更新，跳过更新", uid);
+        logging!(
+            info,
+            Type::Config,
+            "[Обновление подписки] {} автообновление запрещено, пропускаю обновление",
+            uid
+        );
         Ok(None)
     } else {
         logging!(
             info,
             Type::Config,
-            "[订阅更新] {} 是远程订阅，URL: {}",
+            "[Обновление подписки] {} является удалённой подпиской, URL: {}",
             uid,
             mask_url(
                 item.url
@@ -143,7 +168,7 @@ async fn apply_updated_item(uid: &String, item: &mut PrfItem) -> Result<()> {
         logging!(
             warn,
             Type::Config,
-            "Warning: [订阅更新] [clod] ignoring migration to {}: {} consecutive hops already followed",
+            "Warning: [Обновление подписки] [clod] ignoring migration to {}: {} consecutive hops already followed",
             mask_url(&candidate),
             hops
         );
@@ -158,7 +183,7 @@ async fn apply_updated_item(uid: &String, item: &mut PrfItem) -> Result<()> {
                 logging!(
                     info,
                     Type::Config,
-                    "[订阅更新] [clod] provider migrated the subscription URL to {}",
+                    "[Обновление подписки] [clod] provider migrated the subscription URL to {}",
                     mask_url(&candidate)
                 );
                 handle::Handle::notice_message("clod_sub::url_migrated", mask_url(&candidate));
@@ -166,14 +191,14 @@ async fn apply_updated_item(uid: &String, item: &mut PrfItem) -> Result<()> {
             Err(err) => logging!(
                 warn,
                 Type::Config,
-                "Warning: [订阅更新] [clod] failed to persist the migrated subscription URL: {}",
+                "Warning: [Обновление подписки] [clod] failed to persist the migrated subscription URL: {}",
                 mask_err(&err.to_string())
             ),
         },
         Err(err) => logging!(
             warn,
             Type::Config,
-            "Warning: [订阅更新] [clod] candidate URL {} failed verification, keeping the current one: {}",
+            "Warning: [Обновление подписки] [clod] candidate URL {} failed verification, keeping the current one: {}",
             mask_url(&candidate),
             mask_err(&err.to_string())
         ),
@@ -193,7 +218,11 @@ async fn perform_profile_update(
     fallback_url: Option<String>,
     fallback_domain: Option<String>,
 ) -> Result<bool> {
-    logging!(info, Type::Config, "[订阅更新] 开始下载新的订阅内容");
+    logging!(
+        info,
+        Type::Config,
+        "[Обновление подписки] Начинаю загрузку нового содержимого подписки"
+    );
     let mut merged_opt = PrfOption::merge(opt, option);
     let is_current = {
         let profiles = Config::profiles().await;
@@ -210,7 +239,11 @@ async fn perform_profile_update(
 
     match PrfItem::from_url(url, None, None, merged_opt.as_ref()).await {
         Ok(mut item) => {
-            logging!(info, Type::Config, "[订阅更新] 更新订阅配置成功");
+            logging!(
+                info,
+                Type::Config,
+                "[Обновление подписки] Конфиг подписки обновлён успешно"
+            );
             apply_updated_item(uid, &mut item).await?;
             return Ok(is_current);
         }
@@ -218,7 +251,7 @@ async fn perform_profile_update(
             logging!(
                 warn,
                 Type::Config,
-                "Warning: [订阅更新] 正常更新失败: {}，尝试使用Clash代理更新",
+                "Warning: [Обновление подписки] Обычное обновление не удалось: {}, пробую обновить через прокси Clash",
                 mask_err(&err.to_string())
             );
             last_err = err;
@@ -230,7 +263,11 @@ async fn perform_profile_update(
 
     match PrfItem::from_url(url, None, None, merged_opt.as_ref()).await {
         Ok(mut item) => {
-            logging!(info, Type::Config, "[订阅更新] 使用 Clash代理 更新订阅配置成功");
+            logging!(
+                info,
+                Type::Config,
+                "[Обновление подписки] Обновление конфига подписки через прокси Clash успешно"
+            );
             apply_updated_item(uid, &mut item).await?;
             handle::Handle::notice_message("update_with_clash_proxy", profile_name);
             drop(last_err);
@@ -240,7 +277,7 @@ async fn perform_profile_update(
             logging!(
                 warn,
                 Type::Config,
-                "Warning: [订阅更新] Clash代理更新失败: {}，尝试使用系统代理更新",
+                "Warning: [Обновление подписки] Обновление через прокси Clash не удалось: {}, пробую обновить через системный прокси",
                 mask_err(&err.to_string())
             );
             last_err = err;
@@ -252,7 +289,11 @@ async fn perform_profile_update(
 
     match PrfItem::from_url(url, None, None, merged_opt.as_ref()).await {
         Ok(mut item) => {
-            logging!(info, Type::Config, "[订阅更新] 使用 系统代理 更新订阅配置成功");
+            logging!(
+                info,
+                Type::Config,
+                "[Обновление подписки] Обновление конфига подписки через системный прокси успешно"
+            );
             apply_updated_item(uid, &mut item).await?;
             handle::Handle::notice_message("update_with_clash_proxy", profile_name);
             drop(last_err);
@@ -262,7 +303,7 @@ async fn perform_profile_update(
             logging!(
                 warn,
                 Type::Config,
-                "Warning: [订阅更新] 系统代理更新失败: {}，所有重试均已失败",
+                "Warning: [Обновление подписки] Обновление через системный прокси не удалось: {}, все попытки исчерпаны",
                 mask_err(&err.to_string())
             );
             last_err = err;
@@ -286,7 +327,7 @@ async fn perform_profile_update(
         logging!(
             info,
             Type::Config,
-            "[订阅更新] [clod] primary URL failed, trying the provider spare address {}",
+            "[Обновление подписки] [clod] primary URL failed, trying the provider spare address {}",
             mask_url(&spare)
         );
 
@@ -302,7 +343,7 @@ async fn perform_profile_update(
                 logging!(
                     warn,
                     Type::Config,
-                    "Warning: [订阅更新] [clod] spare address failed as well: {}",
+                    "Warning: [Обновление подписки] [clod] spare address failed as well: {}",
                     mask_err(&err.to_string())
                 );
                 last_err = err;
@@ -324,7 +365,12 @@ pub async fn update_profile(
     ignore_auto_update: bool,
     is_mannual_trigger: bool,
 ) -> Result<()> {
-    logging!(info, Type::Config, "[订阅更新] 开始更新订阅 {}", uid);
+    logging!(
+        info,
+        Type::Config,
+        "[Обновление подписки] Начинаю обновление подписки {}",
+        uid
+    );
     let url_opt = should_update_profile(uid, ignore_auto_update).await?;
 
     let should_refresh = match url_opt {
@@ -345,10 +391,10 @@ pub async fn update_profile(
     };
 
     if should_refresh {
-        logging!(info, Type::Config, "[订阅更新] 更新内核配置");
+        logging!(info, Type::Config, "[Обновление подписки] Обновляю конфиг ядра");
         match CoreManager::global().update_config_with_force(is_mannual_trigger).await {
             Ok(outcome) if outcome.is_valid() => {
-                logging!(info, Type::Config, "[订阅更新] 更新成功");
+                logging!(info, Type::Config, "[Обновление подписки] Обновление успешно");
                 handle::Handle::refresh_clash();
                 // clod: перезагрузка конфига сбрасывает выбор узлов в ядре —
                 // восстанавливаем сохранённый выбор (и избранные) сразу же,
@@ -357,7 +403,7 @@ pub async fn update_profile(
                     logging!(
                         warn,
                         Type::Config,
-                        "Warning: [订阅更新] restore selection failed: {err}"
+                        "Warning: [Обновление подписки] restore selection failed: {err}"
                     );
                 }
                 // clod:F7 — fresh panel data, recompute the notification state
@@ -372,15 +418,30 @@ pub async fn update_profile(
                 });
             }
             Ok(outcome @ (ValidationOutcome::Skipped { .. } | ValidationOutcome::Busy)) if !is_mannual_trigger => {
-                logging!(info, Type::Config, "[订阅更新] 本次配置刷新已跳过: {}", outcome);
+                logging!(
+                    info,
+                    Type::Config,
+                    "[Обновление подписки] Обновление конфига на этот раз пропущено: {}",
+                    outcome
+                );
             }
             Ok(outcome) => {
                 let message = outcome.to_string();
-                logging!(error, Type::Config, "[订阅更新] 更新失败: {}", message);
+                logging!(
+                    error,
+                    Type::Config,
+                    "[Обновление подписки] Обновление не удалось: {}",
+                    message
+                );
                 handle::Handle::notice_message("update_failed", message);
             }
             Err(err) => {
-                logging!(error, Type::Config, "[订阅更新] 更新失败: {}", err);
+                logging!(
+                    error,
+                    Type::Config,
+                    "[Обновление подписки] Обновление не удалось: {}",
+                    err
+                );
                 handle::Handle::notice_message("update_failed", format!("{err}"));
                 logging!(error, Type::Config, "{err}");
             }

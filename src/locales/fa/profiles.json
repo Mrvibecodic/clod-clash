@@ -7,6 +7,9 @@
       "import": "وارد کردن",
       "addSubscription": "Add subscription"
     },
+    "tooltips": {
+      "emergencyRefresh": "ناهنجاری داده شناسایی شد، برای بروزرسانی اجباری کلیک کنید"
+    },
     "batch": {
       "actions": {
         "delete": "Delete Selected Profiles",

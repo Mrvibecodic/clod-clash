@@ -169,6 +169,7 @@ function GroupSelectMenu({
   onClose,
   onSelect,
 }: GroupSelectMenuProps) {
+  const { t } = useTranslation()
   return (
     <Menu
       anchorEl={anchorEl}
@@ -201,7 +202,10 @@ function GroupSelectMenu({
               {group.name}
             </Typography>
             <Typography variant="caption" color="text.secondary">
-              {group.type} · {group.all?.length ?? 0} 节点
+              {group.type} ·{' '}
+              {t('proxies.page.chain.nodeCount', {
+                count: group.all?.length ?? 0,
+              })}
             </Typography>
           </Box>
         </MenuItem>
@@ -483,7 +487,7 @@ export function ProxyGroupsChain(props: ProxyGroupsChainProps) {
         anchorEl={ruleMenuAnchor}
         groups={availableGroups}
         selectedGroup={activeSelectedGroup}
-        emptyText="暂无可用代理组"
+        emptyText={t('proxies.page.chain.noGroups')}
         onClose={handleGroupMenuClose}
         onSelect={handleGroupSelect}
       />

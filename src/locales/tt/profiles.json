@@ -7,6 +7,9 @@
       "import": "Импорт",
       "addSubscription": "Add subscription"
     },
+    "tooltips": {
+      "emergencyRefresh": "Мәгълүматта хата табылды, көчләп яңарту өчен басыгыз"
+    },
     "batch": {
       "actions": {
         "delete": "Delete Selected Profiles",

@@ -65,7 +65,7 @@ pub async fn check_media_unlock() -> Result<Vec<UnlockItem>, String> {
         .connection_verbose(true)
         .build() {
         Ok(client) => client,
-        Err(e) => return Err(format!("创建HTTP客户端失败: {e}")),
+        Err(e) => return Err(format!("Не удалось создать HTTP-клиент: {e}")),
     };
 
     let mut tasks = JoinSet::new();
@@ -112,7 +112,7 @@ pub async fn check_media_unlock() -> Result<Vec<UnlockItem>, String> {
     while let Some(res) = tasks.join_next().await {
         match res {
             Ok(items) => results.extend(items),
-            Err(e) => logging!(error, Type::Network, "任务执行失败: {e}"),
+            Err(e) => logging!(error, Type::Network, "Ошибка выполнения задачи: {e}"),
         }
     }
 

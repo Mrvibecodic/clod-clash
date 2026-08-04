@@ -7,6 +7,9 @@
       "import": "가져오기",
       "addSubscription": "Add subscription"
     },
+    "tooltips": {
+      "emergencyRefresh": "데이터 이상이 감지되었습니다. 클릭하여 강제로 새로고침하세요"
+    },
     "batch": {
       "actions": {
         "delete": "선택한 프로필 삭제",

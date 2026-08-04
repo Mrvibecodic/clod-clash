@@ -20,10 +20,10 @@ const cleanupConnections = async (previousProxy: string) => {
 
     if (cleanupPromises.length > 0) {
       await Promise.allSettled(cleanupPromises)
-      debugLog(`[ProxySelection] 清理了 ${cleanupPromises.length} 个连接`)
+      debugLog(`[ProxySelection] Очищено соединений: ${cleanupPromises.length}`)
     }
   } catch (error) {
-    console.warn('[ProxySelection] 连接清理失败:', error)
+    console.warn('[ProxySelection] Не удалось очистить соединения:', error)
   }
 }
 
@@ -61,7 +61,10 @@ export const useProxySelection = (options: ProxySelectionOptions = {}) => {
   // 切换节点
   const syncTraySelection = useCallback(() => {
     syncTrayProxySelection().catch((error) => {
-      console.error('[ProxySelection] 托盘状态同步失败:', error)
+      console.error(
+        '[ProxySelection] Не удалось синхронизировать состояние трея:',
+        error,
+      )
     })
   }, [])
 
@@ -79,7 +82,10 @@ export const useProxySelection = (options: ProxySelectionOptions = {}) => {
       }
 
       patchCurrent({ selected }).catch((error) => {
-        console.error('[ProxySelection] 保存代理选择失败:', error)
+        console.error(
+          '[ProxySelection] Не удалось сохранить выбор прокси:',
+          error,
+        )
       })
     },
     [current, patchCurrent],
@@ -88,7 +94,9 @@ export const useProxySelection = (options: ProxySelectionOptions = {}) => {
   const executeChange = useCallback(
     async (request: ProxyChangeRequest) => {
       const { groupName, proxyName, previousProxy, skipConfigSave } = request
-      debugLog(`[ProxySelection] 代理切换: ${groupName} -> ${proxyName}`)
+      debugLog(
+        `[ProxySelection] Переключение прокси: ${groupName} -> ${proxyName}`,
+      )
 
       try {
         await selectNodeForGroup(groupName, proxyName)
@@ -96,7 +104,7 @@ export const useProxySelection = (options: ProxySelectionOptions = {}) => {
         syncTraySelection()
         persistSelection(groupName, proxyName, skipConfigSave)
         debugLog(
-          `[ProxySelection] 代理和状态同步完成: ${groupName} -> ${proxyName}`,
+          `[ProxySelection] Прокси и состояние синхронизированы: ${groupName} -> ${proxyName}`,
         )
 
         if (
@@ -108,7 +116,7 @@ export const useProxySelection = (options: ProxySelectionOptions = {}) => {
         }
       } catch (error) {
         console.error(
-          `[ProxySelection] 代理切换失败: ${groupName} -> ${proxyName}`,
+          `[ProxySelection] Не удалось переключить прокси: ${groupName} -> ${proxyName}`,
           error,
         )
         onError?.(error)

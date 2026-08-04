@@ -52,7 +52,9 @@
       "disconnectFailed": "Failed to disconnect from proxy chain",
       "duplicateNode": "Proxy node already exists in chain",
       "entryNode": "Eingang",
-      "exitNode": "Ausgang"
+      "exitNode": "Ausgang",
+      "nodeCount": "{{count}} Knoten",
+      "noGroups": "Keine Proxy-Gruppen verfügbar"
     },
     "messages": {
       "directMode": "Direktverbindungs-Modus"

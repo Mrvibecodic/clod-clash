@@ -44,7 +44,11 @@ class TrafficErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('[TrafficErrorBoundary] 捕获到组件错误:', error, errorInfo)
+    console.error(
+      '[TrafficErrorBoundary] Обнаружена ошибка компонента:',
+      error,
+      errorInfo,
+    )
 
     this.setState({
       error,
@@ -71,7 +75,7 @@ class TrafficErrorBoundary extends Component<Props, State> {
       url: window.location.href,
     }
 
-    console.error('[TrafficErrorBoundary] 错误报告:', errorReport)
+    console.error('[TrafficErrorBoundary] Отчёт об ошибке:', errorReport)
     // TODO: 发送到错误监控服务
     // sendErrorReport(errorReport);
   }
@@ -80,7 +84,7 @@ class TrafficErrorBoundary extends Component<Props, State> {
     if (this.retryCount < this.maxRetries) {
       this.retryCount++
       console.log(
-        `[TrafficErrorBoundary] 尝试重试 (${this.retryCount}/${this.maxRetries})`,
+        `[TrafficErrorBoundary] Попытка повтора (${this.retryCount}/${this.maxRetries})`,
       )
 
       this.setState({
@@ -90,7 +94,9 @@ class TrafficErrorBoundary extends Component<Props, State> {
         showDetails: false,
       })
     } else {
-      console.warn('[TrafficErrorBoundary] 已达到最大重试次数')
+      console.warn(
+        '[TrafficErrorBoundary] Достигнуто максимальное число попыток',
+      )
     }
   }
 

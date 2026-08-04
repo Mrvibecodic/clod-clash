@@ -75,7 +75,8 @@ fn is_secret_key(word: &str) -> bool {
 /// пропускало. Требование хотя бы одной буквы `a-f` оставляет читаемыми
 /// обычные длинные числа — таймстампы, счётчики байт.
 fn looks_like_token(word: &str) -> bool {
-    let body = word.trim_matches(|c: char| matches!(c, '"' | '\'' | ',' | ';' | ')' | '(' | '`' | '{' | '}' | '[' | ']'));
+    let body =
+        word.trim_matches(|c: char| matches!(c, '"' | '\'' | ',' | ';' | ')' | '(' | '`' | '{' | '}' | '[' | ']'));
 
     let hex_token = body.len() >= HEX_TOKEN_LEN
         && body.chars().all(|c| c.is_ascii_hexdigit())
@@ -260,9 +261,7 @@ fn mask_host_port(word: &str) -> Option<std::string::String> {
 /// В путях windows лежит настоящее имя пользователя (`C:\Users\Иван Петров\…`),
 /// и оно встречается в логе на каждой второй строке.
 fn home_prefix() -> Option<std::string::String> {
-    let raw = std::env::var("HOME")
-        .or_else(|_| std::env::var("USERPROFILE"))
-        .ok()?;
+    let raw = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE")).ok()?;
     let trimmed = raw.trim_end_matches(['/', '\\']);
     (trimmed.len() > 3).then(|| trimmed.to_owned())
 }
@@ -783,7 +782,11 @@ mod tests {
         assert!(!hostile.contains('`'), "{hostile}");
 
         let long = super::panel_text(&"я".repeat(500));
-        assert!(long.chars().count() <= super::PANEL_TEXT_MAX + 1, "{}", long.chars().count());
+        assert!(
+            long.chars().count() <= super::PANEL_TEXT_MAX + 1,
+            "{}",
+            long.chars().count()
+        );
     }
 
     #[test]

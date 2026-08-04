@@ -151,7 +151,10 @@ export const AppDataProvider = ({
         )
         cleanupFns.push(unlistenProfile)
       } catch (error) {
-        console.error('[AppDataProvider] 监听 Profile 事件失败:', error)
+        console.error(
+          '[AppDataProvider] Не удалось подписаться на событие Profile:',
+          error,
+        )
       }
 
       try {
@@ -161,7 +164,10 @@ export const AppDataProvider = ({
         )
         cleanupFns.push(unlistenProfiles)
       } catch (error) {
-        console.error('[AppDataProvider] 监听 Profiles 刷新事件失败:', error)
+        console.error(
+          '[AppDataProvider] Не удалось подписаться на событие обновления Profiles:',
+          error,
+        )
       }
 
       try {
@@ -171,7 +177,10 @@ export const AppDataProvider = ({
         )
         cleanupFns.push(unlistenProxy)
       } catch (error) {
-        console.warn('[AppDataProvider] 设置 Tauri 事件监听器失败:', error)
+        console.warn(
+          '[AppDataProvider] Не удалось установить слушатель событий Tauri:',
+          error,
+        )
       }
     }
 

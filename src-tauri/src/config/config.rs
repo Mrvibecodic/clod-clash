@@ -105,7 +105,7 @@ impl Config {
             logging!(
                 warn,
                 Type::Config,
-                "Profile items 无法加载，跳过默认项初始化以保留现有配置文件"
+                "Не удалось загрузить элементы Profile, пропускаю инициализацию элементов по умолчанию, чтобы сохранить текущие конфиги"
             );
             return Ok(());
         }
@@ -125,24 +125,29 @@ impl Config {
         // 生成运行时配置
         if let Err(err) = Self::generate().await {
             let error_msg: String = err.to_string().into();
-            logging!(error, Type::Config, "生成运行时配置失败: {}", error_msg);
+            logging!(
+                error,
+                Type::Config,
+                "Не удалось сгенерировать runtime-конфиг: {}",
+                error_msg
+            );
             CoreManager::global()
                 .use_default_config("config_validate::boot_error", &error_msg)
                 .await?;
             return Ok(Some(("config_validate::boot_error", error_msg)));
         }
-        logging!(info, Type::Config, "生成运行时配置成功");
+        logging!(info, Type::Config, "Runtime-конфиг сгенерирован успешно");
 
         // 生成运行时配置文件并验证
         let config_result = Self::generate_file(ConfigType::Run).await;
 
         if config_result.is_ok() {
             // 验证配置文件
-            logging!(info, Type::Config, "开始验证配置");
+            logging!(info, Type::Config, "Начинаю проверку конфига");
 
             match CoreConfigValidator::global().validate_config_outcome().await {
                 Ok(outcome) if outcome.is_valid() => {
-                    logging!(info, Type::Config, "配置验证成功");
+                    logging!(info, Type::Config, "Проверка конфига успешна");
                     // 前端没有必要知道验证成功的消息，也没有事件驱动
                     // Some(("config_validate::success", String::new()))
                     Ok(None)
@@ -152,7 +157,7 @@ impl Config {
                     logging!(
                         warn,
                         Type::Config,
-                        "[首次启动] 配置验证未通过，使用默认最小配置启动: {}",
+                        "[Первый запуск] Проверка конфига не пройдена, запускаю с минимальным конфигом по умолчанию: {}",
                         error_msg
                     );
                     CoreManager::global()
@@ -161,7 +166,7 @@ impl Config {
                     Ok(Some(("config_validate::boot_error", error_msg)))
                 }
                 Err(err) => {
-                    logging!(warn, Type::Config, "验证过程执行失败: {}", err);
+                    logging!(warn, Type::Config, "Не удалось выполнить проверку: {}", err);
                     CoreManager::global()
                         .use_default_config("config_validate::process_terminated", "")
                         .await?;
@@ -169,7 +174,11 @@ impl Config {
                 }
             }
         } else {
-            logging!(warn, Type::Config, "生成配置文件失败，使用默认配置");
+            logging!(
+                warn,
+                Type::Config,
+                "Не удалось сгенерировать конфиг, использую конфиг по умолчанию"
+            );
             CoreManager::global()
                 .use_default_config("config_validate::error", "")
                 .await?;

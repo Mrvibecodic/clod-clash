@@ -147,8 +147,7 @@ impl CoreManager {
         if let Err(swap_error) = swap() {
             // Nothing switched; bring the old core back before reporting.
             if let Err(start_error) = self.start_core_inner().await {
-                return Err(swap_error
-                    .context(format!("and restarting the old core failed too: {start_error:#}")));
+                return Err(swap_error.context(format!("and restarting the old core failed too: {start_error:#}")));
             }
             return Err(swap_error);
         }

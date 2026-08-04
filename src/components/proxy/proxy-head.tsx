@@ -90,10 +90,14 @@ export const ProxyHead = ({
         color="inherit"
         title={t('proxies.page.tooltips.delayCheck')}
         onClick={() => {
-          debugLog(`[ProxyHead] 点击延迟测试按钮，组: ${groupName}`)
+          debugLog(
+            `[ProxyHead] Нажата кнопка проверки задержки, группа: ${groupName}`,
+          )
           // Remind the user that it is custom test url
           if (testUrl?.trim() && textState !== 'filter') {
-            debugLog(`[ProxyHead] 使用自定义测试URL: ${testUrl}`)
+            debugLog(
+              `[ProxyHead] Используется пользовательский URL для теста: ${testUrl}`,
+            )
             onHeadState({ textState: 'url' })
           }
           onCheckDelay()

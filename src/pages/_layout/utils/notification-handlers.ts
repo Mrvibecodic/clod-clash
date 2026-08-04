@@ -133,6 +133,6 @@ export const handleNoticeMessage = (
   if (handler) {
     handler()
   } else {
-    console.warn(`未处理的通知状态: ${status}`)
+    console.warn(`Необработанный статус уведомления: ${status}`)
   }
 }

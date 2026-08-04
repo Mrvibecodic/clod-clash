@@ -39,10 +39,7 @@ pub async fn check_singleton() -> Result<()> {
                 // clod: forward every scheme the parser accepts (scheme.rs),
                 // not just `clash:`; otherwise a link clicked while the app is
                 // running (tray) is silently dropped by the second instance.
-                if param.starts_with("clash:")
-                    || param.starts_with("clash-verge:")
-                    || param.starts_with("clodclash:")
-                {
+                if param.starts_with("clash:") || param.starts_with("clash-verge:") || param.starts_with("clodclash:") {
                     client
                         .get(format!("http://127.0.0.1:{port}/commands/scheme?param={param}"))
                         .send()
@@ -72,11 +69,19 @@ pub fn embed_server() {
     let port = IVerge::get_singleton_port();
 
     let visible = warp::path!("commands" / "visible").and_then(|| async {
-        logging!(info, Type::Window, "检测到从单例模式恢复应用窗口");
+        logging!(
+            info,
+            Type::Window,
+            "Обнаружено восстановление окна приложения из режима одиночного экземпляра"
+        );
         if !lightweight::exit_lightweight_mode().await {
             WindowManager::show_main_window().await;
         } else {
-            logging!(error, Type::Window, "轻量模式退出失败，无法恢复应用窗口");
+            logging!(
+                error,
+                Type::Window,
+                "Не удалось выйти из облегчённого режима, невозможно восстановить окно приложения"
+            );
         };
         Ok::<_, warp::Rejection>(warp::reply::with_status::<std::string::String>(
             "ok".to_string(),

@@ -21,7 +21,7 @@ pub fn build_window_initial_script(initial_theme_mode: &str, dark_background: &s
 }
 
 pub const WINDOW_INITIAL_SCRIPT: &str = r##"
-    console.log('[Tauri] 窗口初始化脚本开始执行');
+    console.log('[Tauri] запуск скрипта инициализации окна');
 
     const initialColors = (() => {
         try {
@@ -33,7 +33,7 @@ pub const WINDOW_INITIAL_SCRIPT: &str = r##"
                 }
             }
         } catch (error) {
-            console.warn("[Tauri] 读取初始主题颜色失败:", error);
+            console.warn("[Tauri] не удалось прочитать начальные цвета темы:", error);
         }
         return { darkBg: "#2E303D", lightBg: "#F5F5F5" };
     })();
@@ -42,7 +42,7 @@ pub const WINDOW_INITIAL_SCRIPT: &str = r##"
         try {
             return !!window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)")?.matches;
         } catch (error) {
-            console.warn("[Tauri] 读取系统主题失败:", error);
+            console.warn("[Tauri] не удалось прочитать системную тему:", error);
             return false;
         }
     })();
@@ -82,12 +82,12 @@ pub const WINDOW_INITIAL_SCRIPT: &str = r##"
         try {
             localStorage.setItem("verge-theme-mode-cache", theme);
         } catch (error) {
-            console.warn("[Tauri] 缓存主题模式失败:", error);
+            console.warn("[Tauri] не удалось закэшировать режим темы:", error);
         }
         return isDark;
     };
 
     applyInitialTheme(initialTheme);
 
-    console.log('[Tauri] 窗口初始化脚本执行完成');
+    console.log('[Tauri] скрипт инициализации окна выполнен');
 "##;

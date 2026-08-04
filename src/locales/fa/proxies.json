@@ -52,7 +52,9 @@
       "disconnectFailed": "Failed to disconnect from proxy chain",
       "duplicateNode": "Proxy node already exists in chain",
       "entryNode": "ورودی",
-      "exitNode": "خروجی"
+      "exitNode": "خروجی",
+      "nodeCount": "{{count}} گره",
+      "noGroups": "هیچ گروه پراکسی موجود نیست"
     },
     "messages": {
       "directMode": "حالت مستقیم"

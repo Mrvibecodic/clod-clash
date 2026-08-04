@@ -149,7 +149,7 @@ export const useRenderList = (
 
     // 设置组监听器，当有延迟更新时自动刷新
     const groupListener = () => {
-      debugLog('[ChainMode] 延迟更新，刷新UI')
+      debugLog('[ChainMode] Задержка обновлена, обновляем интерфейс')
       refreshProxy()
     }
 
@@ -159,7 +159,9 @@ export const useRenderList = (
       try {
         const timeout = verge?.default_latency_timeout || 10000
 
-        debugLog(`[ChainMode] 开始计算 ${allProxies.length} 个节点的延迟`)
+        debugLog(
+          `[ChainMode] Начало расчёта задержки для ${allProxies.length} узлов`,
+        )
 
         // 使用 delayManager 计算延迟，每个节点计算完成后会自动触发监听器刷新界面
         delayManager.checkListDelay(allProxies, 'chain-mode', timeout)

@@ -12,7 +12,7 @@ use tauri_plugin_clash_verge_sysinfo;
 /// get the system proxy
 #[tauri::command]
 pub async fn get_sys_proxy() -> CmdResult<Mapping> {
-    logging!(debug, Type::Network, "异步获取系统代理配置");
+    logging!(debug, Type::Network, "асинхронное получение конфига системного прокси");
 
     Sysopt::global().wait_idle().await;
     let sys_proxy = Sysproxy::get_system_proxy().stringify_err()?;
@@ -31,7 +31,7 @@ pub async fn get_sys_proxy() -> CmdResult<Mapping> {
     logging!(
         debug,
         Type::Network,
-        "返回系统代理配置: enable={}, {}:{}",
+        "возврат конфига системного прокси: enable={}, {}:{}",
         sys_proxy.enable,
         sys_proxy.host,
         sys_proxy.port
@@ -53,7 +53,7 @@ pub async fn get_auto_proxy() -> CmdResult<Mapping> {
     logging!(
         debug,
         Type::Network,
-        "返回自动代理配置（缓存）: enable={}, url={}",
+        "возврат конфига авто-прокси (кэш): enable={}, url={}",
         auto_proxy.enable,
         auto_proxy.url
     );

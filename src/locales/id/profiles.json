@@ -7,6 +7,9 @@
       "import": "Impor",
       "addSubscription": "Add subscription"
     },
+    "tooltips": {
+      "emergencyRefresh": "Anomali data terdeteksi, klik untuk memaksa refresh"
+    },
     "batch": {
       "actions": {
         "delete": "Delete Selected Profiles",

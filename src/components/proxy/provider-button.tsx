@@ -115,7 +115,7 @@ export const ProviderButton = () => {
           // 每个更新完成后更新状态
           setUpdating((prev) => ({ ...prev, [name]: false }))
         } catch (err) {
-          console.error(`更新 ${name} 失败`, err)
+          console.error(`Не удалось обновить ${name}`, err)
           // 继续执行下一个，不中断整体流程
         }
       }

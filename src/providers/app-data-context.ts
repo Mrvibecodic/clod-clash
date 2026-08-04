@@ -84,4 +84,3 @@ export const useSystemData = (): SystemContextType =>
 
 export const useAppRefreshers = (): RefreshersContextType =>
   useCtx(RefreshersContext, 'useAppRefreshers')
-

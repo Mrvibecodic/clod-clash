@@ -420,7 +420,7 @@ impl IVerge {
                 logging!(
                     warn,
                     Type::Config,
-                    "启动时发现无效的clash_core配置: '{}', 将自动修正为 'verge-mihomo'",
+                    "При запуске обнаружена недопустимая конфигурация clash_core: '{}', автоматически исправлено на 'verge-mihomo'",
                     core
                 );
                 config.clash_core = Some("verge-mihomo".into());
@@ -430,7 +430,7 @@ impl IVerge {
             logging!(
                 info,
                 Type::Config,
-                "启动时发现未配置clash_core, 将设置为默认值 'verge-mihomo'"
+                "При запуске обнаружено, что clash_core не задан, устанавливаю значение по умолчанию 'verge-mihomo'"
             );
             config.clash_core = Some("verge-mihomo".into());
             needs_fix = true;
@@ -438,13 +438,22 @@ impl IVerge {
 
         // 修正后保存配置
         if needs_fix {
-            logging!(info, Type::Config, "正在保存修正后的配置文件...");
+            logging!(info, Type::Config, "Сохраняю исправленный конфиг...");
             help::save_yaml(&config_path, &config, Some("# Clash Verge Config")).await?;
-            logging!(info, Type::Config, "配置文件修正完成，需要重新加载配置");
+            logging!(
+                info,
+                Type::Config,
+                "Исправление конфига завершено, требуется перезагрузка конфига"
+            );
 
             Self::reload_config_after_fix(config).await?;
         } else {
-            logging!(info, Type::Config, "clash_core配置验证通过: {:?}", config.clash_core);
+            logging!(
+                info,
+                Type::Config,
+                "Проверка clash_core пройдена: {:?}",
+                config.clash_core
+            );
         }
 
         Ok(())
@@ -455,7 +464,7 @@ impl IVerge {
         logging!(
             info,
             Type::Config,
-            "内存配置已强制更新，新的clash_core: {:?}",
+            "Конфиг в памяти принудительно обновлён, новый clash_core: {:?}",
             &updated_config.clash_core
         );
 

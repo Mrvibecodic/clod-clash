@@ -147,7 +147,11 @@ impl Tray {
 
     pub async fn init(&self) -> Result<()> {
         if handle::Handle::global().is_exiting() {
-            logging!(debug, Type::Tray, "应用正在退出，跳过托盘初始化");
+            logging!(
+                debug,
+                Type::Tray,
+                "Приложение завершает работу, пропускаю инициализацию трея"
+            );
             return Ok(());
         }
 
@@ -172,7 +176,11 @@ impl Tray {
     /// 更新托盘点击行为
     pub async fn update_click_behavior(&self) -> Result<()> {
         if handle::Handle::global().is_exiting() {
-            logging!(debug, Type::Tray, "应用正在退出，跳过托盘点击行为更新");
+            logging!(
+                debug,
+                Type::Tray,
+                "Приложение завершает работу, пропускаю обновление поведения клика по трею"
+            );
             return Ok(());
         }
 
@@ -192,7 +200,11 @@ impl Tray {
     /// 更新托盘菜单
     pub async fn update_menu(&self) -> Result<()> {
         if handle::Handle::global().is_exiting() {
-            logging!(debug, Type::Tray, "应用正在退出，跳过托盘菜单更新");
+            logging!(
+                debug,
+                Type::Tray,
+                "Приложение завершает работу, пропускаю обновление меню трея"
+            );
             return Ok(());
         }
         let app_handle = handle::Handle::app_handle();
@@ -244,14 +256,18 @@ impl Tray {
             ))
         );
 
-        logging!(debug, Type::Tray, "托盘菜单更新成功");
+        logging!(debug, Type::Tray, "Меню трея обновлено успешно");
         Ok(())
     }
 
     /// 更新托盘图标
     pub async fn update_icon(&self, verge: &IVerge) -> Result<()> {
         if handle::Handle::global().is_exiting() {
-            logging!(debug, Type::Tray, "应用正在退出，跳过托盘图标更新");
+            logging!(
+                debug,
+                Type::Tray,
+                "Приложение завершает работу, пропускаю обновление иконки трея"
+            );
             return Ok(());
         }
 
@@ -284,7 +300,11 @@ impl Tray {
     /// 更新托盘提示
     pub async fn update_tooltip(&self) -> Result<()> {
         if handle::Handle::global().is_exiting() {
-            logging!(debug, Type::Tray, "应用正在退出，跳过托盘提示更新");
+            logging!(
+                debug,
+                Type::Tray,
+                "Приложение завершает работу, пропускаю обновление подсказки трея"
+            );
             return Ok(());
         }
 
@@ -347,7 +367,11 @@ impl Tray {
 
     pub async fn update_part(&self) -> Result<()> {
         if handle::Handle::global().is_exiting() {
-            logging!(debug, Type::Tray, "应用正在退出，跳过托盘局部更新");
+            logging!(
+                debug,
+                Type::Tray,
+                "Приложение завершает работу, пропускаю частичное обновление трея"
+            );
             return Ok(());
         }
         let verge = Config::verge().await.data_arc();
@@ -371,11 +395,15 @@ impl Tray {
 
     async fn create_tray_from_handle(&self, app_handle: &AppHandle) -> Result<()> {
         if handle::Handle::global().is_exiting() {
-            logging!(debug, Type::Tray, "应用正在退出，跳过托盘创建");
+            logging!(
+                debug,
+                Type::Tray,
+                "Приложение завершает работу, пропускаю создание трея"
+            );
             return Ok(());
         }
 
-        logging!(info, Type::Tray, "正在从AppHandle创建系统托盘");
+        logging!(info, Type::Tray, "Создаю системный трей из AppHandle");
 
         let verge = Config::verge().await.data_arc();
 
@@ -979,7 +1007,7 @@ fn on_menu_event(_: &AppHandle, event: MenuEvent) {
                 }
             }
             MenuIds::DASHBOARD => {
-                logging!(info, Type::Tray, "托盘菜单点击: 打开窗口");
+                logging!(info, Type::Tray, "Клик по меню трея: открываю окно");
                 if !lightweight::exit_lightweight_mode().await {
                     WindowManager::show_main_window().await;
                 };

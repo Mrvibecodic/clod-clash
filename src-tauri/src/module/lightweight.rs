@@ -61,9 +61,9 @@ fn try_transition(from: LightweightState, to: LightweightState) -> bool {
 fn record_state_and_log(state: LightweightState) {
     LIGHTWEIGHT_STATE.store(state.as_u8(), Ordering::Release);
     match state {
-        LightweightState::Normal => logging!(info, Type::Lightweight, "轻量模式已关闭"),
-        LightweightState::In => logging!(info, Type::Lightweight, "轻量模式已开启"),
-        LightweightState::Exiting => logging!(info, Type::Lightweight, "正在退出轻量模式"),
+        LightweightState::Normal => logging!(info, Type::Lightweight, "лёгкий режим отключён"),
+        LightweightState::In => logging!(info, Type::Lightweight, "лёгкий режим включён"),
+        LightweightState::Exiting => logging!(info, Type::Lightweight, "выход из лёгкого режима"),
     }
 }
 
@@ -74,7 +74,11 @@ pub fn is_in_lightweight_mode() -> bool {
 
 async fn refresh_lightweight_tray_state() {
     if let Err(err) = Tray::global().update_menu().await {
-        logging!(warn, Type::Lightweight, "更新托盘轻量模式状态失败: {err}");
+        logging!(
+            warn,
+            Type::Lightweight,
+            "не удалось обновить статус лёгкого режима в трее: {err}"
+        );
     }
 }
 
@@ -96,13 +100,13 @@ pub async fn enable_auto_light_weight_mode() {
         logging!(error, Type::Lightweight, "Failed to initialize timer: {e}");
         return;
     }
-    logging!(info, Type::Lightweight, "开启自动轻量模式");
+    logging!(info, Type::Lightweight, "включён автоматический лёгкий режим");
     setup_window_close_listener();
     setup_webview_focus_listener();
 }
 
 pub fn disable_auto_light_weight_mode() {
-    logging!(info, Type::Lightweight, "关闭自动轻量模式");
+    logging!(info, Type::Lightweight, "отключён автоматический лёгкий режим");
     cancel_light_weight_timer();
     cancel_window_close_listener();
     cancel_webview_focus_listener();
@@ -110,7 +114,11 @@ pub fn disable_auto_light_weight_mode() {
 
 pub async fn entry_lightweight_mode() -> bool {
     if !try_transition(LightweightState::Normal, LightweightState::In) {
-        logging!(debug, Type::Lightweight, "无需进入轻量模式，跳过调用");
+        logging!(
+            debug,
+            Type::Lightweight,
+            "нет необходимости входить в лёгкий режим, вызов пропущен"
+        );
         refresh_lightweight_tray_state().await;
         return false;
     }
@@ -126,7 +134,7 @@ pub async fn exit_lightweight_mode() -> bool {
         logging!(
             debug,
             Type::Lightweight,
-            "轻量模式不在退出条件（可能已退出或正在退出），跳过调用"
+            "лёгкий режим не в состоянии выхода (возможно, уже вышел или выходит), вызов пропущен"
         );
         refresh_lightweight_tray_state().await;
         return false;
@@ -158,13 +166,17 @@ fn setup_window_close_listener() {
         let previous_handler_id = WINDOW_CLOSE_HANDLER_ID.swap(0, Ordering::AcqRel);
         if previous_handler_id != 0 {
             window.unlisten(previous_handler_id);
-            logging!(debug, Type::Lightweight, "覆盖旧的窗口关闭监听");
+            logging!(debug, Type::Lightweight, "старый слушатель закрытия окна перезаписан");
         }
         let handler_id = window.listen("tauri://close-requested", move |_event| {
             std::mem::drop(AsyncHandler::spawn(|| async {
                 setup_light_weight_timer().await;
             }));
-            logging!(info, Type::Lightweight, "监听到关闭请求，开始轻量模式计时");
+            logging!(
+                info,
+                Type::Lightweight,
+                "получен запрос на закрытие, запущен таймер лёгкого режима"
+            );
         });
         WINDOW_CLOSE_HANDLER_ID.store(handler_id, Ordering::Release);
     }
@@ -176,7 +188,7 @@ fn cancel_window_close_listener() {
         if let Some(window) = WindowManager::get_main_window() {
             window.unlisten(id);
         }
-        logging!(debug, Type::Lightweight, "取消了窗口关闭监听");
+        logging!(debug, Type::Lightweight, "слушатель закрытия окна отменён");
     }
 }
 
@@ -185,11 +197,15 @@ fn setup_webview_focus_listener() {
         let previous_handler_id = WEBVIEW_FOCUS_HANDLER_ID.swap(0, Ordering::AcqRel);
         if previous_handler_id != 0 {
             window.unlisten(previous_handler_id);
-            logging!(debug, Type::Lightweight, "覆盖旧的窗口焦点监听");
+            logging!(debug, Type::Lightweight, "старый слушатель фокуса окна перезаписан");
         }
         let handler_id = window.listen("tauri://focus", move |_event| {
             cancel_light_weight_timer();
-            logging!(debug, Type::Lightweight, "监听到窗口获得焦点，取消轻量模式计时");
+            logging!(
+                debug,
+                Type::Lightweight,
+                "окно получило фокус, таймер лёгкого режима отменён"
+            );
         });
         WEBVIEW_FOCUS_HANDLER_ID.store(handler_id, Ordering::Release);
     }
@@ -201,7 +217,7 @@ fn cancel_webview_focus_listener() {
         if let Some(window) = WindowManager::get_main_window() {
             window.unlisten(id);
         }
-        logging!(debug, Type::Lightweight, "取消了窗口焦点监听");
+        logging!(debug, Type::Lightweight, "слушатель фокуса окна отменён");
     }
 }
 

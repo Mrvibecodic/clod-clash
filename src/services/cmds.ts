@@ -347,15 +347,15 @@ export async function getSystemProxy() {
 
 export async function getAutotemProxy() {
   try {
-    debugLog('[API] 开始调用 get_auto_proxy')
+    debugLog('[API] Начало вызова get_auto_proxy')
     const result = await invoke<{
       enable: boolean
       url: string
     }>('get_auto_proxy')
-    debugLog('[API] get_auto_proxy 调用成功:', result)
+    debugLog('[API] Вызов get_auto_proxy выполнен успешно:', result)
     return result
   } catch (error) {
-    console.error('[API] get_auto_proxy 调用失败:', error)
+    console.error('[API] Ошибка вызова get_auto_proxy:', error)
     return {
       enable: false,
       url: '',
@@ -576,7 +576,7 @@ export const isAdmin = async () => {
   try {
     return await invoke<boolean>('app_is_admin')
   } catch (error) {
-    console.error('检查管理员权限失败:', error)
+    console.error('Не удалось проверить права администратора:', error)
     return false
   }
 }
@@ -589,7 +589,7 @@ export const isPortInUse = async (port: number) => {
   try {
     return await invoke<boolean>('is_port_in_use', { port })
   } catch (error) {
-    console.error('检查端口使用状态失败:', error)
+    console.error('Не удалось проверить занятость порта:', error)
     return false
   }
 }

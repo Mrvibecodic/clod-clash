@@ -7,6 +7,9 @@
       "import": "匯入",
       "addSubscription": "Add subscription"
     },
+    "tooltips": {
+      "emergencyRefresh": "數據異常，點擊強制刷新"
+    },
     "batch": {
       "actions": {
         "delete": "刪除選取訂閱",

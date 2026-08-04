@@ -30,12 +30,12 @@ fn profile_import_error(err: &anyhow::Error) -> std::string::String {
         return cause.to_string();
     }
 
-    format!("导入订阅失败: {err:#}")
+    format!("не удалось импортировать подписку: {err:#}")
 }
 
 #[tauri::command]
 pub async fn get_profiles() -> CmdResult<SharedDraft<IProfiles>> {
-    logging!(debug, Type::Cmd, "获取配置文件列表");
+    logging!(debug, Type::Cmd, "получение списка файлов конфига");
     let draft = Config::profiles().await;
     let data = draft.data_arc();
     Ok(data)
@@ -61,7 +61,7 @@ pub async fn enhance_profiles() -> CmdResult<ValidationOutcome> {
                 "Reactivate profiles command failed validation: {}",
                 outcome
             );
-            handle_validation_notice(&outcome, ValidationNoticeTarget::Runtime, "运行时配置");
+            handle_validation_notice(&outcome, ValidationNoticeTarget::Runtime, "рабочий конфиг");
             Ok(outcome)
         }
         Err(e) => {
@@ -74,7 +74,12 @@ pub async fn enhance_profiles() -> CmdResult<ValidationOutcome> {
 /// 导入配置文件
 #[tauri::command]
 pub async fn import_profile(url: std::string::String, option: Option<PrfOption>) -> CmdResult {
-    logging!(info, Type::Cmd, "[导入订阅] 开始导入: {}", help::mask_url(&url));
+    logging!(
+        info,
+        Type::Cmd,
+        "[импорт подписки] начало импорта: {}",
+        help::mask_url(&url)
+    );
 
     // 直接依赖 PrfItem::from_url 自身的超时/重试逻辑，不再使用 tokio::time::timeout 包裹
     // clod: сначала напрямую, потом через собственное ядро, потом через
@@ -82,33 +87,52 @@ pub async fn import_profile(url: std::string::String, option: Option<PrfOption>)
     // поднятый туннель.
     let item = &mut match PrfItem::from_url_with_ladder(&url, None, None, option.as_ref()).await {
         Ok(it) => {
-            logging!(info, Type::Cmd, "[导入订阅] 下载完成，开始保存配置");
+            logging!(
+                info,
+                Type::Cmd,
+                "[импорт подписки] загрузка завершена, сохранение конфига"
+            );
             it
         }
         Err(e) => {
-            logging!(error, Type::Cmd, "[导入订阅] 下载失败: {}", e);
+            logging!(error, Type::Cmd, "[импорт подписки] не удалось загрузить: {}", e);
             return Err(profile_import_error(&e).into());
         }
     };
 
     if let Err(e) = profiles_append_item_safe(item).await {
-        logging!(error, Type::Cmd, "[导入订阅] 保存配置失败: {}", e);
-        return Err(format!("导入订阅失败: {}", e).into());
+        logging!(error, Type::Cmd, "[импорт подписки] не удалось сохранить конфиг: {}", e);
+        return Err(format!("не удалось импортировать подписку: {}", e).into());
     }
 
     if let Err(e) = profiles_save_file_safe().await {
-        logging!(error, Type::Cmd, "[导入订阅] 保存配置文件失败: {}", e);
-        return Err(format!("导入订阅失败: {}", e).into());
+        logging!(
+            error,
+            Type::Cmd,
+            "[импорт подписки] не удалось сохранить файл конфига: {}",
+            e
+        );
+        return Err(format!("не удалось импортировать подписку: {}", e).into());
     }
-    logging!(info, Type::Cmd, "[导入订阅] 配置文件保存成功");
+    logging!(info, Type::Cmd, "[импорт подписки] файл конфига сохранён");
     logging_error!(Type::Timer, Timer::global().refresh().await);
 
     if let Some(uid) = &item.uid {
-        logging!(info, Type::Cmd, "[导入订阅] 发送配置变更通知: {}", uid);
+        logging!(
+            info,
+            Type::Cmd,
+            "[импорт подписки] отправка уведомления об изменении конфига: {}",
+            uid
+        );
         handle::Handle::notify_profile_changed(uid);
     }
 
-    logging!(info, Type::Cmd, "[导入订阅] 导入完成: {}", help::mask_url(&url));
+    logging!(
+        info,
+        Type::Cmd,
+        "[импорт подписки] импорт завершён: {}",
+        help::mask_url(&url)
+    );
     Ok(())
 }
 
@@ -117,12 +141,12 @@ pub async fn import_profile(url: std::string::String, option: Option<PrfOption>)
 pub async fn reorder_profile(active_id: String, over_id: String) -> CmdResult {
     match profiles_reorder_safe(&active_id, &over_id).await {
         Ok(_) => {
-            logging!(info, Type::Cmd, "重新排序配置文件");
+            logging!(info, Type::Cmd, "изменение порядка файлов конфига");
             Ok(())
         }
         Err(err) => {
-            logging!(error, Type::Cmd, "重新排序配置文件失败: {}", err);
-            Err(format!("重新排序配置文件失败: {}", err).into())
+            logging!(error, Type::Cmd, "не удалось изменить порядок файлов конфига: {}", err);
+            Err(format!("не удалось изменить порядок файлов конфига: {}", err).into())
         }
     }
 }
@@ -137,7 +161,12 @@ pub async fn create_profile(item: PrfItem, file_data: Option<String>) -> CmdResu
             logging_error!(Type::Timer, Timer::global().refresh().await);
             // 发送配置变更通知
             if let Some(uid) = &item.uid {
-                logging!(info, Type::Cmd, "[创建订阅] 发送配置变更通知: {}", uid);
+                logging!(
+                    info,
+                    Type::Cmd,
+                    "[создание подписки] отправка уведомления об изменении конфига: {}",
+                    uid
+                );
                 handle::Handle::notify_profile_changed(uid);
             }
             Ok(())
@@ -179,23 +208,41 @@ pub async fn delete_profile(index: String) -> CmdResult {
     let should_update = profiles_delete_item_safe(&index).await.stringify_err()?;
     profiles_save_file_safe().await.stringify_err()?;
     if let Err(e) = Tray::global().update_tooltip().await {
-        logging!(warn, Type::Cmd, "Warning: 异步更新托盘提示失败: {e}");
+        logging!(
+            warn,
+            Type::Cmd,
+            "Warning: не удалось асинхронно обновить подсказку трея: {e}"
+        );
     }
 
     if let Err(e) = Tray::global().update_menu().await {
-        logging!(warn, Type::Cmd, "Warning: 异步更新托盘菜单失败: {e}");
+        logging!(
+            warn,
+            Type::Cmd,
+            "Warning: не удалось асинхронно обновить меню трея: {e}"
+        );
     }
     if should_update {
         match CoreManager::global().update_config_forced().await {
             Ok(outcome) if outcome.is_valid() => {
                 handle::Handle::refresh_clash();
                 // 发送配置变更通知
-                logging!(info, Type::Cmd, "[删除订阅] 发送配置变更通知: {}", index);
+                logging!(
+                    info,
+                    Type::Cmd,
+                    "[удаление подписки] отправка уведомления об изменении конфига: {}",
+                    index
+                );
                 handle::Handle::notify_profile_changed(&index);
             }
             Ok(outcome) => {
-                logging!(warn, Type::Cmd, "删除订阅后更新配置失败: {}", outcome);
-                handle_validation_notice(&outcome, ValidationNoticeTarget::Runtime, "运行时配置");
+                logging!(
+                    warn,
+                    Type::Cmd,
+                    "не удалось обновить конфиг после удаления подписки: {}",
+                    outcome
+                );
+                handle_validation_notice(&outcome, ValidationNoticeTarget::Runtime, "рабочий конфиг");
                 return Err(outcome.to_string().into());
             }
             Err(e) => {
@@ -210,7 +257,12 @@ pub async fn delete_profile(index: String) -> CmdResult {
 
 /// 执行配置更新并处理结果
 async fn restore_previous_profile(prev_profile: &String) -> CmdResult<()> {
-    logging!(info, Type::Cmd, "尝试恢复到之前的配置: {}", prev_profile);
+    logging!(
+        info,
+        Type::Cmd,
+        "попытка восстановить предыдущий конфиг: {}",
+        prev_profile
+    );
     let restore_profiles = IProfiles {
         current: Some(prev_profile.to_owned()),
         items: None,
@@ -221,10 +273,14 @@ async fn restore_previous_profile(prev_profile: &String) -> CmdResult<()> {
     Config::profiles().await.apply();
     crate::process::AsyncHandler::spawn(|| async move {
         if let Err(e) = profiles_save_file_safe().await {
-            logging!(warn, Type::Cmd, "Warning: 异步保存恢复配置文件失败: {e}");
+            logging!(
+                warn,
+                Type::Cmd,
+                "Warning: не удалось асинхронно сохранить восстановленный файл конфига: {e}"
+            );
         }
     });
-    logging!(info, Type::Cmd, "成功恢复到之前的配置");
+    logging!(info, Type::Cmd, "предыдущий конфиг успешно восстановлен");
     Ok(())
 }
 
@@ -253,13 +309,22 @@ async fn handle_success(current_value: Option<&String>) -> CmdResult<ValidationO
     profiles::activate_selected_nodes().stringify_err()?;
 
     if let Err(e) = profiles_save_file_safe().await {
-        logging!(warn, Type::Cmd, "Warning: 异步保存配置文件失败: {e}");
+        logging!(
+            warn,
+            Type::Cmd,
+            "Warning: не удалось асинхронно сохранить файл конфига: {e}"
+        );
     }
 
     if let Some(current) = current_value
         && WindowManager::get_main_window().is_some()
     {
-        logging!(info, Type::Cmd, "向前端发送配置变更事件: {}", current);
+        logging!(
+            info,
+            Type::Cmd,
+            "отправка фронтенду события изменения конфига: {}",
+            current
+        );
         handle::Handle::notify_profile_changed(current);
     }
 
@@ -278,9 +343,9 @@ async fn handle_validation_failure(
     outcome: ValidationOutcome,
     current_profile: Option<&String>,
 ) -> CmdResult<ValidationOutcome> {
-    logging!(warn, Type::Cmd, "配置验证失败: {}", outcome);
+    logging!(warn, Type::Cmd, "не удалось проверить конфиг: {}", outcome);
     discard_and_restore(current_profile).await?;
-    handle_validation_notice(&outcome, ValidationNoticeTarget::Runtime, "运行时配置");
+    handle_validation_notice(&outcome, ValidationNoticeTarget::Runtime, "рабочий конфиг");
     Ok(outcome)
 }
 
@@ -288,7 +353,7 @@ async fn handle_update_error<E: std::fmt::Display>(
     e: E,
     current_profile: Option<&String>,
 ) -> CmdResult<ValidationOutcome> {
-    logging!(warn, Type::Cmd, "更新过程发生错误: {}", e,);
+    logging!(warn, Type::Cmd, "ошибка в процессе обновления: {}", e,);
     discard_and_restore(current_profile).await?;
     let message: String = e.to_string().into();
     handle::Handle::notice_message("config_validate::boot_error", message.clone());
@@ -296,7 +361,8 @@ async fn handle_update_error<E: std::fmt::Display>(
 }
 
 async fn handle_timeout(current_profile: Option<&String>) -> CmdResult<ValidationOutcome> {
-    let timeout_msg: String = "配置更新超时(30秒)，可能是配置验证或核心通信阻塞".into();
+    let timeout_msg: String =
+        "таймаут обновления конфига (30 сек), возможно зависла проверка конфига или связь с ядром".into();
     logging!(error, Type::Cmd, "{}", timeout_msg);
     discard_and_restore(current_profile).await?;
     handle::Handle::notice_message("config_validate::timeout", timeout_msg.clone());
@@ -328,17 +394,22 @@ pub async fn patch_profiles_config(profiles: IProfiles) -> CmdResult<ValidationO
         .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
         .is_err()
     {
-        logging!(info, Type::Cmd, "当前正在切换配置，放弃请求");
+        logging!(info, Type::Cmd, "конфиг уже переключается, запрос отклонён");
         return Ok(ValidationOutcome::Busy);
     }
 
     let target_profile = profiles.current.as_ref();
 
-    logging!(info, Type::Cmd, "开始修改配置文件，目标profile: {:?}", target_profile);
+    logging!(
+        info,
+        Type::Cmd,
+        "начало изменения файла конфига, целевой profile: {:?}",
+        target_profile
+    );
 
     // 保存当前配置，以便在验证失败时恢复
     let previous_profile = Config::profiles().await.data_arc().current.clone();
-    logging!(info, Type::Cmd, "当前配置: {:?}", previous_profile);
+    logging!(info, Type::Cmd, "текущий конфиг: {:?}", previous_profile);
 
     Config::profiles().await.edit_draft(|d| d.patch_config(&profiles));
 
@@ -348,7 +419,7 @@ pub async fn patch_profiles_config(profiles: IProfiles) -> CmdResult<ValidationO
 /// 根据profile name修改profiles
 #[tauri::command]
 pub async fn patch_profiles_config_by_profile_index(profile_index: String) -> CmdResult<ValidationOutcome> {
-    logging!(info, Type::Cmd, "切换配置到: {}", profile_index);
+    logging!(info, Type::Cmd, "переключение конфига на: {}", profile_index);
 
     let profiles = IProfiles {
         current: Some(profile_index),

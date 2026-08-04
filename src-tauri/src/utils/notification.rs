@@ -18,8 +18,12 @@ pub enum NotificationEvent<'a> {
     AppHidden,
     // clod:F7 — subscription watcher alerts.
     SubExpired,
-    SubExpiresIn { days: u32 },
-    SubTraffic { percent: u32 },
+    SubExpiresIn {
+        days: u32,
+    },
+    SubTraffic {
+        percent: u32,
+    },
 }
 
 fn notify(title: Cow<'_, str>, body: Cow<'_, str>) {

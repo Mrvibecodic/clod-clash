@@ -69,7 +69,7 @@ pub async fn save_profile_file(index: String, file_data: Option<String>) -> CmdR
     logging!(
         info,
         Type::Config,
-        "[cmd配置save] 开始验证配置文件: {}, 是否为merge文件: {}",
+        "[cmd конфиг save] Начало проверки конфига: {}, это файл merge: {}",
         file_path_str,
         is_merge_file
     );
@@ -137,33 +137,48 @@ async fn handle_saved_profile_file(
     affects_runtime: bool,
 ) -> CmdResult<ValidationOutcome> {
     let (target, file_type) = if is_script_file {
-        (ValidationNoticeTarget::Script, "脚本文件")
+        (ValidationNoticeTarget::Script, "файл скрипта")
     } else if is_merge_file {
-        (ValidationNoticeTarget::Merge, "合并配置文件")
+        (ValidationNoticeTarget::Merge, "объединённый конфиг")
     } else {
-        (ValidationNoticeTarget::Runtime, "YAML配置文件")
+        (ValidationNoticeTarget::Runtime, "YAML-конфиг")
     };
 
     logging!(
         info,
         Type::Config,
-        "[cmd配置save] 开始{}验证: {}",
+        "[cmd конфиг save] Начало проверки ({}): {}",
         file_type,
         file_path_str
     );
 
     match CoreConfigValidator::validate_config_file_outcome(file_path_str, Some(is_merge_file)).await {
         Ok(outcome) if outcome.is_valid() => {
-            logging!(info, Type::Config, "[cmd配置save] 文件验证通过: {}", file_path_str);
+            logging!(
+                info,
+                Type::Config,
+                "[cmd конфиг save] Файл прошёл проверку: {}",
+                file_path_str
+            );
         }
         Ok(outcome) => {
-            logging!(warn, Type::Config, "[cmd配置save] 文件验证失败: {}", outcome);
+            logging!(
+                warn,
+                Type::Config,
+                "[cmd конфиг save] Ошибка проверки файла: {}",
+                outcome
+            );
             restore_original(file_path, original_content, original_existed).await?;
             handle_validation_notice(&outcome, target, file_type);
             return Ok(outcome);
         }
         Err(e) => {
-            logging!(error, Type::Config, "[cmd配置save] 验证过程发生错误: {}", e);
+            logging!(
+                error,
+                Type::Config,
+                "[cmd конфиг save] Ошибка в процессе проверки: {}",
+                e
+            );
             restore_original(file_path, original_content, original_existed).await?;
             return Err(e.to_string().into());
         }
@@ -176,7 +191,7 @@ async fn handle_saved_profile_file(
     logging!(
         info,
         Type::Config,
-        "[cmd配置save] 保存项影响当前运行时配置，开始统一应用"
+        "[cmd конфиг save] Сохранённый элемент влияет на текущий runtime-конфиг, применяем изменения"
     );
     match CoreManager::global().update_config_forced().await {
         Ok(outcome) if outcome.is_valid() => {
@@ -184,13 +199,23 @@ async fn handle_saved_profile_file(
             Ok(ValidationOutcome::Valid)
         }
         Ok(outcome) => {
-            logging!(warn, Type::Config, "[cmd配置save] 运行时配置应用失败: {}", outcome);
+            logging!(
+                warn,
+                Type::Config,
+                "[cmd конфиг save] Не удалось применить runtime-конфиг: {}",
+                outcome
+            );
             restore_original(file_path, original_content, original_existed).await?;
-            handle_validation_notice(&outcome, ValidationNoticeTarget::Runtime, "运行时配置");
+            handle_validation_notice(&outcome, ValidationNoticeTarget::Runtime, "runtime-конфиг");
             Ok(outcome)
         }
         Err(err) => {
-            logging!(error, Type::Config, "[cmd配置save] 运行时配置应用错误: {}", err);
+            logging!(
+                error,
+                Type::Config,
+                "[cmd конфиг save] Ошибка применения runtime-конфига: {}",
+                err
+            );
             restore_original(file_path, original_content, original_existed).await?;
             Err(err.to_string().into())
         }

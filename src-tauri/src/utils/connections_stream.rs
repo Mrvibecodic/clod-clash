@@ -149,6 +149,10 @@ pub async fn disconnect_connection(connection_id: ConnectionId) {
         .disconnect(connection_id, Some(MIHOMO_WS_STREAM_CLOSE_CODE))
         .await
     {
-        logging!(debug, Type::Tray, "断开 Mihomo WebSocket 连接失败: {err}");
+        logging!(
+            debug,
+            Type::Tray,
+            "не удалось отключить подключение Mihomo WebSocket: {err}"
+        );
     }
 }

@@ -265,7 +265,7 @@ const Layout = () => {
       try {
         handleNoticeMessage(status, msg, t, navigate)
       } catch (error) {
-        console.error('[通知处理] 失败:', error)
+        console.error('[Обработка уведомлений] Ошибка:', error)
       }
     },
     [t, navigate],

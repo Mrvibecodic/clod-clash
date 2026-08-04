@@ -47,7 +47,9 @@ export const WindowProvider: React.FC<{ children: React.ReactNode }> = ({
       isUnmounted = true
       unlistenPromise
         .then((unlisten) => unlisten())
-        .catch((err) => console.warn('[WindowProvider] 清理监听器失败:', err))
+        .catch((err) =>
+          console.warn('[WindowProvider] Не удалось очистить слушатель:', err),
+        )
     }
   }, [currentWindow])
 

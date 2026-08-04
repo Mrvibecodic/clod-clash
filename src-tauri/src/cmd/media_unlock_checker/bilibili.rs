@@ -23,11 +23,11 @@ pub(super) async fn check_bilibili_china_mainland(client: &Client) -> UnlockItem
                     })
                     .unwrap_or("Failed");
 
-                UnlockItem::checked("哔哩哔哩大陆", status, None)
+                UnlockItem::checked("Bilibili (материковый Китай)", status, None)
             }
-            Err(_) => UnlockItem::checked("哔哩哔哩大陆", "Failed", None),
+            Err(_) => UnlockItem::checked("Bilibili (материковый Китай)", "Failed", None),
         },
-        Err(_) => UnlockItem::checked("哔哩哔哩大陆", "Failed", None),
+        Err(_) => UnlockItem::checked("Bilibili (материковый Китай)", "Failed", None),
     }
 }
 
@@ -51,10 +51,10 @@ pub(super) async fn check_bilibili_hk_mc_tw(client: &Client) -> UnlockItem {
                     })
                     .unwrap_or("Failed");
 
-                UnlockItem::checked("哔哩哔哩港澳台", status, None)
+                UnlockItem::checked("Bilibili (Гонконг/Макао/Тайвань)", status, None)
             }
-            Err(_) => UnlockItem::checked("哔哩哔哩港澳台", "Failed", None),
+            Err(_) => UnlockItem::checked("Bilibili (Гонконг/Макао/Тайвань)", "Failed", None),
         },
-        Err(_) => UnlockItem::checked("哔哩哔哩港澳台", "Failed", None),
+        Err(_) => UnlockItem::checked("Bilibili (Гонконг/Макао/Тайвань)", "Failed", None),
     }
 }

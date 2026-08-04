@@ -272,9 +272,9 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
       let hostname = ''
       try {
         hostname = await getSystemHostname()
-        debugLog('获取到主机名:', hostname)
+        debugLog('Получено имя хоста:', hostname)
       } catch (err) {
-        console.error('获取主机名失败:', err)
+        console.error('Не удалось получить имя хоста:', err)
       }
 
       // 构建选项列表
@@ -286,12 +286,12 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
         if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
           hostname = hostname + '.local'
           options.push(hostname)
-          debugLog('主机名已添加到选项中:', hostname)
+          debugLog('Имя хоста добавлено в список опций:', hostname)
         } else {
-          debugLog('主机名与已有选项重复:', hostname)
+          debugLog('Имя хоста дублирует существующую опцию:', hostname)
         }
       } else {
-        debugLog('主机名为空')
+        debugLog('Имя хоста пусто')
       }
 
       // 添加IP地址
@@ -299,10 +299,10 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
 
       // 去重
       const uniqueOptions = Array.from(new Set(options))
-      debugLog('最终选项列表:', uniqueOptions)
+      debugLog('Итоговый список опций:', uniqueOptions)
       setHostOptions(uniqueOptions)
     } catch (error) {
-      console.error('获取网络接口失败:', error)
+      console.error('Не удалось получить сетевые интерфейсы:', error)
       // 失败时至少提供基本选项
       setHostOptions(['127.0.0.1', 'localhost'])
     }
@@ -431,11 +431,11 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
               }
             }
           } catch (err) {
-            console.warn('代理状态更新失败:', err)
+            console.warn('Не удалось обновить состояние прокси:', err)
           }
         }, 50)
       } catch (err) {
-        console.error('配置保存失败:', err)
+        console.error('Не удалось сохранить конфигурацию:', err)
         mutateVerge()
         showNotice.error(err)
         // setOpen(true);

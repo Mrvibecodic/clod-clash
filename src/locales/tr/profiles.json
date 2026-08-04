@@ -7,6 +7,9 @@
       "import": "İçe Aktar",
       "addSubscription": "Add subscription"
     },
+    "tooltips": {
+      "emergencyRefresh": "Veri anomalisi tespit edildi, zorla yenilemek için tıklayın"
+    },
     "batch": {
       "actions": {
         "delete": "Seçili Profilleri Sil",

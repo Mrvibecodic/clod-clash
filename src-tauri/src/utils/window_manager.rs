@@ -61,7 +61,7 @@ pub struct WindowManager;
 impl WindowManager {
     #[cfg(target_os = "macos")]
     fn set_macos_activation_policy_regular() {
-        logging!(info, Type::Window, "应用 macOS 特定的激活策略");
+        logging!(info, Type::Window, "Применяю специфичную для macOS политику активации");
         handle::Handle::global().set_activation_policy_regular();
     }
 
@@ -125,31 +125,31 @@ impl WindowManager {
             return WindowOperationResult::NoAction;
         }
 
-        logging!(info, Type::Window, "开始智能显示主窗口");
+        logging!(info, Type::Window, "Начинаю умный показ главного окна");
         logging!(debug, Type::Window, "{}", Self::get_window_status_info());
 
         let current_state = Self::get_main_window_state();
 
         match current_state {
             WindowState::NotExist => {
-                logging!(info, Type::Window, "窗口不存在，创建新窗口");
+                logging!(info, Type::Window, "Окно не существует, создаю новое окно");
                 if Self::create_window(true).await {
-                    logging!(info, Type::Window, "窗口创建成功");
+                    logging!(info, Type::Window, "Окно создано успешно");
                     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
                     WindowOperationResult::Created
                 } else {
-                    logging!(warn, Type::Window, "窗口创建失败");
+                    logging!(warn, Type::Window, "Не удалось создать окно");
                     WindowOperationResult::Failed
                 }
             }
             WindowState::VisibleFocused => {
-                logging!(info, Type::Window, "窗口已经可见且有焦点，无需操作");
+                logging!(info, Type::Window, "Окно уже видимо и в фокусе, действие не требуется");
                 WindowOperationResult::NoAction
             }
             WindowState::VisibleUnfocused | WindowState::Minimized | WindowState::Hidden => {
                 let (window, state_after_check) = Self::get_main_window_with_state();
                 if state_after_check == WindowState::VisibleFocused {
-                    logging!(info, Type::Window, "窗口在检查期间已变为可见和有焦点状态");
+                    logging!(info, Type::Window, "Окно за время проверки стало видимым и в фокусе");
                     return WindowOperationResult::NoAction;
                 }
                 if let Some(window) = window {
@@ -169,7 +169,7 @@ impl WindowManager {
 
         let (window, state) = Self::get_main_window_with_state();
 
-        logging!(debug, Type::Window, "当前状态: {:?}", state);
+        logging!(debug, Type::Window, "Текущее состояние: {:?}", state);
 
         match state {
             WindowState::NotExist => Self::handle_not_exist_toggle().await,
@@ -180,7 +180,7 @@ impl WindowManager {
 
     // 窗口不存在时创建新窗口
     async fn handle_not_exist_toggle() -> WindowOperationResult {
-        logging!(info, Type::Window, "窗口不存在，将创建新窗口");
+        logging!(info, Type::Window, "Окно не существует, создаю новое окно");
         // 由于已经有防抖保护，直接调用内部方法
         if Self::create_window(true).await {
             WindowOperationResult::Created
@@ -191,38 +191,42 @@ impl WindowManager {
 
     // 隐藏主窗口
     fn hide_main_window(window: Option<&WebviewWindow<Wry>>) -> WindowOperationResult {
-        logging!(info, Type::Window, "窗口可见，将隐藏窗口");
+        logging!(info, Type::Window, "Окно видимо, скрываю окно");
         if let Some(window) = window {
             match window.close() {
                 Ok(_) => {
-                    logging!(info, Type::Window, "窗口已成功隐藏");
+                    logging!(info, Type::Window, "Окно успешно скрыто");
                     WindowOperationResult::Hidden
                 }
                 Err(e) => {
-                    logging!(warn, Type::Window, "隐藏窗口失败: {}", e);
+                    logging!(warn, Type::Window, "Не удалось скрыть окно: {}", e);
                     WindowOperationResult::Failed
                 }
             }
         } else {
-            logging!(warn, Type::Window, "无法获取窗口实例");
+            logging!(warn, Type::Window, "Не удалось получить экземпляр окна");
             WindowOperationResult::Failed
         }
     }
 
     // 激活已存在的主窗口
     fn activate_existing_main_window(window: Option<&WebviewWindow<Wry>>) -> WindowOperationResult {
-        logging!(info, Type::Window, "窗口存在但被隐藏或最小化，将激活窗口");
+        logging!(
+            info,
+            Type::Window,
+            "Окно существует, но скрыто или свёрнуто, активирую окно"
+        );
         if let Some(window) = window {
             Self::activate_window(window)
         } else {
-            logging!(warn, Type::Window, "无法获取窗口实例");
+            logging!(warn, Type::Window, "Не удалось получить экземпляр окна");
             WindowOperationResult::Failed
         }
     }
 
     /// 激活窗口（取消最小化、显示、设置焦点）
     fn activate_window(window: &WebviewWindow<Wry>) -> WindowOperationResult {
-        logging!(info, Type::Window, "开始激活窗口");
+        logging!(info, Type::Window, "Начинаю активацию окна");
         #[cfg(target_os = "macos")]
         Self::set_macos_activation_policy_regular();
 
@@ -232,10 +236,19 @@ impl WindowManager {
         let mut defer_show_to_page_load = false;
         #[cfg(target_os = "macos")]
         if crate::utils::resolve::window::take_webview_needs_reload() {
-            logging!(info, Type::Window, "渲染进程曾被系统终止，激活窗口前重载页面");
+            logging!(
+                info,
+                Type::Window,
+                "Процесс рендеринга был завершён системой, перезагружаю страницу перед активацией окна"
+            );
             match window.reload() {
                 Ok(()) => defer_show_to_page_load = true,
-                Err(e) => logging!(warn, Type::Window, "重载页面失败，退回直接显示: {}", e),
+                Err(e) => logging!(
+                    warn,
+                    Type::Window,
+                    "Не удалось перезагрузить страницу, показываю окно напрямую: {}",
+                    e
+                ),
             }
         }
 
@@ -243,9 +256,9 @@ impl WindowManager {
 
         // 1. 如果窗口最小化，先取消最小化
         if window.is_minimized().unwrap_or(false) {
-            logging!(info, Type::Window, "窗口已最小化，正在取消最小化");
+            logging!(info, Type::Window, "Окно свёрнуто, отменяю сворачивание");
             if let Err(e) = window.unminimize() {
-                logging!(warn, Type::Window, "取消最小化失败: {}", e);
+                logging!(warn, Type::Window, "Не удалось отменить сворачивание: {}", e);
                 operations_successful = false;
             }
         }
@@ -253,11 +266,11 @@ impl WindowManager {
         // 2/3. 显示 + 焦点（reload 分支跳过，交给 on_page_load）
         if !defer_show_to_page_load {
             if let Err(e) = window.show() {
-                logging!(warn, Type::Window, "显示窗口失败: {}", e);
+                logging!(warn, Type::Window, "Не удалось показать окно: {}", e);
                 operations_successful = false;
             }
             if let Err(e) = window.set_focus() {
-                logging!(warn, Type::Window, "设置窗口焦点失败: {}", e);
+                logging!(warn, Type::Window, "Не удалось установить фокус окна: {}", e);
                 operations_successful = false;
             }
         }
@@ -266,19 +279,29 @@ impl WindowManager {
         {
             // Windows 尝试额外的激活方法
             if let Err(e) = window.set_always_on_top(true) {
-                logging!(debug, Type::Window, "设置置顶失败（非关键错误）: {}", e);
+                logging!(
+                    debug,
+                    Type::Window,
+                    "Не удалось закрепить поверх окон (некритичная ошибка): {}",
+                    e
+                );
             }
             // 立即取消置顶
             if let Err(e) = window.set_always_on_top(false) {
-                logging!(debug, Type::Window, "取消置顶失败（非关键错误）: {}", e);
+                logging!(
+                    debug,
+                    Type::Window,
+                    "Не удалось снять закрепление поверх окон (некритичная ошибка): {}",
+                    e
+                );
             }
         }
 
         if operations_successful {
-            logging!(info, Type::Window, "窗口激活成功");
+            logging!(info, Type::Window, "Окно успешно активировано");
             WindowOperationResult::Shown
         } else {
-            logging!(warn, Type::Window, "窗口激活部分失败");
+            logging!(warn, Type::Window, "Активация окна частично не удалась");
             WindowOperationResult::Failed
         }
     }
@@ -302,7 +325,12 @@ impl WindowManager {
     /// 窗口创建后保持隐藏，由前端 index.html 在 overlay 渲染后调用 show，避免主题闪烁
     pub fn create_window(should_create: bool) -> Pin<Box<dyn Future<Output = bool> + Send>> {
         Box::pin(async move {
-            logging!(info, Type::Window, "开始创建主窗口, should_create={}", should_create);
+            logging!(
+                info,
+                Type::Window,
+                "Начинаю создание главного окна, should_create={}",
+                should_create
+            );
 
             if !should_create {
                 return false;
@@ -313,12 +341,16 @@ impl WindowManager {
 
             match build_new_window().await {
                 Ok(_) => {
-                    logging!(info, Type::Window, "新窗口创建成功，等待前端渲染后显示");
+                    logging!(
+                        info,
+                        Type::Window,
+                        "Новое окно успешно создано, ожидаю отрисовки фронтенда для показа"
+                    );
 
                     true
                 }
                 Err(e) => {
-                    logging!(error, Type::Window, "新窗口创建失败: {}", e);
+                    logging!(error, Type::Window, "Не удалось создать новое окно: {}", e);
                     false
                 }
             }
@@ -329,10 +361,10 @@ impl WindowManager {
     pub fn destroy_main_window() -> WindowOperationResult {
         if let Some(window) = Self::get_main_window() {
             let _ = window.destroy();
-            logging!(info, Type::Window, "窗口已摧毁");
+            logging!(info, Type::Window, "Окно уничтожено");
             #[cfg(target_os = "macos")]
             {
-                logging!(info, Type::Window, "应用 macOS 特定的激活策略");
+                logging!(info, Type::Window, "Применяю специфичную для macOS политику активации");
                 handle::Handle::global().set_activation_policy_accessory();
             }
             return WindowOperationResult::Destroyed;
@@ -347,6 +379,6 @@ impl WindowManager {
         let is_focused = Self::is_main_window_focused(window.as_ref());
         let is_minimized = Self::is_main_window_minimized(window.as_ref());
 
-        format!("窗口状态: {state:?} | 可见: {is_visible} | 有焦点: {is_focused} | 最小化: {is_minimized}")
+        format!("Состояние окна: {state:?} | Видимо: {is_visible} | В фокусе: {is_focused} | Свёрнуто: {is_minimized}")
     }
 }

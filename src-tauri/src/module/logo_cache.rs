@@ -90,9 +90,7 @@ const fn is_public_v4(ip: std::net::Ipv4Addr) -> bool {
 /// кроме алфавита nanoid. Иначе `../../` в аргументе команды из webview
 /// превращает чтение кэша в чтение произвольного файла, а очистку — в удаление.
 fn is_safe_uid(uid: &str) -> bool {
-    !uid.is_empty()
-        && uid.len() <= 64
-        && uid.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_'))
+    !uid.is_empty() && uid.len() <= 64 && uid.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_'))
 }
 
 fn extension_for(content_type: &str) -> Option<&'static str> {

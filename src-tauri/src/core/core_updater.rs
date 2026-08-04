@@ -371,7 +371,11 @@ async fn download_asset(asset: &GhAsset) -> Result<Vec<u8>> {
     let mut last_error = anyhow!("download not attempted");
     for proxy in [ProxyType::None, ProxyType::Localhost] {
         if matches!(proxy, ProxyType::None) && !route_is_alive(proxy, &asset.browser_download_url).await {
-            logging!(warn, Type::Core, "direct route to GitHub looks dead, trying the core tunnel");
+            logging!(
+                warn,
+                Type::Core,
+                "direct route to GitHub looks dead, trying the core tunnel"
+            );
             last_error = anyhow!("direct connection to GitHub timed out");
             continue;
         }

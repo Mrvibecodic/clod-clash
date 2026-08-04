@@ -17,8 +17,8 @@ use std::{collections::BTreeMap, time::Duration};
 use serde_json::Value;
 
 use crate::{
-    config::{Config, PrfItem, profiles_patch_item_safe},
     config::sub_headers::{DEFAULT_NOTIFY_EXPIRE_DAYS, DEFAULT_NOTIFY_TRAFFIC_PERCENT},
+    config::{Config, PrfItem, profiles_patch_item_safe},
     process::AsyncHandler,
     utils::{
         network::{NetworkManager, ProxyType},
@@ -212,9 +212,8 @@ async fn fetch_fresh_traffic(url: &str) -> Option<(u64, u64)> {
             }
             let value: Value = response.json().await.ok()?;
             let user = value.get("user")?;
-            let as_u64 = |v: &Value| -> Option<u64> {
-                v.as_u64().or_else(|| v.as_str().and_then(|s| s.trim().parse().ok()))
-            };
+            let as_u64 =
+                |v: &Value| -> Option<u64> { v.as_u64().or_else(|| v.as_str().and_then(|s| s.trim().parse().ok())) };
             let used = as_u64(user.get("trafficUsedBytes")?)?;
             let limit = user.get("trafficLimitBytes").and_then(&as_u64).unwrap_or(0);
             Some((used, limit))

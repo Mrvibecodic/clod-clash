@@ -140,16 +140,21 @@ const ProfileItemBase = (props: ProfileItemProps) => {
         itemData.option.update_interval > 0
       ) {
         try {
-          debugLog(`尝试获取配置 ${itemData.uid} 的下次更新时间`)
+          debugLog(
+            `Попытка получить время следующего обновления для конфигурации ${itemData.uid}`,
+          )
 
           // 如果需要强制刷新，先触发Timer.refresh()
           if (forceRefresh) {
             // 这里可以通过一个新的API来触发刷新，但目前我们依赖patch_profile中的刷新
-            debugLog(`强制刷新定时器任务`)
+            debugLog(`Принудительное обновление задачи таймера`)
           }
 
           const nextUpdate = await getNextUpdateTime(itemData.uid)
-          debugLog(`获取到下次更新时间结果:`, nextUpdate)
+          debugLog(
+            `Результат получения времени следующего обновления:`,
+            nextUpdate,
+          )
 
           if (nextUpdate) {
             const nextUpdateDate = dayjs(nextUpdate * 1000)
@@ -183,17 +188,22 @@ const ProfileItemBase = (props: ProfileItemProps) => {
               }
             }
           } else {
-            debugLog(`返回的下次更新时间为空`)
+            debugLog(`Возвращено пустое время следующего обновления`)
             setNextUpdateTime(
               t('profiles.components.profileItem.status.noSchedule'),
             )
           }
         } catch (err) {
-          console.error(`获取下次更新时间出错:`, err)
+          console.error(
+            `Ошибка при получении времени следующего обновления:`,
+            err,
+          )
           setNextUpdateTime(t('profiles.components.profileItem.status.unknown'))
         }
       } else {
-        debugLog(`该配置未设置更新间隔或间隔为0`)
+        debugLog(
+          `Для этой конфигурации не задан интервал обновления или он равен 0`,
+        )
         setNextUpdateTime(
           t('profiles.components.profileItem.status.autoUpdateDisabled'),
         )
