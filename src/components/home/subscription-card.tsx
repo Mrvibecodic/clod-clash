@@ -120,6 +120,22 @@ export const SubscriptionCard = ({ profile }: Props) => {
   // clod: часы вместо дней — только последние сутки. Оговорка про часы висит
   // именно там: день округляется честно в любом случае.
   const hourly = !info.forever && countdown.hoursLeft !== undefined
+  // clod: «до 20:33» не отвечает на вопрос «а это когда» — сегодня вечером или
+  // завтра днём. В часовом режиме до срока меньше суток, значит это ровно один
+  // из двух дней; называем его прямо. Считаем по тем же часам, что и время на
+  // плитке (момент истечения, переведённый в часы устройства), иначе подпись
+  // разошлась бы с числом рядом.
+  const daysUntilExpiry = info.forever
+    ? undefined
+    : dayjs((expire - (skew ?? 0)) * 1000)
+        .startOf('day')
+        .diff(dayjs().startOf('day'), 'day')
+  const untilTimeKey =
+    daysUntilExpiry === 0
+      ? 'home.components.subscription.untilTimeToday'
+      : daysUntilExpiry === 1
+        ? 'home.components.subscription.untilTimeTomorrow'
+        : 'home.components.subscription.untilTime'
   const expired = !info.forever && countdown.secondsLeft <= 0
   // Часы устройства сверены с панелью — говорить, что «считаем по вашим
   // часам», больше нечего. Расхождение крупнее пяти минут пользователь увидит
@@ -302,7 +318,7 @@ export const SubscriptionCard = ({ profile }: Props) => {
               {/* Уже истёкшая подписка называет дату: одно время без даты у
                   того, кто не заходил неделю, не значит ничего. */}
               {hourly && !expired
-                ? t('home.components.subscription.untilTime', {
+                ? t(untilTimeKey, {
                     time: info.expireTime,
                   })
                 : t('home.components.subscription.untilDate', {

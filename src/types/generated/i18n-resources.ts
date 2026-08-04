@@ -199,6 +199,8 @@ export interface TranslationResources {
           trafficTitle: string
           untilDate: string
           untilTime: string
+          untilTimeToday: string
+          untilTimeTomorrow: string
           updated: string
         }
         systemInfo: {

@@ -196,6 +196,8 @@
       "hoursShort": "{{count}} h",
       "expiredShort": "Expired",
       "untilTime": "until {{time}}",
+      "untilTimeToday": "today until {{time}}",
+      "untilTimeTomorrow": "tomorrow until {{time}}",
       "expiryApproximate": "Counted by your device clock. Update the subscription to see the exact expiry time",
       "expiryClockOff": "This device's clock disagrees with the panel; the countdown follows the panel's time",
       "approximate": {

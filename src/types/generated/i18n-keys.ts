@@ -145,6 +145,8 @@ export const translationKeys = [
   'home.components.subscription.hoursShort',
   'home.components.subscription.expiredShort',
   'home.components.subscription.untilTime',
+  'home.components.subscription.untilTimeToday',
+  'home.components.subscription.untilTimeTomorrow',
   'home.components.subscription.expiryApproximate',
   'home.components.subscription.expiryClockOff',
   'home.components.subscription.approximate.hint',
