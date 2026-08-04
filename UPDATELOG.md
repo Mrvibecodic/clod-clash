@@ -8,6 +8,34 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.0.16-alpha
+
+<!-- lang:en -->
+
+### Changed
+
+- One toggle style everywhere. The bulky outlined switch crowded the rows of every settings list and looked foreign in dialogs; the app now uses the compact system toggle, with only its off state strengthened so it stays visible on a white card
+- The app no longer asks twice what the Connect button switches. The "Connect: system proxy" and "Connect: TUN mode" settings duplicated a choice you already make with the live switches, so they are gone: whichever mode you turn on by hand is the one Connect brings up next time
+- Logs, the support report and the Windows installer speak Russian instead of Chinese — nearly seven hundred leftover upstream messages, including the ones the installer prints while it runs
+
+### Fixed
+
+- The subscription screen no longer keeps a dead uptime request alive: the app polled the backend every three seconds for a value nothing displayed any more
+
+<!-- lang:ru -->
+
+### Изменено
+
+- Один вид тумблера на всё приложение. Крупный переключатель с обводкой занимал почти всю строку в списках настроек и выглядел чужеродно в диалогах — теперь везде компактный системный тумблер, у которого усилено только выключенное состояние, чтобы он не терялся на белой карточке
+- Приложение больше не спрашивает дважды, что включает кнопка Connect. Настройки «Подключение: системный прокси» и «Подключение: режим TUN» дублировали выбор, который вы уже делаете живыми тумблерами, и удалены: какой режим включили руками — тот Connect и поднимет в следующий раз
+- Логи, отчёт для поддержки и установщик Windows говорят по-русски, а не по-китайски: без малого семьсот сообщений, доставшихся от апстрима, включая те, что установщик печатает по ходу установки
+
+### Исправлено
+
+- Приложение перестало опрашивать бэкенд каждые три секунды ради времени работы, которое давно негде показывать
+
+---
+
 ## v0.0.15-alpha
 
 <!-- lang:en -->

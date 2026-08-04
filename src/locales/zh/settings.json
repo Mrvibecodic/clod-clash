@@ -181,8 +181,6 @@
           "misc": "杂项设置",
           "hotkeySetting": "热键设置",
           "advancedMode": "Advanced mode",
-          "connectSysproxy": "Connect: system proxy",
-          "connectTun": "Connect: TUN mode",
           "subNotifications": "订阅通知",
           "deviceIdentity": "设备标识"
         },
@@ -191,7 +189,6 @@
           "tun": "TUN"
         },
         "hints": {
-          "connectTun": "The Connect button also brings the TUN device up. System proxy and TUN can run together; the TUN device needs the service installed.",
           "subNotifications": "在流量或订阅时长即将耗尽时提醒。关闭后无论服务商如何设置都不再提醒。",
           "deviceIdentity": "每次请求订阅时发送经过哈希的设备标识（x-hwid），服务商据此统计设备数量限制。原始机器标识不会离开本机。关闭后，面板可能拒绝下发订阅。"
         }

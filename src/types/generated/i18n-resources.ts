@@ -787,8 +787,6 @@ export interface TranslationResources {
             }
             fields: {
               advancedMode: string
-              connectSysproxy: string
-              connectTun: string
               copyEnvType: string
               deviceIdentity: string
               hotkeySetting: string
@@ -803,7 +801,6 @@ export interface TranslationResources {
               trayClickEvent: string
             }
             hints: {
-              connectTun: string
               deviceIdentity: string
               subNotifications: string
             }
