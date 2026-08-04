@@ -31,6 +31,7 @@ import { useGroupTestUrls } from '@/hooks/use-group-test-urls'
 import { useNoServersStatus } from '@/hooks/use-no-servers-status'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useProxySelection } from '@/hooks/use-proxy-selection'
+import { useServerDescriptions } from '@/hooks/use-server-descriptions'
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
 import { showNotice } from '@/services/notice-service'
 import { nameWithoutFlag } from '@/utils/country'
@@ -86,6 +87,9 @@ export const ServerSelect = ({ open, onClose }: Props) => {
   useGroupTestUrls()
 
   const records = (proxies?.records ?? {}) as Record<string, any>
+  // clod: описания серверов приходят не от ядра, а из самой подписки — пустая
+  // карта здесь норма, строки просто остаются такими, как были
+  const descriptions = useServerDescriptions()
   const groups = useMemo(() => visibleGroups(proxies), [proxies])
   const [groupName, setGroupName] = useState<string>('')
   const group = useMemo(
@@ -191,6 +195,10 @@ export const ServerSelect = ({ open, onClose }: Props) => {
     const starred = favorites.has(node.name)
     // clod: служебные имена ядра (COMPATIBLE и т.п.) в подписи не показываем
     const leaf = isGroup ? displayLeaf(records, node.name) : undefined
+    // clod: слово провайдера о сервере вытесняет и тип узла, и «Используется»:
+    // тип не говорил ничего, а выбор и без слов виден по галочке с подсветкой.
+    // У групп описания нет — там подпись остаётся прежней.
+    const description = isGroup ? undefined : descriptions[node.name]
 
     return (
       <ListItemButton
@@ -229,21 +237,26 @@ export const ServerSelect = ({ open, onClose }: Props) => {
         )}
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography noWrap>{nameWithoutFlag(node.name)}</Typography>
-          {/* clod: у активного сервера подпись «Используется», не тип узла */}
+          {/* clod: описание от провайдера, иначе — «Используется» у активного
+              сервера и тип узла у остальных */}
           <Typography
             variant="caption"
-            color={selected ? 'success.main' : 'text.secondary'}
+            color={selected && !description ? 'success.main' : 'text.secondary'}
             noWrap
+            // 30 символов панель гарантирует, чужой шаблон — нет: полный текст
+            // остаётся доступен наведением, даже если подпись его обрезала
+            title={description}
           >
-            {selected
-              ? isGroup && leaf
-                ? `${t('home.components.serverSelect.inUse')} · ${nameWithoutFlag(leaf)}`
-                : t('home.components.serverSelect.inUse')
-              : isGroup
-                ? leaf
-                  ? `${typeLabel(type)} · ${nameWithoutFlag(leaf)}`
-                  : typeLabel(type)
-                : node.type}
+            {description ??
+              (selected
+                ? isGroup && leaf
+                  ? `${t('home.components.serverSelect.inUse')} · ${nameWithoutFlag(leaf)}`
+                  : t('home.components.serverSelect.inUse')
+                : isGroup
+                  ? leaf
+                    ? `${typeLabel(type)} · ${nameWithoutFlag(leaf)}`
+                    : typeLabel(type)
+                  : node.type)}
           </Typography>
         </Box>
         {/* clod: маркер ошибки (1e6) — это не пинг, показываем прочерк */}
@@ -524,6 +537,7 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
   const { proxies } = useProxiesData()
   const { current: currentProfile } = useProfiles()
   const runGroupDelayTest = useGroupDelayTest()
+  const descriptions = useServerDescriptions()
 
   const records = (proxies?.records ?? {}) as Record<string, any>
   const group = visibleGroups(proxies)[0]
@@ -590,13 +604,18 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
         ? 'warning.main'
         : 'text.secondary'
 
+  // clod: описание сервера принадлежит узлу, на который цепочка приземлилась,
+  // — у балансировщика своего описания нет. Имя узла оно вытесняет: оно и так
+  // продублировано в заголовке строки, а задержка нужнее и остаётся на месте.
+  const description =
+    (leaf ? descriptions[leaf] : undefined) ??
+    (current ? descriptions[current] : undefined)
+  const subject = description ?? (leaf ? nameWithoutFlag(leaf) : undefined)
   const caption = usableDelay(delay)
-    ? leaf
-      ? `${nameWithoutFlag(leaf)} · ${delay} ${t('home.components.serverSelect.ms')}`
+    ? subject
+      ? `${subject} · ${delay} ${t('home.components.serverSelect.ms')}`
       : `${delay} ${t('home.components.serverSelect.ms')}`
-    : leaf
-      ? nameWithoutFlag(leaf)
-      : t('home.components.serverSelect.current')
+    : (subject ?? t('home.components.serverSelect.current'))
 
   return (
     <Stack
@@ -640,6 +659,7 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
           noWrap
           sx={{ fontSize: 12, display: 'block' }}
           color={statusRow ? statusColor : 'text.secondary'}
+          title={statusRow ? undefined : description}
         >
           {statusCaption ?? caption}
         </Typography>

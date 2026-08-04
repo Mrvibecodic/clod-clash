@@ -326,6 +326,22 @@ export async function getSentinelReport() {
 }
 
 /**
+ * clod: server descriptions from the panel, keyed by node name.
+ *
+ * Remnawave keeps the host description inside the node itself
+ * (`serverDescription`, 30 characters at most); the core's `/proxies` never
+ * carries it, so the list takes it from the generated config instead.
+ *
+ * The map stays empty until the provider adds `^ClodClash/` to
+ * `additionalExtendedClientsRegex` in their subscription response rules: the
+ * panel ships the field to "extended clients" only, and its built-in list of
+ * those is a fixed set of other apps. See `docs/REMNAWAVE.md`.
+ */
+export async function getServerDescriptions() {
+  return invoke<Record<string, string>>('get_server_descriptions')
+}
+
+/**
  * clod: build the support report and put it on the clipboard.
  *
  * Holds versions, core and subscription state, the sentinel report and the tail

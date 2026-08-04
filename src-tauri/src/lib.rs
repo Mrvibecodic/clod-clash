@@ -191,6 +191,7 @@ mod app_init {
             cmd::get_device_identity,
             cmd::get_profile_logo,
             cmd::get_sentinel_report,
+            cmd::get_server_descriptions,
             cmd::copy_support_bundle,
             cmd::test_delay,
             cmd::get_app_dir,

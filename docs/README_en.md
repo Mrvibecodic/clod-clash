@@ -57,6 +57,9 @@ editors) is kept — it is simply moved out of sight into an advanced mode.
   minimized, without opening the settings.
 * **Server selection is not reset** by delay tests or subscription updates; starred servers float
   to the top and replace one that disappeared.
+* **The provider's own words about each server** — the panel puts them in the subscription (a
+  host's Server description) and the client shows them under the name instead of the node type.
+  What to switch on in the panel is in [REMNAWAVE.md](REMNAWAVE.md).
 * **The Mihomo core updates separately from the app** — a managed core in the settings.
 
 ---

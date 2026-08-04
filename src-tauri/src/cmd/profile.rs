@@ -530,6 +530,16 @@ pub async fn get_sentinel_report() -> CmdResult<crate::enhance::SentinelReport> 
     Ok(crate::enhance::sentinel_report().await)
 }
 
+/// clod: описания серверов из панели — карта `имя узла → описание`.
+///
+/// Список серверов интерфейс берёт у ядра (`/proxies`), а там описания нет: оно
+/// живёт только в самой подписке. Отдаём его отдельно, чтобы строка списка
+/// говорила словами провайдера («10 Гбит · без лимита»), а не типом узла.
+#[tauri::command]
+pub async fn get_server_descriptions() -> CmdResult<std::collections::HashMap<String, String>> {
+    Ok(crate::enhance::server_descriptions().await)
+}
+
 /// clod: логотип провайдера из локального кэша (`data:`-URL).
 ///
 /// Холодный кэш наполняется здесь же, поэтому только что импортированная

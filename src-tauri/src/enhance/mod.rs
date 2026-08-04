@@ -611,6 +611,61 @@ pub async fn sentinel_report() -> SentinelReport {
         .clone()
 }
 
+/// clod: описания серверов из ПРИМЕНЁННОГО конфига — карта `имя → описание`.
+///
+/// Панель Remnawave кладёт описание хоста внутрь узла ключом `serverDescription`
+/// (в БД — `server_description`, не длиннее 30 символов). Через API ядра оно не
+/// проходит: `/proxies` отдаёт только имя, тип и историю задержек, — поэтому
+/// читаем его оттуда, где оно есть, из собранного конфига.
+///
+/// ВАЖНО про панель: описание уезжает только «расширенным клиентам», которых
+/// она узнаёт по User-Agent зашитым списком (FlClash X, Flowvy, prizrak-box,
+/// koala-clash, Happ, INCY). Нас там нет, поэтому провайдер должен добавить
+/// `^ClodClash/` в `additionalExtendedClientsRegex` своих Subscription Response
+/// Rules — иначе поля в подписке просто не будет. См. `docs/REMNAWAVE.md`.
+pub async fn server_descriptions() -> HashMap<String, String> {
+    let runtime = crate::config::Config::runtime().await;
+    let data = runtime.data_arc();
+    data.config
+        .as_ref()
+        .map(collect_server_descriptions)
+        .unwrap_or_default()
+}
+
+/// Сами описания: ключ читаем в трёх написаниях.
+///
+/// Панель шлёт `serverDescription`, но клиенты-доноры (prizrak-box) принимают и
+/// `server_description`, и `server-description`, а конфиг может прийти и через
+/// чужой шаблон mihomo. Стоит это одну строку, а пустые и пробельные значения
+/// не показываем вовсе — иначе строка списка теряет и описание, и тип узла.
+fn collect_server_descriptions(config: &Mapping) -> HashMap<String, String> {
+    const KEYS: [&str; 3] = ["serverDescription", "server_description", "server-description"];
+
+    let mut descriptions = HashMap::new();
+    let Some(Value::Sequence(proxies)) = config.get("proxies") else {
+        return descriptions;
+    };
+
+    for proxy in proxies {
+        let Some(proxy) = proxy.as_mapping() else {
+            continue;
+        };
+        let Some(name) = proxy.get("name").and_then(Value::as_str) else {
+            continue;
+        };
+        let description = KEYS
+            .iter()
+            .find_map(|key| proxy.get(*key).and_then(Value::as_str))
+            .map(str::trim)
+            .filter(|text| !text.is_empty());
+        if let Some(description) = description {
+            descriptions.insert(String::from(name), String::from(description));
+        }
+    }
+
+    descriptions
+}
+
 /// clod: узел-заглушка, каким его отдаёт панель вместо серверов.
 ///
 /// Remnawave (v3, `createFallbackHosts`) на истёкшую подписку, исчерпанный
@@ -1081,8 +1136,9 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
 #[cfg(test)]
 mod tests {
     use super::{
-        ChainItem, ChainType, backfill_empty_groups, cleanup_proxy_groups, ensure_lan_bind_address,
-        ensure_store_selected, filter_sentinel_proxies, process_global_items, process_profile_items, use_keys,
+        ChainItem, ChainType, backfill_empty_groups, cleanup_proxy_groups, collect_server_descriptions,
+        ensure_lan_bind_address, ensure_store_selected, filter_sentinel_proxies, process_global_items,
+        process_profile_items, use_keys,
     };
     use std::collections::HashMap;
 
@@ -1578,6 +1634,67 @@ proxy-groups:
                     .map(std::borrow::ToOwned::to_owned)
             })
             .collect()
+    }
+
+    // clod: описание сервера панель кладёт внутрь узла — ключом
+    // `serverDescription`. Читаем три написания (панель шлёт первое, чужие
+    // шаблоны и клиенты-доноры знают ещё два), узлы без описания и с пустым
+    // описанием в карту не попадают вовсе: строке списка тогда нечего
+    // показывать, и она остаётся прежней.
+    #[test]
+    fn server_descriptions_are_collected_from_proxies() {
+        let config = mapping(
+            r#"
+proxies:
+  - name: "Netherlands 01"
+    type: vless
+    server: nl-01.example.com
+    serverDescription: "10 Гбит · без лимита"
+  - name: "Germany 02"
+    type: vless
+    server: de-02.example.com
+    server_description: "  Для игр, низкий пинг  "
+  - name: "USA 01"
+    type: vless
+    server: us-01.example.com
+    server-description: "Netflix, Disney+"
+  - name: "Turkey 01"
+    type: vless
+    server: tr-01.example.com
+  - name: "Finland 03"
+    type: vless
+    server: fi-03.example.com
+    serverDescription: "   "
+"#,
+        );
+
+        let descriptions = collect_server_descriptions(&config);
+
+        let text = |name: &str| descriptions.get(name).map(|value| value.as_str());
+
+        assert_eq!(descriptions.len(), 3);
+        assert_eq!(text("Netherlands 01"), Some("10 Гбит · без лимита"));
+        // пробелы по краям режем: иначе они уедут в подпись как есть
+        assert_eq!(text("Germany 02"), Some("Для игр, низкий пинг"));
+        assert_eq!(text("USA 01"), Some("Netflix, Disney+"));
+        assert!(!descriptions.contains_key("Turkey 01"));
+        assert!(!descriptions.contains_key("Finland 03"));
+    }
+
+    // clod: конфиг без единого описания — обычное дело: панель отдаёт поле
+    // только «расширенным клиентам», а нас в её зашитом списке нет.
+    #[test]
+    fn server_descriptions_are_empty_without_the_field() {
+        let config = mapping(
+            r#"
+proxies:
+  - name: "Netherlands 01"
+    type: vless
+    server: nl-01.example.com
+"#,
+        );
+
+        assert!(collect_server_descriptions(&config).is_empty());
     }
 
     // clod: панель при истёкшей подписке отдаёт 200 и конфиг, где вместо
