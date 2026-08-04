@@ -18,14 +18,14 @@ pub async fn copy_support_bundle(app: AppHandle, lines: Option<usize>) -> CmdRes
     Ok(size)
 }
 
-/// 打开应用程序所在目录
+/// Открыть директорию приложения
 #[tauri::command]
 pub async fn open_app_dir() -> CmdResult<()> {
     let app_dir = dirs::app_home_dir().stringify_err()?;
     open::that(app_dir).stringify_err()
 }
 
-/// 打开核心所在目录
+/// Открыть директорию ядра
 #[tauri::command]
 pub async fn open_core_dir() -> CmdResult<()> {
     let core_dir = tauri::utils::platform::current_exe().stringify_err()?;
@@ -33,14 +33,14 @@ pub async fn open_core_dir() -> CmdResult<()> {
     open::that(core_dir).stringify_err()
 }
 
-/// 打开日志目录
+/// Открыть директорию логов
 #[tauri::command]
 pub async fn open_logs_dir() -> CmdResult<()> {
     let log_dir = dirs::app_logs_dir().stringify_err()?;
     open::that(log_dir).stringify_err()
 }
 
-/// 打开网页链接
+/// Открыть веб-ссылку
 #[tauri::command]
 pub fn open_web_url(url: String) -> CmdResult<()> {
     open::that(url.as_str()).stringify_err()
@@ -55,7 +55,7 @@ pub fn get_connect_session_start() -> Option<i64> {
     feat::connect_session_start()
 }
 
-/// 打开/关闭开发者工具
+/// Открыть/закрыть инструменты разработчика
 #[tauri::command]
 pub fn open_devtools(app_handle: AppHandle) {
     if let Some(window) = app_handle.get_webview_window("main") {
@@ -67,45 +67,45 @@ pub fn open_devtools(app_handle: AppHandle) {
     }
 }
 
-/// 退出应用
+/// Выход из приложения
 #[tauri::command]
 pub async fn exit_app() {
     feat::quit().await;
 }
 
-/// 重启应用
+/// Перезапуск приложения
 #[tauri::command]
 pub async fn restart_app() -> CmdResult<()> {
     feat::restart_app().await;
     Ok(())
 }
 
-/// 获取便携版标识
+/// Получить флаг портативной версии
 #[tauri::command]
 pub fn get_portable_flag() -> bool {
     *dirs::PORTABLE_FLAG.get().unwrap_or(&false)
 }
 
-/// 获取应用目录
+/// Получить директорию приложения
 #[tauri::command]
 pub fn get_app_dir() -> CmdResult<String> {
     let app_home_dir = dirs::app_home_dir().stringify_err()?.to_string_lossy().into();
     Ok(app_home_dir)
 }
 
-/// 获取当前自启动状态
+/// Получить текущий статус автозапуска
 #[tauri::command]
 pub fn get_auto_launch_status() -> CmdResult<bool> {
     autostart::get_launch_status().stringify_err()
 }
 
-/// 下载图标缓存
+/// Скачать кэш иконки
 #[tauri::command]
 pub async fn download_icon_cache(url: String, name: String) -> CmdResult<String> {
     feat::download_icon_cache(url, name).await
 }
 
-/// 复制图标文件
+/// Скопировать файл иконки
 #[tauri::command]
 pub async fn copy_icon_file(path: String, icon_info: feat::IconInfo) -> CmdResult<String> {
     feat::copy_icon_file(path, icon_info).await

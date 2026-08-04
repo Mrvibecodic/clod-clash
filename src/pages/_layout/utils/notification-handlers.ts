@@ -11,8 +11,8 @@ export const handleNoticeMessage = (
 ) => {
   const handlers: Record<string, () => void> = {
     'import_sub_url::ok': () => {
-      // 空 msg 传入，我们不希望导致 后端-前端-后端 死循环，这里只做提醒。
-      // 未来细分事件通知时，可以考虑传入订阅 ID 或其他标识符
+      // Передаём пустой msg, не хотим цикла backend-frontend-backend, здесь только уведомление.
+      // В будущем при детализации событий можно передавать ID подписки или другой идентификатор
       // navigate("/profile", { state: { current: msg } });
       navigate('/profile')
       showNotice.success(

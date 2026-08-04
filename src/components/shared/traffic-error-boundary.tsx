@@ -21,8 +21,9 @@ interface State {
 }
 
 /**
- * 流量统计专用错误边界组件
- * 处理图表和流量统计组件的错误，提供优雅的降级体验
+ * Компонент границы ошибок для статистики трафика
+ * Обрабатывает ошибки графиков и компонентов статистики трафика, обеспечивает
+ * плавную деградацию
  */
 class TrafficErrorBoundary extends Component<Props, State> {
   private retryCount = 0
@@ -39,7 +40,7 @@ class TrafficErrorBoundary extends Component<Props, State> {
   }
 
   static getDerivedStateFromError(error: Error): Partial<State> {
-    // 更新状态以显示降级UI
+    // Обновляем состояние, чтобы показать деградированный UI
     return { hasError: true, error }
   }
 
@@ -55,17 +56,17 @@ class TrafficErrorBoundary extends Component<Props, State> {
       errorInfo,
     })
 
-    // 调用错误回调
+    // Вызываем callback ошибки
     if (this.props.onError) {
       this.props.onError(error, errorInfo)
     }
 
-    // 发送错误到监控系统（如果有的话）
+    // Отправляем ошибку в систему мониторинга (если она есть)
     this.reportError(error, errorInfo)
   }
 
   private reportError = (error: Error, errorInfo: ErrorInfo) => {
-    // 这里可以集成错误监控服务
+    // Здесь можно интегрировать службу мониторинга ошибок
     const errorReport = {
       message: error.message,
       stack: error.stack,
@@ -76,7 +77,7 @@ class TrafficErrorBoundary extends Component<Props, State> {
     }
 
     console.error('[TrafficErrorBoundary] Отчёт об ошибке:', errorReport)
-    // TODO: 发送到错误监控服务
+    // TODO: отправка в службу мониторинга ошибок
     // sendErrorReport(errorReport);
   }
 
@@ -110,12 +111,12 @@ class TrafficErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
-      // 如果提供了自定义降级组件，使用它
+      // Если предоставлен кастомный fallback-компонент, используем его
       if (this.props.fallbackComponent) {
         return this.props.fallbackComponent
       }
 
-      // 默认错误UI
+      // UI ошибки по умолчанию
       return (
         <TrafficErrorFallback
           error={this.state.error}
@@ -136,7 +137,7 @@ class TrafficErrorBoundary extends Component<Props, State> {
 }
 
 /**
- * 错误降级UI组件
+ * Компонент UI деградации при ошибке
  */
 interface TrafficErrorFallbackProps {
   error: Error | null
@@ -288,8 +289,8 @@ const TrafficErrorFallback: React.FC<TrafficErrorFallbackProps> = ({
 }
 
 /**
- * 轻量级流量统计错误边界
- * 用于小型流量显示组件，提供最小化的错误UI
+ * Облегчённая граница ошибок для статистики трафика
+ * Для небольших компонентов отображения трафика, минимальный UI ошибки
  */
 export const LightweightTrafficErrorBoundary: React.FC<{
   children: ReactNode

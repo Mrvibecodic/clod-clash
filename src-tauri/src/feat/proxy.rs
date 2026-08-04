@@ -12,7 +12,7 @@ pub async fn toggle_system_proxy() -> bool {
     let current = verge.latest_arc().enable_system_proxy.unwrap_or(false);
     let auto_close_connection = verge.latest_arc().auto_close_connection.unwrap_or(false);
 
-    // 如果当前系统代理即将关闭，且自动关闭连接设置为true，则关闭所有连接
+    // Если системный прокси сейчас будет выключен и включена настройка автозакрытия соединений, закрываем все соединения
     if current
         && auto_close_connection
         && let Err(err) = handle::Handle::mihomo().await.close_all_connections().await

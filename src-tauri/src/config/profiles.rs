@@ -65,7 +65,7 @@ pub struct IProfilePreview<'a> {
     pub is_current: bool,
 }
 
-/// 清理结果
+/// Результат очистки
 #[derive(Debug, Clone)]
 pub struct CleanupResult {
     pub total_files: usize,
@@ -137,7 +137,7 @@ impl IProfiles {
     }
     // clod:headers end
 
-    /// 只修改current，valid和chain
+    /// Изменяет только current, valid и chain
     pub fn patch_config(&mut self, patch: &Self) {
         if self.items.is_none() {
             self.items = Some(vec![]);
@@ -403,7 +403,7 @@ impl IProfiles {
         Ok(current == *uid)
     }
 
-    /// 获取current指向的订阅内容
+    /// Получает содержимое подписки, на которую указывает current
     pub async fn current_mapping(&self) -> Result<Mapping> {
         match (self.current.as_ref(), self.items.as_ref()) {
             (Some(current), Some(items)) => {
@@ -420,12 +420,12 @@ impl IProfiles {
         }
     }
 
-    /// 判断profile是否是current指向的
+    /// Проверяет, является ли profile тем, на который указывает current
     pub fn is_current_profile_index(&self, index: &String) -> bool {
         self.current.as_ref() == Some(index)
     }
 
-    /// 获取所有的profiles(uid，名称, 是否为 current)
+    /// Получает все profiles (uid, имя, является ли current)
     pub fn profiles_preview(&self) -> Option<Vec<IProfilePreview<'_>>> {
         self.items.as_ref().map(|items| {
             items
@@ -443,7 +443,7 @@ impl IProfiles {
         })
     }
 
-    /// 通过 uid 获取名称
+    /// Получает имя по uid
     pub fn get_name_by_uid(&self, uid: &String) -> Option<&String> {
         if let Some(items) = &self.items {
             for item in items {
@@ -455,7 +455,7 @@ impl IProfiles {
         None
     }
 
-    /// 以 app 中的 profile 列表为准，删除不再需要的文件
+    /// Удаляет ненужные файлы, ориентируясь на список profile в app
     pub async fn cleanup_orphaned_files(&self) -> Result<()> {
         let profiles_dir = dirs::app_profiles_dir()?;
         self.cleanup_orphaned_files_in(&profiles_dir).await
@@ -466,9 +466,9 @@ impl IProfiles {
             return Ok(());
         }
 
-        // 如果 items 为空（例如 profiles.yaml 解析失败导致
-        // IProfiles::new() 返回 default），此时无法判断哪些文件是活跃的，
-        // 跳过清理以避免误删用户正在使用的订阅配置文件。
+        // Если items пуст (например, из-за ошибки разбора profiles.yaml
+        // IProfiles::new() вернул default), невозможно определить, какие файлы активны,
+        // пропускаем очистку, чтобы не удалить конфиги подписок, которые использует пользователь.
         // See: https://github.com/clash-verge-rev/clash-verge-rev/issues/7577
         if self.items.as_ref().is_none_or(|v| v.is_empty()) {
             logging!(
@@ -479,13 +479,13 @@ impl IProfiles {
             return Ok(());
         }
 
-        // 获取所有 active profile 的文件名集合
+        // Получаем набор имён файлов всех active profile
         let active_files = self.get_all_active_files();
 
-        // 添加全局扩展配置文件到保护列表
+        // Добавляем глобальные файлы расширенного конфига в список защищённых
         let protected_files = self.get_protected_global_files();
 
-        // 扫描 profiles 目录下的所有文件
+        // Сканируем все файлы в каталоге profiles
         let mut total_files = 0;
         let mut deleted_files = 0;
         let mut failed_deletions = 0;
@@ -503,7 +503,7 @@ impl IProfiles {
             if let Some(file_name) = path.file_name().and_then(|n| n.to_str())
                 && Self::is_profile_file(file_name)
             {
-                // 检查是否为全局扩展文件
+                // Проверяем, является ли файл глобальным расширенным конфигом
                 if protected_files.contains(file_name) {
                     logging!(
                         debug,
@@ -513,7 +513,7 @@ impl IProfiles {
                     continue;
                 }
 
-                // 检查是否为活跃文件
+                // Проверяем, является ли файл активным
                 if !active_files.contains(file_name) {
                     match path.to_path_buf().remove_if_exists().await {
                         Ok(_) => {
@@ -551,7 +551,7 @@ impl IProfiles {
         Ok(())
     }
 
-    /// 不删除全局扩展配置
+    /// Не удаляет глобальный расширенный конфиг
     fn get_protected_global_files(&self) -> HashSet<String> {
         let mut protected_files = HashSet::new();
 
@@ -561,23 +561,24 @@ impl IProfiles {
         protected_files
     }
 
-    /// 获取所有 active profile 关联的文件名
+    /// Получает имена всех файлов, связанных с active profile
     fn get_all_active_files(&self) -> HashSet<&str> {
         let mut active_files: HashSet<&str> = HashSet::new();
 
         if let Some(items) = &self.items {
             for item in items {
-                // 收集所有类型 profile 的文件
+                // Собираем файлы profile всех типов
                 if let Some(file) = &item.file {
                     active_files.insert(file);
                 }
 
-                // 对于主 profile 类型（remote/local），还需要收集其关联的扩展文件
+                // Для основных типов profile (remote/local) нужно также собрать
+                // связанные расширенные файлы
                 if let Some(itype) = &item.itype
                     && (itype == "remote" || itype == "local")
                     && let Some(option) = &item.option
                 {
-                    // 收集关联的扩展文件
+                    // Собираем связанные расширенные файлы
                     if let Some(merge_uid) = &option.merge
                         && let Ok(merge_item) = self.get_item(merge_uid)
                         && let Some(file) = &merge_item.file
@@ -619,13 +620,13 @@ impl IProfiles {
         active_files
     }
 
-    /// 检查文件名是否符合 profile 文件的命名规则
+    /// Проверяет, соответствует ли имя файла правилам именования файлов profile
     fn is_profile_file(filename: &str) -> bool {
         REGEX_PROFILE_FILE.is_match(filename)
     }
 }
 
-// 特殊的Send-safe helper函数，完全避免跨await持有guard
+// Специальные Send-safe helper-функции, полностью избегающие удержания guard через await
 use crate::config::Config;
 
 pub async fn profiles_append_item_with_filedata_safe(item: &PrfItem, file_data: Option<String>) -> Result<()> {

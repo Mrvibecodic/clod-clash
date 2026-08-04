@@ -4,13 +4,13 @@ use clash_verge_draft::SharedDraft;
 use serde::Serialize;
 use smartstring::alias::String;
 
-/// 获取Verge配置
+/// Получить конфиг Verge
 #[tauri::command]
 pub async fn get_verge_config() -> CmdResult<SharedDraft<IVerge>> {
     feat::fetch_verge_config().await.stringify_err()
 }
 
-/// 修改Verge配置
+/// Изменить конфиг Verge
 #[tauri::command]
 pub async fn patch_verge_config(payload: IVerge) -> CmdResult {
     feat::patch_verge(&payload, false).await.stringify_err()
@@ -31,7 +31,7 @@ pub struct DeviceIdentity {
     pub user_agent: String,
 }
 
-/// 获取设备标识信息
+/// Получить информацию идентификации устройства
 #[tauri::command]
 pub async fn get_device_identity() -> CmdResult<DeviceIdentity> {
     Ok(DeviceIdentity {

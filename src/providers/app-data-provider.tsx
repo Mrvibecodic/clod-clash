@@ -44,7 +44,7 @@ function useStableFn<T extends (...args: any[]) => any>(fn: T): T {
   return useCallback((...args: Parameters<T>) => ref.current(...args), []) as T
 }
 
-// 全局数据提供者组件
+// Компонент глобального провайдера данных
 export const AppDataProvider = ({
   children,
 }: {
@@ -247,13 +247,14 @@ export const AppDataProvider = ({
       const isPacMode = verge.proxy_auto_config ?? false
 
       if (isPacMode) {
-        // PAC模式：显示我们期望设置的代理地址
+        // Режим PAC: показываем адрес прокси, который мы ожидаем установить
         const proxyHost = verge.proxy_host || '127.0.0.1'
         const proxyPort =
           verge.verge_mixed_port || clashConfig.mixedPort || 7897
         return `${proxyHost}:${proxyPort}`
       } else {
-        // HTTP代理模式：优先使用系统地址，但如果格式不正确则使用期望地址
+        // Режим HTTP-прокси: предпочитаем системный адрес, но если формат
+        // некорректен, используем ожидаемый адрес
         const systemServer = sysproxy?.server
         if (
           systemServer &&
@@ -262,7 +263,7 @@ export const AppDataProvider = ({
         ) {
           return systemServer
         } else {
-          // 系统地址无效，返回期望的代理地址
+          // Системный адрес недействителен, возвращаем ожидаемый адрес прокси
           const proxyHost = verge.proxy_host || '127.0.0.1'
           const proxyPort =
             verge.verge_mixed_port || clashConfig.mixedPort || 7897

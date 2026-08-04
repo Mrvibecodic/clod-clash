@@ -762,24 +762,24 @@ Section CheckAndInstallVSRuntime
   ${EndIf}
 
   ${If} $VC_RUNTIME_NEEDED != "1"
-    DetailPrint "已检测到匹配的 Visual C++ Redistributable，跳过安装"
+    DetailPrint "Visual C++ Redistributable уже установлен, пропускаем"
     Goto done_vc
   ${EndIf}
 
-  DetailPrint "正在下载 Visual C++ Redistributable..."
+  DetailPrint "Загрузка Visual C++ Redistributable..."
   nsisdl::download "$VC_REDIST_URL" "$TEMP\$VC_REDIST_EXE"
   Pop $0
   ${If} $0 == "success"
-    DetailPrint "正在安装 Visual C++ Redistributable..."
+    DetailPrint "Установка Visual C++ Redistributable..."
     ExecWait '"$TEMP\$VC_REDIST_EXE" /quiet /norestart' $0
     ${If} $0 == 0
-      DetailPrint "Visual C++ Redistributable 安装成功"
+      DetailPrint "Visual C++ Redistributable установлен"
     ${Else}
-      DetailPrint "Visual C++ Redistributable 安装失败"
+      DetailPrint "Не удалось установить Visual C++ Redistributable"
     ${EndIf}
     Delete "$TEMP\$VC_REDIST_EXE"
   ${Else}
-    DetailPrint "Visual C++ Redistributable 下载失败"
+    DetailPrint "Не удалось загрузить Visual C++ Redistributable"
   ${EndIf}
 
   done_vc:

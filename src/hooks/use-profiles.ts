@@ -77,9 +77,9 @@ export const useProfiles = () => {
     patchProfiles,
     patchCurrent,
     mutateProfiles,
-    // 新增故障检测状态
+    // Добавленное состояние обнаружения сбоя
     isLoading: isValidating,
     error,
-    isStale: !profiles && !error && !isValidating, // 检测是否处于异常状态
+    isStale: !profiles && !error && !isValidating, // Определяем, находится ли в нештатном состоянии
   }
 }

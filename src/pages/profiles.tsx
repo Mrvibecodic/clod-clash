@@ -54,7 +54,8 @@ import { revalidateQueries, useQuery } from '@/services/query-client'
 import { useLoadingCache, useSetLoadingCache } from '@/services/states'
 import { debugLog } from '@/utils/debug'
 
-// 与 src-tauri/src/main.rs 的 worker_limit 上限(8)保持一致，避免前后端更新风暴不对齐
+// Совпадает с лимитом worker_limit (8) в src-tauri/src/main.rs, чтобы избежать
+// рассинхронизации штормов обновлений между фронтендом и бэкендом
 const PROFILE_UPDATE_WORKER_LIMIT = 8
 const PROFILE_SWITCH_LOADING_DELAY = 400
 
@@ -101,7 +102,7 @@ interface ProfileSwitchRequest {
   force: boolean
 }
 
-// 记录profile切换状态
+// Логирует состояние переключения profile
 const debugProfileSwitch = (action: string, profile: string, extra?: any) => {
   const timestamp = new Date().toISOString().substring(11, 23)
   debugLog(`[Profile-Debug][${timestamp}] ${action}: ${profile}`, extra || '')
@@ -129,7 +130,8 @@ const ProfilePage = () => {
     () => new Set(),
   )
 
-  // Profile 切换在前端串行执行；队列中只保留用户最后一次选择。
+  // Переключение Profile выполняется на фронтенде последовательно; в очереди
+  // хранится только последний выбор пользователя.
   const latestSwitchTargetRef = useRef<string | null>(null)
   const queuedSwitchRef = useRef<ProfileSwitchRequest | null>(null)
   const switchRunnerRef = useRef<Promise<void> | null>(null)
@@ -200,20 +202,21 @@ const ProfilePage = () => {
     }
   }, [addListener, mutateProfiles])
 
-  // 添加紧急恢复功能
+  // Функция экстренного восстановления
   const onEmergencyRefresh = useLockFn(async () => {
     debugLog(
       '[Экстренное обновление] Начало принудительного обновления всех данных',
     )
 
     try {
-      // 只失效 profiles 相关 query，不影响 WS 订阅、IP 缓存等其他 query
+      // Инвалидируем только query, связанные с profiles, не затрагивая
+      // WS-подписку, IP-кэш и другие query
       await revalidateQueries([['getProfiles'], ['getRuntimeLogs']])
 
-      // 强制重新获取配置数据
+      // Принудительно перезапрашиваем данные конфига
       await mutateProfiles()
 
-      // 等待状态稳定后增强配置
+      // Ждём стабилизации состояния, затем применяем расширение конфига
       await new Promise((resolve) => setTimeout(resolve, 500))
       await onEnhance(false)
 
@@ -470,7 +473,7 @@ const ProfilePage = () => {
     }
   })
 
-  // 更新所有订阅
+  // Обновление всех подписок
   const loadingCache = useLoadingCache()
   const setLoadingCache = useSetLoadingCache()
   const setLoadingProfiles = useCallback(
@@ -567,7 +570,8 @@ const ProfilePage = () => {
         await Promise.allSettled(Array.from({ length: active }, worker))
       } finally {
         setLoadingProfiles(uids, false)
-        // 避免长时间批量更新后列表数据过晚刷新
+        // Чтобы данные списка не обновились слишком поздно после долгого
+        // пакетного обновления
         void mutateProfiles()
       }
     },
@@ -620,11 +624,11 @@ const ProfilePage = () => {
 
   const getSelectionState = () => {
     if (selectedProfiles.size === 0) {
-      return 'none' // 无选择
+      return 'none' // ничего не выбрано
     } else if (selectedProfiles.size === profileItems.length) {
-      return 'all' // 全选
+      return 'all' // выбрано всё
     } else {
-      return 'partial' // 部分选择
+      return 'partial' // выбрано частично
     }
   }
 
@@ -665,7 +669,7 @@ const ProfilePage = () => {
     }
   })
 
-  // 卸载后不再执行尚未发送的切换意图。
+  // После размонтирования не выполняем ещё не отправленные намерения переключения.
   useEffect(() => {
     profilePageMountedRef.current = true
     return () => {
@@ -710,7 +714,7 @@ const ProfilePage = () => {
               {/* clod: рантайм-конфиг и «переактивировать» убраны — тулбар
                   оставляет только действия над подписками */}
 
-              {/* 故障检测和紧急恢复按钮 */}
+              {/* Кнопка обнаружения сбоев и экстренного восстановления */}
               {(error || isStale) && (
                 <IconButton
                   size="small"
@@ -901,7 +905,8 @@ const ProfilePage = () => {
         ref={viewerRef}
         onChange={async (isActivating) => {
           mutateProfiles()
-          // 只有更改当前激活的配置时才触发全局重新加载
+          // Глобальную перезагрузку запускаем только при изменении текущего
+          // активного конфига
           if (isActivating) {
             await onEnhance(false)
           }

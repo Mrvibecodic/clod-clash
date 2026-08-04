@@ -59,7 +59,7 @@ const SettingClash = ({ onError }: Props) => {
 
   const { verge_mixed_port } = verge ?? {}
 
-  // 独立跟踪DNS设置开关状态
+  // Отдельно отслеживаем состояние переключателя настроек DNS
   const [dnsSettingsEnabled, setDnsSettingsEnabled] = useState(() => {
     return verge?.enable_dns_settings ?? false
   })
@@ -87,7 +87,7 @@ const SettingClash = ({ onError }: Props) => {
     }
   }
 
-  // 实现DNS设置开关处理函数
+  // Обработчик переключателя настроек DNS
   const handleDnsToggle = useLockFn(async (enable: boolean) => {
     try {
       setDnsSettingsEnabled(enable)

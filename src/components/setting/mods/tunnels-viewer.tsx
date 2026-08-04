@@ -68,7 +68,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
       }))
       setDraftTunnels(() => clash?.tunnels ?? [])
       setOpen(true)
-      // 如果没有隧道，则自动展开
+      // Если туннелей нет, разворачиваем автоматически
       setExpanded((clash?.tunnels ?? []).length === 0)
     },
     close: () => {
@@ -123,7 +123,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
     const { localAddr, localPort, targetAddr, targetPort, network, proxy } =
       values
 
-    // 基础非空校验
+    // Базовая проверка на непустоту
     if (!localAddr || !localPort || !targetAddr || !targetPort) {
       showNotice.error(
         'settings.sections.clash.form.fields.tunnels.messages.incomplete',
@@ -131,7 +131,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
       return
     }
 
-    // 本地地址校验（host）
+    // Проверка локального адреса (host)
     const localHost = normalizeListenHost(localAddr)
     if (!localHost) {
       showNotice.error(
@@ -140,7 +140,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
       return
     }
 
-    // 本地端口校验 (port)
+    // Проверка локального порта (port)
     if (!isValidPort(localPort)) {
       showNotice.error(
         'settings.sections.clash.form.fields.tunnels.messages.invalidLocalPort',
@@ -155,7 +155,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
       return
     }
 
-    // 目标地址校验 (host)
+    // Проверка целевого адреса (host)
     const targetHost = normalizeHost(targetAddr)
     if (!targetHost) {
       showNotice.error(
@@ -164,7 +164,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
       return
     }
 
-    // 目标端口校验 (port)
+    // Проверка целевого порта (port)
     if (!isValidPort(targetPort)) {
       showNotice.error(
         'settings.sections.clash.form.fields.tunnels.messages.invalidTargetPort',
@@ -172,7 +172,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
       return
     }
 
-    // 构造新 entry
+    // Формируем новую entry
     const entry: TunnelEntry = {
       network: network === 'tcp+udp' ? ['tcp', 'udp'] : [network],
       address: formatHostPort(localHost, localPort),
@@ -180,7 +180,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
       ...(proxy ? { proxy } : {}),
     }
 
-    // 写入配置 + 清空输入
+    // Записываем в конфиг + очищаем ввод
     setDraftTunnels((prev) => [...prev, entry])
 
     setValues((v) => ({
@@ -265,8 +265,8 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
         {expanded && (
           <ListItem sx={{ padding: '8px 0' }}>
             <div style={{ width: '100%' }}>
-              {/* 输入框区域 */}
-              {/* 协议 */}
+              {/* Область полей ввода */}
+              {/* Протокол */}
               <ListItem sx={{ padding: '6px 2px' }}>
                 <ListItemText
                   primary={t(
@@ -290,7 +290,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
                 </Select>
               </ListItem>
 
-              {/* 本地监听地址 */}
+              {/* Локальный адрес прослушивания */}
               <ListItem sx={{ padding: '6px 2px' }}>
                 <ListItemText
                   primary={t(
@@ -309,7 +309,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
                 />
               </ListItem>
 
-              {/* 本地监听端口 */}
+              {/* Локальный порт прослушивания */}
               <ListItem sx={{ padding: '6px 2px' }}>
                 <ListItemText
                   primary={t(
@@ -329,7 +329,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
                 />
               </ListItem>
 
-              {/* 目标服务器地址 */}
+              {/* Адрес целевого сервера */}
               <ListItem sx={{ padding: '6px 2px' }}>
                 <ListItemText
                   primary={t(
@@ -348,7 +348,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
                 />
               </ListItem>
 
-              {/* 目标服务器端口 */}
+              {/* Порт целевого сервера */}
               <ListItem sx={{ padding: '6px 2px' }}>
                 <ListItemText
                   primary={t(
@@ -368,7 +368,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
                 />
               </ListItem>
 
-              {/* 代理组 */}
+              {/* Группа прокси */}
               <ListItem sx={{ padding: '6px 2px' }}>
                 <ListItemText
                   primary={
@@ -400,7 +400,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
                     setValues((v) => ({
                       ...v,
                       group: nextGroup,
-                      proxy: firstProxy, // 组切换时自动选第一条节点
+                      proxy: firstProxy, // при смене группы автовыбор первого узла
                     }))
                   }}
                 >
@@ -415,7 +415,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
                 </Select>
               </ListItem>
 
-              {/* 代理节点 */}
+              {/* Узел прокси */}
               <ListItem sx={{ padding: '6px 2px' }}>
                 <ListItemText
                   primary={
@@ -445,7 +445,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
                       proxy: e.target.value as string,
                     }))
                   }
-                  disabled={!values.group} // 没选组就禁用
+                  disabled={!values.group} // отключено, если группа не выбрана
                 >
                   <MenuItem value="">
                     {t('settings.sections.clash.form.fields.tunnels.default')}
@@ -458,7 +458,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
                 </Select>
               </ListItem>
 
-              {/* 添加按钮 */}
+              {/* Кнопка добавления */}
               <Button
                 variant="contained"
                 size="small"

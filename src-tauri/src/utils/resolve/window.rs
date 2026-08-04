@@ -11,7 +11,7 @@ const LIGHT_BACKGROUND_COLOR: Color = Color(245, 245, 245, 255); // #F5F5F5
 const DARK_BACKGROUND_HEX: &str = "#2E303D";
 const LIGHT_BACKGROUND_HEX: &str = "#F5F5F5";
 
-// 定义默认窗口尺寸常量
+// Определение констант размера окна по умолчанию
 const DEFAULT_WIDTH: f64 = 940.0;
 const DEFAULT_HEIGHT: f64 = 700.0;
 
@@ -217,7 +217,7 @@ fn keep_window_on_screen(window: &WebviewWindow) {
 }
 // clod:mode-window end
 
-/// 构建新的 WebView 窗口
+/// Создаёт новое окно WebView
 pub async fn build_new_window() -> Result<WebviewWindow, String> {
     let app_handle = handle::Handle::app_handle();
 
@@ -261,9 +261,9 @@ pub async fn build_new_window() -> Result<WebviewWindow, String> {
     .fullscreen(false)
     .inner_size(DEFAULT_WIDTH, DEFAULT_HEIGHT)
     .min_inner_size(MINIMAL_WIDTH, MINIMAL_HEIGHT)
-    .visible(false) // 等待主题色准备好后再展示，避免启动色差
+    .visible(false) // ждём готовности цвета темы перед показом, чтобы избежать скачка цвета
     .initialization_script(&initial_script)
-    .general_autofill_enabled(false) // 禁用自动填充
+    .general_autofill_enabled(false) // отключаем автозаполнение
     .on_page_load(move |window, payload| {
         if payload.event() != PageLoadEvent::Finished {
             return;
@@ -288,7 +288,8 @@ pub async fn build_new_window() -> Result<WebviewWindow, String> {
             // per-mode size (saved or default) wins before the window shows.
             apply_window_size_for_mode(&window, effective_simple_mode().await).await;
             restore_position_if_offscreen(&window);
-            // 全新窗口的页面即为最新状态，丢弃旧窗口遗留的待重载标记，避免多余 reload
+            // Страница нового окна и так актуальна — сбрасываем оставшийся от
+            // старого окна флаг ожидающей перезагрузки, чтобы избежать лишнего reload
             #[cfg(target_os = "macos")]
             take_webview_needs_reload();
             Ok(window)
@@ -297,40 +298,47 @@ pub async fn build_new_window() -> Result<WebviewWindow, String> {
     }
 }
 
-/// 渲染进程死亡、页面待重载标记（macOS）
+/// Флаг гибели процесса рендеринга и ожидающей перезагрузки страницы (macOS)
 ///
-/// 渲染进程在窗口不可见时被系统终止后置位，由下次激活窗口的路径取走并执行 reload。
+/// Устанавливается, когда система завершает процесс рендеринга при невидимом
+/// окне; снимается и обрабатывается путём активации окна при следующем открытии.
 #[cfg(target_os = "macos")]
 static WEBVIEW_NEEDS_RELOAD: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
-/// 取出并清除"页面待重载"标记
+/// Забирает и сбрасывает флаг "страница ожидает перезагрузки"
 ///
 /// # Returns
-/// * `bool` - 渲染进程是否曾在窗口不可见时被系统终止、页面需要 reload
+/// * `bool` - был ли процесс рендеринга завершён системой при невидимом окне,
+///   нужен ли странице reload
 #[cfg(target_os = "macos")]
 pub fn take_webview_needs_reload() -> bool {
     WEBVIEW_NEEDS_RELOAD.swap(false, std::sync::atomic::Ordering::SeqCst)
 }
 
-/// WebView 渲染进程被系统终止后的恢复处理（macOS）
+/// Восстановление после завершения процесса рендеринга WebView системой (macOS)
 ///
-/// macOS 在内存压力下可能杀掉 WKWebView 的 WebContent 渲染进程：
-/// 1. 页面内容层消失，窗口打开后表现为白屏；
-/// 2. 前端 JS 状态随之丢失，无法调用 `ws_disconnect` 清理 Mihomo WebSocket 订阅，
-///    孤儿订阅持续把大于 1KB 的 payload（如 `/connections` 全量快照）塞进 tauri 的
-///    `ChannelDataIpcQueue`，且没有存活的页面来取走，导致主进程内存无限增长。
+/// macOS может убить процесс рендеринга WebContent у WKWebView при нехватке памяти:
+/// 1. слой содержимого страницы исчезает, окно при открытии показывает белый экран;
+/// 2. состояние фронтенд JS теряется, невозможно вызвать `ws_disconnect` для очистки
+///    подписок Mihomo WebSocket, осиротевшие подписки продолжают закидывать payload
+///    больше 1KB (например, полный снапшот `/connections`) в `ChannelDataIpcQueue`
+///    tauri, а забирать их некому — память основного процесса растёт бесконечно.
 ///
-/// 恢复策略：
-/// * 窗口可见（前台被杀的罕见场景）——立即 reload 恢复页面；
-/// * 窗口隐藏/最小化（托盘常驻的常见场景）——只置位待重载标记，等用户下次打开
-///   窗口时再 reload。系统正是因内存压力才杀掉不可见窗口的渲染进程，此时立即
-///   重建渲染进程既浪费内存，也可能形成"系统杀→拉起→再杀"的循环。
+/// Стратегия восстановления:
+/// * окно видно (редкий случай убийства на переднем плане) — сразу reload страницы;
+/// * окно скрыто/свёрнуто (частый случай, окно висит в трее) — только ставим флаг
+///   ожидающей перезагрузки, reload выполнится при следующем открытии окна.
+///   Система убивает процесс рендеринга невидимого окна именно из-за нехватки
+///   памяти, поэтому немедленное пересоздание процесса и тратит память, и может
+///   привести к циклу "система убила → подняли → снова убила".
 ///
-/// 注意：应用层注册 `on_web_content_process_terminate` 后会覆盖 tauri-runtime-wry
-/// 的默认自动 reload 行为，因此页面死亡状态会一直保持到我们主动 reload。
+/// Примечание: после регистрации `on_web_content_process_terminate` на уровне
+/// приложения переопределяется поведение автоматического reload по умолчанию
+/// у tauri-runtime-wry, поэтому состояние "страница мертва" сохраняется, пока
+/// мы не выполним reload сами.
 ///
 /// # Arguments
-/// * `webview` - 渲染进程被终止的 WebView
+/// * `webview` - WebView, чей процесс рендеринга был завершён
 #[cfg(target_os = "macos")]
 pub fn on_web_content_process_terminated(webview: &tauri::Webview) {
     if handle::Handle::global().is_exiting() {
@@ -347,12 +355,14 @@ pub fn on_web_content_process_terminated(webview: &tauri::Webview) {
     let window = webview.window();
     let is_user_visible = window.is_visible().unwrap_or(false) && !window.is_minimized().unwrap_or(false);
 
-    // 懒重载标记仅供主窗口；其它 webview（update-splash）无消费通道，不可见时直接 reload 兜底
+    // Ленивый флаг перезагрузки только для главного окна; у прочих webview
+    // (update-splash) нет канала потребления — при невидимости сразу reload
     let is_main_window = webview.label() == "main";
     let reload_now = is_user_visible || !is_main_window;
 
     if !reload_now {
-        // 主窗口不可见：置标记，延迟到下次 activate_window / reload_main_window_if_needed 再 reload
+        // Главное окно не видно: ставим флаг, откладываем до следующего
+        // activate_window / reload_main_window_if_needed
         WEBVIEW_NEEDS_RELOAD.store(true, std::sync::atomic::Ordering::SeqCst);
         logging!(
             info,
@@ -361,8 +371,10 @@ pub fn on_web_content_process_terminated(webview: &tauri::Webview) {
         );
     }
 
-    // 清理全部 Mihomo WS 订阅，阻断 ChannelDataIpcQueue 泄漏（托盘速率任务约 1s 后自重连）。
-    // reload 必须与清理同任务、排在其后，否则清理可能误清重载后新页面的订阅（竞态）。
+    // Очищаем все подписки Mihomo WS, чтобы не допустить утечки ChannelDataIpcQueue
+    // (задача скорости в трее переподключится сама примерно через 1с).
+    // reload обязан идти в той же задаче после очистки, иначе очистка может
+    // случайно снести подписки новой страницы после перезагрузки (гонка).
     let webview = webview.clone();
     crate::process::AsyncHandler::spawn(move || async move {
         if let Err(err) = handle::Handle::mihomo().await.clear_all_ws_connections().await {
@@ -380,9 +392,11 @@ pub fn on_web_content_process_terminated(webview: &tauri::Webview) {
     });
 }
 
-/// 消费待重载标记并 reload 主窗口（macOS）。
-/// 兜底原生取消最小化（Dock 缩略图/调度中心/窗口菜单）只触发 Focused(true)、不走
-/// activate_window 的情况。与 activate_window 共用 swap 标记，先取先得、不重复 reload。
+/// Забирает флаг ожидающей перезагрузки и делает reload главного окна (macOS).
+/// Подстраховка для случаев, когда нативное снятие минимизации (миниатюра в Dock /
+/// Mission Control / меню окон) вызывает только Focused(true), минуя activate_window.
+/// Использует тот же swap-флаг, что и activate_window: кто забрал первым, тот и
+/// перезагружает, повторного reload не будет.
 #[cfg(target_os = "macos")]
 pub fn reload_main_window_if_needed() {
     if !take_webview_needs_reload() {

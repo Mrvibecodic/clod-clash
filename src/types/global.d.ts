@@ -116,8 +116,8 @@ interface IProxyItem {
   now?: string
   hidden?: boolean
   icon?: string
-  provider?: string // 记录是否来自provider
-  fixed?: string // 记录固定(优先)的节点
+  provider?: string // отмечает, пришёл ли узел из provider
+  fixed?: string // отмечает зафиксированный (приоритетный) узел
 }
 
 type IProxyGroupItem = Omit<IProxyItem, 'all'> & {

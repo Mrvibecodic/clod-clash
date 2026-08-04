@@ -162,13 +162,13 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
       )
       setErrorText(undefined)
       try {
-        // 基本验证
+        // Базовая валидация
         if (!form.type) throw new Error('`Type` should not be null')
         if (form.type === 'remote' && !form.url) {
           throw new Error(t('profiles.modals.profileForm.errors.urlRequired'))
         }
 
-        // 处理表单数据
+        // Обработка данных формы
         const option = form.option ? { ...form.option } : undefined
         if (option?.timeout_seconds) {
           option.timeout_seconds = +option.timeout_seconds
@@ -191,16 +191,16 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
         const isRemote = form.type === 'remote'
         const isUpdate = openType === 'edit'
 
-        // 判断是否是当前激活的配置
+        // Проверяем, является ли конфиг текущим активным
         const isActivating = isUpdate && form.uid === (profiles?.current ?? '')
 
-        // 保存原始代理设置以便回退成功后恢复
+        // Сохраняем исходные настройки прокси, чтобы восстановить после успешного отката
         const originalOptions = {
           with_proxy: form.option?.with_proxy,
           self_proxy: form.option?.self_proxy,
         }
 
-        // 执行创建或更新操作，本地配置不需要回退机制
+        // Создание или обновление; локальному конфигу механизм отката не нужен
         if (!isRemote) {
           if (openType === 'new') {
             await createProfile(item, fileDataRef.current)
@@ -209,9 +209,9 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
             await patchProfile(form.uid, item)
           }
         } else {
-          // 远程配置使用回退机制
+          // Для удалённого конфига используем механизм отката
           try {
-            // 尝试正常操作
+            // Пробуем обычную операцию
             if (openType === 'new') {
               await createProfile(item, fileDataRef.current)
             } else {
@@ -219,12 +219,12 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
               await patchProfile(form.uid, item)
             }
           } catch {
-            // 首次创建/更新失败，尝试使用自身代理
+            // Первая попытка создания/обновления не удалась, пробуем через собственный прокси
             showNotice.info(
               'profiles.modals.profileForm.feedback.notifications.creationRetry',
             )
 
-            // 使用自身代理的配置
+            // Конфиг с использованием собственного прокси
             const retryItem = {
               ...item,
               option: {
@@ -234,14 +234,14 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
               },
             }
 
-            // 使用自身代理再次尝试
+            // Повторная попытка через собственный прокси
             if (openType === 'new') {
               await createProfile(retryItem, fileDataRef.current)
             } else {
               if (!form.uid) throw new Error('UID not found')
               await patchProfile(form.uid, retryItem)
 
-              // 编辑模式下恢复原始代理设置
+              // В режиме редактирования восстанавливаем исходные настройки прокси
               await patchProfile(form.uid, { option: originalOptions })
             }
           }

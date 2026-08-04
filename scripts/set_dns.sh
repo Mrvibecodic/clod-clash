@@ -7,7 +7,7 @@
 # Имя сервиса важно: после переключения Wi-Fi ↔ Ethernet «текущий» сервис уже
 # другой, и восстановление ушло бы не туда.
 
-# 验证IPv4地址格式
+# Проверка формата адреса IPv4
 function is_valid_ipv4() {
     local ip=$1
     local IFS='.'
@@ -25,7 +25,7 @@ function is_valid_ipv4() {
     return 0
 }
 
-# 验证IPv6地址格式
+# Проверка формата адреса IPv6
 function is_valid_ipv6() {
     local ip=$1
     if [[ ! $ip =~ ^([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}$ ]] &&
@@ -35,20 +35,20 @@ function is_valid_ipv6() {
     return 0
 }
 
-# 验证IP地址是否为有效的IPv4或IPv6
+# Проверка, что адрес — валидный IPv4 или IPv6
 function is_valid_ip() {
     is_valid_ipv4 "$1" || is_valid_ipv6 "$1"
 }
 
-# 检查参数
+# Проверка аргументов
 [ $# -lt 1 ] && echo "Usage: $0 <IP address> [state file]" && exit 1
 ! is_valid_ip "$1" && echo "$1 is not a valid IP address." && exit 1
 
 state_file="${2:-.original_dns.txt}"
 
-# 获取网络接口和硬件端口
+# Получаем сетевой интерфейс и аппаратный порт
 nic=$(route -n get default | grep "interface" | awk '{print $2}')
-# 从网络服务列表中获取硬件端口
+# Достаём аппаратный порт из списка сетевых сервисов
 hardware_port=$(networksetup -listnetworkserviceorder | awk -v dev="$nic" '
     /^\([0-9]+\) /{port=$0; sub(/^\([0-9]+\) /, "", port)} 
     /\(Hardware Port:/{interface=$NF;sub(/\)/, "", interface); if (interface == dev) {print port; exit}}

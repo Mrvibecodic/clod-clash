@@ -134,7 +134,7 @@ impl Sysopt {
             None => Config::clash().await.latest_arc().get_mixed_port(),
         };
         let pac_port = IVerge::get_singleton_port();
-        // 先 await, 避免持有锁导致的 Send 问题
+        // Сначала await, чтобы не держать блокировку и не получить проблему с Send
         let bypass = get_bypass().await;
 
         let (sys_enable, pac_enable, proxy_host, proxy_guard) = (
@@ -212,7 +212,7 @@ impl Sysopt {
         // close proxy guard
         self.access_guard().write().set_guard_type(GuardType::None);
 
-        // 直接关闭所有代理
+        // Напрямую выключаем все прокси
         let (sys, auto) = {
             let (sys, auto) = &mut *self.inner_proxy.write();
             sys.enable = false;

@@ -1,10 +1,11 @@
-//! 网络速率格式化工具
+//! Утилита форматирования сетевой скорости
 
-/// 速率显示升档阈值：保证显示值不超过三位数（显示层约定，与换算基数无关）
+/// Порог повышения единицы отображения скорости: гарантирует, что значение не превысит
+/// три цифры (соглашение уровня отображения, не связано с основанием пересчёта)
 const SPEED_DISPLAY_THRESHOLD: f64 = 1000.0;
-/// 速率展示单位顺序
+/// Порядок единиц отображения скорости
 const SPEED_UNITS: [&str; 5] = ["B/s", "K/s", "M/s", "G/s", "T/s"];
-/// 预计算 1024 的幂次方，避免运行时重复计算 pow
+/// Предварительно вычисленные степени 1024, чтобы не пересчитывать pow во время выполнения
 const SCALES: [f64; 5] = [
     1.0,
     1024.0,
@@ -13,10 +14,10 @@ const SCALES: [f64; 5] = [
     1024.0 * 1024.0 * 1024.0 * 1024.0,
 ];
 
-/// 将字节/秒格式化为可读速率字符串
+/// Форматирует байты/сек в читаемую строку скорости
 ///
 /// # Arguments
-/// * `bytes_per_sec` - 每秒字节数
+/// * `bytes_per_sec` - байт в секунду
 pub fn format_bytes_per_second(bytes_per_sec: u64) -> String {
     if bytes_per_sec < SPEED_DISPLAY_THRESHOLD as u64 {
         return format!("{bytes_per_sec}B/s");
@@ -47,7 +48,7 @@ mod tests {
     fn format_handles_byte_boundaries() {
         assert_eq!(format_bytes_per_second(0), "0B/s");
         assert_eq!(format_bytes_per_second(999), "999B/s");
-        // 1000 >= SPEED_DISPLAY_THRESHOLD，升档为 K/s（保证不超过三位数）
+        // 1000 >= SPEED_DISPLAY_THRESHOLD, повышаем до K/s (гарантирует не более трёх цифр)
         assert_eq!(format_bytes_per_second(1000), "1.0K/s");
         assert_eq!(format_bytes_per_second(1024), "1.0K/s");
     }
@@ -55,7 +56,7 @@ mod tests {
     #[test]
     fn format_handles_decimal_and_integer_rules() {
         assert_eq!(format_bytes_per_second(9 * 1024), "9.0K/s");
-        // 9.999 K/s：rounded_1dp = 10.0，不满足 < 10，应显示整数 "10K/s"
+        // 9.999 K/s: rounded_1dp = 10.0, условию < 10 не удовлетворяет, показываем целое "10K/s"
         assert_eq!(format_bytes_per_second(10 * 1024 - 1), "10K/s");
         assert_eq!(format_bytes_per_second(10 * 1024), "10K/s");
         assert_eq!(format_bytes_per_second(123 * 1024), "123K/s");
@@ -63,7 +64,7 @@ mod tests {
 
     #[test]
     fn format_handles_unit_promotion_after_rounding() {
-        // 999.5 K/s 四舍五入为 1000，≥ SPEED_DISPLAY_THRESHOLD，升档为 1.0M/s
+        // 999.5 K/s округляется до 1000, ≥ SPEED_DISPLAY_THRESHOLD, повышаем до 1.0M/s
         assert_eq!(format_bytes_per_second(999 * 1024 + 512), "1.0M/s");
         assert_eq!(format_bytes_per_second(1024 * 1024), "1.0M/s");
         assert_eq!(format_bytes_per_second(1536 * 1024), "1.5M/s");

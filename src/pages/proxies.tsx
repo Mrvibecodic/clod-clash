@@ -32,7 +32,7 @@ const isMode = (value: unknown): value is Mode =>
 const ProxyPage = () => {
   const { t } = useTranslation()
 
-  // 从 localStorage 恢复链式代理按钮状态
+  // Восстанавливаем состояние кнопки цепочки прокси из localStorage
   const [isChainMode, setIsChainMode] = useState(() => {
     try {
       const saved = localStorage.getItem('proxy-chain-mode-enabled')
@@ -68,12 +68,13 @@ const ProxyPage = () => {
   const chainWarning = t('proxies.page.chain.warning')
 
   const onChangeMode = useLockFn(async (mode: Mode) => {
-    // 断开连接
+    // Разрываем соединение
     if (mode !== curMode && verge?.auto_close_connection) {
       closeAllConnections()
     }
     try {
-      // patchClashMode 在后端 PATCH 失败时会 reject，需提示用户而非静默失败
+      // patchClashMode отклоняется, если PATCH на бэкенде не удался — нужно уведомить
+      // пользователя, а не проглатывать ошибку молча
       await patchClashMode(mode)
       refreshClashConfig()
     } catch (error) {
@@ -85,11 +86,11 @@ const ProxyPage = () => {
     const newChainMode = !isChainMode
 
     setIsChainMode(newChainMode)
-    // 保存链式代理按钮状态到 localStorage
+    // Сохраняем состояние кнопки цепочки прокси в localStorage
     localStorage.setItem('proxy-chain-mode-enabled', newChainMode.toString())
 
     if (!newChainMode) {
-      // 退出链式代理模式时，清除链式代理配置
+      // При выходе из режима цепочки прокси очищаем конфигурацию цепочки
       try {
         debugLog('Exiting chain mode, clearing chain configuration')
         await updateProxyChainConfigInRuntime(null)
@@ -100,7 +101,7 @@ const ProxyPage = () => {
     }
   })
 
-  // 当开启链式代理模式时，获取配置数据
+  // При включении режима цепочки прокси получаем данные конфигурации
   useEffect(() => {
     if (!isChainMode) {
       updateChainConfigData(null)

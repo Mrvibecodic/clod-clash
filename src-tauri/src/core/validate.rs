@@ -138,16 +138,16 @@ impl CoreConfigValidator {
 }
 
 impl CoreConfigValidator {
-    /// 检查文件是否为脚本文件
+    /// Проверяет, является ли файл скриптом
     async fn is_script_file(path: &str) -> Result<bool> {
-        // 1. 先通过扩展名快速判断
+        // 1. Сначала быстрая проверка по расширению
         if has_ext(path, "yaml") || has_ext(path, "yml") {
-            return Ok(false); // YAML文件不是脚本文件
+            return Ok(false); // YAML-файл — не скрипт
         } else if has_ext(path, "js") {
-            return Ok(true); // JS文件是脚本文件
+            return Ok(true); // JS-файл — скрипт
         }
 
-        // 2. 读取文件内容
+        // 2. Читаем содержимое файла
         let content = match fs::read_to_string(path).await {
             Ok(content) => content,
             Err(err) => {
@@ -162,13 +162,13 @@ impl CoreConfigValidator {
             }
         };
 
-        // 3. 检查是否存在明显的YAML特征
+        // 3. Проверяем явные признаки YAML
         let has_yaml_features = content.contains(": ")
             || content.contains("#")
             || content.contains("---")
             || content.lines().any(|line| line.trim().starts_with("- "));
 
-        // 4. 检查是否存在明显的JS特征
+        // 4. Проверяем явные признаки JS
         let has_js_features = content.contains("function ")
             || content.contains("const ")
             || content.contains("let ")
@@ -179,16 +179,16 @@ impl CoreConfigValidator {
             || content.contains("export ")
             || content.contains("import ");
 
-        // 5. 决策逻辑
+        // 5. Логика принятия решения
         if has_yaml_features && !has_js_features {
-            // 只有YAML特征，没有JS特征
+            // Только признаки YAML, признаков JS нет
             return Ok(false);
         } else if has_js_features && !has_yaml_features {
-            // 只有JS特征，没有YAML特征
+            // Только признаки JS, признаков YAML нет
             return Ok(true);
         } else if has_yaml_features && has_js_features {
-            // 两种特征都有，需要更精细判断
-            // 优先检查是否有明确的JS结构特征
+            // Есть оба типа признаков, нужна более точная проверка
+            // Сначала проверяем явные структурные признаки JS
             if content.contains("function main")
                 || content.contains("module.exports")
                 || content.contains("export default")
@@ -196,15 +196,15 @@ impl CoreConfigValidator {
                 return Ok(true);
             }
 
-            // 检查冒号后是否有空格（YAML的典型特征）
+            // Проверяем, есть ли пробел после двоеточия (типичный признак YAML)
             let yaml_pattern_count = content.lines().filter(|line| line.contains(": ")).count();
 
             if yaml_pattern_count > 2 {
-                return Ok(false); // 多个键值对格式，更可能是YAML
+                return Ok(false); // Много пар ключ-значение — вероятнее YAML
             }
         }
 
-        // 默认情况：无法确定时，假设为非脚本文件（更安全）
+        // По умолчанию: если тип не определён, считаем не-скриптом (безопаснее)
         logging!(
             debug,
             Type::Validate,
@@ -214,11 +214,11 @@ impl CoreConfigValidator {
         Ok(false)
     }
 
-    /// 只进行文件语法检查，不进行完整验证
+    /// Только проверка синтаксиса файла, без полной валидации
     async fn validate_file_syntax_outcome(config_path: &str) -> Result<ValidationOutcome> {
         logging!(info, Type::Validate, "Начало проверки файла: {}", config_path);
 
-        // 读取文件内容
+        // Читаем содержимое файла
         let content = match fs::read_to_string(config_path).await {
             Ok(content) => content,
             Err(err) => {
@@ -227,7 +227,7 @@ impl CoreConfigValidator {
                 return Ok(ValidationOutcome::invalid_from_message(error_msg));
             }
         };
-        // 对YAML文件尝试解析，只检查语法正确性
+        // Пробуем распарсить YAML-файл, проверяем только корректность синтаксиса
         logging!(info, Type::Validate, "Проверка синтаксиса YAML");
         match serde_yaml_ng::from_str::<serde_yaml_ng::Value>(&content) {
             Ok(_) => {
@@ -242,9 +242,9 @@ impl CoreConfigValidator {
         }
     }
 
-    /// 验证脚本文件语法
+    /// Проверяет синтаксис файла скрипта
     async fn validate_script_file_outcome(path: &str) -> Result<ValidationOutcome> {
-        // 读取脚本内容
+        // Читаем содержимое скрипта
         let content = match fs::read_to_string(path).await {
             Ok(content) => content,
             Err(err) => {
@@ -256,7 +256,7 @@ impl CoreConfigValidator {
 
         logging!(debug, Type::Validate, "Проверка файла скрипта: {}", path);
 
-        // 使用boa引擎进行基本语法检查
+        // Базовая проверка синтаксиса через движок boa
         use boa_engine::{Context, Source};
 
         let mut context = Context::default();
@@ -274,7 +274,7 @@ impl CoreConfigValidator {
             Ok(_) => {
                 logging!(debug, Type::Validate, "Синтаксис скрипта корректен: {}", path);
 
-                // 检查脚本是否包含main函数
+                // Проверяем, содержит ли скрипт функцию main
                 if !content.contains("function main")
                     && !content.contains("const main")
                     && !content.contains("let main")
@@ -294,12 +294,12 @@ impl CoreConfigValidator {
         }
     }
 
-    /// 验证指定的配置文件
+    /// Проверяет указанный конфиг-файл
     pub async fn validate_config_file_outcome(
         config_path: &str,
         is_merge_file: Option<bool>,
     ) -> Result<ValidationOutcome> {
-        // 检查程序是否正在退出，如果是则跳过验证
+        // Проверяем, завершается ли приложение, если да — пропускаем проверку
         if handle::Handle::global().is_exiting() {
             logging!(info, Type::Core, "Приложение завершает работу, проверка пропущена");
             return Ok(ValidationOutcome::Skipped {
@@ -307,13 +307,14 @@ impl CoreConfigValidator {
             });
         }
 
-        // 检查文件是否存在
+        // Проверяем существование файла
         if !std::path::Path::new(config_path).exists() {
             let error_msg: String = format!("File not found: {config_path}").into();
             return Ok(ValidationOutcome::invalid_from_message(error_msg));
         }
 
-        // 如果是合并文件且不是强制验证，执行语法检查但不进行完整验证
+        // Если это merge-файл и это не принудительная проверка, выполняем
+        // только проверку синтаксиса без полной валидации
         if is_merge_file.unwrap_or(false) {
             logging!(
                 info,
@@ -327,7 +328,7 @@ impl CoreConfigValidator {
         let is_script = match Self::is_script_file(config_path).await {
             Ok(result) => result,
             Err(err) => {
-                // 如果无法确定文件类型，尝试使用Clash内核验证
+                // Если тип файла определить не удалось, пробуем проверку ядром Clash
                 logging!(
                     warn,
                     Type::Validate,
@@ -349,14 +350,14 @@ impl CoreConfigValidator {
             return Self::validate_script_file_outcome(config_path).await;
         }
 
-        // 对YAML配置文件使用Clash内核验证
+        // Для YAML-конфигов используем проверку ядром Clash
         logging!(info, Type::Validate, "Проверка конфига ядром Clash: {}", config_path);
         Self::validate_config_internal_outcome(config_path).await
     }
 
-    /// 内部验证配置文件的实现
+    /// Внутренняя реализация проверки конфиг-файла
     async fn validate_config_internal_outcome(config_path: &str) -> Result<ValidationOutcome> {
-        // 检查程序是否正在退出，如果是则跳过验证
+        // Проверяем, завершается ли приложение, если да — пропускаем проверку
         if handle::Handle::global().is_exiting() {
             logging!(info, Type::Validate, "Приложение завершает работу, проверка пропущена");
             return Ok(ValidationOutcome::Skipped {
@@ -374,7 +375,7 @@ impl CoreConfigValidator {
         let app_dir_str = dirs::path_to_str(&app_dir)?;
         logging!(info, Type::Validate, "Каталог проверки: {}", app_dir_str);
 
-        // 使用子进程运行clash验证配置
+        // Запускаем проверку конфига через дочерний процесс clash
         let command =
             app_handle
                 .shell()
@@ -386,7 +387,7 @@ impl CoreConfigValidator {
         let stderr = &output.stderr;
         let stdout = &output.stdout;
 
-        // 检查进程退出状态和错误输出
+        // Проверяем код завершения процесса и вывод ошибок
         let error_keywords = ["FATA", "fatal", "Parse config error", "level=fatal"];
         let has_error = !status.success() || contains_any_keyword(stderr, &error_keywords);
 
@@ -422,7 +423,7 @@ impl CoreConfigValidator {
         }
     }
 
-    /// 验证运行时配置
+    /// Проверяет runtime-конфиг
     pub async fn validate_config_outcome(&self) -> Result<ValidationOutcome> {
         if !self.try_start() {
             logging!(info, Type::Validate, "Проверка уже выполняется, новый запрос пропущен");

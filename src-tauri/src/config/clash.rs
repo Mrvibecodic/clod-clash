@@ -33,7 +33,7 @@ impl IClashTemp {
                     }
                 }
 
-                // 确保 secret 字段存在且不为空
+                // Убеждаемся, что поле secret существует и не пустое
                 if let Some(val) = map.get_mut("secret")
                     && let Value::String(s) = val
                     && s.is_empty()
@@ -183,10 +183,11 @@ impl IClashTemp {
         }
     }
 
-    /// 容错读取当前代理模式。
+    /// Отказоустойчивое чтение текущего режима прокси.
     ///
-    /// 仅从已保存的 clash 配置 Mapping 中提取 `mode` 字段，不依赖 mihomo `/configs`
-    /// 的严格 `BaseConfig` 反序列化，因此即使核心返回的字段与插件结构体不匹配也能取到。
+    /// Извлекает поле `mode` только из уже сохранённого Mapping конфига clash,
+    /// не полагаясь на строгую десериализацию `BaseConfig` из mihomo `/configs`,
+    /// поэтому значение доступно, даже если поля ядра не совпадают со структурой плагина.
     pub fn get_mode(&self) -> Option<String> {
         self.0.get("mode").and_then(|value| match value {
             Value::String(val_str) => Some(val_str.clone()),
@@ -293,13 +294,13 @@ impl IClashTemp {
     }
 
     pub fn guard_external_controller(config: &Mapping) -> String {
-        // 在初始化阶段，直接返回配置中的值，不进行额外检查
-        // 这样可以避免在配置加载期间的循环依赖
+        // На этапе инициализации сразу возвращаем значение из конфига, без лишних проверок
+        // Это избегает циклической зависимости во время загрузки конфига
         Self::guard_server_ctrl(config)
     }
 
     pub async fn guard_external_controller_with_setting(config: &Mapping) -> String {
-        // 检查 enable_external_controller 设置，用于运行时配置生成
+        // Проверяем настройку enable_external_controller для генерации runtime-конфига
         let enable_external_controller = Config::verge()
             .await
             .latest_arc()
@@ -327,7 +328,7 @@ impl IClashTemp {
     }
 
     pub fn guard_external_controller_ipc() -> String {
-        // 总是使用当前的 IPC 路径，确保配置文件与运行时路径一致
+        // Всегда используем текущий IPC-путь, чтобы конфиг совпадал с runtime-путём
         ipc_path()
             .ok()
             .and_then(|path| path_to_str(&path).ok().map(|s| s.into()))

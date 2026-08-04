@@ -12,10 +12,10 @@ const PATCH_CONFIG_INNER: [&str; 6] = ["mode", "allow-lan", "ipv6", "log-level",
 #[derive(Default, Clone)]
 pub struct IRuntime {
     pub config: Option<Mapping>,
-    // 记录在订阅中（包括merge和script生成的）出现过的keys
-    // 这些keys不一定都生效
+    // Ключи, встречавшиеся в подписке (включая сгенерированные merge и script)
+    // Эти ключи не обязательно все действуют
     pub exists_keys: HashSet<String>,
-    // TODO 或许可以用 FixMap 来存储以提升效率
+    // TODO возможно, стоит хранить в FixMap для повышения эффективности
     pub chain_logs: HashMap<String, Vec<(String, String)>>,
     // clod: отчёт фильтра заглушек — часть этой же сборки конфига. Живёт в
     // драфте и коммитится/откатывается вместе с ним: глобальный слот здесь
@@ -30,7 +30,7 @@ impl IRuntime {
         Self::default()
     }
 
-    // 这里只更改 allow-lan | ipv6 | log-level | tun | tunnels
+    // Здесь меняются только allow-lan | ipv6 | log-level | tun | tunnels
     #[inline]
     pub fn patch_config(&mut self, patch: &Mapping) {
         let config = if let Some(config) = self.config.as_mut() {
@@ -64,17 +64,18 @@ impl IRuntime {
         }
     }
 
-    /// 更新链式代理配置
+    /// Обновляет конфигурацию цепочки прокси
     ///
-    /// 该函数更新 `proxies` 和 `proxy-groups` 配置，并处理链式代理的修改或(传入 None )删除。
+    /// Функция обновляет конфигурацию `proxies` и `proxy-groups`, обрабатывает
+    /// изменение цепочки прокси или (при передаче None) её удаление.
     ///
-    /// 配置示例：
+    /// Пример конфигурации:
     ///
     /// ```json
     /// {
     ///     "proxies": [
     ///         {
-    ///             "name": "入口节点",
+    ///             "name": "Входной узел",
     ///             "type": "xxx",
     ///             "server": "xxx",
     ///             "port": "xxx",
@@ -90,10 +91,10 @@ impl IRuntime {
     ///             "ports": "xxx",
     ///             "password": "xxx",
     ///             "skip-cert-verify": "xxx",
-    ///             "dialer-proxy": "入口节点"
+    ///             "dialer-proxy": "Входной узел"
     ///         },
     ///         {
-    ///             "name": "出口节点",
+    ///             "name": "Выходной узел",
     ///             "type": "xxx",
     ///             "server": "xxx",
     ///             "port": "xxx",
@@ -107,7 +108,7 @@ impl IRuntime {
     ///         {
     ///             "name": "proxy_chain",
     ///             "type": "select",
-    ///             "proxies": ["出口节点"]
+    ///             "proxies": ["Выходной узел"]
     ///         }
     ///     ]
     /// }

@@ -139,39 +139,39 @@ pub struct IVerge {
     /// enable global hotkey
     pub enable_global_hotkey: Option<bool>,
 
-    /// 首页卡片设置
-    /// 控制首页各个卡片的显示和隐藏
+    /// Настройки карточек на главной странице
+    /// Управляет показом и скрытием отдельных карточек на главной странице
     pub home_cards: Option<serde_json::Value>,
 
-    /// 切换代理时自动关闭连接
+    /// Автоматически закрывать соединения при переключении прокси
     pub auto_close_connection: Option<bool>,
 
-    /// 是否自动检查更新
+    /// Автоматически проверять обновления
     pub auto_check_update: Option<bool>,
 
-    /// 默认的延迟测试连接
+    /// Соединение для теста задержки по умолчанию
     pub default_latency_test: Option<String>,
 
-    /// 默认的延迟测试超时时间
+    /// Таймаут теста задержки по умолчанию
     pub default_latency_timeout: Option<i16>,
 
-    /// 是否自动检测当前节点延迟
+    /// Автоматически проверять задержку текущего узла
     pub enable_auto_delay_detection: Option<bool>,
 
-    /// 自动检测当前节点延迟的间隔（分钟）
+    /// Интервал автопроверки задержки текущего узла (в минутах)
     pub auto_delay_detection_interval_minutes: Option<u64>,
 
-    /// 是否使用内部的脚本支持，默认为真
+    /// Использовать встроенную поддержку скриптов, по умолчанию включено
     pub enable_builtin_enhanced: Option<bool>,
 
-    /// proxy 页面布局 列数
+    /// Число колонок в раскладке страницы прокси
     pub proxy_layout_column: Option<u8>,
 
-    /// 测试站列表
+    /// Список тестовых сайтов
     pub test_list: Option<Vec<IVergeTestItem>>,
 
-    /// 日志清理
-    /// 0: 不清理; 1: 1天；2: 7天; 3: 30天; 4: 90天
+    /// Очистка логов
+    /// 0: не очищать; 1: 1 день; 2: 7 дней; 3: 30 дней; 4: 90 дней
     pub auto_log_clean: Option<i32>,
 
     /// Enable scheduled automatic backups
@@ -183,7 +183,7 @@ pub struct IVerge {
     /// Create backups automatically when critical configs change
     pub auto_backup_on_change: Option<bool>,
 
-    /// verge 的各种 port 用于覆盖 clash 的各种 port
+    /// Различные порты verge для переопределения портов clash
     #[cfg(not(target_os = "windows"))]
     pub verge_redir_port: Option<u16>,
 
@@ -206,7 +206,7 @@ pub struct IVerge {
 
     pub verge_http_enabled: Option<bool>,
 
-    /// WebDAV 配置 (加密存储)
+    /// Конфигурация WebDAV (хранится зашифрованной)
     #[serde(
         serialize_with = "serialize_encrypted",
         deserialize_with = "deserialize_encrypted",
@@ -215,7 +215,7 @@ pub struct IVerge {
     )]
     pub webdav_url: Option<String>,
 
-    /// WebDAV 用户名 (加密存储)
+    /// Имя пользователя WebDAV (хранится зашифрованным)
     #[serde(
         serialize_with = "serialize_encrypted",
         deserialize_with = "deserialize_encrypted",
@@ -224,7 +224,7 @@ pub struct IVerge {
     )]
     pub webdav_username: Option<String>,
 
-    /// WebDAV 密码 (加密存储)
+    /// Пароль WebDAV (хранится зашифрованным)
     #[serde(
         serialize_with = "serialize_encrypted",
         deserialize_with = "deserialize_encrypted",
@@ -243,19 +243,19 @@ pub struct IVerge {
     /// show outbound modes directly on tray root menu
     pub tray_inline_outbound_modes: Option<bool>,
 
-    /// 自动进入轻量模式
+    /// Автоматически переходить в лёгкий режим
     pub enable_auto_light_weight_mode: Option<bool>,
 
-    /// 自动进入轻量模式的延迟（分钟）
+    /// Задержка автоперехода в лёгкий режим (в минутах)
     pub auto_light_weight_minutes: Option<u64>,
 
-    /// 启用代理页面自动滚动
+    /// Включить автопрокрутку на странице прокси
     pub enable_hover_jump_navigator: Option<bool>,
 
-    /// 代理页面自动滚动延迟（毫秒）
+    /// Задержка автопрокрутки на странице прокси (в миллисекундах)
     pub hover_jump_navigator_delay: Option<u64>,
 
-    /// 启用外部控制器
+    /// Включить внешний контроллер
     pub enable_external_controller: Option<bool>,
 
     // clod:hwid begin
@@ -382,7 +382,7 @@ pub struct IVergeTheme {
 }
 
 impl IVerge {
-    /// 有效的clash核心名称
+    /// Допустимые имена ядра clash
     pub const VALID_CLASH_CORES: &'static [&'static str] = &["verge-mihomo", "verge-mihomo-alpha"];
 
     // clod:hwid begin
@@ -404,7 +404,7 @@ impl IVerge {
     pub const DEFAULT_CONNECT_TUN_MODE: bool = false;
     // clod:simple-mode end
 
-    /// 验证并修正配置文件中的clash_core值
+    /// Проверяет и исправляет значение clash_core в конфиге
     pub async fn validate_and_fix_config() -> Result<()> {
         let config_path = dirs::verge_path()?;
         let mut config = match help::read_yaml::<Self>(&config_path).await {
@@ -436,7 +436,7 @@ impl IVerge {
             needs_fix = true;
         }
 
-        // 修正后保存配置
+        // Сохраняем конфиг после исправления
         if needs_fix {
             logging!(info, Type::Config, "Сохраняю исправленный конфиг...");
             help::save_yaml(&config_path, &config, Some("# Clash Verge Config")).await?;
@@ -459,7 +459,7 @@ impl IVerge {
         Ok(())
     }
 
-    /// 配置修正后重新加载配置
+    /// Перезагружает конфиг после исправления
     async fn reload_config_after_fix(updated_config: Self) -> Result<()> {
         logging!(
             info,
@@ -573,7 +573,7 @@ impl IVerge {
             auto_close_connection: Some(true),
             auto_check_update: Some(true),
             enable_builtin_enhanced: Some(true),
-            auto_log_clean: Some(2), // 1: 1天, 2: 7天, 3: 30天, 4: 90天
+            auto_log_clean: Some(2), // 1: 1 день, 2: 7 дней, 3: 30 дней, 4: 90 дней
             enable_auto_backup_schedule: Some(false),
             auto_backup_interval_hours: Some(24),
             auto_backup_on_change: Some(true),
@@ -737,7 +737,7 @@ impl IVerge {
         crate::constants::network::ports::SINGLETON_SERVER
     }
 
-    /// 获取日志等级
+    /// Получить уровень логирования
     pub fn get_log_level(&self) -> LevelFilter {
         if let Some(level) = self.app_log_level.as_ref() {
             match level.to_lowercase().as_str() {

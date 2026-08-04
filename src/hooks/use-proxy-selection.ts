@@ -10,7 +10,7 @@ import { useVerge } from '@/hooks/use-verge'
 import { syncTrayProxySelection } from '@/services/cmds'
 import { debugLog } from '@/utils/debug'
 
-// 缓存连接清理
+// Очистка кэшированных соединений
 const cleanupConnections = async (previousProxy: string) => {
   try {
     const { connections } = await getConnections()
@@ -40,7 +40,7 @@ interface ProxyChangeRequest {
   skipConfigSave: boolean
 }
 
-// 代理选择 Hook
+// Хук выбора прокси
 export const useProxySelection = (options: ProxySelectionOptions = {}) => {
   const { current, patchCurrent } = useProfiles()
   const { verge } = useVerge()
@@ -49,7 +49,7 @@ export const useProxySelection = (options: ProxySelectionOptions = {}) => {
 
   const { onSuccess, onError, enableConnectionCleanup = true } = options
 
-  // 缓存
+  // Кэш
   const config = useMemo(
     () => ({
       autoCloseConnection: verge?.auto_close_connection ?? false,
@@ -58,7 +58,7 @@ export const useProxySelection = (options: ProxySelectionOptions = {}) => {
     [verge?.auto_close_connection, enableConnectionCleanup],
   )
 
-  // 切换节点
+  // Переключение узла
   const syncTraySelection = useCallback(() => {
     syncTrayProxySelection().catch((error) => {
       console.error(

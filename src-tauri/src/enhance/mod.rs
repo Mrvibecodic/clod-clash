@@ -311,8 +311,9 @@ fn extend_changed_keys(exists_keys: &mut Vec<String>, config: &Mapping, res_conf
     }));
 }
 
-/// App 权威的顶层控制面键:核心连接、监听端口、UI/托盘开关。
-/// 平台键随 cfg 门控;`dns.ipv6` 单独处理。
+/// Верхнеуровневые ключи control plane, за которые отвечает App: подключение к ядру,
+/// порты прослушивания, переключатели UI/трея. Платформенные ключи зависят от cfg;
+/// `dns.ipv6` обрабатывается отдельно.
 const CONTROL_PLANE_KEYS: &[&str] = &[
     "external-controller",
     #[cfg(unix)]
@@ -341,7 +342,8 @@ const CONTROL_PLANE_KEYS: &[&str] = &[
     "tun",
 ];
 
-/// 手动 merge/script 前保存 app 最终控制面值,只记录当前存在的键。
+/// Сохраняет итоговые значения control plane app перед ручным merge/script,
+/// записывает только те ключи, что уже существуют.
 fn snapshot_control_plane(config: &Mapping) -> Mapping {
     let mut snapshot = Mapping::new();
     for &key in CONTROL_PLANE_KEYS {
@@ -353,7 +355,8 @@ fn snapshot_control_plane(config: &Mapping) -> Mapping {
     snapshot
 }
 
-/// 手动覆盖后恢复控制面快照;快照缺失的控制面键从最终配置删除。
+/// Восстанавливает снимок control plane после ручного переопределения;
+/// ключи control plane, отсутствующие в снимке, удаляются из итогового конфига.
 fn enforce_control_plane(mut config: Mapping, snapshot: Mapping) -> Mapping {
     for &key in CONTROL_PLANE_KEYS {
         let key = Value::from(key);
@@ -365,12 +368,13 @@ fn enforce_control_plane(mut config: Mapping, snapshot: Mapping) -> Mapping {
     config
 }
 
-/// DNS 页权威的嵌套开关;只在 `enable_dns_settings` 时快照。
+/// Вложенный переключатель, за который отвечает страница DNS; снимок делается
+/// только при `enable_dns_settings`.
 fn snapshot_dns_ipv6(config: &Mapping) -> Option<Value> {
     config.get("dns")?.get("ipv6").cloned()
 }
 
-/// 恢复 `dns.ipv6`,但不创建缺失的 `dns` 块。
+/// Восстанавливает `dns.ipv6`, но не создаёт отсутствующий блок `dns`.
 fn enforce_dns_ipv6(mut config: Mapping, dns_ipv6: Option<Value>) -> Mapping {
     if let Some(dns_ipv6) = dns_ipv6
         && let Some(Value::Mapping(dns)) = config.get_mut("dns")
@@ -526,7 +530,7 @@ async fn merge_default_config(
                     continue;
                 }
             }
-            // 处理 external-controller 键的开关逻辑
+            // Обработка логики включения/выключения ключа external-controller
             if key.as_str() == Some("external-controller") {
                 let enable_external_controller = Config::verge()
                     .await
@@ -537,7 +541,7 @@ async fn merge_default_config(
                 if enable_external_controller {
                     config.insert(key, value);
                 } else {
-                    // 如果禁用了外部控制器，设置为空字符串
+                    // Если внешний контроллер отключён, задаём пустую строку
                     config.insert(key, "".into());
                 }
             } else {
@@ -903,9 +907,10 @@ fn cleanup_proxy_groups(mut config: Mapping) -> Mapping {
     config
 }
 
-/// 当 DNS 处于 fake-ip 模式且启用 IPv6 时，补充缺失的 `fake-ip-range6`，
-/// 否则 AAAA 查询无法获得 fake-ip，导致 IPv6 解析失败（见 issue #7373）。
-/// 兼容旧版本生成的、缺少该字段的 dns_config.yaml。
+/// Когда DNS работает в режиме fake-ip и включён IPv6, дополняет отсутствующий
+/// `fake-ip-range6` — иначе AAAA-запросы не получают fake-ip и резолвинг IPv6
+/// не удаётся (см. issue #7373). Обеспечивает совместимость со старыми
+/// dns_config.yaml, где этого поля нет.
 fn ensure_fake_ip_range6(dns: &mut Mapping) {
     use serde_yaml_ng::Value;
 
@@ -916,7 +921,8 @@ fn ensure_fake_ip_range6(dns: &mut Mapping) {
         .map(|m| m == "fake-ip")
         .unwrap_or(true);
 
-    // 缺失或为空字符串（可能来自手动编辑的 YAML）时都需要补充
+    // Требует дополнения, если поле отсутствует или пустая строка
+    // (может быть из-за ручного редактирования YAML)
     let range6_missing = dns
         .get("fake-ip-range6")
         .and_then(|v| v.as_str())
@@ -963,7 +969,8 @@ async fn apply_dns_settings(mut config: Mapping, enable_dns_settings: bool) -> M
 }
 
 /// Enhance mode
-/// 返回最终订阅、该订阅包含的键、script执行的结果、和отчёт фильтра заглушек
+/// Возвращает итоговую подписку, ключи, входящие в эту подписку, результат
+/// выполнения script и отчёт фильтра заглушек
 pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, ResultLog>, SentinelReport)> {
     // gather config values
     let cfg_vals = get_config_values().await;
@@ -996,7 +1003,7 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
 
     let result_map = HashMap::new();
 
-    // 顺序项先于手动覆盖。
+    // Порядковые элементы применяются раньше ручного переопределения.
     let config = process_seq_items(config, rules_item, proxies_item, groups_item);
     let exists_keys = use_keys(&config).collect::<Vec<_>>();
 
@@ -1013,21 +1020,22 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
     )
     .await;
 
-    // app 生成项先于手动覆盖。
+    // Элементы, сгенерированные app, применяются раньше ручного переопределения.
     let config = apply_builtin_scripts(config, clash_core, enable_builtin).await;
     let config = use_tun(config, enable_tun);
     let config = apply_dns_settings(config, enable_dns_settings).await;
 
-    // 手动覆盖前锁定 app 权威字段。
+    // Фиксируем поля app перед ручным переопределением.
     let control_plane = snapshot_control_plane(&config);
-    // DNS 页开启时,仅 `dns.ipv6` 跟随 UI;其余 DNS 字段仍可覆盖。
+    // Когда страница DNS включена, только `dns.ipv6` следует за UI; остальные поля DNS
+    // всё ещё можно переопределить.
     let dns_ipv6 = if enable_dns_settings {
         snapshot_dns_ipv6(&config)
     } else {
         None
     };
 
-    // 全局手动覆盖。
+    // Глобальное ручное переопределение.
     let (config, exists_keys, result_map) = process_global_items(
         config,
         exists_keys,
@@ -1038,11 +1046,11 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
     )
     .await;
 
-    // 当前 profile 手动覆盖。
+    // Ручное переопределение текущего profile.
     let (config, exists_keys, result_map) =
         process_profile_items(config, exists_keys, result_map, merge_item, script_item, &profile_name).await;
 
-    // 手动覆盖后恢复 app 权威字段。
+    // Восстанавливаем поля app после ручного переопределения.
     let config = enforce_control_plane(config, control_plane);
     let config = enforce_dns_ipv6(config, dns_ipv6);
     let config = ensure_lan_bind_address(config);
@@ -1276,7 +1284,7 @@ mod tests {
             Some(true)
         );
 
-        // DNS 数据面不属于顶层控制面。
+        // Плоскость данных DNS не относится к верхнеуровневому control plane.
         assert_eq!(
             result
                 .get("dns")

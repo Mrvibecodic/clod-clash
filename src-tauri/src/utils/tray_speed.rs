@@ -1,7 +1,8 @@
-//! macOS 托盘速率富文本渲染模块
+//! Модуль форматированного рендеринга скорости в трее для macOS
 //!
-//! 通过 objc2 调用 NSAttributedString 实现托盘速率的富文本显示，
-//! 支持等宽字体、自适应深色/浅色模式配色、两行定宽布局。
+//! Через objc2 вызывает NSAttributedString для отображения скорости в трее
+//! форматированным текстом. Поддерживает моноширинный шрифт, адаптацию
+//! цветов под тёмный/светлый режим, двухстрочную раскладку фиксированной ширины.
 
 use std::cell::RefCell;
 
@@ -17,36 +18,41 @@ use objc2_app_kit::{
 };
 use objc2_foundation::{NSAttributedString, NSDictionary, NSNumber, NSString};
 
-/// 富文本渲染使用的字号（适配两行在托盘栏的高度）
+/// Размер шрифта для форматированного текста (под высоту двух строк в трее)
 const TRAY_FONT_SIZE: f64 = 9.5;
-/// 两行文本的固定行高，避免不同菜单栏高度/缩放下使用系统默认行高导致裁剪
+/// Фиксированная высота строки для двух строк текста, чтобы избежать обрезки
+/// при использовании системной высоты строки на разной высоте/масштабе панели меню
 const TRAY_LINE_HEIGHT: f64 = 10.0;
-/// 两行文本的行间距
+/// Межстрочный интервал для двух строк текста
 const TRAY_LINE_SPACING: f64 = 0.0;
-/// 两行文本整体行高倍数（用于进一步压缩文本块高度）
+/// Общий множитель высоты строки для двух строк (для дополнительного сжатия блока текста)
 const TRAY_LINE_HEIGHT_MULTIPLE: f64 = 1.00;
-/// 文本块段前偏移（用于将两行文本整体下移）
+/// Отступ перед абзацем текстового блока (для смещения двух строк текста вниз)
 const TRAY_PARAGRAPH_SPACING_BEFORE: f64 = 0.0;
-/// 基线基准位移按字体上沿比例生成（避免硬编码常量）
+/// Смещение базовой линии рассчитывается по пропорции верхнего края шрифта (без хардкода констант)
 const TRAY_BASELINE_OFFSET_GLYPH_HEIGHT_RATIO: f64 = 3.0;
-/// Tauri tray-icon 将图标缩放为 18pt；这里额外预留图标、图文间距与系统内边距
+/// Tauri tray-icon масштабирует иконку до 18pt; здесь дополнительно резервируется место
+/// под иконку, отступ между иконкой и текстом и системные поля
 const TRAY_STATUS_ITEM_EXTRA_WIDTH: f64 = 30.0;
-/// 典型 6 字符速率文本的最小宽度，避免 0B/s 等短文本让状态项反复收缩
+/// Минимальная ширина для типичного 6-символьного текста скорости, чтобы короткий
+/// текст вроде 0B/s не вызывал постоянное сжатие элемента статус-бара
 const TRAY_STATUS_ITEM_MIN_LENGTH: f64 = 58.0;
-/// AppKit 的 NSVariableStatusItemLength。清空速率标题后恢复系统按图标自适应
+/// NSVariableStatusItemLength из AppKit. После очистки заголовка скорости
+/// восстанавливает системное автоопределение по размеру иконки
 const NS_VARIABLE_STATUS_ITEM_LENGTH: f64 = -1.0;
 
 thread_local! {
     static LAST_DISPLAY_STR: RefCell<String> = const { RefCell::new(String::new()) };
 }
 
-/// 将上行/下行速率格式化为两行定宽文本
+/// Форматирует скорость отдачи/приёма в двухстрочный текст фиксированной ширины
 ///
 /// # Arguments
-/// * `up` - 上行速率（字节/秒）
-/// * `down` - 下行速率（字节/秒）
+/// * `up` - скорость отдачи (байт/с)
+/// * `down` - скорость приёма (байт/с)
 fn format_tray_speed(up: u64, down: u64) -> String {
-    // 上行放在第一行，下行放在第二行；通过上下布局表达方向，不再显示箭头字符。
+    // Отдача в первой строке, приём во второй; направление передаётся расположением
+    // строк, символы стрелок больше не отображаются.
     let up_str = format_bytes_per_second(up);
     let down_str = format_bytes_per_second(down);
     format!("{:>6}\n{:>6}", up_str, down_str)
@@ -54,11 +60,11 @@ fn format_tray_speed(up: u64, down: u64) -> String {
 
 fn build_attributes(button_height: f64) -> Retained<NSDictionary<NSString, AnyObject>> {
     unsafe {
-        // 等宽系统字体，确保数字不跳动
+        // Моноширинный системный шрифт, чтобы цифры не "прыгали"
         let font = NSFont::monospacedSystemFontOfSize_weight(TRAY_FONT_SIZE, NSFontWeightRegular);
-        // 自适应标签颜色（自动跟随深色/浅色模式）
+        // Адаптивный цвет метки (автоматически следует тёмному/светлому режиму)
         let color = NSColor::labelColor();
-        // 段落样式：右对齐，保证定宽视觉一致
+        // Стиль абзаца: выравнивание по правому краю для визуального единства ширины
         let para_style = NSMutableParagraphStyle::new();
         para_style.setAlignment(NSTextAlignment::Right);
         para_style.setLineBreakMode(NSLineBreakMode::ByClipping);
@@ -83,11 +89,11 @@ fn build_attributes(button_height: f64) -> Retained<NSDictionary<NSString, AnyOb
     }
 }
 
-/// 创建带属性的富文本
+/// Создаёт форматированный текст с атрибутами
 ///
 /// # Arguments
-/// * `text` - 富文本字符串内容
-/// * `attrs` - 可选富文本属性字典（None 表示用默认属性）
+/// * `text` - содержимое строки форматированного текста
+/// * `attrs` - опциональный словарь атрибутов (None означает использование атрибутов по умолчанию)
 fn create_attributed_string(
     text: &NSString,
     attrs: Option<&NSDictionary<NSString, AnyObject>>,
@@ -111,15 +117,17 @@ fn sync_click_target_frame(button: &NSStatusBarButton) {
     }
 }
 
-/// 在主线程下设置 NSStatusItem 按钮的标题内容
+/// Устанавливает заголовок кнопки NSStatusItem в главном потоке
 ///
-/// 依赖 Tauri `with_inner_tray_icon` 保证回调在主线程执行；
-/// 若意外在非主线程调用，`MainThreadMarker::new()` 返回 `None` 并记录警告。
+/// Полагается на то, что Tauri `with_inner_tray_icon` гарантирует выполнение
+/// колбэка в главном потоке; если вызов случайно произошёл не из главного
+/// потока, `MainThreadMarker::new()` возвращает `None` и пишется предупреждение.
 ///
 /// # Arguments
-/// * `status_item` - macOS 托盘 NSStatusItem 引用
-/// * `text` - 标题字符串内容
-/// * `show_speed` - 是否以速率富文本样式绘制；false 时清空为普通空标题
+/// * `status_item` - ссылка на NSStatusItem трея macOS
+/// * `text` - содержимое строки заголовка
+/// * `show_speed` - рисовать ли в стиле форматированного текста скорости; при false
+///   очищается до обычного пустого заголовка
 fn apply_status_item_attributed_title(status_item: &NSStatusItem, text: &NSString, show_speed: bool) {
     let Some(mtm) = MainThreadMarker::new() else {
         logging!(
@@ -145,12 +153,12 @@ fn apply_status_item_attributed_title(status_item: &NSStatusItem, text: &NSStrin
     sync_click_target_frame(&button);
 }
 
-/// 将速率以富文本形式设置到 NSStatusItem 的按钮上
+/// Устанавливает скорость в виде форматированного текста на кнопку NSStatusItem
 ///
 /// # Arguments
-/// * `status_item` - macOS 托盘 NSStatusItem 引用
-/// * `up` - 上行速率（字节/秒）
-/// * `down` - 下行速率（字节/秒）
+/// * `status_item` - ссылка на NSStatusItem трея macOS
+/// * `up` - скорость отдачи (байт/с)
+/// * `down` - скорость приёма (байт/с)
 pub fn set_speed_attributed_title(status_item: &NSStatusItem, up: u64, down: u64) {
     let speed_text = format_tray_speed(up, down);
     LAST_DISPLAY_STR.with(|last| {
@@ -164,10 +172,10 @@ pub fn set_speed_attributed_title(status_item: &NSStatusItem, up: u64, down: u64
     });
 }
 
-/// 清除 NSStatusItem 按钮上的富文本速率显示
+/// Очищает отображение форматированной скорости на кнопке NSStatusItem
 ///
 /// # Arguments
-/// * `status_item` - macOS 托盘 NSStatusItem 引用
+/// * `status_item` - ссылка на NSStatusItem трея macOS
 pub fn clear_speed_attributed_title(status_item: &NSStatusItem) {
     LAST_DISPLAY_STR.with(|last| {
         last.borrow_mut().clear();

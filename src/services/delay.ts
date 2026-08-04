@@ -40,10 +40,10 @@ class DelayManager {
   /** `verge.default_latency_test` — общий запасной адрес. */
   private defaultUrl = BUILTIN_TEST_URL
 
-  // 每个节点的监听
+  // Слушатели для каждого узла
   private listenerMap = new Map<string, (update: DelayUpdate) => void>()
 
-  // 每个分组的监听
+  // Слушатели для каждой группы
   private groupListenerMap = new Map<string, () => void>()
 
   private pendingItemUpdates = new Map<string, DelayUpdate[]>()
@@ -240,7 +240,7 @@ class DelayManager {
     return update ? update.delay : -1
   }
 
-  /// 暂时修复provider的节点延迟排序的问题
+  /// Временный фикс сортировки задержки узлов у provider
   getDelayFix(proxy: IProxyItem, group: string) {
     if (!proxy.provider) {
       const update = this.getDelayUpdate(proxy.name, group)
@@ -266,13 +266,13 @@ class DelayManager {
         : (extraEntry ?? historyEntry)
 
     if (newest) {
-      // 0ms以error显示
+      // 0ms отображаем как error
       return newest.delay || 1e6
     }
     return -1
   }
 
-  // 统一延迟测试检测
+  // Единая проверка задержки
   async unifiedDelayCheck(
     name: string,
     url: string,
@@ -294,7 +294,7 @@ class DelayManager {
       `[DelayManager] Начало теста задержки, прокси: ${name}, группа: ${group}, тайм-аут: ${timeout}ms`,
     )
 
-    // 先将状态设置为测试中
+    // Сначала выставляем статус «тестируется»
     this.setDelay(name, group, -2)
 
     const startTime = Date.now()
@@ -305,18 +305,18 @@ class DelayManager {
         `[DelayManager] Вызов API для теста задержки, прокси: ${name}, URL: ${url}`,
       )
 
-      // 设置超时处理, delay = 0 为超时
+      // Обрабатываем таймаут, delay = 0 означает таймаут
       const timeoutPromise = new Promise<ProxyDelay>((resolve) => {
         setTimeout(() => resolve({ delay: 0 }), timeout)
       })
 
-      // 使用Promise.race来实现超时控制
+      // Используем Promise.race для контроля таймаута
       const result = await Promise.race([
         this.unifiedDelayCheck(name, url, timeout, providerName),
         timeoutPromise,
       ])
 
-      // 确保至少显示500ms的加载动画
+      // Гарантируем показ анимации загрузки не менее 500мс
       const elapsedTime = Date.now() - startTime
       if (elapsedTime < 500) {
         await new Promise((resolve) => setTimeout(resolve, 500 - elapsedTime))
@@ -330,7 +330,7 @@ class DelayManager {
 
       return this.setDelay(name, group, delay, { elapsed })
     } catch (error) {
-      // 确保至少显示500ms的加载动画
+      // Гарантируем показ анимации загрузки не менее 500мс
       await new Promise((resolve) => setTimeout(resolve, 500))
       console.error(
         `[DelayManager] Ошибка теста задержки, прокси: ${name}`,
@@ -353,7 +353,7 @@ class DelayManager {
       `[DelayManager] Начало пакетного теста задержки, группа: ${group}, количество: ${proxies.length}, параллельность: ${concurrency}`,
     )
     const names = proxies.map((p) => p.name)
-    // 设置正在延迟测试中
+    // Выставляем статус «идёт тест задержки»
     names.forEach((name) => {
       this.setDelay(name, group, -2)
     })
@@ -369,12 +369,12 @@ class DelayManager {
       const currProviderName = currProxy.provider
 
       try {
-        // 确保API调用前状态为测试中
+        // Убеждаемся, что перед вызовом API статус «тестируется»
         this.setDelay(currName, group, -2)
 
-        // 添加一些随机延迟，避免所有请求同时发出和返回
+        // Добавляем случайную задержку, чтобы запросы не уходили и не возвращались одновременно
         if (index > 1) {
-          // 第一个不延迟，保持响应性
+          // Первый запрос без задержки — для отзывчивости
           await new Promise((resolve) =>
             setTimeout(resolve, Math.random() * 200),
           )
@@ -389,14 +389,14 @@ class DelayManager {
           `[DelayManager] Ошибка теста отдельного прокси в пакете, прокси: ${currName}`,
           error,
         )
-        // 设置为错误状态
+        // Выставляем статус ошибки
         this.setDelay(currName, group, 1e6)
       }
 
       return help()
     }
 
-    // 限制并发数，避免发送太多请求
+    // Ограничиваем число одновременных запросов
     const actualConcurrency = Math.min(concurrency, names.length, 10)
     debugLog(`[DelayManager] Фактическая параллельность: ${actualConcurrency}`)
 

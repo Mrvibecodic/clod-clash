@@ -122,7 +122,8 @@ impl WebDavClient {
             .set_auth(reqwest_dav::Auth::Basic(config.username.into(), config.password.into()))
             .build()?;
 
-        // 直接使用 MKCOL；部分服务器的 depth-0 PROPFIND 会误报解码错误。
+        // Используем MKCOL напрямую; на некоторых серверах depth-0 PROPFIND
+        // ошибочно сообщает об ошибке декодирования.
         if let Err(e) = client.mkcol(dirs::BACKUP_DIR).await {
             let (status_code, message) = match &e {
                 reqwest_dav::Error::Decode(reqwest_dav::DecodeError::Server(server_err)) => {
@@ -135,7 +136,8 @@ impl WebDavClient {
                 _ => (None, None),
             };
 
-            // 409 表示父目录不存在，不能按消息启发式处理。
+            // 409 означает, что родительской директории не существует;
+            // нельзя обработать эвристически по тексту сообщения.
             if status_code == Some(409) {
                 logging!(
                     warn,
@@ -148,7 +150,8 @@ impl WebDavClient {
                 ));
             }
 
-            // 405 是标准的已存在响应；部分服务器只在消息里说明。
+            // 405 — стандартный ответ "уже существует"; некоторые серверы
+            // указывают это только в тексте сообщения.
             let already_exists = status_code == Some(405)
                 || message.is_some_and(|m| {
                     let m = m.to_ascii_lowercase();

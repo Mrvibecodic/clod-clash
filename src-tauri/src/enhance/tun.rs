@@ -29,7 +29,7 @@ pub fn use_tun(mut config: Mapping, enable: bool) -> Mapping {
     });
 
     if enable {
-        // 读取DNS配置
+        // Читаем конфигурацию DNS
         let dns_key = Value::from("dns");
         let dns_val = config.get(&dns_key);
         let mut dns_val = dns_val.map_or_else(Mapping::new, |val| {
@@ -38,13 +38,13 @@ pub fn use_tun(mut config: Mapping, enable: bool) -> Mapping {
         let ipv6_key = Value::from("ipv6");
         let ipv6_val = config.get(&ipv6_key).and_then(|v| v.as_bool()).unwrap_or(false);
 
-        // 检查现有的 enhanced-mode 设置
+        // Проверяем текущую настройку enhanced-mode
         let current_mode = dns_val
             .get(Value::from("enhanced-mode"))
             .and_then(|v| v.as_str())
             .unwrap_or("fake-ip");
 
-        // 只有当 enhanced-mode 是 fake-ip 或未设置时才修改 DNS 配置
+        // Меняем конфиг DNS только если enhanced-mode - fake-ip или не задан
         if current_mode == "fake-ip" || !dns_val.contains_key(Value::from("enhanced-mode")) {
             revise!(dns_val, "enable", true);
             revise!(dns_val, "ipv6", ipv6_val);
@@ -57,7 +57,7 @@ pub fn use_tun(mut config: Mapping, enable: bool) -> Mapping {
                 revise!(dns_val, "fake-ip-range", "198.18.0.1/16");
             }
 
-            // 当启用 IPv6 时，补充 IPv6 的 fake-ip 范围
+            // При включённом IPv6 добавляем диапазон fake-ip для IPv6
             if ipv6_val && !dns_val.contains_key(Value::from("fake-ip-range6")) {
                 revise!(dns_val, "fake-ip-range6", "fdfe:dcba:9876::1/64");
             }
@@ -78,10 +78,11 @@ pub fn use_tun(mut config: Mapping, enable: bool) -> Mapping {
             }
         }
 
-        // 当TUN启用时，将修改后的DNS配置写回
+        // При включённом TUN записываем изменённый конфиг DNS обратно
         revise!(config, "dns", dns_val);
     } else {
-        // TUN未启用时，仅恢复系统DNS，不修改配置文件中的DNS设置
+        // При выключенном TUN только восстанавливаем системный DNS, настройки
+        // DNS в конфиге не трогаем
         #[cfg(target_os = "macos")]
         if crate::utils::resolve::dns::has_pending_restore() {
             AsyncHandler::spawn(move || async move {
@@ -90,7 +91,7 @@ pub fn use_tun(mut config: Mapping, enable: bool) -> Mapping {
         }
     }
 
-    // 更新TUN配置
+    // Обновляем конфигурацию TUN
     revise!(tun_val, "enable", enable);
     revise!(config, "tun", tun_val);
 

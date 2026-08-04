@@ -6,27 +6,29 @@ use tauri_plugin_mihomo::models::ConnectionId;
 use tokio::sync::mpsc;
 use tokio::time::Instant;
 
-/// Mihomo WebSocket 流的有界队列容量，避免异常场景下内存无限增长。
+/// Ёмкость ограниченной очереди потока Mihomo WebSocket, предотвращает
+/// неограниченный рост памяти в нештатных ситуациях.
 const MIHOMO_WS_STREAM_BUFFER_SIZE: usize = 8;
-/// 断开 Mihomo WebSocket 连接时使用的关闭码（RFC 6455 标准正常关闭）。
+/// Код закрытия при разрыве соединения Mihomo WebSocket (стандартное
+/// нормальное закрытие по RFC 6455).
 const MIHOMO_WS_STREAM_CLOSE_CODE: u64 = 1000;
 
-/// `/traffic` 即时速率事件（字节/秒）。
+/// Событие мгновенной скорости `/traffic` (байт/сек).
 #[derive(Debug, Clone, Copy)]
 pub struct TrafficSpeedEvent {
     pub up: u64,
     pub down: u64,
 }
 
-/// Mihomo WebSocket 流消费状态。
+/// Состояние потребления потока Mihomo WebSocket.
 pub enum StreamConsumeState<T> {
-    /// 收到一条业务事件。
+    /// Получено одно бизнес-событие.
     Event(T),
-    /// 连接关闭或消息流结束。
+    /// Соединение закрыто или поток сообщений завершился.
     Closed,
-    /// 在超时时间内未收到有效事件，需要重连。
+    /// Не получено ни одного валидного события за таймаут, нужно переподключение.
     Stale,
-    /// 上层请求退出消费循环。
+    /// Вышестоящий код запросил выход из цикла потребления.
     ExitRequested,
 }
 
@@ -34,13 +36,13 @@ enum InternalWsEvent<T> {
     Data(T),
 }
 
-/// Mihomo WebSocket 订阅句柄（通用事件流）。
+/// Дескриптор подписки Mihomo WebSocket (общий поток событий).
 pub struct MihomoWsEventStream<T> {
-    /// 当前订阅连接 ID，用于主动断开。
+    /// ID текущего подключения подписки, для принудительного отключения.
     pub connection_id: ConnectionId,
-    /// 当前订阅消息接收器。
+    /// Приёмник сообщений текущей подписки.
     receiver: mpsc::Receiver<InternalWsEvent<T>>,
-    /// 最近一次收到有效事件的时间戳。
+    /// Метка времени последнего валидного события.
     last_valid_event_at: Instant,
 }
 
@@ -61,19 +63,19 @@ fn parse_traffic_event(data: &[u8]) -> Option<InternalWsEvent<TrafficSpeedEvent>
 fn try_send_internal_event<T>(message_tx: &mpsc::Sender<InternalWsEvent<T>>, event: InternalWsEvent<T>) {
     if let Err(err) = message_tx.try_send(event) {
         match err {
-            // 队列满时丢弃本次事件，下一次事件会继续覆盖更新。
+            // Очередь заполнена, событие отбрасывается, следующее событие всё равно перезапишет данные.
             tokio::sync::mpsc::error::TrySendError::Full(_) => {}
-            // 任务已结束时通道可能关闭，忽略即可。
+            // Канал может быть закрыт после завершения задачи, просто игнорируем.
             tokio::sync::mpsc::error::TrySendError::Closed(_) => {}
         }
     }
 }
 
-/// 建立 `/traffic` WebSocket 订阅（通用流）。
+/// Установить подписку WebSocket `/traffic` (общий поток).
 pub async fn connect_traffic_stream() -> Result<MihomoWsEventStream<TrafficSpeedEvent>> {
-    // 使用有界 mpsc 通道承接回调事件，限制消息积压上限。
+    // Используем ограниченный mpsc-канал для приёма событий из колбэка, ограничивая накопление сообщений.
     let (message_tx, message_rx) = mpsc::channel::<InternalWsEvent<TrafficSpeedEvent>>(MIHOMO_WS_STREAM_BUFFER_SIZE);
-    // 建立 Mihomo `/traffic` WebSocket 订阅。
+    // Устанавливаем подписку WebSocket `/traffic` Mihomo.
     let connection_id = handle::Handle::mihomo()
         .await
         .ws_traffic({
@@ -94,15 +96,15 @@ pub async fn connect_traffic_stream() -> Result<MihomoWsEventStream<TrafficSpeed
 }
 
 impl<T> MihomoWsEventStream<T> {
-    /// 等待下一次可用事件或结束状态。
+    /// Ждать следующее доступное событие или состояние завершения.
     ///
     /// # Arguments
-    /// * `idle_poll_interval` - 空闲检查间隔
-    /// * `stale_timeout` - 无有效事件超时时间
-    /// * `should_exit` - 上层退出判定函数
+    /// * `idle_poll_interval` - интервал проверки в режиме простоя
+    /// * `stale_timeout` - таймаут отсутствия валидных событий
+    /// * `should_exit` - функция проверки выхода со стороны вызывающего кода
     pub async fn next_event<F>(
         &mut self,
-        _idle_poll_interval: Duration, // 签名保留，但内部逻辑已进化为更高效的驱动方式
+        _idle_poll_interval: Duration, // сигнатура сохранена, но внутренняя логика перешла на более эффективный механизм
         stale_timeout: Duration,
         should_exit: F,
     ) -> StreamConsumeState<T>
@@ -139,10 +141,10 @@ impl<T> MihomoWsEventStream<T> {
     }
 }
 
-/// 断开指定 Mihomo WebSocket 连接。
+/// Отключить указанное соединение Mihomo WebSocket.
 ///
 /// # Arguments
-/// * `connection_id` - 目标连接 ID
+/// * `connection_id` - ID целевого соединения
 pub async fn disconnect_connection(connection_id: ConnectionId) {
     if let Err(err) = handle::Handle::mihomo()
         .await

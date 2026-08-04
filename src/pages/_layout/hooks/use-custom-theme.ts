@@ -285,7 +285,7 @@ export const useCustomTheme = () => {
       }
       const effectiveInjectedCss = scopedCss ?? setting.css_injection ?? ''
       const globalStyles = `
-        /* 修复滚动条样式 */
+        /* Исправление стиля полосы прокрутки */
         ::-webkit-scrollbar {
           width: 8px;
           height: 8px;
@@ -299,7 +299,7 @@ export const useCustomTheme = () => {
           background-color: ${mode === 'light' ? '#a1a1a1' : '#666666'};
         }
 
-        /* 背景图处理 */
+        /* Обработка фонового изображения */
         body {
           background-color: var(--background-color);
           ${
@@ -316,17 +316,17 @@ export const useCustomTheme = () => {
           }
         }
 
-        /* 修复可能的白色边框 */
+        /* Исправление возможной белой рамки */
         .MuiPaper-root {
           border-color: var(--window-border-color) !important;
         }
 
-        /* 确保模态框和对话框也使用暗色主题 */
+        /* Убеждаемся, что модальные окна и диалоги тоже используют тёмную тему */
         .MuiDialog-paper {
           background-color: ${mode === 'light' ? '#ffffff' : '#2E303D'} !important;
         }
 
-        /* 移除可能的白色点或线条 */
+        /* Убираем возможные белые точки или линии */
         * {
           outline: none !important;
           box-shadow: none !important;

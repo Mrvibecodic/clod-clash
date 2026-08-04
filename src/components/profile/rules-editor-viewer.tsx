@@ -433,7 +433,7 @@ export const RulesEditorViewer = (props: Props) => {
     })
   }, [currData, visualization])
 
-  // 优化：异步处理大数据yaml.dump，避免UI卡死
+  // Оптимизация: асинхронная обработка yaml.dump для больших данных, чтобы не зависал UI
   useEffect(() => {
     if (!hasLoadedSeqConfigRef.current) {
       return
@@ -477,10 +477,10 @@ export const RulesEditorViewer = (props: Props) => {
   }, [prependSeq, appendSeq, deleteSeq])
 
   const fetchProfile = useCallback(async () => {
-    const data = await readProfileFile(profileUid) // 原配置文件
-    const groupsData = await readProfileFile(groupsUid) // groups配置文件
-    const mergeData = await readProfileFile(mergeUid) // merge配置文件
-    const globalMergeData = await readProfileFile('Merge') // global merge配置文件
+    const data = await readProfileFile(profileUid) // исходный конфиг-файл
+    const groupsData = await readProfileFile(groupsUid) // конфиг-файл groups
+    const mergeData = await readProfileFile(mergeUid) // конфиг-файл merge
+    const globalMergeData = await readProfileFile('Merge') // конфиг-файл global merge
 
     const rulesObj = yaml.load(data) as { rules: [] } | null
 
@@ -804,24 +804,24 @@ export const RulesEditorViewer = (props: Props) => {
               editorRef.current = editorInstance
             }}
             options={{
-              tabSize: 2, // 根据语言类型设置缩进大小
+              tabSize: 2, // Размер отступа в зависимости от языка
               minimap: {
-                enabled: document.documentElement.clientWidth >= 1500, // 超过一定宽度显示minimap滚动条
+                enabled: document.documentElement.clientWidth >= 1500, // Показывать полосу minimap при достаточной ширине
               },
-              mouseWheelZoom: true, // 按住Ctrl滚轮调节缩放比例
+              mouseWheelZoom: true, // Ctrl + колесо мыши регулирует масштаб
               quickSuggestions: {
-                strings: true, // 字符串类型的建议
-                comments: true, // 注释类型的建议
-                other: true, // 其他类型的建议
+                strings: true, // Подсказки для строк
+                comments: true, // Подсказки для комментариев
+                other: true, // Подсказки для остального
               },
               padding: {
-                top: 33, // 顶部padding防止遮挡snippets
+                top: 33, // Верхний отступ, чтобы не перекрывать snippets
               },
               fontFamily: `Fira Code, JetBrains Mono, Roboto Mono, "Source Code Pro", Consolas, Menlo, Monaco, monospace, "Courier New", "Apple Color Emoji"${
                 getSystem() === 'windows' ? ', twemoji mozilla' : ''
               }`,
-              fontLigatures: false, // 连字符
-              smoothScrolling: true, // 平滑滚动
+              fontLigatures: false, // Лигатуры
+              smoothScrolling: true, // Плавная прокрутка
             }}
             onChange={(value) => setCurrData(value ?? '')}
           />

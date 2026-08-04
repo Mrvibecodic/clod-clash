@@ -14,7 +14,7 @@ use clash_verge_logging::{Type, logging};
 use smartstring::alias::String;
 use tokio::fs;
 
-/// 保存profiles的配置
+/// Сохраняет конфиг профилей
 #[tauri::command]
 pub async fn save_profile_file(index: String, file_data: Option<String>) -> CmdResult<ValidationOutcome> {
     let file_data = match file_data {
@@ -28,7 +28,7 @@ pub async fn save_profile_file(index: String, file_data: Option<String>) -> CmdR
         _ => None,
     };
 
-    // 在异步操作前获取必要元数据并释放锁
+    // Получаем нужные метаданные и снимаем блокировку до асинхронных операций
     let (rel_path, is_merge_file, is_script_file, affects_runtime) = {
         let profiles = Config::profiles().await;
         let profiles_guard = profiles.latest_arc();
@@ -44,7 +44,7 @@ pub async fn save_profile_file(index: String, file_data: Option<String>) -> CmdR
     let file_path = profiles_dir.join(rel_path.as_str());
     let file_path_str = file_path.to_string_lossy().to_string();
 
-    // 读取原始内容（在释放profiles_guard后进行）
+    // Читаем исходное содержимое (после освобождения profiles_guard)
     let original_existed = fs::try_exists(&file_path).await.map_err(|err| {
         String::from(format!(
             "failed to check profile file \"{}\": {err}",
@@ -63,7 +63,7 @@ pub async fn save_profile_file(index: String, file_data: Option<String>) -> CmdR
         String::new()
     };
 
-    // 保存新的配置文件
+    // Сохраняем новый файл конфига
     fs::write(&file_path, &file_data).await.stringify_err()?;
 
     logging!(

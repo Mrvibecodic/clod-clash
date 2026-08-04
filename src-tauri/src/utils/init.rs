@@ -42,8 +42,9 @@ async fn delete_snapshot_logs(log_dir: &Path) -> Result<()> {
     Ok(())
 }
 
-// TODO flexi_logger 提供了最大保留天数，或许我们应该用内置删除log文件
-/// 删除log文件
+// TODO flexi_logger предоставляет максимальное число дней хранения, возможно стоит
+// использовать встроенное удаление log-файлов
+/// Удаляет log-файлы
 pub async fn delete_log() -> Result<()> {
     let log_dir = dirs::app_logs_dir()?;
     let service_log_dir = dirs::service_log_dir()?;
@@ -63,7 +64,7 @@ pub async fn delete_log() -> Result<()> {
         verge.auto_log_clean.unwrap_or(0)
     };
 
-    // 1: 1天, 2: 7天, 3: 30天, 4: 90天
+    // 1: 1 день, 2: 7 дней, 3: 30 дней, 4: 90 дней
     let day = match auto_log_clean {
         1 => 1,
         2 => 7,
@@ -274,14 +275,14 @@ async fn migrate_legacy_macos_logs() -> Result<()> {
     Ok(())
 }
 
-/// 初始化DNS配置文件
+/// Инициализация конфига DNS
 pub(super) async fn init_dns_config() -> Result<()> {
     use serde_yaml_ng::Value;
 
-    // 创建DNS子配置
+    // Создаём подконфиг DNS
     let dns_config = serde_yaml_ng::Mapping::from_iter([
         ("enable".into(), Value::Bool(true)),
-        // 与前端 DNS 默认一致,并供 dns.ipv6 锁定使用
+        // Совпадает со значением по умолчанию на фронтенде, используется для блокировки dns.ipv6
         ("ipv6".into(), Value::Bool(true)),
         ("listen".into(), Value::String(":53".into())),
         ("enhanced-mode".into(), Value::String("fake-ip".into())),
@@ -364,13 +365,13 @@ pub(super) async fn init_dns_config() -> Result<()> {
         ),
     ]);
 
-    // 获取默认DNS和host配置
+    // Получаем DNS-конфиг и конфиг host по умолчанию
     let default_dns_config = serde_yaml_ng::Mapping::from_iter([
         ("dns".into(), Value::Mapping(dns_config)),
         ("hosts".into(), Value::Mapping(serde_yaml_ng::Mapping::new())),
     ]);
 
-    // 检查DNS配置文件是否存在
+    // Проверяем, существует ли файл конфига DNS
     let app_dir = dirs::app_home_dir()?;
     let dns_path = app_dir.join(constants::files::DNS_CONFIG);
 
@@ -382,7 +383,7 @@ pub(super) async fn init_dns_config() -> Result<()> {
     Ok(())
 }
 
-/// 确保目录结构存在
+/// Убеждается, что структура каталогов существует
 async fn ensure_directories() -> Result<()> {
     let directories = [
         ("app_home", dirs::app_home_dir()?),
@@ -403,7 +404,7 @@ async fn ensure_directories() -> Result<()> {
     Ok(())
 }
 
-/// 初始化配置文件
+/// Инициализация конфигов
 async fn initialize_config_files() -> Result<()> {
     if let Ok(path) = dirs::clash_path()
         && !path.exists()
@@ -435,7 +436,7 @@ async fn initialize_config_files() -> Result<()> {
         logging!(info, Type::Setup, "Created profiles config at {:?}", path);
     }
 
-    // 验证并修正verge配置
+    // Проверяем и исправляем конфиг verge
     IVerge::validate_and_fix_config()
         .await
         .map_err(|e| anyhow::anyhow!("Failed to validate verge config: {}", e))?;

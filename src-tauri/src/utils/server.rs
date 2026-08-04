@@ -21,7 +21,7 @@ struct QueryParam {
     param: String,
 }
 
-// 关闭 embedded server 的信号发送端
+// Отправитель сигнала остановки embedded server
 static SHUTDOWN_SENDER: OnceCell<Mutex<Option<oneshot::Sender<()>>>> = OnceCell::new();
 
 /// check whether there is already exists
@@ -29,7 +29,7 @@ pub async fn check_singleton() -> Result<()> {
     let port = IVerge::get_singleton_port();
     if is_port_in_use(port) {
         let client = ClientBuilder::new().timeout(Duration::from_millis(500)).build()?;
-        // 需要确保 Send
+        // Нужно гарантировать Send
         #[allow(clippy::needless_collect)]
         let argvs: Vec<std::string::String> = std::env::args().collect();
         if argvs.len() > 1 {

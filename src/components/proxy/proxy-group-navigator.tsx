@@ -10,11 +10,11 @@ interface ProxyGroupNavigatorProps {
 
 export const DEFAULT_HOVER_DELAY = 280
 
-// 提取代理组名的第一个字符
+// Извлекает первый символ имени группы прокси
 const getGroupDisplayChar = (groupName: string): string => {
   if (!groupName) return '?'
 
-  // 直接返回第一个字符，支持表情符号
+  // Возвращаем первый символ напрямую, с поддержкой эмодзи
   const firstChar = Array.from(groupName)[0]
   return firstChar || '?'
 }
@@ -75,7 +75,7 @@ export const ProxyGroupNavigator = ({
     lastHoveredRef.current = null
   }, [clearHoverTimer])
 
-  // 处理代理组数据，去重和排序
+  // Обработка данных групп прокси, удаление дубликатов и сортировка
   const processedGroups = useMemo(() => {
     return proxyGroupNames
       .filter((name) => name && name.trim())

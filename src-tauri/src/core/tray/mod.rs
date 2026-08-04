@@ -35,7 +35,8 @@ mod menu_def;
 mod speed_task;
 use menu_def::{MenuIds, MenuTexts};
 
-// TODO: 是否需要将可变菜单抽离存储起来，后续直接更新对应菜单实例，无需重新创建菜单(待考虑)
+// TODO: нужно ли выносить изменяемое меню в отдельное хранилище, чтобы потом
+// обновлять соответствующий экземпляр меню напрямую, без пересоздания (пока не решено)
 
 type ProxyMenuItem = (Option<Submenu<Wry>>, Vec<Box<dyn IsMenuItem<Wry>>>);
 
@@ -173,7 +174,7 @@ impl Tray {
         Ok(())
     }
 
-    /// 更新托盘点击行为
+    /// Обновляет поведение клика по трею
     pub async fn update_click_behavior(&self) -> Result<()> {
         if handle::Handle::global().is_exiting() {
             logging!(
@@ -197,7 +198,7 @@ impl Tray {
         Ok(())
     }
 
-    /// 更新托盘菜单
+    /// Обновляет меню трея
     pub async fn update_menu(&self) -> Result<()> {
         if handle::Handle::global().is_exiting() {
             logging!(
@@ -260,7 +261,7 @@ impl Tray {
         Ok(())
     }
 
-    /// 更新托盘图标
+    /// Обновляет иконку трея
     pub async fn update_icon(&self, verge: &IVerge) -> Result<()> {
         if handle::Handle::global().is_exiting() {
             logging!(
@@ -297,7 +298,7 @@ impl Tray {
         Ok(())
     }
 
-    /// 更新托盘提示
+    /// Обновляет подсказку трея
     pub async fn update_tooltip(&self) -> Result<()> {
         if handle::Handle::global().is_exiting() {
             logging!(
@@ -445,7 +446,7 @@ impl Tray {
         allow
     }
 
-    /// 根据配置统一更新托盘速率采集任务状态（macOS）
+    /// Единообразно обновляет состояние задачи сбора скорости в трее по конфигу (macOS)
     #[cfg(target_os = "macos")]
     pub fn update_speed_task(&self, enable_tray_speed: bool) {
         self.speed_controller.update_task(enable_tray_speed);
@@ -461,7 +462,8 @@ fn create_hotkeys(hotkeys: &Option<Vec<String>>) -> HashMap<&str, &str> {
                     let mut parts = item.split(',');
                     match (parts.next(), parts.next()) {
                         (Some(func), Some(key)) => {
-                            // 托盘菜单中的 `accelerator` 属性，在 Linux/Windows 中都不支持小键盘按键的解析
+                            // Атрибут `accelerator` в меню трея не поддерживает разбор клавиш
+                            // цифровой клавиатуры ни в Linux, ни в Windows
                             if key.to_uppercase().contains("NUMPAD") {
                                 None
                             } else {
@@ -505,7 +507,8 @@ fn create_subcreate_proxy_menu_item(
     let proxy_submenus: Vec<Submenu<Wry>> = {
         let mut submenus: Vec<(String, usize, Submenu<Wry>)> = Vec::new();
 
-        // TODO: 应用启动时，内核还未启动完全，无法获取代理节点信息
+        // TODO: при запуске приложения ядро ещё не запущено полностью,
+        // информацию об узлах прокси получить нельзя
         if let Some(proxy_nodes_data) = proxy_nodes_data {
             for (group_name, group_data) in proxy_nodes_data.proxies.iter() {
                 // Filter groups based on mode and hidden flag
@@ -597,7 +600,7 @@ fn create_proxy_menu_item(
     proxy_submenus: Vec<Submenu<Wry>>,
     proxies_text: &str,
 ) -> Result<ProxyMenuItem> {
-    // 创建代理主菜单
+    // Создаём главное меню прокси
     let (proxies_submenu, inline_proxy_items) = if show_proxy_groups_inline {
         (
             None,
@@ -895,7 +898,7 @@ async fn create_tray_menu(
 
     let separator = &PredefinedMenuItem::separator(app_handle)?;
 
-    // 动态构建菜单项
+    // Динамически формируем пункты меню
     let mut menu_items: Vec<&dyn IsMenuItem<Wry>> = vec![open_window, separator];
 
     if mode_locked {
@@ -912,7 +915,7 @@ async fn create_tray_menu(
 
     menu_items.extend_from_slice(&[separator, profiles]);
 
-    // 如果有代理节点，添加代理节点菜单
+    // Если есть узлы прокси, добавляем меню узлов прокси
     match tray_proxy_groups_display_mode {
         "default" => {
             menu_items.extend(proxies_menu.iter().map(|item| item as &dyn IsMenuItem<_>));
@@ -953,7 +956,7 @@ fn on_tray_icon_event(_tray_icon: &TrayIcon, tray_event: TrayIconEvent) {
         ..
     } = tray_event
     {
-        // 添加防抖检查，防止快速连击
+        // Проверка debounce, чтобы избежать быстрых повторных кликов
         #[allow(clippy::use_self)]
         if !Tray::global().should_handle_tray_click() {
             return;
@@ -976,8 +979,8 @@ fn on_tray_icon_event(_tray_icon: &TrayIcon, tray_event: TrayIconEvent) {
                         WindowManager::show_main_window().await;
                     };
                 }
-                // tray_menu 模式下菜单由系统原生展示（见 set_show_menu_on_left_click），
-                // 左键点击事件无需额外处理
+                // В режиме tray_menu меню отображается системой нативно (см.
+                // set_show_menu_on_left_click), дополнительная обработка клика левой кнопкой не нужна
                 TrayAction::TrayMenu => {}
                 TrayAction::Unknown => {
                     logging!(warn, Type::Tray, "invalid tray event: {}", verge_tray_event);
@@ -1002,7 +1005,7 @@ fn on_menu_event(_: &AppHandle, event: MenuEvent) {
                     && let Some(final_mode) = stripped.strip_suffix("_mode")
                 {
                     logging!(info, Type::ProxyMode, "Switch Proxy Mode To: {}", final_mode);
-                    // 错误已在 change_clash_mode 内部记录，此处显式忽略返回值
+                    // Ошибка уже логируется внутри change_clash_mode, здесь возвращаемое значение явно игнорируется
                     let _ = feat::change_clash_mode(final_mode.into()).await;
                 }
             }

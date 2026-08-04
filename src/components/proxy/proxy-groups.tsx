@@ -83,7 +83,7 @@ function useProxyRenderState(
 
   const timeout = verge?.default_latency_timeout || 10000
 
-  // 测全部延迟
+  // Проверка всех задержек
   const handleCheckAll = useStableCallback(
     useLockFn(async (groupName: string) => {
       debugLog(
@@ -243,7 +243,7 @@ function ChainProxyGroups(props: {
   const virtualItems = virtualizer.getVirtualItems()
   const activeStickyIndex = activeStickyIndexRef.current
 
-  // 从 localStorage 恢复滚动位置
+  // Восстанавливаем позицию прокрутки из localStorage
   useLayoutEffect(() => {
     if (renderList.length === 0) return
     const node = parentRef.current
@@ -361,11 +361,14 @@ function NormalProxyGroups(props: { mode: string }) {
     saveScrollPosition,
   } = useProxyRenderState(mode, false, null)
   const renderFirstRef = useRef(true)
-  // 恢复滚动位置期间设为 true，避免程序化滚动触发的 scroll 事件把中间值写回存储
+  // true во время восстановления позиции прокрутки, чтобы программная
+  // прокрутка не вызывала scroll-событие, записывающее промежуточное
+  // значение обратно в хранилище
   const isRestoringRef = useRef(false)
 
-  // 目前无法使用 StickyVirtualList 的 initialOffset 值设置初始化，具体原因需排查
-  // 从 localStorage 恢复滚动位置
+  // Пока не удаётся инициализировать через initialOffset у StickyVirtualList,
+  // причину нужно выяснить
+  // Восстанавливаем позицию прокрутки из localStorage
   useLayoutEffect(() => {
     if (renderList.length === 0) return
     if (!renderFirstRef.current) return
@@ -373,15 +376,18 @@ function NormalProxyGroups(props: { mode: string }) {
     if (!node) return
 
     const savedPosition = getScrollPosition()
-    // 未保存过位置或位置为 0（顶部）时无需恢复
+    // Восстановление не нужно, если позиция не сохранялась или равна 0 (верх)
     if (!savedPosition) {
       renderFirstRef.current = false
       return
     }
 
-    // 虚拟列表初始使用预估高度，真实高度测量完成后总高度才会稳定。
-    // 尤其是过滤后节点数变少时，预估总高度常常不足以一次性滚动到目标位置，
-    // 因此跨帧重试，直到到达目标位置（或内容确实不够高）为止。
+    // Виртуальный список изначально использует оценочную высоту, итоговая
+    // высота стабилизируется только после реального измерения. Особенно
+    // когда после фильтрации узлов становится меньше, оценочной итоговой
+    // высоты часто не хватает, чтобы прокрутить до цели за один раз,
+    // поэтому повторяем попытки в разных кадрах, пока не достигнем цели
+    // (или пока содержимого действительно не хватит по высоте).
     isRestoringRef.current = true
     let rafId = 0
     let attempts = 0
@@ -421,7 +427,8 @@ function NormalProxyGroups(props: { mode: string }) {
 
   const handleScroll = useCallback(
     (event: Event) => {
-      // 恢复位置过程中产生的滚动不写回存储，避免中间的钳制值覆盖真实位置
+      // Прокрутка во время восстановления позиции не пишется в хранилище,
+      // чтобы промежуточные ограниченные значения не перезаписали реальную позицию
       if (isRestoringRef.current) return
       const target = event.target as HTMLElement | null
       const nextScrollTop = target?.scrollTop ?? 0
@@ -464,7 +471,7 @@ function NormalProxyGroups(props: { mode: string }) {
     [handleProxyGroupChange],
   )
 
-  // 滚到对应的节点
+  // Прокрутка к соответствующему узлу
   const handleLocation = useStableCallback((group: IProxyGroupItem) => {
     if (!group) return
     const { name, now } = group
@@ -484,7 +491,7 @@ function NormalProxyGroups(props: { mode: string }) {
     }
   })
 
-  // 定位到指定的代理组
+  // Переход к указанной группе прокси
   const handleGroupLocationByName = useCallback(
     (groupName: string) => {
       const index = renderList.findIndex(
@@ -508,7 +515,8 @@ function NormalProxyGroups(props: { mode: string }) {
     return Array.from(new Set(names))
   }, [renderList])
 
-  // 点击代理组改变展开状态，先滚动到sticky的代理组位置，再收起展开状态
+  // Клик по группе прокси меняет состояние развёрнутости: сначала прокрутка
+  // к sticky-позиции группы, затем сворачивание
   const handleGroupToggle = useCallback(
     async (group: IProxyGroupItem) => {
       const index = renderList.findIndex(
@@ -585,7 +593,7 @@ function NormalProxyGroups(props: { mode: string }) {
         renderItem={renderProxyItem}
       />
 
-      {/* 代理组导航栏 */}
+      {/* Панель навигации по группам прокси */}
       {mode === 'rule' && (
         <ProxyGroupNavigator
           proxyGroupNames={proxyGroupNames}

@@ -58,12 +58,12 @@ const SettingSystem = ({ onError }: Props) => {
           }}
           onGuard={async (e) => {
             try {
-              // 先触发UI更新立即看到反馈
+              // Сначала обновляем UI, чтобы сразу увидеть отклик
               onChangeData({ enable_auto_launch: e })
               await patchVerge({ enable_auto_launch: e })
               return Promise.resolve()
             } catch (error) {
-              // 如果出错，恢复原始状态
+              // При ошибке восстанавливаем исходное состояние
               onChangeData({ enable_auto_launch: !e })
               return Promise.reject(error)
             }

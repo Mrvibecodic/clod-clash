@@ -107,7 +107,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
   const loadingCache = useLoadingCache()
   const setLoadingCache = useSetLoadingCache()
 
-  // 新增状态：是否显示下次更新时间
+  // Новое состояние: показывать ли время следующего обновления
   const [showNextUpdate, setShowNextUpdate] = useState(false)
   const showNextUpdateRef = useRef(false)
   const [nextUpdateTime, setNextUpdateTime] = useState('')
@@ -132,7 +132,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
   const { uid, name = 'Profile', extra, updated = 0, option } = itemData
   const [mountedAt] = useState(() => Date.now())
 
-  // 获取下次更新时间的函数
+  // Функция получения времени следующего обновления
   const fetchNextUpdateTimeCallback = useCallback(
     async (forceRefresh = false) => {
       if (
@@ -144,9 +144,10 @@ const ProfileItemBase = (props: ProfileItemProps) => {
             `Попытка получить время следующего обновления для конфигурации ${itemData.uid}`,
           )
 
-          // 如果需要强制刷新，先触发Timer.refresh()
+          // Если нужно принудительное обновление, сначала вызываем Timer.refresh()
           if (forceRefresh) {
-            // 这里可以通过一个新的API来触发刷新，但目前我们依赖patch_profile中的刷新
+            // Здесь можно было бы вызвать новый API для обновления, но пока
+            // полагаемся на обновление внутри patch_profile
             debugLog(`Принудительное обновление задачи таймера`)
           }
 
@@ -160,13 +161,13 @@ const ProfileItemBase = (props: ProfileItemProps) => {
             const nextUpdateDate = dayjs(nextUpdate * 1000)
             const now = dayjs()
 
-            // 如果已经过期，显示"更新失败"
+            // Если время уже истекло, показываем "обновление не удалось"
             if (nextUpdateDate.isBefore(now)) {
               setNextUpdateTime(
                 t('profiles.components.profileItem.status.lastUpdateFailed'),
               )
             } else {
-              // 否则显示剩余时间
+              // Иначе показываем оставшееся время
               const diffMinutes = nextUpdateDate.diff(now, 'minute')
 
               if (diffMinutes < 60) {
@@ -213,7 +214,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
   )
   const fetchNextUpdateTime = useLockFn(fetchNextUpdateTimeCallback)
 
-  // 切换显示模式的函数
+  // Функция переключения режима отображения
   const toggleUpdateTimeDisplay = (e: React.MouseEvent) => {
     e.stopPropagation()
 
@@ -228,7 +229,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
     showNextUpdateRef.current = showNextUpdate
   }, [showNextUpdate])
 
-  // 当组件加载或更新间隔变化时更新下次更新时间
+  // Обновляем время следующего обновления при загрузке компонента или изменении интервала
   useEffect(() => {
     if (showNextUpdate) {
       fetchNextUpdateTime()
@@ -240,7 +241,8 @@ const ProfileItemBase = (props: ProfileItemProps) => {
     updated,
   ])
 
-  // 页面统一订阅定时器事件，这里只响应当前配置的更新信号
+  // Страница подписана на общие события таймера, здесь реагируем только на
+  // сигнал обновления текущего конфига
   useEffect(() => {
     if (timerUpdateRevision === 0 || !showNextUpdateRef.current) return
 
@@ -326,7 +328,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
     const handler = () => {
       const now = Date.now()
       const lastUpdate = updated * 1000
-      // 大于一天的不管
+      // Если прошло больше суток, не трогаем
       if (now - lastUpdate >= 24 * 36e5) return
 
       const wait = now - lastUpdate >= 36e5 ? 30e5 : 5e4
@@ -438,14 +440,14 @@ const ProfileItemBase = (props: ProfileItemProps) => {
     }
   })
 
-  /// 0 不使用任何代理
-  /// 1 使用订阅好的代理
-  /// 2 至少使用一个代理，根据订阅，如果没订阅，默认使用系统代理
+  /// 0 не использовать прокси
+  /// 1 использовать прокси подписки
+  /// 2 использовать хотя бы один прокси: по подписке, а если её нет — системный прокси по умолчанию
   const onUpdate = useLockFn(async (type: 0 | 1 | 2): Promise<void> => {
     setAnchorEl(null)
     setLoading(true)
 
-    // 根据类型设置初始更新选项
+    // Задаём начальные параметры обновления в зависимости от типа
     const option: Partial<IProfileOption> = {}
     if (type === 0) {
       option.with_proxy = false
@@ -461,15 +463,15 @@ const ProfileItemBase = (props: ProfileItemProps) => {
     }
 
     try {
-      // 调用后端更新（后端会自动处理回退逻辑）
+      // Вызываем обновление на бэкенде (бэкенд сам обрабатывает откат)
       const payload = Object.keys(option).length > 0 ? option : undefined
       await updateProfile(itemData.uid, payload)
 
-      // 更新成功，刷新列表
+      // Обновление успешно, обновляем список
       void mutateProfiles()
     } catch {
-      // 更新完全失败（包括后端的回退尝试）
-      // 不需要做处理，后端会通过事件通知系统发送错误
+      // Обновление полностью не удалось (включая попытку отката на бэкенде)
+      // Ничего делать не нужно, бэкенд отправит ошибку через систему событий
     } finally {
       setLoading(false)
     }
@@ -692,7 +694,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
         aria-selected={selected}
         dimmed={expired}
         onClick={(e) => {
-          // 如果正在激活中，阻止重复点击
+          // Если уже идёт активация, блокируем повторный клик
           if (activating) {
             e.preventDefault()
             e.stopPropagation()
@@ -834,7 +836,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
               disabled={loading}
               onClick={(e) => {
                 e.stopPropagation()
-                // 如果正在激活或加载中，阻止更新操作
+                // Если идёт активация или загрузка, блокируем обновление
                 if (activating || loading) {
                   return
                 }

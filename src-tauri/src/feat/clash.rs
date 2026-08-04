@@ -50,7 +50,7 @@ pub async fn restart_clash_core() {
 /// Restart the application
 pub async fn restart_app() {
     logging!(debug, Type::System, "Запуск процесса перезапуска приложения");
-    // 设置退出标志
+    // Устанавливаем флаг выхода
     handle::Handle::global().set_is_exiting();
 
     utils::server::shutdown_embedded_server();
@@ -91,8 +91,10 @@ fn after_change_clash_mode() {
 
 /// Change Clash mode (rule/global/direct/script)
 ///
-/// mihomo `/configs` PATCH 失败时返回 `Err`，以便命令层把失败上抛给前端。
-/// （此前该函数吞掉错误并始终视为成功，导致 UI 误判"切换成功"、看似"切不动"。）
+/// При ошибке PATCH `/configs` mihomo возвращает `Err`, чтобы уровень команд
+/// прокидывал ошибку на фронтенд.
+/// (Раньше эта функция проглатывала ошибку и всегда считала успех, из-за чего UI
+/// ошибочно решал, что "переключение прошло", хотя на деле "не переключилось".)
 /// clod: `clod-lock-mode` — the panel forbids mode changes. This is the one
 /// funnel the tray clicks and the global hotkeys go through, so the check
 /// here is what turns the hidden UI into an actual lock.
@@ -126,7 +128,7 @@ pub async fn change_clash_mode(mode: String) -> Result<(), String> {
         return Err(err.to_string().into());
     }
 
-    // 更新订阅
+    // Обновляем подписку
     let clash = Config::clash().await;
     clash.edit_draft(|d| d.patch_config(&mapping));
     clash.apply();
@@ -148,7 +150,7 @@ pub async fn change_clash_mode(mode: String) -> Result<(), String> {
         );
     }
 
-    // 分离数据获取和异步调用
+    // Разделяем получение данных и асинхронный вызов
     let clash_data = clash.data_arc();
     if clash_data.save_config().await.is_ok() {
         handle::Handle::refresh_clash();

@@ -241,7 +241,7 @@ impl CoreManager {
         logging!(info, Type::Core, "Starting core in service mode");
         let config_file = Config::generate_file(crate::config::ConfigType::Run).await?;
 
-        // 交接时等待 sidecar 释放 ext-controller 通道。
+        // При передаче ждём, пока sidecar освободит канал ext-controller.
         #[cfg(target_os = "windows")]
         {
             use crate::constants::timing;
@@ -342,8 +342,8 @@ mod tests {
         time::{Duration, Instant},
     };
 
-    // 起一个长命子进程用于验证 Job Object 的生命周期绑定。
-    // 直接使用 System32 下的 ping.exe，避免 cmd 中间层。
+    // Запускаем долгоживущий дочерний процесс для проверки привязки жизненного
+    // цикла к Job Object. Используем ping.exe из System32 напрямую, без cmd.
     fn spawn_long_lived() -> Result<Child> {
         let child = Command::new("ping")
             .args(["-n", "999", "127.0.0.1"])
@@ -353,7 +353,7 @@ mod tests {
         Ok(child)
     }
 
-    // 在超时内轮询子进程是否退出，返回是否已退出。
+    // Опрашивает завершение дочернего процесса в пределах таймаута, возвращает признак завершения.
     fn wait_until_exited(child: &mut Child, timeout: Duration) -> Result<bool> {
         let deadline = Instant::now() + timeout;
         loop {
@@ -367,21 +367,22 @@ mod tests {
         }
     }
 
-    // 成功路径：进程被分配进 Job Object 后仍存活；drop Job 句柄触发
-    // KILL_ON_JOB_CLOSE，进程应在超时内被 OS 终止。
+    // Успешный сценарий: процесс остаётся живым после привязки к Job Object;
+    // drop дескриптора Job вызывает KILL_ON_JOB_CLOSE, процесс должен быть
+    // завершён ОС в пределах таймаута.
     #[test]
     fn job_kills_child_on_handle_drop() -> Result<()> {
         let mut child = spawn_long_lived()?;
 
         let job = create_and_assign_sidecar_job(child.id())?;
 
-        // 分配后进程应仍在运行。
+        // После привязки процесс должен оставаться запущенным.
         assert!(
             child.try_wait()?.is_none(),
             "child should still be running after being assigned to the job"
         );
 
-        // 关闭 Job 句柄，OS 应连带终止其成员进程。
+        // Закрываем дескриптор Job, ОС должна завершить и его дочерние процессы.
         drop(job);
 
         assert!(
@@ -392,10 +393,12 @@ mod tests {
         Ok(())
     }
 
-    // 失败路径：对一个不存在的 PID 调用时 OpenProcess 应失败，函数返回 Err。
+    // Сценарий ошибки: при вызове с несуществующим PID OpenProcess должен
+    // завершиться неудачей, функция возвращает Err.
     #[test]
     fn returns_err_for_invalid_pid() {
-        // PID 必须为 4 的倍数且极不可能存在；0xFFFF_FFFC 对应不到真实进程。
+        // PID должен быть кратен 4 и крайне маловероятен; 0xFFFF_FFFC не
+        // соответствует реальному процессу.
         let result = create_and_assign_sidecar_job(0xFFFF_FFFC);
         assert!(result.is_err(), "expected Err for a non-existent PID");
     }

@@ -14,13 +14,13 @@ interface Props {
   onClick?: (name: string) => void
 }
 
-// 多列布局
+// Многоколоночная раскладка
 export const ProxyItemMini = (props: Props) => {
   const { group, proxy, selected, showType = true, onClick } = props
 
   const { t } = useTranslation()
 
-  // -1/<=0 为不显示，-2 为 loading
+  // -1/<=0 значит не показывать, -2 значит loading
   const { delayValue, isPreset, timeout, onDelay } = useProxyDelayState(
     proxy,
     group.name,
@@ -168,7 +168,7 @@ export const ProxyItemMini = (props: Props) => {
               onDelay()
             }}
             sx={({ palette }) => ({
-              display: 'none', // hover 时显示
+              display: 'none', // показывать при hover
               ':hover': { bgcolor: alpha(palette.primary.main, 0.15) },
             })}
           >
@@ -177,7 +177,7 @@ export const ProxyItemMini = (props: Props) => {
         )}
 
         {delayValue >= 0 && (
-          // 显示延迟
+          // Показываем задержку
           <Widget
             className="the-delay"
             onClick={(e) => {
@@ -197,7 +197,7 @@ export const ProxyItemMini = (props: Props) => {
           delayValue !== -2 &&
           delayValue < 0 &&
           selected && (
-            // 展示已选择的 icon
+            // Показываем иконку выбранного
             <CheckCircleOutlineRounded
               className="the-icon"
               sx={{ fontSize: 16, mr: 0.5, display: 'block' }}
@@ -205,7 +205,7 @@ export const ProxyItemMini = (props: Props) => {
           )}
       </Box>
       {group.fixed && group.fixed === proxy.name && (
-        // 展示 fixed 状态
+        // Показываем состояние fixed
         <span
           className={proxy.name === group.now ? 'the-pin' : 'the-unpin'}
           title={

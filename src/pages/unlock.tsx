@@ -140,7 +140,7 @@ const UnlockPage = () => {
     [],
   )
 
-  // 保存测试结果到本地存储
+  // Сохраняем результаты теста в локальное хранилище
   const saveResultsToStorage = useCallback(
     (items: UnlockItem[], time: string | null) => {
       try {
@@ -229,7 +229,7 @@ const UnlockPage = () => {
     ])
   }
 
-  // 执行全部项目检测
+  // Запускаем проверку всех сервисов
   const checkAllMedia = useLockFn(async () => {
     try {
       setIsCheckingAll(true)
@@ -249,7 +249,7 @@ const UnlockPage = () => {
     }
   })
 
-  // 检测单个流媒体服务
+  // Проверяем один стриминговый сервис
   const checkSingleMedia = useLockFn(async (name: string) => {
     try {
       setLoadingItems((prev) => [...prev, name])
@@ -291,7 +291,7 @@ const UnlockPage = () => {
     }
   })
 
-  // 状态颜色
+  // Цвет статуса
   const getStatusColor = (status: string) => {
     if (status === 'Pending') return 'default'
     if (status === 'Yes') return 'success'
@@ -309,7 +309,7 @@ const UnlockPage = () => {
     return 'default'
   }
 
-  // 状态图标
+  // Иконка статуса
   const getStatusIcon = (status: string) => {
     if (status === 'Pending') return <PendingOutlined />
     if (status === 'Yes') return <CheckCircleOutlined />
@@ -319,7 +319,7 @@ const UnlockPage = () => {
     return <HelpOutlined />
   }
 
-  // 边框色
+  // Цвет рамки
   const getStatusBorderColor = (status: string) => {
     if (status === 'Yes') return theme.palette.success.main
     if (status === 'No') return theme.palette.error.main

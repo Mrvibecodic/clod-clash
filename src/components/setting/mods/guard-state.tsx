@@ -40,13 +40,13 @@ export function GuardState<T>(props: Props<T>) {
 
   childProps[valueProps] = value
   childProps[onChangeProps] = async (...args: any[]) => {
-    // 多次操作无效
+    // Повторные действия игнорируются
     if (lockRef.current) return
     lockRef.current = true
 
     try {
       const newValue = onFormat ? onFormat(...args) : (args[0] as T)
-      // 先在ui上响应操作
+      // Сначала отражаем действие в UI
       onChange(newValue)
 
       const now = Date.now()
@@ -69,7 +69,7 @@ export function GuardState<T>(props: Props<T>) {
           try {
             await onGuard(newValue, saveRef.current!)
           } catch (err: any) {
-            // 状态回退
+            // Откат состояния
             onChange(saveRef.current!)
             onCatch(err)
           } finally {
@@ -78,7 +78,7 @@ export function GuardState<T>(props: Props<T>) {
         }, waitTime)
       }
     } catch (err: any) {
-      // 状态回退
+      // Откат состояния
       onChange(saveRef.current!)
       onCatch(err)
       lockRef.current = false

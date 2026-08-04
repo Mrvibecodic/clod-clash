@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 static TRAY_SYNC_RUNNING: AtomicBool = AtomicBool::new(false);
 static TRAY_SYNC_PENDING: AtomicBool = AtomicBool::new(false);
 
-/// 同步托盘和GUI的代理选择状态
+/// Синхронизирует выбор прокси между треем и GUI
 #[tauri::command]
 pub async fn sync_tray_proxy_selection() -> CmdResult<()> {
     if TRAY_SYNC_RUNNING

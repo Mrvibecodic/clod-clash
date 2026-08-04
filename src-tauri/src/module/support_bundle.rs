@@ -656,7 +656,8 @@ mod tests {
 
     #[test]
     fn subscription_url_loses_its_token() {
-        let line = "[订阅更新] URL = https://panel.example.com/sub/9f8e7d6c5b4a3f2e1d0c9b8a7?token=abcdef123456";
+        let line =
+            "[обновление подписки] URL = https://panel.example.com/sub/9f8e7d6c5b4a3f2e1d0c9b8a7?token=abcdef123456";
         let masked = redact(line);
         assert!(!masked.contains("9f8e7d6c5b4a3f2e1d0c9b8a7"));
         assert!(!masked.contains("abcdef123456"));

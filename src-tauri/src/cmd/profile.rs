@@ -41,7 +41,7 @@ pub async fn get_profiles() -> CmdResult<SharedDraft<IProfiles>> {
     Ok(data)
 }
 
-/// 增强配置文件
+/// Расширенный конфиг
 #[tauri::command]
 pub async fn enhance_profiles() -> CmdResult<ValidationOutcome> {
     match feat::enhance_profiles().await {
@@ -71,7 +71,7 @@ pub async fn enhance_profiles() -> CmdResult<ValidationOutcome> {
     }
 }
 
-/// 导入配置文件
+/// Импорт конфига
 #[tauri::command]
 pub async fn import_profile(url: std::string::String, option: Option<PrfOption>) -> CmdResult {
     logging!(
@@ -81,7 +81,8 @@ pub async fn import_profile(url: std::string::String, option: Option<PrfOption>)
         help::mask_url(&url)
     );
 
-    // 直接依赖 PrfItem::from_url 自身的超时/重试逻辑，不再使用 tokio::time::timeout 包裹
+    // Полагаемся напрямую на логику таймаута/повтора PrfItem::from_url,
+    // не оборачиваем в tokio::time::timeout
     // clod: сначала напрямую, потом через собственное ядро, потом через
     // системный прокси — заблокированный домен подписки достижим через уже
     // поднятый туннель.
@@ -136,7 +137,7 @@ pub async fn import_profile(url: std::string::String, option: Option<PrfOption>)
     Ok(())
 }
 
-/// 调整profile的顺序
+/// Изменяет порядок profile
 #[tauri::command]
 pub async fn reorder_profile(active_id: String, over_id: String) -> CmdResult {
     match profiles_reorder_safe(&active_id, &over_id).await {
@@ -151,15 +152,15 @@ pub async fn reorder_profile(active_id: String, over_id: String) -> CmdResult {
     }
 }
 
-/// 创建新的profile
-/// 创建一个新的配置文件
+/// Создаёт новый profile
+/// Создаёт новый конфиг
 #[tauri::command]
 pub async fn create_profile(item: PrfItem, file_data: Option<String>) -> CmdResult {
     match profiles_append_item_with_filedata_safe(&item, file_data).await {
         Ok(_) => {
             profiles_save_file_safe().await.stringify_err()?;
             logging_error!(Type::Timer, Timer::global().refresh().await);
-            // 发送配置变更通知
+            // Отправляем уведомление об изменении конфига
             if let Some(uid) = &item.uid {
                 logging!(
                     info,
@@ -189,7 +190,7 @@ pub async fn restore_selected_nodes() -> CmdResult {
     profiles::activate_selected_nodes().stringify_err()
 }
 
-/// 更新配置文件
+/// Обновляет конфиг
 #[tauri::command]
 pub async fn update_profile(index: String, option: Option<PrfOption>) -> CmdResult {
     match feat::update_profile(&index, option.as_ref(), true, true, true).await {
@@ -201,10 +202,10 @@ pub async fn update_profile(index: String, option: Option<PrfOption>) -> CmdResu
     }
 }
 
-/// 删除配置文件
+/// Удаляет конфиг
 #[tauri::command]
 pub async fn delete_profile(index: String) -> CmdResult {
-    // 使用Send-safe helper函数
+    // Используем Send-safe helper-функцию
     let should_update = profiles_delete_item_safe(&index).await.stringify_err()?;
     profiles_save_file_safe().await.stringify_err()?;
     if let Err(e) = Tray::global().update_tooltip().await {
@@ -226,7 +227,7 @@ pub async fn delete_profile(index: String) -> CmdResult {
         match CoreManager::global().update_config_forced().await {
             Ok(outcome) if outcome.is_valid() => {
                 handle::Handle::refresh_clash();
-                // 发送配置变更通知
+                // Отправляем уведомление об изменении конфига
                 logging!(
                     info,
                     Type::Cmd,
@@ -255,7 +256,7 @@ pub async fn delete_profile(index: String) -> CmdResult {
     Ok(())
 }
 
-/// 执行配置更新并处理结果
+/// Выполняет обновление конфига и обрабатывает результат
 async fn restore_previous_profile(prev_profile: &String) -> CmdResult<()> {
     logging!(
         info,
@@ -387,7 +388,7 @@ async fn perform_config_update(
     }
 }
 
-/// 修改profiles的配置
+/// Изменяет конфиг profiles
 #[tauri::command]
 pub async fn patch_profiles_config(profiles: IProfiles) -> CmdResult<ValidationOutcome> {
     if CURRENT_SWITCHING_PROFILE
@@ -407,7 +408,7 @@ pub async fn patch_profiles_config(profiles: IProfiles) -> CmdResult<ValidationO
         target_profile
     );
 
-    // 保存当前配置，以便在验证失败时恢复
+    // Сохраняем текущий конфиг, чтобы восстановить его при неудачной проверке
     let previous_profile = Config::profiles().await.data_arc().current.clone();
     logging!(info, Type::Cmd, "текущий конфиг: {:?}", previous_profile);
 
@@ -416,7 +417,7 @@ pub async fn patch_profiles_config(profiles: IProfiles) -> CmdResult<ValidationO
     perform_config_update(target_profile, previous_profile.as_ref()).await
 }
 
-/// 根据profile name修改profiles
+/// Изменяет profiles по имени profile
 #[tauri::command]
 pub async fn patch_profiles_config_by_profile_index(profile_index: String) -> CmdResult<ValidationOutcome> {
     logging!(info, Type::Cmd, "переключение конфига на: {}", profile_index);
@@ -428,10 +429,10 @@ pub async fn patch_profiles_config_by_profile_index(profile_index: String) -> Cm
     patch_profiles_config(profiles).await
 }
 
-/// 修改某个profile item的
+/// Изменяет отдельный profile item
 #[tauri::command]
 pub async fn patch_profile(index: String, profile: PrfItem) -> CmdResult {
-    // 保存修改前检查是否有更新 update_interval
+    // Перед изменением проверяем, обновился ли update_interval
     let profiles = Config::profiles().await;
     let should_refresh_timer = if let Ok(old_profile) = profiles.latest_arc().get_item(&index)
         && let Some(new_option) = profile.option.as_ref()
@@ -447,14 +448,15 @@ pub async fn patch_profile(index: String, profile: PrfItem) -> CmdResult {
 
     profiles_patch_item_safe(&index, &profile).await.stringify_err()?;
 
-    // 如果更新间隔或允许自动更新变更，异步刷新定时器
+    // Если интервал обновления или разрешение автообновления изменились,
+    // асинхронно обновляем таймер
     if should_refresh_timer {
         crate::process::AsyncHandler::spawn(move || async move {
             logging!(info, Type::Timer, "Timer update settings changed, refreshing timer...");
             if let Err(e) = crate::core::Timer::global().refresh().await {
                 logging!(error, Type::Timer, "Failed to refresh timer: {}", e);
             } else {
-                // 刷新成功后发送自定义事件，不触发配置重载
+                // После успешного обновления отправляем кастомное событие, не перезагружая конфиг
                 crate::core::handle::Handle::notify_timer_updated(&index);
             }
         });
@@ -463,7 +465,7 @@ pub async fn patch_profile(index: String, profile: PrfItem) -> CmdResult {
     Ok(())
 }
 
-/// 查看配置文件
+/// Просмотр конфига
 #[tauri::command]
 pub async fn view_profile(index: String) -> CmdResult {
     let profiles = Config::profiles().await;
@@ -483,7 +485,7 @@ pub async fn view_profile(index: String) -> CmdResult {
     help::open_file(path).stringify_err()
 }
 
-/// 读取配置文件内容
+/// Читает содержимое конфига
 #[tauri::command]
 pub async fn read_profile_file(index: String) -> CmdResult<String> {
     let item = {
@@ -510,7 +512,7 @@ pub async fn read_profile_file(index: String) -> CmdResult<String> {
     Ok(data)
 }
 
-/// 获取下一次更新时间
+/// Получает время следующего обновления
 #[tauri::command]
 pub async fn get_next_update_time(uid: String) -> CmdResult<Option<i64>> {
     let timer = Timer::global();

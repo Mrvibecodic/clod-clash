@@ -386,19 +386,19 @@ export function ProxyGroupsChain(props: ProxyGroupsChainProps) {
 
   const handleChangeProxy = useCallback(
     (_group: IProxyGroupItem, proxy: IProxyItem) => {
-      // 使用函数式更新来避免状态延迟问题
+      // Используем функциональное обновление, чтобы избежать проблем с задержкой состояния
       setProxyChain((prev) => {
-        // 检查是否已经存在相同名称的代理，防止重复添加
+        // Проверяем, есть ли уже прокси с таким именем, предотвращаем повторное добавление
         if (prev.some((item) => item.name === proxy.name)) {
           const warningMessage = t('proxies.page.chain.duplicateNode')
           setDuplicateWarning({
             open: true,
             message: warningMessage,
           })
-          return prev // 返回原来的状态，不做任何更改
+          return prev // Возвращаем прежнее состояние без изменений
         }
 
-        // 安全获取延迟数据，如果没有延迟数据则设为 undefined
+        // Безопасно получаем данные задержки, если их нет — undefined
         const delay =
           proxy.history && proxy.history.length > 0
             ? proxy.history[proxy.history.length - 1].delay

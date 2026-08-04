@@ -13,14 +13,14 @@ pub enum ValidationNoticeTarget {
     Script,
 }
 
-/// 发送脚本验证通知消息
+/// Отправляет уведомление о результате проверки скрипта
 #[tauri::command]
 pub async fn script_validate_notice(status: String, msg: String) -> CmdResult {
     handle::Handle::notice_message(status.as_str(), msg.as_str());
     Ok(())
 }
 
-/// 验证指定脚本文件
+/// Проверяет указанный файл скрипта
 #[tauri::command]
 pub async fn validate_script_file(file_path: String) -> CmdResult<ValidationOutcome> {
     logging!(info, Type::Config, "проверка файла скрипта: {}", file_path);

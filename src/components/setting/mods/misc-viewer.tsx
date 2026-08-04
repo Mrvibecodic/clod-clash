@@ -271,7 +271,7 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
               }))
             }
           >
-            {/* 1: 1天, 2: 7天, 3: 30天, 4: 90天*/}
+            {/* 1: 1 день, 2: 7 дней, 3: 30 дней, 4: 90 дней*/}
             {[
               {
                 key: t('settings.modals.misc.options.autoLogClean.never'),

@@ -299,7 +299,7 @@ const Layout = () => {
 
   return (
     <ThemeProvider theme={theme}>
-      {/* 左侧底部窗口控制按钮 */}
+      {/* Кнопки управления окном внизу слева */}
       <NoticeManager position={verge?.notice_position} />
       {/* clod: panel-side device limit / device id required */}
       <HwidLimitDialog />

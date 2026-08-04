@@ -24,7 +24,7 @@ const RulesPage = () => {
   const [showScrollTop, setShowScrollTop] = useState(false)
   const pageVisible = useVisibility()
 
-  // 在组件挂载时和页面获得焦点时刷新规则数据
+  // Обновляем данные правил при монтировании компонента и при фокусе страницы
   useEffect(() => {
     refreshRules()
     refreshRuleProviders()

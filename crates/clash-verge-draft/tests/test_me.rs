@@ -62,7 +62,7 @@ mod tests {
             assert_eq!(data.enable_tun_mode, Some(true));
         }
 
-        // 新一轮草稿并修改
+        // Новый раунд черновика и правка
         draft.edit_draft(|d| {
             d.enable_auto_launch = Some(true);
         });

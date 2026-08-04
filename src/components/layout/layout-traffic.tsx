@@ -36,7 +36,7 @@ export const LayoutTraffic = () => {
     response: { data: memory },
   } = useMemoryData({ enabled: displayMemory && pageVisible })
 
-  // 监听数据变化，为图表添加数据点
+  // Следим за изменением данных, добавляем точки на график
   useEffect(() => {
     if (trafficRef.current) {
       trafficRef.current.appendData({
@@ -48,7 +48,7 @@ export const LayoutTraffic = () => {
     }
   }, [traffic])
 
-  // 使用parseTraffic统一处理转换，保持与首页一致的显示格式
+  // Используем parseTraffic для единообразного преобразования, формат как на главной
   const [up, upUnit] = parseTraffic(traffic?.up || 0)
   const [down, downUnit] = parseTraffic(traffic?.down || 0)
   const [inuse, inuseUnit] = parseTraffic(memory?.inuse || 0)

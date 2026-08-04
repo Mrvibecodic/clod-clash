@@ -45,9 +45,9 @@ export interface StickyVirtualListProps<TItem> {
   items: TItem[]
   isGroupItem: (item: TItem, index: number) => boolean
   getItemKey: (item: TItem, index: number) => React.Key
-  // 组项预估高度
+  // Предполагаемая высота элемента группы
   estimateGroupItemHeight: number
-  // 非组项预估高度
+  // Предполагаемая высота элемента вне группы
   estimateItemHeight: number
   renderGroupItem: (item: TItem, index: number, stickyed: boolean) => ReactNode
   renderItem: (item: TItem, index: number) => ReactNode
@@ -283,7 +283,7 @@ export const StickyVirtualList = forwardRef(function StickyVirtualListInner<
               }}
             >
               {isGroup
-                ? renderGroupItem(item, virtualRow.index, false) // 渲染组，以便动态计算组高度
+                ? renderGroupItem(item, virtualRow.index, false) // рендер группы для расчёта высоты
                 : renderItem(item, virtualRow.index)}
             </div>
           )

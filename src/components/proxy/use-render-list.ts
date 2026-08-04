@@ -14,7 +14,7 @@ import {
 } from './use-head-state'
 import { useWindowWidth } from './use-window-width'
 
-// 定义代理项接口
+// Определение интерфейса элемента прокси
 interface IProxyItem {
   name: string
   type: string
@@ -29,10 +29,10 @@ interface IProxyItem {
   }[]
   provider?: string
   testUrl?: string
-  [key: string]: any // 添加索引签名以适应其他可能的属性
+  [key: string]: any // Индексная сигнатура для прочих возможных свойств
 }
 
-// 代理组类型
+// Тип группы прокси
 type ProxyGroup = {
   name: string
   type: string
@@ -54,7 +54,7 @@ type ProxyGroup = {
 }
 
 export interface IRenderItem {
-  // 组 | head | item | empty | item col
+  // group | head | item | empty | item col
   type: 0 | 1 | 2 | 3 | 4
   key: string
   group: ProxyGroup
@@ -62,7 +62,7 @@ export interface IRenderItem {
   col?: number
   proxyCol?: IProxyItem[]
   headState?: HeadState
-  // 新增支持图标和其他元数据
+  // Поддержка иконки и прочих метаданных
   icon?: string
   provider?: string
   testUrl?: string
@@ -77,7 +77,7 @@ type GroupCache = {
   items: IRenderItem[]
 }
 
-// 优化列布局计算
+// Оптимизированный расчёт раскладки колонок
 const calculateColumns = (width: number, configCol: number): number => {
   if (configCol > 0 && configCol < 6) return configCol
 
@@ -89,7 +89,7 @@ const calculateColumns = (width: number, configCol: number): number => {
   return 1
 }
 
-// 优化分组逻辑
+// Оптимизированная логика группировки
 const groupProxies = <T = any>(list: T[], size: number): T[][] => {
   return list.reduce((acc, item) => {
     const lastGroup = acc[acc.length - 1]
@@ -107,7 +107,7 @@ export const useRenderList = (
   isChainMode?: boolean,
   selectedGroup?: string | null,
 ) => {
-  // 使用全局数据提供者
+  // Используем глобальный поставщик данных
   const { proxies: proxiesData } = useProxiesData()
   const { refreshProxy } = useAppRefreshers()
   const { verge } = useVerge()
@@ -115,16 +115,16 @@ export const useRenderList = (
   const [headStates, setHeadState] = useHeadStateNew()
   const latencyTimeout = verge?.default_latency_timeout
 
-  // 获取运行时配置用于链式代理模式
+  // Получаем конфиг времени выполнения для режима цепочки прокси
   const { data: runtimeConfig } = useRuntimeConfig(!!isChainMode)
 
-  // 计算列数
+  // Считаем число колонок
   const col = useMemo(
     () => calculateColumns(width, verge?.proxy_layout_column || 6),
     [width, verge?.proxy_layout_column],
   )
 
-  // 确保代理数据加载
+  // Убеждаемся, что данные прокси загружены
   useEffect(() => {
     if (!proxiesData) return
     const { groups, proxies } = proxiesData
@@ -138,7 +138,7 @@ export const useRenderList = (
     }
   }, [proxiesData, mode, refreshProxy])
 
-  // 链式代理模式节点自动计算延迟
+  // Автоматический расчёт задержки узлов в режиме цепочки прокси
   useEffect(() => {
     if (!isChainMode || !runtimeConfig) return
 
@@ -147,7 +147,7 @@ export const useRenderList = (
     )
     if (allProxies.length === 0) return
 
-    // 设置组监听器，当有延迟更新时自动刷新
+    // Устанавливаем слушатель группы: при обновлении задержки автообновление
     const groupListener = () => {
       debugLog('[ChainMode] Задержка обновлена, обновляем интерфейс')
       refreshProxy()
@@ -163,19 +163,20 @@ export const useRenderList = (
           `[ChainMode] Начало расчёта задержки для ${allProxies.length} узлов`,
         )
 
-        // 使用 delayManager 计算延迟，每个节点计算完成后会自动触发监听器刷新界面
+        // delayManager считает задержку; после расчёта каждого узла слушатель
+        // автоматически обновляет интерфейс
         delayManager.checkListDelay(allProxies, 'chain-mode', timeout)
       } catch (error) {
         console.error('Failed to calculate delays for chain mode:', error)
       }
     }
 
-    // 延迟执行避免阻塞
+    // Отложенный запуск, чтобы не блокировать
     const handle = setTimeout(calculateDelays, 100)
 
     return () => {
       clearTimeout(handle)
-      // 清理组监听器
+      // Удаляем слушатель группы
       delayManager.removeGroupListener('chain-mode')
     }
   }, [isChainMode, runtimeConfig, verge?.default_latency_timeout, refreshProxy])
@@ -183,18 +184,18 @@ export const useRenderList = (
   const groupCacheRef = useRef<Map<string, GroupCache>>(new Map())
   const prevListRef = useRef<IRenderItem[]>([])
 
-  // 处理渲染列表
+  // Формируем список для рендера
   const renderList: IRenderItem[] = useMemo(() => {
     if (!proxiesData) return []
 
-    // 链式代理模式下，显示代理组和其节点
+    // В режиме цепочки прокси показываем группы прокси и их узлы
     if (isChainMode && runtimeConfig && mode === 'rule') {
-      // 使用正常的规则模式代理组
+      // Используем группы прокси обычного режима правил
       const allGroups = proxiesData.groups.length
         ? proxiesData.groups
         : [proxiesData.global!]
 
-      // 如果选择了特定代理组，只显示该组的节点
+      // Если выбрана конкретная группа прокси, показываем только её узлы
       if (selectedGroup) {
         const targetGroup = allGroups.find((g: any) => g.name === selectedGroup)
         if (targetGroup) {
@@ -230,7 +231,7 @@ export const useRenderList = (
         return []
       }
 
-      // 如果没有选择特定组，显示第一个组的节点（如果有组的话）
+      // Если конкретная группа не выбрана, показываем узлы первой группы (если группы есть)
       if (allGroups.length > 0) {
         const firstGroup = allGroups[0]
         const proxies = filterSort(
@@ -263,17 +264,17 @@ export const useRenderList = (
         }
       }
 
-      // 如果没有组，显示所有节点
+      // Если групп нет, показываем все узлы
       const allProxies: IProxyItem[] = allGroups.flatMap(
         (group: any) => group.all,
       )
 
-      // 为每个节点获取延迟信息
+      // Получаем данные о задержке для каждого узла
       const proxiesWithDelay = allProxies.map((proxy) => {
         const delay = delayManager.getDelay(proxy.name, 'chain-mode')
         return {
           ...proxy,
-          // 如果delayManager有延迟数据，更新history
+          // Если у delayManager есть данные о задержке, обновляем history
           history:
             delay >= 0
               ? [{ time: new Date().toISOString(), delay }]
@@ -281,7 +282,7 @@ export const useRenderList = (
         }
       })
 
-      // 创建一个虚拟的组来容纳所有节点
+      // Создаём виртуальную группу для всех узлов
       const virtualGroup: ProxyGroup = {
         name: 'All Proxies',
         type: 'Selector',
@@ -319,19 +320,19 @@ export const useRenderList = (
       }
     }
 
-    // 链式代理模式下的其他模式（如global）仍显示所有节点
+    // В остальных режимах (например global) в режиме цепочки прокси тоже показываем все узлы
     if (isChainMode && runtimeConfig) {
-      // 从运行时配置直接获取 proxies 列表 (需要类型断言)
+      // Получаем список proxies напрямую из конфига времени выполнения (нужно приведение типа)
       const allProxies: IProxyItem[] = Object.values(
         (runtimeConfig as any).proxies || {},
       )
 
-      // 为每个节点获取延迟信息
+      // Получаем данные о задержке для каждого узла
       const proxiesWithDelay = allProxies.map((proxy) => {
         const delay = delayManager.getDelay(proxy.name, 'chain-mode')
         return {
           ...proxy,
-          // 如果delayManager有延迟数据，更新history
+          // Если у delayManager есть данные о задержке, обновляем history
           history:
             delay >= 0
               ? [{ time: new Date().toISOString(), delay }]
@@ -339,7 +340,7 @@ export const useRenderList = (
         }
       })
 
-      // 创建一个虚拟的组来容纳所有节点
+      // Создаём виртуальную группу для всех узлов
       const virtualGroup: ProxyGroup = {
         name: 'All Proxies',
         type: 'Selector',
@@ -353,7 +354,7 @@ export const useRenderList = (
         all: proxiesWithDelay,
       }
 
-      // 返回节点列表（不显示组头）
+      // Возвращаем список узлов (без заголовка группы)
       if (col > 1) {
         return groupProxies(proxiesWithDelay, col).map(
           (proxyCol, colIndex) => ({
@@ -378,7 +379,7 @@ export const useRenderList = (
       }
     }
 
-    // 正常模式的渲染逻辑
+    // Логика рендера обычного режима
     const useRule = mode === 'rule' || mode === 'script'
     const renderGroups =
       useRule && proxiesData.groups.length
@@ -429,7 +430,7 @@ export const useRenderList = (
           },
         )
 
-        // 全局模式下，添加组头
+        // В глобальном режиме добавляем заголовок группы
         if (!useRule) {
           ret.push({
             type: 1,
@@ -511,4 +512,5 @@ export const useRenderList = (
   }
 }
 
-// 优化建议：如有大数据量，建议用虚拟滚动（已在 ProxyGroups 组件中实现），此处无需额外处理。
+// Рекомендация по оптимизации: при больших объёмах данных использовать виртуальный
+// скролл (уже реализован в компоненте ProxyGroups), здесь дополнительная обработка не нужна.

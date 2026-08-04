@@ -34,7 +34,7 @@ export function ControllerViewer({ ref }: { ref?: Ref<DialogRef> }) {
     verge?.enable_external_controller ?? false,
   )
 
-  // 对话框打开时初始化配置
+  // Инициализация конфига при открытии диалога
   useImperativeHandle(ref, () => ({
     open: async () => {
       setOpen(true)
@@ -45,15 +45,15 @@ export function ControllerViewer({ ref }: { ref?: Ref<DialogRef> }) {
     close: () => setOpen(false),
   }))
 
-  // 保存配置
+  // Сохранить конфиг
   const onSave = useLockFn(async () => {
     try {
       setIsSaving(true)
 
-      // 先保存 enable_external_controller 设置
+      // Сначала сохраняем настройку enable_external_controller
       await patchVerge({ enable_external_controller: enableController })
 
-      // 如果启用了外部控制器，则保存控制器地址和密钥
+      // Если внешний контроллер включён, сохраняем адрес и секрет контроллера
       if (enableController) {
         if (!controller.trim()) {
           showNotice.error(
@@ -71,7 +71,7 @@ export function ControllerViewer({ ref }: { ref?: Ref<DialogRef> }) {
 
         await patchInfo({ 'external-controller': controller, secret })
       } else {
-        // 如果禁用了外部控制器，则清空控制器地址
+        // Если внешний контроллер отключён, очищаем адрес контроллера
         await patchInfo({ 'external-controller': '' })
       }
 
@@ -88,7 +88,7 @@ export function ControllerViewer({ ref }: { ref?: Ref<DialogRef> }) {
     }
   })
 
-  // 复制到剪贴板
+  // Скопировать в буфер обмена
   const handleCopyToClipboard = useLockFn(
     async (text: string, type: string) => {
       try {

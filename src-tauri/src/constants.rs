@@ -47,22 +47,25 @@ pub mod timing {
     pub const CONFIG_UPDATE_DEBOUNCE: Duration = Duration::from_millis(300);
     pub const STARTUP_ERROR_DELAY: Duration = Duration::from_secs(2);
 
-    // 服务冷启动较慢(Windows 尤其),避免过早回退 sidecar。
-    // clod:tun-ready — launchd/systemd 同样会晚于应用就绪,等待不再限于 Windows。
+    // Служба медленно запускается "с холода" (особенно на Windows), избегаем
+    // слишком раннего отката к sidecar.
+    // clod:tun-ready — launchd/systemd тоже могут быть готовы позже приложения,
+    // ожидание больше не ограничено Windows.
     #[cfg(target_os = "windows")]
     pub const SERVICE_WAIT_MAX: Duration = Duration::from_millis(30000);
     #[cfg(not(target_os = "windows"))]
     pub const SERVICE_WAIT_MAX: Duration = Duration::from_millis(15000);
     pub const SERVICE_WAIT_INTERVAL: Duration = Duration::from_millis(200);
 
-    // 回退 sidecar 后继续等待服务就绪并尝试交接。
+    // После отката к sidecar продолжаем ждать готовности службы и пытаться передать управление.
     pub const SERVICE_HANDOFF_WINDOW: Duration = Duration::from_secs(120);
     pub const SERVICE_HANDOFF_INTERVAL: Duration = Duration::from_secs(2);
 
-    // clod:tun-ready — TUN 起来后再核对内核日志,确认设备真的建立。
+    // clod:tun-ready — после поднятия TUN сверяем логи ядра, чтобы убедиться,
+    // что устройство действительно создано.
     pub const TUN_VERIFY_DELAY: Duration = Duration::from_secs(3);
 
-    // 交接时等待 sidecar 释放 ext-controller 通道。
+    // При передаче ждём, пока sidecar освободит канал ext-controller.
     #[cfg(target_os = "windows")]
     pub const SERVICE_START_RETRIES: usize = 5;
     #[cfg(target_os = "windows")]

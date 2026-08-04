@@ -65,7 +65,8 @@ fn service_core_path(clash_core: &str, bin_ext: &str) -> Result<PathBuf> {
         return Ok(stable_path);
     }
 
-    // 给用户一个可操作的提示,再 bail 让服务启动失败 —— 避免用临时路径起内核。
+    // Даём пользователю уведомление с действием, затем bail и не запускаем службу —
+    // не даём стартовать ядру с временного пути.
     notify_translocated_core_path();
     bail!(
         "macOS App Translocation detected; refusing to start service with temporary core path {:?}",
@@ -73,10 +74,14 @@ fn service_core_path(clash_core: &str, bin_ext: &str) -> Result<PathBuf> {
     )
 }
 
-/// 发送 translocation 用户提示。**延迟**发送:app 启动期会自动尝试起 core,此时前端的
-/// `verge://notice-message` 监听器(随 React 布局挂载后才注册)可能尚未就绪,而后端 emit
-/// 没有重放队列 —— 立即发会丢失。延迟到前端挂载后再发,既覆盖"启动自动起 core 失败"、
-/// 也兼顾手动启动(错误提示略迟可接受)。复用前端 `set_config::error` 处理器直接展示该消息。
+/// Отправляет пользователю уведомление о translocation. Отправка **с задержкой**: во
+/// время запуска app автоматически пытается запустить core, и в этот момент слушатель
+/// `verge://notice-message` на фронтенде (регистрируется только после монтирования React
+/// layout) может быть ещё не готов, а у backend emit нет очереди повторной отправки —
+/// немедленная отправка потеряется. Отправка после монтирования фронтенда покрывает и
+/// случай "автозапуск core при старте не удался", и ручной запуск (небольшая задержка
+/// уведомления об ошибке приемлема). Переиспользуем фронтенд-обработчик `set_config::error`
+/// для показа этого сообщения.
 #[cfg(target_os = "macos")]
 fn notify_translocated_core_path() {
     crate::process::AsyncHandler::spawn(|| async {
@@ -142,12 +147,12 @@ const fn macos_cleanup_translocated_desired_state_shell() -> &'static str {
     "for f in '/var/root/.local/state/clash-verge-service/desired-state.json' '/var/lib/clash-verge-service/desired-state.json'; do if [ -f \"$f\" ] && /usr/bin/grep -q AppTranslocation \"$f\"; then backup=\"$f.apptranslocation.bak\"; if [ -e \"$backup\" ]; then backup=\"$f.apptranslocation.$(/bin/date +%s).bak\"; fi; /bin/mv \"$f\" \"$backup\"; fi; done"
 }
 
-/// 卸载服务前以 root 清理残留 core 和 IPC 套接字。
+/// Перед удалением службы от root очищаем остатки core и IPC-сокет.
 #[cfg(target_os = "macos")]
 fn macos_force_stop_core_shell() -> String {
     use crate::config::IVerge;
 
-    // 只清理 root 拥有的服务内核。
+    // Очищаем только ядра службы, принадлежащие root.
     let mut parts: Vec<String> = IVerge::VALID_CLASH_CORES
         .iter()
         .map(|core| format!("/usr/bin/pkill -U root -x {core} 2>/dev/null || true"))
@@ -156,7 +161,7 @@ fn macos_force_stop_core_shell() -> String {
     if let Ok(ipc) = dirs::ipc_path()
         && let Ok(ipc_str) = dirs::path_to_str(&ipc)
     {
-        // 转义单引号,避免破坏 shell 参数。
+        // Экранируем одинарные кавычки, чтобы не сломать shell-параметр.
         let escaped = ipc_str.replace('\'', r"'\''");
         parts.push(format!("/bin/rm -f '{escaped}' 2>/dev/null || true"));
     }
@@ -269,7 +274,7 @@ fn uninstall_service() -> Result<()> {
     } else {
         let result = StdCommand::new(&elevator).arg(&uninstall_path).status()?;
 
-        // 如果 pkexec 执行失败，回退到 sudo
+        // Если pkexec не сработал, откатываемся на sudo
         if !result.success() && elevator.contains("pkexec") {
             logging!(
                 warn,
@@ -315,7 +320,7 @@ fn install_service() -> Result<()> {
     } else {
         let result = StdCommand::new(&elevator).arg(&install_path).output()?;
 
-        // 如果 pkexec 执行失败，回退到 sudo
+        // Если pkexec не сработал, откатываемся на sudo
         if !result.status.success() && elevator.contains("pkexec") {
             logging!(
                 warn,
@@ -367,7 +372,7 @@ fn uninstall_service() -> Result<()> {
     // clash_verge_i18n::sync_locale(Config::verge().await.latest_arc().language.as_deref());
 
     let prompt = clash_verge_i18n::t!("service.adminUninstallPrompt");
-    // 先清理服务残留,再执行卸载器。
+    // Сначала очищаем остатки службы, затем запускаем деинсталлятор.
     let uninstall_quoted = shell_single_quote(&uninstall_shell);
     let shell = format!("{}; sudo {uninstall_quoted}", macos_force_stop_core_shell());
     let shell = escape_osascript_double_quoted_string(&shell);
@@ -446,12 +451,12 @@ fn check_output_error(output: &std::process::Output) -> Option<(i32, Cow<'_, str
 fn reinstall_service() -> Result<()> {
     logging!(info, Type::Service, "reinstall service");
 
-    // 先卸载服务
+    // Сначала удаляем службу
     if let Err(err) = uninstall_service() {
         logging!(warn, Type::Service, "failed to uninstall service: {}", err);
     }
 
-    // 再安装服务
+    // Затем устанавливаем службу
     match install_service() {
         Ok(_) => Ok(()),
         Err(err) => {
@@ -460,7 +465,7 @@ fn reinstall_service() -> Result<()> {
     }
 }
 
-/// 强制重装服务（UI修复按钮）
+/// Принудительная переустановка службы (кнопка исправления в UI)
 fn force_reinstall_service() -> Result<()> {
     logging!(
         info,
@@ -478,7 +483,7 @@ fn force_reinstall_service() -> Result<()> {
     })
 }
 
-/// 尝试使用服务启动core
+/// Пытаемся запустить core через службу
 pub(super) async fn start_with_existing_service(config_file: &PathBuf) -> Result<()> {
     logging!(info, Type::Service, "Попытка запуска ядра через существующую службу");
 
@@ -525,7 +530,7 @@ pub(super) async fn start_with_existing_service(config_file: &PathBuf) -> Result
     Ok(())
 }
 
-// 以服务启动core
+// Запуск core через службу
 pub(super) async fn run_core_by_service(config_file: &PathBuf) -> Result<()> {
     logging!(info, Type::Service, "Попытка запуска ядра через службу");
 
@@ -561,7 +566,7 @@ pub(super) async fn get_clash_logs_by_service() -> Result<Vec<CompactString>> {
     Ok(response.data.unwrap_or_default())
 }
 
-/// 通过服务停止core
+/// Остановка core через службу
 pub(super) async fn stop_core_by_service() -> Result<()> {
     logging!(info, Type::Service, "Остановка ядра через службу (IPC)");
 
@@ -579,7 +584,7 @@ pub(super) async fn stop_core_by_service() -> Result<()> {
     Ok(())
 }
 
-/// 检查服务是否正在运行
+/// Проверяем, запущена ли служба
 pub async fn is_service_available() -> Result<()> {
     if let Err(e) = Path::metadata(clash_verge_service_ipc::IPC_PATH.as_ref()) {
         let verge = Config::verge().await;

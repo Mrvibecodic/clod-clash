@@ -40,7 +40,7 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
     verge?.verge_mixed_port ?? clashInfo?.mixed_port ?? 7897,
   )
 
-  // 其他端口状态
+  // Состояние остальных портов
   const [socksPort, setSocksPort] = useState(verge?.verge_socks_port ?? 7898)
   const [socksEnabled, setSocksEnabled] = useState(
     verge?.verge_socks_enabled ?? false,
@@ -58,10 +58,10 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
     verge?.verge_tproxy_enabled ?? false,
   )
 
-  // 保存打开对话框时的原始值，用于在检测到端口被占用时恢复
+  // Сохраняем исходные значения при открытии диалога, чтобы восстановить их при обнаружении занятого порта
   const originalPortsRef = useRef<Record<string, any> | null>(null)
 
-  // 添加保存请求，防止GUI卡死
+  // Запрос на сохранение, предотвращает зависание GUI
   const { loading, run: saveSettings } = useRequest(
     async (params: { clashConfig: any; vergeConfig: any }) => {
       const { clashConfig, vergeConfig } = params
@@ -107,9 +107,9 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
     close: () => setOpen(false),
   }))
 
-  // TODO 减少代码复杂度，性能开支
+  // TODO снизить сложность кода, затраты на производительность
   const onSave = useLockFn(async () => {
-    // 端口冲突检测
+    // Проверка конфликта портов
     const portList = [
       mixedPort,
       socksEnabled ? socksPort : -1,
@@ -122,7 +122,7 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
       return
     }
 
-    // 验证端口范围
+    // Проверка диапазона портов
     const isValidPort = (port: number) => port >= 1 && port <= 65535
     const allPortsValid = [
       mixedPort,
@@ -187,7 +187,7 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
       }
     }
 
-    // 准备配置数据
+    // Готовим данные конфига
     const clashConfig = {
       'mixed-port': mixedPort,
       'socks-port': socksPort,
@@ -208,7 +208,7 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
       verge_tproxy_enabled: tproxyEnabled,
     }
 
-    // 提交保存请求
+    // Отправляем запрос на сохранение
     saveSettings({ clashConfig, vergeConfig })
   })
 

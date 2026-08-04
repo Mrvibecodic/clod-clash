@@ -80,7 +80,7 @@ impl NetworkManager {
             builder = builder.tls_backend_preconfigured(Self::build_static_webpki_tls_config()?);
         }
 
-        // 设置代理
+        // Настройка прокси
         if let Some(proxy_str) = proxy_url {
             let proxy = Proxy::all(proxy_str)?;
             builder = builder.proxy(proxy);
@@ -97,7 +97,7 @@ impl NetworkManager {
                 .danger_accept_invalid_hostnames(true);
         }
 
-        // 超时设置
+        // Настройка таймаута
         if let Some(secs) = timeout_secs {
             builder = builder
                 .timeout(Duration::from_secs(secs))
@@ -216,7 +216,7 @@ impl NetworkManager {
         parsed.set_username("").ok();
         parsed.set_password(None).ok();
 
-        // 创建请求
+        // Создание запроса
         let client = self
             .create_request_with_tls_mode(
                 proxy_type,
@@ -283,7 +283,7 @@ impl NetworkManager {
 
         let mut headers = HeaderMap::new();
 
-        // 设置 User-Agent
+        // Установка User-Agent
         if let Some(ua) = user_agent {
             headers.insert(USER_AGENT, HeaderValue::from_str(ua.as_str())?);
         } else {

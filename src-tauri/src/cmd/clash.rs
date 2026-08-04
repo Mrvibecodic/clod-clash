@@ -16,44 +16,46 @@ use serde_yaml_ng::Mapping;
 use smartstring::alias::String;
 use tokio::fs;
 
-/// 复制Clash环境变量
+/// Скопировать переменные окружения Clash
 #[tauri::command]
 pub async fn copy_clash_env() -> CmdResult {
     feat::copy_clash_env().await;
     Ok(())
 }
 
-/// 获取Clash信息
+/// Получить информацию Clash
 #[tauri::command]
 pub async fn get_clash_info() -> CmdResult<ClashInfo> {
     Ok(Config::clash().await.data_arc().get_client_info())
 }
 
-/// 修改Clash配置
+/// Изменить конфиг Clash
 #[tauri::command]
 pub async fn patch_clash_config(payload: Mapping) -> CmdResult {
     feat::patch_clash(&payload).await.stringify_err()
 }
 
-/// 修改Clash模式
+/// Изменить режим Clash
 ///
-/// 将 `change_clash_mode` 的失败上抛给前端，使前端 `catch` 能真正感知后端 PATCH 失败
-/// 并提示用户（此前命令始终返回 `Ok(())`，吞掉了后端错误）。
+/// Пробрасывает ошибку `change_clash_mode` на фронтенд, чтобы `catch` на фронтенде мог
+/// реально узнать о неудаче PATCH на бэкенде и уведомить пользователя (раньше команда
+/// всегда возвращала `Ok(())`, скрывая ошибку бэкенда).
 #[tauri::command]
 pub async fn patch_clash_mode(payload: String) -> CmdResult {
     feat::change_clash_mode(payload).await
 }
 
-/// 获取当前 Clash 模式（容错读取）
+/// Получить текущий режим Clash (отказоустойчивое чтение)
 ///
-/// 直接读取已保存的 clash 配置中的 `mode`，绕开 mihomo `/configs` 的严格
-/// `BaseConfig` 反序列化，作为主页 mode 显示的兜底来源。
+/// Читает `mode` напрямую из сохранённого конфига clash, минуя строгую
+/// десериализацию `BaseConfig` из mihomo `/configs`, как резервный источник
+/// для отображения mode на главной странице.
 #[tauri::command]
 pub async fn get_clash_mode() -> CmdResult<Option<String>> {
     Ok(Config::clash().await.data_arc().get_mode().map(Into::into))
 }
 
-/// 切换Clash核心
+/// Переключить ядро Clash
 #[tauri::command]
 pub async fn change_clash_core(clash_core: String) -> CmdResult<Option<String>> {
     logging!(info, Type::Config, "changing core to {clash_core}");
@@ -62,7 +64,7 @@ pub async fn change_clash_core(clash_core: String) -> CmdResult<Option<String>> 
         Ok(_) => {
             logging_error!(Type::Core, Config::profiles().await.data_arc().save_file().await);
 
-            // 切换内核后重启内核
+            // Перезапуск ядра после переключения
             match CoreManager::global().restart_core().await {
                 Ok(_) => {
                     logging!(info, Type::Core, "core changed and restarted to {clash_core}");
@@ -87,7 +89,7 @@ pub async fn change_clash_core(clash_core: String) -> CmdResult<Option<String>> 
     }
 }
 
-/// 启动核心
+/// Запустить ядро
 #[tauri::command]
 pub async fn start_core() -> CmdResult {
     let result = CoreManager::global().start_core().await.stringify_err();
@@ -97,7 +99,7 @@ pub async fn start_core() -> CmdResult {
     result
 }
 
-/// 关闭核心
+/// Остановить ядро
 #[tauri::command]
 pub async fn stop_core() -> CmdResult {
     logging_error!(Type::Core, Config::profiles().await.data_arc().save_file().await);
@@ -108,7 +110,7 @@ pub async fn stop_core() -> CmdResult {
     result
 }
 
-/// 重启核心
+/// Перезапустить ядро
 #[tauri::command]
 pub async fn restart_core() -> CmdResult {
     logging_error!(Type::Core, Config::profiles().await.data_arc().save_file().await);
@@ -119,7 +121,7 @@ pub async fn restart_core() -> CmdResult {
     result
 }
 
-/// 测试URL延迟
+/// Проверить задержку URL
 #[tauri::command]
 pub async fn test_delay(url: String) -> CmdResult<u32> {
     let result = match feat::test_delay(url).await {
@@ -132,16 +134,16 @@ pub async fn test_delay(url: String) -> CmdResult<u32> {
     Ok(result)
 }
 
-/// 保存DNS配置到单独文件
+/// Сохранить DNS-конфиг в отдельный файл
 #[tauri::command]
 pub async fn save_dns_config(dns_config: Mapping) -> CmdResult {
     use crate::utils::dirs;
     use tokio::fs;
 
-    // 获取DNS配置文件路径
+    // Получаем путь к файлу DNS-конфига
     let dns_path = dirs::app_home_dir().stringify_err()?.join(constants::files::DNS_CONFIG);
 
-    // 保存DNS配置到文件
+    // Сохраняем DNS-конфиг в файл
     let yaml_str = yaml_emitter::to_mihomo_config_string(&dns_config).stringify_err()?;
     fs::write(&dns_path, yaml_str).await.stringify_err()?;
     logging!(info, Type::Config, "DNS config saved to {dns_path:?}");
@@ -149,11 +151,11 @@ pub async fn save_dns_config(dns_config: Mapping) -> CmdResult {
     Ok(())
 }
 
-/// 应用或撤销DNS配置
+/// Применить или отменить DNS-конфиг
 #[tauri::command]
 pub async fn apply_dns_config(apply: bool) -> CmdResult {
     if apply {
-        // 读取DNS配置文件
+        // Читаем файл DNS-конфига
         let dns_path = dirs::app_home_dir().stringify_err()?.join(constants::files::DNS_CONFIG);
 
         if !dns_path.exists() {
@@ -165,23 +167,23 @@ pub async fn apply_dns_config(apply: bool) -> CmdResult {
             logging!(error, Type::Config, "Failed to read DNS config: {e}");
         })?;
 
-        // 解析DNS配置
+        // Разбираем DNS-конфиг
         let patch_config = serde_yaml_ng::from_str::<serde_yaml_ng::Mapping>(&dns_yaml).stringify_err_log(|e| {
             logging!(error, Type::Config, "Failed to parse DNS config: {e}");
         })?;
 
         logging!(info, Type::Config, "Applying DNS config from file");
 
-        // 创建包含DNS配置的patch
+        // Создаём patch с DNS-конфигом
         let mut patch = serde_yaml_ng::Mapping::new();
         patch.insert("dns".into(), patch_config.into());
 
-        // 应用DNS配置到运行时配置
+        // Применяем DNS-конфиг к рабочему конфигу
         Config::runtime().await.edit_draft(|d| {
             d.patch_config(&patch);
         });
 
-        // 应用新配置
+        // Применяем новый конфиг
         CoreManager::global()
             .update_config_checked()
             .await
@@ -192,7 +194,7 @@ pub async fn apply_dns_config(apply: bool) -> CmdResult {
 
         logging!(info, Type::Config, "DNS config successfully applied");
     } else {
-        // 当关闭DNS设置时，重新生成配置（不加载DNS配置文件）
+        // При отключении настроек DNS конфиг пересоздаётся заново (без загрузки файла DNS-конфига)
         logging!(info, Type::Config, "DNS settings disabled, regenerating config");
 
         CoreManager::global()
@@ -210,7 +212,7 @@ pub async fn apply_dns_config(apply: bool) -> CmdResult {
     Ok(())
 }
 
-/// 检查DNS配置文件是否存在
+/// Проверить, существует ли файл DNS-конфига
 #[tauri::command]
 pub fn check_dns_config_exists() -> CmdResult<bool> {
     use crate::utils::dirs;
@@ -220,7 +222,7 @@ pub fn check_dns_config_exists() -> CmdResult<bool> {
     Ok(dns_path.exists())
 }
 
-/// 获取DNS配置文件内容
+/// Получить содержимое файла DNS-конфига
 #[tauri::command]
 pub async fn get_dns_config_content() -> CmdResult<String> {
     use crate::utils::dirs;
@@ -236,7 +238,7 @@ pub async fn get_dns_config_content() -> CmdResult<String> {
     Ok(content)
 }
 
-/// 验证DNS配置文件
+/// Проверить файл DNS-конфига
 #[tauri::command]
 pub async fn validate_dns_config() -> CmdResult<ValidationOutcome> {
     let app_dir = dirs::app_home_dir().stringify_err()?;

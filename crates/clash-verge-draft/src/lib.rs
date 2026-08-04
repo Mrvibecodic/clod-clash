@@ -28,7 +28,7 @@ impl Drop for DataModifyPermit<'_> {
     }
 }
 
-/// Draft 管理：committed 与 optional draft 都以 Arc<Box<T>> 存储。
+/// Управление черновиком: committed и optional draft хранятся как Arc<Box<T>>.
 #[derive(Debug, Clone)]
 pub struct Draft<T> {
     inner: Arc<DraftInner<T>>,
@@ -45,24 +45,27 @@ impl<T: Clone> Draft<T> {
             }),
         }
     }
-    /// 以 Arc<Box<T>> 的形式获取当前“已提交（正式）”数据的快照（零拷贝，仅 clone Arc）
+    /// Возвращает снапшот текущих "committed (основных)" данных как Arc<Box<T>>
+    /// (без копирования, клонируется только Arc)
     #[inline]
     pub fn data_arc(&self) -> SharedDraft<T> {
         let guard = self.inner.data.lock();
         Arc::clone(&guard.0)
     }
 
-    /// 获取当前（草稿若存在则返回草稿，否则返回已提交）的快照
-    /// 这也是零拷贝：只 clone Arc，不 clone T
+    /// Возвращает снапшот текущих данных (черновик, если он есть, иначе committed)
+    /// Тоже без копирования: клонируется только Arc, не T
     #[inline]
     pub fn latest_arc(&self) -> SharedDraft<T> {
         let guard = self.inner.data.lock();
         guard.1.clone().unwrap_or_else(|| Arc::clone(&guard.0))
     }
 
-    /// 通过闭包以可变方式编辑草稿（在闭包中我们给出 &mut T）
-    /// - 延迟拷贝：如果只有这一个 Arc 引用，则直接修改，不会克隆 T；
-    /// - 若草稿被其他读者共享，Arc::make_mut 会做一次 T.clone（最小必要拷贝）。
+    /// Изменяет черновик через замыкание (в замыкание передаётся &mut T)
+    /// - Отложенное копирование: если ссылка на Arc всего одна, правим напрямую,
+    ///   T не клонируется;
+    /// - если черновик разделяют другие читатели, Arc::make_mut сделает одно
+    ///   T.clone (минимально необходимая копия).
     #[inline]
     pub fn edit_draft<F, R>(&self, f: F) -> R
     where
@@ -76,7 +79,7 @@ impl<T: Clone> Draft<T> {
         result
     }
 
-    /// 将草稿提交到已提交位置（替换），并清除草稿
+    /// Фиксирует черновик в committed-позиции (замена) и очищает черновик
     #[inline]
     pub fn apply(&self) {
         let mut guard = self.inner.data.lock();
@@ -85,15 +88,16 @@ impl<T: Clone> Draft<T> {
         }
     }
 
-    /// 丢弃草稿（如果存在）
+    /// Отбрасывает черновик (если он есть)
     #[inline]
     pub fn discard(&self) {
         let mut guard = self.inner.data.lock();
         guard.1 = None;
     }
 
-    /// 异步地以拥有 Box<T> 的方式修改已提交数据：将克隆一次已提交数据到本地，
-    /// 异步闭包返回新的 Box<T>（替换已提交数据）和业务返回值 R。
+    /// Асинхронно изменяет committed-данные через владение Box<T>: committed-данные
+    /// клонируются один раз локально, асинхронное замыкание возвращает новый
+    /// Box<T> (заменяет committed-данные) и результат R.
     #[inline]
     pub async fn with_data_modify<F, Fut, R>(&self, f: F) -> Result<R, anyhow::Error>
     where

@@ -451,7 +451,7 @@ pub async fn update_profile(
     Ok(())
 }
 
-/// 增强配置
+/// Расширенный конфиг
 pub async fn enhance_profiles() -> Result<ValidationOutcome> {
     CoreManager::global().update_config_forced().await
 }

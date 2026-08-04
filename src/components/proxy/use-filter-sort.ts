@@ -24,7 +24,7 @@ export function filterSort(
 }
 
 /**
- * 可以通过延迟数/节点类型 过滤
+ * Можно фильтровать по значению задержки / типу узла
  */
 const regex1 = /delay([=<>])(\d+|timeout|error)/i
 const regex2 = /type=(.*)/i

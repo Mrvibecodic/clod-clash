@@ -24,7 +24,7 @@ import { updateRuleProvider } from 'tauri-plugin-mihomo-api'
 import { useAppRefreshers, useRulesData } from '@/providers/app-data-context'
 import { showNotice } from '@/services/notice-service'
 
-// 辅助组件 - 类型框
+// Вспомогательный компонент - блок типа
 const TypeBox = styled(Box)<{ component?: React.ElementType }>(({ theme }) => ({
   display: 'inline-block',
   border: '1px solid #ccc',
@@ -44,18 +44,18 @@ export const ProviderButton = () => {
   const { refreshRules, refreshRuleProviders } = useAppRefreshers()
   const [updating, setUpdating] = useState<Record<string, boolean>>({})
 
-  // 检查是否有提供者
+  // Проверяем, есть ли провайдеры
   const hasProviders = Object.keys(ruleProviders || {}).length > 0
 
-  // 更新单个规则提供者
+  // Обновляем одного провайдера правил
   const updateProvider = useLockFn(async (name: string) => {
     try {
-      // 设置更新状态
+      // Устанавливаем состояние обновления
       setUpdating((prev) => ({ ...prev, [name]: true }))
 
       await updateRuleProvider(name)
 
-      // 刷新数据
+      // Обновляем данные
       await refreshRules()
       await refreshRuleProviders()
 
@@ -71,22 +71,22 @@ export const ProviderButton = () => {
         message: String(err),
       })
     } finally {
-      // 清除更新状态
+      // Сбрасываем состояние обновления
       setUpdating((prev) => ({ ...prev, [name]: false }))
     }
   })
 
-  // 更新所有规则提供者
+  // Обновляем все провайдеры правил
   const updateAllProviders = useLockFn(async () => {
     try {
-      // 获取所有provider的名称
+      // Получаем имена всех провайдеров
       const allProviders = Object.keys(ruleProviders || {})
       if (allProviders.length === 0) {
         showNotice.info('rules.feedback.notifications.provider.none')
         return
       }
 
-      // 设置所有provider为更新中状态
+      // Переводим все провайдеры в состояние обновления
       const newUpdating = allProviders.reduce(
         (acc, key) => {
           acc[key] = true
@@ -96,19 +96,19 @@ export const ProviderButton = () => {
       )
       setUpdating(newUpdating)
 
-      // 改为串行逐个更新所有provider
+      // Обновляем все провайдеры последовательно, один за другим
       for (const name of allProviders) {
         try {
           await updateRuleProvider(name)
-          // 每个更新完成后更新状态
+          // Обновляем состояние после каждого завершения
           setUpdating((prev) => ({ ...prev, [name]: false }))
         } catch (err) {
           console.error(`Не удалось обновить ${name}`, err)
-          // 继续执行下一个，不中断整体流程
+          // Продолжаем со следующим, не прерывая общий процесс
         }
       }
 
-      // 刷新数据
+      // Обновляем данные
       await refreshRules()
       await refreshRuleProviders()
 
@@ -118,7 +118,7 @@ export const ProviderButton = () => {
         message: String(err),
       })
     } finally {
-      // 清除所有更新状态
+      // Сбрасываем все состояния обновления
       setUpdating({})
     }
   })

@@ -54,7 +54,7 @@ pub fn app_home_dir() -> Result<PathBuf> {
         return Ok(PathBuf::from(app_dir).join(".config").join(APP_ID));
     }
 
-    // 避免在Handle未初始化时崩溃
+    // Избегаем падения, если Handle ещё не инициализирован
     let app_handle = handle::Handle::app_handle();
 
     match app_handle.path().data_dir() {
@@ -68,7 +68,7 @@ pub fn app_home_dir() -> Result<PathBuf> {
 
 /// get the resources dir
 pub fn app_resources_dir() -> Result<PathBuf> {
-    // 避免在Handle未初始化时崩溃
+    // Избегаем падения, если Handle ещё не инициализирован
     let app_handle = handle::Handle::app_handle();
 
     match app_handle.path().resource_dir() {

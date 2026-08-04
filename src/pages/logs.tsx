@@ -43,7 +43,7 @@ const LogPage = () => {
     // Server-side filtering handles level filtering via query parameters
     // We only need to apply search filtering here
     return logData.filter((data) => {
-      // 构建完整的搜索文本，包含时间、类型和内容
+      // Формируем полный текст поиска, включая время, тип и содержимое
       const searchText =
         `${data.time || ''} ${data.type} ${data.payload}`.toLowerCase()
 

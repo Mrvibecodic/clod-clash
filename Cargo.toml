@@ -85,9 +85,9 @@ windows-sys = { version = "0.61.2", features = [
 # *********************************
 
 [workspace.lints.clippy]
-# fallible_impl_from = "deny" // 过于激进，暂时不开启
-# implicit_clone = "deny" // 可能会造成额外开销，暂时不开启
-# option_if_let_else = "deny" // 过于激进，暂时不开启
+# fallible_impl_from = "deny" // слишком агрессивно, пока не включаем
+# implicit_clone = "deny" // может создавать дополнительные накладные расходы, пока не включаем
+# option_if_let_else = "deny" // слишком агрессивно, пока не включаем
 # self_only_used_in_recursion = "deny" // Since 1.92.0
 async_yields_async = "deny"
 await_holding_lock = "deny"

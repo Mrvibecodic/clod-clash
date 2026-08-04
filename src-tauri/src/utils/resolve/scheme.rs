@@ -107,7 +107,8 @@ async fn import_subscription(url: &str, name: Option<&String>) {
     logging_error!(Type::Timer, Timer::global().refresh().await);
     handle::Handle::notice_message(
         "import_sub_url::ok",
-        "", // 空 msg 传入，我们不希望导致 后端-前端-后端 死循环，这里只做提醒。
+        "", // передаём пустой msg, не хотим вызывать зацикливание
+            // бэкенд-фронтенд-бэкенд, здесь только уведомление.
     );
 
     post_import_updates(&uid, had_current_profile).await;

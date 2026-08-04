@@ -59,8 +59,10 @@ export const ProxyGroupTools = memo(function ProxyGroupTools(props: Props) {
     }
   }, [groupName, testUrl])
 
-  // 过滤输入是高频操作，且每次都会触发整组代理的重新过滤/排序与虚拟列表重渲染，
-  // 因此对写入 headState 的动作做防抖，避免每输入一个字符就过滤一次。
+  // Ввод фильтра — частая операция, каждый раз вызывающая повторную
+  // фильтрацию/сортировку всей группы прокси и перерисовку виртуального
+  // списка, поэтому запись в headState делаем с debounce, чтобы не
+  // фильтровать при каждом введённом символе.
   const { run: applyFilter, flush: flushFilter } = useDebounceFn(
     (state: SearchState) => {
       onHeadState({
@@ -73,7 +75,8 @@ export const ProxyGroupTools = memo(function ProxyGroupTools(props: Props) {
     { wait: 600 },
   )
 
-  // 关闭过滤框或卸载时立即应用最后一次输入，避免丢失未生效的过滤条件。
+  // При закрытии поля фильтра или размонтировании сразу применяем последний
+  // ввод, чтобы не потерять ещё не применённое условие фильтрации.
   useEffect(() => {
     if (textState !== 'filter') flushFilter()
   }, [textState, flushFilter])

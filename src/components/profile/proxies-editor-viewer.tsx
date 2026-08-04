@@ -217,7 +217,7 @@ export const ProxiesEditorViewer = (props: Props) => {
       }
     }
   }
-  // 优化：异步分片解析，避免主线程阻塞，解析完成后批量setState
+  // Оптимизация: асинхронный парсинг по частям, чтобы не блокировать основной поток, setState пакетно после разбора
   const handleParseAsync = (cb: (proxies: IProxyConfig[]) => void) => {
     const proxies: IProxyConfig[] = []
     const names: string[] = []
@@ -248,7 +248,7 @@ export const ProxiesEditorViewer = (props: Props) => {
             uri,
             err,
           )
-          // 不阻塞主流程
+          // Не блокируем основной поток
         }
       }
       if (idx < lines.length) {
@@ -313,7 +313,7 @@ export const ProxiesEditorViewer = (props: Props) => {
         )
       } catch (e) {
         console.warn('[ProxiesEditorViewer] yaml.dump failed:', e)
-        // 防止异常导致UI卡死
+        // Предотвращаем зависание UI из-за исключения
       }
     }
     let idleId: number | undefined
@@ -480,24 +480,24 @@ export const ProxiesEditorViewer = (props: Props) => {
               editorRef.current = editorInstance
             }}
             options={{
-              tabSize: 2, // 根据语言类型设置缩进大小
+              tabSize: 2, // Размер отступа в зависимости от типа языка
               minimap: {
-                enabled: document.documentElement.clientWidth >= 1500, // 超过一定宽度显示minimap滚动条
+                enabled: document.documentElement.clientWidth >= 1500, // Показывать полосу прокрутки minimap при достаточной ширине
               },
-              mouseWheelZoom: true, // 按住Ctrl滚轮调节缩放比例
+              mouseWheelZoom: true, // Масштабирование колесом мыши при зажатом Ctrl
               quickSuggestions: {
-                strings: true, // 字符串类型的建议
-                comments: true, // 注释类型的建议
-                other: true, // 其他类型的建议
+                strings: true, // Подсказки для строк
+                comments: true, // Подсказки для комментариев
+                other: true, // Подсказки для остального
               },
               padding: {
-                top: 33, // 顶部padding防止遮挡snippets
+                top: 33, // Верхний padding, чтобы не перекрывать snippets
               },
               fontFamily: `Fira Code, JetBrains Mono, Roboto Mono, "Source Code Pro", Consolas, Menlo, Monaco, monospace, "Courier New", "Apple Color Emoji"${
                 getSystem() === 'windows' ? ', twemoji mozilla' : ''
               }`,
-              fontLigatures: false, // 连字符
-              smoothScrolling: true, // 平滑滚动
+              fontLigatures: false, // Лигатуры
+              smoothScrolling: true, // Плавная прокрутка
             }}
             onChange={(value) => setCurrData(value ?? '')}
           />

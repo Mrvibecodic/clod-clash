@@ -14,7 +14,7 @@ pub async fn patch_clash(patch: &Mapping) -> Result<()> {
     Config::clash().await.edit_draft(|d| d.patch_config(patch));
 
     let res = {
-        // 激活订阅
+        // Активация подписки
         if patch.get("secret").is_some() || patch.get("external-controller").is_some() {
             Config::generate().await?;
             CoreManager::global().restart_core().await?;
@@ -33,7 +33,7 @@ pub async fn patch_clash(patch: &Mapping) -> Result<()> {
     match res {
         Ok(()) => {
             Config::clash().await.apply();
-            // 分离数据获取和异步调用
+            // Разделяем получение данных и асинхронный вызов
             let clash_data = Config::clash().await.data_arc();
             clash_data.save_config().await?;
             Ok(())
@@ -309,7 +309,7 @@ pub async fn patch_verge(patch: &IVerge, not_save_file: bool) -> Result<()> {
 
     logging_error!(Type::Backup, AutoBackupManager::global().refresh_settings().await);
     if !not_save_file {
-        // 分离数据获取和异步调用
+        // Разделяем получение данных и асинхронный вызов
         let verge_data = Config::verge().await.data_arc();
         logging!(debug, Type::Setup, "Saving Verge configuration to file...");
         verge_data.save_file().await?;

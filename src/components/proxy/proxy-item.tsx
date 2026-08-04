@@ -45,7 +45,7 @@ const TypeBox = styled('span')(({ theme }) => ({
 export const ProxyItem = (props: Props) => {
   const { group, proxy, selected, showType = true, sx, onClick } = props
 
-  // -1/<=0 为不显示，-2 为 loading
+  // -1/<=0 не отображать, -2 loading
   const { delayValue, isPreset, timeout, onDelay } = useProxyDelayState(
     proxy,
     group.name,
@@ -134,7 +134,7 @@ export const ProxyItem = (props: Props) => {
                 onDelay(proxy.provider)
               }}
               sx={({ palette }) => ({
-                display: 'none', // hover 时显示
+                display: 'none', // показывать при hover
                 ':hover': { bgcolor: alpha(palette.primary.main, 0.15) },
               })}
             >
@@ -143,7 +143,7 @@ export const ProxyItem = (props: Props) => {
           )}
 
           {delayValue > 0 && (
-            // 显示延迟
+            // отображение задержки
             <Widget
               className="the-delay"
               onClick={(e) => {
@@ -161,7 +161,7 @@ export const ProxyItem = (props: Props) => {
           )}
 
           {delayValue !== -2 && delayValue <= 0 && selected && (
-            // 展示已选择的 icon
+            // отображение иконки выбранного
             <CheckCircleOutlineRounded
               className="the-icon"
               sx={{ fontSize: 16 }}

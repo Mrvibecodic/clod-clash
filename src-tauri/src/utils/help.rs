@@ -29,7 +29,7 @@ pub async fn read_mapping(path: &PathBuf) -> Result<Mapping> {
         .await
         .with_context(|| format!("failed to read the file \"{}\"", path.display()))?;
 
-    // YAML语法检查
+    // Проверка синтаксиса YAML
     match serde_yaml_ng::from_str::<serde_yaml_ng::Value>(&yaml_str) {
         Ok(mut val) => {
             val.apply_merge()

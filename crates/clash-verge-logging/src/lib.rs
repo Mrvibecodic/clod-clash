@@ -62,7 +62,7 @@ impl fmt::Display for Type {
 
 #[macro_export]
 macro_rules! logging {
-    // 不带 print 参数的版本（默认不打印）
+    // Версия без параметра print (по умолчанию не печатает)
     ($level:ident, $type:expr, $($arg:tt)*) => {
         log::$level!(target: "app", "{} {}", $type, format_args!($($arg)*))
     };

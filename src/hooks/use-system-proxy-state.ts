@@ -6,7 +6,7 @@ import { useClashConfigData, useSystemData } from '@/providers/app-data-context'
 import { getAutotemProxy } from '@/services/cmds'
 import { revalidateQueries, useQuery } from '@/services/query-client'
 
-// 系统代理状态检测统一逻辑
+// Единая логика определения состояния системного прокси
 export const useSystemProxyState = () => {
   const { verge, mutateVerge, patchVerge } = useVerge()
   const { sysproxy } = useSystemData()
@@ -25,7 +25,7 @@ export const useSystemProxyState = () => {
     verge_mixed_port,
   } = verge ?? {}
 
-  // OS 实际状态：enable + 地址匹配本应用
+  // Фактическое состояние ОС: enable + адрес совпадает с этим приложением
   const indicator = (() => {
     const host = proxy_host || '127.0.0.1'
     if (proxy_auto_config) {
@@ -39,7 +39,7 @@ export const useSystemProxyState = () => {
     }
   })()
 
-  // "最后一次生效"模式：快速连续点击时，只执行最终状态
+  // Режим "применяется только последнее": при быстрых последовательных кликах выполняется только конечное состояние
   const pendingRef = useRef<boolean | null>(null)
   const busyRef = useRef(false)
 

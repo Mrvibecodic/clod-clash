@@ -369,7 +369,7 @@ export const GroupsEditorViewer = (props: Props) => {
     })
   }, [currData, visualization])
 
-  // 优化：异步处理大数据yaml.dump，避免UI卡死
+  // Оптимизация: асинхронная обработка yaml.dump для больших данных, чтобы избежать зависания UI
   useEffect(() => {
     if (prependSeq && appendSeq && deleteSeq) {
       const serialize = () => {
@@ -377,7 +377,7 @@ export const GroupsEditorViewer = (props: Props) => {
           setCurrData(buildGroupsYaml(prependSeq, appendSeq, deleteSeq))
         } catch (e) {
           console.warn('[GroupsEditorViewer] yaml.dump failed:', e)
-          // 防止异常导致UI卡死
+          // Предотвращаем зависание UI из-за исключения
         }
       }
 
@@ -1121,24 +1121,24 @@ export const GroupsEditorViewer = (props: Props) => {
               editorRef.current = editorInstance
             }}
             options={{
-              tabSize: 2, // 根据语言类型设置缩进大小
+              tabSize: 2, // Размер отступа в зависимости от типа языка
               minimap: {
-                enabled: document.documentElement.clientWidth >= 1500, // 超过一定宽度显示minimap滚动条
+                enabled: document.documentElement.clientWidth >= 1500, // Показывать полосу прокрутки minimap при достаточной ширине
               },
-              mouseWheelZoom: true, // 按住Ctrl滚轮调节缩放比例
+              mouseWheelZoom: true, // Масштабирование колесом мыши при зажатом Ctrl
               quickSuggestions: {
-                strings: true, // 字符串类型的建议
-                comments: true, // 注释类型的建议
-                other: true, // 其他类型的建议
+                strings: true, // Подсказки для строк
+                comments: true, // Подсказки для комментариев
+                other: true, // Подсказки для остального
               },
               padding: {
-                top: 33, // 顶部padding防止遮挡snippets
+                top: 33, // Верхний padding, чтобы не перекрывать snippets
               },
               fontFamily: `Fira Code, JetBrains Mono, Roboto Mono, "Source Code Pro", Consolas, Menlo, Monaco, monospace, "Courier New", "Apple Color Emoji"${
                 getSystem() === 'windows' ? ', twemoji mozilla' : ''
               }`,
-              fontLigatures: false, // 连字符
-              smoothScrolling: true, // 平滑滚动
+              fontLigatures: false, // Лигатуры
+              smoothScrolling: true, // Плавная прокрутка
             }}
             onChange={(value) => setCurrData(value ?? '')}
           />

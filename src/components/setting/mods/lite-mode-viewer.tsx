@@ -23,7 +23,7 @@ export function LiteModeViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const [open, setOpen] = useState(false)
   const [values, setValues] = useState({
     autoEnterLiteMode: false,
-    autoEnterLiteModeDelay: 10, // 默认10分钟
+    autoEnterLiteModeDelay: 10, // По умолчанию 10 минут
   })
 
   useImperativeHandle(ref, () => ({

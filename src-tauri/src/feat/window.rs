@@ -18,7 +18,7 @@ pub async fn open_or_close_dashboard() {
 
 pub async fn quit() {
     logging!(debug, Type::System, "запуск процесса выхода");
-    // 设置退出标志
+    // Устанавливаем флаг завершения работы
     handle::Handle::global().set_is_exiting();
 
     utils::server::shutdown_embedded_server();
@@ -41,7 +41,7 @@ pub async fn quit() {
 pub async fn clean_async() -> bool {
     logging!(info, Type::System, "начало асинхронной очистки...");
 
-    // 重置系统代理
+    // Сбрасываем системный прокси
     let proxy_task = tokio::task::spawn(async {
         let sys_proxy_enabled = Config::verge().await.data_arc().enable_system_proxy.unwrap_or(false);
         if !sys_proxy_enabled {
@@ -70,7 +70,7 @@ pub async fn clean_async() -> bool {
         }
     });
 
-    // 关闭 Tun 模式 + 停止核心服务
+    // Отключаем режим Tun + останавливаем ядро
     let core_task = tokio::task::spawn(async {
         logging!(info, Type::System, "disable tun");
         let tun_enabled = Config::verge().await.data_arc().enable_tun_mode.unwrap_or(false);
@@ -122,7 +122,7 @@ pub async fn clean_async() -> bool {
         }
     });
 
-    // DNS恢复（仅macOS）
+    // Восстановление DNS (только macOS)
     let dns_task = tokio::task::spawn(async {
         #[cfg(target_os = "macos")]
         match timeout(
@@ -144,7 +144,7 @@ pub async fn clean_async() -> bool {
         true
     });
 
-    // 并行执行清理任务
+    // Выполняем задачи очистки параллельно
     let (proxy_result, core_result, dns_result) = tokio::join!(proxy_task, core_task, dns_task);
 
     let proxy_success = proxy_result.unwrap_or_default();

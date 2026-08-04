@@ -6,39 +6,39 @@ use std::pin::Pin;
 use std::time::Duration;
 use tauri::{Manager as _, WebviewWindow, Wry};
 
-/// 窗口操作结果
+/// Результат операции с окном
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum WindowOperationResult {
-    /// 窗口已显示并获得焦点
+    /// Окно показано и получило фокус
     Shown,
-    /// 窗口已隐藏
+    /// Окно скрыто
     Hidden,
-    /// 创建了新窗口
+    /// Создано новое окно
     Created,
-    /// 摧毁了窗口
+    /// Окно уничтожено
     Destroyed,
-    /// 操作失败
+    /// Операция не удалась
     Failed,
-    /// 无需操作
+    /// Действие не требуется
     NoAction,
 }
 
-/// 窗口状态
+/// Состояние окна
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum WindowState {
-    /// 窗口可见且有焦点
+    /// Окно видимо и в фокусе
     VisibleFocused,
-    /// 窗口可见但无焦点
+    /// Окно видимо, но не в фокусе
     VisibleUnfocused,
-    /// 窗口最小化
+    /// Окно свёрнуто
     Minimized,
-    /// 窗口隐藏
+    /// Окно скрыто
     Hidden,
-    /// 窗口不存在
+    /// Окно не существует
     NotExist,
 }
 
-// 窗口操作防抖机制
+// Механизм защиты от дребезга операций с окном
 const WINDOW_OPERATION_DEBOUNCE_MS: u64 = 625;
 static WINDOW_OPERATION_LIMITER: Lazy<Limiter> = Lazy::new(|| {
     Limiter::new(
@@ -55,7 +55,7 @@ fn should_handle_window_operation() -> bool {
     allow
 }
 
-/// 统一的窗口管理器
+/// Единый менеджер окон
 pub struct WindowManager;
 
 impl WindowManager {
@@ -112,15 +112,15 @@ impl WindowManager {
         }
     }
 
-    /// 获取主窗口实例
+    /// Получить экземпляр главного окна
     pub fn get_main_window() -> Option<WebviewWindow<Wry>> {
         let app_handle = handle::Handle::app_handle();
         app_handle.get_webview_window("main")
     }
 
-    /// 智能显示主窗口
+    /// Умный показ главного окна
     pub async fn show_main_window() -> WindowOperationResult {
-        // 防抖检查
+        // Проверка защиты от дребезга
         if !should_handle_window_operation() {
             return WindowOperationResult::NoAction;
         }
@@ -161,7 +161,7 @@ impl WindowManager {
         }
     }
 
-    /// 切换主窗口显示状态（显示/隐藏）
+    /// Переключить состояние показа главного окна (показать/скрыть)
     pub async fn toggle_main_window() -> WindowOperationResult {
         if !should_handle_window_operation() {
             return WindowOperationResult::NoAction;
@@ -178,10 +178,10 @@ impl WindowManager {
         }
     }
 
-    // 窗口不存在时创建新窗口
+    // Окно не существует — создаём новое окно
     async fn handle_not_exist_toggle() -> WindowOperationResult {
         logging!(info, Type::Window, "Окно не существует, создаю новое окно");
-        // 由于已经有防抖保护，直接调用内部方法
+        // Защита от дребезга уже есть, вызываем внутренний метод напрямую
         if Self::create_window(true).await {
             WindowOperationResult::Created
         } else {
@@ -189,7 +189,7 @@ impl WindowManager {
         }
     }
 
-    // 隐藏主窗口
+    // Скрыть главное окно
     fn hide_main_window(window: Option<&WebviewWindow<Wry>>) -> WindowOperationResult {
         logging!(info, Type::Window, "Окно видимо, скрываю окно");
         if let Some(window) = window {
@@ -209,7 +209,7 @@ impl WindowManager {
         }
     }
 
-    // 激活已存在的主窗口
+    // Активировать существующее главное окно
     fn activate_existing_main_window(window: Option<&WebviewWindow<Wry>>) -> WindowOperationResult {
         logging!(
             info,
@@ -224,14 +224,15 @@ impl WindowManager {
         }
     }
 
-    /// 激活窗口（取消最小化、显示、设置焦点）
+    /// Активировать окно (отменить сворачивание, показать, установить фокус)
     fn activate_window(window: &WebviewWindow<Wry>) -> WindowOperationResult {
         logging!(info, Type::Window, "Начинаю активацию окна");
         #[cfg(target_os = "macos")]
         Self::set_macos_activation_policy_regular();
 
-        // 渲染进程曾被系统终止：先 reload，并把 show+focus 交给 on_page_load(Finished)，
-        // 内容就绪再显示，避免白屏闪烁。reload 成功才 defer，失败则走下方直接显示。
+        // Процесс рендеринга был завершён системой: сначала reload, показ и фокус
+        // передаём в on_page_load(Finished). Показываем окно только когда контент готов,
+        // чтобы избежать мерцания белого экрана. defer только при успешном reload, иначе показ напрямую.
         #[allow(unused_mut)]
         let mut defer_show_to_page_load = false;
         #[cfg(target_os = "macos")]
@@ -254,7 +255,7 @@ impl WindowManager {
 
         let mut operations_successful = true;
 
-        // 1. 如果窗口最小化，先取消最小化
+        // 1. Если окно свёрнуто, сначала отменяем сворачивание
         if window.is_minimized().unwrap_or(false) {
             logging!(info, Type::Window, "Окно свёрнуто, отменяю сворачивание");
             if let Err(e) = window.unminimize() {
@@ -263,7 +264,7 @@ impl WindowManager {
             }
         }
 
-        // 2/3. 显示 + 焦点（reload 分支跳过，交给 on_page_load）
+        // 2/3. Показ + фокус (при ветке reload пропускается, передаётся в on_page_load)
         if !defer_show_to_page_load {
             if let Err(e) = window.show() {
                 logging!(warn, Type::Window, "Не удалось показать окно: {}", e);
@@ -277,7 +278,7 @@ impl WindowManager {
 
         #[cfg(target_os = "windows")]
         {
-            // Windows 尝试额外的激活方法
+            // Windows: пробуем дополнительный метод активации
             if let Err(e) = window.set_always_on_top(true) {
                 logging!(
                     debug,
@@ -286,7 +287,7 @@ impl WindowManager {
                     e
                 );
             }
-            // 立即取消置顶
+            // Сразу снимаем закрепление поверх окон
             if let Err(e) = window.set_always_on_top(false) {
                 logging!(
                     debug,
@@ -306,23 +307,24 @@ impl WindowManager {
         }
     }
 
-    /// 检查窗口是否可见
+    /// Проверить, видимо ли окно
     pub fn is_main_window_visible(window: Option<&WebviewWindow<Wry>>) -> bool {
         window.map(|w| w.is_visible().unwrap_or(false)).unwrap_or(false)
     }
 
-    /// 检查窗口是否有焦点
+    /// Проверить, в фокусе ли окно
     pub fn is_main_window_focused(window: Option<&WebviewWindow<Wry>>) -> bool {
         window.map(|w| w.is_focused().unwrap_or(false)).unwrap_or(false)
     }
 
-    /// 检查窗口是否最小化
+    /// Проверить, свёрнуто ли окно
     pub fn is_main_window_minimized(window: Option<&WebviewWindow<Wry>>) -> bool {
         window.map(|w| w.is_minimized().unwrap_or(false)).unwrap_or(false)
     }
 
-    /// 创建新窗口,防抖避免重复调用
-    /// 窗口创建后保持隐藏，由前端 index.html 在 overlay 渲染后调用 show，避免主题闪烁
+    /// Создать новое окно, защита от дребезга предотвращает повторные вызовы
+    /// После создания окно остаётся скрытым, show вызывает фронтенд index.html
+    /// после отрисовки overlay, чтобы избежать мерцания темы
     pub fn create_window(should_create: bool) -> Pin<Box<dyn Future<Output = bool> + Send>> {
         Box::pin(async move {
             logging!(
@@ -357,7 +359,7 @@ impl WindowManager {
         })
     }
 
-    /// 摧毁窗口
+    /// Уничтожить окно
     pub fn destroy_main_window() -> WindowOperationResult {
         if let Some(window) = Self::get_main_window() {
             let _ = window.destroy();
@@ -372,7 +374,7 @@ impl WindowManager {
         WindowOperationResult::Failed
     }
 
-    /// 获取详细的窗口状态信息
+    /// Получить подробную информацию о состоянии окна
     fn get_window_status_info() -> String {
         let (window, state) = Self::get_main_window_with_state();
         let is_visible = Self::is_main_window_visible(window.as_ref());

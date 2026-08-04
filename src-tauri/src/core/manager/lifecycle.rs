@@ -15,13 +15,13 @@ const fn should_wait_for_service(tun_enabled: bool, service_ready: bool, is_admi
     tun_enabled && !service_ready && !is_admin
 }
 
-/// sidecar→service 交接结果
+/// Результат передачи sidecar→service
 enum HandoffOutcome {
-    /// 服务尚未就绪
+    /// Служба ещё не готова
     NotReady,
-    /// 已完成或无需交接
+    /// Передача завершена или не требуется
     Done,
-    /// 交接失败并已回退
+    /// Передача не удалась, выполнен откат
     Failed,
 }
 
@@ -31,14 +31,14 @@ impl CoreManager {
         self.start_core_inner().await
     }
 
-    /// 调用者须已持有 `lifecycle_lock`。
+    /// Вызывающий должен уже удерживать `lifecycle_lock`.
     async fn start_core_inner(&self) -> Result<()> {
-        // 退出中不再启动新内核。
+        // При завершении работы новое ядро больше не запускается.
         if Handle::global().is_exiting() {
             return Ok(());
         }
 
-        // 已有内核运行时保持幂等,重启请走 restart_core。
+        // Идемпотентность при уже работающем ядре; для рестарта использовать restart_core.
         if !matches!(*self.get_running_mode(), RunningMode::NotRunning) {
             logging!(
                 info,
@@ -53,7 +53,8 @@ impl CoreManager {
             self.after_core_process();
         }
 
-        // 等待服务期间可能进入退出;未真正启动时回滚状态。
+        // Во время ожидания службы может начаться завершение работы; откатываем
+        // состояние, если фактического запуска не произошло.
         if Handle::global().is_exiting() {
             self.set_running_mode(RunningMode::NotRunning);
             return Ok(());
@@ -80,7 +81,7 @@ impl CoreManager {
             result = self.start_core_by_sidecar().await;
         }
 
-        // 启动失败时回滚 mode,允许后续重试。
+        // При ошибке запуска откатываем mode, чтобы разрешить повторную попытку.
         if result.is_err() {
             self.set_running_mode(RunningMode::NotRunning);
             return result;
@@ -92,7 +93,7 @@ impl CoreManager {
             crate::feat::tun::spawn_start_verification();
         }
 
-        // 回退 sidecar 后,后台等待服务就绪再交接
+        // После отката к sidecar в фоне ждём готовности службы для передачи
         if matches!(*self.get_running_mode(), RunningMode::Sidecar) {
             self.spawn_service_handoff_watcher().await;
         }
@@ -105,7 +106,7 @@ impl CoreManager {
         self.stop_core_inner().await
     }
 
-    /// 调用者须已持有 `lifecycle_lock`。
+    /// Вызывающий должен уже удерживать `lifecycle_lock`.
     async fn stop_core_inner(&self) -> Result<()> {
         CLASH_LOGGER.clear_logs().await;
         defer! {
@@ -123,7 +124,8 @@ impl CoreManager {
     }
 
     pub async fn restart_core(&self) -> Result<()> {
-        // 持锁覆盖 stop+start,避免生命周期操作插入。
+        // Блокировка удерживается на весь stop+start, чтобы избежать вклинивания
+        // других операций жизненного цикла.
         let _life = self.lifecycle_lock.lock().await;
         logging!(info, Type::Core, "Restarting core");
         self.stop_core_inner().await?;
@@ -279,20 +281,20 @@ impl CoreManager {
         }
     }
 
-    /// 在窗口内等待服务就绪,再从 sidecar 交接到 service
+    /// Ждёт готовности службы в течение окна времени, затем передаёт от sidecar к service
     async fn spawn_service_handoff_watcher(&self) {
         use crate::constants::timing;
         use crate::process::AsyncHandler;
         use std::sync::atomic::Ordering;
         use std::time::Instant;
 
-        // 仅 TUN 模式需要服务交接
+        // Передача службе нужна только в режиме TUN
         let needs_service = Config::verge().await.latest_arc().enable_tun_mode.unwrap_or(false);
         if !needs_service {
             return;
         }
 
-        // 单实例,避免并发交接
+        // Синглтон, чтобы избежать параллельной передачи
         if self.handoff_watcher_running.swap(true, Ordering::AcqRel) {
             return;
         }
@@ -317,14 +319,14 @@ impl CoreManager {
                 }
                 tokio::time::sleep(timing::SERVICE_HANDOFF_INTERVAL).await;
 
-                // 模式已变更时退出
+                // Выходим, если режим уже изменился
                 if !matches!(*manager.get_running_mode(), RunningMode::Sidecar) {
                     break;
                 }
                 match manager.try_handoff_sidecar_to_service().await {
-                    // 已交接或无需交接
+                    // Передано или не требуется
                     HandoffOutcome::Done => break,
-                    // 已回退 sidecar,停止重试
+                    // Откат к sidecar выполнен, прекращаем попытки
                     HandoffOutcome::Failed => {
                         logging!(warn, Type::Core, "handoff attempt failed; staying in sidecar mode");
                         break;
@@ -336,11 +338,12 @@ impl CoreManager {
         });
     }
 
-    /// 服务就绪后停止 sidecar,再以 service 重启内核
+    /// После готовности службы останавливает sidecar и перезапускает ядро через service
     async fn try_handoff_sidecar_to_service(&self) -> HandoffOutcome {
         use crate::core::service;
 
-        // 主动刷新服务状态,避免缓存状态阻止交接
+        // Принудительно обновляем состояние службы, чтобы кэшированное состояние
+        // не блокировало передачу
         if !service::is_service_ipc_path_exists() {
             return HandoffOutcome::NotReady;
         }
@@ -352,7 +355,7 @@ impl CoreManager {
             return HandoffOutcome::NotReady;
         }
 
-        // 先抢 config 锁;失败则让位给正在进行的更新。
+        // Сначала захватываем блокировку config; при неудаче уступаем идущему обновлению.
         if !self.try_start_config_update() {
             return HandoffOutcome::NotReady;
         }
@@ -360,10 +363,10 @@ impl CoreManager {
             self.finish_config_update();
         }
 
-        // 再取 lifecycle 锁;锁序固定为 config→lifecycle。
+        // Затем захватываем блокировку lifecycle; порядок блокировок фиксирован: config→lifecycle.
         let _life = self.lifecycle_lock.lock().await;
 
-        // 持锁后复检运行模式和 TUN 状态
+        // После захвата блокировки повторно проверяем режим работы и состояние TUN
         if !matches!(*self.get_running_mode(), RunningMode::Sidecar)
             || !Config::verge().await.latest_arc().enable_tun_mode.unwrap_or(false)
         {

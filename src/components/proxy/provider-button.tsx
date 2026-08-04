@@ -26,7 +26,7 @@ import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
 import { showNotice } from '@/services/notice-service'
 import parseTraffic from '@/utils/parse-traffic'
 
-// 样式化组件 - 类型框
+// Стилизованный компонент - блок типа
 const TypeBox = styled(Box)<{ component?: React.ElementType }>(({ theme }) => ({
   display: 'inline-block',
   border: '1px solid #ccc',
@@ -39,7 +39,7 @@ const TypeBox = styled(Box)<{ component?: React.ElementType }>(({ theme }) => ({
   lineHeight: 1.25,
 }))
 
-// 解析过期时间
+// Разбор срока истечения
 const parseExpire = (expire?: number) => {
   if (!expire) return '-'
   return dayjs(expire * 1000).format('YYYY-MM-DD')
@@ -56,18 +56,18 @@ export const ProviderButton = () => {
     refreshProxyProviders().catch(() => {})
   }, [refreshProxyProviders])
 
-  // 检查是否有提供者
+  // Проверяем, есть ли провайдеры
   const hasProviders = Object.keys(proxyProviders || {}).length > 0
 
-  // 更新单个代理提供者
+  // Обновить один провайдер прокси
   const updateProvider = useLockFn(async (name: string) => {
     try {
-      // 设置更新状态
+      // Устанавливаем состояние обновления
       setUpdating((prev) => ({ ...prev, [name]: true }))
 
       await updateProxyProvider(name)
 
-      // 刷新数据
+      // Обновляем данные
       await refreshProxy()
       await refreshProxyProviders()
 
@@ -83,22 +83,22 @@ export const ProviderButton = () => {
         message: String(err),
       })
     } finally {
-      // 清除更新状态
+      // Сбрасываем состояние обновления
       setUpdating((prev) => ({ ...prev, [name]: false }))
     }
   })
 
-  // 更新所有代理提供者
+  // Обновить всех провайдеров прокси
   const updateAllProviders = useLockFn(async () => {
     try {
-      // 获取所有provider的名称
+      // Получаем имена всех провайдеров
       const allProviders = Object.keys(proxyProviders || {})
       if (allProviders.length === 0) {
         showNotice.info('proxies.feedback.notifications.provider.none')
         return
       }
 
-      // 设置所有provider为更新中状态
+      // Устанавливаем всем провайдерам состояние обновления
       const newUpdating = allProviders.reduce(
         (acc, key) => {
           acc[key] = true
@@ -108,19 +108,19 @@ export const ProviderButton = () => {
       )
       setUpdating(newUpdating)
 
-      // 改为串行逐个更新所有provider
+      // Обновляем всех провайдеров последовательно, по одному
       for (const name of allProviders) {
         try {
           await updateProxyProvider(name)
-          // 每个更新完成后更新状态
+          // Обновляем состояние после завершения каждого обновления
           setUpdating((prev) => ({ ...prev, [name]: false }))
         } catch (err) {
           console.error(`Не удалось обновить ${name}`, err)
-          // 继续执行下一个，不中断整体流程
+          // Переходим к следующему, не прерывая общий процесс
         }
       }
 
-      // 刷新数据
+      // Обновляем данные
       await refreshProxy()
       await refreshProxyProviders()
 
@@ -130,7 +130,7 @@ export const ProviderButton = () => {
         message: String(err),
       })
     } finally {
-      // 清除所有更新状态
+      // Сбрасываем все состояния обновления
       setUpdating({})
     }
   })
@@ -187,7 +187,7 @@ export const ProviderButton = () => {
                 const time = dayjs(provider.updatedAt)
                 const isUpdating = updating[key]
 
-                // 订阅信息
+                // Информация о подписке
                 const sub = provider.subscriptionInfo
                 const hasSubInfo = !!sub
                 const upload = sub?.Upload || 0
@@ -195,7 +195,7 @@ export const ProviderButton = () => {
                 const total = sub?.Total || 0
                 const expire = sub?.Expire || 0
 
-                // 流量使用进度
+                // Прогресс использования трафика
                 const progress =
                   total > 0
                     ? Math.min(
@@ -269,7 +269,7 @@ export const ProviderButton = () => {
                       }
                       secondary={
                         <>
-                          {/* 订阅信息 */}
+                          {/* Информация о подписке */}
                           {hasSubInfo && (
                             <>
                               <Box
@@ -295,7 +295,7 @@ export const ProviderButton = () => {
                                 </span>
                               </Box>
 
-                              {/* 进度条 */}
+                              {/* Индикатор прогресса */}
                               <LinearProgress
                                 variant="determinate"
                                 value={progress}

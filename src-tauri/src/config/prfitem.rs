@@ -445,7 +445,7 @@ impl PrfItem {
         let mut proxies = option.and_then(|o| o.proxies.clone());
         let mut groups = option.and_then(|o| o.groups.clone());
 
-        // 选择代理类型
+        // Выбираем тип прокси
         let proxy_type = if self_proxy {
             ProxyType::Localhost
         } else if with_proxy {
@@ -461,7 +461,7 @@ impl PrfItem {
         let identity_headers = sub_headers::build_identity_headers().await;
         // clod:headers end
 
-        // 使用网络管理器发送请求
+        // Отправляем запрос через network manager
         let resp = match NetworkManager::new()
             .get_with_interrupt_and_headers(
                 url.as_str(),
@@ -894,33 +894,33 @@ impl PrfItem {
 // clod:headers end
 
 impl PrfItem {
-    /// 获取current指向的订阅的merge
+    /// Получает merge подписки, на которую указывает current
     pub fn current_merge(&self) -> Option<&String> {
         self.option.as_ref().and_then(|o| o.merge.as_ref())
     }
 
-    /// 获取current指向的订阅的script
+    /// Получает script подписки, на которую указывает current
     pub fn current_script(&self) -> Option<&String> {
         self.option.as_ref().and_then(|o| o.script.as_ref())
     }
 
-    /// 获取current指向的订阅的rules
+    /// Получает rules подписки, на которую указывает current
     pub fn current_rules(&self) -> Option<&String> {
         self.option.as_ref().and_then(|o| o.rules.as_ref())
     }
 
-    /// 获取current指向的订阅的proxies
+    /// Получает proxies подписки, на которую указывает current
     pub fn current_proxies(&self) -> Option<&String> {
         self.option.as_ref().and_then(|o| o.proxies.as_ref())
     }
 
-    /// 获取current指向的订阅的groups
+    /// Получает groups подписки, на которую указывает current
     pub fn current_groups(&self) -> Option<&String> {
         self.option.as_ref().and_then(|o| o.groups.as_ref())
     }
 }
 
-// 向前兼容，默认为订阅启用自动更新
+// Для совместимости автообновление подписки включено по умолчанию
 #[allow(clippy::unnecessary_wraps)]
 const fn default_allow_auto_update() -> Option<bool> {
     Some(true)

@@ -125,21 +125,21 @@ impl Hotkey {
             }
             HotkeyFunction::ClashModeRule => {
                 AsyncHandler::spawn(async move || {
-                    // 错误已在 change_clash_mode 内部记录，此处显式忽略返回值
+                    // Ошибка уже залогирована внутри change_clash_mode, здесь явно игнорируем возврат
                     let _ = feat::change_clash_mode("rule".into()).await;
                     notify_event(NotificationEvent::ClashModeChanged { mode: "Rule" }).await;
                 });
             }
             HotkeyFunction::ClashModeGlobal => {
                 AsyncHandler::spawn(async move || {
-                    // 错误已在 change_clash_mode 内部记录，此处显式忽略返回值
+                    // Ошибка уже залогирована внутри change_clash_mode, здесь явно игнорируем возврат
                     let _ = feat::change_clash_mode("global".into()).await;
                     notify_event(NotificationEvent::ClashModeChanged { mode: "Global" }).await;
                 });
             }
             HotkeyFunction::ClashModeDirect => {
                 AsyncHandler::spawn(async move || {
-                    // 错误已在 change_clash_mode 内部记录，此处显式忽略返回值
+                    // Ошибка уже залогирована внутри change_clash_mode, здесь явно игнорируем возврат
                     let _ = feat::change_clash_mode("direct".into()).await;
                     notify_event(NotificationEvent::ClashModeChanged { mode: "Direct" }).await;
                 });

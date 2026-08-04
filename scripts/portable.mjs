@@ -17,7 +17,7 @@ const PROCESS_MAP = {
 }
 const arch = target ? ARCH_MAP[target] : PROCESS_MAP[process.arch]
 /// Script for ci
-/// 打包绿色版/便携版 (only Windows)
+/// Сборка портативной версии (only Windows)
 async function resolvePortable() {
   if (process.platform !== 'win32') return
 

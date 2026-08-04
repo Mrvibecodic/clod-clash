@@ -12,7 +12,7 @@ import { useVisibility } from '@/hooks/use-visibility'
 import { debugLog } from '@/utils/debug'
 import { TrafficDataSampler, formatTrafficName } from '@/utils/traffic-sampler'
 
-// 引用计数管理器
+// Менеджер подсчёта ссылок
 class ReferenceCounter {
   private count = 0
   private callbacks = new Set<() => void>()
@@ -346,7 +346,7 @@ const EMPTY_STATS: ISamplerStats = {
 }
 
 /**
- * 增强的流量监控Hook - Web Worker驱动的数据采样与压缩
+ * Расширенный hook мониторинга трафика — сэмплирование и сжатие данных на Web Worker
  */
 export const useTrafficMonitorEnhanced = (options?: {
   subscribe?: boolean
@@ -373,7 +373,7 @@ export const useTrafficMonitorEnhanced = (options?: {
   const clientRef = useRef<TrafficWorkerClient | null>(getWorkerClient())
   const currentRangeRef = useRef<number>(WORKER_CONFIG.defaultRangeMinutes)
 
-  // 注册引用计数与Worker生命周期
+  // Регистрируем подсчёт ссылок и жизненный цикл Worker
   useEffect(() => {
     if (!enabled) return
 
@@ -421,7 +421,7 @@ export const useTrafficMonitorEnhanced = (options?: {
     return () => window.clearInterval(timer)
   }, [enabled, subscribeToSnapshots, isVisible])
 
-  // 添加流量数据
+  // Добавляем данные трафика
   const appendData = useCallback(
     (traffic: Traffic) => {
       if (!enabled) return
@@ -430,7 +430,7 @@ export const useTrafficMonitorEnhanced = (options?: {
     [enabled],
   )
 
-  // 请求不同时间范围的数据
+  // Запрашиваем данные за другой временной диапазон
   const requestRange = useCallback(
     (minutes: number) => {
       if (!enabled) return
@@ -441,7 +441,7 @@ export const useTrafficMonitorEnhanced = (options?: {
     [enabled],
   )
 
-  // 清空数据
+  // Очищаем данные
   const clearData = useCallback(() => {
     if (!enabled) return
     clientRef.current?.clearData()

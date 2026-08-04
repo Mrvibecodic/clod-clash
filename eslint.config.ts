@@ -98,7 +98,7 @@ export default defineConfig([
       // TypeScript
       '@typescript-eslint/no-explicit-any': 'off',
 
-      // unused-imports 代替 no-unused-vars
+      // unused-imports вместо no-unused-vars
       '@typescript-eslint/no-unused-vars': 'off',
       'unused-imports/no-unused-imports': 'error',
       'unused-imports/no-unused-vars': [
@@ -133,7 +133,7 @@ export default defineConfig([
         },
       ],
 
-      // 其他常见
+      // Прочие распространённые правила
       'prefer-const': 'warn',
       'no-case-declarations': 'error',
       'no-fallthrough': 'error',

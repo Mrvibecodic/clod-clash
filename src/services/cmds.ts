@@ -229,7 +229,8 @@ export async function calcuProxies(): Promise<{
     all: global?.all?.map((item) => generateItem(item)) || [],
   }
 
-  // 原本的 records 拥有所有节点信息，新版本内核需要将 provider 的节点信息合并到 records 中, 同时兼容旧版本数据
+  // Изначально records содержал все узлы, в новых версиях ядра нужно
+  // слить узлы provider в records, сохраняя совместимость со старыми данными
   const records = { ...proxyRecord, ...providerMap }
 
   return {
@@ -512,7 +513,7 @@ export async function listLocalBackup() {
   return invoke<ILocalBackupFile[]>('list_local_backup')
 }
 
-// 获取当前运行模式
+// Получить текущий режим работы
 export const getRunningMode = async () => {
   return invoke<string>('get_running_mode')
 }
@@ -538,12 +539,12 @@ export const getTrafficEstimate = async () => {
   return invoke<ITrafficEstimate>('get_traffic_estimate')
 }
 
-// 安装系统服务
+// Установить системную службу
 export const installService = async () => {
   return invoke<void>('install_service')
 }
 
-// 卸载系统服务
+// Удалить системную службу
 export const uninstallService = async () => {
   return invoke<void>('uninstall_service')
 }
@@ -559,7 +560,7 @@ export const ensureTunReady = async () => {
   return invoke<boolean>('ensure_tun_ready')
 }
 
-// 系统服务是否可用
+// Доступна ли системная служба
 export const isServiceAvailable = async () => {
   try {
     return await invoke<boolean>('is_service_available')

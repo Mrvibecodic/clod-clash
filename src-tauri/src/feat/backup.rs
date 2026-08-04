@@ -79,7 +79,7 @@ pub async fn create_backup_and_upload_webdav() -> Result<()> {
         .await
     {
         logging!(error, Type::Backup, "Failed to upload to WebDAV: {err:#?}");
-        // 上传失败时重置客户端缓存
+        // При ошибке загрузки сбрасываем кэш клиента
         backup::WebDavClient::global().reset();
         return Err(err);
     }
@@ -159,7 +159,7 @@ where
 
     if let Err(err) = move_file(temp_file_path.clone(), target_path.clone()).await {
         logging!(error, Type::Backup, "Failed to move local backup file: {err:#?}");
-        // 清理临时文件
+        // Удаляем временный файл
         if let Err(clean_err) = temp_file_path.remove_if_exists().await {
             logging!(
                 warn,

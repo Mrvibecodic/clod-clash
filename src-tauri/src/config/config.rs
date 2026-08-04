@@ -55,7 +55,7 @@ impl Config {
         Self::global().await.runtime_config.clone()
     }
 
-    /// 初始化订阅
+    /// Инициализация подписки
     pub async fn init_config() -> Result<()> {
         Self::init_config_before_window().await?;
         Self::init_runtime_config().await
@@ -122,7 +122,7 @@ impl Config {
     }
 
     async fn generate_and_validate() -> Result<Option<(&'static str, String)>> {
-        // 生成运行时配置
+        // Генерируем runtime-конфиг
         if let Err(err) = Self::generate().await {
             let error_msg: String = err.to_string().into();
             logging!(
@@ -138,17 +138,17 @@ impl Config {
         }
         logging!(info, Type::Config, "Runtime-конфиг сгенерирован успешно");
 
-        // 生成运行时配置文件并验证
+        // Генерируем файл runtime-конфига и проверяем его
         let config_result = Self::generate_file(ConfigType::Run).await;
 
         if config_result.is_ok() {
-            // 验证配置文件
+            // Проверяем конфиг-файл
             logging!(info, Type::Config, "Начинаю проверку конфига");
 
             match CoreConfigValidator::global().validate_config_outcome().await {
                 Ok(outcome) if outcome.is_valid() => {
                     logging!(info, Type::Config, "Проверка конфига успешна");
-                    // 前端没有必要知道验证成功的消息，也没有事件驱动
+                    // Фронтенду не нужно знать об успешной проверке, событие не требуется
                     // Some(("config_validate::success", String::new()))
                     Ok(None)
                 }
@@ -243,8 +243,8 @@ impl Config {
         }
     }
 
-    // 升级草稿为正式数据，并写入文件。避免用户行为丢失。
-    // 仅在应用退出、重启、关机监听事件启用
+    // Переводит черновик в основные данные и записывает в файл. Избегает потери действий пользователя.
+    // Используется только при событиях выхода из приложения, перезапуска, выключения системы
     pub async fn apply_all_and_save_file() {
         logging!(info, Type::Config, "save all draft data");
         let save_clash_task = AsyncHandler::spawn(|| async {
@@ -271,7 +271,7 @@ impl Config {
 }
 
 fn sanitize_tunnels_proxy(config: &mut Mapping) {
-    // 检查是否存在 tunnels
+    // Проверяем наличие tunnels
     if !config
         .get("tunnels")
         .and_then(|v| v.as_sequence())
@@ -280,7 +280,7 @@ fn sanitize_tunnels_proxy(config: &mut Mapping) {
         return;
     }
 
-    // 在需要时，收集可用目标（proxies + proxy-groups + 内建）
+    // При необходимости собираем доступные цели (proxies + proxy-groups + встроенные)
     let mut valid: HashSet<String> = HashSet::with_capacity(64);
     collect_names(config, "proxies", &mut valid);
     collect_names(config, "proxy-groups", &mut valid);
@@ -292,7 +292,7 @@ fn sanitize_tunnels_proxy(config: &mut Mapping) {
         return;
     };
 
-    // 修改 tunnels：删除无效 proxy
+    // Изменяем tunnels: удаляем недействительный proxy
     for item in tunnels {
         let Some(tunnel) = item.as_mapping_mut() else { continue };
 
@@ -310,7 +310,7 @@ fn sanitize_tunnels_proxy(config: &mut Mapping) {
     }
 }
 
-// tunnels 存在且至少有一条 tunnel 的 proxy 需要校验时才返回 true
+// Возвращает true, если tunnels существуют и хотя бы у одной tunnel proxy требует проверки
 fn tunnels_need_validation(tunnels: &[Value]) -> bool {
     tunnels.iter().any(|item| {
         item.as_mapping()

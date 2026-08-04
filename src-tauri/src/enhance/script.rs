@@ -55,7 +55,7 @@ fn use_script_sync(script: String, config: &Mapping, name: &String) -> Result<(M
                 boa_engine::JsError::from_opaque(JsString::from("Failed to convert data to string").into())
             })?;
 
-            // 检查输出限制
+            // Проверяем лимит вывода
             if outputs_clone.lock().len() >= MAX_OUTPUTS {
                 return Err(boa_engine::JsError::from_opaque(
                     JsString::from("Maximum number of log outputs exceeded").into(),
@@ -93,7 +93,7 @@ fn use_script_sync(script: String, config: &Mapping, name: &String) -> Result<(M
         anyhow::bail!("Configuration size exceeds maximum allowed size");
     }
 
-    // 仅处理 name 参数中的特殊字符
+    // Обрабатываем только специальные символы в параметре name
     let safe_name = escape_js_string_for_single_quote(name);
     if safe_name.len() > 1024 {
         anyhow::bail!("Name parameter too long");
@@ -149,7 +149,7 @@ fn parse_json_safely(json_str: &str) -> Result<Mapping, Error> {
     Ok(serde_json::from_str::<Mapping>(json_str)?)
 }
 
-// 安全地移除外层引号
+// Безопасно удаляет внешние кавычки
 fn strip_outer_quotes(s: &str) -> &str {
     let s = s.trim();
 
@@ -164,17 +164,17 @@ fn strip_outer_quotes(s: &str) -> &str {
     }
 }
 
-// 安全地转义字符串
+// Безопасно экранирует строку
 fn escape_js_string_for_single_quote(s: &str) -> String {
-    // 限制处理的字符串长度
+    // Ограничиваем длину обрабатываемой строки
     if s.len() > 10240 {
         return s[..10240].replace('\\', "\\\\").replace('\'', "\\'").into();
     }
 
     s.replace('\\', "\\\\")
         .replace('\'', "\\'")
-        .replace('\n', "\\n") // 添加换行符转义
-        .replace('\r', "\\r") // 添加回车转义
+        .replace('\n', "\\n") // Добавляем экранирование перевода строки
+        .replace('\r', "\\r") // Добавляем экранирование возврата каретки
         .into()
 }
 
@@ -213,7 +213,7 @@ fn test_script() {
     assert!(box_yaml_config_size < yaml_config_size);
 }
 
-// 测试特殊字符转义功能
+// Тестирует экранирование специальных символов
 #[test]
 #[allow(clippy::expect_used)]
 fn test_escape_unescape() {
@@ -247,7 +247,7 @@ fn test_strip_outer_quotes_edge_cases() {
 
 #[test]
 fn test_memory_limits() {
-    // 测试输出限制
+    // Тестируем лимит вывода
     let script = r#"
     function main(config) {
       for(let i = 0; i < 2000; i++) {
@@ -260,6 +260,6 @@ fn test_memory_limits() {
     #[allow(clippy::expect_used)]
     let config = &serde_yaml_ng::from_str("test: value").expect("Failed to parse test YAML");
     let result = use_script_sync(script.into(), config, &String::from(""));
-    // 应该失败或被限制
-    assert!(result.is_ok()); // 会被限制但不会 panic
+    // Должно завершиться ошибкой или быть ограничено
+    assert!(result.is_ok()); // будет ограничено, но не приведёт к panic
 }

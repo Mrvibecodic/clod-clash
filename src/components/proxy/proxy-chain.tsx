@@ -281,10 +281,10 @@ export const ProxyChain = ({
     return proxyChainGroup?.now === lastNode.name
   }, [proxies, proxyChain, mode, selectedGroup])
 
-  // 监听链的变化，但排除从配置加载的情况
+  // Отслеживаем изменения цепочки, но исключаем случай загрузки из конфига
   const chainLengthRef = useRef(proxyChain.length)
   useEffect(() => {
-    // 只有当链长度发生变化且不是初始加载时，才标记为未保存
+    // Помечаем как несохранённое, только если длина цепочки изменилась и это не начальная загрузка
     if (
       chainLengthRef.current !== proxyChain.length &&
       chainLengthRef.current !== 0
@@ -376,17 +376,17 @@ export const ProxyChain = ({
 
     setIsConnecting(true)
     try {
-      // 第一步：保存链式代理配置
+      // Шаг 1: сохраняем конфиг цепочки прокси
       const chainProxies = proxyChain.map((node) => node.name)
       debugLog('Saving chain config:', chainProxies)
       await updateProxyChainConfigInRuntime(chainProxies)
       debugLog('Chain configuration saved successfully')
 
-      // 第二步：连接到代理链的最后一个节点
+      // Шаг 2: подключаемся к последнему узлу цепочки прокси
       const lastNode = proxyChain[proxyChain.length - 1]
       debugLog(`Connecting to proxy chain, last node: ${lastNode.name}`)
 
-      // 根据模式确定使用的代理组名称
+      // Определяем имя группы прокси в зависимости от режима
       if (mode !== 'global' && !selectedGroup) {
         throw new Error('Необходимо выбрать группу прокси в режиме правил')
       }
@@ -397,7 +397,7 @@ export const ProxyChain = ({
       localStorage.setItem('proxy-chain-group', targetGroup || 'GLOBAL')
       localStorage.setItem('proxy-chain-exit-node', lastNode.name)
 
-      // 刷新代理信息以更新连接状态
+      // Обновляем данные прокси, чтобы обновить статус подключения
       refreshProxy()
       debugLog('Successfully connected to proxy chain')
     } catch (error) {
@@ -424,7 +424,7 @@ export const ProxyChain = ({
     onUpdateChainRef.current = onUpdateChain
   }, [proxyChain, onUpdateChain])
 
-  // 处理链式代理配置数据
+  // Обрабатываем данные конфига цепочки прокси
   useEffect(() => {
     if (chainConfigData) {
       try {
@@ -441,7 +441,7 @@ export const ProxyChain = ({
     }
   }, [chainConfigData, onUpdateChain])
 
-  // 定时更新延迟数据
+  // Периодически обновляем данные о задержке
   useEffect(() => {
     if (!proxies?.records) return
 
@@ -463,7 +463,7 @@ export const ProxyChain = ({
         return item
       })
 
-      // 只有在延迟数据确实发生变化时才更新
+      // Обновляем, только если данные о задержке действительно изменились
       const hasChanged = updatedChain.some(
         (item, index) => item.delay !== currentChain[index]?.delay,
       )
@@ -473,14 +473,14 @@ export const ProxyChain = ({
       }
     }
 
-    // 立即更新一次延迟
+    // Сразу обновляем задержку один раз
     updateDelays()
 
-    // 设置定时器，每5秒更新一次延迟
+    // Устанавливаем таймер, обновляем задержку раз в 5 секунд
     const interval = setInterval(updateDelays, 5000)
 
     return () => clearInterval(interval)
-  }, [proxies?.records]) // 只依赖proxies.records
+  }, [proxies?.records]) // Зависим только от proxies.records
 
   return (
     <Paper
