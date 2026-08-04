@@ -117,6 +117,14 @@ const SortableNavMenuItem = ({ item, label }: SortableNavMenuItemProps) => {
 // clod: sidebar entries kept in the simple interface
 const SIMPLE_MODE_PATHS = new Set<string>(['/', '/settings'])
 
+/**
+ * clod:design-v2 — боковой колонки в этом форке нет ни в одном режиме: её
+ * роль играют сами главные экраны. Колонка оставлена в дереве вместе с
+ * апстримной машинерией меню — на случай, если её вернут настройкой, — но
+ * рендерится через этот флаг, чтобы «спрятано» и «не работает» не разъехались.
+ */
+const SIDEBAR_VISIBLE = false
+
 dayjs.extend(relativeTime)
 
 const OS = getSystem()
@@ -359,7 +367,10 @@ const Layout = () => {
               mode footlinks between them), inner pages carry a back arrow.
               The column is kept in the tree but never displayed, so the
               upstream menu machinery stays intact for a possible option. */}
-          <div className="layout-content__left" style={{ display: 'none' }}>
+          <div
+            className="layout-content__left"
+            style={{ display: SIDEBAR_VISIBLE ? undefined : 'none' }}
+          >
             <div className="the-logo" data-tauri-drag-region="false">
               <div
                 data-tauri-drag-region="true"
@@ -488,9 +499,16 @@ const Layout = () => {
               </MenuItem>
             </Menu>
 
-            <div className="the-traffic">
-              <LayoutTraffic />
-            </div>
+            {/* clod: за `display: none` этот блок держал живыми два сокета к
+                ядру (`/traffic`, `/memory`) и рисовал график в canvas через
+                requestAnimationFrame — всё это для колонки, которой в форке
+                нет. Счётчики сессии на главной берут трафик своим общим
+                сокетом, так что показывать тут нечего и некому. */}
+            {SIDEBAR_VISIBLE ? (
+              <div className="the-traffic">
+                <LayoutTraffic />
+              </div>
+            ) : null}
           </div>
 
           <div className="layout-content__right">

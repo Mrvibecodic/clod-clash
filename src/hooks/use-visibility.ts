@@ -21,6 +21,8 @@ const isDocumentVisible = () =>
 let visible = isDocumentVisible()
 const listeners = new Set<() => void>()
 let stop: (() => void) | undefined
+/** Переспросить окно; есть, только пока слушатели заведены. */
+let recheck: (() => void) | undefined
 
 const set = (next: boolean) => {
   if (next === visible) return
@@ -28,10 +30,26 @@ const set = (next: boolean) => {
   listeners.forEach((listener) => listener())
 }
 
+/**
+ * Сторож против залипания в «не видно».
+ *
+ * Ответ хранится один на всё приложение, и ошибиться он может в две стороны.
+ * «Видно», когда на деле не видно, — это ровно то, как приложение работало
+ * раньше: лишние опросы, не более. А вот застрять в «не видно» значит
+ * заморозить экран целиком, поэтому именно этот случай и лечим: пока ответ
+ * отрицательный, раз в минуту переспрашиваем окно. В трее это одно
+ * пробуждение в минуту вместо двадцати, которые там были до правки, а зависеть
+ * от одних только событий не хочется: `document.hidden` под Tauri врёт
+ * (tauri-apps/tauri#10592), и события окна на разных платформах приходят
+ * по-разному.
+ */
+const WATCHDOG_MS = 60_000
+
 const start = () => {
   const appWindow = getCurrentWindow()
   let stopped = false
   let timer: ReturnType<typeof setTimeout> | null = null
+  let watchdog: ReturnType<typeof setInterval> | null = null
 
   const check = async () => {
     const windowVisible = await appWindow.isVisible().catch(() => true)
@@ -48,12 +66,21 @@ const start = () => {
     }, 50)
   }
 
+  // Пользователь щёлкнул или нажал клавишу — окно перед ним, что бы там ни
+  // отвечали события. Самая дешёвая страховка из всех.
   const shown = () => set(true)
 
   document.addEventListener('focus', checkSoon)
   document.addEventListener('pointerdown', shown)
+  document.addEventListener('keydown', shown)
   document.addEventListener('visibilitychange', checkSoon)
   window.addEventListener('focus', checkSoon)
+
+  watchdog = setInterval(() => {
+    if (!visible) void check()
+  }, WATCHDOG_MS)
+
+  recheck = checkSoon
 
   const unlistenFocusChanged = appWindow.onFocusChanged(checkSoon)
   const unlistenCloseRequested = appWindow.listen(
@@ -69,9 +96,12 @@ const start = () => {
 
   return () => {
     stopped = true
+    recheck = undefined
     if (timer) clearTimeout(timer)
+    if (watchdog) clearInterval(watchdog)
     document.removeEventListener('focus', checkSoon)
     document.removeEventListener('pointerdown', shown)
+    document.removeEventListener('keydown', shown)
     document.removeEventListener('visibilitychange', checkSoon)
     window.removeEventListener('focus', checkSoon)
     void unlistenFocusChanged.then((unlisten) => unlisten())
@@ -81,6 +111,9 @@ const start = () => {
 
 const subscribe = (listener: () => void) => {
   listeners.add(listener)
+  // Каждый новый подписчик — повод переспросить: экран, который только что
+  // смонтировался, видит окно живым, чем бы ни закончился прошлый ответ.
+  recheck?.()
   if (listeners.size === 1) {
     try {
       stop = start()
