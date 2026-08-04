@@ -2,89 +2,38 @@ import { alpha, styled } from '@mui/material/styles'
 import { default as MuiSwitch, SwitchProps } from '@mui/material/Switch'
 
 /**
- * clod: выключенный тумблер раньше был серым треком (#BBBBBB) с белым
- * бегунком — на светлой теме, где карточка белая, он читался как пустое
- * место. Теперь у выключенного прозрачный трек с контуром и бегунок цветом
- * контура: видно на любом фоне, при любом акценте и в обеих темах. Включённый
- * вид не менялся — он и так заметен, он в цвете акцента.
+ * clod: единственный тумблер приложения.
+ *
+ * Раньше здесь жил крупный iOS-образный переключатель (трек 42×26 с контуром):
+ * в плотных списках настроек он занимал почти всю строку, и соседние строки
+ * читались как наехавшие друг на друга. Берём системную геометрию MUI —
+ * тонкий трек и бегунок поверх него, — она спокойно вписывается и в карточку
+ * быстрых действий, и в диалоги.
+ *
+ * Меняем ровно одно: выключенное состояние на светлой теме. Дефолтные 38%
+ * прозрачности на белой карточке читаются как пустое место — поднимаем до
+ * уровня, на котором тумблер видно, но он не спорит с включённым (тот в цвете
+ * акцента и всегда заметнее).
  */
 export const Switch = styled((props: SwitchProps) => (
-  <MuiSwitch
-    focusVisibleClassName=".Mui-focusVisible"
-    disableRipple
-    {...props}
-  />
+  <MuiSwitch focusVisibleClassName=".Mui-focusVisible" {...props} />
 ))(({ theme }) => {
-  // clod: 0.36 на светлой теме читалось всё ещё бледно — на белой карточке
-  // контур сливался почти так же, как прежняя серая полоса. Берём заметнее и
-  // добавляем едва различимую заливку: выключенный тумблер должен выглядеть
-  // как контрол, а не как контур-призрак.
-  const outline =
-    theme.palette.mode === 'light'
-      ? alpha(theme.palette.text.primary, 0.5)
-      : alpha(theme.palette.text.primary, 0.5)
-  const idleFill = alpha(theme.palette.text.primary, 0.08)
+  const light = theme.palette.mode === 'light'
 
   return {
-    width: 42,
-    height: 26,
-    padding: 0,
-    marginRight: 1,
-    '& .MuiSwitch-switchBase': {
-      padding: 0,
-      // Выключенный бегунок меньше и сидит с отступом от контура.
-      margin: 4,
-      transitionDuration: '300ms',
-      '&.Mui-checked': {
-        transform: 'translateX(16px)',
-        margin: 2,
-        color: '#fff',
-        '& + .MuiSwitch-track': {
-          backgroundColor: theme.palette.primary.main,
-          borderColor: theme.palette.primary.main,
-          opacity: 1,
-        },
-        '&.Mui-disabled + .MuiSwitch-track': {
-          opacity: 0.5,
-        },
+    '& .MuiSwitch-switchBase:not(.Mui-checked)': {
+      '& + .MuiSwitch-track': {
+        backgroundColor: alpha(theme.palette.text.primary, light ? 0.42 : 0.5),
+        opacity: light ? 0.72 : 0.42,
       },
-      '&.Mui-focusVisible + .MuiSwitch-track': {
-        boxShadow: `0 0 0 3px ${alpha(theme.palette.primary.main, 0.25)}`,
-      },
-      '&.Mui-disabled .MuiSwitch-thumb': {
-        color:
-          theme.palette.mode === 'light'
-            ? theme.palette.grey[300]
-            : theme.palette.grey[700],
+      '& .MuiSwitch-thumb': {
+        backgroundColor: light
+          ? theme.palette.common.white
+          : theme.palette.grey[300],
       },
       '&.Mui-disabled + .MuiSwitch-track': {
-        opacity: theme.palette.mode === 'light' ? 0.5 : 0.4,
+        opacity: light ? 0.3 : 0.2,
       },
-    },
-    '& .MuiSwitch-thumb': {
-      boxSizing: 'border-box',
-      width: 18,
-      height: 18,
-      color: alpha(theme.palette.text.primary, 0.62),
-      boxShadow: 'none',
-      transition: theme.transitions.create(['width', 'height', 'color'], {
-        duration: 200,
-      }),
-    },
-    '& .Mui-checked .MuiSwitch-thumb': {
-      width: 22,
-      height: 22,
-      color: '#fff',
-    },
-    '& .MuiSwitch-track': {
-      borderRadius: 26 / 2,
-      backgroundColor: idleFill,
-      border: `1.5px solid ${outline}`,
-      opacity: 1,
-      transition: theme.transitions.create(
-        ['background-color', 'border-color'],
-        { duration: 300 },
-      ),
     },
   }
 })
