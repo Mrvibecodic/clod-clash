@@ -22,6 +22,23 @@ use std::{
 };
 use tokio::sync::Notify;
 
+/// Операция со службой уже идёт — это НЕ провал настройки.
+///
+/// clod: разница принципиальная. Ожидание службы и хэндофф зовут `refresh()` в
+/// фоне, и наткнуться на занятый менеджер легко; если считать это провалом,
+/// автонастройка запишет «на этой версии уже пробовали» и выключит себя, ни
+/// разу не показав пользователю запрос прав.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ServiceBusy;
+
+impl std::fmt::Display for ServiceBusy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("service operation already running")
+    }
+}
+
+impl std::error::Error for ServiceBusy {}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ServiceStatus {
     Ready,
@@ -503,13 +520,19 @@ pub fn service_registration() -> ServiceRegistration {
     if !Path::new("/etc/systemd/system/clash-verge-service.service").exists() {
         return ServiceRegistration::Missing;
     }
-    match StdCommand::new("systemctl")
+    let Ok(output) = StdCommand::new("systemctl")
         .args(["is-active", "clash-verge-service.service"])
         .output()
-    {
-        Ok(output) if output.status.success() => ServiceRegistration::Running,
-        Ok(_) => ServiceRegistration::Stopped,
-        Err(_) => ServiceRegistration::Unknown,
+    else {
+        return ServiceRegistration::Unknown;
+    };
+    // Судим по слову, а не по коду возврата: у стартующего юнита `is-active`
+    // печатает `activating` и выходит с ненулевым кодом — а это ровно тот
+    // случай, ради которого мы и ждём, вместо того чтобы просить прав.
+    match String::from_utf8_lossy(&output.stdout).trim() {
+        "active" | "activating" | "reloading" | "deactivating" => ServiceRegistration::Running,
+        "inactive" | "failed" => ServiceRegistration::Stopped,
+        _ => ServiceRegistration::Unknown,
     }
 }
 
@@ -525,8 +548,10 @@ pub fn service_registration() -> ServiceRegistration {
         .output()
     {
         Ok(output) if output.status.success() => ServiceRegistration::Running,
-        Ok(_) => ServiceRegistration::Stopped,
-        Err(_) => ServiceRegistration::Unknown,
+        // Ненулевой код — это не только «не работает»: чтение системного домена
+        // launchd обычному пользователю может быть просто не разрешено. Врать
+        // «остановлена» нельзя — на этом слове мы просим права.
+        _ => ServiceRegistration::Unknown,
     }
 }
 
@@ -749,7 +774,7 @@ impl ServiceManager {
     async fn run_operation(&self, operation: impl Future<Output = Result<()>>) -> Result<()> {
         {
             if self.operation_running.swap(true, Ordering::AcqRel) {
-                bail!("service operation already running");
+                return Err(ServiceBusy.into());
             }
             defer! {
                 self.operation_running.store(false, Ordering::Release);

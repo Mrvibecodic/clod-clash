@@ -22,10 +22,31 @@ const DAY = 24 * HOUR
 const MAX_SLEEP_MS = 60 * 60 * 1000
 const MAX_SLEEP_LAST_DAY_MS = 15 * 60 * 1000
 
-/** То, что увидит пользователь. Совпало — перерисовывать нечего. */
-const label = (expire: number, at: number) => {
+/**
+ * То, что увидит пользователь. Совпало — перерисовывать нечего.
+ *
+ * В последние сутки в подпись входит и календарный день устройства: карточка
+ * пишет не только «21 ч», но и «сегодня до 20:33». Без дня в подписи полночь не
+ * считалась бы сменой показанного, и «завтра» висело бы до ближайшей границы
+ * часа — до 59 минут вранья. Пока идут дни, день в подпись не входит: там на
+ * экране абсолютная дата, которой полночь безразлична.
+ */
+const label = (expire: number, at: number, skew: number) => {
   const left = Math.max(0, expire - at)
-  return left > DAY ? `d${Math.ceil(left / DAY)}` : `h${Math.ceil(left / HOUR)}`
+  if (left > DAY) return `d${Math.ceil(left / DAY)}`
+  // Последние сутки: кроме часов на экране есть ещё и день — «сегодня до 20:33»
+  // становится враньём в местную полночь, а не к границе часа. `at` идёт по
+  // часам панели, день пользователь читает по своим — снимаем поправку, теми же
+  // часами карточка показывает и само время истечения.
+  return `h${Math.ceil(left / HOUR)}@${new Date((at - skew) * 1000).toDateString()}`
+}
+
+/** Секунд до местной полуночи — там сменится «сегодня»/«завтра». */
+const untilLocalMidnight = () => {
+  const now = new Date()
+  const midnight = new Date(now)
+  midnight.setHours(24, 0, 0, 0)
+  return (midnight.getTime() - now.getTime()) / 1000
 }
 
 export interface ExpiryCountdown {
@@ -86,7 +107,7 @@ export const useExpiryCountdown = (
     const schedule = () => {
       const current = Date.now() / 1000 + skew
       setNow((previous) =>
-        !force && label(expire, previous) === label(expire, current)
+        !force && label(expire, previous, skew) === label(expire, current, skew)
           ? previous
           : current,
       )
@@ -97,10 +118,13 @@ export const useExpiryCountdown = (
 
       // До следующей границы: пока суток больше одних — до целой границы
       // суток (она же вход в часовой режим, когда сутки последние), дальше —
-      // до ближайшей целой границы часа. Секунда сверху, чтобы проснуться
-      // ПОСЛЕ границы, а не в неё саму.
+      // до ближайшей целой границы часа. В последние сутки к этому добавляется
+      // местная полночь: там «завтра до 20:33» становится «сегодня до 20:33».
+      // Секунда сверху, чтобы проснуться ПОСЛЕ границы, а не в неё саму.
       const lastDay = left <= DAY
-      const untilNextLabel = lastDay ? left % HOUR || HOUR : left % DAY || DAY
+      const untilNextLabel = lastDay
+        ? Math.min(left % HOUR || HOUR, untilLocalMidnight())
+        : left % DAY || DAY
       timer = window.setTimeout(
         schedule,
         Math.min(

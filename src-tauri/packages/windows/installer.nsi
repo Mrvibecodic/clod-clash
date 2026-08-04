@@ -636,28 +636,28 @@ FunctionEnd
 
   ${If} $0 == 0
     ; Registered already: the binary next to it has just been replaced, so all
-    ; that is left is to bring it back up if it is not running.
-    SimpleSC::ServiceIsRunning "clash_verge_service"
-    Pop $0 ; error code (<>0), otherwise success (0)
-    Pop $1 ; 1: running, 0: not running
-    ${If} $0 == 0
-      ${If} $1 == 0
-        DetailPrint "Starting ${PRODUCTNAME} Service..."
-        SimpleSC::StartService "clash_verge_service" "" 30
-        Pop $0
-        ${If} $0 != 0
-          DetailPrint "Could not start ${PRODUCTNAME} Service ($0); the app will offer to repair it"
-        ${EndIf}
-      ${EndIf}
-    ${Else}
-      DetailPrint "Could not read ${PRODUCTNAME} Service status ($0)"
+    ; that is left is to bring it back up.
+    ;
+    ; Started unconditionally on purpose. The process was killed a moment ago by
+    ; CheckAllVergeProcesses, but the SCM marks a service stopped on its own
+    ; schedule: asking "is it running?" first can catch a window where it still
+    ; answers "yes" and the service would be left dead after an update. Starting
+    ; an already-running service is harmless - it returns 1056.
+    DetailPrint "Starting ${PRODUCTNAME} Service..."
+    SimpleSC::StartService "clash_verge_service" "" 30
+    Pop $0 ; 0: started, 1056: already running, anything else: a real failure
+    ${If} $0 != 0
+    ${AndIf} $0 != 1056
+      DetailPrint "Could not start ${PRODUCTNAME} Service ($0); the app will offer to repair it"
     ${EndIf}
   ${Else}
     ; Not registered: install it now, while we are already elevated.
     ${If} ${FileExists} "$INSTDIR\resources\clash-verge-service-install.exe"
       DetailPrint "Installing ${PRODUCTNAME} Service..."
-      nsExec::ExecToLog '"$INSTDIR\resources\clash-verge-service-install.exe"'
-      Pop $0
+      ; With a timeout: an update runs this installer silently, and a service
+      ; installer that hangs would hang the whole update with nothing on screen.
+      nsExec::ExecToLog /TIMEOUT=60000 '"$INSTDIR\resources\clash-verge-service-install.exe"'
+      Pop $0 ; exit code, or "error" / "timeout"
       ${If} $0 != 0
         DetailPrint "Service installation failed ($0); the app will offer to install it later"
       ${EndIf}
@@ -667,41 +667,27 @@ FunctionEnd
   ${EndIf}
 !macroend
 
+; Failures are printed, never shown in a message box: this macro also runs on a
+; same-version passive reinstall, and NSIS shows a MessageBox even under /S - a
+; modal here would hang an unattended run with nothing to click it away.
 !macro RemoveVergeService
-  ; Check if the service exists
   SimpleSC::ExistsService "clash_verge_service"
-  Pop $0  ; 0: service exists; other: service not exists
-  ; Service exists
+  Pop $0  ; 0: service exists; other: service does not exist
+
   ${If} $0 == 0
-    Push $0
-    ; Check if the service is running
-    SimpleSC::ServiceIsRunning "clash_verge_service"
-    Pop $0 ; returns an errorcode (<>0) otherwise success (0)
-    Pop $1 ; returns 1 (service is running) - returns 0 (service is not running)
+    DetailPrint "Stopping ${PRODUCTNAME} Service..."
+    SimpleSC::StopService "clash_verge_service" 1 30
+    Pop $0 ; 0: stopped, 1062: was not running, anything else: a real failure
     ${If} $0 == 0
-      Push $0
-      ${If} $1 == 1
-        DetailPrint "Stop ${PRODUCTNAME} Service..."
-        SimpleSC::StopService "clash_verge_service" 1 30
-        Pop $0 ; returns an errorcode (<>0) otherwise success (0)
-        ${If} $0 == 0
-          DetailPrint "Removing ${PRODUCTNAME} Service..."
-          SimpleSC::RemoveService "clash_verge_service"
-        ${ElseIf} $0 != 0
-          Push $0
-          SimpleSC::GetErrorMessage
-          Pop $0
-          MessageBox MB_OK|MB_ICONSTOP "${PRODUCTNAME} Service Stop Error ($0)"
-        ${EndIf}
-      ${ElseIf} $1 == 0
-        DetailPrint "Removing ${PRODUCTNAME} Service..."
-        SimpleSC::RemoveService "clash_verge_service"
-      ${EndIf}
-    ${ElseIf} $0 != 0
-      Push $0
-      SimpleSC::GetErrorMessage
+    ${OrIf} $0 == 1062
+      DetailPrint "Removing ${PRODUCTNAME} Service..."
+      SimpleSC::RemoveService "clash_verge_service"
       Pop $0
-      MessageBox MB_OK|MB_ICONSTOP "Check Service Status Error ($0)"
+      ${If} $0 != 0
+        DetailPrint "Could not remove ${PRODUCTNAME} Service ($0)"
+      ${EndIf}
+    ${Else}
+      DetailPrint "Could not stop ${PRODUCTNAME} Service ($0); leaving it registered"
     ${EndIf}
   ${EndIf}
 !macroend

@@ -959,7 +959,8 @@ interface ITunState {
   active: boolean
   /** privileges are there: elevated app or a service that answers */
   capable: boolean
-  /** the automatic service setup was already attempted on this version */
+  /** the automatic service setup was already attempted on this version
+   *  - turned down, failed, or carried through */
   setup_declined: boolean
 }
 

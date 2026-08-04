@@ -16,7 +16,7 @@
 
 use std::{
     sync::atomic::{AtomicBool, Ordering},
-    time::Duration,
+    time::Instant,
 };
 
 use clash_verge_logging::{Type, logging};
@@ -27,7 +27,10 @@ use crate::{
     constants::timing,
     core::{
         handle::Handle,
-        service::{SERVICE_MANAGER, ServiceRegistration, ServiceStatus, is_service_available, service_registration},
+        service::{
+            SERVICE_MANAGER, ServiceBusy, ServiceRegistration, ServiceStatus, is_service_available,
+            service_registration,
+        },
     },
     process::AsyncHandler,
 };
@@ -152,12 +155,13 @@ pub fn spawn_start_verification() {
 /// Попытку автоматической настройки запоминаем вместе с версией приложения:
 /// после обновления имеет смысл попробовать ещё раз, до него — нет.
 ///
-/// Пишется не только при отказе в UAC, но и после «успешной» установки: на
-/// Windows установщик идемпотентен и возвращает 0, даже когда служба уже
-/// зарегистрирована. Без этой отметки приложение, у которого служба почему-то
-/// так и не отвечает, ставило бы её заново при КАЖДОМ запуске — с запросом
-/// прав каждый раз. Явные действия пользователя (тумблер TUN, кнопка ремонта)
-/// отметку снимают: он попросил — значит пробуем.
+/// Пишется после ЛЮБОЙ попытки, потребовавшей прав, — и удачной тоже. Слову
+/// установщика тут верить нельзя: на Windows он возвращает 0, даже когда служба
+/// уже была зарегистрирована и отвечать так и не начала. Отметку снимает только
+/// следующий запуск, увидевший живую службу (`ensure_ready`), — то есть служба
+/// должна пережить перезапуск, чтобы получить право на новую попытку. Явные
+/// действия пользователя (тумблер TUN, кнопка ремонта) снимают её сразу: он
+/// попросил — значит пробуем.
 async fn record_setup_attempt() {
     let version = env!("CARGO_PKG_VERSION");
     let verge = Config::verge().await;
@@ -182,7 +186,8 @@ pub async fn setup_declined_for_this_version() -> bool {
         .is_some_and(|declined_at| declined_at == env!("CARGO_PKG_VERSION"))
 }
 
-/// Забыть прошлую попытку: пользователь сам попросил TUN, значит пробуем снова.
+/// Забыть прошлую попытку: либо служба доказала, что жива, либо пользователь
+/// сам попросил TUN — в обоих случаях пробовать снова можно.
 pub async fn clear_setup_declined() {
     if Config::verge().await.latest_arc().tun_setup_declined.is_none() {
         return;
@@ -195,6 +200,21 @@ pub async fn clear_setup_declined() {
     let data = Config::verge().await.latest_arc();
     if let Err(e) = data.save_file().await {
         logging!(warn, Type::Core, "failed to clear the TUN setup decline: {}", e);
+    }
+    Handle::refresh_verge();
+}
+
+/// Служба отвечает на автоматическом проходе — значит прошлая попытка своё дело
+/// сделала и пережила перезапуск приложения. Отметку можно снять: если служба
+/// когда-нибудь отвалится на этой же версии, помочь можно будет ещё раз.
+///
+/// Только на автоматическом: `ensure_ready(true)` зовут тумблер TUN и трей, в
+/// том числе через минуту после установки. Снимать отметку там значило бы
+/// поверить установщику на слово в том же запуске — и машина, где служба не
+/// переживает перезагрузку, снова получала бы запрос прав на каждом старте.
+async fn proven_alive_at_startup(user_initiated: bool) {
+    if !user_initiated {
+        clear_setup_declined().await;
     }
 }
 
@@ -219,6 +239,7 @@ pub enum SetupOutcome {
 pub async fn ensure_ready(user_initiated: bool) -> SetupOutcome {
     if is_capable().await {
         clear_suppression();
+        proven_alive_at_startup(user_initiated).await;
         return SetupOutcome::AlreadyReady;
     }
 
@@ -227,6 +248,7 @@ pub async fn ensure_ready(user_initiated: bool) -> SetupOutcome {
     // просить прав, — но только если она вообще зарегистрирована.
     if wait_until_capable(true).await {
         clear_suppression();
+        proven_alive_at_startup(user_initiated).await;
         // Ядро уже могло подняться как sidecar, пока службы не было.
         crate::core::CoreManager::global().handoff_to_service_if_needed().await;
         return SetupOutcome::AlreadyReady;
@@ -257,15 +279,22 @@ pub async fn ensure_ready(user_initiated: bool) -> SetupOutcome {
         "preparing the background service for TUN: {:?}",
         action
     );
+    // Ждём, пока менеджер освободится: ожидание службы и хэндофф зовут
+    // `refresh()` в фоне, и налететь на занятую операцию легко.
+    let _ = SERVICE_MANAGER.current().await;
     Handle::notice_message("tun::setup_started", "");
 
     let result = SERVICE_MANAGER.handle_service_status(action).await;
 
-    // Верим не слову установщика, а факту. На Windows установщик идемпотентен и
-    // возвращает 0, даже когда служба уже была и отвечать так и не начала:
-    // «успех» без работающего IPC — это провал, и именно он раньше приводил к
-    // установке по кругу на каждом запуске.
     if let Err(e) = result {
+        // Занятый менеджер — не провал: ожидание службы и хэндофф зовут
+        // `refresh()` в фоне, и попасть в это окно легко. Записать здесь
+        // попытку значило бы выключить автонастройку до конца версии, ни разу
+        // не показав пользователю запрос прав.
+        if e.downcast_ref::<ServiceBusy>().is_some() {
+            logging!(info, Type::Service, "the service manager is busy; leaving it be");
+            return SetupOutcome::Declined;
+        }
         let detail = format!("{e}");
         logging!(warn, Type::Service, "background service setup failed: {}", detail);
         record_setup_attempt().await;
@@ -273,22 +302,25 @@ pub async fn ensure_ready(user_initiated: bool) -> SetupOutcome {
         return SetupOutcome::Failed;
     }
 
+    // Права спрошены — попытка засчитана в любом случае. Снимет отметку только
+    // следующий запуск, увидевший живую службу (см. начало функции).
+    record_setup_attempt().await;
+
+    // Верим не слову установщика, а факту. На Windows установщик идемпотентен и
+    // возвращает 0, даже когда служба уже была и отвечать так и не начала:
+    // «успех» без работающего IPC — это провал, и именно он раньше приводил к
+    // установке по кругу на каждом запуске.
     if !wait_until_capable(false).await {
         logging!(
             warn,
             Type::Service,
             "the service setup reported success, but the service still does not answer"
         );
-        record_setup_attempt().await;
         Handle::notice_message("tun::setup_failed", "service is silent after setup".to_owned());
         return SetupOutcome::Failed;
     }
 
     clear_suppression();
-    // Сработало — отметку о попытке снимаем: если служба когда-нибудь отвалится
-    // на этой же версии, помочь можно будет ещё раз. Зацикливания это не даёт:
-    // отметка снимается ТОЛЬКО когда служба реально отвечает.
-    clear_setup_declined().await;
     logging!(info, Type::Service, "background service is up");
     Handle::notice_message("tun::setup_done", "");
     Handle::refresh_verge();
@@ -338,21 +370,26 @@ const fn action_for(registration: ServiceRegistration, needs_repair: bool) -> Se
 /// опросу верить рано: она успевает отчитаться раньше, чем система пометит её
 /// работающей, — там ждём всё окно целиком.
 async fn wait_until_capable(trust_registration: bool) -> bool {
-    let mut waited = Duration::ZERO;
+    // Срок считаем по часам, а не сложением пауз: каждый круг ещё и опрашивает
+    // IPC (у него свои ретраи) и спрашивает систему, так что сумма пауз врёт в
+    // меньшую сторону, а ждёт приложение при этом дольше обещанного.
+    let deadline = Instant::now() + timing::TUN_SERVICE_APPEAR_WAIT;
     loop {
         if is_capable().await {
             return true;
         }
-        let pointless = trust_registration
-            && (matches!(
-                service_registration(),
-                ServiceRegistration::Missing | ServiceRegistration::Stopped
-            ) || service_needs_repair().await);
-        if pointless || waited >= timing::TUN_SERVICE_APPEAR_WAIT {
+        let registration = service_registration();
+        // Ждать имеет смысл только то, что вот-вот поднимется само. Службы нет —
+        // не поднимется никогда, и это верно даже сразу после установки (пути,
+        // по которым это определяется, взяты из самого установщика службы —
+        // см. `service_registration`).
+        let pointless = matches!(registration, ServiceRegistration::Missing)
+            || (trust_registration
+                && (matches!(registration, ServiceRegistration::Stopped) || service_needs_repair().await));
+        if pointless || Instant::now() >= deadline {
             return false;
         }
         tokio::time::sleep(timing::TUN_SERVICE_APPEAR_INTERVAL).await;
-        waited += timing::TUN_SERVICE_APPEAR_INTERVAL;
     }
 }
 

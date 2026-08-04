@@ -40,7 +40,7 @@ export const useTunState = () => {
     tunActive: tun.active,
     /** Прав хватает: служба отвечает или приложение привилегировано. */
     tunCapable: tun.capable,
-    /** Автоустановку службы уже отклоняли на этой версии. */
+    /** Автонастройку службы на этой версии уже пробовали. */
     tunSetupDeclined: tun.setup_declined,
     /** Хотели, но не работает — это и есть повод показать подсказку. */
     tunBroken: tun.desired && !tun.active,
