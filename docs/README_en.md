@@ -46,6 +46,10 @@ editors) is kept — it is simply moved out of sight into an advanced mode.
   colour, an expiring one is amber, an expired one is dimmed and underlined in red, and exhausted
   traffic is its own state.
 * **Unmetered traffic and no expiry** are spelled out instead of showing "0 B" and a dash.
+* **The expiry is counted on the panel's clock**, not only on the device's: the difference is
+  read from the ordinary `Date` header on every subscription refresh, so a machine whose
+  clock is off does not get a wrong countdown or wrong reminders — and it works offline. The
+  last day is counted in hours.
 * **Traffic used between subscription refreshes** is counted locally and marked as an estimate; how
   often the core is polled follows the subscription's own refresh interval.
 * **TUN sets itself up**: the helper service is installed on first launch with a single elevation

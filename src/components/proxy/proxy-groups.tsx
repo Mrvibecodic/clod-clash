@@ -21,6 +21,7 @@ import {
 } from '@/components/base'
 import { useProxySelection } from '@/hooks/use-proxy-selection'
 import { useVerge } from '@/hooks/use-verge'
+import { useVisibility } from '@/hooks/use-visibility'
 import { useProxiesData } from '@/providers/app-data-context'
 import { calcuProxies } from '@/services/cmds'
 import delayManager from '@/services/delay'
@@ -610,15 +611,33 @@ export const ProxyGroups = (props: Props) => {
   const { mode, isChainMode = false, chainConfigData } = props
 
   // Drive 3s polling on the shared TQ cache; data is read via granular context below
-  useQuery({
+  //
+  // clod: опрос привязан к видимости окна, а не к
+  // `refetchIntervalInBackground`: тот смотрит на `document.hidden`, а окно
+  // уезжает в трей целиком — документ при этом считает себя видимым, и список
+  // серверов продолжал бы дёргать ядро каждые три секунды в пустоту.
+  const pageVisible = useVisibility()
+  const { refetch } = useQuery({
     queryKey: ['getProxies'],
     queryFn: calcuProxies,
-    refetchInterval: 3000,
+    refetchInterval: pageVisible ? 3000 : false,
     refetchIntervalInBackground: false,
     staleTime: 1500,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   })
+
+  // Вернулись из трея — спрашиваем сразу, а не ждём первого тика возобновлённого
+  // опроса: иначе задержки на экране до трёх секунд остаются от прошлого показа.
+  // Через ref: `refetch` — новая функция на каждый рендер, и в зависимостях
+  // эффекта она превратила бы «спросить один раз» в опрос без остановки.
+  const refetchRef = useRef(refetch)
+  useEffect(() => {
+    refetchRef.current = refetch
+  })
+  useEffect(() => {
+    if (pageVisible) void refetchRef.current()
+  }, [pageVisible])
 
   if (mode === 'direct') {
     return <BaseEmpty textKey="proxies.page.messages.directMode" />

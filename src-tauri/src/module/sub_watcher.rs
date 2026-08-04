@@ -2,7 +2,8 @@
 //!
 //! The key requirement: notifications do NOT depend on subscription
 //! refreshes. `expire` is an absolute timestamp known in advance, so the
-//! expiry side works entirely offline off the local clock; the traffic side
+//! expiry side works entirely offline off the local clock, corrected by the
+//! panel-vs-device offset measured at the last fetch; the traffic side
 //! prefers a lightweight `GET {url}/info` (Remnawave) and falls back to the
 //! last known counters when the network is away.
 //!
@@ -297,7 +298,10 @@ pub async fn run_check() {
         notified: item.notified.clone().unwrap_or_default(),
     };
 
-    let outcome = evaluate(&snap, now_unix_secs());
+    // The same correction the card applies: reminders are counted against the
+    // panel's clock when we know it, so "3 days left" does not arrive a day
+    // early on a device whose clock is off.
+    let outcome = evaluate(&snap, now_unix_secs() + item.panel_clock_skew());
 
     for alert in &outcome.alerts {
         logging!(info, Type::System, "subscription alert: {alert:?}");

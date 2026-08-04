@@ -240,3 +240,57 @@ async fn removed_panel_headers_clear_stored_values() {
     assert_eq!(stored.topup_url, None);
     assert_eq!(stored.lock_mode, None);
 }
+
+/// The one field deliberately NOT replaced: the panel-vs-device clock offset is
+/// a measurement, not a provider setting. An answer that arrived without a
+/// `Date` header says nothing about the device clock, so the last real reading
+/// has to survive it — otherwise a single such answer would silently throw the
+/// countdown back onto an unchecked clock.
+#[test]
+fn a_date_less_answer_keeps_the_last_clock_reading() {
+    let measured = PrfItem {
+        clock_skew: Some(-4_000),
+        ..PrfItem::default()
+    };
+    let mut stored = PrfItem::default();
+    stored.merge_panel_meta(&measured);
+    assert_eq!(stored.clock_skew, Some(-4_000));
+
+    // No `Date` in this answer: keep what we had.
+    stored.merge_panel_meta(&PrfItem::default());
+    assert_eq!(stored.clock_skew, Some(-4_000));
+
+    // A fresh reading replaces the old one.
+    stored.merge_panel_meta(&PrfItem {
+        clock_skew: Some(7),
+        ..PrfItem::default()
+    });
+    assert_eq!(stored.clock_skew, Some(7));
+}
+
+/// Ageing rule: a reading is applied while it is fresh and ignored once the
+/// user has had a month to move the clock under it.
+#[test]
+fn a_stale_clock_reading_is_not_applied() {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or_default();
+
+    let fresh = PrfItem {
+        clock_skew: Some(900),
+        updated: Some((now - 3_600) as usize),
+        ..PrfItem::default()
+    };
+    assert_eq!(fresh.panel_clock_skew(), 900);
+
+    let stale = PrfItem {
+        clock_skew: Some(900),
+        updated: Some((now - 31 * 24 * 60 * 60) as usize),
+        ..PrfItem::default()
+    };
+    assert_eq!(stale.panel_clock_skew(), 0);
+
+    // Never measured at all.
+    assert_eq!(PrfItem::default().panel_clock_skew(), 0);
+}

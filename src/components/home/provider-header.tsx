@@ -14,7 +14,7 @@ import useSWR from 'swr'
 import { useProfiles } from '@/hooks/use-profiles'
 import { getProfileLogo, updateProfile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
-import { toUnixSeconds } from '@/utils/subscription-status'
+import { panelNow, toUnixSeconds } from '@/utils/subscription-status'
 
 interface Props {
   profile: IProfileItem
@@ -61,9 +61,11 @@ export const ProviderHeader = ({ profile }: Props) => {
   // хотели избежать. URL остаётся фолбэком только когда кэша нет совсем.
   const logo = logoLoading ? undefined : (cachedLogo ?? profile.logo)
 
-  const [now] = useState(() => Date.now())
+  // clod: сверяемся с часами панели, а не устройства — иначе шапка и карточка
+  // подписки под ней отвечают на один вопрос по-разному; см. `clockSkew`.
+  const [now] = useState(() => panelNow(profile))
   const expired =
-    !!profile.extra?.expire && toUnixSeconds(profile.extra.expire) * 1000 < now
+    !!profile.extra?.expire && toUnixSeconds(profile.extra.expire) < now
 
   return (
     <Stack direction="row" sx={{ alignItems: 'center', gap: 1.5 }}>

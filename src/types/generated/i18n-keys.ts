@@ -153,6 +153,7 @@ export const translationKeys = [
   'home.components.subscription.expiredShort',
   'home.components.subscription.untilTime',
   'home.components.subscription.expiryApproximate',
+  'home.components.subscription.expiryClockOff',
   'home.components.subscription.approximate.hint',
   'home.components.subscription.approximate.since',
   'home.components.subscription.approximate.refresh',

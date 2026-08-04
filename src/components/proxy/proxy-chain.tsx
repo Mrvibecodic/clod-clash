@@ -42,6 +42,7 @@ import {
 } from 'tauri-plugin-mihomo-api'
 
 import { TooltipIcon } from '@/components/base'
+import { useVisibility } from '@/hooks/use-visibility'
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
 import { updateProxyChainConfigInRuntime } from '@/services/cmds'
 import { debugLog } from '@/utils/debug'
@@ -254,6 +255,7 @@ export const ProxyChain = ({
   const chainWarning = t('proxies.page.chain.warning')
   const { proxies } = useProxiesData()
   const { refreshProxy } = useAppRefreshers()
+  const pageVisible = useVisibility()
   const [isConnecting, setIsConnecting] = useState(false)
   const markUnsavedChanges = useCallback(() => {
     onMarkUnsavedChanges?.()
@@ -476,11 +478,15 @@ export const ProxyChain = ({
     // Сразу обновляем задержку один раз
     updateDelays()
 
+    // clod: за окном в трее задержки перебирать некому — таймер там не нужен.
+    // Показали окно снова — сработает проход выше, и цифры сойдутся сразу.
+    if (!pageVisible) return
+
     // Устанавливаем таймер, обновляем задержку раз в 5 секунд
     const interval = setInterval(updateDelays, 5000)
 
     return () => clearInterval(interval)
-  }, [proxies?.records]) // Зависим только от proxies.records
+  }, [proxies?.records, pageVisible]) // Зависим только от proxies.records
 
   return (
     <Paper

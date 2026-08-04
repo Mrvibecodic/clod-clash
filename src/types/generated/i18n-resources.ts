@@ -190,6 +190,7 @@ export interface TranslationResources {
           expiredShort: string
           expires: string
           expiryApproximate: string
+          expiryClockOff: string
           expiryTitle: string
           hoursShort: string
           refill: string

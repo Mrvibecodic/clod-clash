@@ -36,6 +36,7 @@ default). Turning it off stops all of them.
 | `subscription-userinfo` | `upload`, `download`, `total`, `expire` | traffic and expiry on the subscription card. `total=0` → "Unlimited", `expire=0` → "No expiry". Between refreshes the app adds up proxied traffic on its own and marks the sum as approximate (`≈` plus a warning triangle); the panel's own number stays the only input for "traffic exhausted", critical states and the renew buttons |
 | `subscription-refill-date` | unix time of the traffic reset | "Traffic resets on {date}" |
 | `profile-update-interval` | refresh interval in hours | sets the interval and marks it as dictated by the provider, so the user cannot override it |
+| `Date` | the panel's clock (an ordinary HTTP header) | compared with the device clock on every subscription update; the difference is stored and applied to the countdown and to the reminders, so a device with a wrong clock does not count the remaining time wrong. Nothing to configure — every server sends it. A measurement older than a month is dropped |
 | `content-disposition` | file name | fallback source for the profile name when `profile-title` is absent |
 
 **Contacting the provider**

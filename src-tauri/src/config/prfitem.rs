@@ -121,6 +121,17 @@ pub struct PrfItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub refill_date: Option<i64>,
 
+    /// How far this device's clock is from the panel's, in seconds
+    /// (`panel - device`), taken from the `Date` header of the last successful
+    /// fetch.
+    ///
+    /// The deadline is an absolute moment, so a device whose clock is a day
+    /// out counts the remaining time a day wrong — and offline there is
+    /// nothing to notice it against. `None` means no panel clock was ever
+    /// seen and the device clock is all we have.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub clock_skew: Option<i64>,
+
     /// The update interval was dictated by the provider, so the UI locks it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub interval_locked: Option<bool>,
@@ -480,6 +491,11 @@ impl PrfItem {
             }
         };
 
+        // clod: часы устройства снимаются вплотную к ответу — до чтения тела,
+        // разбора YAML и записи файлов. Всё это заняло бы полсекунды-другую и
+        // легло бы в измеренный сдвиг как отставание панели.
+        let answered_at = chrono::Local::now().timestamp();
+
         // clod:headers begin
         // Parsed before the status check: a device-limit response carries a stub
         // body (and sometimes a non-2xx status) but still tells us what happened.
@@ -661,6 +677,7 @@ impl PrfItem {
             topup_url: sub.topup_url.clone(),
             lock_mode: sub.lock_mode,
             refill_date: sub.refill_date,
+            clock_skew: sub.server_time.map(|panel| panel - answered_at),
             interval_locked,
             fallback_url: sub.fallback_url.clone(),
             fallback_domain: sub.fallback_domain.clone(),
@@ -834,6 +851,12 @@ impl PrfItem {
         self.fallback_url = fresh.fallback_url.clone();
         self.fallback_domain = fresh.fallback_domain.clone();
         self.hwid_state = fresh.hwid_state.clone();
+        // The exception to "replace, do not merge": this is a measurement, not
+        // a provider setting. A response that arrived without a `Date` says
+        // nothing about the device clock, so the last real reading stands.
+        if fresh.clock_skew.is_some() {
+            self.clock_skew = fresh.clock_skew;
+        }
         self.notify_expire_days = fresh.notify_expire_days.clone();
         self.notify_traffic_percent = fresh.notify_traffic_percent.clone();
         self.from_fallback = fresh.from_fallback;
@@ -863,6 +886,28 @@ impl PrfItem {
 
         // `previous_urls` and `notified` are owned locally and never come from
         // the panel; `url` migration is applied by `feat::profile`.
+    }
+
+    /// Seconds to add to this device's clock to get the panel's, or 0 when we
+    /// have no usable measurement.
+    ///
+    /// A measurement older than a month is dropped rather than trusted: the
+    /// risk is not crystal drift (seconds a month) but the user fixing the
+    /// clock, or time synchronisation doing it after a boot — the moment that
+    /// happens a stored offset turns into an error of exactly its own size.
+    pub fn panel_clock_skew(&self) -> i64 {
+        const MAX_AGE_SECS: i64 = 30 * 24 * 60 * 60;
+
+        let Some(skew) = self.clock_skew else {
+            return 0;
+        };
+        let measured_at = self.updated.unwrap_or(0) as i64;
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
+
+        if now - measured_at > MAX_AGE_SECS { 0 } else { skew }
     }
 
     /// Whether the stored promo still needs to be shown.

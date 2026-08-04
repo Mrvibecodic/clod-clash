@@ -149,6 +149,13 @@ pub struct SubHeaders {
     /// `clod-lock-mode` — the panel forbids changing proxy/routing modes in
     /// the app. `global-mode: false` (Prizrak-Box) is honoured as a synonym.
     pub lock_mode: Option<bool>,
+    /// `Date` — the panel's own clock at the moment it answered, unix seconds.
+    ///
+    /// Plain HTTP, sent by every server that has a clock, so it costs neither a
+    /// request nor a header agreement with the provider. Compared with the
+    /// device clock at the same moment it says how far the device is off; see
+    /// [`crate::config::prfitem::PrfItem::clock_skew`].
+    pub server_time: Option<i64>,
 }
 
 impl SubHeaders {
@@ -213,8 +220,40 @@ impl SubHeaders {
             // configured panels, which is exactly our lock.
             lock_mode: bool_value(headers, "clod-lock-mode")
                 .or_else(|| bool_value(headers, "global-mode").map(|allowed| !allowed)),
+            // Straight `get`: `Date` is a standard header, so neither the
+            // suffix lookup nor the base64 decoding above applies to it.
+            server_time: headers
+                .get(reqwest::header::DATE)
+                .and_then(|raw| raw.to_str().ok())
+                .and_then(http_date_secs),
         }
     }
+}
+
+/// Unix seconds from an HTTP-date (RFC 9110 §5.6.7).
+///
+/// Servers send the IMF-fixdate form (`Tue, 04 Aug 2026 17:24:33 GMT`), which
+/// is parsed explicitly; the RFC 2822 pass after it covers the numeric-offset
+/// spelling some proxies produce. The two obsolete formats the RFC still
+/// requires readers to accept come last.
+///
+/// A value outside 2020…2100 is dropped: a header that far off is a broken
+/// clock or a mangled proxy value, and correcting a countdown by it would be
+/// worse than not correcting it at all.
+fn http_date_secs(raw: &str) -> Option<i64> {
+    const MIN: i64 = 1_577_836_800; // 2020-01-01
+    const MAX: i64 = 4_102_444_800; // 2100-01-01
+
+    let raw = raw.trim();
+    let naive = |fmt: &str| chrono::NaiveDateTime::parse_from_str(raw, fmt).map(|dt| dt.and_utc().timestamp());
+
+    let secs = naive("%a, %d %b %Y %H:%M:%S GMT")
+        .or_else(|_| chrono::DateTime::parse_from_rfc2822(raw).map(|dt| dt.timestamp()))
+        .or_else(|_| naive("%A, %d-%b-%y %H:%M:%S GMT"))
+        .or_else(|_| naive("%a %b %e %H:%M:%S %Y"))
+        .ok()?;
+
+    (MIN..MAX).contains(&secs).then_some(secs)
 }
 
 impl SubHeaders {
@@ -1006,5 +1045,30 @@ mod tests {
             validate_new_url("https://old.example/sub", "https://old.example/sub"),
             None
         );
+    }
+
+    #[test]
+    fn reads_the_panel_clock_from_the_date_header() {
+        // IMF-fixdate: what every panel actually sends.
+        assert_eq!(
+            SubHeaders::parse(&headers(&[("date", "Tue, 04 Aug 2026 17:24:33 GMT")])).server_time,
+            Some(1_785_864_273)
+        );
+        // Numeric offset, produced by some proxies in front of the panel.
+        assert_eq!(
+            SubHeaders::parse(&headers(&[("date", "Tue, 04 Aug 2026 20:24:33 +0300")])).server_time,
+            Some(1_785_864_273)
+        );
+        // Obsolete formats readers must still accept.
+        assert_eq!(
+            super::http_date_secs("Tuesday, 04-Aug-26 17:24:33 GMT"),
+            Some(1_785_864_273)
+        );
+        assert_eq!(super::http_date_secs("Tue Aug  4 17:24:33 2026"), Some(1_785_864_273));
+        // Rubbish, and a clock so far off that correcting by it would be worse
+        // than leaving the device clock alone.
+        assert_eq!(super::http_date_secs("not a date"), None);
+        assert_eq!(super::http_date_secs("Thu, 01 Jan 1970 00:00:00 GMT"), None);
+        assert_eq!(SubHeaders::parse(&headers(&[])).server_time, None);
     }
 }

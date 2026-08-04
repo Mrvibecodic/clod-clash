@@ -53,6 +53,7 @@ import { useLoadingCache, useSetLoadingCache } from '@/services/states'
 import type { TranslationKey } from '@/types/generated/i18n-keys'
 import { debugLog } from '@/utils/debug'
 import parseTraffic from '@/utils/parse-traffic'
+import { clockSkew, toUnixSeconds } from '@/utils/subscription-status'
 
 import { ProfileBox } from './profile-box'
 import { ProxiesEditorViewer } from './proxies-editor-viewer'
@@ -280,18 +281,25 @@ const ProfileItemBase = (props: ProfileItemProps) => {
   const unlimitedTraffic = total === 0
   const neverExpires = !extra?.expire
   // clod: срок с остатком дней — как в карточке подписки на главной. Часы
-  // читаем раз на маунт: чистота рендера важнее секундной точности.
+  // читаем раз на маунт: чистота рендера важнее секундной точности. Поправку
+  // до часов панели берём ту же, что и там: иначе устройство с ушедшими часами
+  // гасит карточку как истёкшую на сутки раньше срока.
+  const expireSeconds = toUnixSeconds(extra?.expire ?? 0)
+  const skew = clockSkew(itemData) ?? 0
   const daysLeft = neverExpires
     ? undefined
-    : Math.max(0, Math.ceil(((extra?.expire ?? 0) - mountedAt / 1000) / 86400))
+    : Math.max(
+        0,
+        Math.ceil((expireSeconds - (mountedAt / 1000 + skew)) / 86400),
+      )
   const expire = neverExpires
     ? t('profiles.components.profileItem.labels.neverExpires')
     : daysLeft !== undefined
       ? t('profiles.components.profileItem.labels.expiresIn', {
           count: daysLeft,
-          date: parseExpire(extra?.expire),
+          date: parseExpire(expireSeconds - skew),
         })
-      : parseExpire(extra?.expire)
+      : parseExpire(expireSeconds - skew)
   const refillDate = itemData.refill_date
     ? parseExpire(itemData.refill_date)
     : undefined

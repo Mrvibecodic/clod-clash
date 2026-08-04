@@ -18,11 +18,41 @@ export type NoServersReason = 'expired' | 'traffic' | 'provider'
 export const toUnixSeconds = (ts: number) =>
   ts > 1e12 ? Math.round(ts / 1000) : ts
 
+/**
+ * clod: поправка к часам устройства до времени панели, в секундах.
+ * `undefined` — часов панели мы не знаем и считаем по своим.
+ *
+ * Значение снято из заголовка `Date` при обновлении подписки
+ * (`PrfItem::clock_skew`) и лежит в профиле, поэтому поправка работает и
+ * офлайн. Но только пока она свежая: часы устройства пользователь может
+ * поправить руками, да и синхронизация времени после загрузки делает то же
+ * самое — и тогда старая поправка сама станет ошибкой ровно того же размера.
+ * Кварц за месяц уходит на секунды, так что рискуем мы не дрейфом, а
+ * переводом часов: измерение старше месяца не применяем и честно говорим, что
+ * считаем по устройству.
+ */
+const SKEW_MAX_AGE_SECONDS = 30 * 24 * 60 * 60
+
+export const clockSkew = (profile?: IProfileItem): number | undefined => {
+  const skew = profile?.clock_skew
+  if (skew === undefined) return undefined
+
+  const age = Date.now() / 1000 - (profile?.updated ?? 0)
+  return age > SKEW_MAX_AGE_SECONDS ? undefined : skew
+}
+
+/** Сейчас по часам панели, в unix-секундах. */
+export const panelNow = (profile?: IProfileItem) =>
+  Date.now() / 1000 + (clockSkew(profile) ?? 0)
+
 export const noServersReason = (profile?: IProfileItem): NoServersReason => {
   const extra = profile?.extra
   if (extra) {
     const expire = toUnixSeconds(extra.expire ?? 0)
-    if (expire > 0 && expire * 1000 <= Date.now()) return 'expired'
+    // Срок — абсолютный момент, поэтому сверяем его с часами панели: иначе
+    // экран «нет серверов» и карточка подписки ответят на один и тот же
+    // вопрос по-разному.
+    if (expire > 0 && expire <= panelNow(profile)) return 'expired'
 
     const total = extra.total ?? 0
     const used = (extra.upload ?? 0) + (extra.download ?? 0)

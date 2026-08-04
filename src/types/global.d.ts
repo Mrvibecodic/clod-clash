@@ -300,6 +300,12 @@ interface IProfileItem {
   lock_mode?: boolean
   /** `subscription-refill-date` header, unix seconds */
   refill_date?: number
+  /**
+   * How far the device clock is from the panel's, in seconds
+   * (`panel - device`), taken from the `Date` header of the last successful
+   * fetch. Absent when no panel clock was ever seen.
+   */
+  clock_skew?: number
   /** the provider dictated the update interval, so the field is read-only */
   interval_locked?: boolean
   /** `fallback-url` header — full spare address */

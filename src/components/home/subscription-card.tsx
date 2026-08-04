@@ -23,7 +23,7 @@ import { useTrafficEstimate } from '@/hooks/use-traffic-estimate'
 import { openWebUrl } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import parseTraffic from '@/utils/parse-traffic'
-import { toUnixSeconds } from '@/utils/subscription-status'
+import { clockSkew, toUnixSeconds } from '@/utils/subscription-status'
 
 /** Colour of the traffic bar: green, then amber, then red as the quota runs out. */
 const trafficColor = (usedPercent: number) => {
@@ -59,12 +59,14 @@ export const SubscriptionCard = ({ profile }: Props) => {
   // Пороги `critical`, «трафик закончился» и кнопки продления ниже считаются
   // строго по данным подписки, иначе клиент соврёт при живых серверах.
   const { estimate, refreshing, refresh } = useTrafficEstimate(profile)
-  // clod: срок считается по системным часам клиента и потому работает офлайн;
-  // подробности и цена вопроса — в `use-expiry-countdown.ts`.
+  // clod: срок считается на клиенте и потому работает офлайн; часы устройства
+  // при этом сдвинуты на разницу с часами панели, снятую при последнем
+  // обновлении подписки. Подробности — в `use-expiry-countdown.ts`.
   // Some panels emit milliseconds where unix seconds are expected; a timestamp
   // past ~33658 AD in seconds can only be milliseconds.
   const expire = toUnixSeconds(profile.extra?.expire ?? 0)
-  const countdown = useExpiryCountdown(expire)
+  const skew = clockSkew(profile)
+  const countdown = useExpiryCountdown(expire, skew ?? 0)
 
   const openLink = useCallback(async (url?: string) => {
     if (!url) return
@@ -93,13 +95,21 @@ export const SubscriptionCard = ({ profile }: Props) => {
       usedPercent,
       // В часовом режиме показываем время, а не дату: «до 03.02.2027» рядом с
       // «4 ч» ничего не добавляет, а «до 21:40» отвечает на сам вопрос.
+      //
+      // Момент истечения переводим в часы устройства (`- skew`), а не в
+      // абсолютное время: иначе на одной плитке «4 ч» считалось бы по часам
+      // панели, а «до 21:40» читалось бы по часам пользователя, и два числа
+      // расходились бы ровно на поправку. Что часы разошлись, говорит значок
+      // рядом с числом.
       expireDate: forever
         ? undefined
-        : dayjs(expire * 1000).format('DD.MM.YYYY'),
-      expireTime: forever ? undefined : dayjs(expire * 1000).format('HH:mm'),
+        : dayjs((expire - (skew ?? 0)) * 1000).format('DD.MM.YYYY'),
+      expireTime: forever
+        ? undefined
+        : dayjs((expire - (skew ?? 0)) * 1000).format('HH:mm'),
       total: extra.total,
     }
-  }, [profile.extra, expire])
+  }, [profile.extra, expire, skew])
 
   // Nothing to report: an unlimited, never expiring plan hides the block
   // instead of showing a full bar that means nothing.
@@ -107,11 +117,15 @@ export const SubscriptionCard = ({ profile }: Props) => {
 
   const showRenew = Boolean(profile.renew_url)
   const showTopup = Boolean(profile.topup_url)
-  // clod: часы вместо дней — только последние сутки. Пометка «примерно» висит
-  // именно там: день округляется честно в любом случае, а час зависит от
-  // системных часов, которые пользователь мог перевести.
+  // clod: часы вместо дней — только последние сутки. Оговорка про часы висит
+  // именно там: день округляется честно в любом случае.
   const hourly = !info.forever && countdown.hoursLeft !== undefined
   const expired = !info.forever && countdown.secondsLeft <= 0
+  // Часы устройства сверены с панелью — говорить, что «считаем по вашим
+  // часам», больше нечего. Расхождение крупнее пяти минут пользователь увидит
+  // сам: «до 21:40» под числом — это время панели, а не то, что на его часах.
+  const clockOff = skew !== undefined && Math.abs(skew) > 5 * 60
+  const clockCaveat = skew === undefined || clockOff
   const expiryCritical =
     !info.forever && countdown.secondsLeft <= CRITICAL_DAYS * DAY
   const critical =
@@ -263,11 +277,16 @@ export const SubscriptionCard = ({ profile }: Props) => {
                         count: countdown.daysLeft,
                       })}
               </Typography>
-              {/* Часы клиент считает сам, по системному времени — про это надо
-                  сказать теми же словами и тем же значком, что и про трафик. */}
-              {hourly && !expired ? (
+              {/* Часы клиент считает сам — про это надо сказать теми же
+                  словами и тем же значком, что и про трафик. Если часы
+                  устройства сверены с панелью и сходятся, говорить нечего. */}
+              {hourly && !expired && clockCaveat ? (
                 <Tooltip
-                  title={t('home.components.subscription.expiryApproximate')}
+                  title={t(
+                    clockOff
+                      ? 'home.components.subscription.expiryClockOff'
+                      : 'home.components.subscription.expiryApproximate',
+                  )}
                 >
                   <WarningAmberRoundedIcon
                     sx={{ fontSize: 16, color: 'warning.main', flex: 'none' }}
