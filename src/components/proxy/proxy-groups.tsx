@@ -637,10 +637,10 @@ export const ProxyGroups = (props: Props) => {
   useEffect(() => {
     refetchRef.current = refetch
   })
-  const wasVisible = useRef(pageVisible)
+  const wasVisibleRef = useRef(pageVisible)
   useEffect(() => {
-    const returned = pageVisible && !wasVisible.current
-    wasVisible.current = pageVisible
+    const returned = pageVisible && !wasVisibleRef.current
+    wasVisibleRef.current = pageVisible
     if (returned) void refetchRef.current()
   }, [pageVisible])
 

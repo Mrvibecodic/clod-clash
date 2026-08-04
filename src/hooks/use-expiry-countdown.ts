@@ -110,7 +110,10 @@ export const useExpiryCountdown = (
       )
     }
 
-    schedule()
+    // Первый проход — через нулевой таймаут, а не прямым вызовом: синхронный
+    // `setState` внутри эффекта стоит лишнего прохода рендера (и запрещён
+    // правилом `set-state-in-effect`). Тот же приём в `use-session-uptime`.
+    timer = window.setTimeout(schedule, 0)
 
     return () => {
       if (timer !== undefined) window.clearTimeout(timer)
