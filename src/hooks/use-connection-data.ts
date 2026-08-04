@@ -24,16 +24,7 @@ interface ConnectionMonitorData {
   closedConnections: IConnectionsItem[]
 }
 
-interface ConnectionSummaryData {
-  activeConnectionCount: number
-}
-
-const initConnSummaryData: ConnectionSummaryData = {
-  activeConnectionCount: 0,
-}
-
 let connectionData: ConnectionMonitorData = initConnData
-let connectionSummary: ConnectionSummaryData = initConnSummaryData
 let connectionSocket: MihomoWebSocket | null = null
 let connectionConnecting = false
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
@@ -42,18 +33,12 @@ let pendingMessageData: string | null = null
 let lastFlushAt = 0
 
 const connectionListeners = new Set<ConnectionListener>()
-const summaryListeners = new Set<ConnectionListener>()
 
 const notifyConnectionListeners = () => {
   connectionListeners.forEach((listener) => listener())
 }
 
-const notifySummaryListeners = () => {
-  summaryListeners.forEach((listener) => listener())
-}
-
-const hasConnectionSubscribers = () =>
-  connectionListeners.size > 0 || summaryListeners.size > 0
+const hasConnectionSubscribers = () => connectionListeners.size > 0
 
 const sameMetadata = (left: ConnectionMetadata, right: ConnectionMetadata) =>
   metadataValue(left.network) === metadataValue(right.network) &&
@@ -207,12 +192,6 @@ const mergeConnectionSnapshot = (
   }
 }
 
-const mergeConnectionSummary = (
-  payload: IConnections,
-): ConnectionSummaryData => ({
-  activeConnectionCount: payload.connections?.length ?? 0,
-})
-
 const flushPendingMessage = () => {
   flushTimer = null
   const messageData = pendingMessageData
@@ -228,11 +207,6 @@ const flushPendingMessage = () => {
   }
 
   lastFlushAt = Date.now()
-  connectionSummary = mergeConnectionSummary(payload)
-  notifySummaryListeners()
-
-  if (connectionListeners.size === 0) return
-
   connectionData = mergeConnectionSnapshot(payload, connectionData)
   notifyConnectionListeners()
 }
@@ -334,22 +308,12 @@ const stopConnectionMonitorIfIdle = () => {
 }
 
 const getConnectionSnapshot = () => connectionData
-const getConnectionSummarySnapshot = () => connectionSummary
 
 const subscribeConnectionData = (listener: ConnectionListener) => {
   connectionListeners.add(listener)
   startConnectionMonitor()
   return () => {
     connectionListeners.delete(listener)
-    stopConnectionMonitorIfIdle()
-  }
-}
-
-const subscribeConnectionSummary = (listener: ConnectionListener) => {
-  summaryListeners.add(listener)
-  startConnectionMonitor()
-  return () => {
-    summaryListeners.delete(listener)
     stopConnectionMonitorIfIdle()
   }
 }
@@ -400,25 +364,3 @@ export const useConnectionData = (options?: { enabled?: boolean }) => {
   }
 }
 
-export const useConnectionSummaryData = (options?: { enabled?: boolean }) => {
-  const enabled = options?.enabled ?? true
-  const subscribe = useCallback(
-    (listener: ConnectionListener) =>
-      enabled ? subscribeConnectionSummary(listener) : () => {},
-    [enabled],
-  )
-  const data = useSyncExternalStore(
-    subscribe,
-    getConnectionSummarySnapshot,
-    getConnectionSummarySnapshot,
-  )
-  const response = useMemo(() => ({ data }), [data])
-  const refreshGetClashConnectionSummary = useCallback(() => {
-    refreshConnectionData()
-  }, [])
-
-  return {
-    response,
-    refreshGetClashConnectionSummary,
-  }
-}

@@ -50,9 +50,6 @@ importers:
       '@tauri-apps/plugin-fs':
         specifier: ^2.5.1
         version: 2.5.1
-      '@tauri-apps/plugin-http':
-        specifier: ~2.5.9
-        version: 2.5.9
       '@tauri-apps/plugin-process':
         specifier: ^2.3.1
         version: 2.3.1
@@ -74,9 +71,6 @@ importers:
       foxact:
         specifier: ^0.3.4
         version: 0.3.8(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      foxts:
-        specifier: ^5.4.2
-        version: 5.6.0
       i18next:
         specifier: ^26.2.0
         version: 26.3.4(typescript@6.0.3)
@@ -95,9 +89,6 @@ importers:
       monaco-yaml:
         specifier: ^5.5.0
         version: 5.5.1(monaco-editor@0.55.1)
-      nanoid:
-        specifier: ^5.1.11
-        version: 5.1.16
       qrcode.react:
         specifier: ^4.2.0
         version: 4.2.0(react@19.2.7)
@@ -138,9 +129,6 @@ importers:
         specifier: ^13.15.35
         version: 13.15.35
     devDependencies:
-      '@actions/github':
-        specifier: ^9.1.1
-        version: 9.1.1
       '@biomejs/biome':
         specifier: ^2.4.15
         version: 2.5.2
@@ -180,15 +168,9 @@ importers:
       adm-zip:
         specifier: ^0.5.17
         version: 0.5.18
-      axios:
-        specifier: ^1.16.1
-        version: 1.18.1
       cli-color:
         specifier: ^2.0.4
         version: 2.0.4
-      commander:
-        specifier: ^15.0.0
-        version: 15.0.0
       cross-env:
         specifier: ^10.1.0
         version: 10.1.0

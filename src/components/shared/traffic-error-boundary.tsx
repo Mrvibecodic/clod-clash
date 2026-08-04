@@ -24,7 +24,7 @@ interface State {
  * 流量统计专用错误边界组件
  * 处理图表和流量统计组件的错误，提供优雅的降级体验
  */
-export class TrafficErrorBoundary extends Component<Props, State> {
+class TrafficErrorBoundary extends Component<Props, State> {
   private retryCount = 0
   private maxRetries = 3
 

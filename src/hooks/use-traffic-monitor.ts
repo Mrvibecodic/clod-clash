@@ -469,16 +469,3 @@ export const useTrafficMonitorEnhanced = (options?: {
   }
 }
 
-/**
- * 图表数据Hook
- */
-export const useTrafficGraphDataEnhanced = () => {
-  const { graphData, samplerStats, referenceCount } =
-    useTrafficMonitorEnhanced()
-
-  return {
-    ...graphData,
-    samplerStats,
-    referenceCount,
-  }
-}

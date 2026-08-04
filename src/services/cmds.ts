@@ -88,12 +88,6 @@ export async function getClashInfo() {
   return invoke<IClashInfo | null>('get_clash_info')
 }
 
-// Fault-tolerant current proxy mode read (does not depend on mihomo /configs
-// strict BaseConfig deserialization); used as a fallback for the home mode card.
-export async function getClashMode() {
-  return invoke<string | null>('get_clash_mode')
-}
-
 // Get runtime config which controlled by verge
 export async function getRuntimeConfig() {
   return invoke<IConfigData | null>('get_runtime_config')
@@ -409,10 +403,6 @@ export const openWebUrl = async (url: string) => {
   }
 }
 
-export async function cmdTestDelay(url: string) {
-  return invoke<number>('test_delay', { url })
-}
-
 export async function invoke_uwp_tool() {
   return invoke<void>('invoke_uwp_tool').catch((err) =>
     showNotice.error(err, 1500),
@@ -429,20 +419,6 @@ export async function exitApp() {
 
 export async function exportDiagnosticInfo() {
   return invoke('export_diagnostic_info')
-}
-
-interface SystemInfo {
-  system_name: string
-  system_version: string
-  system_kernel_version: string
-  system_arch: string
-  app_version: string
-  app_core_mode: string
-  app_is_admin: boolean
-}
-
-export async function getSystemInfo() {
-  return invoke<SystemInfo>('get_system_info')
 }
 
 export async function copyIconFile(
@@ -539,11 +515,6 @@ export async function listLocalBackup() {
 // 获取当前运行模式
 export const getRunningMode = async () => {
   return invoke<string>('get_running_mode')
-}
-
-// 获取应用运行时间
-export const getAppUptime = async () => {
-  return invoke<number>('get_app_uptime')
 }
 
 // clod: когда в последний раз поднялись цели Connect (epoch ms) — база

@@ -7,16 +7,6 @@ interface ICompressedDataPoint {
 
 const pad2 = (value: number) => value.toString().padStart(2, '0')
 
-export const formatTrafficHourMinute = (timestamp: number) => {
-  const date = new Date(timestamp)
-  return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`
-}
-
-export const formatTrafficMinuteSecond = (timestamp: number) => {
-  const date = new Date(timestamp)
-  return `${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`
-}
-
 export const formatTrafficName = (timestamp: number) => {
   const date = new Date(timestamp)
   return `${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(

@@ -5,7 +5,7 @@ import { useVerge } from './use-verge'
 
 const LAST_CHECK_KEY = 'last_check_update'
 
-export const readLastCheckTime = (): number | null => {
+const readLastCheckTime = (): number | null => {
   const stored = localStorage.getItem(LAST_CHECK_KEY)
   if (!stored) return null
   const ts = parseInt(stored, 10)

@@ -37,8 +37,8 @@ const DAY = 24 * 60 * 60
 const traffic = (bytes: number) => parseTraffic(bytes).join(' ').trim()
 
 /** Days-left / traffic levels at which the plan counts as running out. */
-export const CRITICAL_DAYS = 3
-export const CRITICAL_TRAFFIC_PERCENT = 90
+const CRITICAL_DAYS = 3
+const CRITICAL_TRAFFIC_PERCENT = 90
 
 interface Props {
   profile: IProfileItem

@@ -10,7 +10,6 @@ import { useVerge } from '@/hooks/use-verge'
 import {
   calcuProxies,
   calcuProxyProviders,
-  getAppUptime,
   getRunningMode,
   getSystemProxy,
 } from '@/services/cmds'
@@ -18,12 +17,10 @@ import { revalidateQueries, useQuery } from '@/services/query-client'
 
 import {
   ClashConfigContext,
-  CoreDataStatusContext,
   ProxiesContext,
   RefreshersContext,
   RulesContext,
   SystemContext,
-  UptimeContext,
 } from './app-data-context'
 
 const TQ_MIHOMO = {
@@ -105,14 +102,6 @@ export const AppDataProvider = ({
     queryKey: ['getRunningMode'],
     queryFn: getRunningMode,
     ...TQ_DEFAULTS,
-  })
-
-  const { data: uptimeData } = useQuery({
-    queryKey: ['appUptime'],
-    queryFn: getAppUptime,
-    ...TQ_DEFAULTS,
-    refetchInterval: 3000,
-    retry: 1,
   })
 
   const refreshProxy = useStableFn(_refetchProxy)
@@ -280,13 +269,6 @@ export const AppDataProvider = ({
     }
   }, [sysproxy, runningMode, verge, clashConfig])
 
-  const uptimeValue = useMemo(() => ({ uptime: uptimeData || 0 }), [uptimeData])
-
-  const coreDataStatusValue = useMemo(
-    () => ({ isCoreDataPending: isProxiesPending || isClashConfigPending }),
-    [isProxiesPending, isClashConfigPending],
-  )
-
   const refreshersValue = useMemo(
     () => ({
       refreshProxy,
@@ -313,13 +295,9 @@ export const AppDataProvider = ({
       <RulesContext value={rulesValue}>
         <ClashConfigContext value={clashConfigValue}>
           <SystemContext value={systemValue}>
-            <UptimeContext value={uptimeValue}>
-              <CoreDataStatusContext value={coreDataStatusValue}>
-                <RefreshersContext value={refreshersValue}>
-                  {children}
-                </RefreshersContext>
-              </CoreDataStatusContext>
-            </UptimeContext>
+            <RefreshersContext value={refreshersValue}>
+              {children}
+            </RefreshersContext>
           </SystemContext>
         </ClashConfigContext>
       </RulesContext>

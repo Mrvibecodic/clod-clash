@@ -28,14 +28,6 @@ export interface SystemContextType {
   systemProxyAddress: string
 }
 
-export interface UptimeContextType {
-  uptime: number
-}
-
-export interface CoreDataStatusContextType {
-  isCoreDataPending: boolean
-}
-
 export interface RefreshersContextType {
   refreshProxy: () => Promise<any>
   refreshClashConfig: () => Promise<any>
@@ -52,9 +44,6 @@ export const ClashConfigContext = createContext<ClashConfigContextType | null>(
   null,
 )
 export const SystemContext = createContext<SystemContextType | null>(null)
-export const UptimeContext = createContext<UptimeContextType | null>(null)
-export const CoreDataStatusContext =
-  createContext<CoreDataStatusContextType | null>(null)
 export const RefreshersContext = createContext<RefreshersContextType | null>(
   null,
 )
@@ -93,11 +82,6 @@ export const useClashConfigData = (): ClashConfigContextType =>
 export const useSystemData = (): SystemContextType =>
   useCtx(SystemContext, 'useSystemData')
 
-export const useUptimeData = (): UptimeContextType =>
-  useCtx(UptimeContext, 'useUptimeData')
-
 export const useAppRefreshers = (): RefreshersContextType =>
   useCtx(RefreshersContext, 'useAppRefreshers')
 
-export const useCoreDataStatus = (): CoreDataStatusContextType =>
-  useCtx(CoreDataStatusContext, 'useCoreDataStatus')

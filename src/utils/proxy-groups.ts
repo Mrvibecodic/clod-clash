@@ -132,7 +132,7 @@ export const hasRealNodes = (proxies: any): boolean => {
  * a selector may point at a balancer, which points at a server. Cycles and
  * dead ends fall back to the last resolvable name.
  */
-export const resolveLeaf = (
+const resolveLeaf = (
   records: Record<string, ProxyGroup | undefined>,
   name: string,
 ): string => {
