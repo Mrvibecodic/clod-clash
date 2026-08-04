@@ -1,7 +1,8 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import useSWR from 'swr'
 
 import { useProfiles } from '@/hooks/use-profiles'
+import { useVisibility } from '@/hooks/use-visibility'
 import { getTrafficEstimate, updateProfile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 
@@ -40,16 +41,29 @@ const EMPTY: Estimate = { localBytes: 0, approximate: false, baselineAt: 0 }
  */
 export const useTrafficEstimate = (profile?: IProfileItem) => {
   const { mutateProfiles } = useProfiles()
+  const visible = useVisibility()
   const [refreshing, setRefreshing] = useState(false)
   const lastRefreshRef = useRef(0)
 
   const uid = profile?.uid
   const extra = profile?.extra
-  const { data } = useSWR(
+  // clod: свёрнутое в трей приложение не опрашивает бэкенд и не перерисовывает
+  // карточку — счёт всё равно ведётся в бэкенде, а показывать его некому.
+  // Собственная проверка видимости, а не `refreshWhenHidden` у SWR: тот знает
+  // только про `document.hidden`, а окно уезжает в трей целиком.
+  const { data, mutate } = useSWR(
     uid && extra ? ['trafficEstimate', uid] : null,
     getTrafficEstimate,
-    { refreshInterval: POLL_INTERVAL_MS, revalidateOnFocus: false },
+    {
+      refreshInterval: visible ? POLL_INTERVAL_MS : 0,
+      revalidateOnFocus: false,
+    },
   )
+
+  // Показали окно — сразу свежее число, а не то, что застыло при сворачивании.
+  useEffect(() => {
+    if (visible) void mutate()
+  }, [visible, mutate])
 
   const estimate = useMemo<Estimate>(() => {
     if (!data || !uid || !extra) return EMPTY

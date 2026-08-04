@@ -18,6 +18,7 @@ import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { InfoTile } from '@/components/home/info-tile'
+import { useExpiryCountdown } from '@/hooks/use-expiry-countdown'
 import { useTrafficEstimate } from '@/hooks/use-traffic-estimate'
 import { openWebUrl } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
@@ -58,6 +59,12 @@ export const SubscriptionCard = ({ profile }: Props) => {
   // Пороги `critical`, «трафик закончился» и кнопки продления ниже считаются
   // строго по данным подписки, иначе клиент соврёт при живых серверах.
   const { estimate, refreshing, refresh } = useTrafficEstimate(profile)
+  // clod: срок считается по системным часам клиента и потому работает офлайн;
+  // подробности и цена вопроса — в `use-expiry-countdown.ts`.
+  // Some panels emit milliseconds where unix seconds are expected; a timestamp
+  // past ~33658 AD in seconds can only be milliseconds.
+  const expire = toUnixSeconds(profile.extra?.expire ?? 0)
+  const countdown = useExpiryCountdown(expire)
 
   const openLink = useCallback(async (url?: string) => {
     if (!url) return
@@ -74,34 +81,25 @@ export const SubscriptionCard = ({ profile }: Props) => {
 
     const used = extra.upload + extra.download
     const unlimited = extra.total === 0
-    // Some panels emit milliseconds where unix seconds are expected; a
-    // timestamp past ~33658 AD in seconds can only be milliseconds.
-    const expire = toUnixSeconds(extra.expire)
     const forever = !expire
     const usedPercent = unlimited
       ? 0
       : Math.min(100, Math.round((used * 100) / extra.total))
-    const daysLeft = forever
-      ? undefined
-      : Math.max(0, Math.ceil((expire - Date.now() / 1000) / DAY))
-
-    const critical =
-      (daysLeft !== undefined && daysLeft <= CRITICAL_DAYS) ||
-      (!unlimited && usedPercent >= CRITICAL_TRAFFIC_PERCENT)
 
     return {
       used,
       unlimited,
       forever,
       usedPercent,
-      daysLeft,
-      critical,
+      // В часовом режиме показываем время, а не дату: «до 03.02.2027» рядом с
+      // «4 ч» ничего не добавляет, а «до 21:40» отвечает на сам вопрос.
       expireDate: forever
         ? undefined
         : dayjs(expire * 1000).format('DD.MM.YYYY'),
+      expireTime: forever ? undefined : dayjs(expire * 1000).format('HH:mm'),
       total: extra.total,
     }
-  }, [profile.extra])
+  }, [profile.extra, expire])
 
   // Nothing to report: an unlimited, never expiring plan hides the block
   // instead of showing a full bar that means nothing.
@@ -109,8 +107,16 @@ export const SubscriptionCard = ({ profile }: Props) => {
 
   const showRenew = Boolean(profile.renew_url)
   const showTopup = Boolean(profile.topup_url)
+  // clod: часы вместо дней — только последние сутки. Пометка «примерно» висит
+  // именно там: день округляется честно в любом случае, а час зависит от
+  // системных часов, которые пользователь мог перевести.
+  const hourly = !info.forever && countdown.hoursLeft !== undefined
+  const expired = !info.forever && countdown.secondsLeft <= 0
   const expiryCritical =
-    info.daysLeft !== undefined && info.daysLeft <= CRITICAL_DAYS
+    !info.forever && countdown.secondsLeft <= CRITICAL_DAYS * DAY
+  const critical =
+    expiryCritical ||
+    (!info.unlimited && info.usedPercent >= CRITICAL_TRAFFIC_PERCENT)
 
   // Сумма «подписка + досчитанное клиентом» и её доля — только для показа.
   // Процент режем сотней, чтобы штриховка не выехала за полосу.
@@ -224,7 +230,7 @@ export const SubscriptionCard = ({ profile }: Props) => {
           />
         )}
         {/* The reset date is noise while the subscription itself is ending. */}
-        {profile.refill_date && !info.critical ? (
+        {profile.refill_date && !critical ? (
           <Typography variant="caption" color="text.secondary" noWrap>
             {t('home.components.subscription.refill', {
               date: dayjs(toUnixSeconds(profile.refill_date) * 1000).format(
@@ -239,25 +245,50 @@ export const SubscriptionCard = ({ profile }: Props) => {
         title={t('home.components.subscription.expiryTitle')}
         icon={<CalendarMonthRoundedIcon />}
       >
-        {info.daysLeft !== undefined ? (
+        {!info.forever ? (
           <>
-            <Typography
-              noWrap
-              sx={{ fontSize: 15, fontWeight: 700 }}
-              color={expiryCritical ? 'error' : 'text.primary'}
-            >
-              {t('home.components.subscription.daysShort', {
-                count: info.daysLeft,
-              })}
-            </Typography>
+            <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5 }}>
+              <Typography
+                noWrap
+                sx={{ fontSize: 15, fontWeight: 700 }}
+                color={expiryCritical ? 'error' : 'text.primary'}
+              >
+                {expired
+                  ? t('home.components.subscription.expiredShort')
+                  : hourly
+                    ? t('home.components.subscription.hoursShort', {
+                        count: countdown.hoursLeft,
+                      })
+                    : t('home.components.subscription.daysShort', {
+                        count: countdown.daysLeft,
+                      })}
+              </Typography>
+              {/* Часы клиент считает сам, по системному времени — про это надо
+                  сказать теми же словами и тем же значком, что и про трафик. */}
+              {hourly && !expired ? (
+                <Tooltip
+                  title={t('home.components.subscription.expiryApproximate')}
+                >
+                  <WarningAmberRoundedIcon
+                    sx={{ fontSize: 16, color: 'warning.main', flex: 'none' }}
+                  />
+                </Tooltip>
+              ) : null}
+            </Stack>
             <Typography
               variant="caption"
               noWrap
               color={expiryCritical ? 'error' : 'text.secondary'}
             >
-              {t('home.components.subscription.untilDate', {
-                date: info.expireDate,
-              })}
+              {/* Уже истёкшая подписка называет дату: одно время без даты у
+                  того, кто не заходил неделю, не значит ничего. */}
+              {hourly && !expired
+                ? t('home.components.subscription.untilTime', {
+                    time: info.expireTime,
+                  })
+                : t('home.components.subscription.untilDate', {
+                    date: info.expireDate,
+                  })}
             </Typography>
           </>
         ) : (
@@ -270,7 +301,7 @@ export const SubscriptionCard = ({ profile }: Props) => {
             {showRenew ? (
               <Button
                 size="small"
-                variant={info.critical ? 'contained' : 'outlined'}
+                variant={critical ? 'contained' : 'outlined'}
                 sx={{ minWidth: 0 }}
                 onClick={() => void openLink(profile.renew_url)}
               >

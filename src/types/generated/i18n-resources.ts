@@ -187,13 +187,17 @@ export interface TranslationResources {
             since: string
           }
           daysShort: string
+          expiredShort: string
           expires: string
+          expiryApproximate: string
           expiryTitle: string
+          hoursShort: string
           refill: string
           renew: string
           topup: string
           trafficTitle: string
           untilDate: string
+          untilTime: string
           updated: string
         }
         systemInfo: {

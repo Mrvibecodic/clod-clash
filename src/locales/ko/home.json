@@ -208,6 +208,10 @@
       "expiryTitle": "Expires",
       "daysShort": "{{count}} d",
       "untilDate": "until {{date}}",
+      "hoursShort": "{{count}} h",
+      "expiredShort": "Expired",
+      "untilTime": "until {{time}}",
+      "expiryApproximate": "Counted by your device clock. Update the subscription to see the exact expiry time",
       "approximate": {
         "hint": "Traffic usage is estimated. Update the subscription for more precise numbers",
         "since": "Exact data as of {{time}}",
