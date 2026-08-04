@@ -68,6 +68,16 @@ const ACTIONS_FIT = {
   flexWrap: 'wrap',
 } as const
 
+// Последняя страховка от горизонтальной прокрутки: что бы ни насчитал вызов
+// (своя ширина, поля, длинное слово), бумага остаётся флекс-элементом, который
+// МОЖЕТ ужаться до окна — `minWidth: 0` снимает запрет сжатия ниже ширины
+// содержимого, — а полосы прокрутки по горизонтали у неё не бывает вовсе.
+// Вертикальную это не трогает: `overflow-y: auto` MUI ставит сам.
+const PAPER_FIT = {
+  minWidth: 0,
+  overflowX: 'hidden',
+} as const
+
 // `false` вместо пустого значения: MUI пропускает такой элемент массива sx.
 const toSxArray = (sx: SxProps<Theme> | undefined) =>
   Array.isArray(sx) ? sx : [sx ?? false]
@@ -98,7 +108,7 @@ export const BaseDialog: React.FC<Props> = ({
       disableEnforceFocus={disableEnforceFocus}
       fullWidth={fullWidth}
       maxWidth={maxWidth}
-      slotProps={paperSx ? { paper: { sx: paperSx } } : undefined}
+      slotProps={{ paper: { sx: [PAPER_FIT, ...toSxArray(paperSx)] } }}
     >
       <DialogTitle sx={TITLE_FIT}>{title}</DialogTitle>
 
