@@ -274,10 +274,12 @@ pub struct IVerge {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub connect_tun_mode: Option<bool>,
 
-    /// clod:tun-ready — the app version whose automatic service setup the user
-    /// turned down (or which failed). While it matches the running version we
-    /// never raise the elevation prompt on our own again; the TUN switch still
-    /// does, because then the user asked for it.
+    /// clod:tun-ready — the app version whose automatic service setup we have
+    /// already attempted: turned down, failed, or reported as done. While it
+    /// matches the running version we never raise the elevation prompt on our
+    /// own again — an installer that keeps claiming success while the service
+    /// stays silent would otherwise ask on every single launch. The TUN switch
+    /// still asks, because then the user asked for it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tun_setup_declined: Option<String>,
 

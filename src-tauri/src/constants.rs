@@ -65,6 +65,12 @@ pub mod timing {
     // что устройство действительно создано.
     pub const TUN_VERIFY_DELAY: Duration = Duration::from_secs(3);
 
+    // clod:tun-ready — служба поднимается вместе с системой и при автозапуске
+    // регулярно отстаёт от приложения. Прежде чем счесть её отсутствующей — а
+    // это запрос прав и переустановка, — даём ей время появиться.
+    pub const TUN_SERVICE_APPEAR_WAIT: Duration = Duration::from_secs(10);
+    pub const TUN_SERVICE_APPEAR_INTERVAL: Duration = Duration::from_millis(500);
+
     // При передаче ждём, пока sidecar освободит канал ext-controller.
     #[cfg(target_os = "windows")]
     pub const SERVICE_START_RETRIES: usize = 5;

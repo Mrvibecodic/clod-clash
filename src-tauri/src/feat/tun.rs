@@ -14,7 +14,10 @@
 //! Подавление живёт только в памяти процесса: перезапуск приложения (или
 //! появление службы) снимает его само собой, а файл конфигурации не трогается.
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::{
+    sync::atomic::{AtomicBool, Ordering},
+    time::Duration,
+};
 
 use clash_verge_logging::{Type, logging};
 use tauri_plugin_clash_verge_sysinfo::is_current_app_handle_admin;
@@ -146,9 +149,16 @@ pub fn spawn_start_verification() {
     });
 }
 
-/// Отказ пользователя запоминаем вместе с версией приложения: после
-/// обновления имеет смысл спросить ещё раз, до него — нет.
-async fn record_setup_declined() {
+/// Попытку автоматической настройки запоминаем вместе с версией приложения:
+/// после обновления имеет смысл попробовать ещё раз, до него — нет.
+///
+/// Пишется не только при отказе в UAC, но и после «успешной» установки: на
+/// Windows установщик идемпотентен и возвращает 0, даже когда служба уже
+/// зарегистрирована. Без этой отметки приложение, у которого служба почему-то
+/// так и не отвечает, ставило бы её заново при КАЖДОМ запуске — с запросом
+/// прав каждый раз. Явные действия пользователя (тумблер TUN, кнопка ремонта)
+/// отметку снимают: он попросил — значит пробуем.
+async fn record_setup_attempt() {
     let version = env!("CARGO_PKG_VERSION");
     let verge = Config::verge().await;
     verge.edit_draft(|d| {
@@ -157,11 +167,12 @@ async fn record_setup_declined() {
     verge.apply();
     let data = Config::verge().await.latest_arc();
     if let Err(e) = data.save_file().await {
-        logging!(warn, Type::Core, "failed to persist the TUN setup decline: {}", e);
+        logging!(warn, Type::Core, "failed to persist the TUN setup attempt: {}", e);
     }
     Handle::refresh_verge();
 }
 
+/// Автоматическую настройку на этой версии уже пробовали.
 pub async fn setup_declined_for_this_version() -> bool {
     Config::verge()
         .await
@@ -171,7 +182,7 @@ pub async fn setup_declined_for_this_version() -> bool {
         .is_some_and(|declined_at| declined_at == env!("CARGO_PKG_VERSION"))
 }
 
-/// Забыть отказ: пользователь сам попросил TUN, значит спрашивать снова можно.
+/// Забыть прошлую попытку: пользователь сам попросил TUN, значит пробуем снова.
 pub async fn clear_setup_declined() {
     if Config::verge().await.latest_arc().tun_setup_declined.is_none() {
         return;
@@ -194,7 +205,8 @@ pub enum SetupOutcome {
     AlreadyReady,
     /// Служба только что установлена.
     Installed,
-    /// Пользователь ранее отказал — молча ничего не делаем.
+    /// На этой версии автоматическую настройку уже пробовали — молча ничего
+    /// не делаем.
     Declined,
     /// Установка не удалась (в том числе отказ в UAC).
     Failed,
@@ -216,7 +228,7 @@ pub async fn ensure_ready(user_initiated: bool) -> SetupOutcome {
         logging!(
             info,
             Type::Service,
-            "service setup was declined for this version; not asking again"
+            "service setup was already attempted on this version; not asking again"
         );
         return SetupOutcome::Declined;
     }
@@ -246,6 +258,12 @@ pub async fn ensure_ready(user_initiated: bool) -> SetupOutcome {
     match SERVICE_MANAGER.handle_service_status(action).await {
         Ok(()) => {
             clear_suppression();
+            // Автоматическую попытку отмечаем и при успехе: установщик говорит
+            // «готово» и тогда, когда служба уже была, а отвечать она может так
+            // и не начать. Иначе следующий запуск полез бы ставить её снова.
+            if !user_initiated {
+                record_setup_attempt().await;
+            }
             logging!(info, Type::Service, "background service installed");
             Handle::notice_message("tun::setup_done", "");
             Handle::refresh_verge();
@@ -257,17 +275,66 @@ pub async fn ensure_ready(user_initiated: bool) -> SetupOutcome {
         Err(e) => {
             let detail = format!("{e}");
             logging!(warn, Type::Service, "background service setup failed: {}", detail);
-            record_setup_declined().await;
+            record_setup_attempt().await;
             Handle::notice_message("tun::setup_failed", detail);
             SetupOutcome::Failed
         }
     }
 }
 
-/// Шаг старта приложения: если TUN недоступен, один раз довести его до
-/// рабочего состояния. Результат разбирать некому — всё, что важно, уже ушло
-/// в уведомления и лог.
+/// Дождаться, пока служба появится сама.
+///
+/// Служба зарегистрирована как автозапускаемая, но приложение, поднятое вместе
+/// с системой, регулярно оказывается быстрее неё: IPC ещё нет, и без ожидания
+/// приложение сочло бы, что службы не существует.
+async fn wait_until_capable() -> bool {
+    let mut waited = Duration::ZERO;
+    loop {
+        if is_capable().await {
+            return true;
+        }
+        // Служба отвечает, но устарела — ждать нечего, это ремонт.
+        if service_needs_repair().await || waited >= timing::TUN_SERVICE_APPEAR_WAIT {
+            return false;
+        }
+        tokio::time::sleep(timing::TUN_SERVICE_APPEAR_INTERVAL).await;
+        waited += timing::TUN_SERVICE_APPEAR_INTERVAL;
+    }
+}
+
+/// Шаг старта приложения: если TUN нужен, но недоступен, один раз довести его
+/// до рабочего состояния. Результат разбирать некому — всё, что важно, уже
+/// ушло в уведомления и лог.
+///
+/// clod: раньше этот шаг выполнялся всегда — и на машине, где TUN выключен,
+/// приложение при каждом запуске ставило службу заново, каждый раз спрашивая
+/// права. Служба нужна ровно для TUN, поэтому:
+///   * TUN выключен — службу не трогаем вовсе;
+///   * TUN включён — сперва даём службе шанс подняться самой (она стартует с
+///     системой и часто отстаёт от приложения);
+///   * и только если её действительно нет — один раз на версию приложения
+///     предлагаем поставить (см. `record_setup_attempt`).
 pub async fn init_startup_setup() {
+    if !desired().await {
+        logging!(
+            info,
+            Type::Service,
+            "TUN is off; leaving the background service alone at startup"
+        );
+        return;
+    }
+
+    if wait_until_capable().await {
+        clear_suppression();
+        logging!(
+            info,
+            Type::Service,
+            "startup TUN readiness: {:?}",
+            SetupOutcome::AlreadyReady
+        );
+        return;
+    }
+
     let outcome = ensure_ready(false).await;
     logging!(info, Type::Service, "startup TUN readiness: {:?}", outcome);
 }
