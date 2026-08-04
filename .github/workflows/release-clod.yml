@@ -62,24 +62,35 @@ jobs:
     outputs:
       release_id: ${{ steps.ensure.outputs.release_id }}
     steps:
+      # Черновик от предыдущего прогона того же тега не переиспользуем: в нём
+      # лежат ассеты со старого коммита, а заливка одноимённого файла даёт 422
+      # и роняет джоб (так упал 0.0.15-alpha после пересоздания тега). Каждый
+      # прогон начинает с чистого черновика; опубликованный релиз не трогаем.
       - name: Find or create the draft
         id: ensure
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${GITHUB_REF_NAME}"
-          id=$(gh api "repos/${{ github.repository }}/releases?per_page=100" \
-            --jq ".[] | select(.tag_name==\"$TAG\") | .id" | head -1)
-          if [ -z "$id" ]; then
-            id=$(gh api -X POST "repos/${{ github.repository }}/releases" \
-              -f tag_name="$TAG" \
-              -f name="Clod Clash $TAG" \
-              -f body="Черновик — наполняется сборкой." \
-              -F draft=true -F prerelease=true --jq .id)
-            echo "created draft $id"
-          else
-            echo "reusing release $id"
+          existing=$(gh api "repos/${{ github.repository }}/releases?per_page=100" \
+            --jq ".[] | select(.tag_name==\"$TAG\") | \"\(.id) \(.draft)\"" | head -1)
+          if [ -n "$existing" ]; then
+            old_id="${existing% *}"
+            is_draft="${existing#* }"
+            if [ "$is_draft" = "true" ]; then
+              gh api -X DELETE "repos/${{ github.repository }}/releases/$old_id"
+              echo "dropped stale draft $old_id"
+            else
+              echo "::error::Release $TAG is already published — bump the version or delete the release first"
+              exit 1
+            fi
           fi
+          id=$(gh api -X POST "repos/${{ github.repository }}/releases" \
+            -f tag_name="$TAG" \
+            -f name="Clod Clash $TAG" \
+            -f body="Черновик — наполняется сборкой." \
+            -F draft=true -F prerelease=true --jq .id)
+          echo "created draft $id"
           echo "release_id=$id" >> "$GITHUB_OUTPUT"
 
   release:
@@ -182,6 +193,14 @@ jobs:
             exit 1
           fi
           for f in "${files[@]}"; do
+            # ...и на всякий случай (перезапуск упавшего джоба ходит в тот же
+            # черновик) убираем одноимённый ассет: повторная заливка = 422.
+            dup=$(gh api "repos/${{ github.repository }}/releases/${{ needs.prepare_release.outputs.release_id }}/assets" \
+              --jq ".[] | select(.name==\"$f\") | .id")
+            for id in $dup; do
+              gh api -X DELETE "repos/${{ github.repository }}/releases/assets/$id"
+              echo "removed previous $f ($id)"
+            done
             gh api -X POST \
               -H "Content-Type: application/zip" \
               --input "$f" \
