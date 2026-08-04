@@ -155,12 +155,6 @@ pub struct IVerge {
     /// Таймаут теста задержки по умолчанию
     pub default_latency_timeout: Option<i16>,
 
-    /// Автоматически проверять задержку текущего узла
-    pub enable_auto_delay_detection: Option<bool>,
-
-    /// Интервал автопроверки задержки текущего узла (в минутах)
-    pub auto_delay_detection_interval_minutes: Option<u64>,
-
     /// Использовать встроенную поддержку скриптов, по умолчанию включено
     pub enable_builtin_enhanced: Option<bool>,
 
@@ -682,8 +676,6 @@ impl IVerge {
         patch!(auto_check_update);
         patch!(default_latency_test);
         patch!(default_latency_timeout);
-        patch!(enable_auto_delay_detection);
-        patch!(auto_delay_detection_interval_minutes);
         patch!(enable_builtin_enhanced);
         patch!(proxy_layout_column);
         patch!(test_list);

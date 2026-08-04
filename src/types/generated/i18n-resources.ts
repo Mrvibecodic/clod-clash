@@ -1180,8 +1180,6 @@ export interface TranslationResources {
             appLogMaxSize: string
             autoCheckUpdate: string
             autoCloseConnections: string
-            autoDelayDetection: string
-            autoDelayDetectionInterval: string
             autoLogClean: string
             defaultLatencyTest: string
             defaultLatencyTimeout: string
@@ -1200,7 +1198,6 @@ export interface TranslationResources {
           title: string
           tooltips: {
             autoCloseConnections: string
-            autoDelayDetection: string
             defaultLatencyTest: string
             enableBuiltinEnhanced: string
           }
