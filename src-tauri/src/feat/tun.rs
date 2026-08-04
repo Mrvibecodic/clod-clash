@@ -27,7 +27,7 @@ use crate::{
     constants::timing,
     core::{
         handle::Handle,
-        service::{SERVICE_MANAGER, ServiceStatus, is_service_available},
+        service::{SERVICE_MANAGER, ServiceRegistration, ServiceStatus, is_service_available, service_registration},
     },
     process::AsyncHandler,
 };
@@ -222,6 +222,16 @@ pub async fn ensure_ready(user_initiated: bool) -> SetupOutcome {
         return SetupOutcome::AlreadyReady;
     }
 
+    // Служба могла просто не успеть подняться: она стартует вместе с системой и
+    // при автозапуске регулярно отстаёт от приложения. Ждём её, прежде чем
+    // просить прав, — но только если она вообще зарегистрирована.
+    if wait_until_capable(true).await {
+        clear_suppression();
+        // Ядро уже могло подняться как sidecar, пока службы не было.
+        crate::core::CoreManager::global().handoff_to_service_if_needed().await;
+        return SetupOutcome::AlreadyReady;
+    }
+
     if user_initiated {
         clear_setup_declined().await;
     } else if setup_declined_for_this_version().await {
@@ -240,13 +250,7 @@ pub async fn ensure_ready(user_initiated: bool) -> SetupOutcome {
         SETUP_RUNNING.store(false, Ordering::Release);
     }
 
-    // Служба есть, но старая (обычно после обновления приложения) — это ремонт,
-    // а не установка с нуля.
-    let action = if service_needs_repair().await {
-        ServiceStatus::ReinstallRequired
-    } else {
-        ServiceStatus::InstallRequired
-    };
+    let action = required_action().await;
     logging!(
         info,
         Type::Service,
@@ -255,46 +259,96 @@ pub async fn ensure_ready(user_initiated: bool) -> SetupOutcome {
     );
     Handle::notice_message("tun::setup_started", "");
 
-    match SERVICE_MANAGER.handle_service_status(action).await {
-        Ok(()) => {
-            clear_suppression();
-            // Автоматическую попытку отмечаем и при успехе: установщик говорит
-            // «готово» и тогда, когда служба уже была, а отвечать она может так
-            // и не начать. Иначе следующий запуск полез бы ставить её снова.
-            if !user_initiated {
-                record_setup_attempt().await;
-            }
-            logging!(info, Type::Service, "background service installed");
-            Handle::notice_message("tun::setup_done", "");
-            Handle::refresh_verge();
-            // Ядро уже могло подняться как sidecar — переезжаем на службу без
-            // разрыва, если TUN нужен.
-            crate::core::CoreManager::global().handoff_to_service_if_needed().await;
-            SetupOutcome::Installed
-        }
-        Err(e) => {
-            let detail = format!("{e}");
-            logging!(warn, Type::Service, "background service setup failed: {}", detail);
-            record_setup_attempt().await;
-            Handle::notice_message("tun::setup_failed", detail);
-            SetupOutcome::Failed
-        }
+    let result = SERVICE_MANAGER.handle_service_status(action).await;
+
+    // Верим не слову установщика, а факту. На Windows установщик идемпотентен и
+    // возвращает 0, даже когда служба уже была и отвечать так и не начала:
+    // «успех» без работающего IPC — это провал, и именно он раньше приводил к
+    // установке по кругу на каждом запуске.
+    if let Err(e) = result {
+        let detail = format!("{e}");
+        logging!(warn, Type::Service, "background service setup failed: {}", detail);
+        record_setup_attempt().await;
+        Handle::notice_message("tun::setup_failed", detail);
+        return SetupOutcome::Failed;
+    }
+
+    if !wait_until_capable(false).await {
+        logging!(
+            warn,
+            Type::Service,
+            "the service setup reported success, but the service still does not answer"
+        );
+        record_setup_attempt().await;
+        Handle::notice_message("tun::setup_failed", "service is silent after setup".to_owned());
+        return SetupOutcome::Failed;
+    }
+
+    clear_suppression();
+    // Сработало — отметку о попытке снимаем: если служба когда-нибудь отвалится
+    // на этой же версии, помочь можно будет ещё раз. Зацикливания это не даёт:
+    // отметка снимается ТОЛЬКО когда служба реально отвечает.
+    clear_setup_declined().await;
+    logging!(info, Type::Service, "background service is up");
+    Handle::notice_message("tun::setup_done", "");
+    Handle::refresh_verge();
+    // Ядро уже могло подняться как sidecar — переезжаем на службу без разрыва,
+    // если TUN нужен.
+    crate::core::CoreManager::global().handoff_to_service_if_needed().await;
+    SetupOutcome::Installed
+}
+
+/// Что именно надо сделать со службой, чтобы TUN заработал.
+///
+/// Раньше выбор был из двух: «служба отвечает, но старая» → ремонт, иначе →
+/// установка. То есть остановленная служба (и служба, которая просто молчит)
+/// лечилась установкой — с запросом прав и на каждом запуске. Теперь сначала
+/// спрашиваем систему, что она вообще знает о службе.
+async fn required_action() -> ServiceStatus {
+    action_for(service_registration(), service_needs_repair().await)
+}
+
+/// Само правило — отдельно от опроса системы, чтобы его можно было проверить.
+const fn action_for(registration: ServiceRegistration, needs_repair: bool) -> ServiceStatus {
+    // Служба отвечает, но старая (обычно после обновления приложения) — это
+    // ремонт, а не установка с нуля, и что там думает система, уже неважно.
+    if needs_repair {
+        return ServiceStatus::ReinstallRequired;
+    }
+
+    match registration {
+        // Установщик службы идемпотентен: зарегистрированную, но остановленную
+        // он просто запускает — переустановка тут была бы лишней.
+        ServiceRegistration::Missing | ServiceRegistration::Stopped => ServiceStatus::InstallRequired,
+        // Система считает службу работающей, а канала нет — чинить.
+        ServiceRegistration::Running => ServiceStatus::ForceReinstallRequired,
+        // Спросить не вышло — ведём себя как раньше.
+        ServiceRegistration::Unknown => ServiceStatus::InstallRequired,
     }
 }
 
-/// Дождаться, пока служба появится сама.
+/// Дождаться, пока служба поднимет канал.
 ///
 /// Служба зарегистрирована как автозапускаемая, но приложение, поднятое вместе
 /// с системой, регулярно оказывается быстрее неё: IPC ещё нет, и без ожидания
-/// приложение сочло бы, что службы не существует.
-async fn wait_until_capable() -> bool {
+/// приложение сочло бы, что службы не существует. Тем же ожиданием проверяется
+/// результат установки — она заканчивается раньше, чем служба готова отвечать.
+/// `trust_registration` = верить опросу системы и не ждать того, что само не
+/// поднимется (службы нет, остановлена, устарела). После установки службы этому
+/// опросу верить рано: она успевает отчитаться раньше, чем система пометит её
+/// работающей, — там ждём всё окно целиком.
+async fn wait_until_capable(trust_registration: bool) -> bool {
     let mut waited = Duration::ZERO;
     loop {
         if is_capable().await {
             return true;
         }
-        // Служба отвечает, но устарела — ждать нечего, это ремонт.
-        if service_needs_repair().await || waited >= timing::TUN_SERVICE_APPEAR_WAIT {
+        let pointless = trust_registration
+            && (matches!(
+                service_registration(),
+                ServiceRegistration::Missing | ServiceRegistration::Stopped
+            ) || service_needs_repair().await);
+        if pointless || waited >= timing::TUN_SERVICE_APPEAR_WAIT {
             return false;
         }
         tokio::time::sleep(timing::TUN_SERVICE_APPEAR_INTERVAL).await;
@@ -324,17 +378,6 @@ pub async fn init_startup_setup() {
         return;
     }
 
-    if wait_until_capable().await {
-        clear_suppression();
-        logging!(
-            info,
-            Type::Service,
-            "startup TUN readiness: {:?}",
-            SetupOutcome::AlreadyReady
-        );
-        return;
-    }
-
     let outcome = ensure_ready(false).await;
     logging!(info, Type::Service, "startup TUN readiness: {:?}", outcome);
 }
@@ -351,6 +394,38 @@ mod tests {
         assert!(line_reports_tun_failure("configure tun interface: Access is denied."));
         assert!(!line_reports_tun_failure("[TCP] tun accept connection"));
         assert!(!line_reports_tun_failure("Start initial provider default"));
+    }
+
+    #[test]
+    fn asks_for_the_smallest_service_action() {
+        // Ничего не знаем — как раньше: установщик, он же запускает уже
+        // зарегистрированную службу.
+        assert_eq!(
+            action_for(ServiceRegistration::Unknown, false),
+            ServiceStatus::InstallRequired
+        );
+        assert_eq!(
+            action_for(ServiceRegistration::Missing, false),
+            ServiceStatus::InstallRequired
+        );
+        assert_eq!(
+            action_for(ServiceRegistration::Stopped, false),
+            ServiceStatus::InstallRequired
+        );
+        // Система говорит «работает», а канала нет — это уже поломка.
+        assert_eq!(
+            action_for(ServiceRegistration::Running, false),
+            ServiceStatus::ForceReinstallRequired
+        );
+        // Устаревшая служба чинится независимо от того, что думает система.
+        for registration in [
+            ServiceRegistration::Missing,
+            ServiceRegistration::Stopped,
+            ServiceRegistration::Running,
+            ServiceRegistration::Unknown,
+        ] {
+            assert_eq!(action_for(registration, true), ServiceStatus::ReinstallRequired);
+        }
     }
 
     #[test]

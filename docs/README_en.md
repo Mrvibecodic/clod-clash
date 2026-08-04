@@ -52,9 +52,9 @@ editors) is kept — it is simply moved out of sight into an advanced mode.
   last day is counted in hours.
 * **Traffic used between subscription refreshes** is counted locally and marked as an estimate; how
   often the core is polled follows the subscription's own refresh interval.
-* **TUN sets itself up**: the helper service is installed on first launch with a single elevation
-  prompt, the user's choice is never erased, and a failed start is visible on screen, not only in
-  the log.
+* **TUN sets itself up**: on Windows the app installer registers the helper service, so there is no
+  separate elevation prompt on install or on update; the user's choice is never erased, and a failed
+  start is visible on screen, not only in the log.
 * **A simple interface mode** — a single Connect button; all of Clash Verge Rev's technical side
   stays in the advanced one.
 * **Quick actions on the home screen**: system proxy, TUN, start with the system and start
@@ -76,14 +76,23 @@ that service by hand from the settings, and until you do, the TUN switch is dead
 
 Here the only thing the user touches is the switch itself:
 
-* **The service installs itself.** On first launch, once the window is up, the app checks
-  TUN and installs the helper if it is missing — a single elevation prompt (UAC on Windows,
-  an administrator password on macOS, `pkexec` on Linux). Only the **service installer**
-  runs elevated: the app and its WebView stay unprivileged.
-* **A refusal is respected.** If the prompt is dismissed or the install fails, the app keeps
-  running through the system proxy and never asks on its own again — until the next version.
-  The TUN switch still works: turning it on means "install the helper and turn TUN on",
-  because now the user is the one asking.
+* **On Windows the app installer registers the service.** It already runs elevated, so
+  there is no extra prompt on install or on update: an update replaces the service binary
+  together with the app and starts it again, so the two never drift apart in version. Only
+  the **service** runs elevated: the app and its WebView stay unprivileged.
+* **If the service is missing anyway, the app finishes the job** — but not blindly. It first
+  asks the system what it knows about the service and does the smallest thing that helps:
+  registered and coming up — just wait (on an autostart the service starts later than the
+  app); stopped — start it; answering but outdated — repair it; absent — install it. One
+  elevation prompt (UAC on Windows, an administrator password on macOS, `pkexec` on Linux).
+* **The service exists for TUN, so with TUN off it is left alone.** No privileged checks, no
+  installs: a switch that is off is no reason to show a system dialog.
+* **A refusal is respected, and the attempt is never repeated in a loop.** If the prompt is
+  dismissed, or the service stays silent after being installed, the app keeps running through
+  the system proxy and never asks on its own again — until the next version. What counts is
+  the fact, not the installer's word: on Windows it reports success even when the service was
+  already registered. The TUN switch still works: turning it on means "install the helper and
+  turn TUN on", because now the user is the one asking.
 * **The user's choice is never erased.** The app used to write `enable_tun_mode: false`
   straight into the config at startup whenever the service had not answered yet — and on an
   autostart it answers later than the app. Unavailability is now scoped to the running
@@ -95,10 +104,11 @@ Here the only thing the user touches is the switch itself:
   (`Start TUN listening error: … operation not permitted`), TUN honestly turns off instead of
   staying green over a dead tunnel. A core that dies on its own is restarted — up to three
   times in a row.
-* **The service is repaired by a button, never on its own.** Checking its state can no longer
-  install anything: after an app update, when the service on disk is older, the app says so once and
-  offers to repair it in the settings. That check used to run on every core start — and on Windows a
-  start is retried up to five times — so the elevation prompt appeared a dozen times in a row.
+* **Checking the state repairs nothing.** That check can no longer install anything: when the
+  service on disk is older, the app says so once and offers to repair it in the settings. Repairs
+  come either from that button or from the single per-version pass described above, and only while
+  TUN is on. The check used to run on every core start — and on Windows a start is retried up to
+  five times — so the elevation prompt appeared a dozen times in a row.
 * **The `tun` section belongs to the app.** A provider profile (or a manual merge/script) can
   neither switch TUN off nor switch it on: a snapshot is taken before manual overrides and restored
   after, and a key that was not there does not appear.

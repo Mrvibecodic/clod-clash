@@ -448,6 +448,88 @@ fn check_output_error(output: &std::process::Output) -> Option<(i32, Cow<'_, str
     Some((code, Cow::Borrowed("Unknown error")))
 }
 
+/// clod:tun-ready — что о службе знает система, независимо от того, отвечает
+/// ли служба по IPC.
+///
+/// Без этого «служба не отвечает» читалось как «службы нет», и единственным
+/// ответом была установка с запросом прав — даже когда служба стоит и просто
+/// ещё не подняла канал. Опрос выполняется БЕЗ повышения прав: обычному
+/// пользователю разрешено читать состояние служб.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ServiceRegistration {
+    /// Служба не зарегистрирована — её надо ставить.
+    Missing,
+    /// Зарегистрирована, но не работает — её надо запустить.
+    Stopped,
+    /// Зарегистрирована и работает.
+    Running,
+    /// Спросить не удалось — решаем по IPC, как раньше.
+    Unknown,
+}
+
+#[cfg(target_os = "windows")]
+pub fn service_registration() -> ServiceRegistration {
+    use std::os::windows::process::CommandExt as _;
+
+    // ERROR_SERVICE_DOES_NOT_EXIST: `sc query` отдаёт его кодом возврата.
+    const SERVICE_DOES_NOT_EXIST: i32 = 1060;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+    let Ok(output) = StdCommand::new("sc.exe")
+        .args(["query", "clash_verge_service"])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+    else {
+        return ServiceRegistration::Unknown;
+    };
+
+    match output.status.code() {
+        Some(0) => {
+            // Подписи в выводе локализованы, а сами состояния — нет.
+            let state = String::from_utf8_lossy(&output.stdout).to_ascii_uppercase();
+            if state.contains("RUNNING") || state.contains("START_PENDING") {
+                ServiceRegistration::Running
+            } else {
+                ServiceRegistration::Stopped
+            }
+        }
+        Some(SERVICE_DOES_NOT_EXIST) => ServiceRegistration::Missing,
+        _ => ServiceRegistration::Unknown,
+    }
+}
+
+#[cfg(target_os = "linux")]
+pub fn service_registration() -> ServiceRegistration {
+    if !Path::new("/etc/systemd/system/clash-verge-service.service").exists() {
+        return ServiceRegistration::Missing;
+    }
+    match StdCommand::new("systemctl")
+        .args(["is-active", "clash-verge-service.service"])
+        .output()
+    {
+        Ok(output) if output.status.success() => ServiceRegistration::Running,
+        Ok(_) => ServiceRegistration::Stopped,
+        Err(_) => ServiceRegistration::Unknown,
+    }
+}
+
+#[cfg(target_os = "macos")]
+pub fn service_registration() -> ServiceRegistration {
+    const LABEL: &str = "io.github.clash-verge-rev.clash-verge-rev.service";
+
+    if !Path::new("/Library/LaunchDaemons/io.github.clash-verge-rev.clash-verge-rev.service.plist").exists() {
+        return ServiceRegistration::Missing;
+    }
+    match StdCommand::new("/bin/launchctl")
+        .args(["print", &format!("system/{LABEL}")])
+        .output()
+    {
+        Ok(output) if output.status.success() => ServiceRegistration::Running,
+        Ok(_) => ServiceRegistration::Stopped,
+        Err(_) => ServiceRegistration::Unknown,
+    }
+}
+
 fn reinstall_service() -> Result<()> {
     logging!(info, Type::Service, "reinstall service");
 

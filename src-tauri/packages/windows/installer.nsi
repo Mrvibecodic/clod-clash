@@ -616,28 +616,53 @@ FunctionEnd
   ${EndIf}
 !macroend
 
-!macro StartVergeService
-  ; Check if the service exists
+; clod:tun-ready — the background service is set up here, by the installer.
+;
+; The installer already runs elevated (installMode is perMachine), so this is
+; the one moment when registering a system service costs the user nothing: no
+; extra prompt, and the same applies to every update, because the updater runs
+; this installer too. Left to the app itself, the service could only be
+; installed by raising a UAC prompt out of nowhere the first time TUN is
+; switched on - and again after every update, since the app ships a matching
+; service binary.
+;
+; Failures are printed, never thrown in a message box: the updater runs this
+; silently, and a modal here would hang the update. The app keeps its own
+; ladder (query -> start -> repair -> install) for machines where this step
+; could not do its job.
+!macro EnsureVergeService
   SimpleSC::ExistsService "clash_verge_service"
-  Pop $0  ; 0: service exists; other: service not exists
-  ; Service exists
+  Pop $0  ; 0: service exists; other: service does not exist
+
   ${If} $0 == 0
-    Push $0
-    ; Check if the service is running
+    ; Registered already: the binary next to it has just been replaced, so all
+    ; that is left is to bring it back up if it is not running.
     SimpleSC::ServiceIsRunning "clash_verge_service"
-    Pop $0 ; returns an errorcode (<>0) otherwise success (0)
-    Pop $1 ; returns 1 (service is running) - returns 0 (service is not running)
+    Pop $0 ; error code (<>0), otherwise success (0)
+    Pop $1 ; 1: running, 0: not running
     ${If} $0 == 0
-      Push $0
       ${If} $1 == 0
-        DetailPrint "Restart ${PRODUCTNAME} Service..."
+        DetailPrint "Starting ${PRODUCTNAME} Service..."
         SimpleSC::StartService "clash_verge_service" "" 30
+        Pop $0
+        ${If} $0 != 0
+          DetailPrint "Could not start ${PRODUCTNAME} Service ($0); the app will offer to repair it"
+        ${EndIf}
       ${EndIf}
-    ${ElseIf} $0 != 0
-      Push $0
-      SimpleSC::GetErrorMessage
+    ${Else}
+      DetailPrint "Could not read ${PRODUCTNAME} Service status ($0)"
+    ${EndIf}
+  ${Else}
+    ; Not registered: install it now, while we are already elevated.
+    ${If} ${FileExists} "$INSTDIR\resources\clash-verge-service-install.exe"
+      DetailPrint "Installing ${PRODUCTNAME} Service..."
+      nsExec::ExecToLog '"$INSTDIR\resources\clash-verge-service-install.exe"'
       Pop $0
-      MessageBox MB_OK|MB_ICONSTOP "Check Service Status Error ($0)"
+      ${If} $0 != 0
+        DetailPrint "Service installation failed ($0); the app will offer to install it later"
+      ${EndIf}
+    ${Else}
+      DetailPrint "Service installer not found; skipping service setup"
     ${EndIf}
   ${EndIf}
 !macroend
@@ -946,7 +971,7 @@ Section Install
     File /a "/oname={{this}}" "{{no-escape @key}}"
   {{/each}}
 
-  !insertmacro StartVergeService
+  !insertmacro EnsureVergeService
 
   ; Create file associations
   {{#each file_associations as |association| ~}}
