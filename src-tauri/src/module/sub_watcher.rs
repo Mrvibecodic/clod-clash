@@ -256,7 +256,7 @@ async fn notify_alert(alert: Alert) {
 /// same on the frontend — without it here the reminders would stay silent
 /// forever on such a subscription, since the deadline reads as tens of
 /// thousands of years away.
-fn to_unix_secs(ts: u64) -> u64 {
+const fn to_unix_secs(ts: u64) -> u64 {
     if ts > 1_000_000_000_000 { ts / 1000 } else { ts }
 }
 
