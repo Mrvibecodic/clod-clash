@@ -235,22 +235,9 @@ pub enum SetupOutcome {
 /// Довести TUN до рабочего состояния. Вызывается при старте (автоматически) и
 /// из UI, когда пользователь включает TUN на машине без службы.
 ///
-/// `user_initiated` = пользователь сам попросил: тогда прошлый отказ не в счёт.
+/// `user_initiated` = пользователь сам попросил: тогда прошлая попытка не в счёт.
 pub async fn ensure_ready(user_initiated: bool) -> SetupOutcome {
-    if is_capable().await {
-        clear_suppression();
-        proven_alive_at_startup(user_initiated).await;
-        return SetupOutcome::AlreadyReady;
-    }
-
-    // Служба могла просто не успеть подняться: она стартует вместе с системой и
-    // при автозапуске регулярно отстаёт от приложения. Ждём её, прежде чем
-    // просить прав, — но только если она вообще зарегистрирована.
-    if wait_until_capable(true).await {
-        clear_suppression();
-        proven_alive_at_startup(user_initiated).await;
-        // Ядро уже могло подняться как sidecar, пока службы не было.
-        crate::core::CoreManager::global().handoff_to_service_if_needed().await;
+    if already_ready(user_initiated).await {
         return SetupOutcome::AlreadyReady;
     }
 
@@ -272,6 +259,34 @@ pub async fn ensure_ready(user_initiated: bool) -> SetupOutcome {
         SETUP_RUNNING.store(false, Ordering::Release);
     }
 
+    set_up_service().await
+}
+
+/// TUN уже можно поднимать — прав ни у кого просить не надо.
+///
+/// Служба могла просто не успеть подняться: она стартует вместе с системой и при
+/// автозапуске регулярно отстаёт от приложения. Ждём её, прежде чем просить
+/// прав, — но только если она вообще зарегистрирована.
+async fn already_ready(user_initiated: bool) -> bool {
+    if is_capable().await {
+        clear_suppression();
+        proven_alive_at_startup(user_initiated).await;
+        return true;
+    }
+
+    if wait_until_capable(true).await {
+        clear_suppression();
+        proven_alive_at_startup(user_initiated).await;
+        // Ядро уже могло подняться как sidecar, пока службы не было.
+        crate::core::CoreManager::global().handoff_to_service_if_needed().await;
+        return true;
+    }
+
+    false
+}
+
+/// Единственное место, где приложение просит права.
+async fn set_up_service() -> SetupOutcome {
     let action = required_action().await;
     logging!(
         info,
@@ -284,13 +299,10 @@ pub async fn ensure_ready(user_initiated: bool) -> SetupOutcome {
     let _ = SERVICE_MANAGER.current().await;
     Handle::notice_message("tun::setup_started", "");
 
-    let result = SERVICE_MANAGER.handle_service_status(action).await;
-
-    if let Err(e) = result {
-        // Занятый менеджер — не провал: ожидание службы и хэндофф зовут
-        // `refresh()` в фоне, и попасть в это окно легко. Записать здесь
-        // попытку значило бы выключить автонастройку до конца версии, ни разу
-        // не показав пользователю запрос прав.
+    if let Err(e) = SERVICE_MANAGER.handle_service_status(action).await {
+        // Занятый менеджер — не провал: записать здесь попытку значило бы
+        // выключить автонастройку до конца версии, ни разу не показав
+        // пользователю запрос прав.
         if e.downcast_ref::<ServiceBusy>().is_some() {
             logging!(info, Type::Service, "the service manager is busy; leaving it be");
             return SetupOutcome::Declined;
@@ -303,7 +315,7 @@ pub async fn ensure_ready(user_initiated: bool) -> SetupOutcome {
     }
 
     // Права спрошены — попытка засчитана в любом случае. Снимет отметку только
-    // следующий запуск, увидевший живую службу (см. начало функции).
+    // следующий запуск, увидевший живую службу (см. `already_ready`).
     record_setup_attempt().await;
 
     // Верим не слову установщика, а факту. На Windows установщик идемпотентен и
