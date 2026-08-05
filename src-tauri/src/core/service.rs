@@ -1,12 +1,19 @@
 use crate::{
-    config::{Config, IClashTemp},
-    core::{handle::Handle, logger::Logger, tray::Tray},
-    utils::dirs,
+    config::Config,
+    core::{
+        handle::Handle, owner_identity::current_owner_credentials, runtime_bundle::collect_runtime_bundle, tray::Tray,
+    },
 };
+// На Linux бинари службы лежат рядом с исполняемым файлом, а не в ресурсах —
+// весь `dirs`-код этого файла живёт только под windows/macos.
+#[cfg(any(windows, target_os = "macos"))]
+use crate::utils::dirs;
 use anyhow::{Context as _, Result, bail};
 use backon::{ConstantBuilder, Retryable as _};
 use clash_verge_logging::{Type, logging};
-use clash_verge_service_ipc::CoreConfig;
+use clash_verge_service_ipc::{
+    OwnerSessionProof, ServiceErrorCode, StageRuntimeOutcome, StartClashRequest, WriterConfig,
+};
 use compact_str::CompactString;
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
@@ -21,6 +28,92 @@ use std::{
     time::Duration,
 };
 use tokio::sync::Notify;
+
+// clod:svc-2.6 — сессия владельца (модель службы v2.6).
+//
+// Служба больше не исполняет команды от любого локального процесса: ядром
+// владеет тот, кто его запустил. `start_clash` предлагает СВОЙ токен сессии, и
+// служба возвращает поколение; пара «поколение + токен» дальше предъявляется
+// на stop/stage/writer. Перезапуск приложения ничего не теряет: старт всегда
+// предлагает новую сессию и тем самым перехватывает владение.
+static ACTIVE_SERVICE_SESSION: Lazy<Mutex<Option<ActiveServiceSession>>> = Lazy::new(|| Mutex::new(None));
+
+/// Сессия, владеющая работающим ядром, и что умеет ЭТОТ экземпляр службы.
+///
+/// Способность к staging выясняется один раз при старте и живёт вместе с
+/// сессией, а не в глобальном кэше: она описывает экземпляр службы, который
+/// владеет этим ядром, — единственную область, где на неё можно опираться.
+#[derive(Clone)]
+struct ActiveServiceSession {
+    proof: OwnerSessionProof,
+    supports_runtime_staging: bool,
+}
+
+fn generate_service_session_token() -> Result<String> {
+    let mut bytes = [0_u8; 32];
+    getrandom::fill(&mut bytes).context("failed to generate service owner session")?;
+    Ok(bytes.iter().map(|byte| format!("{byte:02x}")).collect())
+}
+
+fn active_service_session() -> Result<OwnerSessionProof> {
+    ACTIVE_SERVICE_SESSION
+        .lock()
+        .as_ref()
+        .map(|session| session.proof.clone())
+        .context("service owner session is not active")
+}
+
+/// Умеет ли владеющая служба горячо подменять рантайм.
+///
+/// «Нет» по любой причине, кроме прямого «да»: нет сессии, старая служба,
+/// не ответил опрос протокола — всё это для вызывающего одно и то же:
+/// идти медленным путём (полный перезапуск ядра).
+pub(crate) fn active_service_supports_runtime_staging() -> bool {
+    ACTIVE_SERVICE_SESSION
+        .lock()
+        .as_ref()
+        .is_some_and(|session| session.supports_runtime_staging)
+}
+
+pub(crate) fn clear_active_service_session() {
+    ACTIVE_SERVICE_SESSION.lock().take();
+}
+
+/// Есть ли у этого процесса сессия владельца работающего ядра.
+pub(crate) fn has_active_service_session() -> bool {
+    ACTIVE_SERVICE_SESSION.lock().is_some()
+}
+
+/// Спросить службу, говорит ли она на staging-половине протокола.
+///
+/// Провал здесь — не провал старта: он стоит только быстрого пути, поэтому
+/// превращается в «нет» с записью в лог, а не в ошибку.
+async fn probe_runtime_staging_support() -> bool {
+    match clash_verge_service_ipc::get_version().await {
+        Ok(response) if response.code == 0 => response
+            .data
+            .as_ref()
+            .is_some_and(clash_verge_service_ipc::ProtocolInfo::supports_runtime_staging),
+        Ok(response) => {
+            logging!(
+                warn,
+                Type::Service,
+                "service protocol query returned {}: {}; config changes take the restart path",
+                response.code,
+                response.message
+            );
+            false
+        }
+        Err(error) => {
+            logging!(
+                warn,
+                Type::Service,
+                "failed to query the service protocol: {error:#}; config changes take the restart path"
+            );
+            false
+        }
+    }
+}
 
 /// Операция со службой уже идёт — это НЕ провал настройки.
 ///
@@ -175,7 +268,7 @@ fn macos_force_stop_core_shell() -> String {
         .map(|core| format!("/usr/bin/pkill -U root -x {core} 2>/dev/null || true"))
         .collect();
 
-    if let Ok(ipc) = dirs::ipc_path()
+    if let Ok(ipc) = dirs::sidecar_ipc_path()
         && let Ok(ipc_str) = dirs::path_to_str(&ipc)
     {
         // Экранируем одинарные кавычки, чтобы не сломать shell-параметр.
@@ -736,10 +829,12 @@ fn force_reinstall_service() -> Result<()> {
     })
 }
 
-/// Пытаемся запустить core через службу
-pub(super) async fn start_with_existing_service(config_file: &PathBuf) -> Result<()> {
-    logging!(info, Type::Service, "Попытка запуска ядра через существующую службу");
-
+/// Что должна держать служба для ядра, которое запустило бы это приложение.
+///
+/// Общий для старта и staging, чтобы они не могли разойтись ни в бинаре, ни в
+/// переписанных путях провайдеров: staged-бандл с другим ядром — ровно то, что
+/// служба откажется принять.
+async fn collect_service_runtime_bundle(config_file: &Path) -> Result<clash_verge_service_ipc::RuntimeBundle> {
     let verge_config = Config::verge().await;
     let clash_core = verge_config.latest_arc().get_valid_clash_core();
     drop(verge_config);
@@ -758,18 +853,70 @@ pub(super) async fn start_with_existing_service(config_file: &PathBuf) -> Result
         );
     }
     let bin_path = service_core_path(&clash_core, bin_ext)?;
+    collect_runtime_bundle(config_file, &bin_path).await
+}
 
-    let payload = clash_verge_service_ipc::ClashConfig {
-        core_config: CoreConfig {
-            config_path: dirs::path_to_str(config_file)?.into(),
-            core_path: dirs::path_to_str(&bin_path)?.into(),
-            core_ipc_path: IClashTemp::guard_external_controller_ipc(),
-            config_dir: dirs::path_to_str(&dirs::app_home_dir()?)?.into(),
-        },
-        log_config: Logger::global().service_writer_config()?,
+/// Чем закончилась просьба к службе горячо подменить рантайм.
+///
+/// Отказ несёт свой код, потому что не всякий отказ говорит что-то о старте.
+/// «Этот бандл содержит ассет, который я не приму» — говорит: свежий старт
+/// материализует тот же бандл и будет отвергнут так же, так что останавливать
+/// работающее ядро значило бы добавить простой к уже случившемуся провалу.
+/// «Ты не владеешь этим ядром» — не говорит: `start_clash` предлагает новую
+/// сессию вместо предъявления старой, и старт — ровно то, что это чинит.
+pub(crate) enum StageRequest {
+    Refused { code: u16, message: CompactString },
+    Answered(StageRuntimeOutcome),
+}
+
+impl StageRequest {
+    /// Отказ — про сам бандл, и старт с него повторил бы этот отказ.
+    pub(crate) const fn is_about_the_bundle(code: u16) -> bool {
+        code == ServiceErrorCode::InvalidRuntimeAsset as u16 || code == ServiceErrorCode::InvalidInstallLocation as u16
+    }
+}
+
+/// Попросить службу привести рантайм работающего ядра к `config_file` без
+/// перезапуска.
+///
+/// `Err` — запрос остался без ответа. Отказ и `RestartRequired` возвращаются
+/// как `Ok`: ни то ни другое не провал этой функции, и только вызывающий
+/// решает, что с ними делать.
+pub(crate) async fn stage_runtime_by_service(config_file: &Path) -> Result<StageRequest> {
+    let session = active_service_session()?;
+    let credentials = current_owner_credentials()?;
+    let runtime = collect_service_runtime_bundle(config_file).await?;
+
+    let response = clash_verge_service_ipc::stage_runtime(&credentials, &session, &runtime)
+        .await
+        .context("Не удалось подключиться к Clash Verge Service")?;
+    if response.code > 0 {
+        return Ok(StageRequest::Refused {
+            code: response.code,
+            message: response.message.into(),
+        });
+    }
+    response
+        .data
+        .map(StageRequest::Answered)
+        .context("служба не вернула результат подмены рантайма")
+}
+
+/// Пытаемся запустить core через службу
+pub(super) async fn start_with_existing_service(config_file: &PathBuf) -> Result<()> {
+    logging!(info, Type::Service, "Попытка запуска ядра через существующую службу");
+    clear_active_service_session();
+
+    let credentials = current_owner_credentials()?;
+    let runtime = collect_service_runtime_bundle(config_file).await?;
+    let proposed_session_token = generate_service_session_token()?;
+    let request = StartClashRequest {
+        runtime,
+        proposed_session_token: proposed_session_token.clone(),
+        macos_proxy: None,
     };
 
-    let response = clash_verge_service_ipc::start_clash(&payload)
+    let response = clash_verge_service_ipc::start_clash(&credentials, &request)
         .await
         .context("Не удалось подключиться к Clash Verge Service")?;
 
@@ -778,6 +925,16 @@ pub(super) async fn start_with_existing_service(config_file: &PathBuf) -> Result
         logging!(error, Type::Service, "Не удалось запустить ядро: {}", err_msg);
         bail!(err_msg);
     }
+
+    let result = response.data.context("служба не вернула сведения о сессии")?;
+    let supports_runtime_staging = probe_runtime_staging_support().await;
+    *ACTIVE_SERVICE_SESSION.lock() = Some(ActiveServiceSession {
+        proof: OwnerSessionProof {
+            generation: result.session.generation,
+            token: proposed_session_token,
+        },
+        supports_runtime_staging,
+    });
 
     logging!(info, Type::Service, "Служба успешно запустила ядро");
     Ok(())
@@ -800,7 +957,8 @@ pub(super) async fn run_core_by_service(config_file: &PathBuf) -> Result<()> {
 pub(super) async fn get_clash_logs_by_service() -> Result<Vec<CompactString>> {
     logging!(info, Type::Service, "Получение логов Clash в режиме службы");
 
-    let response = clash_verge_service_ipc::get_clash_logs()
+    let credentials = current_owner_credentials()?;
+    let response = clash_verge_service_ipc::get_clash_logs(&credentials)
         .await
         .context("Не удалось подключиться к Clash Verge Service")?;
 
@@ -823,17 +981,50 @@ pub(super) async fn get_clash_logs_by_service() -> Result<Vec<CompactString>> {
 pub(super) async fn stop_core_by_service() -> Result<()> {
     logging!(info, Type::Service, "Остановка ядра через службу (IPC)");
 
-    let response = clash_verge_service_ipc::stop_clash()
+    let credentials = current_owner_credentials()?;
+    let session = active_service_session()?;
+    let response = clash_verge_service_ipc::stop_clash(&credentials, &session)
         .await
         .context("Не удалось подключиться к Clash Verge Service")?;
 
     if response.code > 0 {
+        // Ядро уже не наше: другой запуск перехватил владение или сессия
+        // протухла. Останавливать нам больше нечего — считаем остановленным,
+        // а не роняем всю цепочку выключения.
+        if response.code == ServiceErrorCode::NotActive as u16
+            || response.code == ServiceErrorCode::StaleOwnerSession as u16
+        {
+            logging!(
+                warn,
+                Type::Service,
+                "the running core is no longer ours ({}); nothing left to stop",
+                response.message
+            );
+            clear_active_service_session();
+            return Ok(());
+        }
         let err_msg = response.message;
         logging!(error, Type::Service, "Не удалось остановить ядро: {}", err_msg);
         bail!(err_msg);
     }
 
+    clear_active_service_session();
     logging!(info, Type::Service, "Служба успешно остановила ядро");
+    Ok(())
+}
+
+/// Обновить настройки писателя логов ядра на стороне службы.
+///
+/// Требует живой сессии: писатель принадлежит владельцу работающего ядра.
+pub(crate) async fn update_writer_by_service(writer: &WriterConfig) -> Result<()> {
+    let credentials = current_owner_credentials()?;
+    let session = active_service_session()?;
+    let response = clash_verge_service_ipc::update_writer(&credentials, &session, writer)
+        .await
+        .context("Не удалось подключиться к Clash Verge Service")?;
+    if response.code > 0 {
+        bail!(response.message);
+    }
     Ok(())
 }
 

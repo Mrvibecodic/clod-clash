@@ -15,6 +15,7 @@ use std::{
     sync::atomic::{AtomicU32, Ordering},
     time::Duration,
 };
+use tauri_plugin_mihomo::MihomoExt as _;
 use tauri_plugin_shell::ShellExt as _;
 
 #[cfg(target_os = "windows")]
@@ -100,6 +101,16 @@ impl CoreManager {
 
     pub(super) async fn start_core_by_sidecar(&self) -> Result<()> {
         logging!(info, Type::Core, "Starting core in sidecar mode");
+
+        // clod:svc-2.6 — sidecar и служба слушают на РАЗНЫХ путях: свой сокет
+        // sidecar получает флагом ниже, а служебный путь назначает служба.
+        // Клиент mihomo надо направить на путь текущего режима.
+        let sidecar_ipc = dirs::sidecar_ipc_path()?;
+        handle::Handle::app_handle()
+            .mihomo()
+            .write()
+            .await
+            .update_socket_path(dirs::path_to_str(&sidecar_ipc)?.to_owned())?;
 
         let config_file = Config::generate_file(crate::config::ConfigType::Run).await?;
         let app_handle = handle::Handle::app_handle();
@@ -239,6 +250,16 @@ impl CoreManager {
 
     pub(super) async fn start_core_by_service(&self) -> Result<()> {
         logging!(info, Type::Core, "Starting core in service mode");
+
+        // clod:svc-2.6 — ядро под службой слушает на пути, который назначает
+        // служба (см. `dirs::service_ipc_path`); наш yaml она перекрывает.
+        let service_ipc = dirs::service_ipc_path()?;
+        handle::Handle::app_handle()
+            .mihomo()
+            .write()
+            .await
+            .update_socket_path(dirs::path_to_str(&service_ipc)?.to_owned())?;
+
         let config_file = Config::generate_file(crate::config::ConfigType::Run).await?;
 
         // При передаче ждём, пока sidecar освободит канал ext-controller.

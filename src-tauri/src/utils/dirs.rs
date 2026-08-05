@@ -232,7 +232,7 @@ pub fn ensure_mihomo_safe_dir() -> Option<PathBuf> {
 }
 
 #[cfg(unix)]
-pub fn ipc_path() -> Result<PathBuf> {
+pub fn sidecar_ipc_path() -> Result<PathBuf> {
     ensure_mihomo_safe_dir()
         .map(|base_dir| base_dir.join("verge").join("verge-mihomo.sock"))
         .or_else(|| {
@@ -244,8 +244,19 @@ pub fn ipc_path() -> Result<PathBuf> {
 }
 
 #[cfg(target_os = "windows")]
-pub fn ipc_path() -> Result<PathBuf> {
+pub fn sidecar_ipc_path() -> Result<PathBuf> {
     Ok(PathBuf::from(r"\\.\pipe\verge-mihomo"))
+}
+
+/// clod:svc-2.6 — где слушает API ядро, запущенное СЛУЖБОЙ.
+///
+/// Служба назначает этот путь сама и передаёт его ядру CLI-флагом, перекрывая
+/// `external-controller-*` из нашего yaml; подключаться в service-режиме надо
+/// именно сюда, а не к sidecar-пути выше — иначе API ядра недостижим.
+pub fn service_ipc_path() -> Result<PathBuf> {
+    Ok(PathBuf::from(clash_verge_service_ipc::mihomo_ipc_path(
+        &crate::core::owner_identity::current_owner_identity()?,
+    )))
 }
 #[async_trait]
 pub trait PathBufExec {

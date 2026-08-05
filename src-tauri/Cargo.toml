@@ -104,9 +104,9 @@ async-trait = "0.1.89"
 # Клиентская библиотека сверяет версию установленной службы строго; без тега
 # `cargo update` молча уезжал бы на main, а prebuild качал «latest» — и клиент
 # с собственной службой из ресурсов расходились, давая вечное «служба устарела».
-clash_verge_service_ipc = { version = "2.3.3", features = [
+clash_verge_service_ipc = { version = "2.6.1", features = [
   "client",
-], git = "https://github.com/clash-verge-rev/clash-verge-service-ipc", tag = "v2.3.3" }
+], git = "https://github.com/clash-verge-rev/clash-verge-service-ipc", tag = "v2.6.1" }
 arc-swap = "1.9.2"
 tokio-rustls = "0.26.4"
 rustls = { version = "0.23.41", features = ["ring"] }
@@ -122,6 +122,9 @@ tokio-util = { version = "0.7.18", features = ["time"] }
 sha2 = "0.10.9"
 hex = "0.4.3"
 sysinfo = { version = "0.39.5", features = ["system"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2.189"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6.4"

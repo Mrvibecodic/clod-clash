@@ -6,6 +6,8 @@ pub mod hotkey;
 pub mod logger;
 pub mod manager;
 mod notification;
+pub(crate) mod owner_identity;
+pub(crate) mod runtime_bundle;
 pub mod service;
 pub mod sysopt;
 pub mod timer;

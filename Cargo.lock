@@ -1201,7 +1201,7 @@ dependencies = [
 [[package]]
 name = "clash_verge_logger"
 version = "0.2.2"
-source = "git+https://github.com/clash-verge-rev/clash-verge-logger#e4768e3852c4868ed86e7210df82c1178467820d"
+source = "git+https://github.com/clash-verge-rev/clash-verge-logger#45adad7ae6dd76baa7457e3b111a0f1927998e22"
 dependencies = [
  "arraydeque",
  "compact_str",
@@ -1213,8 +1213,8 @@ dependencies = [
 
 [[package]]
 name = "clash_verge_service_ipc"
-version = "2.3.3"
-source = "git+https://github.com/clash-verge-rev/clash-verge-service-ipc?tag=v2.3.3#b964ed2992599fadefd589425c1acdabcb875623"
+version = "2.6.1"
+source = "git+https://github.com/clash-verge-rev/clash-verge-service-ipc?tag=v2.6.1#10edb52ec071520f14ce78654e401e4246127d75"
 dependencies = [
  "anyhow",
  "compact_str",
@@ -1303,9 +1303,9 @@ dependencies = [
 
 [[package]]
 name = "compact_str"
-version = "0.9.1"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9dfdd1c2274d9aa354115b09dc9a901d6c5576818cdf70d14cae2bdb47df00ab"
+checksum = "79fcda08c33bb58b97008b2cdada6622500e949e060f5913361763121abd2416"
 dependencies = [
  "castaway",
  "cfg-if",

@@ -10,6 +10,7 @@ use crate::{
 };
 use anyhow::{Result, anyhow};
 use clash_verge_logging::{Type, logging};
+use clash_verge_service_ipc::StageRuntimeOutcome;
 use scopeguard::defer;
 use smartstring::alias::String;
 use std::{collections::HashSet, path::PathBuf, time::Instant};
@@ -138,7 +139,52 @@ impl CoreManager {
     }
 
     async fn apply_config(&self, path: PathBuf) -> Result<()> {
-        let path = dirs::path_to_str(&path)?;
+        // clod:svc-2.6 — в service-режиме ядро работает не с нашим файлом, а с
+        // копией в «поколении» службы: сначала просим службу привести поколение
+        // к новому конфигу (staging), и ядру отдаётся ПУТЬ ИЗ ПОКОЛЕНИЯ.
+        // Перезагружать ядро нашим путём нельзя: провайдерские пути в нём не
+        // переписаны, а после рестарта ядра службой конфиг откатился бы к
+        // прошлому поколению. Отказ staging — не ошибка: медленный путь
+        // (полный перезапуск ядра со свежим бандлом) остаётся в фолбэках ниже.
+        let service_mode = matches!(*self.get_running_mode(), super::RunningMode::Service);
+        let reload_path: String = if service_mode {
+            match self.stage_into_service_generation(&path).await {
+                StagedPath::Staged(staged) => staged,
+                StagedPath::RefusedTheBundle(message) => {
+                    logging!(
+                        warn,
+                        Type::Core,
+                        "Service refused the runtime, leaving the core running: {message}"
+                    );
+                    Config::runtime().await.discard();
+                    return Err(anyhow!("{message}"));
+                }
+                // В service-режиме перезагрузка НАШИМ путём запрещена всегда:
+                // мягкий reload с непереписанными провайдерскими путями может
+                // «успеть» — и оставить старый бинарь/чужие файлы, а рестарт
+                // ядра службой откатит конфиг на прошлое поколение. Любой
+                // не-staged исход — сразу полный перезапуск ядра: он
+                // материализует свежий бандл сам.
+                StagedPath::NotStaged => {
+                    logging!(info, Type::Core, "Staging unavailable; replacing the service core");
+                    return match self.restart_core().await {
+                        Ok(_) => {
+                            Config::runtime().await.apply();
+                            logging!(info, Type::Core, "Configuration applied after restart");
+                            Ok(())
+                        }
+                        Err(err) => {
+                            logging!(error, Type::Core, "Failed to restart core: {}", err);
+                            Config::runtime().await.discard();
+                            Err(anyhow!("Failed to apply config: {}", err))
+                        }
+                    };
+                }
+            }
+        } else {
+            dirs::path_to_str(&path)?.into()
+        };
+        let path = reload_path.as_str();
 
         // clod: обновление подписки не должно рвать активные соединения.
         // `force=true` в mihomo пересоздаёт inbound-листенеры, поэтому
@@ -190,6 +236,64 @@ impl CoreManager {
     async fn reload_config(&self, force: bool, path: &str) -> Result<(), MihomoError> {
         handle::Handle::mihomo().await.reload_config(force, path).await
     }
+
+    /// Попросить службу подготовить поколение под новый конфиг.
+    ///
+    /// Зовётся только в service-режиме. Любой исход, кроме успеха и
+    /// отказа-про-бандл, сводится к `NotStaged` — и вызывающий уходит в
+    /// полный перезапуск ядра, который материализует свежий бандл сам.
+    async fn stage_into_service_generation(&self, path: &std::path::Path) -> StagedPath {
+        use crate::core::service;
+
+        if !service::active_service_supports_runtime_staging() {
+            return StagedPath::NotStaged;
+        }
+
+        match service::stage_runtime_by_service(path).await {
+            Ok(service::StageRequest::Answered(StageRuntimeOutcome::Staged { config_path })) => {
+                StagedPath::Staged(config_path.into())
+            }
+            Ok(service::StageRequest::Answered(StageRuntimeOutcome::RestartRequired { reason })) => {
+                logging!(
+                    info,
+                    Type::Core,
+                    "Service declined to stage the runtime ({reason:?}); taking the restart path"
+                );
+                StagedPath::NotStaged
+            }
+            Ok(service::StageRequest::Refused { code, message }) => {
+                if service::StageRequest::is_about_the_bundle(code) {
+                    StagedPath::RefusedTheBundle(message.to_string())
+                } else {
+                    logging!(
+                        warn,
+                        Type::Core,
+                        "Service refused to stage the runtime ({message}); taking the restart path"
+                    );
+                    StagedPath::NotStaged
+                }
+            }
+            Err(error) => {
+                logging!(
+                    warn,
+                    Type::Core,
+                    "Failed to stage the service runtime ({error:#}); taking the restart path"
+                );
+                StagedPath::NotStaged
+            }
+        }
+    }
+}
+
+/// Каким путём перезагружать ядро после попытки staging.
+enum StagedPath {
+    /// Служба подготовила поколение — перезагружаемся из него.
+    Staged(String),
+    /// Staging не случился — в service-режиме это сразу полный перезапуск
+    /// ядра; в sidecar-режиме staging не зовётся вовсе.
+    NotStaged,
+    /// Служба отвергла сам бандл: старт повторил бы отказ, ядро не трогаем.
+    RefusedTheBundle(std::string::String),
 }
 
 /// Ключи конфига, изменение которых требует пересоздания inbound-листенеров
