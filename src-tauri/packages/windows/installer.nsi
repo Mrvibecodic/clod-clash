@@ -535,6 +535,28 @@ FunctionEnd
 
 
 !macro CheckAllVergeProcesses
+  ; clod: the service is STOPPED through the SCM, not just killed.
+  ;
+  ; Killing the process leaves the service registered and running as far as the
+  ; SCM is concerned, and Windows is free to bring it straight back up - from
+  ; the OLD binary, before this installer has replaced the file. The service
+  ; then survives the whole update as the previous version, the app reports
+  ; "the background service is outdated after an update", and the user is asked
+  ; for elevation twice to repair something the installer was supposed to hand
+  ; over already updated. Stopping it properly keeps it down until we start it
+  ; again in EnsureVergeService, after the files are in place.
+  SimpleSC::ExistsService "clash_verge_service"
+  Pop $R0
+  ${If} $R0 == 0
+    DetailPrint "Stopping ${PRODUCTNAME} Service..."
+    SimpleSC::StopService "clash_verge_service" 1 30
+    Pop $R0 ; 0: stopped, 1062: was not running
+    ${If} $R0 != 0
+    ${AndIf} $R0 != 1062
+      DetailPrint "Could not stop ${PRODUCTNAME} Service ($R0); falling back to killing it"
+    ${EndIf}
+  ${EndIf}
+
   ; Check if clash-verge-service.exe is running
   !if "${INSTALLMODE}" == "currentUser"
     nsis_tauri_utils::FindProcessCurrentUser "clash-verge-service.exe"
@@ -638,11 +660,14 @@ FunctionEnd
     ; Registered already: the binary next to it has just been replaced, so all
     ; that is left is to bring it back up.
     ;
-    ; Started unconditionally on purpose. The process was killed a moment ago by
-    ; CheckAllVergeProcesses, but the SCM marks a service stopped on its own
-    ; schedule: asking "is it running?" first can catch a window where it still
-    ; answers "yes" and the service would be left dead after an update. Starting
-    ; an already-running service is harmless - it returns 1056.
+    ; It was stopped through the SCM in CheckAllVergeProcesses, before the files
+    ; were replaced, so what starts here is guaranteed to be the new binary. A
+    ; second stop is cheap insurance against anything having started it in
+    ; between (service recovery, another installer): whatever is running now
+    ; would be the old version, and the app would spend two elevation prompts
+    ; repairing it later.
+    SimpleSC::StopService "clash_verge_service" 1 30
+    Pop $0 ; 0: stopped, 1062: was not running - both fine
     DetailPrint "Starting ${PRODUCTNAME} Service..."
     SimpleSC::StartService "clash_verge_service" "" 30
     Pop $0 ; 0: started, 1056: already running, anything else: a real failure
