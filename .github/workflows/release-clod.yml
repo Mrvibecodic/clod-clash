@@ -114,29 +114,28 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
-      - name: Install Rust stable
+      # Ставим ровно тот тулчейн, что в `rust-toolchain.toml`: `stable` всё
+      # равно перебивается пином при сборке, то есть скачивался впустую — и
+      # ключ кэша при этом врал, называя себя stable.
+      - name: Install Rust
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: stable
+          toolchain: '1.95.0'
           targets: ${{ matrix.target }}
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
         with:
           prefix-key: 'v1-rust-clod'
-          key: 'rust-${{ matrix.os }}-${{ matrix.target }}'
+          key: 'rust-1.95.0-${{ matrix.os }}-${{ matrix.target }}'
           # сохранять кэш и при упавшем джобе: иначе падение на позднем шаге
           # (upload) оставляет следующий прогон без кэша и +30 мин компиляции
           cache-on-failure: true
           workspaces: |
             . -> target
 
-      # Явный rustup: экшен тулчейна не добавляет цель к уже предустановленному
-      # stable на раннере
-      - name: Add Rust target
-        run: |
-          rustup target add ${{ matrix.target }}
-          rustup target list --installed
+      - name: Verify Rust target
+        run: rustup target list --installed
 
       - name: Install dependencies (ubuntu only)
         if: matrix.os == 'ubuntu-22.04'
