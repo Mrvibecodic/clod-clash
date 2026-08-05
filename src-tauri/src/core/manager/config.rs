@@ -23,6 +23,10 @@ impl CoreManager {
         let runtime_path = dirs::app_home_dir()?.join(RUNTIME_CONFIG);
         let clash_config = &Config::clash().await.latest_arc().0;
 
+        // Draft only, no `apply` here: this runs on the boot path before the
+        // core exists, so nothing has accepted this build yet. The core starts
+        // from the draft (`generate_file` prefers `latest`) and `start_core`
+        // commits it once the start succeeded.
         Config::runtime().await.edit_draft(|d| {
             *d = IRuntime {
                 config: Some(clash_config.to_owned()),

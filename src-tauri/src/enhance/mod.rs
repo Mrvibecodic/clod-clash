@@ -15,11 +15,12 @@ use self::{
 };
 use crate::utils::dirs;
 use crate::{
-    config::{Config, IVerge, PrfItem},
+    config::{Config, IVerge, PrfItem, runtime::IRuntime},
     constants,
     utils::tmpl,
 };
 use anyhow::{Context as _, Result};
+use clash_verge_draft::Draft;
 use clash_verge_logging::{Type, logging};
 use serde_yaml_ng::{Mapping, Value};
 use smartstring::alias::String;
@@ -623,11 +624,33 @@ pub async fn sentinel_report() -> SentinelReport {
 /// koala-clash, Happ, INCY). Нас там нет, поэтому провайдер должен добавить
 /// `^ClodClash/` в `additionalExtendedClientsRegex` своих Subscription Response
 /// Rules — иначе поля в подписке просто не будет. См. `docs/REMNAWAVE.md`.
+///
+/// "Applied" here means the committed build when there is one and the draft the
+/// core was started from otherwise — see `server_descriptions_of`.
 pub async fn server_descriptions() -> HashMap<String, String> {
-    let runtime = crate::config::Config::runtime().await;
-    let data = runtime.data_arc();
-    data.config
+    server_descriptions_of(&Config::runtime().await)
+}
+
+/// Read the descriptions from the committed build, falling back to the draft.
+///
+/// The applied config is the honest answer, so it wins whenever it exists. The
+/// fallback covers the cold start: until the first `update_config_*` cycle the
+/// build lives only in the draft (`Config::generate` writes there and nothing
+/// commits it), so this command used to answer with an empty map and the panel
+/// descriptions showed up only after a profile update. The core is started from
+/// that very draft — `generate_file` prefers `latest` — so the draft describes
+/// what mihomo is actually running.
+///
+/// Mirrors the fallback in `Config::generate_file` with the priority reversed:
+/// there the question is which build is *about to* reach the core, here it is
+/// which build already did.
+fn server_descriptions_of(runtime: &Draft<IRuntime>) -> HashMap<String, String> {
+    let committed = runtime.data_arc();
+    let draft = runtime.latest_arc();
+    committed
+        .config
         .as_ref()
+        .or_else(|| draft.config.as_ref())
         .map(collect_server_descriptions)
         .unwrap_or_default()
 }
@@ -1136,9 +1159,9 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
 #[cfg(test)]
 mod tests {
     use super::{
-        ChainItem, ChainType, backfill_empty_groups, cleanup_proxy_groups, collect_server_descriptions,
-        ensure_lan_bind_address, ensure_store_selected, filter_sentinel_proxies, process_global_items,
-        process_profile_items, use_keys,
+        ChainItem, ChainType, Draft, IRuntime, backfill_empty_groups, cleanup_proxy_groups,
+        collect_server_descriptions, ensure_lan_bind_address, ensure_store_selected, filter_sentinel_proxies,
+        process_global_items, process_profile_items, server_descriptions_of, use_keys,
     };
     use std::collections::HashMap;
 
@@ -1695,6 +1718,69 @@ proxies:
         );
 
         assert!(collect_server_descriptions(&config).is_empty());
+    }
+
+    // clod: the cold-start regression. `Config::generate` writes the DRAFT and
+    // nothing on the boot path commits it, so a reader that only looked at the
+    // committed slot answered with an empty map until the first config update —
+    // the panel descriptions were invisible for the whole first session. The
+    // core is started from that draft, so it is a truthful source here.
+    #[test]
+    fn server_descriptions_survive_a_draft_that_was_never_committed() {
+        let runtime = Draft::new(IRuntime::new());
+        runtime.edit_draft(|draft| {
+            draft.config = Some(mapping(
+                r#"
+proxies:
+  - name: "Netherlands 01"
+    type: vless
+    server: nl-01.example.com
+    serverDescription: "10 Гбит · без лимита"
+"#,
+            ));
+        });
+
+        let descriptions = server_descriptions_of(&runtime);
+
+        assert_eq!(
+            descriptions.get("Netherlands 01").map(|value| value.as_str()),
+            Some("10 Гбит · без лимита")
+        );
+    }
+
+    // clod: the applied build still wins — a draft is a proposal the core may
+    // yet reject, and the command answers about what is running.
+    #[test]
+    fn committed_server_descriptions_win_over_a_pending_draft() {
+        let runtime = Draft::new(IRuntime::new());
+        runtime.edit_draft(|draft| {
+            draft.config = Some(mapping(
+                r#"
+proxies:
+  - name: "Netherlands 01"
+    type: vless
+    serverDescription: "applied"
+"#,
+            ));
+        });
+        runtime.apply();
+        runtime.edit_draft(|draft| {
+            draft.config = Some(mapping(
+                r#"
+proxies:
+  - name: "Netherlands 01"
+    type: vless
+    serverDescription: "not applied yet"
+"#,
+            ));
+        });
+
+        let descriptions = server_descriptions_of(&runtime);
+
+        assert_eq!(
+            descriptions.get("Netherlands 01").map(|value| value.as_str()),
+            Some("applied")
+        );
     }
 
     // clod: панель при истёкшей подписке отдаёт 200 и конфиг, где вместо

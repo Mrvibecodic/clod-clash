@@ -87,6 +87,19 @@ impl CoreManager {
             return result;
         }
 
+        // clod: the core has just been started from the draft build —
+        // `generate_file` writes `latest` — so the draft is now what mihomo
+        // actually runs and belongs in the committed slot. Without this commit
+        // the committed slot stayed empty for the whole cold start (nothing on
+        // the boot path calls `apply`), and everything answering "what is
+        // applied" — server descriptions, the sentinel report — reported
+        // nothing until the first `update_config_*` cycle.
+        //
+        // Strictly after a successful start: committing a build the core
+        // refused would defeat the point of the draft/committed split, see the
+        // note on `IRuntime::sentinel_report`.
+        Config::runtime().await.apply();
+
         // clod:tun-ready — проверяем факт, а не заявку: если ядро не смогло
         // поднять устройство, честно гасим TUN и говорим об этом.
         if crate::feat::tun::desired().await && !crate::feat::tun::is_suppressed() {
