@@ -167,18 +167,7 @@ impl CoreManager {
                 // материализует свежий бандл сам.
                 StagedPath::NotStaged => {
                     logging!(info, Type::Core, "Staging unavailable; replacing the service core");
-                    return match self.restart_core().await {
-                        Ok(_) => {
-                            Config::runtime().await.apply();
-                            logging!(info, Type::Core, "Configuration applied after restart");
-                            Ok(())
-                        }
-                        Err(err) => {
-                            logging!(error, Type::Core, "Failed to restart core: {}", err);
-                            Config::runtime().await.discard();
-                            Err(anyhow!("Failed to apply config: {}", err))
-                        }
-                    };
+                    return self.replace_core_and_apply().await;
                 }
             }
         } else {
@@ -217,24 +206,29 @@ impl CoreManager {
                     Type::Core,
                     "Failed to apply configuration by mihomo api, restart core to apply it, error msg: {err}"
                 );
-                match self.restart_core().await {
-                    Ok(_) => {
-                        Config::runtime().await.apply();
-                        logging!(info, Type::Core, "Configuration applied after restart");
-                        Ok(())
-                    }
-                    Err(err) => {
-                        logging!(error, Type::Core, "Failed to restart core: {}", err);
-                        Config::runtime().await.discard();
-                        Err(anyhow!("Failed to apply config: {}", err))
-                    }
-                }
+                self.replace_core_and_apply().await
             }
         }
     }
 
     async fn reload_config(&self, force: bool, path: &str) -> Result<(), MihomoError> {
         handle::Handle::mihomo().await.reload_config(force, path).await
+    }
+
+    /// Полный перезапуск ядра и итог по нему: применить черновик или откатить.
+    async fn replace_core_and_apply(&self) -> Result<()> {
+        match self.restart_core().await {
+            Ok(_) => {
+                Config::runtime().await.apply();
+                logging!(info, Type::Core, "Configuration applied after restart");
+                Ok(())
+            }
+            Err(err) => {
+                logging!(error, Type::Core, "Failed to restart core: {}", err);
+                Config::runtime().await.discard();
+                Err(anyhow!("Failed to apply config: {}", err))
+            }
+        }
     }
 
     /// Попросить службу подготовить поколение под новый конфиг.

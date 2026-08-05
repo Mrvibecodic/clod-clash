@@ -903,7 +903,7 @@ pub(crate) async fn stage_runtime_by_service(config_file: &Path) -> Result<Stage
 }
 
 /// Пытаемся запустить core через службу
-pub(super) async fn start_with_existing_service(config_file: &PathBuf) -> Result<()> {
+pub(super) async fn start_with_existing_service(config_file: &Path) -> Result<()> {
     logging!(info, Type::Service, "Попытка запуска ядра через существующую службу");
     clear_active_service_session();
 
@@ -941,7 +941,7 @@ pub(super) async fn start_with_existing_service(config_file: &PathBuf) -> Result
 }
 
 // Запуск core через службу
-pub(super) async fn run_core_by_service(config_file: &PathBuf) -> Result<()> {
+pub(super) async fn run_core_by_service(config_file: &Path) -> Result<()> {
     logging!(info, Type::Service, "Попытка запуска ядра через службу");
 
     SERVICE_MANAGER.refresh().await?;
