@@ -141,9 +141,7 @@ export interface TranslationResources {
         }
         serverSelect: {
           autoHint: string
-          current: string
           empty: string
-          failover: string
           favorite: string
           inUse: string
           ms: string

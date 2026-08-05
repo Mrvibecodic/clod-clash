@@ -130,14 +130,12 @@
     },
     "serverSelect": {
       "title": "Servers",
-      "current": "Server",
       "none": "Not selected",
       "test": "Test",
       "empty": "No servers in this subscription",
       "favorite": "收藏",
       "ms": "ms",
       "autoHint": "The node in this group is picked automatically",
-      "failover": "“{{from}}” is unreachable — switched to starred server “{{to}}”",
       "inUse": "In use",
       "types": {
         "selector": "group",

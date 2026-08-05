@@ -608,6 +608,29 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
     ? (records[pingTarget]?.provider as string | undefined)
     : undefined
 
+  // clod: updating the subscription reloads the config, mihomo rebuilds every
+  // adapter and its delay history starts empty — the ping the user was looking
+  // at turned into a placeholder word for a second or two and came back. So we
+  // keep showing the last figure we saw until a new one arrives.
+  //
+  // The key pins that figure to the entry it was measured for: the selected
+  // node, its group, and the leaf a balancer currently lands on. A remembered
+  // ping is never shown next to a different server — it disappears instead.
+  const pingKey = current
+    ? `${group?.name ?? ''}::${current}::${leaf ?? ''}`
+    : ''
+  const [lastPing, setLastPing] = useState<{ key: string; delay: number }>()
+  useEffect(() => {
+    if (!usableDelay(delay)) return
+    setLastPing({ key: pingKey, delay })
+  }, [pingKey, delay])
+  const remembered =
+    lastPing && lastPing.key === pingKey ? lastPing.delay : undefined
+  // Only the caption and the bars use it — `hasPing` and `measuredAt` below
+  // must keep speaking about what the core really has, or the auto re-ping
+  // would take a remembered figure for a live one and stop measuring.
+  const shownDelay = hasPing ? delay : remembered
+
   const groupName = group?.name
   const updatedAt = currentProfile?.updated ?? 0
   useEffect(() => {
@@ -617,7 +640,7 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
     // подождать, пока ядро дожуёт свежий конфиг, и перепинговать сразу.
     // Тест идёт через useGroupDelayTest: keepFixed + восстановление выбора,
     // так что автоперепинговка после обновления подписки НЕ сбрасывает
-    // выбранный сервер (и умеет уйти на избранный, если выбранный умер).
+    // выбранный сервер — она только меряет.
     const timer = window.setTimeout(() => {
       lastAutoDelayKey = key
       // Групповой тест меряет и наш узел — одиночному автопингу ниже здесь
@@ -636,9 +659,9 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
   // истории ещё нет вовсе.
   //
   // Именно один узел, а не групповой тест: групповой идёт по всем узлам
-  // подписки и умеет молча переключить сервер на избранный — такое по факту
-  // разворачивания окна пользователь не просил. Групповой остаётся за кнопкой
-  // «Тест» и за обновлением подписки (эффект выше).
+  // подписки — сотни запросов по факту разворачивания окна, ради одной цифры
+  // на экране. Групповой остаётся за кнопкой «Тест» и за обновлением подписки
+  // (эффект выше).
   //
   // `Date.now()` живёт внутри эффекта: в теле компонента он делает рендер
   // нечистым (`react-compiler`).
@@ -741,11 +764,14 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
     (leaf ? descriptions[leaf] : undefined) ??
     (current ? descriptions[current] : undefined)
   const subject = description ?? (leaf ? nameWithoutFlag(leaf) : undefined)
-  const caption = usableDelay(delay)
+  // No ping and nothing remembered means the figure is unknown, and a dash
+  // says so — the same one the drawer shows. The word "Server" only repeated
+  // the row's own title and read as a state the row had switched into.
+  const caption = usableDelay(shownDelay)
     ? subject
-      ? `${subject} · ${delay} ${t('home.components.serverSelect.ms')}`
-      : `${delay} ${t('home.components.serverSelect.ms')}`
-    : (subject ?? t('home.components.serverSelect.current'))
+      ? `${subject} · ${shownDelay} ${t('home.components.serverSelect.ms')}`
+      : `${shownDelay} ${t('home.components.serverSelect.ms')}`
+    : (subject ?? '—')
 
   return (
     <Stack
@@ -795,7 +821,7 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
         </Typography>
       </Box>
 
-      <SignalBars delay={delay} />
+      <SignalBars delay={shownDelay} />
 
       <IconButton
         size="small"
