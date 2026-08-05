@@ -2,7 +2,12 @@ import PowerSettingsNewRoundedIcon from '@mui/icons-material/PowerSettingsNewRou
 import { Box, CircularProgress, Typography, alpha } from '@mui/material'
 import { useTranslation } from 'react-i18next'
 
-export type ConnectState = 'off' | 'connecting' | 'on' | 'error'
+export type ConnectState =
+  | 'off'
+  | 'connecting'
+  | 'disconnecting'
+  | 'on'
+  | 'error'
 
 interface Props {
   state: ConnectState
@@ -45,6 +50,7 @@ export const ConnectButton = ({
   const palette = {
     off: 'text.disabled',
     connecting: 'info.main',
+    disconnecting: 'info.main',
     on: 'success.main',
     error: 'error.main',
   } as const
@@ -54,6 +60,7 @@ export const ConnectButton = ({
   const bgKey = {
     off: 'primary',
     connecting: 'info',
+    disconnecting: 'info',
     on: 'success',
     error: 'error',
   } as const
@@ -61,6 +68,7 @@ export const ConnectButton = ({
   const label = {
     off: t('home.components.connect.states.off'),
     connecting: t('home.components.connect.states.connecting'),
+    disconnecting: t('home.components.connect.states.disconnecting'),
     on: t('home.components.connect.states.on'),
     error: t('home.components.connect.states.error'),
   }[state]
@@ -115,13 +123,13 @@ export const ConnectButton = ({
             '100%': { transform: 'scale(1)', opacity: 1 },
           },
           animation:
-            state === 'connecting'
+            state === 'connecting' || state === 'disconnecting'
               ? 'clodPulse 1.4s ease-in-out infinite'
               : 'none',
           '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
         })}
       >
-        {state === 'connecting' ? (
+        {state === 'connecting' || state === 'disconnecting' ? (
           <CircularProgress size={56} color="inherit" />
         ) : (
           <PowerSettingsNewRoundedIcon sx={{ fontSize: 64 }} />

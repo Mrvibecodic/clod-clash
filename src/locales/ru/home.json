@@ -120,6 +120,7 @@
       "states": {
         "off": "Не подключено",
         "connecting": "Подключение…",
+        "disconnecting": "Отключение…",
         "on": "Подключено",
         "error": "Не удалось подключиться"
       },
@@ -193,7 +194,7 @@
       "expiryTitle": "Срок",
       "daysShort": "{{count}} дн",
       "untilDate": "до {{date}}",
-      "hoursShort": "{{count}} ч",
+      "hoursShort": "~{{count}} ч",
       "expiredShort": "Истекла",
       "untilTime": "до {{time}}",
       "untilTimeToday": "сегодня до {{time}}",

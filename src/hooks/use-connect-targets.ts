@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useSystemProxyState } from '@/hooks/use-system-proxy-state'
 import { useSystemState } from '@/hooks/use-system-state'
+import { useTunState } from '@/hooks/use-tun-state'
 import { useVerge } from '@/hooks/use-verge'
 import { ensureTunReady } from '@/services/cmds'
 
@@ -27,8 +28,12 @@ export const useConnectTargets = () => {
   const { verge, patchVerge } = useVerge()
   const { isTunModeAvailable, mutateSystemState } = useSystemState()
   const { indicator: sysproxyOn, toggleSystemProxy } = useSystemProxyState()
-
-  const tunOn = Boolean(verge?.enable_tun_mode)
+  // clod: факт, а не желание. `enable_tun_mode` — это то, чего хочет
+  // пользователь; бэкенд же может подавить TUN на сессию (ядро не смогло
+  // поднять устройство, службы нет) и в конфиг при этом НЕ пишет — намеренно,
+  // чтобы не терять выбор. Кнопка, читавшая конфиг, оставалась зелёной над
+  // мёртвым туннелем: «Подключено», а трафик идёт мимо.
+  const { tunActive, tunDesired, mutateTunState } = useTunState()
 
   const { targetSys, targetTun } = useMemo(() => {
     const sys = verge?.connect_system_proxy ?? true
@@ -38,16 +43,22 @@ export const useConnectTargets = () => {
 
   const connected =
     (!targetSys || sysproxyOn) &&
-    (!targetTun || tunOn) &&
+    (!targetTun || tunActive) &&
     (targetSys || targetTun)
 
   const toggleConnection = useCallback(async () => {
-    const next = !connected
+    // clod: намерение — от ЖЕЛАНИЯ, а не от факта. `connected` честно гаснет,
+    // когда бэкенд подавил TUN, и если считать намерение по нему, кнопка
+    // умела бы только «подключать»: отключить системный прокси при сломанном
+    // туннеле стало бы нечем. Что-то из целей ещё включено — значит нажатие
+    // означает «отключить».
+    const anythingOn = (targetSys && sysproxyOn) || (targetTun && tunDesired)
+    const next = !anythingOn
 
     // clod:tun-ready — TUN нужна фоновая служба. Раньше кнопка просто ругалась
     // «установите её сами»; теперь ставим (один запрос прав) и продолжаем, а
     // ошибка остаётся только для случая, когда пользователь отказал.
-    if (next && targetTun && !isTunModeAvailable && !tunOn) {
+    if (next && targetTun && !isTunModeAvailable && !tunActive) {
       const ready = await ensureTunReady()
       await mutateSystemState()
       if (!ready) {
@@ -55,20 +66,25 @@ export const useConnectTargets = () => {
       }
     }
 
-    if (targetTun && tunOn !== next) {
+    // Включаем — пока туннеля НЕТ (даже если в конфиге он уже «включён»:
+    // повторная запись снимает сессионное подавление, переводит ядро на службу
+    // и заново проверяет факт). Выключаем — пока он в конфиге есть.
+    if (targetTun && (next ? !tunActive : tunDesired)) {
       await patchVerge({ enable_tun_mode: next })
+      await mutateTunState()
     }
     if (targetSys && sysproxyOn !== next) {
       await toggleSystemProxy(next)
     }
   }, [
-    connected,
     targetSys,
     targetTun,
-    tunOn,
+    tunActive,
+    tunDesired,
     sysproxyOn,
     isTunModeAvailable,
     mutateSystemState,
+    mutateTunState,
     patchVerge,
     toggleSystemProxy,
     t,

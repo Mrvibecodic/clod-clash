@@ -161,7 +161,10 @@ tauri-plugin-global-shortcut = "2.3.2"
 tauri-plugin-updater = "2.10.1"
 
 [dev-dependencies]
-criterion = { workspace = true }
+# clod: `criterion` тут не нужен — бенчей в src-tauri нет (каталога `benches`
+# не существует), а `--all-targets` тянул его вместе с plotters/rayon/clap на
+# каждый прогон линтера. В `crates/clash-verge-draft` бенчи есть, там он и
+# остался.
 # clod: integration test for the subscription request/response headers
 tokio = { workspace = true }
 reqwest = { version = "0.13.4", features = ["rustls"] }

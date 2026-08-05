@@ -19,6 +19,7 @@ import { useServiceInstaller } from '@/hooks/use-service-installer'
 import { useServiceUninstaller } from '@/hooks/use-service-uninstaller'
 import { useSystemProxyState } from '@/hooks/use-system-proxy-state'
 import { useSystemState } from '@/hooks/use-system-state'
+import { useTunState } from '@/hooks/use-tun-state'
 import { useVerge } from '@/hooks/use-verge'
 import { ensureTunReady } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
@@ -137,6 +138,10 @@ const ProxyControlSwitches = ({
   const { uninstallServiceAndRestartCore } = useServiceUninstaller()
   const { indicator: systemProxyIndicator, toggleSystemProxy } =
     useSystemProxyState()
+  // clod: тумблер показывает ФАКТ (`tunActive`), как и быстрые действия на
+  // главной. Раньше настройки читали `enable_tun_mode` — желание из конфига —
+  // и расходились с главной: там туннель погашен подавлением, здесь горит.
+  const { tunActive, mutateTunState } = useTunState()
   const { isServiceOk, isTunModeAvailable, mutateSystemState } =
     useSystemState()
   // Тумблеры здесь и есть выбор режима для кнопки Connect — отдельной пары
@@ -145,8 +150,6 @@ const ProxyControlSwitches = ({
 
   const sysproxyRef = useRef<DialogRef>(null)
   const tunRef = useRef<DialogRef>(null)
-
-  const { enable_tun_mode } = verge ?? {}
 
   const showErrorNotice = useCallback(
     (msg: string) => showNotice.error(msg),
@@ -175,6 +178,11 @@ const ProxyControlSwitches = ({
       // останется оптимистичное значение, которого нет на диске.
       mutateVerge()
       throw err
+    } finally {
+      // Тумблер показывает факт — спрашиваем его у бэкенда после патча. В
+      // `finally`, а не в `try`: провал этого запроса не делает патч неудачным
+      // и не должен откатывать переключатель.
+      await mutateTunState().catch(() => undefined)
     }
   }
 
@@ -223,12 +231,12 @@ const ProxyControlSwitches = ({
       {isTunMode && (
         <SwitchRow
           label={t('settings.sections.proxyControl.fields.tunMode')}
-          active={enable_tun_mode || false}
+          active={tunActive}
           infoTitle={t('settings.sections.proxyControl.tooltips.tunMode')}
           onInfoClick={() => tunRef.current?.open()}
           onToggle={handleTunToggle}
           onError={onError}
-          highlight={enable_tun_mode || false}
+          highlight={tunActive}
           extraIcons={
             <>
               {!isTunModeAvailable && (

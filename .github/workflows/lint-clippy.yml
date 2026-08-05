@@ -7,8 +7,18 @@ on:
   workflow_dispatch:
 env:
   HUSKY: 0
+  # clod: debuginfo — самая дорогая часть кодогенерации и главный источник
+  # раздувания `target/` (а значит и медленных save/restore кэша). Линтеру и
+  # тестам отладочные символы не нужны.
+  CARGO_PROFILE_DEV_DEBUG: 0
+  CARGO_PROFILE_TEST_DEBUG: 0
 permissions:
   contents: read
+# Серия пушей подряд не должна догонять устаревшими прогонами. Пуши в main
+# досматриваем до конца — иначе не успеет сохраниться кэш.
+concurrency:
+  group: clippy-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   clippy:
@@ -36,56 +46,79 @@ jobs:
           filters: |
             rust:
               - 'src-tauri/**'
+              - 'crates/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'rust-toolchain.toml'
+              - '.cargo/**'
+              - '.clippy.toml'
+              - '.github/workflows/lint-clippy.yml'
 
-      - name: Skip if src-tauri not changed
-        if: github.event_name == 'pull_request' && steps.check_changes.outputs.rust != 'true'
-        run: echo "No src-tauri changes, skipping clippy lint."
-
-      - name: Continue if src-tauri changed
-        if: github.event_name == 'pull_request' && steps.check_changes.outputs.rust == 'true'
-        run: echo "src-tauri changed, running clippy lint."
-
-      - name: Manual trigger - always run
-        if: github.event_name == 'workflow_dispatch'
+      # clod: одно решение «работать или нет» на весь джоб. Раньше фильтр
+      # считался, печатал «skipping» — и все тяжёлые шаги всё равно шли: у них
+      # не было `if`. Гейтим через шаги, а не через `on.pull_request.paths`:
+      # джоб — required-check, и `paths` подвесил бы PR в «Expected».
+      - name: Decide whether to run
+        id: decide
+        shell: bash
         run: |
-          echo "Manual trigger detected: skipping changes check and running clippy."
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            # Умолчание — «работать»: сбой фильтра не должен молча делать
+            # required-check зелёным при нуле проверок.
+            echo "run=${{ steps.check_changes.outputs.rust != 'false' }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Checkout Repository
+        if: steps.decide.outputs.run == 'true'
         uses: actions/checkout@v7
 
-      - name: Install Rust Stable
+      # Ставим ровно тот тулчейн, что в `rust-toolchain.toml`: `stable` здесь
+      # всё равно перебивается пином, то есть скачивался впустую.
+      - name: Install Rust
+        if: steps.decide.outputs.run == 'true'
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: stable
+          toolchain: '1.95.0'
+          targets: ${{ matrix.target }}
           components: clippy
 
-      - name: Add Rust Target
-        run: rustup target add ${{ matrix.target }}
-
+      # clod: `save-if` указывал на ветку `dev`, которой в репозитории нет —
+      # кэш не сохранялся НИКОГДА, и каждый прогон компилировал 900+ крейтов с
+      # нуля на трёх ОС. Сохраняем с дефолтной ветки: её кэш видят и все PR.
       - name: Rust Cache
+        if: steps.decide.outputs.run == 'true'
         uses: Swatinem/rust-cache@v2
         with:
-          save-if: ${{ github.ref == 'refs/heads/dev' }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
           prefix-key: 'v1-rust'
-          key: 'rust-shared-stable-${{ matrix.os }}-${{ matrix.target }}'
+          key: 'rust-shared-1.95.0-${{ matrix.os }}-${{ matrix.target }}'
           workspaces: |
             . -> target
-          cache-all-crates: true
-          cache-workspace-crates: true
+          cache-all-crates: false
+          cache-workspace-crates: false
 
       - name: Install dependencies (ubuntu only)
-        if: matrix.os == 'ubuntu-22.04'
+        if: steps.decide.outputs.run == 'true' && matrix.os == 'ubuntu-22.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y libxslt1.1 libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
 
+      # clod: тот же набор фич, что и у тестов ниже (`--features clippy`).
+      # Раньше здесь стоял `clippy-all` (`--all-features`): другой feature-resolve
+      # — другой metadata-hash, то есть пересечение артефактов с тестами почти
+      # нулевое и весь workspace компилировался дважды. Полный набор с
+      # `verge-dev`/`tokio-trace` проверяется отдельным шагом ниже.
       - name: Run Clippy
+        if: steps.decide.outputs.run == 'true'
         working-directory: ./src-tauri
-        run: cargo clippy-all
+        run: cargo clippy-only
 
       # clod: the repo's unit and header-contract tests — clippy compiles
       # them but never runs them, so this is where they actually execute
       - name: Run Tests
+        if: steps.decide.outputs.run == 'true'
         working-directory: ./src-tauri
         # the `clippy` feature stubs tauri_build - the runner has no dist/
         # or sidecar binaries, without it the build script dies
@@ -99,7 +132,21 @@ jobs:
             cargo test --test subscription_headers --features clippy
           fi
 
+      # Код под `verge-dev` / `tokio-trace` / `tracing` линтуем полным набором
+      # фич — но только на пуше в main и только на одной ОС: в PR это стоило бы
+      # второй полной компиляции на каждой из трёх машин.
+      # Одна машина, не три: полный набор фич — это второй feature-resolve и
+      # вторая компиляция workspace, на PR это дороже всего остального вместе.
+      - name: Run Clippy (all features)
+        if: >-
+          steps.decide.outputs.run == 'true' &&
+          matrix.os == 'ubuntu-22.04'
+        working-directory: ./src-tauri
+        run: cargo clippy-all
+
+      # Линтер исходников — платформенно-независим, одной ОС достаточно.
       - name: Run Logging Check
+        if: steps.decide.outputs.run == 'true' && matrix.os == 'ubuntu-22.04'
         working-directory: ./src-tauri
         shell: bash
         run: |

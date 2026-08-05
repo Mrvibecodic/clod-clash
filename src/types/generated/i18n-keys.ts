@@ -90,6 +90,7 @@ export const translationKeys = [
   'home.components.clashMode.descriptions.direct',
   'home.components.connect.states.off',
   'home.components.connect.states.connecting',
+  'home.components.connect.states.disconnecting',
   'home.components.connect.states.on',
   'home.components.connect.states.error',
   'home.components.connect.errors.serviceRequired',

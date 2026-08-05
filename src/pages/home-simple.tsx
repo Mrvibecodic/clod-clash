@@ -39,6 +39,7 @@ const HomeSimplePage = () => {
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState<{ text: string; at: boolean }>()
   const [serverOpen, setServerOpen] = useState(false)
+  const [intent, setIntent] = useState<'connecting' | 'disconnecting'>()
   const [subUrl, setSubUrl] = useState('')
 
   // clod:tun-ready — ошибка запоминается вместе с состоянием подключения, в
@@ -49,12 +50,16 @@ const HomeSimplePage = () => {
   const state: ConnectState = errorText
     ? 'error'
     : busy
-      ? 'connecting'
+      ? // Намерение фиксируется в момент нажатия: `connected` по ходу дела
+        // гаснет (TUN гасится первым, системный прокси следом), и подпись
+        // посреди отключения превращалась бы в «Подключение…».
+        (intent ?? 'connecting')
       : connected
         ? 'on'
         : 'off'
 
   const toggle = useLockFn(async () => {
+    setIntent(connected ? 'disconnecting' : 'connecting')
     setBusy(true)
     setFailure(undefined)
     try {
@@ -66,6 +71,7 @@ const HomeSimplePage = () => {
       })
     } finally {
       setBusy(false)
+      setIntent(undefined)
     }
   })
 

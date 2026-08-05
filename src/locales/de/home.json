@@ -120,6 +120,7 @@
       "states": {
         "off": "Disconnected",
         "connecting": "Connecting…",
+        "disconnecting": "Disconnecting…",
         "on": "Connected",
         "error": "Connection failed"
       },
@@ -193,7 +194,7 @@
       "expiryTitle": "Expires",
       "daysShort": "{{count}} d",
       "untilDate": "until {{date}}",
-      "hoursShort": "{{count}} h",
+      "hoursShort": "~{{count}} h",
       "expiredShort": "Expired",
       "untilTime": "until {{time}}",
       "untilTimeToday": "today until {{time}}",

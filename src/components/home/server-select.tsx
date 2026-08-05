@@ -545,8 +545,27 @@ let lastAutoDelayKey = ''
  * перемеряем — если показанному замеру больше минуты.
  */
 const PING_MAX_AGE_MS = 60_000
-/** Чаще раза в минуту не перемеряем: экран открывают и закрывают часто. */
-const PING_MIN_GAP_MS = 60_000
+/** Цифра на экране есть — чаще раза в минуту не перемеряем. */
+const PING_GAP_MS = 60_000
+/**
+ * Цифры нет вовсе — пробуем часто, пока не появится.
+ *
+ * Это не тот же случай, что «пинг устарел»: пустое место на экране надо
+ * закрыть, а причины пустоты временные — ядро ещё поднимается, конфиг только
+ * что перечитан, замер не прошёл. И повторять приходится по таймеру:
+ * неудачный замер данных не меняет, а значит сам по себе эффект не
+ * перезапустится и второй попытки не будет никогда.
+ */
+const PING_RETRY_MS = 5_000
+/**
+ * Сколько раз подряд пробуем, пока цифры нет.
+ *
+ * Потолок нужен для случая, когда падает сам запрос (ядро перезапускается,
+ * API недоступен): истории тогда не появляется, замок по возрасту замера не
+ * срабатывает — и без счётчика это был бы вечный запрос раз в пять секунд.
+ * Счётчик обнуляется, как только цифра появилась или сменился узел.
+ */
+const PING_RETRY_LIMIT = 6
 const PING_TIMEOUT_MS = 10_000
 let lastAutoPingAt = 0
 
@@ -584,6 +603,7 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
   const pingTarget = current
     ? entryPingTarget(records, current, group?.name ?? '')
     : undefined
+  const hasPing = usableDelay(delay)
   const pingProvider = pingTarget
     ? (records[pingTarget]?.provider as string | undefined)
     : undefined
@@ -630,14 +650,14 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
     // не отдельный гейт «дождись группового»: модульная переменная не
     // реактивна, и ожидание её значения молча пропускало бы замер, когда
     // групповой тест не состоялся (ядро ещё не поднялось).
-    const now = Date.now()
-    if (measuredAt && now - measuredAt < PING_MAX_AGE_MS) return
-    if (now - lastAutoPingAt < PING_MIN_GAP_MS) return
+    let attempts = 0
+    const measure = () => {
+      const now = Date.now()
+      if (measuredAt && now - measuredAt < PING_MAX_AGE_MS) return
+      if (now - lastAutoPingAt < (hasPing ? PING_GAP_MS : PING_RETRY_MS)) return
 
-    // Небольшая пауза: показ экрана тянет за собой перечитывание ядра, и
-    // свежий замер может приехать уже оттуда — тогда мерить нечего.
-    const timer = window.setTimeout(() => {
-      lastAutoPingAt = Date.now()
+      lastAutoPingAt = now
+      attempts += 1
       delayManager
         .unifiedDelayCheck(
           pingTarget,
@@ -649,12 +669,32 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
         // сменилась там же, где живут остальные данные.
         .finally(() => refreshProxy().catch(() => {}))
         .catch(() => {})
-    }, 600)
-    return () => window.clearTimeout(timer)
+    }
+
+    // Небольшая пауза: показ экрана тянет за собой перечитывание ядра, и
+    // свежий замер может приехать уже оттуда — тогда мерить нечего.
+    const timer = window.setTimeout(measure, 600)
+    // Пустое место на экране закрываем настойчиво: повтор живёт, только пока
+    // цифры нет, и снимается сам, как только данные приедут (эффект
+    // перезапустится уже с ней).
+    const retry = hasPing
+      ? undefined
+      : window.setInterval(() => {
+          if (attempts >= PING_RETRY_LIMIT) {
+            window.clearInterval(retry)
+            return
+          }
+          measure()
+        }, PING_RETRY_MS)
+    return () => {
+      window.clearTimeout(timer)
+      if (retry !== undefined) window.clearInterval(retry)
+    }
   }, [
     visible,
     groupName,
     measuredAt,
+    hasPing,
     pingTarget,
     pingProvider,
     urlFor,

@@ -70,6 +70,7 @@ export interface TranslationResources {
           }
           states: {
             connecting: string
+            disconnecting: string
             error: string
             off: string
             on: string
