@@ -8,6 +8,36 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.0.18-alpha
+
+<!-- lang:en -->
+
+### Fixed
+
+- The background service that TUN needs is no longer reinstalled on every launch. It was set up on each start even with TUN switched off, an app that opens before the service does read "no service at all", and the Windows service installer reports success even when it did nothing — so the elevation prompt came back again and again. The service exists for TUN alone: with TUN off it is left untouched, with TUN on the app waits for it to come up, and asks for rights at most once per version
+- On Windows the service is now registered by the app installer itself, which already runs elevated. There is no separate prompt on install or on update, and an update replaces the service together with the app, so their versions can no longer drift apart
+- When the app does have to act on the service, it asks the system first and does the smallest thing that helps: stopped means start, outdated means repair, absent means install. Success is judged by the service actually answering, not by the installer's exit code
+- Dialogs can no longer grow a horizontal scrollbar. A dialog asking for a fixed width wider than the window pushed itself past the right edge, cutting off text and buttons — the update window was the visible case, but every dialog was exposed
+
+### Changed
+
+- In its last day the expiry tile names the day: "today until 20:33" instead of a bare "until 20:33"
+
+<!-- lang:ru -->
+
+### Исправлено
+
+- Фоновая служба, которая нужна для TUN, больше не переустанавливается при каждом запуске. Раньше приложение настраивало её на каждом старте, даже с выключенным TUN; вдобавок оно стартует раньше службы и читало это как «службы нет», а установщик службы на Windows отвечает «готово», даже когда ничего не делал, — и запрос прав всплывал снова и снова. Служба нужна ровно для TUN: выключен — её не трогают вовсе, включён — приложение сначала ждёт, пока она поднимется, и просит права не чаще одного раза на версию
+- На Windows службу теперь регистрирует сам установщик приложения — он и так запускается с правами администратора. Отдельного запроса нет ни при установке, ни при обновлении, а обновление подменяет службу вместе с приложением, так что их версии больше не расходятся
+- Если приложению всё же приходится вмешаться, оно сначала спрашивает систему и делает минимальное: остановлена — запускает, устарела — чинит, нет вовсе — ставит. Успехом считается ответ самой службы, а не код возврата установщика
+- В диалогах больше не может появиться горизонтальная прокрутка. Диалог, просивший ширину больше окна, выдавливал себя за правый край и резал текст и кнопки — заметнее всего это было в окне обновления, но подвержены были все
+
+### Изменено
+
+- В последние сутки плитка срока называет день: «сегодня до 20:33» вместо просто «до 20:33»
+
+---
+
 ## v0.0.17-alpha
 
 <!-- lang:en -->
