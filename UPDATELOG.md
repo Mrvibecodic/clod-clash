@@ -8,6 +8,30 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.0.21-alpha
+
+<!-- lang:en -->
+
+### Fixed
+
+- The first press of Connect works again when TUN is on. With the tunnel up and the system proxy off the button was dark, but the press meant "disconnect": it switched TUN back off, and only the second press connected. What a press does now follows what the button shows
+- Turning TUN on no longer reports success over a dead tunnel. Switching it on handed the core a configuration with no tunnel in it, because the session-wide suppression was lifted only after that configuration had already been built
+- The TUN switch no longer turns itself off a few seconds after being turned on: the check that watches the core for a failed tunnel was reading complaints left over from an earlier attempt
+- The state of TUN is re-read the moment the backend reports it, instead of up to ten seconds later - and at all in a window that was sent to the tray
+- A configuration change the core refuses is no longer kept: the rejected draft used to stay behind and reach the config with the next successful change
+
+<!-- lang:ru -->
+
+### Исправлено
+
+- Первое нажатие «Подключить» снова срабатывает при включённом TUN. Туннель поднят, системный прокси выключен — кнопка тёмная, но нажатие означало «отключить»: TUN гас, и подключало только второе нажатие. Теперь нажатие делает то, что кнопка показывает
+- Включение TUN больше не рапортует об успехе над мёртвым туннелем. Ядру уходила конфигурация без туннеля: сессионное подавление снималось уже после того, как она была собрана
+- Переключатель TUN больше не выключается сам через несколько секунд после включения: проверка, которая следит за жалобами ядра на туннель, читала жалобы от прошлой попытки
+- Состояние TUN перечитывается сразу, как только бэкенд о нём сообщил, а не через десять секунд — и вообще перечитывается в окне, убранном в трей
+- Настройка, которую ядро не приняло, больше не оседает в приложении: отклонённый черновик оставался и уезжал в конфигурацию со следующим удачным изменением
+
+---
+
 ## v0.0.20-alpha
 
 <!-- lang:en -->
