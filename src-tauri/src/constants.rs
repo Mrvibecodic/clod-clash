@@ -65,11 +65,50 @@ pub mod timing {
     // что устройство действительно создано.
     pub const TUN_VERIFY_DELAY: Duration = Duration::from_secs(3);
 
+    // clod:tun-ready — the first check is not the last one. The core can fail
+    // to bring the device up later than `TUN_VERIFY_DELAY` (on Windows the
+    // adapter install and a foreign VPN driver routinely take longer), and a
+    // live tunnel can die at any point afterwards. Under the service nobody
+    // reads the core output continuously — only the sidecar does — so the
+    // fact has to be re-checked on a timer for as long as TUN is claimed.
+    //
+    // 30 s is the same order as the system proxy guard (`sysopt`), and for the
+    // same reason: one pass over the core log buffer costs a single IPC round
+    // trip, which is nothing next to what the core itself does, while a dead
+    // tunnel stays unnoticed for at most half a minute. Anything much shorter
+    // would only buy seconds and would keep an idle tray client busy.
+    pub const TUN_WATCH_INTERVAL: Duration = Duration::from_secs(30);
+
     // clod:tun-ready — служба поднимается вместе с системой и при автозапуске
     // регулярно отстаёт от приложения. Прежде чем счесть её отсутствующей — а
     // это запрос прав и переустановка, — даём ей время появиться.
     pub const TUN_SERVICE_APPEAR_WAIT: Duration = Duration::from_secs(10);
     pub const TUN_SERVICE_APPEAR_INTERVAL: Duration = Duration::from_millis(500);
+
+    // clod:tun-deadline — how long a reader of `ServiceManager::current()` may
+    // wait for an operation that is already running. The deadline is counted
+    // from the START of that operation, not from the call, so a caller that
+    // asks in a loop (`wait_for_service_if_needed`) cannot stack the wait up.
+    //
+    // 5 s is the cost of the longest non-privileged operation we have —
+    // `wait_for_service_ipc` is 20 × 250 ms — so a normal refresh/install still
+    // reports its real result. Past that the operation is waiting on a human
+    // (UAC / osascript), and the honest answer is the last known status: the
+    // caller falls back to sidecar and the handoff watcher picks the service up
+    // later, instead of the whole core lifecycle hanging on a modal dialog.
+    pub const SERVICE_STATUS_WAIT: Duration = Duration::from_secs(5);
+
+    // clod:tun-deadline — how long we wait for a privileged helper (UAC prompt
+    // on Windows, `osascript … with administrator privileges` on macOS) before
+    // we stop holding the rest of the app hostage. The helper is NOT killed:
+    // it keeps running on its blocking thread, so a late "Allow" still installs
+    // the service — we only stop awaiting it.
+    //
+    // 2 minutes is deliberately far longer than answering a dialog takes
+    // (including typing a password on macOS): the timeout must mean "the dialog
+    // has been abandoned", never "the user is slow", because expiring turns
+    // into a visible error in the UI.
+    pub const SERVICE_ELEVATION_WAIT: Duration = Duration::from_secs(120);
 
     // При передаче ждём, пока sidecar освободит канал ext-controller.
     #[cfg(target_os = "windows")]

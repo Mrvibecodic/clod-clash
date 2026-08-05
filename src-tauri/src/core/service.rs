@@ -1,5 +1,6 @@
 use crate::{
     config::Config,
+    constants::timing,
     core::{
         handle::Handle, owner_identity::current_owner_credentials, runtime_bundle::collect_runtime_bundle, tray::Tray,
     },
@@ -25,7 +26,7 @@ use std::{
     path::{Path, PathBuf},
     process::Command as StdCommand,
     sync::atomic::{AtomicBool, Ordering},
-    time::Duration,
+    time::{Duration, Instant},
 };
 use tokio::sync::Notify;
 
@@ -132,6 +133,42 @@ impl std::fmt::Display for ServiceBusy {
 
 impl std::error::Error for ServiceBusy {}
 
+/// clod:tun-deadline — the privileged helper is still on screen; we gave up
+/// waiting, it did not.
+///
+/// Nothing was cancelled and nothing failed: the elevated installer keeps
+/// running on its own thread and a late confirmation still does the job. The
+/// error exists so callers can tell "the user has not answered the dialog yet"
+/// from "this machine cannot run the service", and report the difference
+/// instead of a false "TUN is unavailable".
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ElevationPending;
+
+impl std::fmt::Display for ElevationPending {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("the system authorisation dialog has not been answered yet")
+    }
+}
+
+impl std::error::Error for ElevationPending {}
+
+/// clod:tun-deadline — a privileged helper is running right now.
+///
+/// `operation_running` no longer covers this: once the elevation wait expires,
+/// its future returns and releases the manager, so without a separate flag the
+/// next attempt would put a SECOND authorisation dialog on top of the first.
+/// Cleared by the blocking thread itself, whatever the outcome.
+static ELEVATION_IN_FLIGHT: AtomicBool = AtomicBool::new(false);
+
+/// Системный диалог прав сейчас на экране (или его помощник ещё работает).
+///
+/// Lets callers tell a manager that is busy elevating from one that is merely
+/// busy: the first means "wait, the user is being asked", the second means
+/// "someone else got there first".
+pub fn elevation_in_flight() -> bool {
+    ELEVATION_IN_FLIGHT.load(Ordering::Acquire)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ServiceStatus {
     Ready,
@@ -146,6 +183,8 @@ pub enum ServiceStatus {
 pub struct ServiceManager {
     status: Mutex<ServiceStatus>,
     operation_running: AtomicBool,
+    /// When the running operation started — the deadline readers wait against.
+    operation_started: Mutex<Option<Instant>>,
     operation_done: Notify,
 }
 
@@ -954,8 +993,12 @@ pub(super) async fn run_core_by_service(config_file: &Path) -> Result<()> {
     start_with_existing_service(config_file).await
 }
 
+/// clod:tun-ready — зовётся ещё и по таймеру (сторож факта TUN), поэтому
+/// обычные круги пишутся в debug: на info это две строки каждые полминуты
+/// сутки напролёт, и настоящие события службы тонут в них. Ошибка по-прежнему
+/// видна всегда.
 pub(super) async fn get_clash_logs_by_service() -> Result<Vec<CompactString>> {
-    logging!(info, Type::Service, "Получение логов Clash в режиме службы");
+    logging!(debug, Type::Service, "Получение логов Clash в режиме службы");
 
     let credentials = current_owner_credentials()?;
     let response = clash_verge_service_ipc::get_clash_logs(&credentials)
@@ -973,7 +1016,7 @@ pub(super) async fn get_clash_logs_by_service() -> Result<Vec<CompactString>> {
         bail!(err_msg);
     }
 
-    logging!(info, Type::Service, "Логи Clash в режиме службы успешно получены");
+    logging!(debug, Type::Service, "Логи Clash в режиме службы успешно получены");
     Ok(response.data.unwrap_or_default())
 }
 
@@ -1091,6 +1134,18 @@ impl ServiceManager {
         Ok(())
     }
 
+    /// Состояние службы, не заставшее операцию на полпути.
+    ///
+    /// clod:tun-deadline — the wait is bounded, and the deadline belongs to the
+    /// OPERATION, not to the caller. An install can sit on a UAC prompt for as
+    /// long as the user ignores it; while it did, every reader hung here — and
+    /// `prepare_startup` reads it holding `lifecycle_lock`, so core start,
+    /// restart and every `RESTART_CORE` patch hung with it, with killing the
+    /// app as the only way out.
+    ///
+    /// Anchoring the deadline to the operation's start also keeps the loop in
+    /// `wait_for_service_if_needed` honest: it asks up to 150 times, and a
+    /// per-call deadline would multiply the wait by that.
     pub async fn current(&self) -> ServiceStatus {
         loop {
             let notified = self.operation_done.notified();
@@ -1100,7 +1155,27 @@ impl ServiceManager {
                     return status;
                 }
             }
-            notified.await;
+            let started = *self.operation_started.lock();
+            let waited = started.map_or(Duration::ZERO, |start| start.elapsed());
+            let left = timing::SERVICE_STATUS_WAIT.saturating_sub(waited);
+            if tokio::time::timeout(left, notified).await.is_err() {
+                // Last known status instead of an unbounded wait: the caller
+                // falls back to sidecar, and the handoff watcher moves the core
+                // onto the service once the operation really finishes.
+                //
+                // Only the waiter that actually sat out the grace says so: once
+                // it has elapsed every later call returns instantly, and a
+                // retrying caller would otherwise fill the log with copies.
+                if !left.is_zero() {
+                    logging!(
+                        warn,
+                        Type::Service,
+                        "a service operation is still running after {:?}; reporting the last known status",
+                        timing::SERVICE_STATUS_WAIT
+                    );
+                }
+                return self.status.lock().clone();
+            }
         }
     }
 
@@ -1113,7 +1188,9 @@ impl ServiceManager {
             if self.operation_running.swap(true, Ordering::AcqRel) {
                 return Err(ServiceBusy.into());
             }
+            *self.operation_started.lock() = Some(Instant::now());
             defer! {
+                *self.operation_started.lock() = None;
                 self.operation_running.store(false, Ordering::Release);
                 self.operation_done.notify_waiters();
             }
@@ -1178,7 +1255,7 @@ impl ServiceManager {
                     Type::Service,
                     "Требуется переустановка службы, запуск процесса переустановки"
                 );
-                run_service_command(reinstall_service, "reinstall service")?;
+                run_service_command(reinstall_service, "reinstall service").await?;
                 wait_for_service_ipc(self).await?;
             }
             ServiceStatus::ForceReinstallRequired => {
@@ -1187,7 +1264,7 @@ impl ServiceManager {
                     Type::Service,
                     "Требуется принудительная переустановка службы, запуск процесса"
                 );
-                run_service_command(force_reinstall_service, "force reinstall service")?;
+                run_service_command(force_reinstall_service, "force reinstall service").await?;
                 wait_for_service_ipc(self).await?;
             }
             ServiceStatus::InstallRequired => {
@@ -1197,7 +1274,7 @@ impl ServiceManager {
                     Type::Service,
                     "Требуется установка службы, запуск процесса установки"
                 );
-                run_service_command(install_service, "install service")?;
+                run_service_command(install_service, "install service").await?;
                 wait_for_service_ipc(self).await?;
                 if clash_verge_service_ipc::is_reinstall_service_needed().await {
                     logging!(
@@ -1206,7 +1283,7 @@ impl ServiceManager {
                         "Версия службы не совпадает, запуск процесса переустановки"
                     );
                     self.set_status(ServiceStatus::NeedsReinstall);
-                    run_service_command(reinstall_service, "reinstall service")?;
+                    run_service_command(reinstall_service, "reinstall service").await?;
                     wait_for_service_ipc(self).await?;
                 }
             }
@@ -1216,7 +1293,7 @@ impl ServiceManager {
                     Type::Service,
                     "Требуется удаление службы, запуск процесса удаления"
                 );
-                run_service_command(uninstall_service, "uninstall service")?;
+                run_service_command(uninstall_service, "uninstall service").await?;
                 self.set_status(ServiceStatus::Unavailable("Service Uninstalled".into()));
             }
             ServiceStatus::Unavailable(reason) => {
@@ -1234,8 +1311,57 @@ impl ServiceManager {
     }
 }
 
-fn run_service_command(operation: impl FnOnce() -> Result<()>, label: &'static str) -> Result<()> {
-    tokio::task::block_in_place(operation).with_context(|| format!("{label} failed"))
+/// Запустить привилегированную операцию, не завися от того, ответит ли
+/// пользователь системному диалогу.
+///
+/// clod:tun-deadline — this used to be `block_in_place`, i.e. an uncancellable
+/// wait on `osascript … with administrator privileges` / the UAC prompt. An
+/// unanswered dialog therefore froze the service manager for good, and with it
+/// the whole core lifecycle.
+///
+/// The helper is moved onto a blocking thread and only the WAIT is bounded:
+/// on timeout we let go of the join handle, the elevated command keeps running
+/// and a late confirmation still installs the service. What the caller gets is
+/// [`ElevationPending`] — "still in progress", not "failed".
+async fn run_service_command(
+    operation: impl FnOnce() -> Result<()> + Send + 'static,
+    label: &'static str,
+) -> Result<()> {
+    // One dialog at a time. The previous wait may have expired while its prompt
+    // is still on screen, and stacking a second prompt on top of it is the
+    // worst possible answer to "please turn TUN on".
+    if ELEVATION_IN_FLIGHT.swap(true, Ordering::AcqRel) {
+        logging!(
+            info,
+            Type::Service,
+            "{} skipped: an authorisation dialog is already open",
+            label
+        );
+        return Err(ElevationPending.into());
+    }
+    let task = tokio::task::spawn_blocking(move || {
+        // Released from the blocking thread itself, so a panicking helper
+        // cannot leave the flag stuck and lock out every later attempt.
+        defer! {
+            ELEVATION_IN_FLIGHT.store(false, Ordering::Release);
+        }
+        operation()
+    });
+
+    match tokio::time::timeout(timing::SERVICE_ELEVATION_WAIT, task).await {
+        Ok(Ok(result)) => result.with_context(|| format!("{label} failed")),
+        Ok(Err(join_error)) => Err(anyhow::Error::new(join_error).context(format!("{label} failed"))),
+        Err(_) => {
+            logging!(
+                warn,
+                Type::Service,
+                "{} is still waiting for the authorisation dialog after {:?}; releasing the service manager",
+                label,
+                timing::SERVICE_ELEVATION_WAIT
+            );
+            Err(ElevationPending.into())
+        }
+    }
 }
 
 /// clod: про устаревшую службу говорим один раз за сессию.
@@ -1244,6 +1370,7 @@ static REINSTALL_NOTICED: AtomicBool = AtomicBool::new(false);
 pub static SERVICE_MANAGER: Lazy<ServiceManager> = Lazy::new(|| ServiceManager {
     status: Mutex::new(ServiceStatus::Unavailable("Need Checks".into())),
     operation_running: AtomicBool::new(false),
+    operation_started: Mutex::new(None),
     operation_done: Notify::new(),
 });
 

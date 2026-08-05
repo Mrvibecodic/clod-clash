@@ -70,5 +70,14 @@ pub async fn ensure_tun_ready() -> CmdResult<bool> {
     match crate::feat::tun::ensure_ready(true).await {
         SetupOutcome::AlreadyReady | SetupOutcome::Installed => Ok(true),
         SetupOutcome::Declined | SetupOutcome::Failed => Ok(false),
+        // clod:tun-deadline — «ещё идёт» — это не `false`. `false` в интерфейсе
+        // означает «TUN на этой машине недоступен» (тумблер обратно, красная
+        // плашка), а здесь установка жива и системный диалог всё ещё ждёт
+        // ответа. Сигнатуру не трогаем: ошибку все три вызывающих места уже
+        // умеют показывать, и, в отличие от `false`, она ничего не отменяет.
+        SetupOutcome::Pending => Err(
+            "The system authorisation dialog is still open. TUN will turn on once the background service is installed."
+                .into(),
+        ),
     }
 }

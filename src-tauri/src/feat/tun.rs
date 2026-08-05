@@ -9,7 +9,9 @@
 //!   * **желание** — `connect_tun_mode` / `enable_tun_mode` в конфиге, меняет
 //!     только пользователь;
 //!   * **заявка** — то, что уходит в конфиг ядра: желание И НЕ подавление;
-//!   * **факт** — подтверждение от ядра, что интерфейс поднялся.
+//!   * **факт** — подтверждение от ядра, что интерфейс поднялся; проверяется не
+//!     один раз после включения, а по кругу, пока заявка держится (ядро роняет
+//!     туннель и позже старта, а его вывод непрерывно читают только у sidecar).
 //!
 //! Подавление живёт только в памяти процесса: перезапуск приложения (или
 //! появление службы) снимает его само собой, а файл конфигурации не трогается.
@@ -20,6 +22,7 @@ use std::{
 };
 
 use clash_verge_logging::{Type, logging};
+use parking_lot::Mutex;
 use tauri_plugin_clash_verge_sysinfo::is_current_app_handle_admin;
 
 use crate::{
@@ -28,8 +31,8 @@ use crate::{
     core::{
         handle::Handle,
         service::{
-            SERVICE_MANAGER, ServiceBusy, ServiceRegistration, ServiceStatus, is_service_available,
-            service_registration,
+            ElevationPending, SERVICE_MANAGER, ServiceBusy, ServiceRegistration, ServiceStatus, elevation_in_flight,
+            is_service_available, service_registration,
         },
     },
     process::AsyncHandler,
@@ -41,6 +44,19 @@ static SUPPRESSED: AtomicBool = AtomicBool::new(false);
 static START_FAILED: AtomicBool = AtomicBool::new(false);
 /// Установка службы уже идёт — второй UAC не нужен.
 static SETUP_RUNNING: AtomicBool = AtomicBool::new(false);
+/// The periodic fact check is already running. Same singleton pattern as the
+/// handoff watcher (`CoreManager::handoff_watcher_running`): every re-enable of
+/// TUN would otherwise spawn one more task reading the same log buffer forever.
+static WATCHDOG_RUNNING: AtomicBool = AtomicBool::new(false);
+/// Where the current TUN attempt starts in the core log, shared between the
+/// one-shot check and the watchdog.
+///
+/// It has to be shared rather than owned by each task: re-enabling TUN right
+/// after a failure (which is exactly what a user does when told the tunnel did
+/// not come up) must move the anchor for the watchdog that is already sleeping,
+/// or it would wake up, find the *previous* complaint still in the buffer and
+/// report it against the new attempt.
+static WATCH_ANCHOR: Mutex<Option<String>> = Mutex::new(None);
 
 /// Строки mihomo, по которым видно, что TUN не поднялся. Проверяются в нижнем
 /// регистре, поэтому здесь только нижний.
@@ -67,6 +83,22 @@ pub fn clear_suppression() {
 /// Пользователь хочет TUN (в терминах конфига — заявка сохранена).
 pub async fn desired() -> bool {
     Config::verge().await.latest_arc().enable_tun_mode.unwrap_or(false)
+}
+
+/// The claim as the core sees it — the same rule `enhance` applies when it
+/// builds the core config.
+///
+/// It is also the only reason to keep watching the core output: with the wish
+/// gone there is no tunnel to guard, and with the claim suppressed the failure
+/// has already been reported and acted upon. Kept as a pure function so the
+/// watchdog's stop condition can be checked without a core or a service.
+const fn is_claimed(desired: bool, suppressed: bool) -> bool {
+    desired && !suppressed
+}
+
+/// Заявка на TUN подана прямо сейчас.
+async fn claimed() -> bool {
+    is_claimed(desired().await, is_suppressed())
 }
 
 /// Приложение уже привилегировано — служба для TUN не нужна.
@@ -147,26 +179,114 @@ pub async fn log_anchor() -> Option<String> {
         .and_then(|logs| logs.last().map(ToString::to_string))
 }
 
-/// После включения TUN дать ядру время и проверить, не ругнулось ли оно.
+/// После включения TUN дать ядру время и проверить, не ругнулось ли оно, а
+/// потом сторожить факт, пока заявка держится.
 ///
 /// `anchor` — отметка из [`log_anchor`], снятая до подачи конфига. `None`
 /// означает «смотреть весь буфер»: так зовут после перезапуска ядра, где логи
 /// и так почищены.
 pub fn spawn_start_verification(anchor: Option<String>) {
-    AsyncHandler::spawn(move || async move {
+    // Publish the anchor before the sleep: a watchdog left from the previous
+    // attempt must judge the new one by the new mark, not by the old buffer.
+    *WATCH_ANCHOR.lock() = anchor;
+    AsyncHandler::spawn(|| async {
         tokio::time::sleep(timing::TUN_VERIFY_DELAY).await;
-        if !desired().await || is_suppressed() {
+        if !claimed().await {
             return;
         }
-        // Берём логи через менеджер: в service-режиме их отдаёт служба, в
-        // sidecar — наш кольцевой буфер.
-        let Ok(logs) = crate::core::CoreManager::global().get_clash_logs().await else {
-            return;
-        };
-        if let Some(line) = fresh_failure(&logs, anchor.as_deref()) {
-            report_start_failure(line.as_str());
+        if matches!(verify_round().await, Round::Watching) {
+            spawn_watchdog();
         }
     });
+}
+
+/// Итог одного круга сверки.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Round {
+    /// Жалоб нет (или спросить было не у кого) — сторожим дальше.
+    Watching,
+    /// Ядро пожаловалось: заявка снята, сторожить больше нечего.
+    Done,
+}
+
+/// Один круг сверки факта: спросить у ядра его вывод и разобрать всё, что
+/// появилось после отметки.
+///
+/// Тот же способ, что и у разовой проверки, — второго механизма нет: в
+/// service-режиме логи отдаёт служба, в sidecar — наш кольцевой буфер.
+async fn verify_round() -> Round {
+    let anchor = WATCH_ANCHOR.lock().clone();
+    let Ok(logs) = crate::core::CoreManager::global().get_clash_logs().await else {
+        // Nobody answered (service down, core not up yet): keep the old mark,
+        // otherwise the next round would take the whole buffer for fresh output.
+        return Round::Watching;
+    };
+    match verdict(&logs, anchor.as_deref()) {
+        Verdict::Failed(line) => {
+            // Reuse the single failure path: suppression, notice, config
+            // regeneration and `refresh_verge` all live there, and it is
+            // idempotent — the sidecar reader may have reported the same line.
+            report_start_failure(line);
+            Round::Done
+        }
+        Verdict::Clean(next) => {
+            *WATCH_ANCHOR.lock() = next;
+            Round::Watching
+        }
+    }
+}
+
+/// Сторож факта: пока заявка держится, раз в [`timing::TUN_WATCH_INTERVAL`]
+/// сверяем её с выводом ядра.
+///
+/// Under the service the core output is only ever read on request, so without
+/// this the app would keep showing a green button over a tunnel the core gave
+/// up on seconds after our single 3-second check.
+fn spawn_watchdog() {
+    if WATCHDOG_RUNNING.swap(true, Ordering::AcqRel) {
+        return;
+    }
+    AsyncHandler::spawn(|| async {
+        scopeguard::defer! {
+            WATCHDOG_RUNNING.store(false, Ordering::Release);
+        }
+        loop {
+            tokio::time::sleep(timing::TUN_WATCH_INTERVAL).await;
+            // Stop as soon as the claim is gone. A reported failure suppresses
+            // the claim, so the watchdog cannot re-arm itself off its own
+            // report; a later re-enable goes through `spawn_start_verification`
+            // and starts it again with a fresh anchor.
+            if !claimed().await || matches!(verify_round().await, Round::Done) {
+                return;
+            }
+        }
+    });
+}
+
+/// Что новый вывод ядра говорит о туннеле.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Verdict<'a> {
+    /// Свежая жалоба на TUN.
+    Failed(&'a str),
+    /// Жалоб нет; отметка «до» для следующего круга.
+    Clean(Option<String>),
+}
+
+/// Правило сверки — отдельно от опроса ядра, чтобы его можно было проверить.
+///
+/// The clean verdict carries the last line seen, so the next round only judges
+/// what appeared after it; an empty buffer keeps the previous anchor, or a
+/// transient empty answer from the service would re-open the whole buffer and
+/// let an already handled complaint count twice.
+fn verdict<'a, S: AsRef<str>>(logs: &'a [S], anchor: Option<&str>) -> Verdict<'a> {
+    if let Some(line) = fresh_failure(logs, anchor) {
+        return Verdict::Failed(line.as_ref());
+    }
+    Verdict::Clean(
+        logs.last()
+            .map(|line| line.as_ref().to_owned())
+            .or_else(|| anchor.map(ToOwned::to_owned)),
+    )
 }
 
 /// Самая свежая жалоба ядра на TUN среди строк, появившихся ПОСЛЕ отметки.
@@ -263,6 +383,14 @@ pub enum SetupOutcome {
     Declined,
     /// Установка не удалась (в том числе отказ в UAC).
     Failed,
+    /// The system authorisation dialog is still on screen: we stopped waiting
+    /// for it, but the installer was not cancelled and may still succeed.
+    ///
+    /// Deliberately distinct from [`Self::Failed`]: an unanswered dialog is not
+    /// a machine where TUN is impossible, and telling the user "TUN is
+    /// unavailable" while his own UAC prompt is waiting for a click would be a
+    /// lie.
+    Pending,
 }
 
 /// Довести TUN до рабочего состояния. Вызывается при старте (автоматически) и
@@ -328,7 +456,9 @@ async fn set_up_service() -> SetupOutcome {
         action
     );
     // Ждём, пока менеджер освободится: ожидание службы и хэндофф зовут
-    // `refresh()` в фоне, и налететь на занятую операцию легко.
+    // `refresh()` в фоне, и налететь на занятую операцию легко. Ожидание
+    // ограничено самим менеджером (`SERVICE_STATUS_WAIT`) — иначе чужая
+    // привилегированная операция держала бы нас здесь, сколько висит её диалог.
     let _ = SERVICE_MANAGER.current().await;
     Handle::notice_message("tun::setup_started", "");
 
@@ -337,8 +467,33 @@ async fn set_up_service() -> SetupOutcome {
         // выключить автонастройку до конца версии, ни разу не показав
         // пользователю запрос прав.
         if e.downcast_ref::<ServiceBusy>().is_some() {
+            // Busy *because* a dialog is up is a different answer: the user is
+            // being asked right now, and telling him TUN is unavailable while
+            // his own prompt waits for a click would be plainly wrong.
+            if elevation_in_flight() {
+                logging!(
+                    info,
+                    Type::Service,
+                    "an authorisation dialog is already open; not asking a second time"
+                );
+                return SetupOutcome::Pending;
+            }
             logging!(info, Type::Service, "the service manager is busy; leaving it be");
             return SetupOutcome::Declined;
+        }
+        // The authorisation dialog outlived our patience. The attempt still
+        // counts — the prompt WAS shown, and re-asking on every restart is
+        // exactly what `record_setup_attempt` exists to prevent — but the setup
+        // is not a failure: the elevated helper is still running, and the next
+        // startup that sees a live service clears the mark by itself.
+        if e.downcast_ref::<ElevationPending>().is_some() {
+            logging!(
+                warn,
+                Type::Service,
+                "the authorisation dialog is still open; not waiting for it any longer"
+            );
+            record_setup_attempt().await;
+            return SetupOutcome::Pending;
         }
         let detail = format!("{e}");
         logging!(warn, Type::Service, "background service setup failed: {}", detail);
@@ -530,6 +685,52 @@ mod tests {
         // совпадение не должно открывать окно шире, чем было на самом деле.
         let repeated = ["[TCP] tun accept connection", FAILURE, "[TCP] tun accept connection"];
         assert!(fresh_failure(&repeated, Some("[TCP] tun accept connection")).is_none());
+    }
+
+    #[test]
+    fn the_watchdog_runs_exactly_while_tun_is_claimed() {
+        // Заявка = желание И НЕ подавление: ровно то, что уходит в конфиг ядра,
+        // — сторожить имеет смысл только это.
+        assert!(is_claimed(true, false));
+        // Пользователь выключил TUN — сторожить нечего.
+        assert!(!is_claimed(false, false));
+        // Провал уже отработан (подавление): второй раз докладывать не о чем,
+        // и это же не даёт сторожу перезапустить себя по собственному отчёту.
+        assert!(!is_claimed(true, true));
+        assert!(!is_claimed(false, true));
+    }
+
+    #[test]
+    fn each_round_moves_the_anchor_to_the_last_seen_line() {
+        const FAILURE: &str = "Start TUN listening error: configure tun interface: Access is denied.";
+        let logs = ["[TCP] tun accept connection", "Start initial provider default"];
+        // Жалоб нет — следующий круг смотрит только то, что появится после
+        // последней уже прочитанной строки.
+        assert_eq!(
+            verdict(&logs, Some("[TCP] tun accept connection")),
+            Verdict::Clean(Some("Start initial provider default".to_owned()))
+        );
+        // Буфер пуст (служба ответила пустотой, ядро ещё не поднялось) —
+        // отметку держим прежнюю, иначе следующий круг счёл бы весь буфер
+        // свежим и повторно доложил бы о разобранной жалобе.
+        let empty: [&str; 0] = [];
+        assert_eq!(
+            verdict(&empty, Some("anchor")),
+            Verdict::Clean(Some("anchor".to_owned()))
+        );
+        assert_eq!(verdict(&empty, None), Verdict::Clean(None));
+        // Жалоба после отметки — это ответ, а не новая отметка.
+        let broken = ["[TCP] tun accept connection", FAILURE];
+        assert_eq!(
+            verdict(&broken, Some("[TCP] tun accept connection")),
+            Verdict::Failed(FAILURE)
+        );
+        // Та же жалоба, но она уже была разобрана предыдущим кругом (отметка
+        // стоит после неё) — сторож молчит.
+        assert_eq!(
+            verdict(&broken, Some(FAILURE)),
+            Verdict::Clean(Some(FAILURE.to_owned()))
+        );
     }
 
     #[test]
