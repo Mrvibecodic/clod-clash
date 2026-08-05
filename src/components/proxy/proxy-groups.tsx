@@ -616,8 +616,11 @@ export const ProxyGroups = (props: Props) => {
   // `refetchIntervalInBackground`: тот смотрит на `document.hidden`, а окно
   // уезжает в трей целиком — документ при этом считает себя видимым, и список
   // серверов продолжал бы дёргать ядро каждые три секунды в пустоту.
+  // Возврат из трея перечитывает `getProxies` один раз на всё приложение —
+  // в `AppDataProvider`, по тому же ключу. Дублировать здесь нельзя: `mutate`
+  // в SWR намеренно обходит дедупликацию, и вышло бы два запроса разом.
   const pageVisible = useVisibility()
-  const { refetch } = useQuery({
+  useQuery({
     queryKey: ['getProxies'],
     queryFn: calcuProxies,
     refetchInterval: pageVisible ? 3000 : false,
@@ -626,23 +629,6 @@ export const ProxyGroups = (props: Props) => {
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   })
-
-  // Вернулись из трея — спрашиваем сразу, а не ждём первого тика возобновлённого
-  // опроса: иначе задержки на экране до трёх секунд остаются от прошлого показа.
-  // Через ref: `refetch` — новая функция на каждый рендер, и в зависимостях
-  // эффекта она превратила бы «спросить один раз» в опрос без остановки.
-  // Спрашиваем строго на переходе «не видно → видно»: на маунте запрос делает
-  // сам `useQuery`, дублировать его при каждом открытии страницы незачем.
-  const refetchRef = useRef(refetch)
-  useEffect(() => {
-    refetchRef.current = refetch
-  })
-  const wasVisibleRef = useRef(pageVisible)
-  useEffect(() => {
-    const returned = pageVisible && !wasVisibleRef.current
-    wasVisibleRef.current = pageVisible
-    if (returned) void refetchRef.current()
-  }, [pageVisible])
 
   if (mode === 'direct') {
     return <BaseEmpty textKey="proxies.page.messages.directMode" />

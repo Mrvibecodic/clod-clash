@@ -171,3 +171,34 @@ export const entryDelay = (
     group,
   )
 }
+
+/**
+ * Чья задержка показана в строке: сама запись или лист, до которого дошла
+ * цепочка. Ровно то же правило, что и в `entryDelay`, — иначе перемерить
+ * можно не тот узел, чья цифра висит на экране.
+ */
+export const entryPingTarget = (
+  records: Record<string, any>,
+  name: string,
+  group: string,
+) => {
+  const direct = delayManager.getDelayFix(
+    (records[name] ?? { name }) as any,
+    group,
+  )
+  if (direct > 0) return name
+  return resolveLeaf(records, name)
+}
+
+/** Когда сняли показанный пинг записи: мс epoch, 0 — не знаем. */
+export const entryMeasuredAt = (
+  records: Record<string, any>,
+  name: string,
+  group: string,
+) => {
+  const target = entryPingTarget(records, name, group)
+  return delayManager.getMeasuredAt(
+    (records[target] ?? { name: target }) as any,
+    group,
+  )
+}

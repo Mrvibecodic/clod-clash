@@ -272,6 +272,33 @@ class DelayManager {
     return -1
   }
 
+  /**
+   * Когда сняли тот замер, который видит пользователь: мс epoch, 0 — не знаем.
+   *
+   * Смотрит туда же, куда и `getDelayFix` (история по адресу группы и обычная
+   * история), и берёт более свежую запись. Нужен, чтобы отличить «пинг просто
+   * старый» от «пинга нет»: цифра часовой давности выглядит на экране ровно
+   * так же, как свежая, и молча врёт.
+   */
+  getMeasuredAt(proxy: IProxyItem, group: string) {
+    const times = [
+      proxy.extra?.[this.getUrl(group)]?.history?.at(-1)?.time,
+      proxy.history?.at(-1)?.time,
+    ]
+      .map((time) => (time ? Date.parse(time) : Number.NaN))
+      .filter((time) => Number.isFinite(time))
+
+    // Свой кэш — там же, где его читает `getDelayFix`, и читает ПЕРВЫМ:
+    // после ручного теста на экране висит цифра отсюда, и её возраст обязан
+    // считаться отсюда же, иначе свежий замер выглядит протухшим.
+    if (!proxy.provider) {
+      const update = this.getDelayUpdate(proxy.name, group)
+      if (update && update.delay >= 0) times.push(update.updatedAt)
+    }
+
+    return times.length > 0 ? Math.max(...times) : 0
+  }
+
   // Единая проверка задержки
   async unifiedDelayCheck(
     name: string,

@@ -32,7 +32,9 @@ import { useNoServersStatus } from '@/hooks/use-no-servers-status'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useProxySelection } from '@/hooks/use-proxy-selection'
 import { useServerDescriptions } from '@/hooks/use-server-descriptions'
+import { useVisibility } from '@/hooks/use-visibility'
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
+import delayManager from '@/services/delay'
 import { showNotice } from '@/services/notice-service'
 import { nameWithoutFlag } from '@/utils/country'
 import { delayColor } from '@/utils/delay-color'
@@ -40,6 +42,8 @@ import {
   AUTO_GROUP_TYPES,
   displayLeaf,
   entryDelay,
+  entryMeasuredAt,
+  entryPingTarget,
   groupType,
   hasRealNodes,
   isCorePlaceholder,
@@ -531,6 +535,21 @@ const SignalBars = ({ delay }: { delay?: number }) => {
 // ремоунт экрана не пинговал повторно.
 let lastAutoDelayKey = ''
 
+/**
+ * clod: пинг старше этого — на экране враньё, а не данные.
+ *
+ * Цифра часовой давности выглядит точно так же, как снятая секунду назад.
+ * Окно, пролежавшее в трее, возвращается именно с такой: ядро само проверяет
+ * только url-test группы, а закреплённый узел `select`-группы не трогает
+ * никто. Поэтому, показывая экран, мы не просто перечитываем ядро, а
+ * перемеряем — если показанному замеру больше минуты.
+ */
+const PING_MAX_AGE_MS = 60_000
+/** Чаще раза в минуту не перемеряем: экран открывают и закрывают часто. */
+const PING_MIN_GAP_MS = 60_000
+const PING_TIMEOUT_MS = 10_000
+let lastAutoPingAt = 0
+
 /** The compact row on the home screen: current server, latency, one tap. */
 export const ServerSelectRow = ({ onOpen }: RowProps) => {
   const { t } = useTranslation()
@@ -538,6 +557,9 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
   const { current: currentProfile } = useProfiles()
   const runGroupDelayTest = useGroupDelayTest()
   const descriptions = useServerDescriptions()
+  const visible = useVisibility()
+  const { urlFor } = useGroupTestUrls()
+  const { refreshProxy } = useAppRefreshers()
 
   const records = (proxies?.records ?? {}) as Record<string, any>
   const group = visibleGroups(proxies)[0]
@@ -553,6 +575,18 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
   const delay = current
     ? entryDelay(records, current, group?.name ?? '')
     : undefined
+  const measuredAt = current
+    ? entryMeasuredAt(records, current, group?.name ?? '')
+    : 0
+  // Меряем ровно ту запись, чья цифра на экране (то же правило, что и в
+  // `entryDelay`): у балансировщика это лист, на который приземляется цепочка,
+  // у обычного узла — он сам.
+  const pingTarget = current
+    ? entryPingTarget(records, current, group?.name ?? '')
+    : undefined
+  const pingProvider = pingTarget
+    ? (records[pingTarget]?.provider as string | undefined)
+    : undefined
 
   const groupName = group?.name
   const updatedAt = currentProfile?.updated ?? 0
@@ -566,10 +600,66 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
     // выбранный сервер (и умеет уйти на избранный, если выбранный умер).
     const timer = window.setTimeout(() => {
       lastAutoDelayKey = key
+      // Групповой тест меряет и наш узел — одиночному автопингу ниже здесь
+      // делать нечего ближайшую минуту.
+      lastAutoPingAt = Date.now()
       runGroupDelayTest(groupName).catch(() => {})
     }, 800)
     return () => window.clearTimeout(timer)
   }, [groupName, updatedAt, runGroupDelayTest])
+
+  // clod: показанному пингу больше минуты — перемеряем ОДИН узел, тот самый,
+  // чья цифра висит на экране. Возраст берём из самих данных (время замера в
+  // истории ядра), а не из «сколько окно пролежало в трее»: свежесть цифры не
+  // зависит от того, кто и почему её обновил, и то же условие спасает экран,
+  // открытый после долгого простоя, и подключение на свежем конфиге, где
+  // истории ещё нет вовсе.
+  //
+  // Именно один узел, а не групповой тест: групповой идёт по всем узлам
+  // подписки и умеет молча переключить сервер на избранный — такое по факту
+  // разворачивания окна пользователь не просил. Групповой остаётся за кнопкой
+  // «Тест» и за обновлением подписки (эффект выше).
+  //
+  // `Date.now()` живёт внутри эффекта: в теле компонента он делает рендер
+  // нечистым (`react-compiler`).
+  useEffect(() => {
+    if (!visible || !groupName || !pingTarget) return
+
+    // Групповой автотест (обновление подписки) и этот одиночный делят один
+    // замок `lastAutoPingAt`: кто успел первым, тот и меряет. Замок общий, а
+    // не отдельный гейт «дождись группового»: модульная переменная не
+    // реактивна, и ожидание её значения молча пропускало бы замер, когда
+    // групповой тест не состоялся (ядро ещё не поднялось).
+    const now = Date.now()
+    if (measuredAt && now - measuredAt < PING_MAX_AGE_MS) return
+    if (now - lastAutoPingAt < PING_MIN_GAP_MS) return
+
+    // Небольшая пауза: показ экрана тянет за собой перечитывание ядра, и
+    // свежий замер может приехать уже оттуда — тогда мерить нечего.
+    const timer = window.setTimeout(() => {
+      lastAutoPingAt = Date.now()
+      delayManager
+        .unifiedDelayCheck(
+          pingTarget,
+          urlFor(groupName),
+          PING_TIMEOUT_MS,
+          pingProvider,
+        )
+        // Замер уходит в историю ядра — перечитываем её, чтобы цифра на экране
+        // сменилась там же, где живут остальные данные.
+        .finally(() => refreshProxy().catch(() => {}))
+        .catch(() => {})
+    }, 600)
+    return () => window.clearTimeout(timer)
+  }, [
+    visible,
+    groupName,
+    measuredAt,
+    pingTarget,
+    pingProvider,
+    urlFor,
+    refreshProxy,
+  ])
 
   // clod: серверов может не быть вовсе — панель отдала одни заглушки. Тогда
   // строка не притворяется выбором, а называет причину: тот же статус, что и

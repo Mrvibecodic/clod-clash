@@ -6,10 +6,12 @@ import {
   getRules,
 } from 'tauri-plugin-mihomo-api'
 
+import { useRefreshOnReturn } from '@/hooks/use-refresh-on-return'
 import { useVerge } from '@/hooks/use-verge'
 import {
   calcuProxies,
   calcuProxyProviders,
+  getAutotemProxy,
   getRunningMode,
   getSystemProxy,
 } from '@/services/cmds'
@@ -22,6 +24,29 @@ import {
   RulesContext,
   SystemContext,
 } from './app-data-context'
+
+/**
+ * Стабильная ссылка: хук возврата держит её в зависимостях эффекта, а ключи
+ * те же, по которым ниже подписаны запросы. Через `revalidateQueries`, а не
+ * через `refetch` конкретного запроса: тогда порядок объявлений неважен —
+ * видимость нужна раньше, чем существуют сами запросы.
+ */
+const refreshOnReturn = () =>
+  revalidateQueries([
+    ['getProxies'],
+    ['getClashConfig'],
+    ['getSystemProxy'],
+    ['getAutotemProxy'],
+  ])
+
+/**
+ * Как часто перечитываем факт системного прокси в ОС.
+ *
+ * Не чаще: на Windows это чтение реестра, а на macOS и Linux — порождённые
+ * процессы (`networksetup`, `gsettings`). Десять секунд — предел, за которым
+ * кнопка ещё честна, а фоновой работы уже не видно.
+ */
+const SYS_PROXY_POLL_MS = 10_000
 
 const TQ_MIHOMO = {
   refetchOnWindowFocus: false,
@@ -51,6 +76,14 @@ export const AppDataProvider = ({
   children: React.ReactNode
 }) => {
   const { verge } = useVerge()
+
+  // clod: окно вернулось из трея — общие данные ядра перечитываем сразу.
+  // Здесь их читает ВСЁ приложение, и на главной у них нет ни опроса, ни
+  // обновления по событию: задержки серверов, выбранный узел и состояние
+  // системного прокси оставались там от прошлого показа, сколько бы окно ни
+  // пролежало свёрнутым. Один запрос на возврат — и экран показывает то, что
+  // ядро знает сейчас.
+  const visible = useRefreshOnReturn(refreshOnReturn)
 
   const {
     data: proxiesData,
@@ -92,10 +125,30 @@ export const AppDataProvider = ({
     ...TQ_MIHOMO,
   })
 
+  // clod: кнопка Connect горит по ФАКТУ системного прокси в ОС, а не по флагу
+  // в нашем конфиге, — и этот факт надо перечитывать. Прокси снимает не только
+  // приложение: его гасит другой VPN-клиент, чистилка реестра, падение ядра.
+  // Без опроса кнопка оставалась зелёной над выключенным прокси до следующего
+  // события от бэкенда, то есть сколько угодно долго. Чтение локальное (реестр
+  // на Windows, `networksetup`-снимок на macOS), ядро не трогает.
   const { data: sysproxy, refetch: _refetchSysproxy } = useQuery({
     queryKey: ['getSystemProxy'],
     queryFn: getSystemProxy,
     ...TQ_DEFAULTS,
+    refetchInterval: visible ? SYS_PROXY_POLL_MS : false,
+    refetchIntervalInBackground: false,
+  })
+
+  // PAC-режим читает другой ключ: там факт — это адрес автонастройки, а не
+  // `server` системного прокси (см. `use-system-proxy-state`). Опрос заводим
+  // здесь, в единственном экземпляре: сам хук живёт в нескольких местах сразу,
+  // и интервал в нём означал бы столько же параллельных опросов.
+  useQuery({
+    queryKey: ['getAutotemProxy'],
+    queryFn: getAutotemProxy,
+    ...TQ_DEFAULTS,
+    refetchInterval: visible ? SYS_PROXY_POLL_MS : false,
+    refetchIntervalInBackground: false,
   })
 
   const { data: runningMode } = useQuery({
