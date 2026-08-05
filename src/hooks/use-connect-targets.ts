@@ -46,14 +46,26 @@ export const useConnectTargets = () => {
     (!targetTun || tunActive) &&
     (targetSys || targetTun)
 
+  // clod: кнопка обязана делать ровно то, что показывает. Намерение считалось
+  // по ЖЕЛАНИЮ (`enable_tun_mode` в конфиге), и это ломалось на самом обычном
+  // сценарии: всё выключено, пользователь включает TUN тумблером. Туннель
+  // поднят, системного прокси нет — кнопка тёмная, а «что-то из целей
+  // включено» превращало первое нажатие в «отключить»: TUN гасился, прокси и
+  // так не было. Со стороны — нажатие не сработало, да ещё и галочка TUN
+  // сбросилась сама.
+  //
+  // Исключение ровно одно: туннель, который бэкенд подавил (ядро не смогло
+  // поднять устройство). Цели тогда не сойдутся никогда, `connected` не
+  // загорится — и без оговорки кнопка умела бы только подключать, а выключить
+  // поднятый системный прокси стало бы нечем. Когда же поднимать больше
+  // нечего, нажатие снова означает «подключить»: повторная подача настройки
+  // снимает подавление, и это единственная попытка починиться самой кнопкой.
+  const tunStuck = targetTun && tunDesired && !tunActive
+  const somethingUp = (targetSys && sysproxyOn) || (targetTun && tunActive)
+  const willConnect = connected ? false : !(tunStuck && somethingUp)
+
   const toggleConnection = useCallback(async () => {
-    // clod: намерение — от ЖЕЛАНИЯ, а не от факта. `connected` честно гаснет,
-    // когда бэкенд подавил TUN, и если считать намерение по нему, кнопка
-    // умела бы только «подключать»: отключить системный прокси при сломанном
-    // туннеле стало бы нечем. Что-то из целей ещё включено — значит нажатие
-    // означает «отключить».
-    const anythingOn = (targetSys && sysproxyOn) || (targetTun && tunDesired)
-    const next = !anythingOn
+    const next = willConnect
 
     // clod:tun-ready — TUN нужна фоновая служба. Раньше кнопка просто ругалась
     // «установите её сами»; теперь ставим (один запрос прав) и продолжаем, а
@@ -77,6 +89,7 @@ export const useConnectTargets = () => {
       await toggleSystemProxy(next)
     }
   }, [
+    willConnect,
     targetSys,
     targetTun,
     tunActive,
@@ -90,7 +103,7 @@ export const useConnectTargets = () => {
     t,
   ])
 
-  return { connected, targetSys, targetTun, toggleConnection }
+  return { connected, willConnect, targetSys, targetTun, toggleConnection }
 }
 
 /**

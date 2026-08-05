@@ -129,9 +129,31 @@ pub fn report_start_failure(detail: &str) {
     });
 }
 
+/// Отметка «до»: последняя строка лога ядра ПЕРЕД тем, как ему отдадут новый
+/// конфиг. Всё, что было написано раньше, к этой попытке отношения не имеет.
+///
+/// Снимать её надо ДО перегенерации конфига: в режиме службы ядро успевает
+/// пожаловаться прямо внутри вызова, применяющего конфиг, и отметка, снятая
+/// после, накрыла бы собой ровно ту строку, ради которой всё и затевалось.
+///
+/// Отметка — сама строка, а не её номер: буфер логов кольцевой и переполняется
+/// (в sidecar это последняя сотня строк), так что длина «до» ничего не значит
+/// уже через несколько секунд обычной работы.
+pub async fn log_anchor() -> Option<String> {
+    crate::core::CoreManager::global()
+        .get_clash_logs()
+        .await
+        .ok()
+        .and_then(|logs| logs.last().map(ToString::to_string))
+}
+
 /// После включения TUN дать ядру время и проверить, не ругнулось ли оно.
-pub fn spawn_start_verification() {
-    AsyncHandler::spawn(|| async {
+///
+/// `anchor` — отметка из [`log_anchor`], снятая до подачи конфига. `None`
+/// означает «смотреть весь буфер»: так зовут после перезапуска ядра, где логи
+/// и так почищены.
+pub fn spawn_start_verification(anchor: Option<String>) {
+    AsyncHandler::spawn(move || async move {
         tokio::time::sleep(timing::TUN_VERIFY_DELAY).await;
         if !desired().await || is_suppressed() {
             return;
@@ -141,15 +163,26 @@ pub fn spawn_start_verification() {
         let Ok(logs) = crate::core::CoreManager::global().get_clash_logs().await else {
             return;
         };
-        if let Some(line) = logs
-            .iter()
-            .rev()
-            .take(200)
-            .find(|line| line_reports_tun_failure(line.as_str()))
-        {
-            report_start_failure(line);
+        if let Some(line) = fresh_failure(&logs, anchor.as_deref()) {
+            report_start_failure(line.as_str());
         }
     });
+}
+
+/// Самая свежая жалоба ядра на TUN среди строк, появившихся ПОСЛЕ отметки.
+///
+/// Отметки нет, она уже вытеснена из кольцевого буфера или буфер почистили
+/// (перезапуск ядра чистит его целиком) — смотрим весь буфер: старых строк в
+/// нём в этих случаях всё равно нет.
+fn fresh_failure<'a, S: AsRef<str>>(logs: &'a [S], anchor: Option<&str>) -> Option<&'a S> {
+    let from = anchor
+        .and_then(|anchor| logs.iter().rposition(|line| line.as_ref() == anchor))
+        .map_or(0, |position| position + 1);
+    logs[from..]
+        .iter()
+        .rev()
+        .take(200)
+        .find(|line| line_reports_tun_failure(line.as_ref()))
 }
 
 /// Попытку автоматической настройки запоминаем вместе с версией приложения:
@@ -475,6 +508,28 @@ mod tests {
         ] {
             assert_eq!(action_for(registration, true), ServiceStatus::ReinstallRequired);
         }
+    }
+
+    #[test]
+    fn old_complaints_do_not_count_against_a_new_attempt() {
+        const FAILURE: &str = "Start TUN listening error: configure tun interface: Access is denied.";
+        let logs = [FAILURE, "[TCP] tun accept connection"];
+        // Обе строки были до попытки — жаловаться не на что.
+        assert!(fresh_failure(&logs, Some("[TCP] tun accept connection")).is_none());
+        // Провал написан после отметки — он и есть ответ.
+        assert_eq!(
+            fresh_failure(&logs, Some("Start initial provider default")).copied(),
+            Some(FAILURE)
+        );
+        assert_eq!(fresh_failure(&logs, None).copied(), Some(FAILURE));
+        // Отметка вытеснена из кольцевого буфера (или буфер почистили при
+        // перезапуске ядра) — смотрим весь: иначе свежий провал остался бы
+        // незамеченным.
+        assert_eq!(fresh_failure(&logs, Some("evicted line")).copied(), Some(FAILURE));
+        // Отметка — ПОСЛЕДНЕЕ вхождение: строки повторяются, и старое
+        // совпадение не должно открывать окно шире, чем было на самом деле.
+        let repeated = ["[TCP] tun accept connection", FAILURE, "[TCP] tun accept connection"];
+        assert!(fresh_failure(&repeated, Some("[TCP] tun accept connection")).is_none());
     }
 
     #[test]

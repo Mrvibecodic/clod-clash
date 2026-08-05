@@ -276,14 +276,31 @@ async fn process_terminated_flags(update_flags: UpdateFlags, patch: &IVerge) -> 
 pub async fn patch_verge(patch: &IVerge, not_save_file: bool) -> Result<()> {
     Config::verge().await.edit_draft(|d| d.patch_config(patch));
 
-    let update_flags = determine_update_flags(patch);
-    logging!(debug, Type::Setup, "Determined update flags: {:?}", update_flags);
-    let process_flag_result: std::result::Result<(), anyhow::Error> = {
-        process_terminated_flags(update_flags, patch).await?;
-        Ok(())
+    // clod:tun-ready — снять подавление НАДО ДО перегенерации конфига ядра.
+    // Заявка на TUN считается как «желание И НЕ подавление» (`enhance`), а
+    // перегенерация живёт внутри `process_terminated_flags` ниже. Пока
+    // снятие стояло после неё, повторное включение TUN отдавало ядру конфиг
+    // БЕЗ туннеля — и тут же рапортовало интерфейсу «включено»: тумблер
+    // зелёный, трафик мимо. Хэндофф на службу здесь же: конфиг с tun должен
+    // уходить уже тому ядру, у которого хватит прав его поднять.
+    let tun_log_anchor = if patch.enable_tun_mode == Some(true) {
+        crate::feat::tun::clear_suppression();
+        crate::core::CoreManager::global().handoff_to_service_if_needed().await;
+        // Отметку в логах ядра снимаем здесь же: в режиме службы ядро успевает
+        // пожаловаться на TUN прямо внутри перегенерации ниже, и отметка,
+        // снятая после неё, накрыла бы собой эту самую жалобу.
+        crate::feat::tun::log_anchor().await
+    } else {
+        None
     };
 
-    if let Err(err) = process_flag_result {
+    let update_flags = determine_update_flags(patch);
+    logging!(debug, Type::Setup, "Determined update flags: {:?}", update_flags);
+    // Черновик откатывается ровно здесь. Раньше `?` внутри стоял ВНУТРИ
+    // выражения, из которого потом читали результат, — то есть выходил из
+    // функции раньше отката, и `discard()` не звался никогда: провалившийся
+    // патч оставался в черновике и уезжал в конфиг со следующим apply().
+    if let Err(err) = process_terminated_flags(update_flags, patch).await {
         Config::verge().await.discard();
         return Err(err);
     }
@@ -298,13 +315,11 @@ pub async fn patch_verge(patch: &IVerge, not_save_file: bool) -> Result<()> {
         crate::feat::record_connect_targets(active);
     }
 
-    // clod:tun-ready — пользователь сам включил TUN: сессионное подавление
-    // снимается (условия могли измениться), а если ядро крутится в sidecar без
-    // прав, переезжаем на службу — иначе тумблер зелёный, а туннеля нет.
+    // clod:tun-ready — конфиг с туннелем ушёл ядру выше; теперь спрашиваем
+    // ядро, поднялся ли он на самом деле (подавление и хэндофф — до
+    // перегенерации, см. начало функции).
     if patch.enable_tun_mode == Some(true) {
-        crate::feat::tun::clear_suppression();
-        crate::core::CoreManager::global().handoff_to_service_if_needed().await;
-        crate::feat::tun::spawn_start_verification();
+        crate::feat::tun::spawn_start_verification(tun_log_anchor);
     }
 
     logging_error!(Type::Backup, AutoBackupManager::global().refresh_settings().await);

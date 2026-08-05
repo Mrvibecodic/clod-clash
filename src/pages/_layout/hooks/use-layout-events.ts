@@ -62,6 +62,11 @@ export const useLayoutEvents = (
           'getRunningMode',
           'isServiceAvailable',
           'getSystemState',
+          // clod:tun-ready — бэкенд шлёт это событие в том числе когда сам
+          // погасил туннель. Без перечитывания состояние TUN обновлял только
+          // опрос (10 с), а в свёрнутом окне — вообще никто: и тумблер, и
+          // кнопка Connect до десяти секунд врали о туннеле.
+          'getTunState',
         ])
       }),
     )

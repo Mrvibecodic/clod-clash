@@ -107,7 +107,7 @@ const HomeAdvancedPage = () => {
   const navigate = useNavigate()
   const { current, mutateProfiles } = useProfiles()
   const { setSimpleMode } = useSimpleMode()
-  const { connected, toggleConnection } = useConnectTargets()
+  const { connected, willConnect, toggleConnection } = useConnectTargets()
   const uptime = useSessionUptime(connected)
 
   const [busy, setBusy] = useState(false)
@@ -132,7 +132,10 @@ const HomeAdvancedPage = () => {
         : 'off'
 
   const toggle = useLockFn(async () => {
-    setIntent(connected ? 'disconnecting' : 'connecting')
+    // Подпись — от того, что нажатие СДЕЛАЕТ. Это почти всегда обратное
+    // показанному, но подавленный туннель оставляет кнопку тёмной, а нажатие
+    // при поднятом системном прокси всё равно отключает.
+    setIntent(willConnect ? 'connecting' : 'disconnecting')
     setBusy(true)
     setFailure(undefined)
     try {

@@ -32,7 +32,7 @@ import { showNotice } from '@/services/notice-service'
 const HomeSimplePage = () => {
   const { t } = useTranslation()
   const { current, mutateProfiles } = useProfiles()
-  const { connected, toggleConnection } = useConnectTargets()
+  const { connected, willConnect, toggleConnection } = useConnectTargets()
   const { setSimpleMode } = useSimpleMode()
   const uptime = useSessionUptime(connected)
 
@@ -59,7 +59,10 @@ const HomeSimplePage = () => {
         : 'off'
 
   const toggle = useLockFn(async () => {
-    setIntent(connected ? 'disconnecting' : 'connecting')
+    // Подпись — от того, что нажатие СДЕЛАЕТ. Это почти всегда обратное
+    // показанному, но подавленный туннель оставляет кнопку тёмной, а нажатие
+    // при поднятом системном прокси всё равно отключает.
+    setIntent(willConnect ? 'connecting' : 'disconnecting')
     setBusy(true)
     setFailure(undefined)
     try {
