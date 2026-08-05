@@ -535,6 +535,12 @@ const SignalBars = ({ delay }: { delay?: number }) => {
 // ремоунт экрана не пинговал повторно.
 let lastAutoDelayKey = ''
 
+// clod: последний пинг, который пользователь реально видел. Module-scope по
+// той же причине, что и ключ выше: ремоунт экрана не должен стирать цифру,
+// которая только что была на месте. Состоянием это держать нельзя — запись
+// шла бы из эффекта, то есть лишний рендер на каждый замер.
+let lastKnownPing: { key: string; delay: number } | undefined
+
 /**
  * clod: пинг старше этого — на экране враньё, а не данные.
  *
@@ -619,13 +625,12 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
   const pingKey = current
     ? `${group?.name ?? ''}::${current}::${leaf ?? ''}`
     : ''
-  const [lastPing, setLastPing] = useState<{ key: string; delay: number }>()
   useEffect(() => {
     if (!usableDelay(delay)) return
-    setLastPing({ key: pingKey, delay })
+    lastKnownPing = { key: pingKey, delay }
   }, [pingKey, delay])
   const remembered =
-    lastPing && lastPing.key === pingKey ? lastPing.delay : undefined
+    lastKnownPing?.key === pingKey ? lastKnownPing.delay : undefined
   // Only the caption and the bars use it — `hasPing` and `measuredAt` below
   // must keep speaking about what the core really has, or the auto re-ping
   // would take a remembered figure for a live one and stop measuring.
