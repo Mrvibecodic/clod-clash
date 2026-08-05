@@ -364,6 +364,52 @@ async function downloadFile(url, outPath) {
   log_success(`download finished: ${url}`)
 }
 
+/**
+ * clod: то же скачивание, но с лесенкой попыток.
+ *
+ * Релиз 0.0.21 упал ровно на этом: sourceforge отдал 403 на плагин NSIS —
+ * не «нельзя», а «сейчас нельзя» (тот же URL из той же сети отвечал 200 через
+ * минуту). Одна сетевая заминка не должна стоить 35-минутной пересборки всех
+ * трёх платформ.
+ *
+ * `sha256` — если известен, файл сверяется с ним: битая или подменённая
+ * закачка считается неудачной попыткой, а не поводом собрать инсталлятор
+ * непонятно с чем.
+ */
+async function downloadFileWithRetry(
+  url,
+  outPath,
+  { sha256, attempts = 5 } = {},
+) {
+  let lastError
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      await downloadFile(url, outPath)
+      if (sha256) {
+        const actual = createHash('sha256')
+          .update(await fsp.readFile(outPath))
+          .digest('hex')
+        if (actual !== sha256) {
+          throw new Error(
+            `Checksum mismatch for ${url}: expected ${sha256}, got ${actual}`,
+          )
+        }
+      }
+      return
+    } catch (error) {
+      lastError = error
+      await fsp.rm(outPath, { force: true })
+      if (attempt === attempts) break
+      const pause = attempt * 3000
+      log_error(
+        `${error}; retrying in ${pause / 1000}s (${attempt}/${attempts})`,
+      )
+      await new Promise((resolve) => setTimeout(resolve, pause))
+    }
+  }
+  throw lastError
+}
+
 // =======================
 // resolveSidecar (поддержка zip / tgz / gz)
 // =======================
@@ -498,6 +544,11 @@ async function resolveResource(binInfo) {
 const resolvePlugin = async () => {
   const url =
     'https://nsis.sourceforge.io/mediawiki/images/e/ef/NSIS_Simple_Service_Plugin_Unicode_1.30.zip'
+  // Файл на sourceforge не меняется (в имени зашита версия), так что его можно
+  // и нужно сверять: подпись у нас есть только у своих артефактов, а этот
+  // плагин уезжает в инсталлятор.
+  const sha256 =
+    '58a58f257fc5906e3a0215f67ae7a72f468a8d7d7d3019065423eb704fbfaf66'
   const tempDir = path.join(TEMP_DIR, 'SimpleSC')
   const tempZip = path.join(
     tempDir,
@@ -511,7 +562,7 @@ const resolvePlugin = async () => {
   if (!FORCE && fs.existsSync(pluginPath)) return
   try {
     if (!fs.existsSync(tempZip)) {
-      await downloadFile(url, tempZip)
+      await downloadFileWithRetry(url, tempZip, { sha256 })
     }
     const zip = new AdmZip(tempZip)
     zip
