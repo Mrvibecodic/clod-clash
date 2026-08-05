@@ -8,6 +8,38 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.0.20-alpha
+
+<!-- lang:en -->
+
+### Fixed
+
+- The home screen no longer shows yesterday's numbers. Nothing on it was ever refreshed: the shared core state was read once at start-up and then only when the backend announced something. A window pulled out of the tray painted the delays, the selected server and the Connect state of whenever it was last looked at
+- The server's ping is chased until it appears. Right after connecting, the core rereads its configuration and its delay history is empty — and only url-test groups are measured by the core itself, so a pinned server was left with no number at all
+- TUN no longer lies. The Connect button and the switch in the settings read whether the tunnel is actually up, not what the configuration wishes for: a tunnel the core could not raise is suppressed by the backend, and both used to stay green over it
+- Pressing Connect while connected says "Disconnecting…" instead of "Connecting…"
+- The Connect button reads the real system proxy in the OS and rechecks it while the window is open — it goes out from under us when another VPN client, or a dead core, takes it away
+
+### Changed
+
+- The hours left on a subscription are marked as rounded: "~5 h". They always were rounded up; now it says so
+
+<!-- lang:ru -->
+
+### Исправлено
+
+- Главный экран больше не показывает вчерашние цифры. Он не обновлялся вообще: общее состояние ядра читалось один раз при запуске и дальше — только когда бэкенд сам о чём-то сообщал. Окно, поднятое из трея, рисовало задержки, выбранный сервер и состояние подключения такими, какими их видели в прошлый раз
+- Пинг сервера теперь добивается до появления. Сразу после подключения ядро перечитывает конфигурацию, и история задержек в нём пуста, — а само ядро проверяет только url-test группы, поэтому у закреплённого сервера цифры не было вовсе
+- TUN больше не врёт. Кнопка подключения и переключатель в настройках показывают, поднят ли туннель на самом деле, а не то, чего хочет конфигурация: туннель, который ядро не смогло поднять, бэкенд подавляет — и оба оставались зелёными над ним
+- Нажатие на кнопку при активном подключении подписывается «Отключение…», а не «Подключение…»
+- Кнопка подключения читает настоящий системный прокси в системе и перечитывает его, пока окно открыто: прокси у нас забирает и другой VPN-клиент, и упавшее ядро
+
+### Изменено
+
+- Часы до конца подписки помечены как округлённые: «~5 ч». Округление вверх было всегда, теперь об этом сказано
+
+---
+
 ## v0.0.19-alpha
 
 <!-- lang:en -->
