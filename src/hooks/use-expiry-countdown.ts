@@ -99,19 +99,19 @@ export const useExpiryCountdown = (
 
     let timer: number | undefined
 
-    // Первый проход после запуска эффекта пишет значение всегда: поправка
-    // часов приезжает вместе с профилем, уже после монтирования, и сравнение
-    // подписей оставило бы `secondsLeft` со старым смещением до самой границы.
-    let force = true
-
-    const schedule = () => {
+    // `force` — признак первого прохода после запуска эффекта: он пишет
+    // значение всегда. Поправка часов приезжает вместе с профилем, уже после
+    // монтирования, и сравнение подписей оставило бы `secondsLeft` со старым
+    // смещением до самой границы. Передаётся параметром, а не изменяемой
+    // переменной: замыкание, которое правит захваченную переменную, React
+    // считает мутацией неизменяемого (`react-compiler`).
+    const schedule = (force: boolean) => {
       const current = Date.now() / 1000 + skew
       setNow((previous) =>
         !force && label(expire, previous, skew) === label(expire, current, skew)
           ? previous
           : current,
       )
-      force = false
 
       const left = expire - current
       if (left <= 0) return
@@ -126,7 +126,7 @@ export const useExpiryCountdown = (
         ? Math.min(left % HOUR || HOUR, untilLocalMidnight())
         : left % DAY || DAY
       timer = window.setTimeout(
-        schedule,
+        () => schedule(false),
         Math.min(
           untilNextLabel * 1000 + 1000,
           lastDay ? MAX_SLEEP_LAST_DAY_MS : MAX_SLEEP_MS,
@@ -137,7 +137,7 @@ export const useExpiryCountdown = (
     // Первый проход — через нулевой таймаут, а не прямым вызовом: синхронный
     // `setState` внутри эффекта стоит лишнего прохода рендера (и запрещён
     // правилом `set-state-in-effect`). Тот же приём в `use-session-uptime`.
-    timer = window.setTimeout(schedule, 0)
+    timer = window.setTimeout(() => schedule(true), 0)
 
     return () => {
       if (timer !== undefined) window.clearTimeout(timer)
