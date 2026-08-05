@@ -16,6 +16,17 @@ export interface DelayUpdate {
 
 const CACHE_TTL = 30 * 60 * 1000
 
+/**
+ * How long a `-2` ("testing") cache entry may outrank a real measurement.
+ *
+ * A test refreshes the marker right before it calls the core, so a live one is
+ * never older than the request timeout. Anything older is a leftover of a test
+ * that never came back (unmounted screen, core restart) — without this cap it
+ * would win the freshness comparison forever and blank the ping on every
+ * screen that reads this cache.
+ */
+const TESTING_TTL = 60 * 1000
+
 /** Used when neither the user, the template nor the settings named a URL. */
 const BUILTIN_TEST_URL = 'http://cp.cloudflare.com/generate_204'
 
@@ -240,34 +251,66 @@ class DelayManager {
     return update ? update.delay : -1
   }
 
+  /**
+   * The newest core measurement for this node: `{ delay, at }`, `at` in ms.
+   *
+   * clod: тест шёл по URL самой группы (`proxy-groups[].url` из шаблона
+   * провайдера), и ядро складывает такие замеры не в `history`, а в
+   * `extra[url]`. Без этого «Тест» показывал пинг до дефолтного адреса —
+   * то есть не то, что реально происходит с YouTube-группой.
+   *
+   * A timestamp the core sent in a shape we cannot parse counts as "unknown"
+   * (`0`) rather than dropping the measurement: the number is still real, it
+   * just loses every freshness comparison to something we can date.
+   */
+  private newestCoreEntry(proxy: IProxyItem, group: string) {
+    // A stale `extra` entry must not outrank a ping just taken against the
+    // default URL, or the other way round. On an equal timestamp `extra` wins:
+    // that is the address the group was actually measured with.
+    let newest: { delay: number; at: number } | undefined
+    for (const entry of [
+      proxy.extra?.[this.getUrl(group)]?.history?.at(-1),
+      proxy.history?.at(-1),
+    ]) {
+      if (!entry) continue
+      const parsed = Date.parse(entry.time)
+      const at = Number.isFinite(parsed) ? parsed : 0
+      if (!newest || at > newest.at) newest = { delay: entry.delay, at }
+    }
+    return newest
+  }
+
+  /**
+   * Our own cache entry, but only while it still means something.
+   *
+   * Provider nodes are skipped on purpose (see `getDelayFix`). A stale
+   * "testing" marker is dropped here so it cannot outlive the test it belongs
+   * to, and `-1` (never measured) carries no information at all.
+   */
+  private liveCacheEntry(proxy: IProxyItem, group: string) {
+    if (proxy.provider) return undefined
+    const update = this.getDelayUpdate(proxy.name, group)
+    if (!update) return undefined
+    if (update.delay === -2) {
+      return Date.now() - update.updatedAt <= TESTING_TTL ? update : undefined
+    }
+    return update.delay >= 0 ? update : undefined
+  }
+
   /// Временный фикс сортировки задержки узлов у provider
   getDelayFix(proxy: IProxyItem, group: string) {
-    if (!proxy.provider) {
-      const update = this.getDelayUpdate(proxy.name, group)
-      if (update && (update.delay >= 0 || update.delay === -2)) {
-        return update.delay
-      }
-    }
+    const cached = this.liveCacheEntry(proxy, group)
+    const core = this.newestCoreEntry(proxy, group)
 
-    // clod: тест шёл по URL самой группы (`proxy-groups[].url` из шаблона
-    // провайдера), и ядро складывает такие замеры не в `history`, а в
-    // `extra[url]`. Без этого «Тест» показывал пинг до дефолтного адреса —
-    // то есть не то, что реально происходит с YouTube-группой.
-    const extraEntry = proxy.extra?.[this.getUrl(group)]?.history?.at(-1)
-    const historyEntry = proxy.history?.at(-1)
+    // Two independent sources of the same number — the newer measurement wins.
+    // The cache used to be read first and unconditionally: after a config
+    // reload the core already had a fresh ping while the screen kept showing a
+    // half-hour-old figure (and a stuck `-2` meant a spinner that never ended).
+    if (cached && (!core || cached.updatedAt >= core.at)) return cached.delay
 
-    // Берём более свежий замер: старая запись в `extra` не должна перебивать
-    // только что снятый пинг по дефолтному адресу (и наоборот).
-    const newest =
-      extraEntry && historyEntry
-        ? Date.parse(extraEntry.time) >= Date.parse(historyEntry.time)
-          ? extraEntry
-          : historyEntry
-        : (extraEntry ?? historyEntry)
-
-    if (newest) {
+    if (core) {
       // 0ms отображаем как error
-      return newest.delay || 1e6
+      return core.delay || 1e6
     }
     return -1
   }
@@ -275,28 +318,23 @@ class DelayManager {
   /**
    * Когда сняли тот замер, который видит пользователь: мс epoch, 0 — не знаем.
    *
-   * Смотрит туда же, куда и `getDelayFix` (история по адресу группы и обычная
-   * история), и берёт более свежую запись. Нужен, чтобы отличить «пинг просто
-   * старый» от «пинга нет»: цифра часовой давности выглядит на экране ровно
-   * так же, как свежая, и молча врёт.
+   * Dates exactly the entry `getDelayFix` picked, not the freshest one that
+   * exists. Taking the maximum of both sources made the age come from the
+   * cache while the figure on screen came from the core's history: the
+   * measurement looked fresh, the automatic re-ping never fired, and the user
+   * stared at an hour-old ping.
    */
   getMeasuredAt(proxy: IProxyItem, group: string) {
-    const times = [
-      proxy.extra?.[this.getUrl(group)]?.history?.at(-1)?.time,
-      proxy.history?.at(-1)?.time,
-    ]
-      .map((time) => (time ? Date.parse(time) : Number.NaN))
-      .filter((time) => Number.isFinite(time))
+    const cached = this.liveCacheEntry(proxy, group)
+    const core = this.newestCoreEntry(proxy, group)
 
-    // Свой кэш — там же, где его читает `getDelayFix`, и читает ПЕРВЫМ:
-    // после ручного теста на экране висит цифра отсюда, и её возраст обязан
-    // считаться отсюда же, иначе свежий замер выглядит протухшим.
-    if (!proxy.provider) {
-      const update = this.getDelayUpdate(proxy.name, group)
-      if (update && update.delay >= 0) times.push(update.updatedAt)
+    // `-2` is a state, not a measurement the user can see: its age says
+    // nothing about how old the figure hiding behind the spinner is.
+    if (cached && cached.delay >= 0 && (!core || cached.updatedAt >= core.at)) {
+      return cached.updatedAt
     }
 
-    return times.length > 0 ? Math.max(...times) : 0
+    return core?.at ?? 0
   }
 
   // Единая проверка задержки
