@@ -191,7 +191,7 @@ fn escape_osascript_double_quoted_string(value: &str) -> String {
     value.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn shell_single_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', r"'\''"))
 }
@@ -560,21 +560,162 @@ pub fn service_registration() -> ServiceRegistration {
     }
 }
 
+// clod: переустановка — ОДИН запрос прав, а не два.
+//
+// Раньше `reinstall_service` звал `uninstall_service()` и `install_service()`
+// по очереди, и каждый поднимал собственный привилегированный процесс:
+// пользователь, попросивший починить службу один раз, видел два UAC (или два
+// запроса пароля) подряд. Теперь оба шага уходят одним скриптом под одной
+// элевацией; провал удаления (службы могло и не быть) переустановку не
+// прерывает — важен результат установки.
+
+#[cfg(target_os = "windows")]
 fn reinstall_service() -> Result<()> {
     logging!(info, Type::Service, "reinstall service");
 
-    // Сначала удаляем службу
-    if let Err(err) = uninstall_service() {
-        logging!(warn, Type::Service, "failed to uninstall service: {}", err);
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    use deelevate::{PrivilegeLevel, Token};
+    use runas::Command as RunasCommand;
+    use std::os::windows::process::CommandExt as _;
+
+    let binary_path = dirs::service_path()?;
+    let uninstall_path = binary_path.with_file_name("clash-verge-service-uninstall.exe");
+    let install_path = binary_path.with_file_name("clash-verge-service-install.exe");
+
+    if !install_path.exists() {
+        bail!(format!("installer not found: {install_path:?}"));
     }
 
-    // Затем устанавливаем службу
-    match install_service() {
-        Ok(_) => Ok(()),
-        Err(err) => {
-            bail!(format!("failed to install service: {err}"))
-        }
+    // Скрипт уезжает АРГУМЕНТОМ процесса (-EncodedCommand, base64 от UTF-16LE),
+    // а не временным .bat: файл в %TEMP%, который затем исполняется с
+    // повышением, можно подменить между записью и подтверждением UAC — это
+    // готовая дырка для повышения привилегий. В аргументах подменять нечего,
+    // а base64 заодно снимает всю боль вложенного квотирования cmd.
+    let ps_quote = |path: &std::path::Path| format!("'{}'", path.display().to_string().replace('\'', "''"));
+    let mut script = String::new();
+    if uninstall_path.exists() {
+        script.push_str(&format!("& {}; ", ps_quote(&uninstall_path)));
     }
+    script.push_str(&format!("& {}; exit $LASTEXITCODE", ps_quote(&install_path)));
+    let encoded: Vec<u8> = script.encode_utf16().flat_map(u16::to_le_bytes).collect();
+    let encoded = STANDARD.encode(encoded);
+
+    let args = ["-NoProfile", "-NonInteractive", "-EncodedCommand", &encoded];
+    let token = Token::with_current_process()?;
+    let status = match token.privilege_level()? {
+        PrivilegeLevel::NotPrivileged => RunasCommand::new("powershell.exe").args(&args).show(false).status()?,
+        _ => StdCommand::new("powershell.exe")
+            .args(args)
+            .creation_flags(0x08000000)
+            .status()?,
+    };
+
+    if !status.success() {
+        bail!(
+            "failed to reinstall service with status {}",
+            status.code().unwrap_or(-1)
+        );
+    }
+
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn reinstall_service() -> Result<()> {
+    logging!(info, Type::Service, "reinstall service");
+
+    let exe = tauri::utils::platform::current_exe()?;
+    let uninstall_path = exe.with_file_name("clash-verge-service-uninstall");
+    let install_path = exe.with_file_name("clash-verge-service-install");
+
+    if !install_path.exists() {
+        bail!(format!("installer not found: {install_path:?}"));
+    }
+
+    // pkexec спрашивает пароль на каждый вызов — потому оба шага в одном.
+    let mut script = String::new();
+    if uninstall_path.exists() {
+        script.push_str(&shell_single_quote(&uninstall_path.to_string_lossy()));
+        script.push_str("; ");
+    }
+    script.push_str(&shell_single_quote(&install_path.to_string_lossy()));
+
+    let elevator = crate::utils::help::linux_elevator();
+    let status = if linux_running_as_root() {
+        StdCommand::new("sh").args(["-c", &script]).status()?
+    } else {
+        let result = StdCommand::new(&elevator).args(["sh", "-c", &script]).status()?;
+
+        // Если pkexec не сработал, откатываемся на sudo
+        if !result.success() && elevator.contains("pkexec") {
+            logging!(
+                warn,
+                Type::Service,
+                "pkexec failed with code {}, falling back to sudo",
+                result.code().unwrap_or(-1)
+            );
+            StdCommand::new("sudo").args(["sh", "-c", &script]).status()?
+        } else {
+            result
+        }
+    };
+
+    if !status.success() {
+        bail!(
+            "failed to reinstall service with status {}",
+            status.code().unwrap_or(-1)
+        );
+    }
+
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn reinstall_service() -> Result<()> {
+    logging!(info, Type::Service, "reinstall service");
+
+    let binary_path = dirs::service_path()?;
+    let uninstall_path = binary_path.with_file_name("clash-verge-service-uninstall");
+    let install_path = binary_path.with_file_name("clash-verge-service-install");
+
+    if !install_path.exists() {
+        bail!(format!("installer not found: {install_path:?}"));
+    }
+
+    let gid = tauri_plugin_clash_verge_sysinfo::current_gid();
+    let prompt = clash_verge_i18n::t!("service.adminInstallPrompt");
+
+    // Один пароль администратора на всё: остановка остатков ядра, удаление,
+    // очистка translocation-хвостов и установка — тот же порядок, что был у
+    // раздельных uninstall_service/install_service.
+    let mut shell = macos_force_stop_core_shell();
+    if uninstall_path.exists() {
+        shell.push_str("; sudo ");
+        shell.push_str(&shell_single_quote(&uninstall_path.to_string_lossy()));
+    }
+    shell.push_str("; ");
+    shell.push_str(macos_cleanup_translocated_desired_state_shell());
+    shell.push_str("; sudo CLASH_VERGE_SERVICE_GID=");
+    shell.push_str(&gid.to_string());
+    shell.push(' ');
+    shell.push_str(&shell_single_quote(&install_path.to_string_lossy()));
+
+    let shell = escape_osascript_double_quoted_string(&shell);
+    let command = format!(r#"do shell script "{shell}" with administrator privileges with prompt "{prompt}""#);
+
+    let output = StdCommand::new("osascript").args(vec!["-e", &command]).output()?;
+    if let Some((code, err)) = check_output_error(&output) {
+        logging!(
+            error,
+            Type::Service,
+            "failed to reinstall service code: {}, details: {}",
+            code,
+            err
+        );
+        bail!("failed to reinstall service code: {}, details: {}", code, err);
+    }
+
+    Ok(())
 }
 
 /// Принудительная переустановка службы (кнопка исправления в UI)
@@ -810,9 +951,12 @@ impl ServiceManager {
             }
             if clash_verge_service_ipc::is_reinstall_service_needed().await {
                 self.set_status(ServiceStatus::NeedsReinstall);
-                // Одно уведомление на сессию: чинить будет пользователь кнопкой,
-                // а не мы молча с запросом прав.
-                if !REINSTALL_NOTICED.swap(true, Ordering::AcqRel) {
+                // Одно уведомление на сессию, и только когда служба вообще
+                // нужна: пользователю с выключенным TUN нечего чинить — он
+                // сидит на системном прокси, и красная плашка про сломанную
+                // службу для него просто шум. Включение TUN само доведёт
+                // службу до рабочего состояния (`ensure_ready`).
+                if crate::feat::tun::desired().await && !REINSTALL_NOTICED.swap(true, Ordering::AcqRel) {
                     logging!(
                         warn,
                         Type::Service,

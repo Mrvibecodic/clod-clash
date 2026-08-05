@@ -100,9 +100,13 @@ tauri-plugin-devtools = { version = "2.1.0" }
 tauri-plugin-mihomo = { git = "https://github.com/clash-verge-rev/tauri-plugin-mihomo", branch = "fix/api-robustness" }
 clash_verge_logger = { git = "https://github.com/clash-verge-rev/clash-verge-logger" }
 async-trait = "0.1.89"
+# ПИН ПАРОЙ: тег здесь обязан совпадать с SERVICE_VERSION в scripts/prebuild.mjs.
+# Клиентская библиотека сверяет версию установленной службы строго; без тега
+# `cargo update` молча уезжал бы на main, а prebuild качал «latest» — и клиент
+# с собственной службой из ресурсов расходились, давая вечное «служба устарела».
 clash_verge_service_ipc = { version = "2.3.3", features = [
   "client",
-], git = "https://github.com/clash-verge-rev/clash-verge-service-ipc" }
+], git = "https://github.com/clash-verge-rev/clash-verge-service-ipc", tag = "v2.3.3" }
 arc-swap = "1.9.2"
 tokio-rustls = "0.26.4"
 rustls = { version = "0.23.41", features = ["ring"] }
