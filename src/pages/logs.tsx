@@ -19,9 +19,11 @@ import {
 import LogItem from '@/components/log/log-item'
 import { useClashLog } from '@/hooks/use-clash-log'
 import { useLogData } from '@/hooks/use-log-data'
+import { useVisibility } from '@/hooks/use-visibility'
 
 const LogPage = () => {
   const { t } = useTranslation()
+  const pageVisible = useVisibility()
   const [clashLog, setClashLog] = useClashLog()
   const enableLog = clashLog.enable
   const logState = clashLog.logFilter
@@ -33,7 +35,7 @@ const LogPage = () => {
   const {
     response: { data: logData },
     refreshGetClashLog,
-  } = useLogData()
+  } = useLogData({ enabled: pageVisible })
 
   const filterLogs = useMemo(() => {
     if (!logData || logData.length === 0) {

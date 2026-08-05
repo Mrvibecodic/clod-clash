@@ -54,13 +54,41 @@ const pickActiveOwner = (entry: SharedSubscriptionEntry) => {
   return null
 }
 
+/**
+ * clod: сокеты, чей `close()` отказал.
+ *
+ * Ссылку на сокет держит только `entry`, и обнулять её приходится до закрытия:
+ * пока `close()` идёт по IPC, никто не должен считать сокет живым. Но если
+ * закрытие отказало (упало ядро, оборвался IPC), сокет мог остаться открытым —
+ * а закрыть его уже некому. Поэтому такой сокет запоминаем и пробуем закрыть
+ * ещё раз при следующем закрытии, когда связь с ядром может уже вернуться.
+ */
+const orphanSockets = new Set<MihomoWebSocket>()
+
+const closeSocket = async (ws: MihomoWebSocket) => {
+  try {
+    await ws.close()
+    orphanSockets.delete(ws)
+  } catch (err) {
+    orphanSockets.add(ws)
+    console.warn('Failed to close mihomo websocket', err)
+  }
+}
+
+const retryOrphanCloses = () => {
+  orphanSockets.forEach((ws) => {
+    void closeSocket(ws)
+  })
+}
+
 const closeSharedSocket = async (entry: SharedSubscriptionEntry) => {
   const ws = entry.ws
   if (!ws) return
 
   entry.ws = null
   syncSharedWsRefs(entry)
-  await ws.close()
+  retryOrphanCloses()
+  await closeSocket(ws)
 }
 
 const createSharedSubscriptionEntry = (
@@ -93,7 +121,7 @@ const createSharedSubscriptionEntry = (
     try {
       const ws = await connect()
       if (entry.closed) {
-        await ws.close()
+        await closeSocket(ws)
         return
       }
 
@@ -105,7 +133,7 @@ const createSharedSubscriptionEntry = (
       if (owner?.onConnected) {
         await owner.onConnected(ws)
         if (entry.closed) {
-          await ws.close()
+          await closeSocket(ws)
           return
         }
       }
@@ -131,9 +159,14 @@ const createSharedSubscriptionEntry = (
     if (entry.closed) return
 
     clearReconnectTimer()
-    await closeSharedSocket(entry)
-    if (!entry.closed) {
-      entry.reconnectTimer = setTimeout(entry.connectWs, RECONNECT_DELAY_MS)
+    try {
+      await closeSharedSocket(entry)
+    } finally {
+      // Таймер обязан встать в любом случае: бросок на закрытии оставил бы
+      // подписку без сокета и без переподключения, то есть молча мёртвой.
+      if (!entry.closed && !entry.reconnectTimer) {
+        entry.reconnectTimer = setTimeout(entry.connectWs, RECONNECT_DELAY_MS)
+      }
     }
   }
 
@@ -345,7 +378,9 @@ export const useMihomoWsSubscription = <T>(
           entry.reconnectTimer = null
         }
         sharedSubscriptions.delete(subscriptionCacheKey)
-        void closeSharedSocket(entry)
+        // Размонтирование не ждёт закрытия, но и оборваться на нём не должно:
+        // без `catch` отказ IPC улетал бы в unhandled rejection.
+        void closeSharedSocket(entry).catch(() => {})
       }
     }
     // eslint-disable-next-line react-compiler/react-compiler

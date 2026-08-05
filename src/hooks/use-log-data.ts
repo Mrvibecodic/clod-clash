@@ -47,9 +47,20 @@ const appendLogs = (
   return base.slice(dropFromBase).concat(incoming)
 }
 
-export const useLogData = () => {
+/**
+ * clod: `enabled` — это видимость окна, как у `useTrafficData`.
+ *
+ * Гейтом раньше был только флаг «писать логи» из localStorage: окно уезжало в
+ * трей, а стрим оставался жить сутками, и каждые 50 мс флаш копировал массив на
+ * тысячу элементов и перерисовывал экран, которого никто не видит. Свёрнутое
+ * окно новых строк не принимает; уже накопленные не теряются — ключ подписки
+ * обнуляется, но данные лежат в кэше по прежнему ключу (см. `responseCacheKey`
+ * в `use-mihomo-ws-subscription`), и на возврате стрим продолжает тот же буфер.
+ */
+export const useLogData = (options?: { enabled?: boolean }) => {
+  const enabled = options?.enabled ?? true
   const [clashLog] = useClashLog()
-  const enableLog = clashLog.enable
+  const enableLog = clashLog.enable && enabled
   const logLevel = clashLog.logLevel.toUpperCase() as LogLevel
   const allowedTypes = LOG_LEVEL_FILTERS[logLevel] ?? DEFAULT_LOG_TYPES
   const hasLoadedInitialLogsRef = useRef(false)
