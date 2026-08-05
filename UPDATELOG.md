@@ -8,6 +8,36 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.0.19-alpha
+
+<!-- lang:en -->
+
+### Fixed
+
+- The endless "background service is outdated" is gone for good, at its actual root. The app shipped a service binary newer than the client library compiled into it, and the two could never agree — repairing reinstalled the very same mismatched version. They are now pinned to one version and only ever move together
+- Repairing the service costs one elevation prompt instead of two: removal and installation run as a single privileged step on every platform
+- An app update replaces the service properly: it is stopped before the files are swapped, so Windows can no longer revive the old binary mid-update
+- The "service outdated" warning only appears while TUN is on. With TUN off nothing needs the service, and switching TUN on repairs it by itself
+
+### Changed
+
+- The service moved to its current release with the ownership model: the running core belongs to the app that started it, the service prepares the core's runtime itself, and subscription updates are applied in place — without restarting the core or dropping connections, now in service mode too
+
+<!-- lang:ru -->
+
+### Исправлено
+
+- Вечная «фоновая служба устарела» убрана окончательно — по её настоящей причине. Приложение возило с собой службу новее, чем вкомпилированная в него клиентская библиотека, и они не могли договориться никогда; ремонт ставил ту же несовместимую версию. Теперь версии закреплены одной и меняются только вместе
+- Ремонт службы стоит один запрос прав вместо двух: удаление и установка идут одним привилегированным шагом на всех платформах
+- Обновление приложения подменяет службу правильно: перед заменой файлов она останавливается, и Windows больше не может воскресить старый бинарь посреди обновления
+- Предупреждение «служба устарела» показывается только при включённом TUN. С выключенным служба никому не нужна, а включение TUN само её чинит
+
+### Изменено
+
+- Служба переведена на актуальный выпуск с моделью владельца: работающее ядро принадлежит запустившему его приложению, рантайм ядра готовит сама служба, а обновления подписки применяются на месте — без перезапуска ядра и разрыва соединений теперь и в service-режиме
+
+---
+
 ## v0.0.18-alpha
 
 <!-- lang:en -->
