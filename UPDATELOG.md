@@ -8,6 +8,42 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.0.23-alpha
+
+<!-- lang:en -->
+
+### Fixed
+
+- The ping of the selected server no longer disappears while the subscription updates. The core rebuilds every connection when it rereads its configuration, and its measurements start empty — the number on screen turned into the word "Server" for a second or two, sometimes ten, and then came back. The row now keeps showing the last figure it had until a new one arrives
+- The ping shown is the newest one there is. A measurement taken by hand on the Proxies page used to outrank anything the core measured later, for up to half an hour, and the automatic re-measurement that is supposed to catch a stale number was disabled by the very number it was guarding
+- The selected server is no longer switched behind your back. The client used to pick a favourite node of its own accord whenever a measurement failed — on every launch and after every subscription update — and wrote that choice into the subscription, so a pinned server was lost for good. Leaving a dead node is the core's job, and it does it
+- Server descriptions from the panel show up right after launch, instead of only after the configuration has been updated once
+- TUN no longer stays green over a tunnel that is not there. The tunnel was confirmed once, three seconds after being switched on, and never again: a device that failed to come up a moment later, or a tunnel that died an hour in, left the button connected while the traffic went past it. It is now re-checked for as long as TUN is on
+- An unanswered permission prompt no longer freezes the app. Waiting for it held everything else back — starting the core, restarting it, applying settings — until the app was killed. The prompt is no longer waited on forever, and answering it late still installs the service
+- The subscription card is re-read when the window comes back from the tray, instead of showing the traffic and expiry of whenever it was last looked at
+
+### Changed
+
+- Memory no longer grows while the app sits in the tray: the provider's logo was cached anew on every subscription update and never released, a websocket that failed to close was left behind with nothing able to close it, and the log stream kept running in a hidden window
+
+<!-- lang:ru -->
+
+### Исправлено
+
+- Пинг выбранного сервера больше не пропадает во время обновления подписки. Ядро пересобирает все соединения, когда перечитывает конфигурацию, и его замеры начинаются с нуля — цифра на экране превращалась в слово «Сервер» на секунду-другую, иногда на десять, и возвращалась. Теперь строка держит последнее значение, пока не приедет новое
+- Показывается самый свежий замер, какой есть. Замер, снятый вручную на странице «Прокси», до получаса перебивал всё, что ядро померило позже, а автоматическая перепроверка, которая должна ловить протухшую цифру, отключалась ровно этой цифрой
+- Выбранный сервер больше не переключается сам. Клиент по своей воле уходил на избранный узел при каждом неудачном замере — при запуске и после каждого обновления подписки — и записывал этот выбор в подписку, так что закреплённый сервер терялся навсегда. Уход с мёртвого узла — работа ядра, и оно её делает
+- Описания серверов из панели появляются сразу после запуска, а не только после того, как конфигурация хоть раз обновилась
+- TUN больше не горит зелёным над несуществующим туннелем. Туннель подтверждался один раз, через три секунды после включения, и больше никогда: устройство, не поднявшееся чуть позже, или туннель, умерший через час, оставляли кнопку подключённой, пока трафик шёл мимо. Теперь проверка идёт всё время, пока TUN включён
+- Незакрытый запрос прав больше не вешает приложение. Ожидание держало всё остальное — запуск ядра, перезапуск, применение настроек — до тех пор, пока приложение не убьют. Ждать бесконечно мы перестали, а позднее подтверждение по-прежнему ставит службу
+- Карточка подписки перечитывается, когда окно возвращается из трея, а не показывает трафик и срок на момент последнего взгляда
+
+### Изменено
+
+- Память больше не растёт, пока приложение лежит в трее: логотип провайдера кэшировался заново при каждом обновлении подписки и не освобождался, не закрывшийся веб-сокет оставался жить без возможности его закрыть, а поток логов продолжал работать в скрытом окне
+
+---
+
 ## v0.0.22-alpha
 
 <!-- lang:en -->
