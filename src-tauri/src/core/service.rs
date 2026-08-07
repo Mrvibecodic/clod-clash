@@ -1154,9 +1154,10 @@ impl ServiceManager {
 
     pub async fn init(&self) -> Result<()> {
         if let Err(e) = clash_verge_service_ipc::connect().await {
-            self.set_status(ServiceStatus::Unavailable(
-                "Ошибка подключения к службе: {e}".to_string(),
-            ));
+            // clod: без `format!` сюда уезжала литеральная строка с `{e}`, и
+            // настоящая причина отказа терялась ровно там, где её потом ищут в
+            // логе и в отчёте для поддержки.
+            self.set_status(ServiceStatus::Unavailable(format!("Ошибка подключения к службе: {e}")));
             return Err(e);
         }
         Ok(())
@@ -1272,6 +1273,56 @@ impl ServiceManager {
         self.run_operation(self.apply_service_status(status)).await
     }
 
+    /// Установка службы — РОВНО один запрос прав на одно нажатие.
+    ///
+    /// clod:one-uac — раньше эта ветка ставила службу, а затем, увидев
+    /// несовпадение версии, тут же переустанавливала: два системных диалога
+    /// подряд за один клик пользователя. Причём первый из них был заведомо
+    /// бесполезен — поверх чужой зарегистрированной службы установка ничего не
+    /// меняет.
+    ///
+    /// Теперь решение принимается ДО первого повышения прав: если служба
+    /// отвечает и версия чужая, сразу идёт переустановка (она объединяет
+    /// удаление и установку одним привилегированным скриптом — см. комментарий
+    /// у `reinstall_service`). А если версия разъехалась уже ПОСЛЕ установки,
+    /// второй диалог мы не показываем: об этом говорит плашка с кнопкой
+    /// «Починить», и права спрашивает уже явное нажатие человека.
+    async fn install_service_once(&self) -> Result<()> {
+        if crate::feat::tun::needs_repair().await {
+            logging!(
+                info,
+                Type::Service,
+                "Зарегистрирована служба чужой версии, ставим переустановкой — один запрос прав"
+            );
+            self.set_status(ServiceStatus::NeedsReinstall);
+            run_service_command(reinstall_service, "reinstall service").await?;
+            return wait_for_service_ipc(self).await;
+        }
+
+        logging!(
+            info,
+            Type::Service,
+            "Требуется установка службы, запуск процесса установки"
+        );
+        run_service_command(install_service, "install service").await?;
+        wait_for_service_ipc(self).await?;
+
+        if clash_verge_service_ipc::is_reinstall_service_needed().await {
+            logging!(
+                warn,
+                Type::Service,
+                "Служба встала, но версия не совпала; ремонт — за пользователем"
+            );
+            self.set_status(ServiceStatus::NeedsReinstall);
+            if !REINSTALL_NOTICED.swap(true, Ordering::AcqRel) {
+                Handle::notice_message("service::needs_repair", "");
+            }
+            bail!("service version mismatch after install");
+        }
+
+        Ok(())
+    }
+
     async fn apply_service_status(&self, status: ServiceStatus) -> Result<()> {
         self.set_status(status.clone());
         match status {
@@ -1297,23 +1348,7 @@ impl ServiceManager {
             }
             ServiceStatus::InstallRequired => {
                 REINSTALL_NOTICED.store(false, Ordering::Release);
-                logging!(
-                    info,
-                    Type::Service,
-                    "Требуется установка службы, запуск процесса установки"
-                );
-                run_service_command(install_service, "install service").await?;
-                wait_for_service_ipc(self).await?;
-                if clash_verge_service_ipc::is_reinstall_service_needed().await {
-                    logging!(
-                        info,
-                        Type::Service,
-                        "Версия службы не совпадает, запуск процесса переустановки"
-                    );
-                    self.set_status(ServiceStatus::NeedsReinstall);
-                    run_service_command(reinstall_service, "reinstall service").await?;
-                    wait_for_service_ipc(self).await?;
-                }
+                self.install_service_once().await?;
             }
             ServiceStatus::UninstallRequired => {
                 logging!(
