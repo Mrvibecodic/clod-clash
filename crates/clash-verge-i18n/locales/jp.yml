@@ -22,12 +22,12 @@ notifications:
     body: プロファイルが再有効化されました。
   appQuit:
     title: 終了間近
-    body: Clash Verge はまもなく終了します。
+    body: アプリはまもなく終了します。
   appHidden:
     title: アプリが非表示
-    body: Clash Verge はバックグラウンドで実行中です。
+    body: アプリはバックグラウンドで実行中です。
   updateReady:
-    title: Clash Verge Update
+    title: アプリの更新
     body: A new version (v{version}) has been downloaded and is ready to install.
     installNow: Install Now
     later: Later
@@ -43,9 +43,9 @@ notifications:
 common:
   modeLocked: The routing mode is managed by your provider.
 service:
-  adminInstallPrompt: Clash Verge サービスのインストールには管理者権限が必要です。
-  adminUninstallPrompt: Clash Verge サービスのアンインストールには管理者権限が必要です。
-  translocatedCorePath: Clash Verge is running from a temporary (App Translocation) path and can't locate the core. Please move Clash Verge into the Applications folder and reopen it.
+  adminInstallPrompt: システムサービスのインストールには管理者権限が必要です。
+  adminUninstallPrompt: システムサービスのアンインストールには管理者権限が必要です。
+  translocatedCorePath: アプリが一時パス (App Translocation) から実行されているためコアを見つけられません。「アプリケーション」フォルダへ移動してから開き直してください。
 tray:
   dashboard: ダッシュボード
   ruleMode: ルールモード
@@ -68,9 +68,9 @@ tray:
   openDir: ディレクトリを開く
   appLog: アプリケーションログ
   coreLog: コアログ
-  restartClash: Clash コアを再起動
+  restartClash: コアを再起動
   restartApp: アプリケーションを再起動
-  vergeVersion: Verge バージョン
+  vergeVersion: アプリのバージョン
   more: その他
   exit: 終了
   tooltip:

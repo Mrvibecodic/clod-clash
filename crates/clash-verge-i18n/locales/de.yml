@@ -22,12 +22,12 @@ notifications:
     body: Profil reaktiviert.
   appQuit:
     title: Beenden steht bevor
-    body: Clash Verge wird gleich beendet.
+    body: Die App wird gleich beendet.
   appHidden:
     title: Anwendung ausgeblendet
-    body: Clash Verge läuft im Hintergrund.
+    body: Die App läuft im Hintergrund.
   updateReady:
-    title: Clash Verge Update
+    title: App-Update
     body: A new version (v{version}) has been downloaded and is ready to install.
     installNow: Install Now
     later: Later
@@ -43,9 +43,9 @@ notifications:
 common:
   modeLocked: The routing mode is managed by your provider.
 service:
-  adminInstallPrompt: Für die Installation des Clash-Verge-Dienstes sind Administratorrechte erforderlich.
-  adminUninstallPrompt: Für die Deinstallation des Clash-Verge-Dienstes sind Administratorrechte erforderlich.
-  translocatedCorePath: Clash Verge is running from a temporary (App Translocation) path and can't locate the core. Please move Clash Verge into the Applications folder and reopen it.
+  adminInstallPrompt: Für die Installation des Systemdienstes sind Administratorrechte erforderlich.
+  adminUninstallPrompt: Für die Deinstallation des Systemdienstes sind Administratorrechte erforderlich.
+  translocatedCorePath: Die App läuft aus einem temporären Pfad (App Translocation) und findet den Core nicht. Verschieben Sie sie in den Ordner „Programme“ und öffnen Sie sie erneut.
 tray:
   dashboard: Übersicht
   ruleMode: Regelmodus
@@ -68,9 +68,9 @@ tray:
   openDir: Verzeichnis öffnen
   appLog: Anwendungslog
   coreLog: Core-Log
-  restartClash: Clash-Core neu starten
+  restartClash: Core neu starten
   restartApp: Anwendung neu starten
-  vergeVersion: Verge-Version
+  vergeVersion: App-Version
   more: Mehr
   exit: Beenden
   tooltip:

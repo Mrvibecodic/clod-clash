@@ -22,12 +22,12 @@ notifications:
     body: Profil yeniden etkinleştirildi.
   appQuit:
     title: Çıkış Yapılmak Üzere
-    body: Clash Verge kapanmak üzere.
+    body: Uygulama kapanmak üzere.
   appHidden:
     title: Uygulama Gizlendi
-    body: Clash Verge arka planda çalışıyor.
+    body: Uygulama arka planda çalışıyor.
   updateReady:
-    title: Clash Verge Update
+    title: Uygulama Güncellemesi
     body: A new version (v{version}) has been downloaded and is ready to install.
     installNow: Install Now
     later: Later
@@ -43,9 +43,9 @@ notifications:
 common:
   modeLocked: The routing mode is managed by your provider.
 service:
-  adminInstallPrompt: Clash Verge hizmetini kurmak için yönetici ayrıcalıkları gerekir.
-  adminUninstallPrompt: Clash Verge hizmetini kaldırmak için yönetici ayrıcalıkları gerekir.
-  translocatedCorePath: Clash Verge is running from a temporary (App Translocation) path and can't locate the core. Please move Clash Verge into the Applications folder and reopen it.
+  adminInstallPrompt: Sistem hizmetini kurmak için yönetici ayrıcalıkları gerekir.
+  adminUninstallPrompt: Sistem hizmetini kaldırmak için yönetici ayrıcalıkları gerekir.
+  translocatedCorePath: Uygulama geçici bir yoldan (App Translocation) çalışıyor ve çekirdeği bulamıyor. Lütfen Uygulamalar klasörüne taşıyıp yeniden açın.
 tray:
   dashboard: Gösterge Paneli
   ruleMode: Kural Modu
@@ -68,9 +68,9 @@ tray:
   openDir: Dizini Aç
   appLog: Uygulama Günlüğü
   coreLog: Çekirdek Günlüğü
-  restartClash: Clash Çekirdeğini Yeniden Başlat
+  restartClash: Çekirdeği Yeniden Başlat
   restartApp: Uygulamayı Yeniden Başlat
-  vergeVersion: Verge Sürümü
+  vergeVersion: Uygulama Sürümü
   more: Daha Fazla
   exit: Çıkış
   tooltip:

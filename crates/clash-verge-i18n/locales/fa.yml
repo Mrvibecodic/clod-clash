@@ -22,12 +22,12 @@ notifications:
     body: پروفایل دوباره فعال شد.
   appQuit:
     title: در آستانه خروج
-    body: Clash Verge در آستانه خروج است.
+    body: برنامه در آستانه خروج است.
   appHidden:
     title: برنامه پنهان شد
-    body: Clash Verge در پس‌زمینه در حال اجراست.
+    body: برنامه در پس‌زمینه در حال اجراست.
   updateReady:
-    title: Clash Verge Update
+    title: به‌روزرسانی برنامه
     body: A new version (v{version}) has been downloaded and is ready to install.
     installNow: Install Now
     later: Later
@@ -43,9 +43,9 @@ notifications:
 common:
   modeLocked: The routing mode is managed by your provider.
 service:
-  adminInstallPrompt: نصب سرویس Clash Verge به دسترسی مدیر نیاز دارد.
-  adminUninstallPrompt: حذف سرویس Clash Verge به دسترسی مدیر نیاز دارد.
-  translocatedCorePath: Clash Verge is running from a temporary (App Translocation) path and can't locate the core. Please move Clash Verge into the Applications folder and reopen it.
+  adminInstallPrompt: نصب سرویس سیستمی به دسترسی مدیر نیاز دارد.
+  adminUninstallPrompt: حذف سرویس سیستمی به دسترسی مدیر نیاز دارد.
+  translocatedCorePath: برنامه از یک مسیر موقت (App Translocation) اجرا می‌شود و هسته را پیدا نمی‌کند. آن را به پوشه Applications منتقل کنید و دوباره باز کنید.
 tray:
   dashboard: داشبورد
   ruleMode: حالت قوانین
@@ -68,9 +68,9 @@ tray:
   openDir: باز کردن پوشه
   appLog: گزارش برنامه
   coreLog: گزارش هسته
-  restartClash: راه‌اندازی مجدد هسته Clash
+  restartClash: راه‌اندازی مجدد هسته
   restartApp: راه‌اندازی مجدد برنامه
-  vergeVersion: نسخه Verge
+  vergeVersion: نسخه برنامه
   more: بیشتر
   exit: خروج
   tooltip:

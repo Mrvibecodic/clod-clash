@@ -22,12 +22,12 @@ notifications:
     body: Profil diaktifkan kembali.
   appQuit:
     title: Akan Keluar
-    body: Clash Verge akan keluar.
+    body: Aplikasi akan keluar.
   appHidden:
     title: Aplikasi Disembunyikan
-    body: Clash Verge berjalan di latar belakang.
+    body: Aplikasi berjalan di latar belakang.
   updateReady:
-    title: Clash Verge Update
+    title: Pembaruan Aplikasi
     body: A new version (v{version}) has been downloaded and is ready to install.
     installNow: Install Now
     later: Later
@@ -43,9 +43,9 @@ notifications:
 common:
   modeLocked: The routing mode is managed by your provider.
 service:
-  adminInstallPrompt: Menginstal layanan Clash Verge memerlukan hak administrator.
-  adminUninstallPrompt: Menghapus instalasi layanan Clash Verge memerlukan hak administrator.
-  translocatedCorePath: Clash Verge is running from a temporary (App Translocation) path and can't locate the core. Please move Clash Verge into the Applications folder and reopen it.
+  adminInstallPrompt: Menginstal layanan sistem memerlukan hak administrator.
+  adminUninstallPrompt: Menghapus instalasi layanan sistem memerlukan hak administrator.
+  translocatedCorePath: Aplikasi berjalan dari jalur sementara (App Translocation) dan tidak dapat menemukan core. Pindahkan ke folder Applications lalu buka kembali.
 tray:
   dashboard: Dasbor
   ruleMode: Mode Aturan
@@ -68,9 +68,9 @@ tray:
   openDir: Buka Direktori
   appLog: Log Aplikasi
   coreLog: Log Core
-  restartClash: Mulai Ulang Core Clash
+  restartClash: Mulai Ulang Core
   restartApp: Mulai Ulang Aplikasi
-  vergeVersion: Versi Verge
+  vergeVersion: Versi Aplikasi
   more: Lainnya
   exit: Keluar
   tooltip:

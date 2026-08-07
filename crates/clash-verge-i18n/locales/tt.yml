@@ -22,12 +22,12 @@ notifications:
     body: Профиль яңадан активлаштырылды.
   appQuit:
     title: Чыгар алдыннан
-    body: Clash Verge чыгарга җыена.
+    body: Кушымта чыгарга җыена.
   appHidden:
     title: Кушымта яшерелде
-    body: Clash Verge фон режимында эшли.
+    body: Кушымта фон режимында эшли.
   updateReady:
-    title: Clash Verge Update
+    title: Кушымта яңартуы
     body: A new version (v{version}) has been downloaded and is ready to install.
     installNow: Install Now
     later: Later
@@ -43,9 +43,9 @@ notifications:
 common:
   modeLocked: The routing mode is managed by your provider.
 service:
-  adminInstallPrompt: Clash Verge хезмәтен урнаштыру өчен администратор хокуклары кирәк.
-  adminUninstallPrompt: Clash Verge хезмәтен бетерү өчен администратор хокуклары кирәк.
-  translocatedCorePath: Clash Verge is running from a temporary (App Translocation) path and can't locate the core. Please move Clash Verge into the Applications folder and reopen it.
+  adminInstallPrompt: Система хезмәтен урнаштыру өчен администратор хокуклары кирәк.
+  adminUninstallPrompt: Система хезмәтен бетерү өчен администратор хокуклары кирәк.
+  translocatedCorePath: Кушымта вакытлыча юлдан (App Translocation) эшли һәм ядрәне таба алмый. Аны Applications папкасына күчерегез дә яңадан ачыгыз.
 tray:
   dashboard: Идарә панеле
   ruleMode: Кагыйдә режимы
@@ -68,9 +68,9 @@ tray:
   openDir: Каталогны ачу
   appLog: Кушымта журналы
   coreLog: Ядро журналы
-  restartClash: Clash ядрәсен кабат җибәрү
+  restartClash: Ядрәне кабат җибәрү
   restartApp: Кушымтаны кабат җибәрү
-  vergeVersion: Verge версиясе
+  vergeVersion: Кушымта версиясе
   more: Күбрәк
   exit: Чыгу
   tooltip:

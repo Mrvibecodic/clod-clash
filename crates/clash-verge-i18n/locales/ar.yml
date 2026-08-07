@@ -22,12 +22,12 @@ notifications:
     body: تمت إعادة تفعيل الملف التعريفي.
   appQuit:
     title: على وشك الخروج
-    body: Clash Verge على وشك الخروج.
+    body: التطبيق على وشك الخروج.
   appHidden:
     title: تم إخفاء التطبيق
-    body: Clash Verge يعمل في الخلفية.
+    body: التطبيق يعمل في الخلفية.
   updateReady:
-    title: Clash Verge Update
+    title: تحديث التطبيق
     body: A new version (v{version}) has been downloaded and is ready to install.
     installNow: Install Now
     later: Later
@@ -43,9 +43,9 @@ notifications:
 common:
   modeLocked: The routing mode is managed by your provider.
 service:
-  adminInstallPrompt: يتطلب تثبيت خدمة Clash Verge صلاحيات المسؤول.
-  adminUninstallPrompt: يتطلب إلغاء تثبيت خدمة Clash Verge صلاحيات المسؤول.
-  translocatedCorePath: Clash Verge is running from a temporary (App Translocation) path and can't locate the core. Please move Clash Verge into the Applications folder and reopen it.
+  adminInstallPrompt: يتطلب تثبيت خدمة النظام صلاحيات المسؤول.
+  adminUninstallPrompt: يتطلب إلغاء تثبيت خدمة النظام صلاحيات المسؤول.
+  translocatedCorePath: يعمل التطبيق من مسار مؤقت (App Translocation) ولا يمكنه العثور على النواة. انقله إلى مجلد التطبيقات وأعد فتحه.
 tray:
   dashboard: لوحة التحكم
   ruleMode: وضع القواعد
@@ -68,9 +68,9 @@ tray:
   openDir: فتح الدليل
   appLog: سجل التطبيق
   coreLog: سجل النواة
-  restartClash: إعادة تشغيل نواة Clash
+  restartClash: إعادة تشغيل النواة
   restartApp: إعادة تشغيل التطبيق
-  vergeVersion: إصدار Verge
+  vergeVersion: إصدار التطبيق
   more: المزيد
   exit: خروج
   tooltip:

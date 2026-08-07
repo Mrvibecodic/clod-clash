@@ -22,12 +22,12 @@ notifications:
     body: 訂閱已啟用。
   appQuit:
     title: 即將退出
-    body: Clash Verge 即將退出。
+    body: 應用即將退出。
   appHidden:
     title: 應用已隱藏
-    body: Clash Verge 正在背景執行。
+    body: 應用正在背景執行。
   updateReady:
-    title: Clash Verge Update
+    title: 應用更新
     body: A new version (v{version}) has been downloaded and is ready to install.
     installNow: Install Now
     later: Later
@@ -43,9 +43,9 @@ notifications:
 common:
   modeLocked: The routing mode is managed by your provider.
 service:
-  adminInstallPrompt: 安裝 Clash Verge 服務需要管理員權限
-  adminUninstallPrompt: 卸载 Clash Verge 服務需要管理員權限
-  translocatedCorePath: Clash Verge is running from a temporary (App Translocation) path and can't locate the core. Please move Clash Verge into the Applications folder and reopen it.
+  adminInstallPrompt: 安裝系統服務需要管理員權限
+  adminUninstallPrompt: 卸載系統服務需要管理員權限
+  translocatedCorePath: 應用從暫存路徑（App Translocation）執行，無法定位核心。請將它移到「應用程式」資料夾後重新開啟。
 tray:
   dashboard: 儀表板
   ruleMode: 規則模式
@@ -68,9 +68,9 @@ tray:
   openDir: 開啟目錄
   appLog: 應用程式日誌
   coreLog: 核心日誌
-  restartClash: 重新啟動 Clash 核心
+  restartClash: 重新啟動核心
   restartApp: 重新啟動應用程式
-  vergeVersion: Verge 版本
+  vergeVersion: 應用版本
   more: 更多
   exit: 離開
   tooltip:

@@ -68,9 +68,9 @@ tray:
   openDir: Открыть каталог
   appLog: Журнал приложения
   coreLog: Журнал ядра
-  restartClash: Перезапустить ядро Clash
+  restartClash: Перезапустить ядро
   restartApp: Перезапустить приложение
-  vergeVersion: Версия Verge
+  vergeVersion: Версия приложения
   more: Еще
   exit: Выход
   tooltip:

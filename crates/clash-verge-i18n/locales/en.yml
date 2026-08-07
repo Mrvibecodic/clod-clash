@@ -68,9 +68,9 @@ tray:
   openDir: Open Directory
   appLog: Application Log
   coreLog: Core Log
-  restartClash: Restart Clash Core
+  restartClash: Restart Core
   restartApp: Restart Application
-  vergeVersion: Verge Version
+  vergeVersion: App Version
   more: More
   exit: Exit
   tooltip:
