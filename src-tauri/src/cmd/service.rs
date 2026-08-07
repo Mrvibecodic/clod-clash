@@ -55,7 +55,7 @@ pub async fn get_tun_state() -> CmdResult<TunState> {
     let desired = crate::feat::tun::desired().await;
     Ok(TunState {
         desired,
-        active: desired && !crate::feat::tun::is_suppressed(),
+        active: crate::feat::tun::is_active_with(desired),
         capable: crate::feat::tun::is_capable().await,
         setup_declined: crate::feat::tun::setup_declined_for_this_version().await,
     })

@@ -136,6 +136,13 @@ impl CoreManager {
         self.config_update_in_progress.store(false, Ordering::Release);
     }
 
+    /// clod:core-health — ядру сейчас законно не до ответов: идёт применение
+    /// конфига. Сторож такой круг пропускает, иначе обычная перезагрузка
+    /// конфига под службой засчиталась бы ему как смерть ядра.
+    pub(super) fn is_config_update_in_progress(&self) -> bool {
+        self.config_update_in_progress.load(Ordering::Acquire)
+    }
+
     pub async fn init(&self) -> Result<()> {
         self.start_core().await?;
         Ok(())

@@ -103,8 +103,13 @@ Here the only thing the user touches is the switch itself:
   dropping connections. This works on all three systems.
 * **Fact, not promise.** The core's output is parsed: when mihomo cannot bring the device up
   (`Start TUN listening error: … operation not permitted`), TUN honestly turns off instead of
-  staying green over a dead tunnel. A core that dies on its own is restarted — up to three
-  times in a row.
+  staying green over a dead tunnel. The tray icon and the tray checkmark say the same thing the
+  home screen does — the state of the tunnel, not the stored setting.
+* **The core is watched in both modes.** A core that dies on its own is restarted — up to three
+  times in a row — and that now covers the core started by the system service, whose exit nobody
+  is told about: the app asks the core for its version every half a minute and treats two silent
+  rounds in a row as a failure. After a restart the screen refreshes itself instead of showing
+  the servers and delays of the process that died.
 * **Checking the state repairs nothing.** That check can no longer install anything: when the
   service on disk is older, the app says so once and offers to repair it in the settings. Repairs
   come either from that button or from the single per-version pass described above, and only while

@@ -66,7 +66,9 @@ pub struct Tray {
 
 impl TrayState {
     async fn get_tray_icon(verge: &IVerge) -> (bool, Cow<'_, [u8]>) {
-        let tun_mode = verge.enable_tun_mode.unwrap_or(false);
+        // clod:tray-fact — иконка по факту, а не по желанию: с подавленным TUN
+        // ядру он не подан, и значок туннеля означал бы работу, которой нет.
+        let tun_mode = feat::tun::is_active_with(verge.enable_tun_mode.unwrap_or(false));
         let system_mode = verge.enable_system_proxy.unwrap_or(false);
         let kind = if tun_mode {
             IconKind::Tun
@@ -220,7 +222,10 @@ impl Tray {
 
         let verge = Config::verge().await.latest_arc();
         let system_proxy = verge.enable_system_proxy.as_ref().unwrap_or(&false);
-        let tun_mode = verge.enable_tun_mode.as_ref().unwrap_or(&false);
+        // clod:tray-fact — галочка «Режим TUN» ставится по заявке, поданной
+        // ядру. Иначе подавленный TUN давал зелёную галочку в трее одновременно
+        // с «TUN не запустился» на главном экране.
+        let tun_mode = feat::tun::is_active_with(verge.enable_tun_mode.unwrap_or(false));
         let tun_mode_available =
             is_current_app_handle_admin(app_handle) || service::is_service_available().await.is_ok();
         let mode = {
@@ -245,7 +250,7 @@ impl Tray {
                     app_handle,
                     Some(mode.as_str()),
                     *system_proxy,
-                    *tun_mode,
+                    tun_mode,
                     tun_mode_available,
                     profiles_preview,
                     TrayMenuOptions {
@@ -313,7 +318,9 @@ impl Tray {
 
         let verge = Config::verge().await.latest_arc();
         let system_proxy = verge.enable_system_proxy.unwrap_or(false);
-        let tun_mode = verge.enable_tun_mode.unwrap_or(false);
+        // clod:tray-fact — подсказка над иконкой отвечает на «включён ли сейчас
+        // туннель», а не «просил ли его пользователь».
+        let tun_mode = feat::tun::is_active_with(verge.enable_tun_mode.unwrap_or(false));
 
         let switch_str = |flag: bool| {
             if flag { "on" } else { "off" }

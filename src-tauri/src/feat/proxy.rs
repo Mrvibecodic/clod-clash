@@ -45,7 +45,14 @@ pub async fn toggle_system_proxy() -> bool {
 /// Toggle TUN mode on/off
 /// Returns the updated toggle state
 pub async fn toggle_tun_mode(not_save_file: Option<bool>) -> bool {
-    let current = Config::verge().await.latest_arc().enable_tun_mode.unwrap_or(false);
+    let desired = Config::verge().await.latest_arc().enable_tun_mode.unwrap_or(false);
+    // clod:tray-fact — намерение считается от ПОКАЗАННОГО, а не от сохранённого.
+    // Тот же урок, что и с кнопкой Connect: галочка в трее теперь показывает
+    // факт (заявку), и при подавленном TUN сохранённое желание — `true`, а на
+    // экране «выключено». Считая от файла, нажатие «включить» выключило бы TUN
+    // насовсем. Снятие подавления и перегенерацию делает `patch_verge` —
+    // ему достаточно увидеть `Some(true)`, даже если значение не изменилось.
+    let current = crate::feat::tun::is_active_with(desired);
     let enable = !current;
 
     // clod:tun-ready — включение из трея тоже должно просто работать: если
