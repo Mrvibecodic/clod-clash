@@ -31,9 +31,9 @@ editors) is kept — it is simply moved out of sight into an advanced mode.
 
 ## What Clod Clash gives you
 
-* **26 Remnawave / Happ subscription headers** plus five compatibility synonyms — plan name, logo,
-  announcement, promo banner, customer portal, support, and the text for the device-limit
-  dialog. The full list is in
+* **30 response headers from the panel** (Remnawave and Happ) plus synonyms for compatibility with
+  other clients, and six of our own on the request — plan name, logo, announcement, promo banner,
+  customer portal, support, and the text for the device-limit dialog. The full list is in
   [HEADERS_en.md](./HEADERS_en.md).
 * **Device identity** (`x-hwid`) with a device limit the user can actually understand.
 * **A spare subscription address** (`fallback-url`, `fallback-domain`) and **a provider-driven
@@ -278,12 +278,50 @@ Clod Clash would not exist without these projects:
 * [remnawave/panel](https://github.com/remnawave/panel) — the panel this fork targets; the
   base set of subscription headers comes from its implementation.
 
-Separately, to the projects whose product decisions and header sets we studied:
-[FlClash](https://github.com/chen08209/FlClash) and its fork
-[FlClashX](https://github.com/pluralplay/FlClashX),
-[koala-clash](https://github.com/coolcoala/koala-clash),
-[Prizrak-Box](https://github.com/legiz-ru/Prizrak-Box).
+Components that ship with the application:
+
+* [clash-verge-rev/clash-verge-service-ipc](https://github.com/clash-verge-rev/clash-verge-service-ipc) —
+  the system service TUN cannot work without, and the protocol used to talk to it.
+* [clash-verge-rev/sysproxy-rs](https://github.com/clash-verge-rev/sysproxy-rs),
+  [tauri-plugin-mihomo](https://github.com/clash-verge-rev/tauri-plugin-mihomo),
+  [clash-verge-logger](https://github.com/clash-verge-rev/clash-verge-logger) — the system proxy,
+  the client for the core's API and the logger.
+* [MetaCubeX/meta-rules-dat](https://github.com/MetaCubeX/meta-rules-dat) — the `country.mmdb`,
+  `geosite.dat` and `geoip.dat` databases bundled with the app.
+* [Kuingsmile/uwp-tool](https://github.com/Kuingsmile/uwp-tool) — `enableLoopback.exe` for UWP
+  applications on Windows; the NSIS Simple Service Plugin in the installer.
+* The interface is built on [React](https://react.dev), [MUI](https://mui.com),
+  [Emotion](https://emotion.sh), [i18next](https://www.i18next.com),
+  [Monaco Editor](https://microsoft.github.io/monaco-editor/), SWR, ahooks and dnd-kit.
+
+Separately, to the projects whose product decisions and header sets we studied. We took no code
+from them, only formats and approaches: [FlClash](https://github.com/chen08209/FlClash) and its
+fork [FlClashX](https://github.com/pluralplay/FlClashX) — the interface-mode header synonym and
+the "wanted versus actual" model for TUN; [koala-clash](https://github.com/coolcoala/koala-clash) —
+the User-Agent format and reporting the OS edition instead of the machine name;
+[Prizrak-Box](https://github.com/legiz-ru/Prizrak-Box) — the `#RRGGBB` colour markup in
+announcements, the `global-mode` synonym and the server description from the subscription;
+[dropweb](https://github.com/enkinvsh/dropweb) — the logo cache guards, redacting addresses in
+logs and the support report.
+
+The country flags in the server selector are the
+[HatScripts/circle-flags](https://github.com/HatScripts/circle-flags) set (MIT). They ship with the
+application locally (`src/public/flags`, the license text sits next to them): emoji flags do not
+render on Windows, and a client that runs on a hostile network must not fetch them over the wire.
 
 ## License
 
 GPL-3.0, same as Clash Verge Rev. See [LICENSE](../LICENSE).
+
+Clod Clash is a modified version of
+[Clash Verge Rev](https://github.com/clash-verge-rev/clash-verge-rev) `v2.5.2`. The modifications
+were made in 2026; in the sources they carry a `clod:` marker, so what differs from upstream is
+visible at a glance.
+
+The country flags in `src/public/flags` are the
+[HatScripts/circle-flags](https://github.com/HatScripts/circle-flags) set under the MIT license,
+whose text sits next to them in [`src/public/flags/LICENSE`](../src/public/flags/LICENSE). The font
+`src/assets/fonts/Twemoji.Mozilla.ttf` is Mozilla's build of
+[Twemoji](https://github.com/jdecked/twemoji); Twemoji graphics are distributed under
+[CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/), copyright Twitter, Inc. and other
+contributors.

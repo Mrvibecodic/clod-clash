@@ -31,9 +31,10 @@ Clod Clash — сборка Clash Verge Rev, доведённая до сост�
 
 ## Преимущества Clod Clash
 
-* **26 заголовков подписки Remnawave / Happ** плюс пять синонимов для совместимости — название
-  тарифа, логотип, объявление, промо-баннер, личный кабинет, поддержка, текст для диалога
-  лимита устройств. Полный список — в [docs/HEADERS.md](./docs/HEADERS.md).
+* **30 заголовков ответа панели** (Remnawave и Happ) плюс синонимы для совместимости с другими
+  клиентами, и шесть своих в запросе — название тарифа, логотип, объявление, промо-баннер,
+  личный кабинет, поддержка, текст для диалога лимита устройств. Полный список —
+  в [docs/HEADERS.md](./docs/HEADERS.md).
 * **Идентификация устройства** (`x-hwid`) с понятной обработкой лимита устройств.
 * **Резервный адрес подписки** (`fallback-url`, `fallback-domain`) и **смена адреса провайдером**
   (`new-url`, `new-domain`) — новый адрес принимается только после успешной пробной загрузки.
@@ -285,17 +286,50 @@ Clod Clash не существовал бы без этих проектов:
 * [remnawave/panel](https://github.com/remnawave/panel) — панель, под которую сделан форк;
   базовый набор заголовков подписки взят из её реализации.
 
-Отдельно — проектам, у которых мы подсмотрели продуктовые решения и состав заголовков:
+Компоненты, которые едут вместе с приложением:
+
+* [clash-verge-rev/clash-verge-service-ipc](https://github.com/clash-verge-rev/clash-verge-service-ipc) —
+  системная служба, без которой не работает TUN, и протокол общения с ней.
+* [clash-verge-rev/sysproxy-rs](https://github.com/clash-verge-rev/sysproxy-rs),
+  [tauri-plugin-mihomo](https://github.com/clash-verge-rev/tauri-plugin-mihomo),
+  [clash-verge-logger](https://github.com/clash-verge-rev/clash-verge-logger) — системный прокси,
+  клиент к API ядра и логгер.
+* [MetaCubeX/meta-rules-dat](https://github.com/MetaCubeX/meta-rules-dat) — базы `country.mmdb`,
+  `geosite.dat`, `geoip.dat` в поставке.
+* [Kuingsmile/uwp-tool](https://github.com/Kuingsmile/uwp-tool) — `enableLoopback.exe` для
+  UWP-приложений на Windows; NSIS Simple Service Plugin — в установщике.
+* Интерфейс построен на [React](https://react.dev), [MUI](https://mui.com),
+  [Emotion](https://emotion.sh), [i18next](https://www.i18next.com),
+  [Monaco Editor](https://microsoft.github.io/monaco-editor/), SWR, ahooks и dnd-kit.
+
+Отдельно — проектам, у которых мы подсмотрели продуктовые решения и состав заголовков.
+Чужого кода в них мы не брали, только форматы и подходы:
 [FlClash](https://github.com/chen08209/FlClash) и его форк
-[FlClashX](https://github.com/pluralplay/FlClashX),
-[koala-clash](https://github.com/coolcoala/koala-clash),
-[Prizrak-Box](https://github.com/legiz-ru/Prizrak-Box).
+[FlClashX](https://github.com/pluralplay/FlClashX) — синоним заголовка режима интерфейса и схема
+«желаемое против фактического» для TUN; [koala-clash](https://github.com/coolcoala/koala-clash) —
+формат User-Agent и подача версии системы вместо имени компьютера;
+[Prizrak-Box](https://github.com/legiz-ru/Prizrak-Box) — синтаксис цветовой разметки `#RRGGBB`
+в объявлениях, синоним `global-mode` и описание сервера из подписки;
+[dropweb](https://github.com/enkinvsh/dropweb) — защиты кэша логотипа, редакция адресов в логах
+и отчёт для поддержки.
 
 Флаги стран в селекторе серверов — набор
 [HatScripts/circle-flags](https://github.com/HatScripts/circle-flags) (MIT). Он поставляется
-с приложением локально (`src/public/flags`): эмодзи-флаги не рисуются на Windows, а тянуть
-их из сети клиенту, работающему во враждебной сети, нельзя.
+с приложением локально (`src/public/flags`, там же текст лицензии): эмодзи-флаги не рисуются
+на Windows, а тянуть их из сети клиенту, работающему во враждебной сети, нельзя.
 
 ## Лицензия
 
 GPL-3.0, как и у Clash Verge Rev. Текст — в файле [LICENSE](./LICENSE).
+
+Clod Clash — изменённая версия [Clash Verge Rev](https://github.com/clash-verge-rev/clash-verge-rev)
+`v2.5.2`. Изменения внесены в 2026 году; в исходниках они помечены маркером `clod:` — по нему видно,
+что именно отличается от апстрима.
+
+Флаги стран в `src/public/flags` — набор
+[HatScripts/circle-flags](https://github.com/HatScripts/circle-flags), лицензия MIT, текст лежит
+рядом с ними в [`src/public/flags/LICENSE`](./src/public/flags/LICENSE). Шрифт
+`src/assets/fonts/Twemoji.Mozilla.ttf` — сборка Mozilla на основе
+[Twemoji](https://github.com/jdecked/twemoji); графика Twemoji распространяется по
+[CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/), авторство — Twitter, Inc. и участники
+проекта.
