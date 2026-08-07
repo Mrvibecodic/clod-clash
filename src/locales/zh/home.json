@@ -185,8 +185,6 @@
     "subscription": {
       "expires": "套餐：{{count}} 天 · 至 {{date}}",
       "refill": "Monthly traffic resets on {{date}}",
-      "renew": "Renew",
-      "topup": "Add traffic",
       "updated": "订阅已更新",
       "trafficTitle": "Traffic",
       "expiryTitle": "Expires",

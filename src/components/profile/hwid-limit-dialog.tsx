@@ -27,7 +27,8 @@ interface HwidNotice {
   state: 'limit' | 'not_supported'
   maxDevices?: number | null
   supportUrl?: string | null
-  announce?: string | null
+  /** `clod-hwid-limit` — the provider's own explanation for this dialog. */
+  message?: string | null
 }
 
 const EVENT_NAME = 'clod://hwid-notice'
@@ -107,10 +108,14 @@ export const HwidLimitDialog = () => {
         <DialogContentText sx={{ whiteSpace: 'pre-line' }}>
           {body}
         </DialogContentText>
-        {/* Remnawave puts the provider's maxDevicesAnnounce into `announce`. */}
-        {notice.announce ? (
+        {/* clod: текст провайдера для этого случая — отдельный заголовок
+            `clod-hwid-limit`, а не `announce`: объявление на главной видят
+            все, а это объяснение адресовано одному заблокированному
+            устройству. Заголовок необязательный — без него диалог обходится
+            своим текстом. */}
+        {notice.message ? (
           <DialogContentText sx={{ mt: 2, whiteSpace: 'pre-line' }}>
-            <BannerText text={notice.announce} />
+            <BannerText text={notice.message} />
           </DialogContentText>
         ) : null}
       </DialogContent>

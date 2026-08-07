@@ -185,8 +185,6 @@
     "subscription": {
       "expires": "{{count}} days left · until {{date}}",
       "refill": "Monthly traffic resets on {{date}}",
-      "renew": "Renew",
-      "topup": "Add traffic",
       "updated": "サブスクリプションを更新しました",
       "trafficTitle": "Traffic",
       "expiryTitle": "Expires",

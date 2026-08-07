@@ -5,7 +5,6 @@ import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded'
 import {
   alpha,
   Box,
-  Button,
   CircularProgress,
   IconButton,
   LinearProgress,
@@ -14,14 +13,12 @@ import {
   Typography,
 } from '@mui/material'
 import dayjs from 'dayjs'
-import { useCallback, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { InfoTile } from '@/components/home/info-tile'
 import { useExpiryCountdown } from '@/hooks/use-expiry-countdown'
 import { useTrafficEstimate } from '@/hooks/use-traffic-estimate'
-import { openWebUrl } from '@/services/cmds'
-import { showNotice } from '@/services/notice-service'
 import parseTraffic from '@/utils/parse-traffic'
 import { clockSkew, toUnixSeconds } from '@/utils/subscription-status'
 
@@ -47,17 +44,18 @@ interface Props {
 
 /**
  * The subscription block: two equal tiles — traffic and time left — that sit
- * side by side and stack under each other when the window is narrow. The
- * renew / top-up actions live in the expiry tile and exist only if the panel
- * sent `clod-renew-url` / `clod-topup-url`; the app never invents payment
- * links on its own.
+ * side by side and stack under each other when the window is narrow.
+ *
+ * clod: платёжных действий здесь нет. Куда идти платить, знает только
+ * провайдер, и ведёт туда единственная ссылка `clod-portal-url` — кнопка
+ * «Личный кабинет» рядом с поддержкой.
  */
 export const SubscriptionCard = ({ profile }: Props) => {
   const { t } = useTranslation()
   // clod: панель пересчитывает расход не чаще раза в час — то, что клиент
   // досчитал после неё, идёт ТОЛЬКО в показываемое число и в хвост полосы.
-  // Пороги `critical`, «трафик закончился» и кнопки продления ниже считаются
-  // строго по данным подписки, иначе клиент соврёт при живых серверах.
+  // Пороги `critical` и «трафик закончился» считаются строго по данным
+  // подписки, иначе клиент соврёт при живых серверах.
   const { estimate, refreshing, refresh } = useTrafficEstimate(profile)
   // clod: срок считается на клиенте и потому работает офлайн; часы устройства
   // при этом сдвинуты на разницу с часами панели, снятую при последнем
@@ -67,15 +65,6 @@ export const SubscriptionCard = ({ profile }: Props) => {
   const expire = toUnixSeconds(profile.extra?.expire ?? 0)
   const skew = clockSkew(profile)
   const countdown = useExpiryCountdown(expire, skew ?? 0)
-
-  const openLink = useCallback(async (url?: string) => {
-    if (!url) return
-    try {
-      await openWebUrl(url)
-    } catch (error) {
-      showNotice.error(error)
-    }
-  }, [])
 
   const info = useMemo(() => {
     const extra = profile.extra
@@ -115,8 +104,6 @@ export const SubscriptionCard = ({ profile }: Props) => {
   // instead of showing a full bar that means nothing.
   if (!info || (info.unlimited && info.forever)) return null
 
-  const showRenew = Boolean(profile.renew_url)
-  const showTopup = Boolean(profile.topup_url)
   // clod: часы вместо дней — только последние сутки. Оговорка про часы висит
   // именно там: день округляется честно в любом случае.
   const hourly = !info.forever && countdown.hoursLeft !== undefined
@@ -331,30 +318,6 @@ export const SubscriptionCard = ({ profile }: Props) => {
             {t('profiles.components.profileItem.labels.neverExpires')}
           </Typography>
         )}
-        {showRenew || showTopup ? (
-          <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', mt: 0.25 }}>
-            {showRenew ? (
-              <Button
-                size="small"
-                variant={critical ? 'contained' : 'outlined'}
-                sx={{ minWidth: 0 }}
-                onClick={() => void openLink(profile.renew_url)}
-              >
-                {t('home.components.subscription.renew')}
-              </Button>
-            ) : null}
-            {showTopup ? (
-              <Button
-                size="small"
-                variant="text"
-                sx={{ minWidth: 0 }}
-                onClick={() => void openLink(profile.topup_url)}
-              >
-                {t('home.components.subscription.topup')}
-              </Button>
-            ) : null}
-          </Stack>
-        ) : null}
       </InfoTile>
     </Box>
   )

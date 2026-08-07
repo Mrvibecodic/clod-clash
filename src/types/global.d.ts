@@ -292,10 +292,6 @@ interface IProfileItem {
   promo_url?: string
   /** the user dismissed the current promo text */
   promo_seen?: boolean
-  /** `clod-renew-url` header — target of the "renew" button */
-  renew_url?: string
-  /** `clod-topup-url` header — target of the "buy more traffic" button */
-  topup_url?: string
   /** `clod-lock-mode` header — mode switching is locked by the panel */
   lock_mode?: boolean
   /** `subscription-refill-date` header, unix seconds */

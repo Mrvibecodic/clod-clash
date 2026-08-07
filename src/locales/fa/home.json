@@ -185,8 +185,6 @@
     "subscription": {
       "expires": "{{count}} days left · until {{date}}",
       "refill": "Monthly traffic resets on {{date}}",
-      "renew": "Renew",
-      "topup": "Add traffic",
       "updated": "اشتراک به‌روزرسانی شد",
       "trafficTitle": "Traffic",
       "expiryTitle": "Expires",

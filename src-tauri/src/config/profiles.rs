@@ -278,6 +278,8 @@ impl IProfiles {
                 patch!(each, item, promo_seen);
                 patch!(each, item, name_customized);
                 patch!(each, item, fallback_url);
+                // clod: поля парные — правится одно, значит правится и второе.
+                patch!(each, item, fallback_domain);
                 patch!(each, item, interval_locked);
                 patch!(each, item, notified);
                 // clod:headers end

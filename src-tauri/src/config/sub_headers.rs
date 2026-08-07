@@ -8,8 +8,9 @@
 //! Conventions implemented below (they apply to every header):
 //! * lookup is case insensitive and suffix based, so object-storage prefixed
 //!   variants (`x-amz-meta-announce`, `x-obs-meta-…`) are accepted;
-//! * a value prefixed with `base64:` is base64 decoded to UTF-8, falling back to
-//!   the raw value when decoding fails;
+//! * a value prefixed with `base64:` is base64 decoded to UTF-8; a payload that
+//!   does not decode makes the header count as absent, so the literal
+//!   `base64:…` can never reach a banner;
 //! * empty values are treated as absent.
 
 use crate::utils::hwid;
@@ -142,10 +143,13 @@ pub struct SubHeaders {
     pub promo: Option<String>,
     /// `clod-promo-url` — where the promo banner leads when clicked.
     pub promo_url: Option<String>,
-    /// `clod-renew-url` — shows the "renew" action; absent means no button.
-    pub renew_url: Option<String>,
-    /// `clod-topup-url` — shows the "buy more traffic" action.
-    pub topup_url: Option<String>,
+    /// `clod-hwid-limit` — provider text shown inside the device dialogs.
+    ///
+    /// Optional and deliberately separate from [`Self::announce`]: the banner on
+    /// the home screen and the explanation of a blocked device are two different
+    /// messages, and a provider must be able to write the second one without
+    /// putting it in front of everybody else.
+    pub hwid_limit_message: Option<String>,
     /// `clod-lock-mode` — the panel forbids changing proxy/routing modes in
     /// the app. `global-mode: false` (Prizrak-Box) is honoured as a synonym.
     pub lock_mode: Option<bool>,
@@ -214,8 +218,8 @@ impl SubHeaders {
             portal_url: value(headers, "clod-portal-url").and_then(|raw| https_url(&raw)),
             promo: value(headers, "clod-promo").map(|text| truncate_banner(&text, ANNOUNCE_MAX_CHARS)),
             promo_url: value(headers, "clod-promo-url").and_then(|raw| https_url(&raw)),
-            renew_url: value(headers, "clod-renew-url").and_then(|raw| https_url(&raw)),
-            topup_url: value(headers, "clod-topup-url").and_then(|raw| https_url(&raw)),
+            hwid_limit_message: value(headers, "clod-hwid-limit")
+                .map(|text| truncate_banner(&text, ANNOUNCE_MAX_CHARS)),
             // `global-mode: false` means "hide the mode switch" for Prizrak-Box
             // configured panels, which is exactly our lock.
             lock_mode: bool_value(headers, "clod-lock-mode")
@@ -308,7 +312,9 @@ impl SubHeaders {
             "state": state.as_str(),
             "maxDevices": self.hwid_max_devices,
             "supportUrl": self.support_url.as_deref(),
-            "announce": self.announce.as_deref(),
+            // `clod-hwid-limit`, not `announce`: the dialog explains a blocked
+            // device, and that text has no business on the home banner.
+            "message": self.hwid_limit_message.as_deref(),
         }));
     }
 }
@@ -686,8 +692,6 @@ mod tests {
             ("clod-portal-url", "https://my.provider.example/cabinet"),
             ("clod-promo", "base64:0KHQutC40LTQutCwIDIwICU="),
             ("clod-promo-url", "https://my.provider.example/promo"),
-            ("clod-renew-url", "https://my.provider.example/renew"),
-            ("clod-topup-url", "https://my.provider.example/topup"),
         ]));
 
         assert_eq!(
@@ -696,8 +700,6 @@ mod tests {
         );
         assert_eq!(parsed.promo.as_deref(), Some("Скидка 20 %"));
         assert_eq!(parsed.promo_url.as_deref(), Some("https://my.provider.example/promo"));
-        assert_eq!(parsed.renew_url.as_deref(), Some("https://my.provider.example/renew"));
-        assert_eq!(parsed.topup_url.as_deref(), Some("https://my.provider.example/topup"));
 
         // The portal is our own header on purpose; `profile-web-page-url`
         // usually points at the subscription page and must not leak into it.
@@ -705,19 +707,51 @@ mod tests {
         assert_eq!(parsed.portal_url, None);
 
         // Action URLs go through the same https-only filter as the logo.
-        let parsed = SubHeaders::parse(&headers(&[
-            ("clod-renew-url", "javascript:alert(1)"),
-            ("clod-topup-url", "tg://resolve?domain=x"),
-        ]));
-        assert_eq!(parsed.renew_url, None);
-        assert_eq!(parsed.topup_url, None);
+        let parsed = SubHeaders::parse(&headers(&[("clod-portal-url", "javascript:alert(1)")]));
+        assert_eq!(parsed.portal_url, None);
 
         // Absent headers mean absent buttons — that is the default.
         let parsed = SubHeaders::parse(&headers(&[]));
-        assert_eq!(parsed.renew_url, None);
-        assert_eq!(parsed.topup_url, None);
         assert_eq!(parsed.portal_url, None);
         assert_eq!(parsed.promo, None);
+    }
+
+    // clod: текст для диалогов устройства — свой заголовок, а не `announce`.
+    #[test]
+    fn hwid_limit_message_is_its_own_header() {
+        let parsed = SubHeaders::parse(&headers(&[
+            ("announce", "banner for everybody"),
+            // "Отвязать устройство можно в кабинете" in base64
+            (
+                "clod-hwid-limit",
+                "base64:0J7RgtCy0Y/Qt9Cw0YLRjCDRg9GB0YLRgNC+0LnRgdGC0LLQviDQvNC+0LbQvdC+INCyINC60LDQsdC40L3QtdGC0LU=",
+            ),
+        ]));
+        assert_eq!(parsed.announce.as_deref(), Some("banner for everybody"));
+        assert_eq!(
+            parsed.hwid_limit_message.as_deref(),
+            Some("Отвязать устройство можно в кабинете")
+        );
+
+        // Необязательный: без него диалог просто без пояснения провайдера, а
+        // `announce` в него больше не подставляется.
+        let parsed = SubHeaders::parse(&headers(&[("announce", "banner for everybody")]));
+        assert_eq!(parsed.hwid_limit_message, None);
+
+        // Суффиксный поиск не должен спутать его с флагом `x-hwid-limit`.
+        let parsed = SubHeaders::parse(&headers(&[("x-hwid-limit", "true")]));
+        assert_eq!(parsed.hwid_limit_message, None);
+        assert_eq!(parsed.hwid_state, HwidState::LimitReached);
+        let parsed = SubHeaders::parse(&headers(&[("clod-hwid-limit", "текст для диалога")]));
+        assert_eq!(parsed.hwid_state, HwidState::Unknown);
+
+        // Тот же лимит, что и у баннеров.
+        let long = "я".repeat(700);
+        let parsed = SubHeaders::parse(&headers(&[("clod-hwid-limit", long.as_str())]));
+        assert_eq!(
+            parsed.hwid_limit_message.map(|text| text.chars().count()),
+            Some(ANNOUNCE_MAX_CHARS)
+        );
     }
 
     #[test]
@@ -739,15 +773,17 @@ mod tests {
     }
 
     #[test]
-    fn promo_does_not_shadow_its_url_and_renew_is_not_new_url() {
+    fn promo_does_not_shadow_its_url_and_a_renew_url_is_not_new_url() {
         let parsed = SubHeaders::parse(&headers(&[
             ("clod-promo", "sale"),
             ("clod-promo-url", "https://p.example/sale"),
+            // Заголовка `clod-renew-url` у нас больше нет, но панель может
+            // слать его для других клиентов — и он не должен читаться как
+            // запрос на переезд.
             ("clod-renew-url", "https://p.example/renew"),
         ]));
         assert_eq!(parsed.promo.as_deref(), Some("sale"));
         assert_eq!(parsed.promo_url.as_deref(), Some("https://p.example/sale"));
-        // `clod-renew-url` must never be picked up as a `new-url` migration.
         assert_eq!(parsed.new_url, None);
     }
 
@@ -760,15 +796,11 @@ mod tests {
             ("profile-web-page-url", "http://panel.example/home"),
             ("support-url", "http://help.example/chat"),
             ("clod-portal-url", "http://my.provider.example/cabinet"),
-            ("clod-renew-url", "http://my.provider.example/renew"),
-            ("clod-topup-url", "http://my.provider.example/topup"),
         ]));
         assert_eq!(parsed.profile_logo, None);
         assert_eq!(parsed.home, None);
         assert_eq!(parsed.support_url, None);
         assert_eq!(parsed.portal_url, None);
-        assert_eq!(parsed.renew_url, None);
-        assert_eq!(parsed.topup_url, None);
 
         // https-versions of the same values survive untouched.
         let parsed = SubHeaders::parse(&headers(&[

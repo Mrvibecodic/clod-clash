@@ -101,7 +101,9 @@
         "nextUp": "Next Up",
         "noSchedule": "No schedule",
         "unknown": "Unknown",
-        "autoUpdateDisabled": "Auto update disabled"
+        "autoUpdateDisabled": "Auto update disabled",
+        "hwidLimit": "Not updating: the device limit is full",
+        "hwidNotSupported": "Not updating: the provider requires device identification"
       },
       "labels": {
         "unlimited": "Unlimited",
@@ -153,6 +155,9 @@
         "newGroup": "+ New group…",
         "newGroupName": "Group name",
         "advanced": "Advanced"
+      },
+      "hints": {
+        "intervalLocked": "The provider set this interval with the profile-update-interval header, so it cannot be changed."
       },
       "feedback": {
         "notifications": {

@@ -555,13 +555,11 @@ async fn subscription_section(out: &mut std::string::String) {
     let _ = writeln!(out, "- состояние HWID: {}", item.hwid_state.as_deref().unwrap_or("—"));
     let _ = writeln!(
         out,
-        "- заголовки провайдера: логотип {}, объявление {}, промо {}, кабинет {}, продление {}, докупка {}, поддержка {}",
+        "- заголовки провайдера: логотип {}, объявление {}, промо {}, кабинет {}, поддержка {}",
         yes_no(item.logo.is_some()),
         yes_no(item.announce.is_some()),
         yes_no(item.promo.is_some()),
         yes_no(item.portal_url.is_some()),
-        yes_no(item.renew_url.is_some()),
-        yes_no(item.topup_url.is_some()),
         yes_no(item.support_url.is_some())
     );
     let _ = writeln!(

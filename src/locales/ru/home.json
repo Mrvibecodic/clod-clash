@@ -185,8 +185,6 @@
     "subscription": {
       "expires": "{{count}} дн · до {{date}}",
       "refill": "Обновится {{date}}",
-      "renew": "Продлить",
-      "topup": "Докупить",
       "updated": "Подписка обновлена",
       "trafficTitle": "Трафик",
       "expiryTitle": "Срок",

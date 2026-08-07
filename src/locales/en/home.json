@@ -185,8 +185,6 @@
     "subscription": {
       "expires": "{{count}} d · until {{date}}",
       "refill": "Resets on {{date}}",
-      "renew": "Renew",
-      "topup": "Add traffic",
       "updated": "Subscription updated",
       "trafficTitle": "Traffic",
       "expiryTitle": "Expires",

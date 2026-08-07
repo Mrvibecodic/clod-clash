@@ -36,10 +36,9 @@ const date = (unix?: number, skew = 0) =>
  * An empty list is the honest result of the sentinel filter, but on its own it
  * explains nothing. The panel keeps sending real `subscription-userinfo` even
  * when it hands out placeholders instead of servers, so the reason is derived
- * from the subscription itself — and the actions are the ones the provider
- * already gave us (`clod-renew-url`, `clod-topup-url`, `support-url`). As
- * everywhere else in the app, a button exists only when its header does: the
- * app never invents a payment link.
+ * from the subscription itself. Действие остаётся одно — написать в поддержку
+ * (`support-url`), и кнопка есть только тогда, когда провайдер прислал этот
+ * заголовок: своих ссылок приложение не выдумывает.
  */
 export const NoServersStatus = ({ profile, onRefreshed }: Props) => {
   const { t } = useTranslation()
@@ -132,46 +131,29 @@ export const NoServersStatus = ({ profile, onRefreshed }: Props) => {
       ) : null}
 
       <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', mt: 1 }}>
-        {reason === 'traffic' && profile.topup_url ? (
-          <Button
-            size="small"
-            variant="contained"
-            color={severity}
-            onClick={() => void openLink(profile.topup_url)}
-          >
-            {t('home.components.subscription.topup')}
-          </Button>
-        ) : null}
-        {reason !== 'provider' && profile.renew_url ? (
-          <Button
-            size="small"
-            variant={reason === 'expired' ? 'contained' : 'outlined'}
-            color={severity}
-            onClick={() => void openLink(profile.renew_url)}
-          >
-            {t('home.components.subscription.renew')}
-          </Button>
-        ) : null}
+        {/* clod: платёжных кнопок здесь нет — в приложении их нет нигде.
+            Остаются поддержка и перечитать подписку. */}
         {profile.support_url ? (
           <Button
             size="small"
-            variant={reason === 'provider' ? 'contained' : 'text'}
+            variant="contained"
             color={severity}
             onClick={() => void openLink(profile.support_url)}
           >
             {t('profiles.components.hwidDialog.support')}
           </Button>
         ) : null}
-        {reason === 'provider' ? (
-          <Button
-            size="small"
-            variant="outlined"
-            color={severity}
-            onClick={() => void refresh()}
-          >
-            {t('home.components.serverStatus.refresh')}
-          </Button>
-        ) : null}
+        {/* clod: перечитать подписку полезно во всех трёх состояниях —
+            продлил в кабинете, вернулся, нажал. Раньше кнопка была только у
+            «провайдер не выдал серверы», потому что рядом стояли платёжные. */}
+        <Button
+          size="small"
+          variant="outlined"
+          color={severity}
+          onClick={() => void refresh()}
+        >
+          {t('home.components.serverStatus.refresh')}
+        </Button>
       </Stack>
     </Alert>
   )

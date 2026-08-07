@@ -104,14 +104,6 @@ pub struct PrfItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub promo_seen: Option<bool>,
 
-    /// `clod-renew-url` header — target of the "renew" action button.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub renew_url: Option<String>,
-
-    /// `clod-topup-url` header — target of the "buy more traffic" button.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub topup_url: Option<String>,
-
     /// `clod-lock-mode` header — the panel forbids changing proxy and routing
     /// modes inside the app.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -542,7 +534,15 @@ impl PrfItem {
                     .strip_suffix("subscription-userinfo")
                     .is_some_and(|prefix| prefix.is_empty() || prefix.ends_with('-'))
                 {
-                    let sub_info = v.to_str().unwrap_or("");
+                    // clod: `to_str` отказывает на любом байте выше 0x7F, и тогда
+                    // весь трафик со сроком молча обнулялся бы. Значение обязано
+                    // быть ASCII, но панель может прислать что угодно — читаем
+                    // так же терпимо, как остальные заголовки.
+                    let raw_info = match v.to_str() {
+                        Ok(text) => std::borrow::Cow::Borrowed(text),
+                        Err(_) => std::string::String::from_utf8_lossy(v.as_bytes()),
+                    };
+                    let sub_info: &str = raw_info.as_ref();
                     extra = Some(PrfExtra {
                         upload: help::parse_str(sub_info, "upload").unwrap_or(0),
                         download: help::parse_str(sub_info, "download").unwrap_or(0),
@@ -692,8 +692,6 @@ impl PrfItem {
             promo: sub.promo.clone(),
             promo_url: sub.promo_url.clone(),
             promo_seen: None,
-            renew_url: sub.renew_url.clone(),
-            topup_url: sub.topup_url.clone(),
             lock_mode: sub.lock_mode,
             refill_date: sub.refill_date,
             clock_skew: measured_skew,
@@ -837,14 +835,13 @@ fn log_panel_headers(sub: &sub_headers::SubHeaders) {
     clash_verge_logging::logging!(
         info,
         clash_verge_logging::Type::Config,
-        "[clod] panel headers in response: title={} logo={} announce={} promo={} portal={} renew={} topup={} lock={} simple={}",
+        "[clod] panel headers in response: title={} logo={} announce={} promo={} portal={} hwid_limit={} lock={} simple={}",
         sub.profile_title.is_some(),
         sub.profile_logo.is_some(),
         sub.announce.is_some(),
         sub.promo.is_some(),
         sub.portal_url.is_some(),
-        sub.renew_url.is_some(),
-        sub.topup_url.is_some(),
+        sub.hwid_limit_message.is_some(),
         sub.lock_mode.is_some(),
         sub.simple_mode.is_some()
     );
@@ -884,8 +881,6 @@ impl PrfItem {
         self.from_fallback = fresh.from_fallback;
         self.simple_mode = fresh.simple_mode;
         self.portal_url = fresh.portal_url.clone();
-        self.renew_url = fresh.renew_url.clone();
-        self.topup_url = fresh.topup_url.clone();
         self.lock_mode = fresh.lock_mode;
 
         // The announce is permanent and never dismissable; it simply follows

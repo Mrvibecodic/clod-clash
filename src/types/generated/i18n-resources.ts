@@ -193,8 +193,6 @@ export interface TranslationResources {
           expiryTitle: string
           hoursShort: string
           refill: string
-          renew: string
-          topup: string
           trafficTitle: string
           untilDate: string
           untilTime: string
@@ -378,6 +376,8 @@ export interface TranslationResources {
           }
           status: {
             autoUpdateDisabled: string
+            hwidLimit: string
+            hwidNotSupported: string
             lastUpdateFailed: string
             nextUp: string
             noSchedule: string
@@ -479,6 +479,9 @@ export interface TranslationResources {
             updateInterval: string
             useClashProxy: string
             useSystemProxy: string
+          }
+          hints: {
+            intervalLocked: string
           }
           title: {
             added: string

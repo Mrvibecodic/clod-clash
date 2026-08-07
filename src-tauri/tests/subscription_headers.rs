@@ -209,8 +209,6 @@ async fn removed_panel_headers_clear_stored_values() {
         announce: sub.announce.clone(),
         announce_url: sub.announce_url.clone(),
         portal_url: sub.portal_url.clone(),
-        renew_url: sub.renew_url.clone(),
-        topup_url: sub.topup_url.clone(),
         lock_mode: sub.lock_mode,
         ..PrfItem::default()
     };
@@ -223,8 +221,6 @@ async fn removed_panel_headers_clear_stored_values() {
         announce: Some("Возникли проблемы?".into()),
         announce_url: Some("https://p.example/help".into()),
         portal_url: Some("https://p.example/cab".into()),
-        renew_url: Some("https://p.example/renew".into()),
-        topup_url: Some("https://p.example/topup".into()),
         lock_mode: Some(true),
         ..PrfItem::default()
     };
@@ -236,8 +232,6 @@ async fn removed_panel_headers_clear_stored_values() {
     assert_eq!(stored.announce, None, "a removed announce must disappear");
     assert_eq!(stored.announce_url, None);
     assert_eq!(stored.portal_url, None);
-    assert_eq!(stored.renew_url, None);
-    assert_eq!(stored.topup_url, None);
     assert_eq!(stored.lock_mode, None);
 }
 

@@ -101,7 +101,9 @@
         "nextUp": "Следующее обновление",
         "noSchedule": "Без расписания",
         "unknown": "Неизвестно",
-        "autoUpdateDisabled": "Автообновление отключено"
+        "autoUpdateDisabled": "Автообновление отключено",
+        "hwidLimit": "Не обновляется: превышен лимит устройств",
+        "hwidNotSupported": "Не обновляется: провайдер требует идентификацию устройства"
       },
       "labels": {
         "unlimited": "Безлимит",
@@ -153,6 +155,9 @@
         "newGroup": "+ Новая группа…",
         "newGroupName": "Название группы",
         "advanced": "Дополнительно"
+      },
+      "hints": {
+        "intervalLocked": "Интервал задан провайдером в заголовке profile-update-interval — изменить его нельзя."
       },
       "feedback": {
         "notifications": {

@@ -299,6 +299,9 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
 
   const formType = watch('type')
   const groupValue = watch('group')
+  // clod: `interval_locked` поднимает бэкенд, когда интервал пришёл из
+  // заголовка `profile-update-interval`, а пользователь своего не задавал.
+  const intervalLocked = Boolean(watch('interval_locked'))
   const isRemote = formType === 'remote'
   const isLocal = formType === 'local'
   const isNew = openType === 'new'
@@ -386,6 +389,10 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
 
       {isRemote && (
         <>
+          {/* clod: интервал, заданный провайдером через
+              `profile-update-interval`, менять нельзя — иначе обещание
+              «задан провайдером» остаётся только в документации. Поле
+              выключено и объясняет почему. */}
           <Controller
             name="option.update_interval"
             control={control}
@@ -394,7 +401,13 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
                 {...text}
                 {...field}
                 type="number"
+                disabled={intervalLocked}
                 label={t('profiles.modals.profileForm.fields.updateInterval')}
+                helperText={
+                  intervalLocked
+                    ? t('profiles.modals.profileForm.hints.intervalLocked')
+                    : undefined
+                }
                 slotProps={{
                   input: {
                     endAdornment: (

@@ -324,6 +324,15 @@ const ProfileItemBase = (props: ProfileItemProps) => {
           ? { key: 'expiring' as const, color: 'warning' as const }
           : undefined
 
+  // clod: `hwid_state` пишется при каждом обновлении подписки; показываем
+  // только состояния, из-за которых обновление не проходит.
+  const hwidNotice =
+    itemData.hwid_state === 'limit'
+      ? ('hwidLimit' as const)
+      : itemData.hwid_state === 'not_supported'
+        ? ('hwidNotSupported' as const)
+        : undefined
+
   const loading = loadingCache.has(itemData.uid)
 
   // interval update fromNow field
@@ -953,6 +962,19 @@ const ProfileItemBase = (props: ProfileItemProps) => {
           value={progress}
           style={{ opacity: total > 0 ? 1 : 0 }}
         />
+        {/* clod: состояние устройства (`x-hwid-*`) раньше жило только в
+            профиле и в логах: диалог закрыли — и причина, по которой подписка
+            не обновляется, пропадала. Теперь она видна на карточке. */}
+        {hwidNotice && (
+          <Typography
+            noWrap
+            title={t(`profiles.components.profileItem.status.${hwidNotice}`)}
+            color="error"
+            sx={{ fontSize: 12, mt: 0.75 }}
+          >
+            {t(`profiles.components.profileItem.status.${hwidNotice}`)}
+          </Typography>
+        )}
         {/* clod: ссылки провайдера из заголовков подписки — у каждой
             подписки свои личный кабинет и поддержка */}
         {(itemData.portal_url || itemData.support_url) && (
