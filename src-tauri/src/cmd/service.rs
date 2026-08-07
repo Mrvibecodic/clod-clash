@@ -48,6 +48,10 @@ pub struct TunState {
     /// Автоматическую настройку службы на этой версии уже пробовали (отклонили,
     /// провалили или довели до конца).
     pub setup_declined: bool,
+    /// clod:service-repair — служба установлена и отвечает, но версия чужая.
+    /// Отдельно от `capable`, потому что чинится это иначе, чем отсутствие
+    /// службы, и интерфейсу нужно сказать человеку другое слово.
+    pub needs_repair: bool,
 }
 
 #[tauri::command]
@@ -58,6 +62,7 @@ pub async fn get_tun_state() -> CmdResult<TunState> {
         active: crate::feat::tun::is_active_with(desired),
         capable: crate::feat::tun::is_capable().await,
         setup_declined: crate::feat::tun::setup_declined_for_this_version().await,
+        needs_repair: crate::feat::tun::needs_repair().await,
     })
 }
 

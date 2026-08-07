@@ -40,11 +40,13 @@
       "tooltips": {
         "systemProxy": "Aktifkan untuk mengubah pengaturan proksi sistem operasi. Jika pengaktifan gagal, ubah pengaturan proksi sistem operasi secara manual",
         "tunMode": "Mode Tun (NIC Virtual): Menangkap semua lalu lintas sistem, saat diaktifkan, tidak perlu mengaktifkan proksi sistem.",
-        "tunUnavailable": "TUN requires Service Mode or Admin Mode"
+        "tunUnavailable": "TUN requires Service Mode or Admin Mode",
+        "serviceOutdated": "Layanan TUN tersisa dari versi aplikasi lama dan perlu diperbaiki"
       },
       "actions": {
         "installService": "Instal Layanan",
-        "uninstallService": "Uninstall Service"
+        "uninstallService": "Uninstall Service",
+        "repairService": "Perbaiki layanan"
       },
       "fields": {
         "systemProxy": "Proksi Sistem",

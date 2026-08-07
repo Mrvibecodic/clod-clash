@@ -40,11 +40,13 @@
       "tooltips": {
         "systemProxy": "修改操作系统的代理设置，如果开启失败，可手动修改操作系统的代理设置",
         "tunMode": "TUN（虚拟网卡）模式接管系统所有流量，启用时无须打开系统代理",
-        "tunUnavailable": "TUN 模式需要安装服务模式或管理员模式"
+        "tunUnavailable": "TUN 模式需要安装服务模式或管理员模式",
+        "serviceOutdated": "TUN 服务是旧版应用留下的，需要修复"
       },
       "actions": {
         "installService": "安装服务",
-        "uninstallService": "卸载服务"
+        "uninstallService": "卸载服务",
+        "repairService": "修复服务"
       },
       "fields": {
         "systemProxy": "系统代理",

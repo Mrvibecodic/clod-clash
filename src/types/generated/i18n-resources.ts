@@ -1395,6 +1395,7 @@ export interface TranslationResources {
         proxyControl: {
           actions: {
             installService: string
+            repairService: string
             uninstallService: string
           }
           fields: {
@@ -1402,6 +1403,7 @@ export interface TranslationResources {
             tunMode: string
           }
           tooltips: {
+            serviceOutdated: string
             systemProxy: string
             tunMode: string
             tunUnavailable: string

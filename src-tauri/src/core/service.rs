@@ -586,15 +586,43 @@ fn check_output_error(output: &std::process::Output) -> Option<(i32, Cow<'_, str
         return None;
     }
     let code = output.status.code().unwrap_or(-1);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    if !stderr.is_empty() {
-        return Some((code, stderr));
+    Some((code, describe_failure(code, &output.stdout, &output.stderr)))
+}
+
+/// clod:service-error — почему установка службы не удалась, словами.
+///
+/// Привилегированная ветка на Windows запускает установщик через `runas`,
+/// а он потоков не отдаёт: `Output` там собирается вручную с пустыми `stdout`
+/// и `stderr`. Прежний хвост `Unknown error` превращал в «неизвестную ошибку»
+/// в том числе самый частый случай — закрытый диалог UAC, где человек ровно
+/// знает, что он сделал.
+///
+/// Коды — виндовые (`ERROR_CANCELLED` и соседи), и это не проблема на других
+/// системах: пустые потоки бывают только у этой ветки, а она есть только там.
+fn describe_failure<'a>(code: i32, stdout: &'a [u8], stderr: &'a [u8]) -> Cow<'a, str> {
+    let stderr = String::from_utf8_lossy(stderr);
+    if !stderr.trim().is_empty() {
+        return stderr;
     }
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    if !stdout.is_empty() {
-        return Some((code, stdout));
+    let stdout = String::from_utf8_lossy(stdout);
+    if !stdout.trim().is_empty() {
+        return stdout;
     }
-    Some((code, Cow::Borrowed("Unknown error")))
+    match code {
+        // ERROR_CANCELLED — пользователь закрыл запрос прав.
+        1223 => Cow::Borrowed("the elevation prompt was dismissed"),
+        // ERROR_ELEVATION_REQUIRED — прав не хватило, а запроса не было.
+        740 => Cow::Borrowed("the installer needs administrator rights"),
+        // ERROR_SERVICE_DOES_NOT_EXIST.
+        1060 => Cow::Borrowed("the service is not registered"),
+        // ERROR_SERVICE_ALREADY_RUNNING.
+        1056 => Cow::Borrowed("the service is already running"),
+        // ERROR_ACCESS_DENIED.
+        5 => Cow::Borrowed("access denied"),
+        _ => Cow::Owned(format!(
+            "the installer exited with code {code} and printed nothing (it runs elevated, so its output is not ours to read)"
+        )),
+    }
 }
 
 /// clod:tun-ready — что о службе знает система, независимо от того, отвечает
@@ -1373,6 +1401,34 @@ pub static SERVICE_MANAGER: Lazy<ServiceManager> = Lazy::new(|| ServiceManager {
     operation_started: Mutex::new(None),
     operation_done: Notify::new(),
 });
+
+#[cfg(test)]
+mod failure_tests {
+    use super::describe_failure;
+
+    // clod:service-error — пустые потоки бывают только у привилегированной ветки
+    // Windows (`runas` их не отдаёт), и раньше любой её отказ читался как
+    // «Unknown error» — включая самый частый случай, закрытый диалог UAC.
+    #[test]
+    fn a_silent_installer_failure_is_explained_by_its_exit_code() {
+        assert_eq!(describe_failure(1223, b"", b""), "the elevation prompt was dismissed");
+        assert_eq!(
+            describe_failure(740, b"", b""),
+            "the installer needs administrator rights"
+        );
+        assert_eq!(describe_failure(1060, b"", b""), "the service is not registered");
+
+        // Незнакомый код причину не выдумывает, но и не молчит: называет сам код
+        // и объясняет, почему вывода нет.
+        let unknown = describe_failure(42, b"", b"");
+        assert!(unknown.contains("42"), "{unknown}");
+        assert!(unknown.contains("elevated"), "{unknown}");
+
+        // Настоящий вывод всегда важнее таблицы кодов, а пробельный — не вывод.
+        assert_eq!(describe_failure(1223, b"", b"real stderr"), "real stderr");
+        assert_eq!(describe_failure(1223, b"real stdout", b"   "), "real stdout");
+    }
+}
 
 #[cfg(all(test, target_os = "macos"))]
 mod tests {

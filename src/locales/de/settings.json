@@ -40,11 +40,13 @@
       "tooltips": {
         "systemProxy": "Ändern Sie die Proxy-Einstellungen des Betriebssystems. Wenn die Aktivierung fehlschlägt, können Sie die Proxy-Einstellungen des Betriebssystems manuell ändern.",
         "tunMode": "Der TUN-Modus (Virtual Network Interface) übernimmt den gesamten Systemverkehr. Wenn dieser Modus aktiviert ist, muss der Systemproxy nicht geöffnet werden.",
-        "tunUnavailable": "TUN-Modus erfordert Service-Modus oder Administrator-Modus"
+        "tunUnavailable": "TUN-Modus erfordert Service-Modus oder Administrator-Modus",
+        "serviceOutdated": "Der TUN-Dienst stammt aus einer älteren App-Version und muss repariert werden"
       },
       "actions": {
         "installService": "Service installieren",
-        "uninstallService": "Dienst deinstallieren"
+        "uninstallService": "Dienst deinstallieren",
+        "repairService": "Dienst reparieren"
       },
       "fields": {
         "systemProxy": "Systemproxy",

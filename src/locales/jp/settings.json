@@ -40,11 +40,13 @@
       "tooltips": {
         "systemProxy": "オペレーティングシステムのプロキシ設定を変更します。有効にできない場合は、手動でオペレーティングシステムのプロキシ設定を変更してください。",
         "tunMode": "TUN（仮想ネットワークカード）モードはシステムのすべてのトラフィックを制御します。有効にすると、システムプロキシを開く必要はありません。",
-        "tunUnavailable": "TUNモードはサービスモードまたは管理者モードが必要です"
+        "tunUnavailable": "TUNモードはサービスモードまたは管理者モードが必要です",
+        "serviceOutdated": "TUN サービスが以前のバージョンのまま残っており、修復が必要です"
       },
       "actions": {
         "installService": "サービスをインストール",
-        "uninstallService": "サービスのアンインストール"
+        "uninstallService": "サービスのアンインストール",
+        "repairService": "サービスを修復"
       },
       "fields": {
         "systemProxy": "システムプロキシ",

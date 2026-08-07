@@ -40,11 +40,13 @@
       "tooltips": {
         "systemProxy": "Enable to modify the operating system's proxy settings. If enabling fails, modify the operating system's proxy settings manually",
         "tunMode": "Tun (Virtual NIC) mode: Captures all system traffic, when enabled, there is no need to enable system proxy.",
-        "tunUnavailable": "TUN requires Service Mode or Admin Mode"
+        "tunUnavailable": "TUN requires Service Mode or Admin Mode",
+        "serviceOutdated": "The TUN service is left over from an older app version and needs repair"
       },
       "actions": {
         "installService": "Install Service",
-        "uninstallService": "Uninstall Service"
+        "uninstallService": "Uninstall Service",
+        "repairService": "Repair the service"
       },
       "fields": {
         "systemProxy": "System Proxy",

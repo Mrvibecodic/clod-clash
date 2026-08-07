@@ -40,11 +40,13 @@
       "tooltips": {
         "systemProxy": "İşletim sisteminin vekil ayarlarını değiştirmek için etkinleştirin. Etkinleştirme başarısız olursa, işletim sisteminin proxy ayarlarını manuel olarak değiştirin",
         "tunMode": "Tun (Sanal Ağ Kartı) modu: Tüm sistem trafiğini yakalar, etkinleştirildiğinde sistem vekil'ini etkinleştirmeye gerek yoktur.",
-        "tunUnavailable": "TUN requires Service Mode or Admin Mode"
+        "tunUnavailable": "TUN requires Service Mode or Admin Mode",
+        "serviceOutdated": "TUN hizmeti eski bir uygulama sürümünden kalmış ve onarılması gerekiyor"
       },
       "actions": {
         "installService": "Hizmeti Kur",
-        "uninstallService": "Uninstall Service"
+        "uninstallService": "Uninstall Service",
+        "repairService": "Hizmeti onar"
       },
       "fields": {
         "systemProxy": "Sistem Vekil'i",

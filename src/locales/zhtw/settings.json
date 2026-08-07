@@ -40,11 +40,13 @@
       "tooltips": {
         "systemProxy": "修改作業系統的代理設定，如果開啟失敗，可手動修改作業系統的代理設定",
         "tunMode": "TUN（虛擬網路介面卡）模式接管系統所有流量，啟用時無需開啟系統代理",
-        "tunUnavailable": "虛擬網路介面卡模式需要安裝服務模式或以系統管理員身分執行"
+        "tunUnavailable": "虛擬網路介面卡模式需要安裝服務模式或以系統管理員身分執行",
+        "serviceOutdated": "TUN 服務是舊版應用留下的，需要修復"
       },
       "actions": {
         "installService": "安裝服務",
-        "uninstallService": "解除安裝服務"
+        "uninstallService": "解除安裝服務",
+        "repairService": "修復服務"
       },
       "fields": {
         "systemProxy": "系統代理",

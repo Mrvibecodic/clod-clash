@@ -959,6 +959,9 @@ interface ITunState {
   /** the automatic service setup was already attempted on this version
    *  - turned down, failed, or carried through */
   setup_declined: boolean
+  /** clod:service-repair — the service answers but its version is foreign:
+   *  it has to be repaired rather than installed */
+  needs_repair: boolean
 }
 
 interface IVergeConfig {

@@ -40,11 +40,13 @@
       "tooltips": {
         "systemProxy": "운영 체제의 프록시 설정을 수정합니다. 활성화에 실패하면 운영 체제의 프록시를 수동으로 설정하세요",
         "tunMode": "TUN(가상 NIC) 모드: 시스템 전체 트래픽을 캡처합니다. 활성화 시 시스템 프록시를 사용할 필요가 없습니다.",
-        "tunUnavailable": "TUN은 서비스 모드 또는 관리자 모드가 필요합니다"
+        "tunUnavailable": "TUN은 서비스 모드 또는 관리자 모드가 필요합니다",
+        "serviceOutdated": "TUN 서비스가 이전 앱 버전에서 남아 있어 복구가 필요합니다"
       },
       "actions": {
         "installService": "서비스 설치",
-        "uninstallService": "서비스 제거"
+        "uninstallService": "서비스 제거",
+        "repairService": "서비스 복구"
       },
       "fields": {
         "systemProxy": "시스템 프록시",

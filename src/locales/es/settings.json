@@ -40,11 +40,13 @@
       "tooltips": {
         "systemProxy": "Modifica la configuración del proxy del sistema operativo. Si no se puede habilitar, puede modificar manualmente la configuración del proxy del sistema operativo.",
         "tunMode": "El modo TUN (interfaz virtual) gestiona todo el tráfico del sistema. No es necesario habilitar el proxy del sistema cuando está activado.",
-        "tunUnavailable": "El modo TUN requiere el modo de servicio o el modo de administrador"
+        "tunUnavailable": "El modo TUN requiere el modo de servicio o el modo de administrador",
+        "serviceOutdated": "El servicio TUN quedó de una versión anterior de la app y necesita reparación"
       },
       "actions": {
         "installService": "Instalar servicio",
-        "uninstallService": "Desinstalar servicio"
+        "uninstallService": "Desinstalar servicio",
+        "repairService": "Reparar el servicio"
       },
       "fields": {
         "systemProxy": "Proxy del sistema",

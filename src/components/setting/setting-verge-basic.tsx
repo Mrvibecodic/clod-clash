@@ -173,87 +173,79 @@ const SettingVergeBasic = ({ onError, variant = 'all' }: Props) => {
         </>
       )}
 
-      {showRest && (
-        <>
-          {/* clod:F7 — the user's global switch for the subscription
+      {/* clod:F7 — the user's global switch for the subscription
           expiry/traffic notifications; off wins over the panel. */}
-          <SettingItem
-            label={t('settings.components.verge.basic.fields.subNotifications')}
-            extra={
-              <TooltipIcon
-                title={t(
-                  'settings.components.verge.basic.hints.subNotifications',
-                )}
-              />
+      {showRest && (
+        <SettingItem
+          label={t('settings.components.verge.basic.fields.subNotifications')}
+          extra={
+            <TooltipIcon
+              title={t(
+                'settings.components.verge.basic.hints.subNotifications',
+              )}
+            />
+          }
+        >
+          <GuardState
+            value={enable_sub_notifications ?? true}
+            valueProps="checked"
+            onCatch={onError}
+            onFormat={(_e: any, checked: boolean) => checked}
+            onChange={(checked) =>
+              onChangeData({ enable_sub_notifications: checked })
+            }
+            onGuard={(checked) =>
+              patchVerge({ enable_sub_notifications: checked })
             }
           >
-            <GuardState
-              value={enable_sub_notifications ?? true}
-              valueProps="checked"
-              onCatch={onError}
-              onFormat={(_e: any, checked: boolean) => checked}
-              onChange={(checked) =>
-                onChangeData({ enable_sub_notifications: checked })
-              }
-              onGuard={(checked) =>
-                patchVerge({ enable_sub_notifications: checked })
-              }
-            >
-              <Switch edge="end" />
-            </GuardState>
-          </SettingItem>
-        </>
+            <Switch edge="end" />
+          </GuardState>
+        </SettingItem>
       )}
 
-      {showCore && (
-        <>
-          {/* clod: отправку отпечатка устройства пользователь должен видеть и
+      {/* clod: отправку отпечатка устройства пользователь должен видеть и
           уметь выключить. Тултип показывает ровно те значения, которые уходят
           в панель, — иначе «идентификация устройства» остаётся обещанием. */}
-          <SettingItem
-            label={t('settings.components.verge.basic.fields.deviceIdentity')}
-            extra={
-              <TooltipIcon
-                title={
-                  <Box sx={{ whiteSpace: 'pre-line' }}>
-                    {[
-                      t('settings.components.verge.basic.hints.deviceIdentity'),
-                      // Все четыре x-* уходят вместе с отпечатком: нет hwid —
-                      // нет ни одного из них. User-Agent отправляется всегда.
-                      identity?.hwid ? `x-hwid: ${identity.hwid}` : null,
-                      identity?.hwid ? `x-device-os: ${identity.os}` : null,
-                      identity?.hwid
-                        ? `x-ver-os: ${identity.os_version}`
-                        : null,
-                      identity?.hwid
-                        ? `x-device-model: ${identity.model}`
-                        : null,
-                      identity ? `User-Agent: ${identity.user_agent}` : null,
-                    ]
-                      .filter(Boolean)
-                      .join('\n')}
-                  </Box>
-                }
-              />
-            }
+      {showCore && (
+        <SettingItem
+          label={t('settings.components.verge.basic.fields.deviceIdentity')}
+          extra={
+            <TooltipIcon
+              title={
+                <Box sx={{ whiteSpace: 'pre-line' }}>
+                  {[
+                    t('settings.components.verge.basic.hints.deviceIdentity'),
+                    // Все четыре x-* уходят вместе с отпечатком: нет hwid —
+                    // нет ни одного из них. User-Agent отправляется всегда.
+                    identity?.hwid ? `x-hwid: ${identity.hwid}` : null,
+                    identity?.hwid ? `x-device-os: ${identity.os}` : null,
+                    identity?.hwid ? `x-ver-os: ${identity.os_version}` : null,
+                    identity?.hwid ? `x-device-model: ${identity.model}` : null,
+                    identity ? `User-Agent: ${identity.user_agent}` : null,
+                  ]
+                    .filter(Boolean)
+                    .join('\n')}
+                </Box>
+              }
+            />
+          }
+        >
+          <GuardState
+            value={enable_hwid ?? true}
+            valueProps="checked"
+            onCatch={onError}
+            onFormat={(_e: any, checked: boolean) => checked}
+            onChange={(checked) => onChangeData({ enable_hwid: checked })}
+            onGuard={async (checked) => {
+              await patchVerge({ enable_hwid: checked })
+              // The id is computed lazily, so the tooltip only tells the truth
+              // once the backend has been asked again.
+              await mutateIdentity()
+            }}
           >
-            <GuardState
-              value={enable_hwid ?? true}
-              valueProps="checked"
-              onCatch={onError}
-              onFormat={(_e: any, checked: boolean) => checked}
-              onChange={(checked) => onChangeData({ enable_hwid: checked })}
-              onGuard={async (checked) => {
-                await patchVerge({ enable_hwid: checked })
-                // The id is computed lazily, so the tooltip only tells the truth
-                // once the backend has been asked again.
-                await mutateIdentity()
-              }}
-            >
-              <Switch edge="end" />
-            </GuardState>
-          </SettingItem>
-        </>
+            <Switch edge="end" />
+          </GuardState>
+        </SettingItem>
       )}
 
       {showRest && (

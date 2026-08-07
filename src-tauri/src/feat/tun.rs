@@ -137,6 +137,14 @@ pub async fn is_capable() -> bool {
 }
 
 /// Служба установлена и отвечает, но устарела — её надо чинить, а не ставить.
+///
+/// clod:service-repair — то же самое нужно интерфейсу: с устаревшей службой
+/// `is_capable` уже `false`, но «поставить» и «починить» — разные слова для
+/// человека и разные действия для системы.
+pub async fn needs_repair() -> bool {
+    service_needs_repair().await
+}
+
 async fn service_needs_repair() -> bool {
     is_service_available().await.is_ok() && clash_verge_service_ipc::is_reinstall_service_needed().await
 }

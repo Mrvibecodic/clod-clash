@@ -15,7 +15,6 @@ import { DialogRef, Switch, TooltipIcon } from '@/components/base'
 import { SysproxyViewer } from '@/components/setting/mods/sysproxy-viewer'
 import { TunViewer } from '@/components/setting/mods/tun-viewer'
 import { useRememberTargets } from '@/hooks/use-connect-targets'
-import { useServiceInstaller } from '@/hooks/use-service-installer'
 import { useServiceUninstaller } from '@/hooks/use-service-uninstaller'
 import { useSystemProxyState } from '@/hooks/use-system-proxy-state'
 import { useSystemState } from '@/hooks/use-system-state'
@@ -134,16 +133,19 @@ const ProxyControlSwitches = ({
 }: ProxySwitchProps) => {
   const { t } = useTranslation()
   const { verge, mutateVerge, patchVerge } = useVerge()
-  const { installServiceAndRestartCore } = useServiceInstaller()
   const { uninstallServiceAndRestartCore } = useServiceUninstaller()
   const { indicator: systemProxyIndicator, toggleSystemProxy } =
     useSystemProxyState()
   // clod: тумблер показывает ФАКТ (`tunActive`), как и быстрые действия на
   // главной. Раньше настройки читали `enable_tun_mode` — желание из конфига —
   // и расходились с главной: там туннель погашен подавлением, здесь горит.
-  const { tunActive, mutateTunState } = useTunState()
-  const { isServiceOk, isTunModeAvailable, mutateSystemState } =
-    useSystemState()
+  // clod:service-repair — готовность и нужду в ремонте считает бэкенд: он один
+  // смотрит версию службы. Прежняя формула «админ ИЛИ служба отвечает» на
+  // устаревшей службе давала «доступно», поэтому ни предупреждения, ни кнопки
+  // здесь не появлялось — а TUN всё равно не работал.
+  const { tunActive, tunCapable, tunNeedsRepair, mutateTunState } =
+    useTunState()
+  const { isServiceOk, mutateSystemState } = useSystemState()
   // Тумблеры здесь и есть выбор режима для кнопки Connect — отдельной пары
   // настроек «Подключение: …» больше нет.
   const rememberTarget = useRememberTargets()
@@ -160,9 +162,9 @@ const ProxyControlSwitches = ({
     // clod:tun-ready — включение TUN само доводит систему до рабочего
     // состояния: если службы нет, ставим её (один запрос прав). Ошибка
     // остаётся только для случая, когда пользователь отказал.
-    if (value && !isTunModeAvailable) {
+    if (value && !tunCapable) {
       const ready = await ensureTunReady()
-      await mutateSystemState()
+      await Promise.all([mutateSystemState(), mutateTunState()])
       if (!ready) {
         const msgKey = 'settings.sections.proxyControl.tooltips.tunUnavailable'
         showErrorNotice(msgKey)
@@ -186,10 +188,13 @@ const ProxyControlSwitches = ({
     }
   }
 
-  const onInstallService = useLockFn(async () => {
+  // clod:service-repair — одна кнопка на оба случая: минимальное действие
+  // выбирает бэкенд (`ensure_ready` → поставить, запустить или починить), и
+  // это единственный путь, у которого одинаковая логика с тумблером.
+  const onFixService = useLockFn(async () => {
     try {
-      await installServiceAndRestartCore()
-      await mutateSystemState()
+      await ensureTunReady()
+      await Promise.all([mutateSystemState(), mutateTunState()])
     } catch (err) {
       showNotice.error(err)
     }
@@ -239,22 +244,26 @@ const ProxyControlSwitches = ({
           highlight={tunActive}
           extraIcons={
             <>
-              {!isTunModeAvailable && (
+              {!tunCapable && (
                 <>
                   <TooltipIcon
                     title={t(
-                      'settings.sections.proxyControl.tooltips.tunUnavailable',
+                      tunNeedsRepair
+                        ? 'settings.sections.proxyControl.tooltips.serviceOutdated'
+                        : 'settings.sections.proxyControl.tooltips.tunUnavailable',
                     )}
                     icon={WarningRounded}
                     sx={{ color: 'warning.main', ml: 1 }}
                   />
                   <TooltipIcon
                     title={t(
-                      'settings.sections.proxyControl.actions.installService',
+                      tunNeedsRepair
+                        ? 'settings.sections.proxyControl.actions.repairService'
+                        : 'settings.sections.proxyControl.actions.installService',
                     )}
                     icon={BuildRounded}
                     color="primary"
-                    onClick={onInstallService}
+                    onClick={onFixService}
                     sx={{ ml: 1 }}
                   />
                 </>

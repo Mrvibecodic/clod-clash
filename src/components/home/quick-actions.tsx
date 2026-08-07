@@ -62,14 +62,16 @@ export const QuickActions = ({ locked }: Props) => {
   const { t } = useTranslation()
   const { verge, mutateVerge, patchVerge } = useVerge()
   const { indicator: sysproxyOn, toggleSystemProxy } = useSystemProxyState()
-  const { isTunModeAvailable, mutateSystemState } = useSystemState()
+  const { mutateSystemState } = useSystemState()
   const { targetSys, targetTun } = useConnectTargets()
   // Дёрнутый руками тумблер — это и есть выбор режима: отдельной настройки
   // «что включает Connect» больше нет.
   const rememberTarget = useRememberTargets()
   // Реальное состояние, а не флаг из конфига: тумблер не должен гореть над
   // мёртвым туннелем.
-  const { tunActive, mutateTunState } = useTunState()
+  // clod:service-repair — `tunCapable` считает бэкенд, и он же смотрит версию
+  // службы: устаревшая отвечает по IPC, но ядро через неё не поднимется.
+  const { tunActive, tunCapable, mutateTunState } = useTunState()
   // Установка службы идёт в фоне и требует подтверждения прав — тумблер на это
   // время показывает, что происходит, а не замирает.
   const [installing, setInstalling] = useState(false)
@@ -88,10 +90,10 @@ export const QuickActions = ({ locked }: Props) => {
       // clod:tun-ready — TUN нужна фоновая служба. Раньше здесь была ошибка
       // «поставьте службу сами»; теперь пользователь просит TUN — мы её и
       // ставим (один запрос прав), и только отказ оставляет тумблер выключенным.
-      if (next && !isTunModeAvailable) {
+      if (next && !tunCapable) {
         setInstalling(true)
         const ready = await ensureTunReady().finally(() => setInstalling(false))
-        await mutateSystemState()
+        await Promise.all([mutateSystemState(), mutateTunState()])
         if (!ready) {
           showNotice.error(
             'settings.sections.proxyControl.tooltips.tunUnavailable',

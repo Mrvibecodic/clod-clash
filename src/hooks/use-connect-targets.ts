@@ -26,14 +26,18 @@ import { ensureTunReady } from '@/services/cmds'
 export const useConnectTargets = () => {
   const { t } = useTranslation()
   const { verge, patchVerge } = useVerge()
-  const { isTunModeAvailable, mutateSystemState } = useSystemState()
+  const { mutateSystemState } = useSystemState()
   const { indicator: sysproxyOn, toggleSystemProxy } = useSystemProxyState()
   // clod: факт, а не желание. `enable_tun_mode` — это то, чего хочет
   // пользователь; бэкенд же может подавить TUN на сессию (ядро не смогло
   // поднять устройство, службы нет) и в конфиг при этом НЕ пишет — намеренно,
   // чтобы не терять выбор. Кнопка, читавшая конфиг, оставалась зелёной над
   // мёртвым туннелем: «Подключено», а трафик идёт мимо.
-  const { tunActive, tunDesired, mutateTunState } = useTunState()
+  // clod:service-repair — готовность спрашиваем у бэкенда (`capable`), а не
+  // считаем как «админ ИЛИ служба отвечает». Устаревшая служба отвечает по IPC,
+  // и по прежней формуле TUN считался доступным: `ensure_ready` не звался,
+  // починка не запускалась, а ядро через такую службу всё равно не поднималось.
+  const { tunActive, tunDesired, tunCapable, mutateTunState } = useTunState()
 
   const { targetSys, targetTun } = useMemo(() => {
     const sys = verge?.connect_system_proxy ?? true
@@ -70,9 +74,9 @@ export const useConnectTargets = () => {
     // clod:tun-ready — TUN нужна фоновая служба. Раньше кнопка просто ругалась
     // «установите её сами»; теперь ставим (один запрос прав) и продолжаем, а
     // ошибка остаётся только для случая, когда пользователь отказал.
-    if (next && targetTun && !isTunModeAvailable && !tunActive) {
+    if (next && targetTun && !tunCapable && !tunActive) {
       const ready = await ensureTunReady()
-      await mutateSystemState()
+      await Promise.all([mutateSystemState(), mutateTunState()])
       if (!ready) {
         throw new Error(t('home.components.connect.errors.serviceRequired'))
       }
@@ -95,7 +99,7 @@ export const useConnectTargets = () => {
     tunActive,
     tunDesired,
     sysproxyOn,
-    isTunModeAvailable,
+    tunCapable,
     mutateSystemState,
     mutateTunState,
     patchVerge,

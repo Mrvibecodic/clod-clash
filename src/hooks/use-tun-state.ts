@@ -8,6 +8,7 @@ const defaultTunState: ITunState = {
   active: false,
   capable: false,
   setup_declined: false,
+  needs_repair: false,
 }
 
 /**
@@ -42,6 +43,8 @@ export const useTunState = () => {
     tunCapable: tun.capable,
     /** Автонастройку службы на этой версии уже пробовали. */
     tunSetupDeclined: tun.setup_declined,
+    /** clod:service-repair — служба отвечает, но устарела: чинить, не ставить. */
+    tunNeedsRepair: tun.needs_repair,
     /** Хотели, но не работает — это и есть повод показать подсказку. */
     tunBroken: tun.desired && !tun.active,
     mutateTunState,

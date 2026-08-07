@@ -40,11 +40,13 @@
       "tooltips": {
         "systemProxy": "Системалы прокси көйләүләрен үзгәртү рөхсәтен бирегез. Әгәр рөхсәт алу мөмкин түгел икән, прокси көйләүләрен кулдан үзгәртегез",
         "tunMode": "Tun режимы бөтен системаның трафигын тотып ала. Аны кабызган очракта системалы проксины аерым кабызу таләп ителми.",
-        "tunUnavailable": "TUN requires Service Mode or Admin Mode"
+        "tunUnavailable": "TUN requires Service Mode or Admin Mode",
+        "serviceOutdated": "TUN хезмәте элеккеге версиядән калган — аны төзәтергә кирәк"
       },
       "actions": {
         "installService": "Хезмәтне урнаштыру",
-        "uninstallService": "Uninstall Service"
+        "uninstallService": "Uninstall Service",
+        "repairService": "Хезмәтне төзәтү"
       },
       "fields": {
         "systemProxy": "Системалы прокси",

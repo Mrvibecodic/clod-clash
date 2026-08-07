@@ -40,11 +40,13 @@
       "tooltips": {
         "systemProxy": "عند التمكين، سيتم تعديل إعدادات الوكيل في نظام التشغيل. إذا فشل التمكين، فقم بتعديل إعدادات الوكيل في النظام يدويًا.",
         "tunMode": "وضع TUN (بطاقة شبكة افتراضية): يلتقط كل حركة المرور في النظام. عند تمكينه، لا حاجة لتفعيل وكيل النظام.",
-        "tunUnavailable": "TUN requires Service Mode or Admin Mode"
+        "tunUnavailable": "TUN requires Service Mode or Admin Mode",
+        "serviceOutdated": "خدمة TUN متبقية من إصدار أقدم من التطبيق وتحتاج إلى إصلاح"
       },
       "actions": {
         "installService": "تثبيت الخدمة ",
-        "uninstallService": "Uninstall Service"
+        "uninstallService": "Uninstall Service",
+        "repairService": "إصلاح الخدمة"
       },
       "fields": {
         "systemProxy": "وكيل النظام",
