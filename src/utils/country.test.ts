@@ -1,3 +1,9 @@
+/// <reference types="node" />
+// clod:tests — типы Node подключаем ТОЛЬКО здесь, директивой. В `tsconfig`
+// стоит явный список `types`, и добавление в него «node» дало бы node-глобалы
+// всему фронту: `setTimeout` начал бы возвращать `NodeJS.Timeout` вместо
+// `number` и переломал бы таймеры в компонентах.
+
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
