@@ -57,6 +57,7 @@ default). Turning it off stops all of them.
 | Header | Meaning | What the app does |
 | --- | --- | --- |
 | `clod-simple-mode` | `1`/`0` — simple or advanced view | a hint only; the user's own choice always wins. `pxa-simple-mode` and `flclashx-newboard` are honoured too |
+| `clod-show-0hosts` | `1`/`0` — show the panel's placeholder nodes as they are | without the header the client recognises the placeholders and shows its own screen with the reason instead. With `1` it interprets nothing: the panel's nodes land in the server list under their own names and the "no servers" screens never appear. See "Panel placeholder nodes" below |
 | `clod-lock-mode` | `1`/`0` — forbid changing modes in the app | hides the proxy/TUN toggles and the routing-mode selector, leaving a status line. `global-mode: false` (Prizrak-Box) is a synonym |
 
 **Changing the subscription address**
@@ -153,6 +154,23 @@ the server list, never take part in a latency test and can never be picked autom
 The check is structural (address, port, nil identifier), not name-based — panels localise
 those names and change them at will. A loopback address (`127.0.0.1`) is **not** treated as
 a placeholder: a local relay is a legitimate setup.
+
+In place of the dropped nodes the user gets a screen with the reason — "Subscription expired",
+"Traffic exhausted" or "The provider served no servers". The reason comes from
+`subscription-userinfo` (its expiry and traffic are real even in a placeholder response), and
+the name of the first placeholder is shown on its own line, "The panel says: …", so the
+provider's words are never lost.
+
+**`clod-show-0hosts: 1` switches all of that off.** The provider takes the explaining on
+itself: the filter does not run, the panel's nodes land in the server list under their own
+names, and there are no "no servers" screens. Such nodes will never answer a latency test —
+`0.0.0.0` goes nowhere. The subscription card (expiry, traffic, percentages) behaves the same
+in both modes: it reads `subscription-userinfo` and never touches the placeholders.
+
+What the header does **not** change: the device-limit dialog. That one comes from the
+`x-hwid-*` headers rather than from the nodes, is always shown and is resolved with the
+"Support" button. In that case the placeholder response is rejected before anything is
+written, so the working configuration stays in place.
 
 When a group ends up with no nodes at all, the client puts `REJECT` in it: mihomo answers an
 empty group with `` `use` or `proxies` missing `` and refuses to start, and `DIRECT` would

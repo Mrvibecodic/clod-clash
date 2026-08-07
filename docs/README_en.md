@@ -31,7 +31,7 @@ editors) is kept — it is simply moved out of sight into an advanced mode.
 
 ## What Clod Clash gives you
 
-* **30 response headers from the panel** (Remnawave and Happ) plus synonyms for compatibility with
+* **31 response headers from the panel** (Remnawave and Happ) plus synonyms for compatibility with
   other clients, and six of our own on the request — plan name, logo, announcement, promo banner,
   customer portal, support, and the text for the device-limit dialog. The full list is in
   [HEADERS_en.md](./HEADERS_en.md).
@@ -46,6 +46,11 @@ editors) is kept — it is simply moved out of sight into an advanced mode.
 * **The state of a subscription reads at a glance**: the active one is filled with the accent
   colour, an expiring one is amber, an expired one is dimmed and underlined in red, and exhausted
   traffic is its own state.
+* **An empty answer from the panel is explained in words.** With nothing to serve, Remnawave
+  replies with a config full of `0.0.0.0` decoys rather than an error. The client recognises them
+  structurally, not by name, and shows the reason — subscription expired, traffic exhausted, or
+  the provider served no servers — quoting the panel's own words. A provider can take the
+  explaining back with the `clod-show-0hosts` header, and then its nodes are shown as they are.
 * **Unmetered traffic and no expiry** are spelled out instead of showing "0 B" and a dash.
 * **The expiry is counted on the panel's clock**, not only on the device's: the difference is
   read from the ordinary `Date` header on every subscription refresh, so a machine whose

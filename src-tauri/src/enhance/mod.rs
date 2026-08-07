@@ -55,6 +55,9 @@ struct ProfileItems {
     global_script: ChainItem,
     profile_name: String,
     profile_is_remote: bool,
+    /// clod:show-0hosts — провайдер попросил показывать свои узлы-заглушки как
+    /// есть (`clod-show-0hosts`), вместо наших экранов «нет серверов».
+    profile_shows_zero_hosts: bool,
 }
 
 impl Default for ProfileItems {
@@ -63,6 +66,7 @@ impl Default for ProfileItems {
             config: Default::default(),
             profile_name: Default::default(),
             profile_is_remote: false,
+            profile_shows_zero_hosts: false,
             merge_item: ChainItem {
                 uid: "".into(),
                 data: ChainType::Merge(Mapping::new()),
@@ -200,6 +204,9 @@ async fn collect_profile_items() -> Result<ProfileItems> {
 
     let name = current_item.name.clone().unwrap_or_default();
     let profile_is_remote = current_item.itype.as_deref() == Some("remote");
+    // clod:show-0hosts — решение принимает панель, и только для своей подписки:
+    // у локального профиля заглушек панели быть не может по определению.
+    let profile_shows_zero_hosts = profile_is_remote && current_item.show_zero_hosts.unwrap_or(false);
 
     let (merge_item, script_item, rules_item, proxies_item, groups_item, global_merge, global_script) = tokio::join!(
         chain_item_or_default(profiles_arc.get_item(&merge_uid).ok(), || ChainItem {
@@ -245,6 +252,7 @@ async fn collect_profile_items() -> Result<ProfileItems> {
         global_script,
         profile_name: name,
         profile_is_remote,
+        profile_shows_zero_hosts,
     })
 }
 
@@ -1078,6 +1086,7 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
     let global_script = profile.global_script;
     let profile_name = profile.profile_name;
     let profile_is_remote = profile.profile_is_remote;
+    let profile_shows_zero_hosts = profile.profile_shows_zero_hosts;
 
     let result_map = HashMap::new();
 
@@ -1137,7 +1146,17 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
     // clod: заглушки панели («подписка истекла» и т.п.) вырезаем до чистки
     // групп — тогда cleanup уберёт и повисшие на них ссылки. Отчёт уезжает
     // наверх вместе с конфигом и коммитится только с принятой ядром сборкой.
-    let (config, mut sentinel_report) = filter_sentinel_proxies(config);
+    //
+    // clod:show-0hosts — если провайдер прислал `clod-show-0hosts`, он берёт
+    // объяснение на себя: узлы панели остаются в конфиге со своими названиями,
+    // а наши экраны «нет серверов» не показываются. Отчёт при этом пустой —
+    // не «заглушек нет», а «мы их не разбирали», и интерфейсу этого достаточно:
+    // единственный его вопрос к отчёту — рисовать ли статус вместо списка.
+    let (config, mut sentinel_report) = if profile_shows_zero_hosts {
+        (config, SentinelReport::default())
+    } else {
+        filter_sentinel_proxies(config)
+    };
     // Пустота в локальном профиле (rules-only, свои группы из DIRECT) — не
     // «панель не выдала серверы»: без выброшенных заглушек флаг честен только
     // для remote-подписки, иначе интерфейс обвинит провайдера, которого нет.

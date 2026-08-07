@@ -109,6 +109,11 @@ pub struct PrfItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lock_mode: Option<bool>,
 
+    /// clod:show-0hosts — `clod-show-0hosts` header: the provider wants its own
+    /// sentinel nodes shown instead of our "no servers" screens.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub show_zero_hosts: Option<bool>,
+
     /// `subscription-refill-date` header, unix seconds.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub refill_date: Option<i64>,
@@ -693,6 +698,7 @@ impl PrfItem {
             promo_url: sub.promo_url.clone(),
             promo_seen: None,
             lock_mode: sub.lock_mode,
+            show_zero_hosts: sub.show_zero_hosts,
             refill_date: sub.refill_date,
             clock_skew: measured_skew,
             clock_skew_at: measured_skew.map(|_| answered_at),
@@ -835,7 +841,7 @@ fn log_panel_headers(sub: &sub_headers::SubHeaders) {
     clash_verge_logging::logging!(
         info,
         clash_verge_logging::Type::Config,
-        "[clod] panel headers in response: title={} logo={} announce={} promo={} portal={} hwid_limit={} lock={} simple={}",
+        "[clod] panel headers in response: title={} logo={} announce={} promo={} portal={} hwid_limit={} lock={} show0hosts={} simple={}",
         sub.profile_title.is_some(),
         sub.profile_logo.is_some(),
         sub.announce.is_some(),
@@ -843,6 +849,7 @@ fn log_panel_headers(sub: &sub_headers::SubHeaders) {
         sub.portal_url.is_some(),
         sub.hwid_limit_message.is_some(),
         sub.lock_mode.is_some(),
+        sub.show_zero_hosts.is_some(),
         sub.simple_mode.is_some()
     );
 }
@@ -882,6 +889,9 @@ impl PrfItem {
         self.simple_mode = fresh.simple_mode;
         self.portal_url = fresh.portal_url.clone();
         self.lock_mode = fresh.lock_mode;
+        // Убранный заголовок возвращает наши экраны: поле следует за панелью
+        // целиком, как и остальная её метаинформация.
+        self.show_zero_hosts = fresh.show_zero_hosts;
 
         // The announce is permanent and never dismissable; it simply follows
         // whatever the panel currently says.

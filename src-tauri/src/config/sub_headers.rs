@@ -153,6 +153,10 @@ pub struct SubHeaders {
     /// `clod-lock-mode` — the panel forbids changing proxy/routing modes in
     /// the app. `global-mode: false` (Prizrak-Box) is honoured as a synonym.
     pub lock_mode: Option<bool>,
+
+    /// clod:show-0hosts — `clod-show-0hosts`: провайдер просит показывать его
+    /// узлы-заглушки как есть, вместо наших экранов «нет серверов».
+    pub show_zero_hosts: Option<bool>,
     /// `Date` — the panel's own clock at the moment it answered, unix seconds.
     ///
     /// Plain HTTP, sent by every server that has a clock, so it costs neither a
@@ -227,6 +231,9 @@ impl SubHeaders {
                 .map(|text| truncate_banner(&text, ANNOUNCE_MAX_CHARS)),
             // `global-mode: false` means "hide the mode switch" for Prizrak-Box
             // configured panels, which is exactly our lock.
+            // clod:show-0hosts — без заголовка ведём себя как раньше: узнаём
+            // заглушки и объясняем словами. `true` отдаёт экран панели ей же.
+            show_zero_hosts: bool_value(headers, "clod-show-0hosts"),
             lock_mode: bool_value(headers, "clod-lock-mode")
                 .or_else(|| bool_value(headers, "global-mode").map(|allowed| !allowed)),
             // Straight `get`: `Date` is a standard header, so neither the
@@ -756,6 +763,39 @@ mod tests {
         assert_eq!(
             parsed.hwid_limit_message.map(|text| text.chars().count()),
             Some(ANNOUNCE_MAX_CHARS)
+        );
+    }
+
+    #[test]
+    fn show_zero_hosts_is_off_unless_the_panel_asks() {
+        // Заголовка нет — прежнее поведение: заглушки разбираем сами.
+        assert_eq!(SubHeaders::parse(&headers(&[])).show_zero_hosts, None);
+        // Значения — те же, что у остальных наших булевых заголовков.
+        for raw in ["true", "1", "yes", "on", "TRUE", " On "] {
+            assert_eq!(
+                SubHeaders::parse(&headers(&[("clod-show-0hosts", raw)])).show_zero_hosts,
+                Some(true),
+                "{raw} должно читаться как включено"
+            );
+        }
+        for raw in ["false", "0", "no", "off"] {
+            assert_eq!(
+                SubHeaders::parse(&headers(&[("clod-show-0hosts", raw)])).show_zero_hosts,
+                Some(false),
+                "{raw} должно читаться как выключено"
+            );
+        }
+        // Мусор — это не «включено»: молча включить чужой экран страшнее, чем
+        // проигнорировать кривую настройку панели.
+        assert_eq!(
+            SubHeaders::parse(&headers(&[("clod-show-0hosts", "maybe")])).show_zero_hosts,
+            None
+        );
+        // Суффиксный поиск работает и здесь: объектные хранилища добавляют свой
+        // префикс к пользовательским метаданным.
+        assert_eq!(
+            SubHeaders::parse(&headers(&[("x-amz-meta-clod-show-0hosts", "true")])).show_zero_hosts,
+            Some(true)
         );
     }
 

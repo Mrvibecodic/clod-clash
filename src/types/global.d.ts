@@ -294,6 +294,7 @@ interface IProfileItem {
   promo_seen?: boolean
   /** `clod-lock-mode` header — mode switching is locked by the panel */
   lock_mode?: boolean
+  show_zero_hosts?: boolean
   /** `subscription-refill-date` header, unix seconds */
   refill_date?: number
   /**
