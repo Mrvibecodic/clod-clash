@@ -32,6 +32,7 @@ import { useProfiles } from '@/hooks/use-profiles'
 import { createProfile, getProfiles, patchProfile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import parseTraffic from '@/utils/parse-traffic'
+import { toUnixSeconds } from '@/utils/subscription-status'
 import { version } from '@root/package.json'
 
 import { FileInput } from './file-input'
@@ -560,7 +561,9 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
                   sx={{ display: 'block' }}
                 >
                   {added.extra.expire
-                    ? new Date(added.extra.expire * 1000).toLocaleDateString()
+                    ? new Date(
+                        toUnixSeconds(added.extra.expire) * 1000,
+                      ).toLocaleDateString()
                     : t('profiles.components.profileItem.labels.neverExpires')}
                 </Typography>
               </>

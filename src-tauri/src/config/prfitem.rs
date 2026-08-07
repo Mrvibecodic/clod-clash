@@ -833,10 +833,25 @@ fn parse_subscription_userinfo(headers: &reqwest::header::HeaderMap) -> Option<P
             upload: help::parse_str(sub_info, "upload").unwrap_or(0),
             download: help::parse_str(sub_info, "download").unwrap_or(0),
             total: help::parse_str(sub_info, "total").unwrap_or(0),
-            expire: help::parse_str(sub_info, "expire").unwrap_or(0),
+            expire: to_unix_seconds(help::parse_str(sub_info, "expire").unwrap_or(0)),
         });
     }
     None
+}
+
+/// Порог, выше которого метка времени может быть только миллисекундами:
+/// 1e12 секунд — это 33658 год, настоящей датой окончания подписки не бывает.
+const MILLIS_THRESHOLD: u64 = 1_000_000_000_000;
+
+/// clod: привести метку времени панели к unix-секундам.
+///
+/// Спецификация `subscription-userinfo` говорит про секунды, но часть панелей
+/// шлёт миллисекунды — и тогда дата окончания уезжала на тысячелетия вперёд,
+/// то есть подписка выглядела бессрочной. Фронт это уже чинил у себя
+/// (`toUnixSeconds`), но каждый новый экран приходилось помнить и чинить
+/// заново; правится в одном месте — там, где значение попадает в профиль.
+const fn to_unix_seconds(ts: u64) -> u64 {
+    if ts > MILLIS_THRESHOLD { ts / 1000 } else { ts }
 }
 
 fn log_panel_headers(sub: &sub_headers::SubHeaders) {
@@ -1038,7 +1053,18 @@ fn fix_dirty_url(input: &str) -> Result<Url> {
 
 #[cfg(test)]
 mod tests {
-    use super::{PrfOption, allow_auto_update_enabled};
+    use super::{PrfOption, allow_auto_update_enabled, to_unix_seconds};
+
+    #[test]
+    fn recognises_milliseconds_in_expire() {
+        // Секунды остаются собой.
+        assert_eq!(to_unix_seconds(1_754_000_000), 1_754_000_000);
+        // Тринадцать цифр — это миллисекунды: без деления дата уехала бы в
+        // 57569 год, и подписка выглядела бы бессрочной.
+        assert_eq!(to_unix_seconds(1_754_000_000_000), 1_754_000_000);
+        // Ноль — это «бессрочно», а не «истекла в 1970»; трогать его нельзя.
+        assert_eq!(to_unix_seconds(0), 0);
+    }
 
     #[test]
     fn auto_update_defaults_to_enabled_and_preserves_explicit_false() {
