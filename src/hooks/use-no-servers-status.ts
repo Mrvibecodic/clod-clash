@@ -75,10 +75,12 @@ export const useNoServersStatus = (profile?: IProfileItem) => {
 
   const reason: NoServersReason = noServersReason(profile)
   // An expired or exhausted subscription explains itself; anything else needs
-  // the config-side confirmation that the panel sent placeholders.
+  // the config-side confirmation that the panel sent placeholders. Лимит
+  // устройств тоже: `subscription-userinfo` в таком ответе здоровый, и без
+  // подтверждения баннер мог бы висеть над рабочим списком серверов.
+  const needsConfirmation = reason === 'provider' || reason === 'deviceLimit'
   const show =
-    Boolean(profile) &&
-    (reason !== 'provider' || Boolean(report?.only_sentinels))
+    Boolean(profile) && (!needsConfirmation || Boolean(report?.only_sentinels))
 
   return {
     reason,

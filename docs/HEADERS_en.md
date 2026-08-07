@@ -169,8 +169,15 @@ in both modes: it reads `subscription-userinfo` and never touches the placeholde
 
 What the header does **not** change: the device-limit dialog. That one comes from the
 `x-hwid-*` headers rather than from the nodes, is always shown and is resolved with the
-"Support" button. In that case the placeholder response is rejected before anything is
-written, so the working configuration stays in place.
+"Support" button.
+
+A placeholder response is accepted the same way in all five cases, the device limit included:
+it replaces the previous configuration. That is not a side effect but the point of such a
+response — the panel is saying "you have no servers right now", and the client has nothing to
+overrule it with. A device over the limit used to keep using the servers it had saved, which
+meant the limit did not apply to it at all. Once the subscription is renewed or a slot is
+freed, the very next refresh brings the servers back — the "Refresh subscription" button sits
+right on the status screen.
 
 When a group ends up with no nodes at all, the client puts `REJECT` in it: mihomo answers an
 empty group with `` `use` or `proxies` missing `` and refuses to start, and `DIRECT` would

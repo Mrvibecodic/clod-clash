@@ -150,14 +150,17 @@
       "title": {
         "expired": "Subscription expired",
         "traffic": "Out of traffic",
-        "provider": "The provider sent no servers"
+        "provider": "The provider sent no servers",
+        "deviceLimit": "Җиһазлар чиге узылган"
       },
       "body": {
         "expired": "The provider will hand out servers once the plan is renewed. It ran out on {{date}}.",
         "expiredNoDate": "The provider will hand out servers once the plan is renewed.",
         "traffic": "{{used}} of {{total}} used. The quota resets on {{date}}.",
         "trafficNoDate": "{{used}} of {{total}} used. Top up the traffic to continue.",
-        "provider": "The subscription is active, but the panel returned no servers at all. This is on the provider’s side."
+        "provider": "The subscription is active, but the panel returned no servers at all. This is on the provider’s side.",
+        "deviceLimit": "Язылу {{max}} җиһаздан күбрәктә кулланыла. Артыгын аерыгыз яки ярдәм хезмәтенә языгыз — серверлар кайтачак.",
+        "deviceNotIdentified": "Панель бу җиһазны танымады һәм серверлар бирмәде."
       },
       "panelSays": "The panel says: “{{text}}”",
       "refresh": "Update subscription",
@@ -165,7 +168,8 @@
         "expired": "Subscription expired — renew to connect",
         "traffic": "Out of traffic — resets on {{date}}",
         "trafficNoDate": "Out of traffic",
-        "provider": "The provider sent no servers"
+        "provider": "The provider sent no servers",
+        "deviceLimit": "Җиһазлар чиге узылган"
       }
     },
     "quickActions": {

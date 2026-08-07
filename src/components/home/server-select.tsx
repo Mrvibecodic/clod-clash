@@ -758,7 +758,7 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
   const statusColor =
     reason === 'expired'
       ? 'error.main'
-      : reason === 'traffic'
+      : reason === 'traffic' || reason === 'deviceLimit'
         ? 'warning.main'
         : 'text.secondary'
 

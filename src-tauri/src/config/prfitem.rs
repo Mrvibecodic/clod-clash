@@ -508,18 +508,15 @@ impl PrfItem {
         let sub = sub_headers::SubHeaders::parse(resp.headers());
         log_panel_headers(&sub);
         sub.notify_device_state();
-        // Обе блокирующие ветки Remnawave (лимит устройств и «клиент не прислал
-        // идентификатор») отвечают 200 и телом-заглушкой. Диалог уже показан
-        // строкой выше; рабочий конфиг заглушкой затирать нельзя ни в одной.
-        match sub.hwid_state {
-            sub_headers::HwidState::LimitReached => {
-                bail!("device limit reached for this subscription (x-hwid)")
-            }
-            sub_headers::HwidState::NotSupported => {
-                bail!("the panel requires device identification (x-hwid) and answered with a stub")
-            }
-            _ => {}
-        }
+        // clod:stub-parity — обе блокирующие ветки Remnawave (лимит устройств и
+        // «клиент не прислал идентификатор») отвечают 200 и телом-заглушкой,
+        // причём хосты в ней обнулены панелью ЯВНО. Раньше мы такой ответ
+        // отбивали здесь, сохраняя прежнюю конфигурацию, — и устройство сверх
+        // лимита продолжало ходить по старым серверам, то есть лимит на нём не
+        // работал вовсе. Ответ панели — это её решение «серверов у тебя сейчас
+        // нет», и отменять его клиенту нечем: заглушки принимаются во всех
+        // пяти случаях одинаково. Диалог с кнопкой «Поддержка» уже показан
+        // строкой выше, а экран «нет серверов» назовёт причину по `hwid_state`.
         // clod:headers end
 
         let status_code = resp.status();

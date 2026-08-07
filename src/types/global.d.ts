@@ -321,6 +321,7 @@ interface IProfileItem {
   migration_hops?: number
   /** device registration state reported by the panel */
   hwid_state?: 'ok' | 'limit' | 'not_supported'
+  hwid_max_devices?: number
   /** the user renamed the profile, so `profile-title` must not overwrite it */
   name_customized?: boolean
   /** expiry reminder thresholds in days; empty array = disabled by provider */

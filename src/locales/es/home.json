@@ -150,14 +150,17 @@
       "title": {
         "expired": "Subscription expired",
         "traffic": "Out of traffic",
-        "provider": "The provider sent no servers"
+        "provider": "The provider sent no servers",
+        "deviceLimit": "Límite de dispositivos alcanzado"
       },
       "body": {
         "expired": "The provider will hand out servers once the plan is renewed. It ran out on {{date}}.",
         "expiredNoDate": "The provider will hand out servers once the plan is renewed.",
         "traffic": "{{used}} of {{total}} used. The quota resets on {{date}}.",
         "trafficNoDate": "{{used}} of {{total}} used. Top up the traffic to continue.",
-        "provider": "The subscription is active, but the panel returned no servers at all. This is on the provider’s side."
+        "provider": "The subscription is active, but the panel returned no servers at all. This is on the provider’s side.",
+        "deviceLimit": "La suscripción se usa en más de {{max}} dispositivos. Libera uno o escribe a soporte y los servidores volverán.",
+        "deviceNotIdentified": "El panel no reconoció este dispositivo y no entregó servidores."
       },
       "panelSays": "The panel says: “{{text}}”",
       "refresh": "Update subscription",
@@ -165,7 +168,8 @@
         "expired": "Subscription expired — renew to connect",
         "traffic": "Out of traffic — resets on {{date}}",
         "trafficNoDate": "Out of traffic",
-        "provider": "The provider sent no servers"
+        "provider": "The provider sent no servers",
+        "deviceLimit": "Límite de dispositivos alcanzado"
       }
     },
     "quickActions": {

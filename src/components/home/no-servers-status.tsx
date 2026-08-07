@@ -1,5 +1,6 @@
 import CalendarMonthRoundedIcon from '@mui/icons-material/CalendarMonthRounded'
 import DataUsageRoundedIcon from '@mui/icons-material/DataUsageRounded'
+import DevicesRoundedIcon from '@mui/icons-material/DevicesRounded'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import { Alert, AlertTitle, Button, Stack, Typography } from '@mui/material'
 import dayjs from 'dayjs'
@@ -75,13 +76,19 @@ export const NoServersStatus = ({ profile, onRefreshed }: Props) => {
   const refillDate = date(profile.refill_date)
 
   const severity =
-    reason === 'expired' ? 'error' : reason === 'traffic' ? 'warning' : 'info'
+    reason === 'expired'
+      ? 'error'
+      : reason === 'traffic' || reason === 'deviceLimit'
+        ? 'warning'
+        : 'info'
 
   const icon =
     reason === 'expired' ? (
       <CalendarMonthRoundedIcon fontSize="inherit" />
     ) : reason === 'traffic' ? (
       <DataUsageRoundedIcon fontSize="inherit" />
+    ) : reason === 'deviceLimit' ? (
+      <DevicesRoundedIcon fontSize="inherit" />
     ) : (
       <InfoOutlinedIcon fontSize="inherit" />
     )
@@ -104,7 +111,15 @@ export const NoServersStatus = ({ profile, onRefreshed }: Props) => {
               used: traffic(used),
               total: traffic(extra?.total ?? 0),
             })
-        : t('home.components.serverStatus.body.provider')
+        : reason === 'deviceLimit'
+          ? profile.hwid_state === 'not_supported'
+            ? t('home.components.serverStatus.body.deviceNotIdentified')
+            : t('home.components.serverStatus.body.deviceLimit', {
+                // clod: НЕ `count` — i18next считает его плюральным и полез бы
+                // за ключами `_one`/`_other`, которых наш генератор не делает.
+                max: profile.hwid_max_devices ?? 0,
+              })
+          : t('home.components.serverStatus.body.provider')
 
   // The panel's own words for the nodes it sent instead of servers: the only
   // hint available when the subscription data itself looks healthy.

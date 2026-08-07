@@ -158,6 +158,8 @@ export interface TranslationResources {
         }
         serverStatus: {
           body: {
+            deviceLimit: string
+            deviceNotIdentified: string
             expired: string
             expiredNoDate: string
             provider: string
@@ -168,12 +170,14 @@ export interface TranslationResources {
           panelSays: string
           refresh: string
           row: {
+            deviceLimit: string
             expired: string
             provider: string
             traffic: string
             trafficNoDate: string
           }
           title: {
+            deviceLimit: string
             expired: string
             provider: string
             traffic: string

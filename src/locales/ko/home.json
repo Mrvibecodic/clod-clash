@@ -150,14 +150,17 @@
       "title": {
         "expired": "Subscription expired",
         "traffic": "Out of traffic",
-        "provider": "The provider sent no servers"
+        "provider": "The provider sent no servers",
+        "deviceLimit": "기기 수 한도 초과"
       },
       "body": {
         "expired": "The provider will hand out servers once the plan is renewed. It ran out on {{date}}.",
         "expiredNoDate": "The provider will hand out servers once the plan is renewed.",
         "traffic": "{{used}} of {{total}} used. The quota resets on {{date}}.",
         "trafficNoDate": "{{used}} of {{total}} used. Top up the traffic to continue.",
-        "provider": "The subscription is active, but the panel returned no servers at all. This is on the provider’s side."
+        "provider": "The subscription is active, but the panel returned no servers at all. This is on the provider’s side.",
+        "deviceLimit": "구독이 {{max}}대를 초과한 기기에서 사용 중입니다. 기기를 해제하거나 고객지원에 문의하면 서버가 돌아옵니다.",
+        "deviceNotIdentified": "패널이 이 기기를 인식하지 못해 서버를 내려주지 않았습니다."
       },
       "panelSays": "The panel says: “{{text}}”",
       "refresh": "Update subscription",
@@ -165,7 +168,8 @@
         "expired": "Subscription expired — renew to connect",
         "traffic": "Out of traffic — resets on {{date}}",
         "trafficNoDate": "Out of traffic",
-        "provider": "The provider sent no servers"
+        "provider": "The provider sent no servers",
+        "deviceLimit": "기기 수 한도 초과"
       }
     },
     "quickActions": {

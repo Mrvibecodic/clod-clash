@@ -8,7 +8,7 @@
  * of these responses; the placeholders' names are the panel admin's own text
  * in a language of their choosing and are only ever quoted, never parsed.
  */
-export type NoServersReason = 'expired' | 'traffic' | 'provider'
+export type NoServersReason = 'expired' | 'traffic' | 'deviceLimit' | 'provider'
 
 /**
  * Normalize a panel timestamp to unix seconds. Anything above ~1e12 can only
@@ -52,6 +52,16 @@ export const panelNow = (profile?: IProfileItem) =>
   Date.now() / 1000 + (clockSkew(profile) ?? 0)
 
 export const noServersReason = (profile?: IProfileItem): NoServersReason => {
+  // clod:stub-parity — лимит устройств проверяем ПЕРВЫМ: панель отвечает на
+  // него заглушками, но `subscription-userinfo` в этом ответе здоровый —
+  // подписка действует, трафик на месте. Без этой ветки экран обвинил бы
+  // провайдера в том, что он «не выдал серверы».
+  if (
+    profile?.hwid_state === 'limit' ||
+    profile?.hwid_state === 'not_supported'
+  )
+    return 'deviceLimit'
+
   const extra = profile?.extra
   if (extra) {
     const expire = toUnixSeconds(extra.expire ?? 0)
