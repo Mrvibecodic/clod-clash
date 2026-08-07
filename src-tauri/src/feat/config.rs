@@ -273,7 +273,19 @@ async fn process_terminated_flags(update_flags: UpdateFlags, patch: &IVerge) -> 
     Ok(())
 }
 
+/// clod:patch-serialize — черновик настроек один на процесс, и `discard()` при
+/// провале сносит его ЦЕЛИКОМ. Пока два патча шли параллельно, второй мог
+/// откатить правки первого — или, наоборот, применить их вместе со своими.
+/// Достижимо самым обычным способом: нажать Connect и тут же дёрнуть тумблер
+/// быстрых действий или пункт трея.
+///
+/// Ждать здесь не жалко: патч и так может занять секунды (перезапуск ядра),
+/// а половина патча — это потерянная настройка на диске.
+static PATCH_VERGE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 pub async fn patch_verge(patch: &IVerge, not_save_file: bool) -> Result<()> {
+    let _serialized = PATCH_VERGE_LOCK.lock().await;
+
     Config::verge().await.edit_draft(|d| d.patch_config(patch));
 
     // clod:tun-ready — снять подавление НАДО ДО перегенерации конфига ядра.
