@@ -202,7 +202,12 @@ impl SubHeaders {
             announce_url: value(headers, "announce-url").and_then(|raw| https_url(&raw)),
             refill_date: value(headers, "subscription-refill-date").and_then(|raw| raw.trim().parse::<i64>().ok()),
             update_interval_hours: value(headers, "profile-update-interval").and_then(|raw| raw.trim().parse().ok()),
-            fallback_url: value(headers, "fallback-url"),
+            // clod: запасной адрес — такой же путь к подписке, как основной, и
+            // проверять его надо не слабее. Без этого панель (или тот, кто её
+            // подменил) могла заголовком увести загрузку подписки на plain
+            // HTTP: для `new-url` даунгрейд запрещён явно, а здесь значение
+            // уходило в профиль как есть.
+            fallback_url: value(headers, "fallback-url").and_then(|raw| https_url(&raw)),
             fallback_domain: value(headers, "fallback-domain"),
             new_url: value(headers, "new-url"),
             new_domain: value(headers, "new-domain"),
@@ -796,11 +801,16 @@ mod tests {
             ("profile-web-page-url", "http://panel.example/home"),
             ("support-url", "http://help.example/chat"),
             ("clod-portal-url", "http://my.provider.example/cabinet"),
+            // clod: запасной адрес подписки — такой же путь к конфигу, как
+            // основной. Раньше он один уходил в профиль без проверки, то есть
+            // заголовком можно было увести загрузку подписки на plain HTTP.
+            ("fallback-url", "http://backup.panel.example/sub/token"),
         ]));
         assert_eq!(parsed.profile_logo, None);
         assert_eq!(parsed.home, None);
         assert_eq!(parsed.support_url, None);
         assert_eq!(parsed.portal_url, None);
+        assert_eq!(parsed.fallback_url, None);
 
         // https-versions of the same values survive untouched.
         let parsed = SubHeaders::parse(&headers(&[
@@ -808,6 +818,7 @@ mod tests {
             ("profile-web-page-url", "https://panel.example/home"),
             ("support-url", "https://help.example/chat"),
             ("clod-portal-url", "https://my.provider.example/cabinet"),
+            ("fallback-url", "https://backup.panel.example/sub/token"),
         ]));
         assert_eq!(parsed.profile_logo.as_deref(), Some("https://cdn.example/logo.png"));
         assert_eq!(parsed.home.as_deref(), Some("https://panel.example/home"));
@@ -815,6 +826,10 @@ mod tests {
         assert_eq!(
             parsed.portal_url.as_deref(),
             Some("https://my.provider.example/cabinet")
+        );
+        assert_eq!(
+            parsed.fallback_url.as_deref(),
+            Some("https://backup.panel.example/sub/token")
         );
     }
 
