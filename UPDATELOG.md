@@ -8,6 +8,66 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.0.24-alpha
+
+<!-- lang:en -->
+
+### Fixed
+
+- The core is now watched in service mode too. Under the background service nobody was told when the core died: it was never restarted, no crash was reported, and the button stayed green while the traffic went nowhere — in the very mode TUN runs in. The app now asks the core for its version every half a minute and treats two silent rounds in a row as a failure
+- After the core is restarted the screen refreshes itself, instead of showing the servers, groups and pings of the process that died
+- The tray says what is, not what was asked for. The icon, the "TUN mode" checkmark and the tooltip used to read the saved setting, so a suppressed tunnel showed a checkmark in the tray at the same moment the home screen said it had not started
+- An outdated background service is visible and repairable again. Such a service still answers, so the app counted TUN as available: it never offered to repair anything, and the toast that said "repair it in the settings" led to a page with no such button. The button is there now, and it picks the smallest action itself — start, install or repair
+- Windows says why installing the service failed. Any refusal used to read as "Unknown error", including the most common one of all: a dismissed permission prompt
+- A device over the limit no longer keeps using the servers it had saved. The panel answers a device limit by taking the servers away; the client used to keep the previous configuration, so the limit did not apply to that device at all
+- The screen that explains an empty server list now names the device limit instead of blaming the provider
+- The spare subscription address (`fallback-url`) is accepted over https only, like every other link the panel sends. It was the one exception, so a tampered response could move the subscription download to plain HTTP
+- Two settings applied at once no longer undo each other. Pressing Connect while flipping a tray switch could roll back the other one's change: both went through a single draft, and a failure discarded all of it
+
+### Added
+
+- Settings in the simple mode are short again: connection, autostart, language, theme, device identification, the support report and the version. Everything else is not taken away but tucked under "Advanced settings" — a collapsible block of four groups
+- A switch for pre-release builds. It is on while the project is in alpha, and one click makes the client wait for the first stable release instead
+- `clod-show-0hosts` — a provider can turn off the client's own "no servers" screens and show the panel's placeholder nodes as they are, with its own wording
+- `clod-hwid-limit` — the provider's own text for the device dialogs and cards
+- The support report says how many nodes carry a description from the panel. Zero means the panel is not sending them, which is the usual answer to "why don't server descriptions show up"
+
+### Changed
+
+- The "Renew" and "Top up" buttons are gone, along with their headers. The only place the client points at for payment is the customer portal
+- The sidebar is gone for good. It had not been drawn in any mode since the redesign, but the whole upstream menu machinery lived on behind it
+- First tests on the frontend side: 26 of them, on the logic behind the empty-server-list reasons, the coloured markup in announcements and country detection
+
+<!-- lang:ru -->
+
+### Исправлено
+
+- Ядро под службой теперь под присмотром. О его смерти не узнавал никто: не было ни перезапуска, ни сообщения о падении — кнопка оставалась зелёной, а трафик шёл мимо, причём именно в том режиме, в котором работает TUN. Приложение раз в полминуты спрашивает у ядра версию и считает отказом два молчания подряд
+- После перезапуска ядра экран обновляется сам, а не показывает серверы, группы и задержки от умершего процесса
+- Трей показывает то, что есть, а не то, что попросили. Значок, галочка «Режим TUN» и подсказка читали сохранённую настройку, поэтому при подавленном туннеле в трее стояла галочка ровно в тот момент, когда главный экран говорил «не запустился»
+- Устаревшую службу снова видно, и её есть чем починить. Такая служба отвечает, поэтому TUN считался доступным: починку никто не предлагал, а тост «почините в настройках» вёл на страницу, где такой кнопки не было. Теперь она там есть и сама выбирает минимальное действие — запустить, поставить или починить
+- Windows говорит, почему не удалось поставить службу. Раньше любой отказ читался как «Unknown error», включая самый частый — закрытый запрос прав
+- Устройство сверх лимита больше не ходит по сохранённым серверам. Панель на лимит устройств отвечает тем, что забирает серверы; клиент оставлял прежнюю конфигурацию, и лимит на этом устройстве не работал вовсе
+- Экран, объясняющий пустой список серверов, называет лимит устройств своим именем, а не винит провайдера
+- Запасной адрес подписки (`fallback-url`) принимается только по https, как и все остальные ссылки от панели. Он был единственным исключением, и подменённый ответ мог увести загрузку подписки на обычный HTTP
+- Две настройки, применённые одновременно, больше не отменяют друг друга. Нажатие Connect вместе с тумблером в трее могло откатить чужую правку: оба шли через один черновик, и провал сбрасывал его целиком
+
+### Добавлено
+
+- Настройки в простом режиме снова короткие: подключение, автозапуск, язык, тема, идентификация устройства, отчёт для поддержки и версия. Остальное не отобрано, а убрано под «Продвинутые настройки» — раскрывающийся блок из четырёх групп
+- Тумблер предварительных сборок. Пока проект в альфе он включён, и одним щелчком клиент переводится в режим ожидания первого стабильного релиза
+- `clod-show-0hosts` — провайдер может отключить наши экраны «нет серверов» и показать узлы-заглушки панели как есть, своими словами
+- `clod-hwid-limit` — текст провайдера для диалогов и карточек устройства
+- Отчёт для поддержки говорит, у скольких узлов есть описание от панели. Ноль означает, что панель их не присылает, — обычный ответ на вопрос «почему не появляются описания серверов»
+
+### Изменено
+
+- Кнопки «Продлить» и «Докупить» убраны вместе со своими заголовками. Единственная точка оплаты, на которую указывает клиент, — личный кабинет
+- Боковая колонка удалена окончательно. Она не отрисовывалась ни в одном режиме с самого редизайна, но за ней жила вся апстримная машинерия меню
+- Первые тесты на стороне фронта: 26 штук — на логику причин пустого списка серверов, цветовую разметку объявлений и определение страны по имени узла
+
+---
+
 ## v0.0.23-alpha
 
 <!-- lang:en -->
