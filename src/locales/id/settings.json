@@ -155,6 +155,11 @@
           }
         }
       }
+    },
+    "advancedGroup": {
+      "title": "Pengaturan lanjutan",
+      "hint": "Inti, jaringan, diagnostik, dan layar teknis",
+      "interface": "Tampilan dan perilaku"
     }
   },
   "components": {
@@ -199,7 +204,8 @@
           "backupInfo": "Mendukung file konfigurasi cadangan WebDAV",
           "openConfDir": "Jika perangkat lunak berjalan tidak normal, CADANGKAN dan hapus semua file di folder ini lalu mulai ulang perangkat lunak",
           "liteMode": "Tutup GUI dan biarkan hanya kernel yang berjalan",
-          "supportBundle": "Copies versions, core and subscription state and the tail of both logs — with subscription addresses, tokens and secrets already masked. Paste it into the provider's support chat."
+          "supportBundle": "Copies versions, core and subscription state and the tail of both logs — with subscription addresses, tokens and secrets already masked. Paste it into the provider's support chat.",
+          "receivePrereleases": "Perbarui ke versi alpha dan beta. Saat ini semua rilis adalah pra-rilis: mematikan ini menghentikan pembaruan sampai rilis stabil pertama."
         },
         "actions": {
           "copyVersion": "Copy Version"
@@ -220,7 +226,8 @@
           "exit": "Keluar",
           "exportDiagnostics": "Export Diagnostic Info",
           "supportBundle": "Support report",
-          "vergeVersion": "Versi Clod"
+          "vergeVersion": "Versi Clod",
+          "receivePrereleases": "Build pra-rilis"
         }
       },
       "theme": {

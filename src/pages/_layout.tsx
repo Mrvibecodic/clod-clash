@@ -40,7 +40,6 @@ import {
 import { HwidLimitDialog } from '@/components/profile/hwid-limit-dialog'
 import { useI18n } from '@/hooks/use-i18n'
 import { useModeWindowSize } from '@/hooks/use-mode-window-size'
-import { useSimpleMode } from '@/hooks/use-simple-mode'
 import { useVerge } from '@/hooks/use-verge'
 import { useVisibility } from '@/hooks/use-visibility'
 import { useWindowDecorations } from '@/hooks/use-window'
@@ -113,14 +112,17 @@ const SortableNavMenuItem = ({ item, label }: SortableNavMenuItemProps) => {
   )
 }
 
-// clod: sidebar entries kept in the simple interface
-const SIMPLE_MODE_PATHS = new Set<string>(['/', '/settings'])
-
 /**
  * clod:design-v2 — боковой колонки в этом форке нет ни в одном режиме: её
  * роль играют сами главные экраны. Колонка оставлена в дереве вместе с
  * апстримной машинерией меню — на случай, если её вернут настройкой, — но
  * рендерится через этот флаг, чтобы «спрятано» и «не работает» не разъехались.
+ *
+ * clod:simple-settings — здесь же раньше жил `SIMPLE_MODE_PATHS`: фильтр
+ * пунктов колонки «для простого режима». Он не делал НИЧЕГО — фильтровать
+ * список, который никогда не отрисовывается, бессмысленно, — и при этом
+ * выглядел как реализация F3.3. Настоящее сокращение простого режима живёт
+ * в `pages/settings.tsx`.
  */
 const SIDEBAR_VISIBLE = false
 
@@ -143,19 +145,8 @@ const Layout = () => {
   const pageVisible = useVisibility()
   const themeReady = useMemo(() => Boolean(theme), [theme])
 
-  // clod: the simple interface keeps only Home and Settings in the sidebar.
-  // Nothing is unregistered — the routes stay live, so a deep link still works
-  // and switching modes needs no restart.
-  const { simpleMode } = useSimpleMode()
   // clod:mode-window — a settled manual resize updates the active mode's slot
   useModeWindowSize()
-  const visibleNavItems = useMemo(
-    () =>
-      simpleMode
-        ? navItems.filter((item) => SIMPLE_MODE_PATHS.has(item.path))
-        : navItems,
-    [simpleMode],
-  )
 
   const [menuUnlocked, setMenuUnlocked] = useState(false)
   const [menuContextPosition, setMenuContextPosition] =
@@ -198,7 +189,7 @@ const Layout = () => {
     resetMenuOrder,
   } = useNavMenuOrder({
     enabled: menuUnlocked,
-    items: visibleNavItems,
+    items: navItems,
     storedOrder: verge?.menu_order,
     onOptimisticUpdate: handleMenuOrderOptimisticUpdate,
     onPersist: handleMenuOrderPersist,

@@ -155,6 +155,11 @@
           }
         }
       }
+    },
+    "advancedGroup": {
+      "title": "تنظیمات پیشرفته",
+      "hint": "هسته، شبکه، عیب‌یابی و صفحات فنی",
+      "interface": "ظاهر و رفتار"
     }
   },
   "components": {
@@ -199,7 +204,8 @@
           "backupInfo": "از فایل های پیکربندی پشتیبان WebDAV پشتیبانی می کند",
           "openConfDir": "اگر نرم‌افزار به‌طور غیرعادی اجرا می‌شود، از تمام فایل‌های موجود در این پوشه نسخه پشتیبان تهیه و پاک کنید تا نرم‌افزار را مجدداً راه‌اندازی کنید",
           "liteMode": "رابط کاربری گرافیکی را ببندید و فقط هسته را در حال اجرا نگه دارید",
-          "supportBundle": "Copies versions, core and subscription state and the tail of both logs — with subscription addresses, tokens and secrets already masked. Paste it into the provider's support chat."
+          "supportBundle": "Copies versions, core and subscription state and the tail of both logs — with subscription addresses, tokens and secrets already masked. Paste it into the provider's support chat.",
+          "receivePrereleases": "به‌روزرسانی به نسخه‌های آلفا و بتا. در حال حاضر همه انتشارها پیش‌انتشار هستند: با خاموش کردن این گزینه تا اولین نسخه پایدار به‌روزرسانی دریافت نمی‌کنید."
         },
         "actions": {
           "copyVersion": "کپی نسخه"
@@ -220,7 +226,8 @@
           "exit": "خروج",
           "exportDiagnostics": "Export Diagnostic Info",
           "supportBundle": "Support report",
-          "vergeVersion": "نسخه Clod"
+          "vergeVersion": "نسخه Clod",
+          "receivePrereleases": "نسخه‌های پیش‌انتشار"
         }
       },
       "theme": {

@@ -57,7 +57,13 @@ editors) is kept — it is simply moved out of sight into an advanced mode.
   separate elevation prompt on install or on update; the user's choice is never erased, and a failed
   start is visible on screen, not only in the log.
 * **A simple interface mode** — a single Connect button; all of Clash Verge Rev's technical side
-  stays in the advanced one.
+  stays in the advanced one. Its settings screen is short too: connection, autostart, language,
+  theme, device identification, the support report and the version. The rest is not taken away
+  but tucked under "Advanced settings" — a collapsible block of four groups holding the core,
+  the network, appearance, diagnostics and the entrances to the technical screens.
+* **Pre-release builds are a choice.** "Advanced settings" carries a switch for accepting alpha
+  and beta versions. It is on while the project is in alpha — otherwise there would be no updates
+  at all — and one click turns it off, so the client waits for the first stable release.
 * **Quick actions on the home screen**: system proxy, TUN, start with the system and start
   minimized, without opening the settings.
 * **Server selection is not reset** by delay tests or subscription updates; starred servers float

@@ -127,6 +127,19 @@ fn version_lte(a: &str, b: &str) -> bool {
     true // equal
 }
 
+/// clod:prereleases — версия помечена как предварительная.
+///
+/// Признак — суффикс semver после дефиса (`0.0.24-alpha`, `1.0.0-rc.1`), ровно
+/// тот же, по которому `version_lte` уже отбрасывает нечисловой хвост. Никакой
+/// эвристики по названию релиза: тег и тело релиза пишет CI, а версию —
+/// `package.json`, и врать она не может.
+fn is_prerelease_version(version: &str) -> bool {
+    version
+        .trim_start_matches('v')
+        .split_once('-')
+        .is_some_and(|(_, suffix)| !suffix.is_empty())
+}
+
 // ─── Startup Install & Cache Management ─────────────────────────────────────
 
 impl SilentUpdater {
@@ -150,6 +163,26 @@ impl SilentUpdater {
                 "Update cache version ({}) <= current ({}), cleaning up",
                 cached_version,
                 current_version
+            );
+            Self::delete_cache();
+            return false;
+        }
+
+        // clod:prereleases — кэш мог быть скачан, пока предварительные сборки
+        // были разрешены. Выключив их, пользователь не должен получить ту же
+        // сборку при следующем запуске: кэш выбрасываем, а не просто пропускаем.
+        if is_prerelease_version(cached_version)
+            && !Config::verge()
+                .await
+                .latest_arc()
+                .receive_prereleases
+                .unwrap_or(crate::config::IVerge::DEFAULT_RECEIVE_PRERELEASES)
+        {
+            logging!(
+                info,
+                Type::System,
+                "Cached update ({}) is a pre-release and pre-releases are off, cleaning up",
+                cached_version
             );
             Self::delete_cache();
             return false;
@@ -450,6 +483,24 @@ impl SilentUpdater {
         let version = update.version.clone();
         logging!(info, Type::System, "Silent updater: update available: v{version}");
 
+        // clod:prereleases — пользователь мог попросить только стабильные сборки.
+        // Проверяем ПОСЛЕ запроса, а не выбором адреса: манифест один на все
+        // каналы, и другого способа узнать, что версия предварительная, нет.
+        if is_prerelease_version(&version)
+            && !Config::verge()
+                .await
+                .latest_arc()
+                .receive_prereleases
+                .unwrap_or(crate::config::IVerge::DEFAULT_RECEIVE_PRERELEASES)
+        {
+            logging!(
+                info,
+                Type::System,
+                "Silent updater: v{version} is a pre-release and pre-releases are off"
+            );
+            return Ok(());
+        }
+
         if let Some(body) = &update.body
             && body.to_lowercase().contains("break change")
         {
@@ -544,6 +595,18 @@ mod tests {
         assert!(version_lte("v2.4.7", "2.4.8"));
         assert!(version_lte("2.4.7", "v2.4.8"));
         assert!(version_lte("v2.4.7", "v2.4.8"));
+    }
+
+    #[test]
+    fn test_prerelease_is_recognised_by_the_semver_suffix() {
+        assert!(is_prerelease_version("0.0.24-alpha"));
+        assert!(is_prerelease_version("v0.0.24-alpha"));
+        assert!(is_prerelease_version("1.0.0-rc.1"));
+        assert!(is_prerelease_version("1.0.0-beta"));
+        // Стабильные — без суффикса, в том числе с ведущей `v` и битые хвосты.
+        assert!(!is_prerelease_version("1.0.0"));
+        assert!(!is_prerelease_version("v1.0.0"));
+        assert!(!is_prerelease_version("1.0.0-"));
     }
 
     #[test]

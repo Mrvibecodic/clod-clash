@@ -155,6 +155,11 @@
           }
         }
       }
+    },
+    "advancedGroup": {
+      "title": "Erweiterte Einstellungen",
+      "hint": "Kern, Netzwerk, Diagnose und technische Seiten",
+      "interface": "Aussehen und Verhalten"
     }
   },
   "components": {
@@ -199,7 +204,8 @@
           "backupInfo": "Unterstützt die Sicherung von Konfigurationsdateien über WebDAV",
           "openConfDir": "Wenn die Software fehlerhaft funktioniert, !sichern Sie! alle Dateien in diesem Verzeichnis, löschen Sie sie und starten Sie die Software neu.",
           "liteMode": "GUI-Oberfläche schließen, nur den Kern laufen lassen",
-          "supportBundle": "Copies versions, core and subscription state and the tail of both logs — with subscription addresses, tokens and secrets already masked. Paste it into the provider's support chat."
+          "supportBundle": "Copies versions, core and subscription state and the tail of both logs — with subscription addresses, tokens and secrets already masked. Paste it into the provider's support chat.",
+          "receivePrereleases": "Auf Alpha- und Beta-Versionen aktualisieren. Derzeit sind alle Releases Vorabversionen: Wenn Sie dies ausschalten, erhalten Sie bis zum ersten stabilen Release keine Updates."
         },
         "actions": {
           "copyVersion": "Copy Version"
@@ -220,7 +226,8 @@
           "exit": "Beenden",
           "exportDiagnostics": "Diagnoseinformationen exportieren",
           "supportBundle": "Support report",
-          "vergeVersion": "Clod-Version"
+          "vergeVersion": "Clod-Version",
+          "receivePrereleases": "Vorabversionen"
         }
       },
       "theme": {

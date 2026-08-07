@@ -759,6 +759,7 @@ export interface TranslationResources {
               openCoreDir: string
               openDevTools: string
               openLogsDir: string
+              receivePrereleases: string
               runtimeConfig: string
               supportBundle: string
               vergeVersion: string
@@ -772,6 +773,7 @@ export interface TranslationResources {
               backupInfo: string
               liteMode: string
               openConfDir: string
+              receivePrereleases: string
               supportBundle: string
             }
           }
@@ -1280,6 +1282,11 @@ export interface TranslationResources {
         title: string
       }
       sections: {
+        advancedGroup: {
+          hint: string
+          interface: string
+          title: string
+        }
         appearance: {
           dark: string
           light: string

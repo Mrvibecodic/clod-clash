@@ -143,6 +143,11 @@ pub struct IVerge {
     /// Автоматически проверять обновления
     pub auto_check_update: Option<bool>,
 
+    /// clod:prereleases — принимать ли предварительные сборки (`-alpha`,
+    /// `-beta`, `-rc`). По умолчанию `true`: сегодня ВСЕ наши релизы
+    /// предварительные, и выключенный флаг означал бы «обновлений нет».
+    pub receive_prereleases: Option<bool>,
+
     /// Соединение для теста задержки по умолчанию
     pub default_latency_test: Option<String>,
 
@@ -375,6 +380,14 @@ impl IVerge {
     /// Допустимые имена ядра clash
     pub const VALID_CLASH_CORES: &'static [&'static str] = &["verge-mihomo", "verge-mihomo-alpha"];
 
+    // clod:prereleases begin
+    /// Предварительные сборки принимаются по умолчанию: пока проект в альфе,
+    /// стабильных релизов не существует вовсе, и `false` здесь означал бы
+    /// «обновлений не будет никогда». Выключается вручную теми, кто хочет
+    /// дождаться первой стабильной версии.
+    pub const DEFAULT_RECEIVE_PRERELEASES: bool = true;
+    // clod:prereleases end
+
     // clod:hwid begin
     /// Device identification is on by default: panels with a device limit do
     /// not serve the subscription at all without `x-hwid`.
@@ -560,6 +573,7 @@ impl IVerge {
             proxy_guard_duration: Some(30),
             auto_close_connection: Some(true),
             auto_check_update: Some(true),
+            receive_prereleases: Some(Self::DEFAULT_RECEIVE_PRERELEASES),
             enable_builtin_enhanced: Some(true),
             auto_log_clean: Some(2), // 1: 1 день, 2: 7 дней, 3: 30 дней, 4: 90 дней
             enable_auto_backup_schedule: Some(false),
@@ -666,6 +680,7 @@ impl IVerge {
 
         patch!(auto_close_connection);
         patch!(auto_check_update);
+        patch!(receive_prereleases);
         patch!(default_latency_test);
         patch!(default_latency_timeout);
         patch!(enable_builtin_enhanced);

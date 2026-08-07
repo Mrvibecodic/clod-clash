@@ -155,6 +155,11 @@
           }
         }
       }
+    },
+    "advancedGroup": {
+      "title": "고급 설정",
+      "hint": "코어, 네트워크, 진단 및 기술 화면",
+      "interface": "모양 및 동작"
     }
   },
   "components": {
@@ -199,7 +204,8 @@
           "backupInfo": "설정 파일의 로컬 또는 WebDAV 백업을 지원합니다",
           "openConfDir": "소프트웨어가 비정상 동작할 경우, 이 폴더의 파일을 백업 후 모두 삭제하고 재시작하세요",
           "liteMode": "GUI를 닫고 커널만 실행 상태로 유지합니다",
-          "supportBundle": "Copies versions, core and subscription state and the tail of both logs — with subscription addresses, tokens and secrets already masked. Paste it into the provider's support chat."
+          "supportBundle": "Copies versions, core and subscription state and the tail of both logs — with subscription addresses, tokens and secrets already masked. Paste it into the provider's support chat.",
+          "receivePrereleases": "알파 및 베타 버전으로 업데이트합니다. 현재 모든 릴리스는 시험판입니다. 이 설정을 끄면 첫 정식 릴리스가 나올 때까지 업데이트를 받지 않습니다."
         },
         "actions": {
           "copyVersion": "버전 복사"
@@ -220,7 +226,8 @@
           "exit": "종료",
           "exportDiagnostics": "진단 정보 내보내기",
           "supportBundle": "Support report",
-          "vergeVersion": "Clod 버전"
+          "vergeVersion": "Clod 버전",
+          "receivePrereleases": "시험판 빌드"
         }
       },
       "theme": {
