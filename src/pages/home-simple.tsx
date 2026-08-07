@@ -5,6 +5,7 @@ import { alpha, Box, Button, Stack, TextField, Typography } from '@mui/material'
 import { useLockFn } from 'ahooks'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router'
 
 import {
   ConnectButton,
@@ -31,6 +32,7 @@ import { showNotice } from '@/services/notice-service'
 
 const HomeSimplePage = () => {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const { current, mutateProfiles } = useProfiles()
   const { connected, willConnect, toggleConnection } = useConnectTargets()
   const { setSimpleMode } = useSimpleMode()
@@ -152,16 +154,26 @@ const HomeSimplePage = () => {
             {t('shared.actions.new')}
           </Button>
         </Stack>
-        {/* clod:design-v2 — no sidebar: the advanced mode (and with it the
-            settings) must stay reachable even before a subscription exists */}
-        <Button
-          size="small"
-          color="inherit"
-          sx={{ color: 'text.secondary' }}
-          onClick={() => void setSimpleMode(false)}
-        >
-          {t('home.pages.simple.toAdvanced')}
-        </Button>
+        {/* clod:design-v2 — боковой колонки нет: и расширенный режим, и сами
+            настройки должны оставаться достижимы ещё до первой подписки. */}
+        <Stack direction="row" sx={{ gap: 1 }}>
+          <Button
+            size="small"
+            color="inherit"
+            sx={{ color: 'text.secondary' }}
+            onClick={() => void navigate('/settings')}
+          >
+            {t('layout.components.navigation.tabs.settings')}
+          </Button>
+          <Button
+            size="small"
+            color="inherit"
+            sx={{ color: 'text.secondary' }}
+            onClick={() => void setSimpleMode(false)}
+          >
+            {t('home.pages.simple.toAdvanced')}
+          </Button>
+        </Stack>
       </Stack>
     )
   }
@@ -186,7 +198,7 @@ const HomeSimplePage = () => {
           flex: 1,
         }}
       >
-        <ProviderHeader profile={current} />
+        <ProviderHeader profile={current} showSettings />
 
         <ProviderBanners profile={current} onChanged={mutateProfiles} />
 

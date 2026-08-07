@@ -1,4 +1,5 @@
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
+import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded'
 import {
   Box,
   CircularProgress,
@@ -9,6 +10,7 @@ import {
 import { useLockFn } from 'ahooks'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router'
 import useSWR from 'swr'
 
 import { useProfiles } from '@/hooks/use-profiles'
@@ -18,6 +20,16 @@ import { panelNow, toUnixSeconds } from '@/utils/subscription-status'
 
 interface Props {
   profile: IProfileItem
+  /**
+   * clod:settings-entry — показать шестерёнку рядом с обновлением.
+   *
+   * Нужна простому режиму: боковой колонки в клиенте нет, а на простом экране
+   * плиток тоже нет — после её удаления попасть в настройки можно было только
+   * через серую строку режима под кнопкой Connect, да и та при `clod-lock-mode`
+   * превращается в неактивный текст, то есть выход в настройки пропадал вовсе.
+   * На расширенном экране плитка «Настройки» есть, и второй вход там лишний.
+   */
+  showSettings?: boolean
 }
 
 /**
@@ -26,8 +38,9 @@ interface Props {
  * name in bold with the subscription state underneath, and the refresh
  * button on the right.
  */
-export const ProviderHeader = ({ profile }: Props) => {
+export const ProviderHeader = ({ profile, showSettings }: Props) => {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const { mutateProfiles } = useProfiles()
   const [refreshing, setRefreshing] = useState(false)
 
@@ -129,6 +142,16 @@ export const ProviderHeader = ({ profile }: Props) => {
       >
         {refreshing ? <CircularProgress size={20} /> : <RefreshRoundedIcon />}
       </IconButton>
+      {showSettings ? (
+        <IconButton
+          onClick={() => void navigate('/settings')}
+          aria-label={t('layout.components.navigation.tabs.settings')}
+          title={t('layout.components.navigation.tabs.settings')}
+          sx={{ borderRadius: '10px' }}
+        >
+          <SettingsRoundedIcon />
+        </IconButton>
+      ) : null}
     </Stack>
   )
 }
