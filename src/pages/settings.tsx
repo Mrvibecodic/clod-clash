@@ -12,7 +12,6 @@ import SettingTools from '@/components/setting/setting-tools'
 import SettingVergeAdvanced from '@/components/setting/setting-verge-advanced'
 import SettingVergeBasic from '@/components/setting/setting-verge-basic'
 import { useProfiles } from '@/hooks/use-profiles'
-import { useSimpleMode } from '@/hooks/use-simple-mode'
 import { openWebUrl } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { useThemeMode } from '@/services/states'
@@ -42,7 +41,6 @@ const SettingPage = () => {
   const mode = useThemeMode()
   const isDark = mode === 'light' ? false : true
 
-  const { simpleMode } = useSimpleMode()
   // clod:simple-settings — раскрытие живёт в состоянии страницы, а не в
   // настройках: это не выбор пользователя, который надо помнить, а разовый
   // заход «покажи всё». Уход со страницы сворачивает блок обратно.
@@ -69,59 +67,47 @@ const SettingPage = () => {
         ) : null
       }
     >
-      {/* clod: одна колонка «сверху простое, снизу сложное»:
-          Система → Основные → Ядро → Инструменты → Расширенные.
-          clod:simple-settings — в простом режиме всё, что ниже повседневного,
-          не исчезает, а уезжает под «Продвинутые настройки»: ТЗ F3.3 требовало
-          спрятать эти пункты, но спрятать — не значит отобрать. */}
+      {/* clod:simple-settings — одна колонка «сверху повседневное, ниже —
+          всё остальное под одной крышкой». ТЗ F3.3 требовало спрятать
+          технические пункты, но спрятать — не значит отобрать: они уезжают под
+          «Продвинутые настройки», а не исчезают.
+
+          Раскладка ОДНА на оба режима интерфейса. Раньше перегруппировка
+          работала только в простом — а в него ещё и не заходят те, кто уже
+          переключился в расширенный, так что вся работа была для них невидима.
+          Разные экраны настроек под одним названием — это к тому же две разные
+          карты одного и того же места: человек, который однажды нашёл пункт,
+          после смены режима искал бы его заново. */}
       <Stack spacing={1.5} sx={{ maxWidth: 720, mx: 'auto', width: '100%' }}>
         <Box sx={card}>
           <SettingSystem onError={onError} />
         </Box>
 
         <Box sx={card}>
-          <SettingVergeBasic
-            onError={onError}
-            variant={simpleMode ? 'core' : 'all'}
-          />
+          <SettingVergeBasic onError={onError} variant="core" />
           {/* Отчёт для поддержки и версия — продолжение той же карточки, без
-              второго заголовка: без них простой пользователь не может ни
-              сказать, что у него за сборка, ни попросить помощь. */}
-          {simpleMode && (
-            <SettingVergeAdvanced onError={onError} variant="core" />
-          )}
+              второго заголовка: без них пользователь не может ни сказать, что
+              у него за сборка, ни попросить помощь. */}
+          <SettingVergeAdvanced onError={onError} variant="core" />
         </Box>
 
-        {simpleMode ? (
-          <Box sx={card}>
-            <SettingItem
-              label={t('settings.sections.advancedGroup.title')}
-              secondary={t('settings.sections.advancedGroup.hint')}
-              expanded={showAdvanced}
-              onClick={() => setShowAdvanced((open) => !open)}
-            />
-            <Collapse in={showAdvanced} unmountOnExit>
-              <SettingVergeBasic onError={onError} variant="rest" />
-              <SettingClash onError={onError} />
-              <SettingTools />
-              <SettingVergeAdvanced onError={onError} variant="rest" />
-            </Collapse>
-          </Box>
-        ) : (
-          <>
-            <Box sx={card}>
-              <SettingClash onError={onError} />
-            </Box>
-            {/* clod:design-v2 — proxies/rules/connections/logs entrances,
-                moved here from the advanced home tiles */}
-            <Box sx={card}>
-              <SettingTools />
-            </Box>
-            <Box sx={card}>
-              <SettingVergeAdvanced onError={onError} />
-            </Box>
-          </>
-        )}
+        <Box sx={card}>
+          <SettingItem
+            label={t('settings.sections.advancedGroup.title')}
+            secondary={t('settings.sections.advancedGroup.hint')}
+            expanded={showAdvanced}
+            onClick={() => setShowAdvanced((open) => !open)}
+          />
+          {/* Внутри — не литой список, а четыре подписанные группы:
+              оформление и поведение, ядро, инструменты (прокси/правила/
+              соединения/логи), продвинутое. */}
+          <Collapse in={showAdvanced} unmountOnExit>
+            <SettingVergeBasic onError={onError} variant="rest" />
+            <SettingClash onError={onError} />
+            <SettingTools />
+            <SettingVergeAdvanced onError={onError} variant="rest" />
+          </Collapse>
+        </Box>
       </Stack>
     </BasePage>
   )
