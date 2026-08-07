@@ -208,6 +208,13 @@ pub async fn delete_profile(index: String) -> CmdResult {
     // Используем Send-safe helper-функцию
     let should_update = profiles_delete_item_safe(&index).await.stringify_err()?;
     profiles_save_file_safe().await.stringify_err()?;
+    // clod: логотип провайдера живёт отдельным файлом в `logos/`, и профиль,
+    // которого больше нет, его за собой не уносил — картинка удалённой
+    // подписки оставалась на диске навсегда. Чистим здесь, а не в
+    // `delete_item`: там снимается только то, что лежит в `profiles/`.
+    // Профиль уже удалён, так что `sync` тут не подходит — он полез бы за
+    // ссылкой, которой больше нет; удаление безусловное.
+    crate::module::logo_cache::clear(&index).await;
     if let Err(e) = Tray::global().update_tooltip().await {
         logging!(
             warn,
