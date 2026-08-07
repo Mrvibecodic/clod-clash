@@ -526,36 +526,7 @@ impl PrfItem {
 
         let header = resp.headers();
 
-        // parse the Subscription UserInfo
-        let extra;
-        'extra: {
-            for (k, v) in header.iter() {
-                let key_lower = k.as_str().to_ascii_lowercase();
-                // Accept standard custom-metadata prefixes (x-amz-meta-, x-obs-meta-, x-cos-meta-, etc.).
-                if key_lower
-                    .strip_suffix("subscription-userinfo")
-                    .is_some_and(|prefix| prefix.is_empty() || prefix.ends_with('-'))
-                {
-                    // clod: `to_str` отказывает на любом байте выше 0x7F, и тогда
-                    // весь трафик со сроком молча обнулялся бы. Значение обязано
-                    // быть ASCII, но панель может прислать что угодно — читаем
-                    // так же терпимо, как остальные заголовки.
-                    let raw_info = match v.to_str() {
-                        Ok(text) => std::borrow::Cow::Borrowed(text),
-                        Err(_) => std::string::String::from_utf8_lossy(v.as_bytes()),
-                    };
-                    let sub_info: &str = raw_info.as_ref();
-                    extra = Some(PrfExtra {
-                        upload: help::parse_str(sub_info, "upload").unwrap_or(0),
-                        download: help::parse_str(sub_info, "download").unwrap_or(0),
-                        total: help::parse_str(sub_info, "total").unwrap_or(0),
-                        expire: help::parse_str(sub_info, "expire").unwrap_or(0),
-                    });
-                    break 'extra;
-                }
-            }
-            extra = None;
-        }
+        let extra = parse_subscription_userinfo(header);
 
         // parse the Content-Disposition
         let filename = match header.get("Content-Disposition") {
@@ -834,6 +805,40 @@ impl PrfItem {
 /// Диагностика «удалил хедер в панели, а он висит»: фиксируем в логе, какие
 /// clod-заголовки реально пришли в ответе. Если промо тут `false`, а баннер
 /// жив — баг клиента; если `true` — панель всё ещё шлёт заголовок.
+/// Трафик и срок подписки из заголовка `subscription-userinfo`.
+///
+/// Отдельной функцией не только ради читаемости: `from_url` упирается в порог
+/// когнитивной сложности clippy, и этот цикл с меткой — самый самостоятельный
+/// её кусок.
+fn parse_subscription_userinfo(headers: &reqwest::header::HeaderMap) -> Option<PrfExtra> {
+    for (k, v) in headers.iter() {
+        let key_lower = k.as_str().to_ascii_lowercase();
+        // Accept standard custom-metadata prefixes (x-amz-meta-, x-obs-meta-, x-cos-meta-, etc.).
+        if !key_lower
+            .strip_suffix("subscription-userinfo")
+            .is_some_and(|prefix| prefix.is_empty() || prefix.ends_with('-'))
+        {
+            continue;
+        }
+        // clod: `to_str` отказывает на любом байте выше 0x7F, и тогда весь
+        // трафик со сроком молча обнулялся бы. Значение обязано быть ASCII, но
+        // панель может прислать что угодно — читаем так же терпимо, как
+        // остальные заголовки.
+        let raw_info = match v.to_str() {
+            Ok(text) => std::borrow::Cow::Borrowed(text),
+            Err(_) => std::string::String::from_utf8_lossy(v.as_bytes()),
+        };
+        let sub_info: &str = raw_info.as_ref();
+        return Some(PrfExtra {
+            upload: help::parse_str(sub_info, "upload").unwrap_or(0),
+            download: help::parse_str(sub_info, "download").unwrap_or(0),
+            total: help::parse_str(sub_info, "total").unwrap_or(0),
+            expire: help::parse_str(sub_info, "expire").unwrap_or(0),
+        });
+    }
+    None
+}
+
 fn log_panel_headers(sub: &sub_headers::SubHeaders) {
     clash_verge_logging::logging!(
         info,
