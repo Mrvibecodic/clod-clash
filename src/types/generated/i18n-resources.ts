@@ -288,14 +288,6 @@ export interface TranslationResources {
     layout: {
       components: {
         navigation: {
-          menu: {
-            collapseNavBar: string
-            expandNavBar: string
-            lock: string
-            reorderMode: string
-            restoreDefaultOrder: string
-            unlock: string
-          }
           tabs: {
             connections: string
             home: string
@@ -817,7 +809,6 @@ export interface TranslationResources {
           }
           layout: {
             fields: {
-              collapseNavBar: string
               commonTrayIcon: string
               enableTrayIcon: string
               enableTraySpeed: string

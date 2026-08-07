@@ -327,24 +327,6 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
           </GuardState>
         </Item>
 
-        <Item>
-          <ListItemText
-            primary={t(
-              'settings.components.verge.layout.fields.collapseNavBar',
-            )}
-          />
-          <GuardState
-            value={verge?.collapse_navbar ?? false}
-            valueProps="checked"
-            onCatch={onError}
-            onFormat={onSwitchFormat}
-            onChange={(e) => onChangeData({ collapse_navbar: e })}
-            onGuard={(e) => patchVerge({ collapse_navbar: e })}
-          >
-            <Switch edge="end" />
-          </GuardState>
-        </Item>
-
         {OS === 'macos' && (
           <Item>
             <ListItemText

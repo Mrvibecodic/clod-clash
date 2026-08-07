@@ -1,36 +1,11 @@
-import {
-  DndContext,
-  KeyboardSensor,
-  PointerSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-} from '@dnd-kit/core'
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-} from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
-import { Box, List, Menu, MenuItem, Paper, ThemeProvider } from '@mui/material'
+import { Box, Paper, ThemeProvider } from '@mui/material'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
-import type { CSSProperties } from 'react'
-import {
-  lazy,
-  Suspense,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Outlet, useLocation, useNavigate } from 'react-router'
 
 import { BaseErrorBoundary, BaseLoading } from '@/components/base'
-import { AppBrand } from '@/components/layout/app-brand'
-import { LayoutItem } from '@/components/layout/layout-item'
 import { NoticeManager } from '@/components/layout/notice-manager'
 import { UpdateButton } from '@/components/layout/update-button'
 import {
@@ -50,81 +25,14 @@ import {
   useCustomTheme,
   useLayoutEvents,
   useLoadingOverlay,
-  useNavMenuOrder,
 } from './_layout/hooks'
 import { handleNoticeMessage } from './_layout/utils'
-import {
-  navItems,
-  preloadLogsPage,
-  preloadNavigationRoutes,
-} from './_navigation'
+import { preloadLogsPage, preloadNavigationRoutes } from './_navigation'
 
 import 'dayjs/locale/ru'
 import 'dayjs/locale/zh-cn'
 
 const LogsPage = lazy(() => preloadLogsPage())
-
-type NavItem = (typeof navItems)[number]
-
-type MenuContextPosition = { top: number; left: number }
-
-interface SortableNavMenuItemProps {
-  item: NavItem
-  label: string
-}
-
-const SortableNavMenuItem = ({ item, label }: SortableNavMenuItemProps) => {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({
-    id: item.path,
-  })
-
-  const style: CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  }
-
-  if (isDragging) {
-    style.zIndex = 100
-  }
-
-  return (
-    <LayoutItem
-      to={item.path}
-      icon={item.icon}
-      onPreload={item.preload}
-      sortable={{
-        setNodeRef,
-        attributes,
-        listeners,
-        style,
-        isDragging,
-      }}
-    >
-      {label}
-    </LayoutItem>
-  )
-}
-
-/**
- * clod:design-v2 — боковой колонки в этом форке нет ни в одном режиме: её
- * роль играют сами главные экраны. Колонка оставлена в дереве вместе с
- * апстримной машинерией меню — на случай, если её вернут настройкой, — но
- * рендерится через этот флаг, чтобы «спрятано» и «не работает» не разъехались.
- *
- * clod:simple-settings — здесь же раньше жил `SIMPLE_MODE_PATHS`: фильтр
- * пунктов колонки «для простого режима». Он не делал НИЧЕГО — фильтровать
- * список, который никогда не отрисовывается, бессмысленно, — и при этом
- * выглядел как реализация F3.3. Настоящее сокращение простого режима живёт
- * в `pages/settings.tsx`.
- */
-const SIDEBAR_VISIBLE = false
 
 dayjs.extend(relativeTime)
 
@@ -132,12 +40,10 @@ const OS = getSystem()
 
 const Layout = () => {
   const mode = useThemeMode()
-  const isDark = mode !== 'light'
   const { t } = useTranslation()
   const { theme } = useCustomTheme()
-  const { verge, mutateVerge, patchVerge } = useVerge()
+  const { verge } = useVerge()
   const { language } = verge ?? {}
-  const navCollapsed = verge?.collapse_navbar ?? false
   const { switchLanguage } = useI18n()
   const navigate = useNavigate()
   const { pathname } = useLocation()
@@ -148,85 +54,8 @@ const Layout = () => {
   // clod:mode-window — a settled manual resize updates the active mode's slot
   useModeWindowSize()
 
-  const [menuUnlocked, setMenuUnlocked] = useState(false)
-  const [menuContextPosition, setMenuContextPosition] =
-    useState<MenuContextPosition | null>(null)
-
   const windowControlsRef = useRef<any>(null)
   const { decorated } = useWindowDecorations()
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 6,
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    }),
-  )
-
-  const handleMenuOrderOptimisticUpdate = useCallback(
-    (order: string[]) => {
-      mutateVerge(
-        (prev) => (prev ? { ...prev, menu_order: order } : prev),
-        false,
-      )
-    },
-    [mutateVerge],
-  )
-
-  const handleMenuOrderPersist = useCallback(
-    (order: string[]) => patchVerge({ menu_order: order }),
-    [patchVerge],
-  )
-
-  const {
-    menuOrder,
-    navItemMap,
-    handleMenuDragEnd,
-    isDefaultOrder,
-    resetMenuOrder,
-  } = useNavMenuOrder({
-    enabled: menuUnlocked,
-    items: navItems,
-    storedOrder: verge?.menu_order,
-    onOptimisticUpdate: handleMenuOrderOptimisticUpdate,
-    onPersist: handleMenuOrderPersist,
-  })
-
-  const handleMenuContextMenu = useCallback(
-    (event: React.MouseEvent<HTMLElement>) => {
-      event.preventDefault()
-      event.stopPropagation()
-      setMenuContextPosition({ top: event.clientY, left: event.clientX })
-    },
-    [],
-  )
-
-  const handleMenuContextClose = useCallback(() => {
-    setMenuContextPosition(null)
-  }, [])
-
-  const handleResetMenuOrder = useCallback(() => {
-    setMenuContextPosition(null)
-    void resetMenuOrder()
-  }, [resetMenuOrder])
-
-  const handleUnlockMenu = useCallback(() => {
-    setMenuUnlocked(true)
-    setMenuContextPosition(null)
-  }, [])
-
-  const handleLockMenu = useCallback(() => {
-    setMenuUnlocked(false)
-    setMenuContextPosition(null)
-  }, [])
-
-  const handleToggleNavCollapsed = useCallback(() => {
-    setMenuContextPosition(null)
-    void patchVerge({ collapse_navbar: !navCollapsed })
-  }, [navCollapsed, patchVerge])
 
   const customTitlebar = useMemo(
     () =>
@@ -301,6 +130,15 @@ const Layout = () => {
       <NoticeManager position={verge?.notice_position} />
       {/* clod: panel-side device limit / device id required */}
       <HwidLimitDialog />
+      {/* clod:design-v2 — кнопка «New» жила в боковой колонке и вместе с ней
+          была невидима всегда: об обновлении сообщает автооткрытие диалога,
+          один раз на версию за запуск. Колонки больше нет, поведение то же —
+          компонент смонтирован ради этого эффекта. Видимая точка входа в
+          обновление остаётся долгом: сейчас это только шестерёнка у строки
+          версии в настройках. */}
+      <Box sx={{ display: 'none' }} aria-hidden>
+        <UpdateButton />
+      </Box>
       <div
         style={{
           animation: 'fadeIn 0.5s',
@@ -318,7 +156,7 @@ const Layout = () => {
       <Paper
         square
         elevation={0}
-        className={`${OS} layout${navCollapsed ? ' layout--nav-collapsed' : ''}`}
+        className={`${OS} layout`}
         style={{
           borderTopLeftRadius: '0px',
           borderTopRightRadius: '0px',
@@ -352,143 +190,13 @@ const Layout = () => {
         {customTitlebar}
 
         <div className="layout-content">
-          {/* clod:design-v2 — the mockups have no sidebar at all: the home
-              screens are the navigation (tiles in the advanced mode, the
-              mode footlinks between them), inner pages carry a back arrow.
-              The column is kept in the tree but never displayed, so the
-              upstream menu machinery stays intact for a possible option. */}
-          <div
-            className="layout-content__left"
-            style={{ display: SIDEBAR_VISIBLE ? undefined : 'none' }}
-          >
-            <div className="the-logo" data-tauri-drag-region="false">
-              <div
-                data-tauri-drag-region="true"
-                style={{
-                  height: '27px',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                }}
-              >
-                {/* clod:branding — the white-label brand replaces the
-                    upstream cat + wordmark */}
-                <AppBrand isDark={isDark} />
-              </div>
-              <UpdateButton className="the-newbtn" />
-            </div>
-
-            {menuUnlocked && (
-              <Box
-                sx={(theme) => ({
-                  px: 1.5,
-                  py: 0.75,
-                  mx: 'auto',
-                  mb: 1,
-                  maxWidth: 250,
-                  borderRadius: 1.5,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  textAlign: 'center',
-                  color: theme.palette.warning.contrastText,
-                  bgcolor:
-                    theme.palette.mode === 'light'
-                      ? theme.palette.warning.main
-                      : theme.palette.warning.dark,
-                })}
-              >
-                {t('layout.components.navigation.menu.reorderMode')}
-              </Box>
-            )}
-
-            {menuUnlocked ? (
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={handleMenuDragEnd}
-              >
-                <SortableContext items={menuOrder}>
-                  <List
-                    className="the-menu"
-                    onContextMenu={handleMenuContextMenu}
-                  >
-                    {menuOrder.map((path) => {
-                      const item = navItemMap.get(path)
-                      if (!item) {
-                        return null
-                      }
-                      return (
-                        <SortableNavMenuItem
-                          key={item.path}
-                          item={item}
-                          label={t(item.label)}
-                        />
-                      )
-                    })}
-                  </List>
-                </SortableContext>
-              </DndContext>
-            ) : (
-              <List className="the-menu" onContextMenu={handleMenuContextMenu}>
-                {menuOrder.map((path) => {
-                  const item = navItemMap.get(path)
-                  if (!item) {
-                    return null
-                  }
-                  return (
-                    <LayoutItem
-                      key={item.path}
-                      to={item.path}
-                      icon={item.icon}
-                      onPreload={item.preload}
-                    >
-                      {t(item.label)}
-                    </LayoutItem>
-                  )
-                })}
-              </List>
-            )}
-
-            <Menu
-              open={Boolean(menuContextPosition)}
-              onClose={handleMenuContextClose}
-              anchorReference="anchorPosition"
-              anchorPosition={
-                menuContextPosition
-                  ? {
-                      top: menuContextPosition.top,
-                      left: menuContextPosition.left,
-                    }
-                  : undefined
-              }
-              transitionDuration={200}
-              slotProps={{
-                list: {
-                  sx: { py: 0.5 },
-                },
-              }}
-            >
-              <MenuItem onClick={handleToggleNavCollapsed} dense>
-                {navCollapsed
-                  ? t('layout.components.navigation.menu.expandNavBar')
-                  : t('layout.components.navigation.menu.collapseNavBar')}
-              </MenuItem>
-              <MenuItem
-                onClick={menuUnlocked ? handleLockMenu : handleUnlockMenu}
-                dense
-              >
-                {menuUnlocked
-                  ? t('layout.components.navigation.menu.lock')
-                  : t('layout.components.navigation.menu.unlock')}
-              </MenuItem>
-              <MenuItem
-                onClick={handleResetMenuOrder}
-                dense
-                disabled={isDefaultOrder}
-              >
-                {t('layout.components.navigation.menu.restoreDefaultOrder')}
-              </MenuItem>
-            </Menu>
-          </div>
+          {/* clod:design-v2 — боковой колонки в этом форке нет: её роль играют
+              сами главные экраны — плитки в расширенном режиме, ссылки между
+              режимами и стрелка «назад» на внутренних страницах. До этого
+              колонка оставалась в дереве под `display: none` вместе со всей
+              апстримной машинерией меню (сортировка перетаскиванием,
+              контекстное меню, порядок пунктов в конфиге) — полторы сотни
+              строк, которых никто никогда не видел. Удалены целиком. */}
 
           <div className="layout-content__right">
             <div className="the-bar"></div>

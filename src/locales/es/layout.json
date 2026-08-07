@@ -10,14 +10,6 @@
         "logs": "Registros",
         "unlock": "Descubrir",
         "settings": "Ajustes"
-      },
-      "menu": {
-        "reorderMode": "Menu reorder mode",
-        "restoreDefaultOrder": "Restore default order",
-        "unlock": "Unlock menu order",
-        "lock": "Lock menu order",
-        "collapseNavBar": "Collapse navigation bar",
-        "expandNavBar": "Expand navigation bar"
       }
     }
   }

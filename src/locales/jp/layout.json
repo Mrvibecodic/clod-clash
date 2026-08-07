@@ -10,14 +10,6 @@
         "logs": "ログ",
         "unlock": "テスト",
         "settings": "設定"
-      },
-      "menu": {
-        "reorderMode": "Menu reorder mode",
-        "restoreDefaultOrder": "Restore default order",
-        "unlock": "Unlock menu order",
-        "lock": "Lock menu order",
-        "collapseNavBar": "Collapse navigation bar",
-        "expandNavBar": "Expand navigation bar"
       }
     }
   }

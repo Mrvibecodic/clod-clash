@@ -263,7 +263,6 @@
           "hoverNavigator": "Hover Jump Navigator",
           "hoverNavigatorDelay": "Hover Jump Navigator Delay",
           "navIcon": "ナビゲーションバーアイコン",
-          "collapseNavBar": "ナビゲーションバーを折りたたむ",
           "trayIcon": "トレイアイコン",
           "proxyGroupsDisplayMode": "Proxy Groups Display Mode",
           "showOutboundModesInline": "Show Outbound Modes Inline",

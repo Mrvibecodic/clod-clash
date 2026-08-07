@@ -263,7 +263,6 @@
           "hoverNavigator": "Навигация по алфавиту при наведении",
           "hoverNavigatorDelay": "Задержка навигации при наведении",
           "navIcon": "Иконки навигации",
-          "collapseNavBar": "Свернуть панель навигации",
           "trayIcon": "Значок в трее",
           "proxyGroupsDisplayMode": "Режим отображения групп прокси",
           "showOutboundModesInline": "Показывать режимы исходящих соединений в строку",

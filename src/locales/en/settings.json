@@ -263,7 +263,6 @@
           "hoverNavigator": "Hover Jump Navigator",
           "hoverNavigatorDelay": "Hover Jump Navigator Delay",
           "navIcon": "Nav Icon",
-          "collapseNavBar": "Collapse Navigation Bar",
           "trayIcon": "Tray Icon",
           "proxyGroupsDisplayMode": "Proxy Groups Display Mode",
           "showOutboundModesInline": "Show Outbound Modes Inline",
