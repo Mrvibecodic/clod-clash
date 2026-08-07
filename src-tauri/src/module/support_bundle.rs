@@ -585,6 +585,20 @@ async fn sentinel_section(out: &mut std::string::String) {
             .join(" · ");
         let _ = writeln!(out, "- панель прислала вместо серверов: {quoted}");
     }
+
+    // clod:server-description — «описания серверов не появляются» разбирается
+    // именно здесь: ноль означает, что панель их не прислала, а не что клиент
+    // их потерял. Тексты не показываем — они от провайдера и в отчёт не нужны.
+    let described = enhance::server_descriptions().await.len();
+    let _ = writeln!(
+        out,
+        "- узлов с описанием (serverDescription): {described}{}",
+        if described == 0 {
+            " — панель отдаёт его только клиентам из additionalExtendedClientsRegex (^ClodClash/)"
+        } else {
+            ""
+        }
+    );
 }
 
 async fn logs_section(out: &mut std::string::String, lines: usize) {

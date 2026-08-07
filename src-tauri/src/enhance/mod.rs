@@ -1168,6 +1168,27 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
     let config = backfill_empty_groups(config);
     let config = use_sort(config);
 
+    // clod:server-description — самый частый вопрос про эту фичу звучит как
+    // «описания не появляются», и ответ почти всегда на стороне панели:
+    // Remnawave отдаёт `serverDescription` только «расширенным клиентам», а наш
+    // User-Agent в её встроенный список не входит. Пока провайдер не добавил
+    // `additionalExtendedClientsRegex: ["^ClodClash/"]` в Subscription Response
+    // Rules, поле не приходит вовсе — и по интерфейсу это неотличимо от бага.
+    // Одна строка в логе на генерацию конфига отвечает на вопрос за секунду.
+    if profile_is_remote {
+        let described = collect_server_descriptions(&config).len();
+        if described == 0 {
+            logging!(
+                info,
+                Type::Config,
+                "no serverDescription in the subscription: the panel serves it only to clients \
+                 matched by additionalExtendedClientsRegex (^ClodClash/)"
+            );
+        } else {
+            logging!(info, Type::Config, "server descriptions in the config: {}", described);
+        }
+    }
+
     let mut exists_keys_set = HashSet::new();
     exists_keys_set.extend(exists_keys);
 
