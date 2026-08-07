@@ -11,8 +11,6 @@ import {
   useRef,
   useState,
 } from 'react'
-import { delayGroup } from 'tauri-plugin-mihomo-api'
-
 import {
   BaseEmpty,
   BaseLoading,
@@ -100,19 +98,27 @@ function useProxyRenderState(
 
       debugLog(`[ProxyGroups] Найдено прокси: ${proxies.length}`)
 
-      const url = delayManager.getUrl(groupName)
-      debugLog(`[ProxyGroups] URL теста: ${url}, тайм-аут: ${timeout}ms`)
+      debugLog(
+        `[ProxyGroups] URL теста: ${delayManager.getUrl(groupName)}, тайм-аут: ${timeout}ms`,
+      )
 
       try {
-        await Promise.race([
-          delayManager.checkListDelay(proxies, groupName, timeout),
-          delayGroup(groupName, url, timeout, true).then((result) => {
-            debugLog(
-              `[ProxyGroups] getGroupProxyDelays вернул количество результатов:`,
-              Object.keys(result || {}).length,
-            )
-          }), // clod: keepFixed=true — тест не сбрасывает закреплённый узел
-        ])
+        // clod:one-ping — раньше здесь через `Promise.race` запускались ДВА
+        // теста сразу: поузловой (`checkListDelay`) и групповой
+        // (`/group/{name}/delay`). `race` не отменяет проигравшего — он лишь
+        // перестаёт его ждать, так что каждый узел проверялся дважды, ядро
+        // и сеть получали двойную нагрузку, а два замера одного и того же
+        // узла наперегонки писались в показанное значение. Хуже того,
+        // `finally` ниже дёргал обновление списка, когда вторая половина
+        // теста ещё шла, и половина строк тут же снова уезжала в спиннер.
+        //
+        // Остаётся поузловой: на этой странице у каждой строки свой спиннер и
+        // свой результат — прогресс виден по мере готовности, а не одним
+        // скачком в конце. Он же безопаснее для закреплённого узла: групповой
+        // обработчик ядра сбрасывает выбор url-test/fallback-группы
+        // (`ForceSet("")`), поэтому его и приходилось звать с `keepFixed`, а
+        // `/proxies/{name}/delay` выбора не касается вовсе.
+        await delayManager.checkListDelay(proxies, groupName, timeout)
         debugLog(
           `[ProxyGroups] Тестирование задержки завершено, группа: ${groupName}`,
         )
