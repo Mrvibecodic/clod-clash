@@ -176,6 +176,17 @@ export const AppDataProvider = ({
     let lastProxyUpdateTime = 0
     const refreshThrottle = 800
     const cleanupFns: Array<() => void> = []
+    // clod:listener-race — `listen()` асинхронный, а очистка эффекта — нет.
+    // Размонтирование (или перезапуск эффекта — он зависит от `refreshProxy`)
+    // между вызовом и его разрешением заставало массив пустым: подписка
+    // доезжала уже ПОСЛЕ уборки, снять её было некому, и она жила до
+    // перезагрузки окна, дёргая обновления от лица провайдера, которого больше
+    // нет. У быстрой смены профиля это давало по лишней подписке за раз.
+    let cancelled = false
+    const keep = (unlisten: () => void) => {
+      if (cancelled) unlisten()
+      else cleanupFns.push(unlisten)
+    }
 
     const handleProfileChanged = (event: { payload: string }) => {
       const newProfileId = event.payload
@@ -208,7 +219,7 @@ export const AppDataProvider = ({
           'profile-changed',
           handleProfileChanged,
         )
-        cleanupFns.push(unlistenProfile)
+        keep(unlistenProfile)
       } catch (error) {
         console.error(
           '[AppDataProvider] Не удалось подписаться на событие Profile:',
@@ -221,7 +232,7 @@ export const AppDataProvider = ({
           'verge://refresh-profiles',
           handleRefreshProfiles,
         )
-        cleanupFns.push(unlistenProfiles)
+        keep(unlistenProfiles)
       } catch (error) {
         console.error(
           '[AppDataProvider] Не удалось подписаться на событие обновления Profiles:',
@@ -234,7 +245,7 @@ export const AppDataProvider = ({
           'verge://refresh-proxy-config',
           handleRefreshProxy,
         )
-        cleanupFns.push(unlistenProxy)
+        keep(unlistenProxy)
       } catch (error) {
         console.warn(
           '[AppDataProvider] Не удалось установить слушатель событий Tauri:',
@@ -246,6 +257,7 @@ export const AppDataProvider = ({
     void initializeListeners()
 
     return () => {
+      cancelled = true
       cleanupFns.forEach((fn) => {
         try {
           fn()
