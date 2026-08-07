@@ -1,6 +1,8 @@
 mod backup;
 mod clash;
 mod config;
+// clod:wake-net — сон машины и смена сети видны одному сторожу.
+pub mod environment;
 mod icon;
 mod profile;
 mod proxy;
