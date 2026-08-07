@@ -478,16 +478,15 @@ impl PrfItem {
         // clod:headers end
 
         // Отправляем запрос через network manager
-        let resp = match NetworkManager::new()
-            .get_with_interrupt_and_headers(
-                url.as_str(),
-                proxy_type,
-                Some(timeout),
-                user_agent.clone(),
-                accept_invalid_certs,
-                Some(&identity_headers),
-            )
-            .await
+        let resp = match fetch_subscription(
+            url.as_str(),
+            proxy_type,
+            timeout,
+            user_agent.clone(),
+            accept_invalid_certs,
+            &identity_headers,
+        )
+        .await
         {
             Ok(r) => r,
             Err(e) => {
@@ -837,6 +836,130 @@ fn parse_subscription_userinfo(headers: &reqwest::header::HeaderMap) -> Option<P
         });
     }
     None
+}
+
+/// Фора выбранного пути перед запасным.
+///
+/// Ноль означал бы второй запрос к панели на каждое обновление подписки —
+/// лишняя нагрузка там, где всё и так работает. За четверть секунды рабочий
+/// путь успевает ответить в подавляющем большинстве случаев, а неработающий
+/// не успевает никогда: он либо отказывает мгновенно (прокси не поднят), либо
+/// висит до таймаута (адрес заблокирован).
+const FETCH_HEAD_START: Duration = Duration::from_millis(250);
+
+/// clod:race-fetch — забрать подписку тем путём, который сработает.
+///
+/// Приём подсмотрен у Prizrak-Box (`utils.FastGet`), и для рынка с
+/// блокировками он важнее, чем кажется: путей ровно два, и каждый ломается
+/// в своей ситуации.
+///   * через собственное ядро — единственный рабочий, когда адрес подписки
+///     заблокирован у провайдера связи;
+///   * напрямую — единственный рабочий, когда ядро ещё не поднято (первый
+///     импорт, старт приложения) или конфиг сломан.
+/// Раньше путь выбирался заранее по галочкам профиля, и ошибка выбора
+/// означала «подписка не обновляется» вместо «обновилась вторым способом».
+///
+/// Берём первый УСПЕШНЫЙ ответ, а не первый пришедший: отказ по заблокированному
+/// адресу возвращается быстрее любого настоящего ответа, и гонка «кто первый»
+/// систематически выбирала бы именно его. Если не смог никто — отдаём ошибку
+/// выбранного пути: она про ту дорогу, которую пользователь настроил, и
+/// понятнее в отчёте.
+///
+/// Проигравший запрос отменяется вместе со сбросом future — `reqwest` закрывает
+/// соединение сам.
+async fn fetch_once(
+    url: &str,
+    proxy_type: ProxyType,
+    timeout: u64,
+    user_agent: Option<String>,
+    accept_invalid_certs: bool,
+    headers: &reqwest::header::HeaderMap,
+) -> Result<crate::utils::network::HttpResponse> {
+    NetworkManager::new()
+        .get_with_interrupt_and_headers(
+            url,
+            proxy_type,
+            Some(timeout),
+            user_agent,
+            accept_invalid_certs,
+            Some(headers),
+        )
+        .await
+}
+
+async fn fetch_subscription(
+    url: &str,
+    preferred: ProxyType,
+    timeout: u64,
+    user_agent: Option<String>,
+    accept_invalid_certs: bool,
+    headers: &reqwest::header::HeaderMap,
+) -> Result<crate::utils::network::HttpResponse> {
+    // Прямой путь и есть выбранный — гоняться не с кем.
+    if matches!(preferred, ProxyType::None) {
+        return fetch_once(url, ProxyType::None, timeout, user_agent, accept_invalid_certs, headers).await;
+    }
+
+    let chosen = std::pin::pin!(fetch_once(
+        url,
+        preferred,
+        timeout,
+        user_agent.clone(),
+        accept_invalid_certs,
+        headers
+    ));
+    let direct = std::pin::pin!(async {
+        tokio::time::sleep(FETCH_HEAD_START).await;
+        fetch_once(url, ProxyType::None, timeout, user_agent, accept_invalid_certs, headers).await
+    });
+    let (mut chosen, mut direct) = (chosen, direct);
+
+    // Флаги обязательны: `select!` нельзя дать опросить уже завершившийся
+    // future — это паника, а не проигрыш в гонке.
+    let (mut chosen_done, mut direct_done) = (false, false);
+    let (mut chosen_error, mut direct_error) = (None, None);
+
+    while !(chosen_done && direct_done) {
+        tokio::select! {
+            // Выбранный путь первым по порядку: при одновременной готовности
+            // `biased` отдаёт победу той дороге, которую настроил пользователь.
+            biased;
+            result = &mut chosen, if !chosen_done => {
+                chosen_done = true;
+                match result {
+                    Ok(response) => return Ok(response),
+                    Err(e) => {
+                        clash_verge_logging::logging!(
+                            info,
+                            clash_verge_logging::Type::Config,
+                            "[clod] subscription fetch failed on the chosen route, waiting for the direct one: {e}"
+                        );
+                        chosen_error = Some(e);
+                    }
+                }
+            }
+            result = &mut direct, if !direct_done => {
+                direct_done = true;
+                match result {
+                    Ok(response) => {
+                        clash_verge_logging::logging!(
+                            info,
+                            clash_verge_logging::Type::Config,
+                            "[clod] subscription answered on the direct route"
+                        );
+                        return Ok(response);
+                    }
+                    Err(e) => direct_error = Some(e),
+                }
+            }
+        }
+    }
+
+    // Обе дороги закрыты. Ошибка выбранного пути информативнее — она про ту
+    // дорогу, которую пользователь настроил, и понятнее в отчёте.
+    Err(chosen_error
+        .or(direct_error)
+        .unwrap_or_else(|| anyhow::anyhow!("subscription fetch produced no result")))
 }
 
 /// Порог, выше которого метка времени может быть только миллисекундами:
