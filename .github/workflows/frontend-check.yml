@@ -84,6 +84,12 @@ jobs:
         if: github.event_name != 'pull_request' || steps.check_frontend.outputs.frontend == 'true'
         run: pnpm typecheck
 
+      # clod:tests — раннер встроен в Node, отдельной зависимости у фронта нет.
+      # Стоит после typecheck: если типы разъехались, падать полезнее раньше.
+      - name: Run frontend tests
+        if: github.event_name != 'pull_request' || steps.check_frontend.outputs.frontend == 'true'
+        run: pnpm test
+
       - name: Report unused frontend code and dependencies
         if: github.event_name != 'pull_request' || steps.check_frontend.outputs.frontend == 'true'
         run: pnpm knip:report
