@@ -31,8 +31,9 @@ editors) is kept — it is simply moved out of sight into an advanced mode.
 
 ## What Clod Clash gives you
 
-* **27 Remnawave / Happ subscription headers** plus five compatibility synonyms — plan name, logo,
-  announcement, promo banner, portal, support, renew and top-up buttons. The full list is in
+* **26 Remnawave / Happ subscription headers** plus five compatibility synonyms — plan name, logo,
+  announcement, promo banner, customer portal, support, and the text for the device-limit
+  dialog. The full list is in
   [HEADERS_en.md](./HEADERS_en.md).
 * **Device identity** (`x-hwid`) with a device limit the user can actually understand.
 * **A spare subscription address** (`fallback-url`, `fallback-domain`) and **a provider-driven

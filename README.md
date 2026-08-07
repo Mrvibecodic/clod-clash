@@ -31,9 +31,9 @@ Clod Clash — сборка Clash Verge Rev, доведённая до сост�
 
 ## Преимущества Clod Clash
 
-* **27 заголовков подписки Remnawave / Happ** плюс пять синонимов для совместимости — название
-  тарифа, логотип, объявление, промо-баннер, кабинет, поддержка, кнопки продления и докупки.
-  Полный список — в [docs/HEADERS.md](./docs/HEADERS.md).
+* **26 заголовков подписки Remnawave / Happ** плюс пять синонимов для совместимости — название
+  тарифа, логотип, объявление, промо-баннер, личный кабинет, поддержка, текст для диалога
+  лимита устройств. Полный список — в [docs/HEADERS.md](./docs/HEADERS.md).
 * **Идентификация устройства** (`x-hwid`) с понятной обработкой лимита устройств.
 * **Резервный адрес подписки** (`fallback-url`, `fallback-domain`) и **смена адреса провайдером**
   (`new-url`, `new-domain`) — новый адрес принимается только после успешной пробной загрузки.
@@ -170,7 +170,7 @@ TUN перехватывает трафик всех приложений, вк�
 
 **Дополнительные заголовки.** `announce`, `announce-url`, `profile-logo`, `support-url`,
 `new-url`, `fallback-url`, `notify-*`, наши `clod-*` (`clod-portal-url`, `clod-promo`,
-`clod-promo-url`, `clod-renew-url`, `clod-topup-url`, `clod-simple-mode`, `clod-lock-mode`)
+`clod-promo-url`, `clod-hwid-limit`, `clod-simple-mode`, `clod-lock-mode`)
 и остальные, которых нет в стандартном наборе Remnawave, задаются через
 `customResponseHeaders`. Значения с не-ASCII текстом надёжнее отдавать в виде
 `base64:<payload>`; все ссылки — только `https://`.

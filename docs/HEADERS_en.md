@@ -33,10 +33,11 @@ default). Turning it off stops all of them.
 | --- | --- | --- |
 | `profile-title` | plan name | sets the profile name. A name the user typed is never overwritten |
 | `profile-logo` | provider logo URL | downloaded on every subscription update and kept locally: the logo does not blink on a cold start, works offline and is not pulled from a third-party host on every screen. A subscription added before the cache existed fetches it once, on first show. The fetch goes through the app's own core first and only then by the ordinary route — a decoration is not worth handing a third-party host the real address. `png`, `jpeg`, `webp`, `avif`, `gif`, `svg`, `bmp` and `ico` of at most 2 MiB are stored; anything else is not cached and the logo is loaded from the provider URL as before. `https` only, redirects included: a header cannot walk the client onto `http://` or into the local network |
-| `subscription-userinfo` | `upload`, `download`, `total`, `expire` | traffic and expiry on the subscription card. `total=0` → "Unlimited", `expire=0` → "No expiry". Between refreshes the app adds up proxied traffic on its own and marks the sum as approximate (`≈` plus a warning triangle); the panel's own number stays the only input for "traffic exhausted", critical states and the renew buttons |
+| `subscription-userinfo` | `upload`, `download`, `total`, `expire` | traffic and expiry on the subscription card. `total=0` → "Unlimited", `expire=0` → "No expiry". Between refreshes the app adds up proxied traffic on its own and marks the sum as approximate (`≈` plus a warning triangle); the panel's own number stays the only input for "traffic exhausted", critical states and the critical states |
 | `subscription-refill-date` | unix time of the traffic reset | "Traffic resets on {date}" |
-| `profile-update-interval` | refresh interval in hours | sets the interval and marks it as dictated by the provider, so the user cannot override it |
+| `profile-update-interval` | refresh interval in hours | sets the interval and marks it as dictated by the provider: the "Update interval" field in the subscription properties becomes disabled and says why. The value applies only when the user has not set an interval of their own; `0` turns auto-update off |
 | `Date` | the panel's clock (an ordinary HTTP header) | compared with the device clock on every subscription update; the difference is stored and applied to the countdown and to the reminders, so a device with a wrong clock does not count the remaining time wrong. Nothing to configure — every server sends it. A measurement older than a month is dropped |
+| `Age` | how long the answer sat in a cache (an ordinary HTTP header) | housekeeping: anything above zero means the `Date` belongs to the cache rather than to the panel, so the clock is not read off such an answer — the whole cache lifetime would land in the offset |
 | `content-disposition` | file name | fallback source for the profile name when `profile-title` is absent |
 
 **Contacting the provider**
@@ -46,12 +47,10 @@ default). Turning it off stops all of them.
 | `clod-portal-url` | customer portal link | "Customer portal" button. Our own header on purpose: Remnawave's `profile-web-page-url` usually points at the subscription page itself. `https` only |
 | `profile-web-page-url` | the provider's subscription page | turns the plan name on the card into a link. `https` only |
 | `support-url` | support link | "Support" button; a `t.me/…` link gets a Telegram icon. `https`, `tg:` or `mailto:` only |
-| `announce` | permanent provider message | banner in the app **without a close button** — lives exactly as long as the panel keeps sending it. Supports per-word colours (see below) |
+| `announce` | permanent provider message | banner in the app **without a close button** — lives exactly as long as the panel keeps sending it. Supports per-word colours (see below). Use `clod-promo` for one-off campaigns and `clod-hwid-limit` for the device dialog |
 | `announce-url` | where clicking the banner leads | makes the `announce` banner clickable. `https` only |
 | `clod-promo` | temporary promo banner | a separate accent banner the user **can dismiss**; a changed text brings it back. Same per-word colours as `announce` |
 | `clod-promo-url` | where the promo click leads | makes the `clod-promo` banner clickable. `https` only |
-| `clod-renew-url` | plan renewal link | shows the **"Renew"** button. No header — no button. `https` only |
-| `clod-topup-url` | traffic top-up link | shows the **"Top up"** button. No header — no button. `https` only |
 
 **UI control**
 
@@ -79,8 +78,9 @@ arrives without a migration request.
 | --- | --- | --- |
 | `x-hwid-active` | the device is registered | nothing, informational |
 | `x-hwid-not-supported` | the panel wants an id the client did not send | dialog: "The provider requires device identification. Turn it on?". **A working profile is never overwritten** — the body is the same stub as on a device limit. Outranks `x-hwid-limit`, which Remnawave sets in both blocking branches — without that precedence the user would be told about a limit they never hit |
-| `x-hwid-max-devices-reached`<br>`x-hwid-limit` | device limit is full | dialog with the text from `announce` and a "Support" button. **A working profile is never overwritten** — the panel's body is a stub in this case |
+| `x-hwid-max-devices-reached`<br>`x-hwid-limit` | device limit is full | dialog with a "Support" button; the provider's own wording comes from `clod-hwid-limit`. **A working profile is never overwritten** — the panel's body is a stub in this case. While the state holds, the subscription card carries a red line saying why it is not updating |
 | `x-hwid-max-devices` | how many devices are allowed | filled into the dialog text. Remnawave 3.x does not send it — without it the dialog simply has no number |
+| `clod-hwid-limit` | **optional** provider text for both device dialogs | shown under the dialog's own text — "unlink the old device in your account", say. Plain text or `base64:`, up to 500 characters, with the same `#RRGGBB` colouring as the banners. A header of its own rather than `announce`: the home banner is for everybody, this explanation is addressed to one blocked device. Without it the dialog does fine on its own wording |
 
 **Reminders**
 
@@ -100,7 +100,8 @@ These apply to every header above:
   friends — those are recognised. An unrelated header such as `renew-url` is **not**
   mistaken for `new-url`.
 * **A `base64:` prefixed value is decoded.** Four alphabets are understood: standard,
-  unpadded, url-safe and url-safe unpadded. If decoding fails, the raw string is used.
+  unpadded, url-safe and url-safe unpadded. If decoding fails the header counts as absent —
+  a literal `base64:…` must never surface in a banner.
 * **Non-ASCII text is read in both forms:** as `base64:` and as raw UTF-8 straight in the
   header value. The latter is not allowed by the spec, but panels do it, so the client
   copes.
@@ -109,14 +110,18 @@ These apply to every header above:
 * **Links are validated, plain http is banned.** `profile-logo`, `profile-web-page-url`,
   `announce-url` and every `clod-*-url` are accepted as **`https` only** — `http:`,
   `javascript:` and `file:` are dropped. `support-url` additionally understands `tg:`
-  and `mailto:`. `new-url` may not downgrade `https` to `http`.
-* **Empty values are ignored**, an announcement is capped at 500 characters, threshold
+  and `mailto:`, but an ordinary link there must be `https://` as well. `new-url` may not
+  downgrade `https` to `http`. **There are no "Renew" and "Top up" buttons in the client**:
+  the customer portal (`clod-portal-url`) is the single place the app ever points at for
+  payment.
+* **Empty values are ignored**, the announcement, the promo and `clod-hwid-limit` are capped
+  at 500 characters, threshold
   lists are range-checked (1–365 days, 1–100 percent) and limited to ten entries. A
   completely invalid header behaves like a missing one.
 
 ### Colours in banners
 
-`announce` and `clod-promo` can paint single words. The colour code is glued to
+`announce`, `clod-promo` and `clod-hwid-limit` can paint single words. The colour code is glued to
 the word, with no space in between:
 
 ```
@@ -166,17 +171,19 @@ from `subscription-userinfo` (which stays truthful in these responses):
 
 | Subscription data | What the user sees | Buttons |
 | --- | --- | --- |
-| `expire` in the past | "Subscription expired" | "Renew" (`clod-renew-url`), "Support" |
-| `total` used up | "Out of traffic" plus the reset date from `subscription-refill-date` | "Top up" (`clod-topup-url`), "Renew", "Support" |
+| `expire` in the past | "Subscription expired" | "Support" (`support-url`), "Update subscription" |
+| `total` used up | "Out of traffic" plus the reset date from `subscription-refill-date` | "Support", "Update subscription" |
 | both look healthy | "The provider sent no servers" plus a quote of the placeholder names | "Support", "Update subscription" |
 
 The placeholder names are **only ever quoted** ("The panel says: …") — no logic is built on
-them. Buttons, as everywhere else, appear only when the matching header was sent.
+them. The "Support" button, as everywhere else, appears only when the matching header was
+sent; "Update subscription" is always there — renew in the portal, come back, press it.
 
 The last row needs confirmation from the config side: "The provider sent no servers" is
 shown only when nothing survived the filter **and** placeholders were actually there. A
-template that simply ships no groups is not blamed on the provider. "Renew" is not offered
-in that row — the subscription is alive, there is nothing to renew.
+template that simply ships no groups is not blamed on the provider. These cards carry no
+payment buttons at all: the only payment link in the whole client is the customer portal
+(`clod-portal-url`) on the home screen.
 
 ---
 
