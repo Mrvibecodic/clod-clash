@@ -11,7 +11,7 @@ use self::{
     merge::use_merge,
     script::use_script,
     seq::{SeqMap, use_seq},
-    tun::use_tun,
+    tun::{ensure_dns_for_tun, use_tun},
 };
 use crate::utils::dirs;
 use crate::{
@@ -377,19 +377,43 @@ fn enforce_control_plane(mut config: Mapping, snapshot: Mapping) -> Mapping {
     config
 }
 
-/// Вложенный переключатель, за который отвечает страница DNS; снимок делается
-/// только при `enable_dns_settings`.
-fn snapshot_dns_ipv6(config: &Mapping) -> Option<Value> {
-    config.get("dns")?.get("ipv6").cloned()
+/// Секции, за которые отвечает страница DNS. Снимок делается ТОЛЬКО при
+/// `enable_dns_settings` — тумблер и означает «эти блоки мои».
+///
+/// clod:dns-owner — раньше из ручных merge/script восстанавливался один
+/// `dns.ipv6`, и переопределение из merge-профиля молча уносило и резолверы, и
+/// `enhanced-mode`, и `fake-ip-range` — хотя человек прямо включил страницу
+/// DNS и настроил её. Разбор Koala Clash, FlClashX, Prizrak-Box и CMFA дал
+/// один и тот же ответ: поключевой защиты не делает НИКТО, граница проходит по
+/// целому блоку и управляется одним пользовательским тумблером (`controlDns` /
+/// `overrideDns` / `mi.Dns`). Здесь ровно это.
+///
+/// `hosts` идёт в комплекте: его пишет та же страница той же кнопкой
+/// (`apply_dns_settings`), и защищать одно без другого значило бы разорвать
+/// настройку пополам.
+const DNS_PAGE_KEYS: &[&str] = &["dns", "hosts"];
+
+fn snapshot_dns_page(config: &Mapping) -> Mapping {
+    let mut snapshot = Mapping::new();
+    for &key in DNS_PAGE_KEYS {
+        let key = Value::from(key);
+        if let Some(value) = config.get(&key) {
+            snapshot.insert(key, value.clone());
+        }
+    }
+    snapshot
 }
 
-/// Восстанавливает `dns.ipv6`, но не создаёт отсутствующий блок `dns`.
-fn enforce_dns_ipv6(mut config: Mapping, dns_ipv6: Option<Value>) -> Mapping {
-    if let Some(dns_ipv6) = dns_ipv6
-        && let Some(Value::Mapping(dns)) = config.get_mut("dns")
-    {
-        dns.insert(Value::from("ipv6"), dns_ipv6);
-    }
+/// Возвращает блоки страницы DNS на место после ручного переопределения.
+///
+/// Ключ, которого не было в снимке, НЕ удаляется — в отличие от control plane.
+/// Там удаление осознанно (профиль не должен уметь добавить себе `tun`), здесь
+/// оно стало бы регрессией: при пустом `dns_config.yaml` мы вырезали бы `dns`,
+/// который принёс merge-профиль пользователя, то есть отобрали бы настройку,
+/// ничего не дав взамен. Ровно по этой причине `dns` нельзя было просто
+/// дописать в `CONTROL_PLANE_KEYS`.
+fn enforce_dns_page(mut config: Mapping, snapshot: Mapping) -> Mapping {
+    config.extend(snapshot);
     config
 }
 
@@ -1111,15 +1135,21 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
     let config = apply_builtin_scripts(config, clash_core, enable_builtin).await;
     let config = use_tun(config, enable_tun);
     let config = apply_dns_settings(config, enable_dns_settings).await;
+    // clod:tun-dns-floor — строка выше кладёт блок `dns` из `dns_config.yaml`
+    // целиком и стирает то, что `use_tun` только что выставил. Под поднятым
+    // туннелем резолвер обязан быть включён, иначе перехваченный 53-й порт
+    // ведёт в никуда; дожимаем минимум обратно.
+    let config = ensure_dns_for_tun(config, enable_tun);
 
     // Фиксируем поля app перед ручным переопределением.
     let control_plane = snapshot_control_plane(&config);
-    // Когда страница DNS включена, только `dns.ipv6` следует за UI; остальные поля DNS
-    // всё ещё можно переопределить.
-    let dns_ipv6 = if enable_dns_settings {
-        snapshot_dns_ipv6(&config)
+    // clod:dns-owner — включённая страница DNS означает «блоки `dns` и `hosts`
+    // мои целиком»: ручные merge/script их больше не переписывают. Выключенная —
+    // мы их не трогаем вовсе, и владеет ими профиль вместе с merge.
+    let dns_page = if enable_dns_settings {
+        snapshot_dns_page(&config)
     } else {
-        None
+        Mapping::new()
     };
 
     // Глобальное ручное переопределение.
@@ -1139,7 +1169,11 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
 
     // Восстанавливаем поля app после ручного переопределения.
     let config = enforce_control_plane(config, control_plane);
-    let config = enforce_dns_ipv6(config, dns_ipv6);
+    let config = enforce_dns_page(config, dns_page);
+    // Пол проверяем ещё раз: merge/script при ВЫКЛЮЧЕННОЙ странице DNS блок
+    // `dns` не восстанавливают, и выключить резолвер под туннелем они всё ещё
+    // могли бы.
+    let config = ensure_dns_for_tun(config, enable_tun);
     let config = ensure_lan_bind_address(config);
     let config = ensure_store_selected(config);
 
@@ -1469,28 +1503,60 @@ mod tests {
     }
 
     #[test]
-    fn dns_ipv6_follows_ui_but_other_dns_stays_overridable() {
-        let app_config = mapping(r#"{dns: {ipv6: false, proxy-server-nameserver: ["1.1.1.1"]}}"#);
-        let dns_ipv6 = super::snapshot_dns_ipv6(&app_config);
+    fn dns_page_owns_its_blocks_whole() {
+        // Включённая страница DNS — блоки `dns` и `hosts` целиком наши, а не
+        // один `dns.ipv6`, как было раньше: merge-профиль молча уносил и
+        // резолверы, и `enhanced-mode`, хотя человек настроил их руками.
+        let app_config = mapping(
+            r#"{dns: {ipv6: false, enhanced-mode: fake-ip, proxy-server-nameserver: ["1.1.1.1"]}, hosts: {a.test: 1.2.3.4}}"#,
+        );
+        let snapshot = super::snapshot_dns_page(&app_config);
 
-        let hijacked = mapping(r#"{dns: {ipv6: true, proxy-server-nameserver: ["8.8.8.8"]}}"#);
-        let result = super::enforce_dns_ipv6(hijacked, dns_ipv6);
+        let hijacked = mapping(
+            r#"{dns: {ipv6: true, enhanced-mode: redir-host, proxy-server-nameserver: ["8.8.8.8"]}, hosts: {a.test: 9.9.9.9}}"#,
+        );
+        let result = super::enforce_dns_page(hijacked, snapshot);
 
+        let dns = result.get("dns").expect("dns block");
+        assert_eq!(dns.get("ipv6").and_then(serde_yaml_ng::Value::as_bool), Some(false));
         assert_eq!(
-            result
-                .get("dns")
-                .and_then(|value| value.get("ipv6"))
-                .and_then(serde_yaml_ng::Value::as_bool),
-            Some(false)
+            dns.get("enhanced-mode").and_then(serde_yaml_ng::Value::as_str),
+            Some("fake-ip")
         );
         assert_eq!(
-            result
-                .get("dns")
-                .and_then(|value| value.get("proxy-server-nameserver"))
+            dns.get("proxy-server-nameserver")
                 .and_then(serde_yaml_ng::Value::as_sequence)
                 .and_then(|seq| seq.first())
                 .and_then(serde_yaml_ng::Value::as_str),
-            Some("8.8.8.8")
+            Some("1.1.1.1")
+        );
+        assert_eq!(
+            result
+                .get("hosts")
+                .and_then(|value| value.get("a.test"))
+                .and_then(serde_yaml_ng::Value::as_str),
+            Some("1.2.3.4")
+        );
+    }
+
+    #[test]
+    fn dns_page_never_removes_what_it_did_not_write() {
+        // Пустой снимок (страница DNS выключена или `dns_config.yaml` пуст) не
+        // должен вырезать `dns`, принесённый merge-профилем пользователя —
+        // именно поэтому `dns` нельзя было дописать в `CONTROL_PLANE_KEYS`.
+        let snapshot = super::snapshot_dns_page(&mapping(r"{mode: rule}"));
+        assert!(snapshot.is_empty());
+
+        let from_merge = mapping(r#"{dns: {enable: true, nameserver: ["9.9.9.9"]}}"#);
+        let result = super::enforce_dns_page(from_merge, snapshot);
+        assert_eq!(
+            result
+                .get("dns")
+                .and_then(|value| value.get("nameserver"))
+                .and_then(serde_yaml_ng::Value::as_sequence)
+                .and_then(|seq| seq.first())
+                .and_then(serde_yaml_ng::Value::as_str),
+            Some("9.9.9.9")
         );
     }
 
