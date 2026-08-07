@@ -15,6 +15,16 @@ import tseslint from 'typescript-eslint'
 export default defineConfig([
   pluginESx.configs['flat/restrict-to-es2022'],
   {
+    // clod:tests — тесты живут в собственной программе (`tsconfig.test.json`):
+    // им нужны типы Node, а всему остальному фронту они противопоказаны —
+    // глобальные объявления действуют на программу целиком, и `setTimeout`
+    // начинает возвращать `NodeJS.Timeout` вместо `number`. Разбирать вторую
+    // программу типизированный линтер не умеет (его project service ищет
+    // файлы с именем `tsconfig.json`), поэтому тесты он пропускает: их и так
+    // проверяют форматер, отдельный typecheck и собственный прогон.
+    ignores: ['src/**/*.test.ts'],
+  },
+  {
     files: ['**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
 
     plugins: {
