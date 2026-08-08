@@ -178,6 +178,7 @@ async fn refresh_core_config() {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod tests {
     use super::extract_subscription_info;
     use tauri::Url;

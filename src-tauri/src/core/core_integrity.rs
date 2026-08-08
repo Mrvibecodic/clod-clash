@@ -198,6 +198,7 @@ pub async fn ensure_elevated_binary_is_known(path: &Path) -> Result<()> {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod tests {
     use super::{digest_of, digest_of_bytes};
 

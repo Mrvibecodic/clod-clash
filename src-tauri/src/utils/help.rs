@@ -59,7 +59,7 @@ pub async fn read_seq_map(path: &PathBuf) -> Result<SeqMap> {
 
 /// save the data to the file
 /// can set `prefix` string to add some comments
-pub async fn save_yaml<T: Serialize + Sync>(path: &PathBuf, data: &T, prefix: Option<&str>) -> Result<()> {
+pub async fn save_yaml<T: Serialize + Sync>(path: &Path, data: &T, prefix: Option<&str>) -> Result<()> {
     let data_str = with_encryption(|| async { serde_yaml_ng::to_string(data) }).await?;
 
     let yaml_str = match prefix {
@@ -134,8 +134,8 @@ pub async fn write_atomic(path: &Path, contents: &[u8]) -> Result<()> {
 
     // Черновик не должен копиться рядом с настоящим файлом.
     let _ = tokio::fs::remove_file(&staging).await;
-    Err(anyhow!(last_error.expect("rename failed at least once")))
-        .with_context(|| format!("failed to move file into place \"{}\"", path.display()))
+    let last_error = last_error.unwrap_or_else(|| std::io::Error::other("rename was never attempted"));
+    Err(anyhow!(last_error)).with_context(|| format!("failed to move file into place \"{}\"", path.display()))
 }
 
 /// Имя черновика рядом с целевым файлом — на том же томе, иначе переименование
@@ -360,6 +360,7 @@ pub fn snapshot_path(original_path: &Path) -> Result<PathBuf> {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod tests {
     use super::{is_placeholder_secret, random_secret, staging_path, write_atomic};
     use std::path::PathBuf;

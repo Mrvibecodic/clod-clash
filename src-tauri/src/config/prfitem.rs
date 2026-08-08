@@ -1228,6 +1228,7 @@ mod tests {
 
     /// clod: схема адреса подписки.
     #[test]
+    #[allow(clippy::expect_used)]
     fn subscription_urls_are_limited_to_http_and_https() {
         // Обычные адреса, ради которых всё и написано.
         assert!(fix_dirty_url("https://panel.example/sub/token").is_ok());
