@@ -1150,6 +1150,8 @@ fn allow_auto_update_enabled(option: Option<&PrfOption>) -> bool {
 /// Fix URLs where query parameters are incorrectly appended to the path segment
 ///
 /// Incorrect Example: https://example.com/path&param1=value1
+///
+/// clod: заодно единственное место, где проверяется схема адреса подписки.
 fn fix_dirty_url(input: &str) -> Result<Url> {
     let mut url = match Url::parse(input) {
         Ok(u) => u,
@@ -1161,6 +1163,25 @@ fn fix_dirty_url(input: &str) -> Result<Url> {
             ));
         }
     };
+
+    // clod: подписка забирается только по http и https.
+    //
+    // Сюда приходит строка из буфера обмена, из deep-link и из заголовков
+    // панели, а `Url` разбирает вообще любую схему. Без проверки `file:///`
+    // превращал обновление подписки в чтение произвольного файла с диска
+    // пользователя, а его содержимое — в текст ошибки на экране.
+    if !matches!(url.scheme(), "http" | "https") {
+        anyhow::bail!(
+            "subscription URL must use http or https, got scheme \"{}\": {}",
+            url.scheme(),
+            help::mask_url(input)
+        );
+    }
+
+    // Хост обязателен: `http:///path` разбирается, но ходить по нему некуда.
+    if url.host_str().is_none_or(str::is_empty) {
+        anyhow::bail!("subscription URL has no host: {}", help::mask_url(input));
+    }
 
     if url.query().is_none() && url.path().contains('&') {
         let path = url.path().to_string();
@@ -1178,7 +1199,7 @@ fn fix_dirty_url(input: &str) -> Result<Url> {
 
 #[cfg(test)]
 mod tests {
-    use super::{PrfOption, allow_auto_update_enabled, to_unix_seconds};
+    use super::{PrfOption, allow_auto_update_enabled, fix_dirty_url, to_unix_seconds};
 
     #[test]
     fn recognises_milliseconds_in_expire() {
@@ -1200,5 +1221,34 @@ mod tests {
             ..PrfOption::default()
         };
         assert!(!allow_auto_update_enabled(Some(&disabled)));
+    }
+
+    /// clod: схема адреса подписки.
+    #[test]
+    fn subscription_urls_are_limited_to_http_and_https() {
+        // Обычные адреса, ради которых всё и написано.
+        assert!(fix_dirty_url("https://panel.example/sub/token").is_ok());
+        assert!(fix_dirty_url("http://panel.example/sub").is_ok());
+
+        // Починка слипшихся параметров работает как работала.
+        let fixed = fix_dirty_url("https://panel.example/sub&flow=xtls").expect("dirty url");
+        assert_eq!(fixed.query(), Some("flow=xtls"));
+
+        // Всё остальное — не адрес подписки. `file:` без запрета читал бы
+        // произвольный файл с диска и показывал его в ошибке обновления.
+        for hostile in [
+            "file:///etc/passwd",
+            "file://server/share/config.yaml",
+            "javascript:alert(1)",
+            "data:text/yaml,proxies: []",
+            "ftp://panel.example/sub",
+            "clodclash://install-config?url=x",
+        ] {
+            let error = fix_dirty_url(hostile).expect_err(hostile).to_string();
+            assert!(error.contains("http or https"), "{hostile} -> {error}");
+        }
+
+        // Схема верная, хоста нет — идти некуда.
+        assert!(fix_dirty_url("https:///sub").is_err());
     }
 }
