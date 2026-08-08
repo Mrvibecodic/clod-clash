@@ -1252,7 +1252,9 @@ mod tests {
             assert!(error.contains("http or https"), "{hostile} -> {error}");
         }
 
-        // Схема верная, хоста нет — идти некуда.
-        assert!(fix_dirty_url("https:///sub").is_err());
+        // Схема верная, хоста нет — идти некуда. «https:///sub» сюда не
+        // годится: лишние слэши парсер по WhatWG сворачивает, и хостом
+        // становится «sub» — это валидный адрес.
+        assert!(fix_dirty_url("https://").is_err());
     }
 }

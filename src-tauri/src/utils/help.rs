@@ -97,10 +97,16 @@ pub async fn write_atomic(path: &Path, contents: &[u8]) -> Result<()> {
     let staging = staging_path(path);
 
     let write_result = async {
-        tokio::fs::write(&staging, contents).await?;
+        use tokio::io::AsyncWriteExt as _;
+        // Черновик пишется и сбрасывается через ОДИН дескриптор с правом
+        // записи: на Windows `sync_all` на переоткрытом только для чтения
+        // файле падает с «отказано в доступе» (FlushFileBuffers требует
+        // права записи).
+        let mut file = tokio::fs::File::create(&staging).await?;
+        file.write_all(contents).await?;
         // Без сброса на диск переименование может опередить сами байты, и
         // после выключения питания на месте окажется файл нулевой длины.
-        tokio::fs::File::open(&staging).await?.sync_all().await
+        file.sync_all().await
     }
     .await;
 

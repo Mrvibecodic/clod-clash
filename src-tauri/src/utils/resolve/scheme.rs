@@ -216,8 +216,10 @@ mod tests {
             "clash://install-config?url=javascript:alert(1)",
             "clash://install-config?url=clodclash://install-config?url=x",
             "clash://install-config?url=data:text/yaml;base64,cHJveGllczoge30=",
-            // Схема есть, хоста нет — идти некуда.
-            "clash://install-config?url=https:///sub",
+            // Схема есть, хоста нет — идти некуда. Лишние слэши парсер по
+            // WhatWG сворачивает («https:///sub» даёт хост «sub»), поэтому
+            // адрес без хоста — это только голое «https://».
+            "clash://install-config?url=https://",
         ] {
             assert_eq!(subscription_url(hostile), None, "{hostile}");
         }
