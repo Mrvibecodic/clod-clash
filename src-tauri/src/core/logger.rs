@@ -20,8 +20,65 @@ use parking_lot::{Mutex, RwLock};
 use crate::{
     core::service,
     singleton,
-    utils::dirs::{self, sidecar_log_dir},
+    utils::{
+        dirs::{self, sidecar_log_dir},
+        redact::redact,
+    },
 };
+
+/// clod: единственная точка, где секрет может не попасть в файл.
+///
+/// Форматтер видит КАЖДУЮ строку перед записью — и нашу, и форварженный вывод
+/// ядра, — поэтому редакция стоит здесь, а не в двадцати местах вызова.
+/// Раньше `mask_url` звали руками, про новое сообщение надо было помнить
+/// отдельно, а строки ядра уходили в файл сырыми: с адресом подписки, токеном
+/// короче шестнадцати символов (его `mask_url` щадил) и списком адресов, куда
+/// ходил пользователь.
+///
+/// Строку без секретов отдаём как есть, без пересборки записи: в тихом режиме
+/// это лишняя аллокация на каждую строку лога.
+fn redacted(
+    inner: fn(&mut dyn std::io::Write, &mut DeferredNow, &Record<'_>) -> std::io::Result<()>,
+    writer: &mut dyn std::io::Write,
+    now: &mut DeferredNow,
+    record: &Record<'_>,
+) -> std::io::Result<()> {
+    let message = record.args().to_string();
+    let safe = redact(&message);
+    if safe == message {
+        return inner(writer, now, record);
+    }
+
+    // `format_args!` живёт до конца выражения, поэтому запись пересобирается
+    // и отдаётся форматтеру в одном statement.
+    inner(writer, now, &record.to_builder().args(format_args!("{safe}")).build())
+}
+
+#[cfg(not(any(feature = "tauri-dev", feature = "tokio-trace")))]
+fn redacted_console_format(
+    writer: &mut dyn std::io::Write,
+    now: &mut DeferredNow,
+    record: &Record<'_>,
+) -> std::io::Result<()> {
+    redacted(clash_verge_logger::console_format, writer, now, record)
+}
+
+#[cfg(not(any(feature = "tauri-dev", feature = "tokio-trace")))]
+fn redacted_file_format_with_level(
+    writer: &mut dyn std::io::Write,
+    now: &mut DeferredNow,
+    record: &Record<'_>,
+) -> std::io::Result<()> {
+    redacted(clash_verge_logger::file_format_with_level, writer, now, record)
+}
+
+fn redacted_file_format_without_level(
+    writer: &mut dyn std::io::Write,
+    now: &mut DeferredNow,
+    record: &Record<'_>,
+) -> std::io::Result<()> {
+    redacted(clash_verge_logger::file_format_without_level, writer, now, record)
+}
 
 pub struct Logger {
     handle: Arc<Mutex<Option<LoggerHandle>>>,
@@ -75,8 +132,8 @@ impl Logger {
             let logger = flexi_logger::Logger::with(log_spec)
                 .log_to_file(FileSpec::default().directory(log_dir).basename(""))
                 .duplicate_to_stdout(log_level.into())
-                .format(clash_verge_logger::console_format)
-                .format_for_files(clash_verge_logger::file_format_with_level)
+                .format(redacted_console_format)
+                .format_for_files(redacted_file_format_with_level)
                 .rotate(
                     Criterion::Size(log_max_size * 1024),
                     flexi_logger::Naming::TimestampsCustomFormat {
@@ -207,7 +264,7 @@ impl Logger {
                 .basename("sidecar")
                 .suppress_timestamp(),
         )
-        .format(clash_verge_logger::file_format_without_level)
+        .format(redacted_file_format_without_level)
         .rotate(
             Criterion::Size(log_max_size * 1024),
             flexi_logger::Naming::TimestampsCustomFormat {
