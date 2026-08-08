@@ -26,6 +26,14 @@ impl IClashTemp {
 
         match map_result {
             Ok(mut map) => {
+                // clod: секрет управляющего интерфейса обязан быть своим у
+                // каждой установки. Пустое поле и доставшийся от апстрима
+                // `set-your-secret` считаем «не задан» и выписываем новый;
+                // заданный пользователем не трогаем. Раньше слияния с шаблоном:
+                // иначе отсутствующий ключ забирал бы значение оттуда, и новый
+                // секрет выписывался бы на каждом старте заново.
+                let regenerated = Self::ensure_own_secret(&mut map);
+
                 let template_map = Self::template().0;
                 for (key, value) in template_map.into_iter() {
                     if !map.contains_key(&key) {
@@ -33,21 +41,42 @@ impl IClashTemp {
                     }
                 }
 
-                // Убеждаемся, что поле secret существует и не пустое
-                if let Some(val) = map.get_mut("secret")
-                    && let Value::String(s) = val
-                    && s.is_empty()
-                {
-                    *s = "set-your-secret".into();
+                let config = Self(Self::guard(map));
+                if regenerated {
+                    // Записываем сразу: иначе секрет менялся бы на каждом
+                    // старте, а пользователь видел бы в настройках одно
+                    // значение, в файле другое.
+                    if let Err(err) = config.save_config().await {
+                        logging!(error, Type::Config, "failed to persist generated secret: {err}");
+                    }
                 }
-
-                Self(Self::guard(map))
+                config
             }
             Err(err) => {
                 logging!(error, Type::Config, "{err}");
                 Self::template()
             }
         }
+    }
+
+    /// clod: выдать установке собственный секрет, если своего ещё нет.
+    ///
+    /// Возвращает `true`, когда значение пришлось выписать заново — только в
+    /// этом случае конфиг нужно сохранять на диск.
+    ///
+    /// Нестроковое значение (число, `true`) оставляем как есть: его мог
+    /// поставить пользователь руками, а `get_client_info` такие читать умеет.
+    fn ensure_own_secret(map: &mut Mapping) -> bool {
+        let needs_new = match map.get("secret") {
+            Some(Value::String(secret)) => help::is_placeholder_secret(secret),
+            Some(_) => false,
+            None => true,
+        };
+
+        if needs_new {
+            map.insert("secret".into(), help::random_secret().into());
+        }
+        needs_new
     }
 
     pub fn template() -> Self {
@@ -106,7 +135,7 @@ impl IClashTemp {
             ]
             .into(),
         );
-        map.insert("secret".into(), "set-your-secret".into());
+        map.insert("secret".into(), help::random_secret().into());
         map.insert("external-controller-cors".into(), cors_map.into());
         map.insert("unified-delay".into(), true.into());
         Self(map)
@@ -393,6 +422,46 @@ fn test_clash_info() {
     assert_eq!(get_case(8888, "192.168.1.1:8080"), get_result(8888, "192.168.1.1:8080"));
 
     assert_eq!(get_case(8888, "192.168.1.1:80800"), get_result(8888, "127.0.0.1:9097"));
+}
+
+/// clod: секрет управляющего интерфейса.
+#[test]
+fn own_secret_replaces_the_upstream_placeholder_only() {
+    fn secret_of(map: &Mapping) -> &str {
+        map.get("secret").and_then(Value::as_str).unwrap_or_default()
+    }
+
+    // Ключа нет вовсе — свежая установка.
+    let mut fresh = Mapping::new();
+    assert!(IClashTemp::ensure_own_secret(&mut fresh));
+    assert_eq!(secret_of(&fresh).len(), 32);
+
+    // Значение из апстрима и пустая строка — то же самое, что «не задан».
+    for stale in [help::LEGACY_DEFAULT_SECRET, "", "   "] {
+        let mut map = Mapping::new();
+        map.insert("secret".into(), stale.into());
+        assert!(IClashTemp::ensure_own_secret(&mut map), "{stale:?}");
+        assert_ne!(secret_of(&map), stale);
+    }
+
+    // Заданный пользователем не трогаем, даже короткий: иначе после каждого
+    // старта у него был бы новый секрет, а конфиг переписывался бы молча.
+    let mut own = Mapping::new();
+    own.insert("secret".into(), "hunter2".into());
+    assert!(!IClashTemp::ensure_own_secret(&mut own));
+    assert_eq!(secret_of(&own), "hunter2");
+
+    // Нестроковое значение читается `get_client_info`, значит оно рабочее.
+    let mut numeric = Mapping::new();
+    numeric.insert("secret".into(), 42.into());
+    assert!(!IClashTemp::ensure_own_secret(&mut numeric));
+
+    // Два вызова подряд не дают одинаковых значений.
+    let mut first = Mapping::new();
+    let mut second = Mapping::new();
+    IClashTemp::ensure_own_secret(&mut first);
+    IClashTemp::ensure_own_secret(&mut second);
+    assert_ne!(secret_of(&first), secret_of(&second));
 }
 
 #[derive(Default, Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]

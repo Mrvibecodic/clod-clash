@@ -85,6 +85,26 @@ pub fn get_uid(prefix: &str) -> String {
     format!("{prefix}{id}")
 }
 
+/// Значение, которое апстрим писал в шаблон конфига ядра.
+pub const LEGACY_DEFAULT_SECRET: &str = "set-your-secret";
+
+/// clod: секрет управляющего интерфейса ядра.
+///
+/// Апстрим клал в шаблон строку `set-your-secret` — одну и ту же у всех
+/// установок. Управляющий интерфейс отдаёт конфиг с адресами серверов, меняет
+/// режим и показывает соединения, а CORS в шаблоне пускает несколько внешних
+/// панелей, так что общеизвестный секрет здесь не косметика.
+///
+/// 32 символа из алфавита uid — около 190 бит, перебирать нечего.
+pub fn random_secret() -> String {
+    nanoid!(32, &ALPHABET)
+}
+
+/// Секрет из апстрима и пустая строка равнозначны «не задан».
+pub fn is_placeholder_secret(secret: &str) -> bool {
+    secret.trim().is_empty() || secret == LEGACY_DEFAULT_SECRET
+}
+
 /// parse the string
 /// xxx=123123; => 123123
 pub fn parse_str<T: FromStr>(target: &str, key: &str) -> Option<T> {
