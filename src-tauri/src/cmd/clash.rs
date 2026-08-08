@@ -138,7 +138,6 @@ pub async fn test_delay(url: String) -> CmdResult<u32> {
 #[tauri::command]
 pub async fn save_dns_config(dns_config: Mapping) -> CmdResult {
     use crate::utils::dirs;
-    use tokio::fs;
 
     // Получаем путь к файлу DNS-конфига
     let dns_path = dirs::app_home_dir().stringify_err()?.join(constants::files::DNS_CONFIG);

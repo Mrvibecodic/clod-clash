@@ -50,8 +50,20 @@ fn redacted(
     }
 
     // `format_args!` живёт до конца выражения, поэтому запись пересобирается
-    // и отдаётся форматтеру в одном statement.
-    inner(writer, now, &record.to_builder().args(format_args!("{safe}")).build())
+    // и отдаётся форматтеру в одном statement. Пересборка ручная: готовый
+    // `Record::to_builder` в крейте `log` спрятан за фичей `kv`, которую мы
+    // не включаем; без неё запись состоит ровно из этих пяти полей.
+    inner(
+        writer,
+        now,
+        &Record::builder()
+            .metadata(record.metadata().clone())
+            .module_path(record.module_path())
+            .file(record.file())
+            .line(record.line())
+            .args(format_args!("{safe}"))
+            .build(),
+    )
 }
 
 #[cfg(not(any(feature = "tauri-dev", feature = "tokio-trace")))]
