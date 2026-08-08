@@ -8,7 +8,7 @@ use crate::{
         validate::{CoreConfigValidator, ValidationOutcome},
     },
     module::auto_backup::{AutoBackupManager, AutoBackupTrigger},
-    utils::dirs,
+    utils::{dirs, help},
 };
 use clash_verge_logging::{Type, logging};
 use smartstring::alias::String;
@@ -64,7 +64,9 @@ pub async fn save_profile_file(index: String, file_data: Option<String>) -> CmdR
     };
 
     // Сохраняем новый файл конфига
-    fs::write(&file_path, &file_data).await.stringify_err()?;
+    help::write_atomic(&file_path, file_data.as_bytes())
+        .await
+        .stringify_err()?;
 
     logging!(
         info,
@@ -100,7 +102,9 @@ async fn restore_original(
     original_existed: bool,
 ) -> Result<(), String> {
     if original_existed {
-        fs::write(file_path, original_content).await.stringify_err()
+        help::write_atomic(file_path, original_content.as_bytes())
+            .await
+            .stringify_err()
     } else {
         fs::remove_file(file_path).await.stringify_err()
     }

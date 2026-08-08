@@ -4,9 +4,10 @@ use clash_verge_logging::{Type, logging};
 use nanoid::nanoid;
 use serde::{Serialize, de::DeserializeOwned};
 use serde_yaml_ng::{Mapping, Value};
-#[cfg(target_os = "windows")]
-use std::path::Path;
-use std::{path::PathBuf, str::FromStr};
+use std::{
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
 /// read data from yaml as struct T
 pub async fn read_yaml<T: DeserializeOwned>(path: &PathBuf) -> Result<T> {
@@ -66,11 +67,90 @@ pub async fn save_yaml<T: Serialize + Sync>(path: &PathBuf, data: &T, prefix: Op
         None => data_str,
     };
 
-    tokio::fs::write(path, yaml_str.as_bytes())
-        .await
-        .with_context(|| format!("failed to save file \"{}\"", path.display()))?;
+    write_atomic(path, yaml_str.as_bytes()).await?;
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     Ok(())
+}
+
+/// Сколько раз пробуем переименовать файл на место.
+///
+/// Windows умеет отдать «отказано в доступе», пока свежесозданный файл держит
+/// антивирус или индексатор. Это проходит за доли секунды, и ронять из-за
+/// этого сохранение профиля нельзя.
+const ATOMIC_RENAME_ATTEMPTS: usize = 4;
+const ATOMIC_RENAME_PAUSE: std::time::Duration = std::time::Duration::from_millis(50);
+
+/// clod: записать файл целиком или не записать вовсе.
+///
+/// Прямой `fs::write` усекает файл ДО того, как в него попадут новые байты:
+/// сбой питания, вылет процесса или переполненный диск в этот момент оставляли
+/// на диске обрезанный конфиг или профиль. Для профиля это потерянная подписка,
+/// для `verge.yaml` — сброшенные настройки, и оба чинятся только руками.
+///
+/// Пишем в соседний временный файл, сбрасываем его на диск и переименовываем:
+/// подмена имени атомарна и на POSIX, и на Windows (`MoveFileEx` с заменой),
+/// так что читатель видит либо старое содержимое целиком, либо новое целиком.
+///
+/// Имя временного файла содержит случайную часть — два сохранения одного и
+/// того же пути не отберут друг у друга черновик.
+pub async fn write_atomic(path: &Path, contents: &[u8]) -> Result<()> {
+    let staging = staging_path(path);
+
+    let write_result = async {
+        tokio::fs::write(&staging, contents).await?;
+        // Без сброса на диск переименование может опередить сами байты, и
+        // после выключения питания на месте окажется файл нулевой длины.
+        tokio::fs::File::open(&staging).await?.sync_all().await
+    }
+    .await;
+
+    if let Err(err) = write_result {
+        let _ = tokio::fs::remove_file(&staging).await;
+        return Err(anyhow!(err)).with_context(|| format!("failed to write file \"{}\"", path.display()));
+    }
+
+    // Перезапись оставляла файлу его собственные права, подмена имени — нет.
+    // Профиль хранит адрес подписки, и отдавать его остальным пользователям
+    // машины только потому, что мы сменили способ записи, нельзя.
+    #[cfg(unix)]
+    if let Ok(existing) = tokio::fs::metadata(path).await {
+        use std::os::unix::fs::PermissionsExt as _;
+        let mode = existing.permissions().mode();
+        let _ = tokio::fs::set_permissions(&staging, std::fs::Permissions::from_mode(mode)).await;
+    }
+
+    let mut last_error = None;
+    for attempt in 0..ATOMIC_RENAME_ATTEMPTS {
+        match tokio::fs::rename(&staging, path).await {
+            Ok(()) => return Ok(()),
+            Err(err) => {
+                last_error = Some(err);
+                if attempt + 1 < ATOMIC_RENAME_ATTEMPTS {
+                    tokio::time::sleep(ATOMIC_RENAME_PAUSE).await;
+                }
+            }
+        }
+    }
+
+    // Черновик не должен копиться рядом с настоящим файлом.
+    let _ = tokio::fs::remove_file(&staging).await;
+    Err(anyhow!(last_error.expect("rename failed at least once")))
+        .with_context(|| format!("failed to move file into place \"{}\"", path.display()))
+}
+
+/// Имя черновика рядом с целевым файлом — на том же томе, иначе переименование
+/// превратится в копирование и перестанет быть атомарным.
+fn staging_path(path: &Path) -> PathBuf {
+    let name = path
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "config".into());
+    let staging = format!(".{name}.{}.tmp", nanoid!(8, &ALPHABET));
+
+    match path.parent() {
+        Some(parent) => parent.join(staging),
+        None => PathBuf::from(staging),
+    }
 }
 
 const ALPHABET: [char; 62] = [
@@ -277,4 +357,74 @@ pub fn snapshot_path(original_path: &Path) -> Result<PathBuf> {
     std::fs::copy(original_path, &temp_path)?;
 
     Ok(temp_path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{is_placeholder_secret, random_secret, staging_path, write_atomic};
+    use std::path::PathBuf;
+
+    fn scratch_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("clod-help-{name}-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("scratch dir");
+        dir
+    }
+
+    #[tokio::test]
+    async fn atomic_write_replaces_content_and_leaves_no_drafts() {
+        let dir = scratch_dir("atomic");
+        let target = dir.join("verge.yaml");
+
+        write_atomic(&target, b"first").await.expect("first write");
+        assert_eq!(std::fs::read(&target).expect("read"), b"first");
+
+        // Второй заход не дописывает и не оставляет обрезка от прошлого
+        // содержимого: длина короче, но хвост «rst» пережить не должен.
+        write_atomic(&target, b"two").await.expect("second write");
+        assert_eq!(std::fs::read(&target).expect("read"), b"two");
+
+        let leftovers: Vec<_> = std::fs::read_dir(&dir)
+            .expect("list")
+            .filter_map(Result::ok)
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .filter(|name| name.ends_with(".tmp"))
+            .collect();
+        assert!(leftovers.is_empty(), "черновики остались: {leftovers:?}");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn atomic_write_keeps_the_old_file_when_it_cannot_write() {
+        let dir = scratch_dir("atomic-fail");
+        let target = dir.join("nested").join("verge.yaml");
+
+        // Каталога нет — записать некуда, и это должно быть ошибкой, а не
+        // молчаливой потерей файла.
+        write_atomic(&target, b"payload").await.expect_err("no directory");
+        assert!(!target.exists());
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn draft_lives_next_to_the_target() {
+        // Переименование атомарно только в пределах тома, поэтому черновик
+        // обязан лежать в том же каталоге.
+        let target = PathBuf::from("/var/lib/clod/verge.yaml");
+        let draft = staging_path(&target);
+        assert_eq!(draft.parent(), target.parent());
+        assert_ne!(draft.file_name(), target.file_name());
+
+        // Два черновика одного файла не совпадают — параллельные сохранения
+        // не отберут друг у друга временное имя.
+        assert_ne!(staging_path(&target), staging_path(&target));
+    }
+
+    #[test]
+    fn generated_secret_is_not_a_placeholder() {
+        assert!(is_placeholder_secret(""));
+        assert!(is_placeholder_secret("set-your-secret"));
+        assert!(!is_placeholder_secret(&random_secret()));
+    }
 }

@@ -26,7 +26,7 @@ use std::{
     time::Duration,
 };
 use tauri_plugin_mihomo::models::{Proxies, ProxyType};
-use tokio::{fs, task::JoinHandle};
+use tokio::task::JoinHandle;
 
 /// Regex to check profile file names, eg.
 /// R12345678.yaml (remote)
@@ -201,7 +201,7 @@ impl IProfiles {
                 .ok_or_else(|| anyhow::anyhow!("file field is required when file_data is provided"))?;
             let path = dirs::app_profiles_dir()?.join(file.as_str());
 
-            fs::write(&path, file_data.as_bytes())
+            help::write_atomic(&path, file_data.as_bytes())
                 .await
                 .with_context(|| format!("failed to write to file \"{file}\""))?;
         }
@@ -343,7 +343,7 @@ impl IProfiles {
 
                         let path = dirs::app_profiles_dir()?.join(file.as_str());
 
-                        fs::write(&path, file_data.as_bytes())
+                        help::write_atomic(&path, file_data.as_bytes())
                             .await
                             .with_context(|| format!("failed to write to file \"{file}\""))?;
                     }

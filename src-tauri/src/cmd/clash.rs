@@ -145,7 +145,9 @@ pub async fn save_dns_config(dns_config: Mapping) -> CmdResult {
 
     // Сохраняем DNS-конфиг в файл
     let yaml_str = yaml_emitter::to_mihomo_config_string(&dns_config).stringify_err()?;
-    fs::write(&dns_path, yaml_str).await.stringify_err()?;
+    crate::utils::help::write_atomic(&dns_path, yaml_str.as_bytes())
+        .await
+        .stringify_err()?;
     logging!(info, Type::Config, "DNS config saved to {dns_path:?}");
 
     Ok(())

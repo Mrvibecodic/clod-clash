@@ -794,7 +794,7 @@ impl PrfItem {
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("could not find the file"))?;
         let path = dirs::app_profiles_dir()?.join(file.as_str());
-        fs::write(path, data.as_bytes())
+        help::write_atomic(&path, data.as_bytes())
             .await
             .context("failed to save the file")
     }
