@@ -29,6 +29,7 @@
           "setupFailed": "No se pudo instalar el servicio en segundo plano, TUN sigue desactivado"
         },
         "core": {
+          "binaryChanged": "El archivo del núcleo cambió desde su instalación y no se inició",
           "crashed": "El núcleo se bloqueó varias veces y no se reinició"
         },
         "service": {

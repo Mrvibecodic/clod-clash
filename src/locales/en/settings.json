@@ -29,6 +29,7 @@
           "setupFailed": "Could not install the background service, so TUN stays off"
         },
         "core": {
+          "binaryChanged": "The core file changed since it was installed and was not started",
           "crashed": "The core keeps crashing and was not restarted"
         },
         "service": {

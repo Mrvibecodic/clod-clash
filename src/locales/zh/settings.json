@@ -29,6 +29,7 @@
           "setupFailed": "后台服务安装失败，TUN 模式保持关闭"
         },
         "core": {
+          "binaryChanged": "内核文件在安装后被修改，已拒绝启动",
           "crashed": "内核连续崩溃，已停止自动重启"
         },
         "service": {

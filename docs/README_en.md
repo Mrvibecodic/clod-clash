@@ -129,6 +129,12 @@ Here the only thing the user touches is the switch itself:
 * **The `tun` section belongs to the app.** A provider profile (or a manual merge/script) can
   neither switch TUN off nor switch it on: a snapshot is taken before manual overrides and restored
   after, and a key that was not there does not appear.
+* **Only a core we have already seen gets started.** The service launches the binary at the path
+  the app names, and it does so with system privileges — so a swapped core file would run as
+  SYSTEM. The file's digest is recorded on first sight (for a downloaded core, at install time from
+  bytes that were already checksum-verified) and checked before every start: on a mismatch the core
+  does not start and the screen says why. An app update legitimately brings a different binary, so
+  the digests are taken again after it.
 * **The system DNS comes back even after a crash.** On macOS TUN overrides the system DNS; the
   original value and the network service name are now written next to the configs, and if the
   previous run never restored it (crash, kill, power cut), it is restored on the next start.

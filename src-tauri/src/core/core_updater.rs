@@ -175,16 +175,40 @@ pub async fn managed_core_binary() -> Option<PathBuf> {
     }
     let version = read_pointer("current")?;
     let binary = version_binary(&version).ok()?;
-    if binary.is_file() {
-        Some(binary)
-    } else {
+    if !binary.is_file() {
         logging!(
             warn,
             Type::Core,
             "managed core {} is missing on disk, falling back to the bundled sidecar",
             version
         );
-        None
+        return None;
+    }
+
+    // clod: каталог managed-ядер пишет непривилегированный пользователь,
+    // поэтому подменить файл здесь проще всего. Отпечаток записан при
+    // установке — с известных байтов, а не с «первой встречи».
+    match crate::core::core_integrity::check_binary(&binary).await {
+        Ok(crate::core::core_integrity::PinCheck::Changed { expected, actual }) => {
+            logging!(
+                error,
+                Type::Core,
+                "managed core {} changed since it was installed (expected {expected}, got {actual}), \
+                 falling back to the bundled sidecar",
+                version
+            );
+            None
+        }
+        Ok(_) => Some(binary),
+        Err(err) => {
+            logging!(
+                warn,
+                Type::Core,
+                "failed to verify managed core {}: {err:#}, falling back to the bundled sidecar",
+                version
+            );
+            None
+        }
     }
 }
 
@@ -506,6 +530,10 @@ async fn install_binary(version: &str, data: &[u8]) -> Result<PathBuf> {
             .output()
             .await;
     }
+
+    // clod: отпечаток снимается с байтов, которые только что проверены по
+    // контрольной сумме релиза, — доверять «первой встрече» тут не нужно.
+    crate::core::core_integrity::pin_known_binary(&target, &crate::core::core_integrity::digest_of_bytes(data)).await;
 
     Ok(target)
 }

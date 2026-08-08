@@ -920,6 +920,11 @@ async fn collect_service_runtime_bundle(config_file: &Path) -> Result<clash_verg
         );
     }
     let bin_path = service_core_path(&clash_core, bin_ext)?;
+    // clod: служба запускает то, что мы назовём, и делает это с правами
+    // системы — значит имя должно указывать на тот же файл, что и в прошлый
+    // раз. Проверка стоит здесь, а не на старте: staging называет бинарь тем
+    // же путём, и разойтись эти два места не должны.
+    crate::core::core_integrity::ensure_elevated_binary_is_known(&bin_path).await?;
     collect_runtime_bundle(config_file, &bin_path).await
 }
 

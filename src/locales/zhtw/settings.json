@@ -29,6 +29,7 @@
           "setupFailed": "背景服務安裝失敗，該模式維持停用"
         },
         "core": {
+          "binaryChanged": "核心檔案在安裝後被修改，已拒絕啟動",
           "crashed": "核心連續當機，已停止自動重新啟動"
         },
         "service": {

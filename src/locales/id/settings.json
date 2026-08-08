@@ -29,6 +29,7 @@
           "setupFailed": "Layanan latar belakang gagal dipasang, mode TUN tetap mati"
         },
         "core": {
+          "binaryChanged": "Berkas core berubah setelah dipasang dan tidak dijalankan",
           "crashed": "Core berulang kali berhenti dan tidak dijalankan ulang"
         },
         "service": {

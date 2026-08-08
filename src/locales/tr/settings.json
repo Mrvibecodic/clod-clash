@@ -29,6 +29,7 @@
           "setupFailed": "Arka plan hizmeti kurulamadı, TUN kapalı kalıyor"
         },
         "core": {
+          "binaryChanged": "Çekirdek dosyası kurulumdan sonra değiştiği için başlatılmadı",
           "crashed": "Çekirdek üst üste çöktü ve yeniden başlatılmadı"
         },
         "service": {

@@ -29,6 +29,7 @@
           "setupFailed": "Hintergrunddienst konnte nicht installiert werden, TUN bleibt aus"
         },
         "core": {
+          "binaryChanged": "Die Core-Datei wurde seit der Installation verändert und wurde nicht gestartet",
           "crashed": "Der Core ist mehrfach abgestürzt und wurde nicht neu gestartet"
         },
         "service": {
