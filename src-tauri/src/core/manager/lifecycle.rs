@@ -161,6 +161,14 @@ impl CoreManager {
         let _life = self.lifecycle_lock.lock().await;
         self.stop_core_inner().await?;
 
+        // clod:tun-ready — новая сборка ядра заслуживает честной попытки.
+        // Подавление ставится на сессию (ядро не смогло поднять устройство) и
+        // в конфиг не пишется; пережив подмену бинаря, оно означало бы «TUN не
+        // работает, потому что не работал у ПРОШЛОГО ядра» — а обновление ядра
+        // как раз и берут ради таких починок. Проверку факта после старта
+        // делает `start_core_inner`.
+        crate::feat::tun::clear_suppression();
+
         if let Err(swap_error) = swap() {
             // Nothing switched; bring the old core back before reporting.
             if let Err(start_error) = self.start_core_inner().await {

@@ -4,7 +4,7 @@ use clash_verge_logging::{Type, logging};
 use once_cell::sync::Lazy;
 use std::pin::Pin;
 use std::time::Duration;
-use tauri::{Manager as _, WebviewWindow, Wry};
+use tauri::{Emitter as _, Manager as _, WebviewWindow, Wry};
 
 /// Результат операции с окном
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -297,6 +297,15 @@ impl WindowManager {
                 );
             }
         }
+
+        // clod:window-return — говорим странице, что окно показано, вместо
+        // того чтобы ждать, пока она догадается сама. `document.hidden` под
+        // Tauri врёт, события окна на разных платформах приходят по-разному, а
+        // `is_visible()` для свёрнутого окна на Windows отвечает `true` — то
+        // есть единственной безусловной проверкой оставался сторож раз в
+        // минуту, и до него экран показывал цифры прошлого показа. Мы этот
+        // момент знаем ТОЧНО: он прямо здесь.
+        let _ = window.emit("verge://window-shown", ());
 
         if operations_successful {
             logging!(info, Type::Window, "Окно успешно активировано");

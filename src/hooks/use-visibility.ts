@@ -88,6 +88,13 @@ const start = () => {
 
   recheck = checkSoon
 
+  // clod:window-return — момент показа бэкенд знает точно и говорит о нём сам
+  // («verge://window-shown» из `WindowManager`). Отвечаем без переспроса:
+  // `is_visible()` для только что развёрнутого окна на Windows успевает
+  // соврать, а единственной безусловной проверкой оставался сторож раз в
+  // минуту — до неё экран показывал цифры прошлого показа.
+  const unlistenShown = appWindow.listen('verge://window-shown', shown)
+
   const unlistenFocusChanged = appWindow.onFocusChanged(checkSoon)
   const unlistenCloseRequested = appWindow.listen(
     TauriEvent.WINDOW_CLOSE_REQUESTED,
@@ -111,6 +118,7 @@ const start = () => {
     document.removeEventListener('keydown', shown)
     document.removeEventListener('visibilitychange', checkSoon)
     window.removeEventListener('focus', checkSoon)
+    void unlistenShown.then((unlisten) => unlisten())
     void unlistenFocusChanged.then((unlisten) => unlisten())
     void unlistenCloseRequested.then((unlisten) => unlisten())
   }

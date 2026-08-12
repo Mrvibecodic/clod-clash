@@ -812,7 +812,15 @@ fn reconcile_selected_nodes(
 
         if node_is_available(available_nodes, node) {
             plan.selected.push(selected_item.clone());
-            if group.now.as_deref() != Some(node.as_str()) {
+            // clod:selected-scope — навязываем сохранённый узел обратно ТОЛЬКО
+            // в группе выбора. У `url-test`, `fallback` и `load-balance` узел
+            // выбирает само ядро — по задержке, по живости, по своей политике,
+            // — и «восстановление» затирало это решение нашим слепком
+            // прошлого запуска: группа с автоматикой прыгала на узел, который
+            // ядро только что сознательно не выбрало. Запись в `selected`
+            // остаётся (это память о том, что ядро показывало), а команды
+            // выбора нет.
+            if matches!(group.proxy_type, ProxyType::Selector) && group.now.as_deref() != Some(node.as_str()) {
                 plan.activations.push((group_name.clone(), node.clone()));
             }
             continue;
@@ -842,7 +850,9 @@ fn reconcile_selected_nodes(
                 name: Some(group_name.clone()),
                 now: Some(replacement.into()),
             });
-            if group.now.as_deref() != Some(replacement) {
+            // clod:selected-scope — та же граница, что и выше: замену
+            // подставляем командой только там, где выбирает пользователь.
+            if matches!(group.proxy_type, ProxyType::Selector) && group.now.as_deref() != Some(replacement) {
                 plan.activations.push((group_name.clone(), replacement.into()));
             }
         }
@@ -1208,6 +1218,37 @@ mod tests {
         assert_eq!(plan.selected, vec![selected("group", "current")]);
         assert!(plan.activations.is_empty());
         assert_eq!(plan.repaired_count, 1);
+    }
+
+    // clod:selected-scope — в группе с автоматикой узел выбирает ядро.
+    #[test]
+    fn does_not_impose_a_saved_node_on_automatic_groups() {
+        for (proxy_type, label) in [
+            (ProxyType::URLTest, "url-test"),
+            (ProxyType::Fallback, "fallback"),
+            (ProxyType::LoadBalance, "load-balance"),
+        ] {
+            let snapshot = Proxies {
+                proxies: HashMap::from([(
+                    "group".to_owned(),
+                    Proxy {
+                        name: "group".to_owned(),
+                        all: Some(vec!["current".to_owned(), "saved".to_owned()]),
+                        now: Some("current".to_owned()),
+                        proxy_type,
+                        ..Proxy::default()
+                    },
+                )]),
+            };
+
+            let saved = vec![selected("group", "saved")];
+            let plan = reconcile_selected_nodes(&saved, &[], None, &snapshot);
+
+            // Запись остаётся — это память о показанном, а не команда.
+            assert_eq!(plan.selected, saved);
+            assert!(plan.activations.is_empty(), "{label} must pick for itself");
+            assert_eq!(plan.repaired_count, 0);
+        }
     }
 
     #[test]
