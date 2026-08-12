@@ -8,6 +8,36 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.0.26-alpha
+
+<!-- lang:en -->
+
+### Added
+
+- A subscription can be fetched over an encrypted channel. The address carries nothing readable, the reply looks like any other response and every request is padded to the same size. It is off by default and switched on per subscription; the relay key is pinned the first time it is seen, and its fingerprint is shown next to the switch
+- "Connect on launch" — the app can repeat the Connect press right after it starts. Off by default
+
+### Changed
+
+- Nothing is written into the system proxy settings until a connection method is chosen and a connection is asked for. An app that was merely started, or one with no subscription at all, no longer configures the system on its own; deleting the last subscription clears the setting at once
+- The settings screen follows the connection method the provider fixed: the method that is not part of it is not shown at all, and the one that is says who chose it. A method left over from an earlier session is switched off, in the system settings too
+- The advanced window is wider by default, and its content scrolls instead of being squeezed: the network card and the tiles no longer collapse when every provider header is filled in
+
+<!-- lang:ru -->
+
+### Добавлено
+
+- Подписку можно забирать по зашифрованному каналу. В адресе нет ничего читаемого, ответ выглядит как любой другой, а каждый запрос дополняется до одного размера. По умолчанию выключено и включается для отдельной подписки; ключ прослойки закрепляется при первой встрече, и его отпечаток виден рядом с галочкой
+- «Подключаться при запуске» — приложение может повторить нажатие кнопки сразу после старта. По умолчанию выключено
+
+### Изменено
+
+- В настройки системного прокси ничего не прописывается, пока не выбран способ подключения и не запрошено само подключение. Просто запущенное приложение — и тем более приложение без подписки — больше не настраивает систему само; удаление последней подписки снимает настройку сразу
+- Экран настроек следует способу подключения, заданному провайдером: способа, которого в нём нет, на экране нет вовсе, а у названного написано, кто его выбрал. Лишний способ, оставшийся с прошлого раза, выключается, в том числе в настройках системы
+- Окно расширенного режима по умолчанию шире, а содержимое прокручивается, а не сжимается: карточка «Сеть» и плитки больше не схлопываются, когда заполнены все заголовки провайдера
+
+---
+
 ## v0.0.25-alpha
 
 <!-- lang:en -->
