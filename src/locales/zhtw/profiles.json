@@ -156,7 +156,8 @@
         "newGroup": "+ New group…",
         "newGroupName": "Group name",
         "advanced": "Advanced",
-        "secureChannel": "安全連線"
+        "secureChannel": "安全連線",
+        "secureKey": "中介層金鑰"
       },
       "hints": {
         "intervalLocked": "The provider set this interval with the profile-update-interval header, so it cannot be changed."

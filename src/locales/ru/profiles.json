@@ -156,7 +156,8 @@
         "newGroup": "+ Новая группа…",
         "newGroupName": "Название группы",
         "advanced": "Дополнительно",
-        "secureChannel": "Защищённое соединение"
+        "secureChannel": "Защищённое соединение",
+        "secureKey": "Ключ прослойки"
       },
       "hints": {
         "intervalLocked": "Интервал задан провайдером в заголовке profile-update-interval — изменить его нельзя."

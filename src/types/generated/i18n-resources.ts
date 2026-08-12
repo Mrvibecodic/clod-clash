@@ -477,6 +477,7 @@ export interface TranslationResources {
             newGroupName: string
             noGroup: string
             secureChannel: string
+            secureKey: string
             subscriptionUrl: string
             type: string
             updateInterval: string
@@ -1490,6 +1491,10 @@ export interface TranslationResources {
         errors: {
           core: {
             badConfig: string
+            chanBadUrl: string
+            chanBroken: string
+            chanRefused: string
+            chanReplay: string
             connectionRefused: string
             connectionReset: string
             forbidden: string

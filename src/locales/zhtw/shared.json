@@ -95,7 +95,11 @@
         "unauthorized": "面板拒絕了訂閱金鑰 — 請在會員中心重新取得連結",
         "forbidden": "面板拒絕存取 — 訂閱可能已到期或被封鎖",
         "notFound": "面板在此位址下沒有訂閱",
-        "serverError": "面板回傳了自身的錯誤 — 請稍後再試"
+        "serverError": "面板回傳了自身的錯誤 — 請稍後再試",
+        "chanBroken": "The subscription response could not be decrypted — the connection was tampered with, or the provider turned the protection off",
+        "chanReplay": "The subscription response does not answer our request — check the clock on this computer and try again",
+        "chanRefused": "The middleware refused the secure request — the connection to it is being blocked, or the protection is off",
+        "chanBadUrl": "This subscription address cannot be used with a secure connection"
       }
     },
     "notices": {

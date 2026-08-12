@@ -156,7 +156,8 @@
         "newGroup": "+ New group…",
         "newGroupName": "Group name",
         "advanced": "Advanced",
-        "secureChannel": "Sichere Verbindung"
+        "secureChannel": "Sichere Verbindung",
+        "secureKey": "Schlüssel der Zwischenschicht"
       },
       "hints": {
         "intervalLocked": "The provider set this interval with the profile-update-interval header, so it cannot be changed."

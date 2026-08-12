@@ -156,7 +156,8 @@
         "newGroup": "+ New group…",
         "newGroupName": "Group name",
         "advanced": "Advanced",
-        "secureChannel": "Güvenli bağlantı"
+        "secureChannel": "Güvenli bağlantı",
+        "secureKey": "Ara katman anahtarı"
       },
       "hints": {
         "intervalLocked": "The provider set this interval with the profile-update-interval header, so it cannot be changed."

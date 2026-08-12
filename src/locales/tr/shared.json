@@ -95,7 +95,11 @@
         "unauthorized": "Panel abonelik anahtarını kabul etmedi — hesabınızdan bağlantıyı yenileyin",
         "forbidden": "Panel erişimi reddetti — abonelik bitmiş veya engellenmiş olabilir",
         "notFound": "Panelde bu adreste bir abonelik yok",
-        "serverError": "Panel kendi tarafında hata verdi — sonra tekrar deneyin"
+        "serverError": "Panel kendi tarafında hata verdi — sonra tekrar deneyin",
+        "chanBroken": "The subscription response could not be decrypted — the connection was tampered with, or the provider turned the protection off",
+        "chanReplay": "The subscription response does not answer our request — check the clock on this computer and try again",
+        "chanRefused": "The middleware refused the secure request — the connection to it is being blocked, or the protection is off",
+        "chanBadUrl": "This subscription address cannot be used with a secure connection"
       }
     },
     "notices": {

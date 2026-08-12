@@ -145,6 +145,13 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
       (item) => item.uid === watch('uid') && item.option?.secure === true,
     )
 
+  // clod:chan — отпечаток закреплённого ключа прослойки. Нужен ровно для
+  // одного: сверить голосом с тем, что показывает админка провайдера, если
+  // возникло подозрение на подмену. Полный ключ показывать незачем.
+  const chanFingerprint = profiles?.items
+    ?.find((item) => item.uid === watch('uid'))
+    ?.option?.chan_pin?.slice(0, 12)
+
   const selfProxy = watch('option.self_proxy')
   const withProxy = watch('option.with_proxy')
 
@@ -508,6 +515,18 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
               </StyledBox>
             )}
           />
+
+          {chanFingerprint && (
+            <Box sx={{ mt: -0.5, mb: 1, px: 0.5 }}>
+              <Typography variant="caption" color="text.secondary">
+                {t('profiles.modals.profileForm.fields.secureKey')}
+                {': '}
+                <Box component="span" sx={{ fontFamily: 'monospace' }}>
+                  {chanFingerprint}
+                </Box>
+              </Typography>
+            </Box>
+          )}
 
           <Controller
             name="option.self_proxy"

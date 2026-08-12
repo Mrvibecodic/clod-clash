@@ -156,7 +156,8 @@
         "newGroup": "+ New group…",
         "newGroupName": "Group name",
         "advanced": "Advanced",
-        "secureChannel": "保護された接続"
+        "secureChannel": "保護された接続",
+        "secureKey": "中継サーバーの鍵"
       },
       "hints": {
         "intervalLocked": "The provider set this interval with the profile-update-interval header, so it cannot be changed."

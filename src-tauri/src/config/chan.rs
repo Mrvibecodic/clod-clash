@@ -25,6 +25,11 @@ use sha2::{Digest as _, Sha256};
 use std::collections::HashMap;
 use x25519_dalek::{PublicKey, StaticSecret};
 
+/// Тексты ошибок — стабильные машинные метки, а не фразы.
+///
+/// Их разбирает `error-explanation.ts` на фронте и превращает в человеческий
+/// текст на языке интерфейса. Русская фраза из бэкенда попала бы в окно как
+/// есть, мимо всех тринадцати переводов.
 pub const VERSION: u8 = 1;
 const SALT: &[u8] = b"clod-chan-v1";
 /// Допустимый разбег часов, секунд. Симметричный: врут обе стороны.
@@ -102,7 +107,7 @@ fn hkdf32(ikm: &[u8], salt: &str, info: &[u8]) -> Result<[u8; 32]> {
     let mut out = [0u8; 32];
     Hkdf::<Sha256>::new(Some(salt.as_bytes()), ikm)
         .expand(info, &mut out)
-        .map_err(|_| anyhow!("clod-chan: HKDF отказал"))?;
+        .map_err(|_| anyhow!("clod-chan-kdf"))?;
     Ok(out)
 }
 
@@ -111,7 +116,7 @@ pub fn psk(token: &str) -> Result<[u8; 32]> {
     let mut out = [0u8; 32];
     Hkdf::<Sha256>::new(Some(SALT), token.as_bytes())
         .expand(b"psk", &mut out)
-        .map_err(|_| anyhow!("clod-chan: HKDF отказал"))?;
+        .map_err(|_| anyhow!("clod-chan-kdf"))?;
     Ok(out)
 }
 
@@ -124,7 +129,7 @@ pub const fn epoch(now: i64) -> i64 {
 pub fn kid(psk: &[u8; 32], epoch: i64) -> Result<String> {
     // Полная форма вызова обязательна: `new_from_slice` есть и у `Mac`,
     // и у `KeyInit` из aead, и компилятор без подсказки их не различает.
-    let mut mac = <Hmac<Sha256> as Mac>::new_from_slice(psk).map_err(|_| anyhow!("clod-chan: HMAC отказал"))?;
+    let mut mac = <Hmac<Sha256> as Mac>::new_from_slice(psk).map_err(|_| anyhow!("clod-chan-kdf"))?;
     mac.update(format!("kid|{epoch}").as_bytes());
     Ok(B64.encode(&mac.finalize().into_bytes()[..9]))
 }
@@ -138,7 +143,7 @@ pub fn spid(public: &[u8; 32]) -> String {
 
 fn random32() -> Result<[u8; 32]> {
     let mut buf = [0u8; 32];
-    getrandom::fill(&mut buf).map_err(|e| anyhow!("нет источника случайности: {e}"))?;
+    getrandom::fill(&mut buf).map_err(|e| anyhow!("clod-chan-no-entropy: {e}"))?;
     Ok(buf)
 }
 
@@ -155,13 +160,13 @@ fn split(base: &str) -> Result<(String, String, String)> {
     let rest = rest.trim_end_matches('/');
 
     if !rest.starts_with("https://") && !rest.starts_with("http://") {
-        bail!("clod-chan: адрес подписки не http(s)");
+        bail!("clod-chan-bad-url");
     }
 
-    let cut = rest.rfind('/').ok_or_else(|| anyhow!("clod-chan: адрес без токена"))?;
+    let cut = rest.rfind('/').ok_or_else(|| anyhow!("clod-chan-bad-url"))?;
     let token = &rest[cut + 1..];
     if token.is_empty() || cut < "https://".len() {
-        bail!("clod-chan: адрес без токена");
+        bail!("clod-chan-bad-url");
     }
 
     Ok((rest[..cut].to_string(), token.to_string(), query))
@@ -211,7 +216,7 @@ pub fn build(base: &str, pinned: Option<[u8; 32]>, fields: &Fields, now: i64) ->
 
     let sealed = cipher
         .encrypt(Nonce::from_slice(&[0u8; 12]), Payload { msg: &plain, aad: &aad })
-        .map_err(|_| anyhow!("clod-chan: не удалось зашифровать запрос"))?;
+        .map_err(|_| anyhow!("clod-chan-seal"))?;
 
     let mut blob = eph_pub.to_vec();
     blob.extend_from_slice(&sealed);
@@ -241,12 +246,12 @@ impl Session {
     /// CDN и WAF, а двоичное тело на текстовом пути иногда портят.
     pub fn open(&self, wire: &str, now: i64) -> Result<Answer> {
         if wire.len() > MAX_ANSWER {
-            bail!("clod-chan: ответ не похож на наш");
+            bail!("clod-chan-undecryptable");
         }
 
         let body = B64.decode(wire.trim())?;
         if body.len() < 48 {
-            bail!("clod-chan: ответ не похож на наш");
+            bail!("clod-chan-undecryptable");
         }
 
         let mut s_eph = [0u8; 32];
@@ -273,25 +278,23 @@ impl Session {
                     aad: &aad,
                 },
             )
-            .map_err(|_| anyhow!("clod-chan: ответ не расшифровался"))?;
+            .map_err(|_| anyhow!("clod-chan-undecryptable"))?;
 
         let answer: RawAnswer = serde_json::from_slice(&plain)?;
         if answer.v != VERSION {
-            bail!("clod-chan: незнакомая версия протокола");
+            bail!("clod-chan-version");
         }
         // Эхо метки запроса: ответ обязан быть ответом именно на наш запрос,
         // а не записанным когда-то раньше.
         if answer.n != self.nonce {
-            bail!("clod-chan: ответ не на наш запрос");
+            bail!("clod-chan-mismatch");
         }
         if answer.t <= 0 || (now - answer.t).abs() > SKEW {
-            bail!("clod-chan: метка времени вне окна");
+            bail!("clod-chan-stale");
         }
 
         let sp_raw = B64.decode(&answer.sp)?;
-        let sp: [u8; 32] = sp_raw
-            .try_into()
-            .map_err(|_| anyhow!("clod-chan: ключ прослойки не тот длины"))?;
+        let sp: [u8; 32] = sp_raw.try_into().map_err(|_| anyhow!("clod-chan-bad-key"))?;
 
         Ok(Answer {
             meta: answer.meta,
@@ -407,7 +410,7 @@ mod tests {
         let sealed_at = v["response"]["expect"]["t"].as_i64().unwrap();
 
         let stale = session.open(body, sealed_at + 3600).unwrap_err().to_string();
-        assert!(stale.contains("метка времени"), "{stale}");
+        assert!(stale.contains("clod-chan-stale"), "{stale}");
 
         let answer = session.open(body, sealed_at).unwrap();
         assert_eq!(
@@ -428,7 +431,7 @@ mod tests {
             .open(body, v["response"]["expect"]["t"].as_i64().unwrap())
             .unwrap_err()
             .to_string();
-        assert!(err.contains("не на наш запрос"), "{err}");
+        assert!(err.contains("clod-chan-mismatch"), "{err}");
     }
 
     #[test]

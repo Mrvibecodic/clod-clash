@@ -28,6 +28,15 @@ describe('explainErrorKey', () => {
     )
   })
 
+  it('различает беды защищённого канала', () => {
+    // Метка отказа несёт в себе код ответа, а общее правило про 404 стоит
+    // ниже — иначе человек чинил бы «адрес не найден» вместо связи.
+    assert.equal(key('clod-chan-refused: 404 Not Found'), 'chanRefused')
+    assert.equal(key('clod-chan-undecryptable'), 'chanBroken')
+    assert.equal(key('clod-chan-stale'), 'chanReplay')
+    assert.equal(key('clod-chan-bad-url'), 'chanBadUrl')
+  })
+
   it('узнаёт системные коды Windows, а не только слова', () => {
     // Именно так выглядит блокировка антивирусом или брандмауэром: числом.
     assert.equal(

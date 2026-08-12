@@ -17,6 +17,17 @@
  *   ядро оборачивает свои ошибки в чужие обёртки на каждом слое.
  */
 const RULES: ReadonlyArray<{ pattern: RegExp; key: string }> = [
+  // --- Защищённый канал ----------------------------------------------------
+  // clod:chan — стоят ПЕРВЫМИ: метка отказа содержит код ответа («404»),
+  // и общее правило про 404 перехватило бы её, объяснив совсем не то.
+  {
+    pattern: /clod-chan-(undecryptable|version|bad-key|seal|kdf)/,
+    key: 'chanBroken',
+  },
+  { pattern: /clod-chan-(mismatch|stale)/, key: 'chanReplay' },
+  { pattern: /clod-chan-refused/, key: 'chanRefused' },
+  { pattern: /clod-chan-bad-url/, key: 'chanBadUrl' },
+
   // --- Сеть до сервера -----------------------------------------------------
   {
     pattern: /no such host|dns lookup failed|lookup .*: no/,
