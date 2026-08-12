@@ -78,11 +78,30 @@
   "feedback": {
     "errors": {
       "trafficStats": "Traffic Statistics Error",
-      "trafficStatsDescription": "The traffic statistics component encountered an error and has been disabled to prevent crashes."
+      "trafficStatsDescription": "The traffic statistics component encountered an error and has been disabled to prevent crashes.",
+      "core": {
+        "noSuchHost": "Dominio no encontrado: revisa la dirección de la suscripción y tu conexión",
+        "connectionRefused": "El servidor rechazó la conexión: puede estar apagado o el puerto cerrado",
+        "connectionReset": "La conexión se cortó a mitad: suele ser bloqueo o caída de red",
+        "timeout": "No hubo respuesta a tiempo: la red es lenta o la dirección no responde",
+        "unreachable": "La red no es accesible: revisa tu conexión",
+        "portBusy": "El puerto ya lo usa otro programa: cámbialo en los ajustes",
+        "permissionDenied": "Permisos insuficientes o acceso denegado por el sistema: suele ser el cortafuegos o el antivirus",
+        "tls": "No se pudo verificar el certificado: revisa el reloj del equipo y la dirección",
+        "badConfig": "No se pudo leer la configuración: el panel envió un archivo dañado o no compatible",
+        "unsupportedProxy": "La configuración usa un protocolo que el núcleo no conoce: actualiza el núcleo o consulta al proveedor",
+        "proxyNotFound": "Ese servidor ya no está en la configuración: elige otro",
+        "tunFailed": "No se pudo levantar el túnel: revisa el servicio y los permisos",
+        "unauthorized": "El panel rechazó la clave de la suscripción: renueva el enlace en tu cuenta",
+        "forbidden": "El panel denegó el acceso: la suscripción pudo caducar o estar bloqueada",
+        "notFound": "El panel no encuentra ninguna suscripción en esa dirección",
+        "serverError": "El panel respondió con un error propio: inténtalo más tarde"
+      }
     },
     "notices": {
       "raw": "{{message}}",
-      "prefixedRaw": "{{prefix}} {{message}}"
+      "prefixedRaw": "{{prefix}} {{message}}",
+      "explained": "{{explanation}} · {{message}}"
     },
     "notifications": {
       "importSuccess": "Suscripción importada con éxito",

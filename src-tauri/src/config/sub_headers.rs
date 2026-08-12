@@ -129,6 +129,37 @@ impl ConnectMode {
     }
 }
 
+/// clod:latency-style — как показывать задержку сервера.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LatencyStyle {
+    /// `bars` — наши четыре полоски (умолчание, писать явно не обязательно).
+    Bars,
+    /// `dot` — цветная точка, как у панелей под Happ и Prizrak-Box.
+    Dot,
+    /// `number` — задержка числом в миллисекундах.
+    Number,
+}
+
+impl LatencyStyle {
+    /// Value persisted in the profile item (`latency_style`).
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Bars => "bars",
+            Self::Dot => "dot",
+            Self::Number => "number",
+        }
+    }
+
+    fn parse(raw: &str) -> Option<Self> {
+        match raw.trim().to_ascii_lowercase().as_str() {
+            "bars" | "signal" => Some(Self::Bars),
+            "dot" | "dots" => Some(Self::Dot),
+            "number" | "ms" | "latency" => Some(Self::Number),
+            _ => None,
+        }
+    }
+}
+
 /// Everything the panel told us in the response headers.
 #[derive(Debug, Clone, Default)]
 pub struct SubHeaders {
@@ -187,6 +218,22 @@ pub struct SubHeaders {
     /// messages, and a provider must be able to write the second one without
     /// putting it in front of everybody else.
     pub hwid_limit_message: Option<String>,
+    /// clod:latency-style — `clod-latency-style`: `bars`, `dot` or `number`.
+    ///
+    /// Purely cosmetic, and that is the point: panels written for Happ and
+    /// Prizrak-Box show latency as a coloured dot, and their instructions,
+    /// screenshots and support scripts all say «dot». Free compatibility.
+    /// Compatibility: `pxa-latency-dots: 1` means the same as `dot`.
+    pub latency_style: Option<LatencyStyle>,
+
+    /// clod:device-remove — `clod-device-remove`: where the customer frees a
+    /// device slot themselves.
+    ///
+    /// The device-limit dialog could only offer «Support», so the customer had
+    /// to ask a human for something the panel does on its own page. Validated
+    /// like every other action link (https only).
+    pub device_remove_url: Option<String>,
+
     /// `clod-lock-mode` — the panel forbids changing proxy/routing modes in
     /// the app. `global-mode: false` (Prizrak-Box) is honoured as a synonym.
     pub lock_mode: Option<bool>,
@@ -275,6 +322,15 @@ impl SubHeaders {
             portal_url: value(headers, "clod-portal-url").and_then(|raw| https_url(&raw)),
             promo: value(headers, "clod-promo").map(|text| truncate_banner(&text, ANNOUNCE_MAX_CHARS)),
             promo_url: value(headers, "clod-promo-url").and_then(|raw| https_url(&raw)),
+            // clod:latency-style — закрытый список; синоним Prizrak-Box
+            // включает точку, но выключить наш вид собой не может (у него нет
+            // отдельного значения «полоски»).
+            latency_style: value(headers, "clod-latency-style")
+                .as_deref()
+                .and_then(LatencyStyle::parse)
+                .or_else(|| bool_value(headers, "pxa-latency-dots").and_then(|dots| dots.then_some(LatencyStyle::Dot))),
+            // clod:device-remove — та же проверка, что у портала и поддержки.
+            device_remove_url: value(headers, "clod-device-remove").and_then(|raw| https_url(&raw)),
             hwid_limit_message: value(headers, "clod-hwid-limit")
                 .map(|text| truncate_banner(&text, ANNOUNCE_MAX_CHARS)),
             // `global-mode: false` means "hide the mode switch" for Prizrak-Box
@@ -377,6 +433,10 @@ impl SubHeaders {
             "state": state.as_str(),
             "maxDevices": self.hwid_max_devices,
             "supportUrl": self.support_url.as_deref(),
+            // clod:device-remove — прямая дорога к отвязке устройства. Без неё
+            // единственной кнопкой в диалоге лимита была «Поддержка»: человек
+            // писал в чат ровно за тем, что панель умеет сделать сама.
+            "removeUrl": self.device_remove_url.as_deref(),
             // `clod-hwid-limit`, not `announce`: the dialog explains a blocked
             // device, and that text has no business on the home banner.
             "message": self.hwid_limit_message.as_deref(),
@@ -646,8 +706,8 @@ pub fn validate_new_url(current: &str, candidate: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        ANNOUNCE_MAX_CHARS, DEFAULT_NOTIFY_EXPIRE_DAYS, HwidState, SubHeaders, contact_url, decode_value, swap_domain,
-        thresholds, validate_new_url,
+        ANNOUNCE_MAX_CHARS, ConnectMode, DEFAULT_NOTIFY_EXPIRE_DAYS, HwidState, LatencyStyle, SubHeaders, contact_url,
+        decode_value, swap_domain, thresholds, validate_new_url,
     };
     use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 
@@ -897,6 +957,44 @@ mod tests {
             None
         );
         assert_eq!(SubHeaders::parse(&headers(&[])).connect_mode, None);
+    }
+
+    // clod:latency-style + clod:device-remove — косметика и выход из тупика.
+    #[test]
+    fn latency_style_and_device_removal_link() {
+        let parsed = SubHeaders::parse(&headers(&[("clod-latency-style", "Dot")]));
+        assert_eq!(parsed.latency_style, Some(LatencyStyle::Dot));
+        let parsed = SubHeaders::parse(&headers(&[("clod-latency-style", "number")]));
+        assert_eq!(parsed.latency_style, Some(LatencyStyle::Number));
+
+        // Панель под Prizrak-Box просит точку своим заголовком.
+        let parsed = SubHeaders::parse(&headers(&[("pxa-latency-dots", "1")]));
+        assert_eq!(parsed.latency_style, Some(LatencyStyle::Dot));
+        // `0` у синонима означает «ничего не прошу», а не «верни полоски»:
+        // отдельного значения для полосок у него нет, и выдумывать его —
+        // значит спорить с нашим же умолчанием.
+        assert_eq!(
+            SubHeaders::parse(&headers(&[("pxa-latency-dots", "0")])).latency_style,
+            None
+        );
+        // Наш заголовок сильнее синонима.
+        let parsed = SubHeaders::parse(&headers(&[("clod-latency-style", "bars"), ("pxa-latency-dots", "1")]));
+        assert_eq!(parsed.latency_style, Some(LatencyStyle::Bars));
+        assert_eq!(
+            SubHeaders::parse(&headers(&[("clod-latency-style", "blink")])).latency_style,
+            None
+        );
+
+        // Ссылка отвязки проверяется как любая другая: только https.
+        let parsed = SubHeaders::parse(&headers(&[("clod-device-remove", "https://panel.example/devices")]));
+        assert_eq!(
+            parsed.device_remove_url.as_deref(),
+            Some("https://panel.example/devices")
+        );
+        assert_eq!(
+            SubHeaders::parse(&headers(&[("clod-device-remove", "javascript:alert(1)")])).device_remove_url,
+            None
+        );
     }
 
     #[test]

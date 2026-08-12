@@ -31,7 +31,7 @@ editors) is kept — it is simply moved out of sight into an advanced mode.
 
 ## What Clod Clash gives you
 
-* **32 response headers from the panel** (Remnawave and Happ) plus synonyms for compatibility with
+* **34 response headers from the panel** (Remnawave and Happ) plus synonyms for compatibility with
   other clients, and six of our own on the request — plan name, logo, announcement, promo banner,
   customer portal, support, and the text for the device-limit dialog. The full list is in
   [HEADERS_en.md](./HEADERS_en.md).

@@ -78,11 +78,30 @@
   "feedback": {
     "errors": {
       "trafficStats": "Traffic Statistics Error",
-      "trafficStatsDescription": "The traffic statistics component encountered an error and has been disabled to prevent crashes."
+      "trafficStatsDescription": "The traffic statistics component encountered an error and has been disabled to prevent crashes.",
+      "core": {
+        "noSuchHost": "Domain not found — check the subscription address and your internet connection",
+        "connectionRefused": "The server refused the connection — it may be down or the port closed",
+        "connectionReset": "The connection was cut mid-way — usually blocking or a network drop",
+        "timeout": "No answer in time — the network is slow or the address is unreachable",
+        "unreachable": "The network is unreachable — check your connection",
+        "portBusy": "The port is already taken by another program — change it in the settings",
+        "permissionDenied": "Not enough rights, or the system denied access — often a firewall or antivirus",
+        "tls": "The certificate could not be verified — check the clock on this computer and the address",
+        "badConfig": "The configuration could not be parsed — the panel sent a broken or unsupported file",
+        "unsupportedProxy": "The configuration uses a protocol the core does not know — update the core or ask your provider",
+        "proxyNotFound": "That server is no longer in the configuration — pick another one",
+        "tunFailed": "The tunnel could not be raised — check the service and permissions",
+        "unauthorized": "The panel rejected the subscription key — refresh the link in your account",
+        "forbidden": "The panel denied access — the subscription may have expired or been blocked",
+        "notFound": "The panel has no subscription at this address",
+        "serverError": "The panel answered with an error of its own — try again later"
+      }
     },
     "notices": {
       "raw": "{{message}}",
-      "prefixedRaw": "{{prefix}} {{message}}"
+      "prefixedRaw": "{{prefix}} {{message}}",
+      "explained": "{{explanation}} · {{message}}"
     },
     "notifications": {
       "importSuccess": "Profile Imported Successfully",

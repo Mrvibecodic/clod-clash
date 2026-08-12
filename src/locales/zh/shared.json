@@ -78,11 +78,30 @@
   "feedback": {
     "errors": {
       "trafficStats": "流量统计错误",
-      "trafficStatsDescription": "流量统计组件发生错误，为防止崩溃已暂时停用。"
+      "trafficStatsDescription": "流量统计组件发生错误，为防止崩溃已暂时停用。",
+      "core": {
+        "noSuchHost": "找不到域名 — 请检查订阅地址和网络连接",
+        "connectionRefused": "服务器拒绝连接 — 可能已关闭或端口未开放",
+        "connectionReset": "连接中途被切断 — 通常是被阻断或网络中断",
+        "timeout": "未在规定时间内收到响应 — 网络较慢或地址不可达",
+        "unreachable": "网络不可达 — 请检查连接",
+        "portBusy": "端口已被其他程序占用 — 请在设置中更换",
+        "permissionDenied": "权限不足或被系统拒绝 — 多为防火墙或杀毒软件所致",
+        "tls": "无法校验证书 — 请检查本机时间和地址",
+        "badConfig": "配置无法解析 — 面板返回了损坏或不受支持的文件",
+        "unsupportedProxy": "配置里有内核不认识的协议 — 请更新内核或询问提供方",
+        "proxyNotFound": "配置里已经没有该服务器 — 请另选一个",
+        "tunFailed": "隧道未能启动 — 请检查服务与权限",
+        "unauthorized": "面板拒绝了订阅密钥 — 请在用户中心重新获取链接",
+        "forbidden": "面板拒绝访问 — 订阅可能已到期或被封禁",
+        "notFound": "面板在该地址下没有订阅",
+        "serverError": "面板返回了自身错误 — 请稍后再试"
+      }
     },
     "notices": {
       "raw": "{{message}}",
-      "prefixedRaw": "{{prefix}} {{message}}"
+      "prefixedRaw": "{{prefix}} {{message}}",
+      "explained": "{{explanation}} · {{message}}"
     },
     "notifications": {
       "importSuccess": "导入订阅成功",

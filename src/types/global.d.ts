@@ -300,6 +300,13 @@ interface IProfileItem {
    * (`lock_mode`), where the panel has the last word.
    */
   connect_mode?: 'tun' | 'proxy' | 'both'
+  /**
+   * `clod-latency-style` header — how the server latency is drawn:
+   * four bars (default), a coloured dot, or a plain number.
+   */
+  latency_style?: 'bars' | 'dot' | 'number'
+  /** `clod-device-remove` header — page where a device slot is freed */
+  device_remove_url?: string
   show_zero_hosts?: boolean
   /** `subscription-refill-date` header, unix seconds */
   refill_date?: number

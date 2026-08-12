@@ -78,11 +78,30 @@
   "feedback": {
     "errors": {
       "trafficStats": "Traffic Statistics Error",
-      "trafficStatsDescription": "The traffic statistics component encountered an error and has been disabled to prevent crashes."
+      "trafficStatsDescription": "The traffic statistics component encountered an error and has been disabled to prevent crashes.",
+      "core": {
+        "noSuchHost": "Domain tidak ditemukan — periksa alamat langganan dan koneksi internet Anda",
+        "connectionRefused": "Server menolak koneksi — mungkin mati atau portnya tertutup",
+        "connectionReset": "Koneksi terputus di tengah jalan — biasanya pemblokiran atau jaringan putus",
+        "timeout": "Tidak ada jawaban tepat waktu — jaringan lambat atau alamat tidak terjangkau",
+        "unreachable": "Jaringan tidak terjangkau — periksa koneksi Anda",
+        "portBusy": "Port sudah dipakai program lain — ubah di pengaturan",
+        "permissionDenied": "Hak akses kurang atau ditolak sistem — sering kali firewall atau antivirus",
+        "tls": "Sertifikat tidak dapat diverifikasi — periksa jam komputer dan alamatnya",
+        "badConfig": "Konfigurasi tidak terbaca — panel mengirim berkas rusak atau tidak didukung",
+        "unsupportedProxy": "Konfigurasi memakai protokol yang tidak dikenal core — perbarui core atau tanyakan penyedia",
+        "proxyNotFound": "Server itu tidak ada lagi di konfigurasi — pilih yang lain",
+        "tunFailed": "Terowongan gagal dijalankan — periksa layanan dan izinnya",
+        "unauthorized": "Panel menolak kunci langganan — perbarui tautan di akun Anda",
+        "forbidden": "Panel menolak akses — langganan mungkin habis atau diblokir",
+        "notFound": "Panel tidak menemukan langganan di alamat ini",
+        "serverError": "Panel menjawab dengan galat di sisinya — coba lagi nanti"
+      }
     },
     "notices": {
       "raw": "{{message}}",
-      "prefixedRaw": "{{prefix}} {{message}}"
+      "prefixedRaw": "{{prefix}} {{message}}",
+      "explained": "{{explanation}} · {{message}}"
     },
     "notifications": {
       "importSuccess": "Profil Berhasil Diimpor",

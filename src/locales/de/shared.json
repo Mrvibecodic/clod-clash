@@ -78,11 +78,30 @@
   "feedback": {
     "errors": {
       "trafficStats": "Traffic Statistics Error",
-      "trafficStatsDescription": "The traffic statistics component encountered an error and has been disabled to prevent crashes."
+      "trafficStatsDescription": "The traffic statistics component encountered an error and has been disabled to prevent crashes.",
+      "core": {
+        "noSuchHost": "Domain nicht gefunden — prüfen Sie die Abo-Adresse und Ihre Internetverbindung",
+        "connectionRefused": "Der Server hat die Verbindung abgelehnt — er ist womöglich aus oder der Port ist zu",
+        "connectionReset": "Die Verbindung wurde mittendrin getrennt — typisch für Sperren oder Netzabbrüche",
+        "timeout": "Keine Antwort in der Zeit — das Netz ist langsam oder die Adresse nicht erreichbar",
+        "unreachable": "Das Netzwerk ist nicht erreichbar — prüfen Sie die Verbindung",
+        "portBusy": "Der Port ist bereits von einem anderen Programm belegt — ändern Sie ihn in den Einstellungen",
+        "permissionDenied": "Zu wenig Rechte oder vom System verweigert — oft Firewall oder Virenscanner",
+        "tls": "Das Zertifikat konnte nicht geprüft werden — prüfen Sie die Uhr des Rechners und die Adresse",
+        "badConfig": "Die Konfiguration ließ sich nicht lesen — das Panel sendete eine defekte oder nicht unterstützte Datei",
+        "unsupportedProxy": "Die Konfiguration nutzt ein Protokoll, das der Kern nicht kennt — Kern aktualisieren oder Anbieter fragen",
+        "proxyNotFound": "Diesen Server gibt es in der Konfiguration nicht mehr — wählen Sie einen anderen",
+        "tunFailed": "Der Tunnel ließ sich nicht starten — prüfen Sie Dienst und Rechte",
+        "unauthorized": "Das Panel hat den Abo-Schlüssel abgelehnt — erneuern Sie den Link im Kundenkonto",
+        "forbidden": "Das Panel verweigert den Zugriff — das Abo ist abgelaufen oder gesperrt",
+        "notFound": "Das Panel kennt unter dieser Adresse kein Abo",
+        "serverError": "Das Panel meldet einen eigenen Fehler — versuchen Sie es später erneut"
+      }
     },
     "notices": {
       "raw": "{{message}}",
-      "prefixedRaw": "{{prefix}} {{message}}"
+      "prefixedRaw": "{{prefix}} {{message}}",
+      "explained": "{{explanation}} · {{message}}"
     },
     "notifications": {
       "importSuccess": "Abonnement erfolgreich importiert",

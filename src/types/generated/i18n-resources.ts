@@ -329,6 +329,7 @@ export interface TranslationResources {
           limitBody: string
           limitBodyWithCount: string
           limitTitle: string
+          removeDevice: string
           requiredBody: string
           requiredTitle: string
           support: string
@@ -1484,10 +1485,29 @@ export interface TranslationResources {
       }
       feedback: {
         errors: {
+          core: {
+            badConfig: string
+            connectionRefused: string
+            connectionReset: string
+            forbidden: string
+            noSuchHost: string
+            notFound: string
+            permissionDenied: string
+            portBusy: string
+            proxyNotFound: string
+            serverError: string
+            timeout: string
+            tls: string
+            tunFailed: string
+            unauthorized: string
+            unreachable: string
+            unsupportedProxy: string
+          }
           trafficStats: string
           trafficStatsDescription: string
         }
         notices: {
+          explained: string
           prefixedRaw: string
           raw: string
         }

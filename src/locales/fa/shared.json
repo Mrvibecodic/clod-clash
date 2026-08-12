@@ -78,11 +78,30 @@
   "feedback": {
     "errors": {
       "trafficStats": "Traffic Statistics Error",
-      "trafficStatsDescription": "The traffic statistics component encountered an error and has been disabled to prevent crashes."
+      "trafficStatsDescription": "The traffic statistics component encountered an error and has been disabled to prevent crashes.",
+      "core": {
+        "noSuchHost": "دامنه پیدا نشد — نشانی اشتراک و اتصال اینترنت را بررسی کنید",
+        "connectionRefused": "سرور اتصال را رد کرد — شاید خاموش است یا درگاه بسته است",
+        "connectionReset": "اتصال در میانه قطع شد — معمولاً نشانهٔ فیلترینگ یا قطعی شبکه است",
+        "timeout": "پاسخی در زمان مقرر نرسید — شبکه کند است یا نشانی در دسترس نیست",
+        "unreachable": "شبکه در دسترس نیست — اتصال را بررسی کنید",
+        "portBusy": "درگاه را برنامهٔ دیگری گرفته است — در تنظیمات تغییرش دهید",
+        "permissionDenied": "دسترسی کافی نیست یا سیستم اجازه نداد — معمولاً دیوارهٔ آتش یا آنتی‌ویروس",
+        "tls": "گواهی تأیید نشد — ساعت رایانه و نشانی را بررسی کنید",
+        "badConfig": "پیکربندی خوانده نشد — پنل فایلی خراب یا پشتیبانی‌نشده فرستاده است",
+        "unsupportedProxy": "پیکربندی از پروتکلی استفاده می‌کند که هسته نمی‌شناسد — هسته را به‌روز کنید یا از ارائه‌دهنده بپرسید",
+        "proxyNotFound": "این سرور دیگر در پیکربندی نیست — سرور دیگری انتخاب کنید",
+        "tunFailed": "تونل بالا نیامد — سرویس و دسترسی‌ها را بررسی کنید",
+        "unauthorized": "پنل کلید اشتراک را نپذیرفت — پیوند را در حساب خود تازه کنید",
+        "forbidden": "پنل دسترسی نداد — ممکن است اشتراک تمام شده یا مسدود باشد",
+        "notFound": "پنل در این نشانی اشتراکی ندارد",
+        "serverError": "پنل با خطای خودش پاسخ داد — بعداً تلاش کنید"
+      }
     },
     "notices": {
       "raw": "{{message}}",
-      "prefixedRaw": "{{prefix}} {{message}}"
+      "prefixedRaw": "{{prefix}} {{message}}",
+      "explained": "{{explanation}} · {{message}}"
     },
     "notifications": {
       "importSuccess": "پروفایل با موفقیت وارد شد",

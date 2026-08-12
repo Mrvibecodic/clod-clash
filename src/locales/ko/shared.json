@@ -78,11 +78,30 @@
   "feedback": {
     "errors": {
       "trafficStats": "트래픽 통계 오류",
-      "trafficStatsDescription": "트래픽 통계 구성 요소에서 오류가 발생하여 충돌을 방지하기 위해 비활성화되었습니다."
+      "trafficStatsDescription": "트래픽 통계 구성 요소에서 오류가 발생하여 충돌을 방지하기 위해 비활성화되었습니다.",
+      "core": {
+        "noSuchHost": "도메인을 찾을 수 없습니다 — 구독 주소와 인터넷 연결을 확인하세요",
+        "connectionRefused": "서버가 연결을 거부했습니다 — 꺼져 있거나 포트가 닫혔을 수 있습니다",
+        "connectionReset": "연결이 도중에 끊겼습니다 — 보통 차단이나 네트워크 끊김입니다",
+        "timeout": "제한 시간 안에 응답이 없습니다 — 네트워크가 느리거나 주소에 닿지 않습니다",
+        "unreachable": "네트워크에 도달할 수 없습니다 — 연결을 확인하세요",
+        "portBusy": "다른 프로그램이 포트를 쓰고 있습니다 — 설정에서 바꾸세요",
+        "permissionDenied": "권한이 부족하거나 시스템이 막았습니다 — 대개 방화벽이나 백신입니다",
+        "tls": "인증서를 확인할 수 없습니다 — 컴퓨터 시계와 주소를 확인하세요",
+        "badConfig": "설정을 읽지 못했습니다 — 패널이 손상되었거나 지원하지 않는 파일을 보냈습니다",
+        "unsupportedProxy": "코어가 모르는 프로토콜이 설정에 있습니다 — 코어를 업데이트하거나 제공자에게 문의하세요",
+        "proxyNotFound": "그 서버는 설정에 더 이상 없습니다 — 다른 서버를 고르세요",
+        "tunFailed": "터널을 올리지 못했습니다 — 서비스와 권한을 확인하세요",
+        "unauthorized": "패널이 구독 키를 거부했습니다 — 계정에서 링크를 새로 받으세요",
+        "forbidden": "패널이 접근을 거부했습니다 — 구독이 만료되었거나 차단되었을 수 있습니다",
+        "notFound": "이 주소에는 구독이 없습니다",
+        "serverError": "패널 쪽 오류입니다 — 잠시 후 다시 시도하세요"
+      }
     },
     "notices": {
       "raw": "{{message}}",
-      "prefixedRaw": "{{prefix}} {{message}}"
+      "prefixedRaw": "{{prefix}} {{message}}",
+      "explained": "{{explanation}} · {{message}}"
     },
     "notifications": {
       "importSuccess": "프로필 가져오기 성공",

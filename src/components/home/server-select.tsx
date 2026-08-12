@@ -491,9 +491,15 @@ interface RowProps {
   onOpen: () => void
 }
 
-/** Mockup-style four-bar signal indicator, coloured by latency. */
-const SignalBars = ({ delay }: { delay?: number }) => {
-  const lit = !usableDelay(delay)
+/**
+ * clod:latency-style — на сколько делений тянет задержка.
+ *
+ * Одна лестница на все виды показа: и полоски, и точка красятся по одному
+ * порогу, иначе «зелёная точка» и «четыре полоски» разошлись бы при первой же
+ * правке.
+ */
+const latencyLevel = (delay?: number) =>
+  !usableDelay(delay)
     ? 0
     : delay < 120
       ? 4
@@ -502,8 +508,45 @@ const SignalBars = ({ delay }: { delay?: number }) => {
         : delay < 500
           ? 2
           : 1
-  const color = (index: number) =>
-    index < lit ? (lit >= 3 ? 'success.main' : 'warning.main') : 'divider'
+
+const latencyColor = (level: number) =>
+  level === 0 ? 'divider' : level >= 3 ? 'success.main' : 'warning.main'
+
+/**
+ * clod:latency-style — точка вместо полосок (`clod-latency-style: dot`).
+ *
+ * Панели, настроенные под Happ и Prizrak-Box, привыкли показывать задержку
+ * цветной точкой; провайдеру, у которого так нарисованы все инструкции, дешевле
+ * попросить точку, чем переучивать клиентов.
+ */
+const SignalDot = ({ delay }: { delay?: number }) => (
+  <Box
+    sx={{
+      width: 10,
+      height: 10,
+      flex: 'none',
+      borderRadius: '50%',
+      bgcolor: latencyColor(latencyLevel(delay)),
+    }}
+  />
+)
+
+/** clod:latency-style — задержка числом (`clod-latency-style: number`). */
+const LatencyNumber = ({ delay }: { delay?: number }) => (
+  <Typography
+    sx={{ fontSize: 12, flex: 'none', fontVariantNumeric: 'tabular-nums' }}
+    color={
+      usableDelay(delay) ? latencyColor(latencyLevel(delay)) : 'text.disabled'
+    }
+  >
+    {usableDelay(delay) ? `${delay} ms` : '—'}
+  </Typography>
+)
+
+/** Mockup-style four-bar signal indicator, coloured by latency. */
+const SignalBars = ({ delay }: { delay?: number }) => {
+  const lit = latencyLevel(delay)
+  const color = (index: number) => (index < lit ? latencyColor(lit) : 'divider')
   return (
     <Box
       sx={{
@@ -826,7 +869,15 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
         </Typography>
       </Box>
 
-      <SignalBars delay={shownDelay} />
+      {/* clod:latency-style — вид индикатора выбирает провайдер заголовком;
+          без заголовка остаются наши полоски. */}
+      {currentProfile?.latency_style === 'dot' ? (
+        <SignalDot delay={shownDelay} />
+      ) : currentProfile?.latency_style === 'number' ? (
+        <LatencyNumber delay={shownDelay} />
+      ) : (
+        <SignalBars delay={shownDelay} />
+      )}
 
       <IconButton
         size="small"

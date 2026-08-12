@@ -78,11 +78,30 @@
   "feedback": {
     "errors": {
       "trafficStats": "Traffic Statistics Error",
-      "trafficStatsDescription": "The traffic statistics component encountered an error and has been disabled to prevent crashes."
+      "trafficStatsDescription": "The traffic statistics component encountered an error and has been disabled to prevent crashes.",
+      "core": {
+        "noSuchHost": "Alan adı bulunamadı — abonelik adresini ve internet bağlantınızı kontrol edin",
+        "connectionRefused": "Sunucu bağlantıyı reddetti — kapalı olabilir ya da port kapalıdır",
+        "connectionReset": "Bağlantı yarıda koptu — genelde engelleme ya da ağ kesintisidir",
+        "timeout": "Zamanında yanıt gelmedi — ağ yavaş veya adrese ulaşılamıyor",
+        "unreachable": "Ağa ulaşılamıyor — bağlantınızı kontrol edin",
+        "portBusy": "Portu başka bir program kullanıyor — ayarlardan değiştirin",
+        "permissionDenied": "Yetki yetersiz ya da sistem engelledi — çoğunlukla güvenlik duvarı veya antivirüs",
+        "tls": "Sertifika doğrulanamadı — bilgisayarın saatini ve adresi kontrol edin",
+        "badConfig": "Yapılandırma okunamadı — panel bozuk veya desteklenmeyen bir dosya gönderdi",
+        "unsupportedProxy": "Yapılandırmada çekirdeğin bilmediği bir protokol var — çekirdeği güncelleyin veya sağlayıcıya sorun",
+        "proxyNotFound": "Bu sunucu artık yapılandırmada yok — başka birini seçin",
+        "tunFailed": "Tünel kaldırılamadı — hizmeti ve izinleri kontrol edin",
+        "unauthorized": "Panel abonelik anahtarını kabul etmedi — hesabınızdan bağlantıyı yenileyin",
+        "forbidden": "Panel erişimi reddetti — abonelik bitmiş veya engellenmiş olabilir",
+        "notFound": "Panelde bu adreste bir abonelik yok",
+        "serverError": "Panel kendi tarafında hata verdi — sonra tekrar deneyin"
+      }
     },
     "notices": {
       "raw": "{{message}}",
-      "prefixedRaw": "{{prefix}} {{message}}"
+      "prefixedRaw": "{{prefix}} {{message}}",
+      "explained": "{{explanation}} · {{message}}"
     },
     "notifications": {
       "importSuccess": "Profil Başarıyla İçe Aktarıldı",

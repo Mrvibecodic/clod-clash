@@ -31,7 +31,7 @@ Clod Clash — сборка Clash Verge Rev, доведённая до сост�
 
 ## Преимущества Clod Clash
 
-* **32 заголовка ответа панели** (Remnawave и Happ) плюс синонимы для совместимости с другими
+* **34 заголовка ответа панели** (Remnawave и Happ) плюс синонимы для совместимости с другими
   клиентами, и шесть своих в запросе — название тарифа, логотип, объявление, промо-баннер,
   личный кабинет, поддержка, текст для диалога лимита устройств. Полный список —
   в [docs/HEADERS.md](./docs/HEADERS.md).
@@ -194,7 +194,8 @@ TUN перехватывает трафик всех приложений, вк�
 **Дополнительные заголовки.** `announce`, `announce-url`, `profile-logo`, `support-url`,
 `new-url`, `fallback-url`, `notify-*`, наши `clod-*` (`clod-portal-url`, `clod-promo`,
 `clod-promo-url`, `clod-hwid-limit`, `clod-simple-mode`, `clod-lock-mode`,
-`clod-connect-mode`)
+`clod-connect-mode`,
+`clod-latency-style`, `clod-device-remove`)
 и остальные, которых нет в стандартном наборе Remnawave, задаются через
 `customResponseHeaders`. Значения с не-ASCII текстом надёжнее отдавать в виде
 `base64:<payload>`; все ссылки — только `https://`.

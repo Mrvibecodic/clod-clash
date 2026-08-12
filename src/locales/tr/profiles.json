@@ -128,7 +128,8 @@
       "requiredBody": "Your provider identifies devices and will not serve the subscription without a device id. Turn identification on and try again?",
       "enable": "Turn on",
       "support": "Support",
-      "enabled": "Device identification enabled — update the subscription again"
+      "enabled": "Device identification enabled — update the subscription again",
+      "removeDevice": "Bir cihazı serbest bırak"
     }
   },
   "modals": {

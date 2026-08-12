@@ -78,11 +78,30 @@
   "feedback": {
     "errors": {
       "trafficStats": "Traffic Statistics Error",
-      "trafficStatsDescription": "The traffic statistics component encountered an error and has been disabled to prevent crashes."
+      "trafficStatsDescription": "The traffic statistics component encountered an error and has been disabled to prevent crashes.",
+      "core": {
+        "noSuchHost": "ドメインが見つかりません — サブスクリプションのアドレスとネット接続を確認してください",
+        "connectionRefused": "サーバーに接続を拒否されました — 停止中かポートが閉じている可能性があります",
+        "connectionReset": "通信が途中で切断されました — 遮断か回線断で多く起きます",
+        "timeout": "時間内に応答がありません — 回線が遅いか、アドレスに届いていません",
+        "unreachable": "ネットワークに到達できません — 接続を確認してください",
+        "portBusy": "ポートは別のプログラムが使用中です — 設定で変更してください",
+        "permissionDenied": "権限が足りないか、システムに拒否されました — 多くはファイアウォールやウイルス対策です",
+        "tls": "証明書を検証できません — パソコンの時計とアドレスを確認してください",
+        "badConfig": "設定を読み取れません — パネルが壊れた、または未対応のファイルを返しました",
+        "unsupportedProxy": "コアが知らないプロトコルが設定にあります — コアを更新するか提供元に確認してください",
+        "proxyNotFound": "そのサーバーは設定にもうありません — 別のものを選んでください",
+        "tunFailed": "トンネルを起動できません — サービスと権限を確認してください",
+        "unauthorized": "パネルが購読キーを受け付けませんでした — マイページでリンクを取り直してください",
+        "forbidden": "パネルにアクセスを拒否されました — 期限切れかブロックの可能性があります",
+        "notFound": "このアドレスの購読はパネルに存在しません",
+        "serverError": "パネル側のエラーです — 時間をおいて試してください"
+      }
     },
     "notices": {
       "raw": "{{message}}",
-      "prefixedRaw": "{{prefix}} {{message}}"
+      "prefixedRaw": "{{prefix}} {{message}}",
+      "explained": "{{explanation}} · {{message}}"
     },
     "notifications": {
       "importSuccess": "プロファイルのインポートに成功しました。",

@@ -78,11 +78,30 @@
   "feedback": {
     "errors": {
       "trafficStats": "Traffic Statistics Error",
-      "trafficStatsDescription": "The traffic statistics component encountered an error and has been disabled to prevent crashes."
+      "trafficStatsDescription": "The traffic statistics component encountered an error and has been disabled to prevent crashes.",
+      "core": {
+        "noSuchHost": "Домен табылмады — язылу адресын һәм интернет тоташуын тикшерегез",
+        "connectionRefused": "Сервер тоташуны кире какты — ул сүнгән яки порт ябык булырга мөмкин",
+        "connectionReset": "Тоташу урталай өзелде — гадәттә бу блоклау яки челтәр өзелүе",
+        "timeout": "Вакытында җавап килмәде — челтәр әкрен яки адрес ирешеп булмый",
+        "unreachable": "Челтәр ирешерлек түгел — тоташуны тикшерегез",
+        "portBusy": "Портны башка программа биләгән — көйләүләрдә алыштырыгыз",
+        "permissionDenied": "Хокуклар җитми яки система рөхсәт итмәде — күбрәк брандмауэр яки антивирус",
+        "tls": "Сертификатны тикшереп булмады — компьютер сәгатен һәм адресны карагыз",
+        "badConfig": "Көйләнмәне укып булмады — панель ватык яки танылмаган файл җибәргән",
+        "unsupportedProxy": "Көйләнмәдә ядро белмәгән протокол бар — ядрону яңартыгыз яки тәэмин итүчедән сорагыз",
+        "proxyNotFound": "Бу сервер көйләнмәдә юк инде — башкасын сайлагыз",
+        "tunFailed": "Тоннельне күтәреп булмады — хезмәтне һәм хокукларны тикшерегез",
+        "unauthorized": "Панель язылу ачкычын кабул итмәде — кабинетта сылтаманы яңартыгыз",
+        "forbidden": "Панель рөхсәт бирмәде — язылу тәмамланган яки блокланган булырга мөмкин",
+        "notFound": "Панель бу адрес буенча язылу тапмады",
+        "serverError": "Панель үз ягында хата бирде — соңрак кабатлагыз"
+      }
     },
     "notices": {
       "raw": "{{message}}",
-      "prefixedRaw": "{{prefix}} {{message}}"
+      "prefixedRaw": "{{prefix}} {{message}}",
+      "explained": "{{explanation}} · {{message}}"
     },
     "notifications": {
       "importSuccess": "Профиль уңышлы импортланды",

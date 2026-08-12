@@ -78,11 +78,30 @@
   "feedback": {
     "errors": {
       "trafficStats": "Traffic Statistics Error",
-      "trafficStatsDescription": "The traffic statistics component encountered an error and has been disabled to prevent crashes."
+      "trafficStatsDescription": "The traffic statistics component encountered an error and has been disabled to prevent crashes.",
+      "core": {
+        "noSuchHost": "تعذّر العثور على النطاق — تحقّق من عنوان الاشتراك ومن اتصالك بالإنترنت",
+        "connectionRefused": "رفض الخادم الاتصال — قد يكون متوقّفًا أو المنفذ مغلقًا",
+        "connectionReset": "انقطع الاتصال في منتصفه — هكذا يبدو الحجب أو انقطاع الشبكة عادةً",
+        "timeout": "لم يصل ردّ في الوقت المحدّد — الشبكة بطيئة أو العنوان غير متاح",
+        "unreachable": "الشبكة غير متاحة — تحقّق من الاتصال",
+        "portBusy": "المنفذ مستخدم من برنامج آخر — غيّره من الإعدادات",
+        "permissionDenied": "الصلاحيات غير كافية أو رفض النظام الوصول — غالبًا جدار الحماية أو مضاد الفيروسات",
+        "tls": "تعذّر التحقّق من الشهادة — راجع ساعة الجهاز والعنوان",
+        "badConfig": "تعذّرت قراءة الإعدادات — أرسلت اللوحة ملفًا تالفًا أو غير مدعوم",
+        "unsupportedProxy": "الإعدادات تستخدم بروتوكولًا لا تعرفه النواة — حدّث النواة أو اسأل المزوّد",
+        "proxyNotFound": "هذا الخادم لم يعد موجودًا في الإعدادات — اختر غيره",
+        "tunFailed": "تعذّر تشغيل النفق — تحقّق من الخدمة والصلاحيات",
+        "unauthorized": "رفضت اللوحة مفتاح الاشتراك — جدّد الرابط من حسابك",
+        "forbidden": "رفضت اللوحة الوصول — قد يكون الاشتراك منتهيًا أو محظورًا",
+        "notFound": "لا تجد اللوحة اشتراكًا على هذا العنوان",
+        "serverError": "ردّت اللوحة بخطأ من جانبها — حاول لاحقًا"
+      }
     },
     "notices": {
       "raw": "{{message}}",
-      "prefixedRaw": "{{prefix}} {{message}}"
+      "prefixedRaw": "{{prefix}} {{message}}",
+      "explained": "{{explanation}} · {{message}}"
     },
     "notifications": {
       "importSuccess": "تم استيراد الملف الشخصي بنجاح",

@@ -78,11 +78,30 @@
   "feedback": {
     "errors": {
       "trafficStats": "流量統計錯誤",
-      "trafficStatsDescription": "流量統計元件發生錯誤，已停用以避免當機。"
+      "trafficStatsDescription": "流量統計元件發生錯誤，已停用以避免當機。",
+      "core": {
+        "noSuchHost": "找不到網域 — 請檢查訂閱位址與網路連線",
+        "connectionRefused": "伺服器拒絕連線 — 可能已關閉或連接埠未開放",
+        "connectionReset": "連線中途被切斷 — 通常是遭阻擋或網路中斷",
+        "timeout": "未在時限內收到回應 — 網路太慢或位址無法連通",
+        "unreachable": "網路無法連通 — 請檢查連線",
+        "portBusy": "連接埠已被其他程式占用 — 請在設定中更換",
+        "permissionDenied": "權限不足或被系統拒絕 — 多半是防火牆或防毒軟體",
+        "tls": "無法驗證憑證 — 請檢查本機時間與位址",
+        "badConfig": "設定無法解析 — 面板回傳了損壞或不支援的檔案",
+        "unsupportedProxy": "設定中有核心不認識的協定 — 請更新核心或詢問提供者",
+        "proxyNotFound": "設定中已無該伺服器 — 請另選一個",
+        "tunFailed": "通道無法啟動 — 請檢查服務與權限",
+        "unauthorized": "面板拒絕了訂閱金鑰 — 請在會員中心重新取得連結",
+        "forbidden": "面板拒絕存取 — 訂閱可能已到期或被封鎖",
+        "notFound": "面板在此位址下沒有訂閱",
+        "serverError": "面板回傳了自身的錯誤 — 請稍後再試"
+      }
     },
     "notices": {
       "raw": "{{message}}",
-      "prefixedRaw": "{{prefix}} {{message}}"
+      "prefixedRaw": "{{prefix}} {{message}}",
+      "explained": "{{explanation}} · {{message}}"
     },
     "notifications": {
       "importSuccess": "匯入設定檔成功",

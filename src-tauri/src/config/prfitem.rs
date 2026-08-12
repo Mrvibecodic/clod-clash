@@ -114,6 +114,16 @@ pub struct PrfItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub show_zero_hosts: Option<bool>,
 
+    /// clod:latency-style — `clod-latency-style` header: `bars`, `dot` or
+    /// `number`. Cosmetic; without the header the app keeps its own bars.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub latency_style: Option<String>,
+
+    /// clod:device-remove — `clod-device-remove` header: page where the
+    /// customer frees a device slot themselves.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub device_remove_url: Option<String>,
+
     /// clod:connect-mode — `clod-connect-mode` header: `tun`, `proxy` or
     /// `both`. What the Connect button raises while the user has not chosen
     /// for themselves; under [`Self::lock_mode`] it is what the button raises,
@@ -673,6 +683,8 @@ impl PrfItem {
             promo_seen: None,
             lock_mode: sub.lock_mode,
             connect_mode: sub.connect_mode.map(|mode| mode.as_str().into()),
+            latency_style: sub.latency_style.map(|style| style.as_str().into()),
+            device_remove_url: sub.device_remove_url.clone(),
             show_zero_hosts: sub.show_zero_hosts,
             refill_date: sub.refill_date,
             clock_skew: measured_skew,
@@ -1042,6 +1054,8 @@ impl PrfItem {
         // clod:connect-mode — тоже пожелание панели и следует за ней целиком:
         // убранный заголовок возвращает выбор пользователю.
         self.connect_mode = fresh.connect_mode.clone();
+        self.latency_style = fresh.latency_style.clone();
+        self.device_remove_url = fresh.device_remove_url.clone();
         // Убранный заголовок возвращает наши экраны: поле следует за панелью
         // целиком, как и остальная её метаинформация.
         self.show_zero_hosts = fresh.show_zero_hosts;
