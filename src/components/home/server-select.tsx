@@ -101,7 +101,12 @@ export const ServerSelect = ({ open, onClose }: Props) => {
   // соответствовали тому, чем группу реально мерили
   useGroupTestUrls()
 
-  const records = (proxies?.records ?? {}) as Record<string, any>
+  // Через useMemo: `?? {}` создаёт новый объект на каждый рендер, а карта
+  // теперь стоит в зависимостях подписи о возрасте замеров.
+  const records = useMemo(
+    () => (proxies?.records ?? {}) as Record<string, any>,
+    [proxies],
+  )
   // clod: описания серверов приходят не от ядра, а из самой подписки — пустая
   // карта здесь норма, строки просто остаются такими, как были
   const descriptions = useServerDescriptions()
@@ -188,9 +193,16 @@ export const ServerSelect = ({ open, onClose }: Props) => {
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     if (!open || !visible) return
-    setNow(Date.now())
+    // Первый пересчёт — отдельной задачей, а не прямо здесь: синхронный
+    // setState в эффекте запрещён линтером (лишний рендер), а ждать полного
+    // тика нельзя — шторку могли открыть через час после прошлого раза, и
+    // подпись до первого тика соврала бы возрастом.
+    const first = window.setTimeout(() => setNow(Date.now()), 0)
     const timer = window.setInterval(() => setNow(Date.now()), AGE_TICK_MS)
-    return () => window.clearInterval(timer)
+    return () => {
+      window.clearTimeout(first)
+      window.clearInterval(timer)
+    }
   }, [open, visible])
 
   const measuredLabel = useMemo(() => {
