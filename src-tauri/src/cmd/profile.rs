@@ -260,7 +260,27 @@ pub async fn delete_profile(index: String) -> CmdResult {
         }
     }
     Timer::global().refresh().await.stringify_err()?;
+    drop_system_proxy_without_profiles().await;
     Ok(())
+}
+
+/// clod: удалили последнюю подписку — маршрутизировать больше нечего, а
+/// системный прокси остался бы прописанным в настройках ОС и уводил бы весь
+/// трафик машины в порт, за которым уже нет ни одного сервера. Флаг в конфиге
+/// не трогаем: он снова вступит в силу, когда появится подписка.
+async fn drop_system_proxy_without_profiles() {
+    let profiles = Config::profiles().await.latest_arc();
+    let has_profile = profiles
+        .current
+        .as_ref()
+        .is_some_and(|uid| profiles.get_item(uid).is_ok());
+    if has_profile {
+        return;
+    }
+    logging!(info, Type::Cmd, "подписок не осталось — снимаем системный прокси");
+    if let Err(e) = crate::core::sysopt::Sysopt::global().reset_sysproxy().await {
+        logging!(warn, Type::Cmd, "не удалось снять системный прокси: {e}");
+    }
 }
 
 /// Выполняет обновление конфига и обрабатывает результат

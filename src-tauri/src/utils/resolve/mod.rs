@@ -245,7 +245,29 @@ pub(super) async fn init_core_manager() {
     logging_error!(Type::Setup, crate::config::profiles::activate_selected_nodes());
 }
 
+/// Есть ли подписка, ради которой вообще имеет смысл что-то маршрутизировать.
+async fn has_active_profile() -> bool {
+    let profiles = Config::profiles().await.latest_arc();
+    profiles
+        .current
+        .as_ref()
+        .is_some_and(|uid| profiles.get_item(uid).is_ok())
+}
+
 pub(super) async fn init_system_proxy() {
+    // clod: без подписки маршрутизировать нечего, а системный прокси — вещь
+    // видимая: клиент прописывал 127.0.0.1:7897 в настройки Windows ещё до
+    // того, как пользователь вставил ссылку, и снаружи это выглядит как «оно
+    // само себе что-то настроило». Флаг в конфиге не трогаем — он сработает с
+    // первой же подпиской; гасим только фактическую настройку ОС, на случай
+    // если она осталась от прошлого запуска или от удалённой подписки.
+    if !has_active_profile().await {
+        logging!(info, Type::Setup, "подписки нет — системный прокси не применяется");
+        logging_error!(Type::Setup, sysopt::Sysopt::global().reset_sysproxy().await);
+        crate::feat::record_connect_targets(false);
+        return;
+    }
+
     logging_error!(Type::Setup, sysopt::Sysopt::global().update_sysproxy().await);
 
     // clod:simple-mode — when the app boots into an already-active proxy/TUN
@@ -262,6 +284,12 @@ pub(super) async fn init_tun_ready() {
 }
 
 pub(super) async fn init_system_proxy_guard() {
+    // clod: сторож переставляет настройку ОС обратно каждые полминуты. Без
+    // подписки он отменил бы уборку выше — и прокси, которого мы не применяли,
+    // появился бы сам через тридцать секунд.
+    if !has_active_profile().await {
+        return;
+    }
     sysopt::Sysopt::global().refresh_guard().await;
 }
 
