@@ -1130,7 +1130,9 @@ async fn fetch_secure(
     }
 
     Ok((
-        crate::utils::network::HttpResponse::new(reqwest::StatusCode::OK, headers, answer.body),
+        // Тело кладём в тип сети как есть: `String` в этом файле — smartstring,
+        // и обычная строка в него не подставляется молча.
+        crate::utils::network::HttpResponse::new(reqwest::StatusCode::OK, headers, answer.body.into()),
         answer.sp,
     ))
 }
