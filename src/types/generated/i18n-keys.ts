@@ -288,6 +288,7 @@ export const translationKeys = [
   'profiles.modals.profileForm.fields.newGroup',
   'profiles.modals.profileForm.fields.newGroupName',
   'profiles.modals.profileForm.fields.advanced',
+  'profiles.modals.profileForm.fields.secureChannel',
   'profiles.modals.profileForm.hints.intervalLocked',
   'profiles.modals.profileForm.feedback.notifications.creationRetry',
   'profiles.modals.profileForm.feedback.notifications.creationSuccess',

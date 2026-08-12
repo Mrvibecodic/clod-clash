@@ -476,6 +476,7 @@ export interface TranslationResources {
             newGroup: string
             newGroupName: string
             noGroup: string
+            secureChannel: string
             subscriptionUrl: string
             type: string
             updateInterval: string
