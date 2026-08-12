@@ -101,7 +101,7 @@
     "notices": {
       "raw": "{{message}}",
       "prefixedRaw": "{{prefix}} {{message}}",
-      "explained": "{{explanation}} · {{message}}"
+      "explained": "{{prefix}} · {{message}}"
     },
     "notifications": {
       "importSuccess": "Suscripción importada con éxito",

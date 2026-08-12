@@ -101,7 +101,7 @@
     "notices": {
       "raw": "{{message}}",
       "prefixedRaw": "{{prefix}} {{message}}",
-      "explained": "{{explanation}} · {{message}}"
+      "explained": "{{prefix}} · {{message}}"
     },
     "notifications": {
       "importSuccess": "تم استيراد الملف الشخصي بنجاح",
