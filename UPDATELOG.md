@@ -8,6 +8,80 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.0.25-alpha
+
+<!-- lang:en -->
+
+### Added
+
+- `clod-connect-mode` — the provider can say what the Connect button raises: the tunnel, the system proxy, or both. Your own choice still wins, unless the profile is locked
+- `clod-device-remove` — a link to the page where a device slot is freed. The device-limit dialog now offers that instead of only pointing at support
+- `clod-latency-style` — latency drawn as bars (the default), a coloured dot, or a plain number
+- Errors from the core are explained in plain words. Sixteen common cases — domain not found, connection refused, port taken, access denied by the system, certificate trouble, a broken configuration, a panel answering 401/403/404/5xx — now come with a sentence telling you what to check; the original text stays next to it
+- The lock a provider can put on the modes is no longer forever. It holds while the panel keeps confirming it and lifts on its own once the panel has been silent for days, and both the home screen and the settings now say who set the mode and how it goes away
+- The app notices the machine waking up and the network changing: the system proxy is put back and stale connections are closed instead of waiting for the next thing to break
+- A subscription is fetched by whichever route works — directly, through the app's own core, or through the system proxy — so a blocked subscription domain is still reachable through a tunnel that is already up
+
+### Fixed
+
+- A subscription takes its name from the panel the moment it is added, instead of appearing as a nameless placeholder until the first manual refresh
+- Switching the interface mode resizes the window whoever switched it. A mode that arrived from the panel used to change the layout only, leaving the advanced interface scrolled out of sight in a narrow window
+- The server drawer is alive while it is open: the list refreshes itself, and its header says how old the latency figures are
+- Coming back from the tray refreshes the screen at once, instead of showing the previous session's numbers for up to a minute
+- Groups that pick a server on their own (url-test, fallback, load balance) are left to their choice, instead of being pushed back onto the node saved from the last run
+- The management interface gets its own secret per installation, instead of the one shipped in the template
+- Configuration and profile files are written whole or not at all, so a crash mid-save cannot leave a half-written config behind
+- A subscription is fetched over http and https only, and the app refuses to follow a subscription link back into itself
+- Addresses and tokens are masked in the log by the logger itself, so no future log line can leak them by accident
+- The core is only started if it is the binary the app already knows; a replaced file is refused with an explanation
+- The DNS page owns the whole DNS block while its switch is on, and never leaves the tunnel without a resolver
+- The provider logo is deleted along with the subscription, one device slot costs one permission prompt, "Test all" measures every node once instead of twice, and the subscription deadline is read correctly from panels that send it in milliseconds
+- Two caches that grew for the whole session — measured latencies and the query mirror — now evict what they no longer need
+
+### Changed
+
+- Settings use one layout in both modes, and the simple mode has its way back into them again
+- Sixteen known vulnerabilities in dependencies are closed, git dependencies are pinned to exact revisions, and the audit now runs weekly on its own
+- The tray and the system notifications no longer say "Clash Verge" in any of the thirteen languages
+- The provider documentation covers the new headers
+
+<!-- lang:ru -->
+
+### Добавлено
+
+- `clod-connect-mode` — провайдер может сказать, что поднимает кнопка «Подключить»: туннель, системный прокси или оба. Ваш собственный выбор по-прежнему важнее, кроме запертого профиля
+- `clod-device-remove` — ссылка на страницу, где освобождается слот устройства. Диалог лимита теперь предлагает её, а не только поддержку
+- `clod-latency-style` — задержка полосками (по умолчанию), цветной точкой или числом
+- Ошибки ядра объясняются словами. Шестнадцать частых случаев — домен не найден, соединение отклонено, порт занят, доступ запрещён системой, беда с сертификатом, битая конфигурация, ответ панели 401/403/404/5xx — теперь сопровождаются фразой о том, что проверять; исходный текст остаётся рядом
+- Замок, которым провайдер запирает режимы, перестал быть вечным. Он держится, пока панель его подтверждает, и снимается сам, если панель молчит несколько дней; и главный экран, и настройки теперь говорят, кто задал режим и как это снимается
+- Приложение замечает пробуждение машины и смену сети: системный прокси поднимается заново, а мёртвые соединения закрываются, вместо того чтобы ждать следующей поломки
+- Подписка забирается тем путём, который сработает, — напрямую, через собственное ядро или через системный прокси, — поэтому заблокированный домен подписки достижим через уже поднятый туннель
+
+### Исправлено
+
+- Подписка берёт имя от панели сразу при добавлении, а не появляется безымянной болванкой до первого ручного обновления
+- Смена режима интерфейса меняет и размер окна, кто бы её ни сделал. Режим, пришедший от панели, раньше менял одну вёрстку, и расширенный интерфейс оставался в узком окне, уехав в прокрутку
+- Шторка серверов живая, пока открыта: список обновляется сам, а в её шапке видно, насколько свежие в нём задержки
+- Возврат из трея обновляет экран сразу, а не показывает до минуты цифры прошлого показа
+- Группы, которые выбирают сервер сами (url-test, fallback, балансировщик), больше не сбрасываются на узел, сохранённый с прошлого запуска
+- Управляющий интерфейс получает свой секрет на каждую установку вместо общего из шаблона
+- Файлы настроек и профилей пишутся целиком или никак: сбой посреди сохранения больше не оставляет обрезанный конфиг
+- За подпиской приложение ходит только по http и https и отказывается заворачивать ссылку подписки на само себя
+- Адреса и токены прячет сам логгер — значит, ни одна будущая строка лога не унесёт их случайно
+- Ядро запускается, только если это тот бинарь, который приложение уже видело; подменённый файл получает отказ с объяснением
+- Страница DNS владеет всем блоком DNS, пока её тумблер включён, и никогда не оставляет туннель без резолвера
+- Логотип провайдера удаляется вместе с подпиской, установка службы стоит одного запроса прав, «Проверить все» меряет каждый узел один раз вместо двух, а срок подписки читается верно и у панелей, присылающих его в миллисекундах
+- Два кэша, которые росли весь сеанс — измеренные задержки и зеркало запросов, — выбрасывают ненужное
+
+### Изменено
+
+- Настройки выглядят одинаково в обоих режимах, а из простого снова есть выход в них
+- Закрыты шестнадцать известных уязвимостей в зависимостях, git-зависимости запинены по ревизиям, а проверка теперь идёт раз в неделю сама
+- Трей и системные уведомления больше не говорят «Clash Verge» ни на одном из тринадцати языков
+- Документация для провайдера описывает новые заголовки
+
+---
+
 ## v0.0.24-alpha
 
 <!-- lang:en -->
