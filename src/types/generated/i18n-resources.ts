@@ -105,6 +105,9 @@ export interface TranslationResources {
           }
           title: string
         }
+        modeStatus: {
+          lockedHint: string
+        }
         net: {
           downloaded: string
           downSpeed: string
@@ -1411,6 +1414,7 @@ export interface TranslationResources {
           }
           notifications: {
             core: {
+              binaryChanged: string
               crashed: string
             }
             service: {

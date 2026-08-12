@@ -218,6 +218,9 @@
       "upSpeed": "Upload",
       "downloaded": "Downloaded",
       "uploaded": "Uploaded"
+    },
+    "modeStatus": {
+      "lockedHint": "Mode ditentukan oleh penyedia langganan. Pembatasan hilang dengan sendirinya jika panel tidak merespons selama beberapa hari, atau langsung jika Anda menghapus langganan."
     }
   },
   "pages": {

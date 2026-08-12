@@ -1,4 +1,4 @@
-import { Button, Typography } from '@mui/material'
+import { Button, Tooltip, Typography } from '@mui/material'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
@@ -48,10 +48,20 @@ export const ModeStatus = ({ locked, showTargets = true }: Props) => {
   const text = showTargets ? `${activeTargets} · ${modeLabel}` : modeLabel
 
   if (locked) {
+    // clod:lock-expiry — замок молча забирал управление, и выход из него нигде
+    // не назывался: пользователь с умершим доменом панели видел только серую
+    // строку. Подсказка называет оба выхода — срок годности замка и удаление
+    // подписки.
     return (
-      <Typography variant="caption" color="text.secondary">
-        {text}
-      </Typography>
+      <Tooltip title={t('home.components.modeStatus.lockedHint')}>
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          sx={{ cursor: 'help' }}
+        >
+          {text}
+        </Typography>
+      </Tooltip>
     )
   }
 

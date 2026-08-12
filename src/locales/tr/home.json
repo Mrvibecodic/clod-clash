@@ -218,6 +218,9 @@
       "upSpeed": "Upload",
       "downloaded": "Downloaded",
       "uploaded": "Uploaded"
+    },
+    "modeStatus": {
+      "lockedHint": "Modu abonelik sağlayıcınız belirler. Panel birkaç gün yanıt vermezse kısıtlama kendiliğinden kalkar; aboneliği kaldırırsanız hemen kalkar."
     }
   },
   "pages": {

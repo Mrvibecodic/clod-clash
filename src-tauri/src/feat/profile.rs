@@ -375,7 +375,7 @@ pub async fn update_profile(
 
     let should_refresh = match url_opt {
         Some(target) => {
-            perform_profile_update(
+            let outcome = perform_profile_update(
                 uid,
                 &target.url,
                 target.option.as_ref(),
@@ -384,8 +384,19 @@ pub async fn update_profile(
                 target.fallback_url,
                 target.fallback_domain,
             )
-            .await?
-                && auto_refresh
+            .await;
+            match outcome {
+                Ok(changed) => changed && auto_refresh,
+                Err(err) => {
+                    // clod:lock-expiry — до панели не дозвонились ни одним из
+                    // путей лестницы. Это ровно тот случай, ради которого у
+                    // замка есть срок годности: проверяем его здесь, а не
+                    // только на старте, иначе приложение, которое неделями не
+                    // перезапускают, замок бы не отпустило.
+                    release_stale_panel_locks().await;
+                    return Err(err);
+                }
+            }
         }
         None => auto_refresh,
     };
@@ -454,4 +465,169 @@ pub async fn update_profile(
 /// Расширенный конфиг
 pub async fn enhance_profiles() -> Result<ValidationOutcome> {
     CoreManager::global().update_config_forced().await
+}
+
+/// clod:lock-expiry — минимальный срок годности замка провайдера.
+///
+/// Замок (`clod-lock-mode`) держится, пока панель его подтверждает: каждое
+/// успешное обновление подписки приносит заголовок заново, а исчезнувший
+/// заголовок замок снимает (`merge_panel_meta`). Дыра была в третьем случае —
+/// панель не отвечает вовсе. Домен забанили, провайдер закрылся, срок вышел —
+/// подтверждать замок стало некому, и он оставался на устройстве навсегда,
+/// причём выход («удалить подписку») нигде не объяснён.
+const LOCK_GRACE_SECS: i64 = 72 * 60 * 60;
+
+/// Во сколько раз срок годности замка длиннее интервала обновления подписки.
+///
+/// Абсолютного порога мало: панель с интервалом в неделю штатно молчит дольше
+/// трёх суток, и фиксированный срок снимал бы замок на живой подписке. Три
+/// пропущенных обновления подряд — это уже не «сеть моргнула».
+const LOCK_GRACE_INTERVALS: u64 = 3;
+
+/// Сколько замок живёт без подтверждения для конкретной подписки, в секундах.
+fn lock_grace_secs(item: &PrfItem) -> i64 {
+    let interval_minutes = item.option.as_ref().and_then(|opt| opt.update_interval).unwrap_or(0);
+    let by_interval = interval_minutes
+        .saturating_mul(60)
+        .saturating_mul(LOCK_GRACE_INTERVALS)
+        .min(i64::MAX as u64) as i64;
+    by_interval.max(LOCK_GRACE_SECS)
+}
+
+/// Протух ли замок на этой подписке к моменту `now` (unix-секунды).
+fn lock_expired(item: &PrfItem, now: i64) -> bool {
+    if item.lock_mode != Some(true) {
+        return false;
+    }
+    let Some(updated) = item.updated.filter(|value| *value > 0) else {
+        // Замок есть, а отметки об удачном обновлении нет — штатно такого
+        // профиля не бывает (`from_url` ставит `updated` вместе с
+        // заголовками). Снимать замок по неизвестному возрасту нельзя: это
+        // подарок тому, кто подчистит поле в profiles.yaml.
+        return false;
+    };
+    now.saturating_sub(updated as i64) > lock_grace_secs(item)
+}
+
+/// clod:lock-expiry — снять замки, которые панель давно не подтверждала.
+///
+/// Чистим ПОЛЕ в профиле, а не заводим второе понятие «замок, но протухший»:
+/// потребителей у `lock_mode` четверо (переключение режима, трей, экран
+/// настроек, страница прокси), и второй источник истины разошёлся бы с первым
+/// на первой же правке. Панель ожила — ближайшее удачное обновление принесёт
+/// заголовок обратно, и замок вернётся.
+pub async fn release_stale_panel_locks() {
+    let now = chrono::Local::now().timestamp();
+
+    let stale: Vec<String> = {
+        let profiles = Config::profiles().await.latest_arc();
+        profiles
+            .items
+            .as_deref()
+            .unwrap_or_default()
+            .iter()
+            .filter(|item| lock_expired(item, now))
+            .filter_map(|item| item.uid.clone())
+            .collect()
+    };
+
+    if stale.is_empty() {
+        return;
+    }
+
+    let released = Config::profiles()
+        .await
+        .with_data_modify(move |mut profiles| async move {
+            let mut released = Vec::new();
+            for item in profiles.items.as_mut().into_iter().flatten() {
+                let Some(uid) = item.uid.clone() else { continue };
+                if stale.contains(&uid) {
+                    item.lock_mode = None;
+                    released.push(uid);
+                }
+            }
+            if !released.is_empty() {
+                profiles.save_file().await?;
+            }
+            Ok((profiles, released))
+        })
+        .await;
+
+    match released {
+        Ok(released) if !released.is_empty() => {
+            logging!(
+                info,
+                Type::Config,
+                "[clod] panel lock released on {} profile(s): `clod-lock-mode` was not confirmed within the grace period",
+                released.len()
+            );
+            for uid in released {
+                handle::Handle::notify_profile_changed(&uid);
+            }
+            let _ = tray::Tray::global().update_menu().await;
+        }
+        Ok(_) => {}
+        Err(err) => {
+            logging!(
+                warn,
+                Type::Config,
+                "Warning: [clod] failed to release stale lock: {err}"
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod lock_expiry_tests {
+    use super::*;
+
+    const DAY: i64 = 24 * 60 * 60;
+
+    fn locked_item(updated: i64, interval_minutes: Option<u64>) -> PrfItem {
+        PrfItem {
+            uid: Some("Rtest".into()),
+            itype: Some("remote".into()),
+            lock_mode: Some(true),
+            updated: Some(updated as usize),
+            option: interval_minutes.map(|update_interval| PrfOption {
+                update_interval: Some(update_interval),
+                ..PrfOption::default()
+            }),
+            ..PrfItem::default()
+        }
+    }
+
+    #[test]
+    fn fresh_lock_stays() {
+        let now = 10 * DAY;
+        assert!(!lock_expired(&locked_item(now - DAY, None), now));
+    }
+
+    #[test]
+    fn silent_panel_releases_the_lock() {
+        let now = 10 * DAY;
+        assert!(lock_expired(&locked_item(now - 4 * DAY, None), now));
+    }
+
+    #[test]
+    fn a_long_update_interval_stretches_the_grace() {
+        // Недельный интервал: четыре дня молчания для такой подписки — норма,
+        // а три пропущенных круга подряд — уже нет.
+        let now = 100 * DAY;
+        let weekly = 7 * 24 * 60;
+        assert!(!lock_expired(&locked_item(now - 4 * DAY, Some(weekly)), now));
+        assert!(lock_expired(&locked_item(now - 22 * DAY, Some(weekly)), now));
+    }
+
+    #[test]
+    fn only_a_real_lock_expires() {
+        let now = 10 * DAY;
+        let mut unlocked = locked_item(now - 100 * DAY, None);
+        unlocked.lock_mode = None;
+        assert!(!lock_expired(&unlocked, now));
+
+        let mut without_timestamp = locked_item(0, None);
+        without_timestamp.updated = None;
+        assert!(!lock_expired(&without_timestamp, now));
+    }
 }

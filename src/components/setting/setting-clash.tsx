@@ -116,7 +116,24 @@ const SettingClash = ({ onError }: Props) => {
       <TunnelsViewer ref={tunnelRef} />
       {/* clod: the routing mode lives here, not on the home screen. Locked
           entirely when the panel sent `clod-lock-mode`. */}
-      {modeLocked ? null : (
+      {modeLocked ? (
+        // clod:lock-expiry — раньше строка просто исчезала, и пользователь с
+        // умершей панелью не мог понять, что именно её убрало и как это
+        // отменить. Показываем действующий режим и называем оба выхода.
+        <SettingItem
+          label={t('settings.sections.clash.form.fields.routingMode')}
+          extra={
+            <TooltipIcon
+              title={t('home.components.modeStatus.lockedHint')}
+              color={'inherit'}
+            />
+          }
+        >
+          <Typography variant="body2" color="text.secondary">
+            {t(`home.components.clashMode.labels.${routingMode}`)}
+          </Typography>
+        </SettingItem>
+      ) : (
         <SettingItem
           label={t('settings.sections.clash.form.fields.routingMode')}
           extra={

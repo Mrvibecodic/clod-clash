@@ -99,6 +99,11 @@ pub fn resolve_setup_async() {
         // опрашивать нечего.
         crate::core::traffic_estimate::init();
 
+        // clod:lock-expiry — проверка на старте нужна отдельно от обновлений:
+        // подписку с выключенным автообновлением клиент панели не показывает
+        // вовсе, и без этого круга её замок не протухал бы никогда.
+        crate::feat::release_stale_panel_locks().await;
+
         Handle::refresh_clash();
         refresh_tray_menu().await;
         resolve_done();

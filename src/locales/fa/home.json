@@ -218,6 +218,9 @@
       "upSpeed": "Upload",
       "downloaded": "Downloaded",
       "uploaded": "Uploaded"
+    },
+    "modeStatus": {
+      "lockedHint": "حالت را ارائه‌دهندهٔ اشتراک تعیین می‌کند. اگر پنل چند روز پاسخ ندهد، این محدودیت خودبه‌خود برداشته می‌شود؛ یا بلافاصله با حذف اشتراک."
     }
   },
   "pages": {

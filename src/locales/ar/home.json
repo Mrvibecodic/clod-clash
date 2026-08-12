@@ -218,6 +218,9 @@
       "upSpeed": "Upload",
       "downloaded": "Downloaded",
       "uploaded": "Uploaded"
+    },
+    "modeStatus": {
+      "lockedHint": "الوضع يحدّده مزوّد الاشتراك. يُرفع هذا القيد تلقائيًا إذا توقّفت اللوحة عن الاستجابة عدة أيام، أو فورًا عند حذف الاشتراك."
     }
   },
   "pages": {

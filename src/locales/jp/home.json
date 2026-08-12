@@ -218,6 +218,9 @@
       "upSpeed": "Upload",
       "downloaded": "Downloaded",
       "uploaded": "Uploaded"
+    },
+    "modeStatus": {
+      "lockedHint": "モードはサブスクリプション提供者が設定しています。パネルが数日応答しなくなると自動的に解除され、サブスクリプションを削除すればすぐに解除されます。"
     }
   },
   "pages": {

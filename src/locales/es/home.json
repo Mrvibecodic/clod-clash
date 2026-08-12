@@ -218,6 +218,9 @@
       "upSpeed": "Upload",
       "downloaded": "Downloaded",
       "uploaded": "Uploaded"
+    },
+    "modeStatus": {
+      "lockedHint": "El modo lo fija tu proveedor de suscripción. La restricción se levanta sola si el panel deja de responder durante varios días, o de inmediato si eliminas la suscripción."
     }
   },
   "pages": {

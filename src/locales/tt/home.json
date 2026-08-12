@@ -218,6 +218,9 @@
       "upSpeed": "Upload",
       "downloaded": "Downloaded",
       "uploaded": "Uploaded"
+    },
+    "modeStatus": {
+      "lockedHint": "Режимны язылу тәэмин итүчесе билгели. Панель берничә көн җавап бирмәсә, чикләү үзеннән-үзе бетә, ә язылуны бетерсәң — шунда ук."
     }
   },
   "pages": {
