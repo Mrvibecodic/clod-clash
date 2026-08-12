@@ -179,16 +179,23 @@ const HomeAdvancedPage = () => {
 
   return (
     <Stack sx={{ height: '100%', overflowY: 'auto' }}>
-      <Box sx={{ px: 2, pt: 2 }}>
+      {/* flexShrink: 0 — иначе при нехватке высоты весь дефицит уходит в
+          единственного сжимаемого соседа, и шапка провайдера сплющивается
+          вместо того, чтобы страница прокрутилась. */}
+      <Box sx={{ px: 2, pt: 2, flexShrink: 0 }}>
         <ProviderHeader profile={current} />
       </Box>
 
+      {/* clod: было `flex: 1` c `minHeight: 0` — ряд жёстко упирался в высоту
+          окна, и лишнее содержимое не прокручивалось, а СЖИМАЛО колонки:
+          карточка «Сеть» схлопывалась до заголовка, нижняя плитка обрезалась.
+          `1 0 auto` = расти до окна, но никогда не ниже своего содержимого;
+          дальше прокручивается внешний Stack, у него `overflowY: auto`. */}
       <Box
         sx={{
           display: 'flex',
           flexDirection: { xs: 'column', md: 'row' },
-          flex: 1,
-          minHeight: 0,
+          flex: '1 0 auto',
           mt: 1,
         }}
       >
@@ -250,15 +257,14 @@ const HomeAdvancedPage = () => {
           {/* clod:design-v2 — the mockups' compact «Network» card */}
           <NetCard />
 
-          {/* minmax(0, …) lets the tiles shrink below their label width —
-              plain 1fr tracks refuse to and push the grid past the window. */}
+          {/* clod: столбцов столько, сколько влезает по 190px, а не по точке
+              излома `lg`: она считает ШИРИНУ ОКНА, а плитки живут в правой
+              колонке — на 1100px оставалась двухстолбцовая сетка в три ряда,
+              хотя места хватало на три столбца в два ряда. */}
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: {
-                xs: 'repeat(2, minmax(0, 1fr))',
-                lg: 'repeat(3, minmax(0, 1fr))',
-              },
+              gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
               gap: 1.25,
             }}
           >

@@ -191,6 +191,9 @@ const HomeSimplePage = () => {
           a readable centred strip on a large display. */}
       {/* clod: gap 1.5, не 2 — после появления строки режима под кнопкой
           контент перестал влезать в simple-окно и вылезала прокрутка */}
+      {/* clod: `1 0 auto`, а не `1` — с базой 0 колонка упиралась в высоту
+          окна и лишнее не прокручивалось, а сжимало карточки (тот же дефект,
+          что в расширенном режиме). */}
       <Stack
         sx={{
           p: 2,
@@ -198,7 +201,7 @@ const HomeSimplePage = () => {
           width: '100%',
           maxWidth: 520,
           mx: 'auto',
-          flex: 1,
+          flex: '1 0 auto',
         }}
       >
         <ProviderHeader profile={current} showSettings />

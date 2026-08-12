@@ -81,7 +81,18 @@ fn restore_position_if_offscreen(window: &WebviewWindow) {
 /// Default logical window sizes per interface mode. The simple mode is a
 /// single 520px column plus padding: anything wider is empty margin.
 const SIMPLE_MODE_SIZE: (f64, f64) = (560.0, 720.0);
-const ADVANCED_MODE_SIZE: (f64, f64) = (DEFAULT_WIDTH, DEFAULT_HEIGHT);
+/// clod: расширенный режим — две колонки, и в 940×700 они помещались только
+/// пока провайдер не заполнил заголовки: с баннерами, порталом и поддержкой
+/// карточка «Сеть» и плитки уезжали за нижний край. Ширина важнее высоты —
+/// на 1100 плитки встают в три столбца вместо двух и экран становится ниже.
+const ADVANCED_MODE_SIZE: (f64, f64) = (1100.0, 760.0);
+
+/// The advanced mode's first default. Its size is written into the config on
+/// any resize or move, so testers who never touched the window still carry
+/// exactly this pair — and would keep the cramped window forever. Read it as
+/// «never chosen» and hand out the current default instead; a user who really
+/// wants 940×700 gets it remembered again the moment they resize to it.
+const LEGACY_ADVANCED_SIZE: (u32, u32) = (DEFAULT_WIDTH as u32, DEFAULT_HEIGHT as u32);
 
 /// The mode the interface actually starts in: the user's own choice wins,
 /// then the provider's `clod-simple-mode` header, then the simple default.
@@ -104,7 +115,15 @@ const fn stored_mode_size(verge: &crate::config::IVerge, simple: bool) -> Option
     if simple {
         verge.window_size_simple
     } else {
-        verge.window_size_advanced
+        drop_legacy_advanced_size(verge.window_size_advanced)
+    }
+}
+
+/// `const fn` не умеет `filter`, поэтому руками.
+const fn drop_legacy_advanced_size(stored: Option<(u32, u32)>) -> Option<(u32, u32)> {
+    match stored {
+        Some((w, h)) if w == LEGACY_ADVANCED_SIZE.0 && h == LEGACY_ADVANCED_SIZE.1 => None,
+        other => other,
     }
 }
 
@@ -174,6 +193,12 @@ pub async fn apply_window_size_for_mode(window: &WebviewWindow, simple: bool) {
         // The stored spot may belong to a monitor that is gone — recentre
         // rather than restore the window somewhere unreachable.
         restore_position_if_offscreen(window);
+    } else {
+        // clod: `set_size` растит окно вправо и вниз от прежнего левого верхнего
+        // угла. Места, выбранного пользователем, здесь нет — значит окно только
+        // что открыли по центру под ДРУГОЙ размер, и без этого оно съезжает
+        // ровно на половину прибавки.
+        logging_error!(Type::Window, window.center());
     }
     keep_window_on_screen(window);
 }
@@ -417,7 +442,29 @@ pub fn reload_main_window_if_needed() {
 
 #[cfg(test)]
 mod tests {
-    use super::restored_window_size_is_too_small;
+    use super::{
+        ADVANCED_MODE_SIZE, LEGACY_ADVANCED_SIZE, drop_legacy_advanced_size, restored_window_size_is_too_small,
+    };
+
+    #[test]
+    fn legacy_advanced_size_is_replaced_by_the_current_default() {
+        assert_eq!(drop_legacy_advanced_size(Some(LEGACY_ADVANCED_SIZE)), None);
+    }
+
+    #[test]
+    fn advanced_size_chosen_by_the_user_survives() {
+        assert_eq!(drop_legacy_advanced_size(Some((1280, 800))), Some((1280, 800)));
+        assert_eq!(drop_legacy_advanced_size(Some((940, 701))), Some((940, 701)));
+        assert_eq!(drop_legacy_advanced_size(None), None);
+    }
+
+    #[test]
+    fn advanced_default_is_not_the_legacy_one() {
+        assert_ne!(
+            (ADVANCED_MODE_SIZE.0 as u32, ADVANCED_MODE_SIZE.1 as u32),
+            LEGACY_ADVANCED_SIZE
+        );
+    }
 
     #[test]
     fn restored_window_size_rejects_zero_dimensions() {
