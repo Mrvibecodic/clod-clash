@@ -199,7 +199,7 @@ fn split(base: &str) -> Result<(String, String, String)> {
 /// остаётся тем же, что в тестовых векторах, и не зависит от сериализатора.
 fn pad(mut plain: Vec<u8>) -> Vec<u8> {
     let size = plain.len();
-    if size < 2 || size % PAD_BLOCK == 0 {
+    if size < 2 || size.is_multiple_of(PAD_BLOCK) {
         return plain;
     }
 
