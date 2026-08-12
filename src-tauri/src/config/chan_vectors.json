@@ -1,31 +1,31 @@
 {
-    "note": "протокол c1, генератор CRYPTO-CHANNEL/vectors.php",
-    "token": "a7Kd93mQz1Lp0Xr8",
-    "psk": "a413cef80ccb56a516366b5ecd60a439393eb74e8ae78c1b5e21009d354fa7c8",
-    "epoch": 20678,
-    "kid": "Wevnq8pByvRb",
-    "sp_secret": "0101010101010101010101010101010101010101010101010101010101010101",
-    "sp_public": "a4e09292b651c278b9772c569f5fa9bb13d906b46ab68c9df9dc2b4409f8a209",
-    "spid": "GpLyOF",
-    "eph_secret": "0202020202020202020202020202020202020202020202020202020202020202",
-    "eph_public": "ce8d3ad1ccb633ec7b70c17814a5c76ecd029685050d344745ba05870e587d59",
-    "dh": "2ed76ab549b1e73c031eb49c9448f0798aea81b698279a0c3dc3e49fbfc4b953",
-    "request": {
-        "plain": "{\"v\":1,\"t\":1786500000,\"n\":\"AAECAwQFBgcICQoLDA0ODw\",\"hwid\":\"3f9c1d2e\",\"os\":\"windows\"}",
-        "key_pinned": "240e8fb42b35598864607eda06b63ba2d81ea40b41dbb83f3310c080f7fc33fb",
-        "blob_pinned": "zo060cy2M-x7cMF4FKXHbs0CloUFDTRHRboFhw5YfVn1vnQ3t8bf6Jc6Htb6-EVRLjSzbiGBXZOb2-WkMulzbYjjwjozx054953KOFfFlZC3B9-7ax7IcuzMFTzAmGmfoupsDfPXeYVogKTW4ohD2gjyiPFIkgKX5dNXiRg0Vbq8xkx9",
-        "key_first": "8aaf13049be1c1661875e220288477c2a96e7885caabd230e1f0e50a4adec67e",
-        "blob_first": "zo060cy2M-x7cMF4FKXHbs0CloUFDTRHRboFhw5YfVmbN_V39aC1xRcCZXPJdaANYsV2r7gHKHHc2GOFu41qJXIGtB4C-w4CndJHrHebZIIZMzgPBLcv1FkDRvHeIRWJcYRrg2hVtEDP3YtTZV9TkP8cvybd1_fE0UgIsUMeue3KtLnk",
-        "path_pinned": "/c1/Wevnq8pByvRb/GpLyOF/zo060cy2M-x7cMF4FKXHbs0CloUFDTRHRboFhw5YfVn1vnQ3t8bf6Jc6Htb6-EVRLjSzbiGBXZOb2-WkMulzbYjjwjozx054953KOFfFlZC3B9-7ax7IcuzMFTzAmGmfoupsDfPXeYVogKTW4ohD2gjyiPFIkgKX5dNXiRg0Vbq8xkx9"
-    },
-    "response": {
-        "srv_secret": "0303030303030303030303030303030303030303030303030303030303030303",
-        "body": "Xf7dO2vUf2-ijuFdlp1bsOpTd01Ii9r53xxuASSz7yIxf86W5swV-FfaJEeQNe5SpMfhNd9YSn14kkw3id4MONR3tSiHc8wMoW4xCOShu279sdKF2q9QXwYn9qzLXhq1_31ceTr2gnKuL0SEsYHt5v5s_fVs1h2VfWdpB8MOKAjXkXsi4-X2zMEcdVQ2BHRyAptjDrs00k3UEEM6Khy97EBuOtFCFX7ez_dfMdgkoBPgqWWzMQF7BkOZF7RxyyAI90GNWp_II0-EdkGGiK9_fW4Q-nyaIn1mC0vS1y2IXbWQeHYINMBvqqMHxEOIV2w",
-        "expect": {
-            "meta_announce": "Тест",
-            "config": "proxies: []\n",
-            "nonce": "AAECAwQFBgcICQoLDA0ODw",
-            "t": 1786500000
-        }
+  "note": "протокол c1, генератор CRYPTO-CHANNEL/vectors.php",
+  "token": "a7Kd93mQz1Lp0Xr8",
+  "psk": "a413cef80ccb56a516366b5ecd60a439393eb74e8ae78c1b5e21009d354fa7c8",
+  "epoch": 20678,
+  "kid": "Wevnq8pByvRb",
+  "sp_secret": "0101010101010101010101010101010101010101010101010101010101010101",
+  "sp_public": "a4e09292b651c278b9772c569f5fa9bb13d906b46ab68c9df9dc2b4409f8a209",
+  "spid": "GpLyOF",
+  "eph_secret": "0202020202020202020202020202020202020202020202020202020202020202",
+  "eph_public": "ce8d3ad1ccb633ec7b70c17814a5c76ecd029685050d344745ba05870e587d59",
+  "dh": "2ed76ab549b1e73c031eb49c9448f0798aea81b698279a0c3dc3e49fbfc4b953",
+  "request": {
+    "plain": "{\"v\":1,\"t\":1786500000,\"n\":\"AAECAwQFBgcICQoLDA0ODw\",\"hwid\":\"3f9c1d2e\",\"os\":\"windows\"}",
+    "key_pinned": "240e8fb42b35598864607eda06b63ba2d81ea40b41dbb83f3310c080f7fc33fb",
+    "blob_pinned": "zo060cy2M-x7cMF4FKXHbs0CloUFDTRHRboFhw5YfVn1vnQ3t8bf6Jc6Htb6-EVRLjSzbiGBXZOb2-WkMulzbYjjwjozx054953KOFfFlZC3B9-7ax7IcuzMFTzAmGmfoupsDfPXeYVogKTW4ohD2gjyiPFIkgKX5dNXiRg0Vbq8xkx9",
+    "key_first": "8aaf13049be1c1661875e220288477c2a96e7885caabd230e1f0e50a4adec67e",
+    "blob_first": "zo060cy2M-x7cMF4FKXHbs0CloUFDTRHRboFhw5YfVmbN_V39aC1xRcCZXPJdaANYsV2r7gHKHHc2GOFu41qJXIGtB4C-w4CndJHrHebZIIZMzgPBLcv1FkDRvHeIRWJcYRrg2hVtEDP3YtTZV9TkP8cvybd1_fE0UgIsUMeue3KtLnk",
+    "path_pinned": "/c1/Wevnq8pByvRb/GpLyOF/zo060cy2M-x7cMF4FKXHbs0CloUFDTRHRboFhw5YfVn1vnQ3t8bf6Jc6Htb6-EVRLjSzbiGBXZOb2-WkMulzbYjjwjozx054953KOFfFlZC3B9-7ax7IcuzMFTzAmGmfoupsDfPXeYVogKTW4ohD2gjyiPFIkgKX5dNXiRg0Vbq8xkx9"
+  },
+  "response": {
+    "srv_secret": "0303030303030303030303030303030303030303030303030303030303030303",
+    "body": "Xf7dO2vUf2-ijuFdlp1bsOpTd01Ii9r53xxuASSz7yIxf86W5swV-FfaJEeQNe5SpMfhNd9YSn14kkw3id4MONR3tSiHc8wMoW4xCOShu279sdKF2q9QXwYn9qzLXhq1_31ceTr2gnKuL0SEsYHt5v5s_fVs1h2VfWdpB8MOKAjXkXsi4-X2zMEcdVQ2BHRyAptjDrs00k3UEEM6Khy97EBuOtFCFX7ez_dfMdgkoBPgqWWzMQF7BkOZF7RxyyAI90GNWp_II0-EdkGGiK9_fW4Q-nyaIn1mC0vS1y2IXbWQeHYINMBvqqMHxEOIV2w",
+    "expect": {
+      "meta_announce": "Тест",
+      "config": "proxies: []\n",
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "t": 1786500000
     }
+  }
 }

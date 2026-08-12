@@ -139,9 +139,11 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
   }))
 
   // clod:chan — признак уже включённой защиты: он и запирает переключатель.
-  const secureLocked = openType === 'edit' && profiles?.items?.some(
-    (item) => item.uid === watch('uid') && item.option?.secure === true,
-  )
+  const secureLocked =
+    openType === 'edit' &&
+    profiles?.items?.some(
+      (item) => item.uid === watch('uid') && item.option?.secure === true,
+    )
 
   const selfProxy = watch('option.self_proxy')
   const withProxy = watch('option.with_proxy')
