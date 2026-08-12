@@ -124,8 +124,7 @@ pub const fn epoch(now: i64) -> i64 {
 pub fn kid(psk: &[u8; 32], epoch: i64) -> Result<String> {
     // Полная форма вызова обязательна: `new_from_slice` есть и у `Mac`,
     // и у `KeyInit` из aead, и компилятор без подсказки их не различает.
-    let mut mac =
-        <Hmac<Sha256> as Mac>::new_from_slice(psk).map_err(|_| anyhow!("clod-chan: HMAC отказал"))?;
+    let mut mac = <Hmac<Sha256> as Mac>::new_from_slice(psk).map_err(|_| anyhow!("clod-chan: HMAC отказал"))?;
     mac.update(format!("kid|{epoch}").as_bytes());
     Ok(B64.encode(&mac.finalize().into_bytes()[..9]))
 }
@@ -186,7 +185,10 @@ pub fn build(base: &str, pinned: Option<[u8; 32]>, fields: &Fields, now: i64) ->
     // Секрет с долгоживущим ключом прослойки участвует, только если клиент
     // этот ключ уже закрепил: на первом контакте его ещё нет.
     let (spid_part, dh) = match pinned {
-        Some(sp) => (spid(&sp), secret.diffie_hellman(&PublicKey::from(sp)).to_bytes().to_vec()),
+        Some(sp) => (
+            spid(&sp),
+            secret.diffie_hellman(&PublicKey::from(sp)).to_bytes().to_vec(),
+        ),
         None => ("0".to_string(), Vec::new()),
     };
 

@@ -1050,7 +1050,9 @@ async fn fetch_for_profile(
     // контакте его нет — тогда всё держится на секрете самого адреса.
     let pinned = option.and_then(|o| o.chan_pin.as_ref()).and_then(|raw| {
         use base64::Engine as _;
-        let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(raw.as_str()).ok()?;
+        let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .decode(raw.as_str())
+            .ok()?;
         <[u8; 32]>::try_from(decoded).ok()
     });
 
@@ -1137,7 +1139,10 @@ async fn fetch_secure(
     .await?;
 
     if !response.status().is_success() {
-        bail!("clod-chan: прослойка не приняла защищённый запрос ({})", response.status());
+        bail!(
+            "clod-chan: прослойка не приняла защищённый запрос ({})",
+            response.status()
+        );
     }
 
     let answer = session.open(response.text_with_charset()?, chrono::Local::now().timestamp())?;

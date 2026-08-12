@@ -343,7 +343,11 @@ impl Timer {
         logging!(info, Type::Timer, "Starting timer task: uid={}", uid);
         AsyncHandler::spawn(move || async move {
             Self::wait_until_resolve_done(Duration::from_millis(5000)).await;
-            Self::async_task(&uid).await;
+            // clod:chan — задача обновления подписки выросла вместе с веткой
+            // защищённого канала и перестала помещаться в порог линтера
+            // на размер future. Кладём её в кучу: это фоновая задача таймера,
+            // одна аллокация раз в интервал обновления ничего не стоит.
+            Box::pin(Self::async_task(&uid)).await;
             let _ = command_tx.send(TimerCommand::TaskFinished(uid));
         });
     }
@@ -386,20 +390,24 @@ impl Timer {
         let task_start = std::time::Instant::now();
         logging!(debug, Type::Timer, "Running timer task for profile: {}", uid);
 
-        match tokio::time::timeout(std::time::Duration::from_secs(40), async {
-            Self::emit_update_event(uid, true);
+        match tokio::time::timeout(
+            std::time::Duration::from_secs(40),
+            // clod:chan — та же причина, что и в `spawn_update_task`.
+            Box::pin(async {
+                Self::emit_update_event(uid, true);
 
-            let is_current = Config::profiles().await.latest_arc().current.as_ref() == Some(uid);
-            logging!(
-                debug,
-                Type::Timer,
-                "Profile {} is current active profile: {}",
-                uid,
-                is_current
-            );
+                let is_current = Config::profiles().await.latest_arc().current.as_ref() == Some(uid);
+                logging!(
+                    debug,
+                    Type::Timer,
+                    "Profile {} is current active profile: {}",
+                    uid,
+                    is_current
+                );
 
-            feat::update_profile(uid, None, is_current, false, false).await
-        })
+                feat::update_profile(uid, None, is_current, false, false).await
+            }),
+        )
         .await
         {
             Ok(Ok(_)) => {
