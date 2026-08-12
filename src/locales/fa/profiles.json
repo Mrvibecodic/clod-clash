@@ -155,7 +155,8 @@
         "noGroup": "No group",
         "newGroup": "+ New group…",
         "newGroupName": "Group name",
-        "advanced": "Advanced"
+        "advanced": "Advanced",
+        "secureChannel": "اتصال امن"
       },
       "hints": {
         "intervalLocked": "The provider set this interval with the profile-update-interval header, so it cannot be changed."

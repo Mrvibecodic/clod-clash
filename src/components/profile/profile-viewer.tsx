@@ -138,6 +138,11 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
     },
   }))
 
+  // clod:chan — признак уже включённой защиты: он и запирает переключатель.
+  const secureLocked = openType === 'edit' && profiles?.items?.some(
+    (item) => item.uid === watch('uid') && item.option?.secure === true,
+  )
+
   const selfProxy = watch('option.self_proxy')
   const withProxy = watch('option.with_proxy')
 
@@ -474,6 +479,30 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
                   {t('profiles.modals.profileForm.fields.allowAutoUpdate')}
                 </InputLabel>
                 <Switch checked={field.value} {...field} color="primary" />
+              </StyledBox>
+            )}
+          />
+
+          {/* clod:chan — галочка защищённого канала.
+              Поднять можно, снять нельзя: у уже защищённой подписки
+              переключатель заблокирован, и вернуть открытый режим можно
+              только удалив профиль. Иначе «сними галочку, у тебя не
+              работает» становится способом заставить клиента отдать адрес
+              подписки посреднику открытым текстом. */}
+          <Controller
+            name="option.secure"
+            control={control}
+            render={({ field }) => (
+              <StyledBox>
+                <InputLabel>
+                  {t('profiles.modals.profileForm.fields.secureChannel')}
+                </InputLabel>
+                <Switch
+                  checked={!!field.value}
+                  {...field}
+                  disabled={!!secureLocked}
+                  color="primary"
+                />
               </StyledBox>
             )}
           />

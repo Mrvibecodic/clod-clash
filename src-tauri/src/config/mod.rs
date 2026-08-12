@@ -1,4 +1,6 @@
 mod clash;
+// clod:chan — защищённый канал до прослойки (протокол c1)
+pub mod chan;
 #[allow(clippy::module_inception)]
 mod config;
 mod encrypt;

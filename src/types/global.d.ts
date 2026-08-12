@@ -355,6 +355,11 @@ interface IProfileOption {
   user_agent?: string
   with_proxy?: boolean
   self_proxy?: boolean
+  /** clod:chan — подписка ходит только по защищённому каналу до прослойки.
+   *  Включается галочкой при добавлении и снимается только удалением профиля. */
+  secure?: boolean
+  /** clod:chan — закреплённый ключ прослойки (base64url). Ставит бэкенд, UI не трогает. */
+  chan_pin?: string
   update_interval?: number
   timeout_seconds?: number
   danger_accept_invalid_certs?: boolean

@@ -1,5 +1,5 @@
 use crate::{
-    config::{profiles, sub_headers},
+    config::{chan, profiles, sub_headers},
     utils::{
         dirs, help,
         network::{NetworkManager, ProxyType},
@@ -262,6 +262,23 @@ pub struct PrfOption {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timeout_seconds: Option<u64>,
 
+    /// clod:chan — подписка ходит только по защищённому каналу.
+    ///
+    /// Ставится галочкой при добавлении и больше не снимается: снять её можно
+    /// только удалив профиль. Иначе «сними галочку, у тебя не работает»
+    /// становится способом заставить клиента отдать адрес подписки открытым
+    /// текстом тому, кто стоит в разрыве.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub secure: Option<bool>,
+
+    /// clod:chan — закреплённый публичный ключ прослойки, base64url.
+    ///
+    /// Не настройка, а состояние: клиент запоминает ключ при первом успешном
+    /// ответе и дальше считает с ним общий секрет. Живёт здесь потому, что
+    /// это единственное, что доезжает до `from_url` на обновлении.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chan_pin: Option<String>,
+
     /// for `remote` profile
     /// disable certificate validation
     /// default is `false`
@@ -301,6 +318,14 @@ impl PrfOption {
                 result.proxies = b_ref.proxies.clone().or(result.proxies);
                 result.groups = b_ref.groups.clone().or(result.groups);
                 result.timeout_seconds = b_ref.timeout_seconds.or(result.timeout_seconds);
+                // clod:chan — защита только поднимается. Однажды включённая,
+                // она переживает любое обновление подписки: понижение канала
+                // должно требовать удаления профиля, а не одного ответа.
+                result.secure = match (result.secure, b_ref.secure) {
+                    (Some(true), _) | (_, Some(true)) => Some(true),
+                    (a, b) => b.or(a),
+                };
+                result.chan_pin = b_ref.chan_pin.clone().or(result.chan_pin);
                 Some(result)
             }
             (Some(a_ref), None) => Some(a_ref.clone()),
@@ -494,21 +519,58 @@ impl PrfItem {
         let identity_headers = sub_headers::build_identity_headers().await;
         // clod:headers end
 
+        // clod:chan — защищённая подписка ходит только по защищённому каналу.
+        // Отката на открытый запрос нет ни при каких условиях, включая самый
+        // первый: иначе достаточно ответить 404 на `/c1/`, чтобы клиент сам
+        // отдал посреднику адрес подписки вместе с `x-hwid`.
+        let secure = option.is_some_and(|o| o.secure.unwrap_or(false));
+        // Ключ прослойки, закреплённый прошлым успешным ответом. На первом
+        // контакте его нет — тогда всё держится на секрете самого адреса.
+        let pinned = option.and_then(|o| o.chan_pin.as_ref()).and_then(|raw| {
+            use base64::Engine as _;
+            let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(raw.as_str()).ok()?;
+            <[u8; 32]>::try_from(decoded).ok()
+        });
+
         // Отправляем запрос через network manager
-        let resp = match fetch_subscription(
-            url.as_str(),
-            proxy_type,
-            timeout,
-            user_agent.clone(),
-            accept_invalid_certs,
-            &identity_headers,
-        )
-        .await
-        {
-            Ok(r) => r,
-            Err(e) => {
-                tokio::time::sleep(Duration::from_millis(100)).await;
-                return Err(e).context("failed to fetch remote profile");
+        let (resp, learned_pin) = if secure {
+            match fetch_secure(
+                url.as_str(),
+                proxy_type,
+                timeout,
+                user_agent.clone(),
+                accept_invalid_certs,
+                &identity_headers,
+                pinned,
+            )
+            .await
+            {
+                Ok((response, pin)) => {
+                    use base64::Engine as _;
+                    let pin = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(pin);
+                    (response, Some(String::from(pin.as_str())))
+                }
+                Err(e) => {
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                    return Err(e).context("failed to fetch remote profile over the secure channel");
+                }
+            }
+        } else {
+            match fetch_subscription(
+                url.as_str(),
+                proxy_type,
+                timeout,
+                user_agent.clone(),
+                accept_invalid_certs,
+                &identity_headers,
+            )
+            .await
+            {
+                Ok(r) => (r, None),
+                Err(e) => {
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                    return Err(e).context("failed to fetch remote profile");
+                }
             }
         };
 
@@ -669,6 +731,10 @@ impl PrfItem {
                 proxies,
                 groups,
                 allow_auto_update,
+                // clod:chan — признак и закреплённый ключ переживают обновление
+                // через `PrfOption::merge`, и признак снимается только удалением.
+                secure: secure.then_some(true),
+                chan_pin: learned_pin.or_else(|| option.and_then(|o| o.chan_pin.clone())),
                 ..PrfOption::default()
             }),
             home,
@@ -982,6 +1048,91 @@ async fn fetch_subscription(
     Err(chosen_error
         .or(direct_error)
         .unwrap_or_else(|| anyhow::anyhow!("subscription fetch produced no result")))
+}
+
+/// clod:chan — User-Agent защищённого запроса.
+///
+/// Наружу уходит самый скучный из возможных: настоящий UA клиента едет внутрь
+/// шифра, а посреднику незачем знать, что за приложение к нему пришло.
+/// Пустой UA хуже — часть WAF режет запросы без него.
+const CHAN_NEUTRAL_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)";
+
+/// clod:chan — загрузка подписки по защищённому каналу.
+///
+/// Наружу не уходит ничего, кроме пути `/c1/…`: ни адреса подписки, ни `x-hwid`,
+/// ни карточки устройства. Ответ приходит сплошным шифротекстом, из которого
+/// восстанавливаются и тело, и все заголовки панели — дальше по коду они
+/// разбираются ровно теми же функциями, что и в открытом режиме.
+///
+/// Второе возвращаемое значение — публичный ключ прослойки: его закрепляют
+/// в профиле, и со следующего запроса он участвует в выводе ключей.
+async fn fetch_secure(
+    url: &str,
+    proxy_type: ProxyType,
+    timeout: u64,
+    user_agent: Option<String>,
+    accept_invalid_certs: bool,
+    identity: &reqwest::header::HeaderMap,
+    pin: Option<[u8; 32]>,
+) -> Result<(crate::utils::network::HttpResponse, [u8; 32])> {
+    let get = |name: &str| -> std::string::String {
+        identity
+            .get(name)
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or_default()
+            .to_owned()
+    };
+
+    let fields = chan::Fields {
+        hwid: get("x-hwid"),
+        os: get("x-device-os"),
+        osv: get("x-ver-os"),
+        model: get("x-device-model"),
+        ua: user_agent
+            .clone()
+            .map_or_else(|| crate::utils::hwid::user_agent().to_string(), |ua| ua.to_string()),
+        acc: "*/*".to_owned(),
+        q: std::string::String::new(),
+    };
+
+    let now = chrono::Local::now().timestamp();
+    let (secure_url, session) = chan::build(url, pin, &fields, now)?;
+
+    // Заголовков опознания снаружи нет вовсе — в этом весь смысл.
+    let response = fetch_subscription(
+        secure_url.as_str(),
+        proxy_type,
+        timeout,
+        Some(CHAN_NEUTRAL_UA.into()),
+        accept_invalid_certs,
+        &reqwest::header::HeaderMap::new(),
+    )
+    .await?;
+
+    if !response.status().is_success() {
+        bail!("clod-chan: прослойка не приняла защищённый запрос ({})", response.status());
+    }
+
+    let answer = session.open(response.text_with_charset()?, chrono::Local::now().timestamp())?;
+
+    // Заголовки восстанавливаем в обычную мапу: весь разбор ниже по коду
+    // (announce, notify-*, срок, трафик) остаётся нетронутым.
+    let mut headers = reqwest::header::HeaderMap::new();
+    for (name, values) in &answer.meta {
+        let Ok(name) = reqwest::header::HeaderName::from_bytes(name.as_bytes()) else {
+            continue;
+        };
+        for value in values {
+            if let Ok(value) = reqwest::header::HeaderValue::from_str(value) {
+                headers.append(name.clone(), value);
+            }
+        }
+    }
+
+    Ok((
+        crate::utils::network::HttpResponse::new(reqwest::StatusCode::OK, headers, answer.body),
+        answer.sp,
+    ))
 }
 
 /// Порог, выше которого метка времени может быть только миллисекундами:

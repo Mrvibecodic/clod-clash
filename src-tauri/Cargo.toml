@@ -126,6 +126,12 @@ tokio-util = { version = "0.7.18", features = ["time"] }
 # clod: device identity (see src/utils/hwid.rs) — all three are already in the
 # dependency tree transitively, so this adds no new compilation units.
 sha2 = "0.10.9"
+# clod:chan — защищённый канал до прослойки. Набор один и не согласуется:
+# X25519 + HKDF-SHA256 + ChaCha20-Poly1305.
+x25519-dalek = { version = "2.0.1", features = ["static_secrets"] }
+chacha20poly1305 = "0.10.1"
+hkdf = "0.12.4"
+hmac = "0.12.1"
 hex = "0.4.3"
 sysinfo = { version = "0.39.5", features = ["system"] }
 
