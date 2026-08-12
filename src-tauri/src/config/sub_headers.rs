@@ -92,6 +92,43 @@ impl HwidState {
     }
 }
 
+/// clod:connect-mode — how the provider wants the traffic captured.
+///
+/// Deliberately a closed list: the Connect button drives exactly two targets,
+/// and a free-form value would only mean «we did not understand you».
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConnectMode {
+    /// `tun` — tunnel only, the system proxy stays down.
+    Tun,
+    /// `proxy` — system proxy only, the tunnel stays down.
+    Proxy,
+    /// `both` — raise both targets together.
+    Both,
+}
+
+impl ConnectMode {
+    /// Value persisted in the profile item (`connect_mode`).
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Tun => "tun",
+            Self::Proxy => "proxy",
+            Self::Both => "both",
+        }
+    }
+
+    /// Parse a header value. Unknown wording is treated as no header at all,
+    /// the same rule the boolean headers follow: a typo in the panel must not
+    /// silently switch how the client connects.
+    fn parse(raw: &str) -> Option<Self> {
+        match raw.trim().to_ascii_lowercase().as_str() {
+            "tun" | "tunnel" | "vpn" => Some(Self::Tun),
+            "proxy" | "system" | "system-proxy" | "sysproxy" => Some(Self::Proxy),
+            "both" | "all" => Some(Self::Both),
+            _ => None,
+        }
+    }
+}
+
 /// Everything the panel told us in the response headers.
 #[derive(Debug, Clone, Default)]
 pub struct SubHeaders {
@@ -153,6 +190,17 @@ pub struct SubHeaders {
     /// `clod-lock-mode` — the panel forbids changing proxy/routing modes in
     /// the app. `global-mode: false` (Prizrak-Box) is honoured as a synonym.
     pub lock_mode: Option<bool>,
+
+    /// clod:connect-mode — `clod-connect-mode`: what the Connect button should
+    /// raise, one of `tun`, `proxy`, `both`.
+    ///
+    /// Until this header existed only the user could choose between the two
+    /// targets, and a locked profile (`clod-lock-mode`) hides those switches —
+    /// every customer of such a panel stayed on the system proxy for good. The
+    /// tunnel is the better default for private customers: an application that
+    /// died leaves a system proxy pointing at a dead `127.0.0.1` and the whole
+    /// machine looks offline, while a tunnel that is gone simply stops routing.
+    pub connect_mode: Option<ConnectMode>,
 
     /// clod:show-0hosts — `clod-show-0hosts`: провайдер просит показывать его
     /// узлы-заглушки как есть, вместо наших экранов «нет серверов».
@@ -236,6 +284,11 @@ impl SubHeaders {
             show_zero_hosts: bool_value(headers, "clod-show-0hosts"),
             lock_mode: bool_value(headers, "clod-lock-mode")
                 .or_else(|| bool_value(headers, "global-mode").map(|allowed| !allowed)),
+            // clod:connect-mode — закрытый список значений; всё остальное
+            // считается отсутствующим заголовком.
+            connect_mode: value(headers, "clod-connect-mode")
+                .as_deref()
+                .and_then(ConnectMode::parse),
             // Straight `get`: `Date` is a standard header, so neither the
             // suffix lookup nor the base64 decoding above applies to it.
             //
@@ -815,6 +868,35 @@ mod tests {
         assert_eq!(parsed.lock_mode, Some(false));
 
         assert_eq!(SubHeaders::parse(&headers(&[])).lock_mode, None);
+    }
+
+    // clod:connect-mode — способ подключения задаётся закрытым списком.
+    #[test]
+    fn connect_mode_takes_a_closed_list_of_values() {
+        let parsed = SubHeaders::parse(&headers(&[("clod-connect-mode", "TUN")]));
+        assert_eq!(parsed.connect_mode, Some(ConnectMode::Tun));
+        let parsed = SubHeaders::parse(&headers(&[("clod-connect-mode", " proxy ")]));
+        assert_eq!(parsed.connect_mode, Some(ConnectMode::Proxy));
+        let parsed = SubHeaders::parse(&headers(&[("clod-connect-mode", "both")]));
+        assert_eq!(parsed.connect_mode, Some(ConnectMode::Both));
+
+        // Синонимы, на которых спотыкается живой администратор панели.
+        assert_eq!(
+            SubHeaders::parse(&headers(&[("clod-connect-mode", "system-proxy")])).connect_mode,
+            Some(ConnectMode::Proxy)
+        );
+        assert_eq!(
+            SubHeaders::parse(&headers(&[("clod-connect-mode", "vpn")])).connect_mode,
+            Some(ConnectMode::Tun)
+        );
+
+        // Опечатка НЕ меняет способ подключения молча: заголовок с непонятным
+        // значением считается отсутствующим, выбор остаётся за пользователем.
+        assert_eq!(
+            SubHeaders::parse(&headers(&[("clod-connect-mode", "tunnel-only")])).connect_mode,
+            None
+        );
+        assert_eq!(SubHeaders::parse(&headers(&[])).connect_mode, None);
     }
 
     #[test]

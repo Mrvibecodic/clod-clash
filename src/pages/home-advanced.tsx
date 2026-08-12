@@ -226,7 +226,7 @@ const HomeAdvancedPage = () => {
           {/* clod: колонка кончалась строкой сервера и дальше пустовала до
               самого низа — четыре переключателя, за которыми иначе лезут в
               настройки, закрывают её и ничего не растягивают. */}
-          <QuickActions locked={Boolean(current.lock_mode)} />
+          <QuickActions />
 
           <Box sx={{ flex: 1 }} />
           <Button

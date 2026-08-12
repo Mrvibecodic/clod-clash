@@ -58,7 +58,8 @@ default). Turning it off stops all of them.
 | --- | --- | --- |
 | `clod-simple-mode` | `1`/`0` — simple or advanced view | a hint only; the user's own choice always wins. `pxa-simple-mode` and `flclashx-newboard` are honoured too |
 | `clod-show-0hosts` | `1`/`0` — show the panel's placeholder nodes as they are | without the header the client recognises the placeholders and shows its own screen with the reason instead. With `1` it interprets nothing: the panel's nodes land in the server list under their own names and the "no servers" screens never appear. See "Panel placeholder nodes" below |
-| `clod-lock-mode` | `1`/`0` — forbid changing modes in the app | hides the proxy/TUN toggles and the routing-mode selector, leaving a status line. `global-mode: false` (Prizrak-Box) is a synonym |
+| `clod-lock-mode` | `1`/`0` — forbid changing modes in the app | hides the routing-mode selector, leaving a status line with a hint. `global-mode: false` (Prizrak-Box) is a synonym. **The lock is not forever:** it holds while the panel keeps confirming it — once the subscription has not refreshed successfully for 72 hours (or three update intervals, whichever is longer) the client releases it by itself. A panel that comes back re-applies it on the next successful refresh |
+| `clod-connect-mode` | `tun`, `proxy` or `both` — how traffic is captured | decides what the Connect button raises. **The user's own choice wins**, except on a locked profile (`clod-lock-mode: 1`), where the panel has the last word and the two connection switches disappear from the quick actions card. `tunnel`/`vpn`, `system`/`system-proxy`/`sysproxy` and `all` are accepted as synonyms; anything else counts as no header at all. Without the header the system proxy stays the default |
 
 **Changing the subscription address**
 

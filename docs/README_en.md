@@ -31,7 +31,7 @@ editors) is kept — it is simply moved out of sight into an advanced mode.
 
 ## What Clod Clash gives you
 
-* **31 response headers from the panel** (Remnawave and Happ) plus synonyms for compatibility with
+* **32 response headers from the panel** (Remnawave and Happ) plus synonyms for compatibility with
   other clients, and six of our own on the request — plan name, logo, announcement, promo banner,
   customer portal, support, and the text for the device-limit dialog. The full list is in
   [HEADERS_en.md](./HEADERS_en.md).
@@ -188,7 +188,8 @@ client. Add a rule matching `^clodclash` with the **MIHOMO** format, otherwise t
 serves its default response and the app reports that the panel did not recognise the client.
 
 **Extra headers.** `announce`, `announce-url`, `profile-logo`, `support-url`, `new-url`,
-`fallback-url`, `notify-*`, our `clod-*` family and the rest that are not part of
+`fallback-url`, `notify-*`, our `clod-*` family (including `clod-connect-mode`, which
+picks between the tunnel and the system proxy) and the rest that are not part of
 Remnawave's standard set are configured through `customResponseHeaders`. Values with
 non-ASCII text are safer to send as `base64:<payload>`; every link must be `https://`.
 

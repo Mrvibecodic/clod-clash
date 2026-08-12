@@ -294,6 +294,12 @@ interface IProfileItem {
   promo_seen?: boolean
   /** `clod-lock-mode` header — mode switching is locked by the panel */
   lock_mode?: boolean
+  /**
+   * `clod-connect-mode` header — what the Connect button raises: `tun`,
+   * `proxy` or `both`. The user's own choice wins, except on a locked profile
+   * (`lock_mode`), where the panel has the last word.
+   */
+  connect_mode?: 'tun' | 'proxy' | 'both'
   show_zero_hosts?: boolean
   /** `subscription-refill-date` header, unix seconds */
   refill_date?: number

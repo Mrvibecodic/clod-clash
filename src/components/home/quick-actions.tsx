@@ -17,11 +17,6 @@ import { showNotice } from '@/services/notice-service'
 
 import { TunStatus } from './tun-status'
 
-interface Props {
-  /** `clod-lock-mode`: the panel forbids changing how the app connects. */
-  locked?: boolean
-}
-
 interface RowProps {
   label: string
   checked: boolean
@@ -58,12 +53,16 @@ const Row = ({ label, checked, disabled, onToggle }: RowProps) => (
  * different questions, so they stay two different controls; the labels here
  * carry no «Подключение:» prefix for exactly that reason.
  */
-export const QuickActions = ({ locked }: Props) => {
+export const QuickActions = () => {
   const { t } = useTranslation()
   const { verge, mutateVerge, patchVerge } = useVerge()
   const { indicator: sysproxyOn, toggleSystemProxy } = useSystemProxyState()
   const { mutateSystemState } = useSystemState()
-  const { targetSys, targetTun } = useConnectTargets()
+  // clod:connect-mode — прячем тумблеры не по самому замку, а по тому, назвал
+  // ли провайдер способ подключения (`clod-connect-mode`). Замок без этого
+  // заголовка — про режим маршрутизации, и отбирать из-за него ещё и выбор
+  // «прокси или туннель» не за что.
+  const { targetSys, targetTun, targetsLocked } = useConnectTargets()
   // Дёрнутый руками тумблер — это и есть выбор режима: отдельной настройки
   // «что включает Connect» больше нет.
   const rememberTarget = useRememberTargets()
@@ -143,10 +142,10 @@ export const QuickActions = ({ locked }: Props) => {
         {t('home.components.quickActions.title')}
       </Typography>
 
-      {/* clod-lock-mode: the provider decided how this client connects, so the
-          two connection switches are gone — not merely disabled, which one
-          click in the devtools would undo. The state itself stays visible. */}
-      {locked ? (
+      {/* clod:connect-mode — провайдер назвал способ подключения на запертом
+          профиле, поэтому двух переключателей нет вовсе (не «disabled»: это
+          снимается одним кликом в девтулзах). Само состояние видно. */}
+      {targetsLocked ? (
         <Typography variant="caption" color="text.secondary">
           {t('home.components.quickActions.lockedBy', {
             targets: [

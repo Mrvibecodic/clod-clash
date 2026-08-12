@@ -114,6 +114,13 @@ pub struct PrfItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub show_zero_hosts: Option<bool>,
 
+    /// clod:connect-mode — `clod-connect-mode` header: `tun`, `proxy` or
+    /// `both`. What the Connect button raises while the user has not chosen
+    /// for themselves; under [`Self::lock_mode`] it is what the button raises,
+    /// full stop.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub connect_mode: Option<String>,
+
     /// `subscription-refill-date` header, unix seconds.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub refill_date: Option<i64>,
@@ -665,6 +672,7 @@ impl PrfItem {
             promo_url: sub.promo_url.clone(),
             promo_seen: None,
             lock_mode: sub.lock_mode,
+            connect_mode: sub.connect_mode.map(|mode| mode.as_str().into()),
             show_zero_hosts: sub.show_zero_hosts,
             refill_date: sub.refill_date,
             clock_skew: measured_skew,
@@ -1031,6 +1039,9 @@ impl PrfItem {
         self.simple_mode = fresh.simple_mode;
         self.portal_url = fresh.portal_url.clone();
         self.lock_mode = fresh.lock_mode;
+        // clod:connect-mode — тоже пожелание панели и следует за ней целиком:
+        // убранный заголовок возвращает выбор пользователю.
+        self.connect_mode = fresh.connect_mode.clone();
         // Убранный заголовок возвращает наши экраны: поле следует за панелью
         // целиком, как и остальная её метаинформация.
         self.show_zero_hosts = fresh.show_zero_hosts;
