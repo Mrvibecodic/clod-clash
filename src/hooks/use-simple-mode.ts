@@ -2,7 +2,6 @@ import { useCallback, useMemo } from 'react'
 
 import { useProfiles } from '@/hooks/use-profiles'
 import { useVerge } from '@/hooks/use-verge'
-import { applyWindowSizeForMode, saveWindowSizeForMode } from '@/services/cmds'
 
 /**
  * Which interface the user gets, and who decided.
@@ -30,18 +29,15 @@ export const useSimpleMode = () => {
 
   const setSimpleMode = useCallback(
     async (enabled: boolean) => {
-      // Each mode remembers its own window size: store the size of the mode
-      // we are leaving, then resize for the one we are entering. Sizing is
-      // cosmetic — a failure must never block the actual mode switch.
-      if (enabled !== simpleMode) {
-        await saveWindowSizeForMode(simpleMode).catch(() => {})
-      }
+      // clod:mode-window — геометрию окна здесь больше не трогаем. Каждый
+      // режим по-прежнему помнит свой размер, но применять его по одной этой
+      // кнопке было мало: режим меняет ещё и заголовок панели, и тогда окно
+      // оставалось чужого размера. Сохранение покидаемого режима и применение
+      // нового переехали в `useModeWindowSize` — он смотрит на РЕЗУЛЬТАТ, а не
+      // на способ смены.
       await patchVerge({ simple_mode: enabled })
-      if (enabled !== simpleMode) {
-        await applyWindowSizeForMode(enabled).catch(() => {})
-      }
     },
-    [patchVerge, simpleMode],
+    [patchVerge],
   )
 
   return {
