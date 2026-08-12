@@ -107,6 +107,8 @@ export const translationKeys = [
   'home.components.serverSelect.types.fallback',
   'home.components.serverSelect.types.loadbalance',
   'home.components.serverSelect.types.smart',
+  'home.components.serverSelect.measuredJustNow',
+  'home.components.serverSelect.measuredMinutesAgo',
   'home.components.serverStatus.noServers',
   'home.components.serverStatus.title.expired',
   'home.components.serverStatus.title.traffic',

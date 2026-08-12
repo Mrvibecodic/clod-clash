@@ -147,6 +147,8 @@ export interface TranslationResources {
           empty: string
           favorite: string
           inUse: string
+          measuredJustNow: string
+          measuredMinutesAgo: string
           ms: string
           none: string
           test: string

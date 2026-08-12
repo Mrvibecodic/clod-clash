@@ -27,11 +27,24 @@ const CACHE_TTL = 30 * 60 * 1000
  */
 const TESTING_TTL = 60 * 1000
 
+/**
+ * clod:cache-evict — потолок числа записей о задержках и как часто убираться.
+ *
+ * Тысячи хватает с запасом: это все узлы нескольких крупных подписок сразу,
+ * а прицел у потолка не на экономию памяти, а на то, чтобы карта не росла
+ * бесконечно у человека, который месяцами не перезапускает приложение.
+ */
+const MAX_CACHE_ENTRIES = 1000
+const EVICT_EVERY = 200
+
 /** Used when neither the user, the template nor the settings named a URL. */
 const BUILTIN_TEST_URL = 'http://cp.cloudflare.com/generate_204'
 
 class DelayManager {
   private cache = new Map<string, DelayUpdate>()
+
+  /** Записей с последней уборки; см. `evictStaleDelays`. */
+  private writesSinceEvict = 0
 
   /**
    * URL, выбранный пользователем для конкретной группы (страница «Прокси»).
@@ -221,6 +234,7 @@ class DelayManager {
     }
 
     this.cache.set(key, update)
+    this.evictStaleDelays()
 
     const queue = this.pendingItemUpdates.get(key)
     if (queue) {
@@ -231,6 +245,48 @@ class DelayManager {
     this.scheduleItemFlush()
 
     return update
+  }
+
+  /**
+   * clod:cache-evict — выбросить протухшее, не дожидаясь чтения.
+   *
+   * `getDelayUpdate` удаляет запись старше `CACHE_TTL`, но только ту, которую
+   * СПРОСИЛИ. Узлы, пропавшие из конфига при смене профиля или обновлении
+   * подписки, не спрашивает уже никто: их ключи оставались в карте до
+   * перезагрузки окна, и у пользователя с десятком подписок по сотне серверов
+   * она росла весь сеанс. Чистим на записи — там же, где карта и растёт.
+   *
+   * Полный проход раз в `EVICT_EVERY` записей: сама чистка дешевле, чем
+   * проверять возраст всей карты на каждый замер, а «Проверить все» на большой
+   * группе — это сотни вызовов подряд.
+   */
+  private evictStaleDelays() {
+    this.writesSinceEvict += 1
+    if (
+      this.writesSinceEvict < EVICT_EVERY &&
+      this.cache.size <= MAX_CACHE_ENTRIES
+    ) {
+      return
+    }
+    this.writesSinceEvict = 0
+
+    const now = Date.now()
+    for (const [key, entry] of this.cache) {
+      if (now - entry.updatedAt > CACHE_TTL) this.cache.delete(key)
+    }
+
+    // Живых записей всё равно больше потолка (одна огромная подписка, свежий
+    // прогон «Проверить все») — режем самые старые. Map хранит порядок
+    // вставки, но замер обновляет значение НЕ меняя место ключа, поэтому
+    // сортируем по времени замера, а не полагаемся на порядок.
+    if (this.cache.size > MAX_CACHE_ENTRIES) {
+      const byAge = [...this.cache.entries()].sort(
+        ([, left], [, right]) => left.updatedAt - right.updatedAt,
+      )
+      for (const [key] of byAge.slice(0, this.cache.size - MAX_CACHE_ENTRIES)) {
+        this.cache.delete(key)
+      }
+    }
   }
 
   getDelayUpdate(name: string, group: string) {

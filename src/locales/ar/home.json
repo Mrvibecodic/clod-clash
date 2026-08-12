@@ -143,7 +143,9 @@
         "fallback": "auto · failover",
         "loadbalance": "load balancing",
         "smart": "smart pick"
-      }
+      },
+      "measuredJustNow": "قيس للتو",
+      "measuredMinutesAgo": "قيس قبل {{minutes}} دقيقة"
     },
     "serverStatus": {
       "noServers": "No servers",

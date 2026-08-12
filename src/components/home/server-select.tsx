@@ -58,6 +58,17 @@ import { toUnixSeconds } from '@/utils/subscription-status'
 const VIRTUALIZE_FROM = 50
 const ROW_HEIGHT = 52
 
+/**
+ * clod:drawer-freshness — как часто перечитывать список, пока шторка открыта.
+ *
+ * Пять секунд — это один дешёвый запрос к уже поднятому ядру: столько же
+ * стоит опрос главного экрана, а шторку держат открытой секунды, не часы.
+ */
+const DRAWER_REFRESH_MS = 5000
+
+/** Как часто пересчитывается возраст показанных задержек. */
+const AGE_TICK_MS = 5000
+
 interface Props {
   open: boolean
   onClose: () => void
@@ -151,6 +162,52 @@ export const ServerSelect = ({ open, onClose }: Props) => {
     overscan: 8,
     enabled: nodes.length > VIRTUALIZE_FROM,
   })
+
+  // clod:drawer-freshness — пока шторка открыта, список живой.
+  //
+  // Раньше он был снимком того, что лежало в кэше на момент открытия: узел
+  // переключили из трея, ядро само ушло с мёртвого сервера, тест в другом окне
+  // домерил задержки — на экране всё это появлялось только после закрытия и
+  // повторного открытия. Опрашиваем, лишь пока шторка ОТКРЫТА и окно видно:
+  // за закрытой шторкой обновлять нечего, и это ровно то правило, по которому
+  // живут остальные опросы.
+  const visible = useVisibility()
+  useEffect(() => {
+    if (!open || !visible) return
+    const timer = window.setInterval(() => {
+      refreshProxy().catch(() => {})
+    }, DRAWER_REFRESH_MS)
+    return () => window.clearInterval(timer)
+  }, [open, visible, refreshProxy])
+
+  // Возраст самого свежего замера в группе: одна честная строка вместо
+  // подписи под каждой строкой (у каждого узла свой возраст, но пользователю
+  // важно «эти цифры вообще сегодняшние или нет»).
+  // Часы, а не счётчик тиков: возраст считается ОТ этого значения, поэтому
+  // подпись стареет сама, даже когда список не меняется.
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!open || !visible) return
+    setNow(Date.now())
+    const timer = window.setInterval(() => setNow(Date.now()), AGE_TICK_MS)
+    return () => window.clearInterval(timer)
+  }, [open, visible])
+
+  const measuredLabel = useMemo(() => {
+    if (!open || !group || nodes.length === 0) return undefined
+    const newest = nodes.reduce((latest, node) => {
+      const at = entryMeasuredAt(records, node.name, group.name)
+      return at > latest ? at : latest
+    }, 0)
+    if (!newest) return undefined
+    const minutes = Math.floor((now - newest) / 60_000)
+    return minutes < 1
+      ? t('home.components.serverSelect.measuredJustNow')
+      : // ГРАБЛЯ i18next: число подставлять как `minutes`, НЕ `count` —
+        // `count` считается плюральным, и i18next пошёл бы искать `_one`
+        // и `_other`, которых наш генератор не делает.
+        t('home.components.serverSelect.measuredMinutesAgo', { minutes })
+  }, [open, group, nodes, records, now, t])
 
   const select = useLockFn(async (nodeName: string) => {
     if (!group || !canSelect) return
@@ -325,6 +382,17 @@ export const ServerSelect = ({ open, onClose }: Props) => {
           <Typography variant="h6">
             {t('home.components.serverSelect.title')}
           </Typography>
+
+          {/* clod:drawer-freshness — сколько лет цифрам в списке. Задержки
+              приходят из истории замеров ядра, и без этой строки список
+              одинаково уверенно показывал и секундной свежести замер, и
+              позавчерашний: «26 ms» выглядит фактом, пока не сказано, когда
+              его мерили. */}
+          {measuredLabel ? (
+            <Typography variant="caption" color="text.secondary" noWrap>
+              {measuredLabel}
+            </Typography>
+          ) : null}
 
           <Box sx={{ flex: 1 }} />
 

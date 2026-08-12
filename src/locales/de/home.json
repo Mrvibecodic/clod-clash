@@ -143,7 +143,9 @@
         "fallback": "auto · failover",
         "loadbalance": "load balancing",
         "smart": "smart pick"
-      }
+      },
+      "measuredJustNow": "gerade gemessen",
+      "measuredMinutesAgo": "vor {{minutes}} Min. gemessen"
     },
     "serverStatus": {
       "noServers": "No servers",

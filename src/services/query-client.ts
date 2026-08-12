@@ -37,12 +37,34 @@ const serializeQueryKey = (queryKey: QueryKey) => unstable_serialize(queryKey)
 
 const queryCache = new Map<string, unknown>()
 
+/**
+ * clod:cache-evict — потолок числа ключей в зеркале кэша.
+ *
+ * Почти все ключи здесь постоянные (`getProxies`, `getVergeConfig`…), и их
+ * пара десятков. Но ключ бывает и составным — `['icon-cache', url, key]` в
+ * `use-icon-cache`, — а такие плодятся по числу иконок, которые провайдер
+ * когда-либо присылал: карта росла весь сеанс и не чистилась никогда.
+ * Двухсот хватает всем постоянным ключам разом, с запасом на иконки; а
+ * вылетевший ключ стоит одного повторного запроса, не ошибки.
+ */
+const MAX_CACHE_KEYS = 200
+
 const setCachedData = <T>(queryKey: QueryKey, data: T | undefined) => {
   const cacheKey = serializeQueryKey(queryKey)
   if (data === undefined) {
     queryCache.delete(cacheKey)
-  } else {
-    queryCache.set(cacheKey, data)
+    return
+  }
+
+  // Удаляем перед вставкой: Map держит порядок ВСТАВКИ, и без этого
+  // перезапись значения оставляла бы ключ на прежнем месте — постоянные
+  // ключи, которые обновляются чаще всех, выселялись бы первыми.
+  queryCache.delete(cacheKey)
+  queryCache.set(cacheKey, data)
+
+  if (queryCache.size > MAX_CACHE_KEYS) {
+    const oldest = queryCache.keys().next()
+    if (!oldest.done) queryCache.delete(oldest.value)
   }
 }
 

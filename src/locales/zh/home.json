@@ -143,7 +143,9 @@
         "fallback": "auto · failover",
         "loadbalance": "load balancing",
         "smart": "smart pick"
-      }
+      },
+      "measuredJustNow": "刚刚测量",
+      "measuredMinutesAgo": "{{minutes}} 分钟前测量"
     },
     "serverStatus": {
       "noServers": "没有可用服务器",

@@ -143,7 +143,9 @@
         "fallback": "авто · резерв",
         "loadbalance": "балансировка",
         "smart": "умный выбор"
-      }
+      },
+      "measuredJustNow": "замерено только что",
+      "measuredMinutesAgo": "замерено {{minutes}} мин назад"
     },
     "serverStatus": {
       "noServers": "Серверов нет",

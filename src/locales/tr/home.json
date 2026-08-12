@@ -143,7 +143,9 @@
         "fallback": "auto · failover",
         "loadbalance": "load balancing",
         "smart": "smart pick"
-      }
+      },
+      "measuredJustNow": "az önce ölçüldü",
+      "measuredMinutesAgo": "{{minutes}} dk önce ölçüldü"
     },
     "serverStatus": {
       "noServers": "No servers",
