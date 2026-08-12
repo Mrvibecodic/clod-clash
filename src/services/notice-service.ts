@@ -1,6 +1,8 @@
 import i18n from 'i18next'
 import { ReactNode, isValidElement } from 'react'
 
+import { explainErrorKey, trimRawError } from '@/utils/error-explanation'
+
 type NoticeType = 'success' | 'error' | 'info'
 
 interface NoticeTranslationDescriptor {
@@ -153,6 +155,22 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function createRawDescriptor(message: string): NoticeTranslationDescriptor {
+  // clod:error-mapper — сюда стекается ВСЁ, что показывается пользователю как
+  // сырой текст: ошибки ядра, системные коды, чужие обёртки. Одна точка —
+  // значит, словарь не придётся вспоминать на каждом новом вызове showNotice.
+  const explanationKey = explainErrorKey(message)
+  if (explanationKey) {
+    return {
+      key: 'shared.feedback.notices.explained',
+      params: {
+        // Переводим здесь: ключ известен только в момент разбора, а подстановка
+        // `$t()` с переменным ключом в i18next не работает. Уведомление живёт
+        // секунды, так что смена языка на лету ему не важна.
+        explanation: i18n.t(explanationKey),
+        message: trimRawError(message),
+      },
+    }
+  }
   return {
     key: 'shared.feedback.notices.raw',
     params: { message },
