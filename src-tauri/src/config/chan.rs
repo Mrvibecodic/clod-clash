@@ -14,14 +14,14 @@
 //! обязаны сходиться байт в байт, иначе подписка просто не загрузится.
 
 use anyhow::{Result, anyhow, bail};
-use base64::Engine;
+use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64;
-use chacha20poly1305::aead::{Aead, KeyInit, Payload};
+use chacha20poly1305::aead::{Aead as _, KeyInit as _, Payload};
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
 use hkdf::Hkdf;
 use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
+use sha2::{Digest as _, Sha256};
 use std::collections::HashMap;
 use x25519_dalek::{PublicKey, StaticSecret};
 

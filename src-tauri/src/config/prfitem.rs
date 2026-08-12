@@ -519,60 +519,18 @@ impl PrfItem {
         let identity_headers = sub_headers::build_identity_headers().await;
         // clod:headers end
 
-        // clod:chan — защищённая подписка ходит только по защищённому каналу.
-        // Отката на открытый запрос нет ни при каких условиях, включая самый
-        // первый: иначе достаточно ответить 404 на `/c1/`, чтобы клиент сам
-        // отдал посреднику адрес подписки вместе с `x-hwid`.
-        let secure = option.is_some_and(|o| o.secure.unwrap_or(false));
-        // Ключ прослойки, закреплённый прошлым успешным ответом. На первом
-        // контакте его нет — тогда всё держится на секрете самого адреса.
-        let pinned = option.and_then(|o| o.chan_pin.as_ref()).and_then(|raw| {
-            use base64::Engine as _;
-            let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(raw.as_str()).ok()?;
-            <[u8; 32]>::try_from(decoded).ok()
-        });
-
-        // Отправляем запрос через network manager
-        let (resp, learned_pin) = if secure {
-            match fetch_secure(
-                url.as_str(),
-                proxy_type,
-                timeout,
-                user_agent.clone(),
-                accept_invalid_certs,
-                &identity_headers,
-                pinned,
-            )
-            .await
-            {
-                Ok((response, pin)) => {
-                    use base64::Engine as _;
-                    let pin = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(pin);
-                    (response, Some(String::from(pin.as_str())))
-                }
-                Err(e) => {
-                    tokio::time::sleep(Duration::from_millis(100)).await;
-                    return Err(e).context("failed to fetch remote profile over the secure channel");
-                }
-            }
-        } else {
-            match fetch_subscription(
-                url.as_str(),
-                proxy_type,
-                timeout,
-                user_agent.clone(),
-                accept_invalid_certs,
-                &identity_headers,
-            )
-            .await
-            {
-                Ok(r) => (r, None),
-                Err(e) => {
-                    tokio::time::sleep(Duration::from_millis(100)).await;
-                    return Err(e).context("failed to fetch remote profile");
-                }
-            }
-        };
+        // clod:chan — выбор дороги вынесен отдельной функцией: с ним `from_url`
+        // перебирала порог сложности, который держит линтер.
+        let (resp, learned_pin) = fetch_for_profile(
+            url.as_str(),
+            proxy_type,
+            timeout,
+            user_agent.clone(),
+            accept_invalid_certs,
+            &identity_headers,
+            option,
+        )
+        .await?;
 
         // clod: часы устройства снимаются сразу, как ответ дошёл — до разбора
         // YAML и записи файлов. Скачивание тела в сдвиг всё же попадает
@@ -733,7 +691,7 @@ impl PrfItem {
                 allow_auto_update,
                 // clod:chan — признак и закреплённый ключ переживают обновление
                 // через `PrfOption::merge`, и признак снимается только удалением.
-                secure: secure.then_some(true),
+                secure: option.and_then(|o| o.secure).filter(|on| *on),
                 chan_pin: learned_pin.or_else(|| option.and_then(|o| o.chan_pin.clone())),
                 ..PrfOption::default()
             }),
@@ -1048,6 +1006,75 @@ async fn fetch_subscription(
     Err(chosen_error
         .or(direct_error)
         .unwrap_or_else(|| anyhow::anyhow!("subscription fetch produced no result")))
+}
+
+/// clod:chan — загрузка подписки той дорогой, которая ей положена.
+///
+/// Защищённая подписка ходит только по защищённому каналу: отката на открытый
+/// запрос нет ни при каких условиях, включая самый первый. Иначе достаточно
+/// ответить 404 на `/c1/`, чтобы клиент сам отдал посреднику адрес подписки
+/// вместе с `x-hwid`.
+///
+/// Второе возвращаемое значение — ключ прослойки, который надо закрепить.
+async fn fetch_for_profile(
+    url: &str,
+    proxy_type: ProxyType,
+    timeout: u64,
+    user_agent: Option<String>,
+    accept_invalid_certs: bool,
+    identity_headers: &reqwest::header::HeaderMap,
+    option: Option<&PrfOption>,
+) -> Result<(crate::utils::network::HttpResponse, Option<String>)> {
+    let secure = option.is_some_and(|o| o.secure.unwrap_or(false));
+
+    if !secure {
+        return match fetch_subscription(
+            url,
+            proxy_type,
+            timeout,
+            user_agent,
+            accept_invalid_certs,
+            identity_headers,
+        )
+        .await
+        {
+            Ok(response) => Ok((response, None)),
+            Err(e) => {
+                tokio::time::sleep(Duration::from_millis(100)).await;
+                Err(e).context("failed to fetch remote profile")
+            }
+        };
+    }
+
+    // Ключ прослойки, закреплённый прошлым успешным ответом. На первом
+    // контакте его нет — тогда всё держится на секрете самого адреса.
+    let pinned = option.and_then(|o| o.chan_pin.as_ref()).and_then(|raw| {
+        use base64::Engine as _;
+        let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(raw.as_str()).ok()?;
+        <[u8; 32]>::try_from(decoded).ok()
+    });
+
+    match fetch_secure(
+        url,
+        proxy_type,
+        timeout,
+        user_agent,
+        accept_invalid_certs,
+        identity_headers,
+        pinned,
+    )
+    .await
+    {
+        Ok((response, pin)) => {
+            use base64::Engine as _;
+            let pin = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(pin);
+            Ok((response, Some(String::from(pin.as_str()))))
+        }
+        Err(e) => {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            Err(e).context("failed to fetch remote profile over the secure channel")
+        }
+    }
 }
 
 /// clod:chan — User-Agent защищённого запроса.
