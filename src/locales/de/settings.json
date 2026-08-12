@@ -52,7 +52,8 @@
       "fields": {
         "systemProxy": "Systemproxy",
         "tunMode": "Virtual Network Interface-Modus"
-      }
+      },
+      "lockedByProvider": "Vom Anbieter festgelegt"
     },
     "externalController": {
       "title": "Adresse des externen Controllers",

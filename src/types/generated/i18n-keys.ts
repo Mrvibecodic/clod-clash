@@ -472,6 +472,7 @@ export const translationKeys = [
   'settings.sections.proxyControl.actions.repairService',
   'settings.sections.proxyControl.fields.systemProxy',
   'settings.sections.proxyControl.fields.tunMode',
+  'settings.sections.proxyControl.lockedByProvider',
   'settings.sections.externalController.title',
   'settings.sections.externalController.fields.enable',
   'settings.sections.externalController.fields.address',

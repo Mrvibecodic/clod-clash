@@ -52,7 +52,8 @@
       "fields": {
         "systemProxy": "Proxy del sistema",
         "tunMode": "Modo de interfaz virtual (TUN)"
-      }
+      },
+      "lockedByProvider": "Definido por el proveedor"
     },
     "externalController": {
       "title": "Dirección de escucha del controlador externo",

@@ -52,7 +52,8 @@
       "fields": {
         "systemProxy": "Sistem Vekil'i",
         "tunMode": "Tun Modu"
-      }
+      },
+      "lockedByProvider": "Sağlayıcı tarafından ayarlandı"
     },
     "externalController": {
       "title": "Harici Denetleyici",

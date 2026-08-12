@@ -52,7 +52,8 @@
       "fields": {
         "systemProxy": "システムプロキシ",
         "tunMode": "仮想ネットワークカードモード"
-      }
+      },
+      "lockedByProvider": "プロバイダーが設定"
     },
     "externalController": {
       "title": "外部コントローラーの監視アドレス",

@@ -52,7 +52,8 @@
       "fields": {
         "systemProxy": "وكيل النظام",
         "tunMode": "وضع TUN"
-      }
+      },
+      "lockedByProvider": "محدَّد من قِبل المزوّد"
     },
     "externalController": {
       "title": "وحدة التحكم الخارجية",

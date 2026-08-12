@@ -1405,6 +1405,7 @@ export interface TranslationResources {
             systemProxy: string
             tunMode: string
           }
+          lockedByProvider: string
           tooltips: {
             serviceOutdated: string
             systemProxy: string

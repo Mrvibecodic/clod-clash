@@ -52,7 +52,8 @@
       "fields": {
         "systemProxy": "系統代理",
         "tunMode": "虛擬網路介面卡模式"
-      }
+      },
+      "lockedByProvider": "由服務商設定"
     },
     "externalController": {
       "title": "外部控制器監聽位址",

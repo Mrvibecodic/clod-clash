@@ -14,6 +14,7 @@ import {
 } from '@/components/layout/window-controller'
 import { HwidLimitDialog } from '@/components/profile/hwid-limit-dialog'
 import { useI18n } from '@/hooks/use-i18n'
+import { useEnforceLockedTargets } from '@/hooks/use-locked-targets'
 import { useModeWindowSize } from '@/hooks/use-mode-window-size'
 import { useVerge } from '@/hooks/use-verge'
 import { useVisibility } from '@/hooks/use-visibility'
@@ -53,6 +54,9 @@ const Layout = () => {
 
   // clod:mode-window — a settled manual resize updates the active mode's slot
   useModeWindowSize()
+  // clod:connect-mode — цель, которую провайдер не назвал, гасим: управлять ею
+  // из приложения больше нечем
+  useEnforceLockedTargets()
 
   const windowControlsRef = useRef<any>(null)
   const { decorated } = useWindowDecorations()

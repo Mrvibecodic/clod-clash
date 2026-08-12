@@ -52,7 +52,8 @@
       "fields": {
         "systemProxy": "Системалы прокси",
         "tunMode": "Tun режимы (виртуаль челтәр адаптеры)"
-      }
+      },
+      "lockedByProvider": "Провайдер билгеләгән"
     },
     "externalController": {
       "title": "Тышкы контроллер адресы",

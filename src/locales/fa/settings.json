@@ -52,7 +52,8 @@
       "fields": {
         "systemProxy": "پراکسی سیستم",
         "tunMode": "Tun (کارت شبکه مجازی)"
-      }
+      },
+      "lockedByProvider": "تعیین‌شده توسط ارائه‌دهنده"
     },
     "externalController": {
       "title": "کنترل‌کننده خارجی",

@@ -52,7 +52,8 @@
       "fields": {
         "systemProxy": "Системный прокси",
         "tunMode": "Режим TUN"
-      }
+      },
+      "lockedByProvider": "Задан провайдером"
     },
     "externalController": {
       "title": "Адрес прослушивания внешнего контроллера",

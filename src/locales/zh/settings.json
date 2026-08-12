@@ -52,7 +52,8 @@
       "fields": {
         "systemProxy": "系统代理",
         "tunMode": "虚拟网卡模式"
-      }
+      },
+      "lockedByProvider": "由服务商设定"
     },
     "externalController": {
       "title": "外部控制器监听地址",

@@ -52,7 +52,8 @@
       "fields": {
         "systemProxy": "시스템 프록시",
         "tunMode": "TUN 모드"
-      }
+      },
+      "lockedByProvider": "제공자가 설정함"
     },
     "externalController": {
       "title": "외부 컨트롤러",

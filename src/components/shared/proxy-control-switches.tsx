@@ -14,7 +14,10 @@ import { useTranslation } from 'react-i18next'
 import { DialogRef, Switch, TooltipIcon } from '@/components/base'
 import { SysproxyViewer } from '@/components/setting/mods/sysproxy-viewer'
 import { TunViewer } from '@/components/setting/mods/tun-viewer'
-import { useRememberTargets } from '@/hooks/use-connect-targets'
+import {
+  useConnectTargets,
+  useRememberTargets,
+} from '@/hooks/use-connect-targets'
 import { useServiceUninstaller } from '@/hooks/use-service-uninstaller'
 import { useSystemProxyState } from '@/hooks/use-system-proxy-state'
 import { useSystemState } from '@/hooks/use-system-state'
@@ -24,7 +27,13 @@ import { ensureTunReady } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 
 interface ProxySwitchProps {
-  label?: string
+  /**
+   * clod: какой из двух переключателей рисовать. Раньше это выводилось
+   * сравнением ПЕРЕВЕДЁННОЙ подписи с переводом ключа — работало только пока
+   * ни один переводчик не тронул строку и пока две подписи не совпали между
+   * собой. Признак режима — не текст на экране.
+   */
+  target: 'sysproxy' | 'tun'
   onError?: (err: Error) => void
   noRightPadding?: boolean
 }
@@ -39,6 +48,12 @@ interface SwitchRowProps {
   onToggle: (value: boolean) => Promise<void>
   onError?: (err: Error) => void
   highlight?: boolean
+  /**
+   * clod:connect-mode — способ подключения назвал провайдер: состояние видно,
+   * а переключателя нет вовсе. Именно нет, а не `disabled`: отключённый снимается
+   * одним кликом в девтулзах.
+   */
+  lockedNote?: string
 }
 
 /**
@@ -55,6 +70,7 @@ const SwitchRow = ({
   onToggle,
   onError,
   highlight,
+  lockedNote,
 }: SwitchRowProps) => {
   const theme = useTheme()
   const [checked, setChecked] = useState(active)
@@ -116,18 +132,28 @@ const SwitchRow = ({
         {extraIcons}
       </Box>
 
-      <Switch
-        edge="end"
-        disabled={disabled}
-        checked={checked}
-        onChange={handleChange}
-      />
+      {lockedNote ? (
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          sx={{ textAlign: 'right', ml: 2 }}
+        >
+          {lockedNote}
+        </Typography>
+      ) : (
+        <Switch
+          edge="end"
+          disabled={disabled}
+          checked={checked}
+          onChange={handleChange}
+        />
+      )}
     </Box>
   )
 }
 
 const ProxyControlSwitches = ({
-  label,
+  target,
   onError,
   noRightPadding = false,
 }: ProxySwitchProps) => {
@@ -149,6 +175,11 @@ const ProxyControlSwitches = ({
   // Тумблеры здесь и есть выбор режима для кнопки Connect — отдельной пары
   // настроек «Подключение: …» больше нет.
   const rememberTarget = useRememberTargets()
+  // clod:connect-mode — настройки обязаны знать про замок ровно то же, что и
+  // быстрые действия на главной. Без этого экран показывал два обычных
+  // тумблера поверх заголовка «только TUN»: включённый здесь системный прокси
+  // не участвовал в Connect, не выключался им и висел в Windows навсегда.
+  const { targetSys, targetTun, targetsLocked } = useConnectTargets()
 
   const sysproxyRef = useRef<DialogRef>(null)
   const tunRef = useRef<DialogRef>(null)
@@ -212,13 +243,20 @@ const ProxyControlSwitches = ({
     }
   })
 
-  const isSystemProxyMode =
-    label === t('settings.sections.system.toggles.systemProxy') || !label
-  const isTunMode = label === t('settings.sections.system.toggles.tunMode')
+  // clod:connect-mode — способ подключения назвал провайдер: цель, которой в
+  // нём нет, приложение больше не трогает (её гасит `useEnforceLockedTargets`),
+  // и показывать здесь переключатель для неё — врать. Показанная цель остаётся
+  // видимой: у строки TUN живут ещё и починка с удалением службы.
+  const hidden = targetsLocked && (target === 'tun' ? !targetTun : !targetSys)
+  const lockedNote = targetsLocked
+    ? t('settings.sections.proxyControl.lockedByProvider')
+    : undefined
+
+  if (hidden) return null
 
   return (
     <Box sx={{ width: '100%', pr: noRightPadding ? 1 : 2 }}>
-      {isSystemProxyMode && (
+      {target === 'sysproxy' && (
         <SwitchRow
           label={t('settings.sections.proxyControl.fields.systemProxy')}
           active={systemProxyIndicator}
@@ -230,10 +268,11 @@ const ProxyControlSwitches = ({
           }}
           onError={onError}
           highlight={systemProxyIndicator}
+          lockedNote={lockedNote}
         />
       )}
 
-      {isTunMode && (
+      {target === 'tun' && (
         <SwitchRow
           label={t('settings.sections.proxyControl.fields.tunMode')}
           active={tunActive}
@@ -242,6 +281,7 @@ const ProxyControlSwitches = ({
           onToggle={handleTunToggle}
           onError={onError}
           highlight={tunActive}
+          lockedNote={lockedNote}
           extraIcons={
             <>
               {!tunCapable && (
