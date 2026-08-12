@@ -185,11 +185,18 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
           option.user_agent = undefined
         }
 
-        const name = form.name || `${form.type} file`
+        const isRemote = form.type === 'remote'
+        // clod:panel-name — пустое поле имени у ПОДПИСКИ означает «как назовёт
+        // панель», а не «придумай что-нибудь». Раньше отсюда всегда уезжала
+        // строка «remote file», бэкенд считал её выбором пользователя
+        // (явное имя перебивает `profile-title`) и заголовок панели пропадал:
+        // подписка добавлялась болванкой и получала настоящее имя только после
+        // ручного «Обновить» — обновление идёт уже без имени. Локальному
+        // конфигу заголовков ждать неоткуда, там подстановка остаётся.
+        const name = form.name || (isRemote ? undefined : `${form.type} file`)
         const group =
           form.group === NEW_GROUP ? newGroup.trim() : form.group?.trim()
         const item = { ...form, name, group: group || undefined, option }
-        const isRemote = form.type === 'remote'
         const isUpdate = openType === 'edit'
 
         // Проверяем, является ли конфиг текущим активным

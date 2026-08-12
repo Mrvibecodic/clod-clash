@@ -101,7 +101,10 @@ const HomeSimplePage = () => {
       // A URL that is not a subscription is still a perfectly normal mistake;
       // fall back to creating a remote profile so the error names the cause.
       try {
-        await createProfile({ type: 'remote', name: url, url })
+        // clod:panel-name — без имени: если вторая попытка всё-таки принесёт
+        // подписку, назовёт её панель своим `profile-title`, а не адрес,
+        // который пользователь вставил (он же ещё и с токеном).
+        await createProfile({ type: 'remote', url })
         await activate()
         setSubUrl('')
       } catch (error) {
