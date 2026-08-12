@@ -1056,17 +1056,45 @@ async fn fetch_for_profile(
         <[u8; 32]>::try_from(decoded).ok()
     });
 
-    match fetch_secure(
+    let mut outcome = fetch_secure(
         url,
         proxy_type,
         timeout,
-        user_agent,
+        user_agent.clone(),
         accept_invalid_certs,
         identity_headers,
         pinned,
     )
-    .await
-    {
+    .await;
+
+    // Закреплённый ключ мог перестать существовать: прослойку переставили,
+    // базу потеряли, ключ сменили дважды подряд. Тогда закрепление — это
+    // кирпич навсегда: прослойка отвечает как на мусорный путь, а клиент
+    // упрямо шлёт тот же отпечаток. Один повтор без закрепления лечит это сам
+    // и закрепляет уже настоящий ключ.
+    //
+    // На открытый HTTP при этом не откатываемся НИКОГДА: повтор идёт по тому
+    // же защищённому каналу, только без DH с долгоживущим ключом.
+    if outcome.is_err() && pinned.is_some() {
+        clash_verge_logging::logging!(
+            warn,
+            clash_verge_logging::Type::Config,
+            "[clod] chan: закреплённый ключ прослойки не принят, повтор без закрепления"
+        );
+
+        outcome = fetch_secure(
+            url,
+            proxy_type,
+            timeout,
+            user_agent,
+            accept_invalid_certs,
+            identity_headers,
+            None,
+        )
+        .await;
+    }
+
+    match outcome {
         Ok((response, pin)) => {
             use base64::Engine as _;
             let pin = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(pin);
@@ -1164,7 +1192,11 @@ async fn fetch_secure(
     Ok((
         // Тело кладём в тип сети как есть: `String` в этом файле — smartstring,
         // и обычная строка в него не подставляется молча.
-        crate::utils::network::HttpResponse::new(reqwest::StatusCode::OK, headers, answer.body.into()),
+        crate::utils::network::HttpResponse::new(
+            reqwest::StatusCode::from_u16(answer.status).unwrap_or(reqwest::StatusCode::OK),
+            headers,
+            answer.body.into(),
+        ),
         answer.sp,
     ))
 }

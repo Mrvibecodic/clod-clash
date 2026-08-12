@@ -36,6 +36,15 @@ const SALT: &[u8] = b"clod-chan-v1";
 const SKEW: i64 = 300;
 /// Больше этого ответ подписки не бывает — защита от бесконечного тела.
 const MAX_ANSWER: usize = 32 << 20;
+/// Запрос дополняется до кратного этому размеру.
+///
+/// Без выравнивания длина адреса выдаёт длину карточки устройства: модель
+/// телефона, версию системы и сам момент, когда они поменялись, — то есть
+/// ровно то, что канал прячет. Прослойка поле `pad` не читает вовсе.
+const PAD_BLOCK: usize = 512;
+/// `,"pad":""` — столько занимает сам ключ в JSON. Дополнить короче нечем,
+/// поэтому если до кратности осталось меньше, добирается целый блок.
+const PAD_KEY_LEN: usize = 9;
 
 /// То, что раньше ехало заголовками запроса открытым текстом.
 #[derive(Debug, Default, Clone, Serialize)]
@@ -70,11 +79,21 @@ struct RawAnswer {
     v: u8,
     t: i64,
     n: String,
+    /// Код ответа, который в открытом режиме приехал бы снаружи. Снаружи на
+    /// защищённом пути всегда 200: иначе посредник читал бы по коду, чем
+    /// кончилось дело, — 404 у неизвестной подписки, 502 при обрыве.
+    #[serde(default)]
+    st: u16,
     sp: String,
     #[serde(default)]
     meta: HashMap<String, Vec<String>>,
     #[serde(default)]
     body: String,
+    /// Тело подписки прослойка отдаёт байт в байт, а JSON так не умеет: одного
+    /// байта не в UTF-8 хватает, чтобы кодирование не состоялось. В этом
+    /// случае тело приезжает сюда.
+    #[serde(default)]
+    body_b64: String,
 }
 
 /// Разобранный ответ прослойки.
@@ -83,6 +102,8 @@ pub struct Answer {
     /// Заголовки, которые в открытом режиме приехали бы снаружи.
     pub meta: HashMap<String, Vec<String>>,
     pub body: String,
+    /// Код ответа, приехавший внутри шифра.
+    pub status: u16,
     /// Текущий ключ прослойки: закрепляется при первом успехе, дальше
     /// участвует в деривации и даёт совершенную прямую секретность.
     pub sp: [u8; 32],
@@ -172,6 +193,26 @@ fn split(base: &str) -> Result<(String, String, String)> {
     Ok((rest[..cut].to_string(), token.to_string(), query))
 }
 
+/// Дополняет открытый текст запроса до кратного [`PAD_BLOCK`].
+///
+/// Поле дописывается в уже собранный JSON, а не в структуру: так порядок полей
+/// остаётся тем же, что в тестовых векторах, и не зависит от сериализатора.
+fn pad(mut plain: Vec<u8>) -> Vec<u8> {
+    let size = plain.len();
+    if size < 2 || size % PAD_BLOCK == 0 {
+        return plain;
+    }
+
+    let need = (PAD_BLOCK - (size + PAD_KEY_LEN) % PAD_BLOCK) % PAD_BLOCK;
+
+    plain.truncate(size - 1);
+    plain.extend_from_slice(b",\"pad\":\"");
+    plain.resize(plain.len() + need, b'.');
+    plain.extend_from_slice(b"\"}");
+
+    plain
+}
+
 /// Собирает адрес защищённого запроса и состояние сеанса.
 pub fn build(base: &str, pinned: Option<[u8; 32]>, fields: &Fields, now: i64) -> Result<(String, Session)> {
     let (prefix, token, query) = split(base)?;
@@ -198,12 +239,12 @@ pub fn build(base: &str, pinned: Option<[u8; 32]>, fields: &Fields, now: i64) ->
     };
 
     let nonce = B64.encode(&random32()?[..16]);
-    let plain = serde_json::to_vec(&Request {
+    let plain = pad(serde_json::to_vec(&Request {
         v: VERSION,
         t: now,
         n: &nonce,
         fields: &fields,
-    })?;
+    })?);
 
     let mut ikm = psk.to_vec();
     ikm.extend_from_slice(&dh);
@@ -296,9 +337,19 @@ impl Session {
         let sp_raw = B64.decode(&answer.sp)?;
         let sp: [u8; 32] = sp_raw.try_into().map_err(|_| anyhow!("clod-chan-bad-key"))?;
 
+        // Тело не в UTF-8 сюда доезжает отдельным полем. В `String` его не
+        // положить дословно, но и не бывает такого у подписки: base64, YAML и
+        // JSON — всё текст. Замена битых байтов лучше, чем отказ загрузиться.
+        let body = if answer.body_b64.is_empty() {
+            answer.body
+        } else {
+            String::from_utf8_lossy(&B64.decode(&answer.body_b64)?).into_owned()
+        };
+
         Ok(Answer {
             meta: answer.meta,
-            body: answer.body,
+            body,
+            status: if answer.st == 0 { 200 } else { answer.st },
             sp,
         })
     }
@@ -418,6 +469,10 @@ mod tests {
             v["response"]["expect"]["meta_announce"].as_str().unwrap()
         );
         assert_eq!(answer.body, v["response"]["expect"]["config"].as_str().unwrap());
+        assert_eq!(
+            u64::from(answer.status),
+            v["response"]["expect"]["st"].as_u64().unwrap()
+        );
         assert_eq!(hex(&answer.sp), v["sp_public"].as_str().unwrap());
     }
 
@@ -432,6 +487,78 @@ mod tests {
             .unwrap_err()
             .to_string();
         assert!(err.contains("clod-chan-mismatch"), "{err}");
+    }
+
+    #[test]
+    fn request_is_padded_to_a_block() {
+        let v = vectors();
+        let token = v["token"].as_str().unwrap();
+        let block = v["req_pad_block"].as_u64().unwrap() as usize;
+
+        assert_eq!(v["request"]["plain"].as_str().unwrap().len() % block, 0);
+
+        // Длина адреса не должна зависеть от того, что в карточке устройства.
+        let base = format!("https://sub.dom/{token}");
+        let (short, _) = build(
+            &base,
+            None,
+            &Fields {
+                hwid: "a".into(),
+                ..Fields::default()
+            },
+            1786500000,
+        )
+        .unwrap();
+        let (long, _) = build(
+            &base,
+            None,
+            &Fields {
+                hwid: "3f9c1d2e-aaaa-bbbb-cccc-ddddddddddddd".into(),
+                os: "windows".into(),
+                osv: "11".into(),
+                model: "полное имя устройства пользователя".into(),
+                ua: "ClodClash/0.0.26 (Windows)".into(),
+                ..Fields::default()
+            },
+            1786500000,
+        )
+        .unwrap();
+
+        assert_eq!(short.len(), long.len(), "длина адреса выдаёт карточку устройства");
+    }
+
+    #[test]
+    fn nonce_is_sixteen_bytes() {
+        let v = vectors();
+        let want = v["nonce_len"].as_u64().unwrap() as usize;
+        let (_, session) = build(
+            &format!("https://sub.dom/{}", v["token"].as_str().unwrap()),
+            None,
+            &Fields::default(),
+            1786500000,
+        )
+        .unwrap();
+
+        assert_eq!(session.nonce.len(), want);
+    }
+
+    #[test]
+    fn binary_body_arrives_in_its_own_field() {
+        let v = vectors();
+        let nonce = v["response"]["expect"]["nonce"].as_str().unwrap();
+        let session = session_from_vectors(&v, nonce);
+
+        let answer = session
+            .open(
+                v["response"]["body_binary"].as_str().unwrap(),
+                v["response"]["expect"]["t"].as_i64().unwrap(),
+            )
+            .unwrap();
+
+        let want = base64::engine::general_purpose::STANDARD
+            .decode(v["response"]["expect"]["config_binary"].as_str().unwrap())
+            .unwrap();
+        assert_eq!(answer.body.as_bytes(), String::from_utf8_lossy(&want).as_bytes());
     }
 
     #[test]
