@@ -181,7 +181,8 @@
       "tunInstalling": "TUN · 準備中…",
       "autoLaunch": "Start with the system",
       "silentStart": "Start minimized",
-      "lockedBy": "{{targets}} — the connection method is set by your provider"
+      "lockedBy": "{{targets}} — the connection method is set by your provider",
+      "connectOnLaunch": "起動時に接続"
     },
     "tunStatus": {
       "settingUp": "TUN を準備中です — システムの確認に応じてください",

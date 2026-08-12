@@ -124,6 +124,7 @@ export const QuickActions = () => {
   // The same values the settings page writes — one source, not a second copy.
   const autoLaunch = Boolean(verge?.enable_auto_launch)
   const silentStart = Boolean(verge?.enable_silent_start)
+  const connectOnLaunch = Boolean(verge?.connect_on_launch)
 
   return (
     <Stack
@@ -177,6 +178,13 @@ export const QuickActions = () => {
         </>
       )}
 
+      {/* clod: автоподключение — отдельная явная настройка, а не побочный
+          эффект прошлой сессии; см. `connect_on_launch`. */}
+      <Row
+        label={t('home.components.quickActions.connectOnLaunch')}
+        checked={connectOnLaunch}
+        onToggle={(next) => void patchFlag({ connect_on_launch: next })}
+      />
       <Row
         label={t('home.components.quickActions.autoLaunch')}
         checked={autoLaunch}

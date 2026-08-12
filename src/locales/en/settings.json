@@ -15,11 +15,13 @@
         "systemProxy": "System Proxy"
       },
       "tooltips": {
-        "silentStart": "Start the program in background mode without displaying the panel"
+        "silentStart": "Start the program in background mode without displaying the panel",
+        "connectOnLaunch": "Right after launch the app raises the same connection method the button would. Off by default: nothing is written into the system until you ask for it."
       },
       "fields": {
         "autoLaunch": "Auto Launch",
-        "silentStart": "Silent Start"
+        "silentStart": "Silent Start",
+        "connectOnLaunch": "Connect on launch"
       },
       "notifications": {
         "tunMode": {

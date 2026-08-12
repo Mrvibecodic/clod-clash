@@ -15,11 +15,13 @@
         "systemProxy": "システムプロキシ"
       },
       "tooltips": {
-        "silentStart": "アプリケーションを起動すると、バックグラウンドモードで実行され、アプリケーションパネルは表示されません。"
+        "silentStart": "アプリケーションを起動すると、バックグラウンドモードで実行され、アプリケーションパネルは表示されません。",
+        "connectOnLaunch": "起動直後にボタンと同じ接続方法を有効にします。既定ではオフです。"
       },
       "fields": {
         "autoLaunch": "自動起動",
-        "silentStart": "サイレント起動"
+        "silentStart": "サイレント起動",
+        "connectOnLaunch": "起動時に接続"
       },
       "notifications": {
         "tunMode": {

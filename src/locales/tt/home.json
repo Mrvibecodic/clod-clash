@@ -181,7 +181,8 @@
       "tunInstalling": "TUN · әзерләнә…",
       "autoLaunch": "Start with the system",
       "silentStart": "Start minimized",
-      "lockedBy": "{{targets}} — the connection method is set by your provider"
+      "lockedBy": "{{targets}} — the connection method is set by your provider",
+      "connectOnLaunch": "Җибәргәч тоташу"
     },
     "tunStatus": {
       "settingUp": "TUN әзерләнә — система соравын раслагыз",

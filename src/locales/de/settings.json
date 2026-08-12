@@ -15,11 +15,13 @@
         "systemProxy": "Systemproxy"
       },
       "tooltips": {
-        "silentStart": "Die Anwendung wird im Hintergrund gestartet, ohne dass das Programmfenster angezeigt wird."
+        "silentStart": "Die Anwendung wird im Hintergrund gestartet, ohne dass das Programmfenster angezeigt wird.",
+        "connectOnLaunch": "Direkt nach dem Start aktiviert die App dieselbe Verbindungsart wie die Schaltfläche. Standardmäßig aus."
       },
       "fields": {
         "autoLaunch": "Automatischer Start",
-        "silentStart": "Leiser Start"
+        "silentStart": "Leiser Start",
+        "connectOnLaunch": "Beim Start verbinden"
       },
       "notifications": {
         "tunMode": {

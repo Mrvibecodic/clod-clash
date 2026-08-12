@@ -1,6 +1,9 @@
 mod backup;
 mod clash;
 mod config;
+// clod: подключение — действие пользователя; что поднято при старте, решает
+// «Подключаться при запуске», а не пережившие перезапуск флаги.
+mod connect;
 // clod:wake-net — сон машины и смена сети видны одному сторожу.
 pub mod environment;
 mod icon;
@@ -15,6 +18,7 @@ mod window;
 pub use backup::*;
 pub use clash::*;
 pub use config::*;
+pub use connect::*;
 pub use icon::*;
 pub use profile::*;
 pub use proxy::*;

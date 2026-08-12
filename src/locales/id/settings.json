@@ -15,11 +15,13 @@
         "systemProxy": "Proksi Sistem"
       },
       "tooltips": {
-        "silentStart": "Mulai program dalam mode latar belakang tanpa menampilkan panel"
+        "silentStart": "Mulai program dalam mode latar belakang tanpa menampilkan panel",
+        "connectOnLaunch": "Segera setelah dijalankan, aplikasi mengaktifkan metode koneksi yang sama seperti tombol. Nonaktif secara bawaan."
       },
       "fields": {
         "autoLaunch": "Mulai otomatis",
-        "silentStart": "Mulai senyap"
+        "silentStart": "Mulai senyap",
+        "connectOnLaunch": "Sambungkan saat dijalankan"
       },
       "notifications": {
         "tunMode": {

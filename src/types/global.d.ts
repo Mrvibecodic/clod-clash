@@ -1087,6 +1087,8 @@ interface IVergeConfig {
   connect_system_proxy?: boolean
   /** the Connect button also drives the TUN device; default false */
   connect_tun_mode?: boolean
+  /** clod: repeat the Connect press right after launch; default false */
+  connect_on_launch?: boolean
   /** clod:tun-ready — app version whose automatic service setup was attempted */
   tun_setup_declined?: string
   // clod: white-label branding

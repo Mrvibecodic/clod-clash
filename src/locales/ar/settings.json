@@ -15,11 +15,13 @@
         "systemProxy": "وكيل النظام"
       },
       "tooltips": {
-        "silentStart": "بدء البرنامج في الخلفية دون عرض الواجهة"
+        "silentStart": "بدء البرنامج في الخلفية دون عرض الواجهة",
+        "connectOnLaunch": "بعد بدء التشغيل مباشرة يفعّل التطبيق طريقة الاتصال نفسها التي يفعّلها الزر. معطّل افتراضياً."
       },
       "fields": {
         "autoLaunch": "تشغيل تلقائي",
-        "silentStart": "تشغيل صامت"
+        "silentStart": "تشغيل صامت",
+        "connectOnLaunch": "الاتصال عند بدء التشغيل"
       },
       "notifications": {
         "tunMode": {

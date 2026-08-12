@@ -15,11 +15,13 @@
         "systemProxy": "Sistem Vekil'i"
       },
       "tooltips": {
-        "silentStart": "Programı paneli görüntülemeden arka plan modunda başlatır"
+        "silentStart": "Programı paneli görüntülemeden arka plan modunda başlatır",
+        "connectOnLaunch": "Uygulama açılır açılmaz düğmenin yaptığı bağlantı yöntemini devreye alır. Varsayılan olarak kapalıdır."
       },
       "fields": {
         "autoLaunch": "Otomatik Başlat",
-        "silentStart": "Sessiz Başlatma"
+        "silentStart": "Sessiz Başlatma",
+        "connectOnLaunch": "Başlatıldığında bağlan"
       },
       "notifications": {
         "tunMode": {

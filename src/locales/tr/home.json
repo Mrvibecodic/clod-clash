@@ -181,7 +181,8 @@
       "tunInstalling": "TUN · hazırlanıyor…",
       "autoLaunch": "Start with the system",
       "silentStart": "Start minimized",
-      "lockedBy": "{{targets}} — the connection method is set by your provider"
+      "lockedBy": "{{targets}} — the connection method is set by your provider",
+      "connectOnLaunch": "Başlatıldığında bağlan"
     },
     "tunStatus": {
       "settingUp": "TUN hazırlanıyor — sistem istemini onaylayın",

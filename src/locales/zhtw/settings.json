@@ -15,11 +15,13 @@
         "systemProxy": "系統代理"
       },
       "tooltips": {
-        "silentStart": "程序啟動時以後台模式執行，不顯示程序面板"
+        "silentStart": "程序啟動時以後台模式執行，不顯示程序面板",
+        "connectOnLaunch": "應用啟動後立即以與按鈕相同的方式建立連線。預設關閉：未經請求不會寫入系統設定。"
       },
       "fields": {
         "autoLaunch": "開機自啟",
-        "silentStart": "靜默啟動"
+        "silentStart": "靜默啟動",
+        "connectOnLaunch": "啟動時自動連線"
       },
       "notifications": {
         "tunMode": {

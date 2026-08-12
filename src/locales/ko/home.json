@@ -181,7 +181,8 @@
       "tunInstalling": "TUN · 설정 중…",
       "autoLaunch": "Start with the system",
       "silentStart": "Start minimized",
-      "lockedBy": "{{targets}} — the connection method is set by your provider"
+      "lockedBy": "{{targets}} — the connection method is set by your provider",
+      "connectOnLaunch": "실행 시 자동 연결"
     },
     "tunStatus": {
       "settingUp": "TUN 설정 중 — 시스템 요청을 확인하세요",

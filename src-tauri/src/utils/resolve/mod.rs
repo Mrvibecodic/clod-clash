@@ -70,6 +70,10 @@ pub fn resolve_setup_async() {
         Config::verify_config_initialization().await;
 
         let core_init = AsyncHandler::spawn(|| async {
+            // clod: первым делом — что вообще должно быть поднято этим
+            // запуском. Ядро генерирует свой конфиг из `enable_tun_mode`,
+            // поэтому решение принимается до его старта.
+            init_launch_connect_state().await;
             init_service_manager().await;
             init_core_manager().await;
             init_system_proxy().await;
@@ -245,29 +249,44 @@ pub(super) async fn init_core_manager() {
     logging_error!(Type::Setup, crate::config::profiles::activate_selected_nodes());
 }
 
-/// Есть ли подписка, ради которой вообще имеет смысл что-то маршрутизировать.
-async fn has_active_profile() -> bool {
-    let profiles = Config::profiles().await.latest_arc();
-    profiles
-        .current
-        .as_ref()
-        .is_some_and(|uid| profiles.get_item(uid).is_ok())
-}
+/// clod: состояние подключения при старте задаётся ЗАНОВО, а не достаётся из
+/// переживших перезапуск флагов «поднято сейчас». Иначе клиент прописывал
+/// системный прокси в настройки ОС сам, ещё до того как показалось окно, —
+/// пользователь видел настройку, которой не включал.
+///
+/// Считается ДО подъёма ядра: конфиг ядра генерируется из `enable_tun_mode`,
+/// и решать после запуска означало бы поднять туннель, чтобы тут же его снять.
+pub(super) async fn init_launch_connect_state() {
+    let (sys, tun) = crate::feat::launch_connect_state().await;
 
-pub(super) async fn init_system_proxy() {
-    // clod: без подписки маршрутизировать нечего, а системный прокси — вещь
-    // видимая: клиент прописывал 127.0.0.1:7897 в настройки Windows ещё до
-    // того, как пользователь вставил ссылку, и снаружи это выглядит как «оно
-    // само себе что-то настроило». Флаг в конфиге не трогаем — он сработает с
-    // первой же подпиской; гасим только фактическую настройку ОС, на случай
-    // если она осталась от прошлого запуска или от удалённой подписки.
-    if !has_active_profile().await {
-        logging!(info, Type::Setup, "подписки нет — системный прокси не применяется");
-        logging_error!(Type::Setup, sysopt::Sysopt::global().reset_sysproxy().await);
-        crate::feat::record_connect_targets(false);
+    let current = {
+        let verge = Config::verge().await.latest_arc();
+        (
+            verge.enable_system_proxy.unwrap_or(false),
+            verge.enable_tun_mode.unwrap_or(false),
+        )
+    };
+    if current == (sys, tun) {
         return;
     }
 
+    logging!(
+        info,
+        Type::Setup,
+        "состояние подключения при запуске: системный прокси {sys}, TUN {tun}"
+    );
+    let patch = crate::config::IVerge {
+        enable_system_proxy: Some(sys),
+        enable_tun_mode: Some(tun),
+        ..Default::default()
+    };
+    let verge = Config::verge().await;
+    verge.edit_draft(|draft| draft.patch_config(&patch));
+    verge.apply();
+    logging_error!(Type::Setup, verge.data_arc().save_file().await);
+}
+
+pub(super) async fn init_system_proxy() {
     logging_error!(Type::Setup, sysopt::Sysopt::global().update_sysproxy().await);
 
     // clod:simple-mode — when the app boots into an already-active proxy/TUN
@@ -284,12 +303,8 @@ pub(super) async fn init_tun_ready() {
 }
 
 pub(super) async fn init_system_proxy_guard() {
-    // clod: сторож переставляет настройку ОС обратно каждые полминуты. Без
-    // подписки он отменил бы уборку выше — и прокси, которого мы не применяли,
-    // появился бы сам через тридцать секунд.
-    if !has_active_profile().await {
-        return;
-    }
+    // Сторож смотрит на тот же `enable_system_proxy`: при выключенном он сам
+    // останавливается, поэтому отдельной проверки здесь не нужно.
     sysopt::Sysopt::global().refresh_guard().await;
 }
 

@@ -181,7 +181,8 @@
       "tunInstalling": "TUN · جارٍ الإعداد…",
       "autoLaunch": "Start with the system",
       "silentStart": "Start minimized",
-      "lockedBy": "{{targets}} — the connection method is set by your provider"
+      "lockedBy": "{{targets}} — the connection method is set by your provider",
+      "connectOnLaunch": "الاتصال عند بدء التشغيل"
     },
     "tunStatus": {
       "settingUp": "جارٍ إعداد TUN — أكّد طلب النظام",

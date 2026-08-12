@@ -181,7 +181,8 @@
       "tunInstalling": "TUN · در حال آماده‌سازی…",
       "autoLaunch": "Start with the system",
       "silentStart": "Start minimized",
-      "lockedBy": "{{targets}} — the connection method is set by your provider"
+      "lockedBy": "{{targets}} — the connection method is set by your provider",
+      "connectOnLaunch": "اتصال هنگام راه‌اندازی"
     },
     "tunStatus": {
       "settingUp": "در حال آماده‌سازی TUN — درخواست سیستم را تأیید کنید",

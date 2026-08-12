@@ -181,7 +181,8 @@
       "tunInstalling": "TUN · setting up…",
       "autoLaunch": "Start with the system",
       "silentStart": "Start minimized",
-      "lockedBy": "{{targets}} — the connection method is set by your provider"
+      "lockedBy": "{{targets}} — the connection method is set by your provider",
+      "connectOnLaunch": "Connect on launch"
     },
     "tunStatus": {
       "settingUp": "Setting TUN up — confirm the system prompt",

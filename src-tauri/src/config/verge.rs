@@ -279,6 +279,14 @@ pub struct IVerge {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub connect_tun_mode: Option<bool>,
 
+    /// clod: повторять нажатие кнопки «Подключиться» сразу после запуска.
+    /// Выключено по умолчанию, и это осознанно: раньше подключение
+    /// восстанавливалось само по флагам «поднято сейчас», переживавшим
+    /// перезапуск, — клиент прописывал системный прокси в настройки ОС ещё до
+    /// того, как показалось окно. Кому нужен автомат, включает его сам.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub connect_on_launch: Option<bool>,
+
     /// clod:tun-ready — the app version whose automatic service setup we have
     /// already attempted: turned down, failed, or reported as done. While it
     /// matches the running version we never raise the elevation prompt on our
@@ -601,6 +609,7 @@ impl IVerge {
             // provider's header decide until the user picks a mode.
             connect_system_proxy: Some(Self::DEFAULT_CONNECT_SYSTEM_PROXY),
             connect_tun_mode: Some(Self::DEFAULT_CONNECT_TUN_MODE),
+            connect_on_launch: Some(false),
             // clod:simple-mode end
             ..Self::default()
         }
@@ -712,6 +721,7 @@ impl IVerge {
         patch!(simple_mode);
         patch!(connect_system_proxy);
         patch!(connect_tun_mode);
+        patch!(connect_on_launch);
         patch!(tun_setup_declined);
         patch!(window_size_simple);
         patch!(window_size_advanced);

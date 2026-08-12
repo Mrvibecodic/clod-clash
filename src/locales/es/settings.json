@@ -15,11 +15,13 @@
         "systemProxy": "Proxy del sistema"
       },
       "tooltips": {
-        "silentStart": "El programa se ejecutará en segundo plano al iniciarse y no mostrará el panel."
+        "silentStart": "El programa se ejecutará en segundo plano al iniciarse y no mostrará el panel.",
+        "connectOnLaunch": "Nada más iniciarse, la aplicación activa el mismo método de conexión que el botón. Desactivado de forma predeterminada."
       },
       "fields": {
         "autoLaunch": "Inicio automático",
-        "silentStart": "Inicio silencioso"
+        "silentStart": "Inicio silencioso",
+        "connectOnLaunch": "Conectar al iniciar"
       },
       "notifications": {
         "tunMode": {

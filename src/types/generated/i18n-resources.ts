@@ -135,6 +135,7 @@ export interface TranslationResources {
         }
         quickActions: {
           autoLaunch: string
+          connectOnLaunch: string
           lockedBy: string
           silentStart: string
           sysproxy: string
@@ -1416,6 +1417,7 @@ export interface TranslationResources {
         system: {
           fields: {
             autoLaunch: string
+            connectOnLaunch: string
             silentStart: string
           }
           notifications: {
@@ -1439,6 +1441,7 @@ export interface TranslationResources {
             tunMode: string
           }
           tooltips: {
+            connectOnLaunch: string
             silentStart: string
           }
         }
