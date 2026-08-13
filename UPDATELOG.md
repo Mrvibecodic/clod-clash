@@ -8,6 +8,22 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.0.28-alpha
+
+<!-- lang:en -->
+
+### Fixed
+
+- Installing the background service on systems with SELinux (Fedora, RHEL) no longer fails on the first attempt. The place the service binary is copied to is labelled before the installer runs, so the system never denies the start in the first place — instead of a SELinux alert, an error, and a service that came up only on the second try
+
+<!-- lang:ru -->
+
+### Исправлено
+
+- Установка фоновой службы на системах с SELinux (Fedora, RHEL) больше не срывается с первой попытки. Каталог, куда кладётся бинарь службы, размечается до запуска установщика, поэтому система не запрещает запуск вовсе — вместо алерта SELinux, ошибки и службы, поднявшейся только со второго раза
+
+---
+
 ## v0.0.27-alpha
 
 <!-- lang:en -->
