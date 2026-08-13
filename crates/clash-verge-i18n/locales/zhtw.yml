@@ -45,6 +45,8 @@ common:
 service:
   adminInstallPrompt: 安裝系統服務需要管理員權限
   adminUninstallPrompt: 卸載系統服務需要管理員權限
+  selinuxBlocked: >-
+    SELinux 阻擋了背景服務啟動。請執行：sudo chcon -t bin_t /var/lib/clash-verge-service/bin/clash-verge-service
   translocatedCorePath: 應用從暫存路徑（App Translocation）執行，無法定位核心。請將它移到「應用程式」資料夾後重新開啟。
 tray:
   dashboard: 儀表板

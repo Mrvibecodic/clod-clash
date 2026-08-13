@@ -407,6 +407,81 @@ fn install_service() -> Result<()> {
     Ok(())
 }
 
+// clod:selinux begin
+/// Куда установщик службы кладёт бинарь: он НЕ запускает `/usr/bin/…`, а
+/// копирует его к себе и пишет юнит с `ExecStart` на эту копию.
+#[cfg(target_os = "linux")]
+const LINUX_SERVICE_BINARY: &str = "/var/lib/clash-verge-service/bin/clash-verge-service";
+
+/// SELinux сейчас запрещает, а не только пишет в журнал?
+///
+/// Читаем сам файл политики, а не зовём `getenforce`: он есть не везде, а
+/// `/sys/fs/selinux/enforce` появляется ровно тогда, когда SELinux включён.
+#[cfg(target_os = "linux")]
+fn selinux_is_enforcing() -> bool {
+    std::fs::read_to_string("/sys/fs/selinux/enforce").is_ok_and(|value| value.trim() == "1")
+}
+
+/// Хвост к привилегированному скрипту установки — спасение от SELinux.
+///
+/// Бинарь службы лежит в `/var/lib/…`, а это тип `var_lib_t`, запускать
+/// который systemd не имеет права: на Fedora и RHEL установщик доходит до
+/// `systemctl start`, получает отказ и выходит с ошибкой. Ставим бинарю тип
+/// `bin_t` — тот же, что у `/usr/bin`, — и поднимаем службу.
+///
+/// Работает ТОЛЬКО после неудачи установщика: на системах без SELinux (и на
+/// удачной установке) хвост не выполняет ни одной команды. `semanage` ставит
+/// правило на будущее и есть не везде, поэтому он необязателен: без него метка
+/// живёт до полной переразметки системы.
+#[cfg(target_os = "linux")]
+fn selinux_recovery_tail() -> String {
+    selinux_recovery_tail_for(selinux_is_enforcing())
+}
+
+#[cfg(target_os = "linux")]
+fn selinux_recovery_tail_for(enforcing: bool) -> String {
+    if !enforcing {
+        return String::new();
+    }
+    let binary = shell_single_quote(LINUX_SERVICE_BINARY);
+    format!(
+        "; rc=$?; if [ \"$rc\" -ne 0 ] && [ -f {binary} ] && command -v chcon >/dev/null 2>&1; then \
+chcon -t bin_t {binary} >/dev/null 2>&1 || true; \
+if command -v semanage >/dev/null 2>&1; then \
+semanage fcontext -a -t bin_t '/var/lib/clash-verge-service/bin(/.*)?' >/dev/null 2>&1 || true; fi; \
+systemctl start clash-verge-service.service >/dev/null 2>&1 || true; \
+if systemctl is-active --quiet clash-verge-service.service; then rc=0; fi; fi; exit $rc"
+    )
+}
+
+/// Что дописать в текст ошибки, когда SELinux включён.
+///
+/// Автоматическая правка метки могла не сработать (нет `chcon`, другой запрет),
+/// и тогда «не удалось установить службу» ничего не объясняет: человек видит
+/// системный алерт SELinux и наш отказ, между которыми связи не видно.
+#[cfg(target_os = "linux")]
+fn selinux_hint() -> String {
+    if selinux_is_enforcing() {
+        format!(" {}", clash_verge_i18n::t!("service.selinuxBlocked"))
+    } else {
+        String::new()
+    }
+}
+
+/// Ошибку вернул сам pkexec, а не программа под ним?
+///
+/// pkexec отдаёт код ДОЧЕРНЕГО процесса, и своих кодов у него ровно два: 126 —
+/// не авторизовались или запуск не разрешён, 127 — программу не нашли. Раньше
+/// поводом для повтора через `sudo` был ЛЮБОЙ ненулевой код: установщик честно
+/// сообщал «служба не поднялась», а мы шли просить пароль ещё раз — в
+/// графической сессии без терминала `sudo` его всё равно не спросит, зато в
+/// журнале оседало ложное «pkexec failed».
+#[cfg(target_os = "linux")]
+const fn pkexec_itself_failed(code: Option<i32>) -> bool {
+    matches!(code, Some(126 | 127) | None)
+}
+// clod:selinux end
+
 #[cfg(target_os = "linux")]
 fn uninstall_service() -> Result<()> {
     logging!(info, Type::Service, "uninstall service");
@@ -423,12 +498,13 @@ fn uninstall_service() -> Result<()> {
     } else {
         let result = StdCommand::new(&elevator).arg(&uninstall_path).status()?;
 
-        // Если pkexec не сработал, откатываемся на sudo
-        if !result.success() && elevator.contains("pkexec") {
+        // На sudo откатываемся, только когда не справился САМ pkexec: код
+        // программы под ним — это её ответ, а не повод спрашивать пароль снова.
+        if elevator.contains("pkexec") && pkexec_itself_failed(result.code()) {
             logging!(
                 warn,
                 Type::Service,
-                "pkexec failed with code {}, falling back to sudo",
+                "pkexec itself failed with code {}, falling back to sudo",
                 result.code().unwrap_or(-1)
             );
             StdCommand::new("sudo").arg(&uninstall_path).status()?
@@ -463,21 +539,30 @@ fn install_service() -> Result<()> {
         bail!(format!("installer not found: {install_path:?}"));
     }
 
+    // clod:selinux — установщик зовётся через `sh -c`, чтобы к нему можно было
+    // прицепить спасение от SELinux одним привилегированным вызовом: второй
+    // запрос пароля посреди установки пользователь читает как поломку.
+    let script = format!(
+        "{}{}",
+        shell_single_quote(&install_path.to_string_lossy()),
+        selinux_recovery_tail()
+    );
+
     let elevator = crate::utils::help::linux_elevator();
     let output = if linux_running_as_root() {
-        StdCommand::new(&install_path).output()?
+        StdCommand::new("sh").args(["-c", &script]).output()?
     } else {
-        let result = StdCommand::new(&elevator).arg(&install_path).output()?;
+        let result = StdCommand::new(&elevator).args(["sh", "-c", &script]).output()?;
 
-        // Если pkexec не сработал, откатываемся на sudo
-        if !result.status.success() && elevator.contains("pkexec") {
+        // На sudo откатываемся, только когда не справился САМ pkexec.
+        if elevator.contains("pkexec") && pkexec_itself_failed(result.status.code()) {
             logging!(
                 warn,
                 Type::Service,
-                "pkexec failed with code {}, falling back to sudo",
+                "pkexec itself failed with code {}, falling back to sudo",
                 result.status.code().unwrap_or(-1)
             );
-            StdCommand::new("sudo").arg(&install_path).output()?
+            StdCommand::new("sudo").args(["sh", "-c", &script]).output()?
         } else {
             result
         }
@@ -491,7 +576,12 @@ fn install_service() -> Result<()> {
             code,
             err
         );
-        bail!("failed to install service code: {}, details: {}", code, err);
+        bail!(
+            "failed to install service code: {}, details: {}{}",
+            code,
+            err,
+            selinux_hint()
+        );
     }
 
     Ok(())
@@ -799,6 +889,9 @@ fn reinstall_service() -> Result<()> {
         script.push_str("; ");
     }
     script.push_str(&shell_single_quote(&install_path.to_string_lossy()));
+    // clod:selinux — тем же одним вызовом чиним метку бинаря службы, если её
+    // запретил SELinux; на системах без него хвост пуст.
+    script.push_str(&selinux_recovery_tail());
 
     let elevator = crate::utils::help::linux_elevator();
     let status = if linux_running_as_root() {
@@ -806,12 +899,12 @@ fn reinstall_service() -> Result<()> {
     } else {
         let result = StdCommand::new(&elevator).args(["sh", "-c", &script]).status()?;
 
-        // Если pkexec не сработал, откатываемся на sudo
-        if !result.success() && elevator.contains("pkexec") {
+        // На sudo откатываемся, только когда не справился САМ pkexec.
+        if elevator.contains("pkexec") && pkexec_itself_failed(result.code()) {
             logging!(
                 warn,
                 Type::Service,
-                "pkexec failed with code {}, falling back to sudo",
+                "pkexec itself failed with code {}, falling back to sudo",
                 result.code().unwrap_or(-1)
             );
             StdCommand::new("sudo").args(["sh", "-c", &script]).status()?
@@ -822,8 +915,9 @@ fn reinstall_service() -> Result<()> {
 
     if !status.success() {
         bail!(
-            "failed to reinstall service with status {}",
-            status.code().unwrap_or(-1)
+            "failed to reinstall service with status {}{}",
+            status.code().unwrap_or(-1),
+            selinux_hint()
         );
     }
 
@@ -1467,6 +1561,54 @@ mod failure_tests {
         // Настоящий вывод всегда важнее таблицы кодов, а пробельный — не вывод.
         assert_eq!(describe_failure(1223, b"", b"real stderr"), "real stderr");
         assert_eq!(describe_failure(1223, b"real stdout", b"   "), "real stdout");
+    }
+}
+
+// clod:selinux — спасение службы на системах с SELinux и разбор кодов pkexec.
+#[cfg(all(test, target_os = "linux"))]
+mod selinux_tests {
+    use super::{LINUX_SERVICE_BINARY, pkexec_itself_failed, selinux_recovery_tail_for};
+
+    #[test]
+    fn without_selinux_the_script_gets_nothing() {
+        assert_eq!(selinux_recovery_tail_for(false), "");
+    }
+
+    #[test]
+    fn the_recovery_runs_only_after_a_failed_installer() {
+        let tail = selinux_recovery_tail_for(true);
+
+        assert!(tail.contains("rc=$?"), "код установщика запоминается: {tail}");
+        assert!(
+            tail.contains("[ \"$rc\" -ne 0 ]"),
+            "починка не трогает удачную установку: {tail}"
+        );
+        assert!(tail.contains("chcon -t bin_t"), "метка меняется на исполняемую: {tail}");
+        assert!(
+            tail.contains(LINUX_SERVICE_BINARY),
+            "правится именно бинарь службы: {tail}"
+        );
+        assert!(
+            tail.contains("systemctl is-active --quiet clash-verge-service.service"),
+            "успех подтверждается фактом, а не молчанием chcon: {tail}"
+        );
+        assert!(
+            tail.trim_end().ends_with("exit $rc"),
+            "наружу уходит код установщика, а не последней команды: {tail}"
+        );
+    }
+
+    #[test]
+    fn only_pkexec_own_failures_deserve_a_sudo_retry() {
+        // Свои коды pkexec: не авторизовались и не нашли программу.
+        assert!(pkexec_itself_failed(Some(126)));
+        assert!(pkexec_itself_failed(Some(127)));
+        // Процесс убит сигналом — кода нет, судить не по чему.
+        assert!(pkexec_itself_failed(None));
+        // А это ответы САМОГО установщика: повторять их через sudo незачем.
+        assert!(!pkexec_itself_failed(Some(1)));
+        assert!(!pkexec_itself_failed(Some(2)));
+        assert!(!pkexec_itself_failed(Some(0)));
     }
 }
 

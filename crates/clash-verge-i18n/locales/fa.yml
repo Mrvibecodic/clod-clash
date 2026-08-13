@@ -45,6 +45,8 @@ common:
 service:
   adminInstallPrompt: نصب سرویس سیستمی به دسترسی مدیر نیاز دارد.
   adminUninstallPrompt: حذف سرویس سیستمی به دسترسی مدیر نیاز دارد.
+  selinuxBlocked: >-
+    SELinux اجرای سرویس پس‌زمینه را مسدود کرد. اجرا کنید: sudo chcon -t bin_t /var/lib/clash-verge-service/bin/clash-verge-service
   translocatedCorePath: برنامه از یک مسیر موقت (App Translocation) اجرا می‌شود و هسته را پیدا نمی‌کند. آن را به پوشه Applications منتقل کنید و دوباره باز کنید.
 tray:
   dashboard: داشبورد

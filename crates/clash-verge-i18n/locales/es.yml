@@ -45,6 +45,8 @@ common:
 service:
   adminInstallPrompt: Instalar el servicio del sistema requiere privilegios de administrador.
   adminUninstallPrompt: Desinstalar el servicio del sistema requiere privilegios de administrador.
+  selinuxBlocked: >-
+    SELinux bloqueó el servicio en segundo plano. Ejecuta: sudo chcon -t bin_t /var/lib/clash-verge-service/bin/clash-verge-service
   translocatedCorePath: La aplicación se ejecuta desde una ruta temporal (App Translocation) y no encuentra el núcleo. Muévela a la carpeta Aplicaciones y vuelve a abrirla.
 tray:
   dashboard: Panel

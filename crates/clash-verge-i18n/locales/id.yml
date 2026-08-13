@@ -45,6 +45,8 @@ common:
 service:
   adminInstallPrompt: Menginstal layanan sistem memerlukan hak administrator.
   adminUninstallPrompt: Menghapus instalasi layanan sistem memerlukan hak administrator.
+  selinuxBlocked: >-
+    SELinux memblokir layanan latar belakang. Jalankan: sudo chcon -t bin_t /var/lib/clash-verge-service/bin/clash-verge-service
   translocatedCorePath: Aplikasi berjalan dari jalur sementara (App Translocation) dan tidak dapat menemukan core. Pindahkan ke folder Applications lalu buka kembali.
 tray:
   dashboard: Dasbor

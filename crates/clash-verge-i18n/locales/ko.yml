@@ -45,6 +45,8 @@ common:
 service:
   adminInstallPrompt: 시스템 서비스 설치에는 관리자 권한이 필요합니다.
   adminUninstallPrompt: 시스템 서비스 제거에는 관리자 권한이 필요합니다.
+  selinuxBlocked: >-
+    SELinux가 백그라운드 서비스 실행을 차단했습니다. 실행하세요: sudo chcon -t bin_t /var/lib/clash-verge-service/bin/clash-verge-service
   translocatedCorePath: 앱이 임시 경로(App Translocation)에서 실행 중이어서 코어를 찾을 수 없습니다. 응용 프로그램 폴더로 옮긴 뒤 다시 열어 주세요.
 tray:
   dashboard: 대시보드

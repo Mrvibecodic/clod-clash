@@ -45,6 +45,8 @@ common:
 service:
   adminInstallPrompt: Система хезмәтен урнаштыру өчен администратор хокуклары кирәк.
   adminUninstallPrompt: Система хезмәтен бетерү өчен администратор хокуклары кирәк.
+  selinuxBlocked: >-
+    SELinux фон хезмәтен җибәрмәде. Башкарыгыз: sudo chcon -t bin_t /var/lib/clash-verge-service/bin/clash-verge-service
   translocatedCorePath: Кушымта вакытлыча юлдан (App Translocation) эшли һәм ядрәне таба алмый. Аны Applications папкасына күчерегез дә яңадан ачыгыз.
 tray:
   dashboard: Идарә панеле
