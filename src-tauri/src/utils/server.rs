@@ -1,6 +1,6 @@
 use super::resolve;
 use crate::{
-    cmd::is_port_in_use,
+    cmd::network::port_is_taken_at,
     config::{Config, DEFAULT_PAC, IVerge},
     module::lightweight,
     process::AsyncHandler,
@@ -27,7 +27,9 @@ static SHUTDOWN_SENDER: OnceCell<Mutex<Option<oneshot::Sender<()>>>> = OnceCell:
 /// check whether there is already exists
 pub async fn check_singleton() -> Result<()> {
     let port = IVerge::get_singleton_port();
-    if is_port_in_use(port) {
+    // clod: свой одиночный сервер поднимается на петле, поэтому и спрашиваем
+    // про петлю — в отличие от порта прокси, чей адрес зависит от `allow-lan`.
+    if port_is_taken_at(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST), port) {
         let client = ClientBuilder::new().timeout(Duration::from_millis(500)).build()?;
         // Нужно гарантировать Send
         #[allow(clippy::needless_collect)]
