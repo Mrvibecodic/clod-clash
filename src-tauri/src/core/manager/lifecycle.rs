@@ -262,7 +262,7 @@ impl CoreManager {
             .with_delay(timing::SERVICE_WAIT_INTERVAL)
             .with_max_times(max_times as usize);
 
-        let _ = (|| async {
+        let attempts = (|| async {
             if matches!(SERVICE_MANAGER.current().await, ServiceStatus::Ready) {
                 return Ok(());
             }
@@ -282,8 +282,22 @@ impl CoreManager {
                 Err(anyhow::anyhow!("Service not ready"))
             }
         })
-        .retry(backoff)
-        .await;
+        .retry(backoff);
+
+        // clod: число попыток ограничивало ТОЛЬКО паузы между ними, а сама
+        // попытка ходит в службу по IPC и может ждать сколько угодно — при этом
+        // весь цикл стоит на пути запуска приложения. Общий потолок — вдвое от
+        // отведённого на ожидание: дальше поднимаемся как sidecar, а служба,
+        // когда очнётся, подхватится хэндоффом.
+        let ceiling = timing::SERVICE_WAIT_MAX * 2;
+        if tokio::time::timeout(ceiling, attempts).await.is_err() {
+            logging!(
+                warn,
+                Type::Core,
+                "служба не ответила за {:?} — продолжаем запуск без неё",
+                ceiling
+            );
+        }
     }
 
     /// clod:tun-ready — служба появилась (например, мы её только что

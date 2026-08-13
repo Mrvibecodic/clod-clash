@@ -390,27 +390,32 @@ impl Timer {
         let task_start = std::time::Instant::now();
         logging!(debug, Type::Timer, "Running timer task for profile: {}", uid);
 
-        match tokio::time::timeout(
-            std::time::Duration::from_secs(40),
-            // clod:chan — та же причина, что и в `spawn_update_task`.
-            Box::pin(async {
-                Self::emit_update_event(uid, true);
+        // clod: обновление подписки БОЛЬШЕ НЕ обрывается по таймеру. Прежние
+        // 40 секунд короче нашей же лестницы попыток (напрямую → через ядро →
+        // через системный прокси, у каждой свой таймаут): на медленной панели
+        // футура отменялась посреди работы — файл подписки уже перезаписан, а
+        // метаданные `PrfItem` ещё нет, и индикатор обновления гас без причины.
+        // Ограничение по времени живёт в HTTP-слое, где известно, ЧЕГО ждём;
+        // здесь остаётся только запись длительности.
+        // clod:chan — Box::pin по той же причине, что и в `spawn_update_task`.
+        let result = Box::pin(async {
+            Self::emit_update_event(uid, true);
 
-                let is_current = Config::profiles().await.latest_arc().current.as_ref() == Some(uid);
-                logging!(
-                    debug,
-                    Type::Timer,
-                    "Profile {} is current active profile: {}",
-                    uid,
-                    is_current
-                );
+            let is_current = Config::profiles().await.latest_arc().current.as_ref() == Some(uid);
+            logging!(
+                debug,
+                Type::Timer,
+                "Profile {} is current active profile: {}",
+                uid,
+                is_current
+            );
 
-                feat::update_profile(uid, None, is_current, false, false).await
-            }),
-        )
-        .await
-        {
-            Ok(Ok(_)) => {
+            feat::update_profile(uid, None, is_current, false, false).await
+        })
+        .await;
+
+        match result {
+            Ok(_) => {
                 logging!(
                     info,
                     Type::Timer,
@@ -419,8 +424,13 @@ impl Timer {
                     task_start.elapsed().as_millis()
                 );
             }
-            Ok(Err(e)) => logging_error!(Type::Timer, "Failed to update profile uid {}: {}", uid, e),
-            Err(_) => logging_error!(Type::Timer, "Timer task timed out for uid: {}", uid),
+            Err(e) => logging_error!(
+                Type::Timer,
+                "Failed to update profile uid {}: {} (took {}ms)",
+                uid,
+                e,
+                task_start.elapsed().as_millis()
+            ),
         }
 
         Self::emit_update_event(uid, false);
