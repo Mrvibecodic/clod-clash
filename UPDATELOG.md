@@ -8,6 +8,52 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.0.27-alpha
+
+<!-- lang:en -->
+
+### Added
+
+- The window now fits its content: nothing on the home screen hides behind a scrollbar any more. It grows when a banner arrives and settles back when it goes, up to what the screen has room for; resizing the window by hand hands the size back to you, and the "Fit window to content" switch in the settings hands it back to the app
+- A long promotional banner is folded to five lines with a "Show in full" button; the full text opens over the window
+
+### Fixed
+
+- The background service required for TUN installs on systems with SELinux (Fedora, RHEL): the service binary is labelled so systemd may start it, and it is done within the same permission prompt. When something still blocks it, the error says so and gives the command to fix it
+- The selected server survives a core restart — after a crash, and after the app hands the core over to the background service, which on Windows with TUN is the usual way it starts. The tray and the proxy chain now remember the choice too, and two quick switches no longer overwrite each other
+- Deleting a subscription is undone if the configuration cannot be built without it. The files are removed last, once the app has proved it still works
+- A profile file that is not valid YAML is no longer overwritten with an empty one by the node and group editors: it opens as text and says what happened. A node without a name no longer takes the whole editor down with it
+- Automatic updates on Windows no longer stop at the installer's language dialog hidden behind the update splash
+- A subscription refresh is no longer cut off halfway on a slow panel, and waiting for the background service at startup has an upper bound
+- The log stream no longer dies quietly when the first request after connecting fails
+- Failures to set the system proxy say what the system actually reported instead of "system call failed"
+- The port-in-use check asks about the address the core will really listen on, so a busy port is no longer reported as free
+- Events sent from background work go through the main thread, closing a class of hangs
+- The encrypted subscription channel pads every request to the same size and retries without a pinned key when the relay is replaced
+
+<!-- lang:ru -->
+
+### Добавлено
+
+- Окно подстраивается под содержимое: на главном экране больше ничего не прячется за прокруткой. Оно подрастает, когда приходит баннер, и садится обратно, когда тот уходит, — насколько позволяет экран. Изменение размера мышью возвращает размер вам, а тумблер «Подгонять окно под содержимое» в настройках возвращает его приложению
+- Длинный рекламный баннер сворачивается до пяти строк с кнопкой «Показать полностью»; полный текст открывается поверх окна
+
+### Исправлено
+
+- Фоновая служба, нужная для TUN, устанавливается на системах с SELinux (Fedora, RHEL): бинарю службы проставляется метка, с которой systemd имеет право его запускать, и делается это в том же запросе прав. Если запуску мешает что-то ещё, в ошибке теперь написано что именно и как это поправить
+- Выбранный сервер переживает перезапуск ядра — и после падения, и после передачи ядра фоновой службе, а на Windows с TUN это обычный путь запуска. Трей и цепочка прокси тоже запоминают выбор, а два быстрых переключения подряд больше не затирают друг друга
+- Удаление подписки отменяется, если конфиг без неё не собрался. Файлы стираются последними, когда приложение уже доказало, что работает
+- Файл профиля, который не разбирается как YAML, больше не затирается пустым в редакторах нод и групп: он открывается как текст и объясняет, что случилось. Нода без имени больше не роняет весь редактор
+- Автообновление на Windows не останавливается на диалоге выбора языка установщика, спрятанном за заставкой обновления
+- Обновление подписки не обрывается на середине на медленной панели, а ожидание фоновой службы при запуске ограничено по времени
+- Поток логов больше не умирает молча, когда первый запрос после подключения не удался
+- Ошибки установки системного прокси показывают, что на самом деле ответила система, вместо «system call failed»
+- Проверка занятости порта спрашивает тот адрес, на котором ядро действительно будет слушать, — занятый порт больше не выглядит свободным
+- События из фоновой работы отправляются через главный поток, что закрывает целый класс подвисаний
+- Зашифрованный канал подписки дополняет каждый запрос до одного размера и повторяет попытку без закреплённого ключа, когда прослойку заменили
+
+---
+
 ## v0.0.26-alpha
 
 <!-- lang:en -->
