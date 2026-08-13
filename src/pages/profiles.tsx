@@ -22,7 +22,7 @@ import {
   IndeterminateCheckBoxRounded,
   RefreshRounded,
 } from '@mui/icons-material'
-import { Box, Button, Chip, Grid, IconButton, Stack } from '@mui/material'
+import { Box, Button, Chip, IconButton, Stack } from '@mui/material'
 import { listen, TauriEvent } from '@tauri-apps/api/event'
 import { readTextFile } from '@tauri-apps/plugin-fs'
 import { useLockFn } from 'ahooks'
@@ -846,7 +846,19 @@ const ProfilePage = () => {
           }}
         >
           <Box sx={{ mb: 1.5 }}>
-            <Grid container spacing={{ xs: 1, lg: 1 }}>
+            {/* clod:card-v2 — не доли ряда, а порог ширины: карточка никогда
+                не уже 320 px, а сколько их влезло в ряд, столько и будет.
+                Доли давали 256–300 px на широком экране, и содержимое жалось.
+                `min(320px, 100%)` — страховка на совсем узком окне: иначе
+                колонка вылезает за контейнер. */}
+            <Box
+              sx={{
+                display: 'grid',
+                gap: 1,
+                gridTemplateColumns:
+                  'repeat(auto-fill, minmax(min(320px, 100%), 1fr))',
+              }}
+            >
               <SortableContext
                 strategy={profileRectSortingStrategy}
                 items={visibleItems.map((x) => {
@@ -854,7 +866,7 @@ const ProfilePage = () => {
                 })}
               >
                 {visibleItems.map((item) => (
-                  <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={item.file}>
+                  <Box sx={{ minWidth: 0 }} key={item.file}>
                     <SortableProfileItem
                       id={item.uid}
                       selected={(switchTarget ?? profiles.current) === item.uid}
@@ -890,10 +902,10 @@ const ProfilePage = () => {
                       isSelected={selectedProfiles.has(item.uid)}
                       onSelectionChange={() => toggleProfileSelection(item.uid)}
                     />
-                  </Grid>
+                  </Box>
                 ))}
               </SortableContext>
-            </Grid>
+            </Box>
           </Box>
           {/* clod: карточки Global Extend Config/Script убраны — странице
               подписок нечего делать с механикой расширения конфигов */}

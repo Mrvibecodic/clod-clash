@@ -8,6 +8,7 @@ import {
   DragIndicatorRounded,
   HomeWorkRounded,
   RefreshRounded,
+  ShieldRounded,
   SupportAgentRounded,
 } from '@mui/icons-material'
 import {
@@ -666,13 +667,6 @@ const ProfileItemBase = (props: ProfileItemProps) => {
     },
   ]
 
-  const boxStyle = {
-    height: 26,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  }
-
   const handleSaveProfileDocument = useLockFn(async () => {
     const currentValue = profileDocument.value
     if (!(await saveProfileFile(uid, currentValue))) {
@@ -726,126 +720,104 @@ const ProfileItemBase = (props: ProfileItemProps) => {
           event.preventDefault()
         }}
       >
-        {badge && (
-          <Chip
-            size="small"
-            color={badge.color}
-            variant="outlined"
-            label={t(`profiles.components.profileItem.badges.${badge.key}`)}
-            sx={{
-              position: 'absolute',
-              top: 6,
-              right: 8,
-              height: 20,
-              fontSize: 10.5,
-              zIndex: 5,
-              bgcolor: (theme) => alpha(theme.palette[badge.color].main, 0.14),
-              '& .MuiChip-label': { px: 0.85 },
-            }}
-          />
-        )}
-        {expired && (
-          <Box
-            sx={{
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              bottom: 0,
-              height: '3px',
-              bgcolor: 'error.main',
-            }}
-          />
-        )}
         {activating && (
           <Box
             sx={{
               position: 'absolute',
+              inset: 0,
               display: 'flex',
               justifyContent: 'center',
               alignItems: 'center',
-              top: 10,
-              left: 10,
-              right: 10,
-              bottom: 2,
               zIndex: 10,
+              borderRadius: '10px',
               backdropFilter: 'blur(2px)',
-              backgroundColor: 'rgba(0, 0, 0, 0.1)',
+              backgroundColor: (theme) =>
+                alpha(theme.palette.background.paper, 0.4),
             }}
           >
-            <CircularProgress
-              color="inherit"
-              size={20}
-              sx={{
-                animation: 'pulse 1.5s ease-in-out infinite',
-              }}
-            />
+            <CircularProgress color="inherit" size={22} />
           </Box>
         )}
-        <Box sx={{ position: 'relative' }}>
-          <Box sx={{ display: 'flex', justifyContent: 'start' }}>
-            {batchMode && (
-              <IconButton
-                size="small"
-                sx={{ padding: '2px', marginRight: '4px', marginLeft: '-8px' }}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  if (onSelectionChange) {
-                    onSelectionChange()
-                  }
-                }}
-              >
-                {isSelected ? (
-                  <CheckBoxRounded color="primary" />
-                ) : (
-                  <CheckBoxOutlineBlankRounded />
-                )}
-              </IconButton>
-            )}
-            <Box
-              ref={dragHandleRef}
-              sx={{
-                display: 'flex',
-                margin: 'auto 0',
-                ...(batchMode && { marginLeft: '-4px' }),
-              }}
-              {...dragHandleAttributes}
-              {...dragHandleListeners}
-            >
-              <DragIndicatorRounded
-                sx={[
-                  { cursor: 'move', marginLeft: '-6px' },
-                  ({ palette: { text } }) => {
-                    return { color: text.primary }
-                  },
-                ]}
-              />
-            </Box>
 
-            <Typography
-              sx={{
-                width: batchMode ? 'calc(100% - 56px)' : 'calc(100% - 36px)',
-                fontSize: '18px',
-                fontWeight: '600',
-                lineHeight: '26px',
+        {/* clod:card-v2 — шапка карточки. Раньше бейдж состояния висел
+            абсолютом в правом верхнем углу ПОВЕРХ кнопки обновления: у
+            активной подписки (а бейдж «Активна» есть всегда) нажатие уходило
+            в бейдж, и обновление молча не срабатывало. Теперь в верхнем ряду
+            только имя и кнопка, а бейдж ушёл строкой ниже: втроём они делили
+            одну строку и жались друг к другу на узкой карточке. */}
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 0.5,
+            minWidth: 0,
+            minHeight: 36,
+          }}
+        >
+          {batchMode && (
+            <IconButton
+              size="small"
+              sx={{ p: '2px', ml: '-6px', flexShrink: 0 }}
+              onClick={(e) => {
+                e.stopPropagation()
+                if (onSelectionChange) {
+                  onSelectionChange()
+                }
               }}
-              variant="h6"
-              component="h2"
-              noWrap
-              title={name}
             >
-              {name}
-            </Typography>
+              {isSelected ? (
+                <CheckBoxRounded color="primary" />
+              ) : (
+                <CheckBoxOutlineBlankRounded />
+              )}
+            </IconButton>
+          )}
+          <Box
+            ref={dragHandleRef}
+            sx={{ display: 'flex', flexShrink: 0, ml: '-6px' }}
+            {...dragHandleAttributes}
+            {...dragHandleListeners}
+          >
+            <DragIndicatorRounded
+              sx={{ cursor: 'move', color: 'text.primary' }}
+            />
           </Box>
+
+          <Typography
+            sx={{
+              flex: 1,
+              minWidth: 0,
+              fontSize: '17px',
+              fontWeight: 600,
+              lineHeight: '26px',
+            }}
+            variant="h6"
+            component="h2"
+            noWrap
+            title={name}
+          >
+            {name}
+          </Typography>
+
+          {/* clod:chan — защищённая подписка помечена значком: признак
+              необратим, и видеть его надо не заходя в правку. */}
+          {option?.secure && (
+            <ShieldRounded
+              titleAccess={t(
+                'profiles.modals.profileForm.fields.secureChannel',
+              )}
+              sx={{ fontSize: 18, flexShrink: 0, color: 'success.main' }}
+            />
+          )}
 
           {/* only if has url can it be updated */}
           {hasUrl && (
             <IconButton
               title={t('shared.actions.refresh')}
               sx={{
-                position: 'absolute',
-                p: '3px',
-                top: -1,
-                right: -5,
+                p: '4px',
+                mr: '-6px',
+                flexShrink: 0,
                 animation: loading ? `1s linear infinite ${round}` : 'none',
               }}
               size="small"
@@ -864,113 +836,167 @@ const ProfileItemBase = (props: ProfileItemProps) => {
             </IconButton>
           )}
         </Box>
-        {/* the second line show url's info or description */}
-        <Box sx={boxStyle}>
-          {
-            <>
-              {description ? (
-                <Typography
-                  noWrap
-                  title={description}
-                  sx={{ fontSize: '14px' }}
-                >
-                  {description}
-                </Typography>
-              ) : (
-                hasUrl && (
-                  <Typography
-                    noWrap
-                    title={`${t('shared.labels.from')} ${from}`}
-                  >
-                    {/* clod:groups — ярлык группы идёт первым: по нему карточку
-                        и ищут глазами в сетке. */}
-                    {itemData.group ? `${itemData.group} · ${from}` : from}
-                  </Typography>
-                )
-              )}
-              {hasUrl && (
-                <Box
-                  sx={{
-                    display: 'flex',
-                    justifyContent: 'flex-end',
-                    ml: 'auto',
-                  }}
-                >
-                  <Typography
-                    noWrap
-                    component="span"
-                    title={
-                      showNextUpdate
-                        ? t('profiles.components.profileItem.tooltips.showLast')
-                        : `${t('shared.labels.updateTime')}: ${parseExpire(updated)}\n${t('profiles.components.profileItem.tooltips.showNext')}`
-                    }
-                    sx={{
-                      fontSize: 14,
-                      textAlign: 'right',
-                      cursor: 'pointer',
-                      display: 'inline-block',
-                      borderBottom: '1px dashed transparent',
-                      transition: 'all 0.2s',
-                      '&:hover': {
-                        borderBottomColor: 'primary.main',
-                        color: 'primary.main',
-                      },
-                    }}
-                    onClick={toggleUpdateTimeDisplay}
-                  >
-                    {showNextUpdate
-                      ? nextUpdateTime
-                      : updated > 0
-                        ? dayjs(updated * 1000).fromNow()
-                        : ''}
-                  </Typography>
-                </Box>
-              )}
-            </>
-          }
-        </Box>
-        {/* the third line show extra info or last updated time */}
-        {hasExtra ? (
-          <Box sx={{ ...boxStyle, fontSize: 14 }}>
-            <span title={t('shared.labels.usedTotal')}>
-              {parseTraffic(upload + download)} /{' '}
-              {unlimitedTraffic
-                ? t('profiles.components.profileItem.labels.unlimited')
-                : parseTraffic(total)}
-            </span>
-            <span
+
+        {/* clod:card-v2 — вторая строка: состояние и время обновления.
+            Карточка узкая (в ряду их три-четыре), поэтому бейдж, адрес и
+            время в одну строку не ставим: адрес уехал отдельной третьей
+            строкой, а карточка выросла в высоту. */}
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            minWidth: 0,
+            minHeight: 24,
+          }}
+        >
+          {badge && (
+            <Chip
+              size="small"
+              color={badge.color}
+              variant="outlined"
+              label={t(`profiles.components.profileItem.badges.${badge.key}`)}
+              sx={{
+                flexShrink: 0,
+                height: 20,
+                fontSize: 10.5,
+                bgcolor: (theme) =>
+                  alpha(theme.palette[badge.color].main, 0.14),
+                '& .MuiChip-label': { px: 0.85 },
+              }}
+            />
+          )}
+          <Box sx={{ flex: 1, minWidth: 0 }} />
+          {hasUrl && (
+            <Typography
+              noWrap
+              component="span"
               title={
-                refillDate
-                  ? t('profiles.components.profileItem.tooltips.refillDate', {
-                      date: refillDate,
-                    })
-                  : t('shared.labels.expireTime')
+                showNextUpdate
+                  ? t('profiles.components.profileItem.tooltips.showLast')
+                  : `${t('shared.labels.updateTime')}: ${parseExpire(updated)}\n${t('profiles.components.profileItem.tooltips.showNext')}`
               }
+              sx={{
+                fontSize: 13,
+                flexShrink: 0,
+                cursor: 'pointer',
+                borderBottom: '1px dashed transparent',
+                transition: 'all 0.2s',
+                '&:hover': {
+                  borderBottomColor: 'primary.main',
+                  color: 'primary.main',
+                },
+              }}
+              onClick={toggleUpdateTimeDisplay}
             >
-              {expire}
-            </span>
+              {showNextUpdate
+                ? nextUpdateTime
+                : updated > 0
+                  ? dayjs(updated * 1000).fromNow()
+                  : ''}
+            </Typography>
+          )}
+        </Box>
+
+        {/* Третья строка: откуда подписка. Отдельной строкой ей хватает всей
+            ширины карточки, а не остатка после бейджа и времени. */}
+        <Box sx={{ minWidth: 0, minHeight: 20 }}>
+          <Typography
+            noWrap
+            title={
+              description ? description : `${t('shared.labels.from')} ${from}`
+            }
+            sx={{ fontSize: 13 }}
+          >
+            {/* clod:groups — ярлык группы идёт первым: по нему карточку
+                и ищут глазами в сетке. */}
+            {description
+              ? description
+              : hasUrl
+                ? itemData.group
+                  ? `${itemData.group} · ${from}`
+                  : from
+                : ''}
+          </Typography>
+        </Box>
+
+        {/* Третья строка: трафик и срок, под ними полоса расхода. */}
+        {hasExtra ? (
+          <Box sx={{ mt: 1.25 }}>
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'baseline',
+                justifyContent: 'space-between',
+                gap: 1,
+                fontSize: 13.5,
+              }}
+            >
+              <Box
+                component="span"
+                title={t('shared.labels.usedTotal')}
+                sx={{ whiteSpace: 'nowrap' }}
+              >
+                {parseTraffic(upload + download)} /{' '}
+                {unlimitedTraffic
+                  ? t('profiles.components.profileItem.labels.unlimited')
+                  : parseTraffic(total)}
+              </Box>
+              <Box
+                component="span"
+                title={
+                  refillDate
+                    ? t('profiles.components.profileItem.tooltips.refillDate', {
+                        date: refillDate,
+                      })
+                    : t('shared.labels.expireTime')
+                }
+                sx={{
+                  whiteSpace: 'nowrap',
+                  color: expired || expiring ? 'error.main' : undefined,
+                }}
+              >
+                {expire}
+              </Box>
+            </Box>
+            <LinearProgress
+              variant="determinate"
+              value={progress}
+              color={trafficOut ? 'error' : 'primary'}
+              sx={{
+                mt: 0.75,
+                height: 6,
+                borderRadius: 3,
+                opacity: total > 0 ? 1 : 0,
+                bgcolor: (theme) => alpha(theme.palette.text.primary, 0.08),
+                '& .MuiLinearProgress-bar': { borderRadius: 3 },
+              }}
+            />
           </Box>
         ) : (
-          <Box sx={{ ...boxStyle, fontSize: 12, justifyContent: 'flex-end' }}>
+          <Box
+            sx={{
+              mt: 1.25,
+              display: 'flex',
+              justifyContent: 'flex-end',
+              fontSize: 12.5,
+            }}
+          >
             <span title={t('shared.labels.updateTime')}>
               {parseExpire(updated)}
             </span>
           </Box>
         )}
-        <LinearProgress
-          variant="determinate"
-          value={progress}
-          style={{ opacity: total > 0 ? 1 : 0 }}
-        />
         {/* clod: состояние устройства (`x-hwid-*`) раньше жило только в
             профиле и в логах: диалог закрыли — и причина, по которой подписка
-            не обновляется, пропадала. Теперь она видна на карточке. */}
+            не обновляется, пропадала. Теперь она видна на карточке.
+            clod:card-v2 — без `noWrap`: строка длинная и на узкой карточке
+            обрезалась ровно там, где начиналось объяснение. */}
         {hwidNotice && (
           <Typography
-            noWrap
             title={t(`profiles.components.profileItem.status.${hwidNotice}`)}
             color="error"
-            sx={{ fontSize: 12, mt: 0.75 }}
+            sx={{ fontSize: 12, mt: 1, lineHeight: 1.35 }}
           >
             {t(`profiles.components.profileItem.status.${hwidNotice}`)}
           </Typography>

@@ -25,7 +25,9 @@ export const ProfileBox = styled(Box, {
     display: 'block',
     cursor: 'pointer',
     textAlign: 'left',
-    padding: '8px 16px',
+    // clod:card-v2 — карточка стала просторнее: строки больше не жались в
+    // фиксированные 26 px и не наезжали друг на друга.
+    padding: '12px 16px 14px',
     boxSizing: 'border-box',
     width: '100%',
     backgroundColor,
@@ -33,7 +35,7 @@ export const ProfileBox = styled(Box, {
       ? `1.5px solid ${primary.main}`
       : `1.5px solid transparent`,
     boxShadow: isSelected ? `0 0 0 3px ${alpha(primary.main, 0.12)}` : 'none',
-    borderRadius: '8px',
+    borderRadius: '10px',
     color,
     // Приглушение — только для истёкших и никогда для активной: подписка, на
     // которой человек сидит, обязана оставаться читаемой.
