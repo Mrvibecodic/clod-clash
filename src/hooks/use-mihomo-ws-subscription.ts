@@ -125,10 +125,11 @@ const createSharedSubscriptionEntry = (
         return
       }
 
-      entry.ws = ws
-      syncSharedWsRefs(entry)
-      clearReconnectTimer()
-
+      // clod: сокет становится «нашим» ТОЛЬКО после успешного onConnected и
+      // навешенного слушателя. Раньше он записывался в entry сразу, и бросок
+      // из onConnected (а он ходит по IPC — например, за начальными логами)
+      // оставлял подписку в мёртвом состоянии: слушателя нет, сообщений нет,
+      // а повторное подключение не ставится, потому что `entry.ws` уже занят.
       const owner = pickActiveOwner(entry)
       if (owner?.onConnected) {
         await owner.onConnected(ws)
@@ -145,6 +146,10 @@ const createSharedSubscriptionEntry = (
 
         activeOwner.handleMessage(msg.data)
       })
+
+      entry.ws = ws
+      syncSharedWsRefs(entry)
+      clearReconnectTimer()
     } catch (ignoreError) {
       if (!entry.closed && !entry.ws) {
         clearReconnectTimer()
