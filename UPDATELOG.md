@@ -8,6 +8,40 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.0.29-alpha
+
+<!-- lang:en -->
+
+### Fixed
+
+- The refresh button on a subscription card works again. The status badge was drawn on top of it, so on the subscription you are actually using the tap never reached the button
+
+### Changed
+
+- Subscription cards were rebuilt: the name, the state badge, the address and the update time each get their own line instead of fighting for one, the device-limit warning is no longer cut off, and a card is never narrower than 320 px — the grid fits as many per row as the window allows
+
+### Added
+
+- The "Secure connection" checkbox now sits right under the link field, both in the add-subscription dialog and on the welcome screen. The choice cannot be undone later, so it should not be hidden behind "Advanced"
+- A protected subscription is marked with a shield on its card
+
+<!-- lang:ru -->
+
+### Исправлено
+
+- Кнопка обновления на карточке подписки снова работает. Поверх неё рисовался бейдж состояния, поэтому на той подписке, которой вы пользуетесь, нажатие до кнопки не доходило
+
+### Изменено
+
+- Карточка подписки перебрана: название, состояние, адрес и время обновления получили по отдельной строке вместо борьбы за одну, предупреждение о лимите устройств больше не обрезается, а сама карточка не бывает уже 320 px — в ряд помещается столько, сколько позволяет окно
+
+### Добавлено
+
+- Галочка «Защищённое соединение» теперь стоит прямо под полем ссылки — и в окне добавления подписки, и на приветственном экране. Выбор потом не отменить, поэтому прятать его в «Дополнительно» неправильно
+- Защищённая подписка помечена щитом на карточке
+
+---
+
 ## v0.0.28-alpha
 
 <!-- lang:en -->
