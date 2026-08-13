@@ -74,7 +74,7 @@ regex = "1.12.4"
 # clod: ЗАПИНЕНО ПО РЕВИЗИИ. Без `rev` cargo волен уехать на голову ветки в
 # любой момент — а тут системный прокси, то есть весь трафик пользователя.
 # Ревизия та же, что уже лежала в Cargo.lock.
-sysproxy = { git = "https://github.com/clash-verge-rev/sysproxy-rs", rev = "d214eba9f61d655d49a35f6ae17c359f7ad68d79", features = [
+sysproxy = { git = "https://github.com/clash-verge-rev/sysproxy-rs", rev = "ab5ba0929d56721d774b1c5c29d6a32e6634e7ce", features = [
   "guard",
 ] }
 network-interface = { version = "2.0.5", features = ["serde"] }
