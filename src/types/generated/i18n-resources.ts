@@ -545,6 +545,7 @@ export interface TranslationResources {
           }
           notifications: {
             batchDeleted: string
+            editorBrokenYaml: string
             fallbackUsed: string
             importFail: string
             importNeedsRefresh: string

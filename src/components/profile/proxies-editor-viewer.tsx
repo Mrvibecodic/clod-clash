@@ -48,6 +48,7 @@ import { useThemeMode } from '@/services/states'
 import type { MonacoEditorInstance } from '@/types/monaco'
 import getSystem from '@/utils/get-system'
 import parseUri from '@/utils/uri-parser'
+import { parseYamlSafe } from '@/utils/yaml'
 
 interface Props {
   profileUid: string
@@ -72,17 +73,23 @@ export const ProxiesEditorViewer = (props: Props) => {
   const [prependSeq, setPrependSeq] = useState<IProxyConfig[]>([])
   const [appendSeq, setAppendSeq] = useState<IProxyConfig[]>([])
   const [deleteSeq, setDeleteSeq] = useState<string[]>([])
+  const hasLoadedSeqConfigRef = useRef(false)
+
+  // clod: имя ноды служит и ключом React, и идентификатором в сортировке.
+  // Нода без имени (вставили в текстовом режиме кусок конфига без `name`)
+  // роняла весь экран, поэтому такие ноды не показываем вовсе.
+  const named = (proxy: IProxyConfig) => Boolean(proxy?.name)
 
   const filteredPrependSeq = useMemo(
-    () => prependSeq.filter((proxy) => match(proxy.name)),
+    () => prependSeq.filter((proxy) => named(proxy) && match(proxy.name)),
     [prependSeq, match],
   )
   const filteredProxyList = useMemo(
-    () => proxyList.filter((proxy) => match(proxy.name)),
+    () => proxyList.filter((proxy) => named(proxy) && match(proxy.name)),
     [proxyList, match],
   )
   const filteredAppendSeq = useMemo(
-    () => appendSeq.filter((proxy) => match(proxy.name)),
+    () => appendSeq.filter((proxy) => named(proxy) && match(proxy.name)),
     [appendSeq, match],
   )
 
@@ -266,7 +273,7 @@ export const ProxiesEditorViewer = (props: Props) => {
   const fetchProfile = useCallback(async () => {
     const data = await readProfileFile(profileUid)
 
-    const originProxiesObj = yaml.load(data) as {
+    const originProxiesObj = parseYamlSafe(data) as {
       proxies: IProxyConfig[]
     } | null
 
@@ -274,36 +281,69 @@ export const ProxiesEditorViewer = (props: Props) => {
   }, [profileUid])
 
   const fetchContent = useCallback(async () => {
+    hasLoadedSeqConfigRef.current = false
     const data = await readProfileFile(property)
-    const obj = yaml.load(data) as ISeqProfileConfig | null
+    const obj = parseYamlSafe(data) as ISeqProfileConfig | null | undefined
+
+    setPrevData(data)
+    setCurrData(data)
+
+    // clod: файл сломан — показываем его как есть в текстовом режиме и НЕ
+    // пускаем сериализатор: иначе он запишет пустой набор поверх правок.
+    if (obj === undefined) {
+      setVisualization(false)
+      showNotice.error(
+        t('profiles.page.feedback.notifications.editorBrokenYaml'),
+      )
+      return
+    }
 
     setPrependSeq(obj?.prepend || [])
     setAppendSeq(obj?.append || [])
     setDeleteSeq(obj?.delete || [])
+    hasLoadedSeqConfigRef.current = true
+  }, [property, t])
 
-    setPrevData(data)
-    setCurrData(data)
-  }, [property])
-
-  useEffect(() => {
-    if (currData === '' || visualization !== true) {
+  // clod: текст разбирается обратно ТОЛЬКО при возврате в наглядный режим.
+  // Раньше это делал эффект на каждое изменение текста, и недописанная строка
+  // бросала исключение прямо из эффекта — экран падал в границу ошибок.
+  const handleVisualizationToggle = useCallback(() => {
+    if (visualization) {
+      setVisualization(false)
       return
     }
 
-    const obj = yaml.load(currData) as ISeqProfileConfig | null
+    const obj = parseYamlSafe(currData) as ISeqProfileConfig | null | undefined
+    if (obj === undefined) {
+      hasLoadedSeqConfigRef.current = false
+      showNotice.error(
+        t('profiles.page.feedback.notifications.editorBrokenYaml'),
+      )
+      return
+    }
+
+    hasLoadedSeqConfigRef.current = true
     startTransition(() => {
       setPrependSeq(obj?.prepend ?? [])
       setAppendSeq(obj?.append ?? [])
       setDeleteSeq(obj?.delete ?? [])
     })
-  }, [currData, visualization])
+    setVisualization(true)
+  }, [currData, t, visualization])
 
   useEffect(() => {
-    if (!(prependSeq && appendSeq && deleteSeq)) {
+    if (
+      !hasLoadedSeqConfigRef.current ||
+      !(prependSeq && appendSeq && deleteSeq)
+    ) {
       return
     }
 
     const serialize = () => {
+      if (!hasLoadedSeqConfigRef.current) {
+        return
+      }
+
       try {
         setCurrData(
           yaml.dump(
@@ -377,9 +417,7 @@ export const ProxiesEditorViewer = (props: Props) => {
               <Button
                 variant="contained"
                 size="small"
-                onClick={() => {
-                  setVisualization((prev) => !prev)
-                }}
+                onClick={handleVisualizationToggle}
               >
                 {visualization
                   ? t('shared.editorModes.advanced')

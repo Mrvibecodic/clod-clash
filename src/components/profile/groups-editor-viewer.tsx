@@ -65,6 +65,7 @@ import { useThemeMode } from '@/services/states'
 import type { TranslationKey } from '@/types/generated/i18n-keys'
 import type { MonacoEditorInstance } from '@/types/monaco'
 import getSystem from '@/utils/get-system'
+import { parseYamlSafe } from '@/utils/yaml'
 
 interface Props {
   proxiesUid: string
@@ -181,6 +182,7 @@ export const GroupsEditorViewer = (props: Props) => {
   const [prependSeq, setPrependSeq] = useState<IProxyGroupConfig[]>([])
   const [appendSeq, setAppendSeq] = useState<IProxyGroupConfig[]>([])
   const [deleteSeq, setDeleteSeq] = useState<string[]>([])
+  const hasLoadedSeqConfigRef = useRef(false)
 
   const filteredPrependSeq = useMemo(
     () => prependSeq.filter((group) => match(group.name)),
@@ -326,14 +328,9 @@ export const GroupsEditorViewer = (props: Props) => {
       }
     }
   }
-  const fetchContent = useCallback(async () => {
-    const data = await readProfileFile(property)
-    const obj = yaml.load(data) as ISeqProfileConfig | null
-
-    setPrependSeq(obj?.prepend || [])
-    setAppendSeq(obj?.append || [])
+  const applyDeleteSeq = useCallback((next?: unknown) => {
     setDeleteSeq((prev) => {
-      const normalized = normalizeDeleteSeq(obj?.delete)
+      const normalized = normalizeDeleteSeq(next)
       if (
         normalized.length === prev.length &&
         normalized.every((item, index) => item === prev[index])
@@ -342,37 +339,67 @@ export const GroupsEditorViewer = (props: Props) => {
       }
       return normalized
     })
+  }, [])
+
+  const fetchContent = useCallback(async () => {
+    hasLoadedSeqConfigRef.current = false
+    const data = await readProfileFile(property)
+    const obj = parseYamlSafe(data) as ISeqProfileConfig | null | undefined
 
     setPrevData(data)
     setCurrData(data)
-  }, [property])
 
-  useEffect(() => {
-    if (currData === '' || visualization !== true) {
+    // clod: файл сломан — показываем его как есть в текстовом режиме и НЕ
+    // пускаем сериализатор: иначе он запишет пустой набор поверх правок.
+    if (obj === undefined) {
+      setVisualization(false)
+      showNotice.error(
+        t('profiles.page.feedback.notifications.editorBrokenYaml'),
+      )
       return
     }
 
-    const obj = yaml.load(currData) as ISeqProfileConfig | null
+    setPrependSeq(obj?.prepend || [])
+    setAppendSeq(obj?.append || [])
+    applyDeleteSeq(obj?.delete)
+    hasLoadedSeqConfigRef.current = true
+  }, [applyDeleteSeq, property, t])
+
+  // clod: текст разбирается обратно ТОЛЬКО при возврате в наглядный режим.
+  // Раньше это делал эффект на каждое изменение текста, и недописанная строка
+  // бросала исключение прямо из эффекта — экран падал в границу ошибок.
+  const handleVisualizationToggle = useCallback(() => {
+    if (visualization) {
+      setVisualization(false)
+      return
+    }
+
+    const obj = parseYamlSafe(currData) as ISeqProfileConfig | null | undefined
+    if (obj === undefined) {
+      hasLoadedSeqConfigRef.current = false
+      showNotice.error(
+        t('profiles.page.feedback.notifications.editorBrokenYaml'),
+      )
+      return
+    }
+
+    hasLoadedSeqConfigRef.current = true
     startTransition(() => {
       setPrependSeq(obj?.prepend ?? [])
       setAppendSeq(obj?.append ?? [])
-      setDeleteSeq((prev) => {
-        const normalized = normalizeDeleteSeq(obj?.delete)
-        if (
-          normalized.length === prev.length &&
-          normalized.every((item, index) => item === prev[index])
-        ) {
-          return prev
-        }
-        return normalized
-      })
+      applyDeleteSeq(obj?.delete)
     })
-  }, [currData, visualization])
+    setVisualization(true)
+  }, [applyDeleteSeq, currData, t, visualization])
 
   // Оптимизация: асинхронная обработка yaml.dump для больших данных, чтобы избежать зависания UI
   useEffect(() => {
-    if (prependSeq && appendSeq && deleteSeq) {
+    if (hasLoadedSeqConfigRef.current && prependSeq && appendSeq && deleteSeq) {
       const serialize = () => {
+        if (!hasLoadedSeqConfigRef.current) {
+          return
+        }
+
         try {
           setCurrData(buildGroupsYaml(prependSeq, appendSeq, deleteSeq))
         } catch (e) {
@@ -391,13 +418,15 @@ export const GroupsEditorViewer = (props: Props) => {
   const fetchProxyPolicy = useCallback(async () => {
     const data = await readProfileFile(profileUid)
     const proxiesData = await readProfileFile(proxiesUid)
-    const originGroupsObj = yaml.load(data) as {
+    const originGroupsObj = parseYamlSafe(data) as {
       'proxy-groups': IProxyGroupConfig[]
     } | null
 
-    const originProxiesObj = yaml.load(data) as { proxies: [] } | null
+    const originProxiesObj = parseYamlSafe(data) as { proxies: [] } | null
     const originProxies = originProxiesObj?.proxies || []
-    const moreProxiesObj = yaml.load(proxiesData) as ISeqProfileConfig | null
+    const moreProxiesObj = parseYamlSafe(
+      proxiesData,
+    ) as ISeqProfileConfig | null
     const morePrependProxies = moreProxiesObj?.prepend || []
     const moreAppendProxies = moreProxiesObj?.append || []
     const moreDeleteProxies = normalizeDeleteSeq(moreProxiesObj?.delete)
@@ -437,21 +466,21 @@ export const GroupsEditorViewer = (props: Props) => {
     const mergeData = await readProfileFile(mergeUid)
     const globalMergeData = await readProfileFile('Merge')
 
-    const originGroupsObj = yaml.load(data) as {
+    const originGroupsObj = parseYamlSafe(data) as {
       'proxy-groups': IProxyGroupConfig[]
     } | null
 
-    const originProviderObj = yaml.load(data) as {
+    const originProviderObj = parseYamlSafe(data) as {
       'proxy-providers': Record<string, unknown>
     } | null
     const originProvider = originProviderObj?.['proxy-providers'] || {}
 
-    const moreProviderObj = yaml.load(mergeData) as {
+    const moreProviderObj = parseYamlSafe(mergeData) as {
       'proxy-providers': Record<string, unknown>
     } | null
     const moreProvider = moreProviderObj?.['proxy-providers'] || {}
 
-    const globalProviderObj = yaml.load(globalMergeData) as {
+    const globalProviderObj = parseYamlSafe(globalMergeData) as {
       'proxy-providers': Record<string, unknown>
     } | null
     const globalProvider = globalProviderObj?.['proxy-providers'] || {}
@@ -536,9 +565,7 @@ export const GroupsEditorViewer = (props: Props) => {
               <Button
                 variant="contained"
                 size="small"
-                onClick={() => {
-                  setVisualization((prev) => !prev)
-                }}
+                onClick={handleVisualizationToggle}
               >
                 {visualization
                   ? t('shared.editorModes.advanced')

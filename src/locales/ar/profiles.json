@@ -44,7 +44,8 @@
         "switchBusy": "Profile switch is already in progress",
         "batchDeleted": "Selected profiles deleted successfully",
         "urlMigrated": "The provider moved this subscription to a new address",
-        "fallbackUsed": "Updated from the provider's backup address"
+        "fallbackUsed": "Updated from the provider's backup address",
+        "editorBrokenYaml": "تعذّر تحليل الملف كـ YAML — فُتح كنص حتى لا يُستبدل أي شيء. صحّح الصياغة ثم عُد إلى العرض المرئي."
       },
       "notices": {
         "forceRefreshCompleted": "Force refresh completed",

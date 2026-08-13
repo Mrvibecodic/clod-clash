@@ -44,7 +44,8 @@
         "switchBusy": "Profile switch is already in progress",
         "batchDeleted": "選択したプロファイルが正常に削除されました",
         "urlMigrated": "The provider moved this subscription to a new address",
-        "fallbackUsed": "Updated from the provider's backup address"
+        "fallbackUsed": "Updated from the provider's backup address",
+        "editorBrokenYaml": "YAML として解析できないため、上書きを避けてテキストとして開きました。構文を直してから戻ってください。"
       },
       "notices": {
         "forceRefreshCompleted": "Force refresh completed",

@@ -222,6 +222,7 @@ export const translationKeys = [
   'profiles.page.feedback.notifications.batchDeleted',
   'profiles.page.feedback.notifications.urlMigrated',
   'profiles.page.feedback.notifications.fallbackUsed',
+  'profiles.page.feedback.notifications.editorBrokenYaml',
   'profiles.page.feedback.notices.forceRefreshCompleted',
   'profiles.page.feedback.notices.emergencyRefreshFailed',
   'profiles.page.title',

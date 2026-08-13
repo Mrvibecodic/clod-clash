@@ -44,7 +44,8 @@
         "switchBusy": "Profil değiştirme işlemi zaten devam ediyor",
         "batchDeleted": "Seçili profiller başarıyla silindi",
         "urlMigrated": "The provider moved this subscription to a new address",
-        "fallbackUsed": "Updated from the provider's backup address"
+        "fallbackUsed": "Updated from the provider's backup address",
+        "editorBrokenYaml": "Dosya YAML olarak ayrıştırılamadı — hiçbir şeyin üzerine yazılmaması için metin olarak açıldı. Söz dizimini düzeltip geri dönün."
       },
       "notices": {
         "forceRefreshCompleted": "Force refresh completed",

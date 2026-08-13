@@ -44,7 +44,8 @@
         "switchBusy": "正在切换订阅，请稍后重试",
         "batchDeleted": "选中的订阅已成功删除",
         "urlMigrated": "The provider moved this subscription to a new address",
-        "fallbackUsed": "Updated from the provider's backup address"
+        "fallbackUsed": "Updated from the provider's backup address",
+        "editorBrokenYaml": "该文件无法按 YAML 解析，已以文本方式打开，避免覆盖原有内容。请修正语法后再切回。"
       },
       "notices": {
         "forceRefreshCompleted": "数据已强制刷新",
