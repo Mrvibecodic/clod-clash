@@ -108,6 +108,17 @@ fn handle_core_exit(message: &str, expected: &RunningMode) {
         // главная не опрашивает `getProxies` сама, так что до следующего
         // возврата окна пользователь смотрел бы на данные умершего ядра.
         handle::Handle::refresh_clash();
+        // clod: новое ядро поднимается на умолчаниях шаблона, то есть на первом
+        // узле каждой группы. Ручной рестарт выбор возвращал (`feat/clash.rs`),
+        // а вот после падения ядра пользователь молча оказывался на чужом
+        // сервере. Возврат тот же, что после обновления подписки.
+        if let Err(e) = crate::config::profiles::activate_selected_nodes() {
+            logging!(
+                warn,
+                Type::Core,
+                "Warning: restore selection after a crash restart failed: {e}"
+            );
+        }
         if let Err(e) = crate::core::tray::Tray::global().update_menu().await {
             logging!(warn, Type::Core, "failed to refresh the tray after a restart: {}", e);
         }

@@ -491,6 +491,19 @@ pub async fn patch_profiles_config_by_profile_index(profile_index: String) -> Cm
     patch_profiles_config(profiles).await
 }
 
+/// clod: запомнить выбранный узел одной парой «группа + узел».
+///
+/// Интерфейс раньше пересылал весь список `selected`, собранный из отрисованной
+/// подписки: два быстрых переключения подряд читали один снимок, и второе
+/// сохранение затирало первое. Слияние делается на бэкенде, поэтому гонки нет
+/// ни у интерфейса, ни у трея.
+#[tauri::command]
+pub async fn patch_selected_node(group: String, node: String) -> CmdResult {
+    profiles::profiles_set_selected_node_safe(&group, &node)
+        .await
+        .stringify_err()
+}
+
 /// Изменяет отдельный profile item
 #[tauri::command]
 pub async fn patch_profile(index: String, profile: PrfItem) -> CmdResult {

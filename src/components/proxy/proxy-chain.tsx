@@ -44,7 +44,10 @@ import {
 import { TooltipIcon } from '@/components/base'
 import { useVisibility } from '@/hooks/use-visibility'
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
-import { updateProxyChainConfigInRuntime } from '@/services/cmds'
+import {
+  patchSelectedNode,
+  updateProxyChainConfigInRuntime,
+} from '@/services/cmds'
 import { debugLog } from '@/utils/debug'
 
 interface ProxyChainItem {
@@ -341,12 +344,20 @@ export const ProxyChain = ({
             : selectedGroup || localStorage.getItem('proxy-chain-group')
 
         if (targetGroup) {
+          // clod: то же и при разрыве цепочки — иначе подписка помнила бы
+          // выходной узел, которого уже нет, и возвращала его после рестарта.
+          const persist = (node: string) =>
+            patchSelectedNode(targetGroup, node).catch((error) => {
+              console.error('Failed to persist proxy chain selection:', error)
+            })
           try {
             await selectNodeForGroup(targetGroup, 'DIRECT')
+            await persist('DIRECT')
           } catch {
             if (proxyChain.length >= 1) {
               try {
                 await selectNodeForGroup(targetGroup, proxyChain[0].name)
+                await persist(proxyChain[0].name)
               } catch {
                 // ignore
               }
@@ -396,6 +407,13 @@ export const ProxyChain = ({
       const targetGroup = mode === 'global' ? 'GLOBAL' : selectedGroup
 
       await selectNodeForGroup(targetGroup || 'GLOBAL', lastNode.name)
+      // clod: выбор, записанный только в ядро, откатывался при его
+      // перезапуске — цепочка «отваливалась» сама собой. Пишем и в подписку.
+      await patchSelectedNode(targetGroup || 'GLOBAL', lastNode.name).catch(
+        (error) => {
+          console.error('Failed to persist proxy chain selection:', error)
+        },
+      )
       localStorage.setItem('proxy-chain-group', targetGroup || 'GLOBAL')
       localStorage.setItem('proxy-chain-exit-node', lastNode.name)
 

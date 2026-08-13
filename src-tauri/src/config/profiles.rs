@@ -217,6 +217,45 @@ impl IProfiles {
         bail!("failed to get the profile item \"uid:{}\"", uid_str);
     }
 
+    /// clod: запомнить выбор ОДНОГО узла в текущей подписке.
+    ///
+    /// Раньше выбор сохранялся так: фронт брал весь список `selected` из
+    /// отрисованной подписки, менял в нём одну строку и отправлял целиком. Два
+    /// быстрых переключения подряд читали ОДИН и тот же снимок, и второй ответ
+    /// затирал первый — узел возвращался к прежнему сам собой. Слияние по паре
+    /// «группа + узел» такой гонки не допускает и годится одинаково для
+    /// интерфейса, трея и автоматики.
+    ///
+    /// Возвращает `true`, если запись изменилась.
+    pub fn set_selected_node(&mut self, group: &str, node: &str) -> bool {
+        let Some(current) = self.current.clone() else {
+            return false;
+        };
+        let Some(items) = self.items.as_mut() else {
+            return false;
+        };
+        let Some(item) = items
+            .iter_mut()
+            .find(|item| item.uid.as_deref() == Some(current.as_str()))
+        else {
+            return false;
+        };
+
+        let selected = item.selected.get_or_insert_with(Vec::new);
+        if let Some(entry) = selected.iter_mut().find(|entry| entry.name.as_deref() == Some(group)) {
+            if entry.now.as_deref() == Some(node) {
+                return false;
+            }
+            entry.now = Some(node.into());
+        } else {
+            selected.push(PrfSelected {
+                name: Some(group.into()),
+                now: Some(node.into()),
+            });
+        }
+        true
+    }
+
     /// append new item
     /// if the file_data is some
     /// then should save the data to file
@@ -721,6 +760,24 @@ pub async fn profiles_delete_item_safe(index: &String) -> Result<(bool, PendingP
             Ok((profiles, deleted))
         })
         .await
+}
+
+/// clod: запомнить выбранный узел в текущей подписке и сохранить файл.
+///
+/// Одна точка на все источники выбора — интерфейс, трей, автоматика, — чтобы
+/// выбор не жил только в ядре и переживал его перезапуск.
+pub async fn profiles_set_selected_node_safe(group: &str, node: &str) -> Result<()> {
+    let changed = Config::profiles()
+        .await
+        .with_data_modify(|mut profiles| async move {
+            let changed = profiles.set_selected_node(group, node);
+            Ok((profiles, changed))
+        })
+        .await?;
+    if changed {
+        profiles_save_file_safe().await?;
+    }
+    Ok(())
 }
 
 /// clod: вернуть подписки к снимку, сделанному до удаления.
@@ -1544,6 +1601,64 @@ mod tests {
             .collect();
         assert_eq!(remaining, ["keeper"], "неизвестный uid не трогает список");
         assert_eq!(profiles.current.as_deref(), Some("keeper"));
+    }
+
+    // clod:selection — выбор узла сливается по паре «группа + узел», иначе два
+    // быстрых переключения затирают друг друга.
+    #[test]
+    fn selecting_a_node_adds_and_replaces_only_its_group() {
+        let mut profiles = profiles_with(vec![item("current", "remote", "current.yaml")], "current");
+
+        assert!(profiles.set_selected_node("Германия", "de-1"));
+        assert!(profiles.set_selected_node("Нидерланды", "nl-1"));
+        assert!(profiles.set_selected_node("Германия", "de-2"));
+
+        let selected = profiles
+            .get_item("current")
+            .unwrap()
+            .selected
+            .clone()
+            .unwrap_or_default();
+        let pairs: Vec<_> = selected
+            .iter()
+            .map(|entry| {
+                (
+                    entry.name.clone().unwrap_or_default(),
+                    entry.now.clone().unwrap_or_default(),
+                )
+            })
+            .collect();
+
+        assert_eq!(
+            pairs,
+            vec![("Германия".into(), "de-2".into()), ("Нидерланды".into(), "nl-1".into())],
+            "вторая группа не пострадала, первая обновилась на месте"
+        );
+    }
+
+    #[test]
+    fn selecting_the_same_node_twice_changes_nothing() {
+        let mut profiles = profiles_with(vec![item("current", "remote", "current.yaml")], "current");
+
+        assert!(profiles.set_selected_node("Германия", "de-1"));
+        assert!(
+            !profiles.set_selected_node("Германия", "de-1"),
+            "повтор не считается изменением — лишней записи файла быть не должно"
+        );
+    }
+
+    #[test]
+    fn selection_without_a_current_profile_is_ignored() {
+        let mut profiles = IProfiles {
+            current: None,
+            items: Some(vec![item("orphan", "remote", "orphan.yaml")]),
+        };
+
+        assert!(!profiles.set_selected_node("Германия", "de-1"));
+        assert!(
+            profiles.items.iter().flatten().all(|item| item.selected.is_none()),
+            "без текущей подписки писать выбор некуда"
+        );
     }
 
     #[tokio::test]

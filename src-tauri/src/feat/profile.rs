@@ -30,6 +30,16 @@ pub async fn switch_proxy_node(group_name: &str, proxy_name: &str) {
                 group_name,
                 proxy_name
             );
+            // clod: выбор из трея жил только в ядре — перезапуск ядра (падение,
+            // переезд на службу, ручной рестарт) откатывал его к прежнему узлу.
+            // Записываем туда же, куда пишет интерфейс.
+            if let Err(err) = crate::config::profiles::profiles_set_selected_node_safe(group_name, proxy_name).await {
+                logging!(
+                    warn,
+                    Type::Tray,
+                    "Warning: не удалось запомнить выбор узла из трея: {err}"
+                );
+            }
             handle::Handle::refresh_proxy_config();
             let _ = tray::Tray::global().update_menu().await;
             return;

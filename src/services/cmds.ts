@@ -550,6 +550,12 @@ export const applyWindowSizeForMode = async (simple: boolean) => {
   return invoke<void>('apply_window_size_for_mode', { simple })
 }
 
+// clod: запомнить выбор узла парой «группа + узел» — слияние на бэкенде,
+// чтобы два быстрых переключения не затирали друг друга.
+export const patchSelectedNode = async (group: string, node: string) => {
+  return invoke<void>('patch_selected_node', { group, node })
+}
+
 // clod:fit-window — посадить окно на высоту содержимого; возвращает потолок
 // (максимальную высоту содержимого, которая помещается в рабочую область).
 export const fitWindowToContent = async (contentHeight: number) => {

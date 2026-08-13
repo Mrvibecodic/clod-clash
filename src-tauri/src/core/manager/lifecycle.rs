@@ -420,6 +420,17 @@ impl CoreManager {
         match self.start_core_by_service().await {
             Ok(()) => {
                 logging!(info, Type::Core, "handoff to service mode succeeded");
+                // clod: под службой поднимается НОВЫЙ процесс ядра — с первым
+                // узлом каждой группы. На Windows с TUN это основной путь
+                // запуска, и без возврата выбор пользователя терялся при каждом
+                // старте приложения.
+                if let Err(e) = crate::config::profiles::activate_selected_nodes() {
+                    logging!(
+                        warn,
+                        Type::Core,
+                        "Warning: restore selection after the handoff failed: {e}"
+                    );
+                }
                 HandoffOutcome::Done
             }
             Err(e) => {

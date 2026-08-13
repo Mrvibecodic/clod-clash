@@ -7,7 +7,7 @@ import {
 
 import { useProfiles } from '@/hooks/use-profiles'
 import { useVerge } from '@/hooks/use-verge'
-import { syncTrayProxySelection } from '@/services/cmds'
+import { patchSelectedNode, syncTrayProxySelection } from '@/services/cmds'
 import { debugLog } from '@/utils/debug'
 
 // Очистка кэшированных соединений
@@ -42,7 +42,7 @@ interface ProxyChangeRequest {
 
 // Хук выбора прокси
 export const useProxySelection = (options: ProxySelectionOptions = {}) => {
-  const { current, patchCurrent } = useProfiles()
+  const { current } = useProfiles()
   const { verge } = useVerge()
   const pendingRequestRef = useRef<ProxyChangeRequest | null>(null)
   const isProcessingRef = useRef(false)
@@ -68,27 +68,22 @@ export const useProxySelection = (options: ProxySelectionOptions = {}) => {
     })
   }, [])
 
+  // clod: сохраняем ПАРУ «группа + узел», а не весь список `selected`.
+  // Список собирался из отрисованной подписки, и два быстрых переключения
+  // подряд читали один и тот же снимок — второе сохранение затирало первое, и
+  // узел возвращался к прежнему сам собой. Слияние теперь на бэкенде.
   const persistSelection = useCallback(
     (groupName: string, proxyName: string, skipConfigSave: boolean) => {
       if (!current || skipConfigSave) return
 
-      const selected = current.selected ? [...current.selected] : []
-      const index = selected.findIndex((item) => item.name === groupName)
-
-      if (index < 0) {
-        selected.push({ name: groupName, now: proxyName })
-      } else {
-        selected[index] = { name: groupName, now: proxyName }
-      }
-
-      patchCurrent({ selected }).catch((error) => {
+      patchSelectedNode(groupName, proxyName).catch((error) => {
         console.error(
           '[ProxySelection] Не удалось сохранить выбор прокси:',
           error,
         )
       })
     },
-    [current, patchCurrent],
+    [current],
   )
 
   const executeChange = useCallback(
