@@ -413,6 +413,15 @@ fn install_service() -> Result<()> {
 #[cfg(target_os = "linux")]
 const LINUX_SERVICE_BINARY: &str = "/var/lib/clash-verge-service/bin/clash-verge-service";
 
+/// Каталог этой копии: метку правим на нём, а не только на файле, — файл
+/// наследует тип каталога в момент создания.
+#[cfg(target_os = "linux")]
+const LINUX_SERVICE_BIN_DIR: &str = "/var/lib/clash-verge-service/bin";
+
+/// Правило разметки на будущее: переживает переразметку системы и переустановку.
+#[cfg(target_os = "linux")]
+const LINUX_SERVICE_FCONTEXT: &str = "/var/lib/clash-verge-service/bin(/.*)?";
+
 /// SELinux сейчас запрещает, а не только пишет в журнал?
 ///
 /// Читаем сам файл политики, а не зовём `getenforce`: он есть не везде, а
@@ -420,6 +429,44 @@ const LINUX_SERVICE_BINARY: &str = "/var/lib/clash-verge-service/bin/clash-verge
 #[cfg(target_os = "linux")]
 fn selinux_is_enforcing() -> bool {
     std::fs::read_to_string("/sys/fs/selinux/enforce").is_ok_and(|value| value.trim() == "1")
+}
+
+/// Голова привилегированного скрипта установки — профилактика вместо лечения.
+///
+/// Хвост (ниже) чинит метку ПОСЛЕ отказа, и этого мало: пока установщик доходит
+/// до `systemctl start` и получает `avc: denied`, пользователь уже видит
+/// системный алерт SELinux и нашу ошибку — служба поднимается лишь со второй
+/// попытки. Поэтому каталог размечается ЗАРАНЕЕ: новый файл наследует тип
+/// каталога, так что скопированный установщиком бинарь сразу оказывается
+/// `bin_t`, и запрета не возникает вовсе.
+///
+/// `chcon -R` нужен и для уже лежащего файла: перезапись существующего файла
+/// метку не меняет, она осталась бы `var_lib_t` с прошлой неудачи.
+///
+/// `reset-failed` снимает лимит частоты запусков: после серии отказов systemd
+/// отвечает «start request repeated too quickly» и на исправную установку.
+///
+/// Ни одна команда не может провалить установку: их нет на системах без
+/// `policycoreutils`, а голова обязана быть безобидной.
+#[cfg(target_os = "linux")]
+fn selinux_install_prefix() -> String {
+    selinux_install_prefix_for(selinux_is_enforcing())
+}
+
+#[cfg(target_os = "linux")]
+fn selinux_install_prefix_for(enforcing: bool) -> String {
+    if !enforcing {
+        return String::new();
+    }
+    let dir = shell_single_quote(LINUX_SERVICE_BIN_DIR);
+    let fcontext = shell_single_quote(LINUX_SERVICE_FCONTEXT);
+    format!(
+        "mkdir -p {dir} >/dev/null 2>&1 || true; \
+if command -v semanage >/dev/null 2>&1; then \
+semanage fcontext -a -t bin_t {fcontext} >/dev/null 2>&1 || true; fi; \
+if command -v chcon >/dev/null 2>&1; then chcon -R -t bin_t {dir} >/dev/null 2>&1 || true; fi; \
+systemctl reset-failed clash-verge-service.service >/dev/null 2>&1 || true; "
+    )
 }
 
 /// Хвост к привилегированному скрипту установки — спасение от SELinux.
@@ -444,11 +491,13 @@ fn selinux_recovery_tail_for(enforcing: bool) -> String {
         return String::new();
     }
     let binary = shell_single_quote(LINUX_SERVICE_BINARY);
+    let fcontext = shell_single_quote(LINUX_SERVICE_FCONTEXT);
     format!(
         "; rc=$?; if [ \"$rc\" -ne 0 ] && [ -f {binary} ] && command -v chcon >/dev/null 2>&1; then \
 chcon -t bin_t {binary} >/dev/null 2>&1 || true; \
 if command -v semanage >/dev/null 2>&1; then \
-semanage fcontext -a -t bin_t '/var/lib/clash-verge-service/bin(/.*)?' >/dev/null 2>&1 || true; fi; \
+semanage fcontext -a -t bin_t {fcontext} >/dev/null 2>&1 || true; fi; \
+systemctl reset-failed clash-verge-service.service >/dev/null 2>&1 || true; \
 systemctl start clash-verge-service.service >/dev/null 2>&1 || true; \
 if systemctl is-active --quiet clash-verge-service.service; then rc=0; fi; fi; exit $rc"
     )
@@ -541,9 +590,12 @@ fn install_service() -> Result<()> {
 
     // clod:selinux — установщик зовётся через `sh -c`, чтобы к нему можно было
     // прицепить спасение от SELinux одним привилегированным вызовом: второй
-    // запрос пароля посреди установки пользователь читает как поломку.
+    // запрос пароля посреди установки пользователь читает как поломку. Голова
+    // размечает каталог до установки (запрета не будет), хвост чинит метку,
+    // если установщик всё же упал.
     let script = format!(
-        "{}{}",
+        "{}{}{}",
+        selinux_install_prefix(),
         shell_single_quote(&install_path.to_string_lossy()),
         selinux_recovery_tail()
     );
@@ -888,9 +940,12 @@ fn reinstall_service() -> Result<()> {
         script.push_str(&shell_single_quote(&uninstall_path.to_string_lossy()));
         script.push_str("; ");
     }
+    // clod:selinux — метку каталога ставим ПОСЛЕ деинсталлятора (он сносит
+    // каталог) и ДО установщика: иначе бинарь снова родится с `var_lib_t`.
+    script.push_str(&selinux_install_prefix());
     script.push_str(&shell_single_quote(&install_path.to_string_lossy()));
     // clod:selinux — тем же одним вызовом чиним метку бинаря службы, если её
-    // запретил SELinux; на системах без него хвост пуст.
+    // всё-таки запретил SELinux; на системах без него хвост пуст.
     script.push_str(&selinux_recovery_tail());
 
     let elevator = crate::utils::help::linux_elevator();
@@ -1567,11 +1622,53 @@ mod failure_tests {
 // clod:selinux — спасение службы на системах с SELinux и разбор кодов pkexec.
 #[cfg(all(test, target_os = "linux"))]
 mod selinux_tests {
-    use super::{LINUX_SERVICE_BINARY, pkexec_itself_failed, selinux_recovery_tail_for};
+    use super::{
+        LINUX_SERVICE_BIN_DIR, LINUX_SERVICE_BINARY, pkexec_itself_failed, selinux_install_prefix_for,
+        selinux_recovery_tail_for,
+    };
 
     #[test]
     fn without_selinux_the_script_gets_nothing() {
         assert_eq!(selinux_recovery_tail_for(false), "");
+        assert_eq!(selinux_install_prefix_for(false), "");
+    }
+
+    #[test]
+    fn the_label_is_set_before_the_installer_runs() {
+        let prefix = selinux_install_prefix_for(true);
+
+        assert!(
+            prefix.contains("chcon -R -t bin_t"),
+            "каталог размечается заранее, вместе с уже лежащим файлом: {prefix}"
+        );
+        assert!(
+            prefix.contains(LINUX_SERVICE_BIN_DIR),
+            "правится каталог службы, а не что-то ещё: {prefix}"
+        );
+        assert!(
+            prefix.contains("systemctl reset-failed"),
+            "лимит частоты запусков снимается до установки: {prefix}"
+        );
+        assert!(
+            !prefix.contains("exit"),
+            "голова не имеет права оборвать установку: {prefix}"
+        );
+        assert!(
+            prefix.trim_end().ends_with(';'),
+            "за головой сразу идёт установщик: {prefix}"
+        );
+    }
+
+    #[test]
+    fn nothing_in_the_prefix_may_fail_the_installation() {
+        let prefix = selinux_install_prefix_for(true);
+
+        for command in prefix.split(';').map(str::trim).filter(|part| !part.is_empty()) {
+            assert!(
+                command.ends_with("|| true") || command.starts_with("if ") || command == "fi",
+                "команда головы обязана прощать себе неудачу: {command}"
+            );
+        }
     }
 
     #[test]
