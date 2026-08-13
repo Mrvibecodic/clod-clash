@@ -478,7 +478,22 @@ Function .onInit
   ${EndIf}
 
   !if "${DISPLAYLANGUAGESELECTOR}" == "true"
-    !insertmacro MUI_LANGDLL_DISPLAY
+    ; clod: тихое обновление передаёт язык приложения как `/LANG=<номер NSIS>`,
+    ; и установщик берёт его напрямую, минуя модальный выбор языка. Иначе диалог
+    ; поднимался ЗА заставкой обновления, и оно выглядело зависшим.
+    ; Номера собираются в `src-tauri/src/core/updater.rs` (`nsis_language_id`).
+    ${GetOptions} $CMDLINE "/LANG=" $0
+    ${IfNot} ${Errors}
+      ${If} $0 == "1033"
+      ${OrIf} $0 == "1049"
+      ${OrIf} $0 == "2052"
+        StrCpy $LANGUAGE $0
+      ${Else}
+        !insertmacro MUI_LANGDLL_DISPLAY
+      ${EndIf}
+    ${Else}
+      !insertmacro MUI_LANGDLL_DISPLAY
+    ${EndIf}
   !endif
 
   !insertmacro SetContext

@@ -429,8 +429,42 @@ impl SilentUpdater {
 /// app is built for. When the plain check fails, retry through the own
 /// core's mixed port, mirroring the managed-core downloader. The returned
 /// `Update` keeps the proxy configuration, so the download inherits it.
+/// clod: номер языка для установщика NSIS.
+///
+/// Установщик Windows собирается ровно с тремя языками
+/// (`tauri.windows.conf.json`, `nsis.languages`), поэтому всё, чему нет пары,
+/// уезжает в английский; традиционный китайский — в упрощённый, иначе
+/// китайцу достался бы английский установщик.
+#[cfg(target_os = "windows")]
+fn nsis_language_id(app_language: &str) -> &'static str {
+    match app_language {
+        "zh" | "zhtw" => "2052", // SimpChinese
+        "ru" => "1049",          // Russian
+        _ => "1033",             // English
+    }
+}
+
+/// clod: установщик, который НЕ будет спрашивать язык.
+///
+/// Тихое обновление показывает свою заставку и запускает установщик, а тот на
+/// Windows поднимает модальный выбор языка ЗА ней — снаружи это выглядит как
+/// зависшее обновление. Передаём язык приложения аргументом `/LANG=`, его
+/// разбирает `.onInit` в `packages/windows/installer.nsi`. На других системах
+/// установщика нет вовсе, и аргумент не нужен.
+fn updater_builder(app_handle: &tauri::AppHandle, language: Option<&str>) -> tauri_plugin_updater::UpdaterBuilder {
+    let _ = language;
+    let builder = app_handle.updater_builder();
+    #[cfg(target_os = "windows")]
+    let builder = {
+        let lang_id = nsis_language_id(&clash_verge_i18n::current_language(language));
+        builder.installer_arg(format!("/LANG={lang_id}"))
+    };
+    builder
+}
+
 async fn check_update_with_fallback(app_handle: &tauri::AppHandle) -> Result<Option<Update>> {
-    let updater = app_handle.updater()?;
+    let language = Config::verge().await.latest_arc().language.clone();
+    let updater = updater_builder(app_handle, language.as_deref()).build()?;
     match updater.check().await {
         Ok(found) => Ok(found),
         Err(direct_error) => {
@@ -441,7 +475,11 @@ async fn check_update_with_fallback(app_handle: &tauri::AppHandle) -> Result<Opt
                 Type::System,
                 "update check failed directly ({direct_error}), retrying via {proxy}"
             );
-            let updater = app_handle.updater_builder().proxy(tauri::Url::parse(&proxy)?).build()?;
+            // Аргумент нужен и здесь: если прямая проверка не прошла, ставится
+            // именно этот `Update`.
+            let updater = updater_builder(app_handle, language.as_deref())
+                .proxy(tauri::Url::parse(&proxy)?)
+                .build()?;
             Ok(updater.check().await?)
         }
     }
