@@ -193,7 +193,8 @@
           "hotkeySetting": "热键设置",
           "advancedMode": "Advanced mode",
           "subNotifications": "订阅通知",
-          "deviceIdentity": "设备标识"
+          "deviceIdentity": "设备标识",
+          "windowFitContent": "窗口自动适应内容"
         },
         "options": {
           "sysproxy": "System proxy",
@@ -201,7 +202,8 @@
         },
         "hints": {
           "subNotifications": "在流量或订阅时长即将耗尽时提醒。关闭后无论服务商如何设置都不再提醒。",
-          "deviceIdentity": "每次请求订阅时发送经过哈希的设备标识（x-hwid），服务商据此统计设备数量限制。原始机器标识不会离开本机。关闭后，面板可能拒绝下发订阅。"
+          "deviceIdentity": "每次请求订阅时发送经过哈希的设备标识（x-hwid），服务商据此统计设备数量限制。原始机器标识不会离开本机。关闭后，面板可能拒绝下发订阅。",
+          "windowFitContent": "窗口会根据内容自动调整高度，避免内容被滚动条挡住。手动调整窗口大小后该功能会关闭，并保留你设定的大小。"
         }
       },
       "advanced": {

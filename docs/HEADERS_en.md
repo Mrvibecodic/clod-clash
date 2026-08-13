@@ -49,7 +49,7 @@ default). Turning it off stops all of them.
 | `support-url` | support link | "Support" button; a `t.me/…` link gets a Telegram icon. `https`, `tg:` or `mailto:` only |
 | `announce` | permanent provider message | banner in the app **without a close button** — lives exactly as long as the panel keeps sending it. Supports per-word colours (see below). Use `clod-promo` for one-off campaigns and `clod-hwid-limit` for the device dialog |
 | `announce-url` | where clicking the banner leads | makes the `announce` banner clickable. `https` only |
-| `clod-promo` | temporary promo banner | a separate accent banner the user **can dismiss**; a changed text brings it back. Same per-word colours as `announce` |
+| `clod-promo` | temporary promo banner | a separate accent banner the user **can dismiss**; a changed text brings it back. Same per-word colours as `announce`. A long text is collapsed to **5 lines** behind a "Show in full" button — the app window sizes itself to its content, and an advert must not stretch it over the whole screen; the full text opens in a dialog |
 | `clod-promo-url` | where the promo click leads | makes the `clod-promo` banner clickable. `https` only |
 
 **UI control**

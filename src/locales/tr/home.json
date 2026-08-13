@@ -224,6 +224,10 @@
     },
     "modeStatus": {
       "lockedHint": "Modu abonelik sağlayıcınız belirler. Panel birkaç gün yanıt vermezse kısıtlama kendiliğinden kalkar; aboneliği kaldırırsanız hemen kalkar."
+    },
+    "banners": {
+      "showFull": "Tamamını göster",
+      "promoTitle": "Kampanya"
     }
   },
   "pages": {

@@ -193,7 +193,8 @@
           "hotkeySetting": "快速鍵設定",
           "advancedMode": "Advanced mode",
           "subNotifications": "Subscription notifications",
-          "deviceIdentity": "Device identification"
+          "deviceIdentity": "Device identification",
+          "windowFitContent": "視窗自動符合內容"
         },
         "options": {
           "sysproxy": "System proxy",
@@ -201,7 +202,8 @@
         },
         "hints": {
           "subNotifications": "Warn about the subscription running out of traffic or time. Off silences these alerts regardless of the provider settings.",
-          "deviceIdentity": "Sends a hashed device id (x-hwid) with every subscription request so the provider can enforce its device limit. The raw machine id never leaves the device. Turning it off may make the panel refuse the subscription."
+          "deviceIdentity": "Sends a hashed device id (x-hwid) with every subscription request so the provider can enforce its device limit. The raw machine id never leaves the device. Turning it off may make the panel refuse the subscription.",
+          "windowFitContent": "視窗會依內容自動調整高度，避免內容被捲軸擋住。手動調整視窗大小後此功能會關閉，並保留你設定的大小。"
         }
       },
       "advanced": {

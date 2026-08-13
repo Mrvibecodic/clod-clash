@@ -224,6 +224,10 @@
     },
     "modeStatus": {
       "lockedHint": "该模式由订阅提供方设定。若面板连续数日无响应，限制会自动解除；删除订阅则立即解除。"
+    },
+    "banners": {
+      "showFull": "查看全文",
+      "promoTitle": "活动"
     }
   },
   "pages": {

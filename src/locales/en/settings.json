@@ -193,7 +193,8 @@
           "hotkeySetting": "Hotkey Setting",
           "advancedMode": "Advanced mode",
           "subNotifications": "Subscription notifications",
-          "deviceIdentity": "Device identification"
+          "deviceIdentity": "Device identification",
+          "windowFitContent": "Fit window to content"
         },
         "options": {
           "sysproxy": "System proxy",
@@ -201,7 +202,8 @@
         },
         "hints": {
           "subNotifications": "Warn about the subscription running out of traffic or time. Off silences these alerts regardless of the provider settings.",
-          "deviceIdentity": "Sends a hashed device id (x-hwid) with every subscription request so the provider can enforce its device limit. The raw machine id never leaves the device. Turning it off may make the panel refuse the subscription."
+          "deviceIdentity": "Sends a hashed device id (x-hwid) with every subscription request so the provider can enforce its device limit. The raw machine id never leaves the device. Turning it off may make the panel refuse the subscription.",
+          "windowFitContent": "The window sizes its height to what is on the screen, so nothing hides behind a scrollbar. Resizing the window by hand turns this off and keeps your size."
         }
       },
       "advanced": {

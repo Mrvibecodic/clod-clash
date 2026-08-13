@@ -193,7 +193,8 @@
           "hotkeySetting": "إعدادات الاختصارات",
           "advancedMode": "Advanced mode",
           "subNotifications": "Subscription notifications",
-          "deviceIdentity": "Device identification"
+          "deviceIdentity": "Device identification",
+          "windowFitContent": "ملاءمة النافذة للمحتوى"
         },
         "options": {
           "sysproxy": "System proxy",
@@ -201,7 +202,8 @@
         },
         "hints": {
           "subNotifications": "Warn about the subscription running out of traffic or time. Off silences these alerts regardless of the provider settings.",
-          "deviceIdentity": "Sends a hashed device id (x-hwid) with every subscription request so the provider can enforce its device limit. The raw machine id never leaves the device. Turning it off may make the panel refuse the subscription."
+          "deviceIdentity": "Sends a hashed device id (x-hwid) with every subscription request so the provider can enforce its device limit. The raw machine id never leaves the device. Turning it off may make the panel refuse the subscription.",
+          "windowFitContent": "تضبط النافذة ارتفاعها حسب المحتوى حتى لا يختفي شيء خلف شريط التمرير. تغيير حجم النافذة يدوياً يوقف هذه الميزة ويحتفظ بالحجم الذي اخترته."
         }
       },
       "advanced": {

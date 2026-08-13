@@ -193,7 +193,8 @@
           "hotkeySetting": "ホットキー設定",
           "advancedMode": "Advanced mode",
           "subNotifications": "Subscription notifications",
-          "deviceIdentity": "Device identification"
+          "deviceIdentity": "Device identification",
+          "windowFitContent": "ウィンドウを内容に合わせる"
         },
         "options": {
           "sysproxy": "System proxy",
@@ -201,7 +202,8 @@
         },
         "hints": {
           "subNotifications": "Warn about the subscription running out of traffic or time. Off silences these alerts regardless of the provider settings.",
-          "deviceIdentity": "Sends a hashed device id (x-hwid) with every subscription request so the provider can enforce its device limit. The raw machine id never leaves the device. Turning it off may make the panel refuse the subscription."
+          "deviceIdentity": "Sends a hashed device id (x-hwid) with every subscription request so the provider can enforce its device limit. The raw machine id never leaves the device. Turning it off may make the panel refuse the subscription.",
+          "windowFitContent": "内容の高さに合わせてウィンドウの大きさを調整し、スクロールバーに隠れる部分をなくします。手動でサイズを変更すると調整はオフになり、その大きさが保たれます。"
         }
       },
       "advanced": {

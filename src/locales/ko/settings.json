@@ -193,7 +193,8 @@
           "hotkeySetting": "단축키 설정",
           "advancedMode": "Advanced mode",
           "subNotifications": "Subscription notifications",
-          "deviceIdentity": "Device identification"
+          "deviceIdentity": "Device identification",
+          "windowFitContent": "창을 내용에 맞추기"
         },
         "options": {
           "sysproxy": "System proxy",
@@ -201,7 +202,8 @@
         },
         "hints": {
           "subNotifications": "Warn about the subscription running out of traffic or time. Off silences these alerts regardless of the provider settings.",
-          "deviceIdentity": "Sends a hashed device id (x-hwid) with every subscription request so the provider can enforce its device limit. The raw machine id never leaves the device. Turning it off may make the panel refuse the subscription."
+          "deviceIdentity": "Sends a hashed device id (x-hwid) with every subscription request so the provider can enforce its device limit. The raw machine id never leaves the device. Turning it off may make the panel refuse the subscription.",
+          "windowFitContent": "내용 높이에 맞춰 창 크기를 조절해 스크롤 뒤에 가려지는 부분이 없도록 합니다. 창 크기를 직접 조절하면 이 기능이 꺼지고 지정한 크기가 유지됩니다."
         }
       },
       "advanced": {

@@ -193,7 +193,8 @@
           "hotkeySetting": "Pengaturan Pintasan",
           "advancedMode": "Advanced mode",
           "subNotifications": "Subscription notifications",
-          "deviceIdentity": "Device identification"
+          "deviceIdentity": "Device identification",
+          "windowFitContent": "Sesuaikan jendela dengan konten"
         },
         "options": {
           "sysproxy": "System proxy",
@@ -201,7 +202,8 @@
         },
         "hints": {
           "subNotifications": "Warn about the subscription running out of traffic or time. Off silences these alerts regardless of the provider settings.",
-          "deviceIdentity": "Sends a hashed device id (x-hwid) with every subscription request so the provider can enforce its device limit. The raw machine id never leaves the device. Turning it off may make the panel refuse the subscription."
+          "deviceIdentity": "Sends a hashed device id (x-hwid) with every subscription request so the provider can enforce its device limit. The raw machine id never leaves the device. Turning it off may make the panel refuse the subscription.",
+          "windowFitContent": "Jendela menyesuaikan tingginya dengan konten agar tidak ada yang tersembunyi di balik bilah gulir. Mengubah ukuran jendela secara manual akan mematikan penyesuaian ini dan mempertahankan ukuran Anda."
         }
       },
       "advanced": {
