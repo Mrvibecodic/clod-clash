@@ -8,7 +8,7 @@ use crate::{
         Config, IProfiles, PrfItem, PrfOption,
         profiles::{
             profiles_append_item_with_filedata_safe, profiles_delete_item_safe, profiles_patch_item_safe,
-            profiles_reorder_safe, profiles_save_file_safe,
+            profiles_reorder_safe, profiles_restore_snapshot_safe, profiles_save_file_safe,
         },
         profiles_append_item_safe,
     },
@@ -205,16 +205,14 @@ pub async fn update_profile(index: String, option: Option<PrfOption>) -> CmdResu
 /// Удаляет конфиг
 #[tauri::command]
 pub async fn delete_profile(index: String) -> CmdResult {
+    // clod: снимок ДО удаления. Если конфиг с оставшимися подписками не
+    // соберётся, удаление отменяется целиком — вместе с выбранной подпиской и
+    // порядком, — а файлы к этому моменту ещё на диске: их стирают последними.
+    let snapshot = (**Config::profiles().await.latest_arc()).clone();
+
     // Используем Send-safe helper-функцию
-    let should_update = profiles_delete_item_safe(&index).await.stringify_err()?;
+    let (should_update, pending_files) = profiles_delete_item_safe(&index).await.stringify_err()?;
     profiles_save_file_safe().await.stringify_err()?;
-    // clod: логотип провайдера живёт отдельным файлом в `logos/`, и профиль,
-    // которого больше нет, его за собой не уносил — картинка удалённой
-    // подписки оставалась на диске навсегда. Чистим здесь, а не в
-    // `delete_item`: там снимается только то, что лежит в `profiles/`.
-    // Профиль уже удалён, так что `sync` тут не подходит — он полез бы за
-    // ссылкой, которой больше нет; удаление безусловное.
-    crate::module::logo_cache::clear(&index).await;
     if let Err(e) = Tray::global().update_tooltip().await {
         logging!(
             warn,
@@ -250,18 +248,55 @@ pub async fn delete_profile(index: String) -> CmdResult {
                     "не удалось обновить конфиг после удаления подписки: {}",
                     outcome
                 );
+                restore_profiles_after_failed_delete(snapshot).await;
                 handle_validation_notice(&outcome, ValidationNoticeTarget::Runtime, "рабочий конфиг");
                 return Err(outcome.to_string().into());
             }
             Err(e) => {
                 logging!(error, Type::Cmd, "{}", e);
+                restore_profiles_after_failed_delete(snapshot).await;
                 return Err(e.to_string().into());
             }
         }
     }
+
+    // clod: диск трогаем ПОСЛЕДНИМ — когда клиент уже доказал, что живёт без
+    // этой подписки. Логотип провайдера лежит отдельным файлом в `logos/` и
+    // раньше не удалялся вовсе, поэтому чистится здесь же.
+    pending_files.cleanup().await;
+    crate::module::logo_cache::clear(&index).await;
+
     Timer::global().refresh().await.stringify_err()?;
     drop_system_proxy_without_profiles().await;
     Ok(())
+}
+
+/// clod: вернуть подписки как было и поднять прежний конфиг.
+///
+/// Зовётся, только когда конфиг без удалённой подписки не собрался. Файлы к
+/// этому моменту ещё целы, поэтому возврата снимка достаточно: пользователь
+/// остаётся ровно там, где был до нажатия «удалить».
+async fn restore_profiles_after_failed_delete(snapshot: IProfiles) {
+    if let Err(err) = profiles_restore_snapshot_safe(snapshot).await {
+        logging!(
+            error,
+            Type::Cmd,
+            "не удалось вернуть подписки после неудачного удаления: {err}"
+        );
+        return;
+    }
+    match CoreManager::global().update_config_forced().await {
+        Ok(outcome) if outcome.is_valid() => {
+            handle::Handle::refresh_clash();
+            handle::Handle::refresh_profiles();
+        }
+        Ok(outcome) => logging!(
+            warn,
+            Type::Cmd,
+            "подписки возвращены, но прежний конфиг тоже не собрался: {outcome}"
+        ),
+        Err(err) => logging!(error, Type::Cmd, "{err}"),
+    }
 }
 
 /// clod: удалили последнюю подписку — маршрутизировать больше нечего, а

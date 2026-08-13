@@ -81,6 +81,44 @@ macro_rules! patch {
     };
 }
 
+/// clod: файлы удалённой подписки, которые ждут подтверждения.
+///
+/// Список собирается при удалении, а стирается только после того, как конфиг с
+/// оставшимися подписками собрался и прошёл проверку. Если проверка не прошла —
+/// список просто выбрасывается, и на диске остаётся всё, чем можно вернуться
+/// назад.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct PendingProfileFiles(Vec<String>);
+
+impl PendingProfileFiles {
+    fn push(&mut self, file: String) {
+        self.0.push(file);
+    }
+
+    /// Имена файлов — ровно то, что попадёт под удаление.
+    pub fn files(&self) -> &[String] {
+        &self.0
+    }
+
+    /// Подтвердить удаление: стереть файлы с диска.
+    pub async fn cleanup(self) {
+        if self.0.is_empty() {
+            return;
+        }
+        let Ok(dir) = dirs::app_profiles_dir() else {
+            logging!(
+                warn,
+                Type::Config,
+                "Warning: каталог подписок недоступен, файлы удалённой подписки остались на диске"
+            );
+            return;
+        };
+        for file in self.0 {
+            let _ = dir.join(file.as_str()).remove_if_exists().await;
+        }
+    }
+}
+
 impl IProfiles {
     // Helper to find and remove an item by uid from the items vec, returning its file name (if any).
     fn take_item_file_by_uid(items: &mut Vec<PrfItem>, target_uid: Option<&str>) -> Option<String> {
@@ -358,7 +396,22 @@ impl IProfiles {
 
     /// delete item
     /// if delete the current then return true
-    pub async fn delete_item(&mut self, uid: &String) -> Result<bool> {
+    ///
+    /// clod: файлы подписки эта функция БОЛЬШЕ НЕ СТИРАЕТ — она возвращает их
+    /// списком. Раньше диск чистился здесь же, до того как конфиг с оставшимися
+    /// подписками собран и проверен: валидация падала (сломанный script или
+    /// merge у следующей подписки), команда возвращала ошибку — а стирать было
+    /// уже нечего. Теперь порядок обратный: сначала убеждаемся, что клиент
+    /// продолжает работать, и только потом трогаем диск.
+    pub async fn delete_item(&mut self, uid: &String) -> Result<(bool, PendingProfileFiles)> {
+        let outcome = self.plan_delete_item(uid)?;
+        self.save_file().await?;
+        Ok(outcome)
+    }
+
+    /// Убрать подписку из списка и собрать её файлы в план удаления. Диска не
+    /// касается вовсе — ни чтения, ни записи, — поэтому проверяется тестами.
+    fn plan_delete_item(&mut self, uid: &String) -> Result<(bool, PendingProfileFiles)> {
         let current = self.current.as_ref().unwrap_or(uid);
         let current = current.clone();
         let delete_uids = {
@@ -377,15 +430,16 @@ impl IProfiles {
             })
         };
         let mut items = self.items.take().unwrap_or_default();
+        let mut pending = PendingProfileFiles::default();
 
-        // remove the main item (if exists) and delete its file
+        // remove the main item (if exists) and remember its file
         if let Some(file) = Self::take_item_file_by_uid(&mut items, Some(uid.as_str())) {
-            let _ = dirs::app_profiles_dir()?.join(file.as_str()).remove_if_exists().await;
+            pending.push(file);
         }
 
         for delete_uid in delete_uids {
             if let Some(file) = Self::take_item_file_by_uid(&mut items, delete_uid.as_deref()) {
-                let _ = dirs::app_profiles_dir()?.join(file.as_str()).remove_if_exists().await;
+                pending.push(file);
             }
         }
 
@@ -401,8 +455,7 @@ impl IProfiles {
         }
 
         self.items = Some(items);
-        self.save_file().await?;
-        Ok(current == *uid)
+        Ok((current == *uid, pending))
     }
 
     /// Получает содержимое подписки, на которую указывает current
@@ -660,12 +713,26 @@ pub async fn profiles_patch_item_safe(index: &String, item: &PrfItem) -> Result<
         .await
 }
 
-pub async fn profiles_delete_item_safe(index: &String) -> Result<bool> {
+pub async fn profiles_delete_item_safe(index: &String) -> Result<(bool, PendingProfileFiles)> {
     Config::profiles()
         .await
         .with_data_modify(|mut profiles| async move {
             let deleted = profiles.delete_item(index).await?;
             Ok((profiles, deleted))
+        })
+        .await
+}
+
+/// clod: вернуть подписки к снимку, сделанному до удаления.
+///
+/// Нужен ровно на одном пути: конфиг без удалённой подписки не собрался, и
+/// удаление надо отменить целиком — вместе с выбранной подпиской и порядком.
+pub async fn profiles_restore_snapshot_safe(snapshot: IProfiles) -> Result<()> {
+    Config::profiles()
+        .await
+        .with_data_modify(|_current| async move {
+            snapshot.save_file().await?;
+            Ok((snapshot, ()))
         })
         .await
 }
@@ -1129,6 +1196,7 @@ pub fn activate_selected_nodes() -> Result<()> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use tauri_plugin_mihomo::models::Proxy;
@@ -1387,5 +1455,101 @@ mod tests {
                 ("first-group".into(), "replacement".into()),
             ]
         );
+    }
+
+    // clod:delete-rollback — удаление подписки не должно трогать диск раньше,
+    // чем конфиг с оставшимися подписками собран и проверен.
+    fn item(uid: &str, itype: &str, file: &str) -> PrfItem {
+        PrfItem {
+            uid: Some(uid.into()),
+            itype: Some(itype.into()),
+            file: Some(file.into()),
+            ..PrfItem::default()
+        }
+    }
+
+    fn profiles_with(items: Vec<PrfItem>, current: &str) -> IProfiles {
+        IProfiles {
+            current: Some(current.into()),
+            items: Some(items),
+        }
+    }
+
+    #[test]
+    fn delete_plan_collects_the_profile_and_its_attachments() {
+        let attachments = PrfOption {
+            merge: Some("merge-uid".into()),
+            script: Some("script-uid".into()),
+            ..PrfOption::default()
+        };
+
+        let mut main = item("victim", "remote", "victim.yaml");
+        main.option = Some(attachments);
+
+        let mut profiles = profiles_with(
+            vec![
+                main,
+                item("merge-uid", "merge", "merge.yaml"),
+                item("script-uid", "script", "script.js"),
+                item("keeper", "remote", "keeper.yaml"),
+            ],
+            "keeper",
+        );
+
+        let (was_current, pending) = profiles.plan_delete_item(&"victim".into()).unwrap();
+
+        assert!(!was_current, "удалили не текущую подписку");
+        assert_eq!(pending.files(), ["victim.yaml", "merge.yaml", "script.js"]);
+        // Файлы ещё на диске: план только перечисляет их.
+        assert_eq!(
+            profiles.items.as_ref().map(Vec::len),
+            Some(1),
+            "в списке остаётся только уцелевшая подписка"
+        );
+        assert_eq!(profiles.current.as_deref(), Some("keeper"));
+    }
+
+    #[test]
+    fn deleting_the_current_profile_moves_the_pointer_to_a_survivor() {
+        let mut profiles = profiles_with(
+            vec![
+                item("victim", "remote", "victim.yaml"),
+                item("merge-uid", "merge", "merge.yaml"),
+                item("keeper", "local", "keeper.yaml"),
+            ],
+            "victim",
+        );
+
+        let (was_current, pending) = profiles.plan_delete_item(&"victim".into()).unwrap();
+
+        assert!(was_current, "удалили текущую подписку — конфиг надо пересобрать");
+        assert_eq!(pending.files(), ["victim.yaml"]);
+        assert_eq!(
+            profiles.current.as_deref(),
+            Some("keeper"),
+            "указатель переезжает на подписку, а не на вложение"
+        );
+    }
+
+    #[test]
+    fn unknown_uid_changes_nothing() {
+        let mut profiles = profiles_with(vec![item("keeper", "remote", "keeper.yaml")], "keeper");
+
+        assert!(profiles.plan_delete_item(&"ghost".into()).is_err());
+        let remaining: Vec<_> = profiles
+            .items
+            .iter()
+            .flatten()
+            .filter_map(|item| item.uid.clone())
+            .collect();
+        assert_eq!(remaining, ["keeper"], "неизвестный uid не трогает список");
+        assert_eq!(profiles.current.as_deref(), Some("keeper"));
+    }
+
+    #[tokio::test]
+    async fn empty_plan_needs_no_directory() {
+        // Пустой план обязан молча ничего не делать: он выполняется и в тех
+        // сборках, где каталог подписок ещё не готов.
+        PendingProfileFiles::default().cleanup().await;
     }
 }
