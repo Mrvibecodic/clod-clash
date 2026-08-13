@@ -48,6 +48,19 @@ impl Handle {
         Self::send_event(FrontendEvent::RefreshProfiles);
     }
 
+    /// clod: то же событие, что фронт слушает после ручного выбора узла.
+    /// Трей слал его сырым `emit` из рабочего потока — а именно от этого
+    /// `NotificationSystem` и страхует: отправка из воркера умеет схлопнуться
+    /// в дедлок с обработчиком WebKit, потому что обе стороны ждут друг друга.
+    pub fn refresh_proxy_config() {
+        Self::send_event(FrontendEvent::RefreshProxyConfig);
+    }
+
+    /// clod: ход обновления ядра — тот же путь через главный поток.
+    pub fn notify_core_update_progress(payload: serde_json::Value) {
+        Self::send_event(FrontendEvent::CoreUpdateProgress { payload });
+    }
+
     pub fn notify_profile_changed(profile_id: &String) {
         Self::send_event(FrontendEvent::ProfileChanged {
             current_profile_id: profile_id,

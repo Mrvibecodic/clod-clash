@@ -31,6 +31,13 @@ pub enum FrontendEvent<'a> {
         payload: serde_json::Value,
     },
     // clod:hwid end
+    /// clod: узел переключили мимо интерфейса (трей, автоматика) — списку
+    /// прокси надо перечитать состояние ядра.
+    RefreshProxyConfig,
+    /// clod: ход обновления ядра (скачивание, проверка, применение).
+    CoreUpdateProgress {
+        payload: serde_json::Value,
+    },
 }
 
 #[derive(Debug)]
@@ -58,6 +65,8 @@ impl NotificationSystem {
             // clod:hwid begin
             FrontendEvent::HwidNotice { payload } => ("clod://hwid-notice", Ok(payload)),
             // clod:hwid end
+            FrontendEvent::RefreshProxyConfig => ("verge://refresh-proxy-config", Ok(json!("yes"))),
+            FrontendEvent::CoreUpdateProgress { payload } => ("clod://core-update-progress", Ok(payload)),
         }
     }
 

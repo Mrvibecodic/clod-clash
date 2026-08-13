@@ -7,7 +7,6 @@ use crate::{
 use anyhow::{Result, bail};
 use clash_verge_logging::{Type, logging, logging_error};
 use smartstring::alias::String;
-use tauri::Emitter as _;
 
 /// Toggle proxy profile
 pub async fn toggle_proxy_profile(profile_index: String) {
@@ -31,7 +30,7 @@ pub async fn switch_proxy_node(group_name: &str, proxy_name: &str) {
                 group_name,
                 proxy_name
             );
-            let _ = handle::Handle::app_handle().emit("verge://refresh-proxy-config", ());
+            handle::Handle::refresh_proxy_config();
             let _ = tray::Tray::global().update_menu().await;
             return;
         }

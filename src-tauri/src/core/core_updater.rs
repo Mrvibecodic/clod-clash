@@ -26,7 +26,6 @@ use std::{
 use anyhow::{Context as _, Result, anyhow, bail};
 use serde::{Deserialize, Serialize};
 use sha2::Digest as _;
-use tauri::Emitter as _;
 
 use crate::{
     config::{Config, IVerge},
@@ -44,8 +43,6 @@ const DOWNLOAD_TIMEOUT_SECS: u64 = 300;
 const API_TIMEOUT_SECS: u64 = 30;
 const REACHABILITY_TIMEOUT_SECS: u64 = 15;
 const PROBE_TIMEOUT: Duration = Duration::from_secs(10);
-/// Progress event listened to by the settings dialog.
-const PROGRESS_EVENT: &str = "clod://core-update-progress";
 
 /// One update at a time; the flag also guards revert.
 static UPDATING: AtomicBool = AtomicBool::new(false);
@@ -375,7 +372,13 @@ pub async fn check_core_update() -> Result<CoreUpdateCheck> {
 
 fn emit_progress(phase: &str, received: u64, total: u64) {
     let payload = Progress { phase, received, total };
-    let _ = handle::Handle::app_handle().emit(PROGRESS_EVENT, &payload);
+    // clod: только через NotificationSystem — она отправляет с главного потока.
+    // Сырой `emit` отсюда шёл из задачи скачивания, то есть ровно из воркера,
+    // на котором отправка умеет схлопнуться в дедлок с WebKit.
+    match serde_json::to_value(&payload) {
+        Ok(value) => handle::Handle::notify_core_update_progress(value),
+        Err(err) => logging!(warn, Type::Core, "не удалось собрать событие прогресса: {err}"),
+    }
 }
 
 /// A blackholed direct route (packets dropped, not refused — the audience the
