@@ -1,7 +1,16 @@
 import HomeWorkRoundedIcon from '@mui/icons-material/HomeWorkRounded'
 import SupportAgentRoundedIcon from '@mui/icons-material/SupportAgentRounded'
 import TelegramIcon from '@mui/icons-material/Telegram'
-import { alpha, Box, Button, Stack, TextField, Typography } from '@mui/material'
+import {
+  alpha,
+  Box,
+  Button,
+  Checkbox,
+  FormControlLabel,
+  Stack,
+  TextField,
+  Typography,
+} from '@mui/material'
 import { useLockFn } from 'ahooks'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -47,6 +56,10 @@ const HomeSimplePage = () => {
   const [serverOpen, setServerOpen] = useState(false)
   const [intent, setIntent] = useState<'connecting' | 'disconnecting'>()
   const [subUrl, setSubUrl] = useState('')
+  // clod:chan — защищённый канал выбирается здесь же, при добавлении: признак
+  // липкий (снять его потом нельзя), а до первой подписки другого места, где
+  // его можно было бы поставить, у человека нет.
+  const [subSecure, setSubSecure] = useState(false)
 
   // clod:tun-ready — ошибка запоминается вместе с состоянием подключения, в
   // котором случилась, и перестаёт показываться, как только оно изменилось:
@@ -97,8 +110,11 @@ const HomeSimplePage = () => {
         console.error('[import] enhance after import failed:', error)
       }
     }
+    // Значение по умолчанию у `importProfile` — `{ with_proxy: true }`;
+    // повторяем его, иначе галочка молча меняла бы ещё и способ загрузки.
+    const option = subSecure ? { with_proxy: true, secure: true } : undefined
     try {
-      await importProfile(url)
+      await importProfile(url, option)
       await activate()
       setSubUrl('')
     } catch {
@@ -108,7 +124,7 @@ const HomeSimplePage = () => {
         // clod:panel-name — без имени: если вторая попытка всё-таки принесёт
         // подписку, назовёт её панель своим `profile-title`, а не адрес,
         // который пользователь вставил (он же ещё и с токеном).
-        await createProfile({ type: 'remote', url })
+        await createProfile({ type: 'remote', url, option })
         await activate()
         setSubUrl('')
       } catch (error) {
@@ -143,24 +159,42 @@ const HomeSimplePage = () => {
         <Typography color="text.secondary" sx={{ textAlign: 'center' }}>
           {t('home.pages.simple.welcomeHint')}
         </Typography>
-        <Stack direction="row" sx={{ gap: 1, width: '100%', maxWidth: 480 }}>
-          <TextField
-            fullWidth
-            size="small"
-            value={subUrl}
-            onChange={(event) => setSubUrl(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') void addSubscription()
-            }}
-            placeholder={t('home.pages.simple.subscriptionPlaceholder')}
+        <Stack sx={{ gap: 0.5, width: '100%', maxWidth: 480 }}>
+          <Stack direction="row" sx={{ gap: 1 }}>
+            <TextField
+              fullWidth
+              size="small"
+              value={subUrl}
+              onChange={(event) => setSubUrl(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') void addSubscription()
+              }}
+              placeholder={t('home.pages.simple.subscriptionPlaceholder')}
+            />
+            <Button
+              variant="contained"
+              disabled={!subUrl.trim()}
+              onClick={() => void addSubscription()}
+            >
+              {t('shared.actions.new')}
+            </Button>
+          </Stack>
+          {/* clod:chan — та же галочка, что в диалоге добавления подписки. */}
+          <FormControlLabel
+            sx={{ ml: 0.5, mr: 0 }}
+            control={
+              <Checkbox
+                size="small"
+                checked={subSecure}
+                onChange={(event) => setSubSecure(event.target.checked)}
+              />
+            }
+            label={
+              <Typography variant="body2" color="text.secondary">
+                {t('profiles.modals.profileForm.fields.secureChannel')}
+              </Typography>
+            }
           />
-          <Button
-            variant="contained"
-            disabled={!subUrl.trim()}
-            onClick={() => void addSubscription()}
-          >
-            {t('shared.actions.new')}
-          </Button>
         </Stack>
         {/* clod:design-v2 — боковой колонки нет: и расширенный режим, и сами
             настройки должны оставаться достижимы ещё до первой подписки. */}

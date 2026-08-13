@@ -344,6 +344,48 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
       ? t('shared.actions.add')
       : t('shared.actions.save')
 
+  /* clod:chan — галочка защищённого канала.
+     Поднять можно, снять нельзя: у уже защищённой подписки переключатель
+     заблокирован, и вернуть открытый режим можно только удалив профиль.
+     Иначе «сними галочку, у тебя не работает» становится способом заставить
+     клиента отдать адрес подписки посреднику открытым текстом.
+     При ДОБАВЛЕНИИ галочка стоит прямо под ссылкой, а не в «Дополнительно»:
+     решение принимается ровно один раз и потом необратимо — прятать его
+     за раскрывашкой значит терять его на ровном месте. */
+  const secureField = (
+    <>
+      <Controller
+        name="option.secure"
+        control={control}
+        render={({ field }) => (
+          <StyledBox>
+            <InputLabel>
+              {t('profiles.modals.profileForm.fields.secureChannel')}
+            </InputLabel>
+            <Switch
+              checked={!!field.value}
+              {...field}
+              disabled={!!secureLocked}
+              color="primary"
+            />
+          </StyledBox>
+        )}
+      />
+
+      {chanFingerprint && (
+        <Box sx={{ mt: -0.5, mb: 1, px: 0.5 }}>
+          <Typography variant="caption" color="text.secondary">
+            {t('profiles.modals.profileForm.fields.secureKey')}
+            {': '}
+            <Box component="span" sx={{ fontFamily: 'monospace' }}>
+              {chanFingerprint}
+            </Box>
+          </Typography>
+        </Box>
+      )}
+    </>
+  )
+
   const advanced = (
     <>
       <Controller
@@ -492,41 +534,9 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
             )}
           />
 
-          {/* clod:chan — галочка защищённого канала.
-              Поднять можно, снять нельзя: у уже защищённой подписки
-              переключатель заблокирован, и вернуть открытый режим можно
-              только удалив профиль. Иначе «сними галочку, у тебя не
-              работает» становится способом заставить клиента отдать адрес
-              подписки посреднику открытым текстом. */}
-          <Controller
-            name="option.secure"
-            control={control}
-            render={({ field }) => (
-              <StyledBox>
-                <InputLabel>
-                  {t('profiles.modals.profileForm.fields.secureChannel')}
-                </InputLabel>
-                <Switch
-                  checked={!!field.value}
-                  {...field}
-                  disabled={!!secureLocked}
-                  color="primary"
-                />
-              </StyledBox>
-            )}
-          />
-
-          {chanFingerprint && (
-            <Box sx={{ mt: -0.5, mb: 1, px: 0.5 }}>
-              <Typography variant="caption" color="text.secondary">
-                {t('profiles.modals.profileForm.fields.secureKey')}
-                {': '}
-                <Box component="span" sx={{ fontFamily: 'monospace' }}>
-                  {chanFingerprint}
-                </Box>
-              </Typography>
-            </Box>
-          )}
+          {/* При добавлении галочка живёт под ссылкой — здесь она осталась
+              бы вторым таким же переключателем. */}
+          {!isNew && secureField}
 
           <Controller
             name="option.self_proxy"
@@ -660,6 +670,8 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
               )}
             />
           )}
+
+          {isNew && isRemote && secureField}
 
           {isLocal && isNew && (
             <FileInput
