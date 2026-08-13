@@ -1091,6 +1091,12 @@ interface IVergeConfig {
   connect_on_launch?: boolean
   /** clod:tun-ready — app version whose automatic service setup was attempted */
   tun_setup_declined?: string
+  /**
+   * clod:fit-window — окно само садится по высоте содержимого, чтобы не было
+   * прокрутки. Включено по умолчанию; гаснет от ручного изменения размера
+   * окна, после чего размеры принадлежат пользователю.
+   */
+  window_fit_content?: boolean
   // clod: white-label branding
   /** display name in the sidebar; unset falls back to the product name */
   brand_name?: string

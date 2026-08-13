@@ -31,6 +31,7 @@ import { useConnectTargets } from '@/hooks/use-connect-targets'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useSessionUptime } from '@/hooks/use-session-uptime'
 import { useSimpleMode } from '@/hooks/use-simple-mode'
+import { useFitWindowToContent } from '@/hooks/use-window-fit'
 import { openWebUrl, updateProfile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 
@@ -109,6 +110,9 @@ const HomeAdvancedPage = () => {
   const { setSimpleMode } = useSimpleMode()
   const { connected, willConnect, toggleConnection } = useConnectTargets()
   const uptime = useSessionUptime(connected)
+  // clod:fit-window — окно тянется под содержимое, а на маленьком экране
+  // сначала поджимается вёрстка и только потом появляется прокрутка
+  const { fitRef, compact } = useFitWindowToContent()
 
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState<{ text: string; at: boolean }>()
@@ -178,11 +182,19 @@ const HomeAdvancedPage = () => {
   }
 
   return (
-    <Stack sx={{ height: '100%', overflowY: 'auto' }}>
+    // clod:fit-window — окно садится по высоте этого содержимого; ref нужен
+    // именно на прокручиваемом корне: его `scrollHeight` и есть полная высота.
+    <Stack ref={fitRef} sx={{ height: '100%', overflowY: 'auto' }}>
       {/* flexShrink: 0 — иначе при нехватке высоты весь дефицит уходит в
           единственного сжимаемого соседа, и шапка провайдера сплющивается
           вместо того, чтобы страница прокрутилась. */}
-      <Box sx={{ px: 2, pt: 2, flexShrink: 0 }}>
+      <Box
+        sx={{
+          px: compact ? 1.25 : 2,
+          pt: compact ? 1.25 : 2,
+          flexShrink: 0,
+        }}
+      >
         <ProviderHeader profile={current} />
       </Box>
 
@@ -205,9 +217,9 @@ const HomeAdvancedPage = () => {
             width: { md: 320 },
             flex: 'none',
             alignItems: 'center',
-            gap: 1.5,
-            px: 2,
-            py: 2,
+            gap: compact ? 1 : 1.5,
+            px: compact ? 1.25 : 2,
+            py: compact ? 1.25 : 2,
             borderRight: { md: 1 },
             borderColor: { md: 'divider' },
           }}
@@ -216,6 +228,7 @@ const HomeAdvancedPage = () => {
             state={state}
             uptime={uptime}
             errorText={errorText}
+            compact={compact}
             onToggle={() => void toggle()}
           />
 
@@ -248,7 +261,13 @@ const HomeAdvancedPage = () => {
 
         {/* subscription, traffic, quick access */}
         <Stack
-          sx={{ flex: 1, minWidth: 0, gap: 1.5, p: 2, pt: { xs: 0, md: 2 } }}
+          sx={{
+            flex: 1,
+            minWidth: 0,
+            gap: compact ? 1 : 1.5,
+            p: compact ? 1.25 : 2,
+            pt: { xs: 0, md: compact ? 1.25 : 2 },
+          }}
         >
           <ProviderBanners profile={current} onChanged={mutateProfiles} />
 
@@ -265,7 +284,7 @@ const HomeAdvancedPage = () => {
             sx={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
-              gap: 1.25,
+              gap: compact ? 1 : 1.25,
             }}
           >
             {current.portal_url ? (

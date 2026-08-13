@@ -39,6 +39,10 @@ export interface TranslationResources {
     }
     home: {
       components: {
+        banners: {
+          promoTitle: string
+          showFull: string
+        }
         clashInfo: {
           fields: {
             coreVersion: string
@@ -800,10 +804,12 @@ export interface TranslationResources {
               themeMode: string
               themeSetting: string
               trayClickEvent: string
+              windowFitContent: string
             }
             hints: {
               deviceIdentity: string
               subNotifications: string
+              windowFitContent: string
             }
             options: {
               sysproxy: string

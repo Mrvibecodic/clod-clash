@@ -132,6 +132,19 @@ pub async fn apply_window_size_for_mode(simple: bool) -> CmdResult<()> {
 }
 // clod:mode-window end
 
+// clod:fit-window begin
+/// Посадить окно на высоту содержимого (логические пиксели) и вернуть потолок
+/// рабочей области: выше него фронт включает компактную вёрстку, а если и она
+/// не помогла — остаётся прокрутка.
+#[tauri::command]
+pub async fn fit_window_to_content(content_height: f64) -> CmdResult<f64> {
+    let Some(window) = crate::utils::window_manager::WindowManager::get_main_window() else {
+        return Ok(0.0);
+    };
+    Ok(crate::utils::resolve::window::fit_window_to_content(&window, content_height).await)
+}
+// clod:fit-window end
+
 // clod:traffic-estimate — сколько клиент насчитал сверх данных подписки.
 // Само по себе это число ничего не решает: статусы «трафик закончился» и
 // критические состояния по-прежнему считаются только по подписке.

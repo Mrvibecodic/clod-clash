@@ -154,12 +154,18 @@ pub async fn save_window_size_for_mode(window: &WebviewWindow, simple: bool) {
     if restored_window_size_is_too_small(logical.width as u32, logical.height as u32) {
         return;
     }
+    // clod:fit-window — пока окно ведёт автоподгон, его высоту в конфиг писать
+    // НЕЛЬЗЯ: там оседала бы высота последнего баннера, и «размер режима»
+    // превращался бы в память случайного содержимого. Размер запоминается с
+    // того момента, как пользователь взял управление на себя (ручной ресайз
+    // гасит автоподгон). Позиция — всегда его выбор, её сохраняем в любом случае.
+    let size = (!window_fit_content_enabled().await).then_some((logical.width as u32, logical.height as u32));
     // Physical outer position: monitor coordinates are physical, and the
     // outer frame is what the user actually placed on the screen.
     let pos = window.outer_position().ok().map(|pos| (pos.x, pos.y));
     let patch = crate::config::IVerge {
-        window_size_simple: simple.then_some((logical.width as u32, logical.height as u32)),
-        window_size_advanced: (!simple).then_some((logical.width as u32, logical.height as u32)),
+        window_size_simple: if simple { size } else { None },
+        window_size_advanced: if simple { None } else { size },
         window_pos_simple: if simple { pos } else { None },
         window_pos_advanced: if simple { None } else { pos },
         ..Default::default()
@@ -241,6 +247,107 @@ fn keep_window_on_screen(window: &WebviewWindow) {
     }
 }
 // clod:mode-window end
+
+// clod:fit-window begin
+/// Дыхание между нижним краем окна и краем рабочей области: окно, прижатое
+/// вплотную к панели задач, выглядит застрявшим.
+const FIT_BOTTOM_MARGIN: f64 = 8.0;
+
+/// Автоподгон окна под содержимое. Работает из коробки; выключается либо
+/// тумблером в настройках, либо ручным изменением размера окна — с этого
+/// момента размеры принадлежат пользователю, и прокрутка в них законна.
+pub async fn window_fit_content_enabled() -> bool {
+    Config::verge().await.latest_arc().window_fit_content.unwrap_or(true)
+}
+
+/// Наибольшая логическая высота СОДЕРЖИМОГО, которая помещается в рабочую
+/// область текущего монитора: из неё вычтены рамка с заголовком окна и запас
+/// снизу. Это и есть потолок, выше которого прокрутки не избежать.
+fn content_height_ceiling(window: &WebviewWindow) -> Option<f64> {
+    let monitor = match window.current_monitor() {
+        Ok(Some(monitor)) => monitor,
+        _ => window.primary_monitor().ok().flatten()?,
+    };
+    let (Ok(outer), Ok(inner)) = (window.outer_size(), window.inner_size()) else {
+        return None;
+    };
+    let scale = window.scale_factor().unwrap_or(1.0);
+    let area_height = f64::from(monitor.work_area().size.height) / scale;
+    // Рамка и заголовок: у окна без декораций это ноль, у обычного — высота
+    // системной шапки. Константой это писать нельзя, она разная на каждой ОС.
+    let frame = f64::from(outer.height.saturating_sub(inner.height)) / scale;
+    Some((area_height - frame - FIT_BOTTOM_MARGIN).max(MINIMAL_HEIGHT))
+}
+
+/// Высота окна, которую применяем: столько, сколько просит содержимое, но не
+/// ниже минимума окна и не выше потолка рабочей области.
+const fn clamp_fit_height(content: f64, ceiling: f64) -> f64 {
+    if !content.is_finite() {
+        return MINIMAL_HEIGHT;
+    }
+    content.clamp(MINIMAL_HEIGHT, ceiling.max(MINIMAL_HEIGHT))
+}
+
+/// Посадить окно ровно на высоту содержимого и вернуть потолок, чтобы фронт
+/// знал, когда пора включать компактную вёрстку.
+///
+/// Ширину не трогаем: вширь содержимое переливается само, а дёрганье окна по
+/// горизонтали пользователь читает как дефект.
+pub async fn fit_window_to_content(window: &WebviewWindow, content_height: f64) -> f64 {
+    let ceiling = content_height_ceiling(window).unwrap_or(MINIMAL_HEIGHT);
+    if window.is_maximized().unwrap_or(false) || window.is_fullscreen().unwrap_or(false) {
+        return ceiling;
+    }
+    if !window_fit_content_enabled().await {
+        return ceiling;
+    }
+    let target = clamp_fit_height(content_height, ceiling);
+    let Ok(inner) = window.inner_size() else { return ceiling };
+    let scale = window.scale_factor().unwrap_or(1.0);
+    let current: tauri::LogicalSize<f64> = inner.to_logical(scale);
+    // Разница меньше пикселя — не трогаем окно вовсе: каждый `set_size`
+    // порождает событие `onResized`, а на нём висит и сохранение размера.
+    if (current.height - target).abs() < 1.0 {
+        return ceiling;
+    }
+    logging_error!(
+        Type::Window,
+        window.set_size(tauri::LogicalSize::new(current.width, target))
+    );
+    // Окно растёт вниз от левого верхнего угла — у нижнего края экрана его
+    // надо подвинуть вверх, иначе прибавка уедет под панель задач.
+    keep_window_on_screen(window);
+    ceiling
+}
+
+#[cfg(test)]
+mod fit_tests {
+    use super::{MINIMAL_HEIGHT, clamp_fit_height};
+
+    #[test]
+    fn content_height_wins_between_the_bounds() {
+        assert!((clamp_fit_height(720.0, 900.0) - 720.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn ceiling_caps_tall_content() {
+        assert!((clamp_fit_height(1200.0, 900.0) - 900.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn never_below_the_window_minimum() {
+        assert!((clamp_fit_height(120.0, 900.0) - MINIMAL_HEIGHT).abs() < f64::EPSILON);
+        // Экран ниже минимального окна: минимум важнее потолка, иначе
+        // `clamp` получил бы перевёрнутые границы и запаниковал.
+        assert!((clamp_fit_height(700.0, 300.0) - MINIMAL_HEIGHT).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn broken_measurement_falls_back_to_the_minimum() {
+        assert!((clamp_fit_height(f64::NAN, 900.0) - MINIMAL_HEIGHT).abs() < f64::EPSILON);
+    }
+}
+// clod:fit-window end
 
 /// Создаёт новое окно WebView
 pub async fn build_new_window() -> Result<WebviewWindow, String> {

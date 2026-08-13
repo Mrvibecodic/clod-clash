@@ -321,6 +321,15 @@ pub struct IVerge {
     /// Last window position (physical `[x, y]`) in the advanced mode.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub window_pos_advanced: Option<(i32, i32)>,
+
+    /// clod:fit-window — окно само садится по высоте содержимого, чтобы
+    /// прокрутки на главном экране не было вовсе. Включено по умолчанию
+    /// (`None` читается как «включено»), то есть работает сразу после
+    /// установки или обновления. Выключается тумблером в настройках ИЛИ
+    /// первым же ручным изменением размера окна — с этого момента размеры
+    /// принадлежат пользователю, и прокрутка в них законна.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub window_fit_content: Option<bool>,
     // clod:simple-mode end
 
     // clod:core-updater begin
@@ -727,6 +736,7 @@ impl IVerge {
         patch!(window_size_advanced);
         patch!(window_pos_simple);
         patch!(window_pos_advanced);
+        patch!(window_fit_content);
         // clod:simple-mode end
         // clod:core-updater begin
         patch!(use_managed_core);

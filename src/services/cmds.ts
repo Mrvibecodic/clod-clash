@@ -550,6 +550,12 @@ export const applyWindowSizeForMode = async (simple: boolean) => {
   return invoke<void>('apply_window_size_for_mode', { simple })
 }
 
+// clod:fit-window — посадить окно на высоту содержимого; возвращает потолок
+// (максимальную высоту содержимого, которая помещается в рабочую область).
+export const fitWindowToContent = async (contentHeight: number) => {
+  return invoke<number>('fit_window_to_content', { contentHeight })
+}
+
 // clod:traffic-estimate — сколько байт клиент насчитал сверх данных подписки
 export const getTrafficEstimate = async () => {
   return invoke<ITrafficEstimate>('get_traffic_estimate')

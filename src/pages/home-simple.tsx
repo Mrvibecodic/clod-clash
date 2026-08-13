@@ -22,6 +22,7 @@ import { useConnectTargets } from '@/hooks/use-connect-targets'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useSessionUptime } from '@/hooks/use-session-uptime'
 import { useSimpleMode } from '@/hooks/use-simple-mode'
+import { useFitWindowToContent } from '@/hooks/use-window-fit'
 import {
   createProfile,
   enhanceProfiles,
@@ -37,6 +38,9 @@ const HomeSimplePage = () => {
   const { connected, willConnect, toggleConnection } = useConnectTargets()
   const { setSimpleMode } = useSimpleMode()
   const uptime = useSessionUptime(connected)
+  // clod:fit-window — окно тянется под содержимое, а на маленьком экране
+  // сначала поджимается вёрстка и только потом появляется прокрутка
+  const { fitRef, compact } = useFitWindowToContent()
 
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState<{ text: string; at: boolean }>()
@@ -126,6 +130,7 @@ const HomeSimplePage = () => {
   if (!current) {
     return (
       <Stack
+        ref={fitRef}
         sx={{
           height: '100%',
           alignItems: 'center',
@@ -186,7 +191,9 @@ const HomeSimplePage = () => {
     current.support_url?.startsWith('tg:')
 
   return (
-    <Stack sx={{ height: '100%', overflowY: 'auto' }}>
+    // clod:fit-window — окно садится по высоте этого содержимого; ref нужен
+    // именно на прокручиваемом корне: его `scrollHeight` и есть полная высота.
+    <Stack ref={fitRef} sx={{ height: '100%', overflowY: 'auto' }}>
       {/* One column at every window size: it fills a narrow window and stays
           a readable centred strip on a large display. */}
       {/* clod: gap 1.5, не 2 — после появления строки режима под кнопкой
@@ -194,10 +201,13 @@ const HomeSimplePage = () => {
       {/* clod: `1 0 auto`, а не `1` — с базой 0 колонка упиралась в высоту
           окна и лишнее не прокручивалось, а сжимало карточки (тот же дефект,
           что в расширенном режиме). */}
+      {/* clod:fit-window — плотная раскладка включается ТОЛЬКО когда окно уже
+          упёрлось в рабочую область экрана: это последняя попытка обойтись
+          без прокрутки. */}
       <Stack
         sx={{
-          p: 2,
-          gap: 1.5,
+          p: compact ? 1.25 : 2,
+          gap: compact ? 1 : 1.5,
           width: '100%',
           maxWidth: 520,
           mx: 'auto',
@@ -208,11 +218,18 @@ const HomeSimplePage = () => {
 
         <ProviderBanners profile={current} onChanged={mutateProfiles} />
 
-        <Box sx={{ display: 'flex', justifyContent: 'center', pt: 0.5 }}>
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'center',
+            pt: compact ? 0 : 0.5,
+          }}
+        >
           <ConnectButton
             state={state}
             uptime={uptime}
             errorText={errorText}
+            compact={compact}
             onToggle={() => void toggle()}
           />
         </Box>

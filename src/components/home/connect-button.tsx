@@ -15,10 +15,17 @@ interface Props {
   uptime?: number
   errorText?: string
   disabled?: boolean
+  /**
+   * clod:fit-window — плотная раскладка: экран уже упёрся в рабочую область
+   * монитора, и кнопка отдаёт часть своего роста, лишь бы не появилась
+   * прокрутка. Ставится автоматикой подгона окна, не пользователем.
+   */
+  compact?: boolean
   onToggle: () => void
 }
 
 const SIZE = 160
+const COMPACT_SIZE = 124
 
 const formatUptime = (seconds: number) => {
   const total = Math.max(0, Math.floor(seconds))
@@ -43,9 +50,11 @@ export const ConnectButton = ({
   uptime,
   errorText,
   disabled,
+  compact,
   onToggle,
 }: Props) => {
   const { t } = useTranslation()
+  const size = compact ? COMPACT_SIZE : SIZE
 
   const palette = {
     off: 'text.disabled',
@@ -94,8 +103,8 @@ export const ConnectButton = ({
         disabled={disabled}
         onClick={onToggle}
         sx={(theme) => ({
-          width: SIZE,
-          height: SIZE,
+          width: size,
+          height: size,
           borderRadius: '50%',
           border: `2px solid ${theme.palette.divider}`,
           borderColor: color,
@@ -130,9 +139,9 @@ export const ConnectButton = ({
         })}
       >
         {state === 'connecting' || state === 'disconnecting' ? (
-          <CircularProgress size={56} color="inherit" />
+          <CircularProgress size={compact ? 44 : 56} color="inherit" />
         ) : (
-          <PowerSettingsNewRoundedIcon sx={{ fontSize: 64 }} />
+          <PowerSettingsNewRoundedIcon sx={{ fontSize: compact ? 50 : 64 }} />
         )}
       </Box>
 

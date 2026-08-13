@@ -69,6 +69,7 @@ const SettingVergeBasic = ({ onError, variant = 'all' }: Props) => {
     start_page,
     enable_sub_notifications,
     enable_hwid,
+    window_fit_content,
   } = verge ?? {}
   // clod: показываем в тултипе фактические значения, а не описание полей
   const { data: identity, mutate: mutateIdentity } = useSWR(
@@ -166,6 +167,35 @@ const SettingVergeBasic = ({ onError, variant = 'all' }: Props) => {
               onFormat={(_e: any, checked: boolean) => checked}
               onChange={(advanced) => onChangeData({ simple_mode: !advanced })}
               onGuard={(advanced) => setSimpleMode(!advanced)}
+            >
+              <Switch edge="end" />
+            </GuardState>
+          </SettingItem>
+
+          {/* clod:fit-window — окно садится по содержимому, чтобы прокрутки не
+              было вовсе. Работает из коробки и гаснет само, стоит потянуть
+              окно за край: главный в размерах — пользователь. Тумблер — то
+              единственное, чем автомат возвращают обратно, иначе один
+              случайный ресайз отнимал бы его навсегда. */}
+          <SettingItem
+            label={t('settings.components.verge.basic.fields.windowFitContent')}
+            extra={
+              <TooltipIcon
+                title={t(
+                  'settings.components.verge.basic.hints.windowFitContent',
+                )}
+              />
+            }
+          >
+            <GuardState
+              value={window_fit_content ?? true}
+              valueProps="checked"
+              onCatch={onError}
+              onFormat={(_e: any, checked: boolean) => checked}
+              onChange={(checked) =>
+                onChangeData({ window_fit_content: checked })
+              }
+              onGuard={(checked) => patchVerge({ window_fit_content: checked })}
             >
               <Switch edge="end" />
             </GuardState>
