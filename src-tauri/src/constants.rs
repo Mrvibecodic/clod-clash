@@ -57,6 +57,12 @@ pub mod timing {
     pub const SERVICE_WAIT_MAX: Duration = Duration::from_millis(15000);
     pub const SERVICE_WAIT_INTERVAL: Duration = Duration::from_millis(200);
 
+    /// clod: сколько ждать ответа на ПОВТОРНУЮ просьбу подготовить поколение.
+    /// Служба фиксирует поколение ДО ответа, поэтому потерянный ответ ещё не
+    /// значит, что подготовки не было: переспрашиваем, прежде чем менять
+    /// мягкую перезагрузку на полный перезапуск ядра.
+    pub const STAGE_CONFIRM_TIMEOUT: Duration = Duration::from_secs(5);
+
     // После отката к sidecar продолжаем ждать готовности службы и пытаться передать управление.
     pub const SERVICE_HANDOFF_WINDOW: Duration = Duration::from_secs(120);
     pub const SERVICE_HANDOFF_INTERVAL: Duration = Duration::from_secs(2);

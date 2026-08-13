@@ -247,11 +247,21 @@ impl CoreManager {
             return StagedPath::NotStaged;
         }
 
-        match service::stage_runtime_by_service(path).await {
-            Ok(service::StageRequest::Answered(StageRuntimeOutcome::Staged { config_path })) => {
+        let attempt = stage_with_confirmation(crate::constants::timing::STAGE_CONFIRM_TIMEOUT, || async {
+            match service::stage_runtime_by_service(path).await {
+                Ok(request) => StageAttempt::Answered(request),
+                Err(error) => StageAttempt::Unanswered(format!("{error:#}")),
+            }
+        })
+        .await;
+
+        match attempt {
+            StageAttempt::Answered(service::StageRequest::Answered(StageRuntimeOutcome::Staged { config_path })) => {
                 StagedPath::Staged(config_path.into())
             }
-            Ok(service::StageRequest::Answered(StageRuntimeOutcome::RestartRequired { reason })) => {
+            StageAttempt::Answered(service::StageRequest::Answered(StageRuntimeOutcome::RestartRequired {
+                reason,
+            })) => {
                 logging!(
                     info,
                     Type::Core,
@@ -259,7 +269,7 @@ impl CoreManager {
                 );
                 StagedPath::NotStaged
             }
-            Ok(service::StageRequest::Refused { code, message }) => {
+            StageAttempt::Answered(service::StageRequest::Refused { code, message }) => {
                 if service::StageRequest::is_about_the_bundle(code) {
                     StagedPath::RefusedTheBundle(message.to_string())
                 } else {
@@ -271,15 +281,53 @@ impl CoreManager {
                     StagedPath::NotStaged
                 }
             }
-            Err(error) => {
+            StageAttempt::Unanswered(reason) => {
                 logging!(
                     warn,
                     Type::Core,
-                    "Failed to stage the service runtime ({error:#}); taking the restart path"
+                    "Failed to stage the service runtime ({reason}); taking the restart path"
                 );
                 StagedPath::NotStaged
             }
         }
+    }
+}
+
+/// clod: чем закончилась просьба подготовить поколение.
+///
+/// Отказ и «нужен перезапуск» — это ОТВЕТЫ: служба всё решила сама. Молчание —
+/// другое дело: поколение фиксируется ДО ответа, поэтому потерянный ответ не
+/// означает, что подготовки не было.
+enum StageAttempt {
+    Answered(crate::core::service::StageRequest),
+    Unanswered(std::string::String),
+}
+
+/// Спросить ещё раз, если служба промолчала.
+///
+/// Полный перезапуск ядра рвёт все соединения, и менять на него мягкую
+/// перезагрузку из-за потерянного по дороге ответа — слишком дорого. Повтор
+/// безопасен: подготовка идемпотентна, служба просто зафиксирует поколение
+/// заново. Второй вопрос ограничен по времени, чтобы молчащая служба не
+/// задержала применение конфига насовсем.
+async fn stage_with_confirmation<Ask, Fut>(confirm_within: std::time::Duration, ask: Ask) -> StageAttempt
+where
+    Ask: Fn() -> Fut,
+    Fut: std::future::Future<Output = StageAttempt>,
+{
+    let first = match ask().await {
+        StageAttempt::Unanswered(reason) => reason,
+        answered => return answered,
+    };
+    logging!(
+        warn,
+        Type::Core,
+        "Staging did not answer ({first}); asking once more before restarting the core"
+    );
+    match tokio::time::timeout(confirm_within, ask()).await {
+        Ok(StageAttempt::Unanswered(again)) => StageAttempt::Unanswered(format!("{first}; asked again: {again}")),
+        Ok(answered) => answered,
+        Err(_) => StageAttempt::Unanswered(format!("{first}; the second ask did not answer either")),
     }
 }
 
@@ -331,11 +379,103 @@ fn listeners_need_recreate(prev: Option<&serde_yaml_ng::Mapping>, next: Option<&
 
 #[cfg(test)]
 mod tests {
-    use super::listeners_need_recreate;
+    use super::{StageAttempt, listeners_need_recreate, stage_with_confirmation};
+    use crate::core::service::StageRequest;
+    use clash_verge_service_ipc::StageRuntimeOutcome;
+    use std::{
+        sync::atomic::{AtomicUsize, Ordering},
+        time::Duration,
+    };
 
     #[allow(clippy::expect_used)]
     fn mapping(yaml: &str) -> serde_yaml_ng::Mapping {
         serde_yaml_ng::from_str(yaml).expect("test yaml should parse")
+    }
+
+    const CONFIRM_WITHIN: Duration = Duration::from_millis(200);
+
+    fn staged() -> StageAttempt {
+        StageAttempt::Answered(StageRequest::Answered(StageRuntimeOutcome::Staged {
+            config_path: "/service/runtime.generation-1/config.yaml".to_owned(),
+        }))
+    }
+
+    fn staged_path(attempt: &StageAttempt) -> Option<&str> {
+        match attempt {
+            StageAttempt::Answered(StageRequest::Answered(StageRuntimeOutcome::Staged { config_path })) => {
+                Some(config_path.as_str())
+            }
+            _ => None,
+        }
+    }
+
+    #[tokio::test]
+    async fn an_answered_request_is_not_asked_twice() {
+        let asks = AtomicUsize::new(0);
+        let attempt = stage_with_confirmation(CONFIRM_WITHIN, || {
+            asks.fetch_add(1, Ordering::Relaxed);
+            async { staged() }
+        })
+        .await;
+
+        assert!(staged_path(&attempt).is_some());
+        assert_eq!(asks.load(Ordering::Relaxed), 1, "лишний запрос службе не нужен");
+    }
+
+    #[tokio::test]
+    async fn a_lost_answer_is_confirmed_by_asking_again() {
+        // Ради этого случая всё и сделано: служба зафиксировала поколение, а
+        // ответ не доехал. Полный перезапуск ядра здесь был бы напрасным.
+        let asks = AtomicUsize::new(0);
+        let attempt = stage_with_confirmation(CONFIRM_WITHIN, || {
+            let first = asks.fetch_add(1, Ordering::Relaxed) == 0;
+            async move {
+                if first {
+                    StageAttempt::Unanswered("ipc timeout".to_owned())
+                } else {
+                    staged()
+                }
+            }
+        })
+        .await;
+
+        assert_eq!(staged_path(&attempt), Some("/service/runtime.generation-1/config.yaml"));
+        assert_eq!(asks.load(Ordering::Relaxed), 2);
+    }
+
+    #[tokio::test]
+    async fn two_silences_keep_the_restart_path_and_name_both() {
+        let attempt = stage_with_confirmation(CONFIRM_WITHIN, || async {
+            StageAttempt::Unanswered("ipc timeout".to_owned())
+        })
+        .await;
+
+        let StageAttempt::Unanswered(reason) = attempt else {
+            unreachable!("молчание не должно превращаться в ответ")
+        };
+        assert!(reason.contains("asked again"), "в причине видно обе попытки: {reason}");
+    }
+
+    #[tokio::test]
+    async fn a_hanging_second_ask_does_not_block_the_config() {
+        let asks = AtomicUsize::new(0);
+        let attempt = stage_with_confirmation(CONFIRM_WITHIN, || {
+            let first = asks.fetch_add(1, Ordering::Relaxed) == 0;
+            async move {
+                if first {
+                    return StageAttempt::Unanswered("ipc timeout".to_owned());
+                }
+                // Второй вопрос повис: служба не отвечает вовсе.
+                tokio::time::sleep(Duration::from_secs(30)).await;
+                staged()
+            }
+        })
+        .await;
+
+        let StageAttempt::Unanswered(reason) = attempt else {
+            unreachable!("зависший повтор обязан упереться в таймаут")
+        };
+        assert!(reason.contains("did not answer either"));
     }
 
     #[test]
