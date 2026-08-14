@@ -1,14 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-  <!-- Placeholder brand mark: a friendly robot head. Replaced per provider
-       through the white-label branding (verge: brand_logo). -->
-  <circle cx="12" cy="2.4" r="1.1"/>
-  <rect x="11.55" y="3.2" width="0.9" height="2.2" rx="0.45"/>
-  <rect x="4.5" y="5.6" width="15" height="12.6" rx="3.4"/>
-  <circle cx="9.1" cy="10.6" r="1.5" fill="#fff"/>
-  <circle cx="14.9" cy="10.6" r="1.5" fill="#fff"/>
-  <rect x="8.3" y="14.2" width="7.4" height="1.5" rx="0.75" fill="#fff"/>
-  <rect x="2.2" y="9.4" width="1.6" height="5" rx="0.8"/>
-  <rect x="20.2" y="9.4" width="1.6" height="5" rx="0.8"/>
-  <rect x="8.2" y="18.9" width="2.2" height="2.7" rx="1.1"/>
-  <rect x="13.6" y="18.9" width="2.2" height="2.7" rx="1.1"/>
+  <!-- Placeholder brand mark v2: the same friendly robot, bigger head, no feet,
+       on a strict grid. Eyes and mouth are cut out (even-odd), so the mark
+       stays crisp in any single colour. Replaced per provider through the
+       white-label branding (verge: brand_logo). -->
+  <circle cx="12" cy="5.98" r="1.22"/>
+  <rect x="11.62" y="6.68" width="0.75" height="2.25" rx="0.38"/>
+  <rect x="3.0" y="11.98" width="1.41" height="4.22" rx="0.7"/>
+  <rect x="19.59" y="11.98" width="1.41" height="4.22" rx="0.7"/>
+  <path fill-rule="evenodd" d="M8.25 8.93H15.76A3.09 3.09 0 0 1 18.85 12.02V16.15A3.09 3.09 0 0 1 15.76 19.24H8.25A3.09 3.09 0 0 1 5.16 16.15V12.02A3.09 3.09 0 0 1 8.25 8.93ZM9.19 11.79a1.45 1.45 0 1 1 0 2.9a1.45 1.45 0 1 1 0 -2.9ZM14.81 11.79a1.45 1.45 0 1 1 0 2.9a1.45 1.45 0 1 1 0 -2.9ZM9.75 16.06H14.25A0.56 0.56 0 0 1 14.81 16.62V16.62A0.56 0.56 0 0 1 14.25 17.18H9.75A0.56 0.56 0 0 1 9.19 16.62V16.62A0.56 0.56 0 0 1 9.75 16.06Z"/>
 </svg>
