@@ -1,6 +1,8 @@
-import { getVergeConfig } from './cmds'
+import { getVergeConfig, patchVergeConfig } from './cmds'
 import {
   cacheLanguage,
+  changeLanguage,
+  forgetCachedLanguage,
   getCachedLanguage,
   initializeLanguage,
   resolveLanguage,
@@ -87,11 +89,59 @@ const preloadLanguage = async (
     return resolved
   }
 
-  const browserLanguage = resolveLanguage(
+  // clod:language — системная локаль здесь НЕ запоминается.
+  //
+  // Раньше её клали в кэш браузера наравне с выбором пользователя, а кэш при
+  // следующем запуске главнее конфига. Достаточно было одного запуска, на
+  // котором конфиг не успел прочитаться (на Linux это заметили после
+  // обновления, когда хранилище вебвью уезжает вместе со сборкой), — и язык
+  // системы закреплялся навсегда, перебивая выбранный. Теперь это лишь
+  // временный ответ до того, как ответит конфиг.
+  return resolveLanguage(
     typeof navigator !== 'undefined' ? navigator.language : undefined,
   )
-  cacheLanguage(browserLanguage)
-  return browserLanguage
+}
+
+/**
+ * clod:language — конфиг главнее кэша, а первый запуск закрепляет выбор.
+ *
+ * Кэш в хранилище вебвью нужен ровно для первой отрисовки: спрашивать бэкенд
+ * до неё — это белый экран. Но право решать у него забрано: как только конфиг
+ * прочитан, язык берётся из него. Если же языка в конфиге нет вовсе (первая
+ * установка), туда записывается тот, с которым приложение открылось, — дальше
+ * он не зависит ни от системной локали, ни от хранилища вебвью.
+ */
+const reconcileLanguage = async (
+  config: IVergeConfig | null,
+  applied: string,
+) => {
+  // Конфиг не прочитался — ничего не решаем и СТИРАЕМ запомненное: иначе
+  // догадка этого запуска пережила бы перезапуск и стала бы главнее конфига.
+  if (!config) {
+    forgetCachedLanguage()
+    return
+  }
+
+  const fromConfig = config.language ? resolveLanguage(config.language) : ''
+  if (fromConfig) {
+    if (fromConfig === applied) {
+      cacheLanguage(fromConfig)
+      return
+    }
+    try {
+      await changeLanguage(fromConfig)
+    } catch (error) {
+      console.warn('[preload.ts] Failed to apply language from config:', error)
+    }
+    return
+  }
+
+  try {
+    await patchVergeConfig({ language: applied })
+    cacheLanguage(applied)
+  } catch (error) {
+    console.warn('[preload.ts] Failed to store the initial language:', error)
+  }
 }
 
 export const preloadAppData = async () => {
@@ -101,6 +151,7 @@ export const preloadAppData = async () => {
     configPromise,
     initializeLanguage(initialLanguage),
   ])
+  await reconcileLanguage(config, initialLanguage)
   const initialThemeMode = resolveThemeMode(config)
   return { initialThemeMode }
 }

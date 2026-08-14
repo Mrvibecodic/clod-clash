@@ -64,6 +64,25 @@ export const cacheLanguage = (language: string) => {
   }
 }
 
+/**
+ * clod:language — забыть запомненный язык, если это был не выбор пользователя.
+ *
+ * `changeLanguage` запоминает язык всегда — иначе первая отрисовка после
+ * перезапуска ждала бы ответа бэкенда. Но если конфиг на этом запуске не
+ * прочитался, запомнена всего лишь системная локаль, и оставлять её нельзя:
+ * при следующем запуске кэш отвечает раньше конфига и перебивает выбор.
+ */
+export const forgetCachedLanguage = () => {
+  const storage = getLanguageStorage()
+  if (!storage) return
+
+  try {
+    storage.removeItem(LANGUAGE_STORAGE_KEY)
+  } catch (error) {
+    console.warn('[i18n] Failed to forget cached language:', error)
+  }
+}
+
 export const getCachedLanguage = () => {
   const storage = getLanguageStorage()
   if (!storage) return undefined
