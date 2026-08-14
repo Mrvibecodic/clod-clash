@@ -8,6 +8,34 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.0.31-alpha
+
+<!-- lang:en -->
+
+### Changed
+
+- A visual polish pass across the whole app: one border colour instead of two different ones, one corner radius scale, one motion curve — cards, tiles and rows now respond to the pointer smoothly instead of snapping
+- Switching between light and dark theme cross-fades instead of flashing
+- Dialogs, menus and the server drawer visibly lift above the page again; the selected subscription card got its highlight ring back
+- Keyboard navigation is finally visible: an accent-coloured focus ring follows the Tab key. Mouse clicks stay clean, with no rings
+- In the dark theme every panel is the same shade — cards, node rows and dialogs no longer disagree with each other; accent colours are lifted slightly so they stay readable on dark
+- Numbers in traffic, network and latency readouts use tabular digits and no longer twitch as they update; log levels became small badges
+- A new app icon: the same robot, redrawn on a strict grid — larger head, crisper at small sizes, a smoother indigo-violet gradient
+
+<!-- lang:ru -->
+
+### Изменено
+
+- Визуальный проход по всему приложению: одна линия вместо двух разных, одна шкала скруглений, одна кривая движения — карточки, плитки и строки отвечают на курсор плавно, а не рывком
+- Светлая и тёмная тема переключаются кросс-фейдом, без вспышки
+- Диалоги, меню и шторка серверов снова заметно отрываются от страницы; к выбранной подписке вернулось кольцо выделения
+- Навигацию с клавиатуры теперь видно: за Tab следует кольцо цвета акцента. Мышью — как раньше, без рамок
+- В тёмной теме все панели одного оттенка — карточки, строки узлов и диалоги больше не спорят друг с другом; акцентные цвета чуть подняты, чтобы читались на тёмном
+- Цифры трафика, сети и задержек стали табличными и не дёргаются при обновлении; уровни в логах превратились в аккуратные бейджи
+- Новая иконка приложения: тот же робот, перерисованный по строгой сетке — крупнее голова, чётче на мелких размерах, ровнее градиент индиго-фиолетовый
+
+---
+
 ## v0.0.30-alpha
 
 <!-- lang:en -->
