@@ -166,6 +166,9 @@
       "title": "Pengaturan lanjutan",
       "hint": "Inti, jaringan, diagnostik, dan layar teknis",
       "interface": "Tampilan dan perilaku"
+    },
+    "basicGroup": {
+      "hint": "Bahasa, tema, tampilan, dan notifikasi"
     }
   },
   "components": {

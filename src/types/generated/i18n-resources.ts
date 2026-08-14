@@ -1303,6 +1303,9 @@ export interface TranslationResources {
           light: string
           system: string
         }
+        basicGroup: {
+          hint: string
+        }
         clash: {
           form: {
             fields: {
@@ -1602,6 +1605,15 @@ export interface TranslationResources {
         matchWholeWord: string
         resetInput: string
         useRegex: string
+      }
+      providerLinks: {
+        bot: string
+        guide: string
+        monitor: string
+        portal: string
+        subtitle: string
+        support: string
+        title: string
       }
       statuses: {
         disabled: string

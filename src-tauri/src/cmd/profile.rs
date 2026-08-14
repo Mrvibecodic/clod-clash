@@ -193,7 +193,9 @@ pub async fn restore_selected_nodes() -> CmdResult {
 /// Обновляет конфиг
 #[tauri::command]
 pub async fn update_profile(index: String, option: Option<PrfOption>) -> CmdResult {
-    match feat::update_profile(&index, option.as_ref(), true, true, true).await {
+    // clod:provider-links — `Box::pin`: карточка профиля подросла на ссылки
+    // провайдера, и клиппи справедливо не хочет держать такой future на стеке.
+    match Box::pin(feat::update_profile(&index, option.as_ref(), true, true, true)).await {
         Ok(_) => Ok(()),
         Err(e) => {
             logging!(error, Type::Cmd, "{}", e);

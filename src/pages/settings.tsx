@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import { BasePage } from '@/components/base'
 import { SettingItem } from '@/components/setting/mods/setting-comp'
 import SettingClash from '@/components/setting/setting-clash'
+import { SettingProviderLinks } from '@/components/setting/setting-provider-links'
 import SettingSystem from '@/components/setting/setting-system'
 import SettingTools from '@/components/setting/setting-tools'
 import SettingVergeAdvanced from '@/components/setting/setting-verge-advanced'
@@ -45,6 +46,10 @@ const SettingPage = () => {
   // настройках: это не выбор пользователя, который надо помнить, а разовый
   // заход «покажи всё». Уход со страницы сворачивает блок обратно.
   const [showAdvanced, setShowAdvanced] = useState(false)
+  // clod:provider-links — «Основные» тоже свёрнуты по умолчанию: язык и тему
+  // задают один раз, а первым на экране должно стоять то, за чем сюда
+  // заходят чаще, — система и ссылки провайдера.
+  const [showBasic, setShowBasic] = useState(false)
 
   const card = {
     borderRadius: 2,
@@ -83,12 +88,27 @@ const SettingPage = () => {
           <SettingSystem onError={onError} />
         </Box>
 
+        {/* clod:provider-links — ссылки текущей подписки. Своя карточка, а не
+            строки внутри чужой группы: они принадлежат провайдеру, а не
+            приложению. */}
         <Box sx={card}>
-          <SettingVergeBasic onError={onError} variant="core" />
-          {/* Отчёт для поддержки и версия — продолжение той же карточки, без
-              второго заголовка: без них пользователь не может ни сказать, что
-              у него за сборка, ни попросить помощь. */}
-          <SettingVergeAdvanced onError={onError} variant="core" />
+          <SettingProviderLinks />
+        </Box>
+
+        <Box sx={card}>
+          <SettingItem
+            label={t('settings.components.verge.basic.title')}
+            secondary={t('settings.sections.basicGroup.hint')}
+            expanded={showBasic}
+            onClick={() => setShowBasic((open) => !open)}
+          />
+          <Collapse in={showBasic} unmountOnExit>
+            <SettingVergeBasic onError={onError} variant="core" />
+            {/* Отчёт для поддержки и версия — продолжение той же карточки, без
+                второго заголовка: без них пользователь не может ни сказать, что
+                у него за сборка, ни попросить помощь. */}
+            <SettingVergeAdvanced onError={onError} variant="core" />
+          </Collapse>
         </Box>
 
         <Box sx={card}>

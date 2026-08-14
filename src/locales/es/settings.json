@@ -166,6 +166,9 @@
       "title": "Ajustes avanzados",
       "hint": "Núcleo, red, diagnóstico y pantallas técnicas",
       "interface": "Apariencia y comportamiento"
+    },
+    "basicGroup": {
+      "hint": "Idioma, tema, apariencia y notificaciones"
     }
   },
   "components": {

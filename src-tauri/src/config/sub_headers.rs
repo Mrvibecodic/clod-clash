@@ -206,6 +206,17 @@ pub struct SubHeaders {
     /// usually point that one at the subscription page itself, which is not
     /// where a customer pays.
     pub portal_url: Option<String>,
+    /// clod:provider-links — `clod-bot-url`: бот провайдера.
+    ///
+    /// Отдельно от поддержки: бот выдаёт ссылку, продлевает и показывает
+    /// состояние сам, а «Поддержка» — это живой человек. Смешивать их в одну
+    /// кнопку значит отправлять к человеку тех, кому хватило бы бота.
+    /// Принимает те же схемы, что и поддержка: у бота адрес почти всегда `tg:`.
+    pub bot_url: Option<String>,
+    /// clod:provider-links — `clod-monitor-url`: страница состояния серверов.
+    pub monitor_url: Option<String>,
+    /// clod:provider-links — `clod-guide-url`: инструкция провайдера.
+    pub guide_url: Option<String>,
     /// `clod-promo` — a temporary promotion banner. Unlike `announce` it is
     /// dismissable and expected to disappear once the panel stops sending it.
     pub promo: Option<String>,
@@ -320,6 +331,12 @@ impl SubHeaders {
                 .or_else(|| bool_value(headers, "pxa-simple-mode"))
                 .or_else(|| bool_value(headers, "flclashx-newboard")),
             portal_url: value(headers, "clod-portal-url").and_then(|raw| https_url(&raw)),
+            // clod:provider-links — боту достаётся проверка поддержки (`tg:`
+            // и `mailto:` законны), инструкции и мониторингу — обычная: это
+            // страницы, и ничего, кроме https, за ними быть не должно.
+            bot_url: value(headers, "clod-bot-url").and_then(|raw| contact_url(&raw)),
+            monitor_url: value(headers, "clod-monitor-url").and_then(|raw| https_url(&raw)),
+            guide_url: value(headers, "clod-guide-url").and_then(|raw| https_url(&raw)),
             promo: value(headers, "clod-promo").map(|text| truncate_banner(&text, ANNOUNCE_MAX_CHARS)),
             promo_url: value(headers, "clod-promo-url").and_then(|raw| https_url(&raw)),
             // clod:latency-style — закрытый список; синоним Prizrak-Box
@@ -809,6 +826,47 @@ mod tests {
         assert_eq!(SubHeaders::parse(&headers(&[])).simple_mode, None);
         let parsed = SubHeaders::parse(&headers(&[("clod-simple-mode", "maybe")]));
         assert_eq!(parsed.simple_mode, None);
+    }
+
+    /// clod:provider-links — бот, мониторинг и инструкция: те же правила
+    /// схем, что у поддержки и портала, ни строчкой мягче.
+    #[test]
+    fn parses_the_provider_link_headers() {
+        let parsed = SubHeaders::parse(&headers(&[
+            ("clod-bot-url", "tg://resolve?domain=provider_bot"),
+            ("clod-monitor-url", "https://status.provider.example"),
+            ("clod-guide-url", "https://provider.example/help/setup"),
+        ]));
+
+        assert_eq!(parsed.bot_url.as_deref(), Some("tg://resolve?domain=provider_bot"));
+        assert_eq!(parsed.monitor_url.as_deref(), Some("https://status.provider.example/"));
+        assert_eq!(parsed.guide_url.as_deref(), Some("https://provider.example/help/setup"));
+
+        // Боту достаётся проверка поддержки: https и mailto тоже законны.
+        let parsed = SubHeaders::parse(&headers(&[("clod-bot-url", "https://t.me/provider_bot")]));
+        assert_eq!(parsed.bot_url.as_deref(), Some("https://t.me/provider_bot"));
+
+        // А странице состояния и инструкции — обычная: только https.
+        let parsed = SubHeaders::parse(&headers(&[
+            ("clod-monitor-url", "http://status.provider.example"),
+            ("clod-guide-url", "javascript:alert(1)"),
+        ]));
+        assert_eq!(parsed.monitor_url, None);
+        assert_eq!(parsed.guide_url, None);
+
+        // Локальные пути и UNC не проходят никуда: кнопка одна на все схемы.
+        let parsed = SubHeaders::parse(&headers(&[
+            ("clod-bot-url", "file:///etc/passwd"),
+            ("clod-monitor-url", "file://server/share"),
+        ]));
+        assert_eq!(parsed.bot_url, None);
+        assert_eq!(parsed.monitor_url, None);
+
+        // Заголовков нет — и ссылок нет: кнопки в интерфейсе не появятся.
+        let parsed = SubHeaders::parse(&headers(&[]));
+        assert_eq!(parsed.bot_url, None);
+        assert_eq!(parsed.monitor_url, None);
+        assert_eq!(parsed.guide_url, None);
     }
 
     #[test]

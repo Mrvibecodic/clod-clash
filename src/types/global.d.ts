@@ -286,6 +286,12 @@ interface IProfileItem {
   announce_url?: string
   /** `clod-portal-url` header — customer portal (renewal, payments) */
   portal_url?: string
+  /** clod:provider-links — `clod-bot-url` header, the provider's bot */
+  bot_url?: string
+  /** clod:provider-links — `clod-monitor-url` header, server status page */
+  monitor_url?: string
+  /** clod:provider-links — `clod-guide-url` header, the provider's manual */
+  guide_url?: string
   /** `clod-promo` header — temporary promotion banner, dismissable */
   promo?: string
   /** `clod-promo-url` header, validated http(s) URL */

@@ -157,5 +157,14 @@
       "warn": "WARN",
       "error": "ERROR"
     }
+  },
+  "providerLinks": {
+    "title": "服务商",
+    "subtitle": "订阅提供的实用链接",
+    "portal": "账户",
+    "support": "客服",
+    "bot": "机器人",
+    "monitor": "状态",
+    "guide": "指南"
   }
 }

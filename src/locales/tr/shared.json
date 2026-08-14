@@ -157,5 +157,14 @@
       "warn": "WARN",
       "error": "ERROR"
     }
+  },
+  "providerLinks": {
+    "title": "Sağlayıcı",
+    "subtitle": "Aboneliğinizden yararlı bağlantılar",
+    "portal": "Hesap",
+    "support": "Destek",
+    "bot": "Bot",
+    "monitor": "Durum",
+    "guide": "Kılavuz"
   }
 }

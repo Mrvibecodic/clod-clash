@@ -157,5 +157,14 @@
       "warn": "WARN",
       "error": "ERROR"
     }
+  },
+  "providerLinks": {
+    "title": "제공업체",
+    "subtitle": "구독의 유용한 링크",
+    "portal": "계정",
+    "support": "지원",
+    "bot": "봇",
+    "monitor": "상태",
+    "guide": "가이드"
   }
 }

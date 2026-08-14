@@ -100,9 +100,11 @@ const SettingVergeBasic = ({ onError, variant = 'all' }: Props) => {
         // clod:simple-settings — под «Продвинутыми» это уже не «Основные»:
         // группа называется по тому, что в ней осталось, иначе внутри блока
         // висел бы второй заголовок «Основные» рядом с первым.
+        // clod:provider-links — у основной группы заголовок теперь несёт
+        // строка, которая её раскрывает, и второй такой же здесь не нужен.
         variant === 'rest'
           ? t('settings.sections.advancedGroup.interface')
-          : t('settings.components.verge.basic.title')
+          : undefined
       }
     >
       {showRest && (

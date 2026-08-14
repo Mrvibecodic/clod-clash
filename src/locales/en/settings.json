@@ -166,6 +166,9 @@
       "title": "Advanced settings",
       "hint": "Core, network, diagnostics and technical screens",
       "interface": "Appearance and behaviour"
+    },
+    "basicGroup": {
+      "hint": "Language, theme, app appearance and notifications"
     }
   },
   "components": {

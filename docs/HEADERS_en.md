@@ -47,6 +47,9 @@ default). Turning it off stops all of them.
 | `clod-portal-url` | customer portal link | "Customer portal" button. Our own header on purpose: Remnawave's `profile-web-page-url` usually points at the subscription page itself. `https` only |
 | `profile-web-page-url` | the provider's subscription page | turns the plan name on the card into a link. `https` only |
 | `support-url` | support link | "Support" button; a `t.me/…` link gets a Telegram icon. `https`, `tg:` or `mailto:` only |
+| `clod-bot-url` | the provider's bot | "Bot" button in the provider links row. Deliberately separate from support: a bot hands out the link, renews the plan and answers on its own, while "Support" is a person. Accepts `https`, `tg:` and `mailto:` — a bot link is almost always `tg:` |
+| `clod-monitor-url` | server status page | "Status" button. `https` only |
+| `clod-guide-url` | the provider's manual | "Guide" button — where to send someone asking how to set things up. `https` only |
 | `announce` | permanent provider message | banner in the app **without a close button** — lives exactly as long as the panel keeps sending it. Supports per-word colours (see below). Use `clod-promo` for one-off campaigns and `clod-hwid-limit` for the device dialog |
 | `announce-url` | where clicking the banner leads | makes the `announce` banner clickable. `https` only |
 | `clod-promo` | temporary promo banner | a separate accent banner the user **can dismiss**; a changed text brings it back. Same per-word colours as `announce`. A long text is collapsed to **5 lines** behind a "Show in full" button — the app window sizes itself to its content, and an advert must not stretch it over the whole screen; the full text opens in a dialog |

@@ -166,6 +166,9 @@
       "title": "詳細設定",
       "hint": "コア、ネットワーク、診断、技術画面",
       "interface": "外観と動作"
+    },
+    "basicGroup": {
+      "hint": "言語、テーマ、外観と通知"
     }
   },
   "components": {

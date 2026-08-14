@@ -157,5 +157,14 @@
       "warn": "WARN",
       "error": "ERROR"
     }
+  },
+  "providerLinks": {
+    "title": "ارائه‌دهنده",
+    "subtitle": "پیوندهای مفید اشتراک شما",
+    "portal": "حساب",
+    "support": "پشتیبانی",
+    "bot": "ربات",
+    "monitor": "وضعیت",
+    "guide": "راهنما"
   }
 }

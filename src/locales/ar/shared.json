@@ -157,5 +157,14 @@
       "warn": "WARN",
       "error": "ERROR"
     }
+  },
+  "providerLinks": {
+    "title": "المزود",
+    "subtitle": "روابط مفيدة من اشتراكك",
+    "portal": "الحساب",
+    "support": "الدعم",
+    "bot": "البوت",
+    "monitor": "الحالة",
+    "guide": "الدليل"
   }
 }

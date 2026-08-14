@@ -157,5 +157,14 @@
       "warn": "WARN",
       "error": "ERROR"
     }
+  },
+  "providerLinks": {
+    "title": "Anbieter",
+    "subtitle": "Nützliche Links aus Ihrem Abo",
+    "portal": "Konto",
+    "support": "Support",
+    "bot": "Bot",
+    "monitor": "Status",
+    "guide": "Anleitung"
   }
 }

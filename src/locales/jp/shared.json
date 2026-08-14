@@ -157,5 +157,14 @@
       "warn": "WARN",
       "error": "ERROR"
     }
+  },
+  "providerLinks": {
+    "title": "プロバイダー",
+    "subtitle": "サブスクリプションの便利なリンク",
+    "portal": "アカウント",
+    "support": "サポート",
+    "bot": "ボット",
+    "monitor": "ステータス",
+    "guide": "ガイド"
   }
 }

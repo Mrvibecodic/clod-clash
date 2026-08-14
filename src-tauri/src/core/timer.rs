@@ -410,7 +410,9 @@ impl Timer {
                 is_current
             );
 
-            feat::update_profile(uid, None, is_current, false, false).await
+            // clod:provider-links — то же, что в команде обновления: future
+            // с выросшей карточкой профиля уезжает в кучу.
+            Box::pin(feat::update_profile(uid, None, is_current, false, false)).await
         })
         .await;
 

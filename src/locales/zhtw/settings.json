@@ -166,6 +166,9 @@
       "title": "進階設定",
       "hint": "核心、網路、診斷與技術頁面",
       "interface": "外觀與行為"
+    },
+    "basicGroup": {
+      "hint": "語言、主題、外觀與通知"
     }
   },
   "components": {

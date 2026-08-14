@@ -157,5 +157,14 @@
       "warn": "WARN",
       "error": "ERROR"
     }
+  },
+  "providerLinks": {
+    "title": "服務商",
+    "subtitle": "訂閱提供的實用連結",
+    "portal": "帳戶",
+    "support": "客服",
+    "bot": "機器人",
+    "monitor": "狀態",
+    "guide": "指南"
   }
 }

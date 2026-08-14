@@ -157,5 +157,14 @@
       "warn": "WARN",
       "error": "ERROR"
     }
+  },
+  "providerLinks": {
+    "title": "Провайдер",
+    "subtitle": "Язылуыгызның файдалы сылтамалары",
+    "portal": "Кабинет",
+    "support": "Ярдәм",
+    "bot": "Бот",
+    "monitor": "Хәл",
+    "guide": "Күрсәтмә"
   }
 }

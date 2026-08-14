@@ -166,6 +166,9 @@
       "title": "Erweiterte Einstellungen",
       "hint": "Kern, Netzwerk, Diagnose und technische Seiten",
       "interface": "Aussehen und Verhalten"
+    },
+    "basicGroup": {
+      "hint": "Sprache, Design, Aussehen und Benachrichtigungen"
     }
   },
   "components": {

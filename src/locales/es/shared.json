@@ -157,5 +157,14 @@
       "warn": "WARN",
       "error": "ERROR"
     }
+  },
+  "providerLinks": {
+    "title": "Proveedor",
+    "subtitle": "Enlaces útiles de tu suscripción",
+    "portal": "Cuenta",
+    "support": "Soporte",
+    "bot": "Bot",
+    "monitor": "Estado",
+    "guide": "Guía"
   }
 }

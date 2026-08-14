@@ -166,6 +166,9 @@
       "title": "고급 설정",
       "hint": "코어, 네트워크, 진단 및 기술 화면",
       "interface": "모양 및 동작"
+    },
+    "basicGroup": {
+      "hint": "언어, 테마, 모양 및 알림"
     }
   },
   "components": {

@@ -1,8 +1,4 @@
-import HomeWorkRoundedIcon from '@mui/icons-material/HomeWorkRounded'
-import SupportAgentRoundedIcon from '@mui/icons-material/SupportAgentRounded'
-import TelegramIcon from '@mui/icons-material/Telegram'
 import {
-  alpha,
   Box,
   Button,
   Checkbox,
@@ -12,7 +8,7 @@ import {
   Typography,
 } from '@mui/material'
 import { useLockFn } from 'ahooks'
-import { useCallback, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
@@ -23,6 +19,7 @@ import {
 import { ModeStatus } from '@/components/home/mode-status'
 import { ProviderBanners } from '@/components/home/provider-banners'
 import { ProviderHeader } from '@/components/home/provider-header'
+import { ProviderLinksCard } from '@/components/home/provider-links'
 import { ServerSelect, ServerSelectRow } from '@/components/home/server-select'
 import { SessionTraffic } from '@/components/home/session-traffic'
 import { SubscriptionCard } from '@/components/home/subscription-card'
@@ -32,12 +29,7 @@ import { useProfiles } from '@/hooks/use-profiles'
 import { useSessionUptime } from '@/hooks/use-session-uptime'
 import { useSimpleMode } from '@/hooks/use-simple-mode'
 import { useFitWindowToContent } from '@/hooks/use-window-fit'
-import {
-  createProfile,
-  enhanceProfiles,
-  importProfile,
-  openWebUrl,
-} from '@/services/cmds'
+import { createProfile, enhanceProfiles, importProfile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 
 const HomeSimplePage = () => {
@@ -133,15 +125,6 @@ const HomeSimplePage = () => {
     }
   })
 
-  const openLink = useCallback(async (url?: string) => {
-    if (!url) return
-    try {
-      await openWebUrl(url)
-    } catch (error) {
-      showNotice.error(error)
-    }
-  }, [])
-
   // No subscription yet: the only thing worth showing is how to add one.
   if (!current) {
     return (
@@ -220,10 +203,6 @@ const HomeSimplePage = () => {
     )
   }
 
-  const supportIsTelegram =
-    current.support_url?.includes('t.me/') ||
-    current.support_url?.startsWith('tg:')
-
   return (
     // clod:fit-window — окно садится по высоте этого содержимого; ref нужен
     // именно на прокручиваемом корне: его `scrollHeight` и есть полная высота.
@@ -288,39 +267,10 @@ const HomeSimplePage = () => {
 
         <SubscriptionCard profile={current} />
 
-        <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
-          {current.portal_url ? (
-            <Button
-              startIcon={<HomeWorkRoundedIcon />}
-              sx={(theme) => ({
-                bgcolor: alpha(theme.palette.primary.main, 0.13),
-                px: 1.75,
-              })}
-              onClick={() => void openLink(current.portal_url)}
-            >
-              {t('home.pages.simple.portal')}
-            </Button>
-          ) : null}
-          {current.support_url ? (
-            <Button
-              startIcon={
-                supportIsTelegram ? (
-                  <TelegramIcon />
-                ) : (
-                  <SupportAgentRoundedIcon />
-                )
-              }
-              sx={(theme) => ({
-                bgcolor: theme.palette.action.hover,
-                color: theme.palette.text.secondary,
-                px: 1.75,
-              })}
-              onClick={() => void openLink(current.support_url)}
-            >
-              {t('profiles.components.hwidDialog.support')}
-            </Button>
-          ) : null}
-        </Stack>
+        {/* clod:provider-links — все ссылки провайдера одной строкой; кабинет
+            и поддержка переехали сюда же, чтобы кнопки провайдера не были
+            разбросаны по экрану в двух разных видах. */}
+        <ProviderLinksCard profile={current} compact={compact} />
 
         {/* clod:design-v2 — the mockups' footlink into the advanced mode */}
         <Box sx={{ mt: 'auto', textAlign: 'center', pt: 1 }}>

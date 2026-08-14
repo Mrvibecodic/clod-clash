@@ -157,5 +157,14 @@
       "warn": "WARN",
       "error": "ERROR"
     }
+  },
+  "providerLinks": {
+    "title": "Провайдер",
+    "subtitle": "Полезные ссылки вашей подписки",
+    "portal": "Кабинет",
+    "support": "Поддержка",
+    "bot": "Бот",
+    "monitor": "Мониторинг",
+    "guide": "Инструкция"
   }
 }

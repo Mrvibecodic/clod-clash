@@ -1,8 +1,6 @@
 import DescriptionRoundedIcon from '@mui/icons-material/DescriptionRounded'
-import HomeWorkRoundedIcon from '@mui/icons-material/HomeWorkRounded'
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded'
-import SupportAgentRoundedIcon from '@mui/icons-material/SupportAgentRounded'
 import {
   alpha,
   Box,
@@ -24,6 +22,7 @@ import { ModeStatus } from '@/components/home/mode-status'
 import { NetCard } from '@/components/home/net-card'
 import { ProviderBanners } from '@/components/home/provider-banners'
 import { ProviderHeader } from '@/components/home/provider-header'
+import { ProviderLinksCard } from '@/components/home/provider-links'
 import { QuickActions } from '@/components/home/quick-actions'
 import { ServerSelect, ServerSelectRow } from '@/components/home/server-select'
 import { SubscriptionCard } from '@/components/home/subscription-card'
@@ -32,7 +31,7 @@ import { useProfiles } from '@/hooks/use-profiles'
 import { useSessionUptime } from '@/hooks/use-session-uptime'
 import { useSimpleMode } from '@/hooks/use-simple-mode'
 import { useFitWindowToContent } from '@/hooks/use-window-fit'
-import { openWebUrl, updateProfile } from '@/services/cmds'
+import { updateProfile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 
 import HomeSimplePage from './home-simple'
@@ -166,15 +165,6 @@ const HomeAdvancedPage = () => {
     }
   })
 
-  const openLink = useLockFn(async (url?: string) => {
-    if (!url) return
-    try {
-      await openWebUrl(url)
-    } catch (error) {
-      showNotice.error(error)
-    }
-  })
-
   // Without a subscription the advanced screen has nothing extra to offer;
   // the simple welcome (paste a link) is the right screen in both modes.
   if (!current) {
@@ -280,6 +270,11 @@ const HomeAdvancedPage = () => {
               излома `lg`: она считает ШИРИНУ ОКНА, а плитки живут в правой
               колонке — на 1100px оставалась двухстолбцовая сетка в три ряда,
               хотя места хватало на три столбца в два ряда. */}
+          {/* clod:provider-links — ссылки провайдера отдельной строкой: пятью
+              плитками они забивали бы сетку и переставали отличаться от
+              кнопок самого приложения. */}
+          <ProviderLinksCard profile={current} compact={compact} />
+
           <Box
             sx={{
               display: 'grid',
@@ -287,22 +282,6 @@ const HomeAdvancedPage = () => {
               gap: compact ? 1 : 1.25,
             }}
           >
-            {current.portal_url ? (
-              <Tile
-                icon={<HomeWorkRoundedIcon fontSize="small" />}
-                label={t('home.pages.simple.portal')}
-                hint={t('home.pages.advanced.tiles.portalHint')}
-                onClick={() => void openLink(current.portal_url)}
-              />
-            ) : null}
-            {current.support_url ? (
-              <Tile
-                icon={<SupportAgentRoundedIcon fontSize="small" />}
-                label={t('profiles.components.hwidDialog.support')}
-                hint={t('home.pages.advanced.tiles.supportHint')}
-                onClick={() => void openLink(current.support_url)}
-              />
-            ) : null}
             {/* clod:design-v2 — the home screen keeps the everyday tiles
                 only; the technical sections (proxies, rules, connections,
                 logs) moved into the settings to leave room for the coming

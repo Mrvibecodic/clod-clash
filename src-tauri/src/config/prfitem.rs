@@ -91,6 +91,18 @@ pub struct PrfItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub portal_url: Option<String>,
 
+    /// clod:provider-links — `clod-bot-url`: бот провайдера.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bot_url: Option<String>,
+
+    /// clod:provider-links — `clod-monitor-url`: состояние серверов.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub monitor_url: Option<String>,
+
+    /// clod:provider-links — `clod-guide-url`: инструкция провайдера.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub guide_url: Option<String>,
+
     /// `clod-promo` header — temporary promotion banner, dismissable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub promo: Option<String>,
@@ -702,6 +714,9 @@ impl PrfItem {
             announce: sub.announce.clone(),
             announce_url: sub.announce_url.clone(),
             portal_url: sub.portal_url.clone(),
+            bot_url: sub.bot_url.clone(),
+            monitor_url: sub.monitor_url.clone(),
+            guide_url: sub.guide_url.clone(),
             promo: sub.promo.clone(),
             promo_url: sub.promo_url.clone(),
             promo_seen: None,
@@ -1267,6 +1282,10 @@ impl PrfItem {
         self.from_fallback = fresh.from_fallback;
         self.simple_mode = fresh.simple_mode;
         self.portal_url = fresh.portal_url.clone();
+        // clod:provider-links — как и портал: пропал заголовок, пропала кнопка.
+        self.bot_url = fresh.bot_url.clone();
+        self.monitor_url = fresh.monitor_url.clone();
+        self.guide_url = fresh.guide_url.clone();
         self.lock_mode = fresh.lock_mode;
         // clod:connect-mode — тоже пожелание панели и следует за ней целиком:
         // убранный заголовок возвращает выбор пользователю.

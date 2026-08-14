@@ -157,5 +157,14 @@
       "warn": "WARN",
       "error": "ERROR"
     }
+  },
+  "providerLinks": {
+    "title": "Penyedia",
+    "subtitle": "Tautan berguna dari langganan Anda",
+    "portal": "Akun",
+    "support": "Dukungan",
+    "bot": "Bot",
+    "monitor": "Status",
+    "guide": "Panduan"
   }
 }

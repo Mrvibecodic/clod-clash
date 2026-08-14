@@ -166,6 +166,9 @@
       "title": "Gelişmiş ayarlar",
       "hint": "Çekirdek, ağ, tanılama ve teknik ekranlar",
       "interface": "Görünüm ve davranış"
+    },
+    "basicGroup": {
+      "hint": "Dil, tema, görünüm ve bildirimler"
     }
   },
   "components": {

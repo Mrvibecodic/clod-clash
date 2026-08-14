@@ -166,6 +166,9 @@
       "title": "高级设置",
       "hint": "内核、网络、诊断与技术页面",
       "interface": "外观与行为"
+    },
+    "basicGroup": {
+      "hint": "语言、主题、外观与通知"
     }
   },
   "components": {
