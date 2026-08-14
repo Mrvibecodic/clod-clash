@@ -23,6 +23,27 @@ const DEFAULT_DECORATIONS: bool = false;
 #[cfg(not(target_os = "linux"))]
 const DEFAULT_DECORATIONS: bool = true;
 
+/// clod:freeze-restore — аргументы WebView2 против усыпления вебвью.
+///
+/// Windows у долго свёрнутого окна усыпляет процессы WebView2 (renderer
+/// backgrounding, троттлинг таймеров, «efficiency mode»). Разворачивание такого
+/// окна дёргает в них синхронный вызов из главного потока, ответа нет — и
+/// встаёт весь разбор оконных операций: на экране остаётся последний кадр, а
+/// окно «Не отвечает» уже навсегда. Именно так приложение легло 14.08: лог
+/// обрывается между «отменяю сворачивание» и следующей строкой активации, то
+/// есть ни один из вызовов показа с главного потока не вернулся.
+///
+/// Первая строка — умолчание самого wry: свои аргументы затирают его целиком,
+/// поэтому переписываем его сюда как есть (см. предупреждение в
+/// `WebviewWindowBuilder::additional_browser_args`).
+#[cfg(target_os = "windows")]
+const WEBVIEW2_BROWSER_ARGS: &str = concat!(
+    "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection",
+    " --disable-renderer-backgrounding",
+    " --disable-background-timer-throttling",
+    " --disable-backgrounding-occluded-windows",
+);
+
 const fn restored_window_size_is_too_small(width: u32, height: u32) -> bool {
     width < MINIMAL_WIDTH as u32 || height < MINIMAL_HEIGHT as u32
 }
@@ -404,6 +425,13 @@ pub async fn build_new_window() -> Result<WebviewWindow, String> {
         logging_error!(Type::Window, window.show());
         logging_error!(Type::Window, window.set_focus());
     });
+
+    // clod:freeze-restore — см. WEBVIEW2_BROWSER_ARGS: без этого Windows
+    // усыпляет вебвью у свёрнутого окна, и разворачивание вешает приложение.
+    #[cfg(target_os = "windows")]
+    {
+        builder = builder.additional_browser_args(WEBVIEW2_BROWSER_ARGS);
+    }
 
     if let Some(theme) = resolved_theme {
         builder = builder.theme(Some(theme));

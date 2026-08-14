@@ -1,4 +1,4 @@
-use crate::{core::handle, utils::resolve::window::build_new_window};
+use crate::{core::handle, process::AsyncHandler, utils::resolve::window::build_new_window};
 use clash_verge_limiter::Limiter;
 use clash_verge_logging::{Type, logging};
 use once_cell::sync::Lazy;
@@ -46,6 +46,14 @@ static WINDOW_OPERATION_LIMITER: Lazy<Limiter> = Lazy::new(|| {
         clash_verge_limiter::SystemClock,
     )
 });
+
+/// clod:freeze-restore — сколько ждать ответа от активации окна.
+///
+/// Каждый вызов окна из рабочего потока — рандеву с главным потоком, и ждёт он
+/// БЕЗ срока: если главный поток встал (14.08 его подвесил усыплённый WebView2
+/// при разворачивании), задача клика по трею висит вечно и молча. Срок не
+/// оживляет окно — он даёт запись в лог вместо тишины и отпускает вызвавшего.
+const ACTIVATE_TIMEOUT: Duration = Duration::from_secs(5);
 
 fn should_handle_window_operation() -> bool {
     let allow = WINDOW_OPERATION_LIMITER.check();
@@ -153,10 +161,37 @@ impl WindowManager {
                     return WindowOperationResult::NoAction;
                 }
                 if let Some(window) = window {
-                    Self::activate_window(&window)
+                    Self::activate_window_guarded(window).await
                 } else {
                     WindowOperationResult::Failed
                 }
+            }
+        }
+    }
+
+    /// clod:freeze-restore — активация со сроком ответа.
+    ///
+    /// Сама активация синхронная и блокирующая, поэтому уезжает в блокирующий
+    /// поток: зависший вызов окна больше не морозит воркер рантайма, а по
+    /// истечении срока в логе остаётся запись — раньше на этом месте была
+    /// тишина, и понять, что приложение висит именно здесь, можно было только
+    /// по ОТСУТСТВИЮ следующей строки.
+    async fn activate_window_guarded(window: WebviewWindow<Wry>) -> WindowOperationResult {
+        let task = AsyncHandler::spawn_blocking(move || Self::activate_window(&window));
+        match tokio::time::timeout(ACTIVATE_TIMEOUT, task).await {
+            Ok(Ok(result)) => result,
+            Ok(Err(e)) => {
+                logging!(warn, Type::Window, "Активация окна прервана: {}", e);
+                WindowOperationResult::Failed
+            }
+            Err(_) => {
+                logging!(
+                    error,
+                    Type::Window,
+                    "Активация окна не ответила за {} с: главный поток не разбирает оконные вызовы",
+                    ACTIVATE_TIMEOUT.as_secs()
+                );
+                WindowOperationResult::Failed
             }
         }
     }
@@ -255,6 +290,10 @@ impl WindowManager {
 
         let mut operations_successful = true;
 
+        // clod:freeze-restore — каждый шаг отмечается ДО вызова.
+        // 14.08 приложение зависло между «отменяю сворачивание» и «окно
+        // активировано», а между этими записями было пять вызовов окна подряд:
+        // по логу нельзя было сказать, какой именно не вернулся. Теперь можно.
         // 1. Если окно свёрнуто, сначала отменяем сворачивание
         if window.is_minimized().unwrap_or(false) {
             logging!(info, Type::Window, "Окно свёрнуто, отменяю сворачивание");
@@ -262,39 +301,20 @@ impl WindowManager {
                 logging!(warn, Type::Window, "Не удалось отменить сворачивание: {}", e);
                 operations_successful = false;
             }
+            logging!(debug, Type::Window, "Сворачивание отменено");
         }
 
         // 2/3. Показ + фокус (при ветке reload пропускается, передаётся в on_page_load)
         if !defer_show_to_page_load {
+            logging!(debug, Type::Window, "Показываю окно");
             if let Err(e) = window.show() {
                 logging!(warn, Type::Window, "Не удалось показать окно: {}", e);
                 operations_successful = false;
             }
+            logging!(debug, Type::Window, "Ставлю фокус");
             if let Err(e) = window.set_focus() {
                 logging!(warn, Type::Window, "Не удалось установить фокус окна: {}", e);
                 operations_successful = false;
-            }
-        }
-
-        #[cfg(target_os = "windows")]
-        {
-            // Windows: пробуем дополнительный метод активации
-            if let Err(e) = window.set_always_on_top(true) {
-                logging!(
-                    debug,
-                    Type::Window,
-                    "Не удалось закрепить поверх окон (некритичная ошибка): {}",
-                    e
-                );
-            }
-            // Сразу снимаем закрепление поверх окон
-            if let Err(e) = window.set_always_on_top(false) {
-                logging!(
-                    debug,
-                    Type::Window,
-                    "Не удалось снять закрепление поверх окон (некритичная ошибка): {}",
-                    e
-                );
             }
         }
 
@@ -305,6 +325,7 @@ impl WindowManager {
         // есть единственной безусловной проверкой оставался сторож раз в
         // минуту, и до него экран показывал цифры прошлого показа. Мы этот
         // момент знаем ТОЧНО: он прямо здесь.
+        logging!(debug, Type::Window, "Сообщаю странице о показе");
         let _ = window.emit("verge://window-shown", ());
 
         if operations_successful {
