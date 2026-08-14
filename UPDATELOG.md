@@ -8,6 +8,44 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.0.30-alpha
+
+<!-- lang:en -->
+
+### Fixed
+
+- The app no longer hangs when the window is restored after sitting minimised for hours. Windows was putting the web view to sleep, and waking the window up waited for an answer that never came — the last frame stayed on screen and the window said "Not responding" for good
+- The interface language stops falling back to the system one. The choice now lives in the app settings and is fixed on the first launch, instead of depending on browser storage that an update wipes out — this was mostly seen on Linux
+
+### Added
+
+- Provider links now sit in one row of their own, signed with the provider's name: account, support, bot, server status and the setup guide. The tiles below stay what they were — the app's own actions
+- The same links are duplicated in the settings, in a card that belongs to the current subscription. Links of another subscription never mix in
+- Three new panel headers behind those buttons: `clod-bot-url`, `clod-monitor-url`, `clod-guide-url`. A header the panel stops sending removes its button
+
+### Changed
+
+- The "General" settings group is collapsed by default, like "Advanced" already was: language and theme are set once
+
+<!-- lang:ru -->
+
+### Исправлено
+
+- Приложение больше не зависает, когда окно разворачивают после нескольких часов в свёрнутом виде. Windows усыпляла вебвью, и показ окна ждал ответа, которого уже не будет: на экране оставался последний кадр, а окно навсегда становилось «Не отвечает»
+- Язык интерфейса перестал сбрасываться на системный. Выбор теперь живёт в настройках приложения и закрепляется с первого запуска, а не зависит от хранилища вебвью, которое обновление стирает — чаще всего это ловилось на Linux
+
+### Добавлено
+
+- Ссылки провайдера собраны в отдельную строку, подписанную его именем: кабинет, поддержка, бот, мониторинг серверов и инструкция. Плитками ниже остались действия самого приложения
+- Те же ссылки продублированы в настройках отдельной карточкой, принадлежащей текущей подписке. Ссылки другой подписки в неё не попадают
+- Под эти кнопки заведены три заголовка панели: `clod-bot-url`, `clod-monitor-url`, `clod-guide-url`. Пропал заголовок — пропала и кнопка
+
+### Изменено
+
+- Группа настроек «Основные» свёрнута по умолчанию, как уже были свёрнуты «Продвинутые»: язык и тему задают один раз
+
+---
+
 ## v0.0.29-alpha
 
 <!-- lang:en -->
