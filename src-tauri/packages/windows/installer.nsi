@@ -1069,6 +1069,17 @@ Section Install
     Call CreateOrUpdateDesktopShortcut
   ${EndIf}
 
+  ; clod:icon-cache — сказать оболочке, что значок сменился.
+  ;
+  ; Проводник кэширует значок по пути к exe, а путь при обновлении не меняется:
+  ; новый значок уже лежит в файле, а на ярлыке, в меню «Пуск» и в панели задач
+  ; продолжает висеть старый, пока кэш сам не протухнет. Первая строка — штатное
+  ; сообщение «значки сменились», вторая перестраивает кэш значков (Windows 10 и
+  ; новее). Обе безобидны, если оболочки рядом нет.
+  System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, i 0, i 0)'
+  nsExec::Exec '"$SYSDIR\ie4uinit.exe" -show'
+  Pop $0
+
   !ifmacrodef NSIS_HOOK_POSTINSTALL
     !insertmacro NSIS_HOOK_POSTINSTALL
   !endif
