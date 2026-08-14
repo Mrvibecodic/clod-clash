@@ -427,7 +427,6 @@ export const useCustomTheme = () => {
         :focus-visible {
           outline: 2px solid ${muiTheme.palette.primary.main};
           outline-offset: 2px;
-          border-radius: 6px;
         }
         [data-tauri-drag-region] {
           outline: none;
