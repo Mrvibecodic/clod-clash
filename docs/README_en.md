@@ -189,7 +189,9 @@ serves its default response and the app reports that the panel did not recognise
 
 **Extra headers.** `announce`, `announce-url`, `profile-logo`, `support-url`, `new-url`,
 `fallback-url`, `notify-*`, our `clod-*` family (including `clod-connect-mode`, which
-picks between the tunnel and the system proxy) and the rest that are not part of
+picks between the tunnel and the system proxy, and the provider links
+`clod-portal-url`, `clod-bot-url`, `clod-monitor-url`, `clod-guide-url`)
+and the rest that are not part of
 Remnawave's standard set are configured through `customResponseHeaders`. Values with
 non-ASCII text are safer to send as `base64:<payload>`; every link must be `https://`.
 

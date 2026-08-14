@@ -192,7 +192,8 @@ TUN перехватывает трафик всех приложений, вк�
 покажет ошибку «панель не распознала клиент».
 
 **Дополнительные заголовки.** `announce`, `announce-url`, `profile-logo`, `support-url`,
-`new-url`, `fallback-url`, `notify-*`, наши `clod-*` (`clod-portal-url`, `clod-promo`,
+`new-url`, `fallback-url`, `notify-*`, наши `clod-*` (`clod-portal-url`, `clod-bot-url`,
+`clod-monitor-url`, `clod-guide-url`, `clod-promo`,
 `clod-promo-url`, `clod-hwid-limit`, `clod-simple-mode`, `clod-lock-mode`,
 `clod-connect-mode`,
 `clod-latency-style`, `clod-device-remove`)
