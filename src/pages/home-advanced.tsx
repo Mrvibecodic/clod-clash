@@ -31,6 +31,7 @@ import { useProfiles } from '@/hooks/use-profiles'
 import { useSessionUptime } from '@/hooks/use-session-uptime'
 import { useSimpleMode } from '@/hooks/use-simple-mode'
 import { useFitWindowToContent } from '@/hooks/use-window-fit'
+import { SHAPE, TINT } from '@/pages/_theme'
 import { updateProfile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 
@@ -53,23 +54,38 @@ const Tile = ({ icon, label, hint, onClick }: TileProps) => (
       justifyContent: 'flex-start',
       gap: 1.5,
       p: 1.6,
-      borderRadius: '14px',
+      borderRadius: SHAPE.surface,
       textAlign: 'left',
       bgcolor: 'background.paper',
       border: (theme) => `1px solid ${theme.palette.divider}`,
-      '&:hover': { borderColor: 'primary.main', bgcolor: 'action.hover' },
+      // clod:design-v3 — плитка не прыгает цветом, а приподнимается: тот же
+      // переход, что и у остальных поверхностей.
+      transition: (theme) =>
+        theme.transitions.create(
+          ['border-color', 'background-color', 'transform'],
+          { duration: theme.transitions.duration.short },
+        ),
+      '&:hover': {
+        borderColor: 'primary.main',
+        bgcolor: 'action.hover',
+        transform: 'translateY(-1px)',
+      },
+      '&:active': { transform: 'none' },
+      '@media (prefers-reduced-motion: reduce)': {
+        '&:hover': { transform: 'none' },
+      },
     }}
   >
     <Box
       sx={{
         width: 36,
         height: 36,
-        borderRadius: '10px',
+        borderRadius: SHAPE.control,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         color: 'primary.main',
-        bgcolor: (theme) => alpha(theme.palette.primary.main, 0.13),
+        bgcolor: (theme) => alpha(theme.palette.primary.main, TINT.base),
         flex: 'none',
       }}
     >

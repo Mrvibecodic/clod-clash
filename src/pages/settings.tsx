@@ -1,5 +1,5 @@
 import SupportAgentRoundedIcon from '@mui/icons-material/SupportAgentRounded'
-import { Box, Collapse, IconButton, Stack } from '@mui/material'
+import { Box, Collapse, IconButton, Stack, type Theme } from '@mui/material'
 import { useLockFn } from 'ahooks'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -13,9 +13,9 @@ import SettingTools from '@/components/setting/setting-tools'
 import SettingVergeAdvanced from '@/components/setting/setting-verge-advanced'
 import SettingVergeBasic from '@/components/setting/setting-verge-basic'
 import { useProfiles } from '@/hooks/use-profiles'
+import { SHAPE } from '@/pages/_theme'
 import { openWebUrl } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
-import { useThemeMode } from '@/services/states'
 
 const SettingPage = () => {
   const { t } = useTranslation()
@@ -39,9 +39,6 @@ const SettingPage = () => {
     }
   })
 
-  const mode = useThemeMode()
-  const isDark = mode === 'light' ? false : true
-
   // clod:simple-settings — раскрытие живёт в состоянии страницы, а не в
   // настройках: это не выбор пользователя, который надо помнить, а разовый
   // заход «покажи всё». Уход со страницы сворачивает блок обратно.
@@ -51,9 +48,13 @@ const SettingPage = () => {
   // заходят чаще, — система и ссылки провайдера.
   const [showBasic, setShowBasic] = useState(false)
 
+  // clod:design-v3 — карточка настроек живёт по общим правилам: тот же
+  // радиус и та же граница, что у карточек главной. Раньше здесь были свои
+  // 8 px и прибитый в коде тёмный #282a36 мимо палитры.
   const card = {
-    borderRadius: 2,
-    backgroundColor: isDark ? '#282a36' : '#ffffff',
+    borderRadius: SHAPE.surface,
+    backgroundColor: 'background.paper',
+    border: (theme: Theme) => `1px solid ${theme.palette.divider}`,
   }
 
   return (

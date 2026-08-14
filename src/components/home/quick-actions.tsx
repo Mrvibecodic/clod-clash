@@ -12,6 +12,7 @@ import { useSystemProxyState } from '@/hooks/use-system-proxy-state'
 import { useSystemState } from '@/hooks/use-system-state'
 import { useTunState } from '@/hooks/use-tun-state'
 import { useVerge } from '@/hooks/use-verge'
+import { CARD_TITLE, SHAPE } from '@/pages/_theme'
 import { ensureTunReady } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 
@@ -29,8 +30,24 @@ const Row = ({ label, checked, disabled, onToggle }: RowProps) => (
   // почти касался соседнего — строки читались как наехавшие друг на друга.
   // `size="small"` тут тоже лишний: наш Switch уже компактный, а мелкий размер
   // MUI спорит с его геометрией (свой трек против нашего).
-  <Stack direction="row" sx={{ alignItems: 'center', gap: 1, minHeight: 34 }}>
-    <Typography sx={{ flex: 1, minWidth: 0, fontSize: 13 }} noWrap>
+  // clod:design-v3 — строка подсвечивается под курсором: раньше ряд тумблеров
+  // был единственным местом главной без всякой реакции на наведение.
+  <Stack
+    direction="row"
+    sx={(theme) => ({
+      alignItems: 'center',
+      gap: 1,
+      minHeight: 34,
+      mx: -1,
+      px: 1,
+      borderRadius: SHAPE.control,
+      transition: theme.transitions.create(['background-color'], {
+        duration: theme.transitions.duration.short,
+      }),
+      '&:hover': { bgcolor: 'action.hover' },
+    })}
+  >
+    <Typography sx={{ flex: 1, minWidth: 0, fontSize: 13.5 }} noWrap>
       {label}
     </Typography>
     <Switch
@@ -134,12 +151,12 @@ export const QuickActions = () => {
         gap: 0.25,
         px: 1.75,
         py: 1.25,
-        borderRadius: '14px',
+        borderRadius: SHAPE.surface,
         bgcolor: 'background.paper',
         border: (theme) => `1px solid ${theme.palette.divider}`,
       }}
     >
-      <Typography variant="caption" color="text.secondary">
+      <Typography variant="caption" color="text.secondary" sx={CARD_TITLE}>
         {t('home.components.quickActions.title')}
       </Typography>
 

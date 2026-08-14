@@ -149,8 +149,13 @@ const SortableItem = ({
         border: roleColor
           ? `1.5px solid ${roleColor}`
           : `1px solid ${theme.palette.divider}`,
-        boxShadow: isDragging ? theme.shadows[4] : theme.shadows[1],
-        transition: 'box-shadow 0.2s, background-color 0.2s',
+        // clod:design-v3 — в покое строка плоская, тень появляется только
+        // пока её тащат: так видно, что элемент оторван от списка.
+        boxShadow: isDragging ? theme.shadows[8] : 'none',
+        transition: theme.transitions.create(
+          ['box-shadow', 'background-color', 'border-color'],
+          { duration: theme.transitions.duration.short },
+        ),
       }}
     >
       <Box
@@ -508,7 +513,7 @@ export const ProxyChain = ({
 
   return (
     <Paper
-      elevation={1}
+      elevation={0}
       sx={{
         height: '100%',
         p: 2,

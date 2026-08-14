@@ -2,6 +2,7 @@ import { alpha, Box, Typography } from '@mui/material'
 import { useTranslation } from 'react-i18next'
 
 import { openProviderLink, useProviderLinks } from '@/hooks/use-provider-links'
+import { CARD_TITLE, SHAPE, TINT } from '@/pages/_theme'
 
 interface Props {
   profile?: IProfileItem | null
@@ -17,9 +18,12 @@ export const ProviderLinksCard = ({ profile, compact }: Props) => {
 
   return (
     <Box
+      // clod:design-v3 — та же панель, что и соседние карточки: раньше она
+      // была прозрачной с радиусом 12, и ряд ссылок читался как «ничей».
       sx={{
         border: (theme) => `1px solid ${theme.palette.divider}`,
-        borderRadius: '12px',
+        borderRadius: SHAPE.surface,
+        bgcolor: 'background.paper',
         px: 1.5,
         py: compact ? 0.75 : 1,
       }}
@@ -28,7 +32,7 @@ export const ProviderLinksCard = ({ profile, compact }: Props) => {
         variant="caption"
         color="text.secondary"
         noWrap
-        sx={{ display: 'block', mb: 0.5 }}
+        sx={{ ...CARD_TITLE, display: 'block', mb: 0.5 }}
       >
         {profile?.name || t('shared.providerLinks.title')}
       </Typography>
@@ -56,11 +60,15 @@ export const ProviderLinksCard = ({ profile, compact }: Props) => {
               alignItems: 'center',
               gap: 0.5,
               py: compact ? 0.5 : 0.75,
-              borderRadius: '10px',
+              borderRadius: SHAPE.control,
               cursor: 'pointer',
-              transition: 'background-color 0.15s',
+              transition: (theme) =>
+                theme.transitions.create(['background-color'], {
+                  duration: theme.transitions.duration.shortest,
+                }),
               '&:hover': {
-                bgcolor: (theme) => alpha(theme.palette.primary.main, 0.08),
+                bgcolor: (theme) =>
+                  alpha(theme.palette.primary.main, TINT.weak),
               },
             }}
           >
@@ -68,12 +76,13 @@ export const ProviderLinksCard = ({ profile, compact }: Props) => {
               sx={{
                 width: 30,
                 height: 30,
-                borderRadius: '9px',
+                borderRadius: SHAPE.control,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: 'primary.main',
-                bgcolor: (theme) => alpha(theme.palette.primary.main, 0.12),
+                bgcolor: (theme) =>
+                  alpha(theme.palette.primary.main, TINT.base),
               }}
             >
               {link.icon}
@@ -81,7 +90,7 @@ export const ProviderLinksCard = ({ profile, compact }: Props) => {
             <Typography
               variant="caption"
               noWrap
-              sx={{ maxWidth: '100%', fontSize: 11.5 }}
+              sx={{ maxWidth: '100%', fontSize: 12 }}
             >
               {link.label}
             </Typography>

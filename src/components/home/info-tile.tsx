@@ -1,6 +1,8 @@
 import { Box, Stack, Typography } from '@mui/material'
 import type { ReactNode } from 'react'
 
+import { CARD_TITLE, SHAPE } from '@/pages/_theme'
+
 /**
  * A home-screen info tile: small title, content, and a big faded icon as the
  * tile's «meaning» (traffic, calendar, network…). The icon sits at the right
@@ -22,7 +24,7 @@ export const InfoTile = ({
       overflow: 'hidden',
       minWidth: 0,
       p: 1.75,
-      borderRadius: '14px',
+      borderRadius: SHAPE.surface,
       bgcolor: 'background.paper',
       border: (theme) => `1px solid ${theme.palette.divider}`,
     }}
@@ -36,7 +38,7 @@ export const InfoTile = ({
         transform: 'translateY(-50%)',
         display: 'flex',
         alignItems: 'center',
-        opacity: 0.09,
+        opacity: 0.07,
         pointerEvents: 'none',
         color: 'primary.main',
         '& svg': { fontSize: 72 },
@@ -48,10 +50,12 @@ export const InfoTile = ({
         иконки — тот же отступ, что и слева от края плитки. Иконка: 72px
         шириной, right:14; padding плитки 14 → 72 + 14 + 14 − 14 = 86px */}
     <Stack sx={{ gap: 0.75, position: 'relative', minWidth: 0, pr: '86px' }}>
+      {/* clod:design-v3 — заголовок карточки один на всё приложение: раньше у
+          «Трафика» стояло 12/600, а у «Быстрых действий» рядом — 12/400. */}
       <Typography
         variant="caption"
         color="text.secondary"
-        sx={{ fontWeight: 600, letterSpacing: 0.2 }}
+        sx={CARD_TITLE}
         noWrap
       >
         {title}

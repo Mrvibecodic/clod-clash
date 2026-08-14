@@ -1,5 +1,7 @@
 import { alpha, Box, styled } from '@mui/material'
 
+import { SHAPE } from '@/pages/_theme'
+
 /**
  * clod: активная подписка раньше отличалась только полоской слева и цветом
  * заголовка — на сетке из шести карточек этого не видно. Теперь она залита
@@ -12,7 +14,9 @@ export const ProfileBox = styled(Box, {
   const { mode, primary, text } = theme.palette
   const isSelected = !!selected
 
-  const paper = mode === 'light' ? '#ffffff' : '#282A36'
+  // clod:design-v3 — панель одна на всё приложение: раньше карточка была
+  // прибита к #282A36 и в тёмной теме отличалась от соседних поверхностей.
+  const paper = theme.palette.background.paper
   const backgroundColor = isSelected
     ? `color-mix(in srgb, ${primary.main} 7%, ${paper})`
     : paper
@@ -33,9 +37,13 @@ export const ProfileBox = styled(Box, {
     backgroundColor,
     border: isSelected
       ? `1.5px solid ${primary.main}`
-      : `1.5px solid transparent`,
-    boxShadow: isSelected ? `0 0 0 3px ${alpha(primary.main, 0.12)}` : 'none',
-    borderRadius: '10px',
+      : `1.5px solid ${theme.palette.divider}`,
+    // Кольцо было и раньше, но его стирало глобальное правило
+    // `box-shadow: none !important` — теперь оно действительно видно.
+    boxShadow: isSelected
+      ? `0 0 0 3px ${alpha(primary.main, mode === 'light' ? 0.22 : 0.28)}`
+      : 'none',
+    borderRadius: SHAPE.surface,
     color,
     // Приглушение — только для истёкших и никогда для активной: подписка, на
     // которой человек сидит, обязана оставаться читаемой.
@@ -43,7 +51,7 @@ export const ProfileBox = styled(Box, {
     filter: dimmed && !isSelected ? 'grayscale(0.55)' : 'none',
     transition: theme.transitions.create(
       ['background-color', 'border-color', 'box-shadow', 'opacity'],
-      { duration: 200 },
+      { duration: theme.transitions.duration.short },
     ),
     '& h2': { color: h2color },
   }

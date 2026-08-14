@@ -5,11 +5,19 @@ const Item = styled(Box)(({ theme }) => ({
   display: 'flex',
   padding: '4px 16px',
   color: theme.palette.text.primary,
+  // clod:design-v3 — строка отзывается на курсор: раньше список правил был
+  // полотном без единого признака, что строка под указателем.
+  transition: theme.transitions.create(['background-color'], {
+    duration: theme.transitions.duration.short,
+  }),
+  '&:hover': { backgroundColor: theme.palette.action.hover },
 }))
 
+// clod:design-v3 — было 'primary' и 'secondary': MUI по таким путям отдаёт
+// объект палитры, а не цвет, и два оттенка из пяти не рисовались вовсе.
 const COLOR = [
-  'primary',
-  'secondary',
+  'primary.main',
+  'secondary.main',
   'info.main',
   'warning.main',
   'success.main',
@@ -38,7 +46,13 @@ const RuleItem = (props: Props) => {
       <Typography
         color="text.secondary"
         variant="body2"
-        sx={{ lineHeight: 2, minWidth: 30, mr: 2.25, textAlign: 'center' }}
+        sx={{
+          lineHeight: 2,
+          minWidth: 30,
+          mr: 2.25,
+          textAlign: 'center',
+          fontVariantNumeric: 'tabular-nums',
+        }}
       >
         {value.lineNo}
       </Typography>

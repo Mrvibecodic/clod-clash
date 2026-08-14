@@ -1,5 +1,5 @@
 import { CloseRounded } from '@mui/icons-material'
-import { IconButton } from '@mui/material'
+import { Box, IconButton, type Theme } from '@mui/material'
 import { useLockFn } from 'ahooks'
 import { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -17,9 +17,11 @@ interface Props {
 const tagStyle = {
   boxSizing: 'border-box',
   maxWidth: '100%',
-  padding: '0 4px',
-  border: '1px solid rgba(128,128,128,0.35)',
-  borderRadius: 4,
+  padding: '0 5px',
+  // clod:design-v3 — та же линия, что у карточек и разделителей, вместо
+  // собственного серого 0.35.
+  border: '1px solid var(--divider-color)',
+  borderRadius: 8,
   fontSize: 10,
   lineHeight: 1.375,
   overflow: 'hidden',
@@ -27,16 +29,24 @@ const tagStyle = {
   whiteSpace: 'nowrap',
 } as const
 
-const itemStyle = {
+// clod:design-v3 — строка переехала с инлайнового style на sx: инлайн не
+// умеет :hover, поэтому список соединений был единственным, который никак не
+// отзывался на курсор.
+const itemSx = {
   boxSizing: 'border-box',
   minHeight: 56,
   display: 'flex',
   alignItems: 'center',
-  gap: 8,
+  gap: 1,
   padding: '6px 48px 6px 12px',
   borderBottom: '1px solid var(--divider-color)',
   position: 'relative',
   overflow: 'hidden',
+  transition: (theme: Theme) =>
+    theme.transitions.create(['background-color'], {
+      duration: theme.transitions.duration.short,
+    }),
+  '&:hover': { bgcolor: 'action.hover' },
 } as const
 
 const contentStyle = {
@@ -80,7 +90,7 @@ export const ConnectionRowItem = memo(
     const showTraffic = row.uploadSpeed >= 100 || row.downloadSpeed >= 100
 
     return (
-      <div style={itemStyle}>
+      <Box sx={itemSx}>
         <div style={contentStyle} onClick={handleShowDetail}>
           <div style={primaryStyle}>{row.host}</div>
           <div style={tagsStyle}>
@@ -110,7 +120,7 @@ export const ConnectionRowItem = memo(
             <CloseRounded fontSize="small" />
           </IconButton>
         )}
-      </div>
+      </Box>
     )
   },
   (prev, next) =>

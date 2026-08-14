@@ -86,7 +86,15 @@ export const SettingList: React.FC<{
   title?: string
   children: ReactNode
 }> = ({ title, children }) => (
-  <List>
+  // clod:design-v3 — строки разделены линией: без неё длинный список читается
+  // сплошным полотном, и глазу не за что зацепиться.
+  <List
+    sx={{
+      '& > .MuiListItem-root + .MuiListItem-root': {
+        borderTop: (theme) => `1px solid ${theme.palette.divider}`,
+      },
+    }}
+  >
     {title ? (
       <ListSubheader
         sx={[

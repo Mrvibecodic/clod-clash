@@ -1,46 +1,67 @@
-import { styled, Box } from '@mui/material'
+import { alpha, styled, Box } from '@mui/material'
 import type { ReactNode } from 'react'
 
 import type { SearchState } from '@/components/base'
 
-const Item = styled(Box)(({ theme: { palette, typography } }) => ({
-  padding: '8px 0',
-  margin: '0 12px',
-  lineHeight: 1.35,
-  borderBottom: `1px solid ${palette.divider}`,
-  fontSize: '0.875rem',
-  fontFamily: typography.fontFamily,
-  userSelect: 'text',
-  '& .time': {
-    color: palette.text.secondary,
-  },
-  '& .type': {
-    display: 'inline-block',
-    marginLeft: 8,
-    textAlign: 'center',
-    borderRadius: 2,
-    textTransform: 'uppercase',
-    fontWeight: '600',
-  },
-  '& .type[data-type="error"], & .type[data-type="err"]': {
-    color: palette.error.main,
-  },
-  '& .type[data-type="warning"], & .type[data-type="warn"]': {
-    color: palette.warning.main,
-  },
-  '& .type[data-type="info"], & .type[data-type="inf"]': {
-    color: palette.info.main,
-  },
-  '& .data': {
-    color: palette.text.primary,
-    overflowWrap: 'anywhere',
-  },
-  '& .highlight': {
-    backgroundColor: palette.mode === 'dark' ? '#ffeb3b40' : '#ffeb3b90',
-    borderRadius: 2,
-    padding: '0 2px',
-  },
-}))
+// clod:design-v3 — лог читают глазами по столбцу: время и сообщение
+// моноширинным, уровень — чипом, а не просто цветным словом (радиус 2 без
+// фона не рисовал ничего). Разделитель теперь во всю строку.
+const MONO =
+  'ui-monospace, "Cascadia Mono", "Segoe UI Mono", "Roboto Mono", Consolas, monospace'
+
+const Item = styled(Box)(({ theme }) => {
+  const { palette, transitions } = theme
+  return {
+    padding: '8px 12px',
+    lineHeight: 1.4,
+    borderBottom: `1px solid ${palette.divider}`,
+    fontSize: '0.875rem',
+    fontFamily: MONO,
+    userSelect: 'text',
+    transition: transitions.create(['background-color'], {
+      duration: transitions.duration.short,
+    }),
+    '&:hover': { backgroundColor: palette.action.hover },
+    '& .time': {
+      color: palette.text.secondary,
+      fontVariantNumeric: 'tabular-nums',
+    },
+    '& .type': {
+      display: 'inline-block',
+      marginLeft: 8,
+      padding: '1px 7px',
+      textAlign: 'center',
+      borderRadius: 999,
+      textTransform: 'uppercase',
+      fontWeight: '600',
+      fontSize: 11,
+      letterSpacing: '0.3px',
+      fontFamily: theme.typography.fontFamily,
+      backgroundColor: alpha(palette.text.primary, 0.08),
+    },
+    '& .type[data-type="error"], & .type[data-type="err"]': {
+      color: palette.error.main,
+      backgroundColor: alpha(palette.error.main, 0.13),
+    },
+    '& .type[data-type="warning"], & .type[data-type="warn"]': {
+      color: palette.warning.main,
+      backgroundColor: alpha(palette.warning.main, 0.13),
+    },
+    '& .type[data-type="info"], & .type[data-type="inf"]': {
+      color: palette.info.main,
+      backgroundColor: alpha(palette.info.main, 0.13),
+    },
+    '& .data': {
+      color: palette.text.primary,
+      overflowWrap: 'anywhere',
+    },
+    '& .highlight': {
+      backgroundColor: palette.mode === 'dark' ? '#ffeb3b40' : '#ffeb3b90',
+      borderRadius: 4,
+      padding: '0 2px',
+    },
+  }
+})
 
 interface Props {
   value: ILogItem

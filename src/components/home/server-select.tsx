@@ -33,6 +33,7 @@ import { useProfiles } from '@/hooks/use-profiles'
 import { useProxySelection } from '@/hooks/use-proxy-selection'
 import { useServerDescriptions } from '@/hooks/use-server-descriptions'
 import { useVisibility } from '@/hooks/use-visibility'
+import { SHAPE, TINT } from '@/pages/_theme'
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
 import delayManager from '@/services/delay'
 import { showNotice } from '@/services/notice-service'
@@ -279,7 +280,7 @@ export const ServerSelect = ({ open, onClose }: Props) => {
         selected={selected}
         onClick={() => void select(node.name)}
         sx={{
-          borderRadius: 1,
+          borderRadius: SHAPE.control,
           height: ROW_HEIGHT,
           gap: 1.25,
           cursor: canSelect ? 'pointer' : 'default',
@@ -296,7 +297,7 @@ export const ServerSelect = ({ open, onClose }: Props) => {
               justifyContent: 'center',
               flex: 'none',
               color: 'primary.main',
-              bgcolor: (theme) => alpha(theme.palette.primary.main, 0.13),
+              bgcolor: (theme) => alpha(theme.palette.primary.main, TINT.base),
             }}
           >
             {AUTO_GROUP_TYPES.has(type) ? (
@@ -381,7 +382,7 @@ export const ServerSelect = ({ open, onClose }: Props) => {
         paper: {
           sx: {
             maxHeight: capHeight,
-            borderRadius: '12px 12px 0 0',
+            borderRadius: `${SHAPE.overlay} ${SHAPE.overlay} 0 0`,
             // the paper scrolls on its own by default — with the list holding
             // the only scrollbar that would make a second, nested one
             overflow: 'hidden',
@@ -461,7 +462,7 @@ export const ServerSelect = ({ open, onClose }: Props) => {
                     color: active ? 'primary.main' : 'text.primary',
                     bgcolor: (theme) =>
                       active
-                        ? alpha(theme.palette.primary.main, 0.13)
+                        ? alpha(theme.palette.primary.main, TINT.base)
                         : theme.palette.action.hover,
                     border: (theme) =>
                       `1px solid ${
@@ -914,9 +915,14 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
         // width:100% + padding overflowed it by the padding width
         alignSelf: 'stretch',
         boxSizing: 'border-box',
-        borderRadius: '14px',
+        borderRadius: SHAPE.surface,
         cursor: 'pointer',
         bgcolor: 'background.paper',
+        // clod:design-v3 — граница меняется переходом, а не рывком.
+        transition: (theme) =>
+          theme.transitions.create(['border-color', 'background-color'], {
+            duration: theme.transitions.duration.short,
+          }),
         border: (theme) =>
           `1px solid ${
             statusRow

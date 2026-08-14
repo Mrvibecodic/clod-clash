@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { InfoTile } from '@/components/home/info-tile'
 import { useTrafficData } from '@/hooks/use-traffic-data'
 import { useVisibility } from '@/hooks/use-visibility'
+import { CARD_VALUE } from '@/pages/_theme'
 import parseTraffic from '@/utils/parse-traffic'
 
 /** One stat cell: a small label over a bold tabular value. */
@@ -26,15 +27,7 @@ const Stat = ({
     >
       {label}
     </Typography>
-    <Typography
-      noWrap
-      sx={{
-        fontSize: 15,
-        fontWeight: 700,
-        fontVariantNumeric: 'tabular-nums',
-        color: color ?? 'text.primary',
-      }}
-    >
+    <Typography noWrap sx={{ ...CARD_VALUE, color: color ?? 'text.primary' }}>
       {value}
     </Typography>
   </Box>
@@ -72,12 +65,12 @@ export const NetCard = () => {
         <Stat
           label={`↓ ${t('home.components.net.downSpeed')}`}
           value={speed(traffic?.down ?? 0)}
-          color="#2E7CF6"
+          color="primary.main"
         />
         <Stat
           label={`↑ ${t('home.components.net.upSpeed')}`}
           value={speed(traffic?.up ?? 0)}
-          color="#EA580C"
+          color="secondary.main"
         />
         <Stat
           label={t('home.components.net.downloaded')}

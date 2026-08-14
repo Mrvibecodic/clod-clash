@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { BaseLoading } from '@/components/base'
 import { useProxyDelayState } from '@/hooks/use-proxy-delay-state'
+import { SHAPE } from '@/pages/_theme'
 import delayManager from '@/services/delay'
 
 interface Props {
@@ -34,14 +35,14 @@ export const ProxyItemMini = (props: Props) => {
       sx={[
         {
           height: 56,
-          borderRadius: 1.5,
+          borderRadius: SHAPE.control,
           pl: 1.5,
           pr: 1,
           justifyContent: 'space-between',
           alignItems: 'center',
         },
-        ({ palette: { mode, primary } }) => {
-          const bgcolor = mode === 'light' ? '#ffffff' : '#24252f'
+        ({ palette: { mode, primary, background } }) => {
+          const bgcolor = background.paper
           const showDelay = delayValue > 0
           const selectColor = mode === 'light' ? primary.main : primary.light
 

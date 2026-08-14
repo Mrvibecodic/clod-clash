@@ -19,6 +19,7 @@ import { useTranslation } from 'react-i18next'
 import { InfoTile } from '@/components/home/info-tile'
 import { useExpiryCountdown } from '@/hooks/use-expiry-countdown'
 import { useTrafficEstimate } from '@/hooks/use-traffic-estimate'
+import { CARD_VALUE } from '@/pages/_theme'
 import parseTraffic from '@/utils/parse-traffic'
 import { clockSkew, toUnixSeconds } from '@/utils/subscription-status'
 
@@ -157,12 +158,16 @@ export const SubscriptionCard = ({ profile }: Props) => {
       >
         {/* mockup: «12,4 ГБ / 100 ГБ» — used in bold, the quota greyed */}
         <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5 }}>
-          <Typography noWrap sx={{ fontSize: 15, fontWeight: 700 }}>
+          <Typography noWrap sx={CARD_VALUE}>
             {approximate ? '≈ ' : ''}
             {traffic(shownUsed)}{' '}
             <Typography
               component="span"
-              sx={{ fontSize: 13.5, fontWeight: 500 }}
+              sx={{
+                fontSize: 13.5,
+                fontWeight: 500,
+                fontVariantNumeric: 'tabular-nums',
+              }}
               color="text.secondary"
             >
               /{' '}
@@ -219,7 +224,7 @@ export const SubscriptionCard = ({ profile }: Props) => {
           <Box
             sx={{
               height: 6,
-              borderRadius: 3,
+              borderRadius: 999,
               overflow: 'hidden',
               display: 'flex',
               bgcolor: 'action.hover',
@@ -243,7 +248,7 @@ export const SubscriptionCard = ({ profile }: Props) => {
             variant="determinate"
             value={info.usedPercent}
             color={trafficColor(info.usedPercent)}
-            sx={{ height: 6, borderRadius: 3 }}
+            sx={{ height: 6, borderRadius: 999 }}
           />
         )}
         {/* The reset date is noise while the subscription itself is ending. */}
@@ -267,7 +272,7 @@ export const SubscriptionCard = ({ profile }: Props) => {
             <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5 }}>
               <Typography
                 noWrap
-                sx={{ fontSize: 15, fontWeight: 700 }}
+                sx={CARD_VALUE}
                 color={expiryCritical ? 'error' : 'text.primary'}
               >
                 {expired
@@ -314,7 +319,7 @@ export const SubscriptionCard = ({ profile }: Props) => {
             </Typography>
           </>
         ) : (
-          <Typography noWrap sx={{ fontSize: 15, fontWeight: 700 }}>
+          <Typography noWrap sx={CARD_VALUE}>
             {t('profiles.components.profileItem.labels.neverExpires')}
           </Typography>
         )}

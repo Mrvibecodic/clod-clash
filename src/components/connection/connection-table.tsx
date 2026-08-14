@@ -1,3 +1,4 @@
+import { Box } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
 import { useLocalStorage } from 'foxact/use-local-storage'
 import {
@@ -269,8 +270,10 @@ const RowComponent = memo(
     const snapshot = getSnapshot(row)
 
     return (
-      <div
-        style={{
+      // clod:design-v3 — строка таблицы подсвечивается под курсором: в списке
+      // из сотни соединений глазу не за что было зацепиться.
+      <Box
+        sx={{
           display: 'flex',
           position: 'absolute',
           top: virtualTop,
@@ -279,6 +282,11 @@ const RowComponent = memo(
           height: ROW_HEIGHT,
           cursor: 'pointer',
           borderBottom: `1px solid ${borderColor}`,
+          transition: (theme) =>
+            theme.transitions.create(['background-color'], {
+              duration: theme.transitions.duration.short,
+            }),
+          '&:hover': { bgcolor: 'action.hover' },
         }}
         onClick={handleClick}
       >
@@ -296,6 +304,10 @@ const RowComponent = memo(
               alignItems: 'center',
               justifyContent:
                 column.align === 'right' ? 'flex-end' : 'flex-start',
+              // Числовые колонки прижаты вправо — им нужны моноширинные цифры,
+              // иначе столбец «дышит» на каждом обновлении трафика.
+              fontVariantNumeric:
+                column.align === 'right' ? 'tabular-nums' : 'normal',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
@@ -304,7 +316,7 @@ const RowComponent = memo(
             {renderCell(column, row, snapshot)}
           </div>
         ))}
-      </div>
+      </Box>
     )
   },
   (prev, next) =>
@@ -745,6 +757,7 @@ export const ConnectionTable = (props: Props) => {
 
   const borderColor = theme.palette.divider
   const headerBackground = theme.palette.background.paper
+  const headerShadow = theme.shadows[2]
   const textSecondary = theme.palette.text.secondary
 
   return (
@@ -789,6 +802,8 @@ export const ConnectionTable = (props: Props) => {
                   display: 'flex',
                   borderBottom: `1px solid ${borderColor}`,
                   backgroundColor: headerBackground,
+                  // clod:design-v3 — липкая шапка отрывается от списка тенью.
+                  boxShadow: headerShadow,
                 }}
               >
                 {visibleColumns.map((column) => (
