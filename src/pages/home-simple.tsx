@@ -35,7 +35,12 @@ import { showNotice } from '@/services/notice-service'
 const HomeSimplePage = () => {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { current, mutateProfiles } = useProfiles()
+  const {
+    current,
+    profiles,
+    error: profilesError,
+    mutateProfiles,
+  } = useProfiles()
   const { connected, willConnect, toggleConnection } = useConnectTargets()
   const { setSimpleMode } = useSimpleMode()
   const uptime = useSessionUptime(connected)
@@ -124,6 +129,16 @@ const HomeSimplePage = () => {
       }
     }
   })
+
+  // clod:first-paint — «Добавьте подписку» показывается только тогда, когда
+  // список подписок УЖЕ пришёл и он пуст. Первый кадр рисуется раньше ответа
+  // бэкенда, и до этой проверки экран приглашения успевал моргнуть на каждом
+  // запуске у человека с давно добавленной подпиской. Пустое место
+  // естественнее ложного приглашения. Если запрос ОТКАЗАЛ, приглашение всё же
+  // показываем: пустой экран навсегда — худший из исходов.
+  if (!profiles && !profilesError) {
+    return <Stack sx={{ height: '100%' }} />
+  }
 
   // No subscription yet: the only thing worth showing is how to add one.
   if (!current) {
