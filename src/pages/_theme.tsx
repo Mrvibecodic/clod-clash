@@ -1,5 +1,46 @@
+import { getLuminance, lighten, type PaletteMode } from '@mui/material'
+
 import getSystem from '@/utils/get-system'
 const OS = getSystem()
+
+// clod:design-v3 — единая шкала оформления. Раньше эти числа жили россыпью по
+// компонентам: тринадцать радиусов, двадцать одна альфа и пять длительностей на
+// одни и те же роли. Правим здесь — меняется везде.
+export const SHAPE = {
+  /** Поверхность: карточка, панель, плитка, строка узла. */
+  surface: '14px',
+  /** Управление внутри поверхности: кнопка, иконочная плитка, строка списка. */
+  control: '10px',
+  /** Мелочь: бейдж, тип-чип, поле ввода в панели инструментов. */
+  chip: '8px',
+  /** Слой поверх содержимого: диалог, шторка. */
+  overlay: '16px',
+} as const
+
+/** Заливки акцентом: две ступени вместо шести неразличимых. */
+export const TINT = {
+  /** Наведение и фон под текстом. */
+  weak: 0.07,
+  /** Иконочная плитка, активный чип, выделенная строка. */
+  base: 0.13,
+  /** Граница чипа и кольцо выделения. */
+  edge: 0.32,
+} as const
+
+/** Заголовок карточки: один стиль на все карточки приложения. */
+export const CARD_TITLE = {
+  fontSize: 12,
+  fontWeight: 600,
+  letterSpacing: '0.5px',
+  textTransform: 'uppercase',
+} as const
+
+/** Живое число (трафик, скорость, срок, задержка). */
+export const CARD_VALUE = {
+  fontSize: 17,
+  fontWeight: 700,
+  fontVariantNumeric: 'tabular-nums',
+} as const
 
 // clod:branding — the default palette is taken 1:1 from the design mockups
 // (MOCKUPS-2026-07-30-v2): blue accent, cool gray canvas, white panels in
@@ -43,3 +84,23 @@ export const ACCENT_PRESETS = [
   '#22C55E',
   '#F97316',
 ] as const
+
+/**
+ * Акцент под тему.
+ *
+ * Пресеты и цвет провайдера подбираются на светлом фоне и на тёмном глохнут:
+ * синий и фиолетовый уходят в фон панели, и цифры скорости с чипами перестают
+ * читаться. В тёмной теме поднимаем светлоту ровно настолько, чтобы вернуть
+ * контраст, и не трогаем те цвета, которым это не нужно (зелёный, бирюзовый).
+ */
+export const accentForMode = (color: string, mode: PaletteMode) => {
+  if (mode !== 'dark') return color
+  try {
+    const luminance = getLuminance(color)
+    if (luminance >= 0.32) return color
+    return lighten(color, Math.min(0.42, (0.32 - luminance) * 1.35))
+  } catch {
+    // Цвет мог прийти из настроек провайдера в неразобранном виде.
+    return color
+  }
+}

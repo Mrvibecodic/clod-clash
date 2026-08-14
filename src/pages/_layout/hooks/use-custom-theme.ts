@@ -10,10 +10,10 @@ import {
   WebviewWindow,
 } from '@tauri-apps/api/webviewWindow'
 import { Theme as TauriOsTheme } from '@tauri-apps/api/window'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 
 import { useVerge } from '@/hooks/use-verge'
-import { defaultDarkTheme, defaultTheme } from '@/pages/_theme'
+import { accentForMode, defaultDarkTheme, defaultTheme } from '@/pages/_theme'
 import { useSetThemeMode, useThemeMode } from '@/services/states'
 
 const CSS_INJECTION_SCOPE_ROOT = '[data-css-injection-root]'
@@ -32,6 +32,48 @@ const TOP_LEVEL_AT_RULES = [
   '@color-profile',
 ]
 let cssScopeSupport: boolean | null = null
+
+/** Сколько держится класс плавного перехода при смене темы. */
+const THEME_FADE_MS = 380
+
+/**
+ * Лестница теней.
+ *
+ * Раньше здесь стоял `Array(25).fill('none')` плюс глобальное правило
+ * `* { box-shadow: none !important }`. Оно убирало «белые точки», но заодно
+ * стирало кольцо выбранной подписки, отрыв диалогов и шторки от фона и весь
+ * клавиатурный фокус: MUI рисует фокус тенью, а не outline.
+ *
+ * Карточки остаются плоскими (уровни 1–4 почти не видны) — тень получают
+ * только слои, которые действительно лежат ПОВЕРХ содержимого: меню и
+ * поповеры (уровень 8), шторка серверов (16), диалоги (24).
+ */
+const buildShadows = (mode: 'light' | 'dark'): Shadows => {
+  const soft =
+    mode === 'light'
+      ? '0 1px 2px rgba(15, 22, 38, 0.06), 0 1px 3px rgba(15, 22, 38, 0.08)'
+      : '0 1px 2px rgba(0, 0, 0, 0.36), 0 1px 3px rgba(0, 0, 0, 0.32)'
+  const raised =
+    mode === 'light'
+      ? '0 6px 16px rgba(15, 22, 38, 0.12)'
+      : '0 8px 20px rgba(0, 0, 0, 0.48)'
+  const floating =
+    mode === 'light'
+      ? '0 12px 32px rgba(15, 22, 38, 0.16)'
+      : '0 14px 36px rgba(0, 0, 0, 0.56)'
+  const overlay =
+    mode === 'light'
+      ? '0 24px 60px rgba(15, 22, 38, 0.24)'
+      : '0 26px 64px rgba(0, 0, 0, 0.64)'
+
+  return Array.from({ length: 25 }, (_, level) => {
+    if (level === 0) return 'none'
+    if (level <= 4) return soft
+    if (level <= 8) return raised
+    if (level <= 16) return floating
+    return overlay
+  }) as unknown as Shadows
+}
 
 const canUseCssScope = () => {
   if (cssScopeSupport !== null) {
@@ -152,19 +194,73 @@ export const useCustomTheme = () => {
     const dt = mode === 'light' ? defaultTheme : defaultDarkTheme
     let muiTheme: MuiTheme
 
+    // clod:design-v3 — общее для рабочей темы и аварийной: одна линия
+    // (раньше карточки брали дефолтные 0.12, а scss-разделители 0.06),
+    // одна кривая и одна лестница длительностей на всё приложение.
+    const shared = {
+      breakpoints: {
+        values: { xs: 0, sm: 650, md: 900, lg: 1200, xl: 1536 },
+      },
+      shadows: buildShadows(mode),
+      transitions: {
+        easing: {
+          easeInOut: 'cubic-bezier(0.2, 0, 0, 1)',
+          easeOut: 'cubic-bezier(0.2, 0, 0, 1)',
+          easeIn: 'cubic-bezier(0.4, 0, 1, 1)',
+          sharp: 'cubic-bezier(0.4, 0, 0.6, 1)',
+        },
+        duration: {
+          shortest: 120,
+          shorter: 150,
+          short: 180,
+          standard: 260,
+          complex: 320,
+          enteringScreen: 260,
+          leavingScreen: 200,
+        },
+      },
+      components: {
+        // clod:design-v2 — mockup buttons: sentence case, 10px radius,
+        // semibold labels.
+        MuiButton: {
+          styleOverrides: {
+            root: {
+              textTransform: 'none',
+              borderRadius: 10,
+              fontWeight: 600,
+            },
+          },
+        },
+      },
+    } as const
+
+    const divider =
+      mode === 'light' ? 'rgba(17, 24, 39, 0.11)' : 'rgba(255, 255, 255, 0.11)'
+
     try {
       muiTheme = createTheme({
-        breakpoints: {
-          values: { xs: 0, sm: 650, md: 900, lg: 1200, xl: 1536 },
-        },
+        ...shared,
         palette: {
           mode,
-          primary: { main: setting.primary_color || dt.primary_color },
-          secondary: { main: setting.secondary_color || dt.secondary_color },
-          info: { main: setting.info_color || dt.info_color },
+          primary: {
+            main: accentForMode(
+              setting.primary_color || dt.primary_color,
+              mode,
+            ),
+          },
+          secondary: {
+            main: accentForMode(
+              setting.secondary_color || dt.secondary_color,
+              mode,
+            ),
+          },
+          info: {
+            main: accentForMode(setting.info_color || dt.info_color, mode),
+          },
           error: { main: setting.error_color || dt.error_color },
           warning: { main: setting.warning_color || dt.warning_color },
           success: { main: setting.success_color || dt.success_color },
+          divider,
           text: {
             primary: setting.primary_text || dt.primary_text,
             secondary: setting.secondary_text || dt.secondary_text,
@@ -179,40 +275,25 @@ export const useCustomTheme = () => {
             default: dt.background_color,
           },
         },
-        shadows: Array(25).fill('none') as Shadows,
         typography: {
           fontFamily: setting.font_family
             ? `${setting.font_family}, ${dt.font_family}`
             : dt.font_family,
         },
-        components: {
-          // clod:design-v2 — mockup buttons: sentence case, 10px radius,
-          // semibold labels.
-          MuiButton: {
-            styleOverrides: {
-              root: {
-                textTransform: 'none',
-                borderRadius: 10,
-                fontWeight: 600,
-              },
-            },
-          },
-        },
       })
     } catch (e) {
       console.error('Error creating MUI theme, falling back to defaults:', e)
       muiTheme = createTheme({
-        breakpoints: {
-          values: { xs: 0, sm: 650, md: 900, lg: 1200, xl: 1536 },
-        },
+        ...shared,
         palette: {
           mode,
-          primary: { main: dt.primary_color },
-          secondary: { main: dt.secondary_color },
-          info: { main: dt.info_color },
+          primary: { main: accentForMode(dt.primary_color, mode) },
+          secondary: { main: accentForMode(dt.secondary_color, mode) },
+          info: { main: accentForMode(dt.info_color, mode) },
           error: { main: dt.error_color },
           warning: { main: dt.warning_color },
           success: { main: dt.success_color },
+          divider,
           text: { primary: dt.primary_text, secondary: dt.secondary_text },
           background: {
             paper:
@@ -231,9 +312,11 @@ export const useCustomTheme = () => {
       const backgroundColor = mode === 'light' ? '#ECECEC' : dt.background_color
       const selectColor = mode === 'light' ? '#f5f5f5' : '#3E3E3E'
       const scrollColor = mode === 'light' ? '#90939980' : '#555555'
-      const dividerColor =
-        mode === 'light' ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.06)'
-      rootEle.style.setProperty('--divider-color', dividerColor)
+      // clod:design-v3 — линия одна: scss-разделители (шапка страницы,
+      // титлбар, строки списков) и границы карточек берут один и тот же цвет.
+      // Раньше здесь стояло 0.06, а карточки рисовались дефолтными 0.12 — в
+      // одном окне были видны две разные полоски.
+      rootEle.style.setProperty('--divider-color', muiTheme.palette.divider)
       rootEle.style.setProperty('--background-color', backgroundColor)
       rootEle.style.setProperty('--selection-color', selectColor)
       rootEle.style.setProperty('--scroller-color', scrollColor)
@@ -316,20 +399,54 @@ export const useCustomTheme = () => {
           }
         }
 
-        /* Исправление возможной белой рамки */
-        .MuiPaper-root {
-          border-color: var(--window-border-color) !important;
+        /* Исправление возможной белой рамки у слоёв поверх содержимого.
+           Раньше правило било по всем .MuiPaper-root и перекрашивало границы
+           карточек, которые их сами себе задают. */
+        .MuiDialog-paper,
+        .MuiDrawer-paper,
+        .MuiPopover-paper {
+          border-color: var(--window-border-color);
         }
 
-        /* Убеждаемся, что модальные окна и диалоги тоже используют тёмную тему */
+        /* Диалог — та же панель, что и остальные поверхности. Раньше здесь был
+           прибитый #2E303D: в тёмной теме диалог оказывался светлее и синее
+           всего, что под ним. */
         .MuiDialog-paper {
-          background-color: ${mode === 'light' ? '#ffffff' : '#2E303D'} !important;
+          background-color: ${muiTheme.palette.background.paper};
+          border-radius: 16px;
         }
 
-        /* Убираем возможные белые точки или линии */
-        * {
-          outline: none !important;
-          box-shadow: none !important;
+        /* Мышью — как было, без рамок. Клавиатурой — видно, где ты находишься.
+           Раньше на месте этих правил стояло звёздочное правило, гасившее
+           outline и box-shadow у всего подряд: оно убирало «белые точки», но
+           вместе с ними — весь клавиатурный фокус, кольцо выбранной подписки
+           и отрыв диалогов от фона. */
+        :focus {
+          outline: none;
+        }
+        :focus-visible {
+          outline: 2px solid ${muiTheme.palette.primary.main};
+          outline-offset: 2px;
+          border-radius: 6px;
+        }
+        [data-tauri-drag-region] {
+          outline: none;
+        }
+
+        /* Смена темы — не рывком. Класс живёт ${THEME_FADE_MS} мс и снимается. */
+        .clod-theme-fade,
+        .clod-theme-fade *:not(svg):not(path) {
+          transition:
+            background-color ${THEME_FADE_MS}ms ${muiTheme.transitions.easing.easeInOut},
+            border-color ${THEME_FADE_MS}ms ${muiTheme.transitions.easing.easeInOut},
+            color ${THEME_FADE_MS}ms ${muiTheme.transitions.easing.easeInOut} !important;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .clod-theme-fade,
+          .clod-theme-fade * {
+            transition: none !important;
+          }
         }
       `
 
@@ -338,6 +455,31 @@ export const useCustomTheme = () => {
 
     return muiTheme
   }, [mode, theme_setting, userBackgroundImage, hasUserBackground])
+
+  // clod:design-v3 — светлая↔тёмная переключаются кросс-фейдом, а не рывком.
+  // Класс вешаем только на смену режима (не на первый рендер) и снимаем сразу
+  // после перехода, чтобы он не мешал остальным анимациям.
+  const previousModeRef = useRef<string | undefined>(undefined)
+  useEffect(() => {
+    const root = document.documentElement
+    if (
+      previousModeRef.current === undefined ||
+      previousModeRef.current === mode
+    ) {
+      previousModeRef.current = mode
+      return
+    }
+    previousModeRef.current = mode
+    root.classList.add('clod-theme-fade')
+    const id = setTimeout(
+      () => root.classList.remove('clod-theme-fade'),
+      THEME_FADE_MS,
+    )
+    return () => {
+      clearTimeout(id)
+      root.classList.remove('clod-theme-fade')
+    }
+  }, [mode])
 
   useEffect(() => {
     const id = setTimeout(() => {
