@@ -52,6 +52,11 @@ export const useModeWindowSize = () => {
   useEffect(() => {
     const appWindow = getCurrentWebviewWindow()
     let wasMaximized = false
+    // clod:fit-window — сворачивание и разворачивание тоже приезжают сюда
+    // событием размера, и без этой памяти клиент считал их выбором
+    // пользователя: настройка «подгонять окно под содержимое» выключалась
+    // сама, стоило свернуть окно и достать обратно.
+    let wasMinimized = false
     // Масштаб экрана нужен, чтобы перевести физический размер из события в
     // логический и сверить его с тем, что просил автоподгон. Спрашиваем один
     // раз и обновляем по событию: на каждый кадр перетаскивания края ходить в
@@ -77,9 +82,19 @@ export const useModeWindowSize = () => {
     // в нём законна). Развернуть окно на весь экран — не выбор размера, а
     // временное состояние: и разворот, и возврат из него пропускаем.
     const onResized = async (height: number) => {
-      const maximized = await appWindow.isMaximized().catch(() => false)
-      const transient = maximized || wasMaximized
+      // Свёрнутое окно на Windows шлёт размер 0×0. Это не «пользователь сделал
+      // окно нулевым», это системное событие, и решать по нему нечего.
+      if (!Number.isFinite(height) || height <= 0) return
+
+      const [maximized, minimized] = await Promise.all([
+        appWindow.isMaximized().catch(() => false),
+        appWindow.isMinimized().catch(() => false),
+      ])
+      // Разворот на весь экран и сворачивание — состояния, а не выбор размера:
+      // пропускаем и сам переход, и возврат из него.
+      const transient = maximized || wasMaximized || minimized || wasMinimized
       wasMaximized = maximized
+      wasMinimized = minimized
       if (transient) return
 
       if (!isSelfWindowResize(height) && fitEnabledRef.current) {

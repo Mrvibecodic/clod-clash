@@ -1463,7 +1463,42 @@ fn fix_dirty_url(input: &str) -> Result<Url> {
 
 #[cfg(test)]
 mod tests {
-    use super::{PrfOption, allow_auto_update_enabled, fix_dirty_url, to_unix_seconds};
+    use super::{PrfItem, PrfOption, allow_auto_update_enabled, fix_dirty_url, to_unix_seconds};
+
+    /// clod:provider-links — ссылки принадлежат ПОДПИСКЕ, а не приложению.
+    ///
+    /// Проверяем ровно то, из-за чего у человека с двумя подписками кабинет
+    /// одного провайдера мог бы открыться под именем другого: обновление
+    /// подписки заменяет ссылки целиком, а не дополняет их. Ответ без
+    /// заголовка означает «у меня такой кнопки нет» — и кнопка исчезает.
+    #[test]
+    fn provider_links_are_replaced_not_merged() {
+        let mut stored = PrfItem {
+            portal_url: Some("https://first.example/cabinet".into()),
+            support_url: Some("https://first.example/help".into()),
+            bot_url: Some("tg://resolve?domain=first_bot".into()),
+            monitor_url: Some("https://status.first.example".into()),
+            guide_url: Some("https://first.example/guide".into()),
+            ..PrfItem::default()
+        };
+
+        // Панель прислала только бота — и только он должен остаться.
+        let fresh = PrfItem {
+            bot_url: Some("tg://resolve?domain=second_bot".into()),
+            ..PrfItem::default()
+        };
+        stored.merge_panel_meta(&fresh);
+
+        assert_eq!(stored.bot_url.as_deref(), Some("tg://resolve?domain=second_bot"));
+        assert_eq!(stored.portal_url, None);
+        assert_eq!(stored.support_url, None);
+        assert_eq!(stored.monitor_url, None);
+        assert_eq!(stored.guide_url, None);
+
+        // Пустой ответ гасит и его: ни одной чужой ссылки не переживает.
+        stored.merge_panel_meta(&PrfItem::default());
+        assert_eq!(stored.bot_url, None);
+    }
 
     #[test]
     fn recognises_milliseconds_in_expire() {

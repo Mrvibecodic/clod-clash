@@ -319,11 +319,21 @@ pub async fn fit_window_to_content(window: &WebviewWindow, content_height: f64) 
     if window.is_maximized().unwrap_or(false) || window.is_fullscreen().unwrap_or(false) {
         return ceiling;
     }
+    // clod:fit-window — свёрнутое окно не подгоняем. Вебвью у него живёт и
+    // продолжает мерить содержимое, а клиентская область при этом 0×0: ширину
+    // мы берём именно из неё, и окно уехало бы в ноль по горизонтали — с
+    // разворачиванием в полоску вместо окна.
+    if window.is_minimized().unwrap_or(false) || !window.is_visible().unwrap_or(true) {
+        return ceiling;
+    }
     if !window_fit_content_enabled().await {
         return ceiling;
     }
     let target = clamp_fit_height(content_height, ceiling);
     let Ok(inner) = window.inner_size() else { return ceiling };
+    if inner.width == 0 || inner.height == 0 {
+        return ceiling;
+    }
     let scale = window.scale_factor().unwrap_or(1.0);
     let current: tauri::LogicalSize<f64> = inner.to_logical(scale);
     // Разница меньше пикселя — не трогаем окно вовсе: каждый `set_size`
