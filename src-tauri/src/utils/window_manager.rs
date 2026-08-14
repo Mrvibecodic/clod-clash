@@ -136,6 +136,18 @@ impl WindowManager {
         logging!(info, Type::Window, "Начинаю умный показ главного окна");
         logging!(debug, Type::Window, "{}", Self::get_window_status_info());
 
+        // clod:freeze-restore — спрашиваем окно ДО того, как полезем в него.
+        // Любой вызов окна ниже — свидание с главным потоком без срока, и если
+        // тот уже не разбирает очередь, показ просто ляжет молча. Одна строка
+        // здесь отличает «нажатие не сработало» от «приложение зависло раньше».
+        if !crate::utils::ui_watchdog::responds() {
+            logging!(
+                error,
+                Type::Window,
+                "Главный поток не отвечает ещё до показа — окно, скорее всего, уже зависло"
+            );
+        }
+
         let current_state = Self::get_main_window_state();
 
         match current_state {
@@ -290,10 +302,11 @@ impl WindowManager {
 
         let mut operations_successful = true;
 
-        // clod:freeze-restore — каждый шаг отмечается ДО вызова.
-        // 14.08 приложение зависло между «отменяю сворачивание» и «окно
-        // активировано», а между этими записями было пять вызовов окна подряд:
-        // по логу нельзя было сказать, какой именно не вернулся. Теперь можно.
+        // clod:freeze-restore — каждый шаг отмечается ДО вызова, и все записи
+        // идут уровнем info. 14.08 приложение дважды зависло между «отменяю
+        // сворачивание» и «окно активировано», а промежуточные шаги писались в
+        // debug — то есть в логе пользователя их не было и место обрыва
+        // приходилось угадывать. Записей тут четыре на разворот окна, не жалко.
         // 1. Если окно свёрнуто, сначала отменяем сворачивание
         if window.is_minimized().unwrap_or(false) {
             logging!(info, Type::Window, "Окно свёрнуто, отменяю сворачивание");
@@ -301,17 +314,17 @@ impl WindowManager {
                 logging!(warn, Type::Window, "Не удалось отменить сворачивание: {}", e);
                 operations_successful = false;
             }
-            logging!(debug, Type::Window, "Сворачивание отменено");
+            logging!(info, Type::Window, "Сворачивание отменено");
         }
 
         // 2/3. Показ + фокус (при ветке reload пропускается, передаётся в on_page_load)
         if !defer_show_to_page_load {
-            logging!(debug, Type::Window, "Показываю окно");
+            logging!(info, Type::Window, "Показываю окно");
             if let Err(e) = window.show() {
                 logging!(warn, Type::Window, "Не удалось показать окно: {}", e);
                 operations_successful = false;
             }
-            logging!(debug, Type::Window, "Ставлю фокус");
+            logging!(info, Type::Window, "Ставлю фокус");
             if let Err(e) = window.set_focus() {
                 logging!(warn, Type::Window, "Не удалось установить фокус окна: {}", e);
                 operations_successful = false;
@@ -325,8 +338,20 @@ impl WindowManager {
         // есть единственной безусловной проверкой оставался сторож раз в
         // минуту, и до него экран показывал цифры прошлого показа. Мы этот
         // момент знаем ТОЧНО: он прямо здесь.
-        logging!(debug, Type::Window, "Сообщаю странице о показе");
-        let _ = window.emit("verge://window-shown", ());
+        //
+        // clod:freeze-restore — но уходит сообщение ОТДЕЛЬНОЙ задачей. Это
+        // единственный шаг показа, который лезет не в окно, а внутрь вебвью
+        // (событие доставляется выполнением скрипта на странице), и делает это
+        // через главный поток. У окна, свёрнутого надолго, вебвью разбужен не
+        // всегда — а значит именно здесь показ может не вернуться. Пусть тогда
+        // встанет одна задача, а не вся активация: итог показа обязан попасть
+        // в лог.
+        let page = window.clone();
+        AsyncHandler::spawn_blocking(move || {
+            logging!(info, Type::Window, "Сообщаю странице о показе");
+            let _ = page.emit("verge://window-shown", ());
+            logging!(info, Type::Window, "Странице сообщено о показе");
+        });
 
         if operations_successful {
             logging!(info, Type::Window, "Окно успешно активировано");

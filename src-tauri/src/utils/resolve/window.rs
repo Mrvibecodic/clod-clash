@@ -458,6 +458,10 @@ pub async fn build_new_window() -> Result<WebviewWindow, String> {
             // per-mode size (saved or default) wins before the window shows.
             apply_window_size_for_mode(&window, effective_simple_mode().await).await;
             restore_position_if_offscreen(&window);
+            // clod:freeze-restore — с этой минуты за главным потоком следит
+            // отдельный системный поток: если окно перестанет разбирать
+            // сообщения, в логе будет строка, а не тишина.
+            crate::utils::ui_watchdog::watch(&window);
             // Страница нового окна и так актуальна — сбрасываем оставшийся от
             // старого окна флаг ожидающей перезагрузки, чтобы избежать лишнего reload
             #[cfg(target_os = "macos")]

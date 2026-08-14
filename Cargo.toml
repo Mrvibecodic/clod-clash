@@ -84,7 +84,9 @@ windows-sys = { version = "0.61.2", features = [
   "Win32_Security_Authorization",
   "Win32_Storage_FileSystem",
   "Win32_System_Threading",
-  "Win32_System_JobObjects"
+  "Win32_System_JobObjects",
+  # clod:freeze-restore — сторож спрашивает окно, разбирает ли оно сообщения
+  "Win32_UI_WindowsAndMessaging"
 ] }
 # *********************************
 

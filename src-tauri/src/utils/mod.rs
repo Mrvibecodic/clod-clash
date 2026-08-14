@@ -18,5 +18,6 @@ pub mod speed;
 pub mod tmpl;
 #[cfg(target_os = "macos")]
 pub mod tray_speed;
+pub mod ui_watchdog;
 pub mod window_manager;
 pub mod yaml_emitter;
