@@ -307,7 +307,9 @@
       }
     },
     "tools": {
-      "title": "Tools"
+      "title": "Tools",
+      "shortcut": "ホームに表示",
+      "shortcutAria": "ホーム画面の{{name}}ショートカット"
     }
   },
   "modals": {

@@ -1103,6 +1103,12 @@ interface IVergeConfig {
    * окна, после чего размеры принадлежат пользователю.
    */
   window_fit_content?: boolean
+  /**
+   * clod:tool-shortcuts — какие инструменты показывать плитками на главной
+   * расширенного режима. Ключи — из `use-tool-shortcuts`; отсутствие поля
+   * означает «все четыре», пустой массив — «ни одного».
+   */
+  home_tool_shortcuts?: string[]
   // clod: white-label branding
   /** display name in the sidebar; unset falls back to the product name */
   brand_name?: string

@@ -307,7 +307,9 @@
       }
     },
     "tools": {
-      "title": "Tools"
+      "title": "Tools",
+      "shortcut": "Auf Startseite",
+      "shortcutAria": "Verknüpfung zu {{name}} auf dem Startbildschirm"
     }
   },
   "modals": {

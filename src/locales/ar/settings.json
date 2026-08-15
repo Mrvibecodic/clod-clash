@@ -307,7 +307,9 @@
       }
     },
     "tools": {
-      "title": "Tools"
+      "title": "Tools",
+      "shortcut": "في الرئيسية",
+      "shortcutAria": "اختصار {{name}} في الشاشة الرئيسية"
     }
   },
   "modals": {

@@ -635,6 +635,8 @@ export const translationKeys = [
   'settings.components.verge.layout.options.proxyGroupsDisplayMode.inline',
   'settings.components.verge.layout.options.proxyGroupsDisplayMode.disable',
   'settings.components.tools.title',
+  'settings.components.tools.shortcut',
+  'settings.components.tools.shortcutAria',
   'settings.modals.clashPort.title',
   'settings.modals.clashPort.fields.mixed',
   'settings.modals.clashPort.fields.socks',

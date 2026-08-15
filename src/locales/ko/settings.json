@@ -307,7 +307,9 @@
       }
     },
     "tools": {
-      "title": "Tools"
+      "title": "Tools",
+      "shortcut": "홈에 표시",
+      "shortcutAria": "홈 화면의 {{name}} 바로가기"
     }
   },
   "modals": {

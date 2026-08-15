@@ -17,6 +17,13 @@ interface ItemProps {
   extra?: ReactNode
   children?: ReactNode
   secondary?: ReactNode
+  /**
+   * clod:tool-shortcuts — собственный контрол строки-перехода: стоит перед
+   * стрелкой и НЕ открывает экран. Нужен там, где у пункта есть и адрес, и
+   * своя настройка (раздел «Инструменты»: строка ведёт на экран, тумблер
+   * выносит ярлык на главную).
+   */
+  action?: ReactNode
   onClick?: () => void | Promise<any>
   // clod:simple-settings — строка не открывает диалог, а раскрывает блок под
   // собой. Стрелка должна показывать это состояние, а не «есть куда перейти»;
@@ -29,6 +36,7 @@ export const SettingItem: React.FC<ItemProps> = ({
   extra,
   children,
   secondary,
+  action,
   onClick,
   expanded,
 }) => {
@@ -57,6 +65,16 @@ export const SettingItem: React.FC<ItemProps> = ({
     <ListItem disablePadding>
       <ListItemButton onClick={handleClick} disabled={isLoading}>
         <ListItemText primary={primary} secondary={secondary} />
+        {action ? (
+          // Клик и по самому контролу, и по подписи рядом с ним остаётся
+          // здесь: иначе промах мимо тумблера уводил бы с экрана.
+          <Box
+            sx={{ display: 'flex', alignItems: 'center', gap: 1, mr: 1 }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            {action}
+          </Box>
+        ) : null}
         {isLoading ? (
           <CircularProgress color="inherit" size={20} />
         ) : expanded === undefined ? (

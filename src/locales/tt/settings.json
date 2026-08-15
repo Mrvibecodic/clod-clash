@@ -307,7 +307,9 @@
       }
     },
     "tools": {
-      "title": "Tools"
+      "title": "Tools",
+      "shortcut": "Баш биттә",
+      "shortcutAria": "Баш биттә «{{name}}» ярлыгы"
     }
   },
   "modals": {

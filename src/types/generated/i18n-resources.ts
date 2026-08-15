@@ -752,6 +752,8 @@ export interface TranslationResources {
     settings: {
       components: {
         tools: {
+          shortcut: string
+          shortcutAria: string
           title: string
         }
         verge: {

@@ -307,7 +307,9 @@
       }
     },
     "tools": {
-      "title": "Tools"
+      "title": "Tools",
+      "shortcut": "顯示在首頁",
+      "shortcutAria": "首頁上的{{name}}捷徑"
     }
   },
   "modals": {

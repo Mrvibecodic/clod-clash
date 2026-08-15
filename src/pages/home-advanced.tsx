@@ -30,6 +30,7 @@ import { useConnectTargets } from '@/hooks/use-connect-targets'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useSessionUptime } from '@/hooks/use-session-uptime'
 import { useSimpleMode } from '@/hooks/use-simple-mode'
+import { useToolShortcuts } from '@/hooks/use-tool-shortcuts'
 import { useFitWindowToContent } from '@/hooks/use-window-fit'
 import { SHAPE, TINT } from '@/pages/_theme'
 import { updateProfile } from '@/services/cmds'
@@ -42,18 +43,24 @@ interface TileProps {
   label: string
   hint?: string
   onClick: () => void
+  /**
+   * clod:tool-shortcuts — плотная плитка ярлыка: те же поверхность, радиус и
+   * подъём под курсором, но без пояснения и с меньшей иконкой. Ярлык — вторая
+   * строка того же ряда, и он не должен спорить по весу с «Подписками».
+   */
+  dense?: boolean
 }
 
 /** One quick-access tile of the advanced home screen. */
-const Tile = ({ icon, label, hint, onClick }: TileProps) => (
+const Tile = ({ icon, label, hint, onClick, dense }: TileProps) => (
   <ButtonBase
     onClick={onClick}
     sx={{
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'flex-start',
-      gap: 1.5,
-      p: 1.6,
+      gap: dense ? 1.25 : 1.5,
+      p: dense ? 1.15 : 1.6,
       borderRadius: SHAPE.surface,
       textAlign: 'left',
       bgcolor: 'background.paper',
@@ -78,8 +85,8 @@ const Tile = ({ icon, label, hint, onClick }: TileProps) => (
   >
     <Box
       sx={{
-        width: 36,
-        height: 36,
+        width: dense ? 30 : 36,
+        height: dense ? 30 : 36,
         borderRadius: SHAPE.control,
         display: 'flex',
         alignItems: 'center',
@@ -92,7 +99,11 @@ const Tile = ({ icon, label, hint, onClick }: TileProps) => (
       {icon}
     </Box>
     <Box sx={{ minWidth: 0 }}>
-      <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>
+      <Typography
+        variant="body2"
+        sx={{ fontWeight: 600, fontSize: dense ? 13.5 : undefined }}
+        noWrap
+      >
         {label}
       </Typography>
       {hint ? (
@@ -123,6 +134,7 @@ const HomeAdvancedPage = () => {
   const navigate = useNavigate()
   const { current, mutateProfiles } = useProfiles()
   const { setSimpleMode } = useSimpleMode()
+  const { shortcuts } = useToolShortcuts()
   const { connected, willConnect, toggleConnection } = useConnectTargets()
   const uptime = useSessionUptime(connected)
   // clod:fit-window — окно тянется под содержимое, а на маленьком экране
@@ -320,6 +332,34 @@ const HomeAdvancedPage = () => {
               onClick={() => void navigate('/settings')}
             />
           </Box>
+
+          {/* clod:tool-shortcuts — ярлыки технических экранов отдельным рядом
+              под плитками. Отдельным, а не вперемешку: «Подписки» и
+              «Настройки» есть у всех и всегда, а этот ряд собран самим
+              пользователем и может исчезнуть целиком — тогда и ряда нет, и
+              главная возвращается к прежнему виду. Порог столбца 150 px
+              (у верхних плиток 190): ярлык — одно слово без пояснения.
+              `auto-fill`, а не `auto-fit`, — иначе один включённый ярлык
+              растянулся бы на всю ширину. */}
+          {shortcuts.length > 0 ? (
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+                gap: compact ? 1 : 1.25,
+              }}
+            >
+              {shortcuts.map((tool) => (
+                <Tile
+                  key={tool.key}
+                  dense
+                  icon={<tool.Icon fontSize="small" />}
+                  label={t(tool.label)}
+                  onClick={() => void navigate(tool.path)}
+                />
+              ))}
+            </Box>
+          ) : null}
         </Stack>
       </Box>
     </Stack>

@@ -330,6 +330,18 @@ pub struct IVerge {
     /// принадлежат пользователю, и прокрутка в них законна.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub window_fit_content: Option<bool>,
+
+    /// clod:tool-shortcuts — какие технические экраны показывать плитками на
+    /// главной расширенного режима. Значения — ключи из
+    /// `src/hooks/use-tool-shortcuts.ts`: `proxies`, `rules`, `connections`,
+    /// `logs`; неизвестные ключи фронт просто пропускает.
+    ///
+    /// `None` = все четыре (так это и задумано: инструменты должны быть под
+    /// рукой). Пустой список — законное состояние «ни одного», и его надо
+    /// уметь отличать от `None`, поэтому здесь именно `Option<Vec<_>>`, а не
+    /// пустой вектор по умолчанию.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub home_tool_shortcuts: Option<Vec<String>>,
     // clod:simple-mode end
 
     // clod:core-updater begin
@@ -737,6 +749,7 @@ impl IVerge {
         patch!(window_pos_simple);
         patch!(window_pos_advanced);
         patch!(window_fit_content);
+        patch!(home_tool_shortcuts);
         // clod:simple-mode end
         // clod:core-updater begin
         patch!(use_managed_core);
