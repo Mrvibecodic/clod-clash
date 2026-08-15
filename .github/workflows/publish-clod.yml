@@ -68,10 +68,10 @@ jobs:
           NOTES=$(git tag -l --format='%(contents)' "$GITHUB_REF_NAME")
           if [ -n "$NOTES" ]; then
             gh api -X PATCH "repos/${{ github.repository }}/releases/$id" \
-              -F draft=false -F prerelease=true -f body="$NOTES" --jq .html_url
+              -F draft=false -F prerelease=false -f body="$NOTES" --jq .html_url
           else
             gh api -X PATCH "repos/${{ github.repository }}/releases/$id" \
-              -F draft=false -F prerelease=true --jq .html_url
+              -F draft=false -F prerelease=false --jq .html_url
           fi
           echo "release_id=$id" >> "$GITHUB_OUTPUT"
 

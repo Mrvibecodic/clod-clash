@@ -8,6 +8,36 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.1.0
+
+<!-- lang:en -->
+
+### Added
+
+- Shortcuts to the tools on the home screen: Proxies, Rules, Connections and Logs now appear as tiles right under «Subscriptions / Refresh / Settings» in the advanced interface. Each one is turned on or off in Settings → Advanced settings → Tools; all four are on, and a tool switched off simply leaves the row — with none left the row disappears entirely
+
+### Fixed
+
+- After an update the desktop and Start menu shortcuts show the current icon instead of the old one
+- The tray icon matches the new app icon in every state — plain, system proxy and TUN, in both the colour and the monochrome set
+- The home screen no longer flashes the «add a subscription» prompt for a moment at startup
+- If the window stops responding after being restored from the taskbar, the app now notices it and writes down what it was doing, instead of going quiet
+
+<!-- lang:ru -->
+
+### Добавлено
+
+- Ярлыки инструментов на главном экране: Прокси, Правила, Соединения и Логи встали плитками прямо под «Подписки / Обновить / Настройки» в расширенном режиме. Каждый включается и выключается в «Настройки → Продвинутые настройки → Инструменты»; включены все четыре, выключенный просто уходит из ряда, а если не осталось ни одного — ряда нет вовсе
+
+### Исправлено
+
+- После обновления ярлыки на рабочем столе и в «Пуске» показывают текущий значок, а не прежний
+- Значок в трее совпадает с новой иконкой приложения во всех состояниях — обычном, системного прокси и TUN, в цветном и монохромном наборе
+- Главный экран больше не мигает на запуске приглашением добавить подписку
+- Если окно перестаёт отвечать после разворачивания из панели задач, приложение замечает это и записывает, на чём остановилось, вместо того чтобы молчать
+
+---
+
 ## v0.0.31-alpha
 
 <!-- lang:en -->

@@ -89,7 +89,7 @@ jobs:
             -f tag_name="$TAG" \
             -f name="Clod Clash $TAG" \
             -f body="Черновик — наполняется сборкой." \
-            -F draft=true -F prerelease=true --jq .id)
+            -F draft=true -F prerelease=false --jq .id)
           echo "created draft $id"
           echo "release_id=$id" >> "$GITHUB_OUTPUT"
 
@@ -208,18 +208,19 @@ jobs:
             echo "uploaded $f"
           done
 
-  # После успеха всех платформ релиз публикуется сам (pre-release), тело —
+  # После успеха всех платформ релиз публикуется сам (обычный релиз, не
+  # pre-release: с 0.1.0 сборки помечаются как основные), тело —
   # двуязычная (EN+RU) секция из UPDATELOG.md; сообщение тега — фолбэк.
   # Ручной publish-тег (publish-clod.yml) остаётся для перезаливок latest.json.
   publish_release:
-    name: Publish pre-release and roll the updater tag
+    name: Publish the release and roll the updater tag
     needs: [prepare_release, release]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
 
-      - name: Publish the draft as a pre-release
+      - name: Publish the draft as a release
         id: publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -257,10 +258,10 @@ jobs:
           fi
           if [ -n "$NOTES" ]; then
             gh api -X PATCH "repos/${{ github.repository }}/releases/$RELEASE_ID" \
-              -F draft=false -F prerelease=true -f body="$NOTES" --jq .html_url
+              -F draft=false -F prerelease=false -f body="$NOTES" --jq .html_url
           else
             gh api -X PATCH "repos/${{ github.repository }}/releases/$RELEASE_ID" \
-              -F draft=false -F prerelease=true --jq .html_url
+              -F draft=false -F prerelease=false --jq .html_url
           fi
 
       - name: Roll latest.json into the updater release
