@@ -10,7 +10,6 @@ macro_rules! revise {
     };
 }
 
-// if key not exists then append value
 #[allow(unused_macros)]
 macro_rules! append {
     ($map: expr, $key: expr, $val: expr) => {
@@ -21,6 +20,17 @@ macro_rules! append {
     };
 }
 
+const LAN_ROUTE_EXCLUDES: &[&str] = &[
+    "10.0.0.0/8",
+    "172.16.0.0/12",
+    "192.168.0.0/16",
+    "169.254.0.0/16",
+    "224.0.0.0/4",
+    "255.255.255.255/32",
+    "fc00::/7",
+    "fe80::/10",
+];
+
 pub fn use_tun(mut config: Mapping, enable: bool) -> Mapping {
     let tun_key = Value::from("tun");
     let tun_val = config.get(&tun_key);
@@ -30,15 +40,10 @@ pub fn use_tun(mut config: Mapping, enable: bool) -> Mapping {
 
     if enable {
         let shaped_fake_ip = shape_dns_for_tun(&mut config);
+        keep_lan_reachable(&mut tun_val);
 
         #[cfg(target_os = "macos")]
         if shaped_fake_ip {
-            // clod: раньше сюда прилетала пара «восстановить + подменить» на
-            // КАЖДУЮ генерацию конфига (а это каждый патч настроек и каждое
-            // обновление подписки): две задачи гонялись друг с другом, и при
-            // неудачном порядке системный DNS оставался нашим навсегда.
-            // Теперь подменяем один раз — пока файл состояния на месте,
-            // трогать нечего.
             if !crate::utils::resolve::dns::has_pending_restore() {
                 AsyncHandler::spawn(move || async move {
                     crate::utils::resolve::dns::set_public_dns("114.114.114.114".to_string()).await;
@@ -48,8 +53,6 @@ pub fn use_tun(mut config: Mapping, enable: bool) -> Mapping {
         #[cfg(not(target_os = "macos"))]
         let _ = shaped_fake_ip;
     } else {
-        // При выключенном TUN только восстанавливаем системный DNS, настройки
-        // DNS в конфиге не трогаем
         #[cfg(target_os = "macos")]
         if crate::utils::resolve::dns::has_pending_restore() {
             AsyncHandler::spawn(move || async move {
@@ -58,28 +61,25 @@ pub fn use_tun(mut config: Mapping, enable: bool) -> Mapping {
         }
     }
 
-    // Обновляем конфигурацию TUN
     revise!(tun_val, "enable", enable);
     revise!(config, "tun", tun_val);
 
     config
 }
 
-/// clod:tun-dns-floor — DNS, без которого поднятый TUN бесполезен.
-///
-/// Правило одно на два вызова, поэтому и живёт отдельной функцией: `use_tun`
-/// применяет его до страницы DNS, а `ensure_dns_for_tun` — ещё раз после неё
-/// (см. комментарий там). Возвращает `true`, если конфиг доведён до fake-ip:
-/// на macOS по этому же условию подменяется системный резолвер.
-///
-/// Что делается:
-///   * `dns.enable = true` — БЕЗУСЛОВНО. TUN перехватывает 53-й порт, и с
-///     выключенным резолвером запросы уходят в никуда: имена перестают
-///     разрешаться совсем. Это верно и для `redir-host`, поэтому включение
-///     вынесено из ветки fake-ip, где оно раньше жило.
-///   * остальное — только когда `enhanced-mode` это `fake-ip` или не задан.
-///     Человек, выбравший `redir-host` осознанно, не должен получить чужой
-///     режим обратно только потому, что включил туннель.
+fn keep_lan_reachable(tun_val: &mut Mapping) {
+    let key = Value::from("route-exclude-address");
+    let already_set = tun_val
+        .get(&key)
+        .and_then(Value::as_sequence)
+        .is_some_and(|list| !list.is_empty());
+    if already_set {
+        return;
+    }
+
+    revise!(tun_val, "route-exclude-address", LAN_ROUTE_EXCLUDES.to_vec());
+}
+
 fn shape_dns_for_tun(config: &mut Mapping) -> bool {
     let dns_key = Value::from("dns");
     let mut dns_val = config.get(&dns_key).map_or_else(Mapping::new, |val| {
@@ -107,7 +107,6 @@ fn shape_dns_for_tun(config: &mut Mapping) -> bool {
             revise!(dns_val, "fake-ip-range", "198.18.0.1/16");
         }
 
-        // При включённом IPv6 добавляем диапазон fake-ip для IPv6
         if ipv6_val && !dns_val.contains_key(Value::from("fake-ip-range6")) {
             revise!(dns_val, "fake-ip-range6", "fdfe:dcba:9876::1/64");
         }
@@ -117,17 +116,6 @@ fn shape_dns_for_tun(config: &mut Mapping) -> bool {
     fake_ip
 }
 
-/// clod:tun-dns-floor — тот же пол, но ПОСЛЕ страницы DNS.
-///
-/// `apply_dns_settings` кладёт блок `dns` из `dns_config.yaml` целиком
-/// (`config.insert`, не merge), то есть стирает всё, что `use_tun` только что
-/// выставил строкой выше. Пользователь с включённой страницей DNS и файлом без
-/// `enable: true` получал поднятый туннель с выключенным резолвером — и это
-/// ещё до всяких merge/script. Тот же баг живёт у Koala Clash; у FlClashX его
-/// нет ровно потому, что там такой же пол по `dns.enable`.
-///
-/// Побочный эффект для macOS сюда не переносится: он уже сработал в `use_tun`
-/// и защищён своим файлом состояния.
 pub fn ensure_dns_for_tun(mut config: Mapping, enable: bool) -> Mapping {
     if enable {
         shape_dns_for_tun(&mut config);
@@ -137,7 +125,7 @@ pub fn ensure_dns_for_tun(mut config: Mapping, enable: bool) -> Mapping {
 
 #[cfg(test)]
 mod tests {
-    use super::{ensure_dns_for_tun, shape_dns_for_tun};
+    use super::{LAN_ROUTE_EXCLUDES, ensure_dns_for_tun, keep_lan_reachable, shape_dns_for_tun};
     use serde_yaml_ng::{Mapping, Value};
 
     fn dns_of(config: &Mapping) -> Mapping {
@@ -147,9 +135,19 @@ mod tests {
             .unwrap_or_default()
     }
 
+    fn excludes_of(tun: &Mapping) -> Vec<String> {
+        tun.get(Value::from("route-exclude-address"))
+            .and_then(Value::as_sequence)
+            .map(|list| {
+                list.iter()
+                    .filter_map(|item| item.as_str().map(ToOwned::to_owned))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     #[test]
     fn tun_always_turns_the_resolver_on() {
-        // Пустой конфиг: пол обязан создать блок и включить резолвер.
         let mut config = Mapping::new();
         assert!(shape_dns_for_tun(&mut config));
         let dns = dns_of(&config);
@@ -163,7 +161,6 @@ mod tests {
 
     #[test]
     fn redir_host_keeps_its_mode_but_not_its_off_switch() {
-        // Осознанный выбор режима не отбираем...
         let mut dns = Mapping::new();
         dns.insert(Value::from("enhanced-mode"), Value::from("redir-host"));
         dns.insert(Value::from("enable"), Value::from(false));
@@ -173,15 +170,12 @@ mod tests {
         assert!(!shape_dns_for_tun(&mut config));
         let dns = dns_of(&config);
         assert_eq!(dns.get(Value::from("enhanced-mode")), Some(&Value::from("redir-host")));
-        // ...а выключенный резолвер под TUN — это отсутствие имён вообще.
         assert_eq!(dns.get(Value::from("enable")), Some(&Value::from(true)));
         assert!(!dns.contains_key(Value::from("fake-ip-range")));
     }
 
     #[test]
     fn floor_survives_the_dns_page_overwriting_the_block() {
-        // Ровно тот случай, ради которого пол и заведён: страница DNS положила
-        // свой блок поверх того, что выставил `use_tun`.
         let mut page_dns = Mapping::new();
         page_dns.insert(Value::from("enable"), Value::from(false));
         page_dns.insert(Value::from("nameserver"), Value::from(vec!["1.1.1.1"]));
@@ -191,7 +185,6 @@ mod tests {
         let config = ensure_dns_for_tun(config, true);
         let dns = dns_of(&config);
         assert_eq!(dns.get(Value::from("enable")), Some(&Value::from(true)));
-        // Список серверов пользователя пол не трогает.
         assert!(dns.contains_key(Value::from("nameserver")));
     }
 
@@ -204,5 +197,28 @@ mod tests {
 
         let config = ensure_dns_for_tun(config, false);
         assert_eq!(dns_of(&config).get(Value::from("enable")), Some(&Value::from(false)));
+    }
+
+    #[test]
+    fn the_local_network_stays_outside_the_tunnel() {
+        let mut tun = Mapping::new();
+        keep_lan_reachable(&mut tun);
+        assert_eq!(excludes_of(&tun), LAN_ROUTE_EXCLUDES);
+
+        let mut emptied = Mapping::new();
+        emptied.insert(Value::from("route-exclude-address"), Value::Sequence(Vec::new()));
+        keep_lan_reachable(&mut emptied);
+        assert_eq!(excludes_of(&emptied), LAN_ROUTE_EXCLUDES);
+    }
+
+    #[test]
+    fn an_own_exclude_list_is_never_replaced() {
+        let mut tun = Mapping::new();
+        tun.insert(
+            Value::from("route-exclude-address"),
+            Value::from(vec!["203.0.113.0/24"]),
+        );
+        keep_lan_reachable(&mut tun);
+        assert_eq!(excludes_of(&tun), vec!["203.0.113.0/24".to_owned()]);
     }
 }
