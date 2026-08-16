@@ -20,17 +20,6 @@ macro_rules! append {
     };
 }
 
-const LAN_ROUTE_EXCLUDES: &[&str] = &[
-    "10.0.0.0/8",
-    "172.16.0.0/12",
-    "192.168.0.0/16",
-    "169.254.0.0/16",
-    "224.0.0.0/4",
-    "255.255.255.255/32",
-    "fc00::/7",
-    "fe80::/10",
-];
-
 pub fn use_tun(mut config: Mapping, enable: bool) -> Mapping {
     let tun_key = Value::from("tun");
     let tun_val = config.get(&tun_key);
@@ -40,7 +29,6 @@ pub fn use_tun(mut config: Mapping, enable: bool) -> Mapping {
 
     if enable {
         let shaped_fake_ip = shape_dns_for_tun(&mut config);
-        keep_lan_reachable(&mut tun_val);
 
         #[cfg(target_os = "macos")]
         if shaped_fake_ip && !crate::utils::resolve::dns::has_pending_restore() {
@@ -63,19 +51,6 @@ pub fn use_tun(mut config: Mapping, enable: bool) -> Mapping {
     revise!(config, "tun", tun_val);
 
     config
-}
-
-fn keep_lan_reachable(tun_val: &mut Mapping) {
-    let key = Value::from("route-exclude-address");
-    let already_set = tun_val
-        .get(&key)
-        .and_then(Value::as_sequence)
-        .is_some_and(|list| !list.is_empty());
-    if already_set {
-        return;
-    }
-
-    revise!(tun_val, "route-exclude-address", LAN_ROUTE_EXCLUDES.to_vec());
 }
 
 fn shape_dns_for_tun(config: &mut Mapping) -> bool {
@@ -123,24 +98,13 @@ pub fn ensure_dns_for_tun(mut config: Mapping, enable: bool) -> Mapping {
 
 #[cfg(test)]
 mod tests {
-    use super::{LAN_ROUTE_EXCLUDES, ensure_dns_for_tun, keep_lan_reachable, shape_dns_for_tun};
+    use super::{ensure_dns_for_tun, shape_dns_for_tun};
     use serde_yaml_ng::{Mapping, Value};
 
     fn dns_of(config: &Mapping) -> Mapping {
         config
             .get(Value::from("dns"))
             .and_then(|v| v.as_mapping().cloned())
-            .unwrap_or_default()
-    }
-
-    fn excludes_of(tun: &Mapping) -> Vec<String> {
-        tun.get(Value::from("route-exclude-address"))
-            .and_then(Value::as_sequence)
-            .map(|list| {
-                list.iter()
-                    .filter_map(|item| item.as_str().map(ToOwned::to_owned))
-                    .collect()
-            })
             .unwrap_or_default()
     }
 
@@ -195,28 +159,5 @@ mod tests {
 
         let config = ensure_dns_for_tun(config, false);
         assert_eq!(dns_of(&config).get(Value::from("enable")), Some(&Value::from(false)));
-    }
-
-    #[test]
-    fn the_local_network_stays_outside_the_tunnel() {
-        let mut tun = Mapping::new();
-        keep_lan_reachable(&mut tun);
-        assert_eq!(excludes_of(&tun), LAN_ROUTE_EXCLUDES);
-
-        let mut emptied = Mapping::new();
-        emptied.insert(Value::from("route-exclude-address"), Value::Sequence(Vec::new()));
-        keep_lan_reachable(&mut emptied);
-        assert_eq!(excludes_of(&emptied), LAN_ROUTE_EXCLUDES);
-    }
-
-    #[test]
-    fn an_own_exclude_list_is_never_replaced() {
-        let mut tun = Mapping::new();
-        tun.insert(
-            Value::from("route-exclude-address"),
-            Value::from(vec!["203.0.113.0/24"]),
-        );
-        keep_lan_reachable(&mut tun);
-        assert_eq!(excludes_of(&tun), vec!["203.0.113.0/24".to_owned()]);
     }
 }
