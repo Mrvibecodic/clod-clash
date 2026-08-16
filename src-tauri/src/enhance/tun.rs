@@ -43,12 +43,10 @@ pub fn use_tun(mut config: Mapping, enable: bool) -> Mapping {
         keep_lan_reachable(&mut tun_val);
 
         #[cfg(target_os = "macos")]
-        if shaped_fake_ip {
-            if !crate::utils::resolve::dns::has_pending_restore() {
-                AsyncHandler::spawn(move || async move {
-                    crate::utils::resolve::dns::set_public_dns("114.114.114.114".to_string()).await;
-                });
-            }
+        if shaped_fake_ip && !crate::utils::resolve::dns::has_pending_restore() {
+            AsyncHandler::spawn(move || async move {
+                crate::utils::resolve::dns::set_public_dns("114.114.114.114".to_string()).await;
+            });
         }
         #[cfg(not(target_os = "macos"))]
         let _ = shaped_fake_ip;
