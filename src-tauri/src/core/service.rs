@@ -665,6 +665,40 @@ pub fn service_registration() -> ServiceRegistration {
     }
 }
 
+#[cfg(target_os = "windows")]
+pub fn start_registered_service() -> bool {
+    use std::os::windows::process::CommandExt as _;
+
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    const SERVICE_ALREADY_RUNNING: i32 = 1056;
+
+    let Ok(output) = StdCommand::new("sc.exe")
+        .args(["start", "clash_verge_service"])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+    else {
+        return false;
+    };
+
+    let code = output.status.code().unwrap_or(-1);
+    if matches!(code, 0 | SERVICE_ALREADY_RUNNING) {
+        return true;
+    }
+
+    logging!(
+        info,
+        Type::Service,
+        "the registered service did not start without rights: {}",
+        describe_failure(code, &output.stdout, &output.stderr)
+    );
+    false
+}
+
+#[cfg(not(target_os = "windows"))]
+pub const fn start_registered_service() -> bool {
+    false
+}
+
 #[cfg(target_os = "linux")]
 pub fn service_registration() -> ServiceRegistration {
     if !Path::new("/etc/systemd/system/clash-verge-service.service").exists() {
