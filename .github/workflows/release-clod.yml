@@ -1,17 +1,3 @@
-# clod:F6 — выпуск Clod Clash.
-#
-# Собирает инсталлеры под Windows x64, macOS Apple Silicon и Linux x64,
-# подписывает артефакты апдейтера ключом из секретов и прикладывает
-# latest.json к черновику релиза. Черновик создаётся ОДИН раз отдельным
-# джобом (prepare_release): параллельное создание из матрицы даёт гонку
-# и 403 у проигравшего.
-#
-# Требуемые секреты репозитория (см. docs/RELEASING.md):
-#   TAURI_PRIVATE_KEY       — приватный ключ подписи апдейтера
-#   TAURI_KEY_PASSWORD      — пароль к нему (если задан при генерации)
-#
-# Запуск: пуш тега `clod-v{версия}` (версия должна совпадать с package.json).
-
 name: Release Clod Clash
 
 on:
@@ -25,10 +11,6 @@ env:
   CARGO_INCREMENTAL: 0
   RUST_BACKTRACE: short
   HUSKY: 0
-  # Быстрее собираем релиз в CI: у корневого профиля codegen-units=1 и
-  # debug=1 — это самая дорогая (последовательная) часть компиляции.
-  # Переопределяем только для CI: бинарь чуть больше/чуть медленнее,
-  # для альфы неважно, а виндовый джоб перестаёт упираться в один поток.
   CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 16
   CARGO_PROFILE_RELEASE_DEBUG: 0
 
@@ -62,10 +44,6 @@ jobs:
     outputs:
       release_id: ${{ steps.ensure.outputs.release_id }}
     steps:
-      # Черновик от предыдущего прогона того же тега не переиспользуем: в нём
-      # лежат ассеты со старого коммита, а заливка одноимённого файла даёт 422
-      # и роняет джоб (так упал 0.0.15-alpha после пересоздания тега). Каждый
-      # прогон начинает с чистого черновика; опубликованный релиз не трогаем.
       - name: Find or create the draft
         id: ensure
         env:
@@ -100,8 +78,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # win-arm64 (Windows on ARM) и mac Intel сознательно не собираем —
-          # аудитории нет (решения от 30–31.07.2026)
           - os: windows-latest
             target: x86_64-pc-windows-msvc
           - os: macos-latest
@@ -114,9 +90,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
-      # Ставим ровно тот тулчейн, что в `rust-toolchain.toml`: `stable` всё
-      # равно перебивается пином при сборке, то есть скачивался впустую — и
-      # ключ кэша при этом врал, называя себя stable.
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
         with:
@@ -128,8 +101,6 @@ jobs:
         with:
           prefix-key: 'v1-rust-clod'
           key: 'rust-1.95.0-${{ matrix.os }}-${{ matrix.target }}'
-          # сохранять кэш и при упавшем джобе: иначе падение на позднем шаге
-          # (upload) оставляет следующий прогон без кэша и +30 мин компиляции
           cache-on-failure: true
           workspaces: |
             . -> target
@@ -171,9 +142,6 @@ jobs:
           releaseId: ${{ needs.prepare_release.outputs.release_id }}
           args: --target ${{ matrix.target }}
 
-      # Портабл-zip для Windows: NSIS-инсталлер имеет 32-битную заглушку и не
-      # запускается на Windows Server без WoW64; портаблу нужен только
-      # предустановленный WebView2 Runtime.
       - name: Portable bundle (windows only)
         if: matrix.os == 'windows-latest'
         run: pnpm portable ${{ matrix.target }}
@@ -184,7 +152,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # заливаем по release_id: gh release upload по тегу не видит черновики
           shopt -s nullglob
           files=(Clod.Clash_*_portable.zip)
           if [ ${#files[@]} -eq 0 ]; then
@@ -192,8 +159,6 @@ jobs:
             exit 1
           fi
           for f in "${files[@]}"; do
-            # ...и на всякий случай (перезапуск упавшего джоба ходит в тот же
-            # черновик) убираем одноимённый ассет: повторная заливка = 422.
             dup=$(gh api "repos/${{ github.repository }}/releases/${{ needs.prepare_release.outputs.release_id }}/assets" \
               --jq ".[] | select(.name==\"$f\") | .id")
             for id in $dup; do
@@ -208,10 +173,6 @@ jobs:
             echo "uploaded $f"
           done
 
-  # После успеха всех платформ релиз публикуется сам (обычный релиз, не
-  # pre-release: с 0.1.0 сборки помечаются как основные), тело —
-  # двуязычная (EN+RU) секция из UPDATELOG.md; сообщение тега — фолбэк.
-  # Ручной publish-тег (publish-clod.yml) остаётся для перезаливок latest.json.
   publish_release:
     name: Publish the release and roll the updater tag
     needs: [prepare_release, release]
@@ -229,8 +190,6 @@ jobs:
           RELEASE_ID="${{ needs.prepare_release.outputs.release_id }}"
           echo "release tag: $RELEASE_TAG (id=$RELEASE_ID)"
 
-          # Не публиковать полупустую сборку: latest.json и артефакты всех
-          # трёх платформ (линукс собирается как deb+rpm, AppImage у нас нет).
           assets=$(gh api "repos/${{ github.repository }}/releases/$RELEASE_ID/assets?per_page=100" --jq '.[].name')
           echo "assets:"; echo "$assets"
           for needle in latest.json setup.exe portable.zip .dmg .deb .rpm; do
@@ -240,9 +199,6 @@ jobs:
             fi
           done
 
-          # Тело релиза — двуязычная секция (EN+RU, маркеры <!-- lang:xx -->)
-          # из UPDATELOG.md; сообщение тега — только фолбэк на случай, когда
-          # секцию забыли добавить.
           VERSION="${RELEASE_TAG#clod-v}"
           NOTES=$(awk -v ver="## v$VERSION" '
             $0 == ver { grab = 1; next }
@@ -251,8 +207,6 @@ jobs:
           ' UPDATELOG.md)
           if [ -z "$NOTES" ]; then
             echo "::warning::UPDATELOG.md has no section for v$VERSION, falling back to the tag message"
-            # actions/checkout разворачивает аннотированный тег в коммит;
-            # чтобы прочитать сообщение тега, дотягиваем сам тег-объект.
             git fetch --force origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG" || true
             NOTES=$(git tag -l --format='%(contents)' "$RELEASE_TAG")
           fi
@@ -263,6 +217,23 @@ jobs:
             gh api -X PATCH "repos/${{ github.repository }}/releases/$RELEASE_ID" \
               -F draft=false -F prerelease=false --jq .html_url
           fi
+
+      - name: Drop the version from asset names
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RELEASE_ID="${{ needs.prepare_release.outputs.release_id }}"
+          VERSION="${GITHUB_REF_NAME#clod-v}"
+          gh api "repos/${{ github.repository }}/releases/$RELEASE_ID/assets?per_page=100" \
+            --jq '.[] | "\(.id) \(.name)"' > assets.list
+          while read -r id name; do
+            new="${name/_${VERSION}_/_}"
+            new="${new/-${VERSION}-1./-}"
+            if [ "$new" = "$name" ]; then
+              continue
+            fi
+            gh api -X PATCH "repos/${{ github.repository }}/releases/assets/$id" -f name="$new" --jq .name
+          done < assets.list
 
       - name: Roll latest.json into the updater release
         env:
@@ -278,10 +249,6 @@ jobs:
             "repos/${{ github.repository }}/releases/assets/$asset_id" > latest.json
           jq -e .version latest.json
 
-          # Двуязычный (EN+RU) ченджлог для окна обновления: секция
-          # `## v{версия}` из UPDATELOG.md с маркерами <!-- lang:xx -->;
-          # приложение само выберет язык. Пустые notes ломали кнопку Update
-          # у клиентов 0.0.2 (гард `if (!body) return`) — фолбэк обязателен.
           notes=$(awk -v ver="## v$VERSION" '
             $0 == ver { grab = 1; next }
             /^## v/ || /^---/ { if (grab) exit }
@@ -292,8 +259,6 @@ jobs:
             notes="New version $VERSION is available."
           fi
 
-          # tauri-action пишет api.github.com-ссылки, пока релиз черновик;
-          # после публикации меняем их на публичные browser_download_url.
           jq --arg notes "$notes" --slurpfile assets assets.json '
             .notes = $notes
             | .platforms |= with_entries(
@@ -310,8 +275,6 @@ jobs:
           mv latest.patched.json latest.json
           echo "patched latest.json:"; jq '{version, notes, url_sample: (.platforms | to_entries | .[0].value.url)}' latest.json
 
-          # Обновляем ассет и в самом релизе, чтобы фолбэк-эндпоинт
-          # releases/latest/download/latest.json тоже отдавал правленую версию.
           gh api -X DELETE "repos/${{ github.repository }}/releases/assets/$asset_id"
           gh api -X POST \
             -H "Content-Type: application/json" \
