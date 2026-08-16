@@ -1,6 +1,7 @@
 import {
   Box,
   Button,
+  ButtonGroup,
   List,
   ListItem,
   ListItemText,
@@ -20,6 +21,7 @@ import {
   Switch,
 } from '@/components/base'
 import { useClash } from '@/hooks/use-clash'
+import { useVerge } from '@/hooks/use-verge'
 import { enhanceProfiles } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import getSystem from '@/utils/get-system'
@@ -39,17 +41,18 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const { t } = useTranslation()
 
   const { clash, mutateClash, patchClash } = useClash()
+  const { verge, mutateVerge, patchVerge } = useVerge()
 
   const [open, setOpen] = useState(false)
   const [values, setValues] = useState({
-    stack: 'mixed',
+    stack: 'auto',
     device: OS === 'macos' ? 'utun1024' : 'Mihomo',
     autoRoute: true,
     routeExcludeAddress: '',
     autoRedirect: false,
     autoDetectInterface: true,
-    dnsHijack: ['any:53'],
-    strictRoute: false,
+    dnsHijack: 'auto',
+    strictRoute: 'auto',
     mtu: 1500,
   })
 
@@ -72,7 +75,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
       const computedAutoRedirect =
         OS === 'linux' ? (nextAutoRoute ? rawAutoRedirect : false) : false
       setValues({
-        stack: clash?.tun.stack ?? 'gvisor',
+        stack: verge?.tun_stack ?? 'auto',
         device: clash?.tun.device ?? (OS === 'macos' ? 'utun1024' : 'Mihomo'),
         autoRoute: nextAutoRoute,
         routeExcludeAddress: (clash?.tun['route-exclude-address'] ?? []).join(
@@ -80,8 +83,8 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
         ),
         autoRedirect: computedAutoRedirect,
         autoDetectInterface: clash?.tun['auto-detect-interface'] ?? true,
-        dnsHijack: clash?.tun['dns-hijack'] ?? ['any:53'],
-        strictRoute: clash?.tun['strict-route'] ?? false,
+        dnsHijack: verge?.tun_dns_hijack ?? 'auto',
+        strictRoute: verge?.tun_strict_route ?? 'auto',
         mtu: clash?.tun.mtu ?? 1500,
       })
     },
@@ -100,7 +103,6 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
       }
 
       const tun: IConfigData['tun'] = {
-        stack: values.stack,
         device:
           values.device === ''
             ? OS === 'macos'
@@ -115,18 +117,24 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
             }
           : {}),
         'auto-detect-interface': values.autoDetectInterface,
-        'dns-hijack': values.dnsHijack[0] === '' ? [] : values.dnsHijack,
-        'strict-route': values.strictRoute,
         mtu: values.mtu ?? 1500,
       }
+      const overrides = {
+        tun_stack: values.stack,
+        tun_strict_route: values.strictRoute,
+        tun_dns_hijack:
+          values.dnsHijack.trim() === '' ? 'auto' : values.dnsHijack,
+      }
       await patchClash({ tun })
+      await patchVerge(overrides)
       await mutateClash(
         (old) => ({
           ...old!,
-          tun,
+          tun: { ...old!.tun, ...tun },
         }),
         false,
       )
+      mutateVerge({ ...verge, ...overrides }, false)
       setOpen(false)
       showNotice.success('settings.modals.tun.messages.applied')
       void enhanceProfiles().catch((err: any) => {
@@ -148,7 +156,6 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
             size="small"
             onClick={async () => {
               const tun: IConfigData['tun'] = {
-                stack: 'gvisor',
                 device: OS === 'macos' ? 'utun1024' : 'Mihomo',
                 'auto-route': true,
                 ...(OS === 'linux'
@@ -157,30 +164,35 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
                     }
                   : {}),
                 'auto-detect-interface': true,
-                'dns-hijack': ['any:53'],
                 'route-exclude-address': [],
-                'strict-route': false,
                 mtu: 1500,
               }
+              const overrides = {
+                tun_stack: 'auto',
+                tun_strict_route: 'auto',
+                tun_dns_hijack: 'auto',
+              }
               setValues({
-                stack: 'gvisor',
+                stack: 'auto',
                 device: OS === 'macos' ? 'utun1024' : 'Mihomo',
                 autoRoute: true,
                 routeExcludeAddress: '',
                 autoRedirect: false,
                 autoDetectInterface: true,
-                dnsHijack: ['any:53'],
-                strictRoute: false,
+                dnsHijack: 'auto',
+                strictRoute: 'auto',
                 mtu: 1500,
               })
               await patchClash({ tun })
+              await patchVerge(overrides)
               await mutateClash(
                 (old) => ({
                   ...old!,
-                  tun,
+                  tun: { ...old!.tun, ...tun },
                 }),
                 false,
               )
+              mutateVerge({ ...verge, ...overrides }, false)
             }}
           >
             {t('shared.actions.resetToDefault')}
@@ -199,6 +211,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
           <ListItemText primary={t('settings.modals.tun.fields.stack')} />
           <StackModeSwitch
             value={values.stack}
+            allowAuto
             onChange={(value) => {
               setValues((v) => ({
                 ...v,
@@ -267,11 +280,18 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
 
         <ListItem sx={{ padding: '5px 2px' }}>
           <ListItemText primary={t('settings.modals.tun.fields.strictRoute')} />
-          <Switch
-            edge="end"
-            checked={values.strictRoute}
-            onChange={(_, c) => setValues((v) => ({ ...v, strictRoute: c }))}
-          />
+          <ButtonGroup size="small" sx={{ my: '4px' }}>
+            {(['auto', 'on', 'off'] as const).map((mode) => (
+              <Button
+                key={mode}
+                variant={values.strictRoute === mode ? 'contained' : 'outlined'}
+                onClick={() => setValues((v) => ({ ...v, strictRoute: mode }))}
+                sx={{ textTransform: 'capitalize' }}
+              >
+                {mode}
+              </Button>
+            ))}
+          </ButtonGroup>
         </ListItem>
 
         <ListItem sx={{ padding: '5px 2px' }}>
@@ -289,17 +309,29 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
 
         <ListItem sx={{ padding: '5px 2px' }}>
           <ListItemText primary={t('settings.modals.tun.fields.dnsHijack')} />
+          <ButtonGroup size="small" sx={{ my: '4px', marginRight: 1 }}>
+            <Button
+              variant={values.dnsHijack === 'auto' ? 'contained' : 'outlined'}
+              onClick={() => setValues((v) => ({ ...v, dnsHijack: 'auto' }))}
+              sx={{ textTransform: 'capitalize' }}
+            >
+              Auto
+            </Button>
+          </ButtonGroup>
           <TextField
             autoComplete="new-password"
             size="small"
             autoCorrect="off"
             autoCapitalize="off"
             spellCheck="false"
-            sx={{ width: 250 }}
-            value={values.dnsHijack.join(',')}
+            sx={{ width: 180 }}
+            value={values.dnsHijack === 'auto' ? '' : values.dnsHijack}
             placeholder={t('settings.modals.tun.tooltips.dnsHijack')}
             onChange={(e) =>
-              setValues((v) => ({ ...v, dnsHijack: e.target.value.split(',') }))
+              setValues((v) => ({
+                ...v,
+                dnsHijack: e.target.value === '' ? 'auto' : e.target.value,
+              }))
             }
           />
         </ListItem>

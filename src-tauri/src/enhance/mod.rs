@@ -28,6 +28,57 @@ use std::collections::{HashMap, HashSet};
 use tokio::fs;
 
 type ResultLog = Vec<(String, String)>;
+
+#[derive(Debug, Default)]
+struct TunOverrides {
+    stack: Option<Value>,
+    strict_route: Option<Value>,
+    dns_hijack: Option<Value>,
+}
+
+fn parse_tun_overrides(stack: Option<&str>, strict_route: Option<&str>, dns_hijack: Option<&str>) -> TunOverrides {
+    TunOverrides {
+        stack: match stack.map(str::trim) {
+            Some(value @ ("gvisor" | "system" | "mixed")) => Some(Value::from(value)),
+            _ => None,
+        },
+        strict_route: match strict_route.map(str::trim) {
+            Some("on") => Some(Value::from(true)),
+            Some("off") => Some(Value::from(false)),
+            _ => None,
+        },
+        dns_hijack: match dns_hijack.map(str::trim) {
+            None | Some("auto") => None,
+            Some(list) => Some(Value::Sequence(
+                list.split(',')
+                    .map(str::trim)
+                    .filter(|entry| !entry.is_empty())
+                    .map(Value::from)
+                    .collect(),
+            )),
+        },
+    }
+}
+
+fn ladder_tun(tun: &mut Mapping, app_tun: Mapping, overrides: &TunOverrides) {
+    for (key, value) in app_tun.into_iter() {
+        let deferred = matches!(key.as_str(), Some("stack" | "strict-route" | "dns-hijack"));
+        if deferred && tun.contains_key(&key) {
+            continue;
+        }
+        tun.insert(key, value);
+    }
+    if let Some(stack) = overrides.stack.clone() {
+        tun.insert("stack".into(), stack);
+    }
+    if let Some(strict_route) = overrides.strict_route.clone() {
+        tun.insert("strict-route".into(), strict_route);
+    }
+    if let Some(dns_hijack) = overrides.dns_hijack.clone() {
+        tun.insert("dns-hijack".into(), dns_hijack);
+    }
+}
+
 #[derive(Debug)]
 struct ConfigValues {
     clash_config: Mapping,
@@ -37,6 +88,7 @@ struct ConfigValues {
     socks_enabled: bool,
     http_enabled: bool,
     enable_dns_settings: bool,
+    tun_overrides: TunOverrides,
     #[cfg(not(target_os = "windows"))]
     redir_enabled: bool,
     #[cfg(target_os = "linux")]
@@ -55,8 +107,6 @@ struct ProfileItems {
     global_script: ChainItem,
     profile_name: String,
     profile_is_remote: bool,
-    /// clod:show-0hosts — провайдер попросил показывать свои узлы-заглушки как
-    /// есть (`clod-show-0hosts`), вместо наших экранов «нет серверов».
     profile_shows_zero_hosts: bool,
 }
 
@@ -123,13 +173,20 @@ async fn get_config_values() -> ConfigValues {
         ref verge_socks_enabled,
         ref verge_http_enabled,
         ref enable_dns_settings,
+        ref tun_stack,
+        ref tun_strict_route,
+        ref tun_dns_hijack,
         ..
     } = **verge_arc;
 
+    let tun_overrides = parse_tun_overrides(
+        tun_stack.as_deref(),
+        tun_strict_route.as_deref(),
+        tun_dns_hijack.as_deref(),
+    );
+
     let (clash_core, enable_tun, enable_builtin, socks_enabled, http_enabled, enable_dns_settings) = (
         Some(verge_arc.get_valid_clash_core()),
-        // clod:tun-ready — заявка = желание И НЕ сессионное подавление. Пока
-        // прав нет, TUN не уходит в конфиг ядра, но и не стирается из файла.
         enable_tun_mode.unwrap_or(false) && !crate::feat::tun::is_suppressed(),
         enable_builtin_enhanced.unwrap_or(true),
         verge_socks_enabled.unwrap_or(false),
@@ -154,6 +211,7 @@ async fn get_config_values() -> ConfigValues {
         socks_enabled,
         http_enabled,
         enable_dns_settings,
+        tun_overrides,
         #[cfg(not(target_os = "windows"))]
         redir_enabled,
         #[cfg(target_os = "linux")]
@@ -204,8 +262,6 @@ async fn collect_profile_items() -> Result<ProfileItems> {
 
     let name = current_item.name.clone().unwrap_or_default();
     let profile_is_remote = current_item.itype.as_deref() == Some("remote");
-    // clod:show-0hosts — решение принимает панель, и только для своей подписки:
-    // у локального профиля заглушек панели быть не может по определению.
     let profile_shows_zero_hosts = profile_is_remote && current_item.show_zero_hosts.unwrap_or(false);
 
     let (merge_item, script_item, rules_item, proxies_item, groups_item, global_merge, global_script) = tokio::join!(
@@ -320,9 +376,6 @@ fn extend_changed_keys(exists_keys: &mut Vec<String>, config: &Mapping, res_conf
     }));
 }
 
-/// Верхнеуровневые ключи control plane, за которые отвечает App: подключение к ядру,
-/// порты прослушивания, переключатели UI/трея. Платформенные ключи зависят от cfg;
-/// `dns.ipv6` обрабатывается отдельно.
 const CONTROL_PLANE_KEYS: &[&str] = &[
     "external-controller",
     #[cfg(unix)]
@@ -343,16 +396,9 @@ const CONTROL_PLANE_KEYS: &[&str] = &[
     "log-level",
     "ipv6",
     "unified-delay",
-    // clod: секция `tun` целиком принадлежит приложению. Без неё профиль от
-    // провайдера (или ручной merge/script) мог выключить TUN у пользователя —
-    // причём молча, потому что интерфейс читает свой флаг, а не конфиг ядра.
-    // `enforce_control_plane` заодно удаляет ключ, если его не было в снимке,
-    // так что добавить `tun` со стороны профиля тоже нельзя.
     "tun",
 ];
 
-/// Сохраняет итоговые значения control plane app перед ручным merge/script,
-/// записывает только те ключи, что уже существуют.
 fn snapshot_control_plane(config: &Mapping) -> Mapping {
     let mut snapshot = Mapping::new();
     for &key in CONTROL_PLANE_KEYS {
@@ -364,8 +410,6 @@ fn snapshot_control_plane(config: &Mapping) -> Mapping {
     snapshot
 }
 
-/// Восстанавливает снимок control plane после ручного переопределения;
-/// ключи control plane, отсутствующие в снимке, удаляются из итогового конфига.
 fn enforce_control_plane(mut config: Mapping, snapshot: Mapping) -> Mapping {
     for &key in CONTROL_PLANE_KEYS {
         let key = Value::from(key);
@@ -377,20 +421,6 @@ fn enforce_control_plane(mut config: Mapping, snapshot: Mapping) -> Mapping {
     config
 }
 
-/// Секции, за которые отвечает страница DNS. Снимок делается ТОЛЬКО при
-/// `enable_dns_settings` — тумблер и означает «эти блоки мои».
-///
-/// clod:dns-owner — раньше из ручных merge/script восстанавливался один
-/// `dns.ipv6`, и переопределение из merge-профиля молча уносило и резолверы, и
-/// `enhanced-mode`, и `fake-ip-range` — хотя человек прямо включил страницу
-/// DNS и настроил её. Разбор Koala Clash, FlClashX, Prizrak-Box и CMFA дал
-/// один и тот же ответ: поключевой защиты не делает НИКТО, граница проходит по
-/// целому блоку и управляется одним пользовательским тумблером (`controlDns` /
-/// `overrideDns` / `mi.Dns`). Здесь ровно это.
-///
-/// `hosts` идёт в комплекте: его пишет та же страница той же кнопкой
-/// (`apply_dns_settings`), и защищать одно без другого значило бы разорвать
-/// настройку пополам.
 const DNS_PAGE_KEYS: &[&str] = &["dns", "hosts"];
 
 fn snapshot_dns_page(config: &Mapping) -> Mapping {
@@ -404,14 +434,6 @@ fn snapshot_dns_page(config: &Mapping) -> Mapping {
     snapshot
 }
 
-/// Возвращает блоки страницы DNS на место после ручного переопределения.
-///
-/// Ключ, которого не было в снимке, НЕ удаляется — в отличие от control plane.
-/// Там удаление осознанно (профиль не должен уметь добавить себе `tun`), здесь
-/// оно стало бы регрессией: при пустом `dns_config.yaml` мы вырезали бы `dns`,
-/// который принёс merge-профиль пользователя, то есть отобрали бы настройку,
-/// ничего не дав взамен. Ровно по этой причине `dns` нельзя было просто
-/// дописать в `CONTROL_PLANE_KEYS`.
 fn enforce_dns_page(mut config: Mapping, snapshot: Mapping) -> Mapping {
     config.extend(snapshot);
     config
@@ -459,12 +481,6 @@ fn ensure_lan_bind_address(mut config: Mapping) -> Mapping {
     config
 }
 
-// clod: the node choice must survive core restarts under any profile. The
-// default merge template sets `profile.store-selected`, but subscriptions
-// imported from a panel never get that merge item — the core then forgets
-// every manual selection the moment it reloads. Force the flag in the final
-// config so mihomo persists selections in its cache regardless of what the
-// panel (or a manual override) shipped.
 fn ensure_store_selected(mut config: Mapping) -> Mapping {
     let key = Value::from("profile");
     match config.get_mut(&key) {
@@ -514,6 +530,7 @@ async fn merge_default_config(
     clash_config: Mapping,
     socks_enabled: bool,
     http_enabled: bool,
+    tun_overrides: &TunOverrides,
     #[cfg(not(target_os = "windows"))] redir_enabled: bool,
     #[cfg(target_os = "linux")] tproxy_enabled: bool,
 ) -> Mapping {
@@ -523,9 +540,7 @@ async fn merge_default_config(
                 val.as_mapping().cloned().unwrap_or_else(Mapping::new)
             });
             let patch_tun = value.as_mapping().cloned().unwrap_or_else(Mapping::new);
-            for (key, value) in patch_tun.into_iter() {
-                tun.insert(key, value);
-            }
+            ladder_tun(&mut tun, patch_tun, tun_overrides);
             config.insert("tun".into(), tun.into());
         } else {
             if key.as_str() == Some("socks-port") && !socks_enabled {
@@ -563,7 +578,6 @@ async fn merge_default_config(
                     continue;
                 }
             }
-            // Обработка логики включения/выключения ключа external-controller
             if key.as_str() == Some("external-controller") {
                 let enable_external_controller = Config::verge()
                     .await
@@ -574,7 +588,6 @@ async fn merge_default_config(
                 if enable_external_controller {
                     config.insert(key, value);
                 } else {
-                    // Если внешний контроллер отключён, задаём пустую строку
                     config.insert(key, "".into());
                 }
             } else {
@@ -611,31 +624,14 @@ async fn apply_builtin_scripts(mut config: Mapping, clash_core: Option<String>, 
     config
 }
 
-/// clod: что фильтр заглушек увидел в последнем собранном конфиге.
-///
-/// Панель отвечает 200 и валидным конфигом даже когда выдавать нечего, поэтому
-/// «серверов нет» — это не ошибка загрузки, а состояние, о котором интерфейсу
-/// нужно рассказать. Причину он выводит из `subscription-userinfo` (срок и
-/// трафик там настоящие), а эти данные добавляют то, чего в подписке нет:
-/// факт «конфиг состоял только из заглушек» и слова самой панели.
 #[derive(Debug, Clone, Default, serde::Serialize)]
 pub struct SentinelReport {
-    /// Имена выброшенных узлов — как их назвал администратор панели.
     pub remarks: Vec<String>,
-    /// После чистки не осталось ни одного настоящего узла.
     pub only_sentinels: bool,
 }
 
-/// Сколько имён заглушек имеет смысл донести до интерфейса: панель шлёт их по
-/// одному на строку своего сообщения, показываем первые как цитату.
 const MAX_REPORTED_REMARKS: usize = 4;
 
-/// Отчёт ПРИМЕНЁННОГО конфига (для команды `get_sentinel_report`).
-///
-/// Читается из закоммиченного `IRuntime`, а не из глобального слота: отчёт —
-/// часть сборки конфига и разделяет её судьбу. Слот перезаписывался бы уже при
-/// генерации, и неудачная валидация с откатом оставляла бы интерфейсу описание
-/// конфига, который ядро так и не приняло.
 pub async fn sentinel_report() -> SentinelReport {
     crate::config::Config::runtime()
         .await
@@ -644,38 +640,10 @@ pub async fn sentinel_report() -> SentinelReport {
         .clone()
 }
 
-/// clod: описания серверов из ПРИМЕНЁННОГО конфига — карта `имя → описание`.
-///
-/// Панель Remnawave кладёт описание хоста внутрь узла ключом `serverDescription`
-/// (в БД — `server_description`, не длиннее 30 символов). Через API ядра оно не
-/// проходит: `/proxies` отдаёт только имя, тип и историю задержек, — поэтому
-/// читаем его оттуда, где оно есть, из собранного конфига.
-///
-/// ВАЖНО про панель: описание уезжает только «расширенным клиентам», которых
-/// она узнаёт по User-Agent зашитым списком (FlClash X, Flowvy, prizrak-box,
-/// koala-clash, Happ, INCY). Нас там нет, поэтому провайдер должен добавить
-/// `^ClodClash/` в `additionalExtendedClientsRegex` своих Subscription Response
-/// Rules — иначе поля в подписке просто не будет. См. `docs/REMNAWAVE.md`.
-///
-/// "Applied" here means the committed build when there is one and the draft the
-/// core was started from otherwise — see `server_descriptions_of`.
 pub async fn server_descriptions() -> HashMap<String, String> {
     server_descriptions_of(&Config::runtime().await)
 }
 
-/// Read the descriptions from the committed build, falling back to the draft.
-///
-/// The applied config is the honest answer, so it wins whenever it exists. The
-/// fallback covers the cold start: until the first `update_config_*` cycle the
-/// build lives only in the draft (`Config::generate` writes there and nothing
-/// commits it), so this command used to answer with an empty map and the panel
-/// descriptions showed up only after a profile update. The core is started from
-/// that very draft — `generate_file` prefers `latest` — so the draft describes
-/// what mihomo is actually running.
-///
-/// Mirrors the fallback in `Config::generate_file` with the priority reversed:
-/// there the question is which build is *about to* reach the core, here it is
-/// which build already did.
 fn server_descriptions_of(runtime: &Draft<IRuntime>) -> HashMap<String, String> {
     let committed = runtime.data_arc();
     let draft = runtime.latest_arc();
@@ -687,12 +655,6 @@ fn server_descriptions_of(runtime: &Draft<IRuntime>) -> HashMap<String, String> 
         .unwrap_or_default()
 }
 
-/// Сами описания: ключ читаем в трёх написаниях.
-///
-/// Панель шлёт `serverDescription`, но клиенты-доноры (prizrak-box) принимают и
-/// `server_description`, и `server-description`, а конфиг может прийти и через
-/// чужой шаблон mihomo. Стоит это одну строку, а пустые и пробельные значения
-/// не показываем вовсе — иначе строка списка теряет и описание, и тип узла.
 fn collect_server_descriptions(config: &Mapping) -> HashMap<String, String> {
     const KEYS: [&str; 3] = ["serverDescription", "server_description", "server-description"];
 
@@ -721,20 +683,8 @@ fn collect_server_descriptions(config: &Mapping) -> HashMap<String, String> {
     descriptions
 }
 
-/// clod: узел-заглушка, каким его отдаёт панель вместо серверов.
-///
-/// Remnawave (v3, `createFallbackHosts`) на истёкшую подписку, исчерпанный
-/// трафик, отключённого пользователя, ненастроенные хосты и лимит устройств
-/// отвечает **HTTP 200 и валидным конфигом**, в котором вместо серверов лежат
-/// узлы `server: 0.0.0.0`, `port: 1`, `uuid: 00000000-…`. Имена у них
-/// произвольные — лежат в БД панели, провайдер переписывает их под себя и на
-/// своём языке, — поэтому проверка только структурная.
-///
-/// Loopback заглушкой намеренно НЕ считается: `127.0.0.1` в подписке
-/// встречается у живых схем с локальным релеем (warp/sing-box на своём порту).
 fn is_sentinel_proxy(proxy: &Mapping) -> bool {
     const NIL_UUID: &str = "00000000-0000-0000-0000-000000000000";
-    // Локальные типы mihomo живут без адреса и порта — это не заглушки.
     const SERVERLESS_TYPES: &[&str] = &["direct", "reject", "reject-drop", "pass", "dns"];
 
     if let Some(kind) = proxy.get("type").and_then(Value::as_str)
@@ -769,18 +719,9 @@ fn is_sentinel_proxy(proxy: &Mapping) -> bool {
         .map(|uuid| uuid.trim().eq_ignore_ascii_case(NIL_UUID))
         .unwrap_or(false);
 
-    // Неуказанный адрес и нулевой идентификатор — приговор сами по себе:
-    // такой узел не может ни соединиться, ни авторизоваться. А вот один лишь
-    // «мёртвый порт» — слишком слабый признак, чтобы выкидывать по нему живой
-    // узел, поэтому он считается только вместе с чем-то ещё.
     unspecified_host || nil_uuid || (dead_port && missing_credentials(proxy))
 }
 
-/// У узла нет ни одного секрета: ни `uuid`, ни `password`, ни `psk`.
-/// Настоящий vless/trojan/ss без них не бывает.
-///
-/// Ключевые протоколы (wireguard, ssh) авторизуются не паролем, а ключом —
-/// без этой оговорки живой узел на порту 1 (порт легальный) уехал бы в заглушки.
 fn missing_credentials(proxy: &Mapping) -> bool {
     ["uuid", "password", "psk", "private-key", "auth", "auth-str", "token"]
         .iter()
@@ -792,14 +733,6 @@ fn missing_credentials(proxy: &Mapping) -> bool {
         })
 }
 
-/// Правда ли ядро сумеет наполнить группу само.
-///
-/// Мало объявить `include-all` — наполнять должно быть чем. mihomo разбирает это
-/// так (`adapter/outboundgroup/parser.go`): `include-all` и `include-all-proxies`
-/// подставляют в пустую группу `COMPATIBLE` и потому спасают всегда, а вот
-/// `include-all-providers` без единого провайдера оставляет её пустой, и конфиг
-/// падает с ``use` or `proxies` missing`. `use:` спасает, только если названный
-/// провайдер существует.
 fn group_fills_at_runtime(group: &Mapping, providers: &HashSet<String>) -> bool {
     let flag = |key: &str| matches!(group.get(key), Some(Value::Bool(true)));
 
@@ -818,7 +751,6 @@ fn group_fills_at_runtime(group: &Mapping, providers: &HashSet<String>) -> bool 
     })
 }
 
-/// Имена объявленных `proxy-providers`.
 fn provider_names(config: &Mapping) -> HashSet<String> {
     config
         .get("proxy-providers")
@@ -827,17 +759,6 @@ fn provider_names(config: &Mapping) -> HashSet<String> {
         .unwrap_or_default()
 }
 
-/// clod: подставить `REJECT` в каждую группу, которую ядро не примет.
-///
-/// Запускается **после** `cleanup_proxy_groups`: тот вычищает из `proxies` и
-/// `use` ссылки на несуществующие узлы и провайдеров, так что опустеть группа
-/// может и там. mihomo на пустую группу отвечает ``use` or `proxies` missing` и
-/// не стартует вовсе, а пустая группа получается штатно: панель присылает конфиг
-/// с одними заглушками либо просто с пустым `proxies`, а имена узлов в группе
-/// прописаны шаблоном.
-///
-/// Удалять такую группу нельзя — на неё ссылаются правила (`MATCH,🌍 VPN`).
-/// Ставим `REJECT`, а не `DIRECT`: трафик не должен утечь мимо туннеля.
 fn backfill_empty_groups(mut config: Mapping) -> Mapping {
     let providers = provider_names(&config);
 
@@ -862,17 +783,8 @@ fn backfill_empty_groups(mut config: Mapping) -> Mapping {
     config
 }
 
-/// clod: выкинуть узлы-заглушки из конфига до того, как он уедет в ядро.
-///
-/// Заглушки приходят **вместо** серверов, а не вперемешку с ними, поэтому
-/// группы после чистки остаются пустыми. Латает их не эта функция, а
-/// `backfill_empty_groups` — он запускается после `cleanup_proxy_groups`,
-/// когда список членов группы уже окончательный. Отчёт возвращается вызывающему
-/// и коммитится вместе с конфигом.
 fn filter_sentinel_proxies(mut config: Mapping) -> (Mapping, SentinelReport) {
     let mut dropped: HashSet<String> = HashSet::new();
-    // Имена в том порядке, в каком их прислала панель: это её собственное
-    // сообщение пользователю, разбитое по узлам.
     let mut remarks: Vec<String> = Vec::new();
 
     if let Some(Value::Sequence(proxies)) = config.get_mut("proxies") {
@@ -892,10 +804,6 @@ fn filter_sentinel_proxies(mut config: Mapping) -> (Mapping, SentinelReport) {
         });
     }
 
-    // «Серверов не осталось» считаем и когда заглушек не было вовсе: панель
-    // умеет прислать просто пустой `proxies`, и для интерфейса это то же самое.
-    // Провайдеры (`proxy-providers`) наполняют группы уже в рантайме — при них
-    // пустой список ещё ничего не значит.
     let survivors = config
         .get("proxies")
         .and_then(|value| value.as_sequence())
@@ -920,8 +828,6 @@ fn filter_sentinel_proxies(mut config: Mapping) -> (Mapping, SentinelReport) {
         dropped.len()
     );
 
-    // Ссылки на выброшенные узлы убираем сразу; опустевшие группы залатает
-    // `backfill_empty_groups` после того, как отработает `cleanup_proxy_groups`.
     if let Some(Value::Sequence(groups)) = config.get_mut("proxy-groups") {
         for group in groups {
             let Some(Value::Sequence(items)) = group.as_mapping_mut().and_then(|map| map.get_mut("proxies")) else {
@@ -1017,10 +923,6 @@ fn cleanup_proxy_groups(mut config: Mapping) -> Mapping {
     config
 }
 
-/// Когда DNS работает в режиме fake-ip и включён IPv6, дополняет отсутствующий
-/// `fake-ip-range6` — иначе AAAA-запросы не получают fake-ip и резолвинг IPv6
-/// не удаётся (см. issue #7373). Обеспечивает совместимость со старыми
-/// dns_config.yaml, где этого поля нет.
 fn ensure_fake_ip_range6(dns: &mut Mapping) {
     use serde_yaml_ng::Value;
 
@@ -1031,8 +933,6 @@ fn ensure_fake_ip_range6(dns: &mut Mapping) {
         .map(|m| m == "fake-ip")
         .unwrap_or(true);
 
-    // Требует дополнения, если поле отсутствует или пустая строка
-    // (может быть из-за ручного редактирования YAML)
     let range6_missing = dns
         .get("fake-ip-range6")
         .and_then(|v| v.as_str())
@@ -1078,11 +978,7 @@ async fn apply_dns_settings(mut config: Mapping, enable_dns_settings: bool) -> M
     config
 }
 
-/// Enhance mode
-/// Возвращает итоговую подписку, ключи, входящие в эту подписку, результат
-/// выполнения script и отчёт фильтра заглушек
 pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, ResultLog>, SentinelReport)> {
-    // gather config values
     let cfg_vals = get_config_values().await;
     let ConfigValues {
         clash_config,
@@ -1092,13 +988,13 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
         socks_enabled,
         http_enabled,
         enable_dns_settings,
+        tun_overrides,
         #[cfg(not(target_os = "windows"))]
         redir_enabled,
         #[cfg(target_os = "linux")]
         tproxy_enabled,
     } = cfg_vals;
 
-    // collect profile items
     let profile = collect_profile_items().await?;
     let config = profile.config;
     let merge_item = profile.merge_item;
@@ -1114,16 +1010,15 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
 
     let result_map = HashMap::new();
 
-    // Порядковые элементы применяются раньше ручного переопределения.
     let config = process_seq_items(config, rules_item, proxies_item, groups_item);
     let exists_keys = use_keys(&config).collect::<Vec<_>>();
 
-    // merge default clash config
     let config = merge_default_config(
         config,
         clash_config,
         socks_enabled,
         http_enabled,
+        &tun_overrides,
         #[cfg(not(target_os = "windows"))]
         redir_enabled,
         #[cfg(target_os = "linux")]
@@ -1131,28 +1026,18 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
     )
     .await;
 
-    // Элементы, сгенерированные app, применяются раньше ручного переопределения.
     let config = apply_builtin_scripts(config, clash_core, enable_builtin).await;
     let config = use_tun(config, enable_tun);
     let config = apply_dns_settings(config, enable_dns_settings).await;
-    // clod:tun-dns-floor — строка выше кладёт блок `dns` из `dns_config.yaml`
-    // целиком и стирает то, что `use_tun` только что выставил. Под поднятым
-    // туннелем резолвер обязан быть включён, иначе перехваченный 53-й порт
-    // ведёт в никуда; дожимаем минимум обратно.
     let config = ensure_dns_for_tun(config, enable_tun);
 
-    // Фиксируем поля app перед ручным переопределением.
     let control_plane = snapshot_control_plane(&config);
-    // clod:dns-owner — включённая страница DNS означает «блоки `dns` и `hosts`
-    // мои целиком»: ручные merge/script их больше не переписывают. Выключенная —
-    // мы их не трогаем вовсе, и владеет ими профиль вместе с merge.
     let dns_page = if enable_dns_settings {
         snapshot_dns_page(&config)
     } else {
         Mapping::new()
     };
 
-    // Глобальное ручное переопределение.
     let (config, exists_keys, result_map) = process_global_items(
         config,
         exists_keys,
@@ -1163,52 +1048,27 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
     )
     .await;
 
-    // Ручное переопределение текущего profile.
     let (config, exists_keys, result_map) =
         process_profile_items(config, exists_keys, result_map, merge_item, script_item, &profile_name).await;
 
-    // Восстанавливаем поля app после ручного переопределения.
     let config = enforce_control_plane(config, control_plane);
     let config = enforce_dns_page(config, dns_page);
-    // Пол проверяем ещё раз: merge/script при ВЫКЛЮЧЕННОЙ странице DNS блок
-    // `dns` не восстанавливают, и выключить резолвер под туннелем они всё ещё
-    // могли бы.
     let config = ensure_dns_for_tun(config, enable_tun);
     let config = ensure_lan_bind_address(config);
     let config = ensure_store_selected(config);
 
-    // clod: заглушки панели («подписка истекла» и т.п.) вырезаем до чистки
-    // групп — тогда cleanup уберёт и повисшие на них ссылки. Отчёт уезжает
-    // наверх вместе с конфигом и коммитится только с принятой ядром сборкой.
-    //
-    // clod:show-0hosts — если провайдер прислал `clod-show-0hosts`, он берёт
-    // объяснение на себя: узлы панели остаются в конфиге со своими названиями,
-    // а наши экраны «нет серверов» не показываются. Отчёт при этом пустой —
-    // не «заглушек нет», а «мы их не разбирали», и интерфейсу этого достаточно:
-    // единственный его вопрос к отчёту — рисовать ли статус вместо списка.
     let (config, mut sentinel_report) = if profile_shows_zero_hosts {
         (config, SentinelReport::default())
     } else {
         filter_sentinel_proxies(config)
     };
-    // Пустота в локальном профиле (rules-only, свои группы из DIRECT) — не
-    // «панель не выдала серверы»: без выброшенных заглушек флаг честен только
-    // для remote-подписки, иначе интерфейс обвинит провайдера, которого нет.
     if !profile_is_remote && sentinel_report.remarks.is_empty() {
         sentinel_report.only_sentinels = false;
     }
     let config = cleanup_proxy_groups(config);
-    // Латаем группы последними: до этого момента список их членов ещё меняется.
     let config = backfill_empty_groups(config);
     let config = use_sort(config);
 
-    // clod:server-description — самый частый вопрос про эту фичу звучит как
-    // «описания не появляются», и ответ почти всегда на стороне панели:
-    // Remnawave отдаёт `serverDescription` только «расширенным клиентам», а наш
-    // User-Agent в её встроенный список не входит. Пока провайдер не добавил
-    // `additionalExtendedClientsRegex: ["^ClodClash/"]` в Subscription Response
-    // Rules, поле не приходит вовсе — и по интерфейсу это неотличимо от бага.
-    // Одна строка в логе на генерацию конфига отвечает на вопрос за секунду.
     if profile_is_remote {
         let described = collect_server_descriptions(&config).len();
         if described == 0 {
@@ -1243,8 +1103,10 @@ mod tests {
         serde_yaml_ng::from_str(yaml).expect("test config should be valid")
     }
 
-    // clod: selections must survive a core reload for every profile shape:
-    // no `profile` block at all, an unrelated one, and an explicit `false`.
+    fn mapping_value(yaml: &str) -> serde_yaml_ng::Value {
+        serde_yaml_ng::from_str(yaml).expect("test value should be valid")
+    }
+
     #[test]
     fn store_selected_is_forced_in_final_config() {
         for source in [
@@ -1263,7 +1125,6 @@ mod tests {
                 "store-selected should be true for source {source}"
             );
         }
-        // an unrelated profile key is preserved, not clobbered
         let config = ensure_store_selected(mapping("{profile: {store-fake-ip: true}}"));
         let profile = config
             .get("profile")
@@ -1354,9 +1215,58 @@ mod tests {
     }
 
     #[test]
+    fn tun_defaults_yield_to_the_subscription() {
+        let mut tun = mapping("{strict-route: true, dns-hijack: [\"any:53\", \"tcp://any:53\"], mtu: 9000}");
+        let app = mapping("{stack: gvisor, strict-route: false, dns-hijack: [\"any:53\"], auto-route: true}");
+        super::ladder_tun(&mut tun, app, &super::TunOverrides::default());
+        assert_eq!(tun.get("strict-route"), Some(&serde_yaml_ng::Value::from(true)));
+        assert_eq!(
+            tun.get("dns-hijack"),
+            Some(&mapping_value("[\"any:53\", \"tcp://any:53\"]"))
+        );
+        assert_eq!(tun.get("stack"), Some(&serde_yaml_ng::Value::from("gvisor")));
+        assert_eq!(tun.get("auto-route"), Some(&serde_yaml_ng::Value::from(true)));
+        assert_eq!(tun.get("mtu"), Some(&serde_yaml_ng::Value::from(9000)));
+    }
+
+    #[test]
+    fn a_silent_subscription_gets_the_app_defaults() {
+        let mut tun = mapping("{}");
+        let app = mapping("{stack: gvisor, strict-route: false, dns-hijack: [\"any:53\"]}");
+        super::ladder_tun(&mut tun, app, &super::TunOverrides::default());
+        assert_eq!(tun.get("strict-route"), Some(&serde_yaml_ng::Value::from(false)));
+        assert_eq!(tun.get("stack"), Some(&serde_yaml_ng::Value::from("gvisor")));
+    }
+
+    #[test]
+    fn the_user_override_beats_the_subscription() {
+        let overrides = super::parse_tun_overrides(Some("system"), Some("off"), Some("any:53"));
+        let mut tun = mapping("{stack: gvisor, strict-route: true, dns-hijack: [\"tcp://any:53\"]}");
+        let app = mapping("{stack: gvisor, strict-route: false, dns-hijack: [\"any:53\"]}");
+        super::ladder_tun(&mut tun, app, &overrides);
+        assert_eq!(tun.get("stack"), Some(&serde_yaml_ng::Value::from("system")));
+        assert_eq!(tun.get("strict-route"), Some(&serde_yaml_ng::Value::from(false)));
+        assert_eq!(tun.get("dns-hijack"), Some(&mapping_value("[\"any:53\"]")));
+    }
+
+    #[test]
+    fn auto_and_junk_mean_no_override() {
+        let overrides = super::parse_tun_overrides(Some("auto"), Some("auto"), Some("auto"));
+        assert!(overrides.stack.is_none());
+        assert!(overrides.strict_route.is_none());
+        assert!(overrides.dns_hijack.is_none());
+
+        let junk = super::parse_tun_overrides(Some("weird"), Some("yes"), None);
+        assert!(junk.stack.is_none());
+        assert!(junk.strict_route.is_none());
+        assert!(junk.dns_hijack.is_none());
+
+        let empty = super::parse_tun_overrides(None, None, Some(""));
+        assert_eq!(empty.dns_hijack, Some(serde_yaml_ng::Value::Sequence(Vec::new())));
+    }
+
+    #[test]
     fn a_profile_cannot_switch_tun_off() {
-        // clod: подписка присылает `tun: {enable: false}` — самый дешёвый способ
-        // выключить пользователю туннель. Контрольный план должен это отбить.
         let app_config = mapping(r"{tun: {enable: true, stack: gvisor}, mixed-port: 7890}");
         let snapshot = super::snapshot_control_plane(&app_config);
 
@@ -1373,8 +1283,6 @@ mod tests {
 
     #[test]
     fn a_profile_cannot_switch_tun_on() {
-        // Обратное тоже верно: TUN выключен приложением — профиль не может его
-        // включить, иначе трафик уедет в туннель без ведома пользователя.
         let app_config = mapping(r"{mixed-port: 7890}");
         let snapshot = super::snapshot_control_plane(&app_config);
 
@@ -1437,7 +1345,6 @@ mod tests {
             Some(true)
         );
 
-        // Плоскость данных DNS не относится к верхнеуровневому control plane.
         assert_eq!(
             result
                 .get("dns")
@@ -1504,9 +1411,6 @@ mod tests {
 
     #[test]
     fn dns_page_owns_its_blocks_whole() {
-        // Включённая страница DNS — блоки `dns` и `hosts` целиком наши, а не
-        // один `dns.ipv6`, как было раньше: merge-профиль молча уносил и
-        // резолверы, и `enhanced-mode`, хотя человек настроил их руками.
         let app_config = mapping(
             r#"{dns: {ipv6: false, enhanced-mode: fake-ip, proxy-server-nameserver: ["1.1.1.1"]}, hosts: {a.test: 1.2.3.4}}"#,
         );
@@ -1541,9 +1445,6 @@ mod tests {
 
     #[test]
     fn dns_page_never_removes_what_it_did_not_write() {
-        // Пустой снимок (страница DNS выключена или `dns_config.yaml` пуст) не
-        // должен вырезать `dns`, принесённый merge-профилем пользователя —
-        // именно поэтому `dns` нельзя было дописать в `CONTROL_PLANE_KEYS`.
         let snapshot = super::snapshot_dns_page(&mapping(r"{mode: rule}"));
         assert!(snapshot.is_empty());
 
@@ -1725,9 +1626,6 @@ proxy-groups:
         assert_eq!(proxies[0].as_str(), Some("DIRECT"));
     }
 
-    /// Тот же порядок, что и в `enhance`: фильтр → чистка ссылок → латание
-    /// пустых групп. Тесты должны видеть конфиг ровно таким, каким его увидит
-    /// ядро, — латание в одиночку ничего не значит.
     fn sentinel_pass(config: serde_yaml_ng::Mapping) -> (serde_yaml_ng::Mapping, super::SentinelReport) {
         let (config, report) = filter_sentinel_proxies(config);
         (backfill_empty_groups(cleanup_proxy_groups(config)), report)
@@ -1765,11 +1663,6 @@ proxy-groups:
             .collect()
     }
 
-    // clod: описание сервера панель кладёт внутрь узла — ключом
-    // `serverDescription`. Читаем три написания (панель шлёт первое, чужие
-    // шаблоны и клиенты-доноры знают ещё два), узлы без описания и с пустым
-    // описанием в карту не попадают вовсе: строке списка тогда нечего
-    // показывать, и она остаётся прежней.
     #[test]
     fn server_descriptions_are_collected_from_proxies() {
         let config = mapping(
@@ -1803,15 +1696,12 @@ proxies:
 
         assert_eq!(descriptions.len(), 3);
         assert_eq!(text("Netherlands 01"), Some("10 Гбит · без лимита"));
-        // пробелы по краям режем: иначе они уедут в подпись как есть
         assert_eq!(text("Germany 02"), Some("Для игр, низкий пинг"));
         assert_eq!(text("USA 01"), Some("Netflix, Disney+"));
         assert!(!descriptions.contains_key("Turkey 01"));
         assert!(!descriptions.contains_key("Finland 03"));
     }
 
-    // clod: конфиг без единого описания — обычное дело: панель отдаёт поле
-    // только «расширенным клиентам», а нас в её зашитом списке нет.
     #[test]
     fn server_descriptions_are_empty_without_the_field() {
         let config = mapping(
@@ -1826,11 +1716,6 @@ proxies:
         assert!(collect_server_descriptions(&config).is_empty());
     }
 
-    // clod: the cold-start regression. `Config::generate` writes the DRAFT and
-    // nothing on the boot path commits it, so a reader that only looked at the
-    // committed slot answered with an empty map until the first config update —
-    // the panel descriptions were invisible for the whole first session. The
-    // core is started from that draft, so it is a truthful source here.
     #[test]
     fn server_descriptions_survive_a_draft_that_was_never_committed() {
         let runtime = Draft::new(IRuntime::new());
@@ -1854,8 +1739,6 @@ proxies:
         );
     }
 
-    // clod: the applied build still wins — a draft is a proposal the core may
-    // yet reject, and the command answers about what is running.
     #[test]
     fn committed_server_descriptions_win_over_a_pending_draft() {
         let runtime = Draft::new(IRuntime::new());
@@ -1889,10 +1772,6 @@ proxies:
         );
     }
 
-    // clod: панель при истёкшей подписке отдаёт 200 и конфиг, где вместо
-    // серверов лежат заглушки 0.0.0.0:1 с нулевым uuid (remnawave v3).
-    // Группа после чистки пустеет, но удалять её нельзя — на неё ссылаются
-    // правила, поэтому в ней должен остаться REJECT.
     #[test]
     fn sentinel_proxies_are_dropped_and_empty_group_rejects() {
         let config = mapping(
@@ -1921,16 +1800,10 @@ proxy-groups:
 
         assert!(proxy_names(&config).is_empty());
         assert_eq!(group_members(&config, "VPN"), vec!["REJECT".to_owned()]);
-        // Отчёт для интерфейса: серверов не осталось вовсе, а слова панели
-        // сохранены в том порядке, в каком она их прислала.
         assert!(report.only_sentinels);
         assert_eq!(report.remarks, vec!["⌛ Subscription expired", "Contact support"]);
     }
 
-    // Смешанный конфиг: сама панель заглушки и серверы вместе не отдаёт (это
-    // ветка раннего выхода), но живые узлы в тот же список добавляют шаблон
-    // провайдера и наша цепочка Proxies. Тогда чистим поштучно и группу не
-    // трогаем — REJECT появляется только у по-настоящему опустевшей.
     #[test]
     fn sentinels_are_dropped_next_to_live_nodes() {
         let config = mapping(
@@ -1964,7 +1837,6 @@ proxy-groups:
 
         let (config, report) = sentinel_pass(config);
 
-        // Живые узлы остались — значит это не «панель не выдала серверы».
         assert!(!report.only_sentinels);
         assert_eq!(report.remarks, vec!["⌛ Subscription expired"]);
         assert_eq!(proxy_names(&config), vec!["🇳🇱 Amsterdam", "🇩🇪 Frankfurt"]);
@@ -1974,8 +1846,6 @@ proxy-groups:
         );
     }
 
-    // Панель умеет прислать просто пустой список — для интерфейса это то же
-    // самое «серверов нет», хотя выбрасывать было нечего.
     #[test]
     fn empty_proxy_list_counts_as_no_servers() {
         let config = mapping(
@@ -1995,8 +1865,6 @@ proxy-groups:
         assert!(report.remarks.is_empty());
     }
 
-    // Живые узлы фильтр не трогает: ни локальный релей на loopback, ни узел
-    // без `uuid` (ss/trojan), ни служебный `type: direct` без адреса вовсе.
     #[test]
     fn real_proxies_survive_sentinel_filter() {
         let config = mapping(
@@ -2038,8 +1906,6 @@ proxy-groups:
         assert!(report.remarks.is_empty());
     }
 
-    // Группу, которую ядро наполняет само (провайдеры / include-all),
-    // подменять на REJECT нельзя — пустой список у неё это норма.
     #[test]
     fn provider_backed_group_is_left_alone() {
         let config = mapping(
@@ -2071,17 +1937,12 @@ proxy-groups:
 
         let (config, report) = sentinel_pass(config);
 
-        // Узлы придут из провайдера в рантайме, поэтому пустой `proxies` здесь
-        // ещё не значит «панель не выдала серверы».
         assert!(!report.only_sentinels);
         assert!(proxy_names(&config).is_empty());
         assert!(group_members(&config, "AUTO").is_empty());
         assert!(group_members(&config, "ALL").is_empty());
     }
 
-    // `include-all-providers` без единого провайдера ядро не спасает: в отличие
-    // от `include-all`, оно не подставляет COMPATIBLE, и конфиг не грузится
-    // (mihomo, adapter/outboundgroup/parser.go). Такую группу латаем.
     #[test]
     fn include_all_providers_without_providers_still_needs_reject() {
         let config = mapping(
@@ -2107,8 +1968,6 @@ proxy-groups:
         assert_eq!(group_members(&config, "ALL"), vec!["REJECT".to_owned()]);
     }
 
-    // `use:` с несуществующим провайдером: `cleanup_proxy_groups` вычистит его
-    // уже после фильтра, и группа опустеет там, где фильтр её не видел.
     #[test]
     fn group_using_a_ghost_provider_is_repaired() {
         let config = mapping(
@@ -2128,10 +1987,6 @@ proxy-groups:
         assert_eq!(group_members(&config, "VPN"), vec!["REJECT".to_owned()]);
     }
 
-    // Панель умеет прислать пустой `proxies` вообще без заглушек, а имена узлов
-    // в группе прописаны шаблоном. Выбрасывать нечего — но чинить всё равно
-    // надо, иначе ядро не стартует и пользователь увидит ошибку парсинга
-    // вместо экрана «серверов нет».
     #[test]
     fn stale_template_group_is_repaired_even_when_nothing_was_dropped() {
         let config = mapping(
@@ -2152,8 +2007,6 @@ proxy-groups:
         assert_eq!(group_members(&config, "→ Remnawave"), vec!["REJECT".to_owned()]);
     }
 
-    // Wireguard авторизуется ключом, а порт 1 — легальный порт. Живой узел
-    // не должен уехать в заглушки только потому, что у него нет пароля.
     #[test]
     fn key_based_nodes_are_not_sentinels() {
         let config = mapping(

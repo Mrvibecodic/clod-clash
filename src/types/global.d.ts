@@ -11,9 +11,6 @@ type Platform =
   | 'cygwin'
   | 'netbsd'
 
-/**
- * defines in `vite.config.ts`
- */
 declare const OS_PLATFORM: Platform
 
 type ValidationOutcome =
@@ -21,9 +18,6 @@ type ValidationOutcome =
   | { status: 'invalid'; kind: string; message: string }
   | { status: 'skipped'; reason: string }
 
-/**
- * Some interface for clash api
- */
 interface IConfigData {
   port: number
   mode: string
@@ -43,14 +37,14 @@ interface IConfigData {
   secret: string
   'unified-delay': boolean
   tun: {
-    stack: string
+    stack?: string
     device: string
     'auto-route': boolean
     'auto-redirect'?: boolean
     'auto-detect-interface': boolean
-    'dns-hijack': string[]
+    'dns-hijack'?: string[]
     'route-exclude-address'?: string[]
-    'strict-route': boolean
+    'strict-route'?: boolean
     mtu: number
   }
   dns?: {
@@ -101,13 +95,6 @@ interface IProxyItem {
     delay: number
   }[]
   testUrl?: string
-  /**
-   * clod: per-test-URL history. The core keeps the default URL's results in
-   * `history` and everything else here, keyed by the URL that was used.
-   * The shape mirrors the mihomo plugin's `Extra` (values are optional —
-   * `{ [key in string]?: … }` on the plugin side), or spreading a plugin
-   * `Proxy` into an `IProxyItem` stops typechecking.
-   */
   extra?: Record<
     string,
     { alive?: boolean; history?: { time: string; delay: number }[] } | undefined
@@ -116,8 +103,8 @@ interface IProxyItem {
   now?: string
   hidden?: boolean
   icon?: string
-  provider?: string // отмечает, пришёл ли узел из provider
-  fixed?: string // отмечает зафиксированный (приоритетный) узел
+  provider?: string
+  fixed?: string
 }
 
 type IProxyGroupItem = Omit<IProxyItem, 'all'> & {
@@ -148,17 +135,11 @@ interface IRuleProviderItem {
   vehicleType: string
 }
 
-/**
- * clod: локальный счёт расхода трафика поверх данных подписки. Значение из
- * подписки — истина; `localBytes` — то, что клиент досчитал после неё, и
- * именно поэтому сумма показывается как примерная.
- */
 interface ITrafficEstimate {
   profile: string
   baselineUpload: number
   baselineDownload: number
   localBytes: number
-  /** unix-секунды: когда данные подписки последний раз менялись */
   baselineAt: number
 }
 
@@ -224,8 +205,8 @@ interface IConnectionsItem {
   chains: string[]
   rule: string
   rulePayload: string
-  curUpload?: number // upload speed, calculate at runtime
-  curDownload?: number // download speed, calculate at runtime
+  curUpload?: number
+  curDownload?: number
 }
 
 interface IConnections {
@@ -238,18 +219,13 @@ interface IConnectionSetting {
   layout: 'table' | 'list'
 }
 
-/**
- * Some interface for command
- */
-
 interface IClashInfo {
-  // status: string;
-  mixed_port?: number // clash mixed port
-  socks_port?: number // clash socks port
-  redir_port?: number // clash redir port
-  tproxy_port?: number // clash tproxy port
-  port?: number // clash http port
-  server?: string // external-controller
+  mixed_port?: number
+  socks_port?: number
+  redir_port?: number
+  tproxy_port?: number
+  port?: number
+  server?: string
   secret?: string
 }
 
@@ -273,87 +249,39 @@ interface IProfileItem {
   }
   option?: IProfileOption
   home?: string
-  /** clod:groups — user label used to group the subscription cards */
   group?: string
-  // clod: Remnawave / Happ subscription headers (see src-tauri/src/config/sub_headers.rs)
-  /** `support-url` header */
   support_url?: string
-  /** `profile-logo` header, validated http(s) URL */
   logo?: string
-  /** `announce` header, may contain newlines */
   announce?: string
-  /** `announce-url` header, validated http(s) URL */
   announce_url?: string
-  /** `clod-portal-url` header — customer portal (renewal, payments) */
   portal_url?: string
-  /** clod:provider-links — `clod-bot-url` header, the provider's bot */
   bot_url?: string
-  /** clod:provider-links — `clod-monitor-url` header, server status page */
   monitor_url?: string
-  /** clod:provider-links — `clod-guide-url` header, the provider's manual */
   guide_url?: string
-  /** `clod-promo` header — temporary promotion banner, dismissable */
   promo?: string
-  /** `clod-promo-url` header, validated http(s) URL */
   promo_url?: string
-  /** the user dismissed the current promo text */
   promo_seen?: boolean
-  /** `clod-lock-mode` header — mode switching is locked by the panel */
   lock_mode?: boolean
-  /**
-   * `clod-connect-mode` header — what the Connect button raises: `tun`,
-   * `proxy` or `both`. The user's own choice wins, except on a locked profile
-   * (`lock_mode`), where the panel has the last word.
-   */
   connect_mode?: 'tun' | 'proxy' | 'both'
-  /**
-   * `clod-latency-style` header — how the server latency is drawn:
-   * four bars (default), a coloured dot, or a plain number.
-   */
   latency_style?: 'bars' | 'dot' | 'number'
-  /** `clod-device-remove` header — page where a device slot is freed */
   device_remove_url?: string
   show_zero_hosts?: boolean
-  /** `subscription-refill-date` header, unix seconds */
   refill_date?: number
-  /**
-   * How far the device clock is from the panel's, in seconds
-   * (`panel - device`), taken from the `Date` header of the last successful
-   * fetch. Absent when no panel clock was ever seen.
-   */
   clock_skew?: number
-  /**
-   * Device clock when `clock_skew` was measured, in unix seconds — what its
-   * ageing is judged by. Not `updated`: that one also moves on refreshes that
-   * carried no `Date` and left the offset untouched.
-   */
   clock_skew_at?: number
-  /** the provider dictated the update interval, so the field is read-only */
   interval_locked?: boolean
-  /** `fallback-url` header — full spare address */
   fallback_url?: string
-  /** `fallback-domain` header — spare host for the primary address */
   fallback_domain?: string
-  /** URLs this subscription was migrated away from, oldest first */
   previous_urls?: string[]
-  /** consecutive provider-driven URL migrations already followed */
   migration_hops?: number
-  /** device registration state reported by the panel */
   hwid_state?: 'ok' | 'limit' | 'not_supported'
   hwid_max_devices?: number
-  /** the user renamed the profile, so `profile-title` must not overwrite it */
   name_customized?: boolean
-  /** expiry reminder thresholds in days; empty array = disabled by provider */
   notify_expire_days?: number[]
-  /** traffic reminder thresholds in percent; empty array = disabled */
   notify_traffic_percent?: number[]
-  /** reminder bookkeeping: threshold key -> unix seconds it fired at */
   notified?: Record<string, number>
-  /** the last payload came from `fallback_url` instead of `url` */
   from_fallback?: boolean
-  /** interface mode the provider prefers for this subscription */
   simple_mode?: boolean
-  /** clod: node names the user starred in the server list */
   favorites?: string[]
 }
 
@@ -361,10 +289,7 @@ interface IProfileOption {
   user_agent?: string
   with_proxy?: boolean
   self_proxy?: boolean
-  /** clod:chan — подписка ходит только по защищённому каналу до прослойки.
-   *  Включается галочкой при добавлении и снимается только удалением профиля. */
   secure?: boolean
-  /** clod:chan — закреплённый ключ прослойки (base64url). Ставит бэкенд, UI не трогает. */
   chan_pin?: string
   update_interval?: number
   timeout_seconds?: number
@@ -528,7 +453,6 @@ type SudokuAeadMethod = 'chacha20-poly1305' | 'aes-128-gcm' | 'none'
 type SudokuTableType = 'prefer_ascii' | 'prefer_entropy'
 type SudokuHttpMaskMode = 'legacy' | 'stream' | 'poll' | 'auto'
 type SudokuHttpMaskStrategy = 'random' | 'post' | 'websocket'
-// base
 interface IProxyBaseConfig {
   tfo?: boolean
   mptcp?: boolean
@@ -537,17 +461,14 @@ interface IProxyBaseConfig {
   'ip-version'?: 'dual' | 'ipv4' | 'ipv6' | 'ipv4-prefer' | 'ipv6-prefer'
   'dialer-proxy'?: string
 }
-// direct
 interface IProxyDirectConfig extends IProxyBaseConfig {
   name: string
   type: 'direct'
 }
-// dns
 interface IProxyDnsConfig extends IProxyBaseConfig {
   name: string
   type: 'dns'
 }
-// http
 interface IProxyHttpConfig extends IProxyBaseConfig {
   name: string
   type: 'http'
@@ -563,7 +484,6 @@ interface IProxyHttpConfig extends IProxyBaseConfig {
     [key: string]: string
   }
 }
-// socks5
 interface IProxySocks5Config extends IProxyBaseConfig {
   name: string
   type: 'socks5'
@@ -576,7 +496,6 @@ interface IProxySocks5Config extends IProxyBaseConfig {
   'skip-cert-verify'?: boolean
   fingerprint?: string
 }
-// ssh
 interface IProxySshConfig extends IProxyBaseConfig {
   name: string
   type: 'ssh'
@@ -589,7 +508,6 @@ interface IProxySshConfig extends IProxyBaseConfig {
   'host-key'?: string
   'host-key-algorithms'?: string
 }
-// trojan
 interface IProxyTrojanConfig extends IProxyBaseConfig {
   name: string
   type: 'trojan'
@@ -612,7 +530,6 @@ interface IProxyTrojanConfig extends IProxyBaseConfig {
   }
   'client-fingerprint'?: ClientFingerprint
 }
-// anytls
 interface IProxyAnyTLSConfig extends IProxyBaseConfig {
   name: string
   type: 'anytls'
@@ -635,7 +552,6 @@ interface IProxyAnyTLSConfig extends IProxyBaseConfig {
   'idle-session-timeout'?: number
   'min-idle-session'?: number
 }
-// tuic
 interface IProxyTuicConfig extends IProxyBaseConfig {
   name: string
   type: 'tuic'
@@ -668,7 +584,6 @@ interface IProxyTuicConfig extends IProxyBaseConfig {
   'udp-over-stream'?: boolean
   'udp-over-stream-version'?: number
 }
-// mieru
 interface IProxyMieruConfig extends IProxyBaseConfig {
   name: string
   type: 'mieru'
@@ -682,7 +597,6 @@ interface IProxyMieruConfig extends IProxyBaseConfig {
   multiplexing?: MieruMultiplexing
   'handshake-mode'?: string
 }
-// masque
 interface IProxyMasqueConfig extends IProxyBaseConfig {
   name: string
   type: 'masque'
@@ -697,7 +611,6 @@ interface IProxyMasqueConfig extends IProxyBaseConfig {
   'remote-dns-resolve'?: boolean
   dns?: string[]
 }
-// vless
 interface IProxyVlessConfig extends IProxyBaseConfig {
   name: string
   type: 'vless'
@@ -729,7 +642,6 @@ interface IProxyVlessConfig extends IProxyBaseConfig {
   smux?: boolean
   encryption?: string
 }
-// vmess
 interface IProxyVmessConfig extends IProxyBaseConfig {
   name: string
   type: 'vmess'
@@ -766,7 +678,6 @@ interface WireGuardPeerOptions {
   reserved?: number[]
   'allowed-ips'?: string[]
 }
-// wireguard
 interface IProxyWireguardConfig extends IProxyBaseConfig, WireGuardPeerOptions {
   name: string
   type: 'wireguard'
@@ -782,7 +693,6 @@ interface IProxyWireguardConfig extends IProxyBaseConfig, WireGuardPeerOptions {
   dns?: string[]
   'refresh-server-ip-interval'?: number
 }
-// hysteria
 interface IProxyHysteriaConfig extends IProxyBaseConfig {
   name: string
   type: 'hysteria'
@@ -810,7 +720,6 @@ interface IProxyHysteriaConfig extends IProxyBaseConfig {
   'fast-open'?: boolean
   'hop-interval'?: number
 }
-// hysteria2
 interface IProxyHysteria2Config extends IProxyBaseConfig {
   name: string
   type: 'hysteria2'
@@ -834,7 +743,6 @@ interface IProxyHysteria2Config extends IProxyBaseConfig {
   cwnd?: number
   'udp-mtu'?: number
 }
-// shadowsocks
 interface IProxyShadowsocksConfig extends IProxyBaseConfig {
   name: string
   type: 'ss'
@@ -867,7 +775,6 @@ interface IProxyShadowsocksConfig extends IProxyBaseConfig {
   'client-fingerprint'?: ClientFingerprint
   smux?: boolean
 }
-// sudoku
 interface IProxySudokuConfig extends IProxyBaseConfig {
   name: string
   type: 'sudoku'
@@ -887,7 +794,6 @@ interface IProxySudokuConfig extends IProxyBaseConfig {
   'custom-table'?: string
   'custom-tables'?: string[]
 }
-// shadowsocksR
 interface IProxyshadowsocksRConfig extends IProxyBaseConfig {
   name: string
   type: 'ssr'
@@ -901,7 +807,6 @@ interface IProxyshadowsocksRConfig extends IProxyBaseConfig {
   'protocol-param'?: string
   udp?: boolean
 }
-// sing-mux
 interface IProxySmuxConfig {
   smux?: {
     enabled?: boolean
@@ -919,7 +824,6 @@ interface IProxySmuxConfig {
     }
   }
 }
-// snell
 interface IProxySnellConfig extends IProxyBaseConfig {
   name: string
   type: 'snell'
@@ -973,25 +877,17 @@ interface IProxyConfig
     | 'sudoku'
 }
 
-/** clod:tun-ready — what the backend knows about TUN right now. */
 interface ITunState {
-  /** the user wants TUN (the saved setting) */
   desired: boolean
-  /** TUN actually reached the core: wanted and not suppressed */
   active: boolean
-  /** privileges are there: elevated app or a service that answers */
   capable: boolean
-  /** the automatic service setup was already attempted on this version
-   *  - turned down, failed, or carried through */
   setup_declined: boolean
-  /** clod:service-repair — the service answers but its version is foreign:
-   *  it has to be repaired rather than installed */
   needs_repair: boolean
 }
 
 interface IVergeConfig {
   app_log_level?: 'trace' | 'debug' | 'info' | 'warn' | 'error' | string
-  app_log_max_size?: number // KB
+  app_log_max_size?: number
   app_log_max_count?: number
   language?: string
   tray_event?:
@@ -1016,10 +912,12 @@ interface IVergeConfig {
   sysproxy_tray_icon?: boolean
   tun_tray_icon?: boolean
   enable_tray_speed?: boolean
-  // enable_tray_icon?: boolean;
   tray_proxy_groups_display_mode?: 'default' | 'inline' | 'disable'
   tray_inline_outbound_modes?: boolean
   enable_tun_mode?: boolean
+  tun_stack?: string
+  tun_strict_route?: string
+  tun_dns_hijack?: string
   enable_auto_light_weight_mode?: boolean
   auto_light_weight_minutes?: number
   enable_auto_launch?: boolean
@@ -1081,48 +979,20 @@ interface IVergeConfig {
   enable_hover_jump_navigator?: boolean
   hover_jump_navigator_delay?: number
   enable_external_controller?: boolean
-  // clod: device identity sent to the panel (src-tauri/src/utils/hwid.rs)
-  /** send the x-hwid family with subscription requests; default true */
   enable_hwid?: boolean
-  /** cached device id, computed once on first use */
   hwid?: string
-  // clod: interface mode
-  /** simplified interface; unset means the provider's header decides */
   simple_mode?: boolean
-  /** the Connect button drives the system proxy; default true */
   connect_system_proxy?: boolean
-  /** the Connect button also drives the TUN device; default false */
   connect_tun_mode?: boolean
-  /** clod: repeat the Connect press right after launch; default false */
   connect_on_launch?: boolean
-  /** clod:tun-ready — app version whose automatic service setup was attempted */
   tun_setup_declined?: string
-  /**
-   * clod:fit-window — окно само садится по высоте содержимого, чтобы не было
-   * прокрутки. Включено по умолчанию; гаснет от ручного изменения размера
-   * окна, после чего размеры принадлежат пользователю.
-   */
   window_fit_content?: boolean
-  /**
-   * clod:tool-shortcuts — какие инструменты показывать плитками на главной
-   * расширенного режима. Ключи — из `use-tool-shortcuts`; отсутствие поля
-   * означает «все четыре», пустой массив — «ни одного».
-   */
   home_tool_shortcuts?: string[]
-  // clod: white-label branding
-  /** display name in the sidebar; unset falls back to the product name */
   brand_name?: string
-  /** brand mark (data: URL or loadable path); unset shows the placeholder */
   brand_logo?: string
-  // clod: managed Mihomo core (F5)
-  /** run the self-downloaded core instead of the bundled sidecar; default off */
   use_managed_core?: boolean
-  /** managed core channel: 'stable' | 'alpha' */
   managed_core_channel?: string
-  /** daily check for a newer core (notification only); default on */
   core_auto_check?: boolean
-  // clod: subscription watcher (F7)
-  /** expiry/traffic notifications; the user's off wins over the panel; default on */
   enable_sub_notifications?: boolean
 }
 
@@ -1148,7 +1018,6 @@ interface IWebDavConfig {
   password: string
 }
 
-// Traffic monitor types
 interface ITrafficDataPoint {
   up: number
   down: number
