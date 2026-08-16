@@ -8,6 +8,24 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.1.1
+
+<!-- lang:en -->
+
+### Fixed
+
+- After the core updates itself, the app starts it through the system service again instead of falling back and losing TUN
+- A refused core start no longer produces five identical error notifications in a row
+
+<!-- lang:ru -->
+
+### Исправлено
+
+- После обновления ядра приложение снова запускает его через системную службу, а не откатывается в обычный режим с потерей TUN
+- Отказ в запуске ядра больше не выдаёт пять одинаковых уведомлений подряд
+
+---
+
 ## v0.1.0
 
 <!-- lang:en -->
