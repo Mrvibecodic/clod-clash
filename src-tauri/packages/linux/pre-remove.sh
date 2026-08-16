@@ -1,8 +1,6 @@
 #!/bin/bash
 case "$1" in
-    upgrade | failed-upgrade | 1)
-        ;;
-    *)
+    remove | purge | 0)
         /usr/bin/clash-verge-service-uninstall
         ;;
 esac
@@ -15,4 +13,3 @@ if [ "$ID" = "deepin" ]; then
         rm -vf "/usr/share/applications/clash-verge.desktop"
     fi
 fi
-
