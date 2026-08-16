@@ -25,6 +25,7 @@ static START_FAILED: AtomicBool = AtomicBool::new(false);
 static SETUP_RUNNING: AtomicBool = AtomicBool::new(false);
 static WATCHDOG_RUNNING: AtomicBool = AtomicBool::new(false);
 static START_ATTEMPTS: AtomicU32 = AtomicU32::new(0);
+static RETRY_PENDING: AtomicBool = AtomicBool::new(false);
 static WATCH_ANCHOR: Mutex<Option<String>> = Mutex::new(None);
 
 const TUN_FAILURE_MARKERS: &[&str] = &["start tun listening error", "configure tun interface"];
@@ -140,8 +141,12 @@ fn give_up_on_tun(detail: &str) {
 }
 
 fn schedule_retry() {
+    if RETRY_PENDING.swap(true, Ordering::AcqRel) {
+        return;
+    }
     AsyncHandler::spawn(|| async {
         tokio::time::sleep(TUN_RETRY_DELAY).await;
+        RETRY_PENDING.store(false, Ordering::Release);
         if !claimed().await {
             return;
         }
@@ -160,6 +165,7 @@ async fn recreate_tun_device() {
             Ok(Ok(())) => {}
             Ok(Err(e)) => {
                 logging!(warn, Type::Core, "could not switch the TUN device {}: {}", step, e);
+                report_start_failure("the core refused to re-create the TUN device");
                 return;
             }
             Err(_) => {
@@ -169,6 +175,7 @@ async fn recreate_tun_device() {
                     "the core did not answer switching the TUN device {}",
                     step
                 );
+                report_start_failure("the core did not answer re-creating the TUN device");
                 return;
             }
         }
@@ -235,6 +242,7 @@ async fn verify_round() -> Round {
         }
         Verdict::Clean(next) => {
             *WATCH_ANCHOR.lock() = next;
+            START_ATTEMPTS.store(0, Ordering::Release);
             Round::Watching
         }
     }
@@ -601,13 +609,15 @@ mod tests {
     }
 
     #[test]
-    fn suppression_is_a_session_flag() {
+    fn suppression_and_the_attempt_budget_are_session_state() {
         clear_suppression();
         assert!(!is_suppressed());
         suppress("test");
         assert!(is_suppressed());
+        START_ATTEMPTS.store(TUN_START_ATTEMPTS, Ordering::Release);
         clear_suppression();
         assert!(!is_suppressed());
+        assert_eq!(START_ATTEMPTS.load(Ordering::Acquire), 0);
     }
 
     #[test]
@@ -617,14 +627,5 @@ mod tests {
         assert!(should_retry(TUN_START_ATTEMPTS - 1));
         assert!(!should_retry(TUN_START_ATTEMPTS));
         assert!(!should_retry(TUN_START_ATTEMPTS + 1));
-    }
-
-    #[test]
-    fn a_cleared_suppression_gives_the_tunnel_a_fresh_budget() {
-        START_ATTEMPTS.store(TUN_START_ATTEMPTS, Ordering::Release);
-        suppress("test");
-        clear_suppression();
-        assert_eq!(START_ATTEMPTS.load(Ordering::Acquire), 0);
-        assert!(!is_suppressed());
     }
 }

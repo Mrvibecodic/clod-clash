@@ -22,6 +22,10 @@ fn network_fingerprint() -> BTreeSet<std::string::String> {
 
     interfaces
         .into_iter()
+        .filter(|interface| {
+            let name = interface.name.to_lowercase();
+            !name.contains("mihomo") && !name.starts_with("utun")
+        })
         .flat_map(|interface| {
             let name = interface.name.clone();
             interface
