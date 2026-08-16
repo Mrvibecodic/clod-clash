@@ -68,6 +68,24 @@ fn ladder_tun(tun: &mut Mapping, app_tun: Mapping, overrides: &TunOverrides) {
         }
         tun.insert(key, value);
     }
+    if !tun.contains_key("stack") {
+        tun.insert("stack".into(), crate::constants::tun::DEFAULT_STACK.into());
+    }
+    if !tun.contains_key("strict-route") {
+        tun.insert("strict-route".into(), Value::from(false));
+    }
+    if !tun.contains_key("dns-hijack") {
+        tun.insert(
+            "dns-hijack".into(),
+            Value::Sequence(
+                crate::constants::tun::DNS_HIJACK
+                    .iter()
+                    .copied()
+                    .map(Value::from)
+                    .collect(),
+            ),
+        );
+    }
     if let Some(stack) = overrides.stack.clone() {
         tun.insert("stack".into(), stack);
     }

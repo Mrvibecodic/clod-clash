@@ -103,6 +103,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
       }
 
       const tun: IConfigData['tun'] = {
+        ...clash?.tun,
         device:
           values.device === ''
             ? OS === 'macos'
@@ -156,6 +157,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
             size="small"
             onClick={async () => {
               const tun: IConfigData['tun'] = {
+                ...clash?.tun,
                 device: OS === 'macos' ? 'utun1024' : 'Mihomo',
                 'auto-route': true,
                 ...(OS === 'linux'
@@ -193,6 +195,9 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
                 false,
               )
               mutateVerge({ ...verge, ...overrides }, false)
+              void enhanceProfiles().catch((err: any) => {
+                showNotice.error(err)
+              })
             }}
           >
             {t('shared.actions.resetToDefault')}

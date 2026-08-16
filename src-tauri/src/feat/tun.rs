@@ -218,7 +218,7 @@ pub fn spawn_start_verification(anchor: Option<String>) {
         if !claimed().await {
             return;
         }
-        if matches!(verify_round().await, Round::Watching) {
+        if !matches!(verify_round().await, Round::Done) {
             spawn_watchdog();
         }
     });
@@ -226,14 +226,15 @@ pub fn spawn_start_verification(anchor: Option<String>) {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Round {
-    Watching,
+    Clean,
+    Unknown,
     Done,
 }
 
 async fn verify_round() -> Round {
     let anchor = WATCH_ANCHOR.lock().clone();
     let Ok(logs) = crate::core::CoreManager::global().get_clash_logs().await else {
-        return Round::Watching;
+        return Round::Unknown;
     };
     match verdict(&logs, anchor.as_deref()) {
         Verdict::Failed(line) => {
@@ -242,8 +243,7 @@ async fn verify_round() -> Round {
         }
         Verdict::Clean(next) => {
             *WATCH_ANCHOR.lock() = next;
-            START_ATTEMPTS.store(0, Ordering::Release);
-            Round::Watching
+            Round::Clean
         }
     }
 }
@@ -258,8 +258,13 @@ fn spawn_watchdog() {
         }
         loop {
             tokio::time::sleep(timing::TUN_WATCH_INTERVAL).await;
-            if !claimed().await || matches!(verify_round().await, Round::Done) {
+            if !claimed().await {
                 return;
+            }
+            match verify_round().await {
+                Round::Done => return,
+                Round::Clean => START_ATTEMPTS.store(0, Ordering::Release),
+                Round::Unknown => {}
             }
         }
     });
