@@ -1,5 +1,11 @@
 #!/bin/bash
-/usr/bin/clash-verge-service-uninstall
+case "$1" in
+    upgrade | failed-upgrade | 1)
+        ;;
+    *)
+        /usr/bin/clash-verge-service-uninstall
+        ;;
+esac
 
 . /etc/os-release
 
