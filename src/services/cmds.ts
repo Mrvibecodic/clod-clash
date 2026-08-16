@@ -67,8 +67,6 @@ export async function updateProfile(index: string, option?: IProfileOption) {
   return invoke<void>('update_profile', { index, option })
 }
 
-// clod: вернуть сохранённый выбор узлов — групповой тест задержек в mihomo
-// сбрасывает закреплённый узел url-test/fallback групп (ForceSet("")).
 export async function restoreSelectedNodes() {
   return invoke<void>('restore_selected_nodes')
 }
@@ -88,7 +86,6 @@ export async function getClashInfo() {
   return invoke<IClashInfo | null>('get_clash_info')
 }
 
-// Get runtime config which controlled by verge
 export async function getRuntimeConfig() {
   return invoke<IConfigData | null>('get_runtime_config')
 }
@@ -146,14 +143,12 @@ export async function calcuProxies(): Promise<{
   const proxyRecord = proxyResponse.proxies
   const providerRecord = providerResponse
 
-  // provider name map
   const providerMap = Object.fromEntries(
     Object.entries(providerRecord).flatMap(([provider, item]) =>
       item!.proxies.map((p) => [p.name, { ...p, provider }]),
     ),
   )
 
-  // compatible with proxy-providers
   const generateItem = (name: string) => {
     if (proxyRecord[name]) return proxyRecord[name]
     if (providerMap[name]) return providerMap[name]
@@ -229,8 +224,6 @@ export async function calcuProxies(): Promise<{
     all: global?.all?.map((item) => generateItem(item)) || [],
   }
 
-  // Изначально records содержал все узлы, в новых версиях ядра нужно
-  // слить узлы provider в records, сохраняя совместимость со старыми данными
   const records = { ...proxyRecord, ...providerMap }
 
   return {
@@ -285,9 +278,7 @@ export async function patchVergeConfig(payload: IVergeConfig) {
   return invoke<void>('patch_verge_config', { payload })
 }
 
-/** clod: exactly what the panel sees about this device (`x-hwid` family). */
 export interface IDeviceIdentity {
-  /** `null` while device identification is switched off — nothing is sent. */
   hwid: string | null
   os: string
   os_version: string
@@ -299,23 +290,10 @@ export async function getDeviceIdentity() {
   return invoke<IDeviceIdentity>('get_device_identity')
 }
 
-/**
- * clod: provider logo from the local cache, as a `data:` URL.
- *
- * `null` means the panel sent no logo (or it could not be fetched) — the UI
- * then shows no tile at all rather than a broken image.
- */
 export async function getProfileLogo(uid: string) {
   return invoke<string | null>('get_profile_logo', { uid })
 }
 
-/**
- * clod: what the sentinel filter saw in the last generated config.
- *
- * `only_sentinels` separates "the panel refused to hand out servers" from "the
- * template simply has no groups"; `remarks` are the panel's own words for the
- * nodes it sent instead of servers.
- */
 export interface ISentinelReport {
   remarks: string[]
   only_sentinels: boolean
@@ -325,31 +303,10 @@ export async function getSentinelReport() {
   return invoke<ISentinelReport>('get_sentinel_report')
 }
 
-/**
- * clod: server descriptions from the panel, keyed by node name.
- *
- * Remnawave keeps the host description inside the node itself
- * (`serverDescription`, 30 characters at most); the core's `/proxies` never
- * carries it, so the list takes it from the generated config instead.
- *
- * The map stays empty until the provider adds `^ClodClash/` to
- * `additionalExtendedClientsRegex` in their subscription response rules: the
- * panel ships the field to "extended clients" only, and its built-in list of
- * those is a fixed set of other apps. See `docs/REMNAWAVE.md`.
- */
 export async function getServerDescriptions() {
   return invoke<Record<string, string>>('get_server_descriptions')
 }
 
-/**
- * clod: build the support report and put it on the clipboard.
- *
- * Holds versions, core and subscription state, the sentinel report and the tail
- * of both logs — already redacted, and without the core's per-connection lines,
- * so it can be pasted into a support chat without reading it first. Returns its
- * size rather than its text: the report is on the clipboard already, and it has
- * no business passing back through the UI.
- */
 export async function copySupportBundle(lines?: number) {
   return invoke<number>('copy_support_bundle', { lines })
 }
@@ -529,19 +486,14 @@ export async function listLocalBackup() {
   return invoke<ILocalBackupFile[]>('list_local_backup')
 }
 
-// Получить текущий режим работы
 export const getRunningMode = async () => {
   return invoke<string>('get_running_mode')
 }
 
-// clod: когда в последний раз поднялись цели Connect (epoch ms) — база
-// таймера сессии; null, когда ничего не активно
 export const getConnectSessionStart = async () => {
   return invoke<number | null>('get_connect_session_start')
 }
 
-// clod:mode-window — per-mode window sizes: remember the size of the mode
-// being left, apply the remembered/default size of the mode being entered.
 export const saveWindowSizeForMode = async (simple: boolean) => {
   return invoke<void>('save_window_size_for_mode', { simple })
 }
@@ -550,45 +502,34 @@ export const applyWindowSizeForMode = async (simple: boolean) => {
   return invoke<void>('apply_window_size_for_mode', { simple })
 }
 
-// clod: запомнить выбор узла парой «группа + узел» — слияние на бэкенде,
-// чтобы два быстрых переключения не затирали друг друга.
 export const patchSelectedNode = async (group: string, node: string) => {
   return invoke<void>('patch_selected_node', { group, node })
 }
 
-// clod:fit-window — посадить окно на высоту содержимого; возвращает потолок
-// (максимальную высоту содержимого, которая помещается в рабочую область).
 export const fitWindowToContent = async (contentHeight: number) => {
   return invoke<number>('fit_window_to_content', { contentHeight })
 }
 
-// clod:traffic-estimate — сколько байт клиент насчитал сверх данных подписки
 export const getTrafficEstimate = async () => {
   return invoke<ITrafficEstimate>('get_traffic_estimate')
 }
 
-// Установить системную службу
 export const installService = async () => {
   return invoke<void>('install_service')
 }
 
-// Удалить системную службу
 export const uninstallService = async () => {
   return invoke<void>('uninstall_service')
 }
 
-// clod:tun-ready — что бэкенд знает про TUN прямо сейчас.
 export const getTunState = async () => {
   return invoke<ITunState>('get_tun_state')
 }
 
-// clod:tun-ready — «сделай так, чтобы TUN работал»: если прав уже хватает,
-// вернётся true сразу; иначе будет один запрос прав на установку службы.
 export const ensureTunReady = async () => {
   return invoke<boolean>('ensure_tun_ready')
 }
 
-// Доступна ли системная служба
 export const isServiceAvailable = async () => {
   try {
     return await invoke<boolean>('is_service_available')
@@ -623,13 +564,11 @@ export const isPortInUse = async (port: number) => {
   }
 }
 
-// clod:F5 — managed Mihomo core
 export interface CoreUpdaterStatus {
   managed_active: boolean
   current?: string
   previous?: string
   running?: string
-  /** ядро сейчас запускает служба — managed-ядро работает только в sidecar-режиме */
   service_mode: boolean
 }
 
@@ -654,6 +593,10 @@ export async function downloadAndApplyCore() {
 
 export async function revertCore() {
   return invoke<void>('revert_core')
+}
+
+export async function repinCoreBinaries() {
+  return invoke<void>('repin_core_binaries')
 }
 
 export async function disableManagedCore() {

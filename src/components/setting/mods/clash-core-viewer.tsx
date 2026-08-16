@@ -20,7 +20,11 @@ import { closeAllConnections, upgradeCore } from 'tauri-plugin-mihomo-api'
 import { BaseDialog, DialogRef } from '@/components/base'
 import { useClash, useClashInfo } from '@/hooks/use-clash'
 import { useVerge } from '@/hooks/use-verge'
-import { changeClashCore, restartCore } from '@/services/cmds'
+import {
+  changeClashCore,
+  repinCoreBinaries,
+  restartCore,
+} from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 
 const VALID_CORE = [
@@ -98,6 +102,7 @@ export function ClashCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
     try {
       setUpgrading(true)
       await upgradeCore()
+      await repinCoreBinaries()
       setUpgrading(false)
       mutateVersion()
       showNotice.success(

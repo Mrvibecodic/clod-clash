@@ -27,11 +27,9 @@ use tauri_plugin_deep_link::DeepLinkExt as _;
 use tauri_plugin_mihomo::RejectPolicy;
 
 pub static APP_HANDLE: OnceCell<AppHandle> = OnceCell::new();
-/// Application initialization helper functions
 mod app_init {
     use super::*;
 
-    /// Initialize singleton monitoring for other instances
     pub fn init_singleton_check() -> Result<()> {
         AsyncHandler::block_on(async move {
             logging!(info, Type::Setup, "проверка единственного экземпляра...");
@@ -40,7 +38,6 @@ mod app_init {
         })
     }
 
-    /// Setup plugins for the Tauri builder
     pub fn setup_plugins(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
         #[allow(unused_mut)]
         let mut builder = builder
@@ -71,8 +68,6 @@ mod app_init {
                     .build(),
             );
 
-        // Devtools plugin only in debug mode with feature tauri-dev
-        // to avoid duplicated registering of logger since the devtools plugin also registers a logger
         #[cfg(all(debug_assertions, not(feature = "tokio-trace"), feature = "tauri-dev"))]
         {
             builder = builder.plugin(tauri_plugin_devtools::init());
@@ -80,7 +75,6 @@ mod app_init {
         builder
     }
 
-    /// Setup deep link handling
     pub fn setup_deep_links(app: &tauri::App) {
         #[cfg(any(target_os = "linux", all(debug_assertions, windows)))]
         {
@@ -100,7 +94,6 @@ mod app_init {
         });
     }
 
-    /// Setup autostart plugin
     pub fn setup_autostart(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         #[cfg(target_os = "macos")]
         let mut auto_start_plugin_builder = tauri_plugin_autostart::Builder::new();
@@ -117,7 +110,6 @@ mod app_init {
         Ok(())
     }
 
-    /// Setup window state management
     pub fn setup_window_state(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         logging!(info, Type::Setup, "инициализация управления состоянием окна...");
         let window_state_plugin = tauri_plugin_window_state::Builder::new()
@@ -153,6 +145,7 @@ mod app_init {
             cmd::check_core_update,
             cmd::download_and_apply_core,
             cmd::revert_core,
+            cmd::repin_core_binaries,
             cmd::disable_managed_core,
             cmd::get_running_mode,
             cmd::get_auto_launch_status,
@@ -252,7 +245,6 @@ pub fn run() {
 
     let builder = app_init::setup_plugins(tauri::Builder::default())
         .setup(|app| {
-            // Logger may not be ready yet, so mirror setup panics to stderr.
             fn log_setup_panic(stage: &str, panic: Box<dyn std::any::Any + Send>) {
                 let msg = panic
                     .downcast_ref::<&str>()
@@ -269,8 +261,6 @@ pub fn run() {
                 );
             }
 
-            // Prevent setup panics from aborting across macOS applicationDidFinishLaunching.
-            // Keep pre-init separate so window/core/tray startup is still scheduled after a panic.
             if let Err(panic) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 #[allow(clippy::expect_used)]
                 APP_HANDLE
@@ -295,7 +285,6 @@ pub fn run() {
                 log_setup_panic("pre-init", panic);
             }
 
-            // Always attempt the startup stage, even if pre-init degraded.
             if let Err(panic) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 resolve::resolve_setup_async();
                 resolve::resolve_setup_sync();
@@ -309,11 +298,6 @@ pub fn run() {
         })
         .invoke_handler(app_init::generate_handlers());
 
-    // При нехватке памяти на macOS процесс рендеринга WKWebView может быть
-    // завершён системой (проявляется как белый экран). Регистрируем хук
-    // восстановления: очищает осиротевшие подписки WebSocket от утечки
-    // памяти; при видимом окне сразу делает reload, при невидимом откладывает
-    // reload до следующего открытия окна пользователем.
     #[cfg(target_os = "macos")]
     let builder = builder.on_web_content_process_terminate(resolve::window::on_web_content_process_terminated);
 
@@ -455,8 +439,6 @@ pub fn run() {
             });
         }
         tauri::RunEvent::Exit => AsyncHandler::block_on(async {
-            // Windows session ending currently reaches Tao as WM_ENDSESSION and
-            // destroys the loop without a preventable ExitRequested event.
             if !handle::Handle::global().is_exiting() {
                 feat::quit().await;
             }
@@ -480,8 +462,6 @@ pub fn run() {
                 event_handlers::handle_window_close(&event);
             }
             tauri::WindowEvent::Focused(focused) => {
-                // Подстраховка: нативное снятие минимизации вызывает только
-                // Focused, минуя activate_window (macOS)
                 #[cfg(target_os = "macos")]
                 if focused {
                     crate::utils::resolve::window::reload_main_window_if_needed();

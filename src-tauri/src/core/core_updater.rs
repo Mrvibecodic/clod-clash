@@ -1,21 +1,3 @@
-//! clod:F5 — managed Mihomo core.
-//!
-//! Downloads an official core build from MetaCubeX/mihomo (stable release or
-//! the Prerelease-Alpha channel) and runs it instead of the bundled sidecar,
-//! so the core can move faster than the application. The core itself is never
-//! modified — this module only delivers the binary.
-//!
-//! Layout under `{app_home}/cores/`:
-//!   `mihomo-{version}/verge-mihomo(.exe)` — one directory per version;
-//!   `current` / `previous` — plain text pointer files with a version each.
-//! Pointer files instead of symlinks: on Windows symlinks need privileges,
-//! and a text file survives every filesystem.
-//!
-//! Safety order on apply: download → unpack → `-v` probe → stop core → move
-//! pointers → start core; any failure rolls the pointers back and restarts
-//! whatever ran before. With `use_managed_core` off (the default) every code
-//! path falls through to the bundled sidecar untouched.
-
 use std::{
     io::Read as _,
     path::PathBuf,
@@ -44,33 +26,20 @@ const API_TIMEOUT_SECS: u64 = 30;
 const REACHABILITY_TIMEOUT_SECS: u64 = 15;
 const PROBE_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// One update at a time; the flag also guards revert.
 static UPDATING: AtomicBool = AtomicBool::new(false);
-
-// ---------------------------------------------------------------------------
-// public state types
-// ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CoreUpdaterStatus {
-    /// `use_managed_core` and a usable binary both present.
     pub managed_active: bool,
-    /// Version the `current` pointer names, if its binary exists.
     pub current: Option<String>,
-    /// Version available for rollback.
     pub previous: Option<String>,
-    /// What the running core reports through its API, whoever provides it.
     pub running: Option<String>,
-    /// The core currently runs through the elevated service; the managed
-    /// core is sidecar-only (privilege boundary), so the dialog explains
-    /// why the managed binary is not what is running.
     pub service_mode: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CoreUpdateCheck {
     pub channel: String,
-    /// Version of the running core (None when the core is not reachable).
     pub current: Option<String>,
     pub latest: String,
     pub update_available: bool,
@@ -82,10 +51,6 @@ struct Progress<'a> {
     received: u64,
     total: u64,
 }
-
-// ---------------------------------------------------------------------------
-// GitHub release model
-// ---------------------------------------------------------------------------
 
 #[derive(Debug, Deserialize)]
 struct GhRelease {
@@ -99,10 +64,6 @@ struct GhAsset {
     size: u64,
 }
 
-// ---------------------------------------------------------------------------
-// paths and pointers
-// ---------------------------------------------------------------------------
-
 fn core_binary_file_name() -> String {
     format!("verge-mihomo{}", std::env::consts::EXE_SUFFIX)
 }
@@ -111,7 +72,6 @@ pub fn cores_dir() -> Result<PathBuf> {
     Ok(dirs::app_home_dir()?.join("cores"))
 }
 
-/// Versions land in the filesystem, so anything path-hostile is replaced.
 fn sanitize_version(version: &str) -> String {
     version
         .chars()
@@ -148,9 +108,6 @@ fn write_pointer(name: &str, version: Option<&str>) -> Result<()> {
     let path = pointer_file(name)?;
     match version {
         Some(v) => {
-            // Write-then-rename: a crash mid-write must not leave a truncated
-            // pointer behind — an empty `current` silently drops the user
-            // back to the sidecar.
             let staging = path.with_extension("tmp");
             std::fs::write(&staging, v).context("failed to write core pointer")?;
             std::fs::rename(&staging, &path).context("failed to move core pointer in place")?;
@@ -162,9 +119,24 @@ fn write_pointer(name: &str, version: Option<&str>) -> Result<()> {
     Ok(())
 }
 
-/// The managed binary the core should run with, or `None` for the bundled
-/// sidecar. `None` on any doubt — a broken managed state must never keep the
-/// user offline.
+pub async fn managed_binary_on_disk() -> Option<PathBuf> {
+    let verge = Config::verge().await.latest_arc();
+    if !verge.use_managed_core.unwrap_or(false) {
+        return None;
+    }
+    let binary = version_binary(&read_pointer("current")?).ok()?;
+    binary.is_file().then_some(binary)
+}
+
+pub async fn repin_core_binaries() {
+    if let Ok(path) = crate::core::service::bundled_core_path().await {
+        crate::core::core_integrity::repin_binary(&path).await;
+    }
+    if let Some(path) = managed_binary_on_disk().await {
+        crate::core::core_integrity::repin_binary(&path).await;
+    }
+}
+
 pub async fn managed_core_binary() -> Option<PathBuf> {
     let verge = Config::verge().await.latest_arc();
     if !verge.use_managed_core.unwrap_or(false) {
@@ -182,9 +154,6 @@ pub async fn managed_core_binary() -> Option<PathBuf> {
         return None;
     }
 
-    // clod: каталог managed-ядер пишет непривилегированный пользователь,
-    // поэтому подменить файл здесь проще всего. Отпечаток записан при
-    // установке — с известных байтов, а не с «первой встречи».
     match crate::core::core_integrity::check_binary(&binary).await {
         Ok(crate::core::core_integrity::PinCheck::Changed { expected, actual }) => {
             logging!(
@@ -208,10 +177,6 @@ pub async fn managed_core_binary() -> Option<PathBuf> {
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// release discovery
-// ---------------------------------------------------------------------------
 
 fn configured_channel(verge: &IVerge) -> String {
     match verge.managed_core_channel.as_deref() {
@@ -242,11 +207,6 @@ fn target_os_arch() -> Result<(&'static str, &'static str)> {
     Ok((os, arch))
 }
 
-/// A remainder that is a release version and nothing else: `v1.19.2` or
-/// `alpha-g0a1b2c3`. Microarch variants (`v3-v1.19.2`), `compatible`, `-go1`
-/// and future suffixes all fail this — they would either mis-derive the
-/// version forever ("update available" for a build that is already running)
-/// or SIGILL on CPUs without the newer instruction sets.
 fn is_plain_version(version: &str) -> bool {
     if let Some(rest) = version.strip_prefix('v') {
         let digits = rest.chars().take_while(char::is_ascii_digit).count();
@@ -255,9 +215,6 @@ fn is_plain_version(version: &str) -> bool {
     version.starts_with("alpha-")
 }
 
-/// Choose the plain build for this machine and derive its version from the
-/// asset name (`mihomo-{os}-{arch}-{version}.{ext}`); the alpha channel has
-/// no usable tag, the hash lives only in the file name.
 fn pick_asset(assets: &[GhAsset], os: &str, arch: &str) -> Result<(GhAsset, String)> {
     let prefix = format!("mihomo-{os}-{arch}-");
     let ext = if os == "windows" { ".zip" } else { ".gz" };
@@ -267,10 +224,6 @@ fn pick_asset(assets: &[GhAsset], os: &str, arch: &str) -> Result<(GhAsset, Stri
             .then(|| a.name[prefix.len()..a.name.len() - ext.len()].to_string())
     };
 
-    // Strict pass first: the plain build, whatever order GitHub returns the
-    // assets in. The lenient tiers only exist for a future naming change:
-    // first refusing the known variant markers, then — with nothing else on
-    // offer — even a `compatible` build beats no core at all.
     let picked = assets
         .iter()
         .find_map(|a| version_of(a).filter(|v| is_plain_version(v)).map(|v| (a.clone(), v)))
@@ -289,8 +242,6 @@ fn pick_asset(assets: &[GhAsset], os: &str, arch: &str) -> Result<(GhAsset, Stri
     Ok((asset, version))
 }
 
-/// GitHub may be unreachable directly for exactly the people this app is
-/// built for, so every request falls back to going through the own core.
 async fn http_client(proxy: ProxyType, timeout: u64) -> Result<reqwest::Client> {
     NetworkManager::new()
         .create_request(
@@ -355,8 +306,6 @@ pub async fn check_core_update() -> Result<CoreUpdateCheck> {
     let release = fetch_release(&channel).await?;
     let (_, latest) = pick_asset(&release.assets, os, arch)?;
     let current = running_core_version().await;
-    // An unreachable core API (restart in flight, IPC hiccup) must not read
-    // as "update available" — that turns the daily check into noise.
     let update_available = current.as_deref().is_some_and(|v| v != latest.as_str());
     Ok(CoreUpdateCheck {
         channel,
@@ -366,25 +315,14 @@ pub async fn check_core_update() -> Result<CoreUpdateCheck> {
     })
 }
 
-// ---------------------------------------------------------------------------
-// download / unpack / verify
-// ---------------------------------------------------------------------------
-
 fn emit_progress(phase: &str, received: u64, total: u64) {
     let payload = Progress { phase, received, total };
-    // clod: только через NotificationSystem — она отправляет с главного потока.
-    // Сырой `emit` отсюда шёл из задачи скачивания, то есть ровно из воркера,
-    // на котором отправка умеет схлопнуться в дедлок с WebKit.
     match serde_json::to_value(&payload) {
         Ok(value) => handle::Handle::notify_core_update_progress(value),
         Err(err) => logging!(warn, Type::Core, "не удалось собрать событие прогресса: {err}"),
     }
 }
 
-/// A blackholed direct route (packets dropped, not refused — the audience the
-/// Localhost fallback exists for) would otherwise stall the download for the
-/// full `DOWNLOAD_TIMEOUT_SECS` before the fallback even starts. A cheap HEAD
-/// with a short timeout answers "is this route alive at all" first.
 async fn route_is_alive(proxy: ProxyType, url: &str) -> bool {
     let attempt = async {
         let client = http_client(proxy, REACHABILITY_TIMEOUT_SECS).await?;
@@ -436,9 +374,6 @@ async fn download_asset(asset: &GhAsset) -> Result<Vec<u8>> {
     Err(last_error.context("failed to download the core archive"))
 }
 
-/// Verify against `{asset}.sha256` when the release ships one; the alpha
-/// channel sometimes does not, and then the `-v` probe of the unpacked
-/// binary is the integrity check.
 async fn verify_sha256(release: &GhRelease, asset: &GhAsset, bytes: &[u8]) -> Result<()> {
     let checksum_name = format!("{}.sha256", asset.name);
     let Some(checksum_asset) = release.assets.iter().find(|a| a.name == checksum_name) else {
@@ -522,9 +457,6 @@ async fn install_binary(version: &str, data: &[u8]) -> Result<PathBuf> {
 
     tokio::fs::rename(&staging, &target).await?;
 
-    // Gatekeeper: a freshly written binary may carry the quarantine flag when
-    // the bytes travelled through certain APIs. Best effort — app_data is
-    // normally fine.
     #[cfg(target_os = "macos")]
     {
         let _ = tokio::process::Command::new("xattr")
@@ -534,21 +466,16 @@ async fn install_binary(version: &str, data: &[u8]) -> Result<PathBuf> {
             .await;
     }
 
-    // clod: отпечаток снимается с байтов, которые только что проверены по
-    // контрольной сумме релиза, — доверять «первой встрече» тут не нужно.
     crate::core::core_integrity::pin_known_binary(&target, &crate::core::core_integrity::digest_of_bytes(data)).await;
 
     Ok(target)
 }
 
-/// The unpacked binary must at least answer `-v`; everything else stays the
-/// core's own business.
 async fn probe_binary(binary: &PathBuf) -> Result<String> {
     let mut command = tokio::process::Command::new(binary);
     command.arg("-v");
     #[cfg(target_os = "windows")]
     {
-        // No console flash for the probe, same as every other spawn here.
         command.creation_flags(0x08000000);
     }
     let output = tokio::time::timeout(PROBE_TIMEOUT, command.output())
@@ -560,7 +487,6 @@ async fn probe_binary(binary: &PathBuf) -> Result<String> {
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
-/// Drop version directories no pointer names any more.
 fn cleanup_versions() {
     let Ok(dir) = cores_dir() else { return };
     let keep: Vec<String> = ["current", "previous"]
@@ -579,10 +505,6 @@ fn cleanup_versions() {
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// apply / revert
-// ---------------------------------------------------------------------------
 
 struct UpdateGuard;
 
@@ -613,10 +535,6 @@ async fn ensure_managed_enabled() -> Result<()> {
     crate::feat::patch_verge(&patch, false).await
 }
 
-/// Switch the pointers and restart the core on the new binary; roll back and
-/// restart the old state when anything on the way explodes. The whole
-/// stop→write→start sequence runs under the lifecycle lock (see
-/// `restart_core_swapped`), and every error path restarts a core.
 async fn swap_to_version(version: &str) -> Result<()> {
     let old_current = read_pointer("current");
     let old_previous = read_pointer("previous");
@@ -643,8 +561,6 @@ async fn swap_to_version(version: &str) -> Result<()> {
     Ok(())
 }
 
-/// Full update: resolve the channel's latest build, download, verify, unpack,
-/// probe and switch over.
 pub async fn download_and_apply_core() -> Result<CoreUpdateCheck> {
     let _guard = UpdateGuard::acquire()?;
 
@@ -694,7 +610,6 @@ pub async fn download_and_apply_core() -> Result<CoreUpdateCheck> {
     })
 }
 
-/// Swap back to the previous managed version.
 pub async fn revert_core() -> Result<()> {
     let _guard = UpdateGuard::acquire()?;
 
@@ -705,9 +620,6 @@ pub async fn revert_core() -> Result<()> {
     swap_to_version(&previous).await
 }
 
-/// Turn the managed core off and go back to the bundled sidecar.
-/// `patch_verge` maps a `use_managed_core` change to a core restart
-/// (feat::config::determine_update_flags), so no explicit restart here.
 pub async fn disable_managed_core() -> Result<()> {
     let _guard = UpdateGuard::acquire()?;
     let patch = IVerge {
@@ -717,15 +629,9 @@ pub async fn disable_managed_core() -> Result<()> {
     crate::feat::patch_verge(&patch, false).await
 }
 
-// ---------------------------------------------------------------------------
-// background check
-// ---------------------------------------------------------------------------
-
 const AUTO_CHECK_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60);
 const AUTO_CHECK_STARTUP_DELAY: Duration = Duration::from_secs(90);
 
-/// The last version the daily check already notified about — one notice per
-/// version, not one per day for the same version.
 static LAST_NOTIFIED: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
 
 fn should_notify(version: &str) -> bool {
@@ -739,8 +645,6 @@ fn should_notify(version: &str) -> bool {
     true
 }
 
-/// Once a day, and only when the user opted in: check the channel and raise
-/// a notice — never download anything behind the user's back.
 pub fn spawn_auto_check() {
     crate::process::AsyncHandler::spawn(|| async {
         tokio::time::sleep(AUTO_CHECK_STARTUP_DELAY).await;
@@ -765,10 +669,6 @@ pub fn spawn_auto_check() {
         }
     });
 }
-
-// ---------------------------------------------------------------------------
-// tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 #[allow(clippy::expect_used)]
@@ -798,10 +698,6 @@ mod tests {
 
     #[test]
     fn microarch_variants_lose_to_the_plain_build_regardless_of_order() {
-        // MetaCubeX ships x86-64-v3 builds too; GitHub returns assets in
-        // upload order, so the v3 build may come first. Picking it would
-        // derive the version as "v3-v1.19.2" (never equal to the running
-        // core → permanent "update available") and SIGILL older CPUs.
         let assets = vec![
             asset("mihomo-linux-amd64-v3-v1.19.2.gz"),
             asset("mihomo-linux-amd64-v2-v1.19.2.gz"),
@@ -811,7 +707,6 @@ mod tests {
         assert_eq!(picked.name, "mihomo-linux-amd64-v1.19.2.gz");
         assert_eq!(version, "v1.19.2");
 
-        // Same for the alpha channel naming.
         let assets = vec![
             asset("mihomo-windows-amd64-v3-alpha-g0a1b2c3.zip"),
             asset("mihomo-windows-amd64-alpha-g0a1b2c3.zip"),

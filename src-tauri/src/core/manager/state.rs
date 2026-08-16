@@ -34,33 +34,17 @@ use {
     },
 };
 
-// clod:tun-ready — счётчик аварийных перезапусков ядра. Три попытки подряд,
-// счётчик обнуляется, если ядро прожило CORE_STABLE_AFTER. Счётчик общий для
-// обоих режимов: краху под службой те же три попытки, что и краху sidecar-а.
 static CRASH_RESTARTS: AtomicU32 = AtomicU32::new(0);
 const MAX_CRASH_RESTARTS: u32 = 3;
 const CORE_RESTART_DELAY: Duration = Duration::from_secs(1);
 const CORE_STABLE_AFTER: Duration = Duration::from_secs(60);
 
-/// clod:core-health — сторож ядра под службой уже работает.
 static SERVICE_WATCHDOG_RUNNING: AtomicBool = AtomicBool::new(false);
 
-/// Считать ли завершение ядра крахом.
-///
-/// Отдельной функцией, потому что тут два несамоочевидных «нет»: свой стоп уже
-/// выставил `NotRunning`, а передача sidecar→service успевает сменить режим до
-/// того, как придёт `Terminated` от убитого нами sidecar-а. В обоих случаях
-/// перезапуск поднял бы второе ядро поверх работающего.
 fn exit_is_a_crash(current: &RunningMode, expected: &RunningMode, app_exiting: bool) -> bool {
     !app_exiting && current == expected
 }
 
-/// Ядро завершилось. Если это не наш собственный стоп — сбрасываем режим и
-/// пробуем поднять его обратно.
-///
-/// `expected` — режим, в котором мы ядро видели. Свой стоп уже выставил
-/// `NotRunning`, а передача sidecar→service меняет режим на другой; в обоих
-/// случаях это не крах, и сообщение о смерти приходит с опозданием.
 fn handle_core_exit(message: &str, expected: &RunningMode) {
     let manager = CoreManager::global();
     if !exit_is_a_crash(
@@ -102,16 +86,7 @@ fn handle_core_exit(message: &str, expected: &RunningMode) {
             logging!(error, Type::Core, "failed to restart the core after a crash: {}", e);
             return;
         }
-        // clod:core-health — ядро новое, а на экране всё от прежнего процесса:
-        // выбранный сервер, состав групп и задержки. Ручной путь
-        // (`feat/clash.rs`) фронт извещает, автоматический — не извещал, и
-        // главная не опрашивает `getProxies` сама, так что до следующего
-        // возврата окна пользователь смотрел бы на данные умершего ядра.
         handle::Handle::refresh_clash();
-        // clod: новое ядро поднимается на умолчаниях шаблона, то есть на первом
-        // узле каждой группы. Ручной рестарт выбор возвращал (`feat/clash.rs`),
-        // а вот после падения ядра пользователь молча оказывался на чужом
-        // сервере. Возврат тот же, что после обновления подписки.
         if let Err(e) = crate::config::profiles::activate_selected_nodes() {
             logging!(
                 warn,
@@ -129,25 +104,10 @@ fn handle_core_exit(message: &str, expected: &RunningMode) {
     });
 }
 
-/// clod:core-health — ядро отвечает по своему API прямо сейчас.
-///
-/// Тот же вызов, которым `core_updater` спрашивает версию работающего ядра:
-/// один round-trip по уже открытому IPC, без побочных эффектов.
 async fn core_answers() -> bool {
     handle::Handle::mihomo().await.get_version().await.is_ok()
 }
 
-/// clod:core-health — сторож ядра под службой.
-///
-/// В режиме sidecar смерть ядра видна сразу: мы читаем его вывод и получаем
-/// `Terminated`. Под службой ядро нам не дитя — событий нет ни у кого, и
-/// `handle_core_exit` для него не срабатывал вовсе. Значит, ни автоперезапуска,
-/// ни уведомления `core::crashed`: кнопка оставалась зелёной над мёртвым ядром,
-/// причём именно в основном режиме работы TUN.
-///
-/// Живём, пока держится режим службы; молчание засчитывается только подряд
-/// (см. `CORE_HEALTH_MISSES`), а круг во время применения конфига не считается
-/// вовсе — там ядро законно занято перезагрузкой.
 pub(super) fn spawn_service_health_watchdog() {
     if SERVICE_WATCHDOG_RUNNING.swap(true, Ordering::AcqRel) {
         return;
@@ -165,7 +125,6 @@ pub(super) fn spawn_service_health_watchdog() {
                 return;
             }
             if manager.is_config_update_in_progress() {
-                // Перезагрузка конфига — законная пауза, а не смерть.
                 misses = 0;
                 continue;
             }
@@ -186,7 +145,6 @@ pub(super) fn spawn_service_health_watchdog() {
                 continue;
             }
 
-            // Опрос занимает время: за него мог начаться свой стоп или передача.
             handle_core_exit("the core stopped answering under the service", &RunningMode::Service);
             return;
         }
@@ -205,9 +163,6 @@ impl CoreManager {
     pub(super) async fn start_core_by_sidecar(&self) -> Result<()> {
         logging!(info, Type::Core, "Starting core in sidecar mode");
 
-        // clod:svc-2.6 — sidecar и служба слушают на РАЗНЫХ путях: свой сокет
-        // sidecar получает флагом ниже, а служебный путь назначает служба.
-        // Клиент mihomo надо направить на путь текущего режима.
         let sidecar_ipc = dirs::sidecar_ipc_path()?;
         handle::Handle::app_handle()
             .mihomo()
@@ -220,8 +175,6 @@ impl CoreManager {
         let clash_core = Config::verge().await.latest_arc().get_valid_clash_core();
         let config_dir = dirs::app_home_dir()?;
 
-        // clod:F5 — a managed core, when enabled and present, replaces the
-        // bundled sidecar binary; any doubt falls back to the sidecar.
         let managed_binary = crate::core::core_updater::managed_core_binary().await;
         let command = match &managed_binary {
             Some(path) => {
@@ -287,9 +240,6 @@ impl CoreManager {
                     | tauri_plugin_shell::process::CommandEvent::Stderr(line) => {
                         let message = CompactString::from(&*String::from_utf8_lossy(&line));
                         Logger::global().writer_sidecar_log(Level::Error, &message);
-                        // clod:tun-ready — единственное место, где виден stderr
-                        // ядра. Провал старта TUN здесь и ловим, иначе UI
-                        // показывает «подключено» при мёртвом туннеле.
                         if crate::feat::tun::line_reports_tun_failure(&message) {
                             crate::feat::tun::report_start_failure(&message);
                         }
@@ -305,9 +255,6 @@ impl CoreManager {
                         };
                         Logger::global().writer_sidecar_log(Level::Info, &message);
                         CLASH_LOGGER.clear_logs().await;
-                        // clod:tun-ready — раньше режим оставался Sidecar, и
-                        // следующий start_core считал мёртвое ядро живым
-                        // (no-op): TUN исчезал, а UI показывал «работает».
                         handle_core_exit(&message, &RunningMode::Sidecar);
                         break;
                     }
@@ -329,8 +276,6 @@ impl CoreManager {
 
             #[cfg(target_os = "windows")]
             {
-                // Setting the job handle to None clears the stored handle and
-                // closes the previous Windows job handle in `set_job_handle`.
                 self.set_job_handle(None);
                 logging!(
                     trace,
@@ -354,8 +299,6 @@ impl CoreManager {
     pub(super) async fn start_core_by_service(&self) -> Result<()> {
         logging!(info, Type::Core, "Starting core in service mode");
 
-        // clod:svc-2.6 — ядро под службой слушает на пути, который назначает
-        // служба (см. `dirs::service_ipc_path`); наш yaml она перекрывает.
         let service_ipc = dirs::service_ipc_path()?;
         handle::Handle::app_handle()
             .mihomo()
@@ -365,7 +308,6 @@ impl CoreManager {
 
         let config_file = Config::generate_file(crate::config::ConfigType::Run).await?;
 
-        // При передаче ждём, пока sidecar освободит канал ext-controller.
         #[cfg(target_os = "windows")]
         {
             let mut last_err = None;
@@ -385,6 +327,9 @@ impl CoreManager {
                             timing::SERVICE_START_RETRIES,
                             e
                         );
+                        if crate::core::core_integrity::is_core_binary_changed(&e) {
+                            return Err(e);
+                        }
                         last_err = Some(e);
                         tokio::time::sleep(timing::SERVICE_START_RETRY_DELAY).await;
                     }
@@ -463,18 +408,12 @@ mod exit_tests {
 
     #[test]
     fn only_an_exit_in_the_mode_we_watched_counts_as_a_crash() {
-        // Ядро умерло само, режим прежний — это крах.
         assert!(exit_is_a_crash(&RunningMode::Sidecar, &RunningMode::Sidecar, false));
         assert!(exit_is_a_crash(&RunningMode::Service, &RunningMode::Service, false));
-        // Свой стоп: `stop_core_by_*` уже выставил NotRunning через defer.
         assert!(!exit_is_a_crash(&RunningMode::NotRunning, &RunningMode::Sidecar, false));
         assert!(!exit_is_a_crash(&RunningMode::NotRunning, &RunningMode::Service, false));
-        // Передача sidecar→service: мы сами убили sidecar, а `Terminated`
-        // приходит асинхронно — режим к тому времени уже Service. Без этой
-        // проверки крах засчитался бы поверх успешно поднятого ядра службы.
         assert!(!exit_is_a_crash(&RunningMode::Service, &RunningMode::Sidecar, false));
         assert!(!exit_is_a_crash(&RunningMode::Sidecar, &RunningMode::Service, false));
-        // Выход из приложения: ядро гасим мы, поднимать обратно нечего.
         assert!(!exit_is_a_crash(&RunningMode::Sidecar, &RunningMode::Sidecar, true));
         assert!(!exit_is_a_crash(&RunningMode::Service, &RunningMode::Service, true));
     }
@@ -490,8 +429,6 @@ mod tests {
         time::{Duration, Instant},
     };
 
-    // Запускаем долгоживущий дочерний процесс для проверки привязки жизненного
-    // цикла к Job Object. Используем ping.exe из System32 напрямую, без cmd.
     fn spawn_long_lived() -> Result<Child> {
         let child = Command::new("ping")
             .args(["-n", "999", "127.0.0.1"])
@@ -501,7 +438,6 @@ mod tests {
         Ok(child)
     }
 
-    // Опрашивает завершение дочернего процесса в пределах таймаута, возвращает признак завершения.
     fn wait_until_exited(child: &mut Child, timeout: Duration) -> Result<bool> {
         let deadline = Instant::now() + timeout;
         loop {
@@ -515,22 +451,17 @@ mod tests {
         }
     }
 
-    // Успешный сценарий: процесс остаётся живым после привязки к Job Object;
-    // drop дескриптора Job вызывает KILL_ON_JOB_CLOSE, процесс должен быть
-    // завершён ОС в пределах таймаута.
     #[test]
     fn job_kills_child_on_handle_drop() -> Result<()> {
         let mut child = spawn_long_lived()?;
 
         let job = create_and_assign_sidecar_job(child.id())?;
 
-        // После привязки процесс должен оставаться запущенным.
         assert!(
             child.try_wait()?.is_none(),
             "child should still be running after being assigned to the job"
         );
 
-        // Закрываем дескриптор Job, ОС должна завершить и его дочерние процессы.
         drop(job);
 
         assert!(
@@ -541,12 +472,8 @@ mod tests {
         Ok(())
     }
 
-    // Сценарий ошибки: при вызове с несуществующим PID OpenProcess должен
-    // завершиться неудачей, функция возвращает Err.
     #[test]
     fn returns_err_for_invalid_pid() {
-        // PID должен быть кратен 4 и крайне маловероятен; 0xFFFF_FFFC не
-        // соответствует реальному процессу.
         let result = create_and_assign_sidecar_job(0xFFFF_FFFC);
         assert!(result.is_err(), "expected Err for a non-existent PID");
     }

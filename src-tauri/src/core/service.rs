@@ -1,3 +1,5 @@
+#[cfg(any(windows, target_os = "macos"))]
+use crate::utils::dirs;
 use crate::{
     config::Config,
     constants::timing,
@@ -5,10 +7,6 @@ use crate::{
         handle::Handle, owner_identity::current_owner_credentials, runtime_bundle::collect_runtime_bundle, tray::Tray,
     },
 };
-// На Linux бинари службы лежат рядом с исполняемым файлом, а не в ресурсах —
-// весь `dirs`-код этого файла живёт только под windows/macos.
-#[cfg(any(windows, target_os = "macos"))]
-use crate::utils::dirs;
 use anyhow::{Context as _, Result, bail};
 use backon::{ConstantBuilder, Retryable as _};
 use clash_verge_logging::{Type, logging};
@@ -30,20 +28,8 @@ use std::{
 };
 use tokio::sync::Notify;
 
-// clod:svc-2.6 — сессия владельца (модель службы v2.6).
-//
-// Служба больше не исполняет команды от любого локального процесса: ядром
-// владеет тот, кто его запустил. `start_clash` предлагает СВОЙ токен сессии, и
-// служба возвращает поколение; пара «поколение + токен» дальше предъявляется
-// на stop/stage/writer. Перезапуск приложения ничего не теряет: старт всегда
-// предлагает новую сессию и тем самым перехватывает владение.
 static ACTIVE_SERVICE_SESSION: Lazy<Mutex<Option<ActiveServiceSession>>> = Lazy::new(|| Mutex::new(None));
 
-/// Сессия, владеющая работающим ядром, и что умеет ЭТОТ экземпляр службы.
-///
-/// Способность к staging выясняется один раз при старте и живёт вместе с
-/// сессией, а не в глобальном кэше: она описывает экземпляр службы, который
-/// владеет этим ядром, — единственную область, где на неё можно опираться.
 #[derive(Clone)]
 struct ActiveServiceSession {
     proof: OwnerSessionProof,
@@ -64,11 +50,6 @@ fn active_service_session() -> Result<OwnerSessionProof> {
         .context("service owner session is not active")
 }
 
-/// Умеет ли владеющая служба горячо подменять рантайм.
-///
-/// «Нет» по любой причине, кроме прямого «да»: нет сессии, старая служба,
-/// не ответил опрос протокола — всё это для вызывающего одно и то же:
-/// идти медленным путём (полный перезапуск ядра).
 pub(crate) fn active_service_supports_runtime_staging() -> bool {
     ACTIVE_SERVICE_SESSION
         .lock()
@@ -80,15 +61,10 @@ pub(crate) fn clear_active_service_session() {
     ACTIVE_SERVICE_SESSION.lock().take();
 }
 
-/// Есть ли у этого процесса сессия владельца работающего ядра.
 pub(crate) fn has_active_service_session() -> bool {
     ACTIVE_SERVICE_SESSION.lock().is_some()
 }
 
-/// Спросить службу, говорит ли она на staging-половине протокола.
-///
-/// Провал здесь — не провал старта: он стоит только быстрого пути, поэтому
-/// превращается в «нет» с записью в лог, а не в ошибку.
 async fn probe_runtime_staging_support() -> bool {
     match clash_verge_service_ipc::get_version().await {
         Ok(response) if response.code == 0 => response
@@ -116,12 +92,6 @@ async fn probe_runtime_staging_support() -> bool {
     }
 }
 
-/// Операция со службой уже идёт — это НЕ провал настройки.
-///
-/// clod: разница принципиальная. Ожидание службы и хэндофф зовут `refresh()` в
-/// фоне, и наткнуться на занятый менеджер легко; если считать это провалом,
-/// автонастройка запишет «на этой версии уже пробовали» и выключит себя, ни
-/// разу не показав пользователю запрос прав.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ServiceBusy;
 
@@ -133,14 +103,6 @@ impl std::fmt::Display for ServiceBusy {
 
 impl std::error::Error for ServiceBusy {}
 
-/// clod:tun-deadline — the privileged helper is still on screen; we gave up
-/// waiting, it did not.
-///
-/// Nothing was cancelled and nothing failed: the elevated installer keeps
-/// running on its own thread and a late confirmation still does the job. The
-/// error exists so callers can tell "the user has not answered the dialog yet"
-/// from "this machine cannot run the service", and report the difference
-/// instead of a false "TUN is unavailable".
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ElevationPending;
 
@@ -152,19 +114,8 @@ impl std::fmt::Display for ElevationPending {
 
 impl std::error::Error for ElevationPending {}
 
-/// clod:tun-deadline — a privileged helper is running right now.
-///
-/// `operation_running` no longer covers this: once the elevation wait expires,
-/// its future returns and releases the manager, so without a separate flag the
-/// next attempt would put a SECOND authorisation dialog on top of the first.
-/// Cleared by the blocking thread itself, whatever the outcome.
 static ELEVATION_IN_FLIGHT: AtomicBool = AtomicBool::new(false);
 
-/// Системный диалог прав сейчас на экране (или его помощник ещё работает).
-///
-/// Lets callers tell a manager that is busy elevating from one that is merely
-/// busy: the first means "wait, the user is being asked", the second means
-/// "someone else got there first".
 pub fn elevation_in_flight() -> bool {
     ELEVATION_IN_FLIGHT.load(Ordering::Acquire)
 }
@@ -183,7 +134,6 @@ pub enum ServiceStatus {
 pub struct ServiceManager {
     status: Mutex<ServiceStatus>,
     operation_running: AtomicBool,
-    /// When the running operation started — the deadline readers wait against.
     operation_started: Mutex<Option<Instant>>,
     operation_done: Notify,
 }
@@ -191,6 +141,14 @@ pub struct ServiceManager {
 #[cfg(not(target_os = "macos"))]
 fn service_core_path(clash_core: &str, bin_ext: &str) -> Result<PathBuf> {
     Ok(current_exe()?.with_file_name(format!("{clash_core}{bin_ext}")))
+}
+
+pub async fn bundled_core_path() -> Result<PathBuf> {
+    let verge_config = Config::verge().await;
+    let clash_core = verge_config.latest_arc().get_valid_clash_core();
+    drop(verge_config);
+    let bin_ext = if cfg!(windows) { ".exe" } else { "" };
+    service_core_path(&clash_core, bin_ext)
 }
 
 #[cfg(target_os = "macos")]
@@ -214,8 +172,6 @@ fn service_core_path(clash_core: &str, bin_ext: &str) -> Result<PathBuf> {
         return Ok(stable_path);
     }
 
-    // Даём пользователю уведомление с действием, затем bail и не запускаем службу —
-    // не даём стартовать ядру с временного пути.
     notify_translocated_core_path();
     bail!(
         "macOS App Translocation detected; refusing to start service with temporary core path {:?}",
@@ -223,14 +179,6 @@ fn service_core_path(clash_core: &str, bin_ext: &str) -> Result<PathBuf> {
     )
 }
 
-/// Отправляет пользователю уведомление о translocation. Отправка **с задержкой**: во
-/// время запуска app автоматически пытается запустить core, и в этот момент слушатель
-/// `verge://notice-message` на фронтенде (регистрируется только после монтирования React
-/// layout) может быть ещё не готов, а у backend emit нет очереди повторной отправки —
-/// немедленная отправка потеряется. Отправка после монтирования фронтенда покрывает и
-/// случай "автозапуск core при старте не удался", и ручной запуск (небольшая задержка
-/// уведомления об ошибке приемлема). Переиспользуем фронтенд-обработчик `set_config::error`
-/// для показа этого сообщения.
 #[cfg(target_os = "macos")]
 fn notify_translocated_core_path() {
     crate::process::AsyncHandler::spawn(|| async {
@@ -296,12 +244,10 @@ const fn macos_cleanup_translocated_desired_state_shell() -> &'static str {
     "for f in '/var/root/.local/state/clash-verge-service/desired-state.json' '/var/lib/clash-verge-service/desired-state.json'; do if [ -f \"$f\" ] && /usr/bin/grep -q AppTranslocation \"$f\"; then backup=\"$f.apptranslocation.bak\"; if [ -e \"$backup\" ]; then backup=\"$f.apptranslocation.$(/bin/date +%s).bak\"; fi; /bin/mv \"$f\" \"$backup\"; fi; done"
 }
 
-/// Перед удалением службы от root очищаем остатки core и IPC-сокет.
 #[cfg(target_os = "macos")]
 fn macos_force_stop_core_shell() -> String {
     use crate::config::IVerge;
 
-    // Очищаем только ядра службы, принадлежащие root.
     let mut parts: Vec<String> = IVerge::VALID_CLASH_CORES
         .iter()
         .map(|core| format!("/usr/bin/pkill -U root -x {core} 2>/dev/null || true"))
@@ -310,7 +256,6 @@ fn macos_force_stop_core_shell() -> String {
     if let Ok(ipc) = dirs::sidecar_ipc_path()
         && let Ok(ipc_str) = dirs::path_to_str(&ipc)
     {
-        // Экранируем одинарные кавычки, чтобы не сломать shell-параметр.
         let escaped = ipc_str.replace('\'', r"'\''");
         parts.push(format!("/bin/rm -f '{escaped}' 2>/dev/null || true"));
     }
@@ -387,10 +332,7 @@ fn install_service() -> Result<()> {
                 stderr: Vec::new(),
             }
         }
-        _ => {
-            // StdCommand returns Output directly
-            StdCommand::new(&install_path).creation_flags(0x08000000).output()?
-        }
+        _ => StdCommand::new(&install_path).creation_flags(0x08000000).output()?,
     };
 
     if let Some((code, err)) = check_output_error(&output) {
@@ -407,47 +349,20 @@ fn install_service() -> Result<()> {
     Ok(())
 }
 
-// clod:selinux begin
-/// Куда установщик службы кладёт бинарь: он НЕ запускает `/usr/bin/…`, а
-/// копирует его к себе и пишет юнит с `ExecStart` на эту копию.
 #[cfg(target_os = "linux")]
 const LINUX_SERVICE_BINARY: &str = "/var/lib/clash-verge-service/bin/clash-verge-service";
 
-/// Каталог этой копии: метку правим на нём, а не только на файле, — файл
-/// наследует тип каталога в момент создания.
 #[cfg(target_os = "linux")]
 const LINUX_SERVICE_BIN_DIR: &str = "/var/lib/clash-verge-service/bin";
 
-/// Правило разметки на будущее: переживает переразметку системы и переустановку.
 #[cfg(target_os = "linux")]
 const LINUX_SERVICE_FCONTEXT: &str = "/var/lib/clash-verge-service/bin(/.*)?";
 
-/// SELinux сейчас запрещает, а не только пишет в журнал?
-///
-/// Читаем сам файл политики, а не зовём `getenforce`: он есть не везде, а
-/// `/sys/fs/selinux/enforce` появляется ровно тогда, когда SELinux включён.
 #[cfg(target_os = "linux")]
 fn selinux_is_enforcing() -> bool {
     std::fs::read_to_string("/sys/fs/selinux/enforce").is_ok_and(|value| value.trim() == "1")
 }
 
-/// Голова привилегированного скрипта установки — профилактика вместо лечения.
-///
-/// Хвост (ниже) чинит метку ПОСЛЕ отказа, и этого мало: пока установщик доходит
-/// до `systemctl start` и получает `avc: denied`, пользователь уже видит
-/// системный алерт SELinux и нашу ошибку — служба поднимается лишь со второй
-/// попытки. Поэтому каталог размечается ЗАРАНЕЕ: новый файл наследует тип
-/// каталога, так что скопированный установщиком бинарь сразу оказывается
-/// `bin_t`, и запрета не возникает вовсе.
-///
-/// `chcon -R` нужен и для уже лежащего файла: перезапись существующего файла
-/// метку не меняет, она осталась бы `var_lib_t` с прошлой неудачи.
-///
-/// `reset-failed` снимает лимит частоты запусков: после серии отказов systemd
-/// отвечает «start request repeated too quickly» и на исправную установку.
-///
-/// Ни одна команда не может провалить установку: их нет на системах без
-/// `policycoreutils`, а голова обязана быть безобидной.
 #[cfg(target_os = "linux")]
 fn selinux_install_prefix() -> String {
     selinux_install_prefix_for(selinux_is_enforcing())
@@ -469,17 +384,6 @@ systemctl reset-failed clash-verge-service.service >/dev/null 2>&1 || true; "
     )
 }
 
-/// Хвост к привилегированному скрипту установки — спасение от SELinux.
-///
-/// Бинарь службы лежит в `/var/lib/…`, а это тип `var_lib_t`, запускать
-/// который systemd не имеет права: на Fedora и RHEL установщик доходит до
-/// `systemctl start`, получает отказ и выходит с ошибкой. Ставим бинарю тип
-/// `bin_t` — тот же, что у `/usr/bin`, — и поднимаем службу.
-///
-/// Работает ТОЛЬКО после неудачи установщика: на системах без SELinux (и на
-/// удачной установке) хвост не выполняет ни одной команды. `semanage` ставит
-/// правило на будущее и есть не везде, поэтому он необязателен: без него метка
-/// живёт до полной переразметки системы.
 #[cfg(target_os = "linux")]
 fn selinux_recovery_tail() -> String {
     selinux_recovery_tail_for(selinux_is_enforcing())
@@ -503,11 +407,6 @@ if systemctl is-active --quiet clash-verge-service.service; then rc=0; fi; fi; e
     )
 }
 
-/// Что дописать в текст ошибки, когда SELinux включён.
-///
-/// Автоматическая правка метки могла не сработать (нет `chcon`, другой запрет),
-/// и тогда «не удалось установить службу» ничего не объясняет: человек видит
-/// системный алерт SELinux и наш отказ, между которыми связи не видно.
 #[cfg(target_os = "linux")]
 fn selinux_hint() -> String {
     if selinux_is_enforcing() {
@@ -517,19 +416,10 @@ fn selinux_hint() -> String {
     }
 }
 
-/// Ошибку вернул сам pkexec, а не программа под ним?
-///
-/// pkexec отдаёт код ДОЧЕРНЕГО процесса, и своих кодов у него ровно два: 126 —
-/// не авторизовались или запуск не разрешён, 127 — программу не нашли. Раньше
-/// поводом для повтора через `sudo` был ЛЮБОЙ ненулевой код: установщик честно
-/// сообщал «служба не поднялась», а мы шли просить пароль ещё раз — в
-/// графической сессии без терминала `sudo` его всё равно не спросит, зато в
-/// журнале оседало ложное «pkexec failed».
 #[cfg(target_os = "linux")]
 const fn pkexec_itself_failed(code: Option<i32>) -> bool {
     matches!(code, Some(126 | 127) | None)
 }
-// clod:selinux end
 
 #[cfg(target_os = "linux")]
 fn uninstall_service() -> Result<()> {
@@ -547,8 +437,6 @@ fn uninstall_service() -> Result<()> {
     } else {
         let result = StdCommand::new(&elevator).arg(&uninstall_path).status()?;
 
-        // На sudo откатываемся, только когда не справился САМ pkexec: код
-        // программы под ним — это её ответ, а не повод спрашивать пароль снова.
         if elevator.contains("pkexec") && pkexec_itself_failed(result.code()) {
             logging!(
                 warn,
@@ -588,11 +476,6 @@ fn install_service() -> Result<()> {
         bail!(format!("installer not found: {install_path:?}"));
     }
 
-    // clod:selinux — установщик зовётся через `sh -c`, чтобы к нему можно было
-    // прицепить спасение от SELinux одним привилегированным вызовом: второй
-    // запрос пароля посреди установки пользователь читает как поломку. Голова
-    // размечает каталог до установки (запрета не будет), хвост чинит метку,
-    // если установщик всё же упал.
     let script = format!(
         "{}{}{}",
         selinux_install_prefix(),
@@ -606,7 +489,6 @@ fn install_service() -> Result<()> {
     } else {
         let result = StdCommand::new(&elevator).args(["sh", "-c", &script]).output()?;
 
-        // На sudo откатываемся, только когда не справился САМ pkexec.
         if elevator.contains("pkexec") && pkexec_itself_failed(result.status.code()) {
             logging!(
                 warn,
@@ -660,16 +542,11 @@ fn uninstall_service() -> Result<()> {
 
     let uninstall_shell: String = uninstall_path.to_string_lossy().into_owned();
 
-    // clash_verge_i18n::sync_locale(Config::verge().await.latest_arc().language.as_deref());
-
     let prompt = clash_verge_i18n::t!("service.adminUninstallPrompt");
-    // Сначала очищаем остатки службы, затем запускаем деинсталлятор.
     let uninstall_quoted = shell_single_quote(&uninstall_shell);
     let shell = format!("{}; sudo {uninstall_quoted}", macos_force_stop_core_shell());
     let shell = escape_osascript_double_quoted_string(&shell);
     let command = format!(r#"do shell script "{shell}" with administrator privileges with prompt "{prompt}""#);
-
-    // logging!(debug, Type::Service, "uninstall command: {}", command);
 
     let status = StdCommand::new("osascript").args(vec!["-e", &command]).status()?;
 
@@ -695,8 +572,6 @@ fn install_service() -> Result<()> {
     }
 
     let install_shell: String = install_path.to_string_lossy().into_owned();
-
-    // clash_verge_i18n::sync_locale(Config::verge().await.latest_arc().language.as_deref());
 
     let gid = tauri_plugin_clash_verge_sysinfo::current_gid();
     let prompt = clash_verge_i18n::t!("service.adminInstallPrompt");
@@ -731,16 +606,6 @@ fn check_output_error(output: &std::process::Output) -> Option<(i32, Cow<'_, str
     Some((code, describe_failure(code, &output.stdout, &output.stderr)))
 }
 
-/// clod:service-error — почему установка службы не удалась, словами.
-///
-/// Привилегированная ветка на Windows запускает установщик через `runas`,
-/// а он потоков не отдаёт: `Output` там собирается вручную с пустыми `stdout`
-/// и `stderr`. Прежний хвост `Unknown error` превращал в «неизвестную ошибку»
-/// в том числе самый частый случай — закрытый диалог UAC, где человек ровно
-/// знает, что он сделал.
-///
-/// Коды — виндовые (`ERROR_CANCELLED` и соседи), и это не проблема на других
-/// системах: пустые потоки бывают только у этой ветки, а она есть только там.
 fn describe_failure<'a>(code: i32, stdout: &'a [u8], stderr: &'a [u8]) -> Cow<'a, str> {
     let stderr = String::from_utf8_lossy(stderr);
     if !stderr.trim().is_empty() {
@@ -751,15 +616,10 @@ fn describe_failure<'a>(code: i32, stdout: &'a [u8], stderr: &'a [u8]) -> Cow<'a
         return stdout;
     }
     match code {
-        // ERROR_CANCELLED — пользователь закрыл запрос прав.
         1223 => Cow::Borrowed("the elevation prompt was dismissed"),
-        // ERROR_ELEVATION_REQUIRED — прав не хватило, а запроса не было.
         740 => Cow::Borrowed("the installer needs administrator rights"),
-        // ERROR_SERVICE_DOES_NOT_EXIST.
         1060 => Cow::Borrowed("the service is not registered"),
-        // ERROR_SERVICE_ALREADY_RUNNING.
         1056 => Cow::Borrowed("the service is already running"),
-        // ERROR_ACCESS_DENIED.
         5 => Cow::Borrowed("access denied"),
         _ => Cow::Owned(format!(
             "the installer exited with code {code} and printed nothing (it runs elevated, so its output is not ours to read)"
@@ -767,27 +627,12 @@ fn describe_failure<'a>(code: i32, stdout: &'a [u8], stderr: &'a [u8]) -> Cow<'a
     }
 }
 
-/// clod:tun-ready — что о службе знает система, независимо от того, отвечает
-/// ли служба по IPC.
-///
-/// Без этого «служба не отвечает» читалось как «службы нет», и единственным
-/// ответом была установка с запросом прав — даже когда служба стоит и просто
-/// ещё не подняла канал. Опрос выполняется БЕЗ повышения прав: обычному
-/// пользователю разрешено читать состояние служб.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ServiceRegistration {
-    /// Служба не зарегистрирована — её надо ставить.
     Missing,
-    /// Зарегистрирована, но не работает — её надо запустить.
-    ///
-    /// На macOS этого состояния не бывает: чтение системного домена launchd
-    /// обычному пользователю может быть запрещено, и «остановлена» там было бы
-    /// догадкой, за которую платят лишним запросом прав.
     #[cfg_attr(target_os = "macos", allow(dead_code))]
     Stopped,
-    /// Зарегистрирована и работает.
     Running,
-    /// Спросить не удалось — решаем по IPC, как раньше.
     Unknown,
 }
 
@@ -795,7 +640,6 @@ pub enum ServiceRegistration {
 pub fn service_registration() -> ServiceRegistration {
     use std::os::windows::process::CommandExt as _;
 
-    // ERROR_SERVICE_DOES_NOT_EXIST: `sc query` отдаёт его кодом возврата.
     const SERVICE_DOES_NOT_EXIST: i32 = 1060;
     const CREATE_NO_WINDOW: u32 = 0x08000000;
 
@@ -809,7 +653,6 @@ pub fn service_registration() -> ServiceRegistration {
 
     match output.status.code() {
         Some(0) => {
-            // Подписи в выводе локализованы, а сами состояния — нет.
             let state = String::from_utf8_lossy(&output.stdout).to_ascii_uppercase();
             if state.contains("RUNNING") || state.contains("START_PENDING") {
                 ServiceRegistration::Running
@@ -833,9 +676,6 @@ pub fn service_registration() -> ServiceRegistration {
     else {
         return ServiceRegistration::Unknown;
     };
-    // Судим по слову, а не по коду возврата: у стартующего юнита `is-active`
-    // печатает `activating` и выходит с ненулевым кодом — а это ровно тот
-    // случай, ради которого мы и ждём, вместо того чтобы просить прав.
     match String::from_utf8_lossy(&output.stdout).trim() {
         "active" | "activating" | "reloading" | "deactivating" => ServiceRegistration::Running,
         "inactive" | "failed" => ServiceRegistration::Stopped,
@@ -855,21 +695,9 @@ pub fn service_registration() -> ServiceRegistration {
         .output()
     {
         Ok(output) if output.status.success() => ServiceRegistration::Running,
-        // Ненулевой код — это не только «не работает»: чтение системного домена
-        // launchd обычному пользователю может быть просто не разрешено. Врать
-        // «остановлена» нельзя — на этом слове мы просим права.
         _ => ServiceRegistration::Unknown,
     }
 }
-
-// clod: переустановка — ОДИН запрос прав, а не два.
-//
-// Раньше `reinstall_service` звал `uninstall_service()` и `install_service()`
-// по очереди, и каждый поднимал собственный привилегированный процесс:
-// пользователь, попросивший починить службу один раз, видел два UAC (или два
-// запроса пароля) подряд. Теперь оба шага уходят одним скриптом под одной
-// элевацией; провал удаления (службы могло и не быть) переустановку не
-// прерывает — важен результат установки.
 
 #[cfg(target_os = "windows")]
 fn reinstall_service() -> Result<()> {
@@ -888,11 +716,6 @@ fn reinstall_service() -> Result<()> {
         bail!(format!("installer not found: {install_path:?}"));
     }
 
-    // Скрипт уезжает АРГУМЕНТОМ процесса (-EncodedCommand, base64 от UTF-16LE),
-    // а не временным .bat: файл в %TEMP%, который затем исполняется с
-    // повышением, можно подменить между записью и подтверждением UAC — это
-    // готовая дырка для повышения привилегий. В аргументах подменять нечего,
-    // а base64 заодно снимает всю боль вложенного квотирования cmd.
     let ps_quote = |path: &std::path::Path| format!("'{}'", path.display().to_string().replace('\'', "''"));
     let mut script = String::new();
     if uninstall_path.exists() {
@@ -934,18 +757,13 @@ fn reinstall_service() -> Result<()> {
         bail!(format!("installer not found: {install_path:?}"));
     }
 
-    // pkexec спрашивает пароль на каждый вызов — потому оба шага в одном.
     let mut script = String::new();
     if uninstall_path.exists() {
         script.push_str(&shell_single_quote(&uninstall_path.to_string_lossy()));
         script.push_str("; ");
     }
-    // clod:selinux — метку каталога ставим ПОСЛЕ деинсталлятора (он сносит
-    // каталог) и ДО установщика: иначе бинарь снова родится с `var_lib_t`.
     script.push_str(&selinux_install_prefix());
     script.push_str(&shell_single_quote(&install_path.to_string_lossy()));
-    // clod:selinux — тем же одним вызовом чиним метку бинаря службы, если её
-    // всё-таки запретил SELinux; на системах без него хвост пуст.
     script.push_str(&selinux_recovery_tail());
 
     let elevator = crate::utils::help::linux_elevator();
@@ -954,7 +772,6 @@ fn reinstall_service() -> Result<()> {
     } else {
         let result = StdCommand::new(&elevator).args(["sh", "-c", &script]).status()?;
 
-        // На sudo откатываемся, только когда не справился САМ pkexec.
         if elevator.contains("pkexec") && pkexec_itself_failed(result.code()) {
             logging!(
                 warn,
@@ -994,9 +811,6 @@ fn reinstall_service() -> Result<()> {
     let gid = tauri_plugin_clash_verge_sysinfo::current_gid();
     let prompt = clash_verge_i18n::t!("service.adminInstallPrompt");
 
-    // Один пароль администратора на всё: остановка остатков ядра, удаление,
-    // очистка translocation-хвостов и установка — тот же порядок, что был у
-    // раздельных uninstall_service/install_service.
     let mut shell = macos_force_stop_core_shell();
     if uninstall_path.exists() {
         shell.push_str("; sudo ");
@@ -1027,7 +841,6 @@ fn reinstall_service() -> Result<()> {
     Ok(())
 }
 
-/// Принудительная переустановка службы (кнопка исправления в UI)
 fn force_reinstall_service() -> Result<()> {
     logging!(
         info,
@@ -1045,22 +858,12 @@ fn force_reinstall_service() -> Result<()> {
     })
 }
 
-/// Что должна держать служба для ядра, которое запустило бы это приложение.
-///
-/// Общий для старта и staging, чтобы они не могли разойтись ни в бинаре, ни в
-/// переписанных путях провайдеров: staged-бандл с другим ядром — ровно то, что
-/// служба откажется принять.
 async fn collect_service_runtime_bundle(config_file: &Path) -> Result<clash_verge_service_ipc::RuntimeBundle> {
     let verge_config = Config::verge().await;
     let clash_core = verge_config.latest_arc().get_valid_clash_core();
     drop(verge_config);
 
     let bin_ext = if cfg!(windows) { ".exe" } else { "" };
-    // clod:F5 — the managed core is deliberately NOT handed to the service:
-    // the service runs elevated, and `{app_home}/cores` is writable by the
-    // unprivileged user, so pointing the service there would turn "can write
-    // app-data" into "code runs as SYSTEM/root". Service mode always runs the
-    // admin-owned bundled core; the managed core is a sidecar-mode feature.
     if crate::core::core_updater::managed_core_binary().await.is_some() {
         logging!(
             warn,
@@ -1069,40 +872,21 @@ async fn collect_service_runtime_bundle(config_file: &Path) -> Result<clash_verg
         );
     }
     let bin_path = service_core_path(&clash_core, bin_ext)?;
-    // clod: служба запускает то, что мы назовём, и делает это с правами
-    // системы — значит имя должно указывать на тот же файл, что и в прошлый
-    // раз. Проверка стоит здесь, а не на старте: staging называет бинарь тем
-    // же путём, и разойтись эти два места не должны.
     crate::core::core_integrity::ensure_elevated_binary_is_known(&bin_path).await?;
     collect_runtime_bundle(config_file, &bin_path).await
 }
 
-/// Чем закончилась просьба к службе горячо подменить рантайм.
-///
-/// Отказ несёт свой код, потому что не всякий отказ говорит что-то о старте.
-/// «Этот бандл содержит ассет, который я не приму» — говорит: свежий старт
-/// материализует тот же бандл и будет отвергнут так же, так что останавливать
-/// работающее ядро значило бы добавить простой к уже случившемуся провалу.
-/// «Ты не владеешь этим ядром» — не говорит: `start_clash` предлагает новую
-/// сессию вместо предъявления старой, и старт — ровно то, что это чинит.
 pub(crate) enum StageRequest {
     Refused { code: u16, message: CompactString },
     Answered(StageRuntimeOutcome),
 }
 
 impl StageRequest {
-    /// Отказ — про сам бандл, и старт с него повторил бы этот отказ.
     pub(crate) const fn is_about_the_bundle(code: u16) -> bool {
         code == ServiceErrorCode::InvalidRuntimeAsset as u16 || code == ServiceErrorCode::InvalidInstallLocation as u16
     }
 }
 
-/// Попросить службу привести рантайм работающего ядра к `config_file` без
-/// перезапуска.
-///
-/// `Err` — запрос остался без ответа. Отказ и `RestartRequired` возвращаются
-/// как `Ok`: ни то ни другое не провал этой функции, и только вызывающий
-/// решает, что с ними делать.
 pub(crate) async fn stage_runtime_by_service(config_file: &Path) -> Result<StageRequest> {
     let session = active_service_session()?;
     let credentials = current_owner_credentials()?;
@@ -1123,7 +907,6 @@ pub(crate) async fn stage_runtime_by_service(config_file: &Path) -> Result<Stage
         .context("служба не вернула результат подмены рантайма")
 }
 
-/// Пытаемся запустить core через службу
 pub(super) async fn start_with_existing_service(config_file: &Path) -> Result<()> {
     logging!(info, Type::Service, "Попытка запуска ядра через существующую службу");
     clear_active_service_session();
@@ -1161,7 +944,6 @@ pub(super) async fn start_with_existing_service(config_file: &Path) -> Result<()
     Ok(())
 }
 
-// Запуск core через службу
 pub(super) async fn run_core_by_service(config_file: &Path) -> Result<()> {
     logging!(info, Type::Service, "Попытка запуска ядра через службу");
 
@@ -1175,10 +957,6 @@ pub(super) async fn run_core_by_service(config_file: &Path) -> Result<()> {
     start_with_existing_service(config_file).await
 }
 
-/// clod:tun-ready — зовётся ещё и по таймеру (сторож факта TUN), поэтому
-/// обычные круги пишутся в debug: на info это две строки каждые полминуты
-/// сутки напролёт, и настоящие события службы тонут в них. Ошибка по-прежнему
-/// видна всегда.
 pub(super) async fn get_clash_logs_by_service() -> Result<Vec<CompactString>> {
     logging!(debug, Type::Service, "Получение логов Clash в режиме службы");
 
@@ -1202,7 +980,6 @@ pub(super) async fn get_clash_logs_by_service() -> Result<Vec<CompactString>> {
     Ok(response.data.unwrap_or_default())
 }
 
-/// Остановка core через службу
 pub(super) async fn stop_core_by_service() -> Result<()> {
     logging!(info, Type::Service, "Остановка ядра через службу (IPC)");
 
@@ -1213,9 +990,6 @@ pub(super) async fn stop_core_by_service() -> Result<()> {
         .context("Не удалось подключиться к Clash Verge Service")?;
 
     if response.code > 0 {
-        // Ядро уже не наше: другой запуск перехватил владение или сессия
-        // протухла. Останавливать нам больше нечего — считаем остановленным,
-        // а не роняем всю цепочку выключения.
         if response.code == ServiceErrorCode::NotActive as u16
             || response.code == ServiceErrorCode::StaleOwnerSession as u16
         {
@@ -1238,9 +1012,6 @@ pub(super) async fn stop_core_by_service() -> Result<()> {
     Ok(())
 }
 
-/// Обновить настройки писателя логов ядра на стороне службы.
-///
-/// Требует живой сессии: писатель принадлежит владельцу работающего ядра.
 pub(crate) async fn update_writer_by_service(writer: &WriterConfig) -> Result<()> {
     let credentials = current_owner_credentials()?;
     let session = active_service_session()?;
@@ -1253,7 +1024,6 @@ pub(crate) async fn update_writer_by_service(writer: &WriterConfig) -> Result<()
     Ok(())
 }
 
-/// Проверяем, запущена ли служба
 pub async fn is_service_available() -> Result<()> {
     if let Err(e) = Path::metadata(clash_verge_service_ipc::IPC_PATH.as_ref()) {
         let verge = Config::verge().await;
@@ -1308,27 +1078,12 @@ impl ServiceManager {
 
     pub async fn init(&self) -> Result<()> {
         if let Err(e) = clash_verge_service_ipc::connect().await {
-            // clod: без `format!` сюда уезжала литеральная строка с `{e}`, и
-            // настоящая причина отказа терялась ровно там, где её потом ищут в
-            // логе и в отчёте для поддержки.
             self.set_status(ServiceStatus::Unavailable(format!("Ошибка подключения к службе: {e}")));
             return Err(e);
         }
         Ok(())
     }
 
-    /// Состояние службы, не заставшее операцию на полпути.
-    ///
-    /// clod:tun-deadline — the wait is bounded, and the deadline belongs to the
-    /// OPERATION, not to the caller. An install can sit on a UAC prompt for as
-    /// long as the user ignores it; while it did, every reader hung here — and
-    /// `prepare_startup` reads it holding `lifecycle_lock`, so core start,
-    /// restart and every `RESTART_CORE` patch hung with it, with killing the
-    /// app as the only way out.
-    ///
-    /// Anchoring the deadline to the operation's start also keeps the loop in
-    /// `wait_for_service_if_needed` honest: it asks up to 150 times, and a
-    /// per-call deadline would multiply the wait by that.
     pub async fn current(&self) -> ServiceStatus {
         loop {
             let notified = self.operation_done.notified();
@@ -1342,13 +1097,6 @@ impl ServiceManager {
             let waited = started.map_or(Duration::ZERO, |start| start.elapsed());
             let left = timing::SERVICE_STATUS_WAIT.saturating_sub(waited);
             if tokio::time::timeout(left, notified).await.is_err() {
-                // Last known status instead of an unbounded wait: the caller
-                // falls back to sidecar, and the handoff watcher moves the core
-                // onto the service once the operation really finishes.
-                //
-                // Only the waiter that actually sat out the grace says so: once
-                // it has elapsed every later call returns instantly, and a
-                // retrying caller would otherwise fill the log with copies.
                 if !left.is_zero() {
                     logging!(
                         warn,
@@ -1384,15 +1132,6 @@ impl ServiceManager {
         Tray::global().update_menu().await
     }
 
-    /// clod: только наблюдение, никаких привилегированных действий.
-    ///
-    /// Раньше `refresh()` при несовпадении версии службы уходил в переустановку
-    /// — а зовут его старт ядра, ожидание службы и хэндофф. После обновления
-    /// приложения (служба на диске старая) это давало запрос прав из ниоткуда,
-    /// причём по разу на каждую попытку: `start_core_by_service` на Windows
-    /// повторяет старт пять раз, плюс рестарты ядра и watcher — пользователь
-    /// видел «Разрешить внести изменения?» полтора десятка раз подряд.
-    /// Чинит службу теперь только явная команда из интерфейса.
     pub async fn refresh(&self) -> Result<()> {
         self.run_operation(async {
             if let Err(e) = is_service_available().await {
@@ -1402,11 +1141,6 @@ impl ServiceManager {
             }
             if clash_verge_service_ipc::is_reinstall_service_needed().await {
                 self.set_status(ServiceStatus::NeedsReinstall);
-                // Одно уведомление на сессию, и только когда служба вообще
-                // нужна: пользователю с выключенным TUN нечего чинить — он
-                // сидит на системном прокси, и красная плашка про сломанную
-                // службу для него просто шум. Включение TUN само доведёт
-                // службу до рабочего состояния (`ensure_ready`).
                 if crate::feat::tun::desired().await && !REINSTALL_NOTICED.swap(true, Ordering::AcqRel) {
                     logging!(
                         warn,
@@ -1427,20 +1161,6 @@ impl ServiceManager {
         self.run_operation(self.apply_service_status(status)).await
     }
 
-    /// Установка службы — РОВНО один запрос прав на одно нажатие.
-    ///
-    /// clod:one-uac — раньше эта ветка ставила службу, а затем, увидев
-    /// несовпадение версии, тут же переустанавливала: два системных диалога
-    /// подряд за один клик пользователя. Причём первый из них был заведомо
-    /// бесполезен — поверх чужой зарегистрированной службы установка ничего не
-    /// меняет.
-    ///
-    /// Теперь решение принимается ДО первого повышения прав: если служба
-    /// отвечает и версия чужая, сразу идёт переустановка (она объединяет
-    /// удаление и установку одним привилегированным скриптом — см. комментарий
-    /// у `reinstall_service`). А если версия разъехалась уже ПОСЛЕ установки,
-    /// второй диалог мы не показываем: об этом говорит плашка с кнопкой
-    /// «Починить», и права спрашивает уже явное нажатие человека.
     async fn install_service_once(&self) -> Result<()> {
         if crate::feat::tun::needs_repair().await {
             logging!(
@@ -1528,25 +1248,10 @@ impl ServiceManager {
     }
 }
 
-/// Запустить привилегированную операцию, не завися от того, ответит ли
-/// пользователь системному диалогу.
-///
-/// clod:tun-deadline — this used to be `block_in_place`, i.e. an uncancellable
-/// wait on `osascript … with administrator privileges` / the UAC prompt. An
-/// unanswered dialog therefore froze the service manager for good, and with it
-/// the whole core lifecycle.
-///
-/// The helper is moved onto a blocking thread and only the WAIT is bounded:
-/// on timeout we let go of the join handle, the elevated command keeps running
-/// and a late confirmation still installs the service. What the caller gets is
-/// [`ElevationPending`] — "still in progress", not "failed".
 async fn run_service_command(
     operation: impl FnOnce() -> Result<()> + Send + 'static,
     label: &'static str,
 ) -> Result<()> {
-    // One dialog at a time. The previous wait may have expired while its prompt
-    // is still on screen, and stacking a second prompt on top of it is the
-    // worst possible answer to "please turn TUN on".
     if ELEVATION_IN_FLIGHT.swap(true, Ordering::AcqRel) {
         logging!(
             info,
@@ -1557,8 +1262,6 @@ async fn run_service_command(
         return Err(ElevationPending.into());
     }
     let task = tokio::task::spawn_blocking(move || {
-        // Released from the blocking thread itself, so a panicking helper
-        // cannot leave the flag stuck and lock out every later attempt.
         defer! {
             ELEVATION_IN_FLIGHT.store(false, Ordering::Release);
         }
@@ -1581,7 +1284,6 @@ async fn run_service_command(
     }
 }
 
-/// clod: про устаревшую службу говорим один раз за сессию.
 static REINSTALL_NOTICED: AtomicBool = AtomicBool::new(false);
 
 pub static SERVICE_MANAGER: Lazy<ServiceManager> = Lazy::new(|| ServiceManager {
@@ -1595,9 +1297,6 @@ pub static SERVICE_MANAGER: Lazy<ServiceManager> = Lazy::new(|| ServiceManager {
 mod failure_tests {
     use super::describe_failure;
 
-    // clod:service-error — пустые потоки бывают только у привилегированной ветки
-    // Windows (`runas` их не отдаёт), и раньше любой её отказ читался как
-    // «Unknown error» — включая самый частый случай, закрытый диалог UAC.
     #[test]
     fn a_silent_installer_failure_is_explained_by_its_exit_code() {
         assert_eq!(describe_failure(1223, b"", b""), "the elevation prompt was dismissed");
@@ -1607,19 +1306,15 @@ mod failure_tests {
         );
         assert_eq!(describe_failure(1060, b"", b""), "the service is not registered");
 
-        // Незнакомый код причину не выдумывает, но и не молчит: называет сам код
-        // и объясняет, почему вывода нет.
         let unknown = describe_failure(42, b"", b"");
         assert!(unknown.contains("42"), "{unknown}");
         assert!(unknown.contains("elevated"), "{unknown}");
 
-        // Настоящий вывод всегда важнее таблицы кодов, а пробельный — не вывод.
         assert_eq!(describe_failure(1223, b"", b"real stderr"), "real stderr");
         assert_eq!(describe_failure(1223, b"real stdout", b"   "), "real stdout");
     }
 }
 
-// clod:selinux — спасение службы на системах с SELinux и разбор кодов pkexec.
 #[cfg(all(test, target_os = "linux"))]
 mod selinux_tests {
     use super::{
@@ -1697,12 +1392,9 @@ mod selinux_tests {
 
     #[test]
     fn only_pkexec_own_failures_deserve_a_sudo_retry() {
-        // Свои коды pkexec: не авторизовались и не нашли программу.
         assert!(pkexec_itself_failed(Some(126)));
         assert!(pkexec_itself_failed(Some(127)));
-        // Процесс убит сигналом — кода нет, судить не по чему.
         assert!(pkexec_itself_failed(None));
-        // А это ответы САМОГО установщика: повторять их через sudo незачем.
         assert!(!pkexec_itself_failed(Some(1)));
         assert!(!pkexec_itself_failed(Some(2)));
         assert!(!pkexec_itself_failed(Some(0)));
