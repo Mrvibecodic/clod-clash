@@ -10,7 +10,6 @@ import { useVerge } from '@/hooks/use-verge'
 import { patchSelectedNode, syncTrayProxySelection } from '@/services/cmds'
 import { debugLog } from '@/utils/debug'
 
-// Очистка кэшированных соединений
 const cleanupConnections = async (previousProxy: string) => {
   try {
     const { connections } = await getConnections()
@@ -40,7 +39,6 @@ interface ProxyChangeRequest {
   skipConfigSave: boolean
 }
 
-// Хук выбора прокси
 export const useProxySelection = (options: ProxySelectionOptions = {}) => {
   const { current } = useProfiles()
   const { verge } = useVerge()
@@ -49,16 +47,14 @@ export const useProxySelection = (options: ProxySelectionOptions = {}) => {
 
   const { onSuccess, onError, enableConnectionCleanup = true } = options
 
-  // Кэш
   const config = useMemo(
     () => ({
-      autoCloseConnection: verge?.auto_close_connection ?? false,
+      autoCloseConnection: verge?.auto_close_connection ?? true,
       enableConnectionCleanup,
     }),
     [verge?.auto_close_connection, enableConnectionCleanup],
   )
 
-  // Переключение узла
   const syncTraySelection = useCallback(() => {
     syncTrayProxySelection().catch((error) => {
       console.error(
@@ -68,10 +64,6 @@ export const useProxySelection = (options: ProxySelectionOptions = {}) => {
     })
   }, [])
 
-  // clod: сохраняем ПАРУ «группа + узел», а не весь список `selected`.
-  // Список собирался из отрисованной подписки, и два быстрых переключения
-  // подряд читали один и тот же снимок — второе сохранение затирало первое, и
-  // узел возвращался к прежнему сам собой. Слияние теперь на бэкенде.
   const persistSelection = useCallback(
     (groupName: string, proxyName: string, skipConfigSave: boolean) => {
       if (!current || skipConfigSave) return

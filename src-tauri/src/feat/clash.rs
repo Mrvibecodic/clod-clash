@@ -23,14 +23,10 @@ static TLS_CONFIG: Lazy<Arc<rustls::ClientConfig>> = Lazy::new(|| {
     Arc::new(config)
 });
 
-/// Restart the Clash core
 pub async fn restart_clash_core() {
     match CoreManager::global().restart_core().await {
         Ok(_) => {
             handle::Handle::refresh_clash();
-            // clod: a manually restarted core comes up on template defaults —
-            // put the saved node selection (and starred fallbacks) back, the
-            // same way a subscription update does
             if let Err(err) = crate::config::profiles::activate_selected_nodes() {
                 logging!(
                     warn,
@@ -47,10 +43,8 @@ pub async fn restart_clash_core() {
     }
 }
 
-/// Restart the application
 pub async fn restart_app() {
     logging!(debug, Type::System, "Запуск процесса перезапуска приложения");
-    // Устанавливаем флаг выхода
     handle::Handle::global().set_is_exiting();
 
     utils::server::shutdown_embedded_server();
@@ -89,15 +83,6 @@ fn after_change_clash_mode() {
     });
 }
 
-/// Change Clash mode (rule/global/direct/script)
-///
-/// При ошибке PATCH `/configs` mihomo возвращает `Err`, чтобы уровень команд
-/// прокидывал ошибку на фронтенд.
-/// (Раньше эта функция проглатывала ошибку и всегда считала успех, из-за чего UI
-/// ошибочно решал, что "переключение прошло", хотя на деле "не переключилось".)
-/// clod: `clod-lock-mode` — the panel forbids mode changes. This is the one
-/// funnel the tray clicks and the global hotkeys go through, so the check
-/// here is what turns the hidden UI into an actual lock.
 async fn mode_locked_by_panel() -> bool {
     let profiles = Config::profiles().await.latest_arc();
     profiles
@@ -118,7 +103,6 @@ pub async fn change_clash_mode(mode: String) -> Result<(), String> {
     }
     let mut mapping = Mapping::new();
     mapping.insert(Value::from("mode"), Value::from(mode.as_str()));
-    // Convert YAML mapping to JSON Value
     let json_value = serde_json::json!({
         "mode": mode
     });
@@ -128,17 +112,10 @@ pub async fn change_clash_mode(mode: String) -> Result<(), String> {
         return Err(err.to_string().into());
     }
 
-    // Обновляем подписку
     let clash = Config::clash().await;
     clash.edit_draft(|d| d.patch_config(&mapping));
     clash.apply();
 
-    // clod: раньше mode менялся только в ядре (PATCH) и в app-конфиге, а
-    // runtime (draft + runtime.yaml) оставался со старым значением. Из-за
-    // этого селектор режима в настройках «сбрасывался на правила» — фронт
-    // читает get_runtime_config, — а ближайшая перезагрузка конфига
-    // возвращала старый режим уже и в ядро: mihomo применяет mode из файла
-    // при каждом reload. Синхронизируем runtime сразу же.
     let runtime = Config::runtime().await;
     runtime.edit_draft(|d| d.patch_config(&mapping));
     runtime.apply();
@@ -150,14 +127,13 @@ pub async fn change_clash_mode(mode: String) -> Result<(), String> {
         );
     }
 
-    // Разделяем получение данных и асинхронный вызов
     let clash_data = clash.data_arc();
     if clash_data.save_config().await.is_ok() {
         handle::Handle::refresh_clash();
         tray::Tray::global().update_menu_and_icon().await;
     }
 
-    let is_auto_close_connection = Config::verge().await.data_arc().auto_close_connection.unwrap_or(false);
+    let is_auto_close_connection = Config::verge().await.data_arc().auto_close_connection();
     if is_auto_close_connection {
         after_change_clash_mode();
     }
@@ -165,8 +141,6 @@ pub async fn change_clash_mode(mode: String) -> Result<(), String> {
     Ok(())
 }
 
-/// Test delay to a URL through proxy.
-/// HTTPS: measures TLS handshake time. HTTP: measures HEAD round-trip time.
 pub async fn test_delay(url: String) -> anyhow::Result<u32> {
     use std::sync::Arc;
     use std::time::Duration;
@@ -231,7 +205,6 @@ pub async fn test_delay(url: String) -> anyhow::Result<u32> {
             let _ = stream.read(&mut buf).await?;
         }
 
-        // frontend treats 0 as timeout
         Ok((start.elapsed().as_millis() as u32).max(1))
     })
     .await

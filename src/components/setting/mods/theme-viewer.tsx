@@ -36,7 +36,6 @@ export function ThemeViewer(props: { ref?: React.Ref<DialogRef> }) {
   const { verge, patchVerge } = useVerge()
   const { theme_setting } = verge ?? {}
   const [theme, setTheme] = useState(theme_setting || {})
-  // Latest theme ref to avoid stale closures when saving CSS
   const themeRef = useRef(theme)
   useEffect(() => {
     themeRef.current = theme
@@ -122,8 +121,14 @@ export function ThemeViewer(props: { ref?: React.Ref<DialogRef> }) {
 
   const handleSaveCss = useLockFn(async () => {
     const prevTheme = themeRef.current || {}
-    setTheme({ ...prevTheme, css_injection: cssEditorValue })
-    setCssEditorSavedValue(cssEditorValue)
+    const nextTheme = { ...prevTheme, css_injection: cssEditorValue }
+    try {
+      await patchVerge({ theme_setting: nextTheme })
+      setTheme(nextTheme)
+      setCssEditorSavedValue(cssEditorValue)
+    } catch (err) {
+      showNotice.error(err)
+    }
   })
 
   const renderItem = (labelKey: string, key: ThemeKey) => {
@@ -155,7 +160,6 @@ export function ThemeViewer(props: { ref?: React.Ref<DialogRef> }) {
       onOk={onSave}
     >
       <List sx={{ pt: 0 }}>
-        {/* clod:design-v2 — the five accents from the mockups, one click each */}
         <Item>
           <ListItemText
             primary={t('settings.components.verge.theme.fields.accentPresets')}

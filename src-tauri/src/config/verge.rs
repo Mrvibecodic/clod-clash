@@ -288,6 +288,13 @@ impl IVerge {
 
     pub const DEFAULT_CONNECT_TUN_MODE: bool = false;
 
+    pub const DEFAULT_AUTO_CLOSE_CONNECTION: bool = true;
+
+    pub fn auto_close_connection(&self) -> bool {
+        self.auto_close_connection
+            .unwrap_or(Self::DEFAULT_AUTO_CLOSE_CONNECTION)
+    }
+
     pub async fn validate_and_fix_config() -> Result<()> {
         let config_path = dirs::verge_path()?;
         let mut config = match help::read_yaml::<Self>(&config_path).await {
@@ -441,7 +448,7 @@ impl IVerge {
             enable_bypass_check: Some(true),
             use_default_bypass: Some(true),
             proxy_guard_duration: Some(30),
-            auto_close_connection: Some(true),
+            auto_close_connection: Some(Self::DEFAULT_AUTO_CLOSE_CONNECTION),
             auto_check_update: Some(true),
             receive_prereleases: Some(Self::DEFAULT_RECEIVE_PRERELEASES),
             enable_builtin_enhanced: Some(true),

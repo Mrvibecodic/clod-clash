@@ -10,6 +10,7 @@ use anyhow::{Result, bail};
 use clash_verge_logging::{Type, logging, logging_error};
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
+use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
 use reqwest::ClientBuilder;
 use smartstring::alias::String;
 use std::time::Duration;
@@ -21,29 +22,22 @@ struct QueryParam {
     param: String,
 }
 
-// Отправитель сигнала остановки embedded server
 static SHUTDOWN_SENDER: OnceCell<Mutex<Option<oneshot::Sender<()>>>> = OnceCell::new();
 
-/// check whether there is already exists
 pub async fn check_singleton() -> Result<()> {
     let port = IVerge::get_singleton_port();
-    // clod: свой одиночный сервер поднимается на петле, поэтому и спрашиваем
-    // про петлю — в отличие от порта прокси, чей адрес зависит от `allow-lan`.
     if port_is_taken_at(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST), port) {
         let client = ClientBuilder::new().timeout(Duration::from_millis(500)).build()?;
-        // Нужно гарантировать Send
         #[allow(clippy::needless_collect)]
         let argvs: Vec<std::string::String> = std::env::args().collect();
         if argvs.len() > 1 {
             #[cfg(not(target_os = "macos"))]
             {
                 let param = argvs[1].as_str();
-                // clod: forward every scheme the parser accepts (scheme.rs),
-                // not just `clash:`; otherwise a link clicked while the app is
-                // running (tray) is silently dropped by the second instance.
                 if param.starts_with("clash:") || param.starts_with("clash-verge:") || param.starts_with("clodclash:") {
+                    let encoded = utf8_percent_encode(param, NON_ALPHANUMERIC);
                     client
-                        .get(format!("http://127.0.0.1:{port}/commands/scheme?param={param}"))
+                        .get(format!("http://127.0.0.1:{port}/commands/scheme?param={encoded}"))
                         .send()
                         .await?;
                 }
@@ -60,8 +54,6 @@ pub async fn check_singleton() -> Result<()> {
     Ok(())
 }
 
-/// The embed server only be used to implement singleton process
-/// maybe it can be used as pac server later
 pub fn embed_server() {
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
     #[allow(clippy::expect_used)]
@@ -112,11 +104,13 @@ pub fn embed_server() {
         )
     });
 
-    // Use map instead of and_then to avoid Send issues
     let scheme = warp::path!("commands" / "scheme")
         .and(warp::query::<QueryParam>())
         .and_then(|query: QueryParam| async move {
             AsyncHandler::spawn(|| async move {
+                if !lightweight::exit_lightweight_mode().await {
+                    WindowManager::show_main_window().await;
+                }
                 logging_error!(Type::Setup, resolve::resolve_scheme(&query.param).await);
             });
             Ok::<_, warp::Rejection>(warp::reply::with_status::<std::string::String>(

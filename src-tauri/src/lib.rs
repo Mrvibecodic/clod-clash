@@ -92,6 +92,18 @@ mod app_init {
                 }
             });
         });
+
+        #[cfg(not(any(target_os = "macos", target_os = "ios")))]
+        if let Ok(Some(urls)) = app.deep_link().get_current()
+            && let Some(url) = urls.first()
+        {
+            let url = url.to_string();
+            AsyncHandler::spawn(move || async move {
+                if let Err(e) = resolve::resolve_scheme(&url).await {
+                    logging!(error, Type::Setup, "Failed to resolve scheme: {}", e);
+                }
+            });
+        }
     }
 
     pub fn setup_autostart(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {

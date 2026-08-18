@@ -6,13 +6,11 @@ use clash_verge_logging::{Type, logging};
 use std::env;
 use tauri_plugin_clipboard_manager::ClipboardExt as _;
 
-/// Toggle system proxy on/off
 pub async fn toggle_system_proxy() -> bool {
     let verge = Config::verge().await;
     let current = verge.latest_arc().enable_system_proxy.unwrap_or(false);
-    let auto_close_connection = verge.latest_arc().auto_close_connection.unwrap_or(false);
+    let auto_close_connection = verge.latest_arc().auto_close_connection();
 
-    // Если системный прокси сейчас будет выключен и включена настройка автозакрытия соединений, закрываем все соединения
     if current
         && auto_close_connection
         && let Err(err) = handle::Handle::mihomo().await.close_all_connections().await
@@ -42,21 +40,11 @@ pub async fn toggle_system_proxy() -> bool {
     }
 }
 
-/// Toggle TUN mode on/off
-/// Returns the updated toggle state
 pub async fn toggle_tun_mode(not_save_file: Option<bool>) -> bool {
     let desired = Config::verge().await.latest_arc().enable_tun_mode.unwrap_or(false);
-    // clod:tray-fact — намерение считается от ПОКАЗАННОГО, а не от сохранённого.
-    // Тот же урок, что и с кнопкой Connect: галочка в трее теперь показывает
-    // факт (заявку), и при подавленном TUN сохранённое желание — `true`, а на
-    // экране «выключено». Считая от файла, нажатие «включить» выключило бы TUN
-    // насовсем. Снятие подавления и перегенерацию делает `patch_verge` —
-    // ему достаточно увидеть `Some(true)`, даже если значение не изменилось.
     let current = crate::feat::tun::is_active_with(desired);
     let enable = !current;
 
-    // clod:tun-ready — включение из трея тоже должно просто работать: если
-    // службы нет, ставим её здесь же (пользователь сам попросил TUN).
     if enable {
         crate::feat::tun::ensure_ready(true).await;
     }
@@ -81,7 +69,6 @@ pub async fn toggle_tun_mode(not_save_file: Option<bool>) -> bool {
     }
 }
 
-/// Copy proxy environment variables to clipboard
 pub async fn copy_clash_env() {
     let env_ip = env::var("CLASH_VERGE_REV_IP").ok();
     let verge_cfg = Config::verge().await.latest_arc();

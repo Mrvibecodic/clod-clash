@@ -52,10 +52,7 @@ const Layout = () => {
   const pageVisible = useVisibility()
   const themeReady = useMemo(() => Boolean(theme), [theme])
 
-  // clod:mode-window — a settled manual resize updates the active mode's slot
   useModeWindowSize()
-  // clod:connect-mode — цель, которую провайдер не назвал, гасим: управлять ею
-  // из приложения больше нечем
   useEnforceLockedTargets()
 
   const windowControlsRef = useRef<any>(null)
@@ -130,16 +127,8 @@ const Layout = () => {
 
   return (
     <ThemeProvider theme={theme}>
-      {/* Кнопки управления окном внизу слева */}
       <NoticeManager position={verge?.notice_position} />
-      {/* clod: panel-side device limit / device id required */}
       <HwidLimitDialog />
-      {/* clod:design-v2 — кнопка «New» жила в боковой колонке и вместе с ней
-          была невидима всегда: об обновлении сообщает автооткрытие диалога,
-          один раз на версию за запуск. Колонки больше нет, поведение то же —
-          компонент смонтирован ради этого эффекта. Видимая точка входа в
-          обновление остаётся долгом: сейчас это только шестерёнка у строки
-          версии в настройках. */}
       <Box sx={{ display: 'none' }} aria-hidden>
         <UpdateButton />
       </Box>
@@ -166,18 +155,15 @@ const Layout = () => {
           borderTopRightRadius: '0px',
         }}
         onContextMenu={(e) => {
+          if (OS !== 'windows') return
+          const target = e.target as HTMLElement | null
           if (
-            OS === 'windows' &&
-            !['input', 'textarea'].includes(
-              e.currentTarget.tagName.toLowerCase(),
-            ) &&
-            !e.currentTarget.isContentEditable
+            target?.closest('input, textarea, [contenteditable="true"]') == null
           ) {
             e.preventDefault()
           }
         }}
         sx={[
-          // clod:branding — the window is the canvas, the cards are the panels
           ({ palette }) => ({ bgcolor: palette.background.default }),
           OS === 'linux'
             ? {
@@ -190,18 +176,9 @@ const Layout = () => {
       >
         {decorated === false && <WindowResizeHandles />}
 
-        {/* Custom titlebar - rendered only when decorated is false, memoized for performance */}
         {customTitlebar}
 
         <div className="layout-content">
-          {/* clod:design-v2 — боковой колонки в этом форке нет: её роль играют
-              сами главные экраны — плитки в расширенном режиме, ссылки между
-              режимами и стрелка «назад» на внутренних страницах. До этого
-              колонка оставалась в дереве под `display: none` вместе со всей
-              апстримной машинерией меню (сортировка перетаскиванием,
-              контекстное меню, порядок пунктов в конфиге) — полторы сотни
-              строк, которых никто никогда не видел. Удалены целиком. */}
-
           <div className="layout-content__right">
             <div className="the-bar"></div>
             <div className="the-content">
