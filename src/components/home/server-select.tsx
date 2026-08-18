@@ -1,6 +1,7 @@
 import AltRouteRoundedIcon from '@mui/icons-material/AltRouteRounded'
 import BoltRoundedIcon from '@mui/icons-material/BoltRounded'
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded'
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded'
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded'
 import StarBorderRoundedIcon from '@mui/icons-material/StarBorderRounded'
 import StarRoundedIcon from '@mui/icons-material/StarRounded'
@@ -45,6 +46,7 @@ import {
   entryDelay,
   entryMeasuredAt,
   entryPingTarget,
+  failedDelay,
   groupType,
   hasRealNodes,
   isCorePlaceholder,
@@ -59,15 +61,19 @@ import { toUnixSeconds } from '@/utils/subscription-status'
 const VIRTUALIZE_FROM = 50
 const ROW_HEIGHT = 52
 
-/**
- * clod:drawer-freshness — как часто перечитывать список, пока шторка открыта.
- *
- * Пять секунд — это один дешёвый запрос к уже поднятому ядру: столько же
- * стоит опрос главного экрана, а шторку держат открытой секунды, не часы.
- */
+const PingVerdict = ({ delay }: { delay?: number }) =>
+  usableDelay(delay) ? (
+    <CheckRoundedIcon sx={{ fontSize: 18, flex: 'none' }} color="success" />
+  ) : failedDelay(delay) ? (
+    <CloseRoundedIcon sx={{ fontSize: 18, flex: 'none' }} color="error" />
+  ) : (
+    <Typography variant="body2" sx={{ flex: 'none' }} color="text.disabled">
+      —
+    </Typography>
+  )
+
 const DRAWER_REFRESH_MS = 5000
 
-/** Как часто пересчитывается возраст показанных задержек. */
 const AGE_TICK_MS = 5000
 
 interface Props {
@@ -75,21 +81,10 @@ interface Props {
   onClose: () => void
 }
 
-/**
- * Full server list, opened over the home screen rather than as its own page:
- * picking a server is a detour from connecting, not a destination.
- *
- * Groups sit in a scrollable row of chips above the list — templates in the
- * wild (Davoyan, legiz) ship half a dozen per-service groups plus balancers,
- * and a dropdown hid all of that.
- */
 export const ServerSelect = ({ open, onClose }: Props) => {
   const { t } = useTranslation()
   const { proxies } = useProxiesData()
   const { refreshProxy } = useAppRefreshers()
-  // `selectNodeForGroup` talks straight to the core, so nothing tells the
-  // frontend to re-read the proxies — without the explicit refresh the tick
-  // and the "current server" row keep showing the previous node.
   const { changeProxy } = useProxySelection({
     onSuccess: () => {
       refreshProxy().catch(() => {})
@@ -98,18 +93,12 @@ export const ServerSelect = ({ open, onClose }: Props) => {
   })
   const [testing, setTesting] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
-  // clod: подтягивает URL тестов групп из шаблона, чтобы показанные задержки
-  // соответствовали тому, чем группу реально мерили
   useGroupTestUrls()
 
-  // Через useMemo: `?? {}` создаёт новый объект на каждый рендер, а карта
-  // теперь стоит в зависимостях подписи о возрасте замеров.
   const records = useMemo(
     () => (proxies?.records ?? {}) as Record<string, any>,
     [proxies],
   )
-  // clod: описания серверов приходят не от ядра, а из самой подписки — пустая
-  // карта здесь норма, строки просто остаются такими, как были
   const descriptions = useServerDescriptions()
   const groups = useMemo(() => visibleGroups(proxies), [proxies])
   const [groupName, setGroupName] = useState<string>('')
@@ -119,8 +108,6 @@ export const ServerSelect = ({ open, onClose }: Props) => {
   )
   const canSelect = SELECTABLE_GROUP_TYPES.has(groupType(group))
 
-  // Starred servers float to the top of the list; the stars live on the
-  // profile, so they survive subscription updates and app restarts.
   const { current, patchCurrent, mutateProfiles } = useProfiles()
   const favorites = useMemo(
     () => new Set(current?.favorites ?? []),
@@ -140,17 +127,11 @@ export const ServerSelect = ({ open, onClose }: Props) => {
     }
   })
 
-  // Тот же вопрос, что и в строке на главной, и ровно тем же способом: есть ли
-  // во всём конфиге хоть один настоящий сервер. Пока `proxies` не загружены
-  // (старт приложения, рестарт ядра) — молчим: пустота ещё ничего не значит.
   const { show: noServers, onlySentinels } = useNoServersStatus(current)
   const listEmpty = Boolean(proxies) && !hasRealNodes(proxies)
   const showStatus = noServers && (onlySentinels || listEmpty)
 
   const nodes = useMemo(() => {
-    // clod: core placeholders (`REJECT`…) are what a group is left with once
-    // the sentinel filter dropped the panel's "subscription expired" stubs —
-    // showing them as servers would recreate exactly the problem it solves.
     const all = (group?.all ?? []).filter(
       (node) => !isCorePlaceholder(node.name),
     )
@@ -169,14 +150,6 @@ export const ServerSelect = ({ open, onClose }: Props) => {
     enabled: nodes.length > VIRTUALIZE_FROM,
   })
 
-  // clod:drawer-freshness — пока шторка открыта, список живой.
-  //
-  // Раньше он был снимком того, что лежало в кэше на момент открытия: узел
-  // переключили из трея, ядро само ушло с мёртвого сервера, тест в другом окне
-  // домерил задержки — на экране всё это появлялось только после закрытия и
-  // повторного открытия. Опрашиваем, лишь пока шторка ОТКРЫТА и окно видно:
-  // за закрытой шторкой обновлять нечего, и это ровно то правило, по которому
-  // живут остальные опросы.
   const visible = useVisibility()
   useEffect(() => {
     if (!open || !visible) return
@@ -186,18 +159,9 @@ export const ServerSelect = ({ open, onClose }: Props) => {
     return () => window.clearInterval(timer)
   }, [open, visible, refreshProxy])
 
-  // Возраст самого свежего замера в группе: одна честная строка вместо
-  // подписи под каждой строкой (у каждого узла свой возраст, но пользователю
-  // важно «эти цифры вообще сегодняшние или нет»).
-  // Часы, а не счётчик тиков: возраст считается ОТ этого значения, поэтому
-  // подпись стареет сама, даже когда список не меняется.
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     if (!open || !visible) return
-    // Первый пересчёт — отдельной задачей, а не прямо здесь: синхронный
-    // setState в эффекте запрещён линтером (лишний рендер), а ждать полного
-    // тика нельзя — шторку могли открыть через час после прошлого раза, и
-    // подпись до первого тика соврала бы возрастом.
     const first = window.setTimeout(() => setNow(Date.now()), 0)
     const timer = window.setInterval(() => setNow(Date.now()), AGE_TICK_MS)
     return () => {
@@ -216,10 +180,7 @@ export const ServerSelect = ({ open, onClose }: Props) => {
     const minutes = Math.floor((now - newest) / 60_000)
     return minutes < 1
       ? t('home.components.serverSelect.measuredJustNow')
-      : // ГРАБЛЯ i18next: число подставлять как `minutes`, НЕ `count` —
-        // `count` считается плюральным, и i18next пошёл бы искать `_one`
-        // и `_other`, которых наш генератор не делает.
-        t('home.components.serverSelect.measuredMinutesAgo', { minutes })
+      : t('home.components.serverSelect.measuredMinutesAgo', { minutes })
   }, [open, group, nodes, records, now, t])
 
   const select = useLockFn(async (nodeName: string) => {
@@ -228,8 +189,6 @@ export const ServerSelect = ({ open, onClose }: Props) => {
     onClose()
   })
 
-  // clod: тест с keepFixed + восстановлением сохранённого выбора — иначе
-  // mihomo сбрасывал закреплённый узел url-test групп при каждом тесте.
   const runGroupDelayTest = useGroupDelayTest()
   const runDelayTest = useCallback(async () => {
     if (!group) return
@@ -267,11 +226,7 @@ export const ServerSelect = ({ open, onClose }: Props) => {
     const delay = entryDelay(records, node.name, group?.name ?? '')
     const selected = group?.now === node.name
     const starred = favorites.has(node.name)
-    // clod: служебные имена ядра (COMPATIBLE и т.п.) в подписи не показываем
     const leaf = isGroup ? displayLeaf(records, node.name) : undefined
-    // clod: слово провайдера о сервере вытесняет и тип узла, и «Используется»:
-    // тип не говорил ничего, а выбор и без слов виден по галочке с подсветкой.
-    // У групп описания нет — там подпись остаётся прежней.
     const description = isGroup ? undefined : descriptions[node.name]
 
     return (
@@ -311,14 +266,10 @@ export const ServerSelect = ({ open, onClose }: Props) => {
         )}
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography noWrap>{nameWithoutFlag(node.name)}</Typography>
-          {/* clod: описание от провайдера, иначе — «Используется» у активного
-              сервера и тип узла у остальных */}
           <Typography
             variant="caption"
             color={selected && !description ? 'success.main' : 'text.secondary'}
             noWrap
-            // 30 символов панель гарантирует, чужой шаблон — нет: полный текст
-            // остаётся доступен наведением, даже если подпись его обрезала
             title={description}
           >
             {description ??
@@ -333,16 +284,19 @@ export const ServerSelect = ({ open, onClose }: Props) => {
                   : node.type)}
           </Typography>
         </Box>
-        {/* clod: маркер ошибки (1e6) — это не пинг, показываем прочерк */}
-        <Typography
-          variant="body2"
-          sx={{
-            color: usableDelay(delay) ? delayColor(delay) : 'text.disabled',
-            fontVariantNumeric: 'tabular-nums',
-          }}
-        >
-          {usableDelay(delay) ? `${delay} ms` : '—'}
-        </Typography>
+        {current?.disable_ping ? (
+          <PingVerdict delay={delay} />
+        ) : (
+          <Typography
+            variant="body2"
+            sx={{
+              color: usableDelay(delay) ? delayColor(delay) : 'text.disabled',
+              fontVariantNumeric: 'tabular-nums',
+            }}
+          >
+            {usableDelay(delay) ? `${delay} ms` : '—'}
+          </Typography>
+        )}
         {isGroup ? null : (
           <IconButton
             size="small"
@@ -367,10 +321,6 @@ export const ServerSelect = ({ open, onClose }: Props) => {
     )
   }
 
-  // clod: the drawer grows with the group — three servers keep it low, twenty
-  // push it up to the connect button and no further. The paper stays
-  // content-sized (a bottom drawer does that on its own); only the ceiling
-  // moves, so nothing here has to compute a height.
   const capHeight = useDrawerCapHeight(open)
 
   return (
@@ -383,8 +333,6 @@ export const ServerSelect = ({ open, onClose }: Props) => {
           sx: {
             maxHeight: capHeight,
             borderRadius: `${SHAPE.overlay} ${SHAPE.overlay} 0 0`,
-            // the paper scrolls on its own by default — with the list holding
-            // the only scrollbar that would make a second, nested one
             overflow: 'hidden',
           },
         },
@@ -396,11 +344,6 @@ export const ServerSelect = ({ open, onClose }: Props) => {
             {t('home.components.serverSelect.title')}
           </Typography>
 
-          {/* clod:drawer-freshness — сколько лет цифрам в списке. Задержки
-              приходят из истории замеров ядра, и без этой строки список
-              одинаково уверенно показывал и секундной свежести замер, и
-              позавчерашний: «26 ms» выглядит фактом, пока не сказано, когда
-              его мерили. */}
           {measuredLabel ? (
             <Typography variant="caption" color="text.secondary" noWrap>
               {measuredLabel}
@@ -421,8 +364,6 @@ export const ServerSelect = ({ open, onClose }: Props) => {
           </Button>
         </Stack>
 
-        {/* Group chips in a row: every visible group of the template, side
-            by side — never a dropdown. Scrolls when they don't fit. */}
         {groups.length > 1 ? (
           <Stack
             direction="row"
@@ -431,7 +372,6 @@ export const ServerSelect = ({ open, onClose }: Props) => {
               overflowX: 'auto',
               flex: 'none',
               pb: 0.5,
-              // a slim scrollbar so a long chip row stays discoverable
               '&::-webkit-scrollbar': { height: 4 },
               '&::-webkit-scrollbar-thumb': {
                 bgcolor: 'divider',
@@ -442,8 +382,6 @@ export const ServerSelect = ({ open, onClose }: Props) => {
             {groups.map((item) => {
               const active = item.name === (group?.name ?? '')
               const auto = AUTO_GROUP_TYPES.has(groupType(item))
-              // clod: the resolved node right on the chip, so checking what
-              // each group runs on does not require opening every group
               const leaf = displayLeaf(records, item.name)
               return (
                 <ButtonBase
@@ -491,7 +429,6 @@ export const ServerSelect = ({ open, onClose }: Props) => {
                         minWidth: 0,
                       }}
                     >
-                      {/* clod: тот же флаг, что и в строках списка */}
                       <CountryFlag name={leaf} size={13} />
                       <Typography
                         variant="caption"
@@ -519,9 +456,6 @@ export const ServerSelect = ({ open, onClose }: Props) => {
           </Typography>
         ) : null}
 
-        {/* clod: пустой список честен, но ничего не объясняет — статус говорит,
-            почему серверов нет, и даёт ссылки провайдера. Показывается и когда
-            в группе остался один `DIRECT`: подключаться всё равно не к чему. */}
         {showStatus ? (
           <NoServersStatus profile={current} onRefreshed={mutateProfiles} />
         ) : null}
@@ -572,13 +506,6 @@ interface RowProps {
   onOpen: () => void
 }
 
-/**
- * clod:latency-style — на сколько делений тянет задержка.
- *
- * Одна лестница на все виды показа: и полоски, и точка красятся по одному
- * порогу, иначе «зелёная точка» и «четыре полоски» разошлись бы при первой же
- * правке.
- */
 const latencyLevel = (delay?: number) =>
   !usableDelay(delay)
     ? 0
@@ -593,13 +520,6 @@ const latencyLevel = (delay?: number) =>
 const latencyColor = (level: number) =>
   level === 0 ? 'divider' : level >= 3 ? 'success.main' : 'warning.main'
 
-/**
- * clod:latency-style — точка вместо полосок (`clod-latency-style: dot`).
- *
- * Панели, настроенные под Happ и Prizrak-Box, привыкли показывать задержку
- * цветной точкой; провайдеру, у которого так нарисованы все инструкции, дешевле
- * попросить точку, чем переучивать клиентов.
- */
 const SignalDot = ({ delay }: { delay?: number }) => (
   <Box
     sx={{
@@ -612,7 +532,6 @@ const SignalDot = ({ delay }: { delay?: number }) => (
   />
 )
 
-/** clod:latency-style — задержка числом (`clod-latency-style: number`). */
 const LatencyNumber = ({ delay }: { delay?: number }) => (
   <Typography
     sx={{ fontSize: 12, flex: 'none', fontVariantNumeric: 'tabular-nums' }}
@@ -624,7 +543,6 @@ const LatencyNumber = ({ delay }: { delay?: number }) => (
   </Typography>
 )
 
-/** Mockup-style four-bar signal indicator, coloured by latency. */
 const SignalBars = ({ delay }: { delay?: number }) => {
   const lit = latencyLevel(delay)
   const color = (index: number) => (index < lit ? latencyColor(lit) : 'divider')
@@ -653,53 +571,17 @@ const SignalBars = ({ delay }: { delay?: number }) => {
   )
 }
 
-// clod: подписка обновилась → ядро перечитало конфиг → история задержек в
-// ядре обнулилась и пинги на главной «пропадали». Автотест гоняем один раз
-// на каждую пару (группа, момент обновления подписки) — module-scope, чтобы
-// ремоунт экрана не пинговал повторно.
 let lastAutoDelayKey = ''
 
-// clod: последний пинг, который пользователь реально видел. Module-scope по
-// той же причине, что и ключ выше: ремоунт экрана не должен стирать цифру,
-// которая только что была на месте. Состоянием это держать нельзя — запись
-// шла бы из эффекта, то есть лишний рендер на каждый замер.
 let lastKnownPing: { key: string; delay: number } | undefined
 
-/**
- * clod: пинг старше этого — на экране враньё, а не данные.
- *
- * Цифра часовой давности выглядит точно так же, как снятая секунду назад.
- * Окно, пролежавшее в трее, возвращается именно с такой: ядро само проверяет
- * только url-test группы, а закреплённый узел `select`-группы не трогает
- * никто. Поэтому, показывая экран, мы не просто перечитываем ядро, а
- * перемеряем — если показанному замеру больше минуты.
- */
 const PING_MAX_AGE_MS = 60_000
-/** Цифра на экране есть — чаще раза в минуту не перемеряем. */
 const PING_GAP_MS = 60_000
-/**
- * Цифры нет вовсе — пробуем часто, пока не появится.
- *
- * Это не тот же случай, что «пинг устарел»: пустое место на экране надо
- * закрыть, а причины пустоты временные — ядро ещё поднимается, конфиг только
- * что перечитан, замер не прошёл. И повторять приходится по таймеру:
- * неудачный замер данных не меняет, а значит сам по себе эффект не
- * перезапустится и второй попытки не будет никогда.
- */
 const PING_RETRY_MS = 5_000
-/**
- * Сколько раз подряд пробуем, пока цифры нет.
- *
- * Потолок нужен для случая, когда падает сам запрос (ядро перезапускается,
- * API недоступен): истории тогда не появляется, замок по возрасту замера не
- * срабатывает — и без счётчика это был бы вечный запрос раз в пять секунд.
- * Счётчик обнуляется, как только цифра появилась или сменился узел.
- */
 const PING_RETRY_LIMIT = 6
 const PING_TIMEOUT_MS = 10_000
 let lastAutoPingAt = 0
 
-/** The compact row on the home screen: current server, latency, one tap. */
 export const ServerSelectRow = ({ onOpen }: RowProps) => {
   const { t } = useTranslation()
   const { proxies } = useProxiesData()
@@ -712,13 +594,8 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
 
   const records = (proxies?.records ?? {}) as Record<string, any>
   const group = visibleGroups(proxies)[0]
-  // clod: an emptied group resolves to `REJECT` — that means "nothing to
-  // connect to", not a server called REJECT, so the row stays "not selected".
   const selection = group?.now
   const current = isCorePlaceholder(selection) ? undefined : selection
-  // The selection may be a balancer; the ping (and the flag) belong to the
-  // node the chain actually lands on. Core placeholders (COMPATIBLE…) are
-  // hidden — the flag then falls back to the selection's own name.
   const leaf = current ? displayLeaf(records, current) : undefined
   const flagName = leaf ?? current
   const delay = current
@@ -727,9 +604,6 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
   const measuredAt = current
     ? entryMeasuredAt(records, current, group?.name ?? '')
     : 0
-  // Меряем ровно ту запись, чья цифра на экране (то же правило, что и в
-  // `entryDelay`): у балансировщика это лист, на который приземляется цепочка,
-  // у обычного узла — он сам.
   const pingTarget = current
     ? entryPingTarget(records, current, group?.name ?? '')
     : undefined
@@ -738,14 +612,6 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
     ? (records[pingTarget]?.provider as string | undefined)
     : undefined
 
-  // clod: updating the subscription reloads the config, mihomo rebuilds every
-  // adapter and its delay history starts empty — the ping the user was looking
-  // at turned into a placeholder word for a second or two and came back. So we
-  // keep showing the last figure we saw until a new one arrives.
-  //
-  // The key pins that figure to the entry it was measured for: the selected
-  // node, its group, and the leaf a balancer currently lands on. A remembered
-  // ping is never shown next to a different server — it disappears instead.
   const pingKey = current
     ? `${group?.name ?? ''}::${current}::${leaf ?? ''}`
     : ''
@@ -755,9 +621,6 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
   }, [pingKey, delay])
   const remembered =
     lastKnownPing?.key === pingKey ? lastKnownPing.delay : undefined
-  // Only the caption and the bars use it — `hasPing` and `measuredAt` below
-  // must keep speaking about what the core really has, or the auto re-ping
-  // would take a remembered figure for a live one and stop measuring.
   const shownDelay = hasPing ? delay : remembered
 
   const groupName = group?.name
@@ -766,42 +629,17 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
     if (!groupName) return
     const key = `${groupName}|${updatedAt}`
     if (lastAutoDelayKey === key) return
-    // подождать, пока ядро дожуёт свежий конфиг, и перепинговать сразу.
-    // Тест идёт через useGroupDelayTest: keepFixed + восстановление выбора,
-    // так что автоперепинговка после обновления подписки НЕ сбрасывает
-    // выбранный сервер — она только меряет.
     const timer = window.setTimeout(() => {
       lastAutoDelayKey = key
-      // Групповой тест меряет и наш узел — одиночному автопингу ниже здесь
-      // делать нечего ближайшую минуту.
       lastAutoPingAt = Date.now()
       runGroupDelayTest(groupName).catch(() => {})
     }, 800)
     return () => window.clearTimeout(timer)
   }, [groupName, updatedAt, runGroupDelayTest])
 
-  // clod: показанному пингу больше минуты — перемеряем ОДИН узел, тот самый,
-  // чья цифра висит на экране. Возраст берём из самих данных (время замера в
-  // истории ядра), а не из «сколько окно пролежало в трее»: свежесть цифры не
-  // зависит от того, кто и почему её обновил, и то же условие спасает экран,
-  // открытый после долгого простоя, и подключение на свежем конфиге, где
-  // истории ещё нет вовсе.
-  //
-  // Именно один узел, а не групповой тест: групповой идёт по всем узлам
-  // подписки — сотни запросов по факту разворачивания окна, ради одной цифры
-  // на экране. Групповой остаётся за кнопкой «Тест» и за обновлением подписки
-  // (эффект выше).
-  //
-  // `Date.now()` живёт внутри эффекта: в теле компонента он делает рендер
-  // нечистым (`react-compiler`).
   useEffect(() => {
     if (!visible || !groupName || !pingTarget) return
 
-    // Групповой автотест (обновление подписки) и этот одиночный делят один
-    // замок `lastAutoPingAt`: кто успел первым, тот и меряет. Замок общий, а
-    // не отдельный гейт «дождись группового»: модульная переменная не
-    // реактивна, и ожидание её значения молча пропускало бы замер, когда
-    // групповой тест не состоялся (ядро ещё не поднялось).
     let attempts = 0
     const measure = () => {
       const now = Date.now()
@@ -817,18 +655,11 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
           PING_TIMEOUT_MS,
           pingProvider,
         )
-        // Замер уходит в историю ядра — перечитываем её, чтобы цифра на экране
-        // сменилась там же, где живут остальные данные.
         .finally(() => refreshProxy().catch(() => {}))
         .catch(() => {})
     }
 
-    // Небольшая пауза: показ экрана тянет за собой перечитывание ядра, и
-    // свежий замер может приехать уже оттуда — тогда мерить нечего.
     const timer = window.setTimeout(measure, 600)
-    // Пустое место на экране закрываем настойчиво: повтор живёт, только пока
-    // цифры нет, и снимается сам, как только данные приедут (эффект
-    // перезапустится уже с ней).
     const retry = hasPing
       ? undefined
       : window.setInterval(() => {
@@ -853,18 +684,11 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
     refreshProxy,
   ])
 
-  // clod: серверов может не быть вовсе — панель отдала одни заглушки. Тогда
-  // строка не притворяется выбором, а называет причину: тот же статус, что и
-  // в шторке, только одной строкой.
   const {
     reason,
     show: noServers,
     onlySentinels,
   } = useNoServersStatus(currentProfile)
-  // Настоящими серверами считаем только узлы, и по всему конфигу сразу:
-  // `DIRECT` и служебные имена ядра остаются в группе и после чистки заглушек,
-  // но подключаться к ним нечем. `proxies` ещё не загружены (старт приложения,
-  // рестарт ядра) — молчим: отсутствие групп в этот момент ничего не значит.
   const listEmpty = Boolean(proxies) && !hasRealNodes(proxies)
   const statusRow = noServers && (listEmpty || onlySentinels)
   const refillDate = currentProfile?.refill_date
@@ -886,21 +710,17 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
         ? 'warning.main'
         : 'text.secondary'
 
-  // clod: описание сервера принадлежит узлу, на который цепочка приземлилась,
-  // — у балансировщика своего описания нет. Имя узла оно вытесняет: оно и так
-  // продублировано в заголовке строки, а задержка нужнее и остаётся на месте.
   const description =
     (leaf ? descriptions[leaf] : undefined) ??
     (current ? descriptions[current] : undefined)
   const subject = description ?? (leaf ? nameWithoutFlag(leaf) : undefined)
-  // No ping and nothing remembered means the figure is unknown, and a dash
-  // says so — the same one the drawer shows. The word "Server" only repeated
-  // the row's own title and read as a state the row had switched into.
-  const caption = usableDelay(shownDelay)
-    ? subject
-      ? `${subject} · ${shownDelay} ${t('home.components.serverSelect.ms')}`
-      : `${shownDelay} ${t('home.components.serverSelect.ms')}`
-    : (subject ?? '—')
+  const caption = currentProfile?.disable_ping
+    ? (subject ?? '—')
+    : usableDelay(shownDelay)
+      ? subject
+        ? `${subject} · ${shownDelay} ${t('home.components.serverSelect.ms')}`
+        : `${shownDelay} ${t('home.components.serverSelect.ms')}`
+      : (subject ?? '—')
 
   return (
     <Stack
@@ -911,14 +731,11 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
         gap: 1.5,
         px: 1.75,
         py: 1.5,
-        // stretch to the column like every other card; an explicit
-        // width:100% + padding overflowed it by the padding width
         alignSelf: 'stretch',
         boxSizing: 'border-box',
         borderRadius: SHAPE.surface,
         cursor: 'pointer',
         bgcolor: 'background.paper',
-        // clod:design-v3 — граница меняется переходом, а не рывком.
         transition: (theme) =>
           theme.transitions.create(['border-color', 'background-color'], {
             duration: theme.transitions.duration.short,
@@ -955,9 +772,9 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
         </Typography>
       </Box>
 
-      {/* clod:latency-style — вид индикатора выбирает провайдер заголовком;
-          без заголовка остаются наши полоски. */}
-      {currentProfile?.latency_style === 'dot' ? (
+      {currentProfile?.disable_ping ? (
+        <PingVerdict delay={shownDelay} />
+      ) : currentProfile?.latency_style === 'dot' ? (
         <SignalDot delay={shownDelay} />
       ) : currentProfile?.latency_style === 'number' ? (
         <LatencyNumber delay={shownDelay} />

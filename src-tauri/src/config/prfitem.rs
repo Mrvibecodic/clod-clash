@@ -7,229 +7,155 @@ use crate::{
     },
 };
 use anyhow::{Context as _, Result, bail};
+use reqwest_dav::re_exports::url::form_urlencoded;
 use serde::{Deserialize, Serialize};
 use serde_yaml_ng::Mapping;
 use smartstring::alias::String;
 use std::time::Duration;
-use tokio::fs;
-// TODO, use other re-export
-use reqwest_dav::re_exports::url::form_urlencoded;
 use tauri::Url;
+use tokio::fs;
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct PrfItem {
     pub uid: Option<String>,
 
-    /// profile item type
-    /// enum value: remote | local | script | merge
     #[serde(rename = "type")]
     pub itype: Option<String>,
 
-    /// profile name
     pub name: Option<String>,
 
-    /// profile file
     pub file: Option<String>,
 
-    /// profile description
     #[serde(skip_serializing_if = "Option::is_none")]
     pub desc: Option<String>,
 
-    /// source url
     #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
 
-    /// selected information
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selected: Option<Vec<PrfSelected>>,
 
-    /// clod: node names the user starred; shown on top of the server list.
-    /// Never touched by subscription updates (`update_item` copies fields
-    /// explicitly), so the stars survive refreshes.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub favorites: Option<Vec<String>>,
 
-    /// subscription user info
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extra: Option<PrfExtra>,
 
-    /// updated time
     pub updated: Option<usize>,
 
-    /// some options of the item
     #[serde(skip_serializing_if = "Option::is_none")]
     pub option: Option<PrfOption>,
 
-    /// profile web page url
     #[serde(skip_serializing_if = "Option::is_none")]
     pub home: Option<String>,
 
-    /// clod:groups — user label for sorting the subscription cards. Purely a
-    /// UI grouping: the core never sees it, and an empty group disappears on
-    /// its own once the last subscription leaves it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub group: Option<String>,
 
-    // clod:headers begin
-    /// `support-url` header — provider support contact.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub support_url: Option<String>,
 
-    /// `profile-logo` header — provider logo, an http(s) URL.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub logo: Option<String>,
 
-    /// `announce` header — provider message shown as a banner.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub announce: Option<String>,
 
-    /// `announce-url` header — where the announce banner leads when clicked.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub announce_url: Option<String>,
 
-    /// `clod-portal-url` header — the customer portal (renewal, payments).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub portal_url: Option<String>,
 
-    /// clod:provider-links — `clod-bot-url`: бот провайдера.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bot_url: Option<String>,
 
-    /// clod:provider-links — `clod-monitor-url`: состояние серверов.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub monitor_url: Option<String>,
 
-    /// clod:provider-links — `clod-guide-url`: инструкция провайдера.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub guide_url: Option<String>,
 
-    /// `clod-promo` header — temporary promotion banner, dismissable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub promo: Option<String>,
 
-    /// `clod-promo-url` header — where the promo banner leads when clicked.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub promo_url: Option<String>,
 
-    /// Set once the user dismissed the current promo. Cleared automatically
-    /// when the provider changes the text, so a new promotion shows up again.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub promo_seen: Option<bool>,
 
-    /// `clod-lock-mode` header — the panel forbids changing proxy and routing
-    /// modes inside the app.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lock_mode: Option<bool>,
 
-    /// clod:show-0hosts — `clod-show-0hosts` header: the provider wants its own
-    /// sentinel nodes shown instead of our "no servers" screens.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub show_zero_hosts: Option<bool>,
 
-    /// clod:latency-style — `clod-latency-style` header: `bars`, `dot` or
-    /// `number`. Cosmetic; without the header the app keeps its own bars.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub latency_style: Option<String>,
 
-    /// clod:device-remove — `clod-device-remove` header: page where the
-    /// customer frees a device slot themselves.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disable_ping: Option<bool>,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub device_remove_url: Option<String>,
 
-    /// clod:connect-mode — `clod-connect-mode` header: `tun`, `proxy` or
-    /// `both`. What the Connect button raises while the user has not chosen
-    /// for themselves; under [`Self::lock_mode`] it is what the button raises,
-    /// full stop.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub connect_mode: Option<String>,
 
-    /// `subscription-refill-date` header, unix seconds.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub refill_date: Option<i64>,
 
-    /// How far this device's clock is from the panel's, in seconds
-    /// (`panel - device`), taken from the `Date` header of the last successful
-    /// fetch.
-    ///
-    /// The deadline is an absolute moment, so a device whose clock is a day
-    /// out counts the remaining time a day wrong — and offline there is
-    /// nothing to notice it against. `None` means no panel clock was ever
-    /// seen and the device clock is all we have.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub clock_skew: Option<i64>,
 
-    /// Device clock when `clock_skew` was measured, in unix seconds.
-    ///
-    /// Deliberately not `updated`: that one moves on every successful refresh,
-    /// including the ones that carried no `Date` and left the offset untouched,
-    /// so a year-old measurement would keep looking fresh forever.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub clock_skew_at: Option<i64>,
 
-    /// The update interval was dictated by the provider, so the UI locks it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub interval_locked: Option<bool>,
 
-    /// `fallback-url` header — full spare address used when the primary fails.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fallback_url: Option<String>,
 
-    /// `fallback-domain` header — spare host for the primary URL.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fallback_domain: Option<String>,
 
-    /// URLs this subscription was migrated away from, oldest first.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub previous_urls: Option<Vec<String>>,
 
-    /// Consecutive provider-driven URL migrations, reset once an update brings
-    /// no further migration. Guards against a redirect loop between panels.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub migration_hops: Option<u32>,
 
-    /// Device registration state: `ok` | `limit` | `not_supported`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hwid_state: Option<String>,
 
-    /// The user renamed the profile, so `profile-title` must not overwrite it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name_customized: Option<bool>,
 
-    /// Expiry reminder thresholds in days; empty vector = disabled by provider.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notify_expire_days: Option<Vec<u32>>,
 
-    /// Traffic reminder thresholds in percent; empty vector = disabled.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notify_traffic_percent: Option<Vec<u32>>,
 
-    /// Reminder bookkeeping: threshold key -> unix seconds it fired at.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notified: Option<std::collections::BTreeMap<std::string::String, i64>>,
 
-    /// The payload came from `fallback_url` instead of `url`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub from_fallback: Option<bool>,
 
-    /// Interface mode the provider prefers for this subscription. Only a hint:
-    /// a user who picked a mode in the settings always wins.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub simple_mode: Option<bool>,
 
-    /// Transient: the name was taken from `profile-title` on this fetch.
     #[serde(skip)]
     pub name_from_header: Option<bool>,
 
-    /// Transient: URL the provider asked us to migrate to (`new-url` /
-    /// `new-domain`). Applied only after a successful probe download.
     #[serde(skip)]
     pub migrate_url: Option<String>,
 
-    /// Transient: device limit reported alongside a `limit` state.
     #[serde(skip)]
     pub hwid_max_devices: Option<u32>,
-    // clod:headers end
-    /// the file data
     #[serde(skip)]
     pub file_data: Option<String>,
 }
@@ -250,50 +176,27 @@ pub struct PrfExtra {
 
 #[derive(Default, Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct PrfOption {
-    /// for `remote` profile's http request
-    /// see issue #13
     #[serde(skip_serializing_if = "Option::is_none")]
     pub user_agent: Option<String>,
 
-    /// for `remote` profile
-    /// use system proxy
     #[serde(skip_serializing_if = "Option::is_none")]
     pub with_proxy: Option<bool>,
 
-    /// for `remote` profile
-    /// use self proxy
     #[serde(skip_serializing_if = "Option::is_none")]
     pub self_proxy: Option<bool>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub update_interval: Option<u64>,
 
-    /// for `remote` profile
-    /// HTTP request timeout in seconds
-    /// default is 60 seconds
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timeout_seconds: Option<u64>,
 
-    /// clod:chan — подписка ходит только по защищённому каналу.
-    ///
-    /// Ставится галочкой при добавлении и больше не снимается: снять её можно
-    /// только удалив профиль. Иначе «сними галочку, у тебя не работает»
-    /// становится способом заставить клиента отдать адрес подписки открытым
-    /// текстом тому, кто стоит в разрыве.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub secure: Option<bool>,
 
-    /// clod:chan — закреплённый публичный ключ прослойки, base64url.
-    ///
-    /// Не настройка, а состояние: клиент запоминает ключ при первом успешном
-    /// ответе и дальше считает с ним общий секрет. Живёт здесь потому, что
-    /// это единственное, что доезжает до `from_url` на обновлении.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub chan_pin: Option<String>,
 
-    /// for `remote` profile
-    /// disable certificate validation
-    /// default is `false`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub danger_accept_invalid_certs: Option<bool>,
 
@@ -330,9 +233,6 @@ impl PrfOption {
                 result.proxies = b_ref.proxies.clone().or(result.proxies);
                 result.groups = b_ref.groups.clone().or(result.groups);
                 result.timeout_seconds = b_ref.timeout_seconds.or(result.timeout_seconds);
-                // clod:chan — защита только поднимается. Однажды включённая,
-                // она переживает любое обновление подписки: понижение канала
-                // должно требовать удаления профиля, а не одного ответа.
                 result.secure = match (result.secure, b_ref.secure) {
                     (Some(true), _) | (_, Some(true)) => Some(true),
                     (a, b) => b.or(a),
@@ -348,23 +248,11 @@ impl PrfOption {
 }
 
 impl PrfItem {
-    /// From partial item
-    /// must contain `itype`
-    /// clod: ответ «мы вас не пустили» повторять через прокси бессмысленно —
-    /// адрес доступен, отвечает панель. Повторяем только сетевые провалы.
     fn is_worth_retrying_over_proxy(err: &anyhow::Error) -> bool {
         let text = err.to_string();
         !text.contains("(x-hwid)") && !text.contains("invalid profile item type")
     }
 
-    /// clod: лесенка попыток — напрямую, затем через собственное ядро, затем
-    /// через системный прокси.
-    ///
-    /// Смысл средней ступени: когда домен подписки заблокирован, единственный
-    /// живой канал до него — уже поднятый туннель на прошлых узлах. Раньше
-    /// лесенка была только у обновления подписки, а импорт делал одну попытку
-    /// и сдавался — то есть добавить подписку на заблокированном домене было
-    /// нельзя даже при работающем VPN.
     pub async fn from_url_with_ladder(
         url: &str,
         name: Option<&String>,
@@ -425,8 +313,6 @@ impl PrfItem {
         }
     }
 
-    /// ## Local type
-    /// create a new item from name/desc
     pub async fn from_local(
         name: String,
         desc: String,
@@ -489,13 +375,10 @@ impl PrfItem {
             home: None,
             updated: Some(chrono::Local::now().timestamp() as usize),
             file_data: Some(file_data.unwrap_or_else(|| tmpl::ITEM_LOCAL.into())),
-            // clod: local profiles carry no panel metadata
             ..Self::default()
         })
     }
 
-    /// ## Remote type
-    /// create a new item from url
     pub async fn from_url(
         url: &str,
         name: Option<&String>,
@@ -515,7 +398,6 @@ impl PrfItem {
         let mut proxies = option.and_then(|o| o.proxies.clone());
         let mut groups = option.and_then(|o| o.groups.clone());
 
-        // Выбираем тип прокси
         let proxy_type = if self_proxy {
             ProxyType::Localhost
         } else if with_proxy {
@@ -526,13 +408,8 @@ impl PrfItem {
 
         let url = fix_dirty_url(url)?;
 
-        // clod:headers begin
-        // Device identity + `Accept: */*` on every subscription request.
         let identity_headers = sub_headers::build_identity_headers().await;
-        // clod:headers end
 
-        // clod:chan — выбор дороги вынесен отдельной функцией: с ним `from_url`
-        // перебирала порог сложности, который держит линтер.
         let (resp, learned_pin) = fetch_for_profile(
             url.as_str(),
             proxy_type,
@@ -544,28 +421,11 @@ impl PrfItem {
         )
         .await?;
 
-        // clod: часы устройства снимаются сразу, как ответ дошёл — до разбора
-        // YAML и записи файлов. Скачивание тела в сдвиг всё же попадает
-        // (сетевой слой отдаёт ответ уже вычитанным), но это секунды, а
-        // решения по сдвигу принимаются в масштабе минут.
         let answered_at = chrono::Local::now().timestamp();
 
-        // clod:headers begin
-        // Parsed before the status check: a device-limit response carries a stub
-        // body (and sometimes a non-2xx status) but still tells us what happened.
         let sub = sub_headers::SubHeaders::parse(resp.headers());
         log_panel_headers(&sub);
         sub.notify_device_state();
-        // clod:stub-parity — обе блокирующие ветки Remnawave (лимит устройств и
-        // «клиент не прислал идентификатор») отвечают 200 и телом-заглушкой,
-        // причём хосты в ней обнулены панелью ЯВНО. Раньше мы такой ответ
-        // отбивали здесь, сохраняя прежнюю конфигурацию, — и устройство сверх
-        // лимита продолжало ходить по старым серверам, то есть лимит на нём не
-        // работал вовсе. Ответ панели — это её решение «серверов у тебя сейчас
-        // нет», и отменять его клиенту нечем: заглушки принимаются во всех
-        // пяти случаях одинаково. Диалог с кнопкой «Поддержка» уже показан
-        // строкой выше, а экран «нет серверов» назовёт причину по `hwid_state`.
-        // clod:headers end
 
         let status_code = resp.status();
         if !status_code.is_success() {
@@ -576,7 +436,6 @@ impl PrfItem {
 
         let extra = parse_subscription_userinfo(header);
 
-        // parse the Content-Disposition
         let filename = match header.get("Content-Disposition") {
             Some(value) => {
                 let filename = format!("{value:?}");
@@ -600,27 +459,18 @@ impl PrfItem {
                 Some(crate::utils::help::get_last_part_and_decode(url.as_str()).unwrap_or_else(|| "Remote File".into()))
             }
         };
-        // clod:headers begin
-        // `profile-update-interval` is now read through SubHeaders so we can also
-        // record that the provider — not the user — decided the value.
         let (update_interval, interval_locked) = match update_interval {
             Some(val) => (Some(val), None),
             None => match sub.update_interval_hours {
-                // saturating: the header is parsed as an arbitrary u64 and
-                // release builds run without overflow checks — a hostile
-                // value must not wrap into a tiny interval.
-                Some(hours) => (Some(hours.saturating_mul(60)), Some(true)), // hour -> min
+                Some(hours) => (Some(hours.saturating_mul(60)), Some(true)),
                 None => (None, None),
             },
         };
 
         let home = sub.home.clone();
-        // clod:headers end
 
         let uid = help::get_uid("R").into();
         let file = format!("{uid}.yaml").into();
-        // clod:headers begin
-        // Name priority: explicit user name > `profile-title` > content-disposition.
         let (name, name_from_header) = match name {
             Some(user_name) => (user_name.to_owned(), None),
             None => match sub.profile_title.clone() {
@@ -631,13 +481,10 @@ impl PrfItem {
                 ),
             },
         };
-        // clod:headers end
         let data = resp.text_with_charset()?;
 
-        // process the charset "UTF-8 with BOM"
         let data = data.trim_start_matches('\u{feff}');
 
-        // check the data whether the valid yaml format
         let yaml = serde_yaml_ng::from_str::<Mapping>(data).context("the remote profile data is invalid yaml")?;
 
         if !yaml.contains_key("proxies") && !yaml.contains_key("proxy-providers") {
@@ -670,10 +517,6 @@ impl PrfItem {
             groups = groups_item.uid.clone();
         }
 
-        // clod: сдвиг часов принимаем только правдоподобный. Год расхождения —
-        // это не «часы ушли», это сломанные часы у панели или у прокси перед
-        // ней, и коррекция по ним объявила бы подписку истёкшей на ровном
-        // месте. Своим часам в таком случае доверия больше.
         const MAX_SKEW_SECS: i64 = 366 * 24 * 60 * 60;
         let measured_skew = sub
             .server_time
@@ -689,8 +532,6 @@ impl PrfItem {
             url: Some(url.as_str().into()),
             selected: None,
             favorites: None,
-            // clod:groups — новая подписка приходит без группы; ярлык ставит
-            // пользователь, и `patch_item` его переживает.
             group: None,
             extra,
             option: Some(PrfOption {
@@ -701,14 +542,11 @@ impl PrfItem {
                 proxies,
                 groups,
                 allow_auto_update,
-                // clod:chan — признак и закреплённый ключ переживают обновление
-                // через `PrfOption::merge`, и признак снимается только удалением.
                 secure: option.and_then(|o| o.secure).filter(|on| *on),
                 chan_pin: learned_pin.or_else(|| option.and_then(|o| o.chan_pin.clone())),
                 ..PrfOption::default()
             }),
             home,
-            // clod:headers begin
             support_url: sub.support_url.clone(),
             logo: sub.profile_logo.clone(),
             announce: sub.announce.clone(),
@@ -723,6 +561,7 @@ impl PrfItem {
             lock_mode: sub.lock_mode,
             connect_mode: sub.connect_mode.map(|mode| mode.as_str().into()),
             latency_style: sub.latency_style.map(|style| style.as_str().into()),
+            disable_ping: sub.disable_ping.then_some(true),
             device_remove_url: sub.device_remove_url.clone(),
             show_zero_hosts: sub.show_zero_hosts,
             refill_date: sub.refill_date,
@@ -743,14 +582,11 @@ impl PrfItem {
             name_from_header,
             migrate_url: sub.migration_target(url.as_str()),
             hwid_max_devices: sub.hwid_max_devices,
-            // clod:headers end
             updated: Some(chrono::Local::now().timestamp() as usize),
             file_data: Some(data.into()),
         })
     }
 
-    /// ## Merge type (enhance)
-    /// create the enhanced item by using `merge` rule
     pub fn from_merge(uid: Option<String>) -> Result<Self> {
         let (id, template) = if let Some(uid) = uid {
             (uid, tmpl::ITEM_MERGE.into())
@@ -769,15 +605,13 @@ impl PrfItem {
         })
     }
 
-    /// ## Script type (enhance)
-    /// create the enhanced item by using javascript quick.js
     pub fn from_script(uid: Option<String>) -> Result<Self> {
         let id = if let Some(uid) = uid {
             uid
         } else {
             help::get_uid("s").into()
         };
-        let file = format!("{id}.js").into(); // js ext
+        let file = format!("{id}.js").into();
         Ok(Self {
             uid: Some(id),
             itype: Some("script".into()),
@@ -788,10 +622,9 @@ impl PrfItem {
         })
     }
 
-    /// ## Rules type (enhance)
     pub fn from_rules() -> Result<Self> {
         let uid = help::get_uid("r").into();
-        let file = format!("{uid}.yaml").into(); // yaml ext
+        let file = format!("{uid}.yaml").into();
 
         Ok(Self {
             uid: Some(uid),
@@ -803,10 +636,9 @@ impl PrfItem {
         })
     }
 
-    /// ## Proxies type (enhance)
     pub fn from_proxies() -> Result<Self> {
         let uid = help::get_uid("p").into();
-        let file = format!("{uid}.yaml").into(); // yaml ext
+        let file = format!("{uid}.yaml").into();
 
         Ok(Self {
             uid: Some(uid),
@@ -818,10 +650,9 @@ impl PrfItem {
         })
     }
 
-    /// ## Groups type (enhance)
     pub fn from_groups() -> Result<Self> {
         let uid = help::get_uid("g").into();
-        let file = format!("{uid}.yaml").into(); // yaml ext
+        let file = format!("{uid}.yaml").into();
 
         Ok(Self {
             uid: Some(uid),
@@ -833,7 +664,6 @@ impl PrfItem {
         })
     }
 
-    /// get the file data
     pub async fn read_file(&self) -> Result<String> {
         let file = self
             .file
@@ -846,7 +676,6 @@ impl PrfItem {
         Ok(content.into())
     }
 
-    /// save the file data
     pub async fn save_file(&self, data: String) -> Result<()> {
         let file = self
             .file
@@ -859,29 +688,15 @@ impl PrfItem {
     }
 }
 
-// clod:headers begin
-/// Диагностика «удалил хедер в панели, а он висит»: фиксируем в логе, какие
-/// clod-заголовки реально пришли в ответе. Если промо тут `false`, а баннер
-/// жив — баг клиента; если `true` — панель всё ещё шлёт заголовок.
-/// Трафик и срок подписки из заголовка `subscription-userinfo`.
-///
-/// Отдельной функцией не только ради читаемости: `from_url` упирается в порог
-/// когнитивной сложности clippy, и этот цикл с меткой — самый самостоятельный
-/// её кусок.
 fn parse_subscription_userinfo(headers: &reqwest::header::HeaderMap) -> Option<PrfExtra> {
     for (k, v) in headers.iter() {
         let key_lower = k.as_str().to_ascii_lowercase();
-        // Accept standard custom-metadata prefixes (x-amz-meta-, x-obs-meta-, x-cos-meta-, etc.).
         if !key_lower
             .strip_suffix("subscription-userinfo")
             .is_some_and(|prefix| prefix.is_empty() || prefix.ends_with('-'))
         {
             continue;
         }
-        // clod: `to_str` отказывает на любом байте выше 0x7F, и тогда весь
-        // трафик со сроком молча обнулялся бы. Значение обязано быть ASCII, но
-        // панель может прислать что угодно — читаем так же терпимо, как
-        // остальные заголовки.
         let raw_info = match v.to_str() {
             Ok(text) => std::borrow::Cow::Borrowed(text),
             Err(_) => std::string::String::from_utf8_lossy(v.as_bytes()),
@@ -897,37 +712,8 @@ fn parse_subscription_userinfo(headers: &reqwest::header::HeaderMap) -> Option<P
     None
 }
 
-/// Фора выбранного пути перед запасным.
-///
-/// Ноль означал бы второй запрос к панели на каждое обновление подписки —
-/// лишняя нагрузка там, где всё и так работает. За четверть секунды рабочий
-/// путь успевает ответить в подавляющем большинстве случаев, а неработающий
-/// не успевает никогда: он либо отказывает мгновенно (прокси не поднят), либо
-/// висит до таймаута (адрес заблокирован).
 const FETCH_HEAD_START: Duration = Duration::from_millis(250);
 
-/// clod:race-fetch — забрать подписку тем путём, который сработает.
-///
-/// Приём подсмотрен у Prizrak-Box (`utils.FastGet`), и для рынка с
-/// блокировками он важнее, чем кажется: путей ровно два, и каждый ломается
-/// в своей ситуации.
-///
-///   * через собственное ядро — единственный рабочий, когда адрес подписки
-///     заблокирован у провайдера связи;
-///   * напрямую — единственный рабочий, когда ядро ещё не поднято (первый
-///     импорт, старт приложения) или конфиг сломан.
-///
-/// Раньше путь выбирался заранее по галочкам профиля, и ошибка выбора
-/// означала «подписка не обновляется» вместо «обновилась вторым способом».
-///
-/// Берём первый УСПЕШНЫЙ ответ, а не первый пришедший: отказ по заблокированному
-/// адресу возвращается быстрее любого настоящего ответа, и гонка «кто первый»
-/// систематически выбирала бы именно его. Если не смог никто — отдаём ошибку
-/// выбранного пути: она про ту дорогу, которую пользователь настроил, и
-/// понятнее в отчёте.
-///
-/// Проигравший запрос отменяется вместе со сбросом future — `reqwest` закрывает
-/// соединение сам.
 async fn fetch_once(
     url: &str,
     proxy_type: ProxyType,
@@ -956,7 +742,6 @@ async fn fetch_subscription(
     accept_invalid_certs: bool,
     headers: &reqwest::header::HeaderMap,
 ) -> Result<crate::utils::network::HttpResponse> {
-    // Прямой путь и есть выбранный — гоняться не с кем.
     if matches!(preferred, ProxyType::None) {
         return fetch_once(url, ProxyType::None, timeout, user_agent, accept_invalid_certs, headers).await;
     }
@@ -975,15 +760,11 @@ async fn fetch_subscription(
     });
     let (mut chosen, mut direct) = (chosen, direct);
 
-    // Флаги обязательны: `select!` нельзя дать опросить уже завершившийся
-    // future — это паника, а не проигрыш в гонке.
     let (mut chosen_done, mut direct_done) = (false, false);
     let (mut chosen_error, mut direct_error) = (None, None);
 
     while !(chosen_done && direct_done) {
         tokio::select! {
-            // Выбранный путь первым по порядку: при одновременной готовности
-            // `biased` отдаёт победу той дороге, которую настроил пользователь.
             biased;
             result = &mut chosen, if !chosen_done => {
                 chosen_done = true;
@@ -1016,21 +797,11 @@ async fn fetch_subscription(
         }
     }
 
-    // Обе дороги закрыты. Ошибка выбранного пути информативнее — она про ту
-    // дорогу, которую пользователь настроил, и понятнее в отчёте.
     Err(chosen_error
         .or(direct_error)
         .unwrap_or_else(|| anyhow::anyhow!("subscription fetch produced no result")))
 }
 
-/// clod:chan — загрузка подписки той дорогой, которая ей положена.
-///
-/// Защищённая подписка ходит только по защищённому каналу: отката на открытый
-/// запрос нет ни при каких условиях, включая самый первый. Иначе достаточно
-/// ответить 404 на `/c1/`, чтобы клиент сам отдал посреднику адрес подписки
-/// вместе с `x-hwid`.
-///
-/// Второе возвращаемое значение — ключ прослойки, который надо закрепить.
 async fn fetch_for_profile(
     url: &str,
     proxy_type: ProxyType,
@@ -1061,8 +832,6 @@ async fn fetch_for_profile(
         };
     }
 
-    // Ключ прослойки, закреплённый прошлым успешным ответом. На первом
-    // контакте его нет — тогда всё держится на секрете самого адреса.
     let pinned = option.and_then(|o| o.chan_pin.as_ref()).and_then(|raw| {
         use base64::Engine as _;
         let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD
@@ -1082,14 +851,6 @@ async fn fetch_for_profile(
     )
     .await;
 
-    // Закреплённый ключ мог перестать существовать: прослойку переставили,
-    // базу потеряли, ключ сменили дважды подряд. Тогда закрепление — это
-    // кирпич навсегда: прослойка отвечает как на мусорный путь, а клиент
-    // упрямо шлёт тот же отпечаток. Один повтор без закрепления лечит это сам
-    // и закрепляет уже настоящий ключ.
-    //
-    // На открытый HTTP при этом не откатываемся НИКОГДА: повтор идёт по тому
-    // же защищённому каналу, только без DH с долгоживущим ключом.
     if outcome.is_err() && pinned.is_some() {
         clash_verge_logging::logging!(
             warn,
@@ -1122,22 +883,8 @@ async fn fetch_for_profile(
     }
 }
 
-/// clod:chan — User-Agent защищённого запроса.
-///
-/// Наружу уходит самый скучный из возможных: настоящий UA клиента едет внутрь
-/// шифра, а посреднику незачем знать, что за приложение к нему пришло.
-/// Пустой UA хуже — часть WAF режет запросы без него.
 const CHAN_NEUTRAL_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)";
 
-/// clod:chan — загрузка подписки по защищённому каналу.
-///
-/// Наружу не уходит ничего, кроме пути `/c1/…`: ни адреса подписки, ни `x-hwid`,
-/// ни карточки устройства. Ответ приходит сплошным шифротекстом, из которого
-/// восстанавливаются и тело, и все заголовки панели — дальше по коду они
-/// разбираются ровно теми же функциями, что и в открытом режиме.
-///
-/// Второе возвращаемое значение — публичный ключ прослойки: его закрепляют
-/// в профиле, и со следующего запроса он участвует в выводе ключей.
 async fn fetch_secure(
     url: &str,
     proxy_type: ProxyType,
@@ -1170,7 +917,6 @@ async fn fetch_secure(
     let now = chrono::Local::now().timestamp();
     let (secure_url, session) = chan::build(url, pin, &fields, now)?;
 
-    // Заголовков опознания снаружи нет вовсе — в этом весь смысл.
     let response = fetch_subscription(
         secure_url.as_str(),
         proxy_type,
@@ -1190,8 +936,6 @@ async fn fetch_secure(
 
     let answer = session.open(response.text_with_charset()?, chrono::Local::now().timestamp())?;
 
-    // Заголовки восстанавливаем в обычную мапу: весь разбор ниже по коду
-    // (announce, notify-*, срок, трафик) остаётся нетронутым.
     let mut headers = reqwest::header::HeaderMap::new();
     for (name, values) in &answer.meta {
         let Ok(name) = reqwest::header::HeaderName::from_bytes(name.as_bytes()) else {
@@ -1205,8 +949,6 @@ async fn fetch_secure(
     }
 
     Ok((
-        // Тело кладём в тип сети как есть: `String` в этом файле — smartstring,
-        // и обычная строка в него не подставляется молча.
         crate::utils::network::HttpResponse::new(
             reqwest::StatusCode::from_u16(answer.status).unwrap_or(reqwest::StatusCode::OK),
             headers,
@@ -1216,17 +958,8 @@ async fn fetch_secure(
     ))
 }
 
-/// Порог, выше которого метка времени может быть только миллисекундами:
-/// 1e12 секунд — это 33658 год, настоящей датой окончания подписки не бывает.
 const MILLIS_THRESHOLD: u64 = 1_000_000_000_000;
 
-/// clod: привести метку времени панели к unix-секундам.
-///
-/// Спецификация `subscription-userinfo` говорит про секунды, но часть панелей
-/// шлёт миллисекунды — и тогда дата окончания уезжала на тысячелетия вперёд,
-/// то есть подписка выглядела бессрочной. Фронт это уже чинил у себя
-/// (`toUnixSeconds`), но каждый новый экран приходилось помнить и чинить
-/// заново; правится в одном месте — там, где значение попадает в профиль.
 const fn to_unix_seconds(ts: u64) -> u64 {
     if ts > MILLIS_THRESHOLD { ts / 1000 } else { ts }
 }
@@ -1249,18 +982,11 @@ fn log_panel_headers(sub: &sub_headers::SubHeaders) {
 }
 
 impl PrfItem {
-    /// Copy provider metadata from a freshly fetched item onto the stored one.
-    ///
-    /// Called from [`crate::config::profiles::IProfiles::update_item`] so a
-    /// subscription refresh picks up header changes without losing local state
-    /// (dismissed announce, migration history, a name the user chose).
     pub fn merge_panel_meta(&mut self, fresh: &Self) {
-        // A provider name only applies while the user has not renamed the profile.
         if fresh.name_from_header == Some(true) && self.name_customized != Some(true) && fresh.name.is_some() {
             self.name = fresh.name.clone();
         }
 
-        // Replace, do not merge: a header that disappeared must clear its value.
         self.support_url = fresh.support_url.clone();
         self.logo = fresh.logo.clone();
         self.announce_url = fresh.announce_url.clone();
@@ -1269,10 +995,6 @@ impl PrfItem {
         self.fallback_url = fresh.fallback_url.clone();
         self.fallback_domain = fresh.fallback_domain.clone();
         self.hwid_state = fresh.hwid_state.clone();
-        // The exception to "replace, do not merge": this is a measurement, not
-        // a provider setting. A response that arrived without a `Date` says
-        // nothing about the device clock, so the last real reading stands —
-        // with the moment it was taken, which is what its ageing is judged by.
         if fresh.clock_skew.is_some() {
             self.clock_skew = fresh.clock_skew;
             self.clock_skew_at = fresh.clock_skew_at;
@@ -1282,49 +1004,29 @@ impl PrfItem {
         self.from_fallback = fresh.from_fallback;
         self.simple_mode = fresh.simple_mode;
         self.portal_url = fresh.portal_url.clone();
-        // clod:provider-links — как и портал: пропал заголовок, пропала кнопка.
         self.bot_url = fresh.bot_url.clone();
         self.monitor_url = fresh.monitor_url.clone();
         self.guide_url = fresh.guide_url.clone();
         self.lock_mode = fresh.lock_mode;
-        // clod:connect-mode — тоже пожелание панели и следует за ней целиком:
-        // убранный заголовок возвращает выбор пользователю.
         self.connect_mode = fresh.connect_mode.clone();
         self.latency_style = fresh.latency_style.clone();
+        self.disable_ping = fresh.disable_ping;
         self.device_remove_url = fresh.device_remove_url.clone();
-        // Убранный заголовок возвращает наши экраны: поле следует за панелью
-        // целиком, как и остальная её метаинформация.
         self.show_zero_hosts = fresh.show_zero_hosts;
 
-        // The announce is permanent and never dismissable; it simply follows
-        // whatever the panel currently says.
         self.announce = fresh.announce.clone();
 
-        // A changed promo must be shown again, so drop the dismissal. A promo
-        // the panel stopped sending disappears entirely.
         if self.promo != fresh.promo {
             self.promo_seen = None;
         }
         self.promo = fresh.promo.clone();
         self.promo_url = fresh.promo_url.clone();
 
-        // An update that asks for no migration ends the current migration chain,
-        // so the hop guard starts from zero again next time.
         if fresh.migrate_url.is_none() {
             self.migration_hops = None;
         }
-
-        // `previous_urls` and `notified` are owned locally and never come from
-        // the panel; `url` migration is applied by `feat::profile`.
     }
 
-    /// Seconds to add to this device's clock to get the panel's, or 0 when we
-    /// have no usable measurement.
-    ///
-    /// A measurement older than a month is dropped rather than trusted: the
-    /// risk is not crystal drift (seconds a month) but the user fixing the
-    /// clock, or time synchronisation doing it after a boot — the moment that
-    /// happens a stored offset turns into an error of exactly its own size.
     pub fn panel_clock_skew(&self) -> i64 {
         const MAX_AGE_SECS: i64 = 30 * 24 * 60 * 60;
 
@@ -1336,30 +1038,20 @@ impl PrfItem {
             .map(|d| d.as_secs() as i64)
             .unwrap_or(0);
 
-        // A negative age means the device clock moved backwards under the
-        // measurement — exactly the "user fixed the clock" case the ageing
-        // rule exists for, and the stored offset is now wrong by its own size.
         let age = now - measured_at;
         if !(0..=MAX_AGE_SECS).contains(&age) { 0 } else { skew }
     }
 
-    /// Whether the stored promo still needs to be shown.
-    ///
-    /// Dismissal is a plain marker rather than a comparison: `merge_panel_meta`
-    /// already clears it whenever the promo text changes, so a new promotion
-    /// reappears without the UI having to hash anything.
     pub fn promo_pending(&self) -> bool {
         self.promo.as_deref().is_some_and(|text| !text.is_empty()) && !self.promo_seen.unwrap_or(false)
     }
 
-    /// Record that the primary URL was replaced by `new_url`.
     pub fn record_url_migration(&mut self, new_url: String) {
         if let Some(previous) = self.url.take() {
             let history = self.previous_urls.get_or_insert_with(Vec::new);
             if !history.iter().any(|entry| entry == &previous) {
                 history.push(previous);
             }
-            // Keep the history bounded.
             if history.len() > 10 {
                 let overflow = history.len() - 10;
                 history.drain(0..overflow);
@@ -1369,36 +1061,29 @@ impl PrfItem {
         self.migration_hops = Some(self.migration_hops.unwrap_or(0).saturating_add(1));
     }
 }
-// clod:headers end
 
 impl PrfItem {
-    /// Получает merge подписки, на которую указывает current
     pub fn current_merge(&self) -> Option<&String> {
         self.option.as_ref().and_then(|o| o.merge.as_ref())
     }
 
-    /// Получает script подписки, на которую указывает current
     pub fn current_script(&self) -> Option<&String> {
         self.option.as_ref().and_then(|o| o.script.as_ref())
     }
 
-    /// Получает rules подписки, на которую указывает current
     pub fn current_rules(&self) -> Option<&String> {
         self.option.as_ref().and_then(|o| o.rules.as_ref())
     }
 
-    /// Получает proxies подписки, на которую указывает current
     pub fn current_proxies(&self) -> Option<&String> {
         self.option.as_ref().and_then(|o| o.proxies.as_ref())
     }
 
-    /// Получает groups подписки, на которую указывает current
     pub fn current_groups(&self) -> Option<&String> {
         self.option.as_ref().and_then(|o| o.groups.as_ref())
     }
 }
 
-// Для совместимости автообновление подписки включено по умолчанию
 #[allow(clippy::unnecessary_wraps)]
 const fn default_allow_auto_update() -> Option<bool> {
     Some(true)
@@ -1408,11 +1093,6 @@ fn allow_auto_update_enabled(option: Option<&PrfOption>) -> bool {
     option.and_then(|o| o.allow_auto_update).unwrap_or(true)
 }
 
-/// Fix URLs where query parameters are incorrectly appended to the path segment
-///
-/// Incorrect Example: https://example.com/path&param1=value1
-///
-/// clod: заодно единственное место, где проверяется схема адреса подписки.
 fn fix_dirty_url(input: &str) -> Result<Url> {
     let mut url = match Url::parse(input) {
         Ok(u) => u,
@@ -1425,15 +1105,6 @@ fn fix_dirty_url(input: &str) -> Result<Url> {
         }
     };
 
-    // clod: подписка забирается только по http и https.
-    //
-    // Сюда приходит строка из буфера обмена, из deep-link и из заголовков
-    // панели, а `Url` разбирает вообще любую схему. Это страховка, а не
-    // закрытие дыры: запрос всё равно уходит в reqwest, а он сам отбивает
-    // всё кроме http и https (`execute_request` -> `url_bad_scheme`), так что
-    // `file:///` файл с диска не читал. Проверка нужна затем, чтобы отказ
-    // называл причину на нашем слое, а не приходил невнятной сетевой ошибкой,
-    // и чтобы запрет пережил возможную смену http-клиента.
     if !matches!(url.scheme(), "http" | "https") {
         anyhow::bail!(
             "subscription URL must use http or https, got scheme \"{}\": {}",
@@ -1442,7 +1113,6 @@ fn fix_dirty_url(input: &str) -> Result<Url> {
         );
     }
 
-    // Хост обязателен: `http:///path` разбирается, но ходить по нему некуда.
     if url.host_str().is_none_or(str::is_empty) {
         anyhow::bail!("subscription URL has no host: {}", help::mask_url(input));
     }
@@ -1465,12 +1135,6 @@ fn fix_dirty_url(input: &str) -> Result<Url> {
 mod tests {
     use super::{PrfItem, PrfOption, allow_auto_update_enabled, fix_dirty_url, to_unix_seconds};
 
-    /// clod:provider-links — ссылки принадлежат ПОДПИСКЕ, а не приложению.
-    ///
-    /// Проверяем ровно то, из-за чего у человека с двумя подписками кабинет
-    /// одного провайдера мог бы открыться под именем другого: обновление
-    /// подписки заменяет ссылки целиком, а не дополняет их. Ответ без
-    /// заголовка означает «у меня такой кнопки нет» — и кнопка исчезает.
     #[test]
     fn provider_links_are_replaced_not_merged() {
         let mut stored = PrfItem {
@@ -1482,7 +1146,6 @@ mod tests {
             ..PrfItem::default()
         };
 
-        // Панель прислала только бота — и только он должен остаться.
         let fresh = PrfItem {
             bot_url: Some("tg://resolve?domain=second_bot".into()),
             ..PrfItem::default()
@@ -1495,19 +1158,14 @@ mod tests {
         assert_eq!(stored.monitor_url, None);
         assert_eq!(stored.guide_url, None);
 
-        // Пустой ответ гасит и его: ни одной чужой ссылки не переживает.
         stored.merge_panel_meta(&PrfItem::default());
         assert_eq!(stored.bot_url, None);
     }
 
     #[test]
     fn recognises_milliseconds_in_expire() {
-        // Секунды остаются собой.
         assert_eq!(to_unix_seconds(1_754_000_000), 1_754_000_000);
-        // Тринадцать цифр — это миллисекунды: без деления дата уехала бы в
-        // 57569 год, и подписка выглядела бы бессрочной.
         assert_eq!(to_unix_seconds(1_754_000_000_000), 1_754_000_000);
-        // Ноль — это «бессрочно», а не «истекла в 1970»; трогать его нельзя.
         assert_eq!(to_unix_seconds(0), 0);
     }
 
@@ -1522,20 +1180,15 @@ mod tests {
         assert!(!allow_auto_update_enabled(Some(&disabled)));
     }
 
-    /// clod: схема адреса подписки.
     #[test]
     #[allow(clippy::expect_used)]
     fn subscription_urls_are_limited_to_http_and_https() {
-        // Обычные адреса, ради которых всё и написано.
         assert!(fix_dirty_url("https://panel.example/sub/token").is_ok());
         assert!(fix_dirty_url("http://panel.example/sub").is_ok());
 
-        // Починка слипшихся параметров работает как работала.
         let fixed = fix_dirty_url("https://panel.example/sub&flow=xtls").expect("dirty url");
         assert_eq!(fixed.query(), Some("flow=xtls"));
 
-        // Всё остальное — не адрес подписки. reqwest такие схемы отбивает и
-        // сам, но своя проверка называет причину и не зависит от клиента.
         for hostile in [
             "file:///etc/passwd",
             "file://server/share/config.yaml",
@@ -1548,9 +1201,6 @@ mod tests {
             assert!(error.contains("http or https"), "{hostile} -> {error}");
         }
 
-        // Схема верная, хоста нет — идти некуда. «https:///sub» сюда не
-        // годится: лишние слэши парсер по WhatWG сворачивает, и хостом
-        // становится «sub» — это валидный адрес.
         assert!(fix_dirty_url("https://").is_err());
     }
 }
