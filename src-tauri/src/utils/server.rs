@@ -10,7 +10,6 @@ use anyhow::{Result, bail};
 use clash_verge_logging::{Type, logging, logging_error};
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
-use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
 use reqwest::ClientBuilder;
 use smartstring::alias::String;
 use std::time::Duration;
@@ -33,6 +32,8 @@ pub async fn check_singleton() -> Result<()> {
         if argvs.len() > 1 {
             #[cfg(not(target_os = "macos"))]
             {
+                use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
+
                 let param = argvs[1].as_str();
                 if param.starts_with("clash:") || param.starts_with("clash-verge:") || param.starts_with("clodclash:") {
                     let encoded = utf8_percent_encode(param, NON_ALPHANUMERIC);
