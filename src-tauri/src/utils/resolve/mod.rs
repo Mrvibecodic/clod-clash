@@ -67,7 +67,6 @@ pub fn resolve_setup_async() {
 
         let core_init = AsyncHandler::spawn(|| async {
             init_launch_connect_state().await;
-            #[cfg(unix)]
             crate::core::orphan::sweep_orphan_cores().await;
             init_service_manager().await;
             init_core_manager().await;
