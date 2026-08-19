@@ -4,6 +4,10 @@
   },
   "actions": {
     "showDescending": "Сначала новые",
-    "showAscending": "Сначала старые"
+    "showAscending": "Сначала старые",
+    "export": "Сохранить в файл"
+  },
+  "messages": {
+    "exported": "Логи сохранены"
   }
 }

@@ -4,6 +4,10 @@
   },
   "actions": {
     "showDescending": "Newest first",
-    "showAscending": "Oldest first"
+    "showAscending": "Oldest first",
+    "export": "ذخیره در فایل"
+  },
+  "messages": {
+    "exported": "گزارش‌ها ذخیره شدند"
   }
 }

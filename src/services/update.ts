@@ -123,24 +123,16 @@ const resolveRemoteVersion = (update: Update): string | null => {
 
 const localVersionNormalized = normalizeVersion(appVersion)
 
-// clod:prereleases — версия помечена как предварительная semver-суффиксом
-// (`0.0.24-alpha`, `1.0.0-rc.1`). Тот же признак, что и на стороне Rust:
-// манифест обновления один на все каналы, и различить сборки можно только по
-// номеру версии.
 const isPrereleaseVersion = (version: string | null | undefined): boolean => {
   const parts = splitVersion(normalizeVersion(version))
   return !!parts && parts.pre.length > 0
 }
 
-// clod:prereleases — «получать предварительные сборки» спрашиваем здесь, а не
-// у трёх вызывающих: проверка обновлений идёт и из настроек, и из диалога, и
-// из фонового хука, и разъехавшийся ответ был бы хуже лишнего чтения конфига.
 const prereleasesAllowed = async (): Promise<boolean> => {
   try {
     const verge = await getVergeConfig()
     return verge?.receive_prereleases !== false
   } catch (err) {
-    // Не смогли спросить — ведём себя как раньше: пропускаем обновление.
     console.warn('[updater] failed to read the pre-release preference', err)
     return true
   }
@@ -155,10 +147,43 @@ const discard = async (result: Update): Promise<null> => {
   return null
 }
 
+const DEFAULT_MIXED_PORT = 7897
+
+const localProxyUrl = async (): Promise<string | null> => {
+  try {
+    const verge = await getVergeConfig()
+    const port = verge?.verge_mixed_port ?? DEFAULT_MIXED_PORT
+    return `http://127.0.0.1:${port}`
+  } catch (err) {
+    console.warn('[updater] failed to read the local proxy port', err)
+    return null
+  }
+}
+
+const checkWithFallback = async (
+  options: CheckOptions,
+): Promise<Update | null> => {
+  try {
+    return await check(options)
+  } catch (directError) {
+    if (options.proxy) throw directError
+    const proxy = await localProxyUrl()
+    if (!proxy) throw directError
+    console.warn(
+      `[updater] direct check failed, retrying via ${proxy}`,
+      directError,
+    )
+    return await check({ ...options, proxy })
+  }
+}
+
 export const checkUpdateSafe = async (
   options?: CheckOptions,
 ): Promise<Update | null> => {
-  const result = await check({ ...(options ?? {}), allowDowngrades: false })
+  const result = await checkWithFallback({
+    ...(options ?? {}),
+    allowDowngrades: false,
+  })
   if (!result) return null
 
   const remoteVersion = resolveRemoteVersion(result)

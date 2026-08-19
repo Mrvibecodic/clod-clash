@@ -4,6 +4,10 @@
   },
   "actions": {
     "showDescending": "Newest first",
-    "showAscending": "Oldest first"
+    "showAscending": "Oldest first",
+    "export": "Dosyaya kaydet"
+  },
+  "messages": {
+    "exported": "Günlükler kaydedildi"
   }
 }

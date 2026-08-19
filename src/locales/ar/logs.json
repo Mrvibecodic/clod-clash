@@ -4,6 +4,10 @@
   },
   "actions": {
     "showDescending": "Newest first",
-    "showAscending": "Oldest first"
+    "showAscending": "Oldest first",
+    "export": "حفظ في ملف"
+  },
+  "messages": {
+    "exported": "تم حفظ السجلات"
   }
 }

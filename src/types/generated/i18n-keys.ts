@@ -195,6 +195,8 @@ export const translationKeys = [
   'logs.page.title',
   'logs.actions.showDescending',
   'logs.actions.showAscending',
+  'logs.actions.export',
+  'logs.messages.exported',
   'profiles.page.actions.updateAll',
   'profiles.page.actions.viewRuntimeConfig',
   'profiles.page.actions.reactivate',

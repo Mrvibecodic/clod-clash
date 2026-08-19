@@ -4,6 +4,10 @@
   },
   "actions": {
     "showDescending": "按时间倒序",
-    "showAscending": "按时间正序"
+    "showAscending": "按时间正序",
+    "export": "保存到文件"
+  },
+  "messages": {
+    "exported": "日志已保存"
   }
 }

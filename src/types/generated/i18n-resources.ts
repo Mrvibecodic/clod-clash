@@ -313,8 +313,12 @@ export interface TranslationResources {
     }
     logs: {
       actions: {
+        export: string
         showAscending: string
         showDescending: string
+      }
+      messages: {
+        exported: string
       }
       page: {
         title: string

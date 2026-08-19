@@ -1,9 +1,14 @@
 import {
   PlayCircleOutlineRounded,
   PauseCircleOutlineRounded,
+  SaveAltRounded,
   SwapVertRounded,
 } from '@mui/icons-material'
 import { Box, Button, IconButton, MenuItem } from '@mui/material'
+import { save } from '@tauri-apps/plugin-dialog'
+import { writeTextFile } from '@tauri-apps/plugin-fs'
+import { useLockFn } from 'ahooks'
+import dayjs from 'dayjs'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -20,6 +25,7 @@ import LogItem from '@/components/log/log-item'
 import { useClashLog } from '@/hooks/use-clash-log'
 import { useLogData } from '@/hooks/use-log-data'
 import { useVisibility } from '@/hooks/use-visibility'
+import { showNotice } from '@/services/notice-service'
 
 const LogPage = () => {
   const { t } = useTranslation()
@@ -42,10 +48,7 @@ const LogPage = () => {
       return []
     }
 
-    // Server-side filtering handles level filtering via query parameters
-    // We only need to apply search filtering here
     return logData.filter((data) => {
-      // Формируем полный текст поиска, включая время, тип и содержимое
       const searchText =
         `${data.time || ''} ${data.type} ${data.payload}`.toLowerCase()
 
@@ -88,6 +91,22 @@ const LogPage = () => {
       logOrder: pre!.logOrder === 'desc' ? 'asc' : 'desc',
     }))
   }
+
+  const handleExport = useLockFn(async () => {
+    if (filteredLogs.length === 0) return
+    const filename = `clod-clash-logs-${dayjs().format('YYYYMMDD-HHmmss')}.log`
+    const savePath = await save({ defaultPath: filename })
+    if (!savePath || Array.isArray(savePath)) return
+    try {
+      const body = filteredLogs
+        .map((item) => `${item.time ?? ''} ${item.type} ${item.payload}`.trim())
+        .join('\n')
+      await writeTextFile(savePath, `${body}\n`)
+      showNotice.success('logs.messages.exported')
+    } catch (err) {
+      showNotice.error(err)
+    }
+  })
 
   return (
     <BasePage
@@ -139,6 +158,17 @@ const LogPage = () => {
                 transition: 'transform 0.2s ease',
               }}
             />
+          </IconButton>
+
+          <IconButton
+            title={t('logs.actions.export')}
+            aria-label={t('logs.actions.export')}
+            size="small"
+            color="inherit"
+            disabled={filteredLogs.length === 0}
+            onClick={handleExport}
+          >
+            <SaveAltRounded />
           </IconButton>
 
           <Button

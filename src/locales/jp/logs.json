@@ -4,6 +4,10 @@
   },
   "actions": {
     "showDescending": "Newest first",
-    "showAscending": "Oldest first"
+    "showAscending": "Oldest first",
+    "export": "ファイルに保存"
+  },
+  "messages": {
+    "exported": "ログを保存しました"
   }
 }
