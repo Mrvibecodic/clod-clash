@@ -8,6 +8,50 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.1.2
+
+<!-- lang:en -->
+
+### Added
+
+- TUN: the network stack, strict routing and DNS interception can now follow the subscription («Auto») or be set by hand in Settings → TUN
+- A provider can hide latency numbers with the `clod-disable-ping` header: a server then shows a green check, a red cross or a dash
+- The logs screen got a «Save to file» button — it writes exactly what is on screen, with the current level, search and order
+
+### Fixed
+
+- The tunnel is raised again after a failed start, and comes back after sleep or a network change
+- A registered but stopped background service is started without asking for rights (Windows)
+- Linux: the service is no longer removed when the package is updated, so the password is not asked again
+- After a crash no orphaned core stays running (Linux, macOS)
+- A subscription link opens the app and imports the subscription even when the app was closed or hidden in the tray, and links with `&` or `#` are no longer cut short
+- The right click shows the system menu in text fields again (Windows)
+- Connections really close when the server changes and the matching setting is on
+- Custom theme CSS is not lost when the settings window is closed
+- Checking for updates by hand goes through the local proxy when GitHub is not reachable directly
+
+<!-- lang:ru -->
+
+### Добавлено
+
+- TUN: сетевой стек, строгая маршрутизация и перехват DNS теперь могут следовать за подпиской («Авто») или задаваться вручную в «Настройки → TUN»
+- Провайдер может скрыть цифры пинга заголовком `clod-disable-ping`: вместо миллисекунд у сервера появляется зелёная галочка, красный крестик или прочерк
+- На экране логов появилась кнопка «Сохранить в файл» — пишет ровно то, что на экране, с учётом уровня, поиска и порядка
+
+### Исправлено
+
+- Туннель поднимается повторно после неудачного старта и восстанавливается после сна и смены сети
+- Зарегистрированная, но остановленная фоновая служба запускается без запроса прав (Windows)
+- Linux: служба больше не удаляется при обновлении пакета, поэтому пароль не спрашивают заново
+- После аварийного завершения не остаётся запущенное ядро (Linux, macOS)
+- Ссылка на подписку открывает приложение и добавляет подписку, даже если оно было закрыто или свёрнуто в трей, а ссылки с `&` и `#` больше не обрезаются
+- Правый клик в полях ввода снова показывает системное меню (Windows)
+- Соединения действительно закрываются при смене сервера, когда включена соответствующая настройка
+- Свой CSS темы не теряется при закрытии окна настроек
+- Проверка обновлений вручную проходит через локальный прокси, если GitHub напрямую недоступен
+
+---
+
 ## v0.1.1
 
 <!-- lang:en -->
