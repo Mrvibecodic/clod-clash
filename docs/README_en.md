@@ -129,6 +129,14 @@ Here the only thing the user touches is the switch itself:
 * **The `tun` section belongs to the app.** A provider profile (or a manual merge/script) can
   neither switch TUN off nor switch it on: a snapshot is taken before manual overrides and restored
   after, and a key that was not there does not appear.
+* **Three tunnel keys are handed out anyway.** `stack`, `strict-route` and `dns-hijack` are resolved
+  as a ladder — user's choice, then the subscription template, then the client's own default
+  (`gvisor`, `false`, `any:53`) — so a provider can change them from the template without a new
+  client release. **Auto** in the TUN dialog is exactly "follow the subscription". What breaks
+  easily is listed in [REMNAWAVE.md](./REMNAWAVE.md#4-граница-ответственности-что-ваше-что-клиента);
+  the short version: with the Windows firewall on, the `system` and `mixed` stacks do not work at
+  all until the core is allowed through it by hand, so `gvisor` is the safe value for a template
+  that ordinary users will get.
 * **Only a core we have already seen gets started.** The service launches the binary at the path
   the app names, and it does so with system privileges — so a swapped core file would run as
   SYSTEM. The file's digest is recorded on first sight (for a downloaded core, at install time from
@@ -195,10 +203,15 @@ and the rest that are not part of
 Remnawave's standard set are configured through `customResponseHeaders`. Values with
 non-ASCII text are safer to send as `base64:<payload>`; every link must be `https://`.
 
-**The template does not drive the client.** `mode`, ports, `tun` and
-`external-controller` from the template are overwritten by the app's own settings;
-`profile.store-selected` is forced to `true`, so the chosen server survives
-subscription updates. The full template guide lives in [REMNAWAVE.md](./REMNAWAVE.md).
+**Where the line is drawn.** `mode`, ports, `external-controller` and most of the `tun`
+section are overwritten by the app's own settings; `profile.store-selected` is forced to
+`true`, so the chosen server survives subscription updates. Everything else — `dns`,
+`hosts`, `sniffer`, rules and groups included — is left entirely to the template, and
+`tun.stack`, `tun.strict-route` and `tun.dns-hijack` are yours until the user picks them
+himself. The full breakdown of what belongs to whom, and of what is easiest to get wrong
+(the TUN stack against the Windows firewall, `fake-ip-range`, local-network exclusions),
+lives in [REMNAWAVE.md, section 4](./REMNAWAVE.md#4-граница-ответственности-что-ваше-что-клиента).
+The guide itself is in Russian.
 
 **Device limit.** With the limit enabled the panel refuses to serve the subscription without
 `x-hwid`. The client sends it by default, and the id is stable across restarts and app
