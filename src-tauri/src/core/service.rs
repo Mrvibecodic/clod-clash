@@ -1067,7 +1067,7 @@ fn ipc_path_busy(error: &std::io::Error) -> bool {
 pub async fn is_service_available() -> Result<()> {
     match Path::metadata(clash_verge_service_ipc::IPC_PATH.as_ref()) {
         Ok(_) => {}
-        Err(e) if ipc_path_busy(&e) => return Ok(()),
+        Err(e) if ipc_path_busy(&e) => {}
         Err(e) => {
             let verge = Config::verge().await;
             let verge_last = verge.latest_arc();
