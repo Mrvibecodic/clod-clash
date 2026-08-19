@@ -28,7 +28,9 @@
           "autoDisabled": "El núcleo no pudo levantar el dispositivo TUN, así que TUN está desactivado",
           "setupStarted": "Configurando el modo TUN: instalando el servicio en segundo plano",
           "setupDone": "El modo TUN está listo",
-          "setupFailed": "No se pudo instalar el servicio en segundo plano, TUN sigue desactivado"
+          "setupFailed": "No se pudo instalar el servicio en segundo plano, TUN sigue desactivado",
+          "noTraffic": "TUN está activo pero no fluye tráfico por el túnel",
+          "noTrafficWindows": "TUN está activo pero no fluye tráfico: permita al núcleo las conexiones entrantes en el firewall de Windows o cambie la pila. Pila activa"
         },
         "core": {
           "binaryChanged": "El archivo del núcleo cambió desde su instalación y no se inició",
@@ -524,7 +526,9 @@
       "messages": {
         "applied": "Ajustes aplicados",
         "invalidRouteExcludeAddress": "Introduce un bloque CIDR válido",
-        "routeExcludeAddressHint": "Solo se admiten bloques CIDR de IPv4/IPv6, como 192.168.0.0/16 o fd00::/8"
+        "routeExcludeAddressHint": "Solo se admiten bloques CIDR de IPv4/IPv6, como 192.168.0.0/16 o fd00::/8",
+        "activeStack": "Pila activa: {{stack}}",
+        "windowsStackFirewall": "En Windows las pilas system y mixed requieren permitir al núcleo las conexiones entrantes en el firewall; sin esto el tráfico del túnel no fluirá"
       }
     },
     "dns": {

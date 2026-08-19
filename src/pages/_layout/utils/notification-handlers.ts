@@ -1,4 +1,7 @@
 import { showNotice } from '@/services/notice-service'
+import getSystem from '@/utils/get-system'
+
+const OS = getSystem()
 
 type NavigateFunction = (path: string, options?: any) => void
 type TranslateFunction = (key: string) => string
@@ -11,9 +14,6 @@ export const handleNoticeMessage = (
 ) => {
   const handlers: Record<string, () => void> = {
     'import_sub_url::ok': () => {
-      // Передаём пустой msg, не хотим цикла backend-frontend-backend, здесь только уведомление.
-      // В будущем при детализации событий можно передавать ID подписки или другой идентификатор
-      // navigate("/profile", { state: { current: msg } });
       navigate('/profile')
       showNotice.success(
         'shared.feedback.notifications.importSubscriptionSuccess',
@@ -34,7 +34,6 @@ export const handleNoticeMessage = (
         'settings.feedback.notifications.updater.withClashProxyFailed',
         msg,
       ),
-    // clod: provider driven subscription changes
     'clod_sub::url_migrated': () =>
       showNotice.success(
         'profiles.page.feedback.notifications.urlMigrated',
@@ -42,7 +41,6 @@ export const handleNoticeMessage = (
       ),
     'clod_sub::fallback_used': () =>
       showNotice.info('profiles.page.feedback.notifications.fallbackUsed', msg),
-    // clod:F5 managed core
     'clod_core::updated': () =>
       showNotice.success('settings.modals.managedCore.updatedTo', msg),
     'clod_core::update_available': () =>
@@ -88,8 +86,6 @@ export const handleNoticeMessage = (
       showNotice.error('shared.feedback.validation.merge.keyError', msg),
     'config_validate::merge_error': () =>
       showNotice.error('shared.feedback.validation.merge.generalError', msg),
-    // clod:tun-ready — TUN больше не «зелёная кнопка при мёртвом туннеле»:
-    // бэкенд рассказывает и про установку службы, и про провал старта.
     'tun::setup_started': () =>
       showNotice.info(
         'settings.sections.system.notifications.tunMode.setupStarted',
@@ -106,6 +102,13 @@ export const handleNoticeMessage = (
     'tun::start_failed': () =>
       showNotice.error(
         'settings.sections.system.notifications.tunMode.autoDisabled',
+        msg,
+      ),
+    'tun::no_traffic': () =>
+      showNotice.error(
+        OS === 'windows' && ['system', 'mixed'].includes(msg.toLowerCase())
+          ? 'settings.sections.system.notifications.tunMode.noTrafficWindows'
+          : 'settings.sections.system.notifications.tunMode.noTraffic',
         msg,
       ),
     'service::needs_repair': () =>

@@ -28,7 +28,9 @@
           "autoDisabled": "内核未能启动 TUN 设备，TUN 模式暂时关闭",
           "setupStarted": "正在配置 TUN 模式：安装后台服务",
           "setupDone": "TUN 模式已就绪",
-          "setupFailed": "后台服务安装失败，TUN 模式保持关闭"
+          "setupFailed": "后台服务安装失败，TUN 模式保持关闭",
+          "noTraffic": "TUN 已启动，但没有流量通过隧道",
+          "noTrafficWindows": "TUN 已启动但没有流量：请在 Windows 防火墙中允许核心的入站连接，或更换栈。当前生效的栈"
         },
         "core": {
           "binaryChanged": "内核文件在安装后被修改，已拒绝启动",
@@ -524,7 +526,9 @@
       "messages": {
         "applied": "设置已应用",
         "invalidRouteExcludeAddress": "请输入有效的 CIDR 网段",
-        "routeExcludeAddressHint": "仅支持 IPv4/IPv6 CIDR，例如 192.168.0.0/16 或 fd00::/8"
+        "routeExcludeAddressHint": "仅支持 IPv4/IPv6 CIDR，例如 192.168.0.0/16 或 fd00::/8",
+        "activeStack": "当前生效的栈: {{stack}}",
+        "windowsStackFirewall": "在 Windows 上，system 和 mixed 栈需要在防火墙中允许核心的入站连接，否则隧道流量无法通行"
       }
     },
     "dns": {

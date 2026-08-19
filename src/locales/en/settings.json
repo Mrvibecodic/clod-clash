@@ -28,7 +28,9 @@
           "autoDisabled": "The core could not bring the TUN device up, so TUN is off for now",
           "setupStarted": "Setting up TUN mode: installing the background service",
           "setupDone": "TUN mode is ready",
-          "setupFailed": "Could not install the background service, so TUN stays off"
+          "setupFailed": "Could not install the background service, so TUN stays off",
+          "noTraffic": "TUN is up but no traffic is flowing through the tunnel",
+          "noTrafficWindows": "TUN is up but no traffic is flowing: allow the core through the Windows firewall for inbound connections or change the stack. Active stack"
         },
         "core": {
           "binaryChanged": "The core file changed since it was installed and was not started",
@@ -524,7 +526,9 @@
       "messages": {
         "applied": "Settings Applied",
         "invalidRouteExcludeAddress": "Please enter a valid CIDR block",
-        "routeExcludeAddressHint": "Only IPv4/IPv6 CIDR is supported, such as 192.168.0.0/16 or fd00::/8"
+        "routeExcludeAddressHint": "Only IPv4/IPv6 CIDR is supported, such as 192.168.0.0/16 or fd00::/8",
+        "activeStack": "Active stack: {{stack}}",
+        "windowsStackFirewall": "On Windows the system and mixed stacks need the core allowed through the firewall for inbound connections — without it tunnel traffic will not flow"
       }
     },
     "dns": {

@@ -1259,9 +1259,11 @@ export interface TranslationResources {
             strictRoute: string
           }
           messages: {
+            activeStack: string
             applied: string
             invalidRouteExcludeAddress: string
             routeExcludeAddressHint: string
+            windowsStackFirewall: string
           }
           title: string
           tooltips: {
@@ -1446,6 +1448,8 @@ export interface TranslationResources {
             }
             tunMode: {
               autoDisabled: string
+              noTraffic: string
+              noTrafficWindows: string
               setupDone: string
               setupFailed: string
               setupStarted: string

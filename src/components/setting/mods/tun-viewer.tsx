@@ -21,6 +21,7 @@ import {
   Switch,
 } from '@/components/base'
 import { useClash } from '@/hooks/use-clash'
+import { useTunState } from '@/hooks/use-tun-state'
 import { useVerge } from '@/hooks/use-verge'
 import { enhanceProfiles } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
@@ -42,6 +43,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
 
   const { clash, mutateClash, patchClash } = useClash()
   const { verge, mutateVerge, patchVerge } = useVerge()
+  const { tunRuntimeStack } = useTunState()
 
   const [open, setOpen] = useState(false)
   const [values, setValues] = useState({
@@ -225,6 +227,27 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
             }}
           />
         </ListItem>
+
+        {tunRuntimeStack && (
+          <ListItem sx={{ padding: '0 2px 5px' }}>
+            <Typography variant="caption" color="text.secondary">
+              {t('settings.modals.tun.messages.activeStack', {
+                stack: tunRuntimeStack,
+              })}
+            </Typography>
+          </ListItem>
+        )}
+
+        {OS === 'windows' &&
+          ['system', 'mixed'].includes(
+            (tunRuntimeStack ?? values.stack).toLowerCase(),
+          ) && (
+            <ListItem sx={{ padding: '0 2px 5px' }}>
+              <Typography variant="caption" color="warning.main">
+                {t('settings.modals.tun.messages.windowsStackFirewall')}
+              </Typography>
+            </ListItem>
+          )}
 
         <ListItem sx={{ padding: '5px 2px' }}>
           <ListItemText primary={t('settings.modals.tun.fields.device')} />

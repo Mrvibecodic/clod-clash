@@ -28,7 +28,9 @@
           "autoDisabled": "コアが TUN デバイスを起動できなかったため、TUN は無効のままです",
           "setupStarted": "TUN モードを準備しています：バックグラウンドサービスをインストール中",
           "setupDone": "TUN モードの準備ができました",
-          "setupFailed": "バックグラウンドサービスをインストールできず、TUN は無効のままです"
+          "setupFailed": "バックグラウンドサービスをインストールできず、TUN は無効のままです",
+          "noTraffic": "TUN は起動していますが、トンネルを通る通信がありません",
+          "noTrafficWindows": "TUN は起動していますが通信が流れません。Windows ファイアウォールでコアの受信接続を許可するか、スタックを変更してください。適用中のスタック"
         },
         "core": {
           "binaryChanged": "コアファイルがインストール後に変更されたため、起動しませんでした",
@@ -524,7 +526,9 @@
       "messages": {
         "applied": "設定が適用されました",
         "invalidRouteExcludeAddress": "有効な CIDR ブロックを入力してください",
-        "routeExcludeAddressHint": "IPv4/IPv6 の CIDR のみ対応しています。例: 192.168.0.0/16、fd00::/8"
+        "routeExcludeAddressHint": "IPv4/IPv6 の CIDR のみ対応しています。例: 192.168.0.0/16、fd00::/8",
+        "activeStack": "適用中のスタック: {{stack}}",
+        "windowsStackFirewall": "Windows では system と mixed スタックはファイアウォールでコアの受信接続を許可する必要があります。許可がないとトンネルの通信は流れません"
       }
     },
     "dns": {

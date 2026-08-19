@@ -28,7 +28,9 @@
           "autoDisabled": "核心無法啟動虛擬網路介面卡，該模式暫時停用",
           "setupStarted": "正在設定虛擬網路介面卡模式：安裝背景服務",
           "setupDone": "虛擬網路介面卡模式已就緒",
-          "setupFailed": "背景服務安裝失敗，該模式維持停用"
+          "setupFailed": "背景服務安裝失敗，該模式維持停用",
+          "noTraffic": "TUN 已啟動，但沒有流量通過通道",
+          "noTrafficWindows": "TUN 已啟動但沒有流量：請在 Windows 防火牆中允許核心的入站連線，或更換堆疊。目前生效的堆疊"
         },
         "core": {
           "binaryChanged": "核心檔案在安裝後被修改，已拒絕啟動",
@@ -524,7 +526,9 @@
       "messages": {
         "applied": "設定已套用",
         "invalidRouteExcludeAddress": "請輸入有效的 CIDR 網段",
-        "routeExcludeAddressHint": "僅支援 IPv4/IPv6 CIDR，例如 192.168.0.0/16 或 fd00::/8"
+        "routeExcludeAddressHint": "僅支援 IPv4/IPv6 CIDR，例如 192.168.0.0/16 或 fd00::/8",
+        "activeStack": "目前生效的堆疊: {{stack}}",
+        "windowsStackFirewall": "在 Windows 上，system 與 mixed 堆疊需要在防火牆中允許核心的入站連線，否則通道流量無法通行"
       }
     },
     "dns": {

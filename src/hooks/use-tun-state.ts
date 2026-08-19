@@ -9,16 +9,9 @@ const defaultTunState: ITunState = {
   capable: false,
   setup_declined: false,
   needs_repair: false,
+  runtime_stack: null,
 }
 
-/**
- * clod:tun-ready — состояние TUN так, как его видит бэкенд.
- *
- * Интерфейсу мало флага из конфига: он говорит, чего хочет пользователь, а не
- * что происходит. `active` — это то, что реально подано ядру (желание есть и
- * режим не подавлен), поэтому переключатель на экране больше не может гореть
- * над мёртвым туннелем.
- */
 export const useTunState = () => {
   const pageVisible = useVisibility()
 
@@ -35,18 +28,13 @@ export const useTunState = () => {
   })
 
   return {
-    /** Пользователь хочет TUN. */
     tunDesired: tun.desired,
-    /** TUN реально работает. */
     tunActive: tun.active,
-    /** Прав хватает: служба отвечает или приложение привилегировано. */
     tunCapable: tun.capable,
-    /** Автонастройку службы на этой версии уже пробовали. */
     tunSetupDeclined: tun.setup_declined,
-    /** clod:service-repair — служба отвечает, но устарела: чинить, не ставить. */
     tunNeedsRepair: tun.needs_repair,
-    /** Хотели, но не работает — это и есть повод показать подсказку. */
     tunBroken: tun.desired && !tun.active,
+    tunRuntimeStack: tun.runtime_stack ?? null,
     mutateTunState,
     isLoading,
   }

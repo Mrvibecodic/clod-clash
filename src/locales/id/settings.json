@@ -28,7 +28,9 @@
           "autoDisabled": "Core tidak dapat menyalakan perangkat TUN, jadi TUN dimatikan",
           "setupStarted": "Menyiapkan mode TUN: memasang layanan latar belakang",
           "setupDone": "Mode TUN siap digunakan",
-          "setupFailed": "Layanan latar belakang gagal dipasang, mode TUN tetap mati"
+          "setupFailed": "Layanan latar belakang gagal dipasang, mode TUN tetap mati",
+          "noTraffic": "TUN aktif tetapi tidak ada lalu lintas melalui terowongan",
+          "noTrafficWindows": "TUN aktif tetapi tidak ada lalu lintas: izinkan core melalui firewall Windows untuk koneksi masuk atau ganti stack. Stack aktif"
         },
         "core": {
           "binaryChanged": "Berkas core berubah setelah dipasang dan tidak dijalankan",
@@ -524,7 +526,9 @@
       "messages": {
         "applied": "Pengaturan Diterapkan",
         "invalidRouteExcludeAddress": "Masukkan blok CIDR yang valid",
-        "routeExcludeAddressHint": "Hanya CIDR IPv4/IPv6 yang didukung, seperti 192.168.0.0/16 atau fd00::/8"
+        "routeExcludeAddressHint": "Hanya CIDR IPv4/IPv6 yang didukung, seperti 192.168.0.0/16 atau fd00::/8",
+        "activeStack": "Stack aktif: {{stack}}",
+        "windowsStackFirewall": "Di Windows stack system dan mixed memerlukan izin firewall untuk koneksi masuk ke core — tanpanya lalu lintas terowongan tidak akan berjalan"
       }
     },
     "dns": {

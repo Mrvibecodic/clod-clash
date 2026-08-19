@@ -93,6 +93,8 @@ pub fn spawn_environment_watchdog() {
             last_wall = now_wall;
             last_network = network;
 
+            crate::feat::tun::enforce_undesired_off().await;
+
             let reason = match (slept, network_changed) {
                 (true, true) => "woke up, network differs",
                 (true, false) => "woke up",

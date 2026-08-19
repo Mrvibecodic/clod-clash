@@ -28,7 +28,9 @@
           "autoDisabled": "Der Core konnte das TUN-Gerät nicht starten, TUN bleibt vorerst aus",
           "setupStarted": "TUN-Modus wird eingerichtet: Hintergrunddienst wird installiert",
           "setupDone": "TUN-Modus ist bereit",
-          "setupFailed": "Hintergrunddienst konnte nicht installiert werden, TUN bleibt aus"
+          "setupFailed": "Hintergrunddienst konnte nicht installiert werden, TUN bleibt aus",
+          "noTraffic": "TUN ist aktiv, aber es fließt kein Verkehr durch den Tunnel",
+          "noTrafficWindows": "TUN ist aktiv, aber es fließt kein Verkehr: Erlauben Sie dem Kern eingehende Verbindungen in der Windows-Firewall oder wechseln Sie den Stack. Aktiver Stack"
         },
         "core": {
           "binaryChanged": "Die Core-Datei wurde seit der Installation verändert und wurde nicht gestartet",
@@ -524,7 +526,9 @@
       "messages": {
         "applied": "Einstellungen angewendet",
         "invalidRouteExcludeAddress": "Bitte geben Sie einen gültigen CIDR-Block ein",
-        "routeExcludeAddressHint": "Es werden nur IPv4-/IPv6-CIDR-Blöcke unterstützt, z. B. 192.168.0.0/16 oder fd00::/8"
+        "routeExcludeAddressHint": "Es werden nur IPv4-/IPv6-CIDR-Blöcke unterstützt, z. B. 192.168.0.0/16 oder fd00::/8",
+        "activeStack": "Aktiver Stack: {{stack}}",
+        "windowsStackFirewall": "Unter Windows müssen die Stacks system und mixed für den Kern in der Firewall für eingehende Verbindungen freigegeben werden — sonst fließt kein Tunnelverkehr"
       }
     },
     "dns": {

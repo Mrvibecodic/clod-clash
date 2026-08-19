@@ -28,7 +28,9 @@
           "autoDisabled": "تعذّر على النواة تشغيل جهاز TUN، لذلك يبقى الوضع معطّلاً",
           "setupStarted": "جارٍ إعداد وضع TUN: تثبيت خدمة الخلفية",
           "setupDone": "وضع TUN جاهز",
-          "setupFailed": "تعذّر تثبيت خدمة الخلفية، ويبقى وضع TUN معطّلاً"
+          "setupFailed": "تعذّر تثبيت خدمة الخلفية، ويبقى وضع TUN معطّلاً",
+          "noTraffic": "TUN يعمل لكن لا يمر أي مرور عبر النفق",
+          "noTrafficWindows": "TUN يعمل لكن لا يمر أي مرور: اسمح للنواة بالاتصالات الواردة في جدار حماية Windows أو غيّر المكدّس. المكدّس المفعّل"
         },
         "core": {
           "binaryChanged": "تغيّر ملف النواة بعد التثبيت ولم يتم تشغيله",
@@ -524,7 +526,9 @@
       "messages": {
         "applied": "تم تطبيق الإعدادات",
         "invalidRouteExcludeAddress": "يرجى إدخال نطاق CIDR صالح",
-        "routeExcludeAddressHint": "يتم دعم CIDR لـ IPv4/IPv6 فقط، مثل 192.168.0.0/16 أو fd00::/8"
+        "routeExcludeAddressHint": "يتم دعم CIDR لـ IPv4/IPv6 فقط، مثل 192.168.0.0/16 أو fd00::/8",
+        "activeStack": "المكدّس المفعّل: {{stack}}",
+        "windowsStackFirewall": "على Windows يتطلب مكدّسا system و mixed السماح للنواة بالاتصالات الواردة في جدار الحماية — وبدونه لن يمر مرور النفق"
       }
     },
     "dns": {

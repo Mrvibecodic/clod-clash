@@ -28,7 +28,9 @@
           "autoDisabled": "Çekirdek TUN aygıtını açamadı, TUN şimdilik kapalı",
           "setupStarted": "TUN modu hazırlanıyor: arka plan hizmeti kuruluyor",
           "setupDone": "TUN modu hazır",
-          "setupFailed": "Arka plan hizmeti kurulamadı, TUN kapalı kalıyor"
+          "setupFailed": "Arka plan hizmeti kurulamadı, TUN kapalı kalıyor",
+          "noTraffic": "TUN açık ancak tünelden trafik geçmiyor",
+          "noTrafficWindows": "TUN açık ancak trafik akmıyor: Windows güvenlik duvarında çekirdeğe gelen bağlantılara izin verin veya yığını değiştirin. Etkin yığın"
         },
         "core": {
           "binaryChanged": "Çekirdek dosyası kurulumdan sonra değiştiği için başlatılmadı",
@@ -524,7 +526,9 @@
       "messages": {
         "applied": "Ayarlar Uygulandı",
         "invalidRouteExcludeAddress": "Lütfen geçerli bir CIDR bloğu girin",
-        "routeExcludeAddressHint": "Yalnızca IPv4/IPv6 CIDR blokları desteklenir; örneğin 192.168.0.0/16 veya fd00::/8"
+        "routeExcludeAddressHint": "Yalnızca IPv4/IPv6 CIDR blokları desteklenir; örneğin 192.168.0.0/16 veya fd00::/8",
+        "activeStack": "Etkin yığın: {{stack}}",
+        "windowsStackFirewall": "Windows'ta system ve mixed yığınları, çekirdeğin güvenlik duvarında gelen bağlantılara izin verilmesini gerektirir — aksi hâlde tünel trafiği akmaz"
       }
     },
     "dns": {

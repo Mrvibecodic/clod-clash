@@ -28,7 +28,9 @@
           "autoDisabled": "코어가 TUN 장치를 열지 못해 TUN 모드를 껐습니다",
           "setupStarted": "TUN 모드 설정 중: 백그라운드 서비스를 설치합니다",
           "setupDone": "TUN 모드를 사용할 수 있습니다",
-          "setupFailed": "백그라운드 서비스를 설치하지 못해 TUN 모드는 꺼진 상태입니다"
+          "setupFailed": "백그라운드 서비스를 설치하지 못해 TUN 모드는 꺼진 상태입니다",
+          "noTraffic": "TUN이 켜져 있지만 터널을 통과하는 트래픽이 없습니다",
+          "noTrafficWindows": "TUN이 켜져 있지만 트래픽이 흐르지 않습니다. Windows 방화벽에서 코어의 인바운드 연결을 허용하거나 스택을 변경하세요. 적용된 스택"
         },
         "core": {
           "binaryChanged": "코어 파일이 설치 후 변경되어 실행하지 않았습니다",
@@ -524,7 +526,9 @@
       "messages": {
         "applied": "설정이 적용되었습니다",
         "invalidRouteExcludeAddress": "유효한 CIDR 대역을 입력하세요",
-        "routeExcludeAddressHint": "IPv4/IPv6 CIDR만 지원합니다. 예: 192.168.0.0/16 또는 fd00::/8"
+        "routeExcludeAddressHint": "IPv4/IPv6 CIDR만 지원합니다. 예: 192.168.0.0/16 또는 fd00::/8",
+        "activeStack": "적용된 스택: {{stack}}",
+        "windowsStackFirewall": "Windows에서 system 및 mixed 스택은 방화벽에서 코어의 인바운드 연결을 허용해야 합니다. 허용하지 않으면 터널 트래픽이 흐르지 않습니다"
       }
     },
     "dns": {

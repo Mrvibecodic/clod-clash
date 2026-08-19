@@ -884,6 +884,7 @@ interface ITunState {
   capable: boolean
   setup_declined: boolean
   needs_repair: boolean
+  runtime_stack?: string | null
 }
 
 interface IVergeConfig {

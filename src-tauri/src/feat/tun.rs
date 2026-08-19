@@ -18,6 +18,7 @@ use crate::{
         },
     },
     process::AsyncHandler,
+    utils::network::{NetworkManager, ProxyType},
 };
 
 static SUPPRESSED: AtomicBool = AtomicBool::new(false);
@@ -27,12 +28,18 @@ static WATCHDOG_RUNNING: AtomicBool = AtomicBool::new(false);
 static START_ATTEMPTS: AtomicU32 = AtomicU32::new(0);
 static RETRY_PENDING: AtomicBool = AtomicBool::new(false);
 static WATCH_ANCHOR: Mutex<Option<String>> = Mutex::new(None);
+static TRAFFIC_PROBE_RUNNING: AtomicBool = AtomicBool::new(false);
+static NO_TRAFFIC_NOTICED: AtomicBool = AtomicBool::new(false);
 
 const TUN_FAILURE_MARKERS: &[&str] = &["start tun listening error", "configure tun interface"];
 
 const TUN_START_ATTEMPTS: u32 = 3;
 const TUN_RETRY_DELAY: Duration = Duration::from_secs(5);
 const TUN_PATCH_TIMEOUT: Duration = Duration::from_secs(3);
+const TRAFFIC_PROBE_URL: &str = "https://cp.cloudflare.com/generate_204";
+const TRAFFIC_PROBE_TIMEOUT_SECS: u64 = 8;
+const TRAFFIC_PROBE_DELAY: Duration = Duration::from_secs(5);
+const TRAFFIC_PROBE_RETRY_DELAY: Duration = Duration::from_secs(3);
 
 pub fn is_suppressed() -> bool {
     SUPPRESSED.load(Ordering::Acquire)
@@ -48,6 +55,7 @@ pub fn clear_suppression() {
     SUPPRESSED.store(false, Ordering::Release);
     START_FAILED.store(false, Ordering::Release);
     START_ATTEMPTS.store(0, Ordering::Release);
+    NO_TRAFFIC_NOTICED.store(false, Ordering::Release);
 }
 
 pub async fn desired() -> bool {
@@ -194,6 +202,108 @@ pub async fn rearm_after_wake() {
     recreate_tun_device().await;
 }
 
+async fn probe_traffic(proxy_type: ProxyType) -> bool {
+    let client = match NetworkManager::new()
+        .create_request(proxy_type, Some(TRAFFIC_PROBE_TIMEOUT_SECS), None, false)
+        .await
+    {
+        Ok(client) => client,
+        Err(_) => return false,
+    };
+    client.get(TRAFFIC_PROBE_URL).send().await.is_ok()
+}
+
+fn spawn_traffic_probe() {
+    if TRAFFIC_PROBE_RUNNING.swap(true, Ordering::AcqRel) {
+        return;
+    }
+    AsyncHandler::spawn(|| async {
+        scopeguard::defer! {
+            TRAFFIC_PROBE_RUNNING.store(false, Ordering::Release);
+        }
+        tokio::time::sleep(TRAFFIC_PROBE_DELAY).await;
+        if !claimed().await {
+            return;
+        }
+        if !probe_traffic(ProxyType::Localhost).await {
+            return;
+        }
+        if probe_traffic(ProxyType::None).await {
+            NO_TRAFFIC_NOTICED.store(false, Ordering::Release);
+            return;
+        }
+        tokio::time::sleep(TRAFFIC_PROBE_RETRY_DELAY).await;
+        if !claimed().await {
+            return;
+        }
+        if probe_traffic(ProxyType::None).await {
+            NO_TRAFFIC_NOTICED.store(false, Ordering::Release);
+            return;
+        }
+        if !probe_traffic(ProxyType::Localhost).await {
+            return;
+        }
+        let stack = runtime_stack().await.unwrap_or_else(|| String::from("unknown"));
+        logging!(
+            warn,
+            Type::Core,
+            "the TUN device is up but passes no traffic (stack {})",
+            stack
+        );
+        if !NO_TRAFFIC_NOTICED.swap(true, Ordering::AcqRel) {
+            Handle::notice_message("tun::no_traffic", stack);
+        }
+    });
+}
+
+pub async fn runtime_stack() -> Option<String> {
+    let mihomo = Handle::mihomo().await;
+    match tokio::time::timeout(TUN_PATCH_TIMEOUT, mihomo.get_base_config()).await {
+        Ok(Ok(config)) if config.tun.enable => Some(config.tun.stack.to_string()),
+        _ => None,
+    }
+}
+
+pub async fn enforce_undesired_off() {
+    if claimed().await {
+        return;
+    }
+    let mihomo = Handle::mihomo().await;
+    let enabled = match tokio::time::timeout(TUN_PATCH_TIMEOUT, mihomo.get_base_config()).await {
+        Ok(Ok(config)) => config.tun.enable,
+        _ => return,
+    };
+    if !enabled || claimed().await {
+        return;
+    }
+    logging!(
+        warn,
+        Type::Core,
+        "the core still holds the TUN device while it is not wanted; taking it down"
+    );
+    let patch = serde_json::json!({ "tun": { "enable": false } });
+    match tokio::time::timeout(TUN_PATCH_TIMEOUT, mihomo.patch_base_config(&patch)).await {
+        Ok(Ok(())) => {
+            if claimed().await {
+                logging!(
+                    warn,
+                    Type::Core,
+                    "TUN became wanted while it was being taken down; bringing it back"
+                );
+                recreate_tun_device().await;
+            } else {
+                logging!(info, Type::Core, "the unwanted TUN device was taken down");
+            }
+        }
+        Ok(Err(e)) => logging!(warn, Type::Core, "could not take down the unwanted TUN device: {}", e),
+        Err(_) => logging!(
+            warn,
+            Type::Core,
+            "the core did not answer taking down the unwanted TUN device"
+        ),
+    }
+}
+
 pub async fn recheck_after_network_change() {
     if !claimed().await {
         return;
@@ -220,6 +330,7 @@ pub fn spawn_start_verification(anchor: Option<String>) {
         }
         if !matches!(verify_round().await, Round::Done) {
             spawn_watchdog();
+            spawn_traffic_probe();
         }
     });
 }
