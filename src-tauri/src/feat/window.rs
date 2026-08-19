@@ -18,7 +18,6 @@ pub async fn open_or_close_dashboard() {
 
 pub async fn quit() {
     logging!(debug, Type::System, "запуск процесса выхода");
-    // Устанавливаем флаг завершения работы
     handle::Handle::global().set_is_exiting();
 
     utils::server::shutdown_embedded_server();
@@ -41,7 +40,6 @@ pub async fn quit() {
 pub async fn clean_async() -> bool {
     logging!(info, Type::System, "начало асинхронной очистки...");
 
-    // Сбрасываем системный прокси
     let proxy_task = tokio::task::spawn(async {
         let sys_proxy_enabled = Config::verge().await.data_arc().enable_system_proxy.unwrap_or(false);
         if !sys_proxy_enabled {
@@ -70,7 +68,6 @@ pub async fn clean_async() -> bool {
         }
     });
 
-    // Отключаем режим Tun + останавливаем ядро
     let core_task = tokio::task::spawn(async {
         logging!(info, Type::System, "disable tun");
         let tun_enabled = Config::verge().await.data_arc().enable_tun_mode.unwrap_or(false);
@@ -79,7 +76,7 @@ pub async fn clean_async() -> bool {
 
             logging!(info, Type::System, "send disable tun request to mihomo");
             match timeout(
-                Duration::from_millis(1000),
+                Duration::from_millis(3000),
                 handle::Handle::mihomo().await.patch_base_config(&disable_tun),
             )
             .await
@@ -100,10 +97,7 @@ pub async fn clean_async() -> bool {
             }
         }
 
-        #[cfg(target_os = "windows")]
-        let stop_timeout = Duration::from_secs(2);
-        #[cfg(not(target_os = "windows"))]
-        let stop_timeout = Duration::from_secs(3);
+        let stop_timeout = Duration::from_secs(5);
 
         logging!(info, Type::System, "stop core");
         match timeout(stop_timeout, CoreManager::global().stop_core()).await {
@@ -122,7 +116,6 @@ pub async fn clean_async() -> bool {
         }
     });
 
-    // Восстановление DNS (только macOS)
     let dns_task = tokio::task::spawn(async {
         #[cfg(target_os = "macos")]
         match timeout(
@@ -144,7 +137,6 @@ pub async fn clean_async() -> bool {
         true
     });
 
-    // Выполняем задачи очистки параллельно
     let (proxy_result, core_result, dns_result) = tokio::join!(proxy_task, core_task, dns_task);
 
     let proxy_success = proxy_result.unwrap_or_default();
