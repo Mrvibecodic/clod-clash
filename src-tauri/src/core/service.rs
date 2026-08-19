@@ -1058,15 +1058,25 @@ pub(crate) async fn update_writer_by_service(writer: &WriterConfig) -> Result<()
     Ok(())
 }
 
+const WINDOWS_PIPE_BUSY: i32 = 231;
+
+fn ipc_path_busy(error: &std::io::Error) -> bool {
+    cfg!(windows) && error.raw_os_error() == Some(WINDOWS_PIPE_BUSY)
+}
+
 pub async fn is_service_available() -> Result<()> {
-    if let Err(e) = Path::metadata(clash_verge_service_ipc::IPC_PATH.as_ref()) {
-        let verge = Config::verge().await;
-        let verge_last = verge.latest_arc();
-        let is_enable = verge_last.enable_tun_mode.unwrap_or(false);
-        if is_enable {
-            logging!(warn, Type::Service, "Some issue with service IPC Path: {}", e);
+    match Path::metadata(clash_verge_service_ipc::IPC_PATH.as_ref()) {
+        Ok(_) => {}
+        Err(e) if ipc_path_busy(&e) => return Ok(()),
+        Err(e) => {
+            let verge = Config::verge().await;
+            let verge_last = verge.latest_arc();
+            let is_enable = verge_last.enable_tun_mode.unwrap_or(false);
+            if is_enable {
+                logging!(warn, Type::Service, "Some issue with service IPC Path: {}", e);
+            }
+            return Err(e.into());
         }
-        return Err(e.into());
     }
     clash_verge_service_ipc::connect().await?;
     Ok(())
@@ -1098,7 +1108,10 @@ async fn wait_for_service_ipc(manager: &ServiceManager) -> Result<()> {
 }
 
 pub fn is_service_ipc_path_exists() -> bool {
-    Path::new(clash_verge_service_ipc::IPC_PATH).exists()
+    match Path::metadata(clash_verge_service_ipc::IPC_PATH.as_ref()) {
+        Ok(_) => true,
+        Err(e) => ipc_path_busy(&e),
+    }
 }
 
 impl ServiceManager {
@@ -1326,6 +1339,26 @@ pub static SERVICE_MANAGER: Lazy<ServiceManager> = Lazy::new(|| ServiceManager {
     operation_started: Mutex::new(None),
     operation_done: Notify::new(),
 });
+
+#[cfg(test)]
+mod ipc_probe_tests {
+    use super::{WINDOWS_PIPE_BUSY, ipc_path_busy};
+
+    #[test]
+    fn a_busy_pipe_means_the_service_is_alive() {
+        let busy = std::io::Error::from_raw_os_error(WINDOWS_PIPE_BUSY);
+        assert_eq!(ipc_path_busy(&busy), cfg!(windows));
+    }
+
+    #[test]
+    fn a_missing_path_is_never_read_as_busy() {
+        let missing = std::io::Error::from(std::io::ErrorKind::NotFound);
+        assert!(!ipc_path_busy(&missing));
+
+        let denied = std::io::Error::from(std::io::ErrorKind::PermissionDenied);
+        assert!(!ipc_path_busy(&denied));
+    }
+}
 
 #[cfg(test)]
 mod failure_tests {
