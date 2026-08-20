@@ -8,6 +8,28 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.1.5
+
+<!-- lang:en -->
+
+### Fixed
+
+- Provider links with `tg://` addresses (support, bot and the rest) now open in the Telegram app; a link that cannot be opened shows a message instead of failing silently
+- The «Fit window to content» setting survives an app restart and update: window moves during startup are no longer taken for a manual resize
+- The speed graph is removed from the «Network» card — it is four numbers again
+- The last-update hint on the «Refresh subscription» tile no longer gets cut off: it shows just the date and time
+
+<!-- lang:ru -->
+
+### Исправлено
+
+- Ссылки провайдера с адресами `tg://` (поддержка, бот и остальные) открываются в приложении Telegram; если ссылку открыть не удалось, показывается сообщение, а не тишина
+- Настройка «Подгонять окно под содержимое» переживает перезапуск и обновление приложения: движения окна при старте больше не принимаются за ручное изменение размера
+- Из карточки «Сеть» убран график скорости — снова четыре числа
+- Подсказка о последнем обновлении на плитке «Обновить подписку» больше не обрезается: показываются только дата и время
+
+---
+
 ## v0.1.4
 
 <!-- lang:en -->
