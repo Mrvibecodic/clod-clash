@@ -170,9 +170,7 @@ const HomeAdvancedPage = () => {
   }
 
   const refreshedHint = current.updated
-    ? t('home.pages.advanced.tiles.refreshHint', {
-        time: dayjs(current.updated * 1000).format('DD.MM · HH:mm'),
-      })
+    ? dayjs(current.updated * 1000).format('DD.MM HH:mm')
     : undefined
 
   return (

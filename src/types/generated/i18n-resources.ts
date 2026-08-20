@@ -288,7 +288,6 @@ export interface TranslationResources {
             profilesHint: string
             proxiesHint: string
             refresh: string
-            refreshHint: string
             rulesHint: string
             settingsHint: string
             subscriptions: string

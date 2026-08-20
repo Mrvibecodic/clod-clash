@@ -254,7 +254,6 @@
       "tiles": {
         "portalHint": "продление и оплата",
         "refresh": "Обновить подписку",
-        "refreshHint": "последний раз {{time}}",
         "supportHint": "Telegram-чат",
         "subscriptions": "Подписки",
         "profilesHint": "управление подписками",

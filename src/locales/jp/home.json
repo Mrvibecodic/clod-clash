@@ -254,7 +254,6 @@
       "tiles": {
         "portalHint": "renewal and payment",
         "refresh": "Refresh subscription",
-        "refreshHint": "前回 {{time}}",
         "supportHint": "Telegram chat",
         "subscriptions": "Subscriptions",
         "profilesHint": "manage subscriptions",
