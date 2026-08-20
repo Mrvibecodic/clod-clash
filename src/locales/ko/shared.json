@@ -165,6 +165,7 @@
     "support": "지원",
     "bot": "봇",
     "monitor": "상태",
-    "guide": "가이드"
+    "guide": "가이드",
+    "openError": "링크를 열 수 없습니다"
   }
 }

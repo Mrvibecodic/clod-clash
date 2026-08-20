@@ -165,6 +165,7 @@
     "support": "Destek",
     "bot": "Bot",
     "monitor": "Durum",
-    "guide": "Kılavuz"
+    "guide": "Kılavuz",
+    "openError": "Bağlantı açılamadı"
   }
 }

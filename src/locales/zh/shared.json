@@ -165,6 +165,7 @@
     "support": "客服",
     "bot": "机器人",
     "monitor": "状态",
-    "guide": "指南"
+    "guide": "指南",
+    "openError": "无法打开链接"
   }
 }

@@ -5,25 +5,14 @@ import {
   SmartToyRounded,
   SupportAgentRounded,
 } from '@mui/icons-material'
-import { open } from '@tauri-apps/plugin-shell'
 import type { ReactNode } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { openWebUrl } from '@/services/cmds'
+import { showNotice } from '@/services/notice-service'
 import type { TranslationKey } from '@/types/generated/i18n-keys'
 
-/**
- * clod:provider-links — ссылки провайдера живут одной строкой.
- *
- * Их пять — кабинет, поддержка, бот, мониторинг, инструкция, — и все они
- * приходят заголовками подписки. Сделать из каждой плитку значило бы получить
- * восемь одинаковых прямоугольников, в которых ссылки провайдера уже не
- * отличить от кнопок самого приложения. Поэтому у провайдера своя карточка,
- * подписанная его именем, а плитками остаются действия приложения.
- *
- * Ссылок может не быть вовсе — тогда нет и карточки: пустая рамка на главной
- * выглядит поломкой.
- */
 export interface ProviderLink {
   key: 'portal' | 'support' | 'bot' | 'monitor' | 'guide'
   url: string
@@ -69,7 +58,6 @@ const DEFS = [
   icon: ReactNode
 }[]
 
-/** Ссылки текущей подписки — ровно те, что прислал провайдер, в одном порядке. */
 export const useProviderLinks = (profile?: IProfileItem | null) => {
   const { t } = useTranslation()
 
@@ -85,10 +73,22 @@ export const useProviderLinks = (profile?: IProfileItem | null) => {
   }, [profile, t])
 }
 
+const ALLOWED_LINK_SCHEMES = ['http:', 'https:', 'tg:', 'mailto:']
+
 export const openProviderLink = async (url: string) => {
+  let scheme = ''
   try {
-    await open(url)
+    scheme = new URL(url).protocol
+  } catch {}
+  if (!ALLOWED_LINK_SCHEMES.includes(scheme)) {
+    console.error('[provider-links] scheme is not allowed:', url)
+    showNotice.error('shared.providerLinks.openError')
+    return
+  }
+  try {
+    await openWebUrl(url)
   } catch (error) {
     console.error('[provider-links] failed to open:', error)
+    showNotice.error(error)
   }
 }

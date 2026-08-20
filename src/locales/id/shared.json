@@ -165,6 +165,7 @@
     "support": "Dukungan",
     "bot": "Bot",
     "monitor": "Status",
-    "guide": "Panduan"
+    "guide": "Panduan",
+    "openError": "Tautan tidak dapat dibuka"
   }
 }

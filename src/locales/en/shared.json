@@ -165,6 +165,7 @@
     "support": "Support",
     "bot": "Bot",
     "monitor": "Status",
-    "guide": "Guide"
+    "guide": "Guide",
+    "openError": "Could not open the link"
   }
 }

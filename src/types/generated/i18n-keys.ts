@@ -1011,6 +1011,7 @@ export const translationKeys = [
   'shared.providerLinks.bot',
   'shared.providerLinks.monitor',
   'shared.providerLinks.guide',
+  'shared.providerLinks.openError',
   'tests.page.actions.testAll',
   'tests.page.title',
   'tests.components.item.actions.test',

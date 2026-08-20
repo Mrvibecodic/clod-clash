@@ -165,6 +165,7 @@
     "support": "客服",
     "bot": "機器人",
     "monitor": "狀態",
-    "guide": "指南"
+    "guide": "指南",
+    "openError": "無法開啟連結"
   }
 }

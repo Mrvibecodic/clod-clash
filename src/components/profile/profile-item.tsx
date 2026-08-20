@@ -24,7 +24,6 @@ import {
   MenuItem,
   Typography,
 } from '@mui/material'
-import { open } from '@tauri-apps/plugin-shell'
 import { useLockFn } from 'ahooks'
 import dayjs from 'dayjs'
 import {
@@ -42,6 +41,7 @@ import { EditorViewer } from '@/components/profile/editor-viewer'
 import { GroupsEditorViewer } from '@/components/profile/groups-editor-viewer'
 import { RulesEditorViewer } from '@/components/profile/rules-editor-viewer'
 import { useEditorDocument } from '@/hooks/use-editor-document'
+import { openProviderLink } from '@/hooks/use-provider-links'
 import {
   getNextUpdateTime,
   readProfileFile,
@@ -109,7 +109,6 @@ const ProfileItemBase = (props: ProfileItemProps) => {
   const loadingCache = useLoadingCache()
   const setLoadingCache = useSetLoadingCache()
 
-  // Новое состояние: показывать ли время следующего обновления
   const [showNextUpdate, setShowNextUpdate] = useState(false)
   const showNextUpdateRef = useRef(false)
   const [nextUpdateTime, setNextUpdateTime] = useState('')
@@ -134,7 +133,6 @@ const ProfileItemBase = (props: ProfileItemProps) => {
   const { uid, name = 'Profile', extra, updated = 0, option } = itemData
   const [mountedAt] = useState(() => Date.now())
 
-  // Функция получения времени следующего обновления
   const fetchNextUpdateTimeCallback = useCallback(
     async (forceRefresh = false) => {
       if (
@@ -146,10 +144,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
             `Попытка получить время следующего обновления для конфигурации ${itemData.uid}`,
           )
 
-          // Если нужно принудительное обновление, сначала вызываем Timer.refresh()
           if (forceRefresh) {
-            // Здесь можно было бы вызвать новый API для обновления, но пока
-            // полагаемся на обновление внутри patch_profile
             debugLog(`Принудительное обновление задачи таймера`)
           }
 
@@ -163,13 +158,11 @@ const ProfileItemBase = (props: ProfileItemProps) => {
             const nextUpdateDate = dayjs(nextUpdate * 1000)
             const now = dayjs()
 
-            // Если время уже истекло, показываем "обновление не удалось"
             if (nextUpdateDate.isBefore(now)) {
               setNextUpdateTime(
                 t('profiles.components.profileItem.status.lastUpdateFailed'),
               )
             } else {
-              // Иначе показываем оставшееся время
               const diffMinutes = nextUpdateDate.diff(now, 'minute')
 
               if (diffMinutes < 60) {
@@ -216,7 +209,6 @@ const ProfileItemBase = (props: ProfileItemProps) => {
   )
   const fetchNextUpdateTime = useLockFn(fetchNextUpdateTimeCallback)
 
-  // Функция переключения режима отображения
   const toggleUpdateTimeDisplay = (e: React.MouseEvent) => {
     e.stopPropagation()
 
@@ -231,7 +223,6 @@ const ProfileItemBase = (props: ProfileItemProps) => {
     showNextUpdateRef.current = showNextUpdate
   }, [showNextUpdate])
 
-  // Обновляем время следующего обновления при загрузке компонента или изменении интервала
   useEffect(() => {
     if (showNextUpdate) {
       fetchNextUpdateTime()
@@ -243,8 +234,6 @@ const ProfileItemBase = (props: ProfileItemProps) => {
     updated,
   ])
 
-  // Страница подписана на общие события таймера, здесь реагируем только на
-  // сигнал обновления текущего конфига
   useEffect(() => {
     if (timerUpdateRevision === 0 || !showNextUpdateRef.current) return
 
@@ -267,24 +256,15 @@ const ProfileItemBase = (props: ProfileItemProps) => {
     fetchNextUpdateTime()
   }, [completedUpdateRevision, fetchNextUpdateTime])
 
-  // local file mode
-  // remote file mode
-  // remote file mode
   const hasUrl = !!itemData.url
-  const hasExtra = !!extra // only subscription url has extra info
-  const hasHome = !!itemData.home // only subscription url has home page
+  const hasExtra = !!extra
+  const hasHome = !!itemData.home
 
   const { upload = 0, download = 0, total = 0 } = extra ?? {}
   const from = parseUrl(itemData.url)
   const description = itemData.desc
-  // clod: Remnawave sends total=0 for an unmetered plan and expire=0 for one
-  // that never ends, so both need their own label instead of "0 B" / "-".
   const unlimitedTraffic = total === 0
   const neverExpires = !extra?.expire
-  // clod: срок с остатком дней — как в карточке подписки на главной. Часы
-  // читаем раз на маунт: чистота рендера важнее секундной точности. Поправку
-  // до часов панели берём ту же, что и там: иначе устройство с ушедшими часами
-  // гасит карточку как истёкшую на сутки раньше срока.
   const expireSeconds = toUnixSeconds(extra?.expire ?? 0)
   const skew = clockSkew(itemData) ?? 0
   const daysLeft = neverExpires
@@ -309,8 +289,6 @@ const ProfileItemBase = (props: ProfileItemProps) => {
     100,
   )
 
-  // clod: состояние карточки читается с одного взгляда — бейджем и цветом, а
-  // не датой мелким шрифтом. Пороги те же, что у карточки подписки на главной.
   const trafficOut =
     !unlimitedTraffic && total > 0 && download + upload >= total
   const expired = daysLeft === 0 && !neverExpires
@@ -325,8 +303,6 @@ const ProfileItemBase = (props: ProfileItemProps) => {
           ? { key: 'expiring' as const, color: 'warning' as const }
           : undefined
 
-  // clod: `hwid_state` пишется при каждом обновлении подписки; показываем
-  // только состояния, из-за которых обновление не проходит.
   const hwidNotice =
     itemData.hwid_state === 'limit'
       ? ('hwidLimit' as const)
@@ -336,7 +312,6 @@ const ProfileItemBase = (props: ProfileItemProps) => {
 
   const loading = loadingCache.has(itemData.uid)
 
-  // interval update fromNow field
   const [, forceRefresh] = useReducer((value: number) => value + 1, 0)
   useEffect(() => {
     if (!hasUrl) return
@@ -346,7 +321,6 @@ const ProfileItemBase = (props: ProfileItemProps) => {
     const handler = () => {
       const now = Date.now()
       const lastUpdate = updated * 1000
-      // Если прошло больше суток, не трогаем
       if (now - lastUpdate >= 24 * 36e5) return
 
       const wait = now - lastUpdate >= 36e5 ? 30e5 : 5e4
@@ -401,7 +375,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
 
   const onOpenHome = () => {
     setAnchorEl(null)
-    open(itemData.home ?? '')
+    void openProviderLink(itemData.home ?? '')
   }
 
   const onEditInfo = () => {
@@ -458,14 +432,10 @@ const ProfileItemBase = (props: ProfileItemProps) => {
     }
   })
 
-  /// 0 не использовать прокси
-  /// 1 использовать прокси подписки
-  /// 2 использовать хотя бы один прокси: по подписке, а если её нет — системный прокси по умолчанию
   const onUpdate = useLockFn(async (type: 0 | 1 | 2): Promise<void> => {
     setAnchorEl(null)
     setLoading(true)
 
-    // Задаём начальные параметры обновления в зависимости от типа
     const option: Partial<IProfileOption> = {}
     if (type === 0) {
       option.with_proxy = false
@@ -481,15 +451,11 @@ const ProfileItemBase = (props: ProfileItemProps) => {
     }
 
     try {
-      // Вызываем обновление на бэкенде (бэкенд сам обрабатывает откат)
       const payload = Object.keys(option).length > 0 ? option : undefined
       await updateProfile(itemData.uid, payload)
 
-      // Обновление успешно, обновляем список
       void mutateProfiles()
     } catch {
-      // Обновление полностью не удалось (включая попытку отката на бэкенде)
-      // Ничего делать не нужно, бэкенд отправит ошибку через систему событий
     } finally {
       setLoading(false)
     }
@@ -593,7 +559,6 @@ const ProfileItemBase = (props: ProfileItemProps) => {
       handler: () => {
         setAnchorEl(null)
         if (batchMode) {
-          // If in batch mode, just toggle selection instead of showing delete confirmation
           if (onSelectionChange) {
             onSelectionChange()
           }
@@ -655,7 +620,6 @@ const ProfileItemBase = (props: ProfileItemProps) => {
       handler: () => {
         setAnchorEl(null)
         if (batchMode) {
-          // If in batch mode, just toggle selection instead of showing delete confirmation
           if (onSelectionChange) {
             onSelectionChange()
           }
@@ -705,7 +669,6 @@ const ProfileItemBase = (props: ProfileItemProps) => {
         aria-selected={selected}
         dimmed={expired}
         onClick={(e) => {
-          // Если уже идёт активация, блокируем повторный клик
           if (activating) {
             e.preventDefault()
             e.stopPropagation()
@@ -739,12 +702,6 @@ const ProfileItemBase = (props: ProfileItemProps) => {
           </Box>
         )}
 
-        {/* clod:card-v2 — шапка карточки. Раньше бейдж состояния висел
-            абсолютом в правом верхнем углу ПОВЕРХ кнопки обновления: у
-            активной подписки (а бейдж «Активна» есть всегда) нажатие уходило
-            в бейдж, и обновление молча не срабатывало. Теперь в верхнем ряду
-            только имя и кнопка, а бейдж ушёл строкой ниже: втроём они делили
-            одну строку и жались друг к другу на узкой карточке. */}
         <Box
           sx={{
             display: 'flex',
@@ -799,8 +756,6 @@ const ProfileItemBase = (props: ProfileItemProps) => {
             {name}
           </Typography>
 
-          {/* clod:chan — защищённая подписка помечена значком: признак
-              необратим, и видеть его надо не заходя в правку. */}
           {option?.secure && (
             <ShieldRounded
               titleAccess={t(
@@ -810,7 +765,6 @@ const ProfileItemBase = (props: ProfileItemProps) => {
             />
           )}
 
-          {/* only if has url can it be updated */}
           {hasUrl && (
             <IconButton
               title={t('shared.actions.refresh')}
@@ -825,7 +779,6 @@ const ProfileItemBase = (props: ProfileItemProps) => {
               disabled={loading}
               onClick={(e) => {
                 e.stopPropagation()
-                // Если идёт активация или загрузка, блокируем обновление
                 if (activating || loading) {
                   return
                 }
@@ -837,10 +790,6 @@ const ProfileItemBase = (props: ProfileItemProps) => {
           )}
         </Box>
 
-        {/* clod:card-v2 — вторая строка: состояние и время обновления.
-            Карточка узкая (в ряду их три-четыре), поэтому бейдж, адрес и
-            время в одну строку не ставим: адрес уехал отдельной третьей
-            строкой, а карточка выросла в высоту. */}
         <Box
           sx={{
             display: 'flex',
@@ -898,8 +847,6 @@ const ProfileItemBase = (props: ProfileItemProps) => {
           )}
         </Box>
 
-        {/* Третья строка: откуда подписка. Отдельной строкой ей хватает всей
-            ширины карточки, а не остатка после бейджа и времени. */}
         <Box sx={{ minWidth: 0, minHeight: 20 }}>
           <Typography
             noWrap
@@ -908,8 +855,6 @@ const ProfileItemBase = (props: ProfileItemProps) => {
             }
             sx={{ fontSize: 13 }}
           >
-            {/* clod:groups — ярлык группы идёт первым: по нему карточку
-                и ищут глазами в сетке. */}
             {description
               ? description
               : hasUrl
@@ -920,7 +865,6 @@ const ProfileItemBase = (props: ProfileItemProps) => {
           </Typography>
         </Box>
 
-        {/* Третья строка: трафик и срок, под ними полоса расхода. */}
         {hasExtra ? (
           <Box sx={{ mt: 1.25 }}>
             <Box
@@ -987,11 +931,6 @@ const ProfileItemBase = (props: ProfileItemProps) => {
             </span>
           </Box>
         )}
-        {/* clod: состояние устройства (`x-hwid-*`) раньше жило только в
-            профиле и в логах: диалог закрыли — и причина, по которой подписка
-            не обновляется, пропадала. Теперь она видна на карточке.
-            clod:card-v2 — без `noWrap`: строка длинная и на узкой карточке
-            обрезалась ровно там, где начиналось объяснение. */}
         {hwidNotice && (
           <Typography
             title={t(`profiles.components.profileItem.status.${hwidNotice}`)}
@@ -1001,8 +940,6 @@ const ProfileItemBase = (props: ProfileItemProps) => {
             {t(`profiles.components.profileItem.status.${hwidNotice}`)}
           </Typography>
         )}
-        {/* clod: ссылки провайдера из заголовков подписки — у каждой
-            подписки свои личный кабинет и поддержка */}
         {(itemData.portal_url || itemData.support_url) && (
           <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
             {itemData.portal_url && (
@@ -1013,7 +950,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
                 sx={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap' }}
                 onClick={(e) => {
                   e.stopPropagation()
-                  open(itemData.portal_url ?? '')
+                  void openProviderLink(itemData.portal_url ?? '')
                 }}
               >
                 {t('profiles.components.profileItem.actions.portal')}
@@ -1027,7 +964,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
                 sx={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap' }}
                 onClick={(e) => {
                   e.stopPropagation()
-                  open(itemData.support_url ?? '')
+                  void openProviderLink(itemData.support_url ?? '')
                 }}
               >
                 {t('profiles.components.hwidDialog.support')}

@@ -1631,6 +1631,7 @@ export interface TranslationResources {
         bot: string
         guide: string
         monitor: string
+        openError: string
         portal: string
         subtitle: string
         support: string
