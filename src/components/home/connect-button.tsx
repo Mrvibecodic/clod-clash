@@ -114,7 +114,13 @@ export const ConnectButton = ({
           alignItems: 'center',
           justifyContent: 'center',
           transition: theme.transitions.create(
-            ['transform', 'opacity', 'border-color', 'background', 'box-shadow'],
+            [
+              'transform',
+              'opacity',
+              'border-color',
+              'background',
+              'box-shadow',
+            ],
             { duration: theme.transitions.duration.short },
           ),
           '&:hover': { transform: disabled ? 'none' : 'scale(1.03)' },

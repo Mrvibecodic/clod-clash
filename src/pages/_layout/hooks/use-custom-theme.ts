@@ -73,8 +73,7 @@ const cardSurfaceVars = (mode: 'light' | 'dark') =>
       }
     : {
         line: 'rgba(255, 255, 255, 0.06)',
-        shadow:
-          '0 1px 2px rgba(0, 0, 0, 0.45), 0 8px 22px rgba(0, 0, 0, 0.28)',
+        shadow: '0 1px 2px rgba(0, 0, 0, 0.45), 0 8px 22px rgba(0, 0, 0, 0.28)',
         shadowHover:
           '0 2px 4px rgba(0, 0, 0, 0.5), 0 12px 30px rgba(0, 0, 0, 0.5)',
       }

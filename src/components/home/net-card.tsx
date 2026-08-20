@@ -18,11 +18,9 @@ const buildPoints = (values: number[], max: number) => {
   return values
     .map((value, index) => {
       const x = (index * step).toFixed(1)
-      const y = (
-        SPARK_HEIGHT -
-        2 -
-        (value / max) * (SPARK_HEIGHT - 4)
-      ).toFixed(1)
+      const y = (SPARK_HEIGHT - 2 - (value / max) * (SPARK_HEIGHT - 4)).toFixed(
+        1,
+      )
       return `${x},${y}`
     })
     .join(' ')

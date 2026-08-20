@@ -2,7 +2,11 @@ import { alpha, styled } from '@mui/material/styles'
 import { default as MuiSwitch, SwitchProps } from '@mui/material/Switch'
 
 export const Switch = styled((props: SwitchProps) => (
-  <MuiSwitch disableRipple focusVisibleClassName=".Mui-focusVisible" {...props} />
+  <MuiSwitch
+    disableRipple
+    focusVisibleClassName=".Mui-focusVisible"
+    {...props}
+  />
 ))(({ theme }) => {
   const light = theme.palette.mode === 'light'
 
