@@ -8,6 +8,42 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.1.3
+
+<!-- lang:en -->
+
+### Added
+
+- TUN: the tunnel is now taken down by the app itself when the connection button is off, and is recreated at once if the tunnel is switched back on meanwhile
+- After the tunnel comes up its traffic is probed: if the local proxy answers but the direct path stays silent, a notice appears — on Windows with a hint about the firewall for the `system` and `mixed` stacks
+- The TUN dialog shows the stack the core actually applied, so with «Auto» it is visible what the subscription chose, and warns about `system` and `mixed` on Windows
+- Builds for Intel Macs: the release now carries an `x86_64` build next to the Apple Silicon one
+
+### Fixed
+
+- Windows: the app no longer freezes after the window is restored from the tray — debug tracing was getting into release builds and turned every event sent to the page into a wait on the main thread
+- Quitting now waits for the tunnel to really come down and the core to stop, so routes are not left hanging without internet until the next start
+- Windows: a core that survived a crash is swept away on start instead of living on with a raised tunnel and an old config
+- Windows: a busy service channel is no longer read as «no service» — that dropped the core into the unprivileged mode and the tunnel silently did not come up
+
+<!-- lang:ru -->
+
+### Добавлено
+
+- TUN: туннель гаснет сам, если кнопка подключения выключена, и сразу пересоздаётся, если за это время туннель успели включить обратно
+- После подъёма туннеля проверяется трафик: если локальный прокси отвечает, а прямой путь молчит, появляется уведомление — на Windows с подсказкой про брандмауэр для стеков `system` и `mixed`
+- Диалог TUN показывает стек, фактически применённый ядром: при «Авто» видно, что выбрала подписка, — и предупреждает о выборе `system` или `mixed` на Windows
+- Сборка под маки с процессором Intel: в релизе рядом с версией для Apple Silicon появилась `x86_64`
+
+### Исправлено
+
+- Windows: приложение больше не зависает после разворачивания окна из трея — отладочная трассировка попадала в боевую сборку и превращала отправку каждого события странице в ожидание главного потока
+- Выход из приложения ждёт, пока туннель действительно снимется, а ядро остановится, — маршруты больше не остаются висеть без интернета до следующего запуска
+- Windows: ядро, пережившее аварийное завершение, подметается при старте, а не живёт дальше с поднятым туннелем и старым конфигом
+- Windows: занятый канал службы больше не читается как «службы нет» — из-за этого ядро уходило в режим без прав и туннель молча не поднимался
+
+---
+
 ## v0.1.2
 
 <!-- lang:en -->
