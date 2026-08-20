@@ -33,21 +33,8 @@ const TOP_LEVEL_AT_RULES = [
 ]
 let cssScopeSupport: boolean | null = null
 
-/** Сколько держится класс плавного перехода при смене темы. */
 const THEME_FADE_MS = 380
 
-/**
- * Лестница теней.
- *
- * Раньше здесь стоял `Array(25).fill('none')` плюс глобальное правило
- * `* { box-shadow: none !important }`. Оно убирало «белые точки», но заодно
- * стирало кольцо выбранной подписки, отрыв диалогов и шторки от фона и весь
- * клавиатурный фокус: MUI рисует фокус тенью, а не outline.
- *
- * Карточки остаются плоскими (уровни 1–4 почти не видны) — тень получают
- * только слои, которые действительно лежат ПОВЕРХ содержимого: меню и
- * поповеры (уровень 8), шторка серверов (16), диалоги (24).
- */
 const buildShadows = (mode: 'light' | 'dark'): Shadows => {
   const soft =
     mode === 'light'
@@ -74,6 +61,23 @@ const buildShadows = (mode: 'light' | 'dark'): Shadows => {
     return overlay
   }) as unknown as Shadows
 }
+
+const cardSurfaceVars = (mode: 'light' | 'dark') =>
+  mode === 'light'
+    ? {
+        line: 'rgba(17, 24, 39, 0.06)',
+        shadow:
+          '0 1px 2px rgba(15, 22, 38, 0.05), 0 6px 18px rgba(15, 22, 38, 0.06)',
+        shadowHover:
+          '0 2px 4px rgba(15, 22, 38, 0.06), 0 12px 28px rgba(15, 22, 38, 0.12)',
+      }
+    : {
+        line: 'rgba(255, 255, 255, 0.06)',
+        shadow:
+          '0 1px 2px rgba(0, 0, 0, 0.45), 0 8px 22px rgba(0, 0, 0, 0.28)',
+        shadowHover:
+          '0 2px 4px rgba(0, 0, 0, 0.5), 0 12px 30px rgba(0, 0, 0, 0.5)',
+      }
 
 const canUseCssScope = () => {
   if (cssScopeSupport !== null) {
@@ -110,9 +114,6 @@ ${css}
   return scopedBlock
 }
 
-/**
- * custom theme
- */
 export const useCustomTheme = () => {
   const appWindow: WebviewWindow = useMemo(() => getCurrentWebviewWindow(), [])
   const { verge } = useVerge()
@@ -194,9 +195,6 @@ export const useCustomTheme = () => {
     const dt = mode === 'light' ? defaultTheme : defaultDarkTheme
     let muiTheme: MuiTheme
 
-    // clod:design-v3 — общее для рабочей темы и аварийной: одна линия
-    // (раньше карточки брали дефолтные 0.12, а scss-разделители 0.06),
-    // одна кривая и одна лестница длительностей на всё приложение.
     const shared = {
       breakpoints: {
         values: { xs: 0, sm: 650, md: 900, lg: 1200, xl: 1536 },
@@ -220,13 +218,11 @@ export const useCustomTheme = () => {
         },
       },
       components: {
-        // clod:design-v2 — mockup buttons: sentence case, 10px radius,
-        // semibold labels.
         MuiButton: {
           styleOverrides: {
             root: {
               textTransform: 'none',
-              borderRadius: 10,
+              borderRadius: 999,
               fontWeight: 600,
             },
           },
@@ -266,8 +262,6 @@ export const useCustomTheme = () => {
             secondary: setting.secondary_text || dt.secondary_text,
           },
           background: {
-            // clod:branding — the mockups draw white/slate panels on a
-            // slightly darker canvas; paper is the panel, default the canvas.
             paper:
               mode === 'light'
                 ? '#FFFFFF'
@@ -312,10 +306,7 @@ export const useCustomTheme = () => {
       const backgroundColor = mode === 'light' ? '#ECECEC' : dt.background_color
       const selectColor = mode === 'light' ? '#f5f5f5' : '#3E3E3E'
       const scrollColor = mode === 'light' ? '#90939980' : '#555555'
-      // clod:design-v3 — линия одна: scss-разделители (шапка страницы,
-      // титлбар, строки списков) и границы карточек берут один и тот же цвет.
-      // Раньше здесь стояло 0.06, а карточки рисовались дефолтными 0.12 — в
-      // одном окне были видны две разные полоски.
+      const card = cardSurfaceVars(mode)
       rootEle.style.setProperty('--divider-color', muiTheme.palette.divider)
       rootEle.style.setProperty('--background-color', backgroundColor)
       rootEle.style.setProperty('--selection-color', selectColor)
@@ -324,6 +315,18 @@ export const useCustomTheme = () => {
       rootEle.style.setProperty(
         '--background-color-alpha',
         alpha(muiTheme.palette.primary.main, 0.1),
+      )
+      rootEle.style.setProperty('--card-line', card.line)
+      rootEle.style.setProperty('--card-shadow', card.shadow)
+      rootEle.style.setProperty('--card-shadow-hover', card.shadowHover)
+      rootEle.style.setProperty(
+        '--canvas-gradient',
+        hasUserBackground
+          ? 'none'
+          : `linear-gradient(180deg, ${alpha(
+              muiTheme.palette.primary.main,
+              mode === 'light' ? 0.05 : 0.07,
+            )} 0px, ${alpha(muiTheme.palette.primary.main, 0)} 240px)`,
       )
       rootEle.style.setProperty(
         '--window-border-color',
@@ -368,7 +371,6 @@ export const useCustomTheme = () => {
       }
       const effectiveInjectedCss = scopedCss ?? setting.css_injection ?? ''
       const globalStyles = `
-        /* Исправление стиля полосы прокрутки */
         ::-webkit-scrollbar {
           width: 8px;
           height: 8px;
@@ -382,7 +384,6 @@ export const useCustomTheme = () => {
           background-color: ${mode === 'light' ? '#a1a1a1' : '#666666'};
         }
 
-        /* Обработка фонового изображения */
         body {
           background-color: var(--background-color);
           ${
@@ -399,28 +400,17 @@ export const useCustomTheme = () => {
           }
         }
 
-        /* Исправление возможной белой рамки у слоёв поверх содержимого.
-           Раньше правило било по всем .MuiPaper-root и перекрашивало границы
-           карточек, которые их сами себе задают. */
         .MuiDialog-paper,
         .MuiDrawer-paper,
         .MuiPopover-paper {
           border-color: var(--window-border-color);
         }
 
-        /* Диалог — та же панель, что и остальные поверхности. Раньше здесь был
-           прибитый #2E303D: в тёмной теме диалог оказывался светлее и синее
-           всего, что под ним. */
         .MuiDialog-paper {
           background-color: ${muiTheme.palette.background.paper};
           border-radius: 16px;
         }
 
-        /* Мышью — как было, без рамок. Клавиатурой — видно, где ты находишься.
-           Раньше на месте этих правил стояло звёздочное правило, гасившее
-           outline и box-shadow у всего подряд: оно убирало «белые точки», но
-           вместе с ними — весь клавиатурный фокус, кольцо выбранной подписки
-           и отрыв диалогов от фона. */
         :focus {
           outline: none;
         }
@@ -432,7 +422,6 @@ export const useCustomTheme = () => {
           outline: none;
         }
 
-        /* Смена темы — не рывком. Класс живёт ${THEME_FADE_MS} мс и снимается. */
         .clod-theme-fade,
         .clod-theme-fade *:not(svg):not(path) {
           transition:
@@ -455,9 +444,6 @@ export const useCustomTheme = () => {
     return muiTheme
   }, [mode, theme_setting, userBackgroundImage, hasUserBackground])
 
-  // clod:design-v3 — светлая↔тёмная переключаются кросс-фейдом, а не рывком.
-  // Класс вешаем только на смену режима (не на первый рендер) и снимаем сразу
-  // после перехода, чтобы он не мешал остальным анимациям.
   const previousModeRef = useRef<string | undefined>(undefined)
   useEffect(() => {
     const root = document.documentElement

@@ -32,7 +32,7 @@ import { useSessionUptime } from '@/hooks/use-session-uptime'
 import { useSimpleMode } from '@/hooks/use-simple-mode'
 import { useToolShortcuts } from '@/hooks/use-tool-shortcuts'
 import { useFitWindowToContent } from '@/hooks/use-window-fit'
-import { SHAPE, TINT } from '@/pages/_theme'
+import { CARD_SURFACE, SHAPE, TINT } from '@/pages/_theme'
 import { updateProfile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 
@@ -43,30 +43,20 @@ interface TileProps {
   label: string
   hint?: string
   onClick: () => void
-  /**
-   * clod:tool-shortcuts — плотная плитка ярлыка: те же поверхность, радиус и
-   * подъём под курсором, но без пояснения и с меньшей иконкой. Ярлык — вторая
-   * строка того же ряда, и он не должен спорить по весу с «Подписками».
-   */
   dense?: boolean
 }
 
-/** One quick-access tile of the advanced home screen. */
 const Tile = ({ icon, label, hint, onClick, dense }: TileProps) => (
   <ButtonBase
     onClick={onClick}
     sx={{
+      ...CARD_SURFACE,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'flex-start',
       gap: dense ? 1.25 : 1.5,
       p: dense ? 1.15 : 1.6,
-      borderRadius: SHAPE.surface,
       textAlign: 'left',
-      bgcolor: 'background.paper',
-      border: (theme) => `1px solid ${theme.palette.divider}`,
-      // clod:design-v3 — плитка не прыгает цветом, а приподнимается: тот же
-      // переход, что и у остальных поверхностей.
       transition: (theme) =>
         theme.transitions.create(
           ['border-color', 'background-color', 'transform'],
@@ -120,15 +110,6 @@ const Tile = ({ icon, label, hint, onClick, dense }: TileProps) => (
   </ButtonBase>
 )
 
-/**
- * The advanced interface: still one screen, just a wider one.
- *
- * Left — the connection zone (button, active modes, server). Right — the
- * subscription, live traffic and quick tiles into the deeper sections. On a
- * narrow window the columns stack, which is also the layout a future mobile
- * build starts from. Proxy and routing modes are read-only here: changing
- * them lives in the settings, and `clod-lock-mode` removes even that.
- */
 const HomeAdvancedPage = () => {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -137,8 +118,6 @@ const HomeAdvancedPage = () => {
   const { shortcuts } = useToolShortcuts()
   const { connected, willConnect, toggleConnection } = useConnectTargets()
   const uptime = useSessionUptime(connected)
-  // clod:fit-window — окно тянется под содержимое, а на маленьком экране
-  // сначала поджимается вёрстка и только потом появляется прокрутка
   const { fitRef, compact } = useFitWindowToContent()
 
   const [busy, setBusy] = useState(false)
@@ -146,26 +125,17 @@ const HomeAdvancedPage = () => {
   const [serverOpen, setServerOpen] = useState(false)
   const [intent, setIntent] = useState<'connecting' | 'disconnecting'>()
 
-  // clod:tun-ready — ошибка запоминается вместе с состоянием подключения, в
-  // котором случилась, и перестаёт показываться, как только оно изменилось:
-  // поставил службу, включил TUN тумблером — кнопка больше не красная.
   const errorText = failure?.at === connected ? failure.text : undefined
 
   const state: ConnectState = errorText
     ? 'error'
     : busy
-      ? // Намерение фиксируется в момент нажатия: `connected` по ходу дела
-        // гаснет (TUN гасится первым, системный прокси следом), и подпись
-        // посреди отключения превращалась бы в «Подключение…».
-        (intent ?? 'connecting')
+      ? (intent ?? 'connecting')
       : connected
         ? 'on'
         : 'off'
 
   const toggle = useLockFn(async () => {
-    // Подпись — от того, что нажатие СДЕЛАЕТ. Это почти всегда обратное
-    // показанному, но подавленный туннель оставляет кнопку тёмной, а нажатие
-    // при поднятом системном прокси всё равно отключает.
     setIntent(willConnect ? 'connecting' : 'disconnecting')
     setBusy(true)
     setFailure(undefined)
@@ -193,19 +163,12 @@ const HomeAdvancedPage = () => {
     }
   })
 
-  // Without a subscription the advanced screen has nothing extra to offer;
-  // the simple welcome (paste a link) is the right screen in both modes.
   if (!current) {
     return <HomeSimplePage />
   }
 
   return (
-    // clod:fit-window — окно садится по высоте этого содержимого; ref нужен
-    // именно на прокручиваемом корне: его `scrollHeight` и есть полная высота.
     <Stack ref={fitRef} sx={{ height: '100%', overflowY: 'auto' }}>
-      {/* flexShrink: 0 — иначе при нехватке высоты весь дефицит уходит в
-          единственного сжимаемого соседа, и шапка провайдера сплющивается
-          вместо того, чтобы страница прокрутилась. */}
       <Box
         sx={{
           px: compact ? 1.25 : 2,
@@ -216,11 +179,6 @@ const HomeAdvancedPage = () => {
         <ProviderHeader profile={current} />
       </Box>
 
-      {/* clod: было `flex: 1` c `minHeight: 0` — ряд жёстко упирался в высоту
-          окна, и лишнее содержимое не прокручивалось, а СЖИМАЛО колонки:
-          карточка «Сеть» схлопывалась до заголовка, нижняя плитка обрезалась.
-          `1 0 auto` = расти до окна, но никогда не ниже своего содержимого;
-          дальше прокручивается внешний Stack, у него `overflowY: auto`. */}
       <Box
         sx={{
           display: 'flex',
@@ -229,7 +187,6 @@ const HomeAdvancedPage = () => {
           mt: 1,
         }}
       >
-        {/* connection zone */}
         <Stack
           sx={{
             width: { md: 320 },
@@ -250,9 +207,6 @@ const HomeAdvancedPage = () => {
             onToggle={() => void toggle()}
           />
 
-          {/* Which switches Connect drives and the routing mode. Read-only on
-              purpose: the mode lives in the settings, or nowhere at all when
-              the panel locked it. */}
           <ModeStatus locked={Boolean(current.lock_mode)} showTargets={false} />
 
           <ServerSelectRow onOpen={() => setServerOpen(true)} />
@@ -261,9 +215,6 @@ const HomeAdvancedPage = () => {
             onClose={() => setServerOpen(false)}
           />
 
-          {/* clod: колонка кончалась строкой сервера и дальше пустовала до
-              самого низа — четыре переключателя, за которыми иначе лезут в
-              настройки, закрывают её и ничего не растягивают. */}
           <QuickActions />
 
           <Box sx={{ flex: 1 }} />
@@ -277,7 +228,6 @@ const HomeAdvancedPage = () => {
           </Button>
         </Stack>
 
-        {/* subscription, traffic, quick access */}
         <Stack
           sx={{
             flex: 1,
@@ -291,16 +241,8 @@ const HomeAdvancedPage = () => {
 
           <SubscriptionCard profile={current} />
 
-          {/* clod:design-v2 — the mockups' compact «Network» card */}
           <NetCard />
 
-          {/* clod: столбцов столько, сколько влезает по 190px, а не по точке
-              излома `lg`: она считает ШИРИНУ ОКНА, а плитки живут в правой
-              колонке — на 1100px оставалась двухстолбцовая сетка в три ряда,
-              хотя места хватало на три столбца в два ряда. */}
-          {/* clod:provider-links — ссылки провайдера отдельной строкой: пятью
-              плитками они забивали бы сетку и переставали отличаться от
-              кнопок самого приложения. */}
           <ProviderLinksCard profile={current} compact={compact} />
 
           <Box
@@ -310,10 +252,6 @@ const HomeAdvancedPage = () => {
               gap: compact ? 1 : 1.25,
             }}
           >
-            {/* clod:design-v2 — the home screen keeps the everyday tiles
-                only; the technical sections (proxies, rules, connections,
-                logs) moved into the settings to leave room for the coming
-                account button */}
             <Tile
               icon={<DescriptionRoundedIcon fontSize="small" />}
               label={t('home.pages.advanced.tiles.subscriptions')}
@@ -333,14 +271,6 @@ const HomeAdvancedPage = () => {
             />
           </Box>
 
-          {/* clod:tool-shortcuts — ярлыки технических экранов отдельным рядом
-              под плитками. Отдельным, а не вперемешку: «Подписки» и
-              «Настройки» есть у всех и всегда, а этот ряд собран самим
-              пользователем и может исчезнуть целиком — тогда и ряда нет, и
-              главная возвращается к прежнему виду. Порог столбца 150 px
-              (у верхних плиток 190): ярлык — одно слово без пояснения.
-              `auto-fill`, а не `auto-fit`, — иначе один включённый ярлык
-              растянулся бы на всю ширину. */}
           {shortcuts.length > 0 ? (
             <Box
               sx={{

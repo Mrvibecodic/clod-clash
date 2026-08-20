@@ -12,7 +12,7 @@ import { useSystemProxyState } from '@/hooks/use-system-proxy-state'
 import { useSystemState } from '@/hooks/use-system-state'
 import { useTunState } from '@/hooks/use-tun-state'
 import { useVerge } from '@/hooks/use-verge'
-import { CARD_TITLE, SHAPE } from '@/pages/_theme'
+import { CARD_SURFACE, CARD_TITLE, SHAPE } from '@/pages/_theme'
 import { ensureTunReady } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 
@@ -112,14 +112,12 @@ export const QuickActions = () => {
   return (
     <Stack
       sx={{
+        ...CARD_SURFACE,
         alignSelf: 'stretch',
         boxSizing: 'border-box',
         gap: 0.25,
         px: 1.75,
         py: 1.25,
-        borderRadius: SHAPE.surface,
-        bgcolor: 'background.paper',
-        border: (theme) => `1px solid ${theme.palette.divider}`,
       }}
     >
       <Typography variant="caption" color="text.secondary" sx={CARD_TITLE}>

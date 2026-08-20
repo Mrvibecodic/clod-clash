@@ -736,6 +736,7 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
         borderRadius: SHAPE.surface,
         cursor: 'pointer',
         bgcolor: 'background.paper',
+        boxShadow: 'var(--card-shadow)',
         transition: (theme) =>
           theme.transitions.create(['border-color', 'background-color'], {
             duration: theme.transitions.duration.short,
@@ -747,8 +748,8 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
                 ? theme.palette.error.main
                 : reason === 'traffic'
                   ? theme.palette.warning.main
-                  : theme.palette.divider
-              : theme.palette.divider
+                  : 'var(--card-line)'
+              : 'var(--card-line)'
           }`,
         '&:hover': { borderColor: 'primary.main' },
       }}

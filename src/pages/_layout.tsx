@@ -164,7 +164,11 @@ const Layout = () => {
           }
         }}
         sx={[
-          ({ palette }) => ({ bgcolor: palette.background.default }),
+          ({ palette }) => ({
+            bgcolor: palette.background.default,
+            backgroundImage: 'var(--canvas-gradient)',
+            backgroundRepeat: 'no-repeat',
+          }),
           OS === 'linux'
             ? {
                 borderRadius: '8px',

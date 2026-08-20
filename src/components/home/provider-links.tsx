@@ -2,11 +2,10 @@ import { alpha, Box, Typography } from '@mui/material'
 import { useTranslation } from 'react-i18next'
 
 import { openProviderLink, useProviderLinks } from '@/hooks/use-provider-links'
-import { CARD_TITLE, SHAPE, TINT } from '@/pages/_theme'
+import { CARD_SURFACE, CARD_TITLE, SHAPE, TINT } from '@/pages/_theme'
 
 interface Props {
   profile?: IProfileItem | null
-  /** Плотная вёрстка главной, когда окно ужимается по высоте. */
   compact?: boolean
 }
 
@@ -18,12 +17,8 @@ export const ProviderLinksCard = ({ profile, compact }: Props) => {
 
   return (
     <Box
-      // clod:design-v3 — та же панель, что и соседние карточки: раньше она
-      // была прозрачной с радиусом 12, и ряд ссылок читался как «ничей».
       sx={{
-        border: (theme) => `1px solid ${theme.palette.divider}`,
-        borderRadius: SHAPE.surface,
-        bgcolor: 'background.paper',
+        ...CARD_SURFACE,
         px: 1.5,
         py: compact ? 0.75 : 1,
       }}
@@ -36,8 +31,6 @@ export const ProviderLinksCard = ({ profile, compact }: Props) => {
       >
         {profile?.name || t('shared.providerLinks.title')}
       </Typography>
-      {/* Ссылки делят ширину карточки поровну: две штуки, прижатые к левому
-          краю, читаются как обрезанный список, а не как «их всего две». */}
       <Box sx={{ display: 'flex', gap: 0.5 }}>
         {links.map((link) => (
           <Box
