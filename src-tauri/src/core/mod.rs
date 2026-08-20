@@ -6,7 +6,7 @@ pub mod handle;
 pub mod hotkey;
 pub mod logger;
 pub mod manager;
-mod notification;
+pub(crate) mod notification;
 pub mod orphan;
 pub(crate) mod owner_identity;
 pub(crate) mod runtime_bundle;

@@ -1,44 +1,34 @@
-use crate::{core::handle, process::AsyncHandler, utils::resolve::window::build_new_window};
+use crate::{
+    core::{handle, notification::NotificationSystem},
+    process::AsyncHandler,
+    utils::resolve::window::build_new_window,
+};
 use clash_verge_limiter::Limiter;
 use clash_verge_logging::{Type, logging};
 use once_cell::sync::Lazy;
 use std::pin::Pin;
 use std::time::Duration;
-use tauri::{Emitter as _, Manager as _, WebviewWindow, Wry};
+use tauri::{Manager as _, WebviewWindow, Wry};
 
-/// Результат операции с окном
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum WindowOperationResult {
-    /// Окно показано и получило фокус
     Shown,
-    /// Окно скрыто
     Hidden,
-    /// Создано новое окно
     Created,
-    /// Окно уничтожено
     Destroyed,
-    /// Операция не удалась
     Failed,
-    /// Действие не требуется
     NoAction,
 }
 
-/// Состояние окна
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum WindowState {
-    /// Окно видимо и в фокусе
     VisibleFocused,
-    /// Окно видимо, но не в фокусе
     VisibleUnfocused,
-    /// Окно свёрнуто
     Minimized,
-    /// Окно скрыто
     Hidden,
-    /// Окно не существует
     NotExist,
 }
 
-// Механизм защиты от дребезга операций с окном
 const WINDOW_OPERATION_DEBOUNCE_MS: u64 = 625;
 static WINDOW_OPERATION_LIMITER: Lazy<Limiter> = Lazy::new(|| {
     Limiter::new(
@@ -47,12 +37,6 @@ static WINDOW_OPERATION_LIMITER: Lazy<Limiter> = Lazy::new(|| {
     )
 });
 
-/// clod:freeze-restore — сколько ждать ответа от активации окна.
-///
-/// Каждый вызов окна из рабочего потока — рандеву с главным потоком, и ждёт он
-/// БЕЗ срока: если главный поток встал (14.08 его подвесил усыплённый WebView2
-/// при разворачивании), задача клика по трею висит вечно и молча. Срок не
-/// оживляет окно — он даёт запись в лог вместо тишины и отпускает вызвавшего.
 const ACTIVATE_TIMEOUT: Duration = Duration::from_secs(5);
 
 fn should_handle_window_operation() -> bool {
@@ -63,7 +47,6 @@ fn should_handle_window_operation() -> bool {
     allow
 }
 
-/// Единый менеджер окон
 pub struct WindowManager;
 
 impl WindowManager {
@@ -120,15 +103,12 @@ impl WindowManager {
         }
     }
 
-    /// Получить экземпляр главного окна
     pub fn get_main_window() -> Option<WebviewWindow<Wry>> {
         let app_handle = handle::Handle::app_handle();
         app_handle.get_webview_window("main")
     }
 
-    /// Умный показ главного окна
     pub async fn show_main_window() -> WindowOperationResult {
-        // Проверка защиты от дребезга
         if !should_handle_window_operation() {
             return WindowOperationResult::NoAction;
         }
@@ -136,10 +116,6 @@ impl WindowManager {
         logging!(info, Type::Window, "Начинаю умный показ главного окна");
         logging!(debug, Type::Window, "{}", Self::get_window_status_info());
 
-        // clod:freeze-restore — спрашиваем окно ДО того, как полезем в него.
-        // Любой вызов окна ниже — свидание с главным потоком без срока, и если
-        // тот уже не разбирает очередь, показ просто ляжет молча. Одна строка
-        // здесь отличает «нажатие не сработало» от «приложение зависло раньше».
         if !crate::utils::ui_watchdog::responds() {
             logging!(
                 error,
@@ -181,13 +157,6 @@ impl WindowManager {
         }
     }
 
-    /// clod:freeze-restore — активация со сроком ответа.
-    ///
-    /// Сама активация синхронная и блокирующая, поэтому уезжает в блокирующий
-    /// поток: зависший вызов окна больше не морозит воркер рантайма, а по
-    /// истечении срока в логе остаётся запись — раньше на этом месте была
-    /// тишина, и понять, что приложение висит именно здесь, можно было только
-    /// по ОТСУТСТВИЮ следующей строки.
     async fn activate_window_guarded(window: WebviewWindow<Wry>) -> WindowOperationResult {
         let task = AsyncHandler::spawn_blocking(move || Self::activate_window(&window));
         match tokio::time::timeout(ACTIVATE_TIMEOUT, task).await {
@@ -208,7 +177,6 @@ impl WindowManager {
         }
     }
 
-    /// Переключить состояние показа главного окна (показать/скрыть)
     pub async fn toggle_main_window() -> WindowOperationResult {
         if !should_handle_window_operation() {
             return WindowOperationResult::NoAction;
@@ -225,10 +193,8 @@ impl WindowManager {
         }
     }
 
-    // Окно не существует — создаём новое окно
     async fn handle_not_exist_toggle() -> WindowOperationResult {
         logging!(info, Type::Window, "Окно не существует, создаю новое окно");
-        // Защита от дребезга уже есть, вызываем внутренний метод напрямую
         if Self::create_window(true).await {
             WindowOperationResult::Created
         } else {
@@ -236,7 +202,6 @@ impl WindowManager {
         }
     }
 
-    // Скрыть главное окно
     fn hide_main_window(window: Option<&WebviewWindow<Wry>>) -> WindowOperationResult {
         logging!(info, Type::Window, "Окно видимо, скрываю окно");
         if let Some(window) = window {
@@ -256,7 +221,6 @@ impl WindowManager {
         }
     }
 
-    // Активировать существующее главное окно
     fn activate_existing_main_window(window: Option<&WebviewWindow<Wry>>) -> WindowOperationResult {
         logging!(
             info,
@@ -271,15 +235,11 @@ impl WindowManager {
         }
     }
 
-    /// Активировать окно (отменить сворачивание, показать, установить фокус)
     fn activate_window(window: &WebviewWindow<Wry>) -> WindowOperationResult {
         logging!(info, Type::Window, "Начинаю активацию окна");
         #[cfg(target_os = "macos")]
         Self::set_macos_activation_policy_regular();
 
-        // Процесс рендеринга был завершён системой: сначала reload, показ и фокус
-        // передаём в on_page_load(Finished). Показываем окно только когда контент готов,
-        // чтобы избежать мерцания белого экрана. defer только при успешном reload, иначе показ напрямую.
         #[allow(unused_mut)]
         let mut defer_show_to_page_load = false;
         #[cfg(target_os = "macos")]
@@ -302,12 +262,6 @@ impl WindowManager {
 
         let mut operations_successful = true;
 
-        // clod:freeze-restore — каждый шаг отмечается ДО вызова, и все записи
-        // идут уровнем info. 14.08 приложение дважды зависло между «отменяю
-        // сворачивание» и «окно активировано», а промежуточные шаги писались в
-        // debug — то есть в логе пользователя их не было и место обрыва
-        // приходилось угадывать. Записей тут четыре на разворот окна, не жалко.
-        // 1. Если окно свёрнуто, сначала отменяем сворачивание
         if window.is_minimized().unwrap_or(false) {
             logging!(info, Type::Window, "Окно свёрнуто, отменяю сворачивание");
             if let Err(e) = window.unminimize() {
@@ -317,7 +271,6 @@ impl WindowManager {
             logging!(info, Type::Window, "Сворачивание отменено");
         }
 
-        // 2/3. Показ + фокус (при ветке reload пропускается, передаётся в on_page_load)
         if !defer_show_to_page_load {
             logging!(info, Type::Window, "Показываю окно");
             if let Err(e) = window.show() {
@@ -331,27 +284,11 @@ impl WindowManager {
             }
         }
 
-        // clod:window-return — говорим странице, что окно показано, вместо
-        // того чтобы ждать, пока она догадается сама. `document.hidden` под
-        // Tauri врёт, события окна на разных платформах приходят по-разному, а
-        // `is_visible()` для свёрнутого окна на Windows отвечает `true` — то
-        // есть единственной безусловной проверкой оставался сторож раз в
-        // минуту, и до него экран показывал цифры прошлого показа. Мы этот
-        // момент знаем ТОЧНО: он прямо здесь.
-        //
-        // clod:freeze-restore — но уходит сообщение ОТДЕЛЬНОЙ задачей. Это
-        // единственный шаг показа, который лезет не в окно, а внутрь вебвью
-        // (событие доставляется выполнением скрипта на странице), и делает это
-        // через главный поток. У окна, свёрнутого надолго, вебвью разбужен не
-        // всегда — а значит именно здесь показ может не вернуться. Пусть тогда
-        // встанет одна задача, а не вся активация: итог показа обязан попасть
-        // в лог.
-        let page = window.clone();
-        AsyncHandler::spawn_blocking(move || {
-            logging!(info, Type::Window, "Сообщаю странице о показе");
-            let _ = page.emit("verge://window-shown", ());
-            logging!(info, Type::Window, "Странице сообщено о показе");
-        });
+        logging!(info, Type::Window, "Сообщаю странице о показе");
+        NotificationSystem::send_event(
+            window.app_handle().clone(),
+            crate::core::notification::FrontendEvent::WindowShown,
+        );
 
         if operations_successful {
             logging!(info, Type::Window, "Окно успешно активировано");
@@ -362,24 +299,18 @@ impl WindowManager {
         }
     }
 
-    /// Проверить, видимо ли окно
     pub fn is_main_window_visible(window: Option<&WebviewWindow<Wry>>) -> bool {
         window.map(|w| w.is_visible().unwrap_or(false)).unwrap_or(false)
     }
 
-    /// Проверить, в фокусе ли окно
     pub fn is_main_window_focused(window: Option<&WebviewWindow<Wry>>) -> bool {
         window.map(|w| w.is_focused().unwrap_or(false)).unwrap_or(false)
     }
 
-    /// Проверить, свёрнуто ли окно
     pub fn is_main_window_minimized(window: Option<&WebviewWindow<Wry>>) -> bool {
         window.map(|w| w.is_minimized().unwrap_or(false)).unwrap_or(false)
     }
 
-    /// Создать новое окно, защита от дребезга предотвращает повторные вызовы
-    /// После создания окно остаётся скрытым, show вызывает фронтенд index.html
-    /// после отрисовки overlay, чтобы избежать мерцания темы
     pub fn create_window(should_create: bool) -> Pin<Box<dyn Future<Output = bool> + Send>> {
         Box::pin(async move {
             logging!(
@@ -414,7 +345,6 @@ impl WindowManager {
         })
     }
 
-    /// Уничтожить окно
     pub fn destroy_main_window() -> WindowOperationResult {
         if let Some(window) = Self::get_main_window() {
             let _ = window.destroy();
@@ -429,7 +359,6 @@ impl WindowManager {
         WindowOperationResult::Failed
     }
 
-    /// Получить подробную информацию о состоянии окна
     fn get_window_status_info() -> String {
         let (window, state) = Self::get_main_window_with_state();
         let is_visible = Self::is_main_window_visible(window.as_ref());
