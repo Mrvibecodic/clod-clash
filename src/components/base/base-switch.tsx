@@ -1,38 +1,76 @@
 import { alpha, styled } from '@mui/material/styles'
 import { default as MuiSwitch, SwitchProps } from '@mui/material/Switch'
 
-/**
- * clod: единственный тумблер приложения.
- *
- * Раньше здесь жил крупный iOS-образный переключатель (трек 42×26 с контуром):
- * в плотных списках настроек он занимал почти всю строку, и соседние строки
- * читались как наехавшие друг на друга. Берём системную геометрию MUI —
- * тонкий трек и бегунок поверх него, — она спокойно вписывается и в карточку
- * быстрых действий, и в диалоги.
- *
- * Меняем ровно одно: выключенное состояние на светлой теме. Дефолтные 38%
- * прозрачности на белой карточке читаются как пустое место — поднимаем до
- * уровня, на котором тумблер видно, но он не спорит с включённым (тот в цвете
- * акцента и всегда заметнее).
- */
 export const Switch = styled((props: SwitchProps) => (
-  <MuiSwitch focusVisibleClassName=".Mui-focusVisible" {...props} />
+  <MuiSwitch disableRipple focusVisibleClassName=".Mui-focusVisible" {...props} />
 ))(({ theme }) => {
   const light = theme.palette.mode === 'light'
 
   return {
-    '& .MuiSwitch-switchBase:not(.Mui-checked)': {
-      '& + .MuiSwitch-track': {
-        backgroundColor: alpha(theme.palette.text.primary, light ? 0.42 : 0.5),
-        opacity: light ? 0.72 : 0.42,
+    width: 40,
+    height: 22,
+    padding: 0,
+    '& .MuiSwitch-switchBase': {
+      padding: 2,
+      '&.Mui-checked': {
+        transform: 'translateX(18px)',
+        '& .MuiSwitch-thumb': {
+          backgroundColor: theme.palette.common.white,
+        },
+        '& + .MuiSwitch-track': {
+          backgroundColor: theme.palette.primary.main,
+          opacity: 1,
+          border: 0,
+        },
+        '&.Mui-disabled + .MuiSwitch-track': {
+          opacity: light ? 0.4 : 0.3,
+        },
+      },
+      '&:not(.Mui-checked)': {
+        '& + .MuiSwitch-track': {
+          backgroundColor: alpha(
+            theme.palette.text.primary,
+            light ? 0.42 : 0.5,
+          ),
+          opacity: light ? 0.72 : 0.42,
+        },
+        '& .MuiSwitch-thumb': {
+          backgroundColor: light
+            ? theme.palette.common.white
+            : theme.palette.grey[300],
+        },
+        '&.Mui-disabled + .MuiSwitch-track': {
+          opacity: light ? 0.3 : 0.2,
+        },
+      },
+    },
+    '& .MuiSwitch-thumb': {
+      boxSizing: 'border-box',
+      width: 18,
+      height: 18,
+      boxShadow: '0 1px 3px rgba(0, 0, 0, 0.3)',
+    },
+    '& .MuiSwitch-track': {
+      borderRadius: 11,
+      transition: theme.transitions.create(['background-color'], {
+        duration: theme.transitions.duration.short,
+      }),
+    },
+    '&.MuiSwitch-sizeSmall': {
+      width: 32,
+      height: 18,
+      '& .MuiSwitch-switchBase': {
+        padding: 2,
+        '&.Mui-checked': {
+          transform: 'translateX(14px)',
+        },
       },
       '& .MuiSwitch-thumb': {
-        backgroundColor: light
-          ? theme.palette.common.white
-          : theme.palette.grey[300],
+        width: 14,
+        height: 14,
       },
-      '&.Mui-disabled + .MuiSwitch-track': {
-        opacity: light ? 0.3 : 0.2,
+      '& .MuiSwitch-track': {
+        borderRadius: 9,
       },
     },
   }

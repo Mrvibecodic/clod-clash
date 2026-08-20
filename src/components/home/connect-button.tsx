@@ -11,15 +11,9 @@ export type ConnectState =
 
 interface Props {
   state: ConnectState
-  /** Seconds since the connection came up; only shown while `state` is `on`. */
   uptime?: number
   errorText?: string
   disabled?: boolean
-  /**
-   * clod:fit-window — плотная раскладка: экран уже упёрся в рабочую область
-   * монитора, и кнопка отдаёт часть своего роста, лишь бы не появилась
-   * прокрутка. Ставится автоматикой подгона окна, не пользователем.
-   */
   compact?: boolean
   onToggle: () => void
 }
@@ -38,13 +32,6 @@ const formatUptime = (seconds: number) => {
     : `${pad(minutes)}:${pad(secs)}`
 }
 
-/**
- * The one button of the simple interface.
- *
- * The state comes from what the system actually reports, never from an
- * optimistic local flag — if the system proxy is dropped from outside the app,
- * the button has to go dark on its own.
- */
 export const ConnectButton = ({
   state,
   uptime,
@@ -65,7 +52,6 @@ export const ConnectButton = ({
   } as const
   const color = palette[state]
 
-  /** Palette the tinted circle background is taken from, per state. */
   const bgKey = {
     off: 'primary',
     connecting: 'info',
@@ -84,9 +70,6 @@ export const ConnectButton = ({
 
   return (
     <Box
-      // clod: anchor for the server drawer's ceiling — the drawer sizes itself
-      // so that this block always stays uncovered. Read by
-      // `useDrawerCapHeight`; keep the attribute name in sync with it.
       data-connect-anchor=""
       sx={{
         display: 'flex',
@@ -108,20 +91,30 @@ export const ConnectButton = ({
           borderRadius: '50%',
           border: `2px solid ${theme.palette.divider}`,
           borderColor: color,
-          background: alpha(
-            theme.palette[bgKey[state]].main,
-            state === 'on' ? 0.16 : 0.06,
-          ),
+          background:
+            state === 'on'
+              ? `linear-gradient(160deg, ${alpha(
+                  theme.palette.success.main,
+                  0.22,
+                )}, ${alpha(theme.palette.success.main, 0.1)})`
+              : alpha(theme.palette[bgKey[state]].main, 0.06),
+          boxShadow:
+            state === 'on'
+              ? `0 0 0 10px ${alpha(
+                  theme.palette.success.main,
+                  0.1,
+                )}, 0 14px 34px ${alpha(theme.palette.success.main, 0.28)}`
+              : state === 'connecting' || state === 'disconnecting'
+                ? `0 0 0 10px ${alpha(theme.palette.info.main, 0.08)}`
+                : 'none',
           color,
           cursor: disabled ? 'not-allowed' : 'pointer',
           opacity: disabled ? 0.5 : 1,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          // Only transform and opacity are animated, so the button stays at
-          // 60 fps even on the software renderer some Linux setups end up with.
           transition: theme.transitions.create(
-            ['transform', 'opacity', 'border-color', 'background'],
+            ['transform', 'opacity', 'border-color', 'background', 'box-shadow'],
             { duration: theme.transitions.duration.short },
           ),
           '&:hover': { transform: disabled ? 'none' : 'scale(1.03)' },
@@ -149,8 +142,6 @@ export const ConnectButton = ({
         {label}
       </Typography>
 
-      {/* clod: слот аптайма зарезервирован всегда — иначе при подключении
-          контент подрастает и в simple-окне выскакивает прокрутка */}
       <Typography
         variant="body1"
         sx={{

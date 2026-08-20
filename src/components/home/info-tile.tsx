@@ -1,7 +1,7 @@
 import { Box, Stack, Typography } from '@mui/material'
 import type { ReactNode } from 'react'
 
-import { CARD_SURFACE, CARD_TITLE } from '@/pages/_theme'
+import { CARD_LIFT, CARD_SURFACE, CARD_TITLE } from '@/pages/_theme'
 
 export const InfoTile = ({
   title,
@@ -15,6 +15,7 @@ export const InfoTile = ({
   <Box
     sx={{
       ...CARD_SURFACE,
+      ...CARD_LIFT,
       position: 'relative',
       overflow: 'hidden',
       minWidth: 0,

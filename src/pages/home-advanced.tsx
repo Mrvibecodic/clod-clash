@@ -60,13 +60,14 @@ const Tile = ({ icon, label, hint, onClick, dense }: TileProps) => (
       textAlign: 'left',
       transition: (theme) =>
         theme.transitions.create(
-          ['border-color', 'background-color', 'transform'],
+          ['border-color', 'background-color', 'transform', 'box-shadow'],
           { duration: theme.transitions.duration.short },
         ),
       '&:hover': {
         borderColor: 'primary.main',
         bgcolor: 'action.hover',
-        transform: 'translateY(-1px)',
+        transform: 'translateY(-2px)',
+        boxShadow: 'var(--card-shadow-hover)',
       },
       '&:active': { transform: 'none' },
       '@media (prefers-reduced-motion: reduce)': {

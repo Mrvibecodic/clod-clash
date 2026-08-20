@@ -738,9 +738,19 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
         bgcolor: 'background.paper',
         boxShadow: 'var(--card-shadow)',
         transition: (theme) =>
-          theme.transitions.create(['border-color', 'background-color'], {
-            duration: theme.transitions.duration.short,
-          }),
+          theme.transitions.create(
+            ['border-color', 'background-color', 'transform', 'box-shadow'],
+            { duration: theme.transitions.duration.short },
+          ),
+        '@media (hover: hover)': {
+          '&:hover': {
+            transform: 'translateY(-2px)',
+            boxShadow: 'var(--card-shadow-hover)',
+          },
+        },
+        '@media (prefers-reduced-motion: reduce)': {
+          '&:hover': { transform: 'none' },
+        },
         border: (theme) =>
           `1px solid ${
             statusRow
