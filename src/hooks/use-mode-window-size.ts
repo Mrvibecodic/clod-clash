@@ -5,6 +5,7 @@ import { useSimpleMode } from '@/hooks/use-simple-mode'
 import { useVerge } from '@/hooks/use-verge'
 import {
   isSelfWindowResize,
+  isStartupWindowGrace,
   markSelfWindowResize,
   resumeWindowFit,
   suspendWindowFit,
@@ -13,33 +14,14 @@ import { applyWindowSizeForMode, saveWindowSizeForMode } from '@/services/cmds'
 
 const SAVE_DEBOUNCE_MS = 800
 
-/**
- * Keeps the per-mode window geometry fresh: after a manual resize or move
- * settles, the current size and position are written into the slots of
- * whatever mode is active, so the next launch (and the next switch back)
- * restores the window exactly where the user left it. The backend skips
- * maximized/fullscreen states on its own.
- *
- * clod:mode-window — и второе: окно догоняет режим, КТО БЫ его ни сменил.
- * Раньше размер применяла только кнопка «К расширенному виду», а режим,
- * пришедший заголовком `clod-simple-mode`, менял одну вёрстку: окно
- * оставалось узким, расширенный интерфейс уезжал в прокрутку вниз и понять,
- * что он вообще включился, можно было только проскроллив. Смена режима теперь
- * одна точка: сохранить геометрию покидаемого режима, применить геометрию
- * нового.
- */
 export const useModeWindowSize = () => {
   const { simpleMode } = useSimpleMode()
   const { verge, patchVerge } = useVerge()
 
-  // The listener lives for the whole session; the ref keeps it reading the
-  // current mode without resubscribing on every switch.
   const simpleModeRef = useRef(simpleMode)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
   )
-  // clod:fit-window — тот же приём для настройки автоподгона: слушатель
-  // подписывается один раз, а читать должен свежее значение.
   const fitEnabled = verge?.window_fit_content !== false
   const fitEnabledRef = useRef(fitEnabled)
   const patchVergeRef = useRef(patchVerge)
@@ -52,15 +34,7 @@ export const useModeWindowSize = () => {
   useEffect(() => {
     const appWindow = getCurrentWebviewWindow()
     let wasMaximized = false
-    // clod:fit-window — сворачивание и разворачивание тоже приезжают сюда
-    // событием размера, и без этой памяти клиент считал их выбором
-    // пользователя: настройка «подгонять окно под содержимое» выключалась
-    // сама, стоило свернуть окно и достать обратно.
     let wasMinimized = false
-    // Масштаб экрана нужен, чтобы перевести физический размер из события в
-    // логический и сверить его с тем, что просил автоподгон. Спрашиваем один
-    // раз и обновляем по событию: на каждый кадр перетаскивания края ходить в
-    // бэкенд незачем.
     let scale = 1
     void appWindow
       .scaleFactor()
@@ -77,30 +51,24 @@ export const useModeWindowSize = () => {
       }, SAVE_DEBOUNCE_MS)
     }
 
-    // clod:fit-window — главный в размерах пользователь: потянул окно за край
-    // — автоподгон выключается, и дальше живёт заданный им размер (прокрутка
-    // в нём законна). Развернуть окно на весь экран — не выбор размера, а
-    // временное состояние: и разворот, и возврат из него пропускаем.
     const onResized = async (height: number) => {
-      // Свёрнутое окно на Windows шлёт размер 0×0. Это не «пользователь сделал
-      // окно нулевым», это системное событие, и решать по нему нечего.
       if (!Number.isFinite(height) || height <= 0) return
 
       const [maximized, minimized] = await Promise.all([
         appWindow.isMaximized().catch(() => false),
         appWindow.isMinimized().catch(() => false),
       ])
-      // Разворот на весь экран и сворачивание — состояния, а не выбор размера:
-      // пропускаем и сам переход, и возврат из него.
       const transient = maximized || wasMaximized || minimized || wasMinimized
       wasMaximized = maximized
       wasMinimized = minimized
       if (transient) return
 
-      if (!isSelfWindowResize(height) && fitEnabledRef.current) {
+      if (
+        !isSelfWindowResize(height) &&
+        !isStartupWindowGrace() &&
+        fitEnabledRef.current
+      ) {
         suspendWindowFit()
-        // Не смогли записать настройку — не притворяемся, что выключили:
-        // иначе автоподгон молча не работал бы до перезапуска.
         patchVergeRef
           .current({ window_fit_content: false })
           .catch(() => resumeWindowFit())
@@ -129,23 +97,14 @@ export const useModeWindowSize = () => {
   useEffect(() => {
     const previous = simpleModeRef.current
     simpleModeRef.current = simpleMode
-    // Первый проход пропускаем: окно уже создано под нужный режим самим
-    // бэкендом (`effective_simple_mode` в момент создания), и повторное
-    // применение только спорило бы с плагином window-state.
     if (previous === simpleMode) return
 
     const run = async () => {
-      // Отложенное сохранение принадлежит ПОКИДАЕМОМУ режиму: если таймер ещё
-      // тикает, он сработает уже с новым значением рефа и запишет размер не в
-      // тот слот. Гасим его и сохраняем сами.
       if (saveTimerRef.current) {
         clearTimeout(saveTimerRef.current)
         saveTimerRef.current = undefined
       }
       await saveWindowSizeForMode(previous).catch(() => {})
-      // clod:fit-window — смена режима двигает окно сама, и это НЕ ручной
-      // ресайз: без пометки автоподгон выключился бы от собственного щелчка
-      // по кнопке «Расширенный режим».
       markSelfWindowResize()
       await applyWindowSizeForMode(simpleMode).catch(() => {})
     }
