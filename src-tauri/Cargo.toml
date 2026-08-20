@@ -18,7 +18,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
 verge-dev = ["clash_verge_logger/color"]
-tauri-dev = []
+tauri-dev = ["dep:tauri-plugin-devtools"]
 tokio-trace = ["console-subscriber"]
 clippy = ["tauri/test"]
 tracing = []
@@ -99,7 +99,7 @@ tokio-stream = "0.1.18"
 backon = { version = "1.6.0", features = ["tokio-sleep"] }
 tauri-plugin-http = "2.5.9"
 console-subscriber = { version = "0.5.0", optional = true }
-tauri-plugin-devtools = { version = "2.1.0" }
+tauri-plugin-devtools = { version = "2.1.0", optional = true }
 # clod: ЗАПИНЕНО ПО РЕВИЗИИ, и та же ревизия стоит в package.json у
 # tauri-plugin-mihomo-api. Ветка вместо ревизии уже разводила Rust и его
 # TypeScript-биндинги по разным коммитам — типы врали, а tsc этого не видел.
