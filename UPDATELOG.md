@@ -8,6 +8,42 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.1.4
+
+<!-- lang:en -->
+
+### Added
+
+- Windows: the installer now adds firewall rules for the core, so the `system` and `mixed` TUN stacks work without extra steps; uninstalling removes the rules
+- Windows: if inbound connections for the core are still blocked, the home screen shows a warning with a «Fix» button — one click and one admin prompt
+- The «Network» card draws a small graph of the recent download and upload speed
+- The «Refresh subscription» tile shows when the subscription was last updated
+
+### Changed
+
+- A refreshed look: cards sit on soft shadows instead of hard borders, a subtle accent gradient at the top of the window, pill-shaped buttons, card titles without all-caps
+- The row under the connect button became a pill with icons: what Connect drives and the routing mode
+- Quick actions got icons and the «Connection» / «Startup» groups; TUN and firewall warnings are shown as highlighted panels with the action right inside
+- The connect button glows green while connected; the toggles are larger, with the knob inside the track; cards lift slightly under the cursor
+
+<!-- lang:ru -->
+
+### Добавлено
+
+- Windows: установщик добавляет правила брандмауэра для ядра — стеки TUN `system` и `mixed` работают без лишних действий; при удалении приложения правила снимаются
+- Windows: если входящие подключения ядра всё же заблокированы, на главной появляется предупреждение с кнопкой «Починить» — один клик и один запрос прав
+- Карточка «Сеть» рисует небольшой график скорости загрузки и отдачи за последние минуты
+- Плитка «Обновить подписку» показывает, когда подписка обновлялась в последний раз
+
+### Изменено
+
+- Обновлённый вид: карточки на мягких тенях вместо жёстких рамок, лёгкий градиент акцента сверху окна, кнопки-пилюли, заголовки карточек без капса
+- Строка под кнопкой подключения стала пилюлей с иконками: что включает Connect и режим маршрутизации
+- У быстрых действий появились иконки и группы «Подключение» / «Запуск»; предупреждения TUN и брандмауэра — заметные плашки с кнопкой прямо в них
+- Кнопка подключения светится зелёным, пока соединение активно; тумблеры крупнее, с бегунком внутри трека; карточки слегка приподнимаются под курсором
+
+---
+
 ## v0.1.3
 
 <!-- lang:en -->
