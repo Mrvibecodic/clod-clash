@@ -182,7 +182,11 @@
       "autoLaunch": "Start with the system",
       "silentStart": "Start minimized",
       "lockedBy": "{{targets}} — the connection method is set by your provider",
-      "connectOnLaunch": "실행 시 자동 연결"
+      "connectOnLaunch": "실행 시 자동 연결",
+      "groups": {
+        "connection": "연결",
+        "launch": "시작"
+      }
     },
     "tunStatus": {
       "settingUp": "TUN 설정 중 — 시스템 요청을 확인하세요",
@@ -250,6 +254,7 @@
       "tiles": {
         "portalHint": "renewal and payment",
         "refresh": "Refresh subscription",
+        "refreshHint": "마지막 {{time}}",
         "supportHint": "Telegram chat",
         "subscriptions": "Subscriptions",
         "profilesHint": "manage subscriptions",

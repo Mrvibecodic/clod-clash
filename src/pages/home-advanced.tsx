@@ -10,6 +10,7 @@ import {
   Typography,
 } from '@mui/material'
 import { useLockFn } from 'ahooks'
+import dayjs from 'dayjs'
 import { type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
@@ -167,6 +168,12 @@ const HomeAdvancedPage = () => {
     return <HomeSimplePage />
   }
 
+  const refreshedHint = current.updated
+    ? t('home.pages.advanced.tiles.refreshHint', {
+        time: dayjs(current.updated * 1000).format('DD.MM · HH:mm'),
+      })
+    : undefined
+
   return (
     <Stack ref={fitRef} sx={{ height: '100%', overflowY: 'auto' }}>
       <Box
@@ -261,6 +268,7 @@ const HomeAdvancedPage = () => {
             <Tile
               icon={<RefreshRoundedIcon fontSize="small" />}
               label={t('home.pages.advanced.tiles.refresh')}
+              hint={refreshedHint}
               onClick={() => void refreshSubscription()}
             />
             <Tile

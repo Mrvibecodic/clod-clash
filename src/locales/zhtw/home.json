@@ -182,7 +182,11 @@
       "autoLaunch": "Start with the system",
       "silentStart": "Start minimized",
       "lockedBy": "{{targets}} — the connection method is set by your provider",
-      "connectOnLaunch": "啟動時自動連線"
+      "connectOnLaunch": "啟動時自動連線",
+      "groups": {
+        "connection": "連線",
+        "launch": "啟動"
+      }
     },
     "tunStatus": {
       "settingUp": "正在設定 TUN — 請確認系統提示",
@@ -250,6 +254,7 @@
       "tiles": {
         "portalHint": "renewal and payment",
         "refresh": "Refresh subscription",
+        "refreshHint": "上次 {{time}}",
         "supportHint": "Telegram chat",
         "subscriptions": "Subscriptions",
         "profilesHint": "manage subscriptions",

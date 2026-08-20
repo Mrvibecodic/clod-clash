@@ -182,7 +182,11 @@
       "autoLaunch": "Start with the system",
       "silentStart": "Start minimized",
       "lockedBy": "{{targets}} — the connection method is set by your provider",
-      "connectOnLaunch": "Connect on launch"
+      "connectOnLaunch": "Connect on launch",
+      "groups": {
+        "connection": "Connection",
+        "launch": "Startup"
+      }
     },
     "tunStatus": {
       "settingUp": "Setting TUN up — confirm the system prompt",
@@ -250,6 +254,7 @@
       "tiles": {
         "portalHint": "renewal and payment",
         "refresh": "Refresh subscription",
+        "refreshHint": "last time {{time}}",
         "supportHint": "Telegram chat",
         "subscriptions": "Subscriptions",
         "profilesHint": "manage subscriptions",

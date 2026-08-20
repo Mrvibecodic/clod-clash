@@ -182,7 +182,11 @@
       "autoLaunch": "Запускать с системой",
       "silentStart": "Стартовать свёрнутым",
       "lockedBy": "{{targets}} — способ подключения задан провайдером",
-      "connectOnLaunch": "Подключаться при запуске"
+      "connectOnLaunch": "Подключаться при запуске",
+      "groups": {
+        "connection": "Подключение",
+        "launch": "Запуск"
+      }
     },
     "tunStatus": {
       "settingUp": "Настраиваем TUN — подтвердите запрос системы",
@@ -250,6 +254,7 @@
       "tiles": {
         "portalHint": "продление и оплата",
         "refresh": "Обновить подписку",
+        "refreshHint": "последний раз {{time}}",
         "supportHint": "Telegram-чат",
         "subscriptions": "Подписки",
         "profilesHint": "управление подписками",

@@ -182,7 +182,11 @@
       "autoLaunch": "Start with the system",
       "silentStart": "Start minimized",
       "lockedBy": "{{targets}} — the connection method is set by your provider",
-      "connectOnLaunch": "起動時に接続"
+      "connectOnLaunch": "起動時に接続",
+      "groups": {
+        "connection": "接続",
+        "launch": "起動"
+      }
     },
     "tunStatus": {
       "settingUp": "TUN を準備中です — システムの確認に応じてください",
@@ -250,6 +254,7 @@
       "tiles": {
         "portalHint": "renewal and payment",
         "refresh": "Refresh subscription",
+        "refreshHint": "前回 {{time}}",
         "supportHint": "Telegram chat",
         "subscriptions": "Subscriptions",
         "profilesHint": "manage subscriptions",

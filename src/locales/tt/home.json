@@ -182,7 +182,11 @@
       "autoLaunch": "Start with the system",
       "silentStart": "Start minimized",
       "lockedBy": "{{targets}} — the connection method is set by your provider",
-      "connectOnLaunch": "Җибәргәч тоташу"
+      "connectOnLaunch": "Җибәргәч тоташу",
+      "groups": {
+        "connection": "Тоташу",
+        "launch": "Башлау"
+      }
     },
     "tunStatus": {
       "settingUp": "TUN әзерләнә — система соравын раслагыз",
@@ -250,6 +254,7 @@
       "tiles": {
         "portalHint": "renewal and payment",
         "refresh": "Refresh subscription",
+        "refreshHint": "соңгы тапкыр {{time}}",
         "supportHint": "Telegram chat",
         "subscriptions": "Subscriptions",
         "profilesHint": "manage subscriptions",

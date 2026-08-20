@@ -1,4 +1,6 @@
-import { Button, Tooltip, Typography } from '@mui/material'
+import AltRouteRoundedIcon from '@mui/icons-material/AltRouteRounded'
+import PublicRoundedIcon from '@mui/icons-material/PublicRounded'
+import { Box, ButtonBase, Tooltip } from '@mui/material'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
@@ -6,26 +8,27 @@ import { useConnectTargets } from '@/hooks/use-connect-targets'
 import { useClashConfigData } from '@/providers/app-data-context'
 
 interface Props {
-  /** `clod-lock-mode`: the panel forbids changing modes — plain text then. */
   locked?: boolean
-  /**
-   * clod: the advanced screen shows the connect targets as switches in
-   * `QuickActions`, so repeating them here would be the same fact twice —
-   * it keeps only the routing mode.
-   */
   showTargets?: boolean
 }
 
-/**
- * clod: строка «Системный прокси + TUN · По правилам» под кнопкой Connect.
- * В расширенном режиме таргеты показывает карточка быстрых действий, поэтому
- * там от строки остаётся только режим маршрутизации.
- *
- * Показывается в обоих режимах интерфейса: и в расширенном, и в простом
- * пользователь должен видеть, какие таргеты дёргает Connect и какой режим
- * маршрутизации активен. Read-only намеренно: менять — в настройках, а при
- * `clod-lock-mode` не меняется вовсе (остаётся только строка-статус).
- */
+const PILL_SX = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 0.75,
+  px: 1.5,
+  py: 0.625,
+  borderRadius: 999,
+  bgcolor: 'background.paper',
+  border: '1px solid var(--card-line)',
+  boxShadow: 'var(--card-shadow)',
+  color: 'text.secondary',
+  fontSize: 12.5,
+  fontWeight: 600,
+  whiteSpace: 'nowrap',
+  '& svg': { fontSize: 14, color: 'primary.main' },
+} as const
+
 export const ModeStatus = ({ locked, showTargets = true }: Props) => {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -45,40 +48,43 @@ export const ModeStatus = ({ locked, showTargets = true }: Props) => {
     .filter(Boolean)
     .join(' + ')
 
-  const text = showTargets ? `${activeTargets} · ${modeLabel}` : modeLabel
+  const content = (
+    <>
+      {showTargets && activeTargets ? (
+        <>
+          <PublicRoundedIcon />
+          <span>{activeTargets}</span>
+          <Box component="span" sx={{ opacity: 0.4 }}>
+            ·
+          </Box>
+        </>
+      ) : null}
+      <AltRouteRoundedIcon />
+      <span>{modeLabel}</span>
+    </>
+  )
 
   if (locked) {
-    // clod:lock-expiry — замок молча забирал управление, и выход из него нигде
-    // не назывался: пользователь с умершим доменом панели видел только серую
-    // строку. Подсказка называет оба выхода — срок годности замка и удаление
-    // подписки.
     return (
       <Tooltip title={t('home.components.modeStatus.lockedHint')}>
-        <Typography
-          variant="caption"
-          color="text.secondary"
-          sx={{ cursor: 'help' }}
-        >
-          {text}
-        </Typography>
+        <Box sx={{ ...PILL_SX, cursor: 'help' }}>{content}</Box>
       </Tooltip>
     )
   }
 
   return (
-    <Button
-      size="small"
-      color="inherit"
-      // compact: строка-статус не должна раздувать вертикаль простого режима
+    <ButtonBase
       sx={{
-        color: 'text.secondary',
-        textTransform: 'none',
-        py: 0.25,
-        minHeight: 0,
+        ...PILL_SX,
+        transition: (theme) =>
+          theme.transitions.create(['border-color', 'background-color'], {
+            duration: theme.transitions.duration.short,
+          }),
+        '&:hover': { borderColor: 'primary.main' },
       }}
       onClick={() => void navigate('/settings')}
     >
-      {text}
-    </Button>
+      {content}
+    </ButtonBase>
   )
 }

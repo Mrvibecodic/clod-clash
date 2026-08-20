@@ -182,7 +182,11 @@
       "autoLaunch": "Start with the system",
       "silentStart": "Start minimized",
       "lockedBy": "{{targets}} — the connection method is set by your provider",
-      "connectOnLaunch": "اتصال هنگام راه‌اندازی"
+      "connectOnLaunch": "اتصال هنگام راه‌اندازی",
+      "groups": {
+        "connection": "اتصال",
+        "launch": "راه‌اندازی"
+      }
     },
     "tunStatus": {
       "settingUp": "در حال آماده‌سازی TUN — درخواست سیستم را تأیید کنید",
@@ -250,6 +254,7 @@
       "tiles": {
         "portalHint": "renewal and payment",
         "refresh": "Refresh subscription",
+        "refreshHint": "آخرین بار {{time}}",
         "supportHint": "Telegram chat",
         "subscriptions": "Subscriptions",
         "profilesHint": "manage subscriptions",

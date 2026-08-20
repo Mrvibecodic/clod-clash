@@ -182,7 +182,11 @@
       "autoLaunch": "Start with the system",
       "silentStart": "Start minimized",
       "lockedBy": "{{targets}} — the connection method is set by your provider",
-      "connectOnLaunch": "Başlatıldığında bağlan"
+      "connectOnLaunch": "Başlatıldığında bağlan",
+      "groups": {
+        "connection": "Bağlantı",
+        "launch": "Başlangıç"
+      }
     },
     "tunStatus": {
       "settingUp": "TUN hazırlanıyor — sistem istemini onaylayın",
@@ -250,6 +254,7 @@
       "tiles": {
         "portalHint": "renewal and payment",
         "refresh": "Refresh subscription",
+        "refreshHint": "son {{time}}",
         "supportHint": "Telegram chat",
         "subscriptions": "Subscriptions",
         "profilesHint": "manage subscriptions",

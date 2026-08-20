@@ -146,6 +146,10 @@ export interface TranslationResources {
         quickActions: {
           autoLaunch: string
           connectOnLaunch: string
+          groups: {
+            connection: string
+            launch: string
+          }
           lockedBy: string
           silentStart: string
           sysproxy: string
@@ -284,6 +288,7 @@ export interface TranslationResources {
             profilesHint: string
             proxiesHint: string
             refresh: string
+            refreshHint: string
             rulesHint: string
             settingsHint: string
             subscriptions: string
