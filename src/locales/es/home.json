@@ -189,6 +189,12 @@
       "broken": "TUN no se inició y el tráfico va fuera del túnel",
       "fix": "Configurar"
     },
+    "firewallStatus": {
+      "blocked": "El Firewall de Windows bloquea las conexiones entrantes del núcleo — el tráfico TUN puede no fluir",
+      "fix": "Reparar",
+      "fixing": "Añadiendo la regla del firewall — confirma la solicitud del sistema",
+      "failed": "No se pudo añadir la regla del firewall"
+    },
     "subscription": {
       "expires": "{{count}} days left · until {{date}}",
       "refill": "Monthly traffic resets on {{date}}",

@@ -189,6 +189,12 @@
       "broken": "TUN did not start, traffic is going around the tunnel",
       "fix": "Set up"
     },
+    "firewallStatus": {
+      "blocked": "Windows Firewall is blocking the core's inbound connections — TUN traffic may not flow",
+      "fix": "Fix",
+      "fixing": "Adding a firewall rule — confirm the system prompt",
+      "failed": "Could not add the firewall rule"
+    },
     "subscription": {
       "expires": "{{count}} d · until {{date}}",
       "refill": "Resets on {{date}}",

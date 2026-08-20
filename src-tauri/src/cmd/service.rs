@@ -58,6 +58,45 @@ pub async fn get_tun_state() -> CmdResult<TunState> {
 }
 
 #[tauri::command]
+pub async fn get_core_firewall_ok() -> CmdResult<Option<bool>> {
+    Ok(firewall_platform::probe().await)
+}
+
+#[tauri::command]
+pub async fn fix_core_firewall() -> CmdResult<Option<bool>> {
+    firewall_platform::repair().await
+}
+
+#[cfg(target_os = "windows")]
+mod firewall_platform {
+    use super::{CmdResult, StringifyErr as _};
+
+    pub async fn probe() -> Option<bool> {
+        crate::core::firewall::inbound_allowed().await
+    }
+
+    pub async fn repair() -> CmdResult<Option<bool>> {
+        crate::core::firewall::allow_inbound().await.stringify_err()?;
+        Ok(crate::core::firewall::inbound_allowed().await)
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+mod firewall_platform {
+    use super::CmdResult;
+
+    #[allow(clippy::unused_async)]
+    pub async fn probe() -> Option<bool> {
+        None
+    }
+
+    #[allow(clippy::unused_async, clippy::unnecessary_wraps)]
+    pub async fn repair() -> CmdResult<Option<bool>> {
+        Ok(None)
+    }
+}
+
+#[tauri::command]
 pub async fn ensure_tun_ready() -> CmdResult<bool> {
     use crate::feat::tun::SetupOutcome;
     match crate::feat::tun::ensure_ready(true).await {

@@ -189,6 +189,12 @@
       "broken": "TUN が起動せず、通信はトンネルを経由していません",
       "fix": "設定する"
     },
+    "firewallStatus": {
+      "blocked": "Windows ファイアウォールがコアへの受信接続をブロックしています — TUN のトラフィックが流れない可能性があります",
+      "fix": "修復",
+      "fixing": "ファイアウォール規則を追加しています — システムの確認に応答してください",
+      "failed": "ファイアウォール規則を追加できませんでした"
+    },
     "subscription": {
       "expires": "{{count}} days left · until {{date}}",
       "refill": "Monthly traffic resets on {{date}}",

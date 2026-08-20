@@ -189,6 +189,12 @@
       "broken": "TUN tidak berjalan, lalu lintas melewati terowongan",
       "fix": "Siapkan"
     },
+    "firewallStatus": {
+      "blocked": "Firewall Windows memblokir koneksi masuk core — lalu lintas TUN mungkin tidak berjalan",
+      "fix": "Perbaiki",
+      "fixing": "Menambahkan aturan firewall — konfirmasi permintaan sistem",
+      "failed": "Tidak dapat menambahkan aturan firewall"
+    },
     "subscription": {
       "expires": "{{count}} days left · until {{date}}",
       "refill": "Monthly traffic resets on {{date}}",

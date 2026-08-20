@@ -2,6 +2,7 @@ pub mod autostart;
 pub mod backup;
 pub mod core_integrity;
 pub mod core_updater;
+pub mod firewall;
 pub mod handle;
 pub mod hotkey;
 pub mod logger;

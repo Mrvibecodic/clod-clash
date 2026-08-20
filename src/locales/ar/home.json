@@ -189,6 +189,12 @@
       "broken": "لم يبدأ TUN، وتمر البيانات خارج النفق",
       "fix": "إعداد"
     },
+    "firewallStatus": {
+      "blocked": "جدار حماية Windows يحظر اتصالات النواة الواردة — قد لا تمر حركة TUN",
+      "fix": "إصلاح",
+      "fixing": "تتم إضافة قاعدة جدار الحماية — أكِّد طلب النظام",
+      "failed": "تعذّرت إضافة قاعدة جدار الحماية"
+    },
     "subscription": {
       "expires": "{{count}} days left · until {{date}}",
       "refill": "Monthly traffic resets on {{date}}",

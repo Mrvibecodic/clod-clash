@@ -189,6 +189,12 @@
       "broken": "TUN اجرا نشد و ترافیک از تونل عبور نمی‌کند",
       "fix": "آماده‌سازی"
     },
+    "firewallStatus": {
+      "blocked": "فایروال ویندوز اتصال‌های ورودی هسته را مسدود می‌کند — ممکن است ترافیک TUN عبور نکند",
+      "fix": "رفع",
+      "fixing": "در حال افزودن قانون فایروال — درخواست سیستم را تأیید کنید",
+      "failed": "افزودن قانون فایروال ممکن نشد"
+    },
     "subscription": {
       "expires": "{{count}} days left · until {{date}}",
       "refill": "Monthly traffic resets on {{date}}",

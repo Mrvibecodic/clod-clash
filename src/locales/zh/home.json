@@ -189,6 +189,12 @@
       "broken": "TUN 未能启动，流量绕过了隧道",
       "fix": "去配置"
     },
+    "firewallStatus": {
+      "blocked": "Windows 防火墙正在拦截内核的入站连接 — TUN 流量可能无法通行",
+      "fix": "修复",
+      "fixing": "正在添加防火墙规则 — 请确认系统提示",
+      "failed": "无法添加防火墙规则"
+    },
     "subscription": {
       "expires": "套餐：{{count}} 天 · 至 {{date}}",
       "refill": "Monthly traffic resets on {{date}}",

@@ -189,6 +189,12 @@
       "broken": "TUN başlamadı, trafik tünelin dışından gidiyor",
       "fix": "Ayarla"
     },
+    "firewallStatus": {
+      "blocked": "Windows Güvenlik Duvarı çekirdeğin gelen bağlantılarını engelliyor — TUN trafiği akmayabilir",
+      "fix": "Onar",
+      "fixing": "Güvenlik duvarı kuralı ekleniyor — sistem istemini onaylayın",
+      "failed": "Güvenlik duvarı kuralı eklenemedi"
+    },
     "subscription": {
       "expires": "{{count}} days left · until {{date}}",
       "refill": "Monthly traffic resets on {{date}}",

@@ -189,6 +189,12 @@
       "broken": "TUN이 시작되지 않아 트래픽이 터널을 우회합니다",
       "fix": "설정"
     },
+    "firewallStatus": {
+      "blocked": "Windows 방화벽이 코어의 인바운드 연결을 차단하고 있습니다 — TUN 트래픽이 흐르지 않을 수 있습니다",
+      "fix": "해결",
+      "fixing": "방화벽 규칙을 추가하는 중 — 시스템 요청을 확인하세요",
+      "failed": "방화벽 규칙을 추가하지 못했습니다"
+    },
     "subscription": {
       "expires": "{{count}} days left · until {{date}}",
       "refill": "Monthly traffic resets on {{date}}",

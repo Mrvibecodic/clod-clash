@@ -530,6 +530,14 @@ export const ensureTunReady = async () => {
   return invoke<boolean>('ensure_tun_ready')
 }
 
+export const getCoreFirewallOk = async () => {
+  return invoke<boolean | null>('get_core_firewall_ok')
+}
+
+export const fixCoreFirewall = async () => {
+  return invoke<boolean | null>('fix_core_firewall')
+}
+
 export const isServiceAvailable = async () => {
   try {
     return await invoke<boolean>('is_service_available')

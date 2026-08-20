@@ -16,6 +16,7 @@ import { CARD_TITLE, SHAPE } from '@/pages/_theme'
 import { ensureTunReady } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 
+import { FirewallStatus } from './firewall-status'
 import { TunStatus } from './tun-status'
 
 interface RowProps {
@@ -26,12 +27,6 @@ interface RowProps {
 }
 
 const Row = ({ label, checked, disabled, onToggle }: RowProps) => (
-  // clod: строке нужна собственная высота. Тумблер 26 px при плотной укладке
-  // почти касался соседнего — строки читались как наехавшие друг на друга.
-  // `size="small"` тут тоже лишний: наш Switch уже компактный, а мелкий размер
-  // MUI спорит с его геометрией (свой трек против нашего).
-  // clod:design-v3 — строка подсвечивается под курсором: раньше ряд тумблеров
-  // был единственным местом главной без всякой реакции на наведение.
   <Stack
     direction="row"
     sx={(theme) => ({
@@ -59,37 +54,14 @@ const Row = ({ label, checked, disabled, onToggle }: RowProps) => (
   </Stack>
 )
 
-/**
- * clod: the advanced screen's left column used to end at the server row and
- * leave the rest of the height empty. These are the four switches worth
- * reaching for without opening the settings.
- *
- * The two connection switches drive the *live* state — the system proxy is
- * turned on right now, TUN is turned on right now — unlike the settings pair
- * («Подключение: …»), which only decides what the Connect button drives. Two
- * different questions, so they stay two different controls; the labels here
- * carry no «Подключение:» prefix for exactly that reason.
- */
 export const QuickActions = () => {
   const { t } = useTranslation()
   const { verge, mutateVerge, patchVerge } = useVerge()
   const { indicator: sysproxyOn, toggleSystemProxy } = useSystemProxyState()
   const { mutateSystemState } = useSystemState()
-  // clod:connect-mode — прячем тумблеры не по самому замку, а по тому, назвал
-  // ли провайдер способ подключения (`clod-connect-mode`). Замок без этого
-  // заголовка — про режим маршрутизации, и отбирать из-за него ещё и выбор
-  // «прокси или туннель» не за что.
   const { targetSys, targetTun, targetsLocked } = useConnectTargets()
-  // Дёрнутый руками тумблер — это и есть выбор режима: отдельной настройки
-  // «что включает Connect» больше нет.
   const rememberTarget = useRememberTargets()
-  // Реальное состояние, а не флаг из конфига: тумблер не должен гореть над
-  // мёртвым туннелем.
-  // clod:service-repair — `tunCapable` считает бэкенд, и он же смотрит версию
-  // службы: устаревшая отвечает по IPC, но ядро через неё не поднимется.
   const { tunActive, tunCapable, mutateTunState } = useTunState()
-  // Установка службы идёт в фоне и требует подтверждения прав — тумблер на это
-  // время показывает, что происходит, а не замирает.
   const [installing, setInstalling] = useState(false)
 
   const toggleSysproxy = useLockFn(async (next: boolean) => {
@@ -103,9 +75,6 @@ export const QuickActions = () => {
 
   const toggleTun = useLockFn(async (next: boolean) => {
     try {
-      // clod:tun-ready — TUN нужна фоновая служба. Раньше здесь была ошибка
-      // «поставьте службу сами»; теперь пользователь просит TUN — мы её и
-      // ставим (один запрос прав), и только отказ оставляет тумблер выключенным.
       if (next && !tunCapable) {
         setInstalling(true)
         const ready = await ensureTunReady().finally(() => setInstalling(false))
@@ -122,8 +91,6 @@ export const QuickActions = () => {
       void rememberTarget('tun', next)
     } catch (error) {
       showNotice.error(error)
-      // Оптимистичное значение выше могло разойтись с бэкендом (там патч
-      // откатывается через discard), поэтому перечитываем конфиг.
       mutateVerge()
     } finally {
       await mutateTunState()
@@ -138,7 +105,6 @@ export const QuickActions = () => {
     }
   })
 
-  // The same values the settings page writes — one source, not a second copy.
   const autoLaunch = Boolean(verge?.enable_auto_launch)
   const silentStart = Boolean(verge?.enable_silent_start)
   const connectOnLaunch = Boolean(verge?.connect_on_launch)
@@ -160,9 +126,6 @@ export const QuickActions = () => {
         {t('home.components.quickActions.title')}
       </Typography>
 
-      {/* clod:connect-mode — провайдер назвал способ подключения на запертом
-          профиле, поэтому двух переключателей нет вовсе (не «disabled»: это
-          снимается одним кликом в девтулзах). Само состояние видно. */}
       {targetsLocked ? (
         <Typography variant="caption" color="text.secondary">
           {t('home.components.quickActions.lockedBy', {
@@ -194,9 +157,8 @@ export const QuickActions = () => {
           <TunStatus />
         </>
       )}
+      <FirewallStatus />
 
-      {/* clod: автоподключение — отдельная явная настройка, а не побочный
-          эффект прошлой сессии; см. `connect_on_launch`. */}
       <Row
         label={t('home.components.quickActions.connectOnLaunch')}
         checked={connectOnLaunch}

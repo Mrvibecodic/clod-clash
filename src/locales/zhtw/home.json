@@ -189,6 +189,12 @@
       "broken": "TUN 未能啟動，流量繞過了通道",
       "fix": "去設定"
     },
+    "firewallStatus": {
+      "blocked": "Windows 防火牆正在攔截核心的入站連線 — TUN 流量可能無法通行",
+      "fix": "修復",
+      "fixing": "正在新增防火牆規則 — 請確認系統提示",
+      "failed": "無法新增防火牆規則"
+    },
     "subscription": {
       "expires": "{{count}} days left · until {{date}}",
       "refill": "Monthly traffic resets on {{date}}",

@@ -189,6 +189,12 @@
       "broken": "TUN ist nicht gestartet, der Verkehr läuft am Tunnel vorbei",
       "fix": "Einrichten"
     },
+    "firewallStatus": {
+      "blocked": "Die Windows-Firewall blockiert eingehende Verbindungen des Kerns — TUN-Verkehr fließt möglicherweise nicht",
+      "fix": "Beheben",
+      "fixing": "Firewall-Regel wird hinzugefügt — bestätigen Sie die Systemabfrage",
+      "failed": "Firewall-Regel konnte nicht hinzugefügt werden"
+    },
     "subscription": {
       "expires": "{{count}} days left · until {{date}}",
       "refill": "Monthly traffic resets on {{date}}",

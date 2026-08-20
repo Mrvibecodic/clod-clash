@@ -189,6 +189,12 @@
       "broken": "TUN эшләмәде, трафик тоннельдән читтән бара",
       "fix": "Көйләү"
     },
+    "firewallStatus": {
+      "blocked": "Windows брандмауэры үзәкнең керүче тоташуларын блоклый — TUN трафигы үтмәскә мөмкин",
+      "fix": "Төзәтү",
+      "fixing": "Брандмауэр кагыйдәсе өстәлә — система соравын раслагыз",
+      "failed": "Брандмауэр кагыйдәсен өстәп булмады"
+    },
     "subscription": {
       "expires": "{{count}} days left · until {{date}}",
       "refill": "Monthly traffic resets on {{date}}",

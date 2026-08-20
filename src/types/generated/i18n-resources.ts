@@ -93,6 +93,12 @@ export interface TranslationResources {
           }
           title: string
         }
+        firewallStatus: {
+          blocked: string
+          failed: string
+          fix: string
+          fixing: string
+        }
         ipInfo: {
           errors: {
             load: string
