@@ -69,7 +69,7 @@ pub async fn fix_core_firewall() -> CmdResult<Option<bool>> {
 
 #[cfg(target_os = "windows")]
 mod firewall_platform {
-    use super::{CmdResult, StringifyErr as _};
+    use crate::cmd::{CmdResult, StringifyErr as _};
 
     pub async fn probe() -> Option<bool> {
         crate::core::firewall::inbound_allowed().await
