@@ -9,11 +9,6 @@ async fn execute_service_operation_sync(status: ServiceStatus, op_type: &str) ->
 }
 
 #[tauri::command]
-pub async fn install_service() -> CmdResult {
-    execute_service_operation_sync(ServiceStatus::InstallRequired, "Install").await
-}
-
-#[tauri::command]
 pub async fn uninstall_service() -> CmdResult {
     execute_service_operation_sync(ServiceStatus::UninstallRequired, "Uninstall").await
 }

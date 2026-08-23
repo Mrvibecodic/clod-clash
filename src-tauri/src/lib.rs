@@ -159,7 +159,6 @@ mod app_init {
             cmd::disable_managed_core,
             cmd::get_running_mode,
             cmd::entry_lightweight_mode,
-            cmd::install_service,
             cmd::uninstall_service,
             cmd::is_service_available,
             cmd::ensure_tun_ready,

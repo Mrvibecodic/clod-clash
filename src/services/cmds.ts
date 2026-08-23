@@ -518,10 +518,6 @@ export const getTrafficEstimate = async () => {
   return invoke<ITrafficEstimate>('get_traffic_estimate')
 }
 
-export const installService = async () => {
-  return invoke<void>('install_service')
-}
-
 export const uninstallService = async () => {
   return invoke<void>('uninstall_service')
 }

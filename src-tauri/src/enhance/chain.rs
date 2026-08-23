@@ -28,43 +28,6 @@ pub enum ChainSupport {
     ClashMetaAlpha,
 }
 
-// impl From<&PrfItem> for Option<ChainItem> {
-//     fn from(item: &PrfItem) -> Self {
-//         let itype = item.itype.as_ref()?.as_str();
-//         let file = item.file.clone()?;
-//         let uid = item.uid.clone().unwrap_or("".into());
-//         let path = dirs::app_profiles_dir().ok()?.join(file);
-
-//         if !path.exists() {
-//             return None;
-//         }
-
-//         match itype {
-//             "script" => Some(ChainItem {
-//                 uid,
-//                 data: ChainType::Script(fs::read_to_string(path).ok()?),
-//             }),
-//             "merge" => Some(ChainItem {
-//                 uid,
-//                 data: ChainType::Merge(help::read_mapping(&path).ok()?),
-//             }),
-//             "rules" => Some(ChainItem {
-//                 uid,
-//                 data: ChainType::Rules(help::read_seq_map(&path).ok()?),
-//             }),
-//             "proxies" => Some(ChainItem {
-//                 uid,
-//                 data: ChainType::Proxies(help::read_seq_map(&path).ok()?),
-//             }),
-//             "groups" => Some(ChainItem {
-//                 uid,
-//                 data: ChainType::Groups(help::read_seq_map(&path).ok()?),
-//             }),
-//             _ => None,
-//         }
-//     }
-// }
-// Helper trait to allow async conversion
 pub trait AsyncChainItemFrom {
     async fn from_async(item: &PrfItem) -> Option<ChainItem>;
 }
@@ -115,18 +78,13 @@ impl AsyncChainItemFrom for Option<ChainItem> {
     }
 }
 impl ChainItem {
-    /// Встроенная поддержка некоторых скриптов
     pub fn builtin() -> Vec<(ChainSupport, Self)> {
-        // Обработка для meta
         let meta_guard = Self::to_script("verge_meta_guard", include_str!("./builtin/meta_guard.js"));
 
-        // meta 1.13.2: alpn string -> массив
         let hy_alpn = Self::to_script("verge_hy_alpn", include_str!("./builtin/meta_hy_alpn.js"));
 
-        // Обработка для meta
         let meta_guard_alpha = Self::to_script("verge_meta_guard", include_str!("./builtin/meta_guard.js"));
 
-        // meta 1.13.2: alpn string -> массив
         let hy_alpn_alpha = Self::to_script("verge_hy_alpn", include_str!("./builtin/meta_hy_alpn.js"));
 
         vec![
