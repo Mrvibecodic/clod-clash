@@ -26,12 +26,6 @@ impl IClashTemp {
 
         match map_result {
             Ok(mut map) => {
-                // clod: секрет управляющего интерфейса обязан быть своим у
-                // каждой установки. Пустое поле и доставшийся от апстрима
-                // `set-your-secret` считаем «не задан» и выписываем новый;
-                // заданный пользователем не трогаем. Раньше слияния с шаблоном:
-                // иначе отсутствующий ключ забирал бы значение оттуда, и новый
-                // секрет выписывался бы на каждом старте заново.
                 let regenerated = Self::ensure_own_secret(&mut map);
 
                 let template_map = Self::template().0;
@@ -42,13 +36,8 @@ impl IClashTemp {
                 }
 
                 let config = Self(Self::guard(map));
-                if regenerated {
-                    // Записываем сразу: иначе секрет менялся бы на каждом
-                    // старте, а пользователь видел бы в настройках одно
-                    // значение, в файле другое.
-                    if let Err(err) = config.save_config().await {
-                        logging!(error, Type::Config, "failed to persist generated secret: {err}");
-                    }
+                if regenerated && let Err(err) = config.save_config().await {
+                    logging!(error, Type::Config, "failed to persist generated secret: {err}");
                 }
                 config
             }
@@ -59,13 +48,6 @@ impl IClashTemp {
         }
     }
 
-    /// clod: выдать установке собственный секрет, если своего ещё нет.
-    ///
-    /// Возвращает `true`, когда значение пришлось выписать заново — только в
-    /// этом случае конфиг нужно сохранять на диск.
-    ///
-    /// Нестроковое значение (число, `true`) оставляем как есть: его мог
-    /// поставить пользователь руками, а `get_client_info` такие читать умеет.
     fn ensure_own_secret(map: &mut Mapping) -> bool {
         let needs_new = match map.get("secret") {
             Some(Value::String(secret)) => help::is_placeholder_secret(secret),
@@ -101,8 +83,6 @@ impl IClashTemp {
         map.insert("port".into(), network::ports::DEFAULT_HTTP.into());
         map.insert("log-level".into(), "info".into());
         map.insert("allow-lan".into(), false.into());
-        // clod: IPv6 выключен по умолчанию на десктопе — у многих провайдеров
-        // v6-маршрут битый, а ядро при включённом ipv6 честно в него ходит
         map.insert("ipv6".into(), false.into());
         map.insert("mode".into(), "rule".into());
         map.insert(
@@ -126,7 +106,6 @@ impl IClashTemp {
             vec![
                 "tauri://localhost",
                 "http://tauri.localhost",
-                // Only enable this in dev mode
                 #[cfg(feature = "verge-dev")]
                 "http://localhost:3000",
                 "https://yacd.metacubex.one",
@@ -212,11 +191,6 @@ impl IClashTemp {
         }
     }
 
-    /// Отказоустойчивое чтение текущего режима прокси.
-    ///
-    /// Извлекает поле `mode` только из уже сохранённого Mapping конфига clash,
-    /// не полагаясь на строгую десериализацию `BaseConfig` из mihomo `/configs`,
-    /// поэтому значение доступно, даже если поля ядра не совпадают со структурой плагина.
     pub fn get_mode(&self) -> Option<String> {
         self.0.get("mode").and_then(|value| match value {
             Value::String(val_str) => Some(val_str.clone()),
@@ -323,13 +297,10 @@ impl IClashTemp {
     }
 
     pub fn guard_external_controller(config: &Mapping) -> String {
-        // На этапе инициализации сразу возвращаем значение из конфига, без лишних проверок
-        // Это избегает циклической зависимости во время загрузки конфига
         Self::guard_server_ctrl(config)
     }
 
     pub async fn guard_external_controller_with_setting(config: &Mapping) -> String {
-        // Проверяем настройку enable_external_controller для генерации runtime-конфига
         let enable_external_controller = Config::verge()
             .await
             .latest_arc()
@@ -357,7 +328,6 @@ impl IClashTemp {
     }
 
     pub fn guard_external_controller_ipc() -> String {
-        // Всегда используем текущий IPC-путь, чтобы конфиг совпадал с runtime-путём
         sidecar_ipc_path()
             .ok()
             .and_then(|path| path_to_str(&path).ok().map(|s| s.into()))
@@ -370,13 +340,10 @@ impl IClashTemp {
 
 #[derive(Default, Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct ClashInfo {
-    /// clash core port
     pub mixed_port: u16,
     pub socks_port: u16,
     pub port: u16,
-    /// same as `external-controller`
     pub server: String,
-    /// clash secret
     pub secret: Option<String>,
 }
 
@@ -424,19 +391,16 @@ fn test_clash_info() {
     assert_eq!(get_case(8888, "192.168.1.1:80800"), get_result(8888, "127.0.0.1:9097"));
 }
 
-/// clod: секрет управляющего интерфейса.
 #[test]
 fn own_secret_replaces_the_upstream_placeholder_only() {
     fn secret_of(map: &Mapping) -> &str {
         map.get("secret").and_then(Value::as_str).unwrap_or_default()
     }
 
-    // Ключа нет вовсе — свежая установка.
     let mut fresh = Mapping::new();
     assert!(IClashTemp::ensure_own_secret(&mut fresh));
     assert_eq!(secret_of(&fresh).len(), 32);
 
-    // Значение из апстрима и пустая строка — то же самое, что «не задан».
     for stale in [help::LEGACY_DEFAULT_SECRET, "", "   "] {
         let mut map = Mapping::new();
         map.insert("secret".into(), stale.into());
@@ -444,19 +408,15 @@ fn own_secret_replaces_the_upstream_placeholder_only() {
         assert_ne!(secret_of(&map), stale);
     }
 
-    // Заданный пользователем не трогаем, даже короткий: иначе после каждого
-    // старта у него был бы новый секрет, а конфиг переписывался бы молча.
     let mut own = Mapping::new();
     own.insert("secret".into(), "hunter2".into());
     assert!(!IClashTemp::ensure_own_secret(&mut own));
     assert_eq!(secret_of(&own), "hunter2");
 
-    // Нестроковое значение читается `get_client_info`, значит оно рабочее.
     let mut numeric = Mapping::new();
     numeric.insert("secret".into(), 42.into());
     assert!(!IClashTemp::ensure_own_secret(&mut numeric));
 
-    // Два вызова подряд не дают одинаковых значений.
     let mut first = Mapping::new();
     let mut second = Mapping::new();
     IClashTemp::ensure_own_secret(&mut first);

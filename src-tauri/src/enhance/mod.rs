@@ -61,6 +61,17 @@ fn parse_tun_overrides(stack: Option<&str>, strict_route: Option<&str>, dns_hija
 }
 
 fn ladder_tun(tun: &mut Mapping, app_tun: Mapping, overrides: &TunOverrides) {
+    ladder_tun_on(tun, app_tun, overrides, cfg!(target_os = "windows"));
+}
+
+fn subscription_stack_is_capped(tun: &Mapping) -> bool {
+    matches!(tun.get("stack").and_then(Value::as_str), Some("system" | "mixed"))
+}
+
+fn ladder_tun_on(tun: &mut Mapping, app_tun: Mapping, overrides: &TunOverrides, cap_subscription_stack: bool) {
+    if cap_subscription_stack && subscription_stack_is_capped(tun) {
+        tun.remove("stack");
+    }
     for (key, value) in app_tun.into_iter() {
         let deferred = matches!(key.as_str(), Some("stack" | "strict-route" | "dns-hijack"));
         if deferred && tun.contains_key(&key) {
@@ -561,6 +572,9 @@ async fn merge_default_config(
             ladder_tun(&mut tun, patch_tun, tun_overrides);
             config.insert("tun".into(), tun.into());
         } else {
+            if key.as_str() == Some("ipv6") && config.contains_key("ipv6") {
+                continue;
+            }
             if key.as_str() == Some("socks-port") && !socks_enabled {
                 config.remove("socks-port");
                 continue;
@@ -1245,6 +1259,58 @@ mod tests {
         assert_eq!(tun.get("stack"), Some(&serde_yaml_ng::Value::from("gvisor")));
         assert_eq!(tun.get("auto-route"), Some(&serde_yaml_ng::Value::from(true)));
         assert_eq!(tun.get("mtu"), Some(&serde_yaml_ng::Value::from(9000)));
+    }
+
+    #[test]
+    fn windows_takes_only_gvisor_from_the_subscription() {
+        let mut tun = mapping("{stack: system}");
+        let app = mapping("{stack: gvisor}");
+        super::ladder_tun_on(&mut tun, app, &super::TunOverrides::default(), true);
+        assert_eq!(tun.get("stack"), Some(&serde_yaml_ng::Value::from("gvisor")));
+
+        let mut tun = mapping("{stack: mixed}");
+        let app = mapping("{stack: gvisor}");
+        let chosen = super::parse_tun_overrides(Some("mixed"), None, None);
+        super::ladder_tun_on(&mut tun, app, &chosen, true);
+        assert_eq!(tun.get("stack"), Some(&serde_yaml_ng::Value::from("mixed")));
+
+        let mut tun = mapping("{stack: system}");
+        let app = mapping("{stack: gvisor}");
+        super::ladder_tun_on(&mut tun, app, &super::TunOverrides::default(), false);
+        assert_eq!(tun.get("stack"), Some(&serde_yaml_ng::Value::from("system")));
+    }
+
+    #[tokio::test]
+    async fn the_subscription_decides_ipv6() {
+        let config = mapping("{ipv6: true}");
+        let app = mapping("{ipv6: false, mode: rule}");
+        let merged = super::merge_default_config(
+            config,
+            app,
+            true,
+            true,
+            &super::TunOverrides::default(),
+            #[cfg(not(target_os = "windows"))]
+            false,
+            #[cfg(target_os = "linux")]
+            false,
+        )
+        .await;
+        assert_eq!(merged.get("ipv6"), Some(&serde_yaml_ng::Value::from(true)));
+
+        let merged = super::merge_default_config(
+            mapping("{}"),
+            mapping("{ipv6: false}"),
+            true,
+            true,
+            &super::TunOverrides::default(),
+            #[cfg(not(target_os = "windows"))]
+            false,
+            #[cfg(target_os = "linux")]
+            false,
+        )
+        .await;
+        assert_eq!(merged.get("ipv6"), Some(&serde_yaml_ng::Value::from(false)));
     }
 
     #[test]
