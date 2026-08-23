@@ -26,6 +26,7 @@
       "notifications": {
         "tunMode": {
           "autoDisabled": "Der Core konnte das TUN-Gerät nicht starten, TUN bleibt vorerst aus",
+          "adapterBusy": "Der TUN-Adapter wird von einem anderen Client gehalten oder wurde nicht freigegeben: schließen Sie ihn oder starten Sie den Computer neu",
           "setupStarted": "TUN-Modus wird eingerichtet: Hintergrunddienst wird installiert",
           "setupDone": "TUN-Modus ist bereit",
           "setupFailed": "Hintergrunddienst konnte nicht installiert werden, TUN bleibt aus",
@@ -233,6 +234,7 @@
           "openConfDir": "Konfigurationsverzeichnis",
           "openCoreDir": "Kernverzeichnis",
           "openLogsDir": "Protokollverzeichnis",
+          "exportLogs": "Protokolle als Archiv exportieren",
           "checkUpdates": "Auf Updates prüfen",
           "openDevTools": "Entwicklertools öffnen",
           "liteModeSettings": "Einstellungen für den Leichtgewichtigen Modus",

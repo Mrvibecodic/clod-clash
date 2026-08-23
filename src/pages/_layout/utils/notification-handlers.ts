@@ -104,6 +104,11 @@ export const handleNoticeMessage = (
         'settings.sections.system.notifications.tunMode.autoDisabled',
         msg,
       ),
+    'tun::adapter_busy': () =>
+      showNotice.error(
+        'settings.sections.system.notifications.tunMode.adapterBusy',
+        msg,
+      ),
     'tun::no_traffic': () =>
       showNotice.error(
         OS === 'windows' && ['system', 'mixed'].includes(msg.toLowerCase())

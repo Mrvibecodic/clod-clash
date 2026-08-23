@@ -118,7 +118,8 @@
         "saveSuccess": "Configuration saved successfully",
         "saveFailed": "Failed to save configuration",
         "refreshFailed": "Yenileme başarısız",
-        "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked"
+        "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked",
+        "logsExported": "Günlük arşivi kaydedildi — abonelik adresleri ve belirteçler gizlendi"
       }
     },
     "validation": {

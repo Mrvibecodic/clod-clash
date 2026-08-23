@@ -118,7 +118,8 @@
         "saveSuccess": "Configuración aleatoria guardada correctamente",
         "saveFailed": "Failed to save configuration",
         "refreshFailed": "Error al actualizar",
-        "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked"
+        "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked",
+        "logsExported": "Archivo de registros guardado — direcciones de suscripción y tokens enmascarados"
       }
     },
     "validation": {

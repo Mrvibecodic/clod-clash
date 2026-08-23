@@ -200,6 +200,7 @@ mod app_init {
             cmd::get_sentinel_report,
             cmd::get_server_descriptions,
             cmd::copy_support_bundle,
+            cmd::export_logs,
             cmd::test_delay,
             cmd::get_app_dir,
             cmd::copy_icon_file,

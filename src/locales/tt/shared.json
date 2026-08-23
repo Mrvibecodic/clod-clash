@@ -118,7 +118,8 @@
         "saveSuccess": "Configuration saved successfully",
         "saveFailed": "Failed to save configuration",
         "refreshFailed": "Refresh failed",
-        "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked"
+        "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked",
+        "logsExported": "Лог архивы сакланды — язылу адреслары һәм токеннар яшерелгән"
       }
     },
     "validation": {

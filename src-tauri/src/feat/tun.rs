@@ -96,6 +96,13 @@ async fn service_needs_repair() -> bool {
     is_service_available().await.is_ok() && clash_verge_service_ipc::is_reinstall_service_needed().await
 }
 
+const TUN_ADAPTER_BUSY_MARKERS: &[&str] = &["already exists", "file exists", "resource busy", "in use", "wintun"];
+
+pub fn line_reports_adapter_busy(line: &str) -> bool {
+    let lowered = line.to_ascii_lowercase();
+    TUN_ADAPTER_BUSY_MARKERS.iter().any(|marker| lowered.contains(marker))
+}
+
 pub fn line_reports_tun_failure(line: &str) -> bool {
     let lowered = line.to_ascii_lowercase();
     TUN_FAILURE_MARKERS.iter().any(|marker| lowered.contains(marker))
@@ -130,7 +137,12 @@ const fn should_retry(attempt: u32) -> bool {
 fn give_up_on_tun(detail: &str) {
     suppress("core failed to start the TUN device");
     logging!(error, Type::Core, "TUN failed to start: {}", detail);
-    Handle::notice_message("tun::start_failed", detail.to_owned());
+    let event = if line_reports_adapter_busy(detail) {
+        "tun::adapter_busy"
+    } else {
+        "tun::start_failed"
+    };
+    Handle::notice_message(event, detail.to_owned());
 
     let detail = detail.to_owned();
     AsyncHandler::spawn(move || async move {
@@ -646,6 +658,17 @@ mod tests {
         assert!(line_reports_tun_failure("configure tun interface: Access is denied."));
         assert!(!line_reports_tun_failure("[TCP] tun accept connection"));
         assert!(!line_reports_tun_failure("Start initial provider default"));
+    }
+
+    #[test]
+    fn tells_a_busy_adapter_apart_from_other_failures() {
+        assert!(line_reports_adapter_busy(
+            "Start TUN listening error: wintun: Cannot create a file when that file already exists."
+        ));
+        assert!(line_reports_adapter_busy(
+            "configure tun interface: device or resource busy"
+        ));
+        assert!(!line_reports_adapter_busy("configure tun interface: Access is denied."));
     }
 
     #[test]

@@ -26,6 +26,7 @@
       "notifications": {
         "tunMode": {
           "autoDisabled": "核心無法啟動虛擬網路介面卡，該模式暫時停用",
+          "adapterBusy": "TUN 介面卡被其他用戶端佔用或未釋放：請關閉該用戶端或重新啟動電腦",
           "setupStarted": "正在設定虛擬網路介面卡模式：安裝背景服務",
           "setupDone": "虛擬網路介面卡模式已就緒",
           "setupFailed": "背景服務安裝失敗，該模式維持停用",
@@ -233,6 +234,7 @@
           "openConfDir": "配置目錄",
           "openCoreDir": "內核目錄",
           "openLogsDir": "日誌目錄",
+          "exportLogs": "匯出日誌為壓縮檔",
           "checkUpdates": "檢查更新",
           "openDevTools": "開發人員工具",
           "liteModeSettings": "輕量模式設定",

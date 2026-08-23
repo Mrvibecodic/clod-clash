@@ -118,7 +118,8 @@
         "saveSuccess": "설정이 저장되었습니다",
         "saveFailed": "설정 저장 실패",
         "refreshFailed": "새로고침 실패",
-        "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked"
+        "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked",
+        "logsExported": "로그 압축 파일을 저장했습니다. 구독 주소와 토큰은 가려졌습니다"
       }
     },
     "validation": {

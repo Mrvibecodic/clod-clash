@@ -118,7 +118,8 @@
         "saveSuccess": "配置保存成功",
         "saveFailed": "配置保存失败",
         "refreshFailed": "刷新失败",
-        "supportBundleCopied": "支持报告已复制 — 订阅地址和令牌已遮蔽"
+        "supportBundleCopied": "支持报告已复制 — 订阅地址和令牌已遮蔽",
+        "logsExported": "日志压缩包已保存——订阅地址和令牌已打码"
       }
     },
     "validation": {

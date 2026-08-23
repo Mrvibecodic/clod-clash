@@ -26,6 +26,7 @@
       "notifications": {
         "tunMode": {
           "autoDisabled": "Төш TUN җайланмасын кабыза алмады, шуңа күрә TUN сүнгән",
+          "adapterBusy": "TUN адаптеры башка клиент тарафыннан тотыла яки бушатылмаган: аны ябыгыз яки компьютерны яңадан кабызыгыз",
           "setupStarted": "TUN режимы әзерләнә: фон хезмәте урнаштырыла",
           "setupDone": "TUN режимы әзер",
           "setupFailed": "Фон хезмәтен урнаштырып булмады, TUN сүнгән килеш кала",
@@ -233,6 +234,7 @@
           "openConfDir": "Кушымта папкасын ачу",
           "openCoreDir": "Ядро сакланган папканы ачу",
           "openLogsDir": "Логлар папкасын ачу",
+          "exportLogs": "Логларны архивка чыгару",
           "checkUpdates": "Яңартуларны тикшерү",
           "openDevTools": "Разработчик коралларын ачу",
           "liteModeSettings": "LightWeight Mode Settings",

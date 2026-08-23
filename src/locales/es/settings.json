@@ -26,6 +26,7 @@
       "notifications": {
         "tunMode": {
           "autoDisabled": "El núcleo no pudo levantar el dispositivo TUN, así que TUN está desactivado",
+          "adapterBusy": "El adaptador TUN está ocupado por otro cliente o no se liberó: ciérrelo o reinicie el equipo",
           "setupStarted": "Configurando el modo TUN: instalando el servicio en segundo plano",
           "setupDone": "El modo TUN está listo",
           "setupFailed": "No se pudo instalar el servicio en segundo plano, TUN sigue desactivado",
@@ -233,6 +234,7 @@
           "openConfDir": "Directorio de configuración",
           "openCoreDir": "Directorio del núcleo",
           "openLogsDir": "Directorio de registros",
+          "exportLogs": "Exportar registros como archivo",
           "checkUpdates": "Comprobar actualizaciones",
           "openDevTools": "Abrir herramientas de desarrollo",
           "liteModeSettings": "Configuración del modo ligero",

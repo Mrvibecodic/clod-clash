@@ -118,7 +118,8 @@
         "saveSuccess": "Configuration saved successfully",
         "saveFailed": "Failed to save configuration",
         "refreshFailed": "Refresh failed; showing last loaded value",
-        "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked"
+        "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked",
+        "logsExported": "Log archive saved — subscription addresses and tokens are masked"
       }
     },
     "validation": {

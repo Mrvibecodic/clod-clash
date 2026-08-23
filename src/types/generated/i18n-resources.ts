@@ -780,6 +780,7 @@ export interface TranslationResources {
               checkUpdates: string
               exit: string
               exportDiagnostics: string
+              exportLogs: string
               liteModeSettings: string
               openConfDir: string
               openCoreDir: string
@@ -1457,6 +1458,7 @@ export interface TranslationResources {
               needsRepair: string
             }
             tunMode: {
+              adapterBusy: string
               autoDisabled: string
               noTraffic: string
               noTrafficWindows: string
@@ -1556,6 +1558,7 @@ export interface TranslationResources {
         notifications: {
           common: {
             copySuccess: string
+            logsExported: string
             refreshFailed: string
             saveFailed: string
             saveSuccess: string

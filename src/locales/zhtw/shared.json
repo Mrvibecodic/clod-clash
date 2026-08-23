@@ -118,7 +118,8 @@
         "saveSuccess": "設定儲存完成",
         "saveFailed": "設定儲存失敗",
         "refreshFailed": "重整失敗",
-        "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked"
+        "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked",
+        "logsExported": "日誌壓縮檔已儲存——訂閱網址與權杖已遮罩"
       }
     },
     "validation": {

@@ -1,22 +1,6 @@
-//! clod:freeze-restore — сторож главного потока.
-//!
-//! 14.08 приложение дважды встало намертво при развороте свёрнутого окна, и
-//! оба раза лог обрывался тишиной: как только главный поток перестаёт
-//! разбирать оконные вызовы, каждая задача рантайма, которая трогает окно,
-//! ложится на нём без срока — включая ту, что должна была записать «активация
-//! не ответила». Свидетеля не осталось.
-//!
-//! Поэтому сторож живёт в СОБСТВЕННОМ системном потоке: он не зависит ни от
-//! рантайма, ни от окна и спрашивает у Windows ровно то же, что спрашивает сам
-//! проводник, когда рисует «Не отвечает» — разбирает ли поток окна очередь
-//! сообщений. Ответ уходит в лог с точным временем, так что в следующий раз
-//! видно, когда именно интерфейс умер и оживал ли он потом.
-
-/// Взять окно под наблюдение. Зовётся сразу после создания окна.
 #[cfg(not(target_os = "windows"))]
 pub const fn watch(_window: &tauri::WebviewWindow) {}
 
-/// Отвечает ли сейчас поток окна. Там, где спросить нельзя, считаем, что да.
 #[cfg(not(target_os = "windows"))]
 pub const fn responds() -> bool {
     true
@@ -28,24 +12,23 @@ pub use windows_watchdog::{responds, watch};
 #[cfg(target_os = "windows")]
 mod windows_watchdog {
     use std::{
+        os::windows::process::CommandExt as _,
+        process::Command,
         sync::atomic::{AtomicBool, AtomicIsize, Ordering},
         time::{Duration, Instant},
     };
 
     use clash_verge_logging::{Type, logging};
 
-    /// Как часто спрашиваем окно.
     const POLL: Duration = Duration::from_secs(2);
-    /// Сколько ждём ответа. Windows считает окно зависшим после 5 с, нам хватает
-    /// меньшего: пауза здесь — это только задержка следующей проверки.
     const ANSWER: Duration = Duration::from_millis(1500);
-    /// Как часто напоминать в логе, что интерфейс всё ещё не отвечает.
     const REMIND: Duration = Duration::from_secs(30);
+    const RESTART_AFTER: Duration = Duration::from_secs(20);
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
     static MAIN_HWND: AtomicIsize = AtomicIsize::new(0);
     static STARTED: AtomicBool = AtomicBool::new(false);
 
-    /// Взять окно под наблюдение. Зовётся сразу после создания окна.
     pub fn watch(window: &tauri::WebviewWindow) {
         match window.hwnd() {
             Ok(hwnd) => {
@@ -56,18 +39,11 @@ mod windows_watchdog {
         }
     }
 
-    /// Отвечает ли сейчас поток окна. Пока окна нет — считаем, что да, иначе
-    /// проверка начнёт врать до его создания.
     pub fn responds() -> bool {
         let hwnd = MAIN_HWND.load(Ordering::Relaxed);
         hwnd == 0 || window_answers(hwnd)
     }
 
-    /// Отвечает ли поток окна на сообщения.
-    ///
-    /// `WM_NULL` ничего не делает — важен сам факт ответа. `SMTO_ABORTIFHUNG`
-    /// возвращает управление сразу, если Windows уже считает окно зависшим, а не
-    /// досиживает срок до конца.
     fn window_answers(hwnd: isize) -> bool {
         use windows_sys::Win32::UI::WindowsAndMessaging::{SMTO_ABORTIFHUNG, SMTO_BLOCK, SendMessageTimeoutW, WM_NULL};
 
@@ -98,6 +74,41 @@ mod windows_watchdog {
                 STARTED.store(false, Ordering::SeqCst);
                 logging!(warn, Type::Window, "Не удалось запустить сторож интерфейса: {}", e);
             }
+        }
+    }
+
+    fn restart_self() {
+        let Ok(exe) = std::env::current_exe() else {
+            logging!(error, Type::Window, "Перезапуск невозможен: путь приложения неизвестен");
+            return;
+        };
+        let pid = std::process::id();
+        let script = format!(
+            "Wait-Process -Id {pid} -ErrorAction SilentlyContinue; Start-Process -FilePath '{}'",
+            exe.to_string_lossy().replace('\'', "''")
+        );
+        let spawned = Command::new("powershell")
+            .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &script])
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn();
+        match spawned {
+            Ok(_) => {
+                logging!(
+                    error,
+                    Type::Window,
+                    "Интерфейс не ответил за {} с, приложение перезапускается",
+                    RESTART_AFTER.as_secs()
+                );
+                log::logger().flush();
+                std::thread::sleep(Duration::from_millis(200));
+                unsafe {
+                    windows_sys::Win32::System::Threading::TerminateProcess(
+                        windows_sys::Win32::System::Threading::GetCurrentProcess(),
+                        0,
+                    );
+                }
+            }
+            Err(e) => logging!(error, Type::Window, "Не удалось запланировать перезапуск: {}", e),
         }
     }
 
@@ -134,6 +145,10 @@ mod windows_watchdog {
                         Type::Window,
                         "Главный поток перестал разбирать сообщения окна — интерфейс завис"
                     );
+                }
+                Some(since) if since.elapsed() >= RESTART_AFTER => {
+                    restart_self();
+                    hung_since = None;
                 }
                 Some(since) if reminded_at.elapsed() >= REMIND => {
                     reminded_at = Instant::now();

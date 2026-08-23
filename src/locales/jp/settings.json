@@ -26,6 +26,7 @@
       "notifications": {
         "tunMode": {
           "autoDisabled": "コアが TUN デバイスを起動できなかったため、TUN は無効のままです",
+          "adapterBusy": "TUN アダプターが別のクライアントに使用中か解放されていません。そのクライアントを終了するか、パソコンを再起動してください",
           "setupStarted": "TUN モードを準備しています：バックグラウンドサービスをインストール中",
           "setupDone": "TUN モードの準備ができました",
           "setupFailed": "バックグラウンドサービスをインストールできず、TUN は無効のままです",
@@ -233,6 +234,7 @@
           "openConfDir": "設定ディレクトリを開く",
           "openCoreDir": "コアディレクトリを開く",
           "openLogsDir": "ログディレクトリを開く",
+          "exportLogs": "ログをアーカイブとして書き出す",
           "checkUpdates": "更新を確認",
           "openDevTools": "開発者ツールを開く",
           "liteModeSettings": "軽量モード設定",

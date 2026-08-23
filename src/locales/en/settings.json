@@ -26,6 +26,7 @@
       "notifications": {
         "tunMode": {
           "autoDisabled": "The core could not bring the TUN device up, so TUN is off for now",
+          "adapterBusy": "The TUN adapter is held by another client or was not released: close it or restart the computer",
           "setupStarted": "Setting up TUN mode: installing the background service",
           "setupDone": "TUN mode is ready",
           "setupFailed": "Could not install the background service, so TUN stays off",
@@ -233,6 +234,7 @@
           "openConfDir": "Open Conf Dir",
           "openCoreDir": "Open Core Dir",
           "openLogsDir": "Open Logs Dir",
+          "exportLogs": "Export logs as an archive",
           "checkUpdates": "Check for Updates",
           "openDevTools": "Dev Tools",
           "liteModeSettings": "LightWeight Mode Settings",

@@ -1,5 +1,6 @@
 import { ContentCopyRounded, SettingsRounded } from '@mui/icons-material'
 import { Typography } from '@mui/material'
+import { save } from '@tauri-apps/plugin-dialog'
 import { useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -8,6 +9,7 @@ import { updateLastCheckTime } from '@/hooks/use-update'
 import { useVerge } from '@/hooks/use-verge'
 import {
   copySupportBundle,
+  exportLogs,
   exitApp,
   exportDiagnosticInfo,
   openAppDir,
@@ -33,9 +35,6 @@ import type { SettingVariant } from './setting-variant'
 
 interface Props {
   onError?: (err: Error) => void
-  // clod:simple-settings — `core` оставляет только то, без чего пользователь
-  // простого режима не сможет попросить помощь: отчёт для поддержки и версию
-  // с проверкой обновлений. Всё остальное — `rest`, под «Продвинутыми».
   variant?: SettingVariant
 }
 
@@ -73,14 +72,27 @@ const SettingVergeAdvanced = ({ onError, variant = 'all' }: Props) => {
     }
   }
 
-  // clod: отчёт для поддержки провайдера — уже отредактированный, в отличие
-  // от сырого лога, который пользователь до этого отправлял руками
   const onCopySupportBundle = useCallback(async () => {
     try {
       await copySupportBundle()
       showNotice.success(
         'shared.feedback.notifications.common.supportBundleCopied',
       )
+    } catch (error) {
+      showNotice.error(error)
+    }
+  }, [])
+
+  const onExportLogs = useCallback(async () => {
+    try {
+      const stamp = new Date().toISOString().slice(0, 10)
+      const path = await save({
+        defaultPath: `clodclash-logs-${stamp}.zip`,
+        filters: [{ name: 'ZIP', extensions: ['zip'] }],
+      })
+      if (!path) return
+      await exportLogs(path)
+      showNotice.success('shared.feedback.notifications.common.logsExported')
     } catch (error) {
       showNotice.error(error)
     }
@@ -119,8 +131,6 @@ const SettingVergeAdvanced = ({ onError, variant = 'all' }: Props) => {
           <LiteModeViewer ref={liteModeRef} />
         </>
       )}
-      {/* Диалог обновления живёт рядом со строкой версии: её шестерёнка —
-          единственное, что его открывает. */}
       {showCore && <UpdateViewer ref={updateRef} />}
 
       {showRest && (
@@ -167,6 +177,11 @@ const SettingVergeAdvanced = ({ onError, variant = 'all' }: Props) => {
           />
 
           <SettingItem
+            onClick={onExportLogs}
+            label={t('settings.components.verge.advanced.fields.exportLogs')}
+          />
+
+          <SettingItem
             onClick={openDevTools}
             label={t('settings.components.verge.advanced.fields.openDevTools')}
           />
@@ -204,9 +219,6 @@ const SettingVergeAdvanced = ({ onError, variant = 'all' }: Props) => {
               />
             }
           ></SettingItem>
-          {/* clod:prereleases — единственный канал обновлений у нас общий, а
-              выбор пользователя — принимать ли альфы. Живёт рядом с экспортом
-              диагностики и версией: всё, что про саму сборку, в одном месте. */}
           <SettingItem
             label={t(
               'settings.components.verge.advanced.fields.receivePrereleases',
@@ -240,8 +252,6 @@ const SettingVergeAdvanced = ({ onError, variant = 'all' }: Props) => {
 
       {showCore && (
         <>
-          {/* clod: то же самое, но для поддержки провайдера: состояние подписки и
-          ядра плюс хвосты обоих логов, уже без адресов подписки и токенов */}
           <SettingItem
             label={t('settings.components.verge.advanced.fields.supportBundle')}
             extra={
@@ -255,8 +265,6 @@ const SettingVergeAdvanced = ({ onError, variant = 'all' }: Props) => {
             }
           ></SettingItem>
 
-          {/* clod: шестерёнка проверяет обновления приложения — как у строки
-          ядра; отдельный пункт «Проверить обновления» из списка убран */}
           <SettingItem
             label={t('settings.components.verge.advanced.fields.vergeVersion')}
             extra={

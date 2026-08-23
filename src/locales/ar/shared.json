@@ -118,7 +118,8 @@
         "saveSuccess": "Configuration saved successfully",
         "saveFailed": "Failed to save configuration",
         "refreshFailed": "فشل التحديث",
-        "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked"
+        "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked",
+        "logsExported": "تم حفظ أرشيف السجلات — عناوين الاشتراك والرموز مخفية"
       }
     },
     "validation": {

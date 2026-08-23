@@ -26,6 +26,7 @@
       "notifications": {
         "tunMode": {
           "autoDisabled": "تعذّر على النواة تشغيل جهاز TUN، لذلك يبقى الوضع معطّلاً",
+          "adapterBusy": "محوّل TUN مشغول بعميل آخر أو لم يتم تحريره: أغلقه أو أعد تشغيل الحاسوب",
           "setupStarted": "جارٍ إعداد وضع TUN: تثبيت خدمة الخلفية",
           "setupDone": "وضع TUN جاهز",
           "setupFailed": "تعذّر تثبيت خدمة الخلفية، ويبقى وضع TUN معطّلاً",
@@ -233,6 +234,7 @@
           "openConfDir": "فتح مجلد التكوين",
           "openCoreDir": "فتح مجلد النواة",
           "openLogsDir": "فتح مجلد السجلات",
+          "exportLogs": "تصدير السجلات كأرشيف",
           "checkUpdates": "التحقق من وجود تحديثات",
           "openDevTools": "أدوات المطور",
           "liteModeSettings": "LightWeight Mode Settings",

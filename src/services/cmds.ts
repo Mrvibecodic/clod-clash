@@ -311,6 +311,10 @@ export async function copySupportBundle(lines?: number) {
   return invoke<number>('copy_support_bundle', { lines })
 }
 
+export async function exportLogs(path: string) {
+  return invoke<number>('export_logs', { path })
+}
+
 export async function getSystemProxy() {
   return invoke<{
     enable: boolean

@@ -26,6 +26,7 @@
       "notifications": {
         "tunMode": {
           "autoDisabled": "内核未能启动 TUN 设备，TUN 模式暂时关闭",
+          "adapterBusy": "TUN 适配器被其他客户端占用或未释放：请关闭该客户端或重启电脑",
           "setupStarted": "正在配置 TUN 模式：安装后台服务",
           "setupDone": "TUN 模式已就绪",
           "setupFailed": "后台服务安装失败，TUN 模式保持关闭",
@@ -233,6 +234,7 @@
           "openConfDir": "配置目录",
           "openCoreDir": "内核目录",
           "openLogsDir": "日志目录",
+          "exportLogs": "导出日志为压缩包",
           "checkUpdates": "检查更新",
           "openDevTools": "开发者工具",
           "liteModeSettings": "轻量模式设置",

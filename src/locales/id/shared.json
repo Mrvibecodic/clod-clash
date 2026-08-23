@@ -118,7 +118,8 @@
         "saveSuccess": "Configuration saved successfully",
         "saveFailed": "Failed to save configuration",
         "refreshFailed": "Penyegaran gagal",
-        "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked"
+        "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked",
+        "logsExported": "Arsip log disimpan — alamat langganan dan token disamarkan"
       }
     },
     "validation": {
