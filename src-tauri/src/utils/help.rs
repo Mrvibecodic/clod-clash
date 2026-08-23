@@ -9,7 +9,6 @@ use std::{
     str::FromStr,
 };
 
-/// read data from yaml as struct T
 pub async fn read_yaml<T: DeserializeOwned>(path: &PathBuf) -> Result<T> {
     if !tokio::fs::try_exists(path).await.unwrap_or(false) {
         bail!("file not found \"{}\"", path.display());
@@ -20,7 +19,6 @@ pub async fn read_yaml<T: DeserializeOwned>(path: &PathBuf) -> Result<T> {
     Ok(with_encryption(|| async { serde_yaml_ng::from_str::<T>(&yaml_str) }).await?)
 }
 
-/// read mapping from yaml
 pub async fn read_mapping(path: &PathBuf) -> Result<Mapping> {
     if !tokio::fs::try_exists(path).await.unwrap_or(false) {
         bail!("file not found \"{}\"", path.display());
@@ -30,7 +28,6 @@ pub async fn read_mapping(path: &PathBuf) -> Result<Mapping> {
         .await
         .with_context(|| format!("failed to read the file \"{}\"", path.display()))?;
 
-    // Проверка синтаксиса YAML
     match serde_yaml_ng::from_str::<serde_yaml_ng::Value>(&yaml_str) {
         Ok(mut val) => {
             val.apply_merge()
@@ -52,13 +49,10 @@ pub async fn read_mapping(path: &PathBuf) -> Result<Mapping> {
     }
 }
 
-/// read mapping from yaml fix #165
 pub async fn read_seq_map(path: &PathBuf) -> Result<SeqMap> {
     read_yaml(path).await
 }
 
-/// save the data to the file
-/// can set `prefix` string to add some comments
 pub async fn save_yaml<T: Serialize + Sync>(path: &Path, data: &T, prefix: Option<&str>) -> Result<()> {
     let data_str = with_encryption(|| async { serde_yaml_ng::to_string(data) }).await?;
 
@@ -72,40 +66,16 @@ pub async fn save_yaml<T: Serialize + Sync>(path: &Path, data: &T, prefix: Optio
     Ok(())
 }
 
-/// Сколько раз пробуем переименовать файл на место.
-///
-/// Windows умеет отдать «отказано в доступе», пока свежесозданный файл держит
-/// антивирус или индексатор. Это проходит за доли секунды, и ронять из-за
-/// этого сохранение профиля нельзя.
 const ATOMIC_RENAME_ATTEMPTS: usize = 4;
 const ATOMIC_RENAME_PAUSE: std::time::Duration = std::time::Duration::from_millis(50);
 
-/// clod: записать файл целиком или не записать вовсе.
-///
-/// Прямой `fs::write` усекает файл ДО того, как в него попадут новые байты:
-/// сбой питания, вылет процесса или переполненный диск в этот момент оставляли
-/// на диске обрезанный конфиг или профиль. Для профиля это потерянная подписка,
-/// для `verge.yaml` — сброшенные настройки, и оба чинятся только руками.
-///
-/// Пишем в соседний временный файл, сбрасываем его на диск и переименовываем:
-/// подмена имени атомарна и на POSIX, и на Windows (`MoveFileEx` с заменой),
-/// так что читатель видит либо старое содержимое целиком, либо новое целиком.
-///
-/// Имя временного файла содержит случайную часть — два сохранения одного и
-/// того же пути не отберут друг у друга черновик.
 pub async fn write_atomic(path: &Path, contents: &[u8]) -> Result<()> {
     let staging = staging_path(path);
 
     let write_result = async {
         use tokio::io::AsyncWriteExt as _;
-        // Черновик пишется и сбрасывается через ОДИН дескриптор с правом
-        // записи: на Windows `sync_all` на переоткрытом только для чтения
-        // файле падает с «отказано в доступе» (FlushFileBuffers требует
-        // права записи).
         let mut file = tokio::fs::File::create(&staging).await?;
         file.write_all(contents).await?;
-        // Без сброса на диск переименование может опередить сами байты, и
-        // после выключения питания на месте окажется файл нулевой длины.
         file.sync_all().await
     }
     .await;
@@ -115,9 +85,6 @@ pub async fn write_atomic(path: &Path, contents: &[u8]) -> Result<()> {
         return Err(anyhow!(err)).with_context(|| format!("failed to write file \"{}\"", path.display()));
     }
 
-    // Перезапись оставляла файлу его собственные права, подмена имени — нет.
-    // Профиль хранит адрес подписки, и отдавать его остальным пользователям
-    // машины только потому, что мы сменили способ записи, нельзя.
     #[cfg(unix)]
     if let Ok(existing) = tokio::fs::metadata(path).await {
         use std::os::unix::fs::PermissionsExt as _;
@@ -138,14 +105,11 @@ pub async fn write_atomic(path: &Path, contents: &[u8]) -> Result<()> {
         }
     }
 
-    // Черновик не должен копиться рядом с настоящим файлом.
     let _ = tokio::fs::remove_file(&staging).await;
     let last_error = last_error.unwrap_or_else(|| std::io::Error::other("rename was never attempted"));
     Err(anyhow!(last_error)).with_context(|| format!("failed to move file into place \"{}\"", path.display()))
 }
 
-/// Имя черновика рядом с целевым файлом — на том же томе, иначе переименование
-/// превратится в копирование и перестанет быть атомарным.
 fn staging_path(path: &Path) -> PathBuf {
     let name = path
         .file_name()
@@ -165,34 +129,21 @@ const ALPHABET: [char; 62] = [
     'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
 ];
 
-/// generate the uid
 pub fn get_uid(prefix: &str) -> String {
     let id = nanoid!(11, &ALPHABET);
     format!("{prefix}{id}")
 }
 
-/// Значение, которое апстрим писал в шаблон конфига ядра.
 pub const LEGACY_DEFAULT_SECRET: &str = "set-your-secret";
 
-/// clod: секрет управляющего интерфейса ядра.
-///
-/// Апстрим клал в шаблон строку `set-your-secret` — одну и ту же у всех
-/// установок. Управляющий интерфейс отдаёт конфиг с адресами серверов, меняет
-/// режим и показывает соединения, а CORS в шаблоне пускает несколько внешних
-/// панелей, так что общеизвестный секрет здесь не косметика.
-///
-/// 32 символа из алфавита uid — около 190 бит, перебирать нечего.
 pub fn random_secret() -> String {
     nanoid!(32, &ALPHABET)
 }
 
-/// Секрет из апстрима и пустая строка равнозначны «не задан».
 pub fn is_placeholder_secret(secret: &str) -> bool {
     secret.trim().is_empty() || secret == LEGACY_DEFAULT_SECRET
 }
 
-/// parse the string
-/// xxx=123123; => 123123
 pub fn parse_str<T: FromStr>(target: &str, key: &str) -> Option<T> {
     target.split(';').map(str::trim).find_map(|s| {
         let mut parts = s.splitn(2, '=');
@@ -203,18 +154,12 @@ pub fn parse_str<T: FromStr>(target: &str, key: &str) -> Option<T> {
     })
 }
 
-/// Mask sensitive parts of a subscription URL for safe logging.
-/// Examples:
-/// - `https://example.com/api/v1/clash?token=abc123` → `https://example.com/api/v1/clash?token=***`
-/// - `https://example.com/abc123def456ghi789/clash` → `https://example.com/***/clash`
 pub fn mask_url(url: &str) -> String {
-    // Split off query string
     let (path_part, query_part) = match url.find('?') {
         Some(pos) => (&url[..pos], Some(&url[pos + 1..])),
         None => (url, None),
     };
 
-    // Extract scheme+host prefix (everything up to the first '/' after "://")
     let host_end = path_part
         .find("://")
         .and_then(|scheme_end| {
@@ -225,11 +170,10 @@ pub fn mask_url(url: &str) -> String {
         .unwrap_or(path_part.len());
 
     let scheme_and_host = &path_part[..host_end];
-    let path = &path_part[host_end..]; // starts with '/' or empty
+    let path = &path_part[host_end..];
 
     let mut result = scheme_and_host.to_owned();
 
-    // Mask path segments that look like tokens (longer than 16 chars)
     if !path.is_empty() {
         let masked: Vec<&str> = path
             .split('/')
@@ -238,7 +182,6 @@ pub fn mask_url(url: &str) -> String {
         result.push_str(&masked.join("/"));
     }
 
-    // Keep query param keys, mask values
     if let Some(query) = query_part {
         result.push('?');
         let masked_query: Vec<String> = query
@@ -254,11 +197,6 @@ pub fn mask_url(url: &str) -> String {
     result
 }
 
-/// Mask all URLs embedded in an error/log string for safe logging.
-///
-/// Scans the string for `http://` or `https://` and replaces each URL
-/// (terminated by whitespace or `)`, `]`, `"`, `'`) with its masked form.
-/// Text between URLs is copied verbatim.
 pub fn mask_err(err: &str) -> String {
     let mut result = String::with_capacity(err.len());
     let mut remaining = err;
@@ -289,9 +227,8 @@ pub fn mask_err(err: &str) -> String {
     result
 }
 
-/// get the last part of the url, if not found, return empty string
 pub fn get_last_part_and_decode(url: &str) -> Option<String> {
-    let path = url.split('?').next().unwrap_or(""); // Splits URL and takes the path part
+    let path = url.split('?').next().unwrap_or("");
     let segments: Vec<&str> = path.split('/').collect();
     let last_segment = segments.last()?;
 
@@ -302,7 +239,6 @@ pub fn get_last_part_and_decode(url: &str) -> Option<String> {
     )
 }
 
-/// open file
 pub fn open_file(path: PathBuf) -> Result<()> {
     open::that_detached(path.as_os_str())?;
     Ok(())
@@ -325,27 +261,24 @@ pub fn open_core_latest_log() -> Result<()> {
 }
 
 #[cfg(target_os = "linux")]
-pub fn linux_elevator() -> String {
+pub fn linux_elevator() -> Result<String> {
     use std::process::Command;
-    match Command::new("which").arg("pkexec").output() {
-        Ok(output) => {
-            if !output.stdout.is_empty() {
-                // Convert the output to a string slice
-                if let Ok(path) = std::str::from_utf8(&output.stdout) {
-                    path.trim().to_string()
-                } else {
-                    "sudo".to_string()
-                }
-            } else {
-                "sudo".to_string()
-            }
-        }
-        Err(_) => "sudo".to_string(),
-    }
+    let output = Command::new("which").arg("pkexec").output();
+    let path = output
+        .ok()
+        .filter(|output| output.status.success())
+        .and_then(|output| String::from_utf8(output.stdout).ok())
+        .map(|path| path.trim().to_string())
+        .filter(|path| !path.is_empty());
+    path.ok_or_else(|| {
+        anyhow::anyhow!(
+            "pkexec (polkit) is not installed, so the app cannot ask for administrator rights; install polkit or run \
+             `sudo /usr/bin/clash-verge-service-install` once"
+        )
+    })
 }
 
 #[cfg(target_os = "windows")]
-/// copy the file to the dist path and return the dist path
 pub fn snapshot_path(original_path: &Path) -> Result<PathBuf> {
     let temp_dir = original_path
         .parent()
@@ -385,8 +318,6 @@ mod tests {
         write_atomic(&target, b"first").await.expect("first write");
         assert_eq!(std::fs::read(&target).expect("read"), b"first");
 
-        // Второй заход не дописывает и не оставляет обрезка от прошлого
-        // содержимого: длина короче, но хвост «rst» пережить не должен.
         write_atomic(&target, b"two").await.expect("second write");
         assert_eq!(std::fs::read(&target).expect("read"), b"two");
 
@@ -406,8 +337,6 @@ mod tests {
         let dir = scratch_dir("atomic-fail");
         let target = dir.join("nested").join("verge.yaml");
 
-        // Каталога нет — записать некуда, и это должно быть ошибкой, а не
-        // молчаливой потерей файла.
         write_atomic(&target, b"payload").await.expect_err("no directory");
         assert!(!target.exists());
 
@@ -416,15 +345,11 @@ mod tests {
 
     #[test]
     fn draft_lives_next_to_the_target() {
-        // Переименование атомарно только в пределах тома, поэтому черновик
-        // обязан лежать в том же каталоге.
         let target = PathBuf::from("/var/lib/clod/verge.yaml");
         let draft = staging_path(&target);
         assert_eq!(draft.parent(), target.parent());
         assert_ne!(draft.file_name(), target.file_name());
 
-        // Два черновика одного файла не совпадают — параллельные сохранения
-        // не отберут друг у друга временное имя.
         assert_ne!(staging_path(&target), staging_path(&target));
     }
 

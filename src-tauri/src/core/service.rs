@@ -422,6 +422,17 @@ const fn pkexec_itself_failed(code: Option<i32>) -> bool {
 }
 
 #[cfg(target_os = "linux")]
+fn pkexec_failure_hint(code: Option<i32>) -> String {
+    match code {
+        Some(126) => "administrator rights were not granted: the polkit prompt was cancelled or declined".to_owned(),
+        Some(127) => {
+            "pkexec could not run the service installer: polkit is missing an agent for this session".to_owned()
+        }
+        other => format!("pkexec failed with status {}", other.unwrap_or(-1)),
+    }
+}
+
+#[cfg(target_os = "linux")]
 fn uninstall_service() -> Result<()> {
     logging!(info, Type::Service, "uninstall service");
 
@@ -431,23 +442,15 @@ fn uninstall_service() -> Result<()> {
         bail!(format!("uninstaller not found: {uninstall_path:?}"));
     }
 
-    let elevator = crate::utils::help::linux_elevator();
     let status = if linux_running_as_root() {
         StdCommand::new(&uninstall_path).status()?
     } else {
-        let result = StdCommand::new(&elevator).arg(&uninstall_path).status()?;
-
-        if elevator.contains("pkexec") && pkexec_itself_failed(result.code()) {
-            logging!(
-                warn,
-                Type::Service,
-                "pkexec itself failed with code {}, falling back to sudo",
-                result.code().unwrap_or(-1)
-            );
-            StdCommand::new("sudo").arg(&uninstall_path).status()?
-        } else {
-            result
+        let elevator = crate::utils::help::linux_elevator()?;
+        let status = StdCommand::new(&elevator).arg(&uninstall_path).status()?;
+        if pkexec_itself_failed(status.code()) {
+            bail!("{}", pkexec_failure_hint(status.code()));
         }
+        status
     };
     logging!(
         info,
@@ -483,23 +486,15 @@ fn install_service() -> Result<()> {
         selinux_recovery_tail()
     );
 
-    let elevator = crate::utils::help::linux_elevator();
     let output = if linux_running_as_root() {
         StdCommand::new("sh").args(["-c", &script]).output()?
     } else {
-        let result = StdCommand::new(&elevator).args(["sh", "-c", &script]).output()?;
-
-        if elevator.contains("pkexec") && pkexec_itself_failed(result.status.code()) {
-            logging!(
-                warn,
-                Type::Service,
-                "pkexec itself failed with code {}, falling back to sudo",
-                result.status.code().unwrap_or(-1)
-            );
-            StdCommand::new("sudo").args(["sh", "-c", &script]).output()?
-        } else {
-            result
+        let elevator = crate::utils::help::linux_elevator()?;
+        let output = StdCommand::new(&elevator).args(["sh", "-c", &script]).output()?;
+        if pkexec_itself_failed(output.status.code()) {
+            bail!("{}", pkexec_failure_hint(output.status.code()));
         }
+        output
     };
 
     if let Some((code, err)) = check_output_error(&output) {
@@ -800,23 +795,15 @@ fn reinstall_service() -> Result<()> {
     script.push_str(&shell_single_quote(&install_path.to_string_lossy()));
     script.push_str(&selinux_recovery_tail());
 
-    let elevator = crate::utils::help::linux_elevator();
     let status = if linux_running_as_root() {
         StdCommand::new("sh").args(["-c", &script]).status()?
     } else {
-        let result = StdCommand::new(&elevator).args(["sh", "-c", &script]).status()?;
-
-        if elevator.contains("pkexec") && pkexec_itself_failed(result.code()) {
-            logging!(
-                warn,
-                Type::Service,
-                "pkexec itself failed with code {}, falling back to sudo",
-                result.code().unwrap_or(-1)
-            );
-            StdCommand::new("sudo").args(["sh", "-c", &script]).status()?
-        } else {
-            result
+        let elevator = crate::utils::help::linux_elevator()?;
+        let status = StdCommand::new(&elevator).args(["sh", "-c", &script]).status()?;
+        if pkexec_itself_failed(status.code()) {
+            bail!("{}", pkexec_failure_hint(status.code()));
         }
+        status
     };
 
     if !status.success() {
@@ -1458,7 +1445,7 @@ mod selinux_tests {
     }
 
     #[test]
-    fn only_pkexec_own_failures_deserve_a_sudo_retry() {
+    fn only_pkexec_own_failures_are_reported_as_such() {
         assert!(pkexec_itself_failed(Some(126)));
         assert!(pkexec_itself_failed(Some(127)));
         assert!(pkexec_itself_failed(None));
