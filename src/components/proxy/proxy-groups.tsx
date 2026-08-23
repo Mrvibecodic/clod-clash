@@ -83,7 +83,6 @@ function useProxyRenderState(
 
   const timeout = verge?.default_latency_timeout || 10000
 
-  // Проверка всех задержек
   const handleCheckAll = useStableCallback(
     useLockFn(async (groupName: string) => {
       debugLog(
@@ -104,21 +103,6 @@ function useProxyRenderState(
       )
 
       try {
-        // clod:one-ping — раньше здесь через `Promise.race` запускались ДВА
-        // теста сразу: поузловой (`checkListDelay`) и групповой
-        // (`/group/{name}/delay`). `race` не отменяет проигравшего — он лишь
-        // перестаёт его ждать, так что каждый узел проверялся дважды, ядро
-        // и сеть получали двойную нагрузку, а два замера одного и того же
-        // узла наперегонки писались в показанное значение. Хуже того,
-        // `finally` ниже дёргал обновление списка, когда вторая половина
-        // теста ещё шла, и половина строк тут же снова уезжала в спиннер.
-        //
-        // Остаётся поузловой: на этой странице у каждой строки свой спиннер и
-        // свой результат — прогресс виден по мере готовности, а не одним
-        // скачком в конце. Он же безопаснее для закреплённого узла: групповой
-        // обработчик ядра сбрасывает выбор url-test/fallback-группы
-        // (`ForceSet("")`), поэтому его и приходилось звать с `keepFixed`, а
-        // `/proxies/{name}/delay` выбора не касается вовсе.
         await delayManager.checkListDelay(proxies, groupName, timeout)
         debugLog(
           `[ProxyGroups] Тестирование задержки завершено, группа: ${groupName}`,
@@ -140,11 +124,10 @@ function useProxyRenderState(
 
   const saveScrollPosition = useCallback(
     (scrollTop: number) => {
-      const scrollPositions = localStorage.getItem('proxy-scroll-positions')
-        ? JSON.parse(localStorage.getItem('proxy-scroll-positions') ?? '{}')
-        : {}
-      scrollPositions[scrollPositionKey] = scrollTop
       try {
+        const saved = localStorage.getItem('proxy-scroll-positions')
+        const scrollPositions = saved ? JSON.parse(saved) : {}
+        scrollPositions[scrollPositionKey] = scrollTop
         localStorage.setItem(
           'proxy-scroll-positions',
           JSON.stringify(scrollPositions),
@@ -251,7 +234,6 @@ function ChainProxyGroups(props: {
   const virtualItems = virtualizer.getVirtualItems()
   const activeStickyIndex = activeStickyIndexRef.current
 
-  // Восстанавливаем позицию прокрутки из localStorage
   useLayoutEffect(() => {
     if (renderList.length === 0) return
     const node = parentRef.current
@@ -369,14 +351,8 @@ function NormalProxyGroups(props: { mode: string }) {
     saveScrollPosition,
   } = useProxyRenderState(mode, false, null)
   const renderFirstRef = useRef(true)
-  // true во время восстановления позиции прокрутки, чтобы программная
-  // прокрутка не вызывала scroll-событие, записывающее промежуточное
-  // значение обратно в хранилище
   const isRestoringRef = useRef(false)
 
-  // Пока не удаётся инициализировать через initialOffset у StickyVirtualList,
-  // причину нужно выяснить
-  // Восстанавливаем позицию прокрутки из localStorage
   useLayoutEffect(() => {
     if (renderList.length === 0) return
     if (!renderFirstRef.current) return
@@ -384,18 +360,11 @@ function NormalProxyGroups(props: { mode: string }) {
     if (!node) return
 
     const savedPosition = getScrollPosition()
-    // Восстановление не нужно, если позиция не сохранялась или равна 0 (верх)
     if (!savedPosition) {
       renderFirstRef.current = false
       return
     }
 
-    // Виртуальный список изначально использует оценочную высоту, итоговая
-    // высота стабилизируется только после реального измерения. Особенно
-    // когда после фильтрации узлов становится меньше, оценочной итоговой
-    // высоты часто не хватает, чтобы прокрутить до цели за один раз,
-    // поэтому повторяем попытки в разных кадрах, пока не достигнем цели
-    // (или пока содержимого действительно не хватит по высоте).
     isRestoringRef.current = true
     let rafId = 0
     let attempts = 0
@@ -435,8 +404,6 @@ function NormalProxyGroups(props: { mode: string }) {
 
   const handleScroll = useCallback(
     (event: Event) => {
-      // Прокрутка во время восстановления позиции не пишется в хранилище,
-      // чтобы промежуточные ограниченные значения не перезаписали реальную позицию
       if (isRestoringRef.current) return
       const target = event.target as HTMLElement | null
       const nextScrollTop = target?.scrollTop ?? 0
@@ -479,7 +446,6 @@ function NormalProxyGroups(props: { mode: string }) {
     [handleProxyGroupChange],
   )
 
-  // Прокрутка к соответствующему узлу
   const handleLocation = useStableCallback((group: IProxyGroupItem) => {
     if (!group) return
     const { name, now } = group
@@ -499,7 +465,6 @@ function NormalProxyGroups(props: { mode: string }) {
     }
   })
 
-  // Переход к указанной группе прокси
   const handleGroupLocationByName = useCallback(
     (groupName: string) => {
       const index = renderList.findIndex(
@@ -523,8 +488,6 @@ function NormalProxyGroups(props: { mode: string }) {
     return Array.from(new Set(names))
   }, [renderList])
 
-  // Клик по группе прокси меняет состояние развёрнутости: сначала прокрутка
-  // к sticky-позиции группы, затем сворачивание
   const handleGroupToggle = useCallback(
     async (group: IProxyGroupItem) => {
       const index = renderList.findIndex(
@@ -601,7 +564,6 @@ function NormalProxyGroups(props: { mode: string }) {
         renderItem={renderProxyItem}
       />
 
-      {/* Панель навигации по группам прокси */}
       {mode === 'rule' && (
         <ProxyGroupNavigator
           proxyGroupNames={proxyGroupNames}
@@ -617,15 +579,6 @@ function NormalProxyGroups(props: { mode: string }) {
 export const ProxyGroups = (props: Props) => {
   const { mode, isChainMode = false, chainConfigData } = props
 
-  // Drive 3s polling on the shared TQ cache; data is read via granular context below
-  //
-  // clod: опрос привязан к видимости окна, а не к
-  // `refetchIntervalInBackground`: тот смотрит на `document.hidden`, а окно
-  // уезжает в трей целиком — документ при этом считает себя видимым, и список
-  // серверов продолжал бы дёргать ядро каждые три секунды в пустоту.
-  // Возврат из трея перечитывает `getProxies` один раз на всё приложение —
-  // в `AppDataProvider`, по тому же ключу. Дублировать здесь нельзя: `mutate`
-  // в SWR намеренно обходит дедупликацию, и вышло бы два запроса разом.
   const pageVisible = useVisibility()
   useQuery({
     queryKey: ['getProxies'],
