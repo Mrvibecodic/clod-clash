@@ -34,38 +34,50 @@ pub fn use_merge(merge: &Mapping, config: Mapping) -> Mapping {
     })
 }
 
-#[test]
-fn test_merge() -> anyhow::Result<()> {
-    let merge = r"
-    prepend-rules:
-      - prepend
-      - 1123123
-    append-rules:
-      - append
-    prepend-proxies:
-      - 9999
-    append-proxies:
-      - 1111
-    rules:
-      - replace
-    proxy-groups: 
-      - 123781923810
-    tun:
-      enable: true
-    dns:
-      enable: true
-  ";
+#[cfg(test)]
+mod tests {
+    use super::use_merge;
+    use serde_yaml_ng::Mapping;
 
-    let config = r"
-    rules:
-      - aaaaa
-    script1: test
-  ";
+    fn mapping(yaml: &str) -> Mapping {
+        #[allow(clippy::expect_used)]
+        serde_yaml_ng::from_str(yaml).expect("test yaml should parse")
+    }
 
-    let merge = serde_yaml_ng::from_str::<Mapping>(merge)?;
-    let config = serde_yaml_ng::from_str::<Mapping>(config)?;
+    #[test]
+    fn merge_replaces_scalars_and_sequences_but_descends_into_mappings() {
+        let merged = use_merge(
+            &mapping("{mode: global, rules: [replace], tun: {enable: true}}"),
+            mapping("{mode: rule, rules: [old, other], tun: {stack: gvisor}, untouched: 1}"),
+        );
 
-    let _ = serde_yaml_ng::to_string(&use_merge(&merge, config))?;
+        assert_eq!(merged.get("mode"), Some(&serde_yaml_ng::Value::from("global")));
+        assert_eq!(merged.get("untouched"), Some(&serde_yaml_ng::Value::from(1)));
 
-    Ok(())
+        let rules = merged.get("rules").and_then(serde_yaml_ng::Value::as_sequence);
+        assert_eq!(
+            rules.map(Vec::len),
+            Some(1),
+            "sequences are replaced whole, not concatenated"
+        );
+
+        let tun = merged.get("tun").and_then(serde_yaml_ng::Value::as_mapping);
+        assert_eq!(
+            tun.and_then(|tun| tun.get("stack")),
+            Some(&serde_yaml_ng::Value::from("gvisor")),
+            "keys the merge does not mention survive"
+        );
+        assert_eq!(
+            tun.and_then(|tun| tun.get("enable")),
+            Some(&serde_yaml_ng::Value::from(true)),
+        );
+    }
+
+    #[test]
+    fn merge_keys_are_lowercased_before_they_are_applied() {
+        let merged = use_merge(&mapping("{MODE: global}"), mapping("{mode: rule}"));
+
+        assert_eq!(merged.get("mode"), Some(&serde_yaml_ng::Value::from("global")));
+        assert!(!merged.contains_key("MODE"));
+    }
 }

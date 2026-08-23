@@ -49,7 +49,11 @@ pub async fn check_singleton() -> Result<()> {
                 .send()
                 .await?;
         }
-        logging!(error, Type::Window, "failed to setup singleton listen server");
+        logging!(
+            info,
+            Type::Window,
+            "another instance is already running; the command was handed over, exiting"
+        );
         bail!("app exists");
     }
     Ok(())
@@ -71,13 +75,7 @@ pub fn embed_server() {
         );
         if !lightweight::exit_lightweight_mode().await {
             WindowManager::show_main_window().await;
-        } else {
-            logging!(
-                error,
-                Type::Window,
-                "Не удалось выйти из облегчённого режима, невозможно восстановить окно приложения"
-            );
-        };
+        }
         Ok::<_, warp::Rejection>(warp::reply::with_status::<std::string::String>(
             "ok".to_string(),
             warp::http::StatusCode::OK,
