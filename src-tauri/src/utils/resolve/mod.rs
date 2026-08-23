@@ -40,7 +40,7 @@ pub fn init_work_dir_and_logger() -> anyhow::Result<()> {
 pub fn resolve_setup_sync() {
     AsyncHandler::spawn(|| async {
         AsyncHandler::spawn_blocking(init_scheme);
-        AsyncHandler::spawn_blocking(init_embed_server);
+        init_embed_server();
     });
 }
 
@@ -95,19 +95,6 @@ pub fn resolve_setup_async() {
         refresh_tray_menu().await;
         resolve_done();
     });
-}
-
-pub async fn resolve_reset_async() -> Result<(), anyhow::Error> {
-    sysopt::Sysopt::global().reset_sysproxy().await?;
-    CoreManager::global().stop_core().await?;
-
-    #[cfg(target_os = "macos")]
-    {
-        use dns::restore_public_dns;
-        restore_public_dns().await;
-    }
-
-    Ok(())
 }
 
 pub(super) fn init_scheme() {
