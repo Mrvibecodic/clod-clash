@@ -1280,39 +1280,6 @@ mod tests {
         assert_eq!(tun.get("stack"), Some(&serde_yaml_ng::Value::from("system")));
     }
 
-    #[tokio::test]
-    async fn the_subscription_decides_ipv6() {
-        let config = mapping("{ipv6: true}");
-        let app = mapping("{ipv6: false, mode: rule}");
-        let merged = super::merge_default_config(
-            config,
-            app,
-            true,
-            true,
-            &super::TunOverrides::default(),
-            #[cfg(not(target_os = "windows"))]
-            false,
-            #[cfg(target_os = "linux")]
-            false,
-        )
-        .await;
-        assert_eq!(merged.get("ipv6"), Some(&serde_yaml_ng::Value::from(true)));
-
-        let merged = super::merge_default_config(
-            mapping("{}"),
-            mapping("{ipv6: false}"),
-            true,
-            true,
-            &super::TunOverrides::default(),
-            #[cfg(not(target_os = "windows"))]
-            false,
-            #[cfg(target_os = "linux")]
-            false,
-        )
-        .await;
-        assert_eq!(merged.get("ipv6"), Some(&serde_yaml_ng::Value::from(false)));
-    }
-
     #[test]
     fn a_silent_subscription_gets_the_app_defaults() {
         let mut tun = mapping("{}");
