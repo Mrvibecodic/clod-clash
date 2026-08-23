@@ -4,15 +4,13 @@ use anyhow::{Context as _, anyhow};
 use clash_verge_logging::{Type, logging};
 use serde_yaml_ng::Mapping;
 use smartstring::alias::String;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
-/// Получает runtime-конфиг
 #[tauri::command]
 pub async fn get_runtime_config() -> CmdResult<Option<Mapping>> {
     Ok(Config::runtime().await.latest_arc().config.clone())
 }
 
-/// Получает порядок групп прокси runtime
 #[tauri::command]
 pub async fn get_runtime_proxy_group_order() -> CmdResult<Vec<String>> {
     let runtime = Config::runtime().await;
@@ -34,7 +32,6 @@ pub async fn get_runtime_proxy_group_order() -> CmdResult<Vec<String>> {
         .unwrap_or_default())
 }
 
-/// Получает runtime-конфиг в формате YAML
 #[tauri::command]
 pub async fn get_runtime_yaml() -> CmdResult<String> {
     let runtime = Config::runtime().await;
@@ -50,14 +47,6 @@ pub async fn get_runtime_yaml() -> CmdResult<String> {
         })
         .stringify_err()
 }
-
-/// Получает существующие ключи runtime
-#[tauri::command]
-pub async fn get_runtime_exists() -> CmdResult<HashSet<String>> {
-    Ok(Config::runtime().await.latest_arc().exists_keys.clone())
-}
-
-/// Получает логи runtime
 #[tauri::command]
 pub async fn get_runtime_logs() -> CmdResult<HashMap<String, Vec<(String, String)>>> {
     Ok(Config::runtime().await.latest_arc().chain_logs.clone())
@@ -94,7 +83,6 @@ pub async fn get_runtime_proxy_chain_config(proxy_chain_exit_node: String) -> Cm
             .find(|proxy| proxy.get("name").map(|x| x.as_str()) == proxy_name)
             && !proxies_chain.is_empty()
         {
-            // Добавляем первый узел
             proxies_chain.push(entry_proxy.to_owned());
         }
 
@@ -113,7 +101,6 @@ pub async fn get_runtime_proxy_chain_config(proxy_chain_exit_node: String) -> Cm
     }
 }
 
-/// Обновляет конфиг цепочки прокси runtime
 #[tauri::command]
 pub async fn update_proxy_chain_config_in_runtime(proxy_chain_config: Option<serde_yaml_ng::Value>) -> CmdResult<()> {
     match CoreManager::global()

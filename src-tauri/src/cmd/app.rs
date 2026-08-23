@@ -1,5 +1,4 @@
 use super::CmdResult;
-use crate::core::autostart;
 use crate::{cmd::StringifyErr as _, feat, utils::dirs};
 use smartstring::alias::String;
 use tauri::{AppHandle, Manager as _};
@@ -71,23 +70,11 @@ pub async fn restart_app() -> CmdResult<()> {
     feat::restart_app().await;
     Ok(())
 }
-
-#[tauri::command]
-pub fn get_portable_flag() -> bool {
-    *dirs::PORTABLE_FLAG.get().unwrap_or(&false)
-}
-
 #[tauri::command]
 pub fn get_app_dir() -> CmdResult<String> {
     let app_home_dir = dirs::app_home_dir().stringify_err()?.to_string_lossy().into();
     Ok(app_home_dir)
 }
-
-#[tauri::command]
-pub fn get_auto_launch_status() -> CmdResult<bool> {
-    autostart::get_launch_status().stringify_err()
-}
-
 #[tauri::command]
 pub async fn download_icon_cache(url: String, name: String) -> CmdResult<String> {
     feat::download_icon_cache(url, name).await
