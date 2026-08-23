@@ -135,8 +135,9 @@ Here the only thing the user touches is the switch itself:
   client release. **Auto** in the TUN dialog is exactly "follow the subscription". What breaks
   easily is listed in [REMNAWAVE.md](./REMNAWAVE.md#4-граница-ответственности-что-ваше-что-клиента);
   the short version: with the Windows firewall on, the `system` and `mixed` stacks do not work at
-  all until the core is allowed through it by hand, so `gvisor` is the safe value for a template
-  that ordinary users will get.
+  all until the core is allowed through it by hand, so on Windows the client takes only `gvisor`
+  from the template; `system` and `mixed` there are enabled only by the user's explicit choice in
+  the TUN dialog.
 * **Only a core we have already seen gets started.** The service launches the binary at the path
   the app names, and it does so with system privileges — so a swapped core file would run as
   SYSTEM. The file's digest is recorded on first sight (for a downloaded core, at install time from
