@@ -33,7 +33,7 @@ jobs:
           node-version: "24.18.0"
           cache: pnpm
           cache-dependency-path: website/pnpm-lock.yaml
-      - run: pnpm install --frozen-lockfile --ignore-workspace
+      - run: pnpm install --frozen-lockfile
       - run: pnpm build
         env:
           SITE_BASE_PATH: /${{ github.event.repository.name }}
