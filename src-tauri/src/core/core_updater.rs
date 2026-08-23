@@ -62,6 +62,8 @@ struct GhAsset {
     name: String,
     browser_download_url: String,
     size: u64,
+    #[serde(default)]
+    digest: Option<String>,
 }
 
 fn core_binary_file_name() -> String {
@@ -374,13 +376,36 @@ async fn download_asset(asset: &GhAsset) -> Result<Vec<u8>> {
     Err(last_error.context("failed to download the core archive"))
 }
 
+fn api_digest(asset: &GhAsset) -> Option<String> {
+    let hex = asset.digest.as_deref()?.strip_prefix("sha256:")?;
+    if hex.len() == 64 && hex.chars().all(|c| c.is_ascii_hexdigit()) {
+        Some(hex.to_ascii_lowercase())
+    } else {
+        None
+    }
+}
+
 async fn verify_sha256(release: &GhRelease, asset: &GhAsset, bytes: &[u8]) -> Result<()> {
-    let checksum_name = format!("{}.sha256", asset.name);
-    let Some(checksum_asset) = release.assets.iter().find(|a| a.name == checksum_name) else {
+    let actual = format!("{:x}", sha2::Sha256::digest(bytes));
+
+    if let Some(expected) = api_digest(asset) {
+        if actual != expected {
+            bail!("sha256 mismatch: expected {expected}, got {actual}");
+        }
         logging!(
             info,
             Type::Core,
-            "release has no {checksum_name}, skipping checksum verification"
+            "core archive matches the digest published by the release API"
+        );
+        return Ok(());
+    }
+
+    let checksum_name = format!("{}.sha256", asset.name);
+    let Some(checksum_asset) = release.assets.iter().find(|a| a.name == checksum_name) else {
+        logging!(
+            warn,
+            Type::Core,
+            "release publishes neither a digest nor {checksum_name}, skipping checksum verification"
         );
         return Ok(());
     };
@@ -414,7 +439,6 @@ async fn verify_sha256(release: &GhRelease, asset: &GhAsset, bytes: &[u8]) -> Re
         .ok_or_else(|| anyhow!("no sha256 digest inside {checksum_name}"))?
         .to_ascii_lowercase();
 
-    let actual = format!("{:x}", sha2::Sha256::digest(bytes));
     if actual != expected {
         bail!("sha256 mismatch: expected {expected}, got {actual}");
     }
@@ -680,7 +704,41 @@ mod tests {
             name: name.into(),
             browser_download_url: format!("https://example.com/{name}"),
             size: 1,
+            digest: None,
         }
+    }
+
+    fn asset_with_digest(name: &str, digest: &str) -> GhAsset {
+        GhAsset {
+            digest: Some(digest.into()),
+            ..asset(name)
+        }
+    }
+
+    #[test]
+    fn api_digest_is_read_from_the_release_response() {
+        let hex = "6B55C5C3C2F12EC2D020C64548D3E313A39ACEACC4E2471B33041FE7CB9E2F10";
+        let picked = asset_with_digest("mihomo-linux-amd64-v1.19.2.gz", &format!("sha256:{hex}"));
+        assert_eq!(api_digest(&picked), Some(hex.to_ascii_lowercase()));
+    }
+
+    #[test]
+    fn api_digest_ignores_shapes_it_does_not_understand() {
+        let name = "mihomo-linux-amd64-v1.19.2.gz";
+        assert_eq!(api_digest(&asset(name)), None);
+        assert_eq!(api_digest(&asset_with_digest(name, "sha512:abcdef")), None);
+        assert_eq!(api_digest(&asset_with_digest(name, "sha256:abcdef")), None);
+        let not_hex = "z".repeat(64);
+        assert_eq!(api_digest(&asset_with_digest(name, &format!("sha256:{not_hex}"))), None);
+    }
+
+    #[test]
+    fn assets_without_a_digest_field_still_deserialize() {
+        let parsed: GhAsset = serde_json::from_str(
+            r#"{"name":"mihomo-linux-amd64-v1.19.2.gz","browser_download_url":"https://example.com/a","size":7}"#,
+        )
+        .expect("an asset without a digest must still parse");
+        assert_eq!(parsed.digest, None);
     }
 
     #[test]
