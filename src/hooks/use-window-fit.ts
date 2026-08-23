@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { useVerge } from '@/hooks/use-verge'
 import { fitWindowToContent } from '@/services/cmds'
+import { createStartupSettle } from '@/utils/window-settle'
 
 const FIT_DEBOUNCE_MS = 120
 
@@ -13,10 +14,11 @@ const SELF_RESIZE_GRACE_MS = 900
 
 const HEIGHT_MATCH_EPSILON = 3
 
-const STARTUP_GRACE_MS = 5000
-const startupUntil = Date.now() + STARTUP_GRACE_MS
+const startup = createStartupSettle(Date.now())
 
-export const isStartupWindowGrace = () => Date.now() < startupUntil
+export const isStartupWindowGrace = () => startup.isGrace(Date.now())
+
+export const markStartupWindowSettled = () => startup.markSettled()
 
 let selfResizeUntil = 0
 let acceptAnyUntil = 0
@@ -78,6 +80,7 @@ export const useFitWindowToContent = () => {
     if (desired <= 0) return
 
     markSelfWindowResize(desired)
+    startup.markFitAttempt(Date.now())
     const ceiling = await fitWindowToContent(desired).catch(() => 0)
     if (!ceiling) return
     markSelfWindowResize(Math.min(Math.max(desired, MINIMAL_HEIGHT), ceiling))

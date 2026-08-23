@@ -7,6 +7,7 @@ import {
   isSelfWindowResize,
   isStartupWindowGrace,
   markSelfWindowResize,
+  markStartupWindowSettled,
   resumeWindowFit,
   suspendWindowFit,
 } from '@/hooks/use-window-fit'
@@ -63,11 +64,9 @@ export const useModeWindowSize = () => {
       wasMinimized = minimized
       if (transient) return
 
-      if (
-        !isSelfWindowResize(height) &&
-        !isStartupWindowGrace() &&
-        fitEnabledRef.current
-      ) {
+      if (isSelfWindowResize(height)) {
+        markStartupWindowSettled()
+      } else if (!isStartupWindowGrace() && fitEnabledRef.current) {
         suspendWindowFit()
         patchVergeRef
           .current({ window_fit_content: false })
@@ -83,6 +82,7 @@ export const useModeWindowSize = () => {
       appWindow.onMoved(scheduleSave),
       appWindow.onScaleChanged((event) => {
         scale = event.payload.scaleFactor
+        markSelfWindowResize()
       }),
     ]
 
