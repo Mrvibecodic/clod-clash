@@ -1,5 +1,5 @@
 use crate::{config::Config, singleton, utils::dirs};
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use chrono::Utc;
 use clash_verge_logging::{Type, logging};
 use parking_lot::RwLock;
@@ -33,8 +33,6 @@ impl SilentUpdater {
         self.update_ready.load(Ordering::Acquire)
     }
 }
-
-// ─── Disk Cache ───────────────────────────────────────────────────────────────
 
 #[derive(Serialize, Deserialize)]
 struct UpdateCacheMeta {
@@ -95,10 +93,6 @@ impl SilentUpdater {
     }
 }
 
-// ─── Version Comparison ───────────────────────────────────────────────────────
-
-/// Returns true if version `a` <= version `b` using semver-like comparison.
-/// Strips leading 'v', splits on '.', handles pre-release suffixes.
 fn version_lte(a: &str, b: &str) -> bool {
     let parse = |v: &str| -> Vec<u64> {
         v.trim_start_matches('v')
@@ -124,15 +118,9 @@ fn version_lte(a: &str, b: &str) -> bool {
             return false;
         }
     }
-    true // equal
+    true
 }
 
-/// clod:prereleases — версия помечена как предварительная.
-///
-/// Признак — суффикс semver после дефиса (`0.0.24-alpha`, `1.0.0-rc.1`), ровно
-/// тот же, по которому `version_lte` уже отбрасывает нечисловой хвост. Никакой
-/// эвристики по названию релиза: тег и тело релиза пишет CI, а версию —
-/// `package.json`, и врать она не может.
 fn is_prerelease_version(version: &str) -> bool {
     version
         .trim_start_matches('v')
@@ -140,18 +128,45 @@ fn is_prerelease_version(version: &str) -> bool {
         .is_some_and(|(_, suffix)| !suffix.is_empty())
 }
 
-// ─── Startup Install & Cache Management ─────────────────────────────────────
+fn verify_minisign(pubkey_b64: &str, signature_b64: &str, bytes: &[u8]) -> Result<()> {
+    use base64::Engine as _;
+
+    let decode_block = |value: &str, what: &str| -> Result<String> {
+        let raw = base64::engine::general_purpose::STANDARD
+            .decode(value)
+            .map_err(|e| anyhow!("{what} is not valid base64: {e}"))?;
+        String::from_utf8(raw).map_err(|e| anyhow!("{what} is not valid utf-8: {e}"))
+    };
+
+    let public_key = minisign_verify::PublicKey::decode(&decode_block(pubkey_b64, "updater pubkey")?)
+        .map_err(|e| anyhow!("updater pubkey is malformed: {e}"))?;
+    let signature = minisign_verify::Signature::decode(&decode_block(signature_b64, "update signature")?)
+        .map_err(|e| anyhow!("update signature is malformed: {e}"))?;
+
+    public_key
+        .verify(bytes, &signature, true)
+        .map_err(|e| anyhow!("signature does not match the bytes: {e}"))
+}
+
+fn updater_pubkey(app_handle: &tauri::AppHandle) -> Result<String> {
+    app_handle
+        .config()
+        .plugins
+        .0
+        .get("updater")
+        .and_then(|cfg| cfg.get("pubkey"))
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_owned)
+        .ok_or_else(|| anyhow!("tauri.conf.json has no plugins.updater.pubkey"))
+}
 
 impl SilentUpdater {
-    /// Called at app startup. If a cached update exists and is newer than the current version,
-    /// attempt to install it immediately (before the main app initializes).
-    /// Returns true if install was triggered (app should relaunch), false otherwise.
     pub async fn try_install_on_startup(&self, app_handle: &tauri::AppHandle) -> bool {
         let current_version = env!("CARGO_PKG_VERSION");
 
         let meta = match Self::read_cache_meta() {
             Ok(meta) => meta,
-            Err(_) => return false, // No cache, nothing to do
+            Err(_) => return false,
         };
 
         let cached_version = &meta.version;
@@ -168,9 +183,6 @@ impl SilentUpdater {
             return false;
         }
 
-        // clod:prereleases — кэш мог быть скачан, пока предварительные сборки
-        // были разрешены. Выключив их, пользователь не должен получить ту же
-        // сборку при следующем запуске: кэш выбрасываем, а не просто пропускаем.
         if is_prerelease_version(cached_version)
             && !Config::verge()
                 .await
@@ -196,14 +208,11 @@ impl SilentUpdater {
             current_version
         );
 
-        // Ask user for confirmation — they can skip and use the app normally.
-        // The cache is preserved so next launch will ask again.
         if !Self::ask_user_to_install(app_handle, cached_version).await {
             logging!(info, Type::System, "User skipped update install, starting normally");
             return false;
         }
 
-        // Read cached bytes
         let bytes = match Self::read_cache_bytes() {
             Ok(b) => b,
             Err(e) => {
@@ -217,8 +226,6 @@ impl SilentUpdater {
             }
         };
 
-        // Need a fresh Update object from the server to call install().
-        // This is a lightweight HTTP request (< 1s), not a re-download.
         let update = match check_update_with_fallback(app_handle).await {
             Ok(Some(u)) => u,
             Ok(None) => {
@@ -240,8 +247,6 @@ impl SilentUpdater {
             }
         };
 
-        // Verify the server's version matches the cached version.
-        // If server now has a newer version, our cached bytes are stale.
         if update.version != *cached_version {
             logging!(
                 info,
@@ -254,14 +259,24 @@ impl SilentUpdater {
             return false;
         }
 
+        if let Err(e) =
+            updater_pubkey(app_handle).and_then(|pubkey| verify_minisign(&pubkey, &update.signature, &bytes))
+        {
+            logging!(
+                error,
+                Type::System,
+                "Cached update v{} failed the signature check ({e}), discarding it",
+                cached_version
+            );
+            Self::delete_cache();
+            return false;
+        }
+
         let version = update.version.clone();
         logging!(info, Type::System, "Installing cached update v{version} at startup...");
 
-        // Show splash window so user knows the app is updating, not frozen
         Self::show_update_splash(app_handle, &version);
 
-        // install() is sync and may hang (known bug #2558), so run with a timeout.
-        // On Windows, NSIS takes over the process so install() may never return — that's OK.
         let install_result = tokio::task::spawn_blocking({
             let bytes = bytes.clone();
             let update = update.clone();
@@ -300,7 +315,6 @@ impl SilentUpdater {
             }
         };
 
-        // Close splash window if install failed and app continues normally
         if !success {
             Self::close_update_splash(app_handle);
         }
@@ -309,11 +323,7 @@ impl SilentUpdater {
     }
 }
 
-// ─── User Confirmation Dialog ────────────────────────────────────────────────
-
 impl SilentUpdater {
-    /// Show a native dialog asking the user to install or skip the update.
-    /// Returns true if user chose to install, false if they chose to skip.
     async fn ask_user_to_install(app_handle: &tauri::AppHandle, version: &str) -> bool {
         use tauri_plugin_dialog::{DialogExt as _, MessageDialogButtons, MessageDialogKind};
 
@@ -338,12 +348,7 @@ impl SilentUpdater {
     }
 }
 
-// ─── Update Splash Window ────────────────────────────────────────────────────
-
 impl SilentUpdater {
-    /// Show a small centered splash window indicating update is being installed.
-    /// Injects HTML via eval() after window creation so it doesn't depend on any
-    /// external file in the bundle.
     fn show_update_splash(app_handle: &tauri::AppHandle, version: &str) {
         use tauri::{WebviewUrl, WebviewWindowBuilder};
 
@@ -400,7 +405,6 @@ impl SilentUpdater {
             "#
         );
 
-        // Retry eval a few times — the webview may not be ready immediately
         std::thread::spawn(move || {
             for i in 0..10 {
                 std::thread::sleep(std::time::Duration::from_millis(100 * (i + 1)));
@@ -413,7 +417,6 @@ impl SilentUpdater {
         logging!(info, Type::System, "Update splash window shown");
     }
 
-    /// Close the update splash window (e.g. after install failure).
     fn close_update_splash(app_handle: &tauri::AppHandle) {
         use tauri::Manager as _;
         if let Some(window) = app_handle.get_webview_window("update-splash") {
@@ -423,34 +426,15 @@ impl SilentUpdater {
     }
 }
 
-// ─── Background Check and Download ───────────────────────────────────────────
-
-/// clod:F6 — GitHub is unreachable directly for exactly the audience this
-/// app is built for. When the plain check fails, retry through the own
-/// core's mixed port, mirroring the managed-core downloader. The returned
-/// `Update` keeps the proxy configuration, so the download inherits it.
-/// clod: номер языка для установщика NSIS.
-///
-/// Установщик Windows собирается ровно с тремя языками
-/// (`tauri.windows.conf.json`, `nsis.languages`), поэтому всё, чему нет пары,
-/// уезжает в английский; традиционный китайский — в упрощённый, иначе
-/// китайцу достался бы английский установщик.
 #[cfg(target_os = "windows")]
 fn nsis_language_id(app_language: &str) -> &'static str {
     match app_language {
-        "zh" | "zhtw" => "2052", // SimpChinese
-        "ru" => "1049",          // Russian
-        _ => "1033",             // English
+        "zh" | "zhtw" => "2052",
+        "ru" => "1049",
+        _ => "1033",
     }
 }
 
-/// clod: установщик, который НЕ будет спрашивать язык.
-///
-/// Тихое обновление показывает свою заставку и запускает установщик, а тот на
-/// Windows поднимает модальный выбор языка ЗА ней — снаружи это выглядит как
-/// зависшее обновление. Передаём язык приложения аргументом `/LANG=`, его
-/// разбирает `.onInit` в `packages/windows/installer.nsi`. На других системах
-/// установщика нет вовсе, и аргумент не нужен.
 fn updater_builder(app_handle: &tauri::AppHandle, language: Option<&str>) -> tauri_plugin_updater::UpdaterBuilder {
     let _ = language;
     let builder = app_handle.updater_builder();
@@ -475,8 +459,6 @@ async fn check_update_with_fallback(app_handle: &tauri::AppHandle) -> Result<Opt
                 Type::System,
                 "update check failed directly ({direct_error}), retrying via {proxy}"
             );
-            // Аргумент нужен и здесь: если прямая проверка не прошла, ставится
-            // именно этот `Update`.
             let updater = updater_builder(app_handle, language.as_deref())
                 .proxy(tauri::Url::parse(&proxy)?)
                 .build()?;
@@ -521,9 +503,6 @@ impl SilentUpdater {
         let version = update.version.clone();
         logging!(info, Type::System, "Silent updater: update available: v{version}");
 
-        // clod:prereleases — пользователь мог попросить только стабильные сборки.
-        // Проверяем ПОСЛЕ запроса, а не выбором адреса: манифест один на все
-        // каналы, и другого способа узнать, что версия предварительная, нет.
         if is_prerelease_version(&version)
             && !Config::verge()
                 .await
@@ -603,11 +582,47 @@ impl SilentUpdater {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
 
-    // ─── version_lte tests ──────────────────────────────────────────────────
+    const TEST_PUBKEY: &str = "untrusted comment: minisign public key E7620F1842B4E81F\nRWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3";
+    const TEST_SIGNATURE: &str = "untrusted comment: signature from minisign secret key\nRWQf6LRCGA9i59SLOFxz6NxvASXDJeRtuZykwQepbDEGt87ig1BNpWaVWuNrm73YiIiJbq71Wi+dP9eKL8OC351vwIasSSbXxwA=\ntrusted comment: timestamp:1555779966\tfile:test\nQtKMXWyYcwdpZAlPF7tE2ENJkRd1ujvKjlj1m9RtHTBnZPa5WKU5uWRs5GoP5M/VqE81QFuMKI5k/SfNQUaOAA==";
+
+    fn wrap(block: &str) -> String {
+        use base64::Engine as _;
+        base64::engine::general_purpose::STANDARD.encode(block)
+    }
+
+    #[test]
+    fn signature_matches_the_signed_bytes() {
+        verify_minisign(&wrap(TEST_PUBKEY), &wrap(TEST_SIGNATURE), b"test")
+            .expect("the official minisign vector must verify");
+    }
+
+    #[test]
+    fn signature_is_rejected_when_the_bytes_differ() {
+        let err = verify_minisign(&wrap(TEST_PUBKEY), &wrap(TEST_SIGNATURE), b"Test")
+            .expect_err("tampered bytes must not verify");
+        assert!(err.to_string().contains("does not match"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn malformed_key_or_signature_is_an_error_not_a_pass() {
+        assert!(verify_minisign("not base64!", &wrap(TEST_SIGNATURE), b"test").is_err());
+        assert!(verify_minisign(&wrap(TEST_PUBKEY), "not base64!", b"test").is_err());
+        assert!(verify_minisign(&wrap("garbage"), &wrap(TEST_SIGNATURE), b"test").is_err());
+    }
+
+    #[test]
+    fn the_shipped_pubkey_is_a_usable_minisign_key() {
+        use base64::Engine as _;
+        let conf: serde_json::Value = serde_json::from_str(include_str!("../../tauri.conf.json")).unwrap();
+        let pubkey = conf["plugins"]["updater"]["pubkey"].as_str().expect("pubkey in config");
+        let decoded = base64::engine::general_purpose::STANDARD.decode(pubkey).unwrap();
+        minisign_verify::PublicKey::decode(std::str::from_utf8(&decoded).unwrap())
+            .expect("the shipped pubkey must decode");
+    }
 
     #[test]
     fn test_version_equal() {
@@ -641,7 +656,6 @@ mod tests {
         assert!(is_prerelease_version("v0.0.24-alpha"));
         assert!(is_prerelease_version("1.0.0-rc.1"));
         assert!(is_prerelease_version("1.0.0-beta"));
-        // Стабильные — без суффикса, в том числе с ведущей `v` и битые хвосты.
         assert!(!is_prerelease_version("1.0.0"));
         assert!(!is_prerelease_version("v1.0.0"));
         assert!(!is_prerelease_version("1.0.0-"));
@@ -649,10 +663,8 @@ mod tests {
 
     #[test]
     fn test_version_with_prerelease() {
-        // "2.4.8-alpha" → numeric part is still "2.4.8"
         assert!(version_lte("2.4.7", "2.4.8-alpha"));
         assert!(version_lte("2.4.8-alpha", "2.4.8"));
-        // Both have same numeric part, so equal → true
         assert!(version_lte("2.4.8-alpha", "2.4.8-beta"));
     }
 
@@ -662,8 +674,6 @@ mod tests {
         assert!(!version_lte("2.4.1", "2.4"));
         assert!(version_lte("2.4.0", "2.4"));
     }
-
-    // ─── Cache metadata tests ───────────────────────────────────────────────
 
     #[test]
     fn test_cache_meta_serialize_roundtrip() {
@@ -686,6 +696,6 @@ mod tests {
     #[test]
     fn test_cache_meta_missing_required_field() {
         let result = serde_json::from_str::<UpdateCacheMeta>(r#"{"version":"2.5.0"}"#);
-        assert!(result.is_err()); // missing downloaded_at
+        assert!(result.is_err());
     }
 }

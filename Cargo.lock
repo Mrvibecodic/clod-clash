@@ -1104,6 +1104,7 @@ dependencies = [
  "getrandom 0.4.3",
  "hex",
  "log",
+ "minisign-verify",
  "nanoid",
  "network-interface",
  "objc2",

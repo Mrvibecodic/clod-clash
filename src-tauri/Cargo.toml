@@ -71,9 +71,6 @@ reqwest = { version = "0.13.4", features = [
   "form",
 ] }
 regex = "1.12.4"
-# clod: ЗАПИНЕНО ПО РЕВИЗИИ. Без `rev` cargo волен уехать на голову ветки в
-# любой момент — а тут системный прокси, то есть весь трафик пользователя.
-# Ревизия та же, что уже лежала в Cargo.lock.
 sysproxy = { git = "https://github.com/clash-verge-rev/sysproxy-rs", rev = "ab5ba0929d56721d774b1c5c29d6a32e6634e7ce", features = [
   "guard",
 ] }
@@ -90,6 +87,7 @@ reqwest_dav = "0.3.3"
 serde-xml-rs = "0.6.0"
 aes-gcm = { version = "0.11.0" }
 base64 = "0.22.1"
+minisign-verify = "0.2.5"
 getrandom = "0.4.3"
 futures = "0.3.32"
 gethostname = "1.1.0"
@@ -100,16 +98,9 @@ backon = { version = "1.6.0", features = ["tokio-sleep"] }
 tauri-plugin-http = "2.5.9"
 console-subscriber = { version = "0.5.0", optional = true }
 tauri-plugin-devtools = { version = "2.1.0", optional = true }
-# clod: ЗАПИНЕНО ПО РЕВИЗИИ, и та же ревизия стоит в package.json у
-# tauri-plugin-mihomo-api. Ветка вместо ревизии уже разводила Rust и его
-# TypeScript-биндинги по разным коммитам — типы врали, а tsc этого не видел.
 tauri-plugin-mihomo = { git = "https://github.com/clash-verge-rev/tauri-plugin-mihomo", rev = "cf97ff99e390a9b437d5cf94c6f454f024fc8f69" }
 clash_verge_logger = { git = "https://github.com/clash-verge-rev/clash-verge-logger", rev = "45adad7ae6dd76baa7457e3b111a0f1927998e22" }
 async-trait = "0.1.89"
-# ПИН ПАРОЙ: тег здесь обязан совпадать с SERVICE_VERSION в scripts/prebuild.mjs.
-# Клиентская библиотека сверяет версию установленной службы строго; без тега
-# `cargo update` молча уезжал бы на main, а prebuild качал «latest» — и клиент
-# с собственной службой из ресурсов расходились, давая вечное «служба устарела».
 clash_verge_service_ipc = { version = "2.6.1", features = [
   "client",
 ], git = "https://github.com/clash-verge-rev/clash-verge-service-ipc", tag = "v2.6.1" }
@@ -118,16 +109,11 @@ tokio-rustls = "0.26.4"
 rustls = { version = "0.23.41", features = ["ring"] }
 webpki-roots = "1.0.8"
 rust_iso3166 = "0.2.0"
-# Use the git repo until the next release after v2.0.0.
 dark-light = { git = "https://github.com/rust-dark-light/dark-light", rev = "0f18d2fbcaa5d1c175db8aae7d53428988d7e961" }
 windows-sys.workspace = true
 bytes = "1.12.0"
 tokio-util = { version = "0.7.18", features = ["time"] }
-# clod: device identity (see src/utils/hwid.rs) — all three are already in the
-# dependency tree transitively, so this adds no new compilation units.
 sha2 = "0.10.9"
-# clod:chan — защищённый канал до прослойки. Набор один и не согласуется:
-# X25519 + HKDF-SHA256 + ChaCha20-Poly1305.
 x25519-dalek = { version = "2.0.1", features = ["static_secrets"] }
 chacha20poly1305 = "0.10.1"
 hkdf = "0.12.4"
@@ -173,11 +159,6 @@ tauri-plugin-global-shortcut = "2.3.2"
 tauri-plugin-updater = "2.10.1"
 
 [dev-dependencies]
-# clod: `criterion` тут не нужен — бенчей в src-tauri нет (каталога `benches`
-# не существует), а `--all-targets` тянул его вместе с plotters/rayon/clap на
-# каждый прогон линтера. В `crates/clash-verge-draft` бенчи есть, там он и
-# остался.
-# clod: integration test for the subscription request/response headers
 tokio = { workspace = true }
 reqwest = { version = "0.13.4", features = ["rustls"] }
 
