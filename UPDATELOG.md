@@ -8,6 +8,52 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.1.6
+
+<!-- lang:en -->
+
+### Added
+
+- «Advanced» has an «Export logs» button: the app and service logs are packed into one archive together with a support report, with addresses, keys and the home folder path hidden
+- Windows: when the TUN adapter is busy, the app says exactly that instead of a general start failure
+- Windows: if the interface stops responding, the app closes and starts itself again
+
+### Changed
+
+- The `ipv6` key is decided by the subscription: the switch in the settings applies only while the subscription does not set the key itself
+- Windows: only the `gvisor` TUN stack is taken from the subscription; `system` and `mixed` remain a manual choice in the settings
+- Linux: the TUN service is installed together with the package; when elevation is unavailable, an error with the command to run is shown instead of a silent attempt
+
+### Fixed
+
+- An update downloaded in the background is verified against its signature before it is installed at startup
+- The core archive is verified against the hash published together with the release
+- A backup can no longer be read, restored or deleted outside the backup folder
+- A damaged entry in the browser storage no longer breaks scrolling in the proxy list
+
+<!-- lang:ru -->
+
+### Добавлено
+
+- В «Продвинутых» появилась кнопка «Выгрузить логи»: логи приложения и службы складываются в один архив вместе с отчётом для поддержки, адреса, ключи и путь к домашней папке в нём скрыты
+- Windows: если адаптер TUN занят, приложение так и говорит, а не сообщает об общей ошибке запуска
+- Windows: если интерфейс перестал отвечать, приложение закрывается и запускается снова
+
+### Изменено
+
+- Ключ `ipv6` решает подписка: переключатель в настройках действует, только пока подписка сама ключ не задаёт
+- Windows: из подписки принимается только стек TUN `gvisor`; `system` и `mixed` остаются ручным выбором в настройках
+- Linux: служба TUN ставится вместе с пакетом; если повысить права нечем, показывается ошибка с командой для запуска вручную, а не молчаливая попытка
+
+### Исправлено
+
+- Обновление, скачанное в фоне, перед установкой при старте сверяется с подписью
+- Архив ядра сверяется с хэшем, опубликованным вместе с релизом
+- Файл бэкапа больше нельзя прочитать, восстановить или удалить за пределами папки бэкапов
+- Испорченная запись в хранилище браузера больше не ломает прокрутку списка серверов
+
+---
+
 ## v0.1.5
 
 <!-- lang:en -->
