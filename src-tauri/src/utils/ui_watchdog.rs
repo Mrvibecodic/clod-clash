@@ -101,12 +101,7 @@ mod windows_watchdog {
                 );
                 log::logger().flush();
                 std::thread::sleep(Duration::from_millis(200));
-                unsafe {
-                    windows_sys::Win32::System::Threading::TerminateProcess(
-                        windows_sys::Win32::System::Threading::GetCurrentProcess(),
-                        0,
-                    );
-                }
+                std::process::exit(0);
             }
             Err(e) => logging!(error, Type::Window, "Не удалось запланировать перезапуск: {}", e),
         }
