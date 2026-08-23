@@ -11,6 +11,14 @@
 
 <p align="center">
   Languages: <a href="../README.md">Русский</a> · <b>English</b>
+  ·
+  <a href="https://mrvibecodic.github.io/clod-clash/">Docs (Russian)</a>
+  ·
+  <a href="https://github.com/Mrvibecodic/clod-clash/releases/latest">Download</a>
+</p>
+
+<p align="center">
+  <img src="../website/public/screenshots/og.png" alt="Clod Clash" width="800">
 </p>
 
 ---
@@ -26,8 +34,19 @@ The Mihomo core is never modified: the official binary and its regular REST/IPC 
 are used. All of Clash Verge Rev's technical surface (rules, connections, logs, config
 editors) is kept — it is simply moved out of sight into an advanced mode.
 
-> **Status: alpha.** Releases ship as pre-releases; auto-update works (the `updater`
-> channel). Panel setup guide: [REMNAWAVE.md](./REMNAWAVE.md) (Russian).
+> User and provider documentation (Russian):
+> **[mrvibecodic.github.io/clod-clash](https://mrvibecodic.github.io/clod-clash/)**.
+> Panel setup guide: [REMNAWAVE.md](./REMNAWAVE.md) (Russian).
+
+<p align="center">
+  <img src="../website/public/screenshots/01-home-simple.png" alt="Simple mode" width="260">
+  <img src="../website/public/screenshots/03-servers.png" alt="Server picker" width="260">
+  <img src="../website/public/screenshots/07-home-dark.png" alt="Dark theme" width="260">
+</p>
+
+<p align="center">
+  <img src="../website/public/screenshots/04-home-advanced.png" alt="Advanced mode" width="800">
+</p>
 
 ## What Clod Clash gives you
 

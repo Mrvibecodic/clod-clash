@@ -1,0 +1,39 @@
+---
+title: Заголовки подписки
+description: Что клиент отправляет панели и что понимает в ответе.
+---
+
+Полный справочник с правилами разбора, синонимами и примерами — в репозитории:
+**[docs/HEADERS.md](https://github.com/Mrvibecodic/clod-clash/blob/main/docs/HEADERS.md)**.
+
+## Что отправляет клиент
+
+| Заголовок | Значение |
+| --- | --- |
+| `User-Agent` | `ClodClash/<версия>` — всегда |
+| `x-hwid` | идентификатор устройства (можно отключить) |
+| `x-device-os`, `x-ver-os`, `x-device-model` | система, её версия и модель — вместе с `x-hwid` |
+
+## Что понимает в ответе
+
+Стандартный набор Remnawave и Happ (`subscription-userinfo`, `profile-title`,
+`profile-update-interval`, `announce`, `announce-url`, `profile-logo`,
+`support-url`, `new-url`, `fallback-url`, `notify-*` и другие) плюс
+собственные `clod-*`:
+
+| Заголовок | Что делает |
+| --- | --- |
+| `clod-portal-url`, `clod-bot-url`, `clod-monitor-url`, `clod-guide-url` | ссылки на кабинет, бота, мониторинг и инструкцию в блоке провайдера |
+| `clod-promo`, `clod-promo-url` | промо-баннер на главной |
+| `clod-hwid-limit` | текст диалога при исчерпанном лимите устройств |
+| `clod-simple-mode` | принудительно простой или расширенный режим |
+| `clod-lock-mode` | запереть режим маршрутизации |
+| `clod-connect-mode` | чем подключаться по кнопке: `proxy`, `tun`, `both` |
+| `clod-latency-style` | как показывать задержки |
+| `clod-disable-ping` | скрыть миллисекунды, показывать только доступность |
+| `clod-device-remove` | разрешить пользователю снимать устройство с лимита |
+| `clod-show-0hosts` | показывать узлы-заглушки как есть, без объяснения |
+
+Дополнительные заголовки задаются в панели через `customResponseHeaders`.
+Значения с не-ASCII текстом надёжнее отдавать как `base64:<payload>`;
+все ссылки — только `https://` (для Telegram допустимы `tg://`).

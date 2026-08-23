@@ -11,6 +11,14 @@
 
 <p align="center">
   Languages: <b>Русский</b> · <a href="./docs/README_en.md">English</a>
+  ·
+  <a href="https://mrvibecodic.github.io/clod-clash/">Документация</a>
+  ·
+  <a href="https://github.com/Mrvibecodic/clod-clash/releases/latest">Скачать</a>
+</p>
+
+<p align="center">
+  <img src="./website/public/screenshots/og.png" alt="Clod Clash" width="800">
 </p>
 
 ---
@@ -26,8 +34,19 @@ Clod Clash — сборка Clash Verge Rev, доведённая до сост�
 Вся техническая часть Clash Verge Rev (правила, соединения, логи, редакторы конфигов)
 сохранена — она просто убирается с глаз в расширенный режим.
 
-> **Статус: альфа.** Релизы выходят как pre-release, автообновление работает
-> (канал `updater`). Настройка панели — в [docs/REMNAWAVE.md](./docs/REMNAWAVE.md).
+> Подробная документация для пользователей и провайдеров —
+> **[mrvibecodic.github.io/clod-clash](https://mrvibecodic.github.io/clod-clash/)**.
+> Настройка панели — в [docs/REMNAWAVE.md](./docs/REMNAWAVE.md).
+
+<p align="center">
+  <img src="./website/public/screenshots/01-home-simple.png" alt="Простой режим" width="260">
+  <img src="./website/public/screenshots/03-servers.png" alt="Выбор сервера" width="260">
+  <img src="./website/public/screenshots/07-home-dark.png" alt="Тёмная тема" width="260">
+</p>
+
+<p align="center">
+  <img src="./website/public/screenshots/04-home-advanced.png" alt="Расширенный режим" width="800">
+</p>
 
 ## Преимущества Clod Clash
 

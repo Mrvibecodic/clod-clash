@@ -41,7 +41,8 @@
       "!.changelog_backups",
       "!.github",
       "!.pnpm-lock.yaml",
-      "!.vfox"
+      "!.vfox",
+      "!website"
     ]
   }
 }
