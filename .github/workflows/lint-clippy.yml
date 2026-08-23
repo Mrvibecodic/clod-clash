@@ -7,15 +7,10 @@ on:
   workflow_dispatch:
 env:
   HUSKY: 0
-  # clod: debuginfo — самая дорогая часть кодогенерации и главный источник
-  # раздувания `target/` (а значит и медленных save/restore кэша). Линтеру и
-  # тестам отладочные символы не нужны.
   CARGO_PROFILE_DEV_DEBUG: 0
   CARGO_PROFILE_TEST_DEBUG: 0
 permissions:
   contents: read
-# Серия пушей подряд не должна догонять устаревшими прогонами. Пуши в main
-# досматриваем до конца — иначе не успеет сохраниться кэш.
 concurrency:
   group: clippy-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -35,9 +30,6 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     steps:
-      # clod: paths-filter needs no checkout only on pull_request; on push
-      # it would fail without a repo, so the filter is PR-only and a direct
-      # push to main always runs the checks.
       - name: Check src-tauri changes
         if: github.event_name == 'pull_request'
         id: check_changes
@@ -54,17 +46,11 @@ jobs:
               - '.clippy.toml'
               - '.github/workflows/lint-clippy.yml'
 
-      # clod: одно решение «работать или нет» на весь джоб. Раньше фильтр
-      # считался, печатал «skipping» — и все тяжёлые шаги всё равно шли: у них
-      # не было `if`. Гейтим через шаги, а не через `on.pull_request.paths`:
-      # джоб — required-check, и `paths` подвесил бы PR в «Expected».
       - name: Decide whether to run
         id: decide
         shell: bash
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            # Умолчание — «работать»: сбой фильтра не должен молча делать
-            # required-check зелёным при нуле проверок.
             echo "run=${{ steps.check_changes.outputs.rust != 'false' }}" >> "$GITHUB_OUTPUT"
           else
             echo "run=true" >> "$GITHUB_OUTPUT"
@@ -74,19 +60,14 @@ jobs:
         if: steps.decide.outputs.run == 'true'
         uses: actions/checkout@v7
 
-      # Ставим ровно тот тулчейн, что в `rust-toolchain.toml`: `stable` здесь
-      # всё равно перебивается пином, то есть скачивался впустую.
       - name: Install Rust
         if: steps.decide.outputs.run == 'true'
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@fa04a1451ff1842e2626ccb99004d0195b455a88
         with:
           toolchain: '1.95.0'
           targets: ${{ matrix.target }}
           components: clippy
 
-      # clod: `save-if` указывал на ветку `dev`, которой в репозитории нет —
-      # кэш не сохранялся НИКОГДА, и каждый прогон компилировал 900+ крейтов с
-      # нуля на трёх ОС. Сохраняем с дефолтной ветки: её кэш видят и все PR.
       - name: Rust Cache
         if: steps.decide.outputs.run == 'true'
         uses: Swatinem/rust-cache@v2
@@ -105,38 +86,21 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libxslt1.1 libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
 
-      # clod: тот же набор фич, что и у тестов ниже (`--features clippy`).
-      # Раньше здесь стоял `clippy-all` (`--all-features`): другой feature-resolve
-      # — другой metadata-hash, то есть пересечение артефактов с тестами почти
-      # нулевое и весь workspace компилировался дважды. Полный набор с
-      # `verge-dev`/`tokio-trace` проверяется отдельным шагом ниже.
       - name: Run Clippy
         if: steps.decide.outputs.run == 'true'
         working-directory: ./src-tauri
         run: cargo clippy-only
 
-      # clod: the repo's unit and header-contract tests — clippy compiles
-      # them but never runs them, so this is where they actually execute
       - name: Run Tests
         if: steps.decide.outputs.run == 'true'
         working-directory: ./src-tauri
-        # the `clippy` feature stubs tauri_build - the runner has no dist/
-        # or sidecar binaries, without it the build script dies
         shell: bash
         run: |
           cargo test --lib --features clippy
-          # the integration test binary refuses to launch on the windows
-          # runner (STATUS_ENTRYPOINT_NOT_FOUND, DLL mismatch); its logic
-          # is platform-independent, so one platform covers it
           if [ "$RUNNER_OS" = "Linux" ]; then
             cargo test --test subscription_headers --features clippy
           fi
 
-      # Код под `verge-dev` / `tokio-trace` / `tracing` линтуем полным набором
-      # фич — но только на пуше в main и только на одной ОС: в PR это стоило бы
-      # второй полной компиляции на каждой из трёх машин.
-      # Одна машина, не три: полный набор фич — это второй feature-resolve и
-      # вторая компиляция workspace, на PR это дороже всего остального вместе.
       - name: Run Clippy (all features)
         if: >-
           steps.decide.outputs.run == 'true' &&
@@ -144,7 +108,6 @@ jobs:
         working-directory: ./src-tauri
         run: cargo clippy-all
 
-      # Линтер исходников — платформенно-независим, одной ОС достаточно.
       - name: Run Logging Check
         if: steps.decide.outputs.run == 'true' && matrix.os == 'ubuntu-22.04'
         working-directory: ./src-tauri
