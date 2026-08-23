@@ -1,7 +1,6 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { Logo } from '@/components/logo'
-import { releasesUrl } from '@/lib/shared'
 import hero from '../../../public/screenshots/02-home-connected.png'
 
 export default function HomePage() {
@@ -14,12 +13,12 @@ export default function HomePage() {
         кнопка — и всё работает. Windows, macOS и Linux.
       </p>
       <div className="mt-8 flex flex-wrap justify-center gap-3">
-        <a
-          href={releasesUrl}
+        <Link
+          href="/download"
           className="rounded-full bg-fd-primary px-6 py-2.5 font-medium text-fd-primary-foreground"
         >
           Скачать
-        </a>
+        </Link>
         <Link
           href="/docs"
           className="rounded-full border px-6 py-2.5 font-medium hover:bg-fd-accent"

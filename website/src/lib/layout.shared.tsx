@@ -1,6 +1,6 @@
 import type { BaseLayoutProps } from 'fumadocs-ui/layouts/shared'
 import { Logo } from '@/components/logo'
-import { appName, gitConfig, releasesUrl } from './shared'
+import { appName, gitConfig } from './shared'
 
 export function baseOptions(): BaseLayoutProps {
   return {
@@ -14,7 +14,7 @@ export function baseOptions(): BaseLayoutProps {
     },
     links: [
       { text: 'Документация', url: '/docs', active: 'nested-url' },
-      { text: 'Скачать', url: releasesUrl, external: true },
+      { text: 'Скачать', url: '/download' },
     ],
     githubUrl: `https://github.com/${gitConfig.user}/${gitConfig.repo}`,
   }
