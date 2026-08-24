@@ -6,28 +6,36 @@ import { useVerge } from './use-verge'
 const LAST_CHECK_KEY = 'last_check_update'
 
 const readLastCheckTime = (): number | null => {
-  const stored = localStorage.getItem(LAST_CHECK_KEY)
-  if (!stored) return null
-  const ts = parseInt(stored, 10)
-  return isNaN(ts) ? null : ts
+  try {
+    const stored = localStorage.getItem(LAST_CHECK_KEY)
+    if (!stored) return null
+    const ts = parseInt(stored, 10)
+    return Number.isNaN(ts) ? null : ts
+  } catch {
+    return null
+  }
+}
+
+const storeLastCheckTime = (value: number) => {
+  try {
+    localStorage.setItem(LAST_CHECK_KEY, value.toString())
+    return true
+  } catch {
+    return false
+  }
 }
 
 export const updateLastCheckTime = (timestamp?: number): number => {
   const now = timestamp ?? Date.now()
-  localStorage.setItem(LAST_CHECK_KEY, now.toString())
+  storeLastCheckTime(now)
   setCacheData([LAST_CHECK_KEY], now)
   return now
 }
-
-// --- useUpdate hook ---
 
 export const useUpdate = (enabled: boolean = true) => {
   const { verge } = useVerge()
   const { auto_check_update } = verge || {}
 
-  // Determine if we should check for updates
-  // If enabled is explicitly false, don't check
-  // Otherwise, respect the auto_check_update setting (or default to true if null/undefined for manual triggers)
   const shouldCheck = enabled && auto_check_update !== false
 
   const fetchUpdate = async () => {
@@ -41,8 +49,6 @@ export const useUpdate = (enabled: boolean = true) => {
     queryFn: fetchUpdate,
     enabled: shouldCheck,
     retry: 2,
-    // clod: релизы выходят часто — свежесть 10 минут и перепроверка каждые
-    // 3 часа, иначе запущенное приложение сутками не узнаёт об обновлении
     staleTime: 10 * 60 * 1000,
     refetchInterval: 3 * 60 * 60 * 1000,
     refetchIntervalInBackground: false,
@@ -54,7 +60,6 @@ export const useUpdate = (enabled: boolean = true) => {
     return { data }
   }
 
-  // Shared last check timestamp
   const { data: lastCheckUpdate } = useQuery({
     queryKey: [LAST_CHECK_KEY],
     queryFn: readLastCheckTime,
