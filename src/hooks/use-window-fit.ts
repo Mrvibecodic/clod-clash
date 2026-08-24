@@ -43,6 +43,14 @@ export const isSelfWindowResize = (height: number) => {
   )
 }
 
+const measureContentHeight = (root: HTMLElement) => {
+  const previous = root.style.height
+  root.style.height = 'auto'
+  const height = root.scrollHeight
+  root.style.height = previous
+  return height
+}
+
 let fitSuspended = false
 
 export const suspendWindowFit = () => {
@@ -76,7 +84,7 @@ export const useFitWindowToContent = () => {
     if (!root) return
 
     const chrome = Math.max(0, window.innerHeight - root.clientHeight)
-    const desired = root.scrollHeight + chrome
+    const desired = measureContentHeight(root) + chrome
     if (desired <= 0) return
 
     markSelfWindowResize(desired)
