@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { useVerge } from '@/hooks/use-verge'
+import { useVisibility } from '@/hooks/use-visibility'
 import { fitWindowToContent } from '@/services/cmds'
 import { createStartupSettle } from '@/utils/window-settle'
 
@@ -10,7 +11,7 @@ const MINIMAL_HEIGHT = 520
 
 const COMPACT_HYSTERESIS = 24
 
-const SELF_RESIZE_GRACE_MS = 900
+const SELF_RESIZE_GRACE_MS = 1200
 
 const HEIGHT_MATCH_EPSILON = 3
 
@@ -31,7 +32,7 @@ export const markSelfWindowResize = (height?: number) => {
     return
   }
   expectedHeights.push(Math.round(height))
-  if (expectedHeights.length > 4) expectedHeights.shift()
+  if (expectedHeights.length > 8) expectedHeights.shift()
 }
 
 export const isSelfWindowResize = (height: number) => {
@@ -64,9 +65,12 @@ export const resumeWindowFit = () => {
 export const useFitWindowToContent = () => {
   const { verge } = useVerge()
   const enabled = verge?.window_fit_content !== false
+  const visible = useVisibility()
 
   const [root, setRoot] = useState<HTMLElement | null>(null)
   const [compact, setCompact] = useState(false)
+
+  const visibleRef = useRef(visible)
 
   const compactRef = useRef(false)
   const normalHeightRef = useRef(0)
@@ -74,6 +78,7 @@ export const useFitWindowToContent = () => {
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   const applyFit = useCallback(async () => {
+    if (!visibleRef.current) return
     if (!enabled || fitSuspended) {
       if (compactRef.current) {
         compactRef.current = false
@@ -123,6 +128,14 @@ export const useFitWindowToContent = () => {
   useEffect(() => {
     if (enabled) resumeWindowFit()
   }, [enabled])
+
+  useEffect(() => {
+    const wasVisible = visibleRef.current
+    visibleRef.current = visible
+    if (!visible || wasVisible) return
+    markSelfWindowResize()
+    schedule()
+  }, [visible, schedule])
 
   useEffect(() => {
     if (!root) return

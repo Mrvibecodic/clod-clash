@@ -15,12 +15,17 @@ import { applyWindowSizeForMode, saveWindowSizeForMode } from '@/services/cmds'
 
 const SAVE_DEBOUNCE_MS = 800
 
+const MANUAL_VERDICT_DELAY_MS = 400
+
 export const useModeWindowSize = () => {
   const { simpleMode } = useSimpleMode()
   const { verge, patchVerge } = useVerge()
 
   const simpleModeRef = useRef(simpleMode)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  )
+  const verdictTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
   )
   const fitEnabled = verge?.window_fit_content !== false
@@ -67,10 +72,19 @@ export const useModeWindowSize = () => {
       if (isSelfWindowResize(height)) {
         markStartupWindowSettled()
       } else if (!isStartupWindowGrace() && fitEnabledRef.current) {
-        suspendWindowFit()
-        patchVergeRef
-          .current({ window_fit_content: false })
-          .catch(() => resumeWindowFit())
+        if (verdictTimerRef.current) clearTimeout(verdictTimerRef.current)
+        verdictTimerRef.current = setTimeout(() => {
+          verdictTimerRef.current = undefined
+          if (isSelfWindowResize(height)) {
+            markStartupWindowSettled()
+            return
+          }
+          if (isStartupWindowGrace() || !fitEnabledRef.current) return
+          suspendWindowFit()
+          patchVergeRef
+            .current({ window_fit_content: false })
+            .catch(() => resumeWindowFit())
+        }, MANUAL_VERDICT_DELAY_MS)
       }
       scheduleSave()
     }
@@ -88,6 +102,7 @@ export const useModeWindowSize = () => {
 
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+      if (verdictTimerRef.current) clearTimeout(verdictTimerRef.current)
       for (const promise of unlistenPromises) {
         promise.then((unlisten) => unlisten()).catch(() => {})
       }
