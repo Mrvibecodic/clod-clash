@@ -49,7 +49,7 @@ const validatePortRange = (port: number) => {
     throw new Error('The port should not < 1000')
   }
   if (port > 65535) {
-    throw new Error('The port should not > 65536')
+    throw new Error('The port should not > 65535')
   }
 }
 
