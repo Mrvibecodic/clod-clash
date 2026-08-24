@@ -2,6 +2,8 @@ import PowerSettingsNewRoundedIcon from '@mui/icons-material/PowerSettingsNewRou
 import { Box, CircularProgress, Typography, alpha } from '@mui/material'
 import { useTranslation } from 'react-i18next'
 
+import { ConnectUptime } from '@/components/home/connect-uptime'
+
 export type ConnectState =
   | 'off'
   | 'connecting'
@@ -11,7 +13,6 @@ export type ConnectState =
 
 interface Props {
   state: ConnectState
-  uptime?: number
   errorText?: string
   disabled?: boolean
   compact?: boolean
@@ -21,20 +22,8 @@ interface Props {
 const SIZE = 160
 const COMPACT_SIZE = 124
 
-const formatUptime = (seconds: number) => {
-  const total = Math.max(0, Math.floor(seconds))
-  const hours = Math.floor(total / 3600)
-  const minutes = Math.floor((total % 3600) / 60)
-  const secs = total % 60
-  const pad = (value: number) => String(value).padStart(2, '0')
-  return hours > 0
-    ? `${pad(hours)}:${pad(minutes)}:${pad(secs)}`
-    : `${pad(minutes)}:${pad(secs)}`
-}
-
 export const ConnectButton = ({
   state,
-  uptime,
   errorText,
   disabled,
   compact,
@@ -148,21 +137,7 @@ export const ConnectButton = ({
         {label}
       </Typography>
 
-      <Typography
-        variant="body1"
-        sx={{
-          fontVariantNumeric: 'tabular-nums',
-          letterSpacing: 1,
-          fontWeight: 600,
-          minHeight: 24,
-          visibility:
-            state === 'on' && uptime !== undefined ? 'visible' : 'hidden',
-        }}
-      >
-        {state === 'on' && uptime !== undefined
-          ? formatUptime(uptime)
-          : '00:00'}
-      </Typography>
+      <ConnectUptime active={state === 'on'} />
 
       {state === 'error' && errorText ? (
         <Typography

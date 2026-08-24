@@ -29,7 +29,6 @@ import { ServerSelect, ServerSelectRow } from '@/components/home/server-select'
 import { SubscriptionCard } from '@/components/home/subscription-card'
 import { useConnectTargets } from '@/hooks/use-connect-targets'
 import { useProfiles } from '@/hooks/use-profiles'
-import { useSessionUptime } from '@/hooks/use-session-uptime'
 import { useSimpleMode } from '@/hooks/use-simple-mode'
 import { useToolShortcuts } from '@/hooks/use-tool-shortcuts'
 import { useFitWindowToContent } from '@/hooks/use-window-fit'
@@ -119,7 +118,6 @@ const HomeAdvancedPage = () => {
   const { setSimpleMode } = useSimpleMode()
   const { shortcuts } = useToolShortcuts()
   const { connected, willConnect, toggleConnection } = useConnectTargets()
-  const uptime = useSessionUptime(connected)
   const { fitRef, compact } = useFitWindowToContent()
 
   const [busy, setBusy] = useState(false)
@@ -207,7 +205,6 @@ const HomeAdvancedPage = () => {
         >
           <ConnectButton
             state={state}
-            uptime={uptime}
             errorText={errorText}
             compact={compact}
             onToggle={() => void toggle()}

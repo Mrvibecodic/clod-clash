@@ -27,7 +27,6 @@ import { SubscriptionCard } from '@/components/home/subscription-card'
 import { TunStatus } from '@/components/home/tun-status'
 import { useConnectTargets } from '@/hooks/use-connect-targets'
 import { useProfiles } from '@/hooks/use-profiles'
-import { useSessionUptime } from '@/hooks/use-session-uptime'
 import { useSimpleMode } from '@/hooks/use-simple-mode'
 import { useFitWindowToContent } from '@/hooks/use-window-fit'
 import { createProfile, enhanceProfiles, importProfile } from '@/services/cmds'
@@ -44,7 +43,6 @@ const HomeSimplePage = () => {
   } = useProfiles()
   const { connected, willConnect, toggleConnection } = useConnectTargets()
   const { setSimpleMode } = useSimpleMode()
-  const uptime = useSessionUptime(connected)
   const { fitRef, compact } = useFitWindowToContent()
 
   const [busy, setBusy] = useState(false)
@@ -211,7 +209,6 @@ const HomeSimplePage = () => {
         >
           <ConnectButton
             state={state}
-            uptime={uptime}
             errorText={errorText}
             compact={compact}
             onToggle={() => void toggle()}
