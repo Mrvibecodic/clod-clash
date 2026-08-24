@@ -362,6 +362,15 @@ export const ServerSelect = ({ open, onClose }: Props) => {
           >
             {t('home.components.serverSelect.test')}
           </Button>
+
+          <IconButton
+            size="small"
+            edge="end"
+            aria-label={t('shared.actions.close')}
+            onClick={onClose}
+          >
+            <CloseRoundedIcon fontSize="small" />
+          </IconButton>
         </Stack>
 
         {groups.length > 1 ? (
