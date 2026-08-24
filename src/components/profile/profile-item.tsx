@@ -1116,9 +1116,15 @@ export const ProfileItem = memo(ProfileItemBase)
 
 function parseUrl(url?: string) {
   if (!url) return ''
-  const regex = /https?:\/\/(.+?)\//
-  const result = url.match(regex)
-  return result ? result[1] : 'local file'
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return 'local file'
+    }
+    return parsed.host
+  } catch {
+    return 'local file'
+  }
 }
 
 function parseExpire(expire?: number) {
