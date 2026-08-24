@@ -1,6 +1,8 @@
 import dayjs from 'dayjs'
 import { memo, useSyncExternalStore } from 'react'
 
+import { useVisibility } from '@/hooks/use-visibility'
+
 type RelativeTimeListener = () => void
 
 let currentTime = Date.now()
@@ -13,7 +15,9 @@ const startTimer = () => {
   currentTime = Date.now()
   timerId = window.setInterval(() => {
     currentTime = Date.now()
-    listeners.forEach((listener) => listener())
+    listeners.forEach((listener) => {
+      listener()
+    })
   }, 5_000)
 }
 
@@ -34,6 +38,10 @@ const subscribeRelativeTime = (listener: RelativeTimeListener) => {
   }
 }
 
+const subscribeNothing = () => () => {
+  return
+}
+
 const getRelativeTimeSnapshot = () => currentTime
 
 interface RelativeTimeProps {
@@ -43,8 +51,9 @@ interface RelativeTimeProps {
 export const RelativeTime = memo(function RelativeTime({
   start,
 }: RelativeTimeProps) {
+  const visible = useVisibility()
   const now = useSyncExternalStore(
-    subscribeRelativeTime,
+    visible ? subscribeRelativeTime : subscribeNothing,
     getRelativeTimeSnapshot,
     getRelativeTimeSnapshot,
   )
