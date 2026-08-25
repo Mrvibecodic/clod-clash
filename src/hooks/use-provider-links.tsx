@@ -73,7 +73,7 @@ export const useProviderLinks = (profile?: IProfileItem | null) => {
   }, [profile, t])
 }
 
-const ALLOWED_LINK_SCHEMES = ['http:', 'https:', 'tg:', 'mailto:']
+const ALLOWED_LINK_SCHEMES = ['https:', 'tg:', 'mailto:']
 
 export const openProviderLink = async (url: string) => {
   let scheme = ''

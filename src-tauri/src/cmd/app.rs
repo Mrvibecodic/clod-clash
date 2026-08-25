@@ -39,8 +39,27 @@ pub async fn open_logs_dir() -> CmdResult<()> {
     open::that(log_dir).stringify_err()
 }
 
+const OPENABLE_URL_SCHEMES: &[&str] = &["https", "tg", "mailto"];
+
+fn is_openable_url(url: &str) -> bool {
+    let Ok(parsed) = reqwest::Url::parse(url) else {
+        return false;
+    };
+    if OPENABLE_URL_SCHEMES.contains(&parsed.scheme()) {
+        return true;
+    }
+    parsed.scheme() == "http"
+        && parsed.host_str().is_some_and(|host| {
+            let host = host.trim_start_matches('[').trim_end_matches(']');
+            host.eq_ignore_ascii_case("localhost") || host.parse::<std::net::IpAddr>().is_ok_and(|ip| ip.is_loopback())
+        })
+}
+
 #[tauri::command]
 pub fn open_web_url(url: String) -> CmdResult<()> {
+    if !is_openable_url(url.as_str()) {
+        return Err("url scheme is not allowed".into());
+    }
     open::that(url.as_str()).stringify_err()
 }
 
@@ -112,4 +131,33 @@ pub async fn fit_window_to_content(content_height: f64) -> CmdResult<f64> {
 #[tauri::command]
 pub fn get_traffic_estimate() -> crate::core::traffic_estimate::TrafficEstimate {
     crate::core::traffic_estimate::snapshot()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_openable_url;
+
+    #[test]
+    fn only_web_and_messenger_links_are_opened() {
+        for url in [
+            "https://example.com/support",
+            "http://127.0.0.1:9097/ui/",
+            "http://localhost:9097/",
+            "tg://resolve?domain=example",
+            "mailto:support@example.com",
+        ] {
+            assert!(is_openable_url(url), "{url}");
+        }
+        for url in [
+            "http://example.com",
+            "http://192.168.1.1/",
+            "file:///C:/Windows/System32/cmd.exe",
+            "C:\\Windows\\System32\\cmd.exe",
+            "ms-settings:network",
+            "javascript:alert(1)",
+            "",
+        ] {
+            assert!(!is_openable_url(url), "{url}");
+        }
+    }
 }
