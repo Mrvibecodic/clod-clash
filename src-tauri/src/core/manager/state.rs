@@ -105,7 +105,11 @@ fn handle_core_exit(message: &str, expected: &RunningMode) {
 }
 
 async fn core_answers() -> bool {
-    handle::Handle::mihomo().await.get_version().await.is_ok()
+    tokio::time::timeout(timing::CORE_HEALTH_INTERVAL, async {
+        handle::Handle::mihomo().await.get_version().await.is_ok()
+    })
+    .await
+    .unwrap_or(false)
 }
 
 pub(super) fn spawn_service_health_watchdog() {
