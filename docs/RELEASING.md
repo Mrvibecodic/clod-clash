@@ -14,9 +14,9 @@ https://github.com/Mrvibecodic/clod-clash/releases/latest/download/latest.json
 
 Первый — «плавающий» релиз с тегом `updater`, куда после публикации версии
 копируется её `latest.json`. Он нужен потому, что GitHub не считает
-pre-release'ы «latest»: пока версии выходят как pre-release, второй эндпоинт
-пуст, и обновления едут только через тег `updater`. Когда выйдет первый
-стабильный релиз, заработает и второй эндпоинт как резервный.
+pre-release'ы «latest»: версия с дефисом (`0.1.7-alpha`) публикуется как
+pre-release, во второй эндпоинт не попадает и едет только через тег
+`updater` — тем, у кого включён приём предварительных сборок.
 
 Workflow `.github/workflows/release-clod.yml` по тегу `clod-v{версия}` собирает
 инсталлеры (Windows x64, macOS arm64 и x64, Linux x64 deb+rpm), подписывает
@@ -77,7 +77,8 @@ Workflow `.github/workflows/release-clod.yml` по тегу `clod-v{версия
 4. Всё остальное CI делает сам: workflow «Release Clod Clash» собирает
    черновик с инсталлерами, `*.sig` и `latest.json`, а финальный джоб
    `publish_release` после успеха всех платформ проверяет комплектность
-   ассетов, публикует релиз как **pre-release** (тело — двуязычная секция
+   ассетов, публикует релиз (галка **pre-release** ставится сама, если в
+   версии есть дефис — `0.1.7-alpha`; тело — двуязычная секция
    из `UPDATELOG.md`, фолбэк — сообщение тега), вклеивает ту же секцию в
    `notes` файла `latest.json`, переписывает ссылки ассетов на публичные
    `browser_download_url` (tauri-action генерирует api.github.com-ссылки,
