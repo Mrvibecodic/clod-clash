@@ -8,6 +8,7 @@ import {
   isStartupWindowGrace,
   markSelfWindowResize,
   markStartupWindowSettled,
+  requestWindowFit,
   resumeWindowFit,
   suspendWindowFit,
 } from '@/hooks/use-window-fit'
@@ -72,15 +73,21 @@ export const useModeWindowSize = () => {
       if (isSelfWindowResize(height)) {
         markStartupWindowSettled()
       } else if (!isStartupWindowGrace() && fitEnabledRef.current) {
+        suspendWindowFit()
         if (verdictTimerRef.current) clearTimeout(verdictTimerRef.current)
         verdictTimerRef.current = setTimeout(() => {
           verdictTimerRef.current = undefined
           if (isSelfWindowResize(height)) {
             markStartupWindowSettled()
+            resumeWindowFit()
+            requestWindowFit()
             return
           }
-          if (isStartupWindowGrace() || !fitEnabledRef.current) return
-          suspendWindowFit()
+          if (isStartupWindowGrace() || !fitEnabledRef.current) {
+            resumeWindowFit()
+            requestWindowFit()
+            return
+          }
           patchVergeRef
             .current({ window_fit_content: false })
             .catch(() => resumeWindowFit())

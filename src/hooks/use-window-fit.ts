@@ -62,6 +62,12 @@ export const resumeWindowFit = () => {
   fitSuspended = false
 }
 
+const fitRequestListeners = new Set<() => void>()
+
+export const requestWindowFit = () => {
+  for (const listener of fitRequestListeners) listener()
+}
+
 export const useFitWindowToContent = () => {
   const { verge } = useVerge()
   const enabled = verge?.window_fit_content !== false
@@ -128,6 +134,13 @@ export const useFitWindowToContent = () => {
   useEffect(() => {
     if (enabled) resumeWindowFit()
   }, [enabled])
+
+  useEffect(() => {
+    fitRequestListeners.add(schedule)
+    return () => {
+      fitRequestListeners.delete(schedule)
+    }
+  }, [schedule])
 
   useEffect(() => {
     const wasVisible = visibleRef.current
