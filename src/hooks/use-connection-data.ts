@@ -1,6 +1,8 @@
 import { useCallback, useMemo, useSyncExternalStore } from 'react'
 import { MihomoWebSocket } from 'tauri-plugin-mihomo-api'
 
+import { isWsErrorMessage } from '@/utils/ws-error'
+
 const MAX_CLOSED_CONNS_NUM = 500
 const CONNECTION_UPDATE_THROTTLE_MS = 500
 const CONNECTION_RECONNECT_DELAY_MS = 1_000
@@ -277,7 +279,7 @@ async function connectConnectionSocket() {
     socket.addListener((message) => {
       if (connectionSocket !== socket) return
       if (message.type !== 'Text') return
-      if (message.data.startsWith('Websocket error')) {
+      if (isWsErrorMessage(message.data)) {
         void reconnectConnectionSocket()
         return
       }

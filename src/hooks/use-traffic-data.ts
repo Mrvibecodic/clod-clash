@@ -1,5 +1,7 @@
 import { MihomoWebSocket, Traffic } from 'tauri-plugin-mihomo-api'
 
+import { isWsErrorMessage } from '@/utils/ws-error'
+
 import { useMihomoWsSubscription } from './use-mihomo-ws-subscription'
 import { useTrafficMonitorEnhanced } from './use-traffic-monitor'
 
@@ -39,7 +41,7 @@ export const useTrafficData = (options?: { enabled?: boolean }) => {
     throttleMs: 200,
     setupHandlers: ({ next, scheduleReconnect }) => ({
       handleMessage: (data) => {
-        if (data.startsWith('Websocket error')) {
+        if (isWsErrorMessage(data)) {
           next(data, FALLBACK_TRAFFIC)
           void scheduleReconnect()
           return

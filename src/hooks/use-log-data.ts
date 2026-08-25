@@ -4,6 +4,7 @@ import { MihomoWebSocket, type LogLevel } from 'tauri-plugin-mihomo-api'
 
 import { getClashLogs } from '@/services/cmds'
 import { setCacheData } from '@/services/query-client'
+import { isWsErrorMessage } from '@/utils/ws-error'
 
 import { useClashLog } from './use-clash-log'
 import { useMihomoWsSubscription } from './use-mihomo-ws-subscription'
@@ -47,16 +48,6 @@ const appendLogs = (
   return base.slice(dropFromBase).concat(incoming)
 }
 
-/**
- * clod: `enabled` — это видимость окна, как у `useTrafficData`.
- *
- * Гейтом раньше был только флаг «писать логи» из localStorage: окно уезжало в
- * трей, а стрим оставался жить сутками, и каждые 50 мс флаш копировал массив на
- * тысячу элементов и перерисовывал экран, которого никто не видит. Свёрнутое
- * окно новых строк не принимает; уже накопленные не теряются — ключ подписки
- * обнуляется, но данные лежат в кэше по прежнему ключу (см. `responseCacheKey`
- * в `use-mihomo-ws-subscription`), и на возврате стрим продолжает тот же буфер.
- */
 export const useLogData = (options?: { enabled?: boolean }) => {
   const enabled = options?.enabled ?? true
   const [clashLog] = useClashLog()
@@ -97,7 +88,7 @@ export const useLogData = (options?: { enabled?: boolean }) => {
 
       return {
         handleMessage: (data) => {
-          if (data.startsWith('Websocket error')) {
+          if (isWsErrorMessage(data)) {
             next(data)
             void scheduleReconnect()
             return
