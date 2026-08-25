@@ -51,6 +51,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${GITHUB_REF_NAME}"
+          PRERELEASE=false
+          case "${TAG#clod-v}" in *-*) PRERELEASE=true ;; esac
           existing=$(gh api "repos/${{ github.repository }}/releases?per_page=100" \
             --jq ".[] | select(.tag_name==\"$TAG\") | \"\(.id) \(.draft)\"" | head -1)
           if [ -n "$existing" ]; then
@@ -68,7 +70,7 @@ jobs:
             -f tag_name="$TAG" \
             -f name="Clod Clash $TAG" \
             -f body="Черновик — наполняется сборкой." \
-            -F draft=true -F prerelease=false --jq .id)
+            -F draft=true -F prerelease="$PRERELEASE" --jq .id)
           echo "created draft $id"
           echo "release_id=$id" >> "$GITHUB_OUTPUT"
 
@@ -208,6 +210,8 @@ jobs:
           done
 
           VERSION="${RELEASE_TAG#clod-v}"
+          PRERELEASE=false
+          case "$VERSION" in *-*) PRERELEASE=true ;; esac
           NOTES=$(awk -v ver="## v$VERSION" '
             $0 == ver { grab = 1; next }
             /^## v/ || /^---/ { if (grab) exit }
@@ -220,10 +224,10 @@ jobs:
           fi
           if [ -n "$NOTES" ]; then
             gh api -X PATCH "repos/${{ github.repository }}/releases/$RELEASE_ID" \
-              -F draft=false -F prerelease=false -f body="$NOTES" --jq .html_url
+              -F draft=false -F prerelease="$PRERELEASE" -f body="$NOTES" --jq .html_url
           else
             gh api -X PATCH "repos/${{ github.repository }}/releases/$RELEASE_ID" \
-              -F draft=false -F prerelease=false --jq .html_url
+              -F draft=false -F prerelease="$PRERELEASE" --jq .html_url
           fi
 
       - name: Drop the version from asset names
