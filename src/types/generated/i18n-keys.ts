@@ -544,6 +544,7 @@ export const translationKeys = [
   'settings.sections.clash.form.fields.tunnels.actions.addNew',
   'settings.sections.clash.form.fields.routingMode',
   'settings.sections.clash.form.tooltips.networkInterface',
+  'settings.sections.clash.form.tooltips.ipv6',
   'settings.sections.clash.form.tooltips.unifiedDelay',
   'settings.sections.clash.form.tooltips.logLevel',
   'settings.sections.clash.form.tooltips.openUwpTool',

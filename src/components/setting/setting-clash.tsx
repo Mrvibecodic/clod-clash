@@ -48,7 +48,6 @@ const SettingClash = ({ onError }: Props) => {
     'unified-delay': unifiedDelay,
   } = clash ?? {}
 
-  // clod: routing mode selector state and the panel lock.
   const { current } = useProfiles()
   const modeLocked = Boolean(current?.lock_mode)
   const normalizedMode = mode?.toLowerCase()
@@ -59,7 +58,6 @@ const SettingClash = ({ onError }: Props) => {
 
   const { verge_mixed_port } = verge ?? {}
 
-  // Отдельно отслеживаем состояние переключателя настроек DNS
   const [dnsSettingsEnabled, setDnsSettingsEnabled] = useState(() => {
     return verge?.enable_dns_settings ?? false
   })
@@ -87,7 +85,6 @@ const SettingClash = ({ onError }: Props) => {
     }
   }
 
-  // Обработчик переключателя настроек DNS
   const handleDnsToggle = useLockFn(async (enable: boolean) => {
     try {
       setDnsSettingsEnabled(enable)
@@ -114,12 +111,7 @@ const SettingClash = ({ onError }: Props) => {
       <DnsViewer ref={dnsRef} />
       <HeaderConfiguration ref={corsRef} />
       <TunnelsViewer ref={tunnelRef} />
-      {/* clod: the routing mode lives here, not on the home screen. Locked
-          entirely when the panel sent `clod-lock-mode`. */}
       {modeLocked ? (
-        // clod:lock-expiry — раньше строка просто исчезала, и пользователь с
-        // умершей панелью не мог понять, что именно её убрало и как это
-        // отменить. Показываем действующий режим и называем оба выхода.
         <SettingItem
           label={t('settings.sections.clash.form.fields.routingMode')}
           extra={
@@ -190,17 +182,16 @@ const SettingClash = ({ onError }: Props) => {
         </GuardState>
       </SettingItem>
 
-      <SettingItem label={t('settings.sections.clash.form.fields.ipv6')}>
-        <GuardState
-          value={ipv6 ?? false}
-          valueProps="checked"
-          onCatch={onError}
-          onFormat={onSwitchFormat}
-          onChange={(e) => onChangeData({ ipv6: e })}
-          onGuard={(e) => patchClash({ ipv6: e })}
-        >
-          <Switch edge="end" />
-        </GuardState>
+      <SettingItem
+        label={t('settings.sections.clash.form.fields.ipv6')}
+        extra={
+          <TooltipIcon
+            title={t('settings.sections.clash.form.tooltips.ipv6')}
+            sx={{ opacity: '0.7' }}
+          />
+        }
+      >
+        <Switch edge="end" checked={ipv6 ?? false} disabled />
       </SettingItem>
 
       <SettingItem
@@ -330,7 +321,6 @@ const SettingClash = ({ onError }: Props) => {
         <Typography sx={{ py: '7px', pr: 1 }}>{version}</Typography>
       </SettingItem>
 
-      {/* clod:F5 — managed core (self-updating Mihomo) */}
       <SettingItem
         onClick={() => managedCoreRef.current?.open()}
         label={t('settings.modals.managedCore.entry')}

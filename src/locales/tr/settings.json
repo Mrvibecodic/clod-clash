@@ -149,6 +149,7 @@
         },
         "tooltips": {
           "networkInterface": "Ağ Arayüzü",
+          "ipv6": "IPv6'yı abonelik belirler: değer aboneliğin şablonundan gelir, bu anahtarın etkisi yoktur. Abonelik IPv6 hakkında bir şey söylemiyorsa kapalı kalır.",
           "unifiedDelay": "Birleşik gecikme açıldığında, bağlantı el sıkışmaları vb. nedeniyle farklı tür düğümler arasındaki gecikme farklarını ortadan kaldırmak için iki gecikme testi gerçekleştirilir",
           "logLevel": "Bu parametre yalnızca günlük dizini Hizmet klasöründeki çekirdek günlük dosyaları için geçerlidir",
           "openUwpTool": "Windows 8'den beri, UWP uygulamaları (Microsoft Store gibi) yerel ana bilgisayar ağ hizmetlerine doğrudan erişmekten kısıtlanmıştır ve bu araç bu kısıtlamayı atlatmak için kullanılabilir",

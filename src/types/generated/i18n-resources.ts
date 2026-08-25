@@ -1375,6 +1375,7 @@ export interface TranslationResources {
               }
             }
             tooltips: {
+              ipv6: string
               logLevel: string
               networkInterface: string
               openUwpTool: string

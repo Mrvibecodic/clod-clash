@@ -149,6 +149,7 @@
         },
         "tooltips": {
           "networkInterface": "網路介面",
+          "ipv6": "IPv6 由訂閱決定：取值來自訂閱範本，此開關不起作用。訂閱未提及 IPv6 時保持關閉。",
           "unifiedDelay": "開啟統一延遲時，會進行兩次延遲測試，以消除連線握手等帶來的不同類型節點的延遲差異",
           "logLevel": "僅對日誌目錄 Service 資料夾下的內核日誌檔案生效",
           "openUwpTool": "Windows 8 開始限制 UWP 應用程式（如Microsoft Store）直接存取本機主機的網路服務，使用此工具可繞過該限制",

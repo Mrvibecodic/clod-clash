@@ -149,6 +149,7 @@
         },
         "tooltips": {
           "networkInterface": "Interfaz de red",
+          "ipv6": "IPv6 lo define la suscripción: el valor viene de su plantilla, así que este interruptor no tiene efecto. Si la suscripción no dice nada sobre IPv6, queda desactivado.",
           "unifiedDelay": "Al habilitar la latencia unificada, se realizarán dos pruebas de latencia para eliminar las diferencias de latencia entre diferentes tipos de nodos causadas por el handshake de conexión, etc.",
           "logLevel": "Solo se aplica al archivo de registro del núcleo en la carpeta Service del directorio de registros.",
           "openUwpTool": "A partir de Windows 8, las aplicaciones UWP (como la Tienda de Microsoft) tienen restricciones para acceder directamente a los servicios de red del host local. Use esta herramienta para evitar esta restricción.",
