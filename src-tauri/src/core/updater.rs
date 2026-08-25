@@ -93,32 +93,67 @@ impl SilentUpdater {
     }
 }
 
-fn version_lte(a: &str, b: &str) -> bool {
-    let parse = |v: &str| -> Vec<u64> {
-        v.trim_start_matches('v')
-            .split('.')
-            .filter_map(|part| {
-                let numeric = part.split('-').next().unwrap_or("0");
-                numeric.parse::<u64>().ok()
-            })
-            .collect()
+fn parse_version(raw: &str) -> Option<(Vec<u64>, Option<Vec<std::string::String>>)> {
+    let body = raw.trim().trim_start_matches('v');
+    let body = body.split_once('+').map_or(body, |(core, _)| core);
+    let (core, prerelease) = match body.split_once('-') {
+        Some((core, pre)) => (core, Some(pre)),
+        None => (body, None),
     };
+    let numbers = core
+        .split('.')
+        .map(|part| part.parse::<u64>().ok())
+        .collect::<Option<Vec<_>>>()?;
+    if numbers.is_empty() {
+        return None;
+    }
+    let prerelease = match prerelease {
+        Some(pre) if !pre.is_empty() => Some(pre.split('.').map(std::string::String::from).collect()),
+        Some(_) => return None,
+        None => None,
+    };
+    Some((numbers, prerelease))
+}
 
-    let a_parts = parse(a);
-    let b_parts = parse(b);
-    let len = a_parts.len().max(b_parts.len());
+fn compare_prerelease(a: &[std::string::String], b: &[std::string::String]) -> std::cmp::Ordering {
+    use std::cmp::Ordering;
 
-    for i in 0..len {
-        let av = a_parts.get(i).copied().unwrap_or(0);
-        let bv = b_parts.get(i).copied().unwrap_or(0);
-        if av < bv {
-            return true;
-        }
-        if av > bv {
-            return false;
+    for (x, y) in a.iter().zip(b) {
+        let order = match (x.parse::<u64>(), y.parse::<u64>()) {
+            (Ok(x), Ok(y)) => x.cmp(&y),
+            (Ok(_), Err(_)) => Ordering::Less,
+            (Err(_), Ok(_)) => Ordering::Greater,
+            (Err(_), Err(_)) => x.cmp(y),
+        };
+        if order != Ordering::Equal {
+            return order;
         }
     }
-    true
+    a.len().cmp(&b.len())
+}
+
+fn version_lte(a: &str, b: &str) -> bool {
+    use std::cmp::Ordering;
+
+    let (Some((a_num, a_pre)), Some((b_num, b_pre))) = (parse_version(a), parse_version(b)) else {
+        return true;
+    };
+    let len = a_num.len().max(b_num.len());
+    for i in 0..len {
+        let av = a_num.get(i).copied().unwrap_or(0);
+        let bv = b_num.get(i).copied().unwrap_or(0);
+        match av.cmp(&bv) {
+            Ordering::Less => return true,
+            Ordering::Greater => return false,
+            Ordering::Equal => {}
+        }
+    }
+    match (a_pre, b_pre) {
+        (None, None) => true,
+        (None, Some(_)) => false,
+        (Some(_), None) => true,
+        (Some(a_pre), Some(b_pre)) => compare_prerelease(&a_pre, &b_pre) != Ordering::Greater,
+    }
 }
 
 fn is_prerelease_version(version: &str) -> bool {
@@ -641,6 +676,24 @@ mod tests {
         assert!(!version_lte("2.4.8", "2.4.7"));
         assert!(!version_lte("2.5.0", "2.4.7"));
         assert!(!version_lte("3.0.0", "2.4.7"));
+    }
+
+    #[test]
+    fn test_prerelease_is_older_than_the_release_it_precedes() {
+        assert!(version_lte("0.1.6-alpha", "0.1.6"));
+        assert!(!version_lte("0.1.6", "0.1.6-alpha"));
+        assert!(version_lte("0.1.6-alpha", "0.1.6-beta"));
+        assert!(version_lte("1.0.0-alpha", "1.0.0-alpha.1"));
+        assert!(version_lte("1.0.0-alpha.1", "1.0.0-alpha.beta"));
+        assert!(version_lte("1.0.0-rc.1", "1.0.0"));
+        assert!(!version_lte("0.1.7-alpha", "0.1.6"));
+    }
+
+    #[test]
+    fn test_unparseable_versions_never_install() {
+        assert!(version_lte("1.x.5", "1.2.0"));
+        assert!(version_lte("", "1.2.0"));
+        assert!(version_lte("1.2.0", "garbage"));
     }
 
     #[test]
