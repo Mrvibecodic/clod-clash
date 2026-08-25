@@ -239,16 +239,9 @@ impl CoreManager {
 
         AsyncHandler::spawn(|| async move {
             while let Some(event) = rx.recv().await {
-                match event {
-                    tauri_plugin_shell::process::CommandEvent::Stdout(line)
-                    | tauri_plugin_shell::process::CommandEvent::Stderr(line) => {
-                        let message = CompactString::from(&*String::from_utf8_lossy(&line));
-                        Logger::global().writer_sidecar_log(Level::Error, &message);
-                        if crate::feat::tun::line_reports_tun_failure(&message) {
-                            crate::feat::tun::report_start_failure(&message);
-                        }
-                        CLASH_LOGGER.append_log(message).await;
-                    }
+                let (level, line) = match event {
+                    tauri_plugin_shell::process::CommandEvent::Stdout(line) => (Level::Info, line),
+                    tauri_plugin_shell::process::CommandEvent::Stderr(line) => (Level::Warn, line),
                     tauri_plugin_shell::process::CommandEvent::Terminated(term) => {
                         let message = if let Some(code) = term.code {
                             CompactString::from(format!("Process terminated with code: {}", code))
@@ -258,12 +251,17 @@ impl CoreManager {
                             CompactString::from("Process terminated")
                         };
                         Logger::global().writer_sidecar_log(Level::Info, &message);
-                        CLASH_LOGGER.clear_logs().await;
                         handle_core_exit(&message, &RunningMode::Sidecar);
                         break;
                     }
-                    _ => {}
+                    _ => continue,
+                };
+                let message = CompactString::from(&*String::from_utf8_lossy(&line));
+                Logger::global().writer_sidecar_log(level, &message);
+                if crate::feat::tun::line_reports_tun_failure(&message) {
+                    crate::feat::tun::report_start_failure(&message);
                 }
+                CLASH_LOGGER.append_log(message).await;
             }
         });
 
