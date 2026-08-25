@@ -313,13 +313,12 @@ pub async fn restore_local_backup(filename: String) -> Result<()> {
     Ok(())
 }
 
-pub async fn export_local_backup(filename: String, destination: String) -> Result<()> {
+pub async fn export_local_backup(filename: String, dest_path: PathBuf) -> Result<()> {
     let source_path = backup_file_path(filename.as_str())?;
     if !source_path.exists() {
         return Err(anyhow!("Backup file not found: {}", filename));
     }
 
-    let dest_path = PathBuf::from(destination.as_str());
     if let Some(parent) = dest_path.parent() {
         fs::create_dir_all(parent).await?;
     }

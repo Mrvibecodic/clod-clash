@@ -311,8 +311,8 @@ export async function copySupportBundle(lines?: number) {
   return invoke<number>('copy_support_bundle', { lines })
 }
 
-export async function exportLogs(path: string) {
-  return invoke<number>('export_logs', { path })
+export async function exportLogs() {
+  return invoke<number | null>('export_logs')
 }
 
 export async function getSystemProxy() {
@@ -462,8 +462,8 @@ export async function importLocalBackup(source: string) {
   return invoke<string>('import_local_backup', { source })
 }
 
-export async function exportLocalBackup(filename: string, destination: string) {
-  return invoke<void>('export_local_backup', { filename, destination })
+export async function exportLocalBackup(filename: string) {
+  return invoke<boolean>('export_local_backup', { filename })
 }
 
 export async function saveWebdavConfig(

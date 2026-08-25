@@ -1,6 +1,5 @@
 import { ContentCopyRounded, SettingsRounded } from '@mui/icons-material'
 import { Typography } from '@mui/material'
-import { save } from '@tauri-apps/plugin-dialog'
 import { useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -85,13 +84,8 @@ const SettingVergeAdvanced = ({ onError, variant = 'all' }: Props) => {
 
   const onExportLogs = useCallback(async () => {
     try {
-      const stamp = new Date().toISOString().slice(0, 10)
-      const path = await save({
-        defaultPath: `clodclash-logs-${stamp}.zip`,
-        filters: [{ name: 'ZIP', extensions: ['zip'] }],
-      })
-      if (!path) return
-      await exportLogs(path)
+      const exported = await exportLogs()
+      if (exported === null) return
       showNotice.success('shared.feedback.notifications.common.logsExported')
     } catch (error) {
       showNotice.error(error)

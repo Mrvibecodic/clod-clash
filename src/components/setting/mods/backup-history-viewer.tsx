@@ -15,7 +15,6 @@ import {
   Tabs,
   Typography,
 } from '@mui/material'
-import { save } from '@tauri-apps/plugin-dialog'
 import { useLockFn } from 'ahooks'
 import dayjs from 'dayjs'
 import customParseFormat from 'dayjs/plugin/customParseFormat'
@@ -262,10 +261,9 @@ export const BackupHistoryViewer = ({
   const handleExport = useLockFn(async (filename: string) => {
     if (isRestarting) return
     if (!isLocal) return
-    const savePath = await save({ defaultPath: filename })
-    if (!savePath || Array.isArray(savePath)) return
     try {
-      await exportLocalBackup(filename, savePath)
+      const exported = await exportLocalBackup(filename)
+      if (!exported) return
       showNotice.success('settings.modals.backup.messages.localBackupExported')
     } catch (ignoreError: unknown) {
       showNotice.error(

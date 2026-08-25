@@ -14,9 +14,25 @@ pub async fn copy_support_bundle(app: AppHandle, lines: Option<usize>) -> CmdRes
 }
 
 #[tauri::command]
-pub async fn export_logs(path: std::string::String) -> CmdResult<usize> {
-    crate::module::log_export::write_archive(std::path::PathBuf::from(path))
+pub async fn export_logs(app: AppHandle) -> CmdResult<Option<usize>> {
+    use tauri_plugin_dialog::DialogExt as _;
+
+    let stamp = chrono::Local::now().format("%Y-%m-%d");
+    let dialog = app
+        .dialog()
+        .file()
+        .set_file_name(format!("clodclash-logs-{stamp}.zip"))
+        .add_filter("ZIP", &["zip"]);
+    let Some(target) = tokio::task::spawn_blocking(move || dialog.blocking_save_file())
         .await
+        .stringify_err()?
+        .and_then(|path| path.into_path().ok())
+    else {
+        return Ok(None);
+    };
+    crate::module::log_export::write_archive(target)
+        .await
+        .map(Some)
         .stringify_err()
 }
 
