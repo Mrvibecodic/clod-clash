@@ -1,6 +1,9 @@
 use crate::{
     cmd::{CmdResult, StringifyErr as _},
-    utils::dirs::{self, PathBufExec as _},
+    utils::{
+        dirs::{self, PathBufExec as _},
+        public_url::is_public_https,
+    },
 };
 use clash_verge_logging::{Type, logging};
 use smartstring::alias::String;
@@ -86,7 +89,14 @@ pub async fn download_icon_cache(url: String, name: String) -> CmdResult<String>
     let temp_name = format!("{icon_name}.downloading");
     let temp_path = ensure_icon_cache_target(&icon_cache_dir, temp_name.as_str())?;
 
-    let response = reqwest::get(url.as_str()).await.stringify_err()?;
+    let parsed = reqwest::Url::parse(url.as_str()).stringify_err()?;
+    if !is_public_https(&parsed) {
+        return Err("icon url must be a public https address".into());
+    }
+    let response = reqwest::get(parsed).await.stringify_err()?;
+    if !is_public_https(response.url()) {
+        return Err("icon url must be a public https address".into());
+    }
     let response = response.error_for_status().stringify_err()?;
     let content = response.bytes().await.stringify_err()?;
 
