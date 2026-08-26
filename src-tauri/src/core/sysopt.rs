@@ -183,8 +183,8 @@ impl Sysopt {
         tokio::task::spawn_blocking(move || -> Result<()> {
             for step in apply_steps {
                 match step {
-                    ProxyApplyStep::Autoproxy => auto.set_auto_proxy()?,
-                    ProxyApplyStep::Sysproxy => sys.set_system_proxy()?,
+                    ProxyApplyStep::Autoproxy => with_system_call_retry(|| auto.set_auto_proxy())?,
+                    ProxyApplyStep::Sysproxy => with_system_call_retry(|| sys.set_system_proxy())?,
                 }
             }
             Ok(())
@@ -216,14 +216,40 @@ impl Sysopt {
         };
 
         tokio::task::spawn_blocking(move || -> Result<()> {
-            sys.set_system_proxy()?;
-            auto.set_auto_proxy()?;
+            with_system_call_retry(|| sys.set_system_proxy())?;
+            with_system_call_retry(|| auto.set_auto_proxy())?;
             Ok(())
         })
         .await??;
 
         Ok(())
     }
+}
+
+const SYSTEM_CALL_ATTEMPTS: u32 = 3;
+const SYSTEM_CALL_RETRY_DELAY: Duration = Duration::from_millis(100);
+
+#[cfg(target_os = "windows")]
+const fn is_failed_system_call(error: &sysproxy::Error) -> bool {
+    matches!(error, sysproxy::Error::SystemCall(_))
+}
+
+#[cfg(not(target_os = "windows"))]
+const fn is_failed_system_call(_error: &sysproxy::Error) -> bool {
+    false
+}
+
+fn with_system_call_retry(mut apply: impl FnMut() -> sysproxy::Result<()>) -> sysproxy::Result<()> {
+    for _ in 1..SYSTEM_CALL_ATTEMPTS {
+        match apply() {
+            Err(error) if is_failed_system_call(&error) => {
+                logging!(warn, Type::Core, "system proxy write failed, retrying: {error}");
+                std::thread::sleep(SYSTEM_CALL_RETRY_DELAY);
+            }
+            other => return other,
+        }
+    }
+    apply()
 }
 
 #[cfg(test)]
