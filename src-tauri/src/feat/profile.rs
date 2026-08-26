@@ -8,7 +8,6 @@ use anyhow::{Result, bail};
 use clash_verge_logging::{Type, logging, logging_error};
 use smartstring::alias::String;
 
-/// Toggle proxy profile
 pub async fn toggle_proxy_profile(profile_index: String) {
     logging_error!(
         Type::Config,
@@ -30,9 +29,6 @@ pub async fn switch_proxy_node(group_name: &str, proxy_name: &str) {
                 group_name,
                 proxy_name
             );
-            // clod: выбор из трея жил только в ядре — перезапуск ядра (падение,
-            // переезд на службу, ручной рестарт) откатывал его к прежнему узлу.
-            // Записываем туда же, куда пишет интерфейс.
             if let Err(err) = crate::config::profiles::profiles_set_selected_node_safe(group_name, proxy_name).await {
                 logging!(
                     warn,
@@ -84,17 +80,12 @@ pub async fn switch_proxy_node(group_name: &str, proxy_name: &str) {
     }
 }
 
-// clod:fallback begin
-/// What `perform_profile_update` needs to know about a profile before it starts.
 struct UpdateTarget {
     url: String,
     option: Option<PrfOption>,
-    /// Full spare address from a previous `fallback-url` header.
     fallback_url: Option<String>,
-    /// Spare host for the primary address, from `fallback-domain`.
     fallback_domain: Option<String>,
 }
-// clod:fallback end
 
 async fn should_update_profile(uid: &String, ignore_auto_update: bool) -> Result<Option<UpdateTarget>> {
     let profiles = Config::profiles().await;
@@ -139,24 +130,12 @@ async fn should_update_profile(uid: &String, ignore_auto_update: bool) -> Result
         Ok(Some(UpdateTarget {
             url: item.url.clone().ok_or_else(|| anyhow::anyhow!("Profile URL is None"))?,
             option: item.option.clone(),
-            // clod: remembered from the previous fallback headers
             fallback_url: item.fallback_url.clone(),
             fallback_domain: item.fallback_domain.clone(),
         }))
     }
 }
 
-// clod:fallback begin
-/// Fetch a subscription URL through the same escalation the primary path uses:
-/// as configured, then through our own core, then through the system proxy.
-///
-/// Only used for the `fallback-url` retry; the primary path below is left
-/// untouched so upstream changes to it stay easy to merge.
-/// Persist a freshly fetched subscription and honour a provider migration.
-///
-/// A `new-url` / `new-domain` header is only applied once a probe download of
-/// the candidate produced a valid mihomo config, so a typo in the panel cannot
-/// strand the user on a dead URL.
 async fn apply_updated_item(uid: &String, item: &mut PrfItem) -> Result<()> {
     let migrate_url = item.migrate_url.clone();
     let request_option = item.option.clone();
@@ -167,7 +146,6 @@ async fn apply_updated_item(uid: &String, item: &mut PrfItem) -> Result<()> {
         return Ok(());
     };
 
-    // Two panels can point at each other; stop following after a few hops.
     let hops = Config::profiles()
         .await
         .latest_arc()
@@ -184,8 +162,6 @@ async fn apply_updated_item(uid: &String, item: &mut PrfItem) -> Result<()> {
         return Ok(());
     }
 
-    // Reuse the fresh item's option: it already references this profile's
-    // merge/script/rules/proxies/groups, so the probe cannot leak new ones.
     match PrfItem::from_url(&candidate, None, None, request_option.as_ref()).await {
         Ok(_) => match crate::config::profiles::profiles_migrate_url_safe(uid, candidate.clone()).await {
             Ok(()) => {
@@ -215,7 +191,6 @@ async fn apply_updated_item(uid: &String, item: &mut PrfItem) -> Result<()> {
 
     Ok(())
 }
-// clod:fallback end
 
 async fn perform_profile_update(
     uid: &String,
@@ -223,7 +198,6 @@ async fn perform_profile_update(
     opt: Option<&PrfOption>,
     option: Option<&PrfOption>,
     is_mannual_trigger: bool,
-    // clod: spare addresses from previous `fallback-*` headers
     fallback_url: Option<String>,
     fallback_domain: Option<String>,
 ) -> Result<bool> {
@@ -319,12 +293,6 @@ async fn perform_profile_update(
         }
     }
 
-    // clod:fallback begin
-    // Every attempt on the primary URL failed. The provider may have handed us a
-    // spare address in a previous response (`fallback-url`); use it, but keep the
-    // stored `url` untouched so the primary address is retried next time.
-    // `fallback-url` first, then the primary address with the spare host from
-    // `fallback-domain` — the order a panel expects.
     let spare_addresses = [
         fallback_url.filter(|value| !value.trim().is_empty()),
         fallback_domain
@@ -359,12 +327,12 @@ async fn perform_profile_update(
             }
         }
     }
-    // clod:fallback end
 
+    let last_err = mask_err(&last_err.to_string());
     if is_mannual_trigger {
         handle::Handle::notice_message("update_failed_even_with_clash", format!("{profile_name} - {last_err}"));
     }
-    Ok(is_current)
+    bail!(last_err)
 }
 
 pub async fn update_profile(
@@ -397,11 +365,6 @@ pub async fn update_profile(
             match outcome {
                 Ok(changed) => changed && auto_refresh,
                 Err(err) => {
-                    // clod:lock-expiry — до панели не дозвонились ни одним из
-                    // путей лестницы. Это ровно тот случай, ради которого у
-                    // замка есть срок годности: проверяем его здесь, а не
-                    // только на старте, иначе приложение, которое неделями не
-                    // перезапускают, замок бы не отпустило.
                     release_stale_panel_locks().await;
                     return Err(err);
                 }
@@ -416,9 +379,6 @@ pub async fn update_profile(
             Ok(outcome) if outcome.is_valid() => {
                 logging!(info, Type::Config, "[Обновление подписки] Обновление успешно");
                 handle::Handle::refresh_clash();
-                // clod: перезагрузка конфига сбрасывает выбор узлов в ядре —
-                // восстанавливаем сохранённый выбор (и избранные) сразу же,
-                // иначе после каждого обновления подписки слетал сервер
                 if let Err(err) = crate::config::profiles::activate_selected_nodes() {
                     logging!(
                         warn,
@@ -426,12 +386,9 @@ pub async fn update_profile(
                         "Warning: [Обновление подписки] restore selection failed: {err}"
                     );
                 }
-                // clod:F7 — fresh panel data, recompute the notification state
                 crate::process::AsyncHandler::spawn(|| async {
                     crate::module::sub_watcher::run_check().await;
                 });
-                // clod: логотип провайдера кладём в локальный кэш — иначе он
-                // грузится с чужого хоста при каждом показе экрана
                 let logo_uid = uid.clone();
                 crate::process::AsyncHandler::spawn(move || async move {
                     crate::module::logo_cache::sync(&logo_uid).await;
@@ -445,25 +402,20 @@ pub async fn update_profile(
                     outcome
                 );
             }
-            Ok(outcome) => {
-                let message = outcome.to_string();
+            result => {
+                let message = match result {
+                    Ok(outcome) => outcome.to_string(),
+                    Err(err) => err.to_string(),
+                };
+                let message = mask_err(&message);
                 logging!(
                     error,
                     Type::Config,
                     "[Обновление подписки] Обновление не удалось: {}",
                     message
                 );
-                handle::Handle::notice_message("update_failed", message);
-            }
-            Err(err) => {
-                logging!(
-                    error,
-                    Type::Config,
-                    "[Обновление подписки] Обновление не удалось: {}",
-                    err
-                );
-                handle::Handle::notice_message("update_failed", format!("{err}"));
-                logging!(error, Type::Config, "{err}");
+                handle::Handle::notice_message("update_failed", message.clone());
+                bail!(message);
             }
         }
     }
@@ -471,29 +423,14 @@ pub async fn update_profile(
     Ok(())
 }
 
-/// Расширенный конфиг
 pub async fn enhance_profiles() -> Result<ValidationOutcome> {
     CoreManager::global().update_config_forced().await
 }
 
-/// clod:lock-expiry — минимальный срок годности замка провайдера.
-///
-/// Замок (`clod-lock-mode`) держится, пока панель его подтверждает: каждое
-/// успешное обновление подписки приносит заголовок заново, а исчезнувший
-/// заголовок замок снимает (`merge_panel_meta`). Дыра была в третьем случае —
-/// панель не отвечает вовсе. Домен забанили, провайдер закрылся, срок вышел —
-/// подтверждать замок стало некому, и он оставался на устройстве навсегда,
-/// причём выход («удалить подписку») нигде не объяснён.
 const LOCK_GRACE_SECS: i64 = 72 * 60 * 60;
 
-/// Во сколько раз срок годности замка длиннее интервала обновления подписки.
-///
-/// Абсолютного порога мало: панель с интервалом в неделю штатно молчит дольше
-/// трёх суток, и фиксированный срок снимал бы замок на живой подписке. Три
-/// пропущенных обновления подряд — это уже не «сеть моргнула».
 const LOCK_GRACE_INTERVALS: u64 = 3;
 
-/// Сколько замок живёт без подтверждения для конкретной подписки, в секундах.
 fn lock_grace_secs(item: &PrfItem) -> i64 {
     let interval_minutes = item.option.as_ref().and_then(|opt| opt.update_interval).unwrap_or(0);
     let by_interval = interval_minutes
@@ -503,28 +440,16 @@ fn lock_grace_secs(item: &PrfItem) -> i64 {
     by_interval.max(LOCK_GRACE_SECS)
 }
 
-/// Протух ли замок на этой подписке к моменту `now` (unix-секунды).
 fn lock_expired(item: &PrfItem, now: i64) -> bool {
     if item.lock_mode != Some(true) {
         return false;
     }
     let Some(updated) = item.updated.filter(|value| *value > 0) else {
-        // Замок есть, а отметки об удачном обновлении нет — штатно такого
-        // профиля не бывает (`from_url` ставит `updated` вместе с
-        // заголовками). Снимать замок по неизвестному возрасту нельзя: это
-        // подарок тому, кто подчистит поле в profiles.yaml.
         return false;
     };
     now.saturating_sub(updated as i64) > lock_grace_secs(item)
 }
 
-/// clod:lock-expiry — снять замки, которые панель давно не подтверждала.
-///
-/// Чистим ПОЛЕ в профиле, а не заводим второе понятие «замок, но протухший»:
-/// потребителей у `lock_mode` четверо (переключение режима, трей, экран
-/// настроек, страница прокси), и второй источник истины разошёлся бы с первым
-/// на первой же правке. Панель ожила — ближайшее удачное обновление принесёт
-/// заголовок обратно, и замок вернётся.
 pub async fn release_stale_panel_locks() {
     let now = chrono::Local::now().timestamp();
 
@@ -620,8 +545,6 @@ mod lock_expiry_tests {
 
     #[test]
     fn a_long_update_interval_stretches_the_grace() {
-        // Недельный интервал: четыре дня молчания для такой подписки — норма,
-        // а три пропущенных круга подряд — уже нет.
         let now = 100 * DAY;
         let weekly = 7 * 24 * 60;
         assert!(!lock_expired(&locked_item(now - 4 * DAY, Some(weekly)), now));
