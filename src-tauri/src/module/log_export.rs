@@ -14,12 +14,18 @@ const MAX_FILE_BYTES: u64 = 8 * 1024 * 1024;
 fn read_log_tail(path: &Path, max_bytes: u64) -> std::io::Result<(Vec<u8>, u64)> {
     let mut file = std::fs::File::open(path)?;
     let len = file.metadata()?.len();
-    let skipped = len.saturating_sub(max_bytes);
+    let mut skipped = len.saturating_sub(max_bytes);
     if skipped > 0 {
         file.seek(SeekFrom::Start(skipped))?;
     }
     let mut raw = Vec::with_capacity(usize::try_from(len - skipped).unwrap_or_default());
     file.read_to_end(&mut raw)?;
+    if skipped > 0
+        && let Some(newline) = raw.iter().position(|byte| *byte == b'\n')
+    {
+        raw.drain(..=newline);
+        skipped += newline as u64 + 1;
+    }
     Ok((raw, skipped))
 }
 
@@ -141,8 +147,12 @@ mod tests {
         let (raw, skipped) = read_log_tail(&path, 4).unwrap();
         assert_eq!(raw, b"6789");
         assert_eq!(skipped, 6);
+        std::fs::write(&path, b"token: abc\nsecond\nthird\n").unwrap();
+        let (raw, skipped) = read_log_tail(&path, 15).unwrap();
+        assert_eq!(raw, b"second\nthird\n");
+        assert_eq!(skipped, 11);
         let (raw, skipped) = read_log_tail(&path, 64).unwrap();
-        assert_eq!(raw, b"0123456789");
+        assert_eq!(raw, b"token: abc\nsecond\nthird\n");
         assert_eq!(skipped, 0);
         let _ = std::fs::remove_dir_all(&dir);
     }
