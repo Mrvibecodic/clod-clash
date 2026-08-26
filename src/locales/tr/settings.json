@@ -709,8 +709,7 @@
         "uninstallSuccess": "Hizmet Başarıyla Kaldırıldı"
       },
       "updater": {
-        "withClashProxySuccess": "Clash vekil ile güncelleme başarılı",
-        "withClashProxyFailed": "Clash vekil ile bile güncelleme başarısız oldu"
+        "withClashProxySuccess": "Clash vekil ile güncelleme başarılı"
       }
     }
   },

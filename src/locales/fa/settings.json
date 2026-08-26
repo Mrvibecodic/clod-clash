@@ -709,8 +709,7 @@
         "uninstallSuccess": "سرویس با موفقیت حذف نصب شد"
       },
       "updater": {
-        "withClashProxySuccess": "با موفقیت با پروکسی کلش به‌روزرسانی شد",
-        "withClashProxyFailed": "به‌روزرسانی حتی با پروکسی کلش هم انجام نشد"
+        "withClashProxySuccess": "با موفقیت با پروکسی کلش به‌روزرسانی شد"
       }
     }
   },

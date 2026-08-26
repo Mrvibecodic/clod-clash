@@ -709,8 +709,7 @@
         "uninstallSuccess": "サービスのアンインストールに成功しました。"
       },
       "updater": {
-        "withClashProxySuccess": "Clashプロキシを使用して更新に成功しました。",
-        "withClashProxyFailed": "Clashプロキシを使用しても更新に失敗しました。"
+        "withClashProxySuccess": "Clashプロキシを使用して更新に成功しました。"
       }
     }
   },

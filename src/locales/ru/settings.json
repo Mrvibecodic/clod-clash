@@ -709,8 +709,7 @@
         "uninstallSuccess": "Служба успешно удалена"
       },
       "updater": {
-        "withClashProxySuccess": "Обновление через Clash proxy выполнено успешно",
-        "withClashProxyFailed": "Обновление не удалось даже через Clash proxy"
+        "withClashProxySuccess": "Обновление через Clash proxy выполнено успешно"
       }
     }
   },

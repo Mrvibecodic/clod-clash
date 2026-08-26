@@ -567,6 +567,7 @@ export interface TranslationResources {
             importSuccess: string
             profileReactivated: string
             profileSwitched: string
+            proxyLinksSkipped: string
             switchBusy: string
             urlMigrated: string
           }
@@ -921,7 +922,6 @@ export interface TranslationResources {
             uninstallSuccess: string
           }
           updater: {
-            withClashProxyFailed: string
             withClashProxySuccess: string
           }
         }

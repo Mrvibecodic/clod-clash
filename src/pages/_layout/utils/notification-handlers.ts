@@ -29,11 +29,6 @@ export const handleNoticeMessage = (
         'settings.feedback.notifications.updater.withClashProxySuccess',
         msg,
       ),
-    update_failed_even_with_clash: () =>
-      showNotice.error(
-        'settings.feedback.notifications.updater.withClashProxyFailed',
-        msg,
-      ),
     'clod_sub::url_migrated': () =>
       showNotice.success(
         'profiles.page.feedback.notifications.urlMigrated',

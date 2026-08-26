@@ -709,8 +709,7 @@
         "uninstallSuccess": "서비스가 제거되었습니다"
       },
       "updater": {
-        "withClashProxySuccess": "Clash 프록시로 업데이트 성공",
-        "withClashProxyFailed": "Clash 프록시로도 업데이트 실패"
+        "withClashProxySuccess": "Clash 프록시로 업데이트 성공"
       }
     }
   },

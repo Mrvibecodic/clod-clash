@@ -197,7 +197,6 @@ async fn perform_profile_update(
     url: &String,
     opt: Option<&PrfOption>,
     option: Option<&PrfOption>,
-    is_mannual_trigger: bool,
     fallback_url: Option<String>,
     fallback_domain: Option<String>,
 ) -> Result<bool> {
@@ -329,10 +328,7 @@ async fn perform_profile_update(
     }
 
     let last_err = mask_err(&last_err.to_string());
-    if is_mannual_trigger {
-        handle::Handle::notice_message("update_failed_even_with_clash", format!("{profile_name} - {last_err}"));
-    }
-    bail!(last_err)
+    bail!("{profile_name} - {last_err}")
 }
 
 pub async fn update_profile(
@@ -357,7 +353,6 @@ pub async fn update_profile(
                 &target.url,
                 target.option.as_ref(),
                 option,
-                is_mannual_trigger,
                 target.fallback_url,
                 target.fallback_domain,
             )
@@ -414,7 +409,9 @@ pub async fn update_profile(
                     "[Обновление подписки] Обновление не удалось: {}",
                     message
                 );
-                handle::Handle::notice_message("update_failed", message.clone());
+                if !is_mannual_trigger {
+                    handle::Handle::notice_message("update_failed", message.clone());
+                }
                 bail!(message);
             }
         }

@@ -709,8 +709,7 @@
         "uninstallSuccess": "Servicio desinstalado con éxito"
       },
       "updater": {
-        "withClashProxySuccess": "Actualización con el proxy de Clash exitosa",
-        "withClashProxyFailed": "Error al actualizar incluso con el proxy de Clash"
+        "withClashProxySuccess": "Actualización con el proxy de Clash exitosa"
       }
     }
   },

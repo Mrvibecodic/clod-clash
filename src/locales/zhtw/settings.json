@@ -709,8 +709,7 @@
         "uninstallSuccess": "已成功解除安裝服務"
       },
       "updater": {
-        "withClashProxySuccess": "使用 Clash 代理更新成功",
-        "withClashProxyFailed": "使用 Clash 代理更新也失敗"
+        "withClashProxySuccess": "使用 Clash 代理更新成功"
       }
     }
   },
