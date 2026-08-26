@@ -127,7 +127,7 @@
         "failed": "Subscription configuration validation failed. Please check the subscription configuration file; modifications have been rolled back.",
         "bootFailed": "Boot subscription configuration validation failed. Started with the default configuration; please check the subscription configuration file.",
         "coreChangeFailed": "Configuration validation failed when switching the kernel. Started with the default configuration; please check the subscription configuration file.",
-        "processTerminated": "The validation process has been terminated."
+        "processTerminated": "The validation process has been terminated. Check whether security software blocks the core from running and whether this computer's CPU supports the core build."
       },
       "script": {
         "syntaxError": "Script syntax error, changes reverted",

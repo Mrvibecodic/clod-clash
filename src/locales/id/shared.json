@@ -127,7 +127,7 @@
         "failed": "Validasi konfigurasi langganan gagal, periksa file konfigurasi, perubahan dibatalkan, detail kesalahan:",
         "bootFailed": "Validasi konfigurasi saat boot gagal, menggunakan konfigurasi default, periksa file konfigurasi, detail kesalahan:",
         "coreChangeFailed": "Validasi konfigurasi saat ganti inti gagal, menggunakan konfigurasi default, periksa file konfigurasi, detail kesalahan:",
-        "processTerminated": "Proses validasi dihentikan"
+        "processTerminated": "Proses validasi dihentikan. Periksa apakah perangkat lunak keamanan memblokir inti dan apakah CPU komputer ini mendukung build inti tersebut."
       },
       "script": {
         "syntaxError": "Kesalahan sintaks skrip, perubahan dibatalkan",

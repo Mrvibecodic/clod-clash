@@ -127,7 +127,7 @@
         "failed": "Abonnement-Konfigurationsüberprüfung fehlgeschlagen. Bitte überprüfen Sie die Abonnement-Konfigurationsdatei. Die Änderungen wurden rückgängig gemacht. Fehlerdetails: ",
         "bootFailed": "Start-Abonnement-Konfigurationsüberprüfung fehlgeschlagen. Die Standardkonfiguration wurde verwendet, um die App zu starten. Bitte überprüfen Sie die Abonnement-Konfigurationsdatei. Fehlerdetails: ",
         "coreChangeFailed": "Konfigurationsüberprüfung beim Wechsel des Kerns fehlgeschlagen. Die Standardkonfiguration wurde verwendet, um die App zu starten. Bitte überprüfen Sie die Abonnement-Konfigurationsdatei. Fehlerdetails: ",
-        "processTerminated": "Validierungsprozess abgebrochen"
+        "processTerminated": "Der Validierungsprozess wurde beendet. Prüfen Sie, ob eine Sicherheitssoftware den Kern blockiert und ob die CPU dieses Computers den Kern-Build unterstützt."
       },
       "script": {
         "syntaxError": "Skript-Syntaxfehler. Die Änderungen wurden rückgängig gemacht.",
