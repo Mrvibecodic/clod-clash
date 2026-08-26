@@ -46,7 +46,7 @@
         "urlMigrated": "The provider moved this subscription to a new address",
         "fallbackUsed": "Updated from the provider's backup address",
         "editorBrokenYaml": "YAML로 해석할 수 없어 덮어쓰지 않도록 텍스트로 열었습니다. 문법을 고친 뒤 다시 전환하세요.",
-        "proxyLinksSkipped": "링크 {{count}}개를 해석하지 못해 건너뛰었습니다:\n{{lines}}"
+        "proxyLinksSkipped": "링크 {{count}}개를 해석하지 못해 건너뛰었습니다: {{lines}}"
       },
       "notices": {
         "forceRefreshCompleted": "강제 새로고침 완료",

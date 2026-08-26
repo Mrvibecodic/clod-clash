@@ -46,7 +46,7 @@
         "urlMigrated": "The provider moved this subscription to a new address",
         "fallbackUsed": "Updated from the provider's backup address",
         "editorBrokenYaml": "Dosya YAML olarak ayrıştırılamadı — hiçbir şeyin üzerine yazılmaması için metin olarak açıldı. Söz dizimini düzeltip geri dönün.",
-        "proxyLinksSkipped": "{{count}} bağlantı çözümlenemedi ve atlandı:\n{{lines}}"
+        "proxyLinksSkipped": "{{count}} bağlantı çözümlenemedi ve atlandı: {{lines}}"
       },
       "notices": {
         "forceRefreshCompleted": "Force refresh completed",

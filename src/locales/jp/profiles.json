@@ -46,7 +46,7 @@
         "urlMigrated": "The provider moved this subscription to a new address",
         "fallbackUsed": "Updated from the provider's backup address",
         "editorBrokenYaml": "YAML として解析できないため、上書きを避けてテキストとして開きました。構文を直してから戻ってください。",
-        "proxyLinksSkipped": "{{count}} 件のリンクを解析できず、スキップしました:\n{{lines}}"
+        "proxyLinksSkipped": "{{count}} 件のリンクを解析できず、スキップしました: {{lines}}"
       },
       "notices": {
         "forceRefreshCompleted": "Force refresh completed",

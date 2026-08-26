@@ -280,7 +280,7 @@ export const ProxiesEditorViewer = (props: Props) => {
                 .map((line) =>
                   line.length > 60 ? `${line.slice(0, 60)}…` : line,
                 )
-                .join('\n'),
+                .join(' · '),
             },
             6000,
           )

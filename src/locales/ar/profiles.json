@@ -46,7 +46,7 @@
         "urlMigrated": "The provider moved this subscription to a new address",
         "fallbackUsed": "Updated from the provider's backup address",
         "editorBrokenYaml": "تعذّر تحليل الملف كـ YAML — فُتح كنص حتى لا يُستبدل أي شيء. صحّح الصياغة ثم عُد إلى العرض المرئي.",
-        "proxyLinksSkipped": "تعذّر تحليل {{count}} من الروابط وتم تخطيها:\n{{lines}}"
+        "proxyLinksSkipped": "تعذّر تحليل {{count}} من الروابط وتم تخطيها: {{lines}}"
       },
       "notices": {
         "forceRefreshCompleted": "Force refresh completed",

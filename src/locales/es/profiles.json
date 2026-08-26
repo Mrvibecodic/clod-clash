@@ -46,7 +46,7 @@
         "urlMigrated": "The provider moved this subscription to a new address",
         "fallbackUsed": "Updated from the provider's backup address",
         "editorBrokenYaml": "El archivo no se puede analizar como YAML: se abrió como texto para no sobrescribir nada. Corrige la sintaxis y vuelve a la vista visual.",
-        "proxyLinksSkipped": "No se pudieron interpretar {{count}} enlace(s); se omitieron:\n{{lines}}"
+        "proxyLinksSkipped": "No se pudieron interpretar {{count}} enlace(s); se omitieron: {{lines}}"
       },
       "notices": {
         "forceRefreshCompleted": "Force refresh completed",
