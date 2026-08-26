@@ -1,7 +1,5 @@
-import { EditRounded } from '@mui/icons-material'
 import {
   Box,
-  Button,
   List,
   ListItem,
   ListItemText,
@@ -20,7 +18,6 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import { BaseDialog, DialogRef } from '@/components/base'
-import { EditorViewer } from '@/components/profile/editor-viewer'
 import { useVerge } from '@/hooks/use-verge'
 import { ACCENT_PRESETS, defaultDarkTheme, defaultTheme } from '@/pages/_theme'
 import { showNotice } from '@/services/notice-service'
@@ -30,9 +27,6 @@ export function ThemeViewer(props: { ref?: React.Ref<DialogRef> }) {
   const { t } = useTranslation()
 
   const [open, setOpen] = useState(false)
-  const [editorOpen, setEditorOpen] = useState(false)
-  const [cssEditorValue, setCssEditorValue] = useState('')
-  const [cssEditorSavedValue, setCssEditorSavedValue] = useState('')
   const { verge, patchVerge } = useVerge()
   const { theme_setting } = verge ?? {}
   const [theme, setTheme] = useState(theme_setting || {})
@@ -112,25 +106,6 @@ export function ThemeViewer(props: { ref?: React.Ref<DialogRef> }) {
     [],
   )
 
-  const openCssEditor = () => {
-    const nextCss = themeRef.current?.css_injection ?? ''
-    setCssEditorValue(nextCss)
-    setCssEditorSavedValue(nextCss)
-    setEditorOpen(true)
-  }
-
-  const handleSaveCss = useLockFn(async () => {
-    const prevTheme = themeRef.current || {}
-    const nextTheme = { ...prevTheme, css_injection: cssEditorValue }
-    try {
-      await patchVerge({ theme_setting: nextTheme })
-      setTheme(nextTheme)
-      setCssEditorSavedValue(cssEditorValue)
-    } catch (err) {
-      showNotice.error(err)
-    }
-  })
-
   const renderItem = (labelKey: string, key: ThemeKey) => {
     const label = t(labelKey)
     return (
@@ -199,33 +174,6 @@ export function ThemeViewer(props: { ref?: React.Ref<DialogRef> }) {
             onChange={handleChange('font_family')}
             onKeyDown={(e) => e.key === 'Enter' && onSave()}
           />
-        </Item>
-        <Item>
-          <ListItemText
-            primary={t('settings.components.verge.theme.fields.cssInjection')}
-          />
-          <Button
-            startIcon={<EditRounded />}
-            variant="outlined"
-            onClick={openCssEditor}
-          >
-            {t('settings.components.verge.theme.actions.editCss')}
-          </Button>
-          {editorOpen && (
-            <EditorViewer
-              open={true}
-              title={t('settings.components.verge.theme.dialogs.editCssTitle')}
-              value={cssEditorValue}
-              language="css"
-              path="theme-css.css"
-              dirty={cssEditorValue !== cssEditorSavedValue}
-              onChange={setCssEditorValue}
-              onSave={handleSaveCss}
-              onClose={() => {
-                setEditorOpen(false)
-              }}
-            />
-          )}
         </Item>
       </List>
     </BaseDialog>
