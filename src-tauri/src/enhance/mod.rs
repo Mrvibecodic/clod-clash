@@ -972,7 +972,7 @@ fn ensure_fake_ip_range6(dns: &mut Mapping) {
         .unwrap_or(true);
 
     if ipv6_enabled && is_fake_ip && range6_missing {
-        dns.insert(Value::from("fake-ip-range6"), Value::from("fdfe:dcba:9876::1/64"));
+        dns.insert(Value::from("fake-ip-range6"), Value::from("2001:2::0/64"));
     }
 }
 

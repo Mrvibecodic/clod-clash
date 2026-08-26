@@ -127,13 +127,12 @@ function parseList(str: string): string[] {
     .filter(Boolean)
 }
 
-// Конфиг DNS по умолчанию
 const DEFAULT_DNS_CONFIG = {
   enable: true,
   listen: ':53',
   'enhanced-mode': 'fake-ip' as 'fake-ip' | 'redir-host',
   'fake-ip-range': '198.18.0.1/16',
-  'fake-ip-range6': 'fdfe:dcba:9876::1/64',
+  'fake-ip-range6': '2001:2::0/64',
   'fake-ip-filter-mode': 'blacklist' as 'blacklist' | 'whitelist',
   'prefer-h3': false,
   'respect-rules': false,
@@ -214,7 +213,7 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
     fallbackIpcidr: string
     fallbackDomain: string
     nameserverPolicy: string
-    hosts: string // настройка hosts, независима от dns
+    hosts: string
   }>({
     enable: DEFAULT_DNS_CONFIG.enable,
     listen: DEFAULT_DNS_CONFIG.listen,
@@ -246,13 +245,11 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
     hosts: '',
   })
 
-  // Для режима редактирования YAML
   const [yamlContent, setYamlContent] = useReducer(
     (_: string, next: string) => next,
     '',
   )
 
-  // Обновляем значения формы из объекта конфига
   const updateValuesFromConfig = useCallback(
     (config: any) => {
       if (!config) return
@@ -387,7 +384,6 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
     setYamlContent(yaml.dump(config, { forceQuotes: true }))
   }, [generateDnsConfig, setYamlContent, values.hosts])
 
-  // Сброс к значениям по умолчанию
   const resetToDefaults = useCallback(() => {
     setValues({
       enable: DEFAULT_DNS_CONFIG.enable,
@@ -424,7 +420,6 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
     updateYamlFromValues()
   }, [setValues, updateYamlFromValues])
 
-  // Обновляем значения формы из YAML
   const updateValuesFromYaml = useCallback(() => {
     try {
       const parsedYaml = yaml.load(yamlContent) as any
@@ -502,14 +497,11 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
     [initDnsConfig],
   )
 
-  // Генерируем объект конфига DNS
-  // Обработка сохранения
   const onSave = useLockFn(async () => {
     try {
       let config: Record<string, any>
 
       if (visualization) {
-        // Генерируем конфиг из значений формы
         config = {}
 
         const dnsConfig = generateDnsConfig()
@@ -522,7 +514,6 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
           config.hosts = hosts
         }
       } else {
-        // Используем значение из YAML-редактора
         const parsedConfig = yaml.load(yamlContent)
         if (typeof parsedConfig !== 'object' || parsedConfig === null) {
           throw new Error(t('settings.modals.dns.errors.invalid'))
@@ -530,10 +521,8 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
         config = parsedConfig as Record<string, any>
       }
 
-      // Сохраняем конфиг
       await invoke('save_dns_config', { dnsConfig: config })
 
-      // Проверяем конфиг
       const validation = await invoke<ValidationOutcome>(
         'validate_dns_config',
         {},
@@ -546,7 +535,6 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
             : 'Configuration validation skipped'
         let cleanErrorMsg = errorMsg
 
-        // Извлекаем ключевое сообщение об ошибке
         if (errorMsg.includes('level=error')) {
           const errorLines = errorMsg
             .split('\n')
@@ -574,7 +562,6 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
         return
       }
 
-      // Если переключатель DNS сейчас включён, нужно применить новый конфиг DNS
       if (clash?.dns?.enable) {
         await invoke('apply_dns_config', { apply: true })
         mutateClash()
@@ -587,12 +574,10 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
     }
   })
 
-  // Обработка изменения содержимого YAML-редактора
   const handleYamlChange = (value?: string) => {
     setYamlContent(value || '')
   }
 
-  // Обработка изменения значений формы
   const handleChange = (field: string) => (event: any) => {
     const value =
       event.target.type === 'checkbox'
@@ -605,7 +590,6 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
         [field]: value,
       }
 
-      // При изменении значений в режиме визуального редактирования автообновляем YAML
       if (visualization) {
         setTimeout(() => {
           updateYamlFromValues()
@@ -666,7 +650,6 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
       onCancel={() => setOpen(false)}
       onOk={onSave}
     >
-      {/* Warning message */}
       <Typography
         variant="body2"
         color="warning.main"
@@ -746,7 +729,7 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
               spellCheck="false"
               value={values.fakeIpRange6}
               onChange={handleChange('fakeIpRange6')}
-              placeholder="fdfe:dcba:9876::1/64"
+              placeholder="2001:2::0/64"
               sx={{ width: 200 }}
             />
           </Item>
@@ -1052,7 +1035,6 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
             />
           </Item>
 
-          {/* Раздел настройки Hosts */}
           <Typography
             variant="subtitle1"
             sx={{ mt: 3, mb: 0, fontWeight: 'bold' }}

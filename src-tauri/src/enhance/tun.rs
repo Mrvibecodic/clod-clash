@@ -11,15 +11,6 @@ macro_rules! revise {
 }
 
 #[allow(unused_macros)]
-macro_rules! append {
-    ($map: expr, $key: expr, $val: expr) => {
-        let ret_key = Value::String($key.into());
-        if !$map.contains_key(&ret_key) {
-            $map.insert(ret_key, Value::from($val));
-        }
-    };
-}
-
 pub fn use_tun(mut config: Mapping, enable: bool) -> Mapping {
     let tun_key = Value::from("tun");
     let tun_val = config.get(&tun_key);
@@ -81,7 +72,7 @@ fn shape_dns_for_tun(config: &mut Mapping) -> bool {
         }
 
         if ipv6_val && !dns_val.contains_key(Value::from("fake-ip-range6")) {
-            revise!(dns_val, "fake-ip-range6", "fdfe:dcba:9876::1/64");
+            revise!(dns_val, "fake-ip-range6", "2001:2::0/64");
         }
     }
 

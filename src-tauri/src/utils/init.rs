@@ -1,4 +1,3 @@
-// #[cfg(not(feature = "tracing"))]
 use crate::{
     config::{Config, IClashTemp, IProfiles, IVerge},
     constants,
@@ -42,9 +41,6 @@ async fn delete_snapshot_logs(log_dir: &Path) -> Result<()> {
     Ok(())
 }
 
-// TODO flexi_logger предоставляет максимальное число дней хранения, возможно стоит
-// использовать встроенное удаление log-файлов
-/// Удаляет log-файлы
 pub async fn delete_log() -> Result<()> {
     let log_dir = dirs::app_logs_dir()?;
     let service_log_dir = dirs::service_log_dir()?;
@@ -64,7 +60,6 @@ pub async fn delete_log() -> Result<()> {
         verge.auto_log_clean.unwrap_or(0)
     };
 
-    // 1: 1 день, 2: 7 дней, 3: 30 дней, 4: 90 дней
     let day = match auto_log_clean {
         1 => 1,
         2 => 7,
@@ -75,7 +70,6 @@ pub async fn delete_log() -> Result<()> {
 
     logging!(info, Type::Setup, "try to delete log files, day: {}", day);
 
-    // %Y-%m-%d to NaiveDateTime
     let parse_time_str = |s: &str| {
         let sa: Vec<&str> = s.split('-').collect();
         if sa.len() != 4 {
@@ -275,19 +269,16 @@ async fn migrate_legacy_macos_logs() -> Result<()> {
     Ok(())
 }
 
-/// Инициализация конфига DNS
 pub(super) async fn init_dns_config() -> Result<()> {
     use serde_yaml_ng::Value;
 
-    // Создаём подконфиг DNS
     let dns_config = serde_yaml_ng::Mapping::from_iter([
         ("enable".into(), Value::Bool(true)),
-        // Совпадает со значением по умолчанию на фронтенде, используется для блокировки dns.ipv6
         ("ipv6".into(), Value::Bool(true)),
         ("listen".into(), Value::String(":53".into())),
         ("enhanced-mode".into(), Value::String("fake-ip".into())),
         ("fake-ip-range".into(), Value::String("198.18.0.1/16".into())),
-        ("fake-ip-range6".into(), Value::String("fdfe:dcba:9876::1/64".into())),
+        ("fake-ip-range6".into(), Value::String("2001:2::0/64".into())),
         ("fake-ip-filter-mode".into(), Value::String("blacklist".into())),
         ("prefer-h3".into(), Value::Bool(false)),
         ("respect-rules".into(), Value::Bool(false)),
@@ -365,13 +356,11 @@ pub(super) async fn init_dns_config() -> Result<()> {
         ),
     ]);
 
-    // Получаем DNS-конфиг и конфиг host по умолчанию
     let default_dns_config = serde_yaml_ng::Mapping::from_iter([
         ("dns".into(), Value::Mapping(dns_config)),
         ("hosts".into(), Value::Mapping(serde_yaml_ng::Mapping::new())),
     ]);
 
-    // Проверяем, существует ли файл конфига DNS
     let app_dir = dirs::app_home_dir()?;
     let dns_path = app_dir.join(constants::files::DNS_CONFIG);
 
@@ -383,7 +372,6 @@ pub(super) async fn init_dns_config() -> Result<()> {
     Ok(())
 }
 
-/// Убеждается, что структура каталогов существует
 async fn ensure_directories() -> Result<()> {
     let directories = [
         ("app_home", dirs::app_home_dir()?),
@@ -404,7 +392,6 @@ async fn ensure_directories() -> Result<()> {
     Ok(())
 }
 
-/// Инициализация конфигов
 async fn initialize_config_files() -> Result<()> {
     if let Ok(path) = dirs::clash_path()
         && !path.exists()
@@ -436,7 +423,6 @@ async fn initialize_config_files() -> Result<()> {
         logging!(info, Type::Setup, "Created profiles config at {:?}", path);
     }
 
-    // Проверяем и исправляем конфиг verge
     IVerge::validate_and_fix_config()
         .await
         .map_err(|e| anyhow::anyhow!("Failed to validate verge config: {}", e))?;
@@ -444,14 +430,7 @@ async fn initialize_config_files() -> Result<()> {
     Ok(())
 }
 
-/// Initialize all the config files
-/// before tauri setup
 pub async fn init_config() -> Result<()> {
-    // We do not need init_portable_flag here anymore due to lib.rs will to the things
-    // let _ = dirs::init_portable_flag();
-
-    // We do not need init_log here anymore due to resolve will to the things
-
     #[cfg(target_os = "macos")]
     migrate_legacy_macos_logs().await?;
 
@@ -469,8 +448,6 @@ pub async fn init_config() -> Result<()> {
     Ok(())
 }
 
-/// initialize app resources
-/// after tauri setup
 pub async fn init_resources() -> Result<()> {
     let app_dir = dirs::app_home_dir()?;
     let res_dir = dirs::app_resources_dir()?;
@@ -484,8 +461,6 @@ pub async fn init_resources() -> Result<()> {
 
     let file_list = ["Country.mmdb", "geoip.dat", "geosite.dat"];
 
-    // copy the resource file
-    // if the source file is newer than the destination file, copy it over
     for file in file_list.iter() {
         let src_path = res_dir.join(file);
         let dest_path = app_dir.join(file);
@@ -514,7 +489,6 @@ pub async fn init_resources() -> Result<()> {
     Ok(())
 }
 
-/// initialize url scheme
 #[cfg(target_os = "windows")]
 pub fn init_scheme() -> Result<()> {
     use tauri::utils::platform::current_exe;
@@ -540,7 +514,6 @@ pub fn init_scheme() -> Result<()> {
 }
 #[cfg(target_os = "linux")]
 pub fn init_scheme() -> Result<()> {
-    // clod: derived from the bundle name Tauri generates out of `productName`
     let desktop_file = format!("{}.desktop", crate::constants::branding::APP_SLUG);
     let desktop_file = desktop_file.as_str();
 
