@@ -402,12 +402,7 @@ async fn verify_sha256(release: &GhRelease, asset: &GhAsset, bytes: &[u8]) -> Re
 
     let checksum_name = format!("{}.sha256", asset.name);
     let Some(checksum_asset) = release.assets.iter().find(|a| a.name == checksum_name) else {
-        logging!(
-            warn,
-            Type::Core,
-            "release publishes neither a digest nor {checksum_name}, skipping checksum verification"
-        );
-        return Ok(());
+        bail!("release publishes neither a digest nor {checksum_name}, refusing to install an unverified core");
     };
 
     let text = {
