@@ -1105,9 +1105,9 @@ fn fix_dirty_url(input: &str) -> Result<Url> {
         }
     };
 
-    if !matches!(url.scheme(), "http" | "https") {
+    if url.scheme() != "https" {
         anyhow::bail!(
-            "subscription URL must use http or https, got scheme \"{}\": {}",
+            "subscription URL must use https, got scheme \"{}\": {}",
             url.scheme(),
             help::mask_url(input)
         );
@@ -1182,9 +1182,10 @@ mod tests {
 
     #[test]
     #[allow(clippy::expect_used)]
-    fn subscription_urls_are_limited_to_http_and_https() {
+    fn subscription_urls_are_limited_to_https() {
         assert!(fix_dirty_url("https://panel.example/sub/token").is_ok());
-        assert!(fix_dirty_url("http://panel.example/sub").is_ok());
+        assert!(fix_dirty_url("https://panel.example/sub").is_ok());
+        assert!(fix_dirty_url("http://panel.example/sub").is_err());
 
         let fixed = fix_dirty_url("https://panel.example/sub&flow=xtls").expect("dirty url");
         assert_eq!(fixed.query(), Some("flow=xtls"));
@@ -1198,7 +1199,7 @@ mod tests {
             "clodclash://install-config?url=x",
         ] {
             let error = fix_dirty_url(hostile).expect_err(hostile).to_string();
-            assert!(error.contains("http or https"), "{hostile} -> {error}");
+            assert!(error.contains("must use https"), "{hostile} -> {error}");
         }
 
         assert!(fix_dirty_url("https://").is_err());

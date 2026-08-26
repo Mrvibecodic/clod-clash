@@ -26,8 +26,6 @@ pub(super) async fn resolve_scheme(param: &str) -> Result<()> {
         .map_err(|e| anyhow::anyhow!("failed to parse deep link: {e:?}, param: {masked_deep_link}"))?;
 
     let Some((url, name)) = extract_subscription_info(&link_parsed) else {
-        // Either there is no `url=` at all, or what stands there is not an
-        // http(s) address we are willing to fetch.
         logging!(
             warn,
             Type::Config,
@@ -41,8 +39,6 @@ pub(super) async fn resolve_scheme(param: &str) -> Result<()> {
 }
 
 fn extract_subscription_info(link_parsed: &Url) -> Option<(std::string::String, Option<String>)> {
-    // clod: `clodclash` is our own scheme; the upstream ones keep working so
-    // links made for other Clash clients still import.
     if !matches!(link_parsed.scheme(), "clash" | "clash-verge" | "clodclash") {
         return None;
     }
@@ -64,21 +60,12 @@ fn extract_subscription_url(link_parsed: &Url) -> Option<std::string::String> {
     is_importable_url(&decoded).then_some(decoded)
 }
 
-/// clod: по ссылке из системы ходим только на http и https.
-///
-/// Deep-link приходит от кого угодно: письмо, чужая страница, буфер обмена.
-/// `url=file:///…` заставил бы нас прочитать файл с диска и показать его
-/// содержимое в ошибке импорта, а `url=clodclash://…` — зациклить обработчик
-/// на самого себя. Тот же запрет стоит в разборе адреса подписки; здесь он
-/// нужен раньше, чтобы отказ был виден в логе с причиной.
 fn is_importable_url(url: &str) -> bool {
-    Url::parse(url).is_ok_and(|parsed| {
-        matches!(parsed.scheme(), "http" | "https") && parsed.host_str().is_some_and(|host| !host.is_empty())
-    })
+    Url::parse(url)
+        .is_ok_and(|parsed| parsed.scheme() == "https" && parsed.host_str().is_some_and(|host| !host.is_empty()))
 }
 
 fn decode_subscription_url(raw_url: &str) -> std::string::String {
-    // Avoid double-decoding nested subscription URLs; decode only when needed.
     if Url::parse(raw_url).is_ok() {
         return raw_url.to_string();
     }
@@ -121,11 +108,7 @@ async fn import_subscription(url: &str, name: Option<&String>) {
         return;
     }
     logging_error!(Type::Timer, Timer::global().refresh().await);
-    handle::Handle::notice_message(
-        "import_sub_url::ok",
-        "", // передаём пустой msg, не хотим вызывать зацикливание
-            // бэкенд-фронтенд-бэкенд, здесь только уведомление.
-    );
+    handle::Handle::notice_message("import_sub_url::ok", "");
 
     post_import_updates(&uid, had_current_profile).await;
 }
@@ -195,30 +178,23 @@ mod tests {
             Some("https://panel.example/sub/token".into())
         );
 
-        // Процент-кодированный адрес — обычная форма ссылки из письма.
         assert_eq!(
             subscription_url("clash://install-config?url=https%3A%2F%2Fpanel.example%2Fsub"),
             Some("https://panel.example/sub".into())
         );
 
-        // http не запрещаем: панель на голом http это беда пользователя, но
-        // рабочая, и ломать импорт таких подписок мы не собирались.
-        assert!(subscription_url("clash://install-config?url=http://panel.example/sub").is_some());
+        assert!(subscription_url("clash://install-config?url=https://panel.example/sub").is_some());
+        assert!(subscription_url("clash://install-config?url=http://panel.example/sub").is_none());
     }
 
     #[test]
     fn foreign_schemes_never_reach_the_fetcher() {
-        // Deep-link приходит откуда угодно, и чтение файла с диска или
-        // рекурсия по собственной схеме импортом подписки не являются.
         for hostile in [
             "clash://install-config?url=file:///etc/passwd",
             "clash://install-config?url=file%3A%2F%2F%2Fetc%2Fpasswd",
             "clash://install-config?url=javascript:alert(1)",
             "clash://install-config?url=clodclash://install-config?url=x",
             "clash://install-config?url=data:text/yaml;base64,cHJveGllczoge30=",
-            // Схема есть, хоста нет — идти некуда. Лишние слэши парсер по
-            // WhatWG сворачивает («https:///sub» даёт хост «sub»), поэтому
-            // адрес без хоста — это только голое «https://».
             "clash://install-config?url=https://",
         ] {
             assert_eq!(subscription_url(hostile), None, "{hostile}");
