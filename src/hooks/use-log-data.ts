@@ -66,7 +66,6 @@ export const useLogData = (options?: { enabled?: boolean }) => {
     setupHandlers: ({ next, scheduleReconnect, isMounted }) => {
       let flushTimer: ReturnType<typeof setTimeout> | null = null
       const buffer: ILogItem[] = []
-      let flushTimeStr: string | null = null
 
       const clearFlushTimer = () => {
         if (flushTimer) {
@@ -81,7 +80,6 @@ export const useLogData = (options?: { enabled?: boolean }) => {
           return
         }
         const pendingLogs = buffer.splice(0, buffer.length)
-        flushTimeStr = null
         next(null, (current) => appendLogs(current, pendingLogs))
         flushTimer = null
       }
@@ -102,10 +100,7 @@ export const useLogData = (options?: { enabled?: boolean }) => {
             ) {
               return
             }
-            if (flushTimeStr === null) {
-              flushTimeStr = dayjs().format('MM-DD HH:mm:ss')
-            }
-            parsed.time = flushTimeStr
+            parsed.time = dayjs().format('MM-DD HH:mm:ss')
             buffer.push(parsed)
             if (buffer.length > MAX_LOG_NUM) {
               buffer.splice(0, buffer.length - MAX_LOG_NUM)
