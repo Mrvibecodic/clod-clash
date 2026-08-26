@@ -446,7 +446,10 @@ fn uninstall_service() -> Result<()> {
         StdCommand::new(&uninstall_path).status()?
     } else {
         let elevator = crate::utils::help::linux_elevator()?;
-        let status = StdCommand::new(&elevator).arg(&uninstall_path).status()?;
+        let status = StdCommand::new(&elevator)
+            .arg("--disable-internal-agent")
+            .arg(&uninstall_path)
+            .status()?;
         if pkexec_itself_failed(status.code()) {
             bail!("{}", pkexec_failure_hint(status.code()));
         }
@@ -490,7 +493,9 @@ fn install_service() -> Result<()> {
         StdCommand::new("sh").args(["-c", &script]).output()?
     } else {
         let elevator = crate::utils::help::linux_elevator()?;
-        let output = StdCommand::new(&elevator).args(["sh", "-c", &script]).output()?;
+        let output = StdCommand::new(&elevator)
+            .args(["--disable-internal-agent", "sh", "-c", &script])
+            .output()?;
         if pkexec_itself_failed(output.status.code()) {
             bail!("{}", pkexec_failure_hint(output.status.code()));
         }
@@ -799,7 +804,9 @@ fn reinstall_service() -> Result<()> {
         StdCommand::new("sh").args(["-c", &script]).status()?
     } else {
         let elevator = crate::utils::help::linux_elevator()?;
-        let status = StdCommand::new(&elevator).args(["sh", "-c", &script]).status()?;
+        let status = StdCommand::new(&elevator)
+            .args(["--disable-internal-agent", "sh", "-c", &script])
+            .status()?;
         if pkexec_itself_failed(status.code()) {
             bail!("{}", pkexec_failure_hint(status.code()));
         }
