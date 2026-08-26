@@ -28,34 +28,20 @@ use std::{
 use tauri_plugin_mihomo::models::{Proxies, ProxyType};
 use tokio::task::JoinHandle;
 
-/// Regex to check profile file names, eg.
-/// R12345678.yaml (remote)
-/// L12345678.yaml (local)
-/// m12345678.yaml (merge)
-/// s12345678.js (script)
-/// r12345678.yaml (rules)
-/// p12345678.yaml (proxies)
-/// g12345678.yaml (groups)
 #[allow(clippy::unwrap_used)]
 static REGEX_PROFILE_FILE: LazyLock<regex::Regex> =
     LazyLock::new(|| regex::Regex::new(r"^(?:[RLmrpg][a-zA-Z0-9]+\.yaml|s[a-zA-Z0-9]+\.js)$").unwrap());
 
-// activate selected nodes task handle
 static ACTIVATE_SELECTED_TASK: LazyLock<Mutex<Option<JoinHandle<()>>>> = LazyLock::new(|| Mutex::new(None));
 static ACTIVATE_SELECTED_GENERATION: AtomicU64 = AtomicU64::new(0);
 
-// The plugin already limits the request/response phase to 5 seconds. This outer timeout also covers
-// lock acquisition, connection-pool waiting, and local-socket connection establishment.
 const MIHOMO_OPERATION_TIMEOUT: Duration = Duration::from_secs(10);
 const SELECTED_NODES_RECHECK_DELAY: Duration = Duration::from_secs(1);
 
-/// Define the `profiles.yaml` schema
 #[derive(Default, Debug, Clone, Deserialize, Serialize)]
 pub struct IProfiles {
-    /// same as PrfConfig.current
     pub current: Option<String>,
 
-    /// profile list
     pub items: Option<Vec<PrfItem>>,
 }
 
@@ -65,7 +51,6 @@ pub struct IProfilePreview<'a> {
     pub is_current: bool,
 }
 
-/// Результат очистки
 #[derive(Debug, Clone)]
 pub struct CleanupResult {
     pub total_files: usize,
@@ -81,12 +66,6 @@ macro_rules! patch {
     };
 }
 
-/// clod: файлы удалённой подписки, которые ждут подтверждения.
-///
-/// Список собирается при удалении, а стирается только после того, как конфиг с
-/// оставшимися подписками собрался и прошёл проверку. Если проверка не прошла —
-/// список просто выбрасывается, и на диске остаётся всё, чем можно вернуться
-/// назад.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct PendingProfileFiles(Vec<String>);
 
@@ -95,12 +74,10 @@ impl PendingProfileFiles {
         self.0.push(file);
     }
 
-    /// Имена файлов — ровно то, что попадёт под удаление.
     pub fn files(&self) -> &[String] {
         &self.0
     }
 
-    /// Подтвердить удаление: стереть файлы с диска.
     pub async fn cleanup(self) {
         if self.0.is_empty() {
             return;
@@ -120,7 +97,6 @@ impl PendingProfileFiles {
 }
 
 impl IProfiles {
-    // Helper to find and remove an item by uid from the items vec, returning its file name (if any).
     fn take_item_file_by_uid(items: &mut Vec<PrfItem>, target_uid: Option<&str>) -> Option<String> {
         let index = items.iter().position(|item| item.uid.as_deref() == target_uid)?;
         items.remove(index).file
@@ -156,8 +132,6 @@ impl IProfiles {
         help::save_yaml(&dirs::profiles_path()?, self, Some("# Profiles Config for Clash Verge")).await
     }
 
-    // clod:headers begin
-    /// Point a subscription at a new URL, keeping the old one in the history.
     pub async fn migrate_item_url(&mut self, uid: &String, new_url: String) -> Result<()> {
         let found = self.items.as_mut().is_some_and(|items| {
             items
@@ -173,9 +147,7 @@ impl IProfiles {
 
         self.save_file().await
     }
-    // clod:headers end
 
-    /// Изменяет только current, valid и chain
     pub fn patch_config(&mut self, patch: &Self) {
         if self.items.is_none() {
             self.items = Some(vec![]);
@@ -195,12 +167,10 @@ impl IProfiles {
         self.current.as_ref()
     }
 
-    /// get items ref
     pub const fn get_items(&self) -> Option<&Vec<PrfItem>> {
         self.items.as_ref()
     }
 
-    /// find the item by the uid
     pub fn get_item(&self, uid: impl AsRef<str>) -> Result<&PrfItem> {
         let uid_str = uid.as_ref();
 
@@ -217,16 +187,6 @@ impl IProfiles {
         bail!("failed to get the profile item \"uid:{}\"", uid_str);
     }
 
-    /// clod: запомнить выбор ОДНОГО узла в текущей подписке.
-    ///
-    /// Раньше выбор сохранялся так: фронт брал весь список `selected` из
-    /// отрисованной подписки, менял в нём одну строку и отправлял целиком. Два
-    /// быстрых переключения подряд читали ОДИН и тот же снимок, и второй ответ
-    /// затирал первый — узел возвращался к прежнему сам собой. Слияние по паре
-    /// «группа + узел» такой гонки не допускает и годится одинаково для
-    /// интерфейса, трея и автоматики.
-    ///
-    /// Возвращает `true`, если запись изменилась.
     pub fn set_selected_node(&mut self, group: &str, node: &str) -> bool {
         let Some(current) = self.current.clone() else {
             return false;
@@ -256,17 +216,12 @@ impl IProfiles {
         true
     }
 
-    /// append new item
-    /// if the file_data is some
-    /// then should save the data to file
     pub async fn append_item(&mut self, item: &mut PrfItem) -> Result<()> {
         let uid = &item.uid;
         if uid.is_none() {
             bail!("the uid should not be null");
         }
 
-        // save the file data
-        // move the field value after save
         if let Some(file_data) = item.file_data.take() {
             if item.file.is_none() {
                 bail!("the file should not be null");
@@ -298,32 +253,20 @@ impl IProfiles {
         Ok(())
     }
 
-    /// reorder items
     pub async fn reorder(&mut self, active_id: &String, over_id: &String) -> Result<()> {
-        let mut items = self.items.take().unwrap_or_default();
-        let mut old_index = None;
-        let mut new_index = None;
-
-        for (i, _) in items.iter().enumerate() {
-            if items[i].uid.as_ref() == Some(active_id) {
-                old_index = Some(i);
-            }
-            if items[i].uid.as_ref() == Some(over_id) {
-                new_index = Some(i);
-            }
-        }
-
-        let (old_idx, new_idx) = match (old_index, new_index) {
-            (Some(old), Some(new)) => (old, new),
-            _ => return Ok(()),
+        let Some(items) = self.items.as_mut() else {
+            return Ok(());
+        };
+        let old_index = items.iter().position(|item| item.uid.as_ref() == Some(active_id));
+        let new_index = items.iter().position(|item| item.uid.as_ref() == Some(over_id));
+        let (Some(old_idx), Some(new_idx)) = (old_index, new_index) else {
+            return Ok(());
         };
         let item = items.remove(old_idx);
         items.insert(new_idx, item);
-        self.items = Some(items);
         self.save_file().await
     }
 
-    /// update the item value
     pub async fn patch_item(&mut self, uid: &String, item: &PrfItem) -> Result<()> {
         if let Some(file) = &item.file {
             Self::validate_profile_file(file)?;
@@ -339,27 +282,20 @@ impl IProfiles {
                 patch!(each, item, file);
                 patch!(each, item, url);
                 patch!(each, item, selected);
-                // clod: starred servers
                 patch!(each, item, favorites);
                 patch!(each, item, extra);
                 patch!(each, item, updated);
                 patch!(each, item, option);
-                // clod:groups — the card's group label is a user decision.
                 patch!(each, item, group);
-                // clod:headers begin
-                // A name coming through an explicit patch is a user decision, so
-                // `profile-title` must stop overwriting it.
                 if item.name.is_some() {
                     each.name_customized = Some(true);
                 }
                 patch!(each, item, promo_seen);
                 patch!(each, item, name_customized);
                 patch!(each, item, fallback_url);
-                // clod: поля парные — правится одно, значит правится и второе.
                 patch!(each, item, fallback_domain);
                 patch!(each, item, interval_locked);
                 patch!(each, item, notified);
-                // clod:headers end
 
                 self.items = Some(items);
                 return self.save_file().await;
@@ -386,14 +322,11 @@ impl IProfiles {
         Ok(())
     }
 
-    /// be used to update the remote item
-    /// only patch `updated` `extra` `file_data`
     pub async fn update_item(&mut self, uid: &String, item: &mut PrfItem) -> Result<()> {
         if self.items.is_none() {
             self.items = Some(vec![]);
         }
 
-        // find the item
         let _ = self.get_item(uid)?;
 
         if let Some(items) = self.items.as_mut() {
@@ -405,17 +338,12 @@ impl IProfiles {
                     each.updated = item.updated;
                     each.home = item.home.to_owned();
                     each.option = PrfOption::merge(each.option.as_ref(), item.option.as_ref());
-                    // clod:headers begin
                     each.merge_panel_meta(item);
-                    // clod:headers end
-                    // save the file data
-                    // move the field value after save
                     if let Some(file_data) = item.file_data.take() {
                         let file = each.file.take();
                         let file =
                             file.unwrap_or_else(|| item.file.take().unwrap_or_else(|| format!("{}.yaml", uid).into()));
 
-                        // the file must exists
                         each.file = Some(file.clone());
 
                         let path = dirs::app_profiles_dir()?.join(file.as_str());
@@ -433,23 +361,12 @@ impl IProfiles {
         self.save_file().await
     }
 
-    /// delete item
-    /// if delete the current then return true
-    ///
-    /// clod: файлы подписки эта функция БОЛЬШЕ НЕ СТИРАЕТ — она возвращает их
-    /// списком. Раньше диск чистился здесь же, до того как конфиг с оставшимися
-    /// подписками собран и проверен: валидация падала (сломанный script или
-    /// merge у следующей подписки), команда возвращала ошибку — а стирать было
-    /// уже нечего. Теперь порядок обратный: сначала убеждаемся, что клиент
-    /// продолжает работать, и только потом трогаем диск.
     pub async fn delete_item(&mut self, uid: &String) -> Result<(bool, PendingProfileFiles)> {
         let outcome = self.plan_delete_item(uid)?;
         self.save_file().await?;
         Ok(outcome)
     }
 
-    /// Убрать подписку из списка и собрать её файлы в план удаления. Диска не
-    /// касается вовсе — ни чтения, ни записи, — поэтому проверяется тестами.
     fn plan_delete_item(&mut self, uid: &String) -> Result<(bool, PendingProfileFiles)> {
         let current = self.current.as_ref().unwrap_or(uid);
         let current = current.clone();
@@ -471,7 +388,6 @@ impl IProfiles {
         let mut items = self.items.take().unwrap_or_default();
         let mut pending = PendingProfileFiles::default();
 
-        // remove the main item (if exists) and remember its file
         if let Some(file) = Self::take_item_file_by_uid(&mut items, Some(uid.as_str())) {
             pending.push(file);
         }
@@ -482,7 +398,6 @@ impl IProfiles {
             }
         }
 
-        // delete the original uid
         if current == *uid {
             self.current = None;
             for item in items.iter() {
@@ -497,7 +412,6 @@ impl IProfiles {
         Ok((current == *uid, pending))
     }
 
-    /// Получает содержимое подписки, на которую указывает current
     pub async fn current_mapping(&self) -> Result<Mapping> {
         match (self.current.as_ref(), self.items.as_ref()) {
             (Some(current), Some(items)) => {
@@ -514,12 +428,10 @@ impl IProfiles {
         }
     }
 
-    /// Проверяет, является ли profile тем, на который указывает current
     pub fn is_current_profile_index(&self, index: &String) -> bool {
         self.current.as_ref() == Some(index)
     }
 
-    /// Получает все profiles (uid, имя, является ли current)
     pub fn profiles_preview(&self) -> Option<Vec<IProfilePreview<'_>>> {
         self.items.as_ref().map(|items| {
             items
@@ -537,7 +449,6 @@ impl IProfiles {
         })
     }
 
-    /// Получает имя по uid
     pub fn get_name_by_uid(&self, uid: &String) -> Option<&String> {
         if let Some(items) = &self.items {
             for item in items {
@@ -549,7 +460,6 @@ impl IProfiles {
         None
     }
 
-    /// Удаляет ненужные файлы, ориентируясь на список profile в app
     pub async fn cleanup_orphaned_files(&self) -> Result<()> {
         let profiles_dir = dirs::app_profiles_dir()?;
         self.cleanup_orphaned_files_in(&profiles_dir).await
@@ -560,10 +470,6 @@ impl IProfiles {
             return Ok(());
         }
 
-        // Если items пуст (например, из-за ошибки разбора profiles.yaml
-        // IProfiles::new() вернул default), невозможно определить, какие файлы активны,
-        // пропускаем очистку, чтобы не удалить конфиги подписок, которые использует пользователь.
-        // See: https://github.com/clash-verge-rev/clash-verge-rev/issues/7577
         if self.items.as_ref().is_none_or(|v| v.is_empty()) {
             logging!(
                 warn,
@@ -573,13 +479,10 @@ impl IProfiles {
             return Ok(());
         }
 
-        // Получаем набор имён файлов всех active profile
         let active_files = self.get_all_active_files();
 
-        // Добавляем глобальные файлы расширенного конфига в список защищённых
         let protected_files = self.get_protected_global_files();
 
-        // Сканируем все файлы в каталоге profiles
         let mut total_files = 0;
         let mut deleted_files = 0;
         let mut failed_deletions = 0;
@@ -597,7 +500,6 @@ impl IProfiles {
             if let Some(file_name) = path.file_name().and_then(|n| n.to_str())
                 && Self::is_profile_file(file_name)
             {
-                // Проверяем, является ли файл глобальным расширенным конфигом
                 if protected_files.contains(file_name) {
                     logging!(
                         debug,
@@ -607,7 +509,6 @@ impl IProfiles {
                     continue;
                 }
 
-                // Проверяем, является ли файл активным
                 if !active_files.contains(file_name) {
                     match path.to_path_buf().remove_if_exists().await {
                         Ok(_) => {
@@ -645,7 +546,6 @@ impl IProfiles {
         Ok(())
     }
 
-    /// Не удаляет глобальный расширенный конфиг
     fn get_protected_global_files(&self) -> HashSet<String> {
         let mut protected_files = HashSet::new();
 
@@ -655,24 +555,19 @@ impl IProfiles {
         protected_files
     }
 
-    /// Получает имена всех файлов, связанных с active profile
     fn get_all_active_files(&self) -> HashSet<&str> {
         let mut active_files: HashSet<&str> = HashSet::new();
 
         if let Some(items) = &self.items {
             for item in items {
-                // Собираем файлы profile всех типов
                 if let Some(file) = &item.file {
                     active_files.insert(file);
                 }
 
-                // Для основных типов profile (remote/local) нужно также собрать
-                // связанные расширенные файлы
                 if let Some(itype) = &item.itype
                     && (itype == "remote" || itype == "local")
                     && let Some(option) = &item.option
                 {
-                    // Собираем связанные расширенные файлы
                     if let Some(merge_uid) = &option.merge
                         && let Ok(merge_item) = self.get_item(merge_uid)
                         && let Some(file) = &merge_item.file
@@ -714,13 +609,11 @@ impl IProfiles {
         active_files
     }
 
-    /// Проверяет, соответствует ли имя файла правилам именования файлов profile
     fn is_profile_file(filename: &str) -> bool {
         REGEX_PROFILE_FILE.is_match(filename)
     }
 }
 
-// Специальные Send-safe helper-функции, полностью избегающие удержания guard через await
 use crate::config::Config;
 
 pub async fn profiles_append_item_with_filedata_safe(item: &PrfItem, file_data: Option<String>) -> Result<()> {
@@ -762,10 +655,6 @@ pub async fn profiles_delete_item_safe(index: &String) -> Result<(bool, PendingP
         .await
 }
 
-/// clod: запомнить выбранный узел в текущей подписке и сохранить файл.
-///
-/// Одна точка на все источники выбора — интерфейс, трей, автоматика, — чтобы
-/// выбор не жил только в ядре и переживал его перезапуск.
 pub async fn profiles_set_selected_node_safe(group: &str, node: &str) -> Result<()> {
     let changed = Config::profiles()
         .await
@@ -780,10 +669,6 @@ pub async fn profiles_set_selected_node_safe(group: &str, node: &str) -> Result<
     Ok(())
 }
 
-/// clod: вернуть подписки к снимку, сделанному до удаления.
-///
-/// Нужен ровно на одном пути: конфиг без удалённой подписки не собрался, и
-/// удаление надо отменить целиком — вместе с выбранной подпиской и порядком.
 pub async fn profiles_restore_snapshot_safe(snapshot: IProfiles) -> Result<()> {
     Config::profiles()
         .await
@@ -804,9 +689,6 @@ pub async fn profiles_reorder_safe(active_id: &String, over_id: &String) -> Resu
         .await
 }
 
-// clod:headers begin
-/// Replace a subscription URL after the provider asked for a migration
-/// (`new-url` / `new-domain`) and the candidate was verified.
 pub async fn profiles_migrate_url_safe(index: &String, new_url: String) -> Result<()> {
     Config::profiles()
         .await
@@ -816,7 +698,6 @@ pub async fn profiles_migrate_url_safe(index: &String, new_url: String) -> Resul
         })
         .await
 }
-// clod:headers end
 
 pub async fn profiles_save_file_safe() -> Result<()> {
     Config::profiles()
@@ -864,7 +745,6 @@ fn selected_nodes_need_confirmation(selected: &[PrfSelected], proxies: &Proxies)
     })
 }
 
-/// clod: pick the first starred node that a selector group actually contains.
 fn first_available_favorite<'a>(favorites: &'a [String], available_nodes: &[std::string::String]) -> Option<&'a str> {
     favorites
         .iter()
@@ -906,7 +786,6 @@ fn reconcile_selected_nodes(
             continue;
         };
         let Some(available_nodes) = group.all.as_deref().filter(|nodes| !nodes.is_empty()) else {
-            // Provider-backed groups can be temporarily incomplete immediately after a reload.
             plan.selected.push(selected_item.clone());
             continue;
         };
@@ -936,14 +815,6 @@ fn reconcile_selected_nodes(
 
         if node_is_available(available_nodes, node) {
             plan.selected.push(selected_item.clone());
-            // clod:selected-scope — навязываем сохранённый узел обратно ТОЛЬКО
-            // в группе выбора. У `url-test`, `fallback` и `load-balance` узел
-            // выбирает само ядро — по задержке, по живости, по своей политике,
-            // — и «восстановление» затирало это решение нашим слепком
-            // прошлого запуска: группа с автоматикой прыгала на узел, который
-            // ядро только что сознательно не выбрало. Запись в `selected`
-            // остаётся (это память о том, что ядро показывало), а команды
-            // выбора нет.
             if matches!(group.proxy_type, ProxyType::Selector) && group.now.as_deref() != Some(node.as_str()) {
                 plan.activations.push((group_name.clone(), node.clone()));
             }
@@ -961,8 +832,6 @@ fn reconcile_selected_nodes(
         }
 
         plan.repaired_count += 1;
-        // clod: пропавший узел заменяем в первую очередь избранным (звёздочка),
-        // и только потом — тем, что ядро выбрало само.
         let replacement = first_available_favorite(favorites, available_nodes).or_else(|| {
             group
                 .now
@@ -974,18 +843,11 @@ fn reconcile_selected_nodes(
                 name: Some(group_name.clone()),
                 now: Some(replacement.into()),
             });
-            // clod:selected-scope — та же граница, что и выше: замену
-            // подставляем командой только там, где выбирает пользователь.
             if matches!(group.proxy_type, ProxyType::Selector) && group.now.as_deref() != Some(replacement) {
                 plan.activations.push((group_name.clone(), replacement.into()));
             }
         }
     }
-
-    // clod: избранные НЕ перехватывают выбор. Звёздочка — это только «вверху
-    // списка» и запасной узел на замену пропавшему (ветка выше). Группа без
-    // сохранённого выбора остаётся как есть: действует то, что пользователь
-    // выбрал руками, либо решение самого ядра.
 
     plan
 }
@@ -1223,8 +1085,6 @@ pub fn activate_selected_nodes() -> Result<()> {
             let current = profiles.get_current().context("no current profile running")?.clone();
             let item = profiles.get_item(&current).context("failed to get current profile")?;
             let selected = item.selected.clone().unwrap_or_default();
-            // clod: избранные нужны только как замена пропавшему сохранённому
-            // узлу — сами по себе они выбор не перехватывают
             let favorites = item.favorites.clone().unwrap_or_default();
 
             if selected.is_empty() {
@@ -1240,7 +1100,6 @@ pub fn activate_selected_nodes() -> Result<()> {
         if is_activation_current(generation) {
             if let Err(err) = result {
                 logging!(error, Type::Config, "failed to activate selected nodes: {err:#}");
-                // The profile itself is already active even if node restoration failed.
                 handle::Handle::refresh_clash();
             }
             update_tray_after_activation(generation).await;
@@ -1345,7 +1204,6 @@ mod tests {
         assert_eq!(plan.repaired_count, 1);
     }
 
-    // clod:selected-scope — в группе с автоматикой узел выбирает ядро.
     #[test]
     fn does_not_impose_a_saved_node_on_automatic_groups() {
         for (proxy_type, label) in [
@@ -1369,7 +1227,6 @@ mod tests {
             let saved = vec![selected("group", "saved")];
             let plan = reconcile_selected_nodes(&saved, &[], None, &snapshot);
 
-            // Запись остаётся — это память о показанном, а не команда.
             assert_eq!(plan.selected, saved);
             assert!(plan.activations.is_empty(), "{label} must pick for itself");
             assert_eq!(plan.repaired_count, 0);
@@ -1453,8 +1310,6 @@ mod tests {
 
     #[test]
     fn favorites_replace_a_confirmed_missing_node() {
-        // Выбранный узел пропал из подписки — на замену идёт первый доступный
-        // избранный, а не то, что ядро выбрало само.
         let snapshot = proxies(vec![("group", &["other", "fav-b", "fav-a"], Some("other"))]);
         let favorites: Vec<String> = vec!["fav-a".into(), "fav-b".into()];
 
@@ -1467,8 +1322,6 @@ mod tests {
 
     #[test]
     fn favorites_do_not_override_a_saved_selection() {
-        // Звёздочка — не выбор: сохранённый вручную узел строго сохраняется,
-        // даже когда в группе есть избранные.
         let snapshot = proxies(vec![("group", &["manual", "fav"], Some("fav"))]);
         let favorites: Vec<String> = vec!["fav".into()];
 
@@ -1481,8 +1334,6 @@ mod tests {
 
     #[test]
     fn favorites_do_not_claim_groups_without_a_saved_selection() {
-        // Группа, где пользователь ничего не выбирал, избранным не достаётся:
-        // остаётся решение ядра (store-selected / первый узел).
         let snapshot = proxies(vec![
             ("picked", &["manual", "fav"], Some("manual")),
             ("untouched", &["node", "fav"], Some("node")),
@@ -1514,8 +1365,6 @@ mod tests {
         );
     }
 
-    // clod:delete-rollback — удаление подписки не должно трогать диск раньше,
-    // чем конфиг с оставшимися подписками собран и проверен.
     fn item(uid: &str, itype: &str, file: &str) -> PrfItem {
         PrfItem {
             uid: Some(uid.into()),
@@ -1557,7 +1406,6 @@ mod tests {
 
         assert!(!was_current, "удалили не текущую подписку");
         assert_eq!(pending.files(), ["victim.yaml", "merge.yaml", "script.js"]);
-        // Файлы ещё на диске: план только перечисляет их.
         assert_eq!(
             profiles.items.as_ref().map(Vec::len),
             Some(1),
@@ -1603,8 +1451,6 @@ mod tests {
         assert_eq!(profiles.current.as_deref(), Some("keeper"));
     }
 
-    // clod:selection — выбор узла сливается по паре «группа + узел», иначе два
-    // быстрых переключения затирают друг друга.
     #[test]
     fn selecting_a_node_adds_and_replaces_only_its_group() {
         let mut profiles = profiles_with(vec![item("current", "remote", "current.yaml")], "current");
@@ -1663,8 +1509,6 @@ mod tests {
 
     #[tokio::test]
     async fn empty_plan_needs_no_directory() {
-        // Пустой план обязан молча ничего не делать: он выполняется и в тех
-        // сборках, где каталог подписок ещё не готов.
         PendingProfileFiles::default().cleanup().await;
     }
 }
