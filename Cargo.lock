@@ -1139,7 +1139,6 @@ dependencies = [
  "tauri-plugin-dialog",
  "tauri-plugin-fs",
  "tauri-plugin-global-shortcut",
- "tauri-plugin-http",
  "tauri-plugin-mihomo",
  "tauri-plugin-notification",
  "tauri-plugin-process",
@@ -7274,30 +7273,6 @@ dependencies = [
  "tauri",
  "tauri-plugin",
  "thiserror 2.0.18",
-]
-
-[[package]]
-name = "tauri-plugin-http"
-version = "2.5.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5bd512048e1985b7ec78f96d99083e2ddaf7e0d906b2b63c44ce5bb8b894067"
-dependencies = [
- "bytes",
- "cookie_store",
- "data-url",
- "http 1.4.2",
- "regex",
- "reqwest 0.12.28",
- "schemars 0.8.22",
- "serde",
- "serde_json",
- "tauri",
- "tauri-plugin",
- "tauri-plugin-fs",
- "thiserror 2.0.18",
- "tokio",
- "url",
- "urlpattern",
 ]
 
 [[package]]

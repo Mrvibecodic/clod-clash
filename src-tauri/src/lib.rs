@@ -60,7 +60,6 @@ mod app_init {
             .plugin(tauri_plugin_dialog::init())
             .plugin(tauri_plugin_shell::init())
             .plugin(tauri_plugin_deep_link::init())
-            .plugin(tauri_plugin_http::init())
             .plugin(
                 tauri_plugin_mihomo::Builder::new()
                     .protocol(tauri_plugin_mihomo::models::Protocol::LocalSocket)
