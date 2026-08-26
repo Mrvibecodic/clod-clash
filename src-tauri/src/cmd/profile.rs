@@ -482,7 +482,6 @@ pub async fn patch_profiles_config(profiles: IProfiles) -> CmdResult<ValidationO
 }
 
 /// Изменяет profiles по имени profile
-#[tauri::command]
 pub async fn patch_profiles_config_by_profile_index(profile_index: String) -> CmdResult<ValidationOutcome> {
     logging!(info, Type::Cmd, "переключение конфига на: {}", profile_index);
 
