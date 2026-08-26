@@ -9,13 +9,13 @@ import {
   Stack,
   Typography,
 } from '@mui/material'
-import { listen } from '@tauri-apps/api/event'
 import { useLockFn } from 'ahooks'
 import type { Ref } from 'react'
-import { useEffect, useImperativeHandle, useState } from 'react'
+import { useImperativeHandle, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseDialog, DialogRef, Switch } from '@/components/base'
+import { useTauriEvent } from '@/hooks/use-listen'
 import { useVerge } from '@/hooks/use-verge'
 import {
   type CoreUpdateCheck,
@@ -70,15 +70,9 @@ export function ManagedCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
     close: () => setOpen(false),
   }))
 
-  useEffect(() => {
-    if (!open) return
-    const unlisten = listen<Progress>('clod://core-update-progress', (event) =>
-      setProgress(event.payload),
-    )
-    return () => {
-      void unlisten.then((fn) => fn())
-    }
-  }, [open])
+  useTauriEvent<Progress>('clod://core-update-progress', (event) =>
+    setProgress(event.payload),
+  )
 
   const onCheck = useLockFn(async () => {
     setBusy(true)
@@ -174,7 +168,7 @@ export function ManagedCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
           </Box>
           <Switch
             checked={managedOn}
-            disabled={busy}
+            disabled={busy || (status?.updating ?? false)}
             onChange={(_, checked) => void onToggleManaged(checked)}
           />
         </Stack>
@@ -189,7 +183,7 @@ export function ManagedCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
           <Select
             size="small"
             value={channel}
-            disabled={busy}
+            disabled={busy || (status?.updating ?? false)}
             sx={{ width: 150 }}
             onChange={(event) =>
               void patchVerge({ managed_core_channel: event.target.value })
@@ -213,7 +207,7 @@ export function ManagedCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
           </Typography>
           <Switch
             checked={autoCheck}
-            disabled={busy}
+            disabled={busy || (status?.updating ?? false)}
             onChange={(_, checked) =>
               void patchVerge({ core_auto_check: checked })
             }
@@ -285,7 +279,7 @@ export function ManagedCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
           <Button
             size="small"
             variant="outlined"
-            disabled={busy}
+            disabled={busy || (status?.updating ?? false)}
             onClick={() => void onCheck()}
           >
             {t('settings.modals.managedCore.check')}
@@ -294,7 +288,7 @@ export function ManagedCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
             size="small"
             variant="contained"
             startIcon={<SystemUpdateAltRounded />}
-            disabled={busy}
+            disabled={busy || (status?.updating ?? false)}
             onClick={() => void onUpdate()}
           >
             {t('settings.modals.managedCore.update')}
@@ -307,7 +301,7 @@ export function ManagedCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
               size="small"
               color="inherit"
               startIcon={<RestartAltRounded />}
-              disabled={busy}
+              disabled={busy || (status?.updating ?? false)}
               onClick={() => void onRevert()}
             >
               {t('settings.modals.managedCore.revert', {

@@ -35,6 +35,7 @@ pub struct CoreUpdaterStatus {
     pub previous: Option<String>,
     pub running: Option<String>,
     pub service_mode: bool,
+    pub updating: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -298,6 +299,7 @@ pub async fn status() -> CoreUpdaterStatus {
         previous,
         running: running_core_version().await,
         service_mode,
+        updating: UPDATING.load(Ordering::Acquire),
     }
 }
 

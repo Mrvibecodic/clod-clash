@@ -574,6 +574,7 @@ export interface CoreUpdaterStatus {
   previous?: string
   running?: string
   service_mode: boolean
+  updating: boolean
 }
 
 export interface CoreUpdateCheck {
