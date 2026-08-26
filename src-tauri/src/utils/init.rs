@@ -567,21 +567,21 @@ pub async fn startup_script() -> Result<()> {
         return Ok(());
     }
 
-    let (shell_type, args) = if script_path.ends_with(".sh") {
-        ("bash", vec![script_path.clone()])
+    let (shell_type, args): (&str, Vec<std::string::String>) = if script_path.ends_with(".sh") {
+        ("bash", vec![script_path.to_string()])
     } else if script_path.ends_with(".ps1") {
         (
             "powershell",
             vec![
-                "-NoProfile".into(),
-                "-ExecutionPolicy".into(),
-                "Bypass".into(),
-                "-File".into(),
-                script_path.clone(),
+                "-NoProfile".to_string(),
+                "-ExecutionPolicy".to_string(),
+                "Bypass".to_string(),
+                "-File".to_string(),
+                script_path.to_string(),
             ],
         )
     } else if script_path.ends_with(".bat") {
-        ("cmd", vec!["/C".into(), script_path.clone()])
+        ("cmd", vec!["/C".to_string(), script_path.to_string()])
     } else {
         return Err(anyhow::anyhow!("unsupported script extension: {}", script_path));
     };
