@@ -327,8 +327,8 @@ export const useMihomoWsSubscription = <T>(
       throttleCleanup = () => {
         if (timerId) {
           clearTimeout(timerId)
-          timerId = null
         }
+        flush()
       }
     } else {
       wrappedNext = baseNext
