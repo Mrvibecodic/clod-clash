@@ -35,9 +35,6 @@ mod menu_def;
 mod speed_task;
 use menu_def::{MenuIds, MenuTexts};
 
-// TODO: нужно ли выносить изменяемое меню в отдельное хранилище, чтобы потом
-// обновлять соответствующий экземпляр меню напрямую, без пересоздания (пока не решено)
-
 type ProxyMenuItem = (Option<Submenu<Wry>>, Vec<Box<dyn IsMenuItem<Wry>>>);
 
 const TRAY_CLICK_DEBOUNCE_MS: u64 = 300;
@@ -66,8 +63,6 @@ pub struct Tray {
 
 impl TrayState {
     async fn get_tray_icon(verge: &IVerge) -> (bool, Cow<'_, [u8]>) {
-        // clod:tray-fact — иконка по факту, а не по желанию: с подавленным TUN
-        // ядру он не подан, и значок туннеля означал бы работу, которой нет.
         let tun_mode = feat::tun::is_active_with(verge.enable_tun_mode.unwrap_or(false));
         let system_mode = verge.enable_system_proxy.unwrap_or(false);
         let kind = if tun_mode {
@@ -165,7 +160,6 @@ impl Tray {
                 logging!(info, Type::Tray, "System tray created successfully");
             }
             Err(e) => {
-                // Don't return error, let application continue running without tray
                 logging!(
                     warn,
                     Type::Tray,
@@ -176,7 +170,6 @@ impl Tray {
         Ok(())
     }
 
-    /// Обновляет поведение клика по трею
     pub async fn update_click_behavior(&self) -> Result<()> {
         if handle::Handle::global().is_exiting() {
             logging!(
@@ -200,7 +193,6 @@ impl Tray {
         Ok(())
     }
 
-    /// Обновляет меню трея
     pub async fn update_menu(&self) -> Result<()> {
         if handle::Handle::global().is_exiting() {
             logging!(
@@ -222,9 +214,6 @@ impl Tray {
 
         let verge = Config::verge().await.latest_arc();
         let system_proxy = verge.enable_system_proxy.as_ref().unwrap_or(&false);
-        // clod:tray-fact — галочка «Режим TUN» ставится по заявке, поданной
-        // ядру. Иначе подавленный TUN давал зелёную галочку в трее одновременно
-        // с «TUN не запустился» на главном экране.
         let tun_mode = feat::tun::is_active_with(verge.enable_tun_mode.unwrap_or(false));
         let tun_mode_available =
             is_current_app_handle_admin(app_handle) || service::is_service_available().await.is_ok();
@@ -266,7 +255,6 @@ impl Tray {
         Ok(())
     }
 
-    /// Обновляет иконку трея
     pub async fn update_icon(&self, verge: &IVerge) -> Result<()> {
         if handle::Handle::global().is_exiting() {
             logging!(
@@ -303,7 +291,6 @@ impl Tray {
         Ok(())
     }
 
-    /// Обновляет подсказку трея
     pub async fn update_tooltip(&self) -> Result<()> {
         if handle::Handle::global().is_exiting() {
             logging!(
@@ -318,8 +305,6 @@ impl Tray {
 
         let verge = Config::verge().await.latest_arc();
         let system_proxy = verge.enable_system_proxy.unwrap_or(false);
-        // clod:tray-fact — подсказка над иконкой отвечает на «включён ли сейчас
-        // туннель», а не «просил ли его пользователь».
         let tun_mode = feat::tun::is_active_with(verge.enable_tun_mode.unwrap_or(false));
 
         let switch_str = |flag: bool| {
@@ -340,7 +325,6 @@ impl Tray {
             }
         }
 
-        // Get localized strings before using them
         let sys_proxy_text = clash_verge_i18n::t!("tray.tooltip.systemProxy");
         let tun_text = clash_verge_i18n::t!("tray.tooltip.tun");
         let profile_text = clash_verge_i18n::t!("tray.tooltip.profile");
@@ -453,7 +437,6 @@ impl Tray {
         allow
     }
 
-    /// Единообразно обновляет состояние задачи сбора скорости в трее по конфигу (macOS)
     #[cfg(target_os = "macos")]
     pub fn update_speed_task(&self, enable_tray_speed: bool) {
         self.speed_controller.update_task(enable_tray_speed);
@@ -469,8 +452,6 @@ fn create_hotkeys(hotkeys: &Option<Vec<String>>) -> HashMap<&str, &str> {
                     let mut parts = item.split(',');
                     match (parts.next(), parts.next()) {
                         (Some(func), Some(key)) => {
-                            // Атрибут `accelerator` в меню трея не поддерживает разбор клавиш
-                            // цифровой клавиатуры ни в Linux, ни в Windows
                             if key.to_uppercase().contains("NUMPAD") {
                                 None
                             } else {
@@ -514,11 +495,8 @@ fn create_subcreate_proxy_menu_item(
     let proxy_submenus: Vec<Submenu<Wry>> = {
         let mut submenus: Vec<(String, usize, Submenu<Wry>)> = Vec::new();
 
-        // TODO: при запуске приложения ядро ещё не запущено полностью,
-        // информацию об узлах прокси получить нельзя
         if let Some(proxy_nodes_data) = proxy_nodes_data {
             for (group_name, group_data) in proxy_nodes_data.proxies.iter() {
-                // Filter groups based on mode and hidden flag
                 let should_show = match proxy_mode {
                     "global" => group_name == "GLOBAL",
                     _ => group_name != "GLOBAL",
@@ -534,14 +512,12 @@ fn create_subcreate_proxy_menu_item(
 
                 let now_proxy = group_data.now.as_deref().unwrap_or_default();
 
-                // Create proxy items
                 let group_items: Vec<CheckMenuItem<Wry>> = all_proxies
                     .iter()
                     .filter_map(|proxy_str| {
                         let is_selected = *proxy_str == now_proxy;
                         let item_id = format!("proxy_{}_{}", group_name, proxy_str);
 
-                        // Get delay for display
                         let delay_text = proxy_nodes_data
                             .proxies
                             .get(proxy_str)
@@ -607,7 +583,6 @@ fn create_proxy_menu_item(
     proxy_submenus: Vec<Submenu<Wry>>,
     proxies_text: &str,
 ) -> Result<ProxyMenuItem> {
-    // Создаём главное меню прокси
     let (proxies_submenu, inline_proxy_items) = if show_proxy_groups_inline {
         (
             None,
@@ -649,8 +624,14 @@ async fn create_tray_menu(
 ) -> Result<tauri::menu::Menu<Wry>> {
     let current_proxy_mode = mode.unwrap_or("");
 
-    // TODO: should update tray menu again when it was timeout error
-    let (proxy_nodes_data, runtime_proxy_groups_order) = if options.include_proxy_groups {
+    let verge_settings = Config::verge().await.latest_arc();
+    let tray_proxy_groups_display_mode = verge_settings
+        .tray_proxy_groups_display_mode
+        .as_deref()
+        .unwrap_or("default");
+    let include_proxy_groups = options.include_proxy_groups && tray_proxy_groups_display_mode != "disable";
+
+    let (proxy_nodes_data, runtime_proxy_groups_order) = if include_proxy_groups {
         let proxy_nodes_data = tokio::time::timeout(
             Duration::from_millis(1000),
             handle::Handle::mihomo().await.get_proxies(),
@@ -698,16 +679,8 @@ async fn create_tray_menu(
                 .collect::<HashMap<String, usize>>()
         });
 
-    let verge_settings = Config::verge().await.latest_arc();
-    let tray_proxy_groups_display_mode = verge_settings
-        .tray_proxy_groups_display_mode
-        .as_deref()
-        .unwrap_or("default");
     let show_outbound_modes_inline = verge_settings.tray_inline_outbound_modes.unwrap_or(false);
 
-    // clod: `clod-lock-mode` — the panel forbids mode changes, so the tray
-    // shows no mode items at all (feat::change_clash_mode refuses anyway,
-    // but a menu that never works is worse than no menu).
     let mode_locked = {
         let profiles = Config::profiles().await.latest_arc();
         profiles
@@ -723,9 +696,7 @@ async fn create_tray_menu(
 
     let profile_menu_items: Vec<CheckMenuItem<Wry>> = create_profile_menu_item(app_handle, profiles_preview)?;
 
-    // Pre-fetch all localized strings
     let texts = MenuTexts::new();
-    // Convert to references only when needed
     let profile_menu_items_refs: Vec<&dyn IsMenuItem<Wry>> = profile_menu_items
         .iter()
         .map(|item| item as &dyn IsMenuItem<Wry>)
@@ -796,7 +767,7 @@ async fn create_tray_menu(
         &profile_menu_items_refs,
     )?;
 
-    let (proxies_menu, inline_proxy_items) = if options.include_proxy_groups {
+    let (proxies_menu, inline_proxy_items) = if include_proxy_groups {
         let proxy_sub_menus =
             create_subcreate_proxy_menu_item(app_handle, current_proxy_mode, proxy_group_order_map, proxy_nodes_data);
 
@@ -905,11 +876,9 @@ async fn create_tray_menu(
 
     let separator = &PredefinedMenuItem::separator(app_handle)?;
 
-    // Динамически формируем пункты меню
     let mut menu_items: Vec<&dyn IsMenuItem<Wry>> = vec![open_window, separator];
 
     if mode_locked {
-        // clod: no mode items while the panel locks the mode.
     } else if show_outbound_modes_inline {
         menu_items.extend_from_slice(&[
             rule_mode as &dyn IsMenuItem<Wry>,
@@ -922,7 +891,6 @@ async fn create_tray_menu(
 
     menu_items.extend_from_slice(&[separator, profiles]);
 
-    // Если есть узлы прокси, добавляем меню узлов прокси
     match tray_proxy_groups_display_mode {
         "default" => {
             menu_items.extend(proxies_menu.iter().map(|item| item as &dyn IsMenuItem<_>));
@@ -963,7 +931,6 @@ fn on_tray_icon_event(_tray_icon: &TrayIcon, tray_event: TrayIconEvent) {
         ..
     } = tray_event
     {
-        // Проверка debounce, чтобы избежать быстрых повторных кликов
         #[allow(clippy::use_self)]
         if !Tray::global().should_handle_tray_click() {
             return;
@@ -986,8 +953,6 @@ fn on_tray_icon_event(_tray_icon: &TrayIcon, tray_event: TrayIconEvent) {
                         WindowManager::show_main_window().await;
                     };
                 }
-                // В режиме tray_menu меню отображается системой нативно (см.
-                // set_show_menu_on_left_click), дополнительная обработка клика левой кнопкой не нужна
                 TrayAction::TrayMenu => {}
                 TrayAction::Unknown => {
                     logging!(warn, Type::Tray, "invalid tray event: {}", verge_tray_event);
@@ -1007,12 +972,10 @@ fn on_menu_event(_: &AppHandle, event: MenuEvent) {
     AsyncHandler::spawn(|| async move {
         match event.id.as_ref() {
             mode @ (MenuIds::RULE_MODE | MenuIds::GLOBAL_MODE | MenuIds::DIRECT_MODE) => {
-                // Removing the the "tray_" prefix and "_mode" suffix
                 if let Some(stripped) = mode.strip_prefix("tray_")
                     && let Some(final_mode) = stripped.strip_suffix("_mode")
                 {
                     logging!(info, Type::ProxyMode, "Switch Proxy Mode To: {}", final_mode);
-                    // Ошибка уже логируется внутри change_clash_mode, здесь возвращаемое значение явно игнорируется
                     let _ = feat::change_clash_mode(final_mode.into()).await;
                 }
             }
@@ -1069,7 +1032,6 @@ fn on_menu_event(_: &AppHandle, event: MenuEvent) {
                 feat::toggle_proxy_profile(profile_index.into()).await;
             }
             id if id.starts_with("proxy_") => {
-                // proxy_{group_name}_{proxy_name}
                 let rest = match id.strip_prefix("proxy_") {
                     Some(r) => r,
                     None => return,
@@ -1084,8 +1046,5 @@ fn on_menu_event(_: &AppHandle, event: MenuEvent) {
                 logging!(debug, Type::Tray, "Unhandled tray menu event: {:?}", event.id);
             }
         }
-
-        // We dont expected to refresh tray state here
-        // as the inner handle function (SHOULD) already takes care of it
     });
 }
