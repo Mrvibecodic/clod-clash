@@ -1,10 +1,12 @@
 import {
   closestCenter,
+  type CollisionDetection,
   DndContext,
   type DragEndEvent,
   DragOverlay,
   KeyboardSensor,
   PointerSensor,
+  pointerWithin,
   useSensor,
   useSensors,
 } from '@dnd-kit/core'
@@ -44,7 +46,6 @@ import {
   createProfile,
   deleteProfile,
   enhanceProfiles,
-  //restartCore,
   getRuntimeLogs,
   reorderProfile,
   updateProfile,
@@ -54,12 +55,9 @@ import { revalidateQueries, useQuery } from '@/services/query-client'
 import { useLoadingCache, useSetLoadingCache } from '@/services/states'
 import { debugLog } from '@/utils/debug'
 
-// Совпадает с лимитом worker_limit (8) в src-tauri/src/main.rs, чтобы избежать
-// рассинхронизации штормов обновлений между фронтендом и бэкендом
 const PROFILE_UPDATE_WORKER_LIMIT = 8
 const PROFILE_SWITCH_LOADING_DELAY = 400
 
-// Equivalent to rectSortingStrategy without copying the full rect array for every item.
 const profileRectSortingStrategy: SortingStrategy = ({
   rects,
   activeIndex,
@@ -102,7 +100,11 @@ interface ProfileSwitchRequest {
   force: boolean
 }
 
-// Логирует состояние переключения profile
+const profileCollisionDetection: CollisionDetection = (args) => {
+  const pointerCollisions = pointerWithin(args)
+  return pointerCollisions.length > 0 ? pointerCollisions : closestCenter(args)
+}
+
 const debugProfileSwitch = (action: string, profile: string, extra?: any) => {
   const timestamp = new Date().toISOString().substring(11, 23)
   debugLog(`[Profile-Debug][${timestamp}] ${action}: ${profile}`, extra || '')
@@ -124,14 +126,11 @@ const ProfilePage = () => {
     Map<string, number>
   >(() => new Map())
 
-  // Batch selection states
   const [batchMode, setBatchMode] = useState(false)
   const [selectedProfiles, setSelectedProfiles] = useState<Set<string>>(
     () => new Set(),
   )
 
-  // Переключение Profile выполняется на фронтенде последовательно; в очереди
-  // хранится только последний выбор пользователя.
   const latestSwitchTargetRef = useRef<string | null>(null)
   const queuedSwitchRef = useRef<ProfileSwitchRequest | null>(null)
   const switchRunnerRef = useRef<Promise<void> | null>(null)
@@ -202,21 +201,16 @@ const ProfilePage = () => {
     }
   }, [addListener, mutateProfiles])
 
-  // Функция экстренного восстановления
   const onEmergencyRefresh = useLockFn(async () => {
     debugLog(
       '[Экстренное обновление] Начало принудительного обновления всех данных',
     )
 
     try {
-      // Инвалидируем только query, связанные с profiles, не затрагивая
-      // WS-подписку, IP-кэш и другие query
       await revalidateQueries([['getProfiles'], ['getRuntimeLogs']])
 
-      // Принудительно перезапрашиваем данные конфига
       await mutateProfiles()
 
-      // Ждём стабилизации состояния, затем применяем расширение конфига
       await new Promise((resolve) => setTimeout(resolve, 500))
       await onEnhance(false)
 
@@ -244,7 +238,6 @@ const ProfilePage = () => {
 
   const viewerRef = useRef<ProfileViewerRef>(null)
 
-  // distinguish type
   const profileItems = useMemo(() => {
     const items = profiles.items || []
 
@@ -253,9 +246,6 @@ const ProfilePage = () => {
     return items.filter((i) => i && type1.includes(i.type!))
   }, [profiles])
 
-  // clod:groups — группа это просто ярлык на подписке. Ряд фильтров строится
-  // из того, что реально проставлено: пустая группа исчезает сама, а если
-  // групп нет вовсе, ряда тоже нет.
   const [group, setGroup] = useState('')
   const groups = useMemo(() => {
     const counts = new Map<string, number>()
@@ -266,8 +256,6 @@ const ProfilePage = () => {
     return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0]))
   }, [profileItems])
 
-  // Группу могли удалить или переименовать — тогда фильтр молча становится
-  // «Все», а не прячет весь список. Считаем, а не чиним эффектом.
   const activeGroup = groups.some(([name]) => name === group) ? group : ''
 
   const visibleItems = useMemo(
@@ -473,7 +461,6 @@ const ProfilePage = () => {
     }
   })
 
-  // Обновление всех подписок
   const loadingCache = useLoadingCache()
   const setLoadingCache = useSetLoadingCache()
   const setLoadingProfiles = useCallback(
@@ -570,8 +557,7 @@ const ProfilePage = () => {
         await Promise.allSettled(Array.from({ length: active }, worker))
       } finally {
         setLoadingProfiles(uids, false)
-        // Чтобы данные списка не обновились слишком поздно после долгого
-        // пакетного обновления
+
         void mutateProfiles()
       }
     },
@@ -587,11 +573,9 @@ const ProfilePage = () => {
     await runProfileUpdates(target)
   })
 
-  // Batch selection functions
   const toggleBatchMode = () => {
     setBatchMode(!batchMode)
     if (!batchMode) {
-      // Entering batch mode - clear previous selections
       setSelectedProfiles(new Set())
     }
   }
@@ -624,11 +608,11 @@ const ProfilePage = () => {
 
   const getSelectionState = () => {
     if (selectedProfiles.size === 0) {
-      return 'none' // ничего не выбрано
+      return 'none'
     } else if (selectedProfiles.size === profileItems.length) {
-      return 'all' // выбрано всё
+      return 'all'
     } else {
-      return 'partial' // выбрано частично
+      return 'partial'
     }
   }
 
@@ -636,7 +620,6 @@ const ProfilePage = () => {
     if (selectedProfiles.size === 0) return
 
     try {
-      // Get all currently activating profiles
       const currentActivating =
         profiles.current && selectedProfiles.has(profiles.current)
           ? [profiles.current]
@@ -644,7 +627,6 @@ const ProfilePage = () => {
 
       setActivatings((prev) => [...new Set([...prev, ...currentActivating])])
 
-      // Delete all selected profiles
       for (const uid of selectedProfiles) {
         await deleteProfile(uid)
       }
@@ -652,12 +634,10 @@ const ProfilePage = () => {
       await mutateProfiles()
       await mutateLogs()
 
-      // If any deleted profile was current, enhance profiles
       if (currentActivating.length > 0) {
         await onEnhance(false)
       }
 
-      // Clear selections and exit batch mode
       setSelectedProfiles(new Set())
       setBatchMode(false)
 
@@ -669,7 +649,6 @@ const ProfilePage = () => {
     }
   })
 
-  // После размонтирования не выполняем ещё не отправленные намерения переключения.
   useEffect(() => {
     profilePageMountedRef.current = true
     return () => {
@@ -692,7 +671,6 @@ const ProfilePage = () => {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           {!batchMode ? (
             <>
-              {/* Batch mode toggle button */}
               <IconButton
                 size="small"
                 color="inherit"
@@ -711,10 +689,6 @@ const ProfilePage = () => {
                 <RefreshRounded />
               </IconButton>
 
-              {/* clod: рантайм-конфиг и «переактивировать» убраны — тулбар
-                  оставляет только действия над подписками */}
-
-              {/* Кнопка обнаружения сбоев и экстренного восстановления */}
               {(error || isStale) && (
                 <IconButton
                   size="small"
@@ -735,7 +709,6 @@ const ProfilePage = () => {
               )}
             </>
           ) : (
-            // Batch mode header
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <IconButton
                 size="small"
@@ -780,9 +753,6 @@ const ProfilePage = () => {
         </Box>
       }
     >
-      {/* clod: раньше здесь были поле ввода, «Импорт» и «Новый» — три элемента
-          на одно действие. Осталась одна кнопка: ссылка спрашивается в окне,
-          там же всё остальное. */}
       <Stack
         direction="row"
         spacing={1}
@@ -805,7 +775,6 @@ const ProfilePage = () => {
         </Button>
       </Stack>
 
-      {/* clod:groups — фильтр по группам; прячется целиком, если групп нет. */}
       {groups.length > 0 && (
         <Stack
           direction="row"
@@ -834,7 +803,7 @@ const ProfilePage = () => {
 
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCenter}
+        collisionDetection={profileCollisionDetection}
         onDragEnd={onDragEnd}
       >
         <Box
@@ -846,11 +815,6 @@ const ProfilePage = () => {
           }}
         >
           <Box sx={{ mb: 1.5 }}>
-            {/* clod:card-v2 — не доли ряда, а порог ширины: карточка никогда
-                не уже 320 px, а сколько их влезло в ряд, столько и будет.
-                Доли давали 256–300 px на широком экране, и содержимое жалось.
-                `min(320px, 100%)` — страховка на совсем узком окне: иначе
-                колонка вылезает за контейнер. */}
             <Box
               sx={{
                 display: 'grid',
@@ -887,8 +851,6 @@ const ProfilePage = () => {
                       onSave={async (prev, curr) => {
                         if (prev !== curr && profiles.current === item.uid) {
                           await onEnhance(false)
-                          //  await restartCore();
-                          //   Notice.success(t("settings.feedback.notifications.clash.restartSuccess"), 1000);
                         }
                       }}
                       onDelete={() => {
@@ -907,8 +869,6 @@ const ProfilePage = () => {
               </SortableContext>
             </Box>
           </Box>
-          {/* clod: карточки Global Extend Config/Script убраны — странице
-              подписок нечего делать с механикой расширения конфигов */}
         </Box>
         <DragOverlay />
       </DndContext>
@@ -917,8 +877,7 @@ const ProfilePage = () => {
         ref={viewerRef}
         onChange={async (isActivating) => {
           mutateProfiles()
-          // Глобальную перезагрузку запускаем только при изменении текущего
-          // активного конфига
+
           if (isActivating) {
             await onEnhance(false)
           }

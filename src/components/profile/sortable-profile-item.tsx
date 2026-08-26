@@ -11,6 +11,8 @@ type SortableProfileItemProps = Omit<
   id: string
 }
 
+const SORT_TRANSITION = 'transform 160ms cubic-bezier(0.2, 0, 0, 1)'
+
 export const SortableProfileItem = ({
   id,
   ...profileItemProps
@@ -19,23 +21,32 @@ export const SortableProfileItem = ({
     attributes,
     listeners,
     setNodeRef,
+    setActivatorNodeRef,
     transform,
-    transition,
     isDragging,
-  } = useSortable({ id })
+    isSorting,
+    isOver,
+  } = useSortable({ id, transition: null })
+
+  const isDiagonalMove =
+    transform !== null && transform.x !== 0 && transform.y !== 0
 
   return (
     <Box
+      ref={setNodeRef}
       sx={{
         position: 'relative',
-        transform: CSS.Transform.toString(transform),
-        transition,
+        transform: CSS.Translate.toString(transform),
+        transition:
+          isSorting && !isDragging && isOver && !isDiagonalMove
+            ? SORT_TRANSITION
+            : undefined,
         zIndex: isDragging ? 'calc(infinity)' : undefined,
       }}
     >
       <ProfileItem
         {...profileItemProps}
-        dragHandleRef={setNodeRef}
+        dragHandleRef={setActivatorNodeRef}
         dragHandleAttributes={attributes}
         dragHandleListeners={listeners}
       />
