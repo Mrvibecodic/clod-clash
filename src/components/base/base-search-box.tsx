@@ -4,6 +4,7 @@ import Tooltip from '@mui/material/Tooltip'
 import {
   type ChangeEvent,
   type MouseEvent,
+  type RefObject,
   useCallback,
   useEffect,
   useMemo,
@@ -30,6 +31,7 @@ type SearchProps = {
   value?: string
   defaultValue?: string
   autoFocus?: boolean
+  inputRef?: RefObject<HTMLInputElement | null>
   placeholder?: string
   matchCase?: boolean
   matchWholeWord?: boolean
@@ -76,6 +78,7 @@ export const BaseSearchBox = ({
   value,
   defaultValue,
   autoFocus,
+  inputRef,
   placeholder,
   searchState,
   matchCase: defaultMatchCase = false,
@@ -86,9 +89,7 @@ export const BaseSearchBox = ({
 }: SearchProps) => {
   const { t } = useTranslation()
   const onSearchRef = useRef(onSearch)
-  // Инициализируем начальным состоянием, чтобы emitSearch при монтировании
-  // пропускался из-за совпадения состояния, и onSearch срабатывал только при
-  // реальном изменении ввода (также избегаем повторных вызовов в StrictMode).
+
   const lastSearchStateRef = useRef<SearchState | null>({
     text: value ?? defaultValue ?? '',
     matchCase: searchState?.matchCase ?? defaultMatchCase,
@@ -207,6 +208,7 @@ export const BaseSearchBox = ({
         size="small"
         variant="outlined"
         autoFocus={autoFocus}
+        inputRef={inputRef}
         spellCheck="false"
         placeholder={placeholder ?? t('shared.placeholders.filter')}
         sx={{ input: { py: 0.65, px: 1.25 } }}
