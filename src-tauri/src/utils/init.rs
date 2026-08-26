@@ -439,6 +439,18 @@ pub async fn init_config() -> Result<()> {
     initialize_config_files().await?;
 
     AsyncHandler::spawn(|| async {
+        for dir in [dirs::app_home_dir(), dirs::app_profiles_dir()].into_iter().flatten() {
+            let removed = crate::utils::help::sweep_staging_leftovers(&dir).await;
+            if removed > 0 {
+                logging!(
+                    info,
+                    Type::Setup,
+                    "removed {} stale config drafts from {:?}",
+                    removed,
+                    dir
+                );
+            }
+        }
         if let Err(e) = delete_log().await {
             logging!(warn, Type::Setup, "Failed to clean old logs: {}", e);
         }

@@ -110,6 +110,28 @@ pub async fn write_atomic(path: &Path, contents: &[u8]) -> Result<()> {
     Err(anyhow!(last_error)).with_context(|| format!("failed to move file into place \"{}\"", path.display()))
 }
 
+fn is_staging_leftover(name: &str) -> bool {
+    let Some(stem) = name.strip_prefix('.').and_then(|rest| rest.strip_suffix(".tmp")) else {
+        return false;
+    };
+    stem.rsplit_once('.')
+        .is_some_and(|(base, id)| !base.is_empty() && id.len() == 8 && id.chars().all(|c| ALPHABET.contains(&c)))
+}
+
+pub async fn sweep_staging_leftovers(dir: &Path) -> usize {
+    let Ok(mut entries) = tokio::fs::read_dir(dir).await else {
+        return 0;
+    };
+    let mut removed = 0;
+    while let Ok(Some(entry)) = entries.next_entry().await {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if is_staging_leftover(&name) && tokio::fs::remove_file(entry.path()).await.is_ok() {
+            removed += 1;
+        }
+    }
+    removed
+}
+
 fn staging_path(path: &Path) -> PathBuf {
     let name = path
         .file_name()
@@ -301,7 +323,9 @@ pub fn snapshot_path(original_path: &Path) -> Result<PathBuf> {
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod tests {
-    use super::{is_placeholder_secret, random_secret, staging_path, write_atomic};
+    use super::{
+        is_placeholder_secret, is_staging_leftover, random_secret, staging_path, sweep_staging_leftovers, write_atomic,
+    };
     use std::path::PathBuf;
 
     fn scratch_dir(name: &str) -> PathBuf {
@@ -328,6 +352,30 @@ mod tests {
             .filter(|name| name.ends_with(".tmp"))
             .collect();
         assert!(leftovers.is_empty(), "черновики остались: {leftovers:?}");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn only_our_drafts_count_as_leftovers() {
+        assert!(is_staging_leftover(".verge.yaml.aB3dE9xZ.tmp"));
+        assert!(!is_staging_leftover("verge.yaml"));
+        assert!(!is_staging_leftover(".hidden.tmp"));
+        assert!(!is_staging_leftover(".verge.yaml.short.tmp"));
+        assert!(!is_staging_leftover("notes.aB3dE9xZ.tmp"));
+    }
+
+    #[tokio::test]
+    async fn sweep_removes_drafts_and_keeps_everything_else() {
+        let dir = scratch_dir("sweep");
+        std::fs::write(dir.join(".verge.yaml.aB3dE9xZ.tmp"), b"x").expect("draft");
+        std::fs::write(dir.join("verge.yaml"), b"y").expect("config");
+        std::fs::write(dir.join("keep.tmp"), b"z").expect("foreign tmp");
+
+        assert_eq!(sweep_staging_leftovers(&dir).await, 1);
+        assert!(!dir.join(".verge.yaml.aB3dE9xZ.tmp").exists());
+        assert!(dir.join("verge.yaml").exists());
+        assert!(dir.join("keep.tmp").exists());
 
         let _ = std::fs::remove_dir_all(&dir);
     }
