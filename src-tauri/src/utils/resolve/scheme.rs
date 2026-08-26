@@ -29,7 +29,11 @@ pub(super) async fn resolve_scheme(param: &str) -> Result<()> {
         logging!(
             warn,
             Type::Config,
-            "no importable http(s) url in deep link: {masked_deep_link}"
+            "no importable https url in deep link: {masked_deep_link}"
+        );
+        handle::Handle::notice_message(
+            "import_sub_url::error",
+            format!("subscription URL must use https: {masked_deep_link}"),
         );
         return Ok(());
     };

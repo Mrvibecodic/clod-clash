@@ -28,6 +28,9 @@ const RULES: ReadonlyArray<{ pattern: RegExp; key: string }> = [
   { pattern: /clod-chan-refused/, key: 'chanRefused' },
   { pattern: /clod-chan-bad-url/, key: 'chanBadUrl' },
 
+  // --- Адрес подписки ------------------------------------------------------
+  { pattern: /subscription url must use https/, key: 'subscriptionHttpsOnly' },
+
   // --- Сеть до сервера -----------------------------------------------------
   {
     pattern: /no such host|dns lookup failed|lookup .*: no/,

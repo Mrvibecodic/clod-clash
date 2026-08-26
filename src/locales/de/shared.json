@@ -99,7 +99,8 @@
         "chanBroken": "The subscription response could not be decrypted — the connection was tampered with, or the provider turned the protection off",
         "chanReplay": "The subscription response does not answer our request — check the clock on this computer and try again",
         "chanRefused": "The middleware refused the secure request — the connection to it is being blocked, or the protection is off",
-        "chanBadUrl": "This subscription address cannot be used with a secure connection"
+        "chanBadUrl": "This subscription address cannot be used with a secure connection",
+        "subscriptionHttpsOnly": "Die Abonnementadresse muss mit https beginnen — ändern Sie sie im Anbieterpanel oder fügen Sie das Abonnement erneut hinzu"
       }
     },
     "notices": {

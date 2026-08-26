@@ -21,6 +21,10 @@ describe('explainErrorKey', () => {
     )
     assert.equal(key('context deadline exceeded'), 'timeout')
     assert.equal(
+      key('subscription URL must use https, got scheme "http": http://…'),
+      'subscriptionHttpsOnly',
+    )
+    assert.equal(
       key(
         'listen tcp 127.0.0.1:7897: bind: Only one usage of each socket address',
       ),

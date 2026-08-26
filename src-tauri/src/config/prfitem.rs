@@ -250,7 +250,9 @@ impl PrfOption {
 impl PrfItem {
     fn is_worth_retrying_over_proxy(err: &anyhow::Error) -> bool {
         let text = err.to_string();
-        !text.contains("(x-hwid)") && !text.contains("invalid profile item type")
+        !text.contains("(x-hwid)")
+            && !text.contains("invalid profile item type")
+            && !text.contains("subscription URL must use https")
     }
 
     pub async fn from_url_with_ladder(
