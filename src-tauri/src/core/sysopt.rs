@@ -24,8 +24,6 @@ enum ProxyApplyStep {
 }
 
 const fn proxy_apply_steps(sys_enabled: bool, auto_enabled: bool) -> [ProxyApplyStep; 2] {
-    // Disabling PAC clears WinINET proxy flags on Windows, so pure global
-    // proxy mode must clear PAC before enabling Sysproxy.
     if sys_enabled && !auto_enabled {
         [ProxyApplyStep::Autoproxy, ProxyApplyStep::Sysproxy]
     } else {
@@ -53,24 +51,32 @@ impl Default for Sysopt {
 
 #[cfg(target_os = "windows")]
 static DEFAULT_BYPASS: &str = "localhost;127.*;192.168.*;10.*;172.16.*;172.17.*;172.18.*;172.19.*;172.20.*;172.21.*;172.22.*;172.23.*;172.24.*;172.25.*;172.26.*;172.27.*;172.28.*;172.29.*;172.30.*;172.31.*;<local>";
+#[cfg(target_os = "windows")]
+static BYPASS_SEPARATOR: &str = ";";
 #[cfg(target_os = "linux")]
 static DEFAULT_BYPASS: &str = "localhost,127.0.0.1,192.168.0.0/16,10.0.0.0/8,172.16.0.0/12,::1";
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+static BYPASS_SEPARATOR: &str = ",";
 #[cfg(target_os = "macos")]
 static DEFAULT_BYPASS: &str =
     "127.0.0.1,192.168.0.0/16,10.0.0.0/8,172.16.0.0/12,localhost,*.local,*.crashlytics.com,<local>";
+
+fn format_bypass(use_default: bool, custom_bypass: &str) -> String {
+    if custom_bypass.is_empty() {
+        DEFAULT_BYPASS.into()
+    } else if use_default {
+        format!("{DEFAULT_BYPASS}{BYPASS_SEPARATOR}{custom_bypass}").into()
+    } else {
+        custom_bypass.into()
+    }
+}
 
 async fn get_bypass() -> String {
     let verge = Config::verge().await.latest_arc();
     let use_default = verge.use_default_bypass.unwrap_or(true);
     let custom_bypass = verge.system_proxy_bypass.as_deref().unwrap_or("");
 
-    if custom_bypass.is_empty() {
-        DEFAULT_BYPASS.into()
-    } else if use_default {
-        format!("{DEFAULT_BYPASS},{custom_bypass}").into()
-    } else {
-        custom_bypass.into()
-    }
+    format_bypass(use_default, custom_bypass)
 }
 
 singleton!(Sysopt, SYSOPT);
@@ -116,15 +122,10 @@ impl Sysopt {
         }
     }
 
-    /// Wait for any in-progress `update_sysproxy` to finish, so that a
-    /// subsequent read of OS-level sysproxy state sees a fully applied
-    /// configuration instead of a partially-applied one (e.g. SOCKS already
-    /// disabled but HTTP still enabled mid-transition).
     pub async fn wait_idle(&self) {
         let _ = self.update_lock.lock().await;
     }
 
-    /// init the sysproxy
     pub async fn update_sysproxy(&self) -> Result<()> {
         let _lock = self.update_lock.lock().await;
 
@@ -134,7 +135,6 @@ impl Sysopt {
             None => Config::clash().await.latest_arc().get_mixed_port(),
         };
         let pac_port = IVerge::get_singleton_port();
-        // Сначала await, чтобы не держать блокировку и не получить проблему с Send
         let bypass = get_bypass().await;
 
         let (sys_enable, pac_enable, proxy_host, proxy_guard) = (
@@ -151,8 +151,6 @@ impl Sysopt {
             sys.bypass = bypass.into();
             auto.url = format!("http://{proxy_host}:{pac_port}/commands/pac");
 
-            // `enable_system_proxy` is the master switch.
-            // When disabled, force clear both global proxy and PAC at OS level.
             let guard_type = if !sys_enable {
                 sys.enable = false;
                 auto.enable = false;
@@ -196,7 +194,6 @@ impl Sysopt {
         Ok(())
     }
 
-    /// reset the sysproxy
     pub async fn reset_sysproxy(&self) -> Result<()> {
         if self
             .reset_sysproxy
@@ -209,10 +206,8 @@ impl Sysopt {
             self.reset_sysproxy.store(false, Ordering::SeqCst);
         }
 
-        // close proxy guard
         self.access_guard().write().set_guard_type(GuardType::None);
 
-        // Напрямую выключаем все прокси
         let (sys, auto) = {
             let (sys, auto) = &mut *self.inner_proxy.write();
             sys.enable = false;
@@ -233,7 +228,25 @@ impl Sysopt {
 
 #[cfg(test)]
 mod tests {
-    use super::{ProxyApplyStep, proxy_apply_steps};
+    use super::{BYPASS_SEPARATOR, DEFAULT_BYPASS, ProxyApplyStep, format_bypass, proxy_apply_steps};
+
+    #[test]
+    fn empty_custom_bypass_uses_defaults() {
+        assert_eq!(format_bypass(false, ""), DEFAULT_BYPASS);
+    }
+
+    #[test]
+    fn custom_bypass_can_replace_defaults() {
+        assert_eq!(format_bypass(false, "example.com"), "example.com");
+    }
+
+    #[test]
+    fn default_and_custom_bypass_use_platform_separator() {
+        assert_eq!(
+            format_bypass(true, "example.com"),
+            format!("{DEFAULT_BYPASS}{BYPASS_SEPARATOR}example.com")
+        );
+    }
 
     #[test]
     fn pure_sysproxy_mode_clears_pac_before_enabling_global_proxy() {
