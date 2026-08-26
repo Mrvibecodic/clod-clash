@@ -25,7 +25,8 @@
     "i18n:types": "node scripts/generate-i18n-keys.mjs",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
     "test": "node --test \"src/**/*.test.ts\"",
-    "knip:report": "knip --no-exit-code"
+    "knip:report": "knip --no-exit-code",
+    "knip:check": "knip"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

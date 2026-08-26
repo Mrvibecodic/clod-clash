@@ -90,6 +90,6 @@ jobs:
         if: github.event_name != 'pull_request' || steps.check_frontend.outputs.frontend == 'true'
         run: pnpm test
 
-      - name: Report unused frontend code and dependencies
+      - name: Check unused frontend code and dependencies
         if: github.event_name != 'pull_request' || steps.check_frontend.outputs.frontend == 'true'
-        run: pnpm knip:report
+        run: pnpm knip:check
