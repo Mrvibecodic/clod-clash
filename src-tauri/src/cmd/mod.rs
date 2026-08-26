@@ -46,7 +46,7 @@ pub trait StringifyErr<T> {
         F: Fn(&str);
 }
 
-fn public_error_text(error: &impl std::fmt::Display) -> String {
+pub(crate) fn public_error_text(error: &impl std::fmt::Display) -> String {
     let raw = error.to_string();
     let home = redact::home_prefix();
     String::from(redact::redact(&redact::scrub_home(&raw, home.as_deref())))

@@ -66,7 +66,7 @@ pub async fn enhance_profiles() -> CmdResult<ValidationOutcome> {
         }
         Err(e) => {
             logging!(error, Type::Cmd, "{}", e);
-            Err(e.to_string().into())
+            Err(super::public_error_text(&e))
         }
     }
 }
@@ -97,13 +97,13 @@ pub async fn import_profile(url: std::string::String, option: Option<PrfOption>)
         }
         Err(e) => {
             logging!(error, Type::Cmd, "[импорт подписки] не удалось загрузить: {}", e);
-            return Err(profile_import_error(&e).into());
+            return Err(super::public_error_text(&profile_import_error(&e)));
         }
     };
 
     if let Err(e) = profiles_append_item_safe(item).await {
         logging!(error, Type::Cmd, "[импорт подписки] не удалось сохранить конфиг: {}", e);
-        return Err(format!("не удалось импортировать подписку: {}", e).into());
+        return Err(format!("не удалось импортировать подписку: {}", super::public_error_text(&e)).into());
     }
 
     if let Err(e) = profiles_save_file_safe().await {
@@ -113,7 +113,7 @@ pub async fn import_profile(url: std::string::String, option: Option<PrfOption>)
             "[импорт подписки] не удалось сохранить файл конфига: {}",
             e
         );
-        return Err(format!("не удалось импортировать подписку: {}", e).into());
+        return Err(format!("не удалось импортировать подписку: {}", super::public_error_text(&e)).into());
     }
     logging!(info, Type::Cmd, "[импорт подписки] файл конфига сохранён");
     logging_error!(Type::Timer, Timer::global().refresh().await);
@@ -147,7 +147,11 @@ pub async fn reorder_profile(active_id: String, over_id: String) -> CmdResult {
         }
         Err(err) => {
             logging!(error, Type::Cmd, "не удалось изменить порядок файлов конфига: {}", err);
-            Err(format!("не удалось изменить порядок файлов конфига: {}", err).into())
+            Err(format!(
+                "не удалось изменить порядок файлов конфига: {}",
+                super::public_error_text(&err)
+            )
+            .into())
         }
     }
 }
@@ -174,7 +178,7 @@ pub async fn create_profile(item: PrfItem, file_data: Option<String>) -> CmdResu
         }
         Err(err) => match err.to_string().as_str() {
             "the file already exists" => Err("the file already exists".into()),
-            _ => Err(format!("add profile error: {err}").into()),
+            _ => Err(format!("add profile error: {}", super::public_error_text(&err)).into()),
         },
     }
 }
@@ -199,7 +203,7 @@ pub async fn update_profile(index: String, option: Option<PrfOption>) -> CmdResu
         Ok(_) => Ok(()),
         Err(e) => {
             logging!(error, Type::Cmd, "{}", e);
-            Err(e.to_string().into())
+            Err(super::public_error_text(&e))
         }
     }
 }
@@ -257,7 +261,7 @@ pub async fn delete_profile(index: String) -> CmdResult {
             Err(e) => {
                 logging!(error, Type::Cmd, "{}", e);
                 restore_profiles_after_failed_delete(snapshot).await;
-                return Err(e.to_string().into());
+                return Err(super::public_error_text(&e));
             }
         }
     }
@@ -420,7 +424,7 @@ async fn handle_update_error<E: std::fmt::Display>(
 ) -> CmdResult<ValidationOutcome> {
     logging!(warn, Type::Cmd, "ошибка в процессе обновления: {}", e,);
     discard_and_restore(current_profile).await?;
-    let message: String = e.to_string().into();
+    let message: String = super::public_error_text(&e);
     handle::Handle::notice_message("config_validate::boot_error", message.clone());
     Ok(ValidationOutcome::invalid_from_message(message))
 }
@@ -555,7 +559,10 @@ pub async fn view_profile(index: String) -> CmdResult {
 
     let path = dirs::app_profiles_dir().stringify_err()?.join(file.as_str());
     if !path.exists() {
-        return CmdResult::Err(format!("file not found \"{}\"", path.display()).into());
+        return CmdResult::Err(super::public_error_text(&format!(
+            "file not found \"{}\"",
+            path.display()
+        )));
     }
 
     help::open_file(path).stringify_err()
@@ -579,7 +586,10 @@ pub async fn read_profile_file(index: String) -> CmdResult<String> {
             Ok(true) => {}
             Ok(false) => return Ok(String::new()),
             Err(err) => {
-                return Err(format!("failed to check profile file \"{}\": {err}", path.display()).into());
+                return Err(super::public_error_text(&format!(
+                    "failed to check profile file \"{}\": {err}",
+                    path.display()
+                )));
             }
         }
     }

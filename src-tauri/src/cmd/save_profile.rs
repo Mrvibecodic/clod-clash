@@ -184,7 +184,7 @@ async fn handle_saved_profile_file(
                 e
             );
             restore_original(file_path, original_content, original_existed).await?;
-            return Err(e.to_string().into());
+            return Err(super::public_error_text(&e));
         }
     }
 
@@ -221,7 +221,7 @@ async fn handle_saved_profile_file(
                 err
             );
             restore_original(file_path, original_content, original_existed).await?;
-            Err(err.to_string().into())
+            Err(super::public_error_text(&err))
         }
     }
 }
