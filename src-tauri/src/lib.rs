@@ -27,6 +27,15 @@ use tauri_plugin_deep_link::DeepLinkExt as _;
 use tauri_plugin_mihomo::RejectPolicy;
 
 pub static APP_HANDLE: OnceCell<AppHandle> = OnceCell::new();
+
+async fn resolve_deep_link_urls<'a>(urls: impl Iterator<Item = &'a str>) {
+    for url in urls {
+        if let Err(e) = resolve::resolve_scheme(url).await {
+            logging!(error, Type::Setup, "Failed to resolve scheme: {}", e);
+        }
+    }
+}
+
 mod app_init {
     use super::*;
 
@@ -85,23 +94,15 @@ mod app_init {
         app.deep_link().on_open_url(|event| {
             let urls = event.urls();
             AsyncHandler::spawn(move || async move {
-                if let Some(url) = urls.first()
-                    && let Err(e) = resolve::resolve_scheme(url.as_ref()).await
-                {
-                    logging!(error, Type::Setup, "Failed to resolve scheme: {}", e);
-                }
+                resolve_deep_link_urls(urls.iter().map(|url| url.as_ref())).await;
             });
         });
 
         #[cfg(not(any(target_os = "macos", target_os = "ios")))]
-        if let Ok(Some(urls)) = app.deep_link().get_current()
-            && let Some(url) = urls.first()
-        {
-            let url = url.to_string();
+        if let Ok(Some(urls)) = app.deep_link().get_current() {
+            let urls: Vec<String> = urls.iter().map(|url| url.to_string()).collect();
             AsyncHandler::spawn(move || async move {
-                if let Err(e) = resolve::resolve_scheme(&url).await {
-                    logging!(error, Type::Setup, "Failed to resolve scheme: {}", e);
-                }
+                resolve_deep_link_urls(urls.iter().map(String::as_str)).await;
             });
         }
     }
