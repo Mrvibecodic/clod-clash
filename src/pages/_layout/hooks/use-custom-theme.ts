@@ -368,7 +368,7 @@ export const useCustomTheme = () => {
       if (canUseCssScope() && setting.css_injection) {
         scopedCss = wrapCssInjectionWithScope(setting.css_injection)
       }
-      const effectiveInjectedCss = scopedCss ?? setting.css_injection ?? ''
+      const effectiveInjectedCss = scopedCss ?? ''
       const globalStyles = `
         ::-webkit-scrollbar {
           width: 8px;
