@@ -40,7 +40,7 @@ import {
   type ProfileViewerRef,
 } from '@/components/profile/profile-viewer'
 import { SortableProfileItem } from '@/components/profile/sortable-profile-item'
-import { useListen } from '@/hooks/use-listen'
+import { useTauriEvent } from '@/hooks/use-listen'
 import { useProfiles } from '@/hooks/use-profiles'
 import {
   createProfile,
@@ -113,7 +113,6 @@ const debugProfileSwitch = (action: string, profile: string, extra?: any) => {
 const ProfilePage = () => {
   const { t } = useTranslation()
   const location = useLocation()
-  const { addListener } = useListen()
   const [activatings, setActivatings] = useState<string[]>([])
   const [switchTarget, setSwitchTarget] = useState<string | null>(null)
   const [visibleSwitchingProfile, setVisibleSwitchingProfile] = useState<
@@ -161,45 +160,28 @@ const ProfilePage = () => {
     currentProfileRef.current = profiles.current
   }, [profiles])
 
-  useEffect(() => {
-    const handleFileDrop = async () => {
-      const unlisten = await addListener(
-        TauriEvent.DRAG_DROP,
-        async (event: any) => {
-          const paths = event.payload.paths
-
-          for (const file of paths) {
-            if (!file.endsWith('.yaml') && !file.endsWith('.yml')) {
-              showNotice.error('profiles.page.feedback.errors.onlyYaml')
-              continue
-            }
-            const item = {
-              type: 'local',
-              name: file.split(/\/|\\/).pop() ?? 'New Profile',
-              desc: '',
-              url: '',
-              option: {
-                with_proxy: false,
-                self_proxy: false,
-              },
-            } as IProfileItem
-            const data = await readTextFile(file)
-            await createProfile(item, data)
-            await mutateProfiles()
-          }
-          await enhanceProfiles()
+  useTauriEvent<{ paths: string[] }>(TauriEvent.DRAG_DROP, async (event) => {
+    for (const file of event.payload.paths) {
+      if (!file.endsWith('.yaml') && !file.endsWith('.yml')) {
+        showNotice.error('profiles.page.feedback.errors.onlyYaml')
+        continue
+      }
+      const item = {
+        type: 'local',
+        name: file.split(/\/|\\/).pop() ?? 'New Profile',
+        desc: '',
+        url: '',
+        option: {
+          with_proxy: false,
+          self_proxy: false,
         },
-      )
-
-      return unlisten
+      } as IProfileItem
+      const data = await readTextFile(file)
+      await createProfile(item, data)
+      await mutateProfiles()
     }
-
-    const unsubscribe = handleFileDrop()
-
-    return () => {
-      unsubscribe.then((cleanup) => cleanup())
-    }
-  }, [addListener, mutateProfiles])
+    await enhanceProfiles()
+  })
 
   const onEmergencyRefresh = useLockFn(async () => {
     debugLog(

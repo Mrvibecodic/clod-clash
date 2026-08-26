@@ -6,11 +6,11 @@ import {
   DialogContentText,
   DialogTitle,
 } from '@mui/material'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BannerText } from '@/components/base'
-import { useListen } from '@/hooks/use-listen'
+import { useTauriEvent } from '@/hooks/use-listen'
 import { useVerge } from '@/hooks/use-verge'
 import { openWebUrl } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
@@ -40,36 +40,10 @@ const EVENT_NAME = 'clod://hwid-notice'
 
 export const HwidLimitDialog = () => {
   const { t } = useTranslation()
-  const { addListener } = useListen()
   const { patchVerge } = useVerge()
   const [notice, setNotice] = useState<HwidNotice | null>(null)
 
-  useEffect(() => {
-    let disposed = false
-    let unlisten: (() => void) | undefined
-
-    void Promise.resolve(
-      addListener(EVENT_NAME, ({ payload }) =>
-        setNotice(payload as HwidNotice),
-      ),
-    )
-      .then((result) => {
-        if (typeof result !== 'function') return
-        if (disposed) {
-          result()
-        } else {
-          unlisten = result
-        }
-      })
-      .catch((error) =>
-        console.error('[HwidLimitDialog] listener registration failed:', error),
-      )
-
-    return () => {
-      disposed = true
-      unlisten?.()
-    }
-  }, [addListener])
+  useTauriEvent<HwidNotice>(EVENT_NAME, ({ payload }) => setNotice(payload))
 
   const close = useCallback(() => setNotice(null), [])
 

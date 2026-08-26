@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import useSWR from 'swr'
 
-import { useListen } from '@/hooks/use-listen'
+import { useTauriEvent } from '@/hooks/use-listen'
 import { getSentinelReport } from '@/services/cmds'
 import {
   noServersReason,
@@ -25,7 +25,6 @@ import {
  * keep claiming "the panel sent placeholders" long after the user fixed it.
  */
 export const useNoServersStatus = (profile?: IProfileItem) => {
-  const { addListener } = useListen()
   const {
     data: report,
     error,
@@ -36,35 +35,9 @@ export const useNoServersStatus = (profile?: IProfileItem) => {
     { revalidateOnFocus: false },
   )
 
-  useEffect(() => {
-    let disposed = false
-    let unlisten: (() => void) | undefined
-
-    void Promise.resolve(
-      addListener('verge://refresh-clash-config', () => {
-        void mutate()
-      }),
-    )
-      .then((result) => {
-        if (typeof result !== 'function') return
-        if (disposed) {
-          result()
-        } else {
-          unlisten = result
-        }
-      })
-      .catch((registrationError) =>
-        console.error(
-          '[useNoServersStatus] listener registration failed:',
-          registrationError,
-        ),
-      )
-
-    return () => {
-      disposed = true
-      unlisten?.()
-    }
-  }, [addListener, mutate])
+  useTauriEvent('verge://refresh-clash-config', () => {
+    void mutate()
+  })
 
   useEffect(() => {
     if (error) {

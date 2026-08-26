@@ -1,7 +1,6 @@
-import { useEffect } from 'react'
 import useSWR from 'swr'
 
-import { useListen } from '@/hooks/use-listen'
+import { useTauriEvent } from '@/hooks/use-listen'
 import { getServerDescriptions } from '@/services/cmds'
 
 /** Stable identity for "the panel sent no descriptions" — the common case. */
@@ -22,40 +21,13 @@ const EMPTY: Record<string, string> = {}
  * arrive. Every consumer therefore has to keep working without it.
  */
 export const useServerDescriptions = () => {
-  const { addListener } = useListen()
   const { data, mutate } = useSWR('serverDescriptions', getServerDescriptions, {
     revalidateOnFocus: false,
   })
 
-  useEffect(() => {
-    let disposed = false
-    let unlisten: (() => void) | undefined
-
-    void Promise.resolve(
-      addListener('verge://refresh-clash-config', () => {
-        void mutate()
-      }),
-    )
-      .then((result) => {
-        if (typeof result !== 'function') return
-        if (disposed) {
-          result()
-        } else {
-          unlisten = result
-        }
-      })
-      .catch((registrationError) =>
-        console.error(
-          '[useServerDescriptions] listener registration failed:',
-          registrationError,
-        ),
-      )
-
-    return () => {
-      disposed = true
-      unlisten?.()
-    }
-  }, [addListener, mutate])
+  useTauriEvent('verge://refresh-clash-config', () => {
+    void mutate()
+  })
 
   return data ?? EMPTY
 }
