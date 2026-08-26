@@ -347,4 +347,41 @@ mod tests {
         assert!(!masked.contains("ab12cd"), "{masked}");
         assert!(masked.contains("panel.example"), "{masked}");
     }
+
+    #[test]
+    fn every_clod_header_is_classified_public_or_secret() {
+        const PUBLIC_KEYS: &[&str] = &[
+            "clod-simple-mode",
+            "clod-portal-url",
+            "clod-bot-url",
+            "clod-monitor-url",
+            "clod-guide-url",
+            "clod-promo",
+            "clod-promo-url",
+            "clod-renew-url",
+            "clod-latency-style",
+            "clod-disable-ping",
+            "clod-device-remove",
+            "clod-hwid-limit",
+            "clod-show-0hosts",
+            "clod-lock-mode",
+            "clod-connect-mode",
+        ];
+        let source = include_str!("../config/sub_headers.rs");
+        let mut found = std::collections::BTreeSet::new();
+        let mut rest = source;
+        while let Some(pos) = rest.find("\"clod-") {
+            let tail = &rest[pos + 1..];
+            let end = tail.find('"').unwrap_or(tail.len());
+            found.insert(&tail[..end]);
+            rest = &tail[end..];
+        }
+        assert!(found.len() >= 10, "{found:?}");
+        for key in &found {
+            assert!(
+                PUBLIC_KEYS.contains(key) || super::SECRET_KEYS.contains(key),
+                "{key}: add it to SECRET_KEYS or to PUBLIC_KEYS in this test"
+            );
+        }
+    }
 }
