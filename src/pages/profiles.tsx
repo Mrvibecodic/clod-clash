@@ -46,12 +46,11 @@ import {
   createProfile,
   deleteProfile,
   enhanceProfiles,
-  getRuntimeLogs,
   reorderProfile,
   updateProfile,
 } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
-import { revalidateQueries, useQuery } from '@/services/query-client'
+import { revalidateQueries } from '@/services/query-client'
 import { useLoadingCache, useSetLoadingCache } from '@/services/states'
 import { debugLog } from '@/utils/debug'
 
@@ -189,7 +188,7 @@ const ProfilePage = () => {
     )
 
     try {
-      await revalidateQueries([['getProfiles'], ['getRuntimeLogs']])
+      await revalidateQueries([['getProfiles']])
 
       await mutateProfiles()
 
@@ -209,14 +208,6 @@ const ProfilePage = () => {
       )
     }
   })
-
-  const { refetch: refetchLogs } = useQuery({
-    queryKey: ['getRuntimeLogs'],
-    queryFn: getRuntimeLogs,
-  })
-  const refetchLogsRef = useRef(refetchLogs)
-  refetchLogsRef.current = refetchLogs
-  const mutateLogs = useCallback(() => refetchLogsRef.current(), [])
 
   const viewerRef = useRef<ProfileViewerRef>(null)
 
@@ -284,7 +275,6 @@ const ProfilePage = () => {
 
         if (outcome.status === 'valid') {
           currentProfileRef.current = profile
-          void mutateLogs().catch(() => {})
           void closeAllConnections().catch(() => {})
 
           if (
@@ -308,7 +298,7 @@ const ProfilePage = () => {
         debugProfileSwitch('SWITCH_END', profile)
       }
     },
-    [mutateLogs, patchProfiles],
+    [patchProfiles],
   )
 
   const runProfileSwitchQueue = useCallback(async () => {
@@ -412,7 +402,6 @@ const ProfilePage = () => {
 
     try {
       if (!(await enhanceProfiles())) return
-      mutateLogs()
       if (notifySuccess) {
         showNotice.success(
           'profiles.page.feedback.notifications.profileReactivated',
@@ -432,7 +421,6 @@ const ProfilePage = () => {
       setActivatings([...(current ? currentActivatings() : []), uid])
       await deleteProfile(uid)
       mutateProfiles()
-      mutateLogs()
       if (current) {
         await onEnhance(false)
       }
@@ -614,7 +602,6 @@ const ProfilePage = () => {
       }
 
       await mutateProfiles()
-      await mutateLogs()
 
       if (currentActivating.length > 0) {
         await onEnhance(false)
