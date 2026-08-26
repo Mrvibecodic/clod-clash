@@ -700,6 +700,7 @@
         "restartSuccess": "Clashコアが再起動されました。",
         "versionUpdated": "コアバージョンが更新されました。",
         "alreadyLatestVersion": "すでに最新のコアバージョンを使用しています。",
+        "upgradeFailed": "コアを更新できませんでした:",
         "changeSuccess": "コアの切り替えに成功しました。",
         "changeFailed": "コアの切り替えに失敗しました。",
         "geoDataUpdated": "GeoDataが更新されました。"

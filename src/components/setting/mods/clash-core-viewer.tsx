@@ -15,15 +15,17 @@ import { useLockFn } from 'ahooks'
 import type { Ref } from 'react'
 import { useImperativeHandle, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { closeAllConnections } from 'tauri-plugin-mihomo-api'
+import { closeAllConnections, upgradeCore } from 'tauri-plugin-mihomo-api'
 
 import { BaseDialog, DialogRef } from '@/components/base'
 import { useClash, useClashInfo } from '@/hooks/use-clash'
 import { useVerge } from '@/hooks/use-verge'
 import {
   changeClashCore,
+  checkCoreUpdate,
   downloadAndApplyCore,
   getCoreUpdaterStatus,
+  repinCoreBinaries,
   restartCore,
 } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
@@ -99,25 +101,50 @@ export function ClashCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
     }
   })
 
+  const upgradeThroughService = async () => {
+    try {
+      await upgradeCore()
+    } catch (err) {
+      if (String(err).includes('already using latest version')) {
+        return false
+      }
+      throw err
+    }
+    await repinCoreBinaries()
+    return true
+  }
+
+  const upgradeThroughManagedUpdater = async () => {
+    const check = await checkCoreUpdate()
+    if (!check.update_available) {
+      return false
+    }
+    await downloadAndApplyCore()
+    return true
+  }
+
   const onUpgrade = useLockFn(async () => {
     try {
       setUpgrading(true)
-      const before = await getCoreUpdaterStatus()
-      const result = await downloadAndApplyCore()
+      const status = await getCoreUpdaterStatus()
+      const updated = status.service_mode
+        ? await upgradeThroughService()
+        : await upgradeThroughManagedUpdater()
       setUpgrading(false)
       mutateVersion()
-      if (before.current === result.current) {
+      if (!updated) {
         showNotice.info(
-          t('settings.feedback.notifications.clash.alreadyLatestVersion'),
+          'settings.feedback.notifications.clash.alreadyLatestVersion',
         )
         return
       }
-      showNotice.success(
-        t('settings.feedback.notifications.clash.versionUpdated'),
-      )
+      showNotice.success('settings.feedback.notifications.clash.versionUpdated')
     } catch (err) {
       setUpgrading(false)
-      showNotice.error(err)
+      showNotice.error(
+        'settings.feedback.notifications.clash.upgradeFailed',
+        err,
+      )
     }
   })
 

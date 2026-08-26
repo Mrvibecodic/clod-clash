@@ -156,6 +156,7 @@ mod app_init {
             cmd::check_core_update,
             cmd::download_and_apply_core,
             cmd::revert_core,
+            cmd::repin_core_binaries,
             cmd::disable_managed_core,
             cmd::get_running_mode,
             cmd::entry_lightweight_mode,

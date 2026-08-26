@@ -28,6 +28,12 @@ pub async fn revert_core() -> CmdResult {
 }
 
 #[tauri::command]
+pub async fn repin_core_binaries() -> CmdResult {
+    core_updater::repin_core_binaries().await;
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn disable_managed_core() -> CmdResult {
     core_updater::disable_managed_core()
         .await

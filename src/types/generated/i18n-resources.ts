@@ -915,6 +915,7 @@ export interface TranslationResources {
             changeSuccess: string
             geoDataUpdated: string
             restartSuccess: string
+            upgradeFailed: string
             versionUpdated: string
           }
           clashService: {

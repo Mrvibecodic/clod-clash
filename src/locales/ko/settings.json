@@ -700,6 +700,7 @@
         "restartSuccess": "Clash 코어가 재시작되었습니다",
         "versionUpdated": "코어 버전이 업데이트되었습니다",
         "alreadyLatestVersion": "이미 최신 코어 버전을 사용 중입니다",
+        "upgradeFailed": "코어를 업데이트하지 못했습니다:",
         "changeSuccess": "코어 변경 성공",
         "changeFailed": "코어 변경 실패",
         "geoDataUpdated": "GeoData가 업데이트되었습니다"

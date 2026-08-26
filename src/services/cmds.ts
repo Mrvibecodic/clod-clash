@@ -603,6 +603,10 @@ export async function revertCore() {
   return invoke<void>('revert_core')
 }
 
+export async function repinCoreBinaries() {
+  return invoke<void>('repin_core_binaries')
+}
+
 export async function disableManagedCore() {
   return invoke<void>('disable_managed_core')
 }

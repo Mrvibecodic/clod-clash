@@ -700,6 +700,7 @@
         "restartSuccess": "تم إعادة تشغيل نواة Clash",
         "versionUpdated": "تم تحديث إصدار النواة",
         "alreadyLatestVersion": "أنت تستخدم بالفعل أحدث إصدار من النواة",
+        "upgradeFailed": "تعذّر تحديث النواة:",
         "changeSuccess": "تم تغيير النواة بنجاح",
         "changeFailed": "فشل تغيير النواة",
         "geoDataUpdated": "تم تحديث البيانات الجغرافية"

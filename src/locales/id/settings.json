@@ -700,6 +700,7 @@
         "restartSuccess": "Core Clash Dimulai Ulang",
         "versionUpdated": "Versi Core Diperbarui",
         "alreadyLatestVersion": "Sudah menggunakan versi inti terbaru",
+        "upgradeFailed": "Inti tidak dapat diperbarui:",
         "changeSuccess": "Inti berhasil diubah",
         "changeFailed": "Gagal mengubah inti",
         "geoDataUpdated": "GeoData Diperbarui"

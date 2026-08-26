@@ -700,6 +700,7 @@
         "restartSuccess": "Ядро перезапущено",
         "versionUpdated": "Ядро обновлено до последней версии",
         "alreadyLatestVersion": "Вы уже используете последнюю версию ядра",
+        "upgradeFailed": "Не удалось обновить ядро:",
         "changeSuccess": "Ядро успешно изменено",
         "changeFailed": "Не удалось сменить ядро",
         "geoDataUpdated": "Файлы GeoData обновлены"

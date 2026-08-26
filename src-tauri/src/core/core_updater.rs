@@ -121,7 +121,6 @@ fn write_pointer(name: &str, version: Option<&str>) -> Result<()> {
     Ok(())
 }
 
-#[cfg(target_os = "windows")]
 pub async fn managed_binary_on_disk() -> Option<PathBuf> {
     let verge = Config::verge().await.latest_arc();
     if !verge.use_managed_core.unwrap_or(false) {
@@ -129,6 +128,15 @@ pub async fn managed_binary_on_disk() -> Option<PathBuf> {
     }
     let binary = version_binary(&read_pointer("current")?).ok()?;
     binary.is_file().then_some(binary)
+}
+
+pub async fn repin_core_binaries() {
+    if let Ok(path) = crate::core::service::bundled_core_path().await {
+        crate::core::core_integrity::repin_binary(&path).await;
+    }
+    if let Some(path) = managed_binary_on_disk().await {
+        crate::core::core_integrity::repin_binary(&path).await;
+    }
 }
 
 pub async fn managed_core_binary() -> Option<PathBuf> {
