@@ -554,6 +554,10 @@ async fn process_profile_items(
     (config, exists_keys, result_map)
 }
 
+fn ipv6_value(subscription: &Mapping, app_value: &Value) -> Value {
+    subscription.get("ipv6").cloned().unwrap_or_else(|| app_value.clone())
+}
+
 async fn merge_default_config(
     mut config: Mapping,
     clash_config: Mapping,
@@ -572,7 +576,9 @@ async fn merge_default_config(
             ladder_tun(&mut tun, patch_tun, tun_overrides);
             config.insert("tun".into(), tun.into());
         } else {
-            if key.as_str() == Some("ipv6") && config.contains_key("ipv6") {
+            if key.as_str() == Some("ipv6") {
+                let decided = ipv6_value(&config, &value);
+                config.insert(key, decided);
                 continue;
             }
             if key.as_str() == Some("socks-port") && !socks_enabled {
@@ -1278,6 +1284,25 @@ mod tests {
         let app = mapping("{stack: gvisor}");
         super::ladder_tun_on(&mut tun, app, &super::TunOverrides::default(), false);
         assert_eq!(tun.get("stack"), Some(&serde_yaml_ng::Value::from("system")));
+    }
+
+    #[test]
+    fn the_subscription_decides_ipv6() {
+        let subscription = mapping("{ipv6: true}");
+        assert_eq!(
+            super::ipv6_value(&subscription, &serde_yaml_ng::Value::from(false)),
+            serde_yaml_ng::Value::from(true)
+        );
+        let silent = mapping("{}");
+        assert_eq!(
+            super::ipv6_value(&silent, &serde_yaml_ng::Value::from(false)),
+            serde_yaml_ng::Value::from(false)
+        );
+        let explicit_off = mapping("{ipv6: false}");
+        assert_eq!(
+            super::ipv6_value(&explicit_off, &serde_yaml_ng::Value::from(true)),
+            serde_yaml_ng::Value::from(false)
+        );
     }
 
     #[test]
