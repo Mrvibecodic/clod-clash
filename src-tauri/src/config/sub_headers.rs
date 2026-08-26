@@ -483,7 +483,7 @@ pub fn validate_new_url(current: &str, candidate: &str) -> Option<String> {
 mod tests {
     use super::{
         ANNOUNCE_MAX_CHARS, ConnectMode, DEFAULT_NOTIFY_EXPIRE_DAYS, HwidState, LatencyStyle, SubHeaders, contact_url,
-        decode_value, swap_domain, thresholds, validate_new_url,
+        decode_value, swap_domain, thresholds, truncate_banner, validate_new_url,
     };
     use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 
@@ -1119,5 +1119,19 @@ mod tests {
             .server_time,
             Some(1_785_864_273)
         );
+    }
+
+    #[test]
+    fn banner_fixtures_match_the_frontend_scanner() {
+        let raw = include_str!("../../../src/utils/banner-text.fixtures.json");
+        let cases: Vec<serde_json::Value> = serde_json::from_str(raw).expect("fixtures must parse");
+        assert!(cases.len() >= 5);
+        for case in &cases {
+            let name = case["name"].as_str().expect("fixture name");
+            let input = case["input"].as_str().expect("fixture input");
+            let limit = usize::try_from(case["limit"].as_u64().expect("fixture limit")).expect("limit fits usize");
+            let expected = case["truncated"].as_str().expect("fixture truncated");
+            assert_eq!(truncate_banner(input, limit), expected, "{name}");
+        }
     }
 }
