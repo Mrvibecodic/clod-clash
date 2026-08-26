@@ -85,7 +85,7 @@ pub async fn ensure_tun_ready() -> CmdResult<bool> {
     use crate::feat::tun::SetupOutcome;
     match crate::feat::tun::ensure_ready(true).await {
         SetupOutcome::AlreadyReady | SetupOutcome::Installed => Ok(true),
-        SetupOutcome::Declined | SetupOutcome::Failed => Ok(false),
+        SetupOutcome::Declined | SetupOutcome::Busy | SetupOutcome::Failed => Ok(false),
         SetupOutcome::Pending => Err(
             "The system authorisation dialog is still open. TUN will turn on once the background service is installed."
                 .into(),

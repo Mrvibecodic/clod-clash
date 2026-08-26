@@ -471,6 +471,7 @@ pub enum SetupOutcome {
     AlreadyReady,
     Installed,
     Declined,
+    Busy,
     Failed,
     Pending,
 }
@@ -492,7 +493,7 @@ pub async fn ensure_ready(user_initiated: bool) -> SetupOutcome {
     }
 
     if SETUP_RUNNING.swap(true, Ordering::AcqRel) {
-        return SetupOutcome::Declined;
+        return SetupOutcome::Busy;
     }
     scopeguard::defer! {
         SETUP_RUNNING.store(false, Ordering::Release);
@@ -561,7 +562,7 @@ async fn set_up_service() -> SetupOutcome {
                 return SetupOutcome::Pending;
             }
             logging!(info, Type::Service, "the service manager is busy; leaving it be");
-            return SetupOutcome::Declined;
+            return SetupOutcome::Busy;
         }
         if e.downcast_ref::<ElevationPending>().is_some() {
             logging!(
