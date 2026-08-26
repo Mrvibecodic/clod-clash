@@ -419,7 +419,7 @@ fn selinux_hint() -> String {
 
 #[cfg(target_os = "linux")]
 const fn pkexec_itself_failed(code: Option<i32>) -> bool {
-    matches!(code, Some(126 | 127) | None)
+    matches!(code, Some(126 | 127))
 }
 
 #[cfg(target_os = "linux")]
@@ -429,8 +429,16 @@ fn pkexec_failure_hint(code: Option<i32>) -> String {
         Some(127) => {
             "pkexec could not run the service installer: polkit is missing an agent for this session".to_owned()
         }
-        other => format!("pkexec failed with status {}", other.unwrap_or(-1)),
+        other => format!("pkexec failed with status {}", exit_status_text(other)),
     }
+}
+
+#[cfg(target_os = "linux")]
+fn exit_status_text(code: Option<i32>) -> String {
+    code.map_or_else(
+        || "unknown (terminated by a signal)".to_owned(),
+        |code| code.to_string(),
+    )
 }
 
 #[cfg(target_os = "linux")]
@@ -460,13 +468,13 @@ fn uninstall_service() -> Result<()> {
         info,
         Type::Service,
         "uninstall status code:{}",
-        status.code().unwrap_or(-1)
+        exit_status_text(status.code())
     );
 
     if !status.success() {
         bail!(
             "failed to uninstall service with status {}",
-            status.code().unwrap_or(-1)
+            exit_status_text(status.code())
         );
     }
 
@@ -817,7 +825,7 @@ fn reinstall_service() -> Result<()> {
     if !status.success() {
         bail!(
             "failed to reinstall service with status {}{}",
-            status.code().unwrap_or(-1),
+            exit_status_text(status.code()),
             selinux_hint()
         );
     }
@@ -1456,7 +1464,7 @@ mod selinux_tests {
     fn only_pkexec_own_failures_are_reported_as_such() {
         assert!(pkexec_itself_failed(Some(126)));
         assert!(pkexec_itself_failed(Some(127)));
-        assert!(pkexec_itself_failed(None));
+        assert!(!pkexec_itself_failed(None));
         assert!(!pkexec_itself_failed(Some(1)));
         assert!(!pkexec_itself_failed(Some(2)));
         assert!(!pkexec_itself_failed(Some(0)));
