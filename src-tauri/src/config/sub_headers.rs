@@ -468,15 +468,10 @@ pub fn swap_domain(current: &str, new_domain: &str) -> Option<String> {
 
 pub fn validate_new_url(current: &str, candidate: &str) -> Option<String> {
     let candidate_url = tauri::Url::parse(candidate.trim()).ok()?;
-    if !matches!(candidate_url.scheme(), "http" | "https") {
+    if candidate_url.scheme() != "https" {
         return None;
     }
     if candidate_url.host_str().is_none_or(str::is_empty) {
-        return None;
-    }
-
-    let current_is_https = tauri::Url::parse(current).is_ok_and(|url| url.scheme() == "https");
-    if current_is_https && candidate_url.scheme() != "https" {
         return None;
     }
 
@@ -1067,7 +1062,11 @@ mod tests {
             validate_new_url("https://old.example/sub", "http://new.example/sub"),
             None
         );
-        assert!(validate_new_url("http://old.example/sub", "http://new.example/sub").is_some());
+        assert_eq!(
+            validate_new_url("http://old.example/sub", "http://new.example/sub"),
+            None
+        );
+        assert!(validate_new_url("http://old.example/sub", "https://new.example/sub").is_some());
         assert_eq!(validate_new_url("https://old.example/sub", "not a url"), None);
         assert_eq!(
             validate_new_url("https://old.example/sub", "ftp://new.example/sub"),
