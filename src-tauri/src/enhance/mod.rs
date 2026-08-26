@@ -1048,8 +1048,8 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
 
     let result_map = HashMap::new();
 
-    let config = process_seq_items(config, rules_item, proxies_item, groups_item);
     let exists_keys = use_keys(&config).collect::<Vec<_>>();
+    let config = process_seq_items(config, rules_item, proxies_item, groups_item);
 
     let config = merge_default_config(
         config,
