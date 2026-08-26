@@ -8,6 +8,80 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.1.7
+
+<!-- lang:en -->
+
+### Added
+
+- The subscription list shows which pasted links could not be parsed instead of dropping them silently
+- Log export keeps the tail of oversized log files with a note about how much was cut instead of skipping the file
+- Weekly dependency audit now covers the frontend as well
+
+### Changed
+
+- Provider links open only over https, tg and mailto; a subscription address is accepted only over https
+- Group icons are downloaded only from public https addresses, including after redirects
+- The IPv6 switch in the settings is disabled: the key is decided by the subscription
+- The «Export logs» and «Export backup» buttons ask where to save the file inside the app
+- Pre-releases are marked on GitHub by the version suffix
+- The «Update core» button uses the built-in core updater
+- Linux: the polkit prompt is shown by the system agent only
+
+### Fixed
+
+- A window stretched by hand is no longer pulled back by the auto-fit
+- Window size is checked in logical pixels, so hi-DPI setups no longer get reset
+- A failed subscription update reports the error instead of pretending it succeeded, and is shown only once
+- The first automatic update is counted from the last successful update, and a disabled timer no longer fires again
+- Reordering subscriptions with an unknown id no longer loses the list
+- Windows: the proxy bypass list uses the `;` separator; a failed system call is retried
+- After a core crash the log tail is kept, the TUN check ignores lines of the old process, and the health probe has a timeout
+- Version comparison understands pre-release suffixes
+- Error texts shown in the interface no longer contain paths or secrets
+- Every log line gets its own timestamp
+- Deep links with several addresses are processed in full; on macOS the app no longer switches to background mode while quitting
+- Linux: an installer killed by a signal is no longer reported as a polkit failure
+- The IPv6 fake-ip range uses the reserved block `2001:2::/64`
+- Subscription cards drag smoothly; the search box in proxy groups gets focus when opened
+
+<!-- lang:ru -->
+
+### Добавлено
+
+- В списке подписок видно, какие вставленные ссылки не разобрались, вместо молчаливого пропуска
+- Выгрузка логов сохраняет хвост слишком больших файлов с пометкой, сколько отрезано, вместо пропуска файла
+- Еженедельный аудит зависимостей теперь проверяет и фронт
+
+### Изменено
+
+- Ссылки провайдера открываются только по https, tg и mailto; адрес подписки принимается только по https
+- Иконки групп скачиваются только с публичных https-адресов, в том числе после редиректов
+- Переключатель IPv6 в настройках отключён: ключ решает подписка
+- Кнопки «Выгрузить логи» и «Экспорт бэкапа» спрашивают, куда сохранить файл, внутри приложения
+- Пре-релиз помечается на GitHub по суффиксу версии
+- Кнопка «Обновить ядро» работает через встроенный обновитель ядра
+- Linux: запрос пароля polkit показывает только системный агент
+
+### Исправлено
+
+- Растянутое руками окно больше не откатывается подгоном под содержимое
+- Размер окна проверяется в логических пикселях, на hi-DPI окно больше не сбрасывается
+- Неудачное обновление подписки сообщает об ошибке, а не делает вид, что всё прошло, и показывает её один раз
+- Первое автообновление отсчитывается от последнего успешного, выключенный таймер больше не срабатывает
+- Перестановка подписок с неизвестным id больше не теряет список
+- Windows: список исключений прокси разделяется `;`; неудачный системный вызов повторяется
+- После падения ядра хвост лога сохраняется, проверка TUN не читает строки старого процесса, у пробы здоровья есть таймаут
+- Сравнение версий понимает суффиксы пре-релизов
+- Тексты ошибок в интерфейсе больше не содержат путей и секретов
+- Каждая строка лога получает своё время
+- Deep-link с несколькими адресами обрабатывается целиком; на macOS приложение при выходе больше не уходит в фоновый режим
+- Linux: установщик, убитый сигналом, больше не выдаётся за ошибку polkit
+- Диапазон fake-ip для IPv6 взят из зарезервированного блока `2001:2::/64`
+- Карточки подписок перетаскиваются плавно; поле поиска в группах получает фокус при открытии
+
+---
+
 ## v0.1.6
 
 <!-- lang:en -->
