@@ -45,7 +45,8 @@
         "batchDeleted": "Selected profiles deleted successfully",
         "urlMigrated": "The provider moved this subscription to a new address",
         "fallbackUsed": "Updated from the provider's backup address",
-        "editorBrokenYaml": "Berkas tidak dapat diurai sebagai YAML — dibuka sebagai teks agar tidak ada yang tertimpa. Perbaiki sintaksnya lalu kembali."
+        "editorBrokenYaml": "Berkas tidak dapat diurai sebagai YAML — dibuka sebagai teks agar tidak ada yang tertimpa. Perbaiki sintaksnya lalu kembali.",
+        "proxyLinksSkipped": "{{count}} tautan tidak dapat dibaca dan dilewati:\n{{lines}}"
       },
       "notices": {
         "forceRefreshCompleted": "Force refresh completed",

@@ -235,6 +235,7 @@ export const ProxiesEditorViewer = (props: Props) => {
       uris = proxyUri
     }
     const lines = uris.trim().split('\n')
+    const failed: string[] = []
     let idx = 0
     const batchSize = 50
     let parseTimer: number | undefined
@@ -242,9 +243,12 @@ export const ProxiesEditorViewer = (props: Props) => {
     const parseBatch = () => {
       const end = Math.min(idx + batchSize, lines.length)
       for (; idx < end; idx++) {
-        const uri = lines[idx]
+        const uri = lines[idx].trim()
+        if (!uri) {
+          continue
+        }
         try {
-          const proxy = parseUri(uri.trim())
+          const proxy = parseUri(uri)
           if (!names.includes(proxy.name)) {
             proxies.push(proxy)
             names.push(proxy.name)
@@ -255,6 +259,7 @@ export const ProxiesEditorViewer = (props: Props) => {
             uri,
             err,
           )
+          failed.push(uri)
           // Не блокируем основной поток
         }
       }
@@ -264,6 +269,21 @@ export const ProxiesEditorViewer = (props: Props) => {
         if (parseTimer !== undefined) {
           clearTimeout(parseTimer)
           parseTimer = undefined
+        }
+        if (failed.length > 0) {
+          showNotice.error(
+            'profiles.page.feedback.notifications.proxyLinksSkipped',
+            {
+              count: failed.length,
+              lines: failed
+                .slice(0, 3)
+                .map((line) =>
+                  line.length > 60 ? `${line.slice(0, 60)}…` : line,
+                )
+                .join('\n'),
+            },
+            6000,
+          )
         }
         cb(proxies)
       }

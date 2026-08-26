@@ -45,7 +45,8 @@
         "batchDeleted": "Selected profiles deleted successfully",
         "urlMigrated": "The provider moved this subscription to a new address",
         "fallbackUsed": "Updated from the provider's backup address",
-        "editorBrokenYaml": "Файл YAML буларак укылмый — берни дә өстенә язылмасын өчен текст итеп ачылды. Синтаксисны төзәтегез дә кире кайтыгыз."
+        "editorBrokenYaml": "Файл YAML буларак укылмый — берни дә өстенә язылмасын өчен текст итеп ачылды. Синтаксисны төзәтегез дә кире кайтыгыз.",
+        "proxyLinksSkipped": "{{count}} сылтама танылмады һәм төшереп калдырылды:\n{{lines}}"
       },
       "notices": {
         "forceRefreshCompleted": "Force refresh completed",

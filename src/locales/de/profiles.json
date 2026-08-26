@@ -45,7 +45,8 @@
         "batchDeleted": "Selected profiles deleted successfully",
         "urlMigrated": "The provider moved this subscription to a new address",
         "fallbackUsed": "Updated from the provider's backup address",
-        "editorBrokenYaml": "Die Datei ist kein gültiges YAML — sie wurde als Text geöffnet, damit nichts überschrieben wird. Syntax korrigieren und zurückwechseln."
+        "editorBrokenYaml": "Die Datei ist kein gültiges YAML — sie wurde als Text geöffnet, damit nichts überschrieben wird. Syntax korrigieren und zurückwechseln.",
+        "proxyLinksSkipped": "{{count}} Link(s) konnten nicht gelesen werden und wurden übersprungen:\n{{lines}}"
       },
       "notices": {
         "forceRefreshCompleted": "Force refresh completed",

@@ -45,7 +45,8 @@
         "batchDeleted": "Selected profiles deleted successfully",
         "urlMigrated": "The provider moved this subscription to a new address",
         "fallbackUsed": "Updated from the provider's backup address",
-        "editorBrokenYaml": "فایل به‌عنوان YAML خوانده نشد — به‌صورت متن باز شد تا چیزی بازنویسی نشود. نحو را اصلاح کنید و برگردید."
+        "editorBrokenYaml": "فایل به‌عنوان YAML خوانده نشد — به‌صورت متن باز شد تا چیزی بازنویسی نشود. نحو را اصلاح کنید و برگردید.",
+        "proxyLinksSkipped": "{{count}} پیوند قابل تجزیه نبود و نادیده گرفته شد:\n{{lines}}"
       },
       "notices": {
         "forceRefreshCompleted": "Force refresh completed",

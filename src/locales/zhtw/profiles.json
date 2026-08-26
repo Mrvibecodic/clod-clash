@@ -45,7 +45,8 @@
         "batchDeleted": "選取的訂閱已成功刪除",
         "urlMigrated": "The provider moved this subscription to a new address",
         "fallbackUsed": "Updated from the provider's backup address",
-        "editorBrokenYaml": "該檔案無法以 YAML 解析，已用文字方式開啟，避免覆蓋原有內容。請修正語法後再切回。"
+        "editorBrokenYaml": "該檔案無法以 YAML 解析，已用文字方式開啟，避免覆蓋原有內容。請修正語法後再切回。",
+        "proxyLinksSkipped": "有 {{count}} 條連結無法解析，已略過：\n{{lines}}"
       },
       "notices": {
         "forceRefreshCompleted": "Force refresh completed",
