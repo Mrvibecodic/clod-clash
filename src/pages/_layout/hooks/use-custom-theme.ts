@@ -465,19 +465,5 @@ export const useCustomTheme = () => {
     }
   }, [mode])
 
-  useEffect(() => {
-    const id = setTimeout(() => {
-      const dom = document.querySelector('#Gradient2')
-      if (dom) {
-        dom.innerHTML = `
-        <stop offset="0%" stop-color="${theme.palette.primary.main}" />
-        <stop offset="80%" stop-color="${theme.palette.primary.dark}" />
-        <stop offset="100%" stop-color="${theme.palette.primary.dark}" />
-        `
-      }
-    }, 0)
-    return () => clearTimeout(id)
-  }, [theme.palette.primary.main, theme.palette.primary.dark])
-
   return { theme }
 }
