@@ -62,7 +62,6 @@ pub async fn save_yaml<T: Serialize + Sync>(path: &Path, data: &T, prefix: Optio
     };
 
     write_atomic(path, yaml_str.as_bytes()).await?;
-    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     Ok(())
 }
 
