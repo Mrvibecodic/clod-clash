@@ -25,7 +25,6 @@ export const SortableProfileItem = ({
     transform,
     isDragging,
     isSorting,
-    isOver,
   } = useSortable({ id, transition: null })
 
   const isDiagonalMove =
@@ -38,7 +37,7 @@ export const SortableProfileItem = ({
         position: 'relative',
         transform: CSS.Translate.toString(transform),
         transition:
-          isSorting && !isDragging && isOver && !isDiagonalMove
+          isSorting && !isDragging && !isDiagonalMove
             ? SORT_TRANSITION
             : undefined,
         zIndex: isDragging ? 'calc(infinity)' : undefined,
