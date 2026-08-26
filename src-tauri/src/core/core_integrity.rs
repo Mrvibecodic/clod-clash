@@ -88,18 +88,6 @@ pub async fn pin_known_binary(path: &Path, digest: &str) {
     }
 }
 
-pub async fn repin_binary(path: &Path) {
-    match digest_of(path).await {
-        Ok(digest) => {
-            pin_known_binary(path, &digest).await;
-            logging!(info, Type::Core, "re-pinned core binary {path:?}");
-        }
-        Err(err) => {
-            logging!(warn, Type::Core, "failed to re-pin core binary {path:?}: {err:#}");
-        }
-    }
-}
-
 #[derive(Debug, PartialEq, Eq)]
 pub enum PinCheck {
     Match,

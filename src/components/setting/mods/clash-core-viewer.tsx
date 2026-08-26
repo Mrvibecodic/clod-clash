@@ -15,14 +15,15 @@ import { useLockFn } from 'ahooks'
 import type { Ref } from 'react'
 import { useImperativeHandle, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { closeAllConnections, upgradeCore } from 'tauri-plugin-mihomo-api'
+import { closeAllConnections } from 'tauri-plugin-mihomo-api'
 
 import { BaseDialog, DialogRef } from '@/components/base'
 import { useClash, useClashInfo } from '@/hooks/use-clash'
 import { useVerge } from '@/hooks/use-verge'
 import {
   changeClashCore,
-  repinCoreBinaries,
+  downloadAndApplyCore,
+  getCoreUpdaterStatus,
   restartCore,
 } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
@@ -101,20 +102,22 @@ export function ClashCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const onUpgrade = useLockFn(async () => {
     try {
       setUpgrading(true)
-      await upgradeCore()
-      await repinCoreBinaries()
+      const before = await getCoreUpdaterStatus()
+      const result = await downloadAndApplyCore()
       setUpgrading(false)
       mutateVersion()
+      if (before.current === result.current) {
+        showNotice.info(
+          t('settings.feedback.notifications.clash.alreadyLatestVersion'),
+        )
+        return
+      }
       showNotice.success(
         t('settings.feedback.notifications.clash.versionUpdated'),
       )
-    } catch (err: any) {
+    } catch (err) {
       setUpgrading(false)
-      const errMsg = err?.response?.data?.message ?? String(err)
-      const showMsg = errMsg.includes('already using latest version')
-        ? t('settings.feedback.notifications.clash.alreadyLatestVersion')
-        : errMsg
-      showNotice.info(showMsg)
+      showNotice.error(err)
     }
   })
 

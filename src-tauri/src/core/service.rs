@@ -143,6 +143,7 @@ fn service_core_path(clash_core: &str, bin_ext: &str) -> Result<PathBuf> {
     Ok(current_exe()?.with_file_name(format!("{clash_core}{bin_ext}")))
 }
 
+#[cfg(target_os = "windows")]
 pub async fn bundled_core_path() -> Result<PathBuf> {
     let verge_config = Config::verge().await;
     let clash_core = verge_config.latest_arc().get_valid_clash_core();
