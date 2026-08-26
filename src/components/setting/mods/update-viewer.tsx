@@ -1,6 +1,5 @@
 import { alpha, Box, Button, LinearProgress } from '@mui/material'
 import { relaunch } from '@tauri-apps/plugin-process'
-import { open as openUrl } from '@tauri-apps/plugin-shell'
 import type { DownloadEvent } from '@tauri-apps/plugin-updater'
 import { useLockFn } from 'ahooks'
 import type { Ref } from 'react'
@@ -16,6 +15,7 @@ import { useTranslation } from 'react-i18next'
 import type { Options as ReactMarkdownOptions } from 'react-markdown'
 
 import { BaseDialog, DialogRef } from '@/components/base'
+import { openWebUrl } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { useQuery } from '@/services/query-client'
 import { useSetUpdateState, useUpdateState } from '@/services/states'
@@ -129,14 +129,6 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const updateState = useUpdateState()
   const setUpdateState = useSetUpdateState()
 
-  // clod: НЕ через useUpdate() — тот отключает запрос при выключенной
-  // автопроверке (auto_check_update=false), и диалог оставался без данных:
-  // «Новая версия v», пустой ченджлог и мёртвая кнопка Update. Открытый
-  // диалог сам является поводом получить данные — независимо от флага.
-  // clod: каждое открытие — свежая проверка. Раньше здесь стоял staleTime
-  // в час, и SWR отдавал протухший null от проверки при старте приложения
-  // (до выхода релиза): диалог показывал «Новая версия v» с пустым телом
-  // и мёртвой кнопкой, хотя новая версия уже лежала в updater-манифесте.
   const { data: updateInfo } = useQuery({
     queryKey: ['checkUpdate'],
     queryFn: checkUpdateSafe,
@@ -164,8 +156,7 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
     if (!updateInfo?.body) {
       return 'New Version is available'
     }
-    // clod: notes двуязычные (маркеры <!-- lang:xx -->) — показываем часть,
-    // соответствующую языку интерфейса: русский → ru, иначе en
+
     return pickChangelogSection(updateInfo.body, i18n.language)
   }, [updateInfo, i18n.language])
 
@@ -177,8 +168,6 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
   }, [updateInfo])
 
   const onUpdate = useLockFn(async () => {
-    // clod: an empty release-notes field must not disable the update itself —
-    // 0.0.2 shipped with `if (!body) return` here and the button looked dead.
     if (!updateInfo) return
     if (breakChangeFlag) {
       showNotice.error('settings.modals.update.messages.breakChangeError')
@@ -232,11 +221,6 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
   return (
     <BaseDialog
       open={open}
-      // clod: заголовок больше не держит кнопку. В простом режиме окно ~560 px,
-      // и связка «длинное имя версии + кнопка» не влезала: имя обрезалось
-      // многоточием, кнопка уезжала за правый край, а внизу появлялась
-      // горизонтальная прокрутка. Кнопка переехала под текст ченджлога, а
-      // заголовку разрешено занять две строки.
       title={
         <Box sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>
           {t('settings.modals.update.title', {
@@ -247,17 +231,10 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
       fullWidth
       maxWidth="sm"
       paperSx={{
-        // Окно простого режима узкое — диалог считаем от него, а не от
-        // брейкпоинта: `maxWidth="sm"` это 600 px, что уже шире окна.
         width: 'min(560px, calc(100vw - 32px))',
         m: 2,
       }}
       contentSx={{
-        // clod: НИКАКОЙ своей ширины здесь. `width: 100%` давало 528 + 48 px
-        // собственных полей = 576 px внутри диалога шириной 528 (в проекте
-        // нет глобального box-sizing, см. BaseDialog): строки обрезались
-        // справа, кнопка «Перейти на страницу релиза» уезжала за край, внизу
-        // висела горизонтальная прокрутка. Ширину задаёт сам диалог.
         height: 'min(64vh, 680px)',
         display: 'flex',
         flexDirection: 'column',
@@ -450,16 +427,14 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
           </Suspense>
         )}
       </Box>
-      {/* clod: кнопка релиза жила в заголовке и в узком окне обрезалась.
-          Здесь ей есть место, и она переносится, а не уезжает за край. */}
+
       <Box sx={{ pt: 1, display: 'flex', justifyContent: 'flex-end' }}>
         <Button
           variant="outlined"
           size="small"
           sx={{ whiteSpace: 'normal', textAlign: 'center' }}
           onClick={() => {
-            // clod: our releases live in the fork and are tagged clod-v*
-            openUrl(
+            void openWebUrl(
               `https://github.com/Mrvibecodic/clod-clash/releases/tag/clod-v${updateInfo?.version}`,
             )
           }}

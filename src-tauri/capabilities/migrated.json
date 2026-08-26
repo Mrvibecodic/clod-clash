@@ -63,7 +63,6 @@
     "core:window:allow-set-maximizable",
     "core:window:allow-set-minimizable",
     "core:webview:allow-print",
-    "shell:allow-open",
     "dialog:allow-open",
     "global-shortcut:allow-is-registered",
     "global-shortcut:allow-register",
@@ -74,7 +73,6 @@
     "process:allow-exit",
     "clipboard-manager:allow-read-text",
     "clipboard-manager:allow-write-text",
-    "shell:default",
     "dialog:default"
   ]
 }
