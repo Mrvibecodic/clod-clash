@@ -45,19 +45,19 @@ impl SilentUpdater {
         Ok(dirs::app_home_dir()?.join("update_cache"))
     }
 
-    fn write_cache(bytes: &[u8], version: &str) -> Result<()> {
+    async fn write_cache(bytes: &[u8], version: &str) -> Result<()> {
         let cache_dir = Self::cache_dir()?;
         std::fs::create_dir_all(&cache_dir)?;
 
         let bin_path = cache_dir.join("pending_update.bin");
-        std::fs::write(&bin_path, bytes)?;
+        crate::utils::help::write_atomic(&bin_path, bytes).await?;
 
         let meta = UpdateCacheMeta {
             version: version.to_string(),
             downloaded_at: Utc::now().to_rfc3339(),
         };
         let meta_path = cache_dir.join("pending_update.json");
-        std::fs::write(&meta_path, serde_json::to_string_pretty(&meta)?)?;
+        crate::utils::help::write_atomic(&meta_path, serde_json::to_string_pretty(&meta)?.as_bytes()).await?;
 
         logging!(
             info,
@@ -584,7 +584,7 @@ impl SilentUpdater {
             )
             .await?;
 
-        if let Err(e) = Self::write_cache(&bytes, &version) {
+        if let Err(e) = Self::write_cache(&bytes, &version).await {
             logging!(warn, Type::System, "Silent updater: failed to write cache: {e}");
         }
 
