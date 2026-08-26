@@ -1178,7 +1178,10 @@ impl ServiceManager {
             operation.await?;
         }
 
-        Tray::global().update_menu().await
+        if let Err(e) = Tray::global().update_menu().await {
+            logging!(warn, Type::Tray, "tray menu refresh failed after a service operation: {e}");
+        }
+        Ok(())
     }
 
     pub async fn refresh(&self) -> Result<()> {
