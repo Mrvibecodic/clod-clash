@@ -4,12 +4,24 @@ use crate::utils::{
 };
 use anyhow::{Context as _, Result};
 use std::{
-    io::Write as _,
+    io::{Read as _, Seek as _, SeekFrom, Write as _},
     path::{Path, PathBuf},
 };
 use zip::write::SimpleFileOptions;
 
 const MAX_FILE_BYTES: u64 = 8 * 1024 * 1024;
+
+fn read_log_tail(path: &Path, max_bytes: u64) -> std::io::Result<(Vec<u8>, u64)> {
+    let mut file = std::fs::File::open(path)?;
+    let len = file.metadata()?.len();
+    let skipped = len.saturating_sub(max_bytes);
+    if skipped > 0 {
+        file.seek(SeekFrom::Start(skipped))?;
+    }
+    let mut raw = Vec::with_capacity(usize::try_from(len - skipped).unwrap_or_default());
+    file.read_to_end(&mut raw)?;
+    Ok((raw, skipped))
+}
 
 fn is_log_file(path: &Path) -> bool {
     path.extension()
@@ -76,13 +88,7 @@ pub async fn write_archive(target: PathBuf) -> Result<usize> {
 
         let mut count = 0usize;
         for path in files {
-            let Ok(meta) = std::fs::metadata(&path) else {
-                continue;
-            };
-            if meta.len() > MAX_FILE_BYTES {
-                continue;
-            }
-            let Ok(raw) = std::fs::read(&path) else {
+            let Ok((raw, skipped)) = read_log_tail(&path, MAX_FILE_BYTES) else {
                 continue;
             };
             let content = String::from_utf8_lossy(&raw);
@@ -92,6 +98,12 @@ pub async fn write_archive(target: PathBuf) -> Result<usize> {
                 &service_logs
             };
             zip.start_file(archive_name(root, &path), options)?;
+            if skipped > 0 {
+                writeln!(
+                    zip,
+                    "[export] first {skipped} bytes of this file were omitted; only the last {MAX_FILE_BYTES} bytes follow"
+                )?;
+            }
             zip.write_all(redacted(&content, home.as_deref()).as_bytes())?;
             count += 1;
         }
@@ -117,6 +129,22 @@ mod tests {
         assert!(is_log_file(Path::new("latest.log")));
         assert!(is_log_file(Path::new("x.LOG")));
         assert!(!is_log_file(Path::new("config.yaml")));
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn oversized_logs_keep_their_tail() {
+        let dir = std::env::temp_dir().join(format!("clod-log-tail-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("big.log");
+        std::fs::write(&path, b"0123456789").unwrap();
+        let (raw, skipped) = read_log_tail(&path, 4).unwrap();
+        assert_eq!(raw, b"6789");
+        assert_eq!(skipped, 6);
+        let (raw, skipped) = read_log_tail(&path, 64).unwrap();
+        assert_eq!(raw, b"0123456789");
+        assert_eq!(skipped, 0);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
