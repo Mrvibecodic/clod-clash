@@ -103,9 +103,7 @@ impl CoreManager {
         // clod:tun-ready — проверяем факт, а не заявку: если ядро не смогло
         // поднять устройство, честно гасим TUN и говорим об этом.
         if crate::feat::tun::desired().await && !crate::feat::tun::is_suppressed() {
-            // Отметки нет: ядро только что стартовало, логи очищены
-            // (`stop_core_inner`), и весь буфер относится к этой попытке.
-            crate::feat::tun::spawn_start_verification(None);
+            crate::feat::tun::spawn_start_verification(crate::feat::tun::log_anchor().await);
         }
 
         // После отката к sidecar в фоне ждём готовности службы для передачи
