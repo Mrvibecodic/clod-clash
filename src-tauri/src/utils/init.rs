@@ -567,10 +567,21 @@ pub async fn startup_script() -> Result<()> {
         return Ok(());
     }
 
-    let shell_type = if script_path.ends_with(".sh") {
-        "bash"
-    } else if script_path.ends_with(".ps1") || script_path.ends_with(".bat") {
-        "powershell"
+    let (shell_type, args) = if script_path.ends_with(".sh") {
+        ("bash", vec![script_path.clone()])
+    } else if script_path.ends_with(".ps1") {
+        (
+            "powershell",
+            vec![
+                "-NoProfile".into(),
+                "-ExecutionPolicy".into(),
+                "Bypass".into(),
+                "-File".into(),
+                script_path.clone(),
+            ],
+        )
+    } else if script_path.ends_with(".bat") {
+        ("cmd", vec!["/C".into(), script_path.clone()])
     } else {
         return Err(anyhow::anyhow!("unsupported script extension: {}", script_path));
     };
@@ -583,13 +594,23 @@ pub async fn startup_script() -> Result<()> {
     let parent_dir = script_dir.parent();
     let working_dir = parent_dir.unwrap_or_else(|| script_dir.as_ref());
 
-    app_handle
+    let output = app_handle
         .shell()
         .command(shell_type)
         .current_dir(working_dir)
-        .args([script_path.as_str()])
+        .args(args)
         .output()
         .await?;
+
+    if !output.status.success() {
+        logging!(
+            warn,
+            Type::Setup,
+            "startup script exited with {:?}: {}",
+            output.status.code(),
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
+    }
 
     Ok(())
 }
