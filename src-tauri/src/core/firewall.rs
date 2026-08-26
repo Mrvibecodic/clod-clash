@@ -86,7 +86,7 @@ pub async fn allow_inbound() -> Result<()> {
         let program = ps_single_quote(&format!("program={}", path.to_string_lossy()));
         let rule_name = ps_single_quote(&format!("name=Clod Clash core ({file_name})"));
         script.push_str(&format!(
-            "netsh advfirewall firewall delete rule name=all dir=in {program} | Out-Null; \
+            "netsh advfirewall firewall delete rule {rule_name} dir=in | Out-Null; \
              netsh advfirewall firewall add rule {rule_name} dir=in action=allow {program} enable=yes | Out-Null; \
              if ($LASTEXITCODE -ne 0) {{ $fail=1 }}; "
         ));
