@@ -34,13 +34,6 @@ interface Progress {
   total: number
 }
 
-/**
- * clod:F5 — the managed Mihomo core dialog.
- *
- * Downloading is always an explicit action; the daily auto-check only raises
- * a notice. Turning the toggle off restarts on the bundled sidecar but keeps
- * the downloaded versions for a quick switch back.
- */
 export function ManagedCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const { t } = useTranslation()
   const { verge, patchVerge } = useVerge()
@@ -70,9 +63,14 @@ export function ManagedCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
     close: () => setOpen(false),
   }))
 
-  useTauriEvent<Progress>('clod://core-update-progress', (event) =>
-    setProgress(event.payload),
-  )
+  useTauriEvent<Progress>('clod://core-update-progress', (event) => {
+    if (event.payload.phase === 'done') {
+      setProgress(undefined)
+      void refreshStatus()
+      return
+    }
+    setProgress(event.payload)
+  })
 
   const onCheck = useLockFn(async () => {
     setBusy(true)
@@ -119,12 +117,8 @@ export function ManagedCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
     setBusy(true)
     try {
       if (enabled) {
-        // The backend maps a `use_managed_core` change to a core restart,
-        // so the toggle takes effect immediately.
         await patchVerge({ use_managed_core: true })
       } else {
-        // Patches `use_managed_core: false` internally (with the restart);
-        // a second patchVerge here would restart the core twice.
         await disableManagedCore()
       }
       await refreshStatus()
@@ -250,8 +244,6 @@ export function ManagedCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
             </Typography>
           ) : null}
           {status?.service_mode ? (
-            // Managed core is sidecar-only: the elevated service must not
-            // execute a user-writable binary (privilege boundary).
             <Typography variant="caption" color="warning.main">
               {t('settings.modals.managedCore.serviceModeNote')}
             </Typography>
@@ -294,9 +286,6 @@ export function ManagedCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
             {t('settings.modals.managedCore.update')}
           </Button>
           {managedOn && status?.previous ? (
-            // Only while the managed core is on — a revert with the toggle
-            // off would shuffle pointers and restart onto the sidecar while
-            // claiming "reverted".
             <Button
               size="small"
               color="inherit"
