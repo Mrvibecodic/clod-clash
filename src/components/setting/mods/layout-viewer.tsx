@@ -11,9 +11,7 @@ import {
   styled,
 } from '@mui/material'
 import { convertFileSrc } from '@tauri-apps/api/core'
-import { join } from '@tauri-apps/api/path'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
-import { exists } from '@tauri-apps/plugin-fs'
 import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -21,7 +19,7 @@ import { BaseDialog, DialogRef, Switch, TooltipIcon } from '@/components/base'
 import { DEFAULT_HOVER_DELAY } from '@/components/proxy/proxy-group-navigator'
 import { useVerge } from '@/hooks/use-verge'
 import { useWindowDecorations } from '@/hooks/use-window'
-import { copyIconFile, getAppDir } from '@/services/cmds'
+import { copyIconFile, trayIconPath } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import getSystem from '@/utils/get-system'
 
@@ -36,17 +34,8 @@ const clampHoverDelay = (value: number) => {
   return Math.min(5000, Math.max(0, Math.round(value)))
 }
 
-const getIcons = async (icon_dir: string, name: string) => {
-  const updateTime = localStorage.getItem(`icon_${name}_update_time`) || ''
-
-  const icon_png = await join(icon_dir, `${name}-${updateTime}.png`)
-  const icon_ico = await join(icon_dir, `${name}-${updateTime}.ico`)
-
-  return {
-    icon_png,
-    icon_ico,
-  }
-}
+const getIcon = (name: string) =>
+  trayIconPath(name, localStorage.getItem(`icon_${name}_update_time`) || '')
 
 export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
   const { t } = useTranslation()
@@ -64,36 +53,9 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
   }, [])
 
   async function initIconPath() {
-    const appDir = await getAppDir()
-
-    const icon_dir = await join(appDir, 'icons')
-
-    const { icon_png: common_icon_png, icon_ico: common_icon_ico } =
-      await getIcons(icon_dir, 'common')
-
-    const { icon_png: sysproxy_icon_png, icon_ico: sysproxy_icon_ico } =
-      await getIcons(icon_dir, 'sysproxy')
-
-    const { icon_png: tun_icon_png, icon_ico: tun_icon_ico } = await getIcons(
-      icon_dir,
-      'tun',
-    )
-
-    if (await exists(common_icon_ico)) {
-      setCommonIcon(common_icon_ico)
-    } else {
-      setCommonIcon(common_icon_png)
-    }
-    if (await exists(sysproxy_icon_ico)) {
-      setSysproxyIcon(sysproxy_icon_ico)
-    } else {
-      setSysproxyIcon(sysproxy_icon_png)
-    }
-    if (await exists(tun_icon_ico)) {
-      setTunIcon(tun_icon_ico)
-    } else {
-      setTunIcon(tun_icon_png)
-    }
+    setCommonIcon(await getIcon('common'))
+    setSysproxyIcon(await getIcon('sysproxy'))
+    setTunIcon(await getIcon('tun'))
   }
 
   useImperativeHandle(ref, () => ({

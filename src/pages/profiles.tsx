@@ -26,7 +26,6 @@ import {
 } from '@mui/icons-material'
 import { Box, Button, Chip, IconButton, Stack } from '@mui/material'
 import { listen, TauriEvent } from '@tauri-apps/api/event'
-import { readTextFile } from '@tauri-apps/plugin-fs'
 import { useLockFn } from 'ahooks'
 import { throttle } from 'lodash-es'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -43,7 +42,7 @@ import { SortableProfileItem } from '@/components/profile/sortable-profile-item'
 import { useTauriEvent } from '@/hooks/use-listen'
 import { useProfiles } from '@/hooks/use-profiles'
 import {
-  createProfile,
+  createProfileFromFile,
   deleteProfile,
   enhanceProfiles,
   reorderProfile,
@@ -175,8 +174,7 @@ const ProfilePage = () => {
           self_proxy: false,
         },
       } as IProfileItem
-      const data = await readTextFile(file)
-      await createProfile(item, data)
+      await createProfileFromFile(item, file)
       await mutateProfiles()
     }
     await enhanceProfiles()

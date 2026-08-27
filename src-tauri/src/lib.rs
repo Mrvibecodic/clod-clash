@@ -56,7 +56,6 @@ mod app_init {
             .plugin(tauri_plugin_clipboard_manager::init())
             .plugin(tauri_plugin_process::init())
             .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-            .plugin(tauri_plugin_fs::init())
             .plugin(tauri_plugin_dialog::init())
             .plugin(tauri_plugin_shell::init())
             .plugin(tauri_plugin_deep_link::init())
@@ -191,7 +190,8 @@ mod app_init {
             cmd::get_server_descriptions,
             cmd::copy_support_bundle,
             cmd::export_logs,
-            cmd::get_app_dir,
+            cmd::save_log_text,
+            cmd::tray_icon_path,
             cmd::copy_icon_file,
             cmd::save_window_size_for_mode,
             cmd::apply_window_size_for_mode,
@@ -208,6 +208,7 @@ mod app_init {
             cmd::patch_profile,
             cmd::patch_selected_node,
             cmd::create_profile,
+            cmd::create_profile_from_file,
             cmd::import_profile,
             cmd::reorder_profile,
             cmd::update_profile,

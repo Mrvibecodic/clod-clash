@@ -30,6 +30,10 @@ export async function createProfile(
   return invoke<void>('create_profile', { item, fileData })
 }
 
+export async function createProfileFromFile(item: IProfileItem, path: string) {
+  return invoke<void>('create_profile_from_file', { item, path })
+}
+
 export async function viewProfile(index: string) {
   return invoke<void>('view_profile', { index })
 }
@@ -307,6 +311,14 @@ export async function copySupportBundle(lines?: number) {
   return invoke<number>('copy_support_bundle', { lines })
 }
 
+export async function saveLogText(filename: string, body: string) {
+  return invoke<boolean>('save_log_text', { filename, body })
+}
+
+export async function trayIconPath(name: string, updateTime: string) {
+  return invoke<string>('tray_icon_path', { name, updateTime })
+}
+
 export async function exportLogs() {
   return invoke<number | null>('export_logs')
 }
@@ -351,10 +363,6 @@ export async function restartCore() {
 
 export async function restartApp() {
   return invoke<void>('restart_app')
-}
-
-export async function getAppDir() {
-  return invoke<string>('get_app_dir')
 }
 
 export async function openAppDir() {

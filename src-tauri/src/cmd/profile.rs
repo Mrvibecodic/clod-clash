@@ -156,6 +156,29 @@ pub async fn reorder_profile(active_id: String, over_id: String) -> CmdResult {
     }
 }
 
+const LOCAL_PROFILE_MAX_BYTES: u64 = 16 * 1024 * 1024;
+
+#[tauri::command]
+pub async fn create_profile_from_file(item: PrfItem, path: String) -> CmdResult {
+    let source = std::path::PathBuf::from(path.as_str());
+    let is_yaml = source
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("yaml") || ext.eq_ignore_ascii_case("yml"));
+    if !is_yaml {
+        return Err("only .yaml or .yml files can be imported".into());
+    }
+    let meta = tokio::fs::metadata(&source).await.stringify_err()?;
+    if !meta.is_file() {
+        return Err("profile path is not a file".into());
+    }
+    if meta.len() > LOCAL_PROFILE_MAX_BYTES {
+        return Err("profile file is too large".into());
+    }
+    let data = tokio::fs::read_to_string(&source).await.stringify_err()?;
+    create_profile(item, Some(data.into())).await
+}
+
 /// Создаёт новый profile
 /// Создаёт новый конфиг
 #[tauri::command]

@@ -136,6 +136,22 @@ pub async fn download_icon_cache(url: String, name: String) -> CmdResult<String>
     Ok(icon_path.to_string_lossy().into())
 }
 
+pub async fn tray_icon_path(name: &str, update_time: &str) -> CmdResult<String> {
+    let icon_name = normalize_icon_segment(name)?;
+    let stamp = if update_time.trim().is_empty() {
+        String::new()
+    } else {
+        normalize_icon_segment(update_time)?
+    };
+    let icon_dir = dirs::app_home_dir().stringify_err()?.join("icons");
+    let ico = ensure_icon_cache_target(&icon_dir, format!("{icon_name}-{stamp}.ico").as_str())?;
+    if fs::metadata(&ico).await.is_ok() {
+        return Ok(ico.to_string_lossy().into());
+    }
+    let png = ensure_icon_cache_target(&icon_dir, format!("{icon_name}-{stamp}.png").as_str())?;
+    Ok(png.to_string_lossy().into())
+}
+
 pub async fn copy_icon_file(path: String, icon_info: IconInfo) -> CmdResult<String> {
     let file_path = Path::new(path.as_str());
     let icon_name = normalize_icon_segment(icon_info.name.as_str())?;

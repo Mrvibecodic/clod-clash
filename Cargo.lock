@@ -1137,7 +1137,6 @@ dependencies = [
  "tauri-plugin-deep-link",
  "tauri-plugin-devtools",
  "tauri-plugin-dialog",
- "tauri-plugin-fs",
  "tauri-plugin-global-shortcut",
  "tauri-plugin-mihomo",
  "tauri-plugin-notification",

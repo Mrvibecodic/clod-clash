@@ -37,6 +37,27 @@ pub async fn export_logs(app: AppHandle) -> CmdResult<Option<usize>> {
 }
 
 #[tauri::command]
+pub async fn save_log_text(app: AppHandle, filename: String, body: String) -> CmdResult<bool> {
+    use tauri_plugin_dialog::DialogExt as _;
+
+    let dialog = app.dialog().file().set_file_name(filename.as_str());
+    let Some(target) = tokio::task::spawn_blocking(move || dialog.blocking_save_file())
+        .await
+        .stringify_err()?
+        .and_then(|path| path.into_path().ok())
+    else {
+        return Ok(false);
+    };
+    tokio::fs::write(target, body.as_bytes()).await.stringify_err()?;
+    Ok(true)
+}
+
+#[tauri::command]
+pub async fn tray_icon_path(name: String, update_time: String) -> CmdResult<String> {
+    feat::tray_icon_path(name.as_str(), update_time.as_str()).await
+}
+
+#[tauri::command]
 pub async fn open_app_dir() -> CmdResult<()> {
     let app_dir = dirs::app_home_dir().stringify_err()?;
     open::that(app_dir).stringify_err()
@@ -104,11 +125,6 @@ pub async fn exit_app() {
 pub async fn restart_app() -> CmdResult<()> {
     feat::restart_app().await;
     Ok(())
-}
-#[tauri::command]
-pub fn get_app_dir() -> CmdResult<String> {
-    let app_home_dir = dirs::app_home_dir().stringify_err()?.to_string_lossy().into();
-    Ok(app_home_dir)
 }
 #[tauri::command]
 pub async fn download_icon_cache(url: String, name: String) -> CmdResult<String> {

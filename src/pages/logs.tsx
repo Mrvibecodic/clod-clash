@@ -5,8 +5,6 @@ import {
   SwapVertRounded,
 } from '@mui/icons-material'
 import { Box, Button, IconButton, MenuItem } from '@mui/material'
-import { save } from '@tauri-apps/plugin-dialog'
-import { writeTextFile } from '@tauri-apps/plugin-fs'
 import { useLockFn } from 'ahooks'
 import dayjs from 'dayjs'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -25,6 +23,7 @@ import LogItem from '@/components/log/log-item'
 import { useClashLog } from '@/hooks/use-clash-log'
 import { useLogData } from '@/hooks/use-log-data'
 import { useVisibility } from '@/hooks/use-visibility'
+import { saveLogText } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 
 const LogPage = () => {
@@ -95,13 +94,12 @@ const LogPage = () => {
   const handleExport = useLockFn(async () => {
     if (filteredLogs.length === 0) return
     const filename = `clod-clash-logs-${dayjs().format('YYYYMMDD-HHmmss')}.log`
-    const savePath = await save({ defaultPath: filename })
-    if (!savePath || Array.isArray(savePath)) return
     try {
       const body = filteredLogs
         .map((item) => `${item.time ?? ''} ${item.type} ${item.payload}`.trim())
         .join('\n')
-      await writeTextFile(savePath, `${body}\n`)
+      const saved = await saveLogText(filename, `${body}\n`)
+      if (!saved) return
       showNotice.success('logs.messages.exported')
     } catch (err) {
       showNotice.error(err)
