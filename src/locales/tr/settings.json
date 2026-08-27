@@ -259,7 +259,9 @@
           "successColor": "Başarı Rengi",
           "fontFamily": "Yazı Tipi Ailesi",
           "cssInjection": "CSS Enjeksiyonu",
-          "accentPresets": "Accent presets"
+          "accentPresets": "Accent presets",
+          "providerTheme": "Sağlayıcı görünümü",
+          "providerThemeHint": "Abonelikten renk, tema ve arka plan — siz kendinizinkini ayarlayana kadar"
         },
         "actions": {
           "editCss": "Edit CSS"

@@ -259,7 +259,9 @@
           "successColor": "성공 색상",
           "fontFamily": "글꼴",
           "cssInjection": "CSS 삽입",
-          "accentPresets": "Accent presets"
+          "accentPresets": "Accent presets",
+          "providerTheme": "제공자 스타일",
+          "providerThemeHint": "구독의 색상·테마·배경 — 직접 설정하기 전까지"
         },
         "actions": {
           "editCss": "CSS 편집"

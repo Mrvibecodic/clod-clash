@@ -259,7 +259,9 @@
           "successColor": "成功色",
           "fontFamily": "フォントファミリー",
           "cssInjection": "CSSインジェクション",
-          "accentPresets": "Accent presets"
+          "accentPresets": "Accent presets",
+          "providerTheme": "プロバイダーの外観",
+          "providerThemeHint": "購読からのアクセント・テーマ・背景 — 自分で設定するまで"
         },
         "actions": {
           "editCss": "Edit CSS"

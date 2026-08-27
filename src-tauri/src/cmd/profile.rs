@@ -655,7 +655,12 @@ pub async fn get_server_descriptions() -> CmdResult<std::collections::HashMap<St
 /// подписка показывает логотип, не дожидаясь первого обновления.
 #[tauri::command]
 pub async fn get_profile_logo(uid: String) -> CmdResult<Option<String>> {
-    Ok(crate::module::logo_cache::read_or_fetch(&uid).await)
+    Ok(crate::module::logo_cache::read_or_fetch(crate::module::logo_cache::Picture::Logo, &uid).await)
+}
+
+#[tauri::command]
+pub async fn get_profile_background(uid: String) -> CmdResult<Option<String>> {
+    Ok(crate::module::logo_cache::read_or_fetch(crate::module::logo_cache::Picture::Background, &uid).await)
 }
 
 #[cfg(test)]

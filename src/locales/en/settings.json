@@ -259,7 +259,9 @@
           "successColor": "Success Color",
           "fontFamily": "Font Family",
           "cssInjection": "CSS Injection",
-          "accentPresets": "Accent presets"
+          "accentPresets": "Accent presets",
+          "providerTheme": "Provider styling",
+          "providerThemeHint": "Accent, theme and background from the subscription — until you set your own"
         },
         "actions": {
           "editCss": "Edit CSS"

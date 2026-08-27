@@ -223,7 +223,7 @@ TUN перехватывает трафик всех приложений, вк�
 `clod-monitor-url`, `clod-guide-url`, `clod-promo`,
 `clod-promo-url`, `clod-hwid-limit`, `clod-simple-mode`, `clod-lock-mode`,
 `clod-connect-mode`,
-`clod-latency-style`, `clod-device-remove`)
+`clod-latency-style`, `clod-device-remove`, `clod-theme`)
 и остальные, которых нет в стандартном наборе Remnawave, задаются через
 `customResponseHeaders`. Значения с не-ASCII текстом надёжнее отдавать в виде
 `base64:<payload>`; все ссылки — только `https://`.

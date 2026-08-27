@@ -259,7 +259,9 @@
           "successColor": "成功顏色",
           "fontFamily": "字型系列",
           "cssInjection": "CSS 注入",
-          "accentPresets": "Accent presets"
+          "accentPresets": "Accent presets",
+          "providerTheme": "服務商外觀",
+          "providerThemeHint": "來自訂閱的強調色、主題與背景 — 直到您自行設定"
         },
         "actions": {
           "editCss": "編輯 CSS"

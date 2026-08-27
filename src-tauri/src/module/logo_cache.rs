@@ -14,6 +14,8 @@ use tokio::fs;
 
 const MAX_LOGO_BYTES: usize = 2 * 1024 * 1024;
 
+const MAX_BACKGROUND_BYTES: usize = 4 * 1024 * 1024;
+
 const TIMEOUT_SECS: u64 = 15;
 
 const KNOWN_EXTENSIONS: &[&str] = &["png", "svg", "jpg", "webp", "avif", "gif", "ico", "bmp"];
@@ -59,30 +61,53 @@ const fn mime_for(extension: &str) -> &'static str {
     }
 }
 
-async fn logo_url(uid: &str) -> Option<String> {
-    let profiles = Config::profiles().await;
-    let arc = profiles.latest_arc();
-    let url = arc.get_item(uid).ok().and_then(|item| item.logo.clone());
-    drop(arc);
-    url
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Picture {
+    Logo,
+    Background,
+}
+
+impl Picture {
+    const fn suffix(self) -> &'static str {
+        match self {
+            Self::Logo => "",
+            Self::Background => ".bg",
+        }
+    }
+
+    const fn max_bytes(self) -> usize {
+        match self {
+            Self::Logo => MAX_LOGO_BYTES,
+            Self::Background => MAX_BACKGROUND_BYTES,
+        }
+    }
+
+    fn stem(self, uid: &str) -> std::string::String {
+        format!("{uid}{}", self.suffix())
+    }
+
+    async fn url(self, uid: &str) -> Option<String> {
+        let profiles = Config::profiles().await;
+        let arc = profiles.latest_arc();
+        let url = arc.get_item(uid).ok().and_then(|item| match self {
+            Self::Logo => item.logo.clone(),
+            Self::Background => item.theme_background.clone(),
+        });
+        drop(arc);
+        url
+    }
 }
 
 pub async fn clear(uid: &str) {
-    if !is_safe_uid(uid) {
-        return;
-    }
-    let Ok(dir) = cache_dir() else { return };
-    for extension in KNOWN_EXTENSIONS {
-        let _ = fs::remove_file(dir.join(format!("{uid}.{extension}"))).await;
-    }
-    sweep_parts(&dir, uid).await;
+    clear_picture(Picture::Logo, uid).await;
+    clear_picture(Picture::Background, uid).await;
 }
 
-async fn sweep_parts(dir: &std::path::Path, uid: &str) {
+async fn sweep_parts(dir: &std::path::Path, stem: &str) {
     let Ok(mut entries) = fs::read_dir(dir).await else {
         return;
     };
-    let prefix = format!("{uid}.");
+    let prefix = format!("{stem}.");
     while let Ok(Some(entry)) = entries.next_entry().await {
         let name = entry.file_name();
         let Some(name) = name.to_str() else { continue };
@@ -92,12 +117,14 @@ async fn sweep_parts(dir: &std::path::Path, uid: &str) {
     }
 }
 
-async fn download(uid: &str, url: &str) -> Result<()> {
+async fn download(picture: Picture, uid: &str, url: &str) -> Result<()> {
     if !is_safe_uid(uid) {
         bail!("refusing to cache a logo under an unexpected profile id");
     }
+    let stem = picture.stem(uid);
+    let max_bytes = picture.max_bytes();
     if let Ok(dir) = cache_dir() {
-        sweep_parts(&dir, uid).await;
+        sweep_parts(&dir, &stem).await;
     }
     let mut last_error = None;
 
@@ -130,7 +157,7 @@ async fn download(uid: &str, url: &str) -> Result<()> {
 
             if response
                 .content_length()
-                .is_some_and(|length| length > MAX_LOGO_BYTES as u64)
+                .is_some_and(|length| length > max_bytes as u64)
             {
                 bail!("logo is too large ({} bytes)", response.content_length().unwrap_or(0));
             }
@@ -139,8 +166,8 @@ async fn download(uid: &str, url: &str) -> Result<()> {
             let mut response = response;
             while let Some(chunk) = response.chunk().await? {
                 bytes.extend_from_slice(&chunk);
-                if bytes.len() > MAX_LOGO_BYTES {
-                    bail!("logo is too large (over {MAX_LOGO_BYTES} bytes)");
+                if bytes.len() > max_bytes {
+                    bail!("logo is too large (over {max_bytes} bytes)");
                 }
             }
             if bytes.is_empty() {
@@ -149,9 +176,9 @@ async fn download(uid: &str, url: &str) -> Result<()> {
 
             let dir = cache_dir()?;
             fs::create_dir_all(&dir).await?;
-            let target = dir.join(format!("{uid}.{extension}"));
+            let target = dir.join(format!("{stem}.{extension}"));
             let attempt_id = PART_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            let temporary = dir.join(format!("{uid}.{extension}.{}-{attempt_id}.part", std::process::id()));
+            let temporary = dir.join(format!("{stem}.{extension}.{}-{attempt_id}.part", std::process::id()));
             if let Err(err) = fs::write(&temporary, &bytes).await {
                 let _ = fs::remove_file(&temporary).await;
                 return Err(err.into());
@@ -161,7 +188,7 @@ async fn download(uid: &str, url: &str) -> Result<()> {
                 return Err(err.into());
             }
             for stale in KNOWN_EXTENSIONS.iter().filter(|item| **item != extension) {
-                let _ = fs::remove_file(dir.join(format!("{uid}.{stale}"))).await;
+                let _ = fs::remove_file(dir.join(format!("{stem}.{stale}"))).await;
             }
             Ok::<(), anyhow::Error>(())
         };
@@ -175,24 +202,42 @@ async fn download(uid: &str, url: &str) -> Result<()> {
     Err(last_error.unwrap_or_else(|| anyhow::anyhow!("logo download was not attempted")))
 }
 
-pub async fn sync(uid: &str) {
-    match logo_url(uid).await {
+async fn sync_picture(picture: Picture, uid: &str) {
+    match picture.url(uid).await {
         Some(url) if !url.trim().is_empty() => {
-            if let Err(err) = download(uid, url.trim()).await {
-                logging!(warn, Type::Config, "profile logo for {uid} not cached: {err:#}");
+            if let Err(err) = download(picture, uid, url.trim()).await {
+                logging!(warn, Type::Config, "profile {picture:?} for {uid} not cached: {err:#}");
             }
         }
-        _ => clear(uid).await,
+        _ => clear_picture(picture, uid).await,
     }
 }
 
-pub async fn read(uid: &str) -> Option<String> {
+async fn clear_picture(picture: Picture, uid: &str) {
+    if !is_safe_uid(uid) {
+        return;
+    }
+    let Ok(dir) = cache_dir() else { return };
+    let stem = picture.stem(uid);
+    for extension in KNOWN_EXTENSIONS {
+        let _ = fs::remove_file(dir.join(format!("{stem}.{extension}"))).await;
+    }
+    sweep_parts(&dir, &stem).await;
+}
+
+pub async fn sync(uid: &str) {
+    sync_picture(Picture::Logo, uid).await;
+    sync_picture(Picture::Background, uid).await;
+}
+
+pub async fn read(picture: Picture, uid: &str) -> Option<String> {
     if !is_safe_uid(uid) {
         return None;
     }
     let dir = cache_dir().ok()?;
+    let stem = picture.stem(uid);
     for extension in KNOWN_EXTENSIONS {
-        let path = dir.join(format!("{uid}.{extension}"));
+        let path = dir.join(format!("{stem}.{extension}"));
         let Ok(bytes) = fs::read(&path).await else {
             continue;
         };
@@ -237,17 +282,18 @@ fn remember_cold_miss(uid: &str) {
     }
 }
 
-pub async fn read_or_fetch(uid: &str) -> Option<String> {
-    if let Some(cached) = read(uid).await {
+pub async fn read_or_fetch(picture: Picture, uid: &str) -> Option<String> {
+    if let Some(cached) = read(picture, uid).await {
         return Some(cached);
     }
-    if cold_miss_recently(uid) {
+    let miss_key = picture.stem(uid);
+    if cold_miss_recently(&miss_key) {
         return None;
     }
-    sync(uid).await;
-    let fresh = read(uid).await;
+    sync_picture(picture, uid).await;
+    let fresh = read(picture, uid).await;
     if fresh.is_none() {
-        remember_cold_miss(uid);
+        remember_cold_miss(&miss_key);
     }
     fresh
 }

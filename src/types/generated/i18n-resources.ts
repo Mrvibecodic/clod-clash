@@ -898,6 +898,8 @@ export interface TranslationResources {
               infoColor: string
               primaryColor: string
               primaryText: string
+              providerTheme: string
+              providerThemeHint: string
               secondaryColor: string
               secondaryText: string
               successColor: string

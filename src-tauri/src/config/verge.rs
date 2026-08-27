@@ -273,6 +273,7 @@ pub struct IVergeTheme {
 
     pub font_family: Option<String>,
     pub css_injection: Option<String>,
+    pub provider_theme: Option<bool>,
 }
 
 impl IVerge {

@@ -17,7 +17,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { BaseDialog, DialogRef } from '@/components/base'
+import { BaseDialog, DialogRef, Switch } from '@/components/base'
 import { useVerge } from '@/hooks/use-verge'
 import { ACCENT_PRESETS, defaultDarkTheme, defaultTheme } from '@/pages/_theme'
 import { showNotice } from '@/services/notice-service'
@@ -135,6 +135,22 @@ export function ThemeViewer(props: { ref?: React.Ref<DialogRef> }) {
       onOk={onSave}
     >
       <List sx={{ pt: 0 }}>
+        <Item>
+          <ListItemText
+            primary={t('settings.components.verge.theme.fields.providerTheme')}
+            secondary={t(
+              'settings.components.verge.theme.fields.providerThemeHint',
+            )}
+          />
+          <Switch
+            edge="end"
+            checked={theme.provider_theme !== false}
+            onChange={(_, checked) =>
+              setTheme((prev) => ({ ...prev, provider_theme: checked }))
+            }
+          />
+        </Item>
+
         <Item>
           <ListItemText
             primary={t('settings.components.verge.theme.fields.accentPresets')}

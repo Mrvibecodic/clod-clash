@@ -259,7 +259,9 @@
           "successColor": "Warna Keberhasilan",
           "fontFamily": "Keluarga Font",
           "cssInjection": "Injeksi CSS",
-          "accentPresets": "Accent presets"
+          "accentPresets": "Accent presets",
+          "providerTheme": "Tampilan dari penyedia",
+          "providerThemeHint": "Warna, tema, dan latar dari langganan — sampai Anda mengatur sendiri"
         },
         "actions": {
           "editCss": "Edit CSS"

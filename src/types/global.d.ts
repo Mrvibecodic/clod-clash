@@ -263,6 +263,9 @@ interface IProfileItem {
   promo_seen?: boolean
   lock_mode?: boolean
   connect_mode?: 'tun' | 'proxy' | 'both'
+  theme_accent?: string
+  theme_mode?: 'light' | 'dark'
+  theme_background?: string
   latency_style?: 'bars' | 'dot' | 'number'
   disable_ping?: boolean
   device_remove_url?: string
@@ -958,6 +961,7 @@ interface IVergeConfig {
     success_color?: string
     font_family?: string
     css_injection?: string
+    provider_theme?: boolean
     background_image?: string
     background_blend_mode?: string
     background_opacity?: number

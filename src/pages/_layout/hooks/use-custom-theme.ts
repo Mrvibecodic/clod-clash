@@ -12,6 +12,7 @@ import {
 import { Theme as TauriOsTheme } from '@tauri-apps/api/window'
 import { useEffect, useMemo, useRef } from 'react'
 
+import { useProviderTheme } from '@/hooks/use-provider-theme'
 import { useVerge } from '@/hooks/use-verge'
 import { accentForMode, defaultDarkTheme, defaultTheme } from '@/pages/_theme'
 import { useSetThemeMode, useThemeMode } from '@/services/states'
@@ -119,17 +120,23 @@ export const useCustomTheme = () => {
   const { theme_mode, theme_setting } = verge ?? {}
   const mode = useThemeMode()
   const setMode = useSetThemeMode()
-  const userBackgroundImage = theme_setting?.background_image || ''
+  const providerTheme = useProviderTheme()
+  const providerMode = theme_mode === 'system' ? providerTheme.mode : undefined
+  const providerAccent = providerTheme.accent
+  const userBackgroundImage =
+    theme_setting?.background_image || providerTheme.background || ''
   const hasUserBackground = !!userBackgroundImage
 
   useEffect(() => {
     if (theme_mode === 'light' || theme_mode === 'dark') {
       setMode(theme_mode)
+    } else if (providerMode) {
+      setMode(providerMode)
     }
-  }, [theme_mode, setMode])
+  }, [theme_mode, providerMode, setMode])
 
   useEffect(() => {
-    if (theme_mode !== 'system') {
+    if (theme_mode !== 'system' || providerMode) {
       return
     }
 
@@ -168,14 +175,14 @@ export const useCustomTheme = () => {
           console.error('Failed to unlisten from theme changes:', err)
         })
     }
-  }, [theme_mode, appWindow, setMode])
+  }, [theme_mode, providerMode, appWindow, setMode])
 
   useEffect(() => {
     if (theme_mode === undefined) {
       return
     }
 
-    if (theme_mode === 'system') {
+    if (theme_mode === 'system' && !providerMode) {
       appWindow.setTheme(null).catch((err) => {
         console.error(
           'Failed to set window theme to follow system (setTheme(null)):',
@@ -187,7 +194,7 @@ export const useCustomTheme = () => {
         console.error(`Failed to set window theme to ${mode}:`, err)
       })
     }
-  }, [mode, appWindow, theme_mode])
+  }, [mode, appWindow, theme_mode, providerMode])
 
   const theme = useMemo(() => {
     const setting = theme_setting || {}
@@ -239,7 +246,7 @@ export const useCustomTheme = () => {
           mode,
           primary: {
             main: accentForMode(
-              setting.primary_color || dt.primary_color,
+              setting.primary_color || providerAccent || dt.primary_color,
               mode,
             ),
           },
@@ -441,7 +448,13 @@ export const useCustomTheme = () => {
     }
 
     return muiTheme
-  }, [mode, theme_setting, userBackgroundImage, hasUserBackground])
+  }, [
+    mode,
+    theme_setting,
+    providerAccent,
+    userBackgroundImage,
+    hasUserBackground,
+  ])
 
   const previousModeRef = useRef<string | undefined>(undefined)
   useEffect(() => {

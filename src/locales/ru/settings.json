@@ -259,7 +259,9 @@
           "successColor": "Цвет успеха",
           "fontFamily": "Семейство шрифтов",
           "cssInjection": "Внедрение CSS",
-          "accentPresets": "Готовые акценты"
+          "accentPresets": "Готовые акценты",
+          "providerTheme": "Оформление от провайдера",
+          "providerThemeHint": "Цвет, тема и фон из подписки — пока вы не задали свои"
         },
         "actions": {
           "editCss": "Редактировать CSS"

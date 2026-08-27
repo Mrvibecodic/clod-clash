@@ -259,7 +259,9 @@
           "successColor": "لون النجاح",
           "fontFamily": "عائلة الخط",
           "cssInjection": "حقن CSS",
-          "accentPresets": "Accent presets"
+          "accentPresets": "Accent presets",
+          "providerTheme": "مظهر من المزوّد",
+          "providerThemeHint": "اللون والسمة والخلفية من الاشتراك — حتى تحدد الخاصة بك"
         },
         "actions": {
           "editCss": "Edit CSS"

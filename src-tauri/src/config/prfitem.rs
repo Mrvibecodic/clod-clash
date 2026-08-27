@@ -104,6 +104,15 @@ pub struct PrfItem {
     pub connect_mode: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub theme_accent: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub theme_mode: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub theme_background: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub refill_date: Option<i64>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -562,6 +571,12 @@ impl PrfItem {
             promo_seen: None,
             lock_mode: sub.lock_mode,
             connect_mode: sub.connect_mode.map(|mode| mode.as_str().into()),
+            theme_accent: sub.theme.as_ref().and_then(|theme| theme.accent.clone()),
+            theme_mode: sub
+                .theme
+                .as_ref()
+                .and_then(|theme| theme.mode.map(|mode| mode.as_str().into())),
+            theme_background: sub.theme.as_ref().and_then(|theme| theme.background.clone()),
             latency_style: sub.latency_style.map(|style| style.as_str().into()),
             disable_ping: sub.disable_ping.then_some(true),
             device_remove_url: sub.device_remove_url.clone(),
@@ -1011,6 +1026,9 @@ impl PrfItem {
         self.guide_url = fresh.guide_url.clone();
         self.lock_mode = fresh.lock_mode;
         self.connect_mode = fresh.connect_mode.clone();
+        self.theme_accent = fresh.theme_accent.clone();
+        self.theme_mode = fresh.theme_mode.clone();
+        self.theme_background = fresh.theme_background.clone();
         self.latency_style = fresh.latency_style.clone();
         self.disable_ping = fresh.disable_ping;
         self.device_remove_url = fresh.device_remove_url.clone();

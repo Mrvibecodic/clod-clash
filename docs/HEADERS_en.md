@@ -66,6 +66,7 @@ default). Turning it off stops all of them.
 | `clod-disable-ping` | `true` only — hide ping numbers | instead of milliseconds a server gets a green check (probe passed), a red cross (probe failed) or a dash (not probed yet). For users confused by latency numbers. Any other value, or no header, means plain numbers |
 | `clod-device-remove` | link where the customer frees a device slot | adds a "Free up a device" button to the device-limit dialog next to "Support" and makes it the primary one. `https://` only. Without the header the dialog still only offers support |
 | `clod-connect-mode` | `tun`, `proxy` or `both` — how traffic is captured | decides what the Connect button raises. **The user's own choice wins**, except on a locked profile (`clod-lock-mode: 1`), where the panel has the last word and the two connection switches disappear from the quick actions card. `tunnel`/`vpn`, `system`/`system-proxy`/`sysproxy` and `all` are accepted as synonyms; anything else counts as no header at all. Without the header the system proxy stays the default |
+| `clod-theme` | client styling: `accent=#RRGGBB; mode=dark; background=https://…` (`mode` is `light` or `dark`) | paints the accent colour, picks the light or dark theme and sets the window background for the provider. **The user's own choice wins**: a colour set in the theme settings, an explicitly chosen theme or the user's own background override the header, and the "Provider styling" switch in the theme settings turns it off entirely. Applies to the active subscription only. Details in "Provider styling" below |
 
 **Changing the subscription address**
 
@@ -147,6 +148,42 @@ announce: #EF4444IMPORTANT: the #F59E0BNetherlands node is under maintenance unt
   the second code lands inside the first word and shows up as text;
 * the colour is used exactly as sent, identically in light and dark themes — the
   app does not bend a provider's brand colour to its own palette.
+
+### Provider styling
+
+`clod-theme` is the only header about appearance. It is a **closed list of fields**,
+not CSS: a provider can suggest a colour, a theme and a background, but cannot redraw
+the interface, hide the connection status or inject code into the window. Fields are
+separated by semicolons, in any order:
+
+```
+clod-theme: accent=#2E7CF6; mode=dark; background=https://cdn.provider.example/bg.jpg
+```
+
+| Field | Value | What it does |
+| --- | --- | --- |
+| `accent` | `#RRGGBB` colour (the hash is optional) | accent colour of buttons, switches and highlights. The app adjusts its brightness for the light and dark themes itself |
+| `mode` | `light` or `dark` | light or dark window theme |
+| `background` | image link, `https` only | window background. The image is downloaded when the subscription updates and kept locally, like the logo: it is not fetched from a third-party host on every render and works offline. Same formats as `profile-logo`, at most 4 MB |
+
+Rules:
+
+* **The user's choice wins.** A colour set in the theme settings overrides `accent`;
+  a manually chosen light or dark theme overrides `mode` (the header only applies while
+  the theme follows the system); the user's own background overrides `background`.
+  The "Provider styling" switch in the theme settings disables the header entirely —
+  for people who do not want the panel's look.
+* **Only the active subscription applies.** A background auto-update of another
+  subscription does not repaint the window.
+* Unknown fields are skipped; invalid values (`accent=red`, `mode=auto`,
+  `background=http://…`) count as absent, and the remaining fields of the same header
+  still apply.
+* When the header disappears from the response, the styling returns to the user's
+  settings on the next subscription update.
+
+Why not CSS: an arbitrary stylesheet from a provider is third-party code inside the
+user's window, and the user has no way to repair whatever it breaks. A closed list of
+fields gives the provider a branded look without that risk.
 
 ### Panel placeholder nodes
 

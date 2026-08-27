@@ -108,6 +108,63 @@ impl LatencyStyle {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ThemeMode {
+    Light,
+    Dark,
+}
+
+impl ThemeMode {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Light => "light",
+            Self::Dark => "dark",
+        }
+    }
+
+    fn parse(raw: &str) -> Option<Self> {
+        match raw.trim().to_ascii_lowercase().as_str() {
+            "light" => Some(Self::Light),
+            "dark" => Some(Self::Dark),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ProviderTheme {
+    pub accent: Option<String>,
+    pub mode: Option<ThemeMode>,
+    pub background: Option<String>,
+}
+
+impl ProviderTheme {
+    fn parse(raw: &str) -> Option<Self> {
+        let mut theme = Self::default();
+        for part in raw.split(';') {
+            let Some((key, value)) = part.split_once('=') else {
+                continue;
+            };
+            match key.trim().to_ascii_lowercase().as_str() {
+                "accent" => theme.accent = hex_colour(value),
+                "mode" => theme.mode = ThemeMode::parse(value),
+                "background" => theme.background = https_url(value),
+                _ => {}
+            }
+        }
+        let known = theme.accent.is_some() || theme.mode.is_some() || theme.background.is_some();
+        known.then_some(theme)
+    }
+}
+
+fn hex_colour(raw: &str) -> Option<String> {
+    let digits = raw.trim().trim_start_matches('#');
+    if digits.len() != 6 || !digits.chars().all(|c| c.is_ascii_hexdigit()) {
+        return None;
+    }
+    Some(format!("#{}", digits.to_ascii_lowercase()).into())
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct SubHeaders {
     pub profile_title: Option<String>,
@@ -145,6 +202,7 @@ pub struct SubHeaders {
     pub connect_mode: Option<ConnectMode>,
 
     pub show_zero_hosts: Option<bool>,
+    pub theme: Option<ProviderTheme>,
     pub server_time: Option<i64>,
 }
 
@@ -209,6 +267,7 @@ impl SubHeaders {
             connect_mode: value(headers, "clod-connect-mode")
                 .as_deref()
                 .and_then(ConnectMode::parse),
+            theme: value(headers, "clod-theme").as_deref().and_then(ProviderTheme::parse),
             server_time: (!is_cached(headers))
                 .then(|| {
                     headers
@@ -482,8 +541,8 @@ pub fn validate_new_url(current: &str, candidate: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        ANNOUNCE_MAX_CHARS, ConnectMode, DEFAULT_NOTIFY_EXPIRE_DAYS, HwidState, LatencyStyle, SubHeaders, contact_url,
-        decode_value, swap_domain, thresholds, truncate_banner, validate_new_url,
+        ANNOUNCE_MAX_CHARS, ConnectMode, DEFAULT_NOTIFY_EXPIRE_DAYS, HwidState, LatencyStyle, ProviderTheme,
+        SubHeaders, ThemeMode, contact_url, decode_value, swap_domain, thresholds, truncate_banner, validate_new_url,
     };
     use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 
@@ -524,6 +583,41 @@ mod tests {
         assert_eq!(parsed.hwid_state, HwidState::Active);
         assert_eq!(parsed.notify_expire_days.as_deref(), Some(&[1, 3, 7][..]));
         assert_eq!(parsed.notify_traffic_percent.as_deref(), Some(&[80, 90, 100][..]));
+    }
+
+    #[test]
+    fn provider_theme_keeps_only_known_safe_tokens() {
+        let parsed = SubHeaders::parse(&headers(&[(
+            "clod-theme",
+            "accent=#2E7CF6; mode=Dark; background=https://cdn.provider.example/bg.jpg; font=Comic",
+        )]));
+        assert_eq!(
+            parsed.theme,
+            Some(ProviderTheme {
+                accent: Some("#2e7cf6".into()),
+                mode: Some(ThemeMode::Dark),
+                background: Some("https://cdn.provider.example/bg.jpg".into()),
+            })
+        );
+
+        let parsed = SubHeaders::parse(&headers(&[("clod-theme", "accent=2e7cf6")]));
+        assert_eq!(parsed.theme.and_then(|theme| theme.accent).as_deref(), Some("#2e7cf6"));
+
+        let parsed = SubHeaders::parse(&headers(&[(
+            "clod-theme",
+            "accent=red; mode=auto; background=http://cdn.provider.example/bg.jpg",
+        )]));
+        assert_eq!(parsed.theme, None);
+
+        let parsed = SubHeaders::parse(&headers(&[("clod-theme", "accent=#12345; mode=light")]));
+        assert_eq!(
+            parsed.theme,
+            Some(ProviderTheme {
+                accent: None,
+                mode: Some(ThemeMode::Light),
+                background: None,
+            })
+        );
     }
 
     #[test]

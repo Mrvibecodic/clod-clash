@@ -259,7 +259,9 @@
           "successColor": "成功颜色",
           "fontFamily": "字体系列",
           "cssInjection": "CSS 注入",
-          "accentPresets": "预设强调色"
+          "accentPresets": "预设强调色",
+          "providerTheme": "服务商外观",
+          "providerThemeHint": "来自订阅的强调色、主题和背景 — 直到您自行设置"
         },
         "actions": {
           "editCss": "编辑 CSS"

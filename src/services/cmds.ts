@@ -294,6 +294,10 @@ export async function getProfileLogo(uid: string) {
   return invoke<string | null>('get_profile_logo', { uid })
 }
 
+export async function getProfileBackground(uid: string) {
+  return invoke<string | null>('get_profile_background', { uid })
+}
+
 export interface ISentinelReport {
   remarks: string[]
   only_sentinels: boolean

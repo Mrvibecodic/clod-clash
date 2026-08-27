@@ -259,7 +259,9 @@
           "successColor": "رنگ موفقیت",
           "fontFamily": "خانواده فونت",
           "cssInjection": "تزریق CSS",
-          "accentPresets": "Accent presets"
+          "accentPresets": "Accent presets",
+          "providerTheme": "ظاهر از ارائه‌دهنده",
+          "providerThemeHint": "رنگ، تم و پس‌زمینه از اشتراک — تا زمانی که خودتان تنظیم نکنید"
         },
         "actions": {
           "editCss": "Edit CSS"

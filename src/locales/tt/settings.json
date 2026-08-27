@@ -259,7 +259,9 @@
           "successColor": "Уңыш төсе",
           "fontFamily": "Шрифтлар гаиләсе",
           "cssInjection": "CSS кертү",
-          "accentPresets": "Accent presets"
+          "accentPresets": "Accent presets",
+          "providerTheme": "Провайдер бизәлеше",
+          "providerThemeHint": "Язылудан төс, тема һәм фон — үзегезнекен куйганчы"
         },
         "actions": {
           "editCss": "Edit CSS"

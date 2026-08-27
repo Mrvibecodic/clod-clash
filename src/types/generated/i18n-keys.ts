@@ -618,6 +618,8 @@ export const translationKeys = [
   'settings.components.verge.theme.fields.fontFamily',
   'settings.components.verge.theme.fields.cssInjection',
   'settings.components.verge.theme.fields.accentPresets',
+  'settings.components.verge.theme.fields.providerTheme',
+  'settings.components.verge.theme.fields.providerThemeHint',
   'settings.components.verge.theme.actions.editCss',
   'settings.components.verge.theme.dialogs.editCssTitle',
   'settings.components.verge.layout.title',
