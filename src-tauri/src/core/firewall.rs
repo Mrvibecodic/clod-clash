@@ -62,29 +62,29 @@ pub async fn allow_inbound() -> Result<()> {
     use runas::Command as RunasCommand;
     use std::os::windows::process::CommandExt as _;
 
-    let mut paths: Vec<PathBuf> = Vec::new();
+    let mut paths: Vec<(&str, PathBuf)> = Vec::new();
     if let Ok(exe) = std::env::current_exe() {
         for name in CORE_FILE_NAMES {
             let path = exe.with_file_name(name);
             if path.is_file() {
-                paths.push(path);
+                paths.push(("core", path));
             }
         }
     }
     if let Some(managed) = crate::core::core_updater::managed_binary_on_disk().await {
-        paths.push(managed);
+        paths.push(("managed core", managed));
     }
     if paths.is_empty() {
         bail!("no core binaries found next to the app");
     }
 
     let mut script = String::from("$fail=0; ");
-    for path in &paths {
+    for (kind, path) in &paths {
         let file_name = path
             .file_name()
             .map_or_else(|| String::from("core"), |name| name.to_string_lossy().into_owned());
         let program = ps_single_quote(&format!("program={}", path.to_string_lossy()));
-        let rule_name = ps_single_quote(&format!("name=Clod Clash core ({file_name})"));
+        let rule_name = ps_single_quote(&format!("name=Clod Clash {kind} ({file_name})"));
         script.push_str(&format!(
             "netsh advfirewall firewall delete rule {rule_name} dir=in | Out-Null; \
              netsh advfirewall firewall add rule {rule_name} dir=in action=allow {program} enable=yes | Out-Null; \
