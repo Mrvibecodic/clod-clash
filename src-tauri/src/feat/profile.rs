@@ -348,14 +348,14 @@ pub async fn update_profile(
 
     let should_refresh = match url_opt {
         Some(target) => {
-            let outcome = perform_profile_update(
+            let outcome = Box::pin(perform_profile_update(
                 uid,
                 &target.url,
                 target.option.as_ref(),
                 option,
                 target.fallback_url,
                 target.fallback_domain,
-            )
+            ))
             .await;
             match outcome {
                 Ok(changed) => changed && auto_refresh,
