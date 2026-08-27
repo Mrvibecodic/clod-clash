@@ -583,6 +583,14 @@ async fn swap_to_version(version: &str) -> Result<()> {
 }
 
 pub async fn download_and_apply_core() -> Result<CoreUpdateCheck> {
+    let result = apply_core_update().await;
+    if result.is_err() {
+        emit_progress("failed", 0, 0);
+    }
+    result
+}
+
+async fn apply_core_update() -> Result<CoreUpdateCheck> {
     let _guard = UpdateGuard::acquire()?;
 
     let verge = Config::verge().await.latest_arc();

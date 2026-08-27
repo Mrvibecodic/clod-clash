@@ -64,7 +64,7 @@ export function ManagedCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
   }))
 
   useTauriEvent<Progress>('clod://core-update-progress', (event) => {
-    if (event.payload.phase === 'done') {
+    if (event.payload.phase === 'done' || event.payload.phase === 'failed') {
       setProgress(undefined)
       void refreshStatus()
       return
