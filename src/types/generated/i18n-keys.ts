@@ -972,6 +972,7 @@ export const translationKeys = [
   'shared.feedback.errors.core.chanReplay',
   'shared.feedback.errors.core.chanRefused',
   'shared.feedback.errors.core.chanBadUrl',
+  'shared.feedback.errors.core.subscriptionHttpsOnly',
   'shared.feedback.notices.raw',
   'shared.feedback.notices.prefixedRaw',
   'shared.feedback.notices.explained',

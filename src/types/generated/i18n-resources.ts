@@ -1542,6 +1542,7 @@ export interface TranslationResources {
             portBusy: string
             proxyNotFound: string
             serverError: string
+            subscriptionHttpsOnly: string
             timeout: string
             tls: string
             tunFailed: string
