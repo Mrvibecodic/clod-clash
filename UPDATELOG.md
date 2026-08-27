@@ -8,6 +8,56 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.1.8
+
+<!-- lang:en -->
+
+### Added
+
+- Provider styling via the `clod-theme` header: accent colour, light or dark theme and window background from the subscription. Your own theme settings always win, and the «Provider styling» switch in the theme settings turns it off entirely
+- A subscription that fails to apply for a clear reason (for example an http address) explains it instead of failing silently
+
+### Changed
+
+- The window no longer has file-system access of its own: exporting logs, importing a dropped file and tray icon previews go through the application backend
+- A managed core without a checksum in the release is not installed
+- A startup script runs by its file type (`.ps1`, `.bat`, `.sh`) and its failure is written to the log
+- The CSS editor is removed from the interface; saved custom CSS keeps working within the allowed limits
+
+### Fixed
+
+- Windows: firewall rules for the bundled and the managed core no longer overwrite each other
+- Core update progress no longer sticks in the dialog after an update started elsewhere or a failed one
+- The last batch of log lines reaches the cache when leaving the page
+- Subscription cards move smoothly during drag and drop
+- The update cache and configuration drafts are written atomically, and stale drafts are removed on start
+- Error texts shown in the interface are cleaned of paths and secrets everywhere
+- A service tray-menu refresh error no longer interrupts the service operation
+
+<!-- lang:ru -->
+
+### Добавлено
+
+- Оформление от провайдера заголовком `clod-theme`: акцентный цвет, светлая или тёмная тема и фон окна из подписки. Свои настройки темы всегда важнее, а тумблер «Оформление от провайдера» в настройках темы выключает его целиком
+- Подписка, которую нельзя применить по понятной причине (например, адрес по http), объясняет её вместо молчаливого сбоя
+
+### Изменено
+
+- У окна больше нет собственного доступа к файлам: выгрузка логов, импорт перетащенного файла и превью иконок трея идут через бэкенд приложения
+- Управляемое ядро без контрольной суммы в релизе не устанавливается
+- Стартовый скрипт запускается по типу файла (`.ps1`, `.bat`, `.sh`), его ошибка пишется в лог
+- Редактор CSS убран из интерфейса; сохранённый CSS продолжает работать в разрешённых пределах
+
+### Исправлено
+
+- Windows: правила брандмауэра для встроенного и управляемого ядра больше не перебивают друг друга
+- Прогресс обновления ядра больше не застывает в диалоге после обновления из другого места или после ошибки
+- Последняя пачка строк лога доходит до кэша при уходе со страницы
+- Карточки подписок плавно сдвигаются при перетаскивании
+- Кэш обновления и черновики конфига пишутся атомарно, устаревшие черновики убираются при старте
+- Тексты ошибок в интерфейсе везде очищены от путей и секретов
+- Ошибка обновления меню трея больше не прерывает операцию со службой
+
 ## v0.1.7
 
 <!-- lang:en -->
