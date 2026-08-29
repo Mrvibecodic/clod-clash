@@ -2,7 +2,6 @@
   "page": {
     "actions": {
       "manual": "Manual",
-      "telegram": "Telegram Channel",
       "github": "Github Repo"
     },
     "title": "Settings"

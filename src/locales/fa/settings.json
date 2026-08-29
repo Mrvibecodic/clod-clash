@@ -2,7 +2,6 @@
   "page": {
     "actions": {
       "manual": "راهنما",
-      "telegram": "کانال تلگرام",
       "github": "مخزن GitHub"
     },
     "title": "تنظیمات"

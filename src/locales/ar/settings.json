@@ -2,7 +2,6 @@
   "page": {
     "actions": {
       "manual": "دليل",
-      "telegram": "قناة تيليجرام",
       "github": "مستودع Github"
     },
     "title": "الإعدادات"

@@ -2,7 +2,6 @@
   "page": {
     "actions": {
       "manual": "Bedienungsanleitung",
-      "telegram": "Telegram-Kanal",
       "github": "GitHub-Projektadresse"
     },
     "title": "Einstellungen"

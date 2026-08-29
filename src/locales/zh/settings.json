@@ -2,7 +2,6 @@
   "page": {
     "actions": {
       "manual": "使用手册",
-      "telegram": "Telegram 频道",
       "github": "GitHub 项目地址"
     },
     "title": "设置"

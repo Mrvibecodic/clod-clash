@@ -460,7 +460,6 @@ export const translationKeys = [
   'rules.modals.editor.ruleTypes.MATCH',
   'rules.modals.editor.title',
   'settings.page.actions.manual',
-  'settings.page.actions.telegram',
   'settings.page.actions.github',
   'settings.page.title',
   'settings.sections.system.title',

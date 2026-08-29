@@ -2,7 +2,6 @@
   "page": {
     "actions": {
       "manual": "Kılavuz",
-      "telegram": "Telegram Kanalı",
       "github": "Github Repo"
     },
     "title": "Ayarlar"

@@ -1310,7 +1310,6 @@ export interface TranslationResources {
         actions: {
           github: string
           manual: string
-          telegram: string
         }
         title: string
       }

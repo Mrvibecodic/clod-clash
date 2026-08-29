@@ -2,7 +2,6 @@
   "page": {
     "actions": {
       "manual": "문서",
-      "telegram": "Telegram 채널",
       "github": "GitHub 저장소"
     },
     "title": "설정"
