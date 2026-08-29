@@ -96,6 +96,7 @@ fn render_node(node: &MenuNode) -> MenuItem<ClodTray> {
             label,
             enabled,
             accelerator,
+            ..
         } => StandardItem {
             label: escape_label(label),
             enabled: *enabled,
@@ -110,6 +111,7 @@ fn render_node(node: &MenuNode) -> MenuItem<ClodTray> {
             enabled,
             checked,
             accelerator,
+            ..
         } => CheckmarkItem {
             label: escape_label(label),
             enabled: *enabled,

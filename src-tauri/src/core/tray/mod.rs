@@ -64,6 +64,7 @@ enum IconKind {
 
 pub struct Tray {
     limiter: SystemLimiter,
+    #[cfg(target_os = "linux")]
     activate_limiter: SystemLimiter,
     #[cfg(target_os = "macos")]
     speed_controller: speed_task::TraySpeedController,
@@ -138,6 +139,7 @@ impl Default for Tray {
     fn default() -> Self {
         Self {
             limiter: Limiter::new(Duration::from_millis(TRAY_CLICK_DEBOUNCE_MS), SystemClock),
+            #[cfg(target_os = "linux")]
             activate_limiter: Limiter::new(Duration::from_millis(TRAY_CLICK_DEBOUNCE_MS), SystemClock),
             #[cfg(target_os = "macos")]
             speed_controller: speed_task::TraySpeedController::new(),
@@ -488,11 +490,17 @@ impl Tray {
     }
 
     fn should_handle_tray_activate(&self) -> bool {
-        let allow = self.activate_limiter.check();
-        if !allow {
-            logging!(debug, Type::Tray, "tray activate rate limited");
+        #[cfg(not(target_os = "linux"))]
+        return self.should_handle_tray_click();
+
+        #[cfg(target_os = "linux")]
+        {
+            let allow = self.activate_limiter.check();
+            if !allow {
+                logging!(debug, Type::Tray, "tray activate rate limited");
+            }
+            allow
         }
-        allow
     }
 
     #[cfg(target_os = "macos")]
@@ -578,7 +586,7 @@ fn create_subcreate_proxy_menu_item(
                         })
                         .unwrap_or_else(|| "-ms".into());
 
-                    MenuNode::check(item_id, format!("{}   | {}", proxy_str, delay_text), is_selected)
+                    MenuNode::check(item_id, format!("{}   | {}", proxy_str, delay_text), is_selected).skippable()
                 })
                 .collect();
 
@@ -594,7 +602,8 @@ fn create_subcreate_proxy_menu_item(
                     format!("proxy_group_{}", group_name),
                     group_name.to_string(),
                     group_items,
-                ),
+                )
+                .skippable(),
             ));
         }
     }
@@ -820,54 +829,95 @@ async fn create_tray_menu_model(
     Ok(menu_items)
 }
 
-fn render_menu_node(app_handle: &AppHandle, node: MenuNode) -> Option<Box<dyn IsMenuItem<Wry>>> {
-    let rendered: tauri::Result<Box<dyn IsMenuItem<Wry>>> = match node {
-        MenuNode::Separator => PredefinedMenuItem::separator(app_handle).map(|item| Box::new(item) as _),
+fn render_menu_node(
+    app_handle: &AppHandle,
+    separator: &PredefinedMenuItem<Wry>,
+    node: MenuNode,
+) -> Result<Option<Box<dyn IsMenuItem<Wry>>>> {
+    let (skippable, group_name, rendered): (
+        bool,
+        Option<std::string::String>,
+        tauri::Result<Box<dyn IsMenuItem<Wry>>>,
+    ) = match node {
+        MenuNode::Separator => (false, None, Ok(Box::new(separator.clone()))),
         MenuNode::Item {
             id,
             label,
             enabled,
             accelerator,
-        } => MenuItem::with_id(app_handle, id.as_ref(), label, enabled, accelerator.as_deref())
-            .map(|item| Box::new(item) as _),
+            skippable,
+        } => (
+            skippable,
+            None,
+            MenuItem::with_id(app_handle, id.as_ref(), label, enabled, accelerator.as_deref())
+                .map(|item| Box::new(item) as _),
+        ),
         MenuNode::Check {
             id,
             label,
             enabled,
             checked,
             accelerator,
-        } => CheckMenuItem::with_id(app_handle, id.as_ref(), label, enabled, checked, accelerator.as_deref())
-            .map(|item| Box::new(item) as _),
+            skippable,
+        } => (
+            skippable,
+            None,
+            CheckMenuItem::with_id(app_handle, id.as_ref(), label, enabled, checked, accelerator.as_deref())
+                .map(|item| Box::new(item) as _),
+        ),
         MenuNode::Sub {
             id,
             label,
             enabled,
             children,
+            skippable,
         } => {
-            let rendered = render_menu_nodes(app_handle, children);
+            let expected = children.len();
+            let rendered = render_menu_nodes(app_handle, separator, children)?;
+            if expected > 0 && rendered.is_empty() {
+                return Ok(None);
+            }
             let refs: Vec<&dyn IsMenuItem<Wry>> = rendered.iter().map(AsRef::as_ref).collect();
-            Submenu::with_id_and_items(app_handle, id.as_ref(), label, enabled, &refs).map(|item| Box::new(item) as _)
+            let group_name = skippable.then(|| label.clone());
+            (
+                skippable,
+                group_name,
+                Submenu::with_id_and_items(app_handle, id.as_ref(), label, enabled, &refs)
+                    .map(|item| Box::new(item) as _),
+            )
         }
     };
 
-    rendered
-        .map_err(|e| logging!(warn, Type::Tray, "Failed to create tray menu item: {e}"))
-        .ok()
+    match rendered {
+        Ok(item) => Ok(Some(item)),
+        Err(e) if skippable => {
+            match group_name {
+                Some(group_name) => logging!(warn, Type::Tray, "Failed to create proxy group submenu: {group_name}"),
+                None => logging!(warn, Type::Tray, "Failed to create proxy menu item: {e}"),
+            }
+            Ok(None)
+        }
+        Err(e) => Err(e.into()),
+    }
 }
 
-fn render_menu_nodes(app_handle: &AppHandle, nodes: Vec<MenuNode>) -> Vec<Box<dyn IsMenuItem<Wry>>> {
-    nodes
-        .into_iter()
-        .filter_map(|node| render_menu_node(app_handle, node))
-        .collect()
+fn render_menu_nodes(
+    app_handle: &AppHandle,
+    separator: &PredefinedMenuItem<Wry>,
+    nodes: Vec<MenuNode>,
+) -> Result<Vec<Box<dyn IsMenuItem<Wry>>>> {
+    let mut rendered = Vec::with_capacity(nodes.len());
+    for node in nodes {
+        if let Some(item) = render_menu_node(app_handle, separator, node)? {
+            rendered.push(item);
+        }
+    }
+    Ok(rendered)
 }
 
 fn render_tray_menu(app_handle: &AppHandle, nodes: Vec<MenuNode>) -> Result<tauri::menu::Menu<Wry>> {
-    let expected = nodes.len();
-    let rendered = render_menu_nodes(app_handle, nodes);
-    if rendered.len() != expected {
-        anyhow::bail!("не удалось построить {} пунктов меню трея", expected - rendered.len());
-    }
+    let separator = PredefinedMenuItem::separator(app_handle)?;
+    let rendered = render_menu_nodes(app_handle, &separator, nodes)?;
     let refs: Vec<&dyn IsMenuItem<Wry>> = rendered.iter().map(AsRef::as_ref).collect();
     Ok(tauri::menu::MenuBuilder::new(app_handle).items(&refs).build()?)
 }
@@ -1010,7 +1060,12 @@ fn handle_menu_click(id: std::string::String) {
                 feat::switch_proxy_node(group_name, proxy_name).await;
             }
             _ => {
-                logging!(debug, Type::Tray, "Unhandled tray menu event: {id}");
+                logging!(
+                    debug,
+                    Type::Tray,
+                    "Unhandled tray menu event: {:?}",
+                    tauri::menu::MenuId::new(&id)
+                );
             }
         }
     });

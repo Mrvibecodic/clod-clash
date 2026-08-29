@@ -78,6 +78,7 @@ pub(crate) enum MenuNode {
         label: String,
         enabled: bool,
         accelerator: Option<String>,
+        skippable: bool,
     },
     Check {
         id: Cow<'static, str>,
@@ -85,12 +86,14 @@ pub(crate) enum MenuNode {
         enabled: bool,
         checked: bool,
         accelerator: Option<String>,
+        skippable: bool,
     },
     Sub {
         id: Cow<'static, str>,
         label: String,
         enabled: bool,
         children: Vec<Self>,
+        skippable: bool,
     },
 }
 
@@ -101,6 +104,7 @@ impl MenuNode {
             label: label.into(),
             enabled: true,
             accelerator: None,
+            skippable: false,
         }
     }
 
@@ -111,6 +115,7 @@ impl MenuNode {
             enabled: true,
             checked,
             accelerator: None,
+            skippable: false,
         }
     }
 
@@ -120,6 +125,7 @@ impl MenuNode {
             label: label.into(),
             enabled: true,
             children,
+            skippable: false,
         }
     }
 
@@ -135,6 +141,16 @@ impl MenuNode {
     pub const fn with_enabled(mut self, value: bool) -> Self {
         match &mut self {
             Self::Item { enabled, .. } | Self::Check { enabled, .. } | Self::Sub { enabled, .. } => *enabled = value,
+            Self::Separator => {}
+        }
+        self
+    }
+
+    pub const fn skippable(mut self) -> Self {
+        match &mut self {
+            Self::Item { skippable, .. } | Self::Check { skippable, .. } | Self::Sub { skippable, .. } => {
+                *skippable = true;
+            }
             Self::Separator => {}
         }
         self
