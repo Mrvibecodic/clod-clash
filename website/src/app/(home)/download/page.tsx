@@ -6,6 +6,7 @@ import {
   latestAssetUrl,
   permanentLinkFiles,
 } from '@/lib/downloads'
+import { community } from '@/lib/shared'
 
 const lead =
   'Последняя обычная версия для Windows, macOS и Linux. Ссылки постоянные: когда выходит новая версия, они начинают вести на неё, менять закладку не нужно.'
@@ -108,6 +109,12 @@ export default function DownloadPage() {
               className="mt-4 inline-block text-sm font-medium text-fd-primary hover:underline"
             >
               Все релизы на GitHub →
+            </a>
+            <a
+              href={community.group}
+              className="mt-2 block text-sm font-medium text-fd-primary hover:underline"
+            >
+              Анонсы версий в Telegram-группе →
             </a>
           </div>
         </div>

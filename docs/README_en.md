@@ -18,6 +18,21 @@
 </p>
 
 <p align="center">
+  <a href="https://t.me/+2lmP1yhxpCE3MDcy">
+    <img alt="Telegram group — news and releases" src="https://img.shields.io/badge/Telegram-Group%20%E2%80%94%20news-2AABEE?style=for-the-badge&logo=telegram&logoColor=white">
+  </a>
+  &nbsp;
+  <a href="https://t.me/+8BJQXYXYLqM4YWYy">
+    <img alt="Telegram chat — help and discussion" src="https://img.shields.io/badge/Telegram-Chat%20%E2%80%94%20help-229ED9?style=for-the-badge&logo=telegram&logoColor=white">
+  </a>
+</p>
+
+<p align="center">
+  <b><a href="https://t.me/+2lmP1yhxpCE3MDcy">Group</a></b> — news and releases
+  · <b><a href="https://t.me/+8BJQXYXYLqM4YWYy">Chat</a></b> — questions, help and discussion
+</p>
+
+<p align="center">
   <img src="../website/public/screenshots/og.png" alt="Clod Clash" width="800">
 </p>
 

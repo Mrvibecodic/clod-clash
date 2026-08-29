@@ -7,4 +7,9 @@ export const gitConfig = {
   branch: 'main',
 }
 
+export const community = {
+  group: 'https://t.me/+2lmP1yhxpCE3MDcy',
+  chat: 'https://t.me/+8BJQXYXYLqM4YWYy',
+}
+
 export const releasesUrl = `https://github.com/${gitConfig.user}/${gitConfig.repo}/releases/latest`

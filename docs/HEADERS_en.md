@@ -4,6 +4,9 @@ What the client sends to the panel and what it understands in the answer. Settin
 lives in [REMNAWAVE.md](./REMNAWAVE.md); the client itself is described in the
 [README](./README_en.md).
 
+Questions and help — the [Telegram chat](https://t.me/+8BJQXYXYLqM4YWYy);
+news and releases — the [Telegram group](https://t.me/+2lmP1yhxpCE3MDcy).
+
 ---
 
 This is the whole point of the fork. Below is everything the client sends and understands.

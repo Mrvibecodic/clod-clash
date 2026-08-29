@@ -2,6 +2,9 @@
 
 How to build Clod Clash from source. Cutting a release is covered in [RELEASING.md](./RELEASING.md).
 
+Questions and help — the [Telegram chat](https://t.me/+8BJQXYXYLqM4YWYy);
+news and releases — the [Telegram group](https://t.me/+2lmP1yhxpCE3MDcy).
+
 ---
 
 ```bash

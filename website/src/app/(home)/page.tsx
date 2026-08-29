@@ -1,6 +1,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { Logo } from '@/components/logo'
+import { community } from '@/lib/shared'
 import hero from '../../../public/screenshots/02-home-connected.png'
 
 export default function HomePage() {
@@ -25,6 +26,23 @@ export default function HomePage() {
         >
           Документация
         </Link>
+      </div>
+      <div className="mt-5 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-sm text-fd-muted-foreground">
+        <a
+          href={community.group}
+          className="font-medium text-fd-foreground underline underline-offset-4"
+        >
+          Telegram-группа
+        </a>
+        <span>— новости и релизы</span>
+        <span aria-hidden>·</span>
+        <a
+          href={community.chat}
+          className="font-medium text-fd-foreground underline underline-offset-4"
+        >
+          Telegram-чат
+        </a>
+        <span>— помощь и обсуждение</span>
       </div>
       <Image
         src={hero}

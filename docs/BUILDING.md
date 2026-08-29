@@ -2,6 +2,9 @@
 
 Как собрать Clod Clash из исходников. Про выпуск релизов — в [RELEASING.md](./RELEASING.md).
 
+Вопросы и помощь — в [Telegram-чате](https://t.me/+8BJQXYXYLqM4YWYy),
+новости и релизы — в [Telegram-группе](https://t.me/+2lmP1yhxpCE3MDcy).
+
 ---
 
 ```bash
