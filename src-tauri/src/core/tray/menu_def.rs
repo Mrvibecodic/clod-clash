@@ -70,3 +70,73 @@ impl From<&str> for TrayAction {
         }
     }
 }
+
+pub(crate) enum MenuNode {
+    Separator,
+    Item {
+        id: Cow<'static, str>,
+        label: String,
+        enabled: bool,
+        accelerator: Option<String>,
+    },
+    Check {
+        id: Cow<'static, str>,
+        label: String,
+        enabled: bool,
+        checked: bool,
+        accelerator: Option<String>,
+    },
+    Sub {
+        id: Cow<'static, str>,
+        label: String,
+        enabled: bool,
+        children: Vec<Self>,
+    },
+}
+
+impl MenuNode {
+    pub fn item(id: impl Into<Cow<'static, str>>, label: impl Into<String>) -> Self {
+        Self::Item {
+            id: id.into(),
+            label: label.into(),
+            enabled: true,
+            accelerator: None,
+        }
+    }
+
+    pub fn check(id: impl Into<Cow<'static, str>>, label: impl Into<String>, checked: bool) -> Self {
+        Self::Check {
+            id: id.into(),
+            label: label.into(),
+            enabled: true,
+            checked,
+            accelerator: None,
+        }
+    }
+
+    pub fn sub(id: impl Into<Cow<'static, str>>, label: impl Into<String>, children: Vec<Self>) -> Self {
+        Self::Sub {
+            id: id.into(),
+            label: label.into(),
+            enabled: true,
+            children,
+        }
+    }
+
+    pub fn with_accelerator(mut self, accelerator: Option<&str>) -> Self {
+        let value = accelerator.map(str::to_owned);
+        match &mut self {
+            Self::Item { accelerator, .. } | Self::Check { accelerator, .. } => *accelerator = value,
+            Self::Separator | Self::Sub { .. } => {}
+        }
+        self
+    }
+
+    pub const fn with_enabled(mut self, value: bool) -> Self {
+        match &mut self {
+            Self::Item { enabled, .. } | Self::Check { enabled, .. } | Self::Sub { enabled, .. } => *enabled = value,
+            Self::Separator => {}
+        }
+        self
+    }
+}

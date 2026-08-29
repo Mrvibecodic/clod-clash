@@ -122,6 +122,10 @@ sysinfo = { version = "0.39.5", features = ["system"] }
 [target.'cfg(unix)'.dependencies]
 libc = "0.2.189"
 
+[target.'cfg(target_os = "linux")'.dependencies]
+ksni = "0.3.6"
+image = { version = "0.25.10", default-features = false, features = ["ico", "png"] }
+
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6.4"
 objc2-foundation = { version = "0.3.2", features = [
