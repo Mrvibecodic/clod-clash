@@ -27,10 +27,28 @@ export interface TranslationResources {
           type: string
           ulSpeed: string
         }
+        group: {
+          chain: string
+          label: string
+          none: string
+          other: string
+          process: string
+          rule: string
+        }
         order: {
           default: string
           downloadSpeed: string
           uploadSpeed: string
+        }
+        summary: {
+          direct: string
+          noProcess: string
+          now: string
+          processes: string
+          routes: string
+          shown: string
+          toggle: string
+          volume: string
         }
       }
       page: {

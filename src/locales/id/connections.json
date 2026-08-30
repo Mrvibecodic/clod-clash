@@ -21,6 +21,24 @@
       "uploadSpeed": "Kecepatan Unggah",
       "downloadSpeed": "Kecepatan Unduh"
     },
+    "group": {
+      "label": "Pengelompokan",
+      "none": "Tanpa grup",
+      "process": "Aplikasi",
+      "chain": "Node",
+      "rule": "Aturan",
+      "other": "Lainnya"
+    },
+    "summary": {
+      "toggle": "Ringkasan",
+      "now": "Sekarang",
+      "volume": "Volume",
+      "processes": "Aplikasi",
+      "routes": "Rute",
+      "shown": "Ditampilkan",
+      "direct": "Langsung",
+      "noProcess": "Tanpa proses"
+    },
     "actions": {
       "active": "Active",
       "closed": "Closed",

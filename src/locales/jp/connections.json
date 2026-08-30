@@ -21,6 +21,24 @@
       "uploadSpeed": "アップロード速度",
       "downloadSpeed": "ダウンロード速度"
     },
+    "group": {
+      "label": "グループ化",
+      "none": "グループなし",
+      "process": "アプリ",
+      "chain": "ノード",
+      "rule": "ルール",
+      "other": "その他"
+    },
+    "summary": {
+      "toggle": "概要",
+      "now": "現在",
+      "volume": "通信量",
+      "processes": "アプリ",
+      "routes": "経路",
+      "shown": "表示中",
+      "direct": "直接接続",
+      "noProcess": "プロセスなし"
+    },
     "actions": {
       "active": "Active",
       "closed": "Closed",

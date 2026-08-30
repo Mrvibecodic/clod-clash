@@ -21,6 +21,24 @@
       "uploadSpeed": "Velocidad de subida",
       "downloadSpeed": "Velocidad de descarga"
     },
+    "group": {
+      "label": "Agrupación",
+      "none": "Sin agrupar",
+      "process": "Aplicaciones",
+      "chain": "Nodos",
+      "rule": "Reglas",
+      "other": "Otros"
+    },
+    "summary": {
+      "toggle": "Resumen",
+      "now": "Ahora",
+      "volume": "Volumen",
+      "processes": "Aplicaciones",
+      "routes": "Rutas",
+      "shown": "Mostrado",
+      "direct": "Directo",
+      "noProcess": "Sin proceso"
+    },
     "actions": {
       "active": "Active",
       "closed": "Closed",

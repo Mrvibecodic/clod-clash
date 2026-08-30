@@ -21,6 +21,24 @@
       "uploadSpeed": "上传速度",
       "downloadSpeed": "下载速度"
     },
+    "group": {
+      "label": "分组",
+      "none": "不分组",
+      "process": "应用",
+      "chain": "节点",
+      "rule": "规则",
+      "other": "其他"
+    },
+    "summary": {
+      "toggle": "概览",
+      "now": "当前",
+      "volume": "流量",
+      "processes": "应用",
+      "routes": "出口",
+      "shown": "显示",
+      "direct": "直连",
+      "noProcess": "无进程"
+    },
     "actions": {
       "active": "活跃",
       "closed": "已关闭",

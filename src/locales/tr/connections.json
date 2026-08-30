@@ -21,6 +21,24 @@
       "uploadSpeed": "Yükleme Hızı",
       "downloadSpeed": "İndirme Hızı"
     },
+    "group": {
+      "label": "Gruplama",
+      "none": "Gruplama yok",
+      "process": "Uygulamalar",
+      "chain": "Düğümler",
+      "rule": "Kurallar",
+      "other": "Diğer"
+    },
+    "summary": {
+      "toggle": "Özet",
+      "now": "Şimdi",
+      "volume": "Hacim",
+      "processes": "Uygulamalar",
+      "routes": "Rotalar",
+      "shown": "Gösterilen",
+      "direct": "Doğrudan",
+      "noProcess": "İşlem yok"
+    },
     "actions": {
       "active": "Active",
       "closed": "Closed",

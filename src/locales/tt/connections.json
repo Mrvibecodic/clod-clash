@@ -21,6 +21,24 @@
       "uploadSpeed": "Йөкләү (чыгару) тизлеге",
       "downloadSpeed": "Йөкләү тизлеге"
     },
+    "group": {
+      "label": "Төркемләү",
+      "none": "Төркемләүсез",
+      "process": "Кушымталар",
+      "chain": "Төеннәр",
+      "rule": "Кагыйдәләр",
+      "other": "Башка"
+    },
+    "summary": {
+      "toggle": "Йомгак",
+      "now": "Хәзер",
+      "volume": "Күләм",
+      "processes": "Кушымталар",
+      "routes": "Юллар",
+      "shown": "Күрсәтелгән",
+      "direct": "Туры",
+      "noProcess": "Процесссыз"
+    },
     "actions": {
       "active": "Active",
       "closed": "Closed",

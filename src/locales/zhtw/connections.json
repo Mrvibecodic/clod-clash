@@ -21,6 +21,24 @@
       "uploadSpeed": "上傳速度",
       "downloadSpeed": "下載速度"
     },
+    "group": {
+      "label": "分組",
+      "none": "不分組",
+      "process": "應用",
+      "chain": "節點",
+      "rule": "規則",
+      "other": "其他"
+    },
+    "summary": {
+      "toggle": "概覽",
+      "now": "目前",
+      "volume": "流量",
+      "processes": "應用",
+      "routes": "出口",
+      "shown": "顯示",
+      "direct": "直連",
+      "noProcess": "無程序"
+    },
     "actions": {
       "active": "活躍",
       "closed": "已關閉",

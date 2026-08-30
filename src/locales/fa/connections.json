@@ -21,6 +21,24 @@
       "uploadSpeed": "سرعت بارگذاری",
       "downloadSpeed": "سرعت دانلود"
     },
+    "group": {
+      "label": "گروه‌بندی",
+      "none": "بدون گروه‌بندی",
+      "process": "برنامه‌ها",
+      "chain": "گره‌ها",
+      "rule": "قوانین",
+      "other": "سایر"
+    },
+    "summary": {
+      "toggle": "خلاصه",
+      "now": "اکنون",
+      "volume": "حجم",
+      "processes": "برنامه‌ها",
+      "routes": "مسیرها",
+      "shown": "نمایش‌داده‌شده",
+      "direct": "مستقیم",
+      "noProcess": "بدون فرآیند"
+    },
     "actions": {
       "active": "Active",
       "closed": "Closed",

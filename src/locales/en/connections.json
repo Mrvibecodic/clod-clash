@@ -21,6 +21,24 @@
       "uploadSpeed": "Upload Speed",
       "downloadSpeed": "Download Speed"
     },
+    "group": {
+      "label": "Grouping",
+      "none": "No grouping",
+      "process": "Apps",
+      "chain": "Nodes",
+      "rule": "Rules",
+      "other": "Other"
+    },
+    "summary": {
+      "toggle": "Summary",
+      "now": "Now",
+      "volume": "Volume",
+      "processes": "Apps",
+      "routes": "Routes",
+      "shown": "Shown",
+      "direct": "Direct",
+      "noProcess": "No process"
+    },
     "actions": {
       "active": "Active",
       "closed": "Closed",

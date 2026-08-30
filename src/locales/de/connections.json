@@ -21,6 +21,24 @@
       "uploadSpeed": "Upload-Geschwindigkeit",
       "downloadSpeed": "Download-Geschwindigkeit"
     },
+    "group": {
+      "label": "Gruppierung",
+      "none": "Keine Gruppierung",
+      "process": "Apps",
+      "chain": "Knoten",
+      "rule": "Regeln",
+      "other": "Sonstige"
+    },
+    "summary": {
+      "toggle": "Übersicht",
+      "now": "Jetzt",
+      "volume": "Volumen",
+      "processes": "Apps",
+      "routes": "Routen",
+      "shown": "Angezeigt",
+      "direct": "Direkt",
+      "noProcess": "Kein Prozess"
+    },
     "actions": {
       "active": "Active",
       "closed": "Closed",

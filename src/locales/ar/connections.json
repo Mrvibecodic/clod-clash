@@ -21,6 +21,24 @@
       "uploadSpeed": "سرعة الرفع",
       "downloadSpeed": "سرعة التنزيل"
     },
+    "group": {
+      "label": "التجميع",
+      "none": "بدون تجميع",
+      "process": "التطبيقات",
+      "chain": "العقد",
+      "rule": "القواعد",
+      "other": "أخرى"
+    },
+    "summary": {
+      "toggle": "ملخص",
+      "now": "الآن",
+      "volume": "الحجم",
+      "processes": "التطبيقات",
+      "routes": "المسارات",
+      "shown": "المعروض",
+      "direct": "مباشر",
+      "noProcess": "بدون عملية"
+    },
     "actions": {
       "active": "Active",
       "closed": "Closed",

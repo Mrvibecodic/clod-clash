@@ -21,6 +21,24 @@
       "uploadSpeed": "업로드 속도",
       "downloadSpeed": "다운로드 속도"
     },
+    "group": {
+      "label": "그룹화",
+      "none": "그룹 없음",
+      "process": "앱",
+      "chain": "노드",
+      "rule": "규칙",
+      "other": "기타"
+    },
+    "summary": {
+      "toggle": "요약",
+      "now": "현재",
+      "volume": "사용량",
+      "processes": "앱",
+      "routes": "경로",
+      "shown": "표시됨",
+      "direct": "직접 연결",
+      "noProcess": "프로세스 없음"
+    },
     "actions": {
       "active": "Active",
       "closed": "Closed",
