@@ -118,28 +118,6 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
 
         <Item>
           <ListItemText
-            primary={t(
-              'settings.components.verge.layout.fields.pauseRenderTrafficStatsOnBlur',
-            )}
-          />
-          <GuardState
-            value={verge?.pause_render_traffic_stats_on_blur ?? true}
-            valueProps="checked"
-            onCatch={onError}
-            onFormat={onSwitchFormat}
-            onChange={(e) =>
-              onChangeData({ pause_render_traffic_stats_on_blur: e })
-            }
-            onGuard={(e) =>
-              patchVerge({ pause_render_traffic_stats_on_blur: e })
-            }
-          >
-            <Switch edge="end" />
-          </GuardState>
-        </Item>
-
-        <Item>
-          <ListItemText
             primary={t('settings.components.verge.layout.fields.toastPosition')}
           />
           <GuardState
@@ -258,31 +236,6 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
                 },
               }}
             />
-          </GuardState>
-        </Item>
-
-        <Item>
-          <ListItemText
-            primary={t('settings.components.verge.layout.fields.navIcon')}
-          />
-          <GuardState
-            value={verge?.menu_icon ?? 'monochrome'}
-            onCatch={onError}
-            onFormat={(e: any) => e.target.value}
-            onChange={(value) => onChangeData({ menu_icon: value })}
-            onGuard={(value) => patchVerge({ menu_icon: value })}
-          >
-            <Select size="small" sx={{ width: 140, '> div': { py: '7.5px' } }}>
-              <MenuItem value="monochrome">
-                {t('settings.components.verge.layout.options.icon.monochrome')}
-              </MenuItem>
-              <MenuItem value="colorful">
-                {t('settings.components.verge.layout.options.icon.colorful')}
-              </MenuItem>
-              <MenuItem value="disable">
-                {t('settings.components.verge.layout.options.icon.disable')}
-              </MenuItem>
-            </Select>
           </GuardState>
         </Item>
 

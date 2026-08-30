@@ -63,10 +63,6 @@ export const WindowProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, [currentWindow])
 
-  const toggleFullscreen = useCallback(async () => {
-    await currentWindow.setFullscreen(!(await currentWindow.isFullscreen()))
-  }, [currentWindow])
-
   const refreshDecorated = useCallback(async () => {
     const val = await currentWindow.isDecorated()
     setDecorated(val)
@@ -93,7 +89,6 @@ export const WindowProvider: React.FC<{ children: React.ReactNode }> = ({
       minimize,
       close,
       toggleMaximize,
-      toggleFullscreen,
       currentWindow,
     }),
     [
@@ -104,7 +99,6 @@ export const WindowProvider: React.FC<{ children: React.ReactNode }> = ({
       minimize,
       close,
       toggleMaximize,
-      toggleFullscreen,
       currentWindow,
     ],
   )

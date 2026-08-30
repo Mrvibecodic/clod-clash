@@ -1,7 +1,4 @@
-use std::{
-    fmt::{Debug, Display},
-    time::Instant,
-};
+use std::fmt::{Debug, Display};
 
 pub mod commands;
 
@@ -44,7 +41,6 @@ impl Default for SysInfo {
 pub struct AppInfo {
     app_version: String,
     app_core_mode: String,
-    pub app_startup_time: Instant,
     pub app_is_admin: bool,
 }
 
@@ -54,11 +50,9 @@ impl Default for AppInfo {
         let app_version = "0.0.0".into();
         let app_core_mode = "NotRunning".into();
         let app_is_admin = false;
-        let app_startup_time = Instant::now();
         Self {
             app_version,
             app_core_mode,
-            app_startup_time,
             app_is_admin,
         }
     }
@@ -143,13 +137,6 @@ pub fn set_app_core_mode<R: Runtime>(app: &tauri::AppHandle<R>, mode: impl Into<
 }
 
 #[inline]
-pub fn get_app_uptime<R: Runtime>(app: &tauri::AppHandle<R>) -> Instant {
-    let platform_spec = app.state::<RwLock<Platform>>();
-    let spec = platform_spec.read();
-    spec.appinfo.app_startup_time
-}
-
-#[inline]
 pub fn is_current_app_handle_admin<R: Runtime>(app: &tauri::AppHandle<R>) -> bool {
     let platform_spec = app.state::<RwLock<Platform>>();
     let spec = platform_spec.read();
@@ -164,8 +151,6 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
         // TODO перенести command получения системной информации из clash-verge
         // TODO и сделать удобный доступ через structure.field
         // .invoke_handler(tauri::generate_handler![
-        //     commands::get_system_info,
-        //     commands::get_app_uptime,
         //     commands::app_is_admin,
         //     commands::export_diagnostic_info,
         // ])

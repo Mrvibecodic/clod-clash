@@ -25,7 +25,6 @@ export const useLayoutEvents = (
       'getVergeConfig',
       'getSystemProxy',
       'getAutotemProxy',
-      'getRunningMode',
       'isServiceAvailable',
       'getSystemState',
       // clod:tun-ready — бэкенд шлёт это событие в том числе когда сам

@@ -10,9 +10,7 @@ import { getConnectSessionStart } from '@/services/cmds'
  *
  * The baseline lives in the backend (`get_connect_session_start`): connects
  * and disconnects also happen from the settings page and the tray while this
- * hook is unmounted, so a frontend-remembered start would go stale. (The
- * separate `get_app_uptime` is the *application* uptime in milliseconds —
- * a different thing entirely.)
+ * hook is unmounted, so a frontend-remembered start would go stale.
  *
  * The 1 s tick runs only while connected and the window is visible: a timer
  * nobody can see is not worth waking the CPU for. Hiding the window freezes

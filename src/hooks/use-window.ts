@@ -11,29 +11,17 @@ const useWindow = () => {
 }
 
 export const useWindowControls = () => {
-  const {
-    maximized,
-    minimize,
-    toggleMaximize,
-    close,
-    toggleFullscreen,
-    currentWindow,
-  } = useWindow()
+  const { maximized, minimize, toggleMaximize, close, currentWindow } =
+    useWindow()
   return {
     maximized,
     minimize,
     toggleMaximize,
     close,
-    toggleFullscreen,
     currentWindow,
   } satisfies Pick<
     WindowContextType,
-    | 'maximized'
-    | 'minimize'
-    | 'toggleMaximize'
-    | 'close'
-    | 'toggleFullscreen'
-    | 'currentWindow'
+    'maximized' | 'minimize' | 'toggleMaximize' | 'close' | 'currentWindow'
   >
 }
 

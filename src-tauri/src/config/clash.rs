@@ -1,4 +1,3 @@
-use crate::config::Config;
 use crate::constants::{network, tun as tun_const};
 use crate::utils::dirs::{path_to_str, sidecar_ipc_path};
 use crate::utils::{dirs, help};
@@ -164,16 +163,6 @@ impl IClashTemp {
         Self::guard_mixed_port(&self.0)
     }
 
-    #[allow(unused)]
-    pub fn get_socks_port(&self) -> u16 {
-        Self::guard_socks_port(&self.0)
-    }
-
-    #[allow(unused)]
-    pub fn get_port(&self) -> u16 {
-        Self::guard_port(&self.0)
-    }
-
     pub fn get_client_info(&self) -> ClashInfo {
         let config = &self.0;
 
@@ -191,12 +180,6 @@ impl IClashTemp {
         }
     }
 
-    pub fn get_mode(&self) -> Option<String> {
-        self.0.get("mode").and_then(|value| match value {
-            Value::String(val_str) => Some(val_str.clone()),
-            _ => None,
-        })
-    }
     #[cfg(not(target_os = "windows"))]
     pub fn guard_redir_port(config: &Mapping) -> u16 {
         let mut port = config
@@ -298,20 +281,6 @@ impl IClashTemp {
 
     pub fn guard_external_controller(config: &Mapping) -> String {
         Self::guard_server_ctrl(config)
-    }
-
-    pub async fn guard_external_controller_with_setting(config: &Mapping) -> String {
-        let enable_external_controller = Config::verge()
-            .await
-            .latest_arc()
-            .enable_external_controller
-            .unwrap_or(false);
-
-        if enable_external_controller {
-            Self::guard_server_ctrl(config)
-        } else {
-            "".into()
-        }
     }
 
     pub fn guard_client_ctrl(config: &Mapping) -> String {
@@ -422,63 +391,4 @@ fn own_secret_replaces_the_upstream_placeholder_only() {
     IClashTemp::ensure_own_secret(&mut first);
     IClashTemp::ensure_own_secret(&mut second);
     assert_ne!(secret_of(&first), secret_of(&second));
-}
-
-#[derive(Default, Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "kebab-case")]
-pub struct IClashExternalControllerCors {
-    pub allow_origins: Option<Vec<String>>,
-    pub allow_private_network: Option<bool>,
-}
-
-#[derive(Default, Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "kebab-case")]
-pub struct IClash {
-    pub mixed_port: Option<u16>,
-    pub allow_lan: Option<bool>,
-    pub log_level: Option<String>,
-    pub ipv6: Option<bool>,
-    pub mode: Option<String>,
-    pub external_controller: Option<String>,
-    pub secret: Option<String>,
-    pub dns: Option<IClashDNS>,
-    pub tun: Option<IClashTUN>,
-    pub interface_name: Option<String>,
-    pub external_controller_cors: Option<IClashExternalControllerCors>,
-}
-
-#[derive(Default, Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "kebab-case")]
-pub struct IClashTUN {
-    pub enable: Option<bool>,
-    pub stack: Option<String>,
-    pub auto_route: Option<bool>,
-    pub auto_detect_interface: Option<bool>,
-    pub dns_hijack: Option<Vec<String>>,
-}
-
-#[derive(Default, Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "kebab-case")]
-pub struct IClashDNS {
-    pub enable: Option<bool>,
-    pub listen: Option<String>,
-    pub default_nameserver: Option<Vec<String>>,
-    pub enhanced_mode: Option<String>,
-    pub fake_ip_range: Option<String>,
-    pub fake_ip_range6: Option<String>,
-    pub use_hosts: Option<bool>,
-    pub fake_ip_filter: Option<Vec<String>>,
-    pub nameserver: Option<Vec<String>>,
-    pub fallback: Option<Vec<String>>,
-    pub fallback_filter: Option<IClashFallbackFilter>,
-    pub nameserver_policy: Option<Vec<String>>,
-}
-
-#[derive(Default, Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "kebab-case")]
-pub struct IClashFallbackFilter {
-    pub geoip: Option<bool>,
-    pub geoip_code: Option<String>,
-    pub ipcidr: Option<Vec<String>>,
-    pub domain: Option<Vec<String>>,
 }

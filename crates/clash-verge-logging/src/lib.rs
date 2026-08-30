@@ -1,12 +1,9 @@
-use compact_str::CompactString;
 use flexi_logger::DeferredNow;
 use flexi_logger::filter::LogLineFilter;
 use flexi_logger::writers::FileLogWriter;
-use flexi_logger::writers::LogWriter as _;
-use log::Level;
 use log::Record;
 use std::{fmt, sync::Arc};
-use tokio::sync::{Mutex, MutexGuard};
+use tokio::sync::Mutex;
 
 pub type SharedWriter = Arc<Mutex<FileLogWriter>>;
 
@@ -81,20 +78,6 @@ macro_rules! logging_error {
     ($type:expr, $fmt:literal $(, $arg:expr)*) => {
         log::error!(target: "app", "[{}] {}", $type, format_args!($fmt $(, $arg)*));
     };
-}
-
-#[inline]
-pub fn write_sidecar_log(
-    writer: MutexGuard<'_, FileLogWriter>,
-    now: &mut DeferredNow,
-    level: Level,
-    message: &CompactString,
-) {
-    let args = format_args!("{}", message);
-
-    let record = Record::builder().args(args).level(level).target("sidecar").build();
-
-    let _ = writer.write(now, &record);
 }
 
 pub struct NoModuleFilter<'a>(pub Vec<&'a str>);

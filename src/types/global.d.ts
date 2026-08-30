@@ -146,26 +146,8 @@ interface ITrafficEstimate {
 interface ITrafficItem {
   up: number
   down: number
-  up_rate?: number
-  down_rate?: number
-  last_updated?: number
   upTotal?: number
   downTotal?: number
-}
-
-interface IFormattedTrafficData {
-  up_rate_formatted: string
-  down_rate_formatted: string
-  total_up_formatted: string
-  total_down_formatted: string
-  is_fresh: boolean
-}
-
-interface IFormattedMemoryData {
-  inuse_formatted: string
-  oslimit_formatted: string
-  usage_percent: number
-  is_fresh: boolean
 }
 
 interface ILogItem {
@@ -222,8 +204,6 @@ interface IConnectionSetting {
 interface IClashInfo {
   mixed_port?: number
   socks_port?: number
-  redir_port?: number
-  tproxy_port?: number
   port?: number
   server?: string
   secret?: string
@@ -311,12 +291,6 @@ interface IProfilesConfig {
   items?: IProfileItem[]
 }
 
-interface IVergeTestItem {
-  uid: string
-  name?: string
-  icon?: string
-  url: string
-}
 interface IAddress {
   V4?: {
     ip: string
@@ -908,11 +882,7 @@ interface IVergeConfig {
   clash_core?: string
   theme_mode?: 'light' | 'dark' | 'system'
   enable_group_icon?: boolean
-  pause_render_traffic_stats_on_blur?: boolean
-  menu_icon?: 'monochrome' | 'colorful' | 'disable'
-  menu_order?: string[]
   notice_position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
-  collapse_navbar?: boolean
   tray_icon?: 'monochrome' | 'colorful'
   common_tray_icon?: boolean
   sysproxy_tray_icon?: boolean
@@ -934,7 +904,6 @@ interface IVergeConfig {
   proxy_auto_config?: boolean
   pac_file_content?: string
   proxy_host?: string
-  enable_random_port?: boolean
   verge_mixed_port?: number
   verge_socks_port?: number
   verge_redir_port?: number
@@ -978,11 +947,9 @@ interface IVergeConfig {
   auto_backup_interval_hours?: number
   auto_backup_on_change?: boolean
   proxy_layout_column?: number
-  test_list?: IVergeTestItem[]
   webdav_url?: string
   webdav_username?: string
   webdav_password?: string
-  home_cards?: Record<string, boolean>
   enable_hover_jump_navigator?: boolean
   hover_jump_navigator_delay?: number
   enable_external_controller?: boolean
@@ -995,8 +962,6 @@ interface IVergeConfig {
   tun_setup_declined?: string
   window_fit_content?: boolean
   home_tool_shortcuts?: string[]
-  brand_name?: string
-  brand_logo?: string
   use_managed_core?: boolean
   managed_core_channel?: string
   core_auto_check?: boolean

@@ -9,7 +9,6 @@ export interface WindowContextType {
   minimize: () => Promise<void>
   close: () => Promise<void>
   toggleMaximize: () => Promise<void>
-  toggleFullscreen: () => Promise<void>
   currentWindow: ReturnType<typeof getCurrentWindow>
 }
 

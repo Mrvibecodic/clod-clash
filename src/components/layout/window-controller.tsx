@@ -1,11 +1,6 @@
 import { Close, CropSquare, FilterNone, Minimize } from '@mui/icons-material'
 import { Box, IconButton } from '@mui/material'
-import {
-  forwardRef,
-  type PointerEvent,
-  useCallback,
-  useImperativeHandle,
-} from 'react'
+import { type PointerEvent, useCallback } from 'react'
 
 import { useWindowControls } from '@/hooks/use-window'
 import getSystem from '@/utils/get-system'
@@ -66,40 +61,9 @@ export const WindowResizeHandles = () => {
   )
 }
 
-export const WindowControls = forwardRef(function WindowControls(props, ref) {
+export function WindowControls() {
   const OS = getSystem()
-  const {
-    currentWindow,
-    maximized,
-    minimize,
-    close,
-    toggleFullscreen,
-    toggleMaximize,
-  } = useWindowControls()
-
-  useImperativeHandle(
-    ref,
-    () => ({
-      currentWindow,
-      maximized,
-      minimize,
-      close,
-      toggleFullscreen,
-      toggleMaximize,
-    }),
-    [
-      currentWindow,
-      maximized,
-      minimize,
-      close,
-      toggleFullscreen,
-      toggleMaximize,
-    ],
-  )
-
-  // При переключении полноэкранного режима tauri-окна с фронтенда возможен кратковременный
-  // рендер поверх системной иконки. Возможно, это баг апстрима; для надёжности на всех
-  // платформах ориентируемся на переключение максимизации окна.
+  const { maximized, minimize, close, toggleMaximize } = useWindowControls()
 
   return (
     <Box
@@ -114,7 +78,7 @@ export const WindowControls = forwardRef(function WindowControls(props, ref) {
     >
       {OS === 'macos' && (
         <>
-          {/* Стиль macOS: закрыть → свернуть → полный экран */}
+          {/* Стиль macOS: закрыть → свернуть → развернуть */}
           <IconButton size="small" sx={{ fontSize: 14 }} onClick={close}>
             <Close fontSize="inherit" color="inherit" />
           </IconButton>
@@ -190,4 +154,4 @@ export const WindowControls = forwardRef(function WindowControls(props, ref) {
       )}
     </Box>
   )
-})
+}

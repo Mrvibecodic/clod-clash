@@ -297,20 +297,8 @@ impl NetworkManager {
         self.build_client(proxy_url, headers, accept_invalid_certs, timeout_secs, tls_root_mode)
     }
 
-    pub async fn get_with_interrupt(
-        &self,
-        url: &str,
-        proxy_type: ProxyType,
-        timeout_secs: Option<u64>,
-        user_agent: Option<String>,
-        accept_invalid_certs: bool,
-    ) -> Result<HttpResponse> {
-        self.get_with_interrupt_and_headers(url, proxy_type, timeout_secs, user_agent, accept_invalid_certs, None)
-            .await
-    }
-
-    /// clod: same as [`Self::get_with_interrupt`] but lets the caller attach
-    /// extra request headers (used for the subscription identity headers).
+    /// clod: запрос с прерыванием, которому можно добавить свои заголовки
+    /// (используется для заголовков опознания подписки).
     pub async fn get_with_interrupt_and_headers(
         &self,
         url: &str,

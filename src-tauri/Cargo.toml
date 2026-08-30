@@ -103,13 +103,11 @@ clash_verge_service_ipc = { version = "2.6.1", features = [
   "client",
 ], git = "https://github.com/clash-verge-rev/clash-verge-service-ipc", tag = "v2.6.1" }
 arc-swap = "1.9.2"
-tokio-rustls = "0.26.4"
 rustls = { version = "0.23.41", features = ["ring"] }
 webpki-roots = "1.0.8"
 rust_iso3166 = "0.2.0"
 dark-light = { git = "https://github.com/rust-dark-light/dark-light", rev = "0f18d2fbcaa5d1c175db8aae7d53428988d7e961" }
 windows-sys.workspace = true
-bytes = "1.12.0"
 tokio-util = { version = "0.7.18", features = ["time"] }
 sha2 = "0.10.9"
 x25519-dalek = { version = "2.0.1", features = ["static_secrets"] }

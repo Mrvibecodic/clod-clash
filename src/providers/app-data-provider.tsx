@@ -12,7 +12,6 @@ import {
   calcuProxies,
   calcuProxyProviders,
   getAutotemProxy,
-  getRunningMode,
   getSystemProxy,
 } from '@/services/cmds'
 import { revalidateQueries, useQuery } from '@/services/query-client'
@@ -91,21 +90,13 @@ export const AppDataProvider = ({
   // ядро знает сейчас.
   const visible = useRefreshOnReturn(refreshOnReturn)
 
-  const {
-    data: proxiesData,
-    isPending: isProxiesPending,
-    refetch: _refetchProxy,
-  } = useQuery({
+  const { data: proxiesData, refetch: _refetchProxy } = useQuery({
     queryKey: ['getProxies'],
     queryFn: calcuProxies,
     ...TQ_MIHOMO,
   })
 
-  const {
-    data: clashConfig,
-    isPending: isClashConfigPending,
-    refetch: _refetchClashConfig,
-  } = useQuery({
+  const { data: clashConfig, refetch: _refetchClashConfig } = useQuery({
     queryKey: ['getClashConfig'],
     queryFn: getBaseConfig,
     ...TQ_MIHOMO,
@@ -137,7 +128,7 @@ export const AppDataProvider = ({
   // Без опроса кнопка оставалась зелёной над выключенным прокси до следующего
   // события от бэкенда, то есть сколько угодно долго. Чтение локальное (реестр
   // на Windows, `networksetup`-снимок на macOS), ядро не трогает.
-  const { data: sysproxy, refetch: _refetchSysproxy } = useQuery({
+  const { data: sysproxy } = useQuery({
     queryKey: ['getSystemProxy'],
     queryFn: getSystemProxy,
     ...TQ_DEFAULTS,
@@ -157,16 +148,9 @@ export const AppDataProvider = ({
     refetchIntervalInBackground: false,
   })
 
-  const { data: runningMode } = useQuery({
-    queryKey: ['getRunningMode'],
-    queryFn: getRunningMode,
-    ...TQ_DEFAULTS,
-  })
-
   const refreshProxy = useStableFn(_refetchProxy)
   const refreshClashConfig = useStableFn(_refetchClashConfig)
   const refreshRules = useStableFn(_refetchRules)
-  const refreshSysproxy = useStableFn(_refetchSysproxy)
   const refreshProxyProviders = useStableFn(_refetchProxyProviders)
   const refreshRuleProviders = useStableFn(_refetchRuleProviders)
 
@@ -268,31 +252,12 @@ export const AppDataProvider = ({
     }
   }, [refreshProxy])
 
-  const refreshAll = useCallback(async () => {
-    await Promise.all([
-      refreshProxy(),
-      refreshClashConfig(),
-      refreshRules(),
-      refreshSysproxy(),
-      refreshProxyProviders(),
-      refreshRuleProviders(),
-    ])
-  }, [
-    refreshProxy,
-    refreshClashConfig,
-    refreshRules,
-    refreshSysproxy,
-    refreshProxyProviders,
-    refreshRuleProviders,
-  ])
-
   const proxiesValue = useMemo(
     () => ({
       proxies: proxiesData,
       proxyProviders: proxyProviders || {},
-      isProxiesPending,
     }),
-    [proxiesData, proxyProviders, isProxiesPending],
+    [proxiesData, proxyProviders],
   )
 
   const rulesValue = useMemo(
@@ -303,13 +268,7 @@ export const AppDataProvider = ({
     [rulesData, ruleProviders],
   )
 
-  const clashConfigValue = useMemo(
-    () => ({
-      clashConfig,
-      isClashConfigPending,
-    }),
-    [clashConfig, isClashConfigPending],
-  )
+  const clashConfigValue = useMemo(() => ({ clashConfig }), [clashConfig])
 
   const systemValue = useMemo(() => {
     const calculateSystemProxyAddress = () => {
@@ -345,29 +304,24 @@ export const AppDataProvider = ({
 
     return {
       sysproxy,
-      runningMode,
       systemProxyAddress: calculateSystemProxyAddress(),
     }
-  }, [sysproxy, runningMode, verge, clashConfig])
+  }, [sysproxy, verge, clashConfig])
 
   const refreshersValue = useMemo(
     () => ({
       refreshProxy,
       refreshClashConfig,
       refreshRules,
-      refreshSysproxy,
       refreshProxyProviders,
       refreshRuleProviders,
-      refreshAll,
     }),
     [
       refreshProxy,
       refreshClashConfig,
       refreshRules,
-      refreshSysproxy,
       refreshProxyProviders,
       refreshRuleProviders,
-      refreshAll,
     ],
   )
 

@@ -9,7 +9,6 @@ import {
 export interface ProxiesContextType {
   proxies: any
   proxyProviders: Record<string, ProxyProvider | undefined>
-  isProxiesPending: boolean
 }
 
 export interface RulesContextType {
@@ -19,12 +18,10 @@ export interface RulesContextType {
 
 export interface ClashConfigContextType {
   clashConfig: BaseConfig | undefined
-  isClashConfigPending: boolean
 }
 
 export interface SystemContextType {
   sysproxy: any
-  runningMode?: string
   systemProxyAddress: string
 }
 
@@ -32,10 +29,8 @@ export interface RefreshersContextType {
   refreshProxy: () => Promise<any>
   refreshClashConfig: () => Promise<any>
   refreshRules: () => Promise<any>
-  refreshSysproxy: () => Promise<any>
   refreshProxyProviders: () => Promise<any>
   refreshRuleProviders: () => Promise<any>
-  refreshAll: () => Promise<any>
 }
 
 export const ProxiesContext = createContext<ProxiesContextType | null>(null)
@@ -55,15 +50,11 @@ const useCtx = <T>(ctx: Context<T | null>, hookName: string): T => {
 }
 
 export const useProxiesData = () => {
-  const { proxies, proxyProviders, isProxiesPending } = useCtx(
-    ProxiesContext,
-    'useProxiesData',
-  )
+  const { proxies, proxyProviders } = useCtx(ProxiesContext, 'useProxiesData')
 
   return {
     proxies,
     proxyProviders: proxyProviders as Record<string, ProxyProvider>,
-    isProxiesPending,
   }
 }
 

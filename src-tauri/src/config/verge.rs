@@ -31,8 +31,6 @@ pub struct IVerge {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_group_icon: Option<bool>,
 
-    pub pause_render_traffic_stats_on_blur: Option<bool>,
-
     #[serde(skip_serializing_if = "Option::is_none")]
     pub common_tray_icon: Option<bool>,
 
@@ -41,15 +39,7 @@ pub struct IVerge {
     pub tray_icon: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub menu_icon: Option<String>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub menu_order: Option<Vec<String>>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub notice_position: Option<String>,
-
-    pub collapse_navbar: Option<bool>,
 
     pub sysproxy_tray_icon: Option<bool>,
 
@@ -102,8 +92,6 @@ pub struct IVerge {
 
     pub enable_global_hotkey: Option<bool>,
 
-    pub home_cards: Option<serde_json::Value>,
-
     pub auto_close_connection: Option<bool>,
 
     pub auto_check_update: Option<bool>,
@@ -117,8 +105,6 @@ pub struct IVerge {
     pub enable_builtin_enhanced: Option<bool>,
 
     pub proxy_layout_column: Option<u8>,
-
-    pub test_list: Option<Vec<IVergeTestItem>>,
 
     pub auto_log_clean: Option<i32>,
 
@@ -243,20 +229,6 @@ pub struct IVerge {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_sub_notifications: Option<bool>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub brand_name: Option<String>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub brand_logo: Option<String>,
-}
-
-#[derive(Default, Debug, Clone, Deserialize, Serialize)]
-pub struct IVergeTestItem {
-    pub uid: Option<String>,
-    pub name: Option<String>,
-    pub icon: Option<String>,
-    pub url: Option<String>,
 }
 
 #[derive(Default, Debug, Clone, Deserialize, Serialize)]
@@ -282,8 +254,6 @@ impl IVerge {
     pub const DEFAULT_RECEIVE_PRERELEASES: bool = true;
 
     pub const DEFAULT_ENABLE_HWID: bool = true;
-
-    pub const DEFAULT_SIMPLE_MODE: bool = true;
 
     pub const DEFAULT_CONNECT_SYSTEM_PROXY: bool = true;
 
@@ -415,12 +385,9 @@ impl IVerge {
             env_type: Some("powershell".into()),
             start_page: Some("/".into()),
             enable_group_icon: Some(true),
-            pause_render_traffic_stats_on_blur: Some(true),
             #[cfg(target_os = "macos")]
             tray_icon: Some("monochrome".into()),
-            menu_icon: Some("monochrome".into()),
             notice_position: Some("top-right".into()),
-            collapse_navbar: Some(false),
             common_tray_icon: Some(false),
             sysproxy_tray_icon: Some(false),
             tun_tray_icon: Some(false),
@@ -468,7 +435,6 @@ impl IVerge {
             enable_auto_light_weight_mode: Some(false),
             auto_light_weight_minutes: Some(10),
             enable_dns_settings: Some(false),
-            home_cards: None,
             enable_external_controller: Some(false),
             enable_hwid: Some(Self::DEFAULT_ENABLE_HWID),
             connect_system_proxy: Some(Self::DEFAULT_CONNECT_SYSTEM_PROXY),
@@ -503,13 +469,9 @@ impl IVerge {
         patch!(start_page);
         patch!(startup_script);
         patch!(enable_group_icon);
-        patch!(pause_render_traffic_stats_on_blur);
         #[cfg(target_os = "macos")]
         patch!(tray_icon);
-        patch!(menu_icon);
-        patch!(menu_order);
         patch!(notice_position);
-        patch!(collapse_navbar);
         patch!(common_tray_icon);
         patch!(sysproxy_tray_icon);
         patch!(tun_tray_icon);
@@ -557,7 +519,6 @@ impl IVerge {
         patch!(default_latency_timeout);
         patch!(enable_builtin_enhanced);
         patch!(proxy_layout_column);
-        patch!(test_list);
         patch!(auto_log_clean);
         patch!(enable_auto_backup_schedule);
         patch!(auto_backup_interval_hours);
@@ -573,7 +534,6 @@ impl IVerge {
         patch!(enable_auto_light_weight_mode);
         patch!(auto_light_weight_minutes);
         patch!(enable_dns_settings);
-        patch!(home_cards);
         patch!(enable_external_controller);
         patch!(enable_hwid);
         patch!(hwid);
@@ -592,8 +552,6 @@ impl IVerge {
         patch!(managed_core_channel);
         patch!(core_auto_check);
         patch!(enable_sub_notifications);
-        patch!(brand_name);
-        patch!(brand_logo);
     }
 
     pub const fn get_singleton_port() -> u16 {

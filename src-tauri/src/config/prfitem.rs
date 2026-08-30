@@ -1062,10 +1062,6 @@ impl PrfItem {
         if !(0..=MAX_AGE_SECS).contains(&age) { 0 } else { skew }
     }
 
-    pub fn promo_pending(&self) -> bool {
-        self.promo.as_deref().is_some_and(|text| !text.is_empty()) && !self.promo_seen.unwrap_or(false)
-    }
-
     pub fn record_url_migration(&mut self, new_url: String) {
         if let Some(previous) = self.url.take() {
             let history = self.previous_urls.get_or_insert_with(Vec::new);

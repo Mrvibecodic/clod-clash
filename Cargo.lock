@@ -1082,7 +1082,6 @@ dependencies = [
  "base64 0.22.1",
  "bitflags 2.13.1",
  "boa_engine",
- "bytes",
  "chrono",
  "clash-verge-draft",
  "clash-verge-i18n",
@@ -1145,7 +1144,6 @@ dependencies = [
  "tauri-plugin-updater",
  "tauri-plugin-window-state",
  "tokio",
- "tokio-rustls",
  "tokio-stream",
  "tokio-util",
  "warp",
@@ -1182,7 +1180,6 @@ version = "0.1.0"
 name = "clash-verge-logging"
 version = "0.1.0"
 dependencies = [
- "compact_str",
  "flexi_logger",
  "log",
  "tokio",
@@ -7148,7 +7145,6 @@ dependencies = [
  "deelevate",
  "libc",
  "parking_lot",
- "serde",
  "sysinfo",
  "tauri",
  "tauri-plugin-clipboard-manager",

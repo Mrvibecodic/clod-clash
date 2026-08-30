@@ -1,7 +1,7 @@
 import { Box, Paper, ThemeProvider } from '@mui/material'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Outlet, useLocation, useNavigate } from 'react-router'
 
@@ -55,7 +55,6 @@ const Layout = () => {
   useModeWindowSize()
   useEnforceLockedTargets()
 
-  const windowControlsRef = useRef<any>(null)
   const { decorated } = useWindowDecorations()
 
   const customTitlebar = useMemo(
@@ -66,7 +65,7 @@ const Layout = () => {
             className="the_titlebar-drag-region"
             data-tauri-drag-region="true"
           />
-          <WindowControls ref={windowControlsRef} />
+          <WindowControls />
         </div>
       ) : null,
     [decorated],
