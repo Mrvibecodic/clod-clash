@@ -186,7 +186,7 @@ export const ServerSelect = ({ open, onClose }: Props) => {
   const select = useLockFn(async (nodeName: string) => {
     if (!group || !canSelect) return
     await changeProxy(group.name, nodeName)
-    onClose()
+    if (groups.length < 2) onClose()
   })
 
   const runGroupDelayTest = useGroupDelayTest()
