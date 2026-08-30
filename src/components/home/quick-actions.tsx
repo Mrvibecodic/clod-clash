@@ -20,6 +20,7 @@ import { useVerge } from '@/hooks/use-verge'
 import { CARD_SURFACE, CARD_TITLE, SHAPE, TINT } from '@/pages/_theme'
 import { ensureTunReady } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
+import { tunSetupNotice } from '@/utils/tun-notice'
 
 import { FirewallStatus } from './firewall-status'
 import { TunStatus } from './tun-status'
@@ -128,7 +129,7 @@ export const QuickActions = () => {
       await patchVerge({ enable_tun_mode: next })
       void rememberTarget('tun', next)
     } catch (error) {
-      showNotice.error(error)
+      showNotice.error(tunSetupNotice(error))
       mutateVerge()
     } finally {
       await mutateTunState()

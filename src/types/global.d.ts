@@ -888,6 +888,7 @@ interface ITunState {
   setup_declined: boolean
   needs_repair: boolean
   runtime_stack?: string | null
+  failure?: string | null
 }
 
 interface IVergeConfig {

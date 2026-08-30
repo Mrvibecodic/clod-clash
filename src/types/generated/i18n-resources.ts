@@ -249,6 +249,15 @@ export interface TranslationResources {
         tunStatus: {
           broken: string
           fix: string
+          reasons: {
+            adapterBusy: string
+            noRights: string
+            noTraffic: string
+            rightsDeclined: string
+            serviceSilent: string
+            setupFailed: string
+            startFailed: string
+          }
           settingUp: string
         }
       }
@@ -1463,10 +1472,15 @@ export interface TranslationResources {
             tunMode: {
               adapterBusy: string
               autoDisabled: string
+              noRights: string
               noTraffic: string
               noTrafficWindows: string
+              rightsDeclined: string
+              serviceSilent: string
+              setupBusy: string
               setupDone: string
               setupFailed: string
+              setupPending: string
               setupStarted: string
             }
           }

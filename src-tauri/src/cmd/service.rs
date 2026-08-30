@@ -26,6 +26,7 @@ pub struct TunState {
     pub setup_declined: bool,
     pub needs_repair: bool,
     pub runtime_stack: Option<String>,
+    pub failure: Option<&'static str>,
 }
 
 #[tauri::command]
@@ -38,6 +39,7 @@ pub async fn get_tun_state() -> CmdResult<TunState> {
         setup_declined: crate::feat::tun::setup_declined_for_this_version().await,
         needs_repair: crate::feat::tun::needs_repair().await,
         runtime_stack: crate::feat::tun::runtime_stack().await,
+        failure: crate::feat::tun::last_failure(),
     })
 }
 
@@ -85,10 +87,8 @@ pub async fn ensure_tun_ready() -> CmdResult<bool> {
     use crate::feat::tun::SetupOutcome;
     match crate::feat::tun::ensure_ready(true).await {
         SetupOutcome::AlreadyReady | SetupOutcome::Installed => Ok(true),
-        SetupOutcome::Declined | SetupOutcome::Busy | SetupOutcome::Failed => Ok(false),
-        SetupOutcome::Pending => Err(
-            "The system authorisation dialog is still open. TUN will turn on once the background service is installed."
-                .into(),
-        ),
+        SetupOutcome::Declined | SetupOutcome::Failed => Ok(false),
+        SetupOutcome::Busy => Err("tun::setup_busy".into()),
+        SetupOutcome::Pending => Err("tun::setup_pending".into()),
     }
 }

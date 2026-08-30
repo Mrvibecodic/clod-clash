@@ -10,6 +10,7 @@ const defaultTunState: ITunState = {
   setup_declined: false,
   needs_repair: false,
   runtime_stack: null,
+  failure: null,
 }
 
 export const useTunState = () => {
@@ -35,6 +36,7 @@ export const useTunState = () => {
     tunNeedsRepair: tun.needs_repair,
     tunBroken: tun.desired && !tun.active,
     tunRuntimeStack: tun.runtime_stack ?? null,
+    tunFailure: tun.failure ?? null,
     mutateTunState,
     isLoading,
   }

@@ -92,17 +92,26 @@ export const handleNoticeMessage = (
     'tun::setup_failed': () =>
       showNotice.error(
         'settings.sections.system.notifications.tunMode.setupFailed',
-        msg,
+      ),
+    'tun::rights_declined': () =>
+      showNotice.error(
+        'settings.sections.system.notifications.tunMode.rightsDeclined',
+      ),
+    'tun::service_silent': () =>
+      showNotice.error(
+        'settings.sections.system.notifications.tunMode.serviceSilent',
       ),
     'tun::start_failed': () =>
       showNotice.error(
         'settings.sections.system.notifications.tunMode.autoDisabled',
-        msg,
+      ),
+    'tun::no_rights': () =>
+      showNotice.error(
+        'settings.sections.system.notifications.tunMode.noRights',
       ),
     'tun::adapter_busy': () =>
       showNotice.error(
         'settings.sections.system.notifications.tunMode.adapterBusy',
-        msg,
       ),
     'tun::no_traffic': () =>
       showNotice.error(

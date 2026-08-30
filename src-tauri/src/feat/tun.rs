@@ -28,10 +28,19 @@ static WATCHDOG_RUNNING: AtomicBool = AtomicBool::new(false);
 static START_ATTEMPTS: AtomicU32 = AtomicU32::new(0);
 static RETRY_PENDING: AtomicBool = AtomicBool::new(false);
 static WATCH_ANCHOR: Mutex<Option<String>> = Mutex::new(None);
+static LAST_FAILURE: Mutex<Option<&'static str>> = Mutex::new(None);
 static TRAFFIC_PROBE_RUNNING: AtomicBool = AtomicBool::new(false);
 static NO_TRAFFIC_NOTICED: AtomicBool = AtomicBool::new(false);
 
 const TUN_FAILURE_MARKERS: &[&str] = &["start tun listening error", "configure tun interface"];
+
+const FAILURE_START: &str = "startFailed";
+const FAILURE_ADAPTER_BUSY: &str = "adapterBusy";
+const FAILURE_NO_RIGHTS: &str = "noRights";
+const FAILURE_NO_TRAFFIC: &str = "noTraffic";
+const FAILURE_SETUP: &str = "setupFailed";
+const FAILURE_RIGHTS_DECLINED: &str = "rightsDeclined";
+const FAILURE_SERVICE_SILENT: &str = "serviceSilent";
 
 const TUN_START_ATTEMPTS: u32 = 3;
 const TUN_RETRY_DELAY: Duration = Duration::from_secs(5);
@@ -52,6 +61,7 @@ pub fn suppress(reason: &str) {
 }
 
 pub fn clear_suppression() {
+    clear_failure();
     SUPPRESSED.store(false, Ordering::Release);
     START_FAILED.store(false, Ordering::Release);
     START_ATTEMPTS.store(0, Ordering::Release);
@@ -103,6 +113,45 @@ pub fn line_reports_adapter_busy(line: &str) -> bool {
     TUN_ADAPTER_BUSY_MARKERS.iter().any(|marker| lowered.contains(marker))
 }
 
+const TUN_NO_RIGHTS_MARKERS: &[&str] = &["operation not permitted", "access is denied", "permission denied"];
+
+const SETUP_RIGHTS_DECLINED_MARKERS: &[&str] = &[
+    "prompt was dismissed",
+    "cancelled or declined",
+    "rights were not granted",
+];
+
+fn line_reports_no_rights(line: &str) -> bool {
+    let lowered = line.to_ascii_lowercase();
+    TUN_NO_RIGHTS_MARKERS.iter().any(|marker| lowered.contains(marker))
+}
+
+fn setup_rights_declined(detail: &str) -> bool {
+    let lowered = detail.to_ascii_lowercase();
+    SETUP_RIGHTS_DECLINED_MARKERS
+        .iter()
+        .any(|marker| lowered.contains(marker))
+}
+
+fn set_failure(tag: &'static str) {
+    *LAST_FAILURE.lock() = Some(tag);
+}
+
+fn clear_failure() {
+    *LAST_FAILURE.lock() = None;
+}
+
+fn clear_failure_tag(tag: &'static str) {
+    let mut failure = LAST_FAILURE.lock();
+    if *failure == Some(tag) {
+        *failure = None;
+    }
+}
+
+pub fn last_failure() -> Option<&'static str> {
+    *LAST_FAILURE.lock()
+}
+
 pub fn line_reports_tun_failure(line: &str) -> bool {
     let lowered = line.to_ascii_lowercase();
     TUN_FAILURE_MARKERS.iter().any(|marker| lowered.contains(marker))
@@ -137,12 +186,15 @@ const fn should_retry(attempt: u32) -> bool {
 fn give_up_on_tun(detail: &str) {
     suppress("core failed to start the TUN device");
     logging!(error, Type::Core, "TUN failed to start: {}", detail);
-    let event = if line_reports_adapter_busy(detail) {
-        "tun::adapter_busy"
+    let (event, failure) = if line_reports_adapter_busy(detail) {
+        ("tun::adapter_busy", FAILURE_ADAPTER_BUSY)
+    } else if line_reports_no_rights(detail) {
+        ("tun::no_rights", FAILURE_NO_RIGHTS)
     } else {
-        "tun::start_failed"
+        ("tun::start_failed", FAILURE_START)
     };
-    Handle::notice_message(event, detail.to_owned());
+    set_failure(failure);
+    Handle::notice_message(event, "");
 
     let detail = detail.to_owned();
     AsyncHandler::spawn(move || async move {
@@ -242,6 +294,7 @@ fn spawn_traffic_probe() {
         }
         if probe_traffic(ProxyType::None).await {
             NO_TRAFFIC_NOTICED.store(false, Ordering::Release);
+            clear_failure_tag(FAILURE_NO_TRAFFIC);
             return;
         }
         tokio::time::sleep(TRAFFIC_PROBE_RETRY_DELAY).await;
@@ -250,6 +303,7 @@ fn spawn_traffic_probe() {
         }
         if probe_traffic(ProxyType::None).await {
             NO_TRAFFIC_NOTICED.store(false, Ordering::Release);
+            clear_failure_tag(FAILURE_NO_TRAFFIC);
             return;
         }
         if !probe_traffic(ProxyType::Localhost).await {
@@ -263,6 +317,7 @@ fn spawn_traffic_probe() {
             stack
         );
         if !NO_TRAFFIC_NOTICED.swap(true, Ordering::AcqRel) {
+            set_failure(FAILURE_NO_TRAFFIC);
             Handle::notice_message("tun::no_traffic", stack);
         }
     });
@@ -576,7 +631,13 @@ async fn set_up_service() -> SetupOutcome {
         let detail = format!("{e}");
         logging!(warn, Type::Service, "background service setup failed: {}", detail);
         record_setup_attempt().await;
-        Handle::notice_message("tun::setup_failed", detail);
+        let (event, failure) = if setup_rights_declined(&detail) {
+            ("tun::rights_declined", FAILURE_RIGHTS_DECLINED)
+        } else {
+            ("tun::setup_failed", FAILURE_SETUP)
+        };
+        set_failure(failure);
+        Handle::notice_message(event, "");
         return SetupOutcome::Failed;
     }
 
@@ -588,7 +649,8 @@ async fn set_up_service() -> SetupOutcome {
             Type::Service,
             "the service setup reported success, but the service still does not answer"
         );
-        Handle::notice_message("tun::setup_failed", "service is silent after setup".to_owned());
+        set_failure(FAILURE_SERVICE_SILENT);
+        Handle::notice_message("tun::service_silent", "");
         return SetupOutcome::Failed;
     }
 
@@ -650,6 +712,27 @@ pub async fn init_startup_setup() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tells_a_rights_failure_from_a_busy_adapter() {
+        assert!(line_reports_no_rights(
+            "Start TUN listening error: configure tun interface: Access is denied."
+        ));
+        assert!(line_reports_no_rights(
+            "configure tun interface: Connect: operation not permitted"
+        ));
+        assert!(!line_reports_no_rights("configure tun interface: file exists"));
+        assert!(line_reports_adapter_busy("create tun: wintun adapter already exists"));
+    }
+
+    #[test]
+    fn tells_a_declined_prompt_from_a_broken_installer() {
+        assert!(setup_rights_declined("the elevation prompt was dismissed"));
+        assert!(setup_rights_declined(
+            "administrator rights were not granted: the polkit prompt was cancelled or declined"
+        ));
+        assert!(!setup_rights_declined("uninstaller not found"));
+    }
 
     #[test]
     fn recognises_the_core_tun_failures() {

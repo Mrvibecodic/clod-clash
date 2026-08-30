@@ -16,12 +16,13 @@ import { useProfiles } from '@/hooks/use-profiles'
 import { CARD_SURFACE } from '@/pages/_theme'
 import { openWebUrl } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
+import { tunSetupNotice } from '@/utils/tun-notice'
 
 const SettingPage = () => {
   const { t } = useTranslation()
 
   const onError = (err: any) => {
-    showNotice.error(err)
+    showNotice.error(tunSetupNotice(err))
   }
 
   const { current } = useProfiles()

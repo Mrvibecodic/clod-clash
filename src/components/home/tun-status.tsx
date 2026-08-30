@@ -16,11 +16,12 @@ import { useVerge } from '@/hooks/use-verge'
 import { TINT } from '@/pages/_theme'
 import { ensureTunReady } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
+import { tunFailureKey, tunSetupNotice } from '@/utils/tun-notice'
 
 export const TunStatus = () => {
   const { t } = useTranslation()
   const { patchVerge } = useVerge()
-  const { tunBroken, mutateTunState } = useTunState()
+  const { tunDesired, tunBroken, tunFailure, mutateTunState } = useTunState()
   const { mutateSystemState } = useSystemState()
   const [busy, setBusy] = useState(false)
 
@@ -37,7 +38,7 @@ export const TunStatus = () => {
       }
       await patchVerge({ enable_tun_mode: true })
     } catch (error) {
-      showNotice.error(error)
+      showNotice.error(tunSetupNotice(error))
     } finally {
       setBusy(false)
       await mutateTunState()
@@ -55,7 +56,9 @@ export const TunStatus = () => {
     )
   }
 
-  if (!tunBroken) return null
+  const reasonKey = tunDesired ? tunFailureKey(tunFailure) : undefined
+
+  if (!tunBroken && !reasonKey) return null
 
   return (
     <Stack
@@ -78,7 +81,7 @@ export const TunStatus = () => {
         color="text.primary"
         sx={{ flex: 1, minWidth: 0 }}
       >
-        {t('home.components.tunStatus.broken')}
+        {t(reasonKey ?? 'home.components.tunStatus.broken')}
       </Typography>
       <Button size="small" sx={{ flex: 'none' }} onClick={() => void fix()}>
         {t('home.components.tunStatus.fix')}
