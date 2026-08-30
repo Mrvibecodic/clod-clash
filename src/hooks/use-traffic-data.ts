@@ -3,7 +3,6 @@ import { MihomoWebSocket, Traffic } from 'tauri-plugin-mihomo-api'
 import { isWsErrorMessage } from '@/utils/ws-error'
 
 import { useMihomoWsSubscription } from './use-mihomo-ws-subscription'
-import { useTrafficMonitorEnhanced } from './use-traffic-monitor'
 
 const FALLBACK_TRAFFIC: Traffic = { up: 0, down: 0, upTotal: 0, downTotal: 0 }
 const DUPLICATE_TRAFFIC_WINDOW_MS = 50
@@ -30,9 +29,6 @@ const shouldSkipDuplicateTraffic = (traffic: Traffic) => {
 export const useTrafficData = (options?: { enabled?: boolean }) => {
   const enabled = options?.enabled ?? true
 
-  const {
-    graphData: { appendData },
-  } = useTrafficMonitorEnhanced({ subscribe: false, enabled })
   const { response, refresh } = useMihomoWsSubscription<ITrafficItem>({
     storageKey: 'mihomo_traffic_date',
     buildSubscriptKey: (date) => (enabled ? `getClashTraffic-${date}` : null),
@@ -52,7 +48,6 @@ export const useTrafficData = (options?: { enabled?: boolean }) => {
           if (shouldSkipDuplicateTraffic(parsed)) {
             return
           }
-          appendData(parsed)
           next(null, parsed)
         } catch (error) {
           next(error, FALLBACK_TRAFFIC)

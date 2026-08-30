@@ -50,8 +50,8 @@ export const useUpdate = (enabled: boolean = true) => {
     enabled: shouldCheck,
     retry: 2,
     staleTime: 10 * 60 * 1000,
-    refetchInterval: 3 * 60 * 60 * 1000,
-    refetchIntervalInBackground: false,
+    refetchInterval: 24 * 60 * 60 * 1000,
+    refetchIntervalInBackground: true,
     refetchOnWindowFocus: false,
   })
 

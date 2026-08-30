@@ -24,15 +24,12 @@ const RulesPage = () => {
   const [showScrollTop, setShowScrollTop] = useState(false)
   const pageVisible = useVisibility()
 
-  // Обновляем данные правил при монтировании компонента и при фокусе страницы
+  // Правила перечитываются, когда окно показано: в трее список никому не нужен
   useEffect(() => {
+    if (!pageVisible) return
+
     refreshRules()
     refreshRuleProviders()
-
-    if (pageVisible) {
-      refreshRules()
-      refreshRuleProviders()
-    }
   }, [refreshRules, refreshRuleProviders, pageVisible])
 
   const filteredRules = useMemo(() => {

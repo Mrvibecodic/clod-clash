@@ -42,6 +42,7 @@ import { GroupsEditorViewer } from '@/components/profile/groups-editor-viewer'
 import { RulesEditorViewer } from '@/components/profile/rules-editor-viewer'
 import { useEditorDocument } from '@/hooks/use-editor-document'
 import { openProviderLink } from '@/hooks/use-provider-links'
+import { useVisibility } from '@/hooks/use-visibility'
 import {
   getNextUpdateTime,
   readProfileFile,
@@ -313,8 +314,9 @@ const ProfileItemBase = (props: ProfileItemProps) => {
   const loading = loadingCache.has(itemData.uid)
 
   const [, forceRefresh] = useReducer((value: number) => value + 1, 0)
+  const pageVisible = useVisibility()
   useEffect(() => {
-    if (!hasUrl) return
+    if (!pageVisible || !hasUrl) return
 
     let timer: ReturnType<typeof setTimeout> | undefined
 
@@ -339,7 +341,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
         timer = undefined
       }
     }
-  }, [forceRefresh, hasUrl, updated])
+  }, [forceRefresh, hasUrl, updated, pageVisible])
 
   const [fileOpen, setFileOpen] = useState(false)
   const [rulesOpen, setRulesOpen] = useState(false)

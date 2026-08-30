@@ -635,7 +635,7 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
   const groupName = group?.name
   const updatedAt = currentProfile?.updated ?? 0
   useEffect(() => {
-    if (!groupName) return
+    if (!visible || !groupName) return
     const key = `${groupName}|${updatedAt}`
     if (lastAutoDelayKey === key) return
     const timer = window.setTimeout(() => {
@@ -644,7 +644,7 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
       runGroupDelayTest(groupName).catch(() => {})
     }, 800)
     return () => window.clearTimeout(timer)
-  }, [groupName, updatedAt, runGroupDelayTest])
+  }, [visible, groupName, updatedAt, runGroupDelayTest])
 
   useEffect(() => {
     if (!visible || !groupName || !pingTarget) return
