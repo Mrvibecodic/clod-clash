@@ -7,10 +7,13 @@
 //!
 //! Считаем по `/connections`: у каждого соединения ядро отдаёт накопленные
 //! `upload`/`download`, поэтому достаточно складывать приросты по `id`.
-//! Соединения в обход прокси (`DIRECT`, отбитые `REJECT`) пропускаем — панель
-//! их тоже не видит. Соединение, успевшее открыться и закрыться между двумя
-//! опросами, теряется: счёт занижен, но никогда не завышен — именно поэтому
-//! он и называется примерным.
+//! Соединения с встроенными исходами ядра пропускаем — панель их тоже не
+//! видит. Это `DIRECT`, отбивающие `REJECT` и `REJECT-DROP`, пропускающие
+//! `PASS` и `PASS-RULE`, а также `COMPATIBLE`, которым ядро заполняет
+//! опустевшую группу. Прямой выход, заведённый в самой подписке под своим
+//! именем, счёт от прокси не отличит. Соединение, успевшее открыться и
+//! закрыться между двумя опросами, теряется: счёт занижен, но никогда не
+//! завышен — именно поэтому он и называется примерным.
 
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -44,7 +47,7 @@ const PERSIST_EVERY_TICKS: u32 = 4;
 const STATE_FILE: &str = "traffic_estimate.json";
 
 /// Цепочки, которые не идут через прокси подписки и в расход не попадают.
-const BYPASS_CHAINS: [&str; 4] = ["DIRECT", "REJECT", "REJECT-DROP", "PASS"];
+const BYPASS_CHAINS: [&str; 6] = ["DIRECT", "COMPATIBLE", "REJECT", "REJECT-DROP", "PASS", "PASS-RULE"];
 
 /// Снимок счётчика для фронтенда.
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
@@ -313,9 +316,13 @@ mod tests {
     }
 
     #[test]
-    fn direct_and_rejected_connections_are_not_traffic() {
+    fn builtin_outbounds_are_not_traffic() {
         assert!(!counts_as_proxy(&chains(&["DIRECT"])));
+        assert!(!counts_as_proxy(&chains(&["COMPATIBLE", "Основная"])));
         assert!(!counts_as_proxy(&chains(&["REJECT", "Правила"])));
+        assert!(!counts_as_proxy(&chains(&["REJECT-DROP"])));
+        assert!(!counts_as_proxy(&chains(&["PASS"])));
+        assert!(!counts_as_proxy(&chains(&["PASS-RULE"])));
         assert!(!counts_as_proxy(&[]));
     }
 
