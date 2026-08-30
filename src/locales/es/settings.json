@@ -1,9 +1,5 @@
 {
   "page": {
-    "actions": {
-      "manual": "Manual de uso",
-      "github": "Dirección del proyecto en GitHub"
-    },
     "title": "Ajustes"
   },
   "sections": {
@@ -262,16 +258,9 @@
           "errorColor": "Color de error",
           "successColor": "Color de éxito",
           "fontFamily": "Familia tipográfica",
-          "cssInjection": "Inyección de CSS",
           "accentPresets": "Accent presets",
           "providerTheme": "Estilo del proveedor",
           "providerThemeHint": "Color, tema y fondo de la suscripción — hasta que definas los tuyos"
-        },
-        "actions": {
-          "editCss": "Edit CSS"
-        },
-        "dialogs": {
-          "editCssTitle": "Edit CSS"
         }
       },
       "layout": {
@@ -282,7 +271,6 @@
           "toastPosition": "Posición del aviso",
           "hoverNavigator": "Hover Jump Navigator",
           "hoverNavigatorDelay": "Hover Jump Navigator Delay",
-          "navIcon": "Icono de la barra de navegación",
           "trayIcon": "Icono de la bandeja",
           "proxyGroupsDisplayMode": "Proxy Groups Display Mode",
           "showOutboundModesInline": "Show Outbound Modes Inline",
@@ -290,8 +278,7 @@
           "systemProxyTrayIcon": "Icono de bandeja del proxy del sistema",
           "tunTrayIcon": "Icono de bandeja del modo TUN",
           "enableTrayIcon": "Habilitar icono de la bandeja",
-          "enableTraySpeed": "Habilitar velocidad en la bandeja",
-          "pauseRenderTrafficStatsOnBlur": "Pausar el renderizado de estadísticas de tráfico al perder el foco"
+          "enableTraySpeed": "Habilitar velocidad en la bandeja"
         },
         "tooltips": {
           "hoverNavigator": "Automatically scroll to the corresponding proxy group when hovering over alphabet letters",
@@ -300,8 +287,7 @@
         "options": {
           "icon": {
             "monochrome": "Icono monocromo",
-            "colorful": "Icono colorido",
-            "disable": "Deshabilitar"
+            "colorful": "Icono colorido"
           },
           "toastPosition": {
             "topLeft": "Arriba a la izquierda",
@@ -375,20 +361,15 @@
         "webdav": "WebDAV backup"
       },
       "actions": {
-        "selectTarget": "Select backup target",
         "backup": "Copia de seguridad",
-        "export": "Export",
-        "exportBackup": "Export Backup",
         "importBackup": "Import Backup",
         "deleteBackup": "Eliminar copia de seguridad",
-        "restore": "Restaurar",
         "restoreBackup": "Restaurar copia de seguridad",
         "viewHistory": "View history"
       },
       "fields": {
         "webdavUrl": "Dirección del servidor WebDAV http(s)://",
-        "username": "Nombre de usuario",
-        "info": "Backups are stored locally in the application data directory. Use the list below to restore or delete backups."
+        "username": "Nombre de usuario"
       },
       "messages": {
         "webdavUrlRequired": "La dirección del servidor WebDAV no puede estar vacía",
@@ -417,11 +398,7 @@
         "scheduleHelper": "Create local backups in the background at the configured interval.",
         "intervalLabel": "Backup frequency",
         "changeLabel": "Backup on critical changes",
-        "changeHelper": "Automatically backup when Global Extend Config/Script changes.",
-        "options": {
-          "hours": "Every {{n}} hours",
-          "days": "Every {{n}} days"
-        }
+        "changeHelper": "Automatically backup when Global Extend Config/Script changes."
       },
       "manual": {
         "title": "Manual backup",
@@ -438,13 +415,6 @@
       },
       "webdav": {
         "title": "WebDAV settings"
-      },
-      "table": {
-        "filename": "Nombre del archivo",
-        "backupTime": "Tiempo de copia de seguridad",
-        "actions": "Acciones",
-        "noBackups": "No hay copias de seguridad",
-        "rowsPerPage": "Rows per page"
       }
     },
     "misc": {
@@ -714,7 +684,6 @@
         "geoDataUpdated": "GeoData actualizado"
       },
       "clashService": {
-        "installSuccess": "Servicio instalado con éxito",
         "uninstallSuccess": "Servicio desinstalado con éxito"
       },
       "updater": {
@@ -728,7 +697,6 @@
       "restarting": "Reiniciando núcleo..."
     },
     "clashService": {
-      "installing": "Instalando servicio...",
       "uninstalling": "Desinstalando servicio..."
     }
   }

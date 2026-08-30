@@ -14,10 +14,6 @@
     "restart": "راه‌اندازی مجدد",
     "resetToDefault": "بازنشانی به پیش‌فرض",
     "refresh": "بازنشانی",
-    "retry": "Retry",
-    "refreshPage": "Refresh Page",
-    "showDetails": "Show Details",
-    "hideDetails": "Hide Details",
     "listView": "نمای لیستی",
     "tableView": "نمای جدولی",
     "pause": "توقف",
@@ -31,15 +27,12 @@
   "labels": {
     "updateAt": "به‌روزرسانی در",
     "timeout": "Timeout",
-    "icon": "آیکون",
-    "name": "نام",
     "readOnly": "فقط خواندنی",
     "expireTime": "زمان انقضا",
     "updateTime": "زمان به‌روزرسانی",
     "usedTotal": "استفاده‌شده / کل",
     "from": "از",
     "password": "رمز عبور",
-    "retryAttempts": "Retry attempts",
     "downloaded": "دانلود شده",
     "uploaded": "بارگذاری شده"
   },
@@ -77,8 +70,6 @@
   },
   "feedback": {
     "errors": {
-      "trafficStats": "Traffic Statistics Error",
-      "trafficStatsDescription": "The traffic statistics component encountered an error and has been disabled to prevent crashes.",
       "core": {
         "noSuchHost": "دامنه پیدا نشد — نشانی اشتراک و اتصال اینترنت را بررسی کنید",
         "connectionRefused": "سرور اتصال را رد کرد — شاید خاموش است یا درگاه بسته است",
@@ -109,10 +100,7 @@
       "explained": "{{prefix}} · {{message}}"
     },
     "notifications": {
-      "importSuccess": "پروفایل با موفقیت وارد شد",
       "importSubscriptionSuccess": "وارد کردن اشتراک با موفقیت انجام شد",
-      "importWithClashProxy": "Profile Imported with Clash proxy",
-      "updateAvailable": "Update Available",
       "saved": "Saved successfully",
       "common": {
         "copySuccess": "کپی با موفقیت انجام شد",

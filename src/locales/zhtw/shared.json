@@ -14,10 +14,6 @@
     "restart": "重啟內核",
     "resetToDefault": "重設為預設值",
     "refresh": "重整",
-    "retry": "重試",
-    "refreshPage": "重新整理頁面",
-    "showDetails": "顯示詳情",
-    "hideDetails": "隱藏詳情",
     "listView": "列表檢視",
     "tableView": "表格檢視",
     "pause": "暫停",
@@ -31,15 +27,12 @@
   "labels": {
     "updateAt": "更新於",
     "timeout": "逾時",
-    "icon": "圖示",
-    "name": "名稱",
     "readOnly": "唯讀",
     "expireTime": "到期時間",
     "updateTime": "更新時間",
     "usedTotal": "已使用 / 總量",
     "from": "來自",
     "password": "密碼",
-    "retryAttempts": "重試次數",
     "downloaded": "下載量",
     "uploaded": "上傳量"
   },
@@ -77,8 +70,6 @@
   },
   "feedback": {
     "errors": {
-      "trafficStats": "流量統計錯誤",
-      "trafficStatsDescription": "流量統計元件發生錯誤，已停用以避免當機。",
       "core": {
         "noSuchHost": "找不到網域 — 請檢查訂閱位址與網路連線",
         "connectionRefused": "伺服器拒絕連線 — 可能已關閉或連接埠未開放",
@@ -109,10 +100,7 @@
       "explained": "{{prefix}} · {{message}}"
     },
     "notifications": {
-      "importSuccess": "匯入設定檔成功",
       "importSubscriptionSuccess": "匯入訂閱成功",
-      "importWithClashProxy": "使用 Clash 代理匯入訂閱成功",
-      "updateAvailable": "有可用更新",
       "saved": "儲存成功",
       "common": {
         "copySuccess": "複製成功",

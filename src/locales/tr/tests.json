@@ -2,24 +2,12 @@
   "page": {
     "actions": {
       "testAll": "Tümünü Test Et"
-    },
-    "title": "Test"
+    }
   },
   "components": {
     "item": {
       "actions": {
         "test": "Test"
-      }
-    }
-  },
-  "modals": {
-    "test": {
-      "title": {
-        "create": "Test Oluştur",
-        "edit": "Testi Düzenle"
-      },
-      "fields": {
-        "url": "Test URL'si"
       }
     }
   },

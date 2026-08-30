@@ -1,9 +1,5 @@
 {
   "page": {
-    "actions": {
-      "manual": "Документация",
-      "github": "GitHub репозиторий"
-    },
     "title": "Настройки"
   },
   "sections": {
@@ -262,16 +258,9 @@
           "errorColor": "Цвет ошибки",
           "successColor": "Цвет успеха",
           "fontFamily": "Семейство шрифтов",
-          "cssInjection": "Внедрение CSS",
           "accentPresets": "Готовые акценты",
           "providerTheme": "Оформление от провайдера",
           "providerThemeHint": "Цвет, тема и фон из подписки — пока вы не задали свои"
-        },
-        "actions": {
-          "editCss": "Редактировать CSS"
-        },
-        "dialogs": {
-          "editCssTitle": "Редактирование CSS"
         }
       },
       "layout": {
@@ -282,7 +271,6 @@
           "toastPosition": "Расположение уведомлений",
           "hoverNavigator": "Навигация по алфавиту при наведении",
           "hoverNavigatorDelay": "Задержка навигации при наведении",
-          "navIcon": "Иконки навигации",
           "trayIcon": "Значок в трее",
           "proxyGroupsDisplayMode": "Режим отображения групп прокси",
           "showOutboundModesInline": "Показывать режимы исходящих соединений в строку",
@@ -290,8 +278,7 @@
           "systemProxyTrayIcon": "Значок системного прокси в трее",
           "tunTrayIcon": "Значок TUN в трее",
           "enableTrayIcon": "Показывать значок в трее",
-          "enableTraySpeed": "Показывать скорость в трее",
-          "pauseRenderTrafficStatsOnBlur": "При потере фокуса приостанавливать отрисовку статистики трафика"
+          "enableTraySpeed": "Показывать скорость в трее"
         },
         "tooltips": {
           "hoverNavigator": "Автоматически прокручивает к группе прокси при наведении на буквы",
@@ -300,8 +287,7 @@
         "options": {
           "icon": {
             "monochrome": "Монохромные",
-            "colorful": "Цветные",
-            "disable": "Отключить"
+            "colorful": "Цветные"
           },
           "toastPosition": {
             "topLeft": "Сверху слева",
@@ -375,20 +361,15 @@
         "webdav": "Резервное копирование WebDAV"
       },
       "actions": {
-        "selectTarget": "Выбрать место сохранения",
         "backup": "Резервное копирование",
-        "export": "Экспорт",
-        "exportBackup": "Экспорт резервной копии",
         "importBackup": "Импорт резервной копии",
         "deleteBackup": "Удалить резервную копию",
-        "restore": "Восстановить",
         "restoreBackup": "Восстановить резервную копию",
         "viewHistory": "Просмотр истории"
       },
       "fields": {
         "webdavUrl": "URL-адрес сервера WebDAV http(s)://",
-        "username": "Имя пользователя",
-        "info": "Резервные копии хранятся локально в каталоге данных приложения. Используйте список ниже, чтобы восстановить или удалить резервные копии."
+        "username": "Имя пользователя"
       },
       "messages": {
         "webdavUrlRequired": "URL-адрес WebDAV не может быть пустым",
@@ -417,11 +398,7 @@
         "scheduleHelper": "Создавать локальные резервные копии в фоновом режиме через заданный интервал.",
         "intervalLabel": "Частота резервного копирования",
         "changeLabel": "Резервное копирование при критических изменениях",
-        "changeHelper": "Автоматически создавать резервную копию при изменении Global Extend Config/Script.",
-        "options": {
-          "hours": "Каждые {{n}} часов",
-          "days": "Каждые {{n}} дней"
-        }
+        "changeHelper": "Автоматически создавать резервную копию при изменении Global Extend Config/Script."
       },
       "manual": {
         "title": "Ручное резервное копирование",
@@ -438,13 +415,6 @@
       },
       "webdav": {
         "title": "Настройки WebDAV"
-      },
-      "table": {
-        "filename": "Имя файла",
-        "backupTime": "Время резервного копирования",
-        "actions": "Действия",
-        "noBackups": "Нет доступных резервных копий",
-        "rowsPerPage": "Строк на странице"
       }
     },
     "misc": {
@@ -714,7 +684,6 @@
         "geoDataUpdated": "Файлы GeoData обновлены"
       },
       "clashService": {
-        "installSuccess": "Служба успешно установлена",
         "uninstallSuccess": "Служба успешно удалена"
       },
       "updater": {
@@ -728,7 +697,6 @@
       "restarting": "Перезапуск ядра..."
     },
     "clashService": {
-      "installing": "Установка службы...",
       "uninstalling": "Удаление службы..."
     }
   }

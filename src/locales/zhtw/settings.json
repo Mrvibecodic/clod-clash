@@ -1,9 +1,5 @@
 {
   "page": {
-    "actions": {
-      "manual": "使用手冊",
-      "github": "GitHub 專案位址"
-    },
     "title": "設定"
   },
   "sections": {
@@ -262,16 +258,9 @@
           "errorColor": "錯誤顏色",
           "successColor": "成功顏色",
           "fontFamily": "字型系列",
-          "cssInjection": "CSS 注入",
           "accentPresets": "Accent presets",
           "providerTheme": "服務商外觀",
           "providerThemeHint": "來自訂閱的強調色、主題與背景 — 直到您自行設定"
-        },
-        "actions": {
-          "editCss": "編輯 CSS"
-        },
-        "dialogs": {
-          "editCssTitle": "編輯 CSS"
         }
       },
       "layout": {
@@ -282,7 +271,6 @@
           "toastPosition": "通知位置",
           "hoverNavigator": "懸浮跳轉導航",
           "hoverNavigatorDelay": "懸浮跳轉導航延遲",
-          "navIcon": "導覽列圖示",
           "trayIcon": "系統匣圖示",
           "proxyGroupsDisplayMode": "系統匣代理組顯示模式",
           "showOutboundModesInline": "將出站模式顯示在系統匣一級選單",
@@ -290,8 +278,7 @@
           "systemProxyTrayIcon": "系統代理系統匣圖示",
           "tunTrayIcon": "虛擬網路介面卡模式系統匣圖示",
           "enableTrayIcon": "啟用系統匣圖示",
-          "enableTraySpeed": "啟用系統匣速率",
-          "pauseRenderTrafficStatsOnBlur": "失去焦點時暫停渲染流量統計"
+          "enableTraySpeed": "啟用系統匣速率"
         },
         "tooltips": {
           "hoverNavigator": "滑鼠懸停在字母上時自動捲動到對應代理組",
@@ -300,8 +287,7 @@
         "options": {
           "icon": {
             "monochrome": "單色圖示",
-            "colorful": "彩色圖示",
-            "disable": "停用"
+            "colorful": "彩色圖示"
           },
           "toastPosition": {
             "topLeft": "左上角",
@@ -375,20 +361,15 @@
         "webdav": "WebDAV 備份"
       },
       "actions": {
-        "selectTarget": "選擇備份目標",
         "backup": "備份",
-        "export": "匯出",
-        "exportBackup": "匯出備份",
         "importBackup": "匯入備份",
         "deleteBackup": "刪除備份",
-        "restore": "還原",
         "restoreBackup": "還原備份",
         "viewHistory": "檢視紀錄"
       },
       "fields": {
         "webdavUrl": "WebDAV 伺服器位址 http(s)://",
-        "username": "使用者名稱",
-        "info": "在應用程式資料目錄中建立本機備份，您可以透過下方列表進行還原或刪除。"
+        "username": "使用者名稱"
       },
       "messages": {
         "webdavUrlRequired": "WebDAV 伺服器位址不能為空",
@@ -417,11 +398,7 @@
         "scheduleHelper": "依設定頻率在背景建立本機備份檔案。",
         "intervalLabel": "備份頻率",
         "changeLabel": "關鍵變更時自動備份",
-        "changeHelper": "Global Extend Config/Script 變更後自動備份。",
-        "options": {
-          "hours": "每 {{n}} 小時",
-          "days": "每 {{n}} 天"
-        }
+        "changeHelper": "Global Extend Config/Script 變更後自動備份。"
       },
       "manual": {
         "title": "手動備份",
@@ -438,13 +415,6 @@
       },
       "webdav": {
         "title": "WebDAV 設定"
-      },
-      "table": {
-        "filename": "檔案名稱",
-        "backupTime": "備份時間",
-        "actions": "動作",
-        "noBackups": "暫無備份",
-        "rowsPerPage": "每頁列數"
       }
     },
     "misc": {
@@ -714,7 +684,6 @@
         "geoDataUpdated": "已更新 GeoData"
       },
       "clashService": {
-        "installSuccess": "已成功安裝服務",
         "uninstallSuccess": "已成功解除安裝服務"
       },
       "updater": {
@@ -728,7 +697,6 @@
       "restarting": "內核重啟中..."
     },
     "clashService": {
-      "installing": "安裝服務中...",
       "uninstalling": "服務解除安裝中..."
     }
   }

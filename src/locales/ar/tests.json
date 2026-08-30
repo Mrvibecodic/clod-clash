@@ -2,24 +2,12 @@
   "page": {
     "actions": {
       "testAll": "اختبار الكل"
-    },
-    "title": "اختبار"
+    }
   },
   "components": {
     "item": {
       "actions": {
         "test": "اختبار"
-      }
-    }
-  },
-  "modals": {
-    "test": {
-      "title": {
-        "create": "إنشاء اختبار",
-        "edit": "تعديل الاختبار"
-      },
-      "fields": {
-        "url": "رابط الاختبار"
       }
     }
   },

@@ -14,10 +14,6 @@
     "restart": "コアを再起動",
     "resetToDefault": "デフォルト値にリセット",
     "refresh": "更新",
-    "retry": "Retry",
-    "refreshPage": "Refresh Page",
-    "showDetails": "Show Details",
-    "hideDetails": "Hide Details",
     "listView": "リストビュー",
     "tableView": "テーブルビュー",
     "pause": "一時停止",
@@ -31,15 +27,12 @@
   "labels": {
     "updateAt": "更新日時",
     "timeout": "Timeout",
-    "icon": "アイコン",
-    "name": "名前",
     "readOnly": "読み取り専用",
     "expireTime": "有効期限",
     "updateTime": "更新時間",
     "usedTotal": "使用済み / 合計",
     "from": "から",
     "password": "パスワード",
-    "retryAttempts": "Retry attempts",
     "downloaded": "ダウンロード量",
     "uploaded": "アップロード量"
   },
@@ -77,8 +70,6 @@
   },
   "feedback": {
     "errors": {
-      "trafficStats": "Traffic Statistics Error",
-      "trafficStatsDescription": "The traffic statistics component encountered an error and has been disabled to prevent crashes.",
       "core": {
         "noSuchHost": "ドメインが見つかりません — サブスクリプションのアドレスとネット接続を確認してください",
         "connectionRefused": "サーバーに接続を拒否されました — 停止中かポートが閉じている可能性があります",
@@ -109,10 +100,7 @@
       "explained": "{{prefix}} · {{message}}"
     },
     "notifications": {
-      "importSuccess": "プロファイルのインポートに成功しました。",
       "importSubscriptionSuccess": "サブスクリプションのインポートに成功しました。",
-      "importWithClashProxy": "Clashプロキシを使用してプロファイルのインポートに成功しました。",
-      "updateAvailable": "Update Available",
       "saved": "Saved successfully",
       "common": {
         "copySuccess": "コピー成功",

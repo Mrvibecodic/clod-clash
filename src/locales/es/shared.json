@@ -14,10 +14,6 @@
     "restart": "Reiniciar núcleo",
     "resetToDefault": "Restablecer a los valores predeterminados",
     "refresh": "Actualizar",
-    "retry": "Retry",
-    "refreshPage": "Refresh Page",
-    "showDetails": "Show Details",
-    "hideDetails": "Hide Details",
     "listView": "Vista de lista",
     "tableView": "Vista de tabla",
     "pause": "Pausar",
@@ -31,15 +27,12 @@
   "labels": {
     "updateAt": "Actualizado el",
     "timeout": "Timeout",
-    "icon": "Icono",
-    "name": "Nombre",
     "readOnly": "Solo lectura",
     "expireTime": "Tiempo de expiración",
     "updateTime": "Hora de actualización",
     "usedTotal": "Utilizado / Total",
     "from": "De",
     "password": "Contraseña",
-    "retryAttempts": "Retry attempts",
     "downloaded": "Descargado",
     "uploaded": "Subido"
   },
@@ -77,8 +70,6 @@
   },
   "feedback": {
     "errors": {
-      "trafficStats": "Traffic Statistics Error",
-      "trafficStatsDescription": "The traffic statistics component encountered an error and has been disabled to prevent crashes.",
       "core": {
         "noSuchHost": "Dominio no encontrado: revisa la dirección de la suscripción y tu conexión",
         "connectionRefused": "El servidor rechazó la conexión: puede estar apagado o el puerto cerrado",
@@ -109,10 +100,7 @@
       "explained": "{{prefix}} · {{message}}"
     },
     "notifications": {
-      "importSuccess": "Suscripción importada con éxito",
       "importSubscriptionSuccess": "Suscripción importada con éxito",
-      "importWithClashProxy": "Suscripción importada con el proxy de Clash",
-      "updateAvailable": "Update Available",
       "saved": "Saved successfully",
       "common": {
         "copySuccess": "Copia exitosa",

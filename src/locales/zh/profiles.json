@@ -2,9 +2,6 @@
   "page": {
     "actions": {
       "updateAll": "更新所有订阅",
-      "viewRuntimeConfig": "查看运行时订阅",
-      "reactivate": "重新激活订阅",
-      "import": "导入",
       "addSubscription": "Add subscription"
     },
     "tooltips": {
@@ -24,7 +21,6 @@
       "title": "批量操作"
     },
     "importForm": {
-      "placeholder": "订阅文件链接",
       "actions": {
         "paste": "粘贴"
       }
@@ -35,10 +31,6 @@
         "onlyYaml": "仅支持 YAML 文件"
       },
       "notifications": {
-        "importRetry": "订阅导入失败，尝试使用 Clash 代理导入",
-        "importFail": "使用 Clash 代理导入订阅失败",
-        "importNeedsRefresh": "订阅已导入，但可能需要手动刷新",
-        "importSuccess": "订阅已成功导入，如未显示请重启应用",
         "profileSwitched": "订阅已切换",
         "profileReactivated": "订阅已激活",
         "switchBusy": "正在切换订阅，请稍后重试",
@@ -59,11 +51,6 @@
     }
   },
   "components": {
-    "card": {
-      "labels": {
-        "clickToImport": "点击导入订阅"
-      }
-    },
     "fileInput": {
       "chooseFile": "选择文件"
     },
@@ -81,16 +68,6 @@
       "openFile": "打开文件",
       "update": "更新",
       "updateViaProxy": "更新（代理）"
-    },
-    "more": {
-      "global": {
-        "merge": "全局扩展覆写配置",
-        "script": "全局扩展脚本"
-      },
-      "chips": {
-        "merge": "Merge",
-        "script": "Script"
-      }
     },
     "profileItem": {
       "tooltips": {
@@ -143,7 +120,6 @@
         "added": "Subscription added"
       },
       "fields": {
-        "type": "类型",
         "description": "描述",
         "subscriptionUrl": "订阅链接",
         "httpTimeout": "HTTP 请求超时",
@@ -166,8 +142,7 @@
       },
       "feedback": {
         "notifications": {
-          "creationRetry": "订阅创建失败，尝试使用 Clash 代理创建",
-          "creationSuccess": "使用 Clash 代理创建订阅成功"
+          "creationRetry": "订阅创建失败，尝试使用 Clash 代理创建"
         },
         "added": "✓ Subscription added!",
         "failed": "That did not work. Check the link or get a new one where you bought the subscription",
@@ -244,9 +219,6 @@
     "confirmDelete": {
       "title": "确认删除",
       "message": "此操作不可逆"
-    },
-    "logViewer": {
-      "title": "脚本控制台输出"
     },
     "qrViewer": {
       "title": "订阅二维码"

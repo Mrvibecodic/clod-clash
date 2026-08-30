@@ -1,9 +1,5 @@
 {
   "page": {
-    "actions": {
-      "manual": "Kılavuz",
-      "github": "Github Repo"
-    },
     "title": "Ayarlar"
   },
   "sections": {
@@ -262,16 +258,9 @@
           "errorColor": "Hata Rengi",
           "successColor": "Başarı Rengi",
           "fontFamily": "Yazı Tipi Ailesi",
-          "cssInjection": "CSS Enjeksiyonu",
           "accentPresets": "Accent presets",
           "providerTheme": "Sağlayıcı görünümü",
           "providerThemeHint": "Abonelikten renk, tema ve arka plan — siz kendinizinkini ayarlayana kadar"
-        },
-        "actions": {
-          "editCss": "Edit CSS"
-        },
-        "dialogs": {
-          "editCssTitle": "Edit CSS"
         }
       },
       "layout": {
@@ -282,7 +271,6 @@
           "toastPosition": "Toast konumu",
           "hoverNavigator": "Hover Jump Navigator",
           "hoverNavigatorDelay": "Hover Jump Navigator Delay",
-          "navIcon": "Gezinme Simgesi",
           "trayIcon": "Tepsi Simgesi",
           "proxyGroupsDisplayMode": "Proxy Groups Display Mode",
           "showOutboundModesInline": "Show Outbound Modes Inline",
@@ -290,8 +278,7 @@
           "systemProxyTrayIcon": "Sistem Vekil Tepsi Simgesi",
           "tunTrayIcon": "Tun Tepsi Simgesi",
           "enableTrayIcon": "Tepsi Simgesini Etkinleştir",
-          "enableTraySpeed": "Tepsi Hızını Etkinleştir",
-          "pauseRenderTrafficStatsOnBlur": "Odak kaybolduğunda trafik istatistiklerinin işlenmesini duraklat"
+          "enableTraySpeed": "Tepsi Hızını Etkinleştir"
         },
         "tooltips": {
           "hoverNavigator": "Automatically scroll to the corresponding proxy group when hovering over alphabet letters",
@@ -300,8 +287,7 @@
         "options": {
           "icon": {
             "monochrome": "Tek Renkli",
-            "colorful": "Renkli",
-            "disable": "Devre Dışı Bırak"
+            "colorful": "Renkli"
           },
           "toastPosition": {
             "topLeft": "Sol üst",
@@ -375,20 +361,15 @@
         "webdav": "WebDAV backup"
       },
       "actions": {
-        "selectTarget": "Select backup target",
         "backup": "Yedekle",
-        "export": "Export",
-        "exportBackup": "Export Backup",
         "importBackup": "Import Backup",
         "deleteBackup": "Yedeği Sil",
-        "restore": "Geri Yükle",
         "restoreBackup": "Yedeği Geri Yükle",
         "viewHistory": "View history"
       },
       "fields": {
         "webdavUrl": "WebDAV Sunucu URL'si",
-        "username": "Kullanıcı Adı",
-        "info": "Backups are stored locally in the application data directory. Use the list below to restore or delete backups."
+        "username": "Kullanıcı Adı"
       },
       "messages": {
         "webdavUrlRequired": "WebDAV URL'si boş olamaz",
@@ -417,11 +398,7 @@
         "scheduleHelper": "Create local backups in the background at the configured interval.",
         "intervalLabel": "Backup frequency",
         "changeLabel": "Backup on critical changes",
-        "changeHelper": "Automatically backup when Global Extend Config/Script changes.",
-        "options": {
-          "hours": "Every {{n}} hours",
-          "days": "Every {{n}} days"
-        }
+        "changeHelper": "Automatically backup when Global Extend Config/Script changes."
       },
       "manual": {
         "title": "Manual backup",
@@ -438,13 +415,6 @@
       },
       "webdav": {
         "title": "WebDAV settings"
-      },
-      "table": {
-        "filename": "Dosya Adı",
-        "backupTime": "Yedekleme Zamanı",
-        "actions": "İşlemler",
-        "noBackups": "Kullanılabilir yedek yok",
-        "rowsPerPage": "Rows per page"
       }
     },
     "misc": {
@@ -714,7 +684,6 @@
         "geoDataUpdated": "GeoData Güncellendi"
       },
       "clashService": {
-        "installSuccess": "Hizmet Başarıyla Kuruldu",
         "uninstallSuccess": "Hizmet Başarıyla Kaldırıldı"
       },
       "updater": {
@@ -728,7 +697,6 @@
       "restarting": "Restarting Core..."
     },
     "clashService": {
-      "installing": "Hizmet Kuruluyor...",
       "uninstalling": "Uninstalling Service..."
     }
   }

@@ -2,24 +2,12 @@
   "page": {
     "actions": {
       "testAll": "測試全部"
-    },
-    "title": "測試"
+    }
   },
   "components": {
     "item": {
       "actions": {
         "test": "測試"
-      }
-    }
-  },
-  "modals": {
-    "test": {
-      "title": {
-        "create": "新增測試",
-        "edit": "編輯測試"
-      },
-      "fields": {
-        "url": "測試網址"
       }
     }
   },

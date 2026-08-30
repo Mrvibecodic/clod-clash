@@ -1,9 +1,5 @@
 {
   "page": {
-    "actions": {
-      "manual": "문서",
-      "github": "GitHub 저장소"
-    },
     "title": "설정"
   },
   "sections": {
@@ -262,16 +258,9 @@
           "errorColor": "오류 색상",
           "successColor": "성공 색상",
           "fontFamily": "글꼴",
-          "cssInjection": "CSS 삽입",
           "accentPresets": "Accent presets",
           "providerTheme": "제공자 스타일",
           "providerThemeHint": "구독의 색상·테마·배경 — 직접 설정하기 전까지"
-        },
-        "actions": {
-          "editCss": "CSS 편집"
-        },
-        "dialogs": {
-          "editCssTitle": "CSS 편집"
         }
       },
       "layout": {
@@ -282,7 +271,6 @@
           "toastPosition": "토스트 위치",
           "hoverNavigator": "호버 점프 내비게이터",
           "hoverNavigatorDelay": "호버 점프 내비게이터 지연",
-          "navIcon": "내비게이션 아이콘",
           "trayIcon": "트레이 아이콘",
           "proxyGroupsDisplayMode": "Proxy Groups Display Mode",
           "showOutboundModesInline": "Show Outbound Modes Inline",
@@ -290,8 +278,7 @@
           "systemProxyTrayIcon": "시스템 프록시 트레이 아이콘",
           "tunTrayIcon": "TUN 트레이 아이콘",
           "enableTrayIcon": "트레이 아이콘 사용",
-          "enableTraySpeed": "트레이 속도 표시 사용",
-          "pauseRenderTrafficStatsOnBlur": "포커스를 잃으면 트래픽 통계 렌더링 일시 중지"
+          "enableTraySpeed": "트레이 속도 표시 사용"
         },
         "tooltips": {
           "hoverNavigator": "알파벳에 마우스를 올리면 해당 프록시 그룹으로 자동 스크롤합니다",
@@ -300,8 +287,7 @@
         "options": {
           "icon": {
             "monochrome": "단색",
-            "colorful": "컬러",
-            "disable": "비활성화"
+            "colorful": "컬러"
           },
           "toastPosition": {
             "topLeft": "왼쪽 상단",
@@ -375,20 +361,15 @@
         "webdav": "WebDAV 백업"
       },
       "actions": {
-        "selectTarget": "백업 대상 선택",
         "backup": "백업",
-        "export": "내보내기",
-        "exportBackup": "백업 내보내기",
         "importBackup": "백업 가져오기",
         "deleteBackup": "백업 삭제",
-        "restore": "복원",
         "restoreBackup": "백업 복원",
         "viewHistory": "View history"
       },
       "fields": {
         "webdavUrl": "WebDAV 서버 URL",
-        "username": "사용자 이름",
-        "info": "백업은 애플리케이션 데이터 디렉터리에 로컬로 저장됩니다. 아래 목록을 사용해 복원하거나 삭제할 수 있습니다."
+        "username": "사용자 이름"
       },
       "messages": {
         "webdavUrlRequired": "WebDAV URL은 비워둘 수 없습니다",
@@ -417,11 +398,7 @@
         "scheduleHelper": "Create local backups in the background at the configured interval.",
         "intervalLabel": "Backup frequency",
         "changeLabel": "Backup on critical changes",
-        "changeHelper": "Automatically backup when Global Extend Config/Script changes.",
-        "options": {
-          "hours": "Every {{n}} hours",
-          "days": "Every {{n}} days"
-        }
+        "changeHelper": "Automatically backup when Global Extend Config/Script changes."
       },
       "manual": {
         "title": "Manual backup",
@@ -438,13 +415,6 @@
       },
       "webdav": {
         "title": "WebDAV settings"
-      },
-      "table": {
-        "filename": "파일명",
-        "backupTime": "백업 시간",
-        "actions": "작업",
-        "noBackups": "사용 가능한 백업이 없습니다",
-        "rowsPerPage": "페이지당 행 수"
       }
     },
     "misc": {
@@ -714,7 +684,6 @@
         "geoDataUpdated": "GeoData가 업데이트되었습니다"
       },
       "clashService": {
-        "installSuccess": "서비스가 설치되었습니다",
         "uninstallSuccess": "서비스가 제거되었습니다"
       },
       "updater": {
@@ -728,7 +697,6 @@
       "restarting": "코어 재시작 중..."
     },
     "clashService": {
-      "installing": "서비스 설치 중...",
       "uninstalling": "서비스 제거 중..."
     }
   }

@@ -2,24 +2,12 @@
   "page": {
     "actions": {
       "testAll": "모두 테스트"
-    },
-    "title": "테스트"
+    }
   },
   "components": {
     "item": {
       "actions": {
         "test": "테스트"
-      }
-    }
-  },
-  "modals": {
-    "test": {
-      "title": {
-        "create": "테스트 생성",
-        "edit": "테스트 편집"
-      },
-      "fields": {
-        "url": "테스트 URL"
       }
     }
   },

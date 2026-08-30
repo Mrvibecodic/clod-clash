@@ -14,10 +14,6 @@
     "restart": "重启内核",
     "resetToDefault": "重置为默认值",
     "refresh": "刷新",
-    "retry": "重试",
-    "refreshPage": "刷新页面",
-    "showDetails": "显示详情",
-    "hideDetails": "隐藏详情",
     "listView": "列表视图",
     "tableView": "表格视图",
     "pause": "暂停",
@@ -31,15 +27,12 @@
   "labels": {
     "updateAt": "更新于",
     "timeout": "超时",
-    "icon": "图标",
-    "name": "名称",
     "readOnly": "只读",
     "expireTime": "到期时间",
     "updateTime": "更新时间",
     "usedTotal": "已使用 / 总量",
     "from": "来自",
     "password": "密码",
-    "retryAttempts": "重试次数",
     "downloaded": "下载量",
     "uploaded": "上传量"
   },
@@ -77,8 +70,6 @@
   },
   "feedback": {
     "errors": {
-      "trafficStats": "流量统计错误",
-      "trafficStatsDescription": "流量统计组件发生错误，为防止崩溃已暂时停用。",
       "core": {
         "noSuchHost": "找不到域名 — 请检查订阅地址和网络连接",
         "connectionRefused": "服务器拒绝连接 — 可能已关闭或端口未开放",
@@ -109,10 +100,7 @@
       "explained": "{{prefix}} · {{message}}"
     },
     "notifications": {
-      "importSuccess": "导入订阅成功",
       "importSubscriptionSuccess": "导入订阅成功",
-      "importWithClashProxy": "使用 Clash 代理导入订阅成功",
-      "updateAvailable": "有可用更新",
       "saved": "保存成功",
       "common": {
         "copySuccess": "复制成功",

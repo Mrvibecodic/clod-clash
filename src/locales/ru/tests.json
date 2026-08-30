@@ -2,24 +2,12 @@
   "page": {
     "actions": {
       "testAll": "Проверить все"
-    },
-    "title": "Тест"
+    }
   },
   "components": {
     "item": {
       "actions": {
         "test": "Проверить"
-      }
-    }
-  },
-  "modals": {
-    "test": {
-      "title": {
-        "create": "Создать тест",
-        "edit": "Редактировать тест"
-      },
-      "fields": {
-        "url": "URL для проверки"
       }
     }
   },

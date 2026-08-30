@@ -1,9 +1,5 @@
 {
   "page": {
-    "actions": {
-      "manual": "دليل",
-      "github": "مستودع Github"
-    },
     "title": "الإعدادات"
   },
   "sections": {
@@ -262,16 +258,9 @@
           "errorColor": "لون الخطأ",
           "successColor": "لون النجاح",
           "fontFamily": "عائلة الخط",
-          "cssInjection": "حقن CSS",
           "accentPresets": "Accent presets",
           "providerTheme": "مظهر من المزوّد",
           "providerThemeHint": "اللون والسمة والخلفية من الاشتراك — حتى تحدد الخاصة بك"
-        },
-        "actions": {
-          "editCss": "Edit CSS"
-        },
-        "dialogs": {
-          "editCssTitle": "Edit CSS"
         }
       },
       "layout": {
@@ -282,7 +271,6 @@
           "toastPosition": "Toast Position",
           "hoverNavigator": "Hover Jump Navigator",
           "hoverNavigatorDelay": "Hover Jump Navigator Delay",
-          "navIcon": "أيقونة التنقل",
           "trayIcon": "أيقونة شريط المهام",
           "proxyGroupsDisplayMode": "Proxy Groups Display Mode",
           "showOutboundModesInline": "Show Outbound Modes Inline",
@@ -290,8 +278,7 @@
           "systemProxyTrayIcon": "أيقونة شريط المهام لوكيل النظام",
           "tunTrayIcon": "أيقونة شريط المهام لـ TUN",
           "enableTrayIcon": "Enable Tray Icon",
-          "enableTraySpeed": "تفعيل سرعة التراي",
-          "pauseRenderTrafficStatsOnBlur": "إيقاف عرض إحصاءات حركة المرور مؤقتًا عند فقدان التركيز"
+          "enableTraySpeed": "تفعيل سرعة التراي"
         },
         "tooltips": {
           "hoverNavigator": "Automatically scroll to the corresponding proxy group when hovering over alphabet letters",
@@ -300,8 +287,7 @@
         "options": {
           "icon": {
             "monochrome": "أحادي اللون",
-            "colorful": "ملون",
-            "disable": "تعطيل"
+            "colorful": "ملون"
           },
           "toastPosition": {
             "topLeft": "Top Left",
@@ -375,20 +361,15 @@
         "webdav": "WebDAV backup"
       },
       "actions": {
-        "selectTarget": "Select backup target",
         "backup": "نسخ احتياطي",
-        "export": "Export",
-        "exportBackup": "Export Backup",
         "importBackup": "Import Backup",
         "deleteBackup": "حذف النسخة الاحتياطية",
-        "restore": "استعادة",
         "restoreBackup": "استعادة النسخة الاحتياطية",
         "viewHistory": "View history"
       },
       "fields": {
         "webdavUrl": "عنوان خادم WebDAV",
-        "username": "اسم المستخدم",
-        "info": "Backups are stored locally in the application data directory. Use the list below to restore or delete backups."
+        "username": "اسم المستخدم"
       },
       "messages": {
         "webdavUrlRequired": "لا يمكن ترك رابط WebDAV فارغًا",
@@ -417,11 +398,7 @@
         "scheduleHelper": "Create local backups in the background at the configured interval.",
         "intervalLabel": "Backup frequency",
         "changeLabel": "Backup on critical changes",
-        "changeHelper": "Automatically backup when Global Extend Config/Script changes.",
-        "options": {
-          "hours": "Every {{n}} hours",
-          "days": "Every {{n}} days"
-        }
+        "changeHelper": "Automatically backup when Global Extend Config/Script changes."
       },
       "manual": {
         "title": "Manual backup",
@@ -438,13 +415,6 @@
       },
       "webdav": {
         "title": "WebDAV settings"
-      },
-      "table": {
-        "filename": "اسم الملف",
-        "backupTime": "وقت النسخ الاحتياطي",
-        "actions": "الإجراءات",
-        "noBackups": "لا توجد نسخ احتياطية متاحة",
-        "rowsPerPage": "Rows per page"
       }
     },
     "misc": {
@@ -714,7 +684,6 @@
         "geoDataUpdated": "تم تحديث البيانات الجغرافية"
       },
       "clashService": {
-        "installSuccess": "تم تثبيت الخدمة بنجاح",
         "uninstallSuccess": "تم إلغاء تثبيت الخدمة بنجاح"
       },
       "updater": {
@@ -728,7 +697,6 @@
       "restarting": "Restarting Core..."
     },
     "clashService": {
-      "installing": "جاري تثبيت الخدمة...",
       "uninstalling": "Uninstalling Service..."
     }
   }

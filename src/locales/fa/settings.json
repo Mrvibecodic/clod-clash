@@ -1,9 +1,5 @@
 {
   "page": {
-    "actions": {
-      "manual": "راهنما",
-      "github": "مخزن GitHub"
-    },
     "title": "تنظیمات"
   },
   "sections": {
@@ -262,16 +258,9 @@
           "errorColor": "رنگ خطا",
           "successColor": "رنگ موفقیت",
           "fontFamily": "خانواده فونت",
-          "cssInjection": "تزریق CSS",
           "accentPresets": "Accent presets",
           "providerTheme": "ظاهر از ارائه‌دهنده",
           "providerThemeHint": "رنگ، تم و پس‌زمینه از اشتراک — تا زمانی که خودتان تنظیم نکنید"
-        },
-        "actions": {
-          "editCss": "Edit CSS"
-        },
-        "dialogs": {
-          "editCssTitle": "Edit CSS"
         }
       },
       "layout": {
@@ -282,7 +271,6 @@
           "toastPosition": "Toast Position",
           "hoverNavigator": "Hover Jump Navigator",
           "hoverNavigatorDelay": "Hover Jump Navigator Delay",
-          "navIcon": "آیکون ناوبری",
           "trayIcon": "آیکون سینی سیستم",
           "proxyGroupsDisplayMode": "Proxy Groups Display Mode",
           "showOutboundModesInline": "Show Outbound Modes Inline",
@@ -290,8 +278,7 @@
           "systemProxyTrayIcon": "آیکون سینی پراکسی سیستم",
           "tunTrayIcon": "آیکون سینی Tun",
           "enableTrayIcon": "Enable Tray Icon",
-          "enableTraySpeed": "فعال کردن سرعت ترای",
-          "pauseRenderTrafficStatsOnBlur": "توقف رندر آمار ترافیک هنگام از دست رفتن فوکوس"
+          "enableTraySpeed": "فعال کردن سرعت ترای"
         },
         "tooltips": {
           "hoverNavigator": "Automatically scroll to the corresponding proxy group when hovering over alphabet letters",
@@ -300,8 +287,7 @@
         "options": {
           "icon": {
             "monochrome": "تک رنگ",
-            "colorful": "رنگارنگ",
-            "disable": "غیرفعال کردن"
+            "colorful": "رنگارنگ"
           },
           "toastPosition": {
             "topLeft": "Top Left",
@@ -375,20 +361,15 @@
         "webdav": "WebDAV backup"
       },
       "actions": {
-        "selectTarget": "Select backup target",
         "backup": "پشتیبان‌گیری",
-        "export": "Export",
-        "exportBackup": "Export Backup",
         "importBackup": "Import Backup",
         "deleteBackup": "حذف پشتیبان",
-        "restore": "بازیابی",
         "restoreBackup": "بازیابی پشتیبان",
         "viewHistory": "View history"
       },
       "fields": {
         "webdavUrl": "http(s):// URL سرور WebDAV",
-        "username": "نام کاربری",
-        "info": "Backups are stored locally in the application data directory. Use the list below to restore or delete backups."
+        "username": "نام کاربری"
       },
       "messages": {
         "webdavUrlRequired": "آدرس WebDAV نمی‌تواند خالی باشد",
@@ -417,11 +398,7 @@
         "scheduleHelper": "Create local backups in the background at the configured interval.",
         "intervalLabel": "Backup frequency",
         "changeLabel": "Backup on critical changes",
-        "changeHelper": "Automatically backup when Global Extend Config/Script changes.",
-        "options": {
-          "hours": "Every {{n}} hours",
-          "days": "Every {{n}} days"
-        }
+        "changeHelper": "Automatically backup when Global Extend Config/Script changes."
       },
       "manual": {
         "title": "پشتیبان گیری دستی",
@@ -438,13 +415,6 @@
       },
       "webdav": {
         "title": "پیکربندی WebDAV"
-      },
-      "table": {
-        "filename": "نام فایل",
-        "backupTime": "زمان پشتیبان‌گیری",
-        "actions": "عملیات",
-        "noBackups": "هیچ پشتیبانی موجود نیست",
-        "rowsPerPage": "Rows per page"
       }
     },
     "misc": {
@@ -714,7 +684,6 @@
         "geoDataUpdated": "GeoData به‌روزرسانی شد"
       },
       "clashService": {
-        "installSuccess": "سرویس با موفقیت نصب شد",
         "uninstallSuccess": "سرویس با موفقیت حذف نصب شد"
       },
       "updater": {
@@ -728,7 +697,6 @@
       "restarting": "Restarting Core..."
     },
     "clashService": {
-      "installing": "در حال نصب سرویس...",
       "uninstalling": "در حال حذف سرویس..."
     }
   }

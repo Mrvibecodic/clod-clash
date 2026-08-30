@@ -2,9 +2,6 @@
   "page": {
     "actions": {
       "updateAll": "Alle Abonnements aktualisieren",
-      "viewRuntimeConfig": "Laufzeit-Abonnement anzeigen",
-      "reactivate": "Abonnement erneut aktivieren",
-      "import": "Importieren",
       "addSubscription": "Add subscription"
     },
     "tooltips": {
@@ -24,7 +21,6 @@
       "title": "Batch Operations"
     },
     "importForm": {
-      "placeholder": "Abonnement-Datei-Link",
       "actions": {
         "paste": "Einfügen"
       }
@@ -35,10 +31,6 @@
         "onlyYaml": "Nur YAML-Dateien werden unterstützt"
       },
       "notifications": {
-        "importRetry": "Import des Abonnements fehlgeschlagen. Versuche es mit dem Clash-Proxy erneut...",
-        "importFail": "Import des Abonnements auch mit Clash-Proxy fehlgeschlagen",
-        "importNeedsRefresh": "Profile imported but may need manual refresh",
-        "importSuccess": "Profile imported successfully, please restart if not visible",
         "profileSwitched": "Abonnement gewechselt",
         "profileReactivated": "Abonnement erneut aktiviert",
         "switchBusy": "Profile switch is already in progress",
@@ -59,11 +51,6 @@
     }
   },
   "components": {
-    "card": {
-      "labels": {
-        "clickToImport": "Klicken Sie hier, um ein Abonnement zu importieren."
-      }
-    },
     "fileInput": {
       "chooseFile": "Datei auswählen"
     },
@@ -81,16 +68,6 @@
       "openFile": "Datei öffnen",
       "update": "Aktualisieren",
       "updateViaProxy": "Update via proxy"
-    },
-    "more": {
-      "global": {
-        "merge": "Global Extend Config",
-        "script": "Global Extend Script"
-      },
-      "chips": {
-        "merge": "Merge",
-        "script": "Script"
-      }
     },
     "profileItem": {
       "tooltips": {
@@ -143,7 +120,6 @@
         "added": "Subscription added"
       },
       "fields": {
-        "type": "Typ",
         "description": "Beschreibung",
         "subscriptionUrl": "Abonnement-Link",
         "httpTimeout": "HTTP Request Timeout",
@@ -166,8 +142,7 @@
       },
       "feedback": {
         "notifications": {
-          "creationRetry": "Erstellung des Abonnements fehlgeschlagen. Versuche es mit dem Clash-Proxy erneut...",
-          "creationSuccess": "Erstellung des Abonnements mit Clash-Proxy erfolgreich"
+          "creationRetry": "Erstellung des Abonnements fehlgeschlagen. Versuche es mit dem Clash-Proxy erneut..."
         },
         "added": "✓ Subscription added!",
         "failed": "That did not work. Check the link or get a new one where you bought the subscription",
@@ -244,9 +219,6 @@
     "confirmDelete": {
       "title": "Löschung bestätigen",
       "message": "Diese Operation kann nicht rückgängig gemacht werden"
-    },
-    "logViewer": {
-      "title": "Skript-Konsole-Ausgabe"
     },
     "qrViewer": {
       "title": "Subscription QR Code"

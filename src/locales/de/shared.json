@@ -14,10 +14,6 @@
     "restart": "Kern neustarten",
     "resetToDefault": "Auf Standardwerte zurücksetzen",
     "refresh": "Aktualisieren",
-    "retry": "Retry",
-    "refreshPage": "Refresh Page",
-    "showDetails": "Show Details",
-    "hideDetails": "Hide Details",
     "listView": "Listenansicht",
     "tableView": "Tabellenansicht",
     "pause": "Pausieren",
@@ -31,15 +27,12 @@
   "labels": {
     "updateAt": "Aktualisiert am",
     "timeout": "Timeout",
-    "icon": "Symbol",
-    "name": "Name",
     "readOnly": "Schreibgeschützt",
     "expireTime": "Ablaufzeit",
     "updateTime": "Aktualisierungszeit",
     "usedTotal": "Verwendet / Gesamt",
     "from": "Von",
     "password": "Passwort",
-    "retryAttempts": "Retry attempts",
     "downloaded": "Heruntergeladen",
     "uploaded": "Hochgeladen"
   },
@@ -77,8 +70,6 @@
   },
   "feedback": {
     "errors": {
-      "trafficStats": "Traffic Statistics Error",
-      "trafficStatsDescription": "The traffic statistics component encountered an error and has been disabled to prevent crashes.",
       "core": {
         "noSuchHost": "Domain nicht gefunden — prüfen Sie die Abo-Adresse und Ihre Internetverbindung",
         "connectionRefused": "Der Server hat die Verbindung abgelehnt — er ist womöglich aus oder der Port ist zu",
@@ -109,10 +100,7 @@
       "explained": "{{prefix}} · {{message}}"
     },
     "notifications": {
-      "importSuccess": "Abonnement erfolgreich importiert",
       "importSubscriptionSuccess": "Abonnement erfolgreich importiert",
-      "importWithClashProxy": "Abonnement mit Clash-Proxy importiert",
-      "updateAvailable": "Update Available",
       "saved": "Saved successfully",
       "common": {
         "copySuccess": "Kopieren erfolgreich",

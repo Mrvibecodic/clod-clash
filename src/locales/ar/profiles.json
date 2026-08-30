@@ -2,9 +2,6 @@
   "page": {
     "actions": {
       "updateAll": "تحديث جميع الملفات الشخصية",
-      "viewRuntimeConfig": "عرض تكوين وقت التشغيل",
-      "reactivate": "إعادة تنشيط الملفات الشخصية",
-      "import": "استيراد",
       "addSubscription": "Add subscription"
     },
     "tooltips": {
@@ -24,7 +21,6 @@
       "title": "Batch Operations"
     },
     "importForm": {
-      "placeholder": "رابط الملف الشخصي",
       "actions": {
         "paste": "لصق"
       }
@@ -35,10 +31,6 @@
         "onlyYaml": "لا يتم دعم سوى ملفات YAML"
       },
       "notifications": {
-        "importRetry": "Import failed, retrying with Clash proxy...",
-        "importFail": "Import failed even with Clash proxy",
-        "importNeedsRefresh": "Profile imported but may need manual refresh",
-        "importSuccess": "Profile imported successfully, please restart if not visible",
         "profileSwitched": "تم التبديل إلى الملف الشخصي",
         "profileReactivated": "تم إعادة تنشيط الملف الشخصي",
         "switchBusy": "Profile switch is already in progress",
@@ -59,11 +51,6 @@
     }
   },
   "components": {
-    "card": {
-      "labels": {
-        "clickToImport": "Click to import subscription"
-      }
-    },
     "fileInput": {
       "chooseFile": "اختر ملف"
     },
@@ -81,16 +68,6 @@
       "openFile": "فتح الملف",
       "update": "تحديث",
       "updateViaProxy": "Update via proxy"
-    },
-    "more": {
-      "global": {
-        "merge": "Global Extend Config",
-        "script": "Global Extend Script"
-      },
-      "chips": {
-        "merge": "Merge",
-        "script": "Script"
-      }
     },
     "profileItem": {
       "tooltips": {
@@ -143,7 +120,6 @@
         "added": "Subscription added"
       },
       "fields": {
-        "type": "النوع",
         "description": "الوصف",
         "subscriptionUrl": "رابط الاشتراك",
         "httpTimeout": "HTTP Request Timeout",
@@ -166,8 +142,7 @@
       },
       "feedback": {
         "notifications": {
-          "creationRetry": "Profile creation failed, retrying with Clash proxy...",
-          "creationSuccess": "Profile creation succeeded with Clash proxy"
+          "creationRetry": "Profile creation failed, retrying with Clash proxy..."
         },
         "added": "✓ Subscription added!",
         "failed": "That did not work. Check the link or get a new one where you bought the subscription",
@@ -244,9 +219,6 @@
     "confirmDelete": {
       "title": "تأكيد الحذف",
       "message": "لا يمكن التراجع عن هذه العملية"
-    },
-    "logViewer": {
-      "title": "وحدة التحكم للسكريبت"
     },
     "qrViewer": {
       "title": "Subscription QR Code"

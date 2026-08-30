@@ -2,24 +2,12 @@
   "page": {
     "actions": {
       "testAll": "すべてテスト"
-    },
-    "title": "テスト"
+    }
   },
   "components": {
     "item": {
       "actions": {
         "test": "テスト"
-      }
-    }
-  },
-  "modals": {
-    "test": {
-      "title": {
-        "create": "新規テストを作成",
-        "edit": "テストを編集"
-      },
-      "fields": {
-        "url": "テストURL"
       }
     }
   },

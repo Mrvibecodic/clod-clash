@@ -14,10 +14,6 @@
     "restart": "Yeniden Başlat",
     "resetToDefault": "Varsayılana Sıfırla",
     "refresh": "Yenile",
-    "retry": "Retry",
-    "refreshPage": "Refresh Page",
-    "showDetails": "Show Details",
-    "hideDetails": "Hide Details",
     "listView": "Liste Görünümü",
     "tableView": "Tablo Görünümü",
     "pause": "Duraklat",
@@ -31,15 +27,12 @@
   "labels": {
     "updateAt": "Güncelleme Zamanı",
     "timeout": "Timeout",
-    "icon": "Simge",
-    "name": "İsim",
     "readOnly": "Salt Okunur",
     "expireTime": "Sona Erme Zamanı",
     "updateTime": "Güncelleme Zamanı",
     "usedTotal": "Kullanılan / Toplam",
     "from": "Kaynak",
     "password": "Şifre",
-    "retryAttempts": "Retry attempts",
     "downloaded": "İndirilen",
     "uploaded": "Yüklenen"
   },
@@ -77,8 +70,6 @@
   },
   "feedback": {
     "errors": {
-      "trafficStats": "Traffic Statistics Error",
-      "trafficStatsDescription": "The traffic statistics component encountered an error and has been disabled to prevent crashes.",
       "core": {
         "noSuchHost": "Alan adı bulunamadı — abonelik adresini ve internet bağlantınızı kontrol edin",
         "connectionRefused": "Sunucu bağlantıyı reddetti — kapalı olabilir ya da port kapalıdır",
@@ -109,10 +100,7 @@
       "explained": "{{prefix}} · {{message}}"
     },
     "notifications": {
-      "importSuccess": "Profil Başarıyla İçe Aktarıldı",
       "importSubscriptionSuccess": "Abonelik içe aktarımı başarılı",
-      "importWithClashProxy": "Profil Clash vekil ile içe aktarıldı",
-      "updateAvailable": "Update Available",
       "saved": "Saved successfully",
       "common": {
         "copySuccess": "Kopyalama Başarılı",

@@ -43,25 +43,7 @@ export interface TranslationResources {
           promoTitle: string
           showFull: string
         }
-        clashInfo: {
-          fields: {
-            coreVersion: string
-            mixedPort: string
-            rulesCount: string
-            systemProxyAddress: string
-            uptime: string
-          }
-          title: string
-        }
         clashMode: {
-          descriptions: {
-            direct: string
-            global: string
-            rule: string
-          }
-          errors: {
-            communication: string
-          }
           labels: {
             direct: string
             global: string
@@ -80,40 +62,11 @@ export interface TranslationResources {
             on: string
           }
         }
-        currentProxy: {
-          actions: {
-            refreshDelay: string
-          }
-          labels: {
-            directMode: string
-            globalMode: string
-            group: string
-            noActiveNode: string
-            proxy: string
-          }
-          title: string
-        }
         firewallStatus: {
           blocked: string
           failed: string
           fix: string
           fixing: string
-        }
-        ipInfo: {
-          errors: {
-            load: string
-          }
-          labels: {
-            asn: string
-            autoRefresh: string
-            ip: string
-            isp: string
-            location: string
-            org: string
-            timezone: string
-            unknown: string
-          }
-          title: string
         }
         modeStatus: {
           lockedHint: string
@@ -129,19 +82,6 @@ export interface TranslationResources {
         providerHeader: {
           active: string
           expired: string
-        }
-        proxyTun: {
-          status: {
-            systemProxyDisabled: string
-            systemProxyEnabled: string
-            tunModeDisabled: string
-            tunModeEnabled: string
-            tunModeServiceRequired: string
-          }
-          tooltips: {
-            systemProxy: string
-            tunMode: string
-          }
         }
         quickActions: {
           autoLaunch: string
@@ -211,7 +151,6 @@ export interface TranslationResources {
           }
           daysShort: string
           expiredShort: string
-          expires: string
           expiryApproximate: string
           expiryClockOff: string
           expiryTitle: string
@@ -223,28 +162,6 @@ export interface TranslationResources {
           untilTimeToday: string
           untilTimeTomorrow: string
           updated: string
-        }
-        systemInfo: {
-          actions: {
-            settings: string
-          }
-          badges: {
-            adminMode: string
-            adminServiceMode: string
-            serviceMode: string
-            sidecarMode: string
-          }
-          fields: {
-            autoLaunch: string
-            lastCheckUpdate: string
-            osInfo: string
-            runningMode: string
-            vergeVersion: string
-          }
-          title: string
-        }
-        tests: {
-          title: string
         }
         tunStatus: {
           broken: string
@@ -261,52 +178,21 @@ export interface TranslationResources {
           settingUp: string
         }
       }
-      page: {
-        cards: {
-          networkSettings: string
-          proxyMode: string
-          trafficStats: string
-        }
-        settings: {
-          cards: {
-            clashInfo: string
-            currentProxy: string
-            ip: string
-            network: string
-            profile: string
-            proxyMode: string
-            systemInfo: string
-            tests: string
-            traffic: string
-          }
-          title: string
-        }
-        title: string
-        tooltips: {
-          lightweightMode: string
-          manual: string
-          settings: string
-        }
-      }
       pages: {
         advanced: {
           tiles: {
             connectionsHint: string
             logsHint: string
-            portalHint: string
             profilesHint: string
             proxiesHint: string
             refresh: string
             rulesHint: string
             settingsHint: string
             subscriptions: string
-            supportHint: string
           }
           toSimple: string
         }
         simple: {
-          daysLeft: string
-          portal: string
           subscriptionPlaceholder: string
           toAdvanced: string
           welcome: string
@@ -345,11 +231,6 @@ export interface TranslationResources {
     }
     profiles: {
       components: {
-        card: {
-          labels: {
-            clickToImport: string
-          }
-        }
         fileInput: {
           chooseFile: string
         }
@@ -378,16 +259,6 @@ export interface TranslationResources {
           shareQrCode: string
           update: string
           updateViaProxy: string
-        }
-        more: {
-          chips: {
-            merge: string
-            script: string
-          }
-          global: {
-            merge: string
-            script: string
-          }
         }
         profileItem: {
           actions: {
@@ -468,9 +339,6 @@ export interface TranslationResources {
             lazy: string
           }
         }
-        logViewer: {
-          title: string
-        }
         profileForm: {
           actions: {
             useFile: string
@@ -492,7 +360,6 @@ export interface TranslationResources {
             loading5: string
             notifications: {
               creationRetry: string
-              creationSuccess: string
             }
           }
           fields: {
@@ -509,7 +376,6 @@ export interface TranslationResources {
             secureChannel: string
             secureKey: string
             subscriptionUrl: string
-            type: string
             updateInterval: string
             useClashProxy: string
             useSystemProxy: string
@@ -541,10 +407,7 @@ export interface TranslationResources {
       page: {
         actions: {
           addSubscription: string
-          import: string
-          reactivate: string
           updateAll: string
-          viewRuntimeConfig: string
         }
         batch: {
           actions: {
@@ -572,10 +435,6 @@ export interface TranslationResources {
             batchDeleted: string
             editorBrokenYaml: string
             fallbackUsed: string
-            importFail: string
-            importNeedsRefresh: string
-            importRetry: string
-            importSuccess: string
             profileReactivated: string
             profileSwitched: string
             proxyLinksSkipped: string
@@ -590,7 +449,6 @@ export interface TranslationResources {
           actions: {
             paste: string
           }
-          placeholder: string
         }
         title: string
         tooltips: {
@@ -859,8 +717,6 @@ export interface TranslationResources {
               enableTraySpeed: string
               hoverNavigator: string
               hoverNavigatorDelay: string
-              navIcon: string
-              pauseRenderTrafficStatsOnBlur: string
               preferSystemTitlebar: string
               proxyGroupIcon: string
               proxyGroupsDisplayMode: string
@@ -873,7 +729,6 @@ export interface TranslationResources {
             options: {
               icon: {
                 colorful: string
-                disable: string
                 monochrome: string
               }
               proxyGroupsDisplayMode: {
@@ -895,15 +750,8 @@ export interface TranslationResources {
             }
           }
           theme: {
-            actions: {
-              editCss: string
-            }
-            dialogs: {
-              editCssTitle: string
-            }
             fields: {
               accentPresets: string
-              cssInjection: string
               errorColor: string
               fontFamily: string
               infoColor: string
@@ -932,7 +780,6 @@ export interface TranslationResources {
             versionUpdated: string
           }
           clashService: {
-            installSuccess: string
             uninstallSuccess: string
           }
           updater: {
@@ -945,28 +792,19 @@ export interface TranslationResources {
           actions: {
             backup: string
             deleteBackup: string
-            export: string
-            exportBackup: string
             importBackup: string
-            restore: string
             restoreBackup: string
-            selectTarget: string
             viewHistory: string
           }
           auto: {
             changeHelper: string
             changeLabel: string
             intervalLabel: string
-            options: {
-              days: string
-              hours: string
-            }
             scheduleHelper: string
             scheduleLabel: string
             title: string
           }
           fields: {
-            info: string
             username: string
             webdavUrl: string
           }
@@ -1003,13 +841,6 @@ export interface TranslationResources {
             webdavRefreshFailed: string
             webdavRefreshSuccess: string
             webdavUrlRequired: string
-          }
-          table: {
-            actions: string
-            backupTime: string
-            filename: string
-            noBackups: string
-            rowsPerPage: string
           }
           tabs: {
             local: string
@@ -1320,10 +1151,6 @@ export interface TranslationResources {
         }
       }
       page: {
-        actions: {
-          github: string
-          manual: string
-        }
         title: string
       }
       sections: {
@@ -1505,7 +1332,6 @@ export interface TranslationResources {
           stopping: string
         }
         clashService: {
-          installing: string
           uninstalling: string
         }
       }
@@ -1523,20 +1349,16 @@ export interface TranslationResources {
         done: string
         edit: string
         enable: string
-        hideDetails: string
         listView: string
         new: string
         next: string
         pause: string
         previous: string
         refresh: string
-        refreshPage: string
         resetToDefault: string
         restart: string
         resume: string
-        retry: string
         save: string
-        showDetails: string
         tableView: string
         upgrade: string
       }
@@ -1569,8 +1391,6 @@ export interface TranslationResources {
             unreachable: string
             unsupportedProxy: string
           }
-          trafficStats: string
-          trafficStatsDescription: string
         }
         notices: {
           explained: string
@@ -1587,10 +1407,7 @@ export interface TranslationResources {
             supportBundleCopied: string
           }
           importSubscriptionSuccess: string
-          importSuccess: string
-          importWithClashProxy: string
           saved: string
-          updateAvailable: string
         }
         validation: {
           config: {
@@ -1633,11 +1450,8 @@ export interface TranslationResources {
         downloaded: string
         expireTime: string
         from: string
-        icon: string
-        name: string
         password: string
         readOnly: string
-        retryAttempts: string
         timeout: string
         updateAt: string
         updateTime: string
@@ -1691,22 +1505,10 @@ export interface TranslationResources {
           }
         }
       }
-      modals: {
-        test: {
-          fields: {
-            url: string
-          }
-          title: {
-            create: string
-            edit: string
-          }
-        }
-      }
       page: {
         actions: {
           testAll: string
         }
-        title: string
       }
       statuses: {
         test: {

@@ -2,9 +2,6 @@
   "page": {
     "actions": {
       "updateAll": "Actualizar todas las suscripciones",
-      "viewRuntimeConfig": "Ver configuración en tiempo de ejecución",
-      "reactivate": "Reactivar suscripciones",
-      "import": "Importar",
       "addSubscription": "Add subscription"
     },
     "tooltips": {
@@ -24,7 +21,6 @@
       "title": "Batch Operations"
     },
     "importForm": {
-      "placeholder": "Enlace del archivo de suscripción",
       "actions": {
         "paste": "Pegar"
       }
@@ -35,10 +31,6 @@
         "onlyYaml": "Solo se admiten archivos YAML"
       },
       "notifications": {
-        "importRetry": "Error al importar la suscripción. Intentando con el proxy de Clash...",
-        "importFail": "Error al importar incluso con el proxy de Clash",
-        "importNeedsRefresh": "Profile imported but may need manual refresh",
-        "importSuccess": "Profile imported successfully, please restart if not visible",
         "profileSwitched": "Suscripción cambiada",
         "profileReactivated": "Suscripción reactivada",
         "switchBusy": "Profile switch is already in progress",
@@ -59,11 +51,6 @@
     }
   },
   "components": {
-    "card": {
-      "labels": {
-        "clickToImport": "Haga clic para importar una suscripción"
-      }
-    },
     "fileInput": {
       "chooseFile": "Elegir archivo"
     },
@@ -81,16 +68,6 @@
       "openFile": "Abrir archivo",
       "update": "Actualizar",
       "updateViaProxy": "Update via proxy"
-    },
-    "more": {
-      "global": {
-        "merge": "Global Extend Config",
-        "script": "Global Extend Script"
-      },
-      "chips": {
-        "merge": "Merge",
-        "script": "Script"
-      }
     },
     "profileItem": {
       "tooltips": {
@@ -143,7 +120,6 @@
         "added": "Subscription added"
       },
       "fields": {
-        "type": "Tipo",
         "description": "Descripción",
         "subscriptionUrl": "Enlace de suscripción",
         "httpTimeout": "HTTP Request Timeout",
@@ -166,8 +142,7 @@
       },
       "feedback": {
         "notifications": {
-          "creationRetry": "Error al crear la suscripción. Intentando con el proxy de Clash...",
-          "creationSuccess": "Creación de la suscripción con el proxy de Clash exitosa"
+          "creationRetry": "Error al crear la suscripción. Intentando con el proxy de Clash..."
         },
         "added": "✓ Subscription added!",
         "failed": "That did not work. Check the link or get a new one where you bought the subscription",
@@ -244,9 +219,6 @@
     "confirmDelete": {
       "title": "Confirmar eliminación",
       "message": "Esta operación no se puede deshacer"
-    },
-    "logViewer": {
-      "title": "Salida de la consola del script"
     },
     "qrViewer": {
       "title": "Subscription QR Code"

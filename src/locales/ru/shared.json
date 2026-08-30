@@ -14,10 +14,6 @@
     "restart": "Перезапустить",
     "resetToDefault": "Сбросить настройки",
     "refresh": "Обновить",
-    "retry": "Повторить",
-    "refreshPage": "Обновить страницу",
-    "showDetails": "Показать подробности",
-    "hideDetails": "Скрыть подробности",
     "listView": "Отображать в виде списка",
     "tableView": "Отображать в виде таблицы",
     "pause": "Пауза",
@@ -31,15 +27,12 @@
   "labels": {
     "updateAt": "Обновлено в",
     "timeout": "Тайм-аут",
-    "icon": "Иконка",
-    "name": "Название",
     "readOnly": "Только для чтения",
     "expireTime": "Время окончания",
     "updateTime": "Время обновления",
     "usedTotal": "Использовано / Всего",
     "from": "От",
     "password": "Пароль",
-    "retryAttempts": "Число попыток",
     "downloaded": "Скачано",
     "uploaded": "Загружено"
   },
@@ -77,8 +70,6 @@
   },
   "feedback": {
     "errors": {
-      "trafficStats": "Ошибка статистики трафика",
-      "trafficStatsDescription": "Компонент статистики трафика столкнулся с ошибкой и был отключён во избежание сбоев.",
       "core": {
         "noSuchHost": "Домен не найден — проверьте адрес подписки и подключение к интернету",
         "connectionRefused": "Сервер отклонил соединение — возможно, он выключен или порт закрыт",
@@ -109,10 +100,7 @@
       "explained": "{{prefix}} · {{message}}"
     },
     "notifications": {
-      "importSuccess": "Профиль успешно импортирован",
       "importSubscriptionSuccess": "Подписка успешно импортирована",
-      "importWithClashProxy": "Профиль импортирован через Clash proxy",
-      "updateAvailable": "Доступно обновление",
       "saved": "Успешно сохранено",
       "common": {
         "copySuccess": "Скопировано",

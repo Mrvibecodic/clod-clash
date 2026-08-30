@@ -1,9 +1,5 @@
 {
   "page": {
-    "actions": {
-      "manual": "Manual",
-      "github": "Repositori Github"
-    },
     "title": "Pengaturan"
   },
   "sections": {
@@ -262,16 +258,9 @@
           "errorColor": "Warna Kesalahan",
           "successColor": "Warna Keberhasilan",
           "fontFamily": "Keluarga Font",
-          "cssInjection": "Injeksi CSS",
           "accentPresets": "Accent presets",
           "providerTheme": "Tampilan dari penyedia",
           "providerThemeHint": "Warna, tema, dan latar dari langganan — sampai Anda mengatur sendiri"
-        },
-        "actions": {
-          "editCss": "Edit CSS"
-        },
-        "dialogs": {
-          "editCssTitle": "Edit CSS"
         }
       },
       "layout": {
@@ -282,7 +271,6 @@
           "toastPosition": "Posisi toast",
           "hoverNavigator": "Hover Jump Navigator",
           "hoverNavigatorDelay": "Hover Jump Navigator Delay",
-          "navIcon": "Ikon Navigasi",
           "trayIcon": "Ikon Tray",
           "proxyGroupsDisplayMode": "Proxy Groups Display Mode",
           "showOutboundModesInline": "Show Outbound Modes Inline",
@@ -290,8 +278,7 @@
           "systemProxyTrayIcon": "Ikon Tray Proksi Sistem",
           "tunTrayIcon": "Ikon Tray Tun",
           "enableTrayIcon": "Enable Tray Icon",
-          "enableTraySpeed": "Aktifkan Tray Speed",
-          "pauseRenderTrafficStatsOnBlur": "Jeda render statistik lalu lintas saat jendela tidak fokus"
+          "enableTraySpeed": "Aktifkan Tray Speed"
         },
         "tooltips": {
           "hoverNavigator": "Automatically scroll to the corresponding proxy group when hovering over alphabet letters",
@@ -300,8 +287,7 @@
         "options": {
           "icon": {
             "monochrome": "Monokrom",
-            "colorful": "Berwarna",
-            "disable": "Nonaktifkan"
+            "colorful": "Berwarna"
           },
           "toastPosition": {
             "topLeft": "Kiri atas",
@@ -375,20 +361,15 @@
         "webdav": "WebDAV backup"
       },
       "actions": {
-        "selectTarget": "Select backup target",
         "backup": "Cadangan",
-        "export": "Export",
-        "exportBackup": "Export Backup",
         "importBackup": "Import Backup",
         "deleteBackup": "Hapus Cadangan",
-        "restore": "Pulihkan",
         "restoreBackup": "Pulihkan Cadangan",
         "viewHistory": "View history"
       },
       "fields": {
         "webdavUrl": "URL Server WebDAV",
-        "username": "Nama Pengguna",
-        "info": "Backups are stored locally in the application data directory. Use the list below to restore or delete backups."
+        "username": "Nama Pengguna"
       },
       "messages": {
         "webdavUrlRequired": "URL WebDAV tidak boleh kosong",
@@ -417,11 +398,7 @@
         "scheduleHelper": "Create local backups in the background at the configured interval.",
         "intervalLabel": "Backup frequency",
         "changeLabel": "Backup on critical changes",
-        "changeHelper": "Automatically backup when Global Extend Config/Script changes.",
-        "options": {
-          "hours": "Every {{n}} hours",
-          "days": "Every {{n}} days"
-        }
+        "changeHelper": "Automatically backup when Global Extend Config/Script changes."
       },
       "manual": {
         "title": "Manual backup",
@@ -438,13 +415,6 @@
       },
       "webdav": {
         "title": "WebDAV settings"
-      },
-      "table": {
-        "filename": "Nama Berkas",
-        "backupTime": "Waktu Cadangan",
-        "actions": "Tindakan",
-        "noBackups": "Tidak ada cadangan yang tersedia",
-        "rowsPerPage": "Rows per page"
       }
     },
     "misc": {
@@ -714,7 +684,6 @@
         "geoDataUpdated": "GeoData Diperbarui"
       },
       "clashService": {
-        "installSuccess": "Layanan Berhasil Diinstal",
         "uninstallSuccess": "Layanan Berhasil Dicopot"
       },
       "updater": {
@@ -728,7 +697,6 @@
       "restarting": "Restarting Core..."
     },
     "clashService": {
-      "installing": "Memasang Layanan...",
       "uninstalling": "Uninstalling Service..."
     }
   }

@@ -2,9 +2,6 @@
   "page": {
     "actions": {
       "updateAll": "Perbarui Semua Profil",
-      "viewRuntimeConfig": "Lihat Konfigurasi Runtime",
-      "reactivate": "Reaktivasi Profil",
-      "import": "Impor",
       "addSubscription": "Add subscription"
     },
     "tooltips": {
@@ -24,7 +21,6 @@
       "title": "Batch Operations"
     },
     "importForm": {
-      "placeholder": "URL Profil",
       "actions": {
         "paste": "Tempel"
       }
@@ -35,10 +31,6 @@
         "onlyYaml": "Hanya File YAML yang Didukung"
       },
       "notifications": {
-        "importRetry": "Import failed, retrying with Clash proxy...",
-        "importFail": "Import failed even with Clash proxy",
-        "importNeedsRefresh": "Profile imported but may need manual refresh",
-        "importSuccess": "Profile imported successfully, please restart if not visible",
         "profileSwitched": "Profil Beralih",
         "profileReactivated": "Profil Diaktifkan Kembali",
         "switchBusy": "Profile switch is already in progress",
@@ -59,11 +51,6 @@
     }
   },
   "components": {
-    "card": {
-      "labels": {
-        "clickToImport": "Click to import subscription"
-      }
-    },
     "fileInput": {
       "chooseFile": "Pilih Berkas"
     },
@@ -81,16 +68,6 @@
       "openFile": "Buka Berkas",
       "update": "Perbarui",
       "updateViaProxy": "Update via proxy"
-    },
-    "more": {
-      "global": {
-        "merge": "Global Extend Config",
-        "script": "Global Extend Script"
-      },
-      "chips": {
-        "merge": "Merge",
-        "script": "Script"
-      }
     },
     "profileItem": {
       "tooltips": {
@@ -143,7 +120,6 @@
         "added": "Subscription added"
       },
       "fields": {
-        "type": "Jenis",
         "description": "Deskripsi",
         "subscriptionUrl": "URL Langganan",
         "httpTimeout": "HTTP Request Timeout",
@@ -166,8 +142,7 @@
       },
       "feedback": {
         "notifications": {
-          "creationRetry": "Profile creation failed, retrying with Clash proxy...",
-          "creationSuccess": "Profile creation succeeded with Clash proxy"
+          "creationRetry": "Profile creation failed, retrying with Clash proxy..."
         },
         "added": "✓ Subscription added!",
         "failed": "That did not work. Check the link or get a new one where you bought the subscription",
@@ -244,9 +219,6 @@
     "confirmDelete": {
       "title": "Konfirmasi penghapusan",
       "message": "Operasi ini tidak dapat dibatalkan"
-    },
-    "logViewer": {
-      "title": "Konsol Skrip"
     },
     "qrViewer": {
       "title": "Subscription QR Code"

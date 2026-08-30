@@ -14,10 +14,6 @@
     "restart": "Перезапуск",
     "resetToDefault": "Башлангычка кайтару",
     "refresh": "Яңарту",
-    "retry": "Retry",
-    "refreshPage": "Refresh Page",
-    "showDetails": "Show Details",
-    "hideDetails": "Hide Details",
     "listView": "Исемлек күзаллау",
     "tableView": "Таблица күзаллау",
     "pause": "Туктау",
@@ -31,15 +27,12 @@
   "labels": {
     "updateAt": "Яңартылган вакыт",
     "timeout": "Timeout",
-    "icon": "Иконка",
-    "name": "Исем",
     "readOnly": "Уку режимы гына",
     "expireTime": "Тамамлану вакыты",
     "updateTime": "Яңарту вакыты",
     "usedTotal": "Кулланылган / Барлыгы",
     "from": "Каян",
     "password": "Пароль",
-    "retryAttempts": "Retry attempts",
     "downloaded": "Йөкләнгән",
     "uploaded": "Чыгарылган"
   },
@@ -77,8 +70,6 @@
   },
   "feedback": {
     "errors": {
-      "trafficStats": "Traffic Statistics Error",
-      "trafficStatsDescription": "The traffic statistics component encountered an error and has been disabled to prevent crashes.",
       "core": {
         "noSuchHost": "Домен табылмады — язылу адресын һәм интернет тоташуын тикшерегез",
         "connectionRefused": "Сервер тоташуны кире какты — ул сүнгән яки порт ябык булырга мөмкин",
@@ -109,10 +100,7 @@
       "explained": "{{prefix}} · {{message}}"
     },
     "notifications": {
-      "importSuccess": "Профиль уңышлы импортланды",
       "importSubscriptionSuccess": "Import subscription successful",
-      "importWithClashProxy": "Profile Imported with Clash proxy",
-      "updateAvailable": "Update Available",
       "saved": "Saved successfully",
       "common": {
         "copySuccess": "Күчерелде",

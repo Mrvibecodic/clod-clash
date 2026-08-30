@@ -1,9 +1,5 @@
 {
   "page": {
-    "actions": {
-      "manual": "使用手册",
-      "github": "GitHub 项目地址"
-    },
     "title": "设置"
   },
   "sections": {
@@ -262,16 +258,9 @@
           "errorColor": "错误颜色",
           "successColor": "成功颜色",
           "fontFamily": "字体系列",
-          "cssInjection": "CSS 注入",
           "accentPresets": "预设强调色",
           "providerTheme": "服务商外观",
           "providerThemeHint": "来自订阅的强调色、主题和背景 — 直到您自行设置"
-        },
-        "actions": {
-          "editCss": "编辑 CSS"
-        },
-        "dialogs": {
-          "editCssTitle": "编辑 CSS"
         }
       },
       "layout": {
@@ -282,7 +271,6 @@
           "toastPosition": "通知位置",
           "hoverNavigator": "悬浮跳转导航",
           "hoverNavigatorDelay": "悬浮跳转导航延迟",
-          "navIcon": "导航栏图标",
           "trayIcon": "托盘图标",
           "proxyGroupsDisplayMode": "托盘代理组显示模式",
           "showOutboundModesInline": "将出站模式显示在托盘一级菜单",
@@ -290,8 +278,7 @@
           "systemProxyTrayIcon": "系统代理托盘图标",
           "tunTrayIcon": "TUN 模式托盘图标",
           "enableTrayIcon": "启用托盘图标",
-          "enableTraySpeed": "启用托盘速率",
-          "pauseRenderTrafficStatsOnBlur": "失去焦点时暂停渲染流量统计"
+          "enableTraySpeed": "启用托盘速率"
         },
         "tooltips": {
           "hoverNavigator": "鼠标悬停在字母上时自动滚动到对应代理组",
@@ -300,8 +287,7 @@
         "options": {
           "icon": {
             "monochrome": "单色图标",
-            "colorful": "彩色图标",
-            "disable": "禁用"
+            "colorful": "彩色图标"
           },
           "toastPosition": {
             "topLeft": "左上角",
@@ -375,20 +361,15 @@
         "webdav": "WebDAV 备份"
       },
       "actions": {
-        "selectTarget": "选择备份目标",
         "backup": "备份",
-        "export": "导出",
-        "exportBackup": "导出备份",
         "importBackup": "导入备份",
         "deleteBackup": "删除备份",
-        "restore": "恢复",
         "restoreBackup": "恢复备份",
         "viewHistory": "查看记录"
       },
       "fields": {
         "webdavUrl": "WebDAV 服务器地址 http(s)://",
-        "username": "用户名",
-        "info": "在应用数据目录中创建本地备份，您可以通过下方列表进行恢复或删除。"
+        "username": "用户名"
       },
       "messages": {
         "webdavUrlRequired": "WebDAV 服务器地址不能为空",
@@ -417,11 +398,7 @@
         "scheduleHelper": "按设定频率在后台创建本地备份文件。",
         "intervalLabel": "备份频率",
         "changeLabel": "关键变更时自动备份",
-        "changeHelper": "全局扩展覆写配置/脚本更改后自动备份。",
-        "options": {
-          "hours": "每 {{n}} 小时",
-          "days": "每 {{n}} 天"
-        }
+        "changeHelper": "全局扩展覆写配置/脚本更改后自动备份。"
       },
       "manual": {
         "title": "手动备份",
@@ -438,13 +415,6 @@
       },
       "webdav": {
         "title": "WebDAV 设置"
-      },
-      "table": {
-        "filename": "文件名称",
-        "backupTime": "备份时间",
-        "actions": "操作",
-        "noBackups": "暂无备份",
-        "rowsPerPage": "每页行数"
       }
     },
     "misc": {
@@ -714,7 +684,6 @@
         "geoDataUpdated": "已更新 GeoData"
       },
       "clashService": {
-        "installSuccess": "已成功安装服务",
         "uninstallSuccess": "已成功卸载服务"
       },
       "updater": {
@@ -728,7 +697,6 @@
       "restarting": "重启内核中..."
     },
     "clashService": {
-      "installing": "安装服务中...",
       "uninstalling": "卸载服务中..."
     }
   }

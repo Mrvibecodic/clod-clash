@@ -2,9 +2,6 @@
   "page": {
     "actions": {
       "updateAll": "すべてのプロファイルを更新",
-      "viewRuntimeConfig": "実行時のプロファイルを表示",
-      "reactivate": "プロファイルを再アクティブ化",
-      "import": "インポート",
       "addSubscription": "Add subscription"
     },
     "tooltips": {
@@ -24,7 +21,6 @@
       "title": "バッチ操作"
     },
     "importForm": {
-      "placeholder": "プロファイルファイルのURL",
       "actions": {
         "paste": "貼り付け"
       }
@@ -35,10 +31,6 @@
         "onlyYaml": "YAMLファイルのみサポートされています。"
       },
       "notifications": {
-        "importRetry": "インポートに失敗しました。Clashプロキシを使用して再試行します...",
-        "importFail": "Clashプロキシを使用してもインポートに失敗しました。",
-        "importNeedsRefresh": "Profile imported but may need manual refresh",
-        "importSuccess": "Profile imported successfully, please restart if not visible",
         "profileSwitched": "プロファイルが切り替えられました。",
         "profileReactivated": "プロファイルが再アクティブ化されました。",
         "switchBusy": "Profile switch is already in progress",
@@ -59,11 +51,6 @@
     }
   },
   "components": {
-    "card": {
-      "labels": {
-        "clickToImport": "クリックしてサブスクリプションをインポート"
-      }
-    },
     "fileInput": {
       "chooseFile": "ファイルを選択"
     },
@@ -81,16 +68,6 @@
       "openFile": "ファイルを開く",
       "update": "更新",
       "updateViaProxy": "Update via proxy"
-    },
-    "more": {
-      "global": {
-        "merge": "Global Extend Config",
-        "script": "Global Extend Script"
-      },
-      "chips": {
-        "merge": "Merge",
-        "script": "Script"
-      }
     },
     "profileItem": {
       "tooltips": {
@@ -143,7 +120,6 @@
         "added": "Subscription added"
       },
       "fields": {
-        "type": "タイプ",
         "description": "説明",
         "subscriptionUrl": "サブスクリプションURL",
         "httpTimeout": "HTTP Request Timeout",
@@ -166,8 +142,7 @@
       },
       "feedback": {
         "notifications": {
-          "creationRetry": "プロファイルの作成に失敗しました。Clashプロキシを使用して再試行します...",
-          "creationSuccess": "Clashプロキシを使用してプロファイルの作成に成功しました。"
+          "creationRetry": "プロファイルの作成に失敗しました。Clashプロキシを使用して再試行します..."
         },
         "added": "✓ Subscription added!",
         "failed": "That did not work. Check the link or get a new one where you bought the subscription",
@@ -244,9 +219,6 @@
     "confirmDelete": {
       "title": "削除を確認",
       "message": "この操作は元に戻せません"
-    },
-    "logViewer": {
-      "title": "スクリプトコンソール出力"
     },
     "qrViewer": {
       "title": "Subscription QR Code"

@@ -2,24 +2,12 @@
   "page": {
     "actions": {
       "testAll": "Барчасын тестлау"
-    },
-    "title": "Тест"
+    }
   },
   "components": {
     "item": {
       "actions": {
         "test": "Тест"
-      }
-    }
-  },
-  "modals": {
-    "test": {
-      "title": {
-        "create": "Тест булдыру",
-        "edit": "Тестны үзгәртү"
-      },
-      "fields": {
-        "url": "Тест URL-ы"
       }
     }
   },

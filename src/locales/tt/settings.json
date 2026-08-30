@@ -1,9 +1,5 @@
 {
   "page": {
-    "actions": {
-      "manual": "Документация",
-      "github": "GitHub репозиториясе"
-    },
     "title": "Көйләүләр"
   },
   "sections": {
@@ -262,16 +258,9 @@
           "errorColor": "Хата төсе",
           "successColor": "Уңыш төсе",
           "fontFamily": "Шрифтлар гаиләсе",
-          "cssInjection": "CSS кертү",
           "accentPresets": "Accent presets",
           "providerTheme": "Провайдер бизәлеше",
           "providerThemeHint": "Язылудан төс, тема һәм фон — үзегезнекен куйганчы"
-        },
-        "actions": {
-          "editCss": "Edit CSS"
-        },
-        "dialogs": {
-          "editCssTitle": "Edit CSS"
         }
       },
       "layout": {
@@ -282,7 +271,6 @@
           "toastPosition": "Toast Position",
           "hoverNavigator": "Hover Jump Navigator",
           "hoverNavigatorDelay": "Hover Jump Navigator Delay",
-          "navIcon": "Навигация иконкасы",
           "trayIcon": "Трей иконкасы",
           "proxyGroupsDisplayMode": "Proxy Groups Display Mode",
           "showOutboundModesInline": "Show Outbound Modes Inline",
@@ -290,8 +278,7 @@
           "systemProxyTrayIcon": "Системалы прокси иконкасы",
           "tunTrayIcon": "Tun (виртуаль адаптер) иконкасы",
           "enableTrayIcon": "Enable Tray Icon",
-          "enableTraySpeed": "Трей скоростьне үстерү",
-          "pauseRenderTrafficStatsOnBlur": "Фокус югалганда трафик статистикасын сызуны туктатып тору"
+          "enableTraySpeed": "Трей скоростьне үстерү"
         },
         "tooltips": {
           "hoverNavigator": "Automatically scroll to the corresponding proxy group when hovering over alphabet letters",
@@ -300,8 +287,7 @@
         "options": {
           "icon": {
             "monochrome": "Монохром",
-            "colorful": "Төсле",
-            "disable": "Сүндерү"
+            "colorful": "Төсле"
           },
           "toastPosition": {
             "topLeft": "Top Left",
@@ -375,20 +361,15 @@
         "webdav": "WebDAV backup"
       },
       "actions": {
-        "selectTarget": "Select backup target",
         "backup": "Резерв копия",
-        "export": "Export",
-        "exportBackup": "Export Backup",
         "importBackup": "Import Backup",
         "deleteBackup": "Резерв копияне бетерү",
-        "restore": "Кайтару",
         "restoreBackup": "Резерв копияне кайтару",
         "viewHistory": "View history"
       },
       "fields": {
         "webdavUrl": "WebDAV сервер URL-ы (http(s)://)",
-        "username": "Кулланучы исеме",
-        "info": "Backups are stored locally in the application data directory. Use the list below to restore or delete backups."
+        "username": "Кулланучы исеме"
       },
       "messages": {
         "webdavUrlRequired": "WebDAV адресы буш булырга тиеш түгел",
@@ -417,11 +398,7 @@
         "scheduleHelper": "Create local backups in the background at the configured interval.",
         "intervalLabel": "Backup frequency",
         "changeLabel": "Backup on critical changes",
-        "changeHelper": "Automatically backup when Global Extend Config/Script changes.",
-        "options": {
-          "hours": "Every {{n}} hours",
-          "days": "Every {{n}} days"
-        }
+        "changeHelper": "Automatically backup when Global Extend Config/Script changes."
       },
       "manual": {
         "title": "Manual backup",
@@ -438,13 +415,6 @@
       },
       "webdav": {
         "title": "WebDAV settings"
-      },
-      "table": {
-        "filename": "Файл исеме",
-        "backupTime": "Резерв копия вакыты",
-        "actions": "Гамәлләр",
-        "noBackups": "Резерв копияләр юк",
-        "rowsPerPage": "Rows per page"
       }
     },
     "misc": {
@@ -714,7 +684,6 @@
         "geoDataUpdated": "GeoData яңартылды"
       },
       "clashService": {
-        "installSuccess": "Сервис уңышлы урнаштырылды",
         "uninstallSuccess": "Сервис уңышлы салдырылды"
       },
       "updater": {
@@ -728,7 +697,6 @@
       "restarting": "Restarting Core..."
     },
     "clashService": {
-      "installing": "Хезмәт урнаштырыла...",
       "uninstalling": "Uninstalling Service..."
     }
   }

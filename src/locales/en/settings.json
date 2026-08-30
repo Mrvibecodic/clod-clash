@@ -1,9 +1,5 @@
 {
   "page": {
-    "actions": {
-      "manual": "Manual",
-      "github": "Github Repo"
-    },
     "title": "Settings"
   },
   "sections": {
@@ -262,16 +258,9 @@
           "errorColor": "Error Color",
           "successColor": "Success Color",
           "fontFamily": "Font Family",
-          "cssInjection": "CSS Injection",
           "accentPresets": "Accent presets",
           "providerTheme": "Provider styling",
           "providerThemeHint": "Accent, theme and background from the subscription — until you set your own"
-        },
-        "actions": {
-          "editCss": "Edit CSS"
-        },
-        "dialogs": {
-          "editCssTitle": "Edit CSS"
         }
       },
       "layout": {
@@ -282,7 +271,6 @@
           "toastPosition": "Toast Position",
           "hoverNavigator": "Hover Jump Navigator",
           "hoverNavigatorDelay": "Hover Jump Navigator Delay",
-          "navIcon": "Nav Icon",
           "trayIcon": "Tray Icon",
           "proxyGroupsDisplayMode": "Proxy Groups Display Mode",
           "showOutboundModesInline": "Show Outbound Modes Inline",
@@ -290,8 +278,7 @@
           "systemProxyTrayIcon": "System Proxy Tray Icon",
           "tunTrayIcon": "Tun Tray Icon",
           "enableTrayIcon": "Enable Tray Icon",
-          "enableTraySpeed": "Enable Tray Speed",
-          "pauseRenderTrafficStatsOnBlur": "Pause rendering traffic statistics when blurred"
+          "enableTraySpeed": "Enable Tray Speed"
         },
         "tooltips": {
           "hoverNavigator": "Automatically scroll to the corresponding proxy group when hovering over alphabet letters",
@@ -300,8 +287,7 @@
         "options": {
           "icon": {
             "monochrome": "Monochrome",
-            "colorful": "Colorful",
-            "disable": "Disable"
+            "colorful": "Colorful"
           },
           "toastPosition": {
             "topLeft": "Top Left",
@@ -375,20 +361,15 @@
         "webdav": "WebDAV backup"
       },
       "actions": {
-        "selectTarget": "Select backup target",
         "backup": "Backup",
-        "export": "Export",
-        "exportBackup": "Export Backup",
         "importBackup": "Import Backup",
         "deleteBackup": "Delete Backup",
-        "restore": "Restore",
         "restoreBackup": "Restore Backup",
         "viewHistory": "View history"
       },
       "fields": {
         "webdavUrl": "WebDAV Server URL",
-        "username": "Username",
-        "info": "Backups are stored locally in the application data directory. Use the list below to restore or delete backups."
+        "username": "Username"
       },
       "messages": {
         "webdavUrlRequired": "WebDAV URL cannot be empty",
@@ -417,11 +398,7 @@
         "scheduleHelper": "Create local backups in the background at the configured interval.",
         "intervalLabel": "Backup frequency",
         "changeLabel": "Backup on critical changes",
-        "changeHelper": "Automatically backup when Global Extend Config/Script changes.",
-        "options": {
-          "hours": "Every {{n}} hours",
-          "days": "Every {{n}} days"
-        }
+        "changeHelper": "Automatically backup when Global Extend Config/Script changes."
       },
       "manual": {
         "title": "Manual backup",
@@ -438,13 +415,6 @@
       },
       "webdav": {
         "title": "WebDAV settings"
-      },
-      "table": {
-        "filename": "Filename",
-        "backupTime": "Backup Time",
-        "actions": "Actions",
-        "noBackups": "No backups available",
-        "rowsPerPage": "Rows per page"
       }
     },
     "misc": {
@@ -714,7 +684,6 @@
         "geoDataUpdated": "GeoData Updated"
       },
       "clashService": {
-        "installSuccess": "Service Installed Successfully",
         "uninstallSuccess": "Service Uninstalled Successfully"
       },
       "updater": {
@@ -728,7 +697,6 @@
       "restarting": "Restarting Core..."
     },
     "clashService": {
-      "installing": "Installing Service...",
       "uninstalling": "Uninstalling Service..."
     }
   }

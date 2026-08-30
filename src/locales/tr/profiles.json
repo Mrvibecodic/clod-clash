@@ -2,9 +2,6 @@
   "page": {
     "actions": {
       "updateAll": "Tüm Profilleri Güncelle",
-      "viewRuntimeConfig": "Çalışma Zamanı Yapılandırmasını Görüntüle",
-      "reactivate": "Profilleri Yeniden Etkinleştir",
-      "import": "İçe Aktar",
       "addSubscription": "Add subscription"
     },
     "tooltips": {
@@ -24,7 +21,6 @@
       "title": "Toplu İşlemler"
     },
     "importForm": {
-      "placeholder": "Profil URL'si",
       "actions": {
         "paste": "Yapıştır"
       }
@@ -35,10 +31,6 @@
         "onlyYaml": "Yalnızca YAML Dosyaları Desteklenir"
       },
       "notifications": {
-        "importRetry": "İçe aktarma başarısız oldu, Clash vekil ile yeniden deneniyor...",
-        "importFail": "Clash vekil ile bile içe aktarma başarısız oldu",
-        "importNeedsRefresh": "Profile imported but may need manual refresh",
-        "importSuccess": "Profile imported successfully, please restart if not visible",
         "profileSwitched": "Profil Değiştirildi",
         "profileReactivated": "Profil Yeniden Etkinleştirildi",
         "switchBusy": "Profil değiştirme işlemi zaten devam ediyor",
@@ -59,11 +51,6 @@
     }
   },
   "components": {
-    "card": {
-      "labels": {
-        "clickToImport": "Abonelik içe aktarmak için tıklayın"
-      }
-    },
     "fileInput": {
       "chooseFile": "Dosya Seç"
     },
@@ -81,16 +68,6 @@
       "openFile": "Dosyayı Aç",
       "update": "Güncelle",
       "updateViaProxy": "Update via proxy"
-    },
-    "more": {
-      "global": {
-        "merge": "Global Extend Config",
-        "script": "Global Extend Script"
-      },
-      "chips": {
-        "merge": "Merge",
-        "script": "Script"
-      }
     },
     "profileItem": {
       "tooltips": {
@@ -143,7 +120,6 @@
         "added": "Subscription added"
       },
       "fields": {
-        "type": "Tip",
         "description": "Açıklamalar",
         "subscriptionUrl": "Abonelik URL'si",
         "httpTimeout": "HTTP Request Timeout",
@@ -166,8 +142,7 @@
       },
       "feedback": {
         "notifications": {
-          "creationRetry": "Profil oluşturma başarısız oldu, Clash vekil ile yeniden deneniyor...",
-          "creationSuccess": "Clash vekil ile profil oluşturma başarılı oldu"
+          "creationRetry": "Profil oluşturma başarısız oldu, Clash vekil ile yeniden deneniyor..."
         },
         "added": "✓ Subscription added!",
         "failed": "That did not work. Check the link or get a new one where you bought the subscription",
@@ -244,9 +219,6 @@
     "confirmDelete": {
       "title": "Silmeyi Onayla",
       "message": "Bu işlem geri alınamaz"
-    },
-    "logViewer": {
-      "title": "Betik Konsolu"
     },
     "qrViewer": {
       "title": "Subscription QR Code"
