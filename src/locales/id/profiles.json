@@ -179,7 +179,9 @@
         "loading5": "One second. The servers are pretending to be far away"
       },
       "errors": {
-        "urlRequired": "Paste the subscription link"
+        "urlRequired": "Paste the subscription link",
+        "typeRequired": "Choose the profile type",
+        "profileMissing": "The profile is gone — close this window and open it again"
       },
       "actions": {
         "useFile": "Your own config file",

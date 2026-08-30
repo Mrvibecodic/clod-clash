@@ -53,8 +53,8 @@ pub async fn save_log_text(app: AppHandle, filename: String, body: String) -> Cm
 }
 
 #[tauri::command]
-pub async fn tray_icon_path(name: String, update_time: String) -> CmdResult<String> {
-    feat::tray_icon_path(name.as_str(), update_time.as_str()).await
+pub async fn tray_icon_path(name: String) -> CmdResult<String> {
+    feat::tray_icon_path(name.as_str()).await
 }
 
 #[tauri::command]
@@ -132,8 +132,8 @@ pub async fn download_icon_cache(url: String, name: String) -> CmdResult<String>
 }
 
 #[tauri::command]
-pub async fn copy_icon_file(path: String, icon_info: feat::IconInfo) -> CmdResult<String> {
-    feat::copy_icon_file(path, icon_info).await
+pub async fn copy_icon_file(path: String, name: String) -> CmdResult<String> {
+    feat::copy_icon_file(path, name).await
 }
 
 #[tauri::command]

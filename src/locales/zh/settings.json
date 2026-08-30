@@ -25,6 +25,11 @@
       "notifications": {
         "tunMode": {
           "autoDisabled": "内核未能启动 TUN 设备，TUN 模式暂时关闭",
+          "noRights": "There were not enough rights to create the tunnel, so TUN is off. Install the background service in the advanced settings or run the application as administrator",
+          "rightsDeclined": "The rights prompt was declined, so the background service cannot be installed and TUN stays off",
+          "serviceSilent": "The background service is installed but does not answer, so TUN does not work yet. Try repairing it in the advanced settings",
+          "setupPending": "The system rights prompt is still open — confirm it. TUN will turn on as soon as the service is installed",
+          "setupBusy": "The service setup is already running — wait for it to finish and try again",
           "adapterBusy": "TUN 适配器被其他客户端占用或未释放：请关闭该客户端或重启电脑",
           "setupStarted": "正在配置 TUN 模式：安装后台服务",
           "setupDone": "TUN 模式已就绪",
@@ -333,6 +338,8 @@
       },
       "messages": {
         "portInUse": "端口 {{port}} 已被占用",
+        "portTooLow": "The port must be {{min}} or higher",
+        "portTooHigh": "The port must be {{max}} or lower",
         "saved": "端口设置已保存",
         "saveFailed": "端口设置保存失败"
       }

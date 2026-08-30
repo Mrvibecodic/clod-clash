@@ -191,6 +191,15 @@
     "tunStatus": {
       "settingUp": "TUN 설정 중 — 시스템 요청을 확인하세요",
       "broken": "TUN이 시작되지 않아 트래픽이 터널을 우회합니다",
+      "reasons": {
+        "startFailed": "TUN did not start, traffic is going around the tunnel",
+        "adapterBusy": "The TUN adapter is held by another program — traffic is going around the tunnel",
+        "noRights": "Not enough rights for the tunnel — traffic is going around TUN",
+        "noTraffic": "TUN is up but no traffic is flowing through the tunnel",
+        "setupFailed": "The background service was not installed — TUN does not work",
+        "rightsDeclined": "The rights prompt was declined — TUN will not turn on without the service",
+        "serviceSilent": "The background service does not answer — TUN does not work"
+      },
       "fix": "설정"
     },
     "firewallStatus": {

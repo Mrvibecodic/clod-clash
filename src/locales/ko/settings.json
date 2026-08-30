@@ -25,6 +25,11 @@
       "notifications": {
         "tunMode": {
           "autoDisabled": "코어가 TUN 장치를 열지 못해 TUN 모드를 껐습니다",
+          "noRights": "There were not enough rights to create the tunnel, so TUN is off. Install the background service in the advanced settings or run the application as administrator",
+          "rightsDeclined": "The rights prompt was declined, so the background service cannot be installed and TUN stays off",
+          "serviceSilent": "The background service is installed but does not answer, so TUN does not work yet. Try repairing it in the advanced settings",
+          "setupPending": "The system rights prompt is still open — confirm it. TUN will turn on as soon as the service is installed",
+          "setupBusy": "The service setup is already running — wait for it to finish and try again",
           "adapterBusy": "TUN 어댑터를 다른 클라이언트가 사용 중이거나 해제되지 않았습니다. 해당 클라이언트를 종료하거나 컴퓨터를 다시 시작하세요",
           "setupStarted": "TUN 모드 설정 중: 백그라운드 서비스를 설치합니다",
           "setupDone": "TUN 모드를 사용할 수 있습니다",
@@ -333,6 +338,8 @@
       },
       "messages": {
         "portInUse": "Port {{port}} is already in use",
+        "portTooLow": "The port must be {{min}} or higher",
+        "portTooHigh": "The port must be {{max}} or lower",
         "saved": "포트 설정이 저장되었습니다",
         "saveFailed": "포트 설정 저장에 실패했습니다"
       }

@@ -25,6 +25,11 @@
       "notifications": {
         "tunMode": {
           "autoDisabled": "核心無法啟動虛擬網路介面卡，該模式暫時停用",
+          "noRights": "There were not enough rights to create the tunnel, so TUN is off. Install the background service in the advanced settings or run the application as administrator",
+          "rightsDeclined": "The rights prompt was declined, so the background service cannot be installed and TUN stays off",
+          "serviceSilent": "The background service is installed but does not answer, so TUN does not work yet. Try repairing it in the advanced settings",
+          "setupPending": "The system rights prompt is still open — confirm it. TUN will turn on as soon as the service is installed",
+          "setupBusy": "The service setup is already running — wait for it to finish and try again",
           "adapterBusy": "TUN 介面卡被其他用戶端佔用或未釋放：請關閉該用戶端或重新啟動電腦",
           "setupStarted": "正在設定虛擬網路介面卡模式：安裝背景服務",
           "setupDone": "虛擬網路介面卡模式已就緒",
@@ -333,6 +338,8 @@
       },
       "messages": {
         "portInUse": "Port {{port}} is already in use",
+        "portTooLow": "The port must be {{min}} or higher",
+        "portTooHigh": "The port must be {{max}} or lower",
         "saved": "連結埠設定已儲存",
         "saveFailed": "連結埠設定儲存失敗"
       }

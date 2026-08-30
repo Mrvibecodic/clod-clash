@@ -25,6 +25,11 @@
       "notifications": {
         "tunMode": {
           "autoDisabled": "Core tidak dapat menyalakan perangkat TUN, jadi TUN dimatikan",
+          "noRights": "There were not enough rights to create the tunnel, so TUN is off. Install the background service in the advanced settings or run the application as administrator",
+          "rightsDeclined": "The rights prompt was declined, so the background service cannot be installed and TUN stays off",
+          "serviceSilent": "The background service is installed but does not answer, so TUN does not work yet. Try repairing it in the advanced settings",
+          "setupPending": "The system rights prompt is still open — confirm it. TUN will turn on as soon as the service is installed",
+          "setupBusy": "The service setup is already running — wait for it to finish and try again",
           "adapterBusy": "Adaptor TUN sedang dipakai klien lain atau belum dilepas: tutup klien itu atau mulai ulang komputer",
           "setupStarted": "Menyiapkan mode TUN: memasang layanan latar belakang",
           "setupDone": "Mode TUN siap digunakan",
@@ -333,6 +338,8 @@
       },
       "messages": {
         "portInUse": "Port {{port}} is already in use",
+        "portTooLow": "The port must be {{min}} or higher",
+        "portTooHigh": "The port must be {{max}} or lower",
         "saved": "Port settings saved",
         "saveFailed": "Failed to save port settings"
       }

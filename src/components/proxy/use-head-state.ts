@@ -18,6 +18,18 @@ export interface HeadState {
 
 type HeadStateStorage = Record<string, Record<string, HeadState>>
 
+const forgetUnknownProfiles = (
+  data: HeadStateStorage,
+  known: string | undefined,
+  current: string,
+): HeadStateStorage => {
+  if (known === undefined) return data
+  const kept = new Set([...known.split('\n').filter(Boolean), current])
+  return Object.fromEntries(
+    Object.entries(data).filter(([uid]) => kept.has(uid)),
+  )
+}
+
 const HEAD_STATE_KEY = 'proxy-head-state'
 export const DEFAULT_STATE: HeadState = {
   open: false,
@@ -57,6 +69,7 @@ function headStateReducer(
 export function useHeadStateNew() {
   const { profiles } = useProfiles()
   const current = profiles?.current || ''
+  const knownProfiles = profiles?.items?.map((item) => item.uid).join('\n')
 
   const [state, dispatch] = useReducer(headStateReducer, {})
 
@@ -89,12 +102,15 @@ export function useHeadStateNew() {
 
         data[current] = state
 
-        localStorage.setItem(HEAD_STATE_KEY, JSON.stringify(data))
+        localStorage.setItem(
+          HEAD_STATE_KEY,
+          JSON.stringify(forgetUnknownProfiles(data, knownProfiles, current)),
+        )
       } catch {}
     })
 
     return () => clearTimeout(timer)
-  }, [state, current])
+  }, [state, current, knownProfiles])
 
   const setHeadState = useCallback(
     (groupName: string, obj: Partial<HeadState>) => {

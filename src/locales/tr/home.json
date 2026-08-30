@@ -191,6 +191,15 @@
     "tunStatus": {
       "settingUp": "TUN hazırlanıyor — sistem istemini onaylayın",
       "broken": "TUN başlamadı, trafik tünelin dışından gidiyor",
+      "reasons": {
+        "startFailed": "TUN did not start, traffic is going around the tunnel",
+        "adapterBusy": "The TUN adapter is held by another program — traffic is going around the tunnel",
+        "noRights": "Not enough rights for the tunnel — traffic is going around TUN",
+        "noTraffic": "TUN is up but no traffic is flowing through the tunnel",
+        "setupFailed": "The background service was not installed — TUN does not work",
+        "rightsDeclined": "The rights prompt was declined — TUN will not turn on without the service",
+        "serviceSilent": "The background service does not answer — TUN does not work"
+      },
       "fix": "Ayarla"
     },
     "firewallStatus": {

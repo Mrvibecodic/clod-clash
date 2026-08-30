@@ -5,13 +5,7 @@ use crate::module::lightweight;
 use crate::process::AsyncHandler;
 use crate::singleton;
 use crate::utils::window_manager::WindowManager;
-use crate::{
-    Type, cmd,
-    config::Config,
-    feat, logging,
-    module::lightweight::is_in_lightweight_mode,
-    utils::{dirs::find_target_icons, help},
-};
+use crate::{Type, cmd, config::Config, feat, logging, module::lightweight::is_in_lightweight_mode, utils::help};
 use clash_verge_limiter::{Limiter, SystemClock, SystemLimiter};
 use clash_verge_logging::logging_error;
 use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
@@ -92,8 +86,9 @@ impl TrayState {
         };
 
         if custom_enabled
-            && let Ok(Some(path)) = find_target_icons(icon_name)
-            && let Ok(data) = fs::read(path).await
+            && let Ok(path) = crate::feat::tray_icon_path(icon_name).await
+            && !path.is_empty()
+            && let Ok(data) = fs::read(path.as_str()).await
         {
             return (true, Cow::Owned(data));
         }

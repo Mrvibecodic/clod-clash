@@ -1,9 +1,15 @@
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
+
 use dark_light::{Mode as SystemTheme, detect as detect_system_theme};
 use tauri::utils::config::Color;
 use tauri::webview::PageLoadEvent;
 use tauri::{Theme, WebviewWindow};
 
-use crate::{config::Config, core::handle, utils::resolve::window_script::build_window_initial_script};
+use crate::{
+    config::Config, core::handle, process::AsyncHandler, utils::resolve::window_script::build_window_initial_script,
+};
 use clash_verge_logging::{Type, logging, logging_error};
 
 const DARK_BACKGROUND_COLOR: Color = Color(46, 48, 61, 255);
@@ -17,6 +23,8 @@ const DEFAULT_HEIGHT: f64 = 700.0;
 const MINIMAL_WIDTH: f64 = 520.0;
 const MINIMAL_HEIGHT: f64 = 520.0;
 
+const SHOW_FALLBACK_DELAY: Duration = Duration::from_secs(10);
+
 #[cfg(target_os = "linux")]
 const DEFAULT_DECORATIONS: bool = false;
 #[cfg(not(target_os = "linux"))]
@@ -29,6 +37,24 @@ const WEBVIEW2_BROWSER_ARGS: &str = concat!(
     " --disable-background-timer-throttling",
     " --disable-backgrounding-occluded-windows",
 );
+
+fn spawn_show_fallback(window: &WebviewWindow, shown: Arc<AtomicBool>) {
+    let window = window.clone();
+    AsyncHandler::spawn(move || async move {
+        tokio::time::sleep(SHOW_FALLBACK_DELAY).await;
+        if shown.swap(true, Ordering::AcqRel) {
+            return;
+        }
+
+        logging!(
+            warn,
+            Type::Window,
+            "the page did not finish loading in time; showing the window as it is"
+        );
+        logging_error!(Type::Window, window.show());
+        logging_error!(Type::Window, window.set_focus());
+    });
+}
 
 const fn restored_window_size_is_too_small(width: u32, height: u32) -> bool {
     width < MINIMAL_WIDTH as u32 || height < MINIMAL_HEIGHT as u32
@@ -324,6 +350,9 @@ pub async fn build_new_window() -> Result<WebviewWindow, String> {
 
     let initial_script = build_window_initial_script(initial_theme_mode, DARK_BACKGROUND_HEX, LIGHT_BACKGROUND_HEX);
 
+    let shown = Arc::new(AtomicBool::new(false));
+    let shown_on_load = Arc::clone(&shown);
+
     let mut builder = tauri::WebviewWindowBuilder::new(app_handle, "main", tauri::WebviewUrl::App(start_page.into()))
         .title(crate::constants::branding::APP_NAME)
         .center()
@@ -338,6 +367,8 @@ pub async fn build_new_window() -> Result<WebviewWindow, String> {
             if payload.event() != PageLoadEvent::Finished {
                 return;
             }
+
+            shown_on_load.store(true, Ordering::Release);
 
             logging_error!(Type::Window, window.show());
             logging_error!(Type::Window, window.set_focus());
@@ -361,6 +392,7 @@ pub async fn build_new_window() -> Result<WebviewWindow, String> {
             apply_window_size_for_mode(&window, effective_simple_mode().await).await;
             restore_position_if_offscreen(&window);
             crate::utils::ui_watchdog::watch(&window);
+            spawn_show_fallback(&window, shown);
             #[cfg(target_os = "macos")]
             take_webview_needs_reload();
             Ok(window)

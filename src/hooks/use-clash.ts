@@ -1,4 +1,5 @@
 import { useLockFn } from 'ahooks'
+import { useTranslation } from 'react-i18next'
 import { getVersion } from 'tauri-plugin-mihomo-api'
 
 import {
@@ -44,20 +45,29 @@ const hasClashInfoPayload = (patch: ClashInfoPatch) =>
   patch['external-controller'] != null ||
   patch.secret != null
 
-const validatePortRange = (port: number) => {
-  if (port < 1000) {
-    throw new Error('The port should not < 1000')
+const MIN_PORT = 1000
+const MAX_PORT = 65535
+
+type Translate = ReturnType<typeof useTranslation>['t']
+
+const validatePortRange = (port: number, t: Translate) => {
+  if (port < MIN_PORT) {
+    throw new Error(
+      t('settings.modals.clashPort.messages.portTooLow', { min: MIN_PORT }),
+    )
   }
-  if (port > 65535) {
-    throw new Error('The port should not > 65535')
+  if (port > MAX_PORT) {
+    throw new Error(
+      t('settings.modals.clashPort.messages.portTooHigh', { max: MAX_PORT }),
+    )
   }
 }
 
-const validatePorts = (patch: ClashInfoPatch) => {
+const validatePorts = (patch: ClashInfoPatch, t: Translate) => {
   PORT_KEYS.forEach((key) => {
     const port = patch[key]
     if (!port) return
-    validatePortRange(port)
+    validatePortRange(port, t)
   })
 }
 
@@ -111,6 +121,7 @@ export const useClash = () => {
 }
 
 export const useClashInfo = () => {
+  const { t } = useTranslation()
   const { data: clashInfo, refetch: mutateInfo } = useQuery({
     queryKey: ['getClashInfo'],
     queryFn: getClashInfo,
@@ -119,7 +130,7 @@ export const useClashInfo = () => {
   const patchInfo = useLockFn(async (patch: ClashInfoPatch) => {
     if (!hasClashInfoPayload(patch)) return
 
-    validatePorts(patch)
+    validatePorts(patch, t)
 
     await patchClashConfig(patch)
     mutateInfo()

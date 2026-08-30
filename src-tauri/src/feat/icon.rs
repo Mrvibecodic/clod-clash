@@ -11,13 +11,6 @@ use std::path::{Component, Path, PathBuf};
 use tokio::fs;
 use tokio::io::AsyncWriteExt as _;
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
-pub struct IconInfo {
-    name: String,
-    previous_t: String,
-    current_t: String,
-}
-
 fn normalize_icon_segment(name: &str) -> CmdResult<String> {
     let trimmed = name.trim();
     if trimmed.is_empty() || trimmed.contains('/') || trimmed.contains('\\') || trimmed.contains("..") {
@@ -136,33 +129,64 @@ pub async fn download_icon_cache(url: String, name: String) -> CmdResult<String>
     Ok(icon_path.to_string_lossy().into())
 }
 
-pub async fn tray_icon_path(name: &str, update_time: &str) -> CmdResult<String> {
-    let icon_name = normalize_icon_segment(name)?;
-    let stamp = if update_time.trim().is_empty() {
-        String::new()
-    } else {
-        normalize_icon_segment(update_time)?
-    };
-    let icon_dir = dirs::app_home_dir().stringify_err()?.join("icons");
-    let ico = ensure_icon_cache_target(&icon_dir, format!("{icon_name}-{stamp}.ico").as_str())?;
-    if fs::metadata(&ico).await.is_ok() {
-        return Ok(ico.to_string_lossy().into());
-    }
-    let png = ensure_icon_cache_target(&icon_dir, format!("{icon_name}-{stamp}.png").as_str())?;
-    Ok(png.to_string_lossy().into())
+fn icon_stamp<'a>(path: &'a Path, icon_name: &str) -> &'a str {
+    path.file_stem()
+        .and_then(|stem| stem.to_str())
+        .and_then(|stem| stem.strip_prefix(icon_name))
+        .map_or("", |rest| rest.strip_prefix('-').unwrap_or(rest))
 }
 
-pub async fn copy_icon_file(path: String, icon_info: IconInfo) -> CmdResult<String> {
-    let file_path = Path::new(path.as_str());
-    let icon_name = normalize_icon_segment(icon_info.name.as_str())?;
-    let current_t = normalize_icon_segment(icon_info.current_t.as_str())?;
-    let previous_t = if icon_info.previous_t.trim().is_empty() {
-        None
-    } else {
-        Some(normalize_icon_segment(icon_info.previous_t.as_str())?)
+async fn stored_icons(icon_dir: &Path, icon_name: &str) -> Vec<PathBuf> {
+    let Ok(mut entries) = fs::read_dir(icon_dir).await else {
+        return Vec::new();
     };
+    let mut found = Vec::new();
+    while let Ok(Some(entry)) = entries.next_entry().await {
+        let path = entry.path();
+        let matches_name = path
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .is_some_and(|stem| stem == icon_name || stem.starts_with(&format!("{icon_name}-")));
+        let matches_ext = path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("ico") || ext.eq_ignore_ascii_case("png"));
+        if matches_name && matches_ext {
+            found.push(path);
+        }
+    }
+    found.sort_by(|left, right| icon_stamp(left, icon_name).cmp(icon_stamp(right, icon_name)));
+    found
+}
 
-    let icon_dir = dirs::app_home_dir().stringify_err()?.join("icons");
+pub async fn tray_icon_path(name: &str) -> CmdResult<String> {
+    let icon_name = normalize_icon_segment(name)?;
+    let icon_dir = dirs::app_icons_dir().stringify_err()?;
+    Ok(stored_icons(&icon_dir, icon_name.as_str())
+        .await
+        .pop()
+        .map(|path| path.to_string_lossy().into())
+        .unwrap_or_default())
+}
+
+async fn remove_other_icons(icon_dir: &Path, icon_name: &str, keep: &Path) {
+    for path in stored_icons(icon_dir, icon_name).await {
+        if path == keep {
+            continue;
+        }
+        path.remove_if_exists().await.unwrap_or_default();
+    }
+}
+
+pub async fn copy_icon_file(path: String, name: String) -> CmdResult<String> {
+    let file_path = Path::new(path.as_str());
+    let icon_name = normalize_icon_segment(name.as_str())?;
+
+    if !file_path.exists() {
+        return Err("file not found".into());
+    }
+
+    let icon_dir = dirs::app_icons_dir().stringify_err()?;
     if !icon_dir.exists() {
         fs::create_dir_all(&icon_dir).await.stringify_err()?;
     }
@@ -172,31 +196,26 @@ pub async fn copy_icon_file(path: String, icon_info: IconInfo) -> CmdResult<Stri
         None => "ico".into(),
     };
 
-    let dest_file_name = format!("{icon_name}-{current_t}.{ext}");
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |since| since.as_millis());
+    let dest_file_name = format!("{icon_name}-{stamp}.{ext}");
     let dest_path = ensure_icon_cache_target(&icon_dir, dest_file_name.as_str())?;
 
-    if file_path.exists() {
-        if let Some(previous_t) = previous_t {
-            let previous_png = ensure_icon_cache_target(&icon_dir, format!("{icon_name}-{previous_t}.png").as_str())?;
-            previous_png.remove_if_exists().await.unwrap_or_default();
-            let previous_ico = ensure_icon_cache_target(&icon_dir, format!("{icon_name}-{previous_t}.ico").as_str())?;
-            previous_ico.remove_if_exists().await.unwrap_or_default();
-        }
+    logging!(
+        info,
+        Type::Cmd,
+        "Copying icon file path: {:?} -> file dist: {:?}",
+        path,
+        dest_path
+    );
 
-        logging!(
-            info,
-            Type::Cmd,
-            "Copying icon file path: {:?} -> file dist: {:?}",
-            path,
-            dest_path
-        );
-
-        match fs::copy(file_path, &dest_path).await {
-            Ok(_) => Ok(dest_path.to_string_lossy().into()),
-            Err(err) => Err(err.to_string().into()),
+    match fs::copy(file_path, &dest_path).await {
+        Ok(_) => {
+            remove_other_icons(&icon_dir, icon_name.as_str(), &dest_path).await;
+            Ok(dest_path.to_string_lossy().into())
         }
-    } else {
-        Err("file not found".into())
+        Err(err) => Err(err.to_string().into()),
     }
 }
 

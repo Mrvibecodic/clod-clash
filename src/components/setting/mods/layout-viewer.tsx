@@ -34,9 +34,6 @@ const clampHoverDelay = (value: number) => {
   return Math.min(5000, Math.max(0, Math.round(value)))
 }
 
-const getIcon = (name: string) =>
-  trayIconPath(name, localStorage.getItem(`icon_${name}_update_time`) || '')
-
 export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
   const { t } = useTranslation()
   const { verge, patchVerge, mutateVerge } = useVerge()
@@ -53,9 +50,9 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
   }, [])
 
   async function initIconPath() {
-    setCommonIcon(await getIcon('common'))
-    setSysproxyIcon(await getIcon('sysproxy'))
-    setTunIcon(await getIcon('tun'))
+    setCommonIcon(await trayIconPath('common'))
+    setSysproxyIcon(await trayIconPath('sysproxy'))
+    setTunIcon(await trayIconPath('tun'))
   }
 
   useImperativeHandle(ref, () => ({

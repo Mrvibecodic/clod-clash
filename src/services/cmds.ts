@@ -319,8 +319,8 @@ export async function saveLogText(filename: string, body: string) {
   return invoke<boolean>('save_log_text', { filename, body })
 }
 
-export async function trayIconPath(name: string, updateTime: string) {
-  return invoke<string>('tray_icon_path', { name, updateTime })
+export async function trayIconPath(name: string) {
+  return invoke<string>('tray_icon_path', { name })
 }
 
 export async function exportLogs() {
@@ -411,19 +411,7 @@ export async function copyIconFile(
   path: string,
   name: 'common' | 'sysproxy' | 'tun',
 ) {
-  const key = `icon_${name}_update_time`
-  const previousTime = localStorage.getItem(key) || ''
-
-  const currentTime = String(Date.now())
-  localStorage.setItem(key, currentTime)
-
-  const iconInfo = {
-    name,
-    previous_t: previousTime,
-    current_t: currentTime,
-  }
-
-  return invoke<void>('copy_icon_file', { path, iconInfo })
+  return invoke<string>('copy_icon_file', { path, name })
 }
 
 export async function downloadIconCache(url: string, name: string) {

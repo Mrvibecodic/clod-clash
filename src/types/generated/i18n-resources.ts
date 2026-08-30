@@ -477,6 +477,8 @@ export interface TranslationResources {
             useLink: string
           }
           errors: {
+            profileMissing: string
+            typeRequired: string
             urlRequired: string
           }
           feedback: {
@@ -1037,6 +1039,8 @@ export interface TranslationResources {
           }
           messages: {
             portInUse: string
+            portTooHigh: string
+            portTooLow: string
             saved: string
             saveFailed: string
           }

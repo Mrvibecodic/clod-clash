@@ -25,6 +25,11 @@
       "notifications": {
         "tunMode": {
           "autoDisabled": "Çekirdek TUN aygıtını açamadı, TUN şimdilik kapalı",
+          "noRights": "There were not enough rights to create the tunnel, so TUN is off. Install the background service in the advanced settings or run the application as administrator",
+          "rightsDeclined": "The rights prompt was declined, so the background service cannot be installed and TUN stays off",
+          "serviceSilent": "The background service is installed but does not answer, so TUN does not work yet. Try repairing it in the advanced settings",
+          "setupPending": "The system rights prompt is still open — confirm it. TUN will turn on as soon as the service is installed",
+          "setupBusy": "The service setup is already running — wait for it to finish and try again",
           "adapterBusy": "TUN bağdaştırıcısı başka bir istemci tarafından tutuluyor veya serbest bırakılmadı: onu kapatın ya da bilgisayarı yeniden başlatın",
           "setupStarted": "TUN modu hazırlanıyor: arka plan hizmeti kuruluyor",
           "setupDone": "TUN modu hazır",
@@ -333,6 +338,8 @@
       },
       "messages": {
         "portInUse": "Port {{port}} is already in use",
+        "portTooLow": "The port must be {{min}} or higher",
+        "portTooHigh": "The port must be {{max}} or lower",
         "saved": "Port settings saved",
         "saveFailed": "Failed to save port settings"
       }

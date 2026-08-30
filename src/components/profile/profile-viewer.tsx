@@ -178,7 +178,8 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
       setErrorText(undefined)
       try {
         // Базовая валидация
-        if (!form.type) throw new Error('`Type` should not be null')
+        if (!form.type)
+          throw new Error(t('profiles.modals.profileForm.errors.typeRequired'))
         if (form.type === 'remote' && !form.url) {
           throw new Error(t('profiles.modals.profileForm.errors.urlRequired'))
         }
@@ -227,7 +228,10 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
           if (openType === 'new') {
             await createProfile(item, fileDataRef.current)
           } else {
-            if (!form.uid) throw new Error('UID not found')
+            if (!form.uid)
+              throw new Error(
+                t('profiles.modals.profileForm.errors.profileMissing'),
+              )
             await patchProfile(form.uid, item)
           }
         } else {
@@ -237,7 +241,10 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
             if (openType === 'new') {
               await createProfile(item, fileDataRef.current)
             } else {
-              if (!form.uid) throw new Error('UID not found')
+              if (!form.uid)
+                throw new Error(
+                  t('profiles.modals.profileForm.errors.profileMissing'),
+                )
               await patchProfile(form.uid, item)
             }
           } catch {
@@ -260,7 +267,10 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
             if (openType === 'new') {
               await createProfile(retryItem, fileDataRef.current)
             } else {
-              if (!form.uid) throw new Error('UID not found')
+              if (!form.uid)
+                throw new Error(
+                  t('profiles.modals.profileForm.errors.profileMissing'),
+                )
               await patchProfile(form.uid, retryItem)
 
               // В режиме редактирования восстанавливаем исходные настройки прокси
