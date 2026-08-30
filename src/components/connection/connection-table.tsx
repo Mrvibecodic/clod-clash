@@ -30,6 +30,7 @@ import {
   getConnectionStartTime,
   getConnectionTypeLabel,
 } from './connection-row-view'
+import { type ConnectionGroup, buildConnectionGroups } from './connection-stats'
 
 const ROW_HEIGHT = 40
 const RESIZE_HANDLE_WIDTH = 6
@@ -245,6 +246,130 @@ const renderCell = (
   return getConnectionCellValue(column.field, snapshot)
 }
 
+const EMPTY_COLLAPSED: ReadonlySet<string> = new Set<string>()
+
+interface CollapsedState {
+  groupBy: IConnectionGroupBy
+  keys: ReadonlySet<string>
+}
+
+type TableItem =
+  | { kind: 'group'; group: ConnectionGroup; collapsed: boolean }
+  | { kind: 'row'; row: IConnectionsItem }
+
+const getGroupKey = (
+  row: IConnectionsItem,
+  groupBy: IConnectionGroupBy,
+  snapshot: TableRowSnapshot,
+) => {
+  switch (groupBy) {
+    case 'process':
+      return snapshot.process
+    // chains[0] — реальный исход: ядро дописывает цепочку изнутри наружу.
+    case 'chain':
+      return row.chains[0] ?? ''
+    case 'rule':
+      return snapshot.ruleText
+    default:
+      return ''
+  }
+}
+
+interface GroupRowProps {
+  group: ConnectionGroup
+  collapsed: boolean
+  onToggle: (key: string) => void
+  borderColor: string
+  virtualTop: number
+}
+
+// clod:design-v3 — заголовок группы прижат к левому краю окна: таблица шире
+// экрана, и без sticky имя приложения уезжало бы за границу при прокрутке.
+const GroupRowComponent = memo(
+  function GroupRowComponent({
+    group,
+    collapsed,
+    onToggle,
+    borderColor,
+    virtualTop,
+  }: GroupRowProps) {
+    const handleClick = useCallback(
+      () => onToggle(group.key),
+      [group.key, onToggle],
+    )
+
+    return (
+      <Box
+        onClick={handleClick}
+        sx={{
+          display: 'flex',
+          position: 'absolute',
+          top: virtualTop,
+          left: 0,
+          right: 0,
+          height: ROW_HEIGHT,
+          cursor: 'pointer',
+          bgcolor: 'action.hover',
+          borderBottom: `1px solid ${borderColor}`,
+          '&:hover': { bgcolor: 'action.selected' },
+        }}
+      >
+        <div
+          style={{
+            position: 'sticky',
+            left: 0,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '0 8px',
+            maxWidth: '100%',
+            minWidth: 0,
+          }}
+        >
+          <span style={{ fontSize: 10, width: 10, flex: 'none' }}>
+            {collapsed ? '▶' : '▼'}
+          </span>
+          <span
+            style={{
+              fontSize: 13,
+              fontWeight: 600,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+            title={group.label}
+          >
+            {group.label}
+          </span>
+          <span style={{ fontSize: 12, opacity: 0.7, flex: 'none' }}>
+            {group.rows.length}
+          </span>
+          <span
+            style={{
+              fontSize: 12,
+              opacity: 0.7,
+              whiteSpace: 'nowrap',
+              fontVariantNumeric: 'tabular-nums',
+              flex: 'none',
+            }}
+          >
+            ↓ {formatConnectionTraffic(group.download)} ↑{' '}
+            {formatConnectionTraffic(group.upload)} · ↓{' '}
+            {formatConnectionTraffic(group.downloadSpeed)}/s ↑{' '}
+            {formatConnectionTraffic(group.uploadSpeed)}/s
+          </span>
+        </div>
+      </Box>
+    )
+  },
+  (prev, next) =>
+    prev.group === next.group &&
+    prev.collapsed === next.collapsed &&
+    prev.virtualTop === next.virtualTop &&
+    prev.onToggle === next.onToggle &&
+    prev.borderColor === next.borderColor,
+)
+
 interface RowComponentProps {
   row: IConnectionsItem
   columns: DisplayColumn[]
@@ -330,6 +455,7 @@ const RowComponent = memo(
 
 interface Props {
   connections: IConnectionsItem[]
+  groupBy: IConnectionGroupBy
   onShowDetail: (id: string) => void
   columnManagerOpen: boolean
   onCloseColumnManager: () => void
@@ -338,6 +464,7 @@ interface Props {
 export const ConnectionTable = (props: Props) => {
   const {
     connections,
+    groupBy,
     onShowDetail: rawOnShowDetail,
     columnManagerOpen,
     onCloseColumnManager,
@@ -516,6 +643,14 @@ export const ConnectionTable = (props: Props) => {
   }, [columnVisibilityModel, columnWidths, orderedColumns])
 
   const [sorting, setSorting] = useState<SortingState | null>(null)
+  const [collapsedState, setCollapsedState] = useState<CollapsedState>({
+    groupBy,
+    keys: EMPTY_COLLAPSED,
+  })
+  // Свёрнутые группы живут в паре с текущей группировкой: при её смене ключи
+  // от прошлого режима просто перестают учитываться, без сброса в эффекте.
+  const collapsedGroups =
+    collapsedState.groupBy === groupBy ? collapsedState.keys : EMPTY_COLLAPSED
   const [viewport, setViewport] = useState({ scrollTop: 0, height: 0 })
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const rowSnapshotCacheRef = useRef(new Map<string, TableRowSnapshot>())
@@ -566,19 +701,6 @@ export const ConnectionTable = (props: Props) => {
   }, [updateViewport])
 
   useEffect(() => {
-    const element = scrollContainerRef.current
-    if (!element) return
-
-    const maxScrollTop = Math.max(
-      0,
-      element.scrollHeight - element.clientHeight,
-    )
-    if (element.scrollTop <= maxScrollTop) return
-
-    element.scrollTop = maxScrollTop
-  }, [connections.length])
-
-  useEffect(() => {
     const cache = rowSnapshotCacheRef.current
     if (cache.size <= connections.length + OVERSCAN_ROWS * 4) return
 
@@ -602,6 +724,70 @@ export const ConnectionTable = (props: Props) => {
     )
   }, [connections, sorting, getRowSnapshot])
 
+  const otherGroupLabel = t('connections.components.group.other')
+
+  const resolveGroupKey = useCallback(
+    (row: IConnectionsItem) => getGroupKey(row, groupBy, getRowSnapshot(row)),
+    [getRowSnapshot, groupBy],
+  )
+
+  const groupedItems = useMemo(() => {
+    if (groupBy === 'none') return null
+
+    const ordered = buildConnectionGroups(
+      sortedConnections,
+      resolveGroupKey,
+      otherGroupLabel,
+    )
+    const items: TableItem[] = []
+
+    for (let i = 0; i < ordered.length; i++) {
+      const group = ordered[i]
+      const collapsed = collapsedGroups.has(group.key)
+      items.push({ kind: 'group', group, collapsed })
+      if (collapsed) continue
+      for (let j = 0; j < group.rows.length; j++) {
+        items.push({ kind: 'row', row: group.rows[j] })
+      }
+    }
+
+    return items
+  }, [
+    collapsedGroups,
+    groupBy,
+    otherGroupLabel,
+    resolveGroupKey,
+    sortedConnections,
+  ])
+
+  const visibleRowCount = groupedItems
+    ? groupedItems.length
+    : sortedConnections.length
+
+  useEffect(() => {
+    const element = scrollContainerRef.current
+    if (!element) return
+
+    const maxScrollTop = Math.max(
+      0,
+      element.scrollHeight - element.clientHeight,
+    )
+    if (element.scrollTop <= maxScrollTop) return
+
+    element.scrollTop = maxScrollTop
+  }, [visibleRowCount])
+
+  const toggleGroup = useCallback(
+    (key: string) => {
+      setCollapsedState((current) => {
+        const keys = new Set(current.groupBy === groupBy ? current.keys : [])
+        if (!keys.delete(key)) keys.add(key)
+        return { groupBy, keys }
+      })
+    },
+    [groupBy],
+  )
+
   const tableWidth = useMemo(
     () => visibleColumns.reduce((total, column) => total + column.size, 0),
     [visibleColumns],
@@ -615,17 +801,17 @@ export const ConnectionTable = (props: Props) => {
 
   const bodyScrollTop = Math.max(0, viewport.scrollTop - ROW_HEIGHT)
   const firstVisibleRow = Math.min(
-    sortedConnections.length,
+    visibleRowCount,
     Math.max(0, Math.floor(bodyScrollTop / ROW_HEIGHT) - OVERSCAN_ROWS),
   )
   const lastVisibleRow = Math.max(
     firstVisibleRow,
     Math.min(
-      sortedConnections.length,
+      visibleRowCount,
       Math.ceil((bodyScrollTop + viewport.height) / ROW_HEIGHT) + OVERSCAN_ROWS,
     ),
   )
-  const totalRowsHeight = sortedConnections.length * ROW_HEIGHT
+  const totalRowsHeight = visibleRowCount * ROW_HEIGHT
 
   const toggleSorting = useCallback((field: ColumnField) => {
     setSorting((current) => {
@@ -880,7 +1066,22 @@ export const ConnectionTable = (props: Props) => {
                 { length: lastVisibleRow - firstVisibleRow },
                 (_, offset) => {
                   const index = firstVisibleRow + offset
-                  const row = sortedConnections[index]
+                  const item = groupedItems?.[index]
+
+                  if (item?.kind === 'group') {
+                    return (
+                      <GroupRowComponent
+                        key={`group:${item.group.key}`}
+                        group={item.group}
+                        collapsed={item.collapsed}
+                        onToggle={toggleGroup}
+                        borderColor={borderColor}
+                        virtualTop={index * ROW_HEIGHT}
+                      />
+                    )
+                  }
+
+                  const row = item ? item.row : sortedConnections[index]
                   if (!row) return null
 
                   return (

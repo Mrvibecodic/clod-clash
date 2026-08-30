@@ -1,5 +1,6 @@
 import {
   DeleteForeverRounded,
+  InsightsRounded,
   TableChartRounded,
   TableRowsRounded,
   ViewColumnRounded,
@@ -36,6 +37,7 @@ import {
   getConnectionStartTime,
   useConnectionRowViews,
 } from '@/components/connection/connection-row-view'
+import { ConnectionSummary } from '@/components/connection/connection-summary'
 import { ConnectionTable } from '@/components/connection/connection-table'
 import { useConnectionData } from '@/hooks/use-connection-data'
 import { useConnectionSetting } from '@/hooks/use-connection-setting'
@@ -70,6 +72,13 @@ const ORDER_OPTIONS = [
 
 type OrderKey = (typeof ORDER_OPTIONS)[number]['id']
 
+const GROUP_OPTIONS = [
+  { id: 'none', labelKey: 'connections.components.group.none' },
+  { id: 'process', labelKey: 'connections.components.group.process' },
+  { id: 'chain', labelKey: 'connections.components.group.chain' },
+  { id: 'rule', labelKey: 'connections.components.group.rule' },
+] as const satisfies readonly { id: IConnectionGroupBy; labelKey: string }[]
+
 const orderFunctionMap = ORDER_OPTIONS.reduce<Record<OrderKey, OrderFunc>>(
   (acc, option) => {
     acc[option.id] = option.fn
@@ -102,6 +111,8 @@ const ConnectionsPage = () => {
   const [setting, setSetting] = useConnectionSetting()
 
   const isTableLayout = setting.layout === 'table'
+  const groupBy = setting.groupBy ?? 'none'
+  const summaryVisible = setting.summary ?? true
 
   const [isColumnManagerOpen, setIsColumnManagerOpen] = useState(false)
 
@@ -192,6 +203,21 @@ const ConnectionsPage = () => {
             color="inherit"
             size="small"
             onClick={() =>
+              setSetting((o) => ({
+                ...(o ?? { layout: 'table' }),
+                summary: !(o?.summary ?? true),
+              }))
+            }
+          >
+            <InsightsRounded
+              titleAccess={t('connections.components.summary.toggle')}
+              sx={{ opacity: summaryVisible ? 1 : 0.45 }}
+            />
+          </IconButton>
+          <IconButton
+            color="inherit"
+            size="small"
+            onClick={() =>
               setSetting((o) =>
                 o?.layout !== 'table'
                   ? { ...o, layout: 'table' }
@@ -213,6 +239,9 @@ const ConnectionsPage = () => {
         </Box>
       }
     >
+      {summaryVisible && hasTableData && (
+        <ConnectionSummary connections={filterConn} />
+      )}
       <Box
         sx={{
           pt: 1,
@@ -246,7 +275,26 @@ const ConnectionsPage = () => {
             {connections?.closedConnections.length}
           </Button>
         </ButtonGroup>
-        {!isTableLayout && (
+        {isTableLayout ? (
+          <Tooltip title={t('connections.components.group.label')}>
+            <BaseStyledSelect
+              sx={{ width: 150 }}
+              value={groupBy}
+              onChange={(e) =>
+                setSetting((o) => ({
+                  ...(o ?? { layout: 'table' }),
+                  groupBy: e.target.value as IConnectionGroupBy,
+                }))
+              }
+            >
+              {GROUP_OPTIONS.map((option) => (
+                <MenuItem key={option.id} value={option.id}>
+                  <span style={{ fontSize: 14 }}>{t(option.labelKey)}</span>
+                </MenuItem>
+              ))}
+            </BaseStyledSelect>
+          </Tooltip>
+        ) : (
           <BaseStyledSelect
             value={curOrderOpt}
             onChange={(e) => setCurOrderOpt(e.target.value as OrderKey)}
@@ -289,6 +337,7 @@ const ConnectionsPage = () => {
       ) : isTableLayout ? (
         <ConnectionTable
           connections={filterConn}
+          groupBy={groupBy}
           onShowDetail={showDetailById}
           columnManagerOpen={isColumnManagerOpen}
           onCloseColumnManager={() => setIsColumnManagerOpen(false)}

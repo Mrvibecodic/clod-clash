@@ -197,8 +197,12 @@ interface IConnections {
   connections: IConnectionsItem[]
 }
 
+type IConnectionGroupBy = 'none' | 'process' | 'chain' | 'rule'
+
 interface IConnectionSetting {
   layout: 'table' | 'list'
+  groupBy?: IConnectionGroupBy
+  summary?: boolean
 }
 
 interface IClashInfo {
