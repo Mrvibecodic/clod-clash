@@ -1,4 +1,4 @@
-import { Box } from '@mui/material'
+import { Box, Tooltip } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
 import { useLocalStorage } from 'foxact/use-local-storage'
 import {
@@ -66,6 +66,10 @@ type VisibilityState = Record<string, boolean>
 interface BaseColumn {
   field: ColumnField
   headerName: string
+  // clod:design-v3 — «Скорость скачивания» и «Скорость загрузки» в семьдесят
+  // шесть точек переносились и слипались в нечитаемое «СкоростьСкорость».
+  // В шапке остаётся стрелка, полное название приезжает подсказкой.
+  headerShort?: string
   width: number
   minWidth: number
   maxWidth?: number
@@ -544,6 +548,7 @@ export const ConnectionTable = (props: Props) => {
       {
         field: 'dlSpeed',
         headerName: t('connections.components.fields.dlSpeed'),
+        headerShort: '↓',
         width: 76,
         minWidth: 60,
         align: 'right',
@@ -552,6 +557,7 @@ export const ConnectionTable = (props: Props) => {
       {
         field: 'ulSpeed',
         headerName: t('connections.components.fields.ulSpeed'),
+        headerShort: '↑',
         width: 76,
         minWidth: 60,
         align: 'right',
@@ -1009,32 +1015,41 @@ export const ConnectionTable = (props: Props) => {
                       userSelect: 'none',
                     }}
                   >
-                    <button
-                      type="button"
-                      onClick={() => toggleSorting(column.field)}
-                      style={{
-                        flex: 1,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent:
-                          column.align === 'right' ? 'flex-end' : 'flex-start',
-                        gap: 4,
-                        padding: 8,
-                        border: 0,
-                        background: 'transparent',
-                        color: 'inherit',
-                        font: 'inherit',
-                        textAlign: column.align === 'right' ? 'right' : 'left',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {column.headerName}
-                      {sorting?.id === column.field
-                        ? sorting.desc
-                          ? '▼'
-                          : '▲'
-                        : null}
-                    </button>
+                    <Tooltip title={column.headerName} enterDelay={400}>
+                      <button
+                        type="button"
+                        aria-label={column.headerName}
+                        onClick={() => toggleSorting(column.field)}
+                        style={{
+                          flex: 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent:
+                            column.align === 'right'
+                              ? 'flex-end'
+                              : 'flex-start',
+                          gap: 4,
+                          padding: 8,
+                          border: 0,
+                          background: 'transparent',
+                          color: 'inherit',
+                          font: 'inherit',
+                          textAlign:
+                            column.align === 'right' ? 'right' : 'left',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {column.headerShort ?? column.headerName}
+                        {sorting?.id === column.field
+                          ? sorting.desc
+                            ? '▼'
+                            : '▲'
+                          : null}
+                      </button>
+                    </Tooltip>
                     <div
                       onMouseDown={(event) =>
                         handleResizeMouseDown(column, event)
