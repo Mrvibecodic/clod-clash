@@ -8,6 +8,46 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.1.9-alpha.1
+
+<!-- lang:en -->
+
+### Added
+
+- Connections tab: an optional grouping by application, node or rule, and a summary strip above the table — current speed, session volume, the four heaviest applications and the four exits the traffic actually took. Grouping is off by default, so the table looks exactly as before, and the strip can be hidden from the page header
+
+### Changed
+
+- A minimised window no longer works for nothing: delay tests are not started from the tray, the rule list is not re-read when the window hides, the profile card stops ticking, and the update check runs once a day instead of every three hours
+- Dead code left over from the upstream dashboard is removed from the backend, the window and the translations — no visible behaviour depends on it
+
+### Fixed
+
+- A left click on the tray icon under Linux opens the window, and the menu stays on the right button; on Windows and macOS the tray is untouched
+- The server drawer no longer closes after every pick, so several groups can be switched in one go
+- The tunnel explains in words why it failed to come up, and the raw core output stays in the log; port and profile errors are translated too
+- Built-in core outcomes — direct, reject and their kin — no longer count towards subscription usage
+
+<!-- lang:ru -->
+
+### Добавлено
+
+- Вкладка «Соединения»: группировка по приложению, узлу или правилу и полоса итогов над таблицей — текущая скорость, объём за сессию, четыре самых прожорливых приложения и четыре выхода, через которые трафик реально ушёл. Группировка по умолчанию выключена, поэтому таблица выглядит ровно как раньше, а полосу можно убрать кнопкой в шапке
+
+### Изменено
+
+- Свёрнутое окно больше не работает вхолостую: проверки задержек не запускаются из трея, список правил не перечитывается при уходе окна, карточка профиля перестаёт тикать, а проверка обновлений идёт раз в сутки вместо трёх часов
+- Из бэкенда, окна и переводов вычищен мёртвый код, доставшийся от исходного дашборда, — видимое поведение на нём не держалось
+
+### Исправлено
+
+- Левый клик по значку в трее под Linux открывает окно, меню осталось на правой кнопке; на Windows и macOS трей не изменился
+- Шторка выбора серверов не закрывается после каждого выбора — несколько групп можно сменить за один заход
+- Туннель объясняет словами, почему не поднялся, а сырой вывод ядра остаётся в журнале; ошибки портов и профиля тоже переведены
+- Служебные исходы ядра — прямой выход, блокировка и их родня — больше не идут в расход подписки
+
+---
+
 ## v0.1.8
 
 <!-- lang:en -->
