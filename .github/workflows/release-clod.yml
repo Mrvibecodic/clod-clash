@@ -297,6 +297,9 @@ jobs:
           ensure_release() {
             local tag="$1" name="$2" body="$3" id
             id=$(gh api "repos/${{ github.repository }}/releases/tags/$tag" --jq .id 2>/dev/null || true)
+            case "$id" in
+              '' | *[!0-9]*) id="" ;;
+            esac
             if [ -z "$id" ]; then
               id=$(gh api -X POST "repos/${{ github.repository }}/releases" \
                 -f tag_name="$tag" -f name="$name" -f body="$body" \
