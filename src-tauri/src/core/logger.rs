@@ -26,17 +26,6 @@ use crate::{
     },
 };
 
-/// clod: единственная точка, где секрет может не попасть в файл.
-///
-/// Форматтер видит КАЖДУЮ строку перед записью — и нашу, и форварженный вывод
-/// ядра, — поэтому редакция стоит здесь, а не в двадцати местах вызова.
-/// Раньше `mask_url` звали руками, про новое сообщение надо было помнить
-/// отдельно, а строки ядра уходили в файл сырыми: с адресом подписки, токеном
-/// короче шестнадцати символов (его `mask_url` щадил) и списком адресов, куда
-/// ходил пользователь.
-///
-/// Строку без секретов отдаём как есть, без пересборки записи: в тихом режиме
-/// это лишняя аллокация на каждую строку лога.
 fn redacted(
     inner: fn(&mut dyn std::io::Write, &mut DeferredNow, &Record<'_>) -> std::io::Result<()>,
     writer: &mut dyn std::io::Write,
@@ -49,10 +38,6 @@ fn redacted(
         return inner(writer, now, record);
     }
 
-    // `format_args!` живёт до конца выражения, поэтому запись пересобирается
-    // и отдаётся форматтеру в одном statement. Пересборка ручная: готовый
-    // `Record::to_builder` в крейте `log` спрятан за фичей `kv`, которую мы
-    // не включаем; без неё запись состоит ровно из этих пяти полей.
     inner(
         writer,
         now,
@@ -67,6 +52,16 @@ fn redacted(
 }
 
 #[cfg(not(any(feature = "tauri-dev", feature = "tokio-trace")))]
+const PLUMBING_MODULES: &[&str] = &[
+    "clash_verge_service_ipc",
+    "h2",
+    "hyper",
+    "hyper_util",
+    "kode_bridge",
+    "reqwest",
+    "rustls",
+];
+
 fn redacted_console_format(
     writer: &mut dyn std::io::Write,
     now: &mut DeferredNow,
@@ -170,8 +165,6 @@ impl Logger {
         *self.sidecar_file_writer.write() = Some(sidecar_file_writer);
 
         std::panic::set_hook(Box::new(move |info| {
-            // Capture both common panic payload types instead of logging String payloads as unknown.
-            // This global hook covers panics after logger init; early setup panics are handled separately.
             let payload = info
                 .payload()
                 .downcast_ref::<&str>()
@@ -199,6 +192,9 @@ impl Logger {
             .and_then(|v| log::LevelFilter::from_str(&v).ok())
             .unwrap_or(log_level);
         spec.default(log_level);
+        for module in PLUMBING_MODULES {
+            spec.module(module, log::LevelFilter::Warn);
+        }
         #[cfg(feature = "tracing")]
         spec.module("tauri", log::LevelFilter::Debug)
             .module("wry", log::LevelFilter::Off)
@@ -221,7 +217,6 @@ impl Logger {
         Ok(flwb)
     }
 
-    /// only update app log level
     pub fn update_log_level(&self, level: LevelFilter) -> Result<()> {
         *self.log_level.write() = level;
         let log_level = self.log_level.read().to_owned();
@@ -235,7 +230,6 @@ impl Logger {
         Ok(())
     }
 
-    /// update app and mihomo core log config
     pub async fn update_log_config(&self, log_max_size: u64, log_max_count: usize) -> Result<()> {
         self.log_max_size.store(log_max_size, Ordering::SeqCst);
         self.log_max_count.store(log_max_count, Ordering::SeqCst);
@@ -248,10 +242,6 @@ impl Logger {
         let sidecar_writer = self.generate_sidecar_writer()?;
         *self.sidecar_file_writer.write() = Some(sidecar_writer);
 
-        // clod:svc-2.6 — писатель службы вторичен к локальному логгеру:
-        // синхронизируем его только при живой сессии владельца и не откатываем
-        // локальные настройки при провале. Каталог решает сама служба —
-        // логи ядра лежат в её поколении, а не в наших каталогах.
         if service::has_active_service_session()
             && let Err(error) = service::update_writer_by_service(&WriterConfig {
                 directory: String::new(),

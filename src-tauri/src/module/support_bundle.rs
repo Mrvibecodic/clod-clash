@@ -1,24 +1,6 @@
-//! clod: отчёт для поддержки — всё, что нужно провайдеру, и ничего лишнего.
-//!
-//! Раньше единственным способом что-то показать поддержке было «пришлите лог»,
-//! а в логе лежит URL подписки целиком, вместе с токеном. Здесь собирается
-//! готовый текст: версии, состояние ядра и подписки, отчёт фильтра заглушек и
-//! хвосты обоих логов — **уже отредактированные**, так что его можно вставить
-//! в чат не глядя.
-//!
-//! Сама редакция живёт в `utils::redact` и применяется уже при записи лога,
-//! поэтому здесь второй проход — страховка на случай, если строка пришла не из
-//! файла (версии, состояние подписки, отчёт заглушек). Редакция идемпотентна:
-//! замазанная строка второй проход переживает без изменений.
-//!
-//! Отдельно от редакции работает отбор строк. Ядро на уровне `info` пишет
-//! строку на каждое соединение (`[TCP] … --> mail.example.com:443 match …`) —
-//! в отчёт такие строки не попадают вовсе: поддержке они не нужны, а
-//! пользователь отдаёт отчёт человеку, которого видит первый раз.
-
 use crate::{
     config::{Config, IVerge},
-    core::CoreManager,
+    core::{CoreManager, manager::RunningMode},
     enhance,
     utils::{
         dirs, help, hwid,
@@ -29,17 +11,8 @@ use anyhow::Result;
 use std::{fmt::Write as _, path::PathBuf};
 use tokio::fs;
 
-/// Сколько последних строк каждого лога забираем.
-///
-/// Больше — лучше: поддержке почти всегда нужен не сам сбой, а то, что
-/// происходило за десяток минут до него.
 const LOG_TAIL_LINES: usize = 800;
 
-/// Файлы лога, свежие первыми.
-///
-/// Лог ротируется по размеру, поэтому «последние N строк» почти всегда лежат
-/// в двух файлах: текущем и предыдущем. Берём оба, иначе на подробном уровне
-/// в отчёт попадает минута жизни приложения.
 async fn log_files(dir: Option<PathBuf>, matches: impl Fn(&str) -> bool + Send) -> Vec<PathBuf> {
     let Some(dir) = dir else {
         return Vec::new();
@@ -64,18 +37,10 @@ async fn log_files(dir: Option<PathBuf>, matches: impl Fn(&str) -> bool + Send) 
         found.push((modified, path));
     }
 
-    // Свежие первыми: reverse-порядок по времени изменения.
     found.sort_by_key(|(modified, _)| std::cmp::Reverse(*modified));
     found.into_iter().map(|(_, path)| path).collect()
 }
 
-/// Строка ядра про конкретное соединение или DNS-запрос.
-///
-/// mihomo на уровне `info` (наш умолчательный) пишет по строке на каждое
-/// соединение вместе с адресом назначения, а на `debug` — ещё и каждый
-/// DNS-запрос. Хвост такого лога — это история посещений, и в отчёте ей не
-/// место: поддержке нужен старт ядра, разбор конфига и ошибки, а не куда
-/// пользователь ходил.
 fn is_traffic_line(line: &str) -> bool {
     const MARKERS: &[&str] = &[
         "[tcp]",
@@ -92,17 +57,12 @@ fn is_traffic_line(line: &str) -> bool {
     MARKERS.iter().any(|marker| lower.contains(marker))
 }
 
-/// Что делать со строкой лога перед тем, как положить её в отчёт.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum LogKind {
-    /// Лог приложения: адресов назначения в нём нет.
     App,
-    /// Лог ядра: строки про соединения выбрасываем целиком.
     Core,
 }
 
-/// Последние `lines` строк из набора файлов (свежие первыми), уже
-/// отредактированные. Второе значение — сколько строк выброшено как трафик.
 async fn tail_of(paths: &[PathBuf], lines: usize, kind: LogKind) -> (Option<std::string::String>, usize) {
     let mut collected: Vec<std::string::String> = Vec::new();
     let mut skipped = 0usize;
@@ -133,18 +93,8 @@ const fn yes_no(value: bool) -> &'static str {
     if value { "да" } else { "нет" }
 }
 
-/// Максимум, который мы готовы процитировать из строки, пришедшей от панели.
 const PANEL_TEXT_MAX: usize = 200;
 
-/// Привести к безопасному виду текст, который придумала панель.
-///
-/// Имя профиля и имена узлов-заглушек приходят из подписки и могут содержать
-/// что угодно, включая перевод строки и тройную кавычку. Отчёт пользователь
-/// вставляет в чат как есть, поэтому панель не должна уметь дорисовать в нём
-/// собственную секцию или закрыть блок кода.
-/// Невидимые format-символы (категория Cf): bidi-переопределения, zero-width,
-/// BOM. `char::is_control` ловит только Cc, а RLO в имени заглушки позволил бы
-/// панели визуально переставить текст отчёта в чате поддержки.
 const fn is_invisible_format(c: char) -> bool {
     matches!(c,
         '\u{200B}'..='\u{200F}' // zero-width + LRM/RLM
@@ -212,6 +162,37 @@ async fn settings_section(out: &mut std::string::String) {
         yes_no(data.enable_sub_notifications.unwrap_or(true))
     );
     let _ = writeln!(out, "- mixed-port: {}", data.verge_mixed_port.unwrap_or(0));
+    let _ = writeln!(
+        out,
+        "- системный прокси: {} (адрес {}, PAC {})",
+        yes_no(data.enable_system_proxy.unwrap_or(false)),
+        data.proxy_host.as_deref().unwrap_or("127.0.0.1"),
+        yes_no(data.proxy_auto_config.unwrap_or(false))
+    );
+    let _ = writeln!(
+        out,
+        "- защита прокси: {} (период {} с)",
+        yes_no(data.enable_proxy_guard.unwrap_or(false)),
+        data.proxy_guard_duration.unwrap_or(30)
+    );
+    let _ = writeln!(
+        out,
+        "- исключения прокси: встроенные {}, свои: {}",
+        yes_no(data.use_default_bypass.unwrap_or(true)),
+        match data.system_proxy_bypass.as_deref() {
+            Some(bypass) if !bypass.is_empty() => bypass,
+            _ => "—",
+        }
+    );
+    let mode = Config::clash()
+        .await
+        .latest_arc()
+        .0
+        .get("mode")
+        .and_then(serde_yaml_ng::Value::as_str)
+        .unwrap_or("—")
+        .to_owned();
+    let _ = writeln!(out, "- режим ядра: {mode}");
     let _ = writeln!(
         out,
         "- переопределение DNS: {}",
@@ -299,9 +280,6 @@ async fn sentinel_section(out: &mut std::string::String) {
         let _ = writeln!(out, "- панель прислала вместо серверов: {quoted}");
     }
 
-    // clod:server-description — «описания серверов не появляются» разбирается
-    // именно здесь: ноль означает, что панель их не прислала, а не что клиент
-    // их потерял. Тексты не показываем — они от провайдера и в отчёт не нужны.
     let described = enhance::server_descriptions().await.len();
     let _ = writeln!(
         out,
@@ -314,8 +292,39 @@ async fn sentinel_section(out: &mut std::string::String) {
     );
 }
 
+fn core_log_dir() -> Option<PathBuf> {
+    match *CoreManager::global().get_running_mode() {
+        RunningMode::Service => dirs::service_log_dir().ok(),
+        RunningMode::Sidecar | RunningMode::NotRunning => dirs::sidecar_log_dir().ok(),
+    }
+}
+
+async fn core_tail_from_running_core(lines: usize) -> (Option<std::string::String>, usize) {
+    let Ok(logs) = CoreManager::global().get_clash_logs().await else {
+        return (None, 0);
+    };
+
+    let home = home_prefix();
+    let mut collected: Vec<std::string::String> = Vec::new();
+    let mut skipped = 0_usize;
+
+    for line in logs.iter().rev() {
+        if is_traffic_line(line.as_str()) {
+            skipped += 1;
+            continue;
+        }
+        collected.push(redact(&scrub_home(line.as_str(), home.as_deref())));
+        if collected.len() >= lines {
+            break;
+        }
+    }
+
+    collected.reverse();
+    let text = collected.join("\n");
+    ((!text.trim().is_empty()).then_some(text), skipped)
+}
+
 async fn logs_section(out: &mut std::string::String, lines: usize) {
-    // Лог приложения лежит в корне logs/, лог ядра — в logs/sidecar/.
     let app_logs = log_files(dirs::app_logs_dir().ok(), |name| {
         name.ends_with(".log") && !name.starts_with("sidecar")
     })
@@ -330,9 +339,14 @@ async fn logs_section(out: &mut std::string::String, lines: usize) {
         }
     }
 
-    let core_logs = log_files(dirs::sidecar_log_dir().ok(), |name| name.ends_with(".log")).await;
+    let core_logs = log_files(core_log_dir(), |name| name.ends_with(".log")).await;
     let _ = writeln!(out, "\n## Лог ядра (последние {lines} строк, без строк о соединениях)");
-    let (tail, skipped) = tail_of(&core_logs, lines, LogKind::Core).await;
+    let (mut tail, mut skipped) = tail_of(&core_logs, lines, LogKind::Core).await;
+    if tail.is_none() {
+        let (from_core, also_skipped) = core_tail_from_running_core(lines).await;
+        tail = from_core;
+        skipped += also_skipped;
+    }
     if skipped > 0 {
         let _ = writeln!(
             out,
@@ -344,15 +358,15 @@ async fn logs_section(out: &mut std::string::String, lines: usize) {
             let _ = writeln!(out, "```\n{tail}\n```");
         }
         None => {
-            let _ = writeln!(out, "лог ядра не найден или состоял только из строк о соединениях");
+            let _ = writeln!(
+                out,
+                "лог ядра не найден или состоял только из строк о соединениях (режим работы ядра: {})",
+                CoreManager::global().get_running_mode()
+            );
         }
     }
 }
 
-/// Собрать отчёт целиком.
-///
-/// `lines` — сколько строк каждого лога взять; `None` — столько, сколько
-/// обычно хватает поддержке.
 pub async fn build(lines: Option<usize>) -> Result<std::string::String> {
     let lines = lines.unwrap_or(LOG_TAIL_LINES).clamp(50, 5000);
     let mut out = std::string::String::with_capacity(64 * 1024);
@@ -427,7 +441,6 @@ mod tests {
         let line = "[core] mihomo started, mode rule, mixed-port 7897";
         assert_eq!(redact(line), line);
 
-        // Длинное число — счётчик байт или таймстамп, а не ключ.
         let counter = "uploaded 1785591768238123 bytes";
         assert_eq!(redact(counter), counter);
     }
@@ -442,7 +455,6 @@ mod tests {
 
     #[test]
     fn short_paths_and_bare_queries_are_masked_too() {
-        // `mask_url` щадил короткий сегмент пути — здесь режем весь путь.
         let short = redact("sub url https://p.example/s/AbCd1234EfGh5678");
         assert!(!short.contains("AbCd1234"), "{short}");
 
@@ -517,7 +529,6 @@ mod tests {
 
     #[test]
     fn the_panel_cannot_smuggle_invisible_characters() {
-        // RLO + zero-width + BOM: текст остаётся, невидимая разметка — нет.
         let hostile = super::panel_text("тариф \u{202E}нэлто\u{202C} про\u{200B}длить\u{FEFF}");
         assert!(!hostile.contains('\u{202E}'), "{hostile:?}");
         assert!(!hostile.contains('\u{200B}'), "{hostile:?}");
@@ -527,7 +538,6 @@ mod tests {
 
     #[test]
     fn bare_destination_addresses_are_masked() {
-        // Строка ядра без маркеров трафика, но с адресом назначения.
         let masked = redact("dns resolve failed: mail.example.com:443 no such host");
         assert!(!masked.contains("mail.example.com"), "{masked}");
         assert!(masked.contains("***:443"), "{masked}");

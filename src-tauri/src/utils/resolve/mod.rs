@@ -74,6 +74,7 @@ pub fn resolve_setup_async() {
             init_system_proxy_guard().await;
             init_tun_ready().await;
             crate::feat::environment::spawn_environment_watchdog();
+            crate::core::sysopt::spawn_proxy_observer();
         });
 
         let _ = futures::join!(

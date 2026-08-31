@@ -1,5 +1,7 @@
 use crate::{
     config::{Config, IVerge},
+    core::handle,
+    process::AsyncHandler,
     singleton,
 };
 use anyhow::Result;
@@ -8,14 +10,134 @@ use parking_lot::RwLock;
 use scopeguard::defer;
 use smartstring::alias::String;
 use std::{
+    fmt::Write as _,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
     },
-    time::Duration,
+    time::{Duration, Instant},
 };
 use sysproxy::{Autoproxy, GuardMonitor, GuardType, Sysproxy};
 use tokio::sync::Mutex as TokioMutex;
+
+const PROXY_OBSERVE_TICK: Duration = Duration::from_secs(5);
+
+static OBSERVER_RUNNING: AtomicBool = AtomicBool::new(false);
+
+#[derive(Clone, PartialEq, Eq)]
+struct ObservedProxy {
+    sys_enable: bool,
+    host: std::string::String,
+    port: u16,
+    auto_enable: bool,
+}
+
+impl ObservedProxy {
+    fn read() -> Option<Self> {
+        let sys = Sysproxy::get_system_proxy().ok()?;
+        let auto = Autoproxy::get_auto_proxy().ok()?;
+        Some(Self {
+            sys_enable: sys.enable,
+            host: sys.host.to_string(),
+            port: sys.port,
+            auto_enable: auto.enable,
+        })
+    }
+
+    fn describe(&self) -> std::string::String {
+        format!(
+            "sysproxy enable={} {}:{}, autoproxy enable={}",
+            self.sys_enable, self.host, self.port, self.auto_enable
+        )
+    }
+
+    fn unreadable() -> std::string::String {
+        std::string::String::from("unreadable")
+    }
+}
+
+struct WantedProxy {
+    sys_enable: bool,
+    auto_enable: bool,
+    host: std::string::String,
+    port: u16,
+}
+
+impl WantedProxy {
+    fn accepted_by(&self, observed: &ObservedProxy) -> bool {
+        if observed.sys_enable != self.sys_enable || observed.auto_enable != self.auto_enable {
+            return false;
+        }
+        !self.sys_enable || (observed.host == self.host && observed.port == self.port)
+    }
+
+    fn describe(&self) -> std::string::String {
+        format!(
+            "sysproxy enable={} {}:{}, autoproxy enable={}",
+            self.sys_enable, self.host, self.port, self.auto_enable
+        )
+    }
+}
+
+fn report_applied(wanted: &WantedProxy, before: Option<&ObservedProxy>, after: Option<&ObservedProxy>, steps: &str) {
+    if let Some(after) = after
+        && !wanted.accepted_by(after)
+    {
+        logging!(
+            warn,
+            Type::Core,
+            "the system did not accept the proxy settings: wanted {}, the system reports {}",
+            wanted.describe(),
+            after.describe()
+        );
+    }
+
+    logging!(
+        debug,
+        Type::Core,
+        "proxy settings written: wanted {}, before {}, steps [{steps}], after {}",
+        wanted.describe(),
+        before.map_or_else(ObservedProxy::unreadable, ObservedProxy::describe),
+        after.map_or_else(ObservedProxy::unreadable, ObservedProxy::describe)
+    );
+}
+
+pub fn spawn_proxy_observer() {
+    if OBSERVER_RUNNING.swap(true, Ordering::AcqRel) {
+        return;
+    }
+
+    AsyncHandler::spawn(|| async {
+        let mut last: Option<ObservedProxy> = None;
+
+        loop {
+            tokio::time::sleep(PROXY_OBSERVE_TICK).await;
+            if handle::Handle::global().is_exiting() {
+                return;
+            }
+            if !log::log_enabled!(log::Level::Debug) {
+                continue;
+            }
+
+            let Ok(Some(now)) = tokio::task::spawn_blocking(ObservedProxy::read).await else {
+                continue;
+            };
+            if last.as_ref() == Some(&now) {
+                continue;
+            }
+
+            let ours = Sysopt::global().applying.load(Ordering::SeqCst);
+            logging!(
+                debug,
+                Type::Core,
+                "observed proxy settings: {} (we were {}writing at that moment)",
+                now.describe(),
+                if ours { "" } else { "not " }
+            );
+            last = Some(now);
+        }
+    });
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ProxyApplyStep {
@@ -34,6 +156,7 @@ const fn proxy_apply_steps(sys_enabled: bool, auto_enabled: bool) -> [ProxyApply
 pub struct Sysopt {
     update_lock: TokioMutex<()>,
     reset_sysproxy: AtomicBool,
+    applying: AtomicBool,
     inner_proxy: Arc<RwLock<(Sysproxy, Autoproxy)>>,
     guard: Arc<RwLock<GuardMonitor>>,
 }
@@ -43,6 +166,7 @@ impl Default for Sysopt {
         Self {
             update_lock: TokioMutex::new(()),
             reset_sysproxy: AtomicBool::new(false),
+            applying: AtomicBool::new(false),
             inner_proxy: Arc::new(RwLock::new((Sysproxy::default(), Autoproxy::default()))),
             guard: Arc::new(RwLock::new(GuardMonitor::new(GuardType::None, Duration::from_secs(30)))),
         }
@@ -179,17 +303,42 @@ impl Sysopt {
         self.access_guard().write().set_guard_type(guard_type);
 
         let apply_steps = proxy_apply_steps(sys.enable, auto.enable);
+        let wanted = WantedProxy {
+            sys_enable: sys.enable,
+            auto_enable: auto.enable,
+            host: sys.host.to_string(),
+            port: sys.port,
+        };
+        let verbose = log::log_enabled!(log::Level::Debug);
 
-        tokio::task::spawn_blocking(move || -> Result<()> {
-            for step in apply_steps {
-                match step {
-                    ProxyApplyStep::Autoproxy => with_system_call_retry(|| auto.set_auto_proxy())?,
-                    ProxyApplyStep::Sysproxy => with_system_call_retry(|| sys.set_system_proxy())?,
+        self.applying.store(true, Ordering::SeqCst);
+        defer! {
+            self.applying.store(false, Ordering::SeqCst);
+        }
+
+        let written = tokio::task::spawn_blocking(
+            move || -> Result<(Option<ObservedProxy>, Option<ObservedProxy>, std::string::String)> {
+                let before = verbose.then(ObservedProxy::read).flatten();
+                let mut steps = std::string::String::new();
+
+                for step in apply_steps {
+                    let started = Instant::now();
+                    match step {
+                        ProxyApplyStep::Autoproxy => with_system_call_retry(|| auto.set_auto_proxy())?,
+                        ProxyApplyStep::Sysproxy => with_system_call_retry(|| sys.set_system_proxy())?,
+                    }
+                    if !steps.is_empty() {
+                        steps.push_str(", ");
+                    }
+                    let _ = write!(steps, "{step:?} {}ms", started.elapsed().as_millis());
                 }
-            }
-            Ok(())
-        })
+
+                Ok((before, ObservedProxy::read(), steps))
+            },
+        )
         .await??;
+
+        report_applied(&wanted, written.0.as_ref(), written.1.as_ref(), &written.2);
 
         Ok(())
     }
@@ -254,7 +403,45 @@ fn with_system_call_retry(mut apply: impl FnMut() -> sysproxy::Result<()>) -> sy
 
 #[cfg(test)]
 mod tests {
-    use super::{BYPASS_SEPARATOR, DEFAULT_BYPASS, ProxyApplyStep, format_bypass, proxy_apply_steps};
+    use super::{
+        BYPASS_SEPARATOR, DEFAULT_BYPASS, ObservedProxy, ProxyApplyStep, WantedProxy, format_bypass, proxy_apply_steps,
+    };
+
+    fn observed(sys_enable: bool, host: &str, port: u16, auto_enable: bool) -> ObservedProxy {
+        ObservedProxy {
+            sys_enable,
+            host: host.to_owned(),
+            port,
+            auto_enable,
+        }
+    }
+
+    fn wanted(sys_enable: bool, host: &str, port: u16, auto_enable: bool) -> WantedProxy {
+        WantedProxy {
+            sys_enable,
+            auto_enable,
+            host: host.to_owned(),
+            port,
+        }
+    }
+
+    #[test]
+    fn the_written_proxy_counts_as_accepted_only_when_the_system_agrees() {
+        let want = wanted(true, "127.0.0.1", 7897, false);
+
+        assert!(want.accepted_by(&observed(true, "127.0.0.1", 7897, false)));
+        assert!(!want.accepted_by(&observed(false, "127.0.0.1", 7897, false)));
+        assert!(!want.accepted_by(&observed(true, "127.0.0.1", 7890, false)));
+        assert!(!want.accepted_by(&observed(true, "127.0.0.1", 7897, true)));
+    }
+
+    #[test]
+    fn a_disabled_proxy_is_judged_by_the_switch_alone() {
+        let want = wanted(false, "127.0.0.1", 7897, false);
+
+        assert!(want.accepted_by(&observed(false, "", 0, false)));
+        assert!(!want.accepted_by(&observed(true, "127.0.0.1", 7897, false)));
+    }
 
     #[test]
     fn empty_custom_bypass_uses_defaults() {

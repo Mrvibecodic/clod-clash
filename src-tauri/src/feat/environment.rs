@@ -7,6 +7,7 @@ use crate::{
 use clash_verge_logging::{Type, logging};
 use std::{
     collections::BTreeSet,
+    fmt::Write as _,
     sync::atomic::{AtomicBool, Ordering},
     time::{Duration, Instant, SystemTime},
 };
@@ -14,6 +15,8 @@ use std::{
 static WATCHDOG_RUNNING: AtomicBool = AtomicBool::new(false);
 
 const SLEEP_SLACK: Duration = Duration::from_secs(20);
+
+const FINGERPRINT_ENTRIES_SHOWN: usize = 8;
 
 fn network_fingerprint() -> BTreeSet<std::string::String> {
     let Ok(interfaces) = crate::cmd::network::get_network_interfaces_info() else {
@@ -40,6 +43,72 @@ fn network_fingerprint() -> BTreeSet<std::string::String> {
         .collect()
 }
 
+fn listed<'a>(entries: impl Iterator<Item = &'a std::string::String>) -> std::string::String {
+    let mut shown = 0_usize;
+    let mut extra = 0_usize;
+    let mut out = std::string::String::new();
+
+    for entry in entries {
+        if shown < FINGERPRINT_ENTRIES_SHOWN {
+            if shown > 0 {
+                out.push_str(", ");
+            }
+            out.push_str(entry);
+            shown += 1;
+        } else {
+            extra += 1;
+        }
+    }
+
+    if shown == 0 {
+        return std::string::String::from("nothing");
+    }
+    if extra > 0 {
+        let _ = write!(out, " and {extra} more");
+    }
+    out
+}
+
+fn report_fingerprint_change(before: &BTreeSet<std::string::String>, after: &BTreeSet<std::string::String>) {
+    logging!(
+        debug,
+        Type::Core,
+        "[clod] network fingerprint: {} entries before, {} after; appeared {}; gone {}",
+        before.len(),
+        after.len(),
+        listed(after.difference(before)),
+        listed(before.difference(after))
+    );
+}
+
+async fn close_live_connections() {
+    let mihomo = handle::Handle::mihomo().await;
+    let live = if log::log_enabled!(log::Level::Debug) {
+        mihomo
+            .get_connections()
+            .await
+            .ok()
+            .and_then(|response| response.connections)
+            .map_or(0, |connections| connections.len())
+    } else {
+        0
+    };
+
+    match mihomo.close_all_connections().await {
+        Ok(()) => logging!(
+            debug,
+            Type::Core,
+            "[clod] closed {live} live connections after the environment changed"
+        ),
+        Err(e) => logging!(
+            debug,
+            Type::Core,
+            "[clod] could not close connections after the environment changed: {e}"
+        ),
+    }
+    drop(mihomo);
+}
+
 async fn reconcile(reason: &str, slept: bool) {
     logging!(info, Type::Core, "[clod] environment changed ({reason}), reconciling");
 
@@ -48,13 +117,7 @@ async fn reconcile(reason: &str, slept: bool) {
         logging!(warn, Type::Core, "[clod] failed to re-assert the system proxy: {e}");
     }
 
-    if let Err(e) = handle::Handle::mihomo().await.close_all_connections().await {
-        logging!(
-            debug,
-            Type::Core,
-            "[clod] could not close connections after the environment changed: {e}"
-        );
-    }
+    close_live_connections().await;
 
     if slept {
         crate::feat::tun::rearm_after_wake().await;
@@ -88,6 +151,9 @@ pub fn spawn_environment_watchdog() {
 
             let network = network_fingerprint();
             let network_changed = network != last_network;
+            if network_changed && log::log_enabled!(log::Level::Debug) {
+                report_fingerprint_change(&last_network, &network);
+            }
 
             last_tick = now_tick;
             last_wall = now_wall;
@@ -109,9 +175,25 @@ pub fn spawn_environment_watchdog() {
 
 #[cfg(test)]
 mod tests {
-    use super::SLEEP_SLACK;
+    use super::{FINGERPRINT_ENTRIES_SHOWN, SLEEP_SLACK, listed};
     use crate::constants::timing;
     use std::time::Duration;
+
+    #[test]
+    fn an_empty_difference_is_spelled_out() {
+        assert_eq!(listed(std::iter::empty()), "nothing");
+    }
+
+    #[test]
+    fn a_long_difference_is_cut_and_counted() {
+        let entries: Vec<std::string::String> = (0..FINGERPRINT_ENTRIES_SHOWN + 3)
+            .map(|i| format!("if{i}:10.0.0.{i}"))
+            .collect();
+        let text = listed(entries.iter());
+
+        assert!(text.starts_with("if0:10.0.0.0, if1:10.0.0.1"));
+        assert!(text.ends_with("and 3 more"));
+    }
 
     #[test]
     fn the_sleep_threshold_leaves_room_for_a_busy_machine() {
