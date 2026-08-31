@@ -262,16 +262,14 @@ type TableItem =
   | { kind: 'row'; row: IConnectionsItem }
 
 const getGroupKey = (
-  row: IConnectionsItem,
   groupBy: IConnectionGroupBy,
   snapshot: TableRowSnapshot,
 ) => {
   switch (groupBy) {
     case 'process':
       return snapshot.process
-    // chains[0] — реальный исход: ядро дописывает цепочку изнутри наружу.
     case 'chain':
-      return row.chains[0] ?? ''
+      return snapshot.chainsText
     case 'rule':
       return snapshot.ruleText
     default:
@@ -733,7 +731,7 @@ export const ConnectionTable = (props: Props) => {
   const otherGroupLabel = t('connections.components.group.other')
 
   const resolveGroupKey = useCallback(
-    (row: IConnectionsItem) => getGroupKey(row, groupBy, getRowSnapshot(row)),
+    (row: IConnectionsItem) => getGroupKey(groupBy, getRowSnapshot(row)),
     [getRowSnapshot, groupBy],
   )
 
