@@ -8,6 +8,36 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.1.9-alpha.2
+
+<!-- lang:en -->
+
+### Changed
+
+- Pre-release builds have their own update channel at last: the «Pre-release builds» switch now really decides what the updater offers — the pre-release channel always carries the newest build, the regular one the latest stable release, and they can no longer overtake each other
+- Dependencies are updated: the h2 vulnerability reported by the audit is closed, and the dependency audit itself finally runs
+
+### Fixed
+
+- Linux: the window opens from the tray again and desktop notifications work. The tray dependency added in the previous build was quietly switching the D-Bus layer into a mode where every blocking call panicked, so the window was never created
+- The node selection is restored after a cold start too: it now waits for the groups to be filled by the core instead of trusting its first answer, which could wipe the choice stored in the profile
+- Connections tab: the speed column headers no longer run together
+
+<!-- lang:ru -->
+
+### Изменено
+
+- У предварительных сборок наконец свой канал обновлений: галочка «Предварительные сборки» действительно решает, что предложит апдейтер — в предварительном канале лежит самая свежая сборка, в обычном последний стабильный релиз, и обогнать друг друга они не могут
+- Обновлены зависимости: закрыта уязвимость в h2, найденная аудитом, а сам аудит зависимостей наконец выполняется
+
+### Исправлено
+
+- Linux: окно снова открывается из трея, и работают уведомления. Зависимость трея, добавленная в прошлой сборке, молча переключала слой D-Bus в режим, где любой блокирующий вызов паниковал, и окно не создавалось
+- Выбор узлов возвращается и после холодного старта: теперь он дожидается, пока ядро наполнит группы, а не верит первому ответу, по которому запись в профиле могла стереться
+- Вкладка «Соединения»: заголовки колонок скорости больше не слипаются
+
+---
+
 ## v0.1.9-alpha.1
 
 <!-- lang:en -->
