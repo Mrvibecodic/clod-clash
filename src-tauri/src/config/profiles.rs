@@ -37,6 +37,9 @@ static ACTIVATE_SELECTED_GENERATION: AtomicU64 = AtomicU64::new(0);
 
 const MIHOMO_OPERATION_TIMEOUT: Duration = Duration::from_secs(10);
 const SELECTED_NODES_RECHECK_DELAY: Duration = Duration::from_secs(1);
+const SELECTED_NODES_READY_TIMEOUT: Duration = Duration::from_secs(20);
+const PROXIES_POLL_INTERVAL: Duration = Duration::from_millis(500);
+const PROXIES_STABLE_POLLS: u8 = 3;
 
 #[derive(Default, Debug, Clone, Deserialize, Serialize)]
 pub struct IProfiles {
@@ -872,6 +875,77 @@ async fn fetch_proxies_with_timeout() -> Result<Proxies> {
     .context("timed out while waiting for mihomo proxies")
 }
 
+fn selected_groups_are_filled(selected: &[PrfSelected], proxies: &Proxies) -> bool {
+    selected.iter().all(|item| {
+        let Some(group_name) = item.name.as_deref() else {
+            return true;
+        };
+        proxies
+            .proxies
+            .get(group_name)
+            .and_then(|group| group.all.as_deref())
+            .is_some_and(|nodes| !nodes.is_empty())
+    })
+}
+
+fn groups_fingerprint(proxies: &Proxies) -> Vec<(String, usize)> {
+    let mut fingerprint = proxies
+        .proxies
+        .iter()
+        .map(|(name, group)| (name.as_str().into(), group.all.as_ref().map_or(0, Vec::len)))
+        .collect::<Vec<(String, usize)>>();
+    fingerprint.sort();
+    fingerprint
+}
+
+async fn fetch_settled_proxies(selected: &[PrfSelected], generation: u64) -> Result<(Proxies, bool)> {
+    let deadline = tokio::time::Instant::now() + SELECTED_NODES_READY_TIMEOUT;
+    let mut last_snapshot: Option<Proxies> = None;
+    let mut last_fingerprint = Vec::new();
+    let mut stable_polls = 0u8;
+
+    loop {
+        match handle::Handle::mihomo().await.get_proxies().await {
+            Ok(proxies) => {
+                if selected_groups_are_filled(selected, &proxies) {
+                    return Ok((proxies, true));
+                }
+
+                let fingerprint = groups_fingerprint(&proxies);
+                if last_snapshot.is_some() && fingerprint == last_fingerprint {
+                    stable_polls += 1;
+                    if stable_polls >= PROXIES_STABLE_POLLS {
+                        logging!(
+                            debug,
+                            Type::Config,
+                            "mihomo groups stopped changing without every saved group; treating the core as warmed up"
+                        );
+                        return Ok((proxies, true));
+                    }
+                } else {
+                    stable_polls = 0;
+                }
+                last_fingerprint = fingerprint;
+                last_snapshot = Some(proxies);
+            }
+            Err(err) => {
+                logging!(debug, Type::Config, "mihomo proxies are not ready yet: {err}");
+                stable_polls = 0;
+            }
+        }
+
+        if !is_activation_current(generation) || tokio::time::Instant::now() >= deadline {
+            break;
+        }
+        tokio::time::sleep(PROXIES_POLL_INTERVAL).await;
+    }
+
+    match last_snapshot {
+        Some(proxies) => Ok((proxies, false)),
+        None => bail!("timed out while waiting for mihomo proxies"),
+    }
+}
+
 async fn select_node_with_timeout(group_name: &String, node: &String) -> Result<()> {
     tokio::time::timeout(MIHOMO_OPERATION_TIMEOUT, async {
         handle::Handle::mihomo()
@@ -997,12 +1071,20 @@ async fn activate_selected_nodes_worker(
     favorites: Vec<String>,
     generation: u64,
 ) -> Result<()> {
-    let first_snapshot = fetch_proxies_with_timeout().await?;
+    let (first_snapshot, groups_are_settled) = fetch_settled_proxies(&selected, generation).await?;
     if !is_activation_current(generation) {
         return Ok(());
     }
 
-    let needs_confirmation = selected_nodes_need_confirmation(&selected, &first_snapshot);
+    if !groups_are_settled {
+        logging!(
+            warn,
+            Type::Config,
+            "the core has not filled every saved group in time; activating what is there and keeping the records untouched"
+        );
+    }
+
+    let needs_confirmation = groups_are_settled && selected_nodes_need_confirmation(&selected, &first_snapshot);
     let immediate_plan = reconcile_selected_nodes(&selected, &favorites, None, &first_snapshot);
     logging!(
         debug,
@@ -1053,7 +1135,7 @@ async fn activate_selected_nodes_worker(
         return Ok(());
     }
 
-    if plan.repaired_count > 0 && is_activation_current(generation) {
+    if plan.repaired_count > 0 && groups_are_settled && is_activation_current(generation) {
         logging!(
             info,
             Type::Config,
@@ -1142,6 +1224,52 @@ mod tests {
                 })
                 .collect::<HashMap<_, _>>(),
         }
+    }
+
+    #[test]
+    fn snapshot_is_filled_only_when_every_saved_group_has_nodes() {
+        let saved = vec![selected("group", "node")];
+
+        assert!(selected_groups_are_filled(
+            &saved,
+            &proxies(vec![("group", &["node", "other"], Some("other"))])
+        ));
+        assert!(
+            !selected_groups_are_filled(&saved, &proxies(vec![("group", &[], None)])),
+            "an empty group means the core has not filled it yet"
+        );
+        assert!(
+            !selected_groups_are_filled(&saved, &proxies(vec![("another", &["node"], None)])),
+            "a missing group means the core has not filled it yet"
+        );
+    }
+
+    #[test]
+    fn fingerprint_tracks_group_names_and_sizes() {
+        let one = proxies(vec![("a", &["n1"], None), ("b", &[], None)]);
+        let same = proxies(vec![("b", &[], None), ("a", &["n1"], None)]);
+        let grown = proxies(vec![("a", &["n1", "n2"], None), ("b", &[], None)]);
+
+        assert_eq!(
+            groups_fingerprint(&one),
+            groups_fingerprint(&same),
+            "the order of groups in the answer must not matter"
+        );
+        assert_ne!(
+            groups_fingerprint(&one),
+            groups_fingerprint(&grown),
+            "a group that gained nodes means the core is still filling them"
+        );
+    }
+
+    #[test]
+    fn snapshot_is_filled_for_records_without_a_group_name() {
+        let nameless = vec![PrfSelected {
+            name: None,
+            now: Some("node".into()),
+        }];
+
+        assert!(selected_groups_are_filled(&nameless, &proxies(vec![])));
     }
 
     #[test]
