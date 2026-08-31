@@ -227,7 +227,7 @@ const SettingVergeAdvanced = ({ onError, variant = 'all' }: Props) => {
             }
           >
             <GuardState
-              value={receive_prereleases ?? true}
+              value={receive_prereleases ?? false}
               valueProps="checked"
               onCatch={onError}
               onFormat={(_e: any, checked: boolean) => checked}

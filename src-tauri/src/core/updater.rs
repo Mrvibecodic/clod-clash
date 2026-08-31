@@ -183,6 +183,36 @@ fn verify_minisign(pubkey_b64: &str, signature_b64: &str, bytes: &[u8]) -> Resul
         .map_err(|e| anyhow!("signature does not match the bytes: {e}"))
 }
 
+const PRERELEASE_UPDATER_ENDPOINT: &str =
+    "https://github.com/Mrvibecodic/clod-clash/releases/download/updater-prerelease/latest.json";
+
+fn configured_endpoints(app_handle: &tauri::AppHandle) -> Vec<String> {
+    app_handle
+        .config()
+        .plugins
+        .0
+        .get("updater")
+        .and_then(|cfg| cfg.get("endpoints"))
+        .and_then(serde_json::Value::as_array)
+        .map(|endpoints| {
+            endpoints
+                .iter()
+                .filter_map(|endpoint| endpoint.as_str().map(str::to_owned))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn prerelease_endpoints(app_handle: &tauri::AppHandle) -> Result<Vec<tauri::Url>> {
+    let mut endpoints = vec![PRERELEASE_UPDATER_ENDPOINT.to_owned()];
+    endpoints.extend(configured_endpoints(app_handle));
+
+    endpoints
+        .iter()
+        .map(|endpoint| tauri::Url::parse(endpoint).map_err(|e| anyhow!("bad updater endpoint {endpoint}: {e}")))
+        .collect()
+}
+
 fn updater_pubkey(app_handle: &tauri::AppHandle) -> Result<String> {
     app_handle
         .config()
@@ -470,7 +500,11 @@ fn nsis_language_id(app_language: &str) -> &'static str {
     }
 }
 
-fn updater_builder(app_handle: &tauri::AppHandle, language: Option<&str>) -> tauri_plugin_updater::UpdaterBuilder {
+fn updater_builder(
+    app_handle: &tauri::AppHandle,
+    language: Option<&str>,
+    receive_prereleases: bool,
+) -> Result<tauri_plugin_updater::UpdaterBuilder> {
     let _ = language;
     let builder = app_handle.updater_builder();
     #[cfg(target_os = "windows")]
@@ -478,23 +512,32 @@ fn updater_builder(app_handle: &tauri::AppHandle, language: Option<&str>) -> tau
         let lang_id = nsis_language_id(&clash_verge_i18n::current_language(language));
         builder.installer_arg(format!("/LANG={lang_id}"))
     };
+    if !receive_prereleases {
+        return Ok(builder);
+    }
     builder
+        .endpoints(prerelease_endpoints(app_handle)?)
+        .map_err(|e| anyhow!("failed to point the updater at the pre-release manifest: {e}"))
 }
 
 async fn check_update_with_fallback(app_handle: &tauri::AppHandle) -> Result<Option<Update>> {
-    let language = Config::verge().await.latest_arc().language.clone();
-    let updater = updater_builder(app_handle, language.as_deref()).build()?;
+    let verge = Config::verge().await.latest_arc();
+    let language = verge.language.clone();
+    let receive_prereleases = verge
+        .receive_prereleases
+        .unwrap_or(crate::config::IVerge::DEFAULT_RECEIVE_PRERELEASES);
+    let updater = updater_builder(app_handle, language.as_deref(), receive_prereleases)?.build()?;
     match updater.check().await {
         Ok(found) => Ok(found),
         Err(direct_error) => {
-            let port = Config::verge().await.latest_arc().verge_mixed_port.unwrap_or(7897);
+            let port = verge.verge_mixed_port.unwrap_or(7897);
             let proxy = format!("http://127.0.0.1:{port}");
             logging!(
                 warn,
                 Type::System,
                 "update check failed directly ({direct_error}), retrying via {proxy}"
             );
-            let updater = updater_builder(app_handle, language.as_deref())
+            let updater = updater_builder(app_handle, language.as_deref(), receive_prereleases)?
                 .proxy(tauri::Url::parse(&proxy)?)
                 .build()?;
             Ok(updater.check().await?)

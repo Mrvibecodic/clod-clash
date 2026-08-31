@@ -220,7 +220,7 @@
           "openConfDir": "Yazılım anormal çalışıyorsa, bu klasördeki tüm dosyaları YEDEKLEYİN ve silin, ardından yazılımı yeniden başlatın",
           "liteMode": "GUI'yi kapatın ve yalnızca çekirdeği çalışır durumda tutun",
           "supportBundle": "Copies versions, core and subscription state and the tail of both logs — with subscription addresses, tokens and secrets already masked. Paste it into the provider's support chat.",
-          "receivePrereleases": "Alfa ve beta sürümlerine güncelle. Şu anda tüm sürümler ön sürümdür: bunu kapatmak, ilk kararlı sürüme kadar güncellemeleri durdurur."
+          "receivePrereleases": "Alfa ve beta sürümlerini de al. Kapalıyken yalnızca kararlı sürümler gelir."
         },
         "actions": {
           "copyVersion": "Copy Version"

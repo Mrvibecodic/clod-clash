@@ -131,10 +131,10 @@ const isPrereleaseVersion = (version: string | null | undefined): boolean => {
 const prereleasesAllowed = async (): Promise<boolean> => {
   try {
     const verge = await getVergeConfig()
-    return verge?.receive_prereleases !== false
+    return verge?.receive_prereleases === true
   } catch (err) {
     console.warn('[updater] failed to read the pre-release preference', err)
-    return true
+    return false
   }
 }
 

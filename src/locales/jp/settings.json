@@ -220,7 +220,7 @@
           "openConfDir": "アプリケーションが正常に動作しない場合は、このフォルダ内のすべてのファイルを!バックアップ!して削除し、アプリケーションを再起動してください。",
           "liteMode": "GUIを閉じて、コアのみを実行します。",
           "supportBundle": "Copies versions, core and subscription state and the tail of both logs — with subscription addresses, tokens and secrets already masked. Paste it into the provider's support chat.",
-          "receivePrereleases": "アルファ版・ベータ版に更新します。現在のリリースはすべてプレリリースです。オフにすると最初の安定版が出るまで更新を受け取りません。"
+          "receivePrereleases": "アルファ版・ベータ版も受け取ります。オフのときは安定版のみが届きます。"
         },
         "actions": {
           "copyVersion": "Copy Version"

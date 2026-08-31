@@ -220,7 +220,7 @@
           "openConfDir": "Әгәр программада хаталар чыкса, бу папкадагы файлларны саклап калыгыз да, аннары барысын да бетереп, программаны яңадан башлагыз",
           "liteMode": "GUI-ны ябыгыз һәм бары тик төшне генә эшләтеп калдырыгыз",
           "supportBundle": "Copies versions, core and subscription state and the tail of both logs — with subscription addresses, tokens and secrets already masked. Paste it into the provider's support chat.",
-          "receivePrereleases": "Alpha һәм beta версияләренә яңарту. Хәзер барлык чыгарылышлар да алдан чыгарылган: моны сүндерсәгез, беренче тотрыклы версиягә кадәр яңартулар килми."
+          "receivePrereleases": "Альфа һәм бета версияләрен дә алу. Сүндерелгәндә бары тик тотрыклы чыгарылышлар килә."
         },
         "actions": {
           "copyVersion": "Copy Version"

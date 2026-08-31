@@ -220,7 +220,7 @@
           "openConfDir": "If the software runs abnormally, BACKUP and delete all files in this folder then restart the software",
           "liteMode": "Close the GUI and keep only the kernel running",
           "supportBundle": "Copies versions, core and subscription state and the tail of both logs — with subscription addresses, tokens and secrets already masked. Paste it into the provider's support chat.",
-          "receivePrereleases": "Update to alpha and beta versions. Every release is a pre-release right now: turning this off stops updates until the first stable one."
+          "receivePrereleases": "Update to alpha and beta versions as well. With this switched off only stable releases arrive."
         },
         "actions": {
           "copyVersion": "Copy Version"

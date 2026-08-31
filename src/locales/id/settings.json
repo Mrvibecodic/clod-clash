@@ -220,7 +220,7 @@
           "openConfDir": "Jika perangkat lunak berjalan tidak normal, CADANGKAN dan hapus semua file di folder ini lalu mulai ulang perangkat lunak",
           "liteMode": "Tutup GUI dan biarkan hanya kernel yang berjalan",
           "supportBundle": "Copies versions, core and subscription state and the tail of both logs — with subscription addresses, tokens and secrets already masked. Paste it into the provider's support chat.",
-          "receivePrereleases": "Perbarui ke versi alpha dan beta. Saat ini semua rilis adalah pra-rilis: mematikan ini menghentikan pembaruan sampai rilis stabil pertama."
+          "receivePrereleases": "Terima juga versi alfa dan beta. Jika dimatikan, hanya versi stabil yang datang."
         },
         "actions": {
           "copyVersion": "Copy Version"

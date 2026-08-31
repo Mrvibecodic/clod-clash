@@ -220,7 +220,7 @@
           "openConfDir": "如果軟體執行異常，!備份!並刪除此資料夾下的所有檔案，重新啟動軟體",
           "liteMode": "關閉圖形介面，僅保留內核執行",
           "supportBundle": "Copies versions, core and subscription state and the tail of both logs — with subscription addresses, tokens and secrets already masked. Paste it into the provider's support chat.",
-          "receivePrereleases": "更新到 alpha 與 beta 版本。目前所有發布都是預發布版：關閉後將不再收到更新，直到出現第一個穩定版。"
+          "receivePrereleases": "同時更新到 alpha 和 beta 版本。關閉後只會收到穩定版。"
         },
         "actions": {
           "copyVersion": "複製Verge版本號"

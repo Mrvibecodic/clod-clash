@@ -220,7 +220,7 @@
           "openConfDir": "如果软件运行异常，!备份!并删除此文件夹下的所有文件，重启软件",
           "liteMode": "关闭 GUI 界面，仅保留内核运行",
           "supportBundle": "复制版本信息、内核与订阅状态以及两份日志的末尾内容；订阅地址、令牌和密钥已被遮蔽，可直接粘贴给服务商客服。",
-          "receivePrereleases": "更新到 alpha 和 beta 版本。目前所有发布都是预发布版：关闭后将不再收到更新，直到出现第一个稳定版。"
+          "receivePrereleases": "同时更新到 alpha 和 beta 版本。关闭后只会收到稳定版。"
         },
         "actions": {
           "copyVersion": "复制 Clod 版本号"

@@ -294,15 +294,43 @@ jobs:
             "https://uploads.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets?name=latest.json" \
             --jq .state
 
+          ensure_release() {
+            local tag="$1" name="$2" body="$3" id
+            id=$(gh api "repos/${{ github.repository }}/releases/tags/$tag" --jq .id 2>/dev/null || true)
+            if [ -z "$id" ]; then
+              id=$(gh api -X POST "repos/${{ github.repository }}/releases" \
+                -f tag_name="$tag" -f name="$name" -f body="$body" \
+                -F draft=false -F prerelease=true --jq .id)
+            fi
+            echo "$id"
+          }
+
+          put_manifest() {
+            local id="$1" old
+            old=$(gh api "repos/${{ github.repository }}/releases/$id/assets?per_page=100" \
+              --jq '.[] | select(.name=="latest.json") | .id' | head -1)
+            if [ -n "$old" ]; then
+              gh api -X DELETE "repos/${{ github.repository }}/releases/assets/$old"
+            fi
+            gh api -X POST \
+              -H "Content-Type: application/json" \
+              --input latest.json \
+              "https://uploads.github.com/repos/${{ github.repository }}/releases/$id/assets?name=latest.json" \
+              --jq .state
+          }
+
+          pre=$(ensure_release updater-prerelease "Pre-release update manifest" \
+            "Service release: latest.json of the newest build, pre-releases included. Do not download installers from here.")
+          put_manifest "$pre"
+          echo "latest.json rolled into updater-prerelease"
+
+          case "$VERSION" in
+            *-*)
+              echo "$VERSION is a pre-release, the stable updater manifest stays untouched"
+              exit 0
+              ;;
+          esac
+
           updater_id=$(gh api "repos/${{ github.repository }}/releases/tags/updater" --jq .id)
-          old_asset=$(gh api "repos/${{ github.repository }}/releases/$updater_id/assets?per_page=100" \
-            --jq '.[] | select(.name=="latest.json") | .id' | head -1)
-          if [ -n "$old_asset" ]; then
-            gh api -X DELETE "repos/${{ github.repository }}/releases/assets/$old_asset"
-            echo "removed old latest.json ($old_asset)"
-          fi
-          gh api -X POST \
-            -H "Content-Type: application/json" \
-            --input latest.json \
-            "https://uploads.github.com/repos/${{ github.repository }}/releases/$updater_id/assets?name=latest.json" \
-            --jq .state
+          put_manifest "$updater_id"
+          echo "latest.json rolled into updater"

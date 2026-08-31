@@ -251,7 +251,7 @@ pub struct IVergeTheme {
 impl IVerge {
     pub const VALID_CLASH_CORES: &'static [&'static str] = &["verge-mihomo", "verge-mihomo-alpha"];
 
-    pub const DEFAULT_RECEIVE_PRERELEASES: bool = true;
+    pub const DEFAULT_RECEIVE_PRERELEASES: bool = false;
 
     pub const DEFAULT_ENABLE_HWID: bool = true;
 

@@ -220,7 +220,7 @@
           "openConfDir": "إذا عمل البرنامج بشكل غير طبيعي، قم بالنسخ الاحتياطي ثم حذف جميع الملفات في هذا المجلد ثم أعد تشغيل البرنامج",
           "liteMode": "إيقاف الواجهة الرسومية والإبقاء على تشغيل النواة",
           "supportBundle": "Copies versions, core and subscription state and the tail of both logs — with subscription addresses, tokens and secrets already masked. Paste it into the provider's support chat.",
-          "receivePrereleases": "التحديث إلى إصدارات ألفا وبيتا. جميع الإصدارات حاليًا تجريبية: إيقاف هذا الخيار يوقف التحديثات حتى أول إصدار مستقر."
+          "receivePrereleases": "تلقي إصدارات ألفا وبيتا أيضًا. عند إيقافه تصل الإصدارات المستقرة فقط."
         },
         "actions": {
           "copyVersion": "Copy Version"

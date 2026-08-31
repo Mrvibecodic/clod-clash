@@ -220,7 +220,7 @@
           "openConfDir": "Si el software no funciona correctamente, !realice una copia de seguridad! y elimine todos los archivos de esta carpeta, luego reinicie el software.",
           "liteMode": "Cierra la interfaz gráfica y solo mantiene el núcleo en ejecución",
           "supportBundle": "Copies versions, core and subscription state and the tail of both logs — with subscription addresses, tokens and secrets already masked. Paste it into the provider's support chat.",
-          "receivePrereleases": "Actualizar a versiones alfa y beta. Ahora mismo todas las publicaciones son preliminares: desactivarlo detiene las actualizaciones hasta la primera versión estable."
+          "receivePrereleases": "Recibir también versiones alfa y beta. Desactivado, solo llegan las versiones estables."
         },
         "actions": {
           "copyVersion": "Copy Version"
