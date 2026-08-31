@@ -103,6 +103,15 @@ pub mod timing {
     // ждём два молчания подряд.
     pub const CORE_HEALTH_MISSES: u32 = 2;
 
+    pub const CORE_HEALTH_MAX_SKIPS: u32 = 4;
+
+    pub const CORE_READY_ATTEMPTS: u32 = 40;
+    pub const CORE_READY_INTERVAL: Duration = Duration::from_millis(200);
+    pub const CORE_READY_PROBE_TIMEOUT: Duration = Duration::from_millis(500);
+
+    pub const MIXED_PORT_CHECK_ATTEMPTS: u32 = 12;
+    pub const MIXED_PORT_CHECK_INTERVAL: Duration = Duration::from_millis(500);
+
     // clod:wake-net — как часто сторож окружения сверяет часы и состав сети.
     // Круг стоит один опрос интерфейсов у системы и больше ничего, а платим мы
     // за него задержкой реакции: пятнадцать секунд с чужим системным прокси

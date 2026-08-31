@@ -35,7 +35,11 @@
         },
         "core": {
           "binaryChanged": "تغيّر ملف النواة بعد التثبيت ولم يتم تشغيله",
-          "crashed": "تعطّلت النواة عدة مرات ولم تُعد تشغيلها"
+          "crashed": "تعطّلت النواة عدة مرات ولم تُعد تشغيلها",
+          "handoffFailed": "تعذّر تسليم النواة إلى خدمة الخلفية وتعذّرت إعادتها — النواة لا تعمل",
+          "notReady": "بدأت النواة لكنها لا تستجيب، لذلك أُلغي التشغيل",
+          "portBusy": "المنفذ {{port}} يستخدمه تطبيق آخر: النواة لا تستمع إليه، ولن تمر البيانات عبر وكيل النظام.",
+          "portBusyAction": "غيّر المنفذ من الإعدادات"
         },
         "service": {
           "needsRepair": "The background service is outdated after the update. Repair it in the settings — TUN may not work until then"

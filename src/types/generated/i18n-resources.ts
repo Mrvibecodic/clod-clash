@@ -1316,6 +1316,10 @@ export interface TranslationResources {
             core: {
               binaryChanged: string
               crashed: string
+              handoffFailed: string
+              notReady: string
+              portBusy: string
+              portBusyAction: string
             }
             service: {
               needsRepair: string

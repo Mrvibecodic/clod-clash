@@ -29,6 +29,7 @@ pub async fn check_singleton() -> Result<()> {
         let client = ClientBuilder::new().timeout(Duration::from_millis(500)).build()?;
         #[allow(clippy::needless_collect)]
         let argvs: Vec<std::string::String> = std::env::args().collect();
+        let mut handover: Result<()> = Ok(());
         if argvs.len() > 1 {
             #[cfg(not(target_os = "macos"))]
             {
@@ -37,17 +38,38 @@ pub async fn check_singleton() -> Result<()> {
                 let param = argvs[1].as_str();
                 if param.starts_with("clash:") || param.starts_with("clash-verge:") || param.starts_with("clodclash:") {
                     let encoded = utf8_percent_encode(param, NON_ALPHANUMERIC);
-                    client
+                    handover = client
                         .get(format!("http://127.0.0.1:{port}/commands/scheme?param={encoded}"))
                         .send()
-                        .await?;
+                        .await
+                        .map(|_| ())
+                        .map_err(anyhow::Error::from);
                 }
             }
         } else {
-            client
+            handover = client
                 .get(format!("http://127.0.0.1:{port}/commands/visible"))
                 .send()
-                .await?;
+                .await
+                .map_err(anyhow::Error::from)
+                .and_then(|response| {
+                    let status = response.status();
+                    if status.is_success() {
+                        Ok(())
+                    } else {
+                        Err(anyhow::anyhow!("ответ {status}"))
+                    }
+                });
+        }
+        if let Err(error) = handover {
+            logging!(
+                error,
+                Type::Window,
+                "порт {} занят посторонним процессом ({}): передать команду некому",
+                port,
+                error
+            );
+            bail!("singleton port {port} is held by a foreign process: {error}");
         }
         logging!(
             info,

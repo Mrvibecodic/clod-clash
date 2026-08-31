@@ -35,7 +35,11 @@
         },
         "core": {
           "binaryChanged": "El archivo del núcleo cambió desde su instalación y no se inició",
-          "crashed": "El núcleo se bloqueó varias veces y no se reinició"
+          "crashed": "El núcleo se bloqueó varias veces y no se reinició",
+          "handoffFailed": "No se pudo entregar el núcleo al servicio en segundo plano ni recuperarlo — el núcleo no está en ejecución",
+          "notReady": "El núcleo se inició pero no responde, por lo que se canceló el arranque",
+          "portBusy": "El puerto {{port}} está ocupado por otra aplicación: el núcleo no lo escucha y el tráfico no pasará por el proxy del sistema.",
+          "portBusyAction": "Cambiar el puerto en los ajustes"
         },
         "service": {
           "needsRepair": "The background service is outdated after the update. Repair it in the settings — TUN may not work until then"

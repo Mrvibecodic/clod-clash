@@ -5,6 +5,8 @@ use clash_verge_logging::{Type, logging};
 use once_cell::sync::OnceCell;
 #[cfg(unix)]
 use std::iter;
+#[cfg(unix)]
+use std::path::Path;
 use std::{fs, path::PathBuf};
 use tauri::Manager as _;
 
@@ -213,20 +215,87 @@ pub fn ensure_mihomo_safe_dir() -> Option<PathBuf> {
 }
 
 #[cfg(unix)]
+fn owner_ipc_suffix() -> String {
+    crate::core::owner_identity::current_owner_identity()
+        .map(|identity| clash_verge_service_ipc::owner_key(&identity))
+        .unwrap_or_else(|_| unsafe { tauri_plugin_clash_verge_sysinfo::libc::geteuid() }.to_string())
+}
+
+#[cfg(unix)]
+fn ensure_private_dir(dir: &Path) -> Result<()> {
+    use std::os::unix::fs::{DirBuilderExt as _, MetadataExt as _, PermissionsExt as _};
+
+    if let Err(error) = fs::DirBuilder::new().mode(0o700).create(dir)
+        && error.kind() != std::io::ErrorKind::AlreadyExists
+    {
+        return Err(error.into());
+    }
+
+    let meta = fs::symlink_metadata(dir)?;
+    if !meta.is_dir() {
+        anyhow::bail!("{dir:?} занят не каталогом");
+    }
+    if meta.uid() != unsafe { tauri_plugin_clash_verge_sysinfo::libc::geteuid() } {
+        anyhow::bail!("{dir:?} принадлежит другому пользователю");
+    }
+    fs::set_permissions(dir, fs::Permissions::from_mode(0o700))?;
+    Ok(())
+}
+
+#[cfg(unix)]
+const IPC_SOCKET_PATH_LIMIT: usize = 100;
+
+#[cfg(unix)]
+fn socket_in_private_dir(dir: &Path) -> Result<PathBuf> {
+    let socket = dir.join("verge-mihomo.sock");
+    if socket.as_os_str().len() > IPC_SOCKET_PATH_LIMIT {
+        anyhow::bail!("путь сокета {socket:?} длиннее допустимого");
+    }
+    ensure_private_dir(dir)?;
+    Ok(socket)
+}
+
+#[cfg(unix)]
 pub fn sidecar_ipc_path() -> Result<PathBuf> {
-    ensure_mihomo_safe_dir()
-        .map(|base_dir| base_dir.join("verge").join("verge-mihomo.sock"))
-        .or_else(|| {
-            app_home_dir()
-                .ok()
-                .map(|dir| dir.join("verge").join("verge-mihomo.sock"))
-        })
-        .ok_or_else(|| anyhow::anyhow!("Failed to determine ipc path"))
+    let flavor = if cfg!(feature = "verge-dev") { "dev" } else { "release" };
+    let dir_name = format!("verge-{flavor}-{}", owner_ipc_suffix());
+    let mut last_error = None;
+
+    if let Some(dir) = ensure_mihomo_safe_dir().map(|base_dir| base_dir.join(&dir_name)) {
+        match socket_in_private_dir(&dir) {
+            Ok(socket) => return Ok(socket),
+            Err(error) => last_error = Some(error),
+        }
+    }
+
+    if let Some(error) = last_error.as_ref() {
+        logging!(
+            warn,
+            Type::File,
+            "каталог для сокета ядра недоступен ({}), берём запасной",
+            error
+        );
+    }
+
+    let unique_name = format!("{dir_name}-{}", std::process::id());
+    if let Some(dir) = ensure_mihomo_safe_dir().map(|base_dir| base_dir.join(&unique_name)) {
+        match socket_in_private_dir(&dir) {
+            Ok(socket) => return Ok(socket),
+            Err(error) => last_error = Some(error),
+        }
+    }
+
+    Err(last_error.unwrap_or_else(|| anyhow::anyhow!("Failed to determine ipc path")))
 }
 
 #[cfg(target_os = "windows")]
 pub fn sidecar_ipc_path() -> Result<PathBuf> {
-    Ok(PathBuf::from(r"\\.\pipe\verge-mihomo"))
+    let identity = crate::core::owner_identity::current_owner_identity()?;
+    let flavor = if cfg!(feature = "verge-dev") { "dev" } else { "release" };
+    Ok(PathBuf::from(format!(
+        r"\\.\pipe\verge-mihomo-sidecar-{flavor}-{}",
+        clash_verge_service_ipc::owner_key(&identity)
+    )))
 }
 
 /// clod:svc-2.6 — где слушает API ядро, запущенное СЛУЖБОЙ.

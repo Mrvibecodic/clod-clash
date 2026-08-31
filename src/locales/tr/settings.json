@@ -35,7 +35,11 @@
         },
         "core": {
           "binaryChanged": "Çekirdek dosyası kurulumdan sonra değiştiği için başlatılmadı",
-          "crashed": "Çekirdek üst üste çöktü ve yeniden başlatılmadı"
+          "crashed": "Çekirdek üst üste çöktü ve yeniden başlatılmadı",
+          "handoffFailed": "Çekirdek arka plan hizmetine devredilemedi ve geri alınamadı — çekirdek çalışmıyor",
+          "notReady": "Çekirdek başlatıldı ancak yanıt vermiyor, başlatma iptal edildi",
+          "portBusy": "{{port}} bağlantı noktası başka bir uygulama tarafından kullanılıyor: çekirdek onu dinlemiyor, trafik sistem proxy'si üzerinden geçmeyecek.",
+          "portBusyAction": "Bağlantı noktasını ayarlardan değiştir"
         },
         "service": {
           "needsRepair": "The background service is outdated after the update. Repair it in the settings — TUN may not work until then"

@@ -89,6 +89,28 @@ const resolveNoticeMessage = (
   })
 }
 
+const MAX_NOTICE_TEXT_DEPTH = 8
+
+const extractElementText = (
+  node: React.ReactNode,
+  depth = 0,
+): string | undefined => {
+  if (depth > MAX_NOTICE_TEXT_DEPTH) return undefined
+  if (typeof node === 'string') return node
+  if (typeof node === 'number') return String(node)
+  if (Array.isArray(node)) {
+    const parts = node
+      .map((child) => extractElementText(child as React.ReactNode, depth + 1))
+      .filter((part): part is string => Boolean(part))
+    return parts.length ? parts.join('') : undefined
+  }
+  if (React.isValidElement(node)) {
+    const { children } = node.props as { children?: React.ReactNode }
+    return extractElementText(children, depth + 1)
+  }
+  return undefined
+}
+
 const extractNoticeCopyText = (input: unknown): string | undefined => {
   if (input === null || input === undefined) return undefined
   if (typeof input === 'string') return input
@@ -98,7 +120,7 @@ const extractNoticeCopyText = (input: unknown): string | undefined => {
   if (input instanceof Error) {
     return input.message || input.name
   }
-  if (React.isValidElement(input)) return undefined
+  if (React.isValidElement(input)) return extractElementText(input)
   if (typeof input === 'object') {
     const maybeMessage = (input as { message?: unknown }).message
     if (typeof maybeMessage === 'string') return maybeMessage

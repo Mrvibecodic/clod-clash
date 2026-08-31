@@ -9,6 +9,7 @@ use crate::{
         handle::Handle,
         hotkey::Hotkey,
         logger::Logger,
+        manager::RunningMode,
         service::{SERVICE_MANAGER, ServiceManager, is_service_ipc_path_exists},
         sysopt,
         tray::Tray,
@@ -60,9 +61,14 @@ pub fn resolve_setup_async() {
         if let Err(e) = init::init_dns_config().await {
             logging!(warn, Type::Setup, "DNS config initialization failed: {}", e);
         }
-        if config_initialized {
-            init_verge_config().await;
+        if !config_initialized {
+            logging!(
+                warn,
+                Type::Setup,
+                "первичная инициализация конфига не удалась — рантайм всё равно собираем и проверяем"
+            );
         }
+        init_verge_config().await;
         Config::verify_config_initialization().await;
 
         let core_init = AsyncHandler::spawn(|| async {
@@ -70,7 +76,18 @@ pub fn resolve_setup_async() {
             crate::core::orphan::sweep_orphan_cores().await;
             init_service_manager().await;
             init_core_manager().await;
-            init_system_proxy().await;
+            let core_is_up = !matches!(*CoreManager::global().get_running_mode(), RunningMode::NotRunning);
+            let wants_proxy = Config::verge().await.latest_arc().enable_system_proxy.unwrap_or(false);
+            if core_is_up || !wants_proxy {
+                init_system_proxy().await;
+            } else {
+                logging!(
+                    error,
+                    Type::Setup,
+                    "ядро не запустилось — системный прокси на мёртвый порт не ставим и снимаем прежний"
+                );
+                logging_error!(Type::Setup, sysopt::Sysopt::global().reset_sysproxy().await);
+            }
             init_system_proxy_guard().await;
             init_tun_ready().await;
             crate::feat::environment::spawn_environment_watchdog();

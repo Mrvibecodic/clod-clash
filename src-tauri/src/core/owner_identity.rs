@@ -74,7 +74,6 @@ pub(crate) fn open_or_create_private_current_user_file(path: &Path) -> Result<st
 }
 
 #[cfg(windows)]
-#[allow(dead_code)]
 pub(crate) fn current_user_pipe_sddl() -> Result<String> {
     let sid = windows_owner::current_sid()?;
     Ok(format!("D:P(A;;GA;;;{sid})(A;;GA;;;SY)(A;;GA;;;BA)"))

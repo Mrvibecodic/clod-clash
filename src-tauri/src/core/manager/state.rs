@@ -121,6 +121,7 @@ pub(super) fn spawn_service_health_watchdog() {
             SERVICE_WATCHDOG_RUNNING.store(false, Ordering::Release);
         }
         let mut misses: u32 = 0;
+        let mut skipped: u32 = 0;
         loop {
             tokio::time::sleep(timing::CORE_HEALTH_INTERVAL).await;
 
@@ -129,8 +130,21 @@ pub(super) fn spawn_service_health_watchdog() {
                 return;
             }
             if manager.is_config_update_in_progress() {
-                misses = 0;
-                continue;
+                skipped += 1;
+                if skipped <= timing::CORE_HEALTH_MAX_SKIPS {
+                    misses = 0;
+                    continue;
+                }
+                if skipped == timing::CORE_HEALTH_MAX_SKIPS + 1 {
+                    logging!(
+                        warn,
+                        Type::Core,
+                        "применение конфига идёт {} кругов подряд — сторож больше не уступает",
+                        skipped
+                    );
+                }
+            } else {
+                skipped = 0;
             }
             if core_answers().await {
                 misses = 0;
@@ -189,21 +203,29 @@ impl CoreManager {
         };
 
         #[cfg(unix)]
-        let previous_mask = unsafe { tauri_plugin_clash_verge_sysinfo::libc::umask(0o007) };
-        let (mut rx, child) = command
-            .args([
-                "-d",
-                dirs::path_to_str(&config_dir)?,
-                "-f",
-                dirs::path_to_str(&config_file)?,
-                if cfg!(windows) {
-                    "-ext-ctl-pipe"
-                } else {
-                    "-ext-ctl-unix"
-                },
-                &IClashTemp::guard_external_controller_ipc(),
-            ])
-            .spawn()?;
+        let previous_mask = unsafe { tauri_plugin_clash_verge_sysinfo::libc::umask(0o077) };
+        #[cfg(unix)]
+        defer! {
+            unsafe { tauri_plugin_clash_verge_sysinfo::libc::umask(previous_mask) };
+        }
+        let command = command.args([
+            "-d",
+            dirs::path_to_str(&config_dir)?,
+            "-f",
+            dirs::path_to_str(&config_file)?,
+            if cfg!(windows) {
+                "-ext-ctl-pipe"
+            } else {
+                "-ext-ctl-unix"
+            },
+            &IClashTemp::guard_external_controller_ipc(),
+        ]);
+        #[cfg(windows)]
+        let command = command.env(
+            "LISTEN_NAMEDPIPE_SDDL",
+            crate::core::owner_identity::current_user_pipe_sddl()?,
+        );
+        let (mut rx, child) = command.spawn()?;
         #[cfg(target_os = "windows")]
         {
             let job = match create_and_assign_sidecar_job(child.pid()) {
@@ -225,11 +247,6 @@ impl CoreManager {
             };
             self.set_job_handle(Some(job));
         }
-
-        #[cfg(unix)]
-        unsafe {
-            tauri_plugin_clash_verge_sysinfo::libc::umask(previous_mask)
-        };
 
         let pid = child.pid();
         logging!(trace, Type::Core, "Sidecar started with PID: {}", pid);

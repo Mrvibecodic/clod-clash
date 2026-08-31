@@ -35,7 +35,11 @@
         },
         "core": {
           "binaryChanged": "内核文件在安装后被修改，已拒绝启动",
-          "crashed": "内核连续崩溃，已停止自动重启"
+          "crashed": "内核连续崩溃，已停止自动重启",
+          "handoffFailed": "内核移交后台服务失败，也无法退回 — 内核未运行",
+          "notReady": "内核已启动但没有响应，启动已取消",
+          "portBusy": "端口 {{port}} 被其他程序占用：内核未监听该端口，流量不会走系统代理。",
+          "portBusyAction": "在设置中更改端口"
         },
         "service": {
           "needsRepair": "The background service is outdated after the update. Repair it in the settings — TUN may not work until then"

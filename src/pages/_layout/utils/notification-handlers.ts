@@ -1,10 +1,15 @@
-import { showNotice } from '@/services/notice-service'
+import { Fragment, type KeyboardEvent, createElement } from 'react'
+
+import { hideNotice, showNotice } from '@/services/notice-service'
 import getSystem from '@/utils/get-system'
 
 const OS = getSystem()
 
 type NavigateFunction = (path: string, options?: any) => void
-type TranslateFunction = (key: string) => string
+type TranslateFunction = (
+  key: string,
+  params?: Record<string, unknown>,
+) => string
 
 export const handleNoticeMessage = (
   status: string,
@@ -129,6 +134,50 @@ export const handleNoticeMessage = (
         'settings.sections.system.notifications.core.crashed',
         msg,
       ),
+    'core::not_ready': () =>
+      showNotice.error(
+        'settings.sections.system.notifications.core.notReady',
+        msg,
+      ),
+    'core::handoff_failed': () =>
+      showNotice.error(
+        'settings.sections.system.notifications.core.handoffFailed',
+        msg,
+      ),
+    'core::port_busy': () => {
+      let id = 0
+      const openSettings = () => {
+        hideNotice(id)
+        void navigate('/settings')
+      }
+      id = showNotice.error(
+        createElement(
+          Fragment,
+          null,
+          t('settings.sections.system.notifications.core.portBusy', {
+            port: msg,
+          }),
+          ' ',
+          createElement(
+            'a',
+            {
+              role: 'button',
+              tabIndex: 0,
+              onClick: openSettings,
+              onKeyDown: (event: KeyboardEvent<HTMLAnchorElement>) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                  openSettings()
+                }
+              },
+              style: { cursor: 'pointer', textDecoration: 'underline' },
+            },
+            t('settings.sections.system.notifications.core.portBusyAction'),
+          ),
+        ),
+        0,
+      )
+    },
     'core::binary_changed': () =>
       showNotice.error(
         'settings.sections.system.notifications.core.binaryChanged',

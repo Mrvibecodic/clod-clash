@@ -35,7 +35,11 @@
         },
         "core": {
           "binaryChanged": "Berkas core berubah setelah dipasang dan tidak dijalankan",
-          "crashed": "Core berulang kali berhenti dan tidak dijalankan ulang"
+          "crashed": "Core berulang kali berhenti dan tidak dijalankan ulang",
+          "handoffFailed": "Gagal menyerahkan core ke layanan latar belakang dan mengembalikannya — core tidak berjalan",
+          "notReady": "Core sudah dijalankan tetapi tidak merespons, sehingga peluncuran dibatalkan",
+          "portBusy": "Port {{port}} dipakai aplikasi lain: core tidak mendengarkan port itu, sehingga trafik tidak melewati proxy sistem.",
+          "portBusyAction": "Ubah port di pengaturan"
         },
         "service": {
           "needsRepair": "The background service is outdated after the update. Repair it in the settings — TUN may not work until then"

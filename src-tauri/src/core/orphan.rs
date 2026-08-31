@@ -45,8 +45,23 @@ async fn known_core_paths() -> Vec<String> {
     known
 }
 
+fn owned_by_current_user(process: &sysinfo::Process, own_user: Option<&sysinfo::Uid>) -> bool {
+    match (process.user_id(), own_user) {
+        (Some(user), Some(own)) => user == own,
+        (Some(_), None) => false,
+        (None, _) => true,
+    }
+}
+
+fn current_user(system: &System, own_pid: Option<sysinfo::Pid>) -> Option<&sysinfo::Uid> {
+    own_pid
+        .and_then(|pid| system.processes().get(&pid))
+        .and_then(|process| process.user_id())
+}
+
 fn sweep_processes(system: &System, known: &[String], own_pid: Option<sysinfo::Pid>) -> u32 {
     let mut swept = 0_u32;
+    let own_user = current_user(system, own_pid);
     for (pid, process) in system.processes() {
         if Some(*pid) == own_pid {
             continue;
@@ -55,6 +70,15 @@ fn sweep_processes(system: &System, known: &[String], own_pid: Option<sysinfo::P
             continue;
         };
         if !is_known_core(exe, known) {
+            continue;
+        }
+        if !owned_by_current_user(process, own_user) {
+            logging!(
+                trace,
+                Type::Core,
+                "core pid {} belongs to another user, leaving it alone",
+                pid
+            );
             continue;
         }
         let parent_name = process
@@ -78,6 +102,48 @@ fn sweep_processes(system: &System, known: &[String], own_pid: Option<sysinfo::P
     swept
 }
 
+pub async fn another_core_of_ours_is_running(own_sidecar_pid: Option<u32>, under_service: bool) -> bool {
+    let known = known_core_paths().await;
+    if known.is_empty() {
+        return false;
+    }
+
+    tokio::task::spawn_blocking(move || {
+        let mut system = System::new();
+        system.refresh_processes_specifics(
+            ProcessesToUpdate::All,
+            true,
+            ProcessRefreshKind::nothing()
+                .with_exe(UpdateKind::Always)
+                .with_user(UpdateKind::Always),
+        );
+        let own_pid = sysinfo::get_current_pid().ok();
+        system.processes().iter().any(|(pid, process)| {
+            if Some(*pid) == own_pid || own_sidecar_pid.is_some_and(|target| pid.as_u32() == target) {
+                return false;
+            }
+            let Some(exe) = process.exe() else {
+                return false;
+            };
+            if !is_known_core(exe, &known) {
+                return false;
+            }
+            if under_service {
+                let parent_name = process
+                    .parent()
+                    .and_then(|ppid| system.processes().get(&ppid))
+                    .map(|parent| parent.name());
+                if parent_shields_the_core(parent_name) {
+                    return false;
+                }
+            }
+            true
+        })
+    })
+    .await
+    .unwrap_or(false)
+}
+
 pub async fn sweep_orphan_cores() {
     let known = known_core_paths().await;
     if known.is_empty() {
@@ -89,7 +155,9 @@ pub async fn sweep_orphan_cores() {
         system.refresh_processes_specifics(
             ProcessesToUpdate::All,
             true,
-            ProcessRefreshKind::nothing().with_exe(UpdateKind::Always),
+            ProcessRefreshKind::nothing()
+                .with_exe(UpdateKind::Always)
+                .with_user(UpdateKind::Always),
         );
         let own_pid = sysinfo::get_current_pid().ok();
         sweep_processes(&system, &known, own_pid)

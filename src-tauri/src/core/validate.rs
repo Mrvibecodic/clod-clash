@@ -355,6 +355,21 @@ impl CoreConfigValidator {
         Self::validate_config_internal_outcome(config_path).await
     }
 
+    async fn binary_that_will_run() -> Option<std::path::PathBuf> {
+        use crate::core::manager::RunningMode;
+        use crate::core::service::{SERVICE_MANAGER, ServiceStatus};
+
+        let under_service = match *crate::core::CoreManager::global().get_running_mode() {
+            RunningMode::Service => true,
+            RunningMode::Sidecar => false,
+            RunningMode::NotRunning => matches!(SERVICE_MANAGER.current().await, ServiceStatus::Ready),
+        };
+        if under_service {
+            return None;
+        }
+        crate::core::core_updater::managed_core_binary().await
+    }
+
     /// Внутренняя реализация проверки конфиг-файла
     async fn validate_config_internal_outcome(config_path: &str) -> Result<ValidationOutcome> {
         // Проверяем, завершается ли приложение, если да — пропускаем проверку
@@ -376,11 +391,14 @@ impl CoreConfigValidator {
         logging!(info, Type::Validate, "Каталог проверки: {}", app_dir_str);
 
         // Запускаем проверку конфига через дочерний процесс clash
-        let command =
-            app_handle
-                .shell()
-                .sidecar(clash_core.as_str())?
-                .args(["-t", "-d", app_dir_str, "-f", config_path]);
+        let command = match Self::binary_that_will_run().await {
+            Some(path) => {
+                logging!(info, Type::Validate, "Проверяем управляемым ядром: {}", path.display());
+                app_handle.shell().command(path)
+            }
+            None => app_handle.shell().sidecar(clash_core.as_str())?,
+        }
+        .args(["-t", "-d", app_dir_str, "-f", config_path]);
         let output = command.output().await?;
 
         let status = &output.status;

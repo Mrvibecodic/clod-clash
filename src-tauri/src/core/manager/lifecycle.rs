@@ -1,15 +1,38 @@
 use super::{CoreManager, RunningMode};
 use crate::cmd::StringifyErr as _;
 use crate::config::{Config, IVerge};
+use crate::constants::timing;
 use crate::core::handle::Handle;
 use crate::core::manager::CLASH_LOGGER;
 use crate::core::service::{SERVICE_MANAGER, ServiceStatus};
+use crate::process::AsyncHandler;
 use anyhow::Result;
 use clash_verge_logging::{Type, logging};
 use scopeguard::defer;
 use smartstring::alias::String;
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use tauri_plugin_clash_verge_sysinfo;
 use tauri_plugin_clash_verge_sysinfo::is_current_app_handle_admin;
+
+static MIXED_PORT_CHECK_GENERATION: AtomicU64 = AtomicU64::new(0);
+static PORT_BUSY_NOTICED: AtomicU32 = AtomicU32::new(0);
+
+#[derive(Debug, PartialEq, Eq)]
+enum PortReport {
+    Serving,
+    Other(u16),
+    NotServing,
+    Silent,
+}
+
+const fn port_report(reported: Option<u16>, expected: u16) -> PortReport {
+    match reported {
+        Some(port) if port == expected => PortReport::Serving,
+        Some(0) => PortReport::NotServing,
+        Some(port) => PortReport::Other(port),
+        None => PortReport::Silent,
+    }
+}
 
 const fn should_wait_for_service(tun_enabled: bool, service_ready: bool, is_admin: bool) -> bool {
     tun_enabled && !service_ready && !is_admin
@@ -60,17 +83,15 @@ impl CoreManager {
             return Ok(());
         }
 
-        let mut result = match *self.get_running_mode() {
-            RunningMode::Service => self.start_core_by_service().await,
-            RunningMode::NotRunning | RunningMode::Sidecar => self.start_core_by_sidecar().await,
-        };
+        let attempted_service = matches!(*self.get_running_mode(), RunningMode::Service);
+        let mut result = self.start_and_confirm(attempted_service).await;
 
         // clod:tun-ready — служба может отказать (сломана, старой версии,
         // пользователь отклонил переустановку). Раньше это означало «ядро не
         // запущено вообще», то есть отсутствие интернета вместо потери TUN.
         // Падаем в sidecar и продолжаем ждать службу в фоне.
         if let Err(e) = &result
-            && matches!(*self.get_running_mode(), RunningMode::Service)
+            && attempted_service
         {
             logging!(
                 warn,
@@ -78,12 +99,17 @@ impl CoreManager {
                 "service start failed ({}); falling back to sidecar",
                 e
             );
-            result = self.start_core_by_sidecar().await;
+            result = self.start_and_confirm(false).await;
         }
 
         // При ошибке запуска откатываем mode, чтобы разрешить повторную попытку.
-        if result.is_err() {
+        if let Err(error) = &result {
             self.set_running_mode(RunningMode::NotRunning);
+            Handle::notice_message("core::not_ready", error.to_string());
+            return result;
+        }
+
+        if Handle::global().is_exiting() {
             return result;
         }
 
@@ -112,6 +138,162 @@ impl CoreManager {
         }
 
         result
+    }
+
+    async fn start_and_confirm(&self, use_service: bool) -> Result<()> {
+        if use_service {
+            self.start_core_by_service().await?;
+        } else {
+            self.start_core_by_sidecar().await?;
+        }
+
+        let Err(error) = self.confirm_core_ready().await else {
+            Self::spawn_mixed_port_check();
+            return Ok(());
+        };
+
+        logging!(
+            error,
+            Type::Core,
+            "ядро запущено, но не отвечает по управляющему каналу: {}",
+            error
+        );
+        if use_service {
+            let _ = self.stop_core_by_service().await;
+        } else {
+            self.stop_core_by_sidecar();
+        }
+        Err(error)
+    }
+
+    async fn confirm_core_ready(&self) -> Result<()> {
+        let mut last: Option<std::string::String> = None;
+
+        for _ in 0..timing::CORE_READY_ATTEMPTS {
+            if Handle::global().is_exiting() {
+                return Ok(());
+            }
+            if matches!(*self.get_running_mode(), RunningMode::NotRunning) {
+                anyhow::bail!("ядро завершилось, не ответив");
+            }
+
+            let probe = {
+                let mihomo = Handle::mihomo().await;
+                tokio::time::timeout(timing::CORE_READY_PROBE_TIMEOUT, mihomo.get_version()).await
+            };
+            match probe {
+                Ok(Ok(_)) => return Ok(()),
+                Ok(Err(error)) => last = Some(error.to_string()),
+                Err(_) => last = Some("ядро не ответило за отведённое время".to_owned()),
+            }
+
+            tokio::time::sleep(timing::CORE_READY_INTERVAL).await;
+        }
+
+        anyhow::bail!("{}", last.unwrap_or_else(|| "причина неизвестна".to_owned()))
+    }
+
+    fn spawn_mixed_port_check() {
+        let generation = MIXED_PORT_CHECK_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
+        AsyncHandler::spawn(move || async move {
+            let manager = Self::global();
+            let expected = {
+                let verge = Config::verge().await.latest_arc();
+                match verge.verge_mixed_port {
+                    Some(port) => port,
+                    None => Config::clash().await.latest_arc().get_mixed_port(),
+                }
+            };
+
+            let mut answered = false;
+            for _ in 0..timing::MIXED_PORT_CHECK_ATTEMPTS {
+                if Handle::global().is_exiting()
+                    || MIXED_PORT_CHECK_GENERATION.load(Ordering::Acquire) != generation
+                    || matches!(*manager.get_running_mode(), RunningMode::NotRunning)
+                {
+                    return;
+                }
+
+                let reported = {
+                    let mihomo = Handle::mihomo().await;
+                    match tokio::time::timeout(timing::CORE_READY_PROBE_TIMEOUT, mihomo.get_base_config()).await {
+                        Ok(Ok(config)) => Some(config.mixed_port),
+                        _ => None,
+                    }
+                };
+                match port_report(reported, expected) {
+                    PortReport::Serving => {
+                        PORT_BUSY_NOTICED.store(0, Ordering::Release);
+                        return;
+                    }
+                    PortReport::Other(port) => {
+                        logging!(
+                            warn,
+                            Type::Core,
+                            "ядро слушает порт {} вместо запрошенного {}",
+                            port,
+                            expected
+                        );
+                        return;
+                    }
+                    PortReport::NotServing => answered = true,
+                    PortReport::Silent => {}
+                }
+
+                tokio::time::sleep(timing::MIXED_PORT_CHECK_INTERVAL).await;
+            }
+
+            if !answered {
+                logging!(
+                    warn,
+                    Type::Core,
+                    "ядро не ответило, слушает ли оно порт {} — проверку пропускаем",
+                    expected
+                );
+                return;
+            }
+
+            if !crate::cmd::network::is_port_in_use(expected).await {
+                logging!(
+                    warn,
+                    Type::Core,
+                    "ядро не слушает порт {}, хотя порт свободен",
+                    expected
+                );
+                return;
+            }
+
+            let mode = manager.get_running_mode();
+            let own_pid = if matches!(*mode, RunningMode::Sidecar) {
+                manager.sidecar_pid()
+            } else {
+                None
+            };
+            if crate::core::orphan::another_core_of_ours_is_running(own_pid, matches!(*mode, RunningMode::Service))
+                .await
+            {
+                logging!(
+                    warn,
+                    Type::Core,
+                    "порт {} занят другим нашим же ядром — оставляем как есть",
+                    expected
+                );
+                return;
+            }
+
+            logging!(
+                error,
+                Type::Core,
+                "порт {} занят посторонним приложением: ядро его не слушает, трафик через системный прокси не пойдёт",
+                expected
+            );
+            if !Config::verge().await.latest_arc().enable_system_proxy.unwrap_or(false) {
+                return;
+            }
+            if PORT_BUSY_NOTICED.swap(u32::from(expected), Ordering::AcqRel) != u32::from(expected) {
+                Handle::notice_message("core::port_busy", expected.to_string());
+            }
+        });
     }
 
     pub async fn stop_core(&self) -> Result<()> {
@@ -415,7 +597,7 @@ impl CoreManager {
         );
         self.stop_core_by_sidecar();
 
-        match self.start_core_by_service().await {
+        match self.start_and_confirm(true).await {
             Ok(()) => {
                 logging!(info, Type::Core, "handoff to service mode succeeded");
                 // clod: под службой поднимается НОВЫЙ процесс ядра — с первым
@@ -438,23 +620,53 @@ impl CoreManager {
                     "handoff to service failed: {}; restarting sidecar",
                     e
                 );
-                if let Err(e2) = self.start_core_by_sidecar().await {
-                    logging!(
-                        error,
-                        Type::Core,
-                        "failed to restart sidecar after handoff failure: {}",
-                        e2
-                    );
-                }
+                self.roll_back_to_sidecar().await;
                 HandoffOutcome::Failed
             }
+        }
+    }
+
+    async fn roll_back_to_sidecar(&self) {
+        if let Err(error) = self.start_and_confirm(false).await {
+            logging!(
+                error,
+                Type::Core,
+                "failed to restart sidecar after handoff failure: {}",
+                error
+            );
+            Handle::notice_message("core::handoff_failed", error.to_string());
+            if let Err(last) = self.start_core_by_sidecar().await {
+                logging!(
+                    error,
+                    Type::Core,
+                    "sidecar did not come back after the handoff at all: {}",
+                    last
+                );
+                return;
+            }
+        }
+
+        if let Err(error) = crate::config::profiles::activate_selected_nodes() {
+            logging!(
+                warn,
+                Type::Core,
+                "Warning: restore selection after the handoff rollback failed: {error}"
+            );
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::should_wait_for_service;
+    use super::{PortReport, port_report, should_wait_for_service};
+
+    #[test]
+    fn a_silent_core_is_not_a_busy_port() {
+        assert_eq!(port_report(None, 7897), PortReport::Silent);
+        assert_eq!(port_report(Some(0), 7897), PortReport::NotServing);
+        assert_eq!(port_report(Some(7897), 7897), PortReport::Serving);
+        assert_eq!(port_report(Some(7890), 7897), PortReport::Other(7890));
+    }
 
     #[test]
     fn service_wait_is_only_required_for_non_admin_tun() {

@@ -35,7 +35,11 @@
         },
         "core": {
           "binaryChanged": "核心檔案在安裝後被修改，已拒絕啟動",
-          "crashed": "核心連續當機，已停止自動重新啟動"
+          "crashed": "核心連續當機，已停止自動重新啟動",
+          "handoffFailed": "核心移交背景服務失敗，也無法退回 — 核心未執行",
+          "notReady": "核心已啟動但沒有回應，啟動已取消",
+          "portBusy": "連接埠 {{port}} 被其他程式占用：核心未監聽該連接埠，流量不會走系統代理。",
+          "portBusyAction": "在設定中變更連接埠"
         },
         "service": {
           "needsRepair": "The background service is outdated after the update. Repair it in the settings — TUN may not work until then"
