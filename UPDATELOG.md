@@ -8,6 +8,24 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.1.9-alpha.3
+
+<!-- lang:en -->
+
+### Fixed
+
+- Connections tab: the grouping option is now called after the table column it groups by, and it groups by the whole chain the row shows instead of its last hop only
+- The pre-release update channel is created on the first publish, so a build no longer stays invisible to the updater
+
+<!-- lang:ru -->
+
+### Исправлено
+
+- Вкладка «Соединения»: пункт группировки назван так же, как колонка, по которой группирует, и группирует теперь по всей цепочке из строки, а не только по её последнему звену
+- Предварительный канал обновлений создаётся при первой же публикации, и сборка больше не остаётся невидимой для апдейтера
+
+---
+
 ## v0.1.9-alpha.2
 
 <!-- lang:en -->
