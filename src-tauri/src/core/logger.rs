@@ -51,7 +51,6 @@ fn redacted(
     )
 }
 
-#[cfg(not(any(feature = "tauri-dev", feature = "tokio-trace")))]
 const PLUMBING_MODULES: &[&str] = &[
     "clash_verge_service_ipc",
     "h2",
@@ -62,6 +61,7 @@ const PLUMBING_MODULES: &[&str] = &[
     "rustls",
 ];
 
+#[cfg(not(any(feature = "tauri-dev", feature = "tokio-trace")))]
 fn redacted_console_format(
     writer: &mut dyn std::io::Write,
     now: &mut DeferredNow,
