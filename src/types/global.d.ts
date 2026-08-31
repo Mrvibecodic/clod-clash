@@ -873,6 +873,7 @@ interface IVergeConfig {
   app_log_level?: 'trace' | 'debug' | 'info' | 'warn' | 'error' | string
   app_log_max_size?: number
   app_log_max_count?: number
+  enable_verbose_diagnostics?: boolean
   language?: string
   tray_event?:
     | 'main_window'

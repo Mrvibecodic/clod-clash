@@ -423,6 +423,7 @@
         "appLogLevel": "سطح لاگ برنامه",
         "appLogMaxSize": "App Log Max Size",
         "appLogMaxCount": "App Log Max Count",
+        "verboseDiagnostics": "Verbose diagnostics (for debugging)",
         "autoCloseConnections": "بستن خودکار اتصالات",
         "autoCheckUpdate": "بررسی خودکار به‌روزرسانی",
         "enableBuiltinEnhanced": "فعال کردن تقویت داخلی",
@@ -434,7 +435,8 @@
       "tooltips": {
         "autoCloseConnections": "اتصالات برقرار شده را هنگام تغییر انتخاب گروه پروکسی یا حالت پروکسی خاتمه دهید",
         "enableBuiltinEnhanced": "مدیریت سازگاری برای فایل پیکربندی",
-        "defaultLatencyTest": "فقط برای تست درخواست‌های کلاینت HTTP استفاده می‌شود و بر فایل پیکربندی تأثیری نخواهد داشت"
+        "defaultLatencyTest": "فقط برای تست درخواست‌های کلاینت HTTP استفاده می‌شود و بر فایل پیکربندی تأثیری نخواهد داشت",
+        "verboseDiagnostics": "Detailed records of network changes and of every write of the system proxy settings. Only needed when investigating a problem: it adds a little background work and many more lines to the log."
       },
       "options": {
         "proxyLayoutColumns": {

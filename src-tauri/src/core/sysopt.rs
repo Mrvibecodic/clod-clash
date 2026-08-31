@@ -79,7 +79,13 @@ impl WantedProxy {
     }
 }
 
-fn report_applied(wanted: &WantedProxy, before: Option<&ObservedProxy>, after: Option<&ObservedProxy>, steps: &str) {
+fn report_applied(
+    wanted: &WantedProxy,
+    before: Option<&ObservedProxy>,
+    after: Option<&ObservedProxy>,
+    steps: &str,
+    verbose: bool,
+) {
     if let Some(after) = after
         && !wanted.accepted_by(after)
     {
@@ -92,8 +98,12 @@ fn report_applied(wanted: &WantedProxy, before: Option<&ObservedProxy>, after: O
         );
     }
 
+    if !verbose {
+        return;
+    }
+
     logging!(
-        debug,
+        info,
         Type::Core,
         "proxy settings written: wanted {}, before {}, steps [{steps}], after {}",
         wanted.describe(),
@@ -102,21 +112,25 @@ fn report_applied(wanted: &WantedProxy, before: Option<&ObservedProxy>, after: O
     );
 }
 
-pub fn spawn_proxy_observer() {
-    if OBSERVER_RUNNING.swap(true, Ordering::AcqRel) {
-        return;
-    }
+pub async fn verbose_diagnostics() -> bool {
+    Config::verge().await.latest_arc().verbose_diagnostics()
+}
 
+pub fn spawn_proxy_observer() {
     AsyncHandler::spawn(|| async {
+        if !verbose_diagnostics().await || OBSERVER_RUNNING.swap(true, Ordering::AcqRel) {
+            return;
+        }
+        defer! {
+            OBSERVER_RUNNING.store(false, Ordering::SeqCst);
+        }
+
         let mut last: Option<ObservedProxy> = None;
 
         loop {
             tokio::time::sleep(PROXY_OBSERVE_TICK).await;
-            if handle::Handle::global().is_exiting() {
+            if handle::Handle::global().is_exiting() || !verbose_diagnostics().await {
                 return;
-            }
-            if !log::log_enabled!(log::Level::Debug) {
-                continue;
             }
 
             let Ok(Some(now)) = tokio::task::spawn_blocking(ObservedProxy::read).await else {
@@ -128,7 +142,7 @@ pub fn spawn_proxy_observer() {
 
             let ours = Sysopt::global().applying.load(Ordering::SeqCst);
             logging!(
-                debug,
+                info,
                 Type::Core,
                 "observed proxy settings: {} (we were {}writing at that moment)",
                 now.describe(),
@@ -309,7 +323,7 @@ impl Sysopt {
             host: sys.host.to_string(),
             port: sys.port,
         };
-        let verbose = log::log_enabled!(log::Level::Debug);
+        let verbose = verge.verbose_diagnostics();
 
         self.applying.store(true, Ordering::SeqCst);
         defer! {
@@ -338,7 +352,7 @@ impl Sysopt {
         )
         .await??;
 
-        report_applied(&wanted, written.0.as_ref(), written.1.as_ref(), &written.2);
+        report_applied(&wanted, written.0.as_ref(), written.1.as_ref(), &written.2, verbose);
 
         Ok(())
     }

@@ -423,6 +423,7 @@
         "appLogLevel": "Tingkat Log Aplikasi",
         "appLogMaxSize": "App Log Max Size",
         "appLogMaxCount": "App Log Max Count",
+        "verboseDiagnostics": "Verbose diagnostics (for debugging)",
         "autoCloseConnections": "Tutup Koneksi Otomatis",
         "autoCheckUpdate": "Periksa Pembaruan Otomatis",
         "enableBuiltinEnhanced": "Aktifkan Peningkatan Bawaan",
@@ -434,7 +435,8 @@
       "tooltips": {
         "autoCloseConnections": "Hentikan koneksi yang sudah ada saat pemilihan grup proksi atau mode proksi berubah",
         "enableBuiltinEnhanced": "Penanganan kompatibilitas untuk file konfigurasi",
-        "defaultLatencyTest": "Digunakan hanya untuk pengujian permintaan klien HTTP dan tidak akan mempengaruhi file konfigurasi"
+        "defaultLatencyTest": "Digunakan hanya untuk pengujian permintaan klien HTTP dan tidak akan mempengaruhi file konfigurasi",
+        "verboseDiagnostics": "Detailed records of network changes and of every write of the system proxy settings. Only needed when investigating a problem: it adds a little background work and many more lines to the log."
       },
       "options": {
         "proxyLayoutColumns": {

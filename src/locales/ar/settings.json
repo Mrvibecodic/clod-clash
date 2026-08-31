@@ -423,6 +423,7 @@
         "appLogLevel": "مستوى سجلات التطبيق",
         "appLogMaxSize": "App Log Max Size",
         "appLogMaxCount": "App Log Max Count",
+        "verboseDiagnostics": "Verbose diagnostics (for debugging)",
         "autoCloseConnections": "إغلاق الاتصالات تلقائيًا",
         "autoCheckUpdate": "فحص التحديث تلقائيًا",
         "enableBuiltinEnhanced": "تفعيل التحسين المدمج",
@@ -434,7 +435,8 @@
       "tooltips": {
         "autoCloseConnections": "إنهاء الاتصالات القائمة عند تغيير اختيار مجموعة الوكيل أو وضع الوكيل",
         "enableBuiltinEnhanced": "معالجة توافق ملف التكوين",
-        "defaultLatencyTest": "يُستخدم فقط لاختبار طلب HTTP العميل. لن يؤثر على ملف التكوين"
+        "defaultLatencyTest": "يُستخدم فقط لاختبار طلب HTTP العميل. لن يؤثر على ملف التكوين",
+        "verboseDiagnostics": "Detailed records of network changes and of every write of the system proxy settings. Only needed when investigating a problem: it adds a little background work and many more lines to the log."
       },
       "options": {
         "proxyLayoutColumns": {

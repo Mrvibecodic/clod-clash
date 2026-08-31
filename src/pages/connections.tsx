@@ -112,6 +112,8 @@ const ConnectionsPage = () => {
 
   const isTableLayout = setting.layout === 'table'
   const groupBy = setting.groupBy ?? 'none'
+  const [isGroupMenuOpen, setIsGroupMenuOpen] = useState(false)
+  const [isGroupHovered, setIsGroupHovered] = useState(false)
   const summaryVisible = setting.summary ?? true
 
   const [isColumnManagerOpen, setIsColumnManagerOpen] = useState(false)
@@ -276,10 +278,18 @@ const ConnectionsPage = () => {
           </Button>
         </ButtonGroup>
         {isTableLayout ? (
-          <Tooltip title={t('connections.components.group.label')}>
+          <Tooltip
+            title={t('connections.components.group.label')}
+            disableInteractive
+            open={isGroupHovered && !isGroupMenuOpen}
+            onOpen={() => setIsGroupHovered(true)}
+            onClose={() => setIsGroupHovered(false)}
+          >
             <BaseStyledSelect
               sx={{ width: 150 }}
               value={groupBy}
+              onOpen={() => setIsGroupMenuOpen(true)}
+              onClose={() => setIsGroupMenuOpen(false)}
               onChange={(e) =>
                 setSetting((o) => ({
                   ...(o ?? { layout: 'table' }),

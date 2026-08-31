@@ -423,6 +423,7 @@
         "appLogLevel": "アプリケーションログレベル",
         "appLogMaxSize": "App Log Max Size",
         "appLogMaxCount": "App Log Max Count",
+        "verboseDiagnostics": "Verbose diagnostics (for debugging)",
         "autoCloseConnections": "接続を自動的に閉じる",
         "autoCheckUpdate": "自動更新チェック",
         "enableBuiltinEnhanced": "組み込み拡張機能を有効にする",
@@ -434,7 +435,8 @@
       "tooltips": {
         "autoCloseConnections": "プロキシグループで選択されたノードまたはプロキシモードが変更されたときに、既存の接続を閉じます。",
         "enableBuiltinEnhanced": "設定ファイルの互換性処理",
-        "defaultLatencyTest": "HTTPクライアントリクエストテストにのみ使用され、設定ファイルには影響しません。"
+        "defaultLatencyTest": "HTTPクライアントリクエストテストにのみ使用され、設定ファイルには影響しません。",
+        "verboseDiagnostics": "Detailed records of network changes and of every write of the system proxy settings. Only needed when investigating a problem: it adds a little background work and many more lines to the log."
       },
       "options": {
         "proxyLayoutColumns": {

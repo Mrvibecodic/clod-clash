@@ -1067,6 +1067,7 @@ export interface TranslationResources {
             defaultLatencyTimeout: string
             enableBuiltinEnhanced: string
             proxyLayoutColumns: string
+            verboseDiagnostics: string
           }
           options: {
             autoLogClean: {
@@ -1082,6 +1083,7 @@ export interface TranslationResources {
             autoCloseConnections: string
             defaultLatencyTest: string
             enableBuiltinEnhanced: string
+            verboseDiagnostics: string
           }
         }
         networkInterface: {

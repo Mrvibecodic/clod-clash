@@ -17,6 +17,8 @@ pub struct IVerge {
 
     pub app_log_max_count: Option<usize>,
 
+    pub enable_verbose_diagnostics: Option<bool>,
+
     pub language: Option<String>,
 
     pub theme_mode: Option<String>,
@@ -461,6 +463,7 @@ impl IVerge {
         patch!(app_log_level);
         patch!(app_log_max_size);
         patch!(app_log_max_count);
+        patch!(enable_verbose_diagnostics);
 
         patch!(language);
         patch!(theme_mode);
@@ -556,6 +559,10 @@ impl IVerge {
 
     pub const fn get_singleton_port() -> u16 {
         crate::constants::network::ports::SINGLETON_SERVER
+    }
+
+    pub const fn verbose_diagnostics(&self) -> bool {
+        matches!(self.enable_verbose_diagnostics, Some(true))
     }
 
     pub fn get_log_level(&self) -> LevelFilter {

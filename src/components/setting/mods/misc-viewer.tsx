@@ -24,6 +24,7 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
     appLogLevel: 'warn',
     appLogMaxSize: 8,
     appLogMaxCount: 12,
+    verboseDiagnostics: false,
     autoCloseConnection: true,
     autoCheckUpdate: true,
     enableBuiltinEnhanced: true,
@@ -40,6 +41,7 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
         appLogLevel: verge?.app_log_level ?? 'warn',
         appLogMaxSize: verge?.app_log_max_size ?? 128,
         appLogMaxCount: verge?.app_log_max_count ?? 8,
+        verboseDiagnostics: verge?.enable_verbose_diagnostics ?? false,
         autoCloseConnection: verge?.auto_close_connection ?? true,
         autoCheckUpdate: verge?.auto_check_update ?? true,
         enableBuiltinEnhanced: verge?.enable_builtin_enhanced ?? true,
@@ -58,6 +60,7 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
         app_log_level: values.appLogLevel,
         app_log_max_size: values.appLogMaxSize,
         app_log_max_count: values.appLogMaxCount,
+        enable_verbose_diagnostics: values.verboseDiagnostics,
         auto_close_connection: values.autoCloseConnection,
         auto_check_update: values.autoCheckUpdate,
         enable_builtin_enhanced: values.enableBuiltinEnhanced,
@@ -168,6 +171,25 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
                 ),
               },
             }}
+          />
+        </ListItem>
+
+        <ListItem sx={{ padding: '5px 2px' }}>
+          <ListItemText
+            primary={t('settings.modals.misc.fields.verboseDiagnostics')}
+            sx={{ maxWidth: 'fit-content' }}
+          />
+          <TooltipIcon
+            title={t('settings.modals.misc.tooltips.verboseDiagnostics')}
+            sx={{ opacity: '0.7' }}
+          />
+          <Switch
+            edge="end"
+            checked={values.verboseDiagnostics}
+            onChange={(_, c) =>
+              setValues((v) => ({ ...v, verboseDiagnostics: c }))
+            }
+            sx={{ marginLeft: 'auto' }}
           />
         </ListItem>
 

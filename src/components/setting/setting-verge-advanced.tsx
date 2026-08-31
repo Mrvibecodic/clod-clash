@@ -213,34 +213,6 @@ const SettingVergeAdvanced = ({ onError, variant = 'all' }: Props) => {
               />
             }
           ></SettingItem>
-          <SettingItem
-            label={t(
-              'settings.components.verge.advanced.fields.receivePrereleases',
-            )}
-            extra={
-              <TooltipIcon
-                title={t(
-                  'settings.components.verge.advanced.tooltips.receivePrereleases',
-                )}
-                sx={{ opacity: '0.7' }}
-              />
-            }
-          >
-            <GuardState
-              value={receive_prereleases ?? false}
-              valueProps="checked"
-              onCatch={onError}
-              onFormat={(_e: any, checked: boolean) => checked}
-              onChange={(checked) =>
-                mutateVerge({ ...verge, receive_prereleases: checked }, false)
-              }
-              onGuard={(checked) =>
-                patchVerge({ receive_prereleases: checked })
-              }
-            >
-              <Switch edge="end" />
-            </GuardState>
-          </SettingItem>
         </>
       )}
 
@@ -281,6 +253,35 @@ const SettingVergeAdvanced = ({ onError, variant = 'all' }: Props) => {
             }
           >
             <Typography sx={{ py: '7px', pr: 1 }}>v{version}</Typography>
+          </SettingItem>
+
+          <SettingItem
+            label={t(
+              'settings.components.verge.advanced.fields.receivePrereleases',
+            )}
+            extra={
+              <TooltipIcon
+                title={t(
+                  'settings.components.verge.advanced.tooltips.receivePrereleases',
+                )}
+                sx={{ opacity: '0.7' }}
+              />
+            }
+          >
+            <GuardState
+              value={receive_prereleases ?? false}
+              valueProps="checked"
+              onCatch={onError}
+              onFormat={(_e: any, checked: boolean) => checked}
+              onChange={(checked) =>
+                mutateVerge({ ...verge, receive_prereleases: checked }, false)
+              }
+              onGuard={(checked) =>
+                patchVerge({ receive_prereleases: checked })
+              }
+            >
+              <Switch edge="end" />
+            </GuardState>
           </SettingItem>
         </>
       )}

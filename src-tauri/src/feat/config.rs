@@ -9,12 +9,10 @@ use clash_verge_draft::SharedDraft;
 use clash_verge_logging::{Type, logging, logging_error};
 use serde_yaml_ng::Mapping;
 
-/// Patch Clash configuration
 pub async fn patch_clash(patch: &Mapping) -> Result<()> {
     Config::clash().await.edit_draft(|d| d.patch_config(patch));
 
     let res = {
-        // Активация подписки
         if patch.get("secret").is_some() || patch.get("external-controller").is_some() {
             Config::generate().await?;
             CoreManager::global().restart_core().await?;
@@ -33,7 +31,6 @@ pub async fn patch_clash(patch: &Mapping) -> Result<()> {
     match res {
         Ok(()) => {
             Config::clash().await.apply();
-            // Разделяем получение данных и асинхронный вызов
             let clash_data = Config::clash().await.data_arc();
             clash_data.save_config().await?;
             Ok(())
@@ -45,7 +42,6 @@ pub async fn patch_clash(patch: &Mapping) -> Result<()> {
     }
 }
 
-// Define update flags as bitflags for better performance
 bitflags! {
      #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
      struct UpdateFlags: u16 {
@@ -102,7 +98,6 @@ fn determine_update_flags(patch: &IVerge) -> UpdateFlags {
     let enable_tray_speed = patch.enable_tray_speed;
     #[cfg(not(target_os = "macos"))]
     let enable_tray_speed: Option<bool> = None;
-    // let enable_tray_icon = patch.enable_tray_icon;
     let enable_global_hotkey = patch.enable_global_hotkey;
     let tray_event = &patch.tray_event;
     let enable_auto_light_weight = patch.enable_auto_light_weight_mode;
@@ -121,9 +116,6 @@ fn determine_update_flags(patch: &IVerge) -> UpdateFlags {
         || socks_port.is_some()
         || http_port.is_some()
         || mixed_port.is_some()
-        // clod:core-updater — flipping the managed core on or off changes
-        // which binary should run; without a restart the UI claims "managed"
-        // while the old binary keeps serving traffic.
         || patch.use_managed_core.is_some()
         || enable_external_controller.is_some();
     #[cfg(not(target_os = "windows"))]
@@ -132,7 +124,6 @@ fn determine_update_flags(patch: &IVerge) -> UpdateFlags {
         || socks_port.is_some()
         || http_port.is_some()
         || mixed_port.is_some()
-        // clod:core-updater — see the note in the windows branch above.
         || patch.use_managed_core.is_some()
         || enable_external_controller.is_some();
     #[cfg(not(target_os = "windows"))]
@@ -198,6 +189,9 @@ fn determine_update_flags(patch: &IVerge) -> UpdateFlags {
     if log_max_size.is_some() || log_max_count.is_some() {
         update_flags.insert(UpdateFlags::LOG_FILE);
     }
+    if patch.enable_verbose_diagnostics.is_some() {
+        sysopt::spawn_proxy_observer();
+    }
     if tray_inline_outbound_modes.is_some() {
         update_flags.insert(UpdateFlags::SYSTRAY_MENU);
     }
@@ -207,7 +201,6 @@ fn determine_update_flags(patch: &IVerge) -> UpdateFlags {
 
 #[allow(clippy::cognitive_complexity)]
 async fn process_terminated_flags(update_flags: UpdateFlags, patch: &IVerge) -> Result<()> {
-    // Process updates based on flags
     if update_flags.contains(UpdateFlags::RESTART_CORE) {
         Config::generate().await?;
         CoreManager::global().restart_core().await?;
@@ -272,14 +265,6 @@ async fn process_terminated_flags(update_flags: UpdateFlags, patch: &IVerge) -> 
     Ok(())
 }
 
-/// clod:patch-serialize — черновик настроек один на процесс, и `discard()` при
-/// провале сносит его ЦЕЛИКОМ. Пока два патча шли параллельно, второй мог
-/// откатить правки первого — или, наоборот, применить их вместе со своими.
-/// Достижимо самым обычным способом: нажать Connect и тут же дёрнуть тумблер
-/// быстрых действий или пункт трея.
-///
-/// Ждать здесь не жалко: патч и так может занять секунды (перезапуск ядра),
-/// а половина патча — это потерянная настройка на диске.
 static PATCH_VERGE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 pub async fn patch_verge(patch: &IVerge, not_save_file: bool) -> Result<()> {
@@ -287,19 +272,9 @@ pub async fn patch_verge(patch: &IVerge, not_save_file: bool) -> Result<()> {
 
     Config::verge().await.edit_draft(|d| d.patch_config(patch));
 
-    // clod:tun-ready — снять подавление НАДО ДО перегенерации конфига ядра.
-    // Заявка на TUN считается как «желание И НЕ подавление» (`enhance`), а
-    // перегенерация живёт внутри `process_terminated_flags` ниже. Пока
-    // снятие стояло после неё, повторное включение TUN отдавало ядру конфиг
-    // БЕЗ туннеля — и тут же рапортовало интерфейсу «включено»: тумблер
-    // зелёный, трафик мимо. Хэндофф на службу здесь же: конфиг с tun должен
-    // уходить уже тому ядру, у которого хватит прав его поднять.
     let tun_log_anchor = if patch.enable_tun_mode == Some(true) {
         crate::feat::tun::clear_suppression();
         crate::core::CoreManager::global().handoff_to_service_if_needed().await;
-        // Отметку в логах ядра снимаем здесь же: в режиме службы ядро успевает
-        // пожаловаться на TUN прямо внутри перегенерации ниже, и отметка,
-        // снятая после неё, накрыла бы собой эту самую жалобу.
         crate::feat::tun::log_anchor().await
     } else {
         None
@@ -307,35 +282,24 @@ pub async fn patch_verge(patch: &IVerge, not_save_file: bool) -> Result<()> {
 
     let update_flags = determine_update_flags(patch);
     logging!(debug, Type::Setup, "Determined update flags: {:?}", update_flags);
-    // Черновик откатывается ровно здесь. Раньше `?` внутри стоял ВНУТРИ
-    // выражения, из которого потом читали результат, — то есть выходил из
-    // функции раньше отката, и `discard()` не звался никогда: провалившийся
-    // патч оставался в черновике и уезжал в конфиг со следующим apply().
     if let Err(err) = process_terminated_flags(update_flags, patch).await {
         Config::verge().await.discard();
         return Err(err);
     }
     Config::verge().await.apply();
 
-    // clod:simple-mode — every proxy/TUN toggle funnels through here, so this
-    // is the one place the Connect session stamp can track the combined state.
-    // After apply: a failed patch was discarded above and must not move it.
     if patch.enable_system_proxy.is_some() || patch.enable_tun_mode.is_some() {
         let latest = Config::verge().await.latest_arc();
         let active = latest.enable_system_proxy.unwrap_or(false) || latest.enable_tun_mode.unwrap_or(false);
         crate::feat::record_connect_targets(active);
     }
 
-    // clod:tun-ready — конфиг с туннелем ушёл ядру выше; теперь спрашиваем
-    // ядро, поднялся ли он на самом деле (подавление и хэндофф — до
-    // перегенерации, см. начало функции).
     if patch.enable_tun_mode == Some(true) {
         crate::feat::tun::spawn_start_verification(tun_log_anchor);
     }
 
     logging_error!(Type::Backup, AutoBackupManager::global().refresh_settings().await);
     if !not_save_file {
-        // Разделяем получение данных и асинхронный вызов
         let verge_data = Config::verge().await.data_arc();
         logging!(debug, Type::Setup, "Saving Verge configuration to file...");
         verge_data.save_file().await?;

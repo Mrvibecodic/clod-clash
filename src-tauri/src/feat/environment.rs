@@ -71,7 +71,7 @@ fn listed<'a>(entries: impl Iterator<Item = &'a std::string::String>) -> std::st
 
 fn report_fingerprint_change(before: &BTreeSet<std::string::String>, after: &BTreeSet<std::string::String>) {
     logging!(
-        debug,
+        info,
         Type::Core,
         "[clod] network fingerprint: {} entries before, {} after; appeared {}; gone {}",
         before.len(),
@@ -81,9 +81,9 @@ fn report_fingerprint_change(before: &BTreeSet<std::string::String>, after: &BTr
     );
 }
 
-async fn close_live_connections() {
+async fn close_live_connections(verbose: bool) {
     let mihomo = handle::Handle::mihomo().await;
-    let live = if log::log_enabled!(log::Level::Debug) {
+    let live = if verbose {
         mihomo
             .get_connections()
             .await
@@ -95,11 +95,12 @@ async fn close_live_connections() {
     };
 
     match mihomo.close_all_connections().await {
-        Ok(()) => logging!(
-            debug,
+        Ok(()) if verbose => logging!(
+            info,
             Type::Core,
             "[clod] closed {live} live connections after the environment changed"
         ),
+        Ok(()) => (),
         Err(e) => logging!(
             debug,
             Type::Core,
@@ -112,12 +113,15 @@ async fn close_live_connections() {
 async fn reconcile(reason: &str, slept: bool) {
     logging!(info, Type::Core, "[clod] environment changed ({reason}), reconciling");
 
-    let wants_sysproxy = Config::verge().await.latest_arc().enable_system_proxy.unwrap_or(false);
+    let verge = Config::verge().await.latest_arc();
+    let wants_sysproxy = verge.enable_system_proxy.unwrap_or(false);
+    let verbose = verge.verbose_diagnostics();
+    drop(verge);
     if wants_sysproxy && let Err(e) = Sysopt::global().update_sysproxy().await {
         logging!(warn, Type::Core, "[clod] failed to re-assert the system proxy: {e}");
     }
 
-    close_live_connections().await;
+    close_live_connections(verbose).await;
 
     if slept {
         crate::feat::tun::rearm_after_wake().await;
@@ -151,7 +155,7 @@ pub fn spawn_environment_watchdog() {
 
             let network = network_fingerprint();
             let network_changed = network != last_network;
-            if network_changed && log::log_enabled!(log::Level::Debug) {
+            if network_changed && crate::core::sysopt::verbose_diagnostics().await {
                 report_fingerprint_change(&last_network, &network);
             }
 

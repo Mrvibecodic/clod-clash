@@ -423,6 +423,7 @@
         "appLogLevel": "应用日志等级",
         "appLogMaxSize": "应用日志最大大小",
         "appLogMaxCount": "应用日志最大数量",
+        "verboseDiagnostics": "Verbose diagnostics (for debugging)",
         "autoCloseConnections": "自动关闭连接",
         "autoCheckUpdate": "自动检查更新",
         "enableBuiltinEnhanced": "内置增强功能",
@@ -434,7 +435,8 @@
       "tooltips": {
         "autoCloseConnections": "当代理组选中节点或代理模式变动时，关闭已建立的连接",
         "enableBuiltinEnhanced": "配置文件的兼容性处理",
-        "defaultLatencyTest": "仅用于 HTTP 客户端请求测试，不会对配置文件产生影响"
+        "defaultLatencyTest": "仅用于 HTTP 客户端请求测试，不会对配置文件产生影响",
+        "verboseDiagnostics": "Detailed records of network changes and of every write of the system proxy settings. Only needed when investigating a problem: it adds a little background work and many more lines to the log."
       },
       "options": {
         "proxyLayoutColumns": {

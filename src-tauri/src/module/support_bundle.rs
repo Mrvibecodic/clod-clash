@@ -209,6 +209,7 @@ async fn settings_section(out: &mut std::string::String) {
         "- уровень логов: {}",
         data.app_log_level.as_deref().unwrap_or("info")
     );
+    let _ = writeln!(out, "- расширенное логирование: {}", yes_no(data.verbose_diagnostics()));
 }
 
 async fn subscription_section(out: &mut std::string::String) {

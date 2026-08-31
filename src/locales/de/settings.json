@@ -423,6 +423,7 @@
         "appLogLevel": "Anwendungs-Protokolliergrad",
         "appLogMaxSize": "App Log Max Size",
         "appLogMaxCount": "App Log Max Count",
+        "verboseDiagnostics": "Verbose diagnostics (for debugging)",
         "autoCloseConnections": "Verbindungen automatisch schließen",
         "autoCheckUpdate": "Automatisch auf Updates prüfen",
         "enableBuiltinEnhanced": "Eingebaute Verbesserungen aktivieren",
@@ -434,7 +435,8 @@
       "tooltips": {
         "autoCloseConnections": "Wenn der ausgewählte Knoten in der Proxy-Gruppe oder der Proxy-Modus geändert wird, werden die bestehenden Verbindungen geschlossen.",
         "enableBuiltinEnhanced": "Kompatibilitätsbehandlung der Konfigurationsdatei",
-        "defaultLatencyTest": "Dies wird nur für HTTP-Client-Anfragentests verwendet und hat keine Auswirkungen auf die Konfigurationsdatei."
+        "defaultLatencyTest": "Dies wird nur für HTTP-Client-Anfragentests verwendet und hat keine Auswirkungen auf die Konfigurationsdatei.",
+        "verboseDiagnostics": "Detailed records of network changes and of every write of the system proxy settings. Only needed when investigating a problem: it adds a little background work and many more lines to the log."
       },
       "options": {
         "proxyLayoutColumns": {
