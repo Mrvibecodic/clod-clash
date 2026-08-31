@@ -4,6 +4,25 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '0 3 * * 1'
+  push:
+    branches: [main]
+    paths:
+      - 'Cargo.lock'
+      - 'src-tauri/Cargo.toml'
+      - '.cargo/audit.toml'
+      - 'scripts/audit-guard.py'
+      - 'pnpm-lock.yaml'
+      - 'package.json'
+      - '.github/workflows/cargo-audit.yml'
+  pull_request:
+    paths:
+      - 'Cargo.lock'
+      - 'src-tauri/Cargo.toml'
+      - '.cargo/audit.toml'
+      - 'scripts/audit-guard.py'
+      - 'pnpm-lock.yaml'
+      - 'package.json'
+      - '.github/workflows/cargo-audit.yml'
 
 permissions:
   contents: read
@@ -12,6 +31,15 @@ env:
   HUSKY: 0
 
 jobs:
+  guard:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+
+      - name: Guard h2 On The Release Path
+        run: python3 scripts/audit-guard.py
+
   audit:
     runs-on: ubuntu-22.04
     steps:
