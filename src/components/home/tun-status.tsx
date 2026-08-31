@@ -58,7 +58,7 @@ export const TunStatus = () => {
 
   const reasonKey = tunDesired ? tunFailureKey(tunFailure) : undefined
 
-  if (!tunBroken && !reasonKey) return null
+  if (!tunBroken) return null
 
   return (
     <Stack

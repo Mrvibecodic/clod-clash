@@ -35,6 +35,7 @@ import { useFitWindowToContent } from '@/hooks/use-window-fit'
 import { CARD_SURFACE, SHAPE, TINT } from '@/pages/_theme'
 import { updateProfile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
+import { tunSetupKey } from '@/utils/tun-notice'
 
 import HomeSimplePage from './home-simple'
 
@@ -142,8 +143,13 @@ const HomeAdvancedPage = () => {
     try {
       await toggleConnection()
     } catch (error) {
+      const key = tunSetupKey(error)
       setFailure({
-        text: error instanceof Error ? error.message : String(error),
+        text: key
+          ? t(key)
+          : error instanceof Error
+            ? error.message
+            : String(error),
         at: connected,
       })
     } finally {

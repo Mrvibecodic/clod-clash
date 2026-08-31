@@ -33,6 +33,7 @@ import { useNoServersStatus } from '@/hooks/use-no-servers-status'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useProxySelection } from '@/hooks/use-proxy-selection'
 import { useServerDescriptions } from '@/hooks/use-server-descriptions'
+import { useVerge } from '@/hooks/use-verge'
 import { useVisibility } from '@/hooks/use-visibility'
 import { SHAPE, TINT } from '@/pages/_theme'
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
@@ -598,6 +599,7 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
   const runGroupDelayTest = useGroupDelayTest()
   const descriptions = useServerDescriptions()
   const visible = useVisibility()
+  const { verge } = useVerge()
   const { urlFor } = useGroupTestUrls()
   const { refreshProxy } = useAppRefreshers()
 
@@ -634,8 +636,10 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
 
   const groupName = group?.name
   const updatedAt = currentProfile?.updated ?? 0
+  const trayShowsDelays =
+    (verge?.tray_proxy_groups_display_mode ?? 'default') !== 'disable'
   useEffect(() => {
-    if (!visible || !groupName) return
+    if ((!visible && !trayShowsDelays) || !groupName) return
     const key = `${groupName}|${updatedAt}`
     if (lastAutoDelayKey === key) return
     const timer = window.setTimeout(() => {
@@ -644,7 +648,7 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
       runGroupDelayTest(groupName).catch(() => {})
     }, 800)
     return () => window.clearTimeout(timer)
-  }, [visible, groupName, updatedAt, runGroupDelayTest])
+  }, [visible, trayShowsDelays, groupName, updatedAt, runGroupDelayTest])
 
   useEffect(() => {
     if (!visible || !groupName || !pingTarget) return

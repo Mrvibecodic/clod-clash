@@ -25,6 +25,7 @@ import { useTunState } from '@/hooks/use-tun-state'
 import { useVerge } from '@/hooks/use-verge'
 import { ensureTunReady } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
+import { tunSetupNotice } from '@/utils/tun-notice'
 
 interface ProxySwitchProps {
   /**
@@ -227,7 +228,7 @@ const ProxyControlSwitches = ({
       await ensureTunReady()
       await Promise.all([mutateSystemState(), mutateTunState()])
     } catch (err) {
-      showNotice.error(err)
+      showNotice.error(tunSetupNotice(err))
     }
   })
 

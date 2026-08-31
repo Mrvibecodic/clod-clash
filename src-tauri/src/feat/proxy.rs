@@ -22,6 +22,7 @@ pub async fn toggle_system_proxy() -> bool {
     let patch_result = super::patch_verge(
         &IVerge {
             enable_system_proxy: Some(requested),
+            connect_system_proxy: Some(requested),
             ..IVerge::default()
         },
         false,
@@ -52,6 +53,7 @@ pub async fn toggle_tun_mode(not_save_file: Option<bool>) -> bool {
     match super::patch_verge(
         &IVerge {
             enable_tun_mode: Some(enable),
+            connect_tun_mode: Some(enable),
             ..IVerge::default()
         },
         not_save_file.unwrap_or(false),

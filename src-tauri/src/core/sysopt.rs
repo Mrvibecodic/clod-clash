@@ -56,6 +56,7 @@ impl ObservedProxy {
     }
 }
 
+#[derive(Clone)]
 struct WantedProxy {
     sys_enable: bool,
     auto_enable: bool,
@@ -63,9 +64,20 @@ struct WantedProxy {
     port: u16,
 }
 
+struct AppliedProxy {
+    before: Option<ObservedProxy>,
+    after: Option<ObservedProxy>,
+    steps: std::string::String,
+    failure: Option<anyhow::Error>,
+}
+
 impl WantedProxy {
+    const fn switches_match(&self, observed: &ObservedProxy) -> bool {
+        observed.sys_enable == self.sys_enable && observed.auto_enable == self.auto_enable
+    }
+
     fn accepted_by(&self, observed: &ObservedProxy) -> bool {
-        if observed.sys_enable != self.sys_enable || observed.auto_enable != self.auto_enable {
+        if !self.switches_match(observed) {
             return false;
         }
         !self.sys_enable || (observed.host == self.host && observed.port == self.port)
@@ -77,6 +89,35 @@ impl WantedProxy {
             self.sys_enable, self.host, self.port, self.auto_enable
         )
     }
+}
+
+fn apply_once(
+    sys: &Sysproxy,
+    auto: &Autoproxy,
+    apply_steps: [ProxyApplyStep; 2],
+    log: &mut std::string::String,
+) -> Option<anyhow::Error> {
+    let mut failure = None;
+
+    for step in apply_steps {
+        let started = Instant::now();
+        let outcome = match step {
+            ProxyApplyStep::Autoproxy => with_system_call_retry(|| auto.set_auto_proxy()),
+            ProxyApplyStep::Sysproxy => with_system_call_retry(|| sys.set_system_proxy()),
+        };
+        if !log.is_empty() {
+            log.push_str(", ");
+        }
+        let _ = write!(log, "{step:?} {}ms", started.elapsed().as_millis());
+        if let Err(e) = outcome {
+            log.push_str(" FAILED");
+            if failure.is_none() {
+                failure = Some(anyhow::Error::new(e));
+            }
+        }
+    }
+
+    failure
 }
 
 fn report_applied(
@@ -330,31 +371,38 @@ impl Sysopt {
             self.applying.store(false, Ordering::SeqCst);
         }
 
-        let written = tokio::task::spawn_blocking(
-            move || -> Result<(Option<ObservedProxy>, Option<ObservedProxy>, std::string::String)> {
-                let before = verbose.then(ObservedProxy::read).flatten();
-                let mut steps = std::string::String::new();
+        let probe = wanted.clone();
+        let applied = tokio::task::spawn_blocking(move || {
+            let before = verbose.then(ObservedProxy::read).flatten();
+            let mut steps = std::string::String::new();
+            let mut failure = apply_once(&sys, &auto, apply_steps, &mut steps);
+            let mut after = ObservedProxy::read();
 
-                for step in apply_steps {
-                    let started = Instant::now();
-                    match step {
-                        ProxyApplyStep::Autoproxy => with_system_call_retry(|| auto.set_auto_proxy())?,
-                        ProxyApplyStep::Sysproxy => with_system_call_retry(|| sys.set_system_proxy())?,
-                    }
-                    if !steps.is_empty() {
-                        steps.push_str(", ");
-                    }
-                    let _ = write!(steps, "{step:?} {}ms", started.elapsed().as_millis());
-                }
+            if after.as_ref().is_some_and(|state| !probe.switches_match(state)) {
+                steps.push_str("; the system disagreed, writing again: ");
+                let retry = apply_once(&sys, &auto, apply_steps, &mut steps);
+                failure = failure.or(retry);
+                after = ObservedProxy::read();
+            }
 
-                Ok((before, ObservedProxy::read(), steps))
-            },
-        )
-        .await??;
+            AppliedProxy {
+                before,
+                after,
+                steps,
+                failure,
+            }
+        })
+        .await?;
 
-        report_applied(&wanted, written.0.as_ref(), written.1.as_ref(), &written.2, verbose);
+        report_applied(
+            &wanted,
+            applied.before.as_ref(),
+            applied.after.as_ref(),
+            &applied.steps,
+            verbose,
+        );
 
-        Ok(())
+        applied.failure.map_or(Ok(()), Err)
     }
 
     pub async fn reset_sysproxy(&self) -> Result<()> {

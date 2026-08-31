@@ -192,8 +192,10 @@ impl Logger {
             .and_then(|v| log::LevelFilter::from_str(&v).ok())
             .unwrap_or(log_level);
         spec.default(log_level);
-        for module in PLUMBING_MODULES {
-            spec.module(module, log::LevelFilter::Warn);
+        if log_level < log::LevelFilter::Trace {
+            for module in PLUMBING_MODULES {
+                spec.module(module, log::LevelFilter::Warn);
+            }
         }
         #[cfg(feature = "tracing")]
         spec.module("tauri", log::LevelFilter::Debug)

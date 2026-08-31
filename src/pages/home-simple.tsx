@@ -31,6 +31,7 @@ import { useSimpleMode } from '@/hooks/use-simple-mode'
 import { useFitWindowToContent } from '@/hooks/use-window-fit'
 import { createProfile, enhanceProfiles, importProfile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
+import { tunSetupKey } from '@/utils/tun-notice'
 
 const HomeSimplePage = () => {
   const { t } = useTranslation()
@@ -69,8 +70,13 @@ const HomeSimplePage = () => {
     try {
       await toggleConnection()
     } catch (error) {
+      const key = tunSetupKey(error)
       setFailure({
-        text: error instanceof Error ? error.message : String(error),
+        text: key
+          ? t(key)
+          : error instanceof Error
+            ? error.message
+            : String(error),
         at: connected,
       })
     } finally {

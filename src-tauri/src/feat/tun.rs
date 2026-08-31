@@ -247,7 +247,9 @@ async fn recreate_tun_device() {
                     "the core did not answer switching the TUN device {}",
                     step
                 );
-                report_start_failure("the core did not answer re-creating the TUN device");
+                if enable {
+                    report_start_failure("the core did not answer re-creating the TUN device");
+                }
                 return;
             }
         }
@@ -258,8 +260,16 @@ async fn recreate_tun_device() {
 }
 
 pub async fn rearm_after_wake() {
-    if !claimed().await {
+    if !desired().await {
         return;
+    }
+    if is_suppressed() {
+        logging!(
+            info,
+            Type::Core,
+            "the machine woke up into a new environment: the TUN device gets a fresh budget"
+        );
+        clear_suppression();
     }
     START_ATTEMPTS.store(0, Ordering::Release);
     START_FAILED.store(false, Ordering::Release);

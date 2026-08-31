@@ -26,10 +26,13 @@ const markerOf = (error: unknown): string | undefined => {
   return undefined
 }
 
-export const tunSetupNotice = (error: unknown): unknown => {
+export const tunSetupKey = (error: unknown): TranslationKey | undefined => {
   const marker = markerOf(error)
-  return (marker && SETUP_MARKERS[marker]) || error
+  return marker ? SETUP_MARKERS[marker] : undefined
 }
+
+export const tunSetupNotice = (error: unknown): unknown =>
+  tunSetupKey(error) ?? error
 
 export const tunFailureKey = (
   failure?: string | null,
