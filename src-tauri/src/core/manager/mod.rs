@@ -10,7 +10,7 @@ use std::{
     fmt,
     sync::{
         Arc,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU32, Ordering},
     },
     time::Instant,
 };
@@ -57,6 +57,7 @@ pub struct CoreManager {
 struct State {
     running_mode: ArcSwap<RunningMode>,
     child_sidecar: ArcSwapOption<CommandChild>,
+    sidecar_pid: AtomicU32,
 }
 
 impl Default for State {
@@ -64,6 +65,7 @@ impl Default for State {
         Self {
             running_mode: ArcSwap::new(Arc::new(RunningMode::NotRunning)),
             child_sidecar: ArcSwapOption::new(None),
+            sidecar_pid: AtomicU32::new(0),
         }
     }
 }
@@ -92,7 +94,18 @@ impl CoreManager {
     }
 
     pub fn sidecar_pid(&self) -> Option<u32> {
-        self.state.load().child_sidecar.load().as_ref().map(|child| child.pid())
+        match self.state.load().sidecar_pid.load(Ordering::Acquire) {
+            0 => None,
+            pid => Some(pid),
+        }
+    }
+
+    pub(super) fn set_sidecar_pid(&self, pid: u32) {
+        self.state.load().sidecar_pid.store(pid, Ordering::Release);
+    }
+
+    pub(super) fn clear_sidecar_pid(&self) {
+        self.state.load().sidecar_pid.store(0, Ordering::Release);
     }
 
     pub fn take_child_sidecar(&self) -> Option<CommandChild> {

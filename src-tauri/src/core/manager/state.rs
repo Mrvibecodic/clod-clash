@@ -13,8 +13,11 @@ use compact_str::CompactString;
 use log::Level;
 use scopeguard::defer;
 use std::{
-    sync::atomic::{AtomicBool, AtomicU32, Ordering},
-    time::Duration,
+    sync::{
+        Mutex,
+        atomic::{AtomicU32, AtomicU64, Ordering},
+    },
+    time::{Duration, Instant},
 };
 use tauri_plugin_mihomo::MihomoExt as _;
 use tauri_plugin_shell::ShellExt as _;
@@ -35,17 +38,47 @@ use {
 };
 
 static CRASH_RESTARTS: AtomicU32 = AtomicU32::new(0);
+static LAST_CRASH_AT: Mutex<Option<Instant>> = Mutex::new(None);
 const MAX_CRASH_RESTARTS: u32 = 3;
 const CORE_RESTART_DELAY: Duration = Duration::from_secs(1);
+const CORE_RESTART_DELAY_CAP: Duration = Duration::from_secs(4);
 const CORE_STABLE_AFTER: Duration = Duration::from_secs(60);
 
-static SERVICE_WATCHDOG_RUNNING: AtomicBool = AtomicBool::new(false);
+static SERVICE_WATCHDOG_GENERATION: AtomicU64 = AtomicU64::new(0);
 
 fn exit_is_a_crash(current: &RunningMode, expected: &RunningMode, app_exiting: bool) -> bool {
     !app_exiting && current == expected
 }
 
-fn handle_core_exit(message: &str, expected: &RunningMode) {
+fn terminated_process_is_the_running_one(
+    expected: &RunningMode,
+    running_pid: Option<u32>,
+    terminated_pid: Option<u32>,
+) -> bool {
+    match (expected, terminated_pid) {
+        (RunningMode::Sidecar, Some(pid)) => running_pid == Some(pid),
+        (RunningMode::Sidecar, None) => false,
+        _ => true,
+    }
+}
+
+const fn restart_delay(attempt: u32) -> Duration {
+    match attempt {
+        0 | 1 => CORE_RESTART_DELAY,
+        2 => Duration::from_secs(2),
+        _ => CORE_RESTART_DELAY_CAP,
+    }
+}
+
+fn crash_attempt_number(previous_crash: Option<Instant>, now: Instant) -> u32 {
+    let stale = previous_crash.is_none_or(|last| now.duration_since(last) >= CORE_STABLE_AFTER);
+    if stale {
+        CRASH_RESTARTS.store(0, Ordering::Release);
+    }
+    CRASH_RESTARTS.fetch_add(1, Ordering::AcqRel) + 1
+}
+
+fn handle_core_exit(message: &str, expected: &RunningMode, terminated_pid: Option<u32>) {
     let manager = CoreManager::global();
     if !exit_is_a_crash(
         &manager.get_running_mode(),
@@ -54,11 +87,32 @@ fn handle_core_exit(message: &str, expected: &RunningMode) {
     ) {
         return;
     }
+    if !terminated_process_is_the_running_one(expected, manager.sidecar_pid(), terminated_pid) {
+        logging!(
+            info,
+            Type::Core,
+            "ignoring the exit of core pid {:?}: it is not the process we run now ({:?})",
+            terminated_pid,
+            manager.sidecar_pid()
+        );
+        return;
+    }
 
     logging!(warn, Type::Core, "core exited unexpectedly: {}", message);
+    manager.clear_sidecar_pid();
     manager.set_running_mode(RunningMode::NotRunning);
+    manager.after_core_process();
 
-    let attempt = CRASH_RESTARTS.fetch_add(1, Ordering::AcqRel) + 1;
+    let now = Instant::now();
+    let attempt = {
+        let mut last = match LAST_CRASH_AT.lock() {
+            Ok(last) => last,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        let attempt = crash_attempt_number(*last, now);
+        *last = Some(now);
+        attempt
+    };
     if attempt > MAX_CRASH_RESTARTS {
         logging!(
             error,
@@ -71,7 +125,7 @@ fn handle_core_exit(message: &str, expected: &RunningMode) {
     }
 
     AsyncHandler::spawn(move || async move {
-        tokio::time::sleep(CORE_RESTART_DELAY).await;
+        tokio::time::sleep(restart_delay(attempt)).await;
         let manager = CoreManager::global();
         if handle::Handle::global().is_exiting() || !matches!(*manager.get_running_mode(), RunningMode::NotRunning) {
             return;
@@ -97,6 +151,20 @@ fn handle_core_exit(message: &str, expected: &RunningMode) {
         if let Err(e) = crate::core::tray::Tray::global().update_menu().await {
             logging!(warn, Type::Core, "failed to refresh the tray after a restart: {}", e);
         }
+        if handle::Handle::global().is_exiting()
+            || matches!(*CoreManager::global().get_running_mode(), RunningMode::NotRunning)
+        {
+            return;
+        }
+        let wants_sysproxy = Config::verge().await.latest_arc().enable_system_proxy.unwrap_or(false);
+        if wants_sysproxy && let Err(e) = crate::core::sysopt::Sysopt::global().update_sysproxy().await {
+            logging!(
+                warn,
+                Type::Core,
+                "failed to reapply the system proxy after a restart: {}",
+                e
+            );
+        }
         tokio::time::sleep(CORE_STABLE_AFTER).await;
         if !matches!(*CoreManager::global().get_running_mode(), RunningMode::NotRunning) {
             CRASH_RESTARTS.store(0, Ordering::Release);
@@ -113,20 +181,18 @@ async fn core_answers() -> bool {
 }
 
 pub(super) fn spawn_service_health_watchdog() {
-    if SERVICE_WATCHDOG_RUNNING.swap(true, Ordering::AcqRel) {
-        return;
-    }
-    AsyncHandler::spawn(|| async {
-        defer! {
-            SERVICE_WATCHDOG_RUNNING.store(false, Ordering::Release);
-        }
+    let generation = SERVICE_WATCHDOG_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
+    AsyncHandler::spawn(move || async move {
         let mut misses: u32 = 0;
         let mut skipped: u32 = 0;
         loop {
             tokio::time::sleep(timing::CORE_HEALTH_INTERVAL).await;
 
             let manager = CoreManager::global();
-            if handle::Handle::global().is_exiting() || !matches!(*manager.get_running_mode(), RunningMode::Service) {
+            if handle::Handle::global().is_exiting()
+                || SERVICE_WATCHDOG_GENERATION.load(Ordering::Acquire) != generation
+                || !matches!(*manager.get_running_mode(), RunningMode::Service)
+            {
                 return;
             }
             if manager.is_config_update_in_progress() {
@@ -163,7 +229,14 @@ pub(super) fn spawn_service_health_watchdog() {
                 continue;
             }
 
-            handle_core_exit("the core stopped answering under the service", &RunningMode::Service);
+            if SERVICE_WATCHDOG_GENERATION.load(Ordering::Acquire) != generation {
+                return;
+            }
+            handle_core_exit(
+                "the core stopped answering under the service",
+                &RunningMode::Service,
+                None,
+            );
             return;
         }
     });
@@ -252,9 +325,10 @@ impl CoreManager {
         logging!(trace, Type::Core, "Sidecar started with PID: {}", pid);
 
         self.set_running_child_sidecar(child);
+        self.set_sidecar_pid(pid);
         self.set_running_mode(RunningMode::Sidecar);
 
-        AsyncHandler::spawn(|| async move {
+        AsyncHandler::spawn(move || async move {
             while let Some(event) = rx.recv().await {
                 let (level, line) = match event {
                     tauri_plugin_shell::process::CommandEvent::Stdout(line) => (Level::Info, line),
@@ -268,14 +342,14 @@ impl CoreManager {
                             CompactString::from("Process terminated")
                         };
                         Logger::global().writer_sidecar_log(Level::Info, &message);
-                        handle_core_exit(&message, &RunningMode::Sidecar);
+                        handle_core_exit(&message, &RunningMode::Sidecar, Some(pid));
                         break;
                     }
                     _ => continue,
                 };
                 let message = CompactString::from(&*String::from_utf8_lossy(&line));
                 Logger::global().writer_sidecar_log(level, &message);
-                if crate::feat::tun::line_reports_tun_failure(&message) {
+                if Self::global().sidecar_pid() == Some(pid) && crate::feat::tun::line_reports_tun_failure(&message) {
                     crate::feat::tun::report_start_failure(&message);
                 }
                 CLASH_LOGGER.append_log(message).await;
@@ -287,6 +361,7 @@ impl CoreManager {
 
     pub(super) fn stop_core_by_sidecar(&self) {
         logging!(info, Type::Core, "Stopping sidecar");
+        self.clear_sidecar_pid();
         defer! {
             self.set_running_mode(RunningMode::NotRunning);
         }
@@ -368,6 +443,7 @@ impl CoreManager {
 
     pub(super) async fn stop_core_by_service(&self) -> Result<()> {
         logging!(info, Type::Core, "Stopping service");
+        self.clear_sidecar_pid();
         defer! {
             self.set_running_mode(RunningMode::NotRunning);
         }
@@ -495,5 +571,46 @@ mod tests {
     fn returns_err_for_invalid_pid() {
         let result = create_and_assign_sidecar_job(0xFFFF_FFFC);
         assert!(result.is_err(), "expected Err for a non-existent PID");
+    }
+}
+
+#[cfg(test)]
+mod crash_tests {
+    use super::{
+        CORE_RESTART_DELAY, CORE_RESTART_DELAY_CAP, RunningMode, restart_delay, terminated_process_is_the_running_one,
+    };
+    use std::time::Duration;
+
+    #[test]
+    fn a_late_exit_of_a_replaced_process_is_not_a_crash() {
+        assert!(terminated_process_is_the_running_one(
+            &RunningMode::Sidecar,
+            Some(10),
+            Some(10)
+        ));
+        assert!(!terminated_process_is_the_running_one(
+            &RunningMode::Sidecar,
+            Some(11),
+            Some(10)
+        ));
+        assert!(!terminated_process_is_the_running_one(
+            &RunningMode::Sidecar,
+            None,
+            Some(10)
+        ));
+        assert!(!terminated_process_is_the_running_one(
+            &RunningMode::Sidecar,
+            Some(10),
+            None
+        ));
+        assert!(terminated_process_is_the_running_one(&RunningMode::Service, None, None));
+    }
+
+    #[test]
+    fn restart_delay_grows_and_stops_growing() {
+        assert_eq!(restart_delay(1), CORE_RESTART_DELAY);
+        assert_eq!(restart_delay(2), Duration::from_secs(2));
+        assert_eq!(restart_delay(3), CORE_RESTART_DELAY_CAP);
+        assert_eq!(restart_delay(9), CORE_RESTART_DELAY_CAP);
     }
 }

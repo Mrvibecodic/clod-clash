@@ -305,6 +305,11 @@ impl Sysopt {
         let _ = self.update_lock.lock().await;
     }
 
+    pub fn we_applied_system_proxy(&self) -> bool {
+        let (sys, auto) = &*self.inner_proxy.read();
+        sys.enable || auto.enable
+    }
+
     pub async fn update_sysproxy(&self) -> Result<()> {
         let _lock = self.update_lock.lock().await;
 
