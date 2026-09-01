@@ -66,7 +66,11 @@ pub async fn toggle_tun_mode(not_save_file: Option<bool>) -> bool {
         }
         Err(err) => {
             logging!(error, Type::ProxyMode, "{err}");
-            current
+            // clod:e3-04 — отказ шага уже не значит, что настройка откатилась:
+            // после удавшегося перезапуска ядра `patch_verge` сохраняет её и
+            // всё равно возвращает ошибку. Отвечаем тем, что реально записано,
+            // иначе уведомление скажет «TUN выключен» при работающем TUN.
+            Config::verge().await.data_arc().enable_tun_mode.unwrap_or(current)
         }
     }
 }

@@ -364,6 +364,10 @@ const LISTENER_KEYS: &[&str] = &[
     "external-controller-cors",
     "secret",
     "ipv6",
+    // clod:e3-05 — mihomo пересоздаёт эти inbound-ы только под `force`.
+    "ss-config",
+    "vmess-config",
+    "tuic-server",
 ];
 
 /// clod: сравнить «слушающую» часть двух runtime-конфигов.
@@ -483,6 +487,16 @@ mod tests {
         let prev = mapping("{mixed-port: 7890, tun: {enable: true}, proxies: [a], mode: rule}");
         let next = mapping("{mixed-port: 7890, tun: {enable: true}, proxies: [a, b], mode: global}");
         assert!(!listeners_need_recreate(Some(&prev), Some(&next)));
+
+        // Лишний `force` пересоздал бы все inbound-ы и порвал соединения:
+        // неизменные ss/vmess/tuic обязаны оставаться мягкой перезагрузкой.
+        let prev = mapping(
+            "{mixed-port: 7890, ss-config: 'ss://a@:1080', vmess-config: 'vmess://b@:1081', tuic-server: {enable: true, token: [t]}, proxies: [a]}",
+        );
+        let next = mapping(
+            "{mixed-port: 7890, ss-config: 'ss://a@:1080', vmess-config: 'vmess://b@:1081', tuic-server: {token: [t], enable: true}, proxies: [a, b]}",
+        );
+        assert!(!listeners_need_recreate(Some(&prev), Some(&next)));
     }
 
     #[test]
@@ -495,6 +509,32 @@ mod tests {
         assert!(listeners_need_recreate(
             Some(&prev),
             Some(&mapping("{mixed-port: 7890, tun: {enable: false}}"))
+        ));
+    }
+
+    #[test]
+    fn changed_extra_inbounds_force_a_full_reload() {
+        // clod:e3-05 — эти три inbound-а mihomo пересоздаёт только под `force`.
+        let prev = mapping(
+            "{mixed-port: 7890, ss-config: 'ss://a@:1080', vmess-config: 'vmess://b@:1081', tuic-server: {enable: false}}",
+        );
+        assert!(listeners_need_recreate(
+            Some(&prev),
+            Some(&mapping(
+                "{mixed-port: 7890, ss-config: 'ss://z@:1080', vmess-config: 'vmess://b@:1081', tuic-server: {enable: false}}"
+            ))
+        ));
+        assert!(listeners_need_recreate(
+            Some(&prev),
+            Some(&mapping(
+                "{mixed-port: 7890, ss-config: 'ss://a@:1080', vmess-config: 'vmess://z@:1081', tuic-server: {enable: false}}"
+            ))
+        ));
+        assert!(listeners_need_recreate(
+            Some(&prev),
+            Some(&mapping(
+                "{mixed-port: 7890, ss-config: 'ss://a@:1080', vmess-config: 'vmess://b@:1081', tuic-server: {enable: true}}"
+            ))
         ));
     }
 

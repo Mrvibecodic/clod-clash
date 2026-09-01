@@ -63,6 +63,21 @@ bitflags! {
         const GROUP_SYS_TRAY = Self::SYSTRAY_MENU.bits()
                              | Self::SYSTRAY_TOOLTIP.bits()
                              | Self::SYSTRAY_ICON.bits();
+
+        /// clod:e3-04 — шаги, отказ которых не оставляет систему в опасном
+        /// состоянии: они либо ничего не меняют за пределами приложения, либо
+        /// чинятся сами при следующем обновлении. Только для такого набора
+        /// настройки разрешено сохранять после уже случившегося перезапуска
+        /// ядра. Системный прокси и автозапуск сюда не входят: сохранённое
+        /// «включено» при неприменённом шаге врало бы о трафике.
+        const SALVAGEABLE_AFTER_RESTART = Self::RESTART_CORE.bits()
+                                        | Self::CLASH_CONFIG.bits()
+                                        | Self::VERGE_CONFIG.bits()
+                                        | Self::GROUP_SYS_TRAY.bits()
+                                        | Self::SYSTRAY_CLICK_BEHAVIOR.bits()
+                                        | Self::LANGUAGE.bits()
+                                        | Self::LOG_LEVEL.bits()
+                                        | Self::LOG_FILE.bits();
      }
 }
 
@@ -199,12 +214,18 @@ fn determine_update_flags(patch: &IVerge) -> UpdateFlags {
     update_flags
 }
 
+/// Перезапуск ядра под новый черновик настроек.
+///
+/// clod:e3-04 — вынесен из `process_terminated_flags` отдельным шагом: после
+/// удавшегося перезапуска ядро уже обслуживает трафик по новым настройкам, и
+/// откатывать черновик из-за отказа любого следующего шага нельзя.
+async fn restart_core_for_patch() -> Result<()> {
+    Config::generate().await?;
+    CoreManager::global().restart_core().await
+}
+
 #[allow(clippy::cognitive_complexity)]
 async fn process_terminated_flags(update_flags: UpdateFlags, patch: &IVerge) -> Result<()> {
-    if update_flags.contains(UpdateFlags::RESTART_CORE) {
-        Config::generate().await?;
-        CoreManager::global().restart_core().await?;
-    }
     if update_flags.contains(UpdateFlags::CLASH_CONFIG) {
         CoreManager::global().update_config_checked().await?;
         handle::Handle::refresh_clash();
@@ -282,12 +303,56 @@ pub async fn patch_verge(patch: &IVerge, not_save_file: bool) -> Result<()> {
 
     let update_flags = determine_update_flags(patch);
     logging!(debug, Type::Setup, "Determined update flags: {:?}", update_flags);
-    if let Err(err) = process_terminated_flags(update_flags, patch).await {
-        Config::verge().await.discard();
-        return Err(err);
+
+    // clod:e3-04 — перезапуск ядра отделён от остальных шагов: после него ядро
+    // уже обслуживает трафик по новым настройкам, и откат черновика развёл бы
+    // сохранённое с работающим (в файле старый порт или старое ядро — в памяти
+    // новое). Поэтому дальше черновик не откатывается, но только если отказать
+    // могли лишь безопасные шаги (см. SALVAGEABLE_AFTER_RESTART).
+    let core_restarted = if update_flags.contains(UpdateFlags::RESTART_CORE) {
+        if let Err(err) = restart_core_for_patch().await {
+            Config::verge().await.discard();
+            return Err(err);
+        }
+        true
+    } else {
+        false
+    };
+
+    let flags_result = process_terminated_flags(update_flags, patch).await;
+    if let Err(err) = flags_result {
+        let keep_settings = core_restarted && UpdateFlags::SALVAGEABLE_AFTER_RESTART.contains(update_flags);
+        if !keep_settings {
+            Config::verge().await.discard();
+            return Err(err);
+        }
+        logging!(
+            warn,
+            Type::Setup,
+            "шаг после перезапуска ядра не прошёл, настройки всё равно сохраняем: {err:#}"
+        );
+        Config::verge().await.apply();
+        // Хвост общий: настройки оставлены жить, значит и обвязка вокруг них
+        // (цели кнопки Connect, проверка TUN, автобэкап, запись на диск)
+        // должна отработать — иначе сохранённое разошлось бы с приложением.
+        let finished = finish_patch_verge(patch, tun_log_anchor, not_save_file).await;
+        // Фронтенд обязан увидеть то, что реально сохранено и работает:
+        // вызывающий получит ошибку и сам по себе тумблер не обновит.
+        handle::Handle::refresh_verge();
+        return match finished {
+            Ok(()) => Err(err),
+            // Обещание «настройки всё равно сохраняем» не выполнено — это
+            // должно быть видно вызывающему, а не только в логе.
+            Err(save_error) => Err(err.context(format!("и настройки не сохранились: {save_error:#}"))),
+        };
     }
     Config::verge().await.apply();
 
+    finish_patch_verge(patch, tun_log_anchor, not_save_file).await
+}
+
+/// Обвязка вокруг уже зафиксированных настроек и запись их на диск.
+async fn finish_patch_verge(patch: &IVerge, tun_log_anchor: Option<String>, not_save_file: bool) -> Result<()> {
     if patch.enable_system_proxy.is_some() || patch.enable_tun_mode.is_some() {
         let latest = Config::verge().await.latest_arc();
         let active = latest.enable_system_proxy.unwrap_or(false) || latest.enable_tun_mode.unwrap_or(false);
@@ -299,12 +364,13 @@ pub async fn patch_verge(patch: &IVerge, not_save_file: bool) -> Result<()> {
     }
 
     logging_error!(Type::Backup, AutoBackupManager::global().refresh_settings().await);
-    if !not_save_file {
-        let verge_data = Config::verge().await.data_arc();
-        logging!(debug, Type::Setup, "Saving Verge configuration to file...");
-        verge_data.save_file().await?;
+
+    if not_save_file {
+        return Ok(());
     }
-    Ok(())
+    let verge_data = Config::verge().await.data_arc();
+    logging!(debug, Type::Setup, "Saving Verge configuration to file...");
+    verge_data.save_file().await
 }
 
 pub async fn fetch_verge_config() -> Result<SharedDraft<IVerge>> {
