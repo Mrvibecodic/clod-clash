@@ -157,7 +157,8 @@
           "unifiedDelay": "Al habilitar la latencia unificada, se realizarán dos pruebas de latencia para eliminar las diferencias de latencia entre diferentes tipos de nodos causadas por el handshake de conexión, etc.",
           "logLevel": "Solo se aplica al archivo de registro del núcleo en la carpeta Service del directorio de registros.",
           "openUwpTool": "A partir de Windows 8, las aplicaciones UWP (como la Tienda de Microsoft) tienen restricciones para acceder directamente a los servicios de red del host local. Use esta herramienta para evitar esta restricción.",
-          "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing."
+          "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing.",
+          "dnsOverwrite": "Careful: while this is on, the DNS block from the subscription is fully replaced by these settings."
         },
         "options": {
           "logLevel": {
@@ -532,7 +533,6 @@
       },
       "sections": {
         "general": "Configuración de DNS",
-        "fallbackFilter": "Configuración de filtrado de respaldo",
         "hosts": "Configuración de hosts"
       },
       "fields": {
@@ -574,10 +574,6 @@
           "label": "Servidor DNS",
           "description": "Lista de servidores DNS, separados por comas"
         },
-        "fallback": {
-          "label": "Servidor de respaldo",
-          "description": "Lista de servidores DNS de respaldo, separados por comas"
-        },
         "proxy": {
           "label": "DNS del servidor proxy",
           "description": "Servidor de resolución de nombres de dominio del nodo de proxy, separados por comas"
@@ -594,19 +590,6 @@
           "label": "Política de servidores DNS",
           "description": "Servidor DNS específico de dominio, múltiples servidores separados por punto y coma, formato: dominio=server1;server2"
         },
-        "geoipFiltering": {
-          "label": "Filtrado GeoIP",
-          "description": "Habilitar el filtrado GeoIP de respaldo"
-        },
-        "geoipCode": "Código de país GeoIP",
-        "fallbackIpCidr": {
-          "label": "IP CIDR de respaldo",
-          "description": "IP CIDR que no utilizan servidores de respaldo, separados por comas"
-        },
-        "fallbackDomain": {
-          "label": "Dominio de respaldo",
-          "description": "Dominios que utilizan servidores de respaldo, separados por comas"
-        },
         "hosts": {
           "label": "Hosts",
           "description": "Asignación personalizada de dominio a IP o dominio, separados por comas"
@@ -614,11 +597,14 @@
       },
       "messages": {
         "saved": "Configuración de DNS guardada",
-        "configError": "DNS configuration error:"
+        "notSaved": "DNS settings did not pass the check and were not saved:",
+        "savedUnchecked": "DNS settings saved, but the check could not run:",
+        "savedNotApplied": "Configuración de DNS guardada, pero no se pudo aplicar:"
       },
       "errors": {
         "invalid": "Invalid configuration",
-        "invalidYaml": "Invalid YAML format"
+        "invalidYaml": "Invalid YAML format",
+        "emptyDns": "El bloque DNS está vacío y no se guardó"
       }
     },
     "webUI": {

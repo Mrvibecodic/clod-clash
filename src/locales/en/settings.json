@@ -157,7 +157,8 @@
           "unifiedDelay": "When unified delay is turned on, two delay tests will be performed to eliminate the delay differences between different types of nodes caused by connection handshakes, etc",
           "logLevel": "This parameter is valid only for kernel log files in the log directory Service folder",
           "openUwpTool": "Since Windows 8, UWP apps (such as Microsoft Store) are restricted from directly accessing local host network services, and this tool can be used to bypass this restriction",
-          "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing."
+          "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing.",
+          "dnsOverwrite": "Careful: while this is on, the DNS block from the subscription is fully replaced by these settings."
         },
         "options": {
           "logLevel": {
@@ -532,7 +533,6 @@
       },
       "sections": {
         "general": "DNS Settings",
-        "fallbackFilter": "Fallback Filter Settings",
         "hosts": "Hosts Settings"
       },
       "fields": {
@@ -574,10 +574,6 @@
           "label": "Nameserver",
           "description": "List of DNS servers, comma separated"
         },
-        "fallback": {
-          "label": "Fallback",
-          "description": "List of fallback DNS servers, comma separated"
-        },
         "proxy": {
           "label": "Proxy Server Nameserver",
           "description": "DNS servers for proxy node domain resolution"
@@ -594,19 +590,6 @@
           "label": "Nameserver Policy",
           "description": "Domain-specific DNS server, multiple servers separated by semicolons, format: domain=server1;server2"
         },
-        "geoipFiltering": {
-          "label": "GeoIP Filtering",
-          "description": "Enable GeoIP filtering for fallback"
-        },
-        "geoipCode": "GeoIP Code",
-        "fallbackIpCidr": {
-          "label": "Fallback IP CIDR",
-          "description": "IP CIDRs not using fallback servers, comma separated"
-        },
-        "fallbackDomain": {
-          "label": "Fallback Domain",
-          "description": "Domains using fallback servers, comma separated"
-        },
         "hosts": {
           "label": "Hosts",
           "description": "Custom domain to IP or domain mapping"
@@ -614,11 +597,14 @@
       },
       "messages": {
         "saved": "DNS settings saved",
-        "configError": "DNS configuration error:"
+        "notSaved": "DNS settings did not pass the check and were not saved:",
+        "savedUnchecked": "DNS settings saved, but the check could not run:",
+        "savedNotApplied": "DNS settings saved, but could not be applied:"
       },
       "errors": {
         "invalid": "Invalid configuration",
-        "invalidYaml": "Invalid YAML format"
+        "invalidYaml": "Invalid YAML format",
+        "emptyDns": "The DNS block is empty and was not saved"
       }
     },
     "webUI": {

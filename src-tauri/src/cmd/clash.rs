@@ -7,7 +7,7 @@ use crate::{
     constants,
     core::{
         CoreManager, handle,
-        validate::{CoreConfigValidator, ValidationOutcome},
+        validate::{CoreConfigValidator, ValidationErrorKind, ValidationOutcome},
     },
 };
 use clash_verge_logging::{Type, logging, logging_error};
@@ -86,47 +86,95 @@ pub async fn restart_core() -> CmdResult {
     }
     result
 }
-#[tauri::command]
-pub async fn save_dns_config(dns_config: Mapping) -> CmdResult {
-    use crate::utils::dirs;
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DnsSaveOutcome {
+    saved: bool,
+    validation: ValidationOutcome,
+}
 
-    let dns_path = dirs::app_home_dir().stringify_err()?.join(constants::files::DNS_CONFIG);
+const fn reached_a_verdict(outcome: &ValidationOutcome) -> bool {
+    match outcome {
+        ValidationOutcome::Valid => true,
+        ValidationOutcome::Invalid { kind, .. } => matches!(
+            kind,
+            ValidationErrorKind::CoreRejected
+                | ValidationErrorKind::YamlSyntax
+                | ValidationErrorKind::YamlMapping
+                | ValidationErrorKind::ScriptSyntax
+                | ValidationErrorKind::ScriptMissingMain
+        ),
+        ValidationOutcome::Skipped { .. } | ValidationOutcome::Busy => false,
+    }
+}
+
+#[tauri::command]
+pub async fn save_dns_config(dns_config: Mapping) -> CmdResult<DnsSaveOutcome> {
+    let app_dir = dirs::app_home_dir().stringify_err()?;
+    let dns_path = app_dir.join(constants::files::DNS_CONFIG);
+    let check_path = app_dir.join(constants::files::DNS_CHECK_CONFIG);
 
     let yaml_str = yaml_emitter::to_mihomo_config_string(&dns_config).stringify_err()?;
+
+    let in_context = Config::dns_page_check_config(&dns_config).await;
+    let check_yaml = match in_context.as_ref() {
+        Some(context) => yaml_emitter::to_mihomo_config_string(context).stringify_err()?,
+        None => yaml_str.clone(),
+    };
+
+    crate::utils::help::write_atomic(&check_path, check_yaml.as_bytes())
+        .await
+        .stringify_err()?;
+
+    let outcome =
+        CoreConfigValidator::validate_config_file_outcome(check_path.to_str().unwrap_or_default(), None).await;
+    let _ = fs::remove_file(&check_path).await;
+
+    let validation = match outcome {
+        Ok(outcome) => outcome,
+        Err(err) => ValidationOutcome::invalid(
+            ValidationErrorKind::ProcessTerminated,
+            format!("Configuration check could not be run: {err}"),
+        ),
+    };
+
+    if !validation.is_valid() {
+        if in_context.is_some() && reached_a_verdict(&validation) {
+            logging!(warn, Type::Config, "DNS config rejected, nothing written: {validation}");
+            return Ok(DnsSaveOutcome {
+                saved: false,
+                validation,
+            });
+        }
+
+        logging!(
+            warn,
+            Type::Config,
+            "DNS config check reached no verdict, saving anyway: {validation}"
+        );
+    }
+
     crate::utils::help::write_atomic(&dns_path, yaml_str.as_bytes())
         .await
         .stringify_err()?;
     logging!(info, Type::Config, "DNS config saved to {dns_path:?}");
 
-    Ok(())
+    Ok(DnsSaveOutcome {
+        saved: true,
+        validation,
+    })
 }
 
 #[tauri::command]
 pub async fn apply_dns_config(apply: bool) -> CmdResult {
     if apply {
-        let dns_path = dirs::app_home_dir().stringify_err()?.join(constants::files::DNS_CONFIG);
-
-        if !dns_path.exists() {
-            logging!(warn, Type::Config, "DNS config file not found");
-            return Err("DNS config file not found".into());
-        }
-
-        let dns_yaml = fs::read_to_string(&dns_path).await.stringify_err_log(|e| {
-            logging!(error, Type::Config, "Failed to read DNS config: {e}");
-        })?;
-
-        let patch_config = serde_yaml_ng::from_str::<serde_yaml_ng::Mapping>(&dns_yaml).stringify_err_log(|e| {
-            logging!(error, Type::Config, "Failed to parse DNS config: {e}");
-        })?;
+        crate::utils::init::ensure_dns_config_file()
+            .await
+            .stringify_err_log(|e| {
+                logging!(error, Type::Config, "Failed to create DNS config: {e}");
+            })?;
 
         logging!(info, Type::Config, "Applying DNS config from file");
-
-        let mut patch = serde_yaml_ng::Mapping::new();
-        patch.insert("dns".into(), patch_config.into());
-
-        Config::runtime().await.edit_draft(|d| {
-            d.patch_config(&patch);
-        });
 
         CoreManager::global()
             .update_config_checked()
@@ -180,22 +228,51 @@ pub async fn get_dns_config_content() -> CmdResult<String> {
 }
 
 #[tauri::command]
-pub async fn validate_dns_config() -> CmdResult<ValidationOutcome> {
-    let app_dir = dirs::app_home_dir().stringify_err()?;
-    let dns_path = app_dir.join(constants::files::DNS_CONFIG);
-    let dns_path_str = dns_path.to_str().unwrap_or_default();
-
-    if !dns_path.exists() {
-        return Ok(ValidationOutcome::invalid_from_message("DNS config file not found"));
-    }
-
-    CoreConfigValidator::validate_config_file_outcome(dns_path_str, None)
-        .await
-        .stringify_err()
-}
-
-#[tauri::command]
 pub async fn get_clash_logs() -> CmdResult<Vec<CompactString>> {
     let logs = CoreManager::global().get_clash_logs().await.unwrap_or_default();
     Ok(logs)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::reached_a_verdict;
+    use crate::core::validate::{ValidationErrorKind, ValidationOutcome, ValidationSkipReason};
+
+    #[test]
+    fn the_core_judging_the_config_is_a_verdict() {
+        assert!(reached_a_verdict(&ValidationOutcome::Valid));
+
+        for kind in [
+            ValidationErrorKind::CoreRejected,
+            ValidationErrorKind::YamlSyntax,
+            ValidationErrorKind::YamlMapping,
+            ValidationErrorKind::ScriptSyntax,
+            ValidationErrorKind::ScriptMissingMain,
+        ] {
+            assert!(
+                reached_a_verdict(&ValidationOutcome::invalid(kind, "nope")),
+                "{kind:?} is the core rejecting the config"
+            );
+        }
+    }
+
+    #[test]
+    fn a_check_that_never_ran_is_not_a_verdict() {
+        for kind in [
+            ValidationErrorKind::FileMissing,
+            ValidationErrorKind::FileRead,
+            ValidationErrorKind::ProcessTerminated,
+            ValidationErrorKind::Timeout,
+        ] {
+            assert!(
+                !reached_a_verdict(&ValidationOutcome::invalid(kind, "nope")),
+                "{kind:?} means the check produced no verdict"
+            );
+        }
+
+        assert!(!reached_a_verdict(&ValidationOutcome::Busy));
+        assert!(!reached_a_verdict(&ValidationOutcome::Skipped {
+            reason: ValidationSkipReason::Exiting
+        }));
+    }
 }

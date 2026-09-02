@@ -157,7 +157,8 @@
           "unifiedDelay": "开启统一延迟时，会进行两次延迟测试，以消除连接握手等带来的不同类型节点的延迟差异",
           "logLevel": "仅对日志目录 Service 文件夹下的内核日志文件生效",
           "openUwpTool": "Windows 8 开始限制 UWP 应用（如微软商店）直接访问本地主机的网络服务，使用此工具可绕过该限制",
-          "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing."
+          "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing.",
+          "dnsOverwrite": "Careful: while this is on, the DNS block from the subscription is fully replaced by these settings."
         },
         "options": {
           "logLevel": {
@@ -532,7 +533,6 @@
       },
       "sections": {
         "general": "DNS 设置",
-        "fallbackFilter": "回退过滤设置",
         "hosts": "Hosts 设置"
       },
       "fields": {
@@ -574,10 +574,6 @@
           "label": "域名服务器",
           "description": "DNS 服务器列表，用逗号分隔"
         },
-        "fallback": {
-          "label": "回退服务器",
-          "description": "回退 DNS 服务器列表，用逗号分隔"
-        },
         "proxy": {
           "label": "代理节点DNS",
           "description": "代理节点域名解析服务器，仅用于解析代理节点的域名，用逗号分隔"
@@ -594,19 +590,6 @@
           "label": "域名服务器策略",
           "description": "特定域名的 DNS 服务器，多个服务器使用分号分隔，格式: domain=server1;server2"
         },
-        "geoipFiltering": {
-          "label": "GeoIP 过滤",
-          "description": "启用 GeoIP 回退过滤"
-        },
-        "geoipCode": "GeoIP 国家代码",
-        "fallbackIpCidr": {
-          "label": "回退 IP CIDR",
-          "description": "不使用回退服务器的 IP CIDR，用逗号分隔"
-        },
-        "fallbackDomain": {
-          "label": "回退域名",
-          "description": "使用回退服务器的域名，用逗号分隔"
-        },
         "hosts": {
           "label": "Hosts",
           "description": "自定义域名到 IP 或域名的映射，用逗号分隔"
@@ -614,11 +597,14 @@
       },
       "messages": {
         "saved": "DNS 设置已保存",
-        "configError": "DNS 配置错误："
+        "notSaved": "DNS settings did not pass the check and were not saved:",
+        "savedUnchecked": "DNS settings saved, but the check could not run:",
+        "savedNotApplied": "DNS 设置已保存，但应用失败："
       },
       "errors": {
         "invalid": "配置无效",
-        "invalidYaml": "YAML 格式无效"
+        "invalidYaml": "YAML 格式无效",
+        "emptyDns": "DNS 配置块为空，未保存"
       }
     },
     "webUI": {

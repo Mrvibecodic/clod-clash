@@ -909,6 +909,7 @@ export interface TranslationResources {
             warning: string
           }
           errors: {
+            emptyDns: string
             invalid: string
             invalidYaml: string
           }
@@ -934,23 +935,6 @@ export interface TranslationResources {
             fakeIpFilterMode: string
             fakeIpRange: string
             fakeIpRange6: string
-            fallback: {
-              description: string
-              label: string
-            }
-            fallbackDomain: {
-              description: string
-              label: string
-            }
-            fallbackIpCidr: {
-              description: string
-              label: string
-            }
-            geoipCode: string
-            geoipFiltering: {
-              description: string
-              label: string
-            }
             hosts: {
               description: string
               label: string
@@ -990,11 +974,12 @@ export interface TranslationResources {
             }
           }
           messages: {
-            configError: string
+            notSaved: string
             saved: string
+            savedNotApplied: string
+            savedUnchecked: string
           }
           sections: {
-            fallbackFilter: string
             general: string
             hosts: string
           }
@@ -1246,6 +1231,7 @@ export interface TranslationResources {
               }
             }
             tooltips: {
+              dnsOverwrite: string
               ipv6: string
               logLevel: string
               networkInterface: string

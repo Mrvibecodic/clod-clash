@@ -18,6 +18,11 @@ type ValidationOutcome =
   | { status: 'invalid'; kind: string; message: string }
   | { status: 'skipped'; reason: string }
 
+interface DnsSaveOutcome {
+  saved: boolean
+  validation: ValidationOutcome
+}
+
 interface IConfigData {
   port: number
   mode: string

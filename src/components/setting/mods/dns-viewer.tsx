@@ -33,10 +33,17 @@ import {
   Switch,
 } from '@/components/base'
 import { useClash } from '@/hooks/use-clash'
+import { useVerge } from '@/hooks/use-verge'
 import { getRuntimeConfig } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { useThemeMode } from '@/services/states'
 import type { MonacoEditorInstance } from '@/types/monaco'
+import {
+  asDnsMapping,
+  mergeDnsConfig,
+  readDnsBlock,
+  summarizeValidation,
+} from '@/utils/dns-config'
 import getSystem from '@/utils/get-system'
 
 const Item = styled(ListItem)(() => ({
@@ -169,7 +176,6 @@ const DEFAULT_DNS_CONFIG = {
     'https://doh.pub/dns-query',
     'https://dns.alidns.com/dns-query',
   ],
-  fallback: [],
   'nameserver-policy': {},
   'proxy-server-nameserver': [
     'https://doh.pub/dns-query',
@@ -178,22 +184,21 @@ const DEFAULT_DNS_CONFIG = {
   ],
   'direct-nameserver': [],
   'direct-nameserver-follow-policy': false,
-  'fallback-filter': {
-    geoip: true,
-    'geoip-code': 'CN',
-    ipcidr: ['240.0.0.0/4', '0.0.0.0/32'],
-    domain: ['+.google.com', '+.facebook.com', '+.youtube.com'],
-  },
 }
 
 export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const { t } = useTranslation()
-  const { clash, mutateClash } = useClash()
+  const { mutateClash } = useClash()
+  const { verge } = useVerge()
   const themeMode = useThemeMode()
 
   const [open, setOpen] = useState(false)
   const [visualization, setVisualization] = useState(true)
   const skipYamlSyncRef = useRef(false)
+  const [seeding, setSeeding] = useState(false)
+  const parsedDnsRef = useRef<unknown>({})
+  const baseHostsRef = useRef<unknown>(undefined)
+  const renderedTextRef = useRef({ nameserverPolicy: '', hosts: '' })
   const editorRef = useRef<MonacoEditorInstance | null>(null)
   const [values, setValues] = useState<{
     enable: boolean
@@ -209,15 +214,10 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
     ipv6: boolean
     fakeIpFilter: string
     nameserver: string
-    fallback: string
     defaultNameserver: string
     proxyServerNameserver: string
     directNameserver: string
     directNameserverFollowPolicy: boolean
-    fallbackGeoip: boolean
-    fallbackGeoipCode: string
-    fallbackIpcidr: string
-    fallbackDomain: string
     nameserverPolicy: string
     hosts: string
   }>({
@@ -235,18 +235,11 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
     fakeIpFilter: DEFAULT_DNS_CONFIG['fake-ip-filter'].join(', '),
     defaultNameserver: DEFAULT_DNS_CONFIG['default-nameserver'].join(', '),
     nameserver: DEFAULT_DNS_CONFIG.nameserver.join(', '),
-    fallback: DEFAULT_DNS_CONFIG.fallback.join(', '),
     proxyServerNameserver:
       DEFAULT_DNS_CONFIG['proxy-server-nameserver']?.join(', ') || '',
     directNameserver: DEFAULT_DNS_CONFIG['direct-nameserver']?.join(', ') || '',
     directNameserverFollowPolicy:
       DEFAULT_DNS_CONFIG['direct-nameserver-follow-policy'] || false,
-    fallbackGeoip: DEFAULT_DNS_CONFIG['fallback-filter'].geoip,
-    fallbackGeoipCode: DEFAULT_DNS_CONFIG['fallback-filter']['geoip-code'],
-    fallbackIpcidr:
-      DEFAULT_DNS_CONFIG['fallback-filter'].ipcidr?.join(', ') || '',
-    fallbackDomain:
-      DEFAULT_DNS_CONFIG['fallback-filter'].domain?.join(', ') || '',
     nameserverPolicy: '',
     hosts: '',
   })
@@ -260,8 +253,19 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
     (config: any) => {
       if (!config) return
 
-      const dnsConfig = config.dns || {}
+      const dnsConfig: any = readDnsBlock(config)
       const hostsConfig = config.hosts || {}
+
+      parsedDnsRef.current = dnsConfig
+      baseHostsRef.current = config.hosts
+
+      const nameserverPolicyText =
+        formatNameserverPolicy(dnsConfig['nameserver-policy']) || ''
+      const hostsText = formatHosts(hostsConfig) || ''
+      renderedTextRef.current = {
+        nameserverPolicy: nameserverPolicyText,
+        hosts: hostsText,
+      }
 
       const enhancedMode =
         dnsConfig['enhanced-mode'] || DEFAULT_DNS_CONFIG['enhanced-mode']
@@ -301,9 +305,6 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
         nameserver:
           dnsConfig.nameserver?.join(', ') ??
           DEFAULT_DNS_CONFIG.nameserver.join(', '),
-        fallback:
-          dnsConfig.fallback?.join(', ') ??
-          DEFAULT_DNS_CONFIG.fallback.join(', '),
         defaultNameserver:
           dnsConfig['default-nameserver']?.join(', ') ??
           DEFAULT_DNS_CONFIG['default-nameserver'].join(', '),
@@ -316,28 +317,15 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
         directNameserverFollowPolicy:
           dnsConfig['direct-nameserver-follow-policy'] ??
           DEFAULT_DNS_CONFIG['direct-nameserver-follow-policy'],
-        fallbackGeoip:
-          dnsConfig['fallback-filter']?.geoip ??
-          DEFAULT_DNS_CONFIG['fallback-filter'].geoip,
-        fallbackGeoipCode:
-          dnsConfig['fallback-filter']?.['geoip-code'] ??
-          DEFAULT_DNS_CONFIG['fallback-filter']['geoip-code'],
-        fallbackIpcidr:
-          dnsConfig['fallback-filter']?.ipcidr?.join(', ') ??
-          DEFAULT_DNS_CONFIG['fallback-filter'].ipcidr.join(', '),
-        fallbackDomain:
-          dnsConfig['fallback-filter']?.domain?.join(', ') ??
-          DEFAULT_DNS_CONFIG['fallback-filter'].domain.join(', '),
-        nameserverPolicy:
-          formatNameserverPolicy(dnsConfig['nameserver-policy']) || '',
-        hosts: formatHosts(hostsConfig) || '',
+        nameserverPolicy: nameserverPolicyText,
+        hosts: hostsText,
       })
     },
     [setValues],
   )
 
   const generateDnsConfig = useCallback(() => {
-    const dnsConfig: any = {
+    const formFields: Record<string, any> = {
       enable: values.enable,
       listen: values.listen,
       'enhanced-mode': values.enhancedMode,
@@ -354,25 +342,36 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
       'default-nameserver': parseList(values.defaultNameserver),
       nameserver: parseList(values.nameserver),
       'direct-nameserver-follow-policy': values.directNameserverFollowPolicy,
-      'fallback-filter': {
-        geoip: values.fallbackGeoip,
-        'geoip-code': values.fallbackGeoipCode,
-        ipcidr: parseList(values.fallbackIpcidr),
-        domain: parseList(values.fallbackDomain),
-      },
-
-      fallback: parseList(values.fallback),
       'proxy-server-nameserver': parseList(values.proxyServerNameserver),
       'direct-nameserver': parseList(values.directNameserver),
     }
 
-    const policy = parseNameserverPolicy(values.nameserverPolicy)
-    if (Object.keys(policy).length > 0) {
-      dnsConfig['nameserver-policy'] = policy
+    const basePolicy = asDnsMapping(parsedDnsRef.current)?.['nameserver-policy']
+    if (
+      values.nameserverPolicy === renderedTextRef.current.nameserverPolicy &&
+      basePolicy !== undefined
+    ) {
+      formFields['nameserver-policy'] = basePolicy
+    } else {
+      const policy = parseNameserverPolicy(values.nameserverPolicy)
+      if (Object.keys(policy).length > 0) {
+        formFields['nameserver-policy'] = policy
+      }
     }
 
-    return dnsConfig
+    return mergeDnsConfig(parsedDnsRef.current, formFields)
   }, [values])
+
+  const generateHostsConfig = useCallback(() => {
+    if (
+      values.hosts === renderedTextRef.current.hosts &&
+      baseHostsRef.current !== undefined
+    ) {
+      return baseHostsRef.current
+    }
+
+    return parseHosts(values.hosts)
+  }, [values.hosts])
 
   const updateYamlFromValues = useCallback(() => {
     const config: Record<string, any> = {}
@@ -382,15 +381,18 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
       config.dns = dnsConfig
     }
 
-    const hosts = parseHosts(values.hosts)
-    if (Object.keys(hosts).length > 0) {
+    const hosts = generateHostsConfig()
+    if (Object.keys(asDnsMapping(hosts) ?? {}).length > 0) {
       config.hosts = hosts
     }
 
     setYamlContent(yaml.dump(config, { forceQuotes: true }))
-  }, [generateDnsConfig, setYamlContent, values.hosts])
+  }, [generateDnsConfig, generateHostsConfig, setYamlContent])
 
   const resetToDefaults = useCallback(() => {
+    parsedDnsRef.current = { ...DEFAULT_DNS_CONFIG }
+    baseHostsRef.current = undefined
+    renderedTextRef.current = { nameserverPolicy: '', hosts: '' }
     setValues({
       enable: DEFAULT_DNS_CONFIG.enable,
       listen: DEFAULT_DNS_CONFIG.listen,
@@ -406,19 +408,12 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
       fakeIpFilter: DEFAULT_DNS_CONFIG['fake-ip-filter'].join(', '),
       defaultNameserver: DEFAULT_DNS_CONFIG['default-nameserver'].join(', '),
       nameserver: DEFAULT_DNS_CONFIG.nameserver.join(', '),
-      fallback: DEFAULT_DNS_CONFIG.fallback.join(', '),
       proxyServerNameserver:
         DEFAULT_DNS_CONFIG['proxy-server-nameserver']?.join(', ') || '',
       directNameserver:
         DEFAULT_DNS_CONFIG['direct-nameserver']?.join(', ') || '',
       directNameserverFollowPolicy:
         DEFAULT_DNS_CONFIG['direct-nameserver-follow-policy'] || false,
-      fallbackGeoip: DEFAULT_DNS_CONFIG['fallback-filter'].geoip,
-      fallbackGeoipCode: DEFAULT_DNS_CONFIG['fallback-filter']['geoip-code'],
-      fallbackIpcidr:
-        DEFAULT_DNS_CONFIG['fallback-filter'].ipcidr?.join(', ') || '',
-      fallbackDomain:
-        DEFAULT_DNS_CONFIG['fallback-filter'].domain?.join(', ') || '',
       nameserverPolicy: '',
       hosts: '',
     })
@@ -470,6 +465,7 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
   }, [])
 
   const initDnsConfig = useCallback(async () => {
+    setSeeding(true)
     try {
       const dnsConfigExists = await invoke<boolean>(
         'check_dns_config_exists',
@@ -488,7 +484,13 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
       const runtimeDns = (await getRuntimeConfig())?.dns
 
       if (runtimeDns && Object.keys(runtimeDns).length > 0) {
-        const config = { dns: runtimeDns }
+        const config = {
+          dns: {
+            ...runtimeDns,
+            'use-hosts': false,
+            'use-system-hosts': false,
+          },
+        }
 
         updateValuesFromConfig(config)
         setYamlContent(yaml.dump(config, { forceQuotes: true }))
@@ -498,6 +500,8 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
     } catch (err) {
       console.error('Failed to initialize DNS config', err)
       resetToDefaults()
+    } finally {
+      setSeeding(false)
     }
   }, [resetToDefaults, setYamlContent, updateValuesFromConfig])
 
@@ -525,8 +529,8 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
           config.dns = dnsConfig
         }
 
-        const hosts = parseHosts(values.hosts)
-        if (Object.keys(hosts).length > 0) {
+        const hosts = generateHostsConfig()
+        if (Object.keys(asDnsMapping(hosts) ?? {}).length > 0) {
           config.hosts = hosts
         }
       } else {
@@ -537,54 +541,47 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
         config = parsedConfig as Record<string, any>
       }
 
-      await invoke('save_dns_config', { dnsConfig: config })
+      if (Object.keys(readDnsBlock(config)).length === 0) {
+        showNotice.error('settings.modals.dns.errors.emptyDns')
+        return
+      }
 
-      const validation = await invoke<ValidationOutcome>(
-        'validate_dns_config',
-        {},
-      )
+      const outcome = await invoke<DnsSaveOutcome>('save_dns_config', {
+        dnsConfig: config,
+      })
 
-      if (validation.status !== 'valid') {
-        const errorMsg =
-          validation.status === 'invalid'
-            ? validation.message
-            : 'Configuration validation skipped'
-        let cleanErrorMsg = errorMsg
-
-        if (errorMsg.includes('level=error')) {
-          const errorLines = errorMsg
-            .split('\n')
-            .filter(
-              (line) =>
-                line.includes('level=error') ||
-                line.includes('level=fatal') ||
-                line.includes('failed'),
-            )
-
-          if (errorLines.length > 0) {
-            cleanErrorMsg = errorLines
-              .map((line) => {
-                const msgMatch = line.match(/msg="([^"]+)"/)
-                return msgMatch ? msgMatch[1] : line
-              })
-              .join(', ')
-          }
-        }
-
+      if (!outcome.saved) {
         showNotice.error(
-          'settings.modals.dns.messages.configError',
-          cleanErrorMsg,
+          'settings.modals.dns.messages.notSaved',
+          summarizeValidation(outcome.validation),
         )
         return
       }
 
-      if (clash?.dns?.enable) {
-        await invoke('apply_dns_config', { apply: true })
-        mutateClash()
+      if (verge?.enable_dns_settings) {
+        try {
+          await invoke('apply_dns_config', { apply: true })
+          mutateClash()
+        } catch (applyErr) {
+          setOpen(false)
+          showNotice.error(
+            'settings.modals.dns.messages.savedNotApplied',
+            applyErr,
+          )
+          return
+        }
       }
 
       setOpen(false)
-      showNotice.success('settings.modals.dns.messages.saved')
+
+      if (outcome.validation.status === 'valid') {
+        showNotice.success('settings.modals.dns.messages.saved')
+      } else {
+        showNotice.info(
+          'settings.modals.dns.messages.savedUnchecked',
+          summarizeValidation(outcome.validation),
+        )
+      }
     } catch (err) {
       showNotice.error(err)
     }
@@ -660,6 +657,7 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
           ? {}
           : { padding: '0 24px', display: 'flex', flexDirection: 'column' }),
       }}
+      loading={seeding}
       okBtn={t('shared.actions.save')}
       cancelBtn={t('shared.actions.cancel')}
       onClose={() => setOpen(false)}
@@ -887,24 +885,6 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
 
           <Item sx={{ flexDirection: 'column', alignItems: 'flex-start' }}>
             <ListItemText
-              primary={t('settings.modals.dns.fields.fallback.label')}
-              secondary={t('settings.modals.dns.fields.fallback.description')}
-            />
-            <TextField
-              fullWidth
-              multiline
-              minRows={2}
-              maxRows={4}
-              size="small"
-              spellCheck="false"
-              value={values.fallback}
-              onChange={handleChange('fallback')}
-              placeholder="https://dns.alidns.com/dns-query, https://dns.google/dns-query, https://cloudflare-dns.com/dns-query"
-            />
-          </Item>
-
-          <Item sx={{ flexDirection: 'column', alignItems: 'flex-start' }}>
-            <ListItemText
               primary={t('settings.modals.dns.fields.proxy.label')}
               secondary={t('settings.modals.dns.fields.proxy.description')}
             />
@@ -978,80 +958,6 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
               value={values.nameserverPolicy}
               onChange={handleChange('nameserverPolicy')}
               placeholder="+.arpa=10.0.0.1, rule-set:cn=https://doh.pub/dns-query;https://dns.alidns.com/dns-query"
-            />
-          </Item>
-
-          <Typography
-            variant="subtitle2"
-            sx={{ mt: 2, mb: 1, fontWeight: 'bold' }}
-          >
-            {t('settings.modals.dns.sections.fallbackFilter')}
-          </Typography>
-
-          <Item>
-            <ListItemText
-              primary={t('settings.modals.dns.fields.geoipFiltering.label')}
-              secondary={t(
-                'settings.modals.dns.fields.geoipFiltering.description',
-              )}
-            />
-            <Switch
-              edge="end"
-              checked={values.fallbackGeoip}
-              onChange={handleChange('fallbackGeoip')}
-            />
-          </Item>
-
-          <Item>
-            <ListItemText primary={t('settings.modals.dns.fields.geoipCode')} />
-            <TextField
-              size="small"
-              autoComplete="off"
-              spellCheck="false"
-              value={values.fallbackGeoipCode}
-              onChange={handleChange('fallbackGeoipCode')}
-              placeholder="CN"
-              sx={{ width: 100 }}
-            />
-          </Item>
-
-          <Item sx={{ flexDirection: 'column', alignItems: 'flex-start' }}>
-            <ListItemText
-              primary={t('settings.modals.dns.fields.fallbackIpCidr.label')}
-              secondary={t(
-                'settings.modals.dns.fields.fallbackIpCidr.description',
-              )}
-            />
-            <TextField
-              fullWidth
-              multiline
-              minRows={2}
-              maxRows={3}
-              size="small"
-              spellCheck="false"
-              value={values.fallbackIpcidr}
-              onChange={handleChange('fallbackIpcidr')}
-              placeholder="240.0.0.0/4, 127.0.0.1/8"
-            />
-          </Item>
-
-          <Item sx={{ flexDirection: 'column', alignItems: 'flex-start' }}>
-            <ListItemText
-              primary={t('settings.modals.dns.fields.fallbackDomain.label')}
-              secondary={t(
-                'settings.modals.dns.fields.fallbackDomain.description',
-              )}
-            />
-            <TextField
-              fullWidth
-              multiline
-              minRows={2}
-              maxRows={3}
-              size="small"
-              spellCheck="false"
-              value={values.fallbackDomain}
-              onChange={handleChange('fallbackDomain')}
-              placeholder="+.google.com, +.facebook.com, +.youtube.com"
             />
           </Item>
 

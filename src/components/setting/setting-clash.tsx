@@ -1,12 +1,12 @@
 import { LanRounded, SettingsRounded } from '@mui/icons-material'
-import { MenuItem, Select, TextField, Typography } from '@mui/material'
+import { MenuItem, Select, TextField, Tooltip, Typography } from '@mui/material'
 import { invoke } from '@tauri-apps/api/core'
 import { useLockFn } from 'ahooks'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { updateGeo, type LogLevel } from 'tauri-plugin-mihomo-api'
 
-import { DialogRef, Switch, TooltipIcon } from '@/components/base'
+import { type DialogRef, Switch, TooltipIcon } from '@/components/base'
 import { useClash } from '@/hooks/use-clash'
 import { useClashLog } from '@/hooks/use-clash-log'
 import { useProfiles } from '@/hooks/use-profiles'
@@ -86,18 +86,32 @@ const SettingClash = ({ onError }: Props) => {
   }
 
   const handleDnsToggle = useLockFn(async (enable: boolean) => {
+    const previous = dnsSettingsEnabled
+    let settingStored = false
+
+    setDnsSettingsEnabled(enable)
     try {
-      setDnsSettingsEnabled(enable)
       await patchVerge({ enable_dns_settings: enable })
+      settingStored = true
       await invoke('apply_dns_config', { apply: enable })
       setTimeout(() => {
         mutateClash()
       }, 500)
     } catch (err: any) {
-      setDnsSettingsEnabled(!enable)
       showNotice.error(err)
-      await patchVerge({ enable_dns_settings: !enable }).catch(() => {})
-      throw err
+
+      if (!settingStored) {
+        setDnsSettingsEnabled(previous)
+        return
+      }
+
+      try {
+        await patchVerge({ enable_dns_settings: previous })
+        setDnsSettingsEnabled(previous)
+      } catch (revertErr) {
+        setDnsSettingsEnabled(enable)
+        showNotice.error(revertErr)
+      }
     }
   })
 
@@ -203,11 +217,16 @@ const SettingClash = ({ onError }: Props) => {
           />
         }
       >
-        <Switch
-          edge="end"
-          checked={dnsSettingsEnabled}
-          onChange={(_, checked) => handleDnsToggle(checked)}
-        />
+        <Tooltip
+          title={t('settings.sections.clash.form.tooltips.dnsOverwrite')}
+          placement="top"
+        >
+          <Switch
+            edge="end"
+            checked={dnsSettingsEnabled}
+            onChange={(_, checked) => handleDnsToggle(checked)}
+          />
+        </Tooltip>
       </SettingItem>
 
       <SettingItem

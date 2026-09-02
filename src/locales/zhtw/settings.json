@@ -157,7 +157,8 @@
           "unifiedDelay": "開啟統一延遲時，會進行兩次延遲測試，以消除連線握手等帶來的不同類型節點的延遲差異",
           "logLevel": "僅對日誌目錄 Service 資料夾下的內核日誌檔案生效",
           "openUwpTool": "Windows 8 開始限制 UWP 應用程式（如Microsoft Store）直接存取本機主機的網路服務，使用此工具可繞過該限制",
-          "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing."
+          "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing.",
+          "dnsOverwrite": "Careful: while this is on, the DNS block from the subscription is fully replaced by these settings."
         },
         "options": {
           "logLevel": {
@@ -532,7 +533,6 @@
       },
       "sections": {
         "general": "DNS 設定",
-        "fallbackFilter": "備援篩選設定",
         "hosts": "Hosts 設定"
       },
       "fields": {
@@ -574,10 +574,6 @@
           "label": "域名伺服器",
           "description": "DNS 伺服器列表，用逗號分隔"
         },
-        "fallback": {
-          "label": "備援伺服器",
-          "description": "備援 DNS 伺服器列表，用逗號分隔"
-        },
         "proxy": {
           "label": "代理節點 DNS",
           "description": "代理節點網域解析伺服器，僅用於解析代理節點的網域，用逗號分隔"
@@ -594,19 +590,6 @@
           "label": "域名伺服器策略",
           "description": "特定網域的 DNS 伺服器，多個伺服器使用分號分隔，格式: domain=server1;server2"
         },
-        "geoipFiltering": {
-          "label": "GeoIP 篩選",
-          "description": "啟用 GeoIP 備援篩選"
-        },
-        "geoipCode": "GeoIP 國家代碼",
-        "fallbackIpCidr": {
-          "label": "備援 IP CIDR",
-          "description": "不使用備援伺服器的 IP CIDR，用逗號分隔"
-        },
-        "fallbackDomain": {
-          "label": "備援網域",
-          "description": "使用備援伺服器的網域，用逗號分隔"
-        },
         "hosts": {
           "label": "Hosts",
           "description": "自訂網域到 IP 或網域的映射，用逗號分隔"
@@ -614,11 +597,14 @@
       },
       "messages": {
         "saved": "DNS 設定已儲存",
-        "configError": "DNS 設定錯誤："
+        "notSaved": "DNS settings did not pass the check and were not saved:",
+        "savedUnchecked": "DNS settings saved, but the check could not run:",
+        "savedNotApplied": "DNS 設定已儲存，但套用失敗："
       },
       "errors": {
         "invalid": "無效的設定",
-        "invalidYaml": "YAML 格式無效"
+        "invalidYaml": "YAML 格式無效",
+        "emptyDns": "DNS 設定區塊為空，未儲存"
       }
     },
     "webUI": {

@@ -269,10 +269,10 @@ async fn migrate_legacy_macos_logs() -> Result<()> {
     Ok(())
 }
 
-pub(super) async fn init_dns_config() -> Result<()> {
+fn default_dns_config() -> serde_yaml_ng::Mapping {
     use serde_yaml_ng::Value;
 
-    let dns_config = serde_yaml_ng::Mapping::from_iter([
+    serde_yaml_ng::Mapping::from_iter([
         ("enable".into(), Value::Bool(true)),
         ("ipv6".into(), Value::Bool(true)),
         ("listen".into(), Value::String(":53".into())),
@@ -317,7 +317,6 @@ pub(super) async fn init_dns_config() -> Result<()> {
                 Value::String("https://dns.alidns.com/dns-query".into()),
             ]),
         ),
-        ("fallback".into(), Value::Sequence(vec![])),
         (
             "nameserver-policy".into(),
             Value::Mapping(serde_yaml_ng::Mapping::new()),
@@ -332,44 +331,212 @@ pub(super) async fn init_dns_config() -> Result<()> {
         ),
         ("direct-nameserver".into(), Value::Sequence(vec![])),
         ("direct-nameserver-follow-policy".into(), Value::Bool(false)),
+    ])
+}
+
+const DNS_CONFIG_HEADER: &str = "# Clash Verge DNS Config";
+
+fn dns_config_problem(raw: &str) -> Option<std::string::String> {
+    let parsed = match serde_yaml_ng::from_str::<serde_yaml_ng::Value>(raw) {
+        Ok(parsed) => parsed,
+        Err(err) => return Some(format!("the YAML in it does not parse: {err}")),
+    };
+
+    let Some(mapping) = parsed.as_mapping().filter(|mapping| !mapping.is_empty()) else {
+        return Some("the YAML in it is empty or is not a mapping".into());
+    };
+
+    match mapping.get("dns") {
+        Some(dns) => match dns.as_mapping() {
+            Some(dns) if !dns.is_empty() => None,
+            _ => Some("the YAML `dns` block in it is empty or is not a mapping".into()),
+        },
+        None => None,
+    }
+}
+
+pub(crate) async fn ensure_dns_config_file() -> Result<()> {
+    let dns_path = dirs::app_home_dir()?.join(constants::files::DNS_CONFIG);
+
+    if fs::try_exists(&dns_path).await? {
+        let raw = fs::read_to_string(&dns_path).await?;
+        return match dns_config_problem(&raw) {
+            Some(problem) => Err(anyhow::anyhow!("DNS config file {:?} is unusable: {problem}", dns_path)),
+            None => Ok(()),
+        };
+    }
+
+    let runtime = Config::runtime().await;
+    let runtime = runtime.latest_arc();
+    let runtime_dns = runtime
+        .config
+        .as_ref()
+        .and_then(|config| config.get("dns"))
+        .and_then(serde_yaml_ng::Value::as_mapping)
+        .filter(|dns| !dns.is_empty())
+        .cloned();
+
+    logging!(
+        info,
+        Type::Setup,
+        "Creating DNS config file from {}",
+        if runtime_dns.is_some() {
+            "the working config"
+        } else {
+            "the built-in defaults"
+        }
+    );
+
+    let dns_config = seeded_dns_block(runtime_dns.unwrap_or_else(default_dns_config));
+    let file_config = serde_yaml_ng::Mapping::from_iter([("dns".into(), serde_yaml_ng::Value::Mapping(dns_config))]);
+
+    help::save_yaml(&dns_path, &file_config, Some(DNS_CONFIG_HEADER)).await
+}
+
+fn seeded_dns_block(mut dns: serde_yaml_ng::Mapping) -> serde_yaml_ng::Mapping {
+    use serde_yaml_ng::Value;
+
+    dns.insert("use-hosts".into(), Value::Bool(false));
+    dns.insert("use-system-hosts".into(), Value::Bool(false));
+    dns
+}
+
+fn legacy_fallback_filter() -> serde_yaml_ng::Mapping {
+    use serde_yaml_ng::Value;
+
+    serde_yaml_ng::Mapping::from_iter([
+        ("geoip".into(), Value::Bool(true)),
+        ("geoip-code".into(), Value::String("CN".into())),
         (
-            "fallback-filter".into(),
-            Value::Mapping(serde_yaml_ng::Mapping::from_iter([
-                ("geoip".into(), Value::Bool(true)),
-                ("geoip-code".into(), Value::String("CN".into())),
-                (
-                    "ipcidr".into(),
-                    Value::Sequence(vec![
-                        Value::String("240.0.0.0/4".into()),
-                        Value::String("0.0.0.0/32".into()),
-                    ]),
-                ),
-                (
-                    "domain".into(),
-                    Value::Sequence(vec![
-                        Value::String("+.google.com".into()),
-                        Value::String("+.facebook.com".into()),
-                        Value::String("+.youtube.com".into()),
-                    ]),
-                ),
-            ])),
+            "ipcidr".into(),
+            Value::Sequence(vec![
+                Value::String("240.0.0.0/4".into()),
+                Value::String("0.0.0.0/32".into()),
+            ]),
         ),
-    ]);
+        (
+            "domain".into(),
+            Value::Sequence(vec![
+                Value::String("+.google.com".into()),
+                Value::String("+.facebook.com".into()),
+                Value::String("+.youtube.com".into()),
+            ]),
+        ),
+    ])
+}
 
-    let default_dns_config = serde_yaml_ng::Mapping::from_iter([
-        ("dns".into(), Value::Mapping(dns_config)),
-        ("hosts".into(), Value::Mapping(serde_yaml_ng::Mapping::new())),
-    ]);
+fn has_untouched_legacy_fallback(dns: &serde_yaml_ng::Mapping) -> bool {
+    let fallback_untouched = dns
+        .get("fallback")
+        .and_then(serde_yaml_ng::Value::as_sequence)
+        .is_some_and(|fallback| fallback.is_empty());
 
-    let app_dir = dirs::app_home_dir()?;
-    let dns_path = app_dir.join(constants::files::DNS_CONFIG);
+    let filter_untouched = dns
+        .get("fallback-filter")
+        .and_then(serde_yaml_ng::Value::as_mapping)
+        .is_some_and(|filter| *filter == legacy_fallback_filter());
 
-    if !dns_path.exists() {
-        logging!(info, Type::Setup, "Creating default DNS config file");
-        help::save_yaml(&dns_path, &default_dns_config, Some("# Clash Verge DNS Config")).await?;
+    fallback_untouched && filter_untouched
+}
+
+fn drop_legacy_fallback(file_config: &mut serde_yaml_ng::Mapping) -> bool {
+    let Some(dns) = file_config
+        .get_mut("dns")
+        .and_then(serde_yaml_ng::Value::as_mapping_mut)
+        .filter(|dns| has_untouched_legacy_fallback(dns))
+    else {
+        return false;
+    };
+
+    dns.remove("fallback");
+    dns.remove("fallback-filter");
+    true
+}
+
+fn drop_empty_hosts(file_config: &mut serde_yaml_ng::Mapping) -> bool {
+    if !file_config
+        .get("hosts")
+        .and_then(serde_yaml_ng::Value::as_mapping)
+        .is_some_and(serde_yaml_ng::Mapping::is_empty)
+    {
+        return false;
+    }
+
+    file_config.remove("hosts");
+    true
+}
+
+fn has_user_comments(raw: &str) -> bool {
+    raw.lines()
+        .map(str::trim)
+        .filter(|line| line.starts_with('#'))
+        .any(|line| line != DNS_CONFIG_HEADER)
+}
+
+fn drop_legacy_dns_keys(file_config: &mut serde_yaml_ng::Mapping) -> bool {
+    let dropped_fallback = drop_legacy_fallback(file_config);
+    let dropped_hosts = drop_empty_hosts(file_config);
+
+    dropped_fallback || dropped_hosts
+}
+
+async fn drop_legacy_dns_fallback() -> Result<()> {
+    let dns_path = dirs::app_home_dir()?.join(constants::files::DNS_CONFIG);
+
+    if !fs::try_exists(&dns_path).await? {
+        return Ok(());
+    }
+
+    let raw = fs::read_to_string(&dns_path).await?;
+    let Ok(mut file_config) = serde_yaml_ng::from_str::<serde_yaml_ng::Mapping>(&raw) else {
+        return Ok(());
+    };
+
+    if !drop_legacy_dns_keys(&mut file_config) {
+        return Ok(());
+    }
+
+    if has_user_comments(&raw) {
+        logging!(
+            info,
+            Type::Setup,
+            "Kept the legacy DNS keys in {:?}: the file carries comments of its own",
+            dns_path
+        );
+        return Ok(());
+    }
+
+    let yaml_str = crate::utils::yaml_emitter::to_mihomo_config_string(&file_config)?;
+    let yaml_str = format!("{DNS_CONFIG_HEADER}\n\n{yaml_str}");
+    help::write_atomic(&dns_path, yaml_str.as_bytes()).await?;
+    logging!(info, Type::Setup, "Removed the legacy DNS keys from {:?}", dns_path);
+
+    Ok(())
+}
+
+async fn drop_leftover_dns_check_file() -> Result<()> {
+    let leftover = dirs::app_home_dir()?.join(constants::files::DNS_CHECK_CONFIG);
+
+    if fs::try_exists(&leftover).await? {
+        fs::remove_file(&leftover).await?;
+        logging!(info, Type::Setup, "Removed leftover DNS check file: {:?}", leftover);
     }
 
     Ok(())
+}
+
+pub(super) async fn init_dns_config() -> Result<()> {
+    let leftover = drop_leftover_dns_check_file().await;
+    if let Err(err) = &leftover {
+        logging!(warn, Type::Setup, "Failed to remove the DNS check file: {}", err);
+    }
+
+    let migration = drop_legacy_dns_fallback().await;
+    if let Err(err) = &migration {
+        logging!(warn, Type::Setup, "Failed to migrate the DNS config file: {}", err);
+    }
+
+    leftover.and(migration)
 }
 
 async fn ensure_directories() -> Result<()> {
@@ -631,4 +798,209 @@ async fn handle_copy(src: &PathBuf, dest: &PathBuf, file: &str) {
             );
         }
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        DNS_CONFIG_HEADER, default_dns_config, dns_config_problem, drop_legacy_dns_keys, has_untouched_legacy_fallback,
+        has_user_comments, legacy_fallback_filter, seeded_dns_block,
+    };
+    use serde_yaml_ng::{Mapping, Value};
+
+    fn dns_with_legacy_fallback() -> Mapping {
+        Mapping::from_iter([
+            ("fallback".into(), Value::Sequence(vec![])),
+            ("fallback-filter".into(), Value::Mapping(legacy_fallback_filter())),
+        ])
+    }
+
+    #[test]
+    fn factory_fallback_pair_is_recognized() {
+        assert!(has_untouched_legacy_fallback(&dns_with_legacy_fallback()));
+    }
+
+    #[test]
+    fn edited_fallback_filter_is_kept() {
+        let mut dns = dns_with_legacy_fallback();
+        let mut filter = legacy_fallback_filter();
+        filter.insert("geoip-code".into(), Value::String("RU".into()));
+        dns.insert("fallback-filter".into(), Value::Mapping(filter));
+
+        assert!(!has_untouched_legacy_fallback(&dns));
+    }
+
+    #[test]
+    fn non_empty_fallback_is_kept() {
+        let mut dns = dns_with_legacy_fallback();
+        dns.insert(
+            "fallback".into(),
+            Value::Sequence(vec![Value::String("1.0.0.1".into())]),
+        );
+
+        assert!(!has_untouched_legacy_fallback(&dns));
+    }
+
+    #[test]
+    fn missing_keys_are_kept() {
+        let mut dns = dns_with_legacy_fallback();
+        dns.remove("fallback");
+        assert!(!has_untouched_legacy_fallback(&dns));
+
+        let mut dns = dns_with_legacy_fallback();
+        dns.remove("fallback-filter");
+        assert!(!has_untouched_legacy_fallback(&dns));
+    }
+
+    #[test]
+    fn seeding_switches_the_hosts_keys_off() {
+        let dns = Mapping::from_iter([
+            ("use-hosts".into(), Value::Bool(true)),
+            ("use-system-hosts".into(), Value::Bool(true)),
+            ("enhanced-mode".into(), Value::String("fake-ip".into())),
+        ]);
+
+        let seeded = seeded_dns_block(dns);
+
+        assert_eq!(seeded.get("use-hosts"), Some(&Value::Bool(false)));
+        assert_eq!(seeded.get("use-system-hosts"), Some(&Value::Bool(false)));
+        assert_eq!(
+            seeded.get("enhanced-mode"),
+            Some(&Value::String("fake-ip".into())),
+            "the rest of the block arrives untouched"
+        );
+    }
+
+    #[test]
+    fn seeding_adds_the_hosts_keys_when_the_working_config_omits_them() {
+        let seeded = seeded_dns_block(Mapping::from_iter([("ipv6".into(), Value::Bool(true))]));
+
+        assert_eq!(seeded.get("use-hosts"), Some(&Value::Bool(false)));
+        assert_eq!(seeded.get("use-system-hosts"), Some(&Value::Bool(false)));
+        assert_eq!(seeded.get("ipv6"), Some(&Value::Bool(true)));
+    }
+
+    #[test]
+    fn seeding_leaves_the_built_in_defaults_as_they_are() {
+        assert_eq!(seeded_dns_block(default_dns_config()), default_dns_config());
+    }
+
+    #[test]
+    fn a_healthy_file_has_no_problem() {
+        assert_eq!(dns_config_problem("dns:\n  ipv6: true\n"), None);
+        assert_eq!(dns_config_problem("ipv6: true\n"), None, "the legacy flat layout");
+    }
+
+    #[test]
+    fn an_empty_file_is_a_problem() {
+        for raw in ["", "\n", "# Clash Verge DNS Config\n", "{}\n"] {
+            assert!(dns_config_problem(raw).is_some(), "empty source {raw:?}");
+        }
+    }
+
+    #[test]
+    fn a_broken_file_is_a_problem() {
+        for raw in [
+            "dns:\n  ipv6: true\n ipv6: false\n",
+            "- one\n- two\n",
+            "just a string\n",
+        ] {
+            assert!(dns_config_problem(raw).is_some(), "broken source {raw:?}");
+        }
+    }
+
+    #[test]
+    fn an_empty_dns_block_is_a_problem() {
+        assert!(dns_config_problem("dns: {}\nhosts: {}\n").is_some());
+        assert!(dns_config_problem("dns: nonsense\n").is_some());
+    }
+
+    #[test]
+    fn every_problem_names_yaml_so_the_frontend_can_explain_it() {
+        for raw in ["", "- one\n", "dns: {}\n", "dns:\n  a: 1\n b: 2\n"] {
+            let problem = dns_config_problem(raw).unwrap_or_default();
+            assert!(
+                problem.to_lowercase().contains("yaml"),
+                "problem for {raw:?}: {problem}"
+            );
+        }
+    }
+
+    #[test]
+    fn our_own_factory_file_carries_no_user_comments() {
+        assert!(!has_user_comments(""));
+        assert!(!has_user_comments("dns:\n  ipv6: true\n"));
+        assert!(!has_user_comments(&format!(
+            "{DNS_CONFIG_HEADER}\n\ndns:\n  ipv6: true\n"
+        )));
+    }
+
+    #[test]
+    fn a_comment_the_user_added_is_seen() {
+        for raw in [
+            "# my own note\ndns:\n  ipv6: true\n",
+            "dns:\n  # keep this one\n  ipv6: true\n",
+            "dns:\n  ipv6: true\n# trailing note\n",
+        ] {
+            assert!(has_user_comments(raw), "user comment in {raw:?}");
+            assert!(
+                has_user_comments(&format!("{DNS_CONFIG_HEADER}\n\n{raw}")),
+                "user comment next to the factory header in {raw:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_hash_inside_a_value_is_not_a_comment_line() {
+        assert!(!has_user_comments(
+            "dns:\n  nameserver:\n    - https://dns.example/dns-query#frag\n"
+        ));
+    }
+
+    #[test]
+    fn the_migration_drops_our_own_empty_hosts_map() {
+        let mut file_config = Mapping::from_iter([
+            ("dns".into(), Value::Mapping(Mapping::new())),
+            ("hosts".into(), Value::Mapping(Mapping::new())),
+        ]);
+
+        assert!(drop_legacy_dns_keys(&mut file_config));
+        assert!(!file_config.contains_key("hosts"));
+    }
+
+    #[test]
+    fn the_migration_keeps_a_hosts_map_with_entries() {
+        let hosts = Mapping::from_iter([("a.test".into(), Value::String("1.2.3.4".into()))]);
+        let mut file_config = Mapping::from_iter([
+            ("dns".into(), Value::Mapping(dns_with_legacy_fallback())),
+            ("hosts".into(), Value::Mapping(hosts.clone())),
+        ]);
+
+        assert!(drop_legacy_dns_keys(&mut file_config));
+        assert_eq!(file_config.get("hosts"), Some(&Value::Mapping(hosts)));
+    }
+
+    #[test]
+    fn the_migration_reports_nothing_to_do_for_a_current_file() {
+        let mut file_config = Mapping::from_iter([(
+            "dns".into(),
+            Value::Mapping(Mapping::from_iter([("ipv6".into(), Value::Bool(true))])),
+        )]);
+
+        assert!(!drop_legacy_dns_keys(&mut file_config));
+    }
+
+    #[test]
+    fn the_migration_drops_the_fallback_pair_and_the_empty_hosts_together() {
+        let mut file_config = Mapping::from_iter([
+            ("dns".into(), Value::Mapping(dns_with_legacy_fallback())),
+            ("hosts".into(), Value::Mapping(Mapping::new())),
+        ]);
+
+        assert!(drop_legacy_dns_keys(&mut file_config));
+        assert!(!file_config.contains_key("hosts"));
+        let dns = file_config.get("dns").and_then(Value::as_mapping);
+        assert_eq!(dns.map(|dns| dns.contains_key("fallback")), Some(false));
+        assert_eq!(dns.map(|dns| dns.contains_key("fallback-filter")), Some(false));
+    }
 }

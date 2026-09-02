@@ -157,7 +157,8 @@
           "unifiedDelay": "Birleşik gecikme açıldığında, bağlantı el sıkışmaları vb. nedeniyle farklı tür düğümler arasındaki gecikme farklarını ortadan kaldırmak için iki gecikme testi gerçekleştirilir",
           "logLevel": "Bu parametre yalnızca günlük dizini Hizmet klasöründeki çekirdek günlük dosyaları için geçerlidir",
           "openUwpTool": "Windows 8'den beri, UWP uygulamaları (Microsoft Store gibi) yerel ana bilgisayar ağ hizmetlerine doğrudan erişmekten kısıtlanmıştır ve bu araç bu kısıtlamayı atlatmak için kullanılabilir",
-          "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing."
+          "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing.",
+          "dnsOverwrite": "Careful: while this is on, the DNS block from the subscription is fully replaced by these settings."
         },
         "options": {
           "logLevel": {
@@ -532,7 +533,6 @@
       },
       "sections": {
         "general": "DNS Ayarları",
-        "fallbackFilter": "Yedek Filtre Ayarları",
         "hosts": "Hosts Ayarları"
       },
       "fields": {
@@ -574,10 +574,6 @@
           "label": "İsim Sunucusu",
           "description": "DNS sunucuları listesi, virgülle ayrılmış"
         },
-        "fallback": {
-          "label": "Yedek",
-          "description": "Yedek DNS sunucuları listesi, virgülle ayrılmış"
-        },
         "proxy": {
           "label": "Vekil Sunucusu İsim Sunucusu",
           "description": "Vekil düğümü alan adı çözümlemesi için DNS sunucuları"
@@ -594,19 +590,6 @@
           "label": "İsim Sunucusu Politikası",
           "description": "Alana özgü DNS sunucusu, birden çok sunucu noktalı virgülle ayrılır, format: domain=server1;server2"
         },
-        "geoipFiltering": {
-          "label": "GeoIP Filtreleme",
-          "description": "Yedek için GeoIP filtrelemeyi etkinleştir"
-        },
-        "geoipCode": "GeoIP Kodu",
-        "fallbackIpCidr": {
-          "label": "Yedek IP CIDR",
-          "description": "Yedek sunucuları kullanmayan IP CIDR'ları, virgülle ayrılmış"
-        },
-        "fallbackDomain": {
-          "label": "Yedek Alan Adı",
-          "description": "Yedek sunucuları kullanan alan adları, virgülle ayrılmış"
-        },
         "hosts": {
           "label": "Hosts",
           "description": "Özel alan adından IP'ye veya alan adına eşleme"
@@ -614,11 +597,14 @@
       },
       "messages": {
         "saved": "DNS ayarları kaydedildi",
-        "configError": "DNS configuration error:"
+        "notSaved": "DNS settings did not pass the check and were not saved:",
+        "savedUnchecked": "DNS settings saved, but the check could not run:",
+        "savedNotApplied": "DNS ayarları kaydedildi, ancak uygulanamadı:"
       },
       "errors": {
         "invalid": "Invalid configuration",
-        "invalidYaml": "Invalid YAML format"
+        "invalidYaml": "Invalid YAML format",
+        "emptyDns": "DNS bloğu boş olduğu için kaydedilmedi"
       }
     },
     "webUI": {

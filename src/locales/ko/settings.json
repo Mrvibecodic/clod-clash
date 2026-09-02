@@ -157,7 +157,8 @@
           "unifiedDelay": "지연 통합을 켜면, 서로 다른 유형의 노드에서 연결 핸드셰이크 등으로 발생하는 지연 차이를 제거하기 위해 두 번의 지연 테스트를 수행합니다",
           "logLevel": "이 매개변수는 로그 디렉터리 Service 폴더의 커널 로그 파일에만 적용됩니다",
           "openUwpTool": "Windows 8 이후 UWP 앱(예: Microsoft Store)은 로컬 호스트 네트워크 서비스에 직접 접근이 제한됩니다. 이 도구로 해당 제한을 우회할 수 있습니다",
-          "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing."
+          "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing.",
+          "dnsOverwrite": "Careful: while this is on, the DNS block from the subscription is fully replaced by these settings."
         },
         "options": {
           "logLevel": {
@@ -532,7 +533,6 @@
       },
       "sections": {
         "general": "DNS 설정",
-        "fallbackFilter": "폴백 필터 설정",
         "hosts": "호스트 설정"
       },
       "fields": {
@@ -574,10 +574,6 @@
           "label": "Nameserver",
           "description": "DNS 서버 목록, 쉼표로 구분"
         },
-        "fallback": {
-          "label": "폴백",
-          "description": "폴백 DNS 서버 목록, 쉼표로 구분"
-        },
         "proxy": {
           "label": "프록시 서버 Nameserver",
           "description": "프록시 노드 도메인 해석용 DNS 서버"
@@ -594,19 +590,6 @@
           "label": "Nameserver 정책",
           "description": "도메인별 DNS 서버, 여러 서버는 세미콜론으로 구분, 형식: domain=server1;server2"
         },
-        "geoipFiltering": {
-          "label": "GeoIP 필터링",
-          "description": "폴백에 GeoIP 필터링 사용"
-        },
-        "geoipCode": "GeoIP 코드",
-        "fallbackIpCidr": {
-          "label": "폴백 IP CIDR",
-          "description": "폴백 서버를 사용하지 않는 IP CIDR, 쉼표로 구분"
-        },
-        "fallbackDomain": {
-          "label": "폴백 도메인",
-          "description": "폴백 서버를 사용하는 도메인, 쉼표로 구분"
-        },
         "hosts": {
           "label": "Hosts",
           "description": "사용자 정의 도메인→IP 또는 도메인 매핑"
@@ -614,11 +597,14 @@
       },
       "messages": {
         "saved": "DNS 설정이 저장되었습니다",
-        "configError": "DNS 구성 오류:"
+        "notSaved": "DNS settings did not pass the check and were not saved:",
+        "savedUnchecked": "DNS settings saved, but the check could not run:",
+        "savedNotApplied": "DNS 설정이 저장되었지만 적용하지 못했습니다:"
       },
       "errors": {
         "invalid": "잘못된 구성",
-        "invalidYaml": "잘못된 YAML 형식"
+        "invalidYaml": "잘못된 YAML 형식",
+        "emptyDns": "DNS 블록이 비어 있어 저장하지 않았습니다"
       }
     },
     "webUI": {

@@ -470,7 +470,7 @@ fn enforce_control_plane(mut config: Mapping, snapshot: Mapping) -> Mapping {
     config
 }
 
-const DNS_PAGE_KEYS: &[&str] = &["dns", "hosts"];
+const DNS_PAGE_KEYS: &[&str] = &["dns"];
 
 fn snapshot_dns_page(config: &Mapping) -> Mapping {
     let mut snapshot = Mapping::new();
@@ -535,10 +535,12 @@ fn ensure_store_selected(mut config: Mapping) -> Mapping {
     match config.get_mut(&key) {
         Some(Value::Mapping(profile)) => {
             profile.insert(Value::from("store-selected"), Value::from(true));
+            profile.insert(Value::from("store-fake-ip"), Value::from(true));
         }
         _ => {
             let mut profile = Mapping::new();
             profile.insert(Value::from("store-selected"), Value::from(true));
+            profile.insert(Value::from("store-fake-ip"), Value::from(true));
             config.insert(key, Value::from(profile));
         }
     }
@@ -1343,7 +1345,7 @@ mod tests {
     fn store_selected_is_forced_in_final_config() {
         for source in [
             "{mode: rule}",
-            "{profile: {store-fake-ip: true}}",
+            "{profile: {store-fake-ip: false}}",
             "{profile: {store-selected: false}}",
         ] {
             let config = ensure_store_selected(mapping(source));
@@ -1356,16 +1358,12 @@ mod tests {
                 Some(true),
                 "store-selected should be true for source {source}"
             );
+            assert_eq!(
+                profile.get("store-fake-ip").and_then(|value| value.as_bool()),
+                Some(true),
+                "store-fake-ip should be true for source {source}"
+            );
         }
-        let config = ensure_store_selected(mapping("{profile: {store-fake-ip: true}}"));
-        let profile = config
-            .get("profile")
-            .and_then(|value| value.as_mapping())
-            .expect("profile");
-        assert_eq!(
-            profile.get("store-fake-ip").and_then(|value| value.as_bool()),
-            Some(true)
-        );
     }
 
     #[tokio::test]
@@ -1680,11 +1678,12 @@ mod tests {
     }
 
     #[test]
-    fn dns_page_owns_its_blocks_whole() {
+    fn dns_page_owns_the_dns_block_but_not_hosts() {
         let app_config = mapping(
             r#"{dns: {ipv6: false, enhanced-mode: fake-ip, proxy-server-nameserver: ["1.1.1.1"]}, hosts: {a.test: 1.2.3.4}}"#,
         );
         let snapshot = super::snapshot_dns_page(&app_config);
+        assert!(!snapshot.contains_key("hosts"));
 
         let hijacked = mapping(
             r#"{dns: {ipv6: true, enhanced-mode: redir-host, proxy-server-nameserver: ["8.8.8.8"]}, hosts: {a.test: 9.9.9.9}}"#,
@@ -1709,7 +1708,7 @@ mod tests {
                 .get("hosts")
                 .and_then(|value| value.get("a.test"))
                 .and_then(serde_yaml_ng::Value::as_str),
-            Some("1.2.3.4")
+            Some("9.9.9.9")
         );
     }
 

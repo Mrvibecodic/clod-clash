@@ -157,7 +157,8 @@
           "unifiedDelay": "統一遅延を有効にすると、2回の遅延テストが行われ、接続ハンドシェイクなどによる異なるタイプのノードの遅延差を解消します。",
           "logLevel": "ログディレクトリのServiceフォルダ内のコアログファイルにのみ適用されます。",
           "openUwpTool": "Windows 8以降では、UWPアプリケーション（Microsoft Storeなど）がローカルホストのネットワークサービスに直接アクセスすることが制限されています。このツールを使用すると、この制限を回避できます。",
-          "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing."
+          "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing.",
+          "dnsOverwrite": "Careful: while this is on, the DNS block from the subscription is fully replaced by these settings."
         },
         "options": {
           "logLevel": {
@@ -532,7 +533,6 @@
       },
       "sections": {
         "general": "DNS設定",
-        "fallbackFilter": "フォールバックフィルター設定",
         "hosts": "Hosts設定"
       },
       "fields": {
@@ -574,10 +574,6 @@
           "label": "名前解決サーバー",
           "description": "DNSサーバーのリスト。カンマで区切って指定します。"
         },
-        "fallback": {
-          "label": "フォールバックサーバー",
-          "description": "フォールバックDNSサーバーのリスト。カンマで区切って指定します。"
-        },
         "proxy": {
           "label": "プロキシサーバーの名前解決サーバー",
           "description": "プロキシノードの名前解決サーバー。プロキシノードのドメイン名を解決するためにのみ使用されます。カンマで区切って指定します。"
@@ -594,19 +590,6 @@
           "label": "名前解決サーバーのポリシー",
           "description": "特定のドメインのDNSサーバー。複数のサーバーはセミコロンで区切って指定します。形式: domain=server1;server2"
         },
-        "geoipFiltering": {
-          "label": "GeoIPフィルタリング",
-          "description": "フォールバックのGeoIPフィルタリングを有効にする"
-        },
-        "geoipCode": "GeoIP国コード",
-        "fallbackIpCidr": {
-          "label": "フォールバックIP CIDR",
-          "description": "フォールバックサーバーを使用しないIP CIDR。カンマで区切って指定します。"
-        },
-        "fallbackDomain": {
-          "label": "フォールバックドメイン",
-          "description": "フォールバックサーバーを使用するドメイン名。カンマで区切って指定します。"
-        },
         "hosts": {
           "label": "Hosts",
           "description": "カスタムのドメイン名からIPまたはドメイン名へのマッピング。カンマで区切って指定します。"
@@ -614,11 +597,14 @@
       },
       "messages": {
         "saved": "DNS設定が保存されました。",
-        "configError": "DNS configuration error:"
+        "notSaved": "DNS settings did not pass the check and were not saved:",
+        "savedUnchecked": "DNS settings saved, but the check could not run:",
+        "savedNotApplied": "DNS設定は保存されましたが、適用できませんでした:"
       },
       "errors": {
         "invalid": "Invalid configuration",
-        "invalidYaml": "Invalid YAML format"
+        "invalidYaml": "Invalid YAML format",
+        "emptyDns": "DNS ブロックが空のため保存されませんでした"
       }
     },
     "webUI": {
