@@ -1,5 +1,5 @@
 import i18n from 'i18next'
-import { ReactNode, isValidElement } from 'react'
+import { type ReactNode, isValidElement } from 'react'
 
 import { explainErrorKey, trimRawError } from '@/utils/error-explanation'
 
@@ -168,6 +168,7 @@ function createRawDescriptor(message: string): NoticeTranslationDescriptor {
         // известен только в момент разбора, а типизированный `t` требует
         // литерал из сгенерированного списка.
         prefixKey: explanationKey,
+        rawFull: message,
         message: trimRawError(message),
       },
     }
@@ -175,6 +176,22 @@ function createRawDescriptor(message: string): NoticeTranslationDescriptor {
   return {
     key: 'shared.feedback.notices.raw',
     params: { message },
+  }
+}
+
+function withRawExplanation(
+  params: Record<string, unknown>,
+  rawText: string,
+): Record<string, unknown> {
+  const explanationKey = explainErrorKey(rawText)
+  if (!explanationKey) {
+    return { ...params, message: rawText }
+  }
+  return {
+    ...params,
+    explanationKey,
+    rawFull: rawText,
+    message: trimRawError(rawText),
   }
 }
 
@@ -235,12 +252,14 @@ function normalizeNoticeMessage(
       return {
         i18n: {
           key: 'shared.feedback.notices.prefixedRaw',
-          params: {
-            ...mergedParams,
-            prefixKey: message.key,
-            prefixParams: originalParams,
-            message: rawText,
-          },
+          params: withRawExplanation(
+            {
+              ...mergedParams,
+              prefixKey: message.key,
+              prefixParams: originalParams,
+            },
+            rawText,
+          ),
         },
       }
     }
@@ -259,11 +278,10 @@ function normalizeNoticeMessage(
         return {
           i18n: {
             key: 'shared.feedback.notices.prefixedRaw',
-            params: {
-              ...(params ?? {}),
-              prefixKey: message,
-              message: rawText,
-            },
+            params: withRawExplanation(
+              { ...(params ?? {}), prefixKey: message },
+              rawText,
+            ),
           },
         }
       }
@@ -271,11 +289,10 @@ function normalizeNoticeMessage(
       return {
         i18n: {
           key: 'shared.feedback.notices.prefixedRaw',
-          params: {
-            ...(params ?? {}),
-            prefix: message,
-            message: rawText,
-          },
+          params: withRawExplanation(
+            { ...(params ?? {}), prefix: message },
+            rawText,
+          ),
         },
       }
     }

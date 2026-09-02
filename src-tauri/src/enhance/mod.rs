@@ -262,10 +262,24 @@ async fn collect_profile_items() -> Result<ProfileItems> {
         }
     };
 
-    let current = profiles_arc
+    let mut current = profiles_arc
         .current_mapping()
         .await
         .with_context(|| format!("failed to read current profile \"{current_profile_uid}\""))?;
+
+    let dropped_ui_keys = EXTERNAL_UI_KEYS
+        .iter()
+        .filter(|&&key| current.remove(key).is_some())
+        .copied()
+        .collect::<Vec<&str>>();
+    if !dropped_ui_keys.is_empty() {
+        logging!(
+            info,
+            Type::Config,
+            "drop `{}` imposed by the subscription",
+            dropped_ui_keys.join("`, `")
+        );
+    }
 
     let current_item = match profiles_arc.get_item(&current_profile_uid) {
         Ok(item) => item,
@@ -405,6 +419,8 @@ fn extend_changed_keys(exists_keys: &mut Vec<String>, config: &Mapping, res_conf
     }));
 }
 
+const EXTERNAL_UI_KEYS: &[&str] = &["external-ui", "external-ui-url", "external-ui-name"];
+
 const CONTROL_PLANE_KEYS: &[&str] = &[
     "external-controller",
     #[cfg(unix)]
@@ -428,9 +444,13 @@ const CONTROL_PLANE_KEYS: &[&str] = &[
     "tun",
 ];
 
+fn control_plane_keys() -> impl Iterator<Item = &'static str> {
+    CONTROL_PLANE_KEYS.iter().chain(EXTERNAL_UI_KEYS.iter()).copied()
+}
+
 fn snapshot_control_plane(config: &Mapping) -> Mapping {
     let mut snapshot = Mapping::new();
-    for &key in CONTROL_PLANE_KEYS {
+    for key in control_plane_keys() {
         let key = Value::from(key);
         if let Some(value) = config.get(&key) {
             snapshot.insert(key, value.clone());
@@ -440,7 +460,7 @@ fn snapshot_control_plane(config: &Mapping) -> Mapping {
 }
 
 fn enforce_control_plane(mut config: Mapping, snapshot: Mapping) -> Mapping {
-    for &key in CONTROL_PLANE_KEYS {
+    for key in control_plane_keys() {
         let key = Value::from(key);
         if !snapshot.contains_key(&key) {
             config.remove(&key);
@@ -666,6 +686,8 @@ async fn apply_builtin_scripts(mut config: Mapping, clash_core: Option<String>, 
 pub struct SentinelReport {
     pub remarks: Vec<String>,
     pub only_sentinels: bool,
+    pub partially_dropped: bool,
+    pub dropped_total: usize,
 }
 
 const MAX_REPORTED_REMARKS: usize = 4;
@@ -721,13 +743,19 @@ fn collect_server_descriptions(config: &Mapping) -> HashMap<String, String> {
     descriptions
 }
 
+const SERVERLESS_TYPES: &[&str] = &["direct", "reject", "reject-drop", "pass", "dns"];
+
+fn is_serverless_proxy(proxy: &Mapping) -> bool {
+    proxy
+        .get("type")
+        .and_then(Value::as_str)
+        .is_some_and(|kind| SERVERLESS_TYPES.contains(&kind.trim().to_ascii_lowercase().as_str()))
+}
+
 fn is_sentinel_proxy(proxy: &Mapping) -> bool {
     const NIL_UUID: &str = "00000000-0000-0000-0000-000000000000";
-    const SERVERLESS_TYPES: &[&str] = &["direct", "reject", "reject-drop", "pass", "dns"];
 
-    if let Some(kind) = proxy.get("type").and_then(Value::as_str)
-        && SERVERLESS_TYPES.contains(&kind.trim().to_ascii_lowercase().as_str())
-    {
+    if is_serverless_proxy(proxy) {
         return false;
     }
 
@@ -797,8 +825,9 @@ fn provider_names(config: &Mapping) -> HashSet<String> {
         .unwrap_or_default()
 }
 
-fn backfill_empty_groups(mut config: Mapping) -> Mapping {
+fn backfill_empty_groups(mut config: Mapping) -> (Mapping, HashSet<String>) {
     let providers = provider_names(&config);
+    let mut rejected: HashSet<String> = HashSet::new();
 
     if let Some(Value::Sequence(groups)) = config.get_mut("proxy-groups") {
         for group in groups {
@@ -815,56 +844,223 @@ fn backfill_empty_groups(mut config: Mapping) -> Mapping {
             }
 
             group_map.insert(Value::from("proxies"), Value::Sequence(vec![Value::from("REJECT")]));
+            if let Some(name) = group_map.get("name").and_then(Value::as_str) {
+                rejected.insert(name.into());
+            }
+        }
+    }
+
+    (config, rejected)
+}
+
+struct GroupOutlets {
+    picks_the_first: bool,
+    members: Vec<String>,
+}
+
+fn group_outlets(config: &Mapping) -> HashMap<String, GroupOutlets> {
+    config
+        .get("proxy-groups")
+        .and_then(Value::as_sequence)
+        .map(|groups| {
+            groups
+                .iter()
+                .filter_map(|group| {
+                    let group = group.as_mapping()?;
+                    let name = group.get("name").and_then(Value::as_str)?;
+                    let picks_the_first = group
+                        .get("type")
+                        .and_then(Value::as_str)
+                        .is_none_or(|kind| kind.trim().eq_ignore_ascii_case("select"));
+                    let members = group
+                        .get("proxies")
+                        .and_then(Value::as_sequence)
+                        .map(|items| items.iter().filter_map(Value::as_str).map(Into::into).collect())
+                        .unwrap_or_default();
+                    Some((
+                        name.into(),
+                        GroupOutlets {
+                            picks_the_first,
+                            members,
+                        },
+                    ))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn walks_into_rejection<'a>(
+    name: &'a str,
+    outlets: &'a HashMap<String, GroupOutlets>,
+    rejected: &HashSet<String>,
+    visited: &mut HashSet<&'a str>,
+) -> bool {
+    if rejected.contains(name) || matches!(name, "REJECT" | "REJECT-DROP") {
+        return true;
+    }
+    let Some(outlet) = outlets.get(name) else {
+        return false;
+    };
+    if !visited.insert(name) {
+        return false;
+    }
+    if outlet.picks_the_first {
+        return outlet
+            .members
+            .first()
+            .is_some_and(|first| walks_into_rejection(first, outlets, rejected, visited));
+    }
+    !outlet.members.is_empty()
+        && outlet
+            .members
+            .iter()
+            .all(|member| walks_into_rejection(member, outlets, rejected, visited))
+}
+
+fn resolves_to_rejection(start: &str, outlets: &HashMap<String, GroupOutlets>, rejected: &HashSet<String>) -> bool {
+    walks_into_rejection(start, outlets, rejected, &mut HashSet::new())
+}
+
+fn unpin_providers_from_rejection(mut config: Mapping, rejected: &HashSet<String>) -> Mapping {
+    if rejected.is_empty() {
+        return config;
+    }
+
+    let outlets = group_outlets(&config);
+
+    for section in ["rule-providers", "proxy-providers"] {
+        let Some(Value::Mapping(providers)) = config.get_mut(section) else {
+            continue;
+        };
+        for provider in providers.values_mut() {
+            let Some(provider) = provider.as_mapping_mut() else {
+                continue;
+            };
+            let pinned = provider
+                .get("proxy")
+                .and_then(Value::as_str)
+                .is_some_and(|name| resolves_to_rejection(name, &outlets, rejected));
+            if pinned {
+                provider.remove("proxy");
+            }
         }
     }
 
     config
 }
 
-fn filter_sentinel_proxies(mut config: Mapping) -> (Mapping, SentinelReport) {
-    let mut dropped: HashSet<String> = HashSet::new();
-    let mut remarks: Vec<String> = Vec::new();
+fn retain_live_proxies(
+    proxies: &mut Vec<Value>,
+    dropped: &mut HashSet<String>,
+    already_reported: &HashSet<String>,
+    remarks: &mut Vec<String>,
+) -> usize {
+    let mut removed = 0;
+    proxies.retain(|item| {
+        let Some(proxy) = item.as_mapping() else {
+            return true;
+        };
+        if !is_sentinel_proxy(proxy) {
+            return true;
+        }
+        removed += 1;
+        if let Some(name) = proxy.get("name").and_then(Value::as_str)
+            && dropped.insert(name.into())
+            && !already_reported.contains(name)
+        {
+            remarks.push(name.into());
+        }
+        false
+    });
+    removed
+}
 
-    if let Some(Value::Sequence(proxies)) = config.get_mut("proxies") {
-        proxies.retain(|item| {
-            let Some(proxy) = item.as_mapping() else {
-                return true;
-            };
-            if !is_sentinel_proxy(proxy) {
-                return true;
-            }
-            if let Some(name) = proxy.get("name").and_then(Value::as_str)
-                && dropped.insert(name.into())
-            {
-                remarks.push(name.into());
-            }
-            false
-        });
-    }
+fn is_live_proxy(item: &Value) -> bool {
+    item.as_mapping()
+        .is_none_or(|proxy| !is_serverless_proxy(proxy) && !is_sentinel_proxy(proxy))
+}
 
-    let survivors = config
-        .get("proxies")
-        .and_then(|value| value.as_sequence())
-        .map_or(0, Vec::len);
-    let has_providers = config
+fn live_proxy_count(proxies: Option<&Value>) -> usize {
+    proxies
+        .and_then(Value::as_sequence)
+        .map_or(0, |items| items.iter().filter(|item| is_live_proxy(item)).count())
+}
+
+fn inline_provider_live_count(config: &Mapping) -> usize {
+    config
         .get("proxy-providers")
         .and_then(Value::as_mapping)
-        .is_some_and(|providers| !providers.is_empty());
+        .map_or(0, |providers| {
+            providers
+                .values()
+                .map(|provider| live_proxy_count(provider.as_mapping().and_then(|map| map.get("payload"))))
+                .sum()
+        })
+}
+
+fn has_opaque_provider(config: &Mapping) -> bool {
+    config
+        .get("proxy-providers")
+        .and_then(Value::as_mapping)
+        .is_some_and(|providers| {
+            providers.values().any(|provider| {
+                provider
+                    .as_mapping()
+                    .and_then(|map| map.get("type"))
+                    .and_then(Value::as_str)
+                    .is_none_or(|kind| !kind.trim().eq_ignore_ascii_case("inline"))
+            })
+        })
+}
+
+fn filter_sentinel_proxies(mut config: Mapping) -> (Mapping, SentinelReport) {
+    let mut dropped: HashSet<String> = HashSet::new();
+    let mut provider_dropped: HashSet<String> = HashSet::new();
+    let mut remarks: Vec<String> = Vec::new();
+    let mut dropped_total = 0;
+
+    if let Some(Value::Sequence(proxies)) = config.get_mut("proxies") {
+        dropped_total += retain_live_proxies(proxies, &mut dropped, &provider_dropped, &mut remarks);
+    }
+
+    if let Some(Value::Mapping(providers)) = config.get_mut("proxy-providers") {
+        for provider in providers.values_mut() {
+            let Some(Value::Sequence(payload)) = provider.as_mapping_mut().and_then(|map| map.get_mut("payload"))
+            else {
+                continue;
+            };
+            let keeps_a_node = payload
+                .iter()
+                .any(|item| item.as_mapping().is_none_or(|proxy| !is_sentinel_proxy(proxy)));
+            if !keeps_a_node {
+                continue;
+            }
+            dropped_total += retain_live_proxies(payload, &mut provider_dropped, &dropped, &mut remarks);
+        }
+    }
+
+    let survivors = live_proxy_count(config.get("proxies")) + inline_provider_live_count(&config);
+    let only_sentinels = survivors == 0 && !has_opaque_provider(&config);
     let report = SentinelReport {
         remarks: remarks.into_iter().take(MAX_REPORTED_REMARKS).collect(),
-        only_sentinels: survivors == 0 && !has_providers,
+        only_sentinels,
+        partially_dropped: dropped_total > 0 && !only_sentinels,
+        dropped_total,
     };
+
+    if dropped_total > 0 {
+        logging!(
+            info,
+            Type::Core,
+            "drop {} sentinel proxies from the subscription",
+            dropped_total
+        );
+    }
 
     if dropped.is_empty() {
         return (config, report);
     }
-
-    logging!(
-        info,
-        Type::Core,
-        "drop {} sentinel proxies from the subscription",
-        dropped.len()
-    );
 
     if let Some(Value::Sequence(groups)) = config.get_mut("proxy-groups") {
         for group in groups {
@@ -1095,16 +1291,14 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
     let config = ensure_lan_bind_address(config);
     let config = ensure_store_selected(config);
 
-    let (config, mut sentinel_report) = if profile_shows_zero_hosts {
-        (config, SentinelReport::default())
-    } else {
+    let (config, sentinel_report) = if profile_is_remote && !profile_shows_zero_hosts {
         filter_sentinel_proxies(config)
+    } else {
+        (config, SentinelReport::default())
     };
-    if !profile_is_remote && sentinel_report.remarks.is_empty() {
-        sentinel_report.only_sentinels = false;
-    }
     let config = cleanup_proxy_groups(config);
-    let config = backfill_empty_groups(config);
+    let (config, rejected_groups) = backfill_empty_groups(config);
+    let config = unpin_providers_from_rejection(config, &rejected_groups);
     let config = use_sort(config);
 
     if profile_is_remote {
@@ -1131,9 +1325,9 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
 #[cfg(test)]
 mod tests {
     use super::{
-        ChainItem, ChainType, Draft, IRuntime, backfill_empty_groups, cleanup_proxy_groups,
+        ChainItem, ChainType, Draft, IRuntime, MAX_REPORTED_REMARKS, backfill_empty_groups, cleanup_proxy_groups,
         collect_server_descriptions, ensure_lan_bind_address, ensure_store_selected, filter_sentinel_proxies,
-        process_global_items, process_profile_items, server_descriptions_of, use_keys,
+        process_global_items, process_profile_items, server_descriptions_of, unpin_providers_from_rejection, use_keys,
     };
     use std::collections::HashMap;
 
@@ -1538,6 +1732,22 @@ mod tests {
     }
 
     #[test]
+    fn a_profile_cannot_impose_an_external_ui() {
+        let app_config = mapping(r"{mixed-port: 7890}");
+        let snapshot = super::snapshot_control_plane(&app_config);
+
+        let hijacked = mapping(
+            r#"{mixed-port: 7890, external-ui: ./ui, external-ui-url: "https://evil.example/ui.zip",
+                external-ui-name: dashboard}"#,
+        );
+        let result = super::enforce_control_plane(hijacked, snapshot);
+
+        assert!(result.get("external-ui").is_none());
+        assert!(result.get("external-ui-url").is_none());
+        assert!(result.get("external-ui-name").is_none());
+    }
+
+    #[test]
     fn snapshot_control_plane_skips_absent_keys() {
         let app_config = mapping(r"{mode: rule, mixed-port: 7890}");
         let snapshot = super::snapshot_control_plane(&app_config);
@@ -1704,7 +1914,8 @@ proxy-groups:
 
     fn sentinel_pass(config: serde_yaml_ng::Mapping) -> (serde_yaml_ng::Mapping, super::SentinelReport) {
         let (config, report) = filter_sentinel_proxies(config);
-        (backfill_empty_groups(cleanup_proxy_groups(config)), report)
+        let (config, rejected) = backfill_empty_groups(cleanup_proxy_groups(config));
+        (unpin_providers_from_rejection(config, &rejected), report)
     }
 
     fn group_members(config: &serde_yaml_ng::Mapping, name: &str) -> Vec<std::string::String> {
@@ -2081,6 +2292,514 @@ proxy-groups:
 
         assert!(report.only_sentinels);
         assert_eq!(group_members(&config, "→ Remnawave"), vec!["REJECT".to_owned()]);
+    }
+
+    #[test]
+    fn service_nodes_do_not_hide_the_no_servers_screen() {
+        let config = mapping(
+            r#"
+proxies:
+  - name: "DIRECT"
+    type: direct
+  - name: "dns-out"
+    type: dns
+  - name: "⌛ Subscription expired"
+    type: vless
+    server: 0.0.0.0
+    port: 1
+    uuid: 00000000-0000-0000-0000-000000000000
+proxy-groups:
+  - name: "🎲 Авто"
+    type: select
+    proxies:
+      - "⌛ Subscription expired"
+"#,
+        );
+
+        let (config, report) = sentinel_pass(config);
+
+        assert!(
+            report.only_sentinels,
+            "only service nodes are left, so there are no servers"
+        );
+        assert!(!report.partially_dropped);
+        assert_eq!(proxy_names(&config), vec!["DIRECT", "dns-out"]);
+    }
+
+    #[test]
+    fn sentinels_are_dropped_inside_an_inline_provider() {
+        let config = mapping(
+            r#"
+proxies: []
+proxy-providers:
+  bundled:
+    type: inline
+    payload:
+      - name: "⌛ Expired"
+        type: vless
+        server: 0.0.0.0
+        port: 1
+        uuid: 00000000-0000-0000-0000-000000000000
+      - name: "🇳🇱 Amsterdam"
+        type: vless
+        server: nl02.example.net
+        port: 443
+        uuid: 6f1c0f6d-1a2b-4c3d-8e9f-0a1b2c3d4e5f
+proxy-groups:
+  - name: "VPN"
+    type: select
+    use:
+      - bundled
+"#,
+        );
+
+        let (config, report) = sentinel_pass(config);
+
+        let payload = config
+            .get("proxy-providers")
+            .and_then(|value| value.get("bundled"))
+            .and_then(|value| value.get("payload"))
+            .and_then(|value| value.as_sequence())
+            .expect("payload should stay a sequence");
+        assert_eq!(payload.len(), 1);
+        assert_eq!(
+            payload[0].get("name").and_then(serde_yaml_ng::Value::as_str),
+            Some("🇳🇱 Amsterdam")
+        );
+        assert!(!report.only_sentinels, "the provider still has a live node");
+        assert!(report.partially_dropped);
+        assert_eq!(report.remarks, vec!["⌛ Expired"]);
+    }
+
+    #[test]
+    fn the_dropped_count_is_not_capped_by_the_reported_names() {
+        let config = mapping(
+            r#"
+proxies:
+  - name: "⌛ 1"
+    type: vless
+    server: 0.0.0.0
+    port: 1
+    uuid: 00000000-0000-0000-0000-000000000000
+  - name: "⌛ 2"
+    type: vless
+    server: 0.0.0.0
+    port: 1
+    uuid: 00000000-0000-0000-0000-000000000000
+  - name: "⌛ 3"
+    type: vless
+    server: 0.0.0.0
+    port: 1
+    uuid: 00000000-0000-0000-0000-000000000000
+  - name: "⌛ 4"
+    type: vless
+    server: 0.0.0.0
+    port: 1
+    uuid: 00000000-0000-0000-0000-000000000000
+  - name: "⌛ 5"
+    type: vless
+    server: 0.0.0.0
+    port: 1
+    uuid: 00000000-0000-0000-0000-000000000000
+  - name: "⌛ 6"
+    type: vless
+    server: 0.0.0.0
+    port: 1
+    uuid: 00000000-0000-0000-0000-000000000000
+  - name: "🇳🇱 Amsterdam"
+    type: vless
+    server: nl02.example.net
+    port: 443
+    uuid: 6f1c0f6d-1a2b-4c3d-8e9f-0a1b2c3d4e5f
+proxy-groups:
+  - name: "🎲 Авто"
+    type: select
+    proxies:
+      - "⌛ 1"
+      - "🇳🇱 Amsterdam"
+"#,
+        );
+
+        let (_, report) = sentinel_pass(config);
+
+        assert!(report.partially_dropped);
+        assert_eq!(report.remarks.len(), MAX_REPORTED_REMARKS);
+        assert_eq!(report.dropped_total, 6);
+    }
+
+    #[test]
+    fn nameless_sentinels_are_still_counted() {
+        let config = mapping(
+            r"
+proxies:
+  - type: vless
+    server: 0.0.0.0
+    port: 1
+    uuid: 00000000-0000-0000-0000-000000000000
+  - type: vless
+    server: 0.0.0.0
+    port: 1
+    uuid: 00000000-0000-0000-0000-000000000000
+  - type: vless
+    server: 0.0.0.0
+    port: 1
+    uuid: 00000000-0000-0000-0000-000000000000
+",
+        );
+
+        let (_, report) = sentinel_pass(config);
+
+        assert_eq!(report.dropped_total, 3);
+        assert!(report.remarks.is_empty());
+    }
+
+    #[test]
+    fn a_name_shared_by_a_proxy_and_a_provider_entry_is_reported_once() {
+        let config = mapping(
+            r#"
+proxies:
+  - name: "⌛ Expired"
+    type: vless
+    server: 0.0.0.0
+    port: 1
+    uuid: 00000000-0000-0000-0000-000000000000
+  - name: "🇳🇱 Amsterdam"
+    type: vless
+    server: nl02.example.net
+    port: 443
+    uuid: 6f1c0f6d-1a2b-4c3d-8e9f-0a1b2c3d4e5f
+proxy-providers:
+  bundled:
+    type: inline
+    payload:
+      - name: "⌛ Expired"
+        type: vless
+        server: 0.0.0.0
+        port: 1
+        uuid: 00000000-0000-0000-0000-000000000000
+      - name: "🇩🇪 Berlin"
+        type: vless
+        server: de01.example.net
+        port: 443
+        uuid: 6f1c0f6d-1a2b-4c3d-8e9f-0a1b2c3d4e60
+proxy-groups:
+  - name: "VPN"
+    type: select
+    use:
+      - bundled
+"#,
+        );
+
+        let (_, report) = sentinel_pass(config);
+
+        assert_eq!(report.dropped_total, 2);
+        assert_eq!(report.remarks, vec!["⌛ Expired"]);
+    }
+
+    #[test]
+    fn a_remote_provider_still_suppresses_the_no_servers_screen() {
+        let config = mapping(
+            r#"
+proxies: []
+proxy-providers:
+  main:
+    type: http
+    url: https://example.net/sub
+proxy-groups:
+  - name: "VPN"
+    type: select
+    use:
+      - main
+"#,
+        );
+
+        let (_, report) = sentinel_pass(config);
+
+        assert!(!report.only_sentinels);
+    }
+
+    #[test]
+    fn a_rejected_group_unpins_the_providers_that_download_through_it() {
+        let config = mapping(
+            r#"
+proxies: []
+proxy-groups:
+  - name: "🎲 Авто"
+    type: select
+    proxies: []
+  - name: "🚫 Недоступные сайты"
+    type: select
+    proxies:
+      - "🎲 Авто"
+      - "DIRECT"
+rule-providers:
+  ru-blocked:
+    type: http
+    behavior: domain
+    url: https://example.net/ru.mrs
+    proxy: "🚫 Недоступные сайты"
+  local-list:
+    type: http
+    behavior: classical
+    url: https://example.net/local.yaml
+    proxy: "DIRECT"
+proxy-providers:
+  extra:
+    type: http
+    url: https://example.net/extra
+    proxy: "🎲 Авто"
+"#,
+        );
+
+        let (config, _) = sentinel_pass(config);
+
+        assert_eq!(group_members(&config, "🎲 Авто"), vec!["REJECT".to_owned()]);
+        assert!(
+            config
+                .get("rule-providers")
+                .and_then(|value| value.get("ru-blocked"))
+                .and_then(|value| value.get("proxy"))
+                .is_none(),
+            "a provider that downloads through a dead group must go direct"
+        );
+        assert_eq!(
+            config
+                .get("rule-providers")
+                .and_then(|value| value.get("local-list"))
+                .and_then(|value| value.get("proxy"))
+                .and_then(serde_yaml_ng::Value::as_str),
+            Some("DIRECT"),
+            "a healthy path must be left alone"
+        );
+        assert!(
+            config
+                .get("proxy-providers")
+                .and_then(|value| value.get("extra"))
+                .and_then(|value| value.get("proxy"))
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn a_live_subscription_leaves_provider_pins_alone() {
+        let config = mapping(
+            r#"
+proxies:
+  - name: "🇳🇱 Amsterdam"
+    type: vless
+    server: nl02.example.net
+    port: 443
+    uuid: 6f1c0f6d-1a2b-4c3d-8e9f-0a1b2c3d4e5f
+proxy-groups:
+  - name: "🎲 Авто"
+    type: select
+    proxies:
+      - "🇳🇱 Amsterdam"
+  - name: "🚫 Недоступные сайты"
+    type: select
+    proxies:
+      - "🎲 Авто"
+rule-providers:
+  ru-blocked:
+    type: http
+    behavior: domain
+    url: https://example.net/ru.mrs
+    proxy: "🚫 Недоступные сайты"
+"#,
+        );
+
+        let expected = config.clone();
+        let (config, report) = sentinel_pass(config);
+
+        assert_eq!(config, expected, "a live config must not be touched");
+        assert!(!report.only_sentinels);
+        assert!(!report.partially_dropped);
+    }
+
+    #[test]
+    fn a_cycle_between_groups_does_not_unpin_providers() {
+        let config = mapping(
+            r#"
+proxies: []
+proxy-groups:
+  - name: "dead"
+    type: select
+    proxies: []
+  - name: "a"
+    type: select
+    proxies:
+      - "b"
+  - name: "b"
+    type: select
+    proxies:
+      - "a"
+rule-providers:
+  looped:
+    type: http
+    behavior: domain
+    url: https://example.net/list.mrs
+    proxy: "a"
+"#,
+        );
+
+        let (config, _) = sentinel_pass(config);
+
+        assert_eq!(
+            config
+                .get("rule-providers")
+                .and_then(|value| value.get("looped"))
+                .and_then(|value| value.get("proxy"))
+                .and_then(serde_yaml_ng::Value::as_str),
+            Some("a")
+        );
+    }
+
+    #[test]
+    fn an_expired_inline_payload_is_kept_so_the_core_still_starts() {
+        let config = mapping(
+            r#"
+proxies: []
+proxy-providers:
+  bundled:
+    type: inline
+    payload:
+      - name: "⌛ Expired"
+        type: vless
+        server: 0.0.0.0
+        port: 1
+        uuid: 00000000-0000-0000-0000-000000000000
+proxy-groups:
+  - name: "VPN"
+    type: select
+    use:
+      - bundled
+"#,
+        );
+
+        let expected = config.clone();
+        let (config, report) = sentinel_pass(config);
+
+        assert_eq!(
+            config.get("proxy-providers"),
+            expected.get("proxy-providers"),
+            "an emptied payload makes the core reject the whole config"
+        );
+        assert!(report.only_sentinels);
+        assert!(report.remarks.is_empty());
+        assert!(!report.partially_dropped);
+    }
+
+    #[test]
+    fn a_file_provider_also_suppresses_the_no_servers_screen() {
+        let config = mapping(
+            r#"
+proxies: []
+proxy-providers:
+  bundled:
+    type: file
+    path: ./bundled.yaml
+proxy-groups:
+  - name: "VPN"
+    type: select
+    use:
+      - bundled
+"#,
+        );
+
+        let (_, report) = sentinel_pass(config);
+
+        assert!(
+            !report.only_sentinels,
+            "the core reads those nodes from a file we cannot look into"
+        );
+    }
+
+    #[test]
+    fn a_fallback_group_with_a_live_member_keeps_the_provider_pins() {
+        let config = mapping(
+            r#"
+proxies:
+  - name: "🇳🇱 Amsterdam"
+    type: vless
+    server: nl02.example.net
+    port: 443
+    uuid: 6f1c0f6d-1a2b-4c3d-8e9f-0a1b2c3d4e5f
+proxy-groups:
+  - name: "🎲 Авто"
+    type: select
+    proxies: []
+  - name: "🛡 Резерв"
+    type: fallback
+    proxies:
+      - "🎲 Авто"
+      - "🇳🇱 Amsterdam"
+  - name: "🕳 Пусто"
+    type: fallback
+    proxies:
+      - "🎲 Авто"
+rule-providers:
+  ru-blocked:
+    type: http
+    behavior: domain
+    url: https://example.net/ru.mrs
+    proxy: "🛡 Резерв"
+  ua-blocked:
+    type: http
+    behavior: domain
+    url: https://example.net/ua.mrs
+    proxy: "🕳 Пусто"
+"#,
+        );
+
+        let (config, _) = sentinel_pass(config);
+
+        assert_eq!(group_members(&config, "🎲 Авто"), vec!["REJECT".to_owned()]);
+        assert_eq!(
+            config
+                .get("rule-providers")
+                .and_then(|value| value.get("ru-blocked"))
+                .and_then(|value| value.get("proxy"))
+                .and_then(serde_yaml_ng::Value::as_str),
+            Some("🛡 Резерв"),
+            "a fallback group picks its outlet by health, so a dead member does not kill it"
+        );
+        assert!(
+            config
+                .get("rule-providers")
+                .and_then(|value| value.get("ua-blocked"))
+                .and_then(|value| value.get("proxy"))
+                .is_none(),
+            "every member of that fallback group is dead"
+        );
+    }
+
+    #[test]
+    fn a_compatible_member_is_dropped_from_groups() {
+        let config = mapping(
+            r#"
+proxies:
+  - name: "🇳🇱 Amsterdam"
+    type: vless
+    server: nl02.example.net
+    port: 443
+    uuid: 6f1c0f6d-1a2b-4c3d-8e9f-0a1b2c3d4e5f
+proxy-groups:
+  - name: "VPN"
+    type: select
+    proxies:
+      - "🇳🇱 Amsterdam"
+      - "COMPATIBLE"
+      - "DIRECT"
+"#,
+        );
+
+        let (config, _) = sentinel_pass(config);
+
+        assert_eq!(
+            group_members(&config, "VPN"),
+            vec!["🇳🇱 Amsterdam".to_owned(), "DIRECT".to_owned()],
+            "COMPATIBLE is a silent DIRECT, a subscription must not smuggle it into a group"
+        );
     }
 
     #[test]

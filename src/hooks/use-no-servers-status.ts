@@ -59,6 +59,8 @@ export const useNoServersStatus = (profile?: IProfileItem) => {
     reason,
     show,
     onlySentinels: Boolean(report?.only_sentinels),
+    partiallyDropped: Boolean(report?.partially_dropped),
+    droppedTotal: report?.dropped_total ?? 0,
     remarks: report?.remarks ?? [],
   }
 }

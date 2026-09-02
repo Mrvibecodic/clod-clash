@@ -233,9 +233,14 @@
           "latestVersion": "現在は最新バージョンです。",
           "versionCopied": "Version copied to clipboard"
         },
+        "messages": {
+          "noProfileSelected": "プロファイルが選択されていません",
+          "profileFileError": "プロファイルファイルを読み取れませんでした"
+        },
         "fields": {
           "backupSetting": "バックアップ設定",
           "runtimeConfig": "現在の設定",
+          "providerConfig": "プロバイダーが送信した内容",
           "openConfDir": "設定ディレクトリを開く",
           "openCoreDir": "コアディレクトリを開く",
           "openLogsDir": "ログディレクトリを開く",
@@ -515,13 +520,15 @@
         "invalidRouteExcludeAddress": "有効な CIDR ブロックを入力してください",
         "routeExcludeAddressHint": "IPv4/IPv6 の CIDR のみ対応しています。例: 192.168.0.0/16、fd00::/8",
         "activeStack": "適用中のスタック: {{stack}}",
+        "subscriptionStackCapped": "プロバイダーは {{stack}} スタックを要求しましたが、Windows ではファイアウォールでコアを手動で許可する必要があるため、gvisor を使用します。",
         "windowsStackFirewall": "Windows では system と mixed スタックはファイアウォールでコアの受信接続を許可する必要があります。許可がないとトンネルの通信は流れません"
       }
     },
     "dns": {
       "dialog": {
         "title": "DNS上書き",
-        "warning": "ここの設定がわからない場合は、変更しないでください。DNS上書きを無効にしたままにしてください。"
+        "warning": "ここの設定がわからない場合は、変更しないでください。DNS上書きを無効にしたままにしてください。",
+        "replacesSubscription": "これらの設定はサブスクリプションの DNS ブロックを完全に置き換えます。"
       },
       "sections": {
         "general": "DNS設定",

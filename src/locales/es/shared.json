@@ -91,7 +91,10 @@
         "chanReplay": "The subscription response does not answer our request — check the clock on this computer and try again",
         "chanRefused": "The middleware refused the secure request — the connection to it is being blocked, or the protection is off",
         "chanBadUrl": "This subscription address cannot be used with a secure connection",
-        "subscriptionHttpsOnly": "La dirección de la suscripción debe empezar por https — cámbiela en el panel del proveedor o vuelva a añadir la suscripción"
+        "subscriptionHttpsOnly": "La dirección de la suscripción debe empezar por https — cámbiela en el panel del proveedor o vuelva a añadir la suscripción",
+        "subscriptionLinkList": "El panel envió una lista de enlaces en lugar de una configuración: no reconoció el cliente. Pida al proveedor que añada en el panel una regla para el cliente ^ClodClash/ con el formato MIHOMO",
+        "subscriptionWebPage": "En esta dirección se abrió una página web, no una suscripción: revise el enlace en su área personal",
+        "foreignCoreTemplate": "La plantilla está pensada para otra compilación del núcleo (grupo «selección inteligente»): nuestro núcleo no la admite, pida al proveedor la variante normal"
       }
     },
     "notices": {

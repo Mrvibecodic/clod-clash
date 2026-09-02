@@ -91,7 +91,10 @@
         "chanReplay": "The subscription response does not answer our request — check the clock on this computer and try again",
         "chanRefused": "The middleware refused the secure request — the connection to it is being blocked, or the protection is off",
         "chanBadUrl": "This subscription address cannot be used with a secure connection",
-        "subscriptionHttpsOnly": "Die Abonnementadresse muss mit https beginnen — ändern Sie sie im Anbieterpanel oder fügen Sie das Abonnement erneut hinzu"
+        "subscriptionHttpsOnly": "Die Abonnementadresse muss mit https beginnen — ändern Sie sie im Anbieterpanel oder fügen Sie das Abonnement erneut hinzu",
+        "subscriptionLinkList": "Das Panel sendete eine Linkliste statt einer Konfiguration — es hat den Client nicht erkannt: bitten Sie den Anbieter, im Panel eine Regel für den Client ^ClodClash/ mit dem Format MIHOMO anzulegen",
+        "subscriptionWebPage": "Unter dieser Adresse öffnete sich eine Webseite und kein Abonnement — prüfen Sie den Link im Kundenkonto",
+        "foreignCoreTemplate": "Die Vorlage ist für einen anderen Core-Build gedacht (Gruppe „intelligente Auswahl“) — unser Core unterstützt sie nicht, bitten Sie den Anbieter um die normale Variante"
       }
     },
     "notices": {

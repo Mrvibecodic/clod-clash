@@ -233,9 +233,14 @@
           "latestVersion": "Actualmente está en la última versión",
           "versionCopied": "Version copied to clipboard"
         },
+        "messages": {
+          "noProfileSelected": "Ningún perfil seleccionado",
+          "profileFileError": "No se pudo leer el archivo del perfil"
+        },
         "fields": {
           "backupSetting": "Configuración de copia de seguridad",
           "runtimeConfig": "Configuración actual",
+          "providerConfig": "Tal como lo envió el proveedor",
           "openConfDir": "Directorio de configuración",
           "openCoreDir": "Directorio del núcleo",
           "openLogsDir": "Directorio de registros",
@@ -515,13 +520,15 @@
         "invalidRouteExcludeAddress": "Introduce un bloque CIDR válido",
         "routeExcludeAddressHint": "Solo se admiten bloques CIDR de IPv4/IPv6, como 192.168.0.0/16 o fd00::/8",
         "activeStack": "Pila activa: {{stack}}",
+        "subscriptionStackCapped": "El proveedor pidió la pila {{stack}}; en Windows requiere permitir manualmente el núcleo en el cortafuegos, por eso se usa gvisor.",
         "windowsStackFirewall": "En Windows las pilas system y mixed requieren permitir al núcleo las conexiones entrantes en el firewall; sin esto el tráfico del túnel no fluirá"
       }
     },
     "dns": {
       "dialog": {
         "title": "Sobrescritura de DNS",
-        "warning": "Si no está seguro de cómo configurar esto, no realice cambios y mantenga deshabilitada la sobrescritura de DNS."
+        "warning": "Si no está seguro de cómo configurar esto, no realice cambios y mantenga deshabilitada la sobrescritura de DNS.",
+        "replacesSubscription": "Estos ajustes reemplazan por completo el bloque DNS de la suscripción."
       },
       "sections": {
         "general": "Configuración de DNS",

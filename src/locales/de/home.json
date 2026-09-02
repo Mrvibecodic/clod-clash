@@ -56,13 +56,15 @@
         "deviceNotIdentified": "Das Panel hat dieses Gerät nicht erkannt und keine Server ausgeliefert."
       },
       "panelSays": "The panel says: “{{text}}”",
+      "partiallyDropped": "Ausgeblendete Server ohne Verbindung: {{total}} ({{names}})",
       "refresh": "Update subscription",
       "row": {
         "expired": "Subscription expired — renew to connect",
         "traffic": "Out of traffic — resets on {{date}}",
         "trafficNoDate": "Out of traffic",
         "provider": "The provider sent no servers",
-        "deviceLimit": "Gerätelimit erreicht"
+        "deviceLimit": "Gerätelimit erreicht",
+        "partiallyDropped": "Ausgeblendete Server ohne Verbindung: {{total}}"
       }
     },
     "quickActions": {

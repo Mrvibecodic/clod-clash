@@ -91,7 +91,10 @@
         "chanReplay": "The subscription response does not answer our request — check the clock on this computer and try again",
         "chanRefused": "The middleware refused the secure request — the connection to it is being blocked, or the protection is off",
         "chanBadUrl": "This subscription address cannot be used with a secure connection",
-        "subscriptionHttpsOnly": "Alamat langganan harus diawali https — ubah di panel penyedia atau tambahkan langganan lagi"
+        "subscriptionHttpsOnly": "Alamat langganan harus diawali https — ubah di panel penyedia atau tambahkan langganan lagi",
+        "subscriptionLinkList": "Panel mengirim daftar tautan alih-alih konfigurasi — panel tidak mengenali klien: minta penyedia menambahkan aturan untuk klien ^ClodClash/ dengan format MIHOMO di panel",
+        "subscriptionWebPage": "Alamat ini membuka halaman web, bukan langganan — periksa tautan di akun Anda",
+        "foreignCoreTemplate": "Templat ini ditujukan untuk build inti lain (grup «pilihan cerdas») — inti kami tidak mendukungnya, minta varian biasa kepada penyedia"
       }
     },
     "notices": {

@@ -91,7 +91,10 @@
         "chanReplay": "The subscription response does not answer our request — check the clock on this computer and try again",
         "chanRefused": "The middleware refused the secure request — the connection to it is being blocked, or the protection is off",
         "chanBadUrl": "This subscription address cannot be used with a secure connection",
-        "subscriptionHttpsOnly": "サブスクリプションのアドレスは https で始まる必要があります — プロバイダーのパネルで変更するか、再度追加してください"
+        "subscriptionHttpsOnly": "サブスクリプションのアドレスは https で始まる必要があります — プロバイダーのパネルで変更するか、再度追加してください",
+        "subscriptionLinkList": "パネルは設定ではなくリンク一覧を返しました — クライアントを認識していません。パネルでクライアント ^ClodClash/ の規則を MIHOMO 形式で追加するよう提供元に依頼してください",
+        "subscriptionWebPage": "このアドレスではサブスクリプションではなくウェブページが開きました — マイページでリンクを確認してください",
+        "foreignCoreTemplate": "このテンプレートは別のコアビルド向けです（「スマート選択」グループ）— こちらのコアは対応していません。通常版を提供元に依頼してください"
       }
     },
     "notices": {

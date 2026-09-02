@@ -233,9 +233,14 @@
           "latestVersion": "Currently on the Latest Version",
           "versionCopied": "Version copied to clipboard"
         },
+        "messages": {
+          "noProfileSelected": "No profile selected",
+          "profileFileError": "Error getting profile file"
+        },
         "fields": {
           "backupSetting": "Backup Setting",
           "runtimeConfig": "Runtime Config",
+          "providerConfig": "As the provider sent it",
           "openConfDir": "Open Conf Dir",
           "openCoreDir": "Open Core Dir",
           "openLogsDir": "Open Logs Dir",
@@ -515,13 +520,15 @@
         "invalidRouteExcludeAddress": "Please enter a valid CIDR block",
         "routeExcludeAddressHint": "Only IPv4/IPv6 CIDR is supported, such as 192.168.0.0/16 or fd00::/8",
         "activeStack": "Active stack: {{stack}}",
+        "subscriptionStackCapped": "The provider asked for the {{stack}} stack; on Windows it needs the core allowed through the firewall by hand, so gvisor is used instead.",
         "windowsStackFirewall": "On Windows the system and mixed stacks need the core allowed through the firewall for inbound connections — without it tunnel traffic will not flow"
       }
     },
     "dns": {
       "dialog": {
         "title": "DNS Overwrite",
-        "warning": "If you are not familiar with these settings, please do not modify them and keep DNS Overwrite disabled"
+        "warning": "If you are not familiar with these settings, please do not modify them and keep DNS Overwrite disabled",
+        "replacesSubscription": "These settings fully replace the DNS block from the subscription."
       },
       "sections": {
         "general": "DNS Settings",

@@ -233,9 +233,14 @@
           "latestVersion": "در حال حاضر در آخرین نسخه",
           "versionCopied": "نسخه در کلیپ بورد کپی شد"
         },
+        "messages": {
+          "noProfileSelected": "No profile selected",
+          "profileFileError": "Error getting profile file"
+        },
         "fields": {
           "backupSetting": "تنظیمات پشتیبان گیری",
           "runtimeConfig": "پیکربندی زمان اجرا",
+          "providerConfig": "As the provider sent it",
           "openConfDir": "باز کردن پوشه برنامه",
           "openCoreDir": "باز کردن پوشه هسته",
           "openLogsDir": "باز کردن پوشه لاگ‌ها",
@@ -515,13 +520,15 @@
         "invalidRouteExcludeAddress": "لطفاً یک محدوده CIDR معتبر وارد کنید",
         "routeExcludeAddressHint": "فقط CIDRهای IPv4/IPv6 پشتیبانی می‌شوند، مانند 192.168.0.0/16 یا fd00::/8",
         "activeStack": "پشتهٔ فعال: {{stack}}",
+        "subscriptionStackCapped": "The provider asked for the {{stack}} stack; on Windows it needs the core allowed through the firewall by hand, so gvisor is used instead.",
         "windowsStackFirewall": "در ویندوز پشته‌های system و mixed نیاز دارند هسته در فایروال برای اتصال‌های ورودی مجاز شود — بدون آن ترافیک تونل عبور نمی‌کند"
       }
     },
     "dns": {
       "dialog": {
         "title": "بازنویسی DNS",
-        "warning": "اگر با این تنظیمات آشنا نیستید، لطفاً آنها را تغییر ندهید و DNS Overwrite را غیرفعال نگه دارید."
+        "warning": "اگر با این تنظیمات آشنا نیستید، لطفاً آنها را تغییر ندهید و DNS Overwrite را غیرفعال نگه دارید.",
+        "replacesSubscription": "These settings fully replace the DNS block from the subscription."
       },
       "sections": {
         "general": "تنظیمات DNS",

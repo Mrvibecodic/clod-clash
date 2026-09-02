@@ -56,13 +56,15 @@
         "deviceNotIdentified": "面板未能识别此设备，因此没有下发服务器。"
       },
       "panelSays": "面板提示：“{{text}}”",
+      "partiallyDropped": "已隐藏无法连接的服务器：{{total}}（{{names}}）",
       "refresh": "更新订阅",
       "row": {
         "expired": "订阅已到期 — 续费后可连接",
         "traffic": "流量已用尽 — {{date}} 重置",
         "trafficNoDate": "流量已用尽",
         "provider": "服务商未下发服务器",
-        "deviceLimit": "已达设备数量上限"
+        "deviceLimit": "已达设备数量上限",
+        "partiallyDropped": "已隐藏无法连接的服务器：{{total}}"
       }
     },
     "quickActions": {

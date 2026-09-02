@@ -17,6 +17,7 @@ interface Props {
   profile?: IProfileItem
   /** Refresh the profile list after a manual subscription update. */
   onRefreshed?: () => Promise<unknown> | void
+  quiet?: boolean
 }
 
 const traffic = (bytes: number) => parseTraffic(bytes).join(' ').trim()
@@ -41,9 +42,10 @@ const date = (unix?: number, skew = 0) =>
  * (`support-url`), и кнопка есть только тогда, когда провайдер прислал этот
  * заголовок: своих ссылок приложение не выдумывает.
  */
-export const NoServersStatus = ({ profile, onRefreshed }: Props) => {
+export const NoServersStatus = ({ profile, onRefreshed, quiet }: Props) => {
   const { t } = useTranslation()
-  const { reason, show, remarks } = useNoServersStatus(profile)
+  const { reason, show, partiallyDropped, droppedTotal, remarks } =
+    useNoServersStatus(profile)
 
   const openLink = useCallback(async (url?: string) => {
     if (!url) return
@@ -65,9 +67,31 @@ export const NoServersStatus = ({ profile, onRefreshed }: Props) => {
     }
   }, [profile?.uid, onRefreshed])
 
+  const droppedNames = remarks.filter(Boolean)
+  const droppedNamesText =
+    droppedTotal > droppedNames.length
+      ? `${droppedNames.join(' · ')} · …`
+      : droppedNames.join(' · ')
+
   // Nothing to explain: the list is empty for a reason we do not know (a
   // template without groups, a core that has not started yet).
-  if (!profile || !show) return null
+  if (!profile || !show || quiet)
+    return partiallyDropped && droppedTotal > 0 ? (
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        sx={{ display: 'block', fontStyle: 'italic' }}
+      >
+        {droppedNames.length > 0
+          ? t('home.components.serverStatus.partiallyDropped', {
+              total: droppedTotal,
+              names: droppedNamesText,
+            })
+          : t('home.components.serverStatus.row.partiallyDropped', {
+              total: droppedTotal,
+            })}
+      </Typography>
+    ) : null
 
   const extra = profile.extra
   const used = (extra?.upload ?? 0) + (extra?.download ?? 0)

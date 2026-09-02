@@ -233,9 +233,14 @@
           "latestVersion": "Сездә иң соңгы версия урнаштырылган",
           "versionCopied": "Version copied to clipboard"
         },
+        "messages": {
+          "noProfileSelected": "No profile selected",
+          "profileFileError": "Error getting profile file"
+        },
         "fields": {
           "backupSetting": "Резерв копия көйләүләре",
           "runtimeConfig": "Агымдагы конфигурация",
+          "providerConfig": "As the provider sent it",
           "openConfDir": "Кушымта папкасын ачу",
           "openCoreDir": "Ядро сакланган папканы ачу",
           "openLogsDir": "Логлар папкасын ачу",
@@ -515,13 +520,15 @@
         "invalidRouteExcludeAddress": "Дөрес CIDR блогын кертегез",
         "routeExcludeAddressHint": "IPv4/IPv6 CIDR блоклары гына хуплана, мәсәлән 192.168.0.0/16 яки fd00::/8",
         "activeStack": "Кулланылган стек: {{stack}}",
+        "subscriptionStackCapped": "The provider asked for the {{stack}} stack; on Windows it needs the core allowed through the firewall by hand, so gvisor is used instead.",
         "windowsStackFirewall": "Windows'та system һәм mixed стеклары өчен брандмауэрда үзәккә керүче тоташуларны рөхсәт итәргә кирәк — башкача тоннель трафигы бармаячак"
       }
     },
     "dns": {
       "dialog": {
         "title": "DNS Overwrite",
-        "warning": "If you are not familiar with these settings, please do not modify them and keep DNS Overwrite disabled"
+        "warning": "If you are not familiar with these settings, please do not modify them and keep DNS Overwrite disabled",
+        "replacesSubscription": "These settings fully replace the DNS block from the subscription."
       },
       "sections": {
         "general": "DNS Settings",

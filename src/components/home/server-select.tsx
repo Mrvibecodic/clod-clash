@@ -128,7 +128,11 @@ export const ServerSelect = ({ open, onClose }: Props) => {
     }
   })
 
-  const { show: noServers, onlySentinels } = useNoServersStatus(current)
+  const {
+    show: noServers,
+    onlySentinels,
+    partiallyDropped,
+  } = useNoServersStatus(current)
   const listEmpty = Boolean(proxies) && !hasRealNodes(proxies)
   const showStatus = noServers && (onlySentinels || listEmpty)
 
@@ -466,8 +470,12 @@ export const ServerSelect = ({ open, onClose }: Props) => {
           </Typography>
         ) : null}
 
-        {showStatus ? (
-          <NoServersStatus profile={current} onRefreshed={mutateProfiles} />
+        {showStatus || partiallyDropped ? (
+          <NoServersStatus
+            profile={current}
+            onRefreshed={mutateProfiles}
+            quiet={!showStatus}
+          />
         ) : null}
 
         {nodes.length === 0 ? (
@@ -701,6 +709,8 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
     reason,
     show: noServers,
     onlySentinels,
+    partiallyDropped,
+    droppedTotal,
   } = useNoServersStatus(currentProfile)
   const listEmpty = Boolean(proxies) && !hasRealNodes(proxies)
   const statusRow = noServers && (listEmpty || onlySentinels)
@@ -794,6 +804,17 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
         >
           {statusCaption ?? caption}
         </Typography>
+        {!statusRow && partiallyDropped && droppedTotal > 0 ? (
+          <Typography
+            noWrap
+            sx={{ fontSize: 12, display: 'block', fontStyle: 'italic' }}
+            color="text.secondary"
+          >
+            {t('home.components.serverStatus.row.partiallyDropped', {
+              total: droppedTotal,
+            })}
+          </Typography>
+        ) : null}
       </Box>
 
       {currentProfile?.disable_ping ? (

@@ -56,13 +56,15 @@
         "deviceNotIdentified": "Panel tidak mengenali perangkat ini dan tidak memberikan server."
       },
       "panelSays": "The panel says: “{{text}}”",
+      "partiallyDropped": "Hidden servers that cannot connect: {{total}} ({{names}})",
       "refresh": "Update subscription",
       "row": {
         "expired": "Subscription expired — renew to connect",
         "traffic": "Out of traffic — resets on {{date}}",
         "trafficNoDate": "Out of traffic",
         "provider": "The provider sent no servers",
-        "deviceLimit": "Batas perangkat tercapai"
+        "deviceLimit": "Batas perangkat tercapai",
+        "partiallyDropped": "Hidden servers that cannot connect: {{total}}"
       }
     },
     "quickActions": {

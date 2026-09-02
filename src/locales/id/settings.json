@@ -233,9 +233,14 @@
           "latestVersion": "Saat ini pada Versi Terbaru",
           "versionCopied": "Version copied to clipboard"
         },
+        "messages": {
+          "noProfileSelected": "No profile selected",
+          "profileFileError": "Error getting profile file"
+        },
         "fields": {
           "backupSetting": "Pengaturan Cadangan",
           "runtimeConfig": "Konfigurasi Runtime",
+          "providerConfig": "As the provider sent it",
           "openConfDir": "Buka Direktori Konfigurasi",
           "openCoreDir": "Buka Direktori Core",
           "openLogsDir": "Buka Direktori Log",
@@ -515,13 +520,15 @@
         "invalidRouteExcludeAddress": "Masukkan blok CIDR yang valid",
         "routeExcludeAddressHint": "Hanya CIDR IPv4/IPv6 yang didukung, seperti 192.168.0.0/16 atau fd00::/8",
         "activeStack": "Stack aktif: {{stack}}",
+        "subscriptionStackCapped": "The provider asked for the {{stack}} stack; on Windows it needs the core allowed through the firewall by hand, so gvisor is used instead.",
         "windowsStackFirewall": "Di Windows stack system dan mixed memerlukan izin firewall untuk koneksi masuk ke core — tanpanya lalu lintas terowongan tidak akan berjalan"
       }
     },
     "dns": {
       "dialog": {
         "title": "DNS Overwrite",
-        "warning": "If you are not familiar with these settings, please do not modify them and keep DNS Overwrite disabled"
+        "warning": "If you are not familiar with these settings, please do not modify them and keep DNS Overwrite disabled",
+        "replacesSubscription": "These settings fully replace the DNS block from the subscription."
       },
       "sections": {
         "general": "DNS Settings",

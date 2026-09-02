@@ -496,10 +496,22 @@ impl PrfItem {
 
         let data = data.trim_start_matches('\u{feff}');
 
+        if body_is_web_page(data) {
+            bail!("clod-sub-web-page: the subscription address returned a web page");
+        }
+
+        if body_is_link_list(data) {
+            bail!("clod-sub-link-list: the panel returned a base64 link list");
+        }
+
         let yaml = serde_yaml_ng::from_str::<Mapping>(data).context("the remote profile data is invalid yaml")?;
 
         if !yaml.contains_key("proxies") && !yaml.contains_key("proxy-providers") {
             bail!("profile does not contain `proxies` or `proxy-providers`");
+        }
+
+        if targets_foreign_core(&yaml) {
+            bail!("clod-sub-foreign-core: the template relies on a `smart` proxy group");
         }
 
         if merge.is_none() {
@@ -1109,6 +1121,65 @@ fn allow_auto_update_enabled(option: Option<&PrfOption>) -> bool {
     option.and_then(|o| o.allow_auto_update).unwrap_or(true)
 }
 
+const LINK_LIST_SCHEMES: [&str; 6] = ["vless://", "vmess://", "ss://", "trojan://", "hysteria2://", "tuic://"];
+
+const LINK_LIST_MIN_LEN: usize = 32;
+
+fn body_is_web_page(data: &str) -> bool {
+    data.trim_start().starts_with('<')
+}
+
+fn decode_base64_body(compact: &str) -> Option<Vec<u8>> {
+    use base64::Engine as _;
+    use base64::engine::general_purpose::{STANDARD, STANDARD_NO_PAD, URL_SAFE, URL_SAFE_NO_PAD};
+
+    STANDARD
+        .decode(compact)
+        .or_else(|_| STANDARD_NO_PAD.decode(compact))
+        .or_else(|_| URL_SAFE.decode(compact))
+        .or_else(|_| URL_SAFE_NO_PAD.decode(compact))
+        .ok()
+}
+
+const fn is_base64_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || matches!(byte, b'+' | b'/' | b'=' | b'-' | b'_')
+}
+
+fn body_is_link_list(data: &str) -> bool {
+    if !data
+        .bytes()
+        .all(|byte| byte.is_ascii_whitespace() || is_base64_byte(byte))
+    {
+        return false;
+    }
+    let compact: std::string::String = data.chars().filter(|ch| !ch.is_whitespace()).collect();
+    if compact.len() < LINK_LIST_MIN_LEN {
+        return false;
+    }
+    let Some(decoded) = decode_base64_body(&compact) else {
+        return false;
+    };
+    let Ok(text) = std::str::from_utf8(&decoded) else {
+        return false;
+    };
+    let head = text.trim_start();
+    LINK_LIST_SCHEMES.iter().any(|scheme| head.starts_with(scheme))
+}
+
+fn targets_foreign_core(yaml: &Mapping) -> bool {
+    yaml.get("proxy-groups")
+        .and_then(|value| value.as_sequence())
+        .is_some_and(|groups| {
+            groups.iter().any(|group| {
+                group
+                    .as_mapping()
+                    .and_then(|group| group.get("type"))
+                    .and_then(|kind| kind.as_str())
+                    .is_some_and(|kind| kind.eq_ignore_ascii_case("smart"))
+            })
+        })
+}
+
 fn fix_dirty_url(input: &str) -> Result<Url> {
     let mut url = match Url::parse(input) {
         Ok(u) => u,
@@ -1149,7 +1220,10 @@ fn fix_dirty_url(input: &str) -> Result<Url> {
 
 #[cfg(test)]
 mod tests {
-    use super::{PrfItem, PrfOption, allow_auto_update_enabled, fix_dirty_url, to_unix_seconds};
+    use super::{
+        PrfItem, PrfOption, allow_auto_update_enabled, body_is_link_list, body_is_web_page, fix_dirty_url,
+        targets_foreign_core, to_unix_seconds,
+    };
 
     #[test]
     fn provider_links_are_replaced_not_merged() {
@@ -1219,5 +1293,70 @@ mod tests {
         }
 
         assert!(fix_dirty_url("https://").is_err());
+    }
+
+    #[test]
+    fn html_body_is_not_a_profile() {
+        assert!(body_is_web_page("<!DOCTYPE html><html><body>login</body></html>"));
+        assert!(body_is_web_page("\n  <html>"));
+        assert!(!body_is_web_page("proxies:\n  - name: a\n"));
+        assert!(!body_is_web_page(""));
+    }
+
+    #[test]
+    #[allow(clippy::expect_used)]
+    fn base64_link_list_is_recognised() {
+        use base64::Engine as _;
+
+        let links = "vless://uuid@host:443?type=tcp#a\nss://Y2hhY2hhOnBhc3M@host:8388#b\n";
+        let padded = base64::engine::general_purpose::STANDARD.encode(links);
+        assert!(body_is_link_list(&padded));
+
+        let wrapped = padded
+            .as_bytes()
+            .chunks(48)
+            .map(|chunk| std::str::from_utf8(chunk).expect("ascii"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(body_is_link_list(&wrapped));
+
+        let urlsafe = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(links);
+        assert!(body_is_link_list(&urlsafe));
+    }
+
+    #[test]
+    fn plain_profiles_are_not_taken_for_a_link_list() {
+        assert!(!body_is_link_list(
+            "proxies:\n  - name: a\n    type: ss\n    server: host\n"
+        ));
+        assert!(!body_is_link_list(""));
+        assert!(!body_is_link_list("dmxlc3M6Ly8"));
+
+        use base64::Engine as _;
+        let noise = base64::engine::general_purpose::STANDARD.encode("just a very long plain sentence here");
+        assert!(!body_is_link_list(&noise));
+    }
+
+    #[test]
+    #[allow(clippy::expect_used)]
+    fn smart_group_marks_a_foreign_core_template() {
+        let foreign: serde_yaml_ng::Mapping = serde_yaml_ng::from_str(
+            "proxies: []\nproxy-groups:\n  - name: auto\n    type: smart\n    policy-priority: a\n",
+        )
+        .expect("yaml");
+        assert!(targets_foreign_core(&foreign));
+
+        let ours: serde_yaml_ng::Mapping =
+            serde_yaml_ng::from_str("proxies: []\nproxy-groups:\n  - name: auto\n    type: url-test\n").expect("yaml");
+        assert!(!targets_foreign_core(&ours));
+
+        let smart_only_in_names: serde_yaml_ng::Mapping = serde_yaml_ng::from_str(
+            "proxies: []\nproxy-groups:\n  - name: smart\n    type: select\n    proxies: [smart]\n",
+        )
+        .expect("yaml");
+        assert!(!targets_foreign_core(&smart_only_in_names));
+
+        let no_groups: serde_yaml_ng::Mapping = serde_yaml_ng::from_str("proxies: []\n").expect("yaml");
+        assert!(!targets_foreign_core(&no_groups));
     }
 }

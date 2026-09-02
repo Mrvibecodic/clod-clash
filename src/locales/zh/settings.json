@@ -233,9 +233,14 @@
           "latestVersion": "当前已是最新版本",
           "versionCopied": "Clod 版本已复制到剪贴板"
         },
+        "messages": {
+          "noProfileSelected": "未选择配置",
+          "profileFileError": "无法读取配置文件"
+        },
         "fields": {
           "backupSetting": "备份设置",
           "runtimeConfig": "当前配置",
+          "providerConfig": "服务商下发的原文",
           "openConfDir": "配置目录",
           "openCoreDir": "内核目录",
           "openLogsDir": "日志目录",
@@ -515,13 +520,15 @@
         "invalidRouteExcludeAddress": "请输入有效的 CIDR 网段",
         "routeExcludeAddressHint": "仅支持 IPv4/IPv6 CIDR，例如 192.168.0.0/16 或 fd00::/8",
         "activeStack": "当前生效的栈: {{stack}}",
+        "subscriptionStackCapped": "服务商要求 {{stack}} 栈；在 Windows 上它需要手动在防火墙中放行内核，因此改用 gvisor。",
         "windowsStackFirewall": "在 Windows 上，system 和 mixed 栈需要在防火墙中允许核心的入站连接，否则隧道流量无法通行"
       }
     },
     "dns": {
       "dialog": {
         "title": "DNS 覆写",
-        "warning": "如果你不清楚这里的设置请不要修改，并保持 DNS 覆写关闭"
+        "warning": "如果你不清楚这里的设置请不要修改，并保持 DNS 覆写关闭",
+        "replacesSubscription": "这些设置会完全替换订阅中的 DNS 配置。"
       },
       "sections": {
         "general": "DNS 设置",

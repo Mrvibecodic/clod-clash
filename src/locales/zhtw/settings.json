@@ -233,9 +233,14 @@
           "latestVersion": "目前已是最新版本",
           "versionCopied": "Verge版本已複製到剪貼簿"
         },
+        "messages": {
+          "noProfileSelected": "未選擇設定檔",
+          "profileFileError": "無法讀取設定檔"
+        },
         "fields": {
           "backupSetting": "備份設定",
           "runtimeConfig": "執行期設定",
+          "providerConfig": "服務商下發的原文",
           "openConfDir": "配置目錄",
           "openCoreDir": "內核目錄",
           "openLogsDir": "日誌目錄",
@@ -515,13 +520,15 @@
         "invalidRouteExcludeAddress": "請輸入有效的 CIDR 網段",
         "routeExcludeAddressHint": "僅支援 IPv4/IPv6 CIDR，例如 192.168.0.0/16 或 fd00::/8",
         "activeStack": "目前生效的堆疊: {{stack}}",
+        "subscriptionStackCapped": "服務商要求 {{stack}} 堆疊；在 Windows 上需要手動在防火牆放行核心，因此改用 gvisor。",
         "windowsStackFirewall": "在 Windows 上，system 與 mixed 堆疊需要在防火牆中允許核心的入站連線，否則通道流量無法通行"
       }
     },
     "dns": {
       "dialog": {
         "title": "DNS 覆寫",
-        "warning": "如果你不清楚這裡的設定請不要修改，並保持 DNS 覆寫關閉"
+        "warning": "如果你不清楚這裡的設定請不要修改，並保持 DNS 覆寫關閉",
+        "replacesSubscription": "這些設定會完全取代訂閱中的 DNS 設定。"
       },
       "sections": {
         "general": "DNS 設定",

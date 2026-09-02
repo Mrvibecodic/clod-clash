@@ -9,6 +9,7 @@ import {
   Typography,
 } from '@mui/material'
 import { useLockFn } from 'ahooks'
+import yaml from 'js-yaml'
 import type { Ref } from 'react'
 import { useImperativeHandle, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -17,20 +18,24 @@ import {
   BaseDialog,
   BaseSplitChipEditor,
   TooltipIcon,
-  DialogRef,
+  type DialogRef,
   Switch,
 } from '@/components/base'
 import { useClash } from '@/hooks/use-clash'
+import { useProfiles } from '@/hooks/use-profiles'
 import { useTunState } from '@/hooks/use-tun-state'
 import { useVerge } from '@/hooks/use-verge'
-import { enhanceProfiles } from '@/services/cmds'
+import { enhanceProfiles, readProfileFile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
+import { useQuery } from '@/services/query-client'
 import getSystem from '@/utils/get-system'
 import { areValidIpCidrs } from '@/utils/network'
 
 import { StackModeSwitch } from './stack-mode-switch'
 
 const OS = getSystem()
+
+const CAPPED_STACKS = ['system', 'mixed']
 
 const splitRouteExcludeAddress = (value: string) =>
   value
@@ -44,6 +49,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const { clash, mutateClash, patchClash } = useClash()
   const { verge, mutateVerge, patchVerge } = useVerge()
   const { tunRuntimeStack } = useTunState()
+  const { current } = useProfiles()
 
   const [open, setOpen] = useState(false)
   const [values, setValues] = useState({
@@ -57,6 +63,43 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
     strictRoute: 'auto',
     mtu: 1500,
   })
+
+  const effectiveStack = (
+    tunRuntimeStack ??
+    clash?.tun?.stack ??
+    ''
+  ).toLowerCase()
+  const stackChosenByHand = (values.stack || 'auto').toLowerCase() !== 'auto'
+
+  const { data: subscriptionStack } = useQuery({
+    queryKey: ['subscriptionTunStack', current?.uid, current?.updated ?? 0],
+    queryFn: async () => {
+      if (!current?.uid) return null
+      try {
+        const parsed = yaml.load(await readProfileFile(current.uid)) as {
+          tun?: { stack?: unknown }
+        } | null
+        const stack = parsed?.tun?.stack
+        return typeof stack === 'string' ? stack.trim().toLowerCase() : null
+      } catch {
+        return null
+      }
+    },
+    enabled:
+      OS === 'windows' &&
+      open &&
+      Boolean(current?.uid) &&
+      !stackChosenByHand &&
+      effectiveStack === 'gvisor',
+    staleTime: 30000,
+  })
+
+  const stackCapped =
+    OS === 'windows' &&
+    !stackChosenByHand &&
+    Boolean(subscriptionStack) &&
+    CAPPED_STACKS.includes(subscriptionStack as string) &&
+    effectiveStack === 'gvisor'
 
   const routeExcludeAddressItems = splitRouteExcludeAddress(
     values.routeExcludeAddress,
@@ -238,8 +281,18 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
           </ListItem>
         )}
 
+        {stackCapped && (
+          <ListItem sx={{ padding: '0 2px 5px' }}>
+            <Typography variant="caption" color="text.secondary">
+              {t('settings.modals.tun.messages.subscriptionStackCapped', {
+                stack: subscriptionStack,
+              })}
+            </Typography>
+          </ListItem>
+        )}
+
         {OS === 'windows' &&
-          ['system', 'mixed'].includes(
+          CAPPED_STACKS.includes(
             (tunRuntimeStack ?? values.stack).toLowerCase(),
           ) && (
             <ListItem sx={{ padding: '0 2px 5px' }}>

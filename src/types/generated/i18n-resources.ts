@@ -146,10 +146,12 @@ export interface TranslationResources {
           }
           noServers: string
           panelSays: string
+          partiallyDropped: string
           refresh: string
           row: {
             deviceLimit: string
             expired: string
+            partiallyDropped: string
             provider: string
             traffic: string
             trafficNoDate: string
@@ -674,10 +676,15 @@ export interface TranslationResources {
               openCoreDir: string
               openDevTools: string
               openLogsDir: string
+              providerConfig: string
               receivePrereleases: string
               runtimeConfig: string
               supportBundle: string
               vergeVersion: string
+            }
+            messages: {
+              noProfileSelected: string
+              profileFileError: string
             }
             notifications: {
               latestVersion: string
@@ -897,6 +904,7 @@ export interface TranslationResources {
         }
         dns: {
           dialog: {
+            replacesSubscription: string
             title: string
             warning: string
           }
@@ -1141,6 +1149,7 @@ export interface TranslationResources {
             applied: string
             invalidRouteExcludeAddress: string
             routeExcludeAddressHint: string
+            subscriptionStackCapped: string
             windowsStackFirewall: string
           }
           title: string
@@ -1401,6 +1410,7 @@ export interface TranslationResources {
             connectionRefused: string
             connectionReset: string
             forbidden: string
+            foreignCoreTemplate: string
             noSuchHost: string
             notFound: string
             permissionDenied: string
@@ -1408,6 +1418,8 @@ export interface TranslationResources {
             proxyNotFound: string
             serverError: string
             subscriptionHttpsOnly: string
+            subscriptionLinkList: string
+            subscriptionWebPage: string
             timeout: string
             tls: string
             tunFailed: string

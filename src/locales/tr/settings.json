@@ -233,9 +233,14 @@
           "latestVersion": "Şu Anda En Son Sürümdesiniz",
           "versionCopied": "Version copied to clipboard"
         },
+        "messages": {
+          "noProfileSelected": "Seçili profil yok",
+          "profileFileError": "Profil dosyası okunamadı"
+        },
         "fields": {
           "backupSetting": "Yedekleme Ayarı",
           "runtimeConfig": "Çalışma Zamanı Yapılandırması",
+          "providerConfig": "Sağlayıcının gönderdiği hâli",
           "openConfDir": "Yapılandırma Dizinini Aç",
           "openCoreDir": "Çekirdek Dizinini Aç",
           "openLogsDir": "Günlük Dizinini Aç",
@@ -515,13 +520,15 @@
         "invalidRouteExcludeAddress": "Lütfen geçerli bir CIDR bloğu girin",
         "routeExcludeAddressHint": "Yalnızca IPv4/IPv6 CIDR blokları desteklenir; örneğin 192.168.0.0/16 veya fd00::/8",
         "activeStack": "Etkin yığın: {{stack}}",
+        "subscriptionStackCapped": "Sağlayıcı {{stack}} yığınını istedi; Windows’ta çekirdeğin güvenlik duvarında elle izinlenmesi gerektiği için gvisor kullanılıyor.",
         "windowsStackFirewall": "Windows'ta system ve mixed yığınları, çekirdeğin güvenlik duvarında gelen bağlantılara izin verilmesini gerektirir — aksi hâlde tünel trafiği akmaz"
       }
     },
     "dns": {
       "dialog": {
         "title": "DNS Üzerine Yazma",
-        "warning": "Bu ayarlarla ilgili bilginiz yoksa, lütfen bunları değiştirmeyin ve DNS Üzerine Yazma'yı devre dışı tutun"
+        "warning": "Bu ayarlarla ilgili bilginiz yoksa, lütfen bunları değiştirmeyin ve DNS Üzerine Yazma'yı devre dışı tutun",
+        "replacesSubscription": "Bu ayarlar aboneliğin DNS bloğunu tamamen değiştirir."
       },
       "sections": {
         "general": "DNS Ayarları",

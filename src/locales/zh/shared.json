@@ -91,7 +91,10 @@
         "chanReplay": "The subscription response does not answer our request — check the clock on this computer and try again",
         "chanRefused": "The middleware refused the secure request — the connection to it is being blocked, or the protection is off",
         "chanBadUrl": "This subscription address cannot be used with a secure connection",
-        "subscriptionHttpsOnly": "订阅地址必须以 https 开头 — 请在服务商面板中修改，或重新添加订阅"
+        "subscriptionHttpsOnly": "订阅地址必须以 https 开头 — 请在服务商面板中修改，或重新添加订阅",
+        "subscriptionLinkList": "面板返回的是链接列表而不是配置 — 它没有识别出客户端：请让机场在面板中为客户端 ^ClodClash/ 添加规则，格式选 MIHOMO",
+        "subscriptionWebPage": "该地址打开的是网页，而不是订阅 — 请在个人中心核对链接",
+        "foreignCoreTemplate": "该模板面向另一种内核构建（「智能选择」分组）— 我们的内核不支持，请向机场索取普通版本"
       }
     },
     "notices": {

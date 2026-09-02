@@ -168,3 +168,11 @@ pub mod tun {
 
     pub const DNS_HIJACK: &[&str] = &["any:53"];
 }
+
+pub mod policies {
+    pub const BUILTIN: &[&str] = &["DIRECT", "REJECT", "REJECT-DROP", "PASS", "COMPATIBLE"];
+
+    pub fn is_builtin(name: &str) -> bool {
+        BUILTIN.contains(&name)
+    }
+}

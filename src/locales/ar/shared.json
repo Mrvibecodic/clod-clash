@@ -91,7 +91,10 @@
         "chanReplay": "The subscription response does not answer our request — check the clock on this computer and try again",
         "chanRefused": "The middleware refused the secure request — the connection to it is being blocked, or the protection is off",
         "chanBadUrl": "This subscription address cannot be used with a secure connection",
-        "subscriptionHttpsOnly": "يجب أن يبدأ عنوان الاشتراك بـ https — غيّره في لوحة المزوّد أو أضف الاشتراك من جديد"
+        "subscriptionHttpsOnly": "يجب أن يبدأ عنوان الاشتراك بـ https — غيّره في لوحة المزوّد أو أضف الاشتراك من جديد",
+        "subscriptionLinkList": "أرسلت اللوحة قائمة روابط بدل الإعدادات — لم تتعرّف على العميل: اطلب من المزوّد إضافة قاعدة للعميل ^ClodClash/ بصيغة MIHOMO في اللوحة",
+        "subscriptionWebPage": "فتح هذا العنوان صفحة ويب وليس اشتراكًا — تحقّق من الرابط في حسابك",
+        "foreignCoreTemplate": "القالب مُعدّ لنسخة نواة أخرى (مجموعة «الاختيار الذكي») — نواتنا لا تدعمه، اطلب من المزوّد النسخة العادية"
       }
     },
     "notices": {

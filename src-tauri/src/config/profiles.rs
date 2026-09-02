@@ -748,11 +748,15 @@ fn selected_nodes_need_confirmation(selected: &[PrfSelected], proxies: &Proxies)
     })
 }
 
+fn is_usable_replacement(candidate: &str, available_nodes: &[std::string::String]) -> bool {
+    !crate::constants::policies::is_builtin(candidate) && node_is_available(available_nodes, candidate)
+}
+
 fn first_available_favorite<'a>(favorites: &'a [String], available_nodes: &[std::string::String]) -> Option<&'a str> {
     favorites
         .iter()
         .map(|favorite| favorite.as_str())
-        .find(|favorite| node_is_available(available_nodes, favorite))
+        .find(|favorite| is_usable_replacement(favorite, available_nodes))
 }
 
 fn reconcile_selected_nodes(
@@ -800,7 +804,7 @@ fn reconcile_selected_nodes(
             let preferred_node = group
                 .now
                 .as_deref()
-                .filter(|current| node_is_available(available_nodes, current))
+                .filter(|current| is_usable_replacement(current, available_nodes))
                 .or_else(|| node_is_available(available_nodes, node).then_some(node.as_str()));
             if let Some(preferred_node) = preferred_node {
                 if preferred_node != node.as_str() {
@@ -811,7 +815,7 @@ fn reconcile_selected_nodes(
                     now: Some(preferred_node.into()),
                 });
             } else {
-                plan.repaired_count += 1;
+                plan.selected.push(selected_item.clone());
             }
             continue;
         }
@@ -834,14 +838,14 @@ fn reconcile_selected_nodes(
             continue;
         }
 
-        plan.repaired_count += 1;
         let replacement = first_available_favorite(favorites, available_nodes).or_else(|| {
             group
                 .now
                 .as_deref()
-                .filter(|current| node_is_available(available_nodes, current))
+                .filter(|current| is_usable_replacement(current, available_nodes))
         });
         if let Some(replacement) = replacement {
+            plan.repaired_count += 1;
             plan.selected.push(PrfSelected {
                 name: Some(group_name.clone()),
                 now: Some(replacement.into()),
@@ -849,6 +853,8 @@ fn reconcile_selected_nodes(
             if matches!(group.proxy_type, ProxyType::Selector) && group.now.as_deref() != Some(replacement) {
                 plan.activations.push((group_name.clone(), replacement.into()));
             }
+        } else {
+            plan.selected.push(selected_item.clone());
         }
     }
 
@@ -1362,7 +1368,7 @@ mod tests {
     }
 
     #[test]
-    fn removes_selection_when_group_or_fallback_is_invalid() {
+    fn removes_selection_only_when_the_group_itself_is_gone() {
         let snapshot = proxies(vec![("group", &["valid"], Some("invalid-current"))]);
         let plan = reconcile_selected_nodes(
             &[
@@ -1375,9 +1381,48 @@ mod tests {
             &snapshot,
         );
 
-        assert!(plan.selected.is_empty());
+        assert_eq!(plan.selected, vec![selected("group", "missing-node")]);
         assert!(plan.activations.is_empty());
-        assert_eq!(plan.repaired_count, 3);
+        assert_eq!(plan.repaired_count, 2);
+    }
+
+    #[test]
+    fn a_dead_group_never_overwrites_the_saved_node() {
+        let snapshot = proxies(vec![("group", &["REJECT"], Some("REJECT"))]);
+        let saved = vec![selected("group", "my-node")];
+
+        let plan = reconcile_selected_nodes(&saved, &[], Some(&snapshot), &snapshot);
+
+        assert_eq!(plan.selected, saved, "a builtin policy is not a replacement");
+        assert!(plan.activations.is_empty());
+        assert_eq!(
+            plan.repaired_count, 0,
+            "nothing was repaired, so the record must not be persisted"
+        );
+    }
+
+    #[test]
+    fn the_saved_node_is_restored_once_it_comes_back() {
+        let dead = proxies(vec![("group", &["REJECT"], Some("REJECT"))]);
+        let alive = proxies(vec![("group", &["REJECT", "my-node"], Some("REJECT"))]);
+        let saved = vec![selected("group", "my-node")];
+
+        let plan = reconcile_selected_nodes(&saved, &[], Some(&dead), &alive);
+
+        assert_eq!(plan.selected, saved);
+        assert_eq!(plan.activations, vec![("group".into(), "my-node".into())]);
+        assert_eq!(plan.repaired_count, 0);
+    }
+
+    #[test]
+    fn favorites_that_are_builtin_policies_are_skipped() {
+        let snapshot = proxies(vec![("group", &["REJECT", "fav"], Some("REJECT"))]);
+        let favorites: Vec<String> = vec!["REJECT".into(), "fav".into()];
+
+        let plan = reconcile_selected_nodes(&[selected("group", "gone")], &favorites, Some(&snapshot), &snapshot);
+
+        assert_eq!(plan.selected, vec![selected("group", "fav")]);
+        assert_eq!(plan.repaired_count, 1);
     }
 
     #[test]

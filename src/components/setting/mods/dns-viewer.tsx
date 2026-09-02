@@ -26,8 +26,14 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { BaseDialog, DialogRef, MonacoEditor, Switch } from '@/components/base'
+import {
+  BaseDialog,
+  type DialogRef,
+  MonacoEditor,
+  Switch,
+} from '@/components/base'
 import { useClash } from '@/hooks/use-clash'
+import { getRuntimeConfig } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { useThemeMode } from '@/services/states'
 import type { MonacoEditorInstance } from '@/types/monaco'
@@ -476,6 +482,16 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
 
         updateValuesFromConfig(config)
         setYamlContent(dnsConfig)
+        return
+      }
+
+      const runtimeDns = (await getRuntimeConfig())?.dns
+
+      if (runtimeDns && Object.keys(runtimeDns).length > 0) {
+        const config = { dns: runtimeDns }
+
+        updateValuesFromConfig(config)
+        setYamlContent(yaml.dump(config, { forceQuotes: true }))
       } else {
         resetToDefaults()
       }
@@ -656,6 +672,10 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
         sx={{ mb: 2, mt: 0, fontStyle: 'italic' }}
       >
         {t('settings.modals.dns.dialog.warning')}
+      </Typography>
+
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2, mt: -1 }}>
+        {t('settings.modals.dns.dialog.replacesSubscription')}
       </Typography>
 
       {visualization ? (

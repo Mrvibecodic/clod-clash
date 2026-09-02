@@ -54,14 +54,22 @@ const resolveNoticeMessage = (
   if (!i18n) return notice.message
 
   const params = (i18n.params ?? {}) as Record<string, unknown>
-  const { prefixKey, prefixParams, prefix, message, ...restParams } = params
+  const {
+    prefixKey,
+    prefixParams,
+    prefix,
+    message,
+    explanationKey,
+    rawFull: _rawFull,
+    ...restParams
+  } = params
 
   const prefixKeyParams =
     prefixParams && typeof prefixParams === 'object'
       ? (prefixParams as Record<string, unknown>)
       : undefined
 
-  const resolvedPrefix =
+  const basePrefix =
     typeof prefixKey === 'string'
       ? t(prefixKey as TranslationKey, {
           defaultValue: prefixKey,
@@ -71,6 +79,19 @@ const resolveNoticeMessage = (
       : typeof prefix === 'string'
         ? prefix
         : undefined
+
+  const explanation =
+    typeof explanationKey === 'string'
+      ? t(explanationKey as TranslationKey, {
+          defaultValue: explanationKey,
+          ...restParams,
+        })
+      : undefined
+
+  const resolvedPrefix =
+    basePrefix && explanation
+      ? `${basePrefix} · ${explanation}`
+      : (basePrefix ?? explanation)
 
   const messageStr = typeof message === 'string' ? message : undefined
 
@@ -136,6 +157,9 @@ const resolveNoticeCopyText = (
   notice: NoticeItem,
   t: TranslationFn,
 ): string | undefined => {
+  const fullRaw = extractNoticeCopyText(notice.i18n?.params?.rawFull)
+  if (fullRaw) return fullRaw
+
   if (
     notice.i18n?.key === 'shared.feedback.notices.prefixedRaw' ||
     notice.i18n?.key === 'shared.feedback.notices.raw'

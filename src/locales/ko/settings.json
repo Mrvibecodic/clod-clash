@@ -233,9 +233,14 @@
           "latestVersion": "현재 최신 버전입니다",
           "versionCopied": "버전이 클립보드에 복사되었습니다"
         },
+        "messages": {
+          "noProfileSelected": "선택된 프로필이 없습니다",
+          "profileFileError": "프로필 파일을 읽지 못했습니다"
+        },
         "fields": {
           "backupSetting": "백업 설정",
           "runtimeConfig": "런타임 구성",
+          "providerConfig": "제공자가 보낸 그대로",
           "openConfDir": "설정 디렉터리 열기",
           "openCoreDir": "코어 디렉터리 열기",
           "openLogsDir": "로그 디렉터리 열기",
@@ -515,13 +520,15 @@
         "invalidRouteExcludeAddress": "유효한 CIDR 대역을 입력하세요",
         "routeExcludeAddressHint": "IPv4/IPv6 CIDR만 지원합니다. 예: 192.168.0.0/16 또는 fd00::/8",
         "activeStack": "적용된 스택: {{stack}}",
+        "subscriptionStackCapped": "제공자가 {{stack}} 스택을 요청했지만, Windows에서는 방화벽에서 코어를 수동으로 허용해야 하므로 gvisor를 사용합니다.",
         "windowsStackFirewall": "Windows에서 system 및 mixed 스택은 방화벽에서 코어의 인바운드 연결을 허용해야 합니다. 허용하지 않으면 터널 트래픽이 흐르지 않습니다"
       }
     },
     "dns": {
       "dialog": {
         "title": "DNS 덮어쓰기",
-        "warning": "이 설정에 익숙하지 않다면 수정하지 말고 DNS 덮어쓰기를 비활성화 상태로 유지하세요"
+        "warning": "이 설정에 익숙하지 않다면 수정하지 말고 DNS 덮어쓰기를 비활성화 상태로 유지하세요",
+        "replacesSubscription": "이 설정은 구독의 DNS 블록을 완전히 대체합니다."
       },
       "sections": {
         "general": "DNS 설정",

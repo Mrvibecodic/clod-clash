@@ -301,6 +301,8 @@ export async function getProfileBackground(uid: string) {
 export interface ISentinelReport {
   remarks: string[]
   only_sentinels: boolean
+  partially_dropped: boolean
+  dropped_total: number
 }
 
 export async function getSentinelReport() {

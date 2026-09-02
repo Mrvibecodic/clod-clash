@@ -56,13 +56,15 @@
         "deviceNotIdentified": "لم يتعرف اللوحة على هذا الجهاز ولم تُصدر أي خوادم."
       },
       "panelSays": "The panel says: “{{text}}”",
+      "partiallyDropped": "Hidden servers that cannot connect: {{total}} ({{names}})",
       "refresh": "Update subscription",
       "row": {
         "expired": "Subscription expired — renew to connect",
         "traffic": "Out of traffic — resets on {{date}}",
         "trafficNoDate": "Out of traffic",
         "provider": "The provider sent no servers",
-        "deviceLimit": "تم بلوغ حد الأجهزة"
+        "deviceLimit": "تم بلوغ حد الأجهزة",
+        "partiallyDropped": "Hidden servers that cannot connect: {{total}}"
       }
     },
     "quickActions": {

@@ -56,13 +56,15 @@
         "deviceNotIdentified": "パネルがこのデバイスを認識できず、サーバーを配信しませんでした。"
       },
       "panelSays": "The panel says: “{{text}}”",
+      "partiallyDropped": "接続できず非表示にしたサーバー: {{total}}（{{names}}）",
       "refresh": "Update subscription",
       "row": {
         "expired": "Subscription expired — renew to connect",
         "traffic": "Out of traffic — resets on {{date}}",
         "trafficNoDate": "Out of traffic",
         "provider": "The provider sent no servers",
-        "deviceLimit": "デバイス数の上限に達しました"
+        "deviceLimit": "デバイス数の上限に達しました",
+        "partiallyDropped": "接続できず非表示にしたサーバー: {{total}}"
       }
     },
     "quickActions": {

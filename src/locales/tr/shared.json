@@ -91,7 +91,10 @@
         "chanReplay": "The subscription response does not answer our request — check the clock on this computer and try again",
         "chanRefused": "The middleware refused the secure request — the connection to it is being blocked, or the protection is off",
         "chanBadUrl": "This subscription address cannot be used with a secure connection",
-        "subscriptionHttpsOnly": "Abonelik adresi https ile başlamalı — sağlayıcı panelinde değiştirin veya aboneliği yeniden ekleyin"
+        "subscriptionHttpsOnly": "Abonelik adresi https ile başlamalı — sağlayıcı panelinde değiştirin veya aboneliği yeniden ekleyin",
+        "subscriptionLinkList": "Panel yapılandırma yerine bir bağlantı listesi gönderdi — istemciyi tanımadı: panelde ^ClodClash/ istemcisi için MIHOMO biçiminde bir kural eklemesini sağlayıcıdan isteyin",
+        "subscriptionWebPage": "Bu adreste abonelik değil bir web sayfası açıldı — bağlantıyı hesabınızdan kontrol edin",
+        "foreignCoreTemplate": "Şablon başka bir çekirdek sürümü için hazırlanmış («akıllı seçim» grubu) — çekirdeğimiz desteklemiyor, sağlayıcıdan normal sürümü isteyin"
       }
     },
     "notices": {

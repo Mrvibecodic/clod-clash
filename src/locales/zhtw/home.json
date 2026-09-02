@@ -56,13 +56,15 @@
         "deviceNotIdentified": "面板未能辨識此裝置，因此沒有下發伺服器。"
       },
       "panelSays": "The panel says: “{{text}}”",
+      "partiallyDropped": "已隱藏無法連線的伺服器：{{total}}（{{names}}）",
       "refresh": "Update subscription",
       "row": {
         "expired": "Subscription expired — renew to connect",
         "traffic": "Out of traffic — resets on {{date}}",
         "trafficNoDate": "Out of traffic",
         "provider": "The provider sent no servers",
-        "deviceLimit": "已達裝置數量上限"
+        "deviceLimit": "已達裝置數量上限",
+        "partiallyDropped": "已隱藏無法連線的伺服器：{{total}}"
       }
     },
     "quickActions": {

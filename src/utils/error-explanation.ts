@@ -28,6 +28,10 @@ const RULES: ReadonlyArray<{ pattern: RegExp; key: string }> = [
   { pattern: /clod-chan-refused/, key: 'chanRefused' },
   { pattern: /clod-chan-bad-url/, key: 'chanBadUrl' },
 
+  { pattern: /clod-sub-link-list/, key: 'subscriptionLinkList' },
+  { pattern: /clod-sub-web-page/, key: 'subscriptionWebPage' },
+  { pattern: /clod-sub-foreign-core/, key: 'foreignCoreTemplate' },
+
   // --- Адрес подписки ------------------------------------------------------
   { pattern: /subscription url must use https/, key: 'subscriptionHttpsOnly' },
 
@@ -67,14 +71,15 @@ const RULES: ReadonlyArray<{ pattern: RegExp; key: string }> = [
 
   // --- Конфигурация --------------------------------------------------------
   {
-    pattern: /yaml|cannot unmarshal|unmarshal errors|invalid config/,
-    key: 'badConfig',
-  },
-  {
     pattern: /unsupported proxy type|unsupport proxy type|unsupported type/,
     key: 'unsupportedProxy',
   },
   { pattern: /proxy .* not found|proxy not found/, key: 'proxyNotFound' },
+  {
+    pattern:
+      /(?:^|[^\w.\-/\\])yaml\b|cannot unmarshal|unmarshal errors|invalid config/,
+    key: 'badConfig',
+  },
 
   // --- Туннель -------------------------------------------------------------
   {
@@ -96,6 +101,19 @@ const RULES: ReadonlyArray<{ pattern: RegExp; key: string }> = [
 /** Максимум исходного текста рядом с объяснением. */
 export const RAW_TAIL_LIMIT = 160
 
+const CORE_LOG_PREFIX = /^time="[^"]*"\s+level=[a-z]+\s+msg="/i
+
+const CORE_LOG_CLOSING_QUOTE = /(?:^|[^\\])(?:\\\\)*"$/
+
+export const stripCoreLogPrefix = (raw: string): string => {
+  const compact = raw.trim()
+  const prefix = CORE_LOG_PREFIX.exec(compact)
+  if (!prefix) return raw
+  const body = compact.slice(prefix[0].length)
+  const unquoted = CORE_LOG_CLOSING_QUOTE.test(body) ? body.slice(0, -1) : body
+  return unquoted.replace(/\\(["\\])/g, '$1')
+}
+
 /**
  * Ключ объяснения для сырого текста ошибки, если он узнан.
  *
@@ -103,14 +121,14 @@ export const RAW_TAIL_LIMIT = 160
  * префикс — словарь и его расположение остаются одной деталью реализации.
  */
 export const explainErrorKey = (raw: string): string | undefined => {
-  const text = raw.toLowerCase()
+  const text = stripCoreLogPrefix(raw).toLowerCase()
   const rule = RULES.find(({ pattern }) => pattern.test(text))
   return rule ? `shared.feedback.errors.core.${rule.key}` : undefined
 }
 
 /** Обрезать исходный текст до хвоста, который ещё уместно показать рядом. */
 export const trimRawError = (raw: string): string => {
-  const compact = raw.replace(/\s+/g, ' ').trim()
+  const compact = stripCoreLogPrefix(raw).replace(/\s+/g, ' ').trim()
   return compact.length > RAW_TAIL_LIMIT
     ? `${compact.slice(0, RAW_TAIL_LIMIT - 1)}…`
     : compact

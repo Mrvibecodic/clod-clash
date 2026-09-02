@@ -30,7 +30,7 @@ pub async fn read_mapping(path: &PathBuf) -> Result<Mapping> {
 
     match serde_yaml_ng::from_str::<serde_yaml_ng::Value>(&yaml_str) {
         Ok(mut val) => {
-            val.apply_merge()
+            apply_merge_transitively(&mut val, &path.display().to_string())
                 .with_context(|| format!("failed to apply merge \"{}\"", path.display()))?;
 
             match val {
@@ -47,6 +47,47 @@ pub async fn read_mapping(path: &PathBuf) -> Result<Mapping> {
             bail!("YAML syntax error: {}", err)
         }
     }
+}
+
+const MAX_MERGE_PASSES: usize = 16;
+
+fn contains_merge_key(root: &Value) -> bool {
+    let mut stack = vec![root];
+
+    while let Some(node) = stack.pop() {
+        match node {
+            Value::Mapping(map) => {
+                if map.contains_key("<<") {
+                    return true;
+                }
+                stack.extend(map.values());
+            }
+            Value::Sequence(items) => stack.extend(items.iter()),
+            Value::Tagged(tagged) => stack.push(&tagged.value),
+            _ => {}
+        }
+    }
+
+    false
+}
+
+fn apply_merge_transitively(value: &mut Value, source: &str) -> Result<()> {
+    for _ in 0..MAX_MERGE_PASSES {
+        value.apply_merge()?;
+        if !contains_merge_key(value) {
+            return Ok(());
+        }
+    }
+
+    logging!(
+        warn,
+        Type::Config,
+        "YAML merge keys in {} are still not resolved after {} passes",
+        source,
+        MAX_MERGE_PASSES
+    );
+
+    Ok(())
 }
 
 pub async fn read_seq_map(path: &PathBuf) -> Result<SeqMap> {
@@ -323,7 +364,8 @@ pub fn snapshot_path(original_path: &Path) -> Result<PathBuf> {
 #[allow(clippy::expect_used)]
 mod tests {
     use super::{
-        is_placeholder_secret, is_staging_leftover, random_secret, staging_path, sweep_staging_leftovers, write_atomic,
+        apply_merge_transitively, contains_merge_key, is_placeholder_secret, is_staging_leftover, random_secret,
+        staging_path, sweep_staging_leftovers, write_atomic,
     };
     use std::path::PathBuf;
 
@@ -405,5 +447,51 @@ mod tests {
         assert!(is_placeholder_secret(""));
         assert!(is_placeholder_secret("set-your-secret"));
         assert!(!is_placeholder_secret(&random_secret()));
+    }
+
+    #[test]
+    fn nested_anchors_are_expanded_for_providers() {
+        let mut doc = serde_yaml_ng::from_str::<serde_yaml_ng::Value>(
+            r#"
+x-anchors:
+  pr_http: &pr_http
+    type: http
+    interval: 86400
+  rp_domain: &rp_domain
+    <<: *pr_http
+    behavior: domain
+    proxy: "VPN"
+proxy-providers:
+  ru-bundle:
+    <<: *rp_domain
+    url: https://example.net/ru.mrs
+    interval: 3600
+"#,
+        )
+        .expect("valid yaml");
+
+        apply_merge_transitively(&mut doc, "test").expect("merge should expand");
+
+        assert!(!contains_merge_key(&doc), "no merge key must survive");
+
+        let provider = doc
+            .get("proxy-providers")
+            .and_then(|value| value.get("ru-bundle"))
+            .and_then(serde_yaml_ng::Value::as_mapping)
+            .expect("provider mapping");
+
+        assert_eq!(
+            provider.get("type").and_then(serde_yaml_ng::Value::as_str),
+            Some("http")
+        );
+        assert_eq!(
+            provider.get("behavior").and_then(serde_yaml_ng::Value::as_str),
+            Some("domain")
+        );
+        assert_eq!(
+            provider.get("interval").and_then(serde_yaml_ng::Value::as_u64),
+            Some(3600),
+            "an explicit key must win over the one inherited from an anchor"
+        );
     }
 }

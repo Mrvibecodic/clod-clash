@@ -233,9 +233,14 @@
           "latestVersion": "أنت على أحدث إصدار حاليًا",
           "versionCopied": "Version copied to clipboard"
         },
+        "messages": {
+          "noProfileSelected": "No profile selected",
+          "profileFileError": "Error getting profile file"
+        },
         "fields": {
           "backupSetting": "إعداد النسخ الاحتياطي",
           "runtimeConfig": "تكوين وقت التشغيل",
+          "providerConfig": "As the provider sent it",
           "openConfDir": "فتح مجلد التكوين",
           "openCoreDir": "فتح مجلد النواة",
           "openLogsDir": "فتح مجلد السجلات",
@@ -515,13 +520,15 @@
         "invalidRouteExcludeAddress": "يرجى إدخال نطاق CIDR صالح",
         "routeExcludeAddressHint": "يتم دعم CIDR لـ IPv4/IPv6 فقط، مثل 192.168.0.0/16 أو fd00::/8",
         "activeStack": "المكدّس المفعّل: {{stack}}",
+        "subscriptionStackCapped": "The provider asked for the {{stack}} stack; on Windows it needs the core allowed through the firewall by hand, so gvisor is used instead.",
         "windowsStackFirewall": "على Windows يتطلب مكدّسا system و mixed السماح للنواة بالاتصالات الواردة في جدار الحماية — وبدونه لن يمر مرور النفق"
       }
     },
     "dns": {
       "dialog": {
         "title": "DNS Overwrite",
-        "warning": "If you are not familiar with these settings, please do not modify them and keep DNS Overwrite disabled"
+        "warning": "If you are not familiar with these settings, please do not modify them and keep DNS Overwrite disabled",
+        "replacesSubscription": "These settings fully replace the DNS block from the subscription."
       },
       "sections": {
         "general": "DNS Settings",

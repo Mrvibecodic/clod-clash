@@ -233,9 +233,14 @@
           "latestVersion": "Sie verwenden bereits die neueste Version",
           "versionCopied": "Version copied to clipboard"
         },
+        "messages": {
+          "noProfileSelected": "Kein Profil ausgewählt",
+          "profileFileError": "Profildatei konnte nicht gelesen werden"
+        },
         "fields": {
           "backupSetting": "Sicherungseinstellungen",
           "runtimeConfig": "Aktuelle Konfiguration",
+          "providerConfig": "Wie vom Anbieter gesendet",
           "openConfDir": "Konfigurationsverzeichnis",
           "openCoreDir": "Kernverzeichnis",
           "openLogsDir": "Protokollverzeichnis",
@@ -515,13 +520,15 @@
         "invalidRouteExcludeAddress": "Bitte geben Sie einen gültigen CIDR-Block ein",
         "routeExcludeAddressHint": "Es werden nur IPv4-/IPv6-CIDR-Blöcke unterstützt, z. B. 192.168.0.0/16 oder fd00::/8",
         "activeStack": "Aktiver Stack: {{stack}}",
+        "subscriptionStackCapped": "Der Anbieter hat den Stack {{stack}} angefordert; unter Windows muss der Core dafür manuell in der Firewall freigegeben werden, daher wird gvisor verwendet.",
         "windowsStackFirewall": "Unter Windows müssen die Stacks system und mixed für den Kern in der Firewall für eingehende Verbindungen freigegeben werden — sonst fließt kein Tunnelverkehr"
       }
     },
     "dns": {
       "dialog": {
         "title": "DNS-Überschreibung",
-        "warning": "Wenn Sie sich nicht mit diesen Einstellungen auskennen, ändern Sie sie nicht und lassen Sie die DNS-Überschreibung deaktiviert."
+        "warning": "Wenn Sie sich nicht mit diesen Einstellungen auskennen, ändern Sie sie nicht und lassen Sie die DNS-Überschreibung deaktiviert.",
+        "replacesSubscription": "Diese Einstellungen ersetzen den DNS-Block aus dem Abonnement vollständig."
       },
       "sections": {
         "general": "DNS-Einstellungen",
