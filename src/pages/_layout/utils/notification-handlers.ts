@@ -1,6 +1,8 @@
 import { Fragment, type KeyboardEvent, createElement } from 'react'
 
+import { patchVergeConfig } from '@/services/cmds'
 import { hideNotice, showNotice } from '@/services/notice-service'
+import { revalidateQueries } from '@/services/query-client'
 import getSystem from '@/utils/get-system'
 
 const OS = getSystem()
@@ -10,6 +12,50 @@ type TranslateFunction = (
   key: string,
   params?: Record<string, unknown>,
 ) => string
+
+const offerToTurnTheProxyOff = (
+  messageKey: string,
+  t: TranslateFunction,
+): void => {
+  let id = 0
+  const disableProxy = () => {
+    patchVergeConfig({ enable_system_proxy: false })
+      .then(() => {
+        hideNotice(id)
+        return revalidateQueries([
+          ['getVergeConfig'],
+          ['getSystemProxy'],
+          ['getAutotemProxy'],
+        ])
+      })
+      .catch((err) => showNotice.error(err))
+  }
+  id = showNotice.error(
+    createElement(
+      Fragment,
+      null,
+      t(messageKey),
+      ' ',
+      createElement(
+        'a',
+        {
+          role: 'button',
+          tabIndex: 0,
+          onClick: disableProxy,
+          onKeyDown: (event: KeyboardEvent<HTMLAnchorElement>) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault()
+              disableProxy()
+            }
+          },
+          style: { cursor: 'pointer', textDecoration: 'underline' },
+        },
+        t('settings.sections.system.notifications.sysproxy.turnOffAction'),
+      ),
+    ),
+    0,
+  )
+}
 
 export const handleNoticeMessage = (
   status: string,
@@ -178,6 +224,21 @@ export const handleNoticeMessage = (
         0,
       )
     },
+    'sysproxy::core_gave_up': () =>
+      offerToTurnTheProxyOff(
+        'settings.sections.system.notifications.sysproxy.coreGaveUp',
+        t,
+      ),
+    'sysproxy::core_not_running': () =>
+      offerToTurnTheProxyOff(
+        'settings.sections.system.notifications.sysproxy.coreNotRunning',
+        t,
+      ),
+    'sysproxy::write_failed': () =>
+      showNotice.error(
+        'settings.sections.system.notifications.sysproxy.writeFailed',
+        msg,
+      ),
     'core::binary_changed': () =>
       showNotice.error(
         'settings.sections.system.notifications.core.binaryChanged',

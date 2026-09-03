@@ -19,6 +19,12 @@
         "connectOnLaunch": "Connect on launch"
       },
       "notifications": {
+        "sysproxy": {
+          "coreGaveUp": "The core stopped restarting, but the system proxy still points at it — nothing will go through it until the proxy is off or the core runs again.",
+          "coreNotRunning": "The system proxy was not turned on: the core is not running.",
+          "turnOffAction": "Turn the system proxy off",
+          "writeFailed": "The system did not accept the proxy settings."
+        },
         "tunMode": {
           "autoDisabled": "The TUN adapter could not be created, so TUN is off. Try turning it on again; the details are in the application log",
           "noRights": "There were not enough rights to create the tunnel, so TUN is off. Install the background service in the advanced settings or run the application as administrator",

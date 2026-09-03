@@ -116,7 +116,10 @@ pub fn embed_server() {
         let pac_port = verge_data
             .verge_mixed_port
             .unwrap_or_else(|| clash_data.get_mixed_port());
-        let processed_content = pac_content.replace("%mixed-port%", &format!("{pac_port}"));
+        let proxy_host = verge_data.proxy_host.as_deref().unwrap_or("127.0.0.1");
+        let processed_content = pac_content
+            .replace("%mixed-port%", &format!("{pac_port}"))
+            .replace("%proxy_host%", proxy_host);
         Ok::<_, warp::Rejection>(
             warp::http::Response::builder()
                 .header("Content-Type", "application/x-ns-proxy-autoconfig")

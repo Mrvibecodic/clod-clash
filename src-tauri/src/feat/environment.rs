@@ -18,6 +18,19 @@ const SLEEP_SLACK: Duration = Duration::from_secs(20);
 
 const FINGERPRINT_ENTRIES_SHOWN: usize = 8;
 
+fn is_our_tunnel(name: &str) -> bool {
+    let name = name.to_lowercase();
+    name.contains("mihomo") || name.starts_with("utun") || name == "meta"
+}
+
+fn v6_prefix(ip: std::net::Ipv6Addr) -> std::string::String {
+    let segments = ip.segments();
+    format!(
+        "{:x}:{:x}:{:x}:{:x}::/64",
+        segments[0], segments[1], segments[2], segments[3]
+    )
+}
+
 fn network_fingerprint() -> BTreeSet<std::string::String> {
     let Ok(interfaces) = crate::cmd::network::get_network_interfaces_info() else {
         return BTreeSet::from([std::string::String::from("<unknown>")]);
@@ -25,10 +38,7 @@ fn network_fingerprint() -> BTreeSet<std::string::String> {
 
     interfaces
         .into_iter()
-        .filter(|interface| {
-            let name = interface.name.to_lowercase();
-            !name.contains("mihomo") && !name.starts_with("utun")
-        })
+        .filter(|interface| !is_our_tunnel(&interface.name))
         .flat_map(|interface| {
             let name = interface.name.clone();
             interface
@@ -36,7 +46,7 @@ fn network_fingerprint() -> BTreeSet<std::string::String> {
                 .into_iter()
                 .map(move |addr| match addr {
                     network_interface::Addr::V4(v4) => format!("{name}:{}", v4.ip),
-                    network_interface::Addr::V6(v6) => format!("{name}:{}", v6.ip),
+                    network_interface::Addr::V6(v6) => format!("{name}:{}", v6_prefix(v6.ip)),
                 })
                 .collect::<Vec<_>>()
         })
@@ -116,12 +126,21 @@ async fn reconcile(reason: &str, slept: bool) {
     let verge = Config::verge().await.latest_arc();
     let wants_sysproxy = verge.enable_system_proxy.unwrap_or(false);
     let verbose = verge.verbose_diagnostics();
+    let may_close_connections = verge.auto_close_connection();
     drop(verge);
-    if wants_sysproxy && let Err(e) = Sysopt::global().update_sysproxy().await {
-        logging!(warn, Type::Core, "[clod] failed to re-assert the system proxy: {e}");
+    if wants_sysproxy {
+        let was_failing = Sysopt::global().write_failed();
+        if let Err(e) = Sysopt::global().update_sysproxy().await {
+            logging!(warn, Type::Core, "[clod] failed to re-assert the system proxy: {e}");
+            if !was_failing {
+                handle::Handle::notice_message("sysproxy::write_failed", e.to_string());
+            }
+        }
     }
 
-    close_live_connections(verbose).await;
+    if may_close_connections {
+        close_live_connections(verbose).await;
+    }
 
     if slept {
         crate::feat::tun::rearm_after_wake().await;

@@ -78,7 +78,14 @@ pub fn resolve_setup_async() {
             init_core_manager().await;
             let core_is_up = !matches!(*CoreManager::global().get_running_mode(), RunningMode::NotRunning);
             let wants_proxy = Config::verge().await.latest_arc().enable_system_proxy.unwrap_or(false);
-            if core_is_up || !wants_proxy {
+            if !wants_proxy {
+                logging!(
+                    info,
+                    Type::Setup,
+                    "системный прокси выключен — настройки прокси в системе не трогаем"
+                );
+                init_connect_targets().await;
+            } else if core_is_up {
                 init_system_proxy().await;
             } else {
                 logging!(
@@ -87,6 +94,8 @@ pub fn resolve_setup_async() {
                     "ядро не запустилось — системный прокси на мёртвый порт не ставим и снимаем прежний"
                 );
                 logging_error!(Type::Setup, sysopt::Sysopt::global().reset_sysproxy().await);
+                Handle::notice_message("sysproxy::core_not_running", "");
+                init_connect_targets().await;
             }
             init_system_proxy_guard().await;
             init_tun_ready().await;
@@ -253,7 +262,10 @@ pub(super) async fn init_launch_connect_state() {
 
 pub(super) async fn init_system_proxy() {
     logging_error!(Type::Setup, sysopt::Sysopt::global().update_sysproxy().await);
+    init_connect_targets().await;
+}
 
+pub(super) async fn init_connect_targets() {
     let verge = Config::verge().await.latest_arc();
     let active = verge.enable_system_proxy.unwrap_or(false) || verge.enable_tun_mode.unwrap_or(false);
     crate::feat::record_connect_targets(active);

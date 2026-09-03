@@ -121,6 +121,13 @@ fn handle_core_exit(message: &str, expected: &RunningMode, terminated_pid: Optio
             attempt
         );
         handle::Handle::notice_message("core::crashed", message.to_owned());
+        AsyncHandler::spawn(|| async {
+            if !Config::verge().await.latest_arc().enable_system_proxy.unwrap_or(false) {
+                return;
+            }
+            crate::core::sysopt::Sysopt::global().stop_proxy_guard();
+            handle::Handle::notice_message("sysproxy::core_gave_up", "");
+        });
         return;
     }
 

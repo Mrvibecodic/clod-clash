@@ -13,14 +13,7 @@ import {
   Typography,
 } from '@mui/material'
 import { useLockFn } from 'ahooks'
-import {
-  forwardRef,
-  useEffect,
-  useImperativeHandle,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+import { forwardRef, useImperativeHandle, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -35,21 +28,10 @@ import { EditorViewer } from '@/components/profile/editor-viewer'
 import { useSystemProxyState } from '@/hooks/use-system-proxy-state'
 import { useVerge } from '@/hooks/use-verge'
 import { useClashConfigData, useSystemData } from '@/providers/app-data-context'
-import {
-  getAutotemProxy,
-  getNetworkInterfacesInfo,
-  getSystemHostname,
-  getSystemProxy,
-  patchVergeConfig,
-} from '@/services/cmds'
+import { getNetworkInterfacesInfo, getSystemHostname } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { debugLog } from '@/utils/debug'
 import getSystem from '@/utils/get-system'
-
-const sleep = (ms: number) =>
-  new Promise<void>((resolve) => {
-    setTimeout(resolve, ms)
-  })
 
 const DEFAULT_PAC = `function FindProxyForURL(url, host) {
   return "PROXY %proxy_host%:%mixed-port%; SOCKS5 %proxy_host%:%mixed-port%; DIRECT;";
@@ -146,38 +128,6 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
     }
     return '127.0.0.1,192.168.0.0/16,10.0.0.0/8,172.16.0.0/12,localhost,*.local,*.crashlytics.com,<local>'
   }
-
-  const prevMixedPortRef = useRef(clashConfig?.mixedPort)
-
-  useEffect(() => {
-    const mixedPort = clashConfig?.mixedPort
-    if (!mixedPort || mixedPort === prevMixedPortRef.current) {
-      return
-    }
-
-    prevMixedPortRef.current = mixedPort
-    if (!enabled) {
-      return
-    }
-
-    const updateProxy = async () => {
-      try {
-        const currentSysProxy = await getSystemProxy()
-        const currentAutoProxy = await getAutotemProxy()
-
-        if (value.pac ? currentAutoProxy?.enable : currentSysProxy?.enable) {
-          await patchVergeConfig({ enable_system_proxy: false })
-          await sleep(200)
-          await patchVergeConfig({ enable_system_proxy: true })
-          await invalidateProxyState()
-        }
-      } catch (err) {
-        showNotice.error(err)
-      }
-    }
-
-    updateProxy()
-  }, [clashConfig?.mixedPort, enabled, value.pac, invalidateProxyState])
 
   const { systemProxyAddress } = useSystemData()
 
@@ -365,13 +315,7 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
       patch.use_default_bypass = value.use_default
     }
 
-    let pacContent = value.pac_content
-    if (pacContent) {
-      pacContent = pacContent.replace(/%proxy_host%/g, value.proxy_host)
-      // Преобразуем mixed-port в строку
-      const mixedPortStr = (clashConfig?.mixedPort || '').toString()
-      pacContent = pacContent.replace(/%mixed-port%/g, mixedPortStr)
-    }
+    const pacContent = value.pac_content
 
     if (pacContent !== pac_file_content) {
       patch.pac_file_content = pacContent
@@ -391,14 +335,6 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
       patch.proxy_host = proxyHost
     }
 
-    // Определяем, нужно ли сбросить системный прокси
-    const needResetProxy =
-      value.pac !== proxy_auto_config ||
-      proxyHost !== proxy_host ||
-      pacContent !== pac_file_content ||
-      value.bypass !== system_proxy_bypass ||
-      value.use_default !== use_default_bypass
-
     Promise.resolve().then(async () => {
       try {
         // Оптимистично обновляем локальное состояние
@@ -408,32 +344,7 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
         if (Object.keys(patch).length > 0) {
           await patchVerge(patch)
         }
-        setTimeout(async () => {
-          try {
-            await invalidateProxyState()
-
-            // Если нужно сбросить прокси и прокси сейчас включён
-            if (needResetProxy && enabled) {
-              const [currentSysProxy, currentAutoProxy] = await Promise.all([
-                getSystemProxy(),
-                getAutotemProxy(),
-              ])
-
-              const isProxyActive = value.pac
-                ? currentAutoProxy?.enable
-                : currentSysProxy?.enable
-
-              if (isProxyActive) {
-                await patchVergeConfig({ enable_system_proxy: false })
-                await new Promise((resolve) => setTimeout(resolve, 50))
-                await patchVergeConfig({ enable_system_proxy: true })
-                await invalidateProxyState()
-              }
-            }
-          } catch (err) {
-            console.warn('Не удалось обновить состояние прокси:', err)
-          }
-        }, 50)
+        await invalidateProxyState()
       } catch (err) {
         console.error('Не удалось сохранить конфигурацию:', err)
         mutateVerge()

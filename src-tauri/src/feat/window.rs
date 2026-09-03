@@ -41,13 +41,8 @@ pub async fn clean_async() -> bool {
     logging!(info, Type::System, "начало асинхронной очистки...");
 
     let proxy_task = tokio::task::spawn(async {
-        let sys_proxy_enabled = Config::verge().await.data_arc().enable_system_proxy.unwrap_or(false);
-        if !sys_proxy_enabled && !sysopt::Sysopt::global().we_applied_system_proxy() {
-            logging!(
-                info,
-                Type::Window,
-                "системный прокси не включён и нами не ставился, сброс пропущен"
-            );
+        if !sysopt::Sysopt::global().we_applied_system_proxy() {
+            logging!(info, Type::Window, "системный прокси нами не ставился, сброс пропущен");
             return true;
         }
 

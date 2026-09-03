@@ -58,13 +58,21 @@ export const useSystemProxyState = () => {
         const target = pendingRef.current
         pendingRef.current = null
         await patchVerge({ enable_system_proxy: target })
-        if (!target && verge?.auto_close_connection) {
+        if (
+          !target &&
+          verge?.auto_close_connection &&
+          !verge?.enable_tun_mode
+        ) {
           await closeAllConnections().catch(() => {})
         }
       }
     } finally {
       busyRef.current = false
-      await revalidateQueries([['getSystemProxy'], ['getAutotemProxy']])
+      await revalidateQueries([
+        ['getVergeConfig'],
+        ['getSystemProxy'],
+        ['getAutotemProxy'],
+      ])
     }
   }
 

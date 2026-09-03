@@ -10,9 +10,11 @@ pub async fn toggle_system_proxy() -> bool {
     let verge = Config::verge().await;
     let current = verge.latest_arc().enable_system_proxy.unwrap_or(false);
     let auto_close_connection = verge.latest_arc().auto_close_connection();
+    let tun_carries_traffic = verge.latest_arc().enable_tun_mode.unwrap_or(false);
 
     if current
         && auto_close_connection
+        && !tun_carries_traffic
         && let Err(err) = handle::Handle::mihomo().await.close_all_connections().await
     {
         logging!(error, Type::ProxyMode, "Failed to close all connections: {err}");
@@ -36,6 +38,7 @@ pub async fn toggle_system_proxy() -> bool {
         }
         Err(err) => {
             logging!(error, Type::ProxyMode, "{err}");
+            handle::Handle::notice_message("sysproxy::write_failed", err.to_string());
             current
         }
     }

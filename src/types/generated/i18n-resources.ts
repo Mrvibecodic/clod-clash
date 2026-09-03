@@ -1319,6 +1319,12 @@ export interface TranslationResources {
             service: {
               needsRepair: string
             }
+            sysproxy: {
+              coreGaveUp: string
+              coreNotRunning: string
+              turnOffAction: string
+              writeFailed: string
+            }
             tunMode: {
               adapterBusy: string
               autoDisabled: string

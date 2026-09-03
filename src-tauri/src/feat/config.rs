@@ -172,6 +172,8 @@ fn determine_update_flags(patch: &IVerge) -> UpdateFlags {
         || pac.is_some()
         || enable_proxy_guard.is_some()
         || proxy_guard_duration.is_some()
+        || patch.proxy_host.is_some()
+        || patch.use_default_bypass.is_some()
     {
         update_flags.insert(UpdateFlags::SYS_PROXY);
     }
@@ -242,8 +244,22 @@ async fn process_terminated_flags(update_flags: UpdateFlags, patch: &IVerge) -> 
         clash_verge_i18n::set_locale(language.as_str());
     }
     if update_flags.contains(UpdateFlags::SYS_PROXY) {
-        sysopt::Sysopt::global().update_sysproxy().await?;
-        sysopt::Sysopt::global().refresh_guard().await;
+        if patch.enable_system_proxy == Some(true)
+            && matches!(
+                *CoreManager::global().get_running_mode(),
+                crate::core::manager::RunningMode::NotRunning
+            )
+        {
+            logging!(
+                error,
+                Type::Setup,
+                "ядро не запущено — системный прокси в систему не пишем"
+            );
+            handle::Handle::notice_message("sysproxy::core_not_running", "");
+        } else {
+            sysopt::Sysopt::global().update_sysproxy().await?;
+            sysopt::Sysopt::global().refresh_guard().await;
+        }
     }
     if update_flags.contains(UpdateFlags::HOTKEY)
         && let Some(hotkeys) = &patch.hotkeys
@@ -313,6 +329,10 @@ pub async fn patch_verge(patch: &IVerge, not_save_file: bool) -> Result<()> {
         if let Err(err) = restart_core_for_patch().await {
             Config::verge().await.discard();
             return Err(err);
+        }
+        if Config::verge().await.latest_arc().enable_system_proxy.unwrap_or(false) {
+            logging_error!(Type::Setup, sysopt::Sysopt::global().update_sysproxy().await);
+            sysopt::Sysopt::global().refresh_guard().await;
         }
         true
     } else {
