@@ -1,24 +1,97 @@
 use crate::{
     config::Config,
     constants::timing,
-    core::{handle, sysopt::Sysopt},
+    core::{handle, sysopt::Sysopt, sysopt::verbose_diagnostics},
     process::AsyncHandler,
 };
 use clash_verge_logging::{Type, logging};
 use std::{
     collections::BTreeSet,
     fmt::Write as _,
+    net::{Ipv4Addr, Ipv6Addr},
     sync::atomic::{AtomicBool, Ordering},
-    time::{Duration, Instant, SystemTime},
+    time::{Duration, Instant},
 };
 
 static WATCHDOG_RUNNING: AtomicBool = AtomicBool::new(false);
+static WAKE_REARM_PENDING: AtomicBool = AtomicBool::new(false);
+static LISTING_FAILED: AtomicBool = AtomicBool::new(false);
+static CLOCK_FAILED: AtomicBool = AtomicBool::new(false);
 
 const SLEEP_SLACK: Duration = Duration::from_secs(20);
 
 const FINGERPRINT_ENTRIES_SHOWN: usize = 8;
 
 const CORE_TUNNEL_BASE: &str = "meta";
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+mod sleep_clock {
+    use std::time::Duration;
+
+    #[cfg(target_os = "linux")]
+    const CLOCK_COUNTING_SLEEP: libc::clockid_t = libc::CLOCK_BOOTTIME;
+    #[cfg(target_os = "macos")]
+    const CLOCK_COUNTING_SLEEP: libc::clockid_t = libc::CLOCK_MONOTONIC;
+
+    pub fn reading() -> Option<Duration> {
+        let mut moment = libc::timespec { tv_sec: 0, tv_nsec: 0 };
+        let asked = unsafe { libc::clock_gettime(CLOCK_COUNTING_SLEEP, &raw mut moment) };
+        if asked != 0 || moment.tv_sec < 0 || moment.tv_nsec < 0 {
+            return None;
+        }
+        Some(Duration::new(moment.tv_sec as u64, moment.tv_nsec as u32))
+    }
+
+    pub const fn asleep(instant_delta: Duration, before: Duration, after: Duration) -> Duration {
+        after.saturating_sub(before).saturating_sub(instant_delta)
+    }
+}
+
+#[cfg(target_os = "windows")]
+mod sleep_clock {
+    use std::time::Duration;
+    use windows_sys::Win32::System::WindowsProgramming::QueryUnbiasedInterruptTime;
+
+    pub fn reading() -> Option<Duration> {
+        let mut awake_in_100ns: u64 = 0;
+        if unsafe { QueryUnbiasedInterruptTime(&raw mut awake_in_100ns) } == 0 {
+            return None;
+        }
+        Some(Duration::from_nanos(awake_in_100ns.saturating_mul(100)))
+    }
+
+    pub const fn asleep(instant_delta: Duration, before: Duration, after: Duration) -> Duration {
+        instant_delta.saturating_sub(after.saturating_sub(before))
+    }
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+mod sleep_clock {
+    use std::time::Duration;
+
+    pub const fn reading() -> Option<Duration> {
+        None
+    }
+
+    pub const fn asleep(_instant_delta: Duration, _before: Duration, _after: Duration) -> Duration {
+        Duration::ZERO
+    }
+}
+
+fn slept_through(instant_delta: Duration, before: Option<Duration>, after: Option<Duration>) -> bool {
+    let (Some(before), Some(after)) = (before, after) else {
+        if !CLOCK_FAILED.swap(true, Ordering::AcqRel) {
+            logging!(
+                warn,
+                Type::Core,
+                "[clod] the system did not tell how long it stayed awake; sleep goes unnoticed on this machine"
+            );
+        }
+        return false;
+    };
+    CLOCK_FAILED.store(false, Ordering::Release);
+    sleep_clock::asleep(instant_delta, before, after) > SLEEP_SLACK
+}
 
 fn looks_like_the_core_default_tunnel(name: &str) -> bool {
     name.strip_prefix(CORE_TUNNEL_BASE)
@@ -30,6 +103,14 @@ fn is_our_tunnel(name: &str) -> bool {
     name.contains("mihomo") || name.starts_with("utun") || looks_like_the_core_default_tunnel(&name)
 }
 
+const fn v4_carries_traffic(ip: Ipv4Addr) -> bool {
+    !ip.is_loopback() && !ip.is_link_local() && !ip.is_unspecified()
+}
+
+const fn v6_carries_traffic(ip: Ipv6Addr) -> bool {
+    !ip.is_loopback() && !ip.is_unspecified() && (ip.segments()[0] & 0xffc0) != 0xfe80
+}
+
 fn v6_prefix(ip: std::net::Ipv6Addr) -> std::string::String {
     let segments = ip.segments();
     format!(
@@ -38,26 +119,39 @@ fn v6_prefix(ip: std::net::Ipv6Addr) -> std::string::String {
     )
 }
 
-fn network_fingerprint() -> BTreeSet<std::string::String> {
-    let Ok(interfaces) = crate::cmd::network::get_network_interfaces_info() else {
-        return BTreeSet::from([std::string::String::from("<unknown>")]);
+struct NetworkView {
+    entries: BTreeSet<std::string::String>,
+    carries_traffic: bool,
+}
+
+fn network_fingerprint() -> Option<NetworkView> {
+    let interfaces = crate::cmd::network::get_network_interfaces_info().ok()?;
+
+    let mut view = NetworkView {
+        entries: BTreeSet::new(),
+        carries_traffic: false,
     };
 
-    interfaces
-        .into_iter()
-        .filter(|interface| !is_our_tunnel(&interface.name))
-        .flat_map(|interface| {
-            let name = interface.name.clone();
-            interface
-                .addr
-                .into_iter()
-                .map(move |addr| match addr {
-                    network_interface::Addr::V4(v4) => format!("{name}:{}", v4.ip),
-                    network_interface::Addr::V6(v6) => format!("{name}:{}", v6_prefix(v6.ip)),
-                })
-                .collect::<Vec<_>>()
-        })
-        .collect()
+    for interface in interfaces {
+        let network_interface::NetworkInterface { name, addr, .. } = interface;
+        if is_our_tunnel(&name) {
+            continue;
+        }
+        for address in addr {
+            match address {
+                network_interface::Addr::V4(v4) => {
+                    view.carries_traffic |= v4_carries_traffic(v4.ip);
+                    view.entries.insert(format!("{name}:{}", v4.ip));
+                }
+                network_interface::Addr::V6(v6) => {
+                    view.carries_traffic |= v6_carries_traffic(v6.ip);
+                    view.entries.insert(format!("{name}:{}", v6_prefix(v6.ip)));
+                }
+            }
+        }
+    }
+
+    Some(view)
 }
 
 fn listed<'a>(entries: impl Iterator<Item = &'a std::string::String>) -> std::string::String {
@@ -86,15 +180,46 @@ fn listed<'a>(entries: impl Iterator<Item = &'a std::string::String>) -> std::st
     out
 }
 
-fn report_fingerprint_change(before: &BTreeSet<std::string::String>, after: &BTreeSet<std::string::String>) {
+fn interface_of(entry: &str) -> &str {
+    entry.split_once(':').map_or(entry, |(name, _)| name)
+}
+
+fn path_was_lost(before: &BTreeSet<std::string::String>, after: &BTreeSet<std::string::String>) -> bool {
+    before.difference(after).next().is_some()
+}
+
+fn interfaces_of<'a>(entries: impl Iterator<Item = &'a std::string::String>) -> Vec<std::string::String> {
+    let mut names: Vec<std::string::String> = entries.map(|entry| interface_of(entry).to_owned()).collect();
+    names.dedup();
+    names
+}
+
+fn report_fingerprint_change(
+    before: &BTreeSet<std::string::String>,
+    after: &BTreeSet<std::string::String>,
+    verbose: bool,
+) {
+    if verbose {
+        logging!(
+            info,
+            Type::Core,
+            "[clod] network fingerprint: {} entries before, {} after; appeared {}; gone {}",
+            before.len(),
+            after.len(),
+            listed(after.difference(before)),
+            listed(before.difference(after))
+        );
+        return;
+    }
+
     logging!(
         info,
         Type::Core,
-        "[clod] network fingerprint: {} entries before, {} after; appeared {}; gone {}",
+        "[clod] network fingerprint: {} entries before, {} after; appeared on {}; gone from {}",
         before.len(),
         after.len(),
-        listed(after.difference(before)),
-        listed(before.difference(after))
+        listed(interfaces_of(after.difference(before)).iter()),
+        listed(interfaces_of(before.difference(after)).iter())
     );
 }
 
@@ -138,7 +263,7 @@ async fn close_live_connections(verbose: bool) {
     }
 }
 
-async fn reconcile(reason: &str, slept: bool) {
+async fn reconcile(reason: &str, slept: bool, path_was_lost: bool, tun_is_being_rearmed: bool) {
     logging!(info, Type::Core, "[clod] environment changed ({reason}), reconciling");
 
     let verge = Config::verge().await.latest_arc();
@@ -159,15 +284,30 @@ async fn reconcile(reason: &str, slept: bool) {
         }
     }
 
-    if may_close_connections {
+    if may_close_connections && (slept || path_was_lost) {
         close_live_connections(verbose).await;
     }
 
-    if slept {
-        AsyncHandler::spawn(|| async { crate::feat::tun::rearm_after_wake().await });
-    } else {
+    if !slept && !tun_is_being_rearmed {
         crate::feat::tun::recheck_after_network_change().await;
     }
+}
+
+fn hold_the_tun_rearm() {
+    WAKE_REARM_PENDING.store(true, Ordering::Release);
+}
+
+fn rearm_is_due(carries_traffic: bool) -> bool {
+    carries_traffic && WAKE_REARM_PENDING.swap(false, Ordering::AcqRel)
+}
+
+fn rearm_the_tun_after_wake() {
+    logging!(
+        info,
+        Type::Core,
+        "[clod] the machine woke up and the network is back; the TUN device gets a fresh budget"
+    );
+    AsyncHandler::spawn(|| async { crate::feat::tun::rearm_after_wake().await });
 }
 
 pub fn spawn_environment_watchdog() {
@@ -177,8 +317,8 @@ pub fn spawn_environment_watchdog() {
 
     AsyncHandler::spawn(|| async {
         let mut last_tick = Instant::now();
-        let mut last_wall = SystemTime::now();
-        let mut last_network = network_fingerprint();
+        let mut last_awake = sleep_clock::reading();
+        let mut last_network = network_fingerprint().map(|view| view.entries).unwrap_or_default();
 
         loop {
             tokio::time::sleep(timing::ENVIRONMENT_TICK).await;
@@ -187,32 +327,60 @@ pub fn spawn_environment_watchdog() {
             }
 
             let now_tick = Instant::now();
-            let now_wall = SystemTime::now();
+            let now_awake = sleep_clock::reading();
+            let slept = slept_through(now_tick.duration_since(last_tick), last_awake, now_awake);
 
-            let wall_delta = now_wall.duration_since(last_wall).unwrap_or_default();
-            let tick_delta = now_tick.duration_since(last_tick);
-            let slept = wall_delta.saturating_sub(tick_delta) > SLEEP_SLACK;
-
-            let network = network_fingerprint();
-            let network_changed = network != last_network;
-            if network_changed && crate::core::sysopt::verbose_diagnostics().await {
-                report_fingerprint_change(&last_network, &network);
-            }
+            let view = network_fingerprint();
 
             last_tick = now_tick;
-            last_wall = now_wall;
-            last_network = network;
+            last_awake = now_awake;
 
             crate::feat::tun::enforce_undesired_off().await;
+
+            if slept {
+                hold_the_tun_rearm();
+            }
+
+            let Some(view) = view else {
+                if !LISTING_FAILED.swap(true, Ordering::AcqRel) {
+                    logging!(
+                        warn,
+                        Type::Core,
+                        "[clod] the network interfaces could not be listed; the previous fingerprint stands"
+                    );
+                }
+                if slept {
+                    reconcile("woke up", true, false, false).await;
+                }
+                continue;
+            };
+            LISTING_FAILED.store(false, Ordering::Release);
+
+            let network_changed = view.entries != last_network;
+            let path_was_lost = path_was_lost(&last_network, &view.entries);
+            if network_changed {
+                report_fingerprint_change(&last_network, &view.entries, verbose_diagnostics().await);
+            }
+            last_network = view.entries;
+
+            let rearm_is_now = rearm_is_due(view.carries_traffic);
 
             let reason = match (slept, network_changed) {
                 (true, true) => "woke up, network differs",
                 (true, false) => "woke up",
                 (false, true) => "network changed",
-                (false, false) => continue,
+                (false, false) => {
+                    if rearm_is_now {
+                        rearm_the_tun_after_wake();
+                    }
+                    continue;
+                }
             };
 
-            reconcile(reason, slept).await;
+            reconcile(reason, slept, path_was_lost, rearm_is_now).await;
+            if rearm_is_now {
+                rearm_the_tun_after_wake();
+            }
         }
     });
 }
@@ -220,11 +388,14 @@ pub fn spawn_environment_watchdog() {
 #[cfg(test)]
 mod tests {
     use super::{
-        CORE_TUNNEL_BASE, FINGERPRINT_ENTRIES_SHOWN, SLEEP_SLACK, is_our_tunnel, listed,
-        looks_like_the_core_default_tunnel,
+        CORE_TUNNEL_BASE, FINGERPRINT_ENTRIES_SHOWN, SLEEP_SLACK, interface_of, is_our_tunnel, listed,
+        looks_like_the_core_default_tunnel, path_was_lost, slept_through, v4_carries_traffic, v6_carries_traffic,
     };
     use crate::constants::timing;
-    use std::time::Duration;
+    use std::{
+        net::{Ipv4Addr, Ipv6Addr},
+        time::Duration,
+    };
 
     #[test]
     fn an_empty_difference_is_spelled_out() {
@@ -269,19 +440,103 @@ mod tests {
     }
 
     #[test]
+    fn an_entry_keeps_its_interface_name_even_when_the_address_has_colons() {
+        assert_eq!(interface_of("eth0:192.168.1.5"), "eth0");
+        assert_eq!(interface_of("eth0:2a02:1:2:3::/64"), "eth0");
+        assert_eq!(interface_of("Ethernet 2:10.0.0.4"), "Ethernet 2");
+        assert_eq!(interface_of("nothing"), "nothing");
+    }
+
+    #[test]
+    fn only_a_vanished_entry_counts_as_a_lost_path() {
+        let before: std::collections::BTreeSet<std::string::String> =
+            ["eth0:10.0.0.2".into(), "wlan0:192.168.1.7".into()]
+                .into_iter()
+                .collect();
+        let same = before.clone();
+        let with_one_more: std::collections::BTreeSet<std::string::String> = [
+            "eth0:10.0.0.2".into(),
+            "wlan0:192.168.1.7".into(),
+            "docker0:172.17.0.1".into(),
+        ]
+        .into_iter()
+        .collect();
+        let without_wlan: std::collections::BTreeSet<std::string::String> =
+            std::iter::once("eth0:10.0.0.2".into()).collect();
+        let readdressed: std::collections::BTreeSet<std::string::String> =
+            ["eth0:10.0.0.2".into(), "wlan0:192.168.1.9".into()]
+                .into_iter()
+                .collect();
+
+        assert!(!path_was_lost(&before, &same));
+        assert!(!path_was_lost(&before, &with_one_more));
+        assert!(path_was_lost(&before, &without_wlan));
+        assert!(path_was_lost(&before, &readdressed));
+    }
+
+    #[test]
     fn the_sleep_threshold_leaves_room_for_a_busy_machine() {
         assert!(SLEEP_SLACK > timing::ENVIRONMENT_TICK);
     }
 
     #[test]
-    fn sleep_is_the_gap_between_two_clocks() {
-        let slept = |wall: Duration, tick: Duration| wall.saturating_sub(tick) > SLEEP_SLACK;
-
-        assert!(!slept(
-            timing::ENVIRONMENT_TICK + Duration::from_millis(40),
-            timing::ENVIRONMENT_TICK
+    fn a_missing_clock_reading_is_never_a_sleep() {
+        assert!(!slept_through(
+            Duration::from_secs(3600),
+            None,
+            Some(Duration::from_secs(1))
         ));
-        assert!(!slept(Duration::from_secs(45), Duration::from_secs(45)));
-        assert!(slept(Duration::from_secs(3600), timing::ENVIRONMENT_TICK));
+        assert!(!slept_through(
+            Duration::from_secs(3600),
+            Some(Duration::from_secs(1)),
+            None
+        ));
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    #[test]
+    fn sleep_is_what_the_awake_clock_missed() {
+        let tick = timing::ENVIRONMENT_TICK;
+        assert!(!slept_through(tick, Some(Duration::ZERO), Some(tick)));
+        assert!(!slept_through(
+            Duration::from_secs(45),
+            Some(Duration::ZERO),
+            Some(Duration::from_secs(45))
+        ));
+        assert!(slept_through(
+            tick,
+            Some(Duration::ZERO),
+            Some(Duration::from_secs(3600))
+        ));
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn sleep_is_what_the_awake_clock_missed() {
+        let tick = timing::ENVIRONMENT_TICK;
+        assert!(!slept_through(tick, Some(Duration::ZERO), Some(tick)));
+        assert!(!slept_through(
+            Duration::from_secs(45),
+            Some(Duration::ZERO),
+            Some(Duration::from_secs(45))
+        ));
+        assert!(slept_through(
+            Duration::from_secs(3600),
+            Some(Duration::ZERO),
+            Some(tick)
+        ));
+    }
+
+    #[test]
+    fn only_a_routable_address_counts_as_a_network() {
+        assert!(v4_carries_traffic(Ipv4Addr::new(192, 168, 1, 10)));
+        assert!(!v4_carries_traffic(Ipv4Addr::LOCALHOST));
+        assert!(!v4_carries_traffic(Ipv4Addr::UNSPECIFIED));
+        assert!(!v4_carries_traffic(Ipv4Addr::new(169, 254, 3, 7)));
+
+        assert!(v6_carries_traffic(Ipv6Addr::new(0x2a02, 1, 2, 3, 4, 5, 6, 7)));
+        assert!(!v6_carries_traffic(Ipv6Addr::LOCALHOST));
+        assert!(!v6_carries_traffic(Ipv6Addr::UNSPECIFIED));
+        assert!(!v6_carries_traffic(Ipv6Addr::new(0xfe80, 0, 0, 0, 1, 2, 3, 4)));
     }
 }

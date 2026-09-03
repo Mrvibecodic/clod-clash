@@ -613,6 +613,14 @@ pub async fn recheck_after_network_change() {
         });
         return;
     }
+    if RETRY_PENDING.load(Ordering::Acquire) {
+        logging!(
+            info,
+            Type::Core,
+            "the network changed while the TUN device is still being retried; the budget stands"
+        );
+        return;
+    }
     START_ATTEMPTS.store(0, Ordering::Release);
     START_FAILED.store(false, Ordering::Release);
     spawn_start_verification(log_anchor().await);
