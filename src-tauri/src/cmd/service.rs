@@ -32,12 +32,13 @@ pub struct TunState {
 #[tauri::command]
 pub async fn get_tun_state() -> CmdResult<TunState> {
     let desired = crate::feat::tun::desired().await;
+    let (capable, needs_repair) = crate::feat::tun::capability_and_repair().await;
     Ok(TunState {
         desired,
         active: crate::feat::tun::is_active_with(desired),
-        capable: crate::feat::tun::is_capable().await,
+        capable,
         setup_declined: crate::feat::tun::setup_declined_for_this_version().await,
-        needs_repair: crate::feat::tun::needs_repair().await,
+        needs_repair,
         runtime_stack: crate::feat::tun::runtime_stack().await,
         failure: crate::feat::tun::last_failure(),
     })

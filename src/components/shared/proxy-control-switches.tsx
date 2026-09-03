@@ -227,8 +227,18 @@ const ProxyControlSwitches = ({
   // это единственный путь, у которого одинаковая логика с тумблером.
   const onFixService = useLockFn(async () => {
     try {
-      await ensureTunReady()
+      const ready = await ensureTunReady()
       await Promise.all([mutateSystemState(), mutateTunState()])
+      // clod:e7 — служба поднялась, но конфиг ядра собирали, когда её ещё не
+      // было: TUN в него не попал. Без повторной подачи настройки кнопка
+      // «починить» оставляла тумблер включённым над выключенным туннелем.
+      // Только после удавшейся установки: после отказа в правах повторная
+      // подача сняла бы подавление и погнала ядро на заведомо провальную
+      // попытку — с перезапуском ядра на Linux и подменой DNS на macOS.
+      if (ready && verge?.enable_tun_mode) {
+        await patchVerge({ enable_tun_mode: true })
+        await mutateTunState()
+      }
     } catch (err) {
       showNotice.error(tunSetupNotice(err))
     }

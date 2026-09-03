@@ -171,8 +171,8 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
         tun_dns_hijack:
           values.dnsHijack.trim() === '' ? 'auto' : values.dnsHijack,
       }
-      await patchClash({ tun })
       await patchVerge(overrides)
+      await patchClash({ tun })
       await mutateClash(
         (old) => ({
           ...old!,
@@ -191,60 +191,62 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
     }
   })
 
+  const onReset = useLockFn(async () => {
+    try {
+      const tun: IConfigData['tun'] = {
+        ...clash?.tun,
+        device: OS === 'macos' ? 'utun1024' : 'Mihomo',
+        'auto-route': true,
+        ...(OS === 'linux'
+          ? {
+              'auto-redirect': false,
+            }
+          : {}),
+        'auto-detect-interface': true,
+        'route-exclude-address': [],
+        mtu: 1500,
+      }
+      const overrides = {
+        tun_stack: 'auto',
+        tun_strict_route: 'auto',
+        tun_dns_hijack: 'auto',
+      }
+      setValues({
+        stack: 'auto',
+        device: OS === 'macos' ? 'utun1024' : 'Mihomo',
+        autoRoute: true,
+        routeExcludeAddress: '',
+        autoRedirect: false,
+        autoDetectInterface: true,
+        dnsHijack: 'auto',
+        strictRoute: 'auto',
+        mtu: 1500,
+      })
+      await patchVerge(overrides)
+      await patchClash({ tun })
+      await mutateClash(
+        (old) => ({
+          ...old!,
+          tun: { ...old!.tun, ...tun },
+        }),
+        false,
+      )
+      mutateVerge({ ...verge, ...overrides }, false)
+      void enhanceProfiles().catch((err: any) => {
+        showNotice.error(err)
+      })
+    } catch (err: any) {
+      showNotice.error(err)
+    }
+  })
+
   return (
     <BaseDialog
       open={open}
       title={
         <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
           <Typography variant="h6">{t('settings.modals.tun.title')}</Typography>
-          <Button
-            variant="outlined"
-            size="small"
-            onClick={async () => {
-              const tun: IConfigData['tun'] = {
-                ...clash?.tun,
-                device: OS === 'macos' ? 'utun1024' : 'Mihomo',
-                'auto-route': true,
-                ...(OS === 'linux'
-                  ? {
-                      'auto-redirect': false,
-                    }
-                  : {}),
-                'auto-detect-interface': true,
-                'route-exclude-address': [],
-                mtu: 1500,
-              }
-              const overrides = {
-                tun_stack: 'auto',
-                tun_strict_route: 'auto',
-                tun_dns_hijack: 'auto',
-              }
-              setValues({
-                stack: 'auto',
-                device: OS === 'macos' ? 'utun1024' : 'Mihomo',
-                autoRoute: true,
-                routeExcludeAddress: '',
-                autoRedirect: false,
-                autoDetectInterface: true,
-                dnsHijack: 'auto',
-                strictRoute: 'auto',
-                mtu: 1500,
-              })
-              await patchClash({ tun })
-              await patchVerge(overrides)
-              await mutateClash(
-                (old) => ({
-                  ...old!,
-                  tun: { ...old!.tun, ...tun },
-                }),
-                false,
-              )
-              mutateVerge({ ...verge, ...overrides }, false)
-              void enhanceProfiles().catch((err: any) => {
-                showNotice.error(err)
-              })
-            }}
-          >
+          <Button variant="outlined" size="small" onClick={onReset}>
             {t('shared.actions.resetToDefault')}
           </Button>
         </Box>

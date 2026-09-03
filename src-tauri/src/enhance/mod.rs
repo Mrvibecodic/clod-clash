@@ -65,7 +65,10 @@ fn ladder_tun(tun: &mut Mapping, app_tun: Mapping, overrides: &TunOverrides) {
 }
 
 fn subscription_stack_is_capped(tun: &Mapping) -> bool {
-    matches!(tun.get("stack").and_then(Value::as_str), Some("system" | "mixed"))
+    tun.get("stack")
+        .and_then(Value::as_str)
+        .map(str::to_ascii_lowercase)
+        .is_some_and(|stack| stack == "system" || stack == "mixed")
 }
 
 fn ladder_tun_on(tun: &mut Mapping, app_tun: Mapping, overrides: &TunOverrides, cap_subscription_stack: bool) {
@@ -1476,6 +1479,20 @@ mod tests {
         let app = mapping("{stack: gvisor}");
         super::ladder_tun_on(&mut tun, app, &super::TunOverrides::default(), false);
         assert_eq!(tun.get("stack"), Some(&serde_yaml_ng::Value::from("system")));
+    }
+
+    #[test]
+    fn the_cap_ignores_the_case_of_the_stack_name_just_like_the_core() {
+        for written in ["System", "MIXED", "Mixed"] {
+            let mut tun = mapping(&format!("{{stack: \"{written}\"}}"));
+            let app = mapping("{stack: gvisor}");
+            super::ladder_tun_on(&mut tun, app, &super::TunOverrides::default(), true);
+            assert_eq!(
+                tun.get("stack"),
+                Some(&serde_yaml_ng::Value::from("gvisor")),
+                "stack written as {written} slipped past the cap"
+            );
+        }
     }
 
     #[test]

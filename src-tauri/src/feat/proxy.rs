@@ -52,8 +52,7 @@ pub async fn toggle_system_proxy() -> bool {
 
 pub async fn toggle_tun_mode(not_save_file: Option<bool>) -> bool {
     let desired = Config::verge().await.latest_arc().enable_tun_mode.unwrap_or(false);
-    let current = crate::feat::tun::is_active_with(desired);
-    let enable = !current;
+    let enable = !crate::feat::tun::is_active_with(desired);
 
     if enable {
         crate::feat::tun::ensure_ready(true).await;
@@ -79,7 +78,7 @@ pub async fn toggle_tun_mode(not_save_file: Option<bool>) -> bool {
             // после удавшегося перезапуска ядра `patch_verge` сохраняет её и
             // всё равно возвращает ошибку. Отвечаем тем, что реально записано,
             // иначе уведомление скажет «TUN выключен» при работающем TUN.
-            Config::verge().await.data_arc().enable_tun_mode.unwrap_or(current)
+            Config::verge().await.data_arc().enable_tun_mode.unwrap_or(desired)
         }
     }
 }

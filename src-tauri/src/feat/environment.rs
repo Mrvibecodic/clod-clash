@@ -18,9 +18,16 @@ const SLEEP_SLACK: Duration = Duration::from_secs(20);
 
 const FINGERPRINT_ENTRIES_SHOWN: usize = 8;
 
+const CORE_TUNNEL_BASE: &str = "meta";
+
+fn looks_like_the_core_default_tunnel(name: &str) -> bool {
+    name.strip_prefix(CORE_TUNNEL_BASE)
+        .is_some_and(|index| index.chars().all(|c| c.is_ascii_digit()))
+}
+
 fn is_our_tunnel(name: &str) -> bool {
     let name = name.to_lowercase();
-    name.contains("mihomo") || name.starts_with("utun") || name == "meta"
+    name.contains("mihomo") || name.starts_with("utun") || looks_like_the_core_default_tunnel(&name)
 }
 
 fn v6_prefix(ip: std::net::Ipv6Addr) -> std::string::String {
@@ -91,33 +98,44 @@ fn report_fingerprint_change(before: &BTreeSet<std::string::String>, after: &BTr
     );
 }
 
+const CONNECTIONS_CALL_TIMEOUT: Duration = Duration::from_secs(3);
+
 async fn close_live_connections(verbose: bool) {
-    let mihomo = handle::Handle::mihomo().await;
     let live = if verbose {
-        mihomo
-            .get_connections()
+        let mihomo = handle::Handle::mihomo().await;
+        tokio::time::timeout(CONNECTIONS_CALL_TIMEOUT, mihomo.get_connections())
             .await
             .ok()
+            .and_then(Result::ok)
             .and_then(|response| response.connections)
             .map_or(0, |connections| connections.len())
     } else {
         0
     };
 
-    match mihomo.close_all_connections().await {
-        Ok(()) if verbose => logging!(
+    let outcome = {
+        let mihomo = handle::Handle::mihomo().await;
+        tokio::time::timeout(CONNECTIONS_CALL_TIMEOUT, mihomo.close_all_connections()).await
+    };
+
+    match outcome {
+        Ok(Ok(())) if verbose => logging!(
             info,
             Type::Core,
             "[clod] closed {live} live connections after the environment changed"
         ),
-        Ok(()) => (),
-        Err(e) => logging!(
+        Ok(Ok(())) => (),
+        Ok(Err(e)) => logging!(
             debug,
             Type::Core,
             "[clod] could not close connections after the environment changed: {e}"
         ),
+        Err(_) => logging!(
+            debug,
+            Type::Core,
+            "[clod] the core did not answer closing connections after the environment changed"
+        ),
     }
-    drop(mihomo);
 }
 
 async fn reconcile(reason: &str, slept: bool) {
@@ -146,7 +164,7 @@ async fn reconcile(reason: &str, slept: bool) {
     }
 
     if slept {
-        crate::feat::tun::rearm_after_wake().await;
+        AsyncHandler::spawn(|| async { crate::feat::tun::rearm_after_wake().await });
     } else {
         crate::feat::tun::recheck_after_network_change().await;
     }
@@ -201,7 +219,10 @@ pub fn spawn_environment_watchdog() {
 
 #[cfg(test)]
 mod tests {
-    use super::{FINGERPRINT_ENTRIES_SHOWN, SLEEP_SLACK, listed};
+    use super::{
+        CORE_TUNNEL_BASE, FINGERPRINT_ENTRIES_SHOWN, SLEEP_SLACK, is_our_tunnel, listed,
+        looks_like_the_core_default_tunnel,
+    };
     use crate::constants::timing;
     use std::time::Duration;
 
@@ -219,6 +240,32 @@ mod tests {
 
         assert!(text.starts_with("if0:10.0.0.0, if1:10.0.0.1"));
         assert!(text.ends_with("and 3 more"));
+    }
+
+    #[test]
+    fn the_core_default_tunnel_is_the_base_name_with_an_index() {
+        assert!(looks_like_the_core_default_tunnel(CORE_TUNNEL_BASE));
+        assert!(looks_like_the_core_default_tunnel(&format!("{CORE_TUNNEL_BASE}0")));
+        assert!(looks_like_the_core_default_tunnel(&format!("{CORE_TUNNEL_BASE}12")));
+        assert!(!looks_like_the_core_default_tunnel(&format!("{CORE_TUNNEL_BASE}-work")));
+        assert!(!looks_like_the_core_default_tunnel("tun0"));
+        assert!(!looks_like_the_core_default_tunnel("wg0"));
+        assert!(!looks_like_the_core_default_tunnel("eth0"));
+    }
+
+    #[test]
+    fn the_tunnel_filter_does_not_depend_on_anything_that_can_change() {
+        let ours = format!("{CORE_TUNNEL_BASE}0");
+
+        assert!(is_our_tunnel("Mihomo"));
+        assert!(is_our_tunnel("mihomo-tun"));
+        assert!(is_our_tunnel("Meta"));
+        assert!(is_our_tunnel(&ours));
+        assert!(is_our_tunnel("utun4"));
+        assert!(!is_our_tunnel("wg0"));
+        assert!(!is_our_tunnel("eth0"));
+        assert!(!is_our_tunnel("en0"));
+        assert!(!is_our_tunnel("metavpn"));
     }
 
     #[test]

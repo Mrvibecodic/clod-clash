@@ -16,6 +16,7 @@ use crate::{
             ElevationPending, SERVICE_MANAGER, ServiceBusy, ServiceRegistration, ServiceStatus, elevation_in_flight,
             is_service_available, service_registration, start_registered_service,
         },
+        validate::ValidationOutcome,
     },
     process::AsyncHandler,
     utils::network::{NetworkManager, ProxyType},
@@ -31,7 +32,15 @@ static WATCH_ANCHOR: Mutex<Option<String>> = Mutex::new(None);
 static LAST_FAILURE: Mutex<Option<&'static str>> = Mutex::new(None);
 static TRAFFIC_PROBE_RUNNING: AtomicBool = AtomicBool::new(false);
 static NO_TRAFFIC_NOTICED: AtomicBool = AtomicBool::new(false);
-
+static LAST_REARM_AT: Mutex<Option<Instant>> = Mutex::new(None);
+static RECREATE_RUNNING: AtomicBool = AtomicBool::new(false);
+static BRING_BACK_RUNNING: AtomicBool = AtomicBool::new(false);
+static REARM_BACKOFF: AtomicU32 = AtomicU32::new(0);
+static LAST_NOTICED: Mutex<Option<&'static str>> = Mutex::new(None);
+const READBACK_DOWN_STRIKES: u32 = 2;
+const TRAFFIC_RECHECK_ROUNDS: u32 = 10;
+const TRAFFIC_RECHECK_MAX_ROUNDS: u32 = 120;
+const REARM_BACKOFF_STEPS: u32 = 4;
 const TUN_FAILURE_MARKERS: &[&str] = &["start tun listening error", "configure tun interface"];
 
 const FAILURE_START: &str = "startFailed";
@@ -44,7 +53,13 @@ const FAILURE_SERVICE_SILENT: &str = "serviceSilent";
 
 const TUN_START_ATTEMPTS: u32 = 3;
 const TUN_RETRY_DELAY: Duration = Duration::from_secs(5);
-const TUN_PATCH_TIMEOUT: Duration = Duration::from_secs(3);
+const TUN_READ_TIMEOUT: Duration = Duration::from_secs(3);
+const TUN_PATCH_TIMEOUT: Duration = Duration::from_secs(10);
+const TUN_TAKEDOWN_TIMEOUT: Duration = Duration::from_secs(5);
+const TUN_REARM_COOLDOWN: Duration = Duration::from_secs(300);
+const TUN_BRING_BACK_ATTEMPTS: u32 = 3;
+const TUN_BRING_BACK_RETRY_DELAY: Duration = Duration::from_secs(2);
+const TUN_BRING_BACK_BUSY_WAIT: Duration = Duration::from_secs(120);
 const TRAFFIC_PROBE_URL: &str = "https://cp.cloudflare.com/generate_204";
 const TRAFFIC_PROBE_TIMEOUT_SECS: u64 = 8;
 const TRAFFIC_PROBE_DELAY: Duration = Duration::from_secs(5);
@@ -54,14 +69,93 @@ pub fn is_suppressed() -> bool {
     SUPPRESSED.load(Ordering::Acquire)
 }
 
+async fn wait_before_the_next_bring_back() -> bool {
+    tokio::time::sleep(TUN_BRING_BACK_RETRY_DELAY).await;
+    desired().await && !is_suppressed()
+}
+
+async fn bring_tun_back(reason: &str) {
+    if BRING_BACK_RUNNING.swap(true, Ordering::AcqRel) {
+        logging!(info, Type::Core, "TUN is already being brought back; skipping this one");
+        return;
+    }
+    scopeguard::defer! {
+        BRING_BACK_RUNNING.store(false, Ordering::Release);
+    }
+
+    logging!(info, Type::Core, "bringing TUN back: {}", reason);
+    let busy_deadline = Instant::now() + TUN_BRING_BACK_BUSY_WAIT;
+    let mut last;
+    let mut refused = 0_u32;
+    loop {
+        let anchor = log_anchor().await;
+        match crate::core::CoreManager::global().update_config_forced().await {
+            Ok(ValidationOutcome::Valid) => {
+                spawn_start_verification(anchor);
+                Handle::refresh_verge();
+                let _ = crate::core::tray::Tray::global().update_menu().await;
+                return;
+            }
+            Ok(outcome @ ValidationOutcome::Skipped { .. }) => {
+                logging!(info, Type::Core, "not bringing TUN back right now: {}", outcome);
+                return;
+            }
+            Ok(ValidationOutcome::Busy) => {
+                if Instant::now() >= busy_deadline {
+                    last = std::string::String::from("another configuration update never finished");
+                } else {
+                    logging!(
+                        debug,
+                        Type::Core,
+                        "another configuration update is running; waiting before bringing TUN back"
+                    );
+                    if !wait_before_the_next_bring_back().await {
+                        return;
+                    }
+                    continue;
+                }
+            }
+            Ok(outcome) => last = outcome.to_string(),
+            Err(e) => last = format!("{e}"),
+        }
+        refused += 1;
+        if refused >= TUN_BRING_BACK_ATTEMPTS {
+            break;
+        }
+        logging!(
+            info,
+            Type::Core,
+            "could not bring TUN back yet ({} of {}): {}",
+            refused,
+            TUN_BRING_BACK_ATTEMPTS,
+            last
+        );
+        if !wait_before_the_next_bring_back().await {
+            return;
+        }
+    }
+    logging!(warn, Type::Core, "could not bring TUN back: {}", last);
+    hold_tun_down(
+        "the running config would not take the TUN device",
+        FAILURE_START,
+        "tun::start_failed",
+    );
+    drop_tun_from_the_running_config("a failed attempt to bring TUN back");
+}
+
 pub fn suppress(reason: &str) {
     if !SUPPRESSED.swap(true, Ordering::AcqRel) {
         logging!(warn, Type::Core, "TUN suppressed for this session: {}", reason);
     }
 }
 
+fn forget_last_notice() {
+    *LAST_NOTICED.lock() = None;
+}
+
 pub fn clear_suppression() {
     clear_failure();
+    forget_last_notice();
     SUPPRESSED.store(false, Ordering::Release);
     START_FAILED.store(false, Ordering::Release);
     START_ATTEMPTS.store(0, Ordering::Release);
@@ -100,6 +194,15 @@ pub async fn is_capable() -> bool {
 
 pub async fn needs_repair() -> bool {
     service_needs_repair().await
+}
+
+pub async fn capability_and_repair() -> (bool, bool) {
+    let elevated = is_app_elevated();
+    if is_service_available().await.is_err() {
+        return (elevated, false);
+    }
+    let needs_repair = clash_verge_service_ipc::is_reinstall_service_needed().await;
+    (elevated || !needs_repair, needs_repair)
 }
 
 async fn service_needs_repair() -> bool {
@@ -183,8 +286,25 @@ const fn should_retry(attempt: u32) -> bool {
     attempt < TUN_START_ATTEMPTS
 }
 
+fn announce_once(failure: &'static str, event: &str) {
+    let said_before = {
+        let mut last = LAST_NOTICED.lock();
+        let repeat = *last == Some(failure);
+        *last = Some(failure);
+        repeat
+    };
+    if !said_before {
+        Handle::notice_message(event, "");
+    }
+}
+
+fn hold_tun_down(reason: &str, failure: &'static str, event: &str) {
+    suppress(reason);
+    set_failure(failure);
+    announce_once(failure, event);
+}
+
 fn give_up_on_tun(detail: &str) {
-    suppress("core failed to start the TUN device");
     logging!(error, Type::Core, "TUN failed to start: {}", detail);
     let (event, failure) = if line_reports_adapter_busy(detail) {
         ("tun::adapter_busy", FAILURE_ADAPTER_BUSY)
@@ -193,17 +313,20 @@ fn give_up_on_tun(detail: &str) {
     } else {
         ("tun::start_failed", FAILURE_START)
     };
-    set_failure(failure);
-    Handle::notice_message(event, "");
+    hold_tun_down("core failed to start the TUN device", failure, event);
 
-    let detail = detail.to_owned();
+    drop_tun_from_the_running_config(detail);
+}
+
+fn drop_tun_from_the_running_config(reason: &str) {
+    let reason = reason.to_owned();
     AsyncHandler::spawn(move || async move {
         if let Err(e) = crate::core::CoreManager::global().update_config_checked().await {
             logging!(
                 warn,
                 Type::Core,
                 "failed to drop TUN from the running config after {}: {}",
-                detail,
+                reason,
                 e
             );
         }
@@ -219,40 +342,87 @@ fn schedule_retry() {
     AsyncHandler::spawn(|| async {
         tokio::time::sleep(TUN_RETRY_DELAY).await;
         RETRY_PENDING.store(false, Ordering::Release);
+        START_FAILED.store(false, Ordering::Release);
         if !claimed().await {
             return;
         }
-        START_FAILED.store(false, Ordering::Release);
         recreate_tun_device().await;
     });
 }
 
+fn core_is_running() -> bool {
+    !matches!(
+        *crate::core::CoreManager::global().get_running_mode(),
+        crate::core::manager::RunningMode::NotRunning
+    )
+}
+
+enum SwitchFailure {
+    Refused(std::string::String),
+    Silent,
+}
+
+impl SwitchFailure {
+    fn detail(&self) -> std::string::String {
+        match self {
+            Self::Refused(e) => format!("the core refused the request: {e}"),
+            Self::Silent => std::string::String::from("the core did not answer in time"),
+        }
+    }
+}
+
+async fn switch_tun_device(enable: bool) -> Result<(), SwitchFailure> {
+    let patch = serde_json::json!({ "tun": { "enable": enable } });
+    let budget = if enable {
+        TUN_PATCH_TIMEOUT
+    } else {
+        TUN_TAKEDOWN_TIMEOUT
+    };
+    let outcome = {
+        let mihomo = Handle::mihomo().await;
+        tokio::time::timeout(budget, mihomo.patch_base_config(&patch)).await
+    };
+    match outcome {
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(e)) => Err(SwitchFailure::Refused(e.to_string())),
+        Err(_) => Err(SwitchFailure::Silent),
+    }
+}
+
 async fn recreate_tun_device() {
+    if RECREATE_RUNNING.swap(true, Ordering::AcqRel) {
+        logging!(
+            info,
+            Type::Core,
+            "a TUN device re-creation is already running; skipping this one"
+        );
+        return;
+    }
+    scopeguard::defer! {
+        RECREATE_RUNNING.store(false, Ordering::Release);
+    }
+
     let anchor = log_anchor().await;
 
     for (step, enable) in [("off", false), ("on", true)] {
-        let patch = serde_json::json!({ "tun": { "enable": enable } });
-        let mihomo = Handle::mihomo().await;
-        match tokio::time::timeout(TUN_PATCH_TIMEOUT, mihomo.patch_base_config(&patch)).await {
-            Ok(Ok(())) => {}
-            Ok(Err(e)) => {
-                logging!(warn, Type::Core, "could not switch the TUN device {}: {}", step, e);
-                report_start_failure("the core refused to re-create the TUN device");
-                return;
-            }
-            Err(_) => {
-                logging!(
-                    warn,
-                    Type::Core,
-                    "the core did not answer switching the TUN device {}",
-                    step
-                );
-                if enable {
-                    report_start_failure("the core did not answer re-creating the TUN device");
-                }
-                return;
-            }
+        let Err(failure) = switch_tun_device(enable).await else {
+            continue;
+        };
+        let detail = failure.detail();
+        logging!(warn, Type::Core, "could not switch the TUN device {}: {}", step, detail);
+        if !enable && matches!(failure, SwitchFailure::Silent) {
+            return;
         }
+        if core_is_running() {
+            report_start_failure(&detail);
+        } else {
+            logging!(
+                info,
+                Type::Core,
+                "the core is not running; this does not count against the TUN start budget"
+            );
+        }
+        return;
     }
 
     logging!(info, Type::Core, "the TUN device was re-created");
@@ -263,17 +433,18 @@ pub async fn rearm_after_wake() {
     if !desired().await {
         return;
     }
-    if is_suppressed() {
-        logging!(
-            info,
-            Type::Core,
-            "the machine woke up into a new environment: the TUN device gets a fresh budget"
-        );
+    let was_suppressed = is_suppressed();
+    if was_suppressed {
         clear_suppression();
     }
     START_ATTEMPTS.store(0, Ordering::Release);
     START_FAILED.store(false, Ordering::Release);
-    recreate_tun_device().await;
+    stamp_rearm();
+    if was_suppressed {
+        bring_tun_back("the machine woke up into a new environment").await;
+    } else {
+        recreate_tun_device().await;
+    }
 }
 
 async fn probe_traffic(proxy_type: ProxyType) -> bool {
@@ -284,7 +455,10 @@ async fn probe_traffic(proxy_type: ProxyType) -> bool {
         Ok(client) => client,
         Err(_) => return false,
     };
-    client.get(TRAFFIC_PROBE_URL).send().await.is_ok()
+    match client.get(TRAFFIC_PROBE_URL).send().await {
+        Ok(response) => response.status().as_u16() == 204,
+        Err(_) => false,
+    }
 }
 
 fn spawn_traffic_probe() {
@@ -333,10 +507,21 @@ fn spawn_traffic_probe() {
     });
 }
 
+async fn read_tun_state() -> Option<(bool, String)> {
+    let outcome = {
+        let mihomo = Handle::mihomo().await;
+        tokio::time::timeout(TUN_READ_TIMEOUT, mihomo.get_base_config()).await
+    };
+    let config = match outcome {
+        Ok(Ok(config)) => config,
+        _ => return None,
+    };
+    Some((config.tun.enable, config.tun.stack.to_string()))
+}
+
 pub async fn runtime_stack() -> Option<String> {
-    let mihomo = Handle::mihomo().await;
-    match tokio::time::timeout(TUN_PATCH_TIMEOUT, mihomo.get_base_config()).await {
-        Ok(Ok(config)) if config.tun.enable => Some(config.tun.stack.to_string()),
+    match read_tun_state().await {
+        Some((true, stack)) => Some(stack),
         _ => None,
     }
 }
@@ -345,10 +530,8 @@ pub async fn enforce_undesired_off() {
     if claimed().await {
         return;
     }
-    let mihomo = Handle::mihomo().await;
-    let enabled = match tokio::time::timeout(TUN_PATCH_TIMEOUT, mihomo.get_base_config()).await {
-        Ok(Ok(config)) => config.tun.enable,
-        _ => return,
+    let Some((enabled, _)) = read_tun_state().await else {
+        return;
     };
     if !enabled || claimed().await {
         return;
@@ -358,31 +541,76 @@ pub async fn enforce_undesired_off() {
         Type::Core,
         "the core still holds the TUN device while it is not wanted; taking it down"
     );
-    let patch = serde_json::json!({ "tun": { "enable": false } });
-    match tokio::time::timeout(TUN_PATCH_TIMEOUT, mihomo.patch_base_config(&patch)).await {
-        Ok(Ok(())) => {
+    match switch_tun_device(false).await {
+        Ok(()) => {
             if claimed().await {
                 logging!(
                     warn,
                     Type::Core,
                     "TUN became wanted while it was being taken down; bringing it back"
                 );
-                recreate_tun_device().await;
+                AsyncHandler::spawn(|| async { recreate_tun_device().await });
             } else {
                 logging!(info, Type::Core, "the unwanted TUN device was taken down");
             }
         }
-        Ok(Err(e)) => logging!(warn, Type::Core, "could not take down the unwanted TUN device: {}", e),
-        Err(_) => logging!(
+        Err(failure) => logging!(
             warn,
             Type::Core,
-            "the core did not answer taking down the unwanted TUN device"
+            "could not take down the unwanted TUN device: {}",
+            failure.detail()
         ),
     }
 }
 
+const FAILURES_A_NEW_NETWORK_CAN_FIX: &[&str] = &[FAILURE_START, FAILURE_ADAPTER_BUSY];
+
+fn a_new_network_could_help() -> bool {
+    last_failure().is_none_or(|failure| FAILURES_A_NEW_NETWORK_CAN_FIX.contains(&failure))
+}
+
+fn rearm_cooldown() -> Duration {
+    let steps = REARM_BACKOFF.load(Ordering::Acquire).min(REARM_BACKOFF_STEPS);
+    TUN_REARM_COOLDOWN * (1 << steps)
+}
+
+fn stamp_rearm() {
+    *LAST_REARM_AT.lock() = Some(Instant::now());
+}
+
+fn rearm_cooldown_expired() -> bool {
+    let now = Instant::now();
+    let cooldown = rearm_cooldown();
+    let expired = {
+        let mut last = LAST_REARM_AT.lock();
+        if last.is_some_and(|at| now.duration_since(at) < cooldown) {
+            false
+        } else {
+            *last = Some(now);
+            true
+        }
+    };
+    if expired {
+        REARM_BACKOFF.fetch_add(1, Ordering::AcqRel);
+    }
+    expired
+}
+
 pub async fn recheck_after_network_change() {
-    if !claimed().await {
+    if !desired().await {
+        return;
+    }
+    if is_suppressed() {
+        if BRING_BACK_RUNNING.load(Ordering::Acquire) {
+            return;
+        }
+        if !a_new_network_could_help() || !rearm_cooldown_expired() {
+            return;
+        }
+        clear_suppression();
+        AsyncHandler::spawn(|| async {
+            bring_tun_back("the network changed and the suppressed device gets a fresh budget").await;
+        });
         return;
     }
     START_ATTEMPTS.store(0, Ordering::Release);
@@ -419,6 +647,10 @@ enum Round {
     Done,
 }
 
+async fn device_reported_up() -> Option<bool> {
+    read_tun_state().await.map(|(enabled, _)| enabled)
+}
+
 async fn verify_round() -> Round {
     let anchor = WATCH_ANCHOR.lock().clone();
     let Ok(logs) = crate::core::CoreManager::global().get_clash_logs().await else {
@@ -444,14 +676,40 @@ fn spawn_watchdog() {
         scopeguard::defer! {
             WATCHDOG_RUNNING.store(false, Ordering::Release);
         }
+        let mut rounds: u32 = 0;
+        let mut down_rounds: u32 = 0;
+        let mut probe_gap = TRAFFIC_RECHECK_ROUNDS;
+        let mut next_probe = TRAFFIC_RECHECK_ROUNDS;
         loop {
             tokio::time::sleep(timing::TUN_WATCH_INTERVAL).await;
             if !claimed().await {
                 return;
             }
+            match device_reported_up().await {
+                Some(false) => {
+                    down_rounds += 1;
+                    if down_rounds >= READBACK_DOWN_STRIKES {
+                        report_start_failure("the core reports the TUN device is not up");
+                        return;
+                    }
+                }
+                Some(true) => {
+                    down_rounds = 0;
+                    REARM_BACKOFF.store(0, Ordering::Release);
+                }
+                None => {}
+            }
             match verify_round().await {
                 Round::Done => return,
-                Round::Clean => START_ATTEMPTS.store(0, Ordering::Release),
+                Round::Clean => {
+                    START_ATTEMPTS.store(0, Ordering::Release);
+                    rounds = rounds.saturating_add(1);
+                    if rounds >= next_probe {
+                        spawn_traffic_probe();
+                        probe_gap = probe_gap.saturating_mul(2).min(TRAFFIC_RECHECK_MAX_ROUNDS);
+                        next_probe = rounds.saturating_add(probe_gap);
+                    }
+                }
                 Round::Unknown => {}
             }
         }
@@ -488,6 +746,7 @@ fn fresh_failure<'a, S: AsRef<str>>(logs: &'a [S], anchor: Option<&str>) -> Opti
 
 async fn record_setup_attempt() {
     let version = env!("CARGO_PKG_VERSION");
+    let _serialized = crate::feat::config::patch_verge_lock().lock().await;
     let verge = Config::verge().await;
     verge.edit_draft(|d| {
         d.tun_setup_declined = Some(version.into());
@@ -513,6 +772,7 @@ pub async fn clear_setup_declined() {
     if Config::verge().await.latest_arc().tun_setup_declined.is_none() {
         return;
     }
+    let _serialized = crate::feat::config::patch_verge_lock().lock().await;
     let verge = Config::verge().await;
     verge.edit_draft(|d| {
         d.tun_setup_declined = None;
@@ -542,6 +802,10 @@ pub enum SetupOutcome {
 }
 
 pub async fn ensure_ready(user_initiated: bool) -> SetupOutcome {
+    if user_initiated {
+        forget_last_notice();
+    }
+
     if already_ready(user_initiated).await {
         return SetupOutcome::AlreadyReady;
     }
@@ -665,6 +929,7 @@ async fn set_up_service() -> SetupOutcome {
     }
 
     clear_suppression();
+    clear_setup_declined().await;
     logging!(info, Type::Service, "background service is up");
     Handle::notice_message("tun::setup_done", "");
     Handle::refresh_verge();

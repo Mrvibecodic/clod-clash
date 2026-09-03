@@ -310,6 +310,10 @@ async fn process_terminated_flags(update_flags: UpdateFlags, patch: &IVerge) -> 
 
 static PATCH_VERGE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
+pub(crate) const fn patch_verge_lock() -> &'static tokio::sync::Mutex<()> {
+    &PATCH_VERGE_LOCK
+}
+
 pub async fn patch_verge(patch: &IVerge, not_save_file: bool) -> Result<()> {
     let _serialized = PATCH_VERGE_LOCK.lock().await;
 
