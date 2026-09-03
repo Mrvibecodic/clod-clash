@@ -315,10 +315,8 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
       patch.use_default_bypass = value.use_default
     }
 
-    const pacContent = value.pac_content
-
-    if (pacContent !== pac_file_content) {
-      patch.pac_file_content = pacContent
+    if (value.pac_content !== pac_file_content) {
+      patch.pac_file_content = value.pac_content
     }
 
     // Обрабатываем адрес IPv6: если это IPv6 без квадратных скобок, добавляем их

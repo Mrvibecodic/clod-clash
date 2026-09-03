@@ -255,6 +255,12 @@ async fn process_terminated_flags(update_flags: UpdateFlags, patch: &IVerge) -> 
                 Type::Setup,
                 "ядро не запущено — системный прокси в систему не пишем"
             );
+            Config::verge().await.edit_draft(|draft| {
+                draft.patch_config(&IVerge {
+                    enable_system_proxy: Some(false),
+                    ..IVerge::default()
+                });
+            });
             handle::Handle::notice_message("sysproxy::core_not_running", "");
         } else {
             sysopt::Sysopt::global().update_sysproxy().await?;
@@ -331,8 +337,10 @@ pub async fn patch_verge(patch: &IVerge, not_save_file: bool) -> Result<()> {
             return Err(err);
         }
         if Config::verge().await.latest_arc().enable_system_proxy.unwrap_or(false) {
-            logging_error!(Type::Setup, sysopt::Sysopt::global().update_sysproxy().await);
-            sysopt::Sysopt::global().refresh_guard().await;
+            match sysopt::Sysopt::global().update_sysproxy().await {
+                Ok(()) => sysopt::Sysopt::global().refresh_guard().await,
+                Err(err) => logging!(error, Type::Setup, "{err}"),
+            }
         }
         true
     } else {

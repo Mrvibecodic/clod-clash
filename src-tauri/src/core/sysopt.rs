@@ -31,6 +31,7 @@ struct ObservedProxy {
     host: std::string::String,
     port: u16,
     auto_enable: bool,
+    auto_url: std::string::String,
 }
 
 impl ObservedProxy {
@@ -42,13 +43,14 @@ impl ObservedProxy {
             host: sys.host.to_string(),
             port: sys.port,
             auto_enable: auto.enable,
+            auto_url: auto.url,
         })
     }
 
     fn describe(&self) -> std::string::String {
         format!(
-            "sysproxy enable={} {}:{}, autoproxy enable={}",
-            self.sys_enable, self.host, self.port, self.auto_enable
+            "sysproxy enable={} {}:{}, autoproxy enable={} url={}",
+            self.sys_enable, self.host, self.port, self.auto_enable, self.auto_url
         )
     }
 
@@ -81,6 +83,24 @@ struct AppliedProxy {
 }
 
 const AUTO_SWITCH_READBACK_IS_TRUSTWORTHY: bool = !cfg!(target_os = "windows");
+
+fn bare_host(host: &str) -> &str {
+    host.strip_prefix('[')
+        .and_then(|rest| rest.strip_suffix(']'))
+        .unwrap_or(host)
+}
+
+fn observed_belongs_to_us(
+    observed: &ObservedProxy,
+    host: &str,
+    port: u16,
+    pac_url: &str,
+    trust_auto_readback: bool,
+) -> bool {
+    let manual_is_ours = observed.sys_enable && bare_host(&observed.host) == bare_host(host) && observed.port == port;
+    let pac_is_ours = trust_auto_readback && observed.auto_enable && observed.auto_url == pac_url;
+    manual_is_ours || pac_is_ours
+}
 
 impl WantedProxy {
     const fn switches_match_with(&self, observed: &ObservedProxy, trust_auto_readback: bool) -> bool {
@@ -352,6 +372,54 @@ impl Sysopt {
         self.last_write_failed.load(Ordering::SeqCst)
     }
 
+    async fn os_proxy_is_ours(&self) -> Option<bool> {
+        let verge = Config::verge().await.latest_arc();
+        let host = verge.proxy_host.as_deref().unwrap_or("127.0.0.1").to_owned();
+        let port = match verge.verge_mixed_port {
+            Some(port) => port,
+            None => Config::clash().await.latest_arc().get_mixed_port(),
+        };
+        drop(verge);
+        let pac_url = format!("http://{host}:{}/commands/pac", IVerge::get_singleton_port());
+
+        let observed = tokio::task::spawn_blocking(ObservedProxy::read).await.ok()??;
+        if observed_belongs_to_us(&observed, &host, port, &pac_url, AUTO_SWITCH_READBACK_IS_TRUSTWORTHY) {
+            return Some(true);
+        }
+
+        let previous = self.applied_target.read().as_ref().map(|target| {
+            (
+                target.sys.host.to_string(),
+                target.sys.port,
+                target.auto.url.to_string(),
+            )
+        });
+        let Some((host, port, pac_url)) = previous else {
+            return Some(false);
+        };
+        Some(observed_belongs_to_us(
+            &observed,
+            &host,
+            port,
+            &pac_url,
+            AUTO_SWITCH_READBACK_IS_TRUSTWORTHY,
+        ))
+    }
+
+    pub async fn reset_sysproxy_if_ours(&self) -> Result<()> {
+        if self.os_proxy_is_ours().await == Some(false) {
+            logging!(
+                info,
+                Type::Core,
+                "системный прокси в системе поставлен не нами — не трогаем"
+            );
+            return Ok(());
+        }
+
+        self.ever_applied.store(true, Ordering::SeqCst);
+        self.reset_sysproxy().await
+    }
+
     pub fn stop_proxy_guard(&self) {
         let guard = self.access_guard();
         let mut monitor = guard.write();
@@ -446,6 +514,19 @@ impl Sysopt {
 
         let wants_to_enable = sys.enable || auto.enable;
         let was_ever_applied = self.ever_applied.load(Ordering::SeqCst);
+        if !wants_to_enable && !was_ever_applied {
+            if self.os_proxy_is_ours().await == Some(false) {
+                logging!(
+                    info,
+                    Type::Core,
+                    "системный прокси в системе поставлен не нами — выключать нечего"
+                );
+                self.last_write_failed.store(false, Ordering::SeqCst);
+                self.aim_guard(guard_type);
+                return Ok(());
+            }
+            self.ever_applied.store(true, Ordering::SeqCst);
+        }
         if wants_to_enable {
             self.ever_applied.store(true, Ordering::SeqCst);
         }
@@ -505,11 +586,6 @@ impl Sysopt {
             return Ok(());
         }
 
-        let nothing_changed = applied.before.is_some() && applied.before == applied.after;
-        if nothing_changed && !was_ever_applied {
-            self.ever_applied.store(false, Ordering::SeqCst);
-        }
-
         report_applied(
             &wanted,
             applied.before.as_ref(),
@@ -521,16 +597,12 @@ impl Sysopt {
         match applied.failure {
             Some(error) => {
                 *self.applied_target.write() = None;
-                if !nothing_changed {
-                    self.ever_applied.store(true, Ordering::SeqCst);
-                }
-                self.stop_proxy_guard();
                 self.last_write_failed.store(true, Ordering::SeqCst);
                 Err(error)
             }
             None => {
-                self.ever_applied
-                    .store(target.sys.enable || target.auto.enable, Ordering::SeqCst);
+                let owns_the_state = target.sys.enable || target.auto.enable;
+                self.ever_applied.store(owns_the_state, Ordering::SeqCst);
                 *self.applied_target.write() = Some(target);
                 self.last_write_failed.store(false, Ordering::SeqCst);
                 self.aim_guard(guard_type);
@@ -579,11 +651,14 @@ impl Sysopt {
             .to_owned();
         let pac_port = IVerge::get_singleton_port();
 
+        let bypass = get_bypass().await;
+
         let (sys, auto) = {
             let (sys, auto) = &mut *self.inner_proxy.write();
             if sys.host.is_empty() {
                 sys.host = host.as_str().into();
                 sys.port = port;
+                sys.bypass = bypass.as_str().into();
             }
             if auto.url.is_empty() {
                 auto.url = format!("http://{host}:{pac_port}/commands/pac");
@@ -637,7 +712,8 @@ fn with_system_call_retry(mut apply: impl FnMut() -> sysproxy::Result<()>) -> sy
 #[cfg(test)]
 mod tests {
     use super::{
-        BYPASS_SEPARATOR, DEFAULT_BYPASS, ObservedProxy, ProxyApplyStep, WantedProxy, format_bypass, proxy_apply_steps,
+        BYPASS_SEPARATOR, DEFAULT_BYPASS, ObservedProxy, ProxyApplyStep, WantedProxy, format_bypass,
+        observed_belongs_to_us, proxy_apply_steps,
     };
 
     fn observed(sys_enable: bool, host: &str, port: u16, auto_enable: bool) -> ObservedProxy {
@@ -646,6 +722,7 @@ mod tests {
             host: host.to_owned(),
             port,
             auto_enable,
+            auto_url: std::string::String::new(),
         }
     }
 
@@ -706,7 +783,7 @@ mod tests {
 
     #[cfg(target_os = "macos")]
     #[test]
-    fn independent_switches_turn_the_wanted_mode_on_before_turning_the_other_off() {
+    fn a_wanted_mode_goes_on_before_the_other_one_goes_off() {
         assert_eq!(
             proxy_apply_steps(true, false),
             [ProxyApplyStep::Sysproxy, ProxyApplyStep::Autoproxy]
@@ -719,6 +796,54 @@ mod tests {
             proxy_apply_steps(false, false),
             [ProxyApplyStep::Autoproxy, ProxyApplyStep::Sysproxy]
         );
+    }
+
+    fn seen(sys_enable: bool, host: &str, port: u16, auto_enable: bool, auto_url: &str) -> ObservedProxy {
+        ObservedProxy {
+            sys_enable,
+            host: host.to_owned(),
+            port,
+            auto_enable,
+            auto_url: auto_url.to_owned(),
+        }
+    }
+
+    #[test]
+    fn a_bracketed_ipv6_host_still_recognises_itself() {
+        let state = seen(true, "::1", 7897, false, "");
+
+        assert!(observed_belongs_to_us(&state, "[::1]", 7897, "", true));
+        assert!(observed_belongs_to_us(&state, "::1", 7897, "", true));
+        assert!(!observed_belongs_to_us(&state, "::2", 7897, "", true));
+    }
+
+    #[test]
+    fn a_proxy_on_someone_elses_address_is_not_ours() {
+        let state = seen(true, "10.0.0.1", 3128, false, "");
+
+        assert!(!observed_belongs_to_us(&state, "127.0.0.1", 7897, "", true));
+    }
+
+    #[test]
+    fn a_stale_pac_url_proves_nothing_where_the_switch_cannot_be_read() {
+        let state = seen(false, "", 0, true, "http://127.0.0.1:33331/commands/pac");
+        let ours = "http://127.0.0.1:33331/commands/pac";
+
+        assert!(observed_belongs_to_us(&state, "127.0.0.1", 7897, ours, true));
+        assert!(!observed_belongs_to_us(&state, "127.0.0.1", 7897, ours, false));
+    }
+
+    #[test]
+    fn a_foreign_pac_url_is_not_ours() {
+        let state = seen(false, "", 0, true, "http://proxy.corp/wpad.dat");
+
+        assert!(!observed_belongs_to_us(
+            &state,
+            "127.0.0.1",
+            7897,
+            "http://127.0.0.1:33331/commands/pac",
+            true
+        ));
     }
 
     #[test]

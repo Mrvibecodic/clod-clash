@@ -130,10 +130,13 @@ async fn reconcile(reason: &str, slept: bool) {
     drop(verge);
     if wants_sysproxy {
         let was_failing = Sysopt::global().write_failed();
-        if let Err(e) = Sysopt::global().update_sysproxy().await {
-            logging!(warn, Type::Core, "[clod] failed to re-assert the system proxy: {e}");
-            if !was_failing {
-                handle::Handle::notice_message("sysproxy::write_failed", e.to_string());
+        match Sysopt::global().update_sysproxy().await {
+            Ok(()) => Sysopt::global().refresh_guard().await,
+            Err(e) => {
+                logging!(warn, Type::Core, "[clod] failed to re-assert the system proxy: {e}");
+                if !was_failing {
+                    handle::Handle::notice_message("sysproxy::write_failed", e.to_string());
+                }
             }
         }
     }

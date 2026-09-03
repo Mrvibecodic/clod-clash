@@ -93,7 +93,7 @@ pub fn resolve_setup_async() {
                     Type::Setup,
                     "ядро не запустилось — системный прокси на мёртвый порт не ставим и снимаем прежний"
                 );
-                logging_error!(Type::Setup, sysopt::Sysopt::global().reset_sysproxy().await);
+                logging_error!(Type::Setup, sysopt::Sysopt::global().reset_sysproxy_if_ours().await);
                 Handle::notice_message("sysproxy::core_not_running", "");
                 init_connect_targets().await;
             }

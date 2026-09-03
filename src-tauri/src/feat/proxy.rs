@@ -34,11 +34,17 @@ pub async fn toggle_system_proxy() -> bool {
     match patch_result {
         Ok(_) => {
             handle::Handle::refresh_verge();
-            requested
+            Config::verge()
+                .await
+                .latest_arc()
+                .enable_system_proxy
+                .unwrap_or(requested)
         }
         Err(err) => {
             logging!(error, Type::ProxyMode, "{err}");
-            handle::Handle::notice_message("sysproxy::write_failed", err.to_string());
+            if crate::core::sysopt::Sysopt::global().write_failed() {
+                handle::Handle::notice_message("sysproxy::write_failed", err.to_string());
+            }
             current
         }
     }
