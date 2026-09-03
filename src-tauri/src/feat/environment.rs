@@ -1,10 +1,14 @@
 use crate::{
     config::Config,
     constants::timing,
-    core::{handle, sysopt::Sysopt, sysopt::verbose_diagnostics},
+    core::{
+        handle,
+        sysopt::{Sysopt, verbose_diagnostics},
+    },
     process::AsyncHandler,
 };
 use clash_verge_logging::{Type, logging};
+use parking_lot::Mutex;
 use std::{
     collections::BTreeSet,
     fmt::Write as _,
@@ -17,12 +21,15 @@ static WATCHDOG_RUNNING: AtomicBool = AtomicBool::new(false);
 static WAKE_REARM_PENDING: AtomicBool = AtomicBool::new(false);
 static LISTING_FAILED: AtomicBool = AtomicBool::new(false);
 static CLOCK_FAILED: AtomicBool = AtomicBool::new(false);
+static WAKE_REARM_SINCE: Mutex<Option<Instant>> = Mutex::new(None);
 
 const SLEEP_SLACK: Duration = Duration::from_secs(20);
 
 const FINGERPRINT_ENTRIES_SHOWN: usize = 8;
 
 const CORE_TUNNEL_BASE: &str = "meta";
+
+const WAITED_WORTH_SPELLING_OUT: Duration = Duration::from_secs(1);
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 mod sleep_clock {
@@ -78,7 +85,7 @@ mod sleep_clock {
     }
 }
 
-fn slept_through(instant_delta: Duration, before: Option<Duration>, after: Option<Duration>) -> bool {
+fn sleep_gap(instant_delta: Duration, before: Option<Duration>, after: Option<Duration>) -> Option<Duration> {
     let (Some(before), Some(after)) = (before, after) else {
         if !CLOCK_FAILED.swap(true, Ordering::AcqRel) {
             logging!(
@@ -87,10 +94,25 @@ fn slept_through(instant_delta: Duration, before: Option<Duration>, after: Optio
                 "[clod] the system did not tell how long it stayed awake; sleep goes unnoticed on this machine"
             );
         }
-        return false;
+        return None;
     };
     CLOCK_FAILED.store(false, Ordering::Release);
-    sleep_clock::asleep(instant_delta, before, after) > SLEEP_SLACK
+    Some(sleep_clock::asleep(instant_delta, before, after))
+}
+
+fn slept_through(gap: Option<Duration>) -> bool {
+    gap.is_some_and(|gap| gap > SLEEP_SLACK)
+}
+
+fn spelled_out(span: Duration) -> std::string::String {
+    let seconds = span.as_secs();
+    if seconds < 60 {
+        return format!("{seconds}s");
+    }
+    if seconds < 3600 {
+        return format!("{}m {}s", seconds / 60, seconds % 60);
+    }
+    format!("{}h {}m", seconds / 3600, (seconds % 3600) / 60)
 }
 
 fn looks_like_the_core_default_tunnel(name: &str) -> bool {
@@ -284,8 +306,32 @@ async fn reconcile(reason: &str, slept: bool, path_was_lost: bool, tun_is_being_
         }
     }
 
-    if may_close_connections && (slept || path_was_lost) {
+    if !may_close_connections {
+        if verbose {
+            logging!(
+                info,
+                Type::Core,
+                "[clod] live connections left alone: closing them on network events is turned off"
+            );
+        }
+    } else if slept || path_was_lost {
+        logging!(
+            info,
+            Type::Core,
+            "[clod] closing live connections: {}",
+            match (slept, path_was_lost) {
+                (true, true) => "the machine was asleep and an address is gone",
+                (true, false) => "the machine was asleep",
+                _ => "an address the connections were bound to is gone",
+            }
+        );
         close_live_connections(verbose).await;
+    } else if verbose {
+        logging!(
+            info,
+            Type::Core,
+            "[clod] live connections left alone: no address went away, the old path still stands"
+        );
     }
 
     if !slept && !tun_is_being_rearmed {
@@ -293,20 +339,53 @@ async fn reconcile(reason: &str, slept: bool, path_was_lost: bool, tun_is_being_
     }
 }
 
-fn hold_the_tun_rearm() {
-    WAKE_REARM_PENDING.store(true, Ordering::Release);
+fn hold_the_tun_rearm(tun_is_wanted: bool) {
+    *WAKE_REARM_SINCE.lock() = Some(Instant::now());
+    if WAKE_REARM_PENDING.swap(true, Ordering::AcqRel) || !tun_is_wanted {
+        return;
+    }
+    logging!(
+        info,
+        Type::Core,
+        "[clod] the TUN device waits for a routable address before it is re-created"
+    );
 }
 
 fn rearm_is_due(carries_traffic: bool) -> bool {
     carries_traffic && WAKE_REARM_PENDING.swap(false, Ordering::AcqRel)
 }
 
-fn rearm_the_tun_after_wake() {
-    logging!(
-        info,
-        Type::Core,
-        "[clod] the machine woke up and the network is back; the TUN device gets a fresh budget"
-    );
+fn worth_spelling_out(waited: Duration) -> Option<Duration> {
+    (waited >= WAITED_WORTH_SPELLING_OUT).then_some(waited)
+}
+
+async fn rearm_the_tun_after_wake() {
+    let waited = WAKE_REARM_SINCE
+        .lock()
+        .take()
+        .map(|since| since.elapsed())
+        .and_then(worth_spelling_out);
+    if crate::feat::tun::desired().await {
+        match waited {
+            Some(waited) => logging!(
+                info,
+                Type::Core,
+                "[clod] the network came back {} after the machine woke up; the TUN device gets a fresh budget",
+                spelled_out(waited)
+            ),
+            None => logging!(
+                info,
+                Type::Core,
+                "[clod] the machine woke up with the network already there; the TUN device gets a fresh budget"
+            ),
+        }
+    } else {
+        logging!(
+            info,
+            Type::Core,
+            "[clod] the machine woke up with the network already there; the TUN device is switched off, nothing to re-create"
+        );
+    }
     AsyncHandler::spawn(|| async { crate::feat::tun::rearm_after_wake().await });
 }
 
@@ -328,7 +407,17 @@ pub fn spawn_environment_watchdog() {
 
             let now_tick = Instant::now();
             let now_awake = sleep_clock::reading();
-            let slept = slept_through(now_tick.duration_since(last_tick), last_awake, now_awake);
+            let instant_delta = now_tick.duration_since(last_tick);
+            let gap = sleep_gap(instant_delta, last_awake, now_awake);
+            let slept = slept_through(gap);
+            if slept && let Some(gap) = gap {
+                logging!(
+                    info,
+                    Type::Core,
+                    "[clod] the machine was asleep for {}",
+                    spelled_out(gap)
+                );
+            }
 
             let view = network_fingerprint();
 
@@ -338,7 +427,7 @@ pub fn spawn_environment_watchdog() {
             crate::feat::tun::enforce_undesired_off().await;
 
             if slept {
-                hold_the_tun_rearm();
+                hold_the_tun_rearm(crate::feat::tun::desired().await);
             }
 
             let Some(view) = view else {
@@ -371,7 +460,7 @@ pub fn spawn_environment_watchdog() {
                 (false, true) => "network changed",
                 (false, false) => {
                     if rearm_is_now {
-                        rearm_the_tun_after_wake();
+                        rearm_the_tun_after_wake().await;
                     }
                     continue;
                 }
@@ -379,7 +468,7 @@ pub fn spawn_environment_watchdog() {
 
             reconcile(reason, slept, path_was_lost, rearm_is_now).await;
             if rearm_is_now {
-                rearm_the_tun_after_wake();
+                rearm_the_tun_after_wake().await;
             }
         }
     });
@@ -389,7 +478,8 @@ pub fn spawn_environment_watchdog() {
 mod tests {
     use super::{
         CORE_TUNNEL_BASE, FINGERPRINT_ENTRIES_SHOWN, SLEEP_SLACK, interface_of, is_our_tunnel, listed,
-        looks_like_the_core_default_tunnel, path_was_lost, slept_through, v4_carries_traffic, v6_carries_traffic,
+        looks_like_the_core_default_tunnel, path_was_lost, sleep_gap, slept_through, spelled_out, v4_carries_traffic,
+        v6_carries_traffic, worth_spelling_out,
     };
     use crate::constants::timing;
     use std::{
@@ -481,50 +571,92 @@ mod tests {
 
     #[test]
     fn a_missing_clock_reading_is_never_a_sleep() {
-        assert!(!slept_through(
+        assert!(!slept_through(sleep_gap(
             Duration::from_secs(3600),
             None,
             Some(Duration::from_secs(1))
-        ));
-        assert!(!slept_through(
+        )));
+        assert!(!slept_through(sleep_gap(
             Duration::from_secs(3600),
             Some(Duration::from_secs(1)),
             None
-        ));
+        )));
+    }
+
+    #[test]
+    fn a_span_is_spelled_out_for_a_person() {
+        assert_eq!(spelled_out(Duration::ZERO), "0s");
+        assert_eq!(spelled_out(Duration::from_secs(9)), "9s");
+        assert_eq!(spelled_out(Duration::from_secs(59)), "59s");
+        assert_eq!(spelled_out(Duration::from_secs(60)), "1m 0s");
+        assert_eq!(spelled_out(Duration::from_secs(75)), "1m 15s");
+        assert_eq!(spelled_out(Duration::from_secs(3599)), "59m 59s");
+        assert_eq!(spelled_out(Duration::from_secs(3600)), "1h 0m");
+        assert_eq!(spelled_out(Duration::from_secs(7325)), "2h 2m");
+    }
+
+    #[test]
+    fn a_wait_shorter_than_a_second_is_not_worth_a_number() {
+        assert_eq!(worth_spelling_out(Duration::ZERO), None);
+        assert_eq!(worth_spelling_out(Duration::from_millis(999)), None);
+        assert_eq!(worth_spelling_out(Duration::from_secs(1)), Some(Duration::from_secs(1)));
+        assert_eq!(
+            worth_spelling_out(Duration::from_secs(45)),
+            Some(Duration::from_secs(45))
+        );
+    }
+
+    #[test]
+    fn the_measured_sleep_is_what_gets_printed() {
+        let tick = timing::ENVIRONMENT_TICK;
+        let hour = Duration::from_secs(3600);
+
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
+        let gap = sleep_gap(tick, Some(Duration::ZERO), Some(hour));
+        #[cfg(target_os = "windows")]
+        let gap = sleep_gap(hour, Some(Duration::ZERO), Some(tick));
+        #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+        let gap = sleep_gap(hour, Some(Duration::ZERO), Some(tick));
+
+        #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+        assert_eq!(gap, Some(Duration::ZERO));
+        #[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
+        assert_eq!(gap, Some(hour - tick));
+        assert_eq!(sleep_gap(tick, None, Some(hour)), None);
     }
 
     #[cfg(any(target_os = "linux", target_os = "macos"))]
     #[test]
     fn sleep_is_what_the_awake_clock_missed() {
         let tick = timing::ENVIRONMENT_TICK;
-        assert!(!slept_through(tick, Some(Duration::ZERO), Some(tick)));
-        assert!(!slept_through(
+        assert!(!slept_through(sleep_gap(tick, Some(Duration::ZERO), Some(tick))));
+        assert!(!slept_through(sleep_gap(
             Duration::from_secs(45),
             Some(Duration::ZERO),
             Some(Duration::from_secs(45))
-        ));
-        assert!(slept_through(
+        )));
+        assert!(slept_through(sleep_gap(
             tick,
             Some(Duration::ZERO),
             Some(Duration::from_secs(3600))
-        ));
+        )));
     }
 
     #[cfg(target_os = "windows")]
     #[test]
     fn sleep_is_what_the_awake_clock_missed() {
         let tick = timing::ENVIRONMENT_TICK;
-        assert!(!slept_through(tick, Some(Duration::ZERO), Some(tick)));
-        assert!(!slept_through(
+        assert!(!slept_through(sleep_gap(tick, Some(Duration::ZERO), Some(tick))));
+        assert!(!slept_through(sleep_gap(
             Duration::from_secs(45),
             Some(Duration::ZERO),
             Some(Duration::from_secs(45))
-        ));
-        assert!(slept_through(
+        )));
+        assert!(slept_through(sleep_gap(
             Duration::from_secs(3600),
             Some(Duration::ZERO),
             Some(tick)
-        ));
+        )));
     }
 
     #[test]
