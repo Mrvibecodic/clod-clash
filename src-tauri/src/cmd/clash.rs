@@ -80,6 +80,7 @@ pub async fn stop_core() -> CmdResult {
 #[tauri::command]
 pub async fn restart_core() -> CmdResult {
     logging_error!(Type::Core, Config::profiles().await.data_arc().save_file().await);
+    crate::feat::tun::clear_suppression();
     let result = CoreManager::global().restart_core().await.stringify_err();
     if result.is_ok() {
         handle::Handle::refresh_clash();

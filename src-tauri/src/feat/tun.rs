@@ -466,6 +466,15 @@ pub async fn rearm_after_wake() {
         return;
     }
     let was_suppressed = is_suppressed();
+    if was_suppressed && !a_wake_up_could_help() && !rights_have_arrived() {
+        logging!(
+            info,
+            Type::Core,
+            "TUN stays down after the wake-up: its last failure ({}) is not something a new environment fixes",
+            last_failure().unwrap_or("unknown")
+        );
+        return;
+    }
     if was_suppressed {
         clear_suppression();
     }
@@ -602,6 +611,18 @@ const FAILURES_A_NEW_NETWORK_CAN_FIX: &[&str] = &[FAILURE_START, FAILURE_ADAPTER
 
 fn a_new_network_could_help() -> bool {
     last_failure().is_none_or(|failure| FAILURES_A_NEW_NETWORK_CAN_FIX.contains(&failure))
+}
+
+fn a_wake_up_could_help() -> bool {
+    a_new_network_could_help()
+}
+
+fn rights_have_arrived() -> bool {
+    is_app_elevated()
+        || matches!(
+            *crate::core::CoreManager::global().get_running_mode(),
+            crate::core::manager::RunningMode::Service
+        )
 }
 
 fn rearm_cooldown() -> Duration {

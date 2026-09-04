@@ -10,6 +10,7 @@ use serde_yaml_ng::{Mapping, Value};
 use smartstring::alias::String;
 
 pub async fn restart_clash_core() {
+    crate::feat::tun::clear_suppression();
     match CoreManager::global().restart_core().await {
         Ok(_) => {
             handle::Handle::refresh_clash();

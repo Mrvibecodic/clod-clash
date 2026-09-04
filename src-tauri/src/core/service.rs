@@ -1226,8 +1226,15 @@ impl ServiceManager {
     }
 
     fn set_status(&self, status: ServiceStatus) {
-        *self.status.lock() = status;
-        crate::feat::tun::forget_capability();
+        let changed = {
+            let mut current = self.status.lock();
+            let changed = *current != status;
+            *current = status;
+            changed
+        };
+        if changed {
+            crate::feat::tun::forget_capability();
+        }
     }
 
     async fn run_operation(&self, operation: impl Future<Output = Result<()>>) -> Result<()> {

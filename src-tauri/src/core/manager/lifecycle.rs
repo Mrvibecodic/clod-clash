@@ -458,6 +458,9 @@ impl CoreManager {
             .with_max_times(max_times as usize);
 
         let attempts = (|| async {
+            if Handle::global().is_exiting() {
+                return Ok(());
+            }
             if matches!(SERVICE_MANAGER.current().await, ServiceStatus::Ready) {
                 return Ok(());
             }
