@@ -4,7 +4,7 @@ use crate::{
     constants::timing,
     core::{
         handle,
-        validate::{CoreConfigValidator, ValidationOutcome, ValidationSkipReason},
+        validate::{CoreConfigValidator, ValidationErrorKind, ValidationOutcome, ValidationSkipReason},
     },
     utils::{dirs, help},
 };
@@ -128,7 +128,15 @@ impl CoreManager {
         match CoreConfigValidator::global().validate_config_outcome().await {
             Ok(outcome) if outcome.is_valid() => {
                 let run_path = Config::generate_file(ConfigType::Run).await?;
-                self.apply_config(run_path).await?;
+                if let Err(error) = self.apply_config(run_path).await {
+                    if let Some(refused) = error.downcast_ref::<ServiceRefusedTheBundle>() {
+                        return Ok(ValidationOutcome::invalid(
+                            ValidationErrorKind::CoreRejected,
+                            refused.0.clone(),
+                        ));
+                    }
+                    return Err(error);
+                }
                 forget_the_not_applied_mark().await;
                 crate::process::AsyncHandler::spawn(|| async { crate::feat::tun::enforce_undesired_off().await });
                 Ok(ValidationOutcome::Valid)
@@ -164,6 +172,15 @@ impl CoreManager {
                     );
                     Config::runtime().await.discard();
                     return Err(anyhow!("{message}"));
+                }
+                StagedPath::Unbuildable(message) => {
+                    logging!(
+                        warn,
+                        Type::Core,
+                        "This configuration cannot be handed to the service, leaving the core running: {message}"
+                    );
+                    Config::runtime().await.discard();
+                    return Err(ServiceRefusedTheBundle(message.to_string()).into());
                 }
                 // В service-режиме перезагрузка НАШИМ путём запрещена всегда:
                 // мягкий reload с непереписанными провайдерскими путями может
@@ -277,7 +294,7 @@ impl CoreManager {
                     Type::Core,
                     "the runtime bundle cannot be built for the service ({message}); leaving the core as it is"
                 );
-                StagedPath::RefusedTheBundle(message)
+                StagedPath::Unbuildable(message)
             }
             StageAttempt::Answered(service::StageRequest::Refused { code, message }) => {
                 if service::StageRequest::is_about_the_bundle(code) {
@@ -386,7 +403,21 @@ enum StagedPath {
     NotStaged,
     /// Служба отвергла сам бандл: старт повторил бы отказ, ядро не трогаем.
     RefusedTheBundle(std::string::String),
+    /// Бандл нельзя собрать из-за содержимого конфига (провайдерные секции):
+    /// это приговор конфигу, а не среде.
+    Unbuildable(std::string::String),
 }
+
+#[derive(Debug)]
+pub(crate) struct ServiceRefusedTheBundle(pub(crate) std::string::String);
+
+impl std::fmt::Display for ServiceRefusedTheBundle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for ServiceRefusedTheBundle {}
 
 /// Ключи конфига, изменение которых требует пересоздания inbound-листенеров
 /// (`PUT /configs?force=true`). Всё остальное mihomo применяет мягко.
