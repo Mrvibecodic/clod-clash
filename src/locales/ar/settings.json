@@ -45,7 +45,8 @@
           "handoffFailed": "تعذّر تسليم النواة إلى خدمة الخلفية وتعذّرت إعادتها — النواة لا تعمل",
           "notReady": "بدأت النواة لكنها لا تستجيب، لذلك أُلغي التشغيل",
           "portBusy": "المنفذ {{port}} يستخدمه تطبيق آخر: النواة لا تستمع إليه، ولن تمر البيانات عبر وكيل النظام.",
-          "portBusyAction": "غيّر المنفذ من الإعدادات"
+          "portBusyAction": "غيّر المنفذ من الإعدادات",
+          "restarted": "تعطّلت النواة وأُعيد تشغيلها"
         },
         "service": {
           "needsRepair": "The background service is outdated after the update. Repair it in the settings — TUN may not work until then"

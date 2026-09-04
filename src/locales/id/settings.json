@@ -45,7 +45,8 @@
           "handoffFailed": "Gagal menyerahkan core ke layanan latar belakang dan mengembalikannya — core tidak berjalan",
           "notReady": "Core sudah dijalankan tetapi tidak merespons, sehingga peluncuran dibatalkan",
           "portBusy": "Port {{port}} dipakai aplikasi lain: core tidak mendengarkan port itu, sehingga trafik tidak melewati proxy sistem.",
-          "portBusyAction": "Ubah port di pengaturan"
+          "portBusyAction": "Ubah port di pengaturan",
+          "restarted": "Core berhenti dan dijalankan ulang"
         },
         "service": {
           "needsRepair": "The background service is outdated after the update. Repair it in the settings — TUN may not work until then"

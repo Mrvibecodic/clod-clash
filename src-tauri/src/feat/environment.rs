@@ -398,9 +398,11 @@ pub fn spawn_environment_watchdog() {
         let mut last_tick = Instant::now();
         let mut last_awake = sleep_clock::reading();
         let mut last_network = network_fingerprint().map(|view| view.entries).unwrap_or_default();
+        let mut ticks: u32 = 0;
 
         loop {
             tokio::time::sleep(timing::ENVIRONMENT_TICK).await;
+            ticks = ticks.wrapping_add(1);
             if handle::Handle::global().is_exiting() {
                 return;
             }
@@ -424,7 +426,9 @@ pub fn spawn_environment_watchdog() {
             last_tick = now_tick;
             last_awake = now_awake;
 
-            crate::feat::tun::enforce_undesired_off().await;
+            if slept || ticks.is_multiple_of(timing::TUN_UNWANTED_SWEEP_EVERY_TICKS) {
+                crate::feat::tun::enforce_undesired_off().await;
+            }
 
             if slept {
                 hold_the_tun_rearm(crate::feat::tun::desired().await);

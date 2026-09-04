@@ -37,6 +37,7 @@ static RECREATE_RUNNING: AtomicBool = AtomicBool::new(false);
 static BRING_BACK_RUNNING: AtomicBool = AtomicBool::new(false);
 static REARM_BACKOFF: AtomicU32 = AtomicU32::new(0);
 static LAST_NOTICED: Mutex<Option<&'static str>> = Mutex::new(None);
+static CAPABILITY: Mutex<Option<(Instant, bool, bool)>> = Mutex::new(None);
 const READBACK_DOWN_STRIKES: u32 = 2;
 const TRAFFIC_RECHECK_ROUNDS: u32 = 10;
 const TRAFFIC_RECHECK_MAX_ROUNDS: u32 = 120;
@@ -64,6 +65,7 @@ const TRAFFIC_PROBE_URL: &str = "https://cp.cloudflare.com/generate_204";
 const TRAFFIC_PROBE_TIMEOUT_SECS: u64 = 8;
 const TRAFFIC_PROBE_DELAY: Duration = Duration::from_secs(5);
 const TRAFFIC_PROBE_RETRY_DELAY: Duration = Duration::from_secs(3);
+const CAPABILITY_FRESH_FOR: Duration = Duration::from_secs(60);
 
 pub fn is_suppressed() -> bool {
     SUPPRESSED.load(Ordering::Acquire)
@@ -197,6 +199,21 @@ pub async fn needs_repair() -> bool {
 }
 
 pub async fn capability_and_repair() -> (bool, bool) {
+    if let Some((asked_at, capable, needs_repair)) = *CAPABILITY.lock()
+        && asked_at.elapsed() < CAPABILITY_FRESH_FOR
+    {
+        return (capable, needs_repair);
+    }
+    let (capable, needs_repair) = capability_and_repair_now().await;
+    *CAPABILITY.lock() = Some((Instant::now(), capable, needs_repair));
+    (capable, needs_repair)
+}
+
+pub fn forget_capability() {
+    *CAPABILITY.lock() = None;
+}
+
+async fn capability_and_repair_now() -> (bool, bool) {
     let elevated = is_app_elevated();
     if is_service_available().await.is_err() {
         return (elevated, false);
@@ -520,6 +537,9 @@ async fn read_tun_state() -> Option<(bool, String)> {
 }
 
 pub async fn runtime_stack() -> Option<String> {
+    if !claimed().await {
+        return None;
+    }
     match read_tun_state().await {
         Some((true, stack)) => Some(stack),
         _ => None,

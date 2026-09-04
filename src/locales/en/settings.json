@@ -45,7 +45,8 @@
           "handoffFailed": "Handing the core over to the background service failed and it could not be brought back — the core is not running",
           "notReady": "The core started but does not answer, so the launch was cancelled",
           "portBusy": "Port {{port}} is held by another application: the core is not listening on it, so traffic will not go through the system proxy.",
-          "portBusyAction": "Change the port in the settings"
+          "portBusyAction": "Change the port in the settings",
+          "restarted": "The core crashed and was restarted"
         },
         "service": {
           "needsRepair": "The background service is outdated after the update. Repair it in the settings — TUN may not work until then"

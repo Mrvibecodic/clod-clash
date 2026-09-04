@@ -11,7 +11,7 @@ use anyhow::{Context as _, Result, bail};
 use backon::{ConstantBuilder, Retryable as _};
 use clash_verge_logging::{Type, logging};
 use clash_verge_service_ipc::{
-    OwnerSessionProof, ServiceErrorCode, StageRuntimeOutcome, StartClashRequest, WriterConfig,
+    OwnerSessionProof, ServiceErrorCode, ServiceStatusSnapshot, StageRuntimeOutcome, StartClashRequest, WriterConfig,
 };
 use compact_str::CompactString;
 use once_cell::sync::Lazy;
@@ -1016,6 +1016,17 @@ pub(super) async fn get_clash_logs_by_service() -> Result<Vec<CompactString>> {
     Ok(response.data.unwrap_or_default())
 }
 
+pub(super) async fn service_status() -> Result<ServiceStatusSnapshot> {
+    let credentials = current_owner_credentials()?;
+    let response = clash_verge_service_ipc::get_status(&credentials)
+        .await
+        .context("Не удалось подключиться к Clash Verge Service")?;
+    if response.code > 0 {
+        bail!(response.message);
+    }
+    response.data.context("служба не вернула своё состояние")
+}
+
 pub(super) async fn stop_core_by_service() -> Result<()> {
     logging!(info, Type::Service, "Остановка ядра через службу (IPC)");
 
@@ -1161,6 +1172,7 @@ impl ServiceManager {
 
     fn set_status(&self, status: ServiceStatus) {
         *self.status.lock() = status;
+        crate::feat::tun::forget_capability();
     }
 
     async fn run_operation(&self, operation: impl Future<Output = Result<()>>) -> Result<()> {

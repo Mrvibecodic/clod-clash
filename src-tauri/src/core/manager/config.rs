@@ -130,6 +130,7 @@ impl CoreManager {
                 let run_path = Config::generate_file(ConfigType::Run).await?;
                 self.apply_config(run_path).await?;
                 forget_the_not_applied_mark().await;
+                crate::process::AsyncHandler::spawn(|| async { crate::feat::tun::enforce_undesired_off().await });
                 Ok(ValidationOutcome::Valid)
             }
             Ok(outcome) => {

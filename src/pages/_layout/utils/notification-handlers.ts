@@ -193,6 +193,11 @@ export const handleNoticeMessage = (
         'settings.sections.system.notifications.core.crashed',
         msg,
       ),
+    'core::restarted': () =>
+      showNotice.info(
+        'settings.sections.system.notifications.core.restarted',
+        msg,
+      ),
     'core::not_ready': () =>
       showNotice.error(
         'settings.sections.system.notifications.core.notReady',

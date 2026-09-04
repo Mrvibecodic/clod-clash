@@ -130,6 +130,8 @@ impl CoreManager {
         // поднять устройство, честно гасим TUN и говорим об этом.
         if crate::feat::tun::desired().await && !crate::feat::tun::is_suppressed() {
             crate::feat::tun::spawn_start_verification(crate::feat::tun::log_anchor().await);
+        } else {
+            AsyncHandler::spawn(|| async { crate::feat::tun::enforce_undesired_off().await });
         }
 
         // После отката к sidecar в фоне ждём готовности службы для передачи

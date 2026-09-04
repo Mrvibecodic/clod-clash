@@ -9,6 +9,7 @@ use crate::{
 };
 use anyhow::Result;
 use clash_verge_logging::Type;
+use clash_verge_service_ipc::ServiceLifecycleState;
 use compact_str::CompactString;
 use log::Level;
 use scopeguard::defer;
@@ -131,6 +132,7 @@ fn handle_core_exit(message: &str, expected: &RunningMode, terminated_pid: Optio
         return;
     }
 
+    let message = message.to_owned();
     AsyncHandler::spawn(move || async move {
         tokio::time::sleep(restart_delay(attempt)).await;
         let manager = CoreManager::global();
@@ -147,30 +149,8 @@ fn handle_core_exit(message: &str, expected: &RunningMode, terminated_pid: Optio
             logging!(error, Type::Core, "failed to restart the core after a crash: {}", e);
             return;
         }
-        handle::Handle::refresh_clash();
-        if let Err(e) = crate::config::profiles::activate_selected_nodes() {
-            logging!(
-                warn,
-                Type::Core,
-                "Warning: restore selection after a crash restart failed: {e}"
-            );
-        }
-        if let Err(e) = crate::core::tray::Tray::global().update_menu().await {
-            logging!(warn, Type::Core, "failed to refresh the tray after a restart: {}", e);
-        }
-        if handle::Handle::global().is_exiting()
-            || matches!(*CoreManager::global().get_running_mode(), RunningMode::NotRunning)
-        {
+        if !after_core_came_back(&message).await {
             return;
-        }
-        let wants_sysproxy = Config::verge().await.latest_arc().enable_system_proxy.unwrap_or(false);
-        if wants_sysproxy && let Err(e) = crate::core::sysopt::Sysopt::global().update_sysproxy().await {
-            logging!(
-                warn,
-                Type::Core,
-                "failed to reapply the system proxy after a restart: {}",
-                e
-            );
         }
         tokio::time::sleep(CORE_STABLE_AFTER).await;
         if !matches!(*CoreManager::global().get_running_mode(), RunningMode::NotRunning) {
@@ -187,14 +167,200 @@ async fn core_answers() -> bool {
     .unwrap_or(false)
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ServiceSample {
+    Unreadable,
+    Status {
+        is_active: bool,
+        desired_running: bool,
+        state: ServiceLifecycleState,
+        core_pid: Option<u32>,
+        restart_count: u32,
+        last_exit_reason: Option<String>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum HealthStep {
+    Continue,
+    ProbeTheCore,
+    RestartedByService { restarts: u32, reason: String },
+    CoreLost(&'static str),
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+struct HealthWatch {
+    unreadable: u32,
+    silent: u32,
+    missing_core: u32,
+    restart_count: Option<u32>,
+}
+
+const fn service_is_settling(state: ServiceLifecycleState) -> bool {
+    matches!(
+        state,
+        ServiceLifecycleState::Starting | ServiceLifecycleState::RecoveringCore
+    )
+}
+
+impl HealthWatch {
+    fn observe(&mut self, sample: ServiceSample) -> HealthStep {
+        match sample {
+            ServiceSample::Unreadable => {
+                self.unreadable = self.unreadable.saturating_add(1);
+                HealthStep::ProbeTheCore
+            }
+            ServiceSample::Status {
+                is_active,
+                desired_running,
+                state,
+                core_pid,
+                restart_count,
+                last_exit_reason,
+            } => {
+                self.unreadable = 0;
+                if !is_active {
+                    return HealthStep::CoreLost("the service is no longer running the core for us");
+                }
+                let baseline = *self.restart_count.get_or_insert(restart_count);
+                if restart_count < baseline {
+                    self.restart_count = Some(restart_count);
+                } else if restart_count > baseline
+                    && core_pid.is_some()
+                    && matches!(state, ServiceLifecycleState::Running)
+                {
+                    self.restart_count = Some(restart_count);
+                    self.missing_core = 0;
+                    self.silent = 0;
+                    return HealthStep::RestartedByService {
+                        restarts: restart_count - baseline,
+                        reason: last_exit_reason.unwrap_or_default(),
+                    };
+                }
+                if matches!(state, ServiceLifecycleState::Fatal) {
+                    return HealthStep::CoreLost("the service gave up on the core");
+                }
+                if !desired_running && core_pid.is_none() {
+                    return HealthStep::CoreLost("the service was told to stop the core");
+                }
+                if service_is_settling(state) {
+                    self.missing_core = 0;
+                    self.silent = 0;
+                    return HealthStep::Continue;
+                }
+                if core_pid.is_none() {
+                    self.missing_core = self.missing_core.saturating_add(1);
+                    if self.missing_core >= timing::CORE_HEALTH_MISSES {
+                        return HealthStep::CoreLost("the core is gone and the service is not bringing it back");
+                    }
+                    return HealthStep::Continue;
+                }
+                self.missing_core = 0;
+                HealthStep::ProbeTheCore
+            }
+        }
+    }
+
+    const fn core_probed(&mut self, answers: bool) -> HealthStep {
+        if answers {
+            self.silent = 0;
+            self.unreadable = 0;
+            return HealthStep::Continue;
+        }
+        self.silent = self.silent.saturating_add(1);
+        if self.silent >= timing::CORE_HEALTH_MISSES {
+            HealthStep::CoreLost("the core stopped answering under the service")
+        } else {
+            HealthStep::Continue
+        }
+    }
+}
+
+async fn sample_the_service() -> ServiceSample {
+    if !service::is_service_ipc_path_exists() {
+        logging!(warn, Type::Core, "the service socket is gone");
+        return ServiceSample::Unreadable;
+    }
+    let status = tokio::time::timeout(timing::SERVICE_STATUS_WAIT, service::service_status())
+        .await
+        .unwrap_or_else(|_| Err(anyhow::anyhow!("no answer within {:?}", timing::SERVICE_STATUS_WAIT)));
+    match status {
+        Ok(status) => ServiceSample::Status {
+            is_active: status.is_active,
+            desired_running: status.desired_core_should_be_running,
+            state: status.service_state,
+            core_pid: status.core_pid,
+            restart_count: status.restart_count,
+            last_exit_reason: status.last_core_exit_reason,
+        },
+        Err(e) => {
+            logging!(warn, Type::Core, "the service did not report its status: {e:#}");
+            ServiceSample::Unreadable
+        }
+    }
+}
+
+static LAST_RESTART_NOTICE: Mutex<Option<Instant>> = Mutex::new(None);
+
+fn restart_notice_is_due(previous: Option<Instant>, now: Instant) -> bool {
+    previous.is_none_or(|last| now.duration_since(last) >= CORE_STABLE_AFTER)
+}
+
+fn notice_the_restart(reason: &str) {
+    let now = Instant::now();
+    let due = {
+        let mut last = match LAST_RESTART_NOTICE.lock() {
+            Ok(last) => last,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        let due = restart_notice_is_due(*last, now);
+        if due {
+            *last = Some(now);
+        }
+        due
+    };
+    if due {
+        handle::Handle::notice_message("core::restarted", reason.to_owned());
+    }
+}
+
+async fn after_core_came_back(reason: &str) -> bool {
+    handle::Handle::refresh_clash();
+    if let Err(e) = crate::config::profiles::activate_selected_nodes() {
+        logging!(
+            warn,
+            Type::Core,
+            "Warning: restore selection after a crash restart failed: {e}"
+        );
+    }
+    if let Err(e) = crate::core::tray::Tray::global().update_menu().await {
+        logging!(warn, Type::Core, "failed to refresh the tray after a restart: {}", e);
+    }
+    if handle::Handle::global().is_exiting()
+        || matches!(*CoreManager::global().get_running_mode(), RunningMode::NotRunning)
+    {
+        return false;
+    }
+    let wants_sysproxy = Config::verge().await.latest_arc().enable_system_proxy.unwrap_or(false);
+    if wants_sysproxy && let Err(e) = crate::core::sysopt::Sysopt::global().update_sysproxy().await {
+        logging!(
+            warn,
+            Type::Core,
+            "failed to reapply the system proxy after a restart: {}",
+            e
+        );
+    }
+    crate::feat::tun::enforce_undesired_off().await;
+    notice_the_restart(reason);
+    true
+}
+
 pub(super) fn spawn_service_health_watchdog() {
     let generation = SERVICE_WATCHDOG_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
     AsyncHandler::spawn(move || async move {
-        let mut misses: u32 = 0;
+        let mut watch = HealthWatch::default();
         let mut skipped: u32 = 0;
         loop {
-            tokio::time::sleep(timing::CORE_HEALTH_INTERVAL).await;
-
             let manager = CoreManager::global();
             if handle::Handle::global().is_exiting()
                 || SERVICE_WATCHDOG_GENERATION.load(Ordering::Acquire) != generation
@@ -205,7 +371,11 @@ pub(super) fn spawn_service_health_watchdog() {
             if manager.is_config_update_in_progress() {
                 skipped += 1;
                 if skipped <= timing::CORE_HEALTH_MAX_SKIPS {
-                    misses = 0;
+                    watch = HealthWatch {
+                        restart_count: watch.restart_count,
+                        ..HealthWatch::default()
+                    };
+                    tokio::time::sleep(timing::CORE_HEALTH_INTERVAL).await;
                     continue;
                 }
                 if skipped == timing::CORE_HEALTH_MAX_SKIPS + 1 {
@@ -219,32 +389,42 @@ pub(super) fn spawn_service_health_watchdog() {
             } else {
                 skipped = 0;
             }
-            if core_answers().await {
-                misses = 0;
-                continue;
-            }
 
-            misses += 1;
-            logging!(
-                warn,
-                Type::Core,
-                "the core did not answer under the service ({}/{})",
-                misses,
-                timing::CORE_HEALTH_MISSES
-            );
-            if misses < timing::CORE_HEALTH_MISSES {
-                continue;
+            let mut step = watch.observe(sample_the_service().await);
+            if matches!(step, HealthStep::ProbeTheCore) {
+                let answers = core_answers().await;
+                if !answers {
+                    logging!(
+                        warn,
+                        Type::Core,
+                        "the core did not answer under the service ({}/{})",
+                        watch.silent + 1,
+                        timing::CORE_HEALTH_MISSES
+                    );
+                }
+                step = watch.core_probed(answers);
             }
-
             if SERVICE_WATCHDOG_GENERATION.load(Ordering::Acquire) != generation {
                 return;
             }
-            handle_core_exit(
-                "the core stopped answering under the service",
-                &RunningMode::Service,
-                None,
-            );
-            return;
+            match step {
+                HealthStep::Continue | HealthStep::ProbeTheCore => {}
+                HealthStep::RestartedByService { restarts, reason } => {
+                    logging!(
+                        warn,
+                        Type::Core,
+                        "the service restarted the core by itself ({} time(s) since we looked): {}",
+                        restarts,
+                        reason
+                    );
+                    let _ = after_core_came_back(&reason).await;
+                }
+                HealthStep::CoreLost(why) => {
+                    handle_core_exit(why, &RunningMode::Service, None);
+                    return;
+                }
+            }
+            tokio::time::sleep(timing::CORE_HEALTH_INTERVAL).await;
         }
     });
 }
@@ -450,6 +630,7 @@ impl CoreManager {
 
     pub(super) async fn stop_core_by_service(&self) -> Result<()> {
         logging!(info, Type::Core, "Stopping service");
+        SERVICE_WATCHDOG_GENERATION.fetch_add(1, Ordering::AcqRel);
         self.clear_sidecar_pid();
         defer! {
             self.set_running_mode(RunningMode::NotRunning);
@@ -619,5 +800,198 @@ mod crash_tests {
         assert_eq!(restart_delay(2), Duration::from_secs(2));
         assert_eq!(restart_delay(3), CORE_RESTART_DELAY_CAP);
         assert_eq!(restart_delay(9), CORE_RESTART_DELAY_CAP);
+    }
+}
+
+#[cfg(test)]
+mod health_tests {
+    use super::{HealthStep, HealthWatch, ServiceLifecycleState, ServiceSample, restart_notice_is_due};
+    use crate::constants::timing;
+    use std::time::{Duration, Instant};
+
+    fn running(core_pid: Option<u32>, restart_count: u32) -> ServiceSample {
+        ServiceSample::Status {
+            is_active: true,
+            desired_running: true,
+            state: ServiceLifecycleState::Running,
+            core_pid,
+            restart_count,
+            last_exit_reason: None,
+        }
+    }
+
+    fn in_state(state: ServiceLifecycleState, restart_count: u32) -> ServiceSample {
+        ServiceSample::Status {
+            is_active: true,
+            desired_running: true,
+            state,
+            core_pid: None,
+            restart_count,
+            last_exit_reason: Some(String::from("exit code 2")),
+        }
+    }
+
+    #[test]
+    fn a_healthy_core_is_still_asked_directly() {
+        let mut watch = HealthWatch::default();
+        assert_eq!(watch.observe(running(Some(7), 3)), HealthStep::ProbeTheCore);
+        assert_eq!(watch.core_probed(true), HealthStep::Continue);
+        assert_eq!(watch.observe(running(Some(7), 3)), HealthStep::ProbeTheCore);
+    }
+
+    #[test]
+    fn a_hung_core_that_the_service_still_sees_is_lost_after_repeated_silence() {
+        let mut watch = HealthWatch::default();
+        for _ in 1..timing::CORE_HEALTH_MISSES {
+            assert_eq!(watch.observe(running(Some(7), 0)), HealthStep::ProbeTheCore);
+            assert_eq!(watch.core_probed(false), HealthStep::Continue);
+        }
+        assert_eq!(watch.observe(running(Some(7), 0)), HealthStep::ProbeTheCore);
+        assert!(matches!(watch.core_probed(false), HealthStep::CoreLost(_)));
+    }
+
+    #[test]
+    fn one_answer_clears_the_silence() {
+        let mut watch = HealthWatch::default();
+        assert_eq!(watch.observe(running(Some(7), 0)), HealthStep::ProbeTheCore);
+        assert_eq!(watch.core_probed(false), HealthStep::Continue);
+        assert_eq!(watch.observe(running(Some(7), 0)), HealthStep::ProbeTheCore);
+        assert_eq!(watch.core_probed(true), HealthStep::Continue);
+        assert_eq!(watch.observe(running(Some(7), 0)), HealthStep::ProbeTheCore);
+        assert_eq!(watch.core_probed(false), HealthStep::Continue);
+    }
+
+    #[test]
+    fn a_restart_done_by_the_service_is_reported_once_with_its_count_and_reason() {
+        let mut watch = HealthWatch::default();
+        assert_eq!(watch.observe(running(Some(7), 3)), HealthStep::ProbeTheCore);
+        assert_eq!(
+            watch.observe(in_state(ServiceLifecycleState::RecoveringCore, 3)),
+            HealthStep::Continue
+        );
+        let ServiceSample::Status { last_exit_reason, .. } = in_state(ServiceLifecycleState::Running, 5) else {
+            unreachable!()
+        };
+        let sample = ServiceSample::Status {
+            is_active: true,
+            desired_running: true,
+            state: ServiceLifecycleState::Running,
+            core_pid: Some(8),
+            restart_count: 5,
+            last_exit_reason,
+        };
+        assert_eq!(
+            watch.observe(sample),
+            HealthStep::RestartedByService {
+                restarts: 2,
+                reason: String::from("exit code 2"),
+            }
+        );
+        assert_eq!(watch.observe(running(Some(8), 5)), HealthStep::ProbeTheCore);
+    }
+
+    #[test]
+    fn the_first_sample_sets_the_baseline_instead_of_reporting_history() {
+        let mut watch = HealthWatch::default();
+        assert_eq!(watch.observe(running(Some(7), 42)), HealthStep::ProbeTheCore);
+    }
+
+    #[test]
+    fn a_service_that_was_itself_restarted_starts_a_new_baseline() {
+        let mut watch = HealthWatch::default();
+        assert_eq!(watch.observe(running(Some(7), 42)), HealthStep::ProbeTheCore);
+        assert_eq!(watch.observe(running(Some(9), 0)), HealthStep::ProbeTheCore);
+        assert!(matches!(
+            watch.observe(running(Some(10), 1)),
+            HealthStep::RestartedByService { restarts: 1, .. }
+        ));
+    }
+
+    #[test]
+    fn a_service_that_gave_up_hands_the_core_back_to_us() {
+        let mut watch = HealthWatch::default();
+        assert_eq!(watch.observe(running(Some(7), 0)), HealthStep::ProbeTheCore);
+        assert!(matches!(
+            watch.observe(in_state(ServiceLifecycleState::Fatal, 0)),
+            HealthStep::CoreLost(_)
+        ));
+    }
+
+    #[test]
+    fn a_service_still_recovering_is_left_to_it() {
+        let mut watch = HealthWatch::default();
+        for _ in 0..10 {
+            assert_eq!(
+                watch.observe(in_state(ServiceLifecycleState::RecoveringCore, 0)),
+                HealthStep::Continue
+            );
+        }
+    }
+
+    #[test]
+    fn a_missing_core_outside_recovery_counts_towards_loss() {
+        let mut watch = HealthWatch::default();
+        for _ in 1..timing::CORE_HEALTH_MISSES {
+            assert_eq!(watch.observe(running(None, 0)), HealthStep::Continue);
+        }
+        assert!(matches!(watch.observe(running(None, 0)), HealthStep::CoreLost(_)));
+    }
+
+    #[test]
+    fn a_silent_service_falls_back_to_asking_the_core() {
+        let mut watch = HealthWatch::default();
+        assert_eq!(watch.observe(ServiceSample::Unreadable), HealthStep::ProbeTheCore);
+        assert_eq!(watch.core_probed(true), HealthStep::Continue);
+        for _ in 1..timing::CORE_HEALTH_MISSES {
+            assert_eq!(watch.observe(ServiceSample::Unreadable), HealthStep::ProbeTheCore);
+            assert_eq!(watch.core_probed(false), HealthStep::Continue);
+        }
+        assert_eq!(watch.observe(ServiceSample::Unreadable), HealthStep::ProbeTheCore);
+        assert!(matches!(watch.core_probed(false), HealthStep::CoreLost(_)));
+    }
+
+    #[test]
+    fn a_displaced_owner_and_a_stop_requested_elsewhere_are_losses_for_us() {
+        let mut watch = HealthWatch::default();
+        let displaced = ServiceSample::Status {
+            is_active: false,
+            desired_running: true,
+            state: ServiceLifecycleState::Running,
+            core_pid: Some(5),
+            restart_count: 0,
+            last_exit_reason: None,
+        };
+        assert!(matches!(watch.observe(displaced), HealthStep::CoreLost(_)));
+        let stopped = ServiceSample::Status {
+            is_active: true,
+            desired_running: false,
+            state: ServiceLifecycleState::Running,
+            core_pid: None,
+            restart_count: 0,
+            last_exit_reason: None,
+        };
+        assert!(matches!(watch.observe(stopped), HealthStep::CoreLost(_)));
+    }
+
+    #[test]
+    fn an_unreadable_wish_to_stop_does_not_kill_a_core_that_is_still_there() {
+        let mut watch = HealthWatch::default();
+        let stopped_on_paper = ServiceSample::Status {
+            is_active: true,
+            desired_running: false,
+            state: ServiceLifecycleState::Running,
+            core_pid: Some(5),
+            restart_count: 0,
+            last_exit_reason: None,
+        };
+        assert_eq!(watch.observe(stopped_on_paper), HealthStep::ProbeTheCore);
+    }
+
+    #[test]
+    fn the_restart_notice_is_not_repeated_within_the_stable_window() {
+        let now = Instant::now();
+        assert!(restart_notice_is_due(None, now));
+        assert!(!restart_notice_is_due(Some(now), now + Duration::from_secs(5)));
+        assert!(restart_notice_is_due(Some(now), now + super::CORE_STABLE_AFTER));
     }
 }

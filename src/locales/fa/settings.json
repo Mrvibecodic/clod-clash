@@ -45,7 +45,8 @@
           "handoffFailed": "واگذاری هسته به سرویس پس‌زمینه و بازگرداندن آن ناموفق بود — هسته اجرا نمی‌شود",
           "notReady": "هسته اجرا شد اما پاسخ نمی‌دهد، بنابراین راه‌اندازی لغو شد",
           "portBusy": "پورت {{port}} در اختیار برنامه دیگری است: هسته روی آن گوش نمی‌دهد و ترافیک از پراکسی سیستم عبور نخواهد کرد.",
-          "portBusyAction": "تغییر پورت در تنظیمات"
+          "portBusyAction": "تغییر پورت در تنظیمات",
+          "restarted": "هسته از کار افتاد و دوباره اجرا شد"
         },
         "service": {
           "needsRepair": "The background service is outdated after the update. Repair it in the settings — TUN may not work until then"

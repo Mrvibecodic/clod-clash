@@ -45,7 +45,8 @@
           "handoffFailed": "코어를 백그라운드 서비스로 넘기지 못했고 되돌리지도 못했습니다 — 코어가 실행되지 않았습니다",
           "notReady": "코어가 시작되었지만 응답하지 않아 실행을 취소했습니다",
           "portBusy": "다른 프로그램이 포트 {{port}} 을(를) 사용 중입니다. 코어가 이 포트를 열지 못해 트래픽이 시스템 프록시를 통과하지 않습니다.",
-          "portBusyAction": "설정에서 포트 변경"
+          "portBusyAction": "설정에서 포트 변경",
+          "restarted": "코어가 중단되어 다시 시작했습니다"
         },
         "service": {
           "needsRepair": "The background service is outdated after the update. Repair it in the settings — TUN may not work until then"

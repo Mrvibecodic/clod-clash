@@ -77,30 +77,10 @@ pub mod timing {
     // live tunnel can die at any point afterwards. Under the service nobody
     // reads the core output continuously — only the sidecar does — so the
     // fact has to be re-checked on a timer for as long as TUN is claimed.
-    //
-    // 30 s is the same order as the system proxy guard (`sysopt`), and for the
-    // same reason: one pass over the core log buffer costs a single IPC round
-    // trip, which is nothing next to what the core itself does, while a dead
-    // tunnel stays unnoticed for at most half a minute. Anything much shorter
-    // would only buy seconds and would keep an idle tray client busy.
     pub const TUN_WATCH_INTERVAL: Duration = Duration::from_secs(30);
 
-    // clod:core-health — ядро под службой не наше дитя: события о его смерти нет
-    // ни у кого, а `handle_sidecar_exit` срабатывает только для процесса, который
-    // мы запустили сами. Падение (или снятие ядра службой) оставалось незамеченным
-    // навсегда: кнопка зелёная, автоперезапуска нет, счётчик крахов не растёт.
-    // Опрос — один вызов `get_version` по тому же IPC, что уже держит клиент.
-    //
-    // Интервал тот же, что у сторожа TUN и стража системного прокси, и по той же
-    // причине: круг стоит один round-trip, а мёртвое ядро живёт незамеченным не
-    // дольше минуты (см. `CORE_HEALTH_MISSES`).
     pub const CORE_HEALTH_INTERVAL: Duration = Duration::from_secs(30);
 
-    // clod:core-health — сколько кругов подряд ядро должно молчать, прежде чем
-    // мы сочтём его мёртвым. Один пропуск — это не смерть: служба перезапускает
-    // сокет, машина уходит в сон, IPC отвечает не сразу под нагрузкой. Ошибочный
-    // вывод стоит дорого — это перезапуск ядра и разрыв соединений, — поэтому
-    // ждём два молчания подряд.
     pub const CORE_HEALTH_MISSES: u32 = 2;
 
     pub const CORE_HEALTH_MAX_SKIPS: u32 = 4;
@@ -117,6 +97,7 @@ pub mod timing {
     // за него задержкой реакции: пятнадцать секунд с чужим системным прокси
     // после пробуждения — это пятнадцать секунд трафика мимо туннеля.
     pub const ENVIRONMENT_TICK: Duration = Duration::from_secs(15);
+    pub const TUN_UNWANTED_SWEEP_EVERY_TICKS: u32 = 4;
 
     // clod:tun-ready — служба поднимается вместе с системой и при автозапуске
     // регулярно отстаёт от приложения. Прежде чем счесть её отсутствующей — а

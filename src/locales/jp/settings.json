@@ -45,7 +45,8 @@
           "handoffFailed": "コアをバックグラウンドサービスへ引き継げず、戻すこともできませんでした — コアは動作していません",
           "notReady": "コアは起動しましたが応答しないため、起動を中止しました",
           "portBusy": "ポート {{port}} は別のアプリが使用中です。コアはこのポートを待ち受けておらず、通信はシステムプロキシを通りません。",
-          "portBusyAction": "設定でポートを変更する"
+          "portBusyAction": "設定でポートを変更する",
+          "restarted": "コアが停止したため再起動しました"
         },
         "service": {
           "needsRepair": "The background service is outdated after the update. Repair it in the settings — TUN may not work until then"
