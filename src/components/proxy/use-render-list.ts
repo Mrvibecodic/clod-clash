@@ -133,7 +133,11 @@ export const useRenderList = (
       (mode === 'rule' && !groups.length) ||
       (mode === 'global' && proxies.length < 2)
     ) {
-      const handle = setTimeout(() => refreshProxy(), 500)
+      // clod:Э11-05 — обновление может отклониться «ядро ещё не готово»; это
+      // ожидаемо и лечится следующим тиком, необработанным отказом шуметь незачем.
+      const handle = setTimeout(() => {
+        refreshProxy().catch(() => {})
+      }, 500)
       return () => clearTimeout(handle)
     }
   }, [proxiesData, mode, refreshProxy])
@@ -147,10 +151,19 @@ export const useRenderList = (
     )
     if (allProxies.length === 0) return
 
-    // Устанавливаем слушатель группы: при обновлении задержки автообновление
+    // clod:Э11-12 — слушатель срабатывает на КАЖДЫЙ завершённый замер, а замеров
+    // столько же, сколько узлов: на большой подписке это десятки перевалидаций
+    // интерфейса в секунду, по два запроса каждая. Замеры приходят пачками, и
+    // человеку хватает одного обновления на пачку — копим их и обновляем раз в
+    // полсекунды.
+    let pendingRefresh: ReturnType<typeof setTimeout> | undefined
     const groupListener = () => {
-      debugLog('[ChainMode] Задержка обновлена, обновляем интерфейс')
-      refreshProxy()
+      if (pendingRefresh) return
+      pendingRefresh = setTimeout(() => {
+        pendingRefresh = undefined
+        debugLog('[ChainMode] Задержки обновлены, обновляем интерфейс')
+        refreshProxy().catch(() => {})
+      }, 500)
     }
 
     delayManager.setGroupListener('chain-mode', groupListener)
@@ -176,6 +189,7 @@ export const useRenderList = (
 
     return () => {
       clearTimeout(handle)
+      if (pendingRefresh) clearTimeout(pendingRefresh)
       // Удаляем слушатель группы
       delayManager.removeGroupListener('chain-mode')
     }

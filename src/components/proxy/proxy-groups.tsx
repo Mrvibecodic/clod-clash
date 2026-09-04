@@ -89,14 +89,33 @@ function useProxyRenderState(
         `[ProxyGroups] Начало тестирования всех задержек, группа: ${groupName}`,
       )
 
-      const proxies = renderList
+      const rendered = renderList
         .filter(
           (e) => e.group?.name === groupName && (e.type === 2 || e.type === 4),
         )
         .flatMap((e) => e.proxyCol || e.proxy!)
         .filter(Boolean)
 
+      // clod:Э11-11 — у свёрнутой группы строк узлов в списке отрисовки нет, и
+      // кнопка «проверить» молча не делала ничего: человек смотрел на старые
+      // числа, считая их только что измеренными. Берём узлы из самой группы —
+      // но ТОЛЬКО когда группа свёрнута. У развёрнутой пустой список строк
+      // означает, что ничего не совпало с фильтром, и мерить всё подряд, включая
+      // отфильтрованное и встроенные DIRECT/REJECT, человек не просил.
+      const collapsed = getGroupHeadState(groupName)?.open === false
+      const proxies =
+        rendered.length > 0
+          ? rendered
+          : collapsed
+            ? (renderList.find((e) => e.group?.name === groupName)?.group
+                ?.all ?? [])
+            : []
+
       debugLog(`[ProxyGroups] Найдено прокси: ${proxies.length}`)
+      if (proxies.length === 0) {
+        debugLog(`[ProxyGroups] В группе ${groupName} нечего проверять`)
+        return
+      }
 
       debugLog(
         `[ProxyGroups] URL теста: ${delayManager.getUrl(groupName)}, тайм-аут: ${timeout}ms`,
@@ -583,7 +602,11 @@ export const ProxyGroups = (props: Props) => {
   useQuery({
     queryKey: ['getProxies'],
     queryFn: calcuProxies,
-    refetchInterval: pageVisible ? 3000 : false,
+    // clod:Э11-07 — 5 с вместо 3 с, как в ящике выбора сервера на главной.
+    // Каждый такой опрос стирает у fallback-групп закрепление в памяти ядра
+    // (`MarshalJSON` → `Now()` → `selected = ""`), а смена узла и так приходит
+    // событием: опрос нужен для задержек и состава групп, а не для выбора.
+    refetchInterval: pageVisible ? 5000 : false,
     refetchIntervalInBackground: false,
     staleTime: 1500,
     refetchOnWindowFocus: false,

@@ -653,7 +653,12 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
     const timer = window.setTimeout(() => {
       lastAutoDelayKey = key
       lastAutoPingAt = Date.now()
-      runGroupDelayTest(groupName).catch(() => {})
+      // clod:Э11-08 — тест автоматический, тостом о нём дёргать человека не за
+      // что; но и глотать молча нельзя: если ядро не вернуло закрепление, это
+      // единственный след в поддержку.
+      runGroupDelayTest(groupName).catch((error) => {
+        console.error(`Автотест задержек группы ${groupName} не прошёл:`, error)
+      })
     }, 800)
     return () => window.clearTimeout(timer)
   }, [visible, trayShowsDelays, groupName, updatedAt, runGroupDelayTest])

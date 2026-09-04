@@ -71,10 +71,6 @@ export async function updateProfile(index: string, option?: IProfileOption) {
   return invoke<void>('update_profile', { index, option })
 }
 
-export async function restoreSelectedNodes() {
-  return invoke<void>('restore_selected_nodes')
-}
-
 export async function deleteProfile(index: string) {
   return invoke<void>('delete_profile', { index })
 }
@@ -141,6 +137,17 @@ export async function calcuProxies(): Promise<{
     ])
 
   const proxyRecord = proxyResponse.proxies
+
+  // clod:Э11-05 — ядро перезагружает конфиг за считанные миллисекунды, и очередной
+  // трёхсекундный опрос может застать его с пустой картой прокси. Успешный пустой
+  // ответ раньше ложился в кэш как есть: список групп исчезал, а человек видел
+  // «нет серверов», хотя подписка на месте. Группа GLOBAL есть у ядра всегда, пока
+  // конфиг применён, поэтому её отсутствие означает «ядро ещё не готово», а не
+  // «серверов не осталось». Ошибка тут лучше пустоты: прежний список сохранится.
+  if (!proxyRecord?.GLOBAL?.all) {
+    throw new Error('clod-core-not-ready: the core has no proxy groups yet')
+  }
+
   const providerRecord = providerResponse
 
   const providerMap = Object.fromEntries(

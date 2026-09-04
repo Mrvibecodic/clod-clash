@@ -34,7 +34,9 @@ export const useRefreshOnReturn = (
   useEffect(() => {
     const returned = visible && !wasVisibleRef.current
     wasVisibleRef.current = visible
-    if (returned) void refreshRef.current()
+    // clod:Э11-05 — отказ «ядро ещё не готово» ожидаем и лечится следующим
+    // обновлением; необработанным отказом он шуметь не должен.
+    if (returned) void Promise.resolve(refreshRef.current()).catch(() => {})
   }, [visible])
 
   return visible

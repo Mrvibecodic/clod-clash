@@ -844,7 +844,32 @@ fn backfill_empty_groups(mut config: Mapping) -> (Mapping, HashSet<String>) {
                 .get("proxies")
                 .and_then(Value::as_sequence)
                 .is_some_and(|items| !items.is_empty());
-            if has_members || group_fills_at_runtime(group_map, &providers) {
+
+            if group_fills_at_runtime(group_map, &providers) {
+                // clod:Э11-09 — такая группа наполнится, когда ядро дотянет провайдера,
+                // и пустой её мы не считаем. Но пока провайдер тянется из сети, группа
+                // пуста, и ядро подставляет вместо неё встроенную заглушку — а та по
+                // умолчанию `COMPATIBLE`, то есть прямое соединение. Трафик группы
+                // молча уходил мимо туннеля. Говорим ядру подставлять `REJECT`:
+                // видимый отказ лучше тихого директа. Шаблон подписки при этом не
+                // трогается — правится уже собранный конфиг, тут же, где и остальное.
+                let ours = group_map.get("empty-fallback").is_none();
+                group_map
+                    .entry(Value::from("empty-fallback"))
+                    .or_insert_with(|| Value::from("REJECT"));
+
+                // Пока группа не наполнилась, она отвергает — в том числе и загрузку
+                // того самого провайдера, если провайдер ходит через неё. Такую
+                // привязку снимаем ниже, вместе с привязками к пустым группам:
+                // иначе получился бы замкнутый круг «группа ждёт провайдера, а
+                // провайдер не грузится, потому что группа отвергает».
+                if ours && let Some(name) = group_map.get("name").and_then(Value::as_str) {
+                    rejected.insert(name.into());
+                }
+                continue;
+            }
+
+            if has_members {
                 continue;
             }
 
@@ -1926,6 +1951,81 @@ proxy-groups:
             .expect("proxies should be a sequence");
         assert_eq!(proxies.len(), 1);
         assert_eq!(proxies[0].as_str(), Some("DIRECT"));
+    }
+
+    #[test]
+    fn a_group_waiting_for_its_provider_rejects_instead_of_going_direct() {
+        // Пока провайдер тянется из сети, группа пуста, и ядро подставляет вместо
+        // неё встроенную заглушку. По умолчанию это `COMPATIBLE`, а он ведёт себя
+        // как прямое соединение: трафик группы молча уходил мимо туннеля.
+        let config: serde_yaml_ng::Mapping = serde_yaml_ng::from_str(
+            "proxy-providers:\n  panel:\n    type: http\nproxy-groups:\n  - name: Авто\n    type: url-test\n    use: [panel]\n",
+        )
+        .expect("тестовый конфиг разбирается");
+
+        let (config, rejected) = backfill_empty_groups(config);
+
+        // Группу не считаем пустой — она наполнится сама, — но подмену задаём свою.
+        // И помечаем её как отвергающую, чтобы провайдер, который ходит через эту же
+        // группу, не остался без загрузки: иначе круг замкнётся.
+        assert!(rejected.contains("Авто"));
+        let group = config
+            .get("proxy-groups")
+            .and_then(|v| v.as_sequence())
+            .and_then(|groups| groups.first())
+            .and_then(serde_yaml_ng::Value::as_mapping)
+            .expect("группа на месте");
+        assert_eq!(
+            group.get("empty-fallback").and_then(serde_yaml_ng::Value::as_str),
+            Some("REJECT")
+        );
+    }
+
+    #[test]
+    fn a_provider_is_not_left_downloading_through_the_group_it_fills() {
+        // Замкнутый круг: провайдер `panel` качается через группу `Авто`, а `Авто`
+        // наполняется из `panel`. Пока группа пуста и отвергает, провайдер не
+        // загрузится никогда — значит привязку надо снять.
+        let config: serde_yaml_ng::Mapping = serde_yaml_ng::from_str(
+            "proxy-providers:\n  panel:\n    type: http\n    proxy: Авто\nproxy-groups:\n  - name: Авто\n    type: url-test\n    use: [panel]\n",
+        )
+        .expect("тестовый конфиг разбирается");
+
+        let (config, rejected) = backfill_empty_groups(config);
+        let config = unpin_providers_from_rejection(config, &rejected);
+
+        let provider = config
+            .get("proxy-providers")
+            .and_then(serde_yaml_ng::Value::as_mapping)
+            .and_then(|providers| providers.get("panel"))
+            .and_then(serde_yaml_ng::Value::as_mapping)
+            .expect("провайдер на месте");
+        assert!(
+            provider.get("proxy").is_none(),
+            "провайдер не должен качаться через группу, которую сам же наполняет"
+        );
+    }
+
+    #[test]
+    fn a_template_that_chose_its_own_empty_fallback_keeps_it() {
+        let config: serde_yaml_ng::Mapping = serde_yaml_ng::from_str(
+            "proxy-providers:\n  panel:\n    type: http\nproxy-groups:\n  - name: Авто\n    type: url-test\n    use: [panel]\n    empty-fallback: DIRECT\n",
+        )
+        .expect("тестовый конфиг разбирается");
+
+        let (config, _) = backfill_empty_groups(config);
+
+        let group = config
+            .get("proxy-groups")
+            .and_then(|v| v.as_sequence())
+            .and_then(|groups| groups.first())
+            .and_then(serde_yaml_ng::Value::as_mapping)
+            .expect("группа на месте");
+        assert_eq!(
+            group.get("empty-fallback").and_then(serde_yaml_ng::Value::as_str),
+            Some("DIRECT"),
+            "выбор шаблона не переписываем"
+        );
     }
 
     fn sentinel_pass(config: serde_yaml_ng::Mapping) -> (serde_yaml_ng::Mapping, super::SentinelReport) {

@@ -3,16 +3,24 @@ import { delayGroup } from 'tauri-plugin-mihomo-api'
 
 import { useGroupTestUrls } from '@/hooks/use-group-test-urls'
 import { useAppRefreshers } from '@/providers/app-data-context'
-import { restoreSelectedNodes } from '@/services/cmds'
 
 /**
  * clod: групповой тест задержек, который не трогает выбранный сервер.
  *
- * Обработчик `/group/{name}/delay` в mihomo сбрасывает закреплённый узел
- * url-test/fallback групп (`ForceSet("")`) и затирает его в store-selected
- * кэше ядра — из-за этого «тест серверов» ронял выбор пользователя. Здесь
- * тест идёт с `keepFixed` (плагин возвращает закреплённый узел на место),
- * а затем бэкенд дополнительно сверяет выбор с сохранённым в профиле.
+ * Обработчик `/group/{name}/delay` в mihomo на время теста сбрасывает
+ * закреплённый узел url-test/fallback групп (`ForceSet("")`) и затирает его в
+ * `store-selected` кэше ядра — из-за этого «тест серверов» ронял выбор
+ * пользователя. Спасает единственное: `keepFixed`, по которому плагин
+ * возвращает закреплённый узел на место после замеров.
+ *
+ * Раньше следом звался ещё и бэкендный `restoreSelectedNodes` — «страховка на
+ * случай, когда ядро потеряло закрепление». Страховкой он не был: ядро снимает
+ * закрепление только у групп url-test/fallback, а наш возврат выбора умеет
+ * активировать только группы select. Пересечение пусто, то есть круг был
+ * гарантированно холостым — восемь-девять запросов к ядру и семь перевалидаций
+ * интерфейса на каждый автотест, включая правила, к задержкам отношения не
+ * имеющие. Убран; настоящую работу делает `keepFixed`, и его отказ теперь
+ * виден, а не проглатывается.
  *
  * Measuring is all it does. Walking off a dead node is the core's job: the
  * failover that used to live here rewrote the user's pinned choice in the
@@ -40,9 +48,6 @@ export const useGroupDelayTest = () => {
           10000,
           true, // keepFixed — вернуть закреплённый узел после теста
         )
-        // Сверка с сохранённым выбором — страховка на случай, когда ядро
-        // успело потерять закрепление (перезагрузка конфига во время теста).
-        await restoreSelectedNodes().catch(() => {})
       } finally {
         refreshProxy().catch(() => {})
       }

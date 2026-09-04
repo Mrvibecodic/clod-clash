@@ -3,14 +3,12 @@ import { Box, Button, ButtonGroup } from '@mui/material'
 import { useLockFn } from 'ahooks'
 import { useCallback, useEffect, useReducer, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { closeAllConnections } from 'tauri-plugin-mihomo-api'
 
 import { BasePage, TooltipIcon } from '@/components/base'
 import { ProviderButton } from '@/components/proxy/provider-button'
 import { ProxyGroups } from '@/components/proxy/proxy-groups'
 import { useGroupTestUrls } from '@/hooks/use-group-test-urls'
 import { useProfiles } from '@/hooks/use-profiles'
-import { useVerge } from '@/hooks/use-verge'
 import {
   useAppRefreshers,
   useClashConfigData,
@@ -53,7 +51,6 @@ const ProxyPage = () => {
   const updateChainConfigData = useCallback((value: string | null) => {
     dispatchChainConfigData(value)
   }, [])
-  const { verge } = useVerge()
   // clod: наполняет delayManager адресами `url:` групп и общим дефолтом. Без
   // этого страница «Прокси» видела бы их только после захода на главную —
   // раньше пробел закрывали записи в urlMap, но они переживали смену профиля.
@@ -68,10 +65,9 @@ const ProxyPage = () => {
   const chainWarning = t('proxies.page.chain.warning')
 
   const onChangeMode = useLockFn(async (mode: Mode) => {
-    // Разрываем соединение
-    if (mode !== curMode && verge?.auto_close_connection) {
-      closeAllConnections()
-    }
+    // clod:Э11-10 — разрыв соединений здесь больше не дублируется. Его делает
+    // бэкенд по той же настройке `auto_close_connection`, и делает на ВСЕХ путях
+    // смены режима: режим меняют ещё трей и горячие клавиши, мимо этой страницы.
     try {
       // patchClashMode отклоняется, если PATCH на бэкенде не удался — нужно уведомить
       // пользователя, а не проглатывать ошибку молча

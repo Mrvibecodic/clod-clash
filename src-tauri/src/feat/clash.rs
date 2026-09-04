@@ -50,21 +50,16 @@ pub async fn restart_app() {
     app_handle.restart();
 }
 
-fn after_change_clash_mode() {
-    AsyncHandler::spawn(move || async {
-        let mihomo = handle::Handle::mihomo().await;
-        match mihomo.get_connections().await {
-            Ok(connections) => {
-                if let Some(connections_array) = connections.connections {
-                    for connection in connections_array {
-                        let _ = mihomo.close_connection(&connection.id).await;
-                    }
-                    drop(mihomo);
-                }
-            }
-            Err(err) => {
-                logging!(error, Type::Core, "Failed to get connections: {err}");
-            }
+/// clod:Э11-10 — один запрос вместо сотен.
+///
+/// Раньше здесь забирался весь список соединений и каждое закрывалось отдельным
+/// запросом: на нагруженной машине это сотни последовательных обращений к ядру,
+/// притом что `DELETE /connections` закрывает всё разом. Делать это на бэкенде
+/// по-прежнему нужно — режим меняют и трей, и горячие клавиши, мимо интерфейса.
+fn close_connections_after_mode_change() {
+    AsyncHandler::spawn(|| async {
+        if let Err(err) = handle::Handle::mihomo().await.close_all_connections().await {
+            logging!(warn, Type::Core, "Warning: не удалось разорвать соединения: {err}");
         }
     });
 }
@@ -119,9 +114,8 @@ pub async fn change_clash_mode(mode: String) -> Result<(), String> {
         tray::Tray::global().update_menu_and_icon().await;
     }
 
-    let is_auto_close_connection = Config::verge().await.data_arc().auto_close_connection();
-    if is_auto_close_connection {
-        after_change_clash_mode();
+    if Config::verge().await.data_arc().auto_close_connection() {
+        close_connections_after_mode_change();
     }
 
     Ok(())

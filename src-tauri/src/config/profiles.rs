@@ -37,9 +37,22 @@ static ACTIVATE_SELECTED_GENERATION: AtomicU64 = AtomicU64::new(0);
 
 const MIHOMO_OPERATION_TIMEOUT: Duration = Duration::from_secs(10);
 const SELECTED_NODES_RECHECK_DELAY: Duration = Duration::from_secs(1);
-const SELECTED_NODES_READY_TIMEOUT: Duration = Duration::from_secs(20);
+/// Сколько ждём группу, которая ещё может наполниться сама.
+///
+/// Провайдер подписки тянется из сети: при тёплом кэше это миллисекунды, на первом
+/// запуске — секунды. Держать ради него общий двадцатисекундный потолок незачем: если
+/// за это время группа не наполнилась, она, скорее всего, и не наполнится (панель
+/// отдала одни заглушки), а остальные группы ждать не должны.
+const SELECTED_NODES_FILL_BUDGET: Duration = Duration::from_secs(5);
 const PROXIES_POLL_INTERVAL: Duration = Duration::from_millis(500);
-const PROXIES_STABLE_POLLS: u8 = 3;
+
+/// Чем ядро подменяет пустую группу.
+///
+/// У группы, чей провайдер ещё не загрузился, список узлов НЕ пустой: ядро кладёт
+/// туда одну встроенную заглушку (`empty-fallback`, по умолчанию `COMPATIBLE`).
+/// Из-за этого проверка «список не пуст» считала такую группу наполненной, и
+/// ожидание заканчивалось, не дождавшись ничего.
+const EMPTY_GROUP_PLACEHOLDERS: &[&str] = crate::constants::policies::BUILTIN;
 
 #[derive(Default, Debug, Clone, Deserialize, Serialize)]
 pub struct IProfiles {
@@ -710,7 +723,35 @@ pub async fn profiles_delete_item_safe(index: &String) -> Result<(bool, PendingP
         .await
 }
 
+/// Группы, которые человек переключил сам, пока шло восстановление выбора.
+///
+/// Восстановление после запуска читает сохранённый выбор один раз и потом несколько
+/// секунд досылает его в ядро. Если человек за это время выбрал другой узел, до этой
+/// правки задача об этом не узнавала и возвращала ядро на старый: ядро на одном,
+/// профиль на другом, экран на третьем, и само это не выправлялось.
+///
+/// Отменять всё восстановление целиком нельзя — тогда первый же ручной выбор лишил
+/// бы возврата все остальные группы. Поэтому помним именно группы, и обходим ровно их.
+static MANUALLY_CHOSEN_GROUPS: LazyLock<Mutex<HashSet<String>>> = LazyLock::new(|| Mutex::new(HashSet::new()));
+
+/// Человек сам выбрал узел в этой группе — восстановление её больше не трогает.
+fn remember_manual_choice(group: &str) {
+    MANUALLY_CHOSEN_GROUPS.lock().insert(group.into());
+}
+
+fn group_was_chosen_by_hand(group: &str) -> bool {
+    MANUALLY_CHOSEN_GROUPS.lock().contains(group)
+}
+
+/// Новое восстановление начинается с чистого листа: прежние ручные выборы уже
+/// записаны в профиль и приедут из него.
+fn forget_manual_choices() {
+    MANUALLY_CHOSEN_GROUPS.lock().clear();
+}
+
 pub async fn profiles_set_selected_node_safe(group: &str, node: &str) -> Result<()> {
+    remember_manual_choice(group);
+
     let changed = Config::profiles()
         .await
         .with_data_modify(|mut profiles| async move {
@@ -1070,62 +1111,85 @@ async fn fetch_proxies_with_timeout() -> Result<Proxies> {
     .context("timed out while waiting for mihomo proxies")
 }
 
-fn selected_groups_are_filled(selected: &[PrfSelected], proxies: &Proxies) -> bool {
-    selected.iter().all(|item| {
-        let Some(group_name) = item.name.as_deref() else {
-            return true;
-        };
-        proxies
-            .proxies
-            .get(group_name)
-            .and_then(|group| group.all.as_deref())
-            .is_some_and(|nodes| !nodes.is_empty())
-    })
+/// В каком состоянии группа, для которой у нас сохранён выбор.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GroupState {
+    /// Узлы на месте — выбор можно возвращать.
+    Filled,
+    /// Группа есть, но в ней одна встроенная заглушка: провайдер ещё тянется из
+    /// сети. Ждать имеет смысл — она наполнится сама.
+    StillFilling,
+    /// Группы в ответе ядра нет вовсе. Ждать бессмысленно: от времени это не
+    /// изменится. Либо запись осталась от прежней подписки, либо на порту чужое ядро.
+    Absent,
 }
 
-fn groups_fingerprint(proxies: &Proxies) -> Vec<(String, usize)> {
-    let mut fingerprint = proxies
-        .proxies
+fn group_state(proxies: &Proxies, group_name: &str) -> GroupState {
+    let Some(group) = proxies.proxies.get(group_name) else {
+        return GroupState::Absent;
+    };
+
+    match group.all.as_deref() {
+        None | Some([]) => GroupState::StillFilling,
+        Some([only]) if EMPTY_GROUP_PLACEHOLDERS.contains(&only.as_str()) => GroupState::StillFilling,
+        Some(_) => GroupState::Filled,
+    }
+}
+
+fn saved_group_states(selected: &[PrfSelected], proxies: &Proxies) -> Vec<GroupState> {
+    selected
         .iter()
-        .map(|(name, group)| (name.as_str().into(), group.all.as_ref().map_or(0, Vec::len)))
-        .collect::<Vec<(String, usize)>>();
-    fingerprint.sort();
-    fingerprint
+        .filter_map(|item| item.name.as_deref())
+        .map(|name| group_state(proxies, name))
+        .collect()
 }
 
+/// Ждать ли ещё: есть ли группы, которые могут наполниться сами.
+fn some_groups_are_still_filling(selected: &[PrfSelected], proxies: &Proxies) -> bool {
+    saved_group_states(selected, proxies)
+        .iter()
+        .any(|state| *state == GroupState::StillFilling)
+}
+
+/// Можно ли переписывать сохранённые записи.
+///
+/// Только когда ядро точно крутит наш конфиг: хотя бы одна сохранённая группа
+/// найдена и наполнена, и ничего больше не догружается. Чужое или прошлое ядро на
+/// том же порту наших групп не покажет — и записи останутся нетронутыми.
+fn records_may_be_repaired(selected: &[PrfSelected], proxies: &Proxies) -> bool {
+    let states = saved_group_states(selected, proxies);
+    states.iter().any(|state| *state == GroupState::Filled)
+        && !states.iter().any(|state| *state == GroupState::StillFilling)
+}
+
+/// Дождаться, пока ядро дотянет группы, которые ещё могут наполниться.
+///
+/// Второе значение — можно ли переписывать сохранённые записи. Раньше его выставляла
+/// эвристика «список групп не менялся три опроса подряд»: полторы секунды
+/// стабильного ответа — и ядро объявлялось прогретым. Эвристика написана ради
+/// пустого списка групп, которого у ядра не бывает вовсе, а служила единственным
+/// разрешением переписать выбор: чужое ядро на том же порту отвечало стабильно и не
+/// нашими группами, и выбор стирался с диска.
+///
+/// Ждём только те группы, которые от ожидания могут измениться. Группы, которой в
+/// ответе нет, ждать бессмысленно — иначе одна запись от прежней подписки держала бы
+/// возврат выбора для всех остальных групп до самого конца отведённого времени, и
+/// так на каждом запуске.
 async fn fetch_settled_proxies(selected: &[PrfSelected], generation: u64) -> Result<(Proxies, bool)> {
-    let deadline = tokio::time::Instant::now() + SELECTED_NODES_READY_TIMEOUT;
+    let deadline = tokio::time::Instant::now() + SELECTED_NODES_FILL_BUDGET;
     let mut last_snapshot: Option<Proxies> = None;
-    let mut last_fingerprint = Vec::new();
-    let mut stable_polls = 0u8;
 
     loop {
         match handle::Handle::mihomo().await.get_proxies().await {
             Ok(proxies) => {
-                if selected_groups_are_filled(selected, &proxies) {
-                    return Ok((proxies, true));
+                if !some_groups_are_still_filling(selected, &proxies) {
+                    let may_repair = records_may_be_repaired(selected, &proxies);
+                    return Ok((proxies, may_repair));
                 }
-
-                let fingerprint = groups_fingerprint(&proxies);
-                if last_snapshot.is_some() && fingerprint == last_fingerprint {
-                    stable_polls += 1;
-                    if stable_polls >= PROXIES_STABLE_POLLS {
-                        logging!(
-                            debug,
-                            Type::Config,
-                            "mihomo groups stopped changing without every saved group; treating the core as warmed up"
-                        );
-                        return Ok((proxies, true));
-                    }
-                } else {
-                    stable_polls = 0;
-                }
-                last_fingerprint = fingerprint;
                 last_snapshot = Some(proxies);
             }
             Err(err) => {
                 logging!(debug, Type::Config, "mihomo proxies are not ready yet: {err}");
-                stable_polls = 0;
             }
         }
 
@@ -1173,6 +1237,14 @@ async fn apply_activations(
     for (group_name, node) in remaining_activations(activations, completed) {
         if !is_activation_current(generation) {
             return None;
+        }
+        if group_was_chosen_by_hand(&group_name) {
+            logging!(
+                info,
+                Type::Config,
+                "[clod] группу {group_name} человек переключил сам, сохранённый выбор в неё не досылаем"
+            );
+            continue;
         }
         match select_node_with_timeout(&group_name, &node).await {
             Ok(()) => {
@@ -1347,6 +1419,7 @@ pub fn activate_selected_nodes() -> Result<()> {
     logging!(info, Type::Config, "starting activating selected nodes");
     let mut active_task = ACTIVATE_SELECTED_TASK.lock();
     let generation = ACTIVATE_SELECTED_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
+    forget_manual_choices();
     let previous_task = active_task.take();
 
     let handle = tokio::spawn(async move {
@@ -1500,49 +1573,78 @@ mod tests {
     }
 
     #[test]
-    fn snapshot_is_filled_only_when_every_saved_group_has_nodes() {
+    fn a_group_that_can_still_fill_is_worth_waiting_for() {
+        use super::{records_may_be_repaired, some_groups_are_still_filling};
+
         let saved = vec![selected("group", "node")];
 
-        assert!(selected_groups_are_filled(
-            &saved,
-            &proxies(vec![("group", &["node", "other"], Some("other"))])
-        ));
+        // Узлы на месте — ждать нечего, записи чинить можно.
+        let ready = proxies(vec![("group", &["node", "other"], Some("other"))]);
+        assert!(!some_groups_are_still_filling(&saved, &ready));
+        assert!(records_may_be_repaired(&saved, &ready));
+
+        // Пустая группа и группа с одной встроенной заглушкой — это провайдер,
+        // который ещё тянется из сети. Такую ждём, и записи пока не трогаем.
+        for placeholder in [&[] as &[&str], &["COMPATIBLE"], &["REJECT"], &["DIRECT"]] {
+            let filling = proxies(vec![("group", placeholder, None)]);
+            assert!(
+                some_groups_are_still_filling(&saved, &filling),
+                "{placeholder:?} — это заглушка ядра, а не наполненная группа"
+            );
+            assert!(!records_may_be_repaired(&saved, &filling));
+        }
+
+        // Настоящие узлы, даже если один назван как встроенное имя: подмена ядра
+        // всегда состоит ровно из одного элемента.
+        let real = proxies(vec![("group", &["DIRECT", "node"], None)]);
+        assert!(!some_groups_are_still_filling(&saved, &real));
+        assert!(records_may_be_repaired(&saved, &real));
+    }
+
+    #[test]
+    fn a_group_that_is_simply_gone_is_not_worth_waiting_for() {
+        use super::{records_may_be_repaired, some_groups_are_still_filling};
+
+        let saved = vec![selected("group", "node")];
+
+        // Группы нет вовсе. От ожидания это не изменится: либо запись осталась от
+        // прежней подписки, либо на порту чужое ядро. Ждать её значило бы держать
+        // возврат выбора для всех остальных групп до конца отведённого времени,
+        // и так на каждом запуске.
+        let foreign = proxies(vec![("another", &["node"], None)]);
+        assert!(!some_groups_are_still_filling(&saved, &foreign));
+
+        // И чинить записи по такому ответу нельзя: наших групп в нём нет.
+        assert!(!records_may_be_repaired(&saved, &foreign));
+    }
+
+    #[test]
+    fn an_orphaned_record_does_not_block_the_rest() {
+        use super::{records_may_be_repaired, some_groups_are_still_filling};
+
+        // Одна группа исчезла из подписки, вторая на месте и наполнена.
+        let saved = vec![selected("gone", "node"), selected("group", "node")];
+        let snapshot = proxies(vec![("group", &["node", "other"], None)]);
+
+        assert!(!some_groups_are_still_filling(&saved, &snapshot));
         assert!(
-            !selected_groups_are_filled(&saved, &proxies(vec![("group", &[], None)])),
-            "an empty group means the core has not filled it yet"
-        );
-        assert!(
-            !selected_groups_are_filled(&saved, &proxies(vec![("another", &["node"], None)])),
-            "a missing group means the core has not filled it yet"
+            records_may_be_repaired(&saved, &snapshot),
+            "ядро крутит наш конфиг — осиротевшую запись можно убрать"
         );
     }
 
     #[test]
-    fn fingerprint_tracks_group_names_and_sizes() {
-        let one = proxies(vec![("a", &["n1"], None), ("b", &[], None)]);
-        let same = proxies(vec![("b", &[], None), ("a", &["n1"], None)]);
-        let grown = proxies(vec![("a", &["n1", "n2"], None), ("b", &[], None)]);
+    fn a_record_without_a_group_name_is_nobody_to_wait_for() {
+        use super::{records_may_be_repaired, some_groups_are_still_filling};
 
-        assert_eq!(
-            groups_fingerprint(&one),
-            groups_fingerprint(&same),
-            "the order of groups in the answer must not matter"
-        );
-        assert_ne!(
-            groups_fingerprint(&one),
-            groups_fingerprint(&grown),
-            "a group that gained nodes means the core is still filling them"
-        );
-    }
-
-    #[test]
-    fn snapshot_is_filled_for_records_without_a_group_name() {
         let nameless = vec![PrfSelected {
             name: None,
             now: Some("node".into()),
         }];
 
-        assert!(selected_groups_are_filled(&nameless, &proxies(vec![])));
+        assert!(!some_groups_are_still_filling(&nameless, &proxies(vec![])));
+        // И чинить по нему нечего: наполненных групп в ответе нет.
+        assert!(!records_may_be_repaired(&nameless, &proxies(vec![])));
     }
 
     #[test]
