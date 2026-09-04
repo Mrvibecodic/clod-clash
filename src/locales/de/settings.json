@@ -49,6 +49,7 @@
           "restarted": "Der Core ist abgestürzt und wurde neu gestartet"
         },
         "service": {
+          "bundleRejected": "Diese Konfiguration kann nicht an den Hintergrunddienst übergeben werden — der Core läuft ohne ihn, TUN ist nicht verfügbar. Korrigieren Sie die Konfiguration und starten Sie dann den Core neu oder schalten Sie TUN aus und wieder ein",
           "needsRepair": "The background service is outdated after the update. Repair it in the settings — TUN may not work until then"
         }
       }

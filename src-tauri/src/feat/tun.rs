@@ -330,7 +330,22 @@ fn give_up_on_tun(detail: &str) {
     } else {
         ("tun::start_failed", FAILURE_START)
     };
-    hold_tun_down("core failed to start the TUN device", failure, event);
+    let service_refused_this_config =
+        failure == FAILURE_NO_RIGHTS && crate::core::service::bundle_rejection().is_some();
+    if service_refused_this_config {
+        suppress("core failed to start the TUN device");
+        set_failure(failure);
+        AsyncHandler::spawn(move || async move {
+            if crate::core::service::bundle_rejection_for_the_running_config()
+                .await
+                .is_none()
+            {
+                announce_once(failure, event);
+            }
+        });
+    } else {
+        hold_tun_down("core failed to start the TUN device", failure, event);
+    }
 
     drop_tun_from_the_running_config(detail);
 }

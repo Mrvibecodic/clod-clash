@@ -49,6 +49,7 @@
           "restarted": "هسته از کار افتاد و دوباره اجرا شد"
         },
         "service": {
+          "bundleRejected": "این پیکربندی را نمی‌توان به سرویس پس‌زمینه سپرد — هسته بدون آن اجرا می‌شود و TUN در دسترس نیست. پیکربندی را اصلاح کنید، سپس هسته را دوباره راه‌اندازی کنید یا TUN را خاموش و دوباره روشن کنید",
           "needsRepair": "The background service is outdated after the update. Repair it in the settings — TUN may not work until then"
         }
       }

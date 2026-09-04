@@ -49,6 +49,7 @@
           "restarted": "Төш ауды һәм кабат җибәрелде"
         },
         "service": {
+          "bundleRejected": "Бу көйләүне фон хезмәтенә тапшырып булмый — төш аннан башка эшли, TUN мөмкин түгел. Көйләүне төзәтегез, аннары төшне яңадан җибәрегез яки TUN'ны сүндереп яңадан кабызыгыз",
           "needsRepair": "The background service is outdated after the update. Repair it in the settings — TUN may not work until then"
         }
       }

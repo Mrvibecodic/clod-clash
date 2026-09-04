@@ -49,6 +49,7 @@
           "restarted": "The core crashed and was restarted"
         },
         "service": {
+          "bundleRejected": "This configuration cannot be handed to the background service — the core runs without it and TUN is unavailable. Fix the configuration, then restart the core or switch TUN off and on again",
           "needsRepair": "The background service is outdated after the update. Repair it in the settings — TUN may not work until then"
         }
       }

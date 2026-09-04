@@ -49,6 +49,7 @@
           "restarted": "コアが停止したため再起動しました"
         },
         "service": {
+          "bundleRejected": "この設定はバックグラウンドサービスに渡せません — コアはサービスなしで動作し、TUN は使えません。設定を修正してから、コアを再起動するか TUN をオフにして再度オンにしてください",
           "needsRepair": "The background service is outdated after the update. Repair it in the settings — TUN may not work until then"
         }
       }

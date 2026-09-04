@@ -49,6 +49,7 @@
           "restarted": "内核崩溃，已自动重启"
         },
         "service": {
+          "bundleRejected": "此配置无法交给后台服务 — 内核在无服务状态下运行，TUN 不可用。请修正配置，然后重启内核，或关闭再重新开启 TUN",
           "needsRepair": "The background service is outdated after the update. Repair it in the settings — TUN may not work until then"
         }
       }

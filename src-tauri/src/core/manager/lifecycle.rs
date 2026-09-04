@@ -99,7 +99,20 @@ impl CoreManager {
                 "service start failed ({}); falling back to sidecar",
                 e
             );
+            let rejected_bundle = {
+                let runtime = Config::runtime().await;
+                let latest = runtime.latest_arc();
+                latest
+                    .config
+                    .as_ref()
+                    .and_then(crate::core::service::bundle_rejection_for)
+            };
             result = self.start_and_confirm(false).await;
+            if result.is_ok()
+                && let Some(message) = rejected_bundle
+            {
+                Handle::notice_message("service::bundle_rejected", message);
+            }
         }
 
         // При ошибке запуска откатываем mode, чтобы разрешить повторную попытку.
@@ -572,6 +585,14 @@ impl CoreManager {
         let _ = SERVICE_MANAGER.refresh().await;
         if !matches!(SERVICE_MANAGER.current().await, ServiceStatus::Ready) {
             return HandoffOutcome::NotReady;
+        }
+        if service::bundle_rejection_for_the_running_config().await.is_some() {
+            logging!(
+                info,
+                Type::Core,
+                "the current configuration cannot run under the service; staying in sidecar mode until it changes"
+            );
+            return HandoffOutcome::Failed;
         }
 
         // Сначала захватываем блокировку config; при неудаче уступаем идущему обновлению.

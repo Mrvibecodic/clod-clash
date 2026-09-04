@@ -188,6 +188,11 @@ export const handleNoticeMessage = (
       showNotice.error(
         'settings.sections.system.notifications.service.needsRepair',
       ),
+    'service::bundle_rejected': () =>
+      showNotice.error(
+        'settings.sections.system.notifications.service.bundleRejected',
+        msg,
+      ),
     'core::crashed': () =>
       showNotice.error(
         'settings.sections.system.notifications.core.crashed',

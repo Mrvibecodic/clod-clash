@@ -49,6 +49,7 @@
           "restarted": "El núcleo se bloqueó y se reinició"
         },
         "service": {
+          "bundleRejected": "Esta configuración no se puede entregar al servicio en segundo plano: el núcleo se ejecuta sin él y TUN no está disponible. Corrija la configuración y luego reinicie el núcleo o apague y vuelva a encender TUN",
           "needsRepair": "The background service is outdated after the update. Repair it in the settings — TUN may not work until then"
         }
       }

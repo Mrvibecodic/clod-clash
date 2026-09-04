@@ -49,6 +49,7 @@
           "restarted": "코어가 중단되어 다시 시작했습니다"
         },
         "service": {
+          "bundleRejected": "이 구성은 백그라운드 서비스에 넘길 수 없습니다 — 코어는 서비스 없이 실행되며 TUN을 사용할 수 없습니다. 구성을 수정한 뒤 코어를 다시 시작하거나 TUN을 껐다가 다시 켜세요",
           "needsRepair": "The background service is outdated after the update. Repair it in the settings — TUN may not work until then"
         }
       }

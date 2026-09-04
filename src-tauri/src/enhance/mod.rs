@@ -822,17 +822,47 @@ fn group_fills_at_runtime(group: &Mapping, providers: &HashSet<String>) -> bool 
     })
 }
 
-fn provider_names(config: &Mapping) -> HashSet<String> {
+fn provider_names(config: &Mapping, only_from_the_network: bool) -> HashSet<String> {
     config
         .get("proxy-providers")
         .and_then(Value::as_mapping)
-        .map(|map| map.keys().filter_map(Value::as_str).map(Into::into).collect())
+        .map(|map| {
+            map.iter()
+                .filter(|(_, provider)| {
+                    !only_from_the_network
+                        || provider
+                            .as_mapping()
+                            .and_then(|provider| provider.get("type"))
+                            .and_then(Value::as_str)
+                            .is_some_and(|kind| kind.eq_ignore_ascii_case("http"))
+                })
+                .filter_map(|(name, _)| name.as_str())
+                .map(Into::into)
+                .collect()
+        })
         .unwrap_or_default()
 }
 
-fn backfill_empty_groups(mut config: Mapping) -> (Mapping, HashSet<String>) {
-    let providers = provider_names(&config);
-    let mut rejected: HashSet<String> = HashSet::new();
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+struct Rejections {
+    emptied: HashSet<String>,
+    waiting: HashSet<String>,
+}
+
+impl Rejections {
+    fn for_section(&self, section: &str) -> HashSet<String> {
+        let mut groups = self.emptied.clone();
+        if section == "proxy-providers" {
+            groups.extend(self.waiting.iter().cloned());
+        }
+        groups
+    }
+}
+
+fn backfill_empty_groups(mut config: Mapping) -> (Mapping, Rejections) {
+    let providers = provider_names(&config, false);
+    let network_providers = provider_names(&config, true);
+    let mut rejected = Rejections::default();
 
     if let Some(Value::Sequence(groups)) = config.get_mut("proxy-groups") {
         for group in groups {
@@ -845,7 +875,8 @@ fn backfill_empty_groups(mut config: Mapping) -> (Mapping, HashSet<String>) {
                 .and_then(Value::as_sequence)
                 .is_some_and(|items| !items.is_empty());
 
-            if group_fills_at_runtime(group_map, &providers) {
+            let fed_by_a_provider = group_fills_at_runtime(group_map, &providers);
+            if group_fills_at_runtime(group_map, &network_providers) {
                 // clod:Э11-09 — такая группа наполнится, когда ядро дотянет провайдера,
                 // и пустой её мы не считаем. Но пока провайдер тянется из сети, группа
                 // пуста, и ядро подставляет вместо неё встроенную заглушку — а та по
@@ -864,18 +895,18 @@ fn backfill_empty_groups(mut config: Mapping) -> (Mapping, HashSet<String>) {
                 // иначе получился бы замкнутый круг «группа ждёт провайдера, а
                 // провайдер не грузится, потому что группа отвергает».
                 if ours && let Some(name) = group_map.get("name").and_then(Value::as_str) {
-                    rejected.insert(name.into());
+                    rejected.waiting.insert(name.into());
                 }
                 continue;
             }
 
-            if has_members {
+            if has_members || fed_by_a_provider {
                 continue;
             }
 
             group_map.insert(Value::from("proxies"), Value::Sequence(vec![Value::from("REJECT")]));
             if let Some(name) = group_map.get("name").and_then(Value::as_str) {
-                rejected.insert(name.into());
+                rejected.emptied.insert(name.into());
             }
         }
     }
@@ -952,14 +983,18 @@ fn resolves_to_rejection(start: &str, outlets: &HashMap<String, GroupOutlets>, r
     walks_into_rejection(start, outlets, rejected, &mut HashSet::new())
 }
 
-fn unpin_providers_from_rejection(mut config: Mapping, rejected: &HashSet<String>) -> Mapping {
-    if rejected.is_empty() {
+fn unpin_providers_from_rejection(mut config: Mapping, rejected: &Rejections) -> Mapping {
+    if rejected.emptied.is_empty() && rejected.waiting.is_empty() {
         return config;
     }
 
     let outlets = group_outlets(&config);
 
     for section in ["rule-providers", "proxy-providers"] {
+        let rejected = rejected.for_section(section);
+        if rejected.is_empty() {
+            continue;
+        }
         let Some(Value::Mapping(providers)) = config.get_mut(section) else {
             continue;
         };
@@ -970,7 +1005,7 @@ fn unpin_providers_from_rejection(mut config: Mapping, rejected: &HashSet<String
             let pinned = provider
                 .get("proxy")
                 .and_then(Value::as_str)
-                .is_some_and(|name| resolves_to_rejection(name, &outlets, rejected));
+                .is_some_and(|name| resolves_to_rejection(name, &outlets, &rejected));
             if pinned {
                 provider.remove("proxy");
             }
@@ -1968,7 +2003,8 @@ proxy-groups:
         // Группу не считаем пустой — она наполнится сама, — но подмену задаём свою.
         // И помечаем её как отвергающую, чтобы провайдер, который ходит через эту же
         // группу, не остался без загрузки: иначе круг замкнётся.
-        assert!(rejected.contains("Авто"));
+        assert!(rejected.waiting.contains("Авто"));
+        assert!(rejected.emptied.is_empty());
         let group = config
             .get("proxy-groups")
             .and_then(|v| v.as_sequence())
@@ -2026,6 +2062,50 @@ proxy-groups:
             Some("DIRECT"),
             "выбор шаблона не переписываем"
         );
+    }
+
+    #[test]
+    fn a_group_fed_by_an_inline_provider_is_not_treated_as_waiting() {
+        let config: serde_yaml_ng::Mapping = serde_yaml_ng::from_str(
+            "proxy-providers:\n  local:\n    type: inline\n    payload:\n      - {name: a, type: ss, server: 1.1.1.1, port: 1, cipher: aes-128-gcm, password: x}\nproxy-groups:\n  - name: Авто\n    type: select\n    use: [local]\n",
+        )
+        .expect("тестовый конфиг разбирается");
+
+        let (config, rejected) = backfill_empty_groups(config);
+
+        assert!(rejected.waiting.is_empty());
+        assert!(rejected.emptied.is_empty());
+        let group = config
+            .get("proxy-groups")
+            .and_then(|v| v.as_sequence())
+            .and_then(|groups| groups.first())
+            .and_then(serde_yaml_ng::Value::as_mapping)
+            .expect("группа на месте");
+        assert!(group.get("empty-fallback").is_none());
+    }
+
+    #[test]
+    fn rule_sets_keep_their_route_through_a_group_that_is_only_waiting_for_its_provider() {
+        let config: serde_yaml_ng::Mapping = serde_yaml_ng::from_str(
+            "proxy-providers:\n  panel:\n    type: http\n    proxy: Авто\nrule-providers:\n  ads:\n    type: http\n    proxy: Авто\nproxy-groups:\n  - name: Авто\n    type: select\n    proxies: [DIRECT]\n    use: [panel]\n",
+        )
+        .expect("тестовый конфиг разбирается");
+
+        let (config, rejected) = backfill_empty_groups(config);
+        let config = unpin_providers_from_rejection(config, &rejected);
+
+        let route_of = |section: &str, name: &str| {
+            config
+                .get(section)
+                .and_then(serde_yaml_ng::Value::as_mapping)
+                .and_then(|providers| providers.get(name))
+                .and_then(serde_yaml_ng::Value::as_mapping)
+                .and_then(|provider| provider.get("proxy"))
+                .and_then(serde_yaml_ng::Value::as_str)
+                .map(std::string::ToString::to_string)
+        };
+        assert_eq!(route_of("rule-providers", "ads").as_deref(), Some("Авто"));
+        assert_eq!(route_of("proxy-providers", "panel"), None);
     }
 
     fn sentinel_pass(config: serde_yaml_ng::Mapping) -> (serde_yaml_ng::Mapping, super::SentinelReport) {

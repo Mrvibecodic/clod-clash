@@ -49,6 +49,7 @@
           "restarted": "Çekirdek çöktü ve yeniden başlatıldı"
         },
         "service": {
+          "bundleRejected": "Bu yapılandırma arka plan hizmetine devredilemez — çekirdek onsuz çalışıyor ve TUN kullanılamıyor. Yapılandırmayı düzeltin, ardından çekirdeği yeniden başlatın veya TUN'u kapatıp yeniden açın",
           "needsRepair": "The background service is outdated after the update. Repair it in the settings — TUN may not work until then"
         }
       }

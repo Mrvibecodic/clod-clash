@@ -49,6 +49,7 @@
           "restarted": "تعطّلت النواة وأُعيد تشغيلها"
         },
         "service": {
+          "bundleRejected": "لا يمكن تسليم هذا التكوين إلى خدمة الخلفية — تعمل النواة بدونها وTUN غير متاح. أصلح التكوين ثم أعد تشغيل النواة أو أوقف TUN وأعد تشغيله",
           "needsRepair": "The background service is outdated after the update. Repair it in the settings — TUN may not work until then"
         }
       }

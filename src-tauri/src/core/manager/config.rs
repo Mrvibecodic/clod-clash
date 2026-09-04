@@ -271,6 +271,14 @@ impl CoreManager {
                 );
                 StagedPath::NotStaged
             }
+            StageAttempt::Answered(service::StageRequest::Unbuildable(message)) => {
+                logging!(
+                    warn,
+                    Type::Core,
+                    "the runtime bundle cannot be built for the service ({message}); leaving the core as it is"
+                );
+                StagedPath::RefusedTheBundle(message)
+            }
             StageAttempt::Answered(service::StageRequest::Refused { code, message }) => {
                 if service::StageRequest::is_about_the_bundle(code) {
                     StagedPath::RefusedTheBundle(message.to_string())

@@ -115,6 +115,36 @@ impl std::fmt::Display for ElevationPending {
 impl std::error::Error for ElevationPending {}
 
 static ELEVATION_IN_FLIGHT: AtomicBool = AtomicBool::new(false);
+static BUNDLE_REJECTION: Lazy<Mutex<Option<crate::core::runtime_bundle::UnusableBundle>>> =
+    Lazy::new(|| Mutex::new(None));
+
+pub(crate) fn bundle_rejection() -> Option<String> {
+    BUNDLE_REJECTION
+        .lock()
+        .as_ref()
+        .map(|rejection| rejection.message.clone())
+}
+
+pub(crate) fn bundle_rejection_for(config: &serde_yaml_ng::Mapping) -> Option<String> {
+    let remembered = BUNDLE_REJECTION.lock().clone()?;
+    let providers = crate::core::runtime_bundle::provider_fingerprint(config);
+    (providers == remembered.providers).then_some(remembered.message)
+}
+
+pub(crate) async fn bundle_rejection_for_the_running_config() -> Option<String> {
+    BUNDLE_REJECTION.lock().as_ref()?;
+    let runtime = Config::runtime().await;
+    let running = runtime.data_arc();
+    bundle_rejection_for(running.config.as_ref()?)
+}
+
+fn forget_bundle_rejection() {
+    BUNDLE_REJECTION.lock().take();
+}
+
+fn remember_bundle_rejection(rejection: &crate::core::runtime_bundle::UnusableBundle) {
+    *BUNDLE_REJECTION.lock() = Some(rejection.clone());
+}
 
 pub fn elevation_in_flight() -> bool {
     ELEVATION_IN_FLIGHT.load(Ordering::Acquire)
@@ -909,11 +939,28 @@ async fn collect_service_runtime_bundle(config_file: &Path) -> Result<clash_verg
     }
     let bin_path = service_core_path(&clash_core, bin_ext)?;
     crate::core::core_integrity::ensure_elevated_binary_is_known(&bin_path).await?;
-    collect_runtime_bundle(config_file, &bin_path).await
+    match collect_runtime_bundle(config_file, &bin_path).await {
+        Ok(bundle) => {
+            forget_bundle_rejection();
+            Ok(bundle)
+        }
+        Err(error) => {
+            if let Some(unusable) = error.downcast_ref::<crate::core::runtime_bundle::UnusableBundle>() {
+                logging!(
+                    warn,
+                    Type::Service,
+                    "this configuration cannot be handed to the service: {unusable}"
+                );
+                remember_bundle_rejection(unusable);
+            }
+            Err(error)
+        }
+    }
 }
 
 pub(crate) enum StageRequest {
     Refused { code: u16, message: CompactString },
+    Unbuildable(String),
     Answered(StageRuntimeOutcome),
 }
 
@@ -926,7 +973,15 @@ impl StageRequest {
 pub(crate) async fn stage_runtime_by_service(config_file: &Path) -> Result<StageRequest> {
     let session = active_service_session()?;
     let credentials = current_owner_credentials()?;
-    let runtime = collect_service_runtime_bundle(config_file).await?;
+    let runtime = match collect_service_runtime_bundle(config_file).await {
+        Ok(runtime) => runtime,
+        Err(error) => {
+            return match error.downcast_ref::<crate::core::runtime_bundle::UnusableBundle>() {
+                Some(unusable) => Ok(StageRequest::Unbuildable(unusable.message.clone())),
+                None => Err(error),
+            };
+        }
+    };
 
     let response = clash_verge_service_ipc::stage_runtime(&credentials, &session, &runtime)
         .await

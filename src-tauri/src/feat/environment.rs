@@ -285,7 +285,13 @@ async fn close_live_connections(verbose: bool) {
     }
 }
 
-async fn reconcile(reason: &str, slept: bool, path_was_lost: bool, tun_is_being_rearmed: bool) {
+async fn reconcile(
+    reason: &str,
+    slept: bool,
+    path_was_lost: bool,
+    tun_is_being_rearmed: bool,
+    network_carries_traffic: bool,
+) {
     logging!(info, Type::Core, "[clod] environment changed ({reason}), reconciling");
 
     let verge = Config::verge().await.latest_arc();
@@ -336,6 +342,86 @@ async fn reconcile(reason: &str, slept: bool, path_was_lost: bool, tun_is_being_
 
     if !slept && !tun_is_being_rearmed {
         crate::feat::tun::recheck_after_network_change().await;
+    }
+
+    if network_carries_traffic {
+        AsyncHandler::spawn(|| async { refill_empty_rule_sets().await });
+    }
+}
+
+static RULE_SETS_REFILLING: AtomicBool = AtomicBool::new(false);
+static RULE_SETS_REFILL_ASKED_AGAIN: AtomicBool = AtomicBool::new(false);
+const RULE_SET_LIST_TIMEOUT: Duration = Duration::from_secs(5);
+const RULE_SET_FETCH_TIMEOUT: Duration = Duration::from_secs(25);
+
+async fn refill_empty_rule_sets() {
+    RULE_SETS_REFILL_ASKED_AGAIN.store(true, Ordering::SeqCst);
+    loop {
+        if RULE_SETS_REFILLING.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        {
+            scopeguard::defer! {
+                RULE_SETS_REFILLING.store(false, Ordering::SeqCst);
+            }
+            while RULE_SETS_REFILL_ASKED_AGAIN.swap(false, Ordering::SeqCst) {
+                if handle::Handle::global().is_exiting() {
+                    return;
+                }
+                refill_empty_rule_sets_once().await;
+            }
+        }
+        if !RULE_SETS_REFILL_ASKED_AGAIN.load(Ordering::SeqCst) {
+            return;
+        }
+    }
+}
+
+async fn refill_empty_rule_sets_once() {
+    let listed = {
+        let mihomo = handle::Handle::mihomo().await;
+        tokio::time::timeout(RULE_SET_LIST_TIMEOUT, mihomo.get_rule_providers()).await
+    };
+    let Ok(Ok(listed)) = listed else {
+        return;
+    };
+    let mut empty: Vec<String> = listed
+        .providers
+        .values()
+        .filter(|provider| {
+            provider.rule_count == 0 && matches!(provider.vehicle_type, tauri_plugin_mihomo::models::VehicleType::HTTP)
+        })
+        .map(|provider| provider.name.clone())
+        .collect();
+    if empty.is_empty() {
+        return;
+    }
+    empty.sort();
+    logging!(
+        info,
+        Type::Core,
+        "[clod] {} rule set(s) are still empty after the network came back; asking the core to fetch them: {}",
+        empty.len(),
+        empty.join(", ")
+    );
+    for name in empty {
+        if handle::Handle::global().is_exiting() {
+            return;
+        }
+        let fetched = {
+            let mihomo = handle::Handle::mihomo().await;
+            tokio::time::timeout(RULE_SET_FETCH_TIMEOUT, mihomo.update_rule_provider(&name)).await
+        };
+        match fetched {
+            Ok(Ok(())) => {}
+            Ok(Err(e)) => logging!(info, Type::Core, "[clod] rule set {name} is not fetched yet: {e}"),
+            Err(_) => logging!(
+                info,
+                Type::Core,
+                "[clod] rule set {name}: no answer from the core within {}s; leaving it to the core's own retry",
+                RULE_SET_FETCH_TIMEOUT.as_secs()
+            ),
+        }
     }
 }
 
@@ -443,7 +529,7 @@ pub fn spawn_environment_watchdog() {
                     );
                 }
                 if slept {
-                    reconcile("woke up", true, false, false).await;
+                    reconcile("woke up", true, false, false, false).await;
                 }
                 continue;
             };
@@ -456,7 +542,8 @@ pub fn spawn_environment_watchdog() {
             }
             last_network = view.entries;
 
-            let rearm_is_now = rearm_is_due(view.carries_traffic);
+            let view_carries_traffic = view.carries_traffic;
+            let rearm_is_now = rearm_is_due(view_carries_traffic);
 
             let reason = match (slept, network_changed) {
                 (true, true) => "woke up, network differs",
@@ -470,7 +557,7 @@ pub fn spawn_environment_watchdog() {
                 }
             };
 
-            reconcile(reason, slept, path_was_lost, rearm_is_now).await;
+            reconcile(reason, slept, path_was_lost, rearm_is_now, view_carries_traffic).await;
             if rearm_is_now {
                 rearm_the_tun_after_wake().await;
             }

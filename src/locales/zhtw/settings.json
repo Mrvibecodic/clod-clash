@@ -49,6 +49,7 @@
           "restarted": "核心當機，已自動重新啟動"
         },
         "service": {
+          "bundleRejected": "此設定無法交給背景服務 — 核心在無服務狀態下執行，TUN 無法使用。請修正設定，然後重新啟動核心，或關閉再重新開啟 TUN",
           "needsRepair": "The background service is outdated after the update. Repair it in the settings — TUN may not work until then"
         }
       }

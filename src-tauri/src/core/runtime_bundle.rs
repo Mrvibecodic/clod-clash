@@ -1,9 +1,44 @@
-use anyhow::{Context as _, Result, bail};
+use anyhow::{Context as _, Result};
 use clash_verge_logging::{Type, logging};
 use clash_verge_service_ipc::{RemoteProvider, RuntimeAsset, RuntimeBundle};
 use serde_yaml_ng::Value;
 use std::collections::HashSet;
 use std::path::{Component, Path, PathBuf};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct UnusableBundle {
+    pub(crate) message: String,
+    pub(crate) providers: u64,
+}
+
+impl std::fmt::Display for UnusableBundle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+impl std::error::Error for UnusableBundle {}
+
+fn unusable(message: String) -> anyhow::Error {
+    UnusableBundle { message, providers: 0 }.into()
+}
+
+pub(crate) fn provider_fingerprint(config: &serde_yaml_ng::Mapping) -> u64 {
+    use std::hash::Hasher as _;
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    for section in ["proxy-providers", "rule-providers"] {
+        hasher.write(section.as_bytes());
+        hasher.write_u8(0);
+        if let Some(text) = config
+            .get(section)
+            .and_then(|value| serde_yaml_ng::to_string(value).ok())
+        {
+            hasher.write(text.as_bytes());
+        }
+        hasher.write_u8(0);
+    }
+    hasher.finish()
+}
 
 const GEO_ASSETS: &[&str] = &[
     "Country.mmdb",
@@ -23,22 +58,32 @@ pub(crate) async fn collect_runtime_bundle(config_file: &Path, core_path: &Path)
         .parent()
         .ok_or_else(|| anyhow::anyhow!("runtime config has no parent directory"))?;
     let config_root = std::fs::canonicalize(config_root)?;
+    let providers = config.as_mapping().map(provider_fingerprint).unwrap_or_default();
+    collect_runtime_bundle_from(&mut config, &config_root, core_path).map_err(|error| {
+        match error.downcast::<UnusableBundle>() {
+            Ok(unusable) => UnusableBundle { providers, ..unusable }.into(),
+            Err(error) => error,
+        }
+    })
+}
+
+fn collect_runtime_bundle_from(config: &mut Value, config_root: &Path, core_path: &Path) -> Result<RuntimeBundle> {
     let mut assets = Vec::new();
     let mut destinations = HashSet::new();
     let mut remote_providers = Vec::new();
 
     collect_provider_assets(
-        &mut config,
+        config,
         "proxy-providers",
-        &config_root,
+        config_root,
         &mut destinations,
         &mut assets,
         &mut remote_providers,
     )?;
     collect_provider_assets(
-        &mut config,
+        config,
         "rule-providers",
-        &config_root,
+        config_root,
         &mut destinations,
         &mut assets,
         &mut remote_providers,
@@ -54,7 +99,7 @@ pub(crate) async fn collect_runtime_bundle(config_file: &Path, core_path: &Path)
     }
 
     Ok(RuntimeBundle {
-        yaml: serde_yaml_ng::to_string(&config).context("failed to serialize service runtime config")?,
+        yaml: serde_yaml_ng::to_string(config).context("failed to serialize service runtime config")?,
         assets,
         remote_providers,
         core_path: core_path.to_string_lossy().into_owned(),
@@ -119,11 +164,15 @@ fn collect_provider_assets(
                 {
                     Some(declared) if declared.url == url => {}
                     Some(_) => {
-                        bail!("runtime provider destination {destination:?} is declared for two different sources")
+                        return Err(unusable(format!(
+                            "runtime provider destination {destination:?} is declared for two different sources"
+                        )));
                     }
                     None => {
                         if !destinations.insert(destination.clone()) {
-                            bail!("runtime provider destination {destination:?} is claimed more than once");
+                            return Err(unusable(format!(
+                                "runtime provider destination {destination:?} is claimed more than once"
+                            )));
                         }
                         remote_providers.push(RemoteProvider {
                             destination: destination.clone(),
@@ -174,9 +223,11 @@ fn local_provider_source(config_root: &Path, raw_path: &str) -> Result<PathBuf> 
     };
     let canonical_source =
         std::fs::canonicalize(&source).with_context(|| format!("local runtime provider is unavailable: {source:?}"))?;
-    canonical_source
-        .strip_prefix(config_root)
-        .map_err(|_| anyhow::anyhow!("local runtime provider is outside the config root: {canonical_source:?}"))?;
+    canonical_source.strip_prefix(config_root).map_err(|_| {
+        unusable(format!(
+            "local runtime provider is outside the config root: {canonical_source:?}"
+        ))
+    })?;
     Ok(canonical_source)
 }
 
@@ -186,7 +237,9 @@ fn provider_destination(config_root: &Path, raw_path: &str) -> Result<String> {
         .components()
         .any(|component| matches!(component, Component::ParentDir))
     {
-        bail!("runtime provider destination traverses outside the runtime");
+        return Err(unusable(String::from(
+            "runtime provider destination traverses outside the runtime",
+        )));
     }
     if path.is_absolute() {
         let normalized = canonicalize_with_missing_tail(path)?;
@@ -218,7 +271,7 @@ fn canonicalize_with_missing_tail(path: &Path) -> Result<PathBuf> {
 fn destination_below_root(config_root: &Path, path: &Path) -> Result<String> {
     let relative = path
         .strip_prefix(config_root)
-        .map_err(|_| anyhow::anyhow!("runtime provider path is outside the config root: {path:?}"))?;
+        .map_err(|_| unusable(format!("runtime provider path is outside the config root: {path:?}")))?;
     normalized_destination(relative)
 }
 
@@ -228,18 +281,23 @@ fn normalized_destination(relative: &Path) -> Result<String> {
         match component {
             Component::Normal(component) => destination.push(component),
             Component::CurDir => {}
-            _ => bail!("local runtime provider destination traverses outside the runtime"),
+            _ => {
+                return Err(unusable(String::from(
+                    "local runtime provider destination traverses outside the runtime",
+                )));
+            }
         }
     }
     if destination.as_os_str().is_empty() {
-        bail!("local runtime provider destination is empty");
+        return Err(unusable(String::from("local runtime provider destination is empty")));
     }
     Ok(destination.to_string_lossy().replace('\\', "/"))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::collect_runtime_bundle;
+    use super::{UnusableBundle, collect_runtime_bundle, provider_fingerprint};
+    use serde_yaml_ng::Value;
 
     #[tokio::test]
     async fn collects_only_local_providers_and_existing_geo_assets() -> anyhow::Result<()> {
@@ -377,6 +435,58 @@ mod tests {
             reserialized["rule-providers"]["nourl"]["path"].as_str(),
             Some("./rules/nourl.yaml"),
             "an unclassifiable provider keeps the path the core was given"
+        );
+        std::fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn provider_fingerprint_follows_only_the_provider_sections() -> anyhow::Result<()> {
+        let base: Value = serde_yaml_ng::from_str(
+            "tun:\n  enable: true\nproxy-providers:\n  a:\n    type: http\n    url: https://x/a\n    path: ./a.yaml\nrule-providers:\n  r:\n    type: http\n    url: https://x/r\n    path: ./r.yaml\n",
+        )?;
+        let tun_off: Value = serde_yaml_ng::from_str(
+            "tun:\n  enable: false\nproxy-providers:\n  a:\n    type: http\n    url: https://x/a\n    path: ./a.yaml\nrule-providers:\n  r:\n    type: http\n    url: https://x/r\n    path: ./r.yaml\n",
+        )?;
+        let path_fixed: Value = serde_yaml_ng::from_str(
+            "tun:\n  enable: true\nproxy-providers:\n  a:\n    type: http\n    url: https://x/a\n    path: ./b.yaml\nrule-providers:\n  r:\n    type: http\n    url: https://x/r\n    path: ./r.yaml\n",
+        )?;
+        let no_providers: Value = serde_yaml_ng::from_str("tun:\n  enable: true\n")?;
+
+        let fp = |value: &Value| value.as_mapping().map(provider_fingerprint).unwrap_or_default();
+        assert_eq!(fp(&base), fp(&tun_off));
+        assert_ne!(fp(&base), fp(&path_fixed));
+        assert_ne!(fp(&base), fp(&no_providers));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn outside_provider_rejection_carries_the_provider_fingerprint() -> anyhow::Result<()> {
+        let root = std::env::temp_dir().join(format!("clash-verge-runtime-bundle-fp-{}", std::process::id()));
+        std::fs::create_dir_all(&root)?;
+        let config = root.join("config.yaml");
+        let outside = root
+            .parent()
+            .ok_or_else(|| anyhow::anyhow!("test root has no parent"))?
+            .join(format!("outside-fp-{}.yaml", std::process::id()));
+        let yaml = format!(
+            "proxy-providers:\n  remote:\n    type: http\n    url: https://example.com/p.yaml\n    path: {}\n",
+            outside.display()
+        );
+        std::fs::write(&config, &yaml)?;
+        let core = root.join("mihomo");
+        std::fs::write(&core, b"core")?;
+
+        let Err(error) = collect_runtime_bundle(&config, &core).await else {
+            anyhow::bail!("outside provider path must be rejected");
+        };
+        let unusable = error
+            .downcast_ref::<UnusableBundle>()
+            .ok_or_else(|| anyhow::anyhow!("the rejection must be typed"))?;
+        let parsed: Value = serde_yaml_ng::from_str(&yaml)?;
+        assert_eq!(
+            unusable.providers,
+            parsed.as_mapping().map(provider_fingerprint).unwrap_or_default()
         );
         std::fs::remove_dir_all(root)?;
         Ok(())

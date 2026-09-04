@@ -49,6 +49,7 @@
           "restarted": "Core berhenti dan dijalankan ulang"
         },
         "service": {
+          "bundleRejected": "Konfigurasi ini tidak bisa diserahkan ke layanan latar belakang — core berjalan tanpanya, TUN tidak tersedia. Perbaiki konfigurasi, lalu mulai ulang core atau matikan dan nyalakan kembali TUN",
           "needsRepair": "The background service is outdated after the update. Repair it in the settings — TUN may not work until then"
         }
       }
