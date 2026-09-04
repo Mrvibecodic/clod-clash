@@ -2,7 +2,7 @@ use crate::{
     cmd,
     config::{Config, PrfItem, PrfOption, profiles::profiles_draft_update_item_safe, sub_headers},
     core::{CoreManager, handle, tray, validate::ValidationOutcome},
-    utils::help::{mask_err, mask_url},
+    utils::help::{keep_the_clearer_error, mask_err, mask_url},
 };
 use anyhow::{Result, bail};
 use clash_verge_logging::{Type, logging, logging_error};
@@ -192,6 +192,68 @@ async fn apply_updated_item(uid: &String, item: &mut PrfItem) -> Result<()> {
     Ok(())
 }
 
+/// Ступеней лестницы маршрутов на один адрес.
+const LADDER_STEPS: u64 = 3;
+
+/// Любой запрос может быть повторён с запасными корнями TLS
+/// (`utils/network.rs`, `should_retry_with_static_webpki_roots`).
+const TLS_FALLBACK_ATTEMPTS: u64 = 2;
+
+/// Защищённый канал при неудаче повторяет запрос без закрепления ключа прослойки
+/// (`config/prfitem.rs`, `fetch_for_profile`) — ради ротации ключа он и заведён.
+const SECURE_CHANNEL_ATTEMPTS: u64 = 2;
+
+/// Запас поверх суммы ступеней: фора прямого маршрута в гонке, паузы между
+/// попытками и разбор ответа.
+const LADDER_SLACK: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// Потолок самого бюджета. Существует только затем, чтобы прибавление к `Instant`
+/// не переполнилось: `Instant + Duration::MAX` — паника. Тридцать лет — то же
+/// значение, которое tokio берёт в `Instant::far_future` со ссылкой на переполнение
+/// на macOS и FreeBSD. Ни одна работающая настройка сюда не упирается.
+const BUDGET_CEILING_SECS: u64 = 30 * 365 * 24 * 60 * 60;
+
+/// Сколько времени отводится на ОДИН адрес подписки — основной или запасной.
+///
+/// Потолка не было вовсе: сумма таймаутов ступеней ничем не ограничивалась, и
+/// отменить ожидание было нечем. Бюджет считается от таймаута, который выбрал сам
+/// пользователь в карточке профиля, и от числа законных попыток внутри ступени,
+/// поэтому ни один работавший путь не укорачивается: обрывается только зависание
+/// сверх того, что лестница может занять честно.
+///
+/// У каждого адреса бюджет свой — иначе основной адрес съедал бы весь потолок и до
+/// запасного домена, ради которого он и заведён, дело не доходило бы никогда. Общего
+/// потолка на всё обновление поэтому нет: бюджет режет зависание отдельного адреса,
+/// а не суммарное время.
+///
+/// Запись профиля в реестр (`apply_updated_item`) идёт вне бюджета, поэтому принятый
+/// профиль не может оборваться на середине применения.
+fn address_budget(option: Option<&PrfOption>) -> std::time::Duration {
+    let timeout = option.and_then(|o| o.timeout_seconds).unwrap_or(20);
+    let secure = option.is_some_and(|o| o.secure.unwrap_or(false));
+
+    let attempts_per_step = TLS_FALLBACK_ATTEMPTS * if secure { SECURE_CHANNEL_ATTEMPTS } else { 1 };
+    let seconds = timeout.saturating_mul(LADDER_STEPS).saturating_mul(attempts_per_step);
+
+    std::time::Duration::from_secs(seconds.min(BUDGET_CEILING_SECS)).saturating_add(LADDER_SLACK)
+}
+
+async fn within_budget<F>(deadline: tokio::time::Instant, work: F) -> Result<PrfItem>
+where
+    F: std::future::Future<Output = Result<PrfItem>>,
+{
+    // Бюджет уже вышел — запрос не отправляем вовсе, чтобы не дёргать панель
+    // соединением, которое всё равно будет оборвано.
+    if tokio::time::Instant::now() >= deadline {
+        bail!("clod-sub-budget: на этот адрес подписки отведённое время уже вышло");
+    }
+
+    match tokio::time::timeout_at(deadline, Box::pin(work)).await {
+        Ok(result) => result,
+        Err(_) => bail!("clod-sub-budget: адрес подписки не ответил за отведённое время"),
+    }
+}
+
 async fn perform_profile_update(
     uid: &String,
     url: &String,
@@ -206,6 +268,8 @@ async fn perform_profile_update(
         "[Обновление подписки] Начинаю загрузку нового содержимого подписки"
     );
     let mut merged_opt = PrfOption::merge(opt, option);
+    let budget = address_budget(merged_opt.as_ref());
+    let deadline = tokio::time::Instant::now() + budget;
     let is_current = {
         let profiles = Config::profiles().await;
         profiles.latest_arc().is_current_profile_index(uid)
@@ -219,7 +283,7 @@ async fn perform_profile_update(
 
     let mut last_err;
 
-    match PrfItem::from_url(url, None, None, merged_opt.as_ref()).await {
+    match within_budget(deadline, PrfItem::from_url(url, None, None, merged_opt.as_ref())).await {
         Ok(mut item) => {
             logging!(
                 info,
@@ -243,7 +307,7 @@ async fn perform_profile_update(
     merged_opt.get_or_insert_with(PrfOption::default).self_proxy = Some(true);
     merged_opt.get_or_insert_with(PrfOption::default).with_proxy = Some(false);
 
-    match PrfItem::from_url(url, None, None, merged_opt.as_ref()).await {
+    match within_budget(deadline, PrfItem::from_url(url, None, None, merged_opt.as_ref())).await {
         Ok(mut item) => {
             logging!(
                 info,
@@ -262,14 +326,14 @@ async fn perform_profile_update(
                 "Warning: [Обновление подписки] Обновление через прокси Clash не удалось: {}, пробую обновить через системный прокси",
                 mask_err(&err.to_string())
             );
-            last_err = err;
+            last_err = keep_the_clearer_error(last_err, err);
         }
     }
 
     merged_opt.get_or_insert_with(PrfOption::default).self_proxy = Some(false);
     merged_opt.get_or_insert_with(PrfOption::default).with_proxy = Some(true);
 
-    match PrfItem::from_url(url, None, None, merged_opt.as_ref()).await {
+    match within_budget(deadline, PrfItem::from_url(url, None, None, merged_opt.as_ref())).await {
         Ok(mut item) => {
             logging!(
                 info,
@@ -288,7 +352,7 @@ async fn perform_profile_update(
                 "Warning: [Обновление подписки] Обновление через системный прокси не удалось: {}, все попытки исчерпаны",
                 mask_err(&err.to_string())
             );
-            last_err = err;
+            last_err = keep_the_clearer_error(last_err, err);
         }
     }
 
@@ -307,7 +371,16 @@ async fn perform_profile_update(
             mask_url(&spare)
         );
 
-        match PrfItem::from_url_with_ladder(&spare, None, None, merged_opt.as_ref()).await {
+        // У запасного адреса свой бюджет: он существует ровно для того случая,
+        // когда основной адрес молчит до последней секунды.
+        let spare_deadline = tokio::time::Instant::now() + budget;
+
+        match within_budget(
+            spare_deadline,
+            PrfItem::from_url_with_ladder(&spare, None, None, merged_opt.as_ref()),
+        )
+        .await
+        {
             Ok(mut item) => {
                 item.from_fallback = Some(true);
                 apply_updated_item(uid, &mut item).await?;
@@ -322,13 +395,37 @@ async fn perform_profile_update(
                     "Warning: [Обновление подписки] [clod] spare address failed as well: {}",
                     mask_err(&err.to_string())
                 );
-                last_err = err;
+                last_err = keep_the_clearer_error(last_err, err);
             }
         }
     }
 
     let last_err = mask_err(&last_err.to_string());
     bail!("{profile_name} - {last_err}")
+}
+
+/// Вернуть на диск профиль, который работал до неудачной попытки обновления.
+async fn restore_working_profile(snapshot: Option<crate::config::profiles::ProfileSnapshot>) {
+    let Some(snapshot) = snapshot else {
+        return;
+    };
+
+    match crate::config::profiles::profiles_restore_item(snapshot).await {
+        Ok(()) => {
+            logging!(
+                info,
+                Type::Config,
+                "[Обновление подписки] ядро отвергло новый конфиг, на диск возвращён прежний рабочий профиль"
+            );
+            handle::Handle::refresh_profiles();
+        }
+        Err(err) => logging!(
+            error,
+            Type::Config,
+            "[Обновление подписки] ядро отвергло новый конфиг, и вернуть прежний профиль не удалось: {}",
+            mask_err(&err.to_string())
+        ),
+    }
 }
 
 pub async fn update_profile(
@@ -345,6 +442,16 @@ pub async fn update_profile(
         uid
     );
     let url_opt = should_update_profile(uid, ignore_auto_update).await?;
+
+    // Файл профиля и `updated` меняются раньше, чем ядро успевает сказать, годится ли
+    // новый конфиг. Держим слепок прежнего рабочего состояния, чтобы вернуть его, если
+    // ядро откажется, — иначе после перезапуска приложения профиля бы не осталось.
+    // Ядро трогает только текущий профиль, поэтому для остальных слепок не нужен.
+    let snapshot = if url_opt.is_some() && Config::profiles().await.latest_arc().is_current_profile_index(uid) {
+        crate::config::profiles::profiles_snapshot_item(uid).await
+    } else {
+        None
+    };
 
     let should_refresh = match url_opt {
         Some(target) => {
@@ -398,11 +505,24 @@ pub async fn update_profile(
                 );
             }
             result => {
+                // Ядро отвергло конфиг — на диск возвращаем прежний рабочий профиль.
+                // Только отвергло: `Err` от обновления конфига означает, что ядро о
+                // содержимом ничего не сказало (не записался файл, не поднялась
+                // служба), и выбрасывать из-за этого годную свежую подписку нельзя.
+                // Разбирать, чьё содержимое виновато (подписки или пользовательских
+                // цепочек merge/script/rules/groups), нельзя: ядро проверяет их слитыми
+                // и сообщает об ошибке одинаково. Поэтому откат делает только самое
+                // безопасное — возвращает файл, не трогая отметку времени.
+                let core_rejected_the_config = matches!(result, Ok(ValidationOutcome::Invalid { .. }));
                 let message = match result {
                     Ok(outcome) => outcome.to_string(),
                     Err(err) => err.to_string(),
                 };
                 let message = mask_err(&message);
+
+                if core_rejected_the_config {
+                    restore_working_profile(snapshot).await;
+                }
                 logging!(
                     error,
                     Type::Config,
@@ -558,5 +678,107 @@ mod lock_expiry_tests {
         let mut without_timestamp = locked_item(0, None);
         without_timestamp.updated = None;
         assert!(!lock_expired(&without_timestamp, now));
+    }
+}
+
+#[cfg(test)]
+mod update_budget_tests {
+    use super::{LADDER_SLACK, PrfOption, address_budget, keep_the_clearer_error};
+    use std::time::Duration;
+
+    fn option(timeout: Option<u64>, secure: Option<bool>) -> PrfOption {
+        PrfOption {
+            timeout_seconds: timeout,
+            secure,
+            ..PrfOption::default()
+        }
+    }
+
+    #[test]
+    fn the_default_ladder_fits_into_its_budget() {
+        // Три ступени по 20 с, каждая с возможным повтором на запасных корнях TLS.
+        assert_eq!(address_budget(None), Duration::from_secs(120) + LADDER_SLACK);
+        assert_eq!(
+            address_budget(Some(&option(Some(20), None))),
+            Duration::from_secs(120) + LADDER_SLACK
+        );
+    }
+
+    #[test]
+    fn the_secure_channel_gets_its_second_attempt() {
+        // Защищённый канал повторяет запрос без закрепления ключа — ступень стоит вдвое.
+        assert_eq!(
+            address_budget(Some(&option(Some(20), Some(true)))),
+            Duration::from_secs(240) + LADDER_SLACK
+        );
+    }
+
+    #[test]
+    fn a_users_own_timeout_is_never_undercut() {
+        // Числа здесь посчитаны руками, а не теми же константами, что и код: иначе
+        // тест был бы тождественно истинным и уронённую константу не поймал бы.
+        // Лестница — три ступени; каждая может быть повторена с запасными корнями
+        // TLS; в защищённом канале — ещё раз без закрепления ключа прослойки.
+        for (timeout, secure, honest_seconds) in [
+            (1_u64, None, 6_u64),
+            (5, None, 30),
+            (20, None, 120),
+            (60, None, 360),
+            (600, None, 3600),
+            (1, Some(true), 12),
+            (20, Some(true), 240),
+            (600, Some(true), 7200),
+        ] {
+            let budget = address_budget(Some(&option(Some(timeout), secure)));
+            assert!(
+                budget >= Duration::from_secs(honest_seconds),
+                "бюджет {budget:?} короче честной лестницы {honest_seconds} с при timeout={timeout}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_absurd_timeout_does_not_panic_on_the_deadline() {
+        // Именно здесь и была бы паника: `Instant + Duration::MAX`.
+        for timeout in [u64::MAX, u64::MAX / 2, 1_000_000_000_000_000_000] {
+            for secure in [None, Some(true)] {
+                let budget = address_budget(Some(&option(Some(timeout), secure)));
+                let deadline = tokio::time::Instant::now() + budget;
+                assert!(deadline > tokio::time::Instant::now());
+            }
+        }
+    }
+
+    #[test]
+    fn the_budget_never_hides_a_real_reason() {
+        let real = anyhow::anyhow!("clod-sub-link-list: the panel returned a base64 link list");
+        let budget = anyhow::anyhow!("clod-sub-budget: адрес подписки не ответил за отведённое время");
+
+        assert!(
+            keep_the_clearer_error(real, budget)
+                .to_string()
+                .contains("clod-sub-link-list")
+        );
+    }
+
+    #[test]
+    fn a_named_reason_is_not_lost_to_a_nameless_network_failure() {
+        let named =
+            anyhow::anyhow!("clod-sub-downgrade: the subscription address redirects to an insecure http address");
+        let nameless = anyhow::anyhow!("failed to fetch remote profile");
+
+        assert!(
+            keep_the_clearer_error(named, nameless)
+                .to_string()
+                .contains("clod-sub-downgrade")
+        );
+    }
+
+    #[test]
+    fn a_real_reason_replaces_an_earlier_budget_failure() {
+        let budget = anyhow::anyhow!("clod-sub-budget: адрес подписки не ответил за отведённое время");
+        let real = anyhow::anyhow!("failed to fetch remote profile with status 403 Forbidden");
+
+        assert!(keep_the_clearer_error(budget, real).to_string().contains("403"));
     }
 }

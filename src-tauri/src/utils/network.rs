@@ -48,6 +48,19 @@ enum TlsRootMode {
     StaticWebpkiRoots,
 }
 
+const MAX_REDIRECTS: usize = 10;
+
+pub(crate) const DOWNGRADE_REFUSED: &str = "redirect from https to http is refused";
+
+/// Уводит ли редирект с закрытого адреса на открытый.
+///
+/// Смотрим на самый первый адрес цепочки, а не на предыдущий шаг: важно, что обещал
+/// пользователю его собственный адрес подписки. Если он изначально был `http://`,
+/// понижать нечего и цепочка идёт как раньше.
+fn redirect_is_a_downgrade(first: Option<&Url>, next: &Url) -> bool {
+    first.is_some_and(|first| first.scheme() == "https") && next.scheme() != "https"
+}
+
 pub struct NetworkManager;
 
 impl Default for NetworkManager {
@@ -71,7 +84,7 @@ impl NetworkManager {
     ) -> Result<Client> {
         let mut builder = Client::builder()
             .tls_backend_rustls()
-            .redirect(reqwest::redirect::Policy::limited(10))
+            .redirect(Self::redirect_policy())
             .tcp_keepalive(Duration::from_secs(60))
             .pool_max_idle_per_host(0)
             .pool_idle_timeout(None);
@@ -107,6 +120,24 @@ impl NetworkManager {
         Ok(builder.build()?)
     }
 
+    /// Ходим по редиректам, но не даём увести защищённый адрес на открытый: токен
+    /// подписки в таком переезде уехал бы по сети открытым текстом. Подписки, которые
+    /// пользователь сам задал через `http://`, работают как работали — понижением
+    /// считается только переход `https` -> `http`.
+    fn redirect_policy() -> reqwest::redirect::Policy {
+        reqwest::redirect::Policy::custom(|attempt| {
+            if redirect_is_a_downgrade(attempt.previous().first(), attempt.url()) {
+                return attempt.error(DOWNGRADE_REFUSED);
+            }
+
+            if attempt.previous().len() > MAX_REDIRECTS {
+                return attempt.error("too many redirects");
+            }
+
+            attempt.follow()
+        })
+    }
+
     fn build_static_webpki_tls_config() -> Result<rustls::ClientConfig> {
         let root_store = rustls::RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
         let mut config =
@@ -122,6 +153,14 @@ impl NetworkManager {
 
     fn should_retry_with_static_webpki_roots(err: &anyhow::Error) -> bool {
         if err.chain().any(Self::is_legacy_tls_protocol_error) {
+            return false;
+        }
+
+        // Наш отказ от понижения до http — не беда с сертификатами. Проверка ниже
+        // ищет ключевые слова во всей цепочке, а reqwest дописывает в неё полный
+        // адрес запроса: хост или токен, где случайно встретилось `ssl` или `crl`,
+        // запустил бы бессмысленный второй запрос к панели.
+        if err.chain().any(|e| e.to_string().contains(DOWNGRADE_REFUSED)) {
             return false;
         }
 
@@ -338,5 +377,52 @@ impl NetworkManager {
                 }),
             Err(err) => Err(err),
         }
+    }
+}
+
+#[cfg(test)]
+mod redirect_tests {
+    use super::redirect_is_a_downgrade;
+    use tauri::Url;
+
+    fn url(raw: &str) -> Url {
+        Url::parse(raw).expect("тестовый адрес разбирается")
+    }
+
+    #[test]
+    fn https_must_not_be_led_to_http() {
+        assert!(redirect_is_a_downgrade(
+            Some(&url("https://panel.example/sub")),
+            &url("http://panel.example/sub")
+        ));
+        assert!(redirect_is_a_downgrade(
+            Some(&url("https://panel.example/sub")),
+            &url("http://other.example/sub")
+        ));
+    }
+
+    #[test]
+    fn a_subscription_that_started_as_http_keeps_working() {
+        assert!(!redirect_is_a_downgrade(
+            Some(&url("http://panel.example/sub")),
+            &url("http://panel.example/moved")
+        ));
+        assert!(!redirect_is_a_downgrade(
+            Some(&url("http://panel.example/sub")),
+            &url("https://panel.example/moved")
+        ));
+    }
+
+    #[test]
+    fn https_to_https_is_followed() {
+        assert!(!redirect_is_a_downgrade(
+            Some(&url("https://panel.example/sub")),
+            &url("https://mirror.example/sub")
+        ));
+    }
+
+    #[test]
+    fn without_a_first_address_there_is_nothing_to_downgrade() {
+        assert!(!redirect_is_a_downgrade(None, &url("http://panel.example/sub")));
     }
 }

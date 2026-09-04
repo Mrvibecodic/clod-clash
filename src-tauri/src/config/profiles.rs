@@ -279,6 +279,11 @@ impl IProfiles {
 
         for each in items.iter_mut() {
             if each.uid.as_ref() == Some(uid) {
+                let panel_changed = item
+                    .url
+                    .as_ref()
+                    .is_some_and(|fresh| points_at_another_panel(each.url.as_ref(), fresh));
+
                 patch!(each, item, itype);
                 patch!(each, item, name);
                 patch!(each, item, desc);
@@ -299,6 +304,17 @@ impl IProfiles {
                 patch!(each, item, fallback_domain);
                 patch!(each, item, interval_locked);
                 patch!(each, item, notified);
+
+                // Адрес подписки сменили — значит сменилась и панель, а `fallback-url`
+                // с `fallback-domain` остались от прежней. Без этого сброса неудача
+                // нового адреса тихо уводила обновление обратно к старому провайдеру.
+                // Сброс идёт ПОСЛЕ патчей: карточка правки шлёт назад всю запись
+                // целиком, вместе со старыми хвостами, и до патчей он был бы напрасен.
+                // Свои хвосты новая панель пришлёт заголовками при первом же ответе.
+                if panel_changed {
+                    each.fallback_url = None;
+                    each.fallback_domain = None;
+                }
 
                 self.items = Some(items);
                 return self.save_file().await;
@@ -617,6 +633,35 @@ impl IProfiles {
     }
 }
 
+/// Ведёт ли новый адрес подписки к другой панели.
+///
+/// Сравниваем только origin — схему, хост и порт. Перевыпуск токена, лишний слэш,
+/// другой регистр хоста и переставленные параметры запроса ведут к той же панели, и
+/// её запасные адреса выбрасывать не за что: именно они и понадобятся, если новый
+/// адрес не ответит.
+fn points_at_another_panel(stored: Option<&String>, fresh: &String) -> bool {
+    let Some(stored) = stored else {
+        return false;
+    };
+
+    match (tauri::Url::parse(stored.as_str()), tauri::Url::parse(fresh.as_str())) {
+        (Ok(stored), Ok(fresh)) => panel_key(&stored) != panel_key(&fresh),
+        _ => stored.trim() != fresh.trim(),
+    }
+}
+
+/// Схема, хост и порт — то, что делает панель панелью.
+///
+/// Считаем руками, а не через `Url::origin`: у нестандартных схем он непрозрачный и
+/// не равен сам себе, и тогда даже неизменённый адрес считался бы сменой панели.
+fn panel_key(url: &tauri::Url) -> (std::string::String, Option<std::string::String>, Option<u16>) {
+    (
+        url.scheme().to_owned(),
+        url.host_str().map(str::to_owned),
+        url.port_or_known_default(),
+    )
+}
+
 use crate::config::Config;
 
 pub async fn profiles_append_item_with_filedata_safe(item: &PrfItem, file_data: Option<String>) -> Result<()> {
@@ -710,6 +755,72 @@ pub async fn profiles_save_file_safe() -> Result<()> {
             Ok((profiles, ()))
         })
         .await
+}
+
+/// Слепок рабочего профиля: тот YAML, который лежал на диске до попытки обновления.
+///
+/// Обновление подписки пишет файл ещё до того, как ядро скажет, годится ли новый
+/// конфиг. Рантайм при отказе откатывается, а файл — нет, и после перезапуска
+/// приложения от рабочего профиля не оставалось ничего.
+///
+/// В слепке намеренно только содержимое файла. Отметку `updated` откат не трогает:
+/// понять, виновата ли в отказе ядра именно подписка, нельзя — ядро проверяет уже
+/// слитый конфиг вместе с пользовательскими цепочками merge/script/rules/groups и
+/// об одинаковой ошибке сообщает одинаково. Если бы откат возвращал и `updated`,
+/// посторонняя поломка заставляла бы качать подписку заново на каждом тике.
+/// Прочие поля (имя, выбранный узел, настройки) пользователь может править прямо во
+/// время загрузки, и откат их тоже не трогает.
+#[derive(Debug)]
+pub struct ProfileSnapshot {
+    uid: String,
+    file: String,
+    bytes: Vec<u8>,
+}
+
+pub async fn profiles_snapshot_item(uid: &String) -> Option<ProfileSnapshot> {
+    let item = Config::profiles().await.data_arc().get_item(uid).ok().cloned()?;
+
+    let file = item.file.as_ref()?;
+    let path = dirs::app_profiles_dir().ok()?.join(file.as_str());
+    let bytes = match tokio::fs::read(&path).await {
+        Ok(bytes) => bytes,
+        Err(err) => {
+            logging!(
+                warn,
+                Type::Config,
+                "Warning: [clod] не удалось снять слепок файла профиля {}: {}",
+                file,
+                err
+            );
+            return None;
+        }
+    };
+
+    Some(ProfileSnapshot {
+        uid: uid.clone(),
+        file: file.clone(),
+        bytes,
+    })
+}
+
+pub async fn profiles_restore_item(snapshot: ProfileSnapshot) -> Result<()> {
+    let ProfileSnapshot { uid, file, bytes } = snapshot;
+
+    // Профиль могли удалить, пока шла загрузка: возвращать его файл на диск нельзя,
+    // он остался бы сиротой.
+    let still_ours = Config::profiles()
+        .await
+        .data_arc()
+        .get_item(&uid)
+        .is_ok_and(|item| item.file.as_ref() == Some(&file));
+    if !still_ours {
+        bail!("the profile \"uid:{uid}\" is gone, nothing to restore");
+    }
+
+    let path = dirs::app_profiles_dir()?.join(file.as_str());
+    help::write_atomic(&path, &bytes)
+        .await
+        .with_context(|| format!("failed to restore the profile file \"{file}\""))
 }
 
 pub async fn profiles_draft_update_item_safe(index: &String, item: &mut PrfItem) -> Result<()> {
@@ -1202,6 +1313,50 @@ pub fn activate_selected_nodes() -> Result<()> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
+
+    #[test]
+    fn the_same_panel_is_not_a_new_panel() {
+        use super::points_at_another_panel;
+        let stored = String::from("https://Panel.Example/sub/abc");
+
+        for same in [
+            "https://panel.example/sub/abc",
+            "https://panel.example/sub/abc/",
+            "https://panel.example/sub/xyz",
+            "https://panel.example:443/sub/abc?b=2&a=1",
+        ] {
+            assert!(
+                !points_at_another_panel(Some(&stored), &String::from(same)),
+                "{same} — та же панель"
+            );
+        }
+    }
+
+    #[test]
+    fn another_host_is_another_panel() {
+        use super::points_at_another_panel;
+        let stored = String::from("https://panel.example/sub/abc");
+
+        for other in [
+            "https://other.example/sub/abc",
+            "https://panel.example:8443/sub/abc",
+            "http://panel.example/sub/abc",
+        ] {
+            assert!(
+                points_at_another_panel(Some(&stored), &String::from(other)),
+                "{other} — другая панель"
+            );
+        }
+    }
+
+    #[test]
+    fn without_a_stored_address_nothing_is_reset() {
+        use super::points_at_another_panel;
+        assert!(!points_at_another_panel(
+            None,
+            &String::from("https://panel.example/sub")
+        ));
+    }
     use super::*;
     use tauri_plugin_mihomo::models::Proxy;
 

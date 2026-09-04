@@ -94,6 +94,9 @@
         "subscriptionHttpsOnly": "Die Abonnementadresse muss mit https beginnen — ändern Sie sie im Anbieterpanel oder fügen Sie das Abonnement erneut hinzu",
         "subscriptionLinkList": "Das Panel sendete eine Linkliste statt einer Konfiguration — es hat den Client nicht erkannt: bitten Sie den Anbieter, im Panel eine Regel für den Client ^ClodClash/ mit dem Format MIHOMO anzulegen",
         "subscriptionWebPage": "Unter dieser Adresse öffnete sich eine Webseite und kein Abonnement — prüfen Sie den Link im Kundenkonto",
+        "subscriptionEmpty": "Das Panel hat eine leere Antwort geliefert — kein Abonnement empfangen; versuchen Sie es später oder wenden Sie sich an Ihren Anbieter",
+        "subscriptionBudget": "Die Abonnement-Adresse hat nicht rechtzeitig geantwortet — prüfen Sie die Verbindung und versuchen Sie es erneut",
+        "subscriptionDowngrade": "Die Abonnement-Adresse leitet auf unsicheres http um — das Token würde im Klartext übertragen; korrigieren Sie den Link im Anbieter-Panel",
         "foreignCoreTemplate": "Die Vorlage ist für einen anderen Core-Build gedacht (Gruppe „intelligente Auswahl“) — unser Core unterstützt sie nicht, bitten Sie den Anbieter um die normale Variante"
       }
     },

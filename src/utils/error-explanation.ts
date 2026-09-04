@@ -30,6 +30,9 @@ const RULES: ReadonlyArray<{ pattern: RegExp; key: string }> = [
 
   { pattern: /clod-sub-link-list/, key: 'subscriptionLinkList' },
   { pattern: /clod-sub-web-page/, key: 'subscriptionWebPage' },
+  { pattern: /clod-sub-empty/, key: 'subscriptionEmpty' },
+  { pattern: /clod-sub-budget/, key: 'subscriptionBudget' },
+  { pattern: /clod-sub-downgrade/, key: 'subscriptionDowngrade' },
   { pattern: /clod-sub-foreign-core/, key: 'foreignCoreTemplate' },
 
   // --- Адрес подписки ------------------------------------------------------

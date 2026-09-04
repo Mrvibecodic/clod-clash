@@ -94,6 +94,9 @@
         "subscriptionHttpsOnly": "訂閱位址必須以 https 開頭 — 請在服務商面板中修改，或重新加入訂閱",
         "subscriptionLinkList": "面板回傳的是連結清單而不是設定 — 它沒有辨識出用戶端：請讓機場在面板中為用戶端 ^ClodClash/ 新增規則，格式選 MIHOMO",
         "subscriptionWebPage": "此位址開啟的是網頁，而不是訂閱 — 請在個人中心核對連結",
+        "subscriptionEmpty": "面板回傳了空回應 — 未取得訂閱；請稍後重試或聯絡服務商",
+        "subscriptionBudget": "訂閱位址未在規定時間內回應 — 請檢查網路後重試",
+        "subscriptionDowngrade": "訂閱位址重新導向到不安全的 http — 權杖會以明文傳輸；請在服務商面板中修正連結",
         "foreignCoreTemplate": "此範本面向另一種核心版本（「智慧選擇」分組）— 我們的核心不支援，請向機場索取一般版本"
       }
     },

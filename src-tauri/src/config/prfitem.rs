@@ -287,7 +287,7 @@ impl PrfItem {
 
             match Self::from_url(&url, name, desc, attempt.as_ref()).await {
                 Ok(item) => return Ok(item),
-                Err(err) => last_err = err,
+                Err(err) => last_err = help::keep_the_clearer_error(last_err, err),
             }
         }
 
@@ -438,10 +438,7 @@ impl PrfItem {
         log_panel_headers(&sub);
         sub.notify_device_state();
 
-        let status_code = resp.status();
-        if !status_code.is_success() {
-            bail!("failed to fetch remote profile with status {status_code}")
-        }
+        subscription_is_usable(&resp)?;
 
         let header = resp.headers();
 
@@ -495,24 +492,6 @@ impl PrfItem {
         let data = resp.text_with_charset()?;
 
         let data = data.trim_start_matches('\u{feff}');
-
-        if body_is_web_page(data) {
-            bail!("clod-sub-web-page: the subscription address returned a web page");
-        }
-
-        if body_is_link_list(data) {
-            bail!("clod-sub-link-list: the panel returned a base64 link list");
-        }
-
-        let yaml = serde_yaml_ng::from_str::<Mapping>(data).context("the remote profile data is invalid yaml")?;
-
-        if !yaml.contains_key("proxies") && !yaml.contains_key("proxy-providers") {
-            bail!("profile does not contain `proxies` or `proxy-providers`");
-        }
-
-        if targets_foreign_core(&yaml) {
-            bail!("clod-sub-foreign-core: the template relies on a `smart` proxy group");
-        }
 
         if merge.is_none() {
             let merge_item = &mut Self::from_merge(None)?;
@@ -743,6 +722,109 @@ fn parse_subscription_userinfo(headers: &reqwest::header::HeaderMap) -> Option<P
 
 const FETCH_HEAD_START: Duration = Duration::from_millis(250);
 
+/// Полный приговор: годится ли ответ как профиль для ядра.
+///
+/// Выносится при разборе ответа. Гонка маршрутов пользуется не им, а более узким
+/// `judge_the_answer`: там важно только, не подсунули ли нам вместо панели заглушку.
+///
+/// Единственный изменившийся здесь текст — пустое тело: раньше оно доезжало до
+/// пользователя как «invalid yaml», теперь как `clod-sub-empty`.
+fn subscription_is_usable(resp: &crate::utils::network::HttpResponse) -> Result<()> {
+    let status_code = resp.status();
+    if !status_code.is_success() {
+        bail!("failed to fetch remote profile with status {status_code}")
+    }
+
+    let data = resp.text_with_charset()?;
+    let data = data.trim_start_matches('\u{feff}');
+
+    if data.trim().is_empty() {
+        bail!("clod-sub-empty: the panel returned an empty body");
+    }
+
+    if body_is_web_page(data) {
+        bail!("clod-sub-web-page: the subscription address returned a web page");
+    }
+
+    if body_is_link_list(data) {
+        bail!("clod-sub-link-list: the panel returned a base64 link list");
+    }
+
+    let yaml = serde_yaml_ng::from_str::<Mapping>(data).context("the remote profile data is invalid yaml")?;
+
+    if !yaml.contains_key("proxies") && !yaml.contains_key("proxy-providers") {
+        bail!("profile does not contain `proxies` or `proxy-providers`");
+    }
+
+    if targets_foreign_core(&yaml) {
+        bail!("clod-sub-foreign-core: the template relies on a `smart` proxy group");
+    }
+
+    Ok(())
+}
+
+/// Чем ветка гонки считается выигравшей.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RaceGoal {
+    /// Обычная подписка: побеждает только ответ, который годится как профиль.
+    UsableProfile,
+    /// Защищённый канал: тело зашифровано прослойкой, судить о нём здесь нечем.
+    AnyDelivery,
+}
+
+/// Похож ли ответ на заглушку, подсунутую вместо панели.
+///
+/// Ровно две формы, и обе — при успешном статусе: пустое тело и веб-страница. Так
+/// выглядит перехват — капча провайдера, портал сети, страница «сайт заблокирован»,
+/// отданные с кодом 200. Неуспешный статус сюда не попадает намеренно: свою
+/// HTML-страницу ошибки отдаёт и сама панель, и придерживать её значило бы растянуть
+/// понятный отказ (истёкшая подписка, лимит устройств) с долей секунды до минут.
+fn body_looks_like_a_stub(resp: &crate::utils::network::HttpResponse) -> bool {
+    resp.text_with_charset().is_ok_and(|data| {
+        let data = data.trim_start_matches('\u{feff}');
+        data.trim().is_empty() || body_is_web_page(data)
+    })
+}
+
+/// Что делать с ответом, который доехал по одной из веток гонки.
+#[derive(Debug, PartialEq, Eq)]
+enum Verdict {
+    /// Годен — гонка окончена.
+    Wins,
+    /// Ответ окончательный: ждать вторую ветку незачем. Быстрый отказ доезжает до
+    /// пользователя за секунды, как и до этой правки.
+    TheirLastWord,
+    /// Вместо панели ответил кто-то другой. Ради этого случая гонка и существует:
+    /// придерживаем ответ и дожидаемся второй ветки. Ценой ожидания — до двух
+    /// таймаутов ступени (запрос плюс возможный повтор с запасными корнями TLS),
+    /// если вторая ветка молчит.
+    ItIsAStub,
+}
+
+/// Приговор ответу внутри гонки маршрутов.
+///
+/// Он намеренно уже полного (`subscription_is_usable`): здесь решается не «годится
+/// ли это как профиль», а «панель ли вообще отвечает». Список ссылок вместо конфига,
+/// чужой шаблон, конфиг без узлов, код ошибки — это ответы самой панели, и второй
+/// маршрут их не изменит: ждать его значило бы растянуть понятный отказ на минуты.
+fn judge_the_answer(goal: RaceGoal, resp: &crate::utils::network::HttpResponse) -> Verdict {
+    if !resp.status().is_success() {
+        return Verdict::TheirLastWord;
+    }
+
+    match goal {
+        // Тело защищённого канала зашифровано прослойкой, судить о нём нечем.
+        RaceGoal::AnyDelivery => Verdict::Wins,
+        RaceGoal::UsableProfile => {
+            if body_looks_like_a_stub(resp) {
+                Verdict::ItIsAStub
+            } else {
+                Verdict::Wins
+            }
+        }
+    }
+}
+
 async fn fetch_once(
     url: &str,
     proxy_type: ProxyType,
@@ -770,6 +852,7 @@ async fn fetch_subscription(
     user_agent: Option<String>,
     accept_invalid_certs: bool,
     headers: &reqwest::header::HeaderMap,
+    goal: RaceGoal,
 ) -> Result<crate::utils::network::HttpResponse> {
     if matches!(preferred, ProxyType::None) {
         return fetch_once(url, ProxyType::None, timeout, user_agent, accept_invalid_certs, headers).await;
@@ -791,6 +874,9 @@ async fn fetch_subscription(
 
     let (mut chosen_done, mut direct_done) = (false, false);
     let (mut chosen_error, mut direct_error) = (None, None);
+    // Ответ доехал, но подпиской не оказался. Держим его, чтобы вернуть, если ничего
+    // лучше не придёт: тогда разбор ответа даст пользователю тот же текст, что и раньше.
+    let (mut chosen_rejected, mut direct_rejected) = (None, None);
 
     while !(chosen_done && direct_done) {
         tokio::select! {
@@ -798,7 +884,17 @@ async fn fetch_subscription(
             result = &mut chosen, if !chosen_done => {
                 chosen_done = true;
                 match result {
-                    Ok(response) => return Ok(response),
+                    Ok(response) => match judge_the_answer(goal, &response) {
+                        Verdict::Wins | Verdict::TheirLastWord => return Ok(response),
+                        Verdict::ItIsAStub => {
+                            clash_verge_logging::logging!(
+                                info,
+                                clash_verge_logging::Type::Config,
+                                "[clod] на выбранном маршруте вместо панели ответила заглушка, ждём прямой"
+                            );
+                            chosen_rejected = Some(response);
+                        }
+                    },
                     Err(e) => {
                         clash_verge_logging::logging!(
                             info,
@@ -812,18 +908,39 @@ async fn fetch_subscription(
             result = &mut direct, if !direct_done => {
                 direct_done = true;
                 match result {
-                    Ok(response) => {
+                    Ok(response) => match judge_the_answer(goal, &response) {
+                        Verdict::Wins | Verdict::TheirLastWord => {
+                            clash_verge_logging::logging!(
+                                info,
+                                clash_verge_logging::Type::Config,
+                                "[clod] subscription answered on the direct route"
+                            );
+                            return Ok(response);
+                        }
+                        Verdict::ItIsAStub => {
+                            clash_verge_logging::logging!(
+                                info,
+                                clash_verge_logging::Type::Config,
+                                "[clod] на прямом маршруте вместо панели ответила заглушка"
+                            );
+                            direct_rejected = Some(response);
+                        }
+                    },
+                    Err(e) => {
                         clash_verge_logging::logging!(
                             info,
                             clash_verge_logging::Type::Config,
-                            "[clod] subscription answered on the direct route"
+                            "[clod] прямой маршрут тоже не принёс подписку: {e}"
                         );
-                        return Ok(response);
+                        direct_error = Some(e);
                     }
-                    Err(e) => direct_error = Some(e),
                 }
             }
         }
+    }
+
+    if let Some(response) = chosen_rejected.or(direct_rejected) {
+        return Ok(response);
     }
 
     Err(chosen_error
@@ -850,13 +967,15 @@ async fn fetch_for_profile(
             user_agent,
             accept_invalid_certs,
             identity_headers,
+            RaceGoal::UsableProfile,
         )
         .await
         {
             Ok(response) => Ok((response, None)),
             Err(e) => {
                 tokio::time::sleep(Duration::from_millis(100)).await;
-                Err(e).context("failed to fetch remote profile")
+                let headline = explain_the_failure(&e, "failed to fetch remote profile");
+                Err(e).context(headline)
             }
         };
     }
@@ -907,9 +1026,26 @@ async fn fetch_for_profile(
         }
         Err(e) => {
             tokio::time::sleep(Duration::from_millis(100)).await;
-            Err(e).context("failed to fetch remote profile over the secure channel")
+            let headline = explain_the_failure(&e, "failed to fetch remote profile over the secure channel");
+            Err(e).context(headline)
         }
     }
+}
+
+/// Заголовок ошибки загрузки.
+///
+/// До пользователя доезжает только верхний контекст `anyhow`, поэтому отказ от
+/// понижения адреса до `http` иначе выглядел бы безымянным сбоем сети — а совет
+/// человеку нужен другой: поправить адрес в панели.
+fn explain_the_failure(err: &anyhow::Error, otherwise: &'static str) -> &'static str {
+    if err
+        .chain()
+        .any(|e| e.to_string().contains(crate::utils::network::DOWNGRADE_REFUSED))
+    {
+        return "clod-sub-downgrade: the subscription address redirects to an insecure http address";
+    }
+
+    otherwise
 }
 
 const CHAN_NEUTRAL_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)";
@@ -953,6 +1089,7 @@ async fn fetch_secure(
         Some(CHAN_NEUTRAL_UA.into()),
         accept_invalid_certs,
         &reqwest::header::HeaderMap::new(),
+        RaceGoal::AnyDelivery,
     )
     .await?;
 
@@ -1222,8 +1359,119 @@ fn fix_dirty_url(input: &str) -> Result<Url> {
 mod tests {
     use super::{
         PrfItem, PrfOption, allow_auto_update_enabled, body_is_link_list, body_is_web_page, fix_dirty_url,
-        targets_foreign_core, to_unix_seconds,
+        subscription_is_usable, targets_foreign_core, to_unix_seconds,
     };
+
+    fn answer(status: u16, body: &str) -> crate::utils::network::HttpResponse {
+        crate::utils::network::HttpResponse::new(
+            reqwest::StatusCode::from_u16(status).expect("тестовый статус разбирается"),
+            reqwest::header::HeaderMap::new(),
+            body.into(),
+        )
+    }
+
+    const A_REAL_PROFILE: &str = "proxies:\n  - name: node\n    type: ss\n";
+
+    #[test]
+    fn a_real_profile_is_usable() {
+        assert!(subscription_is_usable(&answer(200, A_REAL_PROFILE)).is_ok());
+    }
+
+    #[test]
+    fn a_captive_portal_page_is_not_a_subscription() {
+        let page = "<!DOCTYPE html><html><head><title>Проверка</title></head><body>captcha</body></html>";
+        let err = subscription_is_usable(&answer(200, page)).expect_err("страница подпиской не считается");
+        assert!(err.to_string().contains("clod-sub-web-page"), "{err}");
+    }
+
+    #[test]
+    fn an_empty_two_hundred_is_not_a_subscription() {
+        for body in ["", "   ", "\n\n"] {
+            let err = subscription_is_usable(&answer(200, body)).expect_err("пустое тело подпиской не считается");
+            assert!(err.to_string().contains("clod-sub-empty"), "{err}");
+        }
+    }
+
+    #[test]
+    fn a_base64_link_list_keeps_its_own_wording() {
+        let links = "dm1lc3M6Ly9leGFtcGxlCnZtZXNzOi8vZXhhbXBsZQ==";
+        let err = subscription_is_usable(&answer(200, links)).expect_err("список ссылок подпиской не считается");
+        assert!(err.to_string().contains("clod-sub-link-list"), "{err}");
+    }
+
+    #[test]
+    fn an_authoritative_refusal_is_not_worth_waiting_out() {
+        use super::{RaceGoal, Verdict, judge_the_answer};
+
+        // Код ошибки — ответ самой панели, в том числе её собственной HTML-страницей.
+        // Досиживать до таймаута второй ветки незачем: раньше он тоже доезжал сразу.
+        for body in [
+            "{\"error\":\"expired\"}",
+            "",
+            "<html><body>подписка истекла</body></html>",
+        ] {
+            assert_eq!(
+                judge_the_answer(RaceGoal::UsableProfile, &answer(403, body)),
+                Verdict::TheirLastWord
+            );
+        }
+        assert_eq!(
+            judge_the_answer(RaceGoal::AnyDelivery, &answer(502, "")),
+            Verdict::TheirLastWord
+        );
+    }
+
+    #[test]
+    fn only_a_stub_makes_us_wait_for_the_other_route() {
+        use super::{RaceGoal, Verdict, judge_the_answer};
+
+        // Перехват выглядит так: капча, портал сети, страница «заблокировано» — и всё
+        // это с кодом 200, потому что подменивший панель отвечает от своего имени.
+        for body in ["<!DOCTYPE html><html><body>captcha</body></html>", "", "   "] {
+            assert_eq!(
+                judge_the_answer(RaceGoal::UsableProfile, &answer(200, body)),
+                Verdict::ItIsAStub,
+                "тело {body:?} — заглушка"
+            );
+        }
+    }
+
+    #[test]
+    fn a_panels_own_answer_never_waits_for_the_other_route() {
+        use super::{RaceGoal, Verdict, judge_the_answer};
+
+        // Другой маршрут этих ответов не изменит: их шлёт сама панель.
+        for body in [
+            A_REAL_PROFILE,
+            "rules:\n  - MATCH,DIRECT\n",
+            "dm1lc3M6Ly9leGFtcGxlCnZtZXNzOi8vZXhhbXBsZQ==",
+        ] {
+            assert_eq!(
+                judge_the_answer(RaceGoal::UsableProfile, &answer(200, body)),
+                Verdict::Wins
+            );
+        }
+    }
+
+    #[test]
+    fn the_secure_channel_is_judged_by_status_only() {
+        use super::{RaceGoal, Verdict, judge_the_answer};
+
+        // Тело зашифровано прослойкой: даже пустое или похожее на страницу оно
+        // приговора не меняет — судить о нём здесь нечем.
+        for body in ["\u{1}\u{2}зашифровано", "", "<!DOCTYPE html>"] {
+            assert_eq!(
+                judge_the_answer(RaceGoal::AnyDelivery, &answer(200, body)),
+                Verdict::Wins
+            );
+        }
+    }
+
+    #[test]
+    fn a_bom_does_not_spoil_a_good_answer() {
+        let with_bom = std::format!("{}{}", '\u{feff}', A_REAL_PROFILE);
+        assert!(subscription_is_usable(&answer(200, with_bom.as_str())).is_ok());
+    }
 
     #[test]
     fn provider_links_are_replaced_not_merged() {

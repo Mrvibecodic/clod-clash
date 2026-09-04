@@ -138,7 +138,8 @@
         "secureKey": "Kunci middleware"
       },
       "hints": {
-        "intervalLocked": "The provider set this interval with the profile-update-interval header, so it cannot be changed."
+        "intervalLocked": "The provider set this interval with the profile-update-interval header, so it cannot be changed.",
+        "intervalFloor": "Tidak lebih sering dari sekali setiap {{minutes}} menit — jika tidak, panel menerima permintaan yang tidak perlu."
       },
       "feedback": {
         "notifications": {
@@ -155,6 +156,7 @@
       },
       "errors": {
         "urlRequired": "Paste the subscription link",
+        "intervalTooShort": "Interval pembaruan tidak boleh kurang dari {{minutes}} menit — jika tidak, panel menerima permintaan yang tidak perlu.",
         "typeRequired": "Choose the profile type",
         "profileMissing": "The profile is gone — close this window and open it again"
       },

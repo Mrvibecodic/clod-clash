@@ -46,6 +46,9 @@ export interface ProfileViewerRef {
   edit: (item: IProfileItem) => void
 }
 
+/** clod:Э9-05 — нижний порог интервала автообновления, в минутах. */
+const MIN_UPDATE_INTERVAL_MINUTES = 60
+
 /** clod: «создать новую группу» как отдельный пункт списка. */
 const NEW_GROUP = '__clod_new_group__'
 
@@ -88,6 +91,10 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
 
   // file input
   const fileDataRef = useRef<string | null>(null)
+  // clod:Э9-05 — интервал, с которым карточку открыли. Порог спрашиваем только с
+  // того значения, которое человек сейчас вводит: профиль, заведённый раньше с более
+  // частым расписанием, должен по-прежнему открываться и сохраняться.
+  const openedWithIntervalRef = useRef<number | undefined>(undefined)
 
   const { control, watch, setValue, reset, handleSubmit, getValues } =
     useForm<IProfileItem>({
@@ -123,11 +130,13 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
   useImperativeHandle(ref, () => ({
     create: () => {
       resetState()
+      openedWithIntervalRef.current = undefined
       setOpenType('new')
       setOpen(true)
     },
     edit: (item: IProfileItem) => {
       resetState()
+      openedWithIntervalRef.current = item?.option?.update_interval
       if (item) {
         Object.entries(item).forEach(([key, value]) => {
           setValue(key as any, value)
@@ -137,6 +146,14 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
       setOpen(true)
     },
   }))
+
+  // clod:Э9-05 — у профиля, заведённого раньше с более частым расписанием, поле не
+  // должно светиться ошибкой и обещать порог: сохранить его как есть мы разрешаем.
+  const openedWith = openedWithIntervalRef.current
+  const intervalFloor =
+    typeof openedWith === 'number' && openedWith > 0
+      ? Math.min(MIN_UPDATE_INTERVAL_MINUTES, openedWith)
+      : MIN_UPDATE_INTERVAL_MINUTES
 
   // clod:chan — признак уже включённой защиты: он и запирает переключатель.
   const secureLocked =
@@ -201,6 +218,25 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
         }
 
         const isRemote = form.type === 'remote'
+
+        // clod:Э9-05 — ниже часа ходить к панели незачем: заголовок
+        // `profile-update-interval` и так задаётся в часах, а более частое
+        // расписание только множит запросы. Говорим об этом вслух, а не поднимаем
+        // значение молча: настройка пользовательская, и подменять её за спиной
+        // человека нельзя. Спрашиваем только с введённого сейчас значения — иначе
+        // профиль со старым частым интервалом нельзя было бы даже переименовать.
+        if (
+          isRemote &&
+          option?.update_interval &&
+          option.update_interval < MIN_UPDATE_INTERVAL_MINUTES &&
+          option.update_interval !== openedWithIntervalRef.current
+        ) {
+          throw new Error(
+            t('profiles.modals.profileForm.errors.intervalTooShort', {
+              minutes: MIN_UPDATE_INTERVAL_MINUTES,
+            }),
+          )
+        }
         // clod:panel-name — пустое поле имени у ПОДПИСКИ означает «как назовёт
         // панель», а не «придумай что-нибудь». Раньше отсюда всегда уезжала
         // строка «remote file», бэкенд считал её выбором пользователя
@@ -480,9 +516,14 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
                 helperText={
                   intervalLocked
                     ? t('profiles.modals.profileForm.hints.intervalLocked')
-                    : undefined
+                    : intervalFloor < MIN_UPDATE_INTERVAL_MINUTES
+                      ? undefined
+                      : t('profiles.modals.profileForm.hints.intervalFloor', {
+                          minutes: MIN_UPDATE_INTERVAL_MINUTES,
+                        })
                 }
                 slotProps={{
+                  htmlInput: { min: intervalFloor },
                   input: {
                     endAdornment: (
                       <InputAdornment position="end">

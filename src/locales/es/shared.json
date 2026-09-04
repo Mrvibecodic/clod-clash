@@ -94,6 +94,9 @@
         "subscriptionHttpsOnly": "La dirección de la suscripción debe empezar por https — cámbiela en el panel del proveedor o vuelva a añadir la suscripción",
         "subscriptionLinkList": "El panel envió una lista de enlaces en lugar de una configuración: no reconoció el cliente. Pida al proveedor que añada en el panel una regla para el cliente ^ClodClash/ con el formato MIHOMO",
         "subscriptionWebPage": "En esta dirección se abrió una página web, no una suscripción: revise el enlace en su área personal",
+        "subscriptionEmpty": "El panel respondió con un cuerpo vacío: no llegó la suscripción; inténtelo más tarde o contacte con su proveedor",
+        "subscriptionBudget": "La dirección de la suscripción no respondió a tiempo: revise la conexión e inténtelo de nuevo",
+        "subscriptionDowngrade": "La dirección de la suscripción redirige a http inseguro: el token viajaría en claro; corrija el enlace en el panel del proveedor",
         "foreignCoreTemplate": "La plantilla está pensada para otra compilación del núcleo (grupo «selección inteligente»): nuestro núcleo no la admite, pida al proveedor la variante normal"
       }
     },

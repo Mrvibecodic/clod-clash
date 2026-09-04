@@ -94,6 +94,9 @@
         "subscriptionHttpsOnly": "Alamat langganan harus diawali https — ubah di panel penyedia atau tambahkan langganan lagi",
         "subscriptionLinkList": "Panel mengirim daftar tautan alih-alih konfigurasi — panel tidak mengenali klien: minta penyedia menambahkan aturan untuk klien ^ClodClash/ dengan format MIHOMO di panel",
         "subscriptionWebPage": "Alamat ini membuka halaman web, bukan langganan — periksa tautan di akun Anda",
+        "subscriptionEmpty": "Panel menjawab dengan badan kosong — langganan tidak diterima; coba lagi nanti atau hubungi penyedia Anda",
+        "subscriptionBudget": "Alamat langganan tidak menjawab tepat waktu — periksa koneksi dan coba lagi",
+        "subscriptionDowngrade": "Alamat langganan dialihkan ke http yang tidak aman — token akan terkirim tanpa enkripsi; perbaiki tautan di panel penyedia",
         "foreignCoreTemplate": "Templat ini ditujukan untuk build inti lain (grup «pilihan cerdas») — inti kami tidak mendukungnya, minta varian biasa kepada penyedia"
       }
     },

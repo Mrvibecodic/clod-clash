@@ -94,6 +94,9 @@
         "subscriptionHttpsOnly": "Abonelik adresi https ile başlamalı — sağlayıcı panelinde değiştirin veya aboneliği yeniden ekleyin",
         "subscriptionLinkList": "Panel yapılandırma yerine bir bağlantı listesi gönderdi — istemciyi tanımadı: panelde ^ClodClash/ istemcisi için MIHOMO biçiminde bir kural eklemesini sağlayıcıdan isteyin",
         "subscriptionWebPage": "Bu adreste abonelik değil bir web sayfası açıldı — bağlantıyı hesabınızdan kontrol edin",
+        "subscriptionEmpty": "Panel boş bir yanıt döndü — abonelik alınamadı; daha sonra tekrar deneyin veya sağlayıcınıza başvurun",
+        "subscriptionBudget": "Abonelik adresi zamanında yanıt vermedi — bağlantınızı kontrol edip tekrar deneyin",
+        "subscriptionDowngrade": "Abonelik adresi güvensiz http adresine yönlendiriyor — jeton açık metin olarak gidecekti; bağlantıyı sağlayıcı panelinden düzeltin",
         "foreignCoreTemplate": "Şablon başka bir çekirdek sürümü için hazırlanmış («akıllı seçim» grubu) — çekirdeğimiz desteklemiyor, sağlayıcıdan normal sürümü isteyin"
       }
     },

@@ -365,6 +365,7 @@ export interface TranslationResources {
             useLink: string
           }
           errors: {
+            intervalTooShort: string
             profileMissing: string
             typeRequired: string
             urlRequired: string
@@ -401,6 +402,7 @@ export interface TranslationResources {
             useSystemProxy: string
           }
           hints: {
+            intervalFloor: string
             intervalLocked: string
           }
           title: {
@@ -1409,6 +1411,9 @@ export interface TranslationResources {
             portBusy: string
             proxyNotFound: string
             serverError: string
+            subscriptionBudget: string
+            subscriptionDowngrade: string
+            subscriptionEmpty: string
             subscriptionHttpsOnly: string
             subscriptionLinkList: string
             subscriptionWebPage: string

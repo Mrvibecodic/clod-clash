@@ -94,6 +94,9 @@
         "subscriptionHttpsOnly": "订阅地址必须以 https 开头 — 请在服务商面板中修改，或重新添加订阅",
         "subscriptionLinkList": "面板返回的是链接列表而不是配置 — 它没有识别出客户端：请让机场在面板中为客户端 ^ClodClash/ 添加规则，格式选 MIHOMO",
         "subscriptionWebPage": "该地址打开的是网页，而不是订阅 — 请在个人中心核对链接",
+        "subscriptionEmpty": "面板返回了空响应 — 未获取到订阅；请稍后重试或联系服务商",
+        "subscriptionBudget": "订阅地址未在规定时间内响应 — 请检查网络后重试",
+        "subscriptionDowngrade": "订阅地址重定向到不安全的 http — 令牌会以明文传输；请在服务商面板中修正链接",
         "foreignCoreTemplate": "该模板面向另一种内核构建（「智能选择」分组）— 我们的内核不支持，请向机场索取普通版本"
       }
     },

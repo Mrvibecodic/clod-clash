@@ -138,7 +138,8 @@
         "secureKey": "Ara katman anahtarı"
       },
       "hints": {
-        "intervalLocked": "The provider set this interval with the profile-update-interval header, so it cannot be changed."
+        "intervalLocked": "The provider set this interval with the profile-update-interval header, so it cannot be changed.",
+        "intervalFloor": "En fazla {{minutes}} dakikada bir — daha sık olursa panele gereksiz istek gider."
       },
       "feedback": {
         "notifications": {
@@ -155,6 +156,7 @@
       },
       "errors": {
         "urlRequired": "Paste the subscription link",
+        "intervalTooShort": "Güncelleme aralığı {{minutes}} dakikadan kısa olamaz — daha sık olursa panele gereksiz istek gider.",
         "typeRequired": "Choose the profile type",
         "profileMissing": "The profile is gone — close this window and open it again"
       },
