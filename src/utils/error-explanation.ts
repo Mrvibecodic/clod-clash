@@ -33,6 +33,11 @@ const RULES: ReadonlyArray<{ pattern: RegExp; key: string }> = [
   { pattern: /clod-sub-empty/, key: 'subscriptionEmpty' },
   { pattern: /clod-sub-budget/, key: 'subscriptionBudget' },
   { pattern: /clod-sub-downgrade/, key: 'subscriptionDowngrade' },
+  // clod:Э10-06 — внутренняя фраза модели черновиков доезжала до человека как есть.
+  { pattern: /optimistic lock failed/, key: 'optimisticLock' },
+  // clod:Э10-09 — локальный файл пользователя: объяснение про панель тут не к месту.
+  { pattern: /clod-local-web-page/, key: 'localFileIsAWebPage' },
+  { pattern: /clod-local-bad-yaml/, key: 'localFileIsNotYaml' },
   { pattern: /clod-sub-foreign-core/, key: 'foreignCoreTemplate' },
 
   // --- Адрес подписки ------------------------------------------------------

@@ -293,6 +293,7 @@ export interface TranslationResources {
           labels: {
             expiresIn: string
             neverExpires: string
+            notApplied: string
             unlimited: string
           }
           status: {
@@ -305,6 +306,7 @@ export interface TranslationResources {
             unknown: string
           }
           tooltips: {
+            notApplied: string
             refillDate: string
             showLast: string
             showNext: string
@@ -448,6 +450,7 @@ export interface TranslationResources {
           errors: {
             invalidUrl: string
             onlyYaml: string
+            someUpdatesFailed: string
           }
           notices: {
             emergencyRefreshFailed: string
@@ -1405,8 +1408,11 @@ export interface TranslationResources {
             connectionReset: string
             forbidden: string
             foreignCoreTemplate: string
+            localFileIsAWebPage: string
+            localFileIsNotYaml: string
             noSuchHost: string
             notFound: string
+            optimisticLock: string
             permissionDenied: string
             portBusy: string
             proxyNotFound: string
@@ -1432,6 +1438,7 @@ export interface TranslationResources {
         }
         notifications: {
           common: {
+            configLoadFailed: string
             copySuccess: string
             logsExported: string
             refreshFailed: string

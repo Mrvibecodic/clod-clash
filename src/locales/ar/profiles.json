@@ -28,7 +28,8 @@
     "feedback": {
       "errors": {
         "invalidUrl": "Invalid profile URL. Please enter a URL starting with http:// or https://",
-        "onlyYaml": "لا يتم دعم سوى ملفات YAML"
+        "onlyYaml": "لا يتم دعم سوى ملفات YAML",
+        "someUpdatesFailed": "تعذّر تحديث {{failed}} من {{total}}: {{reason}}"
       },
       "notifications": {
         "profileSwitched": "تم التبديل إلى الملف الشخصي",
@@ -73,7 +74,8 @@
       "tooltips": {
         "showLast": "Click to show last update time",
         "showNext": "Click to show next update",
-        "refillDate": "Traffic resets on {{date}}"
+        "refillDate": "Traffic resets on {{date}}",
+        "notApplied": "جرى تنزيل الاشتراك لكن النواة رفضته — الإعداد السابق لا يزال يعمل. راجع تعديلاتك في merge وscript وrules والمجموعات."
       },
       "status": {
         "lastUpdateFailed": "Last Update failed",
@@ -87,7 +89,8 @@
       "labels": {
         "unlimited": "Unlimited",
         "neverExpires": "No expiry",
-        "expiresIn": "{{count}} d · {{date}}"
+        "expiresIn": "{{count}} d · {{date}}",
+        "notApplied": "غير مُطبَّق"
       },
       "actions": {
         "portal": "Account"

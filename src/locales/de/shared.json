@@ -79,7 +79,10 @@
         "portBusy": "Der Port ist bereits von einem anderen Programm belegt — ändern Sie ihn in den Einstellungen",
         "permissionDenied": "Zu wenig Rechte oder vom System verweigert — oft Firewall oder Virenscanner",
         "tls": "Das Zertifikat konnte nicht geprüft werden — prüfen Sie die Uhr des Rechners und die Adresse",
-        "badConfig": "Die Konfiguration ließ sich nicht lesen — das Panel sendete eine defekte oder nicht unterstützte Datei",
+        "badConfig": "Die Konfiguration konnte nicht gelesen werden. Der Core prüft das Abonnement zusammen mit Ihren eigenen Änderungen an merge, script, rules und Gruppen — jede davon kann die Ursache sein",
+        "optimisticLock": "Die Einstellungen haben sich während des Speicherns geändert — bitte erneut versuchen",
+        "localFileIsAWebPage": "Das ist eine Webseite, keine Konfiguration — prüfen Sie, ob Sie die richtige Datei gewählt haben",
+        "localFileIsNotYaml": "Die Datei ist kein gültiges YAML — prüfen Sie Einrückung und Anführungszeichen",
         "unsupportedProxy": "Die Konfiguration nutzt ein Protokoll, das der Kern nicht kennt — Kern aktualisieren oder Anbieter fragen",
         "proxyNotFound": "Diesen Server gibt es in der Konfiguration nicht mehr — wählen Sie einen anderen",
         "tunFailed": "Der Tunnel ließ sich nicht starten — prüfen Sie Dienst und Rechte",
@@ -113,13 +116,14 @@
         "saveSuccess": "Zufalls-Konfiguration erfolgreich gespeichert",
         "saveFailed": "Failed to save configuration",
         "refreshFailed": "Aktualisierung fehlgeschlagen",
+        "configLoadFailed": "Eine Einstellungsdatei konnte nicht gelesen werden: {{files}}. Eine Kopie wurde daneben abgelegt, benannt „.unreadable-<Datum>“ — es geht nichts verloren. Abonnements und Einstellungen wirken eventuell zurückgesetzt; stellen Sie die Datei aus dieser Kopie oder einem Backup wieder her.",
         "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked",
         "logsExported": "Protokollarchiv gespeichert — Abonnementadressen und Token sind maskiert"
       }
     },
     "validation": {
       "config": {
-        "failed": "Abonnement-Konfigurationsüberprüfung fehlgeschlagen. Bitte überprüfen Sie die Abonnement-Konfigurationsdatei. Die Änderungen wurden rückgängig gemacht. Fehlerdetails: ",
+        "failed": "Konfigurationsprüfung fehlgeschlagen, Änderungen zurückgenommen. Fehler:",
         "bootFailed": "Start-Abonnement-Konfigurationsüberprüfung fehlgeschlagen. Die Standardkonfiguration wurde verwendet, um die App zu starten. Bitte überprüfen Sie die Abonnement-Konfigurationsdatei. Fehlerdetails: ",
         "coreChangeFailed": "Konfigurationsüberprüfung beim Wechsel des Kerns fehlgeschlagen. Die Standardkonfiguration wurde verwendet, um die App zu starten. Bitte überprüfen Sie die Abonnement-Konfigurationsdatei. Fehlerdetails: ",
         "processTerminated": "Der Validierungsprozess wurde beendet. Prüfen Sie, ob eine Sicherheitssoftware den Kern blockiert und ob die CPU dieses Computers den Kern-Build unterstützt."

@@ -55,7 +55,7 @@
         "deviceLimit": "يُستخدم الاشتراك على أكثر من {{max}} من الأجهزة. حرّر جهازًا أو تواصل مع الدعم لتعود الخوادم.",
         "deviceNotIdentified": "لم يتعرف اللوحة على هذا الجهاز ولم تُصدر أي خوادم."
       },
-      "panelSays": "The panel says: “{{text}}”",
+      "panelSays": "أُزيلت العُقد النائبة من الاشتراك: {{text}}",
       "partiallyDropped": "Hidden servers that cannot connect: {{total}} ({{names}})",
       "refresh": "Update subscription",
       "row": {

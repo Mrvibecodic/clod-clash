@@ -55,7 +55,7 @@
         "deviceLimit": "此訂閱已在超過 {{max}} 台裝置上使用。請解除多餘裝置或聯絡客服，伺服器就會恢復。",
         "deviceNotIdentified": "面板未能辨識此裝置，因此沒有下發伺服器。"
       },
-      "panelSays": "The panel says: “{{text}}”",
+      "panelSays": "已從訂閱中移除佔位節點：{{text}}",
       "partiallyDropped": "已隱藏無法連線的伺服器：{{total}}（{{names}}）",
       "refresh": "Update subscription",
       "row": {

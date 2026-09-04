@@ -79,7 +79,10 @@
         "portBusy": "Portu başka bir program kullanıyor — ayarlardan değiştirin",
         "permissionDenied": "Yetki yetersiz ya da sistem engelledi — çoğunlukla güvenlik duvarı veya antivirüs",
         "tls": "Sertifika doğrulanamadı — bilgisayarın saatini ve adresi kontrol edin",
-        "badConfig": "Yapılandırma okunamadı — panel bozuk veya desteklenmeyen bir dosya gönderdi",
+        "badConfig": "Yapılandırma çözümlenemedi. Çekirdek aboneliği sizin merge, script, rules ve grup düzenlemelerinizle birlikte denetler — herhangi biri sorunun kaynağı olabilir",
+        "optimisticLock": "Kaydedilirken ayarlar değişti — lütfen tekrar deneyin",
+        "localFileIsAWebPage": "Bu bir yapılandırma değil, web sayfası — doğru dosyayı seçtiğinizden emin olun",
+        "localFileIsNotYaml": "Dosya geçerli YAML değil — girintileri ve tırnakları kontrol edin",
         "unsupportedProxy": "Yapılandırmada çekirdeğin bilmediği bir protokol var — çekirdeği güncelleyin veya sağlayıcıya sorun",
         "proxyNotFound": "Bu sunucu artık yapılandırmada yok — başka birini seçin",
         "tunFailed": "Tünel kaldırılamadı — hizmeti ve izinleri kontrol edin",
@@ -113,13 +116,14 @@
         "saveSuccess": "Configuration saved successfully",
         "saveFailed": "Failed to save configuration",
         "refreshFailed": "Yenileme başarısız",
+        "configLoadFailed": "Bir ayar dosyası okunamadı: {{files}}. Yanına \".unreadable-<tarih>\" adıyla bir kopyası bırakıldı — hiçbir şey kaybolmadı. Abonelikler ve ayarlar sıfırlanmış görünebilir; dosyayı bu kopyadan veya bir yedekten geri yükleyin.",
         "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked",
         "logsExported": "Günlük arşivi kaydedildi — abonelik adresleri ve belirteçler gizlendi"
       }
     },
     "validation": {
       "config": {
-        "failed": "Abonelik yapılandırması doğrulaması başarısız oldu. Lütfen abonelik yapılandırma dosyasını kontrol edin; değişiklikler geri alındı.",
+        "failed": "Yapılandırma denetimi başarısız, değişiklikler geri alındı. Hata:",
         "bootFailed": "Başlangıç abonelik yapılandırması doğrulaması başarısız oldu. Varsayılan yapılandırma ile başlatıldı; lütfen abonelik yapılandırma dosyasını kontrol edin.",
         "coreChangeFailed": "Çekirdek değiştirilirken yapılandırma doğrulaması başarısız oldu. Varsayılan yapılandırma ile başlatıldı; lütfen abonelik yapılandırma dosyasını kontrol edin.",
         "processTerminated": "Doğrulama süreci sonlandırıldı. Bir güvenlik yazılımının çekirdeği engelleyip engellemediğini ve bu bilgisayarın işlemcisinin çekirdek derlemesini destekleyip desteklemediğini kontrol edin."

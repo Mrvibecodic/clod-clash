@@ -55,7 +55,7 @@
         "deviceLimit": "این اشتراک روی بیش از {{max}} دستگاه استفاده می‌شود. یک دستگاه را آزاد کنید یا با پشتیبانی تماس بگیرید تا سرورها بازگردند.",
         "deviceNotIdentified": "پنل این دستگاه را نشناخت و سروری ارائه نکرد."
       },
-      "panelSays": "The panel says: “{{text}}”",
+      "panelSays": "گره‌های جایگزین از اشتراک حذف شدند: {{text}}",
       "partiallyDropped": "Hidden servers that cannot connect: {{total}} ({{names}})",
       "refresh": "Update subscription",
       "row": {

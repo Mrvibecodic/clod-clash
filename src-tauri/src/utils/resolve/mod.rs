@@ -118,6 +118,14 @@ pub fn resolve_setup_async() {
 
         crate::feat::release_stale_panel_locks().await;
 
+        // clod:Э10-02 — файл настроек, который не прочитался, мы намеренно не
+        // перезаписываем при выходе. Молчать об этом нельзя: человек увидел бы
+        // пустой список подписок и решил, что потерял их.
+        let unread = crate::config::load_failures::names();
+        if !unread.is_empty() {
+            Handle::notice_message("clod_config::load_failed", unread.join(", "));
+        }
+
         Handle::refresh_clash();
         refresh_tray_menu().await;
         resolve_done();

@@ -52,6 +52,7 @@ import { showNotice } from '@/services/notice-service'
 import { revalidateQueries } from '@/services/query-client'
 import { useLoadingCache, useSetLoadingCache } from '@/services/states'
 import { debugLog } from '@/utils/debug'
+import { explainErrorKey, trimRawError } from '@/utils/error-explanation'
 
 const PROFILE_UPDATE_WORKER_LIMIT = 8
 const PROFILE_SWITCH_LOADING_DELAY = 400
@@ -503,6 +504,10 @@ const ProfilePage = () => {
         trailing: true,
       })
       let cursor = 0
+      // clod:Э10-01 — раньше провал уезжал в console.error, и человек не узнавал
+      // о нём ничего. По тосту на каждую подписку при выключенной сети завалило бы
+      // экран, поэтому копим и показываем одно сводное сообщение с первой причиной.
+      const failures: unknown[] = []
 
       const updateOne = async (uid: string) => {
         try {
@@ -510,6 +515,7 @@ const ProfilePage = () => {
           throttleMutate()
         } catch (err: any) {
           console.error(`Не удалось обновить подписку ${uid}:`, err)
+          failures.push(err)
         }
       }
 
@@ -527,9 +533,22 @@ const ProfilePage = () => {
         setLoadingProfiles(uids, false)
 
         void mutateProfiles()
+
+        if (failures.length > 0) {
+          const first = failures[0]
+          const raw = first instanceof Error ? first.message : String(first)
+          // Причина проходит тот же путь, что и одиночная ошибка: сначала словарь
+          // объяснений, и только если он не узнал — обрезанный исходный текст.
+          const explained = explainErrorKey(raw)
+          showNotice.error('profiles.page.feedback.errors.someUpdatesFailed', {
+            failed: failures.length,
+            total: uids.length,
+            reason: explained ? t(explained) : trimRawError(raw),
+          })
+        }
       }
     },
-    [mutateProfiles, setLoadingProfiles],
+    [mutateProfiles, setLoadingProfiles, t],
   )
   const onUpdateAll = useLockFn(async () => {
     const items = profileItems.filter((e) => e.type === 'remote')

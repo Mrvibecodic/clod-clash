@@ -55,7 +55,7 @@
         "deviceLimit": "Язылу {{max}} җиһаздан күбрәктә кулланыла. Артыгын аерыгыз яки ярдәм хезмәтенә языгыз — серверлар кайтачак.",
         "deviceNotIdentified": "Панель бу җиһазны танымады һәм серверлар бирмәде."
       },
-      "panelSays": "The panel says: “{{text}}”",
+      "panelSays": "Язылудан урын биләүче төеннәр алып ташланды: {{text}}",
       "partiallyDropped": "Hidden servers that cannot connect: {{total}} ({{names}})",
       "refresh": "Update subscription",
       "row": {

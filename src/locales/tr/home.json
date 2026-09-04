@@ -55,7 +55,7 @@
         "deviceLimit": "Abonelik {{max}} cihazdan fazlasında kullanılıyor. Bir cihazı serbest bırakın ya da desteğe yazın, sunucular geri gelir.",
         "deviceNotIdentified": "Panel bu cihazı tanımadı ve sunucu vermedi."
       },
-      "panelSays": "The panel says: “{{text}}”",
+      "panelSays": "Abonelikten yer tutucu düğümler çıkarıldı: {{text}}",
       "partiallyDropped": "Bağlanamadığı için gizlenen sunucular: {{total}} ({{names}})",
       "refresh": "Update subscription",
       "row": {

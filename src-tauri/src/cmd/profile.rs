@@ -8,7 +8,7 @@ use crate::{
         Config, IProfiles, PrfItem, PrfOption,
         profiles::{
             profiles_append_item_with_filedata_safe, profiles_delete_item_safe, profiles_patch_item_safe,
-            profiles_reorder_safe, profiles_restore_snapshot_safe, profiles_save_file_safe,
+            profiles_reorder_safe, profiles_save_file_safe, profiles_undo_delete_safe,
         },
         profiles_append_item_safe,
     },
@@ -234,10 +234,48 @@ pub async fn update_profile(index: String, option: Option<PrfOption>) -> CmdResu
 /// Удаляет конфиг
 #[tauri::command]
 pub async fn delete_profile(index: String) -> CmdResult {
-    // clod: снимок ДО удаления. Если конфиг с оставшимися подписками не
-    // соберётся, удаление отменяется целиком — вместе с выбранной подпиской и
-    // порядком, — а файлы к этому моменту ещё на диске: их стирают последними.
-    let snapshot = (**Config::profiles().await.latest_arc()).clone();
+    // clod: снимок ДО удаления. Если конфиг из оставшихся подписок не соберётся,
+    // удаление отменяется — файлы к этому моменту ещё на диске, их стирают
+    // последними. Запоминаем ровно то, что удаление забирает: саму запись И её
+    // цепочки (`merge`, `script`, `rules`, `proxies`, `groups`) с их местами в
+    // списке, плюс прежний выбранный профиль. Слепок всего реестра для этого не
+    // годится: соседние подписки за это время успевают обновиться, и он стёр бы их
+    // свежие данные.
+    let (removed_items, previous_current) = {
+        let profiles = Config::profiles().await.latest_arc();
+        let items = profiles.items.as_deref().unwrap_or_default();
+
+        let chain: Vec<String> = items
+            .iter()
+            .find(|item| item.uid.as_deref() == Some(index.as_str()))
+            .and_then(|item| item.option.as_ref())
+            .map(|option| {
+                [
+                    option.merge.clone(),
+                    option.script.clone(),
+                    option.rules.clone(),
+                    option.proxies.clone(),
+                    option.groups.clone(),
+                ]
+                .into_iter()
+                .flatten()
+                .collect()
+            })
+            .unwrap_or_default();
+
+        let removed: Vec<(usize, PrfItem)> = items
+            .iter()
+            .enumerate()
+            .filter(|(_, item)| {
+                item.uid
+                    .as_ref()
+                    .is_some_and(|uid| uid.as_str() == index.as_str() || chain.contains(uid))
+            })
+            .map(|(at, item)| (at, item.clone()))
+            .collect();
+
+        (removed, profiles.current.clone())
+    };
 
     // Используем Send-safe helper-функцию
     let (should_update, pending_files) = profiles_delete_item_safe(&index).await.stringify_err()?;
@@ -277,13 +315,13 @@ pub async fn delete_profile(index: String) -> CmdResult {
                     "не удалось обновить конфиг после удаления подписки: {}",
                     outcome
                 );
-                restore_profiles_after_failed_delete(snapshot).await;
+                restore_profiles_after_failed_delete(removed_items.clone(), previous_current.clone()).await;
                 handle_validation_notice(&outcome, ValidationNoticeTarget::Runtime, "рабочий конфиг");
                 return Err(outcome.to_string().into());
             }
             Err(e) => {
                 logging!(error, Type::Cmd, "{}", e);
-                restore_profiles_after_failed_delete(snapshot).await;
+                restore_profiles_after_failed_delete(removed_items.clone(), previous_current.clone()).await;
                 return Err(super::public_error_text(&e));
             }
         }
@@ -305,8 +343,17 @@ pub async fn delete_profile(index: String) -> CmdResult {
 /// Зовётся, только когда конфиг без удалённой подписки не собрался. Файлы к
 /// этому моменту ещё целы, поэтому возврата снимка достаточно: пользователь
 /// остаётся ровно там, где был до нажатия «удалить».
-async fn restore_profiles_after_failed_delete(snapshot: IProfiles) {
-    if let Err(err) = profiles_restore_snapshot_safe(snapshot).await {
+async fn restore_profiles_after_failed_delete(removed: Vec<(usize, PrfItem)>, previous_current: Option<String>) {
+    if removed.is_empty() {
+        logging!(
+            warn,
+            Type::Cmd,
+            "нечего возвращать после неудачного удаления: записей уже не было"
+        );
+        return;
+    }
+
+    if let Err(err) = profiles_undo_delete_safe(removed, previous_current).await {
         logging!(
             error,
             Type::Cmd,
@@ -355,14 +402,19 @@ async fn restore_previous_profile(prev_profile: &String) -> CmdResult<()> {
         "попытка восстановить предыдущий конфиг: {}",
         prev_profile
     );
-    let restore_profiles = IProfiles {
-        current: Some(prev_profile.to_owned()),
-        items: None,
-    };
-    Config::profiles()
-        .await
-        .edit_draft(|d| d.patch_config(&restore_profiles));
-    Config::profiles().await.apply();
+    // clod:Э10-05 — раньше здесь был `edit_draft` + `apply()`. `apply()` заменяет
+    // закоммиченное состояние черновиком целиком и версию не сверяет: параллельное
+    // обновление подписки, которое пишет закоммиченное напрямую, откатывалось этим
+    // движением назад. `commit_current_profile` делает то же самое безопасно —
+    // отбрасывает черновик и правит закоммиченное под общим разрешением.
+    match commit_current_profile(&Config::profiles().await, Some(prev_profile.to_owned())).await {
+        Ok(()) => logging!(info, Type::Cmd, "предыдущий конфиг успешно восстановлен"),
+        Err(e) => logging!(
+            warn,
+            Type::Cmd,
+            "Warning: не удалось вернуть прежний выбранный конфиг: {e}"
+        ),
+    }
     crate::process::AsyncHandler::spawn(|| async move {
         if let Err(e) = profiles_save_file_safe().await {
             logging!(
@@ -372,7 +424,6 @@ async fn restore_previous_profile(prev_profile: &String) -> CmdResult<()> {
             );
         }
     });
-    logging!(info, Type::Cmd, "предыдущий конфиг успешно восстановлен");
     Ok(())
 }
 

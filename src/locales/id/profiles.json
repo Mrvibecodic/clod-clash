@@ -28,7 +28,8 @@
     "feedback": {
       "errors": {
         "invalidUrl": "Invalid profile URL. Please enter a URL starting with http:// or https://",
-        "onlyYaml": "Hanya File YAML yang Didukung"
+        "onlyYaml": "Hanya File YAML yang Didukung",
+        "someUpdatesFailed": "Gagal memperbarui {{failed}} dari {{total}}: {{reason}}"
       },
       "notifications": {
         "profileSwitched": "Profil Beralih",
@@ -73,7 +74,8 @@
       "tooltips": {
         "showLast": "Click to show last update time",
         "showNext": "Click to show next update",
-        "refillDate": "Traffic resets on {{date}}"
+        "refillDate": "Traffic resets on {{date}}",
+        "notApplied": "Langganan terunduh tetapi ditolak oleh inti — konfigurasi sebelumnya masih berjalan. Periksa suntingan Anda pada merge, script, rules, dan grup."
       },
       "status": {
         "lastUpdateFailed": "Last Update failed",
@@ -87,7 +89,8 @@
       "labels": {
         "unlimited": "Unlimited",
         "neverExpires": "No expiry",
-        "expiresIn": "{{count}} d · {{date}}"
+        "expiresIn": "{{count}} d · {{date}}",
+        "notApplied": "belum diterapkan"
       },
       "actions": {
         "portal": "Account"

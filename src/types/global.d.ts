@@ -274,6 +274,8 @@ interface IProfileItem {
   notify_traffic_percent?: number[]
   notified?: Record<string, number>
   from_fallback?: boolean
+  /** Подписка скачалась, но ядро её не приняло — на диске прежний конфиг. */
+  not_applied?: boolean
   simple_mode?: boolean
   favorites?: string[]
 }

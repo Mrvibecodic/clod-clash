@@ -11,7 +11,7 @@ pub enum ValidationNoticeTarget {
     Script,
 }
 
-const fn notice_key(kind: ValidationErrorKind, target: ValidationNoticeTarget) -> &'static str {
+pub(crate) const fn notice_key(kind: ValidationErrorKind, target: ValidationNoticeTarget) -> &'static str {
     match kind {
         ValidationErrorKind::FileMissing => "config_validate::file_not_found",
         ValidationErrorKind::FileRead => match target {

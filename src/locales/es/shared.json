@@ -79,7 +79,10 @@
         "portBusy": "El puerto ya lo usa otro programa: cámbialo en los ajustes",
         "permissionDenied": "Permisos insuficientes o acceso denegado por el sistema: suele ser el cortafuegos o el antivirus",
         "tls": "No se pudo verificar el certificado: revisa el reloj del equipo y la dirección",
-        "badConfig": "No se pudo leer la configuración: el panel envió un archivo dañado o no compatible",
+        "badConfig": "No se pudo interpretar la configuración. El núcleo comprueba la suscripción junto con sus propias ediciones de merge, script, rules y grupos: cualquiera de ellas puede ser la causa",
+        "optimisticLock": "La configuración cambió mientras se guardaba: inténtelo de nuevo",
+        "localFileIsAWebPage": "Esto es una página web, no una configuración: compruebe que eligió el archivo correcto",
+        "localFileIsNotYaml": "El archivo no es YAML válido: revise la indentación y las comillas",
         "unsupportedProxy": "La configuración usa un protocolo que el núcleo no conoce: actualiza el núcleo o consulta al proveedor",
         "proxyNotFound": "Ese servidor ya no está en la configuración: elige otro",
         "tunFailed": "No se pudo levantar el túnel: revisa el servicio y los permisos",
@@ -113,13 +116,14 @@
         "saveSuccess": "Configuración aleatoria guardada correctamente",
         "saveFailed": "Failed to save configuration",
         "refreshFailed": "Error al actualizar",
+        "configLoadFailed": "No se pudo leer un archivo de configuración: {{files}}. Se guardó una copia junto a él con el nombre «.unreadable-<fecha>»: no se ha perdido nada. Las suscripciones y los ajustes pueden verse restablecidos; restaure el archivo desde esa copia o desde una copia de seguridad.",
         "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked",
         "logsExported": "Archivo de registros guardado — direcciones de suscripción y tokens enmascarados"
       }
     },
     "validation": {
       "config": {
-        "failed": "Error de validación de la configuración de la suscripción. Compruebe el archivo de configuración de la suscripción. Los cambios se han deshecho. Detalles del error: ",
+        "failed": "La comprobación de la configuración falló, cambios revertidos. Error:",
         "bootFailed": "Error de validación de la configuración de la suscripción de arranque. Se ha iniciado con la configuración predeterminada. Compruebe el archivo de configuración de la suscripción. Detalles del error: ",
         "coreChangeFailed": "Error de validación de la configuración al cambiar el núcleo. Se ha iniciado con la configuración predeterminada. Compruebe el archivo de configuración de la suscripción. Detalles del error: ",
         "processTerminated": "El proceso de validación se ha interrumpido. Compruebe si un software de seguridad bloquea el núcleo y si la CPU de este equipo admite esta compilación del núcleo."

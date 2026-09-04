@@ -110,6 +110,7 @@ impl IProfiles {
             Ok(p) => p,
             Err(err) => {
                 logging!(error, Type::Config, "{err}");
+                crate::config::load_failures::mark(crate::config::load_failures::ConfigFile::Profiles);
                 return Self::default();
             }
         };
@@ -126,6 +127,12 @@ impl IProfiles {
             }
             Err(err) => {
                 logging!(error, Type::Config, "{err}");
+                // Пустой реестр здесь означает «не смогли прочитать», а не «подписок
+                // нет». Откладываем копию файла прямо сейчас — до того, как что-либо
+                // успеет записаться поверх, — и помечаем, чтобы эта пустота не уехала
+                // на диск при выходе.
+                crate::config::load_failures::keep_a_copy(&path).await;
+                crate::config::load_failures::mark(crate::config::load_failures::ConfigFile::Profiles);
                 Self::default()
             }
         }
@@ -717,12 +724,53 @@ pub async fn profiles_set_selected_node_safe(group: &str, node: &str) -> Result<
     Ok(())
 }
 
-pub async fn profiles_restore_snapshot_safe(snapshot: IProfiles) -> Result<()> {
+/// Вернуть снятые записи на их прежние места.
+///
+/// Позиции записаны по исходному списку. Если применять их по возрастанию, каждая
+/// вставка сдвигает вправо ровно те записи, что и были правее неё, и порядок
+/// восстанавливается точно. Уже вернувшиеся записи пропускаем: между отказом и
+/// возвратом их мог положить обратно кто-то ещё.
+fn reinsert_removed(items: &mut Vec<PrfItem>, removed: Vec<(usize, PrfItem)>) {
+    let mut removed = removed;
+    removed.sort_by_key(|(at, _)| *at);
+
+    for (at, item) in removed {
+        let Some(uid) = item.uid.clone() else { continue };
+        if items.iter().any(|each| each.uid.as_ref() == Some(&uid)) {
+            continue;
+        }
+        items.insert(at.min(items.len()), item);
+    }
+}
+
+/// Вернуть на место записи, которые забрало неудавшееся удаление.
+///
+/// Удаление подписки снимает не одну запись: вместе с ней из реестра уходят её
+/// цепочки — `merge`, `script`, `rules`, `proxies`, `groups`. Вернуть только саму
+/// подписку мало: она сошлётся на записи, которых больше нет, и уборщик сирот при
+/// следующем запуске сотрёт их файлы насовсем.
+///
+/// Слепок всего реестра для этого не годится: за время неудачного удаления соседние
+/// подписки успевают обновиться, и он стёр бы их свежие данные. Поэтому возвращаем
+/// ровно снятое — каждую запись на её прежнее место. Позиции записаны по исходному
+/// списку и применяются по возрастанию, так что порядок восстанавливается точно.
+pub async fn profiles_undo_delete_safe(removed: Vec<(usize, PrfItem)>, previous_current: Option<String>) -> Result<()> {
     Config::profiles()
         .await
-        .with_data_modify(|_current| async move {
-            snapshot.save_file().await?;
-            Ok((snapshot, ()))
+        .with_data_modify(|mut profiles| async move {
+            reinsert_removed(profiles.items.get_or_insert_with(Vec::new), removed);
+
+            // Выбранный профиль возвращаем, только если его сменило само удаление и
+            // прежний снова на месте: за это время человек мог переключиться из трея.
+            let previous_is_back = previous_current
+                .as_ref()
+                .is_some_and(|prev| profiles.get_item(prev).is_ok());
+            if profiles.current != previous_current && previous_is_back {
+                profiles.current = previous_current;
+            }
+
+            profiles.save_file().await?;
+            Ok((profiles, ()))
         })
         .await
 }
@@ -821,6 +869,36 @@ pub async fn profiles_restore_item(snapshot: ProfileSnapshot) -> Result<()> {
     help::write_atomic(&path, &bytes)
         .await
         .with_context(|| format!("failed to restore the profile file \"{file}\""))
+}
+
+/// Пометить профиль как «скачано, но не применено» — или снять пометку.
+///
+/// Ставится при откате после отказа ядра, снимается при удачном применении. Без
+/// неё карточка показывала бы свежую дату и новые счётчики над старым конфигом:
+/// отметку времени откат намеренно не трогает.
+pub async fn profiles_mark_not_applied(uid: &String, not_applied: bool) -> Result<()> {
+    let uid = uid.clone();
+    Config::profiles()
+        .await
+        .with_data_modify(|mut profiles| async move {
+            let changed = profiles
+                .items
+                .as_mut()
+                .and_then(|items| items.iter_mut().find(|each| each.uid.as_ref() == Some(&uid)))
+                .is_some_and(|item| {
+                    let wanted = not_applied.then_some(true);
+                    let changed = item.not_applied != wanted;
+                    item.not_applied = wanted;
+                    changed
+                });
+
+            if changed {
+                profiles.save_file().await?;
+            }
+            Ok((profiles, changed))
+        })
+        .await
+        .map(|_| ())
 }
 
 pub async fn profiles_draft_update_item_safe(index: &String, item: &mut PrfItem) -> Result<()> {
@@ -1313,6 +1391,40 @@ pub fn activate_selected_nodes() -> Result<()> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
+
+    #[test]
+    fn a_cancelled_delete_puts_every_record_back_where_it_was() {
+        use super::reinsert_removed;
+
+        let named = |uid: &str| PrfItem {
+            uid: Some(String::from(uid)),
+            ..PrfItem::default()
+        };
+        let names = |items: &[PrfItem]| -> Vec<String> { items.iter().filter_map(|item| item.uid.clone()).collect() };
+
+        // Было: a, merge, script, b. Удаление сняло профиль `a` и обе его цепочки.
+        let removed = vec![(0, named("a")), (1, named("merge")), (2, named("script"))];
+        let mut items = vec![named("b")];
+
+        reinsert_removed(&mut items, removed);
+
+        assert_eq!(names(&items), vec!["a", "merge", "script", "b"]);
+    }
+
+    #[test]
+    fn a_record_that_is_already_back_is_not_duplicated() {
+        use super::reinsert_removed;
+
+        let named = |uid: &str| PrfItem {
+            uid: Some(String::from(uid)),
+            ..PrfItem::default()
+        };
+        let mut items = vec![named("a"), named("b")];
+
+        reinsert_removed(&mut items, vec![(0, named("a"))]);
+
+        assert_eq!(items.len(), 2);
+    }
 
     #[test]
     fn the_same_panel_is_not_a_new_panel() {

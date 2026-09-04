@@ -92,6 +92,14 @@ export const handleNoticeMessage = (
     'clod_core::update_available': () =>
       showNotice.info('settings.modals.managedCore.updateNotice', msg),
     'reactivate_profiles::error': () => showNotice.error(msg),
+    // clod:Э10-02 — файл настроек не прочитался; мы его не перезаписываем, но
+    // человек должен знать, почему список выглядит пустым.
+    'clod_config::load_failed': () =>
+      showNotice.error(
+        'shared.feedback.notifications.common.configLoadFailed',
+        { files: msg },
+        0,
+      ),
     update_failed: () => showNotice.error(msg),
     'config_validate::boot_error': () =>
       showNotice.error('shared.feedback.validation.config.bootFailed', msg),
@@ -103,7 +111,12 @@ export const handleNoticeMessage = (
     'config_validate::error': () =>
       showNotice.error('shared.feedback.validation.config.failed', msg),
     'config_validate::process_terminated': () =>
-      showNotice.error('shared.feedback.validation.config.processTerminated'),
+      // clod:Э10-12 — текст отказа нужен и здесь: на пути обновления подписки он
+      // единственный говорит, на чём именно проверка оборвалась.
+      showNotice.error(
+        'shared.feedback.validation.config.processTerminated',
+        msg,
+      ),
     'config_validate::stdout_error': () =>
       showNotice.error('shared.feedback.validation.config.failed', msg),
     'config_validate::script_error': () =>

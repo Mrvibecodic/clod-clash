@@ -79,7 +79,10 @@
         "portBusy": "다른 프로그램이 포트를 쓰고 있습니다 — 설정에서 바꾸세요",
         "permissionDenied": "권한이 부족하거나 시스템이 막았습니다 — 대개 방화벽이나 백신입니다",
         "tls": "인증서를 확인할 수 없습니다 — 컴퓨터 시계와 주소를 확인하세요",
-        "badConfig": "설정을 읽지 못했습니다 — 패널이 손상되었거나 지원하지 않는 파일을 보냈습니다",
+        "badConfig": "설정을 해석하지 못했습니다. 코어는 구독을 사용자의 merge, script, rules, 그룹 편집과 함께 검사합니다 — 어느 쪽이든 원인일 수 있습니다",
+        "optimisticLock": "저장하는 동안 설정이 변경되었습니다 — 다시 시도하세요",
+        "localFileIsAWebPage": "이것은 설정이 아니라 웹 페이지입니다 — 올바른 파일을 선택했는지 확인하세요",
+        "localFileIsNotYaml": "파일이 올바른 YAML이 아닙니다 — 들여쓰기와 따옴표를 확인하세요",
         "unsupportedProxy": "코어가 모르는 프로토콜이 설정에 있습니다 — 코어를 업데이트하거나 제공자에게 문의하세요",
         "proxyNotFound": "그 서버는 설정에 더 이상 없습니다 — 다른 서버를 고르세요",
         "tunFailed": "터널을 올리지 못했습니다 — 서비스와 권한을 확인하세요",
@@ -113,13 +116,14 @@
         "saveSuccess": "설정이 저장되었습니다",
         "saveFailed": "설정 저장 실패",
         "refreshFailed": "새로고침 실패",
+        "configLoadFailed": "설정 파일을 읽지 못했습니다: {{files}}. 같은 위치에 \".unreadable-<날짜>\" 이름으로 사본을 남겼습니다 — 잃어버린 것은 없습니다. 구독과 설정이 초기화된 것처럼 보일 수 있으니 그 사본이나 백업에서 파일을 복원하세요.",
         "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked",
         "logsExported": "로그 압축 파일을 저장했습니다. 구독 주소와 토큰은 가려졌습니다"
       }
     },
     "validation": {
       "config": {
-        "failed": "설정 검증 실패",
+        "failed": "설정 검사에 실패했습니다. 변경 사항을 되돌렸습니다. 오류:",
         "bootFailed": "부팅 설정 검증 실패",
         "coreChangeFailed": "코어 변경 설정 검증 실패",
         "processTerminated": "검증 프로세스가 종료되었습니다. 보안 소프트웨어가 코어 실행을 차단하는지, 이 컴퓨터의 CPU가 코어 빌드를 지원하는지 확인하세요."

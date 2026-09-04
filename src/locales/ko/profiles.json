@@ -28,7 +28,8 @@
     "feedback": {
       "errors": {
         "invalidUrl": "잘못된 프로필 URL입니다. http:// 또는 https://로 시작하는 URL을 입력하세요",
-        "onlyYaml": "YAML 파일만 지원됩니다"
+        "onlyYaml": "YAML 파일만 지원됩니다",
+        "someUpdatesFailed": "{{total}}개 중 {{failed}}개를 업데이트하지 못했습니다: {{reason}}"
       },
       "notifications": {
         "profileSwitched": "프로필 전환됨",
@@ -73,7 +74,8 @@
       "tooltips": {
         "showLast": "클릭하여 마지막 업데이트 시간 표시",
         "showNext": "클릭하여 다음 업데이트 표시",
-        "refillDate": "Traffic resets on {{date}}"
+        "refillDate": "Traffic resets on {{date}}",
+        "notApplied": "구독은 내려받았지만 코어가 받아들이지 않았습니다 — 이전 설정이 계속 동작합니다. merge, script, rules, 그룹 편집을 확인하세요."
       },
       "status": {
         "lastUpdateFailed": "마지막 업데이트 실패",
@@ -87,7 +89,8 @@
       "labels": {
         "unlimited": "Unlimited",
         "neverExpires": "No expiry",
-        "expiresIn": "{{count}} d · {{date}}"
+        "expiresIn": "{{count}} d · {{date}}",
+        "notApplied": "미적용"
       },
       "actions": {
         "portal": "Account"

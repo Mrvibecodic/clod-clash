@@ -55,7 +55,7 @@
         "deviceLimit": "Langganan dipakai di lebih dari {{max}} perangkat. Lepaskan salah satu atau hubungi dukungan, dan server akan kembali.",
         "deviceNotIdentified": "Panel tidak mengenali perangkat ini dan tidak memberikan server."
       },
-      "panelSays": "The panel says: “{{text}}”",
+      "panelSays": "Node placeholder dihapus dari langganan: {{text}}",
       "partiallyDropped": "Hidden servers that cannot connect: {{total}} ({{names}})",
       "refresh": "Update subscription",
       "row": {

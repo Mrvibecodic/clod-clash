@@ -79,7 +79,10 @@
         "portBusy": "The port is already taken by another program — change it in the settings",
         "permissionDenied": "Not enough rights, or the system denied access — often a firewall or antivirus",
         "tls": "The certificate could not be verified — check the clock on this computer and the address",
-        "badConfig": "The configuration could not be parsed — the panel sent a broken or unsupported file",
+        "badConfig": "The configuration could not be parsed. The core checks the subscription together with your own merge, script, rules and group edits — any of them could be at fault",
+        "optimisticLock": "The settings changed while saving — please try again",
+        "localFileIsAWebPage": "This is a web page, not a configuration — check that you picked the right file",
+        "localFileIsNotYaml": "The file is not valid YAML — check the indentation and quotes",
         "unsupportedProxy": "The configuration uses a protocol the core does not know — update the core or ask your provider",
         "proxyNotFound": "That server is no longer in the configuration — pick another one",
         "tunFailed": "The tunnel could not be raised — check the service and permissions",
@@ -113,13 +116,14 @@
         "saveSuccess": "Configuration saved successfully",
         "saveFailed": "Failed to save configuration",
         "refreshFailed": "Refresh failed; showing last loaded value",
+        "configLoadFailed": "Could not read a settings file: {{files}}. A copy of it was set aside next to it, named \".unreadable-<date>\" — nothing is lost. Subscriptions and settings may look reset; restore the file from that copy or from a backup.",
         "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked",
         "logsExported": "Log archive saved — subscription addresses and tokens are masked"
       }
     },
     "validation": {
       "config": {
-        "failed": "Subscription configuration validation failed. Please check the subscription configuration file; modifications have been rolled back.",
+        "failed": "Configuration check failed, changes reverted. Error:",
         "bootFailed": "Boot subscription configuration validation failed. Started with the default configuration; please check the subscription configuration file.",
         "coreChangeFailed": "Configuration validation failed when switching the kernel. Started with the default configuration; please check the subscription configuration file.",
         "processTerminated": "The validation process has been terminated. Check whether security software blocks the core from running and whether this computer's CPU supports the core build."

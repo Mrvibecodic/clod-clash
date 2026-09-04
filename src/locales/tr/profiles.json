@@ -28,7 +28,8 @@
     "feedback": {
       "errors": {
         "invalidUrl": "Invalid profile URL. Please enter a URL starting with http:// or https://",
-        "onlyYaml": "Yalnızca YAML Dosyaları Desteklenir"
+        "onlyYaml": "Yalnızca YAML Dosyaları Desteklenir",
+        "someUpdatesFailed": "{{total}} aboneliğin {{failed}} tanesi güncellenemedi: {{reason}}"
       },
       "notifications": {
         "profileSwitched": "Profil Değiştirildi",
@@ -73,7 +74,8 @@
       "tooltips": {
         "showLast": "Click to show last update time",
         "showNext": "Click to show next update",
-        "refillDate": "Traffic resets on {{date}}"
+        "refillDate": "Traffic resets on {{date}}",
+        "notApplied": "Abonelik indirildi ancak çekirdek kabul etmedi — önceki yapılandırma çalışmaya devam ediyor. merge, script, rules ve grup düzenlemelerinizi kontrol edin."
       },
       "status": {
         "lastUpdateFailed": "Son güncelleme başarısız oldu",
@@ -87,7 +89,8 @@
       "labels": {
         "unlimited": "Unlimited",
         "neverExpires": "No expiry",
-        "expiresIn": "{{count}} d · {{date}}"
+        "expiresIn": "{{count}} d · {{date}}",
+        "notApplied": "uygulanmadı"
       },
       "actions": {
         "portal": "Account"

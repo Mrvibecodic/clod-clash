@@ -136,6 +136,13 @@ pub struct PrfItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub migration_hops: Option<u32>,
 
+    /// Подписка скачалась, но ядро её не приняло, и на диск вернулся прежний
+    /// профиль. Отметку времени откат намеренно не трогает (виновника отказа
+    /// определить нельзя), поэтому без этого признака карточка показывала бы
+    /// «обновлено только что» над старым конфигом.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub not_applied: Option<bool>,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hwid_state: Option<String>,
 
@@ -324,12 +331,37 @@ impl PrfItem {
         }
     }
 
+    fn local_profile_is_readable(data: &str) -> Result<()> {
+        let data = data.trim_start_matches('\u{feff}');
+
+        if data.trim().is_empty() {
+            return Ok(());
+        }
+
+        if body_is_web_page(data) {
+            bail!("clod-local-web-page: this file is a web page, not a configuration");
+        }
+
+        serde_yaml_ng::from_str::<Mapping>(data).context("clod-local-bad-yaml: the file is not valid yaml")?;
+
+        Ok(())
+    }
+
     pub async fn from_local(
         name: String,
         desc: String,
         file_data: Option<String>,
         option: Option<&PrfOption>,
     ) -> Result<Self> {
+        // clod:Э10-09 — содержимое локального профиля до сих пор не смотрели вовсе:
+        // человек мог сохранить сюда HTML-страницу или обрезанный YAML и получить
+        // потом невнятную ошибку ядра вместо внятного отказа. Требовать `proxies`
+        // здесь нельзя — локальный профиль бывает и без узлов, — поэтому проверяем
+        // только то, что это вообще YAML, а не страница.
+        if let Some(data) = file_data.as_deref() {
+            Self::local_profile_is_readable(data)?;
+        }
+
         let uid = help::get_uid("L").into();
         let file = format!("{uid}.yaml").into();
         let opt_ref = option.as_ref();
@@ -580,6 +612,7 @@ impl PrfItem {
             fallback_domain: sub.fallback_domain.clone(),
             previous_urls: None,
             migration_hops: None,
+            not_applied: None,
             hwid_state: sub.hwid_state.as_str().map(Into::into),
             name_customized: None,
             notify_expire_days: sub.notify_expire_days.clone(),
@@ -1037,15 +1070,30 @@ async fn fetch_for_profile(
 /// До пользователя доезжает только верхний контекст `anyhow`, поэтому отказ от
 /// понижения адреса до `http` иначе выглядел бы безымянным сбоем сети — а совет
 /// человеку нужен другой: поправить адрес в панели.
-fn explain_the_failure(err: &anyhow::Error, otherwise: &'static str) -> &'static str {
+fn explain_the_failure(err: &anyhow::Error, otherwise: &'static str) -> String {
     if err
         .chain()
         .any(|e| e.to_string().contains(crate::utils::network::DOWNGRADE_REFUSED))
     {
-        return "clod-sub-downgrade: the subscription address redirects to an insecure http address";
+        return "clod-sub-downgrade: the subscription address redirects to an insecure http address".into();
     }
 
-    otherwise
+    // Самая глубокая причина цепочки — это ошибка ОС или TLS: «connection refused»,
+    // «no such host», «certificate has expired». Именно по ней словарь на экране
+    // подбирает человеку совет, а без неё до него доезжал безымянный сбой сети.
+    // Обёртки reqwest над этой причиной печатают полный адрес подписки, поэтому
+    // берём последнее звено и всё равно прогоняем через маскировку.
+    if err.chain().count() > 1
+        && let Some(deepest) = err.chain().last()
+    {
+        // Чистим строже, чем одним `mask_err`: тот прячет только длинные сегменты
+        // пути, а короткий токен вида `/s/ab12cd` оставил бы как есть.
+        let deepest = help::mask_err(&deepest.to_string());
+        let deepest = crate::utils::redact::redact(deepest.as_str());
+        return format!("{otherwise}: {deepest}").into();
+    }
+
+    otherwise.into()
 }
 
 const CHAN_NEUTRAL_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)";
@@ -1465,6 +1513,30 @@ mod tests {
                 Verdict::Wins
             );
         }
+    }
+
+    #[test]
+    fn a_local_profile_must_at_least_be_yaml() {
+        // Пустой локальный профиль — обычное дело: человек заводит его и наполняет потом.
+        assert!(PrfItem::local_profile_is_readable("").is_ok());
+        assert!(PrfItem::local_profile_is_readable("   \n").is_ok());
+        assert!(PrfItem::local_profile_is_readable(A_REAL_PROFILE).is_ok());
+        // Локальный профиль без узлов законен — требовать `proxies` здесь нельзя.
+        assert!(PrfItem::local_profile_is_readable("rules:\n  - MATCH,DIRECT\n").is_ok());
+    }
+
+    #[test]
+    fn a_saved_web_page_is_not_a_local_profile() {
+        let err = PrfItem::local_profile_is_readable("<!DOCTYPE html><html><body>hi</body></html>")
+            .expect_err("страница профилем не считается");
+        assert!(err.to_string().contains("clod-local-web-page"), "{err}");
+    }
+
+    #[test]
+    fn a_truncated_local_profile_is_refused_before_the_core_sees_it() {
+        let err = PrfItem::local_profile_is_readable("proxies:\n  - name: \"unclosed\n")
+            .expect_err("обрезанный yaml профилем не считается");
+        assert!(err.to_string().contains("clod-local-bad-yaml"), "{err}");
     }
 
     #[test]

@@ -440,6 +440,13 @@ impl Timer {
         let task_start = std::time::Instant::now();
         logging!(debug, Type::Timer, "Running timer task for profile: {}", uid);
 
+        // clod:Э10-13 — обещание «замок панели снимется сам» держалось на двух
+        // вызовах: при старте приложения и при провале загрузки. Подписка, которую
+        // панель бросила, но которая исправно скачивается, замок держала до
+        // перезапуска и продолжала диктовать режим Clash. Тик расписания — то самое
+        // регулярное место, где просроченному замку и место истечь.
+        crate::feat::release_stale_panel_locks().await;
+
         let result = Box::pin(async {
             Self::emit_update_event(uid, true);
 

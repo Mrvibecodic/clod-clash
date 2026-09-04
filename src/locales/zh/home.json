@@ -55,7 +55,7 @@
         "deviceLimit": "该订阅已在超过 {{max}} 台设备上使用。请解绑多余设备或联系客服，服务器即可恢复。",
         "deviceNotIdentified": "面板未能识别此设备，因此没有下发服务器。"
       },
-      "panelSays": "面板提示：“{{text}}”",
+      "panelSays": "已从订阅中移除占位节点：{{text}}",
       "partiallyDropped": "已隐藏无法连接的服务器：{{total}}（{{names}}）",
       "refresh": "更新订阅",
       "row": {

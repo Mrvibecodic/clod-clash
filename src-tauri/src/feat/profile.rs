@@ -404,8 +404,51 @@ async fn perform_profile_update(
     bail!("{profile_name} - {last_err}")
 }
 
+/// Текст отказа, пригодный для показа пользователю.
+///
+/// `mask_err` прячет адреса подписки, но не трогает путей файловой системы, а в
+/// сообщении ядра приезжает полный путь — вместе с именем пользователя ОС. Гоняем
+/// его через ту же чистку, что и ответы команд, чтобы в тост не уезжало лишнее.
+fn public_failure_text(raw: &str) -> String {
+    let masked = mask_err(raw);
+    let home = crate::utils::redact::home_prefix();
+    String::from(crate::utils::redact::redact(&crate::utils::redact::scrub_home(
+        masked.as_str(),
+        home.as_deref(),
+    )))
+}
+
+/// Сообщить о провале фонового обновления.
+///
+/// Только про текущий профиль: расписание догоняет пропущенные задания пачкой, и
+/// при выключенной сети человек получил бы столько красных тостов, сколько у него
+/// подписок. О фоновых провалах остальных говорит пометка на их карточках.
+async fn announce_the_failure(uid: &String, status: &str, raw: &str) {
+    let is_current = Config::profiles().await.latest_arc().is_current_profile_index(uid);
+    if !is_current {
+        return;
+    }
+
+    handle::Handle::notice_message(status, public_failure_text(raw));
+}
+
+/// Под каким видом отказа показать сообщение.
+///
+/// Ядро уже различает, что именно пошло не так, и на каждый вид в приложении
+/// написан свой перевод с готовым советом — от «антивирус прервал проверку» до
+/// «ошибка в скрипте». На пути обновления подписки этот разбор до сих пор
+/// выбрасывался, и всё сводилось к одной общей фразе.
+const fn failure_notice_status(result: &Result<ValidationOutcome>) -> &'static str {
+    match result {
+        Ok(ValidationOutcome::Invalid { kind, .. }) => {
+            crate::cmd::validate::notice_key(*kind, crate::cmd::validate::ValidationNoticeTarget::Runtime)
+        }
+        _ => "update_failed",
+    }
+}
+
 /// Вернуть на диск профиль, который работал до неудачной попытки обновления.
-async fn restore_working_profile(snapshot: Option<crate::config::profiles::ProfileSnapshot>) {
+async fn restore_working_profile(uid: &String, snapshot: Option<crate::config::profiles::ProfileSnapshot>) {
     let Some(snapshot) = snapshot else {
         return;
     };
@@ -417,6 +460,14 @@ async fn restore_working_profile(snapshot: Option<crate::config::profiles::Profi
                 Type::Config,
                 "[Обновление подписки] ядро отвергло новый конфиг, на диск возвращён прежний рабочий профиль"
             );
+            if let Err(err) = crate::config::profiles::profiles_mark_not_applied(uid, true).await {
+                logging!(
+                    warn,
+                    Type::Config,
+                    "Warning: [Обновление подписки] не удалось пометить профиль как непринятый: {}",
+                    mask_err(&err.to_string())
+                );
+            }
             handle::Handle::refresh_profiles();
         }
         Err(err) => logging!(
@@ -426,6 +477,81 @@ async fn restore_working_profile(snapshot: Option<crate::config::profiles::Profi
             mask_err(&err.to_string())
         ),
     }
+}
+
+/// Прибраться после того, как ядро приняло новый конфиг.
+fn settle_after_a_successful_update(uid: &String) {
+    // Пометку «скачано, но не применено» снимает сам путь применения конфига
+    // (`core/manager/config.rs`) — там она снимается на всех путях сразу, включая
+    // переключение профиля и ручную пересборку.
+    logging!(info, Type::Config, "[Обновление подписки] Обновление успешно");
+    handle::Handle::refresh_clash();
+    if let Err(err) = crate::config::profiles::activate_selected_nodes() {
+        logging!(
+            warn,
+            Type::Config,
+            "Warning: [Обновление подписки] restore selection failed: {err}"
+        );
+    }
+    crate::process::AsyncHandler::spawn(|| async {
+        crate::module::sub_watcher::run_check().await;
+    });
+    let logo_uid = uid.clone();
+    crate::process::AsyncHandler::spawn(move || async move {
+        crate::module::logo_cache::sync(&logo_uid).await;
+    });
+}
+
+/// Отдать ядру обновлённый профиль и разобраться с тем, что оно ответило.
+async fn apply_the_updated_profile(
+    uid: &String,
+    snapshot: Option<crate::config::profiles::ProfileSnapshot>,
+    is_mannual_trigger: bool,
+) -> Result<()> {
+    match CoreManager::global().update_config_with_force(is_mannual_trigger).await {
+        Ok(outcome) if outcome.is_valid() => settle_after_a_successful_update(uid),
+        Ok(outcome @ (ValidationOutcome::Skipped { .. } | ValidationOutcome::Busy)) if !is_mannual_trigger => {
+            logging!(
+                info,
+                Type::Config,
+                "[Обновление подписки] Обновление конфига на этот раз пропущено: {}",
+                outcome
+            );
+        }
+        result => {
+            // Ядро отвергло конфиг — на диск возвращаем прежний рабочий профиль.
+            // Только отвергло: `Err` от обновления конфига означает, что ядро о
+            // содержимом ничего не сказало (не записался файл, не поднялась
+            // служба), и выбрасывать из-за этого годную свежую подписку нельзя.
+            // Разбирать, чьё содержимое виновато (подписки или пользовательских
+            // цепочек merge/script/rules/groups), нельзя: ядро проверяет их слитыми
+            // и сообщает об ошибке одинаково. Поэтому откат делает только самое
+            // безопасное — возвращает файл, не трогая отметку времени.
+            let core_rejected_the_config = matches!(result, Ok(ValidationOutcome::Invalid { .. }));
+            let status = failure_notice_status(&result);
+            let message = match result {
+                Ok(outcome) => outcome.to_string(),
+                Err(err) => err.to_string(),
+            };
+            let message = public_failure_text(&message);
+
+            if core_rejected_the_config {
+                restore_working_profile(uid, snapshot).await;
+            }
+            logging!(
+                error,
+                Type::Config,
+                "[Обновление подписки] Обновление не удалось: {}",
+                message
+            );
+            if !is_mannual_trigger {
+                announce_the_failure(uid, status, &message).await;
+            }
+            bail!(message);
+        }
+    }
+
+    Ok(())
 }
 
 pub async fn update_profile(
@@ -441,7 +567,16 @@ pub async fn update_profile(
         "[Обновление подписки] Начинаю обновление подписки {}",
         uid
     );
-    let url_opt = should_update_profile(uid, ignore_auto_update).await?;
+    let url_opt = match should_update_profile(uid, ignore_auto_update).await {
+        Ok(target) => target,
+        Err(err) => {
+            // Ручной вызов покажет ошибку сам — она вернётся ответом команды.
+            if !is_mannual_trigger {
+                announce_the_failure(uid, "update_failed", &err.to_string()).await;
+            }
+            return Err(err);
+        }
+    };
 
     // Файл профиля и `updated` меняются раньше, чем ядро успевает сказать, годится ли
     // новый конфиг. Держим слепок прежнего рабочего состояния, чтобы вернуть его, если
@@ -468,6 +603,13 @@ pub async fn update_profile(
                 Ok(changed) => changed && auto_refresh,
                 Err(err) => {
                     release_stale_panel_locks().await;
+                    // Загрузка провалилась. Ручной вызов покажет ошибку сам — она
+                    // уедет наверх и вернётся в интерфейс ответом команды; а вот
+                    // автообновление до этой правки не сообщало о провале никак:
+                    // расписание только писало в журнал.
+                    if !is_mannual_trigger {
+                        announce_the_failure(uid, "update_failed", &err.to_string()).await;
+                    }
                     return Err(err);
                 }
             }
@@ -477,64 +619,7 @@ pub async fn update_profile(
 
     if should_refresh {
         logging!(info, Type::Config, "[Обновление подписки] Обновляю конфиг ядра");
-        match CoreManager::global().update_config_with_force(is_mannual_trigger).await {
-            Ok(outcome) if outcome.is_valid() => {
-                logging!(info, Type::Config, "[Обновление подписки] Обновление успешно");
-                handle::Handle::refresh_clash();
-                if let Err(err) = crate::config::profiles::activate_selected_nodes() {
-                    logging!(
-                        warn,
-                        Type::Config,
-                        "Warning: [Обновление подписки] restore selection failed: {err}"
-                    );
-                }
-                crate::process::AsyncHandler::spawn(|| async {
-                    crate::module::sub_watcher::run_check().await;
-                });
-                let logo_uid = uid.clone();
-                crate::process::AsyncHandler::spawn(move || async move {
-                    crate::module::logo_cache::sync(&logo_uid).await;
-                });
-            }
-            Ok(outcome @ (ValidationOutcome::Skipped { .. } | ValidationOutcome::Busy)) if !is_mannual_trigger => {
-                logging!(
-                    info,
-                    Type::Config,
-                    "[Обновление подписки] Обновление конфига на этот раз пропущено: {}",
-                    outcome
-                );
-            }
-            result => {
-                // Ядро отвергло конфиг — на диск возвращаем прежний рабочий профиль.
-                // Только отвергло: `Err` от обновления конфига означает, что ядро о
-                // содержимом ничего не сказало (не записался файл, не поднялась
-                // служба), и выбрасывать из-за этого годную свежую подписку нельзя.
-                // Разбирать, чьё содержимое виновато (подписки или пользовательских
-                // цепочек merge/script/rules/groups), нельзя: ядро проверяет их слитыми
-                // и сообщает об ошибке одинаково. Поэтому откат делает только самое
-                // безопасное — возвращает файл, не трогая отметку времени.
-                let core_rejected_the_config = matches!(result, Ok(ValidationOutcome::Invalid { .. }));
-                let message = match result {
-                    Ok(outcome) => outcome.to_string(),
-                    Err(err) => err.to_string(),
-                };
-                let message = mask_err(&message);
-
-                if core_rejected_the_config {
-                    restore_working_profile(snapshot).await;
-                }
-                logging!(
-                    error,
-                    Type::Config,
-                    "[Обновление подписки] Обновление не удалось: {}",
-                    message
-                );
-                if !is_mannual_trigger {
-                    handle::Handle::notice_message("update_failed", message.clone());
-                }
-                bail!(message);
-            }
-        }
+        apply_the_updated_profile(uid, snapshot, is_mannual_trigger).await?;
     }
 
     Ok(())
@@ -678,6 +763,78 @@ mod lock_expiry_tests {
         let mut without_timestamp = locked_item(0, None);
         without_timestamp.updated = None;
         assert!(!lock_expired(&without_timestamp, now));
+    }
+}
+
+#[cfg(test)]
+mod failure_visibility_tests {
+    use super::{failure_notice_status, public_failure_text};
+    use crate::core::validate::{ValidationErrorKind, ValidationOutcome};
+
+    #[test]
+    fn each_kind_of_refusal_keeps_its_own_advice() {
+        // На каждый вид отказа в приложении написан свой перевод с готовым советом,
+        // и до этой правки все они на пути обновления сводились к одной общей фразе.
+        assert_eq!(
+            failure_notice_status(&Ok(ValidationOutcome::invalid(
+                ValidationErrorKind::ProcessTerminated,
+                "Процесс проверки был прерван"
+            ))),
+            "config_validate::process_terminated"
+        );
+        assert_eq!(
+            failure_notice_status(&Ok(ValidationOutcome::invalid(
+                ValidationErrorKind::ScriptSyntax,
+                "script syntax error"
+            ))),
+            "config_validate::script_syntax_error"
+        );
+        assert_eq!(
+            failure_notice_status(&Ok(ValidationOutcome::invalid(
+                ValidationErrorKind::CoreRejected,
+                "Parse config error"
+            ))),
+            "config_validate::error"
+        );
+    }
+
+    #[test]
+    fn a_failure_the_core_did_not_judge_stays_a_plain_update_failure() {
+        assert_eq!(
+            failure_notice_status(&Err(anyhow::anyhow!("не записался файл"))),
+            "update_failed"
+        );
+        assert_eq!(failure_notice_status(&Ok(ValidationOutcome::Busy)), "update_failed");
+    }
+
+    #[test]
+    fn the_notice_carries_neither_the_address_nor_a_short_token() {
+        // Длинный сегмент прячет ещё `mask_err`, короткий — только `redact`:
+        // без него `/s/ab12cd` уезжал бы в тост целиком.
+        for raw in [
+            "failed to fetch https://panel.example/sub/SECRET-TOKEN-VALUE-1234 while reading",
+            "failed to fetch https://panel.example/s/ab12cd while reading",
+            "request failed: authorization: Bearer ab12cd",
+        ] {
+            let shown = public_failure_text(raw);
+            assert!(!shown.contains("ab12cd"), "{shown}");
+            assert!(!shown.contains("SECRET-TOKEN-VALUE-1234"), "{shown}");
+        }
+    }
+
+    #[test]
+    fn the_notice_does_not_carry_the_os_user_name() {
+        // `scrub_home` работает от переменных окружения, поэтому проверяем его
+        // напрямую: в тесте домашний каталог тот же, что у приложения.
+        let Some(home) = crate::utils::redact::home_prefix() else {
+            return;
+        };
+
+        let raw = std::format!("failed to read {home}/.config/clod/profiles.yaml");
+        let shown = public_failure_text(raw.as_str());
+
+        assert!(!shown.contains(home.as_str()), "{shown}");
+        assert!(shown.contains('~'), "{shown}");
     }
 }
 

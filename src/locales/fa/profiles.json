@@ -28,7 +28,8 @@
     "feedback": {
       "errors": {
         "invalidUrl": "Invalid profile URL. Please enter a URL starting with http:// or https://",
-        "onlyYaml": "فقط فایل‌های YAML پشتیبانی می‌شوند"
+        "onlyYaml": "فقط فایل‌های YAML پشتیبانی می‌شوند",
+        "someUpdatesFailed": "به‌روزرسانی {{failed}} از {{total}} ناموفق بود: {{reason}}"
       },
       "notifications": {
         "profileSwitched": "پروفایل تغییر یافت",
@@ -73,7 +74,8 @@
       "tooltips": {
         "showLast": "Click to show last update time",
         "showNext": "Click to show next update",
-        "refillDate": "Traffic resets on {{date}}"
+        "refillDate": "Traffic resets on {{date}}",
+        "notApplied": "اشتراک دانلود شد اما هسته آن را نپذیرفت — پیکربندی قبلی همچنان فعال است. ویرایش‌های خود در merge، script، rules و گروه‌ها را بررسی کنید."
       },
       "status": {
         "lastUpdateFailed": "Last Update failed",
@@ -87,7 +89,8 @@
       "labels": {
         "unlimited": "Unlimited",
         "neverExpires": "No expiry",
-        "expiresIn": "{{count}} d · {{date}}"
+        "expiresIn": "{{count}} d · {{date}}",
+        "notApplied": "اعمال‌نشده"
       },
       "actions": {
         "portal": "Account"

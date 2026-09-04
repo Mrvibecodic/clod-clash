@@ -363,11 +363,17 @@ impl IVerge {
                 }
                 Err(err) => {
                     logging!(error, Type::Config, "{err}");
+                    // Шаблон вместо прочитанных настроек — это не «настроек нет».
+                    // Откладываем копию файла до того, как шаблон успеет записаться
+                    // поверх: путей сохранения настроек по ходу работы много.
+                    crate::config::load_failures::keep_a_copy(&path).await;
+                    crate::config::load_failures::mark(crate::config::load_failures::ConfigFile::Verge);
                     Self::template()
                 }
             },
             Err(err) => {
                 logging!(error, Type::Config, "{err}");
+                crate::config::load_failures::mark(crate::config::load_failures::ConfigFile::Verge);
                 Self::template()
             }
         }

@@ -109,6 +109,24 @@ pub async fn save_yaml<T: Serialize + Sync>(path: &Path, data: &T, prefix: Optio
 const ATOMIC_RENAME_ATTEMPTS: usize = 4;
 const ATOMIC_RENAME_PAUSE: std::time::Duration = std::time::Duration::from_millis(50);
 
+/// Подтвердить переименование на диске.
+///
+/// Само содержимое мы уже подтвердили `sync_all`, но запись в каталоге, которая
+/// делает новый файл видимым под старым именем, живёт отдельно. Без этого шага
+/// внезапное отключение питания могло вернуть старое имя без файла. На Windows
+/// каталог открыть нельзя, поэтому шаг только для unix; ошибку не поднимаем —
+/// файл уже на месте, и падать из-за неподтверждённого каталога незачем.
+#[cfg(unix)]
+async fn sync_parent_directory(path: &Path) {
+    let Some(parent) = path.parent() else { return };
+    if let Ok(dir) = tokio::fs::File::open(parent).await {
+        let _ = dir.sync_all().await;
+    }
+}
+
+#[cfg(not(unix))]
+async fn sync_parent_directory(_path: &Path) {}
+
 pub async fn write_atomic(path: &Path, contents: &[u8]) -> Result<()> {
     let staging = staging_path(path);
 
@@ -135,7 +153,10 @@ pub async fn write_atomic(path: &Path, contents: &[u8]) -> Result<()> {
     let mut last_error = None;
     for attempt in 0..ATOMIC_RENAME_ATTEMPTS {
         match tokio::fs::rename(&staging, path).await {
-            Ok(()) => return Ok(()),
+            Ok(()) => {
+                sync_parent_directory(path).await;
+                return Ok(());
+            }
             Err(err) => {
                 last_error = Some(err);
                 if attempt + 1 < ATOMIC_RENAME_ATTEMPTS {

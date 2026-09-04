@@ -28,7 +28,8 @@
     "feedback": {
       "errors": {
         "invalidUrl": "Invalid profile URL. Please enter a URL starting with http:// or https://",
-        "onlyYaml": "Nur YAML-Dateien werden unterstützt"
+        "onlyYaml": "Nur YAML-Dateien werden unterstützt",
+        "someUpdatesFailed": "{{failed}} von {{total}} konnten nicht aktualisiert werden: {{reason}}"
       },
       "notifications": {
         "profileSwitched": "Abonnement gewechselt",
@@ -73,7 +74,8 @@
       "tooltips": {
         "showLast": "Click to show last update time",
         "showNext": "Click to show next update",
-        "refillDate": "Traffic resets on {{date}}"
+        "refillDate": "Traffic resets on {{date}}",
+        "notApplied": "Das Abonnement wurde geladen, aber vom Core abgelehnt — es läuft weiterhin die vorherige Konfiguration. Prüfen Sie Ihre Änderungen an merge, script, rules und Gruppen."
       },
       "status": {
         "lastUpdateFailed": "Letzte Aktualisierung fehlgeschlagen",
@@ -87,7 +89,8 @@
       "labels": {
         "unlimited": "Unlimited",
         "neverExpires": "No expiry",
-        "expiresIn": "{{count}} d · {{date}}"
+        "expiresIn": "{{count}} d · {{date}}",
+        "notApplied": "nicht angewendet"
       },
       "actions": {
         "portal": "Account"

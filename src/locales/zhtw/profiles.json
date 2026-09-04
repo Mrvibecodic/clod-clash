@@ -28,7 +28,8 @@
     "feedback": {
       "errors": {
         "invalidUrl": "無效的訂閱網址，請輸入以 http:// 或 https:// 開頭的位址",
-        "onlyYaml": "僅支援 YAML 檔案"
+        "onlyYaml": "僅支援 YAML 檔案",
+        "someUpdatesFailed": "{{total}} 個訂閱中有 {{failed}} 個更新失敗：{{reason}}"
       },
       "notifications": {
         "profileSwitched": "訂閱已切換",
@@ -73,7 +74,8 @@
       "tooltips": {
         "showLast": "Click to show last update time",
         "showNext": "Click to show next update",
-        "refillDate": "Traffic resets on {{date}}"
+        "refillDate": "Traffic resets on {{date}}",
+        "notApplied": "訂閱已下載但核心未接受 — 仍在執行先前的設定。請檢查你對 merge、script、rules 和群組的修改。"
       },
       "status": {
         "lastUpdateFailed": "上次更新失敗",
@@ -87,7 +89,8 @@
       "labels": {
         "unlimited": "Unlimited",
         "neverExpires": "No expiry",
-        "expiresIn": "{{count}} d · {{date}}"
+        "expiresIn": "{{count}} d · {{date}}",
+        "notApplied": "未套用"
       },
       "actions": {
         "portal": "Account"

@@ -28,7 +28,8 @@
     "feedback": {
       "errors": {
         "invalidUrl": "无效的订阅链接，请输入以 http:// 或 https:// 开头的地址",
-        "onlyYaml": "仅支持 YAML 文件"
+        "onlyYaml": "仅支持 YAML 文件",
+        "someUpdatesFailed": "{{total}} 个订阅中有 {{failed}} 个更新失败：{{reason}}"
       },
       "notifications": {
         "profileSwitched": "订阅已切换",
@@ -73,7 +74,8 @@
       "tooltips": {
         "showLast": "点击查看上次更新时间",
         "showNext": "点击查看下一次更新",
-        "refillDate": "Traffic resets on {{date}}"
+        "refillDate": "Traffic resets on {{date}}",
+        "notApplied": "订阅已下载但内核未接受 — 仍在运行此前的配置。请检查你对 merge、script、rules 和分组的修改。"
       },
       "status": {
         "lastUpdateFailed": "上次更新失败",
@@ -87,7 +89,8 @@
       "labels": {
         "unlimited": "Unlimited",
         "neverExpires": "No expiry",
-        "expiresIn": "{{count}} d · {{date}}"
+        "expiresIn": "{{count}} d · {{date}}",
+        "notApplied": "未应用"
       },
       "actions": {
         "portal": "Account"

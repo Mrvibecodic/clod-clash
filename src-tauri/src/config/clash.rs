@@ -17,10 +17,9 @@ pub struct IClashTemp(pub Mapping);
 impl IClashTemp {
     pub async fn new() -> Self {
         let clash_path_result = dirs::clash_path();
-        let map_result = if let Ok(path) = clash_path_result {
-            help::read_mapping(&path).await
-        } else {
-            Err(anyhow::anyhow!("Failed to get clash path"))
+        let map_result = match clash_path_result.as_ref() {
+            Ok(path) => help::read_mapping(path).await,
+            Err(_) => Err(anyhow::anyhow!("Failed to get clash path")),
         };
 
         match map_result {
@@ -42,6 +41,10 @@ impl IClashTemp {
             }
             Err(err) => {
                 logging!(error, Type::Config, "{err}");
+                if let Ok(path) = clash_path_result.as_ref() {
+                    crate::config::load_failures::keep_a_copy(path).await;
+                }
+                crate::config::load_failures::mark(crate::config::load_failures::ConfigFile::Clash);
                 Self::template()
             }
         }

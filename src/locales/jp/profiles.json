@@ -28,7 +28,8 @@
     "feedback": {
       "errors": {
         "invalidUrl": "Invalid profile URL. Please enter a URL starting with http:// or https://",
-        "onlyYaml": "YAMLファイルのみサポートされています。"
+        "onlyYaml": "YAMLファイルのみサポートされています。",
+        "someUpdatesFailed": "{{total}} 件中 {{failed}} 件を更新できませんでした: {{reason}}"
       },
       "notifications": {
         "profileSwitched": "プロファイルが切り替えられました。",
@@ -73,7 +74,8 @@
       "tooltips": {
         "showLast": "Click to show last update time",
         "showNext": "Click to show next update",
-        "refillDate": "Traffic resets on {{date}}"
+        "refillDate": "Traffic resets on {{date}}",
+        "notApplied": "サブスクリプションは取得できましたが、コアが受け付けませんでした — 以前の設定のまま動作しています。merge・script・rules・グループの編集を確認してください。"
       },
       "status": {
         "lastUpdateFailed": "前回の更新に失敗しました。",
@@ -87,7 +89,8 @@
       "labels": {
         "unlimited": "Unlimited",
         "neverExpires": "No expiry",
-        "expiresIn": "{{count}} d · {{date}}"
+        "expiresIn": "{{count}} d · {{date}}",
+        "notApplied": "未適用"
       },
       "actions": {
         "portal": "Account"

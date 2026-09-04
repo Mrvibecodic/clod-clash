@@ -129,6 +129,7 @@ impl CoreManager {
             Ok(outcome) if outcome.is_valid() => {
                 let run_path = Config::generate_file(ConfigType::Run).await?;
                 self.apply_config(run_path).await?;
+                forget_the_not_applied_mark().await;
                 Ok(ValidationOutcome::Valid)
             }
             Ok(outcome) => {
@@ -310,6 +311,42 @@ enum StageAttempt {
 /// безопасен: подготовка идемпотентна, служба просто зафиксирует поколение
 /// заново. Второй вопрос ограничен по времени, чтобы молчащая служба не
 /// задержала применение конфига насовсем.
+/// Снять с текущего профиля пометку «скачано, но не применено».
+///
+/// Ставит её откат после отказа ядра (`feat/profile.rs`), а снимать её надо всюду,
+/// где ядро конфиг приняло: не только после удачного обновления подписки, но и
+/// после переключения профиля, ручной пересборки конфига и правки своих цепочек.
+/// Единственное такое место на всех путях — вот это, сразу за успешным применением.
+///
+/// Реестр трогаем, только если пометка действительно стоит: иначе на каждое
+/// применение конфига приходилась бы лишняя запись `profiles.yaml`.
+async fn forget_the_not_applied_mark() {
+    let marked = {
+        let profiles = Config::profiles().await.latest_arc();
+        let Some(uid) = profiles.current.clone() else {
+            return;
+        };
+        profiles
+            .get_item(&uid)
+            .ok()
+            .and_then(|item| item.not_applied)
+            .unwrap_or(false)
+            .then_some(uid)
+    };
+
+    let Some(uid) = marked else { return };
+
+    if let Err(err) = crate::config::profiles::profiles_mark_not_applied(&uid, false).await {
+        logging!(
+            warn,
+            Type::Config,
+            "Warning: не удалось снять пометку о непринятом профиле: {err}"
+        );
+    } else {
+        handle::Handle::refresh_profiles();
+    }
+}
+
 async fn stage_with_confirmation<Ask, Fut>(confirm_within: std::time::Duration, ask: Ask) -> StageAttempt
 where
     Ask: Fn() -> Fut,

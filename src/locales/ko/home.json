@@ -55,7 +55,7 @@
         "deviceLimit": "구독이 {{max}}대를 초과한 기기에서 사용 중입니다. 기기를 해제하거나 고객지원에 문의하면 서버가 돌아옵니다.",
         "deviceNotIdentified": "패널이 이 기기를 인식하지 못해 서버를 내려주지 않았습니다."
       },
-      "panelSays": "The panel says: “{{text}}”",
+      "panelSays": "구독에서 자리표시자 노드를 제거했습니다: {{text}}",
       "partiallyDropped": "연결할 수 없어 숨긴 서버: {{total}} ({{names}})",
       "refresh": "Update subscription",
       "row": {

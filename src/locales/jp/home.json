@@ -55,7 +55,7 @@
         "deviceLimit": "このサブスクリプションは {{max}} 台を超えるデバイスで使われています。1 台を解除するかサポートに連絡すると、サーバーが戻ります。",
         "deviceNotIdentified": "パネルがこのデバイスを認識できず、サーバーを配信しませんでした。"
       },
-      "panelSays": "The panel says: “{{text}}”",
+      "panelSays": "サブスクリプションからプレースホルダーのノードを除外しました: {{text}}",
       "partiallyDropped": "接続できず非表示にしたサーバー: {{total}}（{{names}}）",
       "refresh": "Update subscription",
       "row": {

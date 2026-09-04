@@ -28,7 +28,8 @@
     "feedback": {
       "errors": {
         "invalidUrl": "Недопустимый URL профиля. Укажите адрес, начинающийся с http:// или https://",
-        "onlyYaml": "Поддерживаются только файлы YAML"
+        "onlyYaml": "Поддерживаются только файлы YAML",
+        "someUpdatesFailed": "Не удалось обновить {{failed}} из {{total}}: {{reason}}"
       },
       "notifications": {
         "profileSwitched": "Профиль переключён",
@@ -73,7 +74,8 @@
       "tooltips": {
         "showLast": "Показать время последнего обновления",
         "showNext": "Показать следующее обновление",
-        "refillDate": "Трафик обновится {{date}}"
+        "refillDate": "Трафик обновится {{date}}",
+        "notApplied": "Подписка скачалась, но ядро её не приняло — работает прежний конфиг. Проверьте свои правки в merge, script, rules и группах."
       },
       "status": {
         "lastUpdateFailed": "Последнее обновление не удалось",
@@ -87,7 +89,8 @@
       "labels": {
         "unlimited": "Безлимит",
         "neverExpires": "Бессрочно",
-        "expiresIn": "{{count}} дн · {{date}}"
+        "expiresIn": "{{count}} дн · {{date}}",
+        "notApplied": "не применено"
       },
       "actions": {
         "portal": "Кабинет"

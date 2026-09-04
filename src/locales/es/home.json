@@ -55,7 +55,7 @@
         "deviceLimit": "La suscripción se usa en más de {{max}} dispositivos. Libera uno o escribe a soporte y los servidores volverán.",
         "deviceNotIdentified": "El panel no reconoció este dispositivo y no entregó servidores."
       },
-      "panelSays": "The panel says: “{{text}}”",
+      "panelSays": "Nodos de marcador de posición eliminados de la suscripción: {{text}}",
       "partiallyDropped": "Servidores ocultos que no conectan: {{total}} ({{names}})",
       "refresh": "Update subscription",
       "row": {

@@ -457,7 +457,12 @@ const ProfileItemBase = (props: ProfileItemProps) => {
       await updateProfile(itemData.uid, payload)
 
       void mutateProfiles()
-    } catch {
+    } catch (error) {
+      // clod:Э10-01 — раньше ошибка глоталась молча: человек жал «Обновить»,
+      // спиннер гас, и он не узнавал ни о провале, ни о причине. Бэкенд на ручном
+      // вызове уведомление не шлёт намеренно — показываем здесь, чтобы не было двух.
+      showNotice.error(error)
+      void mutateProfiles()
     } finally {
       setLoading(false)
     }
@@ -818,6 +823,25 @@ const ProfileItemBase = (props: ProfileItemProps) => {
             />
           )}
           <Box sx={{ flex: 1, minWidth: 0 }} />
+          {/* clod:Э10-08 — откат после отказа ядра намеренно не двигает отметку
+              времени назад, поэтому дата рядом говорила бы «обновлено только что»
+              над прежним конфигом. Пометка снимается при удачном применении. */}
+          {itemData.not_applied && (
+            <Typography
+              noWrap
+              component="span"
+              title={t('profiles.components.profileItem.tooltips.notApplied')}
+              sx={{
+                fontSize: 13,
+                flexShrink: 0,
+                mr: 0.75,
+                color: 'warning.main',
+                cursor: 'default',
+              }}
+            >
+              {t('profiles.components.profileItem.labels.notApplied')}
+            </Typography>
+          )}
           {hasUrl && (
             <Typography
               noWrap

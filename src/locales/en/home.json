@@ -55,7 +55,7 @@
         "deviceLimit": "The subscription is in use on more than {{max}} devices. Free a slot or contact support, and the servers will come back.",
         "deviceNotIdentified": "The panel did not recognise this device and served no servers."
       },
-      "panelSays": "The panel says: “{{text}}”",
+      "panelSays": "Placeholder nodes removed from the subscription: {{text}}",
       "partiallyDropped": "Hidden servers that cannot connect: {{total}} ({{names}})",
       "refresh": "Update subscription",
       "row": {

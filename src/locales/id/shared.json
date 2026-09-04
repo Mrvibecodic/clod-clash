@@ -79,7 +79,10 @@
         "portBusy": "Port sudah dipakai program lain — ubah di pengaturan",
         "permissionDenied": "Hak akses kurang atau ditolak sistem — sering kali firewall atau antivirus",
         "tls": "Sertifikat tidak dapat diverifikasi — periksa jam komputer dan alamatnya",
-        "badConfig": "Konfigurasi tidak terbaca — panel mengirim berkas rusak atau tidak didukung",
+        "badConfig": "Konfigurasi tidak dapat diurai. Inti memeriksa langganan bersama suntingan Anda sendiri pada merge, script, rules, dan grup — salah satunya bisa menjadi penyebab",
+        "optimisticLock": "Pengaturan berubah saat menyimpan — coba lagi",
+        "localFileIsAWebPage": "Ini halaman web, bukan konfigurasi — periksa apakah Anda memilih berkas yang benar",
+        "localFileIsNotYaml": "Berkas bukan YAML yang valid — periksa indentasi dan tanda kutip",
         "unsupportedProxy": "Konfigurasi memakai protokol yang tidak dikenal core — perbarui core atau tanyakan penyedia",
         "proxyNotFound": "Server itu tidak ada lagi di konfigurasi — pilih yang lain",
         "tunFailed": "Terowongan gagal dijalankan — periksa layanan dan izinnya",
@@ -113,13 +116,14 @@
         "saveSuccess": "Configuration saved successfully",
         "saveFailed": "Failed to save configuration",
         "refreshFailed": "Penyegaran gagal",
+        "configLoadFailed": "Tidak dapat membaca berkas pengaturan: {{files}}. Salinannya disimpan di sebelahnya dengan nama \".unreadable-<tanggal>\" — tidak ada yang hilang. Langganan dan pengaturan mungkin tampak tereset; pulihkan berkas dari salinan itu atau dari cadangan.",
         "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked",
         "logsExported": "Arsip log disimpan — alamat langganan dan token disamarkan"
       }
     },
     "validation": {
       "config": {
-        "failed": "Validasi konfigurasi langganan gagal, periksa file konfigurasi, perubahan dibatalkan, detail kesalahan:",
+        "failed": "Pemeriksaan konfigurasi gagal, perubahan dibatalkan. Kesalahan:",
         "bootFailed": "Validasi konfigurasi saat boot gagal, menggunakan konfigurasi default, periksa file konfigurasi, detail kesalahan:",
         "coreChangeFailed": "Validasi konfigurasi saat ganti inti gagal, menggunakan konfigurasi default, periksa file konfigurasi, detail kesalahan:",
         "processTerminated": "Proses validasi dihentikan. Periksa apakah perangkat lunak keamanan memblokir inti dan apakah CPU komputer ini mendukung build inti tersebut."

@@ -28,7 +28,8 @@
     "feedback": {
       "errors": {
         "invalidUrl": "Invalid profile URL. Please enter a URL starting with http:// or https://",
-        "onlyYaml": "Only YAML Files Supported"
+        "onlyYaml": "Only YAML Files Supported",
+        "someUpdatesFailed": "Failed to update {{failed}} of {{total}}: {{reason}}"
       },
       "notifications": {
         "profileSwitched": "Profile Switched",
@@ -73,7 +74,8 @@
       "tooltips": {
         "showLast": "Click to show last update time",
         "showNext": "Click to show next update",
-        "refillDate": "Traffic resets on {{date}}"
+        "refillDate": "Traffic resets on {{date}}",
+        "notApplied": "The subscription downloaded but the core rejected it — the previous config is still running. Check your own merge, script, rules and group edits."
       },
       "status": {
         "lastUpdateFailed": "Last Update failed",
@@ -87,7 +89,8 @@
       "labels": {
         "unlimited": "Unlimited",
         "neverExpires": "No expiry",
-        "expiresIn": "{{count}} d · {{date}}"
+        "expiresIn": "{{count}} d · {{date}}",
+        "notApplied": "not applied"
       },
       "actions": {
         "portal": "Account"
