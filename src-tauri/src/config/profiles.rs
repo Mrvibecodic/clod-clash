@@ -1146,9 +1146,7 @@ fn saved_group_states(selected: &[PrfSelected], proxies: &Proxies) -> Vec<GroupS
 
 /// Ждать ли ещё: есть ли группы, которые могут наполниться сами.
 fn some_groups_are_still_filling(selected: &[PrfSelected], proxies: &Proxies) -> bool {
-    saved_group_states(selected, proxies)
-        .iter()
-        .any(|state| *state == GroupState::StillFilling)
+    saved_group_states(selected, proxies).contains(&GroupState::StillFilling)
 }
 
 /// Можно ли переписывать сохранённые записи.
@@ -1158,8 +1156,7 @@ fn some_groups_are_still_filling(selected: &[PrfSelected], proxies: &Proxies) ->
 /// том же порту наших групп не покажет — и записи останутся нетронутыми.
 fn records_may_be_repaired(selected: &[PrfSelected], proxies: &Proxies) -> bool {
     let states = saved_group_states(selected, proxies);
-    states.iter().any(|state| *state == GroupState::Filled)
-        && !states.iter().any(|state| *state == GroupState::StillFilling)
+    states.contains(&GroupState::Filled) && !states.contains(&GroupState::StillFilling)
 }
 
 /// Дождаться, пока ядро дотянет группы, которые ещё могут наполниться.

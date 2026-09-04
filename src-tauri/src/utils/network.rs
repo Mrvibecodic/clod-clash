@@ -381,6 +381,7 @@ impl NetworkManager {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod redirect_tests {
     use super::redirect_is_a_downgrade;
     use tauri::Url;

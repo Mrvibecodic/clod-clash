@@ -1404,6 +1404,7 @@ fn fix_dirty_url(input: &str) -> Result<Url> {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod tests {
     use super::{
         PrfItem, PrfOption, allow_auto_update_enabled, body_is_link_list, body_is_web_page, fix_dirty_url,

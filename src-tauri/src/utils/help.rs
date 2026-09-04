@@ -381,6 +381,27 @@ pub fn snapshot_path(original_path: &Path) -> Result<PathBuf> {
     Ok(temp_path)
 }
 
+/// Какую из двух причин отказа показать пользователю.
+///
+/// Названная причина всегда лучше безымянной: `clod-sub-link-list` объясняет, что
+/// делать («попросите в панели правило `^ClodClash/`»), а «сбой сети на последней
+/// ступени» не объясняет ничего. Отказ по бюджету — самый бедный диагноз из всех: он
+/// говорит только, что времени не хватило, и настоящую причину не вытесняет никогда.
+pub fn keep_the_clearer_error(previous: anyhow::Error, fresh: anyhow::Error) -> anyhow::Error {
+    let names_a_reason = |text: &str| text.contains("clod-sub-") && !text.contains("clod-sub-budget");
+    let (previous_text, fresh_text) = (previous.to_string(), fresh.to_string());
+
+    if fresh_text.contains("clod-sub-budget") {
+        return previous;
+    }
+
+    if !names_a_reason(&fresh_text) && names_a_reason(&previous_text) {
+        return previous;
+    }
+
+    fresh
+}
+
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod tests {
@@ -515,25 +536,4 @@ proxy-providers:
             "an explicit key must win over the one inherited from an anchor"
         );
     }
-}
-
-/// Какую из двух причин отказа показать пользователю.
-///
-/// Названная причина всегда лучше безымянной: `clod-sub-link-list` объясняет, что
-/// делать («попросите в панели правило `^ClodClash/`»), а «сбой сети на последней
-/// ступени» не объясняет ничего. Отказ по бюджету — самый бедный диагноз из всех: он
-/// говорит только, что времени не хватило, и настоящую причину не вытесняет никогда.
-pub fn keep_the_clearer_error(previous: anyhow::Error, fresh: anyhow::Error) -> anyhow::Error {
-    let names_a_reason = |text: &str| text.contains("clod-sub-") && !text.contains("clod-sub-budget");
-    let (previous_text, fresh_text) = (previous.to_string(), fresh.to_string());
-
-    if fresh_text.contains("clod-sub-budget") {
-        return previous;
-    }
-
-    if !names_a_reason(&fresh_text) && names_a_reason(&previous_text) {
-        return previous;
-    }
-
-    fresh
 }
