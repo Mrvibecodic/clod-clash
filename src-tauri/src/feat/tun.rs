@@ -703,8 +703,10 @@ pub fn spawn_start_verification(anchor: Option<String>) {
         return;
     }
     AsyncHandler::spawn(|| async {
+        scopeguard::defer! {
+            VERIFY_PENDING.store(false, Ordering::Release);
+        }
         tokio::time::sleep(timing::TUN_VERIFY_DELAY).await;
-        VERIFY_PENDING.store(false, Ordering::Release);
         if !claimed().await {
             return;
         }

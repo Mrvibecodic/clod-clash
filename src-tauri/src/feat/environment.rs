@@ -487,7 +487,7 @@ pub fn spawn_environment_watchdog() {
         scopeguard::defer! {
             WATCHDOG_RUNNING.store(false, Ordering::Release);
             if !handle::Handle::global().is_exiting() {
-                logging!(warn, Type::Core, "[clod] the environment watchdog stopped and will be started again");
+                logging!(warn, Type::Core, "[clod] the environment watchdog stopped; it comes back with the next core start");
             }
         }
         let mut last_tick = Instant::now();
