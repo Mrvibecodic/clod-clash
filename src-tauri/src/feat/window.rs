@@ -122,7 +122,7 @@ pub async fn clean_async() -> bool {
     let dns_task = tokio::task::spawn(async {
         #[cfg(target_os = "macos")]
         match timeout(
-            Duration::from_millis(1000),
+            Duration::from_secs(5),
             crate::utils::resolve::dns::restore_public_dns(),
         )
         .await

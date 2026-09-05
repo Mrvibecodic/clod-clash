@@ -159,7 +159,7 @@ fn determine_update_flags(patch: &IVerge) -> UpdateFlags {
         update_flags.insert(UpdateFlags::CLASH_CONFIG | UpdateFlags::GROUP_SYS_TRAY);
     }
     #[cfg(target_os = "macos")]
-    if patch.enable_dns_override.is_some() {
+    if patch.enable_dns_override == Some(true) {
         update_flags.insert(UpdateFlags::CLASH_CONFIG);
     }
     if enable_global_hotkey.is_some() {
@@ -232,6 +232,18 @@ async fn restart_core_for_patch() -> Result<()> {
 
 #[allow(clippy::cognitive_complexity)]
 async fn process_terminated_flags(update_flags: UpdateFlags, patch: &IVerge) -> Result<()> {
+    #[cfg(target_os = "macos")]
+    if patch.enable_dns_override == Some(false) {
+        crate::process::AsyncHandler::spawn(|| async {
+            if !crate::utils::resolve::dns::restore_public_dns().await {
+                logging!(
+                    warn,
+                    Type::Setup,
+                    "подмена системного DNS выключена, но прежний DNS вернуть не удалось"
+                );
+            }
+        });
+    }
     if update_flags.contains(UpdateFlags::CLASH_CONFIG) {
         CoreManager::global().update_config_checked().await?;
         handle::Handle::refresh_clash();
