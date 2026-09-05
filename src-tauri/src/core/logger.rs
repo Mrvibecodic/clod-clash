@@ -61,6 +61,9 @@ const PLUMBING_MODULES: &[&str] = &[
     "rustls",
 ];
 
+#[cfg(target_os = "linux")]
+const DESKTOP_PLUMBING_MODULES: &[&str] = &["zbus", "zvariant", "ksni", "tracing"];
+
 #[cfg(not(any(feature = "tauri-dev", feature = "tokio-trace")))]
 fn redacted_console_format(
     writer: &mut dyn std::io::Write,
@@ -151,8 +154,6 @@ impl Logger {
                 );
 
             let mut filter_modules = vec!["wry", "tokio_tungstenite", "tungstenite"];
-            #[cfg(target_os = "linux")]
-            filter_modules.extend(["zbus", "zvariant", "ksni", "tracing"]);
             #[cfg(not(feature = "tracing"))]
             filter_modules.push("tauri");
             #[cfg(feature = "tracing")]
@@ -196,6 +197,10 @@ impl Logger {
         spec.default(log_level);
         if log_level < log::LevelFilter::Trace {
             for module in PLUMBING_MODULES {
+                spec.module(module, log::LevelFilter::Warn);
+            }
+            #[cfg(target_os = "linux")]
+            for module in DESKTOP_PLUMBING_MODULES {
                 spec.module(module, log::LevelFilter::Warn);
             }
         }
