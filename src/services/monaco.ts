@@ -71,7 +71,7 @@ export const loadMonacoEditor = () => {
 
           configureMonacoYaml(monaco, {
             validate: true,
-            enableSchemaRequest: true,
+            enableSchemaRequest: false,
             completion: true,
             schemas: [
               {
