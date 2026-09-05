@@ -50,3 +50,8 @@ async fn run_tray_sync_loop() {
         }
     }
 }
+
+#[tauri::command]
+pub async fn close_connections_via(previous_proxy: String) -> CmdResult<usize> {
+    Ok(crate::feat::close_connections_via(&previous_proxy).await)
+}

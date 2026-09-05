@@ -6,6 +6,48 @@ use clash_verge_logging::{Type, logging};
 use std::env;
 use tauri_plugin_clipboard_manager::ClipboardExt as _;
 
+pub async fn close_connections_via(previous_proxy: &str) -> usize {
+    if previous_proxy.trim().is_empty() {
+        return 0;
+    }
+    if !Config::verge().await.latest_arc().auto_close_connection() {
+        return 0;
+    }
+    let mihomo = handle::Handle::mihomo().await;
+    let listed = match mihomo.get_connections().await {
+        Ok(listed) => listed,
+        Err(err) => {
+            logging!(
+                warn,
+                Type::ProxyMode,
+                "could not list connections after the node change: {err}"
+            );
+            return 0;
+        }
+    };
+    let ids: Vec<String> = listed
+        .connections
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|conn| conn.chains.iter().any(|hop| hop == previous_proxy))
+        .map(|conn| conn.id)
+        .collect();
+    let mut closed = 0;
+    for id in &ids {
+        match mihomo.close_connection(id).await {
+            Ok(()) => closed += 1,
+            Err(err) => logging!(debug, Type::ProxyMode, "connection {id} was not closed: {err}"),
+        }
+    }
+    logging!(
+        info,
+        Type::ProxyMode,
+        "node change: closed {closed} of {} connection(s) that went through {previous_proxy}",
+        ids.len()
+    );
+    closed
+}
+
 pub async fn toggle_system_proxy() -> bool {
     let verge = Config::verge().await;
     let current = verge.latest_arc().enable_system_proxy.unwrap_or(false);

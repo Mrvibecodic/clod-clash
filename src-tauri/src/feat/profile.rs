@@ -16,6 +16,13 @@ pub async fn toggle_proxy_profile(profile_index: String) {
 }
 
 pub async fn switch_proxy_node(group_name: &str, proxy_name: &str) {
+    let previous = handle::Handle::mihomo()
+        .await
+        .get_group_by_name(group_name)
+        .await
+        .ok()
+        .and_then(|group| group.now)
+        .filter(|now| now != proxy_name);
     match handle::Handle::mihomo()
         .await
         .select_node_for_group(group_name, proxy_name)
@@ -29,6 +36,11 @@ pub async fn switch_proxy_node(group_name: &str, proxy_name: &str) {
                 group_name,
                 proxy_name
             );
+            if let Some(previous) = previous {
+                crate::process::AsyncHandler::spawn(move || async move {
+                    crate::feat::close_connections_via(&previous).await;
+                });
+            }
             if let Err(err) = crate::config::profiles::profiles_set_selected_node_safe(group_name, proxy_name).await {
                 logging!(
                     warn,

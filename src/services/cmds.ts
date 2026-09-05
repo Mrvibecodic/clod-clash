@@ -515,6 +515,10 @@ export const patchSelectedNode = async (group: string, node: string) => {
   return invoke<void>('patch_selected_node', { group, node })
 }
 
+export const closeConnectionsVia = async (previousProxy: string) => {
+  return invoke<number>('close_connections_via', { previousProxy })
+}
+
 export const fitWindowToContent = async (contentHeight: number) => {
   return invoke<number>('fit_window_to_content', { contentHeight })
 }

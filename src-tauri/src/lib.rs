@@ -205,6 +205,7 @@ mod app_init {
             cmd::view_profile,
             cmd::patch_profile,
             cmd::patch_selected_node,
+            cmd::close_connections_via,
             cmd::create_profile,
             cmd::create_profile_from_file,
             cmd::import_profile,
