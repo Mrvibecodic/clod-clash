@@ -83,7 +83,6 @@ impl IClashTemp {
         map.insert("mixed-port".into(), network::ports::DEFAULT_MIXED.into());
         map.insert("socks-port".into(), network::ports::DEFAULT_SOCKS.into());
         map.insert("port".into(), network::ports::DEFAULT_HTTP.into());
-        map.insert("log-level".into(), "info".into());
         map.insert("allow-lan".into(), false.into());
         map.insert("ipv6".into(), false.into());
         map.insert("mode".into(), "rule".into());
@@ -118,7 +117,6 @@ impl IClashTemp {
         );
         map.insert("secret".into(), help::random_secret().into());
         map.insert("external-controller-cors".into(), cors_map.into());
-        map.insert("unified-delay".into(), true.into());
         Self(map)
     }
 
@@ -154,8 +152,33 @@ impl IClashTemp {
 
     pub fn patch_config(&mut self, patch: &Mapping) {
         for (key, value) in patch.iter() {
+            if Self::follows_the_subscription(key, value) {
+                self.0.remove(key);
+                continue;
+            }
             self.0.insert(key.to_owned(), value.to_owned());
         }
+    }
+
+    pub const SUBSCRIPTION_LADDER_KEYS: &[&str] = &["log-level", "unified-delay"];
+    pub const FOLLOW_THE_SUBSCRIPTION: &str = "auto";
+
+    pub fn follows_the_subscription(key: &Value, value: &Value) -> bool {
+        key.as_str()
+            .is_some_and(|key| Self::SUBSCRIPTION_LADDER_KEYS.contains(&key))
+            && value.as_str() == Some(Self::FOLLOW_THE_SUBSCRIPTION)
+    }
+
+    pub fn unpin_legacy_defaults(map: &mut Mapping) -> bool {
+        let stock_log_level = map.get("log-level").and_then(Value::as_str) == Some("info");
+        let stock_unified_delay = map.get("unified-delay").and_then(Value::as_bool) == Some(true);
+        if stock_log_level {
+            map.remove("log-level");
+        }
+        if stock_unified_delay {
+            map.remove("unified-delay");
+        }
+        stock_log_level || stock_unified_delay
     }
 
     pub async fn save_config(&self) -> Result<()> {

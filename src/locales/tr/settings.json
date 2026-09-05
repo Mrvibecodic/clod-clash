@@ -162,19 +162,25 @@
         "tooltips": {
           "networkInterface": "Ağ Arayüzü",
           "ipv6": "IPv6'yı abonelik belirler: değer aboneliğin şablonundan gelir, bu anahtarın etkisi yoktur. Abonelik IPv6 hakkında bir şey söylemiyorsa kapalı kalır.",
-          "unifiedDelay": "Birleşik gecikme açıldığında, bağlantı el sıkışmaları vb. nedeniyle farklı tür düğümler arasındaki gecikme farklarını ortadan kaldırmak için iki gecikme testi gerçekleştirilir",
-          "logLevel": "Bu parametre yalnızca günlük dizini Hizmet klasöründeki çekirdek günlük dosyaları için geçerlidir",
+          "unifiedDelay": "Birleşik gecikme, farklı türdeki düğümleri adil karşılaştırmak için bir yerine iki ölçüm yapar. “Abonelikteki gibi” değeri abonelik şablonundan alır; burada seçilen değer aboneliğe üstün gelir.",
+          "logLevel": "Çekirdek günlük düzeyi (günlük klasöründeki çekirdek dosyası). “Abonelikteki gibi” düzeyi abonelik şablonundan alır; burada seçilen düzey aboneliğe üstün gelir ve güncellemelerden sonra korunur.",
           "openUwpTool": "Windows 8'den beri, UWP uygulamaları (Microsoft Store gibi) yerel ana bilgisayar ağ hizmetlerine doğrudan erişmekten kısıtlanmıştır ve bu araç bu kısıtlamayı atlatmak için kullanılabilir",
           "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing.",
           "dnsOverwrite": "Careful: while this is on, the DNS block from the subscription is fully replaced by these settings."
         },
         "options": {
           "logLevel": {
+            "auto": "Abonelikteki gibi",
             "debug": "Debug",
             "info": "Info",
             "warning": "Warn",
             "error": "Error",
             "silent": "Silent"
+          },
+          "unifiedDelay": {
+            "auto": "Abonelikteki gibi",
+            "on": "Açık",
+            "off": "Kapalı"
           }
         }
       }

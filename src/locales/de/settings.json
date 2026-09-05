@@ -162,19 +162,25 @@
         "tooltips": {
           "networkInterface": "Netzwerkschnittstelle",
           "ipv6": "IPv6 wird vom Abonnement festgelegt: Der Wert stammt aus dessen Vorlage, dieser Schalter hat keine Wirkung. Sagt das Abonnement nichts zu IPv6, bleibt es aus.",
-          "unifiedDelay": "Wenn die einheitliche Latenz aktiviert ist, werden zwei Latenztests durchgeführt, um die Latenzunterschiede zwischen verschiedenen Knotentypen aufgrund von Verbindungsaufbau und anderen Faktoren zu eliminieren.",
-          "logLevel": "Dies wirkt sich nur auf die Kernprotokolldateien im Verzeichnis Service im Protokollverzeichnis aus.",
+          "unifiedDelay": "Die einheitliche Verzögerung misst zweimal statt einmal, damit Knoten verschiedener Typen fair vergleichbar sind. „Wie im Abonnement“ nimmt den Wert aus der Abonnementvorlage; ein hier gewählter Wert hat Vorrang.",
+          "logLevel": "Protokollstufe des Kerns (Kerndatei im Logordner). „Wie im Abonnement“ nimmt die Stufe aus der Abonnementvorlage; eine hier gewählte Stufe hat Vorrang und überlebt Aktualisierungen.",
           "openUwpTool": "Ab Windows 8 wird die direkte Netzwerkverbindung von UWP-Anwendungen (z. B. Microsoft Store) zu lokalen Hosts eingeschränkt. Mit diesem Tool können Sie diese Einschränkung umgehen.",
           "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing.",
           "dnsOverwrite": "Careful: while this is on, the DNS block from the subscription is fully replaced by these settings."
         },
         "options": {
           "logLevel": {
+            "auto": "Wie im Abonnement",
             "debug": "Debug",
             "info": "Info",
             "warning": "Warn",
             "error": "Error",
             "silent": "Silent"
+          },
+          "unifiedDelay": {
+            "auto": "Wie im Abonnement",
+            "on": "Ein",
+            "off": "Aus"
           }
         }
       }

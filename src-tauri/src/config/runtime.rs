@@ -41,6 +41,9 @@ impl IRuntime {
 
         for key in PATCH_CONFIG_INNER.iter() {
             if let Some(value) = patch.get(key) {
+                if crate::config::IClashTemp::follows_the_subscription(&Value::from(*key), value) {
+                    continue;
+                }
                 config.insert((*key).into(), value.clone());
             }
         }

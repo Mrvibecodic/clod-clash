@@ -203,6 +203,9 @@ pub struct IVerge {
     pub main_switch_mode: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub core_log_keys_unpinned: Option<bool>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub window_size_simple: Option<(u32, u32)>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -476,6 +479,7 @@ impl IVerge {
         patch!(tray_event);
         patch!(env_type);
         patch!(start_page);
+        patch!(core_log_keys_unpinned);
         patch!(startup_script);
         patch!(enable_group_icon);
         #[cfg(target_os = "macos")]

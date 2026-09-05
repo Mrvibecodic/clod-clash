@@ -162,19 +162,25 @@
         "tooltips": {
           "networkInterface": "ネットワークインターフェース",
           "ipv6": "IPv6 はサブスクリプションが決めます。値はそのテンプレートから来るため、このスイッチは効きません。サブスクリプションに IPv6 の指定がなければオフのままです。",
-          "unifiedDelay": "統一遅延を有効にすると、2回の遅延テストが行われ、接続ハンドシェイクなどによる異なるタイプのノードの遅延差を解消します。",
-          "logLevel": "ログディレクトリのServiceフォルダ内のコアログファイルにのみ適用されます。",
+          "unifiedDelay": "統一遅延は 1 回ではなく 2 回計測し、種類の異なるノードを公平に比較します。「サブスクリプションに従う」はサブスクリプションのテンプレートの値を使い、ここで選んだ値はサブスクリプションより優先されます。",
+          "logLevel": "コアのログレベル（ログフォルダ内のコアファイル）。「サブスクリプションに従う」はテンプレートのレベルを使い、ここで選んだレベルはサブスクリプションより優先され、更新後も維持されます。",
           "openUwpTool": "Windows 8以降では、UWPアプリケーション（Microsoft Storeなど）がローカルホストのネットワークサービスに直接アクセスすることが制限されています。このツールを使用すると、この制限を回避できます。",
           "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing.",
           "dnsOverwrite": "Careful: while this is on, the DNS block from the subscription is fully replaced by these settings."
         },
         "options": {
           "logLevel": {
+            "auto": "サブスクリプションに従う",
             "debug": "Debug",
             "info": "Info",
             "warning": "Warn",
             "error": "Error",
             "silent": "Silent"
+          },
+          "unifiedDelay": {
+            "auto": "サブスクリプションに従う",
+            "on": "オン",
+            "off": "オフ"
           }
         }
       }

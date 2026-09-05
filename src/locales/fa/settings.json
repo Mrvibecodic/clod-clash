@@ -162,19 +162,25 @@
         "tooltips": {
           "networkInterface": "رابط شبکه",
           "ipv6": "IPv6 را اشتراک تعیین می‌کند: مقدار از قالب آن می‌آید و این کلید اثری ندارد. اگر اشتراک درباره IPv6 چیزی نگوید، خاموش می‌ماند.",
-          "unifiedDelay": "معادلDELAY را فعال کنید تا ترافیک شبکه به سرعت رسید",
-          "logLevel": "این فقط روی فایل‌های لاگ هسته تحت فایل سرویس در فهرست ورود اثر می‌گذارد.",
+          "unifiedDelay": "تأخیر یکپارچه دو بار به‌جای یک بار اندازه می‌گیرد تا گره‌های انواع مختلف منصفانه مقایسه شوند. «مطابق اشتراک» مقدار را از قالب اشتراک می‌گیرد؛ مقدار انتخاب‌شده در اینجا بر اشتراک غلبه می‌کند.",
+          "logLevel": "سطح گزارش هسته (فایل هسته در پوشه گزارش‌ها). «مطابق اشتراک» سطح را از قالب اشتراک می‌گیرد؛ سطح انتخاب‌شده در اینجا بر اشتراک غلبه می‌کند و پس از به‌روزرسانی حفظ می‌شود.",
           "openUwpTool": "از ویندوز 8 به بعد، برنامه‌های UWP (مانند Microsoft Store) از دسترسی مستقیم به خدمات شبکه محلی محدود شده‌اند و این ابزار می‌تواند برای دور زدن این محدودیت استفاده شود",
           "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing.",
           "dnsOverwrite": "Careful: while this is on, the DNS block from the subscription is fully replaced by these settings."
         },
         "options": {
           "logLevel": {
+            "auto": "مطابق اشتراک",
             "debug": "Debug",
             "info": "Info",
             "warning": "Warn",
             "error": "Error",
             "silent": "Silent"
+          },
+          "unifiedDelay": {
+            "auto": "مطابق اشتراک",
+            "on": "روشن",
+            "off": "خاموش"
           }
         }
       }

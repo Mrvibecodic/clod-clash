@@ -29,6 +29,9 @@ import { WebUIViewer } from './mods/web-ui-viewer'
 
 const isWIN = getSystem() === 'windows'
 
+const unifiedDelayOf = (choice: string): boolean | 'auto' =>
+  choice === 'on' ? true : choice === 'off' ? false : 'auto'
+
 interface Props {
   onError: (err: Error) => void
 }
@@ -239,14 +242,25 @@ const SettingClash = ({ onError }: Props) => {
         }
       >
         <GuardState
-          value={unifiedDelay ?? false}
-          valueProps="checked"
+          value={
+            unifiedDelay === true ? 'on' : unifiedDelay === false ? 'off' : 'auto'
+          }
           onCatch={onError}
-          onFormat={onSwitchFormat}
-          onChange={(e) => onChangeData({ 'unified-delay': e })}
-          onGuard={(e) => patchClash({ 'unified-delay': e })}
+          onFormat={(e: any) => e.target.value}
+          onChange={(e) => onChangeData({ 'unified-delay': unifiedDelayOf(e) })}
+          onGuard={(e) => patchClash({ 'unified-delay': unifiedDelayOf(e) })}
         >
-          <Switch edge="end" />
+          <Select size="small" sx={{ width: 160, '> div': { py: '7.5px' } }}>
+            <MenuItem value="auto">
+              {t('settings.sections.clash.form.options.unifiedDelay.auto')}
+            </MenuItem>
+            <MenuItem value="on">
+              {t('settings.sections.clash.form.options.unifiedDelay.on')}
+            </MenuItem>
+            <MenuItem value="off">
+              {t('settings.sections.clash.form.options.unifiedDelay.off')}
+            </MenuItem>
+          </Select>
         </GuardState>
       </SettingItem>
 
@@ -260,19 +274,24 @@ const SettingClash = ({ onError }: Props) => {
         }
       >
         <GuardState
-          value={logLevel === 'warn' ? 'warning' : (logLevel ?? 'info')}
+          value={logLevel === 'warn' ? 'warning' : (logLevel ?? 'auto')}
           onCatch={onError}
           onFormat={(e: any) => e.target.value}
           onChange={(e) => onChangeData({ 'log-level': e })}
           onGuard={(e) => {
-            setClashLog((pre) => ({
-              ...pre!,
-              logLevel: e.toUpperCase() as LogLevel,
-            }))
+            if (e !== 'auto') {
+              setClashLog((pre) => ({
+                ...pre!,
+                logLevel: e.toUpperCase() as LogLevel,
+              }))
+            }
             return patchClash({ 'log-level': e })
           }}
         >
-          <Select size="small" sx={{ width: 100, '> div': { py: '7.5px' } }}>
+          <Select size="small" sx={{ width: 160, '> div': { py: '7.5px' } }}>
+            <MenuItem value="auto">
+              {t('settings.sections.clash.form.options.logLevel.auto')}
+            </MenuItem>
             <MenuItem value="debug">
               {t('settings.sections.clash.form.options.logLevel.debug')}
             </MenuItem>

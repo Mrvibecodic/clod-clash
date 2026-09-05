@@ -162,19 +162,25 @@
         "tooltips": {
           "networkInterface": "Network Interface",
           "ipv6": "IPv6 is set by the subscription: the value comes from its template, so this switch has no effect. When the subscription says nothing about IPv6, it stays off.",
-          "unifiedDelay": "When unified delay is turned on, two delay tests will be performed to eliminate the delay differences between different types of nodes caused by connection handshakes, etc",
-          "logLevel": "This parameter is valid only for kernel log files in the log directory Service folder",
+          "unifiedDelay": "Unified delay runs two measurements instead of one so that nodes of different types compare fairly. “As in the subscription” takes the value from the subscription template; a value chosen here wins over the subscription.",
+          "logLevel": "Core log level (the core file in the logs folder). “As in the subscription” takes the level from the subscription template; a level chosen here wins over the subscription and survives its updates.",
           "openUwpTool": "Since Windows 8, UWP apps (such as Microsoft Store) are restricted from directly accessing local host network services, and this tool can be used to bypass this restriction",
           "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing.",
           "dnsOverwrite": "Careful: while this is on, the DNS block from the subscription is fully replaced by these settings."
         },
         "options": {
           "logLevel": {
+            "auto": "As in the subscription",
             "debug": "Debug",
             "info": "Info",
             "warning": "Warn",
             "error": "Error",
             "silent": "Silent"
+          },
+          "unifiedDelay": {
+            "auto": "As in the subscription",
+            "on": "On",
+            "off": "Off"
           }
         }
       }

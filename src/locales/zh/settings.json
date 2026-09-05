@@ -162,19 +162,25 @@
         "tooltips": {
           "networkInterface": "网络接口",
           "ipv6": "IPv6 由订阅决定：取值来自订阅模板，此开关不起作用。订阅未提及 IPv6 时保持关闭。",
-          "unifiedDelay": "开启统一延迟时，会进行两次延迟测试，以消除连接握手等带来的不同类型节点的延迟差异",
-          "logLevel": "仅对日志目录 Service 文件夹下的内核日志文件生效",
+          "unifiedDelay": "统一延迟会测量两次而不是一次，以便公平比较不同类型的节点。“与订阅一致”采用订阅模板中的值；此处选择的值优先于订阅。",
+          "logLevel": "内核日志级别（日志目录中的内核文件）。“与订阅一致”采用订阅模板中的级别；此处选择的级别优先于订阅，并在订阅更新后保留。",
           "openUwpTool": "Windows 8 开始限制 UWP 应用（如微软商店）直接访问本地主机的网络服务，使用此工具可绕过该限制",
           "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing.",
           "dnsOverwrite": "Careful: while this is on, the DNS block from the subscription is fully replaced by these settings."
         },
         "options": {
           "logLevel": {
+            "auto": "与订阅一致",
             "debug": "Debug",
             "info": "Info",
             "warning": "Warn",
             "error": "Error",
             "silent": "Silent"
+          },
+          "unifiedDelay": {
+            "auto": "与订阅一致",
+            "on": "开启",
+            "off": "关闭"
           }
         }
       }

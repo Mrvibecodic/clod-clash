@@ -29,7 +29,7 @@ interface IConfigData {
   ipv6: boolean
   'socket-port': number
   'allow-lan': boolean
-  'log-level': string
+  'log-level'?: string
   'mixed-port': number
   'redir-port': number
   'socks-port': number
@@ -40,7 +40,7 @@ interface IConfigData {
     'allow-origins': string[]
   }
   secret: string
-  'unified-delay': boolean
+  'unified-delay'?: boolean | 'auto'
   tun: {
     stack?: string
     device: string

@@ -162,19 +162,25 @@
         "tooltips": {
           "networkInterface": "Antarmuka Jaringan",
           "ipv6": "IPv6 ditentukan oleh langganan: nilainya berasal dari templat langganan, jadi sakelar ini tidak berpengaruh. Jika langganan tidak menyebut IPv6, fitur ini tetap mati.",
-          "unifiedDelay": "Saat keterlambatan terpadu diaktifkan, dua tes keterlambatan akan dilakukan untuk menghilangkan perbedaan keterlambatan antara berbagai jenis node yang disebabkan oleh jabat tangan koneksi, dll.",
-          "logLevel": "Ini hanya berlaku untuk file log kernel di folder layanan di direktori log.",
+          "unifiedDelay": "Unified delay mengukur dua kali, bukan sekali, agar node dari jenis berbeda dibandingkan secara adil. “Seperti di langganan” mengambil nilai dari templat langganan; nilai yang dipilih di sini menang atas langganan.",
+          "logLevel": "Tingkat log core (berkas core di folder log). “Seperti di langganan” mengambil tingkat dari templat langganan; tingkat yang dipilih di sini menang dan bertahan setelah pembaruan.",
           "openUwpTool": "Sejak Windows 8, aplikasi UWP (seperti Microsoft Store) dibatasi dari mengakses layanan jaringan host lokal secara langsung, dan alat ini dapat digunakan untuk melewati pembatasan ini",
           "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing.",
           "dnsOverwrite": "Careful: while this is on, the DNS block from the subscription is fully replaced by these settings."
         },
         "options": {
           "logLevel": {
+            "auto": "Seperti di langganan",
             "debug": "Debug",
             "info": "Info",
             "warning": "Warn",
             "error": "Error",
             "silent": "Silent"
+          },
+          "unifiedDelay": {
+            "auto": "Seperti di langganan",
+            "on": "Aktif",
+            "off": "Nonaktif"
           }
         }
       }

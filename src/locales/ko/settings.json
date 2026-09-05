@@ -162,19 +162,25 @@
         "tooltips": {
           "networkInterface": "네트워크 인터페이스",
           "ipv6": "IPv6는 구독이 결정합니다. 값이 구독 템플릿에서 오므로 이 스위치는 효과가 없습니다. 구독에 IPv6 설정이 없으면 꺼진 상태로 유지됩니다.",
-          "unifiedDelay": "지연 통합을 켜면, 서로 다른 유형의 노드에서 연결 핸드셰이크 등으로 발생하는 지연 차이를 제거하기 위해 두 번의 지연 테스트를 수행합니다",
-          "logLevel": "이 매개변수는 로그 디렉터리 Service 폴더의 커널 로그 파일에만 적용됩니다",
+          "unifiedDelay": "통합 지연은 한 번이 아닌 두 번 측정해 서로 다른 유형의 노드를 공정하게 비교합니다. “구독 설정을 따름”은 구독 템플릿의 값을 사용하며, 여기서 고른 값이 구독보다 우선합니다.",
+          "logLevel": "코어 로그 수준(로그 폴더의 코어 파일). “구독 설정을 따름”은 템플릿의 수준을 사용하며, 여기서 고른 수준이 구독보다 우선하고 업데이트 후에도 유지됩니다.",
           "openUwpTool": "Windows 8 이후 UWP 앱(예: Microsoft Store)은 로컬 호스트 네트워크 서비스에 직접 접근이 제한됩니다. 이 도구로 해당 제한을 우회할 수 있습니다",
           "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing.",
           "dnsOverwrite": "Careful: while this is on, the DNS block from the subscription is fully replaced by these settings."
         },
         "options": {
           "logLevel": {
+            "auto": "구독 설정을 따름",
             "debug": "디버그",
             "info": "정보",
             "warning": "경고",
             "error": "오류",
             "silent": "무음"
+          },
+          "unifiedDelay": {
+            "auto": "구독 설정을 따름",
+            "on": "켬",
+            "off": "끔"
           }
         }
       }

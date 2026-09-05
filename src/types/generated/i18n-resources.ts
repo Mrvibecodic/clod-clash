@@ -1228,11 +1228,17 @@ export interface TranslationResources {
             }
             options: {
               logLevel: {
+                auto: string
                 debug: string
                 error: string
                 info: string
                 silent: string
                 warning: string
+              }
+              unifiedDelay: {
+                auto: string
+                off: string
+                on: string
               }
             }
             tooltips: {
@@ -1320,8 +1326,10 @@ export interface TranslationResources {
               notReady: string
               portBusy: string
               portBusyAction: string
+              restarted: string
             }
             service: {
+              bundleRejected: string
               needsRepair: string
             }
             sysproxy: {

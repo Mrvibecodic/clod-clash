@@ -579,7 +579,22 @@ async fn process_profile_items(
     (config, exists_keys, result_map)
 }
 
-const SUBSCRIPTION_DECIDES: &[&str] = &["ipv6", "log-level", "unified-delay"];
+const SUBSCRIPTION_DECIDES: &[&str] = &["ipv6"];
+
+const LADDER_DEFAULTS: &[(&str, &str)] = &[("log-level", "info"), ("unified-delay", "true")];
+
+fn fill_the_ladder_defaults(config: &mut Mapping) {
+    for (key, default) in LADDER_DEFAULTS {
+        if config.contains_key(*key) {
+            continue;
+        }
+        let value = match *default {
+            "true" => Value::Bool(true),
+            other => Value::String(other.to_owned()),
+        };
+        config.insert((*key).into(), value);
+    }
+}
 
 fn subscription_or_app(subscription: &Mapping, key: &str, app_value: &Value) -> Value {
     subscription.get(key).cloned().unwrap_or_else(|| app_value.clone())
@@ -661,6 +676,7 @@ async fn merge_default_config(
         }
     }
 
+    fill_the_ladder_defaults(&mut config);
     config
 }
 
@@ -1577,24 +1593,56 @@ mod tests {
     }
 
     #[test]
-    fn the_subscription_decides_log_level_and_unified_delay() {
-        let subscription = mapping("{log-level: error, unified-delay: false}");
+    fn the_ladder_keys_follow_the_subscription_unless_the_user_chose() {
+        let mut silent_everywhere = mapping("{}");
+        super::fill_the_ladder_defaults(&mut silent_everywhere);
         assert_eq!(
-            super::subscription_or_app(&subscription, "log-level", &serde_yaml_ng::Value::from("info")),
-            serde_yaml_ng::Value::from("error")
+            silent_everywhere
+                .get("log-level")
+                .and_then(serde_yaml_ng::Value::as_str),
+            Some("info")
         );
         assert_eq!(
-            super::subscription_or_app(&subscription, "unified-delay", &serde_yaml_ng::Value::from(true)),
-            serde_yaml_ng::Value::from(false)
+            silent_everywhere
+                .get("unified-delay")
+                .and_then(serde_yaml_ng::Value::as_bool),
+            Some(true)
         );
-        let silent = mapping("{}");
+
+        let mut from_subscription = mapping("{log-level: error, unified-delay: false}");
+        super::fill_the_ladder_defaults(&mut from_subscription);
         assert_eq!(
-            super::subscription_or_app(&silent, "log-level", &serde_yaml_ng::Value::from("info")),
-            serde_yaml_ng::Value::from("info")
+            from_subscription
+                .get("log-level")
+                .and_then(serde_yaml_ng::Value::as_str),
+            Some("error")
         );
-        assert!(super::SUBSCRIPTION_DECIDES.contains(&"log-level"));
-        assert!(super::SUBSCRIPTION_DECIDES.contains(&"unified-delay"));
-        assert!(!super::SUBSCRIPTION_DECIDES.contains(&"mixed-port"));
+        assert_eq!(
+            from_subscription
+                .get("unified-delay")
+                .and_then(serde_yaml_ng::Value::as_bool),
+            Some(false)
+        );
+
+        assert!(!super::SUBSCRIPTION_DECIDES.contains(&"log-level"));
+        assert!(super::SUBSCRIPTION_DECIDES.contains(&"ipv6"));
+
+        let mut stock = mapping("{log-level: info, unified-delay: true, mixed-port: 7897}");
+        assert!(crate::config::IClashTemp::unpin_legacy_defaults(&mut stock));
+        assert!(stock.get("log-level").is_none());
+        assert!(stock.get("unified-delay").is_none());
+        assert!(stock.get("mixed-port").is_some());
+        let mut chosen = mapping("{log-level: debug, unified-delay: false}");
+        assert!(!crate::config::IClashTemp::unpin_legacy_defaults(&mut chosen));
+
+        let mut app = crate::config::IClashTemp(mapping("{log-level: debug}"));
+        app.patch_config(&mapping("{log-level: auto}"));
+        assert!(app.0.get("log-level").is_none());
+        app.patch_config(&mapping("{log-level: warning}"));
+        assert_eq!(
+            app.0.get("log-level").and_then(serde_yaml_ng::Value::as_str),
+            Some("warning")
+        );
     }
 
     #[test]
