@@ -151,6 +151,8 @@ impl Logger {
                 );
 
             let mut filter_modules = vec!["wry", "tokio_tungstenite", "tungstenite"];
+            #[cfg(target_os = "linux")]
+            filter_modules.extend(["zbus", "zvariant", "ksni", "tracing"]);
             #[cfg(not(feature = "tracing"))]
             filter_modules.push("tauri");
             #[cfg(feature = "tracing")]

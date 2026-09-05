@@ -3,7 +3,6 @@ use crate::utils::schtasks;
 use crate::{config::Config, core::handle::Handle};
 use anyhow::Result;
 #[cfg(not(target_os = "windows"))]
-use clash_verge_logging::logging_error;
 use clash_verge_logging::{Type, logging};
 #[cfg(not(target_os = "windows"))]
 use tauri_plugin_autostart::ManagerExt as _;
@@ -25,10 +24,13 @@ pub async fn update_launch() -> Result<()> {
     {
         let app_handle = Handle::app_handle();
         let autostart_manager = app_handle.autolaunch();
-        if is_enable {
-            logging_error!(Type::System, "{:?}", autostart_manager.enable());
+        let outcome = if is_enable {
+            autostart_manager.enable()
         } else {
-            logging_error!(Type::System, "{:?}", autostart_manager.disable());
+            autostart_manager.disable()
+        };
+        if let Err(e) = outcome {
+            logging!(error, Type::System, "auto-launch change failed: {e}");
         }
     }
 
