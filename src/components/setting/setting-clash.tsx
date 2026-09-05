@@ -39,17 +39,11 @@ interface Props {
 const SettingClash = ({ onError }: Props) => {
   const { t } = useTranslation()
 
-  const { clash, version, mutateClash, patchClash } = useClash()
+  const { clash, ladder, version, mutateClash, patchClash } = useClash()
   const { verge, patchVerge } = useVerge()
   const [, setClashLog] = useClashLog()
 
-  const {
-    ipv6,
-    mode,
-    'allow-lan': allowLan,
-    'log-level': logLevel,
-    'unified-delay': unifiedDelay,
-  } = clash ?? {}
+  const { ipv6, mode, 'allow-lan': allowLan } = clash ?? {}
 
   const { current } = useProfiles()
   const modeLocked = Boolean(current?.lock_mode)
@@ -243,9 +237,9 @@ const SettingClash = ({ onError }: Props) => {
       >
         <GuardState
           value={
-            unifiedDelay === true
+            ladder?.unified_delay === true
               ? 'on'
-              : unifiedDelay === false
+              : ladder?.unified_delay === false
                 ? 'off'
                 : 'auto'
           }
@@ -278,7 +272,11 @@ const SettingClash = ({ onError }: Props) => {
         }
       >
         <GuardState
-          value={logLevel === 'warn' ? 'warning' : (logLevel ?? 'auto')}
+          value={
+            ladder?.log_level === 'warn'
+              ? 'warning'
+              : (ladder?.log_level ?? 'auto')
+          }
           onCatch={onError}
           onFormat={(e: any) => e.target.value}
           onChange={(e) => onChangeData({ 'log-level': e })}

@@ -4,6 +4,7 @@ import { getVersion } from 'tauri-plugin-mihomo-api'
 
 import {
   getClashInfo,
+  getCoreLadder,
   getRuntimeConfig,
   patchClashConfig,
 } from '@/services/cmds'
@@ -79,8 +80,16 @@ export const useRuntimeConfig = (shouldFetch: boolean = true) => {
   })
 }
 
+export const useCoreLadder = () => {
+  return useQuery({
+    queryKey: ['getCoreLadder'],
+    queryFn: getCoreLadder,
+  })
+}
+
 export const useClash = () => {
   const { data: clash, refetch } = useRuntimeConfig()
+  const { data: ladder, refetch: refetchLadder } = useCoreLadder()
 
   const { data: versionData, refetch: mutateVersion } = useQuery({
     queryKey: ['getVersion'],
@@ -104,6 +113,7 @@ export const useClash = () => {
 
   const patchClash = useLockFn(async (patch: Partial<IConfigData>) => {
     await patchClashConfig(patch)
+    await refetchLadder()
     mutateClash()
   })
 
@@ -113,6 +123,7 @@ export const useClash = () => {
 
   return {
     clash,
+    ladder,
     version,
     mutateClash,
     mutateVersion,

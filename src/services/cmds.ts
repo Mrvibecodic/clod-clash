@@ -5,6 +5,10 @@ import { getProxies, getProxyProviders } from 'tauri-plugin-mihomo-api'
 import { showNotice } from '@/services/notice-service'
 import { debugLog } from '@/utils/debug'
 
+export async function getCoreLadder() {
+  return invoke<ICoreLadder>('get_core_ladder')
+}
+
 export async function copyClashEnv() {
   return invoke<void>('copy_clash_env')
 }

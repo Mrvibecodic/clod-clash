@@ -876,6 +876,11 @@ interface ITunState {
   failure?: string | null
 }
 
+interface ICoreLadder {
+  log_level?: string | null
+  unified_delay?: boolean | null
+}
+
 interface IVergeConfig {
   app_log_level?: 'trace' | 'debug' | 'info' | 'warn' | 'error' | string
   app_log_max_size?: number

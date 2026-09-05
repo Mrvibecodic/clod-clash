@@ -16,6 +16,26 @@ use serde_yaml_ng::Mapping;
 use smartstring::alias::String;
 use tokio::fs;
 
+#[derive(serde::Serialize)]
+pub struct CoreLadder {
+    log_level: Option<std::string::String>,
+    unified_delay: Option<bool>,
+}
+
+#[tauri::command]
+pub async fn get_core_ladder() -> CmdResult<CoreLadder> {
+    let clash = Config::clash().await;
+    let clash = clash.latest_arc();
+    Ok(CoreLadder {
+        log_level: clash
+            .0
+            .get("log-level")
+            .and_then(serde_yaml_ng::Value::as_str)
+            .map(std::borrow::ToOwned::to_owned),
+        unified_delay: clash.0.get("unified-delay").and_then(serde_yaml_ng::Value::as_bool),
+    })
+}
+
 #[tauri::command]
 pub async fn copy_clash_env() -> CmdResult {
     feat::copy_clash_env().await;
