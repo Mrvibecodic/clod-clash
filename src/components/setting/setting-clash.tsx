@@ -39,7 +39,8 @@ interface Props {
 const SettingClash = ({ onError }: Props) => {
   const { t } = useTranslation()
 
-  const { clash, ladder, version, mutateClash, patchClash } = useClash()
+  const { clash, ladder, version, mutateClash, mutateLadder, patchClash } =
+    useClash()
   const { verge, patchVerge } = useVerge()
   const [, setClashLog] = useClashLog()
 
@@ -245,7 +246,11 @@ const SettingClash = ({ onError }: Props) => {
           }
           onCatch={onError}
           onFormat={(e: any) => e.target.value}
-          onChange={(e) => onChangeData({ 'unified-delay': unifiedDelayOf(e) })}
+          onChange={(e) =>
+            mutateLadder({
+              unified_delay: e === 'on' ? true : e === 'off' ? false : null,
+            })
+          }
           onGuard={(e) => patchClash({ 'unified-delay': unifiedDelayOf(e) })}
         >
           <Select size="small" sx={{ width: 160, '> div': { py: '7.5px' } }}>
@@ -279,7 +284,7 @@ const SettingClash = ({ onError }: Props) => {
           }
           onCatch={onError}
           onFormat={(e: any) => e.target.value}
-          onChange={(e) => onChangeData({ 'log-level': e })}
+          onChange={(e) => mutateLadder({ log_level: e === 'auto' ? null : e })}
           onGuard={(e) => {
             if (e !== 'auto') {
               setClashLog((pre) => ({

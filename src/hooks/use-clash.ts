@@ -111,6 +111,13 @@ export const useClash = () => {
     return Promise.resolve()
   }
 
+  const mutateLadder = (patch: Partial<ICoreLadder>) => {
+    setCacheData(['getCoreLadder'], {
+      ...(getCacheData<ICoreLadder>(['getCoreLadder']) ?? {}),
+      ...patch,
+    })
+  }
+
   const patchClash = useLockFn(async (patch: Partial<IConfigData>) => {
     await patchClashConfig(patch)
     await refetchLadder()
@@ -126,6 +133,7 @@ export const useClash = () => {
     ladder,
     version,
     mutateClash,
+    mutateLadder,
     mutateVersion,
     patchClash,
   }
