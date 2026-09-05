@@ -51,6 +51,7 @@ if [ ! -f "$state_file" ]; then
         fi
     done
 
+    tmp_file="$state_file.tmp"
     {
         echo "$hardware_port"
         if [ "$is_valid_dns" = false ]; then
@@ -58,7 +59,12 @@ if [ ! -f "$state_file" ]; then
         else
             echo "$original_dns"
         fi
-    } >"$state_file"
+    } >"$tmp_file"
+    if ! mv -f "$tmp_file" "$state_file"; then
+        rm -f "$tmp_file"
+        echo "cannot record the original DNS for $hardware_port"
+        exit 1
+    fi
     state_written_now=true
 fi
 

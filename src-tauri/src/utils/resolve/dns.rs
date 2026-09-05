@@ -48,12 +48,11 @@ pub async fn restore_public_dns() -> bool {
     restore_public_dns_locked().await
 }
 
-async fn set_public_dns_locked(dns_server: String) -> bool {
+async fn run_dns_script(script_name: &str, args: Vec<String>, what: &str) -> bool {
     use crate::{core::handle, utils::dirs};
-    use tauri_plugin_shell::ShellExt as _;
-    let app_handle = handle::Handle::app_handle();
+    use tauri_plugin_shell::{ShellExt as _, process::CommandEvent};
 
-    logging!(info, Type::Config, "try to set system dns");
+    logging!(info, Type::Config, "try to {what}");
     let resource_dir = match dirs::app_resources_dir() {
         Ok(dir) => dir,
         Err(e) => {
@@ -61,93 +60,68 @@ async fn set_public_dns_locked(dns_server: String) -> bool {
             return false;
         }
     };
-    let script = resource_dir.join("set_dns.sh");
+    let script = resource_dir.join(script_name);
     if !script.exists() {
-        logging!(error, Type::Config, "set_dns.sh not found");
+        logging!(error, Type::Config, "{script_name} not found");
         return false;
     }
-    let script = script.to_string_lossy().into_owned();
-    let state = state_path()
-        .map(|path| path.to_string_lossy().into_owned())
-        .unwrap_or_default();
-    let ran = app_handle
+
+    let mut command_args = Vec::with_capacity(args.len() + 1);
+    command_args.push(script.to_string_lossy().into_owned());
+    command_args.extend(args);
+
+    let spawned = handle::Handle::app_handle()
         .shell()
         .command("bash")
-        .args([script, dns_server, state])
+        .args(command_args)
         .current_dir(resource_dir)
-        .status();
-    match tokio::time::timeout(SCRIPT_TIMEOUT, ran).await {
+        .spawn();
+    let (mut events, child) = match spawned {
+        Ok(spawned) => spawned,
+        Err(err) => {
+            logging!(error, Type::Config, "{what} failed: {err}");
+            return false;
+        }
+    };
+
+    let terminated = async {
+        while let Some(event) = events.recv().await {
+            if let CommandEvent::Terminated(payload) = event {
+                return payload.code;
+            }
+        }
+        None
+    };
+
+    match tokio::time::timeout(SCRIPT_TIMEOUT, terminated).await {
         Err(_) => {
-            logging!(error, Type::Config, "set system dns timed out");
+            logging!(error, Type::Config, "{what} timed out");
+            if let Err(err) = child.kill() {
+                logging!(error, Type::Config, "{what} could not be stopped: {err}");
+            }
             false
         }
-        Ok(outcome) => match outcome {
-            Ok(status) => {
-                if status.success() {
-                    logging!(info, Type::Config, "set system dns successfully");
-                    true
-                } else {
-                    let code = status.code().unwrap_or(-1);
-                    logging!(error, Type::Config, "set system dns failed: {code}");
-                    false
-                }
-            }
-            Err(err) => {
-                logging!(error, Type::Config, "set system dns failed: {err}");
-                false
-            }
-        },
+        Ok(Some(0)) => {
+            logging!(info, Type::Config, "{what} successfully");
+            true
+        }
+        Ok(code) => {
+            logging!(error, Type::Config, "{what} failed: {}", code.unwrap_or(-1));
+            false
+        }
     }
 }
 
-async fn restore_public_dns_locked() -> bool {
-    use crate::{core::handle, utils::dirs};
-    use tauri_plugin_shell::ShellExt as _;
-    let app_handle = handle::Handle::app_handle();
-
-    logging!(info, Type::Config, "try to unset system dns");
-    let resource_dir = match dirs::app_resources_dir() {
-        Ok(dir) => dir,
-        Err(e) => {
-            logging!(error, Type::Config, "Failed to get resource directory: {}", e);
-            return false;
-        }
-    };
-    let script = resource_dir.join("unset_dns.sh");
-    if !script.exists() {
-        logging!(error, Type::Config, "unset_dns.sh not found");
-        return false;
-    }
-    let script = script.to_string_lossy().into_owned();
-    let state = state_path()
+fn state_arg() -> String {
+    state_path()
         .map(|path| path.to_string_lossy().into_owned())
-        .unwrap_or_default();
-    let ran = app_handle
-        .shell()
-        .command("bash")
-        .args([script, state])
-        .current_dir(resource_dir)
-        .status();
-    match tokio::time::timeout(SCRIPT_TIMEOUT, ran).await {
-        Err(_) => {
-            logging!(error, Type::Config, "unset system dns timed out");
-            false
-        }
-        Ok(outcome) => match outcome {
-            Ok(status) => {
-                if status.success() {
-                    logging!(info, Type::Config, "unset system dns successfully");
-                    true
-                } else {
-                    let code = status.code().unwrap_or(-1);
-                    logging!(error, Type::Config, "unset system dns failed: {code}");
-                    false
-                }
-            }
-            Err(err) => {
-                logging!(error, Type::Config, "unset system dns failed: {err}");
-                false
-            }
-        },
-    }
+        .unwrap_or_default()
+}
+
+async fn set_public_dns_locked(dns_server: String) -> bool {
+    run_dns_script("set_dns.sh", vec![dns_server, state_arg()], "set system dns").await
+}
+
+async fn restore_public_dns_locked() -> bool {
+    run_dns_script("unset_dns.sh", vec![state_arg()], "unset system dns").await
 }
