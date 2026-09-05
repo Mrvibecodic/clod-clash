@@ -476,11 +476,20 @@ async fn rearm_the_tun_after_wake() {
 }
 
 pub fn spawn_environment_watchdog() {
+    if handle::Handle::global().is_exiting() {
+        return;
+    }
     if WATCHDOG_RUNNING.swap(true, Ordering::AcqRel) {
         return;
     }
 
     AsyncHandler::spawn(|| async {
+        scopeguard::defer! {
+            WATCHDOG_RUNNING.store(false, Ordering::Release);
+            if !handle::Handle::global().is_exiting() {
+                logging!(warn, Type::Core, "[clod] the environment watchdog stopped and will be started again");
+            }
+        }
         let mut last_tick = Instant::now();
         let mut last_awake = sleep_clock::reading();
         let mut last_network = network_fingerprint().map(|view| view.entries).unwrap_or_default();

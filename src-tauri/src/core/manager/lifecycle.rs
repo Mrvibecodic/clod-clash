@@ -147,6 +147,8 @@ impl CoreManager {
             AsyncHandler::spawn(|| async { crate::feat::tun::enforce_undesired_off().await });
         }
 
+        crate::feat::environment::spawn_environment_watchdog();
+
         // После отката к sidecar в фоне ждём готовности службы для передачи
         if matches!(*self.get_running_mode(), RunningMode::Sidecar) {
             self.spawn_service_handoff_watcher().await;

@@ -26,6 +26,7 @@ static SUPPRESSED: AtomicBool = AtomicBool::new(false);
 static START_FAILED: AtomicBool = AtomicBool::new(false);
 static SETUP_RUNNING: AtomicBool = AtomicBool::new(false);
 static WATCHDOG_RUNNING: AtomicBool = AtomicBool::new(false);
+static VERIFY_PENDING: AtomicBool = AtomicBool::new(false);
 static START_ATTEMPTS: AtomicU32 = AtomicU32::new(0);
 static RETRY_PENDING: AtomicBool = AtomicBool::new(false);
 static WATCH_ANCHOR: Mutex<Option<String>> = Mutex::new(None);
@@ -574,6 +575,12 @@ pub async fn enforce_undesired_off() {
     if claimed().await {
         return;
     }
+    if matches!(
+        *crate::core::CoreManager::global().get_running_mode(),
+        crate::core::manager::RunningMode::NotRunning
+    ) {
+        return;
+    }
     let Some((enabled, _)) = read_tun_state().await else {
         return;
     };
@@ -692,8 +699,12 @@ pub async fn log_anchor() -> Option<String> {
 
 pub fn spawn_start_verification(anchor: Option<String>) {
     *WATCH_ANCHOR.lock() = anchor;
+    if VERIFY_PENDING.swap(true, Ordering::AcqRel) {
+        return;
+    }
     AsyncHandler::spawn(|| async {
         tokio::time::sleep(timing::TUN_VERIFY_DELAY).await;
+        VERIFY_PENDING.store(false, Ordering::Release);
         if !claimed().await {
             return;
         }
