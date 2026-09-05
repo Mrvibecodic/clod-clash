@@ -24,15 +24,26 @@ pub struct LocalBackupFile {
     pub content_length: u64,
 }
 
-async fn finalize_restored_verge_config(
-    webdav_url: Option<String>,
-    webdav_username: Option<String>,
-    webdav_password: Option<String>,
-) -> Result<()> {
+async fn machine_local_config() -> IVerge {
+    let verge = Config::verge().await;
+    let verge = verge.latest_arc();
+    IVerge {
+        webdav_url: verge.webdav_url.clone(),
+        webdav_username: verge.webdav_username.clone(),
+        webdav_password: verge.webdav_password.clone(),
+        hwid: verge.hwid.clone(),
+        tun_setup_declined: verge.tun_setup_declined.clone(),
+        ..IVerge::default()
+    }
+}
+
+async fn finalize_restored_verge_config(local: IVerge) -> Result<()> {
     let mut restored = help::read_yaml::<IVerge>(&verge_path()?).await?;
-    restored.webdav_url = webdav_url;
-    restored.webdav_username = webdav_username;
-    restored.webdav_password = webdav_password;
+    restored.webdav_url = local.webdav_url;
+    restored.webdav_username = local.webdav_username;
+    restored.webdav_password = local.webdav_password;
+    restored.hwid = local.hwid;
+    restored.tun_setup_declined = local.tun_setup_declined;
     restored.save_file().await?;
 
     let restored_clash = IClashTemp::new().await;
@@ -98,11 +109,7 @@ pub async fn delete_webdav_backup(filename: String) -> Result<()> {
 }
 
 pub async fn restore_webdav_backup(filename: String) -> Result<()> {
-    let verge = Config::verge().await;
-    let verge_data = verge.latest_arc();
-    let webdav_url = verge_data.webdav_url.clone();
-    let webdav_username = verge_data.webdav_username.clone();
-    let webdav_password = verge_data.webdav_password.clone();
+    let local = machine_local_config().await;
 
     let backup_storage_path = app_home_dir()
         .map_err(|e| anyhow::anyhow!("Failed to get app home dir: {e}"))?
@@ -119,7 +126,7 @@ pub async fn restore_webdav_backup(filename: String) -> Result<()> {
     let file = AsyncHandler::spawn_blocking(move || std::fs::File::open(&value)).await??;
     let mut zip = zip::ZipArchive::new(file)?;
     zip.extract(app_home_dir()?)?;
-    let res = finalize_restored_verge_config(webdav_url, webdav_username, webdav_password).await;
+    let res = finalize_restored_verge_config(local).await;
     let _ = backup_storage_path.remove_if_exists().await;
     res
 }
@@ -296,20 +303,12 @@ pub async fn restore_local_backup(filename: String) -> Result<()> {
         return Err(anyhow!("Backup file not found: {}", filename));
     }
 
-    let (webdav_url, webdav_username, webdav_password) = {
-        let verge = Config::verge().await;
-        let verge = verge.latest_arc();
-        (
-            verge.webdav_url.clone(),
-            verge.webdav_username.clone(),
-            verge.webdav_password.clone(),
-        )
-    };
+    let local = machine_local_config().await;
 
     let file = AsyncHandler::spawn_blocking(move || std::fs::File::open(&target_path)).await??;
     let mut zip = zip::ZipArchive::new(file)?;
     zip.extract(app_home_dir()?)?;
-    finalize_restored_verge_config(webdav_url, webdav_username, webdav_password).await?;
+    finalize_restored_verge_config(local).await?;
     Ok(())
 }
 
