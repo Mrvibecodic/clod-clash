@@ -11,12 +11,14 @@
       },
       "tooltips": {
         "silentStart": "アプリケーションを起動すると、バックグラウンドモードで実行され、アプリケーションパネルは表示されません。",
-        "connectOnLaunch": "起動直後にボタンと同じ接続方法を有効にします。既定ではオフです。"
+        "connectOnLaunch": "起動直後にボタンと同じ接続方法を有効にします。既定ではオフです。",
+        "dnsOverride": "macOS のみ: トンネル使用中はシステムのリゾルバを公開 DNS に切り替え、インターフェースを迂回して送られる問い合わせもトンネルを通します。オフにすると一部はトンネルを通りません。"
       },
       "fields": {
         "autoLaunch": "自動起動",
         "silentStart": "サイレント起動",
-        "connectOnLaunch": "起動時に接続"
+        "connectOnLaunch": "起動時に接続",
+        "dnsOverride": "システム DNS を差し替える"
       },
       "notifications": {
         "sysproxy": {

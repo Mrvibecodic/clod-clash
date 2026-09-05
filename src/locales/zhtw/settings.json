@@ -11,12 +11,14 @@
       },
       "tooltips": {
         "silentStart": "程序啟動時以後台模式執行，不顯示程序面板",
-        "connectOnLaunch": "應用啟動後立即以與按鈕相同的方式建立連線。預設關閉：未經請求不會寫入系統設定。"
+        "connectOnLaunch": "應用啟動後立即以與按鈕相同的方式建立連線。預設關閉：未經請求不會寫入系統設定。",
+        "dnsOverride": "僅 macOS：隧道開啟時會將系統解析器切換為公共 DNS，否則系統繞過介面送出的查詢不會走隧道。關閉後，其中一部分查詢將不經過隧道。"
       },
       "fields": {
         "autoLaunch": "開機自啟",
         "silentStart": "靜默啟動",
-        "connectOnLaunch": "啟動時自動連線"
+        "connectOnLaunch": "啟動時自動連線",
+        "dnsOverride": "覆寫系統 DNS"
       },
       "notifications": {
         "sysproxy": {

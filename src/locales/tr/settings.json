@@ -11,12 +11,14 @@
       },
       "tooltips": {
         "silentStart": "Programı paneli görüntülemeden arka plan modunda başlatır",
-        "connectOnLaunch": "Uygulama açılır açılmaz düğmenin yaptığı bağlantı yöntemini devreye alır. Varsayılan olarak kapalıdır."
+        "connectOnLaunch": "Uygulama açılır açılmaz düğmenin yaptığı bağlantı yöntemini devreye alır. Varsayılan olarak kapalıdır.",
+        "dnsOverride": "Yalnızca macOS: tünel açıkken sistem çözümleyicisi genel bir DNS'e alınır, böylece sistemin arayüzü atlayarak gönderdiği sorgular da tünelden geçer. Kapatırsanız bunların bir kısmı tünelin dışına çıkar."
       },
       "fields": {
         "autoLaunch": "Otomatik Başlat",
         "silentStart": "Sessiz Başlatma",
-        "connectOnLaunch": "Başlatıldığında bağlan"
+        "connectOnLaunch": "Başlatıldığında bağlan",
+        "dnsOverride": "Sistem DNS'ini değiştir"
       },
       "notifications": {
         "sysproxy": {

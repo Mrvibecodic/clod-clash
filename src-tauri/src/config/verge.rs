@@ -165,6 +165,9 @@ pub struct IVerge {
     #[cfg(target_os = "macos")]
     pub enable_tray_speed: Option<bool>,
 
+    #[cfg(target_os = "macos")]
+    pub enable_dns_override: Option<bool>,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tray_proxy_groups_display_mode: Option<String>,
     pub tray_inline_outbound_modes: Option<bool>,
@@ -259,6 +262,9 @@ impl IVerge {
     pub const DEFAULT_RECEIVE_PRERELEASES: bool = false;
 
     pub const DEFAULT_ENABLE_HWID: bool = true;
+
+    #[cfg(target_os = "macos")]
+    pub const DEFAULT_ENABLE_DNS_OVERRIDE: bool = true;
 
     pub const DEFAULT_CONNECT_SYSTEM_PROXY: bool = true;
 
@@ -440,6 +446,8 @@ impl IVerge {
             webdav_password: None,
             #[cfg(target_os = "macos")]
             enable_tray_speed: Some(false),
+            #[cfg(target_os = "macos")]
+            enable_dns_override: Some(Self::DEFAULT_ENABLE_DNS_OVERRIDE),
             tray_proxy_groups_display_mode: Some("default".into()),
             tray_inline_outbound_modes: Some(false),
             enable_global_hotkey: Some(true),
@@ -542,6 +550,8 @@ impl IVerge {
         patch!(webdav_password);
         #[cfg(target_os = "macos")]
         patch!(enable_tray_speed);
+        #[cfg(target_os = "macos")]
+        patch!(enable_dns_override);
         patch!(tray_proxy_groups_display_mode);
         patch!(tray_inline_outbound_modes);
         patch!(enable_auto_light_weight_mode);

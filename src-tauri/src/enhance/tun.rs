@@ -10,37 +10,32 @@ macro_rules! revise {
     };
 }
 
-pub fn use_tun(mut config: Mapping, enable: bool) -> Mapping {
+#[cfg(target_os = "macos")]
+const SYSTEM_DNS_OVERRIDE_SERVER: &str = "114.114.114.114";
+
+pub fn use_tun(mut config: Mapping, enable: bool) -> (Mapping, bool) {
     let tun_key = Value::from("tun");
     let tun_val = config.get(&tun_key);
     let mut tun_val = tun_val.map_or_else(Mapping::new, |val| {
         val.as_mapping().cloned().unwrap_or_else(Mapping::new)
     });
 
-    if enable {
-        let shaped_fake_ip = shape_dns_for_tun(&mut config);
-
-        #[cfg(target_os = "macos")]
-        if shaped_fake_ip && !crate::utils::resolve::dns::has_pending_restore() {
-            AsyncHandler::spawn(move || async move {
-                crate::utils::resolve::dns::set_public_dns("114.114.114.114".to_string()).await;
-            });
-        }
-        #[cfg(not(target_os = "macos"))]
-        let _ = shaped_fake_ip;
-    } else {
-        #[cfg(target_os = "macos")]
-        if crate::utils::resolve::dns::has_pending_restore() {
-            AsyncHandler::spawn(move || async move {
-                crate::utils::resolve::dns::restore_public_dns().await;
-            });
-        }
-    }
+    let shaped_fake_ip = enable && shape_dns_for_tun(&mut config);
 
     revise!(tun_val, "enable", enable);
     revise!(config, "tun", tun_val);
 
-    config
+    (config, shaped_fake_ip)
+}
+
+#[cfg(target_os = "macos")]
+pub fn sync_system_dns(enable: bool, shaped_fake_ip: bool, override_enabled: bool) {
+    use crate::utils::resolve::dns;
+
+    let wanted = override_enabled && enable && (shaped_fake_ip || dns::has_pending_restore());
+    AsyncHandler::spawn(move || async move {
+        dns::sync_override(wanted, SYSTEM_DNS_OVERRIDE_SERVER.to_string()).await;
+    });
 }
 
 fn shape_dns_for_tun(config: &mut Mapping) -> bool {
@@ -88,7 +83,7 @@ pub fn ensure_dns_for_tun(mut config: Mapping, enable: bool) -> Mapping {
 
 #[cfg(test)]
 mod tests {
-    use super::{ensure_dns_for_tun, shape_dns_for_tun};
+    use super::{ensure_dns_for_tun, shape_dns_for_tun, use_tun};
     use serde_yaml_ng::{Mapping, Value};
 
     fn dns_of(config: &Mapping) -> Mapping {
@@ -96,6 +91,30 @@ mod tests {
             .get(Value::from("dns"))
             .and_then(|v| v.as_mapping().cloned())
             .unwrap_or_default()
+    }
+
+    #[test]
+    fn use_tun_reports_fake_ip_only_for_an_enabled_tunnel() {
+        let (config, shaped) = use_tun(Mapping::new(), true);
+        assert!(shaped);
+        assert_eq!(
+            config
+                .get(Value::from("tun"))
+                .and_then(|v| v.as_mapping().cloned())
+                .unwrap_or_default()
+                .get(Value::from("enable")),
+            Some(&Value::from(true))
+        );
+
+        let (_, shaped) = use_tun(Mapping::new(), false);
+        assert!(!shaped);
+
+        let mut dns = Mapping::new();
+        dns.insert(Value::from("enhanced-mode"), Value::from("redir-host"));
+        let mut config = Mapping::new();
+        config.insert(Value::from("dns"), Value::from(dns));
+        let (_, shaped) = use_tun(config, true);
+        assert!(!shaped);
     }
 
     #[test]

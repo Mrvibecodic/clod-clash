@@ -127,9 +127,13 @@ pub async fn clean_async() -> bool {
         )
         .await
         {
-            Ok(_) => {
-                logging!(info, Type::Window, "настройки DNS восстановлены");
-                true
+            Ok(restored) => {
+                if restored {
+                    logging!(info, Type::Window, "настройки DNS восстановлены");
+                } else {
+                    logging!(warn, Type::Window, "Warning: не удалось восстановить настройки DNS");
+                }
+                restored
             }
             Err(_) => {
                 logging!(warn, Type::Window, "Warning: таймаут восстановления настроек DNS");

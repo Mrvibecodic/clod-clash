@@ -11,12 +11,14 @@
       },
       "tooltips": {
         "silentStart": "Die Anwendung wird im Hintergrund gestartet, ohne dass das Programmfenster angezeigt wird.",
-        "connectOnLaunch": "Direkt nach dem Start aktiviert die App dieselbe Verbindungsart wie die Schaltfläche. Standardmäßig aus."
+        "connectOnLaunch": "Direkt nach dem Start aktiviert die App dieselbe Verbindungsart wie die Schaltfläche. Standardmäßig aus.",
+        "dnsOverride": "Nur macOS: Bei aktivem Tunnel wird der System-Resolver auf einen öffentlichen umgestellt, damit Anfragen am Interface vorbei trotzdem durch den Tunnel gehen. Ausgeschaltet läuft ein Teil davon am Tunnel vorbei."
       },
       "fields": {
         "autoLaunch": "Automatischer Start",
         "silentStart": "Leiser Start",
-        "connectOnLaunch": "Beim Start verbinden"
+        "connectOnLaunch": "Beim Start verbinden",
+        "dnsOverride": "System-DNS überschreiben"
       },
       "notifications": {
         "sysproxy": {

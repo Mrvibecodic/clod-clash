@@ -11,12 +11,14 @@
       },
       "tooltips": {
         "silentStart": "Mulai program dalam mode latar belakang tanpa menampilkan panel",
-        "connectOnLaunch": "Segera setelah dijalankan, aplikasi mengaktifkan metode koneksi yang sama seperti tombol. Nonaktif secara bawaan."
+        "connectOnLaunch": "Segera setelah dijalankan, aplikasi mengaktifkan metode koneksi yang sama seperti tombol. Nonaktif secara bawaan.",
+        "dnsOverride": "Khusus macOS: selama terowongan aktif, resolver sistem dialihkan ke DNS publik agar kueri yang dikirim sistem di luar antarmuka tetap melewati terowongan. Jika dimatikan, sebagian kueri akan keluar dari terowongan."
       },
       "fields": {
         "autoLaunch": "Mulai otomatis",
         "silentStart": "Mulai senyap",
-        "connectOnLaunch": "Sambungkan saat dijalankan"
+        "connectOnLaunch": "Sambungkan saat dijalankan",
+        "dnsOverride": "Ganti DNS sistem"
       },
       "notifications": {
         "sysproxy": {

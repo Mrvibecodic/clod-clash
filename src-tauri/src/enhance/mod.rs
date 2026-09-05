@@ -121,6 +121,8 @@ struct ConfigValues {
     http_enabled: bool,
     enable_dns_settings: bool,
     tun_overrides: TunOverrides,
+    #[cfg(target_os = "macos")]
+    enable_dns_override: bool,
     #[cfg(not(target_os = "windows"))]
     redir_enabled: bool,
     #[cfg(target_os = "linux")]
@@ -226,6 +228,11 @@ async fn get_config_values() -> ConfigValues {
         enable_dns_settings.unwrap_or(false),
     );
 
+    #[cfg(target_os = "macos")]
+    let enable_dns_override = verge_arc
+        .enable_dns_override
+        .unwrap_or(IVerge::DEFAULT_ENABLE_DNS_OVERRIDE);
+
     #[cfg(not(target_os = "windows"))]
     let redir_enabled = verge_arc.verge_redir_enabled.unwrap_or(false);
 
@@ -244,6 +251,8 @@ async fn get_config_values() -> ConfigValues {
         http_enabled,
         enable_dns_settings,
         tun_overrides,
+        #[cfg(target_os = "macos")]
+        enable_dns_override,
         #[cfg(not(target_os = "windows"))]
         redir_enabled,
         #[cfg(target_os = "linux")]
@@ -1306,6 +1315,8 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
         http_enabled,
         enable_dns_settings,
         tun_overrides,
+        #[cfg(target_os = "macos")]
+        enable_dns_override,
         #[cfg(not(target_os = "windows"))]
         redir_enabled,
         #[cfg(target_os = "linux")]
@@ -1344,7 +1355,11 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
     .await;
 
     let config = apply_builtin_scripts(config, clash_core, enable_builtin).await;
-    let config = use_tun(config, enable_tun);
+    let (config, shaped_fake_ip) = use_tun(config, enable_tun);
+    #[cfg(target_os = "macos")]
+    crate::enhance::tun::sync_system_dns(enable_tun, shaped_fake_ip, enable_dns_override);
+    #[cfg(not(target_os = "macos"))]
+    let _ = shaped_fake_ip;
     let config = apply_dns_settings(config, enable_dns_settings).await;
     let config = ensure_dns_for_tun(config, enable_tun);
 

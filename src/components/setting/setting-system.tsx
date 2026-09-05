@@ -4,11 +4,14 @@ import { useTranslation } from 'react-i18next'
 import { DialogRef, Switch, TooltipIcon } from '@/components/base'
 import ProxyControlSwitches from '@/components/shared/proxy-control-switches'
 import { useVerge } from '@/hooks/use-verge'
+import getSystem from '@/utils/get-system'
 
 import { GuardState } from './mods/guard-state'
 import { SettingList, SettingItem } from './mods/setting-comp'
 import { SysproxyViewer } from './mods/sysproxy-viewer'
 import { TunViewer } from './mods/tun-viewer'
+
+const OS = getSystem()
 
 interface Props {
   onError?: (err: Error) => void
@@ -19,8 +22,12 @@ const SettingSystem = ({ onError }: Props) => {
 
   const { verge, mutateVerge, patchVerge } = useVerge()
 
-  const { enable_auto_launch, enable_silent_start, connect_on_launch } =
-    verge ?? {}
+  const {
+    enable_auto_launch,
+    enable_silent_start,
+    connect_on_launch,
+    enable_dns_override,
+  } = verge ?? {}
 
   const sysproxyRef = useRef<DialogRef>(null)
   const tunRef = useRef<DialogRef>(null)
@@ -92,6 +99,29 @@ const SettingSystem = ({ onError }: Props) => {
           <Switch edge="end" />
         </GuardState>
       </SettingItem>
+
+      {OS === 'macos' && (
+        <SettingItem
+          label={t('settings.sections.system.fields.dnsOverride')}
+          extra={
+            <TooltipIcon
+              title={t('settings.sections.system.tooltips.dnsOverride')}
+              sx={{ opacity: '0.7' }}
+            />
+          }
+        >
+          <GuardState
+            value={enable_dns_override ?? true}
+            valueProps="checked"
+            onCatch={onError}
+            onFormat={onSwitchFormat}
+            onChange={(e) => onChangeData({ enable_dns_override: e })}
+            onGuard={(e) => patchVerge({ enable_dns_override: e })}
+          >
+            <Switch edge="end" />
+          </GuardState>
+        </SettingItem>
+      )}
 
       <SettingItem
         label={t('settings.sections.system.fields.silentStart')}

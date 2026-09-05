@@ -1316,6 +1316,7 @@ export interface TranslationResources {
           fields: {
             autoLaunch: string
             connectOnLaunch: string
+            dnsOverride: string
             silentStart: string
           }
           notifications: {
@@ -1360,6 +1361,7 @@ export interface TranslationResources {
           }
           tooltips: {
             connectOnLaunch: string
+            dnsOverride: string
             silentStart: string
           }
         }

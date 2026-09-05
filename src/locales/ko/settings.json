@@ -11,12 +11,14 @@
       },
       "tooltips": {
         "silentStart": "패널을 표시하지 않고 백그라운드에서 시작합니다",
-        "connectOnLaunch": "앱을 실행하면 버튼과 동일한 연결 방식을 바로 켭니다. 기본값은 꺼짐입니다."
+        "connectOnLaunch": "앱을 실행하면 버튼과 동일한 연결 방식을 바로 켭니다. 기본값은 꺼짐입니다.",
+        "dnsOverride": "macOS 전용: 터널이 켜져 있는 동안 시스템 리졸버를 공용 DNS로 바꿔, 시스템이 인터페이스를 우회해 보내는 질의도 터널을 지나게 합니다. 끄면 그중 일부는 터널을 거치지 않습니다."
       },
       "fields": {
         "autoLaunch": "자동 실행",
         "silentStart": "백그라운드 시작",
-        "connectOnLaunch": "실행 시 자동 연결"
+        "connectOnLaunch": "실행 시 자동 연결",
+        "dnsOverride": "시스템 DNS 대체"
       },
       "notifications": {
         "sysproxy": {

@@ -900,6 +900,7 @@ interface IVergeConfig {
   sysproxy_tray_icon?: boolean
   tun_tray_icon?: boolean
   enable_tray_speed?: boolean
+  enable_dns_override?: boolean
   tray_proxy_groups_display_mode?: 'default' | 'inline' | 'disable'
   tray_inline_outbound_modes?: boolean
   enable_tun_mode?: boolean

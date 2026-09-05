@@ -11,12 +11,14 @@
       },
       "tooltips": {
         "silentStart": "El programa se ejecutará en segundo plano al iniciarse y no mostrará el panel.",
-        "connectOnLaunch": "Nada más iniciarse, la aplicación activa el mismo método de conexión que el botón. Desactivado de forma predeterminada."
+        "connectOnLaunch": "Nada más iniciarse, la aplicación activa el mismo método de conexión que el botón. Desactivado de forma predeterminada.",
+        "dnsOverride": "Solo macOS: con el túnel activo el resolvedor del sistema pasa a uno público, para que las consultas que el sistema envía fuera de la interfaz también vayan por el túnel. Al desactivarlo, parte de ellas saldrá fuera del túnel."
       },
       "fields": {
         "autoLaunch": "Inicio automático",
         "silentStart": "Inicio silencioso",
-        "connectOnLaunch": "Conectar al iniciar"
+        "connectOnLaunch": "Conectar al iniciar",
+        "dnsOverride": "Sobrescribir el DNS del sistema"
       },
       "notifications": {
         "sysproxy": {
