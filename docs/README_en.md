@@ -106,7 +106,25 @@ editors) is kept — it is simply moved out of sight into an advanced mode.
 * **Quick actions on the home screen**: system proxy, TUN, start with the system and start
   minimized, without opening the settings.
 * **Server selection is not reset** by delay tests or subscription updates; starred servers float
-  to the top and replace one that disappeared.
+  to the top and replace one that disappeared. Picking a server on the home screen or from the
+  tray does not cut live connections: a download already in flight finishes through the previous
+  server, new ones go through the chosen one (the Proxies page still cuts them, for those who need
+  the switch to be immediate).
+* **The client says what is wrong instead of staying silent behind a green icon.** A core that
+  started but does not answer; a proxy port held by another application; a core that crashed and
+  was restarted; a subscription update that failed or a configuration the core rejected; a
+  configuration the background service cannot take — each shows a notification with the cause
+  and, where possible, the action.
+* **The client does not decide for you.** Settings are not rewritten with its own values, someone
+  else's system proxy is left alone, nothing is written while the proxy switch is off, and an empty
+  node group yields `REJECT` rather than letting traffic bypass the tunnel.
+* **Connections are not dropped without a reason.** The core's listeners are recreated only when
+  ports, the tunnel or LAN access change; on a network change connections are closed only when the
+  old path is really gone; sleep is noticed on every platform, Windows included, and after waking
+  stale connections are closed once, with the sleep duration written to the log.
+* **A failed subscription update does not take the working profile away.** A configuration the
+  core rejected, or one that cannot be assembled for the background service, is rolled back, the
+  card is marked "not applied", and the reason is shown in words.
 * **The provider's own words about each server** — the panel puts them in the subscription (a
   host's Server description) and the client shows them under the name instead of the node type.
   What to switch on in the panel is in [REMNAWAVE.md](REMNAWAVE.md).
@@ -149,12 +167,22 @@ Here the only thing the user touches is the switch itself:
 * **Fact, not promise.** The core's output is parsed: when mihomo cannot bring the device up
   (`Start TUN listening error: … operation not permitted`), TUN honestly turns off instead of
   staying green over a dead tunnel. The tray icon and the tray checkmark say the same thing the
-  home screen does — the state of the tunnel, not the stored setting.
+  home screen does — the state of the tunnel, not the stored setting. A failed start gets three
+  attempts, then the tunnel is held down with a named reason; switching it off takes the device
+  down at once; after sleep a tunnel held down for lack of rights is not poked again — sleep does
+  not grant rights.
 * **The core is watched in both modes.** A core that dies on its own is restarted — up to three
-  times in a row — and that now covers the core started by the system service, whose exit nobody
-  is told about: the app asks the core for its version every half a minute and treats two silent
-  rounds in a row as a failure. After a restart the screen refreshes itself instead of showing
-  the servers and delays of the process that died.
+  times in a row — and that covers the core started by the system service too: every half a minute
+  the app asks the service whether the core process is alive and how many times it has been
+  brought back, and checks that the core answers. When the service restarted the core itself, the
+  app restores the server selection, the tray menu and the system proxy and reports the restart;
+  when the core went silent, the app restarts it. A start is confirmed by the core's answer, not by
+  the fact of the process launching: a core that came up and does not answer is stopped with a
+  message instead of staying green.
+* **A configuration the service cannot take does not break the start silently.** When a provider
+  path leads outside the config folder or two providers write to one file, the service refuses the
+  set: the core comes up without it, TUN is unavailable, and the screen says what to fix. After the
+  fix and a core restart the handoff to the service is done again.
 * **Checking the state repairs nothing.** That check can no longer install anything: when the
   service on disk is older, the app says so once and offers to repair it in the settings. Repairs
   come either from that button or from the single per-version pass described above, and only while
