@@ -268,7 +268,7 @@ const ProxyControlSwitches = ({
   if (hidden) return null
 
   return (
-    <Box sx={{ width: '100%', pr: noRightPadding ? 1 : 2 }}>
+    <Box sx={{ boxSizing: 'border-box', pr: noRightPadding ? 1 : 0 }}>
       {target === 'sysproxy' && (
         <SwitchRow
           label={t('settings.sections.proxyControl.fields.systemProxy')}
