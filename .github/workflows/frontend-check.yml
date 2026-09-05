@@ -93,3 +93,7 @@ jobs:
       - name: Check unused frontend code and dependencies
         if: github.event_name != 'pull_request' || steps.check_frontend.outputs.frontend == 'true'
         run: pnpm knip:check
+
+      - name: Check unused backend commands
+        if: github.event_name != 'pull_request' || steps.check_frontend.outputs.frontend == 'true'
+        run: pnpm cmd:check
