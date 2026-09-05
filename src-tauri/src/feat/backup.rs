@@ -1,9 +1,10 @@
 use crate::{
     config::{Config, IClashTemp, IProfiles, IVerge},
+    constants::files::DNS_CONFIG,
     core::backup,
     process::AsyncHandler,
     utils::{
-        dirs::{PathBufExec as _, app_home_dir, local_backup_dir, verge_path},
+        dirs::{self, PathBufExec as _, app_home_dir, local_backup_dir, verge_path},
         help,
     },
 };
@@ -22,6 +23,56 @@ pub struct LocalBackupFile {
     pub path: String,
     pub last_modified: String,
     pub content_length: u64,
+}
+
+fn top_level_backup_files() -> [&'static str; 4] {
+    [dirs::CLASH_CONFIG, dirs::VERGE_CONFIG, dirs::PROFILE_YAML, DNS_CONFIG]
+}
+
+fn restorable_backup_entry(name: &str) -> Option<PathBuf> {
+    if name.is_empty() || name.ends_with('/') {
+        return None;
+    }
+    let mut parts = name.split('/');
+    let first = parts.next()?;
+    match parts.next() {
+        None => top_level_backup_files()
+            .contains(&first)
+            .then(|| PathBuf::from(first)),
+        Some(second) => {
+            if first != "profiles" || parts.next().is_some() || !is_plain_file_name(second) {
+                return None;
+            }
+            Some(PathBuf::from("profiles").join(second))
+        }
+    }
+}
+
+async fn extract_backup(archive: PathBuf, target: PathBuf) -> Result<()> {
+    AsyncHandler::spawn_blocking(move || -> Result<()> {
+        let file = std::fs::File::open(&archive)?;
+        let mut zip = zip::ZipArchive::new(file)?;
+        for index in 0..zip.len() {
+            let mut entry = zip.by_index(index)?;
+            let raw_name = entry.name().to_owned();
+            let Some(relative) = restorable_backup_entry(&raw_name) else {
+                logging!(
+                    warn,
+                    Type::Backup,
+                    "backup entry is not part of a backup and was not unpacked: {raw_name}"
+                );
+                continue;
+            };
+            let destination = target.join(&relative);
+            if let Some(parent) = destination.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            let mut written = std::fs::File::create(&destination)?;
+            std::io::copy(&mut entry, &mut written)?;
+        }
+        Ok(())
+    })
+    .await?
 }
 
 fn machine_local_of(verge: &IVerge) -> IVerge {
@@ -130,11 +181,10 @@ pub async fn restore_webdav_backup(filename: String) -> Result<()> {
             err
         })?;
 
-    let value = backup_storage_path.clone();
-    let file = AsyncHandler::spawn_blocking(move || std::fs::File::open(&value)).await??;
-    let mut zip = zip::ZipArchive::new(file)?;
-    zip.extract(app_home_dir()?)?;
-    let res = finalize_restored_verge_config(local).await;
+    let res = match extract_backup(backup_storage_path.clone(), app_home_dir()?).await {
+        Ok(()) => finalize_restored_verge_config(local).await,
+        Err(err) => Err(err),
+    };
     let _ = backup_storage_path.remove_if_exists().await;
     res
 }
@@ -313,9 +363,7 @@ pub async fn restore_local_backup(filename: String) -> Result<()> {
 
     let local = machine_local_config().await;
 
-    let file = AsyncHandler::spawn_blocking(move || std::fs::File::open(&target_path)).await??;
-    let mut zip = zip::ZipArchive::new(file)?;
-    zip.extract(app_home_dir()?)?;
+    extract_backup(target_path, app_home_dir()?).await?;
     finalize_restored_verge_config(local).await?;
     Ok(())
 }
@@ -339,8 +387,9 @@ pub async fn export_local_backup(filename: String, dest_path: PathBuf) -> Result
 
 #[cfg(test)]
 mod tests {
-    use super::{is_plain_file_name, keep_machine_local, machine_local_of};
+    use super::{is_plain_file_name, keep_machine_local, machine_local_of, restorable_backup_entry};
     use crate::config::IVerge;
+    use std::path::PathBuf;
 
     #[test]
     fn names_that_leave_the_backup_directory_are_rejected() {
@@ -443,5 +492,62 @@ mod tests {
 
         assert_eq!(restored.hwid, None);
         assert_eq!(restored.webdav_url, None);
+    }
+
+    #[test]
+    fn everything_the_app_puts_into_a_backup_is_unpacked() {
+        for name in [
+            "config.yaml",
+            "verge.yaml",
+            "profiles.yaml",
+            "dns_config.yaml",
+            "profiles/Rmc1x0.yaml",
+            "profiles/моя подписка.yaml",
+        ] {
+            assert!(
+                restorable_backup_entry(name).is_some(),
+                "a legitimate backup entry was refused: {name}"
+            );
+        }
+        assert_eq!(
+            restorable_backup_entry("profiles/Rmc1x0.yaml"),
+            Some(PathBuf::from("profiles").join("Rmc1x0.yaml"))
+        );
+    }
+
+    #[test]
+    fn service_files_that_have_no_business_in_a_backup_are_left_alone() {
+        for name in [
+            ".core-digests.json",
+            ".geo-assets.json",
+            "encryption.key",
+            "mihomo.exe",
+            "logs/latest.log",
+            "profiles/nested/evil.yaml",
+            "profiles/",
+            "",
+        ] {
+            assert!(
+                restorable_backup_entry(name).is_none(),
+                "an entry outside the backup was accepted: {name:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn entries_that_try_to_leave_the_folder_are_refused() {
+        for name in [
+            "../verge.yaml",
+            "../../etc/passwd",
+            "profiles/../../verge.yaml",
+            "profiles/..\\..\\verge.yaml",
+            "/etc/passwd",
+            "C:\\Windows\\System32\\drivers\\etc\\hosts",
+        ] {
+            assert!(
+                restorable_backup_entry(name).is_none(),
+                "a traversal entry was accepted: {name:?}"
+            );
+        }
     }
 }
