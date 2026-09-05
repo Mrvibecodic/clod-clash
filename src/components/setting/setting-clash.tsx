@@ -243,7 +243,11 @@ const SettingClash = ({ onError }: Props) => {
       >
         <GuardState
           value={
-            unifiedDelay === true ? 'on' : unifiedDelay === false ? 'off' : 'auto'
+            unifiedDelay === true
+              ? 'on'
+              : unifiedDelay === false
+                ? 'off'
+                : 'auto'
           }
           onCatch={onError}
           onFormat={(e: any) => e.target.value}

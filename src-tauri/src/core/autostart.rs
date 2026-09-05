@@ -2,7 +2,6 @@
 use crate::utils::schtasks;
 use crate::{config::Config, core::handle::Handle};
 use anyhow::Result;
-#[cfg(not(target_os = "windows"))]
 use clash_verge_logging::{Type, logging};
 #[cfg(not(target_os = "windows"))]
 use tauri_plugin_autostart::ManagerExt as _;
