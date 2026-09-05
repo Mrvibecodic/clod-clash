@@ -24,9 +24,7 @@ pub struct LocalBackupFile {
     pub content_length: u64,
 }
 
-async fn machine_local_config() -> IVerge {
-    let verge = Config::verge().await;
-    let verge = verge.latest_arc();
+fn machine_local_of(verge: &IVerge) -> IVerge {
     IVerge {
         webdav_url: verge.webdav_url.clone(),
         webdav_username: verge.webdav_username.clone(),
@@ -37,13 +35,23 @@ async fn machine_local_config() -> IVerge {
     }
 }
 
-async fn finalize_restored_verge_config(local: IVerge) -> Result<()> {
-    let mut restored = help::read_yaml::<IVerge>(&verge_path()?).await?;
+fn keep_machine_local(restored: &mut IVerge, local: IVerge) {
     restored.webdav_url = local.webdav_url;
     restored.webdav_username = local.webdav_username;
     restored.webdav_password = local.webdav_password;
     restored.hwid = local.hwid;
     restored.tun_setup_declined = local.tun_setup_declined;
+}
+
+async fn machine_local_config() -> IVerge {
+    let verge = Config::verge().await;
+    let verge = verge.latest_arc();
+    machine_local_of(&verge)
+}
+
+async fn finalize_restored_verge_config(local: IVerge) -> Result<()> {
+    let mut restored = help::read_yaml::<IVerge>(&verge_path()?).await?;
+    keep_machine_local(&mut restored, local);
     restored.save_file().await?;
 
     let restored_clash = IClashTemp::new().await;
@@ -331,7 +339,8 @@ pub async fn export_local_backup(filename: String, dest_path: PathBuf) -> Result
 
 #[cfg(test)]
 mod tests {
-    use super::is_plain_file_name;
+    use super::{is_plain_file_name, keep_machine_local, machine_local_of};
+    use crate::config::IVerge;
 
     #[test]
     fn names_that_leave_the_backup_directory_are_rejected() {
@@ -366,5 +375,73 @@ mod tests {
     fn an_imported_file_keeps_its_own_name() {
         assert!(is_plain_file_name("моя копия (2).zip"));
         assert!(is_plain_file_name("backup 2026.08.23.zip"));
+    }
+
+    fn this_machine() -> IVerge {
+        IVerge {
+            webdav_url: Some("https://my-nas.local/dav".into()),
+            webdav_username: Some("me".into()),
+            webdav_password: Some("mine".into()),
+            hwid: Some("this-machine".into()),
+            tun_setup_declined: Some("0.1.10".into()),
+            language: Some("ru".into()),
+            ..IVerge::default()
+        }
+    }
+
+    fn the_other_machine() -> IVerge {
+        IVerge {
+            webdav_url: Some("https://their-nas.local/dav".into()),
+            webdav_username: Some("them".into()),
+            webdav_password: Some("theirs".into()),
+            hwid: Some("their-machine".into()),
+            tun_setup_declined: Some("0.1.4".into()),
+            language: Some("en".into()),
+            enable_tun_mode: Some(true),
+            ..IVerge::default()
+        }
+    }
+
+    #[test]
+    fn only_the_machine_bound_fields_are_taken_from_this_machine() {
+        let local = machine_local_of(&this_machine());
+        assert_eq!(local.hwid.as_deref(), Some("this-machine"));
+        assert_eq!(local.webdav_username.as_deref(), Some("me"));
+        assert_eq!(local.tun_setup_declined.as_deref(), Some("0.1.10"));
+        assert_eq!(local.language, None);
+        assert_eq!(local.enable_tun_mode, None);
+    }
+
+    #[test]
+    fn a_backup_from_another_machine_does_not_bring_its_fingerprint() {
+        let local = machine_local_of(&this_machine());
+        let mut restored = the_other_machine();
+        keep_machine_local(&mut restored, local);
+
+        assert_eq!(restored.hwid.as_deref(), Some("this-machine"));
+        assert_eq!(restored.webdav_url.as_deref(), Some("https://my-nas.local/dav"));
+        assert_eq!(restored.webdav_username.as_deref(), Some("me"));
+        assert_eq!(restored.webdav_password.as_deref(), Some("mine"));
+        assert_eq!(restored.tun_setup_declined.as_deref(), Some("0.1.10"));
+    }
+
+    #[test]
+    fn everything_else_still_comes_from_the_backup() {
+        let local = machine_local_of(&this_machine());
+        let mut restored = the_other_machine();
+        keep_machine_local(&mut restored, local);
+
+        assert_eq!(restored.language.as_deref(), Some("en"));
+        assert_eq!(restored.enable_tun_mode, Some(true));
+    }
+
+    #[test]
+    fn a_machine_without_a_fingerprint_yet_does_not_inherit_one() {
+        let local = machine_local_of(&IVerge::default());
+        let mut restored = the_other_machine();
+        keep_machine_local(&mut restored, local);
+
+        assert_eq!(restored.hwid, None);
+        assert_eq!(restored.webdav_url, None);
     }
 }

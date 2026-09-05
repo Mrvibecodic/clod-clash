@@ -6,6 +6,10 @@ use clash_verge_logging::{Type, logging};
 use std::env;
 use tauri_plugin_clipboard_manager::ClipboardExt as _;
 
+fn goes_through(chains: &[std::string::String], previous_proxy: &str) -> bool {
+    chains.iter().any(|hop| hop == previous_proxy)
+}
+
 pub async fn close_connections_via(previous_proxy: &str) -> usize {
     if previous_proxy.trim().is_empty() {
         return 0;
@@ -28,7 +32,7 @@ pub async fn close_connections_via(previous_proxy: &str) -> usize {
         .connections
         .unwrap_or_default()
         .into_iter()
-        .filter(|conn| conn.chains.iter().any(|hop| hop == previous_proxy))
+        .filter(|conn| goes_through(&conn.chains, previous_proxy))
         .map(|conn| conn.id)
         .collect();
     let mut closed = 0;
@@ -168,5 +172,39 @@ pub async fn copy_clash_env() {
 
     if clipboard.write_text(&export_text).is_err() {
         logging!(error, Type::ProxyMode, "Failed to write to clipboard");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::goes_through;
+
+    fn chain(hops: &[&str]) -> Vec<std::string::String> {
+        hops.iter().map(|hop| (*hop).to_owned()).collect()
+    }
+
+    #[test]
+    fn a_connection_through_the_previous_node_is_recognised() {
+        assert!(goes_through(&chain(&["Germany 01"]), "Germany 01"));
+    }
+
+    #[test]
+    fn a_relay_counts_wherever_the_node_sits_in_the_chain() {
+        assert!(goes_through(&chain(&["Germany 01", "Relay", "GLOBAL"]), "GLOBAL"));
+        assert!(goes_through(&chain(&["Germany 01", "Relay", "GLOBAL"]), "Relay"));
+    }
+
+    #[test]
+    fn other_connections_are_left_alone() {
+        assert!(!goes_through(&chain(&["Germany 02"]), "Germany 01"));
+        assert!(!goes_through(&chain(&[]), "Germany 01"));
+        assert!(!goes_through(&chain(&["DIRECT"]), "Germany 01"));
+    }
+
+    #[test]
+    fn the_node_name_is_matched_whole_not_by_prefix() {
+        assert!(!goes_through(&chain(&["Germany 011"]), "Germany 01"));
+        assert!(!goes_through(&chain(&["Germany 0"]), "Germany 01"));
+        assert!(!goes_through(&chain(&["germany 01"]), "Germany 01"));
     }
 }
