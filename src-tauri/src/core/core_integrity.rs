@@ -137,10 +137,29 @@ pub enum WriteAccess {
     Unprivileged,
 }
 
-fn directory_write_access(path: &Path) -> WriteAccess {
-    let Some(dir) = path.parent() else {
-        return WriteAccess::Unprivileged;
-    };
+fn looks_like_a_privileged_root(dir: &Path) -> bool {
+    let text = dir.to_string_lossy().to_ascii_lowercase().replace('\\', "/");
+    [
+        "/program files",
+        "/programdata",
+        "/windows/",
+        "/applications/",
+        "/library/",
+        "/usr/",
+        "/opt/",
+    ]
+    .iter()
+    .any(|root| text.contains(root))
+}
+
+fn write_access_of(dir: &Path, elevated: bool) -> WriteAccess {
+    if elevated {
+        return if looks_like_a_privileged_root(dir) {
+            WriteAccess::AdminOnly
+        } else {
+            WriteAccess::Unprivileged
+        };
+    }
     let probe = dir.join(format!(".clod-write-probe-{}", std::process::id()));
     match std::fs::OpenOptions::new().write(true).create_new(true).open(&probe) {
         Ok(file) => {
@@ -151,6 +170,13 @@ fn directory_write_access(path: &Path) -> WriteAccess {
         Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => WriteAccess::Unprivileged,
         Err(_) => WriteAccess::AdminOnly,
     }
+}
+
+fn directory_write_access(path: &Path) -> WriteAccess {
+    let Some(dir) = path.parent() else {
+        return WriteAccess::Unprivileged;
+    };
+    write_access_of(dir, crate::feat::tun::is_app_elevated())
 }
 
 #[derive(Debug)]
@@ -216,7 +242,7 @@ pub async fn ensure_elevated_binary_is_known(path: &Path) -> Result<()> {
 #[allow(clippy::expect_used)]
 mod tests {
     use super::{
-        CoreBinaryChanged, WriteAccess, digest_of, digest_of_bytes, directory_write_access, is_core_binary_changed,
+        CoreBinaryChanged, WriteAccess, digest_of, digest_of_bytes, is_core_binary_changed, write_access_of,
     };
 
     #[test]
@@ -226,7 +252,7 @@ mod tests {
         let binary = dir.join("verge-mihomo");
         std::fs::write(&binary, b"core").expect("write");
 
-        assert_eq!(directory_write_access(&binary), WriteAccess::Unprivileged);
+        assert_eq!(write_access_of(&dir, false), WriteAccess::Unprivileged);
         let left: Vec<_> = std::fs::read_dir(&dir)
             .expect("read dir")
             .filter_map(Result::ok)
@@ -239,10 +265,8 @@ mod tests {
 
     #[test]
     fn a_directory_that_does_not_exist_counts_as_closed() {
-        let missing = std::env::temp_dir()
-            .join(format!("clod-core-probe-missing-{}", std::process::id()))
-            .join("verge-mihomo");
-        assert_eq!(directory_write_access(&missing), WriteAccess::AdminOnly);
+        let missing = std::env::temp_dir().join(format!("clod-core-probe-missing-{}", std::process::id()));
+        assert_eq!(write_access_of(&missing, false), WriteAccess::AdminOnly);
     }
 
     #[test]
@@ -277,5 +301,37 @@ mod tests {
     async fn missing_file_is_an_error_not_a_silent_pass() {
         let missing = std::env::temp_dir().join("clod-core-pin-does-not-exist");
         assert!(digest_of(&missing).await.is_err());
+    }
+
+    #[test]
+    fn run_as_administrator_no_longer_calls_a_protected_folder_open_to_everyone() {
+        for dir in [
+            r"C:\Program Files\Clod Clash",
+            r"C:\Program Files (x86)\Clod Clash",
+            r"C:\ProgramData\clod-clash",
+            "/Applications/Clod Clash.app/Contents/Resources",
+            "/usr/lib/clod-clash",
+        ] {
+            assert_eq!(
+                write_access_of(std::path::Path::new(dir), true),
+                WriteAccess::AdminOnly,
+                "a protected folder was taken for a writable one: {dir}"
+            );
+        }
+    }
+
+    #[test]
+    fn run_as_administrator_still_distrusts_a_user_writable_folder() {
+        for dir in [
+            r"C:\Users\alex\AppData\Local\clod-clash",
+            r"D:\portable\clod-clash",
+            "/home/alex/.local/share/clod-clash",
+        ] {
+            assert_eq!(
+                write_access_of(std::path::Path::new(dir), true),
+                WriteAccess::Unprivileged,
+                "a user folder was taken for a protected one: {dir}"
+            );
+        }
     }
 }
