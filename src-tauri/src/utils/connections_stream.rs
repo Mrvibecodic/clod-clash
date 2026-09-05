@@ -9,9 +9,7 @@ use tokio::time::Instant;
 /// Ёмкость ограниченной очереди потока Mihomo WebSocket, предотвращает
 /// неограниченный рост памяти в нештатных ситуациях.
 const MIHOMO_WS_STREAM_BUFFER_SIZE: usize = 8;
-/// Код закрытия при разрыве соединения Mihomo WebSocket (стандартное
-/// нормальное закрытие по RFC 6455).
-const MIHOMO_WS_STREAM_CLOSE_CODE: u64 = 1000;
+const MIHOMO_WS_STREAM_FORCE_CLOSE_WAIT_MS: u64 = 1000;
 
 /// Событие мгновенной скорости `/traffic` (байт/сек).
 #[derive(Debug, Clone, Copy)]
@@ -148,7 +146,7 @@ impl<T> MihomoWsEventStream<T> {
 pub async fn disconnect_connection(connection_id: ConnectionId) {
     if let Err(err) = handle::Handle::mihomo()
         .await
-        .disconnect(connection_id, Some(MIHOMO_WS_STREAM_CLOSE_CODE))
+        .disconnect(connection_id, Some(MIHOMO_WS_STREAM_FORCE_CLOSE_WAIT_MS))
         .await
     {
         logging!(
