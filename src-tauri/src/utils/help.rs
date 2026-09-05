@@ -125,7 +125,9 @@ async fn sync_parent_directory(path: &Path) {
 }
 
 #[cfg(not(unix))]
-async fn sync_parent_directory(_path: &Path) {}
+fn sync_parent_directory(_path: &Path) -> impl std::future::Future<Output = ()> {
+    std::future::ready(())
+}
 
 pub async fn write_atomic(path: &Path, contents: &[u8]) -> Result<()> {
     let staging = staging_path(path);
