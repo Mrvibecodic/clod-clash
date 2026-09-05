@@ -13,8 +13,7 @@ pub async fn close_connections_via(previous_proxy: &str) -> usize {
     if !Config::verge().await.latest_arc().auto_close_connection() {
         return 0;
     }
-    let mihomo = handle::Handle::mihomo().await;
-    let listed = match mihomo.get_connections().await {
+    let listed = match handle::Handle::mihomo().await.get_connections().await {
         Ok(listed) => listed,
         Err(err) => {
             logging!(
@@ -34,7 +33,7 @@ pub async fn close_connections_via(previous_proxy: &str) -> usize {
         .collect();
     let mut closed = 0;
     for id in &ids {
-        match mihomo.close_connection(id).await {
+        match handle::Handle::mihomo().await.close_connection(id).await {
             Ok(()) => closed += 1,
             Err(err) => logging!(debug, Type::ProxyMode, "connection {id} was not closed: {err}"),
         }

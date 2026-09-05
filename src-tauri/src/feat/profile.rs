@@ -16,13 +16,17 @@ pub async fn toggle_proxy_profile(profile_index: String) {
 }
 
 pub async fn switch_proxy_node(group_name: &str, proxy_name: &str) {
-    let previous = handle::Handle::mihomo()
-        .await
-        .get_group_by_name(group_name)
-        .await
-        .ok()
-        .and_then(|group| group.now)
-        .filter(|now| now != proxy_name);
+    let previous = match handle::Handle::mihomo().await.get_group_by_name(group_name).await {
+        Ok(group) => group.now.filter(|now| now != proxy_name),
+        Err(err) => {
+            logging!(
+                warn,
+                Type::Tray,
+                "Warning: не удалось узнать прежний узел группы {group_name}, соединения не закрываются: {err}"
+            );
+            None
+        }
+    };
     match handle::Handle::mihomo()
         .await
         .select_node_for_group(group_name, proxy_name)
