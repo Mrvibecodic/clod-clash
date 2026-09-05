@@ -598,6 +598,7 @@ const PING_GAP_MS = 60_000
 const PING_RETRY_MS = 5_000
 const PING_RETRY_LIMIT = 6
 const PING_TIMEOUT_MS = 10_000
+const TRAY_DELAY_TEST_BATCH = 4
 let lastAutoPingAt = 0
 
 export const ServerSelectRow = ({ onOpen }: RowProps) => {
@@ -644,6 +645,11 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
 
   const groupName = group?.name
   const updatedAt = currentProfile?.updated ?? 0
+  const trayTestNodesRef = useRef<IProxyItem[]>([])
+  trayTestNodesRef.current = (group?.all ?? [])
+    .filter((node) => !isCorePlaceholder(node.name))
+    .map((node) => records[node.name] as IProxyItem | undefined)
+    .filter((node): node is IProxyItem => !!node)
   const trayShowsDelays =
     (verge?.tray_proxy_groups_display_mode ?? 'default') !== 'disable'
   useEffect(() => {
@@ -656,12 +662,31 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
       // clod:Э11-08 — тест автоматический, тостом о нём дёргать человека не за
       // что; но и глотать молча нельзя: если ядро не вернуло закрепление, это
       // единственный след в поддержку.
-      runGroupDelayTest(groupName).catch((error) => {
+      const test = visible
+        ? runGroupDelayTest(groupName)
+        : delayManager
+            .checkListDelay(
+              trayTestNodesRef.current,
+              groupName,
+              PING_TIMEOUT_MS,
+              TRAY_DELAY_TEST_BATCH,
+            )
+            .finally(() => {
+              refreshProxy().catch(() => {})
+            })
+      test.catch((error) => {
         console.error(`Автотест задержек группы ${groupName} не прошёл:`, error)
       })
     }, 800)
     return () => window.clearTimeout(timer)
-  }, [visible, trayShowsDelays, groupName, updatedAt, runGroupDelayTest])
+  }, [
+    visible,
+    trayShowsDelays,
+    groupName,
+    updatedAt,
+    runGroupDelayTest,
+    refreshProxy,
+  ])
 
   useEffect(() => {
     if (!visible || !groupName || !pingTarget) return
