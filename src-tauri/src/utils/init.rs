@@ -653,6 +653,59 @@ pub async fn init_config() -> Result<()> {
     Ok(())
 }
 
+const GEO_ASSET_MARKER: &str = ".geo-assets.json";
+
+type AssetStamp = (u64, u64);
+
+async fn asset_stamp(path: &PathBuf) -> Option<AssetStamp> {
+    let meta = fs::metadata(path).await.ok()?;
+    let modified = meta
+        .modified()
+        .ok()?
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?
+        .as_secs();
+    Some((meta.len(), modified))
+}
+
+fn should_copy_bundled_asset(
+    src: Option<AssetStamp>,
+    dest: Option<AssetStamp>,
+    delivered: Option<AssetStamp>,
+) -> bool {
+    let Some(src) = src else {
+        return false;
+    };
+    let Some(dest) = dest else {
+        return true;
+    };
+    if delivered.is_some_and(|delivered| delivered != dest) {
+        return false;
+    }
+    src.1 > dest.1
+}
+
+async fn read_delivered_assets(marker: &PathBuf) -> std::collections::HashMap<String, AssetStamp> {
+    let raw = match fs::read_to_string(marker).await {
+        Ok(raw) => raw,
+        Err(_) => return std::collections::HashMap::new(),
+    };
+    serde_json::from_str(&raw).unwrap_or_default()
+}
+
+async fn write_delivered_assets(marker: &PathBuf, delivered: &std::collections::HashMap<String, AssetStamp>) {
+    match serde_json::to_string(delivered) {
+        Ok(raw) => {
+            if let Err(err) = fs::write(marker, raw).await {
+                logging!(debug, Type::Setup, "failed to record delivered geo assets: {}", err);
+            }
+        }
+        Err(err) => {
+            logging!(debug, Type::Setup, "failed to encode delivered geo assets: {}", err);
+        }
+    }
+}
+
 pub async fn init_resources() -> Result<()> {
     let app_dir = dirs::app_home_dir()?;
     let res_dir = dirs::app_resources_dir()?;
@@ -665,30 +718,33 @@ pub async fn init_resources() -> Result<()> {
     }
 
     let file_list = ["Country.mmdb", "geoip.dat", "geosite.dat"];
+    let marker = app_dir.join(GEO_ASSET_MARKER);
+    let mut delivered = read_delivered_assets(&marker).await;
+    let mut delivered_changed = false;
 
     for file in file_list.iter() {
         let src_path = res_dir.join(file);
         let dest_path = app_dir.join(file);
 
-        if src_path.exists() && !dest_path.exists() {
+        let src = asset_stamp(&src_path).await;
+        let dest = asset_stamp(&dest_path).await;
+
+        if should_copy_bundled_asset(src, dest, delivered.get(*file).copied()) {
             handle_copy(&src_path, &dest_path, file).await;
-            continue;
+            if let Some(stamp) = asset_stamp(&dest_path).await {
+                delivered.insert((*file).to_string(), stamp);
+                delivered_changed = true;
+            }
+        } else if let Some(stamp) = dest
+            && !delivered.contains_key(*file)
+        {
+            delivered.insert((*file).to_string(), stamp);
+            delivered_changed = true;
         }
+    }
 
-        let src_modified = fs::metadata(&src_path).await.and_then(|m| m.modified());
-        let dest_modified = fs::metadata(&dest_path).await.and_then(|m| m.modified());
-
-        match (src_modified, dest_modified) {
-            (Ok(src_modified), Ok(dest_modified)) => {
-                if src_modified > dest_modified {
-                    handle_copy(&src_path, &dest_path, file).await;
-                }
-            }
-            _ => {
-                logging!(debug, Type::Setup, "failed to get modified '{}'", file);
-                handle_copy(&src_path, &dest_path, file).await;
-            }
-        };
+    if delivered_changed {
+        write_delivered_assets(&marker, &delivered).await;
     }
 
     Ok(())
@@ -830,9 +886,31 @@ async fn handle_copy(src: &PathBuf, dest: &PathBuf, file: &str) {
 mod tests {
     use super::{
         DNS_CONFIG_HEADER, default_dns_config, dns_config_problem, drop_legacy_dns_keys, has_untouched_legacy_fallback,
-        has_user_comments, legacy_fallback_filter, seeded_dns_block,
+        has_user_comments, legacy_fallback_filter, seeded_dns_block, should_copy_bundled_asset,
     };
     use serde_yaml_ng::{Mapping, Value};
+
+    #[test]
+    fn a_missing_geo_asset_is_delivered() {
+        assert!(should_copy_bundled_asset(Some((10, 100)), None, None));
+    }
+
+    #[test]
+    fn a_newer_bundled_geo_asset_replaces_the_one_we_delivered() {
+        assert!(should_copy_bundled_asset(Some((10, 200)), Some((10, 100)), Some((10, 100))));
+        assert!(!should_copy_bundled_asset(Some((10, 50)), Some((10, 100)), Some((10, 100))));
+    }
+
+    #[test]
+    fn a_geo_asset_updated_by_the_core_is_left_alone() {
+        assert!(!should_copy_bundled_asset(Some((10, 200)), Some((12, 150)), Some((10, 100))));
+    }
+
+    #[test]
+    fn without_a_marker_the_previous_rule_applies() {
+        assert!(should_copy_bundled_asset(Some((10, 200)), Some((12, 150)), None));
+        assert!(!should_copy_bundled_asset(None, Some((12, 150)), None));
+    }
 
     fn dns_with_legacy_fallback() -> Mapping {
         Mapping::from_iter([

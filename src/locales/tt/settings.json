@@ -696,7 +696,7 @@
         "upgradeFailed": "Үзәкне яңартып булмады:",
         "changeSuccess": "Ядро уңышлы алыштырылды",
         "changeFailed": "Ядро алыштыру уңышсыз булды",
-        "geoDataUpdated": "GeoData яңартылды"
+        "geoDataUpdated": "Ядро GeoData яңарту соравын кабул итте"
       },
       "clashService": {
         "uninstallSuccess": "Сервис уңышлы салдырылды"

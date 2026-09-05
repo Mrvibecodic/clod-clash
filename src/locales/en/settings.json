@@ -696,7 +696,7 @@
         "upgradeFailed": "Could not update the core:",
         "changeSuccess": "Core changed successfully",
         "changeFailed": "Failed to change core",
-        "geoDataUpdated": "GeoData Updated"
+        "geoDataUpdated": "The core accepted the GeoData update request"
       },
       "clashService": {
         "uninstallSuccess": "Service Uninstalled Successfully"

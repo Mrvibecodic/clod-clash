@@ -696,7 +696,7 @@
         "upgradeFailed": "تعذّر تحديث النواة:",
         "changeSuccess": "تم تغيير النواة بنجاح",
         "changeFailed": "فشل تغيير النواة",
-        "geoDataUpdated": "تم تحديث البيانات الجغرافية"
+        "geoDataUpdated": "قبل النواة طلب تحديث بيانات GeoData"
       },
       "clashService": {
         "uninstallSuccess": "تم إلغاء تثبيت الخدمة بنجاح"

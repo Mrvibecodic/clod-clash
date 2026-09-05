@@ -696,7 +696,7 @@
         "upgradeFailed": "コアを更新できませんでした:",
         "changeSuccess": "コアの切り替えに成功しました。",
         "changeFailed": "コアの切り替えに失敗しました。",
-        "geoDataUpdated": "GeoDataが更新されました。"
+        "geoDataUpdated": "コアが GeoData の更新要求を受け付けました"
       },
       "clashService": {
         "uninstallSuccess": "サービスのアンインストールに成功しました。"

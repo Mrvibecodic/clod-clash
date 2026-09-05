@@ -696,7 +696,7 @@
         "upgradeFailed": "Çekirdek güncellenemedi:",
         "changeSuccess": "Çekirdek başarıyla değiştirildi",
         "changeFailed": "Çekirdek değiştirilemedi",
-        "geoDataUpdated": "GeoData Güncellendi"
+        "geoDataUpdated": "Çekirdek GeoData güncelleme isteğini kabul etti"
       },
       "clashService": {
         "uninstallSuccess": "Hizmet Başarıyla Kaldırıldı"

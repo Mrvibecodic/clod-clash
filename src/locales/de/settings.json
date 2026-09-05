@@ -696,7 +696,7 @@
         "upgradeFailed": "Der Kern konnte nicht aktualisiert werden:",
         "changeSuccess": "Kern erfolgreich gewechselt",
         "changeFailed": "Kernwechsel fehlgeschlagen",
-        "geoDataUpdated": "Geo-Daten wurden aktualisiert"
+        "geoDataUpdated": "Der Core hat die GeoData-Aktualisierung entgegengenommen"
       },
       "clashService": {
         "uninstallSuccess": "Service erfolgreich deinstalliert"

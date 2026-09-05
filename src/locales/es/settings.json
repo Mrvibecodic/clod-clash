@@ -696,7 +696,7 @@
         "upgradeFailed": "No se pudo actualizar el núcleo:",
         "changeSuccess": "Núcleo cambiado con éxito",
         "changeFailed": "No se pudo cambiar el núcleo",
-        "geoDataUpdated": "GeoData actualizado"
+        "geoDataUpdated": "El núcleo aceptó la solicitud de actualización de GeoData"
       },
       "clashService": {
         "uninstallSuccess": "Servicio desinstalado con éxito"

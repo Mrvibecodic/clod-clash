@@ -696,7 +696,7 @@
         "upgradeFailed": "Не удалось обновить ядро:",
         "changeSuccess": "Ядро успешно изменено",
         "changeFailed": "Не удалось сменить ядро",
-        "geoDataUpdated": "Файлы GeoData обновлены"
+        "geoDataUpdated": "Ядро приняло запрос на обновление GeoData"
       },
       "clashService": {
         "uninstallSuccess": "Служба успешно удалена"

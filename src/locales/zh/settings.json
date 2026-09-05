@@ -696,7 +696,7 @@
         "upgradeFailed": "无法更新内核：",
         "changeSuccess": "内核切换成功",
         "changeFailed": "无法切换内核",
-        "geoDataUpdated": "已更新 GeoData"
+        "geoDataUpdated": "内核已接受 GeoData 更新请求"
       },
       "clashService": {
         "uninstallSuccess": "已成功卸载服务"

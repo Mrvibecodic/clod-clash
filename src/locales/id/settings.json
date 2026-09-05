@@ -696,7 +696,7 @@
         "upgradeFailed": "Inti tidak dapat diperbarui:",
         "changeSuccess": "Inti berhasil diubah",
         "changeFailed": "Gagal mengubah inti",
-        "geoDataUpdated": "GeoData Diperbarui"
+        "geoDataUpdated": "Core menerima permintaan pembaruan GeoData"
       },
       "clashService": {
         "uninstallSuccess": "Layanan Berhasil Dicopot"

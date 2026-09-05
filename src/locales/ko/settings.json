@@ -696,7 +696,7 @@
         "upgradeFailed": "코어를 업데이트하지 못했습니다:",
         "changeSuccess": "코어 변경 성공",
         "changeFailed": "코어 변경 실패",
-        "geoDataUpdated": "GeoData가 업데이트되었습니다"
+        "geoDataUpdated": "코어가 GeoData 업데이트 요청을 접수했습니다"
       },
       "clashService": {
         "uninstallSuccess": "서비스가 제거되었습니다"

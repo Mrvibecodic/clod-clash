@@ -696,7 +696,7 @@
         "upgradeFailed": "無法更新核心：",
         "changeSuccess": "內核切換成功",
         "changeFailed": "無法切換內核",
-        "geoDataUpdated": "已更新 GeoData"
+        "geoDataUpdated": "核心已接受 GeoData 更新請求"
       },
       "clashService": {
         "uninstallSuccess": "已成功解除安裝服務"
