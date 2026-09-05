@@ -80,7 +80,7 @@ export const useRuntimeConfig = (shouldFetch: boolean = true) => {
   })
 }
 
-export const useCoreLadder = () => {
+const useCoreLadder = () => {
   return useQuery({
     queryKey: ['getCoreLadder'],
     queryFn: getCoreLadder,
