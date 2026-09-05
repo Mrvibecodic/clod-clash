@@ -22,18 +22,40 @@ pub struct CoreLadder {
     unified_delay: Option<bool>,
 }
 
+fn read_ladder(clash: &Mapping) -> CoreLadder {
+    let log_level = clash.get("log-level").and_then(|value| match value.as_str() {
+        Some(text) => Some(text.to_owned()),
+        None => {
+            logging!(
+                warn,
+                Type::Config,
+                "log-level in the core config is not a string ({value:?}); the settings page will show it as unset"
+            );
+            None
+        }
+    });
+    let unified_delay = clash.get("unified-delay").and_then(|value| match value.as_bool() {
+        Some(flag) => Some(flag),
+        None => {
+            logging!(
+                warn,
+                Type::Config,
+                "unified-delay in the core config is not a boolean ({value:?}); the settings page will show it as unset"
+            );
+            None
+        }
+    });
+    CoreLadder {
+        log_level,
+        unified_delay,
+    }
+}
+
 #[tauri::command]
 pub async fn get_core_ladder() -> CmdResult<CoreLadder> {
     let clash = Config::clash().await;
     let clash = clash.latest_arc();
-    Ok(CoreLadder {
-        log_level: clash
-            .0
-            .get("log-level")
-            .and_then(serde_yaml_ng::Value::as_str)
-            .map(std::borrow::ToOwned::to_owned),
-        unified_delay: clash.0.get("unified-delay").and_then(serde_yaml_ng::Value::as_bool),
-    })
+    Ok(read_ladder(&clash.0))
 }
 
 #[tauri::command]
@@ -256,8 +278,9 @@ pub async fn get_clash_logs() -> CmdResult<Vec<CompactString>> {
 
 #[cfg(test)]
 mod tests {
-    use super::reached_a_verdict;
+    use super::{read_ladder, reached_a_verdict};
     use crate::core::validate::{ValidationErrorKind, ValidationOutcome, ValidationSkipReason};
+    use serde_yaml_ng::{Mapping, Value};
 
     #[test]
     fn the_core_judging_the_config_is_a_verdict() {
@@ -295,5 +318,40 @@ mod tests {
         assert!(!reached_a_verdict(&ValidationOutcome::Skipped {
             reason: ValidationSkipReason::Exiting
         }));
+    }
+
+    fn clash_with(pairs: &[(&str, Value)]) -> Mapping {
+        let mut map = Mapping::new();
+        for (key, value) in pairs {
+            map.insert(Value::from(*key), value.clone());
+        }
+        map
+    }
+
+    #[test]
+    fn a_missing_key_reads_as_unset() {
+        let ladder = read_ladder(&Mapping::new());
+        assert_eq!(ladder.log_level, None);
+        assert_eq!(ladder.unified_delay, None);
+    }
+
+    #[test]
+    fn pinned_values_are_read_as_they_are() {
+        let ladder = read_ladder(&clash_with(&[
+            ("log-level", Value::from("warn")),
+            ("unified-delay", Value::from(false)),
+        ]));
+        assert_eq!(ladder.log_level.as_deref(), Some("warn"));
+        assert_eq!(ladder.unified_delay, Some(false));
+    }
+
+    #[test]
+    fn a_value_of_the_wrong_type_is_not_passed_on_as_pinned() {
+        let ladder = read_ladder(&clash_with(&[
+            ("log-level", Value::from(3)),
+            ("unified-delay", Value::from("true")),
+        ]));
+        assert_eq!(ladder.log_level, None);
+        assert_eq!(ladder.unified_delay, None);
     }
 }
