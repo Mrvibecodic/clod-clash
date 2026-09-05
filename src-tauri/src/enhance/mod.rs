@@ -579,8 +579,10 @@ async fn process_profile_items(
     (config, exists_keys, result_map)
 }
 
-fn ipv6_value(subscription: &Mapping, app_value: &Value) -> Value {
-    subscription.get("ipv6").cloned().unwrap_or_else(|| app_value.clone())
+const SUBSCRIPTION_DECIDES: &[&str] = &["ipv6", "log-level", "unified-delay"];
+
+fn subscription_or_app(subscription: &Mapping, key: &str, app_value: &Value) -> Value {
+    subscription.get(key).cloned().unwrap_or_else(|| app_value.clone())
 }
 
 async fn merge_default_config(
@@ -601,8 +603,8 @@ async fn merge_default_config(
             ladder_tun(&mut tun, patch_tun, tun_overrides);
             config.insert("tun".into(), tun.into());
         } else {
-            if key.as_str() == Some("ipv6") {
-                let decided = ipv6_value(&config, &value);
+            if let Some(name) = key.as_str().filter(|name| SUBSCRIPTION_DECIDES.contains(name)) {
+                let decided = subscription_or_app(&config, name, &value);
                 config.insert(key, decided);
                 continue;
             }
@@ -1559,19 +1561,40 @@ mod tests {
     fn the_subscription_decides_ipv6() {
         let subscription = mapping("{ipv6: true}");
         assert_eq!(
-            super::ipv6_value(&subscription, &serde_yaml_ng::Value::from(false)),
+            super::subscription_or_app(&subscription, "ipv6", &serde_yaml_ng::Value::from(false)),
             serde_yaml_ng::Value::from(true)
         );
         let silent = mapping("{}");
         assert_eq!(
-            super::ipv6_value(&silent, &serde_yaml_ng::Value::from(false)),
+            super::subscription_or_app(&silent, "ipv6", &serde_yaml_ng::Value::from(false)),
             serde_yaml_ng::Value::from(false)
         );
         let explicit_off = mapping("{ipv6: false}");
         assert_eq!(
-            super::ipv6_value(&explicit_off, &serde_yaml_ng::Value::from(true)),
+            super::subscription_or_app(&explicit_off, "ipv6", &serde_yaml_ng::Value::from(true)),
             serde_yaml_ng::Value::from(false)
         );
+    }
+
+    #[test]
+    fn the_subscription_decides_log_level_and_unified_delay() {
+        let subscription = mapping("{log-level: error, unified-delay: false}");
+        assert_eq!(
+            super::subscription_or_app(&subscription, "log-level", &serde_yaml_ng::Value::from("info")),
+            serde_yaml_ng::Value::from("error")
+        );
+        assert_eq!(
+            super::subscription_or_app(&subscription, "unified-delay", &serde_yaml_ng::Value::from(true)),
+            serde_yaml_ng::Value::from(false)
+        );
+        let silent = mapping("{}");
+        assert_eq!(
+            super::subscription_or_app(&silent, "log-level", &serde_yaml_ng::Value::from("info")),
+            serde_yaml_ng::Value::from("info")
+        );
+        assert!(super::SUBSCRIPTION_DECIDES.contains(&"log-level"));
+        assert!(super::SUBSCRIPTION_DECIDES.contains(&"unified-delay"));
+        assert!(!super::SUBSCRIPTION_DECIDES.contains(&"mixed-port"));
     }
 
     #[test]
