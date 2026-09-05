@@ -36,6 +36,8 @@ function frontendLiterals() {
   const literals = new Set()
   for (const file of frontendFiles(FRONTEND_DIR)) {
     const source = readFileSync(file, 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, ' ')
+      .replace(/(^|[^:'"`])\/\/[^\n]*/g, '$1')
     for (const match of source.matchAll(/['"`]([A-Za-z0-9_]+)['"`]/g)) {
       literals.add(match[1])
     }

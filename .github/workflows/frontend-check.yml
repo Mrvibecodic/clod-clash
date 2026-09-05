@@ -40,6 +40,8 @@ jobs:
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
               - 'knip.json'
+              - 'scripts/**'
+              - 'src-tauri/src/lib.rs'
               - 'eslint.config.ts'
               - 'tsconfig.json'
               - 'vite.config.*'
