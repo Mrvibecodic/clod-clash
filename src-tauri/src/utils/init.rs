@@ -602,9 +602,12 @@ async fn initialize_config_files() -> Result<()> {
 }
 
 async fn unpin_core_log_keys() -> Result<()> {
+    use serde_yaml_ng::Value;
+
     let verge_path = dirs::verge_path()?;
-    let mut verge = help::read_yaml::<IVerge>(&verge_path).await?;
-    if verge.core_log_keys_unpinned == Some(true) {
+    let mut verge = help::read_mapping(&verge_path).await?;
+    let unpinned_key = Value::from("core_log_keys_unpinned");
+    if verge.get(&unpinned_key).and_then(Value::as_bool) == Some(true) {
         return Ok(());
     }
     let clash_path = dirs::clash_path()?;
@@ -618,7 +621,7 @@ async fn unpin_core_log_keys() -> Result<()> {
             clash_path
         );
     }
-    verge.core_log_keys_unpinned = Some(true);
+    verge.insert(unpinned_key, Value::from(true));
     help::save_yaml(&verge_path, &verge, Some("# Clash Verge Config")).await?;
     Ok(())
 }
