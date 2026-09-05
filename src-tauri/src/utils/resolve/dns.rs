@@ -1,9 +1,11 @@
 #![cfg(target_os = "macos")]
 
 use clash_verge_logging::{Type, logging};
+use std::time::Duration;
 use tokio::sync::Mutex;
 
 const STATE_FILE: &str = "original_dns.txt";
+const SCRIPT_TIMEOUT: Duration = Duration::from_secs(10);
 
 static OVERRIDE_LOCK: Mutex<()> = Mutex::const_new(());
 
@@ -40,6 +42,9 @@ pub async fn sync_override(wanted: bool, dns_server: String) {
 
 pub async fn restore_public_dns() -> bool {
     let _serialized = OVERRIDE_LOCK.lock().await;
+    if !has_pending_restore() {
+        return true;
+    }
     restore_public_dns_locked().await
 }
 
@@ -65,28 +70,33 @@ async fn set_public_dns_locked(dns_server: String) -> bool {
     let state = state_path()
         .map(|path| path.to_string_lossy().into_owned())
         .unwrap_or_default();
-    match app_handle
+    let ran = app_handle
         .shell()
         .command("bash")
         .args([script, dns_server, state])
         .current_dir(resource_dir)
-        .status()
-        .await
-    {
-        Ok(status) => {
-            if status.success() {
-                logging!(info, Type::Config, "set system dns successfully");
-                true
-            } else {
-                let code = status.code().unwrap_or(-1);
-                logging!(error, Type::Config, "set system dns failed: {code}");
+        .status();
+    match tokio::time::timeout(SCRIPT_TIMEOUT, ran).await {
+        Err(_) => {
+            logging!(error, Type::Config, "set system dns timed out");
+            return false;
+        }
+        Ok(outcome) => match outcome {
+            Ok(status) => {
+                if status.success() {
+                    logging!(info, Type::Config, "set system dns successfully");
+                    true
+                } else {
+                    let code = status.code().unwrap_or(-1);
+                    logging!(error, Type::Config, "set system dns failed: {code}");
+                    false
+                }
+            }
+            Err(err) => {
+                logging!(error, Type::Config, "set system dns failed: {err}");
                 false
             }
-        }
-        Err(err) => {
-            logging!(error, Type::Config, "set system dns failed: {err}");
-            false
-        }
+        },
     }
 }
 
@@ -112,27 +122,32 @@ async fn restore_public_dns_locked() -> bool {
     let state = state_path()
         .map(|path| path.to_string_lossy().into_owned())
         .unwrap_or_default();
-    match app_handle
+    let ran = app_handle
         .shell()
         .command("bash")
         .args([script, state])
         .current_dir(resource_dir)
-        .status()
-        .await
-    {
-        Ok(status) => {
-            if status.success() {
-                logging!(info, Type::Config, "unset system dns successfully");
-                true
-            } else {
-                let code = status.code().unwrap_or(-1);
-                logging!(error, Type::Config, "unset system dns failed: {code}");
+        .status();
+    match tokio::time::timeout(SCRIPT_TIMEOUT, ran).await {
+        Err(_) => {
+            logging!(error, Type::Config, "unset system dns timed out");
+            return false;
+        }
+        Ok(outcome) => match outcome {
+            Ok(status) => {
+                if status.success() {
+                    logging!(info, Type::Config, "unset system dns successfully");
+                    true
+                } else {
+                    let code = status.code().unwrap_or(-1);
+                    logging!(error, Type::Config, "unset system dns failed: {code}");
+                    false
+                }
+            }
+            Err(err) => {
+                logging!(error, Type::Config, "unset system dns failed: {err}");
                 false
             }
-        }
-        Err(err) => {
-            logging!(error, Type::Config, "unset system dns failed: {err}");
-            false
-        }
+        },
     }
 }

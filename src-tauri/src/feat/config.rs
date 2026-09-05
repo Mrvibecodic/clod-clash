@@ -158,6 +158,10 @@ fn determine_update_flags(patch: &IVerge) -> UpdateFlags {
     if tun_mode.is_some() {
         update_flags.insert(UpdateFlags::CLASH_CONFIG | UpdateFlags::GROUP_SYS_TRAY);
     }
+    #[cfg(target_os = "macos")]
+    if patch.enable_dns_override.is_some() {
+        update_flags.insert(UpdateFlags::CLASH_CONFIG);
+    }
     if enable_global_hotkey.is_some() {
         update_flags.insert(UpdateFlags::VERGE_CONFIG);
     }
