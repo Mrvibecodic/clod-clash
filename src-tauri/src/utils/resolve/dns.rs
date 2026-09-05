@@ -79,7 +79,7 @@ async fn set_public_dns_locked(dns_server: String) -> bool {
     match tokio::time::timeout(SCRIPT_TIMEOUT, ran).await {
         Err(_) => {
             logging!(error, Type::Config, "set system dns timed out");
-            return false;
+            false
         }
         Ok(outcome) => match outcome {
             Ok(status) => {
@@ -131,7 +131,7 @@ async fn restore_public_dns_locked() -> bool {
     match tokio::time::timeout(SCRIPT_TIMEOUT, ran).await {
         Err(_) => {
             logging!(error, Type::Config, "unset system dns timed out");
-            return false;
+            false
         }
         Ok(outcome) => match outcome {
             Ok(status) => {
