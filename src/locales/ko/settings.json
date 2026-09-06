@@ -25,7 +25,8 @@
           "coreGaveUp": "The core stopped restarting, but the system proxy still points at it — nothing will go through it until the proxy is off or the core runs again.",
           "coreNotRunning": "The system proxy was not turned on: the core is not running.",
           "turnOffAction": "Turn the system proxy off",
-          "writeFailed": "The system did not accept the proxy settings."
+          "writeFailed": "The system did not accept the proxy settings.",
+          "resetFailedOnQuit": "종료할 때 시스템 프록시를 해제하지 못했습니다. 여전히 이 앱을 가리키므로 시스템 설정에서 해제하거나 앱을 다시 실행할 때까지 인터넷이 되지 않습니다."
         },
         "tunMode": {
           "autoDisabled": "코어가 TUN 장치를 열지 못해 TUN 모드를 껐습니다",

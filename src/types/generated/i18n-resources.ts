@@ -1345,6 +1345,7 @@ export interface TranslationResources {
             sysproxy: {
               coreGaveUp: string
               coreNotRunning: string
+              resetFailedOnQuit: string
               turnOffAction: string
               writeFailed: string
             }

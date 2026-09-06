@@ -3,13 +3,13 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use clash_verge_logging::{Type, logging};
 use tokio::signal::windows;
 
-use crate::RUNTIME;
+use crate::{RUNTIME, Shutdown};
 
 static IS_CLEANING_UP: AtomicBool = AtomicBool::new(false);
 
 pub fn register<F, Fut>(f: F)
 where
-    F: Fn() -> Fut + Send + Sync + 'static,
+    F: Fn(Shutdown) -> Fut + Send + Sync + 'static,
     Fut: Future + Send + 'static,
 {
     if let Some(Some(rt)) = RUNTIME.get() {
@@ -48,18 +48,23 @@ where
 
             loop {
                 let signal_name;
+                let pace;
                 tokio::select! {
                     _ = ctrl_c.recv() => {
                         signal_name = "Ctrl+C";
+                        pace = Shutdown::Interactive;
                     }
                     _ = ctrl_close.recv() => {
                         signal_name = "Ctrl+Close";
+                        pace = Shutdown::SessionEnding;
                     }
                     _ = ctrl_shutdown.recv() => {
                         signal_name = "Ctrl+Shutdown";
+                        pace = Shutdown::SessionEnding;
                     }
                     _ = ctrl_logoff.recv() => {
                         signal_name = "Ctrl+Logoff";
+                        pace = Shutdown::SessionEnding;
                     }
                 }
 
@@ -76,7 +81,7 @@ where
 
                 logging!(info, Type::SystemSignal, "Caught Windows signal: {}", signal_name);
 
-                f().await;
+                f(pace).await;
             }
         });
     } else {

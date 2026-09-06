@@ -35,8 +35,8 @@ pub async fn restart_app() {
     handle::Handle::global().set_is_exiting();
 
     utils::server::shutdown_embedded_server();
-    Config::apply_all_and_save_file().await;
 
+    // Настройки сохраняет сама уборка, наравне с остальными шагами.
     logging!(info, Type::System, "Начало асинхронной очистки ресурсов");
     let cleanup_result = clean_async().await;
 

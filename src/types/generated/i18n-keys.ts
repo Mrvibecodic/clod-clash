@@ -420,6 +420,7 @@ export const translationKeys = [
   'settings.sections.system.notifications.sysproxy.coreNotRunning',
   'settings.sections.system.notifications.sysproxy.turnOffAction',
   'settings.sections.system.notifications.sysproxy.writeFailed',
+  'settings.sections.system.notifications.sysproxy.resetFailedOnQuit',
   'settings.sections.system.notifications.tunMode.autoDisabled',
   'settings.sections.system.notifications.tunMode.noRights',
   'settings.sections.system.notifications.tunMode.rightsDeclined',

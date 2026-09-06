@@ -262,6 +262,10 @@ export const handleNoticeMessage = (
         'settings.sections.system.notifications.sysproxy.writeFailed',
         msg,
       ),
+    'app_quit::sysproxy_reset_failed': () =>
+      showNotice.error(
+        'settings.sections.system.notifications.sysproxy.resetFailedOnQuit',
+      ),
     'core::binary_changed': () =>
       showNotice.error(
         'settings.sections.system.notifications.core.binaryChanged',

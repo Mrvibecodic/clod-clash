@@ -25,7 +25,8 @@
           "coreGaveUp": "The core stopped restarting, but the system proxy still points at it — nothing will go through it until the proxy is off or the core runs again.",
           "coreNotRunning": "The system proxy was not turned on: the core is not running.",
           "turnOffAction": "Turn the system proxy off",
-          "writeFailed": "The system did not accept the proxy settings."
+          "writeFailed": "The system did not accept the proxy settings.",
+          "resetFailedOnQuit": "هنگام خروج نتوانستیم پراکسی سیستم را بردایم. هنوز به این برنامه اشاره می‌کند: تا زمانی که آن را در تنظیمات سیستم پاک کنید یا برنامه را دوباره اجرا کنید، اینترنت کار نمی‌کند."
         },
         "tunMode": {
           "autoDisabled": "هسته نتوانست دستگاه TUN را بالا بیاورد، بنابراین TUN فعلاً خاموش است",
