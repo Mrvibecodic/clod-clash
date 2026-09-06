@@ -153,7 +153,6 @@ const hostsKey = (key: string, choice: HostsChoice) =>
 
 const DEFAULT_DNS_CONFIG = {
   enable: true,
-  listen: ':53',
   'enhanced-mode': 'fake-ip' as 'fake-ip' | 'redir-host',
   'fake-ip-range': '198.18.0.1/16',
   'fake-ip-range6': '2001:2::0/64',
@@ -231,7 +230,7 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
     hosts: string
   }>({
     enable: DEFAULT_DNS_CONFIG.enable,
-    listen: DEFAULT_DNS_CONFIG.listen,
+    listen: '',
     enhancedMode: DEFAULT_DNS_CONFIG['enhanced-mode'],
     fakeIpRange: DEFAULT_DNS_CONFIG['fake-ip-range'],
     fakeIpRange6: DEFAULT_DNS_CONFIG['fake-ip-range6'],
@@ -293,7 +292,7 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
 
       setValues({
         enable: dnsConfig.enable ?? DEFAULT_DNS_CONFIG.enable,
-        listen: dnsConfig.listen ?? DEFAULT_DNS_CONFIG.listen,
+        listen: dnsConfig.listen ?? '',
         enhancedMode: validEnhancedMode,
         fakeIpRange:
           dnsConfig['fake-ip-range'] ?? DEFAULT_DNS_CONFIG['fake-ip-range'],
@@ -334,7 +333,7 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const generateDnsConfig = useCallback(() => {
     const formFields: Record<string, any> = {
       enable: values.enable,
-      listen: values.listen,
+      ...(values.listen.trim() ? { listen: values.listen.trim() } : {}),
       'enhanced-mode': values.enhancedMode,
       'fake-ip-range': values.fakeIpRange,
       'fake-ip-range6':
@@ -402,7 +401,7 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
     renderedTextRef.current = { nameserverPolicy: '', hosts: '' }
     setValues({
       enable: DEFAULT_DNS_CONFIG.enable,
-      listen: DEFAULT_DNS_CONFIG.listen,
+      listen: '',
       enhancedMode: DEFAULT_DNS_CONFIG['enhanced-mode'],
       fakeIpRange: DEFAULT_DNS_CONFIG['fake-ip-range'],
       fakeIpRange6: DEFAULT_DNS_CONFIG['fake-ip-range6'],
@@ -696,14 +695,17 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
           </Item>
 
           <Item>
-            <ListItemText primary={t('settings.modals.dns.fields.listen')} />
+            <ListItemText
+              primary={t('settings.modals.dns.fields.listen')}
+              secondary={t('settings.modals.dns.fields.listenHint')}
+            />
             <TextField
               size="small"
               autoComplete="off"
               spellCheck="false"
               value={values.listen}
               onChange={handleChange('listen')}
-              placeholder=":53"
+              placeholder="127.0.0.1:1053"
               sx={{ width: 150 }}
             />
           </Item>

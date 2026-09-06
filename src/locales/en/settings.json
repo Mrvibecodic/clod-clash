@@ -610,7 +610,8 @@
         "hosts": {
           "label": "Hosts",
           "description": "Custom domain to IP or domain mapping"
-        }
+        },
+        "listenHint": "Empty — do not open a DNS server. Interception in the tunnel works without it."
       },
       "messages": {
         "saved": "DNS settings saved",

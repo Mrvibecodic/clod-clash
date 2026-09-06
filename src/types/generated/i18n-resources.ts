@@ -950,6 +950,7 @@ export interface TranslationResources {
               label: string
             }
             listen: string
+            listenHint: string
             nameserver: {
               description: string
               label: string

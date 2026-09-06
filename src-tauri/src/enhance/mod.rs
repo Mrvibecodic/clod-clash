@@ -1335,6 +1335,79 @@ fn ensure_fake_ip_range6(dns: &mut Mapping) {
     }
 }
 
+/// Разобрать `listen` вида `host:port`, `:port`, `[::1]:port`.
+///
+/// Возвращает хост (может быть пустым) и порт. Порт обязателен: без него ядро
+/// сокет не поднимает, и такое значение нам чинить нечего.
+fn split_listen(text: &str) -> Option<(&str, u16)> {
+    let (host, port) = text.trim().rsplit_once(':')?;
+    let port: u16 = port.trim().parse().ok()?;
+    Some((host.trim().trim_start_matches('[').trim_end_matches(']'), port))
+}
+
+/// Слушает ли этот адрес только петлю.
+fn listens_on_loopback_only(host: &str) -> bool {
+    match host {
+        "" | "*" | "0.0.0.0" | "::" => false,
+        "localhost" => true,
+        other => other.parse::<std::net::IpAddr>().is_ok_and(|ip| ip.is_loopback()),
+    }
+}
+
+/// clod:dns-listen — держать `dns.listen` в петле, пока раздача выключена.
+///
+/// Ключ поднимает отдельный DNS-сервер и, в отличие от прочих входов, НЕ
+/// подчиняется `allow-lan`: `:53` из подписки или из старого файла страницы DNS
+/// делает машину открытым резолвером для соседей по сети, причём под службой —
+/// от системной учётной записи. Раздача включается одним осознанным тумблером,
+/// поэтому при выключенном `allow-lan` адрес прижимается к `127.0.0.1`, а
+/// значение, которое не разбирается, удаляется целиком: сокет лучше не открыть
+/// вовсе, чем открыть непонятно куда.
+fn clamp_dns_listen(config: &mut Mapping) {
+    let shares_with_the_lan = config.get("allow-lan").and_then(Value::as_bool).unwrap_or(false);
+    let Some(dns) = config.get_mut("dns").and_then(Value::as_mapping_mut) else {
+        return;
+    };
+    let Some(listen) = dns.get("listen") else {
+        return;
+    };
+
+    let Some(text) = listen.as_str().map(str::trim).filter(|text| !text.is_empty()) else {
+        if listen.is_null() || listen.as_str().is_some_and(|text| text.trim().is_empty()) {
+            // Пусто — сокет не поднимается, это нормальное значение.
+            return;
+        }
+        logging!(
+            warn,
+            Type::Config,
+            "dns.listen is not an address ({listen:?}); the DNS server is left switched off"
+        );
+        dns.remove("listen");
+        return;
+    };
+
+    let Some((host, port)) = split_listen(text) else {
+        logging!(
+            warn,
+            Type::Config,
+            "dns.listen {text:?} cannot be read as an address; the DNS server is left switched off"
+        );
+        dns.remove("listen");
+        return;
+    };
+
+    if shares_with_the_lan || listens_on_loopback_only(host) {
+        return;
+    }
+
+    logging!(
+        warn,
+        Type::Config,
+        "dns.listen {text:?} would answer the whole network while sharing is off; keeping it on the loopback"
+    );
+    dns.insert("listen".into(), Value::String(format!("127.0.0.1:{port}")));
+}
+
 async fn apply_dns_settings(mut config: Mapping, enable_dns_settings: bool) -> Mapping {
     if enable_dns_settings && let Ok(app_dir) = dirs::app_home_dir() {
         let dns_path = app_dir.join(constants::files::DNS_CONFIG);
@@ -1426,7 +1499,8 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
     #[cfg(not(target_os = "macos"))]
     let _ = shaped_fake_ip;
     let config = apply_dns_settings(config, enable_dns_settings).await;
-    let config = ensure_dns_for_tun(config, enable_tun);
+    let mut config = ensure_dns_for_tun(config, enable_tun);
+    clamp_dns_listen(&mut config);
 
     let control_plane = snapshot_control_plane(&config);
     let dns_page = if enable_dns_settings {
@@ -3172,6 +3246,54 @@ proxy-groups:
         assert!(!report.only_sentinels);
         assert_eq!(group_members(&config, "VPN"), vec!["WG relay".to_owned()]);
     }
+    #[test]
+    fn the_dns_server_stays_on_the_loopback_while_sharing_is_off() {
+        // Открытые адреса прижимаются к петле, порт сохраняется.
+        for open in [":53", "0.0.0.0:53", "::53", "[::]:1053", "*:5353"] {
+            let mut config = mapping(&format!("{{dns: {{listen: \"{open}\"}}}}"));
+            super::clamp_dns_listen(&mut config);
+            let listen = config["dns"]["listen"].as_str().map(str::to_owned);
+            assert!(
+                listen.as_deref().is_some_and(|text| text.starts_with("127.0.0.1:")),
+                "{open} остался открытым: {listen:?}"
+            );
+        }
+
+        // Петля и так в порядке — не трогаем.
+        for kept in ["127.0.0.1:1053", "[::1]:53", "localhost:6868"] {
+            let mut config = mapping(&format!("{{dns: {{listen: \"{kept}\"}}}}"));
+            super::clamp_dns_listen(&mut config);
+            assert_eq!(config["dns"]["listen"].as_str(), Some(kept));
+        }
+
+        // При включённой раздаче решает пользователь.
+        let mut sharing = mapping("{allow-lan: true, dns: {listen: \":53\"}}");
+        super::clamp_dns_listen(&mut sharing);
+        assert_eq!(sharing["dns"]["listen"].as_str(), Some(":53"));
+
+        // Неразбираемое значение снимается целиком: лучше не слушать вовсе.
+        for bad in ["\"ноль\"", "\"127.0.0.1\"", "\"127.0.0.1:70000\"", "53"] {
+            let mut config = mapping(&format!("{{dns: {{listen: {bad}}}}}"));
+            super::clamp_dns_listen(&mut config);
+            assert!(
+                config["dns"]
+                    .as_mapping()
+                    .is_some_and(|dns| !dns.contains_key("listen")),
+                "{bad} не снят"
+            );
+        }
+
+        // Пустое значение — это «не слушать», оно и так безопасно.
+        let mut empty = mapping("{dns: {listen: \"\"}}");
+        super::clamp_dns_listen(&mut empty);
+        assert_eq!(empty["dns"]["listen"].as_str(), Some(""));
+
+        // Блока DNS нет — делать нечего.
+        let mut none = mapping("{mode: rule}");
+        super::clamp_dns_listen(&mut none);
+        assert!(!none.contains_key("dns"));
+    }
+
     #[test]
     fn an_unusable_subscription_port_is_dropped_and_the_default_takes_over() {
         for bad in ["0", "70000", "\"7890\"", "true"] {

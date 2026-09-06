@@ -610,7 +610,8 @@
         "hosts": {
           "label": "Hosts",
           "description": "Custom domain to IP or domain mapping"
-        }
+        },
+        "listenHint": "اتركه فارغًا كي لا يُفتح خادم DNS. الاعتراض داخل النفق لا يحتاج إليه."
       },
       "messages": {
         "saved": "DNS settings saved",

@@ -610,7 +610,8 @@
         "hosts": {
           "label": "Hosts",
           "description": "Custom domain to IP or domain mapping"
-        }
+        },
+        "listenHint": "Kosong — server DNS tidak dibuka. Pencegatan di terowongan tidak memerlukannya."
       },
       "messages": {
         "saved": "DNS settings saved",

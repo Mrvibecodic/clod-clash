@@ -610,7 +610,8 @@
         "hosts": {
           "label": "Hosts",
           "description": "Custom domain to IP or domain mapping"
-        }
+        },
+        "listenHint": "Буш — DNS-сервер ачылмый. Тоннельдә тотып алуга ул кирәкми."
       },
       "messages": {
         "saved": "DNS settings saved",

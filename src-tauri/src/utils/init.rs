@@ -269,13 +269,20 @@ async fn migrate_legacy_macos_logs() -> Result<()> {
     Ok(())
 }
 
+/// clod:dns-listen — `listen` в заводском блоке НЕТ намеренно.
+///
+/// Ключ поднимает отдельный слушающий сокет и не подчиняется `allow-lan`:
+/// `:53` — это все интерфейсы, то есть открытый резолвер, а под службой захват
+/// привилегированного порта ещё и удаётся. Для перехвата DNS в туннеле сокет не
+/// нужен вовсе: ядро отвечает прямо в обработчике туннеля
+/// (`listener/sing_tun/dns.go`), а пустой `listen` оно принимает штатно и просто
+/// не открывает сокет (`dns/server.go`).
 fn default_dns_config() -> serde_yaml_ng::Mapping {
     use serde_yaml_ng::Value;
 
     serde_yaml_ng::Mapping::from_iter([
         ("enable".into(), Value::Bool(true)),
         ("ipv6".into(), Value::Bool(true)),
-        ("listen".into(), Value::String(":53".into())),
         ("enhanced-mode".into(), Value::String("fake-ip".into())),
         ("fake-ip-range".into(), Value::String("198.18.0.1/16".into())),
         ("fake-ip-range6".into(), Value::String("2001:2::0/64".into())),
@@ -967,6 +974,10 @@ mod tests {
         let built_in = default_dns_config();
         assert!(!built_in.contains_key("use-hosts"));
         assert!(!built_in.contains_key("use-system-hosts"));
+        assert!(
+            !built_in.contains_key("listen"),
+            "заводской блок не должен поднимать отдельный DNS-сервер"
+        );
     }
 
     #[test]

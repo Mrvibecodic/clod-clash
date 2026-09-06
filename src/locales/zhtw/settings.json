@@ -610,7 +610,8 @@
         "hosts": {
           "label": "Hosts",
           "description": "自訂網域到 IP 或網域的映射，用逗號分隔"
-        }
+        },
+        "listenHint": "留空則不啟動 DNS 服務。隧道內的劫持無需它。"
       },
       "messages": {
         "saved": "DNS 設定已儲存",

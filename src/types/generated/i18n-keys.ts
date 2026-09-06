@@ -778,6 +778,7 @@ export const translationKeys = [
   'settings.modals.dns.fields.nameserverPolicy.description',
   'settings.modals.dns.fields.hosts.label',
   'settings.modals.dns.fields.hosts.description',
+  'settings.modals.dns.fields.listenHint',
   'settings.modals.dns.messages.saved',
   'settings.modals.dns.messages.notSaved',
   'settings.modals.dns.messages.savedUnchecked',

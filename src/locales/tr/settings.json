@@ -610,7 +610,8 @@
         "hosts": {
           "label": "Hosts",
           "description": "Özel alan adından IP'ye veya alan adına eşleme"
-        }
+        },
+        "listenHint": "Boş bırakılırsa DNS sunucusu açılmaz. Tünel içindeki yakalama buna ihtiyaç duymaz."
       },
       "messages": {
         "saved": "DNS ayarları kaydedildi",
