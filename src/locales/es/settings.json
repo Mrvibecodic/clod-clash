@@ -343,7 +343,8 @@
         "socks": "Puerto de proxy SOCKS",
         "http": "Puerto de proxy HTTP(S)",
         "redir": "Puerto de proxy transparente Redir",
-        "tproxy": "Puerto de proxy transparente TPROXY"
+        "tproxy": "Puerto de proxy transparente TPROXY",
+        "mixedFollowsSubscription": "Puerto como en la suscripción"
       },
       "actions": {
         "random": "Puerto aleatorio"
@@ -621,6 +622,13 @@
         "invalid": "Invalid configuration",
         "invalidYaml": "Invalid YAML format",
         "emptyDns": "El bloque DNS está vacío y no se guardó"
+      },
+      "options": {
+        "hosts": {
+          "auto": "Como en la suscripción",
+          "on": "Activada",
+          "off": "Desactivada"
+        }
       }
     },
     "webUI": {

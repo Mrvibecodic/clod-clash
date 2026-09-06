@@ -590,7 +590,13 @@ async fn process_profile_items(
 
 const SUBSCRIPTION_DECIDES: &[&str] = &["ipv6"];
 
-const LADDER_DEFAULTS: &[(&str, &str)] = &[("log-level", "info"), ("unified-delay", "true")];
+const LADDER_DEFAULTS: &[(&str, &str)] = &[
+    ("log-level", "info"),
+    ("unified-delay", "true"),
+    // clod:port-ladder — умолчание ядра для порта. Подставляется, только если
+    // ключа нет ни у нас, ни в подписке.
+    ("mixed-port", "7897"),
+];
 
 /// clod:ladder — значение не того типа не должно перекрывать подписку.
 ///
@@ -602,20 +608,27 @@ fn ladder_value_is_usable(key: &str, value: &Value) -> bool {
     match key {
         "log-level" => value.as_str().is_some(),
         "unified-delay" => value.as_bool().is_some(),
+        "mixed-port" => value.as_u64().is_some_and(|port| (1..=65535).contains(&port)),
         _ => true,
     }
 }
 
-fn fill_the_ladder_defaults(config: &mut Mapping) {
+fn ladder_default_value(default: &str) -> Value {
+    match default {
+        "true" => Value::Bool(true),
+        "false" => Value::Bool(false),
+        other => other
+            .parse::<u64>()
+            .map_or_else(|_| Value::String(other.to_owned()), Value::from),
+    }
+}
+
+pub(crate) fn fill_the_ladder_defaults(config: &mut Mapping) {
     for (key, default) in LADDER_DEFAULTS {
         if config.contains_key(*key) {
             continue;
         }
-        let value = match *default {
-            "true" => Value::Bool(true),
-            other => Value::String(other.to_owned()),
-        };
-        config.insert((*key).into(), value);
+        config.insert((*key).into(), ladder_default_value(default));
     }
 }
 
@@ -712,8 +725,33 @@ async fn merge_default_config(
         }
     }
 
+    drop_an_unusable_subscription_port(&mut config);
     fill_the_ladder_defaults(&mut config);
     config
+}
+
+/// clod:port-ladder — порт из подписки идёт в ядро как есть, поэтому его нужно
+/// проверить здесь: наш собственный `ladder_value_is_usable` смотрит только на
+/// наше значение. Ядро принимает `0` (слушатель просто не поднимается), обрезает
+/// число до двух байт и падает на строке, а системный прокси всё это время
+/// указывает на порт, которого нет. Негодное значение выбрасываем — дальше
+/// подставится умолчание лесенки.
+fn drop_an_unusable_subscription_port(config: &mut Mapping) {
+    let Some(value) = config.get("mixed-port") else {
+        return;
+    };
+    let port = value.as_u64().filter(|port| (1..=65535).contains(port));
+    let taken_by_our_api = port
+        .is_some_and(|port| u16::try_from(port).is_ok_and(|port| port == crate::config::IVerge::get_singleton_port()));
+    if port.is_some() && !taken_by_our_api {
+        return;
+    }
+    logging!(
+        warn,
+        Type::Config,
+        "the subscription asks for mixed-port {value:?}, which cannot be used; falling back to the default"
+    );
+    config.remove("mixed-port");
 }
 
 async fn apply_builtin_scripts(mut config: Mapping, clash_core: Option<String>, enable_builtin: bool) -> Mapping {
@@ -3133,5 +3171,41 @@ proxy-groups:
 
         assert!(!report.only_sentinels);
         assert_eq!(group_members(&config, "VPN"), vec!["WG relay".to_owned()]);
+    }
+    #[test]
+    fn an_unusable_subscription_port_is_dropped_and_the_default_takes_over() {
+        for bad in ["0", "70000", "\"7890\"", "true"] {
+            let mut config = mapping(&format!("{{mixed-port: {bad}}}"));
+            super::drop_an_unusable_subscription_port(&mut config);
+            assert!(!config.contains_key("mixed-port"), "не выброшен порт {bad}");
+            super::fill_the_ladder_defaults(&mut config);
+            assert_eq!(
+                config.get("mixed-port").and_then(serde_yaml_ng::Value::as_u64),
+                Some(u64::from(crate::constants::network::ports::DEFAULT_MIXED))
+            );
+        }
+
+        let mut good = mapping("{mixed-port: 7890}");
+        super::drop_an_unusable_subscription_port(&mut good);
+        assert_eq!(
+            good.get("mixed-port").and_then(serde_yaml_ng::Value::as_u64),
+            Some(7890),
+            "годный порт подписки остаётся"
+        );
+    }
+
+    #[test]
+    fn the_ladder_default_port_matches_the_core_default() {
+        let value = super::ladder_default_value(
+            super::LADDER_DEFAULTS
+                .iter()
+                .find(|(key, _)| *key == "mixed-port")
+                .expect("mixed-port is in the ladder")
+                .1,
+        );
+        assert_eq!(
+            value.as_u64(),
+            Some(u64::from(crate::constants::network::ports::DEFAULT_MIXED))
+        );
     }
 }

@@ -280,7 +280,7 @@ export const AppDataProvider = ({
         // Режим PAC: показываем адрес прокси, который мы ожидаем установить
         const proxyHost = verge.proxy_host || '127.0.0.1'
         const proxyPort =
-          verge.verge_mixed_port || clashConfig.mixedPort || 7897
+          clashConfig.mixedPort || verge.verge_mixed_port || 7897
         return `${proxyHost}:${proxyPort}`
       } else {
         // Режим HTTP-прокси: предпочитаем системный адрес, но если формат
@@ -296,7 +296,7 @@ export const AppDataProvider = ({
           // Системный адрес недействителен, возвращаем ожидаемый адрес прокси
           const proxyHost = verge.proxy_host || '127.0.0.1'
           const proxyPort =
-            verge.verge_mixed_port || clashConfig.mixedPort || 7897
+            clashConfig.mixedPort || verge.verge_mixed_port || 7897
           return `${proxyHost}:${proxyPort}`
         }
       }

@@ -34,7 +34,9 @@ export const useSystemProxyState = () => {
       return autoproxy.url === `http://${host}:${pacPort}/commands/pac`
     } else {
       if (!sysproxy?.enable) return false
-      const port = verge_mixed_port || clashConfig?.mixedPort || 7897
+      // clod:port-ladder — сначала порт, о котором отчиталось ядро: при
+      // «как в подписке» наша запись о нём ничего не знает.
+      const port = clashConfig?.mixedPort || verge_mixed_port || 7897
       return sysproxy.server === `${host}:${port}`
     }
   })()

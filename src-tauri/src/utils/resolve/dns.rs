@@ -72,7 +72,7 @@ pub fn apply_remembered_desire() {
     // между этими шагами поток унёс бы свежий номер со старым желанием.
     let taken = {
         let desire = DESIRE.lock();
-        (*desire).map(|desire| (desire, TICKETS.fetch_add(1, Ordering::SeqCst) + 1))
+        (*desire).map(|desire| (desire, take_the_newest_ticket()))
     };
     let Some((desire, ticket)) = taken else {
         return;
@@ -90,8 +90,19 @@ pub fn has_pending_restore() -> bool {
     state_path().is_some_and(|path| path.exists())
 }
 
+/// Номер, который отменяет всё уже поставленное в очередь.
+///
+/// clod:dns-order — снятие подмены должно перебивать заявку, ждущую замок:
+/// иначе устаревшая задача возвращала бы подмену уже после того, как
+/// пользователь её выключил или приложение вышло.
+fn take_the_newest_ticket() -> u64 {
+    TICKETS.fetch_add(1, Ordering::SeqCst) + 1
+}
+
 pub async fn restore_public_dns_if_pending() {
+    let ticket = take_the_newest_ticket();
     let _serialized = OVERRIDE_LOCK.lock().await;
+    APPLIED_TICKET.fetch_max(ticket, Ordering::SeqCst);
     if !has_pending_restore() {
         return;
     }
@@ -121,7 +132,9 @@ async fn sync_override(ticket: u64, want_base: bool, shaped_fake_ip: bool) {
 }
 
 pub async fn restore_public_dns() -> bool {
+    let ticket = take_the_newest_ticket();
     let _serialized = OVERRIDE_LOCK.lock().await;
+    APPLIED_TICKET.fetch_max(ticket, Ordering::SeqCst);
     if !has_pending_restore() {
         return true;
     }

@@ -424,7 +424,9 @@ impl IVerge {
             verge_tproxy_port: Some(7896),
             #[cfg(target_os = "linux")]
             verge_tproxy_enabled: Some(false),
-            verge_mixed_port: Some(7897),
+            // clod:port-ladder — у новой установки порта нет: решает подписка,
+            // а если она молчит — умолчание ядра из лесенки.
+            verge_mixed_port: None,
             verge_socks_port: Some(7898),
             verge_socks_enabled: Some(false),
             verge_port: Some(7899),

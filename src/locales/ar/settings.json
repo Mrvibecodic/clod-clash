@@ -343,7 +343,8 @@
         "socks": "منفذ SOCKS",
         "http": "منفذ HTTP(S)",
         "redir": "منفذ إعادة التوجيه",
-        "tproxy": "منفذ Tproxy"
+        "tproxy": "منفذ Tproxy",
+        "mixedFollowsSubscription": "المنفذ كما في الاشتراك"
       },
       "actions": {
         "random": "منفذ عشوائي"
@@ -621,6 +622,13 @@
         "invalid": "Invalid configuration",
         "invalidYaml": "Invalid YAML format",
         "emptyDns": "كتلة DNS فارغة ولم يتم حفظها"
+      },
+      "options": {
+        "hosts": {
+          "auto": "كما في الاشتراك",
+          "on": "مفعّل",
+          "off": "معطّل"
+        }
       }
     },
     "webUI": {

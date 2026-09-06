@@ -343,7 +343,8 @@
         "socks": "SOCKSプロキシポート",
         "http": "HTTP(S)プロキシポート",
         "redir": "Redir透明プロキシポート",
-        "tproxy": "TPROXY透明プロキシポート"
+        "tproxy": "TPROXY透明プロキシポート",
+        "mixedFollowsSubscription": "ポートはサブスクリプションに従う"
       },
       "actions": {
         "random": "ランダムポート"
@@ -621,6 +622,13 @@
         "invalid": "Invalid configuration",
         "invalidYaml": "Invalid YAML format",
         "emptyDns": "DNS ブロックが空のため保存されませんでした"
+      },
+      "options": {
+        "hosts": {
+          "auto": "サブスクリプションに従う",
+          "on": "オン",
+          "off": "オフ"
+        }
       }
     },
     "webUI": {

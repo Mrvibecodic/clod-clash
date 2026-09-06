@@ -343,7 +343,8 @@
         "socks": "Socks прокси порты",
         "http": "HTTP(s) прокси порты",
         "redir": "Redir — үтә күренмәле прокси порты",
-        "tproxy": "Tproxy — үтә күренмәле прокси порты"
+        "tproxy": "Tproxy — үтә күренмәле прокси порты",
+        "mixedFollowsSubscription": "Порт язылудагыча"
       },
       "actions": {
         "random": "Очраклы порт"
@@ -621,6 +622,13 @@
         "invalid": "Invalid configuration",
         "invalidYaml": "Invalid YAML format",
         "emptyDns": "DNS блогы буш, шуңа күрә сакланмады"
+      },
+      "options": {
+        "hosts": {
+          "auto": "Язылудагыча",
+          "on": "Кабызылган",
+          "off": "Сүндерелгән"
+        }
       }
     },
     "webUI": {

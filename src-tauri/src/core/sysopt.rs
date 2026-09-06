@@ -375,11 +375,8 @@ impl Sysopt {
     async fn os_proxy_is_ours(&self) -> Option<bool> {
         let verge = Config::verge().await.latest_arc();
         let host = verge.proxy_host.as_deref().unwrap_or("127.0.0.1").to_owned();
-        let port = match verge.verge_mixed_port {
-            Some(port) => port,
-            None => Config::clash().await.latest_arc().get_mixed_port(),
-        };
         drop(verge);
+        let port = Config::effective_mixed_port().await;
         let pac_url = format!("http://{host}:{}/commands/pac", IVerge::get_singleton_port());
 
         let observed = tokio::task::spawn_blocking(ObservedProxy::read).await.ok()??;
@@ -442,10 +439,7 @@ impl Sysopt {
         let _lock = self.update_lock.lock().await;
 
         let verge = Config::verge().await.latest_arc();
-        let port = match verge.verge_mixed_port {
-            Some(port) => port,
-            None => Config::clash().await.latest_arc().get_mixed_port(),
-        };
+        let port = Config::effective_mixed_port().await;
         let pac_port = IVerge::get_singleton_port();
         let bypass = get_bypass().await;
 
@@ -638,10 +632,7 @@ impl Sysopt {
             monitor.set_guard_type(GuardType::None);
         }
 
-        let port = match Config::verge().await.latest_arc().verge_mixed_port {
-            Some(port) => port,
-            None => Config::clash().await.latest_arc().get_mixed_port(),
-        };
+        let port = Config::effective_mixed_port().await;
         let host = Config::verge()
             .await
             .latest_arc()

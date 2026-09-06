@@ -343,7 +343,8 @@
         "socks": "Socks Portu",
         "http": "Http(s) Portu",
         "redir": "Redir Portu",
-        "tproxy": "Tvekil Portu"
+        "tproxy": "Tvekil Portu",
+        "mixedFollowsSubscription": "Port abonelikteki gibi"
       },
       "actions": {
         "random": "Rastgele Port"
@@ -621,6 +622,13 @@
         "invalid": "Invalid configuration",
         "invalidYaml": "Invalid YAML format",
         "emptyDns": "DNS bloğu boş olduğu için kaydedilmedi"
+      },
+      "options": {
+        "hosts": {
+          "auto": "Abonelikteki gibi",
+          "on": "Açık",
+          "off": "Kapalı"
+        }
       }
     },
     "webUI": {

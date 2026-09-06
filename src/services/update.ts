@@ -4,7 +4,7 @@ import {
   type Update,
 } from '@tauri-apps/plugin-updater'
 
-import { getVergeConfig } from '@/services/cmds'
+import { getClashInfo, getVergeConfig } from '@/services/cmds'
 import { version as appVersion } from '@root/package.json'
 
 type VersionParts = {
@@ -151,8 +151,10 @@ const DEFAULT_MIXED_PORT = 7897
 
 const localProxyUrl = async (): Promise<string | null> => {
   try {
-    const verge = await getVergeConfig()
-    const port = verge?.verge_mixed_port ?? DEFAULT_MIXED_PORT
+    // clod:port-ladder — порт берём действующий: при «как в подписке» в наших
+    // настройках его нет вовсе.
+    const info = await getClashInfo()
+    const port = info?.mixed_port ?? DEFAULT_MIXED_PORT
     return `http://127.0.0.1:${port}`
   } catch (err) {
     console.warn('[updater] failed to read the local proxy port', err)

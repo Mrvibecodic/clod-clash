@@ -13,7 +13,7 @@ import { forwardRef, useImperativeHandle, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseDialog, Switch } from '@/components/base'
-import { useClashInfo } from '@/hooks/use-clash'
+import { useClash, useClashInfo } from '@/hooks/use-clash'
 import { useVerge } from '@/hooks/use-verge'
 import { isPortInUse } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
@@ -32,12 +32,18 @@ const generateRandomPort = () =>
 export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
   const { t } = useTranslation()
   const { clashInfo, patchInfo } = useClashInfo()
+  const { ladder } = useClash()
   const { verge, patchVerge } = useVerge()
   const [open, setOpen] = useState(false)
 
   // Mixed Port
+  // clod:port-ladder — «как в подписке» это отсутствие порта у нас: тогда в поле
+  // показывается тот, на котором ядро слушает на самом деле.
+  const [mixedFollowsSubscription, setMixedFollowsSubscription] = useState(
+    ladder?.mixed_port == null,
+  )
   const [mixedPort, setMixedPort] = useState(
-    verge?.verge_mixed_port ?? clashInfo?.mixed_port ?? 7897,
+    ladder?.mixed_port ?? clashInfo?.mixed_port ?? 7897,
   )
 
   // Состояние остальных портов
@@ -82,7 +88,8 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
   useImperativeHandle(ref, () => ({
     open: () => {
       originalPortsRef.current = {
-        mixedPort: verge?.verge_mixed_port ?? clashInfo?.mixed_port ?? 7897,
+        mixedFollowsSubscription: ladder?.mixed_port == null,
+        mixedPort: ladder?.mixed_port ?? clashInfo?.mixed_port ?? 7897,
         socksPort: verge?.verge_socks_port ?? 7898,
         socksEnabled: verge?.verge_socks_enabled ?? false,
         httpPort: verge?.verge_port ?? 7899,
@@ -93,6 +100,9 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
         tproxyEnabled: verge?.verge_tproxy_enabled ?? false,
       }
 
+      setMixedFollowsSubscription(
+        originalPortsRef.current.mixedFollowsSubscription,
+      )
       setMixedPort(originalPortsRef.current.mixedPort)
       setSocksPort(originalPortsRef.current.socksPort)
       setSocksEnabled(originalPortsRef.current.socksEnabled)
@@ -110,8 +120,13 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
   // TODO снизить сложность кода, затраты на производительность
   const onSave = useLockFn(async () => {
     // Проверка конфликта портов
+    // clod:port-ladder — при «как в подписке» с остальными портами всё равно
+    // сверяется действующий: два слушателя на одном порту ядро не поднимет.
+    const effectiveMixed = mixedFollowsSubscription
+      ? (clashInfo?.mixed_port ?? -1)
+      : mixedPort
     const portList = [
-      mixedPort,
+      effectiveMixed,
       socksEnabled ? socksPort : -1,
       httpEnabled ? httpPort : -1,
       redirEnabled ? redirPort : -1,
@@ -125,7 +140,8 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
     // Проверка диапазона портов
     const isValidPort = (port: number) => port >= 1 && port <= 65535
     const allPortsValid = [
-      mixedPort,
+      mixedFollowsSubscription ? 0 : mixedPort,
+
       socksEnabled ? socksPort : 0,
       httpEnabled ? httpPort : 0,
       redirEnabled ? redirPort : 0,
@@ -139,7 +155,8 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
     const original = originalPortsRef.current
     const changedPorts: number[] = []
 
-    if (mixedPort !== original?.mixedPort) changedPorts.push(mixedPort)
+    if (!mixedFollowsSubscription && mixedPort !== original?.mixedPort)
+      changedPorts.push(mixedPort)
     if (socksEnabled && socksPort !== original?.socksPort)
       changedPorts.push(socksPort)
     if (httpEnabled && httpPort !== original?.httpPort)
@@ -157,6 +174,7 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
             port,
           })
           if (original) {
+            setMixedFollowsSubscription(original.mixedFollowsSubscription)
             setMixedPort(original.mixedPort)
             setSocksPort(original.socksPort)
             setSocksEnabled(original.socksEnabled)
@@ -167,9 +185,8 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
             setTproxyPort(original.tproxyPort)
             setTproxyEnabled(original.tproxyEnabled)
           } else {
-            setMixedPort(
-              verge?.verge_mixed_port ?? clashInfo?.mixed_port ?? 7897,
-            )
+            setMixedFollowsSubscription(ladder?.mixed_port == null)
+            setMixedPort(ladder?.mixed_port ?? clashInfo?.mixed_port ?? 7897)
             setSocksPort(verge?.verge_socks_port ?? 7898)
             setSocksEnabled(verge?.verge_socks_enabled ?? false)
             setHttpPort(verge?.verge_port ?? 7899)
@@ -189,7 +206,7 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
 
     // Готовим данные конфига
     const clashConfig = {
-      'mixed-port': mixedPort,
+      'mixed-port': mixedFollowsSubscription ? 'auto' : mixedPort,
       'socks-port': socksPort,
       port: httpPort,
       'redir-port': redirPort,
@@ -197,7 +214,7 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
     }
 
     const vergeConfig = {
-      verge_mixed_port: mixedPort,
+      ...(mixedFollowsSubscription ? {} : { verge_mixed_port: mixedPort }),
       verge_socks_port: socksPort,
       verge_socks_enabled: socksEnabled,
       verge_port: httpPort,
@@ -244,7 +261,12 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
             <TextField
               size="small"
               sx={{ width: 80, mr: 0.5, fontSize: 12 }}
-              value={mixedPort}
+              value={
+                mixedFollowsSubscription
+                  ? (clashInfo?.mixed_port ?? mixedPort)
+                  : mixedPort
+              }
+              disabled={mixedFollowsSubscription}
               onChange={(e) =>
                 setMixedPort(+e.target.value?.replace(/\D+/, '').slice(0, 5))
               }
@@ -252,6 +274,7 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
             />
             <IconButton
               size="small"
+              disabled={mixedFollowsSubscription}
               onClick={() => setMixedPort(generateRandomPort())}
               title={t('settings.modals.clashPort.actions.random')}
               sx={{ mr: 0.5 }}
@@ -265,6 +288,20 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
               sx={{ ml: 0.5, opacity: 0.7 }}
             />
           </div>
+        </ListItem>
+
+        <ListItem sx={{ padding: '4px 0', minHeight: 36 }}>
+          <ListItemText
+            primary={t(
+              'settings.modals.clashPort.fields.mixedFollowsSubscription',
+            )}
+            slotProps={{ primary: { sx: { fontSize: 12 } } }}
+          />
+          <Switch
+            size="small"
+            checked={mixedFollowsSubscription}
+            onChange={(_, checked) => setMixedFollowsSubscription(checked)}
+          />
         </ListItem>
 
         <ListItem sx={{ padding: '4px 0', minHeight: 36 }}>

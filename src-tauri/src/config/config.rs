@@ -173,6 +173,39 @@ impl Config {
         Self::global().await.runtime_config.clone()
     }
 
+    /// Порт, на котором ядро слушает на самом деле.
+    ///
+    /// clod:port-ladder — источник истины один, и это СОБРАННЫЙ конфиг.
+    /// Закреплённый пользователем порт попадает в него сам, а «как в подписке»
+    /// означает, что ключа у нас нет и значение пришло из шаблона провайдера.
+    /// Спрашивать про порт наши собственные настройки нельзя: системный прокси,
+    /// PAC, проверка занятости и апдейтер указывали бы мимо ядра.
+    pub async fn effective_mixed_port() -> u16 {
+        // Сначала ПРИМЕНЁННЫЙ конфиг: черновик может нести порт, который ядру
+        // ещё не отдали (или который отвергнут проверкой), и системный прокси
+        // указал бы на порт, которого у ядра никогда не было. Черновик берём
+        // только на холодном старте, пока применённого ещё нет.
+        let runtime = Self::runtime().await;
+        let from_runtime = runtime
+            .data_arc()
+            .config
+            .as_ref()
+            .and_then(|config| config.get("mixed-port").cloned())
+            .or_else(|| {
+                runtime
+                    .latest_arc()
+                    .config
+                    .as_ref()
+                    .and_then(|config| config.get("mixed-port").cloned())
+            });
+        if let Some(value) = from_runtime {
+            let mut probe = serde_yaml_ng::Mapping::new();
+            probe.insert("mixed-port".into(), value);
+            return IClashTemp::guard_mixed_port(&probe);
+        }
+        Self::clash().await.latest_arc().get_mixed_port()
+    }
+
     /// Инициализация подписки
     pub async fn init_config() -> Result<()> {
         Self::init_config_before_window().await?;

@@ -343,7 +343,8 @@
         "socks": "SOCKS 連接埠",
         "http": "HTTP(S) 連接埠",
         "redir": "Redir 透明連接埠",
-        "tproxy": "Tproxy 連接埠"
+        "tproxy": "Tproxy 連接埠",
+        "mixedFollowsSubscription": "連接埠與訂閱一致"
       },
       "actions": {
         "random": "隨機連接埠"
@@ -621,6 +622,13 @@
         "invalid": "無效的設定",
         "invalidYaml": "YAML 格式無效",
         "emptyDns": "DNS 設定區塊為空，未儲存"
+      },
+      "options": {
+        "hosts": {
+          "auto": "與訂閱一致",
+          "on": "開啟",
+          "off": "關閉"
+        }
       }
     },
     "webUI": {

@@ -218,13 +218,7 @@ impl CoreManager {
         let generation = MIXED_PORT_CHECK_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
         AsyncHandler::spawn(move || async move {
             let manager = Self::global();
-            let expected = {
-                let verge = Config::verge().await.latest_arc();
-                match verge.verge_mixed_port {
-                    Some(port) => port,
-                    None => Config::clash().await.latest_arc().get_mixed_port(),
-                }
-            };
+            let expected = Config::effective_mixed_port().await;
 
             let mut answered = false;
             for _ in 0..timing::MIXED_PORT_CHECK_ATTEMPTS {

@@ -343,7 +343,8 @@
         "socks": "SOCKS 代理端口",
         "http": "HTTP(S) 代理端口",
         "redir": "Redir 透明代理端口",
-        "tproxy": "Tproxy 透明代理端口"
+        "tproxy": "Tproxy 透明代理端口",
+        "mixedFollowsSubscription": "端口与订阅一致"
       },
       "actions": {
         "random": "随机端口"
@@ -621,6 +622,13 @@
         "invalid": "配置无效",
         "invalidYaml": "YAML 格式无效",
         "emptyDns": "DNS 配置块为空，未保存"
+      },
+      "options": {
+        "hosts": {
+          "auto": "与订阅一致",
+          "on": "开启",
+          "off": "关闭"
+        }
       }
     },
     "webUI": {

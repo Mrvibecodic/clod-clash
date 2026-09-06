@@ -139,7 +139,7 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
 
     if (isPacMode) {
       const host = value.proxy_host || '127.0.0.1'
-      const port = verge?.verge_mixed_port || clashConfig.mixedPort || 7897
+      const port = clashConfig.mixedPort || verge?.verge_mixed_port || 7897
       return `${host}:${port}`
     } else {
       return systemProxyAddress

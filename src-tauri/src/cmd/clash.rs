@@ -20,6 +20,7 @@ use tokio::fs;
 pub struct CoreLadder {
     log_level: Option<std::string::String>,
     unified_delay: Option<bool>,
+    mixed_port: Option<u16>,
 }
 
 fn read_ladder(clash: &Mapping) -> CoreLadder {
@@ -45,9 +46,31 @@ fn read_ladder(clash: &Mapping) -> CoreLadder {
             None
         }
     });
+    // clod:port-ladder — «как в подписке» это ОТСУТСТВИЕ ключа у нас, поэтому
+    // порт читается так же, как остальная лесенка: есть значение — закреплено.
+    let mixed_port = clash.get("mixed-port").and_then(|value| {
+        let port = match value {
+            serde_yaml_ng::Value::Number(number) => number.as_u64(),
+            serde_yaml_ng::Value::String(text) => text.parse().ok(),
+            _ => None,
+        };
+        match port.filter(|port| (1..=65535).contains(port)) {
+            Some(port) => u16::try_from(port).ok(),
+            None => {
+                logging!(
+                    warn,
+                    Type::Config,
+                    "mixed-port in the core config is not a usable port ({value:?}); \
+                     the settings page will show it as unset"
+                );
+                None
+            }
+        }
+    });
     CoreLadder {
         log_level,
         unified_delay,
+        mixed_port,
     }
 }
 
@@ -66,7 +89,11 @@ pub async fn copy_clash_env() -> CmdResult {
 
 #[tauri::command]
 pub async fn get_clash_info() -> CmdResult<ClashInfo> {
-    Ok(Config::clash().await.data_arc().get_client_info())
+    let mut info = Config::clash().await.data_arc().get_client_info();
+    // clod:port-ladder — интерфейсу нужен порт, на котором ядро СЕЙЧАС слушает,
+    // а не наше умолчание: при «как в подписке» его задаёт провайдер.
+    info.mixed_port = Config::effective_mixed_port().await;
+    Ok(info)
 }
 
 #[tauri::command]
@@ -278,7 +305,7 @@ pub async fn get_clash_logs() -> CmdResult<Vec<CompactString>> {
 
 #[cfg(test)]
 mod tests {
-    use super::{read_ladder, reached_a_verdict};
+    use super::{reached_a_verdict, read_ladder};
     use crate::core::validate::{ValidationErrorKind, ValidationOutcome, ValidationSkipReason};
     use serde_yaml_ng::{Mapping, Value};
 

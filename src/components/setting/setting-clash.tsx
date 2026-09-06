@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next'
 import { updateGeo, type LogLevel } from 'tauri-plugin-mihomo-api'
 
 import { type DialogRef, Switch, TooltipIcon } from '@/components/base'
-import { useClash } from '@/hooks/use-clash'
+import { useClash, useClashInfo } from '@/hooks/use-clash'
 import { useClashLog } from '@/hooks/use-clash-log'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useVerge } from '@/hooks/use-verge'
@@ -45,6 +45,7 @@ const SettingClash = ({ onError }: Props) => {
 
   const { clash, ladder, version, mutateClash, mutateLadder, patchClash } =
     useClash()
+  const { clashInfo } = useClashInfo()
   const { verge, patchVerge } = useVerge()
   const [, setClashLog] = useClashLog()
 
@@ -58,7 +59,9 @@ const SettingClash = ({ onError }: Props) => {
       ? normalizedMode
       : 'rule'
 
-  const { verge_mixed_port } = verge ?? {}
+  // clod:port-ladder — показываем порт, на котором ядро слушает на самом деле:
+  // при «как в подписке» наших настроек он не касается.
+  const effectiveMixedPort = clashInfo?.mixed_port ?? 7897
 
   const [dnsSettingsEnabled, setDnsSettingsEnabled] = useState(() => {
     return verge?.enable_dns_settings ?? false
@@ -335,7 +338,7 @@ const SettingClash = ({ onError }: Props) => {
           autoComplete="new-password"
           disabled={false}
           size="small"
-          value={verge_mixed_port ?? 7897}
+          value={effectiveMixedPort}
           sx={{ width: 100, input: { py: '7.5px', cursor: 'pointer' } }}
           onClick={(e) => {
             portRef.current?.open()

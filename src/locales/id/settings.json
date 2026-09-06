@@ -343,7 +343,8 @@
         "socks": "Port Socks",
         "http": "Port Http(s)",
         "redir": "Port Redir",
-        "tproxy": "Port Tproxy"
+        "tproxy": "Port Tproxy",
+        "mixedFollowsSubscription": "Port seperti di langganan"
       },
       "actions": {
         "random": "Port Acak"
@@ -621,6 +622,13 @@
         "invalid": "Invalid configuration",
         "invalidYaml": "Invalid YAML format",
         "emptyDns": "Blok DNS kosong dan tidak disimpan"
+      },
+      "options": {
+        "hosts": {
+          "auto": "Seperti di langganan",
+          "on": "Aktif",
+          "off": "Nonaktif"
+        }
       }
     },
     "webUI": {

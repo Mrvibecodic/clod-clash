@@ -105,17 +105,15 @@ pub fn embed_server() {
     });
 
     let pac = warp::path!("commands" / "pac").and_then(|| async move {
+        // clod:port-ladder — порт для PAC берётся из собранного конфига: при
+        // «как в подписке» наши настройки его не знают.
+        let pac_port = Config::effective_mixed_port().await;
         let verge_config = Config::verge().await;
-        let clash_config = Config::clash().await;
 
         let verge_data = verge_config.data_arc();
-        let clash_data = clash_config.data_arc();
 
         let pac_content = verge_data.pac_file_content.as_deref().unwrap_or(DEFAULT_PAC);
 
-        let pac_port = verge_data
-            .verge_mixed_port
-            .unwrap_or_else(|| clash_data.get_mixed_port());
         let proxy_host = verge_data.proxy_host.as_deref().unwrap_or("127.0.0.1");
         let processed_content = pac_content
             .replace("%mixed-port%", &format!("{pac_port}"))

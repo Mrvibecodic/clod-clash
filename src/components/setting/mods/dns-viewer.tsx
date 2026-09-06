@@ -140,6 +140,17 @@ function parseList(str: string): string[] {
     .filter(Boolean)
 }
 
+// clod:hosts-ladder — у ключей hosts три состояния: «как в подписке» (ключа у
+// нас нет и решает шаблон провайдера, а если и он молчит — умолчание ядра),
+// либо явное включение или выключение поверх подписки.
+type HostsChoice = 'auto' | 'on' | 'off'
+
+const hostsChoiceOf = (value: boolean | undefined): HostsChoice =>
+  value === undefined ? 'auto' : value ? 'on' : 'off'
+
+const hostsKey = (key: string, choice: HostsChoice) =>
+  choice === 'auto' ? {} : { [key]: choice === 'on' }
+
 const DEFAULT_DNS_CONFIG = {
   enable: true,
   listen: ':53',
@@ -149,8 +160,6 @@ const DEFAULT_DNS_CONFIG = {
   'fake-ip-filter-mode': 'blacklist' as 'blacklist' | 'whitelist',
   'prefer-h3': false,
   'respect-rules': false,
-  'use-hosts': false,
-  'use-system-hosts': false,
   ipv6: true,
   'fake-ip-filter': [
     '*.lan',
@@ -209,8 +218,8 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
     fakeIpFilterMode: 'blacklist' | 'whitelist'
     preferH3: boolean
     respectRules: boolean
-    useHosts: boolean
-    useSystemHosts: boolean
+    useHosts: HostsChoice
+    useSystemHosts: HostsChoice
     ipv6: boolean
     fakeIpFilter: string
     nameserver: string
@@ -229,8 +238,8 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
     fakeIpFilterMode: DEFAULT_DNS_CONFIG['fake-ip-filter-mode'],
     preferH3: DEFAULT_DNS_CONFIG['prefer-h3'],
     respectRules: DEFAULT_DNS_CONFIG['respect-rules'],
-    useHosts: DEFAULT_DNS_CONFIG['use-hosts'],
-    useSystemHosts: DEFAULT_DNS_CONFIG['use-system-hosts'],
+    useHosts: 'auto',
+    useSystemHosts: 'auto',
     ipv6: DEFAULT_DNS_CONFIG.ipv6,
     fakeIpFilter: DEFAULT_DNS_CONFIG['fake-ip-filter'].join(', '),
     defaultNameserver: DEFAULT_DNS_CONFIG['default-nameserver'].join(', '),
@@ -294,10 +303,8 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
         preferH3: dnsConfig['prefer-h3'] ?? DEFAULT_DNS_CONFIG['prefer-h3'],
         respectRules:
           dnsConfig['respect-rules'] ?? DEFAULT_DNS_CONFIG['respect-rules'],
-        useHosts: dnsConfig['use-hosts'] ?? DEFAULT_DNS_CONFIG['use-hosts'],
-        useSystemHosts:
-          dnsConfig['use-system-hosts'] ??
-          DEFAULT_DNS_CONFIG['use-system-hosts'],
+        useHosts: hostsChoiceOf(dnsConfig['use-hosts']),
+        useSystemHosts: hostsChoiceOf(dnsConfig['use-system-hosts']),
         ipv6: dnsConfig.ipv6 ?? DEFAULT_DNS_CONFIG.ipv6,
         fakeIpFilter:
           dnsConfig['fake-ip-filter']?.join(', ') ??
@@ -335,8 +342,8 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
       'fake-ip-filter-mode': values.fakeIpFilterMode,
       'prefer-h3': values.preferH3,
       'respect-rules': values.respectRules,
-      'use-hosts': values.useHosts,
-      'use-system-hosts': values.useSystemHosts,
+      ...hostsKey('use-hosts', values.useHosts),
+      ...hostsKey('use-system-hosts', values.useSystemHosts),
       ipv6: values.ipv6,
       'fake-ip-filter': parseList(values.fakeIpFilter),
       'default-nameserver': parseList(values.defaultNameserver),
@@ -402,8 +409,8 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
       fakeIpFilterMode: DEFAULT_DNS_CONFIG['fake-ip-filter-mode'],
       preferH3: DEFAULT_DNS_CONFIG['prefer-h3'],
       respectRules: DEFAULT_DNS_CONFIG['respect-rules'],
-      useHosts: DEFAULT_DNS_CONFIG['use-hosts'],
-      useSystemHosts: DEFAULT_DNS_CONFIG['use-system-hosts'],
+      useHosts: 'auto',
+      useSystemHosts: 'auto',
       ipv6: DEFAULT_DNS_CONFIG.ipv6,
       fakeIpFilter: DEFAULT_DNS_CONFIG['fake-ip-filter'].join(', '),
       defaultNameserver: DEFAULT_DNS_CONFIG['default-nameserver'].join(', '),
@@ -484,13 +491,7 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
       const runtimeDns = (await getRuntimeConfig())?.dns
 
       if (runtimeDns && Object.keys(runtimeDns).length > 0) {
-        const config = {
-          dns: {
-            ...runtimeDns,
-            'use-hosts': false,
-            'use-system-hosts': false,
-          },
-        }
+        const config = { dns: { ...runtimeDns } }
 
         updateValuesFromConfig(config)
         setYamlContent(yaml.dump(config, { forceQuotes: true }))
@@ -810,11 +811,22 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
               primary={t('settings.modals.dns.fields.useHosts.label')}
               secondary={t('settings.modals.dns.fields.useHosts.description')}
             />
-            <Switch
-              edge="end"
-              checked={values.useHosts}
+            <Select
+              size="small"
+              sx={{ width: 160 }}
+              value={values.useHosts}
               onChange={handleChange('useHosts')}
-            />
+            >
+              <MenuItem value="auto">
+                {t('settings.modals.dns.options.hosts.auto')}
+              </MenuItem>
+              <MenuItem value="on">
+                {t('settings.modals.dns.options.hosts.on')}
+              </MenuItem>
+              <MenuItem value="off">
+                {t('settings.modals.dns.options.hosts.off')}
+              </MenuItem>
+            </Select>
           </Item>
 
           <Item>
@@ -824,11 +836,22 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
                 'settings.modals.dns.fields.useSystemHosts.description',
               )}
             />
-            <Switch
-              edge="end"
-              checked={values.useSystemHosts}
+            <Select
+              size="small"
+              sx={{ width: 160 }}
+              value={values.useSystemHosts}
               onChange={handleChange('useSystemHosts')}
-            />
+            >
+              <MenuItem value="auto">
+                {t('settings.modals.dns.options.hosts.auto')}
+              </MenuItem>
+              <MenuItem value="on">
+                {t('settings.modals.dns.options.hosts.on')}
+              </MenuItem>
+              <MenuItem value="off">
+                {t('settings.modals.dns.options.hosts.off')}
+              </MenuItem>
+            </Select>
           </Item>
 
           <Item>

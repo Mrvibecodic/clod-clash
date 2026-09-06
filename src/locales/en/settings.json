@@ -343,7 +343,8 @@
         "socks": "Socks Port",
         "http": "Http(s) Port",
         "redir": "Redir Port",
-        "tproxy": "Tproxy Port"
+        "tproxy": "Tproxy Port",
+        "mixedFollowsSubscription": "Take the port from the subscription"
       },
       "actions": {
         "random": "Random Port"
@@ -621,6 +622,13 @@
         "invalid": "Invalid configuration",
         "invalidYaml": "Invalid YAML format",
         "emptyDns": "The DNS block is empty and was not saved"
+      },
+      "options": {
+        "hosts": {
+          "auto": "As in the subscription",
+          "on": "On",
+          "off": "Off"
+        }
       }
     },
     "webUI": {

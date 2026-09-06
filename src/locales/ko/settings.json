@@ -343,7 +343,8 @@
         "socks": "SOCKS 포트",
         "http": "HTTP(S) 포트",
         "redir": "Redir 포트",
-        "tproxy": "TProxy 포트"
+        "tproxy": "TProxy 포트",
+        "mixedFollowsSubscription": "포트는 구독 설정을 따름"
       },
       "actions": {
         "random": "임의 포트"
@@ -621,6 +622,13 @@
         "invalid": "잘못된 구성",
         "invalidYaml": "잘못된 YAML 형식",
         "emptyDns": "DNS 블록이 비어 있어 저장하지 않았습니다"
+      },
+      "options": {
+        "hosts": {
+          "auto": "구독 설정을 따름",
+          "on": "켬",
+          "off": "끔"
+        }
       }
     },
     "webUI": {

@@ -343,7 +343,8 @@
         "socks": "پورت پروکسی Socks",
         "http": "پورت پروکسی Http(s)",
         "redir": "پورت پروکسی شفاف Redir",
-        "tproxy": "پورت پروکسی شفاف Tproxy"
+        "tproxy": "پورت پروکسی شفاف Tproxy",
+        "mixedFollowsSubscription": "پورت مطابق اشتراک"
       },
       "actions": {
         "random": "پورت تصادفی"
@@ -621,6 +622,13 @@
         "invalid": "پیکربندی نامعتبر",
         "invalidYaml": "قالب YAML نامعتبر است",
         "emptyDns": "بلوک DNS خالی است و ذخیره نشد"
+      },
+      "options": {
+        "hosts": {
+          "auto": "مطابق اشتراک",
+          "on": "روشن",
+          "off": "خاموش"
+        }
       }
     },
     "webUI": {

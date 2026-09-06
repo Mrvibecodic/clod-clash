@@ -879,6 +879,7 @@ interface ITunState {
 interface ICoreLadder {
   log_level?: string | null
   unified_delay?: boolean | null
+  mixed_port?: number | null
 }
 
 interface IVergeConfig {

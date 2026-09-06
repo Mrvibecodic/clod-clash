@@ -894,6 +894,7 @@ export interface TranslationResources {
           fields: {
             http: string
             mixed: string
+            mixedFollowsSubscription: string
             redir: string
             socks: string
             tproxy: string
@@ -983,6 +984,13 @@ export interface TranslationResources {
             saved: string
             savedNotApplied: string
             savedUnchecked: string
+          }
+          options: {
+            hosts: {
+              auto: string
+              off: string
+              on: string
+            }
           }
           sections: {
             general: string

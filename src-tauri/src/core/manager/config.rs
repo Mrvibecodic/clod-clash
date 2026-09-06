@@ -21,7 +21,13 @@ impl CoreManager {
         use crate::constants::files::RUNTIME_CONFIG;
 
         let runtime_path = dirs::app_home_dir()?.join(RUNTIME_CONFIG);
-        let clash_config = &Config::clash().await.latest_arc().0;
+        // clod:port-ladder — запасной конфиг собирается в обход `enhance()`, а
+        // значит и в обход умолчаний лесенки. Без этого у «как в подписке»
+        // (то есть у всех новых установок) ядро стартовало бы вообще без
+        // mixed-порта, а системный прокси указывал бы на пустое место.
+        let mut clash_config = Config::clash().await.latest_arc().0.clone();
+        crate::enhance::fill_the_ladder_defaults(&mut clash_config);
+        let clash_config = &clash_config;
 
         // clod:dns-applied — заявка на подмену системного DNS пришла от конфига,
         // который мы сейчас заменяем запасным: доводить её до применения нельзя.
@@ -133,7 +139,19 @@ impl CoreManager {
         match CoreConfigValidator::global().validate_config_outcome().await {
             Ok(outcome) if outcome.is_valid() => {
                 let run_path = Config::generate_file(ConfigType::Run).await?;
+                // clod:port-ladder — порт мог приехать из подписки: системный
+                // прокси и PAC указывают на него, и после смены их надо
+                // переписать, каким бы путём конфиг ни доехал до ядра.
+                let mixed_port_changed = {
+                    let runtime = Config::runtime().await;
+                    let next = runtime.latest_arc();
+                    let prev = runtime.data_arc();
+                    prev.config.as_ref().and_then(|config| config.get("mixed-port"))
+                        != next.config.as_ref().and_then(|config| config.get("mixed-port"))
+                };
                 if let Err(error) = self.apply_config(run_path).await {
+                    #[cfg(target_os = "macos")]
+                    crate::utils::resolve::dns::forget_desire();
                     if let Some(refused) = error.downcast_ref::<ServiceRefusedTheBundle>() {
                         return Ok(ValidationOutcome::invalid(
                             ValidationErrorKind::CoreRejected,
@@ -143,6 +161,9 @@ impl CoreManager {
                     return Err(error);
                 }
                 forget_the_not_applied_mark().await;
+                if mixed_port_changed {
+                    reassert_system_proxy_for_the_new_port().await;
+                }
                 #[cfg(target_os = "macos")]
                 crate::utils::resolve::dns::apply_remembered_desire();
                 crate::process::AsyncHandler::spawn(|| async { crate::feat::tun::enforce_undesired_off().await });
@@ -462,6 +483,28 @@ const LISTENER_KEYS: &[&str] = &[
 ///
 /// `prev` — конфиг, применённый в прошлый раз; `None` (первый запуск) всегда
 /// означает полный reload.
+/// clod:port-ladder — порт слушателя сменился, значит адрес системного прокси
+/// устарел. Переписываем его и обновляем сторож; если прокси выключен, не
+/// трогаем ничего.
+async fn reassert_system_proxy_for_the_new_port() {
+    if !Config::verge().await.latest_arc().enable_system_proxy.unwrap_or(false) {
+        return;
+    }
+    logging!(
+        info,
+        Type::Core,
+        "[clod] the listening port changed, pointing the system proxy at it"
+    );
+    match crate::core::sysopt::Sysopt::global().update_sysproxy().await {
+        Ok(()) => crate::core::sysopt::Sysopt::global().refresh_guard().await,
+        Err(err) => logging!(
+            warn,
+            Type::Core,
+            "[clod] failed to point the system proxy at the new port: {err}"
+        ),
+    }
+}
+
 fn listeners_need_recreate(prev: Option<&serde_yaml_ng::Mapping>, next: Option<&serde_yaml_ng::Mapping>) -> bool {
     let (Some(prev), Some(next)) = (prev, next) else {
         return true;

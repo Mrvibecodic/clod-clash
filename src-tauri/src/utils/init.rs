@@ -282,8 +282,6 @@ fn default_dns_config() -> serde_yaml_ng::Mapping {
         ("fake-ip-filter-mode".into(), Value::String("blacklist".into())),
         ("prefer-h3".into(), Value::Bool(false)),
         ("respect-rules".into(), Value::Bool(false)),
-        ("use-hosts".into(), Value::Bool(false)),
-        ("use-system-hosts".into(), Value::Bool(false)),
         (
             "fake-ip-filter".into(),
             Value::Sequence(vec![
@@ -387,18 +385,15 @@ pub(crate) async fn ensure_dns_config_file() -> Result<()> {
         }
     );
 
-    let dns_config = seeded_dns_block(runtime_dns.unwrap_or_else(default_dns_config));
+    // clod:hosts-ladder — блок пишется как есть. Раньше поверх него всегда
+    // ложились `use-hosts: false` и `use-system-hosts: false`: `/etc/hosts`
+    // переставал учитываться даже у шаблонов, которые просят обратного, и
+    // вернуть это было нечем. Теперь решает подписка, а если она молчит —
+    // умолчание самого ядра (оба включены).
+    let dns_config = runtime_dns.unwrap_or_else(default_dns_config);
     let file_config = serde_yaml_ng::Mapping::from_iter([("dns".into(), serde_yaml_ng::Value::Mapping(dns_config))]);
 
     help::save_yaml(&dns_path, &file_config, Some(DNS_CONFIG_HEADER)).await
-}
-
-fn seeded_dns_block(mut dns: serde_yaml_ng::Mapping) -> serde_yaml_ng::Mapping {
-    use serde_yaml_ng::Value;
-
-    dns.insert("use-hosts".into(), Value::Bool(false));
-    dns.insert("use-system-hosts".into(), Value::Bool(false));
-    dns
 }
 
 fn legacy_fallback_filter() -> serde_yaml_ng::Mapping {
@@ -671,11 +666,7 @@ async fn asset_stamp(path: &PathBuf) -> Option<AssetStamp> {
     Some((meta.len(), modified))
 }
 
-fn should_copy_bundled_asset(
-    src: Option<AssetStamp>,
-    dest: Option<AssetStamp>,
-    delivered: Option<AssetStamp>,
-) -> bool {
+fn should_copy_bundled_asset(src: Option<AssetStamp>, dest: Option<AssetStamp>, delivered: Option<AssetStamp>) -> bool {
     let Some(src) = src else {
         return false;
     };
@@ -889,7 +880,7 @@ async fn handle_copy(src: &PathBuf, dest: &PathBuf, file: &str) {
 mod tests {
     use super::{
         DNS_CONFIG_HEADER, default_dns_config, dns_config_problem, drop_legacy_dns_keys, has_untouched_legacy_fallback,
-        has_user_comments, legacy_fallback_filter, seeded_dns_block, should_copy_bundled_asset,
+        has_user_comments, legacy_fallback_filter, should_copy_bundled_asset,
     };
     use serde_yaml_ng::{Mapping, Value};
 
@@ -900,13 +891,25 @@ mod tests {
 
     #[test]
     fn a_newer_bundled_geo_asset_replaces_the_one_we_delivered() {
-        assert!(should_copy_bundled_asset(Some((10, 200)), Some((10, 100)), Some((10, 100))));
-        assert!(!should_copy_bundled_asset(Some((10, 50)), Some((10, 100)), Some((10, 100))));
+        assert!(should_copy_bundled_asset(
+            Some((10, 200)),
+            Some((10, 100)),
+            Some((10, 100))
+        ));
+        assert!(!should_copy_bundled_asset(
+            Some((10, 50)),
+            Some((10, 100)),
+            Some((10, 100))
+        ));
     }
 
     #[test]
     fn a_geo_asset_updated_by_the_core_is_left_alone() {
-        assert!(!should_copy_bundled_asset(Some((10, 200)), Some((12, 150)), Some((10, 100))));
+        assert!(!should_copy_bundled_asset(
+            Some((10, 200)),
+            Some((12, 150)),
+            Some((10, 100))
+        ));
     }
 
     #[test]
@@ -960,36 +963,10 @@ mod tests {
     }
 
     #[test]
-    fn seeding_switches_the_hosts_keys_off() {
-        let dns = Mapping::from_iter([
-            ("use-hosts".into(), Value::Bool(true)),
-            ("use-system-hosts".into(), Value::Bool(true)),
-            ("enhanced-mode".into(), Value::String("fake-ip".into())),
-        ]);
-
-        let seeded = seeded_dns_block(dns);
-
-        assert_eq!(seeded.get("use-hosts"), Some(&Value::Bool(false)));
-        assert_eq!(seeded.get("use-system-hosts"), Some(&Value::Bool(false)));
-        assert_eq!(
-            seeded.get("enhanced-mode"),
-            Some(&Value::String("fake-ip".into())),
-            "the rest of the block arrives untouched"
-        );
-    }
-
-    #[test]
-    fn seeding_adds_the_hosts_keys_when_the_working_config_omits_them() {
-        let seeded = seeded_dns_block(Mapping::from_iter([("ipv6".into(), Value::Bool(true))]));
-
-        assert_eq!(seeded.get("use-hosts"), Some(&Value::Bool(false)));
-        assert_eq!(seeded.get("use-system-hosts"), Some(&Value::Bool(false)));
-        assert_eq!(seeded.get("ipv6"), Some(&Value::Bool(true)));
-    }
-
-    #[test]
-    fn seeding_leaves_the_built_in_defaults_as_they_are() {
-        assert_eq!(seeded_dns_block(default_dns_config()), default_dns_config());
+    fn the_built_in_dns_block_leaves_the_hosts_keys_to_the_core() {
+        let built_in = default_dns_config();
+        assert!(!built_in.contains_key("use-hosts"));
+        assert!(!built_in.contains_key("use-system-hosts"));
     }
 
     #[test]

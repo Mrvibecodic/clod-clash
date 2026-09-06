@@ -343,7 +343,8 @@
         "socks": "SOCKS-Proxy-Port",
         "http": "HTTP(S)-Proxy-Port",
         "redir": "Redir-Transparenter Proxy-Port",
-        "tproxy": "TPROXY-Transparenter Proxy-Port"
+        "tproxy": "TPROXY-Transparenter Proxy-Port",
+        "mixedFollowsSubscription": "Port wie im Abonnement"
       },
       "actions": {
         "random": "Zufälliger Port"
@@ -621,6 +622,13 @@
         "invalid": "Invalid configuration",
         "invalidYaml": "Invalid YAML format",
         "emptyDns": "Der DNS-Block ist leer und wurde nicht gespeichert"
+      },
+      "options": {
+        "hosts": {
+          "auto": "Wie im Abonnement",
+          "on": "Ein",
+          "off": "Aus"
+        }
       }
     },
     "webUI": {

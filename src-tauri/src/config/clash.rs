@@ -80,7 +80,6 @@ impl IClashTemp {
         #[cfg(target_os = "linux")]
         map.insert("tproxy-port".into(), network::ports::DEFAULT_TPROXY.into());
 
-        map.insert("mixed-port".into(), network::ports::DEFAULT_MIXED.into());
         map.insert("socks-port".into(), network::ports::DEFAULT_SOCKS.into());
         map.insert("port".into(), network::ports::DEFAULT_HTTP.into());
         map.insert("allow-lan".into(), false.into());
@@ -125,7 +124,6 @@ impl IClashTemp {
         let redir_port = Self::guard_redir_port(&config);
         #[cfg(target_os = "linux")]
         let tproxy_port = Self::guard_tproxy_port(&config);
-        let mixed_port = Self::guard_mixed_port(&config);
         let socks_port = Self::guard_socks_port(&config);
         let port = Self::guard_port(&config);
         let ctrl = Self::guard_external_controller(&config);
@@ -138,7 +136,13 @@ impl IClashTemp {
         config.insert("redir-port".into(), redir_port.into());
         #[cfg(target_os = "linux")]
         config.insert("tproxy-port".into(), tproxy_port.into());
-        config.insert("mixed-port".into(), mixed_port.into());
+        // clod:port-ladder — порт закрепляем, только если он у нас уже задан.
+        // Отсутствие ключа означает «как в подписке», и подставлять сюда своё
+        // умолчание нельзя: оно перебило бы порт из шаблона провайдера.
+        if config.contains_key("mixed-port") {
+            let mixed_port = Self::guard_mixed_port(&config);
+            config.insert("mixed-port".into(), mixed_port.into());
+        }
         config.insert("socks-port".into(), socks_port.into());
         config.insert("port".into(), port.into());
         config.insert("external-controller".into(), ctrl.into());
@@ -160,7 +164,7 @@ impl IClashTemp {
         }
     }
 
-    pub const SUBSCRIPTION_LADDER_KEYS: &[&str] = &["log-level", "unified-delay"];
+    pub const SUBSCRIPTION_LADDER_KEYS: &[&str] = &["log-level", "unified-delay", "mixed-port"];
     pub const FOLLOW_THE_SUBSCRIPTION: &str = "auto";
 
     pub fn follows_the_subscription(key: &Value, value: &Value) -> bool {
@@ -247,10 +251,10 @@ impl IClashTemp {
                 Value::Number(val_num) => val_num.as_u64().map(|u| u as u16),
                 _ => None,
             })
-            .unwrap_or(7897);
+            .unwrap_or(network::ports::DEFAULT_MIXED);
 
         if port == 0 {
-            port = 7897;
+            port = network::ports::DEFAULT_MIXED;
         }
 
         port

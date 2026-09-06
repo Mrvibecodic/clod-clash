@@ -530,7 +530,7 @@ async fn check_update_with_fallback(app_handle: &tauri::AppHandle) -> Result<Opt
     match updater.check().await {
         Ok(found) => Ok(found),
         Err(direct_error) => {
-            let port = verge.verge_mixed_port.unwrap_or(7897);
+            let port = crate::config::Config::effective_mixed_port().await;
             let proxy = format!("http://127.0.0.1:{port}");
             logging!(
                 warn,
