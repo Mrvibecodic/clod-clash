@@ -129,8 +129,28 @@ const fn v4_carries_traffic(ip: Ipv4Addr) -> bool {
     !ip.is_loopback() && !ip.is_link_local() && !ip.is_unspecified()
 }
 
+/// Переходные псевдотуннели IPv6: Teredo, 6to4, ISATAP.
+///
+/// clod:net-teredo — Windows поднимает и опускает их сама, по своему расписанию,
+/// по нескольку раз в час, и путь машины к сети при этом не меняется. Трафик мы
+/// через них не пускаем, так что в отпечатке сети им делать нечего: иначе
+/// очередная спячка Teredo читается как «пропал адрес, к которому привязаны
+/// соединения», и все живые соединения рвутся на ровном месте.
+///
+/// Определяются по адресу, а не по имени интерфейса: имя на Windows
+/// локализуется, префиксы — нет.
+const fn v6_is_transition_tunnel(ip: Ipv6Addr) -> bool {
+    let segments = ip.segments();
+    // Teredo — 2001:0::/32, 6to4 — 2002::/16.
+    if (segments[0] == 0x2001 && segments[1] == 0) || segments[0] == 0x2002 {
+        return true;
+    }
+    // ISATAP — идентификатор интерфейса ::0:5efe:a.b.c.d или ::200:5efe:a.b.c.d.
+    matches!(segments[4], 0 | 0x0200) && segments[5] == 0x5efe
+}
+
 const fn v6_carries_traffic(ip: Ipv6Addr) -> bool {
-    !ip.is_loopback() && !ip.is_unspecified() && (ip.segments()[0] & 0xffc0) != 0xfe80
+    !ip.is_loopback() && !ip.is_unspecified() && (ip.segments()[0] & 0xffc0) != 0xfe80 && !v6_is_transition_tunnel(ip)
 }
 
 fn v6_prefix(ip: std::net::Ipv6Addr) -> std::string::String {
@@ -141,18 +161,17 @@ fn v6_prefix(ip: std::net::Ipv6Addr) -> std::string::String {
     )
 }
 
-struct NetworkView {
-    entries: BTreeSet<std::string::String>,
-    carries_traffic: bool,
-}
-
-fn network_fingerprint() -> Option<NetworkView> {
+/// Отпечаток сети — адреса, по которым трафик действительно может уйти.
+///
+/// clod:net-teredo — раньше в набор попадал каждый адрес каждого чужого
+/// интерфейса, включая link-local и переходные туннели, а проверки
+/// `*_carries_traffic` применялись только к отдельному флагу. Из-за этого
+/// исчезновение адреса, которым никто не пользовался, считалось потерей пути.
+/// Теперь набор и флаг говорят об одном и том же: пуст — сети нет.
+fn network_fingerprint() -> Option<BTreeSet<std::string::String>> {
     let interfaces = crate::cmd::network::get_network_interfaces_info().ok()?;
 
-    let mut view = NetworkView {
-        entries: BTreeSet::new(),
-        carries_traffic: false,
-    };
+    let mut entries = BTreeSet::new();
 
     for interface in interfaces {
         let network_interface::NetworkInterface { name, addr, .. } = interface;
@@ -161,19 +180,18 @@ fn network_fingerprint() -> Option<NetworkView> {
         }
         for address in addr {
             match address {
-                network_interface::Addr::V4(v4) => {
-                    view.carries_traffic |= v4_carries_traffic(v4.ip);
-                    view.entries.insert(format!("{name}:{}", v4.ip));
+                network_interface::Addr::V4(v4) if v4_carries_traffic(v4.ip) => {
+                    entries.insert(format!("{name}:{}", v4.ip));
                 }
-                network_interface::Addr::V6(v6) => {
-                    view.carries_traffic |= v6_carries_traffic(v6.ip);
-                    view.entries.insert(format!("{name}:{}", v6_prefix(v6.ip)));
+                network_interface::Addr::V6(v6) if v6_carries_traffic(v6.ip) => {
+                    entries.insert(format!("{name}:{}", v6_prefix(v6.ip)));
                 }
+                _ => (),
             }
         }
     }
 
-    Some(view)
+    Some(entries)
 }
 
 fn listed<'a>(entries: impl Iterator<Item = &'a std::string::String>) -> std::string::String {
@@ -492,7 +510,7 @@ pub fn spawn_environment_watchdog() {
         }
         let mut last_tick = Instant::now();
         let mut last_awake = sleep_clock::reading();
-        let mut last_network = network_fingerprint().map(|view| view.entries).unwrap_or_default();
+        let mut last_network = network_fingerprint().unwrap_or_default();
         let mut ticks: u32 = 0;
 
         loop {
@@ -544,14 +562,14 @@ pub fn spawn_environment_watchdog() {
             };
             LISTING_FAILED.store(false, Ordering::Release);
 
-            let network_changed = view.entries != last_network;
-            let path_was_lost = path_was_lost(&last_network, &view.entries);
+            let network_changed = view != last_network;
+            let path_was_lost = path_was_lost(&last_network, &view);
             if network_changed {
-                report_fingerprint_change(&last_network, &view.entries, verbose_diagnostics().await);
+                report_fingerprint_change(&last_network, &view, verbose_diagnostics().await);
             }
-            last_network = view.entries;
+            let view_carries_traffic = !view.is_empty();
+            last_network = view;
 
-            let view_carries_traffic = view.carries_traffic;
             let rearm_is_now = rearm_is_due(view_carries_traffic);
 
             let reason = match (slept, network_changed) {
@@ -579,7 +597,7 @@ mod tests {
     use super::{
         CORE_TUNNEL_BASE, FINGERPRINT_ENTRIES_SHOWN, SLEEP_SLACK, interface_of, is_our_tunnel, listed,
         looks_like_the_core_default_tunnel, path_was_lost, sleep_gap, slept_through, spelled_out, v4_carries_traffic,
-        v6_carries_traffic, worth_spelling_out,
+        v6_carries_traffic, v6_is_transition_tunnel, worth_spelling_out,
     };
     use crate::constants::timing;
     use std::{
@@ -770,5 +788,30 @@ mod tests {
         assert!(!v6_carries_traffic(Ipv6Addr::LOCALHOST));
         assert!(!v6_carries_traffic(Ipv6Addr::UNSPECIFIED));
         assert!(!v6_carries_traffic(Ipv6Addr::new(0xfe80, 0, 0, 0, 1, 2, 3, 4)));
+    }
+
+    #[test]
+    fn a_transition_tunnel_is_not_a_path_of_its_own() {
+        let teredo = Ipv6Addr::new(0x2001, 0, 0x0a0a, 0x0a0a, 0, 0, 0, 1);
+        let six_to_four = Ipv6Addr::new(0x2002, 0xc000, 0x0204, 0, 0, 0, 0, 1);
+        let isatap = Ipv6Addr::new(0x2a02, 1, 2, 3, 0, 0x5efe, 0xc0a8, 0x0105);
+        let isatap_public = Ipv6Addr::new(0x2a02, 1, 2, 3, 0x0200, 0x5efe, 0xc0a8, 0x0105);
+
+        assert!(v6_is_transition_tunnel(teredo));
+        assert!(v6_is_transition_tunnel(six_to_four));
+        assert!(v6_is_transition_tunnel(isatap));
+        assert!(v6_is_transition_tunnel(isatap_public));
+
+        assert!(!v6_carries_traffic(teredo));
+        assert!(!v6_carries_traffic(six_to_four));
+        assert!(!v6_carries_traffic(isatap));
+        assert!(!v6_carries_traffic(isatap_public));
+
+        // Соседние адреса из тех же диапазонов остаются обычной сетью.
+        assert!(!v6_is_transition_tunnel(Ipv6Addr::new(
+            0x2001, 0x0db8, 0, 0, 0, 0, 0, 1
+        )));
+        assert!(!v6_is_transition_tunnel(Ipv6Addr::new(0x2003, 1, 2, 3, 4, 5, 6, 7)));
+        assert!(v6_carries_traffic(Ipv6Addr::new(0x2001, 0x0db8, 0, 0, 0, 0, 0, 1)));
     }
 }
