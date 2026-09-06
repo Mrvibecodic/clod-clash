@@ -30,6 +30,9 @@ pub async fn update_launch() -> Result<()> {
         };
         if let Err(e) = outcome {
             logging!(error, Type::System, "auto-launch change failed: {e}");
+            // clod:autostart — отказ больше не выдаётся за успех: иначе тумблер
+            // оставался включённым, а при следующем входе приложение не стартовало.
+            return Err(anyhow::anyhow!("auto-launch change failed: {e}"));
         }
     }
 

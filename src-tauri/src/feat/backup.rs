@@ -36,9 +36,7 @@ fn restorable_backup_entry(name: &str) -> Option<PathBuf> {
     let mut parts = name.split('/');
     let first = parts.next()?;
     match parts.next() {
-        None => top_level_backup_files()
-            .contains(&first)
-            .then(|| PathBuf::from(first)),
+        None => top_level_backup_files().contains(&first).then(|| PathBuf::from(first)),
         Some(second) => {
             if first != "profiles" || parts.next().is_some() || !is_plain_file_name(second) {
                 return None;
@@ -56,11 +54,14 @@ async fn extract_backup(archive: PathBuf, target: PathBuf) -> Result<()> {
             let mut entry = zip.by_index(index)?;
             let raw_name = entry.name().to_owned();
             let Some(relative) = restorable_backup_entry(&raw_name) else {
-                logging!(
-                    warn,
-                    Type::Backup,
-                    "backup entry is not part of a backup and was not unpacked: {raw_name}"
-                );
+                // Запись каталога — часть устройства архива, а не потерянный файл.
+                if !raw_name.ends_with('/') {
+                    logging!(
+                        warn,
+                        Type::Backup,
+                        "backup entry is not part of a backup and was not unpacked: {raw_name}"
+                    );
+                }
                 continue;
             };
             let destination = target.join(&relative);
