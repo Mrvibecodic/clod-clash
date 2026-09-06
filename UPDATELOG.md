@@ -8,7 +8,7 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
-## v0.1.10-alpha.2
+## v0.1.10-alpha.3
 
 <!-- lang:en -->
 
@@ -27,7 +27,7 @@ as-is.
 - The tunnel check after start no longer runs twice or leaves its mark behind, the environment watchdog survives its own death, and the log no longer promises what did not happen
 - Restoring a backup keeps this machine's device fingerprint and its own record of the installed service, only the backup's own files are unpacked from the archive, and a successful restore no longer reports the archive's own folders as lost files
 - Waiting for the core client on exit is bounded by a timeout
-- The window has a content security policy, and the configuration editor no longer fetches schemas from the outside
+- The configuration editor no longer fetches schemas from the outside. The window's content security policy that came with it is withdrawn: it left the interface without any styling at all, so 0.1.10-alpha.2 was pulled and this build takes its place
 - The one-time migration of pinned core values no longer wipes the rest of the settings, and a value of the wrong type neither passes for «as in the subscription» nor overrides what the subscription set
 - Updating geodata no longer reports on the core's behalf, and files the core updated itself survive an application update
 - The settings page no longer scrolls sideways in a narrow window, and the choice of log level and precise delay shows in the list at once instead of waiting for the core to answer
@@ -50,7 +50,7 @@ as-is.
 - Проверка туннеля после старта не запускается дважды и не оставляет за собой метку, сторож среды переживает собственную смерть, а журнал не обещает того, чего не было
 - Восстановление копии оставляет отпечаток устройства и отметку об установленной службе своей машине, из архива разворачиваются только файлы копии, а удачное восстановление больше не сообщает о собственных каталогах архива как о потерянных файлах
 - Ожидание клиента ядра при выходе ограничено таймаутом
-- У окна появилась политика содержимого, а редактор конфигов не ходит за схемами наружу
+- Редактор конфигов не ходит за схемами наружу. Политика содержимого окна, приехавшая вместе с этим, отозвана: с ней интерфейс оставался вообще без оформления, поэтому сборка 0.1.10-alpha.2 снята, а эта её заменяет
 - Разовая миграция закреплённых значений ядра не стирает остальные настройки, а значение не того типа не выдаётся за «как в подписке» и не перекрывает то, что задала подписка
 - Обновление геоданных не отчитывается за ядро, а файлы, обновлённые самим ядром, переживают обновление приложения
 - Страница настроек не даёт горизонтальную прокрутку в узком окне, а выбор уровня журнала и точной задержки виден в списке сразу, не дожидаясь ответа ядра
