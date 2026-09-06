@@ -1,17 +1,11 @@
 use serde_yaml_ng::{Mapping, Value};
 
-#[cfg(target_os = "macos")]
-use crate::process::AsyncHandler;
-
 macro_rules! revise {
     ($map: expr, $key: expr, $val: expr) => {
         let ret_key = Value::String($key.into());
         $map.insert(ret_key, Value::from($val));
     };
 }
-
-#[cfg(target_os = "macos")]
-const SYSTEM_DNS_OVERRIDE_SERVER: &str = "114.114.114.114";
 
 pub fn use_tun(mut config: Mapping, enable: bool) -> (Mapping, bool) {
     let tun_key = Value::from("tun");
@@ -28,14 +22,13 @@ pub fn use_tun(mut config: Mapping, enable: bool) -> (Mapping, bool) {
     (config, shaped_fake_ip)
 }
 
+/// Запомнить, чего требует от подмены системного DNS собранный конфиг.
+///
+/// clod:dns-applied — само применение отложено до того момента, когда ядро
+/// приняло конфиг: сборка ещё ничего не решает, её могут отвергнуть.
 #[cfg(target_os = "macos")]
-pub fn sync_system_dns(enable: bool, shaped_fake_ip: bool, override_enabled: bool) {
-    use crate::utils::resolve::dns;
-
-    let wanted = override_enabled && enable && (shaped_fake_ip || dns::has_pending_restore());
-    AsyncHandler::spawn(move || async move {
-        dns::sync_override(wanted, SYSTEM_DNS_OVERRIDE_SERVER.to_string()).await;
-    });
+pub fn remember_system_dns(enable: bool, shaped_fake_ip: bool, override_enabled: bool) {
+    crate::utils::resolve::dns::remember_desire(override_enabled && enable, shaped_fake_ip);
 }
 
 fn shape_dns_for_tun(config: &mut Mapping) -> bool {

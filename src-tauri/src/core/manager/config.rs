@@ -23,6 +23,11 @@ impl CoreManager {
         let runtime_path = dirs::app_home_dir()?.join(RUNTIME_CONFIG);
         let clash_config = &Config::clash().await.latest_arc().0;
 
+        // clod:dns-applied — заявка на подмену системного DNS пришла от конфига,
+        // который мы сейчас заменяем запасным: доводить её до применения нельзя.
+        #[cfg(target_os = "macos")]
+        crate::utils::resolve::dns::forget_desire();
+
         // Draft only, no `apply` here: this runs on the boot path before the
         // core exists, so nothing has accepted this build yet. The core starts
         // from the draft (`generate_file` prefers `latest`) and `start_core`
@@ -138,15 +143,21 @@ impl CoreManager {
                     return Err(error);
                 }
                 forget_the_not_applied_mark().await;
+                #[cfg(target_os = "macos")]
+                crate::utils::resolve::dns::apply_remembered_desire();
                 crate::process::AsyncHandler::spawn(|| async { crate::feat::tun::enforce_undesired_off().await });
                 Ok(ValidationOutcome::Valid)
             }
             Ok(outcome) => {
                 Config::runtime().await.discard();
+                #[cfg(target_os = "macos")]
+                crate::utils::resolve::dns::forget_desire();
                 Ok(outcome)
             }
             Err(e) => {
                 Config::runtime().await.discard();
+                #[cfg(target_os = "macos")]
+                crate::utils::resolve::dns::forget_desire();
                 Err(e)
             }
         }

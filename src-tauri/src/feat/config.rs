@@ -234,6 +234,10 @@ async fn restart_core_for_patch() -> Result<()> {
 async fn process_terminated_flags(update_flags: UpdateFlags, patch: &IVerge) -> Result<()> {
     #[cfg(target_os = "macos")]
     if patch.enable_dns_override == Some(false) {
+        // clod:dns-applied — выключение тумблера пересборки конфига не вызывает,
+        // так что заявку надо снять руками: иначе ближайший перезапуск ядра
+        // поставил бы подмену обратно при выключенной настройке.
+        crate::utils::resolve::dns::remember_desire(false, false);
         crate::process::AsyncHandler::spawn(|| async {
             if !crate::utils::resolve::dns::restore_public_dns().await {
                 logging!(

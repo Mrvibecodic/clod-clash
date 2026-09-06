@@ -139,6 +139,10 @@ impl CoreManager {
         // note on `IRuntime::sentinel_report`.
         Config::runtime().await.apply();
 
+        // clod:dns-applied — конфиг живой, теперь можно ставить подмену DNS.
+        #[cfg(target_os = "macos")]
+        crate::utils::resolve::dns::apply_remembered_desire();
+
         // clod:tun-ready — проверяем факт, а не заявку: если ядро не смогло
         // поднять устройство, честно гасим TUN и говорим об этом.
         if crate::feat::tun::desired().await && !crate::feat::tun::is_suppressed() {

@@ -15,6 +15,7 @@ function is_valid_ipv4() {
 
 function is_valid_ipv6() {
     local ip="$1"
+    [[ "$ip" != *:* ]] && return 1
     [[ ! "$ip" =~ ^[0-9a-fA-F:]+$ ]] && return 1
     [[ "$ip" =~ :::+ ]] && return 1
     [[ "$(grep -o '::' <<<"$ip" | wc -l)" -gt 1 ]] && return 1
@@ -52,14 +53,18 @@ if [ ! -f "$state_file" ]; then
     done
 
     tmp_file="$state_file.tmp"
-    {
+    if ! {
         echo "$hardware_port"
         if [ "$is_valid_dns" = false ]; then
             echo "empty"
         else
             echo "$original_dns"
         fi
-    } >"$tmp_file"
+    } >"$tmp_file"; then
+        rm -f "$tmp_file"
+        echo "cannot write the original DNS for $hardware_port"
+        exit 1
+    fi
     if ! mv -f "$tmp_file" "$state_file"; then
         rm -f "$tmp_file"
         echo "cannot record the original DNS for $hardware_port"

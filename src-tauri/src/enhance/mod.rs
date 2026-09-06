@@ -1357,7 +1357,7 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
     let config = apply_builtin_scripts(config, clash_core, enable_builtin).await;
     let (config, shaped_fake_ip) = use_tun(config, enable_tun);
     #[cfg(target_os = "macos")]
-    crate::enhance::tun::sync_system_dns(enable_tun, shaped_fake_ip, enable_dns_override);
+    crate::enhance::tun::remember_system_dns(enable_tun, shaped_fake_ip, enable_dns_override);
     #[cfg(not(target_os = "macos"))]
     let _ = shaped_fake_ip;
     let config = apply_dns_settings(config, enable_dns_settings).await;
