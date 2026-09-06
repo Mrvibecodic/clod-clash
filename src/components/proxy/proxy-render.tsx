@@ -114,16 +114,14 @@ export const ProxyRender = memo(function ProxyRender(props: RenderProps) {
         >
           <Box sx={{ width: '100%' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-              {enable_group_icon &&
-                group.icon?.trim().startsWith('http') &&
-                iconCachePath !== '' && (
-                  <img
-                    src={iconCachePath}
-                    alt="group icon"
-                    width="32px"
-                    style={{ marginRight: '12px', borderRadius: '6px' }}
-                  />
-                )}
+              {enable_group_icon && group.icon?.trim().startsWith('http') && (
+                <img
+                  src={iconCachePath === '' ? group.icon : iconCachePath}
+                  alt="group icon"
+                  width="32px"
+                  style={{ marginRight: '12px', borderRadius: '6px' }}
+                />
+              )}
               {enable_group_icon && group.icon?.trim().startsWith('data') && (
                 <img
                   src={group.icon}

@@ -62,18 +62,16 @@ export const GroupItem = (props: Props) => {
         zIndex: isDragging ? 'calc(infinity)' : undefined,
       })}
     >
-      {group.icon &&
-        group.icon?.trim().startsWith('http') &&
-        iconCachePath !== '' && (
-          <img
-            src={iconCachePath}
-            width="32px"
-            style={{
-              marginRight: '12px',
-              borderRadius: '6px',
-            }}
-          />
-        )}
+      {group.icon && group.icon?.trim().startsWith('http') && (
+        <img
+          src={iconCachePath === '' ? group.icon : iconCachePath}
+          width="32px"
+          style={{
+            marginRight: '12px',
+            borderRadius: '6px',
+          }}
+        />
+      )}
       {group.icon && group.icon?.trim().startsWith('data') && (
         <img
           src={group.icon}
