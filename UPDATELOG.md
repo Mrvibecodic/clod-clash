@@ -8,6 +8,56 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.1.10-alpha.2
+
+<!-- lang:en -->
+
+### Changed
+
+- Switching a node closes the connections of the previous one from the tray as well, not only from the Proxies page; a retry that succeeds now finishes the job instead of leaving the choice unsaved, the core client is not held busy, and the connections are closed in batches rather than one at a time
+- The log level and the precise delay follow the subscription or your own choice on top of it, the way the other core values already do; the settings show which value came from the subscription, and choosing «as in the subscription» now also moves the Logs page to the level the core actually writes
+- On macOS the system DNS substitution can be switched off, and its failure is no longer passed off as success
+
+### Fixed
+
+- Windows brings its own adapters up and down all the time — the transition tunnels (Teredo, 6to4, ISATAP) several times an hour, the sandbox switches of Docker, WSL, Hyper-V, VirtualBox and VMware whenever you start or stop them. Each of those was read as a lost network path and closed every connection the core had, cutting downloads and long-lived sessions for no reason
+- The system DNS substitution on macOS is applied only after the core has accepted the configuration: a configuration the core rejected used to leave the whole machine resolving through a public server, without a tunnel and without a word. It can no longer stay half-applied either, and quitting is given enough time to put the previous addresses back
+- A core binary that changed is refused as before, but a folder is now judged to be administrator-only by the beginning of its path rather than by a substring anywhere in it: your own `D:\Program Files`, `~/Library` or `~/opt` no longer passes for a system one
+- Group icons are drawn from the cache instead of being fetched straight from the subscription's address, which the window's new content policy blocks
+- The tunnel check after start no longer runs twice or leaves its mark behind, the environment watchdog survives its own death, and the log no longer promises what did not happen
+- Restoring a backup keeps this machine's device fingerprint and its own record of the installed service, only the backup's own files are unpacked from the archive, and a successful restore no longer reports the archive's own folders as lost files
+- Waiting for the core client on exit is bounded by a timeout
+- The window has a content security policy, and the configuration editor no longer fetches schemas from the outside
+- The one-time migration of pinned core values no longer wipes the rest of the settings, and a value of the wrong type neither passes for «as in the subscription» nor overrides what the subscription set
+- Updating geodata no longer reports on the core's behalf, and files the core updated itself survive an application update
+- The settings page no longer scrolls sideways in a narrow window, and the choice of log level and precise delay shows in the list at once instead of waiting for the core to answer
+- On Linux the log is no longer flooded with desktop tracing; a failed autostart switch is no longer reported as success on macOS and Linux, and a successful one is no longer written as an error
+
+<!-- lang:ru -->
+
+### Изменено
+
+- Смена узла закрывает соединения прежнего и при переключении из трея, а не только со страницы «Прокси»; удавшаяся со второго раза попытка доводит дело до конца, а не оставляет выбор незапомненным; клиент ядра при этом не занят, а соединения закрываются пачкой, а не по одному
+- Уровень журнала и точная задержка берутся «как в подписке» или задаются своим выбором поверх неё — как это уже сделано для остальных значений ядра; в настройках видно, какое значение пришло из подписки, а выбор «как в подписке» переводит и страницу «Журнал» на тот уровень, которым ядро действительно пишет
+- На macOS подмену системного DNS можно выключить, а её отказ больше не выдаётся за успех
+
+### Исправлено
+
+- Windows постоянно поднимает и гасит свои адаптеры: переходные туннели (Teredo, 6to4, ISATAP) — по нескольку раз в час, коммутаторы песочниц Docker, WSL, Hyper-V, VirtualBox и VMware — когда вы их запускаете или останавливаете. Каждый такой раз читался как потеря пути к сети, и клиент закрывал все соединения ядра, обрывая загрузки и долгие сессии на ровном месте
+- Подмена системного DNS на macOS ставится только после того, как ядро приняло конфиг: отвергнутый конфиг раньше оставлял весь резолв машины на публичном сервере, без туннеля и без единого слова. Наполовину применённой она тоже больше не остаётся, а на выходе есть время вернуть прежние адреса
+- Изменившийся бинарник ядра отвергается, как и раньше, но «папка только для администратора» теперь определяется по началу пути, а не по вхождению подстроки: своя `D:\Program Files`, `~/Library` или `~/opt` больше не выдаёт себя за системную
+- Иконки групп рисуются из кэша, а не тянутся напрямую по адресу из подписки, который блокирует новая политика содержимого окна
+- Проверка туннеля после старта не запускается дважды и не оставляет за собой метку, сторож среды переживает собственную смерть, а журнал не обещает того, чего не было
+- Восстановление копии оставляет отпечаток устройства и отметку об установленной службе своей машине, из архива разворачиваются только файлы копии, а удачное восстановление больше не сообщает о собственных каталогах архива как о потерянных файлах
+- Ожидание клиента ядра при выходе ограничено таймаутом
+- У окна появилась политика содержимого, а редактор конфигов не ходит за схемами наружу
+- Разовая миграция закреплённых значений ядра не стирает остальные настройки, а значение не того типа не выдаётся за «как в подписке» и не перекрывает то, что задала подписка
+- Обновление геоданных не отчитывается за ядро, а файлы, обновлённые самим ядром, переживают обновление приложения
+- Страница настроек не даёт горизонтальную прокрутку в узком окне, а выбор уровня журнала и точной задержки виден в списке сразу, не дожидаясь ответа ядра
+- На Linux журнал не засоряется трассировкой рабочего стола; отказ включения автозапуска на macOS и Linux больше не выдаётся за успех, а удачное включение не пишется как ошибка
+
+---
+
 ## v0.1.10-alpha.1
 
 <!-- lang:en -->
