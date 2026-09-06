@@ -11,7 +11,11 @@ import { useClash } from '@/hooks/use-clash'
 import { useClashLog } from '@/hooks/use-clash-log'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useVerge } from '@/hooks/use-verge'
-import { invoke_uwp_tool, patchClashMode } from '@/services/cmds'
+import {
+  getRuntimeConfig,
+  invoke_uwp_tool,
+  patchClashMode,
+} from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import getSystem from '@/utils/get-system'
 
@@ -285,14 +289,22 @@ const SettingClash = ({ onError }: Props) => {
           onCatch={onError}
           onFormat={(e: any) => e.target.value}
           onChange={(e) => mutateLadder({ log_level: e === 'auto' ? null : e })}
-          onGuard={(e) => {
-            if (e !== 'auto') {
-              setClashLog((pre) => ({
-                ...pre!,
-                logLevel: e.toUpperCase() as LogLevel,
-              }))
-            }
-            return patchClash({ 'log-level': e })
+          onGuard={async (e) => {
+            await patchClash({ 'log-level': e })
+            // clod:ladder — уровень, с которым страница «Журнал» подключается к
+            // ядру, должен идти следом и за выбором «как в подписке»: иначе она
+            // остаётся на прежнем (например, Silent) и стоит пустой.
+            const applied =
+              e === 'auto'
+                ? ((await getRuntimeConfig())?.['log-level'] ?? 'info')
+                : e
+            setClashLog((pre) => ({
+              ...pre!,
+              logLevel: (applied === 'warn'
+                ? 'warning'
+                : applied
+              ).toUpperCase() as LogLevel,
+            }))
           }}
         >
           <Select size="small" sx={{ width: 160, '> div': { py: '7.5px' } }}>

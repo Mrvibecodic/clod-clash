@@ -592,6 +592,20 @@ const SUBSCRIPTION_DECIDES: &[&str] = &["ipv6"];
 
 const LADDER_DEFAULTS: &[(&str, &str)] = &[("log-level", "info"), ("unified-delay", "true")];
 
+/// clod:ladder — значение не того типа не должно перекрывать подписку.
+///
+/// Страница настроек такое значение и так показывает как «как в подписке»
+/// (`read_ladder` не может его прочитать), а в собранный конфиг оно раньше
+/// попадало как есть: подписка молча игнорировалась, а ядро получало строку
+/// там, где ждало логическое значение.
+fn ladder_value_is_usable(key: &str, value: &Value) -> bool {
+    match key {
+        "log-level" => value.as_str().is_some(),
+        "unified-delay" => value.as_bool().is_some(),
+        _ => true,
+    }
+}
+
 fn fill_the_ladder_defaults(config: &mut Mapping) {
     for (key, default) in LADDER_DEFAULTS {
         if config.contains_key(*key) {
@@ -630,6 +644,19 @@ async fn merge_default_config(
             if let Some(name) = key.as_str().filter(|name| SUBSCRIPTION_DECIDES.contains(name)) {
                 let decided = subscription_or_app(&config, name, &value);
                 config.insert(key, decided);
+                continue;
+            }
+            if let Some(name) = key
+                .as_str()
+                .filter(|name| LADDER_DEFAULTS.iter().any(|(ladder, _)| ladder == name))
+                && !ladder_value_is_usable(name, &value)
+            {
+                logging!(
+                    warn,
+                    Type::Config,
+                    "{name} in the core config is not of the expected type ({value:?}); \
+                     the subscription value is kept instead"
+                );
                 continue;
             }
             if key.as_str() == Some("socks-port") && !socks_enabled {
