@@ -120,6 +120,22 @@ fn looks_like_the_core_default_tunnel(name: &str) -> bool {
         .is_some_and(|index| index.chars().all(|c| c.is_ascii_digit()))
 }
 
+/// Виртуальные коммутаторы и мосты локальных песочниц.
+///
+/// clod:net-virtual — Docker, WSL, Hyper-V, VirtualBox и VMware поднимают и
+/// гасят свои адаптеры по команде пользователя; к пути машины наружу это
+/// отношения не имеет. Без этого `wsl --shutdown` или остановка Docker рвали
+/// все живые соединения ровно так же, как мигание Teredo.
+fn is_a_local_sandbox_adapter(name: &str) -> bool {
+    let name = name.to_lowercase();
+    // Только имена, которые эти песочницы дают сами. Ни `veth`, ни `br-` сюда
+    // не годятся: под них попали бы внешний коммутатор Hyper-V и домашний мост
+    // `br-lan`, а на таких машинах это и есть единственный путь наружу.
+    ["docker", "virbr", "vboxnet", "vmnet", "vmware", "wsl", "default switch"]
+        .iter()
+        .any(|known| name.contains(known))
+}
+
 fn is_our_tunnel(name: &str) -> bool {
     let name = name.to_lowercase();
     name.contains("mihomo") || name.starts_with("utun") || looks_like_the_core_default_tunnel(&name)
@@ -175,7 +191,7 @@ fn network_fingerprint() -> Option<BTreeSet<std::string::String>> {
 
     for interface in interfaces {
         let network_interface::NetworkInterface { name, addr, .. } = interface;
-        if is_our_tunnel(&name) {
+        if is_our_tunnel(&name) || is_a_local_sandbox_adapter(&name) {
             continue;
         }
         for address in addr {
@@ -595,9 +611,9 @@ pub fn spawn_environment_watchdog() {
 #[cfg(test)]
 mod tests {
     use super::{
-        CORE_TUNNEL_BASE, FINGERPRINT_ENTRIES_SHOWN, SLEEP_SLACK, interface_of, is_our_tunnel, listed,
-        looks_like_the_core_default_tunnel, path_was_lost, sleep_gap, slept_through, spelled_out, v4_carries_traffic,
-        v6_carries_traffic, v6_is_transition_tunnel, worth_spelling_out,
+        CORE_TUNNEL_BASE, FINGERPRINT_ENTRIES_SHOWN, SLEEP_SLACK, interface_of, is_a_local_sandbox_adapter,
+        is_our_tunnel, listed, looks_like_the_core_default_tunnel, path_was_lost, sleep_gap, slept_through,
+        spelled_out, v4_carries_traffic, v6_carries_traffic, v6_is_transition_tunnel, worth_spelling_out,
     };
     use crate::constants::timing;
     use std::{
@@ -788,6 +804,28 @@ mod tests {
         assert!(!v6_carries_traffic(Ipv6Addr::LOCALHOST));
         assert!(!v6_carries_traffic(Ipv6Addr::UNSPECIFIED));
         assert!(!v6_carries_traffic(Ipv6Addr::new(0xfe80, 0, 0, 0, 1, 2, 3, 4)));
+    }
+
+    #[test]
+    fn a_sandbox_adapter_is_not_a_path_of_its_own() {
+        assert!(is_a_local_sandbox_adapter("docker0"));
+        assert!(is_a_local_sandbox_adapter("docker_gwbridge"));
+        assert!(is_a_local_sandbox_adapter("vEthernet (WSL (Hyper-V firewall))"));
+        assert!(is_a_local_sandbox_adapter("vEthernet (Default Switch)"));
+        assert!(is_a_local_sandbox_adapter("vboxnet0"));
+        assert!(is_a_local_sandbox_adapter("virbr0"));
+        assert!(is_a_local_sandbox_adapter("VMware Network Adapter VMnet8"));
+
+        assert!(!is_a_local_sandbox_adapter("eth0"));
+        assert!(!is_a_local_sandbox_adapter("wlan0"));
+        assert!(!is_a_local_sandbox_adapter("Ethernet 2"));
+        assert!(!is_a_local_sandbox_adapter("Wi-Fi"));
+        assert!(!is_a_local_sandbox_adapter("en0"));
+        assert!(!is_a_local_sandbox_adapter("bridge0"));
+        // Домашний мост и внешний коммутатор Hyper-V — это путь наружу.
+        assert!(!is_a_local_sandbox_adapter("br-lan"));
+        assert!(!is_a_local_sandbox_adapter("br0"));
+        assert!(!is_a_local_sandbox_adapter("vEthernet (External Switch)"));
     }
 
     #[test]
