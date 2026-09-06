@@ -73,7 +73,7 @@ impl ExitPace {
     }
 
     #[cfg(target_os = "macos")]
-    fn dns_budget(self) -> Duration {
+    const fn dns_budget(self) -> Duration {
         match self {
             Self::Interactive => crate::utils::resolve::dns::RESTORE_BUDGET,
             Self::SessionEnding => Duration::from_secs(3),
