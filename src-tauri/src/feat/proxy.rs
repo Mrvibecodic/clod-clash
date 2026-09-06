@@ -3,8 +3,12 @@ use crate::{
     core::handle,
 };
 use clash_verge_logging::{Type, logging};
+use futures::StreamExt as _;
 use std::env;
 use tauri_plugin_clipboard_manager::ClipboardExt as _;
+
+/// Сколько закрытий держим в полёте одновременно.
+const CLOSE_AT_ONCE: usize = 16;
 
 fn goes_through(chains: &[std::string::String], previous_proxy: &str) -> bool {
     chains.iter().any(|hop| hop == previous_proxy)
@@ -35,18 +39,27 @@ pub async fn close_connections_via(previous_proxy: &str) -> usize {
         .filter(|conn| goes_through(&conn.chains, previous_proxy))
         .map(|conn| conn.id)
         .collect();
-    let mut closed = 0;
-    for id in &ids {
-        match handle::Handle::mihomo().await.close_connection(id).await {
-            Ok(()) => closed += 1,
-            Err(err) => logging!(debug, Type::ProxyMode, "connection {id} was not closed: {err}"),
-        }
-    }
+    // clod:node-switch — соединения закрываются пачкой: на сотне-другой
+    // последовательные запросы к ядру растягивают разрыв на секунды, и всё это
+    // время трафик продолжает идти через прежний узел.
+    let total = ids.len();
+    let closed = futures::stream::iter(ids)
+        .map(|id| async move {
+            match handle::Handle::mihomo().await.close_connection(&id).await {
+                Ok(()) => 1_usize,
+                Err(err) => {
+                    logging!(debug, Type::ProxyMode, "connection {id} was not closed: {err}");
+                    0
+                }
+            }
+        })
+        .buffer_unordered(CLOSE_AT_ONCE)
+        .fold(0_usize, |sum, one| async move { sum + one })
+        .await;
     logging!(
         info,
         Type::ProxyMode,
-        "node change: closed {closed} of {} connection(s) that went through {previous_proxy}",
-        ids.len()
+        "node change: closed {closed} of {total} connection(s) that went through {previous_proxy}"
     );
     closed
 }

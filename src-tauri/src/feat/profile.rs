@@ -32,59 +32,20 @@ pub async fn switch_proxy_node(group_name: &str, proxy_name: &str) {
         .await
         .select_node_for_group(group_name, proxy_name)
         .await;
-    match selected {
-        Ok(_) => {
-            logging!(
-                info,
-                Type::Tray,
-                "Переключение прокси успешно: {} -> {}",
-                group_name,
-                proxy_name
-            );
-            if let Some(previous) = previous {
-                crate::process::AsyncHandler::spawn(move || async move {
-                    crate::feat::close_connections_via(&previous).await;
-                });
-            }
-            if let Err(err) = crate::config::profiles::profiles_set_selected_node_safe(group_name, proxy_name).await {
-                logging!(
-                    warn,
-                    Type::Tray,
-                    "Warning: не удалось запомнить выбор узла из трея: {err}"
-                );
-            }
-            handle::Handle::refresh_proxy_config();
-            let _ = tray::Tray::global().update_menu().await;
-            return;
-        }
-        Err(err) => {
-            logging!(
-                error,
-                Type::Tray,
-                "Не удалось переключить прокси: {} -> {}, ошибка: {:?}",
-                group_name,
-                proxy_name,
-                err
-            );
-        }
-    }
-
-    let retried = handle::Handle::mihomo()
-        .await
-        .select_node_for_group(group_name, proxy_name)
-        .await;
-    match retried {
-        Ok(_) => {
-            logging!(
-                info,
-                Type::Tray,
-                "Откат переключения прокси успешен: {} -> {}",
-                group_name,
-                proxy_name
-            );
-            let _ = tray::Tray::global().update_menu().await;
-        }
-        Err(err) => {
+    if let Err(err) = selected {
+        logging!(
+            error,
+            Type::Tray,
+            "Не удалось переключить прокси: {} -> {}, ошибка: {:?}",
+            group_name,
+            proxy_name,
+            err
+        );
+        let retried = handle::Handle::mihomo()
+            .await
+            .select_node_for_group(group_name, proxy_name)
+            .await;
+        if let Err(err) = retried {
             logging!(
                 error,
                 Type::Tray,
@@ -93,8 +54,42 @@ pub async fn switch_proxy_node(group_name: &str, proxy_name: &str) {
                 proxy_name,
                 err
             );
+            return;
         }
+        logging!(
+            info,
+            Type::Tray,
+            "Откат переключения прокси успешен: {} -> {}",
+            group_name,
+            proxy_name
+        );
+    } else {
+        logging!(
+            info,
+            Type::Tray,
+            "Переключение прокси успешно: {} -> {}",
+            group_name,
+            proxy_name
+        );
     }
+
+    // clod:tray-switch — то же самое доделывается и после удавшегося повтора:
+    // раньше вторая попытка меняла узел, но соединения прежнего оставались
+    // жить, выбор не запоминался, а после перезапуска показывался старый узел.
+    if let Some(previous) = previous {
+        crate::process::AsyncHandler::spawn(move || async move {
+            crate::feat::close_connections_via(&previous).await;
+        });
+    }
+    if let Err(err) = crate::config::profiles::profiles_set_selected_node_safe(group_name, proxy_name).await {
+        logging!(
+            warn,
+            Type::Tray,
+            "Warning: не удалось запомнить выбор узла из трея: {err}"
+        );
+    }
+    handle::Handle::refresh_proxy_config();
+    let _ = tray::Tray::global().update_menu().await;
 }
 
 struct UpdateTarget {
