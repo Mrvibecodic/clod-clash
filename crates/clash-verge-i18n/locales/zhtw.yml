@@ -26,6 +26,8 @@ notifications:
   quitCancelled:
     title: 已取消退出
     body: 核心未能停止，應用繼續運行。
+  sysproxyLeftBehind:
+    body: "結束時未能清除系統代理。它仍指向本應用：在系統設定中清除或再次啟動應用之前，網路將無法連通。"
   appHidden:
     title: 應用已隱藏
     body: 應用正在背景執行。

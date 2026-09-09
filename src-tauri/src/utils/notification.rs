@@ -15,6 +15,8 @@ pub enum NotificationEvent<'a> {
     ProfilesReactivated,
     AppQuit,
     QuitCancelled,
+    /// Системный прокси не снялся при выходе и остаётся в системе.
+    SysproxyLeftBehind,
     #[cfg(target_os = "macos")]
     AppHidden,
     // clod:F7 — subscription watcher alerts.
@@ -85,6 +87,11 @@ pub async fn notify_event<'a>(event: NotificationEvent<'a>) {
         NotificationEvent::QuitCancelled => {
             let title = clash_verge_i18n::t!("notifications.quitCancelled.title");
             let body = clash_verge_i18n::t!("notifications.quitCancelled.body");
+            notify(title, body);
+        }
+        NotificationEvent::SysproxyLeftBehind => {
+            let title = clash_verge_i18n::t!("notifications.systemProxyToggled.title");
+            let body = clash_verge_i18n::t!("notifications.sysproxyLeftBehind.body");
             notify(title, body);
         }
         #[cfg(target_os = "macos")]

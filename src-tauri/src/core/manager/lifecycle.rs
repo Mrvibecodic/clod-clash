@@ -452,6 +452,7 @@ impl CoreManager {
         // Блокировка удерживается на весь stop+start, чтобы избежать вклинивания
         // других операций жизненного цикла.
         let _life = self.lifecycle_lock.lock().await;
+        let _pause = self.planned_pause();
         logging!(info, Type::Core, "Restarting core");
         // Отказ остановки перезапуска не отменяет: новое ядро всё равно нужно,
         // а о старом сказал журнал. Иначе перезапуск оставлял бы приложение
@@ -474,6 +475,7 @@ impl CoreManager {
         rollback: impl FnOnce() -> Result<()> + Send,
     ) -> Result<()> {
         let _life = self.lifecycle_lock.lock().await;
+        let _pause = self.planned_pause();
         if let Err(error) = self.stop_core_inner().await {
             logging!(warn, Type::Core, "ядро не остановилось перед заменой: {error:#}");
         }
@@ -745,6 +747,7 @@ impl CoreManager {
 
         // Затем захватываем блокировку lifecycle; порядок блокировок фиксирован: config→lifecycle.
         let _life = self.lifecycle_lock.lock().await;
+        let _pause = self.planned_pause();
 
         // После захвата блокировки повторно проверяем режим работы и состояние TUN
         if !matches!(*self.get_running_mode(), RunningMode::Sidecar)

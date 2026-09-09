@@ -475,11 +475,39 @@ fn has_user_comments(raw: &str) -> bool {
         .any(|line| line != DNS_CONFIG_HEADER)
 }
 
+/// Заводской `listen: ":53"` прежних сборок.
+///
+/// Поднимал DNS-резолвер на всех интерфейсах, а под службой — от системной
+/// учётной записи. Новый заводской блок ключа не содержит, но у существующих
+/// установок он лежал в файле как лежал. Снимается только ТОЧНОЕ заводское
+/// значение: страница прежних сборок писала его в файл при любом сохранении,
+/// так что по значению «наш» от «его» не отличить, а любой другой адрес
+/// человек набирал сам.
+const LEGACY_DNS_LISTEN: &str = ":53";
+
+fn drop_legacy_listen(dns: &mut serde_yaml_ng::Mapping) -> bool {
+    if dns.get("listen").and_then(serde_yaml_ng::Value::as_str) != Some(LEGACY_DNS_LISTEN) {
+        return false;
+    }
+    dns.remove("listen");
+    true
+}
+
 fn drop_legacy_dns_keys(file_config: &mut serde_yaml_ng::Mapping) -> bool {
     let dropped_fallback = drop_legacy_fallback(file_config);
     let dropped_hosts = drop_empty_hosts(file_config);
+    // Сборки весны 2025 писали файл плоским — сам блок `dns` без обёртки, и
+    // именно они ставили `listen: ":53"` безусловно. Такой файл страница
+    // читает до сих пор, а чистка его не видела.
+    let dropped_listen = match file_config
+        .get_mut("dns")
+        .and_then(serde_yaml_ng::Value::as_mapping_mut)
+    {
+        Some(dns) => drop_legacy_listen(dns),
+        None => drop_legacy_listen(file_config),
+    };
 
-    dropped_fallback || dropped_hosts
+    dropped_fallback || dropped_hosts || dropped_listen
 }
 
 async fn drop_legacy_dns_fallback() -> Result<()> {
@@ -1097,5 +1125,55 @@ mod tests {
         let dns = file_config.get("dns").and_then(Value::as_mapping);
         assert_eq!(dns.map(|dns| dns.contains_key("fallback")), Some(false));
         assert_eq!(dns.map(|dns| dns.contains_key("fallback-filter")), Some(false));
+    }
+
+    fn dns_file(dns: Mapping) -> Mapping {
+        Mapping::from_iter([("dns".into(), Value::Mapping(dns))])
+    }
+
+    #[test]
+    fn the_migration_drops_only_the_factory_listen_address() {
+        let mut ours = dns_file(Mapping::from_iter([("listen".into(), Value::String(":53".into()))]));
+        assert!(drop_legacy_dns_keys(&mut ours));
+        assert_eq!(
+            ours.get("dns")
+                .and_then(Value::as_mapping)
+                .map(|dns| dns.contains_key("listen")),
+            Some(false)
+        );
+
+        for theirs in [":5353", "0.0.0.0:53", "127.0.0.1:53", "[::]:53"] {
+            let mut file = dns_file(Mapping::from_iter([("listen".into(), Value::String(theirs.into()))]));
+            assert!(!drop_legacy_dns_keys(&mut file), "{theirs} набирал человек");
+            assert_eq!(
+                file.get("dns")
+                    .and_then(Value::as_mapping)
+                    .and_then(|dns| dns.get("listen")),
+                Some(&Value::String(theirs.into()))
+            );
+        }
+    }
+
+    #[test]
+    fn the_migration_reaches_the_flat_file_of_the_spring_builds() {
+        let mut flat = Mapping::from_iter([
+            ("listen".into(), Value::String(":53".into())),
+            ("enable".into(), Value::Bool(true)),
+        ]);
+        assert!(drop_legacy_dns_keys(&mut flat));
+        assert!(!flat.contains_key("listen"));
+        assert_eq!(flat.get("enable"), Some(&Value::Bool(true)));
+    }
+
+    #[test]
+    fn the_migration_leaves_the_hosts_switches_alone() {
+        let mut chosen = dns_file(Mapping::from_iter([
+            ("use-hosts".into(), Value::Bool(false)),
+            ("use-system-hosts".into(), Value::Bool(false)),
+        ]));
+        assert!(
+            !drop_legacy_dns_keys(&mut chosen),
+            "ту же пару сегодня ставит человек со страницы"
+        );
     }
 }

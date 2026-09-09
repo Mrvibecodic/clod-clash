@@ -14,6 +14,7 @@ async fn execute_service_operation_sync(status: ServiceStatus, op_type: &str) ->
 pub async fn uninstall_service() -> CmdResult {
     let manager = CoreManager::global();
     let ran_under_service = matches!(*manager.get_running_mode(), RunningMode::Service);
+    let _pause = ran_under_service.then(|| manager.planned_pause());
     if ran_under_service && let Err(e) = manager.stop_core().await {
         logging!(
             warn,

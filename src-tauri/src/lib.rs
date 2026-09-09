@@ -363,6 +363,7 @@ pub fn run() {
                 api.prevent_close();
                 if let Some(window) = WindowManager::get_main_window() {
                     let _ = window.hide();
+                    core::notification::frontend_stopped_listening();
                 }
             }
         }

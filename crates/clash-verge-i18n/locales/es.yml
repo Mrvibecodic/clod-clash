@@ -26,6 +26,8 @@ notifications:
   quitCancelled:
     title: Salida cancelada
     body: El núcleo no se detuvo; la aplicación sigue funcionando.
+  sysproxyLeftBehind:
+    body: "No se pudo quitar el proxy del sistema al salir. Sigue apuntando a esta aplicación: hasta que lo elimines en la configuración del sistema o vuelvas a abrirla, no habrá conexión."
   appHidden:
     title: Aplicación oculta
     body: La aplicación se está ejecutando en segundo plano.

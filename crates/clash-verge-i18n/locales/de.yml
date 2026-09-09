@@ -26,6 +26,8 @@ notifications:
   quitCancelled:
     title: Beenden abgebrochen
     body: Der Kern wurde nicht gestoppt, die App läuft weiter.
+  sysproxyLeftBehind:
+    body: "Der System-Proxy konnte beim Beenden nicht entfernt werden. Er zeigt weiterhin auf diese App: Bis Sie ihn in den Systemeinstellungen entfernen oder die App erneut starten, läuft kein Datenverkehr."
   appHidden:
     title: Anwendung ausgeblendet
     body: Die App läuft im Hintergrund.

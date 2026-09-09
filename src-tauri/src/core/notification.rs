@@ -3,6 +3,7 @@ use serde_json::json;
 use smartstring::alias::String;
 use std::collections::VecDeque;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use tauri::{AppHandle, Emitter as _, Manager as _, WebviewWindow};
 
@@ -11,6 +12,27 @@ use std::sync::{OnceLock, mpsc};
 
 const PENDING_NOTICES_CAP: usize = 20;
 static PENDING_NOTICES: Mutex<VecDeque<(std::string::String, std::string::String)>> = Mutex::new(VecDeque::new());
+
+/// Страница на месте и слушает уведомления.
+///
+/// Очередь придерживала уведомления только при отсутствии окна, а штатное
+/// сворачивание в трей окно не уничтожает, а прячет: уведомление уходило в
+/// спрятанную страницу и пропадало. Плюс окно создаётся раньше, чем страница
+/// повесит слушатель, — уведомления старта в очередь тоже не попадали.
+/// Флаг ставит сама страница, забирая очередь; снимается при скрытии окна.
+/// Спрашивать окно «видимо ли ты» из потока отправки нельзя — это синхронный
+/// вызов к главному потоку, тот самый класс дедлоков, от которого страхуется
+/// `window_manager`.
+static FRONTEND_LISTENING: AtomicBool = AtomicBool::new(false);
+
+pub fn frontend_stopped_listening() {
+    FRONTEND_LISTENING.store(false, Ordering::Release);
+}
+
+/// Может ли уведомление дойти до страницы прямо сейчас.
+const fn can_reach_the_page(listening: bool, window_exists: bool) -> bool {
+    listening && window_exists
+}
 
 fn pending_notices() -> std::sync::MutexGuard<'static, VecDeque<(std::string::String, std::string::String)>> {
     match PENDING_NOTICES.lock() {
@@ -74,6 +96,7 @@ pub struct NotificationSystem {}
 
 impl NotificationSystem {
     pub fn take_pending_notices() -> Vec<(std::string::String, std::string::String)> {
+        FRONTEND_LISTENING.store(true, Ordering::Release);
         pending_notices().drain(..).collect()
     }
 
@@ -81,7 +104,13 @@ impl NotificationSystem {
         let FrontendEvent::NoticeMessage { status, message } = event else {
             return false;
         };
-        if app_handle.get_webview_window("main").is_some() {
+        let window_exists = app_handle.get_webview_window("main").is_some();
+        if can_reach_the_page(FRONTEND_LISTENING.load(Ordering::Acquire), window_exists) {
+            return false;
+        }
+        // Спрятанное окно: то, что стоит подождать, ждёт показа; остальное
+        // уходит в страницу как раньше — она жива, просто не на экране.
+        if window_exists && !worth_holding(status) {
             return false;
         }
         if worth_holding(status) {
@@ -189,7 +218,18 @@ struct QueuedEvent {
 
 #[cfg(test)]
 mod tests {
-    use super::worth_holding;
+    use super::{can_reach_the_page, worth_holding};
+
+    #[test]
+    fn a_notice_reaches_the_page_only_when_it_exists_and_listens() {
+        assert!(can_reach_the_page(true, true));
+        assert!(!can_reach_the_page(true, false), "окна нет — тихий старт в трей");
+        assert!(
+            !can_reach_the_page(false, true),
+            "окно спрятано или страница ещё не слушает"
+        );
+        assert!(!can_reach_the_page(false, false));
+    }
 
     #[test]
     fn only_problems_wait_for_the_window() {

@@ -55,6 +55,27 @@ pub struct CoreManager {
     handoff_watcher_running: AtomicBool,
     starting: AtomicBool,
     restart_pending: AtomicBool,
+    // Сколько плановых пауз ядра идёт прямо сейчас: обычный перезапуск,
+    // замена сборки ядра, удаление службы, передача ядра службе. Счётчик, а не
+    // флаг — паузы вкладываются друг в друга.
+    planned_pauses: AtomicU32,
+}
+
+/// Плановая пауза ядра: пока она жива, «ядра нет» не показывается.
+///
+/// Признак «идёт перезапуск» ставился только после падения; штатный
+/// перезапуск, замена ядра и удаление службы (остановка → удаление на
+/// секунды → запуск) его не ставили, и на это время главная показывала
+/// красный баннер «ядро не запущено» с кнопкой «Запустить», а трей — обычный
+/// значок. Отпускается при выходе из области — в том числе по ошибке.
+pub struct PlannedPause<'a> {
+    manager: &'a CoreManager,
+}
+
+impl Drop for PlannedPause<'_> {
+    fn drop(&mut self) {
+        self.manager.planned_pauses.fetch_sub(1, Ordering::AcqRel);
+    }
 }
 
 #[derive(Debug)]
@@ -86,6 +107,7 @@ impl Default for CoreManager {
             handoff_watcher_running: AtomicBool::new(false),
             starting: AtomicBool::new(false),
             restart_pending: AtomicBool::new(false),
+            planned_pauses: AtomicU32::new(0),
         }
     }
 }
@@ -102,7 +124,13 @@ impl CoreManager {
     pub fn is_starting(&self) -> bool {
         self.starting.load(Ordering::Acquire)
             || self.restart_pending.load(Ordering::Acquire)
+            || self.planned_pauses.load(Ordering::Acquire) > 0
             || !crate::utils::resolve::is_resolve_done()
+    }
+
+    pub fn planned_pause(&self) -> PlannedPause<'_> {
+        self.planned_pauses.fetch_add(1, Ordering::AcqRel);
+        PlannedPause { manager: self }
     }
 
     pub(super) fn set_restart_pending(&self, pending: bool) {

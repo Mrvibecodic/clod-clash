@@ -127,6 +127,14 @@ pub async fn quit_at(pace: ExitPace, cancel_if_core_stays: bool) {
             "системный прокси остался в системе: снять его при выходе не удалось"
         );
         handle::Handle::notice_message_while_exiting("app_quit::sysproxy_reset_failed", "");
+        // Окно умирает через миллисекунды, а очередь отложенных уведомлений —
+        // память этого же процесса. Единственное, что переживает выход, —
+        // уведомление операционной системы.
+        utils::notification::notify_event(utils::notification::NotificationEvent::SysproxyLeftBehind).await;
+        // Плагин отдаёт показ отдельной задаче и возвращается сразу; выход
+        // через миллисекунду убил бы её раньше, чем демон уведомлений получит
+        // сообщение. Полсекунды — только на этом, редком, пути.
+        tokio::time::sleep(Duration::from_millis(500)).await;
     }
 
     logging!(
@@ -478,6 +486,7 @@ pub async fn hide() {
         && window.is_visible().unwrap_or(false)
     {
         let _ = window.hide();
+        crate::core::notification::frontend_stopped_listening();
     }
     handle::Handle::global().set_activation_policy_accessory();
 }

@@ -14,6 +14,7 @@ import {
 } from '@/components/layout/window-controller'
 import { HwidLimitDialog } from '@/components/profile/hwid-limit-dialog'
 import { useI18n } from '@/hooks/use-i18n'
+import { useTauriEvent } from '@/hooks/use-listen'
 import { useEnforceLockedTargets } from '@/hooks/use-locked-targets'
 import { useModeWindowSize } from '@/hooks/use-mode-window-size'
 import { useVerge } from '@/hooks/use-verge'
@@ -101,13 +102,19 @@ const Layout = () => {
 
   useLayoutEvents(handleNotice)
 
-  useEffect(() => {
+  const drainPendingNotices = useCallback(() => {
     takePendingNotices()
       .then((pending) => pending.forEach(handleNotice))
       .catch((error) => {
         console.error('[Обработка уведомлений] Очередь не прочитана:', error)
       })
   }, [handleNotice])
+
+  // При монтировании и при каждом показе окна: пока окно спрятано в трее,
+  // бэкенд придерживает уведомления, а забор очереди заодно говорит ему, что
+  // страница снова слушает.
+  useEffect(drainPendingNotices, [drainPendingNotices])
+  useTauriEvent('verge://window-shown', drainPendingNotices)
 
   useEffect(() => {
     if (language) {

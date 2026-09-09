@@ -26,6 +26,8 @@ notifications:
   quitCancelled:
     title: Çıkış iptal edildi
     body: Çekirdek durmadı, uygulama çalışmaya devam ediyor.
+  sysproxyLeftBehind:
+    body: "Çıkışta sistem proxy’si kaldırılamadı. Hâlâ bu uygulamayı gösteriyor: sistem ayarlarından kaldırana ya da uygulamayı yeniden başlatana kadar internet çalışmayacak."
   appHidden:
     title: Uygulama Gizlendi
     body: Uygulama arka planda çalışıyor.

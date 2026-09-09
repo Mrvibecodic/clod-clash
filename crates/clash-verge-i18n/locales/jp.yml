@@ -26,6 +26,8 @@ notifications:
   quitCancelled:
     title: 終了をキャンセルしました
     body: コアが停止しなかったため、アプリは動作を続けます。
+  sysproxyLeftBehind:
+    body: "終了時にシステムプロキシを解除できませんでした。まだ本アプリを指しているため、システム設定で解除するかアプリを再起動するまで通信できません。"
   appHidden:
     title: アプリが非表示
     body: アプリはバックグラウンドで実行中です。

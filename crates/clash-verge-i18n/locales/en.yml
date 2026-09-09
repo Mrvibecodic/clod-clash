@@ -26,6 +26,8 @@ notifications:
   quitCancelled:
     title: Exit cancelled
     body: The core did not stop, so the app keeps running.
+  sysproxyLeftBehind:
+    body: "The system proxy could not be removed on exit. It still points at this app, so traffic will not go through until you clear it in the system settings or start the app again."
   appHidden:
     title: Application Hidden
     body: The app keeps running in the background.

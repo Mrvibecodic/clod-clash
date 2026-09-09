@@ -26,6 +26,8 @@ notifications:
   quitCancelled:
     title: Keluar dibatalkan
     body: Inti tidak berhenti, aplikasi tetap berjalan.
+  sysproxyLeftBehind:
+    body: "Proksi sistem tidak dapat dilepas saat keluar. Ia masih menunjuk ke aplikasi ini: sampai Anda menghapusnya di pengaturan sistem atau menjalankan aplikasi lagi, koneksi tidak akan jalan."
   appHidden:
     title: Aplikasi Disembunyikan
     body: Aplikasi berjalan di latar belakang.
