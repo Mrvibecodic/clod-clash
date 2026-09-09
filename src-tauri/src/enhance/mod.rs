@@ -1408,6 +1408,29 @@ fn clamp_dns_listen(config: &mut Mapping) {
     dns.insert("listen".into(), Value::String(format!("127.0.0.1:{port}")));
 }
 
+/// Ключи hosts, у которых на странице DNS есть положение «как в подписке».
+const HOSTS_KEYS_THE_SUBSCRIPTION_MAY_DECIDE: &[&str] = &["use-hosts", "use-system-hosts"];
+
+/// Донести из блока подписки те ключи hosts, о которых страница промолчала.
+///
+/// Блок страницы заменяет блок подписки целиком, поэтому «как в подписке» для
+/// `use-hosts`/`use-system-hosts` без переноса означало бы «умолчание ядра»:
+/// значение провайдера до ядра не доезжало никогда. Переносятся только эти два
+/// ключа и только когда у страницы их нет — остальное решает страница.
+fn carry_hosts_keys_from(subscription: Option<&Mapping>, mut page: Mapping) -> Mapping {
+    if let Some(subscription) = subscription {
+        for key in HOSTS_KEYS_THE_SUBSCRIPTION_MAY_DECIDE {
+            let key = Value::from(*key);
+            if !page.contains_key(&key)
+                && let Some(value) = subscription.get(&key)
+            {
+                page.insert(key, value.clone());
+            }
+        }
+    }
+    page
+}
+
 async fn apply_dns_settings(mut config: Mapping, enable_dns_settings: bool) -> Mapping {
     if enable_dns_settings && let Ok(app_dir) = dirs::app_home_dir() {
         let dns_path = app_dir.join(constants::files::DNS_CONFIG);
@@ -1427,13 +1450,15 @@ async fn apply_dns_settings(mut config: Mapping, enable_dns_settings: bool) -> M
                 if let Some(dns_mapping) = dns_value.as_mapping() {
                     let mut dns_mapping = dns_mapping.clone();
                     ensure_fake_ip_range6(&mut dns_mapping);
-                    config.insert("dns".into(), dns_mapping.into());
+                    let page = carry_hosts_keys_from(config.get("dns").and_then(Value::as_mapping), dns_mapping);
+                    config.insert("dns".into(), page.into());
                     logging!(info, Type::Core, "apply dns_config.yaml (dns section)");
                 }
             } else {
                 let mut dns_config = dns_config;
                 ensure_fake_ip_range6(&mut dns_config);
-                config.insert("dns".into(), dns_config.into());
+                let page = carry_hosts_keys_from(config.get("dns").and_then(Value::as_mapping), dns_config);
+                config.insert("dns".into(), page.into());
                 logging!(info, Type::Core, "apply dns_config.yaml");
             }
         }
@@ -1524,7 +1549,12 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
 
     let config = enforce_control_plane(config, control_plane);
     let config = enforce_dns_page(config, dns_page);
-    let config = ensure_dns_for_tun(config, enable_tun);
+    let mut config = ensure_dns_for_tun(config, enable_tun);
+    // clod:dns-listen — цепочки merge и script отрабатывают после первого
+    // прижатия и могут вернуть `dns.listen` наружу; при включённой странице DNS
+    // блок восстанавливается из снимка, при выключенной — никем. Второй проход
+    // идёт уже по нашему `allow-lan`, восстановленному из снимка control-plane.
+    clamp_dns_listen(&mut config);
     let config = ensure_lan_bind_address(config);
     let config = ensure_store_selected(config);
 
@@ -3329,5 +3359,34 @@ proxy-groups:
             value.as_u64(),
             Some(u64::from(crate::constants::network::ports::DEFAULT_MIXED))
         );
+    }
+
+    #[test]
+    fn the_page_inherits_only_the_hosts_switches_it_left_to_the_subscription() {
+        use super::carry_hosts_keys_from;
+        use serde_yaml_ng::{Mapping, Value};
+
+        let subscription: Mapping =
+            serde_yaml_ng::from_str("use-hosts: true\nuse-system-hosts: false\nnameserver: [1.1.1.1]\nlisten: ':53'\n")
+                .expect("yaml");
+        let page: Mapping = serde_yaml_ng::from_str("enable: true\nuse-system-hosts: true\n").expect("yaml");
+
+        let merged = carry_hosts_keys_from(Some(&subscription), page);
+
+        assert_eq!(
+            merged.get("use-hosts"),
+            Some(&Value::Bool(true)),
+            "промолчала — берём у подписки"
+        );
+        assert_eq!(
+            merged.get("use-system-hosts"),
+            Some(&Value::Bool(true)),
+            "сказала сама — её слово"
+        );
+        assert!(merged.get("nameserver").is_none(), "остальное подписки не переносится");
+        assert!(merged.get("listen").is_none());
+
+        let untouched = carry_hosts_keys_from(None, serde_yaml_ng::from_str("enable: true\n").expect("yaml"));
+        assert!(untouched.get("use-hosts").is_none());
     }
 }

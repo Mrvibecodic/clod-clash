@@ -226,16 +226,6 @@ impl CoreManager {
             if matches!(*self.get_running_mode(), RunningMode::NotRunning) {
                 anyhow::bail!("ядро завершилось, не ответив");
             }
-            if let Some(pid) = self.sidecar_pid()
-                && !crate::core::orphan::process_is_alive(pid).await
-            {
-                super::state::handle_core_exit(
-                    &format!("процесс ядра {} завершился во время проверки готовности", pid),
-                    &RunningMode::Sidecar,
-                    Some(pid),
-                );
-                continue;
-            }
 
             let probe = {
                 let mihomo = Handle::mihomo().await;
@@ -245,6 +235,19 @@ impl CoreManager {
                 Ok(Ok(_)) => return Ok(()),
                 Ok(Err(error)) => last = Some(error.to_string()),
                 Err(_) => last = Some("ядро не ответило за отведённое время".to_owned()),
+            }
+
+            // На процесс смотрим только когда ядро не ответило: здоровый старт
+            // обходится без единого обхода таблицы процессов, а не сорока.
+            if let Some(pid) = self.sidecar_pid()
+                && !crate::core::orphan::process_is_alive(pid).await
+            {
+                super::state::handle_core_exit(
+                    &format!("процесс ядра {} завершился во время проверки готовности", pid),
+                    &RunningMode::Sidecar,
+                    Some(pid),
+                );
+                continue;
             }
 
             tokio::time::sleep(timing::CORE_READY_INTERVAL).await;
@@ -389,15 +392,22 @@ impl CoreManager {
     }
 
     pub async fn stop_core_for_exit(&self, lock_wait: Duration, stop_budget: Duration) -> ExitStop {
-        let Ok(_life) = tokio::time::timeout(lock_wait, self.lifecycle_lock.lock()).await else {
-            return ExitStop::LockBusy;
-        };
-        let mode_before = self.get_running_mode();
-        let pid_before = self.sidecar_pid();
-        let reason = match tokio::time::timeout(stop_budget, self.stop_core_inner()).await {
-            Ok(Ok(())) => return ExitStop::Stopped,
-            Ok(Err(error)) => format!("{error:#}"),
-            Err(_) => format!("нет ответа за {} с", stop_budget.as_secs()),
+        // Замок жизненного цикла живёт ровно до конца остановки: проверка
+        // живости ниже ходит по сети (статус службы по IPC), а под замком
+        // сетевых вызовов не делаем — его ждёт и восстановление после
+        // отменённого выхода.
+        let (mode_before, pid_before, reason) = {
+            let Ok(_life) = tokio::time::timeout(lock_wait, self.lifecycle_lock.lock()).await else {
+                return ExitStop::LockBusy;
+            };
+            let mode_before = self.get_running_mode();
+            let pid_before = self.sidecar_pid();
+            let reason = match tokio::time::timeout(stop_budget, self.stop_core_inner()).await {
+                Ok(Ok(())) => return ExitStop::Stopped,
+                Ok(Err(error)) => format!("{error:#}"),
+                Err(_) => format!("нет ответа за {} с", stop_budget.as_secs()),
+            };
+            (mode_before, pid_before, reason)
         };
         let core_alive = match (&*mode_before, pid_before) {
             (RunningMode::Sidecar, Some(pid)) => crate::core::orphan::process_is_alive(pid).await,

@@ -17,7 +17,9 @@ import { useClash, useClashInfo } from '@/hooks/use-clash'
 import { useVerge } from '@/hooks/use-verge'
 import { isPortInUse } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
+import { revalidateQuery } from '@/services/query-client'
 import getSystem from '@/utils/get-system'
+import { findDuplicatePort } from '@/utils/ports'
 
 const OS = getSystem()
 
@@ -86,10 +88,18 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
   )
 
   useImperativeHandle(ref, () => ({
-    open: () => {
+    open: async () => {
+      // clod:port-ladder — лесенка могла протухнуть: читаем её заново ДО того,
+      // как заполнить поля, иначе диалог показал бы и сохранил старое
+      // закрепление. Если ответа нет, кнопка сохранения ниже остаётся
+      // заблокированной — умолчание тумблера не должно снимать закрепление,
+      // которого не успели прочитать.
+      const freshLadder =
+        (await revalidateQuery(['getCoreLadder']).catch(() => undefined)) ??
+        ladder
       originalPortsRef.current = {
-        mixedFollowsSubscription: ladder?.mixed_port == null,
-        mixedPort: ladder?.mixed_port ?? clashInfo?.mixed_port ?? 7897,
+        mixedFollowsSubscription: freshLadder?.mixed_port == null,
+        mixedPort: freshLadder?.mixed_port ?? clashInfo?.mixed_port ?? 7897,
         socksPort: verge?.verge_socks_port ?? 7898,
         socksEnabled: verge?.verge_socks_enabled ?? false,
         httpPort: verge?.verge_port ?? 7899,
@@ -133,7 +143,11 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
       tproxyEnabled ? tproxyPort : -1,
     ].filter((p) => p !== -1)
 
-    if (new Set(portList).size !== portList.length) {
+    const duplicate = findDuplicatePort(portList)
+    if (duplicate !== undefined) {
+      showNotice.error('settings.modals.clashPort.messages.portInUse', {
+        port: duplicate,
+      })
       return
     }
 
@@ -213,8 +227,10 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
       'tproxy-port': tproxyPort,
     }
 
+    // clod:port-ladder — ноль снимает закрепление: иначе старый порт жил бы в
+    // файле настроек вечно и служил запасным там, где его давно нет.
     const vergeConfig = {
-      ...(mixedFollowsSubscription ? {} : { verge_mixed_port: mixedPort }),
+      verge_mixed_port: mixedFollowsSubscription ? 0 : mixedPort,
       verge_socks_port: socksPort,
       verge_socks_enabled: socksEnabled,
       verge_port: httpPort,
@@ -236,6 +252,7 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
       contentSx={{
         width: 400,
       }}
+      loading={loading || ladder === undefined}
       okBtn={
         loading ? (
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>

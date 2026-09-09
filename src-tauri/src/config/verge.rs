@@ -515,7 +515,12 @@ impl IVerge {
         patch!(verge_tproxy_port);
         #[cfg(target_os = "linux")]
         patch!(verge_tproxy_enabled);
-        patch!(verge_mixed_port);
+        // clod:port-ladder — ноль означает «закрепление снято, порт как в
+        // подписке»: у `patch!` нет способа убрать значение, а без этого
+        // старый порт оставался в файле настроек навсегда.
+        if let Some(port) = patch.verge_mixed_port {
+            self.verge_mixed_port = (port != 0).then_some(port);
+        }
         patch!(verge_socks_port);
         patch!(verge_socks_enabled);
         patch!(verge_port);
