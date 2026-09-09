@@ -1,9 +1,5 @@
 use super::CmdResult;
-use crate::{
-    cmd::StringifyErr as _,
-    config::{Config, IVerge},
-    core, feat,
-};
+use crate::{cmd::StringifyErr as _, config::IVerge, core, feat};
 use reqwest_dav::list_cmd::ListFile;
 use smartstring::alias::String;
 
@@ -16,11 +12,9 @@ pub async fn save_webdav_config(url: String, username: String, password: String)
         webdav_password: Some(password),
         ..IVerge::default()
     };
-    Config::verge().await.edit_draft(|e| e.patch_config(&patch));
-    Config::verge().await.apply();
-
-    let verge_data = Config::verge().await.data_arc();
-    verge_data.save_file().await.stringify_err()?;
+    feat::commit_verge_edit(|verge| verge.patch_config(&patch))
+        .await
+        .stringify_err()?;
     core::backup::WebDavClient::global().reset();
     Ok(())
 }

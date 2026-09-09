@@ -263,10 +263,10 @@ pub(super) async fn init_launch_connect_state() {
         enable_tun_mode: Some(tun),
         ..Default::default()
     };
-    let verge = Config::verge().await;
-    verge.edit_draft(|draft| draft.patch_config(&patch));
-    verge.apply();
-    logging_error!(Type::Setup, verge.data_arc().save_file().await);
+    logging_error!(
+        Type::Setup,
+        crate::feat::commit_verge_edit(|verge| verge.patch_config(&patch)).await
+    );
 }
 
 pub(super) async fn init_system_proxy() {

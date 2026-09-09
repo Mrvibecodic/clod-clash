@@ -294,11 +294,11 @@ pub async fn hwid() -> Option<String> {
 
     let fresh = compute_hwid();
 
-    verge.edit_draft(|draft| {
-        draft.hwid = Some(fresh.clone());
-    });
-    verge.apply();
-    if let Err(err) = verge.data_arc().save_file().await {
+    let persisted = crate::feat::commit_verge_edit(|verge| {
+        verge.hwid = Some(fresh.clone());
+    })
+    .await;
+    if let Err(err) = persisted {
         logging!(warn, Type::System, "Warning: [hwid] не удалось сохранить hwid: {err}");
     }
 

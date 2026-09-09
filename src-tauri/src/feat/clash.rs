@@ -101,6 +101,9 @@ pub async fn change_clash_mode(mode: String) -> Result<(), String> {
         return Err(err.to_string().into());
     }
 
+    // clod:Э3-06 — под замком правки Clash: иначе `apply()` зафиксировал бы
+    // чужую правку, которая ещё ждёт проверки ядром.
+    let _serialized = crate::feat::patch_clash_lock().lock().await;
     let clash = Config::clash().await;
     clash.edit_draft(|d| d.patch_config(&mapping));
     clash.apply();

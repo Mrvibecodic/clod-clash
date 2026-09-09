@@ -192,7 +192,11 @@ impl CoreManager {
         // переписаны, а после рестарта ядра службой конфиг откатился бы к
         // прошлому поколению. Отказ staging — не ошибка: медленный путь
         // (полный перезапуск ядра со свежим бандлом) остаётся в фолбэках ниже.
-        let service_mode = matches!(*self.get_running_mode(), super::RunningMode::Service);
+        // clod:Э3-03 — режим читается один раз, и всё решение ниже (путь для
+        // ядра, staging у службы) верно только для него. Перепроверяем его после
+        // перезагрузки: см. `the_core_changed_hands`.
+        let mode_seen = self.get_running_mode();
+        let service_mode = matches!(*mode_seen, super::RunningMode::Service);
         let reload_path: String = if service_mode {
             match self.stage_into_service_generation(&path).await {
                 StagedPath::Staged(staged) => staged,
@@ -242,20 +246,41 @@ impl CoreManager {
             listeners_need_recreate(prev.config.as_ref(), next.config.as_ref())
         };
 
-        match self.reload_config(force, path).await {
-            Ok(_) => {
-                Config::runtime().await.apply();
-                logging!(info, Type::Core, "Configuration applied (force={force})");
-                Ok(())
-            }
+        let reloaded = match self.reload_config(force, path).await {
+            Ok(()) => Ok(format!("Configuration applied (force={force})")),
             Err(err) => {
                 // Мягкая перезагрузка не прошла — прежде чем перезапускать
                 // ядро (и ронять все соединения), пробуем полный reload.
                 if !force && matches!(self.reload_config(true, path).await, Ok(())) {
-                    Config::runtime().await.apply();
-                    logging!(info, Type::Core, "Configuration applied after forced reload");
-                    return Ok(());
+                    Ok("Configuration applied after forced reload".to_owned())
+                } else {
+                    Err(err)
                 }
+            }
+        };
+
+        match reloaded {
+            Ok(message) => {
+                // clod:Э3-03 — перезагрузка удалась, но у КАКОГО ядра? Пока конфиг
+                // ехал, ядро могло перезапуститься после падения и подняться в
+                // другом режиме: наш путь у ядра под службой (после перезапуска
+                // службой откатится на прошлое поколение) или путь из поколения
+                // службы у sidecar. Единственный честный итог — полный перезапуск:
+                // он материализует конфиг под тот режим, который есть на самом деле.
+                let mode_now = self.get_running_mode();
+                if the_core_changed_hands(&mode_seen, &mode_now) {
+                    logging!(
+                        warn,
+                        Type::Core,
+                        "core mode changed while applying the configuration ({mode_seen} -> {mode_now}); restarting the core to apply it"
+                    );
+                    return self.replace_core_and_apply().await;
+                }
+                Config::runtime().await.apply();
+                logging!(info, Type::Core, "{message}");
+                Ok(())
+            }
+            Err(err) => {
                 logging!(
                     warn,
                     Type::Core,
@@ -272,7 +297,7 @@ impl CoreManager {
 
     /// Полный перезапуск ядра и итог по нему: применить черновик или откатить.
     async fn replace_core_and_apply(&self) -> Result<()> {
-        match self.restart_core().await {
+        match self.restart_core_during_config_update().await {
             Ok(_) => {
                 Config::runtime().await.apply();
                 logging!(info, Type::Core, "Configuration applied after restart");
@@ -349,6 +374,22 @@ impl CoreManager {
                 StagedPath::NotStaged
             }
         }
+    }
+}
+
+/// clod:Э3-03 — перезагрузка ушла не тому ядру, которому предназначался путь.
+///
+/// Sidecar и служба читают конфиг из разных мест: наш файл — у sidecar,
+/// поколение службы — у ядра под службой. Если за время применения ядро
+/// сменило режим, удачная перезагрузка ничего не доказывает. Ядро, которого
+/// уже нет, — не смена рук: сторож поднимет его из свежего файла. А ядро,
+/// поднявшееся своим процессом там, где его не было, наш путь читает как надо.
+const fn the_core_changed_hands(seen: &super::RunningMode, now: &super::RunningMode) -> bool {
+    use super::RunningMode::{NotRunning, Service, Sidecar};
+    match (seen, now) {
+        (_, NotRunning) => false,
+        (Sidecar, Sidecar) | (Service, Service) | (NotRunning, Sidecar) => false,
+        (Sidecar, Service) | (Service, Sidecar) | (NotRunning, Service) => true,
     }
 }
 
@@ -520,7 +561,8 @@ fn listeners_need_recreate(prev: Option<&serde_yaml_ng::Mapping>, next: Option<&
 
 #[cfg(test)]
 mod tests {
-    use super::{StageAttempt, listeners_need_recreate, stage_with_confirmation};
+    use super::{StageAttempt, listeners_need_recreate, stage_with_confirmation, the_core_changed_hands};
+    use crate::core::manager::RunningMode::{NotRunning, Service, Sidecar};
     use crate::core::service::StageRequest;
     use clash_verge_service_ipc::StageRuntimeOutcome;
     use std::{
@@ -548,6 +590,27 @@ mod tests {
             }
             _ => None,
         }
+    }
+
+    #[test]
+    fn a_reload_that_went_to_a_core_in_another_mode_is_redone_by_a_restart() {
+        // Sidecar и служба читают конфиг из разных мест — перезагрузка не в тот
+        // режим ничего не доказывает.
+        assert!(the_core_changed_hands(&Sidecar, &Service));
+        assert!(the_core_changed_hands(&Service, &Sidecar));
+        // Наш путь ушёл ядру, которое тем временем поднялось под службой.
+        assert!(the_core_changed_hands(&NotRunning, &Service));
+    }
+
+    #[test]
+    fn a_reload_into_the_same_mode_or_into_no_core_is_left_alone() {
+        assert!(!the_core_changed_hands(&Sidecar, &Sidecar));
+        assert!(!the_core_changed_hands(&Service, &Service));
+        // Ядро умерло после перезагрузки: сторож поднимет его из свежего файла.
+        assert!(!the_core_changed_hands(&Sidecar, &NotRunning));
+        assert!(!the_core_changed_hands(&Service, &NotRunning));
+        // Ядро своим процессом там, где его не было, читает наш путь как надо.
+        assert!(!the_core_changed_hands(&NotRunning, &Sidecar));
     }
 
     #[tokio::test]

@@ -442,7 +442,27 @@ impl CoreManager {
         }
     }
 
+    /// Перезапуск ядра по просьбе снаружи: кнопка, трей, смена сборки ядра,
+    /// настройка, требующая перезапуска.
+    ///
+    /// clod:Э3-03 — перезапуск идёт под тем же признаком, что и применение
+    /// конфига: пока конфиг едет к ядру, режим работы (sidecar/служба) менять
+    /// нельзя — иначе staged-путь службы уезжал бы в sidecar, а наш путь — в
+    /// ядро под службой. Занято — честный отказ, как у апстрима, а не тихое
+    /// вклинивание. Применение конфига само перезапускает ядро через
+    /// `restart_core_during_config_update`, признак у него уже есть.
     pub async fn restart_core(&self) -> Result<()> {
+        if !self.try_start_config_update() {
+            anyhow::bail!("configuration update is already running");
+        }
+        defer! {
+            self.finish_config_update();
+        }
+        self.restart_core_during_config_update().await
+    }
+
+    /// Вызывающий уже держит признак применения конфига.
+    pub(super) async fn restart_core_during_config_update(&self) -> Result<()> {
         // Во время выхода перезапуск занял бы замок жизненного цикла на весь
         // старт, остановка ядра при выходе упёрлась бы в занятый замок — и ядро
         // осталось бы жить после закрытия приложения.
@@ -474,6 +494,14 @@ impl CoreManager {
         swap: impl FnOnce() -> Result<()> + Send,
         rollback: impl FnOnce() -> Result<()> + Send,
     ) -> Result<()> {
+        // clod:Э3-03 — подмена сборки тоже меняет ядро под ногами у применения
+        // конфига; занято — отказ до обеих записей указателей, откатывать нечего.
+        if !self.try_start_config_update() {
+            anyhow::bail!("configuration update is already running");
+        }
+        defer! {
+            self.finish_config_update();
+        }
         let _life = self.lifecycle_lock.lock().await;
         let _pause = self.planned_pause();
         if let Err(error) = self.stop_core_inner().await {
@@ -532,13 +560,11 @@ impl CoreManager {
             return Err(format!("Invalid clash core: {}", clash_core).into());
         }
 
-        Config::verge().await.edit_draft(|d| {
-            d.clash_core = Some(clash_core.to_owned());
-        });
-        Config::verge().await.apply();
-
-        let verge_data = Config::verge().await.latest_arc();
-        verge_data.save_file().await.map_err(|e| e.to_string())?;
+        crate::feat::commit_verge_edit(|verge| {
+            verge.clash_core = Some(clash_core.to_owned());
+        })
+        .await
+        .map_err(|e| e.to_string())?;
 
         self.update_config_checked().await.stringify_err()?;
         Ok(())

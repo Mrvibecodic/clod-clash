@@ -9,7 +9,18 @@ use clash_verge_draft::SharedDraft;
 use clash_verge_logging::{Type, logging, logging_error};
 use serde_yaml_ng::Mapping;
 
+/// clod:Э3-06 — черновик конфига Clash один на всех, а фиксируют его два места:
+/// эта правка (после проверки ядром) и смена режима из трея (сразу). Без общего
+/// замка щелчок по режиму во время проверки фиксировал бы и чужую правку — и
+/// проваленной проверке было бы уже нечего откатывать.
+static PATCH_CLASH_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+pub(crate) const fn patch_clash_lock() -> &'static tokio::sync::Mutex<()> {
+    &PATCH_CLASH_LOCK
+}
+
 pub async fn patch_clash(patch: &Mapping) -> Result<()> {
+    let _serialized = PATCH_CLASH_LOCK.lock().await;
     Config::clash().await.edit_draft(|d| d.patch_config(patch));
 
     let res = {
@@ -332,6 +343,21 @@ static PATCH_VERGE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(
 
 pub(crate) const fn patch_verge_lock() -> &'static tokio::sync::Mutex<()> {
     &PATCH_VERGE_LOCK
+}
+
+/// Записать в настройки одно поле мимо `patch_verge` — но не мимо его замка.
+///
+/// clod:Э3-06 — `apply()` фиксирует ВЕСЬ черновик, в том числе чужую правку,
+/// которая в `patch_verge` ещё ждёт проверки или перезапуска ядра. Провалив
+/// проверку, та правка откатывалась бы уже из пустого черновика — «настройка
+/// сама включилась» и уехала на диск. Под общим замком черновик к этому
+/// моменту всегда пуст, и на диск ложится ровно своя правка поверх принятых.
+pub async fn commit_verge_edit(edit: impl FnOnce(&mut IVerge)) -> Result<()> {
+    let _serialized = PATCH_VERGE_LOCK.lock().await;
+    let verge = Config::verge().await;
+    verge.edit_draft(edit);
+    verge.apply();
+    verge.data_arc().save_file().await
 }
 
 pub async fn patch_verge(patch: &IVerge, not_save_file: bool) -> Result<()> {
