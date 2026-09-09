@@ -374,6 +374,10 @@ export async function stopCore() {
   return invoke<void>('stop_core')
 }
 
+export async function refreshGeoAssets() {
+  return invoke<number>('refresh_geo_assets')
+}
+
 export async function restartCore() {
   return invoke<void>('restart_core')
 }

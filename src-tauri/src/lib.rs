@@ -148,6 +148,7 @@ mod app_init {
             cmd::restart_app,
             cmd::stop_core,
             cmd::restart_core,
+            cmd::refresh_geo_assets,
             cmd::get_core_updater_status,
             cmd::check_core_update,
             cmd::download_and_apply_core,

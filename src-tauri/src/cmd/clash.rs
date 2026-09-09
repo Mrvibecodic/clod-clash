@@ -147,6 +147,11 @@ pub async fn stop_core() -> CmdResult {
 }
 
 #[tauri::command]
+pub async fn refresh_geo_assets() -> CmdResult<usize> {
+    crate::module::geo_assets::refresh_home_copies().await.stringify_err()
+}
+
+#[tauri::command]
 pub async fn restart_core() -> CmdResult {
     logging_error!(Type::Core, crate::config::profiles::profiles_save_file_safe().await);
     crate::feat::tun::clear_suppression();

@@ -15,6 +15,7 @@ import {
   getRuntimeConfig,
   invoke_uwp_tool,
   patchClashMode,
+  refreshGeoAssets,
 } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import getSystem from '@/utils/get-system'
@@ -84,6 +85,7 @@ const SettingClash = ({ onError }: Props) => {
   const onUpdateGeo = async () => {
     try {
       await updateGeo()
+      await refreshGeoAssets()
       showNotice.success('settings.feedback.notifications.clash.geoDataUpdated')
     } catch (err: any) {
       showNotice.error(err)

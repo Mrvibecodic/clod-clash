@@ -1,4 +1,5 @@
 pub mod auto_backup;
+pub mod geo_assets;
 pub mod lightweight;
 pub mod log_export;
 pub mod logo_cache;
