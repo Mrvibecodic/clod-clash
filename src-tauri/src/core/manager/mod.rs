@@ -2,6 +2,8 @@ mod config;
 mod lifecycle;
 mod state;
 
+pub use lifecycle::ExitStop;
+
 use anyhow::Result;
 use arc_swap::{ArcSwap, ArcSwapOption};
 use clash_verge_logger::AsyncLogger;
@@ -51,6 +53,8 @@ pub struct CoreManager {
     lifecycle_lock: tokio::sync::Mutex<()>,
     // Флаг синглтона watcher передачи sidecar→service.
     handoff_watcher_running: AtomicBool,
+    starting: AtomicBool,
+    restart_pending: AtomicBool,
 }
 
 #[derive(Debug)]
@@ -80,6 +84,8 @@ impl Default for CoreManager {
             config_update_in_progress: AtomicBool::new(false),
             lifecycle_lock: tokio::sync::Mutex::new(()),
             handoff_watcher_running: AtomicBool::new(false),
+            starting: AtomicBool::new(false),
+            restart_pending: AtomicBool::new(false),
         }
     }
 }
@@ -91,6 +97,36 @@ impl CoreManager {
 
     pub fn get_running_mode(&self) -> Arc<RunningMode> {
         Arc::clone(&self.state.load().running_mode.load())
+    }
+
+    pub fn is_starting(&self) -> bool {
+        self.starting.load(Ordering::Acquire)
+            || self.restart_pending.load(Ordering::Acquire)
+            || !crate::utils::resolve::is_resolve_done()
+    }
+
+    pub(super) fn set_restart_pending(&self, pending: bool) {
+        self.restart_pending.store(pending, Ordering::Release);
+    }
+
+    pub(super) fn claim_sidecar_exit(&self, pid: u32) -> bool {
+        self.state
+            .load()
+            .sidecar_pid
+            .compare_exchange(pid, 0, Ordering::AcqRel, Ordering::Acquire)
+            .is_ok()
+    }
+
+    pub fn is_down(&self) -> bool {
+        matches!(*self.get_running_mode(), RunningMode::NotRunning) && !self.is_starting()
+    }
+
+    pub(super) fn mark_starting(&self) {
+        self.starting.store(true, Ordering::Release);
+    }
+
+    pub(super) fn clear_starting(&self) {
+        self.starting.store(false, Ordering::Release);
     }
 
     pub fn sidecar_pid(&self) -> Option<u32> {

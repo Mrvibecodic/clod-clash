@@ -45,7 +45,7 @@ const CORE_RESTART_DELAY: Duration = Duration::from_secs(1);
 const CORE_RESTART_DELAY_CAP: Duration = Duration::from_secs(4);
 const CORE_STABLE_AFTER: Duration = Duration::from_secs(60);
 
-static SERVICE_WATCHDOG_GENERATION: AtomicU64 = AtomicU64::new(0);
+static CORE_WATCHDOG_GENERATION: AtomicU64 = AtomicU64::new(0);
 
 fn exit_is_a_crash(current: &RunningMode, expected: &RunningMode, app_exiting: bool) -> bool {
     !app_exiting && current == expected
@@ -79,7 +79,7 @@ fn crash_attempt_number(previous_crash: Option<Instant>, now: Instant) -> u32 {
     CRASH_RESTARTS.fetch_add(1, Ordering::AcqRel) + 1
 }
 
-fn handle_core_exit(message: &str, expected: &RunningMode, terminated_pid: Option<u32>) {
+pub(super) fn handle_core_exit(message: &str, expected: &RunningMode, terminated_pid: Option<u32>) {
     let manager = CoreManager::global();
     if !exit_is_a_crash(
         &manager.get_running_mode(),
@@ -98,11 +98,22 @@ fn handle_core_exit(message: &str, expected: &RunningMode, terminated_pid: Optio
         );
         return;
     }
+    match terminated_pid {
+        Some(pid) if !manager.claim_sidecar_exit(pid) => {
+            logging!(
+                info,
+                Type::Core,
+                "the exit of core pid {} is already being handled",
+                pid
+            );
+            return;
+        }
+        Some(_) => {}
+        None => manager.clear_sidecar_pid(),
+    }
 
     logging!(warn, Type::Core, "core exited unexpectedly: {}", message);
-    manager.clear_sidecar_pid();
     manager.set_running_mode(RunningMode::NotRunning);
-    manager.after_core_process();
 
     let now = Instant::now();
     let attempt = {
@@ -114,6 +125,8 @@ fn handle_core_exit(message: &str, expected: &RunningMode, terminated_pid: Optio
         *last = Some(now);
         attempt
     };
+    manager.set_restart_pending(attempt <= MAX_CRASH_RESTARTS);
+    manager.after_core_process();
     if attempt > MAX_CRASH_RESTARTS {
         logging!(
             error,
@@ -137,6 +150,7 @@ fn handle_core_exit(message: &str, expected: &RunningMode, terminated_pid: Optio
         tokio::time::sleep(restart_delay(attempt)).await;
         let manager = CoreManager::global();
         if handle::Handle::global().is_exiting() || !matches!(*manager.get_running_mode(), RunningMode::NotRunning) {
+            manager.set_restart_pending(false);
             return;
         }
         logging!(
@@ -145,8 +159,11 @@ fn handle_core_exit(message: &str, expected: &RunningMode, terminated_pid: Optio
             "restarting the core after a crash (attempt {})",
             attempt
         );
-        if let Err(e) = manager.start_core().await {
+        let restarted = manager.start_core().await;
+        manager.set_restart_pending(false);
+        if let Err(e) = restarted {
             logging!(error, Type::Core, "failed to restart the core after a crash: {}", e);
+            manager.after_core_process();
             return;
         }
         if !after_core_came_back(&message).await {
@@ -356,14 +373,14 @@ async fn after_core_came_back(reason: &str) -> bool {
 }
 
 pub(super) fn spawn_service_health_watchdog() {
-    let generation = SERVICE_WATCHDOG_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
+    let generation = CORE_WATCHDOG_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
     AsyncHandler::spawn(move || async move {
         let mut watch = HealthWatch::default();
         let mut skipped: u32 = 0;
         loop {
             let manager = CoreManager::global();
             if handle::Handle::global().is_exiting()
-                || SERVICE_WATCHDOG_GENERATION.load(Ordering::Acquire) != generation
+                || CORE_WATCHDOG_GENERATION.load(Ordering::Acquire) != generation
                 || !matches!(*manager.get_running_mode(), RunningMode::Service)
             {
                 return;
@@ -404,7 +421,7 @@ pub(super) fn spawn_service_health_watchdog() {
                 }
                 step = watch.core_probed(answers);
             }
-            if SERVICE_WATCHDOG_GENERATION.load(Ordering::Acquire) != generation {
+            if CORE_WATCHDOG_GENERATION.load(Ordering::Acquire) != generation {
                 return;
             }
             match step {
@@ -429,7 +446,88 @@ pub(super) fn spawn_service_health_watchdog() {
     });
 }
 
+pub(super) fn spawn_sidecar_health_watchdog(pid: u32) {
+    let generation = CORE_WATCHDOG_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
+    AsyncHandler::spawn(move || async move {
+        let mut silent: u32 = 0;
+        let mut skipped: u32 = 0;
+        loop {
+            tokio::time::sleep(timing::CORE_HEALTH_INTERVAL).await;
+            let manager = CoreManager::global();
+            if handle::Handle::global().is_exiting()
+                || CORE_WATCHDOG_GENERATION.load(Ordering::Acquire) != generation
+                || manager.sidecar_pid() != Some(pid)
+            {
+                return;
+            }
+            if manager.is_config_update_in_progress() {
+                skipped += 1;
+                if skipped <= timing::CORE_HEALTH_MAX_SKIPS {
+                    silent = 0;
+                    continue;
+                }
+                if skipped == timing::CORE_HEALTH_MAX_SKIPS + 1 {
+                    logging!(
+                        warn,
+                        Type::Core,
+                        "применение конфига идёт {} кругов подряд — сторож больше не уступает",
+                        skipped
+                    );
+                }
+            } else {
+                skipped = 0;
+            }
+
+            if core_answers().await {
+                silent = 0;
+                continue;
+            }
+            silent += 1;
+            logging!(
+                warn,
+                Type::Core,
+                "the core process {} did not answer ({}/{})",
+                pid,
+                silent,
+                timing::CORE_HEALTH_MISSES
+            );
+            if silent < timing::CORE_HEALTH_MISSES {
+                continue;
+            }
+            if CORE_WATCHDOG_GENERATION.load(Ordering::Acquire) != generation {
+                return;
+            }
+            manager.recover_hung_sidecar(pid).await;
+            return;
+        }
+    });
+}
+
 impl CoreManager {
+    async fn recover_hung_sidecar(&self, pid: u32) {
+        let _life = self.lifecycle_lock.lock().await;
+        if handle::Handle::global().is_exiting() || self.sidecar_pid() != Some(pid) {
+            return;
+        }
+        logging!(
+            warn,
+            Type::Core,
+            "the core process {} is alive but stopped answering; killing it before the restart",
+            pid
+        );
+        match self.take_child_sidecar() {
+            Some(child) => {
+                #[cfg(target_os = "windows")]
+                self.set_job_handle(None);
+                if let Err(e) = child.kill() {
+                    logging!(warn, Type::Core, "failed to kill the hung core process {}: {}", pid, e);
+                }
+            }
+            None => crate::core::orphan::kill_process(pid).await,
+        }
+        handle_core_exit("the core stopped answering", &RunningMode::Sidecar, Some(pid));
+    }
+
     pub async fn get_clash_logs(&self) -> Result<Vec<CompactString>> {
         match *self.get_running_mode() {
             RunningMode::Service => service::get_clash_logs_by_service().await,
@@ -514,6 +612,7 @@ impl CoreManager {
         self.set_running_child_sidecar(child);
         self.set_sidecar_pid(pid);
         self.set_running_mode(RunningMode::Sidecar);
+        spawn_sidecar_health_watchdog(pid);
 
         AsyncHandler::spawn(move || async move {
             while let Some(event) = rx.recv().await {
@@ -548,6 +647,7 @@ impl CoreManager {
 
     pub(super) fn stop_core_by_sidecar(&self) {
         logging!(info, Type::Core, "Stopping sidecar");
+        CORE_WATCHDOG_GENERATION.fetch_add(1, Ordering::AcqRel);
         self.clear_sidecar_pid();
         defer! {
             self.set_running_mode(RunningMode::NotRunning);
@@ -630,7 +730,7 @@ impl CoreManager {
 
     pub(super) async fn stop_core_by_service(&self) -> Result<()> {
         logging!(info, Type::Core, "Stopping service");
-        SERVICE_WATCHDOG_GENERATION.fetch_add(1, Ordering::AcqRel);
+        CORE_WATCHDOG_GENERATION.fetch_add(1, Ordering::AcqRel);
         self.clear_sidecar_pid();
         defer! {
             self.set_running_mode(RunningMode::NotRunning);

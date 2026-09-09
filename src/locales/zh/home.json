@@ -81,6 +81,11 @@
         "launch": "启动"
       }
     },
+    "coreStatus": {
+      "stopped": "内核未运行 — 流量不会通过",
+      "starting": "正在启动内核…",
+      "start": "启动"
+    },
     "tunStatus": {
       "settingUp": "正在配置 TUN — 请确认系统提示",
       "broken": "TUN 未能启动，流量绕过了隧道",

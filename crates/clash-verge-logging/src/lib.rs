@@ -110,3 +110,115 @@ impl<'a> LogLineFilter for NoModuleFilter<'a> {
         writer.write(now, record)
     }
 }
+
+pub mod startup {
+    use log::{Level, LevelFilter, Log, Metadata, Record};
+    use std::io::Write as _;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::{Mutex, OnceLock};
+
+    const HELD_CAP: usize = 200;
+    static INSTALLED: AtomicBool = AtomicBool::new(false);
+
+    struct HeldLine {
+        level: Level,
+        target: String,
+        module: Option<String>,
+        line: String,
+    }
+
+    pub struct StartupLog {
+        inner: OnceLock<Box<dyn Log>>,
+        held: Mutex<Vec<HeldLine>>,
+    }
+
+    static STARTUP_LOG: StartupLog = StartupLog {
+        inner: OnceLock::new(),
+        held: Mutex::new(Vec::new()),
+    };
+
+    fn held() -> std::sync::MutexGuard<'static, Vec<HeldLine>> {
+        match STARTUP_LOG.held.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        }
+    }
+
+    fn stamp() -> String {
+        flexi_logger::DeferredNow::new()
+            .format("%Y-%m-%d %H:%M:%S%.3f")
+            .to_string()
+    }
+
+    impl Log for StartupLog {
+        fn enabled(&self, metadata: &Metadata) -> bool {
+            self.inner
+                .get()
+                .map_or(metadata.level() <= Level::Info, |inner| inner.enabled(metadata))
+        }
+
+        fn log(&self, record: &Record) {
+            if let Some(inner) = self.inner.get() {
+                inner.log(record);
+                return;
+            }
+            if record.level() > Level::Info {
+                return;
+            }
+            let line = format!("[{}] [{}] {}", stamp(), record.level(), record.args());
+            let _ = writeln!(std::io::stderr(), "{line}");
+            let mut held = held();
+            if held.len() >= HELD_CAP {
+                held.remove(0);
+            }
+            held.push(HeldLine {
+                level: record.level(),
+                target: record.target().to_owned(),
+                module: record.module_path().map(str::to_owned),
+                line,
+            });
+        }
+
+        fn flush(&self) {
+            if let Some(inner) = self.inner.get() {
+                inner.flush();
+            }
+        }
+    }
+
+    pub fn install() -> bool {
+        if log::set_logger(&STARTUP_LOG).is_err() {
+            return false;
+        }
+        INSTALLED.store(true, Ordering::Release);
+        log::set_max_level(LevelFilter::Info);
+        true
+    }
+
+    pub fn hand_over(logger: Box<dyn Log>) -> Result<(), log::SetLoggerError> {
+        if !INSTALLED.load(Ordering::Acquire) {
+            return log::set_boxed_logger(logger);
+        }
+        let Err(logger) = STARTUP_LOG.inner.set(logger) else {
+            let lines: Vec<HeldLine> = std::mem::take(&mut *held());
+            if let Some(inner) = STARTUP_LOG.inner.get() {
+                for held_line in lines {
+                    inner.log(
+                        &Record::builder()
+                            .level(held_line.level)
+                            .target(&held_line.target)
+                            .module_path(held_line.module.as_deref())
+                            .args(format_args!("(до запуска журнала) {}", held_line.line))
+                            .build(),
+                    );
+                }
+            }
+            return Ok(());
+        };
+        log::set_boxed_logger(logger)
+    }
+
+    pub fn held_lines() -> Vec<String> {
+        held().iter().map(|held_line| held_line.line.clone()).collect()
+    }
+}

@@ -3,8 +3,10 @@ import { useQuery } from '@/services/query-client'
 
 import { useVisibility } from './use-visibility'
 
+export type RunningMode = 'Sidecar' | 'Service' | 'NotRunning' | 'Starting'
+
 interface SystemState {
-  runningMode: 'Sidecar' | 'Service'
+  runningMode: RunningMode
   isAdminMode: boolean
   isServiceOk: boolean
 }
@@ -51,6 +53,7 @@ export function useSystemState() {
 
   const isSidecarMode = systemState.runningMode === 'Sidecar'
   const isServiceMode = systemState.runningMode === 'Service'
+  const isCoreDown = systemState.runningMode === 'NotRunning'
   const isTunModeAvailable = systemState.isAdminMode || systemState.isServiceOk
 
   return {
@@ -59,6 +62,7 @@ export function useSystemState() {
     isServiceOk: systemState.isServiceOk,
     isSidecarMode,
     isServiceMode,
+    isCoreDown,
     isTunModeAvailable,
     mutateSystemState,
     isLoading,

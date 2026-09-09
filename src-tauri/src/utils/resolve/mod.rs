@@ -127,8 +127,9 @@ pub fn resolve_setup_async() {
         }
 
         Handle::refresh_clash();
-        refresh_tray_menu().await;
         resolve_done();
+        refresh_tray_menu().await;
+        Handle::refresh_verge();
     });
 }
 

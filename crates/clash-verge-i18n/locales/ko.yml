@@ -23,6 +23,9 @@ notifications:
   appQuit:
     title: 곧 종료
     body: 앱이 곧 종료됩니다.
+  quitCancelled:
+    title: 종료 취소됨
+    body: 코어가 중지되지 않아 앱이 계속 실행됩니다.
   appHidden:
     title: 앱이 숨겨짐
     body: 앱이 백그라운드에서 실행 중입니다.
@@ -79,3 +82,5 @@ tray:
     systemProxy: 시스템 프록시
     tun: TUN
     profile: 프로필
+    core: 코어
+    coreStopped: 실행되지 않음

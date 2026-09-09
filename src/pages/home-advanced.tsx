@@ -19,6 +19,7 @@ import {
   ConnectButton,
   type ConnectState,
 } from '@/components/home/connect-button'
+import { CoreStatus } from '@/components/home/core-status'
 import { ModeStatus } from '@/components/home/mode-status'
 import { NetCard } from '@/components/home/net-card'
 import { ProviderBanners } from '@/components/home/provider-banners'
@@ -217,6 +218,8 @@ const HomeAdvancedPage = () => {
           />
 
           <ModeStatus locked={Boolean(current.lock_mode)} showTargets={false} />
+
+          <CoreStatus />
 
           <ServerSelectRow onOpen={() => setServerOpen(true)} />
           <ServerSelect

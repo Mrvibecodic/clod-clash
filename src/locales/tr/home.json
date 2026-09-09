@@ -81,6 +81,11 @@
         "launch": "Başlangıç"
       }
     },
+    "coreStatus": {
+      "stopped": "Çekirdek çalışmıyor — trafik geçmiyor",
+      "starting": "Çekirdek başlatılıyor…",
+      "start": "Başlat"
+    },
     "tunStatus": {
       "settingUp": "TUN hazırlanıyor — sistem istemini onaylayın",
       "broken": "TUN başlamadı, trafik tünelin dışından gidiyor",

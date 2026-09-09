@@ -14,6 +14,7 @@ pub enum NotificationEvent<'a> {
     LightweightModeEntered,
     ProfilesReactivated,
     AppQuit,
+    QuitCancelled,
     #[cfg(target_os = "macos")]
     AppHidden,
     // clod:F7 — subscription watcher alerts.
@@ -79,6 +80,11 @@ pub async fn notify_event<'a>(event: NotificationEvent<'a>) {
         NotificationEvent::AppQuit => {
             let title = clash_verge_i18n::t!("notifications.appQuit.title");
             let body = clash_verge_i18n::t!("notifications.appQuit.body");
+            notify(title, body);
+        }
+        NotificationEvent::QuitCancelled => {
+            let title = clash_verge_i18n::t!("notifications.quitCancelled.title");
+            let body = clash_verge_i18n::t!("notifications.quitCancelled.body");
             notify(title, body);
         }
         #[cfg(target_os = "macos")]

@@ -81,6 +81,11 @@
         "launch": "Mulai"
       }
     },
+    "coreStatus": {
+      "stopped": "Inti tidak berjalan — tidak ada lalu lintas yang lewat",
+      "starting": "Memulai inti…",
+      "start": "Mulai"
+    },
     "tunStatus": {
       "settingUp": "Menyiapkan TUN — konfirmasi permintaan sistem",
       "broken": "TUN tidak berjalan, lalu lintas melewati terowongan",

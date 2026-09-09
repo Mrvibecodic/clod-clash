@@ -23,6 +23,9 @@ notifications:
   appQuit:
     title: 終了間近
     body: アプリはまもなく終了します。
+  quitCancelled:
+    title: 終了をキャンセルしました
+    body: コアが停止しなかったため、アプリは動作を続けます。
   appHidden:
     title: アプリが非表示
     body: アプリはバックグラウンドで実行中です。
@@ -79,3 +82,5 @@ tray:
     systemProxy: システムプロキシ
     tun: TUN
     profile: プロファイル
+    core: コア
+    coreStopped: 未起動

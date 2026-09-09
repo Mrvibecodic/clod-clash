@@ -1,5 +1,7 @@
 use super::{CmdResult, StringifyErr as _};
 use crate::core::service::{self, SERVICE_MANAGER, ServiceStatus};
+use crate::core::{CoreManager, manager::RunningMode};
+use clash_verge_logging::{Type, logging};
 
 async fn execute_service_operation_sync(status: ServiceStatus, op_type: &str) -> CmdResult {
     SERVICE_MANAGER
@@ -10,7 +12,35 @@ async fn execute_service_operation_sync(status: ServiceStatus, op_type: &str) ->
 
 #[tauri::command]
 pub async fn uninstall_service() -> CmdResult {
-    execute_service_operation_sync(ServiceStatus::UninstallRequired, "Uninstall").await
+    let manager = CoreManager::global();
+    let ran_under_service = matches!(*manager.get_running_mode(), RunningMode::Service);
+    if ran_under_service && let Err(e) = manager.stop_core().await {
+        logging!(
+            warn,
+            Type::Service,
+            "перед удалением службы ядро не остановилось: {e:#}"
+        );
+    }
+    let result = execute_service_operation_sync(ServiceStatus::UninstallRequired, "Uninstall").await;
+    if ran_under_service {
+        match manager.start_core().await {
+            Ok(()) => {
+                if let Err(e) = crate::config::profiles::activate_selected_nodes() {
+                    logging!(
+                        warn,
+                        Type::Service,
+                        "после удаления службы выбор узлов не вернулся: {e}"
+                    );
+                }
+            }
+            Err(e) => logging!(
+                error,
+                Type::Service,
+                "после удаления службы ядро не поднялось своим процессом: {e:#}"
+            ),
+        }
+    }
+    result
 }
 #[tauri::command]
 pub async fn is_service_available() -> CmdResult<bool> {

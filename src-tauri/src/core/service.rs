@@ -1336,6 +1336,7 @@ impl ServiceManager {
                 );
                 run_service_command(reinstall_service, "reinstall service").await?;
                 wait_for_service_ipc(self).await?;
+                UNINSTALLED_THIS_SESSION.store(false, Ordering::Release);
             }
             ServiceStatus::ForceReinstallRequired => {
                 logging!(
@@ -1345,10 +1346,12 @@ impl ServiceManager {
                 );
                 run_service_command(force_reinstall_service, "force reinstall service").await?;
                 wait_for_service_ipc(self).await?;
+                UNINSTALLED_THIS_SESSION.store(false, Ordering::Release);
             }
             ServiceStatus::InstallRequired => {
                 REINSTALL_NOTICED.store(false, Ordering::Release);
                 self.install_service_once().await?;
+                UNINSTALLED_THIS_SESSION.store(false, Ordering::Release);
             }
             ServiceStatus::UninstallRequired => {
                 logging!(
@@ -1358,6 +1361,7 @@ impl ServiceManager {
                 );
                 run_service_command(uninstall_service, "uninstall service").await?;
                 self.set_status(ServiceStatus::Unavailable("Service Uninstalled".into()));
+                UNINSTALLED_THIS_SESSION.store(true, Ordering::Release);
             }
             ServiceStatus::Unavailable(reason) => {
                 logging!(
@@ -1411,6 +1415,11 @@ async fn run_service_command(
 }
 
 static REINSTALL_NOTICED: AtomicBool = AtomicBool::new(false);
+static UNINSTALLED_THIS_SESSION: AtomicBool = AtomicBool::new(false);
+
+pub fn was_uninstalled_this_session() -> bool {
+    UNINSTALLED_THIS_SESSION.load(Ordering::Acquire)
+}
 
 pub static SERVICE_MANAGER: Lazy<ServiceManager> = Lazy::new(|| ServiceManager {
     status: Mutex::new(ServiceStatus::Unavailable("Need Checks".into())),

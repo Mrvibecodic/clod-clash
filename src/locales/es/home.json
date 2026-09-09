@@ -81,6 +81,11 @@
         "launch": "Inicio"
       }
     },
+    "coreStatus": {
+      "stopped": "El núcleo no está en ejecución — no pasa tráfico",
+      "starting": "Iniciando el núcleo…",
+      "start": "Iniciar"
+    },
     "tunStatus": {
       "settingUp": "Configurando TUN: confirma la solicitud del sistema",
       "broken": "TUN no se inició y el tráfico va fuera del túnel",

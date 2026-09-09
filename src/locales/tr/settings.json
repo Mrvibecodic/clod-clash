@@ -45,6 +45,7 @@
         "core": {
           "binaryChanged": "Çekirdek dosyası kurulumdan sonra değiştiği için başlatılmadı",
           "crashed": "Çekirdek üst üste çöktü ve yeniden başlatılmadı",
+          "exitCancelled": "Çıkış iptal edildi: çekirdek durmadı ({{reason}}). Uygulama çalışmaya devam ediyor.",
           "handoffFailed": "Çekirdek arka plan hizmetine devredilemedi ve geri alınamadı — çekirdek çalışmıyor",
           "notReady": "Çekirdek başlatıldı ancak yanıt vermiyor, başlatma iptal edildi",
           "portBusy": "{{port}} bağlantı noktası başka bir uygulama tarafından kullanılıyor: çekirdek onu dinlemiyor, trafik sistem proxy'si üzerinden geçmeyecek.",

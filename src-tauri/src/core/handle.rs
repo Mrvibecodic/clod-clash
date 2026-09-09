@@ -100,6 +100,14 @@ impl Handle {
         self.is_exiting.store(true, Ordering::Release);
     }
 
+    pub fn begin_exiting(&self) -> bool {
+        !self.is_exiting.swap(true, Ordering::AcqRel)
+    }
+
+    pub fn clear_is_exiting(&self) {
+        self.is_exiting.store(false, Ordering::Release);
+    }
+
     pub fn is_exiting(&self) -> bool {
         self.is_exiting.load(Ordering::Acquire)
     }

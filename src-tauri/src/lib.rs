@@ -155,6 +155,7 @@ mod app_init {
             cmd::repin_core_binaries,
             cmd::disable_managed_core,
             cmd::get_running_mode,
+            cmd::take_pending_notices,
             cmd::entry_lightweight_mode,
             cmd::uninstall_service,
             cmd::is_service_available,
@@ -234,7 +235,15 @@ mod app_init {
 }
 
 pub fn run() {
-    if app_init::init_singleton_check().is_err() {
+    #[cfg(not(any(feature = "tauri-dev", feature = "tokio-trace")))]
+    clash_verge_logging::startup::install();
+
+    let _ = utils::dirs::init_portable_flag();
+
+    if let Err(error) = app_init::init_singleton_check() {
+        if error.downcast_ref::<server::AnotherInstanceRunning>().is_none() {
+            utils::startup::report_failure(&error);
+        }
         return;
     }
 
@@ -242,8 +251,6 @@ pub fn run() {
     utils::linux::workarounds::apply_nvidia_dmabuf_renderer_workaround();
     #[cfg(target_os = "linux")]
     utils::linux::workarounds::apply_wayland_webkit_fix();
-
-    let _ = utils::dirs::init_portable_flag();
 
     let builder = app_init::setup_plugins(tauri::Builder::default())
         .setup(|app| {
@@ -442,7 +449,7 @@ pub fn run() {
         }
         tauri::RunEvent::Exit => AsyncHandler::block_on(async {
             if !handle::Handle::global().is_exiting() {
-                feat::quit().await;
+                feat::quit_at(feat::ExitPace::Interactive, false).await;
             }
             logging!(info, Type::System, "Application exited");
         }),

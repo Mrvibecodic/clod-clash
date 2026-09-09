@@ -16,6 +16,7 @@ import {
   ConnectButton,
   type ConnectState,
 } from '@/components/home/connect-button'
+import { CoreStatus } from '@/components/home/core-status'
 import { FirewallStatus } from '@/components/home/firewall-status'
 import { ModeStatus } from '@/components/home/mode-status'
 import { ProviderBanners } from '@/components/home/provider-banners'
@@ -224,6 +225,8 @@ const HomeSimplePage = () => {
         <Box sx={{ display: 'flex', justifyContent: 'center', mt: -1 }}>
           <ModeStatus locked={Boolean(current.lock_mode)} />
         </Box>
+
+        <CoreStatus />
 
         <Box sx={{ display: 'flex', justifyContent: 'center' }}>
           <TunStatus />

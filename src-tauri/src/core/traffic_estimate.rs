@@ -17,6 +17,7 @@
 
 use std::collections::HashMap;
 use std::sync::OnceLock;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, SystemTime};
 
 use parking_lot::Mutex;
@@ -262,13 +263,24 @@ fn clear_local() {
     }
 }
 
+static POLLING: AtomicBool = AtomicBool::new(false);
+
 /// Поднять счётчик и запустить опрос ядра.
 pub fn init() {
     if let Some(persisted) = load_persisted() {
         runtime().lock().estimate = persisted;
     }
+    resume();
+}
 
+pub fn resume() {
+    if handle::Handle::global().is_exiting() || POLLING.swap(true, Ordering::AcqRel) {
+        return;
+    }
     AsyncHandler::spawn(|| async {
+        scopeguard::defer! {
+            POLLING.store(false, Ordering::Release);
+        }
         loop {
             if handle::Handle::global().is_exiting() {
                 let estimate = snapshot();

@@ -64,11 +64,17 @@ pub struct Tray {
     speed_controller: speed_task::TraySpeedController,
 }
 
+fn core_is_down() -> bool {
+    crate::core::CoreManager::global().is_down()
+}
+
 impl TrayState {
     async fn get_tray_icon(verge: &IVerge) -> (bool, Cow<'_, [u8]>) {
         let tun_mode = feat::tun::is_active_with(verge.enable_tun_mode.unwrap_or(false));
         let system_mode = verge.enable_system_proxy.unwrap_or(false);
-        let kind = if tun_mode {
+        let kind = if core_is_down() {
+            IconKind::Common
+        } else if tun_mode {
             IconKind::Tun
         } else if system_mode {
             IconKind::SysProxy
@@ -370,7 +376,7 @@ impl Tray {
             |(main, rest)| format!("{main}+{}", rest.split('.').next().unwrap_or("")),
         );
 
-        let tooltip = format!(
+        let mut tooltip = format!(
             "{} {}\n{}: {}\n{}: {}\n{}: {}",
             crate::constants::branding::APP_NAME,
             reassembled_version,
@@ -381,6 +387,13 @@ impl Tray {
             profile_text,
             current_profile_name
         );
+        if core_is_down() {
+            tooltip.push_str(&format!(
+                "\n{}: {}",
+                clash_verge_i18n::t!("tray.tooltip.core"),
+                clash_verge_i18n::t!("tray.tooltip.coreStopped")
+            ));
+        }
 
         #[cfg(target_os = "linux")]
         if ksni_active() {
@@ -418,6 +431,18 @@ impl Tray {
         self.update_speed_task(verge.enable_tray_speed.unwrap_or(false));
         self.update_tooltip().await?;
         Ok(())
+    }
+
+    pub async fn refresh_core_state(&self) {
+        if handle::Handle::global().is_exiting() {
+            return;
+        }
+        if !ksni_active() && handle::Handle::app_handle().tray_by_id(TRAY_ID).is_none() {
+            return;
+        }
+        let verge = Config::verge().await.latest_arc();
+        logging_error!(Type::Tray, self.update_icon(&verge).await);
+        logging_error!(Type::Tray, self.update_tooltip().await);
     }
 
     pub async fn update_menu_and_icon(&self) {

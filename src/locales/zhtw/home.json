@@ -81,6 +81,11 @@
         "launch": "啟動"
       }
     },
+    "coreStatus": {
+      "stopped": "核心未運行 — 流量不會通過",
+      "starting": "正在啟動核心…",
+      "start": "啟動"
+    },
     "tunStatus": {
       "settingUp": "正在設定 TUN — 請確認系統提示",
       "broken": "TUN 未能啟動，流量繞過了通道",

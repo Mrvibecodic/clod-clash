@@ -160,7 +160,8 @@ impl Logger {
             filter_modules.extend(["tauri_plugin_mihomo", "kode_bridge"]);
             let logger = logger.filter(Box::new(clash_verge_logging::NoModuleFilter(filter_modules)));
 
-            let handle = logger.start()?;
+            let (boxed_logger, handle) = logger.build()?;
+            clash_verge_logging::startup::hand_over(boxed_logger)?;
             *self.handle.lock() = Some(handle);
         }
 

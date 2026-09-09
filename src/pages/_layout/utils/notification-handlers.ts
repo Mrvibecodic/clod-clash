@@ -193,26 +193,42 @@ export const handleNoticeMessage = (
         'settings.sections.system.notifications.service.bundleRejected',
         msg,
       ),
-    'core::crashed': () =>
+    'core::crashed': () => {
+      void revalidateQueries([['getSystemState']])
       showNotice.error(
         'settings.sections.system.notifications.core.crashed',
         msg,
-      ),
-    'core::restarted': () =>
+      )
+    },
+    'core::restarted': () => {
+      void revalidateQueries([['getSystemState']])
       showNotice.info(
         'settings.sections.system.notifications.core.restarted',
         msg,
-      ),
-    'core::not_ready': () =>
+      )
+    },
+    'core::not_ready': () => {
+      void revalidateQueries([['getSystemState']])
       showNotice.error(
         'settings.sections.system.notifications.core.notReady',
         msg,
-      ),
-    'core::handoff_failed': () =>
+      )
+    },
+    'core::handoff_failed': () => {
+      void revalidateQueries([['getSystemState']])
       showNotice.error(
         'settings.sections.system.notifications.core.handoffFailed',
         msg,
-      ),
+      )
+    },
+    'app_quit::core_still_running': () => {
+      void revalidateQueries([['getSystemState']])
+      showNotice.error(
+        'settings.sections.system.notifications.core.exitCancelled',
+        { reason: msg },
+        0,
+      )
+    },
     'core::port_busy': () => {
       let id = 0
       const openSettings = () => {

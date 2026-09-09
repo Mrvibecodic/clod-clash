@@ -23,6 +23,9 @@ notifications:
   appQuit:
     title: 即將退出
     body: 應用即將退出。
+  quitCancelled:
+    title: 已取消退出
+    body: 核心未能停止，應用繼續運行。
   appHidden:
     title: 應用已隱藏
     body: 應用正在背景執行。
@@ -79,3 +82,5 @@ tray:
     systemProxy: 系統代理
     tun: 虛擬網路介面卡
     profile: 訂閱
+    core: 核心
+    coreStopped: 未運行

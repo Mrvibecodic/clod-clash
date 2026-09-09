@@ -81,6 +81,11 @@
         "launch": "Start"
       }
     },
+    "coreStatus": {
+      "stopped": "Der Kern läuft nicht — es fließt kein Traffic",
+      "starting": "Kern wird gestartet…",
+      "start": "Starten"
+    },
     "tunStatus": {
       "settingUp": "TUN wird eingerichtet — bestätigen Sie die Systemabfrage",
       "broken": "TUN ist nicht gestartet, der Verkehr läuft am Tunnel vorbei",

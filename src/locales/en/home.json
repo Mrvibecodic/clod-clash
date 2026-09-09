@@ -81,6 +81,11 @@
         "launch": "Startup"
       }
     },
+    "coreStatus": {
+      "stopped": "The core is not running — no traffic goes through",
+      "starting": "Starting the core…",
+      "start": "Start"
+    },
     "tunStatus": {
       "settingUp": "Setting TUN up — confirm the system prompt",
       "broken": "TUN did not start, traffic is going around the tunnel",

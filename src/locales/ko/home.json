@@ -81,6 +81,11 @@
         "launch": "시작"
       }
     },
+    "coreStatus": {
+      "stopped": "코어가 실행되지 않음 — 트래픽이 흐르지 않습니다",
+      "starting": "코어를 시작하는 중…",
+      "start": "시작"
+    },
     "tunStatus": {
       "settingUp": "TUN 설정 중 — 시스템 요청을 확인하세요",
       "broken": "TUN이 시작되지 않아 트래픽이 터널을 우회합니다",

@@ -23,6 +23,17 @@ struct QueryParam {
 
 static SHUTDOWN_SENDER: OnceCell<Mutex<Option<oneshot::Sender<()>>>> = OnceCell::new();
 
+#[derive(Debug)]
+pub struct AnotherInstanceRunning;
+
+impl std::fmt::Display for AnotherInstanceRunning {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("another instance is already running; the command was handed over")
+    }
+}
+
+impl std::error::Error for AnotherInstanceRunning {}
+
 pub async fn check_singleton() -> Result<()> {
     let port = IVerge::get_singleton_port();
     if port_is_taken_at(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST), port) {
@@ -76,7 +87,7 @@ pub async fn check_singleton() -> Result<()> {
             Type::Window,
             "another instance is already running; the command was handed over, exiting"
         );
-        bail!("app exists");
+        return Err(AnotherInstanceRunning.into());
     }
     Ok(())
 }

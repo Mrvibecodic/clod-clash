@@ -45,6 +45,7 @@
         "core": {
           "binaryChanged": "The core file changed since it was installed and was not started",
           "crashed": "The core keeps crashing and was not restarted",
+          "exitCancelled": "Exit cancelled: the core did not stop ({{reason}}). The app keeps running.",
           "handoffFailed": "Handing the core over to the background service failed and it could not be brought back — the core is not running",
           "notReady": "The core started but does not answer, so the launch was cancelled",
           "portBusy": "Port {{port}} is held by another application: the core is not listening on it, so traffic will not go through the system proxy.",

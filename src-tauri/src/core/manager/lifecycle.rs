@@ -11,6 +11,7 @@ use clash_verge_logging::{Type, logging};
 use scopeguard::defer;
 use smartstring::alias::String;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use std::time::Duration;
 use tauri_plugin_clash_verge_sysinfo;
 use tauri_plugin_clash_verge_sysinfo::is_current_app_handle_admin;
 
@@ -36,6 +37,16 @@ const fn port_report(reported: Option<u16>, expected: u16) -> PortReport {
 
 const fn should_wait_for_service(tun_enabled: bool, service_ready: bool, is_admin: bool) -> bool {
     tun_enabled && !service_ready && !is_admin
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum ExitStop {
+    Stopped,
+    LockBusy,
+    Failed {
+        reason: std::string::String,
+        core_alive: bool,
+    },
 }
 
 /// Результат передачи sidecar→service
@@ -71,10 +82,12 @@ impl CoreManager {
             return Ok(());
         }
 
-        self.prepare_startup().await;
+        self.mark_starting();
         defer! {
+            self.clear_starting();
             self.after_core_process();
         }
+        self.prepare_startup().await;
 
         // Во время ожидания службы может начаться завершение работы; откатываем
         // состояние, если фактического запуска не произошло.
@@ -197,6 +210,16 @@ impl CoreManager {
             if matches!(*self.get_running_mode(), RunningMode::NotRunning) {
                 anyhow::bail!("ядро завершилось, не ответив");
             }
+            if let Some(pid) = self.sidecar_pid()
+                && !crate::core::orphan::process_is_alive(pid).await
+            {
+                super::state::handle_core_exit(
+                    &format!("процесс ядра {} завершился во время проверки готовности", pid),
+                    &RunningMode::Sidecar,
+                    Some(pid),
+                );
+                continue;
+            }
 
             let probe = {
                 let mihomo = Handle::mihomo().await;
@@ -316,6 +339,31 @@ impl CoreManager {
         self.stop_core_inner().await
     }
 
+    pub async fn stop_core_for_exit(&self, lock_wait: Duration, stop_budget: Duration) -> ExitStop {
+        let Ok(_life) = tokio::time::timeout(lock_wait, self.lifecycle_lock.lock()).await else {
+            return ExitStop::LockBusy;
+        };
+        let mode_before = self.get_running_mode();
+        let pid_before = self.sidecar_pid();
+        let reason = match tokio::time::timeout(stop_budget, self.stop_core_inner()).await {
+            Ok(Ok(())) => return ExitStop::Stopped,
+            Ok(Err(error)) => format!("{error:#}"),
+            Err(_) => format!("нет ответа за {} с", stop_budget.as_secs()),
+        };
+        let core_alive = match (&*mode_before, pid_before) {
+            (RunningMode::Sidecar, Some(pid)) => crate::core::orphan::process_is_alive(pid).await,
+            (RunningMode::Service, _) => {
+                tokio::time::timeout(timing::SERVICE_STATUS_WAIT, crate::core::service::service_status())
+                    .await
+                    .ok()
+                    .and_then(Result::ok)
+                    .is_some_and(|status| status.is_active && status.core_pid.is_some())
+            }
+            _ => false,
+        };
+        ExitStop::Failed { reason, core_alive }
+    }
+
     /// Вызывающий должен уже удерживать `lifecycle_lock`.
     async fn stop_core_inner(&self) -> Result<()> {
         CLASH_LOGGER.clear_logs().await;
@@ -431,6 +479,13 @@ impl CoreManager {
     pub(super) fn after_core_process(&self) {
         let app_handle = Handle::app_handle();
         tauri_plugin_clash_verge_sysinfo::set_app_core_mode(app_handle, self.get_running_mode().to_string());
+        if Handle::global().is_exiting() {
+            return;
+        }
+        AsyncHandler::spawn(|| async {
+            crate::core::tray::Tray::global().refresh_core_state().await;
+            Handle::refresh_verge();
+        });
     }
 
     async fn wait_for_service_if_needed(&self) {
@@ -449,6 +504,14 @@ impl CoreManager {
                     "service unavailable while app is elevated; starting sidecar immediately"
                 );
             }
+            return;
+        }
+        if service::was_uninstalled_this_session() {
+            logging!(
+                info,
+                Type::Core,
+                "служба удалена в этом сеансе — ждать её незачем, поднимаемся своим процессом"
+            );
             return;
         }
 

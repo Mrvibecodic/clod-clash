@@ -1,11 +1,57 @@
 use clash_verge_logging::{Type, logging};
 use serde_json::json;
 use smartstring::alias::String;
+use std::collections::VecDeque;
+use std::sync::Mutex;
 
 use tauri::{AppHandle, Emitter as _, Manager as _, WebviewWindow};
 
 #[cfg(not(target_os = "macos"))]
 use std::sync::{OnceLock, mpsc};
+
+const PENDING_NOTICES_CAP: usize = 20;
+static PENDING_NOTICES: Mutex<VecDeque<(std::string::String, std::string::String)>> = Mutex::new(VecDeque::new());
+
+fn pending_notices() -> std::sync::MutexGuard<'static, VecDeque<(std::string::String, std::string::String)>> {
+    match PENDING_NOTICES.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    }
+}
+
+const HELD_STATUS_PREFIXES: &[&str] = &[
+    "core::",
+    "sysproxy::",
+    "service::",
+    "tun::",
+    "config_validate::",
+    "clod_config::",
+    "update_failed",
+    "app_quit::",
+];
+const NEVER_HELD_STATUSES: &[&str] = &["tun::setup_started", "tun::setup_done"];
+
+fn worth_holding(status: &str) -> bool {
+    !NEVER_HELD_STATUSES.contains(&status) && HELD_STATUS_PREFIXES.iter().any(|prefix| status.starts_with(prefix))
+}
+
+fn hold_notice(status: &str, message: &str) {
+    let queued = {
+        let mut pending = pending_notices();
+        if pending.len() >= PENDING_NOTICES_CAP {
+            pending.pop_front();
+        }
+        pending.push_back((status.to_owned(), message.to_owned()));
+        pending.len()
+    };
+    logging!(
+        info,
+        Type::Frontend,
+        "окна нет — уведомление {} отложено до его появления ({} в очереди)",
+        status,
+        queued
+    );
+}
 
 #[derive(Debug)]
 pub enum FrontendEvent<'a> {
@@ -27,6 +73,23 @@ pub enum FrontendEvent<'a> {
 pub struct NotificationSystem {}
 
 impl NotificationSystem {
+    pub fn take_pending_notices() -> Vec<(std::string::String, std::string::String)> {
+        pending_notices().drain(..).collect()
+    }
+
+    fn held_for_later(app_handle: &AppHandle, event: &FrontendEvent) -> bool {
+        let FrontendEvent::NoticeMessage { status, message } = event else {
+            return false;
+        };
+        if app_handle.get_webview_window("main").is_some() {
+            return false;
+        }
+        if worth_holding(status) {
+            hold_notice(status, message);
+        }
+        true
+    }
+
     fn emit_to_window(window: &WebviewWindow, event_name: &'static str, payload: serde_json::Value) {
         if let Err(e) = window.emit(event_name, payload) {
             logging!(warn, Type::Frontend, "Event emit failed: {}", e);
@@ -54,7 +117,7 @@ impl NotificationSystem {
 
     #[cfg(target_os = "macos")]
     pub(crate) fn send_event(app_handle: AppHandle, event: FrontendEvent) {
-        if crate::core::handle::Handle::global().is_exiting() {
+        if Self::held_for_later(&app_handle, &event) {
             return;
         }
         let (event_name, Ok(payload)) = Self::serialize_event(event) else {
@@ -72,7 +135,7 @@ impl NotificationSystem {
 
     #[cfg(not(target_os = "macos"))]
     pub(crate) fn send_event(app_handle: AppHandle, event: FrontendEvent) {
-        if crate::core::handle::Handle::global().is_exiting() {
+        if Self::held_for_later(&app_handle, &event) {
             return;
         }
         let (event_name, Ok(payload)) = Self::serialize_event(event) else {
@@ -122,4 +185,20 @@ struct QueuedEvent {
     app_handle: AppHandle,
     event_name: &'static str,
     payload: serde_json::Value,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::worth_holding;
+
+    #[test]
+    fn only_problems_wait_for_the_window() {
+        assert!(worth_holding("core::not_ready"));
+        assert!(worth_holding("sysproxy::core_not_running"));
+        assert!(worth_holding("app_quit::core_still_running"));
+        assert!(worth_holding("update_failed"));
+        assert!(!worth_holding("tun::setup_done"));
+        assert!(!worth_holding("set_config::ok"));
+        assert!(!worth_holding("clod_sub::url_migrated"));
+    }
 }

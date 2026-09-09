@@ -23,6 +23,9 @@ notifications:
   appQuit:
     title: در آستانه خروج
     body: برنامه در آستانه خروج است.
+  quitCancelled:
+    title: خروج لغو شد
+    body: هسته متوقف نشد، برنامه به کار ادامه می‌دهد.
   appHidden:
     title: برنامه پنهان شد
     body: برنامه در پس‌زمینه در حال اجراست.
@@ -79,3 +82,5 @@ tray:
     systemProxy: پروکسی سیستم
     tun: TUN
     profile: پروفایل
+    core: هسته
+    coreStopped: اجرا نشده

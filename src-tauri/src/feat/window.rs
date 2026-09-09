@@ -1,6 +1,7 @@
 use crate::config::Config;
-use crate::core::{CoreManager, handle, sysopt};
+use crate::core::{CoreManager, handle, manager::ExitStop, sysopt};
 use crate::module::lightweight;
+use crate::process::AsyncHandler;
 use crate::utils;
 use crate::utils::window_manager::WindowManager;
 use clash_verge_logging::{Type, logging};
@@ -63,6 +64,10 @@ impl ExitPace {
         Duration::from_secs(5)
     }
 
+    const fn lock_wait_budget(self) -> Duration {
+        Duration::from_secs(5)
+    }
+
     /// Сохранение настроек. Раньше шло ДО уборки и без предела вовсе: на
     /// медленном диске прокси даже не начинали снимать, пока три файла не лягут.
     const fn save_budget(self) -> Duration {
@@ -82,22 +87,34 @@ impl ExitPace {
 }
 
 pub async fn quit() {
-    quit_at(ExitPace::Interactive).await;
+    quit_at(ExitPace::Interactive, true).await;
 }
 
 /// Выход по сигналу операционной системы.
 pub async fn quit_by_signal(shutdown: clash_verge_signal::Shutdown) {
-    quit_at(shutdown.into()).await;
+    quit_at(shutdown.into(), false).await;
 }
 
-pub async fn quit_at(pace: ExitPace) {
+pub async fn quit_at(pace: ExitPace, cancel_if_core_stays: bool) {
+    if !handle::Handle::global().begin_exiting() {
+        logging!(info, Type::System, "выход уже идёт, повторный запрос пропущен");
+        return;
+    }
     logging!(debug, Type::System, "запуск процесса выхода ({pace:?})");
-    handle::Handle::global().set_is_exiting();
-
-    utils::server::shutdown_embedded_server();
 
     logging!(info, Type::System, "начало асинхронной очистки ресурсов");
-    let cleanup = clean_async_at(pace).await;
+    let cleanup = if cancel_if_core_stays {
+        match clean_core_first(pace).await {
+            Ok(cleanup) => cleanup,
+            Err(reason) => {
+                cancel_the_exit(reason);
+                return;
+            }
+        }
+    } else {
+        utils::server::shutdown_embedded_server();
+        clean_async_at(pace).await
+    };
 
     if !cleanup.sysproxy_cleared {
         // Последствие переживает выход: в системе остался прокси, указывающий на
@@ -122,6 +139,38 @@ pub async fn quit_at(pace: ExitPace) {
     app_handle.exit(if cleanup.all_success { 0 } else { 1 });
 }
 
+fn cancel_the_exit(reason: String) {
+    logging!(
+        error,
+        Type::System,
+        "выход отменён: ядро не остановилось ({reason}); приложение остаётся работать"
+    );
+    handle::Handle::global().clear_is_exiting();
+    AsyncHandler::spawn(move || async move {
+        utils::notification::notify_event(utils::notification::NotificationEvent::QuitCancelled).await;
+        handle::Handle::notice_message("app_quit::core_still_running", reason);
+        if !lightweight::exit_lightweight_mode().await {
+            WindowManager::show_main_window().await;
+        }
+        if let Err(error) = CoreManager::global().start_core().await {
+            logging!(
+                error,
+                Type::Core,
+                "после отменённого выхода ядро не поднялось заново: {error:#}"
+            );
+        }
+        handle::Handle::refresh_clash();
+        handle::Handle::refresh_verge();
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        crate::core::traffic_estimate::resume();
+        #[cfg(target_os = "macos")]
+        {
+            let enable_tray_speed = Config::verge().await.latest_arc().enable_tray_speed.unwrap_or(false);
+            crate::core::tray::Tray::global().update_speed_task(enable_tray_speed);
+        }
+    });
+}
+
 pub struct CleanupOutcome {
     pub all_success: bool,
     pub sysproxy_cleared: bool,
@@ -131,12 +180,91 @@ pub async fn clean_async() -> bool {
     clean_async_at(ExitPace::Interactive).await.all_success
 }
 
-pub async fn clean_async_at(pace: ExitPace) -> CleanupOutcome {
-    logging!(info, Type::System, "начало асинхронной очистки...");
+async fn turn_the_tun_off(pace: ExitPace) {
+    logging!(info, Type::System, "disable tun");
+    // Черновик, а не committed: сохранение настроек идёт теперь наравне с
+    // уборкой, и committed может ещё не знать про только что включённый TUN.
+    // Черновик — это то, что человек выбрал последним.
+    let tun_enabled = Config::verge().await.latest_arc().enable_tun_mode.unwrap_or(false);
+    if !tun_enabled {
+        return;
+    }
+    let disable_tun = serde_json::json!({ "tun": { "enable": false } });
 
+    logging!(info, Type::System, "send disable tun request to mihomo");
+    match timeout(pace.tun_off_budget(), async {
+        handle::Handle::mihomo().await.patch_base_config(&disable_tun).await
+    })
+    .await
+    {
+        Ok(Ok(_)) => {
+            logging!(info, Type::Window, "режим TUN отключён");
+        }
+        Ok(Err(e)) => {
+            logging!(warn, Type::Window, "Warning: не удалось отключить режим TUN: {e}");
+        }
+        Err(_) => {
+            logging!(
+                warn,
+                Type::Window,
+                "Warning: таймаут отключения режима TUN (возможно, система выключается), продолжаем выход"
+            );
+        }
+    }
+}
+
+async fn clean_core_first(pace: ExitPace) -> Result<CleanupOutcome, String> {
+    turn_the_tun_off(pace).await;
+
+    logging!(info, Type::System, "stop core");
+    let stop_budget = pace.core_stop_budget();
+    let core_stopped = match CoreManager::global()
+        .stop_core_for_exit(pace.lock_wait_budget(), stop_budget)
+        .await
+    {
+        ExitStop::Stopped => {
+            logging!(info, Type::Window, "ядро остановлено");
+            true
+        }
+        ExitStop::LockBusy => {
+            logging!(
+                warn,
+                Type::Window,
+                "Warning: ядро занято другой операцией и не освободилось за {} с, продолжаем выход",
+                pace.lock_wait_budget().as_secs()
+            );
+            false
+        }
+        ExitStop::Failed {
+            reason,
+            core_alive: true,
+        } => {
+            logging!(warn, Type::Window, "Warning: не удалось остановить ядро: {reason}");
+            return Err(reason);
+        }
+        ExitStop::Failed {
+            reason,
+            core_alive: false,
+        } => {
+            logging!(
+                warn,
+                Type::Window,
+                "Warning: остановка ядра вернула ошибку ({reason}), но ядра уже нет — продолжаем выход"
+            );
+            false
+        }
+    };
+
+    utils::server::shutdown_embedded_server();
+    let mut cleanup = clean_the_rest(pace).await;
+    cleanup.all_success = cleanup.all_success && core_stopped;
+    Ok(cleanup)
+}
+
+fn spawn_save_task(pace: ExitPace) -> tokio::task::JoinHandle<bool> {
     // Сохранение настроек идёт наравне с уборкой, а не перед ней: файлы, которые
     // мы пишем, к остановке ядра и к системному прокси отношения не имеют.
-    let save_task = tokio::task::spawn(async move {
+    tokio::task::spawn(async move {
         match timeout(pace.save_budget(), Config::apply_all_and_save_file()).await {
             Ok(()) => true,
             Err(_) => {
@@ -148,9 +276,11 @@ pub async fn clean_async_at(pace: ExitPace) -> CleanupOutcome {
                 false
             }
         }
-    });
+    })
+}
 
-    let proxy_task = tokio::task::spawn(async move {
+fn spawn_proxy_task(pace: ExitPace) -> tokio::task::JoinHandle<bool> {
+    tokio::task::spawn(async move {
         if !sysopt::Sysopt::global().we_applied_system_proxy() {
             logging!(info, Type::Window, "системный прокси нами не ставился, сброс пропущен");
             return true;
@@ -175,38 +305,59 @@ pub async fn clean_async_at(pace: ExitPace) -> CleanupOutcome {
                 false
             }
         }
-    });
+    })
+}
 
-    let core_task = tokio::task::spawn(async move {
-        logging!(info, Type::System, "disable tun");
-        // Черновик, а не committed: сохранение настроек идёт теперь наравне с
-        // уборкой, и committed может ещё не знать про только что включённый TUN.
-        // Черновик — это то, что человек выбрал последним.
-        let tun_enabled = Config::verge().await.latest_arc().enable_tun_mode.unwrap_or(false);
-        if tun_enabled {
-            let disable_tun = serde_json::json!({ "tun": { "enable": false } });
-
-            logging!(info, Type::System, "send disable tun request to mihomo");
-            match timeout(pace.tun_off_budget(), async {
-                handle::Handle::mihomo().await.patch_base_config(&disable_tun).await
-            })
-            .await
-            {
-                Ok(Ok(_)) => {
-                    logging!(info, Type::Window, "режим TUN отключён");
+fn spawn_dns_task(pace: ExitPace) -> tokio::task::JoinHandle<bool> {
+    tokio::task::spawn(async move {
+        #[cfg(target_os = "macos")]
+        match timeout(pace.dns_budget(), crate::utils::resolve::dns::restore_public_dns()).await {
+            Ok(restored) => {
+                if restored {
+                    logging!(info, Type::Window, "настройки DNS восстановлены");
+                } else {
+                    logging!(warn, Type::Window, "Warning: не удалось восстановить настройки DNS");
                 }
-                Ok(Err(e)) => {
-                    logging!(warn, Type::Window, "Warning: не удалось отключить режим TUN: {e}");
-                }
-                Err(_) => {
-                    logging!(
-                        warn,
-                        Type::Window,
-                        "Warning: таймаут отключения режима TUN (возможно, система выключается), продолжаем выход"
-                    );
-                }
+                restored
+            }
+            Err(_) => {
+                logging!(warn, Type::Window, "Warning: таймаут восстановления настроек DNS");
+                false
             }
         }
+        #[cfg(not(target_os = "macos"))]
+        {
+            let _ = pace;
+            true
+        }
+    })
+}
+
+async fn clean_the_rest(pace: ExitPace) -> CleanupOutcome {
+    let (save_result, proxy_result, dns_result) =
+        tokio::join!(spawn_save_task(pace), spawn_proxy_task(pace), spawn_dns_task(pace));
+    let save_success = save_result.unwrap_or_default();
+    let proxy_success = proxy_result.unwrap_or_default();
+    let dns_success = dns_result.unwrap_or_default();
+    logging!(
+        info,
+        Type::System,
+        "асинхронное завершение выполнено — настройки: {}, прокси: {}, DNS: {}",
+        save_success,
+        proxy_success,
+        dns_success
+    );
+    CleanupOutcome {
+        all_success: save_success && proxy_success && dns_success,
+        sysproxy_cleared: proxy_success,
+    }
+}
+
+pub async fn clean_async_at(pace: ExitPace) -> CleanupOutcome {
+    logging!(info, Type::System, "начало асинхронной очистки...");
+
+    let core_task = tokio::task::spawn(async move {
+        turn_the_tun_off(pace).await;
 
         let stop_timeout = pace.core_stop_budget();
 
@@ -231,27 +382,12 @@ pub async fn clean_async_at(pace: ExitPace) -> CleanupOutcome {
         }
     });
 
-    let dns_task = tokio::task::spawn(async move {
-        #[cfg(target_os = "macos")]
-        match timeout(pace.dns_budget(), crate::utils::resolve::dns::restore_public_dns()).await {
-            Ok(restored) => {
-                if restored {
-                    logging!(info, Type::Window, "настройки DNS восстановлены");
-                } else {
-                    logging!(warn, Type::Window, "Warning: не удалось восстановить настройки DNS");
-                }
-                restored
-            }
-            Err(_) => {
-                logging!(warn, Type::Window, "Warning: таймаут восстановления настроек DNS");
-                false
-            }
-        }
-        #[cfg(not(target_os = "macos"))]
-        true
-    });
-
-    let (save_result, proxy_result, core_result, dns_result) = tokio::join!(save_task, proxy_task, core_task, dns_task);
+    let (save_result, proxy_result, core_result, dns_result) = tokio::join!(
+        spawn_save_task(pace),
+        spawn_proxy_task(pace),
+        core_task,
+        spawn_dns_task(pace)
+    );
 
     let save_success = save_result.unwrap_or_default();
     let proxy_success = proxy_result.unwrap_or_default();

@@ -19,6 +19,7 @@ import { useModeWindowSize } from '@/hooks/use-mode-window-size'
 import { useVerge } from '@/hooks/use-verge'
 import { useVisibility } from '@/hooks/use-visibility'
 import { useWindowDecorations } from '@/hooks/use-window'
+import { takePendingNotices } from '@/services/cmds'
 import { useThemeMode } from '@/services/states'
 import getSystem from '@/utils/get-system'
 
@@ -99,6 +100,14 @@ const Layout = () => {
   )
 
   useLayoutEvents(handleNotice)
+
+  useEffect(() => {
+    takePendingNotices()
+      .then((pending) => pending.forEach(handleNotice))
+      .catch((error) => {
+        console.error('[Обработка уведомлений] Очередь не прочитана:', error)
+      })
+  }, [handleNotice])
 
   useEffect(() => {
     if (language) {

@@ -503,6 +503,10 @@ export const getRunningMode = async () => {
   return invoke<string>('get_running_mode')
 }
 
+export const takePendingNotices = async () => {
+  return invoke<[string, string][]>('take_pending_notices')
+}
+
 export const getConnectSessionStart = async () => {
   return invoke<number | null>('get_connect_session_start')
 }

@@ -42,6 +42,21 @@ pub fn init_portable_flag() -> Result<()> {
     Ok(())
 }
 
+pub fn preinit_app_home_dir() -> Result<PathBuf> {
+    use tauri::utils::platform::current_exe;
+
+    if *PORTABLE_FLAG.get().unwrap_or(&false) {
+        let app_exe = dunce::canonicalize(current_exe()?)?;
+        let app_dir = app_exe
+            .parent()
+            .ok_or_else(|| anyhow::anyhow!("failed to get the portable app dir"))?;
+        return Ok(PathBuf::from(app_dir).join(".config").join(APP_ID));
+    }
+    ::dirs::data_dir()
+        .map(|root| root.join(APP_ID))
+        .ok_or_else(|| anyhow::anyhow!("failed to get the app home directory before the app handle exists"))
+}
+
 /// get the verge app home dir
 pub fn app_home_dir() -> Result<PathBuf> {
     use tauri::utils::platform::current_exe;

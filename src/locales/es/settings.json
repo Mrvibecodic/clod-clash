@@ -45,6 +45,7 @@
         "core": {
           "binaryChanged": "El archivo del núcleo cambió desde su instalación y no se inició",
           "crashed": "El núcleo se bloqueó varias veces y no se reinició",
+          "exitCancelled": "Salida cancelada: el núcleo no se detuvo ({{reason}}). La aplicación sigue funcionando.",
           "handoffFailed": "No se pudo entregar el núcleo al servicio en segundo plano ni recuperarlo — el núcleo no está en ejecución",
           "notReady": "El núcleo se inició pero no responde, por lo que se canceló el arranque",
           "portBusy": "El puerto {{port}} está ocupado por otra aplicación: el núcleo no lo escucha y el tráfico no pasará por el proxy del sistema.",

@@ -81,6 +81,11 @@
         "launch": "起動"
       }
     },
+    "coreStatus": {
+      "stopped": "コアが起動していません — 通信は流れていません",
+      "starting": "コアを起動しています…",
+      "start": "起動"
+    },
     "tunStatus": {
       "settingUp": "TUN を準備中です — システムの確認に応じてください",
       "broken": "TUN が起動せず、通信はトンネルを経由していません",

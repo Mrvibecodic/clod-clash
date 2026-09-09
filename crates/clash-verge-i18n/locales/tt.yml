@@ -23,6 +23,9 @@ notifications:
   appQuit:
     title: Чыгар алдыннан
     body: Кушымта чыгарга җыена.
+  quitCancelled:
+    title: Чыгу туктатылды
+    body: Үзәк туктамады, кушымта эшләвен дәвам итә.
   appHidden:
     title: Кушымта яшерелде
     body: Кушымта фон режимында эшли.
@@ -79,3 +82,5 @@ tray:
     systemProxy: Системалы прокси
     tun: TUN
     profile: Профиль
+    core: Үзәк
+    coreStopped: эшләми

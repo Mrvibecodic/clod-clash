@@ -7,8 +7,11 @@ mod platform {
     use crate::cmd::StringifyErr as _;
     use crate::core::win_uwp;
 
-    pub fn invoke_uwp_tool() -> CmdResult {
-        win_uwp::invoke_uwptools().stringify_err()
+    pub async fn invoke_uwp_tool() -> CmdResult {
+        match tokio::task::spawn_blocking(win_uwp::invoke_uwptools).await {
+            Ok(result) => result.stringify_err(),
+            Err(join_error) => Err(join_error.to_string().into()),
+        }
     }
 }
 
@@ -17,8 +20,8 @@ mod platform {
 mod platform {
     use super::CmdResult;
 
-    #[allow(clippy::unnecessary_wraps)]
-    pub const fn invoke_uwp_tool() -> CmdResult {
+    #[allow(clippy::unnecessary_wraps, clippy::unused_async)]
+    pub async fn invoke_uwp_tool() -> CmdResult {
         Ok(())
     }
 }
@@ -26,5 +29,5 @@ mod platform {
 /// Command exposed to Tauri
 #[tauri::command]
 pub async fn invoke_uwp_tool() -> CmdResult {
-    platform::invoke_uwp_tool()
+    platform::invoke_uwp_tool().await
 }

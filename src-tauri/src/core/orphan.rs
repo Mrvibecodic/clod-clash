@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use clash_verge_logging::{Type, logging};
-use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
+use sysinfo::{ProcessRefreshKind, ProcessStatus, ProcessesToUpdate, System, UpdateKind};
 
 #[cfg(windows)]
 const CORE_FILE_NAMES: &[&str] = &["verge-mihomo.exe", "verge-mihomo-alpha.exe"];
@@ -142,6 +142,52 @@ pub async fn another_core_of_ours_is_running(own_sidecar_pid: Option<u32>, under
     })
     .await
     .unwrap_or(false)
+}
+
+fn refresh_one(pid: u32) -> (System, sysinfo::Pid) {
+    let pid = sysinfo::Pid::from_u32(pid);
+    let mut system = System::new();
+    system.refresh_processes_specifics(ProcessesToUpdate::Some(&[pid]), true, ProcessRefreshKind::nothing());
+    (system, pid)
+}
+
+pub async fn process_is_alive(pid: u32) -> bool {
+    tokio::task::spawn_blocking(move || {
+        let Ok(own_pid) = sysinfo::get_current_pid() else {
+            return true;
+        };
+        let pid = sysinfo::Pid::from_u32(pid);
+        let mut system = System::new();
+        system.refresh_processes_specifics(
+            ProcessesToUpdate::Some(&[pid, own_pid]),
+            true,
+            ProcessRefreshKind::nothing(),
+        );
+        if system.process(own_pid).is_none() {
+            return true;
+        }
+        system
+            .process(pid)
+            .is_some_and(|process| !matches!(process.status(), ProcessStatus::Zombie | ProcessStatus::Dead))
+    })
+    .await
+    .unwrap_or(true)
+}
+
+pub async fn kill_process(pid: u32) {
+    let killed = tokio::task::spawn_blocking(move || {
+        let (system, pid) = refresh_one(pid);
+        system.process(pid).is_some_and(sysinfo::Process::kill)
+    })
+    .await
+    .unwrap_or(false);
+    logging!(
+        warn,
+        Type::Core,
+        "core process {} killed by pid without a child handle: {}",
+        pid,
+        killed
+    );
 }
 
 pub async fn sweep_orphan_cores() {

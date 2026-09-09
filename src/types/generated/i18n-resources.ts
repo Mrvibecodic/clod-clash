@@ -80,6 +80,11 @@ export interface TranslationResources {
             on: string
           }
         }
+        coreStatus: {
+          start: string
+          starting: string
+          stopped: string
+        }
         firewallStatus: {
           blocked: string
           failed: string
@@ -1332,6 +1337,7 @@ export interface TranslationResources {
             core: {
               binaryChanged: string
               crashed: string
+              exitCancelled: string
               handoffFailed: string
               notReady: string
               portBusy: string
