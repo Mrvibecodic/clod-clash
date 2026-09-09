@@ -162,7 +162,7 @@ impl CoreManager {
                 }
                 forget_the_not_applied_mark().await;
                 if mixed_port_changed {
-                    reassert_system_proxy_for_the_new_port().await;
+                    Self::spawn_mixed_port_check(true);
                 }
                 #[cfg(target_os = "macos")]
                 crate::utils::resolve::dns::apply_remembered_desire();
@@ -483,25 +483,31 @@ const LISTENER_KEYS: &[&str] = &[
 ///
 /// `prev` — конфиг, применённый в прошлый раз; `None` (первый запуск) всегда
 /// означает полный reload.
-/// clod:port-ladder — порт слушателя сменился, значит адрес системного прокси
-/// устарел. Переписываем его и обновляем сторож; если прокси выключен, не
-/// трогаем ничего.
-async fn reassert_system_proxy_for_the_new_port() {
+/// clod:port-ladder — адрес системного прокси обязан совпадать с портом,
+/// который ядро подтвердило. Если порт не менялся, запись сама себя
+/// пропускает; если прокси выключен, не трогаем ничего.
+pub(super) async fn point_system_proxy_at_the_core() {
     if !Config::verge().await.latest_arc().enable_system_proxy.unwrap_or(false) {
         return;
     }
-    logging!(
-        info,
-        Type::Core,
-        "[clod] the listening port changed, pointing the system proxy at it"
-    );
-    match crate::core::sysopt::Sysopt::global().update_sysproxy().await {
-        Ok(()) => crate::core::sysopt::Sysopt::global().refresh_guard().await,
-        Err(err) => logging!(
-            warn,
-            Type::Core,
-            "[clod] failed to point the system proxy at the new port: {err}"
-        ),
+    let sysopt = crate::core::sysopt::Sysopt::global();
+    let was_failing = sysopt.write_failed();
+    match sysopt.update_sysproxy().await {
+        Ok(()) => sysopt.refresh_guard().await,
+        Err(err) => {
+            // Прокси остался на прежнем порту, которого у ядра больше нет:
+            // молчать здесь значит оставить человека без интернета и без
+            // объяснения. Повторять тост на каждую попытку не нужно — как и у
+            // сторожа окружения, говорим один раз, пока запись не заработает.
+            logging!(
+                warn,
+                Type::Core,
+                "[clod] failed to point the system proxy at the core's port: {err}"
+            );
+            if !was_failing {
+                handle::Handle::notice_message("sysproxy::write_failed", err.to_string());
+            }
+        }
     }
 }
 

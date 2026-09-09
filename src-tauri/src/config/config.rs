@@ -142,6 +142,14 @@ pub struct Config {
     runtime_config: Draft<IRuntime>,
 }
 
+/// Порт слушателя из собранного конфига, если ключ в нём есть.
+fn mixed_port_in(config: Option<&Mapping>) -> Option<u16> {
+    let value = config?.get("mixed-port")?.clone();
+    let mut probe = Mapping::new();
+    probe.insert("mixed-port".into(), value);
+    Some(IClashTemp::guard_mixed_port(&probe))
+}
+
 impl Config {
     pub async fn global() -> &'static Self {
         static CONFIG: OnceCell<Config> = OnceCell::const_new();
@@ -186,22 +194,27 @@ impl Config {
         // указал бы на порт, которого у ядра никогда не было. Черновик берём
         // только на холодном старте, пока применённого ещё нет.
         let runtime = Self::runtime().await;
-        let from_runtime = runtime
-            .data_arc()
-            .config
-            .as_ref()
-            .and_then(|config| config.get("mixed-port").cloned())
-            .or_else(|| {
-                runtime
-                    .latest_arc()
-                    .config
-                    .as_ref()
-                    .and_then(|config| config.get("mixed-port").cloned())
-            });
-        if let Some(value) = from_runtime {
-            let mut probe = serde_yaml_ng::Mapping::new();
-            probe.insert("mixed-port".into(), value);
-            return IClashTemp::guard_mixed_port(&probe);
+        let from_runtime = mixed_port_in(runtime.data_arc().config.as_ref())
+            .or_else(|| mixed_port_in(runtime.latest_arc().config.as_ref()));
+        if let Some(port) = from_runtime {
+            return port;
+        }
+        Self::clash().await.latest_arc().get_mixed_port()
+    }
+
+    /// Порт, с которым ядро только что ЗАПУЩЕНО или перезагружено.
+    ///
+    /// clod:port-ladder — файл для ядра пишется из черновика (`generate_file`
+    /// берёт `latest`), а в применённый слот черновик попадает уже после
+    /// старта. Поэтому проверка «слушает ли ядро свой порт» обязана смотреть
+    /// на черновик первым: применённый слот в этот момент держит ПРЕЖНИЙ
+    /// конфиг, и при смене порта проверка сравнивала бы ядро со старым
+    /// значением. Для системного прокси и PAC верно обратное — им нужен
+    /// `effective_mixed_port`.
+    pub async fn mixed_port_the_core_was_started_with() -> u16 {
+        let runtime = Self::runtime().await;
+        if let Some(port) = mixed_port_in(runtime.latest_arc().config.as_ref()) {
+            return port;
         }
         Self::clash().await.latest_arc().get_mixed_port()
     }

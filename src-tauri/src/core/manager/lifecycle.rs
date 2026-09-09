@@ -10,13 +10,21 @@ use anyhow::Result;
 use clash_verge_logging::{Type, logging};
 use scopeguard::defer;
 use smartstring::alias::String;
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::time::Duration;
 use tauri_plugin_clash_verge_sysinfo;
 use tauri_plugin_clash_verge_sysinfo::is_current_app_handle_admin;
 
 static MIXED_PORT_CHECK_GENERATION: AtomicU64 = AtomicU64::new(0);
 static PORT_BUSY_NOTICED: AtomicU32 = AtomicU32::new(0);
+/// Системный прокси ещё указывает на прежний порт, а у ядра уже новый.
+///
+/// clod:port-ladder — взводится при смене порта и снимается только после того,
+/// как ядро подтвердило слушателя и прокси переписан. Так более новый старт
+/// ядра (в том числе передача службе), погасивший прежнюю проверку по
+/// поколению, доводит прокси сам, а обычный старт без смены порта в систему
+/// не пишет ничего — как и раньше.
+static PROXY_AWAITS_THE_NEW_PORT: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, PartialEq, Eq)]
 enum PortReport {
@@ -24,6 +32,14 @@ enum PortReport {
     Other(u16),
     NotServing,
     Silent,
+}
+
+/// Итог проверки «слушает ли ядро свой порт».
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PortVerdict {
+    Confirmed,
+    Unknown,
+    Refuted,
 }
 
 const fn port_report(reported: Option<u16>, expected: u16) -> PortReport {
@@ -182,7 +198,7 @@ impl CoreManager {
         }
 
         let Err(error) = self.confirm_core_ready().await else {
-            Self::spawn_mixed_port_check();
+            Self::spawn_mixed_port_check(false);
             return Ok(());
         };
 
@@ -237,101 +253,134 @@ impl CoreManager {
         anyhow::bail!("{}", last.unwrap_or_else(|| "причина неизвестна".to_owned()))
     }
 
-    fn spawn_mixed_port_check() {
+    /// Убедиться, что ядро слушает свой порт, и только потом указать на него
+    /// системный прокси.
+    ///
+    /// clod:port-ladder — порт мог приехать из подписки и оказаться занятым
+    /// посторонним приложением. Переписать прокси сразу значило бы отправить
+    /// весь трафик в это приложение; проверка занятости раньше жила только на
+    /// пути полного запуска ядра, а мягкую перезагрузку конфига обходила.
+    /// Пока ядро не подтвердило порт, прокси остаётся на прежнем: без
+    /// интернета, но и без утечки, а о занятом порте скажет уведомление.
+    ///
+    /// Зовётся после КАЖДОГО старта ядра и после каждой смены порта: одна и та
+    /// же задача, один и тот же номер поколения. Так более новый старт (в том
+    /// числе передача ядра службе) гасит прежнюю проверку и заканчивает её
+    /// работу сам, а прокси не остаётся на старом порту.
+    pub(super) fn spawn_mixed_port_check(the_port_changed: bool) {
+        if the_port_changed {
+            PROXY_AWAITS_THE_NEW_PORT.store(true, Ordering::Release);
+        }
         let generation = MIXED_PORT_CHECK_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
         AsyncHandler::spawn(move || async move {
-            let manager = Self::global();
-            let expected = Config::effective_mixed_port().await;
-
-            let mut answered = false;
-            for _ in 0..timing::MIXED_PORT_CHECK_ATTEMPTS {
-                if Handle::global().is_exiting()
-                    || MIXED_PORT_CHECK_GENERATION.load(Ordering::Acquire) != generation
-                    || matches!(*manager.get_running_mode(), RunningMode::NotRunning)
-                {
-                    return;
+            let expected = Config::mixed_port_the_core_was_started_with().await;
+            match Self::confirm_mixed_port(generation, expected).await {
+                PortVerdict::Confirmed | PortVerdict::Unknown => {
+                    if PROXY_AWAITS_THE_NEW_PORT.swap(false, Ordering::AcqRel) {
+                        super::config::point_system_proxy_at_the_core().await;
+                    }
                 }
-
-                let reported = {
-                    let mihomo = Handle::mihomo().await;
-                    match tokio::time::timeout(timing::CORE_READY_PROBE_TIMEOUT, mihomo.get_base_config()).await {
-                        Ok(Ok(config)) => Some(config.mixed_port),
-                        _ => None,
-                    }
-                };
-                match port_report(reported, expected) {
-                    PortReport::Serving => {
-                        PORT_BUSY_NOTICED.store(0, Ordering::Release);
-                        return;
-                    }
-                    PortReport::Other(port) => {
-                        logging!(
-                            warn,
-                            Type::Core,
-                            "ядро слушает порт {} вместо запрошенного {}",
-                            port,
-                            expected
-                        );
-                        return;
-                    }
-                    PortReport::NotServing => answered = true,
-                    PortReport::Silent => {}
-                }
-
-                tokio::time::sleep(timing::MIXED_PORT_CHECK_INTERVAL).await;
-            }
-
-            if !answered {
-                logging!(
-                    warn,
-                    Type::Core,
-                    "ядро не ответило, слушает ли оно порт {} — проверку пропускаем",
-                    expected
-                );
-                return;
-            }
-
-            if !crate::cmd::network::is_port_in_use(expected).await {
-                logging!(
-                    warn,
-                    Type::Core,
-                    "ядро не слушает порт {}, хотя порт свободен",
-                    expected
-                );
-                return;
-            }
-
-            let mode = manager.get_running_mode();
-            let own_pid = if matches!(*mode, RunningMode::Sidecar) {
-                manager.sidecar_pid()
-            } else {
-                None
-            };
-            if crate::core::orphan::another_core_of_ours_is_running(own_pid, matches!(*mode, RunningMode::Service))
-                .await
-            {
-                logging!(
-                    warn,
-                    Type::Core,
-                    "порт {} занят другим нашим же ядром — оставляем как есть",
-                    expected
-                );
-                return;
-            }
-
-            logging!(
-                error,
-                Type::Core,
-                "порт {} занят посторонним приложением: ядро его не слушает, трафик через системный прокси не пойдёт",
-                expected
-            );
-            if !Config::verge().await.latest_arc().enable_system_proxy.unwrap_or(false) {
-                return;
-            }
-            if PORT_BUSY_NOTICED.swap(u32::from(expected), Ordering::AcqRel) != u32::from(expected) {
-                Handle::notice_message("core::port_busy", expected.to_string());
+                PortVerdict::Refuted => {}
             }
         });
+    }
+
+    /// Дождаться от ядра ответа, слушает ли оно `expected`.
+    ///
+    /// `Confirmed` — ядро само сказало «слушаю этот порт». `Unknown` — ядро
+    /// приняло конфиг, но так и не ответило на вопрос: занятость порта не
+    /// доказана, и с прокси поступаем как до этой проверки. `Refuted` — ядро
+    /// ответило другим портом или нулём, порт занят, ядро остановлено,
+    /// приложение выходит либо проверку сменила более новая.
+    async fn confirm_mixed_port(generation: u64, expected: u16) -> PortVerdict {
+        let manager = Self::global();
+        let mut answered = false;
+        for _ in 0..timing::MIXED_PORT_CHECK_ATTEMPTS {
+            if Handle::global().is_exiting()
+                || MIXED_PORT_CHECK_GENERATION.load(Ordering::Acquire) != generation
+                || matches!(*manager.get_running_mode(), RunningMode::NotRunning)
+            {
+                return PortVerdict::Refuted;
+            }
+
+            let reported = {
+                let mihomo = Handle::mihomo().await;
+                match tokio::time::timeout(timing::CORE_READY_PROBE_TIMEOUT, mihomo.get_base_config()).await {
+                    Ok(Ok(config)) => Some(config.mixed_port),
+                    _ => None,
+                }
+            };
+            match port_report(reported, expected) {
+                PortReport::Serving => {
+                    PORT_BUSY_NOTICED.store(0, Ordering::Release);
+                    return PortVerdict::Confirmed;
+                }
+                PortReport::Other(port) => {
+                    logging!(
+                        warn,
+                        Type::Core,
+                        "ядро слушает порт {} вместо запрошенного {}",
+                        port,
+                        expected
+                    );
+                    return PortVerdict::Refuted;
+                }
+                PortReport::NotServing => answered = true,
+                PortReport::Silent => {}
+            }
+
+            tokio::time::sleep(timing::MIXED_PORT_CHECK_INTERVAL).await;
+        }
+
+        if !answered {
+            logging!(
+                warn,
+                Type::Core,
+                "ядро не ответило, слушает ли оно порт {} — проверку пропускаем",
+                expected
+            );
+            return PortVerdict::Unknown;
+        }
+
+        if !crate::cmd::network::is_port_in_use(expected).await {
+            logging!(
+                warn,
+                Type::Core,
+                "ядро не слушает порт {}, хотя порт свободен",
+                expected
+            );
+            return PortVerdict::Refuted;
+        }
+
+        let mode = manager.get_running_mode();
+        let own_pid = if matches!(*mode, RunningMode::Sidecar) {
+            manager.sidecar_pid()
+        } else {
+            None
+        };
+        if crate::core::orphan::another_core_of_ours_is_running(own_pid, matches!(*mode, RunningMode::Service)).await {
+            logging!(
+                warn,
+                Type::Core,
+                "порт {} занят другим нашим же ядром — оставляем как есть",
+                expected
+            );
+            return PortVerdict::Refuted;
+        }
+
+        logging!(
+            error,
+            Type::Core,
+            "порт {} занят посторонним приложением: ядро его не слушает, трафик через системный прокси не пойдёт",
+            expected
+        );
+        if !Config::verge().await.latest_arc().enable_system_proxy.unwrap_or(false) {
+            return PortVerdict::Refuted;
+        }
+        if PORT_BUSY_NOTICED.swap(u32::from(expected), Ordering::AcqRel) != u32::from(expected) {
+            Handle::notice_message("core::port_busy", expected.to_string());
+        }
+        PortVerdict::Refuted
     }
 
     pub async fn stop_core(&self) -> Result<()> {
