@@ -61,6 +61,19 @@ fn redirect_is_a_downgrade(first: Option<&Url>, next: &Url) -> bool {
     first.is_some_and(|first| first.scheme() == "https") && next.scheme() != "https"
 }
 
+/// Адрес системного прокси, если он в системе включён.
+///
+/// clod:Э9-07 — единственное место, которое читает системный прокси для
+/// исходящих запросов: по нему же проверяется, отличается ли маршрут «через
+/// системный прокси» от прямого. Читаем именно систему, а не свой тумблер:
+/// прокси мог поставить кто угодно.
+pub fn system_proxy_url() -> Option<std::string::String> {
+    match Sysproxy::get_system_proxy() {
+        Ok(p @ Sysproxy { enable: true, .. }) => Some(format!("http://{}:{}", p.host, p.port)),
+        _ => None,
+    }
+}
+
 pub struct NetworkManager;
 
 impl Default for NetworkManager {
@@ -305,13 +318,7 @@ impl NetworkManager {
                 let port = Config::effective_mixed_port().await;
                 Some(format!("http://127.0.0.1:{port}"))
             }
-            ProxyType::System => {
-                if let Ok(p @ Sysproxy { enable: true, .. }) = Sysproxy::get_system_proxy() {
-                    Some(format!("http://{}:{}", p.host, p.port))
-                } else {
-                    None
-                }
-            }
+            ProxyType::System => system_proxy_url(),
         };
 
         let mut headers = HeaderMap::new();

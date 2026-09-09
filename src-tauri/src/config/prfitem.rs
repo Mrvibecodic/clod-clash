@@ -887,6 +887,17 @@ async fn fetch_subscription(
     headers: &reqwest::header::HeaderMap,
     goal: RaceGoal,
 ) -> Result<crate::utils::network::HttpResponse> {
+    // clod:Э9-07 — при выключенном системном прокси ступень «через системный
+    // прокси» физически совпадает с прямым маршрутом: построитель клиента в
+    // этом случае прокси не ставит, а всё остальное — заголовки, UA, режим
+    // корней TLS, таймаут — от типа прокси не зависит. Гонка выродилась бы в
+    // два одинаковых запроса с разницей в фору: лишняя нагрузка на панель без
+    // единого шанса получить другой ответ.
+    let preferred = match preferred {
+        ProxyType::System if crate::utils::network::system_proxy_url().is_none() => ProxyType::None,
+        other => other,
+    };
+
     if matches!(preferred, ProxyType::None) {
         return fetch_once(url, ProxyType::None, timeout, user_agent, accept_invalid_certs, headers).await;
     }
