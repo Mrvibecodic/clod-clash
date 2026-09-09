@@ -460,7 +460,10 @@ pub fn run() {
             } else if code.is_none() {
                 api.prevent_exit();
                 if !handle::Handle::global().is_exiting() {
-                    AsyncHandler::block_on(async {
+                    // Выход уже предотвращён: уборка идёт своей задачей, а не
+                    // держит главный поток до тридцати секунд. Закончив, она
+                    // сама зовёт `exit(code)`, и тот приходит сюда с `Some`.
+                    AsyncHandler::spawn(|| async {
                         feat::quit().await;
                     });
                 }

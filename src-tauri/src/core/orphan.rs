@@ -151,10 +151,24 @@ fn refresh_one(pid: u32) -> (System, sysinfo::Pid) {
     (system, pid)
 }
 
-pub async fn process_is_alive(pid: u32) -> bool {
+/// Что видно про процесс в таблице процессов.
+///
+/// `Unknown` — само измерение не удалось (таблица не читается, свой процесс
+/// в ней не найден, задача упала). Это не «жив» и не «мёртв», и два места,
+/// которым нужен ответ, трактуют его по-разному: проверка готовности ядра не
+/// вправе объявить процесс мёртвым по неведению, а выход из приложения не
+/// вправе отменяться из-за того, что таблицу процессов не удалось прочитать.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Look {
+    Alive,
+    Gone,
+    Unknown,
+}
+
+pub async fn look_at_process(pid: u32) -> Look {
     tokio::task::spawn_blocking(move || {
         let Ok(own_pid) = sysinfo::get_current_pid() else {
-            return true;
+            return Look::Unknown;
         };
         let pid = sysinfo::Pid::from_u32(pid);
         let mut system = System::new();
@@ -164,23 +178,34 @@ pub async fn process_is_alive(pid: u32) -> bool {
             ProcessRefreshKind::nothing(),
         );
         if system.process(own_pid).is_none() {
-            return true;
+            return Look::Unknown;
         }
-        system
-            .process(pid)
-            .is_some_and(|process| !matches!(process.status(), ProcessStatus::Zombie | ProcessStatus::Dead))
+        match system.process(pid) {
+            Some(process) if !matches!(process.status(), ProcessStatus::Zombie | ProcessStatus::Dead) => Look::Alive,
+            _ => Look::Gone,
+        }
     })
     .await
-    .unwrap_or(true)
+    .unwrap_or(Look::Unknown)
 }
 
-pub async fn kill_process(pid: u32) {
-    let killed = tokio::task::spawn_blocking(move || {
+/// «Не доказано, что мёртв» — для тех, кому нельзя ошибиться в сторону смерти.
+pub async fn process_is_alive(pid: u32) -> bool {
+    look_at_process(pid).await != Look::Gone
+}
+
+/// Убить процесс по номеру. `true` — процесса больше нет или он убит;
+/// `false` — он на месте, а убить не вышло.
+pub async fn kill_process(pid: u32) -> bool {
+    let (found, killed) = tokio::task::spawn_blocking(move || {
         let (system, pid) = refresh_one(pid);
-        system.process(pid).is_some_and(sysinfo::Process::kill)
+        match system.process(pid) {
+            Some(process) => (true, process.kill()),
+            None => (false, false),
+        }
     })
     .await
-    .unwrap_or(false);
+    .unwrap_or((true, false));
     logging!(
         warn,
         Type::Core,
@@ -188,6 +213,7 @@ pub async fn kill_process(pid: u32) {
         pid,
         killed
     );
+    !found || killed
 }
 
 pub async fn sweep_orphan_cores() {

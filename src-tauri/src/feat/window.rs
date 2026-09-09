@@ -55,7 +55,8 @@ impl ExitPace {
     /// Ни один бюджет завершения сеанса не короче прежнего безусловного: на
     /// выходе из сеанса ядро тоже надо успеть остановить, иначе оно останется
     /// жить с занятыми портами и поднятым туннелем. Задачи уборки идут
-    /// параллельно, поэтому длинный бюджет соседа снятию прокси не мешает.
+    /// параллельно на обоих путях выхода, поэтому длинный бюджет соседа
+    /// снятию прокси не мешает.
     const fn tun_off_budget(self) -> Duration {
         Duration::from_secs(3)
     }
@@ -159,6 +160,31 @@ fn cancel_the_exit(reason: String) {
                 "после отменённого выхода ядро не поднялось заново: {error:#}"
             );
         }
+        // Уборка шла параллельно с остановкой ядра и успела снять то, что
+        // приложению теперь снова нужно. Каждый шаг — пустой, если снимать
+        // было нечего.
+        crate::feat::tun::bring_back_after_a_cancelled_exit().await;
+        if Config::verge().await.latest_arc().enable_system_proxy.unwrap_or(false) {
+            match sysopt::Sysopt::global().update_sysproxy().await {
+                // Сброс прокси на выходе остановил и его сторож; запись сама
+                // его не поднимает — только `refresh_guard`, как везде в коде.
+                Ok(()) => sysopt::Sysopt::global().refresh_guard().await,
+                Err(error) => {
+                    logging!(
+                        warn,
+                        Type::Core,
+                        "после отменённого выхода системный прокси не вернулся: {error}"
+                    );
+                    handle::Handle::notice_message("sysproxy::write_failed", error.to_string());
+                }
+            }
+        }
+        #[cfg(target_os = "macos")]
+        crate::utils::resolve::dns::apply_remembered_desire();
+        // Сторожа ядра и окружения выходят по флагу выхода и сами не
+        // возвращаются: запуск ядра их не заводит, если ядро числится живым.
+        CoreManager::global().watch_the_core_again().await;
+        crate::feat::environment::spawn_environment_watchdog();
         handle::Handle::refresh_clash();
         handle::Handle::refresh_verge();
         tokio::time::sleep(Duration::from_secs(1)).await;
@@ -214,14 +240,33 @@ async fn turn_the_tun_off(pace: ExitPace) {
 }
 
 async fn clean_core_first(pace: ExitPace) -> Result<CleanupOutcome, String> {
-    turn_the_tun_off(pace).await;
-
-    logging!(info, Type::System, "stop core");
+    // clod:exit-order — уборка, которой ядро не нужно (настройки, системный
+    // прокси, DNS), стартует сразу и идёт параллельно с остановкой ядра, как в
+    // альфе 3: прокси снимается на первых секундах, а не после того, как ядро
+    // отработает все свои бюджеты. Иначе зависшее ядро держало окно
+    // неотвечающим до двадцати секунд, человек снимал приложение через
+    // диспетчер — и прокси оставался в системе на мёртвом порту.
+    //
+    // Отмена выхода при живом, но неостанавливаемом ядре — редкий исход, и
+    // всё, что уборка к тому моменту сняла, возвращает `cancel_the_exit`.
+    // Уборку дожидаемся всегда, в том числе перед отменой: иначе её снятие
+    // легло бы поверх восстановления.
+    let rest = tokio::task::spawn(clean_the_rest(pace));
     let stop_budget = pace.core_stop_budget();
-    let core_stopped = match CoreManager::global()
-        .stop_core_for_exit(pace.lock_wait_budget(), stop_budget)
-        .await
-    {
+    let core = async {
+        turn_the_tun_off(pace).await;
+        logging!(info, Type::System, "stop core");
+        CoreManager::global()
+            .stop_core_for_exit(pace.lock_wait_budget(), stop_budget)
+            .await
+    };
+    let (rest, stop) = tokio::join!(rest, core);
+    let mut cleanup = rest.unwrap_or(CleanupOutcome {
+        all_success: false,
+        sysproxy_cleared: false,
+    });
+
+    let core_stopped = match stop {
         ExitStop::Stopped => {
             logging!(info, Type::Window, "ядро остановлено");
             true
@@ -255,8 +300,10 @@ async fn clean_core_first(pace: ExitPace) -> Result<CleanupOutcome, String> {
         }
     };
 
+    // Только после решения об отмене: встроенный сервер поднимается один раз
+    // за процесс, и погасить его при отменённом выходе значило бы остаться
+    // без PAC и без передачи одиночного экземпляра.
     utils::server::shutdown_embedded_server();
-    let mut cleanup = clean_the_rest(pace).await;
     cleanup.all_success = cleanup.all_success && core_stopped;
     Ok(cleanup)
 }

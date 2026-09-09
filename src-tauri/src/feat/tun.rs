@@ -462,6 +462,29 @@ async fn recreate_tun_device() {
     spawn_start_verification(anchor);
 }
 
+/// Вернуть туннель, снятый уборкой отменённого выхода.
+///
+/// Условие то же, по которому уборка его гасила: тумблер включён и подъём
+/// не подавлен. Проверка после подъёма — та же, что после старта ядра.
+pub async fn bring_back_after_a_cancelled_exit() {
+    if !claimed().await {
+        return;
+    }
+    let anchor = log_anchor().await;
+    match switch_tun_device(true).await {
+        Ok(()) => {
+            logging!(info, Type::Core, "TUN brought back after the cancelled exit");
+            spawn_start_verification(anchor);
+        }
+        Err(failure) => logging!(
+            warn,
+            Type::Core,
+            "could not bring TUN back after the cancelled exit: {}",
+            failure.detail()
+        ),
+    }
+}
+
 pub async fn rearm_after_wake() {
     if !desired().await {
         return;

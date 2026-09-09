@@ -210,8 +210,8 @@ impl CoreManager {
         );
         if use_service {
             let _ = self.stop_core_by_service().await;
-        } else {
-            self.stop_core_by_sidecar();
+        } else if let Err(stop_error) = self.stop_core_by_sidecar().await {
+            logging!(warn, Type::Core, "{stop_error:#}");
         }
         Err(error)
     }
@@ -410,7 +410,12 @@ impl CoreManager {
             (mode_before, pid_before, reason)
         };
         let core_alive = match (&*mode_before, pid_before) {
-            (RunningMode::Sidecar, Some(pid)) => crate::core::orphan::process_is_alive(pid).await,
+            (RunningMode::Sidecar, Some(pid)) => {
+                matches!(
+                    crate::core::orphan::look_at_process(pid).await,
+                    crate::core::orphan::Look::Alive
+                )
+            }
             (RunningMode::Service, _) => {
                 tokio::time::timeout(timing::SERVICE_STATUS_WAIT, crate::core::service::service_status())
                     .await
@@ -432,20 +437,28 @@ impl CoreManager {
 
         match *self.get_running_mode() {
             RunningMode::Service => self.stop_core_by_service().await,
-            RunningMode::Sidecar => {
-                self.stop_core_by_sidecar();
-                Ok(())
-            }
+            RunningMode::Sidecar => self.stop_core_by_sidecar().await,
             RunningMode::NotRunning => Ok(()),
         }
     }
 
     pub async fn restart_core(&self) -> Result<()> {
+        // Во время выхода перезапуск занял бы замок жизненного цикла на весь
+        // старт, остановка ядра при выходе упёрлась бы в занятый замок — и ядро
+        // осталось бы жить после закрытия приложения.
+        if Handle::global().is_exiting() {
+            anyhow::bail!("перезапуск ядра пропущен: выход уже идёт");
+        }
         // Блокировка удерживается на весь stop+start, чтобы избежать вклинивания
         // других операций жизненного цикла.
         let _life = self.lifecycle_lock.lock().await;
         logging!(info, Type::Core, "Restarting core");
-        self.stop_core_inner().await?;
+        // Отказ остановки перезапуска не отменяет: новое ядро всё равно нужно,
+        // а о старом сказал журнал. Иначе перезапуск оставлял бы приложение
+        // без ядра там, где раньше оно поднималось.
+        if let Err(error) = self.stop_core_inner().await {
+            logging!(warn, Type::Core, "ядро не остановилось перед перезапуском: {error:#}");
+        }
         self.start_core_inner().await
     }
 
@@ -461,7 +474,9 @@ impl CoreManager {
         rollback: impl FnOnce() -> Result<()> + Send,
     ) -> Result<()> {
         let _life = self.lifecycle_lock.lock().await;
-        self.stop_core_inner().await?;
+        if let Err(error) = self.stop_core_inner().await {
+            logging!(warn, Type::Core, "ядро не остановилось перед заменой: {error:#}");
+        }
 
         // clod:tun-ready — новая сборка ядра заслуживает честной попытки.
         // Подавление ставится на сессию (ядро не смогло поднять устройство) и
@@ -743,7 +758,10 @@ impl CoreManager {
             Type::Core,
             "service became ready; handing off from sidecar to service"
         );
-        self.stop_core_by_sidecar();
+        if let Err(error) = self.stop_core_by_sidecar().await {
+            logging!(warn, Type::Core, "handoff aborted: {error:#}");
+            return HandoffOutcome::Failed;
+        }
 
         match self.start_and_confirm(true).await {
             Ok(()) => {

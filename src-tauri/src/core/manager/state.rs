@@ -7,7 +7,7 @@ use crate::{
     logging,
     utils::dirs,
 };
-use anyhow::Result;
+use anyhow::{Context as _, Result};
 use clash_verge_logging::Type;
 use clash_verge_service_ipc::ServiceLifecycleState;
 use compact_str::CompactString;
@@ -504,6 +504,26 @@ pub(super) fn spawn_sidecar_health_watchdog(pid: u32) {
 }
 
 impl CoreManager {
+    /// Снова поставить сторож здоровья над уже работающим ядром.
+    ///
+    /// Сторожа выходят по флагу выхода, а заводятся только запуском ядра —
+    /// который ничего не делает, если ядро числится живым. После отменённого
+    /// выхода приложение оставалось без сторожа зависшего ядра — то есть без
+    /// того, что эту ситуацию и чинит. Новый сторож поднимает поколение,
+    /// уцелевший старый уходит сам.
+    pub async fn watch_the_core_again(&self) {
+        let _life = self.lifecycle_lock.lock().await;
+        match *self.get_running_mode() {
+            RunningMode::Service => spawn_service_health_watchdog(),
+            RunningMode::Sidecar => {
+                if let Some(pid) = self.sidecar_pid() {
+                    spawn_sidecar_health_watchdog(pid);
+                }
+            }
+            RunningMode::NotRunning => {}
+        }
+    }
+
     async fn recover_hung_sidecar(&self, pid: u32) {
         let _life = self.lifecycle_lock.lock().await;
         if handle::Handle::global().is_exiting() || self.sidecar_pid() != Some(pid) {
@@ -523,7 +543,9 @@ impl CoreManager {
                     logging!(warn, Type::Core, "failed to kill the hung core process {}: {}", pid, e);
                 }
             }
-            None => crate::core::orphan::kill_process(pid).await,
+            None => {
+                crate::core::orphan::kill_process(pid).await;
+            }
         }
         handle_core_exit("the core stopped answering", &RunningMode::Sidecar, Some(pid));
     }
@@ -645,35 +667,49 @@ impl CoreManager {
         Ok(())
     }
 
-    pub(super) fn stop_core_by_sidecar(&self) {
+    /// Остановить ядро, запущенное самим приложением.
+    ///
+    /// Раньше «остановлено» здесь говорилось всегда: отказ `kill` уходил в
+    /// журнал уровня trace, а если ссылку на процесс держал кто-то ещё,
+    /// убийства не было вовсе — и это тоже считалось успехом. Выход верил и
+    /// закрывал окно, оставляя ядро с занятым портом. Теперь отказ — это
+    /// отказ: без ссылки на процесс убиваем по номеру, и только доказанно
+    /// убитый или исчезнувший процесс считается остановленным.
+    pub(super) async fn stop_core_by_sidecar(&self) -> Result<()> {
         logging!(info, Type::Core, "Stopping sidecar");
         CORE_WATCHDOG_GENERATION.fetch_add(1, Ordering::AcqRel);
+        let pid = self.sidecar_pid();
         self.clear_sidecar_pid();
         defer! {
             self.set_running_mode(RunningMode::NotRunning);
         }
-        if let Some(child) = self.take_child_sidecar() {
-            let pid = child.pid();
+        match self.take_child_sidecar() {
+            Some(child) => {
+                let pid = child.pid();
 
-            #[cfg(target_os = "windows")]
-            {
-                self.set_job_handle(None);
-                logging!(
-                    trace,
-                    Type::Core,
-                    "Closed job handle for sidecar process (PID: {})",
-                    pid
-                );
+                #[cfg(target_os = "windows")]
+                {
+                    self.set_job_handle(None);
+                    logging!(
+                        trace,
+                        Type::Core,
+                        "Closed job handle for sidecar process (PID: {})",
+                        pid
+                    );
+                }
+
+                child
+                    .kill()
+                    .with_context(|| format!("процесс ядра {pid} не остановлен"))?;
+                logging!(trace, Type::Core, "Sidecar stopped (PID: {:?})", pid);
+                Ok(())
             }
-
-            let result = child.kill();
-            logging!(
-                trace,
-                Type::Core,
-                "Sidecar stopped (PID: {:?}, Result: {:?})",
-                pid,
-                result
-            );
+            None => match pid {
+                Some(pid) if !crate::core::orphan::kill_process(pid).await => {
+                    anyhow::bail!("процесс ядра {pid} не остановлен: убить по номеру не удалось")
+                }
+                _ => Ok(()),
+            },
         }
     }
 

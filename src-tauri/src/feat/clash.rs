@@ -31,6 +31,13 @@ pub async fn restart_clash_core() {
 }
 
 pub async fn restart_app() {
+    // Уборка выхода больше не держит главный поток, и окно с треем живы все её
+    // секунды. Перезапуск посреди выхода гасил бы встроенный сервер и пускал
+    // вторую уборку наперегонки с первой.
+    if handle::Handle::global().is_exiting() {
+        logging!(info, Type::System, "перезапуск приложения пропущен: выход уже идёт");
+        return;
+    }
     logging!(debug, Type::System, "Запуск процесса перезапуска приложения");
     handle::Handle::global().set_is_exiting();
 
