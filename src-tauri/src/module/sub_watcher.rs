@@ -1,11 +1,12 @@
 //! clod:F7 — subscription expiry and traffic notifications.
 //!
-//! The key requirement: notifications do NOT depend on subscription
-//! refreshes. `expire` is an absolute timestamp known in advance, so the
-//! expiry side works entirely offline off the local clock, corrected by the
-//! panel-vs-device offset measured at the last fetch; the traffic side
-//! prefers a lightweight `GET {url}/info` (Remnawave) and falls back to the
-//! last known counters when the network is away.
+//! The expiry side never depends on subscription refreshes: `expire` is an
+//! absolute timestamp known in advance, so it works entirely offline off the
+//! local clock, corrected by the panel-vs-device offset measured at the last
+//! fetch. The traffic side uses the counters the last subscription refresh
+//! brought — the refresh schedule belongs to the provider, and the watcher
+//! does not poll the panel on its own (clod:Э9-16); the in-app figure between
+//! refreshes is the core-side estimate, marked approximate.
 //!
 //! Checks run at startup (+30 s catch-up pass), then hourly, and after every
 //! successful profile update. Each configured threshold fires exactly once
@@ -15,22 +16,16 @@
 
 use std::{collections::BTreeMap, time::Duration};
 
-use serde_json::Value;
-
 use crate::{
     config::sub_headers::{DEFAULT_NOTIFY_EXPIRE_DAYS, DEFAULT_NOTIFY_TRAFFIC_PERCENT},
     config::{Config, PrfItem, profiles_patch_item_safe},
     process::AsyncHandler,
-    utils::{
-        network::{NetworkManager, ProxyType},
-        notification::{NotificationEvent, notify_event},
-    },
+    utils::notification::{NotificationEvent, notify_event},
 };
 use clash_verge_logging::{Type, logging};
 
 const STARTUP_DELAY: Duration = Duration::from_secs(30);
 const CHECK_INTERVAL: Duration = Duration::from_secs(60 * 60);
-const INFO_TIMEOUT_SECS: u64 = 5;
 const DAY_SECS: i64 = 24 * 60 * 60;
 
 /// `notified` key for a passed traffic threshold.
@@ -205,42 +200,6 @@ fn evaluate(snap: &Snapshot, now_secs: i64) -> Outcome {
 // data plumbing
 // ---------------------------------------------------------------------------
 
-/// Best-effort fresh traffic counters from the panel: Remnawave answers
-/// `GET {url}/info` with `user.trafficUsedBytes` / `user.trafficLimitBytes`.
-/// Tolerant parsing (numbers or numeric strings); any failure means "use the
-/// stored counters" — never an error the user sees.
-async fn fetch_fresh_traffic(url: &str) -> Option<(u64, u64)> {
-    let info_url = format!("{}/info", url.trim_end_matches('/'));
-    for proxy in [ProxyType::None, ProxyType::Localhost] {
-        let attempt = async {
-            let client = NetworkManager::new()
-                .create_request(
-                    proxy,
-                    Some(INFO_TIMEOUT_SECS),
-                    Some(crate::utils::hwid::user_agent()),
-                    false,
-                )
-                .await
-                .ok()?;
-            let response = client.get(&info_url).send().await.ok()?;
-            if !response.status().is_success() {
-                return None;
-            }
-            let value: Value = response.json().await.ok()?;
-            let user = value.get("user")?;
-            let as_u64 =
-                |v: &Value| -> Option<u64> { v.as_u64().or_else(|| v.as_str().and_then(|s| s.trim().parse().ok())) };
-            let used = as_u64(user.get("trafficUsedBytes")?)?;
-            let limit = user.get("trafficLimitBytes").and_then(&as_u64).unwrap_or(0);
-            Some((used, limit))
-        };
-        if let Some(pair) = attempt.await {
-            return Some(pair);
-        }
-    }
-    None
-}
-
 async fn notify_alert(alert: Alert) {
     match alert {
         Alert::Expired => notify_event(NotificationEvent::SubExpired).await,
@@ -304,16 +263,7 @@ pub async fn run_check() {
         .clone()
         .unwrap_or_else(|| DEFAULT_NOTIFY_TRAFFIC_PERCENT.to_vec());
 
-    // Fresh counters only when the traffic side is actually watched.
-    let stored = (extra.upload.saturating_add(extra.download), extra.total);
-    let (used, total) = if extra.total != 0 && !traffic_percent.is_empty() {
-        match item.url.as_deref() {
-            Some(url) => fetch_fresh_traffic(url).await.unwrap_or(stored),
-            None => stored,
-        }
-    } else {
-        stored
-    };
+    let (used, total) = (extra.upload.saturating_add(extra.download), extra.total);
 
     let snap = Snapshot {
         expire: to_unix_secs(extra.expire),
