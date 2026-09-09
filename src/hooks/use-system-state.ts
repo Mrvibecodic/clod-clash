@@ -3,7 +3,7 @@ import { useQuery } from '@/services/query-client'
 
 import { useVisibility } from './use-visibility'
 
-export type RunningMode = 'Sidecar' | 'Service' | 'NotRunning' | 'Starting'
+type RunningMode = 'Sidecar' | 'Service' | 'NotRunning' | 'Starting'
 
 interface SystemState {
   runningMode: RunningMode
