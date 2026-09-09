@@ -613,7 +613,7 @@
           "label": "Hosts",
           "description": "Custom domain to IP or domain mapping"
         },
-        "listenHint": "اتركه فارغًا كي لا يُفتح خادم DNS. الاعتراض داخل النفق لا يحتاج إليه."
+        "listenHint": "اتركه فارغًا كي لا يُفتح خادم DNS؛ الاعتراض داخل النفق لا يحتاج إليه. لتقديم DNS للشبكة أدخل عنوانًا."
       },
       "messages": {
         "saved": "DNS settings saved",

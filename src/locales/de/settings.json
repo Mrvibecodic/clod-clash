@@ -613,7 +613,7 @@
           "label": "Hosts",
           "description": "Benutzerdefinierte Zuordnung von Domains zu IPs oder Domains, getrennt durch Kommas"
         },
-        "listenHint": "Leer — kein DNS-Server. Für das Abfangen im Tunnel wird er nicht benötigt."
+        "listenHint": "Leer — kein DNS-Server; das Abfangen im Tunnel braucht ihn nicht. Um DNS ins Netzwerk zu geben, eine Adresse eintragen."
       },
       "messages": {
         "saved": "DNS-Einstellungen wurden gespeichert",

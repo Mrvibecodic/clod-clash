@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
 import {
+  listenFieldFrom,
   mergeDnsConfig,
   readDnsBlock,
   summarizeValidation,
@@ -217,5 +218,24 @@ describe('summarizeValidation', () => {
       'exiting',
     )
     assert.equal(summarizeValidation({ status: 'busy' }), 'busy')
+  })
+})
+
+describe('listenFieldFrom', () => {
+  it('shows the legacy factory :53 as an empty field so a save drops it', () => {
+    assert.equal(listenFieldFrom(':53'), '')
+    assert.equal(listenFieldFrom(' :53 '), '')
+  })
+
+  it('keeps anything a person could have typed themselves', () => {
+    assert.equal(listenFieldFrom('0.0.0.0:53'), '0.0.0.0:53')
+    assert.equal(listenFieldFrom('127.0.0.1:1053'), '127.0.0.1:1053')
+    assert.equal(listenFieldFrom(':5353'), ':5353')
+  })
+
+  it('treats a missing or non-string value as empty', () => {
+    assert.equal(listenFieldFrom(undefined), '')
+    assert.equal(listenFieldFrom(null), '')
+    assert.equal(listenFieldFrom(53), '')
   })
 })

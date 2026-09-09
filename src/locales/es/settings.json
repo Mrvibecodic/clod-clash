@@ -613,7 +613,7 @@
           "label": "Hosts",
           "description": "Asignación personalizada de dominio a IP o dominio, separados por comas"
         },
-        "listenHint": "Vacío: no se abre un servidor DNS. La intercepción en el túnel no lo necesita."
+        "listenHint": "Vacío: no se abre un servidor DNS; la intercepción en el túnel no lo necesita. Para servir DNS a la red, indique una dirección."
       },
       "messages": {
         "saved": "Configuración de DNS guardada",

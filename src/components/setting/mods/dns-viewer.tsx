@@ -40,6 +40,7 @@ import { useThemeMode } from '@/services/states'
 import type { MonacoEditorInstance } from '@/types/monaco'
 import {
   asDnsMapping,
+  listenFieldFrom,
   mergeDnsConfig,
   readDnsBlock,
   summarizeValidation,
@@ -292,7 +293,7 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
 
       setValues({
         enable: dnsConfig.enable ?? DEFAULT_DNS_CONFIG.enable,
-        listen: dnsConfig.listen ?? '',
+        listen: listenFieldFrom(dnsConfig.listen),
         enhancedMode: validEnhancedMode,
         fakeIpRange:
           dnsConfig['fake-ip-range'] ?? DEFAULT_DNS_CONFIG['fake-ip-range'],

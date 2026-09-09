@@ -613,7 +613,7 @@
           "label": "Hosts",
           "description": "Custom domain to IP or domain mapping"
         },
-        "listenHint": "Empty — do not open a DNS server. Interception in the tunnel works without it."
+        "listenHint": "Empty — no DNS server is opened; interception in the tunnel works without it. To serve DNS to the network, enter an address."
       },
       "messages": {
         "saved": "DNS settings saved",

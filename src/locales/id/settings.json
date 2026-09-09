@@ -613,7 +613,7 @@
           "label": "Hosts",
           "description": "Custom domain to IP or domain mapping"
         },
-        "listenHint": "Kosong — server DNS tidak dibuka. Pencegatan di terowongan tidak memerlukannya."
+        "listenHint": "Kosong — server DNS tidak dibuka; pencegatan di terowongan tidak memerlukannya. Untuk membagikan DNS ke jaringan, isi alamat."
       },
       "messages": {
         "saved": "DNS settings saved",

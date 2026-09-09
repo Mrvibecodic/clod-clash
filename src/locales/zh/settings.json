@@ -613,7 +613,7 @@
           "label": "Hosts",
           "description": "自定义域名到 IP 或域名的映射，用逗号分隔"
         },
-        "listenHint": "留空则不启动 DNS 服务。隧道内的劫持无需它。"
+        "listenHint": "留空则不启动 DNS 服务，隧道内的劫持无需它。若要向局域网提供 DNS，请填写地址。"
       },
       "messages": {
         "saved": "DNS 设置已保存",

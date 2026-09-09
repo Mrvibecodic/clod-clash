@@ -613,7 +613,7 @@
           "label": "Hosts",
           "description": "Custom domain to IP or domain mapping"
         },
-        "listenHint": "Буш — DNS-сервер ачылмый. Тоннельдә тотып алуга ул кирәкми."
+        "listenHint": "Буш — DNS-сервер ачылмый, тоннельдә тотып алуга ул кирәкми. Челтәргә DNS бирер өчен адрес күрсәтегез."
       },
       "messages": {
         "saved": "DNS settings saved",
