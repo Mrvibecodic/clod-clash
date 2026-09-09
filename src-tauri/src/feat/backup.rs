@@ -76,6 +76,30 @@ async fn extract_backup(archive: PathBuf, target: PathBuf) -> Result<()> {
     .await?
 }
 
+pub(crate) const MACHINE_LOCAL_KEYS: &[&str] = &[
+    "webdav_url",
+    "webdav_username",
+    "webdav_password",
+    "hwid",
+    "tun_setup_declined",
+    "startup_script",
+    "common_tray_icon",
+    "sysproxy_tray_icon",
+    "tun_tray_icon",
+    "clash_core",
+    "window_size_simple",
+    "window_size_advanced",
+    "window_pos_simple",
+    "window_pos_advanced",
+    "core_log_keys_unpinned",
+];
+
+pub(crate) fn strip_machine_local(verge: &mut serde_json::Map<std::string::String, serde_json::Value>) {
+    for key in MACHINE_LOCAL_KEYS {
+        verge.remove(*key);
+    }
+}
+
 fn machine_local_of(verge: &IVerge) -> IVerge {
     IVerge {
         webdav_url: verge.webdav_url.clone(),
@@ -83,6 +107,16 @@ fn machine_local_of(verge: &IVerge) -> IVerge {
         webdav_password: verge.webdav_password.clone(),
         hwid: verge.hwid.clone(),
         tun_setup_declined: verge.tun_setup_declined.clone(),
+        startup_script: verge.startup_script.clone(),
+        common_tray_icon: verge.common_tray_icon,
+        sysproxy_tray_icon: verge.sysproxy_tray_icon,
+        tun_tray_icon: verge.tun_tray_icon,
+        clash_core: verge.clash_core.clone(),
+        window_size_simple: verge.window_size_simple,
+        window_size_advanced: verge.window_size_advanced,
+        window_pos_simple: verge.window_pos_simple,
+        window_pos_advanced: verge.window_pos_advanced,
+        core_log_keys_unpinned: verge.core_log_keys_unpinned,
         ..IVerge::default()
     }
 }
@@ -93,6 +127,16 @@ fn keep_machine_local(restored: &mut IVerge, local: IVerge) {
     restored.webdav_password = local.webdav_password;
     restored.hwid = local.hwid;
     restored.tun_setup_declined = local.tun_setup_declined;
+    restored.startup_script = local.startup_script;
+    restored.common_tray_icon = local.common_tray_icon;
+    restored.sysproxy_tray_icon = local.sysproxy_tray_icon;
+    restored.tun_tray_icon = local.tun_tray_icon;
+    restored.clash_core = local.clash_core;
+    restored.window_size_simple = local.window_size_simple;
+    restored.window_size_advanced = local.window_size_advanced;
+    restored.window_pos_simple = local.window_pos_simple;
+    restored.window_pos_advanced = local.window_pos_advanced;
+    restored.core_log_keys_unpinned = local.core_log_keys_unpinned;
 }
 
 async fn machine_local_config() -> IVerge {
@@ -388,7 +432,10 @@ pub async fn export_local_backup(filename: String, dest_path: PathBuf) -> Result
 
 #[cfg(test)]
 mod tests {
-    use super::{is_plain_file_name, keep_machine_local, machine_local_of, restorable_backup_entry};
+    use super::{
+        MACHINE_LOCAL_KEYS, is_plain_file_name, keep_machine_local, machine_local_of, restorable_backup_entry,
+        strip_machine_local,
+    };
     use crate::config::IVerge;
     use std::path::PathBuf;
 
@@ -434,6 +481,12 @@ mod tests {
             webdav_password: Some("mine".into()),
             hwid: Some("this-machine".into()),
             tun_setup_declined: Some("0.1.10".into()),
+            startup_script: Some("/home/me/up.sh".into()),
+            common_tray_icon: Some(true),
+            clash_core: Some("verge-mihomo".into()),
+            window_size_simple: Some((900, 600)),
+            window_pos_advanced: Some((10, 20)),
+            core_log_keys_unpinned: Some(true),
             language: Some("ru".into()),
             ..IVerge::default()
         }
@@ -446,10 +499,69 @@ mod tests {
             webdav_password: Some("theirs".into()),
             hwid: Some("their-machine".into()),
             tun_setup_declined: Some("0.1.4".into()),
+            startup_script: Some("C:\\Users\\them\\up.cmd".into()),
+            common_tray_icon: Some(false),
+            clash_core: Some("verge-mihomo-alpha".into()),
+            window_size_simple: Some((3840, 2000)),
+            window_pos_advanced: Some((-1000, 5000)),
+            core_log_keys_unpinned: None,
             language: Some("en".into()),
             enable_tun_mode: Some(true),
             ..IVerge::default()
         }
+    }
+
+    #[test]
+    fn every_key_the_archive_drops_is_kept_from_this_machine_on_restore() {
+        let this = serde_json::to_value(this_machine()).unwrap_or_default();
+        let mut restored = the_other_machine();
+        keep_machine_local(&mut restored, machine_local_of(&this_machine()));
+        let restored = serde_json::to_value(restored).unwrap_or_default();
+        for key in MACHINE_LOCAL_KEYS {
+            assert_eq!(restored.get(*key), this.get(*key), "{key} came from the archive");
+        }
+    }
+
+    #[test]
+    fn the_restore_keeps_nothing_beyond_the_archive_list() {
+        let local = serde_json::to_value(machine_local_of(&this_machine())).unwrap_or_default();
+        let obj = local.as_object().cloned().unwrap_or_default();
+        assert!(!obj.is_empty());
+        for (key, value) in &obj {
+            if !value.is_null() {
+                assert!(
+                    MACHINE_LOCAL_KEYS.contains(&key.as_str()),
+                    "{key} is kept but not dropped"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn the_archive_carries_nothing_bound_to_the_machine() {
+        let full = serde_json::to_value(this_machine()).unwrap_or_default();
+        let mut obj = full.as_object().cloned().unwrap_or_default();
+        assert!(!obj.is_empty());
+        strip_machine_local(&mut obj);
+        for key in MACHINE_LOCAL_KEYS {
+            assert!(!obj.contains_key(*key), "{key} stayed in the archive");
+        }
+        assert_eq!(obj.get("language").and_then(serde_json::Value::as_str), Some("ru"));
+    }
+
+    #[test]
+    fn a_backup_from_another_machine_does_not_bring_its_geometry_paths_or_core() {
+        let local = machine_local_of(&this_machine());
+        let mut restored = the_other_machine();
+        keep_machine_local(&mut restored, local);
+
+        assert_eq!(restored.startup_script.as_deref(), Some("/home/me/up.sh"));
+        assert_eq!(restored.common_tray_icon, Some(true));
+        assert_eq!(restored.clash_core.as_deref(), Some("verge-mihomo"));
+        assert_eq!(restored.window_size_simple, Some((900, 600)));
+        assert_eq!(restored.window_pos_advanced, Some((10, 20)));
+        assert_eq!(restored.core_log_keys_unpinned, Some(true));
+        assert_eq!(restored.enable_tun_mode, Some(true));
     }
 
     #[test]

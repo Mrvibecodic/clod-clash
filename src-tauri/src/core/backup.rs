@@ -307,9 +307,7 @@ pub async fn create_backup() -> Result<(String, PathBuf), Error> {
     let verge_text = fs::read_to_string(dirs::verge_path()?).await?;
     let mut verge_config: serde_json::Value = serde_yaml_ng::from_str(&verge_text)?;
     if let Some(obj) = verge_config.as_object_mut() {
-        obj.remove("webdav_username");
-        obj.remove("webdav_password");
-        obj.remove("webdav_url");
+        crate::feat::strip_machine_local(obj);
     }
     zip.start_file(dirs::VERGE_CONFIG, options)?;
     zip.write_all(serde_yaml_ng::to_string(&verge_config)?.as_bytes())?;
