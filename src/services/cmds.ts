@@ -345,6 +345,7 @@ export async function getSystemProxy() {
     enable: boolean
     server: string
     bypass: string
+    current_port: number
   }>('get_sys_proxy')
 }
 

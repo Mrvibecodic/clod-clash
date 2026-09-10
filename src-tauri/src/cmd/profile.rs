@@ -378,7 +378,7 @@ async fn drop_system_proxy_without_profiles() {
         return;
     }
     logging!(info, Type::Cmd, "подписок не осталось — снимаем системный прокси");
-    if let Err(e) = crate::core::sysopt::Sysopt::global().reset_sysproxy().await {
+    if let Err(e) = crate::core::sysopt::Sysopt::global().reset_sysproxy_if_ours().await {
         logging!(warn, Type::Cmd, "не удалось снять системный прокси: {e}");
     }
 }

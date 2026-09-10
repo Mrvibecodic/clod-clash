@@ -272,16 +272,16 @@ export const AppDataProvider = ({
 
   const systemValue = useMemo(() => {
     const calculateSystemProxyAddress = () => {
-      if (!verge || !clashConfig) return '-'
+      if (!verge) return '-'
 
       const isPacMode = verge.proxy_auto_config ?? false
 
       if (isPacMode) {
         // Режим PAC: показываем адрес прокси, который мы ожидаем установить
         const proxyHost = verge.proxy_host || '127.0.0.1'
-        const proxyPort =
-          clashConfig.mixedPort || verge.verge_mixed_port || 7897
-        return `${proxyHost}:${proxyPort}`
+        return sysproxy?.current_port
+          ? `${proxyHost}:${sysproxy.current_port}`
+          : '-'
       } else {
         // Режим HTTP-прокси: предпочитаем системный адрес, но если формат
         // некорректен, используем ожидаемый адрес
@@ -295,9 +295,9 @@ export const AppDataProvider = ({
         } else {
           // Системный адрес недействителен, возвращаем ожидаемый адрес прокси
           const proxyHost = verge.proxy_host || '127.0.0.1'
-          const proxyPort =
-            clashConfig.mixedPort || verge.verge_mixed_port || 7897
-          return `${proxyHost}:${proxyPort}`
+          return sysproxy?.current_port
+            ? `${proxyHost}:${sysproxy.current_port}`
+            : '-'
         }
       }
     }
@@ -306,7 +306,7 @@ export const AppDataProvider = ({
       sysproxy,
       systemProxyAddress: calculateSystemProxyAddress(),
     }
-  }, [sysproxy, verge, clashConfig])
+  }, [sysproxy, verge])
 
   const refreshersValue = useMemo(
     () => ({

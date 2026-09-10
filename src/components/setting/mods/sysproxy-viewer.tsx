@@ -27,7 +27,7 @@ import {
 import { EditorViewer } from '@/components/profile/editor-viewer'
 import { useSystemProxyState } from '@/hooks/use-system-proxy-state'
 import { useVerge } from '@/hooks/use-verge'
-import { useClashConfigData, useSystemData } from '@/providers/app-data-context'
+import { useSystemData } from '@/providers/app-data-context'
 import { getNetworkInterfacesInfo, getSystemHostname } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { debugLog } from '@/utils/debug'
@@ -90,7 +90,6 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
   const { verge, patchVerge, mutateVerge } = useVerge()
   const [hostOptions, setHostOptions] = useState<string[]>([])
 
-  const { clashConfig } = useClashConfigData()
   const { indicator: isProxyReallyEnabled, invalidateProxyState } =
     useSystemProxyState()
 
@@ -129,28 +128,19 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
     return '127.0.0.1,192.168.0.0/16,10.0.0.0/8,172.16.0.0/12,localhost,*.local,*.crashlytics.com,<local>'
   }
 
-  const { systemProxyAddress } = useSystemData()
+  const { sysproxy, systemProxyAddress } = useSystemData()
 
   // Считаем адрес системного прокси для текущего состояния
   const getSystemProxyAddress = useMemo(() => {
-    if (!clashConfig) return '-'
-
     const isPacMode = value.pac ?? false
 
     if (isPacMode) {
       const host = value.proxy_host || '127.0.0.1'
-      const port = clashConfig.mixedPort || verge?.verge_mixed_port || 7897
-      return `${host}:${port}`
+      return sysproxy?.current_port ? `${host}:${sysproxy.current_port}` : '-'
     } else {
       return systemProxyAddress
     }
-  }, [
-    value.pac,
-    value.proxy_host,
-    verge?.verge_mixed_port,
-    clashConfig,
-    systemProxyAddress,
-  ])
+  }, [value.pac, value.proxy_host, sysproxy, systemProxyAddress])
   const getCurrentPacUrl = useMemo(() => {
     const host = value.proxy_host || '127.0.0.1'
     // Определяем порт PAC по окружению

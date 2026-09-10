@@ -256,6 +256,21 @@ pub struct IVergeTheme {
     pub provider_theme: Option<bool>,
 }
 
+fn pac_without_the_frozen_address(text: &str) -> Option<&'static str> {
+    const HEAD: &str = "return \"PROXY ";
+    const TAIL: &str = "; SOCKS5 ";
+
+    let start = text.find(HEAD)? + HEAD.len();
+    let end = text[start..].find(TAIL)? + start;
+    let address = text.get(start..end)?;
+    let colon = address.rfind(':')?;
+    let (host, port) = (address.get(..colon)?, address.get(colon + 1..)?);
+    port.parse::<u16>().ok()?;
+
+    let rebuilt = DEFAULT_PAC.replace("%proxy_host%", host).replace("%mixed-port%", port);
+    (rebuilt.trim_end() == text.trim_end()).then_some(DEFAULT_PAC)
+}
+
 impl IVerge {
     pub const VALID_CLASH_CORES: &'static [&'static str] = &["verge-mihomo", "verge-mihomo-alpha"];
 
@@ -359,6 +374,11 @@ impl IVerge {
                         && start_page == "/home"
                     {
                         config.start_page = Some(String::from("/"));
+                    }
+                    if let Some(pac) = config.pac_file_content.as_deref()
+                        && let Some(restored) = pac_without_the_frozen_address(pac)
+                    {
+                        config.pac_file_content = Some(restored.into());
                     }
                     if let Some(legacy) = config.main_switch_mode.take()
                         && config.connect_system_proxy.is_none()
@@ -606,5 +626,53 @@ impl IVerge {
         } else {
             LevelFilter::Info
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{DEFAULT_PAC, pac_without_the_frozen_address};
+
+    fn frozen(host: &str, port: &str) -> std::string::String {
+        DEFAULT_PAC.replace("%proxy_host%", host).replace("%mixed-port%", port)
+    }
+
+    #[test]
+    fn a_pac_with_a_frozen_address_goes_back_to_placeholders() {
+        assert_eq!(
+            pac_without_the_frozen_address(&frozen("127.0.0.1", "7890")),
+            Some(DEFAULT_PAC)
+        );
+        assert_eq!(
+            pac_without_the_frozen_address(&frozen("[::1]", "7897")),
+            Some(DEFAULT_PAC)
+        );
+        assert_eq!(
+            pac_without_the_frozen_address(frozen("127.0.0.1", "7890").trim_end()),
+            Some(DEFAULT_PAC)
+        );
+    }
+
+    #[test]
+    fn the_migration_changes_nothing_the_second_time() {
+        let once = pac_without_the_frozen_address(&frozen("127.0.0.1", "7890"));
+
+        assert_eq!(once, Some(DEFAULT_PAC));
+        assert_eq!(pac_without_the_frozen_address(DEFAULT_PAC), None);
+    }
+
+    #[test]
+    fn a_pac_the_person_edited_is_left_alone() {
+        let edited = frozen("127.0.0.1", "7890").replace("DIRECT;", "DIRECT; // мой");
+
+        assert_eq!(pac_without_the_frozen_address(&edited), None);
+        assert_eq!(
+            pac_without_the_frozen_address("function FindProxyForURL() { return \"DIRECT\"; }"),
+            None
+        );
+        assert_eq!(
+            pac_without_the_frozen_address(&frozen("127.0.0.1", "%mixed-port%")),
+            None
+        );
     }
 }

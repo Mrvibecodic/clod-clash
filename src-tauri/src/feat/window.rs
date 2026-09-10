@@ -336,13 +336,13 @@ fn spawn_save_task(pace: ExitPace) -> tokio::task::JoinHandle<bool> {
 
 fn spawn_proxy_task(pace: ExitPace) -> tokio::task::JoinHandle<bool> {
     tokio::task::spawn(async move {
-        if !sysopt::Sysopt::global().we_applied_system_proxy() {
-            logging!(info, Type::Window, "системный прокси нами не ставился, сброс пропущен");
-            return true;
-        }
-
         logging!(info, Type::Window, "сброс системного прокси...");
-        match timeout(pace.sysproxy_budget(), sysopt::Sysopt::global().reset_sysproxy()).await {
+        match timeout(
+            pace.sysproxy_budget(),
+            sysopt::Sysopt::global().reset_sysproxy_if_ours(),
+        )
+        .await
+        {
             Ok(Ok(_)) => {
                 logging!(info, Type::Window, "системный прокси сброшен");
                 true
