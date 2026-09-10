@@ -443,9 +443,6 @@ async fn recreate_tun_device() {
         };
         let detail = failure.detail();
         logging!(warn, Type::Core, "could not switch the TUN device {}: {}", step, detail);
-        if !enable && matches!(failure, SwitchFailure::Silent) {
-            return;
-        }
         if core_is_running() {
             report_start_failure(&detail);
         } else {

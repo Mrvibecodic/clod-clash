@@ -13,9 +13,13 @@ use std::{
     collections::BTreeSet,
     fmt::Write as _,
     net::{Ipv4Addr, Ipv6Addr},
-    sync::atomic::{AtomicBool, Ordering},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
     time::{Duration, Instant},
 };
+use tauri_plugin_mihomo::Mihomo;
 
 static WATCHDOG_RUNNING: AtomicBool = AtomicBool::new(false);
 static WAKE_REARM_PENDING: AtomicBool = AtomicBool::new(false);
@@ -240,8 +244,19 @@ fn interface_of(entry: &str) -> &str {
     entry.split_once(':').map_or(entry, |(name, _)| name)
 }
 
+fn entry_is_v4(entry: &str) -> bool {
+    !entry.contains('/')
+}
+
 fn path_was_lost(before: &BTreeSet<std::string::String>, after: &BTreeSet<std::string::String>) -> bool {
-    before.difference(after).next().is_some()
+    if before.is_empty() {
+        return false;
+    }
+    let mut standing = before.intersection(after).peekable();
+    if standing.peek().is_none() {
+        return true;
+    }
+    before.iter().any(|entry| entry_is_v4(entry)) && !standing.any(|entry| entry_is_v4(entry))
 }
 
 fn interfaces_of<'a>(entries: impl Iterator<Item = &'a std::string::String>) -> Vec<std::string::String> {
@@ -386,7 +401,18 @@ async fn reconcile(
 static RULE_SETS_REFILLING: AtomicBool = AtomicBool::new(false);
 static RULE_SETS_REFILL_ASKED_AGAIN: AtomicBool = AtomicBool::new(false);
 const RULE_SET_LIST_TIMEOUT: Duration = Duration::from_secs(5);
-const RULE_SET_FETCH_TIMEOUT: Duration = Duration::from_secs(25);
+const RULE_SETS_REFILL_BUDGET: Duration = Duration::from_secs(25);
+
+fn detached_core_client(mihomo: &Mihomo) -> Mihomo {
+    Mihomo {
+        protocol: mihomo.protocol.clone(),
+        external_host: mihomo.external_host.clone(),
+        external_port: mihomo.external_port,
+        secret: mihomo.secret.clone(),
+        socket_path: mihomo.socket_path.clone(),
+        connection_manager: Arc::clone(&mihomo.connection_manager),
+    }
+}
 
 async fn refill_empty_rule_sets() {
     RULE_SETS_REFILL_ASKED_AGAIN.store(true, Ordering::SeqCst);
@@ -412,10 +438,12 @@ async fn refill_empty_rule_sets() {
 }
 
 async fn refill_empty_rule_sets_once() {
-    let listed = {
+    let started = Instant::now();
+    let core = {
         let mihomo = handle::Handle::mihomo().await;
-        tokio::time::timeout(RULE_SET_LIST_TIMEOUT, mihomo.get_rule_providers()).await
+        detached_core_client(&mihomo)
     };
+    let listed = tokio::time::timeout(RULE_SET_LIST_TIMEOUT, core.get_rule_providers()).await;
     let Ok(Ok(listed)) = listed else {
         return;
     };
@@ -442,19 +470,20 @@ async fn refill_empty_rule_sets_once() {
         if handle::Handle::global().is_exiting() {
             return;
         }
-        let fetched = {
-            let mihomo = handle::Handle::mihomo().await;
-            tokio::time::timeout(RULE_SET_FETCH_TIMEOUT, mihomo.update_rule_provider(&name)).await
-        };
+        let left = RULE_SETS_REFILL_BUDGET.saturating_sub(started.elapsed());
+        let fetched = tokio::time::timeout(left, core.update_rule_provider(&name)).await;
         match fetched {
             Ok(Ok(())) => {}
             Ok(Err(e)) => logging!(info, Type::Core, "[clod] rule set {name} is not fetched yet: {e}"),
-            Err(_) => logging!(
-                info,
-                Type::Core,
-                "[clod] rule set {name}: no answer from the core within {}s; leaving it to the core's own retry",
-                RULE_SET_FETCH_TIMEOUT.as_secs()
-            ),
+            Err(_) => {
+                logging!(
+                    info,
+                    Type::Core,
+                    "[clod] rule set {name}: the {}s budget ran out; the rest is left to the core's own retry",
+                    RULE_SETS_REFILL_BUDGET.as_secs()
+                );
+                return;
+            }
         }
     }
 }
@@ -526,7 +555,11 @@ pub fn spawn_environment_watchdog() {
         }
         let mut last_tick = Instant::now();
         let mut last_awake = sleep_clock::reading();
-        let mut last_network = network_fingerprint().unwrap_or_default();
+        let mut last_network = AsyncHandler::spawn_blocking(network_fingerprint)
+            .await
+            .ok()
+            .flatten()
+            .unwrap_or_default();
         let mut ticks: u32 = 0;
 
         loop {
@@ -550,7 +583,7 @@ pub fn spawn_environment_watchdog() {
                 );
             }
 
-            let view = network_fingerprint();
+            let view = AsyncHandler::spawn_blocking(network_fingerprint).await.ok().flatten();
 
             last_tick = now_tick;
             last_awake = now_awake;
@@ -672,7 +705,7 @@ mod tests {
     }
 
     #[test]
-    fn only_a_vanished_entry_counts_as_a_lost_path() {
+    fn the_path_is_lost_only_when_no_old_address_still_stands() {
         let before: std::collections::BTreeSet<std::string::String> =
             ["eth0:10.0.0.2".into(), "wlan0:192.168.1.7".into()]
                 .into_iter()
@@ -687,15 +720,48 @@ mod tests {
         .collect();
         let without_wlan: std::collections::BTreeSet<std::string::String> =
             std::iter::once("eth0:10.0.0.2".into()).collect();
-        let readdressed: std::collections::BTreeSet<std::string::String> =
+        let wlan_readdressed: std::collections::BTreeSet<std::string::String> =
             ["eth0:10.0.0.2".into(), "wlan0:192.168.1.9".into()]
                 .into_iter()
                 .collect();
+        let all_readdressed: std::collections::BTreeSet<std::string::String> =
+            ["eth0:10.0.0.9".into(), "wlan0:192.168.1.9".into()]
+                .into_iter()
+                .collect();
+        let nothing: std::collections::BTreeSet<std::string::String> = std::collections::BTreeSet::new();
 
         assert!(!path_was_lost(&before, &same));
         assert!(!path_was_lost(&before, &with_one_more));
-        assert!(path_was_lost(&before, &without_wlan));
-        assert!(path_was_lost(&before, &readdressed));
+        assert!(!path_was_lost(&before, &without_wlan));
+        assert!(!path_was_lost(&before, &wlan_readdressed));
+        assert!(path_was_lost(&before, &all_readdressed));
+        assert!(path_was_lost(&before, &nothing));
+        assert!(!path_was_lost(&nothing, &before));
+    }
+
+    #[test]
+    fn a_rotated_v6_prefix_is_not_a_lost_path_while_the_v4_address_stands() {
+        let before: std::collections::BTreeSet<std::string::String> =
+            ["eth0:10.0.0.2".into(), "eth0:2a02:1:2:3::/64".into()]
+                .into_iter()
+                .collect();
+        let rotated: std::collections::BTreeSet<std::string::String> =
+            ["eth0:10.0.0.2".into(), "eth0:2a02:1:2:4::/64".into()]
+                .into_iter()
+                .collect();
+        let v4_readdressed: std::collections::BTreeSet<std::string::String> =
+            ["eth0:10.0.0.9".into(), "eth0:2a02:1:2:3::/64".into()]
+                .into_iter()
+                .collect();
+        let v6_only_before: std::collections::BTreeSet<std::string::String> =
+            std::iter::once("eth0:2a02:1:2:3::/64".into()).collect();
+        let v6_only_rotated: std::collections::BTreeSet<std::string::String> =
+            std::iter::once("eth0:2a02:1:2:4::/64".into()).collect();
+
+        assert!(!path_was_lost(&before, &rotated));
+        assert!(path_was_lost(&before, &v4_readdressed));
+        assert!(path_was_lost(&v6_only_before, &v6_only_rotated));
+        assert!(!path_was_lost(&v6_only_before, &before));
     }
 
     #[test]

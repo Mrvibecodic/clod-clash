@@ -5,7 +5,7 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
     time::Duration,
 };
-use tokio::sync::Mutex;
+use tokio::{sync::Mutex, time::Instant};
 
 const STATE_FILE: &str = "original_dns.txt";
 const SCRIPT_TIMEOUT: Duration = Duration::from_secs(10);
@@ -68,6 +68,9 @@ pub fn forget_desire() {
 
 /// Применить запомненное — после того, как ядро приняло конфиг.
 pub fn apply_remembered_desire() {
+    if crate::core::handle::Handle::global().is_exiting() {
+        return;
+    }
     // Номер выдаётся под тем же замком, что и чтение заявки: иначе вытесненный
     // между этими шагами поток унёс бы свежий номер со старым желанием.
     let taken = {
@@ -116,7 +119,7 @@ pub async fn restore_public_dns_if_pending() {
 
 async fn sync_override(ticket: u64, want_base: bool, shaped_fake_ip: bool) {
     let _serialized = OVERRIDE_LOCK.lock().await;
-    if APPLIED_TICKET.load(Ordering::SeqCst) > ticket {
+    if APPLIED_TICKET.load(Ordering::SeqCst) > ticket || crate::core::handle::Handle::global().is_exiting() {
         return;
     }
     APPLIED_TICKET.store(ticket, Ordering::SeqCst);
@@ -139,6 +142,36 @@ pub async fn restore_public_dns() -> bool {
         return true;
     }
     restore_public_dns_locked().await
+}
+
+pub async fn restore_public_dns_before_exit(budget: Duration) -> bool {
+    let deadline = Instant::now() + budget;
+    let ticket = take_the_newest_ticket();
+    let Ok(_serialized) = tokio::time::timeout(budget, OVERRIDE_LOCK.lock()).await else {
+        logging!(
+            warn,
+            Type::Config,
+            "unset system dns: the override still running did not finish within the {}s exit budget",
+            budget.as_secs()
+        );
+        return false;
+    };
+    APPLIED_TICKET.fetch_max(ticket, Ordering::SeqCst);
+    if !has_pending_restore() {
+        return true;
+    }
+    match tokio::time::timeout_at(deadline, restore_public_dns_locked()).await {
+        Ok(done) => done,
+        Err(_) => {
+            logging!(
+                warn,
+                Type::Config,
+                "unset system dns did not finish within the {}s exit budget",
+                budget.as_secs()
+            );
+            false
+        }
+    }
 }
 
 async fn run_dns_script(script_name: &str, args: Vec<String>, what: &str) -> bool {

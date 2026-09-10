@@ -366,19 +366,14 @@ fn spawn_proxy_task(pace: ExitPace) -> tokio::task::JoinHandle<bool> {
 fn spawn_dns_task(pace: ExitPace) -> tokio::task::JoinHandle<bool> {
     tokio::task::spawn(async move {
         #[cfg(target_os = "macos")]
-        match timeout(pace.dns_budget(), crate::utils::resolve::dns::restore_public_dns()).await {
-            Ok(restored) => {
-                if restored {
-                    logging!(info, Type::Window, "настройки DNS восстановлены");
-                } else {
-                    logging!(warn, Type::Window, "Warning: не удалось восстановить настройки DNS");
-                }
-                restored
+        {
+            let restored = crate::utils::resolve::dns::restore_public_dns_before_exit(pace.dns_budget()).await;
+            if restored {
+                logging!(info, Type::Window, "настройки DNS восстановлены");
+            } else {
+                logging!(warn, Type::Window, "Warning: не удалось восстановить настройки DNS");
             }
-            Err(_) => {
-                logging!(warn, Type::Window, "Warning: таймаут восстановления настроек DNS");
-                false
-            }
+            restored
         }
         #[cfg(not(target_os = "macos"))]
         {
