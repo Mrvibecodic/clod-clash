@@ -40,14 +40,6 @@ pub(crate) fn provider_fingerprint(config: &serde_yaml_ng::Mapping) -> u64 {
     hasher.finish()
 }
 
-const GEO_ASSETS: &[&str] = &[
-    "Country.mmdb",
-    "geoip.dat",
-    "geosite.dat",
-    "geoip.metadb",
-    "GeoSite.dat",
-];
-
 pub(crate) async fn collect_runtime_bundle(config_file: &Path, core_path: &Path) -> Result<RuntimeBundle> {
     let yaml = tokio::fs::read_to_string(config_file)
         .await
@@ -88,7 +80,7 @@ fn collect_runtime_bundle_from(config: &mut Value, config_root: &Path, core_path
         &mut assets,
         &mut remote_providers,
     )?;
-    for filename in GEO_ASSETS {
+    for (filename, _) in crate::module::geo_assets::GEO_ASSETS {
         let source = config_root.join(filename);
         if source.is_file() && destinations.insert((*filename).to_string()) {
             assets.push(RuntimeAsset {

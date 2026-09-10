@@ -9,12 +9,13 @@ use crate::{
 use anyhow::{Result, bail};
 use clash_verge_logging::{Type, logging};
 use serde_yaml_ng::Value;
+use std::collections::HashSet;
 
 const TIMEOUT_SECS: u64 = 60;
 const MAX_BYTES: usize = 256 * 1024 * 1024;
 const MMDB_MARKER: &[u8] = b"\xab\xcd\xefMaxMind.com";
 
-const HOME_FILES: &[(&str, &str)] = &[
+pub(crate) const GEO_ASSETS: &[(&str, &str)] = &[
     ("Country.mmdb", "mmdb"),
     ("geoip.metadb", "mmdb"),
     ("geoip.dat", "geoip"),
@@ -118,9 +119,14 @@ pub async fn refresh_home_copies() -> Result<usize> {
 
     let mut refreshed = 0;
     let mut failures = Vec::new();
-    for (file, kind) in HOME_FILES {
+    let mut seen = HashSet::new();
+    for (file, kind) in GEO_ASSETS {
         let path = home.join(file);
         if !path.is_file() {
+            continue;
+        }
+        let identity = tokio::fs::canonicalize(&path).await.unwrap_or_else(|_| path.clone());
+        if !seen.insert(identity) {
             continue;
         }
         let Some(url) = url_for(kind, geox.as_ref()) else {

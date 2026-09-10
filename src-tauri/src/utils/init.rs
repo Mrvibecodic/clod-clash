@@ -708,7 +708,10 @@ fn should_copy_bundled_asset(src: Option<AssetStamp>, dest: Option<AssetStamp>, 
     let Some(dest) = dest else {
         return true;
     };
-    if delivered.is_some_and(|delivered| delivered != dest) {
+    let Some(delivered) = delivered else {
+        return false;
+    };
+    if delivered != dest {
         return false;
     }
     src.1 > dest.1
@@ -725,12 +728,12 @@ async fn read_delivered_assets(marker: &PathBuf) -> std::collections::HashMap<St
 async fn write_delivered_assets(marker: &PathBuf, delivered: &std::collections::HashMap<String, AssetStamp>) {
     match serde_json::to_string(delivered) {
         Ok(raw) => {
-            if let Err(err) = fs::write(marker, raw).await {
-                logging!(debug, Type::Setup, "failed to record delivered geo assets: {}", err);
+            if let Err(err) = help::write_atomic(marker, raw.as_bytes()).await {
+                logging!(warn, Type::Setup, "failed to record delivered geo assets: {}", err);
             }
         }
         Err(err) => {
-            logging!(debug, Type::Setup, "failed to encode delivered geo assets: {}", err);
+            logging!(warn, Type::Setup, "failed to encode delivered geo assets: {}", err);
         }
     }
 }
@@ -764,11 +767,6 @@ pub async fn init_resources() -> Result<()> {
                 delivered.insert((*file).to_string(), stamp);
                 delivered_changed = true;
             }
-        } else if let Some(stamp) = dest
-            && !delivered.contains_key(*file)
-        {
-            delivered.insert((*file).to_string(), stamp);
-            delivered_changed = true;
         }
     }
 
@@ -948,8 +946,9 @@ mod tests {
     }
 
     #[test]
-    fn without_a_marker_the_previous_rule_applies() {
-        assert!(should_copy_bundled_asset(Some((10, 200)), Some((12, 150)), None));
+    fn without_a_marker_an_existing_geo_asset_is_left_alone() {
+        assert!(!should_copy_bundled_asset(Some((10, 200)), Some((12, 150)), None));
+        assert!(!should_copy_bundled_asset(Some((10, 200)), Some((10, 100)), None));
         assert!(!should_copy_bundled_asset(None, Some((12, 150)), None));
     }
 
