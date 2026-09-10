@@ -438,6 +438,7 @@ export const translationKeys = [
   'settings.sections.system.notifications.core.binaryChanged',
   'settings.sections.system.notifications.core.crashed',
   'settings.sections.system.notifications.core.exitCancelled',
+  'settings.sections.system.notifications.core.exitInProgress',
   'settings.sections.system.notifications.core.handoffFailed',
   'settings.sections.system.notifications.core.notReady',
   'settings.sections.system.notifications.core.portBusy',

@@ -50,6 +50,7 @@ notifications:
     body: Traffic usage has reached {percent}%.
 common:
   modeLocked: The routing mode is managed by your provider.
+  exitInProgress: "La aplicación se está cerrando: la acción se rechazó mientras dura la salida."
 service:
   adminInstallPrompt: Instalar el servicio del sistema requiere privilegios de administrador.
   adminUninstallPrompt: Desinstalar el servicio del sistema requiere privilegios de administrador.

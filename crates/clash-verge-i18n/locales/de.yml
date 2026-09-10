@@ -50,6 +50,7 @@ notifications:
     body: Traffic usage has reached {percent}%.
 common:
   modeLocked: The routing mode is managed by your provider.
+  exitInProgress: "Die App wird beendet: Die Aktion wurde abgelehnt, solange das Beenden läuft."
 service:
   adminInstallPrompt: Für die Installation des Systemdienstes sind Administratorrechte erforderlich.
   adminUninstallPrompt: Für die Deinstallation des Systemdienstes sind Administratorrechte erforderlich.

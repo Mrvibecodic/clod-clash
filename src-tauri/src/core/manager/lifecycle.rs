@@ -666,6 +666,10 @@ impl CoreManager {
     /// clod:tun-ready — служба появилась (например, мы её только что
     /// установили): переезжаем на неё сразу, не дожидаясь окна watcher-а.
     pub async fn handoff_to_service_if_needed(&self) {
+        if Handle::global().is_exiting() {
+            logging!(info, Type::Core, "передача ядра службе пропущена: выход уже идёт");
+            return;
+        }
         if !matches!(*self.get_running_mode(), RunningMode::Sidecar) {
             return;
         }
@@ -719,6 +723,10 @@ impl CoreManager {
                 }
                 tokio::time::sleep(timing::SERVICE_HANDOFF_INTERVAL).await;
 
+                if Handle::global().is_exiting() {
+                    continue;
+                }
+
                 // Выходим, если режим уже изменился
                 if !matches!(*manager.get_running_mode(), RunningMode::Sidecar) {
                     break;
@@ -741,6 +749,10 @@ impl CoreManager {
     /// После готовности службы останавливает sidecar и перезапускает ядро через service
     async fn try_handoff_sidecar_to_service(&self) -> HandoffOutcome {
         use crate::core::service;
+
+        if Handle::global().is_exiting() {
+            return HandoffOutcome::NotReady;
+        }
 
         // Принудительно обновляем состояние службы, чтобы кэшированное состояние
         // не блокировало передачу
@@ -775,6 +787,10 @@ impl CoreManager {
         let _life = self.lifecycle_lock.lock().await;
         let _pause = self.planned_pause();
 
+        if Handle::global().is_exiting() {
+            return HandoffOutcome::NotReady;
+        }
+
         // После захвата блокировки повторно проверяем режим работы и состояние TUN
         if !matches!(*self.get_running_mode(), RunningMode::Sidecar)
             || !Config::verge().await.latest_arc().enable_tun_mode.unwrap_or(false)
@@ -790,6 +806,11 @@ impl CoreManager {
         if let Err(error) = self.stop_core_by_sidecar().await {
             logging!(warn, Type::Core, "handoff aborted: {error:#}");
             return HandoffOutcome::Failed;
+        }
+
+        if Handle::global().is_exiting() {
+            logging!(info, Type::Core, "передача ядра службе прервана: выход уже идёт");
+            return HandoffOutcome::NotReady;
         }
 
         match self.start_and_confirm(true).await {
@@ -822,6 +843,9 @@ impl CoreManager {
     }
 
     async fn roll_back_to_sidecar(&self) {
+        if Handle::global().is_exiting() {
+            return;
+        }
         if let Err(error) = self.start_and_confirm(false).await {
             logging!(
                 error,

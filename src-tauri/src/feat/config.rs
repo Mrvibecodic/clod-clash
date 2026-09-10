@@ -20,6 +20,7 @@ pub(crate) const fn patch_clash_lock() -> &'static tokio::sync::Mutex<()> {
 }
 
 pub async fn patch_clash(patch: &Mapping) -> Result<()> {
+    super::refuse_while_exiting()?;
     let _serialized = PATCH_CLASH_LOCK.lock().await;
     Config::clash().await.edit_draft(|d| d.patch_config(patch));
 
@@ -361,6 +362,7 @@ pub async fn commit_verge_edit(edit: impl FnOnce(&mut IVerge)) -> Result<()> {
 }
 
 pub async fn patch_verge(patch: &IVerge, not_save_file: bool) -> Result<()> {
+    super::refuse_while_exiting()?;
     let _serialized = PATCH_VERGE_LOCK.lock().await;
 
     Config::verge().await.edit_draft(|d| d.patch_config(patch));

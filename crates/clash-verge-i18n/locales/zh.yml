@@ -50,6 +50,7 @@ notifications:
     body: 流量已使用 {percent}%。
 common:
   modeLocked: 路由模式由您的服务商管理。
+  exitInProgress: "应用正在退出：退出期间该操作已被拒绝。"
 service:
   adminInstallPrompt: 安装系统服务需要管理员权限
   adminUninstallPrompt: 卸载系统服务需要管理员权限

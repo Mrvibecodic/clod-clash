@@ -60,7 +60,7 @@ const HELD_STATUS_PREFIXES: &[&str] = &[
     "update::",
     "app_quit::",
 ];
-const NEVER_HELD_STATUSES: &[&str] = &["tun::setup_started", "tun::setup_done"];
+const NEVER_HELD_STATUSES: &[&str] = &["tun::setup_started", "tun::setup_done", "app_quit::in_progress"];
 
 fn worth_holding(status: &str) -> bool {
     !NEVER_HELD_STATUSES.contains(&status) && HELD_STATUS_PREFIXES.iter().any(|prefix| status.starts_with(prefix))
@@ -259,6 +259,7 @@ mod tests {
 
     const NOTICE_STATUSES: &[&str] = &[
         "app_quit::core_still_running",
+        "app_quit::in_progress",
         "clod_config::load_failed",
         "clod_core::update_available",
         "clod_core::updated",
@@ -383,6 +384,7 @@ mod tests {
         assert!(worth_holding("update::breaking_changes"));
         assert!(worth_holding("clod_core::updated"));
         assert!(!worth_holding("tun::setup_done"));
+        assert!(!worth_holding("app_quit::in_progress"));
         assert!(!worth_holding("set_config::ok"));
         assert!(!worth_holding("clod_sub::url_migrated"));
     }

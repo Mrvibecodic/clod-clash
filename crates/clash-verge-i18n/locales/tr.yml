@@ -50,6 +50,7 @@ notifications:
     body: Traffic usage has reached {percent}%.
 common:
   modeLocked: The routing mode is managed by your provider.
+  exitInProgress: "Uygulama kapanıyor: çıkış sürerken bu işlem reddedildi."
 service:
   adminInstallPrompt: Sistem hizmetini kurmak için yönetici ayrıcalıkları gerekir.
   adminUninstallPrompt: Sistem hizmetini kaldırmak için yönetici ayrıcalıkları gerekir.

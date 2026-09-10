@@ -96,9 +96,18 @@ pub async fn quit_by_signal(shutdown: clash_verge_signal::Shutdown) {
     quit_at(shutdown.into(), false).await;
 }
 
+pub fn refuse_while_exiting() -> anyhow::Result<()> {
+    if handle::Handle::global().is_exiting() {
+        let refusal = clash_verge_i18n::t!("common.exitInProgress");
+        anyhow::bail!("{refusal}");
+    }
+    Ok(())
+}
+
 pub async fn quit_at(pace: ExitPace, cancel_if_core_stays: bool) {
     if !handle::Handle::global().begin_exiting() {
         logging!(info, Type::System, "выход уже идёт, повторный запрос пропущен");
+        handle::Handle::notice_message("app_quit::in_progress", "");
         return;
     }
     logging!(debug, Type::System, "запуск процесса выхода ({pace:?})");
@@ -117,7 +126,7 @@ pub async fn quit_at(pace: ExitPace, cancel_if_core_stays: bool) {
         clean_async_at(pace).await
     };
 
-    if !cleanup.sysproxy_cleared {
+    if cleanup.sysproxy_cleared == Some(false) {
         // Последствие переживает выход: в системе остался прокси, указывающий на
         // порт, которого через секунду не станет.
         logging!(
@@ -205,7 +214,7 @@ fn cancel_the_exit(reason: String) {
 
 pub struct CleanupOutcome {
     pub all_success: bool,
-    pub sysproxy_cleared: bool,
+    pub sysproxy_cleared: Option<bool>,
 }
 
 pub async fn clean_async() -> bool {
@@ -267,10 +276,16 @@ async fn clean_core_first(pace: ExitPace) -> Result<CleanupOutcome, String> {
             .await
     };
     let (rest, stop) = tokio::join!(rest, core);
-    let mut cleanup = rest.unwrap_or(CleanupOutcome {
-        all_success: false,
-        sysproxy_cleared: false,
-    });
+    let mut cleanup = match rest {
+        Ok(cleanup) => cleanup,
+        Err(error) => {
+            logging!(error, Type::Window, "задача уборки не вернула результат: {error}");
+            CleanupOutcome {
+                all_success: false,
+                sysproxy_cleared: None,
+            }
+        }
+    };
 
     let core_stopped = match stop {
         ExitStop::Stopped => {
@@ -397,7 +412,7 @@ async fn clean_the_rest(pace: ExitPace) -> CleanupOutcome {
     );
     CleanupOutcome {
         all_success: save_success && proxy_success && dns_success,
-        sysproxy_cleared: proxy_success,
+        sysproxy_cleared: Some(proxy_success),
     }
 }
 
@@ -457,7 +472,7 @@ pub async fn clean_async_at(pace: ExitPace) -> CleanupOutcome {
 
     CleanupOutcome {
         all_success,
-        sysproxy_cleared: proxy_success,
+        sysproxy_cleared: Some(proxy_success),
     }
 }
 

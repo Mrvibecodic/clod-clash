@@ -1341,6 +1341,7 @@ export interface TranslationResources {
               binaryChanged: string
               crashed: string
               exitCancelled: string
+              exitInProgress: string
               handoffFailed: string
               notReady: string
               portBusy: string

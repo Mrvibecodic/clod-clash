@@ -951,9 +951,21 @@ fn render_tray_menu(app_handle: &AppHandle, nodes: Vec<MenuNode>) -> Result<taur
     Ok(tauri::menu::MenuBuilder::new(app_handle).items(&refs).build()?)
 }
 
+fn refused_while_exiting() -> bool {
+    if !handle::Handle::global().is_exiting() {
+        return false;
+    }
+    logging!(info, Type::Tray, "действие из трея отклонено: выход уже идёт");
+    handle::Handle::notice_message("app_quit::in_progress", "");
+    true
+}
+
 fn handle_primary_click() {
     #[allow(clippy::use_self)]
     if !Tray::global().should_handle_tray_activate() {
+        return;
+    }
+    if refused_while_exiting() {
         return;
     }
 
@@ -1013,6 +1025,9 @@ fn handle_menu_click(id: std::string::String) {
         return;
     }
     if id.is_empty() {
+        return;
+    }
+    if refused_while_exiting() {
         return;
     }
     AsyncHandler::spawn(|| async move {

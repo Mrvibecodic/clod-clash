@@ -45,6 +45,7 @@
           "binaryChanged": "Berkas core berubah setelah dipasang dan tidak dijalankan",
           "crashed": "Core berulang kali berhenti dan tidak dijalankan ulang",
           "exitCancelled": "Keluar dibatalkan: inti tidak berhenti ({{reason}}). Aplikasi tetap berjalan.",
+          "exitInProgress": "Aplikasi sedang menutup: tindakan ditolak selama proses keluar berlangsung.",
           "handoffFailed": "Gagal menyerahkan core ke layanan latar belakang dan mengembalikannya — core tidak berjalan",
           "notReady": "Core sudah dijalankan tetapi tidak merespons, sehingga peluncuran dibatalkan",
           "portBusy": "Port {{port}} dipakai aplikasi lain: core tidak mendengarkan port itu, sehingga trafik tidak melewati proxy sistem.",

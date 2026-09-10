@@ -50,6 +50,7 @@ notifications:
     body: Traffic usage has reached {percent}%.
 common:
   modeLocked: The routing mode is managed by your provider.
+  exitInProgress: "برنامه در حال خروج است: این عمل تا پایان خروج رد شد."
 service:
   adminInstallPrompt: نصب سرویس سیستمی به دسترسی مدیر نیاز دارد.
   adminUninstallPrompt: حذف سرویس سیستمی به دسترسی مدیر نیاز دارد.

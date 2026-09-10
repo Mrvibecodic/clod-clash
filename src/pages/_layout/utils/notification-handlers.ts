@@ -229,6 +229,10 @@ export const handleNoticeMessage = (
         0,
       )
     },
+    'app_quit::in_progress': () =>
+      showNotice.info(
+        'settings.sections.system.notifications.core.exitInProgress',
+      ),
     'core::port_busy': () => {
       let id = 0
       const openSettings = () => {

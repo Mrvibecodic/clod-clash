@@ -50,6 +50,7 @@ notifications:
     body: Traffic usage has reached {percent}%.
 common:
   modeLocked: The routing mode is managed by your provider.
+  exitInProgress: "التطبيق قيد الإغلاق: تم رفض هذا الإجراء أثناء الخروج."
 service:
   adminInstallPrompt: يتطلب تثبيت خدمة النظام صلاحيات المسؤول.
   adminUninstallPrompt: يتطلب إلغاء تثبيت خدمة النظام صلاحيات المسؤول.

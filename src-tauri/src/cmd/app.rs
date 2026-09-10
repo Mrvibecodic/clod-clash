@@ -123,6 +123,7 @@ pub async fn exit_app() {
 
 #[tauri::command]
 pub async fn restart_app() -> CmdResult<()> {
+    feat::refuse_while_exiting().stringify_err()?;
     feat::restart_app().await;
     Ok(())
 }

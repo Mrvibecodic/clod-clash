@@ -422,7 +422,6 @@ impl Config {
         }
     }
 
-    // Переводит черновик в основные данные и записывает в файл. Избегает потери действий пользователя.
     // Используется только при событиях выхода из приложения, перезапуска, выключения системы
     pub async fn apply_all_and_save_file() {
         logging!(info, Type::Config, "save all draft data");
@@ -437,8 +436,8 @@ impl Config {
                 );
                 return;
             }
+            let _serialized = crate::feat::patch_clash_lock().lock().await;
             let clash = Self::clash().await;
-            clash.apply();
             logging_error!(Type::Config, clash.data_arc().save_config().await);
         });
 
@@ -451,8 +450,8 @@ impl Config {
                 );
                 return;
             }
+            let _serialized = crate::feat::patch_verge_lock().lock().await;
             let verge = Self::verge().await;
-            verge.apply();
             logging_error!(Type::Config, verge.data_arc().save_file().await);
         });
 

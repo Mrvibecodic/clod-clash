@@ -45,6 +45,7 @@
           "binaryChanged": "Die Core-Datei wurde seit der Installation verändert und wurde nicht gestartet",
           "crashed": "Der Core ist mehrfach abgestürzt und wurde nicht neu gestartet",
           "exitCancelled": "Beenden abgebrochen: der Kern wurde nicht gestoppt ({{reason}}). Die App läuft weiter.",
+          "exitInProgress": "Die App wird beendet: Die Aktion wurde abgelehnt, solange das Beenden läuft.",
           "handoffFailed": "Die Übergabe des Cores an den Hintergrunddienst schlug fehl und er konnte nicht zurückgeholt werden — der Core läuft nicht",
           "notReady": "Der Core wurde gestartet, antwortet aber nicht — der Start wurde abgebrochen",
           "portBusy": "Port {{port}} wird von einer anderen Anwendung belegt: Der Core lauscht nicht darauf, der Datenverkehr läuft nicht über den Systemproxy.",

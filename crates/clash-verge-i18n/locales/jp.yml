@@ -50,6 +50,7 @@ notifications:
     body: Traffic usage has reached {percent}%.
 common:
   modeLocked: The routing mode is managed by your provider.
+  exitInProgress: "アプリは終了処理中です：終了が完了するまでこの操作は受け付けられません。"
 service:
   adminInstallPrompt: システムサービスのインストールには管理者権限が必要です。
   adminUninstallPrompt: システムサービスのアンインストールには管理者権限が必要です。
