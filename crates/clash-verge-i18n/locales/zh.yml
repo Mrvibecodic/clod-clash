@@ -36,6 +36,9 @@ notifications:
     body: 新版本 (v{version}) 已下载完成，是否立即安装？
     installNow: 立即安装
     later: 稍后
+  logOpenFailed:
+    title: Log
+    body: "The log file could not be opened. Look for it in {path}."
   subExpired:
     title: 订阅
     body: 订阅已到期。

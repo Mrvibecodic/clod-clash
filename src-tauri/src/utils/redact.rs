@@ -181,6 +181,10 @@ fn redact_word(word: &str) -> std::string::String {
         return masked;
     }
 
+    if let Some(masked) = mask_bare_domain(word) {
+        return masked;
+    }
+
     word.to_owned()
 }
 
@@ -211,35 +215,40 @@ fn mask_host_port(word: &str) -> Option<std::string::String> {
     }
 
     // `example.com:443`, но не `file.rs:12` и не `word:1` без точки.
-    let (_, last_label) = bare.rsplit_once('.')?;
-    let is_code_suffix = matches!(
-        last_label.to_ascii_lowercase().as_str(),
-        "rs" | "go"
-            | "ts"
-            | "tsx"
-            | "js"
-            | "jsx"
-            | "py"
-            | "c"
-            | "h"
-            | "cpp"
-            | "yaml"
-            | "yml"
-            | "json"
-            | "toml"
-            | "log"
-            | "txt"
-    );
-    let domain_like = !bare.is_empty()
-        && bare
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'-')
-        && last_label.bytes().all(|b| b.is_ascii_alphabetic())
-        && last_label.len() >= 2;
-    if domain_like && !is_code_suffix {
+    let (head, last_label) = bare.rsplit_once('.')?;
+    if looks_like_domain(head, last_label) {
         return Some(format!("***:{port}{tail}"));
     }
     None
+}
+
+const FILE_SUFFIXES: &[&str] = &[
+    "bak", "bat", "c", "conf", "cpp", "crt", "css", "dat", "db", "dll", "dylib", "exe", "go", "gz", "h", "html", "ini",
+    "js", "json", "jsx", "key", "lock", "log", "map", "md", "metadb", "mmdb", "mrs", "old", "pem", "pid", "plist",
+    "ps", "py", "rs", "sh", "so", "sock", "srs", "tar", "tmp", "toml", "ts", "tsx", "txt", "yaml", "yml", "zip",
+];
+
+fn is_file_suffix(label: &str) -> bool {
+    FILE_SUFFIXES.contains(&label.to_ascii_lowercase().as_str())
+}
+
+fn looks_like_domain(head: &str, last_label: &str) -> bool {
+    !head.is_empty()
+        && head
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'-')
+        && head.bytes().any(|b| b.is_ascii_alphabetic())
+        && last_label.len() >= 2
+        && last_label.len() <= 24
+        && last_label.bytes().all(|b| b.is_ascii_alphabetic())
+        && !is_file_suffix(last_label)
+}
+
+fn mask_bare_domain(word: &str) -> Option<std::string::String> {
+    let core_len = word.trim_end_matches([':', ',', ';', '.', ')', '(', '"', '\'']).len();
+    let (body, tail) = word.split_at(core_len);
+    let (head, last_label) = body.rsplit_once('.')?;
+    looks_like_domain(head, last_label).then(|| format!("***{tail}"))
 }
 
 /// Домашний каталог пользователя, чтобы вырезать его из путей в логе.
@@ -346,6 +355,29 @@ mod tests {
         let masked = redact("updating subscription https://panel.example/s/ab12cd");
         assert!(!masked.contains("ab12cd"), "{masked}");
         assert!(masked.contains("panel.example"), "{masked}");
+    }
+
+    #[test]
+    fn a_bare_domain_is_masked_too() {
+        let dns = redact("[DNS] resolve news.example.org");
+        assert!(!dns.contains("news.example.org"), "{dns}");
+        assert!(dns.contains("[DNS]"), "{dns}");
+
+        let sniffer = redact("[Sniffer] TLS sni mail.example.co.uk");
+        assert!(!sniffer.contains("mail.example.co.uk"), "{sniffer}");
+    }
+
+    #[test]
+    fn file_names_and_versions_are_not_domains() {
+        for line in [
+            "loaded profiles.yaml",
+            "reading Country.mmdb",
+            "warn at help.rs:104 slow write",
+            "flexi_logger 0.31.10 started",
+            "see e.g. below",
+        ] {
+            assert_eq!(redact(line), line, "{line}");
+        }
     }
 
     #[test]

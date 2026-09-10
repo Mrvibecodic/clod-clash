@@ -1,4 +1,7 @@
-use crate::utils::dirs;
+use crate::utils::{
+    dirs,
+    redact::{home_prefix, redact, scrub_home},
+};
 use anyhow::{Context as _, Result};
 use chrono::Local;
 use std::{
@@ -43,15 +46,40 @@ fn append_failure(path: &Path, detail: &str) -> Result<()> {
         options.mode(0o600);
     }
     let mut file = options.open(path).context("failed to open the startup log")?;
+    let home = home_prefix();
     for line in clash_verge_logging::startup::held_lines() {
-        writeln!(file, "{line}").context("failed to write the startup log")?;
+        writeln!(file, "{}", safe_for_support(&line, home.as_deref())).context("failed to write the startup log")?;
     }
     writeln!(
         file,
-        "[{}] [ERROR] [Startup] {detail}",
-        Local::now().format("%Y-%m-%d %H:%M:%S%.3f")
+        "[{}] [ERROR] [Startup] {}",
+        Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
+        safe_for_support(detail, home.as_deref())
     )
     .context("failed to write the startup log")?;
     file.flush().context("failed to flush the startup log")?;
     Ok(())
+}
+
+fn safe_for_support(text: &str, home: Option<&str>) -> String {
+    text.split('\n')
+        .map(|line| redact(&scrub_home(line, home)))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+#[allow(clippy::expect_used)]
+#[cfg(test)]
+mod tests {
+    use super::safe_for_support;
+
+    #[test]
+    fn the_startup_log_is_edited_like_every_other_log() {
+        let text = "loading /home/ivan/.config/clod/profiles.yaml\nfetch https://panel.example.com/sub/AbCd1234EfGh5678 failed";
+        let safe = safe_for_support(text, Some("/home/ivan"));
+        assert!(!safe.contains("/home/ivan"), "{safe}");
+        assert!(!safe.contains("AbCd1234EfGh5678"), "{safe}");
+        assert!(safe.contains("panel.example.com"), "{safe}");
+        assert_eq!(safe.lines().count(), 2, "{safe}");
+    }
 }

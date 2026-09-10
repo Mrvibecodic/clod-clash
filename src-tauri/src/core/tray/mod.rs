@@ -24,6 +24,15 @@ use tauri::{
     menu::{CheckMenuItem, IsMenuItem, MenuEvent, MenuItem, PredefinedMenuItem, Submenu},
 };
 
+async fn report_log_not_opened(dir: Option<std::path::PathBuf>, error: &anyhow::Error) {
+    logging!(error, Type::Tray, "не удалось открыть журнал из трея: {error:#}");
+    let path = dir.map(|dir| dir.display().to_string()).unwrap_or_default();
+    crate::utils::notification::notify_event(crate::utils::notification::NotificationEvent::LogOpenFailed {
+        path: &path,
+    })
+    .await;
+}
+
 #[cfg(target_os = "linux")]
 mod linux;
 mod menu_def;
@@ -1044,10 +1053,20 @@ fn handle_menu_click(id: std::string::String) {
                 let _ = cmd::open_logs_dir().await;
             }
             MenuIds::APP_LOG => {
-                let _ = help::open_app_latest_log();
+                if let Err(err) = help::open_app_latest_log() {
+                    report_log_not_opened(crate::utils::dirs::app_logs_dir().ok(), &err).await;
+                }
             }
             MenuIds::CORE_LOG => {
-                let _ = help::open_core_latest_log();
+                if let Err(err) = help::open_core_latest_log() {
+                    report_log_not_opened(
+                        crate::utils::dirs::clash_latest_log()
+                            .ok()
+                            .and_then(|path| path.parent().map(std::path::Path::to_path_buf)),
+                        &err,
+                    )
+                    .await;
+                }
             }
             MenuIds::RESTART_CLASH => feat::restart_clash_core().await,
             MenuIds::RESTART_APP => feat::restart_app().await,

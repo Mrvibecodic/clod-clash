@@ -3,7 +3,7 @@ use crate::{
     core::{CoreManager, manager::RunningMode},
     enhance,
     utils::{
-        dirs, help, hwid,
+        dirs, hwid,
         redact::{home_prefix, redact, scrub_home},
     },
 };
@@ -41,7 +41,7 @@ async fn log_files(dir: Option<PathBuf>, matches: impl Fn(&str) -> bool + Send) 
     found.into_iter().map(|(_, path)| path).collect()
 }
 
-fn is_traffic_line(line: &str) -> bool {
+pub(crate) fn is_traffic_line(line: &str) -> bool {
     const MARKERS: &[&str] = &[
         "[tcp]",
         "[udp]",
@@ -91,6 +91,13 @@ async fn tail_of(paths: &[PathBuf], lines: usize, kind: LogKind) -> (Option<std:
 
 const fn yes_no(value: bool) -> &'static str {
     if value { "да" } else { "нет" }
+}
+
+fn pinned_port_note(pinned: Option<u16>) -> std::string::String {
+    match pinned {
+        Some(port) => format!("закреплён в настройках: {port}"),
+        None => "как в подписке".to_owned(),
+    }
 }
 
 const PANEL_TEXT_MAX: usize = 200;
@@ -161,7 +168,12 @@ async fn settings_section(out: &mut std::string::String) {
         "- уведомления подписки: {}",
         yes_no(data.enable_sub_notifications.unwrap_or(true))
     );
-    let _ = writeln!(out, "- mixed-port: {}", data.verge_mixed_port.unwrap_or(0));
+    let _ = writeln!(
+        out,
+        "- mixed-port: {} ({})",
+        Config::effective_mixed_port().await,
+        pinned_port_note(data.verge_mixed_port)
+    );
     let _ = writeln!(
         out,
         "- системный прокси: {} (адрес {}, PAC {})",
@@ -234,7 +246,7 @@ async fn subscription_section(out: &mut std::string::String) {
     let _ = writeln!(
         out,
         "- адрес: {}",
-        item.url.as_deref().map(help::mask_url).unwrap_or_else(|| "—".into())
+        item.url.as_deref().map(redact).unwrap_or_else(|| "—".into())
     );
     let _ = writeln!(out, "- обновлена: {}", item.updated.unwrap_or(0));
     if let Some(extra) = item.extra.as_ref() {
@@ -342,10 +354,19 @@ async fn logs_section(out: &mut std::string::String, lines: usize) {
 
     let core_logs = log_files(core_log_dir(), |name| name.ends_with(".log")).await;
     let _ = writeln!(out, "\n## Лог ядра (последние {lines} строк, без строк о соединениях)");
-    let (mut tail, mut skipped) = tail_of(&core_logs, lines, LogKind::Core).await;
+    let core_first = matches!(*CoreManager::global().get_running_mode(), RunningMode::Service);
+    let (mut tail, mut skipped) = if core_first {
+        core_tail_from_running_core(lines).await
+    } else {
+        tail_of(&core_logs, lines, LogKind::Core).await
+    };
     if tail.is_none() {
-        let (from_core, also_skipped) = core_tail_from_running_core(lines).await;
-        tail = from_core;
+        let (fallback, also_skipped) = if core_first {
+            tail_of(&core_logs, lines, LogKind::Core).await
+        } else {
+            core_tail_from_running_core(lines).await
+        };
+        tail = fallback;
         skipped += also_skipped;
     }
     if skipped > 0 {
@@ -548,6 +569,19 @@ mod tests {
 
         let v6 = redact("connect [2001:db8::1]:443 refused");
         assert!(!v6.contains("2001:db8::1"), "{v6}");
+    }
+
+    #[test]
+    fn the_report_prints_the_port_the_core_listens_on() {
+        assert_eq!(super::pinned_port_note(None), "как в подписке");
+        assert_eq!(super::pinned_port_note(Some(7897)), "закреплён в настройках: 7897");
+    }
+
+    #[test]
+    fn the_subscription_address_loses_even_a_short_token() {
+        let masked = redact("https://panel.example.com/s/ab12cd");
+        assert!(!masked.contains("ab12cd"), "{masked}");
+        assert!(masked.contains("panel.example.com"), "{masked}");
     }
 
     #[test]

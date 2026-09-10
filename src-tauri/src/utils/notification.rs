@@ -19,6 +19,9 @@ pub enum NotificationEvent<'a> {
     SysproxyLeftBehind,
     #[cfg(target_os = "macos")]
     AppHidden,
+    LogOpenFailed {
+        path: &'a str,
+    },
     // clod:F7 — subscription watcher alerts.
     SubExpired,
     SubExpiresIn {
@@ -100,6 +103,13 @@ pub async fn notify_event<'a>(event: NotificationEvent<'a>) {
             let body = clash_verge_i18n::t!("notifications.appHidden.body");
             notify(title, body);
         }
+        NotificationEvent::LogOpenFailed { path } => {
+            let title = clash_verge_i18n::t!("notifications.logOpenFailed.title");
+            let body = clash_verge_i18n::t!("notifications.logOpenFailed.body")
+                .replace("{path}", path)
+                .into();
+            notify(title, body);
+        }
         // clod:F7
         NotificationEvent::SubExpired => {
             let title = clash_verge_i18n::t!("notifications.subExpired.title");
@@ -120,5 +130,27 @@ pub async fn notify_event<'a>(event: NotificationEvent<'a>) {
                 .into();
             notify(title, body);
         }
+    }
+}
+
+#[allow(clippy::expect_used)]
+#[cfg(test)]
+mod tests {
+    const LOCALES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../crates/clash-verge-i18n/locales");
+
+    #[test]
+    fn the_log_open_failure_speaks_every_language() {
+        let mut checked = 0usize;
+        for entry in std::fs::read_dir(LOCALES).expect("cannot read the locales directory") {
+            let path = entry.expect("cannot read a locale entry").path();
+            if path.extension().and_then(std::ffi::OsStr::to_str) != Some("yml") {
+                continue;
+            }
+            let text = std::fs::read_to_string(&path).expect("cannot read a locale file");
+            assert!(text.contains("logOpenFailed:"), "{}", path.display());
+            assert!(text.contains("{path}"), "{}", path.display());
+            checked += 1;
+        }
+        assert_eq!(checked, 13, "все 13 локалей обязаны нести ключ");
     }
 }

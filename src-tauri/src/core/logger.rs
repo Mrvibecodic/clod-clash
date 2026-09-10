@@ -11,7 +11,7 @@ use clash_verge_logging::{Type, logging};
 use clash_verge_service_ipc::WriterConfig;
 use compact_str::CompactString;
 use flexi_logger::{
-    Cleanup, Criterion, DeferredNow, FileSpec, LogSpecBuilder, LogSpecification, LoggerHandle,
+    Cleanup, Criterion, DeferredNow, FileSpec, FormatFunction, LogSpecBuilder, LogSpecification, LoggerHandle,
     writers::{FileLogWriter, FileLogWriterBuilder, LogWriter as _},
 };
 use log::{Level, LevelFilter, Record};
@@ -73,7 +73,6 @@ fn redacted_console_format(
     redacted(clash_verge_logger::console_format, writer, now, record)
 }
 
-#[cfg(not(any(feature = "tauri-dev", feature = "tokio-trace")))]
 fn redacted_file_format_with_level(
     writer: &mut dyn std::io::Write,
     now: &mut DeferredNow,
@@ -88,6 +87,37 @@ fn redacted_file_format_without_level(
     record: &Record<'_>,
 ) -> std::io::Result<()> {
     redacted(clash_verge_logger::file_format_without_level, writer, now, record)
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum FileFormat {
+    WithLevel,
+    WithoutLevel,
+}
+
+impl FileFormat {
+    const fn redacted(self) -> FormatFunction {
+        match self {
+            Self::WithLevel => redacted_file_format_with_level,
+            Self::WithoutLevel => redacted_file_format_without_level,
+        }
+    }
+}
+
+fn redacted_file_writer(
+    file_spec: FileSpec,
+    format: FileFormat,
+    log_max_size: u64,
+    log_max_count: usize,
+) -> FileLogWriterBuilder {
+    FileLogWriter::builder(file_spec).format(format.redacted()).rotate(
+        Criterion::Size(log_max_size * 1024),
+        flexi_logger::Naming::TimestampsCustomFormat {
+            current_infix: Some("latest"),
+            format: "%Y-%m-%d_%H-%M-%S",
+        },
+        Cleanup::KeepLogFiles(log_max_count),
+    )
 }
 
 pub struct Logger {
@@ -143,7 +173,7 @@ impl Logger {
                 .log_to_file(FileSpec::default().directory(log_dir).basename(""))
                 .duplicate_to_stdout(log_level.into())
                 .format(redacted_console_format)
-                .format_for_files(redacted_file_format_with_level)
+                .format_for_files(FileFormat::WithLevel.redacted())
                 .rotate(
                     Criterion::Size(log_max_size * 1024),
                     flexi_logger::Naming::TimestampsCustomFormat {
@@ -216,15 +246,12 @@ impl Logger {
         let log_dir = dirs::app_logs_dir()?;
         let log_max_size = self.log_max_size.load(Ordering::SeqCst);
         let log_max_count = self.log_max_count.load(Ordering::SeqCst);
-        let flwb = FileLogWriter::builder(FileSpec::default().directory(log_dir).basename("")).rotate(
-            Criterion::Size(log_max_size * 1024),
-            flexi_logger::Naming::TimestampsCustomFormat {
-                current_infix: Some("latest"),
-                format: "%Y-%m-%d_%H-%M-%S",
-            },
-            Cleanup::KeepLogFiles(log_max_count),
-        );
-        Ok(flwb)
+        Ok(redacted_file_writer(
+            FileSpec::default().directory(log_dir).basename(""),
+            FileFormat::WithLevel,
+            log_max_size,
+            log_max_count,
+        ))
     }
 
     pub fn update_log_level(&self, level: LevelFilter) -> Result<()> {
@@ -270,20 +297,14 @@ impl Logger {
         let sidecar_log_dir = sidecar_log_dir()?;
         let log_max_size = self.log_max_size.load(Ordering::SeqCst);
         let log_max_count = self.log_max_count.load(Ordering::SeqCst);
-        Ok(FileLogWriter::builder(
+        Ok(redacted_file_writer(
             FileSpec::default()
                 .directory(sidecar_log_dir)
                 .basename("sidecar")
                 .suppress_timestamp(),
-        )
-        .format(redacted_file_format_without_level)
-        .rotate(
-            Criterion::Size(log_max_size * 1024),
-            flexi_logger::Naming::TimestampsCustomFormat {
-                current_infix: Some("latest"),
-                format: "%Y-%m-%d_%H-%M-%S",
-            },
-            Cleanup::KeepLogFiles(log_max_count),
+            FileFormat::WithoutLevel,
+            log_max_size,
+            log_max_count,
         )
         .try_build()?)
     }
@@ -297,5 +318,70 @@ impl Logger {
         } else {
             logging!(error, Type::System, "failed to get sidecar file log writer");
         }
+    }
+}
+
+#[allow(clippy::expect_used, clippy::unwrap_used)]
+#[cfg(test)]
+mod tests {
+    use super::{FileFormat, redacted_file_writer};
+    use flexi_logger::{DeferredNow, FileSpec, writers::LogWriter as _};
+    use log::{Level, Record};
+
+    const SECRET: &str = "AbCd1234EfGh5678";
+    const LINE: &str = "updating subscription https://panel.example.com/sub/AbCd1234EfGh5678";
+
+    fn render(format: FileFormat) -> std::string::String {
+        let mut buffer = Vec::new();
+        let mut now = DeferredNow::default();
+        let args = format_args!("{LINE}");
+        let record = Record::builder().args(args).level(Level::Info).target("app").build();
+        format.redacted()(&mut buffer, &mut now, &record).expect("format failed");
+        std::string::String::from_utf8(buffer).expect("format produced invalid utf-8")
+    }
+
+    #[test]
+    fn every_file_format_masks_secrets() {
+        for format in [FileFormat::WithLevel, FileFormat::WithoutLevel] {
+            let rendered = render(format);
+            assert!(!rendered.contains(SECRET), "{format:?}: {rendered}");
+            assert!(rendered.contains("panel.example.com"), "{format:?}: {rendered}");
+        }
+    }
+
+    #[test]
+    fn a_rebuilt_file_writer_still_masks_secrets() {
+        let dir = std::env::temp_dir().join(format!("clod-logger-rebuild-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("cannot create the temporary log directory");
+
+        let writer = redacted_file_writer(
+            FileSpec::default()
+                .directory(&dir)
+                .basename("rebuilt")
+                .suppress_timestamp(),
+            FileFormat::WithLevel,
+            128,
+            8,
+        )
+        .try_build()
+        .expect("cannot build the file log writer");
+
+        let mut now = DeferredNow::default();
+        let args = format_args!("{LINE}");
+        let record = Record::builder().args(args).level(Level::Info).target("app").build();
+        writer.write(&mut now, &record).expect("cannot write the log record");
+        writer.flush().expect("cannot flush the log record");
+
+        let mut written = std::string::String::new();
+        for entry in std::fs::read_dir(&dir).expect("cannot read the temporary log directory") {
+            let path = entry.expect("cannot read the log directory entry").path();
+            written.push_str(&std::fs::read_to_string(&path).unwrap_or_default());
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+
+        assert!(!written.is_empty(), "the writer produced no file");
+        assert!(!written.contains(SECRET), "{written}");
+        assert!(written.contains("panel.example.com"), "{written}");
     }
 }

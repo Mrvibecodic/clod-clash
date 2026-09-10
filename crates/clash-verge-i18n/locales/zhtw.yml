@@ -36,6 +36,9 @@ notifications:
     body: A new version (v{version}) has been downloaded and is ready to install.
     installNow: Install Now
     later: Later
+  logOpenFailed:
+    title: Log
+    body: "The log file could not be opened. Look for it in {path}."
   subExpired:
     title: Subscription
     body: Your subscription has expired.

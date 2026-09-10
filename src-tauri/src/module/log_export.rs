@@ -49,13 +49,18 @@ fn collect_logs(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
-fn redacted(content: &str, home: Option<&str>) -> String {
+fn redacted(content: &str, home: Option<&str>) -> (String, usize) {
     let mut text = String::with_capacity(content.len());
+    let mut skipped = 0usize;
     for line in content.lines() {
+        if crate::module::support_bundle::is_traffic_line(line) {
+            skipped += 1;
+            continue;
+        }
         text.push_str(&redact(&scrub_home(line, home)));
         text.push('\n');
     }
-    text
+    (text, skipped)
 }
 
 fn archive_name(root: &Path, path: &Path) -> String {
@@ -103,6 +108,7 @@ pub async fn write_archive(target: PathBuf) -> Result<usize> {
             } else {
                 &service_logs
             };
+            let (text, traffic_lines) = redacted(&content, home.as_deref());
             zip.start_file(archive_name(root, &path), options)?;
             if skipped > 0 {
                 writeln!(
@@ -110,7 +116,13 @@ pub async fn write_archive(target: PathBuf) -> Result<usize> {
                     "[export] first {skipped} bytes of this file were omitted; only the last {MAX_FILE_BYTES} bytes follow"
                 )?;
             }
-            zip.write_all(redacted(&content, home.as_deref()).as_bytes())?;
+            if traffic_lines > 0 {
+                writeln!(
+                    zip,
+                    "[export] {traffic_lines} line(s) about connections and DNS were dropped: they are the addresses the user visited"
+                )?;
+            }
+            zip.write_all(text.as_bytes())?;
             count += 1;
         }
         zip.finish()?;
@@ -159,7 +171,19 @@ mod tests {
 
     #[test]
     fn every_line_is_redacted() {
-        let text = redacted("a\nb\n", None);
+        let (text, skipped) = redacted("a\nb\n", None);
         assert_eq!(text, "a\nb\n");
+        assert_eq!(skipped, 0);
+    }
+
+    #[test]
+    fn traffic_lines_never_reach_the_archive() {
+        let raw = "[core] mihomo started\n[TCP] 10.0.0.5:41230 --> mail.example.com:443 match Rule\n[DNS] resolve news.example.org\nconfiguration loaded\n";
+        let (text, skipped) = redacted(raw, None);
+        assert_eq!(skipped, 2);
+        assert!(!text.contains("mail.example.com"), "{text}");
+        assert!(!text.contains("news.example.org"), "{text}");
+        assert!(text.contains("mihomo started"), "{text}");
+        assert!(text.contains("configuration loaded"), "{text}");
     }
 }
