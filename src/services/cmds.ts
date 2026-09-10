@@ -622,6 +622,18 @@ export async function downloadAndApplyCore() {
   return invoke<CoreUpdateCheck>('download_and_apply_core')
 }
 
+interface AppUpdateMetadata {
+  rid: number
+  currentVersion: string
+  version: string
+  body?: string
+  rawJson: Record<string, unknown>
+}
+
+export async function checkAppUpdate() {
+  return invoke<AppUpdateMetadata | null>('check_app_update')
+}
+
 export async function revertCore() {
   return invoke<void>('revert_core')
 }

@@ -1,10 +1,6 @@
-import {
-  check,
-  type CheckOptions,
-  type Update,
-} from '@tauri-apps/plugin-updater'
+import { Update } from '@tauri-apps/plugin-updater'
 
-import { getClashInfo, getVergeConfig } from '@/services/cmds'
+import { checkAppUpdate, getVergeConfig } from '@/services/cmds'
 import { version as appVersion } from '@root/package.json'
 
 type VersionParts = {
@@ -147,46 +143,10 @@ const discard = async (result: Update): Promise<null> => {
   return null
 }
 
-const DEFAULT_MIXED_PORT = 7897
-
-const localProxyUrl = async (): Promise<string | null> => {
-  try {
-    // clod:port-ladder — порт берём действующий: при «как в подписке» в наших
-    // настройках его нет вовсе.
-    const info = await getClashInfo()
-    const port = info?.mixed_port ?? DEFAULT_MIXED_PORT
-    return `http://127.0.0.1:${port}`
-  } catch (err) {
-    console.warn('[updater] failed to read the local proxy port', err)
-    return null
-  }
-}
-
-const checkWithFallback = async (
-  options: CheckOptions,
-): Promise<Update | null> => {
-  try {
-    return await check(options)
-  } catch (directError) {
-    if (options.proxy) throw directError
-    const proxy = await localProxyUrl()
-    if (!proxy) throw directError
-    console.warn(
-      `[updater] direct check failed, retrying via ${proxy}`,
-      directError,
-    )
-    return await check({ ...options, proxy })
-  }
-}
-
-export const checkUpdateSafe = async (
-  options?: CheckOptions,
-): Promise<Update | null> => {
-  const result = await checkWithFallback({
-    ...(options ?? {}),
-    allowDowngrades: false,
-  })
-  if (!result) return null
+export const checkUpdateSafe = async (): Promise<Update | null> => {
+  const metadata = await checkAppUpdate()
+  if (!metadata) return null
+  const result = new Update(metadata)
 
   const remoteVersion = resolveRemoteVersion(result)
   const comparison = compareVersions(remoteVersion, localVersionNormalized)
@@ -201,5 +161,3 @@ export const checkUpdateSafe = async (
 
   return result
 }
-
-export type { CheckOptions }

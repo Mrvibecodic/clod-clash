@@ -151,6 +151,7 @@ mod app_init {
             cmd::refresh_geo_assets,
             cmd::get_core_updater_status,
             cmd::check_core_update,
+            cmd::check_app_update,
             cmd::download_and_apply_core,
             cmd::revert_core,
             cmd::repin_core_binaries,

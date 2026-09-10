@@ -6,11 +6,11 @@
 # Что делает:
 #   1. находит черновик релиза clod-v{версия} и проверяет, что сборка
 #      действительно приложила все артефакты (включая latest.json);
-#   2. публикует его как pre-release (тело релиза — из сообщения
-#      аннотированного publish-тега, если оно есть);
-#   3. переливает latest.json в плавающий релиз `updater`, из которого
-#      обновляются установленные клиенты (GitHub не считает pre-release
-#      «latest», поэтому основной эндпоинт апдейтера смотрит сюда);
+#   2. публикует его; pre-release — только если в версии есть дефис (тело
+#      релиза — из сообщения аннотированного publish-тега, если оно есть);
+#   3. переливает latest.json в плавающий релиз `updater-prerelease` всегда,
+#      а в `updater`, из которого обновляются установленные клиенты, —
+#      только для версии без дефиса;
 #   4. удаляет отработавший publish-тег.
 #
 # Раньше шаги 2–3 делались руками через API после каждой сборки.
@@ -44,6 +44,9 @@ jobs:
         run: |
           RELEASE_TAG="${GITHUB_REF_NAME#publish-}"
           echo "release tag: $RELEASE_TAG"
+          VERSION="${RELEASE_TAG#clod-v}"
+          PRERELEASE=false
+          case "$VERSION" in *-*) PRERELEASE=true ;; esac
 
           id=$(gh api "repos/${{ github.repository }}/releases?per_page=100" \
             --jq ".[] | select(.tag_name==\"$RELEASE_TAG\") | .id" | head -1)
@@ -68,10 +71,10 @@ jobs:
           NOTES=$(git tag -l --format='%(contents)' "$GITHUB_REF_NAME")
           if [ -n "$NOTES" ]; then
             gh api -X PATCH "repos/${{ github.repository }}/releases/$id" \
-              -F draft=false -F prerelease=false -f body="$NOTES" --jq .html_url
+              -F draft=false -F prerelease="$PRERELEASE" -f body="$NOTES" --jq .html_url
           else
             gh api -X PATCH "repos/${{ github.repository }}/releases/$id" \
-              -F draft=false -F prerelease=false --jq .html_url
+              -F draft=false -F prerelease="$PRERELEASE" --jq .html_url
           fi
           echo "release_id=$id" >> "$GITHUB_OUTPUT"
 
@@ -123,19 +126,49 @@ jobs:
           mv latest.patched.json latest.json
           echo "patched latest.json:"; jq '{version, notes, url_sample: (.platforms | to_entries | .[0].value.url)}' latest.json
 
-          updater_id=$(gh api "repos/${{ github.repository }}/releases/tags/updater" --jq .id)
-          old_asset=$(gh api "repos/${{ github.repository }}/releases/$updater_id/assets?per_page=100" \
-            --jq '.[] | select(.name=="latest.json") | .id' | head -1)
-          if [ -n "$old_asset" ]; then
-            gh api -X DELETE "repos/${{ github.repository }}/releases/assets/$old_asset"
-            echo "removed old latest.json ($old_asset)"
-          fi
+          ensure_release() {
+            local tag="$1" name="$2" body="$3" id
+            id=$(gh api "repos/${{ github.repository }}/releases/tags/$tag" --jq .id 2>/dev/null || true)
+            case "$id" in
+              '' | *[!0-9]*) id="" ;;
+            esac
+            if [ -z "$id" ]; then
+              id=$(gh api -X POST "repos/${{ github.repository }}/releases" \
+                -f tag_name="$tag" -f name="$name" -f body="$body" \
+                -F draft=false -F prerelease=true --jq .id)
+            fi
+            echo "$id"
+          }
 
-          gh api -X POST \
-            -H "Content-Type: application/json" \
-            --input latest.json \
-            "https://uploads.github.com/repos/${{ github.repository }}/releases/$updater_id/assets?name=latest.json" \
-            --jq .state
+          put_manifest() {
+            local id="$1" old
+            old=$(gh api "repos/${{ github.repository }}/releases/$id/assets?per_page=100" \
+              --jq '.[] | select(.name=="latest.json") | .id' | head -1)
+            if [ -n "$old" ]; then
+              gh api -X DELETE "repos/${{ github.repository }}/releases/assets/$old"
+            fi
+            gh api -X POST \
+              -H "Content-Type: application/json" \
+              --input latest.json \
+              "https://uploads.github.com/repos/${{ github.repository }}/releases/$id/assets?name=latest.json" \
+              --jq .state
+          }
+
+          pre=$(ensure_release updater-prerelease "Pre-release update manifest" \
+            "Service release: latest.json of the newest build, pre-releases included. Do not download installers from here.")
+          put_manifest "$pre"
+          echo "latest.json rolled into updater-prerelease"
+
+          case "$VERSION" in
+            *-*)
+              echo "$VERSION is a pre-release, the stable updater manifest stays untouched"
+              exit 0
+              ;;
+          esac
+
+          updater_id=$(gh api "repos/${{ github.repository }}/releases/tags/updater" --jq .id)
+          put_manifest "$updater_id"
+          echo "latest.json rolled into updater"
 
       - name: Drop the spent publish tag
         if: always()

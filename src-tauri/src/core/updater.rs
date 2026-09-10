@@ -520,7 +520,7 @@ fn updater_builder(
         .map_err(|e| anyhow!("failed to point the updater at the pre-release manifest: {e}"))
 }
 
-async fn check_update_with_fallback(app_handle: &tauri::AppHandle) -> Result<Option<Update>> {
+pub async fn check_update_with_fallback(app_handle: &tauri::AppHandle) -> Result<Option<Update>> {
     let verge = Config::verge().await.latest_arc();
     let language = verge.language.clone();
     let receive_prereleases = verge
