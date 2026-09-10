@@ -14,7 +14,7 @@ export const findDuplicatePort = (ports: readonly number[]) => {
 export const MIN_PORT = 1000
 export const MAX_PORT = 65535
 
-export type PortRangeVerdict = 'ok' | 'tooLow' | 'tooHigh'
+type PortRangeVerdict = 'ok' | 'tooLow' | 'tooHigh'
 
 export const portRangeVerdict = (port: number): PortRangeVerdict => {
   if (port < MIN_PORT) return 'tooLow'

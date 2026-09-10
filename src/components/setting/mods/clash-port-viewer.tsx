@@ -44,9 +44,8 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
   const [open, setOpen] = useState(false)
 
   // Mixed Port
-  // clod:port-ladder — «как в подписке» это отсутствие порта у нас. Число в поле
-  // берётся из порта, на котором ядро слушает, и только если закрепления не было
-  // уже в момент открытия: пока закрепление живо, порт подписки нам неизвестен.
+  // clod:port-ladder — «как в подписке» это отсутствие порта у нас: тогда в поле
+  // показывается тот, на котором ядро слушает на самом деле.
   const [mixedFollowsSubscription, setMixedFollowsSubscription] = useState(
     ladder?.mixed_port == null,
   )
@@ -76,9 +75,6 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
     verge?.verge_tproxy_enabled ?? false,
   )
 
-  // Порты, которые слушает ядро прямо сейчас: с ними сверяются введённые, чтобы
-  // не спрашивать о занятости порт, который занят нами же. Обновляются при
-  // открытии диалога и сразу после того, как ядро приняло новый набор.
   const originalPortsRef = useRef<Record<string, any> | null>(null)
 
   // Запрос на сохранение, предотвращает зависание GUI
@@ -161,9 +157,8 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
   // TODO снизить сложность кода, затраты на производительность
   const onSave = useLockFn(async () => {
     // Проверка конфликта портов
-    // clod:port-ladder — при «как в подписке» с остальными портами сверяется
-    // порт подписки, и только когда он прочитан: два слушателя на одном порту
-    // ядро не поднимет, а сверка с чужим числом врёт в обе стороны.
+    // clod:port-ladder — при «как в подписке» с остальными портами всё равно
+    // сверяется действующий: два слушателя на одном порту ядро не поднимет.
     const effectiveMixed = !ladderRead
       ? -1
       : mixedFollowsSubscription
@@ -246,9 +241,7 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
     }
 
     // clod:port-ladder — ноль снимает закрепление: иначе старый порт жил бы в
-    // файле настроек вечно и служил запасным там, где его давно нет. Без
-    // прочитанной лесенки смешанный порт не трогаем вовсе: умолчание тумблера
-    // сняло бы закрепление, которого мы не видели.
+    // файле настроек вечно и служил запасным там, где его давно нет.
     const vergeConfig: Record<string, any> = {
       verge_socks_port: socksPort,
       verge_socks_enabled: socksEnabled,
