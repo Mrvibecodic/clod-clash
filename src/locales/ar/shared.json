@@ -125,8 +125,8 @@
       "config": {
         "failed": "فشل فحص الإعدادات، وتم التراجع عن التغييرات. الخطأ:",
         "bootFailed": "فشل التحقق من التكوين عند الإقلاع، تم استخدام التكوين الافتراضي، يرجى فحص ملف التكوين، تفاصيل الخطأ:",
-        "coreChangeFailed": "فشل التحقق من التكوين عند تغيير النواة، تم استخدام التكوين الافتراضي، يرجى فحص ملف التكوين، تفاصيل الخطأ:",
-        "processTerminated": "تم إنهاء عملية التحقق. تحقق مما إذا كان برنامج أمان يمنع تشغيل النواة، وما إذا كان معالج هذا الجهاز يدعم إصدار النواة."
+        "processTerminated": "تم إنهاء عملية التحقق. تحقق مما إذا كان برنامج أمان يمنع تشغيل النواة، وما إذا كان معالج هذا الجهاز يدعم إصدار النواة.",
+        "timeout": "انتهت مهلة تحديث الإعدادات (30 ثانية): لم يستجب الفحص أو النواة. تمت إعادة الملف الشخصي السابق."
       },
       "script": {
         "syntaxError": "خطأ في بناء جملة السكريبت، تم التراجع عن التغييرات",
@@ -137,15 +137,11 @@
       "yaml": {
         "syntaxError": "YAML syntax error, changes reverted",
         "readError": "YAML read error, changes reverted",
-        "mappingError": "YAML mapping error, changes reverted",
-        "keyError": "YAML key error, changes reverted",
-        "generalError": "YAML error, changes reverted"
+        "mappingError": "YAML mapping error, changes reverted"
       },
       "merge": {
         "syntaxError": "Merge file syntax error, changes reverted",
-        "mappingError": "Merge file mapping error, changes reverted",
-        "keyError": "Merge file key error, changes reverted",
-        "generalError": "Merge file error, changes reverted"
+        "mappingError": "Merge file mapping error, changes reverted"
       }
     }
   },

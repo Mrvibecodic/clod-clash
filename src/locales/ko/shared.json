@@ -125,8 +125,8 @@
       "config": {
         "failed": "설정 검사에 실패했습니다. 변경 사항을 되돌렸습니다. 오류:",
         "bootFailed": "부팅 설정 검증 실패",
-        "coreChangeFailed": "코어 변경 설정 검증 실패",
-        "processTerminated": "검증 프로세스가 종료되었습니다. 보안 소프트웨어가 코어 실행을 차단하는지, 이 컴퓨터의 CPU가 코어 빌드를 지원하는지 확인하세요."
+        "processTerminated": "검증 프로세스가 종료되었습니다. 보안 소프트웨어가 코어 실행을 차단하는지, 이 컴퓨터의 CPU가 코어 빌드를 지원하는지 확인하세요.",
+        "timeout": "구성 업데이트가 시간 초과되었습니다(30초): 검사 또는 코어가 응답하지 않았습니다. 이전 프로필로 되돌렸습니다."
       },
       "script": {
         "syntaxError": "스크립트 구문 오류",
@@ -137,15 +137,11 @@
       "yaml": {
         "syntaxError": "YAML 구문 오류",
         "readError": "YAML 읽기 오류",
-        "mappingError": "YAML 매핑 오류",
-        "keyError": "YAML 키 오류",
-        "generalError": "YAML 오류"
+        "mappingError": "YAML 매핑 오류"
       },
       "merge": {
         "syntaxError": "병합 파일 구문 오류",
-        "mappingError": "병합 파일 매핑 오류",
-        "keyError": "병합 파일 키 오류",
-        "generalError": "병합 파일 오류"
+        "mappingError": "병합 파일 매핑 오류"
       }
     }
   },

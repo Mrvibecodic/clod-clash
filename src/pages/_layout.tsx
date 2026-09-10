@@ -20,7 +20,8 @@ import { useModeWindowSize } from '@/hooks/use-mode-window-size'
 import { useVerge } from '@/hooks/use-verge'
 import { useVisibility } from '@/hooks/use-visibility'
 import { useWindowDecorations } from '@/hooks/use-window'
-import { takePendingNotices } from '@/services/cmds'
+import { stopListeningNotices, takePendingNotices } from '@/services/cmds'
+import { repeatNotice } from '@/services/notice-service'
 import { useThemeMode } from '@/services/states'
 import getSystem from '@/utils/get-system'
 
@@ -92,9 +93,10 @@ const Layout = () => {
     (payload: [string, string]) => {
       const [status, msg] = payload
       try {
-        handleNoticeMessage(status, msg, t, navigate)
+        return handleNoticeMessage(status, msg, t, navigate)
       } catch (error) {
         console.error('[Обработка уведомлений] Ошибка:', error)
+        return undefined
       }
     },
     [t, navigate],
@@ -104,7 +106,14 @@ const Layout = () => {
 
   const drainPendingNotices = useCallback(() => {
     takePendingNotices()
-      .then((pending) => pending.forEach(handleNotice))
+      .then((pending) => {
+        for (const [status, msg, repeats] of pending) {
+          const id = handleNotice([status, msg])
+          if (id !== undefined && repeats > 1) {
+            repeatNotice(id, repeats - 1)
+          }
+        }
+      })
       .catch((error) => {
         console.error('[Обработка уведомлений] Очередь не прочитана:', error)
       })
@@ -113,7 +122,15 @@ const Layout = () => {
   // При монтировании и при каждом показе окна: пока окно спрятано в трее,
   // бэкенд придерживает уведомления, а забор очереди заодно говорит ему, что
   // страница снова слушает.
-  useEffect(drainPendingNotices, [drainPendingNotices])
+  useEffect(() => {
+    if (pageVisible) {
+      drainPendingNotices()
+    } else {
+      stopListeningNotices().catch((error) => {
+        console.error('[Обработка уведомлений] Скрытие не передано:', error)
+      })
+    }
+  }, [pageVisible, drainPendingNotices])
   useTauriEvent('verge://window-shown', drainPendingNotices)
 
   useEffect(() => {

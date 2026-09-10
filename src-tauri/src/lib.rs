@@ -158,6 +158,7 @@ mod app_init {
             cmd::disable_managed_core,
             cmd::get_running_mode,
             cmd::take_pending_notices,
+            cmd::stop_listening_notices,
             cmd::entry_lightweight_mode,
             cmd::uninstall_service,
             cmd::is_service_available,
@@ -483,8 +484,9 @@ pub fn run() {
                 }
                 event_handlers::handle_window_focus(focused);
             }
-            #[cfg(target_os = "macos")]
             tauri::WindowEvent::Destroyed => {
+                core::notification::frontend_stopped_listening();
+                #[cfg(target_os = "macos")]
                 event_handlers::handle_window_destroyed();
             }
             _ => {}

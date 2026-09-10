@@ -125,8 +125,8 @@
       "config": {
         "failed": "配置检查未通过，更改已撤销。错误：",
         "bootFailed": "启动订阅配置校验失败，已使用默认配置启动；请检查订阅配置文件，错误详情：",
-        "coreChangeFailed": "切换内核时配置校验失败，已使用默认配置启动；请检查订阅配置文件，错误详情：",
-        "processTerminated": "验证进程被终止。请检查是否有安全软件阻止内核运行，以及本机 CPU 是否支持该内核构建。"
+        "processTerminated": "验证进程被终止。请检查是否有安全软件阻止内核运行，以及本机 CPU 是否支持该内核构建。",
+        "timeout": "配置更新超时（30 秒）：校验或内核未响应，已恢复之前的配置。"
       },
       "script": {
         "syntaxError": "脚本语法错误，变更已撤销",
@@ -137,15 +137,11 @@
       "yaml": {
         "syntaxError": "YAML 语法错误，变更已撤销",
         "readError": "YAML 读取错误，变更已撤销",
-        "mappingError": "YAML 映射错误，变更已撤销",
-        "keyError": "YAML 键错误，变更已撤销",
-        "generalError": "YAML 错误，变更已撤销"
+        "mappingError": "YAML 映射错误，变更已撤销"
       },
       "merge": {
         "syntaxError": "覆写文件语法错误，变更已撤销",
-        "mappingError": "覆写文件映射错误，变更已撤销",
-        "keyError": "覆写文件键错误，变更已撤销",
-        "generalError": "覆写文件错误，变更已撤销"
+        "mappingError": "覆写文件映射错误，变更已撤销"
       }
     }
   },

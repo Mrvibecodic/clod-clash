@@ -818,6 +818,7 @@ export interface TranslationResources {
             uninstallSuccess: string
           }
           updater: {
+            breakingChanges: string
             withClashProxySuccess: string
           }
         }
@@ -1353,7 +1354,6 @@ export interface TranslationResources {
             sysproxy: {
               coreGaveUp: string
               coreNotRunning: string
-              resetFailedOnQuit: string
               turnOffAction: string
               writeFailed: string
             }
@@ -1480,13 +1480,11 @@ export interface TranslationResources {
         validation: {
           config: {
             bootFailed: string
-            coreChangeFailed: string
             failed: string
             processTerminated: string
+            timeout: string
           }
           merge: {
-            generalError: string
-            keyError: string
             mappingError: string
             syntaxError: string
           }
@@ -1497,8 +1495,6 @@ export interface TranslationResources {
             syntaxError: string
           }
           yaml: {
-            generalError: string
-            keyError: string
             mappingError: string
             readError: string
             syntaxError: string

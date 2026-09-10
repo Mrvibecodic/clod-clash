@@ -5,6 +5,8 @@ import { hideNotice, showNotice } from '@/services/notice-service'
 import { revalidateQueries } from '@/services/query-client'
 import getSystem from '@/utils/get-system'
 
+import { isNoticeStatus, type NoticeStatus } from './notice-statuses'
+
 const OS = getSystem()
 
 type NavigateFunction = (path: string, options?: any) => void
@@ -16,7 +18,7 @@ type TranslateFunction = (
 const offerToTurnTheProxyOff = (
   messageKey: string,
   t: TranslateFunction,
-): void => {
+): number => {
   let id = 0
   const disableProxy = () => {
     patchVergeConfig({ enable_system_proxy: false })
@@ -55,6 +57,7 @@ const offerToTurnTheProxyOff = (
     ),
     0,
   )
+  return id
 }
 
 export const handleNoticeMessage = (
@@ -62,18 +65,22 @@ export const handleNoticeMessage = (
   msg: string,
   t: TranslateFunction,
   navigate: NavigateFunction,
-) => {
-  const handlers: Record<string, () => void> = {
+): number | undefined => {
+  const handlers: Record<NoticeStatus, () => number> = {
     'import_sub_url::ok': () => {
       navigate('/profile')
-      showNotice.success(
+      return showNotice.success(
         'shared.feedback.notifications.importSubscriptionSuccess',
       )
     },
     'import_sub_url::error': () => {
       navigate('/profile')
-      showNotice.error(msg)
+      return showNotice.error(msg)
     },
+    'set_config::ok': () =>
+      showNotice.success(
+        'settings.feedback.notifications.clash.restartSuccess',
+      ),
     'set_config::error': () => showNotice.error(msg),
     update_with_clash_proxy: () =>
       showNotice.success(
@@ -101,15 +108,18 @@ export const handleNoticeMessage = (
         0,
       ),
     update_failed: () => showNotice.error(msg),
+    'update::breaking_changes': () =>
+      showNotice.info(
+        'settings.feedback.notifications.updater.breakingChanges',
+        { version: msg },
+        0,
+      ),
     'config_validate::boot_error': () =>
       showNotice.error('shared.feedback.validation.config.bootFailed', msg),
-    'config_validate::core_change': () =>
-      showNotice.error(
-        'shared.feedback.validation.config.coreChangeFailed',
-        msg,
-      ),
     'config_validate::error': () =>
       showNotice.error('shared.feedback.validation.config.failed', msg),
+    'config_validate::timeout': () =>
+      showNotice.error('shared.feedback.validation.config.timeout'),
     'config_validate::process_terminated': () =>
       // clod:Э10-12 — текст отказа нужен и здесь: на пути обновления подписки он
       // единственный говорит, на чём именно проверка оборвалась.
@@ -117,8 +127,6 @@ export const handleNoticeMessage = (
         'shared.feedback.validation.config.processTerminated',
         msg,
       ),
-    'config_validate::stdout_error': () =>
-      showNotice.error('shared.feedback.validation.config.failed', msg),
     'config_validate::script_error': () =>
       showNotice.error('shared.feedback.validation.script.fileError', msg),
     'config_validate::script_syntax_error': () =>
@@ -133,18 +141,10 @@ export const handleNoticeMessage = (
       showNotice.error('shared.feedback.validation.yaml.readError', msg),
     'config_validate::yaml_mapping_error': () =>
       showNotice.error('shared.feedback.validation.yaml.mappingError', msg),
-    'config_validate::yaml_key_error': () =>
-      showNotice.error('shared.feedback.validation.yaml.keyError', msg),
-    'config_validate::yaml_error': () =>
-      showNotice.error('shared.feedback.validation.yaml.generalError', msg),
     'config_validate::merge_syntax_error': () =>
       showNotice.error('shared.feedback.validation.merge.syntaxError', msg),
     'config_validate::merge_mapping_error': () =>
       showNotice.error('shared.feedback.validation.merge.mappingError', msg),
-    'config_validate::merge_key_error': () =>
-      showNotice.error('shared.feedback.validation.merge.keyError', msg),
-    'config_validate::merge_error': () =>
-      showNotice.error('shared.feedback.validation.merge.generalError', msg),
     'tun::setup_started': () =>
       showNotice.info(
         'settings.sections.system.notifications.tunMode.setupStarted',
@@ -195,35 +195,35 @@ export const handleNoticeMessage = (
       ),
     'core::crashed': () => {
       void revalidateQueries([['getSystemState']])
-      showNotice.error(
+      return showNotice.error(
         'settings.sections.system.notifications.core.crashed',
         msg,
       )
     },
     'core::restarted': () => {
       void revalidateQueries([['getSystemState']])
-      showNotice.info(
+      return showNotice.info(
         'settings.sections.system.notifications.core.restarted',
         msg,
       )
     },
     'core::not_ready': () => {
       void revalidateQueries([['getSystemState']])
-      showNotice.error(
+      return showNotice.error(
         'settings.sections.system.notifications.core.notReady',
         msg,
       )
     },
     'core::handoff_failed': () => {
       void revalidateQueries([['getSystemState']])
-      showNotice.error(
+      return showNotice.error(
         'settings.sections.system.notifications.core.handoffFailed',
         msg,
       )
     },
     'app_quit::core_still_running': () => {
       void revalidateQueries([['getSystemState']])
-      showNotice.error(
+      return showNotice.error(
         'settings.sections.system.notifications.core.exitCancelled',
         { reason: msg },
         0,
@@ -262,6 +262,7 @@ export const handleNoticeMessage = (
         ),
         0,
       )
+      return id
     },
     'sysproxy::core_gave_up': () =>
       offerToTurnTheProxyOff(
@@ -277,10 +278,6 @@ export const handleNoticeMessage = (
       showNotice.error(
         'settings.sections.system.notifications.sysproxy.writeFailed',
         msg,
-      ),
-    'app_quit::sysproxy_reset_failed': () =>
-      showNotice.error(
-        'settings.sections.system.notifications.sysproxy.resetFailedOnQuit',
       ),
     'core::binary_changed': () =>
       showNotice.error(
@@ -299,10 +296,9 @@ export const handleNoticeMessage = (
       ),
   }
 
-  const handler = handlers[status]
-  if (handler) {
-    handler()
-  } else {
+  if (!isNoticeStatus(status)) {
     console.warn(`Необработанный статус уведомления: ${status}`)
+    return undefined
   }
+  return handlers[status]()
 }

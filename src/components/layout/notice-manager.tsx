@@ -276,7 +276,10 @@ export const NoticeManager: React.FC<NoticeManagerProps> = ({ position }) => {
             }
           >
             <Stack sx={{ gap: 0.5, alignItems: 'flex-start' }}>
-              <Box>{resolveNoticeMessage(notice, t)}</Box>
+              <Box>
+                {resolveNoticeMessage(notice, t)}
+                {notice.repeats > 1 ? ` ×${notice.repeats}` : null}
+              </Box>
               {notice.type === 'error' ? (
                 <Button
                   size="small"

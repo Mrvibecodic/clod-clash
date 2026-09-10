@@ -467,8 +467,9 @@ pub fn reload_main_window_if_needed() {
         Type::Window,
         "процесс рендеринга был завершён системой, страница перезагружена после фокуса окна"
     );
-    if let Err(e) = window.reload() {
-        logging!(warn, Type::Window, "не удалось перезагрузить страницу: {e}");
+    match window.reload() {
+        Ok(()) => crate::core::notification::frontend_stopped_listening(),
+        Err(e) => logging!(warn, Type::Window, "не удалось перезагрузить страницу: {e}"),
     }
 }
 

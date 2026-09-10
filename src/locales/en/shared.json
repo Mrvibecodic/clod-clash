@@ -125,8 +125,8 @@
       "config": {
         "failed": "Configuration check failed, changes reverted. Error:",
         "bootFailed": "Boot subscription configuration validation failed. Started with the default configuration; please check the subscription configuration file.",
-        "coreChangeFailed": "Configuration validation failed when switching the kernel. Started with the default configuration; please check the subscription configuration file.",
-        "processTerminated": "The validation process has been terminated. Check whether security software blocks the core from running and whether this computer's CPU supports the core build."
+        "processTerminated": "The validation process has been terminated. Check whether security software blocks the core from running and whether this computer's CPU supports the core build.",
+        "timeout": "The configuration update timed out (30 s): the check or the core did not respond. The previous profile is back."
       },
       "script": {
         "syntaxError": "Script syntax error, changes reverted",
@@ -137,15 +137,11 @@
       "yaml": {
         "syntaxError": "YAML syntax error, changes reverted",
         "readError": "YAML read error, changes reverted",
-        "mappingError": "YAML mapping error, changes reverted",
-        "keyError": "YAML key error, changes reverted",
-        "generalError": "YAML error, changes reverted"
+        "mappingError": "YAML mapping error, changes reverted"
       },
       "merge": {
         "syntaxError": "Merge file syntax error, changes reverted",
-        "mappingError": "Merge file mapping error, changes reverted",
-        "keyError": "Merge file key error, changes reverted",
-        "generalError": "Merge file error, changes reverted"
+        "mappingError": "Merge file mapping error, changes reverted"
       }
     }
   },

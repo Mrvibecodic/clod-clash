@@ -125,8 +125,8 @@
       "config": {
         "failed": "Yapılandırma denetimi başarısız, değişiklikler geri alındı. Hata:",
         "bootFailed": "Başlangıç abonelik yapılandırması doğrulaması başarısız oldu. Varsayılan yapılandırma ile başlatıldı; lütfen abonelik yapılandırma dosyasını kontrol edin.",
-        "coreChangeFailed": "Çekirdek değiştirilirken yapılandırma doğrulaması başarısız oldu. Varsayılan yapılandırma ile başlatıldı; lütfen abonelik yapılandırma dosyasını kontrol edin.",
-        "processTerminated": "Doğrulama süreci sonlandırıldı. Bir güvenlik yazılımının çekirdeği engelleyip engellemediğini ve bu bilgisayarın işlemcisinin çekirdek derlemesini destekleyip desteklemediğini kontrol edin."
+        "processTerminated": "Doğrulama süreci sonlandırıldı. Bir güvenlik yazılımının çekirdeği engelleyip engellemediğini ve bu bilgisayarın işlemcisinin çekirdek derlemesini destekleyip desteklemediğini kontrol edin.",
+        "timeout": "Yapılandırma güncellemesi zaman aşımına uğradı (30 sn): denetim veya çekirdek yanıt vermedi. Önceki profil geri getirildi."
       },
       "script": {
         "syntaxError": "Betik sözdizimi hatası, değişiklikler geri alındı",
@@ -137,15 +137,11 @@
       "yaml": {
         "syntaxError": "YAML sözdizimi hatası, değişiklikler geri alındı",
         "readError": "YAML okuma hatası, değişiklikler geri alındı",
-        "mappingError": "YAML eşleme hatası, değişiklikler geri alındı",
-        "keyError": "YAML anahtar hatası, değişiklikler geri alındı",
-        "generalError": "YAML hatası, değişiklikler geri alındı"
+        "mappingError": "YAML eşleme hatası, değişiklikler geri alındı"
       },
       "merge": {
         "syntaxError": "Birleştirme dosyası sözdizimi hatası, değişiklikler geri alındı",
-        "mappingError": "Birleştirme dosyası eşleme hatası, değişiklikler geri alındı",
-        "keyError": "Birleştirme dosyası anahtar hatası, değişiklikler geri alındı",
-        "generalError": "Birleştirme dosyası hatası, değişiklikler geri alındı"
+        "mappingError": "Birleştirme dosyası eşleme hatası, değişiklikler geri alındı"
       }
     }
   },

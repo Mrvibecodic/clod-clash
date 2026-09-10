@@ -250,7 +250,10 @@ impl WindowManager {
                 "Процесс рендеринга был завершён системой, перезагружаю страницу перед активацией окна"
             );
             match window.reload() {
-                Ok(()) => defer_show_to_page_load = true,
+                Ok(()) => {
+                    crate::core::notification::frontend_stopped_listening();
+                    defer_show_to_page_load = true;
+                }
                 Err(e) => logging!(
                     warn,
                     Type::Window,
@@ -347,6 +350,7 @@ impl WindowManager {
 
     pub fn destroy_main_window() -> WindowOperationResult {
         if let Some(window) = Self::get_main_window() {
+            crate::core::notification::frontend_stopped_listening();
             let _ = window.destroy();
             logging!(info, Type::Window, "Окно уничтожено");
             #[cfg(target_os = "macos")]

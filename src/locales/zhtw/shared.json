@@ -125,8 +125,8 @@
       "config": {
         "failed": "設定檢查未通過，變更已撤銷。錯誤：",
         "bootFailed": "啟動訂閱配置校驗失敗，已使用預設配置啟動；請檢查訂閱配置文件，錯誤詳情：",
-        "coreChangeFailed": "切換內核時配置校驗失敗，已使用預設配置啟動；請檢查訂閱配置文件，錯誤詳情：",
-        "processTerminated": "驗證程序被終止。請檢查是否有安全軟體阻止核心執行，以及本機 CPU 是否支援該核心建置。"
+        "processTerminated": "驗證程序被終止。請檢查是否有安全軟體阻止核心執行，以及本機 CPU 是否支援該核心建置。",
+        "timeout": "設定更新逾時（30 秒）：檢查或核心未回應，已還原先前的設定檔。"
       },
       "script": {
         "syntaxError": "指令碼語法錯誤，變更已撤銷",
@@ -137,15 +137,11 @@
       "yaml": {
         "syntaxError": "YAML 語法錯誤，變更已撤銷",
         "readError": "YAML 讀取錯誤，變更已撤銷",
-        "mappingError": "YAML 映射錯誤，變更已撤銷",
-        "keyError": "YAML 鍵錯誤，變更已撤銷",
-        "generalError": "YAML 錯誤，變更已撤銷"
+        "mappingError": "YAML 映射錯誤，變更已撤銷"
       },
       "merge": {
         "syntaxError": "覆寫檔案語法錯誤，變更已撤銷",
-        "mappingError": "覆寫檔案映射錯誤，變更已撤銷",
-        "keyError": "覆寫檔案鍵錯誤，變更已撤銷",
-        "generalError": "覆寫檔案錯誤，變更已撤銷"
+        "mappingError": "覆寫檔案映射錯誤，變更已撤銷"
       }
     }
   },

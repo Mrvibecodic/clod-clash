@@ -25,8 +25,7 @@
           "coreGaveUp": "The core stopped restarting, but the system proxy still points at it — nothing will go through it until the proxy is off or the core runs again.",
           "coreNotRunning": "The system proxy was not turned on: the core is not running.",
           "turnOffAction": "Turn the system proxy off",
-          "writeFailed": "The system did not accept the proxy settings.",
-          "resetFailedOnQuit": "تعذّرت إزالة وكيل النظام عند الخروج. ما زال يشير إلى هذا التطبيق: لن يمر الاتصال حتى تزيله من إعدادات النظام أو تشغّل التطبيق مجددًا."
+          "writeFailed": "The system did not accept the proxy settings."
         },
         "tunMode": {
           "autoDisabled": "تعذّر على النواة تشغيل جهاز TUN، لذلك يبقى الوضع معطّلاً",
@@ -715,7 +714,8 @@
         "uninstallSuccess": "تم إلغاء تثبيت الخدمة بنجاح"
       },
       "updater": {
-        "withClashProxySuccess": "Update with Clash proxy successfully"
+        "withClashProxySuccess": "Update with Clash proxy successfully",
+        "breakingChanges": "يحتوي الإصدار {{version}} على تغييرات جذرية ولم يتم تثبيته تلقائيًا. يرجى التحديث يدويًا."
       }
     }
   },

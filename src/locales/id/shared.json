@@ -125,8 +125,8 @@
       "config": {
         "failed": "Pemeriksaan konfigurasi gagal, perubahan dibatalkan. Kesalahan:",
         "bootFailed": "Validasi konfigurasi saat boot gagal, menggunakan konfigurasi default, periksa file konfigurasi, detail kesalahan:",
-        "coreChangeFailed": "Validasi konfigurasi saat ganti inti gagal, menggunakan konfigurasi default, periksa file konfigurasi, detail kesalahan:",
-        "processTerminated": "Proses validasi dihentikan. Periksa apakah perangkat lunak keamanan memblokir inti dan apakah CPU komputer ini mendukung build inti tersebut."
+        "processTerminated": "Proses validasi dihentikan. Periksa apakah perangkat lunak keamanan memblokir inti dan apakah CPU komputer ini mendukung build inti tersebut.",
+        "timeout": "Pembaruan konfigurasi melebihi batas waktu (30 dtk): pemeriksaan atau inti tidak merespons. Profil sebelumnya dikembalikan."
       },
       "script": {
         "syntaxError": "Kesalahan sintaks skrip, perubahan dibatalkan",
@@ -137,15 +137,11 @@
       "yaml": {
         "syntaxError": "YAML syntax error, changes reverted",
         "readError": "YAML read error, changes reverted",
-        "mappingError": "YAML mapping error, changes reverted",
-        "keyError": "YAML key error, changes reverted",
-        "generalError": "YAML error, changes reverted"
+        "mappingError": "YAML mapping error, changes reverted"
       },
       "merge": {
         "syntaxError": "Merge file syntax error, changes reverted",
-        "mappingError": "Merge file mapping error, changes reverted",
-        "keyError": "Merge file key error, changes reverted",
-        "generalError": "Merge file error, changes reverted"
+        "mappingError": "Merge file mapping error, changes reverted"
       }
     }
   },

@@ -16,6 +16,8 @@ interface NoticeItem {
   readonly duration: number
   readonly message?: ReactNode
   readonly i18n?: NoticeTranslationDescriptor
+  readonly repeats: number
+  readonly signature?: string
   timerId?: ReturnType<typeof setTimeout>
 }
 
@@ -121,8 +123,26 @@ function buildNotice(
     type,
     duration,
     timerId,
+    repeats: 1,
+    signature: noticeSignature(type, payload.i18n),
     ...payload,
   }
+}
+
+function noticeSignature(
+  type: NoticeType,
+  i18n?: NoticeTranslationDescriptor,
+): string | undefined {
+  if (!i18n) return undefined
+  try {
+    return `${type}:${JSON.stringify(i18n)}`
+  } catch {
+    return undefined
+  }
+}
+
+function scheduleHide(id: number, duration: number) {
+  return duration > 0 ? setTimeout(() => hideNotice(id), duration) : undefined
 }
 
 function isMaybeTranslationDescriptor(
@@ -325,21 +345,26 @@ const baseShowNotice = (
   message: NoticeContent,
   ...extras: NoticeExtra[]
 ): number => {
-  const id = nextId++
   const { params, raw, duration } = parseNoticeExtras(extras)
   const effectiveDuration = resolveDuration(type, duration)
-  const timerId =
-    effectiveDuration > 0
-      ? setTimeout(() => hideNotice(id), effectiveDuration)
-      : undefined
-
   const normalizedMessage = normalizeNoticeMessage(message, params, raw)
+
+  const signature = noticeSignature(type, normalizedMessage.i18n)
+  const same = signature
+    ? notices.find((candidate) => candidate.signature === signature)
+    : undefined
+  if (same) {
+    repeatNotice(same.id, 1)
+    return same.id
+  }
+
+  const id = nextId++
   const notice = buildNotice(
     id,
     type,
     effectiveDuration,
     normalizedMessage,
-    timerId,
+    scheduleHide(id, effectiveDuration),
   )
 
   notices = [...notices, notice]
@@ -367,6 +392,23 @@ export const showNotice: ShowNotice = Object.assign(baseShowNotice, {
   info: (message: NoticeContent, ...extras: NoticeExtra[]) =>
     baseShowNotice('info', message, ...extras),
 })
+
+export function repeatNotice(id: number, times: number) {
+  const notice = notices.find((candidate) => candidate.id === id)
+  if (!notice || times < 1) return
+  if (notice.timerId) {
+    clearTimeout(notice.timerId)
+  }
+  const repeated: NoticeItem = {
+    ...notice,
+    repeats: notice.repeats + times,
+    timerId: scheduleHide(id, notice.duration),
+  }
+  notices = notices.map((candidate) =>
+    candidate.id === id ? repeated : candidate,
+  )
+  notifySubscribers()
+}
 
 export function hideNotice(id: number) {
   const notice = notices.find((candidate) => candidate.id === id)

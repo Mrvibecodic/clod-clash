@@ -509,7 +509,11 @@ export const getRunningMode = async () => {
 }
 
 export const takePendingNotices = async () => {
-  return invoke<[string, string][]>('take_pending_notices')
+  return invoke<[string, string, number][]>('take_pending_notices')
+}
+
+export const stopListeningNotices = async () => {
+  return invoke<void>('stop_listening_notices')
 }
 
 export const getConnectSessionStart = async () => {

@@ -25,8 +25,7 @@
           "coreGaveUp": "The core stopped restarting, but the system proxy still points at it — nothing will go through it until the proxy is off or the core runs again.",
           "coreNotRunning": "The system proxy was not turned on: the core is not running.",
           "turnOffAction": "Turn the system proxy off",
-          "writeFailed": "The system did not accept the proxy settings.",
-          "resetFailedOnQuit": "The system proxy could not be removed on exit. It still points at this app, so traffic will not go through until you clear it in the system settings or start the app again."
+          "writeFailed": "The system did not accept the proxy settings."
         },
         "tunMode": {
           "autoDisabled": "The TUN adapter could not be created, so TUN is off. Try turning it on again; the details are in the application log",
@@ -715,7 +714,8 @@
         "uninstallSuccess": "Service Uninstalled Successfully"
       },
       "updater": {
-        "withClashProxySuccess": "Update with Clash proxy successfully"
+        "withClashProxySuccess": "Update with Clash proxy successfully",
+        "breakingChanges": "Version {{version}} contains breaking changes and was not installed automatically. Please update manually."
       }
     }
   },

@@ -25,8 +25,7 @@
           "coreGaveUp": "The core stopped restarting, but the system proxy still points at it — nothing will go through it until the proxy is off or the core runs again.",
           "coreNotRunning": "The system proxy was not turned on: the core is not running.",
           "turnOffAction": "Turn the system proxy off",
-          "writeFailed": "The system did not accept the proxy settings.",
-          "resetFailedOnQuit": "Çıkışta sistem proxy’si kaldırılamadı. Hâlâ bu uygulamayı gösteriyor: sistem ayarlarından kaldırana ya da uygulamayı yeniden başlatana kadar internet çalışmayacak."
+          "writeFailed": "The system did not accept the proxy settings."
         },
         "tunMode": {
           "autoDisabled": "Çekirdek TUN aygıtını açamadı, TUN şimdilik kapalı",
@@ -715,7 +714,8 @@
         "uninstallSuccess": "Hizmet Başarıyla Kaldırıldı"
       },
       "updater": {
-        "withClashProxySuccess": "Clash vekil ile güncelleme başarılı"
+        "withClashProxySuccess": "Clash vekil ile güncelleme başarılı",
+        "breakingChanges": "{{version}} sürümü uyumsuz değişiklikler içeriyor ve otomatik olarak kurulmadı. Lütfen elle güncelleyin."
       }
     }
   },

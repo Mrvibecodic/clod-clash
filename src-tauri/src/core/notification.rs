@@ -11,7 +11,14 @@ use tauri::{AppHandle, Emitter as _, Manager as _, WebviewWindow};
 use std::sync::{OnceLock, mpsc};
 
 const PENDING_NOTICES_CAP: usize = 20;
-static PENDING_NOTICES: Mutex<VecDeque<(std::string::String, std::string::String)>> = Mutex::new(VecDeque::new());
+static PENDING_NOTICES: Mutex<VecDeque<PendingNotice>> = Mutex::new(VecDeque::new());
+
+#[derive(Debug, PartialEq, Eq)]
+struct PendingNotice {
+    status: std::string::String,
+    message: std::string::String,
+    repeats: u32,
+}
 
 /// Страница на месте и слушает уведомления.
 ///
@@ -34,7 +41,7 @@ const fn can_reach_the_page(listening: bool, window_exists: bool) -> bool {
     listening && window_exists
 }
 
-fn pending_notices() -> std::sync::MutexGuard<'static, VecDeque<(std::string::String, std::string::String)>> {
+fn pending_notices() -> std::sync::MutexGuard<'static, VecDeque<PendingNotice>> {
     match PENDING_NOTICES.lock() {
         Ok(guard) => guard,
         Err(poisoned) => poisoned.into_inner(),
@@ -48,7 +55,9 @@ const HELD_STATUS_PREFIXES: &[&str] = &[
     "tun::",
     "config_validate::",
     "clod_config::",
+    "clod_core::",
     "update_failed",
+    "update::",
     "app_quit::",
 ];
 const NEVER_HELD_STATUSES: &[&str] = &["tun::setup_started", "tun::setup_done"];
@@ -57,21 +66,36 @@ fn worth_holding(status: &str) -> bool {
     !NEVER_HELD_STATUSES.contains(&status) && HELD_STATUS_PREFIXES.iter().any(|prefix| status.starts_with(prefix))
 }
 
+fn collapse_into(pending: &mut VecDeque<PendingNotice>, status: &str, message: &str) -> u32 {
+    if let Some(same) = pending.iter_mut().find(|notice| notice.status == status) {
+        same.message = message.to_owned();
+        same.repeats = same.repeats.saturating_add(1);
+        return same.repeats;
+    }
+    if pending.len() >= PENDING_NOTICES_CAP {
+        pending.pop_front();
+    }
+    pending.push_back(PendingNotice {
+        status: status.to_owned(),
+        message: message.to_owned(),
+        repeats: 1,
+    });
+    1
+}
+
 fn hold_notice(status: &str, message: &str) {
-    let queued = {
+    let (repeats, queued) = {
         let mut pending = pending_notices();
-        if pending.len() >= PENDING_NOTICES_CAP {
-            pending.pop_front();
-        }
-        pending.push_back((status.to_owned(), message.to_owned()));
-        pending.len()
+        let repeats = collapse_into(&mut pending, status, message);
+        (repeats, pending.len())
     };
     logging!(
         info,
         Type::Frontend,
-        "окна нет — уведомление {} отложено до его появления ({} в очереди)",
+        "страница не слушает — уведомление {} отложено до её появления ({} в очереди, повторов: {})",
         status,
-        queued
+        queued,
+        repeats
     );
 }
 
@@ -95,9 +119,20 @@ pub enum FrontendEvent<'a> {
 pub struct NotificationSystem {}
 
 impl NotificationSystem {
-    pub fn take_pending_notices() -> Vec<(std::string::String, std::string::String)> {
+    pub fn take_pending_notices() -> Vec<(std::string::String, std::string::String, u32)> {
         FRONTEND_LISTENING.store(true, Ordering::Release);
-        pending_notices().drain(..).collect()
+        pending_notices()
+            .drain(..)
+            .map(|notice| (notice.status, notice.message, notice.repeats))
+            .collect()
+    }
+
+    pub fn hold_for_after_the_exit(event: &FrontendEvent) {
+        if let FrontendEvent::NoticeMessage { status, message } = event
+            && worth_holding(status)
+        {
+            hold_notice(status, message);
+        }
     }
 
     fn held_for_later(app_handle: &AppHandle, event: &FrontendEvent) -> bool {
@@ -218,7 +253,115 @@ struct QueuedEvent {
 
 #[cfg(test)]
 mod tests {
-    use super::{can_reach_the_page, worth_holding};
+    use super::{PENDING_NOTICES_CAP, PendingNotice, can_reach_the_page, collapse_into, worth_holding};
+    use std::collections::{BTreeSet, VecDeque};
+    use std::path::{Path, PathBuf};
+
+    const NOTICE_STATUSES: &[&str] = &[
+        "app_quit::core_still_running",
+        "clod_config::load_failed",
+        "clod_core::update_available",
+        "clod_core::updated",
+        "clod_sub::fallback_used",
+        "clod_sub::url_migrated",
+        "config_core::change_error",
+        "config_core::change_success",
+        "config_validate::boot_error",
+        "config_validate::error",
+        "config_validate::file_not_found",
+        "config_validate::merge_mapping_error",
+        "config_validate::merge_syntax_error",
+        "config_validate::process_terminated",
+        "config_validate::script_error",
+        "config_validate::script_missing_main",
+        "config_validate::script_syntax_error",
+        "config_validate::timeout",
+        "config_validate::yaml_mapping_error",
+        "config_validate::yaml_read_error",
+        "config_validate::yaml_syntax_error",
+        "core::binary_changed",
+        "core::crashed",
+        "core::handoff_failed",
+        "core::not_ready",
+        "core::port_busy",
+        "core::restarted",
+        "import_sub_url::error",
+        "import_sub_url::ok",
+        "reactivate_profiles::error",
+        "service::bundle_rejected",
+        "service::needs_repair",
+        "set_config::error",
+        "set_config::ok",
+        "sysproxy::core_gave_up",
+        "sysproxy::core_not_running",
+        "sysproxy::write_failed",
+        "tun::adapter_busy",
+        "tun::no_rights",
+        "tun::no_traffic",
+        "tun::rights_declined",
+        "tun::service_silent",
+        "tun::setup_done",
+        "tun::setup_failed",
+        "tun::setup_started",
+        "tun::start_failed",
+        "update::breaking_changes",
+        "update_failed",
+        "update_with_clash_proxy",
+    ];
+    const COMMAND_MARKERS: &[&str] = &["tun::setup_busy", "tun::setup_pending"];
+
+    fn rust_sources(dir: &Path, found: &mut Vec<PathBuf>) {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                rust_sources(&path, found);
+            } else if path.extension().and_then(std::ffi::OsStr::to_str) == Some("rs") {
+                found.push(path);
+            }
+        }
+    }
+
+    fn plain_word(part: &str) -> bool {
+        !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_lowercase() || byte == b'_')
+    }
+
+    fn status_shaped(literal: &str) -> bool {
+        match literal.split_once("::") {
+            Some((family, name)) => plain_word(family) && plain_word(name),
+            None => plain_word(literal),
+        }
+    }
+
+    fn literals_after(source: &str, marker: &str) -> Vec<String> {
+        source
+            .match_indices(marker)
+            .filter_map(|(at, _)| {
+                let rest = source[at + marker.len()..].trim_start();
+                rest.strip_prefix('"')?.split('"').next().map(str::to_owned)
+            })
+            .filter(|literal| status_shaped(literal))
+            .collect()
+    }
+
+    fn statuses_in(source: &str) -> Vec<String> {
+        let mut found = literals_after(source, "notice_message(");
+        for line in source.lines() {
+            if line.trim_start().starts_with("//") {
+                continue;
+            }
+            found.extend(
+                line.split('"')
+                    .skip(1)
+                    .step_by(2)
+                    .filter(|piece| piece.contains("::") && status_shaped(piece))
+                    .map(str::to_owned),
+            );
+        }
+        found
+    }
 
     #[test]
     fn a_notice_reaches_the_page_only_when_it_exists_and_listens() {
@@ -237,8 +380,70 @@ mod tests {
         assert!(worth_holding("sysproxy::core_not_running"));
         assert!(worth_holding("app_quit::core_still_running"));
         assert!(worth_holding("update_failed"));
+        assert!(worth_holding("update::breaking_changes"));
+        assert!(worth_holding("clod_core::updated"));
         assert!(!worth_holding("tun::setup_done"));
         assert!(!worth_holding("set_config::ok"));
         assert!(!worth_holding("clod_sub::url_migrated"));
+    }
+
+    #[test]
+    fn a_repeated_status_grows_a_counter_instead_of_the_queue() {
+        let mut pending = VecDeque::new();
+        for attempt in 1..=20 {
+            assert_eq!(collapse_into(&mut pending, "core::crashed", "код выхода 1"), attempt);
+        }
+        assert_eq!(collapse_into(&mut pending, "core::crashed", "код выхода 2"), 21);
+        assert_eq!(collapse_into(&mut pending, "sysproxy::write_failed", ""), 1);
+        assert_eq!(
+            pending.into_iter().collect::<Vec<_>>(),
+            vec![
+                PendingNotice {
+                    status: "core::crashed".to_owned(),
+                    message: "код выхода 2".to_owned(),
+                    repeats: 21,
+                },
+                PendingNotice {
+                    status: "sysproxy::write_failed".to_owned(),
+                    message: String::new(),
+                    repeats: 1,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn the_queue_still_drops_the_oldest_distinct_status_when_full() {
+        let mut pending = VecDeque::new();
+        for index in 0..=PENDING_NOTICES_CAP {
+            collapse_into(&mut pending, &format!("core::status_{index}"), "");
+        }
+        assert_eq!(pending.len(), PENDING_NOTICES_CAP);
+        assert_eq!(
+            pending.front().map(|notice| notice.status.as_str()),
+            Some("core::status_1")
+        );
+    }
+
+    #[test]
+    fn every_status_the_backend_sends_is_declared_once() {
+        let mut files = Vec::new();
+        rust_sources(Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src")), &mut files);
+        assert!(!files.is_empty(), "исходники не найдены");
+        let mut seen = BTreeSet::new();
+        for path in files.iter().filter(|path| !path.ends_with("core/notification.rs")) {
+            let source = std::fs::read_to_string(path).unwrap_or_default();
+            for status in statuses_in(&source) {
+                assert!(
+                    NOTICE_STATUSES.contains(&status.as_str()) || COMMAND_MARKERS.contains(&status.as_str()),
+                    "{}: статус {status} не объявлен в NOTICE_STATUSES",
+                    path.display()
+                );
+                seen.insert(status);
+            }
+        }
+        for status in NOTICE_STATUSES {
+            assert!(seen.contains(*status), "статус {status} объявлен, но никто его не шлёт");
+        }
     }
 }

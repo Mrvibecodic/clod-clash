@@ -25,8 +25,7 @@
           "coreGaveUp": "The core stopped restarting, but the system proxy still points at it — nothing will go through it until the proxy is off or the core runs again.",
           "coreNotRunning": "The system proxy was not turned on: the core is not running.",
           "turnOffAction": "Turn the system proxy off",
-          "writeFailed": "The system did not accept the proxy settings.",
-          "resetFailedOnQuit": "退出时未能清除系统代理。它仍指向本应用：在系统设置中清除或再次启动应用之前，网络将无法连通。"
+          "writeFailed": "The system did not accept the proxy settings."
         },
         "tunMode": {
           "autoDisabled": "内核未能启动 TUN 设备，TUN 模式暂时关闭",
@@ -715,7 +714,8 @@
         "uninstallSuccess": "已成功卸载服务"
       },
       "updater": {
-        "withClashProxySuccess": "使用 Clash 代理更新成功"
+        "withClashProxySuccess": "使用 Clash 代理更新成功",
+        "breakingChanges": "版本 {{version}} 包含破坏性变更，未自动安装，请手动更新。"
       }
     }
   },

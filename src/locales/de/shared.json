@@ -125,8 +125,8 @@
       "config": {
         "failed": "Konfigurationsprüfung fehlgeschlagen, Änderungen zurückgenommen. Fehler:",
         "bootFailed": "Start-Abonnement-Konfigurationsüberprüfung fehlgeschlagen. Die Standardkonfiguration wurde verwendet, um die App zu starten. Bitte überprüfen Sie die Abonnement-Konfigurationsdatei. Fehlerdetails: ",
-        "coreChangeFailed": "Konfigurationsüberprüfung beim Wechsel des Kerns fehlgeschlagen. Die Standardkonfiguration wurde verwendet, um die App zu starten. Bitte überprüfen Sie die Abonnement-Konfigurationsdatei. Fehlerdetails: ",
-        "processTerminated": "Der Validierungsprozess wurde beendet. Prüfen Sie, ob eine Sicherheitssoftware den Kern blockiert und ob die CPU dieses Computers den Kern-Build unterstützt."
+        "processTerminated": "Der Validierungsprozess wurde beendet. Prüfen Sie, ob eine Sicherheitssoftware den Kern blockiert und ob die CPU dieses Computers den Kern-Build unterstützt.",
+        "timeout": "Die Konfigurationsaktualisierung hat das Zeitlimit (30 s) überschritten: Prüfung oder Kern haben nicht geantwortet. Das vorherige Profil ist wieder aktiv."
       },
       "script": {
         "syntaxError": "Skript-Syntaxfehler. Die Änderungen wurden rückgängig gemacht.",
@@ -137,15 +137,11 @@
       "yaml": {
         "syntaxError": "YAML-Syntaxfehler. Die Änderungen wurden rückgängig gemacht.",
         "readError": "YAML-Lesefehler. Die Änderungen wurden rückgängig gemacht.",
-        "mappingError": "YAML-Mappingfehler. Die Änderungen wurden rückgängig gemacht.",
-        "keyError": "YAML-Schlüsselfehler. Die Änderungen wurden rückgängig gemacht.",
-        "generalError": "YAML-Fehler. Die Änderungen wurden rückgängig gemacht."
+        "mappingError": "YAML-Mappingfehler. Die Änderungen wurden rückgängig gemacht."
       },
       "merge": {
         "syntaxError": "Syntaxfehler in der Überdeckungsdatei. Die Änderungen wurden rückgängig gemacht.",
-        "mappingError": "Mappingfehler in der Überdeckungsdatei. Die Änderungen wurden rückgängig gemacht.",
-        "keyError": "Schlüsselfehler in der Überdeckungsdatei. Die Änderungen wurden rückgängig gemacht.",
-        "generalError": "Fehler in der Überdeckungsdatei. Die Änderungen wurden rückgängig gemacht."
+        "mappingError": "Mappingfehler in der Überdeckungsdatei. Die Änderungen wurden rückgängig gemacht."
       }
     }
   },

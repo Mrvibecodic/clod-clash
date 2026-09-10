@@ -25,8 +25,7 @@
           "coreGaveUp": "The core stopped restarting, but the system proxy still points at it — nothing will go through it until the proxy is off or the core runs again.",
           "coreNotRunning": "The system proxy was not turned on: the core is not running.",
           "turnOffAction": "Turn the system proxy off",
-          "writeFailed": "The system did not accept the proxy settings.",
-          "resetFailedOnQuit": "Proksi sistem tidak dapat dilepas saat keluar. Ia masih menunjuk ke aplikasi ini: sampai Anda menghapusnya di pengaturan sistem atau menjalankan aplikasi lagi, koneksi tidak akan jalan."
+          "writeFailed": "The system did not accept the proxy settings."
         },
         "tunMode": {
           "autoDisabled": "Core tidak dapat menyalakan perangkat TUN, jadi TUN dimatikan",
@@ -715,7 +714,8 @@
         "uninstallSuccess": "Layanan Berhasil Dicopot"
       },
       "updater": {
-        "withClashProxySuccess": "Update with Clash proxy successfully"
+        "withClashProxySuccess": "Update with Clash proxy successfully",
+        "breakingChanges": "Versi {{version}} berisi perubahan besar dan tidak dipasang otomatis. Perbarui secara manual."
       }
     }
   },

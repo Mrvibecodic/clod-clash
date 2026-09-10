@@ -115,27 +115,11 @@ impl Handle {
     fn send_event(event: FrontendEvent) {
         let handle = Self::global();
         if handle.is_exiting() {
+            NotificationSystem::hold_for_after_the_exit(&event);
             return;
         }
 
         NotificationSystem::send_event(Self::app_handle().clone(), event);
-    }
-
-    /// Сказать что-то человеку уже во время выхода.
-    ///
-    /// clod:exit-pace — обычные уведомления на выходе намеренно глушатся: гасить
-    /// интерфейс и одновременно слать в него события незачем. Но у одного случая
-    /// последствия переживают выход: если системный прокси снять не удалось, он
-    /// останется в системе указывать на порт, которого через секунду не станет.
-    /// Про это надо сказать, пока окно ещё живо.
-    pub fn notice_message_while_exiting<S: AsRef<str>, M: Into<String>>(status: S, msg: M) {
-        NotificationSystem::send_event(
-            Self::app_handle().clone(),
-            FrontendEvent::NoticeMessage {
-                status: status.as_ref(),
-                message: msg.into(),
-            },
-        );
     }
 }
 

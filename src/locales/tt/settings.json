@@ -25,8 +25,7 @@
           "coreGaveUp": "The core stopped restarting, but the system proxy still points at it — nothing will go through it until the proxy is off or the core runs again.",
           "coreNotRunning": "The system proxy was not turned on: the core is not running.",
           "turnOffAction": "Turn the system proxy off",
-          "writeFailed": "The system did not accept the proxy settings.",
-          "resetFailedOnQuit": "Чыгуда система проксиен алып ташлап булмады. Ул һаман да бу кушымтага күрсәтә: система көйләүләрендә алып ташлаганчы яки кушымтаны яңадан җибәргәнче интернет эшләмәячәк."
+          "writeFailed": "The system did not accept the proxy settings."
         },
         "tunMode": {
           "autoDisabled": "Төш TUN җайланмасын кабыза алмады, шуңа күрә TUN сүнгән",
@@ -715,7 +714,8 @@
         "uninstallSuccess": "Сервис уңышлы салдырылды"
       },
       "updater": {
-        "withClashProxySuccess": "Update with Clash proxy successfully"
+        "withClashProxySuccess": "Update with Clash proxy successfully",
+        "breakingChanges": "{{version}} версиясендә туры килмәүче үзгәрешләр бар, ул автоматик рәвештә урнаштырылмады. Кул белән яңартыгыз."
       }
     }
   },
