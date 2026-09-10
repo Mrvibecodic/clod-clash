@@ -38,7 +38,7 @@ export const useProxySelection = (options: ProxySelectionOptions = {}) => {
   const pendingRequestRef = useRef<ProxyChangeRequest | null>(null)
   const isProcessingRef = useRef(false)
 
-  const { onSuccess, onError, enableConnectionCleanup = true } = options
+  const { onSuccess, onError, enableConnectionCleanup = false } = options
 
   const config = useMemo(
     () => ({

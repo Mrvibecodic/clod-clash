@@ -106,10 +106,11 @@ editors) is kept — it is simply moved out of sight into an advanced mode.
 * **Quick actions on the home screen**: system proxy, TUN, start with the system and start
   minimized, without opening the settings.
 * **Server selection is not reset** by delay tests or subscription updates; starred servers float
-  to the top and replace one that disappeared. Picking a server on the home screen or from the
-  tray does not cut live connections: a download already in flight finishes through the previous
-  server, new ones go through the chosen one (the Proxies page still cuts them, for those who need
-  the switch to be immediate).
+  to the top and replace one that disappeared. Picking a server on the home screen does not cut
+  live connections: a download already in flight finishes through the previous server, new ones go
+  through the chosen one. The Proxies page and the tray menu do close the connections of the
+  previous node, for those who need the switch to be immediate; the shared "Automatically close
+  connections" switch turns that off on both of those paths.
 * **The client says what is wrong instead of staying silent behind a green icon.** A core that
   started but does not answer; a proxy port held by another application; a core that crashed and
   was restarted; a subscription update that failed or a configuration the core rejected; a

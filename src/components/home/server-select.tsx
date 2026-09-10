@@ -87,6 +87,7 @@ export const ServerSelect = ({ open, onClose }: Props) => {
   const { proxies } = useProxiesData()
   const { refreshProxy } = useAppRefreshers()
   const { changeProxy } = useProxySelection({
+    enableConnectionCleanup: false,
     onSuccess: () => {
       refreshProxy().catch(() => {})
     },

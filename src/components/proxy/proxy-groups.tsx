@@ -447,6 +447,7 @@ function NormalProxyGroups(props: { mode: string }) {
   }, [handleScroll])
 
   const { handleProxyGroupChange } = useProxySelection({
+    enableConnectionCleanup: true,
     onSuccess: () => {
       onProxies()
     },
