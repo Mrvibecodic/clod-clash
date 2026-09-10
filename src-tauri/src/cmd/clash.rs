@@ -386,4 +386,56 @@ mod tests {
         assert_eq!(ladder.log_level, None);
         assert_eq!(ladder.unified_delay, None);
     }
+
+    #[test]
+    fn a_missing_port_reads_as_taken_from_the_subscription() {
+        assert_eq!(read_ladder(&Mapping::new()).mixed_port, None);
+    }
+
+    #[test]
+    fn a_pinned_port_is_read_whether_it_is_a_number_or_a_string() {
+        assert_eq!(
+            read_ladder(&clash_with(&[("mixed-port", Value::from(7897))])).mixed_port,
+            Some(7897)
+        );
+        assert_eq!(
+            read_ladder(&clash_with(&[("mixed-port", Value::from("7897"))])).mixed_port,
+            Some(7897)
+        );
+        assert_eq!(
+            read_ladder(&clash_with(&[("mixed-port", Value::from(1))])).mixed_port,
+            Some(1)
+        );
+        assert_eq!(
+            read_ladder(&clash_with(&[("mixed-port", Value::from(65535))])).mixed_port,
+            Some(65535)
+        );
+    }
+
+    #[test]
+    fn a_port_outside_the_range_is_shown_as_unset_rather_than_pinned() {
+        for bad in [
+            Value::from(0),
+            Value::from(65536),
+            Value::from("0"),
+            Value::from("70000"),
+        ] {
+            assert_eq!(
+                read_ladder(&clash_with(&[("mixed-port", bad.clone())])).mixed_port,
+                None,
+                "{bad:?} is not a usable port"
+            );
+        }
+    }
+
+    #[test]
+    fn a_port_that_is_not_a_number_at_all_is_shown_as_unset() {
+        for bad in [Value::from(true), Value::from("auto"), Value::Sequence(vec![])] {
+            assert_eq!(
+                read_ladder(&clash_with(&[("mixed-port", bad.clone())])).mixed_port,
+                None,
+                "{bad:?} is not a port"
+            );
+        }
+    }
 }

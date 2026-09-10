@@ -346,7 +346,8 @@
         "http": "Http(s) Portu",
         "redir": "Redir Portu",
         "tproxy": "Tvekil Portu",
-        "mixedFollowsSubscription": "Port abonelikteki gibi"
+        "mixedFollowsSubscription": "Port abonelikteki gibi",
+        "subscriptionPortUnknown": "Abonelik belirler"
       },
       "actions": {
         "random": "Rastgele Port"
@@ -355,6 +356,7 @@
         "portInUse": "Port {{port}} is already in use",
         "portTooLow": "The port must be {{min}} or higher",
         "portTooHigh": "The port must be {{max}} or lower",
+        "ladderUnread": "Çekirdeğin şu anda kullandığı bağlantı noktaları okunamadı; kaydetme engelli. Pencereyi kapatıp yeniden açın.",
         "saved": "Port settings saved",
         "saveFailed": "Failed to save port settings"
       }

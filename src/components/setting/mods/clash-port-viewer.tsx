@@ -19,7 +19,12 @@ import { isPortInUse } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { revalidateQuery } from '@/services/query-client'
 import getSystem from '@/utils/get-system'
-import { findDuplicatePort } from '@/utils/ports'
+import {
+  findDuplicatePort,
+  findPortOutOfRange,
+  MAX_PORT,
+  MIN_PORT,
+} from '@/utils/ports'
 
 const OS = getSystem()
 
@@ -39,13 +44,18 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
   const [open, setOpen] = useState(false)
 
   // Mixed Port
-  // clod:port-ladder — «как в подписке» это отсутствие порта у нас: тогда в поле
-  // показывается тот, на котором ядро слушает на самом деле.
+  // clod:port-ladder — «как в подписке» это отсутствие порта у нас. Число в поле
+  // берётся из порта, на котором ядро слушает, и только если закрепления не было
+  // уже в момент открытия: пока закрепление живо, порт подписки нам неизвестен.
   const [mixedFollowsSubscription, setMixedFollowsSubscription] = useState(
     ladder?.mixed_port == null,
   )
   const [mixedPort, setMixedPort] = useState(
     ladder?.mixed_port ?? clashInfo?.mixed_port ?? 7897,
+  )
+  const [ladderRead, setLadderRead] = useState(false)
+  const [subscriptionPort, setSubscriptionPort] = useState<number | undefined>(
+    undefined,
   )
 
   // Состояние остальных портов
@@ -73,7 +83,8 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
   const { loading, run: saveSettings } = useRequest(
     async (params: { clashConfig: any; vergeConfig: any }) => {
       const { clashConfig, vergeConfig } = params
-      await Promise.all([patchInfo(clashConfig), patchVerge(vergeConfig)])
+      await patchInfo(clashConfig)
+      await patchVerge(vergeConfig)
     },
     {
       manual: true,
@@ -94,12 +105,17 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
       // закрепление. Если ответа нет, кнопка сохранения ниже остаётся
       // заблокированной — умолчание тумблера не должно снимать закрепление,
       // которого не успели прочитать.
-      const freshLadder =
-        (await revalidateQuery(['getCoreLadder']).catch(() => undefined)) ??
-        ladder
+      setLadderRead(false)
+      const freshLadder = (await revalidateQuery(['getCoreLadder']).catch(
+        () => undefined,
+      )) as ICoreLadder | undefined
+      if (freshLadder === undefined) {
+        showNotice.error('settings.modals.clashPort.messages.ladderUnread')
+      }
+      const shownLadder = freshLadder ?? ladder
       originalPortsRef.current = {
-        mixedFollowsSubscription: freshLadder?.mixed_port == null,
-        mixedPort: freshLadder?.mixed_port ?? clashInfo?.mixed_port ?? 7897,
+        mixedFollowsSubscription: shownLadder?.mixed_port == null,
+        mixedPort: shownLadder?.mixed_port ?? clashInfo?.mixed_port ?? 7897,
         socksPort: verge?.verge_socks_port ?? 7898,
         socksEnabled: verge?.verge_socks_enabled ?? false,
         httpPort: verge?.verge_port ?? 7899,
@@ -122,6 +138,12 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
       setRedirEnabled(originalPortsRef.current.redirEnabled)
       setTproxyPort(originalPortsRef.current.tproxyPort)
       setTproxyEnabled(originalPortsRef.current.tproxyEnabled)
+      setSubscriptionPort(
+        freshLadder !== undefined && freshLadder.mixed_port == null
+          ? clashInfo?.mixed_port
+          : undefined,
+      )
+      setLadderRead(freshLadder !== undefined)
       setOpen(true)
     },
     close: () => setOpen(false),
@@ -130,10 +152,11 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
   // TODO снизить сложность кода, затраты на производительность
   const onSave = useLockFn(async () => {
     // Проверка конфликта портов
-    // clod:port-ladder — при «как в подписке» с остальными портами всё равно
-    // сверяется действующий: два слушателя на одном порту ядро не поднимет.
+    // clod:port-ladder — при «как в подписке» с остальными портами сверяется
+    // порт подписки, и только когда он прочитан: два слушателя на одном порту
+    // ядро не поднимет, а сверка с чужим числом врёт в обе стороны.
     const effectiveMixed = mixedFollowsSubscription
-      ? (clashInfo?.mixed_port ?? -1)
+      ? (subscriptionPort ?? -1)
       : mixedPort
     const portList = [
       effectiveMixed,
@@ -152,17 +175,21 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
     }
 
     // Проверка диапазона портов
-    const isValidPort = (port: number) => port >= 1 && port <= 65535
-    const allPortsValid = [
+    const outOfRange = findPortOutOfRange([
       mixedFollowsSubscription ? 0 : mixedPort,
+      socksPort,
+      httpPort,
+      redirPort,
+      tproxyPort,
+    ])
 
-      socksEnabled ? socksPort : 0,
-      httpEnabled ? httpPort : 0,
-      redirEnabled ? redirPort : 0,
-      tproxyEnabled ? tproxyPort : 0,
-    ].every((port) => port === 0 || isValidPort(port))
-
-    if (!allPortsValid) {
+    if (outOfRange) {
+      showNotice.error(
+        outOfRange.verdict === 'tooLow'
+          ? 'settings.modals.clashPort.messages.portTooLow'
+          : 'settings.modals.clashPort.messages.portTooHigh',
+        outOfRange.verdict === 'tooLow' ? { min: MIN_PORT } : { max: MAX_PORT },
+      )
       return
     }
 
@@ -252,7 +279,7 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
       contentSx={{
         width: 400,
       }}
-      loading={loading || ladder === undefined}
+      loading={loading || !ladderRead}
       okBtn={
         loading ? (
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
@@ -280,8 +307,15 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
               sx={{ width: 80, mr: 0.5, fontSize: 12 }}
               value={
                 mixedFollowsSubscription
-                  ? (clashInfo?.mixed_port ?? mixedPort)
+                  ? (subscriptionPort ?? '')
                   : mixedPort
+              }
+              placeholder={
+                mixedFollowsSubscription
+                  ? t(
+                      'settings.modals.clashPort.fields.subscriptionPortUnknown',
+                    )
+                  : undefined
               }
               disabled={mixedFollowsSubscription}
               onChange={(e) =>

@@ -3347,6 +3347,56 @@ proxy-groups:
     }
 
     #[test]
+    fn our_ladder_value_of_the_wrong_type_never_overrides_the_subscription() {
+        for bad in ["3", "true", "[]"] {
+            assert!(
+                !super::ladder_value_is_usable("log-level", &mapping_value(bad)),
+                "log-level {bad} is not a string"
+            );
+        }
+        assert!(super::ladder_value_is_usable("log-level", &mapping_value("\"warn\"")));
+
+        for bad in ["\"true\"", "1", "{}"] {
+            assert!(
+                !super::ladder_value_is_usable("unified-delay", &mapping_value(bad)),
+                "unified-delay {bad} is not a boolean"
+            );
+        }
+        assert!(super::ladder_value_is_usable("unified-delay", &mapping_value("false")));
+
+        for bad in ["0", "65536", "\"7890\"", "true", "-1"] {
+            assert!(
+                !super::ladder_value_is_usable("mixed-port", &mapping_value(bad)),
+                "mixed-port {bad} is not a port"
+            );
+        }
+        for good in ["1", "7897", "65535"] {
+            assert!(
+                super::ladder_value_is_usable("mixed-port", &mapping_value(good)),
+                "mixed-port {good} is a port"
+            );
+        }
+    }
+
+    #[test]
+    fn a_key_outside_the_ladder_is_taken_as_it_is() {
+        for value in ["3", "\"warn\"", "true", "[]", "{}"] {
+            assert!(
+                super::ladder_value_is_usable("mode", &mapping_value(value)),
+                "mode is not on the ladder, so {value} is not ours to judge"
+            );
+        }
+    }
+
+    #[test]
+    fn a_ladder_default_is_read_as_its_own_type() {
+        assert_eq!(super::ladder_default_value("true"), serde_yaml_ng::Value::Bool(true));
+        assert_eq!(super::ladder_default_value("false"), serde_yaml_ng::Value::Bool(false));
+        assert_eq!(super::ladder_default_value("7897").as_u64(), Some(7897));
+        assert_eq!(super::ladder_default_value("info").as_str(), Some("info"));
+    }
+
+    #[test]
     fn the_ladder_default_port_matches_the_core_default() {
         let value = super::ladder_default_value(
             super::LADDER_DEFAULTS

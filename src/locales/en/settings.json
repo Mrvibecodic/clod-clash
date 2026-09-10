@@ -346,7 +346,8 @@
         "http": "Http(s) Port",
         "redir": "Redir Port",
         "tproxy": "Tproxy Port",
-        "mixedFollowsSubscription": "Take the port from the subscription"
+        "mixedFollowsSubscription": "Take the port from the subscription",
+        "subscriptionPortUnknown": "Set by the subscription"
       },
       "actions": {
         "random": "Random Port"
@@ -355,6 +356,7 @@
         "portInUse": "Port {{port}} is already in use",
         "portTooLow": "The port must be {{min}} or higher",
         "portTooHigh": "The port must be {{max}} or lower",
+        "ladderUnread": "Could not read the ports the core is using now; saving stays blocked. Close the window and open it again.",
         "saved": "Port settings saved",
         "saveFailed": "Failed to save port settings"
       }

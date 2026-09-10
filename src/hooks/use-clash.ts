@@ -14,6 +14,7 @@ import {
   setCacheData,
   useQuery,
 } from '@/services/query-client'
+import { MAX_PORT, MIN_PORT, portRangeVerdict } from '@/utils/ports'
 
 type MutateClashUpdater =
   | ((old: IConfigData | undefined) => IConfigData | undefined)
@@ -46,18 +47,16 @@ const hasClashInfoPayload = (patch: ClashInfoPatch) =>
   patch['external-controller'] != null ||
   patch.secret != null
 
-const MIN_PORT = 1000
-const MAX_PORT = 65535
-
 type Translate = ReturnType<typeof useTranslation>['t']
 
 const validatePortRange = (port: number, t: Translate) => {
-  if (port < MIN_PORT) {
+  const verdict = portRangeVerdict(port)
+  if (verdict === 'tooLow') {
     throw new Error(
       t('settings.modals.clashPort.messages.portTooLow', { min: MIN_PORT }),
     )
   }
-  if (port > MAX_PORT) {
+  if (verdict === 'tooHigh') {
     throw new Error(
       t('settings.modals.clashPort.messages.portTooHigh', { max: MAX_PORT }),
     )

@@ -346,7 +346,8 @@
         "http": "HTTP(S) 포트",
         "redir": "Redir 포트",
         "tproxy": "TProxy 포트",
-        "mixedFollowsSubscription": "포트는 구독 설정을 따름"
+        "mixedFollowsSubscription": "포트는 구독 설정을 따름",
+        "subscriptionPortUnknown": "구독이 지정"
       },
       "actions": {
         "random": "임의 포트"
@@ -355,6 +356,7 @@
         "portInUse": "Port {{port}} is already in use",
         "portTooLow": "The port must be {{min}} or higher",
         "portTooHigh": "The port must be {{max}} or lower",
+        "ladderUnread": "코어가 현재 사용 중인 포트를 읽지 못했습니다. 저장이 차단됩니다. 창을 닫았다가 다시 여세요.",
         "saved": "포트 설정이 저장되었습니다",
         "saveFailed": "포트 설정 저장에 실패했습니다"
       }

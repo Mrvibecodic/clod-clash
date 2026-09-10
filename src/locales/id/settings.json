@@ -346,7 +346,8 @@
         "http": "Port Http(s)",
         "redir": "Port Redir",
         "tproxy": "Port Tproxy",
-        "mixedFollowsSubscription": "Port seperti di langganan"
+        "mixedFollowsSubscription": "Port seperti di langganan",
+        "subscriptionPortUnknown": "Ditentukan oleh langganan"
       },
       "actions": {
         "random": "Port Acak"
@@ -355,6 +356,7 @@
         "portInUse": "Port {{port}} is already in use",
         "portTooLow": "The port must be {{min}} or higher",
         "portTooHigh": "The port must be {{max}} or lower",
+        "ladderUnread": "Tidak dapat membaca port yang sedang dipakai inti; penyimpanan tetap terkunci. Tutup jendela lalu buka lagi.",
         "saved": "Port settings saved",
         "saveFailed": "Failed to save port settings"
       }

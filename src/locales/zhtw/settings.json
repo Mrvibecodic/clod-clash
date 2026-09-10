@@ -346,7 +346,8 @@
         "http": "HTTP(S) 連接埠",
         "redir": "Redir 透明連接埠",
         "tproxy": "Tproxy 連接埠",
-        "mixedFollowsSubscription": "連接埠與訂閱一致"
+        "mixedFollowsSubscription": "連接埠與訂閱一致",
+        "subscriptionPortUnknown": "由訂閱決定"
       },
       "actions": {
         "random": "隨機連接埠"
@@ -355,6 +356,7 @@
         "portInUse": "Port {{port}} is already in use",
         "portTooLow": "The port must be {{min}} or higher",
         "portTooHigh": "The port must be {{max}} or lower",
+        "ladderUnread": "無法讀取核心目前使用的連接埠，儲存已被封鎖。請關閉視窗後重新開啟。",
         "saved": "連結埠設定已儲存",
         "saveFailed": "連結埠設定儲存失敗"
       }

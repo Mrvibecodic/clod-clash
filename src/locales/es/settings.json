@@ -346,7 +346,8 @@
         "http": "Puerto de proxy HTTP(S)",
         "redir": "Puerto de proxy transparente Redir",
         "tproxy": "Puerto de proxy transparente TPROXY",
-        "mixedFollowsSubscription": "Puerto como en la suscripción"
+        "mixedFollowsSubscription": "Puerto como en la suscripción",
+        "subscriptionPortUnknown": "Lo define la suscripción"
       },
       "actions": {
         "random": "Puerto aleatorio"
@@ -355,6 +356,7 @@
         "portInUse": "Port {{port}} is already in use",
         "portTooLow": "The port must be {{min}} or higher",
         "portTooHigh": "The port must be {{max}} or lower",
+        "ladderUnread": "No se pudieron leer los puertos que el núcleo usa ahora; guardar sigue bloqueado. Cierre la ventana y ábrala de nuevo.",
         "saved": "Port settings saved",
         "saveFailed": "Failed to save port settings"
       }

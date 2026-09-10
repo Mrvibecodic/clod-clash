@@ -346,7 +346,8 @@
         "http": "منفذ HTTP(S)",
         "redir": "منفذ إعادة التوجيه",
         "tproxy": "منفذ Tproxy",
-        "mixedFollowsSubscription": "المنفذ كما في الاشتراك"
+        "mixedFollowsSubscription": "المنفذ كما في الاشتراك",
+        "subscriptionPortUnknown": "تحدده الاشتراك"
       },
       "actions": {
         "random": "منفذ عشوائي"
@@ -355,6 +356,7 @@
         "portInUse": "Port {{port}} is already in use",
         "portTooLow": "The port must be {{min}} or higher",
         "portTooHigh": "The port must be {{max}} or lower",
+        "ladderUnread": "Could not read the ports the core is using now; saving stays blocked. Close the window and open it again.",
         "saved": "Port settings saved",
         "saveFailed": "Failed to save port settings"
       }

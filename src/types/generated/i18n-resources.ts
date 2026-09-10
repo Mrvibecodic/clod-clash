@@ -902,9 +902,11 @@ export interface TranslationResources {
             mixedFollowsSubscription: string
             redir: string
             socks: string
+            subscriptionPortUnknown: string
             tproxy: string
           }
           messages: {
+            ladderUnread: string
             portInUse: string
             portTooHigh: string
             portTooLow: string

@@ -346,7 +346,8 @@
         "http": "HTTP(S)-Proxy-Port",
         "redir": "Redir-Transparenter Proxy-Port",
         "tproxy": "TPROXY-Transparenter Proxy-Port",
-        "mixedFollowsSubscription": "Port wie im Abonnement"
+        "mixedFollowsSubscription": "Port wie im Abonnement",
+        "subscriptionPortUnknown": "Vom Abonnement vorgegeben"
       },
       "actions": {
         "random": "Zufälliger Port"
@@ -355,6 +356,7 @@
         "portInUse": "Port {{port}} is already in use",
         "portTooLow": "The port must be {{min}} or higher",
         "portTooHigh": "The port must be {{max}} or lower",
+        "ladderUnread": "Die aktuell vom Kern genutzten Ports konnten nicht gelesen werden; das Speichern bleibt gesperrt. Schließen Sie das Fenster und öffnen Sie es erneut.",
         "saved": "Port settings saved",
         "saveFailed": "Failed to save port settings"
       }
