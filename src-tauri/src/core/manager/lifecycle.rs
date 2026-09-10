@@ -698,10 +698,7 @@ impl CoreManager {
             return;
         }
 
-        // Синглтон, чтобы избежать параллельной передачи
-        if self.handoff_watcher_running.swap(true, Ordering::AcqRel) {
-            return;
-        }
+        let generation = self.handoff_watcher_generation.fetch_add(1, Ordering::AcqRel) + 1;
 
         logging!(
             info,
@@ -709,10 +706,13 @@ impl CoreManager {
             "service not ready at startup; sidecar active, watching for handoff"
         );
 
-        AsyncHandler::spawn(|| async move {
+        AsyncHandler::spawn(move || async move {
             let manager = Self::global();
             let started = Instant::now();
             loop {
+                if manager.handoff_watcher_generation.load(Ordering::Acquire) != generation {
+                    return;
+                }
                 if started.elapsed() >= timing::SERVICE_HANDOFF_WINDOW {
                     logging!(
                         info,
@@ -723,6 +723,9 @@ impl CoreManager {
                 }
                 tokio::time::sleep(timing::SERVICE_HANDOFF_INTERVAL).await;
 
+                if manager.handoff_watcher_generation.load(Ordering::Acquire) != generation {
+                    return;
+                }
                 if Handle::global().is_exiting() {
                     continue;
                 }
@@ -742,7 +745,6 @@ impl CoreManager {
                     HandoffOutcome::NotReady => {}
                 }
             }
-            manager.handoff_watcher_running.store(false, Ordering::Release);
         });
     }
 

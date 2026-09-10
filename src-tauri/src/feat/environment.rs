@@ -15,13 +15,13 @@ use std::{
     net::{Ipv4Addr, Ipv6Addr},
     sync::{
         Arc,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
     time::{Duration, Instant},
 };
 use tauri_plugin_mihomo::Mihomo;
 
-static WATCHDOG_RUNNING: AtomicBool = AtomicBool::new(false);
+static WATCHDOG_GENERATION: AtomicU64 = AtomicU64::new(0);
 static WAKE_REARM_PENDING: AtomicBool = AtomicBool::new(false);
 static LISTING_FAILED: AtomicBool = AtomicBool::new(false);
 static CLOCK_FAILED: AtomicBool = AtomicBool::new(false);
@@ -542,17 +542,21 @@ pub fn spawn_environment_watchdog() {
     if handle::Handle::global().is_exiting() {
         return;
     }
-    if WATCHDOG_RUNNING.swap(true, Ordering::AcqRel) {
-        return;
-    }
+    let generation = WATCHDOG_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
 
-    AsyncHandler::spawn(|| async {
-        scopeguard::defer! {
-            WATCHDOG_RUNNING.store(false, Ordering::Release);
-            if !handle::Handle::global().is_exiting() {
-                logging!(warn, Type::Core, "[clod] the environment watchdog stopped; it comes back with the next core start");
+    AsyncHandler::spawn(move || async move {
+        let mut stopped_on_purpose = scopeguard::guard(false, move |on_purpose| {
+            if !on_purpose
+                && !handle::Handle::global().is_exiting()
+                && WATCHDOG_GENERATION.load(Ordering::Acquire) == generation
+            {
+                logging!(
+                    warn,
+                    Type::Core,
+                    "[clod] the environment watchdog stopped; it comes back with the next core start"
+                );
             }
-        }
+        });
         let mut last_tick = Instant::now();
         let mut last_awake = sleep_clock::reading();
         let mut last_network = AsyncHandler::spawn_blocking(network_fingerprint)
@@ -565,7 +569,8 @@ pub fn spawn_environment_watchdog() {
         loop {
             tokio::time::sleep(timing::ENVIRONMENT_TICK).await;
             ticks = ticks.wrapping_add(1);
-            if handle::Handle::global().is_exiting() {
+            if handle::Handle::global().is_exiting() || WATCHDOG_GENERATION.load(Ordering::Acquire) != generation {
+                *stopped_on_purpose = true;
                 return;
             }
 

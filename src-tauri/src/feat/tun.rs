@@ -1,5 +1,5 @@
 use std::{
-    sync::atomic::{AtomicBool, AtomicU32, Ordering},
+    sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering},
     time::{Duration, Instant},
 };
 
@@ -25,8 +25,8 @@ use crate::{
 static SUPPRESSED: AtomicBool = AtomicBool::new(false);
 static START_FAILED: AtomicBool = AtomicBool::new(false);
 static SETUP_RUNNING: AtomicBool = AtomicBool::new(false);
-static WATCHDOG_RUNNING: AtomicBool = AtomicBool::new(false);
-static VERIFY_PENDING: AtomicBool = AtomicBool::new(false);
+static WATCHDOG_GENERATION: AtomicU64 = AtomicU64::new(0);
+static VERIFY_GENERATION: AtomicU64 = AtomicU64::new(0);
 static START_ATTEMPTS: AtomicU32 = AtomicU32::new(0);
 static RETRY_PENDING: AtomicBool = AtomicBool::new(false);
 static WATCH_ANCHOR: Mutex<Option<String>> = Mutex::new(None);
@@ -719,15 +719,10 @@ pub async fn log_anchor() -> Option<String> {
 
 pub fn spawn_start_verification(anchor: Option<String>) {
     *WATCH_ANCHOR.lock() = anchor;
-    if VERIFY_PENDING.swap(true, Ordering::AcqRel) {
-        return;
-    }
-    AsyncHandler::spawn(|| async {
-        scopeguard::defer! {
-            VERIFY_PENDING.store(false, Ordering::Release);
-        }
+    let generation = VERIFY_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
+    AsyncHandler::spawn(move || async move {
         tokio::time::sleep(timing::TUN_VERIFY_DELAY).await;
-        if !claimed().await {
+        if VERIFY_GENERATION.load(Ordering::Acquire) != generation || !claimed().await {
             return;
         }
         if !matches!(verify_round().await, Round::Done) {
@@ -766,20 +761,15 @@ async fn verify_round() -> Round {
 }
 
 fn spawn_watchdog() {
-    if WATCHDOG_RUNNING.swap(true, Ordering::AcqRel) {
-        return;
-    }
-    AsyncHandler::spawn(|| async {
-        scopeguard::defer! {
-            WATCHDOG_RUNNING.store(false, Ordering::Release);
-        }
+    let generation = WATCHDOG_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
+    AsyncHandler::spawn(move || async move {
         let mut rounds: u32 = 0;
         let mut down_rounds: u32 = 0;
         let mut probe_gap = TRAFFIC_RECHECK_ROUNDS;
         let mut next_probe = TRAFFIC_RECHECK_ROUNDS;
         loop {
             tokio::time::sleep(timing::TUN_WATCH_INTERVAL).await;
-            if !claimed().await {
+            if WATCHDOG_GENERATION.load(Ordering::Acquire) != generation || !claimed().await {
                 return;
             }
             match device_reported_up().await {

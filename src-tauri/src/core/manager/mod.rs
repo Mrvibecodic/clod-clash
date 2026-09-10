@@ -12,7 +12,7 @@ use std::{
     fmt,
     sync::{
         Arc,
-        atomic::{AtomicBool, AtomicU32, Ordering},
+        atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering},
     },
     time::Instant,
 };
@@ -51,8 +51,7 @@ pub struct CoreManager {
     // Сериализует start/stop/restart и передачу sidecar→service.
     // Порядок блокировок фиксирован: config_update_in_progress → lifecycle_lock.
     lifecycle_lock: tokio::sync::Mutex<()>,
-    // Флаг синглтона watcher передачи sidecar→service.
-    handoff_watcher_running: AtomicBool,
+    handoff_watcher_generation: AtomicU64,
     starting: AtomicBool,
     restart_pending: AtomicBool,
     // Сколько плановых пауз ядра идёт прямо сейчас: обычный перезапуск,
@@ -104,7 +103,7 @@ impl Default for CoreManager {
             job_handle: ArcSwapOption::new(None),
             config_update_in_progress: AtomicBool::new(false),
             lifecycle_lock: tokio::sync::Mutex::new(()),
-            handoff_watcher_running: AtomicBool::new(false),
+            handoff_watcher_generation: AtomicU64::new(0),
             starting: AtomicBool::new(false),
             restart_pending: AtomicBool::new(false),
             planned_pauses: AtomicU32::new(0),
