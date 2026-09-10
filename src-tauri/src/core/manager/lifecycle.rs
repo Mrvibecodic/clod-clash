@@ -279,13 +279,38 @@ impl CoreManager {
             let expected = Config::mixed_port_the_core_was_started_with().await;
             match Self::confirm_mixed_port(generation, expected).await {
                 PortVerdict::Confirmed | PortVerdict::Unknown => {
-                    if PROXY_AWAITS_THE_NEW_PORT.swap(false, Ordering::AcqRel) {
+                    if MIXED_PORT_CHECK_GENERATION.load(Ordering::Acquire) == generation
+                        && PROXY_AWAITS_THE_NEW_PORT.swap(false, Ordering::AcqRel)
+                    {
                         super::config::point_system_proxy_at_the_core().await;
                     }
                 }
                 PortVerdict::Refuted => {}
             }
         });
+    }
+
+    pub async fn point_system_proxy_at_the_confirmed_port(&self) {
+        if matches!(*self.get_running_mode(), RunningMode::NotRunning) {
+            super::config::point_system_proxy_at_the_core().await;
+        } else {
+            Self::spawn_mixed_port_check(true);
+        }
+    }
+
+    pub async fn the_core_must_serve_its_mixed_port(&self) -> Result<()> {
+        if matches!(*self.get_running_mode(), RunningMode::NotRunning) {
+            return Ok(());
+        }
+        let generation = MIXED_PORT_CHECK_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
+        let expected = Config::mixed_port_the_core_was_started_with().await;
+        PORT_BUSY_NOTICED.store(0, Ordering::Release);
+        match Self::confirm_mixed_port(generation, expected).await {
+            PortVerdict::Confirmed | PortVerdict::Unknown => Ok(()),
+            PortVerdict::Refuted => {
+                anyhow::bail!("ядро не подтвердило порт {expected} — системный прокси оставлен как был")
+            }
+        }
     }
 
     /// Дождаться от ядра ответа, слушает ли оно `expected`.

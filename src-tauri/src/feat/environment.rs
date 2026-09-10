@@ -1,10 +1,7 @@
 use crate::{
     config::Config,
     constants::timing,
-    core::{
-        handle,
-        sysopt::{Sysopt, verbose_diagnostics},
-    },
+    core::{CoreManager, handle, sysopt::verbose_diagnostics},
     process::AsyncHandler,
 };
 use clash_verge_logging::{Type, logging};
@@ -349,16 +346,7 @@ async fn reconcile(
     let may_close_connections = verge.auto_close_connection();
     drop(verge);
     if wants_sysproxy {
-        let was_failing = Sysopt::global().write_failed();
-        match Sysopt::global().update_sysproxy().await {
-            Ok(()) => Sysopt::global().refresh_guard().await,
-            Err(e) => {
-                logging!(warn, Type::Core, "[clod] failed to re-assert the system proxy: {e}");
-                if !was_failing {
-                    handle::Handle::notice_message("sysproxy::write_failed", e.to_string());
-                }
-            }
-        }
+        CoreManager::global().point_system_proxy_at_the_confirmed_port().await;
     }
 
     if !may_close_connections {

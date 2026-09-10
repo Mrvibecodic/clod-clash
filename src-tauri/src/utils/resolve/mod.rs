@@ -270,7 +270,7 @@ pub(super) async fn init_launch_connect_state() {
 }
 
 pub(super) async fn init_system_proxy() {
-    logging_error!(Type::Setup, sysopt::Sysopt::global().update_sysproxy().await);
+    CoreManager::global().point_system_proxy_at_the_confirmed_port().await;
     init_connect_targets().await;
 }
 

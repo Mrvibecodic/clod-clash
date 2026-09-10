@@ -359,13 +359,8 @@ async fn after_core_came_back(reason: &str) -> bool {
         return false;
     }
     let wants_sysproxy = Config::verge().await.latest_arc().enable_system_proxy.unwrap_or(false);
-    if wants_sysproxy && let Err(e) = crate::core::sysopt::Sysopt::global().update_sysproxy().await {
-        logging!(
-            warn,
-            Type::Core,
-            "failed to reapply the system proxy after a restart: {}",
-            e
-        );
+    if wants_sysproxy {
+        CoreManager::global().point_system_proxy_at_the_confirmed_port().await;
     }
     crate::feat::tun::enforce_undesired_off().await;
     notice_the_restart(reason);

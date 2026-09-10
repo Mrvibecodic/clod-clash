@@ -180,19 +180,7 @@ fn cancel_the_exit(reason: String) {
         // было нечего.
         crate::feat::tun::bring_back_after_a_cancelled_exit().await;
         if Config::verge().await.latest_arc().enable_system_proxy.unwrap_or(false) {
-            match sysopt::Sysopt::global().update_sysproxy().await {
-                // Сброс прокси на выходе остановил и его сторож; запись сама
-                // его не поднимает — только `refresh_guard`, как везде в коде.
-                Ok(()) => sysopt::Sysopt::global().refresh_guard().await,
-                Err(error) => {
-                    logging!(
-                        warn,
-                        Type::Core,
-                        "после отменённого выхода системный прокси не вернулся: {error}"
-                    );
-                    handle::Handle::notice_message("sysproxy::write_failed", error.to_string());
-                }
-            }
+            CoreManager::global().point_system_proxy_at_the_confirmed_port().await;
         }
         #[cfg(target_os = "macos")]
         crate::utils::resolve::dns::apply_remembered_desire();

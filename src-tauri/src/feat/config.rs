@@ -295,6 +295,9 @@ async fn process_terminated_flags(update_flags: UpdateFlags, patch: &IVerge) -> 
             });
             handle::Handle::notice_message("sysproxy::core_not_running", "");
         } else {
+            if Config::verge().await.latest_arc().enable_system_proxy.unwrap_or(false) {
+                CoreManager::global().the_core_must_serve_its_mixed_port().await?;
+            }
             sysopt::Sysopt::global().update_sysproxy().await?;
             sysopt::Sysopt::global().refresh_guard().await;
         }
@@ -389,10 +392,7 @@ pub async fn patch_verge(patch: &IVerge, not_save_file: bool) -> Result<()> {
             return Err(err);
         }
         if Config::verge().await.latest_arc().enable_system_proxy.unwrap_or(false) {
-            match sysopt::Sysopt::global().update_sysproxy().await {
-                Ok(()) => sysopt::Sysopt::global().refresh_guard().await,
-                Err(err) => logging!(error, Type::Setup, "{err}"),
-            }
+            CoreManager::global().point_system_proxy_at_the_confirmed_port().await;
         }
         true
     } else {
