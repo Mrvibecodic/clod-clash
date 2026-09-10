@@ -356,7 +356,7 @@
         "portInUse": "Port {{port}} is already in use",
         "portTooLow": "The port must be {{min}} or higher",
         "portTooHigh": "The port must be {{max}} or lower",
-        "ladderUnread": "No se pudieron leer los puertos que el núcleo usa ahora; guardar sigue bloqueado. Cierre la ventana y ábrala de nuevo.",
+        "ladderUnread": "No se pudo leer qué puerto usa ahora el núcleo: el puerto mixto no cambiará, los demás puertos se guardarán.",
         "saved": "Port settings saved",
         "saveFailed": "Failed to save port settings"
       }

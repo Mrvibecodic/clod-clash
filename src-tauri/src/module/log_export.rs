@@ -1,6 +1,6 @@
 use crate::utils::{
     dirs,
-    redact::{home_prefix, redact, scrub_home},
+    redact::{home_prefix, redact_for_support, scrub_home},
 };
 use anyhow::{Context as _, Result};
 use std::{
@@ -49,15 +49,26 @@ fn collect_logs(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
-fn redacted(content: &str, home: Option<&str>) -> (String, usize) {
+fn is_core_log(root: &Path, path: &Path) -> bool {
+    path.strip_prefix(root)
+        .ok()
+        .and_then(|rel| rel.components().next())
+        .and_then(|part| match part {
+            std::path::Component::Normal(name) => name.to_str(),
+            _ => None,
+        })
+        .is_some_and(|dir| dir == "sidecar" || dir == "service")
+}
+
+fn redacted(content: &str, home: Option<&str>, core: bool) -> (String, usize) {
     let mut text = String::with_capacity(content.len());
     let mut skipped = 0usize;
     for line in content.lines() {
-        if crate::module::support_bundle::is_traffic_line(line) {
+        if core && crate::module::support_bundle::is_traffic_line(line) {
             skipped += 1;
             continue;
         }
-        text.push_str(&redact(&scrub_home(line, home)));
+        text.push_str(&redact_for_support(&scrub_home(line, home)));
         text.push('\n');
     }
     (text, skipped)
@@ -108,7 +119,7 @@ pub async fn write_archive(target: PathBuf) -> Result<usize> {
             } else {
                 &service_logs
             };
-            let (text, traffic_lines) = redacted(&content, home.as_deref());
+            let (text, traffic_lines) = redacted(&content, home.as_deref(), is_core_log(root, &path));
             zip.start_file(archive_name(root, &path), options)?;
             if skipped > 0 {
                 writeln!(
@@ -171,15 +182,28 @@ mod tests {
 
     #[test]
     fn every_line_is_redacted() {
-        let (text, skipped) = redacted("a\nb\n", None);
+        let (text, skipped) = redacted("a\nb\n", None, false);
         assert_eq!(text, "a\nb\n");
         assert_eq!(skipped, 0);
     }
 
     #[test]
+    fn only_core_logs_lose_traffic_lines() {
+        let raw = "signature does not match the bytes\n[TCP] 10.0.0.5:41230 --> mail.example.com:443 match Rule\n";
+        let (text, skipped) = redacted(raw, None, false);
+        assert_eq!(skipped, 0);
+        assert!(text.contains("signature does not match the bytes"), "{text}");
+        let root = Path::new("/logs");
+        assert!(is_core_log(root, Path::new("/logs/sidecar/sidecar_latest.log")));
+        assert!(is_core_log(root, Path::new("/logs/service/service_latest.log")));
+        assert!(!is_core_log(root, Path::new("/logs/latest.log")));
+        assert!(!is_core_log(root, Path::new("/elsewhere/sidecar/a.log")));
+    }
+
+    #[test]
     fn traffic_lines_never_reach_the_archive() {
         let raw = "[core] mihomo started\n[TCP] 10.0.0.5:41230 --> mail.example.com:443 match Rule\n[DNS] resolve news.example.org\nconfiguration loaded\n";
-        let (text, skipped) = redacted(raw, None);
+        let (text, skipped) = redacted(raw, None, true);
         assert_eq!(skipped, 2);
         assert!(!text.contains("mail.example.com"), "{text}");
         assert!(!text.contains("news.example.org"), "{text}");

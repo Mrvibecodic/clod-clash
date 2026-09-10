@@ -356,7 +356,7 @@
         "portInUse": "Port {{port}} is already in use",
         "portTooLow": "The port must be {{min}} or higher",
         "portTooHigh": "The port must be {{max}} or lower",
-        "ladderUnread": "코어가 현재 사용 중인 포트를 읽지 못했습니다. 저장이 차단됩니다. 창을 닫았다가 다시 여세요.",
+        "ladderUnread": "코어가 현재 사용 중인 포트를 읽지 못했습니다. 혼합 포트는 그대로 유지되고 나머지 포트는 저장됩니다.",
         "saved": "포트 설정이 저장되었습니다",
         "saveFailed": "포트 설정 저장에 실패했습니다"
       }

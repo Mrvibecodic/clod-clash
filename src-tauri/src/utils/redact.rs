@@ -156,7 +156,7 @@ fn mask_after_secret_key(word: &str) -> Option<std::string::String> {
 }
 
 /// Замаскировать одно «слово» лога.
-fn redact_word(word: &str) -> std::string::String {
+fn redact_word(word: &str, bare_domains: bool) -> std::string::String {
     if let Some(masked) = mask_any_url(word) {
         return masked;
     }
@@ -181,7 +181,7 @@ fn redact_word(word: &str) -> std::string::String {
         return masked;
     }
 
-    if let Some(masked) = mask_bare_domain(word) {
+    if bare_domains && let Some(masked) = mask_bare_domain(word) {
         return masked;
     }
 
@@ -224,8 +224,8 @@ fn mask_host_port(word: &str) -> Option<std::string::String> {
 
 const FILE_SUFFIXES: &[&str] = &[
     "bak", "bat", "c", "conf", "cpp", "crt", "css", "dat", "db", "dll", "dylib", "exe", "go", "gz", "h", "html", "ini",
-    "js", "json", "jsx", "key", "lock", "log", "map", "md", "metadb", "mmdb", "mrs", "old", "pem", "pid", "plist",
-    "ps", "py", "rs", "sh", "so", "sock", "srs", "tar", "tmp", "toml", "ts", "tsx", "txt", "yaml", "yml", "zip",
+    "js", "json", "jsx", "key", "lock", "log", "map", "metadb", "mmdb", "mrs", "old", "pem", "pid", "plist", "py",
+    "rs", "sock", "srs", "tar", "tmp", "toml", "ts", "tsx", "txt", "yaml", "yml",
 ];
 
 fn is_file_suffix(label: &str) -> bool {
@@ -244,11 +244,16 @@ fn looks_like_domain(head: &str, last_label: &str) -> bool {
         && !is_file_suffix(last_label)
 }
 
+const DOMAIN_TAIL: &[char] = &[':', ',', ';', '.', ')', '(', '"', '\'', ']', '}', '>', '?', '!'];
+
+const DOMAIN_LEAD: &[char] = &['"', '\'', '(', '[', '{', '<', '=', ',', ';'];
+
 fn mask_bare_domain(word: &str) -> Option<std::string::String> {
-    let core_len = word.trim_end_matches([':', ',', ';', '.', ')', '(', '"', '\'']).len();
-    let (body, tail) = word.split_at(core_len);
-    let (head, last_label) = body.rsplit_once('.')?;
-    looks_like_domain(head, last_label).then(|| format!("***{tail}"))
+    let core_len = word.trim_end_matches(DOMAIN_TAIL).len();
+    let (core, tail) = word.split_at(core_len);
+    let (lead, body) = core.split_at(core.rfind(DOMAIN_LEAD).map_or(0, |at| at + 1));
+    let (host, last_label) = body.rsplit_once('.')?;
+    looks_like_domain(host, last_label).then(|| format!("{lead}***{tail}"))
 }
 
 /// Домашний каталог пользователя, чтобы вырезать его из путей в логе.
@@ -279,6 +284,14 @@ pub fn scrub_home(line: &str, home: Option<&str>) -> std::string::String {
 /// Сознательно грубо: лучше замазать лишнее, чем отдать наружу токен подписки.
 /// Разделители сохраняются, поэтому строка остаётся читаемой.
 pub fn redact(line: &str) -> std::string::String {
+    redact_line(line, false)
+}
+
+pub fn redact_for_support(line: &str) -> std::string::String {
+    redact_line(line, true)
+}
+
+fn redact_line(line: &str, bare_domains: bool) -> std::string::String {
     let mut out = std::string::String::with_capacity(line.len());
     let mut expect_secret_value = false;
 
@@ -310,7 +323,7 @@ pub fn redact(line: &str) -> std::string::String {
         }
 
         expect_secret_value = body.ends_with([':', '=']) && is_secret_key(body);
-        out.push_str(&redact_word(body));
+        out.push_str(&redact_word(body, bare_domains));
         out.push_str(spacing);
     }
 
@@ -319,7 +332,7 @@ pub fn redact(line: &str) -> std::string::String {
 
 #[cfg(test)]
 mod tests {
-    use super::redact;
+    use super::{redact, redact_for_support};
 
     /// Отчёт для поддержки редактирует строки повторно — уже после логгера.
     /// Второй проход обязан быть тождественным, иначе `***` разъедало бы
@@ -358,13 +371,56 @@ mod tests {
     }
 
     #[test]
-    fn a_bare_domain_is_masked_too() {
-        let dns = redact("[DNS] resolve news.example.org");
+    fn a_bare_domain_is_masked_on_the_way_out() {
+        let dns = redact_for_support("[DNS] resolve news.example.org");
         assert!(!dns.contains("news.example.org"), "{dns}");
         assert!(dns.contains("[DNS]"), "{dns}");
 
-        let sniffer = redact("[Sniffer] TLS sni mail.example.co.uk");
+        let sniffer = redact_for_support("[Sniffer] TLS sni mail.example.co.uk");
         assert!(!sniffer.contains("mail.example.co.uk"), "{sniffer}");
+    }
+
+    #[test]
+    fn a_bare_domain_stays_in_the_local_log() {
+        for line in ["[DNS] resolve news.example.org", "[Sniffer] TLS sni mail.example.co.uk"] {
+            assert_eq!(redact(line), line, "{line}");
+        }
+    }
+
+    #[test]
+    fn punctuation_does_not_smuggle_a_domain_out() {
+        for line in [
+            r#"host "api.example.com" unreachable"#,
+            r#"resp {"host":"api.example.com"}"#,
+            "peer [api.example.com] gone",
+            "retry api.example.com?",
+        ] {
+            let masked = redact_for_support(line);
+            assert!(!masked.contains("api.example.com"), "{masked}");
+        }
+    }
+
+    #[test]
+    fn a_short_tld_is_not_a_file_extension() {
+        let bare = redact_for_support("update from panel.example.sh failed");
+        assert!(!bare.contains("panel.example.sh"), "{bare}");
+
+        let with_port = redact("dial panel.example.md:443 refused");
+        assert!(!with_port.contains("panel.example.md"), "{with_port}");
+        assert!(with_port.contains(":443"), "{with_port}");
+    }
+
+    #[test]
+    fn support_redaction_survives_a_second_pass() {
+        for line in [
+            "[DNS] resolve news.example.org",
+            r#"resp {"host":"api.example.com"}"#,
+            "fetch https://panel.example/sub/AbCd1234EfGh5678 failed",
+            "loaded profiles.yaml",
+        ] {
+            let once = redact_for_support(line);
+            assert_eq!(redact_for_support(&once), once, "{line}");
+        }
     }
 
     #[test]

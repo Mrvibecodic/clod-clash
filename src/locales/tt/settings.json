@@ -356,7 +356,7 @@
         "portInUse": "Port {{port}} is already in use",
         "portTooLow": "The port must be {{min}} or higher",
         "portTooHigh": "The port must be {{max}} or lower",
-        "ladderUnread": "Could not read the ports the core is using now; saving stays blocked. Close the window and open it again.",
+        "ladderUnread": "Төш хәзер кулланган портны укып булмады: катнаш порт үзгәрмәячәк, калган портлар сакланачак.",
         "saved": "Port settings saved",
         "saveFailed": "Failed to save port settings"
       }

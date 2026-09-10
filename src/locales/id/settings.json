@@ -356,7 +356,7 @@
         "portInUse": "Port {{port}} is already in use",
         "portTooLow": "The port must be {{min}} or higher",
         "portTooHigh": "The port must be {{max}} or lower",
-        "ladderUnread": "Tidak dapat membaca port yang sedang dipakai inti; penyimpanan tetap terkunci. Tutup jendela lalu buka lagi.",
+        "ladderUnread": "Tidak dapat membaca port mana yang sedang dipakai inti: port campuran tidak berubah, port lainnya akan disimpan.",
         "saved": "Port settings saved",
         "saveFailed": "Failed to save port settings"
       }

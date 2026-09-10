@@ -356,7 +356,7 @@
         "portInUse": "Port {{port}} is already in use",
         "portTooLow": "The port must be {{min}} or higher",
         "portTooHigh": "The port must be {{max}} or lower",
-        "ladderUnread": "Die aktuell vom Kern genutzten Ports konnten nicht gelesen werden; das Speichern bleibt gesperrt. Schließen Sie das Fenster und öffnen Sie es erneut.",
+        "ladderUnread": "Es konnte nicht gelesen werden, welchen Port der Kern gerade nutzt: Der gemischte Proxy-Port bleibt unverändert, die übrigen Ports werden gespeichert.",
         "saved": "Port settings saved",
         "saveFailed": "Failed to save port settings"
       }

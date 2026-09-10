@@ -356,7 +356,7 @@
         "portInUse": "Port {{port}} is already in use",
         "portTooLow": "The port must be {{min}} or higher",
         "portTooHigh": "The port must be {{max}} or lower",
-        "ladderUnread": "Çekirdeğin şu anda kullandığı bağlantı noktaları okunamadı; kaydetme engelli. Pencereyi kapatıp yeniden açın.",
+        "ladderUnread": "Çekirdeğin şu anda hangi bağlantı noktasını kullandığı okunamadı: karışık port değişmez, diğer portlar kaydedilir.",
         "saved": "Port settings saved",
         "saveFailed": "Failed to save port settings"
       }

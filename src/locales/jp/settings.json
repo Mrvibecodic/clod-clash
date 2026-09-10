@@ -356,7 +356,7 @@
         "portInUse": "Port {{port}} is already in use",
         "portTooLow": "The port must be {{min}} or higher",
         "portTooHigh": "The port must be {{max}} or lower",
-        "ladderUnread": "コアが現在使用しているポートを読み取れませんでした。保存はできません。ウィンドウを閉じて開き直してください。",
+        "ladderUnread": "コアが現在使用しているポートを読み取れませんでした。混合プロキシポートはそのまま残り、他のポートは保存されます。",
         "saved": "Port settings saved",
         "saveFailed": "Failed to save port settings"
       }

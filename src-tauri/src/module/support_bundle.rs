@@ -4,7 +4,7 @@ use crate::{
     enhance,
     utils::{
         dirs, hwid,
-        redact::{home_prefix, redact, scrub_home},
+        redact::{home_prefix, redact, redact_for_support, scrub_home},
     },
 };
 use anyhow::Result;
@@ -77,7 +77,7 @@ async fn tail_of(paths: &[PathBuf], lines: usize, kind: LogKind) -> (Option<std:
                 skipped += 1;
                 continue;
             }
-            collected.push(redact(&scrub_home(line, home.as_deref())));
+            collected.push(redact_for_support(&scrub_home(line, home.as_deref())));
             if collected.len() >= lines {
                 break 'files;
             }
@@ -326,7 +326,7 @@ async fn core_tail_from_running_core(lines: usize) -> (Option<std::string::Strin
             skipped += 1;
             continue;
         }
-        collected.push(redact(&scrub_home(line.as_str(), home.as_deref())));
+        collected.push(redact_for_support(&scrub_home(line.as_str(), home.as_deref())));
         if collected.len() >= lines {
             break;
         }

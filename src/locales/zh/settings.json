@@ -356,7 +356,7 @@
         "portInUse": "端口 {{port}} 已被占用",
         "portTooLow": "The port must be {{min}} or higher",
         "portTooHigh": "The port must be {{max}} or lower",
-        "ladderUnread": "无法读取内核当前使用的端口，保存已被阻止。请关闭窗口后重新打开。",
+        "ladderUnread": "无法读取内核当前使用的端口：混合代理端口保持不变，其余端口将会保存。",
         "saved": "端口设置已保存",
         "saveFailed": "端口设置保存失败"
       }

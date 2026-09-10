@@ -14,8 +14,9 @@ const STARTUP_LOG_FILE: &str = "startup.log";
 
 pub fn report_failure(error: &anyhow::Error) {
     let detail = format!("{error:#}");
+    let safe_detail = safe_for_support(&detail, home_prefix().as_deref());
     let mut stderr = std::io::stderr();
-    let _ = writeln!(stderr, "[clod-clash] startup failed: {detail}");
+    let _ = writeln!(stderr, "[clod-clash] startup failed: {safe_detail}");
 
     match startup_log_path().and_then(|path| {
         append_failure(&path, &detail)?;

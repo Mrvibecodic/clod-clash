@@ -356,7 +356,7 @@
         "portInUse": "Port {{port}} is already in use",
         "portTooLow": "The port must be {{min}} or higher",
         "portTooHigh": "The port must be {{max}} or lower",
-        "ladderUnread": "Could not read the ports the core is using now; saving stays blocked. Close the window and open it again.",
+        "ladderUnread": "Could not read which port the core is using now: the mixed port will stay as it is, the other ports will be saved.",
         "saved": "Port settings saved",
         "saveFailed": "Failed to save port settings"
       }
