@@ -15,9 +15,6 @@ use tauri_plugin_updater::{Update, UpdaterExt as _};
 
 pub struct SilentUpdater {
     update_ready: AtomicBool,
-    pending_bytes: RwLock<Option<Vec<u8>>>,
-    pending_update: RwLock<Option<Update>>,
-    pending_version: RwLock<Option<String>>,
 }
 
 singleton!(SilentUpdater, SILENT_UPDATER);
@@ -26,9 +23,6 @@ impl SilentUpdater {
     const fn new() -> Self {
         Self {
             update_ready: AtomicBool::new(false),
-            pending_bytes: RwLock::new(None),
-            pending_update: RwLock::new(None),
-            pending_version: RwLock::new(None),
         }
     }
 
@@ -707,9 +701,6 @@ impl SilentUpdater {
             logging!(warn, Type::System, "Silent updater: failed to write cache: {e}");
         }
 
-        *self.pending_bytes.write() = Some(bytes);
-        *self.pending_update.write() = Some(update);
-        *self.pending_version.write() = Some(version.clone());
         self.update_ready.store(true, Ordering::Release);
 
         logging!(
