@@ -40,5 +40,5 @@ pub async fn delete_webdav_backup(filename: String) -> CmdResult<()> {
 /// Восстановить файл резервной копии из WebDAV
 #[tauri::command]
 pub async fn restore_webdav_backup(filename: String) -> CmdResult<()> {
-    feat::restore_webdav_backup(filename).await.stringify_err()
+    Box::pin(feat::restore_webdav_backup(filename)).await.stringify_err()
 }

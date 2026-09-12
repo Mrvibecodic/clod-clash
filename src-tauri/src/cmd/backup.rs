@@ -20,7 +20,7 @@ pub async fn delete_local_backup(filename: String) -> CmdResult<()> {
 
 #[tauri::command]
 pub async fn restore_local_backup(filename: String) -> CmdResult<()> {
-    feat::restore_local_backup(filename).await.stringify_err()
+    Box::pin(feat::restore_local_backup(filename)).await.stringify_err()
 }
 
 #[tauri::command]
