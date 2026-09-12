@@ -1,4 +1,4 @@
-use super::{CoreManager, RunningMode};
+use super::{Backend, CoreManager, RunningMode};
 use crate::{
     AsyncHandler,
     config::{Config, IClashTemp},
@@ -12,6 +12,7 @@ use clash_verge_logging::Type;
 use clash_verge_service_ipc::ServiceLifecycleState;
 use compact_str::CompactString;
 use log::Level;
+#[cfg(unix)]
 use scopeguard::defer;
 use std::{
     sync::{
@@ -108,6 +109,7 @@ fn crash_attempt_number(previous_crash: Option<Instant>, now: Instant) -> u32 {
 
 pub(super) fn handle_core_exit(message: &str, expected: &RunningMode, terminated_pid: Option<u32>) {
     let manager = CoreManager::global();
+    let asked_for = manager.a_death_we_asked_for();
     if !exit_is_a_crash(
         &manager.get_running_mode(),
         expected,
@@ -139,8 +141,13 @@ pub(super) fn handle_core_exit(message: &str, expected: &RunningMode, terminated
         None => manager.clear_sidecar_pid(),
     }
 
+    manager.note_core_is_down();
+    if asked_for {
+        logging!(info, Type::Core, "core exited as asked: {}", message);
+        return;
+    }
+
     logging!(warn, Type::Core, "core exited unexpectedly: {}", message);
-    manager.set_running_mode(RunningMode::NotRunning);
 
     let now = Instant::now();
     let attempt = {
@@ -560,17 +567,29 @@ impl CoreManager {
             "the core process {} is alive but stopped answering; killing it before the restart",
             pid
         );
-        match self.take_child_sidecar() {
+        let killed = match self.take_child_sidecar() {
             Some(child) => {
                 #[cfg(target_os = "windows")]
                 self.set_job_handle(None);
-                if let Err(e) = child.kill() {
-                    logging!(warn, Type::Core, "failed to kill the hung core process {}: {}", pid, e);
+                match child.kill() {
+                    Ok(()) => true,
+                    Err(e) => {
+                        logging!(warn, Type::Core, "failed to kill the hung core process {}: {}", pid, e);
+                        false
+                    }
                 }
             }
-            None => {
-                crate::core::orphan::kill_process(pid).await;
-            }
+            None => crate::core::orphan::kill_process(pid).await,
+        };
+        if !killed {
+            self.note_stop_failed();
+            logging!(
+                error,
+                Type::Core,
+                "зависшее ядро {} убить не удалось — второй процесс поверх него не поднимаем",
+                pid
+            );
+            return;
         }
         handle_core_exit("the core stopped answering", &RunningMode::Sidecar, Some(pid));
     }
@@ -584,6 +603,7 @@ impl CoreManager {
     }
 
     pub(super) async fn start_core_by_sidecar(&self) -> Result<()> {
+        self.refuse_to_double_the_core()?;
         logging!(info, Type::Core, "Starting core in sidecar mode");
 
         let sidecar_ipc = dirs::sidecar_ipc_path()?;
@@ -654,7 +674,7 @@ impl CoreManager {
 
         self.set_running_child_sidecar(child);
         self.set_sidecar_pid(pid);
-        self.set_running_mode(RunningMode::Sidecar);
+        self.note_core_is_up(Backend::Sidecar);
         spawn_sidecar_health_watchdog(pid);
 
         AsyncHandler::spawn(move || async move {
@@ -700,10 +720,21 @@ impl CoreManager {
         logging!(info, Type::Core, "Stopping sidecar");
         CORE_WATCHDOG_GENERATION.fetch_add(1, Ordering::AcqRel);
         let pid = self.sidecar_pid();
-        self.clear_sidecar_pid();
-        defer! {
-            self.set_running_mode(RunningMode::NotRunning);
+        self.note_stopping();
+        match self.kill_the_sidecar(pid).await {
+            Ok(()) => {
+                self.clear_sidecar_pid();
+                self.note_core_is_down();
+                Ok(())
+            }
+            Err(error) => {
+                self.note_stop_failed();
+                Err(error)
+            }
         }
+    }
+
+    async fn kill_the_sidecar(&self, pid: Option<u32>) -> Result<()> {
         match self.take_child_sidecar() {
             Some(child) => {
                 let pid = child.pid();
@@ -735,6 +766,7 @@ impl CoreManager {
     }
 
     pub(super) async fn start_core_by_service(&self) -> Result<()> {
+        self.refuse_to_double_the_core()?;
         logging!(info, Type::Core, "Starting core in service mode");
 
         let service_ipc = dirs::service_ipc_path()?;
@@ -748,7 +780,7 @@ impl CoreManager {
             for attempt in 0..timing::SERVICE_START_RETRIES {
                 match service::run_core_by_service(&config_file).await {
                     Ok(()) => {
-                        self.set_running_mode(RunningMode::Service);
+                        self.note_core_is_up(Backend::Service);
                         spawn_service_health_watchdog();
                         return Ok(());
                     }
@@ -775,7 +807,7 @@ impl CoreManager {
         #[cfg(not(target_os = "windows"))]
         {
             service::run_core_by_service(&config_file).await?;
-            self.set_running_mode(RunningMode::Service);
+            self.note_core_is_up(Backend::Service);
             spawn_service_health_watchdog();
             Ok(())
         }
@@ -784,12 +816,18 @@ impl CoreManager {
     pub(super) async fn stop_core_by_service(&self) -> Result<()> {
         logging!(info, Type::Core, "Stopping service");
         CORE_WATCHDOG_GENERATION.fetch_add(1, Ordering::AcqRel);
-        self.clear_sidecar_pid();
-        defer! {
-            self.set_running_mode(RunningMode::NotRunning);
+        self.note_stopping();
+        match service::stop_core_by_service().await {
+            Ok(()) => {
+                self.clear_sidecar_pid();
+                self.note_core_is_down();
+                Ok(())
+            }
+            Err(error) => {
+                self.note_stop_failed();
+                Err(error)
+            }
         }
-        service::stop_core_by_service().await?;
-        Ok(())
     }
 }
 

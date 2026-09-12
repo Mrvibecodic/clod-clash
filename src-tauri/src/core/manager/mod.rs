@@ -11,8 +11,8 @@ use once_cell::sync::Lazy;
 use std::{
     fmt,
     sync::{
-        Arc,
-        atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering},
+        Arc, LazyLock,
+        atomic::{AtomicBool, AtomicU8, AtomicU32, AtomicU64, Ordering},
     },
     time::Instant,
 };
@@ -39,6 +39,66 @@ impl fmt::Display for RunningMode {
             Self::NotRunning => write!(f, "NotRunning"),
         }
     }
+}
+
+static MODE_SERVICE: LazyLock<Arc<RunningMode>> = LazyLock::new(|| Arc::new(RunningMode::Service));
+static MODE_SIDECAR: LazyLock<Arc<RunningMode>> = LazyLock::new(|| Arc::new(RunningMode::Sidecar));
+static MODE_NOT_RUNNING: LazyLock<Arc<RunningMode>> = LazyLock::new(|| Arc::new(RunningMode::NotRunning));
+
+/// Каким способом ядро поднимается: намерение, а не состояние процесса.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum Backend {
+    Sidecar = 0,
+    Service = 1,
+}
+
+impl Backend {
+    const fn from_u8(value: u8) -> Self {
+        match value {
+            1 => Self::Service,
+            _ => Self::Sidecar,
+        }
+    }
+}
+
+/// Что с процессом ядра на самом деле.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum Liveness {
+    /// Ядра нет: оно не запускалось либо остановка прошла.
+    Down = 0,
+    /// Ядро поднято.
+    Up = 1,
+    /// Мы прямо сейчас просим это ядро умереть: смерть плановая.
+    Stopping = 2,
+    /// Остановка не удалась: процесс ядра жив, и это тот же самый процесс.
+    StopFailed = 3,
+}
+
+impl Liveness {
+    const fn from_u8(value: u8) -> Self {
+        match value {
+            1 => Self::Up,
+            2 => Self::Stopping,
+            3 => Self::StopFailed,
+            _ => Self::Down,
+        }
+    }
+}
+
+/// Как два раздельных факта читаются тем, кто спрашивает «что с ядром».
+const fn running_mode_of(liveness: Liveness, backend: Backend) -> RunningMode {
+    match (liveness, backend) {
+        (Liveness::Down, _) => RunningMode::NotRunning,
+        (_, Backend::Service) => RunningMode::Service,
+        (_, Backend::Sidecar) => RunningMode::Sidecar,
+    }
+}
+
+/// Смерть, которую заказала остановка: воскрешать такое ядро нельзя.
+const fn a_death_we_asked_for(liveness: Liveness) -> bool {
+    matches!(liveness, Liveness::Stopping | Liveness::StopFailed)
 }
 
 #[derive(Debug)]
@@ -79,7 +139,8 @@ impl Drop for PlannedPause<'_> {
 
 #[derive(Debug)]
 struct State {
-    running_mode: ArcSwap<RunningMode>,
+    backend: AtomicU8,
+    liveness: AtomicU8,
     child_sidecar: ArcSwapOption<CommandChild>,
     sidecar_pid: AtomicU32,
 }
@@ -87,7 +148,8 @@ struct State {
 impl Default for State {
     fn default() -> Self {
         Self {
-            running_mode: ArcSwap::new(Arc::new(RunningMode::NotRunning)),
+            backend: AtomicU8::new(Backend::Sidecar as u8),
+            liveness: AtomicU8::new(Liveness::Down as u8),
             child_sidecar: ArcSwapOption::new(None),
             sidecar_pid: AtomicU32::new(0),
         }
@@ -117,7 +179,82 @@ impl CoreManager {
     }
 
     pub fn get_running_mode(&self) -> Arc<RunningMode> {
-        Arc::clone(&self.state.load().running_mode.load())
+        match running_mode_of(self.liveness(), self.backend()) {
+            RunningMode::Service => Arc::clone(&MODE_SERVICE),
+            RunningMode::Sidecar => Arc::clone(&MODE_SIDECAR),
+            RunningMode::NotRunning => Arc::clone(&MODE_NOT_RUNNING),
+        }
+    }
+
+    pub(super) fn backend(&self) -> Backend {
+        Backend::from_u8(self.state.load().backend.load(Ordering::Acquire))
+    }
+
+    fn liveness(&self) -> Liveness {
+        Liveness::from_u8(self.state.load().liveness.load(Ordering::Acquire))
+    }
+
+    /// Остановка не удалась, и ядро прежнего запуска всё ещё живо.
+    pub fn stop_failed(&self) -> bool {
+        matches!(self.liveness(), Liveness::StopFailed)
+    }
+
+    pub(super) fn a_death_we_asked_for(&self) -> bool {
+        a_death_we_asked_for(self.liveness())
+    }
+
+    /// Ядро прежнего запуска живо, а власти над ним у приложения больше нет:
+    /// новый процесс встал бы вторым ядром на тот же порт.
+    pub(super) fn refuse_to_double_the_core(&self) -> Result<()> {
+        if self.stop_failed() {
+            anyhow::bail!("ядро прежнего запуска не остановилось — второй процесс не поднимаем");
+        }
+        Ok(())
+    }
+
+    /// Намерение: каким способом пойдёт следующий запуск.
+    pub(super) fn aim_at(&self, backend: Backend) {
+        self.state.load().backend.store(backend as u8, Ordering::Release);
+    }
+
+    pub(super) fn note_core_is_up(&self, backend: Backend) {
+        let state = self.state.load();
+        state.backend.store(backend as u8, Ordering::Release);
+        state.liveness.store(Liveness::Up as u8, Ordering::Release);
+    }
+
+    pub(super) fn note_stopping(&self) {
+        self.state
+            .load()
+            .liveness
+            .store(Liveness::Stopping as u8, Ordering::Release);
+    }
+
+    pub(super) fn note_core_is_down(&self) {
+        self.state
+            .load()
+            .liveness
+            .store(Liveness::Down as u8, Ordering::Release);
+    }
+
+    /// Отказ убийства применяется только к живому ядру: если оно тем временем
+    /// умерло само, «не остановилось» было бы враньём.
+    pub(super) fn note_stop_failed(&self) {
+        let state = self.state.load();
+        for was in [Liveness::Stopping, Liveness::Up] {
+            if state
+                .liveness
+                .compare_exchange(
+                    was as u8,
+                    Liveness::StopFailed as u8,
+                    Ordering::AcqRel,
+                    Ordering::Acquire,
+                )
+                .is_ok()
+            {
+                return;
+            }
+        }
     }
 
     pub fn is_starting(&self) -> bool {
@@ -183,11 +320,6 @@ impl CoreManager {
         self.last_update.load_full()
     }
 
-    pub fn set_running_mode(&self, mode: RunningMode) {
-        let state = self.state.load();
-        state.running_mode.store(Arc::new(mode));
-    }
-
     pub fn set_running_child_sidecar(&self, child: CommandChild) {
         let state = self.state.load();
         state.child_sidecar.store(Some(Arc::new(child)));
@@ -230,3 +362,93 @@ impl CoreManager {
 }
 
 singleton!(CoreManager, CORE_MANAGER);
+
+#[cfg(test)]
+mod tests {
+    use super::{Backend, CoreManager, Liveness, RunningMode, a_death_we_asked_for, running_mode_of};
+
+    #[test]
+    fn only_a_core_confirmed_gone_reads_as_no_core() {
+        for backend in [Backend::Sidecar, Backend::Service] {
+            assert_eq!(running_mode_of(Liveness::Down, backend), RunningMode::NotRunning);
+            for liveness in [Liveness::Up, Liveness::Stopping, Liveness::StopFailed] {
+                assert_ne!(
+                    running_mode_of(liveness, backend),
+                    RunningMode::NotRunning,
+                    "{liveness:?}/{backend:?}: живое ядро не имеет права выглядеть как «ядра нет» — \
+                     следующий запуск поднял бы второй процесс поверх него"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_living_core_is_read_as_the_backend_that_runs_it() {
+        for liveness in [Liveness::Up, Liveness::Stopping, Liveness::StopFailed] {
+            assert_eq!(running_mode_of(liveness, Backend::Service), RunningMode::Service);
+            assert_eq!(running_mode_of(liveness, Backend::Sidecar), RunningMode::Sidecar);
+        }
+    }
+
+    #[test]
+    fn a_death_the_stop_asked_for_is_never_a_crash() {
+        assert!(a_death_we_asked_for(Liveness::Stopping));
+        assert!(a_death_we_asked_for(Liveness::StopFailed));
+        assert!(!a_death_we_asked_for(Liveness::Up));
+        assert!(!a_death_we_asked_for(Liveness::Down));
+    }
+
+    #[test]
+    fn both_cells_survive_the_round_trip_through_the_atomic() {
+        for backend in [Backend::Sidecar, Backend::Service] {
+            assert_eq!(Backend::from_u8(backend as u8), backend);
+        }
+        for liveness in [Liveness::Down, Liveness::Up, Liveness::Stopping, Liveness::StopFailed] {
+            assert_eq!(Liveness::from_u8(liveness as u8), liveness);
+        }
+    }
+
+    #[test]
+    fn aiming_at_a_backend_does_not_claim_a_core_is_running() {
+        let manager = CoreManager::default();
+        manager.aim_at(Backend::Service);
+        assert_eq!(manager.backend(), Backend::Service);
+        assert_eq!(*manager.get_running_mode(), RunningMode::NotRunning);
+    }
+
+    #[test]
+    fn a_failed_stop_keeps_the_core_visible_and_refuses_a_second_one() {
+        let manager = CoreManager::default();
+        manager.note_core_is_up(Backend::Sidecar);
+        manager.note_stopping();
+        manager.note_stop_failed();
+
+        assert!(manager.stop_failed());
+        assert_eq!(*manager.get_running_mode(), RunningMode::Sidecar);
+        assert!(manager.refuse_to_double_the_core().is_err());
+    }
+
+    #[test]
+    fn a_core_that_died_on_its_own_is_not_relabelled_as_a_failed_stop() {
+        let manager = CoreManager::default();
+        manager.note_core_is_up(Backend::Sidecar);
+        manager.note_stopping();
+        manager.note_core_is_down();
+        manager.note_stop_failed();
+
+        assert!(!manager.stop_failed());
+        assert_eq!(*manager.get_running_mode(), RunningMode::NotRunning);
+        assert!(manager.refuse_to_double_the_core().is_ok());
+    }
+
+    #[test]
+    fn a_confirmed_stop_opens_the_way_for_the_next_start() {
+        let manager = CoreManager::default();
+        manager.note_core_is_up(Backend::Service);
+        manager.note_stopping();
+        manager.note_core_is_down();
+
+        assert_eq!(*manager.get_running_mode(), RunningMode::NotRunning);
+        assert!(manager.refuse_to_double_the_core().is_ok());
+    }
+}

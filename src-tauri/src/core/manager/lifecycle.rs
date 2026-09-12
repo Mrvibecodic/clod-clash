@@ -1,4 +1,4 @@
-use super::{CoreManager, RunningMode};
+use super::{Backend, CoreManager, RunningMode};
 use crate::cmd::StringifyErr as _;
 use crate::config::{Config, IVerge};
 use crate::constants::timing;
@@ -183,6 +183,8 @@ impl CoreManager {
             return Ok(());
         }
 
+        self.refuse_to_double_the_core()?;
+
         // Идемпотентность при уже работающем ядре; для рестарта использовать restart_core.
         if !matches!(*self.get_running_mode(), RunningMode::NotRunning) {
             logging!(
@@ -200,14 +202,11 @@ impl CoreManager {
         }
         self.prepare_startup().await;
 
-        // Во время ожидания службы может начаться завершение работы; откатываем
-        // состояние, если фактического запуска не произошло.
         if Handle::global().is_exiting() {
-            self.set_running_mode(RunningMode::NotRunning);
             return Ok(());
         }
 
-        let attempted_service = matches!(*self.get_running_mode(), RunningMode::Service);
+        let attempted_service = matches!(self.backend(), Backend::Service);
         let mut result = self.start_and_confirm(attempted_service).await;
 
         // clod:tun-ready — служба может отказать (сломана, старой версии,
@@ -239,9 +238,7 @@ impl CoreManager {
             }
         }
 
-        // При ошибке запуска откатываем mode, чтобы разрешить повторную попытку.
         if let Err(error) = &result {
-            self.set_running_mode(RunningMode::NotRunning);
             Handle::notice_message("core::not_ready", error.to_string());
             return result;
         }
@@ -689,9 +686,9 @@ impl CoreManager {
 
     async fn prepare_startup(&self) {
         self.wait_for_service_if_needed().await;
-        self.set_running_mode(match SERVICE_MANAGER.current().await {
-            ServiceStatus::Ready => RunningMode::Service,
-            _ => RunningMode::Sidecar,
+        self.aim_at(match SERVICE_MANAGER.current().await {
+            ServiceStatus::Ready => Backend::Service,
+            _ => Backend::Sidecar,
         });
     }
 

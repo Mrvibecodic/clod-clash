@@ -16,7 +16,9 @@ pub async fn uninstall_service() -> CmdResult {
     let manager = CoreManager::global();
     let ran_under_service = matches!(*manager.get_running_mode(), RunningMode::Service);
     let _pause = ran_under_service.then(|| manager.planned_pause());
+    let mut core_is_ours_to_start_again = ran_under_service;
     if ran_under_service && let Err(e) = manager.stop_core().await {
+        core_is_ours_to_start_again = false;
         logging!(
             warn,
             Type::Service,
@@ -24,7 +26,7 @@ pub async fn uninstall_service() -> CmdResult {
         );
     }
     let result = execute_service_operation_sync(ServiceStatus::UninstallRequired, "Uninstall").await;
-    if ran_under_service {
+    if core_is_ours_to_start_again {
         match manager.start_core().await {
             Ok(()) => {
                 if let Err(e) = crate::config::profiles::activate_selected_nodes() {
