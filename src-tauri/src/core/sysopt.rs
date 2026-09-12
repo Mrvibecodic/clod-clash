@@ -74,6 +74,25 @@ struct AppliedTarget {
     pac_body: Option<std::string::String>,
 }
 
+#[derive(Clone)]
+struct SentProxy {
+    host: std::string::String,
+    port: u16,
+    pac_url: std::string::String,
+}
+
+impl SentProxy {
+    const fn as_tuple(&self) -> (&str, u16, &str) {
+        (self.host.as_str(), self.port, self.pac_url.as_str())
+    }
+}
+
+#[derive(Clone, Default)]
+struct SentProxies {
+    handed_over: Option<SentProxy>,
+    taken_up: Option<SentProxy>,
+}
+
 struct AppliedProxy {
     before: Option<ObservedProxy>,
     after: Option<ObservedProxy>,
@@ -134,6 +153,19 @@ const fn nothing_of_ours_can_be_in_the_system(ever_applied: bool, wants_proxy: b
     !ever_applied && !wants_proxy
 }
 
+fn everything_that_might_be_ours<'a>(
+    wanted_now: (&'a str, u16, &'a str),
+    applied: Option<(&'a str, u16, &'a str)>,
+    handed_over: Option<(&'a str, u16, &'a str)>,
+    taken_up: Option<(&'a str, u16, &'a str)>,
+) -> Vec<(&'a str, u16, &'a str)> {
+    let mut ours = vec![wanted_now];
+    ours.extend(applied);
+    ours.extend(handed_over);
+    ours.extend(taken_up);
+    ours
+}
+
 const fn our_proxy_may_be_cleared(ownership: &SystemProxyOwnership, nothing_of_ours_is_there: bool) -> bool {
     if nothing_of_ours_is_there || ownership.someone_else_is_switched_on {
         return false;
@@ -145,6 +177,18 @@ const fn our_proxy_may_be_cleared(ownership: &SystemProxyOwnership, nothing_of_o
 pub enum SysproxyTakeDown {
     Cleared,
     LeftToItsOwner,
+    OursIsStillInTheSystem,
+}
+
+const fn the_take_down_we_have_to_skip(ownership: &SystemProxyOwnership) -> Option<SysproxyTakeDown> {
+    if our_proxy_may_be_cleared(ownership, !ownership.ours) {
+        return None;
+    }
+    Some(if ownership.ours {
+        SysproxyTakeDown::OursIsStillInTheSystem
+    } else {
+        SysproxyTakeDown::LeftToItsOwner
+    })
 }
 
 impl WantedProxy {
@@ -341,6 +385,7 @@ pub struct Sysopt {
     applying: AtomicBool,
     inner_proxy: Arc<RwLock<(Sysproxy, Autoproxy)>>,
     applied_target: Arc<RwLock<Option<AppliedTarget>>>,
+    sent_to_the_system: Arc<RwLock<SentProxies>>,
     last_write_failed: AtomicBool,
     write_refusals: AtomicU32,
     ever_applied: AtomicBool,
@@ -355,6 +400,7 @@ impl Default for Sysopt {
             applying: AtomicBool::new(false),
             inner_proxy: Arc::new(RwLock::new((Sysproxy::default(), Autoproxy::default()))),
             applied_target: Arc::new(RwLock::new(None)),
+            sent_to_the_system: Arc::new(RwLock::new(SentProxies::default())),
             last_write_failed: AtomicBool::new(false),
             write_refusals: AtomicU32::new(0),
             ever_applied: AtomicBool::new(false),
@@ -456,10 +502,15 @@ impl Sysopt {
                 target.auto.url.to_string(),
             )
         });
-        let mut ours = vec![(host.as_str(), port, pac_url.as_str())];
-        if let Some((host, port, pac_url)) = previous.as_ref() {
-            ours.push((host.as_str(), *port, pac_url.as_str()));
-        }
+        let sent = self.sent_to_the_system.read().clone();
+        let ours = everything_that_might_be_ours(
+            (host.as_str(), port, pac_url.as_str()),
+            previous
+                .as_ref()
+                .map(|(host, port, pac_url)| (host.as_str(), *port, pac_url.as_str())),
+            sent.handed_over.as_ref().map(SentProxy::as_tuple),
+            sent.taken_up.as_ref().map(SentProxy::as_tuple),
+        );
 
         Some(how_the_system_proxy_stands(&observed, &ours))
     }
@@ -492,18 +543,25 @@ impl Sysopt {
             return Ok(SysproxyTakeDown::Cleared);
         }
 
-        let may_clear = self
+        let skipped = self
             .system_proxy_ownership()
             .await
-            .is_none_or(|ownership| our_proxy_may_be_cleared(&ownership, !ownership.ours));
+            .and_then(|ownership| the_take_down_we_have_to_skip(&ownership));
 
-        if !may_clear {
-            logging!(
-                info,
-                Type::Core,
-                "системный прокси в системе поставлен не нами — не трогаем"
-            );
-            return Ok(SysproxyTakeDown::LeftToItsOwner);
+        if let Some(outcome) = skipped {
+            match outcome {
+                SysproxyTakeDown::OursIsStillInTheSystem => logging!(
+                    warn,
+                    Type::Core,
+                    "поверх нашего системного прокси включены чужие настройки — наш остаётся в системе"
+                ),
+                SysproxyTakeDown::Cleared | SysproxyTakeDown::LeftToItsOwner => logging!(
+                    info,
+                    Type::Core,
+                    "системный прокси в системе поставлен не нами — не трогаем"
+                ),
+            }
+            return Ok(outcome);
         }
         self.ever_applied.store(true, Ordering::SeqCst);
         self.reset_sysproxy().await.map(|()| SysproxyTakeDown::Cleared)
@@ -612,6 +670,13 @@ impl Sysopt {
             self.applying.store(false, Ordering::SeqCst);
         }
 
+        let handed_over = SentProxy {
+            host: sys.host.clone(),
+            port: sys.port,
+            pac_url: auto.url.clone(),
+        };
+        self.sent_to_the_system.write().handed_over = Some(handed_over.clone());
+
         let probe = wanted.clone();
         let applied = tokio::task::spawn_blocking(move || {
             let before = (target_is_unchanged || verbose || wants_to_enable)
@@ -695,11 +760,21 @@ impl Sysopt {
             None => {
                 let owns_the_state = target.sys.enable || target.auto.enable;
                 self.ever_applied.store(owns_the_state, Ordering::SeqCst);
+                self.remember_what_the_system_took(handed_over, owns_the_state);
                 *self.applied_target.write() = Some(target);
                 self.remember_a_clean_write();
                 self.aim_guard(guard_type);
                 Ok(())
             }
+        }
+    }
+
+    fn remember_what_the_system_took(&self, handed_over: SentProxy, owns_the_state: bool) {
+        let mut sent = self.sent_to_the_system.write();
+        if owns_the_state {
+            sent.taken_up = Some(handed_over);
+        } else {
+            *sent = SentProxies::default();
         }
     }
 
@@ -772,6 +847,7 @@ impl Sysopt {
 
         if outcome.is_none() {
             self.ever_applied.store(false, Ordering::SeqCst);
+            *self.sent_to_the_system.write() = SentProxies::default();
         }
         outcome.map_or(Ok(()), Err)
     }
@@ -806,9 +882,10 @@ fn with_system_call_retry(mut apply: impl FnMut() -> sysproxy::Result<()>) -> sy
 #[cfg(test)]
 mod tests {
     use super::{
-        BYPASS_SEPARATOR, DEFAULT_BYPASS, ObservedProxy, ProxyApplyStep, WantedProxy, format_bypass,
-        how_the_system_proxy_stands, how_the_system_proxy_stands_with, nothing_of_ours_can_be_in_the_system,
-        our_proxy_may_be_cleared, proxy_apply_steps, refused_by_the_system, the_guard_may_keep_its_target,
+        BYPASS_SEPARATOR, DEFAULT_BYPASS, ObservedProxy, ProxyApplyStep, SysproxyTakeDown, SystemProxyOwnership,
+        WantedProxy, everything_that_might_be_ours, format_bypass, how_the_system_proxy_stands,
+        how_the_system_proxy_stands_with, nothing_of_ours_can_be_in_the_system, our_proxy_may_be_cleared,
+        proxy_apply_steps, refused_by_the_system, the_guard_may_keep_its_target, the_take_down_we_have_to_skip,
     };
 
     fn observed(sys_enable: bool, host: &str, port: u16, auto_enable: bool) -> ObservedProxy {
@@ -1062,6 +1139,170 @@ mod tests {
         assert!(only_now.someone_else_is_switched_on);
         assert!(with_the_previous_target.ours);
         assert!(!with_the_previous_target.someone_else_is_switched_on);
+    }
+
+    #[test]
+    fn the_port_the_system_took_stays_ours_when_the_next_write_is_refused() {
+        let left_in_the_system = seen(true, "127.0.0.1", 7897, false, "");
+        let wanted_now = ("127.0.0.1", 7899, OUR_PAC);
+        let handed_over = Some(("127.0.0.1", 7899, OUR_PAC));
+        let taken_up = Some(("127.0.0.1", 7897, OUR_PAC));
+
+        let forgetful = how_the_system_proxy_stands(
+            &left_in_the_system,
+            &everything_that_might_be_ours(wanted_now, None, handed_over, None),
+        );
+        let remembering = how_the_system_proxy_stands(
+            &left_in_the_system,
+            &everything_that_might_be_ours(wanted_now, None, handed_over, taken_up),
+        );
+
+        assert!(!forgetful.ours);
+        assert!(forgetful.someone_else_is_switched_on);
+        assert_eq!(
+            the_take_down_we_have_to_skip(&forgetful),
+            Some(SysproxyTakeDown::LeftToItsOwner)
+        );
+        assert!(remembering.ours);
+        assert!(!remembering.someone_else_is_switched_on);
+        assert_eq!(the_take_down_we_have_to_skip(&remembering), None);
+    }
+
+    #[test]
+    fn an_address_the_system_never_confirmed_is_still_ours_to_take_down() {
+        let left_in_the_system = seen(true, "127.0.0.1", 7899, false, "");
+        let wanted_now = ("127.0.0.1", 7901, OUR_PAC);
+        let handed_over = Some(("127.0.0.1", 7899, OUR_PAC));
+        let taken_up = Some(("127.0.0.1", 7897, OUR_PAC));
+
+        let forgetful = how_the_system_proxy_stands(
+            &left_in_the_system,
+            &everything_that_might_be_ours(wanted_now, None, None, taken_up),
+        );
+        let remembering = how_the_system_proxy_stands(
+            &left_in_the_system,
+            &everything_that_might_be_ours(wanted_now, None, handed_over, taken_up),
+        );
+
+        assert_eq!(
+            the_take_down_we_have_to_skip(&forgetful),
+            Some(SysproxyTakeDown::LeftToItsOwner)
+        );
+        assert_eq!(the_take_down_we_have_to_skip(&remembering), None);
+    }
+
+    #[test]
+    fn every_address_we_remember_counts_as_ours_and_the_current_target_alone_is_enough() {
+        let wanted_now = ("127.0.0.1", 7901, OUR_PAC);
+        let all_four = everything_that_might_be_ours(
+            wanted_now,
+            Some(("127.0.0.1", 7899, "")),
+            Some(("127.0.0.1", 7898, "")),
+            Some(("127.0.0.1", 7897, "")),
+        );
+
+        assert_eq!(all_four.len(), 4);
+        assert_eq!(
+            everything_that_might_be_ours(wanted_now, None, None, None),
+            [wanted_now]
+        );
+        for port in [7897u16, 7898, 7899, 7901] {
+            assert!(
+                how_the_system_proxy_stands(&seen(true, "127.0.0.1", port, false, ""), &all_four).ours,
+                "{port}"
+            );
+        }
+        assert!(!how_the_system_proxy_stands(&seen(true, "127.0.0.1", 7896, false, ""), &all_four).ours);
+    }
+
+    const fn ownership(
+        ours: bool,
+        someone_else_is_switched_on: bool,
+        our_manual_proxy_is_switched_on: bool,
+        a_foreign_autoconfig_is_set: bool,
+    ) -> SystemProxyOwnership {
+        SystemProxyOwnership {
+            ours,
+            someone_else_is_switched_on,
+            our_manual_proxy_is_switched_on,
+            a_foreign_autoconfig_is_set,
+        }
+    }
+
+    #[test]
+    fn a_skipped_take_down_says_whether_what_stayed_behind_is_ours() {
+        let theirs = Some(SysproxyTakeDown::LeftToItsOwner);
+        let ours_stays = Some(SysproxyTakeDown::OursIsStillInTheSystem);
+        let table = [
+            ((false, false, false, false), theirs),
+            ((false, false, false, true), theirs),
+            ((false, false, true, false), theirs),
+            ((false, false, true, true), theirs),
+            ((false, true, false, false), theirs),
+            ((false, true, false, true), theirs),
+            ((false, true, true, false), theirs),
+            ((false, true, true, true), theirs),
+            ((true, false, false, false), None),
+            ((true, false, false, true), ours_stays),
+            ((true, false, true, false), None),
+            ((true, false, true, true), None),
+            ((true, true, false, false), ours_stays),
+            ((true, true, false, true), ours_stays),
+            ((true, true, true, false), ours_stays),
+            ((true, true, true, true), ours_stays),
+        ];
+
+        for ((ours, else_on, manual_on, foreign_pac), expected) in table {
+            let stood = ownership(ours, else_on, manual_on, foreign_pac);
+            assert_eq!(
+                the_take_down_we_have_to_skip(&stood),
+                expected,
+                "{ours} {else_on} {manual_on} {foreign_pac}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_take_down_that_goes_ahead_is_never_reported_as_a_skip() {
+        for ours in [false, true] {
+            for else_on in [false, true] {
+                for manual_on in [false, true] {
+                    for foreign_pac in [false, true] {
+                        let stood = ownership(ours, else_on, manual_on, foreign_pac);
+                        assert_eq!(
+                            the_take_down_we_have_to_skip(&stood).is_none(),
+                            our_proxy_may_be_cleared(&stood, !ours),
+                            "{ours} {else_on} {manual_on} {foreign_pac}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn our_own_proxy_that_someone_switched_over_is_reported_as_left_behind() {
+        let state = seen(true, "10.0.0.1", 3128, true, OUR_PAC);
+        let ours = [("127.0.0.1", 7897, OUR_PAC)];
+
+        for trust_auto_readback in [true, false] {
+            let stood = how_the_system_proxy_stands_with(&state, &ours, trust_auto_readback);
+            assert_eq!(
+                the_take_down_we_have_to_skip(&stood),
+                Some(SysproxyTakeDown::OursIsStillInTheSystem),
+                "{trust_auto_readback}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_system_holding_only_someone_elses_proxy_is_left_to_its_owner() {
+        let stood = ownership_of(&seen(true, "10.0.0.1", 3128, false, ""));
+
+        assert_eq!(
+            the_take_down_we_have_to_skip(&stood),
+            Some(SysproxyTakeDown::LeftToItsOwner)
+        );
     }
 
     #[test]

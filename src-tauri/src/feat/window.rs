@@ -228,13 +228,14 @@ pub struct CleanupOutcome {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ProxyAtExit {
     Cleared,
-    LeftInPlace,
+    LeftToItsOwner,
+    OursIsStillInTheSystem,
     #[default]
     Refused,
 }
 
 const fn the_take_down_went_as_asked(outcome: ProxyAtExit) -> bool {
-    !matches!(outcome, ProxyAtExit::Refused)
+    matches!(outcome, ProxyAtExit::Cleared | ProxyAtExit::LeftToItsOwner)
 }
 
 pub async fn clean_async() -> bool {
@@ -389,7 +390,15 @@ fn spawn_proxy_task(pace: ExitPace) -> tokio::task::JoinHandle<ProxyAtExit> {
                     Type::Window,
                     "Warning: системный прокси не снимали — в системе стоят настройки, поставленные не нами"
                 );
-                ProxyAtExit::LeftInPlace
+                ProxyAtExit::LeftToItsOwner
+            }
+            Ok(Ok(sysopt::SysproxyTakeDown::OursIsStillInTheSystem)) => {
+                logging!(
+                    error,
+                    Type::Window,
+                    "системный прокси снять не удалось — наши настройки остаются в системе"
+                );
+                ProxyAtExit::OursIsStillInTheSystem
             }
             Ok(Err(e)) => {
                 logging!(warn, Type::Window, "Warning: не удалось сбросить системный прокси: {e}");
@@ -535,9 +544,10 @@ mod tests {
     use super::{ExitPace, ProxyAtExit, the_take_down_went_as_asked};
 
     #[test]
-    fn only_a_refusal_makes_the_exit_itself_a_failure_and_warns_the_person() {
+    fn only_our_own_proxy_left_behind_or_a_refusal_warns_the_person_and_fails_the_exit() {
         assert!(the_take_down_went_as_asked(ProxyAtExit::Cleared));
-        assert!(the_take_down_went_as_asked(ProxyAtExit::LeftInPlace));
+        assert!(the_take_down_went_as_asked(ProxyAtExit::LeftToItsOwner));
+        assert!(!the_take_down_went_as_asked(ProxyAtExit::OursIsStillInTheSystem));
         assert!(!the_take_down_went_as_asked(ProxyAtExit::Refused));
     }
 
