@@ -90,6 +90,9 @@ export const summarizeConnections = (
   let uploadSpeed = 0
   const processTotals = new Map<string, number>()
   const routeTotals = new Map<string, number>()
+  // Корзина «Без процесса» — не приложение: соединения без имени процесса
+  // складываются в одну строку списка, но числом приложений считаться не должны.
+  let namedProcesses = 0
 
   for (let i = 0; i < connections.length; i++) {
     const connection = connections[i]
@@ -105,6 +108,9 @@ export const summarizeConnections = (
     const process =
       connection.metadata.process || connection.metadata.processPath || ''
     const processKey = process ? shortProcessName(process) : labels.noProcess
+    if (process && !processTotals.has(processKey)) {
+      namedProcesses++
+    }
     processTotals.set(
       processKey,
       (processTotals.get(processKey) ?? 0) + rowTotal,
@@ -125,7 +131,7 @@ export const summarizeConnections = (
     upload,
     downloadSpeed,
     uploadSpeed,
-    processCount: processTotals.size,
+    processCount: namedProcesses,
     processes: topEntries(processTotals),
     routes: topEntries(routeTotals),
   }

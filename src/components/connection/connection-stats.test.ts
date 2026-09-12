@@ -173,7 +173,11 @@ describe('summarizeConnections', () => {
   it('сводит приложения по короткому имени и считает их число', () => {
     const stats = summarizeConnections(rows, labels)
 
-    assert.equal(stats.processCount, 3)
+    assert.equal(
+      stats.processCount,
+      2,
+      'корзина «Без процесса» не приложение и в число не идёт',
+    )
     assert.deepEqual(
       stats.processes.map((entry) => [entry.key, entry.value]),
       [

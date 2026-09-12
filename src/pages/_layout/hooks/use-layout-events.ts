@@ -31,7 +31,6 @@ export const useLayoutEvents = (
       'getVergeConfig',
       'getSystemProxy',
       'getAutotemProxy',
-      'isServiceAvailable',
       'getSystemState',
       // clod:tun-ready — бэкенд шлёт это событие в том числе когда сам
       // погасил туннель. Без перечитывания состояние TUN обновлял только
