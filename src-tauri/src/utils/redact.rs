@@ -181,6 +181,10 @@ fn redact_word(word: &str, bare_domains: bool) -> std::string::String {
         return masked;
     }
 
+    if let Some(masked) = mask_path_after_host(word, bare_domains) {
+        return masked;
+    }
+
     if bare_domains && let Some(masked) = mask_bare_domain(word) {
         return masked;
     }
@@ -244,16 +248,53 @@ fn looks_like_domain(head: &str, last_label: &str) -> bool {
         && !is_file_suffix(last_label)
 }
 
-const DOMAIN_TAIL: &[char] = &[':', ',', ';', '.', ')', '(', '"', '\'', ']', '}', '>', '?', '!'];
+const fn is_host_char(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || matches!(ch, '.' | '-' | '_' | '/' | '\\')
+}
 
-const DOMAIN_LEAD: &[char] = &['"', '\'', '(', '[', '{', '<', '=', ',', ';'];
+fn is_bare_host(run: &str) -> bool {
+    run.rsplit_once('.')
+        .is_some_and(|(host, last_label)| looks_like_domain(host, last_label))
+}
 
 fn mask_bare_domain(word: &str) -> Option<std::string::String> {
-    let core_len = word.trim_end_matches(DOMAIN_TAIL).len();
-    let (core, tail) = word.split_at(core_len);
-    let (lead, body) = core.split_at(core.rfind(DOMAIN_LEAD).map_or(0, |at| at + 1));
-    let (host, last_label) = body.rsplit_once('.')?;
-    looks_like_domain(host, last_label).then(|| format!("{lead}***{tail}"))
+    let mut out: Option<std::string::String> = None;
+    let mut copied = 0;
+    let mut run: Option<usize> = None;
+
+    for (at, ch) in word.char_indices().chain(std::iter::once((word.len(), ' '))) {
+        if is_host_char(ch) {
+            run.get_or_insert(at);
+            continue;
+        }
+        if let Some(start) = run.take() {
+            let end = start + word[start..at].trim_end_matches(['/', '\\']).len();
+            if is_bare_host(&word[start..end]) {
+                let buf = out.get_or_insert_with(|| std::string::String::with_capacity(word.len()));
+                buf.push_str(&word[copied..start]);
+                buf.push_str("***");
+                copied = end;
+            }
+        }
+    }
+
+    out.map(|mut buf| {
+        buf.push_str(&word[copied..]);
+        buf
+    })
+}
+
+fn mask_path_after_host(word: &str, bare_domains: bool) -> Option<std::string::String> {
+    let at = word.find(['/', '?', '#'])?;
+    if at + 1 == word.len() {
+        return None;
+    }
+    let authority = &word[..at];
+    let masked = mask_host_port(authority).or_else(|| {
+        let masked = mask_bare_domain(authority)?;
+        Some(if bare_domains { masked } else { authority.to_owned() })
+    })?;
+    Some(format!("{masked}/***"))
 }
 
 /// Домашний каталог пользователя, чтобы вырезать его из путей в логе.
@@ -397,6 +438,84 @@ mod tests {
         ] {
             let masked = redact_for_support(line);
             assert!(!masked.contains("api.example.com"), "{masked}");
+        }
+    }
+
+    #[test]
+    fn every_host_in_a_word_is_masked() {
+        for line in [
+            "[DNS] batch a.example.com,b.example.net done",
+            r#"hosts ["a.example.com","b.example.net"]"#,
+            "fallback a.example.com;b.example.net",
+        ] {
+            let masked = redact_for_support(line);
+            assert!(!masked.contains("a.example.com"), "{masked}");
+            assert!(!masked.contains("b.example.net"), "{masked}");
+        }
+    }
+
+    #[test]
+    fn a_host_with_a_path_does_not_reach_the_report() {
+        for line in [
+            "[HTTP] GET example.com/api/v1 200",
+            "[HTTP] GET example.com:8080/api/v1 200",
+            "probe example.com?retry=1 failed",
+            "open example.com/ now",
+        ] {
+            let masked = redact_for_support(line);
+            assert!(!masked.contains("example.com"), "{masked}");
+        }
+    }
+
+    #[test]
+    fn a_path_without_a_scheme_loses_its_token_in_the_local_log() {
+        let short = redact("fetch p.example/s/ab12cd failed");
+        assert!(!short.contains("ab12cd"), "{short}");
+        assert!(short.contains("p.example"), "{short}");
+
+        let with_port = redact("dial mail.example.com:8080/inbox failed");
+        assert!(!with_port.contains("mail.example.com"), "{with_port}");
+        assert!(with_port.contains(":8080"), "{with_port}");
+    }
+
+    #[test]
+    fn trailing_punctuation_is_not_a_path() {
+        assert_eq!(redact("is it api.example.com? yes"), "is it api.example.com? yes");
+        let masked = redact_for_support("is it api.example.com? yes");
+        assert!(masked.contains("***?"), "{masked}");
+    }
+
+    #[test]
+    fn paths_and_names_with_a_dot_are_not_hosts() {
+        for line in [
+            "loading ~/Library/clod/config.yaml",
+            "loading /var/lib/clod/profiles.backup",
+            "cache ~/Downloads/report.final/x.txt",
+            r"loading C:\Users\Ivan\AppData\clod.backup",
+            "start /opt/clod.app/clod",
+            "compiled src/utils/redact.rs and notice-service.ts",
+            "std::io::Error in config.rs at mod.rs",
+            "flexi_logger 0.31.10, schema 2.0.0.final",
+            "route 10.0.0.0/24 via 192.168.1.1",
+            "sent text/plain;charset=UTF-8 and application/vnd.api+json",
+            "ratio 1.5/s and 24/7 and 12/31/2025",
+        ] {
+            assert_eq!(redact(line), line, "{line}");
+            assert_eq!(redact_for_support(line), line, "{line}");
+        }
+    }
+
+    #[test]
+    fn the_export_edits_a_line_the_logger_already_edited() {
+        for (line, host) in [
+            ("fetch p.example/s/ab12cd failed", "p.example"),
+            ("[DNS] batch a.example.com,b.example.net done", "a.example.com"),
+            ("dial mail.example.com:8080/inbox failed", "mail.example.com"),
+            ("[HTTP] GET example.com/api/v1 200", "example.com"),
+        ] {
+            let exported = redact_for_support(&redact(line));
+            assert!(!exported.contains(host), "{exported}");
+            assert_eq!(redact_for_support(&exported), exported, "{exported}");
         }
     }
 
