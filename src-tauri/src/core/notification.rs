@@ -60,7 +60,7 @@ const HELD_STATUS_PREFIXES: &[&str] = &[
     "update::",
     "app_quit::",
 ];
-const EXIT_REFUSAL_STATUS: &str = "app_quit::in_progress";
+pub const EXIT_REFUSAL_STATUS: &str = "app_quit::in_progress";
 const NEVER_HELD_STATUSES: &[&str] = &["tun::setup_started", "tun::setup_done", EXIT_REFUSAL_STATUS];
 
 fn pointless_to_hold(status: &str) -> bool {

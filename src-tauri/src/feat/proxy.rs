@@ -290,24 +290,38 @@ mod tests {
         }
     }
 
+    const EVERY_SETTING: [(bool, bool, bool, SystemProxyStep); 8] = [
+        (false, false, false, SystemProxyStep::Switch),
+        (false, false, true, SystemProxyStep::Switch),
+        (false, true, false, SystemProxyStep::Switch),
+        (false, true, true, SystemProxyStep::Switch),
+        (true, false, false, SystemProxyStep::Switch),
+        (true, false, true, SystemProxyStep::Switch),
+        (true, true, false, SystemProxyStep::DropConnectionsThenSwitch),
+        (true, true, true, SystemProxyStep::Switch),
+    ];
+
     #[test]
     fn connections_are_dropped_only_when_the_proxy_that_carried_them_is_switched_off() {
-        assert_eq!(
-            system_proxy_step(false, true, true, false),
-            SystemProxyStep::DropConnectionsThenSwitch
-        );
-        for (current, auto_close_connection, tun_carries_traffic) in [
-            (false, true, false),
-            (true, false, false),
-            (true, true, true),
-            (false, false, false),
-        ] {
+        let mut covered = [false; 8];
+        for (current, auto_close_connection, tun_carries_traffic, expected) in EVERY_SETTING {
+            let slot =
+                usize::from(current) * 4 + usize::from(auto_close_connection) * 2 + usize::from(tun_carries_traffic);
+            assert!(
+                !covered[slot],
+                "{current}/{auto_close_connection}/{tun_carries_traffic}: сочетание описано дважды"
+            );
+            covered[slot] = true;
             assert_eq!(
                 system_proxy_step(false, current, auto_close_connection, tun_carries_traffic),
-                SystemProxyStep::Switch,
+                expected,
                 "{current}/{auto_close_connection}/{tun_carries_traffic}"
             );
         }
+        assert!(
+            covered.iter().all(|seen| *seen),
+            "таблица обычного случая заявлена исчерпывающей, но сочетание пропущено"
+        );
     }
 
     #[test]

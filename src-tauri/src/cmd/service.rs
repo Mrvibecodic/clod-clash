@@ -118,12 +118,11 @@ mod firewall_platform {
 
 #[tauri::command]
 pub async fn ensure_tun_ready() -> CmdResult<bool> {
-    use crate::feat::tun::SetupOutcome;
+    use crate::feat::tun::SetupAnswer;
     crate::feat::refuse_while_exiting().stringify_err()?;
-    match crate::feat::tun::ensure_ready(true).await {
-        SetupOutcome::AlreadyReady | SetupOutcome::Installed => Ok(true),
-        SetupOutcome::Declined | SetupOutcome::Failed | SetupOutcome::Exiting => Ok(false),
-        SetupOutcome::Busy => Err("tun::setup_busy".into()),
-        SetupOutcome::Pending => Err("tun::setup_pending".into()),
+    match crate::feat::tun::ensure_ready(true).await.answer() {
+        SetupAnswer::Ready => Ok(true),
+        SetupAnswer::NotReady => Ok(false),
+        SetupAnswer::Refused(marker) => Err(marker.into()),
     }
 }

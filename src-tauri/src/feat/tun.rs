@@ -12,6 +12,7 @@ use crate::{
     constants::timing,
     core::{
         handle::Handle,
+        notification::EXIT_REFUSAL_STATUS,
         service::{
             ElevationPending, SERVICE_MANAGER, ServiceBusy, ServiceRegistration, ServiceStatus, elevation_in_flight,
             is_service_available, service_registration, start_registered_service,
@@ -885,6 +886,25 @@ pub enum SetupOutcome {
     Exiting,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SetupAnswer {
+    Ready,
+    NotReady,
+    Refused(&'static str),
+}
+
+impl SetupOutcome {
+    pub const fn answer(self) -> SetupAnswer {
+        match self {
+            Self::AlreadyReady | Self::Installed => SetupAnswer::Ready,
+            Self::Declined | Self::Failed => SetupAnswer::NotReady,
+            Self::Busy => SetupAnswer::Refused("tun::setup_busy"),
+            Self::Pending => SetupAnswer::Refused("tun::setup_pending"),
+            Self::Exiting => SetupAnswer::Refused(EXIT_REFUSAL_STATUS),
+        }
+    }
+}
+
 pub async fn ensure_ready(user_initiated: bool) -> SetupOutcome {
     if Handle::global().is_exiting() {
         logging!(
@@ -1209,6 +1229,52 @@ mod tests {
         clear_suppression();
         assert!(!is_suppressed());
         assert_eq!(START_ATTEMPTS.load(Ordering::Acquire), 0);
+    }
+
+    const EVERY_OUTCOME: [SetupOutcome; 7] = [
+        SetupOutcome::AlreadyReady,
+        SetupOutcome::Installed,
+        SetupOutcome::Declined,
+        SetupOutcome::Busy,
+        SetupOutcome::Failed,
+        SetupOutcome::Pending,
+        SetupOutcome::Exiting,
+    ];
+
+    #[test]
+    fn a_refused_preparation_never_passes_for_a_service_that_is_not_installed() {
+        let refused = SetupOutcome::Exiting.answer();
+        assert_eq!(refused, SetupAnswer::Refused(EXIT_REFUSAL_STATUS));
+        assert_ne!(
+            refused,
+            SetupOutcome::Declined.answer(),
+            "«идёт выход» и «человек отказал» отвечают одинаково — экран позовёт ставить службу"
+        );
+        assert_ne!(
+            refused,
+            SetupOutcome::Failed.answer(),
+            "«идёт выход» неотличим от провалившейся установки"
+        );
+        assert_ne!(refused, SetupOutcome::AlreadyReady.answer());
+    }
+
+    #[test]
+    fn every_outcome_of_the_preparation_carries_its_own_answer() {
+        let mut markers = std::collections::BTreeSet::new();
+        let (mut ready, mut not_ready) = (0_usize, 0_usize);
+        for outcome in EVERY_OUTCOME {
+            match outcome.answer() {
+                SetupAnswer::Ready => ready += 1,
+                SetupAnswer::NotReady => not_ready += 1,
+                SetupAnswer::Refused(marker) => {
+                    assert!(!marker.is_empty(), "{outcome:?}: отказ без причины");
+                    assert!(markers.insert(marker), "{outcome:?}: причина отказа уже занята");
+                }
+            }
+        }
+        assert_eq!(ready, 2, "готовыми считаются ровно два исхода");
+        assert_eq!(not_ready, 2, "«службы нет» значат ровно два исхода");
+        assert_eq!(markers.len(), 3, "у каждого отказа своя причина");
     }
 
     #[test]

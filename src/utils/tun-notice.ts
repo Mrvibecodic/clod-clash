@@ -4,6 +4,10 @@ const SETUP_MARKERS: Record<string, TranslationKey> = {
   'tun::setup_pending':
     'settings.sections.system.notifications.tunMode.setupPending',
   'tun::setup_busy': 'settings.sections.system.notifications.tunMode.setupBusy',
+  // «Идёт выход» — это отказ, а не отсутствие службы: без своей строки экран
+  // звал бы ставить уже установленную службу.
+  'app_quit::in_progress':
+    'settings.sections.system.notifications.core.exitInProgress',
 }
 
 const FAILURE_REASONS: Record<string, TranslationKey> = {

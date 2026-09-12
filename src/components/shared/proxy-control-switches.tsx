@@ -31,7 +31,7 @@ import { useTunState } from '@/hooks/use-tun-state'
 import { useVerge } from '@/hooks/use-verge'
 import { ensureTunReady } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
-import { tunSetupNotice } from '@/utils/tun-notice'
+import { tunSetupKey, tunSetupNotice } from '@/utils/tun-notice'
 
 interface ProxySwitchProps {
   /**
@@ -214,7 +214,13 @@ const ProxyControlSwitches = ({
     // состояния: если службы нет, ставим её (один запрос прав). Ошибка
     // остаётся только для случая, когда пользователь отказал.
     if (value && !tunCapable) {
-      const ready = await ensureTunReady()
+      // Подготовка умеет не только «получилось/не получилось»: отказ («идёт
+      // выход», «уже спрашиваем права») приходит меткой, и её надо показать
+      // словами, а не звать ставить уже стоящую службу.
+      const ready = await ensureTunReady().catch((err: unknown) => {
+        const key = tunSetupKey(err)
+        throw key ? new Error(t(key)) : err
+      })
       await Promise.all([mutateSystemState(), mutateTunState()])
       if (!ready) {
         const msgKey = 'settings.sections.proxyControl.tooltips.tunUnavailable'

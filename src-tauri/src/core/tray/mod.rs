@@ -956,7 +956,7 @@ fn refused_while_exiting() -> bool {
         return false;
     }
     logging!(info, Type::Tray, "действие из трея отклонено: выход уже идёт");
-    handle::Handle::notice_message("app_quit::in_progress", "");
+    handle::Handle::notice_message(crate::core::notification::EXIT_REFUSAL_STATUS, "");
     true
 }
 

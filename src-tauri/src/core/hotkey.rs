@@ -2,7 +2,12 @@ use crate::process::AsyncHandler;
 use crate::singleton;
 use crate::utils::notification::{NotificationEvent, notify_event};
 use crate::utils::window_manager::WindowManager;
-use crate::{config::Config, core::handle, feat, module::lightweight::entry_lightweight_mode};
+use crate::{
+    config::Config,
+    core::{handle, notification::EXIT_REFUSAL_STATUS},
+    feat,
+    module::lightweight::entry_lightweight_mode,
+};
 use anyhow::{Result, bail};
 use arc_swap::ArcSwap;
 use clash_verge_logging::{Type, logging};
@@ -105,7 +110,7 @@ fn refuse_the_press() {
         Type::Hotkey,
         "действие по горячей клавише отклонено: выход уже идёт"
     );
-    handle::Handle::notice_message("app_quit::in_progress", "");
+    handle::Handle::notice_message(EXIT_REFUSAL_STATUS, "");
 }
 
 #[cfg(target_os = "macos")]
@@ -518,7 +523,31 @@ impl Drop for Hotkey {
 
 #[cfg(test)]
 mod tests {
-    use super::{HotkeyFunction, PressVerdict, press_verdict};
+    use super::{EXIT_REFUSAL_STATUS, HotkeyFunction, PressVerdict, press_verdict};
+
+    fn production_code(source: &str) -> &str {
+        source.split("#[cfg(test)]").next().unwrap_or(source)
+    }
+
+    fn fn_body<'a>(source: &'a str, signature: &str) -> Option<&'a str> {
+        let at = source.find(signature)?;
+        let rest = &source[at..];
+        let open = rest.find('{')?;
+        let mut depth = 0usize;
+        for (index, byte) in rest.bytes().enumerate().skip(open) {
+            match byte {
+                b'{' => depth += 1,
+                b'}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return Some(&rest[open..=index]);
+                    }
+                }
+                _ => {}
+            }
+        }
+        None
+    }
 
     fn every_function() -> Vec<HotkeyFunction> {
         #[allow(unused_mut)]
@@ -556,6 +585,48 @@ mod tests {
                 press_verdict(function, false),
                 PressVerdict::Run,
                 "горячая клавиша {function} работает, пока выход не начат"
+            );
+        }
+    }
+
+    #[test]
+    fn a_press_can_reach_an_action_only_through_the_verdict() {
+        let source = production_code(include_str!("hotkey.rs"));
+        let gate = fn_body(source, "fn execute_function").unwrap_or_default();
+        assert!(
+            gate.contains("press_verdict("),
+            "единственная дверь к действию перестала спрашивать вердикт"
+        );
+        assert!(
+            gate.contains("Self::run_function("),
+            "вердикт больше не запускает действие"
+        );
+        assert_eq!(
+            source.matches("Self::run_function(").count(),
+            1,
+            "действие вызывается в обход вердикта — гейт выхода снят"
+        );
+        let handler = fn_body(source, "pub async fn register_hotkey_with_function").unwrap_or_default();
+        assert!(
+            handler.contains("Self::execute_function("),
+            "обработчик нажатия перестал ходить через вердикт"
+        );
+    }
+
+    #[test]
+    fn the_key_and_the_tray_refuse_with_one_status() {
+        let written_by_hand = format!("\"{EXIT_REFUSAL_STATUS}\"");
+        for (name, source) in [
+            ("hotkey.rs", production_code(include_str!("hotkey.rs"))),
+            ("tray/mod.rs", production_code(include_str!("tray/mod.rs"))),
+        ] {
+            assert!(
+                !source.contains(written_by_hand.as_str()),
+                "{name}: статус отказа вписан строкой, и он может разойтись с соседним"
+            );
+            assert!(
+                source.contains("EXIT_REFUSAL_STATUS"),
+                "{name}: отказ перестал брать статус из общего источника"
             );
         }
     }
