@@ -15,6 +15,12 @@ import { BaseDialog, DialogRef, Switch, TooltipIcon } from '@/components/base'
 import { useVerge } from '@/hooks/use-verge'
 import { showNotice } from '@/services/notice-service'
 
+// Те же значения, что у шаблона настроек и запасных значений бэкенда
+// (`IVerge::DEFAULT_APP_LOG_MAX_SIZE` / `DEFAULT_APP_LOG_MAX_COUNT`): у формы
+// было собственное умолчание, и она показывала не то, с чем работает ротация.
+const DEFAULT_APP_LOG_MAX_SIZE = 1024
+const DEFAULT_APP_LOG_MAX_COUNT = 8
+
 export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
   const { t } = useTranslation()
   const { verge, patchVerge } = useVerge()
@@ -22,8 +28,8 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
   const [open, setOpen] = useState(false)
   const [values, setValues] = useState({
     appLogLevel: 'warn',
-    appLogMaxSize: 8,
-    appLogMaxCount: 12,
+    appLogMaxSize: DEFAULT_APP_LOG_MAX_SIZE,
+    appLogMaxCount: DEFAULT_APP_LOG_MAX_COUNT,
     verboseDiagnostics: false,
     autoCloseConnection: true,
     autoCheckUpdate: true,
@@ -39,8 +45,8 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
       setOpen(true)
       setValues({
         appLogLevel: verge?.app_log_level ?? 'warn',
-        appLogMaxSize: verge?.app_log_max_size ?? 128,
-        appLogMaxCount: verge?.app_log_max_count ?? 8,
+        appLogMaxSize: verge?.app_log_max_size ?? DEFAULT_APP_LOG_MAX_SIZE,
+        appLogMaxCount: verge?.app_log_max_count ?? DEFAULT_APP_LOG_MAX_COUNT,
         verboseDiagnostics: verge?.enable_verbose_diagnostics ?? false,
         autoCloseConnection: verge?.auto_close_connection ?? true,
         autoCheckUpdate: verge?.auto_check_update ?? true,
@@ -127,7 +133,10 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
             onChange={(e) =>
               setValues((v) => ({
                 ...v,
-                appLogMaxSize: Math.max(1, parseInt(e.target.value) || 128),
+                appLogMaxSize: Math.max(
+                  1,
+                  parseInt(e.target.value) || DEFAULT_APP_LOG_MAX_SIZE,
+                ),
               }))
             }
             slotProps={{

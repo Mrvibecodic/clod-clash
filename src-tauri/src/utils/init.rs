@@ -10,11 +10,12 @@ use crate::{
     },
 };
 use anyhow::Result;
-use chrono::{Local, TimeZone as _};
+#[cfg(target_os = "macos")]
+use chrono::Local;
 use clash_verge_logging::Type;
 use std::{
     path::{Path, PathBuf},
-    str::FromStr as _,
+    time::SystemTime,
 };
 use tauri_plugin_shell::ShellExt as _;
 use tokio::fs;
@@ -40,6 +41,13 @@ async fn delete_snapshot_logs(log_dir: &Path) -> Result<()> {
     }
 
     Ok(())
+}
+
+const SECONDS_IN_A_DAY: u64 = 24 * 60 * 60;
+
+fn older_than_days(modified: SystemTime, now: SystemTime, days: u64) -> bool {
+    now.duration_since(modified)
+        .is_ok_and(|age| age.as_secs() > days.saturating_mul(SECONDS_IN_A_DAY))
 }
 
 pub async fn delete_log() -> Result<()> {
@@ -71,39 +79,20 @@ pub async fn delete_log() -> Result<()> {
 
     logging!(info, Type::Setup, "try to delete log files, day: {}", day);
 
-    let parse_time_str = |s: &str| {
-        let sa: Vec<&str> = s.split('-').collect();
-        if sa.len() != 4 {
-            return Err(anyhow::anyhow!("invalid time str"));
-        }
-
-        let year = i32::from_str(sa[0])?;
-        let month = u32::from_str(sa[1])?;
-        let day = u32::from_str(sa[2])?;
-        let time = chrono::NaiveDate::from_ymd_opt(year, month, day)
-            .ok_or_else(|| anyhow::anyhow!("invalid time str"))?
-            .and_hms_opt(0, 0, 0)
-            .ok_or_else(|| anyhow::anyhow!("invalid time str"))?;
-        Ok(time)
-    };
-
     let process_file = async move |file: DirEntry| -> Result<()> {
         let file_name = file.file_name();
         let file_name = file_name.to_str().unwrap_or_default();
 
-        if file_name.ends_with(".log") {
-            let now = Local::now();
-            let created_time = parse_time_str(&file_name[0..file_name.len() - 4])?;
-            let file_time = Local
-                .from_local_datetime(&created_time)
-                .single()
-                .ok_or_else(|| anyhow::anyhow!("invalid local datetime"))?;
-
-            let duration = now.signed_duration_since(file_time);
-            if duration.num_days() > day {
-                let _ = file.path().remove_if_exists().await;
-                logging!(info, Type::Setup, "delete log file: {}", file_name);
-            }
+        if !file_name.ends_with(".log") {
+            return Ok(());
+        }
+        // Возраст берётся из метаданных: имя ротированного файла собирает
+        // flexi_logger по своему формату, и разбор имени ломается от любой
+        // смены этого формата — молча, потому что ошибку разбора здесь глотают.
+        let modified = file.metadata().await?.modified()?;
+        if older_than_days(modified, SystemTime::now(), day) {
+            let _ = file.path().remove_if_exists().await;
+            logging!(info, Type::Setup, "delete log file: {}", file_name);
         }
         Ok(())
     };
@@ -934,10 +923,32 @@ async fn handle_copy(src: &PathBuf, dest: &PathBuf, file: &str) {
 #[cfg(test)]
 mod tests {
     use super::{
-        BundledAssetAction, DNS_CONFIG_HEADER, bundled_asset_action, default_dns_config, dns_config_problem,
-        drop_legacy_dns_keys, has_untouched_legacy_fallback, has_user_comments, legacy_fallback_filter,
+        BundledAssetAction, DNS_CONFIG_HEADER, SECONDS_IN_A_DAY, bundled_asset_action, default_dns_config,
+        dns_config_problem, drop_legacy_dns_keys, has_untouched_legacy_fallback, has_user_comments,
+        legacy_fallback_filter, older_than_days,
     };
     use serde_yaml_ng::{Mapping, Value};
+    use std::time::{Duration, SystemTime};
+
+    #[test]
+    fn a_log_file_is_judged_by_its_age_whatever_its_name_looks_like() {
+        let now = SystemTime::UNIX_EPOCH + Duration::from_secs(SECONDS_IN_A_DAY * 1000);
+        let aged = |days: u64| now - Duration::from_secs(SECONDS_IN_A_DAY * days);
+
+        assert!(older_than_days(aged(8), now, 7), "восьмидневный файл старше семи дней");
+        assert!(!older_than_days(aged(7), now, 7), "ровно семь дней — ещё не старше");
+        assert!(!older_than_days(aged(1), now, 7));
+        assert!(
+            !older_than_days(now, now, 0),
+            "свежий файл не удаляется и при нуле дней"
+        );
+    }
+
+    #[test]
+    fn a_file_dated_in_the_future_is_kept() {
+        let now = SystemTime::UNIX_EPOCH + Duration::from_secs(SECONDS_IN_A_DAY * 1000);
+        assert!(!older_than_days(now + Duration::from_secs(SECONDS_IN_A_DAY), now, 1));
+    }
 
     #[test]
     fn a_missing_geo_asset_is_delivered() {

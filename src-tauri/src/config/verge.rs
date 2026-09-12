@@ -287,6 +287,13 @@ impl IVerge {
 
     pub const DEFAULT_AUTO_CLOSE_CONNECTION: bool = true;
 
+    /// Единственное умолчание размера файла журнала: шаблон настроек, запасные
+    /// значения в коде и начальное состояние формы обязаны говорить одно и то же,
+    /// иначе у установки без ключа ротация идёт в разы чаще, чем у соседней.
+    pub const DEFAULT_APP_LOG_MAX_SIZE: u64 = 1024;
+
+    pub const DEFAULT_APP_LOG_MAX_COUNT: usize = 8;
+
     pub fn auto_close_connection(&self) -> bool {
         self.auto_close_connection
             .unwrap_or(Self::DEFAULT_AUTO_CLOSE_CONNECTION)
@@ -411,8 +418,8 @@ impl IVerge {
     pub fn template() -> Self {
         Self {
             app_log_level: Some("debug".into()),
-            app_log_max_size: Some(1024),
-            app_log_max_count: Some(8),
+            app_log_max_size: Some(Self::DEFAULT_APP_LOG_MAX_SIZE),
+            app_log_max_count: Some(Self::DEFAULT_APP_LOG_MAX_COUNT),
             clash_core: Some("verge-mihomo".into()),
             language: Some(clash_verge_i18n::system_language().into()),
             theme_mode: Some("system".into()),

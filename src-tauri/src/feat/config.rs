@@ -393,8 +393,8 @@ async fn process_terminated_flags(update_flags: UpdateFlags, patch: &IVerge) -> 
         Logger::global().update_log_level(patch.get_log_level())?;
     }
     if update_flags.contains(UpdateFlags::LOG_FILE) {
-        let log_max_size = patch.app_log_max_size.unwrap_or(128);
-        let log_max_count = patch.app_log_max_count.unwrap_or(8);
+        let log_max_size = patch.app_log_max_size.unwrap_or(IVerge::DEFAULT_APP_LOG_MAX_SIZE);
+        let log_max_count = patch.app_log_max_count.unwrap_or(IVerge::DEFAULT_APP_LOG_MAX_COUNT);
         Logger::global().update_log_config(log_max_size, log_max_count).await?;
     }
     Ok(())
