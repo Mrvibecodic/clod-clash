@@ -5,16 +5,37 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
     time::Duration,
 };
-use tokio::{sync::Mutex, time::Instant};
+use tokio::sync::Mutex;
 
 const STATE_FILE: &str = "original_dns.txt";
 const SCRIPT_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Сколько ждать снятия подмены на выходе.
+/// Потолок всего шага на выходе: сначала пережидается идущая подмена, потом своё
+/// время получает обратный скрипт.
 ///
-/// clod:dns-exit — заведомо больше времени работы скрипта: иначе выход по
-/// таймауту заставал подмену в разгаре и оставлял системный DNS чужим.
-pub const RESTORE_BUDGET: Duration = Duration::from_secs(SCRIPT_TIMEOUT.as_secs() + 2);
+/// clod:dns-exit — ожидание замка должно быть заведомо ДЛИННЕЕ `SCRIPT_TIMEOUT`:
+/// замок держится от начала подмены до её конца, то есть дольше, чем работает
+/// сам скрипт, и при равных числах зависшую подмену выход не переждал бы никогда
+/// — обратный скрипт не запускался бы вовсе именно в том случае, ради которого
+/// ожидание и заведено. При этом сумма не выходит за потолок интерактивного
+/// выхода, который и без DNS равен восемнадцати секундам (снятие туннеля,
+/// ожидание замка жизненного цикла, остановка ядра и опрос службы).
+pub const RESTORE_BUDGET: Duration = Duration::from_secs(18);
+
+/// Сколько из потолка достаётся самому обратному скрипту. Типовая подмена
+/// отрабатывает за секунду-две, десять секунд — это уже зависшая.
+const RESTORE_SCRIPT_SHARE: Duration = Duration::from_secs(6);
+
+/// Как потолок шага делится между ожиданием чужой подмены и обратным скриптом.
+const fn exit_shares(ceiling: Duration) -> (Duration, Duration) {
+    let ceiling = ceiling.as_secs();
+    let share = RESTORE_SCRIPT_SHARE.as_secs();
+    if ceiling <= share {
+        let wait = ceiling / 3;
+        return (Duration::from_secs(wait), Duration::from_secs(ceiling - wait));
+    }
+    (Duration::from_secs(ceiling - share), Duration::from_secs(share))
+}
 
 pub const OVERRIDE_SERVER: &str = "114.114.114.114";
 
@@ -114,7 +135,7 @@ pub async fn restore_public_dns_if_pending() {
         Type::Config,
         "system DNS was left overridden by a previous run; restoring"
     );
-    restore_public_dns_locked().await;
+    restore_public_dns_locked(SCRIPT_TIMEOUT).await;
 }
 
 async fn sync_override(ticket: u64, want_base: bool, shaped_fake_ip: bool) {
@@ -130,7 +151,7 @@ async fn sync_override(ticket: u64, want_base: bool, shaped_fake_ip: bool) {
             set_public_dns_locked(OVERRIDE_SERVER.to_owned()).await;
         }
     } else if overridden {
-        restore_public_dns_locked().await;
+        restore_public_dns_locked(SCRIPT_TIMEOUT).await;
     }
 }
 
@@ -141,18 +162,18 @@ pub async fn restore_public_dns() -> bool {
     if !has_pending_restore() {
         return true;
     }
-    restore_public_dns_locked().await
+    restore_public_dns_locked(SCRIPT_TIMEOUT).await
 }
 
 pub async fn restore_public_dns_before_exit(budget: Duration) -> bool {
-    let deadline = Instant::now() + budget;
     let ticket = take_the_newest_ticket();
-    let Ok(_serialized) = tokio::time::timeout(budget, OVERRIDE_LOCK.lock()).await else {
+    let (lock_wait, script_time) = exit_shares(budget);
+    let Ok(_serialized) = tokio::time::timeout(lock_wait, OVERRIDE_LOCK.lock()).await else {
         logging!(
             warn,
             Type::Config,
-            "unset system dns: the override still running did not finish within the {}s exit budget",
-            budget.as_secs()
+            "unset system dns: the override still running did not finish within the {}s it is waited for",
+            lock_wait.as_secs()
         );
         return false;
     };
@@ -160,21 +181,21 @@ pub async fn restore_public_dns_before_exit(budget: Duration) -> bool {
     if !has_pending_restore() {
         return true;
     }
-    match tokio::time::timeout_at(deadline, restore_public_dns_locked()).await {
+    match tokio::time::timeout(script_time, restore_public_dns_locked(script_time)).await {
         Ok(done) => done,
         Err(_) => {
             logging!(
                 warn,
                 Type::Config,
-                "unset system dns did not finish within the {}s exit budget",
-                budget.as_secs()
+                "unset system dns did not finish within the {}s it is given after the lock",
+                script_time.as_secs()
             );
             false
         }
     }
 }
 
-async fn run_dns_script(script_name: &str, args: Vec<String>, what: &str) -> bool {
+async fn run_dns_script(script_name: &str, args: Vec<String>, what: &str, limit: Duration) -> bool {
     use crate::{core::handle, utils::dirs};
     use tauri_plugin_shell::{ShellExt as _, process::CommandEvent};
 
@@ -219,7 +240,7 @@ async fn run_dns_script(script_name: &str, args: Vec<String>, what: &str) -> boo
         None
     };
 
-    match tokio::time::timeout(SCRIPT_TIMEOUT, terminated).await {
+    match tokio::time::timeout(limit, terminated).await {
         Err(_) => {
             logging!(error, Type::Config, "{what} timed out");
             if let Err(err) = child.kill() {
@@ -248,15 +269,58 @@ async fn set_public_dns_locked(dns_server: String) -> bool {
     // Файл состояния не трогаем даже при отказе: в нём записаны прежние адреса,
     // и потерять их хуже, чем повторить попытку. Скрипт применяет подмену
     // повторно без вреда, а `OVERRIDE_CONFIRMED` не даст счесть дело сделанным.
-    let done = run_dns_script("set_dns.sh", vec![dns_server, state_arg()], "set system dns").await;
+    let done = run_dns_script(
+        "set_dns.sh",
+        vec![dns_server, state_arg()],
+        "set system dns",
+        SCRIPT_TIMEOUT,
+    )
+    .await;
     OVERRIDE_CONFIRMED.store(done, Ordering::SeqCst);
     done
 }
 
-async fn restore_public_dns_locked() -> bool {
-    let done = run_dns_script("unset_dns.sh", vec![state_arg()], "unset system dns").await;
+async fn restore_public_dns_locked(limit: Duration) -> bool {
+    let done = run_dns_script("unset_dns.sh", vec![state_arg()], "unset system dns", limit).await;
     if done {
         OVERRIDE_CONFIRMED.store(false, Ordering::SeqCst);
     }
     done
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{RESTORE_BUDGET, RESTORE_SCRIPT_SHARE, SCRIPT_TIMEOUT, exit_shares};
+    use std::time::Duration;
+
+    /// Сколько подмена занимает, когда всё в порядке.
+    const A_TYPICAL_OVERRIDE_RUN: Duration = Duration::from_secs(2);
+
+    /// Потолок интерактивного выхода без DNS: снятие туннеля (3) + ожидание
+    /// замка жизненного цикла (5) + остановка ядра (5) + опрос службы (5).
+    const THE_EXIT_CEILING_WITHOUT_DNS: Duration = Duration::from_secs(18);
+
+    #[test]
+    fn the_wait_and_the_script_split_one_ceiling_that_outlasts_a_hung_override() {
+        let (lock_wait, script_time) = exit_shares(RESTORE_BUDGET);
+
+        assert_eq!(lock_wait + script_time, RESTORE_BUDGET);
+        assert_eq!(script_time, RESTORE_SCRIPT_SHARE);
+        // Замок держится дольше самого скрипта: `run_dns_script` ещё ищет ресурсы,
+        // запускает `bash` и убивает зависшего ребёнка после таймера.
+        assert!(lock_wait > SCRIPT_TIMEOUT);
+        assert!(script_time >= A_TYPICAL_OVERRIDE_RUN * 2);
+        assert!(script_time < SCRIPT_TIMEOUT);
+        assert!(RESTORE_BUDGET <= THE_EXIT_CEILING_WITHOUT_DNS);
+    }
+
+    #[test]
+    fn a_ceiling_shorter_than_the_script_share_still_leaves_both_some_time() {
+        let hurried = Duration::from_secs(3);
+        let (lock_wait, script_time) = exit_shares(hurried);
+
+        assert_eq!(lock_wait + script_time, hurried);
+        assert!(!lock_wait.is_zero());
+        assert!(script_time > lock_wait);
+    }
 }
