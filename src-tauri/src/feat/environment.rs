@@ -121,9 +121,49 @@ fn looks_like_the_core_default_tunnel(name: &str) -> bool {
         .is_some_and(|index| index.chars().all(|c| c.is_ascii_digit()))
 }
 
-fn named_with_an_index(name: &str, base: &str) -> bool {
+fn digits_after<'a>(name: &'a str, base: &str) -> Option<&'a str> {
     name.strip_prefix(base)
-        .is_some_and(|index| !index.is_empty() && index.chars().all(|c| c.is_ascii_digit()))
+        .filter(|digits| !digits.is_empty() && digits.chars().all(|c| c.is_ascii_digit()))
+}
+
+fn named_with_an_index(name: &str, base: &str) -> bool {
+    digits_after(name, base).is_some()
+}
+
+const FIRST_BRIDGE_A_HYPERVISOR_TAKES: u32 = 100;
+
+/// Мост, который гипервизор Apple заводит под виртуальную машину: имя `bridge`
+/// и индекс от сотни.
+///
+/// clod:net-virtual — `podman machine start`, lima, colima, UTM на Apple
+/// Virtualization и тумблер «Общий интернет» поднимают `bridge100`, `bridge101`
+/// и уносят их вместе с адресом. Мосты, собранные человеком в настройках сети,
+/// нумеруются с нуля и остаются настоящими интерфейсами.
+fn looks_like_a_hypervisor_bridge(name: &str) -> bool {
+    digits_after(name, "bridge")
+        .and_then(|digits| digits.parse::<u32>().ok())
+        .is_some_and(|index| index >= FIRST_BRIDGE_A_HYPERVISOR_TAKES)
+}
+
+fn without_a_duplicate_index(name: &str) -> &str {
+    name.rsplit_once(' ')
+        .filter(|(_, tail)| !tail.is_empty() && tail.chars().all(|c| c.is_ascii_digit()))
+        .map_or(name, |(head, _)| head)
+}
+
+/// Коммутатор Hyper-V, чьё имя выбрал человек: Windows собирает имя адаптера как
+/// `vEthernet (<имя коммутатора>)`.
+///
+/// clod:net-virtual — совпасть может и внешний коммутатор, поэтому метка берётся
+/// целиком, между скобками, а не подстрокой.
+fn switch_is_labelled_like_a_sandbox(name: &str) -> bool {
+    let name = name.to_lowercase();
+    without_a_duplicate_index(&name)
+        .strip_prefix("vethernet (")
+        .and_then(|label| label.strip_suffix(')'))
+        .is_some_and(|label| {
+            label == "nat" || label == "default switch" || label == "wsl" || label.starts_with("wsl (")
+        })
 }
 
 /// Мост, имя которому выдала сама песочница: `br-` и двенадцать шестнадцатеричных
@@ -138,38 +178,35 @@ fn looks_like_a_generated_bridge(name: &str) -> bool {
         .is_some_and(|id| id.len() == 12 && id.chars().all(|c| c.is_ascii_hexdigit()))
 }
 
-/// Виртуальные коммутаторы и мосты локальных песочниц.
+/// Виртуальные коммутаторы и мосты локальных песочниц, названные самой песочницей.
 ///
 /// clod:net-virtual — Docker, Podman, LXD/Incus, WSL, Hyper-V, VirtualBox,
-/// VMware и Parallels поднимают и гасят свои адаптеры по команде пользователя;
-/// к пути машины наружу это отношения не имеет. Без этого `wsl --shutdown`,
-/// остановка Docker или `docker compose down` рвали все живые соединения ровно
-/// так же, как мигание Teredo.
-fn is_a_local_sandbox_adapter(name: &str) -> bool {
+/// VMware, Parallels и гипервизор Apple поднимают и гасят свои адаптеры по
+/// команде пользователя; к пути машины наружу это отношения не имеет. Без этого
+/// `wsl --shutdown`, остановка Docker, `docker compose down` или
+/// `podman machine stop` рвали все живые соединения ровно так же, как мигание
+/// Teredo.
+fn names_its_own_sandbox(name: &str) -> bool {
     let name = name.to_lowercase();
     // Только имена, которые эти песочницы дают сами. Голый `veth` сюда не
     // годится, и просто `br-` тоже: под него попал бы домашний мост `br-lan`, а
     // на таких машинах это и есть единственный путь наружу. Короткие `cni` и
-    // `vnic` берутся только с числовым индексом, `vEthernet (nat)` — целиком,
-    // чтобы не задеть внешний коммутатор Hyper-V.
+    // `vnic` берутся только с числовым индексом, `bridge` — только с индексом от
+    // сотни, чтобы собранный человеком `bridge0` остался настоящим интерфейсом.
     [
-        "docker",
-        "podman",
-        "virbr",
-        "vboxnet",
-        "vmnet",
-        "vmware",
-        "wsl",
-        "lxdbr",
-        "incusbr",
-        "default switch",
-        "vethernet (nat)",
+        "docker", "podman", "virbr", "vboxnet", "vmnet", "vmware", "lxdbr", "incusbr",
     ]
     .iter()
     .any(|known| name.contains(known))
         || named_with_an_index(&name, "cni")
         || named_with_an_index(&name, "vnic")
         || looks_like_a_generated_bridge(&name)
+        || looks_like_a_hypervisor_bridge(&name)
+}
+
+#[cfg(test)]
+fn is_a_local_sandbox_adapter(name: &str) -> bool {
+    names_its_own_sandbox(name) || switch_is_labelled_like_a_sandbox(name)
 }
 
 fn is_our_tunnel(name: &str) -> bool {
@@ -213,14 +250,28 @@ fn v6_prefix(ip: std::net::Ipv6Addr) -> std::string::String {
     )
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Belonging {
+    CarriesAPathOfItsOwn,
+    Apart,
+}
+
 /// Единственное место, где решается принадлежность интерфейса пути наружу.
 ///
 /// clod:net-virtual — решение принимается один раз, при построении переписи.
 /// Повторять его на разнице двух переписей бессмысленно: отсеянное в перепись
 /// не попадает, и второй фильтр всегда пропускал бы всё подряд, создавая
 /// видимость защиты.
-fn carries_a_path_of_its_own(name: &str) -> bool {
-    !is_our_tunnel(name) && !is_a_local_sandbox_adapter(name)
+///
+/// Принадлежность угадывается по имени, поэтому имена, которые песочница
+/// составляет сама, отделены от метки коммутатора: метка сравнивается целиком,
+/// а не подстрокой, иначе под правило попал бы коммутатор, названный человеком.
+fn belonging_of(name: &str) -> Belonging {
+    if is_our_tunnel(name) || names_its_own_sandbox(name) || switch_is_labelled_like_a_sandbox(name) {
+        Belonging::Apart
+    } else {
+        Belonging::CarriesAPathOfItsOwn
+    }
 }
 
 /// Отпечаток сети — адреса, по которым трафик действительно может уйти.
@@ -230,21 +281,28 @@ fn carries_a_path_of_its_own(name: &str) -> bool {
 /// `*_carries_traffic` применялись только к отдельному флагу. Из-за этого
 /// исчезновение адреса, которым никто не пользовался, считалось потерей пути.
 /// Теперь набор и флаг говорят об одном и том же: пуст — сети нет.
+///
+/// clod:net-virtual — поэтому же догадка по метке коммутатора не имеет права
+/// оставить перепись пустой: пустая перепись — это «сети нет» навсегда, и вместе
+/// с разрывом соединений перестаёт сниматься признак «пересоздать TUN после
+/// пробуждения». Если кроме отложенных по метке ничего не нашлось, метке не
+/// верим: единственный адресованный интерфейс машины и есть её путь наружу.
 fn fingerprint_of(interfaces: Vec<network_interface::NetworkInterface>) -> BTreeSet<std::string::String> {
     let mut entries = BTreeSet::new();
 
     for interface in interfaces {
         let network_interface::NetworkInterface { name, addr, .. } = interface;
-        if !carries_a_path_of_its_own(&name) {
-            continue;
-        }
+        let into = match belonging_of(&name) {
+            Belonging::CarriesAPathOfItsOwn => &mut entries,
+            Belonging::Apart => continue,
+        };
         for address in addr {
             match address {
                 network_interface::Addr::V4(v4) if v4_carries_traffic(v4.ip) => {
-                    entries.insert(format!("{name}:{}", v4.ip));
+                    into.insert(format!("{name}:{}", v4.ip));
                 }
                 network_interface::Addr::V6(v6) if v6_carries_traffic(v6.ip) => {
-                    entries.insert(format!("{name}:{}", v6_prefix(v6.ip)));
+                    into.insert(format!("{name}:{}", v6_prefix(v6.ip)));
                 }
                 _ => (),
             }
@@ -695,8 +753,8 @@ mod tests {
     use super::{
         CORE_TUNNEL_BASE, FINGERPRINT_ENTRIES_SHOWN, SLEEP_SLACK, ask_for_each_rule_set, changes_from, fingerprint_of,
         interface_of, is_a_local_sandbox_adapter, is_our_tunnel, listed, looks_like_the_core_default_tunnel,
-        path_was_lost, sleep_gap, slept_through, spelled_out, v4_carries_traffic, v6_carries_traffic,
-        v6_is_transition_tunnel, worth_spelling_out,
+        names_its_own_sandbox, path_was_lost, sleep_gap, slept_through, spelled_out, v4_carries_traffic,
+        v6_carries_traffic, v6_is_transition_tunnel, worth_spelling_out,
     };
     use crate::constants::timing;
     use std::{
@@ -808,6 +866,9 @@ mod tests {
             with_v4("vnic1", [10, 37, 129, 2]),
             with_v4("vEthernet (nat)", [172, 26, 0, 1]),
             with_v4("vEthernet (Default Switch)", [172, 20, 0, 1]),
+            with_v4("vEthernet (WSL (Hyper-V firewall))", [172, 30, 0, 1]),
+            with_v4("bridge100", [192, 168, 64, 1]),
+            with_v4("bridge101", [192, 168, 65, 1]),
             with_v4("utun4", [198, 19, 0, 1]),
             with_v4(&ours, [198, 18, 0, 1]),
         ];
@@ -843,6 +904,67 @@ mod tests {
         assert!(docked.contains("vEthernet (External Switch):192.168.4.1"));
         assert!(path_was_lost(&docked, &undocked));
         assert_eq!(changes_from(Some(&docked), &undocked), (true, true));
+    }
+
+    /// clod:net-virtual — `podman machine stop`, lima, colima, UTM и тумблер
+    /// «Общий интернет» уносят `bridge100` вместе с адресом; мост, собранный
+    /// человеком в настройках сети, называется `bridge0` и остаётся путём наружу.
+    #[test]
+    fn a_bridge_the_hypervisor_took_never_reaches_the_census() {
+        let machine_running = vec![
+            with_v4("en0", [192, 168, 1, 24]),
+            with_v4("bridge0", [192, 168, 9, 1]),
+            with_v4("bridge100", [192, 168, 64, 1]),
+            with_v4("bridge101", [192, 168, 65, 1]),
+        ];
+        let machine_stopped = vec![with_v4("en0", [192, 168, 1, 24]), with_v4("bridge0", [192, 168, 9, 1])];
+
+        let before = fingerprint_of(machine_running);
+        let after = fingerprint_of(machine_stopped);
+
+        assert_eq!(before, fingerprint(&["bridge0:192.168.9.1", "en0:192.168.1.24"]));
+        assert_eq!(before, after);
+        assert!(!path_was_lost(&before, &after));
+        assert_eq!(changes_from(Some(&before), &after), (false, false));
+    }
+
+    #[test]
+    fn a_switch_labelled_like_a_sandbox_stays_out_while_a_real_interface_answers() {
+        let census = fingerprint_of(vec![
+            with_v4("vEthernet (External Switch)", [192, 168, 1, 50]),
+            with_v4("vEthernet (nat)", [172, 26, 0, 1]),
+            with_v4("vEthernet (Default Switch)", [172, 20, 0, 1]),
+            with_v4("vEthernet (Default Switch) 2", [172, 21, 0, 1]),
+            with_v4("vEthernet (WSL (Hyper-V firewall))", [172, 30, 0, 1]),
+        ]);
+
+        assert_eq!(census, fingerprint(&["vEthernet (External Switch):192.168.1.50"]));
+    }
+
+    #[test]
+    fn a_real_interface_never_falls_out_of_the_census() {
+        let census = fingerprint_of(vec![
+            with_v4("bridge0", [192, 168, 9, 1]),
+            with_v4("br-lan", [192, 168, 2, 1]),
+            with_v4("br0", [192, 168, 3, 1]),
+            with_v4("vEthernet (External Switch)", [192, 168, 4, 1]),
+            with_v4("en0", [192, 168, 1, 24]),
+            with_v4("eth0", [10, 0, 0, 2]),
+            with_v4("Ethernet 2", [10, 0, 1, 2]),
+        ]);
+
+        assert_eq!(
+            census,
+            fingerprint(&[
+                "Ethernet 2:10.0.1.2",
+                "br-lan:192.168.2.1",
+                "br0:192.168.3.1",
+                "bridge0:192.168.9.1",
+                "en0:192.168.1.24",
+                "eth0:10.0.0.2",
+                "vEthernet (External Switch):192.168.4.1",
+            ])
+        );
     }
 
     #[test]
@@ -1020,7 +1142,11 @@ mod tests {
             "cni0",
             "vnic0",
             "vnic1",
+            "bridge100",
+            "bridge101",
+            "bridge199",
             "vEthernet (nat)",
+            "vEthernet (WSL)",
         ] {
             assert!(is_a_local_sandbox_adapter(name), "{name} должен считаться песочницей");
         }
@@ -1032,16 +1158,42 @@ mod tests {
             "Wi-Fi",
             "en0",
             "bridge0",
+            "bridge1",
+            "bridge99",
+            "bridge",
             "br-lan",
             "br0",
             "br-guest",
             "br-3f2a1b9c8d7",
             "br-3f2a1b9c8d7ef",
             "vEthernet (External Switch)",
+            "vEthernet (Alternate)",
+            "vEthernet (NAT Uplink)",
+            "vEthernet (WSL Corp Uplink)",
             "cnifoo",
             "vnic",
         ] {
             assert!(!is_a_local_sandbox_adapter(name), "{name} несёт путь наружу");
+        }
+    }
+
+    /// clod:net-virtual — имя, которое песочница составила сама, ошибиться не
+    /// даёт; метку коммутатора выбирает человек, и она может совпасть дословно.
+    #[test]
+    fn only_a_name_a_sandbox_made_itself_is_taken_on_trust() {
+        for name in ["docker0", "br-3f2a1b9c8d7e", "bridge100", "podman0", "cni0", "vnic0"] {
+            assert!(names_its_own_sandbox(name), "{name} названа песочницей");
+        }
+
+        for name in [
+            "vEthernet (nat)",
+            "vEthernet (Default Switch)",
+            "vEthernet (WSL (Hyper-V firewall))",
+        ] {
+            assert!(
+                !names_its_own_sandbox(name) && is_a_local_sandbox_adapter(name),
+                "{name} опознан только по метке, которую выбрал человек"
+            );
         }
     }
 
