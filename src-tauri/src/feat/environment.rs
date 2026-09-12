@@ -453,16 +453,8 @@ static RULE_SETS_REFILL_ASKED_AGAIN: AtomicBool = AtomicBool::new(false);
 const RULE_SET_LIST_TIMEOUT: Duration = Duration::from_secs(5);
 const RULE_SET_FETCH_TIMEOUT: Duration = Duration::from_secs(25);
 
-pub(crate) async fn detached_core_client() -> Mihomo {
-    let mihomo = handle::Handle::mihomo().await;
-    Mihomo {
-        protocol: mihomo.protocol.clone(),
-        external_host: mihomo.external_host.clone(),
-        external_port: mihomo.external_port,
-        secret: mihomo.secret.clone(),
-        socket_path: mihomo.socket_path.clone(),
-        connection_manager: Arc::clone(&mihomo.connection_manager),
-    }
+pub(crate) async fn detached_core_client() -> Arc<Mihomo> {
+    handle::Handle::mihomo().await
 }
 
 async fn refill_empty_rule_sets() {

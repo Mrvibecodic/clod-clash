@@ -47,6 +47,33 @@ const CORE_STABLE_AFTER: Duration = Duration::from_secs(60);
 
 static CORE_WATCHDOG_GENERATION: AtomicU64 = AtomicU64::new(0);
 
+const CORE_CLIENT_MIRROR_BUDGET: Duration = Duration::from_millis(300);
+
+async fn point_core_client_at(socket_path: String) {
+    let mirror = handle::Handle::app_handle().mihomo();
+    handle::publish_core_client(mirror, Some(socket_path.clone())).await;
+
+    let mirrored = tokio::time::timeout(CORE_CLIENT_MIRROR_BUDGET, async {
+        mirror.write().await.socket_path = Some(socket_path);
+    })
+    .await;
+
+    if mirrored.is_ok() {
+        return;
+    }
+
+    logging!(
+        warn,
+        Type::Core,
+        "зеркало клиента ядра занято командой плагина — путь сокета допишем в фоне"
+    );
+    AsyncHandler::spawn(|| async {
+        let mirror = handle::Handle::app_handle().mihomo();
+        let mut live = mirror.write().await;
+        live.socket_path = handle::Handle::mihomo().await.socket_path.clone();
+    });
+}
+
 fn exit_is_a_crash(current: &RunningMode, expected: &RunningMode, app_exiting: bool) -> bool {
     !app_exiting && current == expected
 }
@@ -560,11 +587,7 @@ impl CoreManager {
         logging!(info, Type::Core, "Starting core in sidecar mode");
 
         let sidecar_ipc = dirs::sidecar_ipc_path()?;
-        handle::Handle::app_handle()
-            .mihomo()
-            .write()
-            .await
-            .update_socket_path(dirs::path_to_str(&sidecar_ipc)?.to_owned())?;
+        point_core_client_at(dirs::path_to_str(&sidecar_ipc)?.to_owned()).await;
 
         let config_file = Config::generate_file(crate::config::ConfigType::Run).await?;
         let app_handle = handle::Handle::app_handle();
@@ -715,11 +738,7 @@ impl CoreManager {
         logging!(info, Type::Core, "Starting core in service mode");
 
         let service_ipc = dirs::service_ipc_path()?;
-        handle::Handle::app_handle()
-            .mihomo()
-            .write()
-            .await
-            .update_socket_path(dirs::path_to_str(&service_ipc)?.to_owned())?;
+        point_core_client_at(dirs::path_to_str(&service_ipc)?.to_owned()).await;
 
         let config_file = Config::generate_file(crate::config::ConfigType::Run).await?;
 

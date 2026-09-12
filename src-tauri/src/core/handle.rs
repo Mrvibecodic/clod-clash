@@ -1,11 +1,55 @@
 use crate::{APP_HANDLE, singleton};
+use arc_swap::ArcSwapOption;
+use clash_verge_logging::{Type, logging};
 use smartstring::alias::String;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{
+    Arc, LazyLock,
+    atomic::{AtomicBool, Ordering},
+};
 use tauri::AppHandle;
-use tauri_plugin_mihomo::{Mihomo, MihomoExt as _};
-use tokio::sync::RwLockReadGuard;
+use tauri_plugin_mihomo::{IpcConnectionPool, Mihomo, MihomoExt as _};
+use tokio::sync::RwLock;
 
 use super::notification::{FrontendEvent, NotificationSystem};
+
+static CORE_CLIENT: LazyLock<ArcSwapOption<Mihomo>> = LazyLock::new(ArcSwapOption::empty);
+
+fn respun(source: &Mihomo, socket_path: Option<std::string::String>) -> Mihomo {
+    Mihomo {
+        protocol: source.protocol.clone(),
+        external_host: source.external_host.clone(),
+        external_port: source.external_port,
+        secret: source.secret.clone(),
+        socket_path: socket_path.or_else(|| source.socket_path.clone()),
+        connection_manager: Arc::clone(&source.connection_manager),
+    }
+}
+
+pub(crate) async fn publish_core_client(
+    mirror: &RwLock<Mihomo>,
+    socket_path: Option<std::string::String>,
+) -> Arc<Mihomo> {
+    let socket_path_changed = socket_path.is_some();
+
+    let next = match CORE_CLIENT.load_full() {
+        Some(current) => respun(&current, socket_path),
+        None => {
+            let live = mirror.read().await;
+            respun(&live, socket_path)
+        }
+    };
+    let next = Arc::new(next);
+    CORE_CLIENT.store(Some(Arc::clone(&next)));
+
+    if socket_path_changed {
+        match IpcConnectionPool::global() {
+            Ok(pool) => pool.clear_pool(),
+            Err(err) => logging!(warn, Type::Core, "пул соединений ядра не очищен: {}", err),
+        }
+    }
+
+    next
+}
 
 #[derive(Debug)]
 pub struct Handle {
@@ -34,8 +78,11 @@ impl Handle {
         APP_HANDLE.get().expect("App handle not initialized")
     }
 
-    pub async fn mihomo() -> RwLockReadGuard<'static, Mihomo> {
-        Self::app_handle().mihomo().read().await
+    pub async fn mihomo() -> Arc<Mihomo> {
+        match CORE_CLIENT.load_full() {
+            Some(client) => client,
+            None => publish_core_client(Self::app_handle().mihomo(), None).await,
+        }
     }
 
     pub fn refresh_clash() {
@@ -153,5 +200,70 @@ impl Handle {
 
     pub fn set_activation_policy_accessory(&self) {
         let _ = self.set_activation_policy(tauri::ActivationPolicy::Accessory);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CORE_CLIENT, publish_core_client, respun};
+    use std::{sync::Arc, time::Duration};
+    use tauri_plugin_mihomo::{Mihomo, models::Protocol};
+    use tokio::sync::RwLock;
+
+    const NO_WAIT: Duration = Duration::from_millis(200);
+
+    fn seed(socket_path: &str) -> Mihomo {
+        Mihomo {
+            protocol: Protocol::LocalSocket,
+            external_host: None,
+            external_port: None,
+            secret: None,
+            socket_path: Some(socket_path.to_owned()),
+            connection_manager: Default::default(),
+        }
+    }
+
+    #[test]
+    fn a_respun_client_keeps_the_live_websocket_registry() {
+        let source = seed("/old");
+        let next = respun(&source, Some("/new".to_owned()));
+
+        assert_eq!(next.socket_path.as_deref(), Some("/new"));
+        assert!(Arc::ptr_eq(&next.connection_manager, &source.connection_manager));
+    }
+
+    #[tokio::test]
+    async fn a_new_socket_path_is_published_while_the_mirror_is_busy() {
+        CORE_CLIENT.store(None);
+        let mirror = RwLock::new(seed("/old"));
+
+        let seeded = publish_core_client(&mirror, None).await;
+        assert_eq!(seeded.socket_path.as_deref(), Some("/old"));
+
+        let plugin_command = mirror.read().await;
+
+        let published = tokio::time::timeout(NO_WAIT, publish_core_client(&mirror, Some("/new".to_owned())))
+            .await
+            .ok();
+
+        assert!(
+            published
+                .as_ref()
+                .is_some_and(|client| client.socket_path.as_deref() == Some("/new")),
+            "публикация снимка не должна ждать зеркало"
+        );
+        assert!(
+            published.is_some_and(|client| Arc::ptr_eq(&client.connection_manager, &seeded.connection_manager)),
+            "снимок обязан переиспользовать прежний менеджер соединений"
+        );
+
+        let read_back = CORE_CLIENT.load_full();
+        assert_eq!(
+            read_back.as_deref().and_then(|client| client.socket_path.as_deref()),
+            Some("/new")
+        );
+
+        drop(plugin_command);
+        CORE_CLIENT.store(None);
     }
 }
