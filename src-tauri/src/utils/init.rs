@@ -12,9 +12,10 @@ use crate::{
 use anyhow::Result;
 use chrono::{Local, TimeZone as _};
 use clash_verge_logging::Type;
-#[cfg(any(target_os = "macos", target_os = "windows"))]
-use std::path::Path;
-use std::{path::PathBuf, str::FromStr as _};
+use std::{
+    path::{Path, PathBuf},
+    str::FromStr as _,
+};
 use tauri_plugin_shell::ShellExt as _;
 use tokio::fs;
 use tokio::fs::DirEntry;
@@ -725,7 +726,7 @@ async fn read_delivered_assets(marker: &PathBuf) -> std::collections::HashMap<St
     serde_json::from_str(&raw).unwrap_or_default()
 }
 
-async fn write_delivered_assets(marker: &PathBuf, delivered: &std::collections::HashMap<String, AssetStamp>) {
+async fn write_delivered_assets(marker: &Path, delivered: &std::collections::HashMap<String, AssetStamp>) {
     match serde_json::to_string(delivered) {
         Ok(raw) => {
             if let Err(err) = help::write_atomic(marker, raw.as_bytes()).await {

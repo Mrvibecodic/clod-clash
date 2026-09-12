@@ -773,25 +773,25 @@ impl CoreManager {
         });
     }
 
-    /// После готовности службы останавливает sidecar и перезапускает ядро через service
-    async fn try_handoff_sidecar_to_service(&self) -> HandoffOutcome {
+    /// Проверяет, готова ли служба принять ядро; `Some` — передачу начинать нельзя
+    async fn handoff_is_out_of_reach(&self) -> Option<HandoffOutcome> {
         use crate::core::service;
 
         if Handle::global().is_exiting() {
-            return HandoffOutcome::NotReady;
+            return Some(HandoffOutcome::NotReady);
         }
 
         // Принудительно обновляем состояние службы, чтобы кэшированное состояние
         // не блокировало передачу
         if !service::is_service_ipc_path_exists() {
-            return HandoffOutcome::NotReady;
+            return Some(HandoffOutcome::NotReady);
         }
         if SERVICE_MANAGER.init().await.is_err() {
-            return HandoffOutcome::NotReady;
+            return Some(HandoffOutcome::NotReady);
         }
         let _ = SERVICE_MANAGER.refresh().await;
         if !matches!(SERVICE_MANAGER.current().await, ServiceStatus::Ready) {
-            return HandoffOutcome::NotReady;
+            return Some(HandoffOutcome::NotReady);
         }
         if service::bundle_rejection_for_the_running_config().await.is_some() {
             logging!(
@@ -799,7 +799,16 @@ impl CoreManager {
                 Type::Core,
                 "the current configuration cannot run under the service; staying in sidecar mode until it changes"
             );
-            return HandoffOutcome::Failed;
+            return Some(HandoffOutcome::Failed);
+        }
+
+        None
+    }
+
+    /// После готовности службы останавливает sidecar и перезапускает ядро через service
+    async fn try_handoff_sidecar_to_service(&self) -> HandoffOutcome {
+        if let Some(outcome) = self.handoff_is_out_of_reach().await {
+            return outcome;
         }
 
         // Сначала захватываем блокировку config; при неудаче уступаем идущему обновлению.
