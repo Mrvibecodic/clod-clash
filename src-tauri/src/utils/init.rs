@@ -702,20 +702,35 @@ async fn asset_stamp(path: &PathBuf) -> Option<AssetStamp> {
     Some((meta.len(), modified))
 }
 
-fn should_copy_bundled_asset(src: Option<AssetStamp>, dest: Option<AssetStamp>, delivered: Option<AssetStamp>) -> bool {
+#[derive(Debug, PartialEq, Eq)]
+enum BundledAssetAction {
+    Copy,
+    Adopt(AssetStamp),
+    Keep,
+}
+
+fn bundled_asset_action(
+    src: Option<AssetStamp>,
+    dest: Option<AssetStamp>,
+    delivered: Option<AssetStamp>,
+) -> BundledAssetAction {
     let Some(src) = src else {
-        return false;
+        return BundledAssetAction::Keep;
     };
     let Some(dest) = dest else {
-        return true;
+        return BundledAssetAction::Copy;
     };
     let Some(delivered) = delivered else {
-        return false;
+        return BundledAssetAction::Adopt(dest);
     };
     if delivered != dest {
-        return false;
+        return BundledAssetAction::Keep;
     }
-    src.1 > dest.1
+    if src.1 > dest.1 {
+        BundledAssetAction::Copy
+    } else {
+        BundledAssetAction::Keep
+    }
 }
 
 async fn read_delivered_assets(marker: &PathBuf) -> std::collections::HashMap<String, AssetStamp> {
@@ -750,24 +765,30 @@ pub async fn init_resources() -> Result<()> {
         std::mem::drop(fs::create_dir_all(&res_dir).await);
     }
 
-    let file_list = ["Country.mmdb", "geoip.dat", "geosite.dat"];
     let marker = app_dir.join(GEO_ASSET_MARKER);
     let mut delivered = read_delivered_assets(&marker).await;
     let mut delivered_changed = false;
 
-    for file in file_list.iter() {
+    for &(file, _) in crate::module::geo_assets::GEO_ASSETS {
         let src_path = res_dir.join(file);
         let dest_path = app_dir.join(file);
 
         let src = asset_stamp(&src_path).await;
         let dest = asset_stamp(&dest_path).await;
 
-        if should_copy_bundled_asset(src, dest, delivered.get(*file).copied()) {
-            handle_copy(&src_path, &dest_path, file).await;
-            if let Some(stamp) = asset_stamp(&dest_path).await {
-                delivered.insert((*file).to_string(), stamp);
+        match bundled_asset_action(src, dest, delivered.get(file).copied()) {
+            BundledAssetAction::Copy => {
+                handle_copy(&src_path, &dest_path, file).await;
+                if let Some(stamp) = asset_stamp(&dest_path).await {
+                    delivered.insert(file.to_string(), stamp);
+                    delivered_changed = true;
+                }
+            }
+            BundledAssetAction::Adopt(stamp) => {
+                delivered.insert(file.to_string(), stamp);
                 delivered_changed = true;
             }
+            BundledAssetAction::Keep => {}
         }
     }
 
@@ -913,44 +934,58 @@ async fn handle_copy(src: &PathBuf, dest: &PathBuf, file: &str) {
 #[cfg(test)]
 mod tests {
     use super::{
-        DNS_CONFIG_HEADER, default_dns_config, dns_config_problem, drop_legacy_dns_keys, has_untouched_legacy_fallback,
-        has_user_comments, legacy_fallback_filter, should_copy_bundled_asset,
+        BundledAssetAction, DNS_CONFIG_HEADER, bundled_asset_action, default_dns_config, dns_config_problem,
+        drop_legacy_dns_keys, has_untouched_legacy_fallback, has_user_comments, legacy_fallback_filter,
     };
     use serde_yaml_ng::{Mapping, Value};
 
     #[test]
     fn a_missing_geo_asset_is_delivered() {
-        assert!(should_copy_bundled_asset(Some((10, 100)), None, None));
+        assert_eq!(
+            bundled_asset_action(Some((10, 100)), None, None),
+            BundledAssetAction::Copy
+        );
     }
 
     #[test]
     fn a_newer_bundled_geo_asset_replaces_the_one_we_delivered() {
-        assert!(should_copy_bundled_asset(
-            Some((10, 200)),
-            Some((10, 100)),
-            Some((10, 100))
-        ));
-        assert!(!should_copy_bundled_asset(
-            Some((10, 50)),
-            Some((10, 100)),
-            Some((10, 100))
-        ));
+        assert_eq!(
+            bundled_asset_action(Some((10, 200)), Some((10, 100)), Some((10, 100))),
+            BundledAssetAction::Copy
+        );
+        assert_eq!(
+            bundled_asset_action(Some((10, 50)), Some((10, 100)), Some((10, 100))),
+            BundledAssetAction::Keep
+        );
     }
 
     #[test]
     fn a_geo_asset_updated_by_the_core_is_left_alone() {
-        assert!(!should_copy_bundled_asset(
-            Some((10, 200)),
-            Some((12, 150)),
-            Some((10, 100))
-        ));
+        assert_eq!(
+            bundled_asset_action(Some((10, 200)), Some((12, 150)), Some((10, 100))),
+            BundledAssetAction::Keep
+        );
     }
 
     #[test]
-    fn without_a_marker_an_existing_geo_asset_is_left_alone() {
-        assert!(!should_copy_bundled_asset(Some((10, 200)), Some((12, 150)), None));
-        assert!(!should_copy_bundled_asset(Some((10, 200)), Some((10, 100)), None));
-        assert!(!should_copy_bundled_asset(None, Some((12, 150)), None));
+    fn without_a_marker_an_existing_geo_asset_is_adopted() {
+        assert_eq!(
+            bundled_asset_action(Some((10, 200)), Some((12, 150)), None),
+            BundledAssetAction::Adopt((12, 150))
+        );
+        assert_eq!(
+            bundled_asset_action(Some((10, 200)), Some((10, 100)), None),
+            BundledAssetAction::Adopt((10, 100))
+        );
+    }
+
+    #[test]
+    fn an_asset_missing_from_the_bundle_is_not_recorded() {
+        assert_eq!(
+            bundled_asset_action(None, Some((12, 150)), None),
+            BundledAssetAction::Keep
+        );
+        assert_eq!(bundled_asset_action(None, None, None), BundledAssetAction::Keep);
     }
 
     fn dns_with_legacy_fallback() -> Mapping {
