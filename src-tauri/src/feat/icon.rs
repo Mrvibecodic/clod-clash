@@ -136,6 +136,17 @@ fn icon_stamp<'a>(path: &'a Path, icon_name: &str) -> &'a str {
         .map_or("", |rest| rest.strip_prefix('-').unwrap_or(rest))
 }
 
+/// Расширения, которые умеет найти `stored_icons`, — и потому единственные,
+/// под которыми имеет смысл сохранять выбранный файл.
+const ICON_EXTENSIONS: [&str; 2] = ["ico", "png"];
+
+fn supported_icon_extension(path: &Path) -> Option<&'static str> {
+    let ext = path.extension().and_then(|ext| ext.to_str())?;
+    ICON_EXTENSIONS
+        .into_iter()
+        .find(|supported| ext.eq_ignore_ascii_case(supported))
+}
+
 async fn stored_icons(icon_dir: &Path, icon_name: &str) -> Vec<PathBuf> {
     let Ok(mut entries) = fs::read_dir(icon_dir).await else {
         return Vec::new();
@@ -147,10 +158,7 @@ async fn stored_icons(icon_dir: &Path, icon_name: &str) -> Vec<PathBuf> {
             .file_stem()
             .and_then(|stem| stem.to_str())
             .is_some_and(|stem| stem == icon_name || stem.starts_with(&format!("{icon_name}-")));
-        let matches_ext = path
-            .extension()
-            .and_then(|ext| ext.to_str())
-            .is_some_and(|ext| ext.eq_ignore_ascii_case("ico") || ext.eq_ignore_ascii_case("png"));
+        let matches_ext = supported_icon_extension(&path).is_some();
         if matches_name && matches_ext {
             found.push(path);
         }
@@ -191,10 +199,14 @@ pub async fn copy_icon_file(path: String, name: String) -> CmdResult<String> {
         fs::create_dir_all(&icon_dir).await.stringify_err()?;
     }
 
-    let ext: String = match file_path.extension() {
-        Some(e) => e.to_string_lossy().into(),
-        None => "ico".into(),
+    let Some(ext) = supported_icon_extension(file_path) else {
+        return Err(format!("icon file must be one of: {}", ICON_EXTENSIONS.join(", ")).into());
     };
+
+    let content = fs::read(file_path).await.stringify_err()?;
+    if tauri::image::Image::from_bytes(&content).is_err() {
+        return Err("the picked file is not a readable icon".into());
+    }
 
     let stamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -210,13 +222,9 @@ pub async fn copy_icon_file(path: String, name: String) -> CmdResult<String> {
         dest_path
     );
 
-    match fs::copy(file_path, &dest_path).await {
-        Ok(_) => {
-            remove_other_icons(&icon_dir, icon_name.as_str(), &dest_path).await;
-            Ok(dest_path.to_string_lossy().into())
-        }
-        Err(err) => Err(err.to_string().into()),
-    }
+    fs::write(&dest_path, &content).await.stringify_err()?;
+    remove_other_icons(&icon_dir, icon_name.as_str(), &dest_path).await;
+    Ok(dest_path.to_string_lossy().into())
 }
 
 #[cfg(test)]
