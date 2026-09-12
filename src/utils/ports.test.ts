@@ -53,6 +53,17 @@ test('ноль — это «слушателя нет», а не негодны�
   })
 })
 
+test('нечисловое значение поля — негодный порт, а не пропуск', () => {
+  assert.deepEqual(findPortOutOfRange([Number.NaN]), {
+    port: Number.NaN,
+    verdict: 'tooLow',
+  })
+  assert.deepEqual(findPortOutOfRange([7897, Number.NaN, 70000]), {
+    port: Number.NaN,
+    verdict: 'tooLow',
+  })
+})
+
 test('адрес IPv6 узнаётся и со скобками, и без них', () => {
   assert.equal(isProxyServerAt('::1:7897', '[::1]', 7897), true)
   assert.equal(isProxyServerAt('[::1]:7897', '::1', 7897), true)

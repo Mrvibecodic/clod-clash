@@ -44,8 +44,6 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
   const [open, setOpen] = useState(false)
 
   // Mixed Port
-  // clod:port-ladder — «как в подписке» это отсутствие порта у нас: тогда в поле
-  // показывается тот, на котором ядро слушает на самом деле.
   const [mixedFollowsSubscription, setMixedFollowsSubscription] = useState(
     ladder?.mixed_port == null,
   )
@@ -157,8 +155,6 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
   // TODO снизить сложность кода, затраты на производительность
   const onSave = useLockFn(async () => {
     // Проверка конфликта портов
-    // clod:port-ladder — при «как в подписке» с остальными портами всё равно
-    // сверяется действующий: два слушателя на одном порту ядро не поднимет.
     const effectiveMixed = !ladderRead
       ? -1
       : mixedFollowsSubscription
@@ -183,10 +179,10 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
     // Проверка диапазона портов
     const outOfRange = findPortOutOfRange([
       !ladderRead || mixedFollowsSubscription ? 0 : mixedPort,
-      socksPort,
-      httpPort,
-      redirPort,
-      tproxyPort,
+      socksEnabled ? socksPort : 0,
+      httpEnabled ? httpPort : 0,
+      redirEnabled ? redirPort : 0,
+      tproxyEnabled ? tproxyPort : 0,
     ])
 
     if (outOfRange) {
@@ -240,8 +236,6 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
       'tproxy-port': tproxyPort,
     }
 
-    // clod:port-ladder — ноль снимает закрепление: иначе старый порт жил бы в
-    // файле настроек вечно и служил запасным там, где его давно нет.
     const vergeConfig: Record<string, any> = {
       verge_socks_port: socksPort,
       verge_socks_enabled: socksEnabled,
@@ -263,8 +257,9 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
     if (ladderRead) {
       clashConfig['mixed-port'] = mixedFollowsSubscription ? 'auto' : mixedPort
       vergeConfig.verge_mixed_port = mixedFollowsSubscription ? 0 : mixedPort
-      appliedPorts.mixedFollowsSubscription = mixedFollowsSubscription
-      if (!mixedFollowsSubscription) appliedPorts.mixedPort = mixedPort
+      appliedPorts.mixedPort = mixedFollowsSubscription
+        ? subscriptionPort
+        : mixedPort
     }
 
     // Отправляем запрос на сохранение
@@ -316,7 +311,7 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
               }
               disabled={mixedFollowsSubscription || !ladderRead}
               onChange={(e) =>
-                setMixedPort(+e.target.value?.replace(/\D+/, '').slice(0, 5))
+                setMixedPort(+e.target.value?.replace(/\D+/g, '').slice(0, 5))
               }
               slotProps={{ htmlInput: { style: { fontSize: 12 } } }}
             />
@@ -364,7 +359,7 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
               sx={{ width: 80, mr: 0.5, fontSize: 12 }}
               value={socksPort}
               onChange={(e) =>
-                setSocksPort(+e.target.value?.replace(/\D+/, '').slice(0, 5))
+                setSocksPort(+e.target.value?.replace(/\D+/g, '').slice(0, 5))
               }
               disabled={!socksEnabled}
               slotProps={{ htmlInput: { style: { fontSize: 12 } } }}
@@ -398,7 +393,7 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
               sx={{ width: 80, mr: 0.5, fontSize: 12 }}
               value={httpPort}
               onChange={(e) =>
-                setHttpPort(+e.target.value?.replace(/\D+/, '').slice(0, 5))
+                setHttpPort(+e.target.value?.replace(/\D+/g, '').slice(0, 5))
               }
               disabled={!httpEnabled}
               slotProps={{ htmlInput: { style: { fontSize: 12 } } }}
@@ -433,7 +428,7 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
                 sx={{ width: 80, mr: 0.5, fontSize: 12 }}
                 value={redirPort}
                 onChange={(e) =>
-                  setRedirPort(+e.target.value?.replace(/\D+/, '').slice(0, 5))
+                  setRedirPort(+e.target.value?.replace(/\D+/g, '').slice(0, 5))
                 }
                 disabled={!redirEnabled}
                 slotProps={{ htmlInput: { style: { fontSize: 12 } } }}
@@ -469,7 +464,9 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
                 sx={{ width: 80, mr: 0.5, fontSize: 12 }}
                 value={tproxyPort}
                 onChange={(e) =>
-                  setTproxyPort(+e.target.value?.replace(/\D+/, '').slice(0, 5))
+                  setTproxyPort(
+                    +e.target.value?.replace(/\D+/g, '').slice(0, 5),
+                  )
                 }
                 disabled={!tproxyEnabled}
                 slotProps={{ htmlInput: { style: { fontSize: 12 } } }}
