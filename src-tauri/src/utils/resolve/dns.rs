@@ -3,38 +3,46 @@
 use clash_verge_logging::{Type, logging};
 use std::{
     sync::atomic::{AtomicU64, Ordering},
-    time::Duration,
+    time::{Duration, Instant},
 };
 use tokio::sync::Mutex;
 
 const STATE_FILE: &str = "original_dns.txt";
 const SCRIPT_TIMEOUT: Duration = Duration::from_secs(10);
+const LOCK_HANDOVER: Duration = Duration::from_secs(2);
+const OVERRIDE_HOLD: Duration = Duration::from_secs(SCRIPT_TIMEOUT.as_secs() + LOCK_HANDOVER.as_secs());
 
 /// Потолок всего шага на выходе: сначала пережидается идущая подмена, потом своё
-/// время получает обратный скрипт.
+/// время получает обратный скрипт. Число взято у ветки остановки ядра — снятие
+/// туннеля, ожидание замка жизненного цикла, остановка ядра и опрос службы, —
+/// чтобы не DNS решал, сколько длится выход.
 ///
-/// clod:dns-exit — ожидание замка должно быть заведомо ДЛИННЕЕ `SCRIPT_TIMEOUT`:
-/// замок держится от начала подмены до её конца, то есть дольше, чем работает
-/// сам скрипт, и при равных числах зависшую подмену выход не переждал бы никогда
-/// — обратный скрипт не запускался бы вовсе именно в том случае, ради которого
-/// ожидание и заведено. При этом сумма не выходит за потолок интерактивного
-/// выхода, который и без DNS равен восемнадцати секундам (снятие туннеля,
-/// ожидание замка жизненного цикла, остановка ядра и опрос службы).
+/// clod:dns-exit — потолок НЕ делится на доли: у двух ожиданий разные источники
+/// истины. Ожидание замка равно `OVERRIDE_HOLD` — столько идущая подмена может
+/// его держать; ждать меньше бессмысленно, потому что зависшую подмену выход не
+/// переждал бы никогда и обратный скрипт не запускался бы вовсе именно в том
+/// случае, ради которого ожидание и заведено. Обратному скрипту достаётся
+/// `SCRIPT_TIMEOUT` — его собственный таймаут, тот же, что и вне выхода. В
+/// потолок эти два срока намеренно не укладываются вместе: разделить его значит
+/// отнять у скрипта время в единственном случае, который бывает на деле, — когда
+/// замок свободен. Поэтому потолок работает сроком на весь шаг, и уступает ему
+/// тот, кто в этом шаге оказался последним.
 pub const RESTORE_BUDGET: Duration = Duration::from_secs(18);
 
-/// Сколько из потолка достаётся самому обратному скрипту. Типовая подмена
-/// отрабатывает за секунду-две, десять секунд — это уже зависшая.
-const RESTORE_SCRIPT_SHARE: Duration = Duration::from_secs(6);
-
-/// Как потолок шага делится между ожиданием чужой подмены и обратным скриптом.
-const fn exit_shares(ceiling: Duration) -> (Duration, Duration) {
-    let ceiling = ceiling.as_secs();
-    let share = RESTORE_SCRIPT_SHARE.as_secs();
-    if ceiling <= share {
-        let wait = ceiling / 3;
-        return (Duration::from_secs(wait), Duration::from_secs(ceiling - wait));
+const fn no_longer_than(limit: Duration, ceiling: Duration) -> Duration {
+    if limit.as_nanos() <= ceiling.as_nanos() {
+        limit
+    } else {
+        ceiling
     }
-    (Duration::from_secs(ceiling - share), Duration::from_secs(share))
+}
+
+const fn exit_lock_wait(ceiling: Duration) -> Duration {
+    no_longer_than(OVERRIDE_HOLD, ceiling)
+}
+
+fn exit_script_time(ceiling: Duration, waited: Duration) -> Duration {
+    no_longer_than(SCRIPT_TIMEOUT, ceiling.saturating_sub(waited))
 }
 
 pub const OVERRIDE_SERVER: &str = "114.114.114.114";
@@ -166,8 +174,9 @@ pub async fn restore_public_dns() -> bool {
 }
 
 pub async fn restore_public_dns_before_exit(budget: Duration) -> bool {
+    let started = Instant::now();
     let ticket = take_the_newest_ticket();
-    let (lock_wait, script_time) = exit_shares(budget);
+    let lock_wait = exit_lock_wait(budget);
     let Ok(_serialized) = tokio::time::timeout(lock_wait, OVERRIDE_LOCK.lock()).await else {
         logging!(
             warn,
@@ -181,18 +190,17 @@ pub async fn restore_public_dns_before_exit(budget: Duration) -> bool {
     if !has_pending_restore() {
         return true;
     }
-    match tokio::time::timeout(script_time, restore_public_dns_locked(script_time)).await {
-        Ok(done) => done,
-        Err(_) => {
-            logging!(
-                warn,
-                Type::Config,
-                "unset system dns did not finish within the {}s it is given after the lock",
-                script_time.as_secs()
-            );
-            false
-        }
+    let script_time = exit_script_time(budget, started.elapsed());
+    if script_time.is_zero() {
+        logging!(
+            warn,
+            Type::Config,
+            "unset system dns: the whole {}s exit ceiling went to the override that held the lock",
+            budget.as_secs()
+        );
+        return false;
     }
+    restore_public_dns_locked(script_time).await
 }
 
 async fn run_dns_script(script_name: &str, args: Vec<String>, what: &str, limit: Duration) -> bool {
@@ -290,37 +298,59 @@ async fn restore_public_dns_locked(limit: Duration) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{RESTORE_BUDGET, RESTORE_SCRIPT_SHARE, SCRIPT_TIMEOUT, exit_shares};
+    use super::{RESTORE_BUDGET, SCRIPT_TIMEOUT, exit_lock_wait, exit_script_time};
     use std::time::Duration;
-
-    /// Сколько подмена занимает, когда всё в порядке.
-    const A_TYPICAL_OVERRIDE_RUN: Duration = Duration::from_secs(2);
 
     /// Потолок интерактивного выхода без DNS: снятие туннеля (3) + ожидание
     /// замка жизненного цикла (5) + остановка ядра (5) + опрос службы (5).
     const THE_EXIT_CEILING_WITHOUT_DNS: Duration = Duration::from_secs(18);
 
-    #[test]
-    fn the_wait_and_the_script_split_one_ceiling_that_outlasts_a_hung_override() {
-        let (lock_wait, script_time) = exit_shares(RESTORE_BUDGET);
+    /// Потолок шага при завершении сеанса — `ExitPace::SessionEnding`.
+    const THE_HURRIED_CEILING: Duration = Duration::from_secs(3);
 
-        assert_eq!(lock_wait + script_time, RESTORE_BUDGET);
-        assert_eq!(script_time, RESTORE_SCRIPT_SHARE);
-        // Замок держится дольше самого скрипта: `run_dns_script` ещё ищет ресурсы,
-        // запускает `bash` и убивает зависшего ребёнка после таймера.
-        assert!(lock_wait > SCRIPT_TIMEOUT);
-        assert!(script_time >= A_TYPICAL_OVERRIDE_RUN * 2);
-        assert!(script_time < SCRIPT_TIMEOUT);
+    /// Докуда идущая подмена может додержать замок: `run_dns_script` снимает
+    /// зависшего ребёнка только по своему таймеру.
+    const A_HUNG_OVERRIDE_HOLDS_THE_LOCK_FOR: Duration = SCRIPT_TIMEOUT;
+
+    #[test]
+    fn the_reverse_script_keeps_its_own_timeout_while_the_ceiling_allows_it() {
+        assert!(exit_script_time(RESTORE_BUDGET, Duration::ZERO) >= SCRIPT_TIMEOUT);
+        assert_eq!(
+            exit_script_time(THE_HURRIED_CEILING, Duration::ZERO),
+            THE_HURRIED_CEILING
+        );
+    }
+
+    #[test]
+    fn the_wait_outlasts_an_override_that_holds_the_lock_to_its_last_second() {
+        assert!(exit_lock_wait(RESTORE_BUDGET) > A_HUNG_OVERRIDE_HOLDS_THE_LOCK_FOR);
+    }
+
+    #[test]
+    fn the_two_limits_are_not_a_split_of_the_ceiling() {
+        assert!(exit_lock_wait(RESTORE_BUDGET) + SCRIPT_TIMEOUT > RESTORE_BUDGET);
+    }
+
+    #[test]
+    fn the_step_never_outlives_the_ceiling_it_is_given() {
+        for ceiling in [
+            RESTORE_BUDGET,
+            THE_HURRIED_CEILING,
+            Duration::from_secs(2),
+            Duration::from_secs(1),
+        ] {
+            let waited = exit_lock_wait(ceiling);
+            assert!(waited <= ceiling);
+            assert!(waited + exit_script_time(ceiling, waited) <= ceiling);
+        }
         assert!(RESTORE_BUDGET <= THE_EXIT_CEILING_WITHOUT_DNS);
     }
 
     #[test]
-    fn a_ceiling_shorter_than_the_script_share_still_leaves_both_some_time() {
-        let hurried = Duration::from_secs(3);
-        let (lock_wait, script_time) = exit_shares(hurried);
-
-        assert_eq!(lock_wait + script_time, hurried);
-        assert!(!lock_wait.is_zero());
-        assert!(script_time > lock_wait);
+    fn a_ceiling_of_a_second_or_two_starves_neither_the_wait_nor_the_script() {
+        for ceiling in [Duration::from_secs(1), Duration::from_secs(2)] {
+            assert!(!exit_lock_wait(ceiling).is_zero());
+            assert_eq!(exit_script_time(ceiling, Duration::ZERO), ceiling);
+        }
     }
 }
