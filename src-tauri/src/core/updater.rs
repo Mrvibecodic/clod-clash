@@ -6,7 +6,10 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::{
     path::PathBuf,
-    sync::atomic::{AtomicBool, Ordering},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 use tauri_plugin_updater::{Update, UpdaterExt as _};
 
@@ -163,6 +166,13 @@ fn is_prerelease_version(version: &str) -> bool {
         .is_some_and(|(_, suffix)| !suffix.is_empty())
 }
 
+fn manifest_answers_channel(served_version: Option<&str>, receive_prereleases: bool) -> bool {
+    match served_version {
+        Some(version) => receive_prereleases || !is_prerelease_version(version),
+        None => true,
+    }
+}
+
 fn verify_minisign(pubkey_b64: &str, signature_b64: &str, bytes: &[u8]) -> Result<()> {
     use base64::Engine as _;
 
@@ -203,14 +213,27 @@ fn configured_endpoints(app_handle: &tauri::AppHandle) -> Vec<String> {
         .unwrap_or_default()
 }
 
-fn prerelease_endpoints(app_handle: &tauri::AppHandle) -> Result<Vec<tauri::Url>> {
-    let mut endpoints = vec![PRERELEASE_UPDATER_ENDPOINT.to_owned()];
-    endpoints.extend(configured_endpoints(app_handle));
-
+fn parse_endpoints(endpoints: &[String]) -> Result<Vec<tauri::Url>> {
     endpoints
         .iter()
         .map(|endpoint| tauri::Url::parse(endpoint).map_err(|e| anyhow!("bad updater endpoint {endpoint}: {e}")))
         .collect()
+}
+
+fn prerelease_endpoints(app_handle: &tauri::AppHandle) -> Result<Vec<tauri::Url>> {
+    let mut endpoints = vec![PRERELEASE_UPDATER_ENDPOINT.to_owned()];
+    endpoints.extend(configured_endpoints(app_handle));
+
+    parse_endpoints(&endpoints)
+}
+
+fn stable_endpoints(app_handle: &tauri::AppHandle) -> Result<Vec<tauri::Url>> {
+    let endpoints = configured_endpoints(app_handle);
+    if endpoints.is_empty() {
+        return Err(anyhow!("tauri.conf.json has no plugins.updater.endpoints"));
+    }
+
+    parse_endpoints(&endpoints)
 }
 
 fn updater_pubkey(app_handle: &tauri::AppHandle) -> Result<String> {
@@ -503,7 +526,8 @@ fn nsis_language_id(app_language: &str) -> &'static str {
 fn updater_builder(
     app_handle: &tauri::AppHandle,
     language: Option<&str>,
-    receive_prereleases: bool,
+    endpoints: Vec<tauri::Url>,
+    proxy: Option<&tauri::Url>,
 ) -> Result<tauri_plugin_updater::UpdaterBuilder> {
     let _ = language;
     let builder = app_handle.updater_builder();
@@ -512,12 +536,71 @@ fn updater_builder(
         let lang_id = nsis_language_id(&clash_verge_i18n::current_language(language));
         builder.installer_arg(format!("/LANG={lang_id}"))
     };
-    if !receive_prereleases {
-        return Ok(builder);
-    }
+    let builder = match proxy {
+        Some(proxy) => builder.proxy(proxy.clone()),
+        None => builder,
+    };
     builder
-        .endpoints(prerelease_endpoints(app_handle)?)
-        .map_err(|e| anyhow!("failed to point the updater at the pre-release manifest: {e}"))
+        .endpoints(endpoints)
+        .map_err(|e| anyhow!("failed to point the updater at the update manifest: {e}"))
+}
+
+async fn check_endpoints(
+    app_handle: &tauri::AppHandle,
+    language: Option<&str>,
+    endpoints: Vec<tauri::Url>,
+    proxy: Option<&tauri::Url>,
+) -> Result<(Option<Update>, Option<String>)> {
+    let served_version: Arc<RwLock<Option<String>>> = Arc::default();
+    let recorder = Arc::clone(&served_version);
+    let updater = updater_builder(app_handle, language, endpoints, proxy)?
+        .version_comparator(move |current, release| {
+            *recorder.write() = Some(release.version.to_string());
+            release.version > current
+        })
+        .build()?;
+    let found = updater.check().await?;
+    let served = served_version.read().clone();
+    Ok((found, served))
+}
+
+async fn check_update_on_channel(
+    app_handle: &tauri::AppHandle,
+    language: Option<&str>,
+    receive_prereleases: bool,
+    proxy: Option<&tauri::Url>,
+) -> Result<Option<Update>> {
+    if receive_prereleases {
+        let (found, _) = check_endpoints(app_handle, language, prerelease_endpoints(app_handle)?, proxy).await?;
+        return Ok(found);
+    }
+
+    let mut last_error = None;
+    for endpoint in stable_endpoints(app_handle)? {
+        let url = endpoint.to_string();
+        match check_endpoints(app_handle, language, vec![endpoint], proxy).await {
+            Ok((found, served)) => {
+                if manifest_answers_channel(served.as_deref(), receive_prereleases) {
+                    return Ok(found);
+                }
+                logging!(
+                    info,
+                    Type::System,
+                    "{url} serves a pre-release manifest ({}) while pre-releases are off, trying the next endpoint",
+                    served.unwrap_or_default()
+                );
+            }
+            Err(e) => {
+                logging!(warn, Type::System, "update check against {url} failed: {e}");
+                last_error = Some(e);
+            }
+        }
+    }
+
+    match last_error {
+        Some(e) => Err(e),
+        None => Ok(None),
+    }
 }
 
 pub async fn check_update_with_fallback(app_handle: &tauri::AppHandle) -> Result<Option<Update>> {
@@ -526,21 +609,17 @@ pub async fn check_update_with_fallback(app_handle: &tauri::AppHandle) -> Result
     let receive_prereleases = verge
         .receive_prereleases
         .unwrap_or(crate::config::IVerge::DEFAULT_RECEIVE_PRERELEASES);
-    let updater = updater_builder(app_handle, language.as_deref(), receive_prereleases)?.build()?;
-    match updater.check().await {
+    match check_update_on_channel(app_handle, language.as_deref(), receive_prereleases, None).await {
         Ok(found) => Ok(found),
         Err(direct_error) => {
             let port = crate::config::Config::effective_mixed_port().await;
-            let proxy = format!("http://127.0.0.1:{port}");
+            let proxy = tauri::Url::parse(&format!("http://127.0.0.1:{port}"))?;
             logging!(
                 warn,
                 Type::System,
                 "update check failed directly ({direct_error}), retrying via {proxy}"
             );
-            let updater = updater_builder(app_handle, language.as_deref(), receive_prereleases)?
-                .proxy(tauri::Url::parse(&proxy)?)
-                .build()?;
-            Ok(updater.check().await?)
+            check_update_on_channel(app_handle, language.as_deref(), receive_prereleases, Some(&proxy)).await
         }
     }
 }
@@ -752,6 +831,33 @@ mod tests {
         assert!(!is_prerelease_version("1.0.0"));
         assert!(!is_prerelease_version("v1.0.0"));
         assert!(!is_prerelease_version("1.0.0-"));
+    }
+
+    #[test]
+    fn stable_channel_refuses_a_prerelease_manifest_as_an_answer() {
+        assert!(!manifest_answers_channel(Some("0.1.10-alpha.2"), false));
+        assert!(!manifest_answers_channel(Some("v0.1.10-alpha.2"), false));
+        assert!(manifest_answers_channel(Some("0.1.8"), false));
+        assert!(manifest_answers_channel(None, false));
+    }
+
+    #[test]
+    fn prerelease_channel_accepts_any_manifest_as_an_answer() {
+        assert!(manifest_answers_channel(Some("0.1.10-alpha.2"), true));
+        assert!(manifest_answers_channel(Some("0.1.8"), true));
+    }
+
+    #[test]
+    fn stable_channel_walks_past_the_prerelease_endpoint_to_the_next_one() {
+        let served = [
+            ("releases/download/updater/latest.json", Some("0.1.10-alpha.2")),
+            ("releases/latest/download/latest.json", Some("0.1.8")),
+        ];
+        let answered = served
+            .iter()
+            .find(|(_, version)| manifest_answers_channel(*version, false))
+            .map(|(endpoint, _)| *endpoint);
+        assert_eq!(answered, Some("releases/latest/download/latest.json"));
     }
 
     #[test]
