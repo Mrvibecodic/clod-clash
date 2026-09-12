@@ -1,7 +1,7 @@
 import { Fragment, type KeyboardEvent, createElement } from 'react'
 
 import { patchVergeConfig } from '@/services/cmds'
-import { hideNotice, showNotice } from '@/services/notice-service'
+import { collapseBy, hideNotice, showNotice } from '@/services/notice-service'
 import { revalidateQueries } from '@/services/query-client'
 import getSystem from '@/utils/get-system'
 
@@ -18,6 +18,7 @@ type TranslateFunction = (
 const offerToTurnTheProxyOff = (
   messageKey: string,
   t: TranslateFunction,
+  collapseKey: string,
 ): number => {
   let id = 0
   const disableProxy = () => {
@@ -55,6 +56,7 @@ const offerToTurnTheProxyOff = (
         t('settings.sections.system.notifications.sysproxy.turnOffAction'),
       ),
     ),
+    collapseBy(collapseKey),
     0,
   )
   return id
@@ -264,6 +266,7 @@ export const handleNoticeMessage = (
             t('settings.sections.system.notifications.core.portBusyAction'),
           ),
         ),
+        collapseBy(`core::port_busy|${msg}`),
         0,
       )
       return id
@@ -272,11 +275,13 @@ export const handleNoticeMessage = (
       offerToTurnTheProxyOff(
         'settings.sections.system.notifications.sysproxy.coreGaveUp',
         t,
+        `sysproxy::core_gave_up|${msg}`,
       ),
     'sysproxy::core_not_running': () =>
       offerToTurnTheProxyOff(
         'settings.sections.system.notifications.sysproxy.coreNotRunning',
         t,
+        `sysproxy::core_not_running|${msg}`,
       ),
     'sysproxy::write_failed': () =>
       showNotice.error(

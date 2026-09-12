@@ -105,7 +105,7 @@ pub fn refuse_while_exiting() -> anyhow::Result<()> {
 }
 
 pub async fn quit_at(pace: ExitPace, cancel_if_core_stays: bool) {
-    if !handle::Handle::global().begin_exiting() {
+    if !handle::Handle::global().begin_exiting(cancel_if_core_stays) {
         logging!(info, Type::System, "выход уже идёт, повторный запрос пропущен");
         handle::Handle::notice_message("app_quit::in_progress", "");
         return;

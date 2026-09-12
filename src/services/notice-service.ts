@@ -1,7 +1,10 @@
 import i18n from 'i18next'
 import { type ReactNode, isValidElement } from 'react'
 
-import { explainErrorKey, trimRawError } from '@/utils/error-explanation'
+// Относительный путь с расширением, а не `@/`: собственный тест модуля гоняет
+// встроенный раннер Node, а он не знает ни алиасов из `tsconfig`, ни
+// достраивания расширений.
+import { explainErrorKey, trimRawError } from '../utils/error-explanation.ts'
 
 type NoticeType = 'success' | 'error' | 'info'
 
@@ -24,6 +27,32 @@ interface NoticeItem {
 type NoticeContent = unknown
 
 type NoticeExtra = unknown
+
+const COLLAPSE_KEY = Symbol('notice.collapseKey')
+
+interface NoticeCollapseKey {
+  readonly [COLLAPSE_KEY]: string
+}
+
+/**
+ * Marks a notice as "the same one" for collapsing purposes.
+ *
+ * Notices built as ReactNode (an action link, for instance) have no
+ * translation descriptor, so their signature cannot be derived from the text.
+ * Pass the status — plus whatever data makes two of them genuinely different,
+ * such as the port number — and repeats fold into one toast with a counter.
+ */
+export function collapseBy(key: string): NoticeCollapseKey {
+  return { [COLLAPSE_KEY]: key }
+}
+
+function isCollapseKey(value: unknown): value is NoticeCollapseKey {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as { [COLLAPSE_KEY]?: unknown })[COLLAPSE_KEY] === 'string'
+  )
+}
 
 type NoticeShortcut = (
   message: NoticeContent,
@@ -62,16 +91,24 @@ interface ParsedNoticeExtras {
   params?: Record<string, unknown>
   raw?: unknown
   duration?: number
+  collapseKey?: string
 }
 
 function parseNoticeExtras(extras: NoticeExtra[]): ParsedNoticeExtras {
   let params: Record<string, unknown> | undefined
   let raw: unknown
   let duration: number | undefined
+  let collapseKey: string | undefined
 
   // Prioritize objects as translation params, then as raw payloads, while the first number wins as duration.
   for (const extra of extras) {
     if (extra === undefined) continue
+
+    // Checked before isPlainRecord: a collapse key is a plain object too.
+    if (isCollapseKey(extra)) {
+      collapseKey ??= extra[COLLAPSE_KEY]
+      continue
+    }
 
     if (typeof extra === 'number' && duration === undefined) {
       duration = extra
@@ -104,7 +141,7 @@ function parseNoticeExtras(extras: NoticeExtra[]): ParsedNoticeExtras {
     }
   }
 
-  return { params, raw, duration }
+  return { params, raw, duration, collapseKey }
 }
 
 function resolveDuration(type: NoticeType, override?: number) {
@@ -116,6 +153,7 @@ function buildNotice(
   type: NoticeType,
   duration: number,
   payload: { message?: ReactNode; i18n?: NoticeTranslationDescriptor },
+  signature: string | undefined,
   timerId?: ReturnType<typeof setTimeout>,
 ): NoticeItem {
   return {
@@ -124,7 +162,7 @@ function buildNotice(
     duration,
     timerId,
     repeats: 1,
-    signature: noticeSignature(type, payload.i18n),
+    signature,
     ...payload,
   }
 }
@@ -132,7 +170,11 @@ function buildNotice(
 function noticeSignature(
   type: NoticeType,
   i18n?: NoticeTranslationDescriptor,
+  collapseKey?: string,
 ): string | undefined {
+  if (collapseKey !== undefined) {
+    return `${type}:collapse:${collapseKey}`
+  }
   if (!i18n) return undefined
   try {
     return `${type}:${JSON.stringify(i18n)}`
@@ -345,11 +387,11 @@ const baseShowNotice = (
   message: NoticeContent,
   ...extras: NoticeExtra[]
 ): number => {
-  const { params, raw, duration } = parseNoticeExtras(extras)
+  const { params, raw, duration, collapseKey } = parseNoticeExtras(extras)
   const effectiveDuration = resolveDuration(type, duration)
   const normalizedMessage = normalizeNoticeMessage(message, params, raw)
 
-  const signature = noticeSignature(type, normalizedMessage.i18n)
+  const signature = noticeSignature(type, normalizedMessage.i18n, collapseKey)
   const same = signature
     ? notices.find((candidate) => candidate.signature === signature)
     : undefined
@@ -364,6 +406,7 @@ const baseShowNotice = (
     type,
     effectiveDuration,
     normalizedMessage,
+    signature,
     scheduleHide(id, effectiveDuration),
   )
 

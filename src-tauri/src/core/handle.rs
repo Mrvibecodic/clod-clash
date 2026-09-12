@@ -10,12 +10,14 @@ use super::notification::{FrontendEvent, NotificationSystem};
 #[derive(Debug)]
 pub struct Handle {
     is_exiting: AtomicBool,
+    exit_can_be_cancelled: AtomicBool,
 }
 
 impl Default for Handle {
     fn default() -> Self {
         Self {
             is_exiting: AtomicBool::new(false),
+            exit_can_be_cancelled: AtomicBool::new(false),
         }
     }
 }
@@ -97,14 +99,20 @@ impl Handle {
     // clod:hwid end
 
     pub fn set_is_exiting(&self) {
+        self.exit_can_be_cancelled.store(false, Ordering::Release);
         self.is_exiting.store(true, Ordering::Release);
     }
 
-    pub fn begin_exiting(&self) -> bool {
-        !self.is_exiting.swap(true, Ordering::AcqRel)
+    pub fn begin_exiting(&self, can_be_cancelled: bool) -> bool {
+        if self.is_exiting.swap(true, Ordering::AcqRel) {
+            return false;
+        }
+        self.exit_can_be_cancelled.store(can_be_cancelled, Ordering::Release);
+        true
     }
 
     pub fn clear_is_exiting(&self) {
+        self.exit_can_be_cancelled.store(false, Ordering::Release);
         self.is_exiting.store(false, Ordering::Release);
     }
 
@@ -112,10 +120,18 @@ impl Handle {
         self.is_exiting.load(Ordering::Acquire)
     }
 
+    pub fn exit_can_be_cancelled(&self) -> bool {
+        self.exit_can_be_cancelled.load(Ordering::Acquire)
+    }
+
     fn send_event(event: FrontendEvent) {
         let handle = Self::global();
-        if handle.is_exiting() {
-            NotificationSystem::hold_for_after_the_exit(&event);
+        if handle.is_exiting() && !NotificationSystem::speaks_to_a_window_that_is_still_up(&event) {
+            if handle.exit_can_be_cancelled() {
+                NotificationSystem::hold_in_case_the_exit_is_cancelled(&event);
+            } else {
+                NotificationSystem::lost_to_an_exit_that_cannot_be_cancelled(&event);
+            }
             return;
         }
 

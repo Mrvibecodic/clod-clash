@@ -295,9 +295,7 @@ impl Config {
                 "Не удалось сгенерировать runtime-конфиг: {}",
                 error_msg
             );
-            CoreManager::global()
-                .use_default_config("config_validate::boot_error", &error_msg)
-                .await?;
+            CoreManager::global().use_default_config().await?;
             return Ok(Some(("config_validate::boot_error", error_msg)));
         }
         logging!(info, Type::Config, "Runtime-конфиг сгенерирован успешно");
@@ -324,16 +322,12 @@ impl Config {
                         "[Первый запуск] Проверка конфига не пройдена, запускаю с минимальным конфигом по умолчанию: {}",
                         error_msg
                     );
-                    CoreManager::global()
-                        .use_default_config("config_validate::boot_error", &error_msg)
-                        .await?;
+                    CoreManager::global().use_default_config().await?;
                     Ok(Some(("config_validate::boot_error", error_msg)))
                 }
                 Err(err) => {
                     logging!(warn, Type::Config, "Не удалось выполнить проверку: {}", err);
-                    CoreManager::global()
-                        .use_default_config("config_validate::process_terminated", "")
-                        .await?;
+                    CoreManager::global().use_default_config().await?;
                     Ok(Some(("config_validate::process_terminated", String::new())))
                 }
             }
@@ -343,9 +337,7 @@ impl Config {
                 Type::Config,
                 "Не удалось сгенерировать конфиг, использую конфиг по умолчанию"
             );
-            CoreManager::global()
-                .use_default_config("config_validate::error", "")
-                .await?;
+            CoreManager::global().use_default_config().await?;
             Ok(Some(("config_validate::error", String::new())))
         }
     }

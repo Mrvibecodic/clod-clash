@@ -60,10 +60,38 @@ const HELD_STATUS_PREFIXES: &[&str] = &[
     "update::",
     "app_quit::",
 ];
-const NEVER_HELD_STATUSES: &[&str] = &["tun::setup_started", "tun::setup_done", "app_quit::in_progress"];
+const EXIT_REFUSAL_STATUS: &str = "app_quit::in_progress";
+const NEVER_HELD_STATUSES: &[&str] = &["tun::setup_started", "tun::setup_done", EXIT_REFUSAL_STATUS];
+
+fn pointless_to_hold(status: &str) -> bool {
+    NEVER_HELD_STATUSES.contains(&status)
+}
 
 fn worth_holding(status: &str) -> bool {
-    !NEVER_HELD_STATUSES.contains(&status) && HELD_STATUS_PREFIXES.iter().any(|prefix| status.starts_with(prefix))
+    !pointless_to_hold(status) && HELD_STATUS_PREFIXES.iter().any(|prefix| status.starts_with(prefix))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Delivery {
+    Send,
+    Hold,
+    Drop,
+}
+
+fn decide_delivery(status: &str, listening: bool, window_exists: bool) -> Delivery {
+    if can_reach_the_page(listening, window_exists) {
+        return Delivery::Send;
+    }
+    if window_exists {
+        if worth_holding(status) {
+            return Delivery::Hold;
+        }
+        return Delivery::Send;
+    }
+    if pointless_to_hold(status) {
+        return Delivery::Drop;
+    }
+    Delivery::Hold
 }
 
 fn collapse_into(pending: &mut VecDeque<PendingNotice>, status: &str, message: &str) -> u32 {
@@ -72,8 +100,10 @@ fn collapse_into(pending: &mut VecDeque<PendingNotice>, status: &str, message: &
         same.repeats = same.repeats.saturating_add(1);
         return same.repeats;
     }
-    if pending.len() >= PENDING_NOTICES_CAP {
-        pending.pop_front();
+    if pending.len() >= PENDING_NOTICES_CAP
+        && let Some(evicted) = pending.pop_front()
+    {
+        drop_notice(&evicted.status, "очередь заполнена, вытеснено более свежим");
     }
     pending.push_back(PendingNotice {
         status: status.to_owned(),
@@ -97,6 +127,10 @@ fn hold_notice(status: &str, message: &str) {
         queued,
         repeats
     );
+}
+
+fn drop_notice(status: &str, why: &str) {
+    logging!(info, Type::Frontend, "уведомление {} выброшено: {}", status, why);
 }
 
 #[derive(Debug)]
@@ -127,11 +161,23 @@ impl NotificationSystem {
             .collect()
     }
 
-    pub fn hold_for_after_the_exit(event: &FrontendEvent) {
-        if let FrontendEvent::NoticeMessage { status, message } = event
-            && worth_holding(status)
-        {
-            hold_notice(status, message);
+    pub fn speaks_to_a_window_that_is_still_up(event: &FrontendEvent) -> bool {
+        matches!(event, FrontendEvent::NoticeMessage { status, .. } if *status == EXIT_REFUSAL_STATUS)
+    }
+
+    pub fn hold_in_case_the_exit_is_cancelled(event: &FrontendEvent) {
+        if let FrontendEvent::NoticeMessage { status, message } = event {
+            if worth_holding(status) {
+                hold_notice(status, message);
+            } else {
+                drop_notice(status, "идёт выход, показать его уже некому");
+            }
+        }
+    }
+
+    pub fn lost_to_an_exit_that_cannot_be_cancelled(event: &FrontendEvent) {
+        if let FrontendEvent::NoticeMessage { status, .. } = event {
+            drop_notice(status, "выход уже не отменить, придерживать его незачем");
         }
     }
 
@@ -140,18 +186,17 @@ impl NotificationSystem {
             return false;
         };
         let window_exists = app_handle.get_webview_window("main").is_some();
-        if can_reach_the_page(FRONTEND_LISTENING.load(Ordering::Acquire), window_exists) {
-            return false;
+        match decide_delivery(status, FRONTEND_LISTENING.load(Ordering::Acquire), window_exists) {
+            Delivery::Send => false,
+            Delivery::Hold => {
+                hold_notice(status, message);
+                true
+            }
+            Delivery::Drop => {
+                drop_notice(status, "окна нет, а придерживать его нет смысла");
+                true
+            }
         }
-        // Спрятанное окно: то, что стоит подождать, ждёт показа; остальное
-        // уходит в страницу как раньше — она жива, просто не на экране.
-        if window_exists && !worth_holding(status) {
-            return false;
-        }
-        if worth_holding(status) {
-            hold_notice(status, message);
-        }
-        true
     }
 
     fn emit_to_window(window: &WebviewWindow, event_name: &'static str, payload: serde_json::Value) {
@@ -253,7 +298,10 @@ struct QueuedEvent {
 
 #[cfg(test)]
 mod tests {
-    use super::{PENDING_NOTICES_CAP, PendingNotice, can_reach_the_page, collapse_into, worth_holding};
+    use super::{
+        Delivery, FrontendEvent, NEVER_HELD_STATUSES, NotificationSystem, PENDING_NOTICES_CAP, PendingNotice,
+        can_reach_the_page, collapse_into, decide_delivery, worth_holding,
+    };
     use std::collections::{BTreeSet, VecDeque};
     use std::path::{Path, PathBuf};
 
@@ -387,6 +435,98 @@ mod tests {
         assert!(!worth_holding("app_quit::in_progress"));
         assert!(!worth_holding("set_config::ok"));
         assert!(!worth_holding("clod_sub::url_migrated"));
+    }
+
+    #[test]
+    fn without_a_window_a_notice_waits_unless_it_describes_this_very_moment() {
+        for status in NOTICE_STATUSES {
+            let expected = if NEVER_HELD_STATUSES.contains(status) {
+                Delivery::Drop
+            } else {
+                Delivery::Hold
+            };
+            assert_eq!(
+                decide_delivery(status, false, false),
+                expected,
+                "статус {status} при отсутствии окна"
+            );
+        }
+    }
+
+    #[test]
+    fn the_tray_the_hotkey_and_a_system_link_keep_their_answer() {
+        for status in [
+            "set_config::error",
+            "set_config::ok",
+            "reactivate_profiles::error",
+            "import_sub_url::ok",
+            "import_sub_url::error",
+            "config_core::change_error",
+            "clod_sub::fallback_used",
+            "update_with_clash_proxy",
+        ] {
+            assert_eq!(
+                decide_delivery(status, false, false),
+                Delivery::Hold,
+                "{status} потерян молча"
+            );
+        }
+    }
+
+    #[test]
+    fn a_live_but_hidden_page_still_gets_what_is_not_worth_waiting_for() {
+        assert_eq!(decide_delivery("core::crashed", true, true), Delivery::Send);
+        assert_eq!(decide_delivery("core::crashed", false, true), Delivery::Hold);
+        assert_eq!(decide_delivery("set_config::ok", false, true), Delivery::Send);
+        assert_eq!(decide_delivery("tun::setup_started", false, true), Delivery::Send);
+    }
+
+    #[test]
+    fn the_refusal_of_a_tray_click_goes_round_the_exit_fork() {
+        let refusal = FrontendEvent::NoticeMessage {
+            status: "app_quit::in_progress",
+            message: super::String::new(),
+        };
+        assert!(NotificationSystem::speaks_to_a_window_that_is_still_up(&refusal));
+        let problem = FrontendEvent::NoticeMessage {
+            status: "core::crashed",
+            message: super::String::new(),
+        };
+        assert!(!NotificationSystem::speaks_to_a_window_that_is_still_up(&problem));
+        assert!(!NotificationSystem::speaks_to_a_window_that_is_still_up(
+            &FrontendEvent::RefreshClash
+        ));
+    }
+
+    #[test]
+    fn the_boot_fallback_leaves_the_notice_to_its_caller() {
+        let source = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/core/manager/config.rs"))
+            .unwrap_or_default();
+        let body = fn_body(&source, "async fn use_default_config");
+        assert!(
+            body.is_some_and(|body| !body.contains("notice_message")),
+            "запасной конфиг снова шлёт отказ сам — к уведомлению из init_runtime_config добавится второе"
+        );
+    }
+
+    fn fn_body<'a>(source: &'a str, signature: &str) -> Option<&'a str> {
+        let at = source.find(signature)?;
+        let rest = &source[at..];
+        let open = rest.find('{')?;
+        let mut depth = 0usize;
+        for (index, byte) in rest.bytes().enumerate().skip(open) {
+            match byte {
+                b'{' => depth += 1,
+                b'}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return Some(&rest[open..=index]);
+                    }
+                }
+                _ => {}
+            }
+        }
+        None
     }
 
     #[test]
