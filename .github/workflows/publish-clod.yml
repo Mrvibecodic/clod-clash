@@ -166,7 +166,8 @@ jobs:
               ;;
           esac
 
-          updater_id=$(gh api "repos/${{ github.repository }}/releases/tags/updater" --jq .id)
+          updater_id=$(ensure_release updater "Update manifest" \
+            "Service release: latest.json of the newest stable build. Do not download installers from here.")
           put_manifest "$updater_id"
           echo "latest.json rolled into updater"
 
