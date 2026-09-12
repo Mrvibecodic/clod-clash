@@ -6,7 +6,13 @@ import {
   SettingsRounded,
   WarningRounded,
 } from '@mui/icons-material'
-import { Box, Typography, alpha, useTheme } from '@mui/material'
+import {
+  Box,
+  CircularProgress,
+  Typography,
+  alpha,
+  useTheme,
+} from '@mui/material'
 import { useLockFn } from 'ahooks'
 import React, { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -43,6 +49,12 @@ interface SwitchRowProps {
   label: string
   active: boolean
   disabled?: boolean
+  /**
+   * clod: бэкенд ещё спрашивает ядро про порт и пишет настройки ОС. Без этого
+   * признака переключатель на секунды выглядел проигнорированным, и человек
+   * щёлкал его снова.
+   */
+  busy?: boolean
   infoTitle: string
   onInfoClick?: () => void
   extraIcons?: React.ReactNode
@@ -65,6 +77,7 @@ const SwitchRow = ({
   label,
   active,
   disabled,
+  busy,
   infoTitle,
   onInfoClick,
   extraIcons,
@@ -142,12 +155,15 @@ const SwitchRow = ({
           {lockedNote}
         </Typography>
       ) : (
-        <Switch
-          edge="end"
-          disabled={disabled}
-          checked={checked}
-          onChange={handleChange}
-        />
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {busy && <CircularProgress size={16} thickness={5} />}
+          <Switch
+            edge="end"
+            disabled={disabled || busy}
+            checked={checked}
+            onChange={handleChange}
+          />
+        </Box>
       )}
     </Box>
   )
@@ -161,8 +177,11 @@ const ProxyControlSwitches = ({
   const { t } = useTranslation()
   const { verge, mutateVerge, patchVerge } = useVerge()
   const { uninstallServiceAndRestartCore } = useServiceUninstaller()
-  const { indicator: systemProxyIndicator, toggleSystemProxy } =
-    useSystemProxyState()
+  const {
+    indicator: systemProxyIndicator,
+    busy: systemProxyBusy,
+    toggleSystemProxy,
+  } = useSystemProxyState()
   // clod: тумблер показывает ФАКТ (`tunActive`), как и быстрые действия на
   // главной. Раньше настройки читали `enable_tun_mode` — желание из конфига —
   // и расходились с главной: там туннель погашен подавлением, здесь горит.
@@ -273,6 +292,7 @@ const ProxyControlSwitches = ({
         <SwitchRow
           label={t('settings.sections.proxyControl.fields.systemProxy')}
           active={systemProxyIndicator}
+          busy={systemProxyBusy}
           infoTitle={t('settings.sections.proxyControl.tooltips.systemProxy')}
           onInfoClick={() => sysproxyRef.current?.open()}
           onToggle={async (value) => {

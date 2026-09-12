@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { closeAllConnections } from 'tauri-plugin-mihomo-api'
 
 import { useVerge } from '@/hooks/use-verge'
@@ -36,6 +36,10 @@ export const useSystemProxyState = () => {
   // Режим "применяется только последнее": при быстрых последовательных кликах выполняется только конечное состояние
   const pendingRef = useRef<boolean | null>(null)
   const busyRef = useRef(false)
+  // Бэкенд успевает спросить ядро про порт и записать настройки ОС — это
+  // заметная пауза, и переключатель обязан показывать, что работа идёт, а не
+  // выглядеть проигнорированным.
+  const [busy, setBusy] = useState(false)
 
   const toggleSystemProxy = async (enabled: boolean) => {
     mutateVerge(
@@ -46,6 +50,7 @@ export const useSystemProxyState = () => {
 
     if (busyRef.current) return
     busyRef.current = true
+    setBusy(true)
 
     try {
       while (pendingRef.current !== null) {
@@ -62,11 +67,15 @@ export const useSystemProxyState = () => {
       }
     } finally {
       busyRef.current = false
-      await revalidateQueries([
-        ['getVergeConfig'],
-        ['getSystemProxy'],
-        ['getAutotemProxy'],
-      ])
+      try {
+        await revalidateQueries([
+          ['getVergeConfig'],
+          ['getSystemProxy'],
+          ['getAutotemProxy'],
+        ])
+      } finally {
+        setBusy(false)
+      }
     }
   }
 
@@ -76,6 +85,7 @@ export const useSystemProxyState = () => {
   return {
     indicator,
     configState: enable_system_proxy ?? false,
+    busy,
     toggleSystemProxy,
     invalidateProxyState,
   }
