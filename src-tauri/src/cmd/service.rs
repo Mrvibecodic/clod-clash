@@ -12,6 +12,7 @@ async fn execute_service_operation_sync(status: ServiceStatus, op_type: &str) ->
 
 #[tauri::command]
 pub async fn uninstall_service() -> CmdResult {
+    crate::feat::refuse_while_exiting().stringify_err()?;
     let manager = CoreManager::global();
     let ran_under_service = matches!(*manager.get_running_mode(), RunningMode::Service);
     let _pause = ran_under_service.then(|| manager.planned_pause());
@@ -82,6 +83,7 @@ pub async fn get_core_firewall_ok() -> CmdResult<Option<bool>> {
 
 #[tauri::command]
 pub async fn fix_core_firewall() -> CmdResult<Option<bool>> {
+    crate::feat::refuse_while_exiting().stringify_err()?;
     firewall_platform::repair().await
 }
 
@@ -117,9 +119,10 @@ mod firewall_platform {
 #[tauri::command]
 pub async fn ensure_tun_ready() -> CmdResult<bool> {
     use crate::feat::tun::SetupOutcome;
+    crate::feat::refuse_while_exiting().stringify_err()?;
     match crate::feat::tun::ensure_ready(true).await {
         SetupOutcome::AlreadyReady | SetupOutcome::Installed => Ok(true),
-        SetupOutcome::Declined | SetupOutcome::Failed => Ok(false),
+        SetupOutcome::Declined | SetupOutcome::Failed | SetupOutcome::Exiting => Ok(false),
         SetupOutcome::Busy => Err("tun::setup_busy".into()),
         SetupOutcome::Pending => Err("tun::setup_pending".into()),
     }

@@ -107,6 +107,7 @@ pub async fn patch_clash_mode(payload: String) -> CmdResult {
 }
 #[tauri::command]
 pub async fn change_clash_core(clash_core: String) -> CmdResult<Option<String>> {
+    feat::refuse_while_exiting().stringify_err()?;
     logging!(info, Type::Config, "changing core to {clash_core}");
 
     match CoreManager::global().change_core(&clash_core).await {
@@ -138,6 +139,7 @@ pub async fn change_clash_core(clash_core: String) -> CmdResult<Option<String>> 
 }
 #[tauri::command]
 pub async fn stop_core() -> CmdResult {
+    feat::refuse_while_exiting().stringify_err()?;
     logging_error!(Type::Core, crate::config::profiles::profiles_save_file_safe().await);
     let result = CoreManager::global().stop_core().await.stringify_err();
     if result.is_ok() {
@@ -153,6 +155,7 @@ pub async fn refresh_geo_assets() -> CmdResult<usize> {
 
 #[tauri::command]
 pub async fn restart_core() -> CmdResult {
+    feat::refuse_while_exiting().stringify_err()?;
     logging_error!(Type::Core, crate::config::profiles::profiles_save_file_safe().await);
     crate::feat::tun::clear_suppression();
     let result = CoreManager::global().restart_core().await.stringify_err();

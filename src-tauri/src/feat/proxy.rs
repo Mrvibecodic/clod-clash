@@ -64,18 +64,57 @@ pub async fn close_connections_via(previous_proxy: &str) -> usize {
     closed
 }
 
-pub async fn toggle_system_proxy() -> bool {
-    let verge = Config::verge().await;
-    let current = verge.latest_arc().enable_system_proxy.unwrap_or(false);
-    let auto_close_connection = verge.latest_arc().auto_close_connection();
-    let tun_carries_traffic = verge.latest_arc().enable_tun_mode.unwrap_or(false);
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SystemProxyStep {
+    LeaveEverythingAlone,
+    DropConnectionsThenSwitch,
+    Switch,
+}
 
-    if current
-        && auto_close_connection
-        && !tun_carries_traffic
-        && let Err(err) = handle::Handle::mihomo().await.close_all_connections().await
-    {
-        logging!(error, Type::ProxyMode, "Failed to close all connections: {err}");
+const fn system_proxy_step(
+    exiting: bool,
+    current: bool,
+    auto_close_connection: bool,
+    tun_carries_traffic: bool,
+) -> SystemProxyStep {
+    if exiting {
+        return SystemProxyStep::LeaveEverythingAlone;
+    }
+    if current && auto_close_connection && !tun_carries_traffic {
+        SystemProxyStep::DropConnectionsThenSwitch
+    } else {
+        SystemProxyStep::Switch
+    }
+}
+
+fn exit_is_under_way() -> bool {
+    match super::refuse_while_exiting() {
+        Ok(()) => false,
+        Err(err) => {
+            logging!(info, Type::ProxyMode, "{err}");
+            true
+        }
+    }
+}
+
+pub async fn toggle_system_proxy() -> bool {
+    let (current, auto_close_connection, tun_carries_traffic) = {
+        let snapshot = Config::verge().await.latest_arc();
+        (
+            snapshot.enable_system_proxy.unwrap_or(false),
+            snapshot.auto_close_connection(),
+            snapshot.enable_tun_mode.unwrap_or(false),
+        )
+    };
+
+    match system_proxy_step(exit_is_under_way(), current, auto_close_connection, tun_carries_traffic) {
+        SystemProxyStep::LeaveEverythingAlone => return current,
+        SystemProxyStep::DropConnectionsThenSwitch => {
+            if let Err(err) = handle::Handle::mihomo().await.close_all_connections().await {
+                logging!(error, Type::ProxyMode, "Failed to close all connections: {err}");
+            }
+        }
+        SystemProxyStep::Switch => {}
     }
 
     let requested = !current;
@@ -108,13 +147,35 @@ pub async fn toggle_system_proxy() -> bool {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TunStep {
+    LeaveEverythingAlone,
+    PrepareServiceThenSwitchOn,
+    SwitchOff,
+}
+
+const fn tun_step(exiting: bool, active: bool) -> TunStep {
+    if exiting {
+        return TunStep::LeaveEverythingAlone;
+    }
+    if active {
+        TunStep::SwitchOff
+    } else {
+        TunStep::PrepareServiceThenSwitchOn
+    }
+}
+
 pub async fn toggle_tun_mode(not_save_file: Option<bool>) -> bool {
     let desired = Config::verge().await.latest_arc().enable_tun_mode.unwrap_or(false);
-    let enable = !crate::feat::tun::is_active_with(desired);
 
-    if enable {
-        crate::feat::tun::ensure_ready(true).await;
-    }
+    let enable = match tun_step(exit_is_under_way(), crate::feat::tun::is_active_with(desired)) {
+        TunStep::LeaveEverythingAlone => return desired,
+        TunStep::PrepareServiceThenSwitchOn => {
+            crate::feat::tun::ensure_ready(true).await;
+            true
+        }
+        TunStep::SwitchOff => false,
+    };
 
     match super::patch_verge(
         &IVerge {
@@ -190,10 +251,63 @@ pub async fn copy_clash_env() {
 
 #[cfg(test)]
 mod tests {
-    use super::goes_through;
+    use super::{SystemProxyStep, TunStep, goes_through, system_proxy_step, tun_step};
 
     fn chain(hops: &[&str]) -> Vec<std::string::String> {
         hops.iter().map(|hop| (*hop).to_owned()).collect()
+    }
+
+    #[test]
+    fn while_the_app_is_leaving_the_tun_switch_never_reaches_the_rights_prompt() {
+        for active in [false, true] {
+            assert_eq!(
+                tun_step(true, active),
+                TunStep::LeaveEverythingAlone,
+                "active={active}: во время выхода подготовка службы не запускается"
+            );
+        }
+    }
+
+    #[test]
+    fn with_no_exit_under_way_the_tun_switch_flips_and_prepares_only_when_turning_on() {
+        assert_eq!(tun_step(false, false), TunStep::PrepareServiceThenSwitchOn);
+        assert_eq!(tun_step(false, true), TunStep::SwitchOff);
+    }
+
+    #[test]
+    fn while_the_app_is_leaving_the_system_proxy_switch_never_drops_connections() {
+        for current in [false, true] {
+            for auto_close_connection in [false, true] {
+                for tun_carries_traffic in [false, true] {
+                    assert_eq!(
+                        system_proxy_step(true, current, auto_close_connection, tun_carries_traffic),
+                        SystemProxyStep::LeaveEverythingAlone,
+                        "{current}/{auto_close_connection}/{tun_carries_traffic}: \
+                         соединения не рвутся ради настройки, которая не применится"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn connections_are_dropped_only_when_the_proxy_that_carried_them_is_switched_off() {
+        assert_eq!(
+            system_proxy_step(false, true, true, false),
+            SystemProxyStep::DropConnectionsThenSwitch
+        );
+        for (current, auto_close_connection, tun_carries_traffic) in [
+            (false, true, false),
+            (true, false, false),
+            (true, true, true),
+            (false, false, false),
+        ] {
+            assert_eq!(
+                system_proxy_step(false, current, auto_close_connection, tun_carries_traffic),
+                SystemProxyStep::Switch,
+                "{current}/{auto_close_connection}/{tun_carries_traffic}"
+            );
+        }
     }
 
     #[test]

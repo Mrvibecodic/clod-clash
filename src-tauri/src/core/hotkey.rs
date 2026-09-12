@@ -74,6 +74,40 @@ impl FromStr for HotkeyFunction {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PressVerdict {
+    Run,
+    RefuseExitInProgress,
+}
+
+const fn press_verdict(function: HotkeyFunction, exiting: bool) -> PressVerdict {
+    if !exiting {
+        return PressVerdict::Run;
+    }
+    match function {
+        HotkeyFunction::OpenOrCloseDashboard
+        | HotkeyFunction::ClashModeRule
+        | HotkeyFunction::ClashModeGlobal
+        | HotkeyFunction::ClashModeDirect
+        | HotkeyFunction::ToggleSystemProxy
+        | HotkeyFunction::ToggleTunMode
+        | HotkeyFunction::EntryLightweightMode
+        | HotkeyFunction::ReactivateProfiles
+        | HotkeyFunction::Quit => PressVerdict::RefuseExitInProgress,
+        #[cfg(target_os = "macos")]
+        HotkeyFunction::Hide => PressVerdict::RefuseExitInProgress,
+    }
+}
+
+fn refuse_the_press() {
+    logging!(
+        info,
+        Type::Hotkey,
+        "действие по горячей клавише отклонено: выход уже идёт"
+    );
+    handle::Handle::notice_message("app_quit::in_progress", "");
+}
+
 #[cfg(target_os = "macos")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 /// Enum representing predefined system hotkeys
@@ -116,6 +150,13 @@ impl Hotkey {
 
     /// Execute the function associated with a hotkey function enum
     fn execute_function(function: HotkeyFunction) {
+        match press_verdict(function, handle::Handle::global().is_exiting()) {
+            PressVerdict::RefuseExitInProgress => refuse_the_press(),
+            PressVerdict::Run => Self::run_function(function),
+        }
+    }
+
+    fn run_function(function: HotkeyFunction) {
         match function {
             HotkeyFunction::OpenOrCloseDashboard => {
                 AsyncHandler::spawn(async move || {
@@ -471,6 +512,51 @@ impl Drop for Hotkey {
         let app_handle = handle::Handle::app_handle();
         if let Err(e) = app_handle.global_shortcut().unregister_all() {
             logging!(error, Type::Hotkey, "Error unregistering all hotkeys: {:?}", e);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{HotkeyFunction, PressVerdict, press_verdict};
+
+    fn every_function() -> Vec<HotkeyFunction> {
+        #[allow(unused_mut)]
+        let mut all = vec![
+            HotkeyFunction::OpenOrCloseDashboard,
+            HotkeyFunction::ClashModeRule,
+            HotkeyFunction::ClashModeGlobal,
+            HotkeyFunction::ClashModeDirect,
+            HotkeyFunction::ToggleSystemProxy,
+            HotkeyFunction::ToggleTunMode,
+            HotkeyFunction::EntryLightweightMode,
+            HotkeyFunction::ReactivateProfiles,
+            HotkeyFunction::Quit,
+        ];
+        #[cfg(target_os = "macos")]
+        all.push(HotkeyFunction::Hide);
+        all
+    }
+
+    #[test]
+    fn while_the_app_is_leaving_every_hotkey_answers_with_the_refusal_the_tray_gives() {
+        for function in every_function() {
+            assert_eq!(
+                press_verdict(function, true),
+                PressVerdict::RefuseExitInProgress,
+                "горячая клавиша {function} во время выхода отвечает одним отказом, как трей"
+            );
+        }
+    }
+
+    #[test]
+    fn with_no_exit_under_way_every_hotkey_runs() {
+        for function in every_function() {
+            assert_eq!(
+                press_verdict(function, false),
+                PressVerdict::Run,
+                "горячая клавиша {function} работает, пока выход не начат"
+            );
         }
     }
 }
