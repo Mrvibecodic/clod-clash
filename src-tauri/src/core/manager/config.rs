@@ -291,7 +291,10 @@ impl CoreManager {
     }
 
     async fn reload_config(&self, force: bool, path: &str) -> Result<(), MihomoError> {
-        handle::Handle::mihomo().await.reload_config(force, path).await
+        crate::feat::environment::detached_core_client()
+            .await
+            .reload_config(force, path)
+            .await
     }
 
     /// Полный перезапуск ядра и итог по нему: применить черновик или откатить.
@@ -532,21 +535,20 @@ pub(super) async fn point_system_proxy_at_the_core() {
     }
     let sysopt = crate::core::sysopt::Sysopt::global();
     let was_failing = sysopt.write_failed();
-    match sysopt.update_sysproxy().await {
-        Ok(()) => sysopt.refresh_guard().await,
-        Err(err) => {
-            // Прокси остался на прежнем порту, которого у ядра больше нет:
-            // молчать здесь значит оставить человека без интернета и без
-            // объяснения. Повторять тост на каждую попытку не нужно — как и у
-            // сторожа окружения, говорим один раз, пока запись не заработает.
-            logging!(
-                warn,
-                Type::Core,
-                "[clod] failed to point the system proxy at the core's port: {err}"
-            );
-            if !was_failing {
-                handle::Handle::notice_message("sysproxy::write_failed", err.to_string());
-            }
+    let written = sysopt.update_sysproxy().await;
+    sysopt.refresh_guard().await;
+    if let Err(err) = written {
+        // Прокси остался на прежнем порту, которого у ядра больше нет:
+        // молчать здесь значит оставить человека без интернета и без
+        // объяснения. Повторять тост на каждую попытку не нужно — как и у
+        // сторожа окружения, говорим один раз, пока запись не заработает.
+        logging!(
+            warn,
+            Type::Core,
+            "[clod] failed to point the system proxy at the core's port: {err}"
+        );
+        if !was_failing {
+            handle::Handle::notice_message("sysproxy::write_failed", err.to_string());
         }
     }
 }

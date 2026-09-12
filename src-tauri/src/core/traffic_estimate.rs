@@ -196,13 +196,12 @@ async fn tick() {
         persist(&snapshot());
     }
 
-    let mihomo = handle::Handle::mihomo().await;
-    let Ok(response) = mihomo.get_connections().await else {
+    let core = crate::feat::environment::detached_core_client().await;
+    let Ok(response) = core.get_connections().await else {
         // Ядро может быть ещё не поднято или уже остановлено — это штатно,
         // шуметь в лог на каждый опрос не за чем.
         return;
     };
-    drop(mihomo);
     let Some(connections) = response.connections else {
         return;
     };

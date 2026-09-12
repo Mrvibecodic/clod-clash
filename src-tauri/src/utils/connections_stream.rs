@@ -1,4 +1,4 @@
-use crate::{Type, core::handle, logging};
+use crate::{Type, logging};
 use anyhow::Result;
 use serde::Deserialize;
 use std::time::Duration;
@@ -10,6 +10,7 @@ use tokio::time::Instant;
 /// неограниченный рост памяти в нештатных ситуациях.
 const MIHOMO_WS_STREAM_BUFFER_SIZE: usize = 8;
 const MIHOMO_WS_STREAM_FORCE_CLOSE_WAIT_MS: u64 = 1000;
+const MIHOMO_WS_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Событие мгновенной скорости `/traffic` (байт/сек).
 #[derive(Debug, Clone, Copy)]
@@ -74,17 +75,23 @@ pub async fn connect_traffic_stream() -> Result<MihomoWsEventStream<TrafficSpeed
     // Используем ограниченный mpsc-канал для приёма событий из колбэка, ограничивая накопление сообщений.
     let (message_tx, message_rx) = mpsc::channel::<InternalWsEvent<TrafficSpeedEvent>>(MIHOMO_WS_STREAM_BUFFER_SIZE);
     // Устанавливаем подписку WebSocket `/traffic` Mihomo.
-    let connection_id = handle::Handle::mihomo()
-        .await
-        .ws_traffic({
+    let core = crate::feat::environment::detached_core_client().await;
+    let subscribed = tokio::time::timeout(
+        MIHOMO_WS_CONNECT_TIMEOUT,
+        core.ws_traffic({
             let message_tx = message_tx.clone();
             move |message| {
                 if let Some(event) = parse_traffic_event(&message) {
                     try_send_internal_event(&message_tx, event);
                 }
             }
-        })
-        .await?;
+        }),
+    )
+    .await;
+    let connection_id = match subscribed {
+        Ok(connected) => connected?,
+        Err(_) => anyhow::bail!("поток Mihomo WebSocket не ответил на рукопожатие за {MIHOMO_WS_CONNECT_TIMEOUT:?}"),
+    };
     drop(message_tx);
     Ok(MihomoWsEventStream {
         connection_id,
@@ -144,8 +151,8 @@ impl<T> MihomoWsEventStream<T> {
 /// # Arguments
 /// * `connection_id` - ID целевого соединения
 pub async fn disconnect_connection(connection_id: ConnectionId) {
-    if let Err(err) = handle::Handle::mihomo()
-        .await
+    let core = crate::feat::environment::detached_core_client().await;
+    if let Err(err) = core
         .disconnect(connection_id, Some(MIHOMO_WS_STREAM_FORCE_CLOSE_WAIT_MS))
         .await
     {

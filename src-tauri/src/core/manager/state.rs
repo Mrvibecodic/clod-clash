@@ -176,12 +176,15 @@ pub(super) fn handle_core_exit(message: &str, expected: &RunningMode, terminated
     });
 }
 
+/// clod:core-lock — замок клиента ядра отпускается ДО сетевого ожидания. Он
+/// write-preferring, а писатель — `update_socket_path` на пути старта ядра:
+/// удержание чтения на все тридцать секунд опроса заставляло отменённый выход и
+/// любой `restart_core` ждать столько же.
 async fn core_answers() -> bool {
-    tokio::time::timeout(timing::CORE_HEALTH_INTERVAL, async {
-        handle::Handle::mihomo().await.get_version().await.is_ok()
-    })
-    .await
-    .unwrap_or(false)
+    let core = crate::feat::environment::detached_core_client().await;
+    tokio::time::timeout(timing::CORE_HEALTH_INTERVAL, core.get_version())
+        .await
+        .is_ok_and(|answered| answered.is_ok())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
