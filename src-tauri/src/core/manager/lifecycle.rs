@@ -10,6 +10,7 @@ use anyhow::Result;
 use clash_verge_logging::{Type, logging};
 use scopeguard::defer;
 use smartstring::alias::String;
+use std::future::Future;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::time::Duration;
 use tauri_plugin_clash_verge_sysinfo;
@@ -48,6 +49,90 @@ const fn port_report(reported: Option<u16>, expected: u16) -> PortReport {
         Some(0) => PortReport::NotServing,
         Some(port) => PortReport::Other(port),
         None => PortReport::Silent,
+    }
+}
+
+const PORT_BUSY_DIAGNOSIS_BUDGET: Duration = Duration::from_secs(2);
+
+#[cfg(test)]
+const fn the_port_check_budget(attempts: u32) -> Duration {
+    let probes = timing::CORE_READY_PROBE_TIMEOUT.saturating_mul(attempts);
+    let waits = timing::MIXED_PORT_CHECK_INTERVAL.saturating_mul(attempts.saturating_sub(1));
+    probes.saturating_add(waits)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PortHolder {
+    NotEvenTaken,
+    AnotherCoreOfOurs,
+    SomeoneElse,
+    Unclear,
+}
+
+async fn who_holds_the_port(
+    port_is_taken: impl Future<Output = bool> + Send,
+    another_core_of_ours: impl Future<Output = bool> + Send,
+) -> PortHolder {
+    if !port_is_taken.await {
+        return PortHolder::NotEvenTaken;
+    }
+    if another_core_of_ours.await {
+        PortHolder::AnotherCoreOfOurs
+    } else {
+        PortHolder::SomeoneElse
+    }
+}
+
+async fn who_holds_the_port_within(
+    budget: Duration,
+    port_is_taken: impl Future<Output = bool> + Send,
+    another_core_of_ours: impl Future<Output = bool> + Send,
+) -> PortHolder {
+    tokio::time::timeout(budget, who_holds_the_port(port_is_taken, another_core_of_ours))
+        .await
+        .unwrap_or(PortHolder::Unclear)
+}
+
+async fn say_who_holds_the_port(expected: u16, holder: PortHolder) {
+    match holder {
+        PortHolder::NotEvenTaken => {
+            logging!(
+                warn,
+                Type::Core,
+                "ядро не слушает порт {}, хотя порт свободен",
+                expected
+            );
+        }
+        PortHolder::AnotherCoreOfOurs => {
+            logging!(
+                warn,
+                Type::Core,
+                "порт {} занят другим нашим же ядром — оставляем как есть",
+                expected
+            );
+        }
+        PortHolder::Unclear => {
+            logging!(
+                warn,
+                Type::Core,
+                "ядро не слушает порт {}, а кто его занял — за {} мс выяснить не удалось",
+                expected,
+                PORT_BUSY_DIAGNOSIS_BUDGET.as_millis()
+            );
+        }
+        PortHolder::SomeoneElse => {
+            logging!(
+                error,
+                Type::Core,
+                "порт {} занят посторонним приложением: ядро его не слушает, трафик через системный прокси не пойдёт",
+                expected
+            );
+            if Config::verge().await.latest_arc().enable_system_proxy.unwrap_or(false)
+                && PORT_BUSY_NOTICED.swap(u32::from(expected), Ordering::AcqRel) != u32::from(expected)
+            {
+                Handle::notice_message("core::port_busy", expected.to_string());
+            }
+        }
     }
 }
 
@@ -277,7 +362,7 @@ impl CoreManager {
         let generation = MIXED_PORT_CHECK_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
         AsyncHandler::spawn(move || async move {
             let expected = Config::mixed_port_the_core_was_started_with().await;
-            match Self::confirm_mixed_port(generation, expected).await {
+            match Self::confirm_mixed_port(generation, expected, timing::MIXED_PORT_CHECK_ATTEMPTS).await {
                 PortVerdict::Confirmed | PortVerdict::Unknown => {
                     if MIXED_PORT_CHECK_GENERATION.load(Ordering::Acquire) == generation
                         && PROXY_AWAITS_THE_NEW_PORT.swap(false, Ordering::AcqRel)
@@ -291,22 +376,35 @@ impl CoreManager {
     }
 
     pub async fn point_system_proxy_at_the_confirmed_port(&self) {
-        if matches!(*self.get_running_mode(), RunningMode::NotRunning) {
-            super::config::point_system_proxy_at_the_core().await;
-        } else {
+        let core_is_gone = matches!(*self.get_running_mode(), RunningMode::NotRunning);
+        if !core_is_gone {
             Self::spawn_mixed_port_check(true);
+            return;
+        }
+        if Config::verge().await.latest_arc().enable_system_proxy.unwrap_or(false) {
+            logging!(warn, Type::Core, "ядро не запущено — системный прокси оставлен как был");
         }
     }
 
     pub async fn the_core_must_serve_its_mixed_port(&self) -> Result<()> {
         if matches!(*self.get_running_mode(), RunningMode::NotRunning) {
-            return Ok(());
+            anyhow::bail!("ядро не запущено — системный прокси оставлен как был");
         }
         let generation = MIXED_PORT_CHECK_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
         let expected = Config::mixed_port_the_core_was_started_with().await;
         PORT_BUSY_NOTICED.store(0, Ordering::Release);
-        match Self::confirm_mixed_port(generation, expected).await {
-            PortVerdict::Confirmed | PortVerdict::Unknown => Ok(()),
+        match Self::confirm_mixed_port(generation, expected, timing::MIXED_PORT_CONFIRM_ATTEMPTS).await {
+            PortVerdict::Confirmed => Ok(()),
+            PortVerdict::Unknown => {
+                logging!(
+                    info,
+                    Type::Core,
+                    "ядро не ответило про порт {} за отведённое время — проверку продолжит фоновая",
+                    expected
+                );
+                Self::spawn_mixed_port_check(false);
+                Ok(())
+            }
             PortVerdict::Refuted => {
                 anyhow::bail!("ядро не подтвердило порт {expected} — системный прокси оставлен как был")
             }
@@ -320,10 +418,10 @@ impl CoreManager {
     /// доказана, и с прокси поступаем как до этой проверки. `Refuted` — ядро
     /// ответило другим портом или нулём, порт занят, ядро остановлено,
     /// приложение выходит либо проверку сменила более новая.
-    async fn confirm_mixed_port(generation: u64, expected: u16) -> PortVerdict {
+    async fn confirm_mixed_port(generation: u64, expected: u16, attempts: u32) -> PortVerdict {
         let manager = Self::global();
         let mut answered = false;
-        for _ in 0..timing::MIXED_PORT_CHECK_ATTEMPTS {
+        for attempt in 0..attempts {
             if Handle::global().is_exiting()
                 || MIXED_PORT_CHECK_GENERATION.load(Ordering::Acquire) != generation
                 || matches!(*manager.get_running_mode(), RunningMode::NotRunning)
@@ -357,7 +455,9 @@ impl CoreManager {
                 PortReport::Silent => {}
             }
 
-            tokio::time::sleep(timing::MIXED_PORT_CHECK_INTERVAL).await;
+            if attempt + 1 < attempts {
+                tokio::time::sleep(timing::MIXED_PORT_CHECK_INTERVAL).await;
+            }
         }
 
         if !answered {
@@ -370,44 +470,19 @@ impl CoreManager {
             return PortVerdict::Unknown;
         }
 
-        if !crate::cmd::network::is_port_in_use(expected).await {
-            logging!(
-                warn,
-                Type::Core,
-                "ядро не слушает порт {}, хотя порт свободен",
-                expected
-            );
-            return PortVerdict::Refuted;
-        }
-
         let mode = manager.get_running_mode();
         let own_pid = if matches!(*mode, RunningMode::Sidecar) {
             manager.sidecar_pid()
         } else {
             None
         };
-        if crate::core::orphan::another_core_of_ours_is_running(own_pid, matches!(*mode, RunningMode::Service)).await {
-            logging!(
-                warn,
-                Type::Core,
-                "порт {} занят другим нашим же ядром — оставляем как есть",
-                expected
-            );
-            return PortVerdict::Refuted;
-        }
-
-        logging!(
-            error,
-            Type::Core,
-            "порт {} занят посторонним приложением: ядро его не слушает, трафик через системный прокси не пойдёт",
-            expected
-        );
-        if !Config::verge().await.latest_arc().enable_system_proxy.unwrap_or(false) {
-            return PortVerdict::Refuted;
-        }
-        if PORT_BUSY_NOTICED.swap(u32::from(expected), Ordering::AcqRel) != u32::from(expected) {
-            Handle::notice_message("core::port_busy", expected.to_string());
-        }
+        let holder = who_holds_the_port_within(
+            PORT_BUSY_DIAGNOSIS_BUDGET,
+            crate::cmd::network::is_port_in_use(expected),
+            crate::core::orphan::another_core_of_ours_is_running(own_pid, matches!(*mode, RunningMode::Service)),
+        )
+        .await;
+        say_who_holds_the_port(expected, holder).await;
         PortVerdict::Refuted
     }
 
@@ -913,7 +988,78 @@ impl CoreManager {
 
 #[cfg(test)]
 mod tests {
-    use super::{PortReport, port_report, should_wait_for_service};
+    use super::{
+        PORT_BUSY_DIAGNOSIS_BUDGET, PortHolder, PortReport, port_report, should_wait_for_service,
+        the_port_check_budget, who_holds_the_port_within,
+    };
+    use crate::constants::timing;
+    use std::time::Duration;
+
+    #[test]
+    fn the_check_that_holds_the_settings_lock_is_measured_in_seconds() {
+        let asking_the_core = the_port_check_budget(timing::MIXED_PORT_CONFIRM_ATTEMPTS);
+        let under_the_lock = asking_the_core.saturating_add(PORT_BUSY_DIAGNOSIS_BUDGET);
+
+        assert!(
+            under_the_lock <= Duration::from_secs(4),
+            "проверка под замком настроек стоит {under_the_lock:?}"
+        );
+        assert!(
+            the_port_check_budget(timing::MIXED_PORT_CHECK_ATTEMPTS) >= asking_the_core * 4,
+            "фоновая проверка ждёт ядро дольше, чем правка настроек"
+        );
+    }
+
+    #[test]
+    fn naming_who_holds_the_port_gets_more_room_than_one_question_to_the_core() {
+        assert!(PORT_BUSY_DIAGNOSIS_BUDGET > timing::CORE_READY_PROBE_TIMEOUT);
+    }
+
+    #[tokio::test]
+    async fn a_free_port_is_blamed_on_nobody() {
+        let asked_about_processes = std::sync::atomic::AtomicBool::new(false);
+        let holder = who_holds_the_port_within(PORT_BUSY_DIAGNOSIS_BUDGET, async { false }, async {
+            asked_about_processes.store(true, std::sync::atomic::Ordering::SeqCst);
+            true
+        })
+        .await;
+
+        assert_eq!(holder, PortHolder::NotEvenTaken);
+        assert!(
+            !asked_about_processes.load(std::sync::atomic::Ordering::SeqCst),
+            "свободный порт незачем искать среди процессов"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_busy_port_names_a_stranger_only_when_it_is_not_our_own_core() {
+        assert_eq!(
+            who_holds_the_port_within(PORT_BUSY_DIAGNOSIS_BUDGET, async { true }, async { true }).await,
+            PortHolder::AnotherCoreOfOurs
+        );
+        assert_eq!(
+            who_holds_the_port_within(PORT_BUSY_DIAGNOSIS_BUDGET, async { true }, async { false }).await,
+            PortHolder::SomeoneElse
+        );
+    }
+
+    #[tokio::test]
+    async fn a_diagnosis_that_never_answers_still_lets_the_check_finish() {
+        let holder = who_holds_the_port_within(
+            Duration::from_millis(10),
+            async { true },
+            std::future::pending::<bool>(),
+        )
+        .await;
+
+        assert_eq!(holder, PortHolder::Unclear);
+    }
+
+    #[test]
+    fn a_single_attempt_costs_only_its_probe() {
+        assert_eq!(the_port_check_budget(1), timing::CORE_READY_PROBE_TIMEOUT);
+        assert_eq!(the_port_check_budget(0), Duration::ZERO);
+    }
 
     #[test]
     fn a_silent_core_is_not_a_busy_port() {

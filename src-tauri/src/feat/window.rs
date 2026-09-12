@@ -1,5 +1,9 @@
 use crate::config::Config;
-use crate::core::{CoreManager, handle, manager::ExitStop, sysopt};
+use crate::core::{
+    CoreManager, handle,
+    manager::{ExitStop, RunningMode},
+    sysopt,
+};
 use crate::module::lightweight;
 use crate::process::AsyncHandler;
 use crate::utils;
@@ -126,13 +130,19 @@ pub async fn quit_at(pace: ExitPace, cancel_if_core_stays: bool) {
         clean_async_at(pace).await
     };
 
-    if cleanup.sysproxy_cleared == Some(false) {
-        // Последствие переживает выход: в системе остался прокси, указывающий на
-        // порт, которого через секунду не станет.
+    if cleanup
+        .sysproxy
+        .is_some_and(|outcome| !the_take_down_went_as_asked(outcome))
+    {
+        // Последствие переживает выход: в системе остался НАШ прокси,
+        // указывающий на порт, которого через секунду не станет. Чужой прокси,
+        // до которого мы намеренно не дотронулись, переживает выход сам по
+        // себе и ни о чём человека не извещает.
         logging!(
             error,
             Type::Window,
-            "системный прокси остался в системе: снять его при выходе не удалось"
+            "системный прокси остался в системе ({:?})",
+            cleanup.sysproxy
         );
         // Окно умирает через миллисекунды, а очередь отложенных уведомлений —
         // память этого же процесса. Единственное, что переживает выход, —
@@ -177,10 +187,20 @@ fn cancel_the_exit(reason: String) {
         }
         // Уборка шла параллельно с остановкой ядра и успела снять то, что
         // приложению теперь снова нужно. Каждый шаг — пустой, если снимать
-        // было нечего.
+        // было нечего, а вернуть системный прокси может только живое ядро:
+        // без него человеку об этом говорят вслух.
         crate::feat::tun::bring_back_after_a_cancelled_exit().await;
         if Config::verge().await.latest_arc().enable_system_proxy.unwrap_or(false) {
-            CoreManager::global().point_system_proxy_at_the_confirmed_port().await;
+            if matches!(*CoreManager::global().get_running_mode(), RunningMode::NotRunning) {
+                logging!(
+                    error,
+                    Type::Window,
+                    "выход отменён, но ядра нет: системный прокси снят и обратно не пишется"
+                );
+                handle::Handle::notice_message("sysproxy::core_not_running", "");
+            } else {
+                CoreManager::global().point_system_proxy_at_the_confirmed_port().await;
+            }
         }
         #[cfg(target_os = "macos")]
         crate::utils::resolve::dns::apply_remembered_desire();
@@ -202,7 +222,19 @@ fn cancel_the_exit(reason: String) {
 
 pub struct CleanupOutcome {
     pub all_success: bool,
-    pub sysproxy_cleared: Option<bool>,
+    pub sysproxy: Option<ProxyAtExit>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ProxyAtExit {
+    Cleared,
+    LeftInPlace,
+    #[default]
+    Refused,
+}
+
+const fn the_take_down_went_as_asked(outcome: ProxyAtExit) -> bool {
+    !matches!(outcome, ProxyAtExit::Refused)
 }
 
 pub async fn clean_async() -> bool {
@@ -222,7 +254,10 @@ async fn turn_the_tun_off(pace: ExitPace) {
 
     logging!(info, Type::System, "send disable tun request to mihomo");
     match timeout(pace.tun_off_budget(), async {
-        handle::Handle::mihomo().await.patch_base_config(&disable_tun).await
+        crate::feat::environment::detached_core_client()
+            .await
+            .patch_base_config(&disable_tun)
+            .await
     })
     .await
     {
@@ -270,7 +305,7 @@ async fn clean_core_first(pace: ExitPace) -> Result<CleanupOutcome, String> {
             logging!(error, Type::Window, "задача уборки не вернула результат: {error}");
             CleanupOutcome {
                 all_success: false,
-                sysproxy_cleared: None,
+                sysproxy: None,
             }
         }
     };
@@ -335,7 +370,7 @@ fn spawn_save_task(pace: ExitPace) -> tokio::task::JoinHandle<bool> {
     })
 }
 
-fn spawn_proxy_task(pace: ExitPace) -> tokio::task::JoinHandle<bool> {
+fn spawn_proxy_task(pace: ExitPace) -> tokio::task::JoinHandle<ProxyAtExit> {
     tokio::task::spawn(async move {
         logging!(info, Type::Window, "сброс системного прокси...");
         match timeout(
@@ -344,13 +379,21 @@ fn spawn_proxy_task(pace: ExitPace) -> tokio::task::JoinHandle<bool> {
         )
         .await
         {
-            Ok(Ok(_)) => {
+            Ok(Ok(sysopt::SysproxyTakeDown::Cleared)) => {
                 logging!(info, Type::Window, "системный прокси сброшен");
-                true
+                ProxyAtExit::Cleared
+            }
+            Ok(Ok(sysopt::SysproxyTakeDown::LeftToItsOwner)) => {
+                logging!(
+                    warn,
+                    Type::Window,
+                    "Warning: системный прокси не снимали — в системе стоят настройки, поставленные не нами"
+                );
+                ProxyAtExit::LeftInPlace
             }
             Ok(Err(e)) => {
                 logging!(warn, Type::Window, "Warning: не удалось сбросить системный прокси: {e}");
-                false
+                ProxyAtExit::Refused
             }
             Err(_) => {
                 logging!(
@@ -358,7 +401,7 @@ fn spawn_proxy_task(pace: ExitPace) -> tokio::task::JoinHandle<bool> {
                     Type::Window,
                     "Warning: таймаут сброса системного прокси, продолжаем выход"
                 );
-                false
+                ProxyAtExit::Refused
             }
         }
     })
@@ -388,19 +431,19 @@ async fn clean_the_rest(pace: ExitPace) -> CleanupOutcome {
     let (save_result, proxy_result, dns_result) =
         tokio::join!(spawn_save_task(pace), spawn_proxy_task(pace), spawn_dns_task(pace));
     let save_success = save_result.unwrap_or_default();
-    let proxy_success = proxy_result.unwrap_or_default();
+    let proxy_outcome = proxy_result.unwrap_or_default();
     let dns_success = dns_result.unwrap_or_default();
     logging!(
         info,
         Type::System,
-        "асинхронное завершение выполнено — настройки: {}, прокси: {}, DNS: {}",
+        "асинхронное завершение выполнено — настройки: {}, прокси: {:?}, DNS: {}",
         save_success,
-        proxy_success,
+        proxy_outcome,
         dns_success
     );
     CleanupOutcome {
-        all_success: save_success && proxy_success && dns_success,
-        sysproxy_cleared: Some(proxy_success),
+        all_success: save_success && the_take_down_went_as_asked(proxy_outcome) && dns_success,
+        sysproxy: Some(proxy_outcome),
     }
 }
 
@@ -441,18 +484,18 @@ pub async fn clean_async_at(pace: ExitPace) -> CleanupOutcome {
     );
 
     let save_success = save_result.unwrap_or_default();
-    let proxy_success = proxy_result.unwrap_or_default();
+    let proxy_outcome = proxy_result.unwrap_or_default();
     let core_success = core_result.unwrap_or_default();
     let dns_success = dns_result.unwrap_or_default();
 
-    let all_success = save_success && proxy_success && core_success && dns_success;
+    let all_success = save_success && the_take_down_went_as_asked(proxy_outcome) && core_success && dns_success;
 
     logging!(
         info,
         Type::System,
-        "асинхронное завершение выполнено — настройки: {}, прокси: {}, ядро: {}, DNS: {}, итог: {}",
+        "асинхронное завершение выполнено — настройки: {}, прокси: {:?}, ядро: {}, DNS: {}, итог: {}",
         save_success,
-        proxy_success,
+        proxy_outcome,
         core_success,
         dns_success,
         all_success
@@ -460,7 +503,7 @@ pub async fn clean_async_at(pace: ExitPace) -> CleanupOutcome {
 
     CleanupOutcome {
         all_success,
-        sysproxy_cleared: Some(proxy_success),
+        sysproxy: Some(proxy_outcome),
     }
 }
 
@@ -489,7 +532,19 @@ pub async fn hide() {
 
 #[cfg(test)]
 mod tests {
-    use super::ExitPace;
+    use super::{ExitPace, ProxyAtExit, the_take_down_went_as_asked};
+
+    #[test]
+    fn only_a_refusal_makes_the_exit_itself_a_failure_and_warns_the_person() {
+        assert!(the_take_down_went_as_asked(ProxyAtExit::Cleared));
+        assert!(the_take_down_went_as_asked(ProxyAtExit::LeftInPlace));
+        assert!(!the_take_down_went_as_asked(ProxyAtExit::Refused));
+    }
+
+    #[test]
+    fn a_task_that_never_answered_counts_as_a_refusal() {
+        assert_eq!(ProxyAtExit::default(), ProxyAtExit::Refused);
+    }
 
     #[test]
     fn session_ending_never_waits_longer_than_an_interactive_quit() {

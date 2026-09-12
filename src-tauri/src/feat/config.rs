@@ -242,6 +242,40 @@ async fn restart_core_for_patch() -> Result<()> {
     CoreManager::global().restart_core().await
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SysProxyStep {
+    Write,
+    RefuseAndTurnTheSettingOff,
+    RefuseQuietly,
+}
+
+const fn how_to_serve_the_sys_proxy_flag(
+    wants_the_proxy: bool,
+    core_is_running: bool,
+    the_patch_asked_to_enable: Option<bool>,
+) -> SysProxyStep {
+    if !wants_the_proxy || core_is_running {
+        return SysProxyStep::Write;
+    }
+    if matches!(the_patch_asked_to_enable, Some(true)) {
+        SysProxyStep::RefuseAndTurnTheSettingOff
+    } else {
+        SysProxyStep::RefuseQuietly
+    }
+}
+
+const fn the_way_to_connect_after_a_refusal(
+    the_press_chose: Option<bool>,
+    before_the_press: Option<bool>,
+    in_the_draft: Option<bool>,
+) -> Option<bool> {
+    if the_press_chose.is_some() {
+        before_the_press
+    } else {
+        in_the_draft
+    }
+}
+
 #[allow(clippy::cognitive_complexity)]
 async fn process_terminated_flags(update_flags: UpdateFlags, patch: &IVerge) -> Result<()> {
     #[cfg(target_os = "macos")]
@@ -276,30 +310,53 @@ async fn process_terminated_flags(update_flags: UpdateFlags, patch: &IVerge) -> 
         clash_verge_i18n::set_locale(language.as_str());
     }
     if update_flags.contains(UpdateFlags::SYS_PROXY) {
-        if patch.enable_system_proxy == Some(true)
-            && matches!(
-                *CoreManager::global().get_running_mode(),
-                crate::core::manager::RunningMode::NotRunning
-            )
-        {
-            logging!(
-                error,
-                Type::Setup,
-                "ядро не запущено — системный прокси в систему не пишем"
-            );
-            Config::verge().await.edit_draft(|draft| {
-                draft.patch_config(&IVerge {
-                    enable_system_proxy: Some(false),
-                    ..IVerge::default()
-                });
-            });
-            handle::Handle::notice_message("sysproxy::core_not_running", "");
-        } else {
-            if Config::verge().await.latest_arc().enable_system_proxy.unwrap_or(false) {
-                CoreManager::global().the_core_must_serve_its_mixed_port().await?;
+        let wants_the_proxy = Config::verge().await.latest_arc().enable_system_proxy.unwrap_or(false);
+        let core_is_running = !matches!(
+            *CoreManager::global().get_running_mode(),
+            crate::core::manager::RunningMode::NotRunning
+        );
+        let step = how_to_serve_the_sys_proxy_flag(wants_the_proxy, core_is_running, patch.enable_system_proxy);
+        match step {
+            SysProxyStep::Write => {
+                if wants_the_proxy {
+                    CoreManager::global().the_core_must_serve_its_mixed_port().await?;
+                }
+                let written = sysopt::Sysopt::global().update_sysproxy().await;
+                sysopt::Sysopt::global().refresh_guard().await;
+                written?;
             }
-            sysopt::Sysopt::global().update_sysproxy().await?;
-            sysopt::Sysopt::global().refresh_guard().await;
+            SysProxyStep::RefuseAndTurnTheSettingOff => {
+                logging!(
+                    warn,
+                    Type::Setup,
+                    "ядро не запущено — системный прокси не включаем, нажатие возвращаем как было"
+                );
+                // Отказанное нажатие откатывается целиком: оно ставило и
+                // «подключаться системным прокси», и эта половина уехала бы на
+                // диск и включила бы прокси обратно при следующем запуске.
+                let connect_before_the_press = Config::verge().await.data_arc().connect_system_proxy;
+                Config::verge().await.edit_draft(|draft| {
+                    draft.patch_config(&IVerge {
+                        enable_system_proxy: Some(false),
+                        ..IVerge::default()
+                    });
+                    draft.connect_system_proxy = the_way_to_connect_after_a_refusal(
+                        patch.connect_system_proxy,
+                        connect_before_the_press,
+                        draft.connect_system_proxy,
+                    );
+                });
+                handle::Handle::notice_message("sysproxy::core_not_running", "");
+                sysopt::Sysopt::global().refresh_guard().await;
+            }
+            SysProxyStep::RefuseQuietly => {
+                logging!(
+                    info,
+                    Type::Setup,
+                    "ядро не запущено — в систему не пишем, применяем только настройки сторожа"
+                );
+                sysopt::Sysopt::global().refresh_guard().await;
+            }
         }
     }
     if update_flags.contains(UpdateFlags::HOTKEY)
@@ -457,4 +514,63 @@ pub async fn fetch_verge_config() -> Result<SharedDraft<IVerge>> {
     let draft = Config::verge().await;
     let data = draft.data_arc();
     Ok(data)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{SysProxyStep, how_to_serve_the_sys_proxy_flag, the_way_to_connect_after_a_refusal};
+
+    #[test]
+    fn without_a_core_nothing_puts_the_proxy_into_the_system() {
+        for asked in [None, Some(false), Some(true)] {
+            assert_ne!(
+                how_to_serve_the_sys_proxy_flag(true, false, asked),
+                SysProxyStep::Write,
+                "{asked:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn only_an_explicit_switch_on_turns_the_setting_back_off() {
+        assert_eq!(
+            how_to_serve_the_sys_proxy_flag(true, false, Some(true)),
+            SysProxyStep::RefuseAndTurnTheSettingOff
+        );
+        assert_eq!(
+            how_to_serve_the_sys_proxy_flag(true, false, None),
+            SysProxyStep::RefuseQuietly
+        );
+    }
+
+    #[test]
+    fn a_refused_press_takes_back_the_way_to_connect_that_it_chose() {
+        assert_eq!(
+            the_way_to_connect_after_a_refusal(Some(true), Some(false), Some(true)),
+            Some(false)
+        );
+        assert_eq!(the_way_to_connect_after_a_refusal(Some(true), None, Some(true)), None);
+    }
+
+    #[test]
+    fn an_edit_that_never_asked_about_the_way_to_connect_keeps_the_draft_as_it_is() {
+        assert_eq!(
+            the_way_to_connect_after_a_refusal(None, Some(false), Some(true)),
+            Some(true)
+        );
+        assert_eq!(the_way_to_connect_after_a_refusal(None, Some(true), None), None);
+    }
+
+    #[test]
+    fn a_proxy_that_is_being_switched_off_is_written_with_or_without_a_core() {
+        assert_eq!(
+            how_to_serve_the_sys_proxy_flag(false, false, Some(false)),
+            SysProxyStep::Write
+        );
+        assert_eq!(how_to_serve_the_sys_proxy_flag(false, false, None), SysProxyStep::Write);
+        assert_eq!(
+            how_to_serve_the_sys_proxy_flag(true, true, Some(true)),
+            SysProxyStep::Write
+        );
+    }
 }

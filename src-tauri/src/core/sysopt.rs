@@ -13,7 +13,7 @@ use std::{
     fmt::Write as _,
     sync::{
         Arc,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU32, Ordering},
     },
     time::{Duration, Instant},
 };
@@ -94,6 +94,8 @@ fn bare_host(host: &str) -> &str {
 struct SystemProxyOwnership {
     ours: bool,
     someone_else_is_switched_on: bool,
+    our_manual_proxy_is_switched_on: bool,
+    a_foreign_autoconfig_is_set: bool,
 }
 
 fn how_the_system_proxy_stands_with(
@@ -108,11 +110,19 @@ fn how_the_system_proxy_stands_with(
     let pac_is_ours = ours
         .iter()
         .any(|(_, _, pac_url)| !pac_url.is_empty() && observed.auto_url == *pac_url);
+    let a_foreign_autoconfig_is_set = !pac_is_ours
+        && if trust_auto_readback {
+            observed.auto_enable
+        } else {
+            !observed.auto_url.is_empty()
+        };
 
     SystemProxyOwnership {
         ours: manual_is_ours || pac_is_ours,
         someone_else_is_switched_on: (observed.sys_enable && !manual_is_ours)
             || (trust_auto_readback && observed.auto_enable && !pac_is_ours),
+        our_manual_proxy_is_switched_on: manual_is_ours,
+        a_foreign_autoconfig_is_set,
     }
 }
 
@@ -122,6 +132,19 @@ fn how_the_system_proxy_stands(observed: &ObservedProxy, ours: &[(&str, u16, &st
 
 const fn nothing_of_ours_can_be_in_the_system(ever_applied: bool, wants_proxy: bool) -> bool {
     !ever_applied && !wants_proxy
+}
+
+const fn our_proxy_may_be_cleared(ownership: &SystemProxyOwnership, nothing_of_ours_is_there: bool) -> bool {
+    if nothing_of_ours_is_there || ownership.someone_else_is_switched_on {
+        return false;
+    }
+    !ownership.a_foreign_autoconfig_is_set || ownership.our_manual_proxy_is_switched_on
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SysproxyTakeDown {
+    Cleared,
+    LeftToItsOwner,
 }
 
 impl WantedProxy {
@@ -306,6 +329,12 @@ const fn proxy_apply_steps(sys_enabled: bool, _auto_enabled: bool) -> &'static [
     }
 }
 
+const WRITE_REFUSALS_BEFORE_THE_GUARD_STANDS_DOWN: u32 = 3;
+
+const fn the_guard_may_keep_its_target(refusals_in_a_row: u32) -> bool {
+    refusals_in_a_row < WRITE_REFUSALS_BEFORE_THE_GUARD_STANDS_DOWN
+}
+
 pub struct Sysopt {
     update_lock: TokioMutex<()>,
     reset_sysproxy: AtomicBool,
@@ -313,6 +342,7 @@ pub struct Sysopt {
     inner_proxy: Arc<RwLock<(Sysproxy, Autoproxy)>>,
     applied_target: Arc<RwLock<Option<AppliedTarget>>>,
     last_write_failed: AtomicBool,
+    write_refusals: AtomicU32,
     ever_applied: AtomicBool,
     guard: Arc<RwLock<GuardMonitor>>,
 }
@@ -326,6 +356,7 @@ impl Default for Sysopt {
             inner_proxy: Arc::new(RwLock::new((Sysproxy::default(), Autoproxy::default()))),
             applied_target: Arc::new(RwLock::new(None)),
             last_write_failed: AtomicBool::new(false),
+            write_refusals: AtomicU32::new(0),
             ever_applied: AtomicBool::new(false),
             guard: Arc::new(RwLock::new(GuardMonitor::new(GuardType::None, Duration::from_secs(30)))),
         }
@@ -433,6 +464,13 @@ impl Sysopt {
         Some(how_the_system_proxy_stands(&observed, &ours))
     }
 
+    async fn our_proxy_may_be_cleared_now(&self) -> bool {
+        let was_ever_applied = self.ever_applied.load(Ordering::SeqCst);
+        self.system_proxy_ownership()
+            .await
+            .is_none_or(|ownership| our_proxy_may_be_cleared(&ownership, !ownership.ours && !was_ever_applied))
+    }
+
     async fn wants_system_proxy(&self) -> bool {
         Config::verge()
             .await
@@ -441,7 +479,7 @@ impl Sysopt {
             .unwrap_or_default()
     }
 
-    pub async fn reset_sysproxy_if_ours(&self) -> Result<()> {
+    pub async fn reset_sysproxy_if_ours(&self) -> Result<SysproxyTakeDown> {
         if nothing_of_ours_can_be_in_the_system(
             self.ever_applied.load(Ordering::SeqCst),
             self.wants_system_proxy().await,
@@ -451,24 +489,24 @@ impl Sysopt {
                 Type::Core,
                 "системный прокси этим приложением не ставился — снимать нечего"
             );
-            return Ok(());
+            return Ok(SysproxyTakeDown::Cleared);
         }
 
-        if self
+        let may_clear = self
             .system_proxy_ownership()
             .await
-            .is_some_and(|ownership| !ownership.ours || ownership.someone_else_is_switched_on)
-        {
+            .is_none_or(|ownership| our_proxy_may_be_cleared(&ownership, !ownership.ours));
+
+        if !may_clear {
             logging!(
                 info,
                 Type::Core,
                 "системный прокси в системе поставлен не нами — не трогаем"
             );
-            return Ok(());
+            return Ok(SysproxyTakeDown::LeftToItsOwner);
         }
-
         self.ever_applied.store(true, Ordering::SeqCst);
-        self.reset_sysproxy().await
+        self.reset_sysproxy().await.map(|()| SysproxyTakeDown::Cleared)
     }
 
     pub fn stop_proxy_guard(&self) {
@@ -557,20 +595,15 @@ impl Sysopt {
                 .is_some_and(|previous| *previous == target);
 
         let wants_to_enable = sys.enable || auto.enable;
-        if !wants_to_enable {
-            let was_ever_applied = self.ever_applied.load(Ordering::SeqCst);
-            if self.system_proxy_ownership().await.is_some_and(|ownership| {
-                ownership.someone_else_is_switched_on || (!ownership.ours && !was_ever_applied)
-            }) {
-                logging!(
-                    info,
-                    Type::Core,
-                    "в системе стоят чужие настройки прокси — выключать их не будем"
-                );
-                self.last_write_failed.store(false, Ordering::SeqCst);
-                self.aim_guard(guard_type);
-                return Ok(());
-            }
+        if !wants_to_enable && !self.our_proxy_may_be_cleared_now().await {
+            logging!(
+                info,
+                Type::Core,
+                "в системе стоят чужие настройки прокси — выключать их не будем"
+            );
+            self.remember_a_clean_write();
+            self.aim_guard(guard_type);
+            return Ok(());
         }
         self.ever_applied.store(true, Ordering::SeqCst);
 
@@ -628,7 +661,7 @@ impl Sysopt {
                     "system proxy already matches the target, skipped writing"
                 );
             }
-            self.last_write_failed.store(false, Ordering::SeqCst);
+            self.remember_a_clean_write();
             self.aim_guard(guard_type);
             return Ok(());
         }
@@ -645,18 +678,34 @@ impl Sysopt {
             Some(error) => {
                 *self.applied_target.write() = None;
                 self.last_write_failed.store(true, Ordering::SeqCst);
-                self.aim_guard(GuardType::None);
+                let refusals_in_a_row = self.write_refusals.fetch_add(1, Ordering::SeqCst) + 1;
+                if the_guard_may_keep_its_target(refusals_in_a_row) {
+                    self.aim_guard(guard_type);
+                } else {
+                    logging!(
+                        warn,
+                        Type::Core,
+                        "система отвергла запись прокси {} раз подряд — сторож перестаёт её переписывать до первой удачной записи",
+                        refusals_in_a_row
+                    );
+                    self.aim_guard(GuardType::None);
+                }
                 Err(error)
             }
             None => {
                 let owns_the_state = target.sys.enable || target.auto.enable;
                 self.ever_applied.store(owns_the_state, Ordering::SeqCst);
                 *self.applied_target.write() = Some(target);
-                self.last_write_failed.store(false, Ordering::SeqCst);
+                self.remember_a_clean_write();
                 self.aim_guard(guard_type);
                 Ok(())
             }
         }
+    }
+
+    fn remember_a_clean_write(&self) {
+        self.last_write_failed.store(false, Ordering::SeqCst);
+        self.write_refusals.store(0, Ordering::SeqCst);
     }
 
     fn aim_guard(&self, guard_type: GuardType) {
@@ -759,7 +808,7 @@ mod tests {
     use super::{
         BYPASS_SEPARATOR, DEFAULT_BYPASS, ObservedProxy, ProxyApplyStep, WantedProxy, format_bypass,
         how_the_system_proxy_stands, how_the_system_proxy_stands_with, nothing_of_ours_can_be_in_the_system,
-        proxy_apply_steps, refused_by_the_system,
+        our_proxy_may_be_cleared, proxy_apply_steps, refused_by_the_system, the_guard_may_keep_its_target,
     };
 
     fn observed(sys_enable: bool, host: &str, port: u16, auto_enable: bool) -> ObservedProxy {
@@ -900,13 +949,98 @@ mod tests {
         }
     }
 
+    const FOREIGN_PAC: &str = "http://proxy.corp/wpad.dat";
+
     #[test]
-    fn a_foreign_autoconfig_url_blocks_us_only_where_its_switch_can_be_read() {
-        let state = seen(true, "127.0.0.1", 7897, true, "http://proxy.corp/wpad.dat");
+    fn a_foreign_autoconfig_url_is_seen_even_where_its_switch_cannot_be_read() {
+        let state = seen(true, "127.0.0.1", 7897, true, FOREIGN_PAC);
         let ours = [("127.0.0.1", 7897, OUR_PAC)];
 
-        assert!(how_the_system_proxy_stands_with(&state, &ours, true).someone_else_is_switched_on);
-        assert!(!how_the_system_proxy_stands_with(&state, &ours, false).someone_else_is_switched_on);
+        for trust_auto_readback in [true, false] {
+            assert!(
+                how_the_system_proxy_stands_with(&state, &ours, trust_auto_readback).a_foreign_autoconfig_is_set,
+                "{trust_auto_readback}"
+            );
+        }
+    }
+
+    #[test]
+    fn our_own_pac_url_is_never_a_foreign_autoconfig() {
+        let state = seen(false, "", 0, true, OUR_PAC);
+        let ours = [("127.0.0.1", 7897, OUR_PAC)];
+
+        for trust_auto_readback in [true, false] {
+            assert!(
+                !how_the_system_proxy_stands_with(&state, &ours, trust_auto_readback).a_foreign_autoconfig_is_set,
+                "{trust_auto_readback}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_autoconfig_url_nobody_switched_on_is_not_foreign_where_the_switch_can_be_read() {
+        let state = seen(true, "127.0.0.1", 7897, false, FOREIGN_PAC);
+        let ours = [("127.0.0.1", 7897, OUR_PAC)];
+
+        assert!(!how_the_system_proxy_stands_with(&state, &ours, true).a_foreign_autoconfig_is_set);
+    }
+
+    #[test]
+    fn a_foreign_autoconfig_alone_in_the_system_is_not_written_over() {
+        let state = seen(false, "", 0, true, FOREIGN_PAC);
+        let ours = [("127.0.0.1", 7897, OUR_PAC)];
+        let ownership = how_the_system_proxy_stands_with(&state, &ours, false);
+
+        assert!(!our_proxy_may_be_cleared(&ownership, false));
+    }
+
+    #[test]
+    fn our_own_manual_proxy_is_cleared_even_where_a_foreign_autoconfig_url_goes_down_with_it() {
+        let state = seen(true, "127.0.0.1", 7897, true, FOREIGN_PAC);
+        let ours = [("127.0.0.1", 7897, OUR_PAC)];
+        let ownership = how_the_system_proxy_stands_with(&state, &ours, false);
+
+        assert!(our_proxy_may_be_cleared(&ownership, false));
+    }
+
+    #[test]
+    fn a_foreign_autoconfig_that_is_switched_on_stops_us_where_its_switch_can_be_read() {
+        let state = seen(true, "127.0.0.1", 7897, true, FOREIGN_PAC);
+        let ours = [("127.0.0.1", 7897, OUR_PAC)];
+        let ownership = how_the_system_proxy_stands_with(&state, &ours, true);
+
+        assert!(ownership.someone_else_is_switched_on);
+        assert!(!our_proxy_may_be_cleared(&ownership, false));
+    }
+
+    #[test]
+    fn a_system_holding_only_our_own_proxy_is_cleared_whole() {
+        let ownership = ownership_of(&seen(true, "127.0.0.1", 7897, false, ""));
+
+        assert!(our_proxy_may_be_cleared(&ownership, false));
+    }
+
+    #[test]
+    fn someone_elses_proxy_is_left_alone_whatever_we_ever_applied() {
+        let ownership = ownership_of(&seen(true, "10.0.0.1", 3128, false, ""));
+
+        assert!(!our_proxy_may_be_cleared(&ownership, false));
+        assert!(!our_proxy_may_be_cleared(&ownership, true));
+    }
+
+    #[test]
+    fn a_system_where_nothing_of_ours_can_be_is_not_written_to() {
+        let ownership = ownership_of(&seen(false, "", 0, false, ""));
+
+        assert!(!our_proxy_may_be_cleared(&ownership, true));
+    }
+
+    #[test]
+    fn a_guard_that_is_refused_once_keeps_watching_and_one_refused_too_often_stands_down() {
+        assert!(the_guard_may_keep_its_target(1));
+        assert!(the_guard_may_keep_its_target(2));
+        assert!(!the_guard_may_keep_its_target(3));
+        assert!(!the_guard_may_keep_its_target(30));
     }
 
     #[test]

@@ -90,6 +90,7 @@ pub mod timing {
     pub const CORE_READY_PROBE_TIMEOUT: Duration = Duration::from_millis(500);
 
     pub const MIXED_PORT_CHECK_ATTEMPTS: u32 = 12;
+    pub const MIXED_PORT_CONFIRM_ATTEMPTS: u32 = 2;
     pub const MIXED_PORT_CHECK_INTERVAL: Duration = Duration::from_millis(500);
 
     // clod:wake-net — как часто сторож окружения сверяет часы и состав сети.
