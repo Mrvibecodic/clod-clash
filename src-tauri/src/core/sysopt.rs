@@ -375,8 +375,26 @@ const fn proxy_apply_steps(sys_enabled: bool, _auto_enabled: bool) -> &'static [
 
 const WRITE_REFUSALS_BEFORE_THE_GUARD_STANDS_DOWN: u32 = 3;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ProxyPass {
+    LeftForeignSettingsAlone,
+    AlreadyInPlace,
+    Written,
+    Refused,
+}
+
+const fn the_system_holds_our_proxy_after(pass: ProxyPass) -> bool {
+    matches!(pass, ProxyPass::AlreadyInPlace | ProxyPass::Written)
+}
+
 const fn the_guard_may_keep_its_target(refusals_in_a_row: u32) -> bool {
     refusals_in_a_row < WRITE_REFUSALS_BEFORE_THE_GUARD_STANDS_DOWN
+}
+
+#[cfg(test)]
+const fn the_guard_has_just_stood_down(refusals_in_a_row: u32) -> bool {
+    !the_guard_may_keep_its_target(refusals_in_a_row)
+        && the_guard_may_keep_its_target(refusals_in_a_row.saturating_sub(1))
 }
 
 pub struct Sysopt {
@@ -659,7 +677,7 @@ impl Sysopt {
                 Type::Core,
                 "в системе стоят чужие настройки прокси — выключать их не будем"
             );
-            self.remember_a_clean_write();
+            self.remember_what_the_system_did(ProxyPass::LeftForeignSettingsAlone);
             self.aim_guard(guard_type);
             return Ok(());
         }
@@ -726,7 +744,7 @@ impl Sysopt {
                     "system proxy already matches the target, skipped writing"
                 );
             }
-            self.remember_a_clean_write();
+            self.remember_what_the_system_did(ProxyPass::AlreadyInPlace);
             self.aim_guard(guard_type);
             return Ok(());
         }
@@ -742,17 +760,11 @@ impl Sysopt {
         match applied.failure {
             Some(error) => {
                 *self.applied_target.write() = None;
-                self.last_write_failed.store(true, Ordering::SeqCst);
-                let refusals_in_a_row = self.write_refusals.fetch_add(1, Ordering::SeqCst) + 1;
+                let refusals_in_a_row = self.remember_what_the_system_did(ProxyPass::Refused);
                 if the_guard_may_keep_its_target(refusals_in_a_row) {
                     self.aim_guard(guard_type);
                 } else {
-                    logging!(
-                        warn,
-                        Type::Core,
-                        "система отвергла запись прокси {} раз подряд — сторож перестаёт её переписывать до первой удачной записи",
-                        refusals_in_a_row
-                    );
+                    Self::say_the_guard_stood_down(refusals_in_a_row);
                     self.aim_guard(GuardType::None);
                 }
                 Err(error)
@@ -762,7 +774,7 @@ impl Sysopt {
                 self.ever_applied.store(owns_the_state, Ordering::SeqCst);
                 self.remember_what_the_system_took(handed_over, owns_the_state);
                 *self.applied_target.write() = Some(target);
-                self.remember_a_clean_write();
+                self.remember_what_the_system_did(ProxyPass::Written);
                 self.aim_guard(guard_type);
                 Ok(())
             }
@@ -778,9 +790,26 @@ impl Sysopt {
         }
     }
 
-    fn remember_a_clean_write(&self) {
-        self.last_write_failed.store(false, Ordering::SeqCst);
-        self.write_refusals.store(0, Ordering::SeqCst);
+    fn say_the_guard_stood_down(refusals_in_a_row: u32) {
+        logging!(
+            warn,
+            Type::Core,
+            "система отвергла запись прокси {} раз подряд — сторож перестаёт её переписывать до первой удачной записи",
+            refusals_in_a_row
+        );
+    }
+
+    fn remember_what_the_system_did(&self, pass: ProxyPass) -> u32 {
+        if the_system_holds_our_proxy_after(pass) {
+            self.last_write_failed.store(false, Ordering::SeqCst);
+            self.write_refusals.store(0, Ordering::SeqCst);
+            return 0;
+        }
+        if matches!(pass, ProxyPass::Refused) {
+            self.last_write_failed.store(true, Ordering::SeqCst);
+            return self.write_refusals.fetch_add(1, Ordering::SeqCst) + 1;
+        }
+        self.write_refusals.load(Ordering::SeqCst)
     }
 
     fn aim_guard(&self, guard_type: GuardType) {
@@ -882,10 +911,11 @@ fn with_system_call_retry(mut apply: impl FnMut() -> sysproxy::Result<()>) -> sy
 #[cfg(test)]
 mod tests {
     use super::{
-        BYPASS_SEPARATOR, DEFAULT_BYPASS, ObservedProxy, ProxyApplyStep, SysproxyTakeDown, SystemProxyOwnership,
-        WantedProxy, everything_that_might_be_ours, format_bypass, how_the_system_proxy_stands,
+        BYPASS_SEPARATOR, DEFAULT_BYPASS, ObservedProxy, ProxyApplyStep, ProxyPass, Sysopt, SysproxyTakeDown,
+        SystemProxyOwnership, WantedProxy, everything_that_might_be_ours, format_bypass, how_the_system_proxy_stands,
         how_the_system_proxy_stands_with, nothing_of_ours_can_be_in_the_system, our_proxy_may_be_cleared,
-        proxy_apply_steps, refused_by_the_system, the_guard_may_keep_its_target, the_take_down_we_have_to_skip,
+        proxy_apply_steps, refused_by_the_system, the_guard_has_just_stood_down, the_guard_may_keep_its_target,
+        the_system_holds_our_proxy_after, the_take_down_we_have_to_skip,
     };
 
     fn observed(sys_enable: bool, host: &str, port: u16, auto_enable: bool) -> ObservedProxy {
@@ -1118,6 +1148,54 @@ mod tests {
         assert!(the_guard_may_keep_its_target(2));
         assert!(!the_guard_may_keep_its_target(3));
         assert!(!the_guard_may_keep_its_target(30));
+    }
+
+    #[test]
+    fn only_a_system_that_holds_our_proxy_forgives_the_refusals_before_it() {
+        assert!(the_system_holds_our_proxy_after(ProxyPass::Written));
+        assert!(the_system_holds_our_proxy_after(ProxyPass::AlreadyInPlace));
+        assert!(!the_system_holds_our_proxy_after(ProxyPass::LeftForeignSettingsAlone));
+        assert!(!the_system_holds_our_proxy_after(ProxyPass::Refused));
+    }
+
+    #[test]
+    fn the_guard_stands_down_at_one_single_moment() {
+        assert!(!the_guard_has_just_stood_down(0));
+        assert!(!the_guard_has_just_stood_down(2));
+        assert!(the_guard_has_just_stood_down(3));
+        assert!(!the_guard_has_just_stood_down(4));
+        assert!(!the_guard_has_just_stood_down(30));
+    }
+
+    #[test]
+    fn refusals_split_by_a_pass_that_wrote_nothing_still_reach_the_stand_down() {
+        let sysopt = Sysopt::default();
+
+        assert_eq!(sysopt.remember_what_the_system_did(ProxyPass::Refused), 1);
+        assert_eq!(sysopt.remember_what_the_system_did(ProxyPass::Refused), 2);
+        assert_eq!(
+            sysopt.remember_what_the_system_did(ProxyPass::LeftForeignSettingsAlone),
+            2,
+            "мы ничего не писали — прощать системе нечего"
+        );
+        let refusals_in_a_row = sysopt.remember_what_the_system_did(ProxyPass::Refused);
+
+        assert_eq!(refusals_in_a_row, 3);
+        assert!(!the_guard_may_keep_its_target(refusals_in_a_row));
+        assert!(the_guard_has_just_stood_down(refusals_in_a_row));
+        assert!(sysopt.write_failed());
+    }
+
+    #[test]
+    fn a_system_that_took_our_proxy_lets_the_guard_start_over() {
+        let sysopt = Sysopt::default();
+
+        sysopt.remember_what_the_system_did(ProxyPass::Refused);
+        sysopt.remember_what_the_system_did(ProxyPass::Refused);
+        assert_eq!(sysopt.remember_what_the_system_did(ProxyPass::Written), 0);
+        assert!(!sysopt.write_failed());
+        assert_eq!(sysopt.remember_what_the_system_did(ProxyPass::Refused), 1);
+        assert!(the_guard_may_keep_its_target(1));
     }
 
     #[test]

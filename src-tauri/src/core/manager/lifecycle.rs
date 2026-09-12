@@ -52,6 +52,16 @@ const fn port_report(reported: Option<u16>, expected: u16) -> PortReport {
     }
 }
 
+const fn the_verdict_without_a_diagnosis(called_off: bool, answered: bool) -> Option<PortVerdict> {
+    if called_off {
+        return Some(PortVerdict::Refuted);
+    }
+    if answered {
+        return None;
+    }
+    Some(PortVerdict::Unknown)
+}
+
 const PORT_BUSY_DIAGNOSIS_BUDGET: Duration = Duration::from_secs(2);
 
 #[cfg(test)]
@@ -411,6 +421,12 @@ impl CoreManager {
         }
     }
 
+    fn the_port_check_is_called_off(generation: u64) -> bool {
+        Handle::global().is_exiting()
+            || MIXED_PORT_CHECK_GENERATION.load(Ordering::Acquire) != generation
+            || matches!(*Self::global().get_running_mode(), RunningMode::NotRunning)
+    }
+
     /// Дождаться от ядра ответа, слушает ли оно `expected`.
     ///
     /// `Confirmed` — ядро само сказало «слушаю этот порт». `Unknown` — ядро
@@ -422,10 +438,7 @@ impl CoreManager {
         let manager = Self::global();
         let mut answered = false;
         for attempt in 0..attempts {
-            if Handle::global().is_exiting()
-                || MIXED_PORT_CHECK_GENERATION.load(Ordering::Acquire) != generation
-                || matches!(*manager.get_running_mode(), RunningMode::NotRunning)
-            {
+            if Self::the_port_check_is_called_off(generation) {
                 return PortVerdict::Refuted;
             }
 
@@ -460,14 +473,18 @@ impl CoreManager {
             }
         }
 
-        if !answered {
-            logging!(
-                warn,
-                Type::Core,
-                "ядро не ответило, слушает ли оно порт {} — проверку пропускаем",
-                expected
-            );
-            return PortVerdict::Unknown;
+        match the_verdict_without_a_diagnosis(Self::the_port_check_is_called_off(generation), answered) {
+            Some(PortVerdict::Unknown) => {
+                logging!(
+                    warn,
+                    Type::Core,
+                    "ядро не ответило, слушает ли оно порт {} — проверку пропускаем",
+                    expected
+                );
+                return PortVerdict::Unknown;
+            }
+            Some(verdict) => return verdict,
+            None => {}
         }
 
         let mode = manager.get_running_mode();
@@ -989,8 +1006,8 @@ impl CoreManager {
 #[cfg(test)]
 mod tests {
     use super::{
-        PORT_BUSY_DIAGNOSIS_BUDGET, PortHolder, PortReport, port_report, should_wait_for_service,
-        the_port_check_budget, who_holds_the_port_within,
+        PORT_BUSY_DIAGNOSIS_BUDGET, PortHolder, PortReport, PortVerdict, port_report, should_wait_for_service,
+        the_port_check_budget, the_verdict_without_a_diagnosis, who_holds_the_port_within,
     };
     use crate::constants::timing;
     use std::time::Duration;
@@ -1007,6 +1024,25 @@ mod tests {
         assert!(
             the_port_check_budget(timing::MIXED_PORT_CHECK_ATTEMPTS) >= asking_the_core * 4,
             "фоновая проверка ждёт ядро дольше, чем правка настроек"
+        );
+    }
+
+    #[test]
+    fn a_check_called_off_after_the_last_question_names_nobody() {
+        assert_eq!(
+            the_verdict_without_a_diagnosis(true, true),
+            Some(PortVerdict::Refuted),
+            "выход начался после последней попытки — обход процессов уже никому не нужен"
+        );
+        assert_eq!(the_verdict_without_a_diagnosis(true, false), Some(PortVerdict::Refuted));
+    }
+
+    #[test]
+    fn a_check_nobody_called_off_still_asks_who_holds_the_port() {
+        assert_eq!(the_verdict_without_a_diagnosis(false, true), None);
+        assert_eq!(
+            the_verdict_without_a_diagnosis(false, false),
+            Some(PortVerdict::Unknown)
         );
     }
 
