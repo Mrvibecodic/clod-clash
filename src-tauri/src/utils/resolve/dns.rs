@@ -41,7 +41,7 @@ const fn exit_lock_wait(ceiling: Duration) -> Duration {
     no_longer_than(OVERRIDE_HOLD, ceiling)
 }
 
-fn exit_script_time(ceiling: Duration, waited: Duration) -> Duration {
+const fn exit_script_time(ceiling: Duration, waited: Duration) -> Duration {
     no_longer_than(SCRIPT_TIMEOUT, ceiling.saturating_sub(waited))
 }
 
