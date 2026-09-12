@@ -36,27 +36,14 @@ const drive = async (steps: Partial<ServiceUninstallSteps>): Promise<Run> => {
 const refuses = (why: string) => () => Promise.reject(new Error(why))
 
 describe('удаление фоновой службы', () => {
-  it('отказ остановки объясняется один раз, службу не трогает, а ядро поднимает обратно', async () => {
-    const run = await drive({ stopCore: refuses('идёт выход') })
-    assert.deepEqual(run.called, ['stopCore', 'restartCore'])
+  it('отказ остановки объясняется один раз, службу не трогает и второе ядро не поднимает', async () => {
+    const run = await drive({ stopCore: refuses('не удалось остановить') })
+    assert.deepEqual(run.called, ['stopCore'])
     assert.equal(run.failures.length, 1)
-    assert.equal((run.failures[0] as Error).message, 'идёт выход')
+    assert.equal((run.failures[0] as Error).message, 'не удалось остановить')
     assert.ok(
-      run.said.includes(
-        'done:settings.feedback.notifications.clash.restartSuccess',
-      ),
-    )
-  })
-
-  it('если и остановка, и подъём отказали, человек слышит обе причины по одному разу', async () => {
-    const run = await drive({
-      stopCore: refuses('не удалось остановить'),
-      restartCore: refuses('не удалось поднять'),
-    })
-    assert.deepEqual(run.called, ['stopCore', 'restartCore'])
-    assert.deepEqual(
-      run.failures.map((error) => (error as Error).message),
-      ['не удалось остановить', 'не удалось поднять'],
+      !run.said.some((said) => said.startsWith('done:')),
+      'после отказа остановки успеха быть не может',
     )
   })
 
