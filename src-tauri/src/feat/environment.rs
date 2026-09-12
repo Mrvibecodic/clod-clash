@@ -121,20 +121,55 @@ fn looks_like_the_core_default_tunnel(name: &str) -> bool {
         .is_some_and(|index| index.chars().all(|c| c.is_ascii_digit()))
 }
 
+fn named_with_an_index(name: &str, base: &str) -> bool {
+    name.strip_prefix(base)
+        .is_some_and(|index| !index.is_empty() && index.chars().all(|c| c.is_ascii_digit()))
+}
+
+/// Мост, имя которому выдала сама песочница: `br-` и двенадцать шестнадцатеричных
+/// цифр от идентификатора сети.
+///
+/// clod:net-virtual — `docker compose up` создаёт такой мост под каждый проект, а
+/// `docker compose down` его уносит. Домашний мост `br-lan` и внешний коммутатор
+/// `br0` под это правило не попадают: там после `br-` либо ничего, либо не
+/// двенадцать шестнадцатеричных цифр.
+fn looks_like_a_generated_bridge(name: &str) -> bool {
+    name.strip_prefix("br-")
+        .is_some_and(|id| id.len() == 12 && id.chars().all(|c| c.is_ascii_hexdigit()))
+}
+
 /// Виртуальные коммутаторы и мосты локальных песочниц.
 ///
-/// clod:net-virtual — Docker, WSL, Hyper-V, VirtualBox и VMware поднимают и
-/// гасят свои адаптеры по команде пользователя; к пути машины наружу это
-/// отношения не имеет. Без этого `wsl --shutdown` или остановка Docker рвали
-/// все живые соединения ровно так же, как мигание Teredo.
+/// clod:net-virtual — Docker, Podman, LXD/Incus, WSL, Hyper-V, VirtualBox,
+/// VMware и Parallels поднимают и гасят свои адаптеры по команде пользователя;
+/// к пути машины наружу это отношения не имеет. Без этого `wsl --shutdown`,
+/// остановка Docker или `docker compose down` рвали все живые соединения ровно
+/// так же, как мигание Teredo.
 fn is_a_local_sandbox_adapter(name: &str) -> bool {
     let name = name.to_lowercase();
-    // Только имена, которые эти песочницы дают сами. Ни `veth`, ни `br-` сюда
-    // не годятся: под них попали бы внешний коммутатор Hyper-V и домашний мост
-    // `br-lan`, а на таких машинах это и есть единственный путь наружу.
-    ["docker", "virbr", "vboxnet", "vmnet", "vmware", "wsl", "default switch"]
-        .iter()
-        .any(|known| name.contains(known))
+    // Только имена, которые эти песочницы дают сами. Голый `veth` сюда не
+    // годится, и просто `br-` тоже: под него попал бы домашний мост `br-lan`, а
+    // на таких машинах это и есть единственный путь наружу. Короткие `cni` и
+    // `vnic` берутся только с числовым индексом, `vEthernet (nat)` — целиком,
+    // чтобы не задеть внешний коммутатор Hyper-V.
+    [
+        "docker",
+        "podman",
+        "virbr",
+        "vboxnet",
+        "vmnet",
+        "vmware",
+        "wsl",
+        "lxdbr",
+        "incusbr",
+        "default switch",
+        "vethernet (nat)",
+    ]
+    .iter()
+    .any(|known| name.contains(known))
+        || named_with_an_index(&name, "cni")
+        || named_with_an_index(&name, "vnic")
+        || looks_like_a_generated_bridge(&name)
 }
 
 fn is_our_tunnel(name: &str) -> bool {
@@ -178,6 +213,16 @@ fn v6_prefix(ip: std::net::Ipv6Addr) -> std::string::String {
     )
 }
 
+/// Единственное место, где решается принадлежность интерфейса пути наружу.
+///
+/// clod:net-virtual — решение принимается один раз, при построении переписи.
+/// Повторять его на разнице двух переписей бессмысленно: отсеянное в перепись
+/// не попадает, и второй фильтр всегда пропускал бы всё подряд, создавая
+/// видимость защиты.
+fn carries_a_path_of_its_own(name: &str) -> bool {
+    !is_our_tunnel(name) && !is_a_local_sandbox_adapter(name)
+}
+
 /// Отпечаток сети — адреса, по которым трафик действительно может уйти.
 ///
 /// clod:net-teredo — раньше в набор попадал каждый адрес каждого чужого
@@ -185,14 +230,12 @@ fn v6_prefix(ip: std::net::Ipv6Addr) -> std::string::String {
 /// `*_carries_traffic` применялись только к отдельному флагу. Из-за этого
 /// исчезновение адреса, которым никто не пользовался, считалось потерей пути.
 /// Теперь набор и флаг говорят об одном и том же: пуст — сети нет.
-fn network_fingerprint() -> Option<BTreeSet<std::string::String>> {
-    let interfaces = crate::cmd::network::get_network_interfaces_info().ok()?;
-
+fn fingerprint_of(interfaces: Vec<network_interface::NetworkInterface>) -> BTreeSet<std::string::String> {
     let mut entries = BTreeSet::new();
 
     for interface in interfaces {
         let network_interface::NetworkInterface { name, addr, .. } = interface;
-        if is_our_tunnel(&name) || is_a_local_sandbox_adapter(&name) {
+        if !carries_a_path_of_its_own(&name) {
             continue;
         }
         for address in addr {
@@ -208,7 +251,27 @@ fn network_fingerprint() -> Option<BTreeSet<std::string::String>> {
         }
     }
 
-    Some(entries)
+    entries
+}
+
+fn network_fingerprint() -> Option<BTreeSet<std::string::String>> {
+    Some(fingerprint_of(crate::cmd::network::get_network_interfaces_info().ok()?))
+}
+
+fn listing_just_failed() -> bool {
+    !LISTING_FAILED.swap(true, Ordering::AcqRel)
+}
+
+async fn first_fingerprint() -> Option<BTreeSet<std::string::String>> {
+    let view = AsyncHandler::spawn_blocking(network_fingerprint).await.ok().flatten();
+    if view.is_none() && listing_just_failed() {
+        logging!(
+            warn,
+            Type::Core,
+            "[clod] the network interfaces could not be listed at startup; the first listing that succeeds counts as a change, but never as a lost path"
+        );
+    }
+    view
 }
 
 fn listed<'a>(entries: impl Iterator<Item = &'a std::string::String>) -> std::string::String {
@@ -241,19 +304,21 @@ fn interface_of(entry: &str) -> &str {
     entry.split_once(':').map_or(entry, |(name, _)| name)
 }
 
-fn entry_is_v4(entry: &str) -> bool {
-    !entry.contains('/')
+/// В переписи только адреса интерфейсов, несущих путь наружу, поэтому исчезнувший
+/// адрес — это исчезнувший путь, без дополнительных условий.
+fn path_was_lost(before: &BTreeSet<std::string::String>, after: &BTreeSet<std::string::String>) -> bool {
+    !before.is_subset(after)
 }
 
-fn path_was_lost(before: &BTreeSet<std::string::String>, after: &BTreeSet<std::string::String>) -> bool {
-    if before.is_empty() {
-        return false;
+/// clod:net-listing — «перечислить не удалось» и «адресов нет» — разные вещи: до
+/// первой удачной переписи сравнивать не с чем, и потерей пути это не станет
+/// никогда. Но первая удачная перепись после неудачного старта — это смена
+/// окружения: прокси надо пере-навести, пустые наборы правил — дозалить.
+fn changes_from(before: Option<&BTreeSet<std::string::String>>, view: &BTreeSet<std::string::String>) -> (bool, bool) {
+    match before {
+        Some(before) => (before != view, path_was_lost(before, view)),
+        None => (!view.is_empty(), false),
     }
-    let mut standing = before.intersection(after).peekable();
-    if standing.peek().is_none() {
-        return true;
-    }
-    before.iter().any(|entry| entry_is_v4(entry)) && !standing.any(|entry| entry_is_v4(entry))
 }
 
 fn interfaces_of<'a>(entries: impl Iterator<Item = &'a std::string::String>) -> Vec<std::string::String> {
@@ -294,9 +359,9 @@ fn report_fingerprint_change(
 const CONNECTIONS_CALL_TIMEOUT: Duration = Duration::from_secs(3);
 
 async fn close_live_connections(verbose: bool) {
+    let core = detached_core_client().await;
     let live = if verbose {
-        let mihomo = handle::Handle::mihomo().await;
-        tokio::time::timeout(CONNECTIONS_CALL_TIMEOUT, mihomo.get_connections())
+        tokio::time::timeout(CONNECTIONS_CALL_TIMEOUT, core.get_connections())
             .await
             .ok()
             .and_then(Result::ok)
@@ -306,10 +371,7 @@ async fn close_live_connections(verbose: bool) {
         0
     };
 
-    let outcome = {
-        let mihomo = handle::Handle::mihomo().await;
-        tokio::time::timeout(CONNECTIONS_CALL_TIMEOUT, mihomo.close_all_connections()).await
-    };
+    let outcome = tokio::time::timeout(CONNECTIONS_CALL_TIMEOUT, core.close_all_connections()).await;
 
     match outcome {
         Ok(Ok(())) if verbose => logging!(
@@ -389,9 +451,10 @@ async fn reconcile(
 static RULE_SETS_REFILLING: AtomicBool = AtomicBool::new(false);
 static RULE_SETS_REFILL_ASKED_AGAIN: AtomicBool = AtomicBool::new(false);
 const RULE_SET_LIST_TIMEOUT: Duration = Duration::from_secs(5);
-const RULE_SETS_REFILL_BUDGET: Duration = Duration::from_secs(25);
+const RULE_SET_FETCH_TIMEOUT: Duration = Duration::from_secs(25);
 
-fn detached_core_client(mihomo: &Mihomo) -> Mihomo {
+pub(crate) async fn detached_core_client() -> Mihomo {
+    let mihomo = handle::Handle::mihomo().await;
     Mihomo {
         protocol: mihomo.protocol.clone(),
         external_host: mihomo.external_host.clone(),
@@ -425,12 +488,31 @@ async fn refill_empty_rule_sets() {
     }
 }
 
+async fn ask_for_each_rule_set<F, Fut>(empty: Vec<String>, each: Duration, ask: F) -> usize
+where
+    F: Fn(String) -> Fut,
+    Fut: std::future::Future<Output = ()>,
+{
+    let mut asked = 0_usize;
+    for name in empty {
+        if handle::Handle::global().is_exiting() {
+            break;
+        }
+        if tokio::time::timeout(each, ask(name.clone())).await.is_err() {
+            logging!(
+                info,
+                Type::Core,
+                "[clod] rule set {name}: no answer from the core within {}s; leaving it to the core's own retry",
+                each.as_secs()
+            );
+        }
+        asked += 1;
+    }
+    asked
+}
+
 async fn refill_empty_rule_sets_once() {
-    let started = Instant::now();
-    let core = {
-        let mihomo = handle::Handle::mihomo().await;
-        detached_core_client(&mihomo)
-    };
+    let core = detached_core_client().await;
     let listed = tokio::time::timeout(RULE_SET_LIST_TIMEOUT, core.get_rule_providers()).await;
     let Ok(Ok(listed)) = listed else {
         return;
@@ -454,26 +536,13 @@ async fn refill_empty_rule_sets_once() {
         empty.len(),
         empty.join(", ")
     );
-    for name in empty {
-        if handle::Handle::global().is_exiting() {
-            return;
+    let core = &core;
+    ask_for_each_rule_set(empty, RULE_SET_FETCH_TIMEOUT, move |name| async move {
+        if let Err(e) = core.update_rule_provider(&name).await {
+            logging!(info, Type::Core, "[clod] rule set {name} is not fetched yet: {e}");
         }
-        let left = RULE_SETS_REFILL_BUDGET.saturating_sub(started.elapsed());
-        let fetched = tokio::time::timeout(left, core.update_rule_provider(&name)).await;
-        match fetched {
-            Ok(Ok(())) => {}
-            Ok(Err(e)) => logging!(info, Type::Core, "[clod] rule set {name} is not fetched yet: {e}"),
-            Err(_) => {
-                logging!(
-                    info,
-                    Type::Core,
-                    "[clod] rule set {name}: the {}s budget ran out; the rest is left to the core's own retry",
-                    RULE_SETS_REFILL_BUDGET.as_secs()
-                );
-                return;
-            }
-        }
-    }
+    })
+    .await;
 }
 
 fn hold_the_tun_rearm(tun_is_wanted: bool) {
@@ -547,11 +616,7 @@ pub fn spawn_environment_watchdog() {
         });
         let mut last_tick = Instant::now();
         let mut last_awake = sleep_clock::reading();
-        let mut last_network = AsyncHandler::spawn_blocking(network_fingerprint)
-            .await
-            .ok()
-            .flatten()
-            .unwrap_or_default();
+        let mut last_network = first_fingerprint().await;
         let mut ticks: u32 = 0;
 
         loop {
@@ -590,7 +655,7 @@ pub fn spawn_environment_watchdog() {
             }
 
             let Some(view) = view else {
-                if !LISTING_FAILED.swap(true, Ordering::AcqRel) {
+                if listing_just_failed() {
                     logging!(
                         warn,
                         Type::Core,
@@ -604,13 +669,12 @@ pub fn spawn_environment_watchdog() {
             };
             LISTING_FAILED.store(false, Ordering::Release);
 
-            let network_changed = view != last_network;
-            let path_was_lost = path_was_lost(&last_network, &view);
-            if network_changed {
-                report_fingerprint_change(&last_network, &view, verbose_diagnostics().await);
+            let (network_changed, path_is_gone) = changes_from(last_network.as_ref(), &view);
+            if network_changed && let Some(before) = last_network.as_ref() {
+                report_fingerprint_change(before, &view, verbose_diagnostics().await);
             }
             let view_carries_traffic = !view.is_empty();
-            last_network = view;
+            last_network = Some(view);
 
             let rearm_is_now = rearm_is_due(view_carries_traffic);
 
@@ -626,7 +690,7 @@ pub fn spawn_environment_watchdog() {
                 }
             };
 
-            reconcile(reason, slept, path_was_lost, rearm_is_now, view_carries_traffic).await;
+            reconcile(reason, slept, path_is_gone, rearm_is_now, view_carries_traffic).await;
             if rearm_is_now {
                 rearm_the_tun_after_wake().await;
             }
@@ -637,9 +701,10 @@ pub fn spawn_environment_watchdog() {
 #[cfg(test)]
 mod tests {
     use super::{
-        CORE_TUNNEL_BASE, FINGERPRINT_ENTRIES_SHOWN, SLEEP_SLACK, interface_of, is_a_local_sandbox_adapter,
-        is_our_tunnel, listed, looks_like_the_core_default_tunnel, path_was_lost, sleep_gap, slept_through,
-        spelled_out, v4_carries_traffic, v6_carries_traffic, v6_is_transition_tunnel, worth_spelling_out,
+        CORE_TUNNEL_BASE, FINGERPRINT_ENTRIES_SHOWN, SLEEP_SLACK, ask_for_each_rule_set, changes_from, fingerprint_of,
+        interface_of, is_a_local_sandbox_adapter, is_our_tunnel, listed, looks_like_the_core_default_tunnel,
+        path_was_lost, sleep_gap, slept_through, spelled_out, v4_carries_traffic, v6_carries_traffic,
+        v6_is_transition_tunnel, worth_spelling_out,
     };
     use crate::constants::timing;
     use std::{
@@ -697,64 +762,143 @@ mod tests {
         assert_eq!(interface_of("nothing"), "nothing");
     }
 
+    fn fingerprint(entries: &[&str]) -> std::collections::BTreeSet<std::string::String> {
+        entries.iter().map(|entry| (*entry).to_owned()).collect()
+    }
+
     #[test]
-    fn the_path_is_lost_only_when_no_old_address_still_stands() {
-        let before: std::collections::BTreeSet<std::string::String> =
-            ["eth0:10.0.0.2".into(), "wlan0:192.168.1.7".into()]
-                .into_iter()
-                .collect();
+    fn an_address_that_went_away_is_a_lost_path() {
+        let before = fingerprint(&["eth0:10.0.0.2", "wlan0:192.168.1.7"]);
         let same = before.clone();
-        let with_one_more: std::collections::BTreeSet<std::string::String> = [
-            "eth0:10.0.0.2".into(),
-            "wlan0:192.168.1.7".into(),
-            "docker0:172.17.0.1".into(),
-        ]
-        .into_iter()
-        .collect();
-        let without_wlan: std::collections::BTreeSet<std::string::String> =
-            std::iter::once("eth0:10.0.0.2".into()).collect();
-        let wlan_readdressed: std::collections::BTreeSet<std::string::String> =
-            ["eth0:10.0.0.2".into(), "wlan0:192.168.1.9".into()]
-                .into_iter()
-                .collect();
-        let all_readdressed: std::collections::BTreeSet<std::string::String> =
-            ["eth0:10.0.0.9".into(), "wlan0:192.168.1.9".into()]
-                .into_iter()
-                .collect();
-        let nothing: std::collections::BTreeSet<std::string::String> = std::collections::BTreeSet::new();
+        let with_one_more = fingerprint(&["eth0:10.0.0.2", "wlan0:192.168.1.7", "wlan0:192.168.1.8"]);
+        let without_wlan = fingerprint(&["eth0:10.0.0.2"]);
+        let wlan_readdressed = fingerprint(&["eth0:10.0.0.2", "wlan0:192.168.1.9"]);
+        let all_readdressed = fingerprint(&["eth0:10.0.0.9", "wlan0:192.168.1.9"]);
+        let nothing = fingerprint(&[]);
 
         assert!(!path_was_lost(&before, &same));
         assert!(!path_was_lost(&before, &with_one_more));
-        assert!(!path_was_lost(&before, &without_wlan));
-        assert!(!path_was_lost(&before, &wlan_readdressed));
+        assert!(path_was_lost(&before, &without_wlan));
+        assert!(path_was_lost(&before, &wlan_readdressed));
         assert!(path_was_lost(&before, &all_readdressed));
         assert!(path_was_lost(&before, &nothing));
         assert!(!path_was_lost(&nothing, &before));
     }
 
     #[test]
-    fn a_rotated_v6_prefix_is_not_a_lost_path_while_the_v4_address_stands() {
-        let before: std::collections::BTreeSet<std::string::String> =
-            ["eth0:10.0.0.2".into(), "eth0:2a02:1:2:3::/64".into()]
-                .into_iter()
-                .collect();
-        let rotated: std::collections::BTreeSet<std::string::String> =
-            ["eth0:10.0.0.2".into(), "eth0:2a02:1:2:4::/64".into()]
-                .into_iter()
-                .collect();
-        let v4_readdressed: std::collections::BTreeSet<std::string::String> =
-            ["eth0:10.0.0.9".into(), "eth0:2a02:1:2:3::/64".into()]
-                .into_iter()
-                .collect();
-        let v6_only_before: std::collections::BTreeSet<std::string::String> =
-            std::iter::once("eth0:2a02:1:2:3::/64".into()).collect();
-        let v6_only_rotated: std::collections::BTreeSet<std::string::String> =
-            std::iter::once("eth0:2a02:1:2:4::/64".into()).collect();
+    fn a_foreign_tunnel_that_keeps_its_address_does_not_hide_a_lost_path() {
+        let before = fingerprint(&["wg0:10.6.0.2", "tailscale0:100.64.1.5", "wlan0:192.168.1.7"]);
+        let moved_to_a_hotspot = fingerprint(&["wg0:10.6.0.2", "tailscale0:100.64.1.5", "wlan0:172.20.10.3"]);
+        let cable_pulled = fingerprint(&["wg0:10.6.0.2", "tailscale0:100.64.1.5"]);
 
-        assert!(!path_was_lost(&before, &rotated));
+        assert!(path_was_lost(&before, &moved_to_a_hotspot));
+        assert!(path_was_lost(&before, &cable_pulled));
+    }
+
+    fn with_v4(name: &str, ip: [u8; 4]) -> network_interface::NetworkInterface {
+        network_interface::NetworkInterface::new_afinet(name, Ipv4Addr::from(ip), None, None, 1, false)
+    }
+
+    /// Перепись строится из того, что отдаёт система, а не из набранного руками
+    /// набора: иначе проверялось бы свойство одной функции, а не поведение.
+    #[test]
+    fn a_sandbox_going_down_never_reaches_the_census_and_so_is_not_a_lost_path() {
+        let ours = format!("{CORE_TUNNEL_BASE}0");
+        let sandboxes_up = vec![
+            with_v4("eth0", [10, 0, 0, 2]),
+            with_v4("docker0", [172, 17, 0, 1]),
+            with_v4("br-3f2a1b9c8d7e", [172, 18, 0, 1]),
+            with_v4("podman0", [10, 88, 0, 1]),
+            with_v4("lxdbr0", [10, 55, 1, 1]),
+            with_v4("incusbr0", [10, 56, 1, 1]),
+            with_v4("cni0", [10, 244, 0, 1]),
+            with_v4("vnic0", [10, 211, 55, 2]),
+            with_v4("vnic1", [10, 37, 129, 2]),
+            with_v4("vEthernet (nat)", [172, 26, 0, 1]),
+            with_v4("vEthernet (Default Switch)", [172, 20, 0, 1]),
+            with_v4("utun4", [198, 19, 0, 1]),
+            with_v4(&ours, [198, 18, 0, 1]),
+        ];
+        let compose_down = vec![with_v4("eth0", [10, 0, 0, 2])];
+
+        let before = fingerprint_of(sandboxes_up);
+        let after = fingerprint_of(compose_down);
+
+        assert_eq!(before, fingerprint(&["eth0:10.0.0.2"]));
+        assert_eq!(before, after);
+        assert!(!path_was_lost(&before, &after));
+        assert_eq!(changes_from(Some(&before), &after), (false, false));
+    }
+
+    #[test]
+    fn an_interface_the_census_keeps_is_a_lost_path_when_its_address_goes() {
+        let docked = fingerprint_of(vec![
+            with_v4("eth0", [10, 0, 0, 2]),
+            with_v4("wlan0", [192, 168, 1, 7]),
+            with_v4("br-lan", [192, 168, 2, 1]),
+            with_v4("br0", [192, 168, 3, 1]),
+            with_v4("vEthernet (External Switch)", [192, 168, 4, 1]),
+        ]);
+        let undocked = fingerprint_of(vec![
+            with_v4("wlan0", [192, 168, 1, 7]),
+            with_v4("br-lan", [192, 168, 2, 1]),
+            with_v4("br0", [192, 168, 3, 1]),
+            with_v4("vEthernet (External Switch)", [192, 168, 4, 1]),
+        ]);
+
+        assert!(docked.contains("br-lan:192.168.2.1"));
+        assert!(docked.contains("br0:192.168.3.1"));
+        assert!(docked.contains("vEthernet (External Switch):192.168.4.1"));
+        assert!(path_was_lost(&docked, &undocked));
+        assert_eq!(changes_from(Some(&docked), &undocked), (true, true));
+    }
+
+    #[test]
+    fn a_rotated_v6_prefix_is_a_lost_path() {
+        let before = fingerprint(&["eth0:10.0.0.2", "eth0:2a02:1:2:3::/64"]);
+        let rotated = fingerprint(&["eth0:10.0.0.2", "eth0:2a02:1:2:4::/64"]);
+        let v4_readdressed = fingerprint(&["eth0:10.0.0.9", "eth0:2a02:1:2:3::/64"]);
+        let v6_only_before = fingerprint(&["eth0:2a02:1:2:3::/64"]);
+        let v6_only_rotated = fingerprint(&["eth0:2a02:1:2:4::/64"]);
+
+        assert!(path_was_lost(&before, &rotated));
         assert!(path_was_lost(&before, &v4_readdressed));
         assert!(path_was_lost(&v6_only_before, &v6_only_rotated));
         assert!(!path_was_lost(&v6_only_before, &before));
+    }
+
+    #[test]
+    fn the_first_listing_after_a_failed_start_is_a_change_but_never_a_lost_path() {
+        let addresses = fingerprint(&["eth0:10.0.0.2"]);
+        let nothing = fingerprint(&[]);
+
+        assert_eq!(changes_from(None, &addresses), (true, false));
+        assert_eq!(changes_from(None, &nothing), (false, false));
+        assert_eq!(changes_from(Some(&addresses), &addresses), (false, false));
+        assert_eq!(changes_from(Some(&nothing), &addresses), (true, false));
+        assert_eq!(changes_from(Some(&addresses), &nothing), (true, true));
+    }
+
+    #[tokio::test]
+    async fn every_empty_rule_set_gets_its_own_timeout() {
+        let empty: Vec<std::string::String> = (0..15).map(|i| format!("set{i}")).collect();
+        let asked = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let counter = std::sync::Arc::clone(&asked);
+        let each = Duration::from_millis(20);
+        let started = std::time::Instant::now();
+
+        let attempted = ask_for_each_rule_set(empty, each, move |_name| {
+            let counter = std::sync::Arc::clone(&counter);
+            async move {
+                counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                tokio::time::sleep(Duration::from_secs(30)).await;
+            }
+        })
+        .await;
+
+        assert_eq!(attempted, 15);
+        assert_eq!(asked.load(std::sync::atomic::Ordering::SeqCst), 15);
+        assert!(started.elapsed() < each * 15 * 3);
     }
 
     #[test]
@@ -867,24 +1011,46 @@ mod tests {
 
     #[test]
     fn a_sandbox_adapter_is_not_a_path_of_its_own() {
-        assert!(is_a_local_sandbox_adapter("docker0"));
-        assert!(is_a_local_sandbox_adapter("docker_gwbridge"));
-        assert!(is_a_local_sandbox_adapter("vEthernet (WSL (Hyper-V firewall))"));
-        assert!(is_a_local_sandbox_adapter("vEthernet (Default Switch)"));
-        assert!(is_a_local_sandbox_adapter("vboxnet0"));
-        assert!(is_a_local_sandbox_adapter("virbr0"));
-        assert!(is_a_local_sandbox_adapter("VMware Network Adapter VMnet8"));
+        for name in [
+            "docker0",
+            "docker_gwbridge",
+            "vEthernet (WSL (Hyper-V firewall))",
+            "vEthernet (Default Switch)",
+            "vboxnet0",
+            "virbr0",
+            "VMware Network Adapter VMnet8",
+            "br-3f2a1b9c8d7e",
+            "br-0123456789ab",
+            "podman0",
+            "cni-podman1",
+            "lxdbr0",
+            "incusbr0",
+            "cni0",
+            "vnic0",
+            "vnic1",
+            "vEthernet (nat)",
+        ] {
+            assert!(is_a_local_sandbox_adapter(name), "{name} должен считаться песочницей");
+        }
 
-        assert!(!is_a_local_sandbox_adapter("eth0"));
-        assert!(!is_a_local_sandbox_adapter("wlan0"));
-        assert!(!is_a_local_sandbox_adapter("Ethernet 2"));
-        assert!(!is_a_local_sandbox_adapter("Wi-Fi"));
-        assert!(!is_a_local_sandbox_adapter("en0"));
-        assert!(!is_a_local_sandbox_adapter("bridge0"));
-        // Домашний мост и внешний коммутатор Hyper-V — это путь наружу.
-        assert!(!is_a_local_sandbox_adapter("br-lan"));
-        assert!(!is_a_local_sandbox_adapter("br0"));
-        assert!(!is_a_local_sandbox_adapter("vEthernet (External Switch)"));
+        for name in [
+            "eth0",
+            "wlan0",
+            "Ethernet 2",
+            "Wi-Fi",
+            "en0",
+            "bridge0",
+            "br-lan",
+            "br0",
+            "br-guest",
+            "br-3f2a1b9c8d7",
+            "br-3f2a1b9c8d7ef",
+            "vEthernet (External Switch)",
+            "cnifoo",
+            "vnic",
+        ] {
+            assert!(!is_a_local_sandbox_adapter(name), "{name} несёт путь наружу");
+        }
     }
 
     #[test]
