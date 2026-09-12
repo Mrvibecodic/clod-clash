@@ -1094,6 +1094,47 @@ mod tests {
         assert_eq!(the_port_check_budget(0), Duration::ZERO);
     }
 
+    fn fn_body<'a>(source: &'a str, signature: &str) -> Option<&'a str> {
+        let at = source.find(signature)?;
+        let rest = &source[at..];
+        let open = rest.find('{')?;
+        let mut depth = 0usize;
+        for (index, byte) in rest.bytes().enumerate().skip(open) {
+            match byte {
+                b'{' => depth += 1,
+                b'}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return Some(&rest[open..=index]);
+                    }
+                }
+                _ => {}
+            }
+        }
+        None
+    }
+
+    /// Дефект был не в таблице истинности, а в проводке: хвост проверки не
+    /// спрашивал гейт и шёл обходить процессы у проверки, которую уже отменили.
+    /// Чистая функция этого не ловит — её можно оставить на месте и вернуть хвост.
+    #[test]
+    fn the_tail_of_the_port_check_still_asks_the_gate_before_naming_a_culprit() {
+        let source = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/core/manager/lifecycle.rs"))
+            .unwrap_or_default();
+        let body = fn_body(&source, "async fn confirm_mixed_port").unwrap_or_default();
+
+        assert!(!body.is_empty(), "тело confirm_mixed_port не найдено — тест ослеп");
+        assert!(
+            body.contains("the_verdict_without_a_diagnosis("),
+            "хвост проверки порта больше не спрашивает вердикт без диагноза"
+        );
+        assert!(
+            body.matches("the_port_check_is_called_off(").count() >= 2,
+            "гейт спрашивают только в начале круга: отменённая проверка снова пойдёт \
+             обходить процессы и назовёт виновного"
+        );
+    }
+
     #[test]
     fn a_silent_core_is_not_a_busy_port() {
         assert_eq!(port_report(None, 7897), PortReport::Silent);

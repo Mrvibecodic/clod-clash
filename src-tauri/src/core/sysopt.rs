@@ -391,7 +391,6 @@ const fn the_guard_may_keep_its_target(refusals_in_a_row: u32) -> bool {
     refusals_in_a_row < WRITE_REFUSALS_BEFORE_THE_GUARD_STANDS_DOWN
 }
 
-#[cfg(test)]
 const fn the_guard_has_just_stood_down(refusals_in_a_row: u32) -> bool {
     !the_guard_may_keep_its_target(refusals_in_a_row)
         && the_guard_may_keep_its_target(refusals_in_a_row.saturating_sub(1))
@@ -764,7 +763,9 @@ impl Sysopt {
                 if the_guard_may_keep_its_target(refusals_in_a_row) {
                     self.aim_guard(guard_type);
                 } else {
-                    Self::say_the_guard_stood_down(refusals_in_a_row);
+                    if the_guard_has_just_stood_down(refusals_in_a_row) {
+                        Self::say_the_guard_stood_down(refusals_in_a_row);
+                    }
                     self.aim_guard(GuardType::None);
                 }
                 Err(error)

@@ -395,8 +395,18 @@ mod tests {
             .collect()
     }
 
+    /// Статусы, которые код шлёт по имени константы, а не литералом: для теста
+    /// покрытия использование константы — такая же отправка, как и литерал,
+    /// иначе приведение последнего литерала к константе красит сборку.
+    const STATUS_CONSTANTS: &[(&str, &str)] = &[("EXIT_REFUSAL_STATUS", super::EXIT_REFUSAL_STATUS)];
+
     fn statuses_in(source: &str) -> Vec<String> {
         let mut found = literals_after(source, "notice_message(");
+        for (name, status) in STATUS_CONSTANTS {
+            if source.contains(name) {
+                found.push((*status).to_owned());
+            }
+        }
         for line in source.lines() {
             if line.trim_start().starts_with("//") {
                 continue;
