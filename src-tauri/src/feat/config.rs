@@ -28,7 +28,17 @@ pub async fn patch_clash(patch: &Mapping) -> Result<()> {
         if patch.get("secret").is_some() || patch.get("external-controller").is_some() {
             Config::generate().await?;
             CoreManager::global().restart_core().await?;
-        } else if patch.get("allow-lan").is_some() {
+        } else if let Some(sharing) = patch.get("allow-lan") {
+            // clod:lan-share — правка пришла от человека, а не из подписки:
+            // запоминаем его слово, чтобы подписка его не перебивала.
+            let declined = !sharing.as_bool().unwrap_or(false);
+            if let Err(error) = commit_verge_edit(|verge| verge.lan_sharing_declined = Some(declined)).await {
+                logging!(
+                    warn,
+                    Type::Config,
+                    "слово человека о раздаче в локальную сеть не записано: {error:#}"
+                );
+            }
             CoreManager::global().update_config_checked().await?;
         } else {
             if patch.get("mode").is_some() {

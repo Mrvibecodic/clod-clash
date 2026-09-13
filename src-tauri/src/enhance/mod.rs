@@ -120,6 +120,7 @@ struct ConfigValues {
     socks_enabled: bool,
     http_enabled: bool,
     enable_dns_settings: bool,
+    lan_sharing_declined: bool,
     tun_overrides: TunOverrides,
     #[cfg(target_os = "macos")]
     enable_dns_override: bool,
@@ -207,6 +208,7 @@ async fn get_config_values() -> ConfigValues {
         ref verge_socks_enabled,
         ref verge_http_enabled,
         ref enable_dns_settings,
+        ref lan_sharing_declined,
         ref tun_stack,
         ref tun_strict_route,
         ref tun_dns_hijack,
@@ -218,6 +220,8 @@ async fn get_config_values() -> ConfigValues {
         tun_strict_route.as_deref(),
         tun_dns_hijack.as_deref(),
     );
+
+    let lan_sharing_declined = lan_sharing_declined.unwrap_or(false);
 
     let (clash_core, enable_tun, enable_builtin, socks_enabled, http_enabled, enable_dns_settings) = (
         Some(verge_arc.get_valid_clash_core()),
@@ -250,6 +254,7 @@ async fn get_config_values() -> ConfigValues {
         socks_enabled,
         http_enabled,
         enable_dns_settings,
+        lan_sharing_declined,
         tun_overrides,
         #[cfg(target_os = "macos")]
         enable_dns_override,
@@ -525,6 +530,216 @@ fn is_ipv4_shorthand_loopback(addr: &str) -> bool {
         [first, second, third, fourth] => *first == 127 && *second <= 0xff && *third <= 0xff && *fourth <= 0xff,
         _ => false,
     }
+}
+
+/// Сеть из списка раздачи: адрес и длина префикса.
+///
+/// clod:lan-share — ядро держит эти списки как `netip.Prefix` и применяет их
+/// БЕЗУСЛОВНО, независимо от `allow-lan` (`hub/executor/executor.go`), причём
+/// фильтр стоит на каждом принятом соединении http/mixed/socks и петлю ничем
+/// не выделяет. Поэтому список, в котором нет петли, отрезает приложение от его
+/// же прокси, а неразбираемая запись роняет старт ядра целиком.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct LanPrefix {
+    addr: std::net::IpAddr,
+    bits: u8,
+}
+
+impl LanPrefix {
+    fn parse(text: &str) -> Option<Self> {
+        let (addr, bits) = text.trim().split_once('/')?;
+        let addr: std::net::IpAddr = addr.trim().parse().ok()?;
+        let bits: u8 = bits.trim().parse().ok()?;
+        let width = if addr.is_ipv4() { 32 } else { 128 };
+        (bits <= width).then_some(Self { addr, bits })
+    }
+
+    fn contains(self, other: std::net::IpAddr) -> bool {
+        match (self.addr, other) {
+            (std::net::IpAddr::V4(net), std::net::IpAddr::V4(ip)) => {
+                shares_the_prefix(&net.octets(), &ip.octets(), self.bits)
+            }
+            (std::net::IpAddr::V6(net), std::net::IpAddr::V6(ip)) => {
+                shares_the_prefix(&net.octets(), &ip.octets(), self.bits)
+            }
+            _ => false,
+        }
+    }
+
+    /// Префикс нулевой длины — это «весь адресный простор», то есть раздача
+    /// всему интернету, а не локальной сети.
+    const fn covers_every_address(self) -> bool {
+        self.bits == 0
+    }
+}
+
+fn shares_the_prefix(net: &[u8], ip: &[u8], bits: u8) -> bool {
+    let whole = usize::from(bits / 8);
+    if net[..whole] != ip[..whole] {
+        return false;
+    }
+    let rest = bits % 8;
+    if rest == 0 {
+        return true;
+    }
+    let mask = 0xff_u8 << (8 - rest);
+    net[whole] & mask == ip[whole] & mask
+}
+
+const LOOPBACK_V4: std::net::IpAddr = std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST);
+const LOOPBACK_V6: std::net::IpAddr = std::net::IpAddr::V6(std::net::Ipv6Addr::LOCALHOST);
+const LOOPBACK_V4_PREFIX: &str = "127.0.0.0/8";
+const LOOPBACK_V6_PREFIX: &str = "::1/128";
+
+/// Список адресов, как его прочитали из конфига.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct PrefixList {
+    /// Записи, которые разобрались, в том же порядке.
+    kept: Vec<std::string::String>,
+    /// Разобрались ли ВСЕ записи: одна негодная роняет старт ядра.
+    whole: bool,
+}
+
+fn read_prefix_list(value: Option<&Value>) -> Option<PrefixList> {
+    let entries = value?.as_sequence()?;
+    let mut kept = Vec::with_capacity(entries.len());
+    let mut whole = true;
+    for entry in entries {
+        match entry.as_str().and_then(|text| LanPrefix::parse(text).map(|_| text)) {
+            Some(text) => kept.push(text.trim().to_owned()),
+            None => whole = false,
+        }
+    }
+    Some(PrefixList { kept, whole })
+}
+
+fn parsed(list: &[std::string::String]) -> Vec<LanPrefix> {
+    list.iter().filter_map(|text| LanPrefix::parse(text)).collect()
+}
+
+/// Чего просит подписка по части раздачи.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct LanRequest {
+    wants_sharing: bool,
+    allowed: Option<PrefixList>,
+    disallowed: Option<PrefixList>,
+}
+
+/// Списки читаются в точке ПРИМЕНЕНИЯ, а не до слияния: их вправе поставить и
+/// цепочка merge пользователя, и снимок «до слияния» её правку бы стёр. До
+/// слияния снимается только просьба подписки о самой раздаче — `allow-lan`
+/// к этому месту уже перебит нашим значением.
+fn read_lan_request(config: &Mapping, subscription_wants_sharing: bool) -> LanRequest {
+    LanRequest {
+        wants_sharing: subscription_wants_sharing,
+        allowed: read_prefix_list(config.get("lan-allowed-ips")),
+        disallowed: read_prefix_list(config.get("lan-disallowed-ips")),
+    }
+}
+
+/// Что в итоге уезжает ядру.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum LanSharing {
+    /// Раздачи нет: оба списка и `bind-address` снимаются — для раздачи они
+    /// ничего не значат, а запереть приложение умеют.
+    Off,
+    On {
+        allowed: Option<Vec<std::string::String>>,
+        disallowed: Option<Vec<std::string::String>>,
+    },
+}
+
+/// Можно ли открыть раздачу по одной лишь просьбе подписки.
+///
+/// clod:lan-share — умолчание ядра для списка разрешённых — весь мир, поэтому
+/// `allow-lan: true` без списка (так делают два боевых шаблона) открывает прокси
+/// всему интернету. Открываем только под непустым списком, который целиком
+/// разобрался и не содержит префикса нулевой длины.
+fn the_subscription_may_open_sharing(allowed: Option<&PrefixList>) -> bool {
+    let Some(list) = allowed else {
+        return false;
+    };
+    list.whole && !list.kept.is_empty() && !parsed(&list.kept).iter().any(|prefix| prefix.covers_every_address())
+}
+
+/// Список, в котором приложение наверняка достучится до собственного прокси.
+fn with_the_loopback(mut list: Vec<std::string::String>) -> Vec<std::string::String> {
+    if list.is_empty() {
+        return list;
+    }
+    let prefixes = parsed(&list);
+    if !prefixes.iter().any(|prefix| prefix.contains(LOOPBACK_V4)) {
+        list.push(LOOPBACK_V4_PREFIX.to_owned());
+    }
+    if !prefixes.iter().any(|prefix| prefix.contains(LOOPBACK_V6)) {
+        list.push(LOOPBACK_V6_PREFIX.to_owned());
+    }
+    list
+}
+
+/// Из запрещённых убираем всё, что накрывает петлю: запрет сильнее разрешения.
+fn without_the_loopback(list: Vec<std::string::String>) -> Vec<std::string::String> {
+    list.into_iter()
+        .filter(|text| {
+            LanPrefix::parse(text).is_none_or(|prefix| !prefix.contains(LOOPBACK_V4) && !prefix.contains(LOOPBACK_V6))
+        })
+        .collect()
+}
+
+fn decide_lan_sharing(user_wants: bool, user_declined: bool, request: &LanRequest) -> LanSharing {
+    let sharing = if user_wants {
+        true
+    } else if user_declined {
+        false
+    } else {
+        request.wants_sharing && the_subscription_may_open_sharing(request.allowed.as_ref())
+    };
+
+    if !sharing {
+        return LanSharing::Off;
+    }
+
+    let allowed = request
+        .allowed
+        .as_ref()
+        .map(|list| with_the_loopback(list.kept.clone()))
+        .filter(|list| !list.is_empty());
+    let disallowed = request
+        .disallowed
+        .as_ref()
+        .map(|list| without_the_loopback(list.kept.clone()))
+        .filter(|list| !list.is_empty());
+
+    LanSharing::On { allowed, disallowed }
+}
+
+fn put_list(config: &mut Mapping, key: &str, list: Option<Vec<std::string::String>>) {
+    match list {
+        Some(list) => {
+            let entries: Vec<Value> = list.into_iter().map(Value::from).collect();
+            config.insert(Value::from(key), Value::from(entries));
+        }
+        None => {
+            config.remove(key);
+        }
+    }
+}
+
+fn apply_lan_sharing(mut config: Mapping, decision: LanSharing) -> Mapping {
+    match decision {
+        LanSharing::Off => {
+            config.insert(Value::from("allow-lan"), Value::from(false));
+            config.remove("lan-allowed-ips");
+            config.remove("lan-disallowed-ips");
+            config.remove("bind-address");
+        }
+        LanSharing::On { allowed, disallowed } => {
+            config.insert(Value::from("allow-lan"), Value::from(true));
+            put_list(&mut config, "lan-allowed-ips", allowed);
+            put_list(&mut config, "lan-disallowed-ips", disallowed);
+        }
+    }
+    config
 }
 
 fn ensure_lan_bind_address(mut config: Mapping) -> Mapping {
@@ -1477,6 +1692,7 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
         socks_enabled,
         http_enabled,
         enable_dns_settings,
+        lan_sharing_declined,
         tun_overrides,
         #[cfg(target_os = "macos")]
         enable_dns_override,
@@ -1503,6 +1719,10 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
 
     let exists_keys = use_keys(&config).collect::<Vec<_>>();
     let config = process_seq_items(config, rules_item, proxies_item, groups_item);
+
+    // clod:lan-share — просит ли подписка раздачу. Снимается здесь, потому что
+    // дальше `merge_default_config` перебьёт `allow-lan` нашим значением.
+    let subscription_wants_sharing = config.get("allow-lan").and_then(Value::as_bool).unwrap_or(false);
 
     let config = merge_default_config(
         config,
@@ -1555,6 +1775,20 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
     // блок восстанавливается из снимка, при выключенной — никем. Второй проход
     // идёт уже по нашему `allow-lan`, восстановленному из снимка control-plane.
     clamp_dns_listen(&mut config);
+    // clod:lan-share — строго ПОСЛЕ прижатия `dns.listen`: раздача прокси
+    // соседям по сети и открытый для них DNS-резолвер — разные решения, и
+    // второе подписке не отдаём ни при каких условиях.
+    let user_wants_sharing = config.get("allow-lan").and_then(Value::as_bool).unwrap_or(false);
+    let lan_request = read_lan_request(&config, subscription_wants_sharing);
+    let sharing = decide_lan_sharing(user_wants_sharing, lan_sharing_declined, &lan_request);
+    if !user_wants_sharing && matches!(sharing, LanSharing::On { .. }) {
+        logging!(
+            info,
+            Type::Config,
+            "подписка открыла раздачу в локальную сеть под своим списком адресов"
+        );
+    }
+    let config = apply_lan_sharing(config, sharing);
     let config = ensure_lan_bind_address(config);
     let config = ensure_store_selected(config);
 
@@ -1992,6 +2226,248 @@ mod tests {
             disabled.get("bind-address").and_then(serde_yaml_ng::Value::as_str),
             Some("127.0.0.1")
         );
+    }
+
+    fn lan(text: &str) -> super::LanRequest {
+        let config = mapping(text);
+        let wants = config
+            .get("allow-lan")
+            .and_then(serde_yaml_ng::Value::as_bool)
+            .unwrap_or(false);
+        super::read_lan_request(&config, wants)
+    }
+
+    fn shared(decision: &super::LanSharing) -> bool {
+        matches!(decision, super::LanSharing::On { .. })
+    }
+
+    fn allowed_of(decision: &super::LanSharing) -> Vec<std::string::String> {
+        match decision {
+            super::LanSharing::On { allowed, .. } => allowed.clone().unwrap_or_default(),
+            super::LanSharing::Off => Vec::new(),
+        }
+    }
+
+    fn disallowed_of(decision: &super::LanSharing) -> Vec<std::string::String> {
+        match decision {
+            super::LanSharing::On { disallowed, .. } => disallowed.clone().unwrap_or_default(),
+            super::LanSharing::Off => Vec::new(),
+        }
+    }
+
+    fn holds(prefix: &str, ip: &str) -> bool {
+        match (super::LanPrefix::parse(prefix), ip.parse::<std::net::IpAddr>()) {
+            (Some(prefix), Ok(ip)) => prefix.contains(ip),
+            _ => false,
+        }
+    }
+
+    #[test]
+    fn a_prefix_holds_only_the_addresses_it_covers() {
+        assert!(super::LanPrefix::parse("127.0.0.0/8").is_some());
+        assert!(holds("127.0.0.0/8", "127.0.0.1"));
+        assert!(holds("127.0.0.0/8", "127.9.9.9"));
+        assert!(!holds("127.0.0.0/8", "128.0.0.1"));
+
+        assert!(super::LanPrefix::parse("192.168.1.0/24").is_some());
+        assert!(holds("192.168.1.0/24", "192.168.1.7"));
+        assert!(!holds("192.168.1.0/24", "192.168.2.7"));
+        assert!(!holds("192.168.1.0/24", "127.0.0.1"));
+
+        assert!(holds("0.0.0.0/0", "8.8.8.8"), "нулевая длина накрывает всё");
+        assert!(holds("::/0", "2a02::1"));
+    }
+
+    #[test]
+    fn a_prefix_of_one_family_never_holds_the_other() {
+        assert!(super::LanPrefix::parse("0.0.0.0/0").is_some());
+        assert!(super::LanPrefix::parse("::/0").is_some());
+        assert!(!holds("0.0.0.0/0", "::1"), "ядро сравнивает адреса внутри семьи");
+        assert!(!holds("::/0", "127.0.0.1"));
+    }
+
+    #[test]
+    fn a_prefix_the_core_would_refuse_is_not_read_as_one() {
+        for text in [
+            "не-адрес",
+            "192.168.1.0",
+            "192.168.1.0/33",
+            "::1/129",
+            "/8",
+            "192.168.1.0/x",
+        ] {
+            assert!(
+                super::LanPrefix::parse(text).is_none(),
+                "{text}: разобрано, хотя ядро на этом падает"
+            );
+        }
+        assert!(
+            super::LanPrefix::parse("127.0.0.1/8").is_some(),
+            "неканоническая маска ядром принимается"
+        );
+    }
+
+    #[test]
+    fn the_subscription_alone_never_opens_sharing_to_the_whole_world() {
+        let declined = false;
+        for text in [
+            "{allow-lan: true}",
+            "{allow-lan: true, lan-allowed-ips: []}",
+            r#"{allow-lan: true, lan-allowed-ips: ["0.0.0.0/0"]}"#,
+            r#"{allow-lan: true, lan-allowed-ips: ["::/0"]}"#,
+            r#"{allow-lan: true, lan-allowed-ips: ["192.168.1.0/24", "0.0.0.0/0"]}"#,
+            r#"{allow-lan: true, lan-allowed-ips: ["192.168.1.0/24", "мусор"]}"#,
+        ] {
+            assert!(
+                !shared(&super::decide_lan_sharing(false, declined, &lan(text))),
+                "{text}: раздача открыта по одной просьбе подписки"
+            );
+        }
+    }
+
+    #[test]
+    fn a_subscription_with_a_narrow_list_opens_sharing_and_keeps_our_own_proxy_reachable() {
+        let decision = super::decide_lan_sharing(
+            false,
+            false,
+            &lan(r#"{allow-lan: true, lan-allowed-ips: ["192.168.1.0/24"]}"#),
+        );
+
+        assert!(shared(&decision));
+        let allowed = allowed_of(&decision);
+        assert!(allowed.contains(&"192.168.1.0/24".to_owned()));
+        assert!(
+            allowed.contains(&"127.0.0.0/8".to_owned()),
+            "без петли приложение теряет доступ к собственному прокси"
+        );
+        assert!(
+            allowed.contains(&"::1/128".to_owned()),
+            "клиент, пришедший по ::1, тоже наш"
+        );
+    }
+
+    #[test]
+    fn a_list_that_already_holds_the_loopback_is_left_as_the_provider_wrote_it() {
+        let decision = super::decide_lan_sharing(
+            false,
+            false,
+            &lan(r#"{allow-lan: true, lan-allowed-ips: ["127.0.0.0/8", "10.0.0.0/8", "::1/128"]}"#),
+        );
+
+        assert_eq!(
+            allowed_of(&decision),
+            vec!["127.0.0.0/8".to_owned(), "10.0.0.0/8".to_owned(), "::1/128".to_owned()]
+        );
+    }
+
+    #[test]
+    fn a_word_from_the_user_outranks_the_subscription_in_both_directions() {
+        let asking = lan(r#"{allow-lan: true, lan-allowed-ips: ["192.168.1.0/24"]}"#);
+        assert!(
+            !shared(&super::decide_lan_sharing(false, true, &asking)),
+            "человек выключил раздачу — подписка её не открывает"
+        );
+        assert!(
+            shared(&super::decide_lan_sharing(true, true, &lan("{allow-lan: false}"))),
+            "человек включил раздачу — молчание подписки её не гасит"
+        );
+    }
+
+    #[test]
+    fn a_ban_on_the_loopback_never_reaches_the_core() {
+        let decision = super::decide_lan_sharing(
+            true,
+            false,
+            &lan(r#"{lan-disallowed-ips: ["127.0.0.0/8", "::1/128", "192.168.1.50/32"]}"#),
+        );
+
+        assert_eq!(disallowed_of(&decision), vec!["192.168.1.50/32".to_owned()]);
+    }
+
+    /// Боевой шаблон провайдера: раздача и продуманный список из шести подсетей.
+    /// Он обязан доезжать до ядра ровно таким, каким его написали, — иначе
+    /// правка ломает то, ради чего затевалась.
+    #[test]
+    fn the_reference_template_gets_the_sharing_it_asked_for_untouched() {
+        let template = r#"{allow-lan: true, bind-address: "*",
+            lan-allowed-ips: ["127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12",
+                              "192.168.0.0/16", "::1/128", "fc00::/7"]}"#;
+
+        let decision = super::decide_lan_sharing(false, false, &lan(template));
+        assert!(shared(&decision), "раздача боевого шаблона обязана открыться");
+        assert_eq!(
+            allowed_of(&decision),
+            vec![
+                "127.0.0.0/8".to_owned(),
+                "10.0.0.0/8".to_owned(),
+                "172.16.0.0/12".to_owned(),
+                "192.168.0.0/16".to_owned(),
+                "::1/128".to_owned(),
+                "fc00::/7".to_owned()
+            ],
+            "список провайдера не трогаем: петля в нём уже есть"
+        );
+
+        let config = super::apply_lan_sharing(mapping(template), decision);
+        assert_eq!(
+            config.get("allow-lan").and_then(serde_yaml_ng::Value::as_bool),
+            Some(true)
+        );
+    }
+
+    /// Шаблоны, включающие раздачу БЕЗ списка: умолчание ядра — весь мир,
+    /// поэтому такую просьбу не исполняем.
+    #[test]
+    fn a_template_that_opens_sharing_with_no_list_stays_closed() {
+        for template in [r#"{allow-lan: true, bind-address: "*"}"#, r"{allow-lan: true}"] {
+            assert!(
+                !shared(&super::decide_lan_sharing(false, false, &lan(template))),
+                "{template}: раздача открыта всему интернету"
+            );
+        }
+    }
+
+    #[test]
+    fn with_sharing_off_both_lists_and_the_bind_address_are_taken_away() {
+        let config = super::apply_lan_sharing(
+            mapping(
+                r#"{allow-lan: true, bind-address: "*", lan-allowed-ips: ["192.168.1.0/24"],
+                    lan-disallowed-ips: ["127.0.0.0/8"]}"#,
+            ),
+            super::LanSharing::Off,
+        );
+
+        assert_eq!(
+            config.get("allow-lan").and_then(serde_yaml_ng::Value::as_bool),
+            Some(false)
+        );
+        assert!(!config.contains_key("lan-allowed-ips"), "список запирает своё же ядро");
+        assert!(!config.contains_key("lan-disallowed-ips"));
+        assert!(!config.contains_key("bind-address"));
+    }
+
+    #[test]
+    fn with_sharing_on_the_lists_reach_the_core_as_decided() {
+        let config = super::apply_lan_sharing(
+            mapping(r"{allow-lan: false}"),
+            super::LanSharing::On {
+                allowed: Some(vec!["192.168.1.0/24".to_owned(), "127.0.0.0/8".to_owned()]),
+                disallowed: None,
+            },
+        );
+
+        assert_eq!(
+            config.get("allow-lan").and_then(serde_yaml_ng::Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            config
+                .get("lan-allowed-ips")
+                .and_then(serde_yaml_ng::Value::as_sequence)
+                .map(|list| list.len()),
+            Some(2)
+        );
+        assert!(!config.contains_key("lan-disallowed-ips"));
     }
 
     #[test]

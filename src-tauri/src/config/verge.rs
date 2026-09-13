@@ -70,6 +70,14 @@ pub struct IVerge {
 
     pub enable_dns_settings: Option<bool>,
 
+    /// Человек сам выключил раздачу в локальную сеть.
+    ///
+    /// clod:lan-share — отличает «выключено, потому что так решил человек» от
+    /// «выключено по умолчанию». Подписка со своим списком адресов вправе
+    /// открыть раздачу во втором случае и не вправе в первом. Ключа нет —
+    /// человек слова не говорил.
+    pub lan_sharing_declined: Option<bool>,
+
     pub use_default_bypass: Option<bool>,
 
     pub system_proxy_bypass: Option<String>,
@@ -591,6 +599,7 @@ impl IVerge {
         patch!(enable_auto_light_weight_mode);
         patch!(auto_light_weight_minutes);
         patch!(enable_dns_settings);
+        patch!(lan_sharing_declined);
         patch!(enable_external_controller);
         patch!(enable_hwid);
         patch!(hwid);

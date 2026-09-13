@@ -142,6 +142,11 @@ pub struct Config {
     runtime_config: Draft<IRuntime>,
 }
 
+/// Раздача из собранного конфига, если ключ в нём есть.
+fn allow_lan_in(config: Option<&Mapping>) -> Option<bool> {
+    config?.get("allow-lan")?.as_bool()
+}
+
 /// Порт слушателя из собранного конфига, если ключ в нём есть.
 fn mixed_port_in(config: Option<&Mapping>) -> Option<u16> {
     let value = config?.get("mixed-port")?.clone();
@@ -200,6 +205,28 @@ impl Config {
             return port;
         }
         Self::clash().await.latest_arc().get_mixed_port()
+    }
+
+    /// Раздаёт ли ядро прокси в локальную сеть НА САМОМ ДЕЛЕ.
+    ///
+    /// clod:lan-share — спрашивать про раздачу наши собственные настройки
+    /// нельзя: подписка со своим списком адресов вправе её открыть, и тогда
+    /// ядро встаёт на все интерфейсы, а не на петлю. Источник истины один, и
+    /// это СОБРАННЫЙ конфиг — ровно как с портом.
+    pub async fn effective_allow_lan() -> bool {
+        let runtime = Self::runtime().await;
+        let from_runtime = allow_lan_in(runtime.data_arc().config.as_ref())
+            .or_else(|| allow_lan_in(runtime.latest_arc().config.as_ref()));
+        if let Some(sharing) = from_runtime {
+            return sharing;
+        }
+        Self::clash()
+            .await
+            .latest_arc()
+            .0
+            .get("allow-lan")
+            .and_then(serde_yaml_ng::Value::as_bool)
+            .unwrap_or(false)
     }
 
     /// Порт, с которым ядро только что ЗАПУЩЕНО или перезагружено.

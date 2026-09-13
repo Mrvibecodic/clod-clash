@@ -128,14 +128,10 @@ const fn listener_address(allow_lan: bool) -> IpAddr {
 
 #[tauri::command]
 pub async fn is_port_in_use(port: u16) -> bool {
-    let allow_lan = crate::config::Config::clash()
-        .await
-        .latest_arc()
-        .0
-        .get("allow-lan")
-        .and_then(serde_yaml_ng::Value::as_bool)
-        .unwrap_or(false);
-    port_is_taken_at(listener_address(allow_lan), port)
+    port_is_taken_at(
+        listener_address(crate::config::Config::effective_allow_lan().await),
+        port,
+    )
 }
 
 #[cfg(test)]
