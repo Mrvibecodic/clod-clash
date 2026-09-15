@@ -505,33 +505,6 @@ fn enforce_dns_page(mut config: Mapping, snapshot: Mapping) -> Mapping {
     config
 }
 
-fn is_loopback_bind_address(addr: &str) -> bool {
-    let addr = addr.trim();
-    let addr = addr
-        .strip_prefix('[')
-        .and_then(|addr| addr.strip_suffix(']'))
-        .unwrap_or(addr);
-
-    addr.eq_ignore_ascii_case("localhost")
-        || addr.parse::<std::net::IpAddr>().is_ok_and(|addr| addr.is_loopback())
-        || is_ipv4_shorthand_loopback(addr)
-}
-
-fn is_ipv4_shorthand_loopback(addr: &str) -> bool {
-    let parts = addr.split('.').map(str::parse::<u32>).collect::<Result<Vec<_>, _>>();
-
-    let Ok(parts) = parts else {
-        return false;
-    };
-
-    match parts.as_slice() {
-        [first, rest] => *first == 127 && *rest <= 0x00ff_ffff,
-        [first, second, rest] => *first == 127 && *second <= 0xff && *rest <= 0xffff,
-        [first, second, third, fourth] => *first == 127 && *second <= 0xff && *third <= 0xff && *fourth <= 0xff,
-        _ => false,
-    }
-}
-
 /// Сеть из списка раздачи: адрес и длина префикса.
 ///
 /// clod:lan-share — ядро держит эти списки как `netip.Prefix` и применяет их
@@ -546,12 +519,33 @@ struct LanPrefix {
 }
 
 impl LanPrefix {
+    /// Разбор ровно по правилам `netip.ParsePrefix` ядра: без пробелов внутри,
+    /// без знака и ведущих нулей в длине — иначе запись считается разобранной
+    /// у нас и роняет старт ядра.
     fn parse(text: &str) -> Option<Self> {
         let (addr, bits) = text.trim().split_once('/')?;
-        let addr: std::net::IpAddr = addr.trim().parse().ok()?;
-        let bits: u8 = bits.trim().parse().ok()?;
+        let addr: std::net::IpAddr = addr.parse().ok()?;
+        let plain_decimal = !bits.is_empty()
+            && bits.len() <= 3
+            && bits.bytes().all(|byte| byte.is_ascii_digit())
+            && (bits == "0" || !bits.starts_with('0'));
+        let bits: u8 = plain_decimal.then(|| bits.parse().ok()).flatten()?;
         let width = if addr.is_ipv4() { 32 } else { 128 };
         (bits <= width).then_some(Self { addr, bits })
+    }
+
+    fn contains_prefix(self, other: Self) -> bool {
+        other.bits >= self.bits && self.contains(other.addr)
+    }
+
+    /// Лежит ли сеть целиком внутри адресов, которые в интернете не
+    /// маршрутизируются: петля, частные сети, link-local, общее пространство
+    /// операторов. Только такую сеть можно назвать «локальной».
+    fn is_a_local_network(self) -> bool {
+        LOCAL_NETWORKS
+            .iter()
+            .filter_map(|text| Self::parse(text))
+            .any(|local| local.contains_prefix(self))
     }
 
     fn contains(self, other: std::net::IpAddr) -> bool {
@@ -566,12 +560,22 @@ impl LanPrefix {
         }
     }
 
-    /// Префикс нулевой длины — это «весь адресный простор», то есть раздача
-    /// всему интернету, а не локальной сети.
-    const fn covers_every_address(self) -> bool {
-        self.bits == 0
-    }
 }
+
+/// Сети, которые не ходят по интернету: за их пределами «раздача в локальную
+/// сеть» превращается в открытый прокси для всего мира — хоть одним `/0`,
+/// хоть парой `/1`, хоть чужой публичной подсетью.
+const LOCAL_NETWORKS: &[&str] = &[
+    "127.0.0.0/8",
+    "10.0.0.0/8",
+    "172.16.0.0/12",
+    "192.168.0.0/16",
+    "169.254.0.0/16",
+    "100.64.0.0/10",
+    "::1/128",
+    "fc00::/7",
+    "fe80::/10",
+];
 
 fn shares_the_prefix(net: &[u8], ip: &[u8], bits: u8) -> bool {
     let whole = usize::from(bits / 8);
@@ -654,12 +658,13 @@ enum LanSharing {
 /// clod:lan-share — умолчание ядра для списка разрешённых — весь мир, поэтому
 /// `allow-lan: true` без списка (так делают два боевых шаблона) открывает прокси
 /// всему интернету. Открываем только под непустым списком, который целиком
-/// разобрался и не содержит префикса нулевой длины.
+/// разобрался и целиком лежит в локальных сетях: правило задано тем, что
+/// разрешено, а не перечнем запрещённых форм, — обойти его нечем.
 fn the_subscription_may_open_sharing(allowed: Option<&PrefixList>) -> bool {
     let Some(list) = allowed else {
         return false;
     };
-    list.whole && !list.kept.is_empty() && !parsed(&list.kept).iter().any(|prefix| prefix.covers_every_address())
+    list.whole && !list.kept.is_empty() && parsed(&list.kept).iter().all(|prefix| prefix.is_a_local_network())
 }
 
 /// Список, в котором приложение наверняка достучится до собственного прокси.
@@ -735,25 +740,15 @@ fn apply_lan_sharing(mut config: Mapping, decision: LanSharing) -> Mapping {
         }
         LanSharing::On { allowed, disallowed } => {
             config.insert(Value::from("allow-lan"), Value::from(true));
+            // Слушатель — всегда на всех интерфейсах: ядро ставит его ровно на
+            // `bind-address` (`genAddr`), и любой конкретный адрес — петля или
+            // адрес одной сети — отрезает приложение от собственного прокси на
+            // 127.0.0.1, а список разрешённых и так решает, кого пускать.
+            config.insert(Value::from("bind-address"), Value::from("*"));
             put_list(&mut config, "lan-allowed-ips", allowed);
             put_list(&mut config, "lan-disallowed-ips", disallowed);
         }
     }
-    config
-}
-
-fn ensure_lan_bind_address(mut config: Mapping) -> Mapping {
-    let allow_lan = config.get("allow-lan").and_then(Value::as_bool).unwrap_or(false);
-
-    if allow_lan
-        && config
-            .get("bind-address")
-            .and_then(Value::as_str)
-            .is_some_and(is_loopback_bind_address)
-    {
-        config.insert(Value::from("bind-address"), Value::from("*"));
-    }
-
     config
 }
 
@@ -1789,7 +1784,6 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
         );
     }
     let config = apply_lan_sharing(config, sharing);
-    let config = ensure_lan_bind_address(config);
     let config = ensure_store_selected(config);
 
     let (config, sentinel_report) = if profile_is_remote && !profile_shows_zero_hosts {
@@ -1827,7 +1821,7 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
 mod tests {
     use super::{
         ChainItem, ChainType, Draft, IRuntime, MAX_REPORTED_REMARKS, backfill_empty_groups, cleanup_proxy_groups,
-        collect_server_descriptions, ensure_lan_bind_address, ensure_store_selected, filter_sentinel_proxies,
+        collect_server_descriptions, ensure_store_selected, filter_sentinel_proxies,
         process_global_items, process_profile_items, server_descriptions_of, unpin_providers_from_rejection, use_keys,
     };
     use std::collections::HashMap;
@@ -2190,42 +2184,26 @@ mod tests {
         );
     }
 
+    /// Ядро ставит слушателя ровно на `bind-address`; при раздаче он обязан
+    /// стоять на всех интерфейсах, что бы ни написала подписка или цепочка, —
+    /// иначе приложение теряет собственный прокси на петле.
     #[test]
-    fn lan_bind_address_loopback_is_widened() {
-        for bind_address in [
-            "localhost",
-            "127.0.0.1",
-            "127.0.0.2",
-            "127.1",
-            "::1",
-            "[::1]",
-            "0:0:0:0:0:0:0:1",
-        ] {
-            let result = ensure_lan_bind_address(mapping(&format!(
-                r#"{{allow-lan: true, bind-address: "{bind_address}"}}"#
-            )));
+    fn with_sharing_on_the_listener_stands_on_every_interface() {
+        for bind_address in ["localhost", "127.0.0.1", "127.1", "::1", "[::1]", "192.168.1.2", "*"] {
+            let config = super::apply_lan_sharing(
+                mapping(&format!(r#"{{allow-lan: false, bind-address: "{bind_address}"}}"#)),
+                super::LanSharing::On {
+                    allowed: Some(vec!["192.168.1.0/24".to_owned(), "127.0.0.0/8".to_owned()]),
+                    disallowed: None,
+                },
+            );
 
             assert_eq!(
-                result.get("bind-address").and_then(serde_yaml_ng::Value::as_str),
+                config.get("bind-address").and_then(serde_yaml_ng::Value::as_str),
                 Some("*"),
-                "bind-address {bind_address} should be widened"
+                "bind-address {bind_address}: слушатель встал не на все интерфейсы"
             );
         }
-    }
-
-    #[test]
-    fn lan_bind_address_preserves_custom_or_disabled() {
-        let custom = ensure_lan_bind_address(mapping(r#"{allow-lan: true, bind-address: "192.168.1.2"}"#));
-        assert_eq!(
-            custom.get("bind-address").and_then(serde_yaml_ng::Value::as_str),
-            Some("192.168.1.2")
-        );
-
-        let disabled = ensure_lan_bind_address(mapping(r#"{allow-lan: false, bind-address: "127.0.0.1"}"#));
-        assert_eq!(
-            disabled.get("bind-address").and_then(serde_yaml_ng::Value::as_str),
-            Some("127.0.0.1")
-        );
     }
 
     fn lan(text: &str) -> super::LanRequest {
@@ -2295,6 +2273,11 @@ mod tests {
             "::1/129",
             "/8",
             "192.168.1.0/x",
+            "192.168.1.0/+24",
+            "192.168.1.0/024",
+            "192.168.1.0 / 24",
+            "192.168.1.0/ 24",
+            "fe80::1%eth0/64",
         ] {
             assert!(
                 super::LanPrefix::parse(text).is_none(),
@@ -2313,14 +2296,50 @@ mod tests {
         for text in [
             "{allow-lan: true}",
             "{allow-lan: true, lan-allowed-ips: []}",
+            r#"{allow-lan: true, lan-allowed-ips: "192.168.1.0/24"}"#,
             r#"{allow-lan: true, lan-allowed-ips: ["0.0.0.0/0"]}"#,
             r#"{allow-lan: true, lan-allowed-ips: ["::/0"]}"#,
+            r#"{allow-lan: true, lan-allowed-ips: ["0.0.0.0/1", "128.0.0.0/1"]}"#,
+            r#"{allow-lan: true, lan-allowed-ips: ["::/1", "8000::/1"]}"#,
             r#"{allow-lan: true, lan-allowed-ips: ["192.168.1.0/24", "0.0.0.0/0"]}"#,
+            r#"{allow-lan: true, lan-allowed-ips: ["192.168.1.0/24", "8.8.8.0/24"]}"#,
+            r#"{allow-lan: true, lan-allowed-ips: ["192.0.0.0/8"]}"#,
+            r#"{allow-lan: true, lan-allowed-ips: ["172.0.0.0/8"]}"#,
+            r#"{allow-lan: true, lan-allowed-ips: ["100.0.0.0/8"]}"#,
+            r#"{allow-lan: true, lan-allowed-ips: ["2001:db8::/32"]}"#,
+            r#"{allow-lan: true, lan-allowed-ips: ["::ffff:10.0.0.0/104"]}"#,
             r#"{allow-lan: true, lan-allowed-ips: ["192.168.1.0/24", "мусор"]}"#,
+            r#"{allow-lan: true, lan-allowed-ips: ["192.168.1.0/024"]}"#,
         ] {
             assert!(
                 !shared(&super::decide_lan_sharing(false, declined, &lan(text))),
                 "{text}: раздача открыта по одной просьбе подписки"
+            );
+        }
+    }
+
+    /// Правило задано разрешённым, а не запрещённым: любая сеть внутри
+    /// немаршрутизируемых диапазонов проходит, включая link-local и общее
+    /// пространство операторов.
+    #[test]
+    fn every_network_inside_the_local_ranges_lets_the_subscription_open_sharing() {
+        for list in [
+            r#"["127.0.0.0/8"]"#,
+            r#"["10.1.2.0/24"]"#,
+            r#"["172.31.255.0/24"]"#,
+            r#"["192.168.0.0/16"]"#,
+            r#"["169.254.10.0/24"]"#,
+            r#"["100.64.0.0/10"]"#,
+            r#"["100.127.255.255/32"]"#,
+            r#"["::1/128"]"#,
+            r#"["fd12:3456::/48"]"#,
+            r#"["fe80::/64"]"#,
+            r#"["192.168.1.7/32", "fc00::/7"]"#,
+        ] {
+            let text = format!("{{allow-lan: true, lan-allowed-ips: {list}}}");
+            assert!(
+                shared(&super::decide_lan_sharing(false, false, &lan(&text))),
+                "{text}: локальная сеть не признана локальной"
             );
         }
     }
