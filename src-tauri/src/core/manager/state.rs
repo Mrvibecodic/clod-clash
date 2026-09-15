@@ -7,8 +7,6 @@ use crate::{
     logging,
     utils::dirs,
 };
-#[cfg(target_os = "windows")]
-use anyhow::Context as _;
 use anyhow::Result;
 use clash_verge_logging::Type;
 use clash_verge_service_ipc::ServiceLifecycleState;
