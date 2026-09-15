@@ -559,7 +559,6 @@ impl LanPrefix {
             _ => false,
         }
     }
-
 }
 
 /// Сети, которые не ходят по интернету: за их пределами «раздача в локальную
@@ -1821,8 +1820,8 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
 mod tests {
     use super::{
         ChainItem, ChainType, Draft, IRuntime, MAX_REPORTED_REMARKS, backfill_empty_groups, cleanup_proxy_groups,
-        collect_server_descriptions, ensure_store_selected, filter_sentinel_proxies,
-        process_global_items, process_profile_items, server_descriptions_of, unpin_providers_from_rejection, use_keys,
+        collect_server_descriptions, ensure_store_selected, filter_sentinel_proxies, process_global_items,
+        process_profile_items, server_descriptions_of, unpin_providers_from_rejection, use_keys,
     };
     use std::collections::HashMap;
 
