@@ -143,6 +143,10 @@ struct State {
     liveness: AtomicU8,
     child_sidecar: ArcSwapOption<CommandChild>,
     sidecar_pid: AtomicU32,
+    /// Номер процесса ядра под службой — последний, о котором служба
+    /// сообщила. Нужен, чтобы доказать смерть ядра, когда сама служба
+    /// перестала отвечать.
+    service_core_pid: AtomicU32,
 }
 
 impl Default for State {
@@ -152,6 +156,7 @@ impl Default for State {
             liveness: AtomicU8::new(Liveness::Down as u8),
             child_sidecar: ArcSwapOption::new(None),
             sidecar_pid: AtomicU32::new(0),
+            service_core_pid: AtomicU32::new(0),
         }
     }
 }
@@ -223,11 +228,20 @@ impl CoreManager {
         state.liveness.store(Liveness::Up as u8, Ordering::Release);
     }
 
+    /// Остановка объявляется только живому ядру: доказанно мёртвое (`Down`)
+    /// от этого не оживает, а запоздалый выход мёртвого процесса и так
+    /// отсекается режимом «не запущено».
     pub(super) fn note_stopping(&self) {
-        self.state
-            .load()
-            .liveness
-            .store(Liveness::Stopping as u8, Ordering::Release);
+        let state = self.state.load();
+        for was in [Liveness::Up, Liveness::StopFailed] {
+            if state
+                .liveness
+                .compare_exchange(was as u8, Liveness::Stopping as u8, Ordering::AcqRel, Ordering::Acquire)
+                .is_ok()
+            {
+                return;
+            }
+        }
     }
 
     pub(super) fn note_core_is_down(&self) {
@@ -306,6 +320,20 @@ impl CoreManager {
 
     pub(super) fn clear_sidecar_pid(&self) {
         self.state.load().sidecar_pid.store(0, Ordering::Release);
+    }
+
+    pub(super) fn service_core_pid(&self) -> Option<u32> {
+        match self.state.load().service_core_pid.load(Ordering::Acquire) {
+            0 => None,
+            pid => Some(pid),
+        }
+    }
+
+    pub(super) fn remember_service_core_pid(&self, pid: Option<u32>) {
+        self.state
+            .load()
+            .service_core_pid
+            .store(pid.unwrap_or(0), Ordering::Release);
     }
 
     pub fn take_child_sidecar(&self) -> Option<CommandChild> {
@@ -438,6 +466,37 @@ mod tests {
 
         assert!(!manager.stop_failed());
         assert_eq!(*manager.get_running_mode(), RunningMode::NotRunning);
+        assert!(manager.refuse_to_double_the_core().is_ok());
+    }
+
+    /// Остановка мёртвого ядра (падение во время проверки готовности, а
+    /// следом плановая уборка) не превращает «нет» в «останавливается»: иначе
+    /// отказ убийства уже мёртвого процесса записался бы как «не остановилось».
+    #[test]
+    fn a_stop_of_a_core_already_gone_never_reads_as_a_failed_stop() {
+        let manager = CoreManager::default();
+        manager.note_core_is_up(Backend::Sidecar);
+        manager.note_core_is_down();
+        manager.note_stopping();
+        manager.note_stop_failed();
+
+        assert!(!manager.stop_failed());
+        assert_eq!(*manager.get_running_mode(), RunningMode::NotRunning);
+        assert!(manager.refuse_to_double_the_core().is_ok());
+    }
+
+    /// Повторная остановка из «не остановилось» — снова остановка того же
+    /// живого ядра, а доказанная смерть открывает путь старту.
+    #[test]
+    fn a_second_stop_after_a_failed_one_can_still_prove_the_death() {
+        let manager = CoreManager::default();
+        manager.note_core_is_up(Backend::Service);
+        manager.note_stopping();
+        manager.note_stop_failed();
+        manager.note_stopping();
+        manager.note_core_is_down();
+
+        assert!(!manager.stop_failed());
         assert!(manager.refuse_to_double_the_core().is_ok());
     }
 

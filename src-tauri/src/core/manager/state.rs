@@ -7,7 +7,9 @@ use crate::{
     logging,
     utils::dirs,
 };
-use anyhow::{Context as _, Result};
+#[cfg(target_os = "windows")]
+use anyhow::Context as _;
+use anyhow::Result;
 use clash_verge_logging::Type;
 use clash_verge_service_ipc::ServiceLifecycleState;
 use compact_str::CompactString;
@@ -73,6 +75,17 @@ async fn point_core_client_at(socket_path: String) {
         let mut live = mirror.write().await;
         live.socket_path = handle::Handle::mihomo().await.socket_path.clone();
     });
+}
+
+/// Мёртво ли ядро после попытки остановки: таблица процессов решает, исход
+/// команды убийства — только запасной ответ на случай, когда таблица не
+/// читается.
+const fn the_core_is_gone(kill_reported_ok: bool, look: crate::core::orphan::Look) -> bool {
+    match look {
+        crate::core::orphan::Look::Gone => true,
+        crate::core::orphan::Look::Alive => false,
+        crate::core::orphan::Look::Unknown => kill_reported_ok,
+    }
 }
 
 fn exit_is_a_crash(current: &RunningMode, expected: &RunningMode, app_exiting: bool) -> bool {
@@ -141,9 +154,17 @@ pub(super) fn handle_core_exit(message: &str, expected: &RunningMode, terminated
         None => manager.clear_sidecar_pid(),
     }
 
+    // Поздняя смерть ядра, которое остановка не смогла убить: это не
+    // падение (воскрешать нельзя — человек просил остановить), но и не
+    // молчание: остановка давно отчиталась отказом, о смерти теперь никто,
+    // кроме этого места, трею и главной не скажет.
+    let a_stop_that_failed_just_finished = manager.stop_failed();
     manager.note_core_is_down();
     if asked_for {
         logging!(info, Type::Core, "core exited as asked: {}", message);
+        if a_stop_that_failed_just_finished {
+            manager.after_core_process();
+        }
         return;
     }
 
@@ -439,7 +460,11 @@ pub(super) fn spawn_service_health_watchdog() {
                 skipped = 0;
             }
 
-            let mut step = watch.observe(sample_the_service().await);
+            let sample = sample_the_service().await;
+            if let ServiceSample::Status { core_pid, .. } = &sample {
+                manager.remember_service_core_pid(*core_pid);
+            }
+            let mut step = watch.observe(sample);
             if matches!(step, HealthStep::ProbeTheCore) {
                 let answers = core_answers().await;
                 if !answers {
@@ -567,21 +592,10 @@ impl CoreManager {
             "the core process {} is alive but stopped answering; killing it before the restart",
             pid
         );
-        let killed = match self.take_child_sidecar() {
-            Some(child) => {
-                #[cfg(target_os = "windows")]
-                self.set_job_handle(None);
-                match child.kill() {
-                    Ok(()) => true,
-                    Err(e) => {
-                        logging!(warn, Type::Core, "failed to kill the hung core process {}: {}", pid, e);
-                        false
-                    }
-                }
-            }
-            None => crate::core::orphan::kill_process(pid).await,
-        };
-        if !killed {
+        // Намерение здесь — «ядро должно работать», поэтому `Stopping` не
+        // ставится: доказанная смерть уходит в обычный путь падения с
+        // перезапуском.
+        if !self.kill_the_sidecar_and_prove_it(Some(pid)).await {
             self.note_stop_failed();
             logging!(
                 error,
@@ -721,23 +735,36 @@ impl CoreManager {
         CORE_WATCHDOG_GENERATION.fetch_add(1, Ordering::AcqRel);
         let pid = self.sidecar_pid();
         self.note_stopping();
-        match self.kill_the_sidecar(pid).await {
-            Ok(()) => {
-                self.clear_sidecar_pid();
-                self.note_core_is_down();
-                Ok(())
-            }
-            Err(error) => {
-                self.note_stop_failed();
-                Err(error)
-            }
+        if self.kill_the_sidecar_and_prove_it(pid).await {
+            self.clear_sidecar_pid();
+            self.note_core_is_down();
+            return Ok(());
         }
+        self.note_stop_failed();
+        anyhow::bail!(
+            "процесс ядра {} не остановлен: он всё ещё в таблице процессов",
+            pid.unwrap_or(0)
+        )
     }
 
-    async fn kill_the_sidecar(&self, pid: Option<u32>) -> Result<()> {
-        match self.take_child_sidecar() {
+    /// Убить процесс ядра и ДОКАЗАТЬ его смерть. `true` — процесса больше нет.
+    ///
+    /// clod:stop-proof — исход самой команды убийства ни на что не влияет:
+    /// `CommandChild::kill` отчитывается за системный вызов, `kill_process` —
+    /// за отправленный сигнал, а на Windows процесс к тому же добивает
+    /// закрытие Job-объекта, и `kill()` по уже умирающему процессу вправе
+    /// вернуть ошибку. Единственный источник правды — таблица процессов;
+    /// команда лишь пишет свой исход в журнал, а решает `wait_until_gone`.
+    /// Когда таблица не читается вовсе, верим исходу команды — хуже прежнего
+    /// поведения это не делает.
+    async fn kill_the_sidecar_and_prove_it(&self, pid: Option<u32>) -> bool {
+        let mut pid = pid;
+        let kill_reported_ok = match self.take_child_sidecar() {
             Some(child) => {
-                let pid = child.pid();
+                // Номер мог быть уже стёрт обработкой смерти (падение во время
+                // проверки готовности): доказательство берётся с самой ссылки,
+                // иначе мёртвый процесс числился бы «не остановившимся».
+                let pid = *pid.get_or_insert_with(|| child.pid());
 
                 #[cfg(target_os = "windows")]
                 {
@@ -750,19 +777,30 @@ impl CoreManager {
                     );
                 }
 
-                child
-                    .kill()
-                    .with_context(|| format!("процесс ядра {pid} не остановлен"))?;
-                logging!(trace, Type::Core, "Sidecar stopped (PID: {:?})", pid);
-                Ok(())
+                match child.kill() {
+                    Ok(()) => true,
+                    Err(error) => {
+                        logging!(warn, Type::Core, "kill() по процессу ядра {pid} отказал: {error}");
+                        false
+                    }
+                }
             }
             None => match pid {
-                Some(pid) if !crate::core::orphan::kill_process(pid).await => {
-                    anyhow::bail!("процесс ядра {pid} не остановлен: убить по номеру не удалось")
-                }
-                _ => Ok(()),
+                Some(pid) => crate::core::orphan::kill_process(pid).await,
+                None => return true,
             },
-        }
+        };
+        let Some(pid) = pid else {
+            return kill_reported_ok;
+        };
+        let look = crate::core::orphan::wait_until_gone(pid, crate::core::orphan::DEATH_PROOF_BUDGET).await;
+        let gone = the_core_is_gone(kill_reported_ok, look);
+        logging!(
+            trace,
+            Type::Core,
+            "sidecar {pid}: kill reported {kill_reported_ok}, process table says {look:?}, gone = {gone}"
+        );
+        gone
     }
 
     pub(super) async fn start_core_by_service(&self) -> Result<()> {
@@ -813,20 +851,57 @@ impl CoreManager {
         }
     }
 
+    /// clod:stop-proof — успех IPC здесь доказательство: служба убивает
+    /// ядро через `tokio::process::Child::kill`, который ждёт смерти, и только
+    /// потом отвечает (`clash-verge-service-ipc`, `CoreManager::stop_core`).
+    /// Не доказан ОТКАЗ: ошибка IPC значит «служба не ответила», а не «ядро
+    /// живо» — служба могла умереть вместе со своим ядром или раньше него.
+    /// Тогда смерть ядра проверяется по номеру процесса, который служба
+    /// сообщала сторожу, а без номера — по таблице процессов целиком.
     pub(super) async fn stop_core_by_service(&self) -> Result<()> {
         logging!(info, Type::Core, "Stopping service");
         CORE_WATCHDOG_GENERATION.fetch_add(1, Ordering::AcqRel);
         self.note_stopping();
-        match service::stop_core_by_service().await {
-            Ok(()) => {
-                self.clear_sidecar_pid();
-                self.note_core_is_down();
-                Ok(())
-            }
+        let stop = service::stop_core_by_service().await;
+        let gone = match &stop {
+            Ok(()) => true,
             Err(error) => {
-                self.note_stop_failed();
-                Err(error)
+                let gone = self.the_service_core_is_gone().await;
+                logging!(
+                    warn,
+                    Type::Core,
+                    "служба не остановила ядро ({error:#}); таблица процессов: ядра {}",
+                    if gone { "нет" } else { "живо" }
+                );
+                gone
             }
+        };
+        if gone {
+            self.remember_service_core_pid(None);
+            self.clear_sidecar_pid();
+            self.note_core_is_down();
+            return Ok(());
+        }
+        self.note_stop_failed();
+        stop
+    }
+
+    async fn the_service_core_is_gone(&self) -> bool {
+        use crate::core::orphan::{
+            DEATH_PROOF_BUDGET, Look, another_core_of_ours_is_running, pid_belongs_to_our_core, wait_until_gone,
+        };
+
+        match self.service_core_pid() {
+            Some(pid) => match wait_until_gone(pid, DEATH_PROOF_BUDGET).await {
+                Look::Gone => true,
+                // Служба сообщала этот номер давно: он мог перейти к чужому
+                // процессу, и тогда ядра под службой уже нет.
+                Look::Alive => !pid_belongs_to_our_core(pid).await,
+                // Номер известен, а таблица не читается: считать ядро мёртвым
+                // по неведению нельзя — это и есть путь к двойному запуску.
+                Look::Unknown => false,
+            },
+            None => !another_core_of_ours_is_running(None, false).await,
         }
     }
 }
@@ -874,6 +949,23 @@ fn create_and_assign_sidecar_job(child_pid: u32) -> Result<OwnedHandle> {
 #[cfg(target_os = "windows")]
 fn last_win32_error(operation: &'static str) -> anyhow::Error {
     anyhow::Error::new(std::io::Error::last_os_error()).context(operation)
+}
+
+#[cfg(test)]
+mod stop_proof_tests {
+    use super::the_core_is_gone;
+    use crate::core::orphan::Look;
+
+    /// Таблица процессов старше исхода команды в обе стороны; только когда
+    /// её не прочитать, слово остаётся за командой.
+    #[test]
+    fn the_process_table_outranks_the_kill_report() {
+        for kill_reported_ok in [true, false] {
+            assert!(the_core_is_gone(kill_reported_ok, Look::Gone));
+            assert!(!the_core_is_gone(kill_reported_ok, Look::Alive));
+            assert_eq!(the_core_is_gone(kill_reported_ok, Look::Unknown), kill_reported_ok);
+        }
+    }
 }
 
 #[cfg(test)]

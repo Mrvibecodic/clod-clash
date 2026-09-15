@@ -1,4 +1,7 @@
-use std::path::Path;
+use std::{
+    path::Path,
+    time::{Duration, Instant},
+};
 
 use clash_verge_logging::{Type, logging};
 use sysinfo::{ProcessRefreshKind, ProcessStatus, ProcessesToUpdate, System, UpdateKind};
@@ -194,6 +197,51 @@ pub async fn process_is_alive(pid: u32) -> bool {
     look_at_process(pid).await != Look::Gone
 }
 
+/// Наше ли это ядро: номер процесса после смерти ядра достаётся другим, и
+/// чужой процесс под старым номером не должен читаться как «ядро живо».
+/// Когда путь исполняемого файла не узнать, ошибаемся в сторону жизни.
+pub async fn pid_belongs_to_our_core(pid: u32) -> bool {
+    let known = known_core_paths().await;
+    tokio::task::spawn_blocking(move || {
+        let pid = sysinfo::Pid::from_u32(pid);
+        let mut system = System::new();
+        system.refresh_processes_specifics(
+            ProcessesToUpdate::Some(&[pid]),
+            true,
+            ProcessRefreshKind::nothing().with_exe(UpdateKind::Always),
+        );
+        match system.process(pid).and_then(sysinfo::Process::exe) {
+            Some(exe) => is_known_core(exe, &known),
+            None => true,
+        }
+    })
+    .await
+    .unwrap_or(true)
+}
+
+/// Сколько ждать исчезновения процесса после убийства. SIGKILL и
+/// TerminateProcess срабатывают за миллисекунды, и обычно хватает первого
+/// взгляда; потолок — на случай, когда ядро висит в ядре ОС на вводе-выводе.
+pub const DEATH_PROOF_BUDGET: Duration = Duration::from_secs(2);
+const DEATH_PROOF_STEP: Duration = Duration::from_millis(50);
+
+/// Дождаться, пока процесс исчезнет из таблицы процессов.
+///
+/// clod:stop-proof — исход команды убийства смерть не доказывает: `kill()`
+/// говорит «системный вызов прошёл», сигнал — «отправлен», а на Windows
+/// `TerminateProcess` и вовсе асинхронный. Единственное доказательство —
+/// таблица процессов, и здесь она опрашивается до `Gone` или до потолка.
+/// `Unknown` (измерение не удалось) возвращается сразу — ждать нечего.
+pub async fn wait_until_gone(pid: u32, budget: Duration) -> Look {
+    let deadline = Instant::now() + budget;
+    loop {
+        match look_at_process(pid).await {
+            Look::Alive if Instant::now() < deadline => tokio::time::sleep(DEATH_PROOF_STEP).await,
+            look => return look,
+        }
+    }
+}
+
 /// Убить процесс по номеру. `true` — процесса больше нет или он убит;
 /// `false` — он на месте, а убить не вышло.
 pub async fn kill_process(pid: u32) -> bool {
@@ -244,9 +292,43 @@ pub async fn sweep_orphan_cores() {
 
 #[cfg(test)]
 mod tests {
-    use super::{comparable, is_known_core, parent_shields_the_core};
+    use super::{Look, comparable, is_known_core, parent_shields_the_core, wait_until_gone};
     use std::ffi::OsStr;
     use std::path::Path;
+    use std::process::{Command, Stdio};
+    use std::time::Duration;
+
+    fn spawn_long_lived() -> std::io::Result<std::process::Child> {
+        let mut command = if cfg!(windows) {
+            let mut command = Command::new("ping");
+            command.args(["-n", "999", "127.0.0.1"]);
+            command
+        } else {
+            let mut command = Command::new("sleep");
+            command.arg("999");
+            command
+        };
+        command.stdout(Stdio::null()).stderr(Stdio::null()).spawn()
+    }
+
+    /// Смерть доказывается таблицей процессов: убитый исчезает, живой нет.
+    #[tokio::test]
+    async fn a_killed_process_is_seen_gone_and_a_living_one_is_not() -> std::io::Result<()> {
+        let mut child = spawn_long_lived()?;
+        let pid = child.id();
+
+        assert_eq!(
+            wait_until_gone(pid, Duration::from_millis(200)).await,
+            Look::Alive,
+            "живой процесс объявлен исчезнувшим"
+        );
+
+        child.kill()?;
+        let look = wait_until_gone(pid, super::DEATH_PROOF_BUDGET).await;
+        let _ = child.wait();
+        assert_eq!(look, Look::Gone, "убитый процесс не исчез за потолок");
+        Ok(())
+    }
 
     #[test]
     fn only_exact_core_paths_match() {
