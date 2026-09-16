@@ -8,6 +8,66 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.1.10-alpha.4
+
+<!-- lang:en -->
+
+### Changed
+
+- The proxy port can be taken from the subscription, and the DNS page no longer switches off the system hosts file
+- Sharing to the local network follows the subscription's list of allowed addresses: a subscription can open sharing only to local networks, sharing switched off by hand stays off after a subscription update, and the list no longer locks the application out of its own proxy
+- Switching a server on the Home page no longer closes the connections
+- The stable update channel skips an address that serves a pre-release and reaches the regular build; the pre-release channel works on both ends
+- Log cleanup by age deletes old files again, and the default log size is the same everywhere
+
+### Fixed
+
+- The client no longer opens a DNS resolver to the network: the default block does not bring it up, and an address from the subscription is kept on the loopback
+- The system proxy is written only to a port the core has confirmed and never without a running core; a port taken by another application is always recognised, a failed removal is shown, your own auto-configuration is recognised and removed, and someone else's enabled proxy is left alone
+- A hung core is restarted even without the service, quitting no longer leaves a running core behind, and «no core» is shown in the tray and on the Home page
+- A failed core stop no longer looks like a missing core and no longer starts a second core process on top of the running one; a stop counts as done only when the process is actually gone
+- On quit the system proxy is removed within the first seconds and a cancelled quit puts it back; while quitting, the window, the tray and the hotkey no longer ask for permissions or close connections, and removing the service brings the core back up
+- The system proxy switch shows that it is working and ignores repeated clicks; the interface no longer freezes while the core client is busy
+- Connections are closed only when a real interface loses its address; virtual machine bridges are not taken for a path to the network, and every rule set gets its own time limit after the network returns
+- Factory geo databases reach installations that lack the marker, and «Update GeoData» under the service also updates the copies in the application folder
+- Backups no longer carry the device fingerprint, window geometry, file paths or core choice in either direction
+- Log masking survives a change of log settings, hides every address in a word and addresses with a path, and the report no longer reveals the subscription address
+- The ports dialog saves both halves of the settings, rejects a non-numeric port and keeps «as in the subscription»
+- The DNS page shows the old default :53 as an empty field; restoring DNS on macOS at quit has its own timeout
+- Notifications wait for the window when it is closed, a refusal during quit gets through, and there is no wall of repeats
+- The previous tray icon is removed only after the new one has been read; a downloaded update no longer stays in memory until restart
+- The connections summary counts applications correctly, core notifications show the version, and with the system proxy off the subscription is no longer requested twice
+
+<!-- lang:ru -->
+
+### Изменено
+
+- Порт прокси можно брать из подписки, а страница DNS больше не выключает системный файл hosts
+- Раздача в локальную сеть работает по списку адресов из подписки: подписка может открыть раздачу только в локальные сети, выключенная руками раздача не возвращается после обновления подписки, а сам список больше не запирает приложение от собственного прокси
+- Смена сервера на главной больше не рвёт соединения
+- Стабильный канал обновлений обходит адрес с предварительной сборкой и доходит до обычной; канал предварительных сборок работает с обеих сторон
+- Автоочистка журналов по возрасту снова удаляет старые файлы, а умолчание размера журнала одно на всех
+
+### Исправлено
+
+- Клиент больше не открывает DNS-резолвер в сеть: заводской блок его не поднимает, а адрес из подписки держится в петле
+- Системный прокси пишется только на порт, подтверждённый ядром, и никогда без живого ядра; занятый чужим приложением порт распознаётся всегда, отказ снятия виден, своя автонастройка признаётся своей и снимается, а чужой включённый прокси не гасится
+- Зависшее ядро перезапускается и без службы, выход не бросает живое ядро, а «ядра нет» видно в трее и на главной
+- Неудавшаяся остановка ядра больше не выглядит как отсутствие ядра и не поднимает второй процесс поверх живого; остановка считается состоявшейся только по исчезновению процесса
+- При выходе системный прокси снимается в первые секунды, а отменённый выход возвращает его; во время выхода окно, трей и горячая клавиша не просят прав и не рвут соединения, а удаление службы поднимает ядро обратно
+- Тумблер системного прокси показывает работу и не принимает повторных нажатий; интерфейс не замирает, пока клиент ядра занят
+- Соединения рвутся только по исчезнувшему адресу настоящего интерфейса; мосты виртуальных машин не считаются путём наружу, а каждому набору правил после возврата сети — свой предел времени
+- Заводские гео-базы доезжают до установок без маркера, а «Обновить GeoData» под службой обновляет и копии в каталоге приложения
+- В резервную копию не уезжают и из неё не приезжают отпечаток устройства, геометрия окна, пути к файлам и выбор ядра
+- Маскировка секретов не теряется при смене настроек журнала, прячет все адреса в слове и адрес с путём, а отчёт не выдаёт адрес подписки
+- Диалог портов сохраняет обе половины настроек, отвергает нечисловой порт и не теряет «как в подписке»
+- Страница DNS показывает заводской :53 прежних сборок пустым полем; возврат DNS на macOS при выходе получил свой таймаут
+- Уведомления при закрытом окне ждут показа, отказ во время выхода доходит, стены повторов нет
+- Прежний значок трея удаляется только после того, как новый прочитан; скачанное обновление не висит в памяти до перезапуска
+- Сводка соединений правильно считает приложения, уведомления ядра показывают версию, а при выключенном системном прокси подписка не запрашивается дважды
+
+---
+
 ## v0.1.10-alpha.3
 
 <!-- lang:en -->
