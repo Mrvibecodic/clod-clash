@@ -42,6 +42,7 @@ export const useModeWindowSize = () => {
     const appWindow = getCurrentWebviewWindow()
     let wasMaximized = false
     let wasMinimized = false
+    let lastHeight = 0
     let scale = 1
     void appWindow
       .scaleFactor()
@@ -66,13 +67,19 @@ export const useModeWindowSize = () => {
         appWindow.isMinimized().catch(() => false),
       ])
       const transient = maximized || wasMaximized || minimized || wasMinimized
+      const heightChanged = Math.abs(height - lastHeight) >= 1
       wasMaximized = maximized
       wasMinimized = minimized
+      lastHeight = height
       if (transient) return
 
-      if (isSelfWindowResize(height)) {
+      if (heightChanged && isSelfWindowResize(height)) {
         markStartupWindowSettled()
-      } else if (!isStartupWindowGrace() && fitEnabledRef.current) {
+      } else if (
+        heightChanged &&
+        !isStartupWindowGrace() &&
+        fitEnabledRef.current
+      ) {
         suspendWindowFit()
         if (verdictTimerRef.current) clearTimeout(verdictTimerRef.current)
         verdictTimerRef.current = setTimeout(() => {
