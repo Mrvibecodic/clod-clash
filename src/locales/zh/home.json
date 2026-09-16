@@ -157,6 +157,7 @@
       "toSimple": "← Simple mode",
       "tiles": {
         "refresh": "Refresh subscription",
+        "refreshedAgo": "Updated {{ago}}",
         "subscriptions": "Subscriptions",
         "profilesHint": "订阅与规则",
         "proxiesHint": "服务器与分组",

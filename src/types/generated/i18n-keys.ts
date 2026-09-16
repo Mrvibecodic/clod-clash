@@ -141,6 +141,7 @@ export const translationKeys = [
   'home.pages.simple.toAdvanced',
   'home.pages.advanced.toSimple',
   'home.pages.advanced.tiles.refresh',
+  'home.pages.advanced.tiles.refreshedAgo',
   'home.pages.advanced.tiles.subscriptions',
   'home.pages.advanced.tiles.profilesHint',
   'home.pages.advanced.tiles.proxiesHint',

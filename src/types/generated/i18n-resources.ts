@@ -211,6 +211,7 @@ export interface TranslationResources {
             profilesHint: string
             proxiesHint: string
             refresh: string
+            refreshedAgo: string
             rulesHint: string
             settingsHint: string
             subscriptions: string

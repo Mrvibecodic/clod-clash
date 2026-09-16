@@ -9,7 +9,7 @@ import {
   Stack,
   Typography,
 } from '@mui/material'
-import { useLockFn } from 'ahooks'
+import { useInterval, useLockFn } from 'ahooks'
 import dayjs from 'dayjs'
 import { type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -32,6 +32,7 @@ import { useConnectTargets } from '@/hooks/use-connect-targets'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useSimpleMode } from '@/hooks/use-simple-mode'
 import { useToolShortcuts } from '@/hooks/use-tool-shortcuts'
+import { useVisibility } from '@/hooks/use-visibility'
 import { useFitWindowToContent } from '@/hooks/use-window-fit'
 import { CARD_SURFACE, SHAPE, TINT } from '@/pages/_theme'
 import { updateProfile } from '@/services/cmds'
@@ -46,9 +47,14 @@ interface TileProps {
   hint?: string
   onClick: () => void
   dense?: boolean
+  warn?: boolean
 }
 
-const Tile = ({ icon, label, hint, onClick, dense }: TileProps) => (
+const STALE_REFRESH_MS = 48 * 60 * 60 * 1000
+
+const NOW_TICK_MS = 60_000
+
+const Tile = ({ icon, label, hint, onClick, dense, warn }: TileProps) => (
   <ButtonBase
     onClick={onClick}
     sx={{
@@ -59,6 +65,10 @@ const Tile = ({ icon, label, hint, onClick, dense }: TileProps) => (
       gap: dense ? 1.25 : 1.5,
       p: dense ? 1.15 : 1.6,
       textAlign: 'left',
+      ...(warn && {
+        borderColor: 'warning.main',
+        bgcolor: (theme) => alpha(theme.palette.warning.main, TINT.base),
+      }),
       transition: (theme) =>
         theme.transitions.create(
           ['border-color', 'background-color', 'transform', 'box-shadow'],
@@ -84,8 +94,9 @@ const Tile = ({ icon, label, hint, onClick, dense }: TileProps) => (
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        color: 'primary.main',
-        bgcolor: (theme) => alpha(theme.palette.primary.main, TINT.base),
+        color: warn ? 'warning.main' : 'primary.main',
+        bgcolor: (theme) =>
+          alpha(theme.palette[warn ? 'warning' : 'primary'].main, TINT.base),
         flex: 'none',
       }}
     >
@@ -102,7 +113,7 @@ const Tile = ({ icon, label, hint, onClick, dense }: TileProps) => (
       {hint ? (
         <Typography
           variant="caption"
-          color="text.secondary"
+          color={warn ? 'warning.main' : 'text.secondary'}
           noWrap
           sx={{ display: 'block' }}
         >
@@ -126,6 +137,11 @@ const HomeAdvancedPage = () => {
   const [failure, setFailure] = useState<{ text: string; at: boolean }>()
   const [serverOpen, setServerOpen] = useState(false)
   const [intent, setIntent] = useState<'connecting' | 'disconnecting'>()
+  const visible = useVisibility()
+  const [tick, setTick] = useState(() => Date.now())
+  useInterval(() => setTick(Date.now()), visible ? NOW_TICK_MS : undefined, {
+    immediate: true,
+  })
 
   const errorText = failure?.at === connected ? failure.text : undefined
 
@@ -174,9 +190,15 @@ const HomeAdvancedPage = () => {
     return <HomeSimplePage />
   }
 
-  const refreshedHint = current.updated
-    ? dayjs(current.updated * 1000).format('DD.MM HH:mm')
+  const refreshedAt = current.updated ? current.updated * 1000 : undefined
+  const now = Math.max(tick, refreshedAt ?? 0)
+  const refreshedHint = refreshedAt
+    ? t('home.pages.advanced.tiles.refreshedAgo', {
+        ago: dayjs(refreshedAt).from(now),
+      })
     : undefined
+  const refreshStale =
+    refreshedAt !== undefined && now - refreshedAt > STALE_REFRESH_MS
 
   return (
     <Stack ref={fitRef} sx={{ height: '100%', overflowY: 'auto' }}>
@@ -274,6 +296,7 @@ const HomeAdvancedPage = () => {
               icon={<RefreshRoundedIcon fontSize="small" />}
               label={t('home.pages.advanced.tiles.refresh')}
               hint={refreshedHint}
+              warn={refreshStale}
               onClick={() => void refreshSubscription()}
             />
             <Tile

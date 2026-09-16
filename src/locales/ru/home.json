@@ -157,6 +157,7 @@
       "toSimple": "← Простой режим",
       "tiles": {
         "refresh": "Обновить подписку",
+        "refreshedAgo": "Обновлено {{ago}}",
         "subscriptions": "Подписки",
         "profilesHint": "управление подписками",
         "proxiesHint": "серверы и группы",

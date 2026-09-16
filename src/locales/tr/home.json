@@ -157,6 +157,7 @@
       "toSimple": "← Simple mode",
       "tiles": {
         "refresh": "Refresh subscription",
+        "refreshedAgo": "Updated {{ago}}",
         "subscriptions": "Subscriptions",
         "profilesHint": "manage subscriptions",
         "proxiesHint": "servers and groups",
