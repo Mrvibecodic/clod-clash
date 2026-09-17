@@ -17,6 +17,7 @@ import {
   openLogsDir,
 } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
+import { removeCacheData } from '@/services/query-client'
 import { checkUpdateSafe as checkUpdate } from '@/services/update'
 import { version } from '@root/package.json'
 
@@ -276,9 +277,10 @@ const SettingVergeAdvanced = ({ onError, variant = 'all' }: Props) => {
               onChange={(checked) =>
                 mutateVerge({ ...verge, receive_prereleases: checked }, false)
               }
-              onGuard={(checked) =>
-                patchVerge({ receive_prereleases: checked })
-              }
+              onGuard={async (checked) => {
+                await patchVerge({ receive_prereleases: checked })
+                void removeCacheData(['checkUpdate'])
+              }}
             >
               <Switch edge="end" />
             </GuardState>
