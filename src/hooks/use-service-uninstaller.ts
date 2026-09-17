@@ -23,8 +23,12 @@ export const useServiceUninstaller = () => {
         done: (key) => {
           showNotice.success(key)
         },
-        failed: (error) => {
-          showNotice.error(error)
+        failed: (error, consequence) => {
+          if (consequence) {
+            showNotice.error(consequence, error)
+          } else {
+            showNotice.error(error)
+          }
         },
       },
     )

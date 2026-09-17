@@ -712,7 +712,8 @@
         "geoDataUpdated": "قبل النواة طلب تحديث بيانات GeoData"
       },
       "clashService": {
-        "uninstallSuccess": "تم إلغاء تثبيت الخدمة بنجاح"
+        "uninstallSuccess": "تم إلغاء تثبيت الخدمة بنجاح",
+        "uninstallSkipped": "The service was not removed: stopping the core failed."
       },
       "updater": {
         "withClashProxySuccess": "Update with Clash proxy successfully",

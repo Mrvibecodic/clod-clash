@@ -712,7 +712,8 @@
         "geoDataUpdated": "内核已接受 GeoData 更新请求"
       },
       "clashService": {
-        "uninstallSuccess": "已成功卸载服务"
+        "uninstallSuccess": "已成功卸载服务",
+        "uninstallSkipped": "The service was not removed: stopping the core failed."
       },
       "updater": {
         "withClashProxySuccess": "使用 Clash 代理更新成功",

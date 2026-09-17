@@ -712,7 +712,8 @@
         "geoDataUpdated": "Çekirdek GeoData güncelleme isteğini kabul etti"
       },
       "clashService": {
-        "uninstallSuccess": "Hizmet Başarıyla Kaldırıldı"
+        "uninstallSuccess": "Hizmet Başarıyla Kaldırıldı",
+        "uninstallSkipped": "The service was not removed: stopping the core failed."
       },
       "updater": {
         "withClashProxySuccess": "Clash vekil ile güncelleme başarılı",

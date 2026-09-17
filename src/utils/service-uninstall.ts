@@ -20,13 +20,14 @@ export interface ServiceUninstallSteps {
 export interface ServiceUninstallTalk {
   busy: (key: string) => void
   done: (key: string) => void
-  failed: (error: unknown) => void
+  failed: (error: unknown, consequence?: string) => void
 }
 
 const UNINSTALL_STAGE = {
   stopping: 'settings.statuses.clash.stopping',
   uninstalling: 'settings.statuses.clashService.uninstalling',
   uninstalled: 'settings.feedback.notifications.clashService.uninstallSuccess',
+  skipped: 'settings.feedback.notifications.clashService.uninstallSkipped',
   restarting: 'settings.statuses.clash.restarting',
   restarted: 'settings.feedback.notifications.clash.restartSuccess',
 } as const
@@ -39,7 +40,9 @@ export const runServiceUninstall = async (
   try {
     await steps.stopCore()
   } catch (error) {
-    talk.failed(error)
+    // Человек нажимал «удалить службу», а не «остановить ядро»: одна причина
+    // отказа остановки не говорит ему, что служба осталась на месте.
+    talk.failed(error, UNINSTALL_STAGE.skipped)
     return
   }
 

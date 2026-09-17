@@ -712,7 +712,8 @@
         "geoDataUpdated": "Ядро GeoData яңарту соравын кабул итте"
       },
       "clashService": {
-        "uninstallSuccess": "Сервис уңышлы салдырылды"
+        "uninstallSuccess": "Сервис уңышлы салдырылды",
+        "uninstallSkipped": "The service was not removed: stopping the core failed."
       },
       "updater": {
         "withClashProxySuccess": "Update with Clash proxy successfully",

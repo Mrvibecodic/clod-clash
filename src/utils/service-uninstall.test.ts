@@ -27,7 +27,10 @@ const drive = async (steps: Partial<ServiceUninstallSteps>): Promise<Run> => {
     {
       busy: (key) => run.said.push(`busy:${key}`),
       done: (key) => run.said.push(`done:${key}`),
-      failed: (error) => run.failures.push(error),
+      failed: (error, consequence) => {
+        run.failures.push(error)
+        if (consequence) run.said.push(`failed:${consequence}`)
+      },
     },
   )
   return run
@@ -41,6 +44,12 @@ describe('удаление фоновой службы', () => {
     assert.deepEqual(run.called, ['stopCore'])
     assert.equal(run.failures.length, 1)
     assert.equal((run.failures[0] as Error).message, 'не удалось остановить')
+    assert.ok(
+      run.said.includes(
+        'failed:settings.feedback.notifications.clashService.uninstallSkipped',
+      ),
+      'вместе с причиной сказано, что служба осталась на месте',
+    )
     assert.ok(
       !run.said.some((said) => said.startsWith('done:')),
       'после отказа остановки успеха быть не может',

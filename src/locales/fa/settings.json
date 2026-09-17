@@ -712,7 +712,8 @@
         "geoDataUpdated": "هسته درخواست به‌روزرسانی GeoData را پذیرفت"
       },
       "clashService": {
-        "uninstallSuccess": "سرویس با موفقیت حذف نصب شد"
+        "uninstallSuccess": "سرویس با موفقیت حذف نصب شد",
+        "uninstallSkipped": "The service was not removed: stopping the core failed."
       },
       "updater": {
         "withClashProxySuccess": "با موفقیت با پروکسی کلش به‌روزرسانی شد",

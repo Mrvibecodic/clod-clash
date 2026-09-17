@@ -712,7 +712,8 @@
         "geoDataUpdated": "El núcleo aceptó la solicitud de actualización de GeoData"
       },
       "clashService": {
-        "uninstallSuccess": "Servicio desinstalado con éxito"
+        "uninstallSuccess": "Servicio desinstalado con éxito",
+        "uninstallSkipped": "The service was not removed: stopping the core failed."
       },
       "updater": {
         "withClashProxySuccess": "Actualización con el proxy de Clash exitosa",

@@ -816,6 +816,7 @@ export interface TranslationResources {
             versionUpdated: string
           }
           clashService: {
+            uninstallSkipped: string
             uninstallSuccess: string
           }
           updater: {

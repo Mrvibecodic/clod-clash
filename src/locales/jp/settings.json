@@ -712,7 +712,8 @@
         "geoDataUpdated": "コアが GeoData の更新要求を受け付けました"
       },
       "clashService": {
-        "uninstallSuccess": "サービスのアンインストールに成功しました。"
+        "uninstallSuccess": "サービスのアンインストールに成功しました。",
+        "uninstallSkipped": "The service was not removed: stopping the core failed."
       },
       "updater": {
         "withClashProxySuccess": "Clashプロキシを使用して更新に成功しました。",

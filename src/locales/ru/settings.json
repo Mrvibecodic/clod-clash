@@ -712,7 +712,8 @@
         "geoDataUpdated": "Ядро приняло запрос на обновление GeoData"
       },
       "clashService": {
-        "uninstallSuccess": "Служба успешно удалена"
+        "uninstallSuccess": "Служба успешно удалена",
+        "uninstallSkipped": "Служба не удалена: остановка ядра не удалась."
       },
       "updater": {
         "withClashProxySuccess": "Обновление через Clash proxy выполнено успешно",

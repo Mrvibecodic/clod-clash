@@ -712,7 +712,8 @@
         "geoDataUpdated": "코어가 GeoData 업데이트 요청을 접수했습니다"
       },
       "clashService": {
-        "uninstallSuccess": "서비스가 제거되었습니다"
+        "uninstallSuccess": "서비스가 제거되었습니다",
+        "uninstallSkipped": "The service was not removed: stopping the core failed."
       },
       "updater": {
         "withClashProxySuccess": "Clash 프록시로 업데이트 성공",

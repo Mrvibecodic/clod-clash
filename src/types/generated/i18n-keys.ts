@@ -848,6 +848,7 @@ export const translationKeys = [
   'settings.feedback.notifications.clash.changeFailed',
   'settings.feedback.notifications.clash.geoDataUpdated',
   'settings.feedback.notifications.clashService.uninstallSuccess',
+  'settings.feedback.notifications.clashService.uninstallSkipped',
   'settings.feedback.notifications.updater.withClashProxySuccess',
   'settings.feedback.notifications.updater.breakingChanges',
   'settings.statuses.clash.stopping',
