@@ -1,15 +1,26 @@
 use super::menu_def::MenuNode;
 use anyhow::Result;
 use ksni::menu::{CheckmarkItem, StandardItem, SubMenu};
-use ksni::{Handle, Icon, MenuItem, ToolTip, Tray, TrayMethods as _};
+use ksni::{Handle, Icon, MenuItem, OfflineReason, ToolTip, Tray, TrayMethods as _};
 use std::sync::OnceLock;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 static TRAY_HANDLE: OnceLock<Handle<ClodTray>> = OnceLock::new();
+/// Служба значков рабочего стола на связи. Она может появиться позже нас
+/// (автозапуск раньше панели) и пропасть на ходу; регистрацию при её
+/// появлении ksni повторяет сама.
+static WATCHER_ONLINE: AtomicBool = AtomicBool::new(true);
+static SPAWN_STARTED: AtomicBool = AtomicBool::new(false);
+static FALLBACK_ALLOWED: AtomicBool = AtomicBool::new(false);
 
 const SPAWN_ATTEMPTS: u8 = 3;
 const SPAWN_RETRY_DELAY: Duration = Duration::from_millis(700);
 const SPAWN_DEADLINE: Duration = Duration::from_secs(3);
+/// Сколько ждём службу значков, прежде чем показать запасной трей: панель на
+/// входе в сеанс и при своём перезапуске возвращается за секунды, а запасной
+/// значок, однажды построенный, из панели уже не убрать — только спрятать.
+pub const WATCHER_GRACE: Duration = Duration::from_secs(15);
 const UPDATE_TIMEOUT: Duration = Duration::from_secs(2);
 const ICON_SIZES: [u32; 3] = [22, 32, 48];
 
@@ -43,6 +54,15 @@ impl Tray for ClodTray {
 
     fn activate(&mut self, _x: i32, _y: i32) {
         super::handle_primary_click();
+    }
+
+    fn watcher_online(&self) {
+        the_watcher_is(true);
+    }
+
+    fn watcher_offline(&self, _reason: OfflineReason) -> bool {
+        the_watcher_is(false);
+        true
     }
 
     fn menu(&self) -> Vec<MenuItem<Self>> {
@@ -195,13 +215,34 @@ async fn decode_icon_off_thread(icon_bytes: &[u8]) -> Result<Vec<Icon>> {
     crate::process::AsyncHandler::spawn_blocking(move || decode_icon(&icon_bytes)).await?
 }
 
+/// Вызывается из обратных вызовов ksni — с её потока и под её замком, а
+/// паника здесь останавливает её службу насовсем. Поэтому только признак и
+/// отдельная задача; журнал пишет уже задача. Пока слушателя нет, идёт первая
+/// регистрация, и о запасном трее позаботится сама инициализация.
+fn the_watcher_is(online: bool) {
+    WATCHER_ONLINE.store(online, Ordering::SeqCst);
+    if TRAY_HANDLE.get().is_some() {
+        super::show_the_tray_that_works();
+    }
+}
+
 pub fn is_active() -> bool {
-    TRAY_HANDLE.get().is_some()
+    TRAY_HANDLE.get().is_some() && WATCHER_ONLINE.load(Ordering::SeqCst)
+}
+
+/// Свой трей запущен и ждёт службу значков, а срок ожидания ещё не вышел:
+/// запасной трей пока не строим.
+pub fn still_waits_for_the_watcher() -> bool {
+    TRAY_HANDLE.get().is_some() && !FALLBACK_ALLOWED.load(Ordering::SeqCst)
+}
+
+pub fn the_wait_is_over() {
+    FALLBACK_ALLOWED.store(true, Ordering::SeqCst);
 }
 
 pub async fn create_tray(icon_bytes: &[u8]) -> bool {
-    if is_active() {
-        return true;
+    if SPAWN_STARTED.swap(true, Ordering::AcqRel) {
+        return is_active();
     }
 
     let icon = match decode_icon_off_thread(icon_bytes).await {
@@ -219,7 +260,9 @@ pub async fn create_tray(icon_bytes: &[u8]) -> bool {
                 tooltip: crate::constants::branding::APP_NAME.into(),
                 menu: Vec::new(),
             };
-            match tray.spawn().await {
+            // Отсутствие службы значков — не отказ: ksni остаётся ждать её и
+            // сообщает об этом через `watcher_offline` ещё до возврата.
+            match tray.assume_sni_available(true).spawn().await {
                 Ok(handle) => return Some(handle),
                 Err(err) => {
                     crate::logging!(
@@ -240,7 +283,7 @@ pub async fn create_tray(icon_bytes: &[u8]) -> bool {
     match spawned {
         Ok(Some(handle)) => {
             let _ = TRAY_HANDLE.set(handle);
-            true
+            is_active()
         }
         Ok(None) => false,
         Err(_) => {

@@ -159,6 +159,46 @@ impl Default for Tray {
 
 singleton!(Tray, TRAY);
 
+/// Служба значков пришла или ушла: виден должен быть ровно один трей — свой,
+/// пока она на связи, запасной — когда её нет дольше отведённого срока. Тот,
+/// что был не у дел, обновлений не получал, поэтому показанный обновляется
+/// целиком. Из нескольких событий подряд дело доводит последнее.
+#[cfg(target_os = "linux")]
+fn show_the_tray_that_works() {
+    static TURN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    static ONE_AT_A_TIME: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+    let turn = TURN.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+    AsyncHandler::spawn(move || async move {
+        if !ksni_active() {
+            logging!(
+                warn,
+                Type::Tray,
+                "Служба значков не на связи, ждём её {} с до запасного трея",
+                linux::WATCHER_GRACE.as_secs()
+            );
+            tokio::time::sleep(linux::WATCHER_GRACE).await;
+        }
+        let _one = ONE_AT_A_TIME.lock().await;
+        if TURN.load(std::sync::atomic::Ordering::SeqCst) != turn || handle::Handle::global().is_exiting() {
+            return;
+        }
+        let own_tray_works = ksni_active();
+        logging!(info, Type::Tray, "Служба значков на связи: {own_tray_works}");
+        let app_handle = handle::Handle::app_handle();
+        let tray = Tray::global();
+        if !own_tray_works {
+            linux::the_wait_is_over();
+            logging_error!(Type::Tray, tray.create_tray_from_handle(app_handle).await);
+        }
+        if let Some(fallback) = app_handle.tray_by_id(TRAY_ID) {
+            logging_error!(Type::Tray, fallback.set_visible(!own_tray_works));
+        }
+        tray.update_menu_and_icon().await;
+        logging_error!(Type::Tray, tray.update_tooltip().await);
+    });
+}
+
 impl Tray {
     fn new() -> Self {
         Self::default()
@@ -206,6 +246,10 @@ impl Tray {
         }
 
         let app_handle = handle::Handle::app_handle();
+        #[cfg(target_os = "linux")]
+        if app_handle.tray_by_id(TRAY_ID).is_none() {
+            return Ok(());
+        }
         let tray_event = { Config::verge().await.latest_arc().tray_event.clone() };
         let tray_event = TrayAction::from(tray_event.as_deref().unwrap_or("main_window"));
         let tray = app_handle
@@ -477,7 +521,12 @@ impl Tray {
         let icon_bytes = TrayState::get_tray_icon(&verge).await.1;
 
         #[cfg(target_os = "linux")]
-        if linux::create_tray(&icon_bytes).await {
+        if linux::create_tray(&icon_bytes).await || app_handle.tray_by_id(TRAY_ID).is_some() {
+            return Ok(());
+        }
+        #[cfg(target_os = "linux")]
+        if linux::still_waits_for_the_watcher() {
+            show_the_tray_that_works();
             return Ok(());
         }
 
