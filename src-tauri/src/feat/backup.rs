@@ -1,12 +1,9 @@
 use crate::{
     config::{Config, IClashTemp, IProfiles, IVerge},
     constants::files::DNS_CONFIG,
-    core::backup,
+    core::{backup, handle},
     process::AsyncHandler,
-    utils::{
-        dirs::{self, PathBufExec as _, app_home_dir, local_backup_dir, verge_path},
-        help,
-    },
+    utils::dirs::{self, PathBufExec as _, app_home_dir, local_backup_dir, verge_path},
 };
 use anyhow::{Result, anyhow};
 use chrono::Utc;
@@ -92,62 +89,48 @@ pub(crate) const MACHINE_LOCAL_KEYS: &[&str] = &[
     "window_pos_simple",
     "window_pos_advanced",
     "core_log_keys_unpinned",
+    "use_managed_core",
+    "managed_core_channel",
+    "core_auto_check",
 ];
 
-pub(crate) fn strip_machine_local(verge: &mut serde_json::Map<std::string::String, serde_json::Value>) {
+type Settings = serde_json::Map<std::string::String, serde_json::Value>;
+
+pub(crate) fn strip_machine_local(verge: &mut Settings) {
     for key in MACHINE_LOCAL_KEYS {
         verge.remove(*key);
     }
 }
 
-fn machine_local_of(verge: &IVerge) -> IVerge {
-    IVerge {
-        webdav_url: verge.webdav_url.clone(),
-        webdav_username: verge.webdav_username.clone(),
-        webdav_password: verge.webdav_password.clone(),
-        hwid: verge.hwid.clone(),
-        tun_setup_declined: verge.tun_setup_declined.clone(),
-        startup_script: verge.startup_script.clone(),
-        common_tray_icon: verge.common_tray_icon,
-        sysproxy_tray_icon: verge.sysproxy_tray_icon,
-        tun_tray_icon: verge.tun_tray_icon,
-        clash_core: verge.clash_core.clone(),
-        window_size_simple: verge.window_size_simple,
-        window_size_advanced: verge.window_size_advanced,
-        window_pos_simple: verge.window_pos_simple,
-        window_pos_advanced: verge.window_pos_advanced,
-        core_log_keys_unpinned: verge.core_log_keys_unpinned,
-        ..IVerge::default()
-    }
+fn machine_local_of(verge: &IVerge) -> Result<Settings> {
+    let serde_json::Value::Object(mut settings) = serde_json::to_value(verge)? else {
+        return Err(anyhow!("settings are not a map"));
+    };
+    settings.retain(|key, _| MACHINE_LOCAL_KEYS.contains(&key.as_str()));
+    Ok(settings)
 }
 
-fn keep_machine_local(restored: &mut IVerge, local: IVerge) {
-    restored.webdav_url = local.webdav_url;
-    restored.webdav_username = local.webdav_username;
-    restored.webdav_password = local.webdav_password;
-    restored.hwid = local.hwid;
-    restored.tun_setup_declined = local.tun_setup_declined;
-    restored.startup_script = local.startup_script;
-    restored.common_tray_icon = local.common_tray_icon;
-    restored.sysproxy_tray_icon = local.sysproxy_tray_icon;
-    restored.tun_tray_icon = local.tun_tray_icon;
-    restored.clash_core = local.clash_core;
-    restored.window_size_simple = local.window_size_simple;
-    restored.window_size_advanced = local.window_size_advanced;
-    restored.window_pos_simple = local.window_pos_simple;
-    restored.window_pos_advanced = local.window_pos_advanced;
-    restored.core_log_keys_unpinned = local.core_log_keys_unpinned;
+// Читается вне области шифрования: значение, запечатанное ключом другой
+// машины, остаётся строкой и заменяется своим, а не срывает чтение файла.
+fn restored_settings(archived: &str, local: Settings) -> Result<IVerge> {
+    let archived: IVerge = serde_yaml_ng::from_str(archived)?;
+    let serde_json::Value::Object(mut settings) = serde_json::to_value(archived)? else {
+        return Err(anyhow!("restored settings are not a map"));
+    };
+    strip_machine_local(&mut settings);
+    settings.extend(local);
+    Ok(serde_json::from_value(serde_json::Value::Object(settings))?)
 }
 
-async fn machine_local_config() -> IVerge {
+async fn machine_local_config() -> Result<Settings> {
     let verge = Config::verge().await;
     let verge = verge.latest_arc();
     machine_local_of(&verge)
 }
 
-async fn finalize_restored_verge_config(local: IVerge) -> Result<()> {
-    let mut restored = help::read_yaml::<IVerge>(&verge_path()?).await?;
-    keep_machine_local(&mut restored, local);
+async fn finalize_restored_verge_config(local: Settings) -> Result<()> {
+    let archived = fs::read_to_string(verge_path()?).await?;
+    let restored = restored_settings(&archived, local)?;
     restored.save_file().await?;
 
     let restored_clash = IClashTemp::new().await;
@@ -170,10 +153,14 @@ async fn finalize_restored_verge_config(local: IVerge) -> Result<()> {
     });
     verge_draft.apply();
 
-    if let Err(err) = super::patch_verge(&restored, true).await {
+    super::patch_verge(&restored, true).await.map_err(|err| {
         logging!(error, Type::Backup, "Failed to apply restored verge config: {err:#?}");
-    }
-    Ok(())
+        handle::Handle::refresh_verge();
+        handle::Handle::refresh_clash();
+        handle::Handle::refresh_profiles();
+        let reason = format!("{err:#}");
+        anyhow!("{}", clash_verge_i18n::t!("common.restoreNotApplied", reason = reason))
+    })
 }
 
 pub async fn create_backup_and_upload_webdav() -> Result<()> {
@@ -213,7 +200,7 @@ pub async fn delete_webdav_backup(filename: String) -> Result<()> {
 }
 
 pub async fn restore_webdav_backup(filename: String) -> Result<()> {
-    let local = machine_local_config().await;
+    let local = machine_local_config().await?;
 
     let backup_storage_path = app_home_dir()
         .map_err(|e| anyhow::anyhow!("Failed to get app home dir: {e}"))?
@@ -406,7 +393,7 @@ pub async fn restore_local_backup(filename: String) -> Result<()> {
         return Err(anyhow!("Backup file not found: {}", filename));
     }
 
-    let local = machine_local_config().await;
+    let local = machine_local_config().await?;
 
     extract_backup(target_path, app_home_dir()?).await?;
     finalize_restored_verge_config(local).await?;
@@ -433,7 +420,7 @@ pub async fn export_local_backup(filename: String, dest_path: PathBuf) -> Result
 #[cfg(test)]
 mod tests {
     use super::{
-        MACHINE_LOCAL_KEYS, is_plain_file_name, keep_machine_local, machine_local_of, restorable_backup_entry,
+        MACHINE_LOCAL_KEYS, is_plain_file_name, machine_local_of, restorable_backup_entry, restored_settings,
         strip_machine_local,
     };
     use crate::config::IVerge;
@@ -483,10 +470,17 @@ mod tests {
             tun_setup_declined: Some("0.1.10".into()),
             startup_script: Some("/home/me/up.sh".into()),
             common_tray_icon: Some(true),
+            sysproxy_tray_icon: Some(true),
+            tun_tray_icon: Some(false),
             clash_core: Some("verge-mihomo".into()),
             window_size_simple: Some((900, 600)),
+            window_size_advanced: Some((1200, 800)),
+            window_pos_simple: Some((1, 2)),
             window_pos_advanced: Some((10, 20)),
             core_log_keys_unpinned: Some(true),
+            use_managed_core: Some(false),
+            managed_core_channel: Some("stable".into()),
+            core_auto_check: Some(false),
             language: Some("ru".into()),
             ..IVerge::default()
         }
@@ -505,35 +499,41 @@ mod tests {
             window_size_simple: Some((3840, 2000)),
             window_pos_advanced: Some((-1000, 5000)),
             core_log_keys_unpinned: None,
+            use_managed_core: Some(true),
+            managed_core_channel: Some("alpha".into()),
+            core_auto_check: Some(true),
             language: Some("en".into()),
             enable_tun_mode: Some(true),
             ..IVerge::default()
         }
     }
 
-    #[test]
-    fn every_key_the_archive_drops_is_kept_from_this_machine_on_restore() {
-        let this = serde_json::to_value(this_machine()).unwrap_or_default();
-        let mut restored = the_other_machine();
-        keep_machine_local(&mut restored, machine_local_of(&this_machine()));
-        let restored = serde_json::to_value(restored).unwrap_or_default();
-        for key in MACHINE_LOCAL_KEYS {
-            assert_eq!(restored.get(*key), this.get(*key), "{key} came from the archive");
-        }
+    fn restored_here(archived: &IVerge, local: &IVerge) -> IVerge {
+        let archived = serde_yaml_ng::to_string(archived).unwrap_or_default();
+        let local = machine_local_of(local).unwrap_or_default();
+        let restored = restored_settings(&archived, local);
+        assert!(restored.is_ok(), "{restored:?}");
+        restored.unwrap_or_default()
     }
 
     #[test]
-    fn the_restore_keeps_nothing_beyond_the_archive_list() {
-        let local = serde_json::to_value(machine_local_of(&this_machine())).unwrap_or_default();
-        let obj = local.as_object().cloned().unwrap_or_default();
-        assert!(!obj.is_empty());
-        for (key, value) in &obj {
-            if !value.is_null() {
-                assert!(
-                    MACHINE_LOCAL_KEYS.contains(&key.as_str()),
-                    "{key} is kept but not dropped"
-                );
-            }
+    fn every_listed_key_is_a_real_setting() {
+        let local = machine_local_of(&this_machine()).unwrap_or_default();
+        for key in MACHINE_LOCAL_KEYS {
+            assert!(
+                local.get(*key).is_some_and(|value| !value.is_null()),
+                "{key} is not set"
+            );
+        }
+        assert_eq!(local.len(), MACHINE_LOCAL_KEYS.len());
+    }
+
+    #[test]
+    fn every_key_the_archive_drops_is_kept_from_this_machine_on_restore() {
+        let this = serde_json::to_value(this_machine()).unwrap_or_default();
+        let restored = serde_json::to_value(restored_here(&the_other_machine(), &this_machine())).unwrap_or_default();
+        for key in MACHINE_LOCAL_KEYS {
+            assert_eq!(restored.get(*key), this.get(*key), "{key} came from the archive");
         }
     }
 
@@ -551,9 +551,7 @@ mod tests {
 
     #[test]
     fn a_backup_from_another_machine_does_not_bring_its_geometry_paths_or_core() {
-        let local = machine_local_of(&this_machine());
-        let mut restored = the_other_machine();
-        keep_machine_local(&mut restored, local);
+        let restored = restored_here(&the_other_machine(), &this_machine());
 
         assert_eq!(restored.startup_script.as_deref(), Some("/home/me/up.sh"));
         assert_eq!(restored.common_tray_icon, Some(true));
@@ -565,20 +563,24 @@ mod tests {
     }
 
     #[test]
+    fn a_backup_from_another_machine_does_not_switch_the_core_to_managed() {
+        let restored = restored_here(&the_other_machine(), &this_machine());
+
+        assert_eq!(restored.use_managed_core, Some(false));
+        assert_eq!(restored.managed_core_channel.as_deref(), Some("stable"));
+        assert_eq!(restored.core_auto_check, Some(false));
+    }
+
+    #[test]
     fn only_the_machine_bound_fields_are_taken_from_this_machine() {
-        let local = machine_local_of(&this_machine());
-        assert_eq!(local.hwid.as_deref(), Some("this-machine"));
-        assert_eq!(local.webdav_username.as_deref(), Some("me"));
-        assert_eq!(local.tun_setup_declined.as_deref(), Some("0.1.10"));
-        assert_eq!(local.language, None);
-        assert_eq!(local.enable_tun_mode, None);
+        let local = machine_local_of(&this_machine()).unwrap_or_default();
+        assert!(!local.is_empty());
+        assert!(local.keys().all(|key| MACHINE_LOCAL_KEYS.contains(&key.as_str())));
     }
 
     #[test]
     fn a_backup_from_another_machine_does_not_bring_its_fingerprint() {
-        let local = machine_local_of(&this_machine());
-        let mut restored = the_other_machine();
-        keep_machine_local(&mut restored, local);
+        let restored = restored_here(&the_other_machine(), &this_machine());
 
         assert_eq!(restored.hwid.as_deref(), Some("this-machine"));
         assert_eq!(restored.webdav_url.as_deref(), Some("https://my-nas.local/dav"));
@@ -589,9 +591,7 @@ mod tests {
 
     #[test]
     fn everything_else_still_comes_from_the_backup() {
-        let local = machine_local_of(&this_machine());
-        let mut restored = the_other_machine();
-        keep_machine_local(&mut restored, local);
+        let restored = restored_here(&the_other_machine(), &this_machine());
 
         assert_eq!(restored.language.as_deref(), Some("en"));
         assert_eq!(restored.enable_tun_mode, Some(true));
@@ -599,12 +599,42 @@ mod tests {
 
     #[test]
     fn a_machine_without_a_fingerprint_yet_does_not_inherit_one() {
-        let local = machine_local_of(&IVerge::default());
-        let mut restored = the_other_machine();
-        keep_machine_local(&mut restored, local);
+        let restored = restored_here(&the_other_machine(), &IVerge::default());
 
         assert_eq!(restored.hwid, None);
         assert_eq!(restored.webdav_url, None);
+        assert_eq!(restored.use_managed_core, None);
+    }
+
+    #[test]
+    fn a_value_sealed_by_another_machine_is_dropped_not_read() {
+        let archived = "language: en\nwebdav_password: c2VhbGVkIGVsc2V3aGVyZQ==\n";
+        let restored = restored_settings(archived, machine_local_of(&IVerge::default()).unwrap_or_default());
+
+        assert!(restored.is_ok(), "{restored:?}");
+        let restored = restored.unwrap_or_default();
+        assert_eq!(restored.language.as_deref(), Some("en"));
+        assert_eq!(restored.webdav_password, None);
+    }
+
+    #[test]
+    fn hand_written_values_are_read_the_way_the_settings_file_reads_them() {
+        let archived = "proxy_host: 123\nlanguage: 1.10\nstart_page: 0x10\n";
+        let direct = serde_yaml_ng::from_str::<IVerge>(archived).unwrap_or_default();
+        let restored = restored_settings(archived, machine_local_of(&this_machine()).unwrap_or_default());
+
+        assert!(restored.is_ok(), "{restored:?}");
+        let restored = restored.unwrap_or_default();
+        assert_eq!(direct.proxy_host.as_deref(), Some("123"));
+        assert_eq!(restored.proxy_host, direct.proxy_host);
+        assert_eq!(restored.language.as_deref(), Some("1.10"));
+        assert_eq!(restored.start_page.as_deref(), Some("0x10"));
+    }
+
+    #[test]
+    fn settings_that_are_not_a_map_are_refused() {
+        let local = machine_local_of(&this_machine()).unwrap_or_default();
+        assert!(restored_settings("- just\n- a list\n", local).is_err());
     }
 
     #[test]

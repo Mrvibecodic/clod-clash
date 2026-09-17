@@ -51,6 +51,7 @@ notifications:
 common:
   modeLocked: The routing mode is managed by your provider.
   exitInProgress: "Aplikasi sedang menutup: tindakan ditolak selama proses keluar berlangsung."
+  restoreNotApplied: "The backup was restored, but its settings could not be applied. Restart the app. Reason: {reason}"
 service:
   adminInstallPrompt: Menginstal layanan sistem memerlukan hak administrator.
   adminUninstallPrompt: Menghapus instalasi layanan sistem memerlukan hak administrator.
