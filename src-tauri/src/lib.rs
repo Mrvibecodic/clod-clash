@@ -456,8 +456,17 @@ pub fn run() {
             });
         }
         tauri::RunEvent::Exit => AsyncHandler::block_on(async {
+            // На Windows без нашего выхода сюда приводит завершение сеанса:
+            // сигналы о нём оконному процессу не доставляются, приходит
+            // `WM_ENDSESSION`, и нас вот-вот убьют. На остальных ОС тем же
+            // путём идут и действия человека, поэтому темп там обычный.
             if !handle::Handle::global().is_exiting() {
-                feat::quit_at(feat::ExitPace::Interactive, false).await;
+                let pace = if cfg!(target_os = "windows") {
+                    feat::ExitPace::SessionEnding
+                } else {
+                    feat::ExitPace::Interactive
+                };
+                feat::quit_at(pace, false).await;
             }
             logging!(info, Type::System, "Application exited");
         }),

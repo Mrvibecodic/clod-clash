@@ -12,22 +12,10 @@ const SCRIPT_TIMEOUT: Duration = Duration::from_secs(10);
 const LOCK_HANDOVER: Duration = Duration::from_secs(2);
 const OVERRIDE_HOLD: Duration = Duration::from_secs(SCRIPT_TIMEOUT.as_secs() + LOCK_HANDOVER.as_secs());
 
-/// Потолок всего шага на выходе: сначала пережидается идущая подмена, потом своё
-/// время получает обратный скрипт. Число взято у ветки остановки ядра — снятие
-/// туннеля, ожидание замка жизненного цикла, остановка ядра и опрос службы, —
-/// чтобы не DNS решал, сколько длится выход.
-///
-/// clod:dns-exit — потолок НЕ делится на доли: у двух ожиданий разные источники
-/// истины. Ожидание замка равно `OVERRIDE_HOLD` — столько идущая подмена может
-/// его держать; ждать меньше бессмысленно, потому что зависшую подмену выход не
-/// переждал бы никогда и обратный скрипт не запускался бы вовсе именно в том
-/// случае, ради которого ожидание и заведено. Обратному скрипту достаётся
-/// `SCRIPT_TIMEOUT` — его собственный таймаут, тот же, что и вне выхода. В
-/// потолок эти два срока намеренно не укладываются вместе: разделить его значит
-/// отнять у скрипта время в единственном случае, который бывает на деле, — когда
-/// замок свободен. Поэтому потолок работает сроком на весь шаг, и уступает ему
-/// тот, кто в этом шаге оказался последним.
-pub const RESTORE_BUDGET: Duration = Duration::from_secs(18);
+/// Меньше этого обратному скрипту давать незачем: bash с `networksetup` за
+/// такой срок могут не успеть, скрипт был бы убит на полпути, а в журнал ушло
+/// бы «не уложился» вместо «не запускали».
+const SCRIPT_NEEDS_AT_LEAST: Duration = Duration::from_secs(1);
 
 const fn no_longer_than(limit: Duration, ceiling: Duration) -> Duration {
     if limit.as_nanos() <= ceiling.as_nanos() {
@@ -37,12 +25,28 @@ const fn no_longer_than(limit: Duration, ceiling: Duration) -> Duration {
     }
 }
 
+/// clod:dns-exit — потолок шага на выходе даёт вызывающий: он считает его из
+/// соседей своего пути уборки, чтобы не DNS решал, сколько длится выход.
+/// Потолок НЕ делится на доли: у двух ожиданий разные источники истины.
+/// Ожидание замка равно `OVERRIDE_HOLD` — столько идущая подмена может его
+/// держать; потолок короче этого срока зависшую подмену не пережидает, и
+/// возврат DNS тогда достаётся следующему запуску. Обратному скрипту достаётся `SCRIPT_TIMEOUT` — его
+/// собственный таймаут, тот же, что и вне выхода. Разделить потолок значит
+/// отнять у скрипта время в единственном случае, который бывает на деле, —
+/// когда замок свободен. Поэтому потолок работает сроком на весь шаг, и
+/// уступает ему тот, кто в этом шаге оказался последним.
 const fn exit_lock_wait(ceiling: Duration) -> Duration {
     no_longer_than(OVERRIDE_HOLD, ceiling)
 }
 
-const fn exit_script_time(ceiling: Duration, waited: Duration) -> Duration {
-    no_longer_than(SCRIPT_TIMEOUT, ceiling.saturating_sub(waited))
+/// Сколько достаётся обратному скрипту; `None` — остатка не хватит и на запуск.
+const fn exit_script_time(ceiling: Duration, waited: Duration) -> Option<Duration> {
+    let left = no_longer_than(SCRIPT_TIMEOUT, ceiling.saturating_sub(waited));
+    if left.as_nanos() < SCRIPT_NEEDS_AT_LEAST.as_nanos() {
+        None
+    } else {
+        Some(left)
+    }
 }
 
 pub const OVERRIDE_SERVER: &str = "114.114.114.114";
@@ -190,16 +194,16 @@ pub async fn restore_public_dns_before_exit(budget: Duration) -> bool {
     if !has_pending_restore() {
         return true;
     }
-    let script_time = exit_script_time(budget, started.elapsed());
-    if script_time.is_zero() {
+    let Some(script_time) = exit_script_time(budget, started.elapsed()) else {
         logging!(
             warn,
             Type::Config,
-            "unset system dns: the whole {}s exit ceiling went to the override that held the lock",
+            "unset system dns: not started — the override that held the lock left less than {}s of the {}s exit ceiling",
+            SCRIPT_NEEDS_AT_LEAST.as_secs(),
             budget.as_secs()
         );
         return false;
-    }
+    };
     restore_public_dns_locked(script_time).await
 }
 
@@ -298,15 +302,17 @@ async fn restore_public_dns_locked(limit: Duration) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{RESTORE_BUDGET, SCRIPT_TIMEOUT, exit_lock_wait, exit_script_time};
+    use super::{SCRIPT_NEEDS_AT_LEAST, SCRIPT_TIMEOUT, exit_lock_wait, exit_script_time};
     use std::time::Duration;
 
-    /// Потолок интерактивного выхода без DNS: снятие туннеля (3) + ожидание
-    /// замка жизненного цикла (5) + остановка ядра (5) + опрос службы (5).
-    const THE_EXIT_CEILING_WITHOUT_DNS: Duration = Duration::from_secs(18);
-
-    /// Потолок шага при завершении сеанса — `ExitPace::SessionEnding`.
-    const THE_HURRIED_CEILING: Duration = Duration::from_secs(3);
+    /// Потолки, которые дают оба пути уборки и завершение сеанса, плюс заведомо тесные.
+    const CEILINGS: [Duration; 5] = [
+        Duration::from_secs(18),
+        Duration::from_secs(10),
+        Duration::from_secs(3),
+        Duration::from_secs(2),
+        Duration::from_secs(1),
+    ];
 
     /// Докуда идущая подмена может додержать замок: `run_dns_script` снимает
     /// зависшего ребёнка только по своему таймеру.
@@ -314,43 +320,47 @@ mod tests {
 
     #[test]
     fn the_reverse_script_keeps_its_own_timeout_while_the_ceiling_allows_it() {
-        assert!(exit_script_time(RESTORE_BUDGET, Duration::ZERO) >= SCRIPT_TIMEOUT);
-        assert_eq!(
-            exit_script_time(THE_HURRIED_CEILING, Duration::ZERO),
-            THE_HURRIED_CEILING
-        );
+        assert_eq!(exit_script_time(CEILINGS[0], Duration::ZERO), Some(SCRIPT_TIMEOUT));
+        assert_eq!(exit_script_time(CEILINGS[1], Duration::ZERO), Some(SCRIPT_TIMEOUT));
+        assert_eq!(exit_script_time(CEILINGS[2], Duration::ZERO), Some(CEILINGS[2]));
     }
 
     #[test]
     fn the_wait_outlasts_an_override_that_holds_the_lock_to_its_last_second() {
-        assert!(exit_lock_wait(RESTORE_BUDGET) > A_HUNG_OVERRIDE_HOLDS_THE_LOCK_FOR);
+        assert!(exit_lock_wait(CEILINGS[0]) > A_HUNG_OVERRIDE_HOLDS_THE_LOCK_FOR);
     }
 
     #[test]
     fn the_two_limits_are_not_a_split_of_the_ceiling() {
-        assert!(exit_lock_wait(RESTORE_BUDGET) + SCRIPT_TIMEOUT > RESTORE_BUDGET);
+        assert!(exit_lock_wait(CEILINGS[0]) + SCRIPT_TIMEOUT > CEILINGS[0]);
     }
 
     #[test]
     fn the_step_never_outlives_the_ceiling_it_is_given() {
-        for ceiling in [
-            RESTORE_BUDGET,
-            THE_HURRIED_CEILING,
-            Duration::from_secs(2),
-            Duration::from_secs(1),
-        ] {
+        for ceiling in CEILINGS {
             let waited = exit_lock_wait(ceiling);
             assert!(waited <= ceiling);
-            assert!(waited + exit_script_time(ceiling, waited) <= ceiling);
+            assert!(waited + exit_script_time(ceiling, waited).unwrap_or_default() <= ceiling);
         }
-        assert!(RESTORE_BUDGET <= THE_EXIT_CEILING_WITHOUT_DNS);
     }
 
     #[test]
     fn a_ceiling_of_a_second_or_two_starves_neither_the_wait_nor_the_script() {
         for ceiling in [Duration::from_secs(1), Duration::from_secs(2)] {
             assert!(!exit_lock_wait(ceiling).is_zero());
-            assert_eq!(exit_script_time(ceiling, Duration::ZERO), ceiling);
+            assert_eq!(exit_script_time(ceiling, Duration::ZERO), Some(ceiling));
         }
+    }
+
+    #[test]
+    fn a_remainder_too_short_to_reach_the_work_does_not_start_the_script() {
+        let ceiling = CEILINGS[1];
+        let almost_all = ceiling - Duration::from_millis(50);
+        assert_eq!(exit_script_time(ceiling, almost_all), None);
+        assert_eq!(exit_script_time(ceiling, ceiling), None);
+        assert_eq!(
+            exit_script_time(ceiling, ceiling - SCRIPT_NEEDS_AT_LEAST),
+            Some(SCRIPT_NEEDS_AT_LEAST)
+        );
     }
 }

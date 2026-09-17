@@ -82,13 +82,31 @@ impl ExitPace {
         }
     }
 
-    #[cfg(target_os = "macos")]
-    const fn dns_budget(self) -> Duration {
+    /// Ветка ядра на пути с отменой выхода: снятие туннеля, ожидание замка
+    /// жизненного цикла, остановка ядра и опрос службы о живости.
+    const fn core_branch_with_cancel(self) -> Duration {
+        self.core_branch_without_cancel()
+            .saturating_add(self.lock_wait_budget())
+            .saturating_add(crate::constants::timing::SERVICE_STATUS_WAIT)
+    }
+
+    /// Ветка ядра на пути без отмены: ожидание замка входит в срок остановки.
+    const fn core_branch_without_cancel(self) -> Duration {
+        self.tun_off_budget().saturating_add(self.core_stop_budget())
+    }
+
+    /// clod:dns-exit — в обычном темпе потолок шага DNS равен самому долгому
+    /// соседу ТОГО ЖЕ пути уборки: путей два, и ветка ядра у них разной длины.
+    const fn dns_budget(self, core_branch: Duration) -> Duration {
         match self {
-            Self::Interactive => crate::utils::resolve::dns::RESTORE_BUDGET,
+            Self::Interactive => longest(core_branch, longest(self.save_budget(), self.sysproxy_budget())),
             Self::SessionEnding => Duration::from_secs(3),
         }
     }
+}
+
+const fn longest(one: Duration, other: Duration) -> Duration {
+    if one.as_nanos() >= other.as_nanos() { one } else { other }
 }
 
 pub async fn quit() {
@@ -219,6 +237,21 @@ fn cancel_the_exit(reason: String) {
     });
 }
 
+/// Перед аварийным перезапуском при зависшем окне: настройки сохраняются
+/// всегда, а прокси снимается только когда ядро — наш дочерний процесс и умрёт
+/// вместе с нами. Ядро под службой перезапуск переживает, прокси и туннель
+/// остаются рабочими, и снимать их значило бы пустить трафик напрямую.
+#[cfg(target_os = "windows")]
+pub async fn tidy_up_for_a_forced_restart() -> bool {
+    let pace = ExitPace::SessionEnding;
+    let save = spawn_save_task(pace);
+    if !matches!(*CoreManager::global().get_running_mode(), RunningMode::Sidecar) {
+        return save.await.unwrap_or_default();
+    }
+    let (saved, proxy) = tokio::join!(save, spawn_proxy_task(pace));
+    saved.unwrap_or_default() && the_take_down_went_as_asked(proxy.unwrap_or_default())
+}
+
 pub struct CleanupOutcome {
     pub all_success: bool,
     pub sysproxy: Option<ProxyAtExit>,
@@ -289,7 +322,7 @@ async fn clean_core_first(pace: ExitPace) -> Result<CleanupOutcome, String> {
     // всё, что уборка к тому моменту сняла, возвращает `cancel_the_exit`.
     // Уборку дожидаемся всегда, в том числе перед отменой: иначе её снятие
     // легло бы поверх восстановления.
-    let rest = tokio::task::spawn(clean_the_rest(pace));
+    let rest = tokio::task::spawn(clean_the_rest(pace, pace.dns_budget(pace.core_branch_with_cancel())));
     let stop_budget = pace.core_stop_budget();
     let core = async {
         turn_the_tun_off(pace).await;
@@ -415,11 +448,11 @@ fn spawn_proxy_task(pace: ExitPace) -> tokio::task::JoinHandle<ProxyAtExit> {
     })
 }
 
-fn spawn_dns_task(pace: ExitPace) -> tokio::task::JoinHandle<bool> {
+fn spawn_dns_task(budget: Duration) -> tokio::task::JoinHandle<bool> {
     tokio::task::spawn(async move {
         #[cfg(target_os = "macos")]
         {
-            let restored = crate::utils::resolve::dns::restore_public_dns_before_exit(pace.dns_budget()).await;
+            let restored = crate::utils::resolve::dns::restore_public_dns_before_exit(budget).await;
             if restored {
                 logging!(info, Type::Window, "настройки DNS восстановлены");
             } else {
@@ -429,15 +462,18 @@ fn spawn_dns_task(pace: ExitPace) -> tokio::task::JoinHandle<bool> {
         }
         #[cfg(not(target_os = "macos"))]
         {
-            let _ = pace;
+            let _ = budget;
             true
         }
     })
 }
 
-async fn clean_the_rest(pace: ExitPace) -> CleanupOutcome {
-    let (save_result, proxy_result, dns_result) =
-        tokio::join!(spawn_save_task(pace), spawn_proxy_task(pace), spawn_dns_task(pace));
+async fn clean_the_rest(pace: ExitPace, dns_budget: Duration) -> CleanupOutcome {
+    let (save_result, proxy_result, dns_result) = tokio::join!(
+        spawn_save_task(pace),
+        spawn_proxy_task(pace),
+        spawn_dns_task(dns_budget)
+    );
     let save_success = save_result.unwrap_or_default();
     let proxy_outcome = proxy_result.unwrap_or_default();
     let dns_success = dns_result.unwrap_or_default();
@@ -488,7 +524,7 @@ pub async fn clean_async_at(pace: ExitPace) -> CleanupOutcome {
         spawn_save_task(pace),
         spawn_proxy_task(pace),
         core_task,
-        spawn_dns_task(pace)
+        spawn_dns_task(pace.dns_budget(pace.core_branch_without_cancel()))
     );
 
     let save_success = save_result.unwrap_or_default();
@@ -563,8 +599,20 @@ mod tests {
         assert!(quick.tun_off_budget() <= calm.tun_off_budget());
         assert!(quick.core_stop_budget() <= calm.core_stop_budget());
         assert!(quick.save_budget() <= calm.save_budget());
-        #[cfg(target_os = "macos")]
-        assert!(quick.dns_budget() <= calm.dns_budget());
+        for core_branch in [calm.core_branch_with_cancel(), calm.core_branch_without_cancel()] {
+            assert!(quick.dns_budget(core_branch) <= calm.dns_budget(core_branch));
+        }
+    }
+
+    #[test]
+    fn the_dns_step_never_outlasts_the_neighbours_of_its_own_path() {
+        for pace in [ExitPace::Interactive, ExitPace::SessionEnding] {
+            for core_branch in [pace.core_branch_with_cancel(), pace.core_branch_without_cancel()] {
+                let neighbours = core_branch.max(pace.save_budget()).max(pace.sysproxy_budget());
+                assert!(pace.dns_budget(core_branch) <= neighbours);
+            }
+        }
+        assert!(ExitPace::Interactive.core_branch_without_cancel() < ExitPace::Interactive.core_branch_with_cancel());
     }
 
     #[test]
