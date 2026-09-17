@@ -225,6 +225,8 @@ fn cancel_the_exit(reason: String) {
         // возвращаются: запуск ядра их не заводит, если ядро числится живым.
         CoreManager::global().watch_the_core_again().await;
         crate::feat::environment::spawn_environment_watchdog();
+        #[cfg(target_os = "linux")]
+        crate::core::tray::Tray::catch_up_after_a_cancelled_exit();
         handle::Handle::refresh_clash();
         handle::Handle::refresh_verge();
         tokio::time::sleep(Duration::from_secs(1)).await;

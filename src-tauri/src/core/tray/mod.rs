@@ -159,6 +159,16 @@ impl Default for Tray {
 
 singleton!(Tray, TRAY);
 
+/// Под Linux запасного трея законно нет, пока свой ждёт службу значков.
+#[cfg(target_os = "linux")]
+fn the_tray_is_missed() -> bool {
+    !linux::still_waits_for_the_watcher()
+}
+#[cfg(not(target_os = "linux"))]
+const fn the_tray_is_missed() -> bool {
+    true
+}
+
 /// Служба значков пришла или ушла: виден должен быть ровно один трей — свой,
 /// пока она на связи, запасной — когда её нет дольше отведённого срока. Тот,
 /// что был не у дел, обновлений не получал, поэтому показанный обновляется
@@ -202,6 +212,13 @@ fn show_the_tray_that_works() {
 impl Tray {
     fn new() -> Self {
         Self::default()
+    }
+
+    /// Событие службы значков, пришедшее во время выхода, пропускается; если
+    /// выход отменён, трей доводится до нынешнего положения дел.
+    #[cfg(target_os = "linux")]
+    pub fn catch_up_after_a_cancelled_exit() {
+        show_the_tray_that_works();
     }
 
     pub async fn init(&self) -> Result<()> {
@@ -280,7 +297,9 @@ impl Tray {
             None
         } else {
             let Some(tray) = app_handle.tray_by_id(TRAY_ID) else {
-                logging!(warn, Type::Tray, "Failed to update tray menu: tray not found");
+                if the_tray_is_missed() {
+                    logging!(warn, Type::Tray, "Failed to update tray menu: tray not found");
+                }
                 return Ok(());
             };
             Some(tray)
@@ -352,7 +371,9 @@ impl Tray {
             None
         } else {
             let Some(tray) = app_handle.tray_by_id(TRAY_ID) else {
-                logging!(warn, Type::Tray, "Failed to update tray icon: tray not found");
+                if the_tray_is_missed() {
+                    logging!(warn, Type::Tray, "Failed to update tray icon: tray not found");
+                }
                 return Ok(());
             };
             Some(tray)
@@ -455,7 +476,9 @@ impl Tray {
         }
 
         let Some(tray) = app_handle.tray_by_id(TRAY_ID) else {
-            logging!(warn, Type::Tray, "Failed to update tray tooltip: tray not found");
+            if the_tray_is_missed() {
+                logging!(warn, Type::Tray, "Failed to update tray tooltip: tray not found");
+            }
             return Ok(());
         };
 
