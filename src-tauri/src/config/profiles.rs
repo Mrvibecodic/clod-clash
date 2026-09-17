@@ -1095,22 +1095,6 @@ fn is_activation_current(generation: u64) -> bool {
     ACTIVATE_SELECTED_GENERATION.load(Ordering::Acquire) == generation
 }
 
-async fn fetch_proxies_with_timeout() -> Result<Proxies> {
-    tokio::time::timeout(MIHOMO_OPERATION_TIMEOUT, async {
-        loop {
-            match handle::Handle::mihomo().await.get_proxies().await {
-                Ok(proxies) => return proxies,
-                Err(err) => {
-                    logging!(debug, Type::Config, "mihomo proxies are not ready yet: {err}");
-                    tokio::time::sleep(Duration::from_millis(500)).await;
-                }
-            }
-        }
-    })
-    .await
-    .context("timed out while waiting for mihomo proxies")
-}
-
 /// В каком состоянии группа, для которой у нас сохранён выбор.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum GroupState {
@@ -1373,7 +1357,7 @@ async fn activate_selected_nodes_worker(
         if !is_activation_current(generation) {
             return Ok(());
         }
-        let second_snapshot = fetch_proxies_with_timeout().await?;
+        let (second_snapshot, _) = fetch_settled_proxies(&selected, generation).await?;
         if !is_activation_current(generation) {
             return Ok(());
         }
