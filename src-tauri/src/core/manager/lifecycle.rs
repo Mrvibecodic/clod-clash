@@ -63,8 +63,6 @@ const fn the_verdict_without_a_diagnosis(called_off: bool, answered: bool) -> Op
     Some(PortVerdict::Unknown)
 }
 
-const PORT_BUSY_DIAGNOSIS_BUDGET: Duration = Duration::from_secs(2);
-
 #[cfg(test)]
 const fn the_port_check_budget(attempts: u32) -> Duration {
     let probes = timing::CORE_READY_PROBE_TIMEOUT.saturating_mul(attempts);
@@ -77,7 +75,6 @@ enum PortHolder {
     NotEvenTaken,
     AnotherCoreOfOurs,
     SomeoneElse,
-    Unclear,
 }
 
 async fn who_holds_the_port(
@@ -94,17 +91,7 @@ async fn who_holds_the_port(
     }
 }
 
-async fn who_holds_the_port_within(
-    budget: Duration,
-    port_is_taken: impl Future<Output = bool> + Send,
-    another_core_of_ours: impl Future<Output = bool> + Send,
-) -> PortHolder {
-    tokio::time::timeout(budget, who_holds_the_port(port_is_taken, another_core_of_ours))
-        .await
-        .unwrap_or(PortHolder::Unclear)
-}
-
-async fn say_who_holds_the_port(expected: u16, holder: PortHolder) {
+fn say_who_holds_the_port(expected: u16, holder: PortHolder, the_proxy_is_wanted: bool) {
     match holder {
         PortHolder::NotEvenTaken => {
             logging!(
@@ -122,15 +109,6 @@ async fn say_who_holds_the_port(expected: u16, holder: PortHolder) {
                 expected
             );
         }
-        PortHolder::Unclear => {
-            logging!(
-                warn,
-                Type::Core,
-                "ядро не слушает порт {}, а кто его занял — за {} мс выяснить не удалось",
-                expected,
-                PORT_BUSY_DIAGNOSIS_BUDGET.as_millis()
-            );
-        }
         PortHolder::SomeoneElse => {
             logging!(
                 error,
@@ -138,7 +116,7 @@ async fn say_who_holds_the_port(expected: u16, holder: PortHolder) {
                 "порт {} занят посторонним приложением: ядро его не слушает, трафик через системный прокси не пойдёт",
                 expected
             );
-            if Config::verge().await.latest_arc().enable_system_proxy.unwrap_or(false)
+            if the_proxy_is_wanted
                 && PORT_BUSY_NOTICED.swap(u32::from(expected), Ordering::AcqRel) != u32::from(expected)
             {
                 Handle::notice_message("core::port_busy", expected.to_string());
@@ -520,13 +498,22 @@ impl CoreManager {
         } else {
             None
         };
-        let holder = who_holds_the_port_within(
-            PORT_BUSY_DIAGNOSIS_BUDGET,
-            crate::cmd::network::is_port_in_use(expected),
-            crate::core::orphan::another_core_of_ours_is_running(own_pid, matches!(*mode, RunningMode::Service)),
-        )
-        .await;
-        say_who_holds_the_port(expected, holder).await;
+        // Вердикту диагноз не нужен: обход процессов идёт своей задачей и без
+        // срока, а устаревшая проверка виновного уже не называет.
+        // Желание читается сейчас: отказ тумблера сбросит черновик настроек
+        // раньше, чем закончится обход процессов.
+        let under_service = matches!(*mode, RunningMode::Service);
+        let the_proxy_is_wanted = Config::verge().await.latest_arc().enable_system_proxy.unwrap_or(false);
+        AsyncHandler::spawn(move || async move {
+            let holder = who_holds_the_port(
+                crate::cmd::network::is_port_in_use(expected),
+                crate::core::orphan::another_core_of_ours_is_running(own_pid, under_service),
+            )
+            .await;
+            if !Self::the_port_check_is_called_off(generation) {
+                say_who_holds_the_port(expected, holder, the_proxy_is_wanted);
+            }
+        });
         PortVerdict::Refuted
     }
 
@@ -1036,8 +1023,8 @@ impl CoreManager {
 #[cfg(test)]
 mod tests {
     use super::{
-        PORT_BUSY_DIAGNOSIS_BUDGET, PortHolder, PortReport, PortVerdict, port_report, should_wait_for_service,
-        the_port_check_budget, the_verdict_without_a_diagnosis, who_holds_the_port_within,
+        PortHolder, PortReport, PortVerdict, port_report, should_wait_for_service, the_port_check_budget,
+        the_verdict_without_a_diagnosis, who_holds_the_port,
     };
     use crate::constants::timing;
     use std::time::Duration;
@@ -1045,11 +1032,10 @@ mod tests {
     #[test]
     fn the_check_that_holds_the_settings_lock_is_measured_in_seconds() {
         let asking_the_core = the_port_check_budget(timing::MIXED_PORT_CONFIRM_ATTEMPTS);
-        let under_the_lock = asking_the_core.saturating_add(PORT_BUSY_DIAGNOSIS_BUDGET);
 
         assert!(
-            under_the_lock <= Duration::from_secs(4),
-            "проверка под замком настроек стоит {under_the_lock:?}"
+            asking_the_core <= Duration::from_secs(4),
+            "проверка под замком настроек стоит {asking_the_core:?}"
         );
         assert!(
             the_port_check_budget(timing::MIXED_PORT_CHECK_ATTEMPTS) >= asking_the_core * 4,
@@ -1076,15 +1062,10 @@ mod tests {
         );
     }
 
-    #[test]
-    fn naming_who_holds_the_port_gets_more_room_than_one_question_to_the_core() {
-        assert!(PORT_BUSY_DIAGNOSIS_BUDGET > timing::CORE_READY_PROBE_TIMEOUT);
-    }
-
     #[tokio::test]
     async fn a_free_port_is_blamed_on_nobody() {
         let asked_about_processes = std::sync::atomic::AtomicBool::new(false);
-        let holder = who_holds_the_port_within(PORT_BUSY_DIAGNOSIS_BUDGET, async { false }, async {
+        let holder = who_holds_the_port(async { false }, async {
             asked_about_processes.store(true, std::sync::atomic::Ordering::SeqCst);
             true
         })
@@ -1100,25 +1081,13 @@ mod tests {
     #[tokio::test]
     async fn a_busy_port_names_a_stranger_only_when_it_is_not_our_own_core() {
         assert_eq!(
-            who_holds_the_port_within(PORT_BUSY_DIAGNOSIS_BUDGET, async { true }, async { true }).await,
+            who_holds_the_port(async { true }, async { true }).await,
             PortHolder::AnotherCoreOfOurs
         );
         assert_eq!(
-            who_holds_the_port_within(PORT_BUSY_DIAGNOSIS_BUDGET, async { true }, async { false }).await,
+            who_holds_the_port(async { true }, async { false }).await,
             PortHolder::SomeoneElse
         );
-    }
-
-    #[tokio::test]
-    async fn a_diagnosis_that_never_answers_still_lets_the_check_finish() {
-        let holder = who_holds_the_port_within(
-            Duration::from_millis(10),
-            async { true },
-            std::future::pending::<bool>(),
-        )
-        .await;
-
-        assert_eq!(holder, PortHolder::Unclear);
     }
 
     #[test]
@@ -1162,9 +1131,9 @@ mod tests {
             "хвост проверки порта больше не спрашивает вердикт без диагноза"
         );
         assert!(
-            body.matches("the_port_check_is_called_off(").count() >= 2,
-            "гейт спрашивают только в начале круга: отменённая проверка снова пойдёт \
-             обходить процессы и назовёт виновного"
+            body.matches("the_port_check_is_called_off(").count() >= 3,
+            "гейт стоит в начале круга, перед диагнозом и перед словом о виновном: без \
+             любого из них отменённая проверка назовёт виновного"
         );
     }
 

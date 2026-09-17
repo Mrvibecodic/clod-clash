@@ -116,9 +116,7 @@ pub async fn another_core_of_ours_is_running(own_sidecar_pid: Option<u32>, under
         system.refresh_processes_specifics(
             ProcessesToUpdate::All,
             true,
-            ProcessRefreshKind::nothing()
-                .with_exe(UpdateKind::Always)
-                .with_user(UpdateKind::Always),
+            ProcessRefreshKind::nothing().with_exe(UpdateKind::Always),
         );
         let own_pid = sysinfo::get_current_pid().ok();
         system.processes().iter().any(|(pid, process)| {

@@ -4,8 +4,6 @@ use async_trait::async_trait;
 use clash_verge_logging::{Type, logging};
 use once_cell::sync::OnceCell;
 #[cfg(unix)]
-use std::iter;
-#[cfg(unix)]
 use std::path::Path;
 use std::{fs, path::PathBuf};
 use tauri::Manager as _;
@@ -211,22 +209,20 @@ pub fn get_encryption_key() -> Result<Vec<u8>> {
     }
 }
 
+/// Где может лежать сокет ядра, по убыванию предпочтения.
 #[cfg(unix)]
-pub fn ensure_mihomo_safe_dir() -> Option<PathBuf> {
-    iter::once("/tmp")
-        .map(PathBuf::from)
-        .find(|path| path.exists())
-        .or_else(|| {
-            std::env::var_os("HOME").and_then(|home| {
-                let home_config = PathBuf::from(home).join(".config");
-                if home_config.exists() || fs::create_dir_all(&home_config).is_ok() {
-                    Some(home_config)
-                } else {
-                    logging!(error, Type::File, "Failed to create safe directory: {home_config:?}");
-                    None
-                }
-            })
-        })
+fn ipc_base_dirs() -> Vec<PathBuf> {
+    let mut bases = Vec::new();
+    if Path::new("/tmp").exists() {
+        bases.push(PathBuf::from("/tmp"));
+    }
+    if let Some(home) = std::env::var_os("HOME") {
+        bases.push(PathBuf::from(home).join(".config"));
+    }
+    if let Ok(app_home) = preinit_app_home_dir() {
+        bases.push(app_home);
+    }
+    bases
 }
 
 #[cfg(unix)]
@@ -270,37 +266,33 @@ fn socket_in_private_dir(dir: &Path) -> Result<PathBuf> {
     Ok(socket)
 }
 
+/// Первая база, в которой приватный каталог удалось завести, выигрывает.
+/// В каждой сперва общее имя, затем имя с номером процесса — на случай, когда
+/// общее занято чужим каталогом.
+#[cfg(unix)]
+fn first_usable_socket(bases: &[PathBuf], dir_names: &[String]) -> Result<PathBuf> {
+    let mut last_error = anyhow::anyhow!("Failed to determine ipc path");
+    for base in bases {
+        let _ = fs::create_dir_all(base);
+        for dir_name in dir_names {
+            match socket_in_private_dir(&base.join(dir_name)) {
+                Ok(socket) => return Ok(socket),
+                Err(error) => {
+                    logging!(warn, Type::File, "каталог для сокета ядра недоступен: {error}");
+                    last_error = error;
+                }
+            }
+        }
+    }
+    Err(last_error)
+}
+
 #[cfg(unix)]
 pub fn sidecar_ipc_path() -> Result<PathBuf> {
     let flavor = if cfg!(feature = "verge-dev") { "dev" } else { "release" };
     let dir_name = format!("verge-{flavor}-{}", owner_ipc_suffix());
-    let mut last_error = None;
-
-    if let Some(dir) = ensure_mihomo_safe_dir().map(|base_dir| base_dir.join(&dir_name)) {
-        match socket_in_private_dir(&dir) {
-            Ok(socket) => return Ok(socket),
-            Err(error) => last_error = Some(error),
-        }
-    }
-
-    if let Some(error) = last_error.as_ref() {
-        logging!(
-            warn,
-            Type::File,
-            "каталог для сокета ядра недоступен ({}), берём запасной",
-            error
-        );
-    }
-
     let unique_name = format!("{dir_name}-{}", std::process::id());
-    if let Some(dir) = ensure_mihomo_safe_dir().map(|base_dir| base_dir.join(&unique_name)) {
-        match socket_in_private_dir(&dir) {
-            Ok(socket) => return Ok(socket),
-            Err(error) => last_error = Some(error),
-        }
-    }
-
-    Err(last_error.unwrap_or_else(|| anyhow::anyhow!("Failed to determine ipc path")))
+    first_usable_socket(&ipc_base_dirs(), &[dir_name, unique_name])
 }
 
 #[cfg(target_os = "windows")]
@@ -336,5 +328,41 @@ impl PathBufExec for PathBuf {
             logging!(info, Type::File, "Removed file: {:?}", self);
         }
         Ok(())
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::first_usable_socket;
+    use std::fs;
+
+    #[test]
+    fn a_base_that_exists_but_cannot_hold_the_socket_gives_way_to_the_next_one() {
+        let root = std::path::Path::new("/tmp").join(format!("clod-ipc-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        assert!(fs::create_dir_all(&root).is_ok());
+        let not_a_dir = root.join("taken");
+        assert!(fs::write(&not_a_dir, b"").is_ok());
+        let usable = root.join("usable");
+        let names = ["shared".to_owned(), "own".to_owned()];
+
+        let socket = first_usable_socket(&[not_a_dir.clone(), usable.clone()], &names).unwrap_or_default();
+        assert_eq!(socket, usable.join("shared").join("verge-mihomo.sock"));
+
+        assert!(first_usable_socket(&[not_a_dir], &names).is_err());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_shared_name_taken_by_something_else_falls_back_to_our_own_name() {
+        let root = std::path::Path::new("/tmp").join(format!("clod-ipc-n-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        assert!(fs::create_dir_all(&root).is_ok());
+        assert!(fs::write(root.join("shared"), b"").is_ok());
+        let names = ["shared".to_owned(), "own".to_owned()];
+
+        let socket = first_usable_socket(std::slice::from_ref(&root), &names).unwrap_or_default();
+        assert_eq!(socket, root.join("own").join("verge-mihomo.sock"));
+        let _ = fs::remove_dir_all(&root);
     }
 }
