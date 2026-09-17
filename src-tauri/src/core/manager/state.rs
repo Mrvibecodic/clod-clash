@@ -341,10 +341,12 @@ impl HealthWatch {
             return HealthStep::Continue;
         }
         self.silent = self.silent.saturating_add(1);
-        if self.silent >= timing::CORE_HEALTH_MISSES {
-            HealthStep::CoreLost("the core stopped answering under the service")
-        } else {
+        if self.silent < timing::CORE_HEALTH_MISSES {
             HealthStep::Continue
+        } else if self.unreadable >= timing::CORE_HEALTH_MISSES {
+            HealthStep::CoreLost("neither the service nor the core answers")
+        } else {
+            HealthStep::CoreLost("the core stopped answering under the service")
         }
     }
 }
@@ -1128,7 +1130,10 @@ mod health_tests {
             assert_eq!(watch.core_probed(false), HealthStep::Continue);
         }
         assert_eq!(watch.observe(running(Some(7), 0)), HealthStep::ProbeTheCore);
-        assert!(matches!(watch.core_probed(false), HealthStep::CoreLost(_)));
+        assert_eq!(
+            watch.core_probed(false),
+            HealthStep::CoreLost("the core stopped answering under the service")
+        );
     }
 
     #[test]
@@ -1228,7 +1233,10 @@ mod health_tests {
             assert_eq!(watch.core_probed(false), HealthStep::Continue);
         }
         assert_eq!(watch.observe(ServiceSample::Unreadable), HealthStep::ProbeTheCore);
-        assert!(matches!(watch.core_probed(false), HealthStep::CoreLost(_)));
+        assert_eq!(
+            watch.core_probed(false),
+            HealthStep::CoreLost("neither the service nor the core answers")
+        );
     }
 
     #[test]
