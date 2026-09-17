@@ -178,7 +178,7 @@ fn cancel_the_exit(reason: String) {
         if !lightweight::exit_lightweight_mode().await {
             WindowManager::show_main_window().await;
         }
-        if let Err(error) = CoreManager::global().start_core().await {
+        if let Err(error) = CoreManager::global().resume_after_a_cancelled_exit().await {
             logging!(
                 error,
                 Type::Core,
@@ -195,12 +195,11 @@ fn cancel_the_exit(reason: String) {
                 logging!(
                     error,
                     Type::Window,
-                    "выход отменён, но ядра нет: системный прокси снят и обратно не пишется"
+                    "выход отменён, но ядра нет: системный прокси снят и вернётся, когда ядро поднимется"
                 );
                 handle::Handle::notice_message("sysproxy::core_not_running", "");
-            } else {
-                CoreManager::global().point_system_proxy_at_the_confirmed_port().await;
             }
+            CoreManager::global().point_system_proxy_at_the_confirmed_port().await;
         }
         #[cfg(target_os = "macos")]
         crate::utils::resolve::dns::apply_remembered_desire();

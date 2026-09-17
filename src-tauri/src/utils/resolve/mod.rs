@@ -95,7 +95,7 @@ pub fn resolve_setup_async() {
                 );
                 logging_error!(Type::Setup, sysopt::Sysopt::global().reset_sysproxy_if_ours().await);
                 Handle::notice_message("sysproxy::core_not_running", "");
-                init_connect_targets().await;
+                init_system_proxy().await;
             }
             init_system_proxy_guard().await;
             init_tun_ready().await;

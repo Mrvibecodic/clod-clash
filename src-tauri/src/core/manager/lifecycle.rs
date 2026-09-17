@@ -20,8 +20,9 @@ static MIXED_PORT_CHECK_GENERATION: AtomicU64 = AtomicU64::new(0);
 static PORT_BUSY_NOTICED: AtomicU32 = AtomicU32::new(0);
 /// Системный прокси ещё указывает на прежний порт, а у ядра уже новый.
 ///
-/// clod:port-ladder — взводится при смене порта и снимается только после того,
-/// как ядро подтвердило слушателя и прокси переписан. Так более новый старт
+/// clod:port-ladder — взводится при смене порта, а также когда прокси включён,
+/// но ядра в этот момент нет; снимается только после того, как ядро
+/// подтвердило слушателя и прокси переписан. Так более новый старт
 /// ядра (в том числе передача службе), погасивший прежнюю проверку по
 /// поколению, доводит прокси сам, а обычный старт без смены порта в систему
 /// не пишет ничего — как и раньше.
@@ -173,6 +174,28 @@ enum HandoffOutcome {
 impl CoreManager {
     pub async fn start_core(&self) -> Result<()> {
         let _life = self.lifecycle_lock.lock().await;
+        self.start_core_inner().await
+    }
+
+    /// После отменённого выхода: пережившее остановку ядро снова рабочее, а
+    /// если его тем временем не стало — поднимается заново.
+    pub async fn resume_after_a_cancelled_exit(&self) -> Result<()> {
+        let _life = self.lifecycle_lock.lock().await;
+        // Пока шёл выход, смерть процесса никто не засчитывал: возвращать
+        // можно только ядро, которое всё ещё в таблице процессов.
+        if let (Backend::Sidecar, Some(pid)) = (self.backend(), self.sidecar_pid())
+            && matches!(
+                crate::core::orphan::look_at_process(pid).await,
+                crate::core::orphan::Look::Gone
+            )
+        {
+            self.clear_sidecar_pid();
+            self.note_core_is_down();
+        }
+        if self.take_the_core_back() {
+            self.after_core_process();
+            return Ok(());
+        }
         self.start_core_inner().await
     }
 
@@ -388,8 +411,15 @@ impl CoreManager {
             Self::spawn_mixed_port_check(true);
             return;
         }
+        // Желание не теряется: прокси допишет первый же старт ядра, который
+        // подтвердит порт.
         if Config::verge().await.latest_arc().enable_system_proxy.unwrap_or(false) {
-            logging!(warn, Type::Core, "ядро не запущено — системный прокси оставлен как был");
+            PROXY_AWAITS_THE_NEW_PORT.store(true, Ordering::Release);
+            logging!(
+                warn,
+                Type::Core,
+                "ядро не запущено — системный прокси будет записан, когда оно подтвердит порт"
+            );
         }
     }
 
@@ -621,6 +651,9 @@ impl CoreManager {
         if let Err(error) = self.stop_core_inner().await {
             logging!(warn, Type::Core, "ядро не остановилось перед заменой: {error:#}");
         }
+        // Прежнее ядро живо — новая сборка не запустится: отказ до обеих
+        // записей указателей, откатывать нечего.
+        self.refuse_to_double_the_core()?;
 
         // clod:tun-ready — новая сборка ядра заслуживает честной попытки.
         // Подавление ставится на сессию (ядро не смогло поднять устройство) и

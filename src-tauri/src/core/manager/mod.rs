@@ -171,7 +171,7 @@ impl Default for CoreManager {
             config_update_in_progress: AtomicBool::new(false),
             lifecycle_lock: tokio::sync::Mutex::new(()),
             handoff_watcher_generation: AtomicU64::new(0),
-            starting: AtomicBool::new(false),
+            starting: AtomicBool::new(true),
             restart_pending: AtomicBool::new(false),
             planned_pauses: AtomicU32::new(0),
         }
@@ -251,6 +251,18 @@ impl CoreManager {
             .store(Liveness::Down as u8, Ordering::Release);
     }
 
+    /// Ядро, которое остановка не убила или не успела убить, снова рабочее:
+    /// его смерть перестаёт числиться заказанной. `true` — было что вернуть.
+    pub(super) fn take_the_core_back(&self) -> bool {
+        let state = self.state.load();
+        [Liveness::Stopping, Liveness::StopFailed].into_iter().any(|was| {
+            state
+                .liveness
+                .compare_exchange(was as u8, Liveness::Up as u8, Ordering::AcqRel, Ordering::Acquire)
+                .is_ok()
+        })
+    }
+
     /// Отказ убийства применяется только к живому ядру: если оно тем временем
     /// умерло само, «не остановилось» было бы враньём.
     pub(super) fn note_stop_failed(&self) {
@@ -271,11 +283,12 @@ impl CoreManager {
         }
     }
 
+    /// «Идёт запуск» с рождения процесса: признак взведён с самого начала, а
+    /// снимает его первый же старт ядра, чем бы он ни кончился.
     pub fn is_starting(&self) -> bool {
         self.starting.load(Ordering::Acquire)
             || self.restart_pending.load(Ordering::Acquire)
             || self.planned_pauses.load(Ordering::Acquire) > 0
-            || !crate::utils::resolve::is_resolve_done()
     }
 
     pub fn planned_pause(&self) -> PlannedPause<'_> {
@@ -498,6 +511,47 @@ mod tests {
 
         assert!(!manager.stop_failed());
         assert!(manager.refuse_to_double_the_core().is_ok());
+    }
+
+    #[test]
+    fn a_core_that_outlived_a_cancelled_exit_is_a_working_core_again() {
+        for half_stopped in [false, true] {
+            let manager = CoreManager::default();
+            manager.note_core_is_up(Backend::Service);
+            manager.note_stopping();
+            if !half_stopped {
+                manager.note_stop_failed();
+            }
+
+            assert!(manager.take_the_core_back());
+            assert!(!manager.a_death_we_asked_for(), "смерть такого ядра — снова падение");
+            assert_eq!(*manager.get_running_mode(), RunningMode::Service);
+            assert!(manager.refuse_to_double_the_core().is_ok());
+        }
+    }
+
+    #[test]
+    fn a_core_that_is_gone_is_not_taken_back() {
+        let manager = CoreManager::default();
+        assert!(!manager.take_the_core_back());
+        manager.note_core_is_up(Backend::Sidecar);
+        assert!(!manager.take_the_core_back());
+        manager.note_stopping();
+        manager.note_core_is_down();
+        assert!(!manager.take_the_core_back());
+        assert_eq!(*manager.get_running_mode(), RunningMode::NotRunning);
+    }
+
+    #[test]
+    fn a_core_that_has_not_been_tried_yet_is_starting_and_a_failed_first_start_is_down() {
+        let manager = CoreManager::default();
+        assert!(manager.is_starting());
+        assert!(!manager.is_down());
+
+        manager.mark_starting();
+        manager.clear_starting();
+        assert!(!manager.is_starting());
+        assert!(manager.is_down());
     }
 
     #[test]
