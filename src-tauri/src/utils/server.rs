@@ -26,9 +26,19 @@ static SHUTDOWN_SENDER: OnceCell<Mutex<Option<oneshot::Sender<()>>>> = OnceCell:
 /// его, доживает здесь до запуска встроенного сервера.
 static CLAIMED_LISTENER: Mutex<Option<std::net::TcpListener>> = Mutex::new(None);
 
+/// Единственность экземпляра — это замок на файле: он не зависит от того, дала
+/// ли система порт, и снимается вместе с процессом. Порт — только канал, по
+/// которому вторая копия передаёт первой команду.
+static INSTANCE_LOCK: Mutex<Option<std::fs::File>> = Mutex::new(None);
+const INSTANCE_LOCK_FILE: &str = "instance.lock";
+
 /// Первый экземпляр занимает порт сразу, а отвечать начинает только после
 /// инициализации: второй ждёт его ответа, а не считает порт чужим.
 const HANDOVER_WAIT: Duration = Duration::from_secs(20);
+const LOCK_RETRY: Duration = Duration::from_millis(100);
+/// Перезапускающая себя копия порождает новую раньше, чем умирает сама: столько
+/// ждём её замок, прежде чем счесть, что копия с замком живёт своей жизнью.
+const RESTART_HANDOFF: Duration = Duration::from_secs(3);
 
 fn held_by_someone(error: &std::io::Error) -> bool {
     error.kind() == std::io::ErrorKind::AddrInUse
@@ -45,68 +55,144 @@ impl std::fmt::Display for AnotherInstanceRunning {
 
 impl std::error::Error for AnotherInstanceRunning {}
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum InstanceLock {
+    Ours,
+    Theirs,
+    /// Замок взять не удалось по причине, не связанной с другой копией:
+    /// единственность тогда, как и прежде, судится по порту.
+    Unavailable,
+}
+
+fn lock_the_file(file: &std::fs::File) -> InstanceLock {
+    match file.try_lock() {
+        Ok(()) => InstanceLock::Ours,
+        Err(std::fs::TryLockError::WouldBlock) => InstanceLock::Theirs,
+        Err(std::fs::TryLockError::Error(_)) => InstanceLock::Unavailable,
+    }
+}
+
+fn take_the_instance_lock() -> InstanceLock {
+    let file = crate::utils::dirs::preinit_app_home_dir().and_then(|home| {
+        std::fs::create_dir_all(&home)?;
+        Ok(std::fs::File::options()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(home.join(INSTANCE_LOCK_FILE))?)
+    });
+    let Ok(file) = file else {
+        return InstanceLock::Unavailable;
+    };
+    let lock = lock_the_file(&file);
+    if lock == InstanceLock::Ours {
+        *INSTANCE_LOCK.lock() = Some(file);
+    }
+    lock
+}
+
+enum Handover {
+    Delivered,
+    NothingToSend,
+    Failed(anyhow::Error),
+}
+
+async fn hand_the_command_over(port: u16, wait: Duration) -> Handover {
+    // Сосед на этой же машине: системный прокси между нами ни к чему.
+    let client = match ClientBuilder::new().no_proxy().timeout(wait).build() {
+        Ok(client) => client,
+        Err(error) => return Handover::Failed(error.into()),
+    };
+    #[allow(clippy::needless_collect)]
+    let argvs: Vec<std::string::String> = std::env::args().collect();
+    if argvs.len() > 1 {
+        #[cfg(not(target_os = "macos"))]
+        {
+            use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
+
+            let param = argvs[1].as_str();
+            if param.starts_with("clash:") || param.starts_with("clash-verge:") || param.starts_with("clodclash:") {
+                let encoded = utf8_percent_encode(param, NON_ALPHANUMERIC);
+                return match client
+                    .get(format!("http://127.0.0.1:{port}/commands/scheme?param={encoded}"))
+                    .send()
+                    .await
+                {
+                    Ok(_) => Handover::Delivered,
+                    Err(error) => Handover::Failed(error.into()),
+                };
+            }
+        }
+        return Handover::NothingToSend;
+    }
+    match client
+        .get(format!("http://127.0.0.1:{port}/commands/visible"))
+        .send()
+        .await
+    {
+        Ok(response) if response.status().is_success() => Handover::Delivered,
+        Ok(response) => Handover::Failed(anyhow::anyhow!("ответ {}", response.status())),
+        Err(error) => Handover::Failed(error.into()),
+    }
+}
+
+fn leave_to_the_running_copy() -> Result<()> {
+    logging!(info, Type::Window, "another instance is already running, exiting");
+    Err(AnotherInstanceRunning.into())
+}
+
 pub async fn check_singleton() -> Result<()> {
     let port = IVerge::get_singleton_port();
-    let claim = std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port));
-    let held = claim.as_ref().is_err_and(held_by_someone);
-    // Отказ не про занятый порт (порт зарезервирован системой, нет прав) —
-    // не повод не запускаться: работаем без встроенного сервера.
-    *CLAIMED_LISTENER.lock() = claim.ok();
-    if held {
-        // Сосед на этой же машине: системный прокси между нами ни к чему.
-        let client = ClientBuilder::new().no_proxy().timeout(HANDOVER_WAIT).build()?;
-        #[allow(clippy::needless_collect)]
-        let argvs: Vec<std::string::String> = std::env::args().collect();
-        let mut handover: Result<()> = Ok(());
-        if argvs.len() > 1 {
-            #[cfg(not(target_os = "macos"))]
-            {
-                use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
-
-                let param = argvs[1].as_str();
-                if param.starts_with("clash:") || param.starts_with("clash-verge:") || param.starts_with("clodclash:") {
-                    let encoded = utf8_percent_encode(param, NON_ALPHANUMERIC);
-                    handover = client
-                        .get(format!("http://127.0.0.1:{port}/commands/scheme?param={encoded}"))
-                        .send()
-                        .await
-                        .map(|_| ())
-                        .map_err(anyhow::Error::from);
-                }
+    let started = std::time::Instant::now();
+    loop {
+        let lock = take_the_instance_lock();
+        if lock != InstanceLock::Theirs {
+            return claim_the_port(port, lock).await;
+        }
+        // Стартующая копия порт уже держит, и запрос дожидается её ответа;
+        // быстрым отказ бывает, когда порт закрыт, — тогда замок пробуем снова.
+        match hand_the_command_over(port, HANDOVER_WAIT).await {
+            Handover::Delivered => return leave_to_the_running_copy(),
+            Handover::NothingToSend if started.elapsed() >= RESTART_HANDOFF => return leave_to_the_running_copy(),
+            Handover::Failed(error) if started.elapsed() >= HANDOVER_WAIT => {
+                bail!("another copy holds the instance lock and did not answer the command: {error}");
             }
-        } else {
-            handover = client
-                .get(format!("http://127.0.0.1:{port}/commands/visible"))
-                .send()
-                .await
-                .map_err(anyhow::Error::from)
-                .and_then(|response| {
-                    let status = response.status();
-                    if status.is_success() {
-                        Ok(())
-                    } else {
-                        Err(anyhow::anyhow!("ответ {status}"))
-                    }
-                });
+            Handover::NothingToSend | Handover::Failed(_) => tokio::time::sleep(LOCK_RETRY).await,
         }
-        if let Err(error) = handover {
-            logging!(
-                error,
-                Type::Window,
-                "порт {} занят, а на команду никто не ответил ({}): передать её некому",
-                port,
-                error
-            );
-            bail!("singleton port {port} is held and nobody answered the command: {error}");
-        }
-        logging!(
-            info,
-            Type::Window,
-            "another instance is already running; the command was handed over, exiting"
-        );
-        return Err(AnotherInstanceRunning.into());
     }
-    Ok(())
+}
+
+/// Замок наш (или его не у кого спросить): остаётся занять порт.
+async fn claim_the_port(port: u16, lock: InstanceLock) -> Result<()> {
+    let refusal = match std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port)) {
+        Ok(listener) => {
+            *CLAIMED_LISTENER.lock() = Some(listener);
+            return Ok(());
+        }
+        Err(refusal) => refusal,
+    };
+    // Порт зарезервирован системой или на него нет прав — не повод не
+    // запускаться: работаем без встроенного сервера.
+    if !held_by_someone(&refusal) {
+        return Ok(());
+    }
+    // Порт держит копия без замка — прежняя версия или другая установка.
+    let error = match hand_the_command_over(port, HANDOVER_WAIT).await {
+        Handover::Delivered | Handover::NothingToSend => return leave_to_the_running_copy(),
+        Handover::Failed(error) => error,
+    };
+    logging!(
+        error,
+        Type::Window,
+        "порт {} занят, а на команду никто не ответил ({}): передать её некому",
+        port,
+        error
+    );
+    if lock == InstanceLock::Ours {
+        // Замок доказывает, что другой нашей копии нет: порт занял посторонний.
+        return Ok(());
+    }
+    bail!("singleton port {port} is held and nobody answered the command: {error}");
 }
 
 pub fn embed_server() {
@@ -124,15 +210,20 @@ pub fn embed_server() {
         .set(Mutex::new(Some(shutdown_tx)))
         .expect("failed to set shutdown signal for embedded server");
 
+    // Показ окна не привязан к соединению: вторая копия вправе оборвать его
+    // раньше, чем окно построится, а брошенный на полпути показ оставляет
+    // лёгкий режим в промежуточном состоянии.
     let visible = warp::path!("commands" / "visible").and_then(|| async {
         logging!(
             info,
             Type::Window,
             "Обнаружено восстановление окна приложения из режима одиночного экземпляра"
         );
-        if !lightweight::exit_lightweight_mode().await {
-            WindowManager::show_main_window().await;
-        }
+        AsyncHandler::spawn(|| async {
+            if !lightweight::exit_lightweight_mode().await {
+                WindowManager::show_main_window().await;
+            }
+        });
         Ok::<_, warp::Rejection>(warp::reply::with_status::<std::string::String>(
             "ok".to_string(),
             warp::http::StatusCode::OK,
@@ -201,6 +292,9 @@ pub fn embed_server() {
 
 pub fn shutdown_embedded_server() {
     logging!(info, Type::Window, "shutting down embedded server");
+    // Вместе с сервером отпускается и замок экземпляра: копия, которую мы
+    // породим при перезапуске, не должна ждать нашей смерти.
+    INSTANCE_LOCK.lock().take();
     if let Some(sender) = SHUTDOWN_SENDER.get()
         && let Some(sender) = sender.lock().take()
     {
@@ -210,7 +304,7 @@ pub fn shutdown_embedded_server() {
 
 #[cfg(test)]
 mod tests {
-    use super::held_by_someone;
+    use super::{InstanceLock, held_by_someone, lock_the_file};
     use std::net::{Ipv4Addr, TcpListener};
     use warp::Filter as _;
 
@@ -230,6 +324,29 @@ mod tests {
 
         let refused = std::io::Error::from(std::io::ErrorKind::PermissionDenied);
         assert!(!held_by_someone(&refused));
+    }
+
+    #[test]
+    fn the_instance_lock_is_held_by_one_copy_until_it_lets_go() {
+        let path = std::env::temp_dir().join(format!("clod-instance-{}.lock", std::process::id()));
+        let open = || {
+            std::fs::File::options()
+                .create(true)
+                .truncate(false)
+                .write(true)
+                .open(&path)
+        };
+        let (Ok(first), Ok(second)) = (open(), open()) else {
+            return assert!(path.exists(), "файл замка не открылся");
+        };
+
+        assert_eq!(lock_the_file(&first), InstanceLock::Ours);
+        assert_eq!(lock_the_file(&second), InstanceLock::Theirs);
+        drop(first);
+        assert_eq!(lock_the_file(&second), InstanceLock::Ours);
+
+        drop(second);
+        let _ = std::fs::remove_file(&path);
     }
 
     #[tokio::test]

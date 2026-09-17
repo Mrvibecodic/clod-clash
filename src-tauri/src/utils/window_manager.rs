@@ -327,6 +327,16 @@ impl WindowManager {
                 return false;
             }
 
+            // Окно строит один строитель за раз: проверка метки и вставка окна
+            // у Tauri разнесены, и два одновременных строителя дают два окна,
+            // одно из которых остаётся неадресуемым.
+            static ONE_BUILDER: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+            let _one_builder = ONE_BUILDER.lock().await;
+            if Self::get_main_window().is_some() {
+                logging!(info, Type::Window, "Главное окно уже создано другим запросом");
+                return true;
+            }
+
             #[cfg(target_os = "macos")]
             Self::set_macos_activation_policy_regular();
 
