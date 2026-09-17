@@ -85,6 +85,9 @@ mod windows_watchdog {
     /// уже идёт, у него своя уборка — вторую поверх не запускаем.
     fn tidy_up_before_the_restart() {
         if !crate::core::handle::Handle::global().begin_exiting(false) {
+            // Уборка идущего выхода живёт на рантайме и от окна не зависит:
+            // даём ей закончить, а не обрываем на полуслове.
+            std::thread::sleep(TIDY_UP);
             return;
         }
         let (done, tidied) = std::sync::mpsc::channel();

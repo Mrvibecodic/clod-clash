@@ -160,12 +160,13 @@ impl CoreManager {
     pub async fn resume_after_a_cancelled_exit(&self) -> Result<()> {
         let _life = self.lifecycle_lock.lock().await;
         // Пока шёл выход, смерть процесса никто не засчитывал: возвращать
-        // можно только ядро, которое всё ещё в таблице процессов.
+        // можно только ядро, которое всё ещё в таблице процессов, — и именно
+        // ядро, а не чужой процесс, которому достался его номер.
         if let (Backend::Sidecar, Some(pid)) = (self.backend(), self.sidecar_pid())
-            && matches!(
+            && (matches!(
                 crate::core::orphan::look_at_process(pid).await,
                 crate::core::orphan::Look::Gone
-            )
+            ) || !crate::core::orphan::pid_belongs_to_our_core(pid).await)
         {
             self.clear_sidecar_pid();
             self.note_core_is_down();
@@ -175,6 +176,19 @@ impl CoreManager {
             return Ok(());
         }
         self.start_core_inner().await
+    }
+
+    /// Перезапуск просили ради работающего ядра. Если прежнее не остановилось,
+    /// второго поверх него не будет, а прежнее остаётся рабочим: под сторожем,
+    /// и его падение снова перезапускается. Вызывающий держит `lifecycle_lock`.
+    fn keep_the_core_that_would_not_stop(&self) -> Result<()> {
+        if !self.stop_failed() {
+            return Ok(());
+        }
+        self.take_the_core_back();
+        self.watch_the_core_again_locked();
+        self.after_core_process();
+        anyhow::bail!("ядро прежнего запуска не остановилось — перезапуск отменён, оно продолжает работать")
     }
 
     /// Вызывающий должен уже удерживать `lifecycle_lock`.
@@ -605,12 +619,12 @@ impl CoreManager {
         let _life = self.lifecycle_lock.lock().await;
         let _pause = self.planned_pause();
         logging!(info, Type::Core, "Restarting core");
-        // Отказ остановки перезапуска не отменяет: новое ядро всё равно нужно,
-        // а о старом сказал журнал. Иначе перезапуск оставлял бы приложение
-        // без ядра там, где раньше оно поднималось.
+        // Ошибка остановки при мёртвом ядре перезапуска не отменяет: новое
+        // ядро всё равно нужно. Отменяет его только живое прежнее ядро.
         if let Err(error) = self.stop_core_inner().await {
             logging!(warn, Type::Core, "ядро не остановилось перед перезапуском: {error:#}");
         }
+        self.keep_the_core_that_would_not_stop()?;
         self.start_core_inner().await
     }
 
@@ -640,7 +654,7 @@ impl CoreManager {
         }
         // Прежнее ядро живо — новая сборка не запустится: отказ до обеих
         // записей указателей, откатывать нечего.
-        self.refuse_to_double_the_core()?;
+        self.keep_the_core_that_would_not_stop()?;
 
         // clod:tun-ready — новая сборка ядра заслуживает честной попытки.
         // Подавление ставится на сессию (ядро не смогло поднять устройство) и

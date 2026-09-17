@@ -1352,12 +1352,14 @@ async fn activate_selected_nodes_worker(
         handle::Handle::refresh_clash();
     }
 
+    let mut records_may_be_repaired = groups_are_settled;
     let plan = if needs_confirmation {
         tokio::time::sleep(SELECTED_NODES_RECHECK_DELAY).await;
         if !is_activation_current(generation) {
             return Ok(());
         }
-        let (second_snapshot, _) = fetch_settled_proxies(&selected, generation).await?;
+        let (second_snapshot, still_settled) = fetch_settled_proxies(&selected, generation).await?;
+        records_may_be_repaired = still_settled;
         if !is_activation_current(generation) {
             return Ok(());
         }
@@ -1383,7 +1385,7 @@ async fn activate_selected_nodes_worker(
         return Ok(());
     }
 
-    if plan.repaired_count > 0 && groups_are_settled && is_activation_current(generation) {
+    if plan.repaired_count > 0 && records_may_be_repaired && is_activation_current(generation) {
         logging!(
             info,
             Type::Config,

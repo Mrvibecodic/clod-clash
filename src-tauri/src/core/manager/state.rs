@@ -570,6 +570,11 @@ impl CoreManager {
     /// уцелевший старый уходит сам.
     pub async fn watch_the_core_again(&self) {
         let _life = self.lifecycle_lock.lock().await;
+        self.watch_the_core_again_locked();
+    }
+
+    /// Вызывающий должен уже удерживать `lifecycle_lock`.
+    pub(super) fn watch_the_core_again_locked(&self) {
         match *self.get_running_mode() {
             RunningMode::Service => spawn_service_health_watchdog(),
             RunningMode::Sidecar => {

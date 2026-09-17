@@ -312,6 +312,16 @@ impl CoreManager {
         matches!(*self.get_running_mode(), RunningMode::NotRunning) && !self.is_starting()
     }
 
+    /// Инициализация приложения закончена: первый старт ядра либо состоялся,
+    /// либо его задача не дожила до него — «идёт запуск» больше не про него.
+    pub fn the_boot_is_over(&self) {
+        // Занятый замок — чей-то старт или остановка идут прямо сейчас, и
+        // признак снимет сам этот старт.
+        if let Ok(_life) = self.lifecycle_lock.try_lock() {
+            self.clear_starting();
+        }
+    }
+
     pub(super) fn mark_starting(&self) {
         self.starting.store(true, Ordering::Release);
     }

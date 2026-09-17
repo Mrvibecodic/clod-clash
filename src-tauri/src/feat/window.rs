@@ -239,19 +239,24 @@ fn cancel_the_exit(reason: String) {
     });
 }
 
-/// Перед аварийным перезапуском при зависшем окне: настройки сохраняются
-/// всегда, а прокси снимается только когда ядро — наш дочерний процесс и умрёт
-/// вместе с нами. Ядро под службой перезапуск переживает, прокси и туннель
-/// остаются рабочими, и снимать их значило бы пустить трафик напрямую.
+/// Перед аварийным перезапуском при зависшем окне настройки сохраняются
+/// всегда. Ядро под службой перезапуск переживает, прокси и туннель остаются
+/// рабочими, и снимать их значило бы пустить трафик напрямую. Во всех прочих
+/// случаях прокси после нас укажет в никуда: он снимается, а своё ядро
+/// останавливается — возвращённое после отменённого выхода уже не умирает
+/// вместе с нами.
 #[cfg(target_os = "windows")]
 pub async fn tidy_up_for_a_forced_restart() -> bool {
     let pace = ExitPace::SessionEnding;
     let save = spawn_save_task(pace);
-    if !matches!(*CoreManager::global().get_running_mode(), RunningMode::Sidecar) {
+    if matches!(*CoreManager::global().get_running_mode(), RunningMode::Service) {
         return save.await.unwrap_or_default();
     }
-    let (saved, proxy) = tokio::join!(save, spawn_proxy_task(pace));
-    saved.unwrap_or_default() && the_take_down_went_as_asked(proxy.unwrap_or_default())
+    let stop = timeout(pace.core_stop_budget(), CoreManager::global().stop_core());
+    let (saved, proxy, stopped) = tokio::join!(save, spawn_proxy_task(pace), stop);
+    saved.unwrap_or_default()
+        && the_take_down_went_as_asked(proxy.unwrap_or_default())
+        && stopped.is_ok_and(|stopped| stopped.is_ok())
 }
 
 pub struct CleanupOutcome {

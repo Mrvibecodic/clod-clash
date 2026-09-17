@@ -126,6 +126,7 @@ pub fn resolve_setup_async() {
             Handle::notice_message("clod_config::load_failed", unread.join(", "));
         }
 
+        CoreManager::global().the_boot_is_over();
         Handle::refresh_clash();
         resolve_done();
         refresh_tray_menu().await;
