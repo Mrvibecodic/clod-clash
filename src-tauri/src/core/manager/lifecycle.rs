@@ -335,7 +335,7 @@ impl CoreManager {
             }
 
             let probe = {
-                let mihomo = Handle::mihomo().await;
+                let mihomo = Handle::mihomo();
                 tokio::time::timeout(timing::CORE_READY_PROBE_TIMEOUT, mihomo.get_version()).await
             };
             match probe {
@@ -462,7 +462,7 @@ impl CoreManager {
             }
 
             let reported = {
-                let mihomo = Handle::mihomo().await;
+                let mihomo = Handle::mihomo();
                 match tokio::time::timeout(timing::CORE_READY_PROBE_TIMEOUT, mihomo.get_base_config()).await {
                     Ok(Ok(config)) => Some(config.mixed_port),
                     _ => None,

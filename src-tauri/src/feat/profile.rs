@@ -16,7 +16,7 @@ pub async fn toggle_proxy_profile(profile_index: String) {
 }
 
 pub async fn switch_proxy_node(group_name: &str, proxy_name: &str) {
-    let group = handle::Handle::mihomo().await.get_group_by_name(group_name).await;
+    let group = handle::Handle::mihomo().get_group_by_name(group_name).await;
     let previous = match group {
         Ok(group) => group.now.filter(|now| now != proxy_name),
         Err(err) => {
@@ -29,7 +29,6 @@ pub async fn switch_proxy_node(group_name: &str, proxy_name: &str) {
         }
     };
     let selected = handle::Handle::mihomo()
-        .await
         .select_node_for_group(group_name, proxy_name)
         .await;
     if let Err(err) = selected {
@@ -42,7 +41,6 @@ pub async fn switch_proxy_node(group_name: &str, proxy_name: &str) {
             err
         );
         let retried = handle::Handle::mihomo()
-            .await
             .select_node_for_group(group_name, proxy_name)
             .await;
         if let Err(err) = retried {

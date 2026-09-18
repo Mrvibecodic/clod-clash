@@ -439,7 +439,7 @@ pub fn on_web_content_process_terminated(webview: &tauri::Webview) {
 
     let webview = webview.clone();
     crate::process::AsyncHandler::spawn(move || async move {
-        if let Err(err) = handle::Handle::mihomo().await.clear_all_ws_connections().await {
+        if let Err(err) = handle::Handle::mihomo().clear_all_ws_connections() {
             logging!(
                 warn,
                 Type::Window,

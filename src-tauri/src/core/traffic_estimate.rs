@@ -196,7 +196,7 @@ async fn tick() {
         persist(&snapshot());
     }
 
-    let core = crate::feat::environment::detached_core_client().await;
+    let core = crate::feat::environment::detached_core_client();
     let Ok(response) = core.get_connections().await else {
         // Ядро может быть ещё не поднято или уже остановлено — это штатно,
         // шуметь в лог на каждый опрос не за чем.

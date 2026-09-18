@@ -66,7 +66,7 @@ pub async fn restart_app() {
 /// по-прежнему нужно — режим меняют и трей, и горячие клавиши, мимо интерфейса.
 fn close_connections_after_mode_change() {
     AsyncHandler::spawn(|| async {
-        if let Err(err) = handle::Handle::mihomo().await.close_all_connections().await {
+        if let Err(err) = handle::Handle::mihomo().close_all_connections().await {
             logging!(warn, Type::Core, "Warning: не удалось разорвать соединения: {err}");
         }
     });
@@ -96,7 +96,7 @@ pub async fn change_clash_mode(mode: String) -> Result<(), String> {
         "mode": mode
     });
     logging!(debug, Type::Core, "change clash mode to {mode}");
-    if let Err(err) = handle::Handle::mihomo().await.patch_base_config(&json_value).await {
+    if let Err(err) = handle::Handle::mihomo().patch_base_config(&json_value).await {
         logging!(error, Type::Core, "{err}");
         return Err(err.to_string().into());
     }

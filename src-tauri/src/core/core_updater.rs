@@ -280,7 +280,7 @@ async fn fetch_release(channel: &str) -> Result<GhRelease> {
 }
 
 async fn running_core_version() -> Option<String> {
-    let version = handle::Handle::mihomo().await.get_version().await.ok()?;
+    let version = handle::Handle::mihomo().get_version().await.ok()?;
     Some(version.version)
 }
 

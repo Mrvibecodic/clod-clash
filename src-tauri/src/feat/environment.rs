@@ -10,10 +10,7 @@ use std::{
     collections::BTreeSet,
     fmt::Write as _,
     net::{Ipv4Addr, Ipv6Addr},
-    sync::{
-        Arc,
-        atomic::{AtomicBool, AtomicU64, Ordering},
-    },
+    sync::atomic::{AtomicBool, AtomicU64, Ordering},
     time::{Duration, Instant},
 };
 use tauri_plugin_mihomo::Mihomo;
@@ -412,7 +409,7 @@ fn report_fingerprint_change(
 const CONNECTIONS_CALL_TIMEOUT: Duration = Duration::from_secs(3);
 
 async fn close_live_connections(verbose: bool) {
-    let core = detached_core_client().await;
+    let core = detached_core_client();
     let live = if verbose {
         tokio::time::timeout(CONNECTIONS_CALL_TIMEOUT, core.get_connections())
             .await
@@ -506,8 +503,8 @@ static RULE_SETS_REFILL_ASKED_AGAIN: AtomicBool = AtomicBool::new(false);
 const RULE_SET_LIST_TIMEOUT: Duration = Duration::from_secs(5);
 const RULE_SET_FETCH_TIMEOUT: Duration = Duration::from_secs(25);
 
-pub(crate) async fn detached_core_client() -> Arc<Mihomo> {
-    handle::Handle::mihomo().await
+pub(crate) fn detached_core_client() -> &'static Mihomo {
+    handle::Handle::mihomo()
 }
 
 async fn refill_empty_rule_sets() {
@@ -557,7 +554,7 @@ where
 }
 
 async fn refill_empty_rule_sets_once() {
-    let core = detached_core_client().await;
+    let core = detached_core_client();
     let listed = tokio::time::timeout(RULE_SET_LIST_TIMEOUT, core.get_rule_providers()).await;
     let Ok(Ok(listed)) = listed else {
         return;

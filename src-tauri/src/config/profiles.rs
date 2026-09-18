@@ -1233,7 +1233,7 @@ async fn fetch_settled_proxies(selected: &[PrfSelected], generation: u64) -> Res
     let mut last_snapshot: Option<Proxies> = None;
 
     loop {
-        match handle::Handle::mihomo().await.get_proxies().await {
+        match handle::Handle::mihomo().get_proxies().await {
             Ok(proxies) => {
                 if !some_groups_are_still_filling(selected, &proxies) {
                     let may_repair = records_may_be_repaired(selected, &proxies);
@@ -1260,10 +1260,7 @@ async fn fetch_settled_proxies(selected: &[PrfSelected], generation: u64) -> Res
 
 async fn select_node_with_timeout(group_name: &String, node: &String) -> Result<()> {
     tokio::time::timeout(MIHOMO_OPERATION_TIMEOUT, async {
-        handle::Handle::mihomo()
-            .await
-            .select_node_for_group(group_name, node)
-            .await
+        handle::Handle::mihomo().select_node_for_group(group_name, node).await
     })
     .await
     .with_context(|| format!("timed out while selecting node [{node}] for group [{group_name}]"))?
@@ -1272,7 +1269,7 @@ async fn select_node_with_timeout(group_name: &String, node: &String) -> Result<
 
 async fn unfix_group_with_timeout(group_name: &String) -> Result<()> {
     tokio::time::timeout(MIHOMO_OPERATION_TIMEOUT, async {
-        handle::Handle::mihomo().await.unfixed_proxy(group_name).await
+        handle::Handle::mihomo().unfixed_proxy(group_name).await
     })
     .await
     .with_context(|| format!("timed out while unfixing group [{group_name}]"))?

@@ -21,7 +21,7 @@ pub async fn close_connections_via(previous_proxy: &str) -> usize {
     if !Config::verge().await.latest_arc().auto_close_connection() {
         return 0;
     }
-    let listed = match handle::Handle::mihomo().await.get_connections().await {
+    let listed = match handle::Handle::mihomo().get_connections().await {
         Ok(listed) => listed,
         Err(err) => {
             logging!(
@@ -45,7 +45,7 @@ pub async fn close_connections_via(previous_proxy: &str) -> usize {
     let total = ids.len();
     let closed = futures::stream::iter(ids)
         .map(|id| async move {
-            match handle::Handle::mihomo().await.close_connection(&id).await {
+            match handle::Handle::mihomo().close_connection(&id).await {
                 Ok(()) => 1_usize,
                 Err(err) => {
                     logging!(debug, Type::ProxyMode, "connection {id} was not closed: {err}");
@@ -110,7 +110,7 @@ pub async fn toggle_system_proxy() -> bool {
     match system_proxy_step(exit_is_under_way(), current, auto_close_connection, tun_carries_traffic) {
         SystemProxyStep::LeaveEverythingAlone => return current,
         SystemProxyStep::DropConnectionsThenSwitch => {
-            if let Err(err) = handle::Handle::mihomo().await.close_all_connections().await {
+            if let Err(err) = handle::Handle::mihomo().close_all_connections().await {
                 logging!(error, Type::ProxyMode, "Failed to close all connections: {err}");
             }
         }

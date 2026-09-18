@@ -292,7 +292,6 @@ impl CoreManager {
 
     async fn reload_config(&self, force: bool, path: &str) -> Result<(), MihomoError> {
         crate::feat::environment::detached_core_client()
-            .await
             .reload_config(force, path)
             .await
     }

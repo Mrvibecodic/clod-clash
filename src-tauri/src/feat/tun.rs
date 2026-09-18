@@ -412,7 +412,7 @@ async fn switch_tun_device(enable: bool) -> Result<(), SwitchFailure> {
     } else {
         TUN_TAKEDOWN_TIMEOUT
     };
-    let core = crate::feat::environment::detached_core_client().await;
+    let core = crate::feat::environment::detached_core_client();
     let outcome = tokio::time::timeout(budget, core.patch_base_config(&patch)).await;
     match outcome {
         Ok(Ok(())) => Ok(()),
@@ -569,7 +569,7 @@ fn spawn_traffic_probe() {
 }
 
 async fn read_tun_state() -> Option<(bool, String)> {
-    let core = crate::feat::environment::detached_core_client().await;
+    let core = crate::feat::environment::detached_core_client();
     let outcome = tokio::time::timeout(TUN_READ_TIMEOUT, core.get_base_config()).await;
     let config = match outcome {
         Ok(Ok(config)) => config,

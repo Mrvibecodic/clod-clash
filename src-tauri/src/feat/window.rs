@@ -295,7 +295,6 @@ async fn turn_the_tun_off(pace: ExitPace) {
     logging!(info, Type::System, "send disable tun request to mihomo");
     match timeout(pace.tun_off_budget(), async {
         crate::feat::environment::detached_core_client()
-            .await
             .patch_base_config(&disable_tun)
             .await
     })
