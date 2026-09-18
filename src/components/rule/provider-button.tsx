@@ -23,6 +23,7 @@ import { updateRuleProvider } from 'tauri-plugin-mihomo-api'
 
 import { useAppRefreshers, useRulesData } from '@/providers/app-data-context'
 import { showNotice } from '@/services/notice-service'
+import { enumText } from '@/utils/plugin-enum'
 
 // Вспомогательный компонент - блок типа
 const TypeBox = styled(Box)<{ component?: React.ElementType }>(({ theme }) => ({
@@ -235,10 +236,10 @@ export const ProviderButton = () => {
                       secondary={
                         <Box sx={{ display: 'flex' }}>
                           <TypeBox component="span">
-                            {provider.vehicleType}
+                            {enumText(provider.vehicleType)}
                           </TypeBox>
                           <TypeBox component="span">
-                            {provider.behavior}
+                            {enumText(provider.behavior)}
                           </TypeBox>
                         </Box>
                       }

@@ -5,6 +5,7 @@ import { getProxies, getProxyProviders } from 'tauri-plugin-mihomo-api'
 import { showNotice } from '@/services/notice-service'
 import { getCacheData, setCacheData } from '@/services/query-client'
 import { debugLog } from '@/utils/debug'
+import { enumText } from '@/utils/plugin-enum'
 
 export async function getCoreLadder() {
   return invoke<ICoreLadder>('get_core_ladder')
@@ -141,7 +142,12 @@ export async function calcuProxies(): Promise<{
       getRuntimeProxyGroupOrder(),
     ])
 
-  const proxyRecord = proxyResponse.proxies
+  const proxyRecord = Object.fromEntries(
+    Object.entries(proxyResponse.proxies).map(([name, proxy]) => [
+      name,
+      { ...proxy, type: enumText(proxy.type) },
+    ]),
+  )
 
   // clod:Э11-05 — ядро перезагружает конфиг за считанные миллисекунды, и очередной
   // трёхсекундный опрос может застать его с пустой картой прокси. Успешный пустой
@@ -157,7 +163,10 @@ export async function calcuProxies(): Promise<{
 
   const providerMap = Object.fromEntries(
     Object.entries(providerRecord).flatMap(([provider, item]) =>
-      item!.proxies.map((p) => [p.name, { ...p, provider }]),
+      item!.proxies.map((p) => [
+        p.name,
+        { ...p, type: enumText(p.type), provider },
+      ]),
     ),
   )
 

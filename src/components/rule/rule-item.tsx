@@ -1,6 +1,8 @@
 import { styled, Box, Typography } from '@mui/material'
 import { Rule } from 'tauri-plugin-mihomo-api'
 
+import { enumText } from '@/utils/plugin-enum'
+
 const Item = styled(Box)(({ theme }) => ({
   display: 'flex',
   padding: '4px 16px',
@@ -68,7 +70,7 @@ const RuleItem = (props: Props) => {
           color="text.secondary"
           sx={{ mr: 3, minWidth: 120, display: 'inline-block' }}
         >
-          {value.type}
+          {enumText(value.type)}
         </Typography>
 
         <Typography

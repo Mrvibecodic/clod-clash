@@ -25,6 +25,7 @@ import { updateProxyProvider } from 'tauri-plugin-mihomo-api'
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
 import { showNotice } from '@/services/notice-service'
 import parseTraffic from '@/utils/parse-traffic'
+import { enumText } from '@/utils/plugin-enum'
 
 // Стилизованный компонент - блок типа
 const TypeBox = styled(Box)<{ component?: React.ElementType }>(({ theme }) => ({
@@ -253,7 +254,7 @@ export const ProviderButton = () => {
                               {provider.proxies.length}
                             </TypeBox>
                             <TypeBox component="span">
-                              {provider.vehicleType}
+                              {enumText(provider.vehicleType)}
                             </TypeBox>
                           </Typography>
 
