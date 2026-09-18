@@ -748,10 +748,14 @@ interface IProxyShadowsocksConfig extends IProxyBaseConfig {
     path?: string
     tls?: string
     fingerprint?: string
+    certificate?: string
+    'private-key'?: string
+    'ech-opts'?: Record<string, unknown>
     headers?: {
       [key: string]: string
     }
     'skip-cert-verify'?: boolean
+    'name-cert-verify'?: string
     version?: number
     mux?: boolean
     'v2ray-http-upgrade'?: boolean

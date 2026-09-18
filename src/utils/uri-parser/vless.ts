@@ -8,6 +8,7 @@ import {
   parseRequiredPort,
   parseUrlLike,
   parseVlessFlow,
+  pickStringMap,
   safeDecodeURIComponent,
   stripUriScheme,
   trimStr,
@@ -189,8 +190,9 @@ export function URI_VLESS(line: string): IProxyVlessConfig {
         if (host) {
           if (params.obfsParam) {
             try {
-              const parsedHeaders = JSON.parse(host)
-              wsOpts.headers = parsedHeaders
+              const headers = pickStringMap(JSON.parse(host))
+              wsOpts.headers =
+                Object.keys(headers).length > 0 ? headers : { Host: host }
             } catch (e) {
               console.warn('[URI_VLESS] host JSON.parse failed:', e)
               wsOpts.headers = { Host: host }

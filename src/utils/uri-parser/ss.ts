@@ -8,9 +8,28 @@ import {
   parseBoolOrPresence,
   parseQueryString,
   parseRequiredPort,
+  pickKnownKeys,
+  pickStringMap,
   splitOnce,
   stripUriScheme,
 } from './helpers'
+
+const V2RAY_PLUGIN_OPTS_KEYS = [
+  'mode',
+  'host',
+  'path',
+  'tls',
+  'ech-opts',
+  'fingerprint',
+  'certificate',
+  'private-key',
+  'headers',
+  'skip-cert-verify',
+  'name-cert-verify',
+  'mux',
+  'v2ray-http-upgrade',
+  'v2ray-http-upgrade-fast-open',
+] as const
 
 export function URI_SS(line: string): IProxyShadowsocksConfig {
   const afterScheme = stripUriScheme(line, 'ss', 'Invalid ss uri')
@@ -94,9 +113,16 @@ export function URI_SS(line: string): IProxyShadowsocksConfig {
   if (!proxy.plugin && v2rayPluginParam) {
     proxy.plugin = 'v2ray-plugin'
     try {
-      proxy['plugin-opts'] = JSON.parse(
-        decodeBase64OrOriginal(v2rayPluginParam),
+      const opts = pickKnownKeys(
+        JSON.parse(decodeBase64OrOriginal(v2rayPluginParam)),
+        V2RAY_PLUGIN_OPTS_KEYS,
       )
+      if ('headers' in opts) {
+        const headers = pickStringMap(opts.headers)
+        if (Object.keys(headers).length > 0) opts.headers = headers
+        else delete opts.headers
+      }
+      proxy['plugin-opts'] = opts
     } catch (e) {
       console.warn('[URI_SS] v2ray-plugin JSON.parse failed:', e)
       proxy['plugin-opts'] = {}

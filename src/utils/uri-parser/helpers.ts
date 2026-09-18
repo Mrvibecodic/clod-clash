@@ -63,8 +63,37 @@ export function safeDecodeURIComponent(
   try {
     return decodeURIComponent(value)
   } catch {
+    console.warn('[URI] percent-decoding failed, value kept as is')
     return value
   }
+}
+
+export function pickKnownKeys(
+  value: unknown,
+  keys: readonly string[],
+): Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return {}
+  }
+  const source = value as Record<string, unknown>
+  const picked: Record<string, unknown> = {}
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(source, key)) {
+      picked[key] = source[key]
+    }
+  }
+  return picked
+}
+
+export function pickStringMap(value: unknown): Record<string, string> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return {}
+  }
+  const picked: Record<string, string> = {}
+  for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof val === 'string') picked[key] = val
+  }
+  return picked
 }
 
 export function decodeAndTrim(value: string | undefined): string | undefined {
