@@ -8,6 +8,54 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.1.10-alpha.5
+
+<!-- lang:en -->
+
+### Changed
+
+- The subscription update tile shows how long ago the subscription was updated and turns yellow after two days
+
+### Fixed
+
+- A core that survived a cancelled quit works normally again; an enabled system proxy waits for the core to start, and a failed first start is shown at once
+- A failed core restart leaves the previous core running and watched; an emergency restart stops its own core without cutting short a cleanup already in progress
+- On quit the DNS step gets a proper time limit, Windows session end is handled at its own pace, and an emergency restart with a frozen window still saves settings and removes the proxy
+- When the core refuses to stop, the message says the service was not removed
+- Only one copy of the application runs: a second launch waits for the first one to start and brings its window up, and a port refused by the system no longer blocks startup
+- A busy port no longer delays the verdict on core start, and the core socket uses the first usable folder
+- On Linux the tray icon waits for the icon service, survives its restart and comes back after a cancelled quit; the fallback tray appears only after the waiting time
+- A lost core under the service is reported correctly, telling a silent service from a silent core
+- The remembered server choice is saved only once the groups have settled
+- Restoring a backup keeps this machine's own settings, including the managed core, and a failure to apply the restored settings is shown in the window
+- Switching the pre-release channel drops an update found on the previous channel
+- Window auto-fit no longer turns itself off on resize events that do not change the height
+- Updated dependencies with security fixes
+
+<!-- lang:ru -->
+
+### Изменено
+
+- Плитка обновления подписки показывает, сколько времени прошло с обновления, и желтеет через двое суток
+
+### Исправлено
+
+- Ядро, пережившее отменённый выход, снова работает как обычно; включённый системный прокси дожидается старта ядра, а провал первого старта виден сразу
+- Неудавшийся перезапуск ядра оставляет прежнее ядро рабочим и под присмотром; аварийный перезапуск останавливает своё ядро и не обрывает уже идущую уборку
+- При выходе шаг DNS получил правильный предел времени, завершение сеанса Windows идёт своим темпом, а аварийный перезапуск при зависшем окне всё равно сохраняет настройки и снимает прокси
+- Если ядро отказалось остановиться, сообщение говорит, что служба осталась неудалённой
+- Запускается только одна копия приложения: второй запуск дожидается старта первого и показывает его окно, а отказ системы в порте больше не мешает запуску
+- Занятый порт больше не задерживает вердикт о старте ядра, а сокет ядра использует первый пригодный каталог
+- Под Linux значок в трее дожидается службы значков, переживает её перезапуск и возвращается после отменённого выхода; запасной трей появляется только после срока ожидания
+- Потеря ядра под службой описывается верно: молчащая служба отличается от молчащего ядра
+- Запомненный выбор серверов сохраняется только после того, как группы устоялись
+- Восстановление резервной копии не трогает настройки этой машины, включая управляемое ядро, а отказ применить восстановленное виден в окне
+- Смена канала предварительных сборок сбрасывает обновление, найденное на прежнем канале
+- Подгон окна под содержимое больше не выключается от событий размера без смены высоты
+- Обновлены зависимости с исправлениями безопасности
+
+---
+
 ## v0.1.10-alpha.4
 
 <!-- lang:en -->
