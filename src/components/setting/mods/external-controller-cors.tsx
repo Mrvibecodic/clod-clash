@@ -80,7 +80,7 @@ interface AllowOriginItem {
 export const HeaderConfiguration = forwardRef<ClashHeaderConfigingRef>(
   (props, ref) => {
     const { t } = useTranslation()
-    const { clash, mutateClash, patchClash } = useClash()
+    const { runtime, mutateClash, patchClash } = useClash()
     const [open, setOpen] = useState(false)
 
     const lastKeyRef = useRef(0) // Для генерации уникального key
@@ -90,7 +90,7 @@ export const HeaderConfiguration = forwardRef<ClashHeaderConfigingRef>(
       allowPrivateNetwork: boolean
       allowOrigins: AllowOriginItem[]
     }>(() => {
-      const cors = clash?.['external-controller-cors']
+      const cors = runtime?.['external-controller-cors']
       const origins = cors?.['allow-origins'] ?? []
       return {
         allowPrivateNetwork: cors?.['allow-private-network'] ?? true,
@@ -168,7 +168,7 @@ export const HeaderConfiguration = forwardRef<ClashHeaderConfigingRef>(
 
     useImperativeHandle(ref, () => ({
       open: () => {
-        const cors = clash?.['external-controller-cors']
+        const cors = runtime?.['external-controller-cors']
         const origins = cors?.['allow-origins'] ?? []
         lastKeyRef.current = 0
         setCorsConfig({

@@ -143,7 +143,8 @@
     },
     "banners": {
       "showFull": "Mostrar completo",
-      "promoTitle": "Promoción"
+      "promoTitle": "Promoción",
+      "announceTitle": "Aviso"
     }
   },
   "pages": {

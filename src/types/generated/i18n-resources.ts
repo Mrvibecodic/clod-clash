@@ -58,6 +58,7 @@ export interface TranslationResources {
     home: {
       components: {
         banners: {
+          announceTitle: string
           promoTitle: string
           showFull: string
         }

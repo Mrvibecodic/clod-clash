@@ -12,7 +12,7 @@
       "tooltips": {
         "silentStart": "Programı paneli görüntülemeden arka plan modunda başlatır",
         "connectOnLaunch": "Uygulama açılır açılmaz düğmenin yaptığı bağlantı yöntemini devreye alır. Varsayılan olarak kapalıdır.",
-        "dnsOverride": "Yalnızca macOS: tünel açıkken sistem çözümleyicisi genel bir DNS'e alınır, böylece sistemin arayüzü atlayarak gönderdiği sorgular da tünelden geçer. Kapatırsanız bunların bir kısmı tünelin dışına çıkar."
+        "dnsOverride": "Yalnızca macOS: tünel fake-ip modunda açıkken (varsayılan; abonelikten redir-host gelirse değiştirme başlatılmaz) sistem çözümleyicisi genel bir DNS'e alınır, böylece sistemin arayüzü atlayarak gönderdiği sorgular da tünelden geçer. Kapatırsanız bunların bir kısmı tünelin dışına çıkar."
       },
       "fields": {
         "autoLaunch": "Otomatik Başlat",
@@ -166,8 +166,8 @@
         "tooltips": {
           "networkInterface": "Ağ Arayüzü",
           "ipv6": "IPv6'yı abonelik belirler: değer aboneliğin şablonundan gelir, bu anahtarın etkisi yoktur. Abonelik IPv6 hakkında bir şey söylemiyorsa kapalı kalır.",
-          "unifiedDelay": "Birleşik gecikme, farklı türdeki düğümleri adil karşılaştırmak için bir yerine iki ölçüm yapar. “Abonelikteki gibi” değeri abonelik şablonundan alır; burada seçilen değer aboneliğe üstün gelir.",
-          "logLevel": "Çekirdek günlük düzeyi (günlük klasöründeki çekirdek dosyası). “Abonelikteki gibi” düzeyi abonelik şablonundan alır; burada seçilen düzey aboneliğe üstün gelir ve güncellemelerden sonra korunur.",
+          "unifiedDelay": "Birleşik gecikme, farklı türdeki düğümleri adil karşılaştırmak için bir yerine iki ölçüm yapar. “Abonelikteki gibi” değeri abonelik şablonundan alır, şablon belirtmiyorsa “açık” olur; burada seçilen değer aboneliğe üstün gelir.",
+          "logLevel": "Çekirdek günlük düzeyi (günlük klasöründeki çekirdek dosyası). “Abonelikteki gibi” düzeyi abonelik şablonundan alır, şablon belirtmiyorsa “info” olur; burada seçilen düzey aboneliğe üstün gelir ve güncellemelerden sonra korunur.",
           "openUwpTool": "Windows 8'den beri, UWP uygulamaları (Microsoft Store gibi) yerel ana bilgisayar ağ hizmetlerine doğrudan erişmekten kısıtlanmıştır ve bu araç bu kısıtlamayı atlatmak için kullanılabilir",
           "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing.",
           "dnsOverwrite": "Careful: while this is on, the DNS block from the subscription is fully replaced by these settings."

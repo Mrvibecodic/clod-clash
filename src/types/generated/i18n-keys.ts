@@ -135,6 +135,7 @@ export const translationKeys = [
   'home.components.modeStatus.lockedHint',
   'home.components.banners.showFull',
   'home.components.banners.promoTitle',
+  'home.components.banners.announceTitle',
   'home.pages.simple.welcome',
   'home.pages.simple.welcomeHint',
   'home.pages.simple.subscriptionPlaceholder',

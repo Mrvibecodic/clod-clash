@@ -12,7 +12,7 @@
       "tooltips": {
         "silentStart": "패널을 표시하지 않고 백그라운드에서 시작합니다",
         "connectOnLaunch": "앱을 실행하면 버튼과 동일한 연결 방식을 바로 켭니다. 기본값은 꺼짐입니다.",
-        "dnsOverride": "macOS 전용: 터널이 켜져 있는 동안 시스템 리졸버를 공용 DNS로 바꿔, 시스템이 인터페이스를 우회해 보내는 질의도 터널을 지나게 합니다. 끄면 그중 일부는 터널을 거치지 않습니다."
+        "dnsOverride": "macOS 전용: fake-ip 모드(기본값. 구독이 redir-host이면 전환을 시작하지 않음)로 터널이 켜져 있는 동안 시스템 리졸버를 공용 DNS로 바꿔, 시스템이 인터페이스를 우회해 보내는 질의도 터널을 지나게 합니다. 끄면 그중 일부는 터널을 거치지 않습니다."
       },
       "fields": {
         "autoLaunch": "자동 실행",
@@ -166,8 +166,8 @@
         "tooltips": {
           "networkInterface": "네트워크 인터페이스",
           "ipv6": "IPv6는 구독이 결정합니다. 값이 구독 템플릿에서 오므로 이 스위치는 효과가 없습니다. 구독에 IPv6 설정이 없으면 꺼진 상태로 유지됩니다.",
-          "unifiedDelay": "통합 지연은 한 번이 아닌 두 번 측정해 서로 다른 유형의 노드를 공정하게 비교합니다. “구독 설정을 따름”은 구독 템플릿의 값을 사용하며, 여기서 고른 값이 구독보다 우선합니다.",
-          "logLevel": "코어 로그 수준(로그 폴더의 코어 파일). “구독 설정을 따름”은 템플릿의 수준을 사용하며, 여기서 고른 수준이 구독보다 우선하고 업데이트 후에도 유지됩니다.",
+          "unifiedDelay": "통합 지연은 한 번이 아닌 두 번 측정해 서로 다른 유형의 노드를 공정하게 비교합니다. “구독 설정을 따름”은 구독 템플릿의 값(지정이 없으면 “켜짐”)을 사용하며, 여기서 고른 값이 구독보다 우선합니다.",
+          "logLevel": "코어 로그 수준(로그 폴더의 코어 파일). “구독 설정을 따름”은 템플릿의 수준(지정이 없으면 “info”)을 사용하며, 여기서 고른 수준이 구독보다 우선하고 업데이트 후에도 유지됩니다.",
           "openUwpTool": "Windows 8 이후 UWP 앱(예: Microsoft Store)은 로컬 호스트 네트워크 서비스에 직접 접근이 제한됩니다. 이 도구로 해당 제한을 우회할 수 있습니다",
           "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing.",
           "dnsOverwrite": "Careful: while this is on, the DNS block from the subscription is fully replaced by these settings."

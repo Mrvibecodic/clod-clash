@@ -16,14 +16,39 @@ interface Props {
   onChanged: () => Promise<unknown> | void
 }
 
-const PROMO_CLAMP_LINES = 5
+const BANNER_CLAMP_LINES = 5
+
+const useClipped = (node: HTMLElement | null, text?: string) => {
+  const [clipped, setClipped] = useState(false)
+  useEffect(() => {
+    if (!node) return
+    const observer = new ResizeObserver(() =>
+      setClipped(node.scrollHeight > node.clientHeight + 1),
+    )
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [node, text])
+  return clipped
+}
+
+const clampSx = {
+  display: '-webkit-box',
+  WebkitBoxOrient: 'vertical',
+  WebkitLineClamp: BANNER_CLAMP_LINES,
+  overflow: 'hidden',
+} as const
 
 export const ProviderBanners = ({ profile, onChanged }: Props) => {
   const { t } = useTranslation()
 
   const [promoNode, setPromoNode] = useState<HTMLElement | null>(null)
-  const [promoClipped, setPromoClipped] = useState(false)
-  const [promoOpen, setPromoOpen] = useState(false)
+  const [announceNode, setAnnounceNode] = useState<HTMLElement | null>(null)
+  const promoClipped = useClipped(promoNode, profile.promo)
+  const announceClipped = useClipped(announceNode, profile.announce)
+  const [dialogBanner, setDialogBanner] = useState<'promo' | 'announce'>(
+    'promo',
+  )
+  const [dialogOpen, setDialogOpen] = useState(false)
 
   const openLink = useCallback(async (url?: string) => {
     if (!url) return
@@ -45,15 +70,6 @@ export const ProviderBanners = ({ profile, onChanged }: Props) => {
   })
 
   const showPromo = Boolean(profile.promo) && !profile.promo_seen
-
-  useEffect(() => {
-    if (!promoNode) return
-    const observer = new ResizeObserver(() =>
-      setPromoClipped(promoNode.scrollHeight > promoNode.clientHeight + 1),
-    )
-    observer.observe(promoNode)
-    return () => observer.disconnect()
-  }, [promoNode, profile.promo])
 
   return (
     <>
@@ -83,15 +99,7 @@ export const ProviderBanners = ({ profile, onChanged }: Props) => {
             </IconButton>
           }
         >
-          <Box
-            ref={setPromoNode}
-            sx={{
-              display: '-webkit-box',
-              WebkitBoxOrient: 'vertical',
-              WebkitLineClamp: PROMO_CLAMP_LINES,
-              overflow: 'hidden',
-            }}
-          >
+          <Box ref={setPromoNode} sx={clampSx}>
             <BannerText text={profile.promo} />
           </Box>
           {promoClipped ? (
@@ -101,7 +109,8 @@ export const ProviderBanners = ({ profile, onChanged }: Props) => {
               sx={{ mt: 0.25, ml: -0.5 }}
               onClick={(event) => {
                 event.stopPropagation()
-                setPromoOpen(true)
+                setDialogBanner('promo')
+                setDialogOpen(true)
               }}
             >
               {t('home.components.banners.showFull')}
@@ -124,13 +133,33 @@ export const ProviderBanners = ({ profile, onChanged }: Props) => {
             '& .MuiAlert-icon': { color: 'text.secondary' },
           }}
         >
-          <BannerText text={profile.announce} />
+          <Box ref={setAnnounceNode} sx={clampSx}>
+            <BannerText text={profile.announce} />
+          </Box>
+          {announceClipped ? (
+            <Button
+              size="small"
+              endIcon={<ExpandMoreRoundedIcon />}
+              sx={{ mt: 0.25, ml: -0.5 }}
+              onClick={(event) => {
+                event.stopPropagation()
+                setDialogBanner('announce')
+                setDialogOpen(true)
+              }}
+            >
+              {t('home.components.banners.showFull')}
+            </Button>
+          ) : null}
         </Alert>
       ) : null}
 
       <BaseDialog
-        open={promoOpen}
-        title={t('home.components.banners.promoTitle')}
+        open={dialogOpen}
+        title={
+          dialogBanner === 'announce'
+            ? t('home.components.banners.announceTitle')
+            : t('home.components.banners.promoTitle')
+        }
         fullWidth
         maxWidth="sm"
         disableOk
@@ -140,10 +169,12 @@ export const ProviderBanners = ({ profile, onChanged }: Props) => {
           maxHeight: 420,
           overflowY: 'auto',
         }}
-        onClose={() => setPromoOpen(false)}
-        onCancel={() => setPromoOpen(false)}
+        onClose={() => setDialogOpen(false)}
+        onCancel={() => setDialogOpen(false)}
       >
-        <BannerText text={profile.promo} />
+        <BannerText
+          text={dialogBanner === 'announce' ? profile.announce : profile.promo}
+        />
       </BaseDialog>
     </>
   )

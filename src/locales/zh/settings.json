@@ -12,7 +12,7 @@
       "tooltips": {
         "silentStart": "程序启动时以后台模式运行，不显示程序面板",
         "connectOnLaunch": "应用启动后立即以与按钮相同的方式建立连接。默认关闭：未经请求不会写入系统设置。",
-        "dnsOverride": "仅 macOS：隧道开启时会把系统解析器切换为公共 DNS，否则系统绕过接口发出的查询不会走隧道。关闭后，其中一部分查询将不经过隧道。"
+        "dnsOverride": "仅 macOS：隧道在 fake-ip 模式（默认；订阅为 redir-host 时不会启动切换）下开启时会把系统解析器切换为公共 DNS，否则系统绕过接口发出的查询不会走隧道。关闭后，其中一部分查询将不经过隧道。"
       },
       "fields": {
         "autoLaunch": "开机自启",
@@ -166,8 +166,8 @@
         "tooltips": {
           "networkInterface": "网络接口",
           "ipv6": "IPv6 由订阅决定：取值来自订阅模板，此开关不起作用。订阅未提及 IPv6 时保持关闭。",
-          "unifiedDelay": "统一延迟会测量两次而不是一次，以便公平比较不同类型的节点。“与订阅一致”采用订阅模板中的值；此处选择的值优先于订阅。",
-          "logLevel": "内核日志级别（日志目录中的内核文件）。“与订阅一致”采用订阅模板中的级别；此处选择的级别优先于订阅，并在订阅更新后保留。",
+          "unifiedDelay": "统一延迟会测量两次而不是一次，以便公平比较不同类型的节点。“与订阅一致”采用订阅模板中的值，模板未指定时为“开启”；此处选择的值优先于订阅。",
+          "logLevel": "内核日志级别（日志目录中的内核文件）。“与订阅一致”采用订阅模板中的级别，模板未指定时为“info”；此处选择的级别优先于订阅，并在订阅更新后保留。",
           "openUwpTool": "Windows 8 开始限制 UWP 应用（如微软商店）直接访问本地主机的网络服务，使用此工具可绕过该限制",
           "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing.",
           "dnsOverwrite": "Careful: while this is on, the DNS block from the subscription is fully replaced by these settings."

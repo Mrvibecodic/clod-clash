@@ -12,7 +12,7 @@
       "tooltips": {
         "silentStart": "Die Anwendung wird im Hintergrund gestartet, ohne dass das Programmfenster angezeigt wird.",
         "connectOnLaunch": "Direkt nach dem Start aktiviert die App dieselbe Verbindungsart wie die Schaltfläche. Standardmäßig aus.",
-        "dnsOverride": "Nur macOS: Bei aktivem Tunnel wird der System-Resolver auf einen öffentlichen umgestellt, damit Anfragen am Interface vorbei trotzdem durch den Tunnel gehen. Ausgeschaltet läuft ein Teil davon am Tunnel vorbei."
+        "dnsOverride": "Nur macOS: Bei aktivem Tunnel im Modus fake-ip (Standard; bei redir-host aus dem Abonnement wird nicht umgestellt) wird der System-Resolver auf einen öffentlichen umgestellt, damit Anfragen am Interface vorbei trotzdem durch den Tunnel gehen. Ausgeschaltet läuft ein Teil davon am Tunnel vorbei."
       },
       "fields": {
         "autoLaunch": "Automatischer Start",
@@ -166,8 +166,8 @@
         "tooltips": {
           "networkInterface": "Netzwerkschnittstelle",
           "ipv6": "IPv6 wird vom Abonnement festgelegt: Der Wert stammt aus dessen Vorlage, dieser Schalter hat keine Wirkung. Sagt das Abonnement nichts zu IPv6, bleibt es aus.",
-          "unifiedDelay": "Die einheitliche Verzögerung misst zweimal statt einmal, damit Knoten verschiedener Typen fair vergleichbar sind. „Wie im Abonnement“ nimmt den Wert aus der Abonnementvorlage; ein hier gewählter Wert hat Vorrang.",
-          "logLevel": "Protokollstufe des Kerns (Kerndatei im Logordner). „Wie im Abonnement“ nimmt die Stufe aus der Abonnementvorlage; eine hier gewählte Stufe hat Vorrang und überlebt Aktualisierungen.",
+          "unifiedDelay": "Die einheitliche Verzögerung misst zweimal statt einmal, damit Knoten verschiedener Typen fair vergleichbar sind. „Wie im Abonnement“ nimmt den Wert aus der Abonnementvorlage, bei fehlendem Wert „ein“; ein hier gewählter Wert hat Vorrang.",
+          "logLevel": "Protokollstufe des Kerns (Kerndatei im Logordner). „Wie im Abonnement“ nimmt die Stufe aus der Abonnementvorlage, bei fehlender Stufe „info“; eine hier gewählte Stufe hat Vorrang und überlebt Aktualisierungen.",
           "openUwpTool": "Ab Windows 8 wird die direkte Netzwerkverbindung von UWP-Anwendungen (z. B. Microsoft Store) zu lokalen Hosts eingeschränkt. Mit diesem Tool können Sie diese Einschränkung umgehen.",
           "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing.",
           "dnsOverwrite": "Careful: while this is on, the DNS block from the subscription is fully replaced by these settings."

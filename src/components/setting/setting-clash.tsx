@@ -44,13 +44,13 @@ interface Props {
 const SettingClash = ({ onError }: Props) => {
   const { t } = useTranslation()
 
-  const { clash, ladder, version, mutateClash, mutateLadder, patchClash } =
+  const { runtime, ladder, version, mutateClash, mutateLadder, patchClash } =
     useClash()
   const { clashInfo } = useClashInfo()
   const { verge, patchVerge } = useVerge()
   const [, setClashLog] = useClashLog()
 
-  const { ipv6, mode, 'allow-lan': allowLan } = clash ?? {}
+  const { ipv6, mode, 'allow-lan': allowLan } = runtime ?? {}
 
   const { current } = useProfiles()
   const modeLocked = Boolean(current?.lock_mode)

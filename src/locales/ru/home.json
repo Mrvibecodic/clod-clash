@@ -143,7 +143,8 @@
     },
     "banners": {
       "showFull": "Показать полностью",
-      "promoTitle": "Акция"
+      "promoTitle": "Акция",
+      "announceTitle": "Объявление"
     }
   },
   "pages": {

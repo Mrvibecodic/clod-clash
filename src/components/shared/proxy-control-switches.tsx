@@ -42,7 +42,6 @@ interface ProxySwitchProps {
    */
   target: 'sysproxy' | 'tun'
   onError?: (err: Error) => void
-  noRightPadding?: boolean
 }
 
 interface SwitchRowProps {
@@ -169,11 +168,7 @@ const SwitchRow = ({
   )
 }
 
-const ProxyControlSwitches = ({
-  target,
-  onError,
-  noRightPadding = false,
-}: ProxySwitchProps) => {
+const ProxyControlSwitches = ({ target, onError }: ProxySwitchProps) => {
   const { t } = useTranslation()
   const { verge, mutateVerge, patchVerge } = useVerge()
   const { uninstallServiceAndRestartCore } = useServiceUninstaller()
@@ -293,7 +288,7 @@ const ProxyControlSwitches = ({
   if (hidden) return null
 
   return (
-    <Box sx={{ boxSizing: 'border-box', pr: noRightPadding ? 1 : 0 }}>
+    <Box>
       {target === 'sysproxy' && (
         <SwitchRow
           label={t('settings.sections.proxyControl.fields.systemProxy')}

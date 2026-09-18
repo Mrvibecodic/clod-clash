@@ -46,7 +46,7 @@ const splitRouteExcludeAddress = (value: string) =>
 export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const { t } = useTranslation()
 
-  const { clash, mutateClash, patchClash } = useClash()
+  const { runtime, mutateClash, patchClash } = useClash()
   const { verge, mutateVerge, patchVerge } = useVerge()
   const { tunRuntimeStack } = useTunState()
   const { current } = useProfiles()
@@ -66,7 +66,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
 
   const effectiveStack = (
     tunRuntimeStack ??
-    clash?.tun?.stack ??
+    runtime?.tun?.stack ??
     ''
   ).toLowerCase()
   const stackChosenByHand = (values.stack || 'auto').toLowerCase() !== 'auto'
@@ -115,22 +115,22 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
   useImperativeHandle(ref, () => ({
     open: () => {
       setOpen(true)
-      const nextAutoRoute = clash?.tun['auto-route'] ?? true
-      const rawAutoRedirect = clash?.tun['auto-redirect'] ?? false
+      const nextAutoRoute = runtime?.tun['auto-route'] ?? true
+      const rawAutoRedirect = runtime?.tun['auto-redirect'] ?? false
       const computedAutoRedirect =
         OS === 'linux' ? (nextAutoRoute ? rawAutoRedirect : false) : false
       setValues({
         stack: verge?.tun_stack ?? 'auto',
-        device: clash?.tun.device ?? (OS === 'macos' ? 'utun1024' : 'Mihomo'),
+        device: runtime?.tun.device ?? (OS === 'macos' ? 'utun1024' : 'Mihomo'),
         autoRoute: nextAutoRoute,
-        routeExcludeAddress: (clash?.tun['route-exclude-address'] ?? []).join(
+        routeExcludeAddress: (runtime?.tun['route-exclude-address'] ?? []).join(
           ',',
         ),
         autoRedirect: computedAutoRedirect,
-        autoDetectInterface: clash?.tun['auto-detect-interface'] ?? true,
+        autoDetectInterface: runtime?.tun['auto-detect-interface'] ?? true,
         dnsHijack: verge?.tun_dns_hijack ?? 'auto',
         strictRoute: verge?.tun_strict_route ?? 'auto',
-        mtu: clash?.tun.mtu ?? 1500,
+        mtu: runtime?.tun.mtu ?? 1500,
       })
     },
     close: () => setOpen(false),
@@ -148,7 +148,6 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
       }
 
       const tun: IConfigData['tun'] = {
-        ...clash?.tun,
         device:
           values.device === ''
             ? OS === 'macos'
@@ -194,7 +193,6 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const onReset = useLockFn(async () => {
     try {
       const tun: IConfigData['tun'] = {
-        ...clash?.tun,
         device: OS === 'macos' ? 'utun1024' : 'Mihomo',
         'auto-route': true,
         ...(OS === 'linux'

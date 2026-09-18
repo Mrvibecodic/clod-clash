@@ -12,7 +12,7 @@
       "tooltips": {
         "silentStart": "Start the program in background mode without displaying the panel",
         "connectOnLaunch": "Right after launch the app raises the same connection method the button would. Off by default: nothing is written into the system until you ask for it.",
-        "dnsOverride": "macOS only: while the tunnel is up the system resolver is switched to a public one, so queries the system sends past the interface still go through the tunnel. Turn it off and part of them will go outside the tunnel."
+        "dnsOverride": "macOS only: while the tunnel is up in fake-ip mode (the default; the override is not turned on under redir-host from the subscription) the system resolver is switched to a public one, so queries the system sends past the interface still go through the tunnel. Turn it off and part of them will go outside the tunnel."
       },
       "fields": {
         "autoLaunch": "Auto Launch",
@@ -166,8 +166,8 @@
         "tooltips": {
           "networkInterface": "Network Interface",
           "ipv6": "IPv6 is set by the subscription: the value comes from its template, so this switch has no effect. When the subscription says nothing about IPv6, it stays off.",
-          "unifiedDelay": "Unified delay runs two measurements instead of one so that nodes of different types compare fairly. “As in the subscription” takes the value from the subscription template; a value chosen here wins over the subscription.",
-          "logLevel": "Core log level (the core file in the logs folder). “As in the subscription” takes the level from the subscription template; a level chosen here wins over the subscription and survives its updates.",
+          "unifiedDelay": "Unified delay runs two measurements instead of one so that nodes of different types compare fairly. “As in the subscription” takes the value from the subscription template, or “on” when the template is silent; a value chosen here wins over the subscription.",
+          "logLevel": "Core log level (the core file in the logs folder). “As in the subscription” takes the level from the subscription template, or “info” when the template is silent; a level chosen here wins over the subscription and survives its updates.",
           "openUwpTool": "Since Windows 8, UWP apps (such as Microsoft Store) are restricted from directly accessing local host network services, and this tool can be used to bypass this restriction",
           "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing.",
           "dnsOverwrite": "Careful: while this is on, the DNS block from the subscription is fully replaced by these settings."

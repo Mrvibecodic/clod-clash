@@ -12,7 +12,7 @@
       "tooltips": {
         "silentStart": "El programa se ejecutará en segundo plano al iniciarse y no mostrará el panel.",
         "connectOnLaunch": "Nada más iniciarse, la aplicación activa el mismo método de conexión que el botón. Desactivado de forma predeterminada.",
-        "dnsOverride": "Solo macOS: con el túnel activo el resolvedor del sistema pasa a uno público, para que las consultas que el sistema envía fuera de la interfaz también vayan por el túnel. Al desactivarlo, parte de ellas saldrá fuera del túnel."
+        "dnsOverride": "Solo macOS: con el túnel activo en modo fake-ip (predeterminado; con redir-host de la suscripción la sustitución no se activa) el resolvedor del sistema pasa a uno público, para que las consultas que el sistema envía fuera de la interfaz también vayan por el túnel. Al desactivarlo, parte de ellas saldrá fuera del túnel."
       },
       "fields": {
         "autoLaunch": "Inicio automático",
@@ -166,8 +166,8 @@
         "tooltips": {
           "networkInterface": "Interfaz de red",
           "ipv6": "IPv6 lo define la suscripción: el valor viene de su plantilla, así que este interruptor no tiene efecto. Si la suscripción no dice nada sobre IPv6, queda desactivado.",
-          "unifiedDelay": "La latencia unificada mide dos veces en lugar de una para comparar con justicia nodos de distintos tipos. «Como en la suscripción» toma el valor de la plantilla de la suscripción; el valor elegido aquí prevalece.",
-          "logLevel": "Nivel de registro del núcleo (archivo del núcleo en la carpeta de registros). «Como en la suscripción» toma el nivel de la plantilla; el elegido aquí prevalece y sobrevive a las actualizaciones.",
+          "unifiedDelay": "La latencia unificada mide dos veces en lugar de una para comparar con justicia nodos de distintos tipos. «Como en la suscripción» toma el valor de la plantilla de la suscripción, o «activado» si la plantilla no lo indica; el valor elegido aquí prevalece.",
+          "logLevel": "Nivel de registro del núcleo (archivo del núcleo en la carpeta de registros). «Como en la suscripción» toma el nivel de la plantilla, o «info» si la plantilla no lo indica; el elegido aquí prevalece y sobrevive a las actualizaciones.",
           "openUwpTool": "A partir de Windows 8, las aplicaciones UWP (como la Tienda de Microsoft) tienen restricciones para acceder directamente a los servicios de red del host local. Use esta herramienta para evitar esta restricción.",
           "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing.",
           "dnsOverwrite": "Careful: while this is on, the DNS block from the subscription is fully replaced by these settings."

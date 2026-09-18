@@ -87,7 +87,7 @@ const useCoreLadder = () => {
 }
 
 export const useClash = () => {
-  const { data: clash, refetch } = useRuntimeConfig()
+  const { data: runtime, refetch } = useRuntimeConfig()
   const { data: ladder, refetch: refetchLadder } = useCoreLadder()
 
   const { data: versionData, refetch: mutateVersion } = useQuery({
@@ -128,7 +128,7 @@ export const useClash = () => {
     : versionData?.version || '-'
 
   return {
-    clash,
+    runtime,
     ladder,
     version,
     mutateClash,

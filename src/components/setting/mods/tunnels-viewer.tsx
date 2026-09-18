@@ -40,7 +40,7 @@ interface TunnelEntry {
 
 export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
   const { t } = useTranslation()
-  const { clash, mutateClash, patchClash } = useClash()
+  const { runtime, mutateClash, patchClash } = useClash()
 
   const [open, setOpen] = useState(false)
   const [expanded, setExpanded] = useState(false)
@@ -66,10 +66,10 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
         group: '',
         proxy: '',
       }))
-      setDraftTunnels(() => clash?.tunnels ?? [])
+      setDraftTunnels(() => runtime?.tunnels ?? [])
       setOpen(true)
       // Если туннелей нет, разворачиваем автоматически
-      setExpanded((clash?.tunnels ?? []).length === 0)
+      setExpanded((runtime?.tunnels ?? []).length === 0)
     },
     close: () => {
       setOpen(false)
