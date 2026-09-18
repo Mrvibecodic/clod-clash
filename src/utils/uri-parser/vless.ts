@@ -142,10 +142,6 @@ export function URI_VLESS(line: string): IProxyVlessConfig {
     } else {
       network = 'tcp'
     }
-
-    if (params.type === 'ws') {
-      httpupgrade = true
-    }
   }
 
   proxy.network = network
