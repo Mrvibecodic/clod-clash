@@ -25,7 +25,7 @@ use std::{
     },
     time::Duration,
 };
-use tauri_plugin_mihomo::models::{Proxies, ProxyType};
+use tauri_plugin_mihomo::models::{Proxies, Proxy, ProxyType};
 use tokio::task::JoinHandle;
 
 #[allow(clippy::unwrap_used)]
@@ -944,9 +944,10 @@ async fn profiles_set_mark(
                 .as_mut()
                 .and_then(|items| items.iter_mut().find(|each| each.uid.as_ref() == Some(&uid)))
                 .is_some_and(|item| {
-                    let wanted = not_applied.then_some(true);
-                    let changed = item.not_applied != wanted;
-                    item.not_applied = wanted;
+                    let wanted = wanted.then_some(true);
+                    let mark = pick(item);
+                    let changed = *mark != wanted;
+                    *mark = wanted;
                     changed
                 });
 
@@ -972,7 +973,37 @@ pub async fn profiles_draft_update_item_safe(index: &String, item: &mut PrfItem)
 struct SelectedNodesPlan {
     selected: Vec<PrfSelected>,
     activations: Vec<(String, String)>,
+    unfixes: Vec<String>,
     repaired_count: usize,
+}
+
+const fn is_automatic_group(proxy_type: &ProxyType) -> bool {
+    matches!(proxy_type, ProxyType::URLTest | ProxyType::Fallback)
+}
+
+fn pin_of(group: &Proxy) -> Option<&str> {
+    group.fixed.as_deref().filter(|pinned| !pinned.is_empty())
+}
+
+fn runtime_group_names(runtime: &crate::config::runtime::IRuntime) -> Vec<std::string::String> {
+    runtime
+        .config
+        .as_ref()
+        .and_then(|config| config.get("proxy-groups"))
+        .and_then(|groups| groups.as_sequence())
+        .map(|groups| {
+            groups
+                .iter()
+                .filter_map(|group| group.get("name"))
+                .filter_map(|name| name.as_str())
+                .map(std::string::String::from)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn core_shows_our_groups(group_names: &[std::string::String], proxies: &Proxies) -> bool {
+    !group_names.is_empty() && group_names.iter().all(|name| proxies.proxies.contains_key(name))
 }
 
 fn node_is_available(available_nodes: &[std::string::String], node: &str) -> bool {
@@ -1014,6 +1045,7 @@ fn reconcile_selected_nodes(
     let mut plan = SelectedNodesPlan {
         selected: Vec::with_capacity(selected.len()),
         activations: Vec::new(),
+        unfixes: Vec::new(),
         repaired_count: 0,
     };
     let mut seen_groups = HashSet::new();
@@ -1068,6 +1100,12 @@ fn reconcile_selected_nodes(
 
         if node_is_available(available_nodes, node) {
             plan.selected.push(selected_item.clone());
+            if is_automatic_group(&group.proxy_type) {
+                if pin_of(group) != Some(node.as_str()) {
+                    plan.activations.push((group_name.clone(), node.clone()));
+                }
+                continue;
+            }
             if matches!(group.proxy_type, ProxyType::Selector) && group.now.as_deref() != Some(node.as_str()) {
                 plan.activations.push((group_name.clone(), node.clone()));
             }
@@ -1081,6 +1119,14 @@ fn reconcile_selected_nodes(
             .is_some_and(|nodes| !node_is_available(nodes, node));
         if !missing_was_confirmed {
             plan.selected.push(selected_item.clone());
+            continue;
+        }
+
+        if is_automatic_group(&group.proxy_type) {
+            plan.repaired_count += 1;
+            if pin_of(group).is_some() {
+                plan.unfixes.push(group_name.clone());
+            }
             continue;
         }
 
@@ -1103,6 +1149,16 @@ fn reconcile_selected_nodes(
             plan.selected.push(selected_item.clone());
         }
     }
+
+    let mut foreign_pins = proxies
+        .proxies
+        .values()
+        .filter(|group| is_automatic_group(&group.proxy_type) && pin_of(group).is_some())
+        .filter(|group| !seen_groups.contains(group.name.as_str()))
+        .map(|group| String::from(group.name.as_str()))
+        .collect::<Vec<_>>();
+    foreign_pins.sort();
+    plan.unfixes.extend(foreign_pins);
 
     plan
 }
@@ -1212,6 +1268,43 @@ async fn select_node_with_timeout(group_name: &String, node: &String) -> Result<
     .await
     .with_context(|| format!("timed out while selecting node [{node}] for group [{group_name}]"))?
     .with_context(|| format!("failed to select node [{node}] for group [{group_name}]"))
+}
+
+async fn unfix_group_with_timeout(group_name: &String) -> Result<()> {
+    tokio::time::timeout(MIHOMO_OPERATION_TIMEOUT, async {
+        handle::Handle::mihomo().await.unfixed_proxy(group_name).await
+    })
+    .await
+    .with_context(|| format!("timed out while unfixing group [{group_name}]"))?
+    .with_context(|| format!("failed to unfix group [{group_name}]"))
+}
+
+async fn apply_unfixes(unfixes: &[String], completed: &mut HashSet<String>, generation: u64) -> Option<usize> {
+    let mut count = 0;
+    for group_name in unfixes {
+        if completed.contains(group_name) {
+            continue;
+        }
+        if !is_activation_current(generation) {
+            return None;
+        }
+        if group_was_chosen_by_hand(group_name) {
+            continue;
+        }
+        match unfix_group_with_timeout(group_name).await {
+            Ok(()) => {
+                logging!(
+                    info,
+                    Type::Config,
+                    "[clod] снято чужое закрепление узла в автоматической группе {group_name}"
+                );
+                completed.insert(group_name.clone());
+                count += 1;
+            }
+            Err(err) => logging!(error, Type::Config, "{err:#}"),
+        }
+    }
+    Some(count)
 }
 
 fn remaining_activations(
@@ -1363,6 +1456,14 @@ async fn activate_selected_nodes_worker(
     {
         return Ok(());
     }
+    let mut completed_unfixes = HashSet::new();
+    if groups_are_settled
+        && apply_unfixes(&immediate_plan.unfixes, &mut completed_unfixes, generation)
+            .await
+            .is_none()
+    {
+        return Ok(());
+    }
 
     if is_activation_current(generation) {
         handle::Handle::refresh_clash();
@@ -1390,7 +1491,15 @@ async fn activate_selected_nodes_worker(
         else {
             return Ok(());
         };
-        if confirmed_activated_count > 0 && is_activation_current(generation) {
+        let confirmed_unfixed_count = if still_settled {
+            let Some(count) = apply_unfixes(&confirmed_plan.unfixes, &mut completed_unfixes, generation).await else {
+                return Ok(());
+            };
+            count
+        } else {
+            0
+        };
+        if confirmed_activated_count + confirmed_unfixed_count > 0 && is_activation_current(generation) {
             handle::Handle::refresh_clash();
         }
         confirmed_plan
@@ -1412,6 +1521,20 @@ async fn activate_selected_nodes_worker(
     }
 
     Ok(())
+}
+
+async fn lift_foreign_pins(generation: u64) {
+    let group_names = runtime_group_names(&Config::runtime().await.latest_arc());
+    let snapshot = tokio::time::timeout(MIHOMO_OPERATION_TIMEOUT, handle::Handle::mihomo().get_proxies()).await;
+    let Ok(Ok(proxies)) = snapshot else {
+        return;
+    };
+    if !core_shows_our_groups(&group_names, &proxies) {
+        return;
+    }
+    let plan = reconcile_selected_nodes(&[], &[], None, &proxies);
+    let mut completed = HashSet::new();
+    apply_unfixes(&plan.unfixes, &mut completed, generation).await;
 }
 
 pub fn activate_selected_nodes() -> Result<()> {
@@ -1437,6 +1560,7 @@ pub fn activate_selected_nodes() -> Result<()> {
             let favorites = item.favorites.clone().unwrap_or_default();
 
             if selected.is_empty() {
+                lift_foreign_pins(generation).await;
                 if is_activation_current(generation) {
                     handle::Handle::refresh_clash();
                 }
@@ -1542,7 +1666,6 @@ mod tests {
         ));
     }
     use super::*;
-    use tauri_plugin_mihomo::models::Proxy;
 
     fn selected(group: &str, node: &str) -> PrfSelected {
         PrfSelected {
@@ -1706,33 +1829,154 @@ mod tests {
         assert_eq!(plan.repaired_count, 1);
     }
 
+    fn automatic_group(
+        name: &str,
+        all: &[&str],
+        now: Option<&str>,
+        fixed: Option<&str>,
+        proxy_type: ProxyType,
+    ) -> Proxy {
+        Proxy {
+            name: name.to_owned(),
+            all: Some(all.iter().map(|node| (*node).to_owned()).collect()),
+            now: now.map(str::to_owned),
+            fixed: fixed.map(str::to_owned),
+            proxy_type,
+            ..Proxy::default()
+        }
+    }
+
     #[test]
-    fn does_not_impose_a_saved_node_on_automatic_groups() {
-        for (proxy_type, label) in [
-            (ProxyType::URLTest, "url-test"),
-            (ProxyType::Fallback, "fallback"),
-            (ProxyType::LoadBalance, "load-balance"),
-        ] {
+    fn does_not_impose_a_saved_node_on_a_load_balance_group() {
+        let snapshot = Proxies {
+            proxies: HashMap::from([(
+                "group".to_owned(),
+                automatic_group(
+                    "group",
+                    &["current", "saved"],
+                    Some("current"),
+                    None,
+                    ProxyType::LoadBalance,
+                ),
+            )]),
+        };
+
+        let saved = vec![selected("group", "saved")];
+        let plan = reconcile_selected_nodes(&saved, &[], None, &snapshot);
+
+        assert_eq!(plan.selected, saved);
+        assert!(plan.activations.is_empty());
+        assert!(plan.unfixes.is_empty());
+        assert_eq!(plan.repaired_count, 0);
+    }
+
+    #[test]
+    fn a_saved_pin_is_restored_in_an_automatic_group_over_a_foreign_pin() {
+        for make in [|| ProxyType::URLTest, || ProxyType::Fallback] {
             let snapshot = Proxies {
-                proxies: HashMap::from([(
-                    "group".to_owned(),
-                    Proxy {
-                        name: "group".to_owned(),
-                        all: Some(vec!["current".to_owned(), "saved".to_owned()]),
-                        now: Some("current".to_owned()),
-                        proxy_type,
-                        ..Proxy::default()
-                    },
-                )]),
+                proxies: HashMap::from([
+                    (
+                        "taken".to_owned(),
+                        automatic_group("taken", &["current", "saved"], Some("current"), Some("current"), make()),
+                    ),
+                    (
+                        "already".to_owned(),
+                        automatic_group("already", &["a", "b"], Some("a"), Some("b"), make()),
+                    ),
+                ]),
             };
 
-            let saved = vec![selected("group", "saved")];
+            let saved = vec![selected("taken", "saved"), selected("already", "b")];
             let plan = reconcile_selected_nodes(&saved, &[], None, &snapshot);
 
             assert_eq!(plan.selected, saved);
-            assert!(plan.activations.is_empty(), "{label} must pick for itself");
+            assert_eq!(plan.activations, vec![("taken".into(), "saved".into())]);
+            assert!(plan.unfixes.is_empty());
             assert_eq!(plan.repaired_count, 0);
         }
+    }
+
+    #[test]
+    fn an_unpinned_automatic_group_gets_the_saved_pin_back() {
+        let snapshot = Proxies {
+            proxies: HashMap::from([
+                (
+                    "tested".to_owned(),
+                    automatic_group("tested", &["a", "saved"], Some("a"), Some(""), ProxyType::URLTest),
+                ),
+                (
+                    "cleared".to_owned(),
+                    automatic_group("cleared", &["a", "saved"], Some("a"), None, ProxyType::Fallback),
+                ),
+            ]),
+        };
+        let saved = vec![selected("tested", "saved"), selected("cleared", "saved")];
+
+        let plan = reconcile_selected_nodes(&saved, &[], None, &snapshot);
+
+        assert_eq!(plan.selected, saved);
+        assert_eq!(
+            plan.activations,
+            vec![("tested".into(), "saved".into()), ("cleared".into(), "saved".into())]
+        );
+        assert!(plan.unfixes.is_empty());
+        assert_eq!(plan.repaired_count, 0);
+    }
+
+    #[test]
+    fn foreign_pins_are_lifted_only_when_the_core_runs_our_groups() {
+        let snapshot = proxies(vec![("ours", &["a"], Some("a"))]);
+        let ours: Vec<std::string::String> = vec!["ours".to_owned()];
+        let theirs: Vec<std::string::String> = vec!["ours".to_owned(), "missing".to_owned()];
+
+        assert!(core_shows_our_groups(&ours, &snapshot));
+        assert!(!core_shows_our_groups(&theirs, &snapshot));
+        assert!(!core_shows_our_groups(&[], &snapshot));
+    }
+
+    #[test]
+    fn a_foreign_pin_in_an_automatic_group_is_lifted_but_an_empty_pin_is_not_a_pin() {
+        let snapshot = Proxies {
+            proxies: HashMap::from([
+                (
+                    "auto".to_owned(),
+                    automatic_group("auto", &["a", "b"], Some("b"), Some("b"), ProxyType::URLTest),
+                ),
+                (
+                    "free".to_owned(),
+                    automatic_group("free", &["a", "b"], Some("a"), Some(""), ProxyType::Fallback),
+                ),
+                (
+                    "manual".to_owned(),
+                    automatic_group("manual", &["a", "b"], Some("a"), Some("a"), ProxyType::Selector),
+                ),
+            ]),
+        };
+
+        let plan = reconcile_selected_nodes(&[], &[], None, &snapshot);
+
+        assert!(plan.selected.is_empty());
+        assert!(plan.activations.is_empty());
+        assert_eq!(plan.unfixes, vec![String::from("auto")]);
+        assert_eq!(plan.repaired_count, 0);
+    }
+
+    #[test]
+    fn a_pin_on_a_vanished_node_is_dropped_instead_of_replaced() {
+        let snapshot = Proxies {
+            proxies: HashMap::from([(
+                "auto".to_owned(),
+                automatic_group("auto", &["a", "fav"], Some("a"), Some("gone"), ProxyType::URLTest),
+            )]),
+        };
+        let favorites: Vec<String> = vec!["fav".into()];
+
+        let plan = reconcile_selected_nodes(&[selected("auto", "gone")], &favorites, Some(&snapshot), &snapshot);
+
+        assert!(plan.selected.is_empty());
+        assert!(plan.activations.is_empty());
+        assert_eq!(plan.unfixes, vec![String::from("auto")]);
+        assert_eq!(plan.repaired_count, 1);
     }
 
     #[test]
