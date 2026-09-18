@@ -144,6 +144,9 @@ pub struct PrfItem {
     pub not_applied: Option<bool>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub update_failed: Option<bool>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub hwid_state: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -613,6 +616,7 @@ impl PrfItem {
             previous_urls: None,
             migration_hops: None,
             not_applied: None,
+            update_failed: None,
             hwid_state: sub.hwid_state.as_str().map(Into::into),
             name_customized: None,
             notify_expire_days: sub.notify_expire_days.clone(),

@@ -276,6 +276,7 @@ interface IProfileItem {
   from_fallback?: boolean
   /** Подписка скачалась, но ядро её не приняло — на диске прежний конфиг. */
   not_applied?: boolean
+  update_failed?: boolean
   simple_mode?: boolean
   favorites?: string[]
 }

@@ -842,6 +842,24 @@ const ProfileItemBase = (props: ProfileItemProps) => {
               {t('profiles.components.profileItem.labels.notApplied')}
             </Typography>
           )}
+          {itemData.update_failed && !itemData.not_applied && (
+            <Typography
+              noWrap
+              component="span"
+              title={t(
+                'profiles.components.profileItem.status.lastUpdateFailed',
+              )}
+              sx={{
+                fontSize: 13,
+                flexShrink: 0,
+                mr: 0.75,
+                color: 'error.main',
+                cursor: 'default',
+              }}
+            >
+              {t('profiles.components.profileItem.status.lastUpdateFailed')}
+            </Typography>
+          )}
           {hasUrl && (
             <Typography
               noWrap

@@ -918,6 +918,23 @@ pub async fn profiles_restore_item(snapshot: ProfileSnapshot) -> Result<()> {
 /// неё карточка показывала бы свежую дату и новые счётчики над старым конфигом:
 /// отметку времени откат намеренно не трогает.
 pub async fn profiles_mark_not_applied(uid: &String, not_applied: bool) -> Result<()> {
+    profiles_set_mark(uid, not_applied, |item| &mut item.not_applied)
+        .await
+        .map(|_| ())
+}
+
+/// Пометить профиль как «последнее обновление не удалось» — или снять пометку.
+///
+/// Ставится при любом провале загрузки подписки, снимается при удачной загрузке.
+pub async fn profiles_mark_update_failed(uid: &String, failed: bool) -> Result<bool> {
+    profiles_set_mark(uid, failed, |item| &mut item.update_failed).await
+}
+
+async fn profiles_set_mark(
+    uid: &String,
+    wanted: bool,
+    pick: impl FnOnce(&mut PrfItem) -> &mut Option<bool> + Send + 'static,
+) -> Result<bool> {
     let uid = uid.clone();
     Config::profiles()
         .await
@@ -939,7 +956,6 @@ pub async fn profiles_mark_not_applied(uid: &String, not_applied: bool) -> Resul
             Ok((profiles, changed))
         })
         .await
-        .map(|_| ())
 }
 
 pub async fn profiles_draft_update_item_safe(index: &String, item: &mut PrfItem) -> Result<()> {

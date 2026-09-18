@@ -444,6 +444,19 @@ async fn announce_the_failure(uid: &String, status: &str, raw: &str) {
     handle::Handle::notice_message(status, public_failure_text(raw));
 }
 
+async fn mark_the_update(uid: &String, failed: bool) {
+    match crate::config::profiles::profiles_mark_update_failed(uid, failed).await {
+        Ok(true) => handle::Handle::refresh_profiles(),
+        Ok(false) => {}
+        Err(err) => logging!(
+            warn,
+            Type::Config,
+            "Warning: [Обновление подписки] не удалось записать исход обновления: {}",
+            mask_err(&err.to_string())
+        ),
+    }
+}
+
 /// Под каким видом отказа показать сообщение.
 ///
 /// Ядро уже различает, что именно пошло не так, и на каждый вид в приложении
@@ -582,6 +595,7 @@ pub async fn update_profile(
     let url_opt = match should_update_profile(uid, ignore_auto_update).await {
         Ok(target) => target,
         Err(err) => {
+            mark_the_update(uid, true).await;
             // Ручной вызов покажет ошибку сам — она вернётся ответом команды.
             if !is_mannual_trigger {
                 announce_the_failure(uid, "update_failed", &err.to_string()).await;
@@ -612,9 +626,13 @@ pub async fn update_profile(
             ))
             .await;
             match outcome {
-                Ok(changed) => changed && auto_refresh,
+                Ok(changed) => {
+                    mark_the_update(uid, false).await;
+                    changed && auto_refresh
+                }
                 Err(err) => {
                     release_stale_panel_locks().await;
+                    mark_the_update(uid, true).await;
                     // Загрузка провалилась. Ручной вызов покажет ошибку сам — она
                     // уедет наверх и вернётся в интерфейс ответом команды; а вот
                     // автообновление до этой правки не сообщало о провале никак:
