@@ -1,29 +1,52 @@
+import { useEffect, useRef } from 'react'
+
 import { useTauriEvent } from '@/hooks/use-listen'
+import { useVisibility } from '@/hooks/use-visibility'
 import { revalidateQueries } from '@/services/query-client'
 
-const revalidateKeys = (keys: readonly string[]) => {
-  void revalidateQueries(keys.map((key) => [key]))
-}
+const revalidateKeys = (keys: readonly string[]) =>
+  revalidateQueries(keys.map((key) => [key]))
+
+const CLASH_CONFIG_KEYS_ALWAYS = ['getProxies', 'getRuntimeConfig'] as const
+
+const CLASH_CONFIG_KEYS_WHEN_VISIBLE = [
+  'getVersion',
+  'getClashConfig',
+  'getRules',
+  'getRuleProviders',
+  // clod:port-ladder — порт ядра и признак «как в подписке» живут в своих
+  // запросах, и их не перечитывал никто: диалог портов после сохранения
+  // показывал старое закрепление, повторное «ОК» молча возвращало его,
+  // а страница настроек после смены профиля держала прежний порт.
+  'getCoreLadder',
+  'getClashInfo',
+] as const
 
 export const useLayoutEvents = (
   handleNotice: (payload: [string, string]) => void,
 ) => {
+  const visible = useVisibility()
+  const visibleRef = useRef(visible)
+  const pendingRef = useRef(false)
+
+  useEffect(() => {
+    const returned = visible && !visibleRef.current
+    visibleRef.current = visible
+    if (returned && pendingRef.current) {
+      pendingRef.current = false
+      void revalidateKeys(CLASH_CONFIG_KEYS_WHEN_VISIBLE)
+    }
+  }, [visible])
+
   useTauriEvent('verge://refresh-clash-config', () => {
-    revalidateKeys([
-      'getProxies',
-      'getVersion',
-      'getClashConfig',
-      'getRuntimeConfig',
-      'getProxyProviders',
-      'getRules',
-      'getRuleProviders',
-      // clod:port-ladder — порт ядра и признак «как в подписке» живут в своих
-      // запросах, и их не перечитывал никто: диалог портов после сохранения
-      // показывал старое закрепление, повторное «ОК» молча возвращало его,
-      // а страница настроек после смены профиля держала прежний порт.
-      'getCoreLadder',
-      'getClashInfo',
-    ])
+    void revalidateKeys(['getProxyProviders'])
+      .catch(() => undefined)
+      .then(() => revalidateKeys(CLASH_CONFIG_KEYS_ALWAYS))
+    if (visibleRef.current) {
+      void revalidateKeys(CLASH_CONFIG_KEYS_WHEN_VISIBLE)
+    } else {
+      pendingRef.current = true
+    }
   })
 
   useTauriEvent('verge://refresh-verge-config', () => {

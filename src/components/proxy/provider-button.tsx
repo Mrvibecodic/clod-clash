@@ -68,8 +68,8 @@ export const ProviderButton = () => {
       await updateProxyProvider(name)
 
       // Обновляем данные
-      await refreshProxy()
       await refreshProxyProviders()
+      await refreshProxy()
 
       showNotice.success(
         'proxies.feedback.notifications.provider.updateSuccess',
@@ -121,8 +121,8 @@ export const ProviderButton = () => {
       }
 
       // Обновляем данные
-      await refreshProxy()
       await refreshProxyProviders()
+      await refreshProxy()
 
       showNotice.success('proxies.feedback.notifications.provider.allUpdated')
     } catch (err) {

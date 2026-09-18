@@ -172,12 +172,11 @@ export function useQuery<T>(options: QueryOptions<T>): QueryResult<T> {
   }
 
   const swr = useSWR<T>(enabled ? queryKey : null, queryFn, {
-    dedupingInterval: staleTime,
-    errorRetryCount: retry === false ? 0 : retry,
-    errorRetryInterval:
-      typeof retryDelay === 'number'
-        ? retryDelay
-        : swrConfig.errorRetryInterval,
+    ...(staleTime !== undefined && { dedupingInterval: staleTime }),
+    ...(retry !== undefined && {
+      errorRetryCount: retry === false ? 0 : retry,
+    }),
+    ...(typeof retryDelay === 'number' && { errorRetryInterval: retryDelay }),
     fallbackData,
     keepPreviousData: placeholderData !== undefined,
     onErrorRetry: (_error, _key, config, revalidate, { retryCount }) => {
@@ -195,7 +194,7 @@ export function useQuery<T>(options: QueryOptions<T>): QueryResult<T> {
     },
     revalidateOnFocus: refetchOnWindowFocus,
     revalidateOnMount,
-    revalidateOnReconnect: refetchOnReconnect,
+    revalidateOnReconnect: refetchOnReconnect ?? false,
     refreshInterval: refetchInterval || 0,
     refreshWhenHidden: refetchIntervalInBackground ?? false,
     onSuccess: (data) => {

@@ -14,6 +14,7 @@ const RECONNECT_DELAY_MS = 1000
 interface SharedSubscriptionOwner {
   handleMessage: (data: string) => void
   onConnected?: (ws: MihomoWebSocket) => Promise<void> | void
+  onStale?: () => void
   cleanup?: () => void
   isMounted: () => boolean
 }
@@ -22,6 +23,8 @@ interface SharedSubscriptionEntry {
   refs: number
   ws: MihomoWebSocket | null
   reconnectTimer: ReturnType<typeof setTimeout> | null
+  staleTimer: ReturnType<typeof setTimeout> | null
+  staleMs: number
   connecting: boolean
   owners: Set<SharedSubscriptionOwner>
   activeOwner: SharedSubscriptionOwner | null
@@ -74,7 +77,26 @@ const retryOrphanCloses = () => {
   })
 }
 
+const clearStaleTimer = (entry: SharedSubscriptionEntry) => {
+  if (entry.staleTimer) {
+    clearTimeout(entry.staleTimer)
+    entry.staleTimer = null
+  }
+}
+
+const armStaleTimer = (entry: SharedSubscriptionEntry, ws: MihomoWebSocket) => {
+  clearStaleTimer(entry)
+  if (entry.staleMs <= 0) return
+  entry.staleTimer = setTimeout(() => {
+    entry.staleTimer = null
+    if (entry.closed || entry.ws !== ws) return
+    pickActiveOwner(entry)?.onStale?.()
+    void entry.scheduleReconnect()
+  }, entry.staleMs)
+}
+
 const closeSharedSocket = async (entry: SharedSubscriptionEntry) => {
+  clearStaleTimer(entry)
   const ws = entry.ws
   if (!ws) return
 
@@ -85,11 +107,14 @@ const closeSharedSocket = async (entry: SharedSubscriptionEntry) => {
 
 const createSharedSubscriptionEntry = (
   connect: () => Promise<MihomoWebSocket>,
+  staleMs: number,
 ): SharedSubscriptionEntry => {
   const entry: SharedSubscriptionEntry = {
     refs: 0,
     ws: null,
     reconnectTimer: null,
+    staleTimer: null,
+    staleMs,
     connecting: false,
     owners: new Set(),
     activeOwner: null,
@@ -132,6 +157,7 @@ const createSharedSubscriptionEntry = (
 
       ws.addListener((msg: Message) => {
         if (msg.type !== 'Text') return
+        if (entry.ws === ws) armStaleTimer(entry, ws)
         const activeOwner = pickActiveOwner(entry)
         if (!activeOwner) return
 
@@ -139,6 +165,7 @@ const createSharedSubscriptionEntry = (
       })
 
       entry.ws = ws
+      armStaleTimer(entry, ws)
       clearReconnectTimer()
     } catch (ignoreError) {
       if (!entry.closed && !entry.ws) {
@@ -187,6 +214,7 @@ interface HandlerContext<T> {
 interface HandlerResult {
   handleMessage: (data: string) => void
   onConnected?: (ws: MihomoWebSocket) => Promise<void> | void
+  onStale?: () => void
   cleanup?: () => void
 }
 
@@ -204,6 +232,11 @@ interface UseMihomoWsSubscriptionOptions<T> {
    * when the window is backgrounded or minimized.
    */
   throttleMs?: number
+  /**
+   * When > 0, a socket that delivers no message for this long is treated as
+   * dead: the owner's `onStale` runs and the socket is reconnected.
+   */
+  staleMs?: number
   setupHandlers: (ctx: HandlerContext<T>) => HandlerResult
 }
 
@@ -216,6 +249,7 @@ export const useMihomoWsSubscription = <T>(
     fallbackData,
     connect,
     throttleMs,
+    staleMs,
     setupHandlers,
   } = options
 
@@ -260,7 +294,7 @@ export const useMihomoWsSubscription = <T>(
     let isMounted = true
     let entry = sharedSubscriptions.get(subscriptionCacheKey)
     if (!entry) {
-      entry = createSharedSubscriptionEntry(connect)
+      entry = createSharedSubscriptionEntry(connect, staleMs ?? 0)
       sharedSubscriptions.set(subscriptionCacheKey, entry)
     }
 
@@ -323,6 +357,7 @@ export const useMihomoWsSubscription = <T>(
     const {
       handleMessage: handleTextMessage,
       onConnected,
+      onStale,
       cleanup,
     } = setupHandlers({
       next: wrappedNext,
@@ -333,6 +368,7 @@ export const useMihomoWsSubscription = <T>(
     const owner: SharedSubscriptionOwner = {
       handleMessage: handleTextMessage,
       onConnected,
+      onStale,
       cleanup: () => {
         throttleCleanup?.()
         cleanup?.()
@@ -366,6 +402,7 @@ export const useMihomoWsSubscription = <T>(
           clearTimeout(entry.reconnectTimer)
           entry.reconnectTimer = null
         }
+        clearStaleTimer(entry)
         sharedSubscriptions.delete(subscriptionCacheKey)
         // Размонтирование не ждёт закрытия, но и оборваться на нём не должно:
         // без `catch` отказ IPC улетал бы в unhandled rejection.

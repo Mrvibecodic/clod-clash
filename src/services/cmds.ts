@@ -3,6 +3,7 @@ import dayjs from 'dayjs'
 import { getProxies, getProxyProviders } from 'tauri-plugin-mihomo-api'
 
 import { showNotice } from '@/services/notice-service'
+import { getCacheData, setCacheData } from '@/services/query-client'
 import { debugLog } from '@/utils/debug'
 
 export async function getCoreLadder() {
@@ -136,7 +137,7 @@ export async function calcuProxies(): Promise<{
   const [proxyResponse, providerResponse, runtimeGroupOrder] =
     await Promise.all([
       getProxies(),
-      calcuProxyProviders(),
+      cachedProxyProviders(),
       getRuntimeProxyGroupOrder(),
     ])
 
@@ -244,6 +245,16 @@ export async function calcuProxies(): Promise<{
     records: records as Record<string, IProxyItem>,
     proxies: (proxies as IProxyItem[]) ?? [],
   }
+}
+
+type ProxyProviderRecord = Awaited<ReturnType<typeof calcuProxyProviders>>
+
+async function cachedProxyProviders(): Promise<ProxyProviderRecord> {
+  const cached = getCacheData<ProxyProviderRecord>(['getProxyProviders'])
+  if (cached) return cached
+  const fresh = await calcuProxyProviders()
+  setCacheData(['getProxyProviders'], fresh)
+  return fresh
 }
 
 export async function calcuProxyProviders() {

@@ -6,6 +6,7 @@ import { useMihomoWsSubscription } from './use-mihomo-ws-subscription'
 
 const FALLBACK_TRAFFIC: Traffic = { up: 0, down: 0, upTotal: 0, downTotal: 0 }
 const DUPLICATE_TRAFFIC_WINDOW_MS = 50
+const TRAFFIC_STALE_MS = 5000
 
 let lastTrafficSignature = ''
 let lastTrafficTimestamp = 0
@@ -35,7 +36,9 @@ export const useTrafficData = (options?: { enabled?: boolean }) => {
     fallbackData: FALLBACK_TRAFFIC,
     connect: () => MihomoWebSocket.connect_traffic(),
     throttleMs: 200,
+    staleMs: TRAFFIC_STALE_MS,
     setupHandlers: ({ next, scheduleReconnect }) => ({
+      onStale: () => next(null, FALLBACK_TRAFFIC),
       handleMessage: (data) => {
         if (isWsErrorMessage(data)) {
           next(data, FALLBACK_TRAFFIC)
