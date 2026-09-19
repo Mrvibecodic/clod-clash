@@ -4,7 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { useLockFn } from 'ahooks'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { updateGeo, type LogLevel } from 'tauri-plugin-mihomo-api'
+import { type LogLevel } from 'tauri-plugin-mihomo-api'
 
 import { type DialogRef, Switch, TooltipIcon } from '@/components/base'
 import { useClash, useClashInfo } from '@/hooks/use-clash'
@@ -16,6 +16,7 @@ import {
   invoke_uwp_tool,
   patchClashMode,
   refreshGeoAssets,
+  updateCoreGeo,
 } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import getSystem from '@/utils/get-system'
@@ -84,7 +85,7 @@ const SettingClash = ({ onError }: Props) => {
   }
   const onUpdateGeo = async () => {
     try {
-      await updateGeo()
+      await updateCoreGeo()
       await refreshGeoAssets()
       showNotice.success('settings.feedback.notifications.clash.geoDataUpdated')
     } catch (err: any) {

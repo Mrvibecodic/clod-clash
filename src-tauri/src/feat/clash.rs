@@ -131,3 +131,61 @@ pub async fn change_clash_mode(mode: String) -> Result<(), String> {
 
     Ok(())
 }
+
+/// Что ядро по нашему запросу качает из сети.
+#[derive(Debug, Clone, Copy, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CoreDownload {
+    Rules,
+    Proxies,
+    Geo,
+}
+
+/// Попросить ядро обновить провайдера, набор правил или гео-базы и дождаться
+/// его ответа столько, сколько ядро само ждёт загрузку.
+///
+/// clod:Э13-04 — запрос строится тем же клиентом плагина (тот же канал к
+/// ядру), но со своим пределом: у быстрых запросов он остаётся прежним.
+pub async fn download_in_core(what: CoreDownload, name: &str) -> anyhow::Result<()> {
+    use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
+    use reqwest::Method;
+
+    let name_in_path = utf8_percent_encode(name, NON_ALPHANUMERIC).to_string();
+    let (method, path, budget) = match what {
+        CoreDownload::Rules => (
+            Method::PUT,
+            format!("/providers/rules/{name_in_path}"),
+            crate::constants::timing::CORE_PROVIDER_DOWNLOAD,
+        ),
+        CoreDownload::Proxies => (
+            Method::PUT,
+            format!("/providers/proxies/{name_in_path}"),
+            crate::constants::timing::CORE_PROVIDER_DOWNLOAD,
+        ),
+        CoreDownload::Geo => (
+            Method::POST,
+            "/configs/geo".to_owned(),
+            crate::constants::timing::CORE_GEO_DOWNLOAD,
+        ),
+    };
+    let request = handle::Handle::mihomo()
+        .load_ctx()
+        .build_request(method, &path)
+        .map_err(|error| anyhow::anyhow!("{error}"))?;
+    let response = request.timeout(budget).send().await?;
+    if response.status().is_success() {
+        return Ok(());
+    }
+    let status = response.status();
+    let message = response
+        .json::<serde_json::Value>()
+        .await
+        .ok()
+        .and_then(|body| {
+            body.get("message")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_owned)
+        })
+        .unwrap_or_else(|| status.to_string());
+    anyhow::bail!("{message}")
+}

@@ -20,9 +20,9 @@ import { useLockFn } from 'ahooks'
 import dayjs from 'dayjs'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { updateProxyProvider } from 'tauri-plugin-mihomo-api'
 
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
+import { updateCoreProxyProvider } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import parseTraffic from '@/utils/parse-traffic'
 import { enumText } from '@/utils/plugin-enum'
@@ -66,7 +66,7 @@ export const ProviderButton = () => {
       // Устанавливаем состояние обновления
       setUpdating((prev) => ({ ...prev, [name]: true }))
 
-      await updateProxyProvider(name)
+      await updateCoreProxyProvider(name)
 
       // Обновляем данные
       await refreshProxyProviders()
@@ -112,7 +112,7 @@ export const ProviderButton = () => {
       // Обновляем всех провайдеров последовательно, по одному
       for (const name of allProviders) {
         try {
-          await updateProxyProvider(name)
+          await updateCoreProxyProvider(name)
           // Обновляем состояние после завершения каждого обновления
           setUpdating((prev) => ({ ...prev, [name]: false }))
         } catch (err) {

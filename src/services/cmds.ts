@@ -403,6 +403,17 @@ export async function restartCore() {
   return invoke<void>('restart_core')
 }
 
+// clod:Э13-04 — обновления, которые ядро качает из сети, ждут столько, сколько
+// загрузку ждёт само ядро; общий предел плагина рассчитан на быстрые ответы.
+export const updateCoreRuleProvider = (name: string) =>
+  invoke<void>('download_in_core', { what: 'rules', name })
+
+export const updateCoreProxyProvider = (name: string) =>
+  invoke<void>('download_in_core', { what: 'proxies', name })
+
+export const updateCoreGeo = () =>
+  invoke<void>('download_in_core', { what: 'geo', name: null })
+
 export async function restartApp() {
   return invoke<void>('restart_app')
 }

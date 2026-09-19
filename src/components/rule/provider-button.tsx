@@ -19,9 +19,9 @@ import { useLockFn } from 'ahooks'
 import dayjs from 'dayjs'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { updateRuleProvider } from 'tauri-plugin-mihomo-api'
 
 import { useAppRefreshers, useRulesData } from '@/providers/app-data-context'
+import { updateCoreRuleProvider } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { enumText } from '@/utils/plugin-enum'
 
@@ -54,7 +54,7 @@ export const ProviderButton = () => {
       // Устанавливаем состояние обновления
       setUpdating((prev) => ({ ...prev, [name]: true }))
 
-      await updateRuleProvider(name)
+      await updateCoreRuleProvider(name)
 
       // Обновляем данные
       await refreshRules()
@@ -100,7 +100,7 @@ export const ProviderButton = () => {
       // Обновляем все провайдеры последовательно, один за другим
       for (const name of allProviders) {
         try {
-          await updateRuleProvider(name)
+          await updateCoreRuleProvider(name)
           // Обновляем состояние после каждого завершения
           setUpdating((prev) => ({ ...prev, [name]: false }))
         } catch (err) {

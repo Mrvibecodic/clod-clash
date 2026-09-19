@@ -442,3 +442,12 @@ mod tests {
         }
     }
 }
+
+/// clod:Э13-04 — обновление провайдера, набора правил или гео-баз с пределом,
+/// которого хватает на загрузку в ядре.
+#[tauri::command]
+pub async fn download_in_core(what: feat::CoreDownload, name: Option<String>) -> CmdResult {
+    feat::download_in_core(what, name.as_deref().unwrap_or_default())
+        .await
+        .stringify_err()
+}

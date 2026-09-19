@@ -89,6 +89,16 @@ pub mod timing {
     pub const CORE_READY_INTERVAL: Duration = Duration::from_millis(200);
     pub const CORE_READY_PROBE_TIMEOUT: Duration = Duration::from_millis(500);
 
+    /// Сколько ждать ядро, которое по нашему запросу качает провайдера или
+    /// набор правил: HTTP-таймаут загрузки у ядра 20 с плюс запас.
+    ///
+    /// clod:Э13-04 — общий предел запроса плагина (5 с) рассчитан на быстрые
+    /// ответы; загрузку он обрывал раньше ядра, и интерфейс рисовал ошибку,
+    /// пока ядро спокойно докачивало. Длинный предел даётся только этим
+    /// запросам, а не всем.
+    pub const CORE_PROVIDER_DOWNLOAD: Duration = Duration::from_secs(25);
+    /// То же для гео-баз: ядро качает их до 90 с.
+    pub const CORE_GEO_DOWNLOAD: Duration = Duration::from_secs(100);
     pub const MIXED_PORT_CHECK_ATTEMPTS: u32 = 12;
     pub const MIXED_PORT_CONFIRM_ATTEMPTS: u32 = 2;
     pub const MIXED_PORT_CHECK_INTERVAL: Duration = Duration::from_millis(500);
