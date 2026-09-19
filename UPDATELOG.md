@@ -8,6 +8,40 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.1.10-alpha.6
+
+<!-- lang:en -->
+
+### Changed
+
+- The app talks to the core through a faster connection that reuses requests
+
+### Fixed
+
+- A failed subscription update is marked on its card and the mark clears after a successful update
+- A node pinned in an automatic group is restored from the profile, and a pin left by another profile is removed
+- vless links with the ws transport no longer get the HTTP Upgrade mode
+- Link parsing keeps only known keys in plugin options and headers and warns when decoding fails
+- The speed graph recovers when its data stream goes silent, and proxy providers load faster
+- Settings hints for defaults and the DNS override mode are clearer, the TUN dialog saves only its own fields, and a long provider announcement no longer stretches the window
+
+<!-- lang:ru -->
+
+### Изменено
+
+- Приложение общается с ядром через более быстрое соединение, которое переиспользует запросы
+
+### Исправлено
+
+- Неудавшееся обновление подписки отмечается на её карточке, а отметка снимается после удачного обновления
+- Закреплённый узел в автоматической группе восстанавливается из профиля, а закрепление от другого профиля снимается
+- Ссылки vless с транспортом ws больше не получают режим HTTP Upgrade
+- Разбор ссылок оставляет в параметрах плагина и заголовках только известные ключи и предупреждает о неудавшемся декодировании
+- График скорости восстанавливается, если поток данных замолчал, а провайдеры прокси загружаются быстрее
+- Подсказки про умолчания и режим подмены DNS стали понятнее, диалог TUN сохраняет только свои поля, а длинное объявление провайдера больше не растягивает окно
+
+---
+
 ## v0.1.10-alpha.5
 
 <!-- lang:en -->
