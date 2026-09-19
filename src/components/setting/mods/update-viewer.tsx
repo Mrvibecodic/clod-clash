@@ -1,5 +1,4 @@
 import { alpha, Box, Button, LinearProgress } from '@mui/material'
-import { relaunch } from '@tauri-apps/plugin-process'
 import type { DownloadEvent } from '@tauri-apps/plugin-updater'
 import { useLockFn } from 'ahooks'
 import type { Ref } from 'react'
@@ -15,7 +14,7 @@ import { useTranslation } from 'react-i18next'
 import type { Options as ReactMarkdownOptions } from 'react-markdown'
 
 import { BaseDialog, DialogRef } from '@/components/base'
-import { openWebUrl } from '@/services/cmds'
+import { openWebUrl, restartApp } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { useQuery } from '@/services/query-client'
 import { useSetUpdateState, useUpdateState } from '@/services/states'
@@ -206,7 +205,10 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
 
     try {
       await updateInfo.downloadAndInstall(onDownloadEvent)
-      await relaunch()
+      // Штатный перезапуск: уборка выхода (ядро, системный прокси) и
+      // встроенный сервер гасятся до того, как встанет новая копия; на
+      // Windows сюда не доходит — установщик завершает процесс сам.
+      await restartApp()
     } catch (err: any) {
       showNotice.error(err)
     } finally {

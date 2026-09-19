@@ -36,10 +36,6 @@ const INSTANCE_LOCK_FILE: &str = "instance.lock";
 /// инициализации: второй ждёт его ответа, а не считает порт чужим.
 const HANDOVER_WAIT: Duration = Duration::from_secs(20);
 const LOCK_RETRY: Duration = Duration::from_millis(100);
-/// Перезапускающая себя копия порождает новую раньше, чем умирает сама: столько
-/// ждём её замок, прежде чем счесть, что копия с замком живёт своей жизнью.
-const RESTART_HANDOFF: Duration = Duration::from_secs(3);
-
 fn held_by_someone(error: &std::io::Error) -> bool {
     error.kind() == std::io::ErrorKind::AddrInUse
 }
@@ -93,8 +89,19 @@ fn take_the_instance_lock() -> InstanceLock {
 
 enum Handover {
     Delivered,
-    NothingToSend,
     Failed(anyhow::Error),
+}
+
+/// Наша ли это ссылка.
+///
+/// clod:A1-06 — ссылку ищем среди всех аргументов запуска, а без неё просим
+/// показать окно: раньше смотрели только первый аргумент, и любой другой
+/// (ярлык с ключом, файл по ассоциации) молча завершал вторую копию без показа
+/// окна. На macOS ссылки приходят событием системы, а не аргументом, поэтому
+/// там вторая копия всегда просит показать окно.
+#[cfg(not(target_os = "macos"))]
+fn is_scheme_link(arg: &str) -> bool {
+    arg.starts_with("clash:") || arg.starts_with("clash-verge:") || arg.starts_with("clodclash:")
 }
 
 async fn hand_the_command_over(port: u16, wait: Duration) -> Handover {
@@ -103,27 +110,23 @@ async fn hand_the_command_over(port: u16, wait: Duration) -> Handover {
         Ok(client) => client,
         Err(error) => return Handover::Failed(error.into()),
     };
-    #[allow(clippy::needless_collect)]
-    let argvs: Vec<std::string::String> = std::env::args().collect();
-    if argvs.len() > 1 {
-        #[cfg(not(target_os = "macos"))]
-        {
-            use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
+    #[cfg(not(target_os = "macos"))]
+    {
+        use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
 
-            let param = argvs[1].as_str();
-            if param.starts_with("clash:") || param.starts_with("clash-verge:") || param.starts_with("clodclash:") {
-                let encoded = utf8_percent_encode(param, NON_ALPHANUMERIC);
-                return match client
-                    .get(format!("http://127.0.0.1:{port}/commands/scheme?param={encoded}"))
-                    .send()
-                    .await
-                {
-                    Ok(_) => Handover::Delivered,
-                    Err(error) => Handover::Failed(error.into()),
-                };
-            }
+        // Итератор аргументов не `Send`: ссылку достаём до первого `.await`.
+        let link = std::env::args().skip(1).find(|arg| is_scheme_link(arg));
+        if let Some(param) = link {
+            let encoded = utf8_percent_encode(&param, NON_ALPHANUMERIC);
+            return match client
+                .get(format!("http://127.0.0.1:{port}/commands/scheme?param={encoded}"))
+                .send()
+                .await
+            {
+                Ok(_) => Handover::Delivered,
+                Err(error) => Handover::Failed(error.into()),
+            };
         }
-        return Handover::NothingToSend;
     }
     match client
         .get(format!("http://127.0.0.1:{port}/commands/visible"))
@@ -153,11 +156,10 @@ pub async fn check_singleton() -> Result<()> {
         // быстрым отказ бывает, когда порт закрыт, — тогда замок пробуем снова.
         match hand_the_command_over(port, HANDOVER_WAIT).await {
             Handover::Delivered => return leave_to_the_running_copy(),
-            Handover::NothingToSend if started.elapsed() >= RESTART_HANDOFF => return leave_to_the_running_copy(),
             Handover::Failed(error) if started.elapsed() >= HANDOVER_WAIT => {
                 bail!("another copy holds the instance lock and did not answer the command: {error}");
             }
-            Handover::NothingToSend | Handover::Failed(_) => tokio::time::sleep(LOCK_RETRY).await,
+            Handover::Failed(_) => tokio::time::sleep(LOCK_RETRY).await,
         }
     }
 }
@@ -178,7 +180,7 @@ async fn claim_the_port(port: u16, lock: InstanceLock) -> Result<()> {
     }
     // Порт держит копия без замка — прежняя версия или другая установка.
     let error = match hand_the_command_over(port, HANDOVER_WAIT).await {
-        Handover::Delivered | Handover::NothingToSend => return leave_to_the_running_copy(),
+        Handover::Delivered => return leave_to_the_running_copy(),
         Handover::Failed(error) => error,
     };
     logging!(
@@ -307,6 +309,18 @@ mod tests {
     use super::{InstanceLock, held_by_someone, lock_the_file};
     use std::net::{Ipv4Addr, TcpListener};
     use warp::Filter as _;
+
+    #[cfg(not(target_os = "macos"))]
+    #[test]
+    fn only_our_schemes_are_links() {
+        use super::is_scheme_link;
+        for link in ["clodclash://install-config?url=x", "clash://a", "clash-verge://a"] {
+            assert!(is_scheme_link(link), "{link}");
+        }
+        for other in ["--some-flag", "C:\\profile.yaml", "https://example.com", ""] {
+            assert!(!is_scheme_link(other), "{other}");
+        }
+    }
 
     #[test]
     fn a_port_someone_listens_on_is_told_apart_from_a_port_the_system_refuses() {
