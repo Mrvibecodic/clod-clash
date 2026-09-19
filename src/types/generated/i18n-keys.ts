@@ -445,6 +445,7 @@ export const translationKeys = [
   'settings.sections.system.notifications.core.notReady',
   'settings.sections.system.notifications.core.portBusy',
   'settings.sections.system.notifications.core.portBusyAction',
+  'settings.sections.system.notifications.core.portBusyHint',
   'settings.sections.system.notifications.core.restarted',
   'settings.sections.system.notifications.service.bundleRejected',
   'settings.sections.system.notifications.service.needsRepair',

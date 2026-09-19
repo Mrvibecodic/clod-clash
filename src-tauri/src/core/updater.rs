@@ -528,7 +528,22 @@ fn updater_builder(
     #[cfg(target_os = "windows")]
     let builder = {
         let lang_id = nsis_language_id(&clash_verge_i18n::current_language(language));
-        builder.installer_arg(format!("/LANG={lang_id}"))
+        // Плагин перед установщиком завершает процесс сам, `exit(0)`, и наш
+        // выход не выполняется: уборка здесь та же, что перед аварийным
+        // перезапуском. Ядро под службой не трогаем — если человек откажет
+        // установщику в правах, процесс всё равно завершится, а VPN должен
+        // это пережить. Ядро, которое служба после установки поднимет сама,
+        // заменит запуск новой копии под службой, а если служба к её старту
+        // ещё не готова — перезапуск ядра, если к проверке порта она уже
+        // готова. Собственный хук плагина (уборка ресурсов Tauri)
+        // заменяется, поэтому зовётся следом.
+        let app = app_handle.clone();
+        builder
+            .installer_arg(format!("/LANG={lang_id}"))
+            .on_before_exit(move || {
+                crate::feat::tidy_up_before_an_abrupt_end("установкой обновления");
+                app.cleanup_before_exit();
+            })
     };
     let builder = match proxy {
         Some(proxy) => builder.proxy(proxy.clone()),

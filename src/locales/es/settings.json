@@ -50,6 +50,7 @@
           "notReady": "El núcleo se inició pero no responde, por lo que se canceló el arranque",
           "portBusy": "El puerto {{port}} está ocupado por otra aplicación: el núcleo no lo escucha y el tráfico no pasará por el proxy del sistema.",
           "portBusyAction": "Cambiar el puerto en los ajustes",
+          "portBusyHint": "If the port is held by a previous copy of the core or the client, fully restart the client from the tray icon first.",
           "restarted": "El núcleo se bloqueó y se reinició"
         },
         "service": {

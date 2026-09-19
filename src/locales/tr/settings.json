@@ -50,6 +50,7 @@
           "notReady": "Çekirdek başlatıldı ancak yanıt vermiyor, başlatma iptal edildi",
           "portBusy": "{{port}} bağlantı noktası başka bir uygulama tarafından kullanılıyor: çekirdek onu dinlemiyor, trafik sistem proxy'si üzerinden geçmeyecek.",
           "portBusyAction": "Bağlantı noktasını ayarlardan değiştir",
+          "portBusyHint": "If the port is held by a previous copy of the core or the client, fully restart the client from the tray icon first.",
           "restarted": "Çekirdek çöktü ve yeniden başlatıldı"
         },
         "service": {

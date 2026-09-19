@@ -189,7 +189,10 @@ async fn init_silent_updater() {
 
     if SilentUpdater::global().try_install_on_startup(app_handle).await {
         logging!(info, Type::Setup, "Update installed at startup, restarting...");
-        app_handle.restart();
+        // Штатный перезапуск: выход здесь не отменяется облегчённым режимом, а
+        // уборка и встроенный сервер гасятся до того, как встанет новая копия.
+        crate::feat::restart_app().await;
+        return;
     }
 
     let app_handle = app_handle.clone();

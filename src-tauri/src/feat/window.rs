@@ -239,14 +239,15 @@ fn cancel_the_exit(reason: String) {
     });
 }
 
-/// Перед аварийным перезапуском при зависшем окне настройки сохраняются
+/// Перед аварийным перезапуском при зависшем окне и перед установщиком
+/// обновления (плагин завершает процесс сам) настройки сохраняются
 /// всегда. Ядро под службой перезапуск переживает, прокси и туннель остаются
 /// рабочими, и снимать их значило бы пустить трафик напрямую. Во всех прочих
 /// случаях прокси после нас укажет в никуда: он снимается, а своё ядро
 /// останавливается — возвращённое после отменённого выхода уже не умирает
 /// вместе с нами.
 #[cfg(target_os = "windows")]
-pub async fn tidy_up_for_a_forced_restart() -> bool {
+async fn tidy_up_for_a_forced_restart() -> bool {
     let pace = ExitPace::SessionEnding;
     let save = spawn_save_task(pace);
     if matches!(*CoreManager::global().get_running_mode(), RunningMode::Service) {
@@ -257,6 +258,48 @@ pub async fn tidy_up_for_a_forced_restart() -> bool {
     saved.unwrap_or_default()
         && the_take_down_went_as_asked(proxy.unwrap_or_default())
         && stopped.is_ok_and(|stopped| stopped.is_ok())
+}
+
+/// Сколько процесс, который вот-вот завершится не нашим выходом, ждёт уборку.
+#[cfg(target_os = "windows")]
+const TIDY_UP_BUDGET: Duration = Duration::from_secs(6);
+
+/// `tidy_up_for_a_forced_restart` с потока, который сам ждать асинхронно не
+/// может и за которым процесс завершится не нашим выходом (сторож окна перед
+/// перезапуском, хук апдейтера перед установщиком). Ждём её по часам, чтобы то,
+/// что в ней встало, не остановило перезапуск. Если выход уже идёт, у него своя
+/// уборка — вторую поверх не запускаем, а даём первой закончить.
+///
+/// Хук апдейтера зовётся синхронно с рабочего потока tokio (команда
+/// `download_and_install`). `block_in_place` отдаёт этот поток рантайму —
+/// вместе с задачами из его LIFO-слота и драйверами таймеров, — иначе
+/// порождённая здесь уборка не начиналась бы, а на машине с одним рабочим
+/// потоком не шли бы и её таймеры. Вне рантайма (сторож окна) он просто
+/// выполняет ожидание.
+#[cfg(target_os = "windows")]
+pub fn tidy_up_before_an_abrupt_end(what: &str) {
+    if !handle::Handle::global().begin_exiting(false) {
+        std::thread::sleep(TIDY_UP_BUDGET);
+        return;
+    }
+    // Таймер создаётся внутри future: вне рантайма (сторож окна) его нельзя
+    // построить до того, как `block_on` в рантайм вошёл.
+    let tidied = tokio::task::block_in_place(|| {
+        AsyncHandler::block_on(async { timeout(TIDY_UP_BUDGET, tidy_up_for_a_forced_restart()).await })
+    });
+    match tidied {
+        Ok(all_success) => logging!(
+            info,
+            Type::Window,
+            "Уборка перед {what} закончена, всё удалось: {all_success}"
+        ),
+        Err(_) => logging!(
+            warn,
+            Type::Window,
+            "Уборка перед {what} не уложилась в {} с, продолжаем как есть",
+            TIDY_UP_BUDGET.as_secs()
+        ),
+    }
 }
 
 pub struct CleanupOutcome {

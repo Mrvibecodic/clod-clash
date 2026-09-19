@@ -18,6 +18,9 @@ use tauri_plugin_clash_verge_sysinfo::is_current_app_handle_admin;
 
 static MIXED_PORT_CHECK_GENERATION: AtomicU64 = AtomicU64::new(0);
 static PORT_BUSY_NOTICED: AtomicU32 = AtomicU32::new(0);
+/// Порт, ради которого ядро уже пробовали перевести под службу; сбрасывается,
+/// когда ядро подтвердило слушателя.
+static PORT_RECLAIMED: AtomicU32 = AtomicU32::new(0);
 /// Системный прокси ещё указывает на прежний порт, а у ядра уже новый.
 ///
 /// clod:port-ladder — взводится при смене порта, а также когда прокси включён,
@@ -91,6 +94,20 @@ async fn who_holds_the_port(
     }
 }
 
+/// Стоит ли переводить ядро своего процесса под службу ради порта.
+///
+/// clod:port-reclaim — после установки обновления служба отчитывается о
+/// запуске раньше, чем открывает свой канал, и сама поднимает прежнее ядро
+/// владельца. Приложение, не дождавшись её, стартует своим процессом, и
+/// mihomo, не получив порт, к нему больше не возвращается. Под службой ядро
+/// поднялось бы само (её запуск останавливает прежнее), а передача ядра
+/// службе шла только ради TUN. Теперь у неё есть вторая причина — занятый
+/// порт; ждёт она службу тем же сторожем. Свободный порт служба не
+/// объясняет. Один раз: если передача не помогла, дальше — как раньше.
+const fn worth_asking_the_service(holder: PortHolder, under_service: bool, already_asked: bool) -> bool {
+    !under_service && !already_asked && !matches!(holder, PortHolder::NotEvenTaken)
+}
+
 fn say_who_holds_the_port(expected: u16, holder: PortHolder, the_proxy_is_wanted: bool) {
     match holder {
         PortHolder::NotEvenTaken => {
@@ -137,6 +154,26 @@ pub enum ExitStop {
         reason: std::string::String,
         core_alive: bool,
     },
+}
+
+/// Зачем ядру своего процесса переезжать под службу.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HandoffReason {
+    /// Нужен TUN, а его поднимает только служба.
+    Tun,
+    /// Порт ядра занят, и держит его, скорее всего, ядро, которое служба
+    /// подняла сама; её запуск его остановит. Причина живёт, пока ядро порт
+    /// не подтвердило.
+    PortTaken,
+}
+
+impl HandoffReason {
+    async fn still_holds(self) -> bool {
+        match self {
+            Self::Tun => Config::verge().await.latest_arc().enable_tun_mode.unwrap_or(false),
+            Self::PortTaken => PORT_RECLAIMED.load(Ordering::Acquire) != 0,
+        }
+    }
 }
 
 /// Результат передачи sidecar→service
@@ -291,7 +328,7 @@ impl CoreManager {
 
         // После отката к sidecar в фоне ждём готовности службы для передачи
         if matches!(*self.get_running_mode(), RunningMode::Sidecar) {
-            self.spawn_service_handoff_watcher().await;
+            self.spawn_service_handoff_watcher(HandoffReason::Tun).await;
         }
 
         result
@@ -471,6 +508,7 @@ impl CoreManager {
             match port_report(reported, expected) {
                 PortReport::Serving => {
                     PORT_BUSY_NOTICED.store(0, Ordering::Release);
+                    PORT_RECLAIMED.store(0, Ordering::Release);
                     return PortVerdict::Confirmed;
                 }
                 PortReport::Other(port) => {
@@ -524,9 +562,23 @@ impl CoreManager {
                 crate::core::orphan::another_core_of_ours_is_running(own_pid, under_service),
             )
             .await;
-            if !Self::the_port_check_is_called_off(generation) {
-                say_who_holds_the_port(expected, holder, the_proxy_is_wanted);
+            if Self::the_port_check_is_called_off(generation) {
+                return;
             }
+            let already_asked = PORT_RECLAIMED.load(Ordering::Acquire) == u32::from(expected);
+            if worth_asking_the_service(holder, under_service, already_asked) {
+                PORT_RECLAIMED.store(u32::from(expected), Ordering::Release);
+                let manager = Self::global();
+                match manager.try_handoff_sidecar_to_service(HandoffReason::PortTaken).await {
+                    HandoffOutcome::Done => return,
+                    HandoffOutcome::NotReady => manager.spawn_service_handoff_watcher(HandoffReason::PortTaken).await,
+                    HandoffOutcome::Failed => {}
+                }
+                if Self::the_port_check_is_called_off(generation) {
+                    return;
+                }
+            }
+            say_who_holds_the_port(expected, holder, the_proxy_is_wanted);
         });
         PortVerdict::Refuted
     }
@@ -824,9 +876,9 @@ impl CoreManager {
         if !crate::feat::tun::desired().await {
             return;
         }
-        match self.try_handoff_sidecar_to_service().await {
+        match self.try_handoff_sidecar_to_service(HandoffReason::Tun).await {
             HandoffOutcome::Done => {}
-            HandoffOutcome::NotReady => self.spawn_service_handoff_watcher().await,
+            HandoffOutcome::NotReady => self.spawn_service_handoff_watcher(HandoffReason::Tun).await,
             HandoffOutcome::Failed => {
                 logging!(warn, Type::Core, "immediate handoff failed; staying in sidecar mode");
             }
@@ -834,15 +886,13 @@ impl CoreManager {
     }
 
     /// Ждёт готовности службы в течение окна времени, затем передаёт от sidecar к service
-    async fn spawn_service_handoff_watcher(&self) {
+    async fn spawn_service_handoff_watcher(&self, reason: HandoffReason) {
         use crate::constants::timing;
         use crate::process::AsyncHandler;
         use std::sync::atomic::Ordering;
         use std::time::Instant;
 
-        // Передача службе нужна только в режиме TUN
-        let needs_service = Config::verge().await.latest_arc().enable_tun_mode.unwrap_or(false);
-        if !needs_service {
+        if !reason.still_holds().await {
             return;
         }
 
@@ -851,7 +901,8 @@ impl CoreManager {
         logging!(
             info,
             Type::Core,
-            "service not ready at startup; sidecar active, watching for handoff"
+            "service not ready; sidecar active, watching for handoff ({:?})",
+            reason
         );
 
         AsyncHandler::spawn(move || async move {
@@ -882,7 +933,7 @@ impl CoreManager {
                 if !matches!(*manager.get_running_mode(), RunningMode::Sidecar) {
                     break;
                 }
-                match manager.try_handoff_sidecar_to_service().await {
+                match manager.try_handoff_sidecar_to_service(reason).await {
                     // Передано или не требуется
                     HandoffOutcome::Done => break,
                     // Откат к sidecar выполнен, прекращаем попытки
@@ -929,7 +980,7 @@ impl CoreManager {
     }
 
     /// После готовности службы останавливает sidecar и перезапускает ядро через service
-    async fn try_handoff_sidecar_to_service(&self) -> HandoffOutcome {
+    async fn try_handoff_sidecar_to_service(&self, reason: HandoffReason) -> HandoffOutcome {
         if let Some(outcome) = self.handoff_is_out_of_reach().await {
             return outcome;
         }
@@ -950,10 +1001,8 @@ impl CoreManager {
             return HandoffOutcome::NotReady;
         }
 
-        // После захвата блокировки повторно проверяем режим работы и состояние TUN
-        if !matches!(*self.get_running_mode(), RunningMode::Sidecar)
-            || !Config::verge().await.latest_arc().enable_tun_mode.unwrap_or(false)
-        {
+        // После захвата блокировки повторно проверяем режим работы и причину
+        if !matches!(*self.get_running_mode(), RunningMode::Sidecar) || !reason.still_holds().await {
             return HandoffOutcome::Done;
         }
 
@@ -1038,7 +1087,7 @@ impl CoreManager {
 mod tests {
     use super::{
         PortHolder, PortReport, PortVerdict, port_report, should_wait_for_service, the_port_check_budget,
-        the_verdict_without_a_diagnosis, who_holds_the_port,
+        the_verdict_without_a_diagnosis, who_holds_the_port, worth_asking_the_service,
     };
     use crate::constants::timing;
     use std::time::Duration;
@@ -1102,6 +1151,25 @@ mod tests {
             who_holds_the_port(async { true }, async { false }).await,
             PortHolder::SomeoneElse
         );
+    }
+
+    /// Под службу переводят, только когда ядро своим процессом, порт кем-то
+    /// занят и ради него ещё не пробовали.
+    #[test]
+    fn the_service_is_asked_once_and_only_for_a_core_of_its_own_process_left_without_its_port() {
+        use PortHolder::{AnotherCoreOfOurs, NotEvenTaken, SomeoneElse};
+        assert!(worth_asking_the_service(SomeoneElse, false, false));
+        assert!(worth_asking_the_service(AnotherCoreOfOurs, false, false));
+        for (holder, under_service, already_restarted) in [
+            (NotEvenTaken, false, false),
+            (SomeoneElse, true, false),
+            (SomeoneElse, false, true),
+        ] {
+            assert!(
+                !worth_asking_the_service(holder, under_service, already_restarted),
+                "{holder:?} служба={under_service} уже={already_restarted}"
+            );
+        }
     }
 
     #[test]

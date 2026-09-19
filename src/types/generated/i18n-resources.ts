@@ -1349,6 +1349,7 @@ export interface TranslationResources {
               notReady: string
               portBusy: string
               portBusyAction: string
+              portBusyHint: string
               restarted: string
             }
             service: {

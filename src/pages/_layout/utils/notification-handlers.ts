@@ -249,6 +249,8 @@ export const handleNoticeMessage = (
             port: msg,
           }),
           ' ',
+          t('settings.sections.system.notifications.core.portBusyHint'),
+          ' ',
           createElement(
             'a',
             {

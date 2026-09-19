@@ -50,6 +50,7 @@
           "notReady": "核心已啟動但沒有回應，啟動已取消",
           "portBusy": "連接埠 {{port}} 被其他程式占用：核心未監聽該連接埠，流量不會走系統代理。",
           "portBusyAction": "在設定中變更連接埠",
+          "portBusyHint": "If the port is held by a previous copy of the core or the client, fully restart the client from the tray icon first.",
           "restarted": "核心當機，已自動重新啟動"
         },
         "service": {

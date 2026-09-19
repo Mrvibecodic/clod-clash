@@ -50,6 +50,7 @@
           "notReady": "بدأت النواة لكنها لا تستجيب، لذلك أُلغي التشغيل",
           "portBusy": "المنفذ {{port}} يستخدمه تطبيق آخر: النواة لا تستمع إليه، ولن تمر البيانات عبر وكيل النظام.",
           "portBusyAction": "غيّر المنفذ من الإعدادات",
+          "portBusyHint": "If the port is held by a previous copy of the core or the client, fully restart the client from the tray icon first.",
           "restarted": "تعطّلت النواة وأُعيد تشغيلها"
         },
         "service": {

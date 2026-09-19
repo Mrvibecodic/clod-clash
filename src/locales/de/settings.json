@@ -50,6 +50,7 @@
           "notReady": "Der Core wurde gestartet, antwortet aber nicht — der Start wurde abgebrochen",
           "portBusy": "Port {{port}} wird von einer anderen Anwendung belegt: Der Core lauscht nicht darauf, der Datenverkehr läuft nicht über den Systemproxy.",
           "portBusyAction": "Port in den Einstellungen ändern",
+          "portBusyHint": "If the port is held by a previous copy of the core or the client, fully restart the client from the tray icon first.",
           "restarted": "Der Core ist abgestürzt und wurde neu gestartet"
         },
         "service": {

@@ -50,6 +50,7 @@
           "notReady": "Core sudah dijalankan tetapi tidak merespons, sehingga peluncuran dibatalkan",
           "portBusy": "Port {{port}} dipakai aplikasi lain: core tidak mendengarkan port itu, sehingga trafik tidak melewati proxy sistem.",
           "portBusyAction": "Ubah port di pengaturan",
+          "portBusyHint": "If the port is held by a previous copy of the core or the client, fully restart the client from the tray icon first.",
           "restarted": "Core berhenti dan dijalankan ulang"
         },
         "service": {

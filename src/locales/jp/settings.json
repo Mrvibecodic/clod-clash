@@ -50,6 +50,7 @@
           "notReady": "コアは起動しましたが応答しないため、起動を中止しました",
           "portBusy": "ポート {{port}} は別のアプリが使用中です。コアはこのポートを待ち受けておらず、通信はシステムプロキシを通りません。",
           "portBusyAction": "設定でポートを変更する",
+          "portBusyHint": "If the port is held by a previous copy of the core or the client, fully restart the client from the tray icon first.",
           "restarted": "コアが停止したため再起動しました"
         },
         "service": {
