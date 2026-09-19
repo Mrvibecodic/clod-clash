@@ -48,6 +48,7 @@ export interface TranslationResources {
           routes: string
           shown: string
           toggle: string
+          unknownRoute: string
           volume: string
         }
       }

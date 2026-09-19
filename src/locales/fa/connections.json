@@ -37,7 +37,8 @@
       "routes": "مسیرها",
       "shown": "نمایش‌داده‌شده",
       "direct": "مستقیم",
-      "noProcess": "بدون فرآیند"
+      "noProcess": "بدون فرآیند",
+      "unknownRoute": "Unknown route"
     },
     "actions": {
       "active": "Active",

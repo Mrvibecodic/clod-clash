@@ -37,7 +37,8 @@
       "routes": "Маршруты",
       "shown": "Показано",
       "direct": "Напрямую",
-      "noProcess": "Без процесса"
+      "noProcess": "Без процесса",
+      "unknownRoute": "Маршрут неизвестен"
     },
     "actions": {
       "active": "Активные",

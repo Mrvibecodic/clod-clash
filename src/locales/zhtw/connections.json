@@ -37,7 +37,8 @@
       "routes": "出口",
       "shown": "顯示",
       "direct": "直連",
-      "noProcess": "無程序"
+      "noProcess": "無程序",
+      "unknownRoute": "Unknown route"
     },
     "actions": {
       "active": "活躍",

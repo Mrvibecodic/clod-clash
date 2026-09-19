@@ -71,13 +71,12 @@ function useProxyRenderState(
     [activeSelectedGroup, isChainMode, mode],
   )
 
+  // Состояние заголовка лежит на каждой строке группы; строка типа 1 есть
+  // только в глобальном режиме, в режиме правил её нет — и признак
+  // свёрнутости по ней никогда не находился.
   const getGroupHeadState = useCallback(
-    (groupName: string) => {
-      const headItem = renderList.find(
-        (item) => item.type === 1 && item.group?.name === groupName,
-      )
-      return headItem?.headState
-    },
+    (groupName: string) =>
+      renderList.find((item) => item.group?.name === groupName)?.headState,
     [renderList],
   )
 
@@ -112,16 +111,15 @@ function useProxyRenderState(
             : []
 
       debugLog(`[ProxyGroups] Найдено прокси: ${proxies.length}`)
-      if (proxies.length === 0) {
-        debugLog(`[ProxyGroups] В группе ${groupName} нечего проверять`)
-        return
-      }
-
-      debugLog(
-        `[ProxyGroups] URL теста: ${delayManager.getUrl(groupName)}, тайм-аут: ${timeout}ms`,
-      )
 
       try {
+        if (proxies.length === 0) {
+          debugLog(`[ProxyGroups] В группе ${groupName} нечего проверять`)
+          return
+        }
+        debugLog(
+          `[ProxyGroups] URL теста: ${delayManager.getUrl(groupName)}, тайм-аут: ${timeout}ms`,
+        )
         await delayManager.checkListDelay(proxies, groupName, timeout)
         debugLog(
           `[ProxyGroups] Тестирование задержки завершено, группа: ${groupName}`,

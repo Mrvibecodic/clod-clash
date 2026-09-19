@@ -82,7 +82,7 @@ const topEntries = (totals: Map<string, number>): ConnectionSummaryEntry[] =>
 
 export const summarizeConnections = (
   connections: readonly IConnectionsItem[],
-  labels: { noProcess: string; direct: string },
+  labels: { noProcess: string; direct: string; unknownRoute: string },
 ): ConnectionSummaryStats => {
   let download = 0
   let upload = 0
@@ -122,7 +122,7 @@ export const summarizeConnections = (
     const routeKey =
       outbound === DIRECT_OUTBOUND
         ? labels.direct
-        : outbound || labels.noProcess
+        : outbound || labels.unknownRoute
     routeTotals.set(routeKey, (routeTotals.get(routeKey) ?? 0) + rowTotal)
   }
 

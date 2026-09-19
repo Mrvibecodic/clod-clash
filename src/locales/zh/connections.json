@@ -37,7 +37,8 @@
       "routes": "出口",
       "shown": "显示",
       "direct": "直连",
-      "noProcess": "无进程"
+      "noProcess": "无进程",
+      "unknownRoute": "Unknown route"
     },
     "actions": {
       "active": "活跃",

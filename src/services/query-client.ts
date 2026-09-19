@@ -1,4 +1,4 @@
-import { unstable_serialize } from 'swr'
+import { SWRConfig, unstable_serialize } from 'swr'
 import useSWR, {
   type SWRConfiguration,
   type SWRResponse,
@@ -35,38 +35,16 @@ type QueryResult<T> = SWRResponse<T> & {
 
 const serializeQueryKey = (queryKey: QueryKey) => unstable_serialize(queryKey)
 
-const queryCache = new Map<string, unknown>()
-
 /**
- * clod:cache-evict — потолок числа ключей в зеркале кэша.
- *
- * Почти все ключи здесь постоянные (`getProxies`, `getVergeConfig`…), и их
- * пара десятков. Но ключ бывает и составным — `['icon-cache', url, key]` в
- * `use-icon-cache`, — а такие плодятся по числу иконок, которые провайдер
- * когда-либо присылал: карта росла весь сеанс и не чистилась никогда.
- * Двухсот хватает всем постоянным ключам разом, с запасом на иконки; а
- * вылетевший ключ стоит одного повторного запроса, не ошибки.
+ * Начальные данные запроса (`initialData`,
+ * `placeholderData`) до первой загрузки: SWR показывает их, но у себя в кэше
+ * не держит. Всё остальное живёт в кэше SWR, по которому рисуется экран, и
+ * читается оттуда же. Раньше здесь было зеркало всего кэша с потолком ключей:
+ * составные ключи значков вытесняли из него настройки ядра, и оптимистичная
+ * правка сливалась с пустотой. Начальные данные есть у считанных запросов —
+ * расти здесь нечему.
  */
-const MAX_CACHE_KEYS = 200
-
-const setCachedData = <T>(queryKey: QueryKey, data: T | undefined) => {
-  const cacheKey = serializeQueryKey(queryKey)
-  if (data === undefined) {
-    queryCache.delete(cacheKey)
-    return
-  }
-
-  // Удаляем перед вставкой: Map держит порядок ВСТАВКИ, и без этого
-  // перезапись значения оставляла бы ключ на прежнем месте — постоянные
-  // ключи, которые обновляются чаще всех, выселялись бы первыми.
-  queryCache.delete(cacheKey)
-  queryCache.set(cacheKey, data)
-
-  if (queryCache.size > MAX_CACHE_KEYS) {
-    const oldest = queryCache.keys().next()
-    if (!oldest.done) queryCache.delete(oldest.value)
-  }
-}
+const fallbackCache = new Map<string, unknown>()
 
 export const swrConfig: SWRConfiguration = {
   dedupingInterval: 2000,
@@ -76,27 +54,27 @@ export const swrConfig: SWRConfiguration = {
 }
 
 export const getCacheData = <T>(queryKey: QueryKey): T | undefined => {
-  return queryCache.get(serializeQueryKey(queryKey)) as T | undefined
+  const cacheKey = serializeQueryKey(queryKey)
+  const shown = SWRConfig.defaultValue.cache.get(cacheKey)?.data as
+    | T
+    | undefined
+  return shown ?? (fallbackCache.get(cacheKey) as T | undefined)
 }
 
-const updateCachedData = <T>(
+const nextCacheData = <T>(
   queryKey: QueryKey,
   updaterOrData: QueryDataUpdater<T>,
 ) => {
-  const current = getCacheData<T>(queryKey)
-  const next =
-    typeof updaterOrData === 'function'
-      ? (updaterOrData as (current: T | undefined) => T | undefined)(current)
-      : updaterOrData
-  setCachedData(queryKey, next)
-  return next
+  if (typeof updaterOrData !== 'function') return updaterOrData
+  const update = updaterOrData as (current: T | undefined) => T | undefined
+  return update(getCacheData<T>(queryKey))
 }
 
 export const setCacheData = <T>(
   queryKey: QueryKey,
   updaterOrData: QueryDataUpdater<T>,
 ) => {
-  const next = updateCachedData(queryKey, updaterOrData)
+  const next = nextCacheData(queryKey, updaterOrData)
   void swrMutate(queryKey, next, {
     populateCache: true,
     revalidate: false,
@@ -108,7 +86,7 @@ export const setCacheDataAsync = async <T>(
   queryKey: QueryKey,
   updaterOrData: QueryDataUpdater<T>,
 ) => {
-  const next = updateCachedData(queryKey, updaterOrData)
+  const next = nextCacheData(queryKey, updaterOrData)
   await swrMutate(queryKey, next, {
     populateCache: true,
     revalidate: false,
@@ -116,19 +94,13 @@ export const setCacheDataAsync = async <T>(
   return next
 }
 
-export const revalidateQuery = async (queryKey: QueryKey) => {
-  const data = await swrMutate(queryKey)
-  if (data !== undefined) {
-    setCachedData(queryKey, data)
-  }
-  return data
-}
+export const revalidateQuery = (queryKey: QueryKey) => swrMutate(queryKey)
 
 export const revalidateQueries = (queryKeys: readonly QueryKey[]) =>
   Promise.all(queryKeys.map(revalidateQuery))
 
 export const removeCacheData = (queryKey: QueryKey) => {
-  setCachedData(queryKey, undefined)
+  fallbackCache.delete(serializeQueryKey(queryKey))
   return swrMutate(queryKey, undefined, {
     populateCache: true,
     revalidate: false,
@@ -167,8 +139,12 @@ export function useQuery<T>(options: QueryOptions<T>): QueryResult<T> {
       ? (fallbackDataSource as () => T | undefined)()
       : fallbackDataSource
   const serializedKey = serializeQueryKey(queryKey)
-  if (enabled && fallbackData !== undefined && !queryCache.has(serializedKey)) {
-    setCachedData(queryKey, fallbackData)
+  if (
+    enabled &&
+    fallbackData !== undefined &&
+    !fallbackCache.has(serializedKey)
+  ) {
+    fallbackCache.set(serializedKey, fallbackData)
   }
 
   const swr = useSWR<T>(enabled ? queryKey : null, queryFn, {
@@ -197,21 +173,12 @@ export function useQuery<T>(options: QueryOptions<T>): QueryResult<T> {
     revalidateOnReconnect: refetchOnReconnect ?? false,
     refreshInterval: refetchInterval || 0,
     refreshWhenHidden: refetchIntervalInBackground ?? false,
-    onSuccess: (data) => {
-      setCachedData(queryKey, data)
-    },
   })
 
   return {
     ...swr,
     isFetching: swr.isValidating,
     isPending: swr.isLoading,
-    refetch: async () => {
-      const data = await swr.mutate()
-      if (data !== undefined) {
-        setCachedData(queryKey, data)
-      }
-      return { data }
-    },
+    refetch: async () => ({ data: await swr.mutate() }),
   }
 }

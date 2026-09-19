@@ -37,7 +37,8 @@
       "routes": "Rotalar",
       "shown": "Gösterilen",
       "direct": "Doğrudan",
-      "noProcess": "İşlem yok"
+      "noProcess": "İşlem yok",
+      "unknownRoute": "Unknown route"
     },
     "actions": {
       "active": "Active",

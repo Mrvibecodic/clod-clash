@@ -37,7 +37,8 @@
       "routes": "المسارات",
       "shown": "المعروض",
       "direct": "مباشر",
-      "noProcess": "بدون عملية"
+      "noProcess": "بدون عملية",
+      "unknownRoute": "Unknown route"
     },
     "actions": {
       "active": "Active",

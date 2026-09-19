@@ -37,7 +37,8 @@
       "routes": "Routen",
       "shown": "Angezeigt",
       "direct": "Direkt",
-      "noProcess": "Kein Prozess"
+      "noProcess": "Kein Prozess",
+      "unknownRoute": "Unknown route"
     },
     "actions": {
       "active": "Active",

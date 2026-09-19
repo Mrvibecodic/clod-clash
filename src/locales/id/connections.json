@@ -37,7 +37,8 @@
       "routes": "Rute",
       "shown": "Ditampilkan",
       "direct": "Langsung",
-      "noProcess": "Tanpa proses"
+      "noProcess": "Tanpa proses",
+      "unknownRoute": "Unknown route"
     },
     "actions": {
       "active": "Active",

@@ -6,6 +6,14 @@ import { isWsErrorMessage } from '@/utils/ws-error'
 const MAX_CLOSED_CONNS_NUM = 500
 const CONNECTION_UPDATE_THROTTLE_MS = 500
 const CONNECTION_RECONNECT_DELAY_MS = 1_000
+/**
+ * clod:Р10-77 — «скорость» соединения считалась разницей двух соседних
+ * снимков и подписывалась «в секунду», хотя снимки идут не строго раз в
+ * секунду, а после часа в трее (сокет закрыт, снимков нет) первая разница —
+ * это трафик за весь час. Прирост делится на фактический интервал, а снимок
+ * после паузы длиннее этого порога считается первым: скорость по нему — ноль.
+ */
+const CONNECTION_RATE_GAP_MS = 5_000
 
 type ConnectionMetadata = IConnectionsItem['metadata']
 type ConnectionListener = () => void
@@ -89,16 +97,33 @@ const normalizeChains = (chains: string[], previous?: string[]) => {
   return chains.slice()
 }
 
+/**
+ * Байты в секунду по приросту за интервал; `null` — интервал неизвестен.
+ * Ядро шлёт снимок раз в секунду, а время прихода в окно плавает: два
+ * снимка, пришедшие разом после подвисания интерфейса, давали бы при делении
+ * на полсекунды удвоенную скорость — поэтому интервал короче секунды не
+ * берётся.
+ */
+const bytesPerSecond = (delta: number, elapsedMs: number | null) =>
+  elapsedMs === null
+    ? 0
+    : Math.round((delta * 1000) / Math.max(elapsedMs, 1000))
+
 const normalizeConnection = (
   connection: IConnectionsItem,
-  previous?: IConnectionsItem,
+  previous: IConnectionsItem | undefined,
+  elapsedMs: number | null,
 ): IConnectionsItem => {
   const metadata = normalizeMetadata(connection.metadata, previous?.metadata)
   const chains = normalizeChains(connection.chains || [], previous?.chains)
   const upload = connection.upload ?? 0
   const download = connection.download ?? 0
-  const curUpload = previous ? upload - previous.upload : 0
-  const curDownload = previous ? download - previous.download : 0
+  const curUpload = previous
+    ? bytesPerSecond(upload - previous.upload, elapsedMs)
+    : 0
+  const curDownload = previous
+    ? bytesPerSecond(download - previous.download, elapsedMs)
+    : 0
   const rule = connection.rule || ''
   const rulePayload = connection.rulePayload || ''
   const start = connection.start || ''
@@ -134,7 +159,8 @@ const normalizeConnection = (
 
 const mergeConnectionSnapshot = (
   payload: IConnections,
-  previous: ConnectionMonitorData = initConnData,
+  previous: ConnectionMonitorData,
+  elapsedMs: number | null,
 ): ConnectionMonitorData => {
   const nextConnections = payload.connections ?? []
   const previousActive = previous.activeConnections ?? []
@@ -151,7 +177,9 @@ const mergeConnectionSnapshot = (
     const connection = nextConnections[i]
     const previousConnection = previousActiveById.get(connection.id)
     if (previousConnection) previousActiveById.delete(connection.id)
-    activeConnections.push(normalizeConnection(connection, previousConnection))
+    activeConnections.push(
+      normalizeConnection(connection, previousConnection, elapsedMs),
+    )
   }
 
   if (previousActiveById.size === 0) {
@@ -208,8 +236,16 @@ const flushPendingMessage = () => {
     return
   }
 
-  lastFlushAt = Date.now()
-  connectionData = mergeConnectionSnapshot(payload, connectionData)
+  const now = Date.now()
+  const sincePrevious = now - lastFlushAt
+  lastFlushAt = now
+  connectionData = mergeConnectionSnapshot(
+    payload,
+    connectionData,
+    sincePrevious > 0 && sincePrevious <= CONNECTION_RATE_GAP_MS
+      ? sincePrevious
+      : null,
+  )
   notifyConnectionListeners()
 }
 

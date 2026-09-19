@@ -131,7 +131,11 @@ describe('buildConnectionGroups', () => {
 })
 
 describe('summarizeConnections', () => {
-  const labels = { noProcess: 'Без процесса', direct: 'Напрямую' }
+  const labels = {
+    noProcess: 'Без процесса',
+    direct: 'Напрямую',
+    unknownRoute: 'Маршрут неизвестен',
+  }
   const rows = [
     connection({
       id: '1',
@@ -193,7 +197,7 @@ describe('summarizeConnections', () => {
 
     assert.deepEqual(
       stats.routes.map((entry) => entry.key),
-      ['Напрямую', 'NL-01', 'Без процесса'],
+      ['Напрямую', 'NL-01', 'Маршрут неизвестен'],
     )
   })
 

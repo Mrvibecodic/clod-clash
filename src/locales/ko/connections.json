@@ -37,7 +37,8 @@
       "routes": "경로",
       "shown": "표시됨",
       "direct": "직접 연결",
-      "noProcess": "프로세스 없음"
+      "noProcess": "프로세스 없음",
+      "unknownRoute": "Unknown route"
     },
     "actions": {
       "active": "Active",

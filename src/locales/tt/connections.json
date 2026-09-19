@@ -37,7 +37,8 @@
       "routes": "Юллар",
       "shown": "Күрсәтелгән",
       "direct": "Туры",
-      "noProcess": "Процесссыз"
+      "noProcess": "Процесссыз",
+      "unknownRoute": "Unknown route"
     },
     "actions": {
       "active": "Active",
