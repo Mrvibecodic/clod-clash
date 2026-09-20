@@ -8,6 +8,36 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.1.10-alpha.7
+
+<!-- lang:en -->
+
+### Fixed
+
+- After an update the core no longer stays without its port: if the port is taken, the core is moved under the service as soon as the service is ready
+- Before the update installer runs, settings are saved and the system proxy is removed, so a cancelled installation no longer leaves the proxy pointing at a dead port
+- Restarting after an update goes through the normal quit path, which stops the core and removes the system proxy
+- Launching the app again with a link or file anywhere in its arguments hands it to the running copy, and a launch without a link brings the running window up
+- Updating a provider, rule set or geo databases from the window waits as long as the core does, instead of reporting a false error
+- A toggle changed in settings no longer snaps back before the next refresh
+- Connection speed is calculated from the real interval between updates, so the "Now" card no longer shows traffic accumulated while the window was hidden as speed
+- A connection without a route is labelled "Route unknown", and the busy-port notification suggests a full restart from the tray
+
+<!-- lang:ru -->
+
+### Исправлено
+
+- После обновления ядро больше не остаётся без порта: если порт занят, ядро переводится под службу, как только она готова
+- Перед запуском установщика обновления настройки сохраняются, а системный прокси снимается, поэтому отменённая установка не оставляет прокси на мёртвом порте
+- Перезапуск после обновления идёт через штатный выход, который останавливает ядро и снимает системный прокси
+- Повторный запуск с ссылкой или файлом в любом из аргументов передаёт их работающей копии, а запуск без ссылки показывает её окно
+- Обновление провайдера, набора правил и гео-баз из окна ждёт столько же, сколько ядро, и не выдаёт ложную ошибку
+- Переключатель в настройках больше не отскакивает назад до ближайшего обновления
+- Скорость соединений считается по реальному интервалу между снимками, и карточка «Сейчас» не выдаёт трафик, накопленный за время скрытого окна, за скорость
+- Соединение без маршрута подписано «Маршрут неизвестен», а уведомление о занятом порте подсказывает полностью перезапустить клиент через трей
+
+---
+
 ## v0.1.10-alpha.6
 
 <!-- lang:en -->
