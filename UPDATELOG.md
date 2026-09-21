@@ -8,6 +8,58 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.1.10
+
+<!-- lang:en -->
+
+### Added
+
+- Connections tab: optional grouping by application, node or rule, and a summary strip above the table
+- Notifications with a cause instead of silence: a core that does not answer, a port held by another application, a tunnel that failed to come up, a subscription update that did not go through
+- Pre-release builds have their own update channel
+- The subscription card shows how long ago it was updated and marks a failed update
+
+### Changed
+
+- Connections are no longer closed for nothing: neither by Windows raising and dropping its own adapters, nor by a network change that left the path intact, nor by sleep more than once
+- The client no longer decides for you: your node selection, your settings and someone else's system proxy are left alone
+- A minimised window no longer works for nothing, and the load on the core is lower
+
+### Fixed
+
+- Sleep is noticed on every platform, Windows included: after waking, stale connections, the tunnel and the system proxy are checked
+- The client no longer opens a DNS resolver to the network; on macOS the system DNS is substituted only after the core has accepted the configuration
+- A hung or crashed core is restarted and healed even without the background service, quitting no longer leaves one behind, and after an update a core left without its port moves under the service
+- The system proxy is written only to a port the core has confirmed, and it is removed on quit
+- The tunnel switch shows the fact, your node selection survives a cold start, and only one copy of the application runs
+- Linux: the window opens from the tray again, and the tray icon survives a restart of the icon service
+
+<!-- lang:ru -->
+
+### Добавлено
+
+- Вкладка «Соединения»: группировка по приложению, узлу или правилу и полоса итогов над таблицей
+- Уведомления с причиной вместо тишины: ядро не отвечает, порт занят другим приложением, туннель не поднялся, обновление подписки не прошло
+- У предварительных сборок свой канал обновлений
+- Карточка подписки показывает давность обновления и отмечает неудавшееся
+
+### Изменено
+
+- Соединения больше не рвутся на ровном месте: ни от того, что Windows поднимает и гасит свои адаптеры, ни при смене сети, если прежний путь цел, ни дважды после сна
+- Клиент больше не решает за вас: выбор узла, ваши настройки и чужой системный прокси не трогаются
+- Свёрнутое окно не работает вхолостую, нагрузка на ядро ниже
+
+### Исправлено
+
+- Сон замечается на всех платформах, включая Windows: после пробуждения проверяются зависшие соединения, туннель и системный прокси
+- Клиент не открывает DNS-резолвер в сеть, а на macOS подменяет системный DNS только после того, как ядро приняло конфиг
+- Зависшее или упавшее ядро лечится даже без фоновой службы, выход не бросает живое ядро, а после обновления ядро, оставшееся без порта, уезжает под службу
+- Системный прокси пишется только на подтверждённый ядром порт и снимается при выходе
+- Тумблер туннеля показывает факт, выбор узлов переживает холодный старт, запускается только одна копия приложения
+- Linux: окно снова открывается из трея, значок переживает перезапуск службы значков
+
+---
+
 ## v0.1.10-alpha.7
 
 <!-- lang:en -->
