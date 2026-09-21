@@ -399,16 +399,27 @@ tun.enable, tun.auto-route, tun.auto-detect-interface
 правило, где выбран формат MIHOMO, — модификацию `responseModifications`:
 
 ```json
-      "responseType": "MIHOMO",
-      "responseModifications": {
-        "additionalExtendedClientsRegex": [
-          "^ClodClash/"
-        ]
-      }
+{
+  "name": "Mihomo Clients",
+  "description": "Response with generated YAML config (Mihomo Template)",
+  "enabled": true,
+  "operator": "AND",
+  "conditions": [
+    {
+      "headerName": "user-agent",
+      "operator": "REGEX",
+      "value": "^(?:FlClash|FlClashX|Flowvy|[Cc]lash-[Vv]erge|[Kk]oala-[Cc]lash|[Cc]lash-?[Mm]eta|[Mm]urge|[Cc]lashX [Mm]eta|[Mm]ihomo|[Cc]lash-nyanpasu|clash.meta|prizrak-box|[Cc]lod[Cc]lash)",
+      "caseSensitive": false
+    }
+  ],
+  "responseType": "MIHOMO",
+  "responseModifications": {
+    "additionalExtendedClientsRegex": [
+      "^ClodClash/"
+    ]
+  }
+}
 ```
-
-Ключ лежит именно внутри `responseModifications`: в корне правила панель его
-не примет.
 
 Проверка: запросите ссылку подписки с заголовком `User-Agent: ClodClash/0.0.1` —
 у узлов должно появиться поле `serverDescription` рядом с `name` и `server`:
