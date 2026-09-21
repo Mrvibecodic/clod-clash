@@ -396,11 +396,19 @@ tun.enable, tun.auto-route, tun.auto-detect-interface
 Само по себе поле до клиента не доедет: панель отдаёт его только «расширенным
 клиентам» и узнаёт их по `User-Agent` собственным списком, в котором нас нет.
 Чтобы описания приходили, добавьте в **Subscription response rules** — в то же
-правило, где выбран формат MIHOMO, — модификацию:
+правило, где выбран формат MIHOMO, — модификацию `responseModifications`:
 
 ```json
-"additionalExtendedClientsRegex": ["^ClodClash/"]
+      "responseType": "MIHOMO",
+      "responseModifications": {
+        "additionalExtendedClientsRegex": [
+          "^ClodClash/"
+        ]
+      }
 ```
+
+Ключ лежит именно внутри `responseModifications`: в корне правила панель его
+не примет.
 
 Проверка: запросите ссылку подписки с заголовком `User-Agent: ClodClash/0.0.1` —
 у узлов должно появиться поле `serverDescription` рядом с `name` и `server`:
@@ -433,5 +441,6 @@ proxies:
 8. При включённом лимите устройств проверено, что клиент регистрируется
    (`x-hwid-active: true` в ответе).
 9. Если нужны описания серверов — в правиле есть
-   `additionalExtendedClientsRegex: ["^ClodClash/"]`, а у хостов заполнено
+   `responseModifications.additionalExtendedClientsRegex: ["^ClodClash/"]`,
+   а у хостов заполнено
    **Server description**.

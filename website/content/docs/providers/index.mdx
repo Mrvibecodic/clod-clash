@@ -15,8 +15,18 @@ description: Что нужно сделать на стороне панели, 
 
 Клиент представляется как `ClodClash/<версия>`. Чтобы описания серверов
 (`serverDescription`) доходили до него, добавьте `^ClodClash/` в
-`additionalExtendedClientsRegex` — именно по префиксу, а не точной строкой,
-иначе правило отвалится при следующем обновлении клиента.
+`responseModifications.additionalExtendedClientsRegex` того же правила —
+именно по префиксу, а не точной строкой, иначе правило отвалится при
+следующем обновлении клиента.
+
+```json
+      "responseType": "MIHOMO",
+      "responseModifications": {
+        "additionalExtendedClientsRegex": [
+          "^ClodClash/"
+        ]
+      }
+```
 
 ## 2. Шаблон MIHOMO
 
