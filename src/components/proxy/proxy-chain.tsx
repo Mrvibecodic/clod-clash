@@ -42,12 +42,18 @@ import {
 } from 'tauri-plugin-mihomo-api'
 
 import { TooltipIcon } from '@/components/base'
+import { useProfiles } from '@/hooks/use-profiles'
 import { useVisibility } from '@/hooks/use-visibility'
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
 import {
   patchSelectedNode,
   updateProxyChainConfigInRuntime,
 } from '@/services/cmds'
+import {
+  clearProxyChain,
+  readProxyChain,
+  saveProxyChain,
+} from '@/services/proxy-chain-store'
 import { debugLog } from '@/utils/debug'
 
 interface ProxyChainItem {
@@ -262,6 +268,8 @@ export const ProxyChain = ({
   const { t } = useTranslation()
   const chainWarning = t('proxies.page.chain.warning')
   const { proxies } = useProxiesData()
+  const { current } = useProfiles()
+  const profileUid = current?.uid
   const { refreshProxy } = useAppRefreshers()
   const pageVisible = useVisibility()
   const [isConnecting, setIsConnecting] = useState(false)
@@ -346,7 +354,7 @@ export const ProxyChain = ({
         const targetGroup =
           mode === 'global'
             ? 'GLOBAL'
-            : selectedGroup || localStorage.getItem('proxy-chain-group')
+            : selectedGroup || readProxyChain(profileUid).group
 
         if (targetGroup) {
           // clod: то же и при разрыве цепочки — иначе подписка помнила бы
@@ -370,9 +378,7 @@ export const ProxyChain = ({
           }
         }
 
-        localStorage.removeItem('proxy-chain-group')
-        localStorage.removeItem('proxy-chain-exit-node')
-        localStorage.removeItem('proxy-chain-items')
+        clearProxyChain(profileUid)
 
         await closeAllConnections()
         await refreshProxy()
@@ -419,8 +425,12 @@ export const ProxyChain = ({
           console.error('Failed to persist proxy chain selection:', error)
         },
       )
-      localStorage.setItem('proxy-chain-group', targetGroup || 'GLOBAL')
-      localStorage.setItem('proxy-chain-exit-node', lastNode.name)
+      if (profileUid) {
+        saveProxyChain(profileUid, {
+          group: targetGroup || 'GLOBAL',
+          exitNode: lastNode.name,
+        })
+      }
 
       // Обновляем данные прокси, чтобы обновить статус подключения
       refreshProxy()
@@ -439,6 +449,7 @@ export const ProxyChain = ({
     mode,
     selectedGroup,
     onUpdateChain,
+    profileUid,
   ])
 
   const proxyChainRef = useRef(proxyChain)
@@ -544,9 +555,7 @@ export const ProxyChain = ({
               size="small"
               onClick={() => {
                 updateProxyChainConfigInRuntime(null)
-                localStorage.removeItem('proxy-chain-group')
-                localStorage.removeItem('proxy-chain-exit-node')
-                localStorage.removeItem('proxy-chain-items')
+                clearProxyChain(profileUid)
                 onUpdateChain([])
               }}
               sx={{

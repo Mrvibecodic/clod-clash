@@ -21,7 +21,13 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useProfiles } from '@/hooks/use-profiles'
 import { updateProxyChainConfigInRuntime } from '@/services/cmds'
+import {
+  clearProxyChain,
+  readProxyChain,
+  saveProxyChain,
+} from '@/services/proxy-chain-store'
 
 import { ScrollTopButton } from '../layout/scroll-top-button'
 
@@ -323,26 +329,39 @@ export function ProxyGroupsChain(props: ProxyGroupsChainProps) {
     onScrollToTop,
   } = props
 
-  // Chain-specific state
-  const [proxyChain, setProxyChain] = useState<ProxyChainItem[]>(() => {
-    try {
-      const saved = localStorage.getItem('proxy-chain-items')
-      if (saved) {
-        return JSON.parse(saved)
-      }
-    } catch {
-      // ignore
-    }
-    return []
-  })
+  // Цепочка хранится вместе с подпиской, которой принадлежит: её узлы — имена
+  // из конфига этой подписки, и другой подписке они не годятся.
+  const { current } = useProfiles()
+  const profileUid = current?.uid
+  const savedChain = useMemo(
+    () => readProxyChain(profileUid).items ?? [],
+    [profileUid],
+  )
+  const [edited, setEdited] = useState<{
+    uid?: string
+    items: ProxyChainItem[]
+  } | null>(null)
+  const proxyChain =
+    edited && edited.uid === profileUid ? edited.items : savedChain
+
+  const setProxyChain = useCallback(
+    (next: ProxyChainItem[] | ((prev: ProxyChainItem[]) => ProxyChainItem[])) =>
+      setEdited((prev) => {
+        const base = prev && prev.uid === profileUid ? prev.items : savedChain
+        return {
+          uid: profileUid,
+          items: typeof next === 'function' ? next(base) : next,
+        }
+      }),
+    [profileUid, savedChain],
+  )
 
   useEffect(() => {
-    if (proxyChain.length > 0) {
-      localStorage.setItem('proxy-chain-items', JSON.stringify(proxyChain))
-    } else {
-      localStorage.removeItem('proxy-chain-items')
-    }
-  }, [proxyChain])
+    if (!profileUid || !edited || edited.uid !== profileUid) return
+    saveProxyChain(profileUid, {
+      items: edited.items.length > 0 ? edited.items : undefined,
+    })
+  }, [profileUid, edited])
 
   const [ruleMenuAnchor, setRuleMenuAnchor] = useState<null | HTMLElement>(null)
   const [duplicateWarning, setDuplicateWarning] = useState<{
@@ -375,9 +394,7 @@ export function ProxyGroupsChain(props: ProxyGroupsChainProps) {
 
     if (mode === 'rule') {
       updateProxyChainConfigInRuntime(null)
-      localStorage.removeItem('proxy-chain-group')
-      localStorage.removeItem('proxy-chain-exit-node')
-      localStorage.removeItem('proxy-chain-items')
+      clearProxyChain(profileUid)
       setProxyChain([])
     }
   }
@@ -416,7 +433,7 @@ export function ProxyGroupsChain(props: ProxyGroupsChainProps) {
         return [...prev, chainItem]
       })
     },
-    [t],
+    [setProxyChain, t],
   )
 
   // Render virtual list for chain mode

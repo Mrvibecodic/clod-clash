@@ -19,6 +19,7 @@ import {
   updateProxyChainConfigInRuntime,
 } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
+import { readProxyChain } from '@/services/proxy-chain-store'
 import { debugLog } from '@/utils/debug'
 
 const MODES = ['rule', 'global', 'direct'] as const
@@ -108,7 +109,7 @@ const ProxyPage = () => {
 
     const fetchChainConfig = async () => {
       try {
-        const exitNode = localStorage.getItem('proxy-chain-exit-node')
+        const exitNode = readProxyChain(current?.uid).exitNode
 
         if (!exitNode) {
           console.error('No proxy chain exit node found in localStorage')
@@ -135,7 +136,7 @@ const ProxyPage = () => {
     return () => {
       cancelled = true
     }
-  }, [isChainMode, updateChainConfigData])
+  }, [isChainMode, current?.uid, updateChainConfigData])
 
   useEffect(() => {
     if (normalizedMode && !isMode(normalizedMode)) {
