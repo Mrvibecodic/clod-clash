@@ -1202,7 +1202,7 @@ dependencies = [
  "sha2 0.10.9",
  "smartstring",
  "sysinfo",
- "sysproxy 0.5.5",
+ "sysproxy",
  "tauri",
  "tauri-build",
  "tauri-plugin-autostart",
@@ -1298,7 +1298,7 @@ dependencies = [
  "sha2 0.10.9",
  "strum",
  "strum_macros",
- "sysproxy 0.7.0",
+ "sysproxy",
  "tokio",
  "url",
  "windows-service",
@@ -7071,23 +7071,6 @@ dependencies = [
 
 [[package]]
 name = "sysproxy"
-version = "0.5.5"
-source = "git+https://github.com/clash-verge-rev/sysproxy-rs?rev=ab5ba0929d56721d774b1c5c29d6a32e6634e7ce#ab5ba0929d56721d774b1c5c29d6a32e6634e7ce"
-dependencies = [
- "iptools",
- "log",
- "system-configuration",
- "thiserror 2.0.18",
- "tokio",
- "url",
- "which 8.0.6",
- "windows 0.62.2",
- "winreg 0.55.0",
- "xdg",
-]
-
-[[package]]
-name = "sysproxy"
 version = "0.7.0"
 source = "git+https://github.com/clash-verge-rev/sysproxy-rs?branch=main#62c952b3a60c39a360f7e6cecde2bef5448659eb"
 dependencies = [
@@ -7095,6 +7078,7 @@ dependencies = [
  "log",
  "system-configuration",
  "thiserror 2.0.18",
+ "tokio",
  "url",
  "which 8.0.6",
  "windows 0.62.2",
