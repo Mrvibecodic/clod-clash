@@ -338,7 +338,11 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
       enable: values.enable,
       ...(values.listen.trim() ? { listen: values.listen.trim() } : {}),
       'enhanced-mode': values.enhancedMode,
-      'fake-ip-range': values.fakeIpRange,
+      // clod:dns-page-fits — пустой диапазон ядро принимает молча и остаётся
+      // без пула: fake-ip перестаёт работать, а сказать об этом некому. Пустое
+      // поле означает «как по умолчанию», ровно как у диапазона IPv6 ниже.
+      'fake-ip-range':
+        values.fakeIpRange || DEFAULT_DNS_CONFIG['fake-ip-range'],
       'fake-ip-range6':
         values.fakeIpRange6 || DEFAULT_DNS_CONFIG['fake-ip-range6'],
       'fake-ip-filter-mode': values.fakeIpFilterMode,

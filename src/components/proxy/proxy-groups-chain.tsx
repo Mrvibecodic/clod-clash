@@ -344,14 +344,14 @@ export function ProxyGroupsChain(props: ProxyGroupsChainProps) {
     [],
   )
 
+  // Пустой список — это «узлов нет», а не «забудь всё»: группа и выходной узел
+  // нужны, чтобы поднятую цепочку было видно и чем разорвать.
   useEffect(() => {
-    if (!chain.uid || chain.uid !== profileUid) return
-    if (chain.items.length > 0) {
-      saveProxyChain(chain.uid, { items: chain.items })
-    } else {
-      clearProxyChain(chain.uid)
-    }
-  }, [profileUid, chain])
+    if (!chain.uid) return
+    saveProxyChain(chain.uid, {
+      items: chain.items.length > 0 ? chain.items : undefined,
+    })
+  }, [chain])
 
   const [ruleMenuAnchor, setRuleMenuAnchor] = useState<null | HTMLElement>(null)
   const [duplicateWarning, setDuplicateWarning] = useState<{

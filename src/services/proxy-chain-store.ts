@@ -34,40 +34,72 @@ const writeAll = (data: Record<string, StoredProxyChain>) => {
   } catch {}
 }
 
-/**
- * Прежняя цепочка лежала тремя общими ключами. Она была собрана под ту
- * подписку, что выбрана сейчас, — ей и достаётся, остальные начнут со своей.
- */
-const takeTheSharedChain = (uid: string): StoredProxyChain | undefined => {
-  try {
-    const [group, exitNode, items] = SHARED_KEYS.map((key) =>
-      localStorage.getItem(key),
-    )
-    for (const key of SHARED_KEYS) localStorage.removeItem(key)
-    if (!group && !exitNode && !items) return undefined
-    const parsed = items ? JSON.parse(items) : null
-    const chain: StoredProxyChain = {
-      group: group ?? undefined,
-      exitNode: exitNode ?? undefined,
-      items: Array.isArray(parsed) ? parsed : undefined,
-    }
-    saveProxyChain(uid, chain)
-    return chain
-  } catch {
-    return undefined
+const isNode = (value: unknown): value is ProxyChainNode =>
+  !!value &&
+  typeof value === 'object' &&
+  typeof (value as any).name === 'string'
+
+const sane = (chain: unknown): StoredProxyChain => {
+  if (!chain || typeof chain !== 'object' || Array.isArray(chain)) return {}
+  const { group, exitNode, items } = chain as StoredProxyChain
+  return {
+    group: typeof group === 'string' ? group : undefined,
+    exitNode: typeof exitNode === 'string' ? exitNode : undefined,
+    items: Array.isArray(items) ? items.filter(isNode) : undefined,
   }
+}
+
+const isEmpty = (chain: StoredProxyChain) =>
+  chain.group === undefined &&
+  chain.exitNode === undefined &&
+  !chain.items?.length
+
+/**
+ * Прежняя цепочка лежала тремя общими ключами. Забираем их при первом же
+ * обращении, чтобы они не достались позже ЧУЖОЙ подписке; отдаём только той,
+ * у которой своей записи ещё нет.
+ */
+const takeTheSharedChain = (): StoredProxyChain | undefined => {
+  const [group, exitNode, items] = SHARED_KEYS.map((key) => {
+    try {
+      return localStorage.getItem(key)
+    } catch {
+      return null
+    }
+  })
+  if (group === null && exitNode === null && items === null) return undefined
+
+  let parsed: unknown
+  try {
+    parsed = items ? JSON.parse(items) : undefined
+  } catch {
+    parsed = undefined
+  }
+  for (const key of SHARED_KEYS) {
+    try {
+      localStorage.removeItem(key)
+    } catch {}
+  }
+  return sane({ group, exitNode, items: parsed } as StoredProxyChain)
 }
 
 export const readProxyChain = (uid?: string): StoredProxyChain => {
   if (!uid) return {}
-  const stored = readAll()[uid]
-  const chain = stored ?? takeTheSharedChain(uid) ?? {}
-  return Array.isArray(chain.items) ? chain : { ...chain, items: undefined }
+  const all = readAll()
+  const shared = takeTheSharedChain()
+  if (!all[uid] && shared && !isEmpty(shared)) {
+    all[uid] = shared
+    writeAll(all)
+    return shared
+  }
+  return sane(all[uid])
 }
 
 export const saveProxyChain = (uid: string, patch: StoredProxyChain) => {
   const all = readAll()
-  all[uid] = { ...all[uid], ...patch }
+  const merged = sane({ ...all[uid], ...patch })
+  if (isEmpty(merged)) delete all[uid]
+  else all[uid] = merged
   writeAll(all)
 }
 

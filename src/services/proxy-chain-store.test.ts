@@ -65,6 +65,65 @@ describe('proxy chain store', () => {
     assert.equal(readProxyChain('A').items, undefined)
   })
 
+  it('keeps the group and the exit node when the node list empties', () => {
+    saveProxyChain('A', {
+      group: 'GLOBAL',
+      exitNode: 'N3',
+      items: [node('n1'), node('n2')],
+    })
+
+    saveProxyChain('A', { items: undefined })
+
+    const mine = readProxyChain('A')
+    assert.equal(
+      mine.exitNode,
+      'N3',
+      'иначе поднятую цепочку не видно и нечем разорвать',
+    )
+    assert.equal(mine.group, 'GLOBAL')
+    assert.equal(mine.items, undefined)
+  })
+
+  it('leaves no record behind when there is nothing left to remember', () => {
+    saveProxyChain('A', { items: [node('n1')] })
+    saveProxyChain('A', { items: undefined })
+
+    assert.equal(store.get('proxy-chain'), '{}')
+  })
+
+  it('never lets the old shared chain reach a later subscription', () => {
+    saveProxyChain('A', { items: [node('a1')] })
+    store.set('proxy-chain-group', 'GLOBAL')
+    store.set('proxy-chain-exit-node', 'exit')
+
+    readProxyChain('A')
+
+    assert.equal(
+      store.get('proxy-chain-group'),
+      undefined,
+      'общие ключи забраны сразу',
+    )
+    assert.equal(readProxyChain('B').exitNode, undefined)
+  })
+
+  it('does not lose the group when the old node list is broken', () => {
+    store.set('proxy-chain-group', 'GLOBAL')
+    store.set('proxy-chain-exit-node', 'N3')
+    store.set('proxy-chain-items', '[{сломано')
+
+    const mine = readProxyChain('A')
+
+    assert.equal(mine.group, 'GLOBAL')
+    assert.equal(mine.exitNode, 'N3')
+    assert.equal(mine.items, undefined)
+  })
+
+  it('drops entries that are not nodes', () => {
+    store.set('proxy-chain', '{"A":{"items":[{"id":"1","name":"n1"},null,7]}}')
+
+    assert.deepEqual(readProxyChain('A').items, [{ id: '1', name: 'n1' }])
+  })
+
   it('has nothing to say without a subscription', () => {
     saveProxyChain('A', { items: [node('a1')] })
     assert.equal(readProxyChain(undefined).items, undefined)
