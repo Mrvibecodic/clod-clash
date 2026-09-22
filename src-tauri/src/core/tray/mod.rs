@@ -222,12 +222,7 @@ impl Tray {
     }
 
     pub async fn init(&self) -> Result<()> {
-        if handle::Handle::global().is_exiting() {
-            logging!(
-                debug,
-                Type::Tray,
-                "Приложение завершает работу, пропускаю инициализацию трея"
-            );
+        if skipped_while_exiting("инициализацию трея") {
             return Ok(());
         }
 
@@ -249,12 +244,7 @@ impl Tray {
     }
 
     pub async fn update_click_behavior(&self) -> Result<()> {
-        if handle::Handle::global().is_exiting() {
-            logging!(
-                debug,
-                Type::Tray,
-                "Приложение завершает работу, пропускаю обновление поведения клика по трею"
-            );
+        if skipped_while_exiting("обновление поведения клика по трею") {
             return Ok(());
         }
 
@@ -280,12 +270,7 @@ impl Tray {
     }
 
     pub async fn update_menu(&self) -> Result<()> {
-        if handle::Handle::global().is_exiting() {
-            logging!(
-                debug,
-                Type::Tray,
-                "Приложение завершает работу, пропускаю обновление меню трея"
-            );
+        if skipped_while_exiting("обновление меню трея") {
             return Ok(());
         }
         let app_handle = handle::Handle::app_handle();
@@ -356,12 +341,7 @@ impl Tray {
     }
 
     pub async fn update_icon(&self, verge: &IVerge) -> Result<()> {
-        if handle::Handle::global().is_exiting() {
-            logging!(
-                debug,
-                Type::Tray,
-                "Приложение завершает работу, пропускаю обновление иконки трея"
-            );
+        if skipped_while_exiting("обновление иконки трея") {
             return Ok(());
         }
 
@@ -407,12 +387,7 @@ impl Tray {
     }
 
     pub async fn update_tooltip(&self) -> Result<()> {
-        if handle::Handle::global().is_exiting() {
-            logging!(
-                debug,
-                Type::Tray,
-                "Приложение завершает работу, пропускаю обновление подсказки трея"
-            );
+        if skipped_while_exiting("обновление подсказки трея") {
             return Ok(());
         }
 
@@ -488,12 +463,7 @@ impl Tray {
     }
 
     pub async fn update_part(&self) -> Result<()> {
-        if handle::Handle::global().is_exiting() {
-            logging!(
-                debug,
-                Type::Tray,
-                "Приложение завершает работу, пропускаю частичное обновление трея"
-            );
+        if skipped_while_exiting("частичное обновление трея") {
             return Ok(());
         }
         let verge = Config::verge().await.data_arc();
@@ -528,12 +498,7 @@ impl Tray {
     }
 
     async fn create_tray_from_handle(&self, app_handle: &AppHandle) -> Result<()> {
-        if handle::Handle::global().is_exiting() {
-            logging!(
-                debug,
-                Type::Tray,
-                "Приложение завершает работу, пропускаю создание трея"
-            );
+        if skipped_while_exiting("создание трея") {
             return Ok(());
         }
 
@@ -1019,6 +984,14 @@ fn render_tray_menu(app_handle: &AppHandle, nodes: Vec<MenuNode>) -> Result<taur
     let rendered = render_menu_nodes(app_handle, &separator, nodes)?;
     let refs: Vec<&dyn IsMenuItem<Wry>> = rendered.iter().map(AsRef::as_ref).collect();
     Ok(tauri::menu::MenuBuilder::new(app_handle).items(&refs).build()?)
+}
+
+fn skipped_while_exiting(what: &str) -> bool {
+    if !handle::Handle::global().is_exiting() {
+        return false;
+    }
+    logging!(debug, Type::Tray, "Приложение завершает работу, пропускаю {what}");
+    true
 }
 
 fn refused_while_exiting() -> bool {
