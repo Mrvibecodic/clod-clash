@@ -51,17 +51,11 @@ import {
 } from '@/services/cmds'
 import {
   clearProxyChain,
+  type ProxyChainNode as ProxyChainItem,
   readProxyChain,
   saveProxyChain,
 } from '@/services/proxy-chain-store'
 import { debugLog } from '@/utils/debug'
-
-interface ProxyChainItem {
-  id: string
-  name: string
-  type?: string
-  delay?: number
-}
 
 interface ParsedChainConfig {
   proxies?: Array<{

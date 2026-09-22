@@ -1,4 +1,4 @@
-interface ProxyChainNode {
+export interface ProxyChainNode {
   id: string
   name: string
   type?: string
@@ -13,12 +13,16 @@ export interface StoredProxyChain {
 }
 
 const KEY = 'proxy-chain'
+const SHARED_KEYS = [
+  'proxy-chain-group',
+  'proxy-chain-exit-node',
+  'proxy-chain-items',
+] as const
 
 const readAll = (): Record<string, StoredProxyChain> => {
   try {
-    const raw = localStorage.getItem(KEY)
-    const data = raw ? JSON.parse(raw) : null
-    return data && typeof data === 'object' ? data : {}
+    const data = JSON.parse(localStorage.getItem(KEY) ?? 'null')
+    return data && typeof data === 'object' && !Array.isArray(data) ? data : {}
   } catch {
     return {}
   }
@@ -30,8 +34,36 @@ const writeAll = (data: Record<string, StoredProxyChain>) => {
   } catch {}
 }
 
-export const readProxyChain = (uid?: string): StoredProxyChain =>
-  uid ? (readAll()[uid] ?? {}) : {}
+/**
+ * Прежняя цепочка лежала тремя общими ключами. Она была собрана под ту
+ * подписку, что выбрана сейчас, — ей и достаётся, остальные начнут со своей.
+ */
+const takeTheSharedChain = (uid: string): StoredProxyChain | undefined => {
+  try {
+    const [group, exitNode, items] = SHARED_KEYS.map((key) =>
+      localStorage.getItem(key),
+    )
+    for (const key of SHARED_KEYS) localStorage.removeItem(key)
+    if (!group && !exitNode && !items) return undefined
+    const parsed = items ? JSON.parse(items) : null
+    const chain: StoredProxyChain = {
+      group: group ?? undefined,
+      exitNode: exitNode ?? undefined,
+      items: Array.isArray(parsed) ? parsed : undefined,
+    }
+    saveProxyChain(uid, chain)
+    return chain
+  } catch {
+    return undefined
+  }
+}
+
+export const readProxyChain = (uid?: string): StoredProxyChain => {
+  if (!uid) return {}
+  const stored = readAll()[uid]
+  const chain = stored ?? takeTheSharedChain(uid) ?? {}
+  return Array.isArray(chain.items) ? chain : { ...chain, items: undefined }
+}
 
 export const saveProxyChain = (uid: string, patch: StoredProxyChain) => {
   const all = readAll()

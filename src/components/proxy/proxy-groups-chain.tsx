@@ -25,6 +25,7 @@ import { useProfiles } from '@/hooks/use-profiles'
 import { updateProxyChainConfigInRuntime } from '@/services/cmds'
 import {
   clearProxyChain,
+  type ProxyChainNode as ProxyChainItem,
   readProxyChain,
   saveProxyChain,
 } from '@/services/proxy-chain-store'
@@ -37,13 +38,6 @@ import type { HeadState } from './use-head-state'
 import type { IRenderItem } from './use-render-list'
 
 // ---- Types ----
-
-interface ProxyChainItem {
-  id: string
-  name: string
-  type?: string
-  delay?: number
-}
 
 type VirtualListItem = {
   key: Key
@@ -333,35 +327,31 @@ export function ProxyGroupsChain(props: ProxyGroupsChainProps) {
   // из конфига этой подписки, и другой подписке они не годятся.
   const { current } = useProfiles()
   const profileUid = current?.uid
-  const savedChain = useMemo(
-    () => readProxyChain(profileUid).items ?? [],
-    [profileUid],
-  )
-  const [edited, setEdited] = useState<{
-    uid?: string
-    items: ProxyChainItem[]
-  } | null>(null)
-  const proxyChain =
-    edited && edited.uid === profileUid ? edited.items : savedChain
+  const loadChain = (uid?: string) => ({
+    uid,
+    items: readProxyChain(uid).items ?? [],
+  })
+  const [chain, setChain] = useState(() => loadChain(profileUid))
+  if (chain.uid !== profileUid) setChain(loadChain(profileUid))
+  const proxyChain = chain.items
 
   const setProxyChain = useCallback(
     (next: ProxyChainItem[] | ((prev: ProxyChainItem[]) => ProxyChainItem[])) =>
-      setEdited((prev) => {
-        const base = prev && prev.uid === profileUid ? prev.items : savedChain
-        return {
-          uid: profileUid,
-          items: typeof next === 'function' ? next(base) : next,
-        }
-      }),
-    [profileUid, savedChain],
+      setChain((prev) => ({
+        uid: prev.uid,
+        items: typeof next === 'function' ? next(prev.items) : next,
+      })),
+    [],
   )
 
   useEffect(() => {
-    if (!profileUid || !edited || edited.uid !== profileUid) return
-    saveProxyChain(profileUid, {
-      items: edited.items.length > 0 ? edited.items : undefined,
-    })
-  }, [profileUid, edited])
+    if (!chain.uid || chain.uid !== profileUid) return
+    if (chain.items.length > 0) {
+      saveProxyChain(chain.uid, { items: chain.items })
+    } else {
+      clearProxyChain(chain.uid)
+    }
+  }, [profileUid, chain])
 
   const [ruleMenuAnchor, setRuleMenuAnchor] = useState<null | HTMLElement>(null)
   const [duplicateWarning, setDuplicateWarning] = useState<{

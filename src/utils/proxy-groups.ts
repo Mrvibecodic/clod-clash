@@ -60,8 +60,10 @@ export const BUILTIN_RULE_POLICIES = BUILTIN_GROUP_POLICIES.filter(
   (name) => name !== 'PASS-RULE',
 )
 
+const CORE_POLICY_NAMES = new Set(CORE_POLICIES)
+
 export const isCorePolicy = (name?: string) =>
-  !!name && CORE_POLICIES.includes(name)
+  !!name && CORE_POLICY_NAMES.has(name)
 
 /** `DIRECT` — осмысленный выбор человека, а не заглушка ядра. */
 export const isCorePlaceholder = (name?: string) =>
