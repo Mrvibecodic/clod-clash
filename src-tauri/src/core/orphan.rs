@@ -42,7 +42,7 @@ async fn known_core_paths() -> Vec<String> {
             known.push(comparable(&path.canonicalize().unwrap_or(path)));
         }
     }
-    if let Some(managed) = crate::core::core_updater::managed_core_binary().await {
+    if let Some(managed) = crate::core::core_updater::managed_binary_on_disk().await {
         known.push(comparable(&managed.canonicalize().unwrap_or(managed)));
     }
     known
