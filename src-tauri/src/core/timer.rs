@@ -26,7 +26,6 @@ use tokio_util::time::{DelayQueue, delay_queue::Key};
 
 enum TimerCommand {
     Apply(HashMap<String, TaskSchedule>),
-    RunNow(String),
     TaskFinished(String),
 }
 
@@ -128,23 +127,6 @@ impl Timer {
             }
         }
 
-        let cur_timestamp = chrono::Local::now().timestamp();
-        if let Some(items) = Config::profiles().await.data_arc().get_items() {
-            for item in items.iter() {
-                if let Some(option) = item.option.as_ref()
-                    && option.allow_auto_update.unwrap_or(true)
-                    && let Some(interval) = option.update_interval
-                    && interval > 0
-                    && let Some(uid) = item.uid.as_ref()
-                    && let Some(updated) = item.updated
-                    && cur_timestamp - (updated as i64) >= (interval as i64) * 60
-                {
-                    logging!(info, Type::Timer, "Running overdue timer task immediately: uid={}", uid);
-                    let _ = self.command_tx.send(TimerCommand::RunNow(uid.clone()));
-                }
-            }
-        }
-
         logging!(info, Type::Timer, "Timer initialization completed");
         Ok(())
     }
@@ -220,9 +202,6 @@ impl Timer {
                     match command {
                         Some(TimerCommand::Apply(new_map)) => {
                             Self::apply_timer_map(&mut queue, &mut tasks, new_map);
-                        }
-                        Some(TimerCommand::RunNow(uid)) => {
-                            Self::run_task_now(&mut queue, &mut tasks, uid, command_tx.clone());
                         }
                         Some(TimerCommand::TaskFinished(uid)) => {
                             Self::finish_task(&mut queue, &mut tasks, uid);
@@ -325,49 +304,20 @@ impl Timer {
         };
 
         state.key = None;
-        if !Self::mark_task_running(state, &uid, false) {
+        if !Self::mark_task_running(state, &uid) {
             return;
         }
 
         Self::spawn_update_task(uid, command_tx);
     }
 
-    fn run_task_now(
-        queue: &mut DelayQueue<String>,
-        tasks: &mut HashMap<String, TaskState>,
-        uid: String,
-        command_tx: mpsc::UnboundedSender<TimerCommand>,
-    ) {
-        let Some(state) = tasks.get_mut(&uid) else {
-            return;
-        };
-
-        if !Self::mark_task_running(state, &uid, true) {
-            return;
-        }
-
-        if let Some(key) = state.key.take() {
-            queue.remove(&key);
-        }
-        Self::spawn_update_task(uid, command_tx);
-    }
-
-    fn mark_task_running(state: &mut TaskState, uid: &str, immediate: bool) -> bool {
+    fn mark_task_running(state: &mut TaskState, uid: &str) -> bool {
         if !state.running {
             state.running = true;
             return true;
         }
 
-        if immediate {
-            logging!(
-                debug,
-                Type::Timer,
-                "Timer task already running, skip immediate uid={}",
-                uid
-            );
-        } else {
-            logging!(debug, Type::Timer, "Timer task already running, skip uid={}", uid);
-        }
+        logging!(debug, Type::Timer, "Timer task already running, skip uid={}", uid);
         false
     }
 
