@@ -276,12 +276,6 @@ impl Config {
             handle::Handle::notice_message(msg_type, msg_content);
         }
 
-        {
-            let profiles = Self::profiles().await.data_arc();
-            // Logging error internally
-            let _ = profiles.cleanup_orphaned_files().await;
-        }
-
         Ok(())
     }
 
@@ -753,23 +747,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn failed_profile_index_survives_startup_without_cleanup() -> Result<()> {
+    async fn failed_profile_index_is_not_replaced_by_defaults() -> Result<()> {
         let profiles = Draft::new(IProfiles::default());
-        let profiles_dir = std::env::temp_dir().join(format!("clash-verge-profile-cleanup-{}", nanoid::nanoid!()));
-        tokio::fs::create_dir_all(&profiles_dir).await?;
-        let active_profile = profiles_dir.join("Ractive.yaml");
-        tokio::fs::write(&active_profile, "proxies: []").await?;
 
         Config::ensure_default_profile_items_for(&profiles).await?;
-        profiles.data_arc().cleanup_orphaned_files_in(&profiles_dir).await?;
 
-        let profile_was_preserved = tokio::fs::try_exists(&active_profile).await?;
-        tokio::fs::remove_dir_all(&profiles_dir).await?;
-
-        assert!(
-            profile_was_preserved,
-            "startup must not delete profiles when profiles.yaml could not be loaded"
-        );
         assert!(
             profiles.data_arc().get_items().is_none(),
             "startup must not replace an unreadable profile index with defaults"

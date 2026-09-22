@@ -596,6 +596,10 @@ impl CoreManager {
         handle_core_exit("the core stopped answering", &RunningMode::Sidecar, Some(pid));
     }
 
+    pub async fn get_clash_log_snapshot(&self) -> Result<String> {
+        service::get_clash_log_snapshot_by_service().await
+    }
+
     pub async fn get_clash_logs(&self) -> Result<Vec<CompactString>> {
         match *self.get_running_mode() {
             RunningMode::Service => service::get_clash_logs_by_service().await,
@@ -615,6 +619,8 @@ impl CoreManager {
         let app_handle = handle::Handle::app_handle();
         let clash_core = Config::verge().await.latest_arc().get_valid_clash_core();
         let config_dir = dirs::app_home_dir()?;
+        #[cfg(unix)]
+        discard_unwritable_core_cache(&config_dir);
 
         let managed_binary = crate::core::core_updater::managed_core_binary().await;
         let command = match &managed_binary {
@@ -1030,6 +1036,69 @@ mod tests {
     fn returns_err_for_invalid_pid() {
         let result = create_and_assign_sidecar_job(0xFFFF_FFFC);
         assert!(result.is_err(), "expected Err for a non-existent PID");
+    }
+}
+
+#[cfg(unix)]
+fn discard_unwritable_core_cache(config_dir: &std::path::Path) {
+    let cache = config_dir.join("cache.db");
+    match std::fs::OpenOptions::new().append(true).open(&cache) {
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => match std::fs::remove_file(&cache) {
+            Ok(()) => logging!(
+                info,
+                Type::Core,
+                "негодный кэш ядра удалён перед запуском: {}",
+                cache.display()
+            ),
+            Err(error) => logging!(
+                warn,
+                Type::Core,
+                "негодный кэш ядра {} удалить не удалось: {error}",
+                cache.display()
+            ),
+        },
+        Err(error) => logging!(warn, Type::Core, "кэш ядра {} не проверен: {error}", cache.display()),
+    }
+}
+
+#[cfg(all(test, unix))]
+mod core_cache_tests {
+    use super::discard_unwritable_core_cache;
+    use std::os::unix::fs::PermissionsExt as _;
+
+    fn scratch(name: &str) -> std::path::PathBuf {
+        let root = std::env::temp_dir().join(format!("clod-core-cache-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        assert!(std::fs::create_dir_all(&root).is_ok());
+        root
+    }
+
+    #[test]
+    fn a_cache_the_user_cannot_write_is_discarded() {
+        if unsafe { tauri_plugin_clash_verge_sysinfo::libc::geteuid() } == 0 {
+            return;
+        }
+        let root = scratch("unwritable");
+        let cache = root.join("cache.db");
+        assert!(std::fs::write(&cache, b"stale").is_ok());
+        assert!(std::fs::set_permissions(&cache, std::fs::Permissions::from_mode(0o444)).is_ok());
+
+        discard_unwritable_core_cache(&root);
+
+        assert!(!cache.exists());
+    }
+
+    #[test]
+    fn a_writable_cache_survives() {
+        let root = scratch("writable");
+        let cache = root.join("cache.db");
+        assert!(std::fs::write(&cache, b"live").is_ok());
+
+        discard_unwritable_core_cache(&root);
+
+        assert_eq!(std::fs::read(&cache).unwrap_or_default(), b"live");
     }
 }
 

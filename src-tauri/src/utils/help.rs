@@ -340,9 +340,59 @@ pub fn open_app_latest_log() -> Result<()> {
     open_latest_log(path)
 }
 
-pub fn open_core_latest_log() -> Result<()> {
-    let path = crate::utils::dirs::clash_latest_log()?;
-    open_latest_log(path)
+pub async fn open_core_log() -> Result<()> {
+    // Снимок пишем сами и держать открытым не будем — копия под Windows,
+    // которую делает `open_latest_log`, ему не нужна.
+    if let Some(snapshot) = core_log_snapshot().await {
+        return open_file(snapshot);
+    }
+    open_latest_log(crate::utils::dirs::clash_latest_log()?)
+}
+
+async fn core_log_snapshot() -> Option<PathBuf> {
+    use crate::core::{CoreManager, manager::RunningMode};
+
+    if !matches!(*CoreManager::global().get_running_mode(), RunningMode::Service) {
+        return None;
+    }
+    let raw = match CoreManager::global().get_clash_log_snapshot().await {
+        Ok(text) if !text.trim().is_empty() => text,
+        _ => CoreManager::global()
+            .get_clash_logs()
+            .await
+            .ok()?
+            .iter()
+            .map(compact_str::CompactString::as_str)
+            .collect::<Vec<_>>()
+            .join("\n"),
+    };
+    if raw.trim().is_empty() {
+        return None;
+    }
+
+    let home = crate::utils::redact::home_prefix();
+    let mut snapshot = raw
+        .lines()
+        .map(|line| crate::utils::redact::redact(&crate::utils::redact::scrub_home(line, home.as_deref())))
+        .collect::<Vec<_>>()
+        .join("\n");
+    snapshot.push('\n');
+
+    // Не в каталоге журналов: там файл сочли бы то журналом приложения, то
+    // журналом ядра — и он попадал бы в пакет поддержки вместо свежего.
+    let path = crate::utils::dirs::app_home_dir().ok()?.join("core-log-snapshot.log");
+    match write_atomic(&path, snapshot.as_bytes()).await {
+        Ok(()) => Some(path),
+        Err(error) => {
+            logging!(
+                warn,
+                Type::Core,
+                "снимок журнала ядра не записан в {}: {error}",
+                path.display()
+            );
+            None
+        }
+    }
 }
 
 #[cfg(target_os = "linux")]

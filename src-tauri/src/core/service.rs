@@ -1071,6 +1071,19 @@ pub(super) async fn get_clash_logs_by_service() -> Result<Vec<CompactString>> {
     Ok(response.data.unwrap_or_default())
 }
 
+pub(super) async fn get_clash_log_snapshot_by_service() -> Result<String> {
+    let credentials = current_owner_credentials()?;
+    let response = clash_verge_service_ipc::get_clash_log_snapshot(&credentials)
+        .await
+        .context("Не удалось подключиться к Clash Verge Service")?;
+
+    if response.code > 0 {
+        bail!(response.message);
+    }
+
+    Ok(response.data.unwrap_or_default())
+}
+
 pub(super) async fn service_status() -> Result<ServiceStatusSnapshot> {
     let credentials = current_owner_credentials()?;
     let response = clash_verge_service_ipc::get_status(&credentials)

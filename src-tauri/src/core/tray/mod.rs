@@ -1143,7 +1143,7 @@ fn handle_menu_click(id: std::string::String) {
                 }
             }
             MenuIds::CORE_LOG => {
-                if let Err(err) = help::open_core_latest_log() {
+                if let Err(err) = help::open_core_log().await {
                     report_log_not_opened(
                         crate::utils::dirs::clash_latest_log()
                             .ok()

@@ -214,6 +214,11 @@ impl Logger {
                 .map(|loc| format!("{}:{}", loc.file(), loc.line()))
                 .unwrap_or_else(|| "Unknown location".to_string());
             logging!(error, Type::System, "Panic occurred at {}: {}", location, payload);
+            if let Some(guard) = Self::global().sidecar_file_writer.try_read()
+                && let Some(writer) = guard.as_ref()
+            {
+                let _ = writer.flush();
+            }
             if let Some(h) = Self::global().handle.lock().as_ref() {
                 h.flush();
                 std::thread::sleep(std::time::Duration::from_millis(100));
