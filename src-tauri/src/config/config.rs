@@ -363,6 +363,12 @@ impl Config {
         }
     }
 
+    /// Файл страницы DNS той подписки, что выбрана сейчас.
+    pub async fn current_dns_page_path() -> Option<PathBuf> {
+        let uid = Self::profiles().await.latest_arc().get_current().cloned()?;
+        dirs::dns_page_path(&uid).ok()
+    }
+
     pub async fn dns_page_check_config(page: &Mapping) -> Option<Mapping> {
         let runtime = Self::runtime().await;
         let runtime_latest = runtime.latest_arc();

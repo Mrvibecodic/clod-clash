@@ -141,6 +141,7 @@ struct ProfileItems {
     global_merge: ChainItem,
     global_script: ChainItem,
     profile_name: String,
+    profile_uid: String,
     profile_is_remote: bool,
     profile_shows_zero_hosts: bool,
 }
@@ -150,6 +151,7 @@ impl Default for ProfileItems {
         Self {
             config: Default::default(),
             profile_name: Default::default(),
+            profile_uid: Default::default(),
             profile_is_remote: false,
             profile_shows_zero_hosts: false,
             merge_item: ChainItem {
@@ -367,6 +369,7 @@ async fn collect_profile_items() -> Result<ProfileItems> {
         global_merge,
         global_script,
         profile_name: name,
+        profile_uid: current_profile_uid,
         profile_is_remote,
         profile_shows_zero_hosts,
     })
@@ -1641,40 +1644,61 @@ fn carry_hosts_keys_from(subscription: Option<&Mapping>, mut page: Mapping) -> M
     page
 }
 
-async fn apply_dns_settings(mut config: Mapping, enable_dns_settings: bool) -> Mapping {
-    if enable_dns_settings && let Ok(app_dir) = dirs::app_home_dir() {
-        let dns_path = app_dir.join(constants::files::DNS_CONFIG);
-
-        if dns_path.exists()
-            && let Ok(dns_yaml) = fs::read_to_string(&dns_path).await
-            && let Ok(dns_config) = serde_yaml_ng::from_str::<serde_yaml_ng::Mapping>(&dns_yaml)
-        {
-            if let Some(hosts_value) = dns_config.get("hosts")
-                && hosts_value.is_mapping()
-            {
-                config.insert("hosts".into(), hosts_value.clone());
-                logging!(info, Type::Core, "apply hosts configuration");
-            }
-
-            if let Some(dns_value) = dns_config.get("dns") {
-                if let Some(dns_mapping) = dns_value.as_mapping() {
-                    let mut dns_mapping = dns_mapping.clone();
-                    ensure_fake_ip_range6(&mut dns_mapping);
-                    let page = carry_hosts_keys_from(config.get("dns").and_then(Value::as_mapping), dns_mapping);
-                    config.insert("dns".into(), page.into());
-                    logging!(info, Type::Core, "apply dns_config.yaml (dns section)");
-                }
-            } else {
-                let mut dns_config = dns_config;
-                ensure_fake_ip_range6(&mut dns_config);
-                let page = carry_hosts_keys_from(config.get("dns").and_then(Value::as_mapping), dns_config);
-                config.insert("dns".into(), page.into());
-                logging!(info, Type::Core, "apply dns_config.yaml");
-            }
-        }
+/// Наложить страницу DNS этой подписки. Второе значение — легла ли она.
+///
+/// clod:dns-per-profile — пока тумблер включён, страница есть у КАЖДОЙ
+/// подписки: той, которой её ещё не заводили, она заводится с её же
+/// собственного блока. Тумблер один на приложение, а файл — у каждой свой;
+/// без этого он обещал бы управление DNS подписке, у которой страницы нет, и
+/// запирать её блок от цепочек merge и script было бы нечем.
+async fn apply_dns_settings(mut config: Mapping, enable_dns_settings: bool, profile_uid: &str) -> (Mapping, bool) {
+    if !enable_dns_settings {
+        return (config, false);
+    }
+    let Ok(dns_path) = dirs::dns_page_path(profile_uid) else {
+        return (config, false);
+    };
+    if !dns_path.exists()
+        && let Err(err) =
+            crate::utils::init::seed_dns_page(&dns_path, config.get("dns").and_then(Value::as_mapping)).await
+    {
+        logging!(warn, Type::Core, "не завести страницу DNS {dns_path:?}: {err}");
+        return (config, false);
     }
 
-    config
+    let page_file = fs::read_to_string(&dns_path)
+        .await
+        .ok()
+        .and_then(|raw| serde_yaml_ng::from_str::<serde_yaml_ng::Mapping>(&raw).ok());
+    let Some(dns_config) = page_file else {
+        logging!(
+            warn,
+            Type::Core,
+            "страница DNS {dns_path:?} нечитаема, блок DNS остаётся за подпиской"
+        );
+        return (config, false);
+    };
+
+    let hosts = dns_config.get("hosts").filter(|value| value.is_mapping()).cloned();
+    let page = match dns_config.get("dns") {
+        Some(dns_value) => dns_value.as_mapping().cloned(),
+        None => Some(dns_config),
+    };
+    let Some(mut page) = page else {
+        logging!(warn, Type::Core, "в странице DNS {dns_path:?} нет блока dns");
+        return (config, false);
+    };
+
+    if let Some(hosts) = hosts {
+        config.insert("hosts".into(), hosts);
+        logging!(info, Type::Core, "apply hosts configuration");
+    }
+
+    ensure_fake_ip_range6(&mut page);
+    let page = carry_hosts_keys_from(config.get("dns").and_then(Value::as_mapping), page);
+    config.insert("dns".into(), page.into());
+    logging!(info, Type::Core, "apply {dns_path:?}");
+    (config, true)
 }
 
 pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, ResultLog>, SentinelReport)> {
@@ -1707,6 +1731,7 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
     let global_merge = profile.global_merge;
     let global_script = profile.global_script;
     let profile_name = profile.profile_name;
+    let profile_uid = profile.profile_uid;
     let profile_is_remote = profile.profile_is_remote;
     let profile_shows_zero_hosts = profile.profile_shows_zero_hosts;
 
@@ -1738,12 +1763,12 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
     crate::enhance::tun::remember_system_dns(enable_tun, shaped_fake_ip, enable_dns_override);
     #[cfg(not(target_os = "macos"))]
     let _ = shaped_fake_ip;
-    let config = apply_dns_settings(config, enable_dns_settings).await;
+    let (config, dns_page_applied) = apply_dns_settings(config, enable_dns_settings, &profile_uid).await;
     let mut config = ensure_dns_for_tun(config, enable_tun);
     clamp_dns_listen(&mut config);
 
     let control_plane = snapshot_control_plane(&config);
-    let dns_page = if enable_dns_settings {
+    let dns_page = if dns_page_applied {
         snapshot_dns_page(&config)
     } else {
         Mapping::new()

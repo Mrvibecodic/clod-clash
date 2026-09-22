@@ -417,6 +417,8 @@ impl IProfiles {
         if let Some(file) = Self::take_item_file_by_uid(&mut items, Some(uid.as_str())) {
             pending.push(file);
         }
+        // clod:dns-per-profile — страница DNS этой подписки уходит вместе с ней.
+        pending.push(dirs::dns_page_file(uid).into());
 
         for delete_uid in delete_uids {
             if let Some(file) = Self::take_item_file_by_uid(&mut items, delete_uid.as_deref()) {
@@ -2021,7 +2023,11 @@ mod tests {
         let (was_current, pending) = profiles.plan_delete_item(&"victim".into()).unwrap();
 
         assert!(!was_current, "удалили не текущую подписку");
-        assert_eq!(pending.files(), ["victim.yaml", "merge.yaml", "script.js"]);
+        assert_eq!(
+            pending.files(),
+            ["victim.yaml", "dns-victim.yaml", "merge.yaml", "script.js"],
+            "страница DNS настроена под эту подписку и уходит вместе с ней"
+        );
         assert_eq!(
             profiles.items.as_ref().map(Vec::len),
             Some(1),
@@ -2044,7 +2050,7 @@ mod tests {
         let (was_current, pending) = profiles.plan_delete_item(&"victim".into()).unwrap();
 
         assert!(was_current, "удалили текущую подписку — конфиг надо пересобрать");
-        assert_eq!(pending.files(), ["victim.yaml"]);
+        assert_eq!(pending.files(), ["victim.yaml", "dns-victim.yaml"]);
         assert_eq!(
             profiles.current.as_deref(),
             Some("keeper"),

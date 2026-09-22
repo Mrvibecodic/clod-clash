@@ -188,9 +188,12 @@ const fn reached_a_verdict(outcome: &ValidationOutcome) -> bool {
 
 #[tauri::command]
 pub async fn save_dns_config(dns_config: Mapping) -> CmdResult<DnsSaveOutcome> {
-    let app_dir = dirs::app_home_dir().stringify_err()?;
-    let dns_path = app_dir.join(constants::files::DNS_CONFIG);
-    let check_path = app_dir.join(constants::files::DNS_CHECK_CONFIG);
+    let dns_path = Config::current_dns_page_path()
+        .await
+        .ok_or_else(|| "no subscription is selected, there is nothing to set DNS for".to_owned())?;
+    let check_path = dirs::app_home_dir()
+        .stringify_err()?
+        .join(constants::files::DNS_CHECK_CONFIG);
 
     let yaml_str = yaml_emitter::to_mihomo_config_string(&dns_config).stringify_err()?;
 
@@ -282,20 +285,17 @@ pub async fn apply_dns_config(apply: bool) -> CmdResult {
 }
 
 #[tauri::command]
-pub fn check_dns_config_exists() -> CmdResult<bool> {
-    use crate::utils::dirs;
-
-    let dns_path = dirs::app_home_dir().stringify_err()?.join(constants::files::DNS_CONFIG);
-
-    Ok(dns_path.exists())
+pub async fn check_dns_config_exists() -> CmdResult<bool> {
+    Ok(Config::current_dns_page_path().await.is_some_and(|path| path.exists()))
 }
 
 #[tauri::command]
 pub async fn get_dns_config_content() -> CmdResult<String> {
-    use crate::utils::dirs;
     use tokio::fs;
 
-    let dns_path = dirs::app_home_dir().stringify_err()?.join(constants::files::DNS_CONFIG);
+    let dns_path = Config::current_dns_page_path()
+        .await
+        .ok_or_else(|| "no subscription is selected".to_owned())?;
 
     if !fs::try_exists(&dns_path).await.stringify_err()? {
         return Err("DNS config file not found".into());

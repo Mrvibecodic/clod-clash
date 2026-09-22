@@ -33,6 +33,7 @@ import {
   Switch,
 } from '@/components/base'
 import { useClash } from '@/hooks/use-clash'
+import { useProfiles } from '@/hooks/use-profiles'
 import { useVerge } from '@/hooks/use-verge'
 import { getRuntimeConfig } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
@@ -199,6 +200,7 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const { t } = useTranslation()
   const { mutateClash } = useClash()
   const { verge } = useVerge()
+  const { profiles } = useProfiles()
   const themeMode = useThemeMode()
 
   const [open, setOpen] = useState(false)
@@ -506,16 +508,30 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
     }
   }, [resetToDefaults, setYamlContent, updateValuesFromConfig])
 
+  // Страница DNS принадлежит подписке: и то, чем диалог засеян, и то, куда
+  // уйдёт «Сохранить». Если подписку сменили из трея, пока диалог открыт, эти
+  // двое расходятся — тогда правки одной подписки затёрли бы страницу другой.
+  // Пустого `current` при перечитывании не бывает, но если запрос всё же
+  // отдаст его пустым, закрывать диалог не за что.
+  const editedProfileRef = useRef<string | undefined>(undefined)
+  if (
+    open &&
+    profiles?.current &&
+    profiles.current !== editedProfileRef.current
+  )
+    setOpen(false)
+
   useImperativeHandle(
     ref,
     () => ({
       open: () => {
+        editedProfileRef.current = profiles?.current
         setOpen(true)
         void initDnsConfig()
       },
       close: () => setOpen(false),
     }),
-    [initDnsConfig],
+    [initDnsConfig, profiles],
   )
 
   const onSave = useLockFn(async () => {

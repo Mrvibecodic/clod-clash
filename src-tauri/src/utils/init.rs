@@ -351,7 +351,11 @@ fn dns_config_problem(raw: &str) -> Option<std::string::String> {
 }
 
 pub(crate) async fn ensure_dns_config_file() -> Result<()> {
-    let dns_path = dirs::app_home_dir()?.join(constants::files::DNS_CONFIG);
+    let Some(dns_path) = Config::current_dns_page_path().await else {
+        return Err(anyhow::anyhow!(
+            "no subscription is selected, DNS has nothing to apply to"
+        ));
+    };
 
     if fs::try_exists(&dns_path).await? {
         let raw = fs::read_to_string(&dns_path).await?;
@@ -371,26 +375,33 @@ pub(crate) async fn ensure_dns_config_file() -> Result<()> {
         .filter(|dns| !dns.is_empty())
         .cloned();
 
+    seed_dns_page(&dns_path, runtime_dns.as_ref()).await
+}
+
+/// Завести страницу DNS с собственного блока подписки, а если она о DNS
+/// молчит — с умолчаний ядра.
+///
+/// clod:hosts-ladder — блок пишется как есть. Раньше поверх него всегда
+/// ложились `use-hosts: false` и `use-system-hosts: false`: `/etc/hosts`
+/// переставал учитываться даже у шаблонов, которые просят обратного, и
+/// вернуть это было нечем. Теперь решает подписка, а если она молчит —
+/// умолчание самого ядра (оба включены).
+pub(crate) async fn seed_dns_page(dns_path: &Path, subscription_dns: Option<&serde_yaml_ng::Mapping>) -> Result<()> {
     logging!(
         info,
         Type::Setup,
         "Creating DNS config file from {}",
-        if runtime_dns.is_some() {
+        if subscription_dns.is_some() {
             "the working config"
         } else {
             "the built-in defaults"
         }
     );
 
-    // clod:hosts-ladder — блок пишется как есть. Раньше поверх него всегда
-    // ложились `use-hosts: false` и `use-system-hosts: false`: `/etc/hosts`
-    // переставал учитываться даже у шаблонов, которые просят обратного, и
-    // вернуть это было нечем. Теперь решает подписка, а если она молчит —
-    // умолчание самого ядра (оба включены).
-    let dns_config = runtime_dns.unwrap_or_else(default_dns_config);
+    let dns_config = subscription_dns.cloned().unwrap_or_else(default_dns_config);
     let file_config = serde_yaml_ng::Mapping::from_iter([("dns".into(), serde_yaml_ng::Value::Mapping(dns_config))]);
 
-    help::save_yaml(&dns_path, &file_config, Some(DNS_CONFIG_HEADER)).await
+    help::save_yaml(dns_path, &file_config, Some(DNS_CONFIG_HEADER)).await
 }
 
 fn legacy_fallback_filter() -> serde_yaml_ng::Mapping {
@@ -500,8 +511,36 @@ fn drop_legacy_dns_keys(file_config: &mut serde_yaml_ng::Mapping) -> bool {
     dropped_fallback || dropped_hosts || dropped_listen
 }
 
+/// clod:dns-per-profile — общий файл страницы DNS достаётся той подписке,
+/// что выбрана сейчас: он и был снимком с неё. Остальные подписки заведут свои,
+/// каждая со своего блока, и чужие адреса к ним уже не попадут.
+async fn hand_the_shared_dns_page_to_its_subscription() -> Result<()> {
+    let shared = dirs::app_home_dir()?.join(constants::files::DNS_CONFIG);
+    if !fs::try_exists(&shared).await? {
+        return Ok(());
+    }
+
+    let Some(mine) = Config::current_dns_page_path().await else {
+        return Ok(());
+    };
+    if fs::try_exists(&mine).await? {
+        fs::remove_file(&shared).await?;
+        logging!(info, Type::Setup, "Removed the shared DNS page file: {:?}", shared);
+        return Ok(());
+    }
+
+    if let Some(parent) = mine.parent() {
+        fs::create_dir_all(parent).await?;
+    }
+    fs::rename(&shared, &mine).await?;
+    logging!(info, Type::Setup, "The shared DNS page file became {:?}", mine);
+    Ok(())
+}
+
 async fn drop_legacy_dns_fallback() -> Result<()> {
-    let dns_path = dirs::app_home_dir()?.join(constants::files::DNS_CONFIG);
+    let Some(dns_path) = Config::current_dns_page_path().await else {
+        return Ok(());
+    };
 
     if !fs::try_exists(&dns_path).await? {
         return Ok(());
@@ -551,12 +590,17 @@ pub(super) async fn init_dns_config() -> Result<()> {
         logging!(warn, Type::Setup, "Failed to remove the DNS check file: {}", err);
     }
 
+    let handover = hand_the_shared_dns_page_to_its_subscription().await;
+    if let Err(err) = &handover {
+        logging!(warn, Type::Setup, "Failed to hand the shared DNS page over: {}", err);
+    }
+
     let migration = drop_legacy_dns_fallback().await;
     if let Err(err) = &migration {
         logging!(warn, Type::Setup, "Failed to migrate the DNS config file: {}", err);
     }
 
-    leftover.and(migration)
+    leftover.and(handover).and(migration)
 }
 
 async fn ensure_directories() -> Result<()> {

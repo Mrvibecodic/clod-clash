@@ -645,6 +645,7 @@ mod tests {
             "profiles.yaml",
             "dns_config.yaml",
             "profiles/Rmc1x0.yaml",
+            "profiles/dns-Rmc1x0.yaml",
             "profiles/моя подписка.yaml",
         ] {
             assert!(

@@ -100,6 +100,17 @@ pub fn app_profiles_dir() -> Result<PathBuf> {
     Ok(app_home_dir()?.join("profiles"))
 }
 
+/// clod:dns-per-profile — страница DNS настраивается под КОНКРЕТНУЮ подписку:
+/// её адреса и политика расписаны по тому, что привезла именно эта подписка.
+/// Поэтому файл лежит рядом с файлами подписки и уходит вместе с ней.
+pub fn dns_page_file(uid: &str) -> String {
+    format!("dns-{uid}.yaml")
+}
+
+pub fn dns_page_path(uid: &str) -> Result<PathBuf> {
+    Ok(app_profiles_dir()?.join(dns_page_file(uid)))
+}
+
 /// icons dir
 pub fn app_icons_dir() -> Result<PathBuf> {
     Ok(app_home_dir()?.join("icons"))
