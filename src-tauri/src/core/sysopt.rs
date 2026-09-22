@@ -22,6 +22,7 @@ use tokio::sync::Mutex as TokioMutex;
 
 const PROXY_OBSERVE_TICK: Duration = Duration::from_secs(5);
 const RESET_LOCK_BUDGET: Duration = Duration::from_millis(400);
+const GUARD_STAND_DOWN_BUDGET: Duration = Duration::from_secs(2);
 
 static OBSERVER_RUNNING: AtomicBool = AtomicBool::new(false);
 
@@ -492,10 +493,33 @@ impl Sysopt {
                 .write()
                 .set_interval(Duration::from_secs(verge.proxy_guard_duration.unwrap_or(30).max(1)));
         }
+        let the_guard_needs_a_fresh_round = {
+            let state = self.access_guard().read().get_state();
+            !state.is_running() && !state.is_pendding()
+        };
+        if the_guard_needs_a_fresh_round {
+            self.let_the_guard_finish_its_round().await;
+        }
         logging!(info, Type::Core, "Starting system proxy guard...");
-        {
-            let guard = self.access_guard();
-            guard.write().start();
+        let started = self.access_guard().read().start();
+        if !started && !self.access_guard().read().get_state().is_running() {
+            logging!(
+                warn,
+                Type::Core,
+                "сторож системного прокси не поднялся: прошлый обход ещё не закончился"
+            );
+        }
+    }
+
+    async fn let_the_guard_finish_its_round(&self) {
+        let finished = self.access_guard().read().shutdown();
+        if !finished.wait_timeout(GUARD_STAND_DOWN_BUDGET).await {
+            logging!(
+                warn,
+                Type::Core,
+                "сторож системного прокси не закончил прошлый обход за {:?}",
+                GUARD_STAND_DOWN_BUDGET
+            );
         }
     }
 
