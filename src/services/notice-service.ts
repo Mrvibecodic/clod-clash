@@ -6,7 +6,7 @@ import { type ReactNode, isValidElement } from 'react'
 // достраивания расширений.
 import { explainErrorKey, trimRawError } from '../utils/error-explanation.ts'
 
-type NoticeType = 'success' | 'error' | 'info'
+type NoticeType = 'success' | 'error' | 'warning' | 'info'
 
 interface NoticeTranslationDescriptor {
   key: string
@@ -66,6 +66,7 @@ type ShowNotice = ((
 ) => number) & {
   success: NoticeShortcut
   error: NoticeShortcut
+  warning: NoticeShortcut
   info: NoticeShortcut
 }
 
@@ -74,6 +75,7 @@ type NoticeSubscriber = () => void
 const DEFAULT_DURATIONS: Readonly<Record<NoticeType, number>> = {
   success: 3000,
   info: 5000,
+  warning: 6000,
   error: 8000,
 }
 
@@ -416,10 +418,10 @@ const baseShowNotice = (
 }
 
 /**
- * Shows a global notice; `showNotice.success / error / info` are the usual entry points.
+ * Shows a global notice; `showNotice.success / error / warning / info` are the usual entry points.
  *
  * - `message`: i18n key string, `{ key, params }`, ReactNode, Error/any value (message is extracted)
- * - `extras` parsed left-to-right: first plain object is i18n params; next value is raw payload; first number overrides duration (ms, 0 = persistent; defaults: success 3000 / info 5000 / error 8000)
+ * - `extras` parsed left-to-right: first plain object is i18n params; next value is raw payload; first number overrides duration (ms, 0 = persistent; defaults: success 3000 / info 5000 / warning 6000 / error 8000)
  * - Returns a notice id for manual closing via `hideNotice(id)`
  *
  * @example showNotice.success("profiles.page.feedback.notifications.batchDeleted");
@@ -432,6 +434,8 @@ export const showNotice: ShowNotice = Object.assign(baseShowNotice, {
     baseShowNotice('success', message, ...extras),
   error: (message: NoticeContent, ...extras: NoticeExtra[]) =>
     baseShowNotice('error', message, ...extras),
+  warning: (message: NoticeContent, ...extras: NoticeExtra[]) =>
+    baseShowNotice('warning', message, ...extras),
   info: (message: NoticeContent, ...extras: NoticeExtra[]) =>
     baseShowNotice('info', message, ...extras),
 })

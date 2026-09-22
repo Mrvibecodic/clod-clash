@@ -343,6 +343,7 @@ export const translationKeys = [
   'proxies.page.chain.nodeCount',
   'proxies.page.chain.noGroups',
   'proxies.page.messages.directMode',
+  'proxies.page.messages.invalidTestUrl',
   'proxies.page.title.default',
   'proxies.page.title.chainMode',
   'proxies.feedback.notifications.provider.updateSuccess',

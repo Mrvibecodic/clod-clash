@@ -1,6 +1,6 @@
 import { useMemo, useRef } from 'react'
 
-const TRAFFIC_UNITS = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB']
+import parseTraffic from '@/utils/parse-traffic'
 
 export interface ConnectionRowView {
   id: string
@@ -28,15 +28,8 @@ export interface ConnectionRowView {
 }
 
 export const formatConnectionTraffic = (value?: number) => {
-  if (typeof value !== 'number') return 'NaN'
-
-  const exp =
-    value < 1
-      ? 0
-      : Math.min(Math.floor(Math.log2(value) / 10), TRAFFIC_UNITS.length - 1)
-  const data = value / 1024 ** exp
-  const text = data >= 1000 ? data.toFixed(0) : data.toPrecision(3)
-  return `${text} ${TRAFFIC_UNITS[exp]}`
+  const [text, unit] = parseTraffic(value)
+  return unit ? `${text} ${unit}` : text
 }
 
 export const formatConnectionChains = (chains: string[]) => {

@@ -17,7 +17,9 @@ import { useTranslation } from 'react-i18next'
 
 import { BaseSearchBox } from '@/components/base'
 import delayManager from '@/services/delay'
+import { showNotice } from '@/services/notice-service'
 import { debugLog } from '@/utils/debug'
+import { isValidUrl } from '@/utils/network'
 
 import type { ProxySortType } from './use-filter-sort'
 import type { HeadState } from './use-head-state'
@@ -99,6 +101,9 @@ export const ProxyHead = ({
               `[ProxyHead] Используется пользовательский URL для теста: ${testUrl}`,
             )
             onHeadState({ textState: 'url' })
+          }
+          if (testUrl?.trim() && !isValidUrl(testUrl)) {
+            showNotice.warning('proxies.page.messages.invalidTestUrl')
           }
           onCheckDelay()
         }}

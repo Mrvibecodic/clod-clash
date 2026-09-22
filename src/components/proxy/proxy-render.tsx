@@ -132,7 +132,7 @@ export const ProxyRender = memo(function ProxyRender(props: RenderProps) {
               )}
               {enable_group_icon && group.icon?.trim().startsWith('<svg') && (
                 <img
-                  src={`data:image/svg+xml;base64,${btoa(group.icon)}`}
+                  src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(group.icon)}`}
                   alt="group icon"
                   width="32px"
                 />

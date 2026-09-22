@@ -16,6 +16,8 @@ import { flushSync } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
 import delayManager from '@/services/delay'
+import { showNotice } from '@/services/notice-service'
+import { isValidUrl } from '@/utils/network'
 
 import { BaseSearchBox, type SearchState } from '../base'
 
@@ -150,6 +152,9 @@ export const ProxyGroupTools = memo(function ProxyGroupTools(props: Props) {
 
           if (testUrl?.trim() && textState !== 'filter') {
             onHeadState({ textState: 'url' })
+          }
+          if (testUrl?.trim() && !isValidUrl(testUrl)) {
+            showNotice.warning('proxies.page.messages.invalidTestUrl')
           }
           onCheckDelay()
         }}

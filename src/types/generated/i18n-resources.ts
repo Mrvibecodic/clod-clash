@@ -547,6 +547,7 @@ export interface TranslationResources {
         }
         messages: {
           directMode: string
+          invalidTestUrl: string
         }
         modes: {
           direct: string

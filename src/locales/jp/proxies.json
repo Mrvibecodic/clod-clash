@@ -57,7 +57,8 @@
       "noGroups": "利用可能なプロキシグループがありません"
     },
     "messages": {
-      "directMode": "直接接続モード"
+      "directMode": "直接接続モード",
+      "invalidTestUrl": "The test address must start with http:// or https://; using the default address."
     },
     "title": {
       "default": "プロキシグループ",

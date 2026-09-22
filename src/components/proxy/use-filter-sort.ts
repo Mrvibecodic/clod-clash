@@ -96,7 +96,6 @@ function sortProxies(
   if (!proxies) return []
   if (sortType === 0) return proxies
 
-  const list = proxies.slice()
   const effectiveTimeout =
     typeof latencyTimeout === 'number' && latencyTimeout > 0
       ? latencyTimeout
@@ -116,18 +115,15 @@ function sortProxies(
       return [0, delay]
     }
 
-    list.sort((a, b) => {
-      const ad = delayManager.getDelayFix(a, groupName)
-      const bd = delayManager.getDelayFix(b, groupName)
-      const [ar, av] = categorizeDelay(ad)
-      const [br, bv] = categorizeDelay(bd)
+    const ranked = proxies.map((proxy) => ({
+      proxy,
+      rank: categorizeDelay(delayManager.getDelayFix(proxy, groupName)),
+    }))
 
-      if (ar !== br) return ar - br
-      return av - bv
-    })
-  } else {
-    list.sort((a, b) => a.name.localeCompare(b.name))
+    ranked.sort((a, b) => a.rank[0] - b.rank[0] || a.rank[1] - b.rank[1])
+
+    return ranked.map((entry) => entry.proxy)
   }
 
-  return list
+  return proxies.slice().sort((a, b) => a.name.localeCompare(b.name))
 }

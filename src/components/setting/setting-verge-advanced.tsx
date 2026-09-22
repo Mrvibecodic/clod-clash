@@ -68,7 +68,7 @@ const SettingVergeAdvanced = ({ onError, variant = 'all' }: Props) => {
         updateRef.current?.open()
       }
     } catch (err: any) {
-      showNotice.error(err)
+      showNotice.warning(err)
     }
   }
 

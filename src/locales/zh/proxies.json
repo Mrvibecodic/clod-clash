@@ -57,7 +57,8 @@
       "noGroups": "暂无可用代理组"
     },
     "messages": {
-      "directMode": "直连模式"
+      "directMode": "直连模式",
+      "invalidTestUrl": "The test address must start with http:// or https://; using the default address."
     },
     "title": {
       "default": "代理组",

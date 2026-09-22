@@ -5,6 +5,7 @@ import {
 } from 'tauri-plugin-mihomo-api'
 
 import { debugLog } from '@/utils/debug'
+import { isValidUrl } from '@/utils/network'
 
 const hashKey = (name: string, group: string) => `${group ?? ''}::${name}`
 
@@ -152,6 +153,16 @@ class DelayManager {
    * смену профиля и затеняет `url:` группы нового конфига.
    */
   setUrl(group: string, url: string) {
+    // Ядро принимает только полный адрес со схемой: негодный даёт ошибку по
+    // всем узлам сразу. Каждый источник адреса проверяется на входе — читают
+    // его на каждую строку списка, и проверять на чтении было бы дорого.
+    if (!isValidUrl(url)) {
+      debugLog(
+        `[DelayManager] URL теста отклонён, группа: ${group}, URL: ${url}`,
+      )
+      this.clearUrl(group)
+      return
+    }
     debugLog(
       `[DelayManager] Установлен URL теста, группа: ${group}, URL: ${url}`,
     )
@@ -172,12 +183,13 @@ class DelayManager {
    * не касается, они в другой карте.
    */
   replaceConfigUrls(urls: Map<string, string>) {
-    this.configUrlMap = new Map(urls)
+    this.configUrlMap = new Map([...urls].filter(([, url]) => isValidUrl(url)))
   }
 
   /** Общий запасной адрес из настроек. Пустое значение возвращает встроенный. */
   setDefaultUrl(url?: string) {
-    this.defaultUrl = url?.trim() || BUILTIN_TEST_URL
+    const chosen = url?.trim()
+    this.defaultUrl = chosen && isValidUrl(chosen) ? chosen : BUILTIN_TEST_URL
   }
 
   /**

@@ -57,7 +57,8 @@
       "noGroups": "No proxy groups available"
     },
     "messages": {
-      "directMode": "Direct Mode"
+      "directMode": "Direct Mode",
+      "invalidTestUrl": "The test address must start with http:// or https://; using the default address."
     },
     "title": {
       "default": "Proxy Groups",

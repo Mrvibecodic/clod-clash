@@ -84,7 +84,7 @@ export const GroupItem = (props: Props) => {
       )}
       {group.icon && group.icon?.trim().startsWith('<svg') && (
         <img
-          src={`data:image/svg+xml;base64,${btoa(group.icon ?? '')}`}
+          src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(group.icon ?? '')}`}
           width="32px"
           style={{
             marginRight: '12px',

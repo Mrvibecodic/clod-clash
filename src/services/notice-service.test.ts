@@ -72,3 +72,23 @@ describe('схлопывание уведомлений, собранных ка
     assert.equal(notices[0].repeats, 2)
   })
 })
+
+describe('предупреждение', () => {
+  beforeEach(clearNotices)
+
+  it('не ошибка и живёт своё время', () => {
+    showNotice.warning('shared.feedback.notices.raw', { message: 'нет связи' })
+
+    const notices = getSnapshotNotices()
+    assert.equal(notices.length, 1)
+    assert.equal(notices[0].type, 'warning')
+    assert.equal(notices[0].duration, 6000)
+  })
+
+  it('не склеивается с ошибкой того же текста', () => {
+    showNotice.warning('shared.feedback.notices.raw', { message: 'нет связи' })
+    showNotice.error('shared.feedback.notices.raw', { message: 'нет связи' })
+
+    assert.equal(getSnapshotNotices().length, 2)
+  })
+})
