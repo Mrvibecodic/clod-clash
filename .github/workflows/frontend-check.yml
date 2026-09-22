@@ -42,6 +42,8 @@ jobs:
               - 'knip.json'
               - 'scripts/**'
               - 'src-tauri/src/lib.rs'
+              - 'src-tauri/src/core/notification.rs'
+              - 'src-tauri/src/feat/tun.rs'
               - 'eslint.config.ts'
               - 'tsconfig.json'
               - 'vite.config.*'

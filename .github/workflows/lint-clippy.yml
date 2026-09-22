@@ -89,7 +89,13 @@ jobs:
       - name: Run Clippy
         if: steps.decide.outputs.run == 'true'
         working-directory: ./src-tauri
-        run: cargo clippy-only
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            cargo clippy-all
+          else
+            cargo clippy-only
+          fi
 
       - name: Run Tests
         if: steps.decide.outputs.run == 'true'
@@ -100,13 +106,6 @@ jobs:
           if [ "$RUNNER_OS" = "Linux" ]; then
             cargo test --test subscription_headers --features clippy
           fi
-
-      - name: Run Clippy (all features)
-        if: >-
-          steps.decide.outputs.run == 'true' &&
-          matrix.os == 'ubuntu-22.04'
-        working-directory: ./src-tauri
-        run: cargo clippy-all
 
       - name: Run Logging Check
         if: steps.decide.outputs.run == 'true' && matrix.os == 'ubuntu-22.04'
