@@ -1,30 +1,49 @@
 #!/usr/bin/env python3
 """Проверяет, что ignore в .cargo/audit.toml остаётся безопасным.
 
-RUSTSEC-2026-0258 закрыт в h2 0.4.16; всё, что ниже, уязвимо. В Cargo.lock
-уязвимая ветка присутствует только как транзитивная зависимость
-tauri-plugin-devtools, который подключается опциональной фичей `tauri-dev`
-и в релизные артефакты не попадает. Скрипт падает, если это перестаёт быть
-правдой:
+Заглушаются только те advisory, чья уязвимая версия присутствует в Cargo.lock
+исключительно как транзитивная зависимость tauri-plugin-devtools: плагин
+подключается опциональной фичей `tauri-dev` и в релизные артефакты не попадает.
+Скрипт падает, если это перестаёт быть правдой:
 
   * в .cargo/audit.toml заглушено что-то помимо ожидаемого списка;
   * фича `tauri-dev` попала в default либо плагин перестал быть optional;
-  * уязвимая версия h2 достижима из воркспейса в обход плагина;
-  * безопасной версии h2 в локе не осталось — заглушать стало нечего.
+  * уязвимая версия заглушённого пакета достижима из воркспейса в обход плагина;
+  * заглушённого пакета в локе не осталось — заглушать стало нечего;
+  * у пакета, который нужен и на релизном пути, не осталось безопасной версии.
 """
 
 import re
 import sys
+from dataclasses import dataclass
 
-MIN_SAFE_H2 = (0, 4, 16, 1)
-MIN_SAFE_H2_TEXT = "0.4.16"
-EXPECTED_IGNORES = {"RUSTSEC-2026-0258"}
 DEV_ONLY_GATE = "tauri-plugin-devtools"
 DEV_ONLY_FEATURE = "tauri-dev"
 
 LOCKFILE = "Cargo.lock"
 MANIFEST = "src-tauri/Cargo.toml"
 AUDIT_CONFIG = ".cargo/audit.toml"
+
+
+@dataclass(frozen=True)
+class Guarded:
+    advisory: str
+    crate: str
+    min_safe: str
+    on_the_release_path: bool
+
+
+GUARDED = (
+    Guarded(advisory="RUSTSEC-2026-0258", crate="h2", min_safe="0.4.16", on_the_release_path=True),
+    Guarded(
+        advisory="RUSTSEC-2026-0293",
+        crate="ringbuf",
+        min_safe="0.5.2",
+        on_the_release_path=False,
+    ),
+)
+
+EXPECTED_IGNORES = {entry.advisory for entry in GUARDED}
 
 
 def read(path):
@@ -104,43 +123,55 @@ def check_manifest(errors):
     elif "optional = true" not in declaration.group(1):
         errors.append(
             f"{DEV_ONLY_GATE} в {MANIFEST} перестал быть optional — "
-            "уязвимая ветка h2 поедет в релиз"
+            "уязвимая ветка поедет в релиз"
         )
     default = re.search(r"^default = \[(.*?)\]", text, re.M | re.S)
     if default and f'"{DEV_ONLY_FEATURE}"' in default.group(1):
         errors.append(
             f'фича "{DEV_ONLY_FEATURE}" попала в default в {MANIFEST} — '
-            "уязвимая ветка h2 поедет в релиз"
+            "уязвимая ветка поедет в релиз"
         )
+
+
+def check_crate(entry, packages, without_gate, errors):
+    versions = sorted({key[1] for key in packages if key[0] == entry.crate}, key=version_key)
+    if not versions:
+        errors.append(
+            f"{entry.crate} в {LOCKFILE} не найден — заглушать {entry.advisory} больше нечего"
+        )
+        return None
+    safe_from = version_key(entry.min_safe)
+    if entry.on_the_release_path:
+        if not any(version_key(version) >= safe_from for version in versions):
+            errors.append(
+                f"безопасной версии {entry.crate} (>= {entry.min_safe}) в {LOCKFILE} "
+                f"не осталось — ignore {entry.advisory} больше не безопасен"
+            )
+        if not any(key[0] == entry.crate for key in without_gate):
+            errors.append(
+                f"{entry.crate} вообще не достижим в обход {DEV_ONLY_GATE} — проверьте, "
+                "что сторож всё ещё стережёт релизный путь"
+            )
+    for version in versions:
+        if version_key(version) >= safe_from:
+            continue
+        if any(key[1] == version for key in without_gate if key[0] == entry.crate):
+            errors.append(
+                f"{entry.crate} {version} достижим из воркспейса в обход {DEV_ONLY_GATE} — "
+                f"{entry.advisory} затрагивает не только dev-сборку"
+            )
+    return versions
 
 
 def check_lock(errors):
     packages = parse_lock(read(LOCKFILE))
-    versions = sorted({key[1] for key in packages if key[0] == "h2"}, key=version_key)
-    if not versions:
-        print("::error::h2 в Cargo.lock не найден — сторож потерял цель")
-        return None
-    safe = [v for v in versions if version_key(v) >= MIN_SAFE_H2]
-    if not safe:
-        errors.append(
-            f"безопасной версии h2 (>= {MIN_SAFE_H2_TEXT}) в {LOCKFILE} не осталось — "
-            "ignore RUSTSEC-2026-0258 больше не безопасен"
-        )
     without_gate = reachable_without_gate(packages)
-    for version in versions:
-        if version_key(version) >= MIN_SAFE_H2:
-            continue
-        if any(key[1] == version for key in without_gate if key[0] == "h2"):
-            errors.append(
-                f"h2 {version} достижим из воркспейса в обход {DEV_ONLY_GATE} — "
-                f"уязвимость затрагивает не только dev-сборку"
-            )
-    if not any(key[0] == "h2" for key in without_gate):
-        errors.append(
-            f"h2 вообще не достижим в обход {DEV_ONLY_GATE} — проверьте, "
-            "что сторож всё ещё стережёт релизный путь"
-        )
-    return versions
+    found = {}
+    for entry in GUARDED:
+        versions = check_crate(entry, packages, without_gate, errors)
+        if versions is not None:
+            found[entry.crate] = versions
+    return found
 
 
 def main():
@@ -148,19 +179,19 @@ def main():
     check_audit_config(errors)
     check_manifest(errors)
     try:
-        versions = check_lock(errors)
+        found = check_lock(errors)
     except LookupError as failure:
-        print(f"::error::{failure} — разбор Cargo.lock не удался")
-        return 1
-    if versions is None:
+        print(f"::error::{failure} — разбор {LOCKFILE} не удался")
         return 1
     for message in errors:
         print(f"::error::{message}")
     if errors:
         return 1
-    print(f"h2 в Cargo.lock: {', '.join(versions)}")
-    print(f"на релизном пути только версии >= {MIN_SAFE_H2_TEXT}")
-    print(f"уязвимая ветка доступна только через {DEV_ONLY_GATE} (фича {DEV_ONLY_FEATURE})")
+    for entry in GUARDED:
+        print(f"{entry.crate} в {LOCKFILE}: {', '.join(found[entry.crate])}")
+        if entry.on_the_release_path:
+            print(f"на релизном пути только версии >= {entry.min_safe}")
+    print(f"уязвимые ветки доступны только через {DEV_ONLY_GATE} (фича {DEV_ONLY_FEATURE})")
     return 0
 
 
