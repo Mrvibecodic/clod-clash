@@ -495,6 +495,7 @@ export interface TranslationResources {
           policies: {
             DIRECT: string
             PASS: string
+            'PASS-RULE': string
             REJECT: string
             'REJECT-DROP': string
           }

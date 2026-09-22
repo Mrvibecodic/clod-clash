@@ -89,7 +89,8 @@
         "DIRECT": "Data langsung keluar",
         "REJECT": "Mencegat permintaan",
         "REJECT-DROP": "Membuang permintaan",
-        "PASS": "Lewati aturan ini saat cocok"
+        "PASS": "Lewati aturan ini saat cocok",
+        "PASS-RULE": "Continues to the next rule when matched (PASS-RULE)"
       }
     }
   }

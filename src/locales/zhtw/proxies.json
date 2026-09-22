@@ -89,7 +89,8 @@
         "DIRECT": "直接連線 (DIRECT)",
         "REJECT": "攔截請求 (REJECT)",
         "REJECT-DROP": "丟棄請求 (REJECT-DROP)",
-        "PASS": "跳過此項 (PASS)"
+        "PASS": "跳過此項 (PASS)",
+        "PASS-RULE": "Continues to the next rule when matched (PASS-RULE)"
       }
     }
   }

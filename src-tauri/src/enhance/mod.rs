@@ -1444,7 +1444,7 @@ fn filter_sentinel_proxies(mut config: Mapping) -> (Mapping, SentinelReport) {
 }
 
 fn cleanup_proxy_groups(mut config: Mapping) -> Mapping {
-    const BUILTIN_POLICIES: &[&str] = &["DIRECT", "REJECT", "REJECT-DROP", "PASS"];
+    const BUILTIN_POLICIES: &[&str] = &["DIRECT", "REJECT", "REJECT-DROP", "PASS", "PASS-RULE"];
 
     let proxy_names = config
         .get("proxies")
@@ -2595,6 +2595,7 @@ proxy-groups:
       - "alive-node"
       - "missing-node"
       - "DIRECT"
+      - "PASS-RULE"
   - name: "nested"
     type: select
     proxies:
@@ -2623,9 +2624,10 @@ proxy-groups:
             .and_then(|v| v.as_sequence())
             .expect("manual proxies should be a sequence");
 
-        assert_eq!(manual_proxies.len(), 2);
+        assert_eq!(manual_proxies.len(), 3);
         assert!(manual_proxies.iter().any(|p| p.as_str() == Some("alive-node")));
         assert!(manual_proxies.iter().any(|p| p.as_str() == Some("DIRECT")));
+        assert!(manual_proxies.iter().any(|p| p.as_str() == Some("PASS-RULE")));
 
         let nested_group = groups
             .iter()

@@ -9,6 +9,7 @@ const PRESET_PROXY_NAMES = [
   'REJECT',
   'REJECT-DROP',
   'PASS',
+  'PASS-RULE',
   'COMPATIBLE',
 ]
 

@@ -52,8 +52,6 @@ const PROXIES_POLL_INTERVAL: Duration = Duration::from_millis(500);
 /// туда одну встроенную заглушку (`empty-fallback`, по умолчанию `COMPATIBLE`).
 /// Из-за этого проверка «список не пуст» считала такую группу наполненной, и
 /// ожидание заканчивалось, не дождавшись ничего.
-const EMPTY_GROUP_PLACEHOLDERS: &[&str] = crate::constants::policies::BUILTIN;
-
 #[derive(Default, Debug, Clone, Deserialize, Serialize)]
 pub struct IProfiles {
     pub current: Option<String>,
@@ -1187,7 +1185,7 @@ fn group_state(proxies: &Proxies, group_name: &str) -> GroupState {
 
     match group.all.as_deref() {
         None | Some([]) => GroupState::StillFilling,
-        Some([only]) if EMPTY_GROUP_PLACEHOLDERS.contains(&only.as_str()) => GroupState::StillFilling,
+        Some([only]) if crate::constants::policies::is_empty_group_placeholder(only) => GroupState::StillFilling,
         Some(_) => GroupState::Filled,
     }
 }

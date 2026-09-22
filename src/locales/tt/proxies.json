@@ -89,7 +89,8 @@
         "DIRECT": "Туры чыгу",
         "REJECT": "Сорауларны тоткарлау",
         "REJECT-DROP": "Сорауларны кире кагу",
-        "PASS": "Туры килсә дә, бу кагыйдәне урап узу"
+        "PASS": "Туры килсә дә, бу кагыйдәне урап узу",
+        "PASS-RULE": "Continues to the next rule when matched (PASS-RULE)"
       }
     }
   }

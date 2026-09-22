@@ -89,7 +89,8 @@
         "DIRECT": "Direktverbindung",
         "REJECT": "Anfrage ablehnen",
         "REJECT-DROP": "Anfrage verwerfen",
-        "PASS": "Diese Regel überspringen"
+        "PASS": "Diese Regel überspringen",
+        "PASS-RULE": "Continues to the next rule when matched (PASS-RULE)"
       }
     }
   }

@@ -77,7 +77,13 @@ interface Props {
   onSave?: (prev?: string, curr?: string) => void
 }
 
-const builtinProxyPolicies = ['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS']
+const builtinProxyPolicies = [
+  'DIRECT',
+  'REJECT',
+  'REJECT-DROP',
+  'PASS',
+  'PASS-RULE',
+]
 
 const PROXY_STRATEGY_LABEL_KEYS: Record<string, TranslationKey> = {
   select: 'proxies.components.enums.strategies.select',

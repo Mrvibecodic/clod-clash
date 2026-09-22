@@ -89,7 +89,8 @@
         "DIRECT": "البيانات تخرج مباشرة",
         "REJECT": "رفض الطلبات",
         "REJECT-DROP": "تجاهل الطلبات",
-        "PASS": "تخطي هذه القاعدة عند المطابقة"
+        "PASS": "تخطي هذه القاعدة عند المطابقة",
+        "PASS-RULE": "Continues to the next rule when matched (PASS-RULE)"
       }
     }
   }

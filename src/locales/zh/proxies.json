@@ -89,7 +89,8 @@
         "DIRECT": "直接连接 (DIRECT)",
         "REJECT": "拦截请求 (REJECT)",
         "REJECT-DROP": "丢弃请求 (REJECT-DROP)",
-        "PASS": "跳过此项 (PASS)"
+        "PASS": "跳过此项 (PASS)",
+        "PASS-RULE": "Continues to the next rule when matched (PASS-RULE)"
       }
     }
   }

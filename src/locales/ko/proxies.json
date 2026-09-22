@@ -89,7 +89,8 @@
         "DIRECT": "데이터가 직접 아웃바운드로 이동",
         "REJECT": "요청 차단",
         "REJECT-DROP": "요청 폐기",
-        "PASS": "일치할 경우 이 규칙 건너뛰기"
+        "PASS": "일치할 경우 이 규칙 건너뛰기",
+        "PASS-RULE": "Continues to the next rule when matched (PASS-RULE)"
       }
     }
   }

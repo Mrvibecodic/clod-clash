@@ -271,7 +271,7 @@ async fn perform_profile_update(
     option: Option<&PrfOption>,
     fallback_url: Option<String>,
     fallback_domain: Option<String>,
-) -> Result<bool> {
+) -> Result<()> {
     logging!(
         info,
         Type::Config,
@@ -280,10 +280,6 @@ async fn perform_profile_update(
     let mut merged_opt = PrfOption::merge(opt, option);
     let budget = address_budget(merged_opt.as_ref());
     let deadline = tokio::time::Instant::now() + budget;
-    let is_current = {
-        let profiles = Config::profiles().await;
-        profiles.latest_arc().is_current_profile_index(uid)
-    };
     let profiles = Config::profiles().await;
     let profiles_arc = profiles.latest_arc();
     let profile_name = profiles_arc
@@ -301,7 +297,7 @@ async fn perform_profile_update(
                 "[Обновление подписки] Конфиг подписки обновлён успешно"
             );
             apply_updated_item(uid, &mut item).await?;
-            return Ok(is_current);
+            return Ok(());
         }
         Err(err) => {
             logging!(
@@ -327,7 +323,7 @@ async fn perform_profile_update(
             apply_updated_item(uid, &mut item).await?;
             handle::Handle::notice_message("update_with_clash_proxy", profile_name);
             drop(last_err);
-            return Ok(is_current);
+            return Ok(());
         }
         Err(err) => {
             logging!(
@@ -353,7 +349,7 @@ async fn perform_profile_update(
             apply_updated_item(uid, &mut item).await?;
             handle::Handle::notice_message("update_with_clash_proxy", profile_name);
             drop(last_err);
-            return Ok(is_current);
+            return Ok(());
         }
         Err(err) => {
             logging!(
@@ -396,7 +392,7 @@ async fn perform_profile_update(
                 apply_updated_item(uid, &mut item).await?;
                 handle::Handle::notice_message("clod_sub::fallback_used", profile_name);
                 drop(last_err);
-                return Ok(is_current);
+                return Ok(());
             }
             Err(err) => {
                 logging!(
@@ -605,8 +601,8 @@ pub async fn update_profile(
     // Файл профиля и `updated` меняются раньше, чем ядро успевает сказать, годится ли
     // новый конфиг. Держим слепок прежнего рабочего состояния, чтобы вернуть его, если
     // ядро откажется, — иначе после перезапуска приложения профиля бы не осталось.
-    // Ядро трогает только текущий профиль, поэтому для остальных слепок не нужен.
-    let snapshot = if url_opt.is_some() && Config::profiles().await.latest_arc().is_current_profile_index(uid) {
+    // Текущим профиль может стать и за время загрузки, поэтому слепок берём всегда.
+    let snapshot = if url_opt.is_some() {
         crate::config::profiles::profiles_snapshot_item(uid).await
     } else {
         None
@@ -624,9 +620,11 @@ pub async fn update_profile(
             ))
             .await;
             match outcome {
-                Ok(changed) => {
+                Ok(()) => {
                     mark_the_update(uid, false).await;
-                    changed && auto_refresh
+                    // Текущим профиль может стать и за время загрузки, поэтому
+                    // спрашиваем после неё, а не до.
+                    auto_refresh && Config::profiles().await.latest_arc().is_current_profile_index(uid)
                 }
                 Err(err) => {
                     release_stale_panel_locks().await;

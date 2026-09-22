@@ -163,9 +163,15 @@ pub mod tun {
 }
 
 pub mod policies {
-    pub const BUILTIN: &[&str] = &["DIRECT", "REJECT", "REJECT-DROP", "PASS", "COMPATIBLE"];
+    const BUILTIN: &[&str] = &["DIRECT", "REJECT", "REJECT-DROP", "PASS", "PASS-RULE", "COMPATIBLE"];
 
     pub fn is_builtin(name: &str) -> bool {
         BUILTIN.contains(&name)
+    }
+
+    /// Заглушка, которой ядро наполняет ещё не загруженную группу. `PASS-RULE`
+    /// ею не бывает: группа из одной этой политики — законченная.
+    pub fn is_empty_group_placeholder(name: &str) -> bool {
+        is_builtin(name) && name != "PASS-RULE"
     }
 }

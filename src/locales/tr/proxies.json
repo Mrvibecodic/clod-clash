@@ -89,7 +89,8 @@
         "DIRECT": "Veri doğrudan dışarı gider",
         "REJECT": "İstekleri engeller",
         "REJECT-DROP": "İstekleri atar",
-        "PASS": "Eşleştiğinde bu kuralı atlar"
+        "PASS": "Eşleştiğinde bu kuralı atlar",
+        "PASS-RULE": "Continues to the next rule when matched (PASS-RULE)"
       }
     }
   }

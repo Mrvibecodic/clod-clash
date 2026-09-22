@@ -89,7 +89,8 @@
         "DIRECT": "Data goes directly outbound (DIRECT)",
         "REJECT": "Intercepts requests (REJECT)",
         "REJECT-DROP": "Discards requests (REJECT-DROP)",
-        "PASS": "Skips this rule when matched (PASS)"
+        "PASS": "Skips this rule when matched (PASS)",
+        "PASS-RULE": "Continues to the next rule when matched (PASS-RULE)"
       }
     }
   }

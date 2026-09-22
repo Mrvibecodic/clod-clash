@@ -49,6 +49,7 @@ const INTERNAL_LEAF_NAMES = new Set([
   'REJECT',
   'REJECT-DROP',
   'PASS',
+  'PASS-RULE',
 ])
 
 export const isCorePlaceholder = (name?: string) =>

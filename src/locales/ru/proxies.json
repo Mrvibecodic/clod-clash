@@ -89,7 +89,8 @@
         "DIRECT": "DIRECT",
         "REJECT": "REJECT",
         "REJECT-DROP": "REJECT-DROP",
-        "PASS": "PASS"
+        "PASS": "PASS",
+        "PASS-RULE": "Передаёт решение следующему правилу (PASS-RULE)"
       }
     }
   }

@@ -89,7 +89,8 @@
         "DIRECT": "直接接続",
         "REJECT": "リクエストを拒否",
         "REJECT-DROP": "リクエストを破棄",
-        "PASS": "このルールをスキップ"
+        "PASS": "このルールをスキップ",
+        "PASS-RULE": "Continues to the next rule when matched (PASS-RULE)"
       }
     }
   }
