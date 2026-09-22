@@ -404,137 +404,142 @@ async fn after_core_came_back(reason: &str) -> bool {
     true
 }
 
-pub(super) fn spawn_service_health_watchdog() {
-    let generation = CORE_WATCHDOG_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
-    AsyncHandler::spawn(move || async move {
-        let mut watch = HealthWatch::default();
-        let mut skipped: u32 = 0;
-        loop {
-            let manager = CoreManager::global();
-            if handle::Handle::global().is_exiting()
-                || CORE_WATCHDOG_GENERATION.load(Ordering::Acquire) != generation
-                || !matches!(*manager.get_running_mode(), RunningMode::Service)
-            {
-                return;
-            }
-            if manager.is_config_update_in_progress() {
-                skipped += 1;
-                if skipped <= timing::CORE_HEALTH_MAX_SKIPS {
-                    watch = HealthWatch {
-                        restart_count: watch.restart_count,
-                        ..HealthWatch::default()
-                    };
-                    tokio::time::sleep(timing::CORE_HEALTH_INTERVAL).await;
-                    continue;
-                }
-                if skipped == timing::CORE_HEALTH_MAX_SKIPS + 1 {
-                    logging!(
-                        warn,
-                        Type::Core,
-                        "применение конфига идёт {} кругов подряд — сторож больше не уступает",
-                        skipped
-                    );
-                }
-            } else {
-                skipped = 0;
-            }
-
-            let sample = sample_the_service().await;
-            if let ServiceSample::Status { core_pid, .. } = &sample {
-                manager.remember_service_core_pid(*core_pid);
-            }
-            let mut step = watch.observe(sample);
-            if matches!(step, HealthStep::ProbeTheCore) {
-                let answers = core_answers().await;
-                if !answers {
-                    logging!(
-                        warn,
-                        Type::Core,
-                        "the core did not answer under the service ({}/{})",
-                        watch.silent + 1,
-                        timing::CORE_HEALTH_MISSES
-                    );
-                }
-                step = watch.core_probed(answers);
-            }
-            if CORE_WATCHDOG_GENERATION.load(Ordering::Acquire) != generation {
-                return;
-            }
-            match step {
-                HealthStep::Continue | HealthStep::ProbeTheCore => {}
-                HealthStep::RestartedByService { restarts, reason } => {
-                    logging!(
-                        warn,
-                        Type::Core,
-                        "the service restarted the core by itself ({} time(s) since we looked): {}",
-                        restarts,
-                        reason
-                    );
-                    let _ = after_core_came_back(&reason).await;
-                }
-                HealthStep::CoreLost(why) => {
-                    handle_core_exit(why, &RunningMode::Service, None);
-                    return;
-                }
-            }
-            tokio::time::sleep(timing::CORE_HEALTH_INTERVAL).await;
-        }
-    });
+enum CoreWatch {
+    Service(HealthWatch),
+    Sidecar { pid: u32, silent: u32 },
 }
 
-pub(super) fn spawn_sidecar_health_watchdog(pid: u32) {
-    let generation = CORE_WATCHDOG_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
-    AsyncHandler::spawn(move || async move {
-        let mut silent: u32 = 0;
-        let mut skipped: u32 = 0;
-        loop {
-            tokio::time::sleep(timing::CORE_HEALTH_INTERVAL).await;
-            let manager = CoreManager::global();
-            if handle::Handle::global().is_exiting()
-                || CORE_WATCHDOG_GENERATION.load(Ordering::Acquire) != generation
-                || manager.sidecar_pid() != Some(pid)
-            {
-                return;
-            }
-            if manager.is_config_update_in_progress() {
-                skipped += 1;
-                if skipped <= timing::CORE_HEALTH_MAX_SKIPS {
-                    silent = 0;
-                    continue;
-                }
-                if skipped == timing::CORE_HEALTH_MAX_SKIPS + 1 {
-                    logging!(
-                        warn,
-                        Type::Core,
-                        "применение конфига идёт {} кругов подряд — сторож больше не уступает",
-                        skipped
-                    );
-                }
-            } else {
-                skipped = 0;
-            }
+impl CoreWatch {
+    fn still_ours(&self, manager: &CoreManager) -> bool {
+        match self {
+            Self::Service(_) => matches!(*manager.get_running_mode(), RunningMode::Service),
+            Self::Sidecar { pid, .. } => manager.sidecar_pid() == Some(*pid),
+        }
+    }
 
-            if core_answers().await {
-                silent = 0;
-                continue;
+    fn yield_to_config_update(&mut self) {
+        match self {
+            Self::Service(watch) => {
+                *watch = HealthWatch {
+                    restart_count: watch.restart_count,
+                    ..HealthWatch::default()
+                };
             }
-            silent += 1;
+            Self::Sidecar { silent, .. } => *silent = 0,
+        }
+    }
+
+    async fn look(&mut self, manager: &CoreManager, generation: u64) -> bool {
+        match self {
+            Self::Service(watch) => look_at_the_service(manager, watch, generation).await,
+            Self::Sidecar { pid, silent } => look_at_the_sidecar(manager, *pid, silent, generation).await,
+        }
+    }
+}
+
+async fn look_at_the_service(manager: &CoreManager, watch: &mut HealthWatch, generation: u64) -> bool {
+    let sample = sample_the_service().await;
+    if let ServiceSample::Status { core_pid, .. } = &sample {
+        manager.remember_service_core_pid(*core_pid);
+    }
+    let mut step = watch.observe(sample);
+    if matches!(step, HealthStep::ProbeTheCore) {
+        let answers = core_answers().await;
+        if !answers {
             logging!(
                 warn,
                 Type::Core,
-                "the core process {} did not answer ({}/{})",
-                pid,
-                silent,
+                "the core did not answer under the service ({}/{})",
+                watch.silent + 1,
                 timing::CORE_HEALTH_MISSES
             );
-            if silent < timing::CORE_HEALTH_MISSES {
-                continue;
+        }
+        step = watch.core_probed(answers);
+    }
+    if CORE_WATCHDOG_GENERATION.load(Ordering::Acquire) != generation {
+        return false;
+    }
+    match step {
+        HealthStep::Continue | HealthStep::ProbeTheCore => true,
+        HealthStep::RestartedByService { restarts, reason } => {
+            logging!(
+                warn,
+                Type::Core,
+                "the service restarted the core by itself ({} time(s) since we looked): {}",
+                restarts,
+                reason
+            );
+            let _ = after_core_came_back(&reason).await;
+            true
+        }
+        HealthStep::CoreLost(why) => {
+            handle_core_exit(why, &RunningMode::Service, None);
+            false
+        }
+    }
+}
+
+async fn look_at_the_sidecar(manager: &CoreManager, pid: u32, silent: &mut u32, generation: u64) -> bool {
+    if core_answers().await {
+        *silent = 0;
+        return true;
+    }
+    *silent += 1;
+    logging!(
+        warn,
+        Type::Core,
+        "the core process {} did not answer ({}/{})",
+        pid,
+        *silent,
+        timing::CORE_HEALTH_MISSES
+    );
+    if *silent < timing::CORE_HEALTH_MISSES {
+        return true;
+    }
+    if CORE_WATCHDOG_GENERATION.load(Ordering::Acquire) != generation {
+        return false;
+    }
+    manager.recover_hung_sidecar(pid).await;
+    false
+}
+
+fn spawn_core_health_watchdog(mut watch: CoreWatch) {
+    let generation = CORE_WATCHDOG_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
+    AsyncHandler::spawn(move || async move {
+        let mut look_now = matches!(watch, CoreWatch::Service(_));
+        let mut skipped: u32 = 0;
+        loop {
+            if !std::mem::take(&mut look_now) {
+                tokio::time::sleep(timing::CORE_HEALTH_INTERVAL).await;
             }
-            if CORE_WATCHDOG_GENERATION.load(Ordering::Acquire) != generation {
+            let manager = CoreManager::global();
+            if handle::Handle::global().is_exiting()
+                || CORE_WATCHDOG_GENERATION.load(Ordering::Acquire) != generation
+                || !watch.still_ours(manager)
+            {
                 return;
             }
-            manager.recover_hung_sidecar(pid).await;
-            return;
+            if manager.is_config_update_in_progress() {
+                skipped += 1;
+                if skipped <= timing::CORE_HEALTH_MAX_SKIPS {
+                    watch.yield_to_config_update();
+                    continue;
+                }
+                if skipped == timing::CORE_HEALTH_MAX_SKIPS + 1 {
+                    logging!(
+                        warn,
+                        Type::Core,
+                        "применение конфига идёт {} кругов подряд — сторож больше не уступает",
+                        skipped
+                    );
+                }
+            } else {
+                skipped = 0;
+            }
+
+            if !watch.look(manager, generation).await {
+                return;
+            }
         }
     });
 }
@@ -555,10 +560,10 @@ impl CoreManager {
     /// Вызывающий должен уже удерживать `lifecycle_lock`.
     pub(super) fn watch_the_core_again_locked(&self) {
         match *self.get_running_mode() {
-            RunningMode::Service => spawn_service_health_watchdog(),
+            RunningMode::Service => spawn_core_health_watchdog(CoreWatch::Service(HealthWatch::default())),
             RunningMode::Sidecar => {
                 if let Some(pid) = self.sidecar_pid() {
-                    spawn_sidecar_health_watchdog(pid);
+                    spawn_core_health_watchdog(CoreWatch::Sidecar { pid, silent: 0 });
                 }
             }
             RunningMode::NotRunning => {}
@@ -679,7 +684,7 @@ impl CoreManager {
         self.set_running_child_sidecar(child);
         self.set_sidecar_pid(pid);
         self.note_core_is_up(Backend::Sidecar);
-        spawn_sidecar_health_watchdog(pid);
+        spawn_core_health_watchdog(CoreWatch::Sidecar { pid, silent: 0 });
 
         AsyncHandler::spawn(move || async move {
             while let Some(event) = rx.recv().await {
@@ -809,7 +814,7 @@ impl CoreManager {
                 match service::run_core_by_service(&config_file).await {
                     Ok(()) => {
                         self.note_core_is_up(Backend::Service);
-                        spawn_service_health_watchdog();
+                        spawn_core_health_watchdog(CoreWatch::Service(HealthWatch::default()));
                         return Ok(());
                     }
                     Err(e) => {
@@ -836,7 +841,7 @@ impl CoreManager {
         {
             service::run_core_by_service(&config_file).await?;
             self.note_core_is_up(Backend::Service);
-            spawn_service_health_watchdog();
+            spawn_core_health_watchdog(CoreWatch::Service(HealthWatch::default()));
             Ok(())
         }
     }
