@@ -1301,7 +1301,7 @@ impl ServiceManager {
     }
 
     async fn install_service_once(&self) -> Result<()> {
-        if crate::feat::tun::needs_repair().await {
+        if crate::feat::tun::service_needs_repair().await {
             logging!(
                 info,
                 Type::Service,

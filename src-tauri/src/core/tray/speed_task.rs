@@ -10,8 +10,6 @@ use tauri_plugin_mihomo::models::WsConnectionId;
 
 /// Интервал переподключения после сбоя потока скорости в трее.
 const TRAY_SPEED_RETRY_DELAY: Duration = Duration::from_secs(1);
-/// Интервал холостого опроса во время работы потока скорости в трее.
-const TRAY_SPEED_IDLE_POLL_INTERVAL: Duration = Duration::from_millis(200);
 /// Если поток скорости в трее не получает данных за это время,
 /// запускается переподключение и деградация до 0/0.
 const TRAY_SPEED_STALE_TIMEOUT: Duration = Duration::from_secs(5);
@@ -103,9 +101,7 @@ impl TraySpeedController {
 
                 loop {
                     let next_state = speed_stream
-                        .next_event(TRAY_SPEED_IDLE_POLL_INTERVAL, TRAY_SPEED_STALE_TIMEOUT, || {
-                            handle::Handle::global().is_exiting()
-                        })
+                        .next_event(TRAY_SPEED_STALE_TIMEOUT, || handle::Handle::global().is_exiting())
                         .await;
 
                     match next_state {

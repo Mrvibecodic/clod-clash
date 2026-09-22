@@ -196,10 +196,6 @@ pub async fn is_capable() -> bool {
     !clash_verge_service_ipc::is_reinstall_service_needed().await
 }
 
-pub async fn needs_repair() -> bool {
-    service_needs_repair().await
-}
-
 pub async fn capability_and_repair() -> (bool, bool) {
     if let Some((asked_at, capable, needs_repair)) = *CAPABILITY.lock()
         && asked_at.elapsed() < CAPABILITY_FRESH_FOR
@@ -224,7 +220,7 @@ async fn capability_and_repair_now() -> (bool, bool) {
     (elevated || !needs_repair, needs_repair)
 }
 
-async fn service_needs_repair() -> bool {
+pub async fn service_needs_repair() -> bool {
     is_service_available().await.is_ok() && clash_verge_service_ipc::is_reinstall_service_needed().await
 }
 
@@ -486,7 +482,7 @@ pub async fn rearm_after_wake() {
         return;
     }
     let was_suppressed = is_suppressed();
-    if was_suppressed && !a_wake_up_could_help() && !rights_have_arrived() {
+    if was_suppressed && !a_new_network_could_help() && !rights_have_arrived() {
         logging!(
             info,
             Type::Core,
@@ -635,10 +631,6 @@ const FAILURES_A_NEW_NETWORK_CAN_FIX: &[&str] = &[FAILURE_START, FAILURE_ADAPTER
 
 fn a_new_network_could_help() -> bool {
     last_failure().is_none_or(|failure| FAILURES_A_NEW_NETWORK_CAN_FIX.contains(&failure))
-}
-
-fn a_wake_up_could_help() -> bool {
-    a_new_network_could_help()
 }
 
 fn rights_have_arrived() -> bool {

@@ -104,15 +104,9 @@ impl<T> MihomoWsEventStream<T> {
     /// Ждать следующее доступное событие или состояние завершения.
     ///
     /// # Arguments
-    /// * `idle_poll_interval` - интервал проверки в режиме простоя
     /// * `stale_timeout` - таймаут отсутствия валидных событий
     /// * `should_exit` - функция проверки выхода со стороны вызывающего кода
-    pub async fn next_event<F>(
-        &mut self,
-        _idle_poll_interval: Duration, // сигнатура сохранена, но внутренняя логика перешла на более эффективный механизм
-        stale_timeout: Duration,
-        should_exit: F,
-    ) -> StreamConsumeState<T>
+    pub async fn next_event<F>(&mut self, stale_timeout: Duration, should_exit: F) -> StreamConsumeState<T>
     where
         F: Fn() -> bool,
     {
