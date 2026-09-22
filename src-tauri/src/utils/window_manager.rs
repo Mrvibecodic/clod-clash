@@ -116,7 +116,8 @@ impl WindowManager {
         logging!(info, Type::Window, "Начинаю умный показ главного окна");
         logging!(debug, Type::Window, "{}", Self::get_window_status_info());
 
-        if !crate::utils::ui_watchdog::responds() {
+        #[cfg(target_os = "windows")]
+        if crate::core::sysopt::verbose_diagnostics().await && !crate::utils::ui_watchdog::responds() {
             logging!(
                 error,
                 Type::Window,

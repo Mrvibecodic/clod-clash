@@ -1,11 +1,6 @@
 #[cfg(not(target_os = "windows"))]
 pub const fn watch(_window: &tauri::WebviewWindow) {}
 
-#[cfg(not(target_os = "windows"))]
-pub const fn responds() -> bool {
-    true
-}
-
 #[cfg(target_os = "windows")]
 pub use windows_watchdog::{responds, watch};
 
