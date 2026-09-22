@@ -46,6 +46,7 @@ import { useProfiles } from '@/hooks/use-profiles'
 import { useVisibility } from '@/hooks/use-visibility'
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
 import {
+  dismantleProxyChain,
   patchSelectedNode,
   updateProxyChainConfigInRuntime,
 } from '@/services/cmds'
@@ -333,10 +334,12 @@ export const ProxyChain = ({
   const handleRemoveProxy = useCallback(
     (id: string) => {
       const newChain = proxyChain.filter((item) => item.id !== id)
+      // Список опустел — значит цепочки больше нет.
+      if (newChain.length === 0) dismantleProxyChain(profileUid)
       onUpdateChain(newChain)
       markUnsavedChanges()
     },
-    [proxyChain, onUpdateChain, markUnsavedChanges],
+    [proxyChain, onUpdateChain, markUnsavedChanges, profileUid],
   )
 
   const handleConnect = useCallback(async () => {
@@ -548,8 +551,7 @@ export const ProxyChain = ({
             <IconButton
               size="small"
               onClick={() => {
-                updateProxyChainConfigInRuntime(null)
-                clearProxyChain(profileUid)
+                dismantleProxyChain(profileUid)
                 onUpdateChain([])
               }}
               sx={{

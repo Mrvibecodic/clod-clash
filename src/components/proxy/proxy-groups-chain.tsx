@@ -22,9 +22,8 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import { useProfiles } from '@/hooks/use-profiles'
-import { updateProxyChainConfigInRuntime } from '@/services/cmds'
+import { dismantleProxyChain } from '@/services/cmds'
 import {
-  clearProxyChain,
   type ProxyChainNode as ProxyChainItem,
   readProxyChain,
   saveProxyChain,
@@ -383,8 +382,7 @@ export function ProxyGroupsChain(props: ProxyGroupsChainProps) {
     handleGroupMenuClose()
 
     if (mode === 'rule') {
-      updateProxyChainConfigInRuntime(null)
-      clearProxyChain(profileUid)
+      dismantleProxyChain(profileUid)
       setProxyChain([])
     }
   }

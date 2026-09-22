@@ -119,9 +119,29 @@ describe('proxy chain store', () => {
   })
 
   it('drops entries that are not nodes', () => {
-    store.set('proxy-chain', '{"A":{"items":[{"id":"1","name":"n1"},null,7]}}')
+    store.set(
+      'proxy-chain',
+      '{"A":{"items":[{"id":"1","name":"n1"},null,7,{"name":"без id"}]}}',
+    )
 
-    assert.deepEqual(readProxyChain('A').items, [{ id: '1', name: 'n1' }])
+    assert.deepEqual(
+      readProxyChain('A').items,
+      [{ id: '1', name: 'n1' }],
+      'на id держатся и ключи списка, и перетаскивание, и удаление одного узла',
+    )
+  })
+
+  it('treats an empty string in the old keys as nothing', () => {
+    store.set('proxy-chain-group', '')
+    store.set('proxy-chain-exit-node', '')
+
+    readProxyChain('A')
+
+    assert.equal(
+      store.get('proxy-chain'),
+      undefined,
+      'записи-призрака быть не должно',
+    )
   })
 
   it('has nothing to say without a subscription', () => {

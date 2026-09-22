@@ -34,17 +34,22 @@ const writeAll = (data: Record<string, StoredProxyChain>) => {
   } catch {}
 }
 
+const text = (value: unknown) =>
+  typeof value === 'string' && value ? value : undefined
+
+/** `id` держит и ключи списка, и перетаскивание, и удаление одного узла. */
 const isNode = (value: unknown): value is ProxyChainNode =>
   !!value &&
   typeof value === 'object' &&
+  typeof (value as any).id === 'string' &&
   typeof (value as any).name === 'string'
 
 const sane = (chain: unknown): StoredProxyChain => {
   if (!chain || typeof chain !== 'object' || Array.isArray(chain)) return {}
   const { group, exitNode, items } = chain as StoredProxyChain
   return {
-    group: typeof group === 'string' ? group : undefined,
-    exitNode: typeof exitNode === 'string' ? exitNode : undefined,
+    group: text(group),
+    exitNode: text(exitNode),
     items: Array.isArray(items) ? items.filter(isNode) : undefined,
   }
 }

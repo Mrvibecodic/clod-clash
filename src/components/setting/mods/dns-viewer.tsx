@@ -168,7 +168,6 @@ const DEFAULT_DNS_CONFIG = {
     '*.arpa',
     'time.*.com',
     'ntp.*.com',
-    'time.*.com',
     '+.market.xiaomi.com',
     'localhost.ptlogin2.qq.com',
     '*.msftncsi.com',
@@ -351,6 +350,10 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
       ...hostsKey('use-hosts', values.useHosts),
       ...hostsKey('use-system-hosts', values.useSystemHosts),
       ipv6: values.ipv6,
+      // Пустой список — значение, а не молчание: в чёрном списке он означает
+      // «исключений нет», в белом — «fake-ip выключен». Умолчание подставлено
+      // при заведении страницы; подменять им написанное человеком нельзя, тем
+      // более что умолчание — чёрный список, а режим может быть белым.
       'fake-ip-filter': parseList(values.fakeIpFilter),
       'default-nameserver': parseList(values.defaultNameserver),
       nameserver: parseList(values.nameserver),

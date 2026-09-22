@@ -3,6 +3,7 @@ import dayjs from 'dayjs'
 import { getProxies, getProxyProviders } from 'tauri-plugin-mihomo-api'
 
 import { showNotice } from '@/services/notice-service'
+import { clearProxyChain } from '@/services/proxy-chain-store'
 import { getCacheData, setCacheData } from '@/services/query-client'
 import { debugLog } from '@/utils/debug'
 import { enumText } from '@/utils/plugin-enum'
@@ -114,6 +115,16 @@ export async function updateProxyChainConfigInRuntime(proxyChainConfig: any) {
   return invoke<void>('update_proxy_chain_config_in_runtime', {
     proxyChainConfig,
   })
+}
+
+/**
+ * Цепочки больше нет — ни в ядре, ни в записи подписки. Разбор собран здесь
+ * один раз: пока каждый путь опустошения писал его своими руками, один из них
+ * его забыл, и цепочка оставалась жить без единой кнопки, которой её видно.
+ */
+export async function dismantleProxyChain(profileUid?: string) {
+  clearProxyChain(profileUid)
+  return updateProxyChainConfigInRuntime(null)
 }
 
 export async function patchClashConfig(payload: Partial<IConfigData>) {
