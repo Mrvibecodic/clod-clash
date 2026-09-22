@@ -65,6 +65,7 @@ import { useThemeMode } from '@/services/states'
 import type { TranslationKey } from '@/types/generated/i18n-keys'
 import type { MonacoEditorInstance } from '@/types/monaco'
 import getSystem from '@/utils/get-system'
+import { BUILTIN_GROUP_POLICIES } from '@/utils/proxy-groups'
 import { parseYamlSafe } from '@/utils/yaml'
 
 interface Props {
@@ -77,14 +78,6 @@ interface Props {
   onSave?: (prev?: string, curr?: string) => void
 }
 
-const builtinProxyPolicies = [
-  'DIRECT',
-  'REJECT',
-  'REJECT-DROP',
-  'PASS',
-  'PASS-RULE',
-]
-
 const PROXY_STRATEGY_LABEL_KEYS: Record<string, TranslationKey> = {
   select: 'proxies.components.enums.strategies.select',
   'url-test': 'proxies.components.enums.strategies.url-test',
@@ -94,7 +87,7 @@ const PROXY_STRATEGY_LABEL_KEYS: Record<string, TranslationKey> = {
 }
 
 const PROXY_POLICY_LABEL_KEYS: Record<string, TranslationKey> =
-  builtinProxyPolicies.reduce(
+  BUILTIN_GROUP_POLICIES.reduce(
     (acc, policy) => {
       acc[policy] =
         `proxies.components.enums.policies.${policy}` as TranslationKey
@@ -456,7 +449,7 @@ export const GroupsEditorViewer = (props: Props) => {
         (name): name is string => typeof name === 'string' && name.length > 0,
       )
 
-    const computedPolicyList = builtinProxyPolicies.concat(
+    const computedPolicyList = BUILTIN_GROUP_POLICIES.concat(
       prependSeq.map((group: IProxyGroupConfig) => group.name),
       (originGroupsObj?.['proxy-groups'] || [])
         .map((group: IProxyGroupConfig) => group.name)

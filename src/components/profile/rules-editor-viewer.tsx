@@ -52,6 +52,7 @@ import type { TranslationKey } from '@/types/generated/i18n-keys'
 import type { MonacoEditorInstance } from '@/types/monaco'
 import getSystem from '@/utils/get-system'
 import { isValidIpCidr } from '@/utils/network'
+import { BUILTIN_RULE_POLICIES } from '@/utils/proxy-groups'
 
 interface Props {
   groupsUid: string
@@ -239,10 +240,8 @@ const RULE_TYPE_LABEL_KEYS: Record<string, string> = Object.fromEntries(
   ]),
 )
 
-const builtinProxyPolicies = ['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS']
-
 const PROXY_POLICY_LABEL_KEYS: Record<string, TranslationKey> =
-  builtinProxyPolicies.reduce(
+  BUILTIN_RULE_POLICIES.reduce(
     (acc, policy) => {
       acc[policy] =
         `proxies.components.enums.policies.${policy}` as TranslationKey
@@ -267,7 +266,7 @@ export const RulesEditorViewer = (props: Props) => {
   const [ruleType, setRuleType] = useState<(typeof rules)[number]>(rules[0])
   const [ruleContent, setRuleContent] = useState('')
   const [noResolve, setNoResolve] = useState(false)
-  const [proxyPolicy, setProxyPolicy] = useState(builtinProxyPolicies[0])
+  const [proxyPolicy, setProxyPolicy] = useState(BUILTIN_RULE_POLICIES[0])
   const [proxyPolicyList, setProxyPolicyList] = useState<string[]>([])
   const [ruleList, setRuleList] = useState<string[]>([])
   const [ruleSetList, setRuleSetList] = useState<string[]>([])
@@ -542,7 +541,7 @@ export const RulesEditorViewer = (props: Props) => {
     const globalSubRule = globalSubRuleObj?.['sub-rules'] || {}
     const subRule = Object.assign({}, originSubRule, moreSubRule, globalSubRule)
     setProxyPolicyList(
-      builtinProxyPolicies.concat(groups.map((group: any) => group.name)),
+      BUILTIN_RULE_POLICIES.concat(groups.map((group: any) => group.name)),
     )
     setRuleSetList(Object.keys(ruleSet))
     setSubRuleList(Object.keys(subRule))

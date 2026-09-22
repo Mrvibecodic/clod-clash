@@ -14,6 +14,16 @@ export interface ProxyGroup {
   all?: ProxyNode[]
 }
 
+const CORE_POLICIES = [
+  'DIRECT',
+  'REJECT',
+  'REJECT-DROP',
+  'PASS',
+  'PASS-RULE',
+  'COMPATIBLE',
+]
+
+/** Ядро зовёт тип встроенной политики её же именем без дефисов. */
 export const NON_NODE_TYPES = new Set([
   'selector',
   'urltest',
@@ -21,11 +31,7 @@ export const NON_NODE_TYPES = new Set([
   'loadbalance',
   'smart',
   'relay',
-  'direct',
-  'reject',
-  'rejectdrop',
-  'pass',
-  'compatible',
+  ...CORE_POLICIES.map((name) => name.toLowerCase().replaceAll('-', '')),
 ])
 
 export const SELECTABLE_GROUP_TYPES = new Set([
@@ -44,23 +50,29 @@ export const AUTO_GROUP_TYPES = new Set([
 export const groupType = (item: { type?: string } | undefined) =>
   (item?.type ?? '').toLowerCase()
 
-const INTERNAL_LEAF_NAMES = new Set([
-  'COMPATIBLE',
-  'REJECT',
-  'REJECT-DROP',
-  'PASS',
-  'PASS-RULE',
-])
+/** `COMPATIBLE` ядро подставляет в пустую группу само — назвать его нельзя. */
+export const BUILTIN_GROUP_POLICIES = CORE_POLICIES.filter(
+  (name) => name !== 'COMPATIBLE',
+)
 
+/** `PASS-RULE` в правиле верхнего уровня отбивает, а не передаёт дальше. */
+export const BUILTIN_RULE_POLICIES = BUILTIN_GROUP_POLICIES.filter(
+  (name) => name !== 'PASS-RULE',
+)
+
+export const isCorePolicy = (name?: string) =>
+  !!name && CORE_POLICIES.includes(name)
+
+/** `DIRECT` — осмысленный выбор человека, а не заглушка ядра. */
 export const isCorePlaceholder = (name?: string) =>
-  !!name && INTERNAL_LEAF_NAMES.has(name)
+  isCorePolicy(name) && name !== 'DIRECT'
 
 export const displayLeaf = (
   records: Record<string, ProxyGroup | undefined>,
   name: string,
 ): string | undefined => {
   const leaf = resolveLeaf(records, name)
-  if (leaf === name || INTERNAL_LEAF_NAMES.has(leaf)) return undefined
+  if (leaf === name || isCorePlaceholder(leaf)) return undefined
   return leaf
 }
 

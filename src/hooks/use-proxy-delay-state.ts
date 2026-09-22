@@ -3,15 +3,7 @@ import { useCallback, useEffect, useReducer } from 'react'
 
 import { useVerge } from '@/hooks/use-verge'
 import delayManager, { type DelayUpdate } from '@/services/delay'
-
-const PRESET_PROXY_NAMES = [
-  'DIRECT',
-  'REJECT',
-  'REJECT-DROP',
-  'PASS',
-  'PASS-RULE',
-  'COMPATIBLE',
-]
+import { isCorePolicy } from '@/utils/proxy-groups'
 
 const identity = (_: DelayUpdate, next: DelayUpdate): DelayUpdate => next
 
@@ -29,7 +21,7 @@ export function useProxyDelayState(
   proxy: IProxyItem,
   groupName: string,
 ): UseProxyDelayState {
-  const isPreset = PRESET_PROXY_NAMES.includes(proxy.name)
+  const isPreset = isCorePolicy(proxy.name)
   const [delayState, setDelayState] = useReducer(identity, INITIAL_DELAY)
   const { verge } = useVerge()
   const timeout = verge?.default_latency_timeout || 10000
