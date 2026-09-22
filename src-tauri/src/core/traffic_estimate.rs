@@ -47,9 +47,6 @@ const IDLE_INTERVAL: Duration = Duration::from_secs(300);
 const PERSIST_EVERY_TICKS: u32 = 4;
 const STATE_FILE: &str = "traffic_estimate.json";
 
-/// Цепочки, которые не идут через прокси подписки и в расход не попадают.
-const BYPASS_CHAINS: [&str; 6] = ["DIRECT", "COMPATIBLE", "REJECT", "REJECT-DROP", "PASS", "PASS-RULE"];
-
 /// Снимок счётчика для фронтенда.
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -161,7 +158,7 @@ fn counts_as_proxy(chains: &[String]) -> bool {
     // `chains[0]` — исходящий, на котором соединение реально держится.
     chains
         .first()
-        .is_some_and(|outbound| !BYPASS_CHAINS.contains(&outbound.as_str()))
+        .is_some_and(|outbound| !crate::constants::policies::is_builtin(outbound))
 }
 
 /// Сверить базу с подпиской. База меняется только когда изменилось само

@@ -174,4 +174,11 @@ pub mod policies {
     pub fn is_empty_group_placeholder(name: &str) -> bool {
         is_builtin(name) && name != "PASS-RULE"
     }
+
+    /// Политика, которую подписка вправе назвать в группе. `COMPATIBLE` ядро
+    /// примет, но это молчаливый `DIRECT`, которым оно заполняет пустую группу
+    /// само, — протащить его в группу подписке не даём.
+    pub fn may_stand_in_a_group(name: &str) -> bool {
+        is_builtin(name) && name != "COMPATIBLE"
+    }
 }

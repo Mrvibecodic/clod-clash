@@ -1444,8 +1444,6 @@ fn filter_sentinel_proxies(mut config: Mapping) -> (Mapping, SentinelReport) {
 }
 
 fn cleanup_proxy_groups(mut config: Mapping) -> Mapping {
-    const BUILTIN_POLICIES: &[&str] = &["DIRECT", "REJECT", "REJECT-DROP", "PASS", "PASS-RULE"];
-
     let proxy_names = config
         .get("proxies")
         .and_then(|v| v.as_sequence())
@@ -1492,7 +1490,6 @@ fn cleanup_proxy_groups(mut config: Mapping) -> Mapping {
     let mut allowed_names = proxy_names;
     allowed_names.extend(group_names);
     allowed_names.extend(provider_names.iter().cloned());
-    allowed_names.extend(BUILTIN_POLICIES.iter().map(|p| (*p).into()));
 
     if let Some(Value::Sequence(groups)) = config.get_mut("proxy-groups") {
         for group in groups {
@@ -1512,7 +1509,11 @@ fn cleanup_proxy_groups(mut config: Mapping) -> Mapping {
 
                 if let Some(Value::Sequence(proxies)) = group_map.get_mut("proxies") {
                     proxies.retain(|proxy| match proxy {
-                        Value::String(name) => allowed_names.contains(name.as_str()) || has_valid_provider,
+                        Value::String(name) => {
+                            allowed_names.contains(name.as_str())
+                                || constants::policies::may_stand_in_a_group(name)
+                                || has_valid_provider
+                        }
                         _ => true,
                     });
                 }
