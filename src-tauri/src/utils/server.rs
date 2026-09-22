@@ -15,11 +15,6 @@ use std::time::Duration;
 use tokio::sync::oneshot;
 use warp::Filter as _;
 
-#[derive(serde::Deserialize, Debug)]
-struct QueryParam {
-    param: String,
-}
-
 static SHUTDOWN_SENDER: OnceCell<Mutex<Option<oneshot::Sender<()>>>> = OnceCell::new();
 
 /// Порт одиночного экземпляра держится с самой проверки: слушатель, занявший
@@ -31,6 +26,12 @@ static CLAIMED_LISTENER: Mutex<Option<std::net::TcpListener>> = Mutex::new(None)
 /// которому вторая копия передаёт первой команду.
 static INSTANCE_LOCK: Mutex<Option<std::fs::File>> = Mutex::new(None);
 const INSTANCE_LOCK_FILE: &str = "instance.lock";
+
+/// Ссылка не ходит через порт: команду «установи подписку» принял бы любой,
+/// кто до порта дотянулся, включая страницу в браузере. Вторая копия кладёт
+/// ссылку сюда — в каталог, куда пишет только наш пользователь, — и просит
+/// показать окно обычной командой.
+const PENDING_LINK_FILE: &str = "pending-link";
 
 /// Первый экземпляр занимает порт сразу, а отвечать начинает только после
 /// инициализации: второй ждёт его ответа, а не считает порт чужим.
@@ -99,35 +100,55 @@ enum Handover {
 /// (ярлык с ключом, файл по ассоциации) молча завершал вторую копию без показа
 /// окна. На macOS ссылки приходят событием системы, а не аргументом, поэтому
 /// там вторая копия всегда просит показать окно.
-#[cfg(not(target_os = "macos"))]
 fn is_scheme_link(arg: &str) -> bool {
     arg.starts_with("clash:") || arg.starts_with("clash-verge:") || arg.starts_with("clodclash:")
 }
 
-async fn hand_the_command_over(port: u16, wait: Duration) -> Handover {
+/// Каждая ссылка кладётся своим файлом: две подряд не затирают друг друга, а
+/// забирающий получает её только вместе с правом унести — переименованием.
+async fn leave_the_link_for_the_running_copy(link: &str) -> Result<std::path::PathBuf> {
+    let path = crate::utils::dirs::preinit_app_home_dir()?
+        .join(format!("{PENDING_LINK_FILE}{}", crate::utils::help::get_uid("-")));
+    crate::utils::help::write_atomic(&path, link.as_bytes()).await?;
+    Ok(path)
+}
+
+async fn claim_the_link_at(path: &std::path::Path) -> Option<String> {
+    // Имя забранного файла подметает та же уборка, что и прочие недописанные:
+    // копия, умершая между «забрал» и «прочитал», мусора не оставит.
+    let claimed = crate::utils::help::staging_path(path);
+    tokio::fs::rename(path, &claimed).await.ok()?;
+    let link = tokio::fs::read_to_string(&claimed).await;
+    let _ = tokio::fs::remove_file(&claimed).await;
+    is_scheme_link(link.as_deref().unwrap_or_default().trim()).then(|| link.unwrap_or_default().trim().into())
+}
+
+/// Забрать ссылки, оставленные вторыми копиями, и стереть их след.
+pub async fn take_the_pending_links() -> Vec<String> {
+    let Ok(home) = crate::utils::dirs::preinit_app_home_dir() else {
+        return Vec::new();
+    };
+    let Ok(mut entries) = tokio::fs::read_dir(&home).await else {
+        return Vec::new();
+    };
+    let mut pending = Vec::new();
+    while let Ok(Some(entry)) = entries.next_entry().await {
+        if !entry.file_name().to_string_lossy().starts_with(PENDING_LINK_FILE) {
+            continue;
+        }
+        if let Some(link) = claim_the_link_at(&entry.path()).await {
+            pending.push(link);
+        }
+    }
+    pending
+}
+
+async fn ask_to_show_the_window(port: u16, wait: Duration) -> Handover {
     // Сосед на этой же машине: системный прокси между нами ни к чему.
     let client = match ClientBuilder::new().no_proxy().timeout(wait).build() {
         Ok(client) => client,
         Err(error) => return Handover::Failed(error.into()),
     };
-    #[cfg(not(target_os = "macos"))]
-    {
-        use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
-
-        // Итератор аргументов не `Send`: ссылку достаём до первого `.await`.
-        let link = std::env::args().skip(1).find(|arg| is_scheme_link(arg));
-        if let Some(param) = link {
-            let encoded = utf8_percent_encode(&param, NON_ALPHANUMERIC);
-            return match client
-                .get(format!("http://127.0.0.1:{port}/commands/scheme?param={encoded}"))
-                .send()
-                .await
-            {
-                Ok(_) => Handover::Delivered,
-                Err(error) => Handover::Failed(error.into()),
-            };
-        }
-    }
     match client
         .get(format!("http://127.0.0.1:{port}/commands/visible"))
         .send()
@@ -145,16 +166,46 @@ fn leave_to_the_running_copy() -> Result<()> {
 }
 
 pub async fn check_singleton() -> Result<()> {
-    let port = IVerge::get_singleton_port();
+    let mut left_at = None;
+    let outcome = look_for_the_running_copy(IVerge::get_singleton_port(), &mut left_at).await;
+    // Ссылку уносит только копия, уступившая работающей: если мы остаёмся
+    // работать или уходим с ошибкой, ссылку разберёт наш собственный запуск.
+    if !outcome
+        .as_ref()
+        .is_err_and(|error| error.is::<AnotherInstanceRunning>())
+        && let Some(path) = left_at
+    {
+        let _ = tokio::fs::remove_file(path).await;
+    }
+    outcome
+}
+
+/// Оставить ссылку из аргументов запуска — один раз за попытку передачи.
+async fn leave_the_link_once(left_at: &mut Option<std::path::PathBuf>) {
+    if left_at.is_some() {
+        return;
+    }
+    // Итератор аргументов не `Send`: ссылку достаём до первого `.await`.
+    let Some(link) = std::env::args().skip(1).find(|arg| is_scheme_link(arg)) else {
+        return;
+    };
+    match leave_the_link_for_the_running_copy(&link).await {
+        Ok(path) => *left_at = Some(path),
+        Err(error) => logging!(error, Type::Window, "ссылку передать не удалось: {error}"),
+    }
+}
+
+async fn look_for_the_running_copy(port: u16, left_at: &mut Option<std::path::PathBuf>) -> Result<()> {
     let started = std::time::Instant::now();
     loop {
         let lock = take_the_instance_lock();
         if lock != InstanceLock::Theirs {
-            return claim_the_port(port, lock).await;
+            return claim_the_port(port, lock, left_at).await;
         }
+        leave_the_link_once(left_at).await;
         // Стартующая копия порт уже держит, и запрос дожидается её ответа;
         // быстрым отказ бывает, когда порт закрыт, — тогда замок пробуем снова.
-        match hand_the_command_over(port, HANDOVER_WAIT).await {
+        match ask_to_show_the_window(port, HANDOVER_WAIT).await {
             Handover::Delivered => return leave_to_the_running_copy(),
             Handover::Failed(error) if started.elapsed() >= HANDOVER_WAIT => {
                 bail!("another copy holds the instance lock and did not answer the command: {error}");
@@ -165,7 +216,7 @@ pub async fn check_singleton() -> Result<()> {
 }
 
 /// Замок наш (или его не у кого спросить): остаётся занять порт.
-async fn claim_the_port(port: u16, lock: InstanceLock) -> Result<()> {
+async fn claim_the_port(port: u16, lock: InstanceLock, left_at: &mut Option<std::path::PathBuf>) -> Result<()> {
     let refusal = match std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port)) {
         Ok(listener) => {
             *CLAIMED_LISTENER.lock() = Some(listener);
@@ -179,7 +230,8 @@ async fn claim_the_port(port: u16, lock: InstanceLock) -> Result<()> {
         return Ok(());
     }
     // Порт держит копия без замка — прежняя версия или другая установка.
-    let error = match hand_the_command_over(port, HANDOVER_WAIT).await {
+    leave_the_link_once(left_at).await;
+    let error = match ask_to_show_the_window(port, HANDOVER_WAIT).await {
         Handover::Delivered => return leave_to_the_running_copy(),
         Handover::Failed(error) => error,
     };
@@ -225,6 +277,9 @@ pub fn embed_server() {
             if !lightweight::exit_lightweight_mode().await {
                 WindowManager::show_main_window().await;
             }
+            for link in take_the_pending_links().await {
+                logging_error!(Type::Setup, resolve::resolve_scheme(&link).await);
+            }
         });
         Ok::<_, warp::Rejection>(warp::reply::with_status::<std::string::String>(
             "ok".to_string(),
@@ -254,22 +309,7 @@ pub fn embed_server() {
         )
     });
 
-    let scheme = warp::path!("commands" / "scheme")
-        .and(warp::query::<QueryParam>())
-        .and_then(|query: QueryParam| async move {
-            AsyncHandler::spawn(|| async move {
-                if !lightweight::exit_lightweight_mode().await {
-                    WindowManager::show_main_window().await;
-                }
-                logging_error!(Type::Setup, resolve::resolve_scheme(&query.param).await);
-            });
-            Ok::<_, warp::Rejection>(warp::reply::with_status::<std::string::String>(
-                "ok".to_string(),
-                warp::http::StatusCode::OK,
-            ))
-        });
-
-    let commands = visible.or(scheme).or(pac);
+    let commands = visible.or(pac);
 
     AsyncHandler::spawn(move || async move {
         let listener = listener
@@ -310,7 +350,6 @@ mod tests {
     use std::net::{Ipv4Addr, TcpListener};
     use warp::Filter as _;
 
-    #[cfg(not(target_os = "macos"))]
     #[test]
     fn only_our_schemes_are_links() {
         use super::is_scheme_link;
@@ -361,6 +400,27 @@ mod tests {
 
         drop(second);
         let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn a_left_link_is_claimed_once_and_leaves_no_trace() {
+        let path = std::env::temp_dir().join(format!("clod-pending-{}", std::process::id()));
+        let link = "clodclash://install-config?url=https://example.com/sub";
+        assert!(std::fs::write(&path, link).is_ok());
+
+        assert_eq!(super::claim_the_link_at(&path).await.as_deref(), Some(link));
+        assert!(super::claim_the_link_at(&path).await.is_none());
+        assert!(!path.exists());
+        assert!(!path.with_extension("taken").exists());
+    }
+
+    #[tokio::test]
+    async fn a_file_that_holds_no_link_of_ours_is_claimed_and_dropped() {
+        let path = std::env::temp_dir().join(format!("clod-pending-junk-{}", std::process::id()));
+        assert!(std::fs::write(&path, "https://example.com/sub").is_ok());
+
+        assert!(super::claim_the_link_at(&path).await.is_none());
+        assert!(!path.exists());
     }
 
     #[tokio::test]

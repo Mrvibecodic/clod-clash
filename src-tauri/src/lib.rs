@@ -92,6 +92,14 @@ mod app_init {
                 resolve_deep_link_urls(urls.iter().map(String::as_str)).await;
             });
         }
+
+        // Ссылка, оставленная второй копией, могла остаться непрочитанной:
+        // прежняя версия про файл не знала, а копия могла и не дожить до
+        // показа окна. Старт — второй и последний, кто её забирает.
+        AsyncHandler::spawn(|| async {
+            let pending = server::take_the_pending_links().await;
+            resolve_deep_link_urls(pending.iter().map(|link| link.as_str())).await;
+        });
     }
 
     pub fn setup_autostart(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {

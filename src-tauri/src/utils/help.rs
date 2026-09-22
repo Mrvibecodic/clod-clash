@@ -195,7 +195,7 @@ pub async fn sweep_staging_leftovers(dir: &Path) -> usize {
     removed
 }
 
-fn staging_path(path: &Path) -> PathBuf {
+pub(crate) fn staging_path(path: &Path) -> PathBuf {
     let name = path
         .file_name()
         .map(|name| name.to_string_lossy().into_owned())
