@@ -8,6 +8,46 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.1.11-alpha.1
+
+<!-- lang:en -->
+
+### Changed
+
+- A proxy chain is stored together with its subscription and never leaks into another one; each subscription keeps its own DNS page file
+- The provider filter lists exactly the proxy types the core supports
+- Lower background load: one core health watchdog for both the service and the standalone process, faster detection of the managed core, a hang probe before showing the window only with detailed diagnostics
+
+### Fixed
+
+- An empty node list no longer wipes an active proxy chain, and removing the last node clears the chain as well
+- The fake-ip range is no longer sent empty
+- The built-in "leave it to the rules" policy reaches the core and is shown in the interface
+- Profile files are deleted only together with the profile; a broken core cache is reset before start on Linux and macOS; the core log is flushed on a crash
+- A group icon with non-Latin characters no longer breaks the page, traffic around a thousand is shown without an exponent, an invalid test URL shows a warning, a failed update check is shown as a warning
+- A link passed from a second copy of the app is handed over safely, and the built-in server serves only the window request and the auto-config file
+- The system proxy watchdog waits for the previous pass to finish and reports a failure to start
+
+<!-- lang:ru -->
+
+### Изменено
+
+- Цепочка прокси хранится вместе со своей подпиской и не уезжает в чужую; у каждой подписки свой файл страницы DNS
+- Фильтр провайдера предлагает ровно те типы прокси, что понимает ядро
+- Меньше фоновой нагрузки: один сторож здоровья ядра для службы и отдельного процесса, управляемое ядро узнаётся быстрее, проба зависания перед показом окна — только при подробной диагностике
+
+### Исправлено
+
+- Пустой список узлов больше не стирает поднятую цепочку, а удаление последнего узла тоже её разбирает
+- Диапазон fake-ip больше не уезжает пустым
+- Встроенная политика «решают правила» доходит до ядра и видна в интерфейсе
+- Файлы профилей удаляются только вместе с профилем; негодный кэш ядра сбрасывается перед запуском на Linux и macOS; журнал ядра дописывается при падении
+- Значок группы с нелатинскими символами не роняет страницу, трафик около тысячи показывается без экспоненты, негодный адрес проверки предупреждает, неудачная проверка обновлений показывается предупреждением
+- Ссылка от второй копии приложения передаётся безопасно, а встроенный сервер отдаёт только показ окна и файл автонастройки
+- Сторож системного прокси дожидается конца прошлого обхода и сообщает об отказе запуска
+
+---
+
 ## v0.1.10
 
 <!-- lang:en -->
