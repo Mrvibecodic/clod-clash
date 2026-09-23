@@ -20,6 +20,7 @@ import { useTranslation } from 'react-i18next'
 import { useIconCache } from '@/hooks/use-icon-cache'
 import { useVerge } from '@/hooks/use-verge'
 import { SHAPE } from '@/pages/_theme'
+import { groupType, SELECTABLE_GROUP_TYPES } from '@/utils/proxy-groups'
 
 import { ProxyGroupTools } from './proxy-group-tools'
 import { ProxyHead } from './proxy-head'
@@ -52,9 +53,10 @@ export const ProxyRender = memo(function ProxyRender(props: RenderProps) {
     onHeadState,
     onChangeProxy,
     onGroupToggle,
-    isChainMode: _ = false,
+    isChainMode = false,
   } = props
   const { type, group, headState, proxy, proxyCol } = item
+  const selectable = isChainMode || SELECTABLE_GROUP_TYPES.has(groupType(group))
   const { verge } = useVerge()
   const enable_group_icon = verge?.enable_group_icon ?? true
   const theme = useTheme()
@@ -80,10 +82,10 @@ export const ProxyRender = memo(function ProxyRender(props: RenderProps) {
         proxy={proxyItem}
         selected={group.now === proxyItem?.name}
         showType={showType}
-        onClick={() => onChangeProxy(group, proxyItem)}
+        onClick={selectable ? () => onChangeProxy(group, proxyItem) : undefined}
       />
     ))
-  }, [type, proxyCol, item.key, group, showType, onChangeProxy])
+  }, [type, proxyCol, item.key, group, showType, selectable, onChangeProxy])
 
   if (type === 0) {
     return (
@@ -247,7 +249,7 @@ export const ProxyRender = memo(function ProxyRender(props: RenderProps) {
         selected={group.now === proxy?.name}
         showType={headState?.showType}
         sx={{ py: 0, pl: 2 }}
-        onClick={() => onChangeProxy(group, proxy!)}
+        onClick={selectable ? () => onChangeProxy(group, proxy!) : undefined}
       />
     )
   }

@@ -24,8 +24,7 @@
       "select": "Select Rules"
     },
     "labels": {
-      "proxyCount": "Anzahl der Knoten",
-      "delayCheckReset": "Latenztest durchführen, um Fixierung aufzuheben"
+      "proxyCount": "Anzahl der Knoten"
     },
     "tooltips": {
       "locate": "Zum ausgewählten Knoten",

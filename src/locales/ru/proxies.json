@@ -24,8 +24,7 @@
       "select": "Выбрать правила"
     },
     "labels": {
-      "proxyCount": "Количество прокси",
-      "delayCheckReset": "Сброс проверки задержки"
+      "proxyCount": "Количество прокси"
     },
     "tooltips": {
       "locate": "К выбранному узлу",

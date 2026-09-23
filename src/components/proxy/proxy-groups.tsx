@@ -456,14 +456,7 @@ function NormalProxyGroups(props: { mode: string }) {
     },
   })
 
-  const handleChangeProxy = useCallback(
-    (group: IProxyGroupItem, proxy: IProxyItem) => {
-      if (!['Selector', 'URLTest', 'Fallback'].includes(group.type)) return
-
-      handleProxyGroupChange(group, proxy)
-    },
-    [handleProxyGroupChange],
-  )
+  const handleChangeProxy = handleProxyGroupChange
 
   const handleLocation = useStableCallback((group: IProxyGroupItem) => {
     if (!group) return

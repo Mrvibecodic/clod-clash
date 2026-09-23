@@ -24,8 +24,7 @@
       "select": "Select Rules"
     },
     "labels": {
-      "proxyCount": "Proxy Count",
-      "delayCheckReset": "Periksa keterlambatan untuk membatalkan tetap"
+      "proxyCount": "Proxy Count"
     },
     "tooltips": {
       "locate": "Ke node terpilih",

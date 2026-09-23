@@ -24,8 +24,7 @@
       "select": "Select Rules"
     },
     "labels": {
-      "proxyCount": "Proxy Count",
-      "delayCheckReset": "بررسی تأخیر برای لغو ثابت"
+      "proxyCount": "Proxy Count"
     },
     "tooltips": {
       "locate": "رفتن به گره انتخاب‌شده",

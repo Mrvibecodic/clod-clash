@@ -1,6 +1,5 @@
 import { CheckCircleOutlineRounded } from '@mui/icons-material'
 import { alpha, Box, ListItemButton, styled, Typography } from '@mui/material'
-import { useTranslation } from 'react-i18next'
 
 import { BaseLoading } from '@/components/base'
 import { useProxyDelayState } from '@/hooks/use-proxy-delay-state'
@@ -19,8 +18,6 @@ interface Props {
 export const ProxyItemMini = (props: Props) => {
   const { group, proxy, selected, showType = true, onClick } = props
 
-  const { t } = useTranslation()
-
   const { delayValue, isPreset, timeout, onDelay } = useProxyDelayState(
     proxy,
     group.name,
@@ -30,6 +27,7 @@ export const ProxyItemMini = (props: Props) => {
     <ListItemButton
       dense
       selected={selected}
+      disableRipple={!onClick}
       onClick={() => onClick?.(proxy.name)}
       sx={[
         {
@@ -42,6 +40,10 @@ export const ProxyItemMini = (props: Props) => {
         },
         ({ palette: { mode, primary, background } }) => {
           const bgcolor = background.paper
+          const selectedBg =
+            mode === 'light'
+              ? alpha(primary.main, 0.15)
+              : alpha(primary.main, 0.35)
           const showDelay = delayValue >= 0
           const selectColor = mode === 'light' ? primary.main : primary.light
 
@@ -49,22 +51,17 @@ export const ProxyItemMini = (props: Props) => {
             '&:hover .the-check': { display: !showDelay ? 'block' : 'none' },
             '&:hover .the-delay': { display: showDelay ? 'block' : 'none' },
             '&:hover .the-icon': { display: 'none' },
-            '& .the-pin, & .the-unpin': {
-              position: 'absolute',
-              fontSize: '12px',
-              top: '-5px',
-              right: '-5px',
-            },
-            '& .the-unpin': { filter: 'grayscale(1)' },
             '&.Mui-selected': {
               width: `calc(100% + 3px)`,
               marginLeft: `-3px`,
               borderLeft: `3px solid ${selectColor}`,
-              bgcolor:
-                mode === 'light'
-                  ? alpha(primary.main, 0.15)
-                  : alpha(primary.main, 0.35),
+              bgcolor: selectedBg,
             },
+            ...(!onClick && {
+              cursor: 'default',
+              '&:hover': { backgroundColor: bgcolor },
+              '&.Mui-selected:hover': { bgcolor: selectedBg },
+            }),
             backgroundColor: bgcolor,
           }
         },
@@ -204,19 +201,6 @@ export const ProxyItemMini = (props: Props) => {
             />
           )}
       </Box>
-      {group.fixed && group.fixed === proxy.name && (
-        // Показываем состояние fixed
-        <span
-          className={proxy.name === group.now ? 'the-pin' : 'the-unpin'}
-          title={
-            group.type === 'URLTest'
-              ? t('proxies.page.labels.delayCheckReset')
-              : ''
-          }
-        >
-          📌
-        </span>
-      )}
     </ListItemButton>
   )
 }

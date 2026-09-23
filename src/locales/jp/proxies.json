@@ -24,8 +24,7 @@
       "select": "Select Rules"
     },
     "labels": {
-      "proxyCount": "ノード数",
-      "delayCheckReset": "遅延テストを実行して固定を解除する"
+      "proxyCount": "ノード数"
     },
     "tooltips": {
       "locate": "選択中のノードへ",

@@ -541,7 +541,6 @@ export interface TranslationResources {
           warning: string
         }
         labels: {
-          delayCheckReset: string
           proxyCount: string
         }
         messages: {

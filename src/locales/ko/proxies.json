@@ -24,8 +24,7 @@
       "select": "규칙 선택"
     },
     "labels": {
-      "proxyCount": "프록시 개수",
-      "delayCheckReset": "고정 취소를 위한 지연 확인"
+      "proxyCount": "프록시 개수"
     },
     "tooltips": {
       "locate": "선택한 노드로 이동",

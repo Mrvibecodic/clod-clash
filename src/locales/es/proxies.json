@@ -24,8 +24,7 @@
       "select": "Select Rules"
     },
     "labels": {
-      "proxyCount": "Número de nodos",
-      "delayCheckReset": "Realizar prueba de latencia para cancelar la fijación"
+      "proxyCount": "Número de nodos"
     },
     "tooltips": {
       "locate": "Ir al nodo seleccionado",

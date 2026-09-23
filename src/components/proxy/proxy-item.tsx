@@ -55,11 +55,16 @@ export const ProxyItem = (props: Props) => {
       <ListItemButton
         dense
         selected={selected}
+        disableRipple={!onClick}
         onClick={() => onClick?.(proxy.name)}
         sx={[
           { borderRadius: 1 },
           ({ palette: { mode, primary, background } }) => {
             const bgcolor = background.paper
+            const selectedBg =
+              mode === 'light'
+                ? alpha(primary.main, 0.15)
+                : alpha(primary.main, 0.35)
             const selectColor = mode === 'light' ? primary.main : primary.light
             const showDelay = delayValue >= 0
 
@@ -71,11 +76,13 @@ export const ProxyItem = (props: Props) => {
                 width: `calc(100% + 3px)`,
                 marginLeft: `-3px`,
                 borderLeft: `3px solid ${selectColor}`,
-                bgcolor:
-                  mode === 'light'
-                    ? alpha(primary.main, 0.15)
-                    : alpha(primary.main, 0.35),
+                bgcolor: selectedBg,
               },
+              ...(!onClick && {
+                cursor: 'default',
+                '&:hover': { backgroundColor: bgcolor },
+                '&.Mui-selected:hover': { bgcolor: selectedBg },
+              }),
               backgroundColor: bgcolor,
               marginBottom: '8px',
               height: '40px',

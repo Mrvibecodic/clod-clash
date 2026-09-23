@@ -24,8 +24,7 @@
       "select": "Select Rules"
     },
     "labels": {
-      "proxyCount": "Proxy Count",
-      "delayCheckReset": "Delay check to cancel fixed"
+      "proxyCount": "Proxy Count"
     },
     "tooltips": {
       "locate": "Go to selected node",

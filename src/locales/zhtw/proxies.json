@@ -24,8 +24,7 @@
       "select": "選擇規則"
     },
     "labels": {
-      "proxyCount": "節點數量",
-      "delayCheckReset": "測試延遲以取消固定"
+      "proxyCount": "節點數量"
     },
     "tooltips": {
       "locate": "定位到所選節點",

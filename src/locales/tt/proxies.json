@@ -24,8 +24,7 @@
       "select": "Select Rules"
     },
     "labels": {
-      "proxyCount": "Proxy Count",
-      "delayCheckReset": "Беркетелгәнне гамәлдән чыгару өчен задержканы тикшерү"
+      "proxyCount": "Proxy Count"
     },
     "tooltips": {
       "locate": "Сайланган төенгә",

@@ -24,8 +24,7 @@
       "select": "Select Rules"
     },
     "labels": {
-      "proxyCount": "Proxy Count",
-      "delayCheckReset": "فحص التأخير لإلغاء الثابت"
+      "proxyCount": "Proxy Count"
     },
     "tooltips": {
       "locate": "الانتقال إلى العقدة المحددة",

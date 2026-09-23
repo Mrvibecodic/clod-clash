@@ -24,8 +24,7 @@
       "select": "Select Rules"
     },
     "labels": {
-      "proxyCount": "Vekil Sayısı",
-      "delayCheckReset": "Sabit iptali için gecikme kontrolü"
+      "proxyCount": "Vekil Sayısı"
     },
     "tooltips": {
       "locate": "Seçili düğüme git",

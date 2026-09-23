@@ -239,13 +239,26 @@ export const ServerSelect = ({ open, onClose }: Props) => {
       <ListItemButton
         key={node.name}
         selected={selected}
+        disableRipple={!canSelect}
         onClick={() => void select(node.name)}
-        sx={{
-          borderRadius: SHAPE.control,
-          height: ROW_HEIGHT,
-          gap: 1.25,
-          cursor: canSelect ? 'pointer' : 'default',
-        }}
+        sx={[
+          {
+            borderRadius: SHAPE.control,
+            height: ROW_HEIGHT,
+            gap: 1.25,
+          },
+          !canSelect &&
+            (({ palette }) => ({
+              cursor: 'default',
+              '&:hover': { backgroundColor: 'transparent' },
+              '&.Mui-selected:hover': {
+                backgroundColor: alpha(
+                  palette.primary.main,
+                  palette.action.selectedOpacity,
+                ),
+              },
+            })),
+        ]}
       >
         {isGroup ? (
           <Box
