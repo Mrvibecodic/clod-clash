@@ -25,7 +25,7 @@
     "copySupportBundle": "Скопировать логи для поддержки"
   },
   "labels": {
-    "updateAt": "Обновлено в",
+    "updateAt": "Обновлено",
     "timeout": "Тайм-аут",
     "readOnly": "Только для чтения",
     "expireTime": "Время окончания",
@@ -34,7 +34,7 @@
     "from": "От",
     "password": "Пароль",
     "downloaded": "Скачано",
-    "uploaded": "Загружено"
+    "uploaded": "Отдано"
   },
   "statuses": {
     "enabled": "Включено",
@@ -43,11 +43,11 @@
     "empty": "Пусто"
   },
   "units": {
-    "milliseconds": "миллисекунды",
-    "seconds": "секунды",
-    "minutes": "минуты",
-    "hours": "часы",
-    "kilobytes": "КБ",
+    "milliseconds": "мс",
+    "seconds": "с",
+    "minutes": "мин",
+    "hours": "ч",
+    "kilobytes": "KB",
     "files": "Файлы"
   },
   "placeholders": {

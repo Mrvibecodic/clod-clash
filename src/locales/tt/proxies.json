@@ -10,7 +10,8 @@
       "connect": "Connect",
       "disconnect": "Disconnect",
       "connecting": "Connecting...",
-      "clearChainConfig": "Delete Chain Config"
+      "clearChainConfig": "Delete Chain Config",
+      "check": "Check"
     },
     "provider": {
       "title": "Прокси провайдеры",
@@ -24,7 +25,9 @@
       "select": "Select Rules"
     },
     "labels": {
-      "proxyCount": "Proxy Count"
+      "proxyCount": "Proxy Count",
+      "noProxies": "No Proxies",
+      "delayError": "Error"
     },
     "tooltips": {
       "locate": "Сайланган төенгә",
@@ -52,6 +55,7 @@
       "entryNode": "Кереш",
       "exitNode": "Чыгыш",
       "nodeCount": "{{count}} төен",
+      "nodeCount_one": "{{count}} төен",
       "noGroups": "Кулланырга ярарлык прокси төркемнәре юк"
     },
     "messages": {

@@ -51,7 +51,8 @@
   },
   "components": {
     "fileInput": {
-      "chooseFile": "Dosya Seç"
+      "chooseFile": "Dosya Seç",
+      "loading": "Loading..."
     },
     "menu": {
       "home": "Ana Sayfa",
@@ -98,7 +99,9 @@
         "expiring": "Expiring",
         "expired": "Expired",
         "trafficOut": "Out of traffic"
-      }
+      },
+      "localFile": "local file",
+      "untitled": "Subscription"
     },
     "hwidDialog": {
       "limitTitle": "Device limit reached",

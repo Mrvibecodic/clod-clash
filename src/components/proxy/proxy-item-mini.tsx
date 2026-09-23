@@ -1,5 +1,6 @@
 import { CheckCircleOutlineRounded } from '@mui/icons-material'
 import { alpha, Box, ListItemButton, styled, Typography } from '@mui/material'
+import { useTranslation } from 'react-i18next'
 
 import { BaseLoading } from '@/components/base'
 import { useProxyDelayState } from '@/hooks/use-proxy-delay-state'
@@ -29,6 +30,7 @@ export const ProxyItemMini = (props: Props) => {
     favorite,
     onToggleFavorite,
   } = props
+  const { t } = useTranslation()
 
   const { delayValue, isPreset, timeout, onDelay } = useProxyDelayState(
     proxy,
@@ -186,7 +188,7 @@ export const ProxyItemMini = (props: Props) => {
               ':hover': { bgcolor: alpha(palette.primary.main, 0.15) },
             })}
           >
-            Check
+            {t('proxies.page.actions.check')}
           </Widget>
         )}
 
@@ -204,7 +206,10 @@ export const ProxyItemMini = (props: Props) => {
               ':hover': { bgcolor: alpha(palette.primary.main, 0.15) },
             })}
           >
-            {delayManager.formatDelay(delayValue, timeout)}
+            {delayManager.formatDelay(delayValue, timeout, {
+              timeout: t('shared.labels.timeout'),
+              error: t('proxies.page.labels.delayError'),
+            })}
           </Widget>
         )}
         {proxy.type !== 'Direct' &&

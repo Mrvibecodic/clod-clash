@@ -137,7 +137,7 @@ export function LiteModeViewer({ ref }: { ref?: Ref<DialogRef> }) {
                 sx={{ fontStyle: 'italic' }}
               >
                 {t('settings.modals.liteMode.messages.autoEnterHint', {
-                  n: values.autoEnterLiteModeDelay,
+                  count: values.autoEnterLiteModeDelay,
                 })}
               </Typography>
             </ListItem>

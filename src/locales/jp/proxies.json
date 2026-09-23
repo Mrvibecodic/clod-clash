@@ -10,7 +10,8 @@
       "connect": "Connect",
       "disconnect": "Disconnect",
       "connecting": "Connecting...",
-      "clearChainConfig": "Delete Chain Config"
+      "clearChainConfig": "Delete Chain Config",
+      "check": "Check"
     },
     "provider": {
       "title": "プロキシプロバイダー",
@@ -24,7 +25,9 @@
       "select": "Select Rules"
     },
     "labels": {
-      "proxyCount": "ノード数"
+      "proxyCount": "ノード数",
+      "noProxies": "No Proxies",
+      "delayError": "Error"
     },
     "tooltips": {
       "locate": "選択中のノードへ",
@@ -52,6 +55,7 @@
       "entryNode": "入口",
       "exitNode": "出口",
       "nodeCount": "{{count}} ノード",
+      "nodeCount_one": "{{count}} ノード",
       "noGroups": "利用可能なプロキシグループがありません"
     },
     "messages": {

@@ -10,7 +10,8 @@
       "connect": "Connect",
       "disconnect": "Disconnect",
       "connecting": "Connecting...",
-      "clearChainConfig": "Delete Chain Config"
+      "clearChainConfig": "Delete Chain Config",
+      "check": "Check"
     },
     "provider": {
       "title": "Proveedor de proxies",
@@ -24,7 +25,9 @@
       "select": "Select Rules"
     },
     "labels": {
-      "proxyCount": "Número de nodos"
+      "proxyCount": "Número de nodos",
+      "noProxies": "No Proxies",
+      "delayError": "Error"
     },
     "tooltips": {
       "locate": "Ir al nodo seleccionado",
@@ -52,6 +55,7 @@
       "entryNode": "Entrada",
       "exitNode": "Salida",
       "nodeCount": "{{count}} nodos",
+      "nodeCount_one": "{{count}} nodos",
       "noGroups": "No hay grupos de proxy disponibles"
     },
     "messages": {

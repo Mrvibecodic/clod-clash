@@ -129,7 +129,13 @@ const ProfileItemBase = (props: ProfileItemProps) => {
     [itemData.uid, setLoadingCache],
   )
 
-  const { uid, name = 'Profile', extra, updated = 0, option } = itemData
+  const {
+    uid,
+    name = t('profiles.components.profileItem.untitled'),
+    extra,
+    updated = 0,
+    option,
+  } = itemData
   const [mountedAt] = useState(() => Date.now())
 
   const fetchNextUpdateTimeCallback = useCallback(
@@ -260,7 +266,8 @@ const ProfileItemBase = (props: ProfileItemProps) => {
   const hasHome = !!itemData.home
 
   const { upload = 0, download = 0, total = 0 } = extra ?? {}
-  const from = parseUrl(itemData.url)
+  const from =
+    parseUrl(itemData.url) ?? t('profiles.components.profileItem.localFile')
   const description = itemData.desc
   const unlimitedTraffic = total === 0
   const neverExpires = !extra?.expire
@@ -1146,11 +1153,11 @@ function parseUrl(url?: string) {
   try {
     const parsed = new URL(url)
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-      return 'local file'
+      return null
     }
     return parsed.host
   } catch {
-    return 'local file'
+    return null
   }
 }
 

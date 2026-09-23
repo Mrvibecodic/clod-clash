@@ -381,7 +381,8 @@
         "delay": "自動的に軽量モードに入るまでの遅延時間"
       },
       "messages": {
-        "autoEnterHint": "ウィンドウを閉じると、{{n}}分後に自動的に軽量モードが有効になります。"
+        "autoEnterHint": "ウィンドウを閉じると、{{count}}分後に自動的に軽量モードが有効になります。",
+        "autoEnterHint_one": "ウィンドウを閉じると、{{count}}分後に自動的に軽量モードが有効になります。"
       }
     },
     "backup": {
@@ -439,6 +440,7 @@
       "history": {
         "title": "Backup history",
         "summary": "{{count}} backups • latest {{recent}}",
+        "summary_one": "{{count}} backups • latest {{recent}}",
         "empty": "No backups available",
         "webdavFailed": "WebDAV サーバーが応答しませんでした。更新ボタンを押して再試行してください",
         "unknownPlatform": "unknown",

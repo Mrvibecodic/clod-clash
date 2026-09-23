@@ -51,7 +51,8 @@
   },
   "components": {
     "fileInput": {
-      "chooseFile": "Файл сайлау"
+      "chooseFile": "Файл сайлау",
+      "loading": "Loading..."
     },
     "menu": {
       "home": "Home",
@@ -98,7 +99,9 @@
         "expiring": "Expiring",
         "expired": "Expired",
         "trafficOut": "Out of traffic"
-      }
+      },
+      "localFile": "local file",
+      "untitled": "Subscription"
     },
     "hwidDialog": {
       "limitTitle": "Device limit reached",

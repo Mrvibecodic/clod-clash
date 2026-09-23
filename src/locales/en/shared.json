@@ -25,7 +25,7 @@
     "copySupportBundle": "Copy logs for support"
   },
   "labels": {
-    "updateAt": "Update At",
+    "updateAt": "Updated",
     "timeout": "Timeout",
     "readOnly": "ReadOnly",
     "expireTime": "Expire Time",

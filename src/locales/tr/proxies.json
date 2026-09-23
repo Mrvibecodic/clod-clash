@@ -10,7 +10,8 @@
       "connect": "Connect",
       "disconnect": "Disconnect",
       "connecting": "Connecting...",
-      "clearChainConfig": "Delete Chain Config"
+      "clearChainConfig": "Delete Chain Config",
+      "check": "Check"
     },
     "provider": {
       "title": "Vekil Sağlayıcısı",
@@ -24,7 +25,9 @@
       "select": "Select Rules"
     },
     "labels": {
-      "proxyCount": "Vekil Sayısı"
+      "proxyCount": "Vekil Sayısı",
+      "noProxies": "No Proxies",
+      "delayError": "Error"
     },
     "tooltips": {
       "locate": "Seçili düğüme git",
@@ -52,6 +55,7 @@
       "entryNode": "Giriş",
       "exitNode": "Çıkış",
       "nodeCount": "{{count}} düğüm",
+      "nodeCount_one": "{{count}} düğüm",
       "noGroups": "Kullanılabilir proxy grubu yok"
     },
     "messages": {

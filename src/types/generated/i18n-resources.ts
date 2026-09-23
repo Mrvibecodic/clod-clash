@@ -260,6 +260,7 @@ export interface TranslationResources {
       components: {
         fileInput: {
           chooseFile: string
+          loading: string
         }
         hwidDialog: {
           enable: string
@@ -303,6 +304,7 @@ export interface TranslationResources {
             notApplied: string
             unlimited: string
           }
+          localFile: string
           status: {
             autoUpdateDisabled: string
             hwidLimit: string
@@ -318,6 +320,7 @@ export interface TranslationResources {
             showLast: string
             showNext: string
           }
+          untitled: string
         }
       }
       modals: {
@@ -518,6 +521,7 @@ export interface TranslationResources {
       }
       page: {
         actions: {
+          check: string
           clearChainConfig: string
           connect: string
           connecting: string
@@ -535,10 +539,13 @@ export interface TranslationResources {
           minimumNodes: string
           minimumNodesHint: string
           nodeCount: string
+          nodeCount_one: string
           noGroups: string
           warning: string
         }
         labels: {
+          delayError: string
+          noProxies: string
           proxyCount: string
         }
         messages: {
@@ -846,6 +853,7 @@ export interface TranslationResources {
           history: {
             empty: string
             summary: string
+            summary_one: string
             title: string
             unknownPlatform: string
             unknownTime: string
@@ -1034,6 +1042,7 @@ export interface TranslationResources {
           }
           messages: {
             autoEnterHint: string
+            autoEnterHint_one: string
           }
           title: string
           toggles: {

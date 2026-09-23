@@ -51,7 +51,8 @@
   },
   "components": {
     "fileInput": {
-      "chooseFile": "选择文件"
+      "chooseFile": "选择文件",
+      "loading": "Loading..."
     },
     "menu": {
       "home": "首 页",
@@ -98,7 +99,9 @@
         "expiring": "Expiring",
         "expired": "Expired",
         "trafficOut": "Out of traffic"
-      }
+      },
+      "localFile": "local file",
+      "untitled": "Subscription"
     },
     "hwidDialog": {
       "limitTitle": "Device limit reached",

@@ -381,7 +381,8 @@
         "delay": "Auto Enter LightWeight Mode Delay"
       },
       "messages": {
-        "autoEnterHint": "When closing the window, LightWeight Mode will be automatically activated after {{n}} minutes"
+        "autoEnterHint": "When closing the window, LightWeight Mode will be automatically activated after {{count}} minutes",
+        "autoEnterHint_one": "When closing the window, LightWeight Mode will be automatically activated after {{count}} minutes"
       }
     },
     "backup": {
@@ -439,6 +440,7 @@
       "history": {
         "title": "Backup history",
         "summary": "{{count}} backups • latest {{recent}}",
+        "summary_one": "{{count}} backups • latest {{recent}}",
         "empty": "No backups available",
         "webdavFailed": "لم يستجب خادم WebDAV. اضغط زر التحديث لإعادة المحاولة",
         "unknownPlatform": "unknown",

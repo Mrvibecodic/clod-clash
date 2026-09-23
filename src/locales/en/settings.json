@@ -15,8 +15,8 @@
         "dnsOverride": "macOS only: while the tunnel is up in fake-ip mode (the default; the override is not turned on under redir-host from the subscription) the system resolver is switched to a public one, so queries the system sends past the interface still go through the tunnel. Turn it off and part of them will go outside the tunnel."
       },
       "fields": {
-        "autoLaunch": "Auto Launch",
-        "silentStart": "Silent Start",
+        "autoLaunch": "Start with the system",
+        "silentStart": "Start minimized",
         "connectOnLaunch": "Connect on launch",
         "dnsOverride": "Override system DNS"
       },
@@ -238,7 +238,7 @@
         }
       },
       "advanced": {
-        "title": "Advanced",
+        "title": "Maintenance",
         "tooltips": {
           "backupInfo": "Support local or WebDAV backup of configuration files",
           "openConfDir": "If the software runs abnormally, BACKUP and delete all files in this folder then restart the software",
@@ -381,7 +381,8 @@
         "delay": "Auto Enter LightWeight Mode Delay"
       },
       "messages": {
-        "autoEnterHint": "When closing the window, LightWeight Mode will be automatically activated after {{n}} minutes"
+        "autoEnterHint": "When closing the window, LightWeight Mode will be automatically activated after {{count}} minutes",
+        "autoEnterHint_one": "When closing the window, LightWeight Mode will be automatically activated after {{count}} minute"
       }
     },
     "backup": {
@@ -439,6 +440,7 @@
       "history": {
         "title": "Backup history",
         "summary": "{{count}} backups • latest {{recent}}",
+        "summary_one": "{{count}} backup • latest {{recent}}",
         "empty": "No backups available",
         "webdavFailed": "The WebDAV server did not respond. Press the refresh button to retry",
         "unknownPlatform": "unknown",
@@ -660,7 +662,7 @@
         "toggleTunMode": "Enable/Disable Tun Mode",
         "entryLightweightMode": "Entry Lightweight Mode",
         "direct": "Direct Mode",
-        "reactivateProfiles": "Reactivate Profiles"
+        "reactivateProfiles": "Reapply Subscription"
       },
       "messages": {
         "duplicate": "Shortcut {{keys}} for \"{{func}}\" is already assigned to \"{{other}}\""

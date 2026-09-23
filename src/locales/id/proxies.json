@@ -10,7 +10,8 @@
       "connect": "Connect",
       "disconnect": "Disconnect",
       "connecting": "Connecting...",
-      "clearChainConfig": "Delete Chain Config"
+      "clearChainConfig": "Delete Chain Config",
+      "check": "Check"
     },
     "provider": {
       "title": "Penyedia Proksi",
@@ -24,7 +25,9 @@
       "select": "Select Rules"
     },
     "labels": {
-      "proxyCount": "Proxy Count"
+      "proxyCount": "Proxy Count",
+      "noProxies": "No Proxies",
+      "delayError": "Error"
     },
     "tooltips": {
       "locate": "Ke node terpilih",
@@ -52,6 +55,7 @@
       "entryNode": "Masuk",
       "exitNode": "Keluar",
       "nodeCount": "{{count}} node",
+      "nodeCount_one": "{{count}} node",
       "noGroups": "Tidak ada grup proxy yang tersedia"
     },
     "messages": {

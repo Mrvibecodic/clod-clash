@@ -381,7 +381,8 @@
         "delay": "Retraso para entrar automáticamente en modo ligero"
       },
       "messages": {
-        "autoEnterHint": "Después de cerrar la ventana, el modo ligero se activará automáticamente después de {{n}} minutos"
+        "autoEnterHint": "Después de cerrar la ventana, el modo ligero se activará automáticamente después de {{count}} minutos",
+        "autoEnterHint_one": "Después de cerrar la ventana, el modo ligero se activará automáticamente después de {{count}} minutos"
       }
     },
     "backup": {
@@ -439,6 +440,7 @@
       "history": {
         "title": "Backup history",
         "summary": "{{count}} backups • latest {{recent}}",
+        "summary_one": "{{count}} backups • latest {{recent}}",
         "empty": "No backups available",
         "webdavFailed": "El servidor WebDAV no respondió. Pulse el botón de actualizar para reintentar",
         "unknownPlatform": "unknown",

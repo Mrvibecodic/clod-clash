@@ -381,7 +381,8 @@
         "delay": "Otomatik Hafif Mod Giriş Gecikmesi"
       },
       "messages": {
-        "autoEnterHint": "Pencere kapatıldığında, Hafif Mod {{n}} dakika sonra otomatik olarak etkinleştirilecek"
+        "autoEnterHint": "Pencere kapatıldığında, Hafif Mod {{count}} dakika sonra otomatik olarak etkinleştirilecek",
+        "autoEnterHint_one": "Pencere kapatıldığında, Hafif Mod {{count}} dakika sonra otomatik olarak etkinleştirilecek"
       }
     },
     "backup": {
@@ -439,6 +440,7 @@
       "history": {
         "title": "Backup history",
         "summary": "{{count}} backups • latest {{recent}}",
+        "summary_one": "{{count}} backups • latest {{recent}}",
         "empty": "No backups available",
         "webdavFailed": "WebDAV sunucusu yanıt vermedi. Yeniden denemek için yenile düğmesine basın",
         "unknownPlatform": "unknown",

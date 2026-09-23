@@ -10,7 +10,8 @@
       "connect": "连接",
       "disconnect": "断开",
       "connecting": "连接中...",
-      "clearChainConfig": "删除链式配置"
+      "clearChainConfig": "删除链式配置",
+      "check": "Check"
     },
     "provider": {
       "title": "代理集合",
@@ -24,7 +25,9 @@
       "select": "选择规则"
     },
     "labels": {
-      "proxyCount": "节点数量"
+      "proxyCount": "节点数量",
+      "noProxies": "No Proxies",
+      "delayError": "Error"
     },
     "tooltips": {
       "locate": "定位到所选节点",
@@ -52,6 +55,7 @@
       "entryNode": "入口",
       "exitNode": "出口",
       "nodeCount": "{{count}} 个节点",
+      "nodeCount_one": "{{count}} 个节点",
       "noGroups": "暂无可用代理组"
     },
     "messages": {

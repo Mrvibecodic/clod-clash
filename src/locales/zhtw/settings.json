@@ -381,7 +381,8 @@
         "delay": "自動進入輕量模式延遲"
       },
       "messages": {
-        "autoEnterHint": "關閉視窗後，輕量模式將在 {{n}} 分鐘後自動啟用"
+        "autoEnterHint": "關閉視窗後，輕量模式將在 {{count}} 分鐘後自動啟用",
+        "autoEnterHint_one": "關閉視窗後，輕量模式將在 {{count}} 分鐘後自動啟用"
       }
     },
     "backup": {
@@ -439,6 +440,7 @@
       "history": {
         "title": "備份紀錄",
         "summary": "共 {{count}} 份備份 · 最近 {{recent}}",
+        "summary_one": "共 {{count}} 份備份 · 最近 {{recent}}",
         "empty": "尚無備份紀錄",
         "webdavFailed": "WebDAV 伺服器未回應，請點擊重新整理按鈕重試",
         "unknownPlatform": "未知",

@@ -381,7 +381,8 @@
         "delay": "Verzögerung beim automatischen Wechsel in den Leichtgewichtigen Modus"
       },
       "messages": {
-        "autoEnterHint": "Nach dem Schließen des Fensters wird der Leichtgewichtige Modus automatisch nach {{n}} Minuten aktiviert."
+        "autoEnterHint": "Nach dem Schließen des Fensters wird der Leichtgewichtige Modus automatisch nach {{count}} Minuten aktiviert.",
+        "autoEnterHint_one": "Nach dem Schließen des Fensters wird der Leichtgewichtige Modus automatisch nach {{count}} Minuten aktiviert."
       }
     },
     "backup": {
@@ -439,6 +440,7 @@
       "history": {
         "title": "Backup history",
         "summary": "{{count}} backups • latest {{recent}}",
+        "summary_one": "{{count}} backups • latest {{recent}}",
         "empty": "No backups available",
         "webdavFailed": "Der WebDAV-Server hat nicht geantwortet. Zum Wiederholen auf Aktualisieren klicken",
         "unknownPlatform": "unknown",

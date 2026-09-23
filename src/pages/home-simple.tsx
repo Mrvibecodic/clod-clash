@@ -134,7 +134,7 @@ const HomeSimplePage = () => {
               disabled={!subUrl.trim()}
               onClick={() => void addSubscription()}
             >
-              {t('shared.actions.new')}
+              {t('shared.actions.add')}
             </Button>
           </Stack>
           <FormControlLabel

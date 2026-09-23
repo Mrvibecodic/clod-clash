@@ -10,7 +10,8 @@
       "connect": "Connect",
       "disconnect": "Disconnect",
       "connecting": "Connecting...",
-      "clearChainConfig": "Delete Chain Config"
+      "clearChainConfig": "Delete Chain Config",
+      "check": "Check"
     },
     "provider": {
       "title": "تأمین‌کننده پروکسی",
@@ -24,7 +25,9 @@
       "select": "Select Rules"
     },
     "labels": {
-      "proxyCount": "Proxy Count"
+      "proxyCount": "Proxy Count",
+      "noProxies": "No Proxies",
+      "delayError": "Error"
     },
     "tooltips": {
       "locate": "رفتن به گره انتخاب‌شده",
@@ -52,6 +55,7 @@
       "entryNode": "ورودی",
       "exitNode": "خروجی",
       "nodeCount": "{{count}} گره",
+      "nodeCount_one": "{{count}} گره",
       "noGroups": "هیچ گروه پراکسی موجود نیست"
     },
     "messages": {

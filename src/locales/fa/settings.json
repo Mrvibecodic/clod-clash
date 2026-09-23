@@ -381,7 +381,8 @@
         "delay": "تأخیر ورود خودکار به حالت LightWeight"
       },
       "messages": {
-        "autoEnterHint": "هنگام بستن پنجره، حالت LightWeight پس از {{n}} دقیقه به طور خودکار فعال می‌شود"
+        "autoEnterHint": "هنگام بستن پنجره، حالت LightWeight پس از {{count}} دقیقه به طور خودکار فعال می‌شود",
+        "autoEnterHint_one": "هنگام بستن پنجره، حالت LightWeight پس از {{count}} دقیقه به طور خودکار فعال می‌شود"
       }
     },
     "backup": {
@@ -439,6 +440,7 @@
       "history": {
         "title": "تاریخچه پشتیبان گیری",
         "summary": "{{count}} backups • latest {{recent}}",
+        "summary_one": "{{count}} backups • latest {{recent}}",
         "empty": "هیچ نسخه پشتیبان در دسترس نیست",
         "webdavFailed": "سرور WebDAV پاسخ نداد. برای تلاش دوباره دکمه تازه‌سازی را بزنید",
         "unknownPlatform": "unknown",

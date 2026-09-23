@@ -575,11 +575,15 @@ class DelayManager {
     )
   }
 
-  formatDelay(delay: number, timeout = 10000) {
+  formatDelay(
+    delay: number,
+    timeout: number,
+    labels: { timeout: string; error: string },
+  ) {
     if (delay === -1) return '-'
     if (delay === -2) return 'testing'
-    if (delay === 0 || (delay >= timeout && delay <= 1e5)) return 'Timeout'
-    if (delay > 1e5) return 'Error'
+    if (delay === 0 || (delay >= timeout && delay <= 1e5)) return labels.timeout
+    if (delay > 1e5) return labels.error
     return `${delay}`
   }
 

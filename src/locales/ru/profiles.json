@@ -44,19 +44,20 @@
         "emergencyRefreshFailed": "Экстренное обновление не удалось: {{message}}"
       }
     },
-    "title": "Профили",
+    "title": "Подписки",
     "groups": {
       "all": "Все"
     }
   },
   "components": {
     "fileInput": {
-      "chooseFile": "Выбрать файл"
+      "chooseFile": "Выбрать файл",
+      "loading": "Загрузка…"
     },
     "menu": {
       "home": "Главная",
       "select": "Выбрать",
-      "shareQrCode": "Share QR Code",
+      "shareQrCode": "Показать QR-код",
       "editInfo": "Изменить информацию",
       "editFile": "Изменить файл",
       "editRules": "Редактировать правила",
@@ -98,7 +99,9 @@
         "expiring": "Истекает",
         "expired": "Истекла",
         "trafficOut": "Трафик кончился"
-      }
+      },
+      "localFile": "локальный файл",
+      "untitled": "Подписка"
     },
     "hwidDialog": {
       "limitTitle": "Достигнут лимит устройств",
@@ -224,7 +227,7 @@
       "message": "Это действие необратимо"
     },
     "qrViewer": {
-      "title": "Subscription QR Code"
+      "title": "QR-код подписки"
     }
   }
 }

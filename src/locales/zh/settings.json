@@ -381,7 +381,8 @@
         "delay": "自动进入轻量模式延迟"
       },
       "messages": {
-        "autoEnterHint": "关闭窗口后，轻量模式将在 {{n}} 分钟后自动激活"
+        "autoEnterHint": "关闭窗口后，轻量模式将在 {{count}} 分钟后自动激活",
+        "autoEnterHint_one": "关闭窗口后，轻量模式将在 {{count}} 分钟后自动激活"
       }
     },
     "backup": {
@@ -439,6 +440,7 @@
       "history": {
         "title": "备份记录",
         "summary": "共 {{count}} 份备份 · 最近 {{recent}}",
+        "summary_one": "共 {{count}} 份备份 · 最近 {{recent}}",
         "empty": "暂无备份记录",
         "webdavFailed": "WebDAV 服务器未响应，请点击刷新按钮重试",
         "unknownPlatform": "未知",

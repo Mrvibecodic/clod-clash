@@ -51,7 +51,8 @@
   },
   "components": {
     "fileInput": {
-      "chooseFile": "Elegir archivo"
+      "chooseFile": "Elegir archivo",
+      "loading": "Loading..."
     },
     "menu": {
       "home": "Hogar",
@@ -98,7 +99,9 @@
         "expiring": "Expiring",
         "expired": "Expired",
         "trafficOut": "Out of traffic"
-      }
+      },
+      "localFile": "local file",
+      "untitled": "Subscription"
     },
     "hwidDialog": {
       "limitTitle": "Device limit reached",

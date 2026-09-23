@@ -10,7 +10,8 @@
       "connect": "Connect",
       "disconnect": "Disconnect",
       "connecting": "Connecting...",
-      "clearChainConfig": "Delete Chain Config"
+      "clearChainConfig": "Delete Chain Config",
+      "check": "Check"
     },
     "provider": {
       "title": "مزود الوكيل",
@@ -24,7 +25,9 @@
       "select": "Select Rules"
     },
     "labels": {
-      "proxyCount": "Proxy Count"
+      "proxyCount": "Proxy Count",
+      "noProxies": "No Proxies",
+      "delayError": "Error"
     },
     "tooltips": {
       "locate": "الانتقال إلى العقدة المحددة",
@@ -52,6 +55,7 @@
       "entryNode": "مدخل",
       "exitNode": "مخرج",
       "nodeCount": "{{count}} عقدة",
+      "nodeCount_one": "{{count}} عقدة",
       "noGroups": "لا توجد مجموعات بروكسي متاحة"
     },
     "messages": {
