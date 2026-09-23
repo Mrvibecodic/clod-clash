@@ -4,6 +4,7 @@ import { Box, ButtonBase, Tooltip } from '@mui/material'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
+import { useRuntimeConfig } from '@/hooks/use-clash'
 import { useConnectTargets } from '@/hooks/use-connect-targets'
 import { useClashConfigData } from '@/providers/app-data-context'
 
@@ -35,9 +36,11 @@ export const ModeStatus = ({ locked, showTargets = true }: Props) => {
   const { clashConfig } = useClashConfigData()
   const { targetSys, targetTun } = useConnectTargets()
 
-  const clashMode = clashConfig?.mode?.toLowerCase()
+  const { data: runtime } = useRuntimeConfig(!clashConfig)
+
+  const clashMode = (clashConfig ?? runtime)?.mode?.toLowerCase()
   const modeLabel =
-    clashMode === 'global' || clashMode === 'direct' || clashMode === 'rule'
+    clashMode === 'global' || clashMode === 'direct'
       ? t(`home.components.clashMode.labels.${clashMode}`)
       : t('home.components.clashMode.labels.rule')
 

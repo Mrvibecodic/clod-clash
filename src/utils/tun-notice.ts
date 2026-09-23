@@ -1,4 +1,8 @@
+import type { useTranslation } from 'react-i18next'
+
 import type { TranslationKey } from '@/types/generated/i18n-keys'
+
+import { explainErrorKey, trimRawError } from './error-explanation.ts'
 
 const SETUP_MARKERS: Record<string, TranslationKey> = {
   'tun::setup_pending':
@@ -42,3 +46,18 @@ export const tunFailureKey = (
   failure?: string | null,
 ): TranslationKey | undefined =>
   failure ? FAILURE_REASONS[failure] : undefined
+
+type Translate = ReturnType<typeof useTranslation>['t']
+
+export const connectFailureText = (error: unknown, t: Translate): string => {
+  const key = tunSetupKey(error)
+  if (key) return t(key)
+  const raw = error instanceof Error ? error.message : String(error)
+  const explained = explainErrorKey(raw)
+  return explained
+    ? t('shared.feedback.notices.explained', {
+        prefix: t(explained as TranslationKey),
+        message: trimRawError(raw),
+      })
+    : raw
+}

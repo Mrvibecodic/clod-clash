@@ -48,7 +48,7 @@ export const clockSkew = (profile?: IProfileItem): number | undefined => {
 }
 
 /** Сейчас по часам панели, в unix-секундах. */
-export const panelNow = (profile?: IProfileItem) =>
+const panelNow = (profile?: IProfileItem) =>
   Date.now() / 1000 + (clockSkew(profile) ?? 0)
 
 export const noServersReason = (profile?: IProfileItem): NoServersReason => {

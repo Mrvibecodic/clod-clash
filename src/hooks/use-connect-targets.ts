@@ -6,7 +6,7 @@ import { useSystemProxyState } from '@/hooks/use-system-proxy-state'
 import { useSystemState } from '@/hooks/use-system-state'
 import { useTunState } from '@/hooks/use-tun-state'
 import { useVerge } from '@/hooks/use-verge'
-import { ensureTunReady } from '@/services/cmds'
+import { ensureTunReady, getRunningMode, restartCore } from '@/services/cmds'
 
 /**
  * clod:connect-mode — что просит поднимать провайдер (`clod-connect-mode`).
@@ -47,7 +47,7 @@ const providerTargets = (
 export const useConnectTargets = () => {
   const { t } = useTranslation()
   const { verge, patchVerge } = useVerge()
-  const { mutateSystemState } = useSystemState()
+  const { mutateSystemState, isCoreDown } = useSystemState()
   const { indicator: sysproxyOn, toggleSystemProxy } = useSystemProxyState()
   // clod: факт, а не желание. `enable_tun_mode` — это то, чего хочет
   // пользователь; бэкенд же может подавить TUN на сессию (ядро не смогло
@@ -101,6 +101,7 @@ export const useConnectTargets = () => {
   ])
 
   const connected =
+    !isCoreDown &&
     (!targetSys || sysproxyOn) &&
     (!targetTun || tunActive) &&
     (targetSys || targetTun)
@@ -121,15 +122,27 @@ export const useConnectTargets = () => {
   // снимает подавление, и это единственная попытка починиться самой кнопкой.
   const tunStuck = targetTun && tunDesired && !tunActive
   const somethingUp = (targetSys && sysproxyOn) || (targetTun && tunActive)
-  const willConnect = connected ? false : !(tunStuck && somethingUp)
+  const willConnect = connected
+    ? false
+    : !((tunStuck || isCoreDown) && somethingUp)
 
   const toggleConnection = useCallback(async () => {
     const next = willConnect
+    let tun = { active: tunActive, capable: tunCapable }
+
+    if (next && isCoreDown) {
+      if ((await getRunningMode()) === 'NotRunning') await restartCore()
+      const [, fresh] = await Promise.all([
+        mutateSystemState(),
+        mutateTunState(),
+      ])
+      if (fresh.data) tun = fresh.data
+    }
 
     // clod:tun-ready — TUN нужна фоновая служба. Раньше кнопка просто ругалась
     // «установите её сами»; теперь ставим (один запрос прав) и продолжаем, а
     // ошибка остаётся только для случая, когда пользователь отказал.
-    if (next && targetTun && !tunCapable && !tunActive) {
+    if (next && targetTun && !tun.capable && !tun.active) {
       const ready = await ensureTunReady()
       await Promise.all([mutateSystemState(), mutateTunState()])
       if (!ready) {
@@ -140,7 +153,7 @@ export const useConnectTargets = () => {
     // Включаем — пока туннеля НЕТ (даже если в конфиге он уже «включён»:
     // повторная запись снимает сессионное подавление, переводит ядро на службу
     // и заново проверяет факт). Выключаем — пока он в конфиге есть.
-    if (targetTun && (next ? !tunActive : tunDesired)) {
+    if (targetTun && (next ? !tun.active : tunDesired)) {
       await patchVerge({ enable_tun_mode: next })
       await mutateTunState()
     }
@@ -149,6 +162,7 @@ export const useConnectTargets = () => {
     }
   }, [
     willConnect,
+    isCoreDown,
     targetSys,
     targetTun,
     tunActive,

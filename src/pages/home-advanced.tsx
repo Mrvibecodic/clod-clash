@@ -37,7 +37,7 @@ import { useFitWindowToContent } from '@/hooks/use-window-fit'
 import { CARD_SURFACE, SHAPE, TINT } from '@/pages/_theme'
 import { updateProfile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
-import { tunSetupKey } from '@/utils/tun-notice'
+import { connectFailureText } from '@/utils/tun-notice'
 
 import HomeSimplePage from './home-simple'
 
@@ -160,15 +160,7 @@ const HomeAdvancedPage = () => {
     try {
       await toggleConnection()
     } catch (error) {
-      const key = tunSetupKey(error)
-      setFailure({
-        text: key
-          ? t(key)
-          : error instanceof Error
-            ? error.message
-            : String(error),
-        at: connected,
-      })
+      setFailure({ text: connectFailureText(error, t), at: connected })
     } finally {
       setBusy(false)
       setIntent(undefined)
@@ -256,7 +248,7 @@ const HomeAdvancedPage = () => {
             size="small"
             color="inherit"
             sx={{ color: 'text.secondary' }}
-            onClick={() => setSimpleMode(true)}
+            onClick={() => setSimpleMode(true).catch(showNotice.error)}
           >
             {t('home.pages.advanced.toSimple')}
           </Button>

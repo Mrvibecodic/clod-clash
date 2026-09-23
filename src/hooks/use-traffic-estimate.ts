@@ -82,11 +82,12 @@ export const useTrafficEstimate = (profile?: IProfileItem) => {
     if (!uid) return
     const now = Date.now()
     if (refreshing || now - lastRefreshRef.current < REFRESH_COOLDOWN_MS) return
-    lastRefreshRef.current = now
     setRefreshing(true)
     try {
       await updateProfile(uid)
+      lastRefreshRef.current = now
       await mutateProfiles()
+      showNotice.success('home.components.subscription.updated')
     } catch (error) {
       showNotice.error(error)
     } finally {

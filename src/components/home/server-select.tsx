@@ -636,13 +636,16 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
   const pingKey = current
     ? `${group?.name ?? ''}::${current}::${leaf ?? ''}`
     : ''
+  const pingFailed = failedDelay(delay)
   useEffect(() => {
-    if (!usableDelay(delay)) return
-    lastKnownPing = { key: pingKey, delay }
+    if (usableDelay(delay)) lastKnownPing = { key: pingKey, delay }
+    else if (failedDelay(delay) && lastKnownPing?.key === pingKey) {
+      lastKnownPing = undefined
+    }
   }, [pingKey, delay])
   const remembered =
     lastKnownPing?.key === pingKey ? lastKnownPing.delay : undefined
-  const shownDelay = hasPing ? delay : remembered
+  const shownDelay = hasPing || pingFailed ? delay : remembered
 
   const groupName = group?.name
   const updatedAt = currentProfile?.updated ?? 0

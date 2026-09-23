@@ -3,7 +3,7 @@ import MinimizeRoundedIcon from '@mui/icons-material/MinimizeRounded'
 import PlayCircleRoundedIcon from '@mui/icons-material/PlayCircleRounded'
 import PublicRoundedIcon from '@mui/icons-material/PublicRounded'
 import SecurityRoundedIcon from '@mui/icons-material/SecurityRounded'
-import { alpha, Box, Stack, Typography } from '@mui/material'
+import { alpha, Box, CircularProgress, Stack, Typography } from '@mui/material'
 import { useLockFn } from 'ahooks'
 import { type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -30,10 +30,11 @@ interface RowProps {
   icon: ReactNode
   checked: boolean
   disabled?: boolean
+  busy?: boolean
   onToggle: (next: boolean) => void
 }
 
-const Row = ({ label, icon, checked, disabled, onToggle }: RowProps) => (
+const Row = ({ label, icon, checked, disabled, busy, onToggle }: RowProps) => (
   <Stack
     direction="row"
     sx={(theme) => ({
@@ -68,9 +69,10 @@ const Row = ({ label, icon, checked, disabled, onToggle }: RowProps) => (
     <Typography sx={{ flex: 1, minWidth: 0, fontSize: 13.5 }} noWrap>
       {label}
     </Typography>
+    {busy ? <CircularProgress size={14} thickness={5} /> : null}
     <Switch
       checked={checked}
-      disabled={disabled}
+      disabled={disabled || busy}
       slotProps={{ input: { 'aria-label': label } }}
       onChange={(_event, next) => onToggle(next)}
     />
@@ -96,12 +98,17 @@ const GroupCap = ({ label }: { label: string }) => (
 export const QuickActions = () => {
   const { t } = useTranslation()
   const { verge, mutateVerge, patchVerge } = useVerge()
-  const { indicator: sysproxyOn, toggleSystemProxy } = useSystemProxyState()
+  const {
+    indicator: sysproxyOn,
+    busy: sysproxyBusy,
+    toggleSystemProxy,
+  } = useSystemProxyState()
   const { mutateSystemState } = useSystemState()
   const { targetSys, targetTun, targetsLocked } = useConnectTargets()
   const rememberTarget = useRememberTargets()
   const { tunActive, tunCapable, mutateTunState } = useTunState()
   const [installing, setInstalling] = useState(false)
+  const [tunBusy, setTunBusy] = useState(false)
 
   const toggleSysproxy = useLockFn(async (next: boolean) => {
     try {
@@ -113,6 +120,7 @@ export const QuickActions = () => {
   })
 
   const toggleTun = useLockFn(async (next: boolean) => {
+    setTunBusy(true)
     try {
       if (next && !tunCapable) {
         setInstalling(true)
@@ -133,6 +141,7 @@ export const QuickActions = () => {
       mutateVerge()
     } finally {
       await mutateTunState()
+      setTunBusy(false)
     }
   })
 
@@ -181,6 +190,7 @@ export const QuickActions = () => {
             label={t('home.components.quickActions.sysproxy')}
             icon={<PublicRoundedIcon />}
             checked={sysproxyOn}
+            busy={sysproxyBusy}
             onToggle={(next) => void toggleSysproxy(next)}
           />
           <Row
@@ -191,7 +201,7 @@ export const QuickActions = () => {
             }
             icon={<SecurityRoundedIcon />}
             checked={tunActive}
-            disabled={installing}
+            busy={installing || tunBusy}
             onToggle={(next) => void toggleTun(next)}
           />
           <TunStatus />

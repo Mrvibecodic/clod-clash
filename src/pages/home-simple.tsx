@@ -32,7 +32,7 @@ import { useSimpleMode } from '@/hooks/use-simple-mode'
 import { useFitWindowToContent } from '@/hooks/use-window-fit'
 import { createProfile, enhanceProfiles, importProfile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
-import { tunSetupKey } from '@/utils/tun-notice'
+import { connectFailureText } from '@/utils/tun-notice'
 
 const HomeSimplePage = () => {
   const { t } = useTranslation()
@@ -44,7 +44,7 @@ const HomeSimplePage = () => {
     mutateProfiles,
   } = useProfiles()
   const { connected, willConnect, toggleConnection } = useConnectTargets()
-  const { setSimpleMode } = useSimpleMode()
+  const { simpleMode, setSimpleMode } = useSimpleMode()
   const { fitRef, compact } = useFitWindowToContent()
 
   const [busy, setBusy] = useState(false)
@@ -71,15 +71,7 @@ const HomeSimplePage = () => {
     try {
       await toggleConnection()
     } catch (error) {
-      const key = tunSetupKey(error)
-      setFailure({
-        text: key
-          ? t(key)
-          : error instanceof Error
-            ? error.message
-            : String(error),
-        at: connected,
-      })
+      setFailure({ text: connectFailureText(error, t), at: connected })
     } finally {
       setBusy(false)
       setIntent(undefined)
@@ -97,7 +89,7 @@ const HomeSimplePage = () => {
         console.error('[import] enhance after import failed:', error)
       }
     }
-    const option = subSecure ? { with_proxy: true, secure: true } : undefined
+    const option = subSecure ? { secure: true } : undefined
     try {
       await importProfile(url, option)
       await activate()
@@ -182,9 +174,13 @@ const HomeSimplePage = () => {
             size="small"
             color="inherit"
             sx={{ color: 'text.secondary' }}
-            onClick={() => void setSimpleMode(false)}
+            onClick={() => setSimpleMode(!simpleMode).catch(showNotice.error)}
           >
-            {t('home.pages.simple.toAdvanced')}
+            {t(
+              simpleMode
+                ? 'home.pages.simple.toAdvanced'
+                : 'home.pages.advanced.toSimple',
+            )}
           </Button>
         </Stack>
       </Stack>
@@ -250,7 +246,7 @@ const HomeSimplePage = () => {
             size="small"
             color="inherit"
             sx={{ color: 'text.secondary' }}
-            onClick={() => void setSimpleMode(false)}
+            onClick={() => setSimpleMode(false).catch(showNotice.error)}
           >
             {t('home.pages.simple.toAdvanced')}
           </Button>

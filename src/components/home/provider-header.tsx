@@ -8,15 +8,16 @@ import {
   Typography,
 } from '@mui/material'
 import { useLockFn } from 'ahooks'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import useSWR from 'swr'
 
+import { useExpiryCountdown } from '@/hooks/use-expiry-countdown'
 import { useProfiles } from '@/hooks/use-profiles'
 import { getProfileLogo, updateProfile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
-import { panelNow, toUnixSeconds } from '@/utils/subscription-status'
+import { clockSkew, toUnixSeconds } from '@/utils/subscription-status'
 
 interface Props {
   profile: IProfileItem
@@ -94,13 +95,9 @@ export const ProviderHeader = ({ profile, showSettings }: Props) => {
   // хотели избежать. URL остаётся фолбэком только когда кэша нет совсем.
   const logo = logoLoading ? undefined : (cachedLogo ?? profile.logo)
 
-  // clod: сверяемся с часами панели, а не устройства — иначе шапка и карточка
-  // подписки под ней отвечают на один вопрос по-разному; см. `clockSkew`.
-  // Часы читаем не чаще раза на профиль (рендер должен оставаться чистым), но
-  // и не один раз навсегда: со сменой подписки меняется и поправка.
-  const now = useMemo(() => panelNow(profile), [profile])
-  const expired =
-    !!profile.extra?.expire && toUnixSeconds(profile.extra.expire) < now
+  const expire = toUnixSeconds(profile.extra?.expire ?? 0)
+  const countdown = useExpiryCountdown(expire, clockSkew(profile) ?? 0)
+  const expired = expire > 0 && countdown.secondsLeft <= 0
 
   return (
     <Stack direction="row" sx={{ alignItems: 'center', gap: 1.5 }}>

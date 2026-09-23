@@ -61,10 +61,7 @@ export async function saveProfileFile(index: string, fileData: string) {
 }
 
 export async function importProfile(url: string, option?: IProfileOption) {
-  return invoke<void>('import_profile', {
-    url,
-    option: option || { with_proxy: true },
-  })
+  return invoke<void>('import_profile', { url, option })
 }
 
 export async function reorderProfile(activeId: string, overId: string) {
