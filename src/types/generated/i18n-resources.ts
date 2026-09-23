@@ -530,7 +530,6 @@ export interface TranslationResources {
           connectFailed: string
           disconnectFailed: string
           duplicateNode: string
-          empty: string
           entryNode: string
           exitNode: string
           header: string

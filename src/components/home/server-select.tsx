@@ -40,7 +40,7 @@ import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
 import delayManager from '@/services/delay'
 import { showNotice } from '@/services/notice-service'
 import { nameWithoutFlag } from '@/utils/country'
-import { delayColor } from '@/utils/delay-color'
+import { delayBars, delayColor } from '@/utils/delay-color'
 import {
   AUTO_GROUP_TYPES,
   displayLeaf,
@@ -525,20 +525,6 @@ interface RowProps {
   onOpen: () => void
 }
 
-const latencyLevel = (delay?: number) =>
-  !usableDelay(delay)
-    ? 0
-    : delay < 120
-      ? 4
-      : delay < 250
-        ? 3
-        : delay < 500
-          ? 2
-          : 1
-
-const latencyColor = (level: number) =>
-  level === 0 ? 'divider' : level >= 3 ? 'success.main' : 'warning.main'
-
 const SignalDot = ({ delay }: { delay?: number }) => (
   <Box
     sx={{
@@ -546,7 +532,7 @@ const SignalDot = ({ delay }: { delay?: number }) => (
       height: 10,
       flex: 'none',
       borderRadius: '50%',
-      bgcolor: latencyColor(latencyLevel(delay)),
+      bgcolor: usableDelay(delay) ? delayColor(delay) : 'divider',
     }}
   />
 )
@@ -554,17 +540,15 @@ const SignalDot = ({ delay }: { delay?: number }) => (
 const LatencyNumber = ({ delay }: { delay?: number }) => (
   <Typography
     sx={{ fontSize: 12, flex: 'none', fontVariantNumeric: 'tabular-nums' }}
-    color={
-      usableDelay(delay) ? latencyColor(latencyLevel(delay)) : 'text.disabled'
-    }
+    color={usableDelay(delay) ? delayColor(delay) : 'text.disabled'}
   >
     {usableDelay(delay) ? `${delay} ms` : '—'}
   </Typography>
 )
 
 const SignalBars = ({ delay }: { delay?: number }) => {
-  const lit = latencyLevel(delay)
-  const color = (index: number) => (index < lit ? latencyColor(lit) : 'divider')
+  const lit = usableDelay(delay) ? delayBars(delay) : 0
+  const color = (index: number) => (index < lit ? delayColor(delay) : 'divider')
   return (
     <Box
       sx={{

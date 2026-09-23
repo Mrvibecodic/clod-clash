@@ -41,7 +41,7 @@ import {
   selectNodeForGroup,
 } from 'tauri-plugin-mihomo-api'
 
-import { TooltipIcon } from '@/components/base'
+import { BaseEmpty, TooltipIcon } from '@/components/base'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useVisibility } from '@/hooks/use-visibility'
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
@@ -58,6 +58,7 @@ import {
   saveProxyChain,
 } from '@/services/proxy-chain-store'
 import { debugLog } from '@/utils/debug'
+import { delayTone } from '@/utils/delay-color'
 
 interface ParsedChainConfig {
   proxies?: Array<{
@@ -225,13 +226,7 @@ const SortableItem = ({
             proxy.delay > 0 ? `${proxy.delay}ms` : t('shared.labels.timeout')
           }
           size="small"
-          color={
-            proxy.delay > 0 && proxy.delay < 200
-              ? 'success'
-              : proxy.delay > 0 && proxy.delay < 800
-                ? 'warning'
-                : 'error'
-          }
+          color={delayTone(proxy.delay) ?? 'default'}
           sx={{ mr: 1, fontSize: '0.7rem', minWidth: 50 }}
         />
       )}
@@ -605,17 +600,7 @@ export const ProxyChain = ({
 
       <Box sx={{ flex: 1, overflow: 'auto' }}>
         {proxyChain.length === 0 ? (
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: '100%',
-              color: theme.palette.text.secondary,
-            }}
-          >
-            <Typography>{t('proxies.page.chain.empty')}</Typography>
-          </Box>
+          <BaseEmpty />
         ) : (
           <DndContext
             sensors={sensors}

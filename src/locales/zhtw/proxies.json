@@ -28,7 +28,7 @@
       "delayCheckReset": "測試延遲以取消固定"
     },
     "tooltips": {
-      "locate": "目前節點",
+      "locate": "定位到所選節點",
       "delayCheck": "延遲測試",
       "sortDefault": "預設排序",
       "sortDelay": "按延遲排序",
@@ -44,7 +44,6 @@
     "chain": {
       "header": "鏈式代理設定",
       "warning": "鏈式代理會顯著降低網速。如果您沒有明確的業務需求，或不了解此項設定，請保持關閉",
-      "empty": "鏈式代理會顯著降低網速。如果您沒有明確的業務需求，或不了解此項設定，請保持關閉",
       "instruction": "依序點擊節點新增到鏈式代理中",
       "minimumNodes": "鏈式代理至少需要 2 個節點",
       "minimumNodesHint": "鏈式代理至少需要 2 個節點，請再新增一個節點。",

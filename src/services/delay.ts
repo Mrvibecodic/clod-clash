@@ -5,6 +5,7 @@ import {
 } from 'tauri-plugin-mihomo-api'
 
 import { debugLog } from '@/utils/debug'
+import { delayColor } from '@/utils/delay-color'
 import { isValidUrl } from '@/utils/network'
 
 const hashKey = (name: string, group: string) => `${group ?? ''}::${name}`
@@ -584,11 +585,8 @@ class DelayManager {
 
   formatDelayColor(delay: number, timeout = 10000) {
     if (delay < 0) return ''
-    if (delay === 0 || delay >= timeout) return 'error.main'
-    if (delay >= 10000) return 'error.main'
-    if (delay >= 400) return 'warning.main'
-    if (delay >= 250) return 'primary.main'
-    return 'success.main'
+    if (delay >= timeout) return 'error.main'
+    return delayColor(delay)
   }
 }
 

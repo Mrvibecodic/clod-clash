@@ -28,7 +28,7 @@
       "delayCheckReset": "Delay check to cancel fixed"
     },
     "tooltips": {
-      "locate": "locate",
+      "locate": "Go to selected node",
       "delayCheck": "Delay check",
       "sortDefault": "Sort by default",
       "sortDelay": "Sort by delay",
@@ -44,7 +44,6 @@
     "chain": {
       "header": "Chain Proxy Config",
       "warning": "Chain proxy will significantly reduce network speed. If you do not have a clear business need, or do not understand this configuration, keep it disabled.",
-      "empty": "Chain proxy will significantly reduce network speed. If you do not have a clear business need, or do not understand this configuration, keep it disabled.",
       "instruction": "Click nodes in order to add to proxy chain",
       "minimumNodes": "Chain proxy requires at least 2 nodes",
       "minimumNodesHint": "Chain proxy requires at least 2 nodes. Please add one more node.",
