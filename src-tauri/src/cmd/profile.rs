@@ -49,15 +49,7 @@ pub async fn get_profiles() -> CmdResult<SharedDraft<IProfiles>> {
 #[tauri::command]
 pub async fn enhance_profiles() -> CmdResult<ValidationOutcome> {
     match feat::enhance_profiles().await {
-        Ok(outcome) if outcome.is_valid() => {
-            handle::Handle::refresh_clash();
-            // clod: enhance тоже перезагружает конфиг ядра — вернуть выбор
-            // узлов и избранные, как и при обновлении подписки
-            if let Err(e) = profiles::activate_selected_nodes() {
-                logging!(warn, Type::Cmd, "Warning: restore selection after enhance failed: {e}");
-            }
-            Ok(outcome)
-        }
+        Ok(outcome) if outcome.is_valid() => Ok(outcome),
         Ok(outcome) => {
             logging!(
                 warn,
@@ -130,6 +122,7 @@ pub async fn import_profile(url: std::string::String, option: Option<PrfOption>)
             uid
         );
         handle::Handle::notify_profile_changed(uid);
+        apply_if_it_became_current(uid).await;
     }
 
     logging!(
@@ -139,6 +132,14 @@ pub async fn import_profile(url: std::string::String, option: Option<PrfOption>)
         help::mask_url(&url)
     );
     Ok(())
+}
+
+async fn apply_if_it_became_current(uid: &String) {
+    if Config::profiles().await.latest_arc().is_current_profile_index(uid)
+        && let Err(err) = enhance_profiles().await
+    {
+        handle::Handle::notice_message("update_failed", err);
+    }
 }
 
 /// Изменяет порядок profile
@@ -188,11 +189,11 @@ pub async fn create_profile_from_file(item: PrfItem, path: String) -> CmdResult 
 #[tauri::command]
 pub async fn create_profile(item: PrfItem, file_data: Option<String>) -> CmdResult {
     match profiles_append_item_with_filedata_safe(&item, file_data).await {
-        Ok(_) => {
+        Ok(created) => {
             profiles_save_file_safe().await.stringify_err()?;
             logging_error!(Type::Timer, Timer::global().refresh().await);
             // Отправляем уведомление об изменении конфига
-            if let Some(uid) = &item.uid {
+            if let Some(uid) = &created {
                 logging!(
                     info,
                     Type::Cmd,
@@ -200,6 +201,7 @@ pub async fn create_profile(item: PrfItem, file_data: Option<String>) -> CmdResu
                     uid
                 );
                 handle::Handle::notify_profile_changed(uid);
+                apply_if_it_became_current(uid).await;
             }
             Ok(())
         }
@@ -289,9 +291,8 @@ pub async fn delete_profile(index: String) -> CmdResult {
         );
     }
     if should_update {
-        match CoreManager::global().update_config_forced().await {
+        match feat::enhance_profiles().await {
             Ok(outcome) if outcome.is_valid() => {
-                handle::Handle::refresh_clash();
                 // Отправляем уведомление об изменении конфига
                 logging!(
                     info,
@@ -354,11 +355,8 @@ async fn restore_profiles_after_failed_delete(removed: Vec<(usize, PrfItem)>, pr
         );
         return;
     }
-    match CoreManager::global().update_config_forced().await {
-        Ok(outcome) if outcome.is_valid() => {
-            handle::Handle::refresh_clash();
-            handle::Handle::refresh_profiles();
-        }
+    match feat::enhance_profiles().await {
+        Ok(outcome) if outcome.is_valid() => handle::Handle::refresh_profiles(),
         Ok(outcome) => logging!(
             warn,
             Type::Cmd,

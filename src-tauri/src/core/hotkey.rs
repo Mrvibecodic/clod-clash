@@ -211,7 +211,6 @@ impl Hotkey {
             HotkeyFunction::ReactivateProfiles => {
                 AsyncHandler::spawn(async move || match feat::enhance_profiles().await {
                     Ok(outcome) if outcome.is_valid() => {
-                        handle::Handle::refresh_clash();
                         notify_event(NotificationEvent::ProfilesReactivated).await;
                     }
                     Ok(outcome) => {

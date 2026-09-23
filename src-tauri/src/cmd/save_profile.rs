@@ -3,10 +3,7 @@ use crate::{
     cmd::StringifyErr as _,
     cmd::validate::{ValidationNoticeTarget, handle_validation_notice},
     config::{Config, IProfiles, PrfItem},
-    core::{
-        CoreManager, handle,
-        validate::{CoreConfigValidator, ValidationOutcome},
-    },
+    core::validate::{CoreConfigValidator, ValidationOutcome},
     module::auto_backup::{AutoBackupManager, AutoBackupTrigger},
     utils::{dirs, help},
 };
@@ -197,11 +194,8 @@ async fn handle_saved_profile_file(
         Type::Config,
         "[cmd конфиг save] Сохранённый элемент влияет на текущий runtime-конфиг, применяем изменения"
     );
-    match CoreManager::global().update_config_forced().await {
-        Ok(outcome) if outcome.is_valid() => {
-            handle::Handle::refresh_clash();
-            Ok(ValidationOutcome::Valid)
-        }
+    match crate::feat::enhance_profiles().await {
+        Ok(outcome) if outcome.is_valid() => Ok(ValidationOutcome::Valid),
         Ok(outcome) => {
             logging!(
                 warn,

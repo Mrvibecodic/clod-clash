@@ -521,9 +521,13 @@ fn panel_key(url: &tauri::Url) -> (std::string::String, Option<std::string::Stri
 
 use crate::config::Config;
 
-pub async fn profiles_append_item_with_filedata_safe(item: &PrfItem, file_data: Option<String>) -> Result<()> {
+pub async fn profiles_append_item_with_filedata_safe(
+    item: &PrfItem,
+    file_data: Option<String>,
+) -> Result<Option<String>> {
     let item = &mut PrfItem::from(item, file_data).await?;
-    profiles_append_item_safe(item).await
+    profiles_append_item_safe(item).await?;
+    Ok(item.uid.clone())
 }
 
 pub async fn profiles_append_item_safe(item: &mut PrfItem) -> Result<()> {
@@ -1411,7 +1415,12 @@ pub fn activate_selected_nodes() -> Result<()> {
 
         let result = async {
             let profiles = Config::profiles().await.latest_arc();
-            let current = profiles.get_current().context("no current profile running")?.clone();
+            let Some(current) = profiles.get_current().cloned() else {
+                if is_activation_current(generation) {
+                    handle::Handle::refresh_clash();
+                }
+                return Ok(());
+            };
             let item = profiles.get_item(&current).context("failed to get current profile")?;
             let selected = item.selected.clone().unwrap_or_default();
             let favorites = item.favorites.clone().unwrap_or_default();

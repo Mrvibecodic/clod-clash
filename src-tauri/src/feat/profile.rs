@@ -652,7 +652,18 @@ pub async fn update_profile(
 }
 
 pub async fn enhance_profiles() -> Result<ValidationOutcome> {
-    CoreManager::global().update_config_forced().await
+    let outcome = CoreManager::global().update_config_forced().await?;
+    if outcome.is_valid() {
+        handle::Handle::refresh_clash();
+        if let Err(err) = crate::config::profiles::activate_selected_nodes() {
+            logging!(
+                warn,
+                Type::Config,
+                "Warning: restore selection after reapply failed: {err}"
+            );
+        }
+    }
+    Ok(outcome)
 }
 
 const LOCK_GRACE_SECS: i64 = 72 * 60 * 60;
