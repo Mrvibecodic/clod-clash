@@ -64,6 +64,13 @@ const PLUMBING_MODULES: &[&str] = &[
 #[cfg(target_os = "linux")]
 const DESKTOP_PLUMBING_MODULES: &[&str] = &["zbus", "zvariant", "ksni", "tracing"];
 
+fn with_env_override(chosen: LevelFilter) -> LevelFilter {
+    std::env::var("RUST_LOG")
+        .ok()
+        .and_then(|v| LevelFilter::from_str(&v).ok())
+        .unwrap_or(chosen)
+}
+
 #[cfg(not(any(feature = "tauri-dev", feature = "tokio-trace")))]
 fn redacted_console_format(
     writer: &mut dyn std::io::Write,
@@ -161,10 +168,7 @@ impl Logger {
                     .unwrap_or(crate::config::IVerge::DEFAULT_APP_LOG_MAX_COUNT),
             )
         };
-        let log_level = std::env::var("RUST_LOG")
-            .ok()
-            .and_then(|v| log::LevelFilter::from_str(&v).ok())
-            .unwrap_or(log_level);
+        let log_level = with_env_override(log_level);
         *self.log_level.write() = log_level;
         self.log_max_size.store(log_max_size, Ordering::SeqCst);
         self.log_max_count.store(log_max_count, Ordering::SeqCst);
@@ -230,10 +234,6 @@ impl Logger {
 
     fn generate_log_spec(log_level: LevelFilter) -> LogSpecification {
         let mut spec = LogSpecBuilder::new();
-        let log_level = std::env::var("RUST_LOG")
-            .ok()
-            .and_then(|v| log::LevelFilter::from_str(&v).ok())
-            .unwrap_or(log_level);
         spec.default(log_level);
         if log_level < log::LevelFilter::Trace {
             let plumbing_level = log_level.min(log::LevelFilter::Warn);
@@ -265,8 +265,8 @@ impl Logger {
     }
 
     pub fn update_log_level(&self, level: LevelFilter) -> Result<()> {
-        *self.log_level.write() = level;
-        let log_level = self.log_level.read().to_owned();
+        let log_level = with_env_override(level);
+        *self.log_level.write() = log_level;
         if let Some(handle) = self.handle.lock().as_mut() {
             let log_spec = Self::generate_log_spec(log_level);
             handle.set_new_spec(log_spec);
@@ -397,9 +397,6 @@ mod tests {
 
     #[test]
     fn plumbing_modules_are_never_louder_than_the_chosen_level() {
-        if std::env::var_os("RUST_LOG").is_some() {
-            return;
-        }
         for chosen in [
             LevelFilter::Off,
             LevelFilter::Error,
