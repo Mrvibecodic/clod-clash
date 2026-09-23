@@ -100,7 +100,8 @@
         "subscriptionEmpty": "The panel answered with an empty body — no subscription arrived; try again later or contact your provider",
         "subscriptionBudget": "The subscription address did not answer in time — check your connection and try again",
         "subscriptionDowngrade": "The subscription address redirects to insecure http — the token would travel in the clear; fix the link in your provider panel",
-        "foreignCoreTemplate": "The template targets a different core build (a “smart” group) — our core does not support it, ask the provider for the regular variant"
+        "foreignCoreTemplate": "The template targets a different core build (a “smart” group) — our core does not support it, ask the provider for the regular variant",
+        "trayIconRejected": "Couldn't set the icon: a PNG or ICO image is required"
       }
     },
     "notices": {

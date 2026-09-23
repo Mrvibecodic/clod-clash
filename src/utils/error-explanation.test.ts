@@ -33,6 +33,17 @@ describe('explainErrorKey', () => {
     )
   })
 
+  it('узнаёт отказ в выбранном значке трея', () => {
+    assert.equal(
+      key('clod-icon-rejected: the picked file is not a readable icon'),
+      'trayIconRejected',
+    )
+    assert.equal(
+      key('clod-icon-rejected: icon file must be one of: ico, png'),
+      'trayIconRejected',
+    )
+  })
+
   it('различает беды защищённого канала', () => {
     // Метка отказа несёт в себе код ответа, а общее правило про 404 стоит
     // ниже — иначе человек чинил бы «адрес не найден» вместо связи.

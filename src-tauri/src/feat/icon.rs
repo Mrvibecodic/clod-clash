@@ -200,12 +200,16 @@ pub async fn copy_icon_file(path: String, name: String) -> CmdResult<String> {
     }
 
     let Some(ext) = supported_icon_extension(file_path) else {
-        return Err(format!("icon file must be one of: {}", ICON_EXTENSIONS.join(", ")).into());
+        return Err(format!(
+            "clod-icon-rejected: icon file must be one of: {}",
+            ICON_EXTENSIONS.join(", ")
+        )
+        .into());
     };
 
     let content = fs::read(file_path).await.stringify_err()?;
     if tauri::image::Image::from_bytes(&content).is_err() {
-        return Err("the picked file is not a readable icon".into());
+        return Err("clod-icon-rejected: the picked file is not a readable icon".into());
     }
 
     let stamp = std::time::SystemTime::now()
@@ -222,7 +226,9 @@ pub async fn copy_icon_file(path: String, name: String) -> CmdResult<String> {
         dest_path
     );
 
-    fs::write(&dest_path, &content).await.stringify_err()?;
+    crate::utils::help::write_atomic(&dest_path, &content)
+        .await
+        .map_err(|error| crate::cmd::public_error_text(&format!("{error:#}")))?;
     remove_other_icons(&icon_dir, icon_name.as_str(), &dest_path).await;
     Ok(dest_path.to_string_lossy().into())
 }
@@ -231,6 +237,22 @@ pub async fn copy_icon_file(path: String, name: String) -> CmdResult<String> {
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn an_unfinished_icon_write_never_becomes_the_tray_icon() {
+        let dir = std::env::temp_dir().join(format!("clod-icon-staging-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let old = dir.join("common-1000.png");
+        std::fs::write(&old, b"old").unwrap();
+        let staging = crate::utils::help::staging_path(&dir.join("common-2000.png"));
+        std::fs::write(&staging, b"half").unwrap();
+
+        let found = stored_icons(&dir, "common").await;
+        let _ = std::fs::remove_dir_all(&dir);
+
+        assert_eq!(found, vec![old]);
+    }
 
     #[test]
     fn normalize_icon_segment_accepts_single_name() {

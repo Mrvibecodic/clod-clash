@@ -942,6 +942,7 @@ export const translationKeys = [
   'shared.feedback.errors.core.subscriptionBudget',
   'shared.feedback.errors.core.subscriptionDowngrade',
   'shared.feedback.errors.core.foreignCoreTemplate',
+  'shared.feedback.errors.core.trayIconRejected',
   'shared.feedback.notices.raw',
   'shared.feedback.notices.prefixedRaw',
   'shared.feedback.notices.explained',

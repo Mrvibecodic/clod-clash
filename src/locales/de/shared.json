@@ -100,7 +100,8 @@
         "subscriptionEmpty": "Das Panel hat eine leere Antwort geliefert — kein Abonnement empfangen; versuchen Sie es später oder wenden Sie sich an Ihren Anbieter",
         "subscriptionBudget": "Die Abonnement-Adresse hat nicht rechtzeitig geantwortet — prüfen Sie die Verbindung und versuchen Sie es erneut",
         "subscriptionDowngrade": "Die Abonnement-Adresse leitet auf unsicheres http um — das Token würde im Klartext übertragen; korrigieren Sie den Link im Anbieter-Panel",
-        "foreignCoreTemplate": "Die Vorlage ist für einen anderen Core-Build gedacht (Gruppe „intelligente Auswahl“) — unser Core unterstützt sie nicht, bitten Sie den Anbieter um die normale Variante"
+        "foreignCoreTemplate": "Die Vorlage ist für einen anderen Core-Build gedacht (Gruppe „intelligente Auswahl“) — unser Core unterstützt sie nicht, bitten Sie den Anbieter um die normale Variante",
+        "trayIconRejected": "Symbol konnte nicht übernommen werden: Es wird ein PNG- oder ICO-Bild benötigt"
       }
     },
     "notices": {

@@ -64,6 +64,18 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
   const onError = (err: any) => {
     showNotice.error(err)
   }
+  const copyPickedIcon = async (
+    path: string,
+    name: 'common' | 'sysproxy' | 'tun',
+  ) => {
+    try {
+      await copyIconFile(path, name)
+      return true
+    } catch (err) {
+      onError(err)
+      return false
+    }
+  }
   const onChangeData = (patch: Partial<IVergeConfig>) => {
     mutateVerge({ ...verge, ...patch }, false)
   }
@@ -397,8 +409,10 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
                     ],
                   })
 
-                  if (selected) {
-                    await copyIconFile(`${selected}`, 'common')
+                  if (
+                    selected &&
+                    (await copyPickedIcon(`${selected}`, 'common'))
+                  ) {
                     await initIconPath()
                     onChangeData({ common_tray_icon: true })
                     patchVerge({ common_tray_icon: true })
@@ -449,8 +463,10 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
                       },
                     ],
                   })
-                  if (selected) {
-                    await copyIconFile(`${selected}`, 'sysproxy')
+                  if (
+                    selected &&
+                    (await copyPickedIcon(`${selected}`, 'sysproxy'))
+                  ) {
                     await initIconPath()
                     onChangeData({ sysproxy_tray_icon: true })
                     patchVerge({ sysproxy_tray_icon: true })
@@ -497,8 +513,10 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
                       },
                     ],
                   })
-                  if (selected) {
-                    await copyIconFile(`${selected}`, 'tun')
+                  if (
+                    selected &&
+                    (await copyPickedIcon(`${selected}`, 'tun'))
+                  ) {
                     await initIconPath()
                     onChangeData({ tun_tray_icon: true })
                     patchVerge({ tun_tray_icon: true })

@@ -1461,6 +1461,7 @@ export interface TranslationResources {
             subscriptionWebPage: string
             timeout: string
             tls: string
+            trayIconRejected: string
             tunFailed: string
             unauthorized: string
             unreachable: string

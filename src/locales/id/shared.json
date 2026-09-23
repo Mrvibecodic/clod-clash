@@ -100,7 +100,8 @@
         "subscriptionEmpty": "Panel menjawab dengan badan kosong — langganan tidak diterima; coba lagi nanti atau hubungi penyedia Anda",
         "subscriptionBudget": "Alamat langganan tidak menjawab tepat waktu — periksa koneksi dan coba lagi",
         "subscriptionDowngrade": "Alamat langganan dialihkan ke http yang tidak aman — token akan terkirim tanpa enkripsi; perbaiki tautan di panel penyedia",
-        "foreignCoreTemplate": "Templat ini ditujukan untuk build inti lain (grup «pilihan cerdas») — inti kami tidak mendukungnya, minta varian biasa kepada penyedia"
+        "foreignCoreTemplate": "Templat ini ditujukan untuk build inti lain (grup «pilihan cerdas») — inti kami tidak mendukungnya, minta varian biasa kepada penyedia",
+        "trayIconRejected": "Ikon tidak dapat dipasang: diperlukan gambar PNG atau ICO"
       }
     },
     "notices": {

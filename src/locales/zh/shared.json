@@ -100,7 +100,8 @@
         "subscriptionEmpty": "面板返回了空响应 — 未获取到订阅；请稍后重试或联系服务商",
         "subscriptionBudget": "订阅地址未在规定时间内响应 — 请检查网络后重试",
         "subscriptionDowngrade": "订阅地址重定向到不安全的 http — 令牌会以明文传输；请在服务商面板中修正链接",
-        "foreignCoreTemplate": "该模板面向另一种内核构建（「智能选择」分组）— 我们的内核不支持，请向机场索取普通版本"
+        "foreignCoreTemplate": "该模板面向另一种内核构建（「智能选择」分组）— 我们的内核不支持，请向机场索取普通版本",
+        "trayIconRejected": "无法设置图标：需要 PNG 或 ICO 图片"
       }
     },
     "notices": {
