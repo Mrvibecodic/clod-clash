@@ -97,15 +97,15 @@ export const ProviderButton = () => {
       )
       setUpdating(newUpdating)
 
+      const failures: { name: string; error: unknown }[] = []
       // Обновляем все провайдеры последовательно, один за другим
       for (const name of allProviders) {
         try {
           await updateCoreRuleProvider(name)
-          // Обновляем состояние после каждого завершения
+        } catch (error) {
+          failures.push({ name, error })
+        } finally {
           setUpdating((prev) => ({ ...prev, [name]: false }))
-        } catch (err) {
-          console.error(`Не удалось обновить ${name}`, err)
-          // Продолжаем со следующим, не прерывая общий процесс
         }
       }
 
@@ -113,7 +113,14 @@ export const ProviderButton = () => {
       await refreshRules()
       await refreshRuleProviders()
 
-      showNotice.success('rules.feedback.notifications.provider.allUpdated')
+      if (failures.length === 0) {
+        showNotice.success('rules.feedback.notifications.provider.allUpdated')
+      } else {
+        showNotice.error('rules.feedback.notifications.provider.updateFailed', {
+          name: failures.map((failure) => failure.name).join(', '),
+          message: String(failures[0].error),
+        })
+      }
     } catch (err) {
       showNotice.error('rules.feedback.notifications.provider.genericError', {
         message: String(err),

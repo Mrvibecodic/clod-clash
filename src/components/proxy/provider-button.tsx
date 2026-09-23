@@ -109,15 +109,15 @@ export const ProviderButton = () => {
       )
       setUpdating(newUpdating)
 
+      const failures: { name: string; error: unknown }[] = []
       // Обновляем всех провайдеров последовательно, по одному
       for (const name of allProviders) {
         try {
           await updateCoreProxyProvider(name)
-          // Обновляем состояние после завершения каждого обновления
+        } catch (error) {
+          failures.push({ name, error })
+        } finally {
           setUpdating((prev) => ({ ...prev, [name]: false }))
-        } catch (err) {
-          console.error(`Не удалось обновить ${name}`, err)
-          // Переходим к следующему, не прерывая общий процесс
         }
       }
 
@@ -125,7 +125,17 @@ export const ProviderButton = () => {
       await refreshProxyProviders()
       await refreshProxy()
 
-      showNotice.success('proxies.feedback.notifications.provider.allUpdated')
+      if (failures.length === 0) {
+        showNotice.success('proxies.feedback.notifications.provider.allUpdated')
+      } else {
+        showNotice.error(
+          'proxies.feedback.notifications.provider.updateFailed',
+          {
+            name: failures.map((failure) => failure.name).join(', '),
+            message: String(failures[0].error),
+          },
+        )
+      }
     } catch (err) {
       showNotice.error('proxies.feedback.notifications.provider.genericError', {
         message: String(err),
