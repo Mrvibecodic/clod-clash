@@ -58,7 +58,8 @@
     "useRegex": "Регуляр выражениеләр куллану"
   },
   "validation": {
-    "invalidRegex": "Invalid regular expression"
+    "invalidRegex": "Invalid regular expression",
+    "numberRequired": "«{{field}}» кыры сан булырга тиеш"
   },
   "window": {
     "maximize": "Зурайту",

@@ -58,7 +58,8 @@
     "useRegex": "Gunakan Ekspresi Reguler"
   },
   "validation": {
-    "invalidRegex": "Invalid regular expression"
+    "invalidRegex": "Invalid regular expression",
+    "numberRequired": "\"{{field}}\" harus berupa angka"
   },
   "window": {
     "maximize": "Maksimalkan",

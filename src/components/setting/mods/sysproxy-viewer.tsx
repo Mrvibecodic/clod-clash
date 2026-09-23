@@ -149,10 +149,7 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
   }, [value.proxy_host])
 
   const bypassError =
-    value.enable_bypass_check &&
-    !value.pac &&
-    !value.use_default &&
-    value.bypass
+    value.enable_bypass_check && !value.pac && value.bypass
       ? !validReg.test(value.bypass)
       : false
 
@@ -256,7 +253,6 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
     if (
       value.enable_bypass_check &&
       !value.pac &&
-      !value.use_default &&
       value.bypass &&
       !validReg.test(value.bypass)
     ) {
@@ -463,7 +459,7 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
             onChange={(e) => {
               setValue((v) => ({
                 ...v,
-                duration: +e.target.value.replace(/\D/, ''),
+                duration: +e.target.value.replace(/\D/g, ''),
               }))
             }}
           />
@@ -479,19 +475,7 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
               edge="end"
               disabled={!enabled}
               checked={value.use_default}
-              onChange={(_, e) => {
-                if (!e && !value.bypass) {
-                  const nextBypass = defaultBypass()
-                  setValue((v) => ({
-                    ...v,
-                    use_default: e,
-                    // Если use_default снят и текущий bypass пуст, заполняем значением по умолчанию
-                    bypass: nextBypass,
-                  }))
-                  return
-                }
-                setValue((v) => ({ ...v, use_default: e }))
-              }}
+              onChange={(_, e) => setValue((v) => ({ ...v, use_default: e }))}
             />
           </ListItem>
         )}
@@ -512,7 +496,7 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
           </ListItem>
         )}
 
-        {!value.pac && !value.use_default && (
+        {!value.pac && (
           <BaseSplitChipEditor
             value={value.bypass ?? ''}
             separator={separator}
@@ -541,7 +525,7 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
           />
         )}
 
-        {!value.pac && value.use_default && (
+        {!value.pac && (value.use_default || !value.bypass) && (
           <>
             <ListItemText
               primary={t('settings.modals.sysproxy.fields.bypass')}

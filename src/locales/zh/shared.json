@@ -58,7 +58,8 @@
     "useRegex": "使用正则表达式"
   },
   "validation": {
-    "invalidRegex": "无效的正则表达式"
+    "invalidRegex": "无效的正则表达式",
+    "numberRequired": "「{{field}}」必须是数字"
   },
   "window": {
     "maximize": "最大化",

@@ -1020,6 +1020,9 @@ export interface TranslationResources {
             toggleSystemProxy: string
             toggleTunMode: string
           }
+          messages: {
+            duplicate: string
+          }
           title: string
           toggles: {
             enableGlobal: string
@@ -1568,6 +1571,7 @@ export interface TranslationResources {
       }
       validation: {
         invalidRegex: string
+        numberRequired: string
       }
       window: {
         maximize: string

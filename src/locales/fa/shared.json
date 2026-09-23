@@ -58,7 +58,8 @@
     "useRegex": "استفاده از عبارت منظم"
   },
   "validation": {
-    "invalidRegex": "Invalid regular expression"
+    "invalidRegex": "Invalid regular expression",
+    "numberRequired": "«{{field}}» باید عدد باشد"
   },
   "window": {
     "maximize": "بزرگ‌نمایی",

@@ -27,7 +27,7 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
 
   const [open, setOpen] = useState(false)
   const [values, setValues] = useState({
-    appLogLevel: 'warn',
+    appLogLevel: 'info',
     appLogMaxSize: DEFAULT_APP_LOG_MAX_SIZE,
     appLogMaxCount: DEFAULT_APP_LOG_MAX_COUNT,
     verboseDiagnostics: false,
@@ -44,7 +44,7 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
     open: () => {
       setOpen(true)
       setValues({
-        appLogLevel: verge?.app_log_level ?? 'warn',
+        appLogLevel: verge?.app_log_level ?? 'info',
         appLogMaxSize: verge?.app_log_max_size ?? DEFAULT_APP_LOG_MAX_SIZE,
         appLogMaxCount: verge?.app_log_max_count ?? DEFAULT_APP_LOG_MAX_COUNT,
         verboseDiagnostics: verge?.enable_verbose_diagnostics ?? false,
@@ -61,6 +61,12 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
   }))
 
   const onSave = useLockFn(async () => {
+    if (!Number.isFinite(values.defaultLatencyTimeout)) {
+      showNotice.error('shared.validation.numberRequired', {
+        field: t('settings.modals.misc.fields.defaultLatencyTimeout'),
+      })
+      return
+    }
     try {
       await patchVerge({
         app_log_level: values.appLogLevel,

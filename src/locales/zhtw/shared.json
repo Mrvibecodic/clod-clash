@@ -58,7 +58,8 @@
     "useRegex": "使用正規表示式"
   },
   "validation": {
-    "invalidRegex": "無效的正規表示式"
+    "invalidRegex": "無效的正規表示式",
+    "numberRequired": "「{{field}}」必須是數字"
   },
   "window": {
     "maximize": "最大化",

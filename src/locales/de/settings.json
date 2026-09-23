@@ -503,10 +503,10 @@
         "usePacMode": "PAC-Modus verwenden",
         "proxyGuard": "Systemproxy-Schutz",
         "guardDuration": "Proxy-Schutz-Intervall",
-        "alwaysUseDefaultBypass": "Immer die Standard-Umgehung verwenden",
+        "alwaysUseDefaultBypass": "Standard-Umgehung hinzufügen",
         "enableBypassCheck": "Proxy-Bypass-Format prüfen",
         "proxyBypass": "Proxy-Umgehungseinstellungen: ",
-        "bypass": "Aktuelle Umgehung: ",
+        "bypass": "Standard-Umgehung: ",
         "pacScriptContent": "PAC-Skriptinhalt"
       },
       "tooltips": {
@@ -661,6 +661,9 @@
         "entryLightweightMode": "Leichtgewichtigen Modus betreten",
         "direct": "Direktverbindungs-Modus",
         "reactivateProfiles": "Abonnement erneut aktivieren"
+      },
+      "messages": {
+        "duplicate": "Tastenkürzel {{keys}} für „{{func}}“ ist bereits „{{other}}“ zugewiesen"
       }
     },
     "networkInterface": {

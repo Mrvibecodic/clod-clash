@@ -503,10 +503,10 @@
         "usePacMode": "Использовать режим PAC",
         "proxyGuard": "Защита прокси",
         "guardDuration": "Период защиты",
-        "alwaysUseDefaultBypass": "Всегда использовать стандартный обход",
+        "alwaysUseDefaultBypass": "Добавлять стандартный обход",
         "enableBypassCheck": "Проверять формат обхода прокси",
         "proxyBypass": "Игнорируемые адреса: ",
-        "bypass": "Игнорируемые адреса: ",
+        "bypass": "Стандартный обход: ",
         "pacScriptContent": "Содержимое PAC-скрипта"
       },
       "tooltips": {
@@ -661,6 +661,9 @@
         "entryLightweightMode": "Войти в режим LightWeight",
         "direct": "Прямой режим",
         "reactivateProfiles": "Перезапустить профиль"
+      },
+      "messages": {
+        "duplicate": "Комбинация {{keys}} для «{{func}}» уже назначена на «{{other}}»"
       }
     },
     "networkInterface": {

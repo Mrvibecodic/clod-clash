@@ -503,10 +503,10 @@
         "usePacMode": "استخدام وضع PAC",
         "proxyGuard": "حماية الوكيل",
         "guardDuration": "مدة الحماية",
-        "alwaysUseDefaultBypass": "استخدام التخطي الافتراضي دائمًا",
+        "alwaysUseDefaultBypass": "إضافة التخطي الافتراضي",
         "enableBypassCheck": "التحقق من تنسيق تجاوز الوكيل",
         "proxyBypass": "إعدادات تخطي الوكيل:",
-        "bypass": "تخطي:",
+        "bypass": "التخطي الافتراضي:",
         "pacScriptContent": "محتوى سكريبت PAC"
       },
       "tooltips": {
@@ -661,6 +661,9 @@
         "entryLightweightMode": "Entry Lightweight Mode",
         "direct": "الوضع المباشر",
         "reactivateProfiles": "إعادة تنشيط الملفات الشخصية"
+      },
+      "messages": {
+        "duplicate": "الاختصار {{keys}} لـ «{{func}}» معيّن بالفعل لـ «{{other}}»"
       }
     },
     "networkInterface": {

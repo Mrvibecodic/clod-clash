@@ -58,7 +58,8 @@
     "useRegex": "정규식 사용"
   },
   "validation": {
-    "invalidRegex": "잘못된 정규식"
+    "invalidRegex": "잘못된 정규식",
+    "numberRequired": "\"{{field}}\"에는 숫자를 입력해야 합니다"
   },
   "window": {
     "maximize": "최대화",

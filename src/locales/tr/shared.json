@@ -58,7 +58,8 @@
     "useRegex": "Düzenli İfade Kullan"
   },
   "validation": {
-    "invalidRegex": "Invalid regular expression"
+    "invalidRegex": "Invalid regular expression",
+    "numberRequired": "\"{{field}}\" bir sayı olmalıdır"
   },
   "window": {
     "maximize": "Büyüt",

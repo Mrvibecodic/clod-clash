@@ -503,10 +503,10 @@
         "usePacMode": "Use PAC Mode",
         "proxyGuard": "Proxy Guard",
         "guardDuration": "Guard Duration",
-        "alwaysUseDefaultBypass": "Always use Default Bypass",
+        "alwaysUseDefaultBypass": "Add Default Bypass",
         "enableBypassCheck": "Validate Proxy Bypass Format",
         "proxyBypass": "Proxy Bypass Settings: ",
-        "bypass": "Bypass: ",
+        "bypass": "Default Bypass: ",
         "pacScriptContent": "PAC Script Content"
       },
       "tooltips": {
@@ -661,6 +661,9 @@
         "entryLightweightMode": "Entry Lightweight Mode",
         "direct": "Direct Mode",
         "reactivateProfiles": "Reactivate Profiles"
+      },
+      "messages": {
+        "duplicate": "Shortcut {{keys}} for \"{{func}}\" is already assigned to \"{{other}}\""
       }
     },
     "networkInterface": {

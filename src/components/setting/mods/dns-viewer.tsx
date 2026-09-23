@@ -437,17 +437,21 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
     updateYamlFromValues()
   }, [setValues, updateYamlFromValues])
 
-  const updateValuesFromYaml = useCallback(() => {
+  const updateValuesFromYaml = () => {
+    let parsedYaml: any
     try {
-      const parsedYaml = yaml.load(yamlContent) as any
-      if (!parsedYaml) return
-
-      skipYamlSyncRef.current = true
-      updateValuesFromConfig(parsedYaml)
+      parsedYaml = yaml.load(yamlContent)
     } catch {
-      showNotice.error('settings.modals.dns.errors.invalidYaml')
+      parsedYaml = null
     }
-  }, [yamlContent, updateValuesFromConfig])
+    if (!parsedYaml || typeof parsedYaml !== 'object') {
+      showNotice.error('settings.modals.dns.errors.invalidYaml')
+      return false
+    }
+    skipYamlSyncRef.current = true
+    updateValuesFromConfig(parsedYaml)
+    return true
+  }
 
   useEffect(() => {
     if (skipYamlSyncRef.current) {
@@ -456,22 +460,6 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
     }
     updateYamlFromValues()
   }, [updateYamlFromValues])
-
-  const latestUpdateValuesFromYamlRef = useRef(updateValuesFromYaml)
-  const latestUpdateYamlFromValuesRef = useRef(updateYamlFromValues)
-
-  useEffect(() => {
-    latestUpdateValuesFromYamlRef.current = updateValuesFromYaml
-    latestUpdateYamlFromValuesRef.current = updateYamlFromValues
-  }, [updateValuesFromYaml, updateYamlFromValues])
-
-  useEffect(() => {
-    if (visualization) {
-      latestUpdateValuesFromYamlRef.current()
-    } else {
-      latestUpdateYamlFromValuesRef.current()
-    }
-  }, [visualization])
 
   useEffect(() => {
     return () => {
@@ -621,20 +609,7 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
         ? event.target.checked
         : event.target.value
 
-    setValues((prev) => {
-      const newValues = {
-        ...prev,
-        [field]: value,
-      }
-
-      if (visualization) {
-        setTimeout(() => {
-          updateYamlFromValues()
-        }, 0)
-      }
-
-      return newValues
-    })
+    setValues((prev) => ({ ...prev, [field]: value }))
   }
 
   return (
@@ -664,7 +639,9 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
               variant="contained"
               size="small"
               onClick={() => {
-                setVisualization((prev) => !prev)
+                if (visualization || updateValuesFromYaml()) {
+                  setVisualization(!visualization)
+                }
               }}
             >
               {visualization

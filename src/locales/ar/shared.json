@@ -58,7 +58,8 @@
     "useRegex": "استخدام التعبيرات العادية"
   },
   "validation": {
-    "invalidRegex": "Invalid regular expression"
+    "invalidRegex": "Invalid regular expression",
+    "numberRequired": "يجب أن يكون «{{field}}» رقمًا"
   },
   "window": {
     "maximize": "تكبير",

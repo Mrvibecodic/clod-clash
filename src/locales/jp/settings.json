@@ -503,10 +503,10 @@
         "usePacMode": "PACモードを使用",
         "proxyGuard": "システムプロキシガード",
         "guardDuration": "プロキシガード間隔",
-        "alwaysUseDefaultBypass": "常にデフォルトのバイパスを使用",
+        "alwaysUseDefaultBypass": "デフォルトのバイパスを追加",
         "enableBypassCheck": "プロキシバイパス形式を検証",
         "proxyBypass": "プロキシバイパス設定：",
-        "bypass": "現在のバイパス：",
+        "bypass": "デフォルトのバイパス：",
         "pacScriptContent": "PACスクリプト内容"
       },
       "tooltips": {
@@ -661,6 +661,9 @@
         "entryLightweightMode": "軽量モードに入る",
         "direct": "直接接続モード",
         "reactivateProfiles": "プロファイルを再アクティブ化"
+      },
+      "messages": {
+        "duplicate": "「{{func}}」のショートカット {{keys}} は既に「{{other}}」に割り当てられています"
       }
     },
     "networkInterface": {

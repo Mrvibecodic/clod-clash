@@ -503,10 +503,10 @@
         "usePacMode": "使用 PAC 模式",
         "proxyGuard": "系统代理守卫",
         "guardDuration": "代理守卫间隔",
-        "alwaysUseDefaultBypass": "始终使用默认绕过",
+        "alwaysUseDefaultBypass": "追加默认绕过",
         "enableBypassCheck": "验证代理绕过格式",
         "proxyBypass": "代理绕过设置：",
-        "bypass": "当前绕过：",
+        "bypass": "默认绕过：",
         "pacScriptContent": "PAC 脚本内容"
       },
       "tooltips": {
@@ -661,6 +661,9 @@
         "entryLightweightMode": "进入轻量模式",
         "direct": "直连模式",
         "reactivateProfiles": "重新激活订阅"
+      },
+      "messages": {
+        "duplicate": "「{{func}}」的快捷键 {{keys}} 已被「{{other}}」占用"
       }
     },
     "networkInterface": {

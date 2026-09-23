@@ -503,10 +503,10 @@
         "usePacMode": "Gunakan Mode PAC",
         "proxyGuard": "Penjaga Proksi",
         "guardDuration": "Durasi Penjagaan",
-        "alwaysUseDefaultBypass": "Selalu gunakan Bypass Default",
+        "alwaysUseDefaultBypass": "Tambahkan Bypass Default",
         "enableBypassCheck": "Validasi format bypass proksi",
         "proxyBypass": "Pengaturan Bypass Proksi: ",
-        "bypass": "Bypass: ",
+        "bypass": "Bypass Default: ",
         "pacScriptContent": "Konten Skrip PAC"
       },
       "tooltips": {
@@ -661,6 +661,9 @@
         "entryLightweightMode": "Entry Lightweight Mode",
         "direct": "Mode Langsung",
         "reactivateProfiles": "Reaktivasi Profil"
+      },
+      "messages": {
+        "duplicate": "Pintasan {{keys}} untuk \"{{func}}\" sudah dipakai oleh \"{{other}}\""
       }
     },
     "networkInterface": {

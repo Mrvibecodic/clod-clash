@@ -503,10 +503,10 @@
         "usePacMode": "PAC Modunu Kullan",
         "proxyGuard": "Vekil Koruyucusu",
         "guardDuration": "Koruma Süresi",
-        "alwaysUseDefaultBypass": "Her Zaman Varsayılan Baypas Kullan",
+        "alwaysUseDefaultBypass": "Varsayılan Baypası Ekle",
         "enableBypassCheck": "Proxy baypas biçimini doğrula",
         "proxyBypass": "Vekil Baypas Ayarları: ",
-        "bypass": "Baypas: ",
+        "bypass": "Varsayılan Baypas: ",
         "pacScriptContent": "PAC Betiği İçeriği"
       },
       "tooltips": {
@@ -661,6 +661,9 @@
         "entryLightweightMode": "Hafif Moda Gir",
         "direct": "Doğrudan Mod",
         "reactivateProfiles": "Profilleri Yeniden Etkinleştir"
+      },
+      "messages": {
+        "duplicate": "\"{{func}}\" için {{keys}} kısayolu zaten \"{{other}}\" işlevine atanmış"
       }
     },
     "networkInterface": {

@@ -69,11 +69,33 @@ export const HotkeyViewer = forwardRef<DialogRef>((props, ref) => {
       })
 
       setHotkeyMap(map)
+      setEnableGlobalHotkey(verge?.enable_global_hotkey ?? true)
     },
     close: () => setOpen(false),
   }))
 
   const onSave = useLockFn(async () => {
+    const owners = new Map<string, (typeof HOTKEY_FUNC)[number]>()
+    for (const func of HOTKEY_FUNC) {
+      const keys = hotkeyMap[func] ?? []
+      const combo = keys
+        .map((k) => k.trim())
+        .filter(Boolean)
+        .sort()
+        .join('+')
+      if (!combo) continue
+      const other = owners.get(combo)
+      if (other) {
+        showNotice.error('settings.modals.hotkey.messages.duplicate', {
+          keys: keys.join('+'),
+          other: t(HOTKEY_FUNC_LABELS[other]),
+          func: t(HOTKEY_FUNC_LABELS[func]),
+        })
+        return
+      }
+      owners.set(combo, func)
+    }
+
     const hotkeys = Object.entries(hotkeyMap)
       .map(([func, keys]) => {
         if (!func || !keys?.length) return ''

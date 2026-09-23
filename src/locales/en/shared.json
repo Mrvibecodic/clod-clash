@@ -58,7 +58,8 @@
     "useRegex": "Use Regular Expression"
   },
   "validation": {
-    "invalidRegex": "Invalid regular expression"
+    "invalidRegex": "Invalid regular expression",
+    "numberRequired": "\"{{field}}\" must be a number"
   },
   "window": {
     "maximize": "Maximize",

@@ -503,10 +503,10 @@
         "usePacMode": "PAC 모드 사용",
         "proxyGuard": "프록시 가드",
         "guardDuration": "가드 지속시간",
-        "alwaysUseDefaultBypass": "기본 우회 주소 항상 사용",
+        "alwaysUseDefaultBypass": "기본 우회 주소 추가",
         "enableBypassCheck": "프록시 우회 형식 검증",
         "proxyBypass": "프록시 우회 설정: ",
-        "bypass": "우회: ",
+        "bypass": "기본 우회: ",
         "pacScriptContent": "PAC 스크립트 내용"
       },
       "tooltips": {
@@ -661,6 +661,9 @@
         "entryLightweightMode": "경량 모드 진입",
         "direct": "직접 모드",
         "reactivateProfiles": "프로필 재활성화"
+      },
+      "messages": {
+        "duplicate": "\"{{func}}\"의 단축키 {{keys}}는 이미 \"{{other}}\"에 할당되어 있습니다"
       }
     },
     "networkInterface": {

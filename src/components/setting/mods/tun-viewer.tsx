@@ -25,7 +25,7 @@ import { useClash } from '@/hooks/use-clash'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useTunState } from '@/hooks/use-tun-state'
 import { useVerge } from '@/hooks/use-verge'
-import { enhanceProfiles, readProfileFile } from '@/services/cmds'
+import { readProfileFile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { useQuery } from '@/services/query-client'
 import getSystem from '@/utils/get-system'
@@ -146,6 +146,12 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
         )
         return
       }
+      if (!Number.isFinite(values.mtu)) {
+        showNotice.error('shared.validation.numberRequired', {
+          field: t('settings.modals.tun.fields.mtu'),
+        })
+        return
+      }
 
       const tun: IConfigData['tun'] = {
         device:
@@ -162,7 +168,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
             }
           : {}),
         'auto-detect-interface': values.autoDetectInterface,
-        mtu: values.mtu ?? 1500,
+        mtu: values.mtu,
       }
       const overrides = {
         tun_stack: values.stack,
@@ -182,9 +188,6 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
       mutateVerge({ ...verge, ...overrides }, false)
       setOpen(false)
       showNotice.success('settings.modals.tun.messages.applied')
-      void enhanceProfiles().catch((err: any) => {
-        showNotice.error(err)
-      })
     } catch (err: any) {
       showNotice.error(err)
     }
@@ -230,9 +233,6 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
         false,
       )
       mutateVerge({ ...verge, ...overrides }, false)
-      void enhanceProfiles().catch((err: any) => {
-        showNotice.error(err)
-      })
     } catch (err: any) {
       showNotice.error(err)
     }

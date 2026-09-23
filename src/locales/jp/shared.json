@@ -58,7 +58,8 @@
     "useRegex": "正規表現を使用する"
   },
   "validation": {
-    "invalidRegex": "Invalid regular expression"
+    "invalidRegex": "Invalid regular expression",
+    "numberRequired": "「{{field}}」には数値を入力してください"
   },
   "window": {
     "maximize": "最大化",
