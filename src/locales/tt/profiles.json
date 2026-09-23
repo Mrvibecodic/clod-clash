@@ -33,7 +33,6 @@
       },
       "notifications": {
         "profileSwitched": "Профиль алмаштырылды",
-        "profileReactivated": "Профиль яңадан активлаштырылды",
         "switchBusy": "Profile switch is already in progress",
         "batchDeleted": "Selected profiles deleted successfully",
         "urlMigrated": "The provider moved this subscription to a new address",

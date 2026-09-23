@@ -33,7 +33,6 @@
       },
       "notifications": {
         "profileSwitched": "Profil Değiştirildi",
-        "profileReactivated": "Profil Yeniden Etkinleştirildi",
         "switchBusy": "Profil değiştirme işlemi zaten devam ediyor",
         "batchDeleted": "Seçili profiller başarıyla silindi",
         "urlMigrated": "The provider moved this subscription to a new address",

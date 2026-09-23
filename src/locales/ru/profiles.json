@@ -33,7 +33,6 @@
       },
       "notifications": {
         "profileSwitched": "Профиль переключён",
-        "profileReactivated": "Профиль перезапущен",
         "switchBusy": "Переключение профиля уже выполняется",
         "batchDeleted": "Выбранные профили удалены",
         "urlMigrated": "Провайдер перевёл подписку на новый адрес",

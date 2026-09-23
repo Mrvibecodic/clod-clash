@@ -179,7 +179,6 @@ export const translationKeys = [
   'profiles.page.feedback.errors.onlyYaml',
   'profiles.page.feedback.errors.someUpdatesFailed',
   'profiles.page.feedback.notifications.profileSwitched',
-  'profiles.page.feedback.notifications.profileReactivated',
   'profiles.page.feedback.notifications.switchBusy',
   'profiles.page.feedback.notifications.batchDeleted',
   'profiles.page.feedback.notifications.urlMigrated',

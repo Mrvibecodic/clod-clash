@@ -30,7 +30,7 @@ import { useConnectTargets } from '@/hooks/use-connect-targets'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useSimpleMode } from '@/hooks/use-simple-mode'
 import { useFitWindowToContent } from '@/hooks/use-window-fit'
-import { createProfile, enhanceProfiles, importProfile } from '@/services/cmds'
+import { createProfile, importProfile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { connectFailureText } from '@/utils/tun-notice'
 
@@ -81,23 +81,15 @@ const HomeSimplePage = () => {
   const addSubscription = useLockFn(async () => {
     const url = subUrl.trim()
     if (!url) return
-    const activate = async () => {
-      await mutateProfiles()
-      try {
-        await enhanceProfiles()
-      } catch (error) {
-        console.error('[import] enhance after import failed:', error)
-      }
-    }
     const option = subSecure ? { secure: true } : undefined
     try {
       await importProfile(url, option)
-      await activate()
+      await mutateProfiles()
       setSubUrl('')
     } catch {
       try {
         await createProfile({ type: 'remote', url, option })
-        await activate()
+        await mutateProfiles()
         setSubUrl('')
       } catch (error) {
         showNotice.error(error)

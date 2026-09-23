@@ -49,7 +49,6 @@ import {
   updateProfile,
 } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
-import { revalidateQueries } from '@/services/query-client'
 import { useLoadingCache, useSetLoadingCache } from '@/services/states'
 import { debugLog } from '@/utils/debug'
 import { explainErrorKey, trimRawError } from '@/utils/error-explanation'
@@ -175,10 +174,13 @@ const ProfilePage = () => {
           self_proxy: false,
         },
       } as IProfileItem
-      await createProfileFromFile(item, file)
-      await mutateProfiles()
+      try {
+        await createProfileFromFile(item, file)
+      } catch (err) {
+        showNotice.error(err)
+      }
     }
-    await enhanceProfiles()
+    await mutateProfiles()
   })
 
   const onEmergencyRefresh = useLockFn(async () => {
@@ -187,12 +189,7 @@ const ProfilePage = () => {
     )
 
     try {
-      await revalidateQueries([['getProfiles']])
-
       await mutateProfiles()
-
-      await new Promise((resolve) => setTimeout(resolve, 500))
-      await onEnhance(false)
 
       showNotice.success(
         'profiles.page.feedback.notices.forceRefreshCompleted',
@@ -388,7 +385,7 @@ const ProfilePage = () => {
     }
   }, [current, activateProfile, mutateProfiles])
 
-  const onEnhance = useLockFn(async (notifySuccess: boolean) => {
+  const onEnhance = useLockFn(async () => {
     if (switchRunnerRef.current) {
       debugLog(
         `[Profile] Переключение профиля уже выполняется (${latestSwitchTargetRef.current}), пропускаем enhance`,
@@ -400,13 +397,7 @@ const ProfilePage = () => {
     setActivatings((prev) => [...new Set([...prev, ...currentProfiles])])
 
     try {
-      if (!(await enhanceProfiles())) return
-      if (notifySuccess) {
-        showNotice.success(
-          'profiles.page.feedback.notifications.profileReactivated',
-          1000,
-        )
-      }
+      await enhanceProfiles()
     } catch (err: any) {
       showNotice.error(err, 3000)
     } finally {
@@ -420,9 +411,6 @@ const ProfilePage = () => {
       setActivatings([...(current ? currentActivatings() : []), uid])
       await deleteProfile(uid)
       mutateProfiles()
-      if (current) {
-        await onEnhance(false)
-      }
     } catch (err: any) {
       showNotice.error(err)
     } finally {
@@ -579,8 +567,12 @@ const ProfilePage = () => {
     })
   }
 
+  const selectedVisible = visibleItems
+    .map((item) => item.uid)
+    .filter((uid) => selectedProfiles.has(uid))
+
   const selectAllProfiles = () => {
-    setSelectedProfiles(new Set(profileItems.map((item) => item.uid)))
+    setSelectedProfiles(new Set(visibleItems.map((item) => item.uid)))
   }
 
   const clearAllSelections = () => {
@@ -589,14 +581,14 @@ const ProfilePage = () => {
 
   const isAllSelected = () => {
     return (
-      profileItems.length > 0 && profileItems.length === selectedProfiles.size
+      visibleItems.length > 0 && visibleItems.length === selectedVisible.length
     )
   }
 
   const getSelectionState = () => {
-    if (selectedProfiles.size === 0) {
+    if (selectedVisible.length === 0) {
       return 'none'
-    } else if (selectedProfiles.size === profileItems.length) {
+    } else if (selectedVisible.length === visibleItems.length) {
       return 'all'
     } else {
       return 'partial'
@@ -604,25 +596,21 @@ const ProfilePage = () => {
   }
 
   const deleteSelectedProfiles = useLockFn(async () => {
-    if (selectedProfiles.size === 0) return
+    if (selectedVisible.length === 0) return
 
     try {
       const currentActivating =
-        profiles.current && selectedProfiles.has(profiles.current)
+        profiles.current && selectedVisible.includes(profiles.current)
           ? [profiles.current]
           : []
 
       setActivatings((prev) => [...new Set([...prev, ...currentActivating])])
 
-      for (const uid of selectedProfiles) {
+      for (const uid of selectedVisible) {
         await deleteProfile(uid)
       }
 
       await mutateProfiles()
-
-      if (currentActivating.length > 0) {
-        await onEnhance(false)
-      }
 
       setSelectedProfiles(new Set())
       setBatchMode(false)
@@ -721,7 +709,7 @@ const ProfilePage = () => {
                 color="error"
                 title={t('profiles.page.batch.actions.delete')}
                 onClick={deleteSelectedProfiles}
-                disabled={selectedProfiles.size === 0}
+                disabled={selectedVisible.length === 0}
               >
                 <DeleteRounded />
               </IconButton>
@@ -732,7 +720,8 @@ const ProfilePage = () => {
                 sx={{ flex: 1, textAlign: 'right', color: 'text.secondary' }}
               >
                 {t('profiles.page.batch.summary.selected')}{' '}
-                {selectedProfiles.size} {t('profiles.page.batch.summary.items')}
+                {selectedVisible.length}{' '}
+                {t('profiles.page.batch.summary.items')}
               </Box>
             </Box>
           )}
@@ -860,7 +849,7 @@ const ProfilePage = () => {
           mutateProfiles()
 
           if (isActivating) {
-            await onEnhance(false)
+            await onEnhance()
           }
         }}
       />

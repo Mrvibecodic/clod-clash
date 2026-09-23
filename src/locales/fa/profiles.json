@@ -33,7 +33,6 @@
       },
       "notifications": {
         "profileSwitched": "پروفایل تغییر یافت",
-        "profileReactivated": "پروفایل مجدداً فعال شد",
         "switchBusy": "Profile switch is already in progress",
         "batchDeleted": "Selected profiles deleted successfully",
         "urlMigrated": "The provider moved this subscription to a new address",

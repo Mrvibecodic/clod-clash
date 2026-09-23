@@ -32,6 +32,7 @@ import { useProfiles } from '@/hooks/use-profiles'
 import { createProfile, getProfiles, patchProfile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import parseTraffic from '@/utils/parse-traffic'
+import { profileEditPatch } from '@/utils/profile-edit'
 import { toUnixSeconds } from '@/utils/subscription-status'
 import { version } from '@root/package.json'
 
@@ -91,10 +92,8 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
 
   // file input
   const fileDataRef = useRef<string | null>(null)
-  // clod:Э9-05 — интервал, с которым карточку открыли. Порог спрашиваем только с
-  // того значения, которое человек сейчас вводит: профиль, заведённый раньше с более
-  // частым расписанием, должен по-прежнему открываться и сохраняться.
-  const openedWithIntervalRef = useRef<number | undefined>(undefined)
+  const openedRef = useRef<IProfileItem | undefined>(undefined)
+  const sessionRef = useRef(0)
 
   const { control, watch, setValue, reset, handleSubmit, getValues } =
     useForm<IProfileItem>({
@@ -129,14 +128,18 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
 
   useImperativeHandle(ref, () => ({
     create: () => {
+      sessionRef.current += 1
+      reset()
       resetState()
-      openedWithIntervalRef.current = undefined
+      openedRef.current = undefined
       setOpenType('new')
       setOpen(true)
     },
     edit: (item: IProfileItem) => {
+      sessionRef.current += 1
+      reset()
       resetState()
-      openedWithIntervalRef.current = item?.option?.update_interval
+      openedRef.current = item
       if (item) {
         Object.entries(item).forEach(([key, value]) => {
           setValue(key as any, value)
@@ -149,7 +152,7 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
 
   // clod:Э9-05 — у профиля, заведённого раньше с более частым расписанием, поле не
   // должно светиться ошибкой и обещать порог: сохранить его как есть мы разрешаем.
-  const openedWith = openedWithIntervalRef.current
+  const openedWith = openedRef.current?.option?.update_interval
   const intervalFloor =
     typeof openedWith === 'number' && openedWith > 0
       ? Math.min(MIN_UPDATE_INTERVAL_MINUTES, openedWith)
@@ -188,6 +191,7 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
         return
       }
 
+      const session = sessionRef.current
       setLoading(true)
       setLoadingLine(
         LOADING_LINES[Math.floor(Math.random() * LOADING_LINES.length)],
@@ -229,7 +233,7 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
           isRemote &&
           option?.update_interval &&
           option.update_interval < MIN_UPDATE_INTERVAL_MINUTES &&
-          option.update_interval !== openedWithIntervalRef.current
+          option.update_interval !== openedRef.current?.option?.update_interval
         ) {
           throw new Error(
             t('profiles.modals.profileForm.errors.intervalTooShort', {
@@ -253,75 +257,50 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
         // Проверяем, является ли конфиг текущим активным
         const isActivating = isUpdate && form.uid === (profiles?.current ?? '')
 
-        // Сохраняем исходные настройки прокси, чтобы восстановить после успешного отката
-        const originalOptions = {
-          with_proxy: form.option?.with_proxy,
-          self_proxy: form.option?.self_proxy,
-        }
-
-        // Создание или обновление; локальному конфигу механизм отката не нужен
-        if (!isRemote) {
-          if (openType === 'new') {
-            await createProfile(item, fileDataRef.current)
-          } else {
-            if (!form.uid)
-              throw new Error(
-                t('profiles.modals.profileForm.errors.profileMissing'),
-              )
-            await patchProfile(form.uid, item)
-          }
+        let changed = true
+        if (isUpdate) {
+          if (!form.uid || !openedRef.current)
+            throw new Error(
+              t('profiles.modals.profileForm.errors.profileMissing'),
+            )
+          const latest = (await getProfiles()).items?.find(
+            (p) => p.uid === form.uid,
+          )
+          const patch = profileEditPatch(
+            openedRef.current,
+            item,
+            latest?.option,
+          )
+          changed = Object.keys(patch).length > 0
+          if (changed) await patchProfile(form.uid, patch)
+        } else if (!isRemote) {
+          await createProfile(item, fileDataRef.current)
         } else {
-          // Для удалённого конфига используем механизм отката
           try {
-            // Пробуем обычную операцию
-            if (openType === 'new') {
-              await createProfile(item, fileDataRef.current)
-            } else {
-              if (!form.uid)
-                throw new Error(
-                  t('profiles.modals.profileForm.errors.profileMissing'),
-                )
-              await patchProfile(form.uid, item)
-            }
+            await createProfile(item, fileDataRef.current)
           } catch {
-            // Первая попытка создания/обновления не удалась, пробуем через собственный прокси
             showNotice.info(
               'profiles.modals.profileForm.feedback.notifications.creationRetry',
             )
-
-            // Конфиг с использованием собственного прокси
-            const retryItem = {
-              ...item,
-              option: {
-                ...item.option,
-                with_proxy: false,
-                self_proxy: true,
+            await createProfile(
+              {
+                ...item,
+                option: { ...item.option, with_proxy: false, self_proxy: true },
               },
-            }
-
-            // Повторная попытка через собственный прокси
-            if (openType === 'new') {
-              await createProfile(retryItem, fileDataRef.current)
-            } else {
-              if (!form.uid)
-                throw new Error(
-                  t('profiles.modals.profileForm.errors.profileMissing'),
-                )
-              await patchProfile(form.uid, retryItem)
-
-              // В режиме редактирования восстанавливаем исходные настройки прокси
-              await patchProfile(form.uid, { option: originalOptions })
-            }
+              fileDataRef.current,
+            )
           }
         }
 
+        onChange(isActivating && changed)
+        if (session !== sessionRef.current) return
         fileDataRef.current = null
-        onChange(isActivating)
 
         // clod: при добавлении окно не закрывается — показываем второй шаг с
         // тем, что нашлось по ссылке. При правке закрываем как раньше.
         if (openType === 'new') {
           const fresh = await getProfiles().catch(() => undefined)
+          if (session !== sessionRef.current) return
           const items = fresh?.items ?? []
           const match =
             [...items]
@@ -332,10 +311,10 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
           setAdded(match ?? ({ name } as IProfileItem))
         } else {
           setOpen(false)
-          setTimeout(() => reset(), 500)
         }
       } catch (err) {
         // clod: ошибка живёт в окне, а не улетает тостом — введённое не теряется.
+        if (session !== sessionRef.current) return
         setErrorText(err instanceof Error ? err.message : String(err))
       } finally {
         setLoading(false)
@@ -344,16 +323,9 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
   )
 
   const handleClose = () => {
-    try {
-      setOpen(false)
-      fileDataRef.current = null
-      setTimeout(() => {
-        reset()
-        resetState()
-      }, 500)
-    } catch (e) {
-      console.warn('[ProfileViewer] handleClose error:', e)
-    }
+    sessionRef.current += 1
+    setOpen(false)
+    fileDataRef.current = null
   }
 
   const text = {

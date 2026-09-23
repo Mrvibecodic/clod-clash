@@ -33,7 +33,6 @@
       },
       "notifications": {
         "profileSwitched": "訂閱已切換",
-        "profileReactivated": "訂閱已啟用",
         "switchBusy": "正在切換配置，請稍後重試",
         "batchDeleted": "選取的訂閱已成功刪除",
         "urlMigrated": "The provider moved this subscription to a new address",
