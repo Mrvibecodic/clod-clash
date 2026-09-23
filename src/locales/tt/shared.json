@@ -81,6 +81,7 @@
         "tls": "Сертификатны тикшереп булмады — компьютер сәгатен һәм адресны карагыз",
         "badConfig": "Конфигурация укылмады. Җегәр язылуны сезнең merge, script, rules һәм төркемнәрдәге үзгәртүләрегез белән бергә тикшерә — гаепле теләсә кайсысы булырга мөмкин",
         "optimisticLock": "Саклаганда көйләүләр үзгәрде — тагын бер тапкыр карагыз",
+        "configBusy": "The core is applying settings right now — try again in a couple of seconds",
         "localFileIsAWebPage": "Бу конфигурация түгел, ә веб-бит — дөрес файл сайлаганыгызны тикшерегез",
         "localFileIsNotYaml": "Файл дөрес YAML түгел — кертемнәрне һәм куштырнакларны тикшерегез",
         "unsupportedProxy": "Көйләнмәдә ядро белмәгән протокол бар — ядрону яңартыгыз яки тәэмин итүчедән сорагыз",
@@ -144,6 +145,12 @@
         "syntaxError": "Merge file syntax error, changes reverted",
         "mappingError": "Merge file mapping error, changes reverted"
       }
+    },
+    "crash": {
+      "title": "This screen crashed",
+      "retry": "Try again",
+      "details": "Details",
+      "home": "Go home"
     }
   },
   "filters": {

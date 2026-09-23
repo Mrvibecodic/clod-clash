@@ -24,7 +24,7 @@ export const BasePage: React.FC<Props> = (props) => {
   const showBack = location.pathname !== '/'
 
   return (
-    <BaseErrorBoundary>
+    <BaseErrorBoundary onHome={showBack ? () => void navigate('/') : undefined}>
       <div className="base-page">
         <header data-tauri-drag-region="true" style={{ userSelect: 'none' }}>
           <Typography

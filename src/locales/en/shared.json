@@ -81,6 +81,7 @@
         "tls": "The certificate could not be verified — check the clock on this computer and the address",
         "badConfig": "The configuration could not be parsed. The core checks the subscription together with your own merge, script, rules and group edits — any of them could be at fault",
         "optimisticLock": "The settings changed while saving — please try again",
+        "configBusy": "The core is applying settings right now — try again in a couple of seconds",
         "localFileIsAWebPage": "This is a web page, not a configuration — check that you picked the right file",
         "localFileIsNotYaml": "The file is not valid YAML — check the indentation and quotes",
         "unsupportedProxy": "The configuration uses a protocol the core does not know — update the core or ask your provider",
@@ -144,6 +145,12 @@
         "syntaxError": "Merge file syntax error, changes reverted",
         "mappingError": "Merge file mapping error, changes reverted"
       }
+    },
+    "crash": {
+      "title": "This screen crashed",
+      "retry": "Try again",
+      "details": "Details",
+      "home": "Go home"
     }
   },
   "filters": {

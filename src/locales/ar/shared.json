@@ -81,6 +81,7 @@
         "tls": "تعذّر التحقّق من الشهادة — راجع ساعة الجهاز والعنوان",
         "badConfig": "تعذّر تحليل الإعدادات. تفحص النواة الاشتراك مع تعديلاتك في merge وscript وrules والمجموعات — وأي منها قد يكون السبب",
         "optimisticLock": "تغيّرت الإعدادات أثناء الحفظ — أعد المحاولة",
+        "configBusy": "The core is applying settings right now — try again in a couple of seconds",
         "localFileIsAWebPage": "هذه صفحة ويب وليست ملف إعدادات — تأكد من اختيار الملف الصحيح",
         "localFileIsNotYaml": "الملف ليس YAML صالحًا — تحقّق من المسافات البادئة وعلامات الاقتباس",
         "unsupportedProxy": "الإعدادات تستخدم بروتوكولًا لا تعرفه النواة — حدّث النواة أو اسأل المزوّد",
@@ -144,6 +145,12 @@
         "syntaxError": "Merge file syntax error, changes reverted",
         "mappingError": "Merge file mapping error, changes reverted"
       }
+    },
+    "crash": {
+      "title": "This screen crashed",
+      "retry": "Try again",
+      "details": "Details",
+      "home": "Go home"
     }
   },
   "filters": {

@@ -81,6 +81,7 @@
         "tls": "No se pudo verificar el certificado: revisa el reloj del equipo y la dirección",
         "badConfig": "No se pudo interpretar la configuración. El núcleo comprueba la suscripción junto con sus propias ediciones de merge, script, rules y grupos: cualquiera de ellas puede ser la causa",
         "optimisticLock": "La configuración cambió mientras se guardaba: inténtelo de nuevo",
+        "configBusy": "The core is applying settings right now — try again in a couple of seconds",
         "localFileIsAWebPage": "Esto es una página web, no una configuración: compruebe que eligió el archivo correcto",
         "localFileIsNotYaml": "El archivo no es YAML válido: revise la indentación y las comillas",
         "unsupportedProxy": "La configuración usa un protocolo que el núcleo no conoce: actualiza el núcleo o consulta al proveedor",
@@ -144,6 +145,12 @@
         "syntaxError": "Error de sintaxis en el archivo de sobrescritura. Los cambios se han deshecho",
         "mappingError": "Error de mapeo en el archivo de sobrescritura. Los cambios se han deshecho"
       }
+    },
+    "crash": {
+      "title": "This screen crashed",
+      "retry": "Try again",
+      "details": "Details",
+      "home": "Go home"
     }
   },
   "filters": {

@@ -81,6 +81,7 @@
         "tls": "Sertifikat tidak dapat diverifikasi — periksa jam komputer dan alamatnya",
         "badConfig": "Konfigurasi tidak dapat diurai. Inti memeriksa langganan bersama suntingan Anda sendiri pada merge, script, rules, dan grup — salah satunya bisa menjadi penyebab",
         "optimisticLock": "Pengaturan berubah saat menyimpan — coba lagi",
+        "configBusy": "The core is applying settings right now — try again in a couple of seconds",
         "localFileIsAWebPage": "Ini halaman web, bukan konfigurasi — periksa apakah Anda memilih berkas yang benar",
         "localFileIsNotYaml": "Berkas bukan YAML yang valid — periksa indentasi dan tanda kutip",
         "unsupportedProxy": "Konfigurasi memakai protokol yang tidak dikenal core — perbarui core atau tanyakan penyedia",
@@ -144,6 +145,12 @@
         "syntaxError": "Merge file syntax error, changes reverted",
         "mappingError": "Merge file mapping error, changes reverted"
       }
+    },
+    "crash": {
+      "title": "This screen crashed",
+      "retry": "Try again",
+      "details": "Details",
+      "home": "Go home"
     }
   },
   "filters": {

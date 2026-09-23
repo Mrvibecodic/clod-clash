@@ -81,6 +81,7 @@
         "tls": "証明書を検証できません — パソコンの時計とアドレスを確認してください",
         "badConfig": "設定を解析できませんでした。コアはサブスクリプションを、あなた自身の merge・script・rules・グループの編集と合わせて検査します — どれが原因の可能性もあります",
         "optimisticLock": "保存中に設定が変更されました — もう一度お試しください",
+        "configBusy": "The core is applying settings right now — try again in a couple of seconds",
         "localFileIsAWebPage": "これは設定ではなくウェブページです — 選んだファイルが正しいか確認してください",
         "localFileIsNotYaml": "ファイルが正しい YAML ではありません — インデントと引用符を確認してください",
         "unsupportedProxy": "コアが知らないプロトコルが設定にあります — コアを更新するか提供元に確認してください",
@@ -144,6 +145,12 @@
         "syntaxError": "上書きファイルの構文エラーがあります。変更は取り消されました。",
         "mappingError": "上書きファイルのマッピングエラーがあります。変更は取り消されました。"
       }
+    },
+    "crash": {
+      "title": "This screen crashed",
+      "retry": "Try again",
+      "details": "Details",
+      "home": "Go home"
     }
   },
   "filters": {

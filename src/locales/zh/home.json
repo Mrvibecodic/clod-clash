@@ -16,7 +16,7 @@
         "error": "Connection failed"
       },
       "errors": {
-        "serviceRequired": "TUN mode needs the helper service. Install it in the advanced settings."
+        "serviceRequired": "TUN mode needs the background service. Install it in Settings: the wrench icon next to the TUN mode switch."
       }
     },
     "serverSelect": {

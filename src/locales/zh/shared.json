@@ -81,6 +81,7 @@
         "tls": "无法校验证书 — 请检查本机时间和地址",
         "badConfig": "配置解析失败。内核会把订阅和你自己对 merge、script、rules 和分组的修改合并后一起检查 — 任何一部分都可能是原因",
         "optimisticLock": "保存过程中设置发生了变化 — 请再试一次",
+        "configBusy": "The core is applying settings right now — try again in a couple of seconds",
         "localFileIsAWebPage": "这是网页而不是配置 — 请确认选择的文件是否正确",
         "localFileIsNotYaml": "文件不是有效的 YAML — 请检查缩进和引号",
         "unsupportedProxy": "配置里有内核不认识的协议 — 请更新内核或询问提供方",
@@ -144,6 +145,12 @@
         "syntaxError": "覆写文件语法错误，变更已撤销",
         "mappingError": "覆写文件映射错误，变更已撤销"
       }
+    },
+    "crash": {
+      "title": "This screen crashed",
+      "retry": "Try again",
+      "details": "Details",
+      "home": "Go home"
     }
   },
   "filters": {

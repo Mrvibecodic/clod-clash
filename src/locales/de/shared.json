@@ -81,6 +81,7 @@
         "tls": "Das Zertifikat konnte nicht geprüft werden — prüfen Sie die Uhr des Rechners und die Adresse",
         "badConfig": "Die Konfiguration konnte nicht gelesen werden. Der Core prüft das Abonnement zusammen mit Ihren eigenen Änderungen an merge, script, rules und Gruppen — jede davon kann die Ursache sein",
         "optimisticLock": "Die Einstellungen haben sich während des Speicherns geändert — bitte erneut versuchen",
+        "configBusy": "The core is applying settings right now — try again in a couple of seconds",
         "localFileIsAWebPage": "Das ist eine Webseite, keine Konfiguration — prüfen Sie, ob Sie die richtige Datei gewählt haben",
         "localFileIsNotYaml": "Die Datei ist kein gültiges YAML — prüfen Sie Einrückung und Anführungszeichen",
         "unsupportedProxy": "Die Konfiguration nutzt ein Protokoll, das der Kern nicht kennt — Kern aktualisieren oder Anbieter fragen",
@@ -144,6 +145,12 @@
         "syntaxError": "Syntaxfehler in der Überdeckungsdatei. Die Änderungen wurden rückgängig gemacht.",
         "mappingError": "Mappingfehler in der Überdeckungsdatei. Die Änderungen wurden rückgängig gemacht."
       }
+    },
+    "crash": {
+      "title": "This screen crashed",
+      "retry": "Try again",
+      "details": "Details",
+      "home": "Go home"
     }
   },
   "filters": {

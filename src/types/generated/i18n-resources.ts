@@ -1433,6 +1433,12 @@ export interface TranslationResources {
         visualization: string
       }
       feedback: {
+        crash: {
+          details: string
+          home: string
+          retry: string
+          title: string
+        }
         errors: {
           core: {
             badConfig: string
@@ -1440,6 +1446,7 @@ export interface TranslationResources {
             chanBroken: string
             chanRefused: string
             chanReplay: string
+            configBusy: string
             connectionRefused: string
             connectionReset: string
             forbidden: string

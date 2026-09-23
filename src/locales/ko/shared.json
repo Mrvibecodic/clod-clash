@@ -81,6 +81,7 @@
         "tls": "인증서를 확인할 수 없습니다 — 컴퓨터 시계와 주소를 확인하세요",
         "badConfig": "설정을 해석하지 못했습니다. 코어는 구독을 사용자의 merge, script, rules, 그룹 편집과 함께 검사합니다 — 어느 쪽이든 원인일 수 있습니다",
         "optimisticLock": "저장하는 동안 설정이 변경되었습니다 — 다시 시도하세요",
+        "configBusy": "The core is applying settings right now — try again in a couple of seconds",
         "localFileIsAWebPage": "이것은 설정이 아니라 웹 페이지입니다 — 올바른 파일을 선택했는지 확인하세요",
         "localFileIsNotYaml": "파일이 올바른 YAML이 아닙니다 — 들여쓰기와 따옴표를 확인하세요",
         "unsupportedProxy": "코어가 모르는 프로토콜이 설정에 있습니다 — 코어를 업데이트하거나 제공자에게 문의하세요",
@@ -144,6 +145,12 @@
         "syntaxError": "병합 파일 구문 오류",
         "mappingError": "병합 파일 매핑 오류"
       }
+    },
+    "crash": {
+      "title": "This screen crashed",
+      "retry": "Try again",
+      "details": "Details",
+      "home": "Go home"
     }
   },
   "filters": {

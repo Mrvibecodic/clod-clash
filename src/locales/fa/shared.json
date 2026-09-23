@@ -81,6 +81,7 @@
         "tls": "گواهی تأیید نشد — ساعت رایانه و نشانی را بررسی کنید",
         "badConfig": "پیکربندی تجزیه نشد. هسته اشتراک را همراه با ویرایش‌های خود شما در merge، script، rules و گروه‌ها بررسی می‌کند — هر کدام می‌تواند مقصر باشد",
         "optimisticLock": "تنظیمات هنگام ذخیره تغییر کرد — دوباره تلاش کنید",
+        "configBusy": "The core is applying settings right now — try again in a couple of seconds",
         "localFileIsAWebPage": "این یک صفحهٔ وب است، نه پیکربندی — بررسی کنید فایل درست را انتخاب کرده باشید",
         "localFileIsNotYaml": "فایل به‌عنوان YAML معتبر خوانده نشد — تورفتگی‌ها و گیومه‌ها را بررسی کنید",
         "unsupportedProxy": "پیکربندی از پروتکلی استفاده می‌کند که هسته نمی‌شناسد — هسته را به‌روز کنید یا از ارائه‌دهنده بپرسید",
@@ -144,6 +145,12 @@
         "syntaxError": "Merge file syntax error, changes reverted",
         "mappingError": "Merge file mapping error, changes reverted"
       }
+    },
+    "crash": {
+      "title": "This screen crashed",
+      "retry": "Try again",
+      "details": "Details",
+      "home": "Go home"
     }
   },
   "filters": {

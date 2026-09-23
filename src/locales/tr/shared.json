@@ -81,6 +81,7 @@
         "tls": "Sertifika doğrulanamadı — bilgisayarın saatini ve adresi kontrol edin",
         "badConfig": "Yapılandırma çözümlenemedi. Çekirdek aboneliği sizin merge, script, rules ve grup düzenlemelerinizle birlikte denetler — herhangi biri sorunun kaynağı olabilir",
         "optimisticLock": "Kaydedilirken ayarlar değişti — lütfen tekrar deneyin",
+        "configBusy": "The core is applying settings right now — try again in a couple of seconds",
         "localFileIsAWebPage": "Bu bir yapılandırma değil, web sayfası — doğru dosyayı seçtiğinizden emin olun",
         "localFileIsNotYaml": "Dosya geçerli YAML değil — girintileri ve tırnakları kontrol edin",
         "unsupportedProxy": "Yapılandırmada çekirdeğin bilmediği bir protokol var — çekirdeği güncelleyin veya sağlayıcıya sorun",
@@ -144,6 +145,12 @@
         "syntaxError": "Birleştirme dosyası sözdizimi hatası, değişiklikler geri alındı",
         "mappingError": "Birleştirme dosyası eşleme hatası, değişiklikler geri alındı"
       }
+    },
+    "crash": {
+      "title": "This screen crashed",
+      "retry": "Try again",
+      "details": "Details",
+      "home": "Go home"
     }
   },
   "filters": {

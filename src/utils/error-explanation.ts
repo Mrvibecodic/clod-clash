@@ -35,6 +35,10 @@ const RULES: ReadonlyArray<{ pattern: RegExp; key: string }> = [
   { pattern: /clod-sub-downgrade/, key: 'subscriptionDowngrade' },
   // clod:Э10-06 — внутренняя фраза модели черновиков доезжала до человека как есть.
   { pattern: /optimistic lock failed/, key: 'optimisticLock' },
+  {
+    pattern: /configuration update is already running/,
+    key: 'configBusy',
+  },
   // clod:Э10-09 — локальный файл пользователя: объяснение про панель тут не к месту.
   { pattern: /clod-local-web-page/, key: 'localFileIsAWebPage' },
   { pattern: /clod-local-bad-yaml/, key: 'localFileIsNotYaml' },

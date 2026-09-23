@@ -52,6 +52,7 @@ const Layout = () => {
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const isLogsPage = pathname === '/logs'
+  const isHome = pathname === '/'
   const pageVisible = useVisibility()
   const themeReady = useMemo(() => Boolean(theme), [theme])
 
@@ -135,7 +136,9 @@ const Layout = () => {
 
   useEffect(() => {
     if (language) {
-      dayjs.locale(language === 'zh' ? 'zh-cn' : language)
+      dayjs.locale(
+        language === 'zh' ? 'zh-cn' : language === 'ru' ? 'ru' : 'en',
+      )
       switchLanguage(language)
     }
   }, [language, switchLanguage])
@@ -218,7 +221,10 @@ const Layout = () => {
           <div className="layout-content__right">
             <div className="the-bar"></div>
             <div className="the-content">
-              <BaseErrorBoundary>
+              <BaseErrorBoundary
+                resetKeys={[pathname]}
+                onHome={isHome ? undefined : () => void navigate('/')}
+              >
                 <Outlet />
               </BaseErrorBoundary>
               {isLogsPage && (

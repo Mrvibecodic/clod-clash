@@ -81,6 +81,7 @@
         "tls": "無法驗證憑證 — 請檢查本機時間與位址",
         "badConfig": "設定解析失敗。核心會把訂閱和你自己對 merge、script、rules 和群組的修改合併後一起檢查 — 任何一部分都可能是原因",
         "optimisticLock": "儲存過程中設定發生了變化 — 請再試一次",
+        "configBusy": "The core is applying settings right now — try again in a couple of seconds",
         "localFileIsAWebPage": "這是網頁而不是設定 — 請確認選擇的檔案是否正確",
         "localFileIsNotYaml": "檔案不是有效的 YAML — 請檢查縮排和引號",
         "unsupportedProxy": "設定中有核心不認識的協定 — 請更新核心或詢問提供者",
@@ -144,6 +145,12 @@
         "syntaxError": "覆寫檔案語法錯誤，變更已撤銷",
         "mappingError": "覆寫檔案映射錯誤，變更已撤銷"
       }
+    },
+    "crash": {
+      "title": "This screen crashed",
+      "retry": "Try again",
+      "details": "Details",
+      "home": "Go home"
     }
   },
   "filters": {

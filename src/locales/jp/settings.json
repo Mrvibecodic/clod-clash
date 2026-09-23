@@ -29,9 +29,9 @@
         },
         "tunMode": {
           "autoDisabled": "コアが TUN デバイスを起動できなかったため、TUN は無効のままです",
-          "noRights": "There were not enough rights to create the tunnel, so TUN is off. Install the background service in the advanced settings or run the application as administrator",
+          "noRights": "There were not enough rights to create the tunnel, so TUN is off. Install the background service (Settings, the wrench icon next to the TUN mode switch) or run the application as administrator",
           "rightsDeclined": "The rights prompt was declined, so the background service cannot be installed and TUN stays off",
-          "serviceSilent": "The background service is installed but does not answer, so TUN does not work yet. Try repairing it in the advanced settings",
+          "serviceSilent": "The background service is installed but does not answer, so TUN does not work yet. Try repairing it: Settings, the wrench icon next to the TUN mode switch",
           "setupPending": "The system rights prompt is still open — confirm it. TUN will turn on as soon as the service is installed",
           "setupBusy": "The service setup is already running — wait for it to finish and try again",
           "adapterBusy": "TUN アダプターが別のクライアントに使用中か解放されていません。そのクライアントを終了するか、パソコンを再起動してください",
