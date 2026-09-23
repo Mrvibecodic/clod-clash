@@ -6,13 +6,10 @@ import { useTranslation } from 'react-i18next'
 
 import { BaseDialog, Switch } from '@/components/base'
 import { useClash } from '@/hooks/use-clash'
-import { restartCore } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 
-// Список URL для окружения разработки
-// Эти URL автоматически включаются в разрешённые источники в режиме разработки
-// В продакшене эти URL отфильтровываются
-// Это гарантирует, что URL окружения разработки случайно не попадут в продакшен
+// Служебные источники: всегда добавляются к разрешённым при сохранении
+// и не показываются в списке
 const DEV_URLS = [
   'tauri://localhost',
   'http://tauri.localhost',
@@ -80,7 +77,7 @@ interface AllowOriginItem {
 export const HeaderConfiguration = forwardRef<ClashHeaderConfigingRef>(
   (props, ref) => {
     const { t } = useTranslation()
-    const { runtime, mutateClash, patchClash } = useClash()
+    const { runtime, patchClash } = useClash()
     const [open, setOpen] = useState(false)
 
     const lastKeyRef = useRef(0) // Для генерации уникального key
@@ -151,8 +148,6 @@ export const HeaderConfiguration = forwardRef<ClashHeaderConfigingRef>(
             ),
           },
         })
-        await restartCore()
-        await mutateClash()
       },
       {
         manual: true,
@@ -160,8 +155,11 @@ export const HeaderConfiguration = forwardRef<ClashHeaderConfigingRef>(
           setOpen(false)
           showNotice.success('shared.feedback.notifications.common.saveSuccess')
         },
-        onError: () => {
-          showNotice.error('shared.feedback.notifications.common.saveFailed')
+        onError: (err) => {
+          showNotice.error(
+            'shared.feedback.notifications.common.saveFailed',
+            err,
+          )
         },
       },
     )

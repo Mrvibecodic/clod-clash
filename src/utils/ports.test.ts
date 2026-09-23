@@ -43,12 +43,11 @@ test('называет первый негодный порт полезной �
   })
 })
 
-test('ноль — это «слушателя нет», а не негодный порт', () => {
-  assert.equal(findPortOutOfRange([0, 0, 0]), undefined)
+test('пустое поле (ноль) — негодный порт', () => {
   assert.equal(findPortOutOfRange([]), undefined)
   assert.equal(findPortOutOfRange([7897, 7898, 7899]), undefined)
-  assert.deepEqual(findPortOutOfRange([0, 800]), {
-    port: 800,
+  assert.deepEqual(findPortOutOfRange([7897, 0]), {
+    port: 0,
     verdict: 'tooLow',
   })
 })

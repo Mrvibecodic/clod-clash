@@ -24,7 +24,6 @@ export const portRangeVerdict = (port: number): PortRangeVerdict => {
 
 export const findPortOutOfRange = (ports: readonly number[]) => {
   for (const port of ports) {
-    if (port === 0) continue
     const verdict = Number.isFinite(port) ? portRangeVerdict(port) : 'tooLow'
     if (verdict !== 'ok') return { port, verdict }
   }

@@ -23,7 +23,8 @@ import { showNotice } from '@/services/notice-service'
 export function ControllerViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
-  const [copySuccess, setCopySuccess] = useState<null | string>(null)
+  const [copiedType, setCopiedType] = useState('')
+  const [copiedOpen, setCopiedOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
   const { clashInfo, patchInfo } = useClashInfo()
@@ -45,34 +46,33 @@ export function ControllerViewer({ ref }: { ref?: Ref<DialogRef> }) {
     close: () => setOpen(false),
   }))
 
-  // Сохранить конфиг
   const onSave = useLockFn(async () => {
+    if (enableController && !controller.trim()) {
+      showNotice.error(
+        'settings.sections.externalController.messages.addressRequired',
+      )
+      return
+    }
+    if (enableController && !secret.trim()) {
+      showNotice.error(
+        'settings.sections.externalController.messages.secretRequired',
+      )
+      return
+    }
+
+    const wasEnabled = verge?.enable_external_controller ?? false
     try {
       setIsSaving(true)
-
-      // Сначала сохраняем настройку enable_external_controller
-      await patchVerge({ enable_external_controller: enableController })
-
-      // Если внешний контроллер включён, сохраняем адрес и секрет контроллера
+      if (enableController !== wasEnabled) {
+        await patchVerge({ enable_external_controller: enableController })
+      }
       if (enableController) {
-        if (!controller.trim()) {
-          showNotice.error(
-            'settings.sections.externalController.messages.addressRequired',
-          )
-          return
-        }
-
-        if (!secret.trim()) {
-          showNotice.error(
-            'settings.sections.externalController.messages.secretRequired',
-          )
-          return
-        }
-
-        await patchInfo({ 'external-controller': controller, secret })
-      } else {
-        // Если внешний контроллер отключён, очищаем адрес контроллера
-        await patchInfo({ 'external-controller': '' })
+        await patchInfo({
+          ...(controller !== clashInfo?.server && {
+            'external-controller': controller,
+          }),
+          ...(secret !== clashInfo?.secret && { secret }),
+        })
       }
 
       showNotice.success('shared.feedback.notifications.common.saveSuccess')
@@ -93,8 +93,8 @@ export function ControllerViewer({ ref }: { ref?: Ref<DialogRef> }) {
     async (text: string, type: string) => {
       try {
         await navigator.clipboard.writeText(text)
-        setCopySuccess(type)
-        setTimeout(() => setCopySuccess(null))
+        setCopiedType(type)
+        setCopiedOpen(true)
       } catch (err) {
         console.warn('[ControllerViewer] copy to clipboard failed:', err)
         showNotice.error(
@@ -225,12 +225,15 @@ export function ControllerViewer({ ref }: { ref?: Ref<DialogRef> }) {
       </List>
 
       <Snackbar
-        open={copySuccess !== null}
+        open={copiedOpen}
         autoHideDuration={2000}
+        onClose={(_, reason) => {
+          if (reason !== 'clickaway') setCopiedOpen(false)
+        }}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       >
         <Alert severity="success">
-          {copySuccess === 'controller'
+          {copiedType === 'controller'
             ? t(
                 'settings.sections.externalController.messages.controllerCopied',
               )

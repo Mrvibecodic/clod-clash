@@ -66,7 +66,7 @@ const validatePortRange = (port: number, t: Translate) => {
 const validatePorts = (patch: ClashInfoPatch, t: Translate) => {
   PORT_KEYS.forEach((key) => {
     const port = patch[key]
-    if (!port) return
+    if (port == null) return
     validatePortRange(port, t)
   })
 }

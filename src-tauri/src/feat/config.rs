@@ -24,8 +24,11 @@ pub async fn patch_clash(patch: &Mapping) -> Result<()> {
     let _serialized = PATCH_CLASH_LOCK.lock().await;
     Config::clash().await.edit_draft(|d| d.patch_config(patch));
 
-    let res = {
-        if patch.get("secret").is_some() || patch.get("external-controller").is_some() {
+    let res: Result<()> = async {
+        if patch.get("secret").is_some()
+            || patch.get("external-controller").is_some()
+            || patch.get("external-controller-cors").is_some()
+        {
             Config::generate().await?;
             CoreManager::global().restart_core().await?;
         } else if let Some(sharing) = patch.get("allow-lan") {
@@ -41,12 +44,12 @@ pub async fn patch_clash(patch: &Mapping) -> Result<()> {
             }
             CoreManager::global().update_config_checked().await?;
         } else {
-            Config::runtime().await.edit_draft(|d| d.patch_config(patch));
             CoreManager::global().update_config_checked().await?;
         }
         handle::Handle::refresh_clash();
-        <Result<()>>::Ok(())
-    };
+        Ok(())
+    }
+    .await;
     match res {
         Ok(()) => {
             Config::clash().await.apply();
@@ -108,7 +111,6 @@ fn determine_update_flags(patch: &IVerge) -> UpdateFlags {
     let pac_content = &patch.pac_file_content;
     let proxy_bypass = &patch.system_proxy_bypass;
     let language = &patch.language;
-    let mixed_port = patch.verge_mixed_port;
     #[cfg(target_os = "macos")]
     let tray_icon = &patch.tray_icon;
     #[cfg(not(target_os = "macos"))]
@@ -116,18 +118,11 @@ fn determine_update_flags(patch: &IVerge) -> UpdateFlags {
     let common_tray_icon = patch.common_tray_icon;
     let sysproxy_tray_icon = patch.sysproxy_tray_icon;
     let tun_tray_icon = patch.tun_tray_icon;
+    let listener_toggled = patch.verge_socks_enabled.is_some() || patch.verge_http_enabled.is_some();
     #[cfg(not(target_os = "windows"))]
-    let redir_enabled = patch.verge_redir_enabled;
-    #[cfg(not(target_os = "windows"))]
-    let redir_port = patch.verge_redir_port;
+    let listener_toggled = listener_toggled || patch.verge_redir_enabled.is_some();
     #[cfg(target_os = "linux")]
-    let tproxy_enabled = patch.verge_tproxy_enabled;
-    #[cfg(target_os = "linux")]
-    let tproxy_port = patch.verge_tproxy_port;
-    let socks_enabled = patch.verge_socks_enabled;
-    let socks_port = patch.verge_socks_port;
-    let http_enabled = patch.verge_http_enabled;
-    let http_port = patch.verge_port;
+    let listener_toggled = listener_toggled || patch.verge_tproxy_enabled.is_some();
     #[cfg(target_os = "macos")]
     let enable_tray_speed = patch.enable_tray_speed;
     #[cfg(not(target_os = "macos"))]
@@ -144,35 +139,16 @@ fn determine_update_flags(patch: &IVerge) -> UpdateFlags {
     let log_max_size = patch.app_log_max_size;
     let log_max_count = patch.app_log_max_count;
 
-    #[cfg(target_os = "windows")]
-    let restart_core_needed = socks_enabled.is_some()
-        || http_enabled.is_some()
-        || socks_port.is_some()
-        || http_port.is_some()
-        || mixed_port.is_some()
-        || patch.use_managed_core.is_some()
-        || enable_external_controller.is_some();
-    #[cfg(not(target_os = "windows"))]
-    let mut restart_core_needed = socks_enabled.is_some()
-        || http_enabled.is_some()
-        || socks_port.is_some()
-        || http_port.is_some()
-        || mixed_port.is_some()
-        || patch.use_managed_core.is_some()
-        || enable_external_controller.is_some();
-    #[cfg(not(target_os = "windows"))]
-    {
-        restart_core_needed |= redir_enabled.is_some() || redir_port.is_some();
-    }
+    let restart_core_needed = patch.use_managed_core.is_some() || enable_external_controller.is_some();
     #[cfg(target_os = "linux")]
-    {
-        restart_core_needed |= tproxy_enabled.is_some() || tproxy_port.is_some();
-        restart_core_needed |= tun_mode == Some(true);
-    }
+    let restart_core_needed = restart_core_needed || tun_mode == Some(true);
 
     let mut update_flags = UpdateFlags::empty();
     if restart_core_needed {
         update_flags.insert(UpdateFlags::RESTART_CORE);
+    }
+    if listener_toggled {
+        update_flags.insert(UpdateFlags::CLASH_CONFIG);
     }
     if tun_mode.is_some() {
         update_flags.insert(UpdateFlags::CLASH_CONFIG | UpdateFlags::GROUP_SYS_TRAY);
