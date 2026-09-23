@@ -43,8 +43,6 @@ export const useSimpleMode = () => {
   return {
     /** The mode actually in effect. */
     simpleMode,
-    /** True while the provider's preference is what decides. */
-    isProviderChoice: userChoice === undefined && providerChoice !== undefined,
     setSimpleMode,
   }
 }

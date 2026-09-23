@@ -27,7 +27,6 @@
     },
     "feedback": {
       "errors": {
-        "invalidUrl": "Недопустимый URL профиля. Укажите адрес, начинающийся с http:// или https://",
         "onlyYaml": "Поддерживаются только файлы YAML",
         "someUpdatesFailed": "Не удалось обновить {{failed}} из {{total}}: {{reason}}"
       },

@@ -141,19 +141,6 @@ export const useProxySelection = (options: ProxySelectionOptions = {}) => {
     [flushChangeQueue],
   )
 
-  const handleSelectChange = useCallback(
-    (
-      groupName: string,
-      previousProxy?: string,
-      skipConfigSave: boolean = false,
-    ) =>
-      (event: { target: { value: string } }) => {
-        const newProxy = event.target.value
-        changeProxy(groupName, newProxy, previousProxy, skipConfigSave)
-      },
-    [changeProxy],
-  )
-
   const handleProxyGroupChange = useCallback(
     (group: { name: string; now?: string }, proxy: { name: string }) => {
       changeProxy(group.name, proxy.name, group.now)
@@ -163,7 +150,6 @@ export const useProxySelection = (options: ProxySelectionOptions = {}) => {
 
   return {
     changeProxy,
-    handleSelectChange,
     handleProxyGroupChange,
   }
 }

@@ -1,13 +1,12 @@
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp'
-import { IconButton, Fade, SxProps, Theme } from '@mui/material'
+import { IconButton, Fade } from '@mui/material'
 
 interface Props {
   onClick: () => void
   show: boolean
-  sx?: SxProps<Theme>
 }
 
-export const ScrollTopButton = ({ onClick, show, sx }: Props) => {
+export const ScrollTopButton = ({ onClick, show }: Props) => {
   return (
     <Fade in={show}>
       <IconButton
@@ -27,7 +26,6 @@ export const ScrollTopButton = ({ onClick, show, sx }: Props) => {
                 : 'rgba(0,0,0,0.2)',
           },
           visibility: show ? 'visible' : 'hidden',
-          ...sx,
         }}
       >
         <KeyboardArrowUpIcon />

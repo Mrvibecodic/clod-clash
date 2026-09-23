@@ -2,16 +2,16 @@ import { useEffect, useRef } from 'react'
 
 import { hideInitialOverlay } from '../utils'
 
-export const useLoadingOverlay = (themeReady: boolean) => {
+export const useLoadingOverlay = () => {
   const doneRef = useRef(false)
 
   useEffect(() => {
-    if (!themeReady || doneRef.current) return
+    if (doneRef.current) return
     doneRef.current = true
 
     const timer = hideInitialOverlay()
     return () => {
       if (timer !== undefined) window.clearTimeout(timer)
     }
-  }, [themeReady])
+  }, [])
 }

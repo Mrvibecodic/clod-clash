@@ -116,30 +116,6 @@ type IProxyGroupItem = Omit<IProxyItem, 'all'> & {
   all: IProxyItem[]
 }
 
-interface IProxyProviderItem {
-  name: string
-  type: string
-  proxies: IProxyItem[]
-  updatedAt: string
-  vehicleType: string
-  subscriptionInfo?: {
-    Upload: number
-    Download: number
-    Total: number
-    Expire: number
-  }
-}
-
-interface IRuleProviderItem {
-  name: string
-  behavior: string
-  format: string
-  ruleCount: number
-  type: string
-  updatedAt: string
-  vehicleType: string
-}
-
 interface ITrafficEstimate {
   profile: string
   baselineUpload: number
@@ -954,9 +930,6 @@ interface IVergeConfig {
     font_family?: string
     css_injection?: string
     provider_theme?: boolean
-    background_image?: string
-    background_blend_mode?: string
-    background_opacity?: number
   }
   auto_close_connection?: boolean
   auto_check_update?: boolean

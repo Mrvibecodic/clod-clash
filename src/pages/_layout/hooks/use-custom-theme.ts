@@ -123,8 +123,7 @@ export const useCustomTheme = () => {
   const providerTheme = useProviderTheme()
   const providerMode = theme_mode === 'system' ? providerTheme.mode : undefined
   const providerAccent = providerTheme.accent
-  const userBackgroundImage =
-    theme_setting?.background_image || providerTheme.background || ''
+  const userBackgroundImage = providerTheme.background || ''
   const hasUserBackground = !!userBackgroundImage
 
   useEffect(() => {
@@ -350,16 +349,6 @@ export const useCustomTheme = () => {
         '--user-background-image',
         hasUserBackground ? `url('${userBackgroundImage}')` : 'none',
       )
-      rootEle.style.setProperty(
-        '--background-blend-mode',
-        setting.background_blend_mode || 'normal',
-      )
-      rootEle.style.setProperty(
-        '--background-opacity',
-        setting.background_opacity !== undefined
-          ? String(setting.background_opacity)
-          : '1',
-      )
       rootEle.setAttribute('data-css-injection-root', 'true')
     }
 
@@ -399,8 +388,6 @@ export const useCustomTheme = () => {
             background-size: cover;
             background-position: center;
             background-attachment: fixed;
-            background-blend-mode: var(--background-blend-mode);
-            opacity: var(--background-opacity);
           `
               : ''
           }

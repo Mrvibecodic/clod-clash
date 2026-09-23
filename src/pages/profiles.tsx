@@ -30,7 +30,6 @@ import { useLockFn } from 'ahooks'
 import { throttle } from 'lodash-es'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useLocation } from 'react-router'
 import { closeAllConnections } from 'tauri-plugin-mihomo-api'
 
 import { BasePage } from '@/components/base'
@@ -110,7 +109,6 @@ const debugProfileSwitch = (action: string, profile: string, extra?: any) => {
 
 const ProfilePage = () => {
   const { t } = useTranslation()
-  const location = useLocation()
   const [activatings, setActivatings] = useState<string[]>([])
   const [switchTarget, setSwitchTarget] = useState<string | null>(null)
   const [visibleSwitchingProfile, setVisibleSwitchingProfile] = useState<
@@ -144,7 +142,6 @@ const ProfilePage = () => {
       coordinateGetter: sortableKeyboardCoordinates,
     }),
   )
-  const { current } = location.state || {}
 
   const {
     profiles = {},
@@ -370,20 +367,6 @@ const ProfilePage = () => {
   const onSelect = async (profile: string, force: boolean) => {
     await activateProfile(profile, true, force)
   }
-
-  useEffect(() => {
-    let cancelled = false
-    void (async () => {
-      if (current) {
-        await mutateProfiles()
-        if (cancelled) return
-        await activateProfile(current, false)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [current, activateProfile, mutateProfiles])
 
   const onEnhance = useLockFn(async () => {
     if (switchRunnerRef.current) {

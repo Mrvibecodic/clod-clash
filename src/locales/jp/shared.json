@@ -118,7 +118,6 @@
         "copySuccess": "コピー成功",
         "saveSuccess": "ランダム設定を保存完了",
         "saveFailed": "Failed to save configuration",
-        "refreshFailed": "更新に失敗しました",
         "configLoadFailed": "設定ファイルを読み込めませんでした: {{files}}。同じ場所に「.unreadable-<日付>」という名前で控えを残しました — データは失われていません。サブスクリプションや設定が初期化されたように見えることがあります。その控えかバックアップからファイルを復元してください。",
         "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked",
         "logsExported": "ログのアーカイブを保存しました。サブスクリプションのアドレスとトークンはマスクされています"

@@ -5,7 +5,6 @@ import noop from '@/utils/noop'
 interface Props<Value> {
   value?: Value
   valueProps?: string
-  onChangeProps?: string
   waitTime?: number
   onChange?: (value: Value) => void
   onFormat?: (...args: any[]) => Value
@@ -19,7 +18,6 @@ export function GuardState<T>(props: Props<T>) {
     value,
     children,
     valueProps = 'value',
-    onChangeProps = 'onChange',
     waitTime = 0, // debounce wait time default 0
     onGuard = noop,
     onCatch = noop,
@@ -39,7 +37,7 @@ export function GuardState<T>(props: Props<T>) {
   const childProps = { ...(children.props as Record<string, any>) }
 
   childProps[valueProps] = value
-  childProps[onChangeProps] = async (...args: any[]) => {
+  childProps.onChange = async (...args: any[]) => {
     // Повторные действия игнорируются
     if (lockRef.current) return
     lockRef.current = true

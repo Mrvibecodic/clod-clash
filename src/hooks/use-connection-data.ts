@@ -22,15 +22,11 @@ type ConnectionListener = () => void
 const metadataValue = (value?: string) => value || ''
 
 const initConnData: ConnectionMonitorData = {
-  uploadTotal: 0,
-  downloadTotal: 0,
   activeConnections: [],
   closedConnections: [],
 }
 
 interface ConnectionMonitorData {
-  uploadTotal: number
-  downloadTotal: number
   activeConnections: IConnectionsItem[]
   closedConnections: IConnectionsItem[]
 }
@@ -187,8 +183,6 @@ const mergeConnectionSnapshot = (
 
   if (previousActiveById.size === 0) {
     return {
-      uploadTotal: payload.uploadTotal ?? 0,
-      downloadTotal: payload.downloadTotal ?? 0,
       activeConnections,
       closedConnections: previousClosed,
     }
@@ -222,8 +216,6 @@ const mergeConnectionSnapshot = (
   }
 
   return {
-    uploadTotal: payload.uploadTotal ?? 0,
-    downloadTotal: payload.downloadTotal ?? 0,
     activeConnections,
     closedConnections,
   }
@@ -406,16 +398,6 @@ const subscribeConnectionData = (listener: ConnectionListener) => {
   }
 }
 
-const refreshConnectionData = () => {
-  pendingMessageData = null
-  if (flushTimer) {
-    window.clearTimeout(flushTimer)
-    flushTimer = null
-  }
-
-  void reconnectConnectionSocket()
-}
-
 const clearClosedConnectionData = () => {
   if (connectionData.closedConnections.length === 0) return
   connectionData = {
@@ -438,16 +420,12 @@ export const useConnectionData = (options?: { enabled?: boolean }) => {
     getConnectionSnapshot,
   )
   const response = useMemo(() => ({ data }), [data])
-  const refreshGetClashConnection = useCallback(() => {
-    refreshConnectionData()
-  }, [])
   const clearClosedConnections = useCallback(() => {
     clearClosedConnectionData()
   }, [])
 
   return {
     response,
-    refreshGetClashConnection,
     clearClosedConnections,
   }
 }

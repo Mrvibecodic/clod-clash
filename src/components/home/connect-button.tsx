@@ -14,7 +14,6 @@ export type ConnectState =
 interface Props {
   state: ConnectState
   errorText?: string
-  disabled?: boolean
   compact?: boolean
   onToggle: () => void
 }
@@ -25,7 +24,6 @@ const COMPACT_SIZE = 124
 export const ConnectButton = ({
   state,
   errorText,
-  disabled,
   compact,
   onToggle,
 }: Props) => {
@@ -72,7 +70,6 @@ export const ConnectButton = ({
         type="button"
         aria-label={label}
         aria-pressed={state === 'on'}
-        disabled={disabled}
         onClick={onToggle}
         sx={(theme) => ({
           width: size,
@@ -97,8 +94,8 @@ export const ConnectButton = ({
                 ? `0 0 0 10px ${alpha(theme.palette.info.main, 0.08)}`
                 : 'none',
           color,
-          cursor: disabled ? 'not-allowed' : 'pointer',
-          opacity: disabled ? 0.5 : 1,
+          cursor: 'pointer',
+          opacity: 1,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -112,8 +109,8 @@ export const ConnectButton = ({
             ],
             { duration: theme.transitions.duration.short },
           ),
-          '&:hover': { transform: disabled ? 'none' : 'scale(1.03)' },
-          '&:active': { transform: disabled ? 'none' : 'scale(0.97)' },
+          '&:hover': { transform: 'scale(1.03)' },
+          '&:active': { transform: 'scale(0.97)' },
           '@keyframes clodPulse': {
             '0%': { transform: 'scale(1)', opacity: 1 },
             '50%': { transform: 'scale(1.04)', opacity: 0.75 },

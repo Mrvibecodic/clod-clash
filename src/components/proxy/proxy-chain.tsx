@@ -72,7 +72,6 @@ interface ProxyChainProps {
   proxyChain: ProxyChainItem[]
   onUpdateChain: (chain: ProxyChainItem[]) => void
   chainConfigData?: string | null
-  onMarkUnsavedChanges?: () => void
   mode?: string
   selectedGroup?: string | null
 }
@@ -251,7 +250,6 @@ export const ProxyChain = ({
   proxyChain,
   onUpdateChain,
   chainConfigData,
-  onMarkUnsavedChanges,
   mode,
   selectedGroup,
 }: ProxyChainProps) => {
@@ -264,9 +262,6 @@ export const ProxyChain = ({
   const { refreshProxy } = useAppRefreshers()
   const pageVisible = useVisibility()
   const [isConnecting, setIsConnecting] = useState(false)
-  const markUnsavedChanges = useCallback(() => {
-    onMarkUnsavedChanges?.()
-  }, [onMarkUnsavedChanges])
 
   const isConnected = useMemo(() => {
     if (!proxies || proxyChain.length < 2) {
@@ -290,19 +285,6 @@ export const ProxyChain = ({
     return proxyChainGroup?.now === lastNode.name
   }, [proxies, proxyChain, mode, selectedGroup])
 
-  // Отслеживаем изменения цепочки, но исключаем случай загрузки из конфига
-  const chainLengthRef = useRef(proxyChain.length)
-  useEffect(() => {
-    // Помечаем как несохранённое, только если длина цепочки изменилась и это не начальная загрузка
-    if (
-      chainLengthRef.current !== proxyChain.length &&
-      chainLengthRef.current !== 0
-    ) {
-      markUnsavedChanges()
-    }
-    chainLengthRef.current = proxyChain.length
-  }, [proxyChain.length, markUnsavedChanges])
-
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 8 },
@@ -321,10 +303,9 @@ export const ProxyChain = ({
         const newIndex = proxyChain.findIndex((item) => item.id === over?.id)
 
         onUpdateChain(arrayMove(proxyChain, oldIndex, newIndex))
-        markUnsavedChanges()
       }
     },
-    [proxyChain, onUpdateChain, markUnsavedChanges],
+    [proxyChain, onUpdateChain],
   )
 
   const handleRemoveProxy = useCallback(
@@ -333,9 +314,8 @@ export const ProxyChain = ({
       // Список опустел — значит цепочки больше нет.
       if (newChain.length === 0) dismantleProxyChain(profileUid)
       onUpdateChain(newChain)
-      markUnsavedChanges()
     },
-    [proxyChain, onUpdateChain, markUnsavedChanges, profileUid],
+    [proxyChain, onUpdateChain, profileUid],
   )
 
   const handleConnect = useCallback(async () => {

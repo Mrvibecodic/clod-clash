@@ -457,8 +457,8 @@ const baseShowNotice = (
  *
  * @example showNotice.success("profiles.page.feedback.notifications.batchDeleted");
  * @example showNotice.error(err); // pass an Error directly
- * @example showNotice.error("shared.feedback.notifications.common.refreshFailed", err); // Simply pass an Error directly; but we recommend using { err } with i18n key and placeholders.
- * @example showNotice.error("profiles.page.feedback.errors.invalidUrl", { url }, 4000);
+ * @example showNotice.error("shared.feedback.notifications.common.saveFailed", err); // Simply pass an Error directly; but we recommend using { err } with i18n key and placeholders.
+ * @example showNotice.error("profiles.page.feedback.errors.onlyYaml", 4000);
  */
 export const showNotice: ShowNotice = Object.assign(baseShowNotice, {
   success: (message: NoticeContent, ...extras: NoticeExtra[]) =>

@@ -3,7 +3,6 @@ export type WebdavStatus = 'unknown' | 'ready' | 'failed'
 interface WebdavStatusCache {
   signature: string
   status: WebdavStatus
-  updatedAt: number
 }
 
 const WEBDAV_STATUS_KEY = 'webdav_status_cache'
@@ -48,7 +47,6 @@ export const setWebdavStatus = (signature: string, status: WebdavStatus) => {
   const payload: WebdavStatusCache = {
     signature,
     status,
-    updatedAt: Date.now(),
   }
 
   localStorage.setItem(WEBDAV_STATUS_KEY, JSON.stringify(payload))

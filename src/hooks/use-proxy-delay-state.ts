@@ -10,7 +10,6 @@ const identity = (_: DelayUpdate, next: DelayUpdate): DelayUpdate => next
 const INITIAL_DELAY: DelayUpdate = { delay: -1, updatedAt: 0 }
 
 export interface UseProxyDelayState {
-  delayState: DelayUpdate
   delayValue: number
   isPreset: boolean
   timeout: number
@@ -58,7 +57,6 @@ export function useProxyDelayState(
   })
 
   return {
-    delayState,
     delayValue: delayState.delay,
     isPreset,
     timeout,

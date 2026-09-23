@@ -33,8 +33,6 @@ export const parseHotkey = (keyEvent: KeyboardEvent) => {
     case 'META':
     case 'OS':
       return 'CMD'
-    case ' ':
-      return 'SPACE'
     default:
       return temp
   }

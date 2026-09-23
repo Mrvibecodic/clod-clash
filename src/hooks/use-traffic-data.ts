@@ -28,7 +28,7 @@ const shouldSkipDuplicateTraffic = (traffic: Traffic) => {
 export const useTrafficData = (options?: { enabled?: boolean }) => {
   const enabled = options?.enabled ?? true
 
-  const { response, refresh } = useMihomoWsSubscription<ITrafficItem>({
+  const { response } = useMihomoWsSubscription<ITrafficItem>({
     storageKey: 'mihomo_traffic_date',
     buildSubscriptKey: (date) => (enabled ? `getClashTraffic-${date}` : null),
     fallbackData: FALLBACK_TRAFFIC,
@@ -51,5 +51,5 @@ export const useTrafficData = (options?: { enabled?: boolean }) => {
     }),
   })
 
-  return { response, refreshGetClashTraffic: refresh }
+  return { response }
 }

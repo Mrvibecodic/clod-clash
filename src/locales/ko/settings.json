@@ -305,7 +305,6 @@
           "commonTrayIcon": "공용 트레이 아이콘",
           "systemProxyTrayIcon": "시스템 프록시 트레이 아이콘",
           "tunTrayIcon": "TUN 트레이 아이콘",
-          "enableTrayIcon": "트레이 아이콘 사용",
           "enableTraySpeed": "트레이 속도 표시 사용"
         },
         "tooltips": {
@@ -697,8 +696,7 @@
         "checking": "Checking…",
         "downloading": "Downloading…",
         "verifying": "Verifying…",
-        "applying": "Applying…",
-        "done": "Done"
+        "applying": "Applying…"
       },
       "updatedTo": "Core updated to {{msg}}",
       "updateNotice": "A newer core is available: {{msg}}",

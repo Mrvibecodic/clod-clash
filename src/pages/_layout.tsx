@@ -22,7 +22,6 @@ import { useVisibility } from '@/hooks/use-visibility'
 import { useWindowDecorations } from '@/hooks/use-window'
 import { stopListeningNotices, takePendingNotices } from '@/services/cmds'
 import { repeatNotice } from '@/services/notice-service'
-import { useThemeMode } from '@/services/states'
 import getSystem from '@/utils/get-system'
 
 import {
@@ -43,7 +42,6 @@ dayjs.extend(relativeTime)
 const OS = getSystem()
 
 const Layout = () => {
-  const mode = useThemeMode()
   const { t } = useTranslation()
   const { theme } = useCustomTheme()
   const { verge } = useVerge()
@@ -54,7 +52,6 @@ const Layout = () => {
   const isLogsPage = pathname === '/logs'
   const isHome = pathname === '/'
   const pageVisible = useVisibility()
-  const themeReady = useMemo(() => Boolean(theme), [theme])
 
   useModeWindowSize()
   useEnforceLockedTargets()
@@ -75,10 +72,10 @@ const Layout = () => {
     [decorated],
   )
 
-  useLoadingOverlay(themeReady)
+  useLoadingOverlay()
 
   useEffect(() => {
-    if (!themeReady || !pageVisible) {
+    if (!pageVisible) {
       return
     }
 
@@ -88,7 +85,7 @@ const Layout = () => {
     return () => {
       controller.abort()
     }
-  }, [themeReady, pageVisible])
+  }, [pageVisible])
 
   const handleNotice = useCallback(
     (payload: [string, string]) => {
@@ -143,30 +140,11 @@ const Layout = () => {
     }
   }, [language, switchLanguage])
 
-  if (!themeReady) {
-    return (
-      <div
-        style={{
-          width: '100vw',
-          height: '100vh',
-          background: mode === 'light' ? '#fff' : '#181a1b',
-          transition: 'background 0.2s',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: mode === 'light' ? '#333' : '#fff',
-        }}
-      ></div>
-    )
-  }
-
   return (
     <ThemeProvider theme={theme}>
       <NoticeManager position={verge?.notice_position} />
       <HwidLimitDialog />
-      <Box sx={{ display: 'none' }} aria-hidden>
-        <UpdateButton />
-      </Box>
+      <UpdateButton />
       <div
         style={{
           animation: 'fadeIn 0.5s',

@@ -32,7 +32,6 @@ type SearchProps = {
   defaultValue?: string
   autoFocus?: boolean
   inputRef?: RefObject<HTMLInputElement | null>
-  placeholder?: string
   matchCase?: boolean
   matchWholeWord?: boolean
   useRegularExpression?: boolean
@@ -79,7 +78,6 @@ export const BaseSearchBox = ({
   defaultValue,
   autoFocus,
   inputRef,
-  placeholder,
   searchState,
   matchCase: defaultMatchCase = false,
   matchWholeWord: defaultMatchWholeWord = false,
@@ -210,7 +208,7 @@ export const BaseSearchBox = ({
         autoFocus={autoFocus}
         inputRef={inputRef}
         spellCheck="false"
-        placeholder={placeholder ?? t('shared.placeholders.filter')}
+        placeholder={t('shared.placeholders.filter')}
         sx={{ input: { py: 0.65, px: 1.25 } }}
         value={text}
         onClick={onClick}

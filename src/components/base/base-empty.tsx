@@ -6,19 +6,15 @@ import { useTranslation } from 'react-i18next'
 import type { TranslationKey } from '@/types/generated/i18n-keys'
 
 interface Props {
-  text?: ReactNode
   textKey?: TranslationKey
   extra?: ReactNode
 }
 
 export const BaseEmpty = ({
-  text,
   textKey = 'shared.statuses.empty',
   extra,
 }: Props) => {
   const { t } = useTranslation()
-
-  const resolvedText: ReactNode = text !== undefined ? text : t(textKey)
 
   return (
     <Box
@@ -33,7 +29,7 @@ export const BaseEmpty = ({
       })}
     >
       <InboxRounded sx={{ fontSize: '4em' }} />
-      <Typography sx={{ fontSize: '1.25em' }}>{resolvedText}</Typography>
+      <Typography sx={{ fontSize: '1.25em' }}>{t(textKey)}</Typography>
       {extra}
     </Box>
   )

@@ -47,7 +47,6 @@ interface ProxySwitchProps {
 interface SwitchRowProps {
   label: string
   active: boolean
-  disabled?: boolean
   /**
    * clod: бэкенд ещё спрашивает ядро про порт и пишет настройки ОС. Без этого
    * признака переключатель на секунды выглядел проигнорированным, и человек
@@ -75,7 +74,6 @@ interface SwitchRowProps {
 const SwitchRow = ({
   label,
   active,
-  disabled,
   busy,
   infoTitle,
   onInfoClick,
@@ -120,7 +118,6 @@ const SwitchRow = ({
         bgcolor: highlight
           ? alpha(theme.palette.success.main, 0.07)
           : 'transparent',
-        opacity: disabled ? 0.6 : 1,
         transition: 'background-color 0.3s',
       }}
     >
@@ -158,7 +155,7 @@ const SwitchRow = ({
           {busy && <CircularProgress size={16} thickness={5} />}
           <Switch
             edge="end"
-            disabled={disabled || busy}
+            disabled={busy}
             checked={checked}
             onChange={handleChange}
           />

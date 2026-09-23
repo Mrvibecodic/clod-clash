@@ -455,7 +455,6 @@ export interface TranslationResources {
         }
         feedback: {
           errors: {
-            invalidUrl: string
             onlyYaml: string
             someUpdatesFailed: string
           }
@@ -749,7 +748,6 @@ export interface TranslationResources {
           layout: {
             fields: {
               commonTrayIcon: string
-              enableTrayIcon: string
               enableTraySpeed: string
               hoverNavigator: string
               hoverNavigatorDelay: string
@@ -1057,7 +1055,6 @@ export interface TranslationResources {
           phase: {
             applying: string
             checking: string
-            done: string
             downloading: string
             verifying: string
           }
@@ -1485,7 +1482,6 @@ export interface TranslationResources {
             configLoadFailed: string
             copySuccess: string
             logsExported: string
-            refreshFailed: string
             saveFailed: string
             saveSuccess: string
             supportBundleCopied: string

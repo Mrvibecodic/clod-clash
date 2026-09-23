@@ -114,11 +114,11 @@ const InnerConnectionDetail = ({ data, closed, onClose }: InnerProps) => {
     },
     {
       label: t('connections.components.fields.dlSpeed'),
-      value: parseTraffic(data.curDownload ?? -1).join(' ') + '/s',
+      value: parseTraffic(data.curDownload ?? 0).join(' ') + '/s',
     },
     {
       label: t('connections.components.fields.ulSpeed'),
-      value: parseTraffic(data.curUpload ?? -1).join(' ') + '/s',
+      value: parseTraffic(data.curUpload ?? 0).join(' ') + '/s',
     },
     {
       label: t('connections.components.fields.chains'),

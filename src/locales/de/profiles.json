@@ -27,7 +27,6 @@
     },
     "feedback": {
       "errors": {
-        "invalidUrl": "Invalid profile URL. Please enter a URL starting with http:// or https://",
         "onlyYaml": "Nur YAML-Dateien werden unterstützt",
         "someUpdatesFailed": "{{failed}} von {{total}} konnten nicht aktualisiert werden: {{reason}}"
       },

@@ -27,7 +27,6 @@
     },
     "feedback": {
       "errors": {
-        "invalidUrl": "Invalid profile URL. Please enter a URL starting with http:// or https://",
         "onlyYaml": "فقط فایل‌های YAML پشتیبانی می‌شوند",
         "someUpdatesFailed": "به‌روزرسانی {{failed}} از {{total}} ناموفق بود: {{reason}}"
       },

@@ -9,7 +9,7 @@ import VisibilityOffRounded from '@mui/icons-material/VisibilityOffRounded'
 import VisibilityRounded from '@mui/icons-material/VisibilityRounded'
 import WifiTetheringOffRounded from '@mui/icons-material/WifiTetheringOffRounded'
 import WifiTetheringRounded from '@mui/icons-material/WifiTetheringRounded'
-import { Box, IconButton, type SxProps, TextField } from '@mui/material'
+import { Box, IconButton, TextField } from '@mui/material'
 import { useDebounceFn } from 'ahooks'
 import { memo, useEffect, useRef } from 'react'
 import { flushSync } from 'react-dom'
@@ -25,7 +25,6 @@ import type { ProxySortType } from './use-filter-sort'
 import type { HeadState } from './use-head-state'
 
 interface Props {
-  sx?: SxProps
   groupName: string
   headState: HeadState
   onLocation: () => void
@@ -34,8 +33,7 @@ interface Props {
 }
 
 export const ProxyGroupTools = memo(function ProxyGroupTools(props: Props) {
-  const { sx, groupName, headState, onCheckDelay, onHeadState, onLocation } =
-    props
+  const { groupName, headState, onCheckDelay, onHeadState, onLocation } = props
 
   const {
     showType,
@@ -87,7 +85,6 @@ export const ProxyGroupTools = memo(function ProxyGroupTools(props: Props) {
         height: 36,
         flex: 1,
         ml: 2,
-        ...sx,
       }}
     >
       {textState === 'filter' && (

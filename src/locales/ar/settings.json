@@ -305,7 +305,6 @@
           "commonTrayIcon": "أيقونة شريط مهام عامة",
           "systemProxyTrayIcon": "أيقونة شريط المهام لوكيل النظام",
           "tunTrayIcon": "أيقونة شريط المهام لـ TUN",
-          "enableTrayIcon": "Enable Tray Icon",
           "enableTraySpeed": "تفعيل سرعة التراي"
         },
         "tooltips": {
@@ -697,8 +696,7 @@
         "checking": "Checking…",
         "downloading": "Downloading…",
         "verifying": "Verifying…",
-        "applying": "Applying…",
-        "done": "Done"
+        "applying": "Applying…"
       },
       "updatedTo": "Core updated to {{msg}}",
       "updateNotice": "A newer core is available: {{msg}}",

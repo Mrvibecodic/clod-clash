@@ -159,7 +159,6 @@ export const useClashInfo = () => {
 
   return {
     clashInfo,
-    mutateInfo,
     patchInfo,
     invalidateClashConfig,
   }

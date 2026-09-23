@@ -118,7 +118,6 @@
         "copySuccess": "Salin Berhasil",
         "saveSuccess": "Configuration saved successfully",
         "saveFailed": "Failed to save configuration",
-        "refreshFailed": "Penyegaran gagal",
         "configLoadFailed": "Tidak dapat membaca berkas pengaturan: {{files}}. Salinannya disimpan di sebelahnya dengan nama \".unreadable-<tanggal>\" — tidak ada yang hilang. Langganan dan pengaturan mungkin tampak tereset; pulihkan berkas dari salinan itu atau dari cadangan.",
         "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked",
         "logsExported": "Arsip log disimpan — alamat langganan dan token disamarkan"

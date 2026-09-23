@@ -27,7 +27,6 @@
     },
     "feedback": {
       "errors": {
-        "invalidUrl": "잘못된 프로필 URL입니다. http:// 또는 https://로 시작하는 URL을 입력하세요",
         "onlyYaml": "YAML 파일만 지원됩니다",
         "someUpdatesFailed": "{{total}}개 중 {{failed}}개를 업데이트하지 못했습니다: {{reason}}"
       },

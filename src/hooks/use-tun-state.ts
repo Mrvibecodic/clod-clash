@@ -16,11 +16,7 @@ const defaultTunState: ITunState = {
 export const useTunState = () => {
   const pageVisible = useVisibility()
 
-  const {
-    data: tun = defaultTunState,
-    refetch: mutateTunState,
-    isLoading,
-  } = useQuery({
+  const { data: tun = defaultTunState, refetch: mutateTunState } = useQuery({
     queryKey: ['getTunState'],
     queryFn: getTunState,
     refetchInterval: pageVisible ? 10000 : false,
@@ -32,12 +28,10 @@ export const useTunState = () => {
     tunDesired: tun.desired,
     tunActive: tun.active,
     tunCapable: tun.capable,
-    tunSetupDeclined: tun.setup_declined,
     tunNeedsRepair: tun.needs_repair,
     tunBroken: tun.desired && !tun.active,
     tunRuntimeStack: tun.runtime_stack ?? null,
     tunFailure: tun.failure ?? null,
     mutateTunState,
-    isLoading,
   }
 }

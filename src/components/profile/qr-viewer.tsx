@@ -5,17 +5,16 @@ import { useTranslation } from 'react-i18next'
 interface Props {
   open: boolean
   value: string
-  title?: string
   onClose: () => void
 }
 
 export const QrViewer = (props: Props) => {
-  const { open, value, title, onClose } = props
+  const { open, value, onClose } = props
   const { t } = useTranslation()
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="xs">
-      <DialogTitle>{title ?? t('profiles.modals.qrViewer.title')}</DialogTitle>
+      <DialogTitle>{t('profiles.modals.qrViewer.title')}</DialogTitle>
       <DialogContent sx={{ pb: 3 }}>
         <Box
           sx={{

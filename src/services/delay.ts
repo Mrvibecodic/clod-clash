@@ -502,7 +502,7 @@ class DelayManager {
     proxies: IProxyItem[],
     group: string,
     timeout: number,
-    concurrency = 36,
+    concurrency = 10,
   ) {
     debugLog(
       `[DelayManager] Начало пакетного теста задержки, группа: ${group}, количество: ${proxies.length}, параллельность: ${concurrency}`,

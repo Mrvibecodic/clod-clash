@@ -118,7 +118,6 @@
         "copySuccess": "تم النسخ بنجاح",
         "saveSuccess": "Configuration saved successfully",
         "saveFailed": "Failed to save configuration",
-        "refreshFailed": "فشل التحديث",
         "configLoadFailed": "تعذّرت قراءة ملف الإعدادات: {{files}}. حُفظت نسخة منه بجواره باسم «.unreadable-<التاريخ>» — لم يُفقد شيء. قد تبدو الاشتراكات والإعدادات وكأنها أُعيدت للوضع الأول؛ استعد الملف من تلك النسخة أو من نسخة احتياطية.",
         "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked",
         "logsExported": "تم حفظ أرشيف السجلات — عناوين الاشتراك والرموز مخفية"

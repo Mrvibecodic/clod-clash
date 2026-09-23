@@ -305,7 +305,6 @@
           "commonTrayIcon": "一般系統匣圖示",
           "systemProxyTrayIcon": "系統代理系統匣圖示",
           "tunTrayIcon": "虛擬網路介面卡模式系統匣圖示",
-          "enableTrayIcon": "啟用系統匣圖示",
           "enableTraySpeed": "啟用系統匣速率"
         },
         "tooltips": {
@@ -697,8 +696,7 @@
         "checking": "Checking…",
         "downloading": "Downloading…",
         "verifying": "Verifying…",
-        "applying": "Applying…",
-        "done": "Done"
+        "applying": "Applying…"
       },
       "updatedTo": "Core updated to {{msg}}",
       "updateNotice": "A newer core is available: {{msg}}",

@@ -27,7 +27,6 @@
     },
     "feedback": {
       "errors": {
-        "invalidUrl": "无效的订阅链接，请输入以 http:// 或 https:// 开头的地址",
         "onlyYaml": "仅支持 YAML 文件",
         "someUpdatesFailed": "{{total}} 个订阅中有 {{failed}} 个更新失败：{{reason}}"
       },

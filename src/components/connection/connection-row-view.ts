@@ -9,22 +9,11 @@ export interface ConnectionRowView {
   network: string
   type: string
   chains: string
-  rule: string
   time: string
-  source: string
-  destination: string
-  uploadText: string
-  downloadText: string
   uploadSpeedText: string
   downloadSpeedText: string
-  upload: number
-  download: number
   uploadSpeed: number
   downloadSpeed: number
-  startTime: number
-  searchableHost: string
-  searchableDestinationIP: string
-  searchableProcess: string
 }
 
 export const formatConnectionTraffic = (value?: number) => {
@@ -89,22 +78,11 @@ const createConnectionRowView = (connection: IConnectionsItem) => {
     network: connection.metadata.network,
     type: connection.metadata.type,
     chains: formatConnectionChains(connection.chains),
-    rule: getConnectionRule(connection),
     time: connection.start,
-    source: getConnectionSource(connection),
-    destination: getConnectionDestination(connection),
-    uploadText: formatConnectionTraffic(connection.upload),
-    downloadText: formatConnectionTraffic(connection.download),
     uploadSpeedText: `${formatConnectionTraffic(uploadSpeed)}/s`,
     downloadSpeedText: `${formatConnectionTraffic(downloadSpeed)}/s`,
-    upload: connection.upload ?? 0,
-    download: connection.download ?? 0,
     uploadSpeed,
     downloadSpeed,
-    startTime: getConnectionStartTime(connection),
-    searchableHost: connection.metadata.host || '',
-    searchableDestinationIP: connection.metadata.destinationIP || '',
-    searchableProcess: connection.metadata.process || '',
   } satisfies ConnectionRowView
 }
 
@@ -117,21 +95,11 @@ const sameConnectionRowView = (
   left.network === right.network &&
   left.type === right.type &&
   left.chains === right.chains &&
-  left.rule === right.rule &&
   left.time === right.time &&
-  left.source === right.source &&
-  left.destination === right.destination &&
-  left.uploadText === right.uploadText &&
-  left.downloadText === right.downloadText &&
   left.uploadSpeedText === right.uploadSpeedText &&
   left.downloadSpeedText === right.downloadSpeedText &&
-  left.upload === right.upload &&
-  left.download === right.download &&
   left.uploadSpeed === right.uploadSpeed &&
-  left.downloadSpeed === right.downloadSpeed &&
-  left.searchableHost === right.searchableHost &&
-  left.searchableDestinationIP === right.searchableDestinationIP &&
-  left.searchableProcess === right.searchableProcess
+  left.downloadSpeed === right.downloadSpeed
 
 export const useConnectionRowViews = (connections: IConnectionsItem[]) => {
   const previousRowsRef = useRef(new Map<string, ConnectionRowView>())

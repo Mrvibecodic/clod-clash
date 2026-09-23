@@ -118,7 +118,6 @@
         "copySuccess": "Күчерелде",
         "saveSuccess": "Configuration saved successfully",
         "saveFailed": "Failed to save configuration",
-        "refreshFailed": "Refresh failed",
         "configLoadFailed": "Көйләүләр файлын уку мөмкин булмады: {{files}}. Аның күчермәсе янәшәдә «.unreadable-<дата>» исеме белән калдырылды — бернәрсә дә югалмады. Язылулар һәм көйләүләр сброс ителгән кебек күренергә мөмкин; файлны шул күчермәдән яки резерв күчермәдән торгызыгыз.",
         "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked",
         "logsExported": "Лог архивы сакланды — язылу адреслары һәм токеннар яшерелгән"

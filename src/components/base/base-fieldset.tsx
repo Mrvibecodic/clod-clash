@@ -3,16 +3,12 @@ import type { ReactNode } from 'react'
 
 type Props = {
   label: string
-  fontSize?: string
-  width?: string
   padding?: string
   children?: ReactNode
 }
 
 export const BaseFieldset: React.FC<Props> = ({
   label,
-  fontSize,
-  width,
   padding,
   children,
 }: Props) => {
@@ -25,7 +21,7 @@ export const BaseFieldset: React.FC<Props> = ({
         position: 'relative',
         border: '1px solid #bbb',
         borderRadius: '5px',
-        width: width ?? 'auto',
+        width: 'auto',
         padding: fieldsetPadding,
       }}
     >
@@ -39,7 +35,7 @@ export const BaseFieldset: React.FC<Props> = ({
           backgroundImage:
             'linear-gradient(rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.16))',
           color: 'text.primary',
-          fontSize: fontSize ?? '1em',
+          fontSize: '1em',
         }}
       >
         {label}

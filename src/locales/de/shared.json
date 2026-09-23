@@ -118,7 +118,6 @@
         "copySuccess": "Kopieren erfolgreich",
         "saveSuccess": "Zufalls-Konfiguration erfolgreich gespeichert",
         "saveFailed": "Failed to save configuration",
-        "refreshFailed": "Aktualisierung fehlgeschlagen",
         "configLoadFailed": "Eine Einstellungsdatei konnte nicht gelesen werden: {{files}}. Eine Kopie wurde daneben abgelegt, benannt „.unreadable-<Datum>“ — es geht nichts verloren. Abonnements und Einstellungen wirken eventuell zurückgesetzt; stellen Sie die Datei aus dieser Kopie oder einem Backup wieder her.",
         "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked",
         "logsExported": "Protokollarchiv gespeichert — Abonnementadressen und Token sind maskiert"

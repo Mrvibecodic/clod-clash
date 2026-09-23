@@ -27,7 +27,6 @@
     },
     "feedback": {
       "errors": {
-        "invalidUrl": "Invalid profile URL. Please enter a URL starting with http:// or https://",
         "onlyYaml": "Фәкать YAML-файллар гына хуплана",
         "someUpdatesFailed": "{{total}} дән {{failed}} сен яңарту мөмкин булмады: {{reason}}"
       },

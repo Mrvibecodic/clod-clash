@@ -8,13 +8,7 @@ import {
   useTheme,
 } from '@mui/material'
 import { useLockFn } from 'ahooks'
-import {
-  useEffect,
-  useImperativeHandle,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+import { useImperativeHandle, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseDialog, DialogRef, Switch } from '@/components/base'
@@ -30,10 +24,6 @@ export function ThemeViewer(props: { ref?: React.Ref<DialogRef> }) {
   const { verge, patchVerge } = useVerge()
   const { theme_setting } = verge ?? {}
   const [theme, setTheme] = useState(theme_setting || {})
-  const themeRef = useRef(theme)
-  useEffect(() => {
-    themeRef.current = theme
-  }, [theme])
 
   useImperativeHandle(ref, () => ({
     open: () => {

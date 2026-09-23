@@ -118,7 +118,6 @@
         "copySuccess": "کپی با موفقیت انجام شد",
         "saveSuccess": "Configuration saved successfully",
         "saveFailed": "Failed to save configuration",
-        "refreshFailed": "به‌روزرسانی ناموفق بود",
         "configLoadFailed": "خواندن فایل تنظیمات ممکن نشد: {{files}}. نسخه‌ای از آن با نام «.unreadable-<تاریخ>» کنارش نگه داشته شد — چیزی از دست نرفته است. اشتراک‌ها و تنظیمات ممکن است بازنشانی‌شده به‌نظر برسند؛ فایل را از آن نسخه یا از پشتیبان بازگردانید.",
         "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked",
         "logsExported": "آرشیو گزارش‌ها ذخیره شد — آدرس‌های اشتراک و توکن‌ها پنهان شده‌اند"

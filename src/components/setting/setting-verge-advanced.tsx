@@ -4,7 +4,6 @@ import { useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DialogRef, Switch, TooltipIcon } from '@/components/base'
-import { updateLastCheckTime } from '@/hooks/use-update'
 import { useVerge } from '@/hooks/use-verge'
 import {
   copySupportBundle,
@@ -24,21 +23,17 @@ import { version } from '@root/package.json'
 import { BackupViewer } from './mods/backup-viewer'
 import { ConfigViewer } from './mods/config-viewer'
 import { GuardState } from './mods/guard-state'
-import { HotkeyViewer } from './mods/hotkey-viewer'
-import { LayoutViewer } from './mods/layout-viewer'
 import { LiteModeViewer } from './mods/lite-mode-viewer'
-import { MiscViewer } from './mods/misc-viewer'
 import { SettingItem, SettingList } from './mods/setting-comp'
-import { ThemeViewer } from './mods/theme-viewer'
 import { UpdateViewer } from './mods/update-viewer'
 import type { SettingVariant } from './setting-variant'
 
 interface Props {
   onError?: (err: Error) => void
-  variant?: SettingVariant
+  variant: SettingVariant
 }
 
-const SettingVergeAdvanced = ({ onError, variant = 'all' }: Props) => {
+const SettingVergeAdvanced = ({ onError, variant }: Props) => {
   const { t } = useTranslation()
 
   const { verge, patchVerge, mutateVerge } = useVerge()
@@ -48,10 +43,6 @@ const SettingVergeAdvanced = ({ onError, variant = 'all' }: Props) => {
   const showRest = variant !== 'core'
 
   const configRef = useRef<DialogRef>(null)
-  const hotkeyRef = useRef<DialogRef>(null)
-  const miscRef = useRef<DialogRef>(null)
-  const themeRef = useRef<DialogRef>(null)
-  const layoutRef = useRef<DialogRef>(null)
   const updateRef = useRef<DialogRef>(null)
   const backupRef = useRef<DialogRef>(null)
   const liteModeRef = useRef<DialogRef>(null)
@@ -59,7 +50,6 @@ const SettingVergeAdvanced = ({ onError, variant = 'all' }: Props) => {
   const onCheckUpdate = async () => {
     try {
       const info = await fetchCacheData(['checkUpdate'], checkUpdate)
-      updateLastCheckTime()
       if (!info?.available) {
         showNotice.success(
           'settings.components.verge.advanced.notifications.latestVersion',
@@ -127,11 +117,7 @@ const SettingVergeAdvanced = ({ onError, variant = 'all' }: Props) => {
     >
       {showRest && (
         <>
-          <ThemeViewer ref={themeRef} />
           <ConfigViewer ref={configRef} />
-          <HotkeyViewer ref={hotkeyRef} />
-          <MiscViewer ref={miscRef} />
-          <LayoutViewer ref={layoutRef} />
           <BackupViewer ref={backupRef} />
           <LiteModeViewer ref={liteModeRef} />
         </>

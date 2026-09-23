@@ -248,88 +248,31 @@ export const useRenderList = (
         return []
       }
 
-      // Если конкретная группа не выбрана, показываем узлы первой группы (если группы есть)
-      if (allGroups.length > 0) {
-        const firstGroup = allGroups[0]
-        const proxies = filterSort(
-          firstGroup.all,
-          firstGroup.name,
-          '',
-          0,
-          latencyTimeout,
-        )
-
-        if (col > 1) {
-          return groupProxies(proxies, col).map((proxyCol, colIndex) => ({
-            type: 4,
-            key: `chain-col-first-${colIndex}`,
-            group: firstGroup,
-            headState: DEFAULT_STATE,
-            col,
-            proxyCol,
-            provider: proxyCol[0]?.provider,
-          }))
-        } else {
-          return proxies.map((proxy) => ({
-            type: 2,
-            key: `chain-first-${proxy!.name}`,
-            group: firstGroup,
-            proxy,
-            headState: DEFAULT_STATE,
-            provider: proxy.provider,
-          }))
-        }
-      }
-
-      // Если групп нет, показываем все узлы
-      const allProxies: IProxyItem[] = allGroups.flatMap(
-        (group: any) => group.all,
+      // Если конкретная группа не выбрана, показываем узлы первой группы
+      const firstGroup = allGroups[0]
+      const proxies = filterSort(
+        firstGroup.all,
+        firstGroup.name,
+        '',
+        0,
+        latencyTimeout,
       )
 
-      // Получаем данные о задержке для каждого узла
-      const proxiesWithDelay = allProxies.map((proxy) => {
-        const delay = delayManager.getDelay(proxy.name, 'chain-mode')
-        return {
-          ...proxy,
-          // Если у delayManager есть данные о задержке, обновляем history
-          history:
-            delay >= 0
-              ? [{ time: new Date().toISOString(), delay }]
-              : proxy.history || [],
-        }
-      })
-
-      // Создаём виртуальную группу для всех узлов
-      const virtualGroup: ProxyGroup = {
-        name: 'All Proxies',
-        type: 'Selector',
-        udp: false,
-        xudp: false,
-        tfo: false,
-        mptcp: false,
-        smux: false,
-        history: [],
-        now: '',
-        all: proxiesWithDelay,
-      }
-
       if (col > 1) {
-        return groupProxies(proxiesWithDelay, col).map(
-          (proxyCol, colIndex) => ({
-            type: 4,
-            key: `chain-col-all-${colIndex}`,
-            group: virtualGroup,
-            headState: DEFAULT_STATE,
-            col,
-            proxyCol,
-            provider: proxyCol[0]?.provider,
-          }),
-        )
+        return groupProxies(proxies, col).map((proxyCol, colIndex) => ({
+          type: 4,
+          key: `chain-col-first-${colIndex}`,
+          group: firstGroup,
+          headState: DEFAULT_STATE,
+          col,
+          proxyCol,
+          provider: proxyCol[0]?.provider,
+        }))
       } else {
-        return proxiesWithDelay.map((proxy) => ({
+        return proxies.map((proxy) => ({
           type: 2,
-          key: `chain-all-${proxy.name}`,
-          group: virtualGroup,
+          key: `chain-first-${proxy!.name}`,
+          group: firstGroup,
           proxy,
           headState: DEFAULT_STATE,
           provider: proxy.provider,

@@ -27,7 +27,6 @@
     },
     "feedback": {
       "errors": {
-        "invalidUrl": "無效的訂閱網址，請輸入以 http:// 或 https:// 開頭的位址",
         "onlyYaml": "僅支援 YAML 檔案",
         "someUpdatesFailed": "{{total}} 個訂閱中有 {{failed}} 個更新失敗：{{reason}}"
       },

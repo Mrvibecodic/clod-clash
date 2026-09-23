@@ -118,7 +118,6 @@
         "copySuccess": "복사 성공",
         "saveSuccess": "설정이 저장되었습니다",
         "saveFailed": "설정 저장 실패",
-        "refreshFailed": "새로고침 실패",
         "configLoadFailed": "설정 파일을 읽지 못했습니다: {{files}}. 같은 위치에 \".unreadable-<날짜>\" 이름으로 사본을 남겼습니다 — 잃어버린 것은 없습니다. 구독과 설정이 초기화된 것처럼 보일 수 있으니 그 사본이나 백업에서 파일을 복원하세요.",
         "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked",
         "logsExported": "로그 압축 파일을 저장했습니다. 구독 주소와 토큰은 가려졌습니다"

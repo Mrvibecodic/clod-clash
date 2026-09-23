@@ -305,7 +305,6 @@
           "commonTrayIcon": "Общий значок в трее",
           "systemProxyTrayIcon": "Значок системного прокси в трее",
           "tunTrayIcon": "Значок TUN в трее",
-          "enableTrayIcon": "Показывать значок в трее",
           "enableTraySpeed": "Показывать скорость в трее"
         },
         "tooltips": {
@@ -697,8 +696,7 @@
         "checking": "Проверка…",
         "downloading": "Скачивание…",
         "verifying": "Проверка…",
-        "applying": "Применение…",
-        "done": "Готово"
+        "applying": "Применение…"
       },
       "updatedTo": "Ядро обновлено до {{msg}}",
       "updateNotice": "Доступно новое ядро: {{msg}}",

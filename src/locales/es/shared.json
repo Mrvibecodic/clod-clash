@@ -118,7 +118,6 @@
         "copySuccess": "Copia exitosa",
         "saveSuccess": "Configuración aleatoria guardada correctamente",
         "saveFailed": "Failed to save configuration",
-        "refreshFailed": "Error al actualizar",
         "configLoadFailed": "No se pudo leer un archivo de configuración: {{files}}. Se guardó una copia junto a él con el nombre «.unreadable-<fecha>»: no se ha perdido nada. Las suscripciones y los ajustes pueden verse restablecidos; restaure el archivo desde esa copia o desde una copia de seguridad.",
         "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked",
         "logsExported": "Archivo de registros guardado — direcciones de suscripción y tokens enmascarados"

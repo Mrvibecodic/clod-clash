@@ -3,7 +3,6 @@ import {
   ContentPasteRounded,
   FormatPaintRounded,
   OpenInFullRounded,
-  RestartAltRounded,
 } from '@mui/icons-material'
 import {
   Button,
@@ -22,7 +21,7 @@ import { useTranslation } from 'react-i18next'
 import { BaseLoadingOverlay, MonacoEditor } from '@/components/base'
 import { showNotice } from '@/services/notice-service'
 import { useThemeMode } from '@/services/states'
-import type { MonacoEditorInstance, MonacoMarker } from '@/types/monaco'
+import type { MonacoEditorInstance } from '@/types/monaco'
 import debounce from '@/utils/debounce'
 import getSystem from '@/utils/get-system'
 
@@ -39,12 +38,9 @@ export interface EditorViewerProps {
   readOnly?: boolean
   loading?: boolean
   dirty?: boolean
-  saveDisabled?: boolean
   onChange?: (value: string) => void
   onSave?: () => void | boolean | Promise<void | boolean>
-  onResetToDefault?: () => void
   onClose: () => void
-  onValidate?: (markers: MonacoMarker[]) => void
 }
 
 export const EditorViewer = ({
@@ -56,12 +52,9 @@ export const EditorViewer = ({
   readOnly = false,
   loading = false,
   dirty,
-  saveDisabled = false,
   onChange,
   onSave,
-  onResetToDefault,
   onClose,
-  onValidate,
 }: EditorViewerProps) => {
   const { t } = useTranslation()
   const themeMode = useThemeMode()
@@ -69,7 +62,7 @@ export const EditorViewer = ({
   const editorRef = useRef<MonacoEditorInstance | null>(null)
 
   const resolvedTitle = title ?? t('profiles.components.menu.editFile')
-  const disableSave = loading || saveDisabled || dirty === false
+  const disableSave = loading || dirty === false
 
   const syncEditorValue = useCallback(() => {
     const model = editorRef.current?.getModel()
@@ -222,7 +215,6 @@ export const EditorViewer = ({
                 syncEditorValue()
               }}
               onChange={(nextValue) => onChange?.(nextValue ?? '')}
-              onValidate={onValidate}
               options={{
                 automaticLayout: true,
                 tabSize: 2,
@@ -299,17 +291,6 @@ export const EditorViewer = ({
       </DialogContent>
 
       <DialogActions>
-        {!readOnly && onResetToDefault && (
-          <Button
-            onClick={onResetToDefault}
-            variant="outlined"
-            color="warning"
-            startIcon={<RestartAltRounded />}
-            disabled={loading}
-          >
-            {t('shared.actions.resetToDefault')}
-          </Button>
-        )}
         <Button onClick={handleClose} variant="outlined">
           {t(readOnly ? 'shared.actions.close' : 'shared.actions.cancel')}
         </Button>

@@ -83,18 +83,7 @@ const SettingSystem = ({ onError }: Props) => {
           onChange={(e) => {
             onChangeData({ enable_auto_launch: e })
           }}
-          onGuard={async (e) => {
-            try {
-              // Сначала обновляем UI, чтобы сразу увидеть отклик
-              onChangeData({ enable_auto_launch: e })
-              await patchVerge({ enable_auto_launch: e })
-              return Promise.resolve()
-            } catch (error) {
-              // При ошибке восстанавливаем исходное состояние
-              onChangeData({ enable_auto_launch: !e })
-              return Promise.reject(error)
-            }
-          }}
+          onGuard={(e) => patchVerge({ enable_auto_launch: e })}
         >
           <Switch edge="end" />
         </GuardState>

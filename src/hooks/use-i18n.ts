@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -10,9 +10,8 @@ import {
 import { useVerge } from './use-verge'
 
 export const useI18n = () => {
-  const { i18n, t } = useTranslation()
+  const { i18n } = useTranslation()
   const { patchVerge } = useVerge()
-  const [isLoading, setIsLoading] = useState(false)
 
   const switchLanguage = useCallback(
     async (language: string) => {
@@ -27,7 +26,6 @@ export const useI18n = () => {
         return
       }
 
-      setIsLoading(true)
       try {
         await changeLanguage(targetLanguage)
 
@@ -36,18 +34,12 @@ export const useI18n = () => {
         }
       } catch (error) {
         console.error('Failed to change language:', error)
-      } finally {
-        setIsLoading(false)
       }
     },
     [i18n.language, patchVerge],
   )
 
   return {
-    currentLanguage: i18n.language,
-    supportedLanguages,
     switchLanguage,
-    isLoading,
-    t,
   }
 }
