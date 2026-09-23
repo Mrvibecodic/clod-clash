@@ -185,8 +185,28 @@ function noticeSignature(
   }
 }
 
+let windowVisible = true
+
+const MAX_HIDDEN_NOTICES = 5
+
 function scheduleHide(id: number, duration: number) {
-  return duration > 0 ? setTimeout(() => hideNotice(id), duration) : undefined
+  return duration > 0 && windowVisible
+    ? setTimeout(() => hideNotice(id), duration)
+    : undefined
+}
+
+export function setNoticeWindowVisible(visible: boolean) {
+  if (visible === windowVisible) return
+  windowVisible = visible
+  for (const notice of notices) {
+    if (notice.duration <= 0) continue
+    if (visible) {
+      notice.timerId ??= scheduleHide(notice.id, notice.duration)
+    } else if (notice.timerId) {
+      clearTimeout(notice.timerId)
+      notice.timerId = undefined
+    }
+  }
 }
 
 function isMaybeTranslationDescriptor(
@@ -413,6 +433,17 @@ const baseShowNotice = (
   )
 
   notices = [...notices, notice]
+  if (!windowVisible) {
+    const waiting = notices.filter((candidate) => candidate.duration > 0)
+    const dropped = new Set(
+      waiting
+        .slice(0, Math.max(0, waiting.length - MAX_HIDDEN_NOTICES))
+        .map((candidate) => candidate.id),
+    )
+    if (dropped.size > 0) {
+      notices = notices.filter((candidate) => !dropped.has(candidate.id))
+    }
+  }
   notifySubscribers()
   return id
 }

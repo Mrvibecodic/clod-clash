@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { beforeEach, describe, it } from 'node:test'
+import { afterEach, beforeEach, describe, it, mock } from 'node:test'
 
 import { createElement } from 'react'
 
@@ -7,6 +7,7 @@ import {
   collapseBy,
   getSnapshotNotices,
   hideNotice,
+  setNoticeWindowVisible,
   showNotice,
 } from './notice-service.ts'
 
@@ -90,5 +91,57 @@ describe('предупреждение', () => {
     showNotice.error('shared.feedback.notices.raw', { message: 'нет связи' })
 
     assert.equal(getSnapshotNotices().length, 2)
+  })
+})
+
+describe('уведомления в скрытом окне', () => {
+  beforeEach(() => {
+    clearNotices()
+    mock.timers.enable({ apis: ['setTimeout'] })
+  })
+  afterEach(() => {
+    setNoticeWindowVisible(true)
+    clearNotices()
+    mock.timers.reset()
+  })
+
+  it('ждут показа окна и после него живут полный срок', () => {
+    setNoticeWindowVisible(false)
+    showNotice.error('shared.feedback.notices.raw', { message: 'отказ' })
+
+    mock.timers.tick(60_000)
+    assert.equal(getSnapshotNotices().length, 1)
+
+    setNoticeWindowVisible(true)
+    mock.timers.tick(7_999)
+    assert.equal(getSnapshotNotices().length, 1)
+    mock.timers.tick(1)
+    assert.equal(getSnapshotNotices().length, 0)
+  })
+
+  it('показанное уходит на паузу, когда окно прячут', () => {
+    showNotice.error('shared.feedback.notices.raw', { message: 'отказ' })
+    mock.timers.tick(4_000)
+    setNoticeWindowVisible(false)
+    mock.timers.tick(60_000)
+    assert.equal(getSnapshotNotices().length, 1)
+  })
+
+  it('копится не больше пяти, вечные не вытесняются', () => {
+    setNoticeWindowVisible(false)
+    showNotice.error('shared.feedback.notices.raw', { message: 'вечное' }, 0)
+    for (let index = 0; index < 8; index += 1) {
+      showNotice.error('shared.feedback.notices.raw', {
+        message: `отказ ${index}`,
+      })
+    }
+
+    const notices = getSnapshotNotices()
+    assert.equal(notices.length, 6)
+    assert.equal(notices[0].duration, 0)
+    assert.deepEqual(
+      notices.slice(1).map((notice) => notice.i18n?.params?.message),
+      ['отказ 3', 'отказ 4', 'отказ 5', 'отказ 6', 'отказ 7'],
+    )
   })
 })

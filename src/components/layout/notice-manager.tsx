@@ -8,14 +8,21 @@ import {
   Stack,
   type SnackbarOrigin,
 } from '@mui/material'
-import React, { useCallback, useMemo, useSyncExternalStore } from 'react'
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useSyncExternalStore,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useVisibility } from '@/hooks/use-visibility'
 import { copySupportBundle } from '@/services/cmds'
 import {
   subscribeNotices,
   hideNotice,
   getSnapshotNotices,
+  setNoticeWindowVisible,
   showNotice,
 } from '@/services/notice-service'
 import type { TranslationKey } from '@/types/generated/i18n-keys'
@@ -189,6 +196,10 @@ export const NoticeManager: React.FC<NoticeManagerProps> = ({ position }) => {
     subscribeNotices,
     getSnapshotNotices,
   )
+  const visible = useVisibility()
+  useEffect(() => {
+    setNoticeWindowVisible(visible)
+  }, [visible])
 
   const handleClose = (id: number) => {
     hideNotice(id)
