@@ -4,7 +4,6 @@ import { MihomoWebSocket, type LogLevel } from 'tauri-plugin-mihomo-api'
 
 import { getClashLogs } from '@/services/cmds'
 import { setCacheData } from '@/services/query-client'
-import { isWsErrorMessage } from '@/utils/ws-error'
 
 import { useClashLog } from './use-clash-log'
 import { useMihomoWsSubscription } from './use-mihomo-ws-subscription'
@@ -63,7 +62,7 @@ export const useLogData = (options?: { enabled?: boolean }) => {
     buildSubscriptKey: (date) => (enableLog ? `getClashLog-${date}` : null),
     fallbackData: [],
     connect: () => MihomoWebSocket.connect_logs(logLevel),
-    setupHandlers: ({ next, scheduleReconnect, isMounted }) => {
+    setupHandlers: ({ next, isMounted }) => {
       let flushTimer: ReturnType<typeof setTimeout> | null = null
       const buffer: ILogItem[] = []
 
@@ -86,12 +85,6 @@ export const useLogData = (options?: { enabled?: boolean }) => {
 
       return {
         handleMessage: (data) => {
-          if (isWsErrorMessage(data)) {
-            next(data)
-            void scheduleReconnect()
-            return
-          }
-
           try {
             const parsed = JSON.parse(data) as ILogItem
             if (

@@ -8,6 +8,7 @@ import {
   setCacheData,
   useQuery,
 } from '@/services/query-client'
+import { isWsErrorMessage } from '@/utils/ws-error'
 
 const RECONNECT_DELAY_MS = 1000
 
@@ -84,14 +85,21 @@ const clearStaleTimer = (entry: SharedSubscriptionEntry) => {
   }
 }
 
+const dropDeadSocket = (
+  entry: SharedSubscriptionEntry,
+  ws: MihomoWebSocket,
+) => {
+  if (entry.closed || entry.ws !== ws) return
+  pickActiveOwner(entry)?.onStale?.()
+  void entry.scheduleReconnect()
+}
+
 const armStaleTimer = (entry: SharedSubscriptionEntry, ws: MihomoWebSocket) => {
   clearStaleTimer(entry)
   if (entry.staleMs <= 0) return
   entry.staleTimer = setTimeout(() => {
     entry.staleTimer = null
-    if (entry.closed || entry.ws !== ws) return
-    pickActiveOwner(entry)?.onStale?.()
-    void entry.scheduleReconnect()
+    dropDeadSocket(entry, ws)
   }, entry.staleMs)
 }
 
@@ -134,8 +142,9 @@ const createSharedSubscriptionEntry = (
     if (entry.closed || entry.connecting || entry.ws) return
 
     entry.connecting = true
+    let ws: MihomoWebSocket | null = null
     try {
-      const ws = await connect()
+      ws = await connect()
       if (entry.closed) {
         await closeSocket(ws)
         return
@@ -155,19 +164,25 @@ const createSharedSubscriptionEntry = (
         }
       }
 
-      ws.addListener((msg: Message) => {
+      const socket = ws
+      socket.addListener((msg: Message) => {
         if (msg.type !== 'Text') return
-        if (entry.ws === ws) armStaleTimer(entry, ws)
+        if (isWsErrorMessage(msg.data)) {
+          dropDeadSocket(entry, socket)
+          return
+        }
+        if (entry.ws === socket) armStaleTimer(entry, socket)
         const activeOwner = pickActiveOwner(entry)
         if (!activeOwner) return
 
         activeOwner.handleMessage(msg.data)
       })
 
-      entry.ws = ws
-      armStaleTimer(entry, ws)
+      entry.ws = socket
+      armStaleTimer(entry, socket)
       clearReconnectTimer()
     } catch (ignoreError) {
+      if (ws && entry.ws !== ws) void closeSocket(ws)
       if (!entry.closed && !entry.ws) {
         clearReconnectTimer()
         entry.reconnectTimer = setTimeout(entry.connectWs, RECONNECT_DELAY_MS)
@@ -207,7 +222,6 @@ type NextFn<T> = (
 
 interface HandlerContext<T> {
   next: NextFn<T>
-  scheduleReconnect: () => Promise<void>
   isMounted: () => boolean
 }
 
@@ -361,7 +375,6 @@ export const useMihomoWsSubscription = <T>(
       cleanup,
     } = setupHandlers({
       next: wrappedNext,
-      scheduleReconnect: entry.scheduleReconnect,
       isMounted: () => isMounted,
     })
 
@@ -390,8 +403,11 @@ export const useMihomoWsSubscription = <T>(
       if (entry.activeOwner === owner) {
         entry.activeOwner = null
         const nextOwner = pickActiveOwner(entry)
-        if (entry.ws && nextOwner?.onConnected) {
-          void nextOwner.onConnected(entry.ws)
+        const ws = entry.ws
+        if (ws && nextOwner?.onConnected) {
+          void Promise.resolve()
+            .then(() => nextOwner.onConnected?.(ws))
+            .catch(() => {})
         }
       }
 

@@ -1,7 +1,5 @@
 import { MihomoWebSocket, Traffic } from 'tauri-plugin-mihomo-api'
 
-import { isWsErrorMessage } from '@/utils/ws-error'
-
 import { useMihomoWsSubscription } from './use-mihomo-ws-subscription'
 
 const FALLBACK_TRAFFIC: Traffic = { up: 0, down: 0, upTotal: 0, downTotal: 0 }
@@ -37,15 +35,9 @@ export const useTrafficData = (options?: { enabled?: boolean }) => {
     connect: () => MihomoWebSocket.connect_traffic(),
     throttleMs: 200,
     staleMs: TRAFFIC_STALE_MS,
-    setupHandlers: ({ next, scheduleReconnect }) => ({
+    setupHandlers: ({ next }) => ({
       onStale: () => next(null, FALLBACK_TRAFFIC),
       handleMessage: (data) => {
-        if (isWsErrorMessage(data)) {
-          next(data, FALLBACK_TRAFFIC)
-          void scheduleReconnect()
-          return
-        }
-
         try {
           const parsed = JSON.parse(data) as Traffic
           if (shouldSkipDuplicateTraffic(parsed)) {

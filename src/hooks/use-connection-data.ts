@@ -14,6 +14,7 @@ const CONNECTION_RECONNECT_DELAY_MS = 1_000
  * после паузы длиннее этого порога считается первым: скорость по нему — ноль.
  */
 const CONNECTION_RATE_GAP_MS = 5_000
+const CONNECTION_STALE_MS = 5_000
 
 type ConnectionMetadata = IConnectionsItem['metadata']
 type ConnectionListener = () => void
@@ -38,6 +39,8 @@ let connectionData: ConnectionMonitorData = initConnData
 let connectionSocket: MihomoWebSocket | null = null
 let connectionConnecting = false
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+let staleTimer: ReturnType<typeof setTimeout> | null = null
+let droppedAsDead = false
 let flushTimer: ReturnType<typeof setTimeout> | null = null
 let pendingMessageData: string | null = null
 let lastFlushAt = 0
@@ -211,7 +214,11 @@ const mergeConnectionSnapshot = (
       skipRemoved -= 1
       continue
     }
-    closedConnections.push(connection)
+    closedConnections.push(
+      connection.curUpload || connection.curDownload
+        ? { ...connection, curUpload: 0, curDownload: 0 }
+        : connection,
+    )
   }
 
   return {
@@ -239,13 +246,21 @@ const flushPendingMessage = () => {
   const now = Date.now()
   const sincePrevious = now - lastFlushAt
   lastFlushAt = now
-  connectionData = mergeConnectionSnapshot(
+  const merged = mergeConnectionSnapshot(
     payload,
     connectionData,
     sincePrevious > 0 && sincePrevious <= CONNECTION_RATE_GAP_MS
       ? sincePrevious
       : null,
   )
+  if (droppedAsDead) {
+    droppedAsDead = false
+    const alive = new Set(merged.activeConnections.map((item) => item.id))
+    merged.closedConnections = merged.closedConnections.filter(
+      (item) => !alive.has(item.id),
+    )
+  }
+  connectionData = merged
   notifyConnectionListeners()
 }
 
@@ -271,7 +286,14 @@ const clearReconnectTimer = () => {
   reconnectTimer = null
 }
 
+const clearStaleTimer = () => {
+  if (!staleTimer) return
+  window.clearTimeout(staleTimer)
+  staleTimer = null
+}
+
 const closeConnectionSocket = async () => {
+  clearStaleTimer()
   const socket = connectionSocket
   connectionSocket = null
   if (!socket) return
@@ -298,6 +320,32 @@ async function reconnectConnectionSocket() {
   scheduleReconnect()
 }
 
+function dropDeadConnectionSocket() {
+  pendingMessageData = null
+  if (flushTimer) {
+    window.clearTimeout(flushTimer)
+    flushTimer = null
+  }
+  if (connectionData.activeConnections.length > 0) {
+    connectionData = mergeConnectionSnapshot(
+      { uploadTotal: 0, downloadTotal: 0, connections: [] },
+      connectionData,
+      null,
+    )
+    droppedAsDead = true
+    notifyConnectionListeners()
+  }
+  void reconnectConnectionSocket()
+}
+
+function armStaleTimer(socket: MihomoWebSocket) {
+  clearStaleTimer()
+  staleTimer = window.setTimeout(() => {
+    staleTimer = null
+    if (connectionSocket === socket) dropDeadConnectionSocket()
+  }, CONNECTION_STALE_MS)
+}
+
 async function connectConnectionSocket() {
   if (connectionSocket || connectionConnecting) return
   if (!hasConnectionSubscribers()) return
@@ -312,14 +360,16 @@ async function connectConnectionSocket() {
       return
     }
     connectionSocket = socket
+    armStaleTimer(socket)
     socket.addListener((message) => {
       if (connectionSocket !== socket) return
       if (message.type !== 'Text') return
       if (isWsErrorMessage(message.data)) {
-        void reconnectConnectionSocket()
+        dropDeadConnectionSocket()
         return
       }
 
+      armStaleTimer(socket)
       enqueueConnectionMessage(message.data)
     })
   } catch {
