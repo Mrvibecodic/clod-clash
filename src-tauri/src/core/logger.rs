@@ -236,12 +236,13 @@ impl Logger {
             .unwrap_or(log_level);
         spec.default(log_level);
         if log_level < log::LevelFilter::Trace {
+            let plumbing_level = log_level.min(log::LevelFilter::Warn);
             for module in PLUMBING_MODULES {
-                spec.module(module, log::LevelFilter::Warn);
+                spec.module(module, plumbing_level);
             }
             #[cfg(target_os = "linux")]
             for module in DESKTOP_PLUMBING_MODULES {
-                spec.module(module, log::LevelFilter::Warn);
+                spec.module(module, plumbing_level);
             }
         }
         #[cfg(feature = "tracing")]
@@ -333,9 +334,9 @@ impl Logger {
 #[allow(clippy::expect_used, clippy::unwrap_used)]
 #[cfg(test)]
 mod tests {
-    use super::{FileFormat, redacted_file_writer};
+    use super::{FileFormat, Logger, PLUMBING_MODULES, redacted_file_writer};
     use flexi_logger::{DeferredNow, FileSpec, writers::LogWriter as _};
-    use log::{Level, Record};
+    use log::{Level, LevelFilter, Record};
 
     const SECRET: &str = "AbCd1234EfGh5678";
     const LINE: &str = "updating subscription https://panel.example.com/sub/AbCd1234EfGh5678";
@@ -392,5 +393,34 @@ mod tests {
         assert!(!written.is_empty(), "the writer produced no file");
         assert!(!written.contains(SECRET), "{written}");
         assert!(written.contains("panel.example.com"), "{written}");
+    }
+
+    #[test]
+    fn plumbing_modules_are_never_louder_than_the_chosen_level() {
+        if std::env::var_os("RUST_LOG").is_some() {
+            return;
+        }
+        for chosen in [
+            LevelFilter::Off,
+            LevelFilter::Error,
+            LevelFilter::Warn,
+            LevelFilter::Info,
+            LevelFilter::Debug,
+        ] {
+            let spec = Logger::generate_log_spec(chosen);
+            let expected = chosen.min(LevelFilter::Warn);
+            #[cfg(target_os = "linux")]
+            let modules = PLUMBING_MODULES.iter().chain(super::DESKTOP_PLUMBING_MODULES);
+            #[cfg(not(target_os = "linux"))]
+            let modules = PLUMBING_MODULES.iter();
+            for module in modules {
+                let level = spec
+                    .module_filters()
+                    .iter()
+                    .find(|filter| filter.module_name.as_deref() == Some(*module))
+                    .map(|filter| filter.level_filter);
+                assert_eq!(level, Some(expected), "{module} at {chosen}");
+            }
+        }
     }
 }

@@ -50,6 +50,10 @@ fn older_than_days(modified: SystemTime, now: SystemTime, days: u64) -> bool {
         .is_ok_and(|age| age.as_secs() > days.saturating_mul(SECONDS_IN_A_DAY))
 }
 
+fn is_cleaned_by_age(file_name: &str) -> bool {
+    file_name.ends_with(".log") && file_name != "latest.log"
+}
+
 pub async fn delete_log() -> Result<()> {
     let log_dir = dirs::app_logs_dir()?;
     let service_log_dir = dirs::service_log_dir()?;
@@ -83,7 +87,7 @@ pub async fn delete_log() -> Result<()> {
         let file_name = file.file_name();
         let file_name = file_name.to_str().unwrap_or_default();
 
-        if !file_name.ends_with(".log") {
+        if !is_cleaned_by_age(file_name) {
             return Ok(());
         }
         // Возраст берётся из метаданных: имя ротированного файла собирает
@@ -692,7 +696,9 @@ async fn unpin_core_log_keys() -> Result<()> {
 
 pub async fn init_config() -> Result<()> {
     #[cfg(target_os = "macos")]
-    migrate_legacy_macos_logs().await?;
+    if let Err(e) = migrate_legacy_macos_logs().await {
+        logging!(warn, Type::Setup, "Failed to migrate macOS logs directory: {}", e);
+    }
 
     ensure_directories().await?;
 
@@ -968,7 +974,7 @@ async fn handle_copy(src: &PathBuf, dest: &PathBuf, file: &str) {
 mod tests {
     use super::{
         BundledAssetAction, DNS_CONFIG_HEADER, SECONDS_IN_A_DAY, bundled_asset_action, default_dns_config,
-        dns_config_problem, drop_legacy_dns_keys, has_untouched_legacy_fallback, has_user_comments,
+        dns_config_problem, drop_legacy_dns_keys, has_untouched_legacy_fallback, has_user_comments, is_cleaned_by_age,
         legacy_fallback_filter, older_than_days,
     };
     use serde_yaml_ng::{Mapping, Value};
@@ -986,6 +992,20 @@ mod tests {
             !older_than_days(now, now, 0),
             "свежий файл не удаляется и при нуле дней"
         );
+    }
+
+    #[test]
+    fn the_files_being_written_are_left_to_the_rotation() {
+        assert!(!is_cleaned_by_age("latest.log"));
+        for name in [
+            "2026-09-01_10-00-00.log",
+            "2026-09-01_10-00-00.restart-0001.log",
+            "service_latest.log",
+            "service_2026-09-01_10-00-00.log",
+        ] {
+            assert!(is_cleaned_by_age(name), "{name}");
+        }
+        assert!(!is_cleaned_by_age("latest.log.bak"));
     }
 
     #[test]
