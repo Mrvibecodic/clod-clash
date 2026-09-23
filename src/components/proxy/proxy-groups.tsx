@@ -103,7 +103,9 @@ function useProxyRenderState(
     // но ТОЛЬКО когда группа свёрнута. У развёрнутой пустой список строк
     // означает, что ничего не совпало с фильтром, и мерить всё подряд, включая
     // отфильтрованное и встроенные DIRECT/REJECT, человек не просил.
-    const collapsed = getGroupHeadState(groupName)?.open === false
+    const collapsed =
+      (mode === 'rule' || mode === 'script') &&
+      getGroupHeadState(groupName)?.open === false
     const proxies =
       rendered.length > 0
         ? rendered
