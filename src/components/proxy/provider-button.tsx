@@ -61,7 +61,7 @@ export const ProviderButton = () => {
   const hasProviders = Object.keys(proxyProviders || {}).length > 0
 
   // Обновить один провайдер прокси
-  const updateProvider = useLockFn(async (name: string) => {
+  const updateProvider = async (name: string) => {
     try {
       // Устанавливаем состояние обновления
       setUpdating((prev) => ({ ...prev, [name]: true }))
@@ -87,7 +87,7 @@ export const ProviderButton = () => {
       // Сбрасываем состояние обновления
       setUpdating((prev) => ({ ...prev, [name]: false }))
     }
-  })
+  }
 
   // Обновить всех провайдеров прокси
   const updateAllProviders = useLockFn(async () => {

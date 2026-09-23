@@ -50,6 +50,7 @@ import {
   patchSelectedNode,
   updateProxyChainConfigInRuntime,
 } from '@/services/cmds'
+import { showNotice } from '@/services/notice-service'
 import {
   clearProxyChain,
   type ProxyChainNode as ProxyChainItem,
@@ -383,7 +384,7 @@ export const ProxyChain = ({
         onUpdateChain([])
       } catch (error) {
         console.error('Failed to disconnect from proxy chain:', error)
-        alert(t('proxies.page.chain.disconnectFailed'))
+        showNotice.error('proxies.page.chain.disconnectFailed')
       } finally {
         setIsConnecting(false)
       }
@@ -391,7 +392,7 @@ export const ProxyChain = ({
     }
 
     if (proxyChain.length < 2) {
-      alert(t('proxies.page.chain.minimumNodes'))
+      showNotice.error('proxies.page.chain.minimumNodes')
       return
     }
 
@@ -434,14 +435,13 @@ export const ProxyChain = ({
       debugLog('Successfully connected to proxy chain')
     } catch (error) {
       console.error('Failed to connect to proxy chain:', error)
-      alert(t('proxies.page.chain.connectFailed'))
+      showNotice.error('proxies.page.chain.connectFailed')
     } finally {
       setIsConnecting(false)
     }
   }, [
     proxyChain,
     isConnected,
-    t,
     refreshProxy,
     mode,
     selectedGroup,

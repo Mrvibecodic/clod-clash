@@ -1,5 +1,4 @@
 import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual'
-import { useLockFn } from 'ahooks'
 import { throttle } from 'lodash-es'
 import {
   lazy,
@@ -82,62 +81,64 @@ function useProxyRenderState(
 
   const timeout = verge?.default_latency_timeout || 10000
 
-  const handleCheckAll = useStableCallback(
-    useLockFn(async (groupName: string) => {
-      debugLog(
-        `[ProxyGroups] Начало тестирования всех задержек, группа: ${groupName}`,
+  const checkingGroupsRef = useRef(new Set<string>())
+  const handleCheckAll = useStableCallback(async (groupName: string) => {
+    if (checkingGroupsRef.current.has(groupName)) return
+    checkingGroupsRef.current.add(groupName)
+    debugLog(
+      `[ProxyGroups] Начало тестирования всех задержек, группа: ${groupName}`,
+    )
+
+    const rendered = renderList
+      .filter(
+        (e) => e.group?.name === groupName && (e.type === 2 || e.type === 4),
       )
+      .flatMap((e) => e.proxyCol || e.proxy!)
+      .filter(Boolean)
 
-      const rendered = renderList
-        .filter(
-          (e) => e.group?.name === groupName && (e.type === 2 || e.type === 4),
-        )
-        .flatMap((e) => e.proxyCol || e.proxy!)
-        .filter(Boolean)
+    // clod:Э11-11 — у свёрнутой группы строк узлов в списке отрисовки нет, и
+    // кнопка «проверить» молча не делала ничего: человек смотрел на старые
+    // числа, считая их только что измеренными. Берём узлы из самой группы —
+    // но ТОЛЬКО когда группа свёрнута. У развёрнутой пустой список строк
+    // означает, что ничего не совпало с фильтром, и мерить всё подряд, включая
+    // отфильтрованное и встроенные DIRECT/REJECT, человек не просил.
+    const collapsed = getGroupHeadState(groupName)?.open === false
+    const proxies =
+      rendered.length > 0
+        ? rendered
+        : collapsed
+          ? (renderList.find((e) => e.group?.name === groupName)?.group?.all ??
+            [])
+          : []
 
-      // clod:Э11-11 — у свёрнутой группы строк узлов в списке отрисовки нет, и
-      // кнопка «проверить» молча не делала ничего: человек смотрел на старые
-      // числа, считая их только что измеренными. Берём узлы из самой группы —
-      // но ТОЛЬКО когда группа свёрнута. У развёрнутой пустой список строк
-      // означает, что ничего не совпало с фильтром, и мерить всё подряд, включая
-      // отфильтрованное и встроенные DIRECT/REJECT, человек не просил.
-      const collapsed = getGroupHeadState(groupName)?.open === false
-      const proxies =
-        rendered.length > 0
-          ? rendered
-          : collapsed
-            ? (renderList.find((e) => e.group?.name === groupName)?.group
-                ?.all ?? [])
-            : []
+    debugLog(`[ProxyGroups] Найдено прокси: ${proxies.length}`)
 
-      debugLog(`[ProxyGroups] Найдено прокси: ${proxies.length}`)
-
-      try {
-        if (proxies.length === 0) {
-          debugLog(`[ProxyGroups] В группе ${groupName} нечего проверять`)
-          return
-        }
-        debugLog(
-          `[ProxyGroups] URL теста: ${delayManager.getUrl(groupName)}, тайм-аут: ${timeout}ms`,
-        )
-        await delayManager.checkListDelay(proxies, groupName, timeout)
-        debugLog(
-          `[ProxyGroups] Тестирование задержки завершено, группа: ${groupName}`,
-        )
-      } catch (error) {
-        console.error(
-          `[ProxyGroups] Ошибка тестирования задержки, группа: ${groupName}`,
-          error,
-        )
-      } finally {
-        const headState = getGroupHeadState(groupName)
-        if (headState?.sortType === 1) {
-          onHeadState(groupName, { sortType: headState.sortType })
-        }
-        onProxies()
+    try {
+      if (proxies.length === 0) {
+        debugLog(`[ProxyGroups] В группе ${groupName} нечего проверять`)
+        return
       }
-    }),
-  )
+      debugLog(
+        `[ProxyGroups] URL теста: ${delayManager.getUrl(groupName)}, тайм-аут: ${timeout}ms`,
+      )
+      await delayManager.checkListDelay(proxies, groupName, timeout)
+      debugLog(
+        `[ProxyGroups] Тестирование задержки завершено, группа: ${groupName}`,
+      )
+    } catch (error) {
+      console.error(
+        `[ProxyGroups] Ошибка тестирования задержки, группа: ${groupName}`,
+        error,
+      )
+    } finally {
+      checkingGroupsRef.current.delete(groupName)
+      const headState = getGroupHeadState(groupName)
+      if (headState?.sortType === 1) {
+        onHeadState(groupName, { sortType: headState.sortType })
+      }
+      onProxies()
+    }
+  })
 
   const saveScrollPosition = useCallback(
     (scrollTop: number) => {

@@ -38,6 +38,8 @@ const TESTING_TTL = 60 * 1000
 const MAX_CACHE_ENTRIES = 1000
 const EVICT_EVERY = 200
 
+const MAX_PARALLEL_CHECKS = 10
+
 /** Used when neither the user, the template nor the settings named a URL. */
 const BUILTIN_TEST_URL = 'http://cp.cloudflare.com/generate_204'
 
@@ -46,6 +48,10 @@ class DelayManager {
 
   /** Записей с последней уборки; см. `evictStaleDelays`. */
   private writesSinceEvict = 0
+
+  private freeCheckSlots = MAX_PARALLEL_CHECKS
+  private queuedChecks = new Set<string>()
+  private checkSlotWaiters: (() => void)[] = []
 
   /**
    * URL, выбранный пользователем для конкретной группы (страница «Прокси»).
@@ -351,16 +357,17 @@ class DelayManager {
   /**
    * Our own cache entry, but only while it still means something.
    *
-   * Provider nodes are skipped on purpose (see `getDelayFix`). A stale
-   * "testing" marker is dropped here so it cannot outlive the test it belongs
-   * to, and `-1` (never measured) carries no information at all.
+   * A stale "testing" marker is dropped here so it cannot outlive the test it
+   * belongs to, and `-1` (never measured) carries no information at all.
    */
   private liveCacheEntry(proxy: IProxyItem, group: string) {
-    if (proxy.provider) return undefined
     const update = this.getDelayUpdate(proxy.name, group)
     if (!update) return undefined
     if (update.delay === -2) {
-      return Date.now() - update.updatedAt <= TESTING_TTL ? update : undefined
+      const alive =
+        Date.now() - update.updatedAt <= TESTING_TTL ||
+        this.queuedChecks.has(hashKey(proxy.name, group))
+      return alive ? update : undefined
     }
     return update.delay >= 0 ? update : undefined
   }
@@ -476,6 +483,20 @@ class DelayManager {
     }
   }
 
+  private async takeCheckSlot() {
+    if (this.freeCheckSlots > 0) {
+      this.freeCheckSlots -= 1
+      return
+    }
+    await new Promise<void>((resolve) => this.checkSlotWaiters.push(resolve))
+  }
+
+  private releaseCheckSlot() {
+    const next = this.checkSlotWaiters.shift()
+    if (next) next()
+    else this.freeCheckSlots += 1
+  }
+
   async checkListDelay(
     proxies: IProxyItem[],
     group: string,
@@ -489,6 +510,7 @@ class DelayManager {
     // Выставляем статус «идёт тест задержки»
     names.forEach((name) => {
       this.setDelay(name, group, -2)
+      this.queuedChecks.add(hashKey(name, group))
     })
 
     let index = 0
@@ -513,7 +535,12 @@ class DelayManager {
           )
         }
 
-        await this.checkDelay(currName, group, timeout, currProviderName)
+        await this.takeCheckSlot()
+        try {
+          await this.checkDelay(currName, group, timeout, currProviderName)
+        } finally {
+          this.releaseCheckSlot()
+        }
         if (listener) {
           this.queueGroupNotification(group)
         }
@@ -524,6 +551,8 @@ class DelayManager {
         )
         // Выставляем статус ошибки
         this.setDelay(currName, group, 1e6)
+      } finally {
+        this.queuedChecks.delete(hashKey(currName, group))
       }
 
       return help()

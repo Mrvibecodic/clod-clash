@@ -121,7 +121,9 @@ export async function updateProxyChainConfigInRuntime(proxyChainConfig: any) {
  */
 export async function dismantleProxyChain(profileUid?: string) {
   clearProxyChain(profileUid)
-  return updateProxyChainConfigInRuntime(null)
+  return updateProxyChainConfigInRuntime(null).catch((error) =>
+    showNotice.error(error),
+  )
 }
 
 export async function patchClashConfig(payload: Partial<IConfigData>) {

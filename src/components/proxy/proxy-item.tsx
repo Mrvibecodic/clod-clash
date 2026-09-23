@@ -45,7 +45,6 @@ const TypeBox = styled('span')(({ theme }) => ({
 export const ProxyItem = (props: Props) => {
   const { group, proxy, selected, showType = true, sx, onClick } = props
 
-  // -1/<=0 не отображать, -2 loading
   const { delayValue, isPreset, timeout, onDelay } = useProxyDelayState(
     proxy,
     group.name,
@@ -62,7 +61,7 @@ export const ProxyItem = (props: Props) => {
           ({ palette: { mode, primary, background } }) => {
             const bgcolor = background.paper
             const selectColor = mode === 'light' ? primary.main : primary.light
-            const showDelay = delayValue > 0
+            const showDelay = delayValue >= 0
 
             return {
               '&:hover .the-check': { display: !showDelay ? 'block' : 'none' },
@@ -142,7 +141,7 @@ export const ProxyItem = (props: Props) => {
             </Widget>
           )}
 
-          {delayValue > 0 && (
+          {delayValue >= 0 && (
             // отображение задержки
             <Widget
               className="the-delay"
@@ -160,7 +159,7 @@ export const ProxyItem = (props: Props) => {
             </Widget>
           )}
 
-          {delayValue !== -2 && delayValue <= 0 && selected && (
+          {delayValue !== -2 && delayValue < 0 && selected && (
             // отображение иконки выбранного
             <CheckCircleOutlineRounded
               className="the-icon"

@@ -21,7 +21,6 @@ export const ProxyItemMini = (props: Props) => {
 
   const { t } = useTranslation()
 
-  // -1/<=0 значит не показывать, -2 значит loading
   const { delayValue, isPreset, timeout, onDelay } = useProxyDelayState(
     proxy,
     group.name,
@@ -43,7 +42,7 @@ export const ProxyItemMini = (props: Props) => {
         },
         ({ palette: { mode, primary, background } }) => {
           const bgcolor = background.paper
-          const showDelay = delayValue > 0
+          const showDelay = delayValue >= 0
           const selectColor = mode === 'light' ? primary.main : primary.light
 
           return {

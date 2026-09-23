@@ -35,30 +35,10 @@ export function useProxyDelayState(
   }, [proxy.name, groupName, isPreset])
 
   const updateDelay = useCallback(() => {
-    if (!proxy) return
-    const cachedUpdate = delayManager.getDelayUpdate(proxy.name, groupName)
-    if (cachedUpdate) {
-      setDelayState({ ...cachedUpdate })
-      return
-    }
-
-    const fallbackDelay = delayManager.getDelayFix(proxy, groupName)
-    if (fallbackDelay === -1) {
-      setDelayState({ delay: -1, updatedAt: 0 })
-      return
-    }
-
-    let updatedAt = 0
-    const history = proxy.history
-    if (history && history.length > 0) {
-      const lastRecord = history[history.length - 1]
-      const parsed = Date.parse(lastRecord.time)
-      if (!Number.isNaN(parsed)) {
-        updatedAt = parsed
-      }
-    }
-
-    setDelayState({ delay: fallbackDelay, updatedAt })
+    setDelayState({
+      delay: delayManager.getDelayFix(proxy, groupName),
+      updatedAt: delayManager.getMeasuredAt(proxy, groupName),
+    })
   }, [proxy, groupName])
 
   useEffect(() => {
