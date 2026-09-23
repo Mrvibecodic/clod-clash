@@ -321,6 +321,7 @@ impl IProfiles {
                 if panel_changed {
                     each.fallback_url = None;
                     each.fallback_domain = None;
+                    each.mode_choice = None;
                 }
 
                 self.items = Some(items);
@@ -545,6 +546,29 @@ pub async fn profiles_patch_item_safe(index: &String, item: &PrfItem) -> Result<
         .with_data_modify(|mut profiles| async move {
             profiles.patch_item(index, item).await?;
             Ok((profiles, ()))
+        })
+        .await
+}
+
+pub async fn profiles_set_mode_choice_safe(uid: &String, mode: Option<String>) -> Result<Option<String>> {
+    Config::profiles()
+        .await
+        .with_data_modify(|mut profiles| async move {
+            let Some(item) = profiles
+                .items
+                .as_mut()
+                .into_iter()
+                .flatten()
+                .find(|item| item.uid.as_ref() == Some(uid))
+            else {
+                bail!("failed to find the profile item \"uid:{uid}\"");
+            };
+            if item.mode_choice == mode {
+                return Ok((profiles, mode));
+            }
+            let previous = std::mem::replace(&mut item.mode_choice, mode);
+            profiles.save_file().await?;
+            Ok((profiles, previous))
         })
         .await
 }

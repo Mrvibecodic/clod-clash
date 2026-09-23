@@ -72,17 +72,16 @@ fn close_connections_after_mode_change() {
     });
 }
 
-async fn mode_locked_by_panel() -> bool {
+async fn mode_owner() -> Option<(String, bool)> {
     let profiles = Config::profiles().await.latest_arc();
-    profiles
-        .get_current()
-        .and_then(|uid| profiles.get_item(uid).ok())
-        .and_then(|item| item.lock_mode)
-        .unwrap_or(false)
+    let uid = profiles.get_current()?.clone();
+    let locked = profiles.get_item(&uid).ok()?.lock_mode.unwrap_or(false);
+    Some((uid, locked))
 }
 
 pub async fn change_clash_mode(mode: String) -> Result<(), String> {
-    if mode_locked_by_panel().await {
+    let owner = mode_owner().await;
+    if owner.as_ref().is_some_and(|(_, locked)| *locked) {
         logging!(
             info,
             Type::Core,
@@ -90,6 +89,23 @@ pub async fn change_clash_mode(mode: String) -> Result<(), String> {
         );
         return Err(clash_verge_i18n::t!("common.modeLocked").into_owned().into());
     }
+    if crate::cmd::profile_switch_in_progress() {
+        logging!(info, Type::Core, "mode change refused: the subscription is switching");
+        return Err(clash_verge_i18n::t!("common.modeSwitching").into_owned().into());
+    }
+    let previous = match &owner {
+        Some((uid, _)) => match crate::config::profiles::profiles_set_mode_choice_safe(uid, Some(mode.clone())).await {
+            Ok(previous) => Some((uid, previous)),
+            Err(err) => {
+                logging!(warn, Type::Core, "Warning: mode choice not saved to the profile: {err}");
+                None
+            }
+        },
+        None => {
+            logging!(info, Type::Core, "mode choice not remembered: no current profile");
+            None
+        }
+    };
     let mut mapping = Mapping::new();
     mapping.insert(Value::from("mode"), Value::from(mode.as_str()));
     let json_value = serde_json::json!({
@@ -98,16 +114,17 @@ pub async fn change_clash_mode(mode: String) -> Result<(), String> {
     logging!(debug, Type::Core, "change clash mode to {mode}");
     if let Err(err) = handle::Handle::mihomo().patch_base_config(&json_value).await {
         logging!(error, Type::Core, "{err}");
+        if let Some((uid, previous)) = previous
+            && let Err(restore) = crate::config::profiles::profiles_set_mode_choice_safe(uid, previous).await
+        {
+            logging!(warn, Type::Core, "Warning: mode choice not restored: {restore}");
+        }
         return Err(err.to_string().into());
     }
 
     // clod:Э3-06 — под замком правки Clash: иначе `apply()` зафиксировал бы
     // чужую правку, которая ещё ждёт проверки ядром.
     let _serialized = crate::feat::patch_clash_lock().lock().await;
-    let clash = Config::clash().await;
-    clash.edit_draft(|d| d.patch_config(&mapping));
-    clash.apply();
-
     let runtime = Config::runtime().await;
     runtime.edit_draft(|d| d.patch_config(&mapping));
     runtime.apply();
@@ -119,11 +136,8 @@ pub async fn change_clash_mode(mode: String) -> Result<(), String> {
         );
     }
 
-    let clash_data = clash.data_arc();
-    if clash_data.save_config().await.is_ok() {
-        handle::Handle::refresh_clash();
-        tray::Tray::global().update_menu_and_icon().await;
-    }
+    handle::Handle::refresh_clash();
+    tray::Tray::global().update_menu_and_icon().await;
 
     if Config::verge().await.data_arc().auto_close_connection() {
         close_connections_after_mode_change();

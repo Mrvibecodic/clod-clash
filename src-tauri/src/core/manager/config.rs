@@ -141,12 +141,15 @@ impl CoreManager {
                 // clod:port-ladder — порт мог приехать из подписки: системный
                 // прокси и PAC указывают на него, и после смены их надо
                 // переписать, каким бы путём конфиг ни доехал до ядра.
-                let mixed_port_changed = {
+                let (mixed_port_changed, mode_changed) = {
                     let runtime = Config::runtime().await;
                     let next = runtime.latest_arc();
                     let prev = runtime.data_arc();
-                    prev.config.as_ref().and_then(|config| config.get("mixed-port"))
-                        != next.config.as_ref().and_then(|config| config.get("mixed-port"))
+                    let changed = |key: &str| {
+                        prev.config.as_ref().and_then(|config| config.get(key))
+                            != next.config.as_ref().and_then(|config| config.get(key))
+                    };
+                    (changed("mixed-port"), changed("mode"))
                 };
                 if let Err(error) = self.apply_config(run_path).await {
                     #[cfg(target_os = "macos")]
@@ -162,6 +165,11 @@ impl CoreManager {
                 forget_the_not_applied_mark().await;
                 if mixed_port_changed {
                     Self::spawn_mixed_port_check(true);
+                }
+                if mode_changed {
+                    crate::process::AsyncHandler::spawn(|| async {
+                        let _ = crate::core::tray::Tray::global().update_menu().await;
+                    });
                 }
                 #[cfg(target_os = "macos")]
                 crate::utils::resolve::dns::apply_remembered_desire();

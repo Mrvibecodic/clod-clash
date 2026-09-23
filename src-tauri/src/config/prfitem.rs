@@ -89,6 +89,9 @@ pub struct PrfItem {
     pub lock_mode: Option<bool>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode_choice: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub show_zero_hosts: Option<bool>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -596,6 +599,7 @@ impl PrfItem {
             promo_url: sub.promo_url.clone(),
             promo_seen: None,
             lock_mode: sub.lock_mode,
+            mode_choice: None,
             connect_mode: sub.connect_mode.map(|mode| mode.as_str().into()),
             theme_accent: sub.theme.as_ref().and_then(|theme| theme.accent.clone()),
             theme_mode: sub

@@ -144,6 +144,7 @@ struct ProfileItems {
     profile_uid: String,
     profile_is_remote: bool,
     profile_shows_zero_hosts: bool,
+    mode_choice: Option<String>,
 }
 
 impl Default for ProfileItems {
@@ -154,6 +155,7 @@ impl Default for ProfileItems {
             profile_uid: Default::default(),
             profile_is_remote: false,
             profile_shows_zero_hosts: false,
+            mode_choice: None,
             merge_item: ChainItem {
                 uid: "".into(),
                 data: ChainType::Merge(Mapping::new()),
@@ -325,6 +327,7 @@ async fn collect_profile_items() -> Result<ProfileItems> {
     let name = current_item.name.clone().unwrap_or_default();
     let profile_is_remote = current_item.itype.as_deref() == Some("remote");
     let profile_shows_zero_hosts = profile_is_remote && current_item.show_zero_hosts.unwrap_or(false);
+    let mode_choice = mode_choice_of(current_item);
 
     let (merge_item, script_item, rules_item, proxies_item, groups_item, global_merge, global_script) = tokio::join!(
         chain_item_or_default(profiles_arc.get_item(&merge_uid).ok(), || ChainItem {
@@ -372,6 +375,7 @@ async fn collect_profile_items() -> Result<ProfileItems> {
         profile_uid: current_profile_uid,
         profile_is_remote,
         profile_shows_zero_hosts,
+        mode_choice,
     })
 }
 
@@ -844,6 +848,28 @@ pub(crate) fn fill_the_ladder_defaults(config: &mut Mapping) {
     }
 }
 
+const MODES: [&str; 3] = ["rule", "global", "direct"];
+
+fn mode_choice_of(item: &PrfItem) -> Option<String> {
+    if item.lock_mode == Some(true) {
+        None
+    } else {
+        item.mode_choice.clone()
+    }
+}
+
+fn known_mode(value: Option<&str>) -> Option<&'static str> {
+    let value = value?.to_ascii_lowercase();
+    MODES.into_iter().find(|mode| *mode == value)
+}
+
+fn decide_mode(subscription: &Mapping, choice: Option<&str>) -> Value {
+    let mode = known_mode(choice)
+        .or_else(|| known_mode(subscription.get("mode").and_then(Value::as_str)))
+        .unwrap_or("rule");
+    Value::from(mode)
+}
+
 fn subscription_or_app(subscription: &Mapping, key: &str, app_value: &Value) -> Value {
     subscription.get(key).cloned().unwrap_or_else(|| app_value.clone())
 }
@@ -858,6 +884,9 @@ async fn merge_default_config(
     #[cfg(target_os = "linux")] tproxy_enabled: bool,
 ) -> Mapping {
     for (key, value) in clash_config.into_iter() {
+        if key.as_str() == Some("mode") {
+            continue;
+        }
         if key.as_str() == Some("tun") {
             let mut tun = config.get_mut("tun").map_or_else(Mapping::new, |val| {
                 val.as_mapping().cloned().unwrap_or_else(Mapping::new)
@@ -1734,6 +1763,7 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
     let profile_uid = profile.profile_uid;
     let profile_is_remote = profile.profile_is_remote;
     let profile_shows_zero_hosts = profile.profile_shows_zero_hosts;
+    let mode_choice = profile.mode_choice;
 
     let result_map = HashMap::new();
 
@@ -1743,6 +1773,10 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
     // clod:lan-share — просит ли подписка раздачу. Снимается здесь, потому что
     // дальше `merge_default_config` перебьёт `allow-lan` нашим значением.
     let subscription_wants_sharing = config.get("allow-lan").and_then(Value::as_bool).unwrap_or(false);
+
+    let mut config = config;
+    let mode = decide_mode(&config, mode_choice.as_deref());
+    config.insert("mode".into(), mode);
 
     let config = merge_default_config(
         config,
@@ -2008,6 +2042,59 @@ mod tests {
                 "stack written as {written} slipped past the cap"
             );
         }
+    }
+
+    #[test]
+    fn the_app_config_no_longer_keeps_a_mode() {
+        let mut app = crate::config::IClashTemp(mapping("{mixed-port: 7897}"));
+        app.patch_config(&mapping("{mode: global}"));
+        assert!(app.0.get("mode").is_none());
+    }
+
+    #[tokio::test]
+    async fn the_app_mode_does_not_override_the_subscription() {
+        let merged = super::merge_default_config(
+            mapping("{mode: direct}"),
+            mapping("{mode: global}"),
+            false,
+            false,
+            &super::TunOverrides::default(),
+            #[cfg(not(target_os = "windows"))]
+            false,
+            #[cfg(target_os = "linux")]
+            false,
+        )
+        .await;
+        assert_eq!(merged.get("mode"), Some(&serde_yaml_ng::Value::from("direct")));
+    }
+
+    #[test]
+    fn a_panel_lock_sets_the_choice_aside() {
+        let mut item = crate::config::PrfItem {
+            mode_choice: Some("global".into()),
+            ..crate::config::PrfItem::default()
+        };
+        assert_eq!(super::mode_choice_of(&item).as_deref(), Some("global"));
+        item.lock_mode = Some(true);
+        assert_eq!(super::mode_choice_of(&item), None);
+    }
+
+    #[test]
+    fn the_mode_is_the_choice_then_the_subscription_then_rule() {
+        let global = mapping("{mode: global}");
+        let silent = mapping("{}");
+        let broken = mapping("{mode: turbo}");
+        let mode = |config: &serde_yaml_ng::Mapping, choice| super::decide_mode(config, choice);
+
+        assert_eq!(mode(&global, None), serde_yaml_ng::Value::from("global"));
+        assert_eq!(mode(&global, Some("direct")), serde_yaml_ng::Value::from("direct"));
+        assert_eq!(mode(&silent, None), serde_yaml_ng::Value::from("rule"));
+        assert_eq!(mode(&broken, None), serde_yaml_ng::Value::from("rule"));
+        assert_eq!(
+            mode(&mapping("{mode: Global}"), None),
+            serde_yaml_ng::Value::from("global")
+        );
+        assert_eq!(mode(&global, Some("turbo")), serde_yaml_ng::Value::from("global"));
     }
 
     #[test]

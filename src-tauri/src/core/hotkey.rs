@@ -171,23 +171,23 @@ impl Hotkey {
             }
             HotkeyFunction::ClashModeRule => {
                 AsyncHandler::spawn(async move || {
-                    // Ошибка уже залогирована внутри change_clash_mode, здесь явно игнорируем возврат
-                    let _ = feat::change_clash_mode("rule".into()).await;
-                    notify_event(NotificationEvent::ClashModeChanged { mode: "Rule" }).await;
+                    if feat::change_clash_mode("rule".into()).await.is_ok() {
+                        notify_event(NotificationEvent::ClashModeChanged { mode: "Rule" }).await;
+                    }
                 });
             }
             HotkeyFunction::ClashModeGlobal => {
                 AsyncHandler::spawn(async move || {
-                    // Ошибка уже залогирована внутри change_clash_mode, здесь явно игнорируем возврат
-                    let _ = feat::change_clash_mode("global".into()).await;
-                    notify_event(NotificationEvent::ClashModeChanged { mode: "Global" }).await;
+                    if feat::change_clash_mode("global".into()).await.is_ok() {
+                        notify_event(NotificationEvent::ClashModeChanged { mode: "Global" }).await;
+                    }
                 });
             }
             HotkeyFunction::ClashModeDirect => {
                 AsyncHandler::spawn(async move || {
-                    // Ошибка уже залогирована внутри change_clash_mode, здесь явно игнорируем возврат
-                    let _ = feat::change_clash_mode("direct".into()).await;
-                    notify_event(NotificationEvent::ClashModeChanged { mode: "Direct" }).await;
+                    if feat::change_clash_mode("direct".into()).await.is_ok() {
+                        notify_event(NotificationEvent::ClashModeChanged { mode: "Direct" }).await;
+                    }
                 });
             }
             HotkeyFunction::ToggleSystemProxy => {

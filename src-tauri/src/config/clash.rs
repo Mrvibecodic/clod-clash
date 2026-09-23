@@ -24,6 +24,7 @@ impl IClashTemp {
 
         match map_result {
             Ok(mut map) => {
+                map.remove("mode");
                 let regenerated = Self::ensure_own_secret(&mut map);
 
                 let template_map = Self::template().0;
@@ -84,7 +85,6 @@ impl IClashTemp {
         map.insert("port".into(), network::ports::DEFAULT_HTTP.into());
         map.insert("allow-lan".into(), false.into());
         map.insert("ipv6".into(), false.into());
-        map.insert("mode".into(), "rule".into());
         map.insert(
             "external-controller".into(),
             network::DEFAULT_EXTERNAL_CONTROLLER.into(),
@@ -156,6 +156,9 @@ impl IClashTemp {
 
     pub fn patch_config(&mut self, patch: &Mapping) {
         for (key, value) in patch.iter() {
+            if key.as_str() == Some("mode") {
+                continue;
+            }
             if Self::follows_the_subscription(key, value) {
                 self.0.remove(key);
                 continue;

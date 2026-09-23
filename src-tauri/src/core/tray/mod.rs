@@ -295,16 +295,15 @@ impl Tray {
         let tun_mode = feat::tun::is_active_with(verge.enable_tun_mode.unwrap_or(false));
         let tun_mode_available =
             is_current_app_handle_admin(app_handle) || service::is_service_available().await.is_ok();
-        let mode = {
-            Config::clash()
-                .await
-                .latest_arc()
-                .0
-                .get("mode")
-                .map(|val| val.as_str().unwrap_or("rule"))
-                .unwrap_or("rule")
-                .to_owned()
-        };
+        let mode = Config::runtime()
+            .await
+            .latest_arc()
+            .config
+            .as_ref()
+            .and_then(|config| config.get("mode"))
+            .and_then(|val| val.as_str())
+            .unwrap_or("rule")
+            .to_owned();
         let profiles_config = Config::profiles().await;
         let profiles_arc = profiles_config.latest_arc();
         let profiles_preview = profiles_arc.profiles_preview().unwrap_or_default();
@@ -1080,7 +1079,9 @@ fn handle_menu_click(id: std::string::String) {
                     && let Some(final_mode) = stripped.strip_suffix("_mode")
                 {
                     logging!(info, Type::ProxyMode, "Switch Proxy Mode To: {}", final_mode);
-                    let _ = feat::change_clash_mode(final_mode.into()).await;
+                    if feat::change_clash_mode(final_mode.into()).await.is_err() {
+                        logging_error!(Type::Tray, Tray::global().update_menu().await);
+                    }
                 }
             }
             MenuIds::DASHBOARD => {

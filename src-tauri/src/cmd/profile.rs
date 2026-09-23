@@ -25,6 +25,10 @@ use std::time::Duration;
 
 static CURRENT_SWITCHING_PROFILE: AtomicBool = AtomicBool::new(false);
 
+pub(crate) fn profile_switch_in_progress() -> bool {
+    CURRENT_SWITCHING_PROFILE.load(Ordering::Acquire)
+}
+
 fn profile_import_error(err: &anyhow::Error) -> std::string::String {
     if let Some(cause) = err.chain().find(|cause| cause.to_string().contains("TLS 1.0/1.1")) {
         return cause.to_string();

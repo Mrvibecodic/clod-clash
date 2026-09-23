@@ -196,11 +196,12 @@ async fn settings_section(out: &mut std::string::String) {
             _ => "—",
         }
     );
-    let mode = Config::clash()
+    let mode = Config::runtime()
         .await
         .latest_arc()
-        .0
-        .get("mode")
+        .config
+        .as_ref()
+        .and_then(|config| config.get("mode"))
         .and_then(serde_yaml_ng::Value::as_str)
         .unwrap_or("—")
         .to_owned();
