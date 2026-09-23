@@ -18,7 +18,11 @@ const DEFAULT_BACKEND_SOURCE_DIRS = [
   path.resolve(__dirname, '../src-tauri'),
   path.resolve(__dirname, '../crates'),
 ]
-const EXCLUDE_USAGE_DIRS = [FRONTEND_LOCALES_DIR, BACKEND_LOCALES_DIR]
+const EXCLUDE_USAGE_DIRS = [
+  FRONTEND_LOCALES_DIR,
+  BACKEND_LOCALES_DIR,
+  path.resolve(__dirname, '../src/types/generated'),
+]
 const DEFAULT_BASELINE_LANG = 'en'
 const IGNORE_DIR_NAMES = new Set([
   '.git',
@@ -52,6 +56,8 @@ const FRONTEND_EXTENSIONS = new Set([
 const BACKEND_EXTENSIONS = new Set(['.rs'])
 
 const TS_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'])
+
+const PLURAL_SUFFIX_PATTERN = /_(zero|one|two|few|many|other)$/
 
 const KEY_PATTERN = /^[A-Za-z][A-Za-z0-9_-]*(?:\.[A-Za-z0-9_-]+)+$/
 const TEMPLATE_PREFIX_PATTERN =
@@ -111,6 +117,7 @@ Options:
   --baseline <lang>  Baseline locale file name for frontend/backend (default: ${DEFAULT_BASELINE_LANG})
   --keep-extra       Preserve keys that exist only in non-baseline locales when aligning
   --no-backup        Skip creating \`.bak\` backups when applying changes
+  --check            Exit with a non-zero code when unused, missing or extra keys are found
   --report <path>    Write a JSON report to the given path
   --src <path>       Include an additional source directory (repeatable)
   --help             Show this message
@@ -126,6 +133,7 @@ function parseArgs(argv) {
     align: false,
     baseline: DEFAULT_BASELINE_LANG,
     keepExtra: false,
+    check: false,
   }
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -139,6 +147,9 @@ function parseArgs(argv) {
         break
       case '--keep-extra':
         options.keepExtra = true
+        break
+      case '--check':
+        options.check = true
         break
       case '--no-backup':
         options.backup = false
@@ -242,16 +253,32 @@ function collectSourceFiles(sourceDirs, options = {}) {
 
     for (const filePath of resolved) {
       seen.add(filePath)
+      const extension = path.extname(filePath).toLowerCase()
+      const content = fs.readFileSync(filePath, 'utf8')
       files.push({
         path: filePath,
-        extension: path.extname(filePath).toLowerCase(),
-        content: fs.readFileSync(filePath, 'utf8'),
+        extension,
+        content,
+        searchable: TS_EXTENSIONS.has(extension)
+          ? stripComments(filePath, content)
+          : content,
       })
     }
   }
 
   files.sort((a, b) => a.path.localeCompare(b.path))
   return files
+}
+
+function stripComments(filePath, content) {
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    content,
+    ts.ScriptTarget.Latest,
+    false,
+    filePath.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+  )
+  return ts.createPrinter({ removeComments: true }).printFile(sourceFile)
 }
 
 function flattenLocale(obj, parent = '') {
@@ -287,7 +314,10 @@ function diffLocaleKeys(baselineEntries, localeEntries) {
   }
 
   for (const key of localeEntries.keys()) {
-    if (!baselineEntries.has(key)) {
+    if (
+      !baselineEntries.has(key) &&
+      !baselineEntries.has(key.replace(PLURAL_SUFFIX_PATTERN, ''))
+    ) {
       extra.push(key)
     }
   }
@@ -781,9 +811,14 @@ function alignToBaseline(baselineNode, localeNode, options) {
       }
     }
 
-    if (options.keepExtra && shouldCopyLocale) {
+    if (shouldCopyLocale) {
       const extraKeys = Object.keys(localeNode)
-        .filter((key) => !baselineKeys.includes(key))
+        .filter(
+          (key) =>
+            !baselineKeys.includes(key) &&
+            (options.keepExtra ||
+              baselineKeys.includes(key.replace(PLURAL_SUFFIX_PATTERN, ''))),
+        )
         .sort()
       for (const key of extraKeys) {
         result[key] = localeNode[key]
@@ -872,7 +907,7 @@ function findKeyInSources(key, sourceFiles) {
   let found = false
 
   for (const file of sourceFiles) {
-    if (pattern.test(file.content)) {
+    if (pattern.test(file.searchable)) {
       found = true
       break
     }
@@ -886,6 +921,9 @@ function isKeyUsed(key, usage, sourceFiles) {
   if (WHITELIST_KEYS.has(key)) return true
   if (!key) return false
   if (usage.usedKeys.has(key)) return true
+
+  const pluralBase = key.replace(PLURAL_SUFFIX_PATTERN, '')
+  if (pluralBase !== key) return isKeyUsed(pluralBase, usage, sourceFiles)
 
   if (dynamicKeyCache.has(key)) {
     return dynamicKeyCache.get(key)
@@ -1387,6 +1425,12 @@ function main() {
 
   if (allResults.length === 0) {
     return
+  }
+  if (options.check) {
+    const totals = summarizeResults(allResults)
+    if (totals.totalUnused + totals.totalMissing + totals.totalExtra > 0) {
+      process.exitCode = 1
+    }
   }
   if (options.apply) {
     console.log(

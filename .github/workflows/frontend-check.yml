@@ -98,6 +98,10 @@ jobs:
         if: github.event_name != 'pull_request' || steps.check_frontend.outputs.frontend == 'true'
         run: pnpm knip:check
 
+      - name: Check unused and missing i18n keys
+        if: github.event_name != 'pull_request' || steps.check_frontend.outputs.frontend == 'true'
+        run: node scripts/cleanup-unused-i18n.mjs --check
+
       - name: Check unused backend commands
         if: github.event_name != 'pull_request' || steps.check_frontend.outputs.frontend == 'true'
         run: pnpm cmd:check
