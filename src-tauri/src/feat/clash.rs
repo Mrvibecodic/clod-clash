@@ -5,7 +5,7 @@ use crate::{
     process::AsyncHandler,
     utils,
 };
-use clash_verge_logging::{Type, logging};
+use clash_verge_logging::{Type, logging, logging_error};
 use serde_yaml_ng::{Mapping, Value};
 use smartstring::alias::String;
 
@@ -79,9 +79,27 @@ async fn mode_owner() -> Option<(String, bool)> {
     Some((uid, locked))
 }
 
-pub async fn change_clash_mode(mode: String) -> Result<(), String> {
-    let owner = mode_owner().await;
-    if owner.as_ref().is_some_and(|(_, locked)| *locked) {
+static MODE_CHANGE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+const CORE_MODE_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
+
+async fn runtime_mode_is(mode: &str) -> bool {
+    Config::runtime()
+        .await
+        .latest_arc()
+        .config
+        .as_ref()
+        .and_then(|config| config.get("mode"))
+        .and_then(Value::as_str)
+        == Some(mode)
+}
+
+async fn core_mode_is(mode: &str) -> bool {
+    let config = tokio::time::timeout(CORE_MODE_READ_TIMEOUT, handle::Handle::mihomo().get_base_config()).await;
+    matches!(config, Ok(Ok(config)) if config.mode.to_string() == mode)
+}
+
+fn refuse_mode_change(owner: Option<&(String, bool)>) -> Result<(), String> {
+    if owner.is_some_and(|(_, locked)| *locked) {
         logging!(
             info,
             Type::Core,
@@ -93,6 +111,21 @@ pub async fn change_clash_mode(mode: String) -> Result<(), String> {
         logging!(info, Type::Core, "mode change refused: the subscription is switching");
         return Err(clash_verge_i18n::t!("common.modeSwitching").into_owned().into());
     }
+    Ok(())
+}
+
+pub async fn change_clash_mode(mode: String) -> Result<(), String> {
+    let _serialized = MODE_CHANGE_LOCK.lock().await;
+    let owner = mode_owner().await;
+    refuse_mode_change(owner.as_ref())?;
+    if runtime_mode_is(&mode).await && core_mode_is(&mode).await {
+        logging_error!(Type::Tray, tray::Tray::global().update_menu().await);
+        return Ok(());
+    }
+    switch_clash_mode(mode, owner).await
+}
+
+async fn switch_clash_mode(mode: String, owner: Option<(String, bool)>) -> Result<(), String> {
     let previous = match &owner {
         Some((uid, _)) => match crate::config::profiles::profiles_set_mode_choice_safe(uid, Some(mode.clone())).await {
             Ok(previous) => Some((uid, previous)),
