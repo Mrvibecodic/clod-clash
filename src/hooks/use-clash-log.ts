@@ -2,7 +2,6 @@ import { useLocalStorage } from 'foxact/use-local-storage'
 
 const defaultClashLog: IClashLog = {
   enable: true,
-  logLevel: 'INFO',
   logFilter: 'all',
   logOrder: 'asc',
 }

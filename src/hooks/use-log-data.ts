@@ -5,6 +5,7 @@ import { MihomoWebSocket, type LogLevel } from 'tauri-plugin-mihomo-api'
 import { getClashLogs } from '@/services/cmds'
 import { setCacheData } from '@/services/query-client'
 
+import { useRuntimeConfig } from './use-clash'
 import { useClashLog } from './use-clash-log'
 import { useMihomoWsSubscription } from './use-mihomo-ws-subscription'
 
@@ -19,6 +20,14 @@ const LOG_LEVEL_FILTERS: Record<LogLevel, LogType[]> = {
   WARNING: ['warning', 'error'],
   ERROR: ['error'],
   SILENT: [],
+}
+
+const initialLogsTaken = new Set<string>()
+
+const coreLogLevel = (value: unknown): LogLevel => {
+  const level = typeof value === 'string' ? value.toUpperCase() : 'INFO'
+  if (level === 'WARN') return 'WARNING'
+  return level in LOG_LEVEL_FILTERS ? (level as LogLevel) : 'INFO'
 }
 
 const clampLogs = (logs: ILogItem[]): ILogItem[] =>
@@ -50,10 +59,12 @@ const appendLogs = (
 export const useLogData = (options?: { enabled?: boolean }) => {
   const enabled = options?.enabled ?? true
   const [clashLog] = useClashLog()
-  const enableLog = clashLog.enable && enabled
-  const logLevel = clashLog.logLevel.toUpperCase() as LogLevel
-  const allowedTypes = LOG_LEVEL_FILTERS[logLevel] ?? DEFAULT_LOG_TYPES
-  const hasLoadedInitialLogsRef = useRef(false)
+  const { data: runtime } = useRuntimeConfig()
+  const logLevel = runtime ? coreLogLevel(runtime['log-level']) : undefined
+  const enableLog = clashLog.enable && enabled && logLevel !== undefined
+  const allowedTypes = logLevel
+    ? LOG_LEVEL_FILTERS[logLevel]
+    : DEFAULT_LOG_TYPES
 
   const { response, refresh, subscriptionCacheKey } = useMihomoWsSubscription<
     ILogItem[]
@@ -61,8 +72,8 @@ export const useLogData = (options?: { enabled?: boolean }) => {
     storageKey: 'mihomo_logs_date',
     buildSubscriptKey: (date) => (enableLog ? `getClashLog-${date}` : null),
     fallbackData: [],
-    connect: () => MihomoWebSocket.connect_logs(logLevel),
-    setupHandlers: ({ next, isMounted }) => {
+    connect: () => MihomoWebSocket.connect_logs(logLevel ?? 'INFO'),
+    setupHandlers: ({ next, isMounted, cacheKey }) => {
       let flushTimer: ReturnType<typeof setTimeout> | null = null
       const buffer: ILogItem[] = []
 
@@ -106,19 +117,18 @@ export const useLogData = (options?: { enabled?: boolean }) => {
           }
         },
         async onConnected() {
-          if (hasLoadedInitialLogsRef.current) {
+          if (initialLogsTaken.has(cacheKey)) {
             return
           }
           const logs = await getClashLogs()
-          hasLoadedInitialLogsRef.current = true
-          if (isMounted()) {
-            next(null, (current) => {
-              if (!current || current.length === 0) {
-                return clampLogs(filterLogsByLevel(logs, allowedTypes))
-              }
-              return current
-            })
-          }
+          if (!isMounted() || initialLogsTaken.has(cacheKey)) return
+          initialLogsTaken.add(cacheKey)
+          next(null, (current) => {
+            if (!current || current.length === 0) {
+              return clampLogs(filterLogsByLevel(logs, allowedTypes))
+            }
+            return current
+          })
         },
         cleanup: clearFlushTimer,
       }
@@ -128,30 +138,19 @@ export const useLogData = (options?: { enabled?: boolean }) => {
   const previousLogLevelRef = useRef<LogLevel | undefined>(logLevel)
 
   useEffect(() => {
-    if (!logLevel) {
-      previousLogLevelRef.current = logLevel ?? undefined
-      return
-    }
+    if (!logLevel || previousLogLevelRef.current === logLevel) return
 
-    if (previousLogLevelRef.current === logLevel) {
-      return
-    }
-
+    const known = previousLogLevelRef.current !== undefined
     previousLogLevelRef.current = logLevel
-    hasLoadedInitialLogsRef.current = false
-    refresh()
+    if (known) refresh()
   }, [logLevel, refresh])
 
-  const refreshGetClashLog = (clear = false) => {
-    if (clear) {
-      if (subscriptionCacheKey) {
-        setCacheData<ILogItem[]>([subscriptionCacheKey], [])
-      }
-    } else {
-      hasLoadedInitialLogsRef.current = false
-      refresh()
+  const clearLogs = () => {
+    if (subscriptionCacheKey) {
+      initialLogsTaken.add(subscriptionCacheKey)
+      setCacheData<ILogItem[]>([subscriptionCacheKey], [])
     }
   }
 
-  return { response, refreshGetClashLog }
+  return { response, clearLogs }
 }

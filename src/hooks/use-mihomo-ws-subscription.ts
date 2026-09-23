@@ -223,6 +223,7 @@ type NextFn<T> = (
 interface HandlerContext<T> {
   next: NextFn<T>
   isMounted: () => boolean
+  cacheKey: string
 }
 
 interface HandlerResult {
@@ -376,6 +377,7 @@ export const useMihomoWsSubscription = <T>(
     } = setupHandlers({
       next: wrappedNext,
       isMounted: () => isMounted,
+      cacheKey: subscriptionCacheKey,
     })
 
     const owner: SharedSubscriptionOwner = {

@@ -39,7 +39,7 @@ const LogPage = () => {
   const [searchState, setSearchState] = useState<SearchState>()
   const {
     response: { data: logData },
-    refreshGetClashLog,
+    clearLogs,
   } = useLogData({ enabled: pageVisible })
 
   const filterLogs = useMemo(() => {
@@ -48,8 +48,7 @@ const LogPage = () => {
     }
 
     return logData.filter((data) => {
-      const searchText =
-        `${data.time || ''} ${data.type} ${data.payload}`.toLowerCase()
+      const searchText = `${data.time || ''} ${data.type} ${data.payload}`
 
       const matchesSearch = match(searchText)
 
@@ -169,13 +168,7 @@ const LogPage = () => {
             <SaveAltRounded />
           </IconButton>
 
-          <Button
-            size="small"
-            variant="contained"
-            onClick={() => {
-              refreshGetClashLog(true)
-            }}
-          >
+          <Button size="small" variant="contained" onClick={clearLogs}>
             {t('shared.actions.clear')}
           </Button>
         </Box>

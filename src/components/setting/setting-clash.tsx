@@ -4,15 +4,12 @@ import { invoke } from '@tauri-apps/api/core'
 import { useLockFn } from 'ahooks'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { type LogLevel } from 'tauri-plugin-mihomo-api'
 
 import { type DialogRef, Switch, TooltipIcon } from '@/components/base'
 import { useClash, useClashInfo } from '@/hooks/use-clash'
-import { useClashLog } from '@/hooks/use-clash-log'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useVerge } from '@/hooks/use-verge'
 import {
-  getRuntimeConfig,
   invoke_uwp_tool,
   patchClashMode,
   refreshGeoAssets,
@@ -49,7 +46,6 @@ const SettingClash = ({ onError }: Props) => {
     useClash()
   const { clashInfo } = useClashInfo()
   const { verge, patchVerge } = useVerge()
-  const [, setClashLog] = useClashLog()
 
   const { ipv6, mode, 'allow-lan': allowLan } = runtime ?? {}
 
@@ -295,23 +291,7 @@ const SettingClash = ({ onError }: Props) => {
           onCatch={onError}
           onFormat={(e: any) => e.target.value}
           onChange={(e) => mutateLadder({ log_level: e === 'auto' ? null : e })}
-          onGuard={async (e) => {
-            await patchClash({ 'log-level': e })
-            // clod:ladder — уровень, с которым страница «Журнал» подключается к
-            // ядру, должен идти следом и за выбором «как в подписке»: иначе она
-            // остаётся на прежнем (например, Silent) и стоит пустой.
-            const applied =
-              e === 'auto'
-                ? ((await getRuntimeConfig())?.['log-level'] ?? 'info')
-                : e
-            setClashLog((pre) => ({
-              ...pre!,
-              logLevel: (applied === 'warn'
-                ? 'warning'
-                : applied
-              ).toUpperCase() as LogLevel,
-            }))
-          }}
+          onGuard={(e) => patchClash({ 'log-level': e })}
         >
           <Select size="small" sx={{ width: 160, '> div': { py: '7.5px' } }}>
             <MenuItem value="auto">
