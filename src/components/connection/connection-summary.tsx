@@ -104,10 +104,12 @@ const SummaryBars = ({ entries }: { entries: ConnectionSummaryEntry[] }) => {
 
 interface Props {
   connections: IConnectionsItem[]
+  closed: boolean
 }
 
 export const ConnectionSummary = memo(function ConnectionSummary({
   connections,
+  closed,
 }: Props) {
   const { t } = useTranslation()
 
@@ -132,14 +134,16 @@ export const ConnectionSummary = memo(function ConnectionSummary({
         flex: '0 0 auto',
       }}
     >
-      <SummaryCard title={t('connections.components.summary.now')}>
-        <Typography noWrap sx={{ ...CARD_VALUE, color: 'primary.main' }}>
-          ↓ {formatSpeed(stats.downloadSpeed)}
-        </Typography>
-        <Typography noWrap sx={{ fontSize: 12.5, color: 'secondary.main' }}>
-          ↑ {formatSpeed(stats.uploadSpeed)}
-        </Typography>
-      </SummaryCard>
+      {!closed && (
+        <SummaryCard title={t('connections.components.summary.now')}>
+          <Typography noWrap sx={{ ...CARD_VALUE, color: 'primary.main' }}>
+            ↓ {formatSpeed(stats.downloadSpeed)}
+          </Typography>
+          <Typography noWrap sx={{ fontSize: 12.5, color: 'secondary.main' }}>
+            ↑ {formatSpeed(stats.uploadSpeed)}
+          </Typography>
+        </SummaryCard>
+      )}
       <SummaryCard title={t('connections.components.summary.volume')}>
         <Typography noWrap sx={CARD_VALUE}>
           {formatTotal(stats.download + stats.upload)}

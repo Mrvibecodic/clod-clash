@@ -1,35 +1,57 @@
 import { Box, Button, Snackbar, useTheme } from '@mui/material'
 import { useLockFn } from 'ahooks'
-import dayjs from 'dayjs'
-import { useCallback, useImperativeHandle, useState, type Ref } from 'react'
+import {
+  useCallback,
+  useImperativeHandle,
+  useState,
+  type ReactNode,
+  type Ref,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 import { closeConnection } from 'tauri-plugin-mihomo-api'
 
+import { showNotice } from '@/services/notice-service'
 import parseTraffic from '@/utils/parse-traffic'
 
+import { RelativeTime } from './connection-relative-time'
+
 export interface ConnectionDetailRef {
-  open: (detail: IConnectionsItem, closed: boolean) => void
+  open: (id: string) => void
   close: () => void
 }
 
-export function ConnectionDetail({ ref }: { ref?: Ref<ConnectionDetailRef> }) {
-  const [open, setOpen] = useState(false)
-  const [detail, setDetail] = useState<IConnectionsItem | null>(null)
-  const [closed, setClosed] = useState(false)
+interface Props {
+  ref?: Ref<ConnectionDetailRef>
+  activeConnections: IConnectionsItem[]
+  closedConnections: IConnectionsItem[]
+}
+
+export function ConnectionDetail({
+  ref,
+  activeConnections,
+  closedConnections,
+}: Props) {
+  const [detailId, setDetailId] = useState<string | null>(null)
   const theme = useTheme()
 
+  const active = detailId
+    ? activeConnections.find((item) => item.id === detailId)
+    : undefined
+  const detail =
+    active ??
+    (detailId
+      ? closedConnections.find((item) => item.id === detailId)
+      : undefined)
+  const closed = active === undefined
+
   const onClose = useCallback(() => {
-    setOpen(false)
-    setDetail(null)
-    setClosed(false)
+    setDetailId(null)
   }, [])
 
   useImperativeHandle(ref, () => ({
-    open: (detail: IConnectionsItem, closed: boolean) => {
-      if (open) return
-      setOpen(true)
-      setDetail(detail)
-      setClosed(closed)
+    open: (id: string) => {
+      if (detail) return
+      setDetailId(id)
     },
     close: onClose,
   }))
@@ -37,7 +59,7 @@ export function ConnectionDetail({ ref }: { ref?: Ref<ConnectionDetailRef> }) {
   return (
     <Snackbar
       anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-      open={open}
+      open={detail !== undefined}
       onClose={onClose}
       sx={{
         '.MuiSnackbarContent-root': {
@@ -80,7 +102,7 @@ const InnerConnectionDetail = ({ data, closed, onClose }: InnerProps) => {
     ? metadata.destinationIP
     : metadata.remoteDestination
 
-  const information = [
+  const information: { label: string; value: ReactNode }[] = [
     { label: t('connections.components.fields.host'), value: host },
     {
       label: t('shared.labels.downloaded'),
@@ -109,7 +131,7 @@ const InnerConnectionDetail = ({ data, closed, onClose }: InnerProps) => {
     },
     {
       label: t('connections.components.fields.time'),
-      value: dayjs(data.start).fromNow(),
+      value: <RelativeTime start={data.start} />,
     },
     {
       label: t('connections.components.fields.source'),
@@ -129,7 +151,14 @@ const InnerConnectionDetail = ({ data, closed, onClose }: InnerProps) => {
     },
   ]
 
-  const onDelete = useLockFn(async () => closeConnection(data.id))
+  const onDelete = useLockFn(async () => {
+    try {
+      await closeConnection(data.id)
+      onClose?.()
+    } catch (err) {
+      showNotice.error(err)
+    }
+  })
 
   return (
     <Box sx={{ userSelect: 'text', color: theme.palette.text.secondary }}>
@@ -152,10 +181,7 @@ const InnerConnectionDetail = ({ data, closed, onClose }: InnerProps) => {
           <Button
             variant="contained"
             title={t('connections.components.actions.closeConnection')}
-            onClick={() => {
-              onDelete()
-              onClose?.()
-            }}
+            onClick={onDelete}
           >
             {t('connections.components.actions.closeConnection')}
           </Button>

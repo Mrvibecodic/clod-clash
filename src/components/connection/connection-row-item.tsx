@@ -5,6 +5,8 @@ import { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { closeConnection } from 'tauri-plugin-mihomo-api'
 
+import { showNotice } from '@/services/notice-service'
+
 import { RelativeTime } from './connection-relative-time'
 import type { ConnectionRowView } from './connection-row-view'
 
@@ -82,7 +84,13 @@ const actionStyle = {
 export const ConnectionRowItem = memo(
   function ConnectionRowItem({ row, closed, onShowDetail }: Props) {
     const { t } = useTranslation()
-    const onDelete = useLockFn(async () => closeConnection(row.id))
+    const onDelete = useLockFn(async () => {
+      try {
+        await closeConnection(row.id)
+      } catch (err) {
+        showNotice.error(err)
+      }
+    })
     const handleShowDetail = useCallback(
       () => onShowDetail(row.id),
       [onShowDetail, row.id],

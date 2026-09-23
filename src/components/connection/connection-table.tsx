@@ -8,7 +8,9 @@ import {
   useMemo,
   useRef,
   useState,
+  type Dispatch,
   type MouseEvent as ReactMouseEvent,
+  type SetStateAction,
   type TouchEvent as ReactTouchEvent,
   type UIEvent as ReactUIEvent,
 } from 'react'
@@ -455,9 +457,16 @@ const RowComponent = memo(
     prev.borderColor === next.borderColor,
 )
 
+export type ConnectionTableSorting = SortingState | null
+export type ConnectionTableCollapsed = CollapsedState | null
+
 interface Props {
   connections: IConnectionsItem[]
   groupBy: IConnectionGroupBy
+  sorting: ConnectionTableSorting
+  onSortingChange: Dispatch<SetStateAction<ConnectionTableSorting>>
+  collapsed: ConnectionTableCollapsed
+  onCollapsedChange: Dispatch<SetStateAction<ConnectionTableCollapsed>>
   onShowDetail: (id: string) => void
   columnManagerOpen: boolean
   onCloseColumnManager: () => void
@@ -467,6 +476,10 @@ export const ConnectionTable = (props: Props) => {
   const {
     connections,
     groupBy,
+    sorting,
+    onSortingChange: setSorting,
+    collapsed: collapsedState,
+    onCollapsedChange: setCollapsedState,
     onShowDetail: rawOnShowDetail,
     columnManagerOpen,
     onCloseColumnManager,
@@ -646,15 +659,10 @@ export const ConnectionTable = (props: Props) => {
       }))
   }, [columnVisibilityModel, columnWidths, orderedColumns])
 
-  const [sorting, setSorting] = useState<SortingState | null>(null)
-  const [collapsedState, setCollapsedState] = useState<CollapsedState>({
-    groupBy,
-    keys: EMPTY_COLLAPSED,
-  })
   // Свёрнутые группы живут в паре с текущей группировкой: при её смене ключи
   // от прошлого режима просто перестают учитываться, без сброса в эффекте.
   const collapsedGroups =
-    collapsedState.groupBy === groupBy ? collapsedState.keys : EMPTY_COLLAPSED
+    collapsedState?.groupBy === groupBy ? collapsedState.keys : EMPTY_COLLAPSED
   const [viewport, setViewport] = useState({ scrollTop: 0, height: 0 })
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const rowSnapshotCacheRef = useRef(new Map<string, TableRowSnapshot>())
@@ -784,12 +792,12 @@ export const ConnectionTable = (props: Props) => {
   const toggleGroup = useCallback(
     (key: string) => {
       setCollapsedState((current) => {
-        const keys = new Set(current.groupBy === groupBy ? current.keys : [])
+        const keys = new Set(current?.groupBy === groupBy ? current.keys : [])
         if (!keys.delete(key)) keys.add(key)
         return { groupBy, keys }
       })
     },
-    [groupBy],
+    [groupBy, setCollapsedState],
   )
 
   const tableWidth = useMemo(
@@ -817,13 +825,16 @@ export const ConnectionTable = (props: Props) => {
   )
   const totalRowsHeight = visibleRowCount * ROW_HEIGHT
 
-  const toggleSorting = useCallback((field: ColumnField) => {
-    setSorting((current) => {
-      if (!current || current.id !== field) return { id: field, desc: false }
-      if (!current.desc) return { id: field, desc: true }
-      return null
-    })
-  }, [])
+  const toggleSorting = useCallback(
+    (field: ColumnField) => {
+      setSorting((current) => {
+        if (!current || current.id !== field) return { id: field, desc: false }
+        if (!current.desc) return { id: field, desc: true }
+        return null
+      })
+    },
+    [setSorting],
+  )
 
   const setColumnVisibility = useCallback(
     (field: ColumnField, visible: boolean) => {
@@ -862,7 +873,13 @@ export const ConnectionTable = (props: Props) => {
     setColumnOrder(baseColumns.map((column) => column.field))
     setColumnWidths({})
     setSorting(null)
-  }, [baseColumns, setColumnOrder, setColumnVisibilityModel, setColumnWidths])
+  }, [
+    baseColumns,
+    setColumnOrder,
+    setColumnVisibilityModel,
+    setColumnWidths,
+    setSorting,
+  ])
 
   const managerColumns = useMemo<ConnectionColumnOption[]>(() => {
     return orderedColumns.map((column) => ({

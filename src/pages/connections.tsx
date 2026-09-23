@@ -34,16 +34,21 @@ import {
 } from '@/components/connection/connection-detail'
 import { ConnectionRowItem } from '@/components/connection/connection-row-item'
 import {
+  formatConnectionTraffic,
   getConnectionStartTime,
   useConnectionRowViews,
 } from '@/components/connection/connection-row-view'
 import { ConnectionSummary } from '@/components/connection/connection-summary'
-import { ConnectionTable } from '@/components/connection/connection-table'
+import {
+  ConnectionTable,
+  type ConnectionTableCollapsed,
+  type ConnectionTableSorting,
+} from '@/components/connection/connection-table'
 import { useConnectionData } from '@/hooks/use-connection-data'
 import { useConnectionSetting } from '@/hooks/use-connection-setting'
 import { useTrafficData } from '@/hooks/use-traffic-data'
 import { useVisibility } from '@/hooks/use-visibility'
-import parseTraffic from '@/utils/parse-traffic'
+import { showNotice } from '@/services/notice-service'
 
 type OrderFunc = (list: IConnectionsItem[]) => IConnectionsItem[]
 
@@ -112,6 +117,9 @@ const ConnectionsPage = () => {
 
   const isTableLayout = setting.layout === 'table'
   const groupBy = setting.groupBy ?? 'none'
+  const [tableSorting, setTableSorting] = useState<ConnectionTableSorting>(null)
+  const [tableCollapsed, setTableCollapsed] =
+    useState<ConnectionTableCollapsed>(null)
   const [isGroupMenuOpen, setIsGroupMenuOpen] = useState(false)
   const [isGroupHovered, setIsGroupHovered] = useState(false)
   const summaryVisible = setting.summary ?? true
@@ -155,17 +163,17 @@ const ConnectionsPage = () => {
     [connectionsType],
   )
 
-  const showDetailById = useCallback(
-    (id: string) => {
-      const connection = filterConn.find((item) => item.id === id)
-      if (connection) {
-        detailRef.current?.open(connection, connectionsType === 'closed')
-      }
-    },
-    [connectionsType, filterConn],
-  )
+  const showDetailById = useCallback((id: string) => {
+    detailRef.current?.open(id)
+  }, [])
 
-  const onCloseAll = useLockFn(closeAllConnections)
+  const onCloseAll = useLockFn(async () => {
+    try {
+      await closeAllConnections()
+    } catch (err) {
+      showNotice.error(err)
+    }
+  })
 
   const handleSearch = useCallback(
     (match: (content: string) => boolean, state: SearchState) => {
@@ -196,10 +204,11 @@ const ConnectionsPage = () => {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <Box sx={{ mx: 1 }}>
             {t('shared.labels.downloaded')}:{' '}
-            {parseTraffic(traffic?.downTotal || 0)}
+            {formatConnectionTraffic(traffic?.downTotal || 0)}
           </Box>
           <Box sx={{ mx: 1 }}>
-            {t('shared.labels.uploaded')}: {parseTraffic(traffic?.upTotal || 0)}
+            {t('shared.labels.uploaded')}:{' '}
+            {formatConnectionTraffic(traffic?.upTotal || 0)}
           </Box>
           <IconButton
             color="inherit"
@@ -242,7 +251,10 @@ const ConnectionsPage = () => {
       }
     >
       {summaryVisible && hasTableData && (
-        <ConnectionSummary connections={filterConn} />
+        <ConnectionSummary
+          connections={filterConn}
+          closed={connectionsType === 'closed'}
+        />
       )}
       <Box
         sx={{
@@ -348,6 +360,10 @@ const ConnectionsPage = () => {
         <ConnectionTable
           connections={filterConn}
           groupBy={groupBy}
+          sorting={tableSorting}
+          onSortingChange={setTableSorting}
+          collapsed={tableCollapsed}
+          onCollapsedChange={setTableCollapsed}
           onShowDetail={showDetailById}
           columnManagerOpen={isColumnManagerOpen}
           onCloseColumnManager={() => setIsColumnManagerOpen(false)}
@@ -372,7 +388,11 @@ const ConnectionsPage = () => {
           }}
         />
       )}
-      <ConnectionDetail ref={detailRef} />
+      <ConnectionDetail
+        ref={detailRef}
+        activeConnections={connections.activeConnections}
+        closedConnections={connections.closedConnections}
+      />
       <Zoom
         in={connectionsType === 'closed' && filterConn.length > 0}
         unmountOnExit
