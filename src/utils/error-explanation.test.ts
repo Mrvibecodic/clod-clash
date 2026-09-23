@@ -65,7 +65,40 @@ describe('explainErrorKey', () => {
     // «no such host» содержит и «not found»-подобную суть, но причина разная:
     // домен не разрешился, а не панель ответила 404.
     assert.equal(key('lookup sub.example: no such host'), 'noSuchHost')
-    assert.equal(key('unexpected status 404 Not Found'), 'notFound')
+    assert.equal(
+      key('failed to fetch remote profile with status 404 Not Found'),
+      'notFound',
+    )
+  })
+
+  it('ответ панели узнаётся только в отказе самой подписки', () => {
+    assert.equal(
+      key('failed to fetch remote profile with status 401 Unauthorized'),
+      'unauthorized',
+    )
+    assert.equal(
+      key('failed to fetch remote profile with status 403 Forbidden'),
+      'forbidden',
+    )
+    assert.equal(
+      key('failed to fetch remote profile with status 502 Bad Gateway'),
+      'serverError',
+    )
+    assert.equal(key('file not found "C:/icons/common.png"'), undefined)
+    assert.equal(key('Backup file not found: backup.zip'), undefined)
+    assert.equal(key('installer not found: "setup.exe"'), undefined)
+    assert.equal(key('GitHub API returned 403 Forbidden'), undefined)
+    assert.equal(key('geo download returned 404 Not Found'), undefined)
+    assert.equal(
+      key('StatusMismatched(StatusMismatchedError { response_code: 401 })'),
+      undefined,
+    )
+    assert.equal(
+      key(
+        'clod-chan-refused: прослойка не приняла защищённый запрос (403 Forbidden)',
+      ),
+      'chanRefused',
+    )
   })
 
   it('узнаёт чужой ответ вместо подписки по метке ядра импорта', () => {

@@ -1158,7 +1158,7 @@ async fn fetch_secure(
 
     if !response.status().is_success() {
         bail!(
-            "clod-chan: прослойка не приняла защищённый запрос ({})",
+            "clod-chan-refused: прослойка не приняла защищённый запрос ({})",
             response.status()
         );
     }

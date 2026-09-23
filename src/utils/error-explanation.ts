@@ -98,13 +98,10 @@ const RULES: ReadonlyArray<{ pattern: RegExp; key: string }> = [
   },
 
   // --- Ответ панели --------------------------------------------------------
-  { pattern: /\b401\b|unauthorized/, key: 'unauthorized' },
-  { pattern: /\b403\b|forbidden/, key: 'forbidden' },
-  { pattern: /\b404\b|not found/, key: 'notFound' },
-  {
-    pattern: /\b5\d\d\b|internal server error|bad gateway/,
-    key: 'serverError',
-  },
+  { pattern: /profile with status 401\b/, key: 'unauthorized' },
+  { pattern: /profile with status 403\b/, key: 'forbidden' },
+  { pattern: /profile with status 404\b/, key: 'notFound' },
+  { pattern: /profile with status 5\d\d\b/, key: 'serverError' },
 ]
 
 /** Максимум исходного текста рядом с объяснением. */
