@@ -32,34 +32,20 @@ import {
   styled,
 } from '@mui/material'
 import { useLockFn } from 'ahooks'
-import {
-  cancelIdleCallback,
-  requestIdleCallback,
-} from 'foxact/request-idle-callback'
-import yaml from 'js-yaml'
-import {
-  startTransition,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import {
+  BaseLoadingOverlay,
   BaseSearchBox,
   MonacoEditor,
   Switch,
   VirtualList,
 } from '@/components/base'
 import { GroupItem } from '@/components/profile/group-item'
-import {
-  getNetworkInterfaces,
-  readProfileFile,
-  saveProfileFile,
-} from '@/services/cmds'
+import { useSeqDocument } from '@/hooks/use-seq-document'
+import { getNetworkInterfaces, readProfileFile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { useThemeMode } from '@/services/states'
 import type { TranslationKey } from '@/types/generated/i18n-keys'
@@ -75,7 +61,6 @@ interface Props {
   property: string
   open: boolean
   onClose: () => void
-  onSave?: (prev?: string, curr?: string) => void
 }
 
 const PROXY_STRATEGY_LABEL_KEYS: Record<string, TranslationKey> = {
@@ -125,24 +110,11 @@ const normalizeDeleteSeq = (input?: unknown): string[] => {
   return Array.from(new Set(names))
 }
 
-const buildGroupsYaml = (
-  prepend: IProxyGroupConfig[],
-  append: IProxyGroupConfig[],
-  deleteList: string[],
-) => {
-  return yaml.dump(
-    {
-      prepend,
-      append,
-      delete: deleteList,
-    },
-    { forceQuotes: true },
-  )
-}
+const isGroup = (item: unknown) =>
+  typeof (item as IProxyGroupConfig | null)?.name === 'string'
 
 export const GroupsEditorViewer = (props: Props) => {
-  const { mergeUid, proxiesUid, profileUid, property, open, onClose, onSave } =
-    props
+  const { mergeUid, proxiesUid, profileUid, property, open, onClose } = props
   const { t } = useTranslation()
   const translateStrategy = useCallback(
     (value: string) =>
@@ -160,9 +132,24 @@ export const GroupsEditorViewer = (props: Props) => {
   )
   const themeMode = useThemeMode()
   const editorRef = useRef<MonacoEditorInstance | null>(null)
-  const [prevData, setPrevData] = useState('')
-  const [currData, setCurrData] = useState('')
-  const [visualization, setVisualization] = useState(true)
+  const {
+    loading,
+    ready,
+    text,
+    setText,
+    visualization,
+    toggleVisualization,
+    prependSeq,
+    setPrependSeq,
+    appendSeq,
+    setAppendSeq,
+    deleteSeq,
+    setDeleteSeq,
+    save,
+  } = useSeqDocument<IProxyGroupConfig>(property, open, {
+    isItem: isGroup,
+    readDelete: normalizeDeleteSeq,
+  })
   const [match, setMatch] = useState(() => (_: string) => true)
   const [interfaceNameList, setInterfaceNameList] = useState<string[]>([])
   const { control, ...formIns } = useForm<IProxyGroupConfig>({
@@ -178,10 +165,6 @@ export const GroupsEditorViewer = (props: Props) => {
   const [groupList, setGroupList] = useState<IProxyGroupConfig[]>([])
   const [proxyPolicyList, setProxyPolicyList] = useState<string[]>([])
   const [proxyProviderList, setProxyProviderList] = useState<string[]>([])
-  const [prependSeq, setPrependSeq] = useState<IProxyGroupConfig[]>([])
-  const [appendSeq, setAppendSeq] = useState<IProxyGroupConfig[]>([])
-  const [deleteSeq, setDeleteSeq] = useState<string[]>([])
-  const hasLoadedSeqConfigRef = useRef(false)
 
   const filteredPrependSeq = useMemo(
     () => prependSeq.filter((group) => match(group.name)),
@@ -327,93 +310,6 @@ export const GroupsEditorViewer = (props: Props) => {
       }
     }
   }
-  const applyDeleteSeq = useCallback((next?: unknown) => {
-    setDeleteSeq((prev) => {
-      const normalized = normalizeDeleteSeq(next)
-      if (
-        normalized.length === prev.length &&
-        normalized.every((item, index) => item === prev[index])
-      ) {
-        return prev
-      }
-      return normalized
-    })
-  }, [])
-
-  const fetchContent = useCallback(async () => {
-    hasLoadedSeqConfigRef.current = false
-    const data = await readProfileFile(property)
-    const obj = parseYamlSafe(data) as ISeqProfileConfig | null | undefined
-
-    setPrevData(data)
-    setCurrData(data)
-
-    // clod: файл сломан — показываем его как есть в текстовом режиме и НЕ
-    // пускаем сериализатор: иначе он запишет пустой набор поверх правок.
-    if (obj === undefined) {
-      setVisualization(false)
-      showNotice.error(
-        t('profiles.page.feedback.notifications.editorBrokenYaml'),
-      )
-      return
-    }
-
-    setPrependSeq(obj?.prepend || [])
-    setAppendSeq(obj?.append || [])
-    applyDeleteSeq(obj?.delete)
-    hasLoadedSeqConfigRef.current = true
-  }, [applyDeleteSeq, property, t])
-
-  // clod: текст разбирается обратно ТОЛЬКО при возврате в наглядный режим.
-  // Раньше это делал эффект на каждое изменение текста, и недописанная строка
-  // бросала исключение прямо из эффекта — экран падал в границу ошибок.
-  const handleVisualizationToggle = useCallback(() => {
-    if (visualization) {
-      setVisualization(false)
-      return
-    }
-
-    const obj = parseYamlSafe(currData) as ISeqProfileConfig | null | undefined
-    if (obj === undefined) {
-      hasLoadedSeqConfigRef.current = false
-      showNotice.error(
-        t('profiles.page.feedback.notifications.editorBrokenYaml'),
-      )
-      return
-    }
-
-    hasLoadedSeqConfigRef.current = true
-    startTransition(() => {
-      setPrependSeq(obj?.prepend ?? [])
-      setAppendSeq(obj?.append ?? [])
-      applyDeleteSeq(obj?.delete)
-    })
-    setVisualization(true)
-  }, [applyDeleteSeq, currData, t, visualization])
-
-  // Оптимизация: асинхронная обработка yaml.dump для больших данных, чтобы избежать зависания UI
-  useEffect(() => {
-    if (hasLoadedSeqConfigRef.current && prependSeq && appendSeq && deleteSeq) {
-      const serialize = () => {
-        if (!hasLoadedSeqConfigRef.current) {
-          return
-        }
-
-        try {
-          setCurrData(buildGroupsYaml(prependSeq, appendSeq, deleteSeq))
-        } catch (e) {
-          console.warn('[GroupsEditorViewer] yaml.dump failed:', e)
-          // Предотвращаем зависание UI из-за исключения
-        }
-      }
-
-      const handle = requestIdleCallback(serialize)
-      return () => {
-        cancelIdleCallback(handle)
-      }
-    }
-  }, [prependSeq, appendSeq, deleteSeq])
-
   const fetchProxyPolicy = useCallback(async () => {
     const data = await readProfileFile(profileUid)
     const proxiesData = await readProfileFile(proxiesUid)
@@ -505,10 +401,9 @@ export const GroupsEditorViewer = (props: Props) => {
 
   useEffect(() => {
     if (!open) return
-    fetchContent()
     fetchProfile()
     getInterfaceNameList()
-  }, [fetchContent, fetchProfile, getInterfaceNameList, open])
+  }, [fetchProfile, getInterfaceNameList, open])
 
   useEffect(() => {
     return () => {
@@ -526,23 +421,7 @@ export const GroupsEditorViewer = (props: Props) => {
 
   const handleSave = useLockFn(async () => {
     try {
-      const nextData = visualization
-        ? buildGroupsYaml(prependSeq, appendSeq, deleteSeq)
-        : currData
-
-      if (visualization) {
-        setCurrData(nextData)
-      }
-
-      if (!(await saveProfileFile(property, nextData))) {
-        await fetchContent()
-        onClose()
-        return
-      }
-      showNotice.success('shared.feedback.notifications.saved')
-      setPrevData(nextData)
-      onSave?.(prevData, nextData)
-      onClose()
+      if (await save()) onClose()
     } catch (err) {
       showNotice.error(err)
     }
@@ -564,7 +443,8 @@ export const GroupsEditorViewer = (props: Props) => {
               <Button
                 variant="contained"
                 size="small"
-                onClick={handleVisualizationToggle}
+                disabled={!ready}
+                onClick={toggleVisualization}
               >
                 {visualization
                   ? t('shared.editorModes.advanced')
@@ -576,8 +456,14 @@ export const GroupsEditorViewer = (props: Props) => {
       </DialogTitle>
 
       <DialogContent
-        sx={{ display: 'flex', width: 'auto', height: 'calc(100vh - 185px)' }}
+        sx={{
+          display: 'flex',
+          width: 'auto',
+          height: 'calc(100vh - 185px)',
+          position: 'relative',
+        }}
       >
+        <BaseLoadingOverlay isLoading={loading} />
         {visualization ? (
           <>
             <List
@@ -1150,7 +1036,7 @@ export const GroupsEditorViewer = (props: Props) => {
           <MonacoEditor
             height="100%"
             language="yaml"
-            value={currData}
+            value={text}
             theme={themeMode === 'light' ? 'light' : 'vs-dark'}
             onMount={(editorInstance) => {
               editorRef.current = editorInstance
@@ -1175,7 +1061,7 @@ export const GroupsEditorViewer = (props: Props) => {
               fontLigatures: false, // Лигатуры
               smoothScrolling: true, // Плавная прокрутка
             }}
-            onChange={(value) => setCurrData(value ?? '')}
+            onChange={(value) => setText(value ?? '')}
           />
         )}
       </DialogContent>
@@ -1185,7 +1071,7 @@ export const GroupsEditorViewer = (props: Props) => {
           {t('shared.actions.cancel')}
         </Button>
 
-        <Button onClick={handleSave} variant="contained">
+        <Button onClick={handleSave} variant="contained" disabled={!ready}>
           {t('shared.actions.save')}
         </Button>
       </DialogActions>

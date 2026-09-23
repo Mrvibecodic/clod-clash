@@ -27,25 +27,19 @@ import {
   styled,
 } from '@mui/material'
 import { useLockFn } from 'ahooks'
-import yaml from 'js-yaml'
-import {
-  startTransition,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
+  BaseLoadingOverlay,
   BaseSearchBox,
   MonacoEditor,
   Switch,
   VirtualList,
 } from '@/components/base'
 import { RuleItem } from '@/components/profile/rule-item'
-import { readProfileFile, saveProfileFile } from '@/services/cmds'
+import { useSeqDocument } from '@/hooks/use-seq-document'
+import { readProfileFile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { useThemeMode } from '@/services/states'
 import type { TranslationKey } from '@/types/generated/i18n-keys'
@@ -53,6 +47,7 @@ import type { MonacoEditorInstance } from '@/types/monaco'
 import getSystem from '@/utils/get-system'
 import { isValidIpCidr } from '@/utils/network'
 import { BUILTIN_RULE_POLICIES } from '@/utils/proxy-groups'
+import { parseYamlSafe } from '@/utils/yaml'
 
 interface Props {
   groupsUid: string
@@ -61,7 +56,6 @@ interface Props {
   property: string
   open: boolean
   onClose: () => void
-  onSave?: (prev?: string, curr?: string) => void
 }
 
 const portValidator = (value: string): boolean => {
@@ -250,17 +244,30 @@ const PROXY_POLICY_LABEL_KEYS: Record<string, TranslationKey> =
     {} as Record<string, TranslationKey>,
   )
 
+const isRule = (item: unknown) => typeof item === 'string'
+
 export const RulesEditorViewer = (props: Props) => {
-  const { groupsUid, mergeUid, profileUid, property, open, onClose, onSave } =
-    props
+  const { groupsUid, mergeUid, profileUid, property, open, onClose } = props
   const { t } = useTranslation()
   const themeMode = useThemeMode()
 
   const editorRef = useRef<MonacoEditorInstance | null>(null)
 
-  const [prevData, setPrevData] = useState('')
-  const [currData, setCurrData] = useState('')
-  const [visualization, setVisualization] = useState(true)
+  const {
+    loading,
+    ready,
+    text,
+    setText,
+    visualization,
+    toggleVisualization,
+    prependSeq,
+    setPrependSeq,
+    appendSeq,
+    setAppendSeq,
+    deleteSeq,
+    setDeleteSeq,
+    save,
+  } = useSeqDocument<string>(property, open, { isItem: isRule })
   const [match, setMatch] = useState(() => (_: string) => true)
 
   const [ruleType, setRuleType] = useState<(typeof rules)[number]>(rules[0])
@@ -271,11 +278,6 @@ export const RulesEditorViewer = (props: Props) => {
   const [ruleList, setRuleList] = useState<string[]>([])
   const [ruleSetList, setRuleSetList] = useState<string[]>([])
   const [subRuleList, setSubRuleList] = useState<string[]>([])
-
-  const [prependSeq, setPrependSeq] = useState<string[]>([])
-  const [appendSeq, setAppendSeq] = useState<string[]>([])
-  const [deleteSeq, setDeleteSeq] = useState<string[]>([])
-  const hasLoadedSeqConfigRef = useRef(false)
 
   const filteredPrependSeq = useMemo(
     () => prependSeq.filter((rule) => match(rule)),
@@ -405,89 +407,19 @@ export const RulesEditorViewer = (props: Props) => {
       }
     }
   }
-  const fetchContent = useCallback(async () => {
-    hasLoadedSeqConfigRef.current = false
-    const data = await readProfileFile(property)
-    const obj = yaml.load(data) as ISeqProfileConfig | null
-
-    setPrependSeq(obj?.prepend || [])
-    setAppendSeq(obj?.append || [])
-    setDeleteSeq(obj?.delete || [])
-
-    setPrevData(data)
-    setCurrData(data)
-    hasLoadedSeqConfigRef.current = true
-  }, [property])
-
-  useEffect(() => {
-    if (currData === '' || visualization !== true) {
-      return
-    }
-
-    const obj = yaml.load(currData) as ISeqProfileConfig | null
-    startTransition(() => {
-      setPrependSeq(obj?.prepend ?? [])
-      setAppendSeq(obj?.append ?? [])
-      setDeleteSeq(obj?.delete ?? [])
-    })
-  }, [currData, visualization])
-
-  // Оптимизация: асинхронная обработка yaml.dump для больших данных, чтобы не зависал UI
-  useEffect(() => {
-    if (!hasLoadedSeqConfigRef.current) {
-      return
-    }
-
-    if (!(prependSeq && appendSeq && deleteSeq)) {
-      return
-    }
-
-    const serialize = () => {
-      if (!hasLoadedSeqConfigRef.current) {
-        return
-      }
-
-      try {
-        setCurrData(
-          yaml.dump(
-            { prepend: prependSeq, append: appendSeq, delete: deleteSeq },
-            { forceQuotes: true },
-          ),
-        )
-      } catch (error) {
-        showNotice.error(error ?? 'YAML dump error')
-      }
-    }
-    let idleId: number | undefined
-    let timeoutId: number | undefined
-    if (window.requestIdleCallback) {
-      idleId = window.requestIdleCallback(serialize)
-    } else {
-      timeoutId = window.setTimeout(serialize, 0)
-    }
-    return () => {
-      if (idleId !== undefined && window.cancelIdleCallback) {
-        window.cancelIdleCallback(idleId)
-      }
-      if (timeoutId !== undefined) {
-        clearTimeout(timeoutId)
-      }
-    }
-  }, [prependSeq, appendSeq, deleteSeq])
-
   const fetchProfile = useCallback(async () => {
     const data = await readProfileFile(profileUid) // исходный конфиг-файл
     const groupsData = await readProfileFile(groupsUid) // конфиг-файл groups
     const mergeData = await readProfileFile(mergeUid) // конфиг-файл merge
     const globalMergeData = await readProfileFile('Merge') // конфиг-файл global merge
 
-    const rulesObj = yaml.load(data) as { rules: [] } | null
+    const rulesObj = parseYamlSafe(data) as { rules: [] } | null
 
-    const originGroupsObj = yaml.load(data) as {
+    const originGroupsObj = parseYamlSafe(data) as {
       'proxy-groups': IProxyGroupConfig[]
     } | null
     const originGroups = originGroupsObj?.['proxy-groups'] || []
-    const moreGroupsObj = yaml.load(groupsData) as ISeqProfileConfig | null
+    const moreGroupsObj = parseYamlSafe(groupsData) as ISeqProfileConfig | null
     const rawPrependGroups = moreGroupsObj?.['prepend']
     const morePrependGroups = Array.isArray(rawPrependGroups)
       ? (rawPrependGroups as IProxyGroupConfig[])
@@ -513,29 +445,29 @@ export const RulesEditorViewer = (props: Props) => {
       moreAppendGroups,
     )
 
-    const originRuleSetObj = yaml.load(data) as {
+    const originRuleSetObj = parseYamlSafe(data) as {
       'rule-providers': Record<string, unknown>
     } | null
     const originRuleSet = originRuleSetObj?.['rule-providers'] || {}
-    const moreRuleSetObj = yaml.load(mergeData) as {
+    const moreRuleSetObj = parseYamlSafe(mergeData) as {
       'rule-providers': Record<string, unknown>
     } | null
     const moreRuleSet = moreRuleSetObj?.['rule-providers'] || {}
-    const globalRuleSetObj = yaml.load(globalMergeData) as {
+    const globalRuleSetObj = parseYamlSafe(globalMergeData) as {
       'rule-providers': Record<string, unknown>
     } | null
     const globalRuleSet = globalRuleSetObj?.['rule-providers'] || {}
     const ruleSet = Object.assign({}, originRuleSet, moreRuleSet, globalRuleSet)
 
-    const originSubRuleObj = yaml.load(data) as {
+    const originSubRuleObj = parseYamlSafe(data) as {
       'sub-rules': Record<string, unknown>
     } | null
     const originSubRule = originSubRuleObj?.['sub-rules'] || {}
-    const moreSubRuleObj = yaml.load(mergeData) as {
+    const moreSubRuleObj = parseYamlSafe(mergeData) as {
       'sub-rules': Record<string, unknown>
     } | null
     const moreSubRule = moreSubRuleObj?.['sub-rules'] || {}
-    const globalSubRuleObj = yaml.load(globalMergeData) as {
+    const globalSubRuleObj = parseYamlSafe(globalMergeData) as {
       'sub-rules': Record<string, unknown>
     } | null
     const globalSubRule = globalSubRuleObj?.['sub-rules'] || {}
@@ -550,9 +482,8 @@ export const RulesEditorViewer = (props: Props) => {
 
   useEffect(() => {
     if (!open) return
-    fetchContent()
     fetchProfile()
-  }, [fetchContent, fetchProfile, open])
+  }, [fetchProfile, open])
 
   useEffect(() => {
     return () => {
@@ -579,14 +510,7 @@ export const RulesEditorViewer = (props: Props) => {
 
   const handleSave = useLockFn(async () => {
     try {
-      if (!(await saveProfileFile(property, currData))) {
-        await fetchContent()
-        onClose()
-        return
-      }
-      showNotice.success('shared.feedback.notifications.saved')
-      onSave?.(prevData, currData)
-      onClose()
+      if (await save()) onClose()
     } catch (err: any) {
       showNotice.error(err)
     }
@@ -608,9 +532,8 @@ export const RulesEditorViewer = (props: Props) => {
               <Button
                 variant="contained"
                 size="small"
-                onClick={() => {
-                  setVisualization((prev) => !prev)
-                }}
+                disabled={!ready}
+                onClick={toggleVisualization}
               >
                 {visualization
                   ? t('shared.editorModes.advanced')
@@ -622,8 +545,14 @@ export const RulesEditorViewer = (props: Props) => {
       </DialogTitle>
 
       <DialogContent
-        sx={{ display: 'flex', width: 'auto', height: 'calc(100vh - 185px)' }}
+        sx={{
+          display: 'flex',
+          width: 'auto',
+          height: 'calc(100vh - 185px)',
+          position: 'relative',
+        }}
       >
+        <BaseLoadingOverlay isLoading={loading} />
         {visualization ? (
           <>
             <List
@@ -797,7 +726,7 @@ export const RulesEditorViewer = (props: Props) => {
           <MonacoEditor
             height="100%"
             language="yaml"
-            value={currData}
+            value={text}
             theme={themeMode === 'light' ? 'light' : 'vs-dark'}
             onMount={(editorInstance) => {
               editorRef.current = editorInstance
@@ -822,7 +751,7 @@ export const RulesEditorViewer = (props: Props) => {
               fontLigatures: false, // Лигатуры
               smoothScrolling: true, // Плавная прокрутка
             }}
-            onChange={(value) => setCurrData(value ?? '')}
+            onChange={(value) => setText(value ?? '')}
           />
         )}
       </DialogContent>
@@ -832,7 +761,7 @@ export const RulesEditorViewer = (props: Props) => {
           {t('shared.actions.cancel')}
         </Button>
 
-        <Button onClick={handleSave} variant="contained">
+        <Button onClick={handleSave} variant="contained" disabled={!ready}>
           {t('shared.actions.save')}
         </Button>
       </DialogActions>

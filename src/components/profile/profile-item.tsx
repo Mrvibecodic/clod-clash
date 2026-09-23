@@ -72,7 +72,6 @@ export interface ProfileItemProps {
   mutateProfiles: () => Promise<void>
   onSelect: (force: boolean) => void
   onEdit: () => void
-  onSave?: (prev?: string, curr?: string) => void
   onDelete: () => void
   batchMode?: boolean
   isSelected?: boolean
@@ -92,7 +91,6 @@ const ProfileItemBase = (props: ProfileItemProps) => {
     mutateProfiles,
     onSelect,
     onEdit,
-    onSave,
     onDelete,
     batchMode,
     isSelected,
@@ -640,33 +638,21 @@ const ProfileItemBase = (props: ProfileItemProps) => {
 
   const handleSaveProfileDocument = useLockFn(async () => {
     const currentValue = profileDocument.value
-    if (!(await saveProfileFile(uid, currentValue))) {
-      await profileDocument.reload()
-      return
-    }
-    onSave?.(profileDocument.savedValue, currentValue)
+    if (!(await saveProfileFile(uid, currentValue))) return false
     profileDocument.markSaved(currentValue)
   })
 
   const handleSaveMergeDocument = useLockFn(async () => {
     const mergeUid = option?.merge ?? ''
     const currentValue = mergeDocument.value
-    if (!(await saveProfileFile(mergeUid, currentValue))) {
-      await mergeDocument.reload()
-      return
-    }
-    onSave?.(mergeDocument.savedValue, currentValue)
+    if (!(await saveProfileFile(mergeUid, currentValue))) return false
     mergeDocument.markSaved(currentValue)
   })
 
   const handleSaveScriptDocument = useLockFn(async () => {
     const scriptUid = option?.script ?? ''
     const currentValue = scriptDocument.value
-    if (!(await saveProfileFile(scriptUid, currentValue))) {
-      await scriptDocument.reload()
-      return
-    }
-    onSave?.(scriptDocument.savedValue, currentValue)
+    if (!(await saveProfileFile(scriptUid, currentValue))) return false
     scriptDocument.markSaved(currentValue)
   })
 
@@ -1075,7 +1061,6 @@ const ProfileItemBase = (props: ProfileItemProps) => {
           profileUid={uid}
           property={option?.rules ?? ''}
           open={true}
-          onSave={onSave}
           onClose={() => setRulesOpen(false)}
         />
       )}
@@ -1084,7 +1069,6 @@ const ProfileItemBase = (props: ProfileItemProps) => {
           profileUid={uid}
           property={option?.proxies ?? ''}
           open={true}
-          onSave={onSave}
           onClose={() => setProxiesOpen(false)}
         />
       )}
@@ -1095,7 +1079,6 @@ const ProfileItemBase = (props: ProfileItemProps) => {
           profileUid={uid}
           property={option?.groups ?? ''}
           open={true}
-          onSave={onSave}
           onClose={() => {
             setGroupsOpen(false)
           }}

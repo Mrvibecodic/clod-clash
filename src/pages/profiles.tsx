@@ -834,11 +834,6 @@ const ProfilePage = () => {
                       mutateProfiles={mutateProfiles}
                       onSelect={(f) => onSelect(item.uid, f)}
                       onEdit={() => viewerRef.current?.edit(item)}
-                      onSave={async (prev, curr) => {
-                        if (prev !== curr && profiles.current === item.uid) {
-                          await onEnhance(false)
-                        }
-                      }}
                       onDelete={() => {
                         if (batchMode) {
                           toggleProfileSelection(item.uid)

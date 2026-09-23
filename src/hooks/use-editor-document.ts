@@ -25,22 +25,9 @@ export const useEditorDocument = ({ open, load }: UseEditorDocumentOptions) => {
       const normalized = nextValue ?? ''
       setValue(normalized)
       setSavedValue(normalized)
-      return normalized
     },
     [],
   )
-
-  const reload = useCallback(async () => {
-    setLoading(true)
-    try {
-      return applyLoadedValue(await load())
-    } catch (error) {
-      showNotice.error(error)
-      throw error
-    } finally {
-      setLoading(false)
-    }
-  }, [applyLoadedValue, load])
 
   useEffect(
     (signal) => {
@@ -72,10 +59,8 @@ export const useEditorDocument = ({ open, load }: UseEditorDocumentOptions) => {
   return {
     value,
     setValue,
-    savedValue,
     loading,
     dirty,
     markSaved,
-    reload,
   }
 }

@@ -29,20 +29,18 @@ import {
   styled,
 } from '@mui/material'
 import { useLockFn } from 'ahooks'
-import yaml from 'js-yaml'
-import {
-  startTransition,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { BaseSearchBox, MonacoEditor, VirtualList } from '@/components/base'
+import {
+  BaseLoadingOverlay,
+  BaseSearchBox,
+  MonacoEditor,
+  VirtualList,
+} from '@/components/base'
 import { ProxyItem } from '@/components/profile/proxy-item'
-import { readProfileFile, saveProfileFile } from '@/services/cmds'
+import { useSeqDocument } from '@/hooks/use-seq-document'
+import { readProfileFile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { useThemeMode } from '@/services/states'
 import type { MonacoEditorInstance } from '@/types/monaco'
@@ -55,25 +53,32 @@ interface Props {
   property: string
   open: boolean
   onClose: () => void
-  onSave?: (prev?: string, curr?: string) => void
 }
 
 export const ProxiesEditorViewer = (props: Props) => {
-  const { profileUid, property, open, onClose, onSave } = props
+  const { profileUid, property, open, onClose } = props
   const { t } = useTranslation()
   const themeMode = useThemeMode()
   const editorRef = useRef<MonacoEditorInstance | null>(null)
-  const [prevData, setPrevData] = useState('')
-  const [currData, setCurrData] = useState('')
-  const [visualization, setVisualization] = useState(true)
+  const {
+    loading,
+    ready,
+    text,
+    setText,
+    visualization,
+    toggleVisualization,
+    prependSeq,
+    setPrependSeq,
+    appendSeq,
+    setAppendSeq,
+    deleteSeq,
+    setDeleteSeq,
+    save,
+  } = useSeqDocument<IProxyConfig>(property, open)
   const [match, setMatch] = useState(() => (_: string) => true)
   const [proxyUri, setProxyUri] = useState<string>('')
 
   const [proxyList, setProxyList] = useState<IProxyConfig[]>([])
-  const [prependSeq, setPrependSeq] = useState<IProxyConfig[]>([])
-  const [appendSeq, setAppendSeq] = useState<IProxyConfig[]>([])
-  const [deleteSeq, setDeleteSeq] = useState<string[]>([])
-  const hasLoadedSeqConfigRef = useRef(false)
 
   // clod: имя ноды служит и ключом React, и идентификатором в сортировке.
   // Нода без имени (вставили в текстовом режиме кусок конфига без `name`)
@@ -300,104 +305,10 @@ export const ProxiesEditorViewer = (props: Props) => {
     setProxyList(originProxiesObj?.proxies || [])
   }, [profileUid])
 
-  const fetchContent = useCallback(async () => {
-    hasLoadedSeqConfigRef.current = false
-    const data = await readProfileFile(property)
-    const obj = parseYamlSafe(data) as ISeqProfileConfig | null | undefined
-
-    setPrevData(data)
-    setCurrData(data)
-
-    // clod: файл сломан — показываем его как есть в текстовом режиме и НЕ
-    // пускаем сериализатор: иначе он запишет пустой набор поверх правок.
-    if (obj === undefined) {
-      setVisualization(false)
-      showNotice.error(
-        t('profiles.page.feedback.notifications.editorBrokenYaml'),
-      )
-      return
-    }
-
-    setPrependSeq(obj?.prepend || [])
-    setAppendSeq(obj?.append || [])
-    setDeleteSeq(obj?.delete || [])
-    hasLoadedSeqConfigRef.current = true
-  }, [property, t])
-
-  // clod: текст разбирается обратно ТОЛЬКО при возврате в наглядный режим.
-  // Раньше это делал эффект на каждое изменение текста, и недописанная строка
-  // бросала исключение прямо из эффекта — экран падал в границу ошибок.
-  const handleVisualizationToggle = useCallback(() => {
-    if (visualization) {
-      setVisualization(false)
-      return
-    }
-
-    const obj = parseYamlSafe(currData) as ISeqProfileConfig | null | undefined
-    if (obj === undefined) {
-      hasLoadedSeqConfigRef.current = false
-      showNotice.error(
-        t('profiles.page.feedback.notifications.editorBrokenYaml'),
-      )
-      return
-    }
-
-    hasLoadedSeqConfigRef.current = true
-    startTransition(() => {
-      setPrependSeq(obj?.prepend ?? [])
-      setAppendSeq(obj?.append ?? [])
-      setDeleteSeq(obj?.delete ?? [])
-    })
-    setVisualization(true)
-  }, [currData, t, visualization])
-
-  useEffect(() => {
-    if (
-      !hasLoadedSeqConfigRef.current ||
-      !(prependSeq && appendSeq && deleteSeq)
-    ) {
-      return
-    }
-
-    const serialize = () => {
-      if (!hasLoadedSeqConfigRef.current) {
-        return
-      }
-
-      try {
-        setCurrData(
-          yaml.dump(
-            { prepend: prependSeq, append: appendSeq, delete: deleteSeq },
-            { forceQuotes: true },
-          ),
-        )
-      } catch (e) {
-        console.warn('[ProxiesEditorViewer] yaml.dump failed:', e)
-        // Предотвращаем зависание UI из-за исключения
-      }
-    }
-    let idleId: number | undefined
-    let timeoutId: number | undefined
-    if (window.requestIdleCallback) {
-      idleId = window.requestIdleCallback(serialize)
-    } else {
-      timeoutId = window.setTimeout(serialize, 0)
-    }
-    return () => {
-      if (idleId !== undefined && window.cancelIdleCallback) {
-        window.cancelIdleCallback(idleId)
-      }
-      if (timeoutId !== undefined) {
-        clearTimeout(timeoutId)
-      }
-    }
-  }, [prependSeq, appendSeq, deleteSeq])
-
   useEffect(() => {
     if (!open) return
-    fetchContent()
     fetchProfile()
-  }, [fetchContent, fetchProfile, open])
+  }, [fetchProfile, open])
 
   useEffect(() => {
     return () => {
@@ -408,14 +319,7 @@ export const ProxiesEditorViewer = (props: Props) => {
 
   const handleSave = useLockFn(async () => {
     try {
-      if (!(await saveProfileFile(property, currData))) {
-        await fetchContent()
-        onClose()
-        return
-      }
-      showNotice.success('shared.feedback.notifications.saved')
-      onSave?.(prevData, currData)
-      onClose()
+      if (await save()) onClose()
     } catch (err) {
       showNotice.error(err)
     }
@@ -437,7 +341,8 @@ export const ProxiesEditorViewer = (props: Props) => {
               <Button
                 variant="contained"
                 size="small"
-                onClick={handleVisualizationToggle}
+                disabled={!ready}
+                onClick={toggleVisualization}
               >
                 {visualization
                   ? t('shared.editorModes.advanced')
@@ -449,8 +354,14 @@ export const ProxiesEditorViewer = (props: Props) => {
       </DialogTitle>
 
       <DialogContent
-        sx={{ display: 'flex', width: 'auto', height: 'calc(100vh - 185px)' }}
+        sx={{
+          display: 'flex',
+          width: 'auto',
+          height: 'calc(100vh - 185px)',
+          position: 'relative',
+        }}
       >
+        <BaseLoadingOverlay isLoading={loading} />
         {visualization ? (
           <>
             <List
@@ -532,7 +443,7 @@ export const ProxiesEditorViewer = (props: Props) => {
           <MonacoEditor
             height="100%"
             language="yaml"
-            value={currData}
+            value={text}
             theme={themeMode === 'light' ? 'light' : 'vs-dark'}
             onMount={(editorInstance) => {
               editorRef.current = editorInstance
@@ -557,7 +468,7 @@ export const ProxiesEditorViewer = (props: Props) => {
               fontLigatures: false, // Лигатуры
               smoothScrolling: true, // Плавная прокрутка
             }}
-            onChange={(value) => setCurrData(value ?? '')}
+            onChange={(value) => setText(value ?? '')}
           />
         )}
       </DialogContent>
@@ -567,7 +478,7 @@ export const ProxiesEditorViewer = (props: Props) => {
           {t('shared.actions.cancel')}
         </Button>
 
-        <Button onClick={handleSave} variant="contained">
+        <Button onClick={handleSave} variant="contained" disabled={!ready}>
           {t('shared.actions.save')}
         </Button>
       </DialogActions>

@@ -41,7 +41,7 @@ export interface EditorViewerProps {
   dirty?: boolean
   saveDisabled?: boolean
   onChange?: (value: string) => void
-  onSave?: () => void | Promise<void>
+  onSave?: () => void | boolean | Promise<void | boolean>
   onResetToDefault?: () => void
   onClose: () => void
   onValidate?: (markers: MonacoMarker[]) => void
@@ -88,9 +88,7 @@ export const EditorViewer = ({
 
   const handleSave = useLockFn(async () => {
     try {
-      if (!readOnly) {
-        await onSave?.()
-      }
+      if (!readOnly && (await onSave?.()) === false) return
       onClose()
     } catch (error) {
       showNotice.error(error)
