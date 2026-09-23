@@ -295,7 +295,6 @@
       "layout": {
         "title": "Düzen Ayarı",
         "fields": {
-          "preferSystemTitlebar": "Prefer System Titlebar",
           "proxyGroupIcon": "Vekil Grup Simgesi",
           "toastPosition": "Toast konumu",
           "hoverNavigator": "Hover Jump Navigator",

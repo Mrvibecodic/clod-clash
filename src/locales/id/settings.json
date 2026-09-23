@@ -295,7 +295,6 @@
       "layout": {
         "title": "Pengaturan Tata Letak",
         "fields": {
-          "preferSystemTitlebar": "Prefer System Titlebar",
           "proxyGroupIcon": "Ikon Grup Proksi",
           "toastPosition": "Posisi toast",
           "hoverNavigator": "Hover Jump Navigator",

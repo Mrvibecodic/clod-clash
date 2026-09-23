@@ -295,7 +295,6 @@
       "layout": {
         "title": "Расположение көйләүләре",
         "fields": {
-          "preferSystemTitlebar": "Prefer System Titlebar",
           "proxyGroupIcon": "Прокси төркеме иконкасы",
           "toastPosition": "Toast Position",
           "hoverNavigator": "Hover Jump Navigator",

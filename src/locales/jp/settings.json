@@ -295,7 +295,6 @@
       "layout": {
         "title": "レイアウト設定",
         "fields": {
-          "preferSystemTitlebar": "Prefer System Titlebar",
           "proxyGroupIcon": "プロキシグループアイコン",
           "toastPosition": "トーストの表示位置",
           "hoverNavigator": "Hover Jump Navigator",

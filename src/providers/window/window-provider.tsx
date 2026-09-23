@@ -63,44 +63,21 @@ export const WindowProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, [currentWindow])
 
-  const refreshDecorated = useCallback(async () => {
-    const val = await currentWindow.isDecorated()
-    setDecorated(val)
-    return val
-  }, [currentWindow])
-
-  const toggleDecorations = useCallback(async () => {
-    const currentVal = await currentWindow.isDecorated()
-    await currentWindow.setDecorations(!currentVal)
-    setDecorated(!currentVal)
-  }, [currentWindow])
-
   useEffect(() => {
-    refreshDecorated()
+    void currentWindow.isDecorated().then(setDecorated)
     currentWindow.setMinimizable?.(true)
-  }, [currentWindow, refreshDecorated])
+  }, [currentWindow])
 
   const contextValue = useMemo(
     () => ({
       decorated,
       maximized,
-      toggleDecorations,
-      refreshDecorated,
       minimize,
       close,
       toggleMaximize,
       currentWindow,
     }),
-    [
-      decorated,
-      maximized,
-      toggleDecorations,
-      refreshDecorated,
-      minimize,
-      close,
-      toggleMaximize,
-      currentWindow,
-    ],
+    [decorated, maximized, minimize, close, toggleMaximize, currentWindow],
   )
 
   return <WindowContext value={contextValue}>{children}</WindowContext>

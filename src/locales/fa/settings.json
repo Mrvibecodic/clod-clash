@@ -295,7 +295,6 @@
       "layout": {
         "title": "تنظیمات چیدمان",
         "fields": {
-          "preferSystemTitlebar": "Prefer System Titlebar",
           "proxyGroupIcon": "آیکون گروه پراکسی",
           "toastPosition": "Toast Position",
           "hoverNavigator": "Hover Jump Navigator",

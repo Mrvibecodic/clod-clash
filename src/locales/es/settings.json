@@ -295,7 +295,6 @@
       "layout": {
         "title": "Configuración de la interfaz",
         "fields": {
-          "preferSystemTitlebar": "Prefer System Titlebar",
           "proxyGroupIcon": "Icono del grupo de proxy",
           "toastPosition": "Posición del aviso",
           "hoverNavigator": "Hover Jump Navigator",

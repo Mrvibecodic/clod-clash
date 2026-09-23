@@ -596,7 +596,6 @@ export const translationKeys = [
   'settings.components.verge.theme.fields.providerTheme',
   'settings.components.verge.theme.fields.providerThemeHint',
   'settings.components.verge.layout.title',
-  'settings.components.verge.layout.fields.preferSystemTitlebar',
   'settings.components.verge.layout.fields.proxyGroupIcon',
   'settings.components.verge.layout.fields.toastPosition',
   'settings.components.verge.layout.fields.hoverNavigator',

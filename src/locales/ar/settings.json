@@ -295,7 +295,6 @@
       "layout": {
         "title": "إعدادات التخطيط",
         "fields": {
-          "preferSystemTitlebar": "Prefer System Titlebar",
           "proxyGroupIcon": "أيقونة مجموعة الوكلاء",
           "toastPosition": "Toast Position",
           "hoverNavigator": "Hover Jump Navigator",

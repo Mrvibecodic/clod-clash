@@ -295,7 +295,6 @@
       "layout": {
         "title": "Layout-Einstellungen",
         "fields": {
-          "preferSystemTitlebar": "Prefer System Titlebar",
           "proxyGroupIcon": "Proxy-Gruppen-Symbol",
           "toastPosition": "Toast-Position",
           "hoverNavigator": "Hover Jump Navigator",

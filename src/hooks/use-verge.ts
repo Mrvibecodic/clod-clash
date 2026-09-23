@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 
 import { getVergeConfig, patchVergeConfig } from '@/services/cmds'
+import { showNotice } from '@/services/notice-service'
 import { getPreloadConfig, setPreloadConfig } from '@/services/preload'
 import { getCacheData, setCacheData, useQuery } from '@/services/query-client'
 
@@ -47,9 +48,20 @@ export const useVerge = () => {
     [refetch],
   )
 
+  const patchVergeOrRevert = async (value: Partial<IVergeConfig>) => {
+    mutateVerge((prev) => (prev ? { ...prev, ...value } : prev))
+    try {
+      await patchVerge(value)
+    } catch (error) {
+      showNotice.error(error)
+      mutateVerge()
+    }
+  }
+
   return {
     verge,
     mutateVerge,
     patchVerge,
+    patchVergeOrRevert,
   }
 }

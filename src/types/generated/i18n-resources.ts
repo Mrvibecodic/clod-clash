@@ -754,7 +754,6 @@ export interface TranslationResources {
               enableTraySpeed: string
               hoverNavigator: string
               hoverNavigatorDelay: string
-              preferSystemTitlebar: string
               proxyGroupIcon: string
               proxyGroupsDisplayMode: string
               showOutboundModesInline: string

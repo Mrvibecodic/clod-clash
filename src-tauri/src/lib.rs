@@ -122,7 +122,9 @@ mod app_init {
         logging!(info, Type::Setup, "инициализация управления состоянием окна...");
         let window_state_plugin = tauri_plugin_window_state::Builder::new()
             .with_filename(files::WINDOW_STATE)
-            .with_state_flags(tauri_plugin_window_state::StateFlags::default())
+            .with_state_flags(
+                tauri_plugin_window_state::StateFlags::all() - tauri_plugin_window_state::StateFlags::DECORATIONS,
+            )
             .build();
         app.handle().plugin(window_state_plugin)?;
         Ok(())

@@ -56,6 +56,7 @@ pub(crate) enum TrayAction {
     TunMode,
     MainWindow,
     TrayMenu,
+    Disabled,
     Unknown,
 }
 
@@ -66,6 +67,7 @@ impl From<&str> for TrayAction {
             "tun_mode" => Self::TunMode,
             "main_window" => Self::MainWindow,
             "tray_menu" => Self::TrayMenu,
+            "disable" => Self::Disabled,
             _ => Self::Unknown,
         }
     }

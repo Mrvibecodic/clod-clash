@@ -26,9 +26,6 @@ export const useWindowControls = () => {
 }
 
 export const useWindowDecorations = () => {
-  const { decorated, toggleDecorations, refreshDecorated } = useWindow()
-  return { decorated, toggleDecorations, refreshDecorated } satisfies Pick<
-    WindowContextType,
-    'decorated' | 'toggleDecorations' | 'refreshDecorated'
-  >
+  const { decorated } = useWindow()
+  return { decorated } satisfies Pick<WindowContextType, 'decorated'>
 }

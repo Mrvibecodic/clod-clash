@@ -295,7 +295,6 @@
       "layout": {
         "title": "介面設定",
         "fields": {
-          "preferSystemTitlebar": "優先使用系統標題欄",
           "proxyGroupIcon": "代理組圖示",
           "toastPosition": "通知位置",
           "hoverNavigator": "懸浮跳轉導航",

@@ -1033,6 +1033,7 @@ fn handle_primary_click() {
                 #[cfg(target_os = "linux")]
                 show_main_window().await;
             }
+            TrayAction::Disabled => {}
             TrayAction::Unknown => {
                 logging!(warn, Type::Tray, "invalid tray event: {}", verge_tray_event);
             }
