@@ -17,6 +17,7 @@ import {
   StickyVirtualList,
   type StickyVirtualListHandle,
 } from '@/components/base'
+import { useFavorites } from '@/hooks/use-favorites'
 import { useProxySelection } from '@/hooks/use-proxy-selection'
 import { useVerge } from '@/hooks/use-verge'
 import { useVisibility } from '@/hooks/use-visibility'
@@ -368,6 +369,7 @@ function NormalProxyGroups(props: { mode: string }) {
     getScrollPosition,
     saveScrollPosition,
   } = useProxyRenderState(mode, false, null)
+  const { favorites, toggleFavorite } = useFavorites()
   const renderFirstRef = useRef(true)
   const isRestoringRef = useRef(false)
 
@@ -558,9 +560,18 @@ function NormalProxyGroups(props: { mode: string }) {
         onCheckAll={handleCheckAll}
         onHeadState={onHeadState}
         onChangeProxy={handleChangeProxy}
+        favorites={favorites}
+        onToggleFavorite={toggleFavorite}
       />
     ),
-    [handleChangeProxy, handleCheckAll, onHeadState, handleLocation],
+    [
+      handleChangeProxy,
+      handleCheckAll,
+      onHeadState,
+      handleLocation,
+      favorites,
+      toggleFavorite,
+    ],
   )
 
   return (

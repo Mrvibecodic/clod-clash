@@ -41,6 +41,8 @@ interface RenderProps {
     proxy: IRenderItem['proxy'] & { name: string },
   ) => void
   onGroupToggle?: (group: IRenderItem['group']) => void
+  favorites?: Set<string>
+  onToggleFavorite?: (name: string) => void
 }
 
 export const ProxyRender = memo(function ProxyRender(props: RenderProps) {
@@ -53,6 +55,8 @@ export const ProxyRender = memo(function ProxyRender(props: RenderProps) {
     onHeadState,
     onChangeProxy,
     onGroupToggle,
+    favorites,
+    onToggleFavorite,
     isChainMode = false,
   } = props
   const { type, group, headState, proxy, proxyCol } = item
@@ -83,9 +87,21 @@ export const ProxyRender = memo(function ProxyRender(props: RenderProps) {
         selected={group.now === proxyItem?.name}
         showType={showType}
         onClick={selectable ? () => onChangeProxy(group, proxyItem) : undefined}
+        favorite={favorites?.has(proxyItem?.name)}
+        onToggleFavorite={onToggleFavorite}
       />
     ))
-  }, [type, proxyCol, item.key, group, showType, selectable, onChangeProxy])
+  }, [
+    type,
+    proxyCol,
+    item.key,
+    group,
+    showType,
+    selectable,
+    onChangeProxy,
+    favorites,
+    onToggleFavorite,
+  ])
 
   if (type === 0) {
     return (
@@ -250,6 +266,8 @@ export const ProxyRender = memo(function ProxyRender(props: RenderProps) {
         showType={headState?.showType}
         sx={{ py: 0, pl: 2 }}
         onClick={selectable ? () => onChangeProxy(group, proxy!) : undefined}
+        favorite={favorites?.has(proxy!.name)}
+        onToggleFavorite={onToggleFavorite}
       />
     )
   }

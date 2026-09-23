@@ -6,17 +6,29 @@ import { useProxyDelayState } from '@/hooks/use-proxy-delay-state'
 import { SHAPE } from '@/pages/_theme'
 import delayManager from '@/services/delay'
 
+import { ProxyFavorite } from './proxy-favorite'
+
 interface Props {
   group: IProxyGroupItem
   proxy: IProxyItem
   selected: boolean
   showType?: boolean
   onClick?: (name: string) => void
+  favorite?: boolean
+  onToggleFavorite?: (name: string) => void
 }
 
 // Многоколоночная раскладка
 export const ProxyItemMini = (props: Props) => {
-  const { group, proxy, selected, showType = true, onClick } = props
+  const {
+    group,
+    proxy,
+    selected,
+    showType = true,
+    onClick,
+    favorite,
+    onToggleFavorite,
+  } = props
 
   const { delayValue, isPreset, timeout, onDelay } = useProxyDelayState(
     proxy,
@@ -148,6 +160,11 @@ export const ProxyItemMini = (props: Props) => {
           </Box>
         )}
       </Box>
+      <ProxyFavorite
+        proxy={proxy}
+        favorite={favorite}
+        onToggle={onToggleFavorite}
+      />
       <Box
         sx={{ ml: 0.5, color: 'primary.main', display: isPreset ? 'none' : '' }}
       >

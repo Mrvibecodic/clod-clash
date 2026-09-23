@@ -15,6 +15,8 @@ import { BaseLoading } from '@/components/base'
 import { useProxyDelayState } from '@/hooks/use-proxy-delay-state'
 import delayManager from '@/services/delay'
 
+import { ProxyFavorite } from './proxy-favorite'
+
 interface Props {
   group: IProxyGroupItem
   proxy: IProxyItem
@@ -22,6 +24,8 @@ interface Props {
   showType?: boolean
   sx?: SxProps<Theme>
   onClick?: (name: string) => void
+  favorite?: boolean
+  onToggleFavorite?: (name: string) => void
 }
 
 const Widget = styled(Box)(() => ({
@@ -43,7 +47,16 @@ const TypeBox = styled('span')(({ theme }) => ({
 }))
 
 export const ProxyItem = (props: Props) => {
-  const { group, proxy, selected, showType = true, sx, onClick } = props
+  const {
+    group,
+    proxy,
+    selected,
+    showType = true,
+    sx,
+    onClick,
+    favorite,
+    onToggleFavorite,
+  } = props
 
   const { delayValue, isPreset, timeout, onDelay } = useProxyDelayState(
     proxy,
@@ -116,6 +129,12 @@ export const ProxyItem = (props: Props) => {
               {showType && proxy.smux && <TypeBox>SMUX</TypeBox>}
             </>
           }
+        />
+
+        <ProxyFavorite
+          proxy={proxy}
+          favorite={favorite}
+          onToggle={onToggleFavorite}
         />
 
         <ListItemIcon

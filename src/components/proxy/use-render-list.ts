@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 
 import { useRuntimeConfig } from '@/hooks/use-clash'
+import { favoritesFirst, useFavorites } from '@/hooks/use-favorites'
 import { useVerge } from '@/hooks/use-verge'
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
 import delayManager from '@/services/delay'
@@ -74,6 +75,7 @@ type GroupCache = {
   headState: HeadState
   col: number
   latencyTimeout: number | undefined
+  favorites: Set<string>
   items: IRenderItem[]
 }
 
@@ -111,6 +113,7 @@ export const useRenderList = (
   const { proxies: proxiesData } = useProxiesData()
   const { refreshProxy } = useAppRefreshers()
   const { verge } = useVerge()
+  const { favorites } = useFavorites()
   const { width } = useWindowWidth()
   const [headStates, setHeadState] = useHeadStateNew()
   const latencyTimeout = verge?.default_latency_timeout
@@ -413,7 +416,8 @@ export const useRenderList = (
         cached.all === group.all &&
         cached.headState === headState &&
         cached.col === col &&
-        cached.latencyTimeout === latencyTimeout
+        cached.latencyTimeout === latencyTimeout &&
+        cached.favorites === favorites
       ) {
         return cached.items
       }
@@ -431,17 +435,20 @@ export const useRenderList = (
       ]
 
       if (headState?.open || !useRule) {
-        const proxies = filterSort(
-          group.all,
-          group.name,
-          headState.filterText,
-          headState.sortType,
-          latencyTimeout,
-          {
-            matchCase: headState.filterMatchCase,
-            matchWholeWord: headState.filterMatchWholeWord,
-            useRegularExpression: headState.filterUseRegularExpression,
-          },
+        const proxies = favoritesFirst(
+          filterSort(
+            group.all,
+            group.name,
+            headState.filterText,
+            headState.sortType,
+            latencyTimeout,
+            {
+              matchCase: headState.filterMatchCase,
+              matchWholeWord: headState.filterMatchWholeWord,
+              useRegularExpression: headState.filterUseRegularExpression,
+            },
+          ),
+          favorites,
         )
 
         // В глобальном режиме добавляем заголовок группы
@@ -493,6 +500,7 @@ export const useRenderList = (
         headState,
         col,
         latencyTimeout,
+        favorites,
         items: ret,
       })
       return ret
@@ -516,6 +524,7 @@ export const useRenderList = (
     runtimeConfig,
     selectedGroup,
     latencyTimeout,
+    favorites,
   ])
 
   return {

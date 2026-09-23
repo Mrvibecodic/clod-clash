@@ -27,6 +27,7 @@ import { useTranslation } from 'react-i18next'
 import { CountryFlag } from '@/components/home/country-flag'
 import { NoServersStatus } from '@/components/home/no-servers-status'
 import { useDrawerCapHeight } from '@/hooks/use-drawer-cap-height'
+import { favoritesFirst, useFavorites } from '@/hooks/use-favorites'
 import { useGroupDelayTest } from '@/hooks/use-group-delay-test'
 import { useGroupTestUrls } from '@/hooks/use-group-test-urls'
 import { useNoServersStatus } from '@/hooks/use-no-servers-status'
@@ -110,24 +111,8 @@ export const ServerSelect = ({ open, onClose }: Props) => {
   )
   const canSelect = SELECTABLE_GROUP_TYPES.has(groupType(group))
 
-  const { current, patchCurrent, mutateProfiles } = useProfiles()
-  const favorites = useMemo(
-    () => new Set(current?.favorites ?? []),
-    [current?.favorites],
-  )
-
-  const toggleFavorite = useLockFn(async (nodeName: string) => {
-    if (!current?.uid) return
-    const stored = current.favorites ?? []
-    const next = favorites.has(nodeName)
-      ? stored.filter((name) => name !== nodeName)
-      : [...stored, nodeName]
-    try {
-      await patchCurrent({ favorites: next })
-    } catch (error) {
-      showNotice.error(error)
-    }
-  })
+  const { current, mutateProfiles } = useProfiles()
+  const { favorites, toggleFavorite } = useFavorites()
 
   const {
     show: noServers,
@@ -137,16 +122,14 @@ export const ServerSelect = ({ open, onClose }: Props) => {
   const listEmpty = Boolean(proxies) && !hasRealNodes(proxies)
   const showStatus = noServers && (onlySentinels || listEmpty)
 
-  const nodes = useMemo(() => {
-    const all = (group?.all ?? []).filter(
-      (node) => !isCorePlaceholder(node.name),
-    )
-    if (favorites.size === 0) return all
-    return [
-      ...all.filter((node) => favorites.has(node.name)),
-      ...all.filter((node) => !favorites.has(node.name)),
-    ]
-  }, [group, favorites])
+  const nodes = useMemo(
+    () =>
+      favoritesFirst(
+        (group?.all ?? []).filter((node) => !isCorePlaceholder(node.name)),
+        favorites,
+      ),
+    [group, favorites],
+  )
 
   const virtualizer = useVirtualizer({
     count: nodes.length,
@@ -321,6 +304,7 @@ export const ServerSelect = ({ open, onClose }: Props) => {
             size="small"
             aria-label={t('home.components.serverSelect.favorite')}
             sx={{ color: starred ? 'warning.main' : 'text.disabled' }}
+            onMouseDown={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation()
               void toggleFavorite(node.name)
