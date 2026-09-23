@@ -136,10 +136,6 @@ export const navItems: NavigationItem[] = [
     preload: preloadLogsPage,
   },
   {
-    ...navigationItems.unlock,
-    ...createLazyRoute(() => import('./unlock')),
-  },
-  {
     ...navigationItems.settings,
     ...createLazyRoute(() => import('./settings')),
   },

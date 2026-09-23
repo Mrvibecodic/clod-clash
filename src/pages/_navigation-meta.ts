@@ -14,10 +14,6 @@ export const navigationItems = {
   },
   rules: { label: 'layout.components.navigation.tabs.rules', path: '/rules' },
   logs: { label: 'layout.components.navigation.tabs.logs', path: '/logs' },
-  unlock: {
-    label: 'layout.components.navigation.tabs.unlock',
-    path: '/unlock',
-  },
   settings: {
     label: 'layout.components.navigation.tabs.settings',
     path: '/settings',

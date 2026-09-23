@@ -119,7 +119,9 @@ fn restored_settings(archived: &str, local: Settings) -> Result<IVerge> {
     };
     strip_machine_local(&mut settings);
     settings.extend(local);
-    Ok(serde_json::from_value(serde_json::Value::Object(settings))?)
+    let mut restored: IVerge = serde_json::from_value(serde_json::Value::Object(settings))?;
+    restored.retire_removed_start_page();
+    Ok(restored)
 }
 
 async fn machine_local_config() -> Result<Settings> {
@@ -629,6 +631,14 @@ mod tests {
         assert_eq!(restored.proxy_host, direct.proxy_host);
         assert_eq!(restored.language.as_deref(), Some("1.10"));
         assert_eq!(restored.start_page.as_deref(), Some("0x10"));
+    }
+
+    #[test]
+    fn a_start_page_that_no_longer_exists_opens_home() {
+        let local = machine_local_of(&this_machine()).unwrap_or_default();
+        let restored = restored_settings("start_page: /unlock\n", local).unwrap_or_default();
+
+        assert_eq!(restored.start_page.as_deref(), Some("/"));
     }
 
     #[test]

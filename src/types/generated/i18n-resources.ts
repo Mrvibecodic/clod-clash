@@ -239,7 +239,6 @@ export interface TranslationResources {
             proxies: string
             rules: string
             settings: string
-            unlock: string
           }
         }
       }
@@ -1577,47 +1576,6 @@ export interface TranslationResources {
       window: {
         maximize: string
         minimize: string
-      }
-    }
-    tests: {
-      components: {
-        item: {
-          actions: {
-            test: string
-          }
-        }
-      }
-      page: {
-        actions: {
-          testAll: string
-        }
-      }
-      statuses: {
-        test: {
-          completed: string
-          disallowedIsp: string
-          failed: string
-          failedNetwork: string
-          no: string
-          noDisney: string
-          originalsOnly: string
-          pending: string
-          unsupportedRegion: string
-          yes: string
-        }
-      }
-      unlock: {
-        page: {
-          actions: {
-            testing: string
-          }
-          empty: string
-          messages: {
-            detectionFailedWithName: string
-            detectionTimeout: string
-          }
-          title: string
-        }
       }
     }
   }

@@ -231,8 +231,6 @@ mod app_init {
             cmd::list_webdav_backup,
             cmd::delete_webdav_backup,
             cmd::restore_webdav_backup,
-            cmd::get_unlock_items,
-            cmd::check_media_unlock,
         ]
     }
 }

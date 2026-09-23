@@ -377,6 +377,12 @@ impl IVerge {
         Ok(())
     }
 
+    pub(crate) fn retire_removed_start_page(&mut self) {
+        if matches!(self.start_page.as_deref(), Some("/home" | "/unlock")) {
+            self.start_page = Some(String::from("/"));
+        }
+    }
+
     pub fn get_valid_clash_core(&self) -> String {
         self.clash_core.clone().unwrap_or_else(|| "verge-mihomo".into())
     }
@@ -385,11 +391,7 @@ impl IVerge {
         match dirs::verge_path() {
             Ok(path) => match help::read_yaml::<Self>(&path).await {
                 Ok(mut config) => {
-                    if let Some(start_page) = config.start_page.clone()
-                        && start_page == "/home"
-                    {
-                        config.start_page = Some(String::from("/"));
-                    }
+                    config.retire_removed_start_page();
                     if let Some(pac) = config.pac_file_content.as_deref()
                         && let Some(restored) = pac_without_the_frozen_address(pac)
                     {
