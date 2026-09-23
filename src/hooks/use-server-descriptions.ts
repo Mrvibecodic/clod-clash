@@ -1,6 +1,5 @@
 import useSWR from 'swr'
 
-import { useTauriEvent } from '@/hooks/use-listen'
 import { getServerDescriptions } from '@/services/cmds'
 
 /** Stable identity for "the panel sent no descriptions" — the common case. */
@@ -21,12 +20,8 @@ const EMPTY: Record<string, string> = {}
  * arrive. Every consumer therefore has to keep working without it.
  */
 export const useServerDescriptions = () => {
-  const { data, mutate } = useSWR('serverDescriptions', getServerDescriptions, {
+  const { data } = useSWR('serverDescriptions', getServerDescriptions, {
     revalidateOnFocus: false,
-  })
-
-  useTauriEvent('verge://refresh-clash-config', () => {
-    void mutate()
   })
 
   return data ?? EMPTY

@@ -2,7 +2,10 @@ import { useEffect, useRef } from 'react'
 
 import { useTauriEvent } from '@/hooks/use-listen'
 import { useVisibility } from '@/hooks/use-visibility'
-import { revalidateQueries } from '@/services/query-client'
+import {
+  revalidateQueries,
+  revalidateQueriesByPrefix,
+} from '@/services/query-client'
 
 const revalidateKeys = (keys: readonly string[]) =>
   revalidateQueries(keys.map((key) => [key]))
@@ -22,6 +25,12 @@ const CLASH_CONFIG_KEYS_WHEN_VISIBLE = [
   'getClashInfo',
 ] as const
 
+const CLASH_CONFIG_KEYS_ON_RETURN = CLASH_CONFIG_KEYS_WHEN_VISIBLE.filter(
+  (key) => key !== 'getClashConfig',
+)
+
+const CLASH_CONFIG_PREFIXES = ['sentinelReport', 'serverDescriptions'] as const
+
 export const useLayoutEvents = (
   handleNotice: (payload: [string, string]) => void,
 ) => {
@@ -34,7 +43,7 @@ export const useLayoutEvents = (
     visibleRef.current = visible
     if (returned && pendingRef.current) {
       pendingRef.current = false
-      void revalidateKeys(CLASH_CONFIG_KEYS_WHEN_VISIBLE)
+      void revalidateKeys(CLASH_CONFIG_KEYS_ON_RETURN)
     }
   }, [visible])
 
@@ -42,6 +51,7 @@ export const useLayoutEvents = (
     void revalidateKeys(['getProxyProviders'])
       .catch(() => undefined)
       .then(() => revalidateKeys(CLASH_CONFIG_KEYS_ALWAYS))
+    void revalidateQueriesByPrefix(CLASH_CONFIG_PREFIXES)
     if (visibleRef.current) {
       void revalidateKeys(CLASH_CONFIG_KEYS_WHEN_VISIBLE)
     } else {

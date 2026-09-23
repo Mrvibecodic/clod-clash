@@ -1,7 +1,6 @@
 import { useEffect } from 'react'
 import useSWR from 'swr'
 
-import { useTauriEvent } from '@/hooks/use-listen'
 import { getSentinelReport } from '@/services/cmds'
 import {
   noServersReason,
@@ -25,19 +24,11 @@ import {
  * keep claiming "the panel sent placeholders" long after the user fixed it.
  */
 export const useNoServersStatus = (profile?: IProfileItem) => {
-  const {
-    data: report,
-    error,
-    mutate,
-  } = useSWR(
+  const { data: report, error } = useSWR(
     profile?.uid ? ['sentinelReport', profile.uid, profile.updated ?? 0] : null,
     getSentinelReport,
     { revalidateOnFocus: false },
   )
-
-  useTauriEvent('verge://refresh-clash-config', () => {
-    void mutate()
-  })
 
   useEffect(() => {
     if (error) {

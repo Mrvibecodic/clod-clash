@@ -99,6 +99,9 @@ export const revalidateQuery = (queryKey: QueryKey) => swrMutate(queryKey)
 export const revalidateQueries = (queryKeys: readonly QueryKey[]) =>
   Promise.all(queryKeys.map(revalidateQuery))
 
+export const revalidateQueriesByPrefix = (prefixes: readonly string[]) =>
+  swrMutate((key) => prefixes.includes(Array.isArray(key) ? key[0] : key))
+
 export const removeCacheData = (queryKey: QueryKey) => {
   fallbackCache.delete(serializeQueryKey(queryKey))
   return swrMutate(queryKey, undefined, {
