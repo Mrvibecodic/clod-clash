@@ -22,7 +22,7 @@ export function WebUIViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const { t } = useTranslation()
 
   const { clashInfo } = useClashInfo()
-  const { verge, patchVerge, mutateVerge } = useVerge()
+  const { verge, patchVergeOrRevert } = useVerge()
 
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -49,23 +49,19 @@ export function WebUIViewer({ ref }: { ref?: Ref<DialogRef> }) {
   }, [webUIList])
 
   const handleAdd = useLockFn(async (value: string) => {
-    const newList = [...webUIList, value]
-    mutateVerge((old) => (old ? { ...old, web_ui_list: newList } : old), false)
-    await patchVerge({ web_ui_list: newList })
+    await patchVergeOrRevert({ web_ui_list: [...webUIList, value] })
   })
 
   const handleChange = useLockFn(async (index: number, value?: string) => {
     const newList = [...webUIList]
     newList[index] = value ?? ''
-    mutateVerge((old) => (old ? { ...old, web_ui_list: newList } : old), false)
-    await patchVerge({ web_ui_list: newList })
+    await patchVergeOrRevert({ web_ui_list: newList })
   })
 
   const handleDelete = useLockFn(async (index: number) => {
     const newList = [...webUIList]
     newList.splice(index, 1)
-    mutateVerge((old) => (old ? { ...old, web_ui_list: newList } : old), false)
-    await patchVerge({ web_ui_list: newList })
+    await patchVergeOrRevert({ web_ui_list: newList })
   })
 
   const handleOpenUrl = useLockFn(async (value?: string) => {

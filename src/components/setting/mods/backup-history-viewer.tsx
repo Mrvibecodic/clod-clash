@@ -194,8 +194,11 @@ export const BackupHistoryViewer = ({
   )
 
   const summary = useMemo(() => {
-    if (shouldSkipWebDav || (!isLocal && webdavStatus === 'failed')) {
+    if (shouldSkipWebDav) {
       return t('settings.modals.backup.manual.webdav')
+    }
+    if (!isLocal && webdavStatus === 'failed') {
+      return t('settings.modals.backup.history.webdavFailed')
     }
     if (!total) return t('settings.modals.backup.history.empty')
     const recent =
@@ -265,9 +268,10 @@ export const BackupHistoryViewer = ({
       const exported = await exportLocalBackup(filename)
       if (!exported) return
       showNotice.success('settings.modals.backup.messages.localBackupExported')
-    } catch (ignoreError: unknown) {
+    } catch (error) {
       showNotice.error(
         'settings.modals.backup.messages.localBackupExportFailed',
+        error,
       )
     }
   })

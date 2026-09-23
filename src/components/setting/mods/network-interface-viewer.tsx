@@ -1,5 +1,12 @@
 import { ContentCopyRounded } from '@mui/icons-material'
-import { alpha, Box, Button, CircularProgress, IconButton } from '@mui/material'
+import {
+  alpha,
+  Box,
+  Button,
+  CircularProgress,
+  IconButton,
+  Typography,
+} from '@mui/material'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import type { Ref } from 'react'
 import { useImperativeHandle, useState } from 'react'
@@ -14,14 +21,16 @@ export function NetworkInterfaceViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const [open, setOpen] = useState(false)
   const [isV4, setIsV4] = useState(true)
 
+  const { networkInterfaces, loading, error, mutate } = useNetworkInterfaces()
+
   useImperativeHandle(ref, () => ({
     open: () => {
       setOpen(true)
+      void mutate()
     },
     close: () => setOpen(false),
   }))
 
-  const { networkInterfaces, loading } = useNetworkInterfaces()
   const isEmpty = networkInterfaces.length === 0
   const getAddressIp = (address: IAddress) =>
     isV4 ? address.V4?.ip : address.V6?.ip
@@ -57,7 +66,15 @@ export function NetworkInterfaceViewer({ ref }: { ref?: Ref<DialogRef> }) {
         </Box>
       ) : isEmpty ? (
         <Box sx={{ minHeight: 160 }}>
-          <BaseEmpty />
+          <BaseEmpty
+            extra={
+              error ? (
+                <Typography variant="caption" color="error">
+                  {String(error)}
+                </Typography>
+              ) : undefined
+            }
+          />
         </Box>
       ) : (
         networkInterfaces.map((item) => (
@@ -120,10 +137,14 @@ const AddressDisplay = ({
         <IconButton
           size="small"
           onClick={async () => {
-            await writeText(content)
-            showNotice.success(
-              'shared.feedback.notifications.common.copySuccess',
-            )
+            try {
+              await writeText(content)
+              showNotice.success(
+                'shared.feedback.notifications.common.copySuccess',
+              )
+            } catch (err) {
+              showNotice.error(err)
+            }
           }}
         >
           <ContentCopyRounded sx={{ fontSize: '18px' }} />

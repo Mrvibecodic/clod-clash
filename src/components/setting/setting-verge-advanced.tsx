@@ -17,7 +17,7 @@ import {
   openLogsDir,
 } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
-import { removeCacheData } from '@/services/query-client'
+import { fetchCacheData, removeCacheData } from '@/services/query-client'
 import { checkUpdateSafe as checkUpdate } from '@/services/update'
 import { version } from '@root/package.json'
 
@@ -58,7 +58,7 @@ const SettingVergeAdvanced = ({ onError, variant = 'all' }: Props) => {
 
   const onCheckUpdate = async () => {
     try {
-      const info = await checkUpdate()
+      const info = await fetchCacheData(['checkUpdate'], checkUpdate)
       updateLastCheckTime()
       if (!info?.available) {
         showNotice.success(
@@ -94,17 +94,27 @@ const SettingVergeAdvanced = ({ onError, variant = 'all' }: Props) => {
   }, [])
 
   const onExportDiagnosticInfo = useCallback(async () => {
-    await exportDiagnosticInfo()
-    showNotice.success('shared.feedback.notifications.common.copySuccess', 1000)
+    try {
+      await exportDiagnosticInfo()
+      showNotice.success(
+        'shared.feedback.notifications.common.copySuccess',
+        1000,
+      )
+    } catch (error) {
+      showNotice.error(error)
+    }
   }, [])
 
-  const copyVersion = useCallback(() => {
-    navigator.clipboard.writeText(`v${version}`).then(() => {
+  const copyVersion = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(`v${version}`)
       showNotice.success(
         'settings.components.verge.advanced.notifications.versionCopied',
         1000,
       )
-    })
+    } catch (error) {
+      showNotice.error(error)
+    }
   }, [])
 
   return (
@@ -245,7 +255,7 @@ const SettingVergeAdvanced = ({ onError, variant = 'all' }: Props) => {
                 />
                 <TooltipIcon
                   icon={ContentCopyRounded}
-                  onClick={copyVersion}
+                  onClick={() => void copyVersion()}
                   title={t(
                     'settings.components.verge.advanced.actions.copyVersion',
                   )}

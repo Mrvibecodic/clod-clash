@@ -58,6 +58,7 @@ export function ManagedCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
   useImperativeHandle(ref, () => ({
     open: () => {
       setOpen(true)
+      setCheck(undefined)
       void refreshStatus()
     },
     close: () => setOpen(false),
@@ -180,7 +181,9 @@ export function ManagedCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
             disabled={busy || (status?.updating ?? false)}
             sx={{ width: 150 }}
             onChange={(event) =>
-              void patchVerge({ managed_core_channel: event.target.value })
+              void patchVerge({
+                managed_core_channel: event.target.value,
+              }).catch((error) => showNotice.error(error))
             }
           >
             <MenuItem value="stable">
@@ -203,7 +206,9 @@ export function ManagedCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
             checked={autoCheck}
             disabled={busy || (status?.updating ?? false)}
             onChange={(_, checked) =>
-              void patchVerge({ core_auto_check: checked })
+              void patchVerge({ core_auto_check: checked }).catch((error) =>
+                showNotice.error(error),
+              )
             }
           />
         </Stack>
@@ -234,7 +239,7 @@ export function ManagedCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
               />
             )}
           </Stack>
-          {check ? (
+          {check?.channel === channel ? (
             <Typography variant="caption" color="text.secondary">
               {check.update_available
                 ? t('settings.modals.managedCore.available', {

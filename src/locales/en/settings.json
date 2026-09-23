@@ -441,6 +441,7 @@
         "title": "Backup history",
         "summary": "{{count}} backups • latest {{recent}}",
         "empty": "No backups available",
+        "webdavFailed": "The WebDAV server did not respond. Press the refresh button to retry",
         "unknownPlatform": "unknown",
         "unknownTime": "Unknown time"
       },
@@ -486,7 +487,8 @@
         "update": "Update"
       },
       "messages": {
-        "breakChangeError": "This version is a major update and does not support in-app updates. Please uninstall it and manually download and install the new version"
+        "breakChangeError": "This version is a major update and does not support in-app updates. Please uninstall it and manually download and install the new version",
+        "noData": "Could not get update information"
       }
     },
     "sysproxy": {

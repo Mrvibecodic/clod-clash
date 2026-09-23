@@ -441,6 +441,7 @@
         "title": "Backup history",
         "summary": "{{count}} backups • latest {{recent}}",
         "empty": "No backups available",
+        "webdavFailed": "WebDAV серверы җавап бирмәде. Кабатлау өчен яңарту төймәсенә басыгыз",
         "unknownPlatform": "unknown",
         "unknownTime": "Unknown time"
       },
@@ -486,7 +487,8 @@
         "update": "Яңарту"
       },
       "messages": {
-        "breakChangeError": "Бу зур яңарту, ул кушымта эчендә яңартылмый. Борып алып ташлап, яңадан урнаштыру сорала."
+        "breakChangeError": "Бу зур яңарту, ул кушымта эчендә яңартылмый. Борып алып ташлап, яңадан урнаштыру сорала.",
+        "noData": "Яңарту турында мәгълүмат алып булмады"
       }
     },
     "sysproxy": {

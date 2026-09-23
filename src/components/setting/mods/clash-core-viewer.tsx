@@ -67,16 +67,11 @@ export function ClashCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
 
     try {
       setChangingCore(core)
-      closeAllConnections()
+      void closeAllConnections().catch(() => undefined)
       const errorMsg = await changeClashCore(core)
-
-      if (errorMsg) {
-        showNotice.error(errorMsg)
-        setChangingCore(null)
-        return
-      }
-
       mutateVerge()
+      if (errorMsg) return
+
       await new Promise((resolve) => setTimeout(resolve, 500))
       invalidateClashConfig()
       mutateVersion()

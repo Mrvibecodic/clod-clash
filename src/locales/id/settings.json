@@ -441,6 +441,7 @@
         "title": "Backup history",
         "summary": "{{count}} backups • latest {{recent}}",
         "empty": "No backups available",
+        "webdavFailed": "Server WebDAV tidak merespons. Tekan tombol muat ulang untuk mencoba lagi",
         "unknownPlatform": "unknown",
         "unknownTime": "Unknown time"
       },
@@ -486,7 +487,8 @@
         "update": "Perbarui"
       },
       "messages": {
-        "breakChangeError": "Versi ini adalah pembaruan besar dan tidak mendukung pembaruan dalam aplikasi. Harap hapus instalasi dan unduh serta instal versi baru secara manual"
+        "breakChangeError": "Versi ini adalah pembaruan besar dan tidak mendukung pembaruan dalam aplikasi. Harap hapus instalasi dan unduh serta instal versi baru secara manual",
+        "noData": "Tidak dapat mengambil informasi pembaruan"
       }
     },
     "sysproxy": {

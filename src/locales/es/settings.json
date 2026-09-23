@@ -441,6 +441,7 @@
         "title": "Backup history",
         "summary": "{{count}} backups • latest {{recent}}",
         "empty": "No backups available",
+        "webdavFailed": "El servidor WebDAV no respondió. Pulse el botón de actualizar para reintentar",
         "unknownPlatform": "unknown",
         "unknownTime": "Unknown time"
       },
@@ -486,7 +487,8 @@
         "update": "Actualizar"
       },
       "messages": {
-        "breakChangeError": "Esta es una actualización importante y no se admite la actualización desde dentro de la aplicación. Desinstale e instale manualmente la nueva versión."
+        "breakChangeError": "Esta es una actualización importante y no se admite la actualización desde dentro de la aplicación. Desinstale e instale manualmente la nueva versión.",
+        "noData": "No se pudo obtener la información de la actualización"
       }
     },
     "sysproxy": {

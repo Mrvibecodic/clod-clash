@@ -132,7 +132,7 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
     queryKey: ['checkUpdate'],
     queryFn: checkUpdateSafe,
     enabled: open,
-    revalidateOnMount: true,
+    revalidateIfStale: false,
     refetchOnWindowFocus: false,
   })
 
@@ -152,12 +152,15 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
   }))
 
   const markdownContent = useMemo(() => {
-    if (!updateInfo?.body) {
+    if (!updateInfo) {
+      return t('settings.modals.update.messages.noData')
+    }
+    if (!updateInfo.body) {
       return 'New Version is available'
     }
 
     return pickChangelogSection(updateInfo.body, i18n.language)
-  }, [updateInfo, i18n.language])
+  }, [updateInfo, i18n.language, t])
 
   const breakChangeFlag = useMemo(() => {
     if (!updateInfo?.body) {
@@ -244,6 +247,7 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
         pb: 1,
       }}
       okBtn={t('settings.modals.update.actions.update')}
+      disableOk={!updateInfo}
       cancelBtn={t('shared.actions.cancel')}
       onClose={() => setOpen(false)}
       onCancel={() => setOpen(false)}
@@ -430,20 +434,22 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
         )}
       </Box>
 
-      <Box sx={{ pt: 1, display: 'flex', justifyContent: 'flex-end' }}>
-        <Button
-          variant="outlined"
-          size="small"
-          sx={{ whiteSpace: 'normal', textAlign: 'center' }}
-          onClick={() => {
-            void openWebUrl(
-              `https://github.com/Mrvibecodic/clod-clash/releases/tag/clod-v${updateInfo?.version}`,
-            )
-          }}
-        >
-          {t('settings.modals.update.actions.goToRelease')}
-        </Button>
-      </Box>
+      {updateInfo && (
+        <Box sx={{ pt: 1, display: 'flex', justifyContent: 'flex-end' }}>
+          <Button
+            variant="outlined"
+            size="small"
+            sx={{ whiteSpace: 'normal', textAlign: 'center' }}
+            onClick={() => {
+              void openWebUrl(
+                `https://github.com/Mrvibecodic/clod-clash/releases/tag/clod-v${updateInfo.version}`,
+              )
+            }}
+          >
+            {t('settings.modals.update.actions.goToRelease')}
+          </Button>
+        </Box>
+      )}
       {updateState && (
         <LinearProgress
           variant={total > 0 ? 'determinate' : 'indeterminate'}

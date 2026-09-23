@@ -59,7 +59,7 @@ const SettingVergeBasic = ({ onError, variant = 'all' }: Props) => {
   const showCore = variant !== 'rest'
   const showRest = variant !== 'core'
 
-  const { verge, patchVerge, mutateVerge } = useVerge()
+  const { verge, patchVerge, mutateVerge, patchVergeOrRevert } = useVerge()
   const {
     theme_mode,
     language,
@@ -396,54 +396,46 @@ const SettingVergeBasic = ({ onError, variant = 'all' }: Props) => {
           <SettingItem
             label={t('settings.components.verge.basic.fields.startupScript')}
           >
-            <GuardState
-              value={startup_script ?? ''}
-              onCatch={onError}
-              onFormat={(e: any) => e.target.value}
-              onChange={(e) => onChangeData({ startup_script: e })}
-              onGuard={(e) => patchVerge({ startup_script: e })}
-            >
-              <Input
-                value={startup_script}
-                disabled
-                disableUnderline
-                sx={{ width: 230 }}
-                endAdornment={
-                  <>
+            <Input
+              value={startup_script}
+              disabled
+              disableUnderline
+              sx={{ width: 230 }}
+              endAdornment={
+                <>
+                  <Button
+                    onClick={async () => {
+                      const selected = await open({
+                        directory: false,
+                        multiple: false,
+                        filters: [
+                          {
+                            name: 'Shell Script',
+                            extensions: ['sh', 'bat', 'ps1'],
+                          },
+                        ],
+                      })
+                      if (selected) {
+                        await patchVergeOrRevert({
+                          startup_script: `${selected}`,
+                        })
+                      }
+                    }}
+                  >
+                    {t('settings.components.verge.basic.actions.browse')}
+                  </Button>
+                  {startup_script && (
                     <Button
                       onClick={async () => {
-                        const selected = await open({
-                          directory: false,
-                          multiple: false,
-                          filters: [
-                            {
-                              name: 'Shell Script',
-                              extensions: ['sh', 'bat', 'ps1'],
-                            },
-                          ],
-                        })
-                        if (selected) {
-                          onChangeData({ startup_script: `${selected}` })
-                          patchVerge({ startup_script: `${selected}` })
-                        }
+                        await patchVergeOrRevert({ startup_script: '' })
                       }}
                     >
-                      {t('settings.components.verge.basic.actions.browse')}
+                      {t('shared.actions.clear')}
                     </Button>
-                    {startup_script && (
-                      <Button
-                        onClick={async () => {
-                          onChangeData({ startup_script: '' })
-                          patchVerge({ startup_script: '' })
-                        }}
-                      >
-                        {t('shared.actions.clear')}
-                      </Button>
-                    )}
-                  </>
-                }
-              ></Input>
-            </GuardState>
+                  )}
+                </>
+              }
+            ></Input>
           </SettingItem>
         </>
       )}

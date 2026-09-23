@@ -441,6 +441,7 @@
         "title": "Backup history",
         "summary": "{{count}} backups • latest {{recent}}",
         "empty": "No backups available",
+        "webdavFailed": "Der WebDAV-Server hat nicht geantwortet. Zum Wiederholen auf Aktualisieren klicken",
         "unknownPlatform": "unknown",
         "unknownTime": "Unknown time"
       },
@@ -486,7 +487,8 @@
         "update": "Aktualisieren"
       },
       "messages": {
-        "breakChangeError": "Dies ist eine wichtige Aktualisierung. Die In-App-Aktualisierung wird nicht unterstützt. Bitte deinstallieren Sie die Software und laden Sie die neue Version manuell herunter und installieren Sie sie."
+        "breakChangeError": "Dies ist eine wichtige Aktualisierung. Die In-App-Aktualisierung wird nicht unterstützt. Bitte deinstallieren Sie die Software und laden Sie die neue Version manuell herunter und installieren Sie sie.",
+        "noData": "Update-Informationen konnten nicht abgerufen werden"
       }
     },
     "sysproxy": {

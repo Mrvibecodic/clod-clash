@@ -852,6 +852,7 @@ export interface TranslationResources {
             title: string
             unknownPlatform: string
             unknownTime: string
+            webdavFailed: string
           }
           manual: {
             configureWebdav: string
@@ -1177,6 +1178,7 @@ export interface TranslationResources {
           }
           messages: {
             breakChangeError: string
+            noData: string
           }
           title: string
         }
