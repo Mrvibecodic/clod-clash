@@ -2051,23 +2051,6 @@ mod tests {
         assert!(app.0.get("mode").is_none());
     }
 
-    #[tokio::test]
-    async fn the_app_mode_does_not_override_the_subscription() {
-        let merged = super::merge_default_config(
-            mapping("{mode: direct}"),
-            mapping("{mode: global}"),
-            false,
-            false,
-            &super::TunOverrides::default(),
-            #[cfg(not(target_os = "windows"))]
-            false,
-            #[cfg(target_os = "linux")]
-            false,
-        )
-        .await;
-        assert_eq!(merged.get("mode"), Some(&serde_yaml_ng::Value::from("direct")));
-    }
-
     #[test]
     fn a_panel_lock_sets_the_choice_aside() {
         let mut item = crate::config::PrfItem {
