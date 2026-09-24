@@ -1,6 +1,6 @@
 use super::resolve;
 use crate::{
-    config::{Config, DEFAULT_PAC, IVerge},
+    config::{Config, DEFAULT_PAC, IVerge, LOOPBACK_PROXY_HOST},
     module::lightweight,
     process::AsyncHandler,
     utils::window_manager::WindowManager,
@@ -297,10 +297,11 @@ pub fn embed_server() {
 
         let pac_content = verge_data.pac_file_content.as_deref().unwrap_or(DEFAULT_PAC);
 
-        let proxy_host = verge_data.proxy_host.as_deref().unwrap_or("127.0.0.1");
+        let proxy_host =
+            Config::reachable_proxy_host(verge_data.proxy_host.as_deref().unwrap_or(LOOPBACK_PROXY_HOST)).await;
         let processed_content = pac_content
             .replace("%mixed-port%", &format!("{pac_port}"))
-            .replace("%proxy_host%", proxy_host);
+            .replace("%proxy_host%", &proxy_host);
         Ok::<_, warp::Rejection>(
             warp::http::Response::builder()
                 .header("Content-Type", "application/x-ns-proxy-autoconfig")

@@ -1,5 +1,5 @@
 use crate::{
-    config::{Config, IVerge},
+    config::{Config, IVerge, LOOPBACK_PROXY_HOST},
     core::handle,
 };
 use clash_verge_logging::{Type, logging};
@@ -205,9 +205,8 @@ pub async fn toggle_tun_mode(not_save_file: Option<bool>) -> bool {
 pub async fn copy_clash_env() {
     let env_ip = env::var("CLASH_VERGE_REV_IP").ok();
     let verge_cfg = Config::verge().await.latest_arc();
-    let ip = env_ip
-        .as_deref()
-        .unwrap_or_else(|| verge_cfg.proxy_host.as_deref().unwrap_or("127.0.0.1"));
+    let reachable = Config::reachable_proxy_host(verge_cfg.proxy_host.as_deref().unwrap_or(LOOPBACK_PROXY_HOST)).await;
+    let ip = env_ip.as_deref().unwrap_or(&reachable);
 
     let app_handle = handle::Handle::app_handle();
     let port = Config::effective_mixed_port().await;

@@ -141,7 +141,7 @@ impl CoreManager {
                 // clod:port-ladder — порт мог приехать из подписки: системный
                 // прокси и PAC указывают на него, и после смены их надо
                 // переписать, каким бы путём конфиг ни доехал до ядра.
-                let (mixed_port_changed, mode_changed) = {
+                let (mixed_port_changed, mode_changed, sharing_changed) = {
                     let runtime = Config::runtime().await;
                     let next = runtime.latest_arc();
                     let prev = runtime.data_arc();
@@ -149,7 +149,7 @@ impl CoreManager {
                         prev.config.as_ref().and_then(|config| config.get(key))
                             != next.config.as_ref().and_then(|config| config.get(key))
                     };
-                    (changed("mixed-port"), changed("mode"))
+                    (changed("mixed-port"), changed("mode"), changed("allow-lan"))
                 };
                 if let Err(error) = self.apply_config(run_path).await {
                     #[cfg(target_os = "macos")]
@@ -163,7 +163,7 @@ impl CoreManager {
                     return Err(error);
                 }
                 forget_the_not_applied_mark().await;
-                if mixed_port_changed {
+                if mixed_port_changed || sharing_changed {
                     Self::spawn_mixed_port_check(true);
                 }
                 if mode_changed {
@@ -544,6 +544,7 @@ pub(super) async fn point_system_proxy_at_the_core() {
     let was_failing = sysopt.write_failed();
     let written = sysopt.update_sysproxy().await;
     sysopt.refresh_guard().await;
+    handle::Handle::refresh_verge();
     if let Err(err) = written {
         // Прокси остался на прежнем порту, которого у ядра больше нет:
         // молчать здесь значит оставить человека без интернета и без

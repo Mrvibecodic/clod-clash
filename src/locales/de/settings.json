@@ -514,7 +514,8 @@
         "pacScriptContent": "PAC-Skriptinhalt"
       },
       "tooltips": {
-        "proxyGuard": "Aktivieren Sie diese Option, um zu verhindern, dass andere Software die Proxy-Einstellungen des Betriebssystems ändert."
+        "proxyGuard": "Aktivieren Sie diese Option, um zu verhindern, dass andere Software die Proxy-Einstellungen des Betriebssystems ändert.",
+        "proxyHost": "Andere Adressen lassen WSL und Docker über den Client laufen und funktionieren nur bei aktivierter LAN-Freigabe. Solange die Freigabe aus ist, verwendet der Client 127.0.0.1."
       },
       "messages": {
         "durationTooShort": "Das Intervall des Proxy-Daemons darf nicht weniger als 1 Sekunde betragen.",

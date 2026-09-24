@@ -25,6 +25,7 @@ import {
   TooltipIcon,
 } from '@/components/base'
 import { EditorViewer } from '@/components/profile/editor-viewer'
+import { useRuntimeConfig } from '@/hooks/use-clash'
 import { useSystemProxyState } from '@/hooks/use-system-proxy-state'
 import { useVerge } from '@/hooks/use-verge'
 import { useSystemData } from '@/providers/app-data-context'
@@ -32,6 +33,7 @@ import { getNetworkInterfacesInfo, getSystemHostname } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { debugLog } from '@/utils/debug'
 import getSystem from '@/utils/get-system'
+import { LOOPBACK_PROXY_HOSTS, reachableProxyHost } from '@/utils/ports'
 
 const DEFAULT_PAC = `function FindProxyForURL(url, host) {
   return "PROXY %proxy_host%:%mixed-port%; SOCKS5 %proxy_host%:%mixed-port%; DIRECT;";
@@ -89,6 +91,9 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
   const [saving, setSaving] = useState(false)
   const { verge, patchVerge, mutateVerge } = useVerge()
   const [hostOptions, setHostOptions] = useState<string[]>([])
+  const { data: runtime } = useRuntimeConfig()
+  const lanSharing = runtime?.['allow-lan'] ?? false
+  const shownHostOptions = lanSharing ? hostOptions : LOOPBACK_PROXY_HOSTS
 
   const { indicator: isProxyReallyEnabled, invalidateProxyState } =
     useSystemProxyState()
@@ -135,18 +140,17 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
     const isPacMode = value.pac ?? false
 
     if (isPacMode) {
-      const host = value.proxy_host || '127.0.0.1'
+      const host = reachableProxyHost(value.proxy_host, lanSharing)
       return sysproxy?.current_port ? `${host}:${sysproxy.current_port}` : '-'
     } else {
       return systemProxyAddress
     }
-  }, [value.pac, value.proxy_host, sysproxy, systemProxyAddress])
+  }, [value.pac, value.proxy_host, lanSharing, sysproxy, systemProxyAddress])
   const getCurrentPacUrl = useMemo(() => {
-    const host = value.proxy_host || '127.0.0.1'
     // Определяем порт PAC по окружению
     const port = import.meta.env.DEV ? 11233 : 33331
-    return `http://${host}:${port}/commands/pac`
-  }, [value.proxy_host])
+    return `http://127.0.0.1:${port}/commands/pac`
+  }, [])
 
   const bypassError =
     value.enable_bypass_check && !value.pac && value.bypass
@@ -215,7 +219,7 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
       }
 
       // Формируем список опций
-      const options = ['127.0.0.1', 'localhost']
+      const options = [...LOOPBACK_PROXY_HOSTS]
 
       // Добавляем имя хоста в список, даже если оно пустая строка — фиксируем это в логе
       if (hostname) {
@@ -241,7 +245,7 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
     } catch (error) {
       console.error('Не удалось получить сетевые интерфейсы:', error)
       // При ошибке предоставляем хотя бы базовые опции
-      setHostOptions(['127.0.0.1', 'localhost'])
+      setHostOptions(LOOPBACK_PROXY_HOSTS)
     }
   }
 
@@ -388,11 +392,16 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
         <ListItem sx={{ padding: '5px 2px' }}>
           <ListItemText
             primary={t('settings.modals.sysproxy.fields.proxyHost')}
+            sx={{ maxWidth: 'fit-content' }}
+          />
+          <TooltipIcon
+            title={t('settings.modals.sysproxy.tooltips.proxyHost')}
+            sx={{ opacity: '0.7' }}
           />
           <Autocomplete
             size="small"
-            sx={{ width: 150 }}
-            options={hostOptions}
+            sx={{ width: 150, marginLeft: 'auto' }}
+            options={shownHostOptions}
             value={value.proxy_host}
             freeSolo
             renderInput={(params) => (

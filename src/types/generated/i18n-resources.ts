@@ -1152,6 +1152,7 @@ export interface TranslationResources {
           title: string
           tooltips: {
             proxyGuard: string
+            proxyHost: string
           }
         }
         tun: {

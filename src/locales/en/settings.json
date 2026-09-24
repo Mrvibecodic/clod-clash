@@ -514,7 +514,8 @@
         "pacScriptContent": "PAC Script Content"
       },
       "tooltips": {
-        "proxyGuard": "Enable to prevent other software from modifying the operating system's proxy settings"
+        "proxyGuard": "Enable to prevent other software from modifying the operating system's proxy settings",
+        "proxyHost": "Other addresses let WSL and Docker go through the client and only work while LAN sharing is on. While sharing is off, the client uses 127.0.0.1."
       },
       "messages": {
         "durationTooShort": "Proxy Daemon Duration Cannot be Less than 1 Second",

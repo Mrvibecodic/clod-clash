@@ -46,3 +46,15 @@ export const isProxyServerAt = (
     server.slice(colon + 1) === String(port)
   )
 }
+
+export const LOOPBACK_PROXY_HOSTS = ['127.0.0.1', 'localhost']
+
+export const reachableProxyHost = (
+  host: string | undefined,
+  lanSharing: boolean,
+) => {
+  const configured = host || '127.0.0.1'
+  return lanSharing || LOOPBACK_PROXY_HOSTS.includes(configured.toLowerCase())
+    ? configured
+    : '127.0.0.1'
+}

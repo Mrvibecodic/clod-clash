@@ -1,16 +1,18 @@
 import { useRef, useState } from 'react'
 import { closeAllConnections } from 'tauri-plugin-mihomo-api'
 
+import { useRuntimeConfig } from '@/hooks/use-clash'
 import { useVerge } from '@/hooks/use-verge'
 import { useSystemData } from '@/providers/app-data-context'
 import { getAutotemProxy } from '@/services/cmds'
 import { revalidateQueries, useQuery } from '@/services/query-client'
-import { isProxyServerAt } from '@/utils/ports'
+import { isProxyServerAt, reachableProxyHost } from '@/utils/ports'
 
 // Единая логика определения состояния системного прокси
 export const useSystemProxyState = () => {
   const { verge, mutateVerge, patchVerge } = useVerge()
   const { sysproxy } = useSystemData()
+  const { data: runtime } = useRuntimeConfig()
   const { data: autoproxy } = useQuery({
     queryKey: ['getAutotemProxy'],
     queryFn: getAutotemProxy,
@@ -22,11 +24,11 @@ export const useSystemProxyState = () => {
 
   // Фактическое состояние ОС: enable + адрес совпадает с этим приложением
   const indicator = (() => {
-    const host = proxy_host || '127.0.0.1'
+    const host = reachableProxyHost(proxy_host, runtime?.['allow-lan'] ?? false)
     if (proxy_auto_config) {
       if (!autoproxy?.enable) return false
       const pacPort = import.meta.env.DEV ? 11233 : 33331
-      return autoproxy.url === `http://${host}:${pacPort}/commands/pac`
+      return autoproxy.url === `http://127.0.0.1:${pacPort}/commands/pac`
     } else {
       if (!sysproxy?.enable) return false
       return isProxyServerAt(sysproxy.server, host, sysproxy.current_port)

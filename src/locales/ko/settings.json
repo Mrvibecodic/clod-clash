@@ -514,7 +514,8 @@
         "pacScriptContent": "PAC 스크립트 내용"
       },
       "tooltips": {
-        "proxyGuard": "다른 소프트웨어가 운영 체제의 프록시 설정을 변경하지 못하도록 방지합니다"
+        "proxyGuard": "다른 소프트웨어가 운영 체제의 프록시 설정을 변경하지 못하도록 방지합니다",
+        "proxyHost": "다른 주소는 WSL과 Docker가 클라이언트를 거치도록 하기 위한 것으로, LAN 공유가 켜져 있을 때만 동작합니다. 공유가 꺼져 있으면 127.0.0.1을 사용합니다."
       },
       "messages": {
         "durationTooShort": "프록시 데몬 지속시간은 1초 미만일 수 없습니다",

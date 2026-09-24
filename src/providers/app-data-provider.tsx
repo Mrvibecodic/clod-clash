@@ -6,6 +6,7 @@ import {
   getRules,
 } from 'tauri-plugin-mihomo-api'
 
+import { useRuntimeConfig } from '@/hooks/use-clash'
 import { useRefreshOnReturn } from '@/hooks/use-refresh-on-return'
 import { useVerge } from '@/hooks/use-verge'
 import {
@@ -15,6 +16,7 @@ import {
   getSystemProxy,
 } from '@/services/cmds'
 import { revalidateQueries, useQuery } from '@/services/query-client'
+import { reachableProxyHost } from '@/utils/ports'
 
 import {
   ClashConfigContext,
@@ -81,6 +83,7 @@ export const AppDataProvider = ({
   children: React.ReactNode
 }) => {
   const { verge } = useVerge()
+  const { data: runtime } = useRuntimeConfig()
 
   // clod: окно вернулось из трея — общие данные ядра перечитываем сразу.
   // Здесь их читает ВСЁ приложение, и на главной у них нет ни опроса, ни
@@ -278,7 +281,10 @@ export const AppDataProvider = ({
 
       if (isPacMode) {
         // Режим PAC: показываем адрес прокси, который мы ожидаем установить
-        const proxyHost = verge.proxy_host || '127.0.0.1'
+        const proxyHost = reachableProxyHost(
+          verge.proxy_host,
+          runtime?.['allow-lan'] ?? false,
+        )
         return sysproxy?.current_port
           ? `${proxyHost}:${sysproxy.current_port}`
           : '-'
@@ -294,7 +300,10 @@ export const AppDataProvider = ({
           return systemServer
         } else {
           // Системный адрес недействителен, возвращаем ожидаемый адрес прокси
-          const proxyHost = verge.proxy_host || '127.0.0.1'
+          const proxyHost = reachableProxyHost(
+            verge.proxy_host,
+            runtime?.['allow-lan'] ?? false,
+          )
           return sysproxy?.current_port
             ? `${proxyHost}:${sysproxy.current_port}`
             : '-'
@@ -306,7 +315,7 @@ export const AppDataProvider = ({
       sysproxy,
       systemProxyAddress: calculateSystemProxyAddress(),
     }
-  }, [sysproxy, verge])
+  }, [sysproxy, verge, runtime])
 
   const refreshersValue = useMemo(
     () => ({

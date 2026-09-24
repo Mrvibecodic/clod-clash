@@ -514,7 +514,8 @@
         "pacScriptContent": "PAC 指令碼內容"
       },
       "tooltips": {
-        "proxyGuard": "開啟以防止其他軟體修改作業系統的代理設定"
+        "proxyGuard": "開啟以防止其他軟體修改作業系統的代理設定",
+        "proxyHost": "其他位址用於讓 WSL 和 Docker 經過用戶端，僅在開啟區域網路共享時有效。共享關閉時，用戶端使用 127.0.0.1。"
       },
       "messages": {
         "durationTooShort": "代理守護間隔時間不得低於 1 秒",

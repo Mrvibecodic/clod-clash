@@ -1,5 +1,5 @@
 use crate::{
-    config::{Config, IVerge},
+    config::{Config, IVerge, LOOPBACK_PROXY_HOST},
     core::handle,
     process::AsyncHandler,
     singleton,
@@ -529,10 +529,13 @@ impl Sysopt {
 
     async fn system_proxy_ownership(&self) -> Option<SystemProxyOwnership> {
         let verge = Config::verge().await.latest_arc();
-        let host = verge.proxy_host.as_deref().unwrap_or("127.0.0.1").to_owned();
+        let configured = verge.proxy_host.as_deref().unwrap_or(LOOPBACK_PROXY_HOST).to_owned();
         drop(verge);
+        let host = Config::reachable_proxy_host(&configured).await;
         let port = Config::effective_mixed_port().await;
-        let pac_url = format!("http://{host}:{}/commands/pac", IVerge::get_singleton_port());
+        let pac_port = IVerge::get_singleton_port();
+        let pac_url = format!("http://{LOOPBACK_PROXY_HOST}:{pac_port}/commands/pac");
+        let configured_pac_url = format!("http://{configured}:{pac_port}/commands/pac");
 
         let observed = tokio::task::spawn_blocking(ObservedProxy::read).await.ok()??;
 
@@ -544,7 +547,7 @@ impl Sysopt {
             )
         });
         let sent = self.sent_to_the_system.read().clone();
-        let ours = everything_that_might_be_ours(
+        let mut ours = everything_that_might_be_ours(
             (host.as_str(), port, pac_url.as_str()),
             previous
                 .as_ref()
@@ -552,6 +555,8 @@ impl Sysopt {
             sent.handed_over.as_ref().map(SentProxy::as_tuple),
             sent.taken_up.as_ref().map(SentProxy::as_tuple),
         );
+        ours.push((configured.as_str(), port, configured_pac_url.as_str()));
+        ours.push((LOOPBACK_PROXY_HOST, port, pac_url.as_str()));
 
         Some(how_the_system_proxy_stands(&observed, &ours))
     }
@@ -630,10 +635,10 @@ impl Sysopt {
         let pac_port = IVerge::get_singleton_port();
         let bypass = get_bypass().await;
 
-        let (sys_enable, pac_enable, proxy_host, proxy_guard) = (
+        let proxy_host = Config::reachable_proxy_host(verge.proxy_host.as_deref().unwrap_or(LOOPBACK_PROXY_HOST)).await;
+        let (sys_enable, pac_enable, proxy_guard) = (
             verge.enable_system_proxy.unwrap_or_default(),
             verge.proxy_auto_config.unwrap_or_default(),
-            verge.proxy_host.as_deref().unwrap_or("127.0.0.1"),
             verge.enable_proxy_guard.unwrap_or_default(),
         );
 
@@ -642,7 +647,7 @@ impl Sysopt {
             sys.host = proxy_host.into();
             sys.port = port;
             sys.bypass = bypass.into();
-            auto.url = format!("http://{proxy_host}:{pac_port}/commands/pac");
+            auto.url = format!("http://{LOOPBACK_PROXY_HOST}:{pac_port}/commands/pac");
 
             let guard_type = if !sys_enable {
                 sys.enable = false;
@@ -865,13 +870,14 @@ impl Sysopt {
         }
 
         let port = Config::effective_mixed_port().await;
-        let host = Config::verge()
+        let configured = Config::verge()
             .await
             .latest_arc()
             .proxy_host
             .as_deref()
-            .unwrap_or("127.0.0.1")
+            .unwrap_or(LOOPBACK_PROXY_HOST)
             .to_owned();
+        let host = Config::reachable_proxy_host(&configured).await;
         let pac_port = IVerge::get_singleton_port();
 
         let bypass = get_bypass().await;
@@ -884,7 +890,7 @@ impl Sysopt {
                 sys.bypass = bypass.as_str().into();
             }
             if auto.url.is_empty() {
-                auto.url = format!("http://{host}:{pac_port}/commands/pac");
+                auto.url = format!("http://{LOOPBACK_PROXY_HOST}:{pac_port}/commands/pac");
             }
             sys.enable = false;
             auto.enable = false;

@@ -147,6 +147,12 @@ fn allow_lan_in(config: Option<&Mapping>) -> Option<bool> {
     config?.get("allow-lan")?.as_bool()
 }
 
+pub const LOOPBACK_PROXY_HOST: &str = "127.0.0.1";
+
+fn served_without_lan_sharing(host: &str) -> bool {
+    host == LOOPBACK_PROXY_HOST || host.eq_ignore_ascii_case("localhost")
+}
+
 /// Порт слушателя из собранного конфига, если ключ в нём есть.
 fn mixed_port_in(config: Option<&Mapping>) -> Option<u16> {
     let value = config?.get("mixed-port")?.clone();
@@ -227,6 +233,14 @@ impl Config {
             .get("allow-lan")
             .and_then(serde_yaml_ng::Value::as_bool)
             .unwrap_or(false)
+    }
+
+    pub async fn reachable_proxy_host(configured: &str) -> String {
+        if served_without_lan_sharing(configured) || Self::effective_allow_lan().await {
+            configured.into()
+        } else {
+            LOOPBACK_PROXY_HOST.into()
+        }
     }
 
     /// Порт, с которым ядро только что ЗАПУЩЕНО или перезагружено.
@@ -603,6 +617,24 @@ pub enum ConfigType {
 mod tests {
     use super::*;
     use std::mem;
+
+    #[test]
+    fn only_loopback_hosts_work_without_lan_sharing() {
+        for host in ["127.0.0.1", "localhost", "LocalHost"] {
+            assert!(served_without_lan_sharing(host), "{host}");
+        }
+        for host in [
+            "192.168.1.5",
+            "127.8.0.1",
+            "[::1]",
+            "fe80::1",
+            "desktop.local",
+            "0.0.0.0",
+            "",
+        ] {
+            assert!(!served_without_lan_sharing(host), "{host}");
+        }
+    }
 
     #[test]
     #[allow(unused_variables)]

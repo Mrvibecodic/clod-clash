@@ -514,7 +514,8 @@
         "pacScriptContent": "Konten Skrip PAC"
       },
       "tooltips": {
-        "proxyGuard": "Aktifkan untuk mencegah perangkat lunak lain mengubah pengaturan proksi sistem operasi"
+        "proxyGuard": "Aktifkan untuk mencegah perangkat lunak lain mengubah pengaturan proksi sistem operasi",
+        "proxyHost": "Alamat lain memungkinkan WSL dan Docker melewati klien dan hanya berfungsi saat berbagi LAN aktif. Selama berbagi nonaktif, klien memakai 127.0.0.1."
       },
       "messages": {
         "durationTooShort": "Durasi Daemon Proksi Tidak Boleh Kurang dari 1 Detik",

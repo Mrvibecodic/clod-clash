@@ -514,7 +514,8 @@
         "pacScriptContent": "PAC Betiği İçeriği"
       },
       "tooltips": {
-        "proxyGuard": "Diğer yazılımların işletim sisteminin vekil ayarlarını değiştirmesini önlemek için etkinleştirin"
+        "proxyGuard": "Diğer yazılımların işletim sisteminin vekil ayarlarını değiştirmesini önlemek için etkinleştirin",
+        "proxyHost": "Diğer adresler WSL ve Docker'ın istemci üzerinden geçmesi içindir ve yalnızca yerel ağ paylaşımı açıkken çalışır. Paylaşım kapalıyken istemci 127.0.0.1 kullanır."
       },
       "messages": {
         "durationTooShort": "Vekil Koruyucu Süresi 1 Saniyeden Az Olamaz",

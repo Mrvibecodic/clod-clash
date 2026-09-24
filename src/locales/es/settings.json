@@ -514,7 +514,8 @@
         "pacScriptContent": "Contenido del script PAC"
       },
       "tooltips": {
-        "proxyGuard": "Habilite esta opción para evitar que otros programas modifiquen la configuración del proxy del sistema operativo."
+        "proxyGuard": "Habilite esta opción para evitar que otros programas modifiquen la configuración del proxy del sistema operativo.",
+        "proxyHost": "Otras direcciones permiten que WSL y Docker pasen por el cliente y solo funcionan con el uso compartido en la red local activado. Mientras esté desactivado, el cliente usa 127.0.0.1."
       },
       "messages": {
         "durationTooShort": "El intervalo de tiempo del daemon de proxy no puede ser menor de 1 segundo",

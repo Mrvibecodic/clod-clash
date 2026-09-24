@@ -738,6 +738,7 @@ export const translationKeys = [
   'settings.modals.sysproxy.fields.bypass',
   'settings.modals.sysproxy.fields.pacScriptContent',
   'settings.modals.sysproxy.tooltips.proxyGuard',
+  'settings.modals.sysproxy.tooltips.proxyHost',
   'settings.modals.sysproxy.messages.durationTooShort',
   'settings.modals.sysproxy.messages.invalidBypass',
   'settings.modals.sysproxy.messages.invalidProxyHost',
