@@ -748,8 +748,6 @@ function collectUsedKeysFromRustFile(
       })
     }
   }
-
-  collectUsedKeysFromTextFile(file, baselineNamespaces, usedKeys)
 }
 
 function collectUsedI18nKeys(sourceFiles, baselineNamespaces) {
@@ -1428,7 +1426,13 @@ function main() {
   }
   if (options.check) {
     const totals = summarizeResults(allResults)
-    if (totals.totalUnused + totals.totalMissing + totals.totalExtra > 0) {
+    if (
+      totals.totalUnused +
+        totals.totalMissing +
+        totals.totalExtra +
+        totals.totalSourceMissing >
+      0
+    ) {
       process.exitCode = 1
     }
   }
