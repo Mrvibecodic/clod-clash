@@ -53,10 +53,17 @@ impl CoreManager {
     }
 
     pub async fn update_config_forced(&self) -> Result<ValidationOutcome> {
-        self.update_config_with_force(true).await
+        self.update_config(true, false).await
     }
 
+    /// Применить обновлённую подписку. Если собранный конфиг совпал с тем, что уже
+    /// работает, ядро не трогаем: перезагрузка стёрла бы историю задержек и
+    /// заново проверила бы все авто-группы, ничего не поменяв.
     pub async fn update_config_with_force(&self, force: bool) -> Result<ValidationOutcome> {
+        self.update_config(force, true).await
+    }
+
+    async fn update_config(&self, force: bool, skip_unchanged: bool) -> Result<ValidationOutcome> {
         if handle::Handle::global().is_exiting() {
             return Ok(ValidationOutcome::Skipped {
                 reason: ValidationSkipReason::Exiting,
@@ -82,7 +89,7 @@ impl CoreManager {
             self.set_last_update(Instant::now());
         }
 
-        self.perform_config_update().await
+        self.perform_config_update(skip_unchanged).await
     }
 
     pub async fn update_config_checked(&self) -> Result<()> {
@@ -108,14 +115,41 @@ impl CoreManager {
         true
     }
 
-    async fn perform_config_update(&self) -> Result<ValidationOutcome> {
+    async fn perform_config_update(&self, skip_unchanged: bool) -> Result<ValidationOutcome> {
         if let Err(err) = Config::generate().await {
             let message: String = err.to_string().into();
             Config::runtime().await.discard();
             return Ok(ValidationOutcome::invalid_from_message(message));
         }
 
+        if skip_unchanged && self.runtime_unchanged().await {
+            // Черновик принимаем, а не выбрасываем: конфиг тот же, но подписи
+            // заглушек (`sentinel_report`) могли смениться, а заявка на подмену
+            // DNS относится к работающему конфигу.
+            Config::runtime().await.apply();
+            forget_the_not_applied_mark().await;
+            logging!(info, Type::Core, "Runtime config unchanged, core reload skipped");
+            return Ok(ValidationOutcome::Valid);
+        }
+
         self.apply_generate_config_inner().await
+    }
+
+    /// Собранный черновик совпал с принятым конфигом, и ядро с ним работает.
+    /// Перезагрузка тем же конфигом что-то дала бы только двум случаям: остановленное
+    /// ядро она поднимала бы, а пустой http-провайдер (первая загрузка не удалась,
+    /// кэша нет) — скачивала заново. Их не пропускаем.
+    async fn runtime_unchanged(&self) -> bool {
+        if matches!(*self.get_running_mode(), super::RunningMode::NotRunning) {
+            return false;
+        }
+        let same = {
+            let runtime = Config::runtime().await;
+            let next = runtime.latest_arc();
+            let prev = runtime.data_arc();
+            next.config.is_some() && next.config == prev.config
+        };
+        same && proxy_providers_filled().await
     }
 
     pub(crate) async fn update_runtime_config<F>(&self, f: F) -> Result<ValidationOutcome>
@@ -453,6 +487,23 @@ async fn forget_the_not_applied_mark() {
     } else {
         handle::Handle::refresh_profiles();
     }
+}
+
+const PROVIDERS_LIST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// У ядра нет пустых http-провайдеров. Не ответило — считаем, что есть.
+async fn proxy_providers_filled() -> bool {
+    let listed = tokio::time::timeout(
+        PROVIDERS_LIST_TIMEOUT,
+        crate::feat::environment::detached_core_client().get_proxy_providers(),
+    )
+    .await;
+    let Ok(Ok(listed)) = listed else {
+        return false;
+    };
+    listed.providers.values().all(|provider| {
+        !provider.proxies.is_empty() || !matches!(provider.vehicle_type, tauri_plugin_mihomo::models::VehicleType::HTTP)
+    })
 }
 
 async fn stage_with_confirmation<Ask, Fut>(confirm_within: std::time::Duration, ask: Ask) -> StageAttempt

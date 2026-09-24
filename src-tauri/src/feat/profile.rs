@@ -9,6 +9,16 @@ use clash_verge_logging::{Type, logging, logging_error};
 use smartstring::alias::String;
 
 pub async fn toggle_proxy_profile(profile_index: String) {
+    // Клик в трее по уже активной подписке: переключать нечего, а перезагрузка ядра
+    // стёрла бы историю задержек. Меню перерисовываем — пункт-галочка снял бы отметку сам.
+    if Config::profiles()
+        .await
+        .latest_arc()
+        .is_current_profile_index(&profile_index)
+    {
+        logging_error!(Type::Tray, tray::Tray::global().update_menu().await);
+        return;
+    }
     logging_error!(
         Type::Config,
         cmd::patch_profiles_config_by_profile_index(profile_index).await

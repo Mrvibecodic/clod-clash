@@ -577,6 +577,7 @@ const SignalBars = ({ delay }: { delay?: number }) => {
 }
 
 let lastAutoDelayKey = ''
+const CORE_MEASURED_TYPES = new Set(['urltest', 'fallback', 'loadbalance'])
 
 let lastKnownPing: { key: string; delay: number } | undefined
 
@@ -642,10 +643,13 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
   // Состав узлов в ключе: профиль из трея сменил `updated` раньше, чем пришли
   // новые узлы, — без него автотест промерил бы узлы прежней подписки.
   const testNodesSig = testNodesRef.current.map((node) => node.name).join('\n')
+  // Авто-группы ядро меряет само — при каждой загрузке конфига и раз в
+  // interval; наш прогон поверх был бы вторым замером тех же узлов.
+  const coreMeasures = CORE_MEASURED_TYPES.has(group?.type?.toLowerCase() ?? '')
   // clod: автотест — только пока окно на экране (в трее — ничего) и по узлам:
   // групповой обработчик ядра снимал закрепление url-test/fallback.
   useEffect(() => {
-    if (!visible || !groupName || !testNodesSig) return
+    if (!visible || !groupName || !testNodesSig || coreMeasures) return
     const key = `${groupName}|${updatedAt}|${testNodesSig}`
     if (lastAutoDelayKey === key) return
     const timer = window.setTimeout(() => {
@@ -658,7 +662,15 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
         })
     }, 800)
     return () => window.clearTimeout(timer)
-  }, [visible, groupName, updatedAt, testNodesSig, timeout, refreshProxy])
+  }, [
+    visible,
+    groupName,
+    updatedAt,
+    testNodesSig,
+    coreMeasures,
+    timeout,
+    refreshProxy,
+  ])
 
   useEffect(() => {
     if (!visible || !groupName || !pingTarget) return
