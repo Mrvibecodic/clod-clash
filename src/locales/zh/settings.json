@@ -216,7 +216,6 @@
           "themeMode": "主题模式",
           "trayClickEvent": "托盘点击事件",
           "copyEnvType": "复制环境变量类型",
-          "startPage": "启动页面",
           "startupScript": "启动脚本",
           "themeSetting": "主题设置",
           "layoutSetting": "界面设置",

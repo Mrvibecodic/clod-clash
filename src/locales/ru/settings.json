@@ -216,7 +216,6 @@
           "themeMode": "Цветовая тема",
           "trayClickEvent": "Событие при щелчке по иконке в трее",
           "copyEnvType": "Скопировать тип Env",
-          "startPage": "Главная страница",
           "startupScript": "Скрипт запуска",
           "themeSetting": "Настройки темы",
           "layoutSetting": "Настройки раскладки",

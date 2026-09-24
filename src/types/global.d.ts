@@ -875,7 +875,6 @@ interface IVergeConfig {
     | string
   env_type?: 'bash' | 'cmd' | 'powershell' | 'fish' | string
   startup_script?: string
-  start_page?: string
   clash_core?: string
   theme_mode?: 'light' | 'dark' | 'system'
   enable_group_icon?: boolean

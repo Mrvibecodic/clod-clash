@@ -728,7 +728,6 @@ export interface TranslationResources {
               language: string
               layoutSetting: string
               misc: string
-              startPage: string
               startupScript: string
               subNotifications: string
               themeMode: string

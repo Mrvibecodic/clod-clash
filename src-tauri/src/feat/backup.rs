@@ -119,9 +119,7 @@ fn restored_settings(archived: &str, local: Settings) -> Result<IVerge> {
     };
     strip_machine_local(&mut settings);
     settings.extend(local);
-    let mut restored: IVerge = serde_json::from_value(serde_json::Value::Object(settings))?;
-    restored.retire_removed_start_page();
-    Ok(restored)
+    Ok(serde_json::from_value(serde_json::Value::Object(settings))?)
 }
 
 async fn machine_local_config() -> Result<Settings> {
@@ -621,7 +619,7 @@ mod tests {
 
     #[test]
     fn hand_written_values_are_read_the_way_the_settings_file_reads_them() {
-        let archived = "proxy_host: 123\nlanguage: 1.10\nstart_page: 0x10\n";
+        let archived = "proxy_host: 123\nlanguage: 1.10\nenv_type: 0x10\n";
         let direct = serde_yaml_ng::from_str::<IVerge>(archived).unwrap_or_default();
         let restored = restored_settings(archived, machine_local_of(&this_machine()).unwrap_or_default());
 
@@ -630,15 +628,7 @@ mod tests {
         assert_eq!(direct.proxy_host.as_deref(), Some("123"));
         assert_eq!(restored.proxy_host, direct.proxy_host);
         assert_eq!(restored.language.as_deref(), Some("1.10"));
-        assert_eq!(restored.start_page.as_deref(), Some("0x10"));
-    }
-
-    #[test]
-    fn a_start_page_that_no_longer_exists_opens_home() {
-        let local = machine_local_of(&this_machine()).unwrap_or_default();
-        let restored = restored_settings("start_page: /unlock\n", local).unwrap_or_default();
-
-        assert_eq!(restored.start_page.as_deref(), Some("/"));
+        assert_eq!(restored.env_type.as_deref(), Some("0x10"));
     }
 
     #[test]

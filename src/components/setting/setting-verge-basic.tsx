@@ -8,7 +8,6 @@ import useSWR from 'swr'
 import { type DialogRef, Switch, TooltipIcon } from '@/components/base'
 import { useSimpleMode } from '@/hooks/use-simple-mode'
 import { useVerge } from '@/hooks/use-verge'
-import { navigationItems } from '@/pages/_navigation-meta'
 import { copyClashEnv, getDeviceIdentity } from '@/services/cmds'
 import { supportedLanguages } from '@/services/i18n'
 import { showNotice } from '@/services/notice-service'
@@ -63,7 +62,6 @@ const SettingVergeBasic = ({ onError, variant }: Props) => {
     tray_event,
     env_type,
     startup_script,
-    start_page,
     enable_sub_notifications,
     enable_hwid,
     window_fit_content,
@@ -311,31 +309,6 @@ const SettingVergeBasic = ({ onError, variant }: Props) => {
               </GuardState>
             </SettingItem>
           )}
-
-          <SettingItem
-            label={t('settings.components.verge.basic.fields.startPage')}
-          >
-            <GuardState
-              value={start_page ?? '/'}
-              onCatch={onError}
-              onFormat={(e: any) => e.target.value}
-              onChange={(e) => onChangeData({ start_page: e })}
-              onGuard={(e) => patchVerge({ start_page: e })}
-            >
-              <Select
-                size="small"
-                sx={{ width: 140, '> div': { py: '7.5px' } }}
-              >
-                {Object.values(navigationItems).map((page) => {
-                  return (
-                    <MenuItem key={page.path} value={page.path}>
-                      {t(page.label)}
-                    </MenuItem>
-                  )
-                })}
-              </Select>
-            </GuardState>
-          </SettingItem>
 
           <SettingItem
             onClick={() => themeRef.current?.open()}

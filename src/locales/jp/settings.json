@@ -216,7 +216,6 @@
           "themeMode": "テーマモード",
           "trayClickEvent": "トレイアイコンクリックイベント",
           "copyEnvType": "環境変数タイプをコピー",
-          "startPage": "起動ページ",
           "startupScript": "起動スクリプト",
           "themeSetting": "テーマ設定",
           "layoutSetting": "レイアウト設定",

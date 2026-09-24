@@ -323,7 +323,6 @@ pub async fn build_new_window() -> Result<WebviewWindow, String> {
 
     let config = Config::verge().await;
     let latest = config.latest_arc();
-    let start_page = latest.start_page.as_deref().unwrap_or("/");
     let initial_theme_mode = match latest.theme_mode.as_deref() {
         Some("dark") => "dark",
         Some("light") => "light",
@@ -353,7 +352,7 @@ pub async fn build_new_window() -> Result<WebviewWindow, String> {
     let shown = Arc::new(AtomicBool::new(false));
     let shown_on_load = Arc::clone(&shown);
 
-    let mut builder = tauri::WebviewWindowBuilder::new(app_handle, "main", tauri::WebviewUrl::App(start_page.into()))
+    let mut builder = tauri::WebviewWindowBuilder::new(app_handle, "main", tauri::WebviewUrl::App("/".into()))
         .title(crate::constants::branding::APP_NAME)
         .center()
         .decorations(DEFAULT_DECORATIONS)

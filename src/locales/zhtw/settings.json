@@ -216,7 +216,6 @@
           "themeMode": "主題模式",
           "trayClickEvent": "系統匣點擊事件",
           "copyEnvType": "複製環境變數類型",
-          "startPage": "啟動頁面",
           "startupScript": "啟動指令碼",
           "themeSetting": "主題設定",
           "layoutSetting": "介面設定",

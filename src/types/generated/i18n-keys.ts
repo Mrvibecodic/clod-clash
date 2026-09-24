@@ -546,7 +546,6 @@ export const translationKeys = [
   'settings.components.verge.basic.fields.themeMode',
   'settings.components.verge.basic.fields.trayClickEvent',
   'settings.components.verge.basic.fields.copyEnvType',
-  'settings.components.verge.basic.fields.startPage',
   'settings.components.verge.basic.fields.startupScript',
   'settings.components.verge.basic.fields.themeSetting',
   'settings.components.verge.basic.fields.layoutSetting',
