@@ -10,6 +10,7 @@ import {
   List,
   ListItemButton,
   ListItemText,
+  Typography,
 } from '@mui/material'
 import { useLockFn } from 'ahooks'
 import type { Ref } from 'react'
@@ -179,7 +180,7 @@ export function ClashCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
       contentSx={{
         pb: 0,
         width: 400,
-        height: 180,
+        height: 240,
         overflowY: 'auto',
         userSelect: 'text',
         marginTop: '-8px',
@@ -206,6 +207,11 @@ export function ClashCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
           </ListItemButton>
         ))}
       </List>
+      <Typography variant="caption" color="text.secondary" component="p">
+        {verge?.use_managed_core
+          ? t('settings.modals.clashCore.managedActiveNote')
+          : t('settings.modals.clashCore.upgradeHint')}
+      </Typography>
     </BaseDialog>
   )
 }

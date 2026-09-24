@@ -831,6 +831,7 @@ export interface TranslationResources {
         backup: {
           actions: {
             backup: string
+            checkConnection: string
             deleteBackup: string
             importBackup: string
             restoreBackup: string
@@ -892,6 +893,8 @@ export interface TranslationResources {
           }
         }
         clashCore: {
+          managedActiveNote: string
+          upgradeHint: string
           variants: {
             alpha: string
             release: string
@@ -911,6 +914,7 @@ export interface TranslationResources {
             tproxy: string
           }
           messages: {
+            firewallRequired: string
             ladderUnread: string
             portInUse: string
             portTooHigh: string
@@ -945,7 +949,9 @@ export interface TranslationResources {
               label: string
             }
             enable: string
+            enableHint: string
             enhancedMode: string
+            enhancedModeHint: string
             fakeIpFilter: {
               description: string
               label: string
@@ -1051,12 +1057,14 @@ export interface TranslationResources {
         managedCore: {
           alpha: string
           autoCheck: string
+          autoCheckHint: string
           available: string
           bundledTag: string
           channel: string
           check: string
           entry: string
           managedTag: string
+          notDownloadedNote: string
           phase: {
             applying: string
             checking: string
@@ -1188,6 +1196,7 @@ export interface TranslationResources {
             openUrl: string
           }
           messages: {
+            needsController: string
             placeholderInstruction: string
             supportedPlaceholders: string
           }
@@ -1230,6 +1239,7 @@ export interface TranslationResources {
                 }
                 default: string
                 existing: string
+                followGroup: string
                 localAddr: string
                 localPort: string
                 messages: {
@@ -1310,6 +1320,7 @@ export interface TranslationResources {
           }
           messages: {
             alwaysIncluded: string
+            onlyForPanels: string
           }
           placeholders: {
             origin: string

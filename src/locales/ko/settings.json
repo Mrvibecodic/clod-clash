@@ -16,7 +16,7 @@
       },
       "fields": {
         "autoLaunch": "자동 실행",
-        "silentStart": "백그라운드 시작",
+        "silentStart": "트레이에서 시작",
         "connectOnLaunch": "실행 시 자동 연결",
         "dnsOverride": "시스템 DNS 대체"
       },
@@ -112,7 +112,8 @@
         "add": "추가"
       },
       "messages": {
-        "alwaysIncluded": "항상 포함되는 오리진: {{urls}}"
+        "alwaysIncluded": "항상 포함되는 오리진: {{urls}}",
+        "onlyForPanels": "브라우저 웹 패널에만 필요하며 외부 컨트롤러가 켜져 있을 때 적용됩니다. 클라이언트 자체에는 필요하지 않습니다."
       },
       "tooltips": {
         "open": "외부 CORS 설정"
@@ -149,6 +150,7 @@
             "protocols": "프로토콜",
             "existing": "기존 터널",
             "default": "현재 설정 따르기",
+            "followGroup": "그룹 선택 따르기",
             "optional": "선택 사항",
             "messages": {
               "incomplete": "필수 터널 항목을 모두 입력해 주세요",
@@ -355,10 +357,13 @@
         "portTooHigh": "The port must be {{max}} or lower",
         "ladderUnread": "코어가 현재 사용 중인 포트를 읽지 못했습니다. 혼합 포트는 그대로 유지되고 나머지 포트는 저장됩니다.",
         "saved": "포트 설정이 저장되었습니다",
-        "saveFailed": "포트 설정 저장에 실패했습니다"
+        "saveFailed": "포트 설정 저장에 실패했습니다",
+        "firewallRequired": "직접 방화벽 규칙(pf/iptables)을 설정해야 합니다. 클라이언트는 설정하지 않습니다"
       }
     },
     "clashCore": {
+      "upgradeHint": "서비스 없이 업데이트하면 새 코어를 내려받고 관리 코어로 전환합니다.",
+      "managedActiveNote": "관리 코어가 켜져 있어, 코어가 서비스를 거치지 않고 실행되는 동안에는 여기서의 선택이 적용되지 않습니다.",
       "variants": {
         "release": "안정 버전",
         "alpha": "알파 버전"
@@ -394,7 +399,8 @@
         "importBackup": "백업 가져오기",
         "deleteBackup": "백업 삭제",
         "restoreBackup": "백업 복원",
-        "viewHistory": "View history"
+        "viewHistory": "View history",
+        "checkConnection": "연결 확인"
       },
       "fields": {
         "webdavUrl": "WebDAV 서버 URL",
@@ -416,8 +422,8 @@
         "localBackupExportFailed": "로컬 백업 내보내기 실패",
         "localBackupImported": "로컬 백업을 가져왔습니다",
         "localBackupImportFailed": "로컬 백업 가져오기 실패: {{error}}",
-        "webdavRefreshSuccess": "WebDAV refresh succeeded",
-        "webdavRefreshFailed": "WebDAV refresh failed: {{error}}",
+        "webdavRefreshSuccess": "WebDAV 연결이 정상입니다",
+        "webdavRefreshFailed": "WebDAV에 연결할 수 없습니다: {{error}}",
         "confirmDelete": "이 백업 파일을 삭제하시겠습니까?",
         "confirmRestore": "이 백업 파일을 복원하시겠습니까?"
       },
@@ -463,7 +469,7 @@
       },
       "tooltips": {
         "autoCloseConnections": "프록시 그룹 선택 또는 프록시 모드 변경 시 기존 연결을 종료합니다",
-        "enableBuiltinEnhanced": "구성 파일에 대한 호환성 처리를 수행합니다",
+        "enableBuiltinEnhanced": "구성 파일에 대한 호환성 처리를 수행합니다. 다음 구독 업데이트나 앱 재시작 때 적용됩니다.",
         "defaultLatencyTest": "HTTP 클라이언트 요청 테스트에만 사용되며 구성 파일에는 영향을 주지 않습니다",
         "verboseDiagnostics": "Detailed records of network changes and of every write of the system proxy settings. Only needed when investigating a problem: it adds a little background work and many more lines to the log."
       },
@@ -557,14 +563,16 @@
       },
       "fields": {
         "enable": "DNS 사용",
+        "enableHint": "TUN 모드에서는 DNS가 자동으로 켜집니다",
         "listen": "DNS 리슨",
         "enhancedMode": "향상 모드",
+        "enhancedModeHint": "fake-ip는 TUN 모드이거나 수신 주소를 지정했을 때만 적용됩니다",
         "fakeIpRange": "가짜 IP 범위",
         "fakeIpRange6": "가짜 IP 범위 (IPv6)",
         "fakeIpFilterMode": "가짜 IP 필터 모드",
         "ipv6": {
           "label": "IPv6",
-          "description": "IPv6 DNS 해석 사용"
+          "description": "IPv6 DNS 해석 사용. fake-ip를 쓰는 TUN 모드에서는 구독이 이 값을 정합니다."
         },
         "preferH3": {
           "label": "H3 우선",
@@ -614,7 +622,7 @@
           "label": "Hosts",
           "description": "사용자 정의 도메인→IP 또는 도메인 매핑"
         },
-        "listenHint": "비워 두면 DNS 서버를 열지 않습니다. 터널 내 가로채기에는 필요하지 않습니다. 네트워크에 DNS를 제공하려면 주소를 입력하세요."
+        "listenHint": "비워 두면 DNS 서버를 열지 않습니다. 터널 내 가로채기에는 필요하지 않습니다. 네트워크에 DNS를 제공하려면 주소를 입력하세요. LAN 공유가 꺼져 있으면 네트워크에 열린 주소는 127.0.0.1로 바뀝니다."
       },
       "messages": {
         "saved": "DNS 설정이 저장되었습니다",
@@ -642,7 +650,8 @@
       "title": "Web UI",
       "messages": {
         "supportedPlaceholders": "지원되는 자리표시자: %host, %port, %secret",
-        "placeholderInstruction": "host, port, secret을 %host, %port, %secret로 바꿔 입력하세요"
+        "placeholderInstruction": "host, port, secret을 %host, %port, %secret로 바꿔 입력하세요",
+        "needsController": "패널은 외부 컨트롤러가 켜져 있을 때만 열립니다."
       }
     },
     "hotkey": {
@@ -680,6 +689,7 @@
       "stable": "Stable",
       "alpha": "Alpha",
       "autoCheck": "Check daily",
+      "autoCheckHint": "관리 코어가 켜져 있을 때 동작합니다",
       "running": "Running:",
       "managedTag": "managed",
       "bundledTag": "bundled",
@@ -698,7 +708,8 @@
       },
       "updatedTo": "Core updated to {{msg}}",
       "updateNotice": "A newer core is available: {{msg}}",
-      "serviceModeNote": "Service mode runs the bundled core; the managed core applies in sidecar mode only"
+      "serviceModeNote": "서비스 사용 시에는 항상 내장 코어가 실행되며, 여기서의 다운로드와 롤백은 영향을 주지 않습니다.",
+      "notDownloadedNote": "관리 코어를 아직 내려받지 않아 지금은 내장 코어가 실행됩니다."
     }
   },
   "feedback": {

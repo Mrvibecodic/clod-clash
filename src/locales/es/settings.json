@@ -16,7 +16,7 @@
       },
       "fields": {
         "autoLaunch": "Inicio automático",
-        "silentStart": "Inicio silencioso",
+        "silentStart": "Iniciar en la bandeja",
         "connectOnLaunch": "Conectar al iniciar",
         "dnsOverride": "Sobrescribir el DNS del sistema"
       },
@@ -112,7 +112,8 @@
         "add": "Agregar"
       },
       "messages": {
-        "alwaysIncluded": "Orígenes siempre incluidos: {{urls}}"
+        "alwaysIncluded": "Orígenes siempre incluidos: {{urls}}",
+        "onlyForPanels": "Solo lo necesitan los paneles web del navegador y se aplica mientras el controlador externo esté activado. El cliente no necesita estos ajustes."
       },
       "tooltips": {
         "open": "Configuración de CORS externo"
@@ -149,6 +150,7 @@
             "protocols": "Protocolo",
             "existing": "Túneles Existentes",
             "default": "Seguir la Configuración Actual",
+            "followGroup": "Seguir la selección del grupo",
             "optional": "Opcional",
             "messages": {
               "incomplete": "Por favor complete todos los campos obligatorios del túnel",
@@ -355,10 +357,13 @@
         "portTooHigh": "The port must be {{max}} or lower",
         "ladderUnread": "No se pudo leer qué puerto usa ahora el núcleo: el puerto mixto no cambiará, los demás puertos se guardarán.",
         "saved": "Port settings saved",
-        "saveFailed": "Failed to save port settings"
+        "saveFailed": "Failed to save port settings",
+        "firewallRequired": "Requiere reglas de firewall propias (pf/iptables); el cliente no las configura"
       }
     },
     "clashCore": {
+      "upgradeHint": "Sin el servicio, la actualización descarga un núcleo nuevo y cambia al núcleo gestionado.",
+      "managedActiveNote": "El núcleo gestionado está activado: mientras el núcleo no se ejecute a través del servicio, la elección aquí no tiene efecto.",
       "variants": {
         "release": "Versión estable",
         "alpha": "Versión alfa"
@@ -394,7 +399,8 @@
         "importBackup": "Import Backup",
         "deleteBackup": "Eliminar copia de seguridad",
         "restoreBackup": "Restaurar copia de seguridad",
-        "viewHistory": "View history"
+        "viewHistory": "View history",
+        "checkConnection": "Comprobar conexión"
       },
       "fields": {
         "webdavUrl": "Dirección del servidor WebDAV http(s)://",
@@ -416,8 +422,8 @@
         "localBackupExportFailed": "Failed to export local backup",
         "localBackupImported": "Local backup imported successfully",
         "localBackupImportFailed": "Failed to import local backup: {{error}}",
-        "webdavRefreshSuccess": "WebDAV refresh succeeded",
-        "webdavRefreshFailed": "WebDAV refresh failed: {{error}}",
+        "webdavRefreshSuccess": "La conexión WebDAV funciona",
+        "webdavRefreshFailed": "No se pudo conectar a WebDAV: {{error}}",
         "confirmDelete": "Confirm to delete this backup file?",
         "confirmRestore": "Confirm to restore this backup file?"
       },
@@ -463,7 +469,7 @@
       },
       "tooltips": {
         "autoCloseConnections": "Cierra las conexiones establecidas cuando se cambia el nodo seleccionado en el grupo de proxy o el modo de proxy.",
-        "enableBuiltinEnhanced": "Procesamiento de compatibilidad de archivos de configuración",
+        "enableBuiltinEnhanced": "Procesamiento de compatibilidad de archivos de configuración. Se aplica en la próxima actualización de la suscripción o al reiniciar la aplicación.",
         "defaultLatencyTest": "Solo se utiliza para pruebas de solicitudes de clientes HTTP y no afectará al archivo de configuración.",
         "verboseDiagnostics": "Detailed records of network changes and of every write of the system proxy settings. Only needed when investigating a problem: it adds a little background work and many more lines to the log."
       },
@@ -557,14 +563,16 @@
       },
       "fields": {
         "enable": "Habilitar DNS",
+        "enableHint": "En modo TUN el DNS se activa automáticamente",
         "listen": "Dirección de escucha de DNS",
         "enhancedMode": "Modo mejorado",
+        "enhancedModeHint": "fake-ip solo tiene efecto en modo TUN o con una dirección de escucha",
         "fakeIpRange": "Rango de Fake IP",
         "fakeIpRange6": "Rango de Fake IP (IPv6)",
         "fakeIpFilterMode": "Modo de filtrado de Fake IP",
         "ipv6": {
           "label": "IPv6",
-          "description": "Habilitar resolución DNS IPv6"
+          "description": "Habilitar resolución DNS IPv6. En modo TUN con fake-ip, el valor lo fija la suscripción."
         },
         "preferH3": {
           "label": "Prefiere HTTP/3",
@@ -614,7 +622,7 @@
           "label": "Hosts",
           "description": "Asignación personalizada de dominio a IP o dominio, separados por comas"
         },
-        "listenHint": "Vacío: no se abre un servidor DNS; la intercepción en el túnel no lo necesita. Para servir DNS a la red, indique una dirección."
+        "listenHint": "Vacío: no se abre un servidor DNS; la intercepción en el túnel no lo necesita. Para servir DNS a la red, indique una dirección. Mientras el uso compartido en la red local esté desactivado, una dirección abierta a la red se sustituye por 127.0.0.1."
       },
       "messages": {
         "saved": "Configuración de DNS guardada",
@@ -642,7 +650,8 @@
       "title": "Interfaz web",
       "messages": {
         "supportedPlaceholders": "Soporta %host, %port, %secret",
-        "placeholderInstruction": "Utilice %host, %port, %secret para representar el host, el puerto y la clave de acceso."
+        "placeholderInstruction": "Utilice %host, %port, %secret para representar el host, el puerto y la clave de acceso.",
+        "needsController": "El panel solo se abre con el controlador externo activado."
       }
     },
     "hotkey": {
@@ -680,6 +689,7 @@
       "stable": "Stable",
       "alpha": "Alpha",
       "autoCheck": "Check daily",
+      "autoCheckHint": "Funciona con el núcleo gestionado activado",
       "running": "Running:",
       "managedTag": "managed",
       "bundledTag": "bundled",
@@ -698,7 +708,8 @@
       },
       "updatedTo": "Core updated to {{msg}}",
       "updateNotice": "A newer core is available: {{msg}}",
-      "serviceModeNote": "Service mode runs the bundled core; the managed core applies in sidecar mode only"
+      "serviceModeNote": "Con el servicio siempre se ejecuta el núcleo integrado: descargar y revertir aquí no le afecta.",
+      "notDownloadedNote": "El núcleo gestionado aún no se ha descargado; por ahora se ejecuta el integrado."
     }
   },
   "feedback": {

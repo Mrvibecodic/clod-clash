@@ -16,7 +16,7 @@
       },
       "fields": {
         "autoLaunch": "自動起動",
-        "silentStart": "サイレント起動",
+        "silentStart": "トレイで起動",
         "connectOnLaunch": "起動時に接続",
         "dnsOverride": "システム DNS を差し替える"
       },
@@ -112,7 +112,8 @@
         "add": "追加"
       },
       "messages": {
-        "alwaysIncluded": "常に含まれるオリジン: {{urls}}"
+        "alwaysIncluded": "常に含まれるオリジン: {{urls}}",
+        "onlyForPanels": "ブラウザーの Web パネルにのみ必要で、外部コントローラーが有効な間だけ適用されます。クライアント自体にはこの設定は不要です。"
       },
       "tooltips": {
         "open": "外部 CORS 設定"
@@ -149,6 +150,7 @@
             "protocols": "プロトコル",
             "existing": "既存のトンネル",
             "default": "現在の設定に従う",
+            "followGroup": "グループの選択に従う",
             "optional": "任意",
             "messages": {
               "incomplete": "必須のトンネル項目をすべて入力してください",
@@ -355,10 +357,13 @@
         "portTooHigh": "The port must be {{max}} or lower",
         "ladderUnread": "コアが現在使用しているポートを読み取れませんでした。混合プロキシポートはそのまま残り、他のポートは保存されます。",
         "saved": "Port settings saved",
-        "saveFailed": "Failed to save port settings"
+        "saveFailed": "Failed to save port settings",
+        "firewallRequired": "独自のファイアウォール規則 (pf/iptables) が必要です。クライアントは設定しません"
       }
     },
     "clashCore": {
+      "upgradeHint": "サービスなしの場合、更新は新しいコアをダウンロードして管理コアに切り替えます。",
+      "managedActiveNote": "管理コアが有効です。コアがサービス経由で動作していない間は、ここでの選択は反映されません。",
       "variants": {
         "release": "正式版",
         "alpha": "アルファ版"
@@ -394,7 +399,8 @@
         "importBackup": "バックアップをインポート",
         "deleteBackup": "バックアップを削除",
         "restoreBackup": "バックアップを復元",
-        "viewHistory": "View history"
+        "viewHistory": "View history",
+        "checkConnection": "接続を確認"
       },
       "fields": {
         "webdavUrl": "WebDAVサーバーのURL http(s)://",
@@ -416,8 +422,8 @@
         "localBackupExportFailed": "Failed to export local backup",
         "localBackupImported": "ローカルバックアップのインポートに成功しました",
         "localBackupImportFailed": "ローカルバックアップのインポートに失敗しました: {{error}}",
-        "webdavRefreshSuccess": "WebDAV refresh succeeded",
-        "webdavRefreshFailed": "WebDAV refresh failed: {{error}}",
+        "webdavRefreshSuccess": "WebDAV に接続できました",
+        "webdavRefreshFailed": "WebDAV に接続できませんでした: {{error}}",
         "confirmDelete": "Confirm to delete this backup file?",
         "confirmRestore": "Confirm to restore this backup file?"
       },
@@ -463,7 +469,7 @@
       },
       "tooltips": {
         "autoCloseConnections": "プロキシグループで選択されたノードまたはプロキシモードが変更されたときに、既存の接続を閉じます。",
-        "enableBuiltinEnhanced": "設定ファイルの互換性処理",
+        "enableBuiltinEnhanced": "設定ファイルの互換性処理。次回のサブスクリプション更新またはアプリ再起動時に反映されます。",
         "defaultLatencyTest": "HTTPクライアントリクエストテストにのみ使用され、設定ファイルには影響しません。",
         "verboseDiagnostics": "Detailed records of network changes and of every write of the system proxy settings. Only needed when investigating a problem: it adds a little background work and many more lines to the log."
       },
@@ -557,14 +563,16 @@
       },
       "fields": {
         "enable": "DNSを有効にする",
+        "enableHint": "TUN モードでは DNS は自動的に有効になります",
         "listen": "DNS監視アドレス",
         "enhancedMode": "拡張モード",
+        "enhancedModeHint": "fake-ip は TUN モードか待ち受けアドレス設定時のみ有効です",
         "fakeIpRange": "Fake IP範囲",
         "fakeIpRange6": "Fake IP範囲 (IPv6)",
         "fakeIpFilterMode": "Fake IPフィルターモード",
         "ipv6": {
           "label": "IPv6",
-          "description": "IPv6 DNS解決を有効にする"
+          "description": "IPv6 DNS解決を有効にする。fake-ip の TUN モードでは、この値はサブスクリプションが決めます。"
         },
         "preferH3": {
           "label": "HTTP/3を優先する",
@@ -614,7 +622,7 @@
           "label": "Hosts",
           "description": "カスタムのドメイン名からIPまたはドメイン名へのマッピング。カンマで区切って指定します。"
         },
-        "listenHint": "空欄なら DNS サーバーを起動しません。トンネル内の横取りには不要です。ネットワークに DNS を提供するにはアドレスを入力してください。"
+        "listenHint": "空欄なら DNS サーバーを起動しません。トンネル内の横取りには不要です。ネットワークに DNS を提供するにはアドレスを入力してください。LAN 共有がオフの間は、ネットワークに開いたアドレスは 127.0.0.1 に置き換えられます。"
       },
       "messages": {
         "saved": "DNS設定が保存されました。",
@@ -642,7 +650,8 @@
       "title": "Webインターフェース",
       "messages": {
         "supportedPlaceholders": "%host, %port, %secretをサポートします。",
-        "placeholderInstruction": "%host, %port, %secretを使用してホスト、ポート、アクセスキーを表します。"
+        "placeholderInstruction": "%host, %port, %secretを使用してホスト、ポート、アクセスキーを表します。",
+        "needsController": "パネルは外部コントローラーが有効なときだけ開きます。"
       }
     },
     "hotkey": {
@@ -680,6 +689,7 @@
       "stable": "Stable",
       "alpha": "Alpha",
       "autoCheck": "Check daily",
+      "autoCheckHint": "管理コアが有効なときに動作します",
       "running": "Running:",
       "managedTag": "managed",
       "bundledTag": "bundled",
@@ -698,7 +708,8 @@
       },
       "updatedTo": "Core updated to {{msg}}",
       "updateNotice": "A newer core is available: {{msg}}",
-      "serviceModeNote": "Service mode runs the bundled core; the managed core applies in sidecar mode only"
+      "serviceModeNote": "サービス使用時は常に同梱コアが動作します。ここでのダウンロードやロールバックは影響しません。",
+      "notDownloadedNote": "管理コアはまだダウンロードされていません。現在は同梱コアが動作しています。"
     }
   },
   "feedback": {

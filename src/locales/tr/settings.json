@@ -16,7 +16,7 @@
       },
       "fields": {
         "autoLaunch": "Otomatik Başlat",
-        "silentStart": "Sessiz Başlatma",
+        "silentStart": "Sistem tepsisinde başlat",
         "connectOnLaunch": "Başlatıldığında bağlan",
         "dnsOverride": "Sistem DNS'ini değiştir"
       },
@@ -112,7 +112,8 @@
         "add": "Ekle"
       },
       "messages": {
-        "alwaysIncluded": "Her zaman dahil edilen kökenler: {{urls}}"
+        "alwaysIncluded": "Her zaman dahil edilen kökenler: {{urls}}",
+        "onlyForPanels": "Yalnızca tarayıcıdaki web panelleri için gereklidir ve harici denetleyici etkinken uygulanır. İstemcinin kendisi bu ayarlara ihtiyaç duymaz."
       },
       "tooltips": {
         "open": "Harici CORS ayarları"
@@ -149,6 +150,7 @@
             "protocols": "Protokol",
             "existing": "Mevcut Tüneller",
             "default": "Geçerli Yapılandırmayı İzle",
+            "followGroup": "Grubun seçimini izle",
             "optional": "İsteğe Bağlı",
             "messages": {
               "incomplete": "Lütfen gerekli tüm tünel alanlarını doldurun",
@@ -355,10 +357,13 @@
         "portTooHigh": "The port must be {{max}} or lower",
         "ladderUnread": "Çekirdeğin şu anda hangi bağlantı noktasını kullandığı okunamadı: karışık port değişmez, diğer portlar kaydedilir.",
         "saved": "Port settings saved",
-        "saveFailed": "Failed to save port settings"
+        "saveFailed": "Failed to save port settings",
+        "firewallRequired": "Kendi güvenlik duvarı kurallarınızı (pf/iptables) gerektirir; istemci bunları kurmaz"
       }
     },
     "clashCore": {
+      "upgradeHint": "Hizmet olmadan güncelleme yeni bir çekirdek indirir ve yönetilen çekirdeğe geçer.",
+      "managedActiveNote": "Yönetilen çekirdek etkin: çekirdek hizmet üzerinden çalışmadığı sürece buradaki seçim etkisizdir.",
       "variants": {
         "release": "Kararlı Sürüm",
         "alpha": "Alfa Sürümü"
@@ -394,7 +399,8 @@
         "importBackup": "Import Backup",
         "deleteBackup": "Yedeği Sil",
         "restoreBackup": "Yedeği Geri Yükle",
-        "viewHistory": "View history"
+        "viewHistory": "View history",
+        "checkConnection": "Bağlantıyı denetle"
       },
       "fields": {
         "webdavUrl": "WebDAV Sunucu URL'si",
@@ -416,8 +422,8 @@
         "localBackupExportFailed": "Failed to export local backup",
         "localBackupImported": "Local backup imported successfully",
         "localBackupImportFailed": "Failed to import local backup: {{error}}",
-        "webdavRefreshSuccess": "WebDAV refresh succeeded",
-        "webdavRefreshFailed": "WebDAV refresh failed: {{error}}",
+        "webdavRefreshSuccess": "WebDAV bağlantısı çalışıyor",
+        "webdavRefreshFailed": "WebDAV'a bağlanılamadı: {{error}}",
         "confirmDelete": "Bu yedek dosyasını silmeyi onaylıyor musunuz?",
         "confirmRestore": "Bu yedek dosyasını geri yüklemeyi onaylıyor musunuz?"
       },
@@ -463,7 +469,7 @@
       },
       "tooltips": {
         "autoCloseConnections": "Vekil grup seçimi veya vekil modu değiştiğinde kurulan bağlantıları sonlandır",
-        "enableBuiltinEnhanced": "Yapılandırma dosyası için uyumluluk işleme",
+        "enableBuiltinEnhanced": "Yapılandırma dosyası için uyumluluk işleme. Bir sonraki abonelik güncellemesinde veya uygulama yeniden başlatıldığında uygulanır.",
         "defaultLatencyTest": "Yalnızca HTTP istemci isteği testi için kullanılır ve yapılandırma dosyasında bir fark yaratmaz",
         "verboseDiagnostics": "Detailed records of network changes and of every write of the system proxy settings. Only needed when investigating a problem: it adds a little background work and many more lines to the log."
       },
@@ -557,14 +563,16 @@
       },
       "fields": {
         "enable": "DNS'i Etkinleştir",
+        "enableHint": "TUN modunda DNS otomatik olarak açılır",
         "listen": "DNS Dinleme",
         "enhancedMode": "Geliştirilmiş Mod",
+        "enhancedModeHint": "fake-ip yalnızca TUN modunda veya dinleme adresi ayarlıyken etkilidir",
         "fakeIpRange": "Sahte IP Aralığı",
         "fakeIpRange6": "Sahte IP Aralığı (IPv6)",
         "fakeIpFilterMode": "Sahte IP Filtre Modu",
         "ipv6": {
           "label": "IPv6",
-          "description": "IPv6 DNS çözümlemesini etkinleştir"
+          "description": "IPv6 DNS çözümlemesini etkinleştir. fake-ip ile TUN modunda bu değeri abonelik belirler."
         },
         "preferH3": {
           "label": "H3'ü Tercih Et",
@@ -614,7 +622,7 @@
           "label": "Hosts",
           "description": "Özel alan adından IP'ye veya alan adına eşleme"
         },
-        "listenHint": "Boş bırakılırsa DNS sunucusu açılmaz; tünel içindeki yakalama buna ihtiyaç duymaz. Ağa DNS sunmak için bir adres girin."
+        "listenHint": "Boş bırakılırsa DNS sunucusu açılmaz; tünel içindeki yakalama buna ihtiyaç duymaz. Ağa DNS sunmak için bir adres girin. Yerel ağ paylaşımı kapalıyken ağa açık bir adres 127.0.0.1 ile değiştirilir."
       },
       "messages": {
         "saved": "DNS ayarları kaydedildi",
@@ -642,7 +650,8 @@
       "title": "Web Arayüzü",
       "messages": {
         "supportedPlaceholders": "%host, %port, %secret destekler",
-        "placeholderInstruction": "Ana bilgisayar, port, sırrı %host, %port, %secret ile değiştirin"
+        "placeholderInstruction": "Ana bilgisayar, port, sırrı %host, %port, %secret ile değiştirin",
+        "needsController": "Panel yalnızca harici denetleyici etkinken açılır."
       }
     },
     "hotkey": {
@@ -680,6 +689,7 @@
       "stable": "Stable",
       "alpha": "Alpha",
       "autoCheck": "Check daily",
+      "autoCheckHint": "Yönetilen çekirdek etkinken çalışır",
       "running": "Running:",
       "managedTag": "managed",
       "bundledTag": "bundled",
@@ -698,7 +708,8 @@
       },
       "updatedTo": "Core updated to {{msg}}",
       "updateNotice": "A newer core is available: {{msg}}",
-      "serviceModeNote": "Service mode runs the bundled core; the managed core applies in sidecar mode only"
+      "serviceModeNote": "Hizmetle her zaman yerleşik çekirdek çalışır: buradaki indirme ve geri alma onu etkilemez.",
+      "notDownloadedNote": "Yönetilen çekirdek henüz indirilmedi; şimdilik yerleşik çekirdek çalışıyor."
     }
   },
   "feedback": {

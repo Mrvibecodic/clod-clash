@@ -105,7 +105,9 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
 
   const proxyOptions = useMemo<IProxyItem[]>(() => {
     const group = proxyGroups.find((item) => item.name === values.group)
-    return group?.all ?? []
+    return (group?.all ?? []).filter(
+      (node) => !node.provider && node.type !== 'unknown',
+    )
   }, [proxyGroups, values.group])
 
   const handleSave = async () => {
@@ -394,13 +396,11 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
                   displayEmpty
                   onChange={(e) => {
                     const nextGroup = e.target.value as string
-                    const group = proxyGroups.find((g) => g.name === nextGroup)
-                    const firstProxy = group?.all?.[0].name ?? ''
 
                     setValues((v) => ({
                       ...v,
                       group: nextGroup,
-                      proxy: firstProxy, // при смене группы автовыбор первого узла
+                      proxy: nextGroup,
                     }))
                   }}
                 >
@@ -447,9 +447,17 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
                   }
                   disabled={!values.group} // отключено, если группа не выбрана
                 >
-                  <MenuItem value="">
-                    {t('settings.sections.clash.form.fields.tunnels.default')}
-                  </MenuItem>
+                  {values.group ? (
+                    <MenuItem value={values.group}>
+                      {t(
+                        'settings.sections.clash.form.fields.tunnels.followGroup',
+                      )}
+                    </MenuItem>
+                  ) : (
+                    <MenuItem value="">
+                      {t('settings.sections.clash.form.fields.tunnels.default')}
+                    </MenuItem>
+                  )}
                   {proxyOptions.map((node) => (
                     <MenuItem key={node.name} value={node.name}>
                       {node.name}

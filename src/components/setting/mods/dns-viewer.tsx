@@ -687,7 +687,10 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
           </Typography>
 
           <Item>
-            <ListItemText primary={t('settings.modals.dns.fields.enable')} />
+            <ListItemText
+              primary={t('settings.modals.dns.fields.enable')}
+              secondary={t('settings.modals.dns.fields.enableHint')}
+            />
             <Switch
               edge="end"
               checked={values.enable}
@@ -714,6 +717,7 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
           <Item>
             <ListItemText
               primary={t('settings.modals.dns.fields.enhancedMode')}
+              secondary={t('settings.modals.dns.fields.enhancedModeHint')}
             />
             <FormControl size="small" sx={{ width: 150 }}>
               <Select

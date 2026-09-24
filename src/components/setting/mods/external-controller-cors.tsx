@@ -1,5 +1,13 @@
 import { Delete as DeleteIcon } from '@mui/icons-material'
-import { Box, Button, Divider, List, ListItem, TextField } from '@mui/material'
+import {
+  Box,
+  Button,
+  Divider,
+  List,
+  ListItem,
+  TextField,
+  Typography,
+} from '@mui/material'
 import { useLockFn, useRequest } from 'ahooks'
 import { forwardRef, useImperativeHandle, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -197,6 +205,9 @@ export const HeaderConfiguration = forwardRef<ClashHeaderConfigingRef>(
         onOk={handleSave}
       >
         <List sx={{ width: '90%', padding: 2 }}>
+          <Typography variant="caption" color="text.secondary" component="p">
+            {t('settings.sections.externalCors.messages.onlyForPanels')}
+          </Typography>
           <ListItem sx={{ padding: '8px 0' }}>
             <Box
               sx={{

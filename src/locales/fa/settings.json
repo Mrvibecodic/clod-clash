@@ -16,7 +16,7 @@
       },
       "fields": {
         "autoLaunch": "اجرای خودکار",
-        "silentStart": "اجرای بی‌صدا",
+        "silentStart": "اجرا در سینی سیستم",
         "connectOnLaunch": "اتصال هنگام راه‌اندازی",
         "dnsOverride": "جایگزینی DNS سیستم"
       },
@@ -112,7 +112,8 @@
         "add": "افزودن"
       },
       "messages": {
-        "alwaysIncluded": "Always included origins: {{urls}}"
+        "alwaysIncluded": "Always included origins: {{urls}}",
+        "onlyForPanels": "فقط پنل‌های وب در مرورگر به آن نیاز دارند و تا وقتی کنترل‌کنندهٔ خارجی روشن است اعمال می‌شود. خود کلاینت به این تنظیمات نیازی ندارد."
       },
       "tooltips": {
         "open": "External Cors Settings"
@@ -149,6 +150,7 @@
             "protocols": "پروتکل",
             "existing": "تونل‌های موجود",
             "default": "پیروی از تنظیمات فعلی",
+            "followGroup": "پیروی از انتخاب گروه",
             "optional": "اختیاری",
             "messages": {
               "incomplete": "لطفاً تمام فیلدهای الزامی تونل را تکمیل کنید",
@@ -355,10 +357,13 @@
         "portTooHigh": "The port must be {{max}} or lower",
         "ladderUnread": "خواندن پورتی که هسته اکنون استفاده می‌کند ممکن نشد: پورت ترکیبی بدون تغییر می‌ماند و پورت‌های دیگر ذخیره می‌شوند.",
         "saved": "Port settings saved",
-        "saveFailed": "Failed to save port settings"
+        "saveFailed": "Failed to save port settings",
+        "firewallRequired": "به قوانین فایروال خودتان (pf/iptables) نیاز دارد؛ کلاینت آن‌ها را تنظیم نمی‌کند"
       }
     },
     "clashCore": {
+      "upgradeHint": "بدون سرویس، به‌روزرسانی یک هستهٔ تازه دانلود می‌کند و به هستهٔ مدیریت‌شده می‌رود.",
+      "managedActiveNote": "هستهٔ مدیریت‌شده روشن است: تا وقتی هسته از طریق سرویس اجرا نمی‌شود، انتخاب اینجا اثری ندارد.",
       "variants": {
         "release": "نسخه نهایی",
         "alpha": "نسخه آلفا"
@@ -394,7 +399,8 @@
         "importBackup": "Import Backup",
         "deleteBackup": "حذف پشتیبان",
         "restoreBackup": "بازیابی پشتیبان",
-        "viewHistory": "View history"
+        "viewHistory": "View history",
+        "checkConnection": "بررسی اتصال"
       },
       "fields": {
         "webdavUrl": "http(s):// URL سرور WebDAV",
@@ -416,8 +422,8 @@
         "localBackupExportFailed": "Failed to export local backup",
         "localBackupImported": "Local backup imported successfully",
         "localBackupImportFailed": "Failed to import local backup: {{error}}",
-        "webdavRefreshSuccess": "WebDAV refresh succeeded",
-        "webdavRefreshFailed": "WebDAV refresh failed: {{error}}",
+        "webdavRefreshSuccess": "اتصال WebDAV برقرار است",
+        "webdavRefreshFailed": "اتصال به WebDAV ممکن نشد: {{error}}",
         "confirmDelete": "آیا از حذف این فایل پشتیبان اطمینان دارید؟",
         "confirmRestore": "آیا از بازیابی این فایل پشتیبان اطمینان دارید؟"
       },
@@ -463,7 +469,7 @@
       },
       "tooltips": {
         "autoCloseConnections": "اتصالات برقرار شده را هنگام تغییر انتخاب گروه پروکسی یا حالت پروکسی خاتمه دهید",
-        "enableBuiltinEnhanced": "مدیریت سازگاری برای فایل پیکربندی",
+        "enableBuiltinEnhanced": "مدیریت سازگاری برای فایل پیکربندی. با به‌روزرسانی بعدی اشتراک یا راه‌اندازی دوبارهٔ برنامه اعمال می‌شود.",
         "defaultLatencyTest": "فقط برای تست درخواست‌های کلاینت HTTP استفاده می‌شود و بر فایل پیکربندی تأثیری نخواهد داشت",
         "verboseDiagnostics": "Detailed records of network changes and of every write of the system proxy settings. Only needed when investigating a problem: it adds a little background work and many more lines to the log."
       },
@@ -557,14 +563,16 @@
       },
       "fields": {
         "enable": "Enable DNS",
+        "enableHint": "در حالت TUN، DNS خودکار روشن می‌شود",
         "listen": "DNS Listen",
         "enhancedMode": "Enhanced Mode",
+        "enhancedModeHint": "fake-ip فقط در حالت TUN یا با نشانی شنود تعیین‌شده اثر دارد",
         "fakeIpRange": "Fake IP Range",
         "fakeIpRange6": "Fake IP Range (IPv6)",
         "fakeIpFilterMode": "Fake IP Filter Mode",
         "ipv6": {
           "label": "IPv6",
-          "description": "Enable IPv6 DNS resolution"
+          "description": "فعال‌سازی تفکیک DNS برای IPv6. در حالت TUN با fake-ip، این مقدار را اشتراک تعیین می‌کند."
         },
         "preferH3": {
           "label": "Prefer H3",
@@ -614,7 +622,7 @@
           "label": "میزبان‌ها",
           "description": "تبدیل دامنه به IP یا نگاشت دامنه سفارشی"
         },
-        "listenHint": "خالی — سرور DNS باز نمی‌شود؛ رهگیری در تونل به آن نیازی ندارد. برای ارائهٔ DNS به شبکه، یک نشانی وارد کنید."
+        "listenHint": "خالی — سرور DNS باز نمی‌شود؛ رهگیری در تونل به آن نیازی ندارد. برای ارائهٔ DNS به شبکه، یک نشانی وارد کنید. تا وقتی اشتراک در شبکهٔ محلی خاموش است، نشانیِ باز به شبکه با 127.0.0.1 جایگزین می‌شود."
       },
       "messages": {
         "saved": "تنظیمات DNS ذخیره شد",
@@ -642,7 +650,8 @@
       "title": "رابط وب",
       "messages": {
         "supportedPlaceholders": "پشتیبانی از %host، %port و %secret",
-        "placeholderInstruction": "جایگزین کردن میزبان، پورت و رمز با %host، %port، %secret"
+        "placeholderInstruction": "جایگزین کردن میزبان، پورت و رمز با %host، %port، %secret",
+        "needsController": "پنل فقط وقتی کنترل‌کنندهٔ خارجی روشن باشد باز می‌شود."
       }
     },
     "hotkey": {
@@ -680,6 +689,7 @@
       "stable": "Stable",
       "alpha": "Alpha",
       "autoCheck": "Check daily",
+      "autoCheckHint": "فقط وقتی هستهٔ مدیریت‌شده روشن است کار می‌کند",
       "running": "Running:",
       "managedTag": "managed",
       "bundledTag": "bundled",
@@ -698,7 +708,8 @@
       },
       "updatedTo": "Core updated to {{msg}}",
       "updateNotice": "A newer core is available: {{msg}}",
-      "serviceModeNote": "Service mode runs the bundled core; the managed core applies in sidecar mode only"
+      "serviceModeNote": "با سرویس همیشه هستهٔ داخلی اجرا می‌شود: دانلود و بازگردانی در اینجا روی آن اثری ندارد.",
+      "notDownloadedNote": "هستهٔ مدیریت‌شده هنوز دانلود نشده است؛ فعلاً هستهٔ داخلی اجرا می‌شود."
     }
   },
   "feedback": {

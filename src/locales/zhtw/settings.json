@@ -16,7 +16,7 @@
       },
       "fields": {
         "autoLaunch": "開機自啟",
-        "silentStart": "靜默啟動",
+        "silentStart": "啟動到系統匣",
         "connectOnLaunch": "啟動時自動連線",
         "dnsOverride": "覆寫系統 DNS"
       },
@@ -112,7 +112,8 @@
         "add": "新增"
       },
       "messages": {
-        "alwaysIncluded": "始終包含來源：{{urls}}"
+        "alwaysIncluded": "始終包含來源：{{urls}}",
+        "onlyForPanels": "僅瀏覽器中的 Web 面板需要，且僅在啟用外部控制器時生效。用戶端本身不需要這些設定。"
       },
       "tooltips": {
         "open": "外部跨來源資源共享設定"
@@ -149,6 +150,7 @@
             "protocols": "協定",
             "existing": "已設定的通道",
             "default": "跟隨目前設定",
+            "followGroup": "跟隨代理組的選擇",
             "optional": "可選",
             "messages": {
               "incomplete": "請完整填寫通道資訊",
@@ -355,10 +357,13 @@
         "portTooHigh": "The port must be {{max}} or lower",
         "ladderUnread": "無法讀取核心目前使用的連接埠：混合連接埠保持不變，其餘連接埠將會儲存。",
         "saved": "連結埠設定已儲存",
-        "saveFailed": "連結埠設定儲存失敗"
+        "saveFailed": "連結埠設定儲存失敗",
+        "firewallRequired": "需要自行設定防火牆規則 (pf/iptables)，用戶端不會設定"
       }
     },
     "clashCore": {
+      "upgradeHint": "未安裝服務時，更新會下載新核心並切換到託管核心。",
+      "managedActiveNote": "已啟用託管核心：核心未透過服務執行時，此處的選擇不生效。",
       "variants": {
         "release": "正式版",
         "alpha": "預覽版"
@@ -394,7 +399,8 @@
         "importBackup": "匯入備份",
         "deleteBackup": "刪除備份",
         "restoreBackup": "還原備份",
-        "viewHistory": "檢視紀錄"
+        "viewHistory": "檢視紀錄",
+        "checkConnection": "檢查連線"
       },
       "fields": {
         "webdavUrl": "WebDAV 伺服器位址 http(s)://",
@@ -416,8 +422,8 @@
         "localBackupExportFailed": "本機備份匯出失敗",
         "localBackupImported": "本機備份匯入成功",
         "localBackupImportFailed": "本機備份匯入失敗：{{error}}",
-        "webdavRefreshSuccess": "WebDAV 更新成功",
-        "webdavRefreshFailed": "WebDAV 更新失敗: {{error}}",
+        "webdavRefreshSuccess": "WebDAV 連線正常",
+        "webdavRefreshFailed": "無法連線到 WebDAV: {{error}}",
         "confirmDelete": "確認是否刪除此備份檔案嗎？",
         "confirmRestore": "確認還原此份檔案嗎？"
       },
@@ -463,7 +469,7 @@
       },
       "tooltips": {
         "autoCloseConnections": "當代理組選中節點或代理模式變動時，關閉已建立的連線",
-        "enableBuiltinEnhanced": "配置檔案的相容性處理",
+        "enableBuiltinEnhanced": "配置檔案的相容性處理。在下次更新訂閱或重新啟動應用程式時生效。",
         "defaultLatencyTest": "僅用於 HTTP 客戶端請求測試，不會對配置檔案產生影響",
         "verboseDiagnostics": "Detailed records of network changes and of every write of the system proxy settings. Only needed when investigating a problem: it adds a little background work and many more lines to the log."
       },
@@ -557,14 +563,16 @@
       },
       "fields": {
         "enable": "啟用 DNS",
+        "enableHint": "TUN 模式下 DNS 會自動啟用",
         "listen": "DNS 監聽位址",
         "enhancedMode": "增強模式",
+        "enhancedModeHint": "fake-ip 僅在 TUN 模式或設定了監聽位址時生效",
         "fakeIpRange": "Fake IP 範圍",
         "fakeIpRange6": "Fake IP 範圍 (IPv6)",
         "fakeIpFilterMode": "Fake IP 篩選模式",
         "ipv6": {
           "label": "IPv6",
-          "description": "啟用 IPv6 DNS 解析"
+          "description": "啟用 IPv6 DNS 解析。在使用 fake-ip 的 TUN 模式下，此值由訂閱決定。"
         },
         "preferH3": {
           "label": "優先使用 HTTP/3",
@@ -614,7 +622,7 @@
           "label": "Hosts",
           "description": "自訂網域到 IP 或網域的映射，用逗號分隔"
         },
-        "listenHint": "留空則不啟動 DNS 服務，隧道內的劫持無需它。若要向區域網路提供 DNS，請填寫地址。"
+        "listenHint": "留空則不啟動 DNS 服務，隧道內的劫持無需它。若要向區域網路提供 DNS，請填寫地址。區域網路共享關閉時，對網路開放的位址會被替換為 127.0.0.1。"
       },
       "messages": {
         "saved": "DNS 設定已儲存",
@@ -642,7 +650,8 @@
       "title": "網頁介面",
       "messages": {
         "supportedPlaceholders": "支援 %host, %port, %secret",
-        "placeholderInstruction": "使用 %host, %port, %secret 表示 主機, 連接埠, 存取金鑰"
+        "placeholderInstruction": "使用 %host, %port, %secret 表示 主機, 連接埠, 存取金鑰",
+        "needsController": "僅在啟用外部控制器時面板才能開啟。"
       }
     },
     "hotkey": {
@@ -680,6 +689,7 @@
       "stable": "Stable",
       "alpha": "Alpha",
       "autoCheck": "Check daily",
+      "autoCheckHint": "僅在啟用託管核心時生效",
       "running": "Running:",
       "managedTag": "managed",
       "bundledTag": "bundled",
@@ -698,7 +708,8 @@
       },
       "updatedTo": "Core updated to {{msg}}",
       "updateNotice": "A newer core is available: {{msg}}",
-      "serviceModeNote": "Service mode runs the bundled core; the managed core applies in sidecar mode only"
+      "serviceModeNote": "使用服務時始終執行內建核心：此處的下載和回滾不會影響它。",
+      "notDownloadedNote": "託管核心尚未下載，目前執行的是內建核心。"
     }
   },
   "feedback": {

@@ -120,6 +120,16 @@ export function WebUIViewer({ ref }: { ref?: Ref<DialogRef> }) {
       onClose={() => setOpen(false)}
       onCancel={() => setOpen(false)}
     >
+      {!verge?.enable_external_controller && (
+        <Typography
+          variant="caption"
+          color="warning.main"
+          component="p"
+          sx={{ mb: 1 }}
+        >
+          {t('settings.modals.webUI.messages.needsController')}
+        </Typography>
+      )}
       {!editing && webUIList.length === 0 && (
         <BaseEmpty
           extra={

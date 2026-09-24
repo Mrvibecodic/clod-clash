@@ -16,7 +16,7 @@
       },
       "fields": {
         "autoLaunch": "Автоматик башлау",
-        "silentStart": "Тын башлау",
+        "silentStart": "Трейда башлау",
         "connectOnLaunch": "Җибәргәч тоташу",
         "dnsOverride": "Система DNS'ын алыштыру"
       },
@@ -112,7 +112,8 @@
         "add": "Add"
       },
       "messages": {
-        "alwaysIncluded": "Always included origins: {{urls}}"
+        "alwaysIncluded": "Always included origins: {{urls}}",
+        "onlyForPanels": "Браузердагы веб-панельләргә генә кирәк һәм тышкы контроллер кабызылганда гамәлдә. Клиентның үзенә бу көйләүләр кирәкми."
       },
       "tooltips": {
         "open": "External Cors Settings"
@@ -149,6 +150,7 @@
             "protocols": "Protokollar",
             "existing": "Bar Tunnel'lär",
             "default": "Xäzerge Köyläwlärgä iärü",
+            "followGroup": "Төркем сайлавына иярү",
             "optional": "Mäcbüri tügel",
             "messages": {
               "incomplete": "Böten tunnel mäğlümatların tutırıgız",
@@ -355,10 +357,13 @@
         "portTooHigh": "The port must be {{max}} or lower",
         "ladderUnread": "Төш хәзер кулланган портны укып булмады: катнаш порт үзгәрмәячәк, калган портлар сакланачак.",
         "saved": "Port settings saved",
-        "saveFailed": "Failed to save port settings"
+        "saveFailed": "Failed to save port settings",
+        "firewallRequired": "Үз брандмауэр кагыйдәләре (pf/iptables) кирәк: клиент аларны көйләми"
       }
     },
     "clashCore": {
+      "upgradeHint": "Хезмәтсез яңарту яңа ядро йөкли һәм идарәле ядрога күчә.",
+      "managedActiveNote": "Идарәле ядро кабызылган: ядро хезмәт аша эшләмәгәндә, монда сайлау гамәлдә түгел.",
       "variants": {
         "release": "Рәсми версия",
         "alpha": "Альфа-версия"
@@ -394,7 +399,8 @@
         "importBackup": "Import Backup",
         "deleteBackup": "Резерв копияне бетерү",
         "restoreBackup": "Резерв копияне кайтару",
-        "viewHistory": "View history"
+        "viewHistory": "View history",
+        "checkConnection": "Тоташуны тикшерү"
       },
       "fields": {
         "webdavUrl": "WebDAV сервер URL-ы (http(s)://)",
@@ -416,8 +422,8 @@
         "localBackupExportFailed": "Failed to export local backup",
         "localBackupImported": "Local backup imported successfully",
         "localBackupImportFailed": "Failed to import local backup: {{error}}",
-        "webdavRefreshSuccess": "WebDAV refresh succeeded",
-        "webdavRefreshFailed": "WebDAV refresh failed: {{error}}",
+        "webdavRefreshSuccess": "WebDAV белән тоташу эшли",
+        "webdavRefreshFailed": "WebDAV белән тоташып булмады: {{error}}",
         "confirmDelete": "Бу резерв копия файлын бетерергә телисезме?",
         "confirmRestore": "Бу резерв копия файлын кире кайтарырга телисезме?"
       },
@@ -463,7 +469,7 @@
       },
       "tooltips": {
         "autoCloseConnections": "Прокси төркеме яисә режимын үзгәрткәндә актив тоташуларны өзү",
-        "enableBuiltinEnhanced": "Конфигурация файлы белән туры килә торган өстәмә оптимизация",
+        "enableBuiltinEnhanced": "Конфигурация файлы белән туры килә торган өстәмә оптимизация. Киләсе язылу яңартуында яки кушымта яңадан башлангач гамәлгә керә.",
         "defaultLatencyTest": "Бу фәкать клиентның HTTP сораулары тесты өчен кулланыла, конфигурация файлына йогынты ясамый",
         "verboseDiagnostics": "Detailed records of network changes and of every write of the system proxy settings. Only needed when investigating a problem: it adds a little background work and many more lines to the log."
       },
@@ -557,14 +563,16 @@
       },
       "fields": {
         "enable": "Enable DNS",
+        "enableHint": "TUN режимында DNS үзеннән-үзе кабына",
         "listen": "DNS Listen",
         "enhancedMode": "Enhanced Mode",
+        "enhancedModeHint": "fake-ip TUN режимында яки тыңлау адресы күрсәтелгәндә генә эшли",
         "fakeIpRange": "Fake IP Range",
         "fakeIpRange6": "Fake IP Range (IPv6)",
         "fakeIpFilterMode": "Fake IP Filter Mode",
         "ipv6": {
           "label": "IPv6",
-          "description": "Enable IPv6 DNS resolution"
+          "description": "IPv6 өчен DNS-чишүне кабызу. fake-ip белән TUN режимында бу кыйммәтне язылу билгели."
         },
         "preferH3": {
           "label": "Prefer H3",
@@ -614,7 +622,7 @@
           "label": "Hosts",
           "description": "Custom domain to IP or domain mapping"
         },
-        "listenHint": "Буш — DNS-сервер ачылмый, тоннельдә тотып алуга ул кирәкми. Челтәргә DNS бирер өчен адрес күрсәтегез."
+        "listenHint": "Буш — DNS-сервер ачылмый, тоннельдә тотып алуга ул кирәкми. Челтәргә DNS бирер өчен адрес күрсәтегез. Җирле челтәргә тарату сүндерелгәндә, челтәргә ачык адрес 127.0.0.1 белән алыштырыла."
       },
       "messages": {
         "saved": "DNS settings saved",
@@ -642,7 +650,8 @@
       "title": "Веб-интерфейс",
       "messages": {
         "supportedPlaceholders": "%host, %port, %secret макросларын хуплау",
-        "placeholderInstruction": "Хост, порт, серсүзне %host, %port, %secret белән алмаштырыгыз"
+        "placeholderInstruction": "Хост, порт, серсүзне %host, %port, %secret белән алмаштырыгыз",
+        "needsController": "Панель тышкы контроллер кабызылганда гына ачыла."
       }
     },
     "hotkey": {
@@ -680,6 +689,7 @@
       "stable": "Stable",
       "alpha": "Alpha",
       "autoCheck": "Check daily",
+      "autoCheckHint": "Идарәле ядро кабызылганда эшли",
       "running": "Running:",
       "managedTag": "managed",
       "bundledTag": "bundled",
@@ -698,7 +708,8 @@
       },
       "updatedTo": "Core updated to {{msg}}",
       "updateNotice": "A newer core is available: {{msg}}",
-      "serviceModeNote": "Service mode runs the bundled core; the managed core applies in sidecar mode only"
+      "serviceModeNote": "Хезмәт белән һәрвакыт эчке ядро эшли: монда йөкләү һәм кире кайтару аңа тәэсир итми.",
+      "notDownloadedNote": "Идарәле ядро әле йөкләнмәгән — хәзергә эчке ядро эшли."
     }
   },
   "feedback": {

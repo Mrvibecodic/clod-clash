@@ -16,7 +16,7 @@
       },
       "fields": {
         "autoLaunch": "تشغيل تلقائي",
-        "silentStart": "تشغيل صامت",
+        "silentStart": "التشغيل في علبة النظام",
         "connectOnLaunch": "الاتصال عند بدء التشغيل",
         "dnsOverride": "تجاوز DNS الخاص بالنظام"
       },
@@ -112,7 +112,8 @@
         "add": "Add"
       },
       "messages": {
-        "alwaysIncluded": "Always included origins: {{urls}}"
+        "alwaysIncluded": "Always included origins: {{urls}}",
+        "onlyForPanels": "تحتاجه لوحات الويب في المتصفح فقط، ويسري ما دامت وحدة التحكم الخارجية مفعلة. العميل نفسه لا يحتاج هذه الإعدادات."
       },
       "tooltips": {
         "open": "External Cors Settings"
@@ -149,6 +150,7 @@
             "protocols": "البروتوكول",
             "existing": "الأنفاق الموجودة",
             "default": "اتباع الإعدادات الحالية",
+            "followGroup": "اتباع اختيار المجموعة",
             "optional": "اختياري",
             "messages": {
               "incomplete": "يرجى تعبئة جميع حقول النفق المطلوبة",
@@ -355,10 +357,13 @@
         "portTooHigh": "The port must be {{max}} or lower",
         "ladderUnread": "تعذّر قراءة المنفذ الذي يستخدمه النواة الآن: سيبقى المنفذ المختلط كما هو، وستُحفظ المنافذ الأخرى.",
         "saved": "Port settings saved",
-        "saveFailed": "Failed to save port settings"
+        "saveFailed": "Failed to save port settings",
+        "firewallRequired": "يتطلب قواعد جدار حماية خاصة بك (pf/iptables)؛ العميل لا يضبطها"
       }
     },
     "clashCore": {
+      "upgradeHint": "من دون الخدمة، يُنزّل التحديث نواة جديدة ويتحول إلى النواة المُدارة.",
+      "managedActiveNote": "النواة المُدارة مفعلة: ما دامت النواة لا تعمل عبر الخدمة فلا أثر للاختيار هنا.",
       "variants": {
         "release": "الإصدار المستقر",
         "alpha": "الإصدار التجريبي"
@@ -394,7 +399,8 @@
         "importBackup": "Import Backup",
         "deleteBackup": "حذف النسخة الاحتياطية",
         "restoreBackup": "استعادة النسخة الاحتياطية",
-        "viewHistory": "View history"
+        "viewHistory": "View history",
+        "checkConnection": "فحص الاتصال"
       },
       "fields": {
         "webdavUrl": "عنوان خادم WebDAV",
@@ -416,8 +422,8 @@
         "localBackupExportFailed": "Failed to export local backup",
         "localBackupImported": "Local backup imported successfully",
         "localBackupImportFailed": "Failed to import local backup: {{error}}",
-        "webdavRefreshSuccess": "WebDAV refresh succeeded",
-        "webdavRefreshFailed": "WebDAV refresh failed: {{error}}",
+        "webdavRefreshSuccess": "اتصال WebDAV يعمل",
+        "webdavRefreshFailed": "تعذر الاتصال بـ WebDAV: {{error}}",
         "confirmDelete": "هل تريد بالتأكيد حذف ملف النسخة الاحتياطية هذا؟",
         "confirmRestore": "هل تريد بالتأكيد استعادة ملف النسخة الاحتياطية هذا؟"
       },
@@ -463,7 +469,7 @@
       },
       "tooltips": {
         "autoCloseConnections": "إنهاء الاتصالات القائمة عند تغيير اختيار مجموعة الوكيل أو وضع الوكيل",
-        "enableBuiltinEnhanced": "معالجة توافق ملف التكوين",
+        "enableBuiltinEnhanced": "معالجة توافق ملف التكوين. يُطبَّق عند التحديث التالي للاشتراك أو إعادة تشغيل التطبيق.",
         "defaultLatencyTest": "يُستخدم فقط لاختبار طلب HTTP العميل. لن يؤثر على ملف التكوين",
         "verboseDiagnostics": "Detailed records of network changes and of every write of the system proxy settings. Only needed when investigating a problem: it adds a little background work and many more lines to the log."
       },
@@ -557,14 +563,16 @@
       },
       "fields": {
         "enable": "Enable DNS",
+        "enableHint": "في وضع TUN يُفعَّل DNS تلقائيًا",
         "listen": "DNS Listen",
         "enhancedMode": "Enhanced Mode",
+        "enhancedModeHint": "لا يعمل fake-ip إلا في وضع TUN أو عند تحديد عنوان استماع",
         "fakeIpRange": "Fake IP Range",
         "fakeIpRange6": "نطاق Fake IP (IPv6)",
         "fakeIpFilterMode": "Fake IP Filter Mode",
         "ipv6": {
           "label": "IPv6",
-          "description": "Enable IPv6 DNS resolution"
+          "description": "تفعيل تحليل DNS لعناوين IPv6. في وضع TUN مع fake-ip يحدد الاشتراك هذه القيمة."
         },
         "preferH3": {
           "label": "Prefer H3",
@@ -614,7 +622,7 @@
           "label": "Hosts",
           "description": "Custom domain to IP or domain mapping"
         },
-        "listenHint": "اتركه فارغًا كي لا يُفتح خادم DNS؛ الاعتراض داخل النفق لا يحتاج إليه. لتقديم DNS للشبكة أدخل عنوانًا."
+        "listenHint": "اتركه فارغًا كي لا يُفتح خادم DNS؛ الاعتراض داخل النفق لا يحتاج إليه. لتقديم DNS للشبكة أدخل عنوانًا. ما دامت المشاركة في الشبكة المحلية معطلة، يُستبدل العنوان المفتوح على الشبكة بـ 127.0.0.1."
       },
       "messages": {
         "saved": "DNS settings saved",
@@ -642,7 +650,8 @@
       "title": "واجهة الويب",
       "messages": {
         "supportedPlaceholders": "يدعم %host و%port و%secret",
-        "placeholderInstruction": "استبدل المضيف والمنفذ والمفتاح بـ %host و%port و%secret"
+        "placeholderInstruction": "استبدل المضيف والمنفذ والمفتاح بـ %host و%port و%secret",
+        "needsController": "لا تفتح اللوحة إلا عند تفعيل وحدة التحكم الخارجية."
       }
     },
     "hotkey": {
@@ -680,6 +689,7 @@
       "stable": "Stable",
       "alpha": "Alpha",
       "autoCheck": "Check daily",
+      "autoCheckHint": "يعمل عند تفعيل النواة المُدارة",
       "running": "Running:",
       "managedTag": "managed",
       "bundledTag": "bundled",
@@ -698,7 +708,8 @@
       },
       "updatedTo": "Core updated to {{msg}}",
       "updateNotice": "A newer core is available: {{msg}}",
-      "serviceModeNote": "Service mode runs the bundled core; the managed core applies in sidecar mode only"
+      "serviceModeNote": "مع الخدمة تعمل النواة المضمّنة دائمًا: التنزيل والتراجع هنا لا يؤثران فيها.",
+      "notDownloadedNote": "لم تُنزَّل النواة المُدارة بعد، وتعمل النواة المضمّنة حاليًا."
     }
   },
   "feedback": {

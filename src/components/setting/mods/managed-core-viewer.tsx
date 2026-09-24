@@ -199,9 +199,16 @@ export function ManagedCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
           direction="row"
           sx={{ alignItems: 'center', justifyContent: 'space-between' }}
         >
-          <Typography variant="body2">
-            {t('settings.modals.managedCore.autoCheck')}
-          </Typography>
+          <Box>
+            <Typography variant="body2">
+              {t('settings.modals.managedCore.autoCheck')}
+            </Typography>
+            {!managedOn ? (
+              <Typography variant="caption" color="text.secondary">
+                {t('settings.modals.managedCore.autoCheckHint')}
+              </Typography>
+            ) : null}
+          </Box>
           <Switch
             checked={autoCheck}
             disabled={busy || (status?.updating ?? false)}
@@ -251,6 +258,10 @@ export function ManagedCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
           {status?.service_mode ? (
             <Typography variant="caption" color="warning.main">
               {t('settings.modals.managedCore.serviceModeNote')}
+            </Typography>
+          ) : managedOn && status && !status.current ? (
+            <Typography variant="caption" color="warning.main">
+              {t('settings.modals.managedCore.notDownloadedNote')}
             </Typography>
           ) : null}
         </Stack>

@@ -16,7 +16,7 @@
       },
       "fields": {
         "autoLaunch": "Automatischer Start",
-        "silentStart": "Leiser Start",
+        "silentStart": "Im Infobereich starten",
         "connectOnLaunch": "Beim Start verbinden",
         "dnsOverride": "System-DNS überschreiben"
       },
@@ -112,7 +112,8 @@
         "add": "Hinzufügen"
       },
       "messages": {
-        "alwaysIncluded": "Immer enthaltene Ursprünge: {{urls}}"
+        "alwaysIncluded": "Immer enthaltene Ursprünge: {{urls}}",
+        "onlyForPanels": "Nur für Web-Panels im Browser nötig und wirksam, solange der externe Controller aktiviert ist. Der Client selbst braucht diese Einstellungen nicht."
       },
       "tooltips": {
         "open": "Einstellungen für externe CORS"
@@ -149,6 +150,7 @@
             "protocols": "Protokoll",
             "existing": "Vorhandene Tunnel",
             "default": "Aktueller Konfiguration folgen",
+            "followGroup": "Der Auswahl der Gruppe folgen",
             "optional": "Optional",
             "messages": {
               "incomplete": "Bitte alle erforderlichen Tunnel-Felder ausfüllen",
@@ -355,10 +357,13 @@
         "portTooHigh": "The port must be {{max}} or lower",
         "ladderUnread": "Es konnte nicht gelesen werden, welchen Port der Kern gerade nutzt: Der gemischte Proxy-Port bleibt unverändert, die übrigen Ports werden gespeichert.",
         "saved": "Port settings saved",
-        "saveFailed": "Failed to save port settings"
+        "saveFailed": "Failed to save port settings",
+        "firewallRequired": "Erfordert eigene Firewall-Regeln (pf/iptables); der Client richtet sie nicht ein"
       }
     },
     "clashCore": {
+      "upgradeHint": "Ohne Dienst lädt die Aktualisierung einen frischen Kern herunter und schaltet auf den verwalteten Kern um.",
+      "managedActiveNote": "Der verwaltete Kern ist aktiviert: Solange der Kern nicht über den Dienst läuft, wirkt die Auswahl hier nicht.",
       "variants": {
         "release": "Stabile Version",
         "alpha": "Alpha-Version"
@@ -394,7 +399,8 @@
         "importBackup": "Import Backup",
         "deleteBackup": "Sicherung löschen",
         "restoreBackup": "Sicherung wiederherstellen",
-        "viewHistory": "View history"
+        "viewHistory": "View history",
+        "checkConnection": "Verbindung prüfen"
       },
       "fields": {
         "webdavUrl": "WebDAV-Serveradresse http(s)://",
@@ -416,8 +422,8 @@
         "localBackupExportFailed": "Failed to export local backup",
         "localBackupImported": "Local backup imported successfully",
         "localBackupImportFailed": "Failed to import local backup: {{error}}",
-        "webdavRefreshSuccess": "WebDAV refresh succeeded",
-        "webdavRefreshFailed": "WebDAV refresh failed: {{error}}",
+        "webdavRefreshSuccess": "WebDAV-Verbindung funktioniert",
+        "webdavRefreshFailed": "Keine Verbindung zu WebDAV: {{error}}",
         "confirmDelete": "Confirm to delete this backup file?",
         "confirmRestore": "Confirm to restore this backup file?"
       },
@@ -463,7 +469,7 @@
       },
       "tooltips": {
         "autoCloseConnections": "Wenn der ausgewählte Knoten in der Proxy-Gruppe oder der Proxy-Modus geändert wird, werden die bestehenden Verbindungen geschlossen.",
-        "enableBuiltinEnhanced": "Kompatibilitätsbehandlung der Konfigurationsdatei",
+        "enableBuiltinEnhanced": "Kompatibilitätsbehandlung der Konfigurationsdatei. Wird beim nächsten Abo-Update oder Neustart der App übernommen.",
         "defaultLatencyTest": "Dies wird nur für HTTP-Client-Anfragentests verwendet und hat keine Auswirkungen auf die Konfigurationsdatei.",
         "verboseDiagnostics": "Detailed records of network changes and of every write of the system proxy settings. Only needed when investigating a problem: it adds a little background work and many more lines to the log."
       },
@@ -557,14 +563,16 @@
       },
       "fields": {
         "enable": "DNS aktivieren",
+        "enableHint": "Im TUN-Modus wird DNS automatisch aktiviert",
         "listen": "DNS-Lauschangabe",
         "enhancedMode": "Erweiterter Modus",
+        "enhancedModeHint": "fake-ip wirkt nur im TUN-Modus oder mit gesetzter Abhöradresse",
         "fakeIpRange": "Fake-IP-Bereich",
         "fakeIpRange6": "Fake-IP-Bereich (IPv6)",
         "fakeIpFilterMode": "Fake-IP-Filtermodus",
         "ipv6": {
           "label": "IPv6",
-          "description": "IPv6-DNS-Auflösung aktivieren"
+          "description": "IPv6-DNS-Auflösung aktivieren. Im TUN-Modus mit fake-ip legt das Abonnement den Wert fest."
         },
         "preferH3": {
           "label": "HTTP/3 bevorzugen",
@@ -614,7 +622,7 @@
           "label": "Hosts",
           "description": "Benutzerdefinierte Zuordnung von Domains zu IPs oder Domains, getrennt durch Kommas"
         },
-        "listenHint": "Leer — kein DNS-Server; das Abfangen im Tunnel braucht ihn nicht. Um DNS ins Netzwerk zu geben, eine Adresse eintragen."
+        "listenHint": "Leer — kein DNS-Server; das Abfangen im Tunnel braucht ihn nicht. Um DNS ins Netzwerk zu geben, eine Adresse eintragen. Solange die LAN-Freigabe aus ist, wird eine ins Netzwerk offene Adresse durch 127.0.0.1 ersetzt."
       },
       "messages": {
         "saved": "DNS-Einstellungen wurden gespeichert",
@@ -642,7 +650,8 @@
       "title": "Web-Oberfläche",
       "messages": {
         "supportedPlaceholders": "Unterstützt %host, %port, %secret",
-        "placeholderInstruction": "Verwenden Sie %host, %port, %secret für Host, Port und Zugangsschlüssel"
+        "placeholderInstruction": "Verwenden Sie %host, %port, %secret für Host, Port und Zugangsschlüssel",
+        "needsController": "Das Panel öffnet sich nur, wenn der externe Controller aktiviert ist."
       }
     },
     "hotkey": {
@@ -680,6 +689,7 @@
       "stable": "Stable",
       "alpha": "Alpha",
       "autoCheck": "Check daily",
+      "autoCheckHint": "Wirkt nur bei aktiviertem verwaltetem Kern",
       "running": "Running:",
       "managedTag": "managed",
       "bundledTag": "bundled",
@@ -698,7 +708,8 @@
       },
       "updatedTo": "Core updated to {{msg}}",
       "updateNotice": "A newer core is available: {{msg}}",
-      "serviceModeNote": "Service mode runs the bundled core; the managed core applies in sidecar mode only"
+      "serviceModeNote": "Mit dem Dienst läuft immer der mitgelieferte Kern: Herunterladen und Zurücksetzen hier wirken sich nicht darauf aus.",
+      "notDownloadedNote": "Der verwaltete Kern ist noch nicht heruntergeladen — vorerst läuft der mitgelieferte."
     }
   },
   "feedback": {

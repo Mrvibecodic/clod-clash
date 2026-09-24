@@ -16,7 +16,7 @@
       },
       "fields": {
         "autoLaunch": "Start with the system",
-        "silentStart": "Start minimized",
+        "silentStart": "Start in the tray",
         "connectOnLaunch": "Connect on launch",
         "dnsOverride": "Override system DNS"
       },
@@ -112,7 +112,8 @@
         "add": "Add"
       },
       "messages": {
-        "alwaysIncluded": "Always included origins: {{urls}}"
+        "alwaysIncluded": "Always included origins: {{urls}}",
+        "onlyForPanels": "Only needed by browser web panels and applies while the external controller is enabled. The client itself does not need these settings."
       },
       "tooltips": {
         "open": "External Cors Settings"
@@ -149,6 +150,7 @@
             "protocols": "Protocol",
             "existing": "Existing Tunnels",
             "default": "Follow Current Configuration",
+            "followGroup": "Follow the group's selection",
             "optional": "Optional",
             "messages": {
               "incomplete": "Please fill in all required tunnel fields",
@@ -355,10 +357,13 @@
         "portTooHigh": "The port must be {{max}} or lower",
         "ladderUnread": "Could not read which port the core is using now: the mixed port will stay as it is, the other ports will be saved.",
         "saved": "Port settings saved",
-        "saveFailed": "Failed to save port settings"
+        "saveFailed": "Failed to save port settings",
+        "firewallRequired": "Needs your own firewall rules (pf/iptables); the client does not set them up"
       }
     },
     "clashCore": {
+      "upgradeHint": "Without the service, updating downloads a fresh core and switches to the managed core.",
+      "managedActiveNote": "The managed core is enabled: while the core does not run through the service, the choice here has no effect.",
       "variants": {
         "release": "Release Version",
         "alpha": "Alpha Version"
@@ -394,7 +399,8 @@
         "importBackup": "Import Backup",
         "deleteBackup": "Delete Backup",
         "restoreBackup": "Restore Backup",
-        "viewHistory": "View history"
+        "viewHistory": "View history",
+        "checkConnection": "Check connection"
       },
       "fields": {
         "webdavUrl": "WebDAV Server URL",
@@ -416,8 +422,8 @@
         "localBackupExportFailed": "Failed to export local backup",
         "localBackupImported": "Local backup imported successfully",
         "localBackupImportFailed": "Failed to import local backup: {{error}}",
-        "webdavRefreshSuccess": "WebDAV refresh succeeded",
-        "webdavRefreshFailed": "WebDAV refresh failed: {{error}}",
+        "webdavRefreshSuccess": "WebDAV connection works",
+        "webdavRefreshFailed": "Could not connect to WebDAV: {{error}}",
         "confirmDelete": "Confirm to delete this backup file?",
         "confirmRestore": "Confirm to restore this backup file?"
       },
@@ -463,7 +469,7 @@
       },
       "tooltips": {
         "autoCloseConnections": "Terminate established connections when the proxy group selection or proxy mode changes",
-        "enableBuiltinEnhanced": "Compatibility handling for the configuration file",
+        "enableBuiltinEnhanced": "Compatibility handling for the configuration file. Applies on the next subscription update or app restart.",
         "defaultLatencyTest": "Used for HTTP client request testing only and won't make a difference to the configuration file",
         "verboseDiagnostics": "Detailed records of network changes and of every write of the system proxy settings. Only needed when investigating a problem: it adds a little background work and many more lines to the log."
       },
@@ -557,14 +563,16 @@
       },
       "fields": {
         "enable": "Enable DNS",
+        "enableHint": "In TUN mode DNS is turned on automatically",
         "listen": "DNS Listen",
         "enhancedMode": "Enhanced Mode",
+        "enhancedModeHint": "fake-ip only takes effect in TUN mode or with a listen address set",
         "fakeIpRange": "Fake IP Range",
         "fakeIpRange6": "Fake IP Range (IPv6)",
         "fakeIpFilterMode": "Fake IP Filter Mode",
         "ipv6": {
           "label": "IPv6",
-          "description": "Enable IPv6 DNS resolution"
+          "description": "Enable IPv6 DNS resolution. In TUN mode with fake-ip, the subscription sets this value."
         },
         "preferH3": {
           "label": "Prefer H3",
@@ -614,7 +622,7 @@
           "label": "Hosts",
           "description": "Custom domain to IP or domain mapping"
         },
-        "listenHint": "Empty — no DNS server is opened; interception in the tunnel works without it. To serve DNS to the network, enter an address."
+        "listenHint": "Empty — no DNS server is opened; interception in the tunnel works without it. To serve DNS to the network, enter an address. While LAN sharing is off, an address open to the network is replaced with 127.0.0.1."
       },
       "messages": {
         "saved": "DNS settings saved",
@@ -642,7 +650,8 @@
       "title": "Web UI",
       "messages": {
         "supportedPlaceholders": "Support %host, %port, %secret",
-        "placeholderInstruction": "Replace host, port, secret with %host, %port, %secret"
+        "placeholderInstruction": "Replace host, port, secret with %host, %port, %secret",
+        "needsController": "The panel opens only while the external controller is enabled."
       }
     },
     "hotkey": {
@@ -680,6 +689,7 @@
       "stable": "Stable",
       "alpha": "Alpha",
       "autoCheck": "Check daily",
+      "autoCheckHint": "Works while the managed core is enabled",
       "running": "Running:",
       "managedTag": "managed",
       "bundledTag": "bundled",
@@ -698,7 +708,8 @@
       },
       "updatedTo": "Core updated to {{msg}}",
       "updateNotice": "A newer core is available: {{msg}}",
-      "serviceModeNote": "Service mode runs the bundled core; the managed core applies in sidecar mode only"
+      "serviceModeNote": "With the service, the bundled core always runs: downloading and reverting here do not affect it.",
+      "notDownloadedNote": "The managed core has not been downloaded yet — the bundled one runs for now."
     }
   },
   "feedback": {

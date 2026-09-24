@@ -448,7 +448,13 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
           <ListItem sx={{ padding: '4px 0', minHeight: 36 }}>
             <ListItemText
               primary={t('settings.modals.clashPort.fields.redir')}
-              slotProps={{ primary: { sx: { fontSize: 12 } } }}
+              secondary={t(
+                'settings.modals.clashPort.messages.firewallRequired',
+              )}
+              slotProps={{
+                primary: { sx: { fontSize: 12 } },
+                secondary: { sx: { fontSize: 11 } },
+              }}
             />
             <div style={{ display: 'flex', alignItems: 'center' }}>
               <TextField
@@ -484,7 +490,13 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
           <ListItem sx={{ padding: '4px 0', minHeight: 36 }}>
             <ListItemText
               primary={t('settings.modals.clashPort.fields.tproxy')}
-              slotProps={{ primary: { sx: { fontSize: 12 } } }}
+              secondary={t(
+                'settings.modals.clashPort.messages.firewallRequired',
+              )}
+              slotProps={{
+                primary: { sx: { fontSize: 12 } },
+                secondary: { sx: { fontSize: 11 } },
+              }}
             />
             <div style={{ display: 'flex', alignItems: 'center' }}>
               <TextField

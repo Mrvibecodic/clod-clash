@@ -16,7 +16,7 @@
       },
       "fields": {
         "autoLaunch": "Mulai otomatis",
-        "silentStart": "Mulai senyap",
+        "silentStart": "Mulai di baki sistem",
         "connectOnLaunch": "Sambungkan saat dijalankan",
         "dnsOverride": "Ganti DNS sistem"
       },
@@ -112,7 +112,8 @@
         "add": "Add"
       },
       "messages": {
-        "alwaysIncluded": "Always included origins: {{urls}}"
+        "alwaysIncluded": "Always included origins: {{urls}}",
+        "onlyForPanels": "Hanya diperlukan panel web di peramban dan berlaku selama pengontrol eksternal aktif. Klien sendiri tidak memerlukan pengaturan ini."
       },
       "tooltips": {
         "open": "External Cors Settings"
@@ -149,6 +150,7 @@
             "protocols": "Protokol",
             "existing": "Terowongan yang Ada",
             "default": "Ikuti Konfigurasi Saat Ini",
+            "followGroup": "Ikuti pilihan grup",
             "optional": "Opsional",
             "messages": {
               "incomplete": "Silakan lengkapi semua kolom terowongan yang diperlukan",
@@ -355,10 +357,13 @@
         "portTooHigh": "The port must be {{max}} or lower",
         "ladderUnread": "Tidak dapat membaca port mana yang sedang dipakai inti: port campuran tidak berubah, port lainnya akan disimpan.",
         "saved": "Port settings saved",
-        "saveFailed": "Failed to save port settings"
+        "saveFailed": "Failed to save port settings",
+        "firewallRequired": "Memerlukan aturan firewall sendiri (pf/iptables); klien tidak mengaturnya"
       }
     },
     "clashCore": {
+      "upgradeHint": "Tanpa layanan, pembaruan mengunduh inti baru dan beralih ke inti terkelola.",
+      "managedActiveNote": "Inti terkelola aktif: selama inti tidak berjalan melalui layanan, pilihan di sini tidak berlaku.",
       "variants": {
         "release": "Versi Rilis",
         "alpha": "Versi Alpha"
@@ -394,7 +399,8 @@
         "importBackup": "Import Backup",
         "deleteBackup": "Hapus Cadangan",
         "restoreBackup": "Pulihkan Cadangan",
-        "viewHistory": "View history"
+        "viewHistory": "View history",
+        "checkConnection": "Periksa koneksi"
       },
       "fields": {
         "webdavUrl": "URL Server WebDAV",
@@ -416,8 +422,8 @@
         "localBackupExportFailed": "Failed to export local backup",
         "localBackupImported": "Local backup imported successfully",
         "localBackupImportFailed": "Failed to import local backup: {{error}}",
-        "webdavRefreshSuccess": "WebDAV refresh succeeded",
-        "webdavRefreshFailed": "WebDAV refresh failed: {{error}}",
+        "webdavRefreshSuccess": "Koneksi WebDAV berfungsi",
+        "webdavRefreshFailed": "Tidak dapat terhubung ke WebDAV: {{error}}",
         "confirmDelete": "Konfirmasi untuk menghapus file cadangan ini?",
         "confirmRestore": "Konfirmasi untuk memulihkan file cadangan ini?"
       },
@@ -463,7 +469,7 @@
       },
       "tooltips": {
         "autoCloseConnections": "Hentikan koneksi yang sudah ada saat pemilihan grup proksi atau mode proksi berubah",
-        "enableBuiltinEnhanced": "Penanganan kompatibilitas untuk file konfigurasi",
+        "enableBuiltinEnhanced": "Penanganan kompatibilitas untuk file konfigurasi. Berlaku pada pembaruan langganan berikutnya atau saat aplikasi dimulai ulang.",
         "defaultLatencyTest": "Digunakan hanya untuk pengujian permintaan klien HTTP dan tidak akan mempengaruhi file konfigurasi",
         "verboseDiagnostics": "Detailed records of network changes and of every write of the system proxy settings. Only needed when investigating a problem: it adds a little background work and many more lines to the log."
       },
@@ -557,14 +563,16 @@
       },
       "fields": {
         "enable": "Enable DNS",
+        "enableHint": "Dalam mode TUN, DNS diaktifkan otomatis",
         "listen": "DNS Listen",
         "enhancedMode": "Enhanced Mode",
+        "enhancedModeHint": "fake-ip hanya berlaku dalam mode TUN atau dengan alamat dengar yang diisi",
         "fakeIpRange": "Fake IP Range",
         "fakeIpRange6": "Fake IP Range (IPv6)",
         "fakeIpFilterMode": "Fake IP Filter Mode",
         "ipv6": {
           "label": "IPv6",
-          "description": "Enable IPv6 DNS resolution"
+          "description": "Aktifkan resolusi DNS IPv6. Dalam mode TUN dengan fake-ip, nilai ini ditentukan langganan."
         },
         "preferH3": {
           "label": "Prefer H3",
@@ -614,7 +622,7 @@
           "label": "Hosts",
           "description": "Custom domain to IP or domain mapping"
         },
-        "listenHint": "Kosong — server DNS tidak dibuka; pencegatan di terowongan tidak memerlukannya. Untuk membagikan DNS ke jaringan, isi alamat."
+        "listenHint": "Kosong — server DNS tidak dibuka; pencegatan di terowongan tidak memerlukannya. Untuk membagikan DNS ke jaringan, isi alamat. Selama berbagi LAN nonaktif, alamat yang terbuka ke jaringan diganti dengan 127.0.0.1."
       },
       "messages": {
         "saved": "DNS settings saved",
@@ -642,7 +650,8 @@
       "title": "Antarmuka Web",
       "messages": {
         "supportedPlaceholders": "Dukung %host, %port, %secret",
-        "placeholderInstruction": "Ganti host, port, rahasia dengan %host, %port, %secret"
+        "placeholderInstruction": "Ganti host, port, rahasia dengan %host, %port, %secret",
+        "needsController": "Panel hanya terbuka saat pengontrol eksternal diaktifkan."
       }
     },
     "hotkey": {
@@ -680,6 +689,7 @@
       "stable": "Stable",
       "alpha": "Alpha",
       "autoCheck": "Check daily",
+      "autoCheckHint": "Berfungsi saat inti terkelola diaktifkan",
       "running": "Running:",
       "managedTag": "managed",
       "bundledTag": "bundled",
@@ -698,7 +708,8 @@
       },
       "updatedTo": "Core updated to {{msg}}",
       "updateNotice": "A newer core is available: {{msg}}",
-      "serviceModeNote": "Service mode runs the bundled core; the managed core applies in sidecar mode only"
+      "serviceModeNote": "Dengan layanan, inti bawaan selalu berjalan: unduh dan kembalikan di sini tidak memengaruhinya.",
+      "notDownloadedNote": "Inti terkelola belum diunduh — untuk sementara inti bawaan yang berjalan."
     }
   },
   "feedback": {

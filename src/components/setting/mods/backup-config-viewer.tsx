@@ -270,7 +270,7 @@ export const BackupConfigViewer = memo(
                     type="button"
                     size="large"
                   >
-                    {t('shared.actions.refresh')}
+                    {t('settings.modals.backup.actions.checkConnection')}
                   </Button>
                 </>
               )}

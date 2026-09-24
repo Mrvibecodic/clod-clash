@@ -5,8 +5,8 @@
  * reads as an error — the two look the same as a number (`0` / `-1`) but mean
  * very different things to someone choosing a server.
  */
-const GOOD_DELAY = 150
-const FAIR_DELAY = 300
+const GOOD_DELAY = 200
+const FAIR_DELAY = 400
 
 export const delayTone = (delay: number | undefined) => {
   if (delay === undefined || delay < 0) return undefined

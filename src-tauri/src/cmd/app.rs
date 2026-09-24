@@ -65,8 +65,20 @@ pub async fn open_app_dir() -> CmdResult<()> {
 
 #[tauri::command]
 pub async fn open_core_dir() -> CmdResult<()> {
-    let core_dir = tauri::utils::platform::current_exe().stringify_err()?;
-    let core_dir = core_dir.parent().ok_or("failed to get core dir")?;
+    let service_mode = matches!(
+        *crate::core::CoreManager::global().get_running_mode(),
+        crate::core::manager::RunningMode::Service
+    );
+    let managed = if service_mode {
+        None
+    } else {
+        crate::core::core_updater::managed_binary_on_disk().await
+    };
+    let core_binary = match managed {
+        Some(binary) => binary,
+        None => tauri::utils::platform::current_exe().stringify_err()?,
+    };
+    let core_dir = core_binary.parent().ok_or("failed to get core dir")?;
     open::that(core_dir).stringify_err()
 }
 
