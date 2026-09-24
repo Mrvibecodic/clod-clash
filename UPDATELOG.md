@@ -8,6 +8,66 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.1.11-alpha.2
+
+<!-- lang:en -->
+
+### Changed
+
+- Routing mode comes from the subscription; a mode chosen by hand is remembered per subscription and survives updates
+- Favorites star on the Proxies page too; favorite nodes come first in a group; one latency color scale on every screen
+- Groups are latency-tested in parallel with a shared load cap; the ping on the Proxies page is the same measurement the sorting uses
+- The selected node on the Home page keeps its ping fresh while the window is on screen
+- The service availability test page has been removed
+- Ports, controller address and CORS apply without needless core restarts
+- Interface texts unified: subscriptions are called subscriptions everywhere, counts use proper plural forms, autostart options have descriptive names
+
+### Fixed
+
+- Home page shows the real connection state, ping, subscription expiry and mode; a failed ping is shown instead of a stale value
+- Notifications that arrive while the window is hidden wait for it to be shown
+- Applying the current subscription restores the node selection; the first added subscription is applied at once
+- Subscription editors no longer close or lose text when the core rejects a change, and save exactly what is on screen
+- Bulk selection acts on visible cards only; editing a subscription sends only the changed fields
+- Repeating the already active mode no longer drops connections
+- Traffic speed and the connections table reset when the core goes away instead of freezing
+- Log page shows what the core writes at its current level and remembers a clear
+- Connections page shows the real state of the card, the table and closed connections
+- "Update all" reports which providers failed
+- Settings dialogs validate input; update, backup and action errors are shown
+- Crash screen offers to quit; relative times and service texts translated
+- Group latency test in global mode skips nodes hidden by the filter
+
+<!-- lang:ru -->
+
+### Изменено
+
+- Режим маршрутизации берётся из подписки; выбранный руками режим помнится для каждой подписки и переживает обновления
+- Звёздочка избранного и на странице «Прокси»; избранные узлы стоят в группе первыми; одна шкала цвета задержки на всех экранах
+- Группы проверяются параллельно с общим потолком нагрузки; пинг на странице «Прокси» — тот же замер, что и сортировка
+- Выбранный узел на Главной обновляет пинг, пока окно на экране
+- Страница проверки доступности сервисов убрана
+- Порты, адрес контроллера и CORS применяются без лишних перезапусков ядра
+- Тексты приведены к одному: подписки везде называются подписками, числительные в правильных формах, автозапуск назван по смыслу
+
+### Исправлено
+
+- Главная показывает действительное состояние подключения, пинга, срока подписки и режима; провал замера виден вместо застывшей цифры
+- Уведомления, пришедшие в скрытое окно, ждут его показа
+- Применение текущей подписки возвращает выбор узлов; первая добавленная подписка применяется сразу
+- Редакторы подписки не закрываются и не теряют текст при отказе ядра, сохраняют ровно то, что на экране
+- Пакетный выбор действует на видимые карточки; правка подписки шлёт только изменённое
+- Повтор уже активного режима не рвёт соединения
+- Скорость и таблица соединений обнуляются при пропаже ядра, а не застывают
+- Журнал показывает то, что пишет ядро на текущем уровне, и помнит очистку
+- Страница соединений показывает настоящее состояние карточки, таблицы и закрытых соединений
+- «Обновить все» сообщает, какие провайдеры не обновились
+- Диалоги настроек проверяют ввод; ошибки обновления, резервных копий и действий видны
+- Экран аварии предлагает выход; относительное время и тексты про службу переведены
+- Проверка группы в глобальном режиме не мерит узлы, скрытые фильтром
+
+---
+
 ## v0.1.11-alpha.1
 
 <!-- lang:en -->
