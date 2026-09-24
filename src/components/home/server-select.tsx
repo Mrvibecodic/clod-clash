@@ -609,6 +609,8 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
   const pingTarget = current
     ? entryPingTarget(records, current, group?.name ?? '')
     : undefined
+  const measuredAtRef = useRef(measuredAt)
+  measuredAtRef.current = measuredAt
   const hasPing = usableDelay(delay)
   const pingProvider = pingTarget
     ? (records[pingTarget]?.provider as string | undefined)
@@ -677,8 +679,11 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
     if (!visible || !groupName || !pingTarget) return
 
     let attempts = 0
+    let cancelled = false
     const measure = () => {
+      if (cancelled) return
       const now = Date.now()
+      const measuredAt = measuredAtRef.current
       if (measuredAt && now - measuredAt < PING_MAX_AGE_MS) return
       if (now - lastAutoPingAt < (hasPing ? PING_GAP_MS : PING_RETRY_MS)) return
 
@@ -696,6 +701,15 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
     }
 
     const timer = window.setTimeout(measure, 600)
+    // Живой пинг, пока окно на экране (`visible`; в трее эффект снят, на
+    // возврате — заново): раз в PING_GAP_MS сначала перечитываем прокси — у
+    // url-test групп ядро мерит само, — и шлём свой запрос только если свежего
+    // замера нет. Возраст берём из ref: перечитывание обновляет его мимо замыкания.
+    const live = window.setInterval(() => {
+      refreshProxy()
+        .catch(() => {})
+        .then(measure)
+    }, PING_GAP_MS)
     const retry = hasPing
       ? undefined
       : window.setInterval(() => {
@@ -706,7 +720,9 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
           measure()
         }, PING_RETRY_MS)
     return () => {
+      cancelled = true
       window.clearTimeout(timer)
+      window.clearInterval(live)
       if (retry !== undefined) window.clearInterval(retry)
     }
   }, [
