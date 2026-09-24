@@ -469,7 +469,7 @@
       },
       "tooltips": {
         "autoCloseConnections": "Wenn der ausgewählte Knoten in der Proxy-Gruppe oder der Proxy-Modus geändert wird, werden die bestehenden Verbindungen geschlossen.",
-        "enableBuiltinEnhanced": "Kompatibilitätsbehandlung der Konfigurationsdatei. Wird beim nächsten Abo-Update oder Neustart der App übernommen.",
+        "enableBuiltinEnhanced": "Kompatibilitätsbehandlung der Konfigurationsdatei. Wird bei der nächsten Neuerstellung der Konfiguration übernommen: Abo-Update oder -Wechsel, Änderung der Clash-Einstellungen oder Neustart der App.",
         "defaultLatencyTest": "Dies wird nur für HTTP-Client-Anfragentests verwendet und hat keine Auswirkungen auf die Konfigurationsdatei.",
         "verboseDiagnostics": "Detailed records of network changes and of every write of the system proxy settings. Only needed when investigating a problem: it adds a little background work and many more lines to the log."
       },
@@ -652,7 +652,7 @@
       "messages": {
         "supportedPlaceholders": "Unterstützt %host, %port, %secret",
         "placeholderInstruction": "Verwenden Sie %host, %port, %secret für Host, Port und Zugangsschlüssel",
-        "needsController": "Das Panel öffnet sich nur, wenn der externe Controller aktiviert ist."
+        "needsController": "Das Panel kann sich nur mit dem Kern verbinden, wenn der externe Controller aktiviert ist."
       }
     },
     "hotkey": {

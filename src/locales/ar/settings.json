@@ -469,7 +469,7 @@
       },
       "tooltips": {
         "autoCloseConnections": "إنهاء الاتصالات القائمة عند تغيير اختيار مجموعة الوكيل أو وضع الوكيل",
-        "enableBuiltinEnhanced": "معالجة توافق ملف التكوين. يُطبَّق عند التحديث التالي للاشتراك أو إعادة تشغيل التطبيق.",
+        "enableBuiltinEnhanced": "معالجة توافق ملف التكوين. يُطبَّق عند إعادة بناء ملف التكوين في المرة التالية: تحديث الاشتراك أو تبديله، أو تغيير إعدادات Clash، أو إعادة تشغيل التطبيق.",
         "defaultLatencyTest": "يُستخدم فقط لاختبار طلب HTTP العميل. لن يؤثر على ملف التكوين",
         "verboseDiagnostics": "Detailed records of network changes and of every write of the system proxy settings. Only needed when investigating a problem: it adds a little background work and many more lines to the log."
       },
@@ -652,7 +652,7 @@
       "messages": {
         "supportedPlaceholders": "يدعم %host و%port و%secret",
         "placeholderInstruction": "استبدل المضيف والمنفذ والمفتاح بـ %host و%port و%secret",
-        "needsController": "لا تفتح اللوحة إلا عند تفعيل وحدة التحكم الخارجية."
+        "needsController": "لا تتصل اللوحة بالنواة إلا عند تفعيل وحدة التحكم الخارجية."
       }
     },
     "hotkey": {

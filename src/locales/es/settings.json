@@ -469,7 +469,7 @@
       },
       "tooltips": {
         "autoCloseConnections": "Cierra las conexiones establecidas cuando se cambia el nodo seleccionado en el grupo de proxy o el modo de proxy.",
-        "enableBuiltinEnhanced": "Procesamiento de compatibilidad de archivos de configuración. Se aplica en la próxima actualización de la suscripción o al reiniciar la aplicación.",
+        "enableBuiltinEnhanced": "Procesamiento de compatibilidad de archivos de configuración. Se aplica la próxima vez que se reconstruya la configuración: al actualizar o cambiar la suscripción, cambiar los ajustes de Clash o reiniciar la aplicación.",
         "defaultLatencyTest": "Solo se utiliza para pruebas de solicitudes de clientes HTTP y no afectará al archivo de configuración.",
         "verboseDiagnostics": "Detailed records of network changes and of every write of the system proxy settings. Only needed when investigating a problem: it adds a little background work and many more lines to the log."
       },
@@ -652,7 +652,7 @@
       "messages": {
         "supportedPlaceholders": "Soporta %host, %port, %secret",
         "placeholderInstruction": "Utilice %host, %port, %secret para representar el host, el puerto y la clave de acceso.",
-        "needsController": "El panel solo se abre con el controlador externo activado."
+        "needsController": "El panel solo puede conectarse al núcleo con el controlador externo activado."
       }
     },
     "hotkey": {

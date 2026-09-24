@@ -469,7 +469,7 @@
       },
       "tooltips": {
         "autoCloseConnections": "当代理组选中节点或代理模式变动时，关闭已建立的连接",
-        "enableBuiltinEnhanced": "配置文件的兼容性处理。在下次更新订阅或重启应用时生效。",
+        "enableBuiltinEnhanced": "配置文件的兼容性处理。在下次重新生成配置时生效：更新或切换订阅、修改 Clash 设置或重启应用。",
         "defaultLatencyTest": "仅用于 HTTP 客户端请求测试，不会对配置文件产生影响",
         "verboseDiagnostics": "Detailed records of network changes and of every write of the system proxy settings. Only needed when investigating a problem: it adds a little background work and many more lines to the log."
       },
@@ -652,7 +652,7 @@
       "messages": {
         "supportedPlaceholders": "支持 %host, %port, %secret",
         "placeholderInstruction": "使用 %host, %port, %secret 表示 主机, 端口, 访问密钥",
-        "needsController": "仅在启用外部控制器时面板才能打开。"
+        "needsController": "仅在启用外部控制器时面板才能连接到内核。"
       }
     },
     "hotkey": {

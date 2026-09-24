@@ -469,7 +469,7 @@
       },
       "tooltips": {
         "autoCloseConnections": "اتصالات برقرار شده را هنگام تغییر انتخاب گروه پروکسی یا حالت پروکسی خاتمه دهید",
-        "enableBuiltinEnhanced": "مدیریت سازگاری برای فایل پیکربندی. با به‌روزرسانی بعدی اشتراک یا راه‌اندازی دوبارهٔ برنامه اعمال می‌شود.",
+        "enableBuiltinEnhanced": "مدیریت سازگاری برای فایل پیکربندی. در ساخت دوبارهٔ بعدی پیکربندی اعمال می‌شود: به‌روزرسانی یا تعویض اشتراک، تغییر تنظیمات Clash یا راه‌اندازی دوبارهٔ برنامه.",
         "defaultLatencyTest": "فقط برای تست درخواست‌های کلاینت HTTP استفاده می‌شود و بر فایل پیکربندی تأثیری نخواهد داشت",
         "verboseDiagnostics": "Detailed records of network changes and of every write of the system proxy settings. Only needed when investigating a problem: it adds a little background work and many more lines to the log."
       },
@@ -652,7 +652,7 @@
       "messages": {
         "supportedPlaceholders": "پشتیبانی از %host، %port و %secret",
         "placeholderInstruction": "جایگزین کردن میزبان، پورت و رمز با %host، %port، %secret",
-        "needsController": "پنل فقط وقتی کنترل‌کنندهٔ خارجی روشن باشد باز می‌شود."
+        "needsController": "پنل فقط وقتی کنترل‌کنندهٔ خارجی روشن باشد به هسته وصل می‌شود."
       }
     },
     "hotkey": {

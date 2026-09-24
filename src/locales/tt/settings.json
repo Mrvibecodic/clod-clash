@@ -469,7 +469,7 @@
       },
       "tooltips": {
         "autoCloseConnections": "Прокси төркеме яисә режимын үзгәрткәндә актив тоташуларны өзү",
-        "enableBuiltinEnhanced": "Конфигурация файлы белән туры килә торган өстәмә оптимизация. Киләсе язылу яңартуында яки кушымта яңадан башлангач гамәлгә керә.",
+        "enableBuiltinEnhanced": "Конфигурация файлы белән туры килә торган өстәмә оптимизация. Конфиг киләсе тапкыр яңадан җыелганда гамәлгә керә: язылуны яңарту яки алыштыру, Clash көйләүләрен үзгәртү яки кушымтаны яңадан башлау.",
         "defaultLatencyTest": "Бу фәкать клиентның HTTP сораулары тесты өчен кулланыла, конфигурация файлына йогынты ясамый",
         "verboseDiagnostics": "Detailed records of network changes and of every write of the system proxy settings. Only needed when investigating a problem: it adds a little background work and many more lines to the log."
       },
@@ -652,7 +652,7 @@
       "messages": {
         "supportedPlaceholders": "%host, %port, %secret макросларын хуплау",
         "placeholderInstruction": "Хост, порт, серсүзне %host, %port, %secret белән алмаштырыгыз",
-        "needsController": "Панель тышкы контроллер кабызылганда гына ачыла."
+        "needsController": "Панель ядрога тышкы контроллер кабызылганда гына тоташа ала."
       }
     },
     "hotkey": {

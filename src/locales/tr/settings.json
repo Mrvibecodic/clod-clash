@@ -469,7 +469,7 @@
       },
       "tooltips": {
         "autoCloseConnections": "Vekil grup seçimi veya vekil modu değiştiğinde kurulan bağlantıları sonlandır",
-        "enableBuiltinEnhanced": "Yapılandırma dosyası için uyumluluk işleme. Bir sonraki abonelik güncellemesinde veya uygulama yeniden başlatıldığında uygulanır.",
+        "enableBuiltinEnhanced": "Yapılandırma dosyası için uyumluluk işleme. Yapılandırma bir sonraki yeniden oluşturulduğunda uygulanır: abonelik güncellemesi veya değişikliği, Clash ayarlarının değişmesi ya da uygulamanın yeniden başlatılması.",
         "defaultLatencyTest": "Yalnızca HTTP istemci isteği testi için kullanılır ve yapılandırma dosyasında bir fark yaratmaz",
         "verboseDiagnostics": "Detailed records of network changes and of every write of the system proxy settings. Only needed when investigating a problem: it adds a little background work and many more lines to the log."
       },
@@ -652,7 +652,7 @@
       "messages": {
         "supportedPlaceholders": "%host, %port, %secret destekler",
         "placeholderInstruction": "Ana bilgisayar, port, sırrı %host, %port, %secret ile değiştirin",
-        "needsController": "Panel yalnızca harici denetleyici etkinken açılır."
+        "needsController": "Panel çekirdeğe yalnızca harici denetleyici etkinken bağlanabilir."
       }
     },
     "hotkey": {

@@ -469,7 +469,7 @@
       },
       "tooltips": {
         "autoCloseConnections": "Terminate established connections when the proxy group selection or proxy mode changes",
-        "enableBuiltinEnhanced": "Compatibility handling for the configuration file. Applies on the next subscription update or app restart.",
+        "enableBuiltinEnhanced": "Compatibility handling for the configuration file. Applies the next time the config is rebuilt: a subscription update or switch, a change to Clash settings, or an app restart.",
         "defaultLatencyTest": "Used for HTTP client request testing only and won't make a difference to the configuration file",
         "verboseDiagnostics": "Detailed records of network changes and of every write of the system proxy settings. Only needed when investigating a problem: it adds a little background work and many more lines to the log."
       },
@@ -652,7 +652,7 @@
       "messages": {
         "supportedPlaceholders": "Support %host, %port, %secret",
         "placeholderInstruction": "Replace host, port, secret with %host, %port, %secret",
-        "needsController": "The panel opens only while the external controller is enabled."
+        "needsController": "The panel can connect to the core only while the external controller is enabled."
       }
     },
     "hotkey": {

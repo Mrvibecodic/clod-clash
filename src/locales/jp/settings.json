@@ -469,7 +469,7 @@
       },
       "tooltips": {
         "autoCloseConnections": "プロキシグループで選択されたノードまたはプロキシモードが変更されたときに、既存の接続を閉じます。",
-        "enableBuiltinEnhanced": "設定ファイルの互換性処理。次回のサブスクリプション更新またはアプリ再起動時に反映されます。",
+        "enableBuiltinEnhanced": "設定ファイルの互換性処理。次に設定ファイルが再構築されたとき（サブスクリプションの更新や切り替え、Clash設定の変更、アプリの再起動）に反映されます。",
         "defaultLatencyTest": "HTTPクライアントリクエストテストにのみ使用され、設定ファイルには影響しません。",
         "verboseDiagnostics": "Detailed records of network changes and of every write of the system proxy settings. Only needed when investigating a problem: it adds a little background work and many more lines to the log."
       },
@@ -652,7 +652,7 @@
       "messages": {
         "supportedPlaceholders": "%host, %port, %secretをサポートします。",
         "placeholderInstruction": "%host, %port, %secretを使用してホスト、ポート、アクセスキーを表します。",
-        "needsController": "パネルは外部コントローラーが有効なときだけ開きます。"
+        "needsController": "外部コントローラーが有効なときだけ、パネルはコアに接続できます。"
       }
     },
     "hotkey": {

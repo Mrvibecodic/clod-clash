@@ -469,7 +469,7 @@
       },
       "tooltips": {
         "autoCloseConnections": "當代理組選中節點或代理模式變動時，關閉已建立的連線",
-        "enableBuiltinEnhanced": "配置檔案的相容性處理。在下次更新訂閱或重新啟動應用程式時生效。",
+        "enableBuiltinEnhanced": "配置檔案的相容性處理。在下次重新產生設定檔時生效：更新或切換訂閱、修改 Clash 設定或重新啟動應用程式。",
         "defaultLatencyTest": "僅用於 HTTP 客戶端請求測試，不會對配置檔案產生影響",
         "verboseDiagnostics": "Detailed records of network changes and of every write of the system proxy settings. Only needed when investigating a problem: it adds a little background work and many more lines to the log."
       },
@@ -652,7 +652,7 @@
       "messages": {
         "supportedPlaceholders": "支援 %host, %port, %secret",
         "placeholderInstruction": "使用 %host, %port, %secret 表示 主機, 連接埠, 存取金鑰",
-        "needsController": "僅在啟用外部控制器時面板才能開啟。"
+        "needsController": "僅在啟用外部控制器時面板才能連線到核心。"
       }
     },
     "hotkey": {

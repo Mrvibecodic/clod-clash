@@ -469,7 +469,7 @@
       },
       "tooltips": {
         "autoCloseConnections": "Hentikan koneksi yang sudah ada saat pemilihan grup proksi atau mode proksi berubah",
-        "enableBuiltinEnhanced": "Penanganan kompatibilitas untuk file konfigurasi. Berlaku pada pembaruan langganan berikutnya atau saat aplikasi dimulai ulang.",
+        "enableBuiltinEnhanced": "Penanganan kompatibilitas untuk file konfigurasi. Berlaku saat konfigurasi disusun ulang berikutnya: pembaruan atau pergantian langganan, perubahan pengaturan Clash, atau aplikasi dimulai ulang.",
         "defaultLatencyTest": "Digunakan hanya untuk pengujian permintaan klien HTTP dan tidak akan mempengaruhi file konfigurasi",
         "verboseDiagnostics": "Detailed records of network changes and of every write of the system proxy settings. Only needed when investigating a problem: it adds a little background work and many more lines to the log."
       },
@@ -652,7 +652,7 @@
       "messages": {
         "supportedPlaceholders": "Dukung %host, %port, %secret",
         "placeholderInstruction": "Ganti host, port, rahasia dengan %host, %port, %secret",
-        "needsController": "Panel hanya terbuka saat pengontrol eksternal diaktifkan."
+        "needsController": "Panel hanya dapat terhubung ke inti saat pengontrol eksternal diaktifkan."
       }
     },
     "hotkey": {
