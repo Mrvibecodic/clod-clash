@@ -121,8 +121,6 @@ pub struct IVerge {
 
     pub auto_backup_interval_hours: Option<u64>,
 
-    pub auto_backup_on_change: Option<bool>,
-
     #[cfg(not(target_os = "windows"))]
     pub verge_redir_port: Option<u16>,
 
@@ -259,7 +257,6 @@ pub struct IVergeTheme {
     pub success_color: Option<String>,
 
     pub font_family: Option<String>,
-    pub css_injection: Option<String>,
     pub provider_theme: Option<bool>,
 }
 
@@ -470,7 +467,6 @@ impl IVerge {
             auto_log_clean: Some(2),
             enable_auto_backup_schedule: Some(false),
             auto_backup_interval_hours: Some(24),
-            auto_backup_on_change: Some(true),
             webdav_url: None,
             webdav_username: None,
             webdav_password: None,
@@ -577,7 +573,6 @@ impl IVerge {
         patch!(auto_log_clean);
         patch!(enable_auto_backup_schedule);
         patch!(auto_backup_interval_hours);
-        patch!(auto_backup_on_change);
 
         patch!(webdav_url);
         patch!(webdav_username);

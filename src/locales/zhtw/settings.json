@@ -268,7 +268,6 @@
           "openDevTools": "開發人員工具",
           "liteModeSettings": "輕量模式設定",
           "exit": "離開",
-          "exportDiagnostics": "匯出診斷資訊",
           "supportBundle": "Support report",
           "vergeVersion": "Clod 版本",
           "receivePrereleases": "預發布版本"
@@ -426,9 +425,7 @@
         "title": "自動備份",
         "scheduleLabel": "啟用定時備份",
         "scheduleHelper": "依設定頻率在背景建立本機備份檔案。",
-        "intervalLabel": "備份頻率",
-        "changeLabel": "關鍵變更時自動備份",
-        "changeHelper": "Global Extend Config/Script 變更後自動備份。"
+        "intervalLabel": "備份頻率"
       },
       "manual": {
         "title": "手動備份",

@@ -6,7 +6,6 @@ rust-version = "1.91"
 
 [dependencies]
 tauri = { workspace = true }
-tauri-plugin-clipboard-manager = { workspace = true }
 parking_lot = { workspace = true }
 # sysinfo 0.38.2 conflicts with dark-light
 # see https://github.com/GuillaumeGomez/sysinfo/issues/1623

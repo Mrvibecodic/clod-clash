@@ -17,23 +17,6 @@ import { useVerge } from '@/hooks/use-verge'
 import { accentForMode, defaultDarkTheme, defaultTheme } from '@/pages/_theme'
 import { useSetThemeMode, useThemeMode } from '@/services/states'
 
-const CSS_INJECTION_SCOPE_ROOT = '[data-css-injection-root]'
-const CSS_INJECTION_SCOPE_LIMIT =
-  ':is(.monaco-editor .view-lines, .monaco-editor .view-line, .monaco-editor .margin, .monaco-editor .margin-view-overlays, .monaco-editor .view-overlays, .monaco-editor [class^="mtk"], .monaco-editor [class*=" mtk"])'
-const TOP_LEVEL_AT_RULES = [
-  '@charset',
-  '@import',
-  '@namespace',
-  '@font-face',
-  '@keyframes',
-  '@counter-style',
-  '@page',
-  '@property',
-  '@font-feature-values',
-  '@color-profile',
-]
-let cssScopeSupport: boolean | null = null
-
 const THEME_FADE_MS = 380
 
 const buildShadows = (mode: 'light' | 'dark'): Shadows => {
@@ -78,41 +61,6 @@ const cardSurfaceVars = (mode: 'light' | 'dark') =>
         shadowHover:
           '0 2px 4px rgba(0, 0, 0, 0.5), 0 12px 30px rgba(0, 0, 0, 0.5)',
       }
-
-const canUseCssScope = () => {
-  if (cssScopeSupport !== null) {
-    return cssScopeSupport
-  }
-  try {
-    const testStyle = document.createElement('style')
-    testStyle.textContent = '@scope (:root) { }'
-    document.head.appendChild(testStyle)
-    cssScopeSupport = !!testStyle.sheet?.cssRules?.length
-    document.head.removeChild(testStyle)
-  } catch {
-    cssScopeSupport = false
-  }
-  return cssScopeSupport
-}
-
-const wrapCssInjectionWithScope = (css?: string) => {
-  if (!css?.trim()) {
-    return ''
-  }
-  const lowerCss = css.toLowerCase()
-  const hasTopLevelOnlyRule = TOP_LEVEL_AT_RULES.some((rule) =>
-    lowerCss.includes(rule),
-  )
-  if (hasTopLevelOnlyRule) {
-    return null
-  }
-  const scopeRoot = CSS_INJECTION_SCOPE_ROOT
-  const scopeLimit = CSS_INJECTION_SCOPE_LIMIT
-  const scopedBlock = `@scope (${scopeRoot}) to (${scopeLimit}) {
-${css}
-}`
-  return scopedBlock
-}
 
 export const useCustomTheme = () => {
   const appWindow: WebviewWindow = useMemo(() => getCurrentWebviewWindow(), [])
@@ -349,7 +297,6 @@ export const useCustomTheme = () => {
         '--user-background-image',
         hasUserBackground ? `url('${userBackgroundImage}')` : 'none',
       )
-      rootEle.setAttribute('data-css-injection-root', 'true')
     }
 
     let styleElement = document.querySelector('style#verge-theme')
@@ -360,11 +307,6 @@ export const useCustomTheme = () => {
     }
 
     if (styleElement) {
-      let scopedCss: string | null = null
-      if (canUseCssScope() && setting.css_injection) {
-        scopedCss = wrapCssInjectionWithScope(setting.css_injection)
-      }
-      const effectiveInjectedCss = scopedCss ?? ''
       const globalStyles = `
         ::-webkit-scrollbar {
           width: 8px;
@@ -431,7 +373,7 @@ export const useCustomTheme = () => {
         }
       `
 
-      styleElement.innerHTML = effectiveInjectedCss + globalStyles
+      styleElement.innerHTML = globalStyles
     }
 
     return muiTheme

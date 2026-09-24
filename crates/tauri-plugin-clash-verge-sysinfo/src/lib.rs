@@ -1,6 +1,4 @@
-use std::fmt::{Debug, Display};
-
-pub mod commands;
+use std::fmt::Debug;
 
 #[cfg(windows)]
 use deelevate::{PrivilegeLevel, Token};
@@ -79,23 +77,6 @@ impl Debug for Platform {
     }
 }
 
-impl Display for Platform {
-    #[inline]
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "System Name: {}\nSystem Version: {}\nSystem kernel Version: {}\nSystem Arch: {}\nVerge Version: {}\nRunning Mode: {}\nIs Admin: {}",
-            self.sysinfo.system_name,
-            self.sysinfo.system_version,
-            self.sysinfo.system_kernel_version,
-            self.sysinfo.system_arch,
-            self.appinfo.app_version,
-            self.appinfo.app_core_mode,
-            self.appinfo.app_is_admin
-        )
-    }
-}
-
 impl Platform {
     #[inline]
     fn new() -> Self {
@@ -150,10 +131,6 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
         // TODO нужно вручную из основного lib
         // TODO перенести command получения системной информации из clash-verge
         // TODO и сделать удобный доступ через structure.field
-        // .invoke_handler(tauri::generate_handler![
-        //     commands::app_is_admin,
-        //     commands::export_diagnostic_info,
-        // ])
         .setup(move |app, _api| {
             let app_version = app.package_info().version.to_string();
             let is_admin = is_binary_admin();

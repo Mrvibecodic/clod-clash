@@ -686,7 +686,6 @@ export interface TranslationResources {
               backupSetting: string
               checkUpdates: string
               exit: string
-              exportDiagnostics: string
               exportLogs: string
               liteModeSettings: string
               openConfDir: string
@@ -838,8 +837,6 @@ export interface TranslationResources {
             viewHistory: string
           }
           auto: {
-            changeHelper: string
-            changeLabel: string
             intervalLabel: string
             scheduleHelper: string
             scheduleLabel: string

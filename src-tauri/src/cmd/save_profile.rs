@@ -4,7 +4,6 @@ use crate::{
     cmd::validate::{ValidationNoticeTarget, handle_validation_notice},
     config::{Config, IProfiles, PrfItem},
     core::validate::{CoreConfigValidator, ValidationOutcome},
-    module::auto_backup::{AutoBackupManager, AutoBackupTrigger},
     utils::{dirs, help},
 };
 use clash_verge_logging::{Type, logging};
@@ -17,12 +16,6 @@ pub async fn save_profile_file(index: String, file_data: Option<String>) -> CmdR
     let file_data = match file_data {
         Some(d) => d,
         None => return Ok(ValidationOutcome::Valid),
-    };
-
-    let backup_trigger = match index.as_str() {
-        "Merge" => Some(AutoBackupTrigger::GlobalMerge),
-        "Script" => Some(AutoBackupTrigger::GlobalScript),
-        _ => None,
     };
 
     // Получаем нужные метаданные и снимаем блокировку до асинхронных операций
@@ -83,12 +76,6 @@ pub async fn save_profile_file(index: String, file_data: Option<String>) -> CmdR
         affects_runtime,
     )
     .await?;
-
-    if changes_applied.is_valid()
-        && let Some(trigger) = backup_trigger
-    {
-        AutoBackupManager::trigger_backup(trigger);
-    }
 
     Ok(changes_applied)
 }

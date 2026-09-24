@@ -29,32 +29,10 @@ const MIN_BACKUP_INTERVAL_SECS: i64 = 60;
 const AUTO_BACKUP_KEEP: usize = 20;
 const AUTO_MARKER: &str = "-auto-";
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum AutoBackupTrigger {
-    Scheduled,
-    GlobalMerge,
-    GlobalScript,
-}
-
-impl AutoBackupTrigger {
-    const fn slug(self) -> &'static str {
-        match self {
-            Self::Scheduled => "scheduled",
-            Self::GlobalMerge => "merge",
-            Self::GlobalScript => "script",
-        }
-    }
-
-    const fn is_schedule(self) -> bool {
-        matches!(self, Self::Scheduled)
-    }
-}
-
 #[derive(Clone, Copy, Debug)]
 struct AutoBackupSettings {
     schedule_enabled: bool,
     interval_hours: u64,
-    change_enabled: bool,
 }
 
 impl AutoBackupSettings {
@@ -67,7 +45,6 @@ impl AutoBackupSettings {
         Self {
             schedule_enabled: verge.enable_auto_backup_schedule.unwrap_or(false),
             interval_hours: interval,
-            change_enabled: verge.auto_backup_on_change.unwrap_or(true),
         }
     }
 }
@@ -77,7 +54,6 @@ impl Default for AutoBackupSettings {
         Self {
             schedule_enabled: false,
             interval_hours: DEFAULT_INTERVAL_HOURS,
-            change_enabled: true,
         }
     }
 }
@@ -125,19 +101,6 @@ impl AutoBackupManager {
         Ok(())
     }
 
-    pub fn trigger_backup(trigger: AutoBackupTrigger) {
-        AsyncHandler::spawn(move || async move {
-            if let Err(err) = Self::global().execute_trigger(trigger).await {
-                logging!(
-                    warn,
-                    Type::Backup,
-                    "Auto backup execution failed ({:?}): {err:#?}",
-                    trigger
-                );
-            }
-        });
-    }
-
     fn maybe_start_runner(&self, settings: AutoBackupSettings) {
         if settings.schedule_enabled {
             self.ensure_runner();
@@ -173,7 +136,7 @@ impl AutoBackupManager {
             tokio::select! {
                 _ = &mut sleeper => {
                     if let Err(err) = Self::global()
-                        .execute_trigger(AutoBackupTrigger::Scheduled)
+                        .execute_scheduled()
                         .await
                     {
                         logging!(
@@ -193,13 +156,8 @@ impl AutoBackupManager {
         }
     }
 
-    async fn execute_trigger(&self, trigger: AutoBackupTrigger) -> Result<()> {
-        let snapshot = *self.settings.read();
-
-        if trigger.is_schedule() && !snapshot.schedule_enabled {
-            return Ok(());
-        }
-        if !trigger.is_schedule() && !snapshot.change_enabled {
+    async fn execute_scheduled(&self) -> Result<()> {
+        if !self.settings.read().schedule_enabled {
             return Ok(());
         }
 
@@ -212,14 +170,14 @@ impl AutoBackupManager {
             return Ok(());
         }
 
-        let file_name = create_local_backup_with_namer(|name| append_auto_suffix(name, trigger.slug()).into()).await?;
+        let file_name = create_local_backup_with_namer(|name| append_auto_suffix(name, "scheduled").into()).await?;
         self.last_backup.store(Local::now().timestamp(), Ordering::Release);
 
         if let Err(err) = cleanup_auto_backups().await {
             logging!(warn, Type::Backup, "Failed to cleanup old auto backups: {err:#?}");
         }
 
-        logging!(info, Type::Backup, "Auto backup created ({:?}): {}", trigger, file_name);
+        logging!(info, Type::Backup, "Auto backup created: {}", file_name);
         Ok(())
     }
 

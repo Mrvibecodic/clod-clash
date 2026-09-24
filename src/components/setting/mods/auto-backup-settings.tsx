@@ -19,7 +19,6 @@ const MAX_INTERVAL_HOURS = 168
 interface AutoBackupState {
   scheduleEnabled: boolean
   intervalHours: number
-  changeEnabled: boolean
 }
 
 export function AutoBackupSettings() {
@@ -29,13 +28,8 @@ export function AutoBackupSettings() {
     return {
       scheduleEnabled: verge?.enable_auto_backup_schedule ?? false,
       intervalHours: verge?.auto_backup_interval_hours ?? 24,
-      changeEnabled: verge?.auto_backup_on_change ?? true,
     }
-  }, [
-    verge?.enable_auto_backup_schedule,
-    verge?.auto_backup_interval_hours,
-    verge?.auto_backup_on_change,
-  ])
+  }, [verge?.enable_auto_backup_schedule, verge?.auto_backup_interval_hours])
   const [pendingValues, setPendingValues] = useState<AutoBackupState | null>(
     null,
   )
@@ -45,8 +39,7 @@ export function AutoBackupSettings() {
     }
     if (
       pendingValues.scheduleEnabled === derivedValues.scheduleEnabled &&
-      pendingValues.intervalHours === derivedValues.intervalHours &&
-      pendingValues.changeEnabled === derivedValues.changeEnabled
+      pendingValues.intervalHours === derivedValues.intervalHours
     ) {
       return derivedValues
     }
@@ -85,13 +78,6 @@ export function AutoBackupSettings() {
         auto_backup_interval_hours: values.intervalHours,
       },
     )
-  }
-
-  const handleChangeToggle = (
-    _: ChangeEvent<HTMLInputElement>,
-    checked: boolean,
-  ) => {
-    applyPatch({ changeEnabled: checked }, { auto_backup_on_change: checked })
   }
 
   const handleIntervalInputChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -190,25 +176,6 @@ export function AutoBackupSettings() {
                 inputMode: 'numeric',
               },
             }}
-          />
-        </Stack>
-      </ListItem>
-
-      <ListItem divider disableGutters>
-        <Stack
-          direction="row"
-          spacing={1}
-          sx={{ alignItems: 'center', width: '100%' }}
-        >
-          <ListItemText
-            primary={t('settings.modals.backup.auto.changeLabel')}
-            secondary={t('settings.modals.backup.auto.changeHelper')}
-          />
-          <Switch
-            edge="end"
-            checked={values.changeEnabled}
-            onChange={handleChangeToggle}
-            disabled={disabled}
           />
         </Stack>
       </ListItem>

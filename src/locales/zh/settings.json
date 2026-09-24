@@ -268,7 +268,6 @@
           "openDevTools": "开发者工具",
           "liteModeSettings": "轻量模式设置",
           "exit": "退出",
-          "exportDiagnostics": "导出诊断信息",
           "supportBundle": "支持报告",
           "vergeVersion": "Clod 版本",
           "receivePrereleases": "预发布版本"
@@ -426,9 +425,7 @@
         "title": "自动备份",
         "scheduleLabel": "启用定时备份",
         "scheduleHelper": "按设定频率在后台创建本地备份文件。",
-        "intervalLabel": "备份频率",
-        "changeLabel": "关键变更时自动备份",
-        "changeHelper": "全局扩展覆写配置/脚本更改后自动备份。"
+        "intervalLabel": "备份频率"
       },
       "manual": {
         "title": "手动备份",

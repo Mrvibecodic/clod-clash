@@ -268,7 +268,6 @@
           "openDevTools": "أدوات المطور",
           "liteModeSettings": "LightWeight Mode Settings",
           "exit": "خروج",
-          "exportDiagnostics": "Export Diagnostic Info",
           "supportBundle": "Support report",
           "vergeVersion": "إصدار Clod",
           "receivePrereleases": "إصدارات ما قبل الإطلاق"
@@ -426,9 +425,7 @@
         "title": "Automatic backup",
         "scheduleLabel": "Enable scheduled backup",
         "scheduleHelper": "Create local backups in the background at the configured interval.",
-        "intervalLabel": "Backup frequency",
-        "changeLabel": "Backup on critical changes",
-        "changeHelper": "Automatically backup when Global Extend Config/Script changes."
+        "intervalLabel": "Backup frequency"
       },
       "manual": {
         "title": "Manual backup",

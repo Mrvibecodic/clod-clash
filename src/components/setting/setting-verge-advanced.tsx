@@ -9,7 +9,6 @@ import {
   copySupportBundle,
   exportLogs,
   exitApp,
-  exportDiagnosticInfo,
   openAppDir,
   openCoreDir,
   openDevTools,
@@ -78,18 +77,6 @@ const SettingVergeAdvanced = ({ onError, variant }: Props) => {
       const exported = await exportLogs()
       if (exported === null) return
       showNotice.success('shared.feedback.notifications.common.logsExported')
-    } catch (error) {
-      showNotice.error(error)
-    }
-  }, [])
-
-  const onExportDiagnosticInfo = useCallback(async () => {
-    try {
-      await exportDiagnosticInfo()
-      showNotice.success(
-        'shared.feedback.notifications.common.copySuccess',
-        1000,
-      )
     } catch (error) {
       showNotice.error(error)
     }
@@ -198,18 +185,6 @@ const SettingVergeAdvanced = ({ onError, variant }: Props) => {
             }}
             label={t('settings.components.verge.advanced.fields.exit')}
           />
-
-          <SettingItem
-            label={t(
-              'settings.components.verge.advanced.fields.exportDiagnostics',
-            )}
-            extra={
-              <TooltipIcon
-                icon={ContentCopyRounded}
-                onClick={onExportDiagnosticInfo}
-              />
-            }
-          ></SettingItem>
         </>
       )}
 
