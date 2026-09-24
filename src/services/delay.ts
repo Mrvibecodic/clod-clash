@@ -1,7 +1,6 @@
 import {
   delayProxyByName,
   healthcheckNodeInProvider,
-  type ProxyDelay,
 } from 'tauri-plugin-mihomo-api'
 
 import { debugLog } from '@/utils/debug'
@@ -14,6 +13,8 @@ export interface DelayUpdate {
   delay: number
   elapsed?: number
   updatedAt: number
+  /** У метки «идёт проверка» (-2) — замер, который она заслонила. */
+  before?: DelayUpdate
 }
 
 const CACHE_TTL = 30 * 60 * 1000
@@ -44,6 +45,20 @@ const MAX_PARALLEL_CHECKS = 10
 /** Used when neither the user, the template nor the settings named a URL. */
 const BUILTIN_TEST_URL = 'http://cp.cloudflare.com/generate_204'
 
+/**
+ * Тайм-аут проверки из настроек. Ядро разбирает его как int16, поэтому потолок
+ * 32767. Сохранённое раньше вне границ прижимается к ближайшей, чтобы короткий
+ * тайм-аут не превращался в 10 с; не заданное, нулевое и отрицательное — умолчание.
+ */
+export const LATENCY_TIMEOUT_MIN = 1000
+export const LATENCY_TIMEOUT_MAX = 32767
+const LATENCY_TIMEOUT_DEFAULT = 10000
+
+export const effectiveLatencyTimeout = (value?: number) =>
+  value !== undefined && Number.isInteger(value) && value > 0
+    ? Math.min(Math.max(value, LATENCY_TIMEOUT_MIN), LATENCY_TIMEOUT_MAX)
+    : LATENCY_TIMEOUT_DEFAULT
+
 class DelayManager {
   private cache = new Map<string, DelayUpdate>()
 
@@ -51,12 +66,14 @@ class DelayManager {
   private writesSinceEvict = 0
 
   private freeCheckSlots = MAX_PARALLEL_CHECKS
+  /** Сколько пакетных проверок идёт по группе: пока идёт, сортировка по задержке стоит. */
+  private checkingGroups = new Map<string, number>()
   private queuedChecks = new Set<string>()
   private checkSlotWaiters: (() => void)[] = []
 
   /**
    * URL, выбранный пользователем для конкретной группы (страница «Прокси»).
-   * Живёт до тех пор, пока пользователь его не сменит.
+   * Свой у каждой подписки: `setProfile` меняет карту целиком.
    */
   private urlMap = new Map<string, string>()
 
@@ -71,6 +88,9 @@ class DelayManager {
 
   /** `verge.default_latency_test` — общий запасной адрес. */
   private defaultUrl = BUILTIN_TEST_URL
+
+  /** Подписка, к которой относятся замеры в кэше. */
+  private profile = ''
 
   // Слушатели для каждого узла
   private listenerMap = new Map<string, (update: DelayUpdate) => void>()
@@ -156,8 +176,8 @@ class DelayManager {
 
   /**
    * clod: только РЕАЛЬНЫЙ ввод пользователя. Всё, что пришло из конфига или
-   * настроек, живёт в `configUrlMap`/`defaultUrl` — положенное сюда переживает
-   * смену профиля и затеняет `url:` группы нового конфига.
+   * настроек, живёт в `configUrlMap`/`defaultUrl` — положенное сюда затеняло
+   * бы `url:` группы и после обновления подписки.
    */
   setUrl(group: string, url: string) {
     // Ядро принимает только полный адрес со схемой: негодный даёт ошибку по
@@ -191,6 +211,18 @@ class DelayManager {
    */
   replaceConfigUrls(urls: Map<string, string>) {
     this.configUrlMap = new Map([...urls].filter(([, url]) => isValidUrl(url)))
+  }
+
+  /**
+   * clod: подписка сменилась. Ключ кэша — «группа::узел», и у одноимённых узлов
+   * новой подписки иначе полчаса висел бы пинг прошлой. Адреса, заданные человеком
+   * на «Прокси», хранятся по подписке — берём её набор целиком, а не ждём, пока
+   * заголовок группы попадёт на экран.
+   */
+  setProfile(uid: string, userUrls: Map<string, string>) {
+    if (this.profile && this.profile !== uid) this.cache.clear()
+    this.profile = uid
+    this.urlMap = new Map([...userUrls].filter(([, url]) => isValidUrl(url)))
   }
 
   /** Общий запасной адрес из настроек. Пустое значение возвращает встроенный. */
@@ -250,6 +282,10 @@ class DelayManager {
       delay,
       elapsed: meta?.elapsed,
       updatedAt: Date.now(),
+    }
+    if (delay === -2) {
+      const prev = this.cache.get(key)
+      update.before = prev && prev.delay >= 0 ? prev : prev?.before
     }
 
     this.cache.set(key, update)
@@ -374,8 +410,11 @@ class DelayManager {
   }
 
   /// Временный фикс сортировки задержки узлов у provider
-  getDelayFix(proxy: IProxyItem, group: string) {
-    const cached = this.liveCacheEntry(proxy, group)
+  /// `skipTesting` — показать последний замер вместо метки «идёт проверка»:
+  /// сортировка и строки Главной не должны прыгать, пока узел в очереди.
+  getDelayFix(proxy: IProxyItem, group: string, skipTesting = false) {
+    const live = this.liveCacheEntry(proxy, group)
+    const cached = skipTesting && live?.delay === -2 ? live.before : live
     const core = this.newestCoreEntry(proxy, group)
 
     // Two independent sources of the same number — the newer measurement wins.
@@ -391,6 +430,10 @@ class DelayManager {
     return -1
   }
 
+  isChecking(group: string) {
+    return this.checkingGroups.has(group)
+  }
+
   /**
    * Когда сняли тот замер, который видит пользователь: мс epoch, 0 — не знаем.
    *
@@ -401,7 +444,8 @@ class DelayManager {
    * stared at an hour-old ping.
    */
   getMeasuredAt(proxy: IProxyItem, group: string) {
-    const cached = this.liveCacheEntry(proxy, group)
+    const live = this.liveCacheEntry(proxy, group)
+    const cached = live?.delay === -2 ? live.before : live
     const core = this.newestCoreEntry(proxy, group)
 
     // `-2` is a state, not a measurement the user can see: its age says
@@ -425,11 +469,13 @@ class DelayManager {
     return delayProxyByName(name, url, timeout)
   }
 
+  /** `pad` — спиннер не короче 500 мс; пакету не нужен: там он стоит с начала очереди. */
   async checkDelay(
     name: string,
     group: string,
     timeout: number,
     providerName?: string,
+    pad = true,
   ): Promise<DelayUpdate> {
     debugLog(
       `[DelayManager] Начало теста задержки, прокси: ${name}, группа: ${group}, тайм-аут: ${timeout}ms`,
@@ -439,6 +485,7 @@ class DelayManager {
     this.setDelay(name, group, -2)
 
     const startTime = Date.now()
+    const profile = this.profile
 
     try {
       const url = this.getUrl(group)
@@ -446,20 +493,17 @@ class DelayManager {
         `[DelayManager] Вызов API для теста задержки, прокси: ${name}, URL: ${url}`,
       )
 
-      // Обрабатываем таймаут, delay = 0 означает таймаут
-      const timeoutPromise = new Promise<ProxyDelay>((resolve) => {
-        setTimeout(() => resolve({ delay: 0 }), timeout)
-      })
-
-      // Используем Promise.race для контроля таймаута
-      const result = await Promise.race([
-        this.unifiedDelayCheck(name, url, timeout, providerName),
-        timeoutPromise,
-      ])
+      // Тайм-аут отдают ядро и плагин (delay = 0), свой таймер не нужен
+      const result = await this.unifiedDelayCheck(
+        name,
+        url,
+        timeout,
+        providerName,
+      )
 
       // Гарантируем показ анимации загрузки не менее 500мс
       const elapsedTime = Date.now() - startTime
-      if (elapsedTime < 500) {
+      if (pad && elapsedTime < 500) {
         await new Promise((resolve) => setTimeout(resolve, 500 - elapsedTime))
       }
 
@@ -469,16 +513,22 @@ class DelayManager {
         `[DelayManager] Тест задержки завершён, прокси: ${name}, результат: ${delay}ms`,
       )
 
+      // Замер прежней подписки в кэш новой не пишем — ключ у одноимённых узлов общий
+      if (profile !== this.profile) return { delay: -1, updatedAt: Date.now() }
+
       return this.setDelay(name, group, delay, { elapsed })
     } catch (error) {
       // Гарантируем показ анимации загрузки не менее 500мс
-      await new Promise((resolve) => setTimeout(resolve, 500))
+      if (pad) await new Promise((resolve) => setTimeout(resolve, 500))
       console.error(
         `[DelayManager] Ошибка теста задержки, прокси: ${name}`,
         error,
       )
-      const delay = 1e6 // error
+      // Отказ вызова — это «ядро недоступно», а не приговор узлу: не мерили
+      const delay = -1
       const elapsed = Date.now() - startTime
+
+      if (profile !== this.profile) return { delay, updatedAt: Date.now() }
 
       return this.setDelay(name, group, delay, { elapsed })
     }
@@ -538,7 +588,13 @@ class DelayManager {
 
         await this.takeCheckSlot()
         try {
-          await this.checkDelay(currName, group, timeout, currProviderName)
+          await this.checkDelay(
+            currName,
+            group,
+            timeout,
+            currProviderName,
+            false,
+          )
         } finally {
           this.releaseCheckSlot()
         }
@@ -550,8 +606,8 @@ class DelayManager {
           `[DelayManager] Ошибка теста отдельного прокси в пакете, прокси: ${currName}`,
           error,
         )
-        // Выставляем статус ошибки
-        this.setDelay(currName, group, 1e6)
+        // Как и отказ внутри checkDelay — «не мерили», а не приговор узлу
+        this.setDelay(currName, group, -1)
       } finally {
         this.queuedChecks.delete(hashKey(currName, group))
       }
@@ -568,7 +624,14 @@ class DelayManager {
       promiseList.push(help())
     }
 
-    await Promise.all(promiseList)
+    this.checkingGroups.set(group, (this.checkingGroups.get(group) ?? 0) + 1)
+    try {
+      await Promise.all(promiseList)
+    } finally {
+      const left = (this.checkingGroups.get(group) ?? 1) - 1
+      if (left > 0) this.checkingGroups.set(group, left)
+      else this.checkingGroups.delete(group)
+    }
     const totalTime = Date.now() - startTime
     debugLog(
       `[DelayManager] Пакетный тест задержки завершён, группа: ${group}, общее время: ${totalTime}ms`,

@@ -59,6 +59,7 @@
   },
   "validation": {
     "invalidRegex": "잘못된 정규식",
+    "numberRange": "\"{{field}}\"에는 {{min}}~{{max}} 범위의 정수를 입력해야 합니다",
     "numberRequired": "\"{{field}}\"에는 숫자를 입력해야 합니다"
   },
   "window": {

@@ -28,8 +28,6 @@ import { CountryFlag } from '@/components/home/country-flag'
 import { NoServersStatus } from '@/components/home/no-servers-status'
 import { useDrawerCapHeight } from '@/hooks/use-drawer-cap-height'
 import { favoritesFirst, useFavorites } from '@/hooks/use-favorites'
-import { useGroupDelayTest } from '@/hooks/use-group-delay-test'
-import { useGroupTestUrls } from '@/hooks/use-group-test-urls'
 import { useNoServersStatus } from '@/hooks/use-no-servers-status'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useProxySelection } from '@/hooks/use-proxy-selection'
@@ -38,7 +36,7 @@ import { useVerge } from '@/hooks/use-verge'
 import { useVisibility } from '@/hooks/use-visibility'
 import { SHAPE, TINT } from '@/pages/_theme'
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
-import delayManager from '@/services/delay'
+import delayManager, { effectiveLatencyTimeout } from '@/services/delay'
 import { showNotice } from '@/services/notice-service'
 import { nameWithoutFlag } from '@/utils/country'
 import { delayBars, delayColor } from '@/utils/delay-color'
@@ -96,7 +94,7 @@ export const ServerSelect = ({ open, onClose }: Props) => {
   })
   const [testing, setTesting] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
-  useGroupTestUrls()
+  const { verge } = useVerge()
 
   const records = useMemo(
     () => (proxies?.records ?? {}) as Record<string, any>,
@@ -178,18 +176,25 @@ export const ServerSelect = ({ open, onClose }: Props) => {
     if (groups.length < 2) onClose()
   })
 
-  const runGroupDelayTest = useGroupDelayTest()
+  // clod: мерим узлы по одному. Групповой обработчик ядра /group/{name}/delay на
+  // время замера снимает закреплённый узел url-test/fallback, а при провале не
+  // возвращает; по узлам закрепление не трогается и действует общий потолок.
   const runDelayTest = useCallback(async () => {
     if (!group) return
     setTesting(true)
     try {
-      await runGroupDelayTest(group.name)
-    } catch (error) {
-      showNotice.error(error)
+      await delayManager.checkListDelay(
+        nodes
+          .map((node) => records[node.name] as IProxyItem | undefined)
+          .filter((node): node is IProxyItem => !!node),
+        group.name,
+        effectiveLatencyTimeout(verge?.default_latency_timeout),
+      )
     } finally {
       setTesting(false)
+      refreshProxy().catch(() => {})
     }
-  }, [group, runGroupDelayTest])
+  }, [group, nodes, records, verge?.default_latency_timeout, refreshProxy])
 
   const typeLabel = (type: string) => {
     switch (type) {
@@ -579,19 +584,15 @@ const PING_MAX_AGE_MS = 60_000
 const PING_GAP_MS = 60_000
 const PING_RETRY_MS = 5_000
 const PING_RETRY_LIMIT = 6
-const PING_TIMEOUT_MS = 10_000
-const TRAY_DELAY_TEST_BATCH = 4
 let lastAutoPingAt = 0
 
 export const ServerSelectRow = ({ onOpen }: RowProps) => {
   const { t } = useTranslation()
   const { proxies } = useProxiesData()
   const { current: currentProfile } = useProfiles()
-  const runGroupDelayTest = useGroupDelayTest()
   const descriptions = useServerDescriptions()
   const visible = useVisibility()
   const { verge } = useVerge()
-  const { urlFor } = useGroupTestUrls()
   const { refreshProxy } = useAppRefreshers()
 
   const records = (proxies?.records ?? {}) as Record<string, any>
@@ -632,48 +633,32 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
 
   const groupName = group?.name
   const updatedAt = currentProfile?.updated ?? 0
-  const trayTestNodesRef = useRef<IProxyItem[]>([])
-  trayTestNodesRef.current = (group?.all ?? [])
+  const timeout = effectiveLatencyTimeout(verge?.default_latency_timeout)
+  const testNodesRef = useRef<IProxyItem[]>([])
+  testNodesRef.current = (group?.all ?? [])
     .filter((node) => !isCorePlaceholder(node.name))
     .map((node) => records[node.name] as IProxyItem | undefined)
     .filter((node): node is IProxyItem => !!node)
-  const trayShowsDelays =
-    (verge?.tray_proxy_groups_display_mode ?? 'default') !== 'disable'
+  // Состав узлов в ключе: профиль из трея сменил `updated` раньше, чем пришли
+  // новые узлы, — без него автотест промерил бы узлы прежней подписки.
+  const testNodesSig = testNodesRef.current.map((node) => node.name).join('\n')
+  // clod: автотест — только пока окно на экране (в трее — ничего) и по узлам:
+  // групповой обработчик ядра снимал закрепление url-test/fallback.
   useEffect(() => {
-    if ((!visible && !trayShowsDelays) || !groupName) return
-    const key = `${groupName}|${updatedAt}`
+    if (!visible || !groupName || !testNodesSig) return
+    const key = `${groupName}|${updatedAt}|${testNodesSig}`
     if (lastAutoDelayKey === key) return
     const timer = window.setTimeout(() => {
       lastAutoDelayKey = key
       lastAutoPingAt = Date.now()
-      // clod:Э11-08 — тест автоматический, тостом о нём дёргать человека не за
-      // что; но и глотать молча нельзя: если ядро не вернуло закрепление, это
-      // единственный след в поддержку.
-      const test = visible
-        ? runGroupDelayTest(groupName)
-        : delayManager
-            .checkListDelay(
-              trayTestNodesRef.current,
-              groupName,
-              PING_TIMEOUT_MS,
-              TRAY_DELAY_TEST_BATCH,
-            )
-            .finally(() => {
-              refreshProxy().catch(() => {})
-            })
-      test.catch((error) => {
-        console.error(`Автотест задержек группы ${groupName} не прошёл:`, error)
-      })
+      delayManager
+        .checkListDelay(testNodesRef.current, groupName, timeout)
+        .finally(() => {
+          refreshProxy().catch(() => {})
+        })
     }, 800)
     return () => window.clearTimeout(timer)
-  }, [
-    visible,
-    trayShowsDelays,
-    groupName,
-    updatedAt,
-    runGroupDelayTest,
-    refreshProxy,
-  ])
+  }, [visible, groupName, updatedAt, testNodesSig, timeout, refreshProxy])
 
   useEffect(() => {
     if (!visible || !groupName || !pingTarget) return
@@ -689,13 +674,10 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
 
       lastAutoPingAt = now
       attempts += 1
+      // Через менеджер: замер виден сразу, а не только из истории ядра — у узлов
+      // провайдеров её приносит кэш провайдеров
       delayManager
-        .unifiedDelayCheck(
-          pingTarget,
-          urlFor(groupName),
-          PING_TIMEOUT_MS,
-          pingProvider,
-        )
+        .checkDelay(pingTarget, groupName, timeout, pingProvider)
         .finally(() => refreshProxy().catch(() => {}))
         .catch(() => {})
     }
@@ -732,7 +714,7 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
     hasPing,
     pingTarget,
     pingProvider,
-    urlFor,
+    timeout,
     refreshProxy,
   ])
 

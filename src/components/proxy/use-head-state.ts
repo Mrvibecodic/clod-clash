@@ -43,6 +43,21 @@ export const DEFAULT_STATE: HeadState = {
   testUrl: '',
 }
 
+/** Адреса проверки, которые человек задал группам этой подписки на «Прокси». */
+export function savedTestUrls(profileUid: string): Map<string, string> {
+  const urls = new Map<string, string>()
+  try {
+    const data = JSON.parse(
+      localStorage.getItem(HEAD_STATE_KEY) ?? '{}',
+    ) as HeadStateStorage
+    for (const [group, state] of Object.entries(data?.[profileUid] ?? {})) {
+      const url = state?.testUrl?.trim()
+      if (url) urls.set(group, url)
+    }
+  } catch {}
+  return urls
+}
+
 type HeadStateAction =
   | { type: 'reset' }
   | { type: 'replace'; payload: Record<string, HeadState> }

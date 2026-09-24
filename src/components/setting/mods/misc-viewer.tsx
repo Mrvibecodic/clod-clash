@@ -13,6 +13,11 @@ import { useTranslation } from 'react-i18next'
 
 import { BaseDialog, DialogRef, Switch, TooltipIcon } from '@/components/base'
 import { useVerge } from '@/hooks/use-verge'
+import {
+  LATENCY_TIMEOUT_MAX,
+  LATENCY_TIMEOUT_MIN,
+  effectiveLatencyTimeout,
+} from '@/services/delay'
 import { showNotice } from '@/services/notice-service'
 
 // Те же значения, что у шаблона настроек и запасных значений бэкенда
@@ -54,16 +59,24 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
         proxyLayoutColumn: verge?.proxy_layout_column || 6,
         defaultLatencyTest: verge?.default_latency_test || '',
         autoLogClean: verge?.auto_log_clean || 0,
-        defaultLatencyTimeout: verge?.default_latency_timeout || 10000,
+        defaultLatencyTimeout: effectiveLatencyTimeout(
+          verge?.default_latency_timeout,
+        ),
       })
     },
     close: () => setOpen(false),
   }))
 
   const onSave = useLockFn(async () => {
-    if (!Number.isFinite(values.defaultLatencyTimeout)) {
-      showNotice.error('shared.validation.numberRequired', {
+    // Ядро разбирает тайм-аут как int16; отрицательный делал все узлы «тайм-аутом»
+    if (
+      effectiveLatencyTimeout(values.defaultLatencyTimeout) !==
+      values.defaultLatencyTimeout
+    ) {
+      showNotice.error('shared.validation.numberRange', {
         field: t('settings.modals.misc.fields.defaultLatencyTimeout'),
+        min: LATENCY_TIMEOUT_MIN,
+        max: LATENCY_TIMEOUT_MAX,
       })
       return
     }

@@ -1584,6 +1584,7 @@ export interface TranslationResources {
       }
       validation: {
         invalidRegex: string
+        numberRange: string
         numberRequired: string
       }
       window: {

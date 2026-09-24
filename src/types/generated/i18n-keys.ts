@@ -920,6 +920,7 @@ export const translationKeys = [
   'shared.placeholders.matchWholeWord',
   'shared.placeholders.useRegex',
   'shared.validation.invalidRegex',
+  'shared.validation.numberRange',
   'shared.validation.numberRequired',
   'shared.window.maximize',
   'shared.window.minimize',

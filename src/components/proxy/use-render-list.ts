@@ -4,7 +4,7 @@ import { useRuntimeConfig } from '@/hooks/use-clash'
 import { favoritesFirst, useFavorites } from '@/hooks/use-favorites'
 import { useVerge } from '@/hooks/use-verge'
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
-import delayManager from '@/services/delay'
+import delayManager, { effectiveLatencyTimeout } from '@/services/delay'
 import { debugLog } from '@/utils/debug'
 
 import { filterSort } from './use-filter-sort'
@@ -53,6 +53,13 @@ type ProxyGroup = {
   testUrl?: string
   provider?: string
 }
+
+/** Когда конфиг цепочки мерили: повтор — не раньше, чем замеры уйдут из кэша менеджера. */
+const chainMeasuredAt = new WeakMap<object, number>()
+const CHAIN_REMEASURE_MS = 30 * 60 * 1000
+
+const sameNames = (a: IProxyItem[], b: IProxyItem[]) =>
+  a.length === b.length && a.every((proxy, i) => proxy.name === b[i].name)
 
 export interface IRenderItem {
   // group | head | item | empty | item col
@@ -116,7 +123,7 @@ export const useRenderList = (
   const { favorites } = useFavorites()
   const { width } = useWindowWidth()
   const [headStates, setHeadState] = useHeadStateNew()
-  const latencyTimeout = verge?.default_latency_timeout
+  const latencyTimeout = effectiveLatencyTimeout(verge?.default_latency_timeout)
 
   // Получаем конфиг времени выполнения для режима цепочки прокси
   const { data: runtimeConfig } = useRuntimeConfig(!!isChainMode)
@@ -148,6 +155,9 @@ export const useRenderList = (
   // Автоматический расчёт задержки узлов в режиме цепочки прокси
   useEffect(() => {
     if (!isChainMode || !runtimeConfig) return
+    // Один прогон на конфиг: повторное открытие «Прокси» его не повторяет
+    const measuredAt = chainMeasuredAt.get(runtimeConfig)
+    if (measuredAt && Date.now() - measuredAt < CHAIN_REMEASURE_MS) return
 
     const allProxies: IProxyItem[] = Object.values(
       (runtimeConfig as any).proxies || {},
@@ -172,8 +182,9 @@ export const useRenderList = (
     delayManager.setGroupListener('chain-mode', groupListener)
 
     const calculateDelays = async () => {
+      chainMeasuredAt.set(runtimeConfig, Date.now())
       try {
-        const timeout = verge?.default_latency_timeout || 10000
+        const timeout = effectiveLatencyTimeout(verge?.default_latency_timeout)
 
         debugLog(
           `[ChainMode] Начало расчёта задержки для ${allProxies.length} узлов`,
@@ -356,7 +367,12 @@ export const useRenderList = (
       if (
         cached &&
         cached.now === group.now &&
-        cached.all === group.all &&
+        // Пока группу мерят под сортировкой по задержке, порядок стоит: иначе
+        // строки прыгали на каждом замере. Пересортирует конец проверки.
+        (cached.all === group.all ||
+          (headState.sortType === 1 &&
+            delayManager.isChecking(group.name) &&
+            sameNames(cached.all, group.all))) &&
         cached.headState === headState &&
         cached.col === col &&
         cached.latencyTimeout === latencyTimeout &&

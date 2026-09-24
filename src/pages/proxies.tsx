@@ -7,7 +7,6 @@ import { useTranslation } from 'react-i18next'
 import { BasePage, TooltipIcon } from '@/components/base'
 import { ProviderButton } from '@/components/proxy/provider-button'
 import { ProxyGroups } from '@/components/proxy/proxy-groups'
-import { useGroupTestUrls } from '@/hooks/use-group-test-urls'
 import { useProfiles } from '@/hooks/use-profiles'
 import {
   useAppRefreshers,
@@ -52,11 +51,6 @@ const ProxyPage = () => {
   const updateChainConfigData = useCallback((value: string | null) => {
     dispatchChainConfigData(value)
   }, [])
-  // clod: наполняет delayManager адресами `url:` групп и общим дефолтом. Без
-  // этого страница «Прокси» видела бы их только после захода на главную —
-  // раньше пробел закрывали записи в urlMap, но они переживали смену профиля.
-  useGroupTestUrls()
-
   const normalizedMode = clashConfig?.mode?.toLowerCase()
   const curMode = isMode(normalizedMode) ? normalizedMode : undefined
   // clod: `clod-lock-mode` hides every mode switch, this page included —

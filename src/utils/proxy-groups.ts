@@ -128,13 +128,18 @@ export const entryDelay = (
   group: string,
 ) => {
   const record = records[name]
-  const direct = delayManager.getDelayFix((record ?? { name }) as any, group)
+  const direct = delayManager.getDelayFix(
+    (record ?? { name }) as any,
+    group,
+    true,
+  )
   if (direct > 0) return direct
   const leaf = resolveLeaf(records, name)
   if (leaf === name) return direct
   return delayManager.getDelayFix(
     (records[leaf] ?? { name: leaf }) as any,
     group,
+    true,
   )
 }
 
@@ -146,6 +151,7 @@ export const entryPingTarget = (
   const direct = delayManager.getDelayFix(
     (records[name] ?? { name }) as any,
     group,
+    true,
   )
   if (direct > 0) return name
   return resolveLeaf(records, name)

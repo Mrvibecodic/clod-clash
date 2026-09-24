@@ -50,7 +50,8 @@ function filterProxies(
       symbol2 === 'error' ? 1e5 : symbol2 === 'timeout' ? 3000 : +symbol2
 
     return proxies.filter((p) => {
-      const delay = delayManager.getDelayFix(p, groupName)
+      // Как и в сортировке: узел в очереди проверки не выпадает из фильтра
+      const delay = delayManager.getDelayFix(p, groupName, true)
 
       if (delay < 0) return false
       if (symbol === '=' && symbol2 === 'error') return delay >= 1e5
@@ -117,7 +118,8 @@ function sortProxies(
 
     const ranked = proxies.map((proxy) => ({
       proxy,
-      rank: categorizeDelay(delayManager.getDelayFix(proxy, groupName)),
+      // Метка «идёт проверка» не двигает строку: иначе очередь уезжала вниз на каждом опросе
+      rank: categorizeDelay(delayManager.getDelayFix(proxy, groupName, true)),
     }))
 
     ranked.sort((a, b) => a.rank[0] - b.rank[0] || a.rank[1] - b.rank[1])

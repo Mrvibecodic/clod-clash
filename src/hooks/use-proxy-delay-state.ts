@@ -2,7 +2,10 @@ import { useLockFn } from 'ahooks'
 import { useCallback, useEffect, useReducer } from 'react'
 
 import { useVerge } from '@/hooks/use-verge'
-import delayManager, { type DelayUpdate } from '@/services/delay'
+import delayManager, {
+  type DelayUpdate,
+  effectiveLatencyTimeout,
+} from '@/services/delay'
 import { isCorePolicy } from '@/utils/proxy-groups'
 
 const identity = (_: DelayUpdate, next: DelayUpdate): DelayUpdate => next
@@ -23,7 +26,7 @@ export function useProxyDelayState(
   const isPreset = isCorePolicy(proxy.name)
   const [delayState, setDelayState] = useReducer(identity, INITIAL_DELAY)
   const { verge } = useVerge()
-  const timeout = verge?.default_latency_timeout || 10000
+  const timeout = effectiveLatencyTimeout(verge?.default_latency_timeout)
 
   useEffect(() => {
     if (isPreset) return

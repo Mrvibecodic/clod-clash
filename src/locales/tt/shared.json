@@ -59,6 +59,7 @@
   },
   "validation": {
     "invalidRegex": "Invalid regular expression",
+    "numberRange": "«{{field}}» кыры {{min}} дән {{max}} кадәр бөтен сан булырга тиеш",
     "numberRequired": "«{{field}}» кыры сан булырга тиеш"
   },
   "window": {

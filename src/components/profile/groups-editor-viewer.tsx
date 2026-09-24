@@ -113,6 +113,9 @@ const normalizeDeleteSeq = (input?: unknown): string[] => {
 const isGroup = (item: unknown) =>
   typeof (item as IProxyGroupConfig | null)?.name === 'string'
 
+/** Сутки: реже проверять группу незачем. */
+const GROUP_INTERVAL_MAX = 86400
+
 export const GroupsEditorViewer = (props: Props) => {
   const { mergeUid, proxiesUid, profileUid, property, open, onClose } = props
   const { t } = useTranslation()
@@ -417,6 +420,24 @@ export const GroupsEditorViewer = (props: Props) => {
     if (group.name === '') {
       throw new Error(t('profiles.modals.groupsEditor.errors.nameRequired'))
     }
+    // Отрицательный интервал ядро переводит в отрицательную длительность и падает
+    const interval = group.interval
+    if (
+      interval !== undefined &&
+      !(
+        Number.isInteger(interval) &&
+        interval >= 0 &&
+        interval <= GROUP_INTERVAL_MAX
+      )
+    ) {
+      throw new Error(
+        t('shared.validation.numberRange', {
+          field: t('profiles.modals.groupsEditor.fields.interval'),
+          min: 0,
+          max: GROUP_INTERVAL_MAX,
+        }),
+      )
+    }
   }
 
   const handleSave = useLockFn(async () => {
@@ -670,7 +691,11 @@ export const GroupsEditorViewer = (props: Props) => {
                         size="small"
                         sx={{ width: 'calc(100% - 150px)' }}
                         onChange={(e) => {
-                          field.onChange(parseInt(e.target.value))
+                          // Пустое поле — «не задано», а не NaN в конфиге
+                          const value = e.target.value.trim()
+                          field.onChange(
+                            value === '' ? undefined : parseInt(value),
+                          )
                         }}
                         slotProps={{
                           input: {

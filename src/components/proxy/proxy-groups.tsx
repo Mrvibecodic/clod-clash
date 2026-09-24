@@ -23,9 +23,10 @@ import { useVerge } from '@/hooks/use-verge'
 import { useVisibility } from '@/hooks/use-visibility'
 import { useProxiesData } from '@/providers/app-data-context'
 import { calcuProxies } from '@/services/cmds'
-import delayManager from '@/services/delay'
+import delayManager, { effectiveLatencyTimeout } from '@/services/delay'
 import { useQuery } from '@/services/query-client'
 import { debugLog } from '@/utils/debug'
+import { isCorePolicy } from '@/utils/proxy-groups'
 
 import {
   DEFAULT_HOVER_DELAY,
@@ -80,7 +81,7 @@ function useProxyRenderState(
     [renderList],
   )
 
-  const timeout = verge?.default_latency_timeout || 10000
+  const timeout = effectiveLatencyTimeout(verge?.default_latency_timeout)
 
   const checkingGroupsRef = useRef(new Set<string>())
   const handleCheckAll = useStableCallback(async (groupName: string) => {
@@ -106,13 +107,14 @@ function useProxyRenderState(
     const collapsed =
       (mode === 'rule' || mode === 'script') &&
       getGroupHeadState(groupName)?.open === false
-    const proxies =
+    const proxies = (
       rendered.length > 0
         ? rendered
         : collapsed
           ? (renderList.find((e) => e.group?.name === groupName)?.group?.all ??
             [])
           : []
+    ).filter((proxy) => !isCorePolicy(proxy.name)) // DIRECT, REJECT — не узлы
 
     debugLog(`[ProxyGroups] Найдено прокси: ${proxies.length}`)
 

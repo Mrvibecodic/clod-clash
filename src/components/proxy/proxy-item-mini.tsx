@@ -181,7 +181,7 @@ export const ProxyItemMini = (props: Props) => {
             onClick={(e) => {
               e.preventDefault()
               e.stopPropagation()
-              onDelay()
+              onDelay(proxy.provider)
             }}
             sx={({ palette }) => ({
               display: 'none', // показывать при hover

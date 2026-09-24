@@ -268,10 +268,21 @@ export async function calcuProxies(): Promise<{
 
 type ProxyProviderRecord = Awaited<ReturnType<typeof calcuProxyProviders>>
 
+/**
+ * Узлы провайдеров в GET /proxies не приходят: их задержки есть только в ответе
+ * провайдеров. Кэш бережёт этот тяжёлый запрос от опроса раз в 5 с, но не дольше
+ * минуты — иначе пинги таких узлов замерзали до обновления подписки.
+ */
+const PROVIDERS_MAX_AGE_MS = 60_000
+let providersReadAt = 0
+
 async function cachedProxyProviders(): Promise<ProxyProviderRecord> {
   const cached = getCacheData<ProxyProviderRecord>(['getProxyProviders'])
-  if (cached) return cached
+  if (cached && Date.now() - providersReadAt < PROVIDERS_MAX_AGE_MS) {
+    return cached
+  }
   const fresh = await calcuProxyProviders()
+  providersReadAt = Date.now()
   setCacheData(['getProxyProviders'], fresh)
   return fresh
 }

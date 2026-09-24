@@ -59,6 +59,7 @@
   },
   "validation": {
     "invalidRegex": "Invalid regular expression",
+    "numberRange": "「{{field}}」には {{min}} から {{max}} までの整数を入力してください",
     "numberRequired": "「{{field}}」には数値を入力してください"
   },
   "window": {

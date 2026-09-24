@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 
+import { savedTestUrls } from '@/components/proxy/use-head-state'
 import { useRuntimeConfig } from '@/hooks/use-clash'
+import { useProfiles } from '@/hooks/use-profiles'
 import { useVerge } from '@/hooks/use-verge'
 import delayManager from '@/services/delay'
 
@@ -9,7 +11,8 @@ const PAIR_SEP = String.fromCharCode(31)
 const ENTRY_SEP = String.fromCharCode(30)
 
 /**
- * clod: the URL each group should actually be tested against.
+ * clod: feeds delayManager the URL each group should actually be tested
+ * against. Mounted once, in the layout, so every screen sees the same URLs.
  *
  * Templates in the wild give every service group its own `url:` — the YouTube
  * group is checked against YouTube, the Telegram one against Telegram. Testing
@@ -21,16 +24,17 @@ const ENTRY_SEP = String.fromCharCode(30)
  *
  * The running config comes from the same react-query entry the rest of the app
  * uses, so a regenerated config (profile switch, subscription update) refreshes
- * these URLs too — with a cache of its own this hook would keep testing against
- * the URLs of the previous profile.
+ * these URLs too. URLs typed in the proxy page header belong to one profile:
+ * `setProfile` swaps them (and drops the previous profile's delays).
  */
 export const useGroupTestUrls = () => {
   const { verge } = useVerge()
   const { data: runtime } = useRuntimeConfig()
+  const { profiles } = useProfiles()
+  const profileUid = profiles?.current ?? ''
 
   // Плоская подпись «имя→url»: объект от react-query новый на каждый ответ, и
-  // без этого зависящие от нас колбэки пересоздавались бы вхолостую, сбрасывая
-  // отложенный автотест задержек.
+  // без неё карта адресов менеджера пересобиралась бы на каждом опросе.
   const signature = useMemo(() => {
     const groups = (runtime as { 'proxy-groups'?: unknown })?.['proxy-groups']
     if (!Array.isArray(groups)) return ''
@@ -70,13 +74,8 @@ export const useGroupTestUrls = () => {
     delayManager.setDefaultUrl(fallback)
   }, [fallback])
 
-  // Стабильная навсегда: состояние живёт в менеджере, а не в замыкании. Иначе
-  // каждый ответ react-query пересоздавал бы колбэки, зависящие от неё, и
-  // сбрасывал отложенный автотест задержек.
-  const urlFor = useCallback(
-    (group?: string) => delayManager.getUrl(group ?? ''),
-    [],
-  )
-
-  return useMemo(() => ({ byGroup, urlFor }), [byGroup, urlFor])
+  useEffect(() => {
+    if (profileUid)
+      delayManager.setProfile(profileUid, savedTestUrls(profileUid))
+  }, [profileUid])
 }

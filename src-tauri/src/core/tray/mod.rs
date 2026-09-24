@@ -640,18 +640,9 @@ fn create_subcreate_proxy_menu_item(
                     let is_selected = *proxy_str == now_proxy;
                     let item_id = format!("proxy_{}_{}", group_name, proxy_str);
 
-                    let delay_text = proxy_nodes_data
-                        .proxies
-                        .get(proxy_str)
-                        .and_then(|h| h.history.last())
-                        .map(|h| match h.delay {
-                            0 => "-ms".into(),
-                            delay if delay >= 10000 => "-ms".into(),
-                            _ => format!("{}ms", h.delay),
-                        })
-                        .unwrap_or_else(|| "-ms".into());
-
-                    MenuNode::check(item_id, format!("{}   | {}", proxy_str, delay_text), is_selected).skippable()
+                    // Задержек в трее нет: меню собирается по событиям, и цифры в нём
+                    // устаревали, а у узлов провайдеров их не было вовсе
+                    MenuNode::check(item_id, proxy_str.clone(), is_selected).skippable()
                 })
                 .collect();
 

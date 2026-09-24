@@ -59,6 +59,7 @@
   },
   "validation": {
     "invalidRegex": "Invalid regular expression",
+    "numberRange": "\"{{field}}\" {{min}} ile {{max}} arasında bir tam sayı olmalıdır",
     "numberRequired": "\"{{field}}\" bir sayı olmalıdır"
   },
   "window": {

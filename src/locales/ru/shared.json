@@ -59,6 +59,7 @@
   },
   "validation": {
     "invalidRegex": "Недопустимое регулярное выражение",
+    "numberRange": "Поле «{{field}}» должно быть целым числом от {{min}} до {{max}}",
     "numberRequired": "Поле «{{field}}» должно быть числом"
   },
   "window": {

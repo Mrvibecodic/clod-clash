@@ -13,6 +13,7 @@ import {
   WindowResizeHandles,
 } from '@/components/layout/window-controller'
 import { HwidLimitDialog } from '@/components/profile/hwid-limit-dialog'
+import { useGroupTestUrls } from '@/hooks/use-group-test-urls'
 import { useI18n } from '@/hooks/use-i18n'
 import { useTauriEvent } from '@/hooks/use-listen'
 import { useEnforceLockedTargets } from '@/hooks/use-locked-targets'
@@ -55,6 +56,8 @@ const Layout = () => {
 
   useModeWindowSize()
   useEnforceLockedTargets()
+  // Адреса проверки групп и подписка замеров живут всё время, а не только пока открыта Главная
+  useGroupTestUrls()
 
   const { decorated } = useWindowDecorations()
 

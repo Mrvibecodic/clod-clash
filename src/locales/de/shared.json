@@ -59,6 +59,7 @@
   },
   "validation": {
     "invalidRegex": "Invalid regular expression",
+    "numberRange": "„{{field}}“ muss eine ganze Zahl von {{min}} bis {{max}} sein",
     "numberRequired": "„{{field}}“ muss eine Zahl sein"
   },
   "window": {

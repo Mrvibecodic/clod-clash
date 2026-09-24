@@ -59,6 +59,7 @@
   },
   "validation": {
     "invalidRegex": "无效的正则表达式",
+    "numberRange": "「{{field}}」必须是 {{min}} 到 {{max}} 之间的整数",
     "numberRequired": "「{{field}}」必须是数字"
   },
   "window": {

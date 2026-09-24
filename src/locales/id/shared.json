@@ -59,6 +59,7 @@
   },
   "validation": {
     "invalidRegex": "Invalid regular expression",
+    "numberRange": "\"{{field}}\" harus berupa bilangan bulat dari {{min}} hingga {{max}}",
     "numberRequired": "\"{{field}}\" harus berupa angka"
   },
   "window": {

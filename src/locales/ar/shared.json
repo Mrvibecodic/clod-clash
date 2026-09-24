@@ -59,6 +59,7 @@
   },
   "validation": {
     "invalidRegex": "Invalid regular expression",
+    "numberRange": "يجب أن يكون «{{field}}» عددًا صحيحًا من {{min}} إلى {{max}}",
     "numberRequired": "يجب أن يكون «{{field}}» رقمًا"
   },
   "window": {
