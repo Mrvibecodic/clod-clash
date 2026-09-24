@@ -53,8 +53,5 @@ export const reachableProxyHost = (
   host: string | undefined,
   lanSharing: boolean,
 ) => {
-  const configured = host || '127.0.0.1'
-  return lanSharing || LOOPBACK_PROXY_HOSTS.includes(configured.toLowerCase())
-    ? configured
-    : '127.0.0.1'
+  return lanSharing ? host || '127.0.0.1' : '127.0.0.1'
 }

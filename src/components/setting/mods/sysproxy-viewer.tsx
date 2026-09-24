@@ -33,7 +33,7 @@ import { getNetworkInterfacesInfo, getSystemHostname } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { debugLog } from '@/utils/debug'
 import getSystem from '@/utils/get-system'
-import { LOOPBACK_PROXY_HOSTS, reachableProxyHost } from '@/utils/ports'
+import { LOOPBACK_PROXY_HOSTS } from '@/utils/ports'
 
 const DEFAULT_PAC = `function FindProxyForURL(url, host) {
   return "PROXY %proxy_host%:%mixed-port%; SOCKS5 %proxy_host%:%mixed-port%; DIRECT;";
@@ -93,7 +93,7 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
   const [hostOptions, setHostOptions] = useState<string[]>([])
   const { data: runtime } = useRuntimeConfig()
   const lanSharing = runtime?.['allow-lan'] ?? false
-  const shownHostOptions = lanSharing ? hostOptions : LOOPBACK_PROXY_HOSTS
+  const shownHostOptions = lanSharing ? hostOptions : ['127.0.0.1']
 
   const { indicator: isProxyReallyEnabled, invalidateProxyState } =
     useSystemProxyState()
@@ -140,12 +140,11 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
     const isPacMode = value.pac ?? false
 
     if (isPacMode) {
-      const host = reachableProxyHost(value.proxy_host, lanSharing)
-      return sysproxy?.current_port ? `${host}:${sysproxy.current_port}` : '-'
+      return sysproxy?.current_port ? `127.0.0.1:${sysproxy.current_port}` : '-'
     } else {
       return systemProxyAddress
     }
-  }, [value.pac, value.proxy_host, lanSharing, sysproxy, systemProxyAddress])
+  }, [value.pac, sysproxy, systemProxyAddress])
   const getCurrentPacUrl = useMemo(() => {
     // Определяем порт PAC по окружению
     const port = import.meta.env.DEV ? 11233 : 33331

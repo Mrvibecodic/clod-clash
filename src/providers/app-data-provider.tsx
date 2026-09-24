@@ -281,12 +281,8 @@ export const AppDataProvider = ({
 
       if (isPacMode) {
         // Режим PAC: показываем адрес прокси, который мы ожидаем установить
-        const proxyHost = reachableProxyHost(
-          verge.proxy_host,
-          runtime?.['allow-lan'] ?? false,
-        )
         return sysproxy?.current_port
-          ? `${proxyHost}:${sysproxy.current_port}`
+          ? `127.0.0.1:${sysproxy.current_port}`
           : '-'
       } else {
         // Режим HTTP-прокси: предпочитаем системный адрес, но если формат
