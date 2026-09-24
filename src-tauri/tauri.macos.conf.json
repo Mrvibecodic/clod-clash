@@ -8,8 +8,8 @@
       "frameworks": [],
       "minimumSystemVersion": "11.0",
       "exceptionDomain": "",
-      "signingIdentity": null,
-      "entitlements": "packages/macos/entitlements.plist",
+      "signingIdentity": "-",
+      "hardenedRuntime": false,
       "dmg": {
         "background": "images/background.png",
         "appPosition": {

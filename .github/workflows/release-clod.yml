@@ -152,6 +152,10 @@ jobs:
           releaseId: ${{ needs.prepare_release.outputs.release_id }}
           args: --target ${{ matrix.target }}
 
+      - name: Verify app bundle seal (macos only)
+        if: matrix.os == 'macos-latest'
+        run: codesign --verify --deep --strict --verbose=2 "target/${{ matrix.target }}/release/bundle/macos/Clod Clash.app"
+
       - name: Portable bundle (windows only)
         if: matrix.os == 'windows-latest'
         run: pnpm portable ${{ matrix.target }}
