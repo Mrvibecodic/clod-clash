@@ -531,7 +531,6 @@ impl Sysopt {
         let verge = Config::verge().await.latest_arc();
         let configured = verge.proxy_host.as_deref().unwrap_or(LOOPBACK_PROXY_HOST).to_owned();
         drop(verge);
-        let host = Config::reachable_proxy_host(&configured).await;
         let port = Config::effective_mixed_port().await;
         let pac_port = IVerge::get_singleton_port();
         let pac_url = format!("http://{LOOPBACK_PROXY_HOST}:{pac_port}/commands/pac");
@@ -548,7 +547,7 @@ impl Sysopt {
         });
         let sent = self.sent_to_the_system.read().clone();
         let mut ours = everything_that_might_be_ours(
-            (host.as_str(), port, pac_url.as_str()),
+            (LOOPBACK_PROXY_HOST, port, pac_url.as_str()),
             previous
                 .as_ref()
                 .map(|(host, port, pac_url)| (host.as_str(), *port, pac_url.as_str())),
@@ -556,7 +555,6 @@ impl Sysopt {
             sent.taken_up.as_ref().map(SentProxy::as_tuple),
         );
         ours.push((configured.as_str(), port, configured_pac_url.as_str()));
-        ours.push((LOOPBACK_PROXY_HOST, port, pac_url.as_str()));
 
         Some(how_the_system_proxy_stands(&observed, &ours))
     }

@@ -7305,7 +7305,6 @@ version = "0.1.0"
 dependencies = [
  "deelevate",
  "libc",
- "parking_lot",
  "sysinfo",
  "tauri",
 ]

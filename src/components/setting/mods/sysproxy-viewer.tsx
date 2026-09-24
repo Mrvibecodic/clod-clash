@@ -55,6 +55,8 @@ const ipv6_part = '(?:[a-fA-F0-9:])+'
 
 const rLocal = `localhost|<local>|localdomain`
 
+const PAC_URL = `http://127.0.0.1:${import.meta.env.DEV ? 11233 : 33331}/commands/pac`
+
 const getValidReg = (isWindows: boolean) => {
   // 127.0.0.1 (full ipv4)
   const rIPv4Unix = String.raw`(?:${ipv4_part}\.){3}${ipv4_part}(?:\/\d{1,2})?`
@@ -133,23 +135,7 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
     return '127.0.0.1,192.168.0.0/16,10.0.0.0/8,172.16.0.0/12,localhost,*.local,*.crashlytics.com,<local>'
   }
 
-  const { sysproxy, systemProxyAddress } = useSystemData()
-
-  // Считаем адрес системного прокси для текущего состояния
-  const getSystemProxyAddress = useMemo(() => {
-    const isPacMode = value.pac ?? false
-
-    if (isPacMode) {
-      return sysproxy?.current_port ? `127.0.0.1:${sysproxy.current_port}` : '-'
-    } else {
-      return systemProxyAddress
-    }
-  }, [value.pac, sysproxy, systemProxyAddress])
-  const getCurrentPacUrl = useMemo(() => {
-    // Определяем порт PAC по окружению
-    const port = import.meta.env.DEV ? 11233 : 33331
-    return `http://127.0.0.1:${port}/commands/pac`
-  }, [])
+  const { systemProxyAddress } = useSystemData()
 
   const bypassError =
     value.enable_bypass_check && !value.pac && value.bypass
@@ -244,7 +230,7 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
     } catch (error) {
       console.error('Не удалось получить сетевые интерфейсы:', error)
       // При ошибке предоставляем хотя бы базовые опции
-      setHostOptions(LOOPBACK_PROXY_HOSTS)
+      setHostOptions([...LOOPBACK_PROXY_HOSTS])
     }
   }
 
@@ -374,7 +360,7 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
               <Typography className="label">
                 {t('settings.modals.sysproxy.fields.serverAddr')}
               </Typography>
-              <Typography className="value">{getSystemProxyAddress}</Typography>
+              <Typography className="value">{systemProxyAddress}</Typography>
             </FlexBox>
           )}
           {value.pac && (
@@ -382,9 +368,7 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
               <Typography className="label">
                 {t('settings.modals.sysproxy.fields.pacUrl')}
               </Typography>
-              <Typography className="value">
-                {getCurrentPacUrl || '-'}
-              </Typography>
+              <Typography className="value">{PAC_URL}</Typography>
             </FlexBox>
           )}
         </BaseFieldset>

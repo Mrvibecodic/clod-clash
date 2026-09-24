@@ -779,8 +779,6 @@ impl CoreManager {
     }
 
     pub(super) fn after_core_process(&self) {
-        let app_handle = Handle::app_handle();
-        tauri_plugin_clash_verge_sysinfo::set_app_core_mode(app_handle, self.get_running_mode().to_string());
         if Handle::global().is_exiting() {
             return;
         }

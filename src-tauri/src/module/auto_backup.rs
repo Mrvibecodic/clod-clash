@@ -5,27 +5,18 @@ use crate::{
     utils::dirs::local_backup_dir,
 };
 use anyhow::Result;
-use chrono::Local;
 use clash_verge_logging::{Type, logging};
 use once_cell::sync::OnceCell;
-use parking_lot::RwLock;
 use std::{
     path::PathBuf,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, AtomicI64, Ordering},
-    },
+    sync::atomic::{AtomicBool, Ordering},
     time::{Duration, UNIX_EPOCH},
 };
-use tokio::{
-    fs,
-    sync::{Mutex, watch},
-};
+use tokio::{fs, sync::watch};
 
 const DEFAULT_INTERVAL_HOURS: u64 = 24;
 const MIN_INTERVAL_HOURS: u64 = 1;
 const MAX_INTERVAL_HOURS: u64 = 168;
-const MIN_BACKUP_INTERVAL_SECS: i64 = 60;
 const AUTO_BACKUP_KEEP: usize = 20;
 const AUTO_MARKER: &str = "-auto-";
 
@@ -59,11 +50,8 @@ impl Default for AutoBackupSettings {
 }
 
 pub struct AutoBackupManager {
-    settings: Arc<RwLock<AutoBackupSettings>>,
     settings_tx: watch::Sender<AutoBackupSettings>,
     runner_started: AtomicBool,
-    exec_lock: Mutex<()>,
-    last_backup: AtomicI64,
 }
 
 impl AutoBackupManager {
@@ -72,20 +60,14 @@ impl AutoBackupManager {
         INSTANCE.get_or_init(|| {
             let (tx, _rx) = watch::channel(AutoBackupSettings::default());
             Self {
-                settings: Arc::new(RwLock::new(AutoBackupSettings::default())),
                 settings_tx: tx,
                 runner_started: AtomicBool::new(false),
-                exec_lock: Mutex::new(()),
-                last_backup: AtomicI64::new(0),
             }
         })
     }
 
     pub async fn init(&self) -> Result<()> {
         let settings = Self::load_settings().await;
-        {
-            *self.settings.write() = settings;
-        }
         let _ = self.settings_tx.send(settings);
         self.maybe_start_runner(settings);
         Ok(())
@@ -93,9 +75,6 @@ impl AutoBackupManager {
 
     pub async fn refresh_settings(&self) -> Result<()> {
         let settings = Self::load_settings().await;
-        {
-            *self.settings.write() = settings;
-        }
         let _ = self.settings_tx.send(settings);
         self.maybe_start_runner(settings);
         Ok(())
@@ -157,21 +136,11 @@ impl AutoBackupManager {
     }
 
     async fn execute_scheduled(&self) -> Result<()> {
-        if !self.settings.read().schedule_enabled {
+        if !self.settings_tx.borrow().schedule_enabled {
             return Ok(());
         }
 
-        if !self.should_run_now() {
-            return Ok(());
-        }
-
-        let _guard = self.exec_lock.lock().await;
-        if !self.should_run_now() {
-            return Ok(());
-        }
-
-        let file_name = create_local_backup_with_namer(|name| append_auto_suffix(name, "scheduled").into()).await?;
-        self.last_backup.store(Local::now().timestamp(), Ordering::Release);
+        let file_name = create_local_backup_with_namer(|name| append_auto_suffix(name).into()).await?;
 
         if let Err(err) = cleanup_auto_backups().await {
             logging!(warn, Type::Backup, "Failed to cleanup old auto backups: {err:#?}");
@@ -181,25 +150,16 @@ impl AutoBackupManager {
         Ok(())
     }
 
-    fn should_run_now(&self) -> bool {
-        let last = self.last_backup.load(Ordering::Acquire);
-        if last == 0 {
-            return true;
-        }
-        let now = Local::now().timestamp();
-        now.saturating_sub(last) >= MIN_BACKUP_INTERVAL_SECS
-    }
-
     async fn load_settings() -> AutoBackupSettings {
         let verge = Config::verge().await;
         AutoBackupSettings::from_verge(&verge.latest_arc())
     }
 }
 
-fn append_auto_suffix(file_name: &str, slug: &str) -> String {
+fn append_auto_suffix(file_name: &str) -> String {
     match file_name.rsplit_once('.') {
-        Some((stem, ext)) => format!("{stem}{AUTO_MARKER}{slug}.{ext}"),
-        None => format!("{file_name}{AUTO_MARKER}{slug}"),
+        Some((stem, ext)) => format!("{stem}{AUTO_MARKER}scheduled.{ext}"),
+        None => format!("{file_name}{AUTO_MARKER}scheduled"),
     }
 }
 

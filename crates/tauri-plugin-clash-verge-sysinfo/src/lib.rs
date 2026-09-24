@@ -1,88 +1,14 @@
-use std::fmt::Debug;
-
 #[cfg(windows)]
 use deelevate::{PrivilegeLevel, Token};
 #[cfg(unix)]
 pub use libc;
-use parking_lot::RwLock;
-use sysinfo::{Networks, System};
+use sysinfo::Networks;
 use tauri::{
     Manager as _, Runtime,
     plugin::{Builder, TauriPlugin},
 };
 
-#[derive(Clone)]
-pub struct SysInfo {
-    system_name: String,
-    system_version: String,
-    system_kernel_version: String,
-    system_arch: String,
-}
-
-impl Default for SysInfo {
-    #[inline]
-    fn default() -> Self {
-        let system_name = System::name().unwrap_or_else(|| "Null".into());
-        let system_version = System::long_os_version().unwrap_or_else(|| "Null".into());
-        let system_kernel_version = System::kernel_version().unwrap_or_else(|| "Null".into());
-        let system_arch = System::cpu_arch();
-        Self {
-            system_name,
-            system_version,
-            system_kernel_version,
-            system_arch,
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct AppInfo {
-    app_version: String,
-    app_core_mode: String,
-    pub app_is_admin: bool,
-}
-
-impl Default for AppInfo {
-    #[inline]
-    fn default() -> Self {
-        let app_version = "0.0.0".into();
-        let app_core_mode = "NotRunning".into();
-        let app_is_admin = false;
-        Self {
-            app_version,
-            app_core_mode,
-            app_is_admin,
-        }
-    }
-}
-
-#[derive(Default, Clone)]
-pub struct Platform {
-    pub sysinfo: SysInfo,
-    pub appinfo: AppInfo,
-}
-
-impl Debug for Platform {
-    #[inline]
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Platform")
-            .field("system_name", &self.sysinfo.system_name)
-            .field("system_version", &self.sysinfo.system_version)
-            .field("system_kernel_version", &self.sysinfo.system_kernel_version)
-            .field("system_arch", &self.sysinfo.system_arch)
-            .field("app_version", &self.appinfo.app_version)
-            .field("app_core_mode", &self.appinfo.app_core_mode)
-            .field("app_is_admin", &self.appinfo.app_is_admin)
-            .finish()
-    }
-}
-
-impl Platform {
-    #[inline]
-    fn new() -> Self {
-        Self::default()
-    }
-}
+struct AppIsAdmin(bool);
 
 #[inline]
 fn is_binary_admin() -> bool {
@@ -111,35 +37,15 @@ pub fn list_network_interfaces() -> Vec<String> {
 }
 
 #[inline]
-pub fn set_app_core_mode<R: Runtime>(app: &tauri::AppHandle<R>, mode: impl Into<String>) {
-    let platform_spec = app.state::<RwLock<Platform>>();
-    let mut spec = platform_spec.write();
-    spec.appinfo.app_core_mode = mode.into();
-}
-
-#[inline]
 pub fn is_current_app_handle_admin<R: Runtime>(app: &tauri::AppHandle<R>) -> bool {
-    let platform_spec = app.state::<RwLock<Platform>>();
-    let spec = platform_spec.read();
-    spec.appinfo.app_is_admin
+    app.state::<AppIsAdmin>().0
 }
 
 #[inline]
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
     Builder::<R>::new("clash_verge_sysinfo")
-        // TODO сейчас крейт ещё не настоящий плагин tauri, регистрировать
-        // TODO нужно вручную из основного lib
-        // TODO перенести command получения системной информации из clash-verge
-        // TODO и сделать удобный доступ через structure.field
         .setup(move |app, _api| {
-            let app_version = app.package_info().version.to_string();
-            let is_admin = is_binary_admin();
-
-            let mut platform_spec = Platform::new();
-            platform_spec.appinfo.app_version = app_version;
-            platform_spec.appinfo.app_is_admin = is_admin;
-
-            app.manage(RwLock::new(platform_spec));
+            app.manage(AppIsAdmin(is_binary_admin()));
             Ok(())
         })
         .build()
