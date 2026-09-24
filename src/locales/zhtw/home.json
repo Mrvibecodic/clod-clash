@@ -73,7 +73,7 @@
       "tun": "TUN",
       "tunInstalling": "TUN · 設定中…",
       "autoLaunch": "Start with the system",
-      "silentStart": "Start minimized",
+      "silentStart": "啟動到系統匣",
       "lockedBy": "{{targets}} — the connection method is set by your provider",
       "connectOnLaunch": "啟動時自動連線",
       "groups": {

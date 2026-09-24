@@ -358,12 +358,12 @@
         "ladderUnread": "Es konnte nicht gelesen werden, welchen Port der Kern gerade nutzt: Der gemischte Proxy-Port bleibt unverändert, die übrigen Ports werden gespeichert.",
         "saved": "Port settings saved",
         "saveFailed": "Failed to save port settings",
-        "firewallRequired": "Erfordert eigene Firewall-Regeln (pf/iptables); der Client richtet sie nicht ein"
+        "firewallRequired": "Erfordert eigene Firewall-Regeln (pf/iptables/nftables); der Client richtet sie nicht ein"
       }
     },
     "clashCore": {
       "upgradeHint": "Ohne Dienst lädt die Aktualisierung einen frischen Kern herunter und schaltet auf den verwalteten Kern um.",
-      "managedActiveNote": "Der verwaltete Kern ist aktiviert: Solange der Kern nicht über den Dienst läuft, wirkt die Auswahl hier nicht.",
+      "managedActiveNote": "Der verwaltete Kern ist aktiviert: Sobald er heruntergeladen ist und der Kern nicht über den Dienst läuft, wirkt die Auswahl hier nicht.",
       "variants": {
         "release": "Stabile Version",
         "alpha": "Alpha-Version"
@@ -515,7 +515,7 @@
       },
       "tooltips": {
         "proxyGuard": "Aktivieren Sie diese Option, um zu verhindern, dass andere Software die Proxy-Einstellungen des Betriebssystems ändert.",
-        "proxyHost": "Andere Adressen lassen WSL und Docker über den Client laufen und funktionieren nur bei aktivierter LAN-Freigabe. Solange die Freigabe aus ist, verwendet der Client 127.0.0.1."
+        "proxyHost": "Andere Adressen lassen WSL und Docker über den Client laufen und funktionieren nur bei aktivierter LAN-Freigabe. Solange die Freigabe aus ist, verwendet der Client 127.0.0.1. Im PAC-Modus wird immer 127.0.0.1 verwendet."
       },
       "messages": {
         "durationTooShort": "Das Intervall des Proxy-Daemons darf nicht weniger als 1 Sekunde betragen.",

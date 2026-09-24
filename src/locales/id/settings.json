@@ -358,12 +358,12 @@
         "ladderUnread": "Tidak dapat membaca port mana yang sedang dipakai inti: port campuran tidak berubah, port lainnya akan disimpan.",
         "saved": "Port settings saved",
         "saveFailed": "Failed to save port settings",
-        "firewallRequired": "Memerlukan aturan firewall sendiri (pf/iptables); klien tidak mengaturnya"
+        "firewallRequired": "Memerlukan aturan firewall sendiri (pf/iptables/nftables); klien tidak mengaturnya"
       }
     },
     "clashCore": {
       "upgradeHint": "Tanpa layanan, pembaruan mengunduh inti baru dan beralih ke inti terkelola.",
-      "managedActiveNote": "Inti terkelola aktif: selama inti tidak berjalan melalui layanan, pilihan di sini tidak berlaku.",
+      "managedActiveNote": "Inti terkelola aktif: setelah diunduh dan inti tidak berjalan melalui layanan, pilihan di sini tidak berlaku.",
       "variants": {
         "release": "Versi Rilis",
         "alpha": "Versi Alpha"
@@ -515,7 +515,7 @@
       },
       "tooltips": {
         "proxyGuard": "Aktifkan untuk mencegah perangkat lunak lain mengubah pengaturan proksi sistem operasi",
-        "proxyHost": "Alamat lain memungkinkan WSL dan Docker melewati klien dan hanya berfungsi saat berbagi LAN aktif. Selama berbagi nonaktif, klien memakai 127.0.0.1."
+        "proxyHost": "Alamat lain memungkinkan WSL dan Docker melewati klien dan hanya berfungsi saat berbagi LAN aktif. Selama berbagi nonaktif, klien memakai 127.0.0.1. Dalam mode PAC selalu dipakai 127.0.0.1."
       },
       "messages": {
         "durationTooShort": "Durasi Daemon Proksi Tidak Boleh Kurang dari 1 Detik",

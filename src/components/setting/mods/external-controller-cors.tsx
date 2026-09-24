@@ -204,10 +204,15 @@ export const HeaderConfiguration = forwardRef<ClashHeaderConfigingRef>(
         onCancel={() => setOpen(false)}
         onOk={handleSave}
       >
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          component="p"
+          sx={{ px: 2 }}
+        >
+          {t('settings.sections.externalCors.messages.onlyForPanels')}
+        </Typography>
         <List sx={{ width: '90%', padding: 2 }}>
-          <Typography variant="caption" color="text.secondary" component="p">
-            {t('settings.sections.externalCors.messages.onlyForPanels')}
-          </Typography>
           <ListItem sx={{ padding: '8px 0' }}>
             <Box
               sx={{

@@ -358,12 +358,12 @@
         "ladderUnread": "Çekirdeğin şu anda hangi bağlantı noktasını kullandığı okunamadı: karışık port değişmez, diğer portlar kaydedilir.",
         "saved": "Port settings saved",
         "saveFailed": "Failed to save port settings",
-        "firewallRequired": "Kendi güvenlik duvarı kurallarınızı (pf/iptables) gerektirir; istemci bunları kurmaz"
+        "firewallRequired": "Kendi güvenlik duvarı kurallarınızı (pf/iptables/nftables) gerektirir; istemci bunları kurmaz"
       }
     },
     "clashCore": {
       "upgradeHint": "Hizmet olmadan güncelleme yeni bir çekirdek indirir ve yönetilen çekirdeğe geçer.",
-      "managedActiveNote": "Yönetilen çekirdek etkin: çekirdek hizmet üzerinden çalışmadığı sürece buradaki seçim etkisizdir.",
+      "managedActiveNote": "Yönetilen çekirdek etkin: indirildiğinde ve çekirdek hizmet üzerinden çalışmadığında buradaki seçim etkisizdir.",
       "variants": {
         "release": "Kararlı Sürüm",
         "alpha": "Alfa Sürümü"
@@ -515,7 +515,7 @@
       },
       "tooltips": {
         "proxyGuard": "Diğer yazılımların işletim sisteminin vekil ayarlarını değiştirmesini önlemek için etkinleştirin",
-        "proxyHost": "Diğer adresler WSL ve Docker'ın istemci üzerinden geçmesi içindir ve yalnızca yerel ağ paylaşımı açıkken çalışır. Paylaşım kapalıyken istemci 127.0.0.1 kullanır."
+        "proxyHost": "Diğer adresler WSL ve Docker'ın istemci üzerinden geçmesi içindir ve yalnızca yerel ağ paylaşımı açıkken çalışır. Paylaşım kapalıyken istemci 127.0.0.1 kullanır. PAC modunda her zaman 127.0.0.1 kullanılır."
       },
       "messages": {
         "durationTooShort": "Vekil Koruyucu Süresi 1 Saniyeden Az Olamaz",

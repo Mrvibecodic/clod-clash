@@ -358,12 +358,12 @@
         "ladderUnread": "無法讀取核心目前使用的連接埠：混合連接埠保持不變，其餘連接埠將會儲存。",
         "saved": "連結埠設定已儲存",
         "saveFailed": "連結埠設定儲存失敗",
-        "firewallRequired": "需要自行設定防火牆規則 (pf/iptables)，用戶端不會設定"
+        "firewallRequired": "需要自行設定防火牆規則 (pf/iptables/nftables)，用戶端不會設定"
       }
     },
     "clashCore": {
       "upgradeHint": "未安裝服務時，更新會下載新核心並切換到託管核心。",
-      "managedActiveNote": "已啟用託管核心：核心未透過服務執行時，此處的選擇不生效。",
+      "managedActiveNote": "已啟用託管核心：已下載且核心未透過服務執行時，此處的選擇不生效。",
       "variants": {
         "release": "正式版",
         "alpha": "預覽版"
@@ -515,7 +515,7 @@
       },
       "tooltips": {
         "proxyGuard": "開啟以防止其他軟體修改作業系統的代理設定",
-        "proxyHost": "其他位址用於讓 WSL 和 Docker 經過用戶端，僅在開啟區域網路共享時有效。共享關閉時，用戶端使用 127.0.0.1。"
+        "proxyHost": "其他位址用於讓 WSL 和 Docker 經過用戶端，僅在開啟區域網路共享時有效。共享關閉時，用戶端使用 127.0.0.1。PAC 模式下始終使用 127.0.0.1。"
       },
       "messages": {
         "durationTooShort": "代理守護間隔時間不得低於 1 秒",

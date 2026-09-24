@@ -73,7 +73,7 @@
       "tun": "TUN",
       "tunInstalling": "TUN · wird eingerichtet…",
       "autoLaunch": "Start with the system",
-      "silentStart": "Start minimized",
+      "silentStart": "Im Infobereich starten",
       "lockedBy": "{{targets}} — the connection method is set by your provider",
       "connectOnLaunch": "Beim Start verbinden",
       "groups": {

@@ -358,12 +358,12 @@
         "ladderUnread": "Could not read which port the core is using now: the mixed port will stay as it is, the other ports will be saved.",
         "saved": "Port settings saved",
         "saveFailed": "Failed to save port settings",
-        "firewallRequired": "Needs your own firewall rules (pf/iptables); the client does not set them up"
+        "firewallRequired": "Needs your own firewall rules (pf/iptables/nftables); the client does not set them up"
       }
     },
     "clashCore": {
       "upgradeHint": "Without the service, updating downloads a fresh core and switches to the managed core.",
-      "managedActiveNote": "The managed core is enabled: while the core does not run through the service, the choice here has no effect.",
+      "managedActiveNote": "The managed core is enabled: once it is downloaded and the core does not run through the service, the choice here has no effect.",
       "variants": {
         "release": "Release Version",
         "alpha": "Alpha Version"
@@ -515,7 +515,7 @@
       },
       "tooltips": {
         "proxyGuard": "Enable to prevent other software from modifying the operating system's proxy settings",
-        "proxyHost": "Other addresses let WSL and Docker go through the client and only work while LAN sharing is on. While sharing is off, the client uses 127.0.0.1."
+        "proxyHost": "Other addresses let WSL and Docker go through the client and only work while LAN sharing is on. While sharing is off, the client uses 127.0.0.1. In PAC mode 127.0.0.1 is always used."
       },
       "messages": {
         "durationTooShort": "Proxy Daemon Duration Cannot be Less than 1 Second",

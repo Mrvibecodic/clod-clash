@@ -73,7 +73,7 @@
       "tun": "TUN",
       "tunInstalling": "TUN · configurando…",
       "autoLaunch": "Start with the system",
-      "silentStart": "Start minimized",
+      "silentStart": "Iniciar en la bandeja",
       "lockedBy": "{{targets}} — the connection method is set by your provider",
       "connectOnLaunch": "Conectar al iniciar",
       "groups": {

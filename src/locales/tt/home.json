@@ -73,7 +73,7 @@
       "tun": "TUN",
       "tunInstalling": "TUN · әзерләнә…",
       "autoLaunch": "Start with the system",
-      "silentStart": "Start minimized",
+      "silentStart": "Трейда башлау",
       "lockedBy": "{{targets}} — the connection method is set by your provider",
       "connectOnLaunch": "Җибәргәч тоташу",
       "groups": {

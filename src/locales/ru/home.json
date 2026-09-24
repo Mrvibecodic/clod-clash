@@ -73,7 +73,7 @@
       "tun": "TUN",
       "tunInstalling": "TUN · настраиваем…",
       "autoLaunch": "Запускать с системой",
-      "silentStart": "Запускать свёрнутым",
+      "silentStart": "Запускать в трее",
       "lockedBy": "{{targets}} — способ подключения задан провайдером",
       "connectOnLaunch": "Подключаться при запуске",
       "groups": {

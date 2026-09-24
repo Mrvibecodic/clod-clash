@@ -73,7 +73,7 @@
       "tun": "TUN",
       "tunInstalling": "TUN · menyiapkan…",
       "autoLaunch": "Start with the system",
-      "silentStart": "Start minimized",
+      "silentStart": "Mulai di baki sistem",
       "lockedBy": "{{targets}} — the connection method is set by your provider",
       "connectOnLaunch": "Sambungkan saat dijalankan",
       "groups": {

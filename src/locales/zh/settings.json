@@ -358,12 +358,12 @@
         "ladderUnread": "无法读取内核当前使用的端口：混合代理端口保持不变，其余端口将会保存。",
         "saved": "端口设置已保存",
         "saveFailed": "端口设置保存失败",
-        "firewallRequired": "需要自行配置防火墙规则 (pf/iptables)，客户端不会设置"
+        "firewallRequired": "需要自行配置防火墙规则 (pf/iptables/nftables)，客户端不会设置"
       }
     },
     "clashCore": {
       "upgradeHint": "未安装服务时，更新会下载新内核并切换到托管内核。",
-      "managedActiveNote": "已启用托管内核：内核未通过服务运行时，此处的选择不生效。",
+      "managedActiveNote": "已启用托管内核：已下载且内核未通过服务运行时，此处的选择不生效。",
       "variants": {
         "release": "正式版",
         "alpha": "预览版"
@@ -515,7 +515,7 @@
       },
       "tooltips": {
         "proxyGuard": "开启以防止其他软件修改操作系统的代理设置",
-        "proxyHost": "其他地址用于让 WSL 和 Docker 经过客户端，仅在开启局域网共享时有效。共享关闭时，客户端使用 127.0.0.1。"
+        "proxyHost": "其他地址用于让 WSL 和 Docker 经过客户端，仅在开启局域网共享时有效。共享关闭时，客户端使用 127.0.0.1。PAC 模式下始终使用 127.0.0.1。"
       },
       "messages": {
         "durationTooShort": "代理守护间隔时间不得低于 1 秒",

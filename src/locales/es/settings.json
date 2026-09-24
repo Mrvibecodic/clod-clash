@@ -358,12 +358,12 @@
         "ladderUnread": "No se pudo leer qué puerto usa ahora el núcleo: el puerto mixto no cambiará, los demás puertos se guardarán.",
         "saved": "Port settings saved",
         "saveFailed": "Failed to save port settings",
-        "firewallRequired": "Requiere reglas de firewall propias (pf/iptables); el cliente no las configura"
+        "firewallRequired": "Requiere reglas de firewall propias (pf/iptables/nftables); el cliente no las configura"
       }
     },
     "clashCore": {
       "upgradeHint": "Sin el servicio, la actualización descarga un núcleo nuevo y cambia al núcleo gestionado.",
-      "managedActiveNote": "El núcleo gestionado está activado: mientras el núcleo no se ejecute a través del servicio, la elección aquí no tiene efecto.",
+      "managedActiveNote": "El núcleo gestionado está activado: cuando está descargado y el núcleo no se ejecuta a través del servicio, la elección aquí no tiene efecto.",
       "variants": {
         "release": "Versión estable",
         "alpha": "Versión alfa"
@@ -515,7 +515,7 @@
       },
       "tooltips": {
         "proxyGuard": "Habilite esta opción para evitar que otros programas modifiquen la configuración del proxy del sistema operativo.",
-        "proxyHost": "Otras direcciones permiten que WSL y Docker pasen por el cliente y solo funcionan con el uso compartido en la red local activado. Mientras esté desactivado, el cliente usa 127.0.0.1."
+        "proxyHost": "Otras direcciones permiten que WSL y Docker pasen por el cliente y solo funcionan con el uso compartido en la red local activado. Mientras esté desactivado, el cliente usa 127.0.0.1. En modo PAC siempre se usa 127.0.0.1."
       },
       "messages": {
         "durationTooShort": "El intervalo de tiempo del daemon de proxy no puede ser menor de 1 segundo",

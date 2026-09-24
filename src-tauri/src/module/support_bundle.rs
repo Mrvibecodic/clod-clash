@@ -178,7 +178,7 @@ async fn settings_section(out: &mut std::string::String) {
         out,
         "- системный прокси: {} (адрес {}, PAC {})",
         yes_no(data.enable_system_proxy.unwrap_or(false)),
-        data.proxy_host.as_deref().unwrap_or("127.0.0.1"),
+        Config::reachable_proxy_host(data.proxy_host.as_deref().unwrap_or("127.0.0.1")).await,
         yes_no(data.proxy_auto_config.unwrap_or(false))
     );
     let _ = writeln!(
