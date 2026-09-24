@@ -119,15 +119,21 @@ pub async fn change_clash_mode(mode: String) -> Result<(), String> {
     let owner = mode_owner().await;
     refuse_mode_change(owner.as_ref())?;
     if runtime_mode_is(&mode).await && core_mode_is(&mode).await {
+        // Режим уже такой, но нажатие — всё равно выбор человека: без записи
+        // следующая смена `mode` в подписке перебила бы его.
+        remember_mode_choice(owner.as_ref(), &mode).await;
         logging_error!(Type::Tray, tray::Tray::global().update_menu().await);
         return Ok(());
     }
     switch_clash_mode(mode, owner).await
 }
 
-async fn switch_clash_mode(mode: String, owner: Option<(String, bool)>) -> Result<(), String> {
-    let previous = match &owner {
-        Some((uid, _)) => match crate::config::profiles::profiles_set_mode_choice_safe(uid, Some(mode.clone())).await {
+async fn remember_mode_choice<'a>(
+    owner: Option<&'a (String, bool)>,
+    mode: &str,
+) -> Option<(&'a String, Option<String>)> {
+    match owner {
+        Some((uid, _)) => match crate::config::profiles::profiles_set_mode_choice_safe(uid, Some(mode.into())).await {
             Ok(previous) => Some((uid, previous)),
             Err(err) => {
                 logging!(warn, Type::Core, "Warning: mode choice not saved to the profile: {err}");
@@ -138,7 +144,11 @@ async fn switch_clash_mode(mode: String, owner: Option<(String, bool)>) -> Resul
             logging!(info, Type::Core, "mode choice not remembered: no current profile");
             None
         }
-    };
+    }
+}
+
+async fn switch_clash_mode(mode: String, owner: Option<(String, bool)>) -> Result<(), String> {
+    let previous = remember_mode_choice(owner.as_ref(), &mode).await;
     let mut mapping = Mapping::new();
     mapping.insert(Value::from("mode"), Value::from(mode.as_str()));
     let json_value = serde_json::json!({
