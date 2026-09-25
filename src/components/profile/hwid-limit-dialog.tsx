@@ -9,7 +9,6 @@ import {
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { BannerText } from '@/components/base'
 import { useTauriEvent } from '@/hooks/use-listen'
 import { useVerge } from '@/hooks/use-verge'
 import { openWebUrl } from '@/services/cmds'
@@ -26,8 +25,6 @@ import { showNotice } from '@/services/notice-service'
 interface HwidNotice {
   state: 'limit' | 'not_supported'
   supportUrl?: string | null
-  /** `clod-hwid-limit` — the provider's own explanation for this dialog. */
-  message?: string | null
 }
 
 const EVENT_NAME = 'clod://hwid-notice'
@@ -77,16 +74,6 @@ export const HwidLimitDialog = () => {
         <DialogContentText sx={{ whiteSpace: 'pre-line' }}>
           {body}
         </DialogContentText>
-        {/* clod: текст провайдера для этого случая — отдельный заголовок
-            `clod-hwid-limit`, а не `announce`: объявление на главной видят
-            все, а это объяснение адресовано одному заблокированному
-            устройству. Заголовок необязательный — без него диалог обходится
-            своим текстом. */}
-        {notice.message ? (
-          <DialogContentText sx={{ mt: 2, whiteSpace: 'pre-line' }}>
-            <BannerText text={notice.message} />
-          </DialogContentText>
-        ) : null}
       </DialogContent>
       <DialogActions>
         <Button onClick={close}>{t('shared.actions.cancel')}</Button>

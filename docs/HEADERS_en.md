@@ -53,7 +53,7 @@ default). Turning it off stops all of them.
 | `clod-bot-url` | the provider's bot | "Bot" button in the provider links row. Deliberately separate from support: a bot hands out the link, renews the plan and answers on its own, while "Support" is a person. Accepts `https`, `tg:` and `mailto:` — a bot link is almost always `tg:` |
 | `clod-monitor-url` | server status page | "Status" button. `https` only |
 | `clod-guide-url` | the provider's manual | "Guide" button — where to send someone asking how to set things up. `https` only |
-| `announce` | permanent provider message | banner in the app **without a close button** — lives exactly as long as the panel keeps sending it. Supports per-word colours (see below). Use `clod-promo` for one-off campaigns and `clod-hwid-limit` for the device dialog |
+| `announce` | permanent provider message | banner in the app **without a close button** — lives exactly as long as the panel keeps sending it. Supports per-word colours (see below). Use `clod-promo` for one-off campaigns |
 | `announce-url` | where clicking the banner leads | makes the `announce` banner clickable. `https` only |
 | `clod-announce` | our variant of `announce` | the same banner; when the panel sends both, `clod-announce` is shown |
 | `clod-promo` | temporary promo banner | a separate accent banner the user **can dismiss**; a changed text brings it back. Same per-word colours as `announce`. A long text is collapsed to **5 lines** behind a "Show in full" button — the app window sizes itself to its content, and an advert must not stretch it over the whole screen; the full text opens in a dialog |
@@ -91,8 +91,7 @@ arrives without a migration request.
 | --- | --- | --- |
 | `x-hwid-active` | the device is registered | nothing, informational |
 | `x-hwid-not-supported` | the panel wants an id the client did not send | dialog: "The provider requires device identification. Turn it on?". **The previous servers are taken away** — same as on a device limit. Outranks `x-hwid-limit`, which Remnawave sets in both blocking branches — without that precedence the user would be told about a limit they never hit |
-| `x-hwid-max-devices-reached`<br>`x-hwid-limit` | device limit is full | dialog with a "Support" button; the provider's own wording comes from `clod-hwid-limit`. **The previous servers are taken away**: the panel's placeholders replace them, and if placeholders are turned off in the panel and the body is empty, the client turns the previous servers into the same kind of placeholders itself — names and rules stay, addresses and keys are wiped, node providers are dropped. Spare addresses are not tried on such an answer. While the state holds, the subscription card carries a red line saying why it is not updating |
-| `clod-hwid-limit` | **optional** provider text for both device dialogs | shown under the dialog's own text — "unlink the old device in your account", say. Plain text or `base64:`, up to 500 characters, with the same `#RRGGBB` colouring as the banners. A header of its own rather than `announce`: the home banner is for everybody, this explanation is addressed to one blocked device. Without it the dialog does fine on its own wording |
+| `x-hwid-max-devices-reached`<br>`x-hwid-limit` | device limit is full | dialog with a "Support" button. **The previous servers are taken away**: the panel's placeholders replace them, and if placeholders are turned off in the panel and the body is empty, the client turns the previous servers into the same kind of placeholders itself — names and rules stay, addresses and keys are wiped, node providers are dropped. Spare addresses are not tried on such an answer. While the state holds, the subscription card carries a red line saying why it is not updating |
 
 **Reminders**
 
@@ -126,14 +125,14 @@ These apply to every header above:
   downgrade `https` to `http`. **There are no "Renew" and "Top up" buttons in the client**:
   the customer portal (`clod-portal-url`) is the single place the app ever points at for
   payment.
-* **Empty values are ignored**, the announcement, the promo and `clod-hwid-limit` are capped
+* **Empty values are ignored**, the announcement and the promo are capped
   at 500 characters, threshold
   lists are range-checked (1–365 days, 1–100 percent) and limited to ten entries. A
   completely invalid header behaves like a missing one.
 
 ### Colours in banners
 
-`announce`, `clod-promo` and `clod-hwid-limit` can paint single words. The colour code is glued to
+`announce` and `clod-promo` can paint single words. The colour code is glued to
 the word, with no space in between:
 
 ```

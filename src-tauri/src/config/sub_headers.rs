@@ -191,7 +191,6 @@ pub struct SubHeaders {
     pub guide_url: Option<String>,
     pub promo: Option<String>,
     pub promo_url: Option<String>,
-    pub hwid_limit_message: Option<String>,
     pub latency_style: Option<LatencyStyle>,
 
     pub disable_ping: bool,
@@ -266,8 +265,6 @@ impl SubHeaders {
             disable_ping: value(headers, "clod-disable-ping")
                 .is_some_and(|raw| raw.trim().eq_ignore_ascii_case("true")),
             ping_thresholds: value(headers, "clod-ping").as_deref().and_then(ping_thresholds),
-            hwid_limit_message: value(headers, "clod-hwid-limit")
-                .map(|text| truncate_banner(&text, ANNOUNCE_MAX_CHARS)),
             show_zero_hosts: bool_value(headers, "clod-show-0hosts"),
             lock_mode: lock_permanent
                 .then_some(true)
@@ -340,7 +337,6 @@ impl SubHeaders {
         crate::core::handle::Handle::hwid_notice(serde_json::json!({
             "state": self.hwid_state.as_str(),
             "supportUrl": self.support_url.as_deref(),
-            "message": self.hwid_limit_message.as_deref(),
         }));
     }
 }
@@ -765,38 +761,6 @@ mod tests {
 
         let empty_ours = SubHeaders::parse(&headers(&[("announce", "panel"), ("clod-announce", " ")]));
         assert_eq!(empty_ours.announce.as_deref(), Some("panel"));
-    }
-
-    #[test]
-    fn hwid_limit_message_is_its_own_header() {
-        let parsed = SubHeaders::parse(&headers(&[
-            ("announce", "banner for everybody"),
-            (
-                "clod-hwid-limit",
-                "base64:0J7RgtCy0Y/Qt9Cw0YLRjCDRg9GB0YLRgNC+0LnRgdGC0LLQviDQvNC+0LbQvdC+INCyINC60LDQsdC40L3QtdGC0LU=",
-            ),
-        ]));
-        assert_eq!(parsed.announce.as_deref(), Some("banner for everybody"));
-        assert_eq!(
-            parsed.hwid_limit_message.as_deref(),
-            Some("Отвязать устройство можно в кабинете")
-        );
-
-        let parsed = SubHeaders::parse(&headers(&[("announce", "banner for everybody")]));
-        assert_eq!(parsed.hwid_limit_message, None);
-
-        let parsed = SubHeaders::parse(&headers(&[("x-hwid-limit", "true")]));
-        assert_eq!(parsed.hwid_limit_message, None);
-        assert_eq!(parsed.hwid_state, HwidState::LimitReached);
-        let parsed = SubHeaders::parse(&headers(&[("clod-hwid-limit", "текст для диалога")]));
-        assert_eq!(parsed.hwid_state, HwidState::Unknown);
-
-        let long = "я".repeat(700);
-        let parsed = SubHeaders::parse(&headers(&[("clod-hwid-limit", long.as_str())]));
-        assert_eq!(
-            parsed.hwid_limit_message.map(|text| text.chars().count()),
-            Some(ANNOUNCE_MAX_CHARS)
-        );
     }
 
     #[test]

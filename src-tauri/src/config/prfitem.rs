@@ -1282,13 +1282,12 @@ fn log_panel_headers(sub: &sub_headers::SubHeaders) {
     clash_verge_logging::logging!(
         info,
         clash_verge_logging::Type::Config,
-        "[clod] panel headers in response: title={} logo={} announce={} promo={} portal={} hwid_limit={} lock={} show0hosts={} simple={}",
+        "[clod] panel headers in response: title={} logo={} announce={} promo={} portal={} lock={} show0hosts={} simple={}",
         sub.profile_title.is_some(),
         sub.profile_logo.is_some(),
         sub.announce.is_some(),
         sub.promo.is_some(),
         sub.portal_url.is_some(),
-        sub.hwid_limit_message.is_some(),
         sub.lock_mode.is_some(),
         sub.show_zero_hosts.is_some(),
         sub.simple_mode.is_some()
@@ -1778,7 +1777,6 @@ mod tests {
             &[][..],
             &[("x-hwid-active", "true")][..],
             &[("x-hwid-limit", "false"), ("x-hwid-not-supported", "0")][..],
-            &[("clod-hwid-limit", "текст")][..],
         ] {
             let resp = answer_with(200, headers, "");
             let sub = crate::config::sub_headers::SubHeaders::parse(resp.headers());

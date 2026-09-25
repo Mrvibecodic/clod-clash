@@ -263,7 +263,7 @@ TUN перехватывает трафик всех приложений, вк�
 **Дополнительные заголовки.** `announce`, `announce-url`, `profile-logo`, `support-url`,
 `new-url`, `fallback-url`, `notify-*`, наши `clod-*` (`clod-portal-url`, `clod-bot-url`,
 `clod-monitor-url`, `clod-guide-url`, `clod-promo`,
-`clod-promo-url`, `clod-hwid-limit`, `clod-simple-mode`, `clod-lock-mode`,
+`clod-promo-url`, `clod-simple-mode`, `clod-lock-mode`,
 `clod-connect-mode`,
 `clod-latency-style`, `clod-ping`, `clod-theme`)
 и остальные, которых нет в стандартном наборе Remnawave, задаются через
