@@ -134,6 +134,7 @@ export const translationKeys = [
   'home.components.net.downloaded',
   'home.components.net.uploaded',
   'home.components.modeStatus.lockedHint',
+  'home.components.modeStatus.lockedHintPermanent',
   'home.components.banners.showFull',
   'home.components.banners.promoTitle',
   'home.components.banners.announceTitle',

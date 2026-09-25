@@ -139,7 +139,8 @@
       "uploaded": "Uploaded"
     },
     "modeStatus": {
-      "lockedHint": "该模式由订阅提供方设定。若面板连续数日无响应，限制会自动解除；删除订阅则立即解除。"
+      "lockedHint": "该模式由订阅提供方设定。若面板连续数日无响应，限制会自动解除；删除订阅则立即解除。",
+      "lockedHintPermanent": "该模式由订阅提供方设定。删除订阅即可解除限制。"
     },
     "banners": {
       "showFull": "查看全文",

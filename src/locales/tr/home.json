@@ -139,7 +139,8 @@
       "uploaded": "Uploaded"
     },
     "modeStatus": {
-      "lockedHint": "Modu abonelik sağlayıcınız belirler. Panel birkaç gün yanıt vermezse kısıtlama kendiliğinden kalkar; aboneliği kaldırırsanız hemen kalkar."
+      "lockedHint": "Modu abonelik sağlayıcınız belirler. Panel birkaç gün yanıt vermezse kısıtlama kendiliğinden kalkar; aboneliği kaldırırsanız hemen kalkar.",
+      "lockedHintPermanent": "Modu abonelik sağlayıcınız belirler. Aboneliği kaldırırsanız kısıtlama kalkar."
     },
     "banners": {
       "showFull": "Tamamını göster",

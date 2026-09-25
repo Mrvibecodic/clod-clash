@@ -10,6 +10,7 @@ import { useClashConfigData } from '@/providers/app-data-context'
 
 interface Props {
   locked?: boolean
+  permanent?: boolean
   showTargets?: boolean
 }
 
@@ -30,7 +31,11 @@ const PILL_SX = {
   '& svg': { fontSize: 14, color: 'primary.main' },
 } as const
 
-export const ModeStatus = ({ locked, showTargets = true }: Props) => {
+export const ModeStatus = ({
+  locked,
+  permanent,
+  showTargets = true,
+}: Props) => {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { clashConfig } = useClashConfigData()
@@ -69,7 +74,13 @@ export const ModeStatus = ({ locked, showTargets = true }: Props) => {
 
   if (locked) {
     return (
-      <Tooltip title={t('home.components.modeStatus.lockedHint')}>
+      <Tooltip
+        title={
+          permanent
+            ? t('home.components.modeStatus.lockedHintPermanent')
+            : t('home.components.modeStatus.lockedHint')
+        }
+      >
         <Box sx={{ ...PILL_SX, cursor: 'help' }}>{content}</Box>
       </Tooltip>
     )

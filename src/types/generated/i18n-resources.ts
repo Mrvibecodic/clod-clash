@@ -95,6 +95,7 @@ export interface TranslationResources {
         }
         modeStatus: {
           lockedHint: string
+          lockedHintPermanent: string
         }
         net: {
           downloaded: string

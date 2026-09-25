@@ -89,6 +89,9 @@ pub struct PrfItem {
     pub lock_mode: Option<bool>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub lock_permanent: Option<bool>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub mode_choice: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -596,6 +599,7 @@ impl PrfItem {
             promo_url: sub.promo_url.clone(),
             promo_seen: None,
             lock_mode: sub.lock_mode,
+            lock_permanent: sub.lock_permanent.then_some(true),
             mode_choice: None,
             connect_mode: sub.connect_mode.map(|mode| mode.as_str().into()),
             theme_accent: sub.theme.as_ref().and_then(|theme| theme.accent.clone()),
@@ -1237,6 +1241,7 @@ impl PrfItem {
         self.monitor_url = fresh.monitor_url.clone();
         self.guide_url = fresh.guide_url.clone();
         self.lock_mode = fresh.lock_mode;
+        self.lock_permanent = fresh.lock_permanent;
         self.connect_mode = fresh.connect_mode.clone();
         self.theme_accent = fresh.theme_accent.clone();
         self.theme_mode = fresh.theme_mode.clone();
@@ -1585,6 +1590,33 @@ mod tests {
 
         stored.merge_panel_meta(&PrfItem::default());
         assert_eq!(stored.bot_url, None);
+    }
+
+    #[test]
+    fn a_permanent_lock_lives_and_dies_with_the_header() {
+        let mut stored = PrfItem {
+            lock_mode: Some(true),
+            lock_permanent: Some(true),
+            ..PrfItem::default()
+        };
+
+        stored.merge_panel_meta(&PrfItem {
+            lock_mode: Some(true),
+            ..PrfItem::default()
+        });
+        assert_eq!(stored.lock_mode, Some(true));
+        assert_eq!(stored.lock_permanent, None);
+
+        stored.merge_panel_meta(&PrfItem {
+            lock_mode: Some(true),
+            lock_permanent: Some(true),
+            ..PrfItem::default()
+        });
+        assert_eq!(stored.lock_permanent, Some(true));
+
+        stored.merge_panel_meta(&PrfItem::default());
+        assert_eq!(stored.lock_mode, None);
+        assert_eq!(stored.lock_permanent, None);
     }
 
     #[test]

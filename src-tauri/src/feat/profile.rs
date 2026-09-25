@@ -690,7 +690,7 @@ fn lock_grace_secs(item: &PrfItem) -> i64 {
 }
 
 fn lock_expired(item: &PrfItem, now: i64) -> bool {
-    if item.lock_mode != Some(true) {
+    if item.lock_mode != Some(true) || item.lock_permanent == Some(true) {
         return false;
     }
     let Some(updated) = item.updated.filter(|value| *value > 0) else {
@@ -724,8 +724,9 @@ pub async fn release_stale_panel_locks() {
             let mut released = Vec::new();
             for item in profiles.items.as_mut().into_iter().flatten() {
                 let Some(uid) = item.uid.clone() else { continue };
-                if stale.contains(&uid) {
+                if stale.contains(&uid) && lock_expired(item, now) {
                     item.lock_mode = None;
+                    item.lock_permanent = None;
                     released.push(uid);
                 }
             }
@@ -798,6 +799,17 @@ mod lock_expiry_tests {
         let weekly = 7 * 24 * 60;
         assert!(!lock_expired(&locked_item(now - 4 * DAY, Some(weekly)), now));
         assert!(lock_expired(&locked_item(now - 22 * DAY, Some(weekly)), now));
+    }
+
+    #[test]
+    fn a_permanent_lock_never_expires() {
+        let now = 1000 * DAY;
+        let mut permanent = locked_item(now - 900 * DAY, None);
+        permanent.lock_permanent = Some(true);
+        assert!(!lock_expired(&permanent, now));
+
+        permanent.lock_permanent = None;
+        assert!(lock_expired(&permanent, now));
     }
 
     #[test]

@@ -225,6 +225,7 @@ interface IProfileItem {
   promo_url?: string
   promo_seen?: boolean
   lock_mode?: boolean
+  lock_permanent?: boolean
   connect_mode?: 'tun' | 'proxy' | 'both'
   theme_accent?: string
   theme_mode?: 'light' | 'dark'

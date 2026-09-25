@@ -134,7 +134,11 @@ const SettingClash = ({ onError }: Props) => {
           label={t('settings.sections.clash.form.fields.routingMode')}
           extra={
             <TooltipIcon
-              title={t('home.components.modeStatus.lockedHint')}
+              title={
+                current?.lock_permanent === true
+                  ? t('home.components.modeStatus.lockedHintPermanent')
+                  : t('home.components.modeStatus.lockedHint')
+              }
               color={'inherit'}
             />
           }

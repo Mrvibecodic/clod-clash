@@ -139,7 +139,8 @@
       "uploaded": "Uploaded"
     },
     "modeStatus": {
-      "lockedHint": "The mode is set by your subscription provider. The restriction lifts on its own once the panel stops answering for several days, or right away if you remove the subscription."
+      "lockedHint": "The mode is set by your subscription provider. The restriction lifts on its own once the panel stops answering for several days, or right away if you remove the subscription.",
+      "lockedHintPermanent": "The mode is set by your subscription provider. The restriction lifts if you remove the subscription."
     },
     "banners": {
       "showFull": "Show in full",

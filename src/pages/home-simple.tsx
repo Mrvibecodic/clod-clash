@@ -211,7 +211,10 @@ const HomeSimplePage = () => {
         </Box>
 
         <Box sx={{ display: 'flex', justifyContent: 'center', mt: -1 }}>
-          <ModeStatus locked={Boolean(current.lock_mode)} />
+          <ModeStatus
+            locked={Boolean(current.lock_mode)}
+            permanent={current.lock_permanent === true}
+          />
         </Box>
 
         <CoreStatus />

@@ -197,6 +197,8 @@ pub struct SubHeaders {
 
     pub lock_mode: Option<bool>,
 
+    pub lock_permanent: bool,
+
     pub connect_mode: Option<ConnectMode>,
 
     pub show_zero_hosts: Option<bool>,
@@ -219,6 +221,9 @@ impl SubHeaders {
         } else {
             HwidState::Unknown
         };
+
+        let lock_permanent =
+            value(headers, "clod-lock-mode").is_some_and(|raw| raw.trim().eq_ignore_ascii_case("lock"));
 
         let notify_expire_days = value(headers, "notify-expire-days")
             .and_then(|raw| thresholds(&raw, 1, 365))
@@ -259,8 +264,11 @@ impl SubHeaders {
             hwid_limit_message: value(headers, "clod-hwid-limit")
                 .map(|text| truncate_banner(&text, ANNOUNCE_MAX_CHARS)),
             show_zero_hosts: bool_value(headers, "clod-show-0hosts"),
-            lock_mode: bool_value(headers, "clod-lock-mode")
+            lock_mode: lock_permanent
+                .then_some(true)
+                .or_else(|| bool_value(headers, "clod-lock-mode"))
                 .or_else(|| bool_value(headers, "global-mode").map(|allowed| !allowed)),
+            lock_permanent,
             connect_mode: value(headers, "clod-connect-mode")
                 .as_deref()
                 .and_then(ConnectMode::parse),
@@ -799,6 +807,39 @@ mod tests {
         assert_eq!(parsed.lock_mode, Some(false));
 
         assert_eq!(SubHeaders::parse(&headers(&[])).lock_mode, None);
+    }
+
+    #[test]
+    fn lock_mode_takes_true_false_or_a_permanent_lock() {
+        for raw in ["true", "1", "yes", "on", "TRUE"] {
+            let parsed = SubHeaders::parse(&headers(&[("clod-lock-mode", raw)]));
+            assert_eq!(parsed.lock_mode, Some(true), "{raw}");
+            assert!(!parsed.lock_permanent, "{raw}");
+        }
+        for raw in ["false", "0", "no", "off"] {
+            let parsed = SubHeaders::parse(&headers(&[("clod-lock-mode", raw)]));
+            assert_eq!(parsed.lock_mode, Some(false), "{raw}");
+            assert!(!parsed.lock_permanent, "{raw}");
+        }
+        for raw in ["lock", "LOCK", " Lock "] {
+            let parsed = SubHeaders::parse(&headers(&[("clod-lock-mode", raw)]));
+            assert_eq!(parsed.lock_mode, Some(true), "{raw}");
+            assert!(parsed.lock_permanent, "{raw}");
+        }
+
+        let parsed = SubHeaders::parse(&headers(&[("clod-lock-mode", "forever")]));
+        assert_eq!(parsed.lock_mode, None);
+        assert!(!parsed.lock_permanent);
+
+        let parsed = SubHeaders::parse(&headers(&[("global-mode", "false")]));
+        assert_eq!(parsed.lock_mode, Some(true));
+        assert!(!parsed.lock_permanent);
+
+        let parsed = SubHeaders::parse(&headers(&[("clod-lock-mode", "lock"), ("global-mode", "true")]));
+        assert_eq!(parsed.lock_mode, Some(true));
+        assert!(parsed.lock_permanent);
+
+        assert!(!SubHeaders::parse(&headers(&[])).lock_permanent);
     }
 
     #[test]

@@ -231,7 +231,11 @@ const HomeAdvancedPage = () => {
             onToggle={() => void toggle()}
           />
 
-          <ModeStatus locked={Boolean(current.lock_mode)} showTargets={false} />
+          <ModeStatus
+            locked={Boolean(current.lock_mode)}
+            permanent={current.lock_permanent === true}
+            showTargets={false}
+          />
 
           <CoreStatus />
 

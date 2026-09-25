@@ -139,7 +139,8 @@
       "uploaded": "Uploaded"
     },
     "modeStatus": {
-      "lockedHint": "Der Modus wird vom Abo-Anbieter vorgegeben. Die Sperre fällt von selbst weg, wenn das Panel mehrere Tage nicht mehr antwortet — oder sofort, wenn Sie das Abo entfernen."
+      "lockedHint": "Der Modus wird vom Abo-Anbieter vorgegeben. Die Sperre fällt von selbst weg, wenn das Panel mehrere Tage nicht mehr antwortet — oder sofort, wenn Sie das Abo entfernen.",
+      "lockedHintPermanent": "Der Modus wird vom Abo-Anbieter vorgegeben. Die Sperre fällt weg, wenn Sie das Abo entfernen."
     },
     "banners": {
       "showFull": "Vollständig anzeigen",

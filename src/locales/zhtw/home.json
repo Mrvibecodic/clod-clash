@@ -139,7 +139,8 @@
       "uploaded": "Uploaded"
     },
     "modeStatus": {
-      "lockedHint": "此模式由訂閱提供者設定。若面板連續數日沒有回應，限制會自動解除；刪除訂閱則立即解除。"
+      "lockedHint": "此模式由訂閱提供者設定。若面板連續數日沒有回應，限制會自動解除；刪除訂閱則立即解除。",
+      "lockedHintPermanent": "此模式由訂閱提供者設定。刪除訂閱即可解除限制。"
     },
     "banners": {
       "showFull": "查看全文",
