@@ -43,6 +43,7 @@ interface RenderProps {
   onGroupToggle?: (group: IRenderItem['group']) => void
   favorites?: Set<string>
   onToggleFavorite?: (name: string) => void
+  pingBounds?: IProfileItem['ping_thresholds']
 }
 
 export const ProxyRender = memo(function ProxyRender(props: RenderProps) {
@@ -58,6 +59,7 @@ export const ProxyRender = memo(function ProxyRender(props: RenderProps) {
     favorites,
     onToggleFavorite,
     isChainMode = false,
+    pingBounds,
   } = props
   const { type, group, headState, proxy, proxyCol } = item
   const selectable = isChainMode || SELECTABLE_GROUP_TYPES.has(groupType(group))
@@ -89,6 +91,7 @@ export const ProxyRender = memo(function ProxyRender(props: RenderProps) {
         onClick={selectable ? () => onChangeProxy(group, proxyItem) : undefined}
         favorite={favorites?.has(proxyItem?.name)}
         onToggleFavorite={onToggleFavorite}
+        pingBounds={pingBounds}
       />
     ))
   }, [
@@ -101,6 +104,7 @@ export const ProxyRender = memo(function ProxyRender(props: RenderProps) {
     onChangeProxy,
     favorites,
     onToggleFavorite,
+    pingBounds,
   ])
 
   if (type === 0) {
@@ -268,6 +272,7 @@ export const ProxyRender = memo(function ProxyRender(props: RenderProps) {
         onClick={selectable ? () => onChangeProxy(group, proxy!) : undefined}
         favorite={favorites?.has(proxy!.name)}
         onToggleFavorite={onToggleFavorite}
+        pingBounds={pingBounds}
       />
     )
   }

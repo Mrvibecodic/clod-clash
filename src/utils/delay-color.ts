@@ -8,22 +8,25 @@
 const GOOD_DELAY = 200
 const FAIR_DELAY = 400
 
-export const delayTone = (delay: number | undefined) => {
+type DelayBounds = readonly [good: number, fair: number]
+
+const DEFAULT_BOUNDS: DelayBounds = [GOOD_DELAY, FAIR_DELAY]
+
+export const delayTone = (
+  delay: number | undefined,
+  [good, fair]: DelayBounds = DEFAULT_BOUNDS,
+) => {
   if (delay === undefined || delay < 0) return undefined
-  if (delay === 0 || delay >= FAIR_DELAY) return 'error'
-  return delay < GOOD_DELAY ? 'success' : 'warning'
+  if (delay === 0 || delay >= fair) return 'error'
+  return delay < good ? 'success' : 'warning'
 }
 
-export const delayColor = (delay: number | undefined) => {
-  const tone = delayTone(delay)
+export const delayColor = (delay: number | undefined, bounds?: DelayBounds) => {
+  const tone = delayTone(delay, bounds)
   return tone ? `${tone}.main` : 'text.disabled'
 }
 
-export const delayBars = (delay: number) =>
-  delay < GOOD_DELAY / 2
-    ? 4
-    : delay < GOOD_DELAY
-      ? 3
-      : delay < FAIR_DELAY
-        ? 2
-        : 1
+export const delayBars = (
+  delay: number,
+  [good, fair]: DelayBounds = DEFAULT_BOUNDS,
+) => (delay < good / 2 ? 4 : delay < good ? 3 : delay < fair ? 2 : 1)

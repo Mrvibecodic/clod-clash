@@ -297,7 +297,9 @@ export const ServerSelect = ({ open, onClose }: Props) => {
           <Typography
             variant="body2"
             sx={{
-              color: usableDelay(delay) ? delayColor(delay) : 'text.disabled',
+              color: usableDelay(delay)
+                ? delayColor(delay, current?.ping_thresholds)
+                : 'text.disabled',
               fontVariantNumeric: 'tabular-nums',
             }}
           >
@@ -527,30 +529,36 @@ interface RowProps {
   onOpen: () => void
 }
 
-const SignalDot = ({ delay }: { delay?: number }) => (
+interface LatencyProps {
+  delay?: number
+  bounds?: IProfileItem['ping_thresholds']
+}
+
+const SignalDot = ({ delay, bounds }: LatencyProps) => (
   <Box
     sx={{
       width: 10,
       height: 10,
       flex: 'none',
       borderRadius: '50%',
-      bgcolor: usableDelay(delay) ? delayColor(delay) : 'divider',
+      bgcolor: usableDelay(delay) ? delayColor(delay, bounds) : 'divider',
     }}
   />
 )
 
-const LatencyNumber = ({ delay }: { delay?: number }) => (
+const LatencyNumber = ({ delay, bounds }: LatencyProps) => (
   <Typography
     sx={{ fontSize: 12, flex: 'none', fontVariantNumeric: 'tabular-nums' }}
-    color={usableDelay(delay) ? delayColor(delay) : 'text.disabled'}
+    color={usableDelay(delay) ? delayColor(delay, bounds) : 'text.disabled'}
   >
     {usableDelay(delay) ? `${delay} ms` : '—'}
   </Typography>
 )
 
-const SignalBars = ({ delay }: { delay?: number }) => {
-  const lit = usableDelay(delay) ? delayBars(delay) : 0
-  const color = (index: number) => (index < lit ? delayColor(delay) : 'divider')
+const SignalBars = ({ delay, bounds }: LatencyProps) => {
+  const lit = usableDelay(delay) ? delayBars(delay, bounds) : 0
+  const color = (index: number) =>
+    index < lit ? delayColor(delay, bounds) : 'divider'
   return (
     <Box
       sx={{
@@ -861,11 +869,20 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
       {currentProfile?.disable_ping ? (
         <PingVerdict delay={shownDelay} />
       ) : currentProfile?.latency_style === 'dot' ? (
-        <SignalDot delay={shownDelay} />
+        <SignalDot
+          delay={shownDelay}
+          bounds={currentProfile?.ping_thresholds}
+        />
       ) : currentProfile?.latency_style === 'number' ? (
-        <LatencyNumber delay={shownDelay} />
+        <LatencyNumber
+          delay={shownDelay}
+          bounds={currentProfile?.ping_thresholds}
+        />
       ) : (
-        <SignalBars delay={shownDelay} />
+        <SignalBars
+          delay={shownDelay}
+          bounds={currentProfile?.ping_thresholds}
+        />
       )}
 
       <IconButton

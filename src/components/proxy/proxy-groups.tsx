@@ -18,6 +18,7 @@ import {
   type StickyVirtualListHandle,
 } from '@/components/base'
 import { useFavorites } from '@/hooks/use-favorites'
+import { useProfiles } from '@/hooks/use-profiles'
 import { useProxySelection } from '@/hooks/use-proxy-selection'
 import { useVerge } from '@/hooks/use-verge'
 import { useVisibility } from '@/hooks/use-visibility'
@@ -374,6 +375,7 @@ function NormalProxyGroups(props: { mode: string }) {
     saveScrollPosition,
   } = useProxyRenderState(mode, false, null)
   const { favorites, toggleFavorite } = useFavorites()
+  const pingBounds = useProfiles().current?.ping_thresholds
   const renderFirstRef = useRef(true)
   const isRestoringRef = useRef(false)
 
@@ -543,6 +545,7 @@ function NormalProxyGroups(props: { mode: string }) {
         }}
         onChangeProxy={handleChangeProxy}
         onGroupToggle={handleGroupToggle}
+        pingBounds={pingBounds}
       />
     ),
     [
@@ -552,6 +555,7 @@ function NormalProxyGroups(props: { mode: string }) {
       handleLocation,
       handleGroupToggle,
       handleGroupLocationByName,
+      pingBounds,
     ],
   )
 
@@ -566,6 +570,7 @@ function NormalProxyGroups(props: { mode: string }) {
         onChangeProxy={handleChangeProxy}
         favorites={favorites}
         onToggleFavorite={toggleFavorite}
+        pingBounds={pingBounds}
       />
     ),
     [
@@ -575,6 +580,7 @@ function NormalProxyGroups(props: { mode: string }) {
       handleLocation,
       favorites,
       toggleFavorite,
+      pingBounds,
     ],
   )
 

@@ -17,6 +17,7 @@ interface Props {
   onClick?: (name: string) => void
   favorite?: boolean
   onToggleFavorite?: (name: string) => void
+  pingBounds?: IProfileItem['ping_thresholds']
 }
 
 // Многоколоночная раскладка
@@ -29,6 +30,7 @@ export const ProxyItemMini = (props: Props) => {
     onClick,
     favorite,
     onToggleFavorite,
+    pingBounds,
   } = props
   const { t } = useTranslation()
 
@@ -202,7 +204,11 @@ export const ProxyItemMini = (props: Props) => {
               onDelay(proxy.provider)
             }}
             sx={({ palette }) => ({
-              color: delayManager.formatDelayColor(delayValue, timeout),
+              color: delayManager.formatDelayColor(
+                delayValue,
+                timeout,
+                pingBounds,
+              ),
               ':hover': { bgcolor: alpha(palette.primary.main, 0.15) },
             })}
           >

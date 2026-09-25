@@ -104,6 +104,9 @@ pub struct PrfItem {
     pub disable_ping: Option<bool>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub ping_thresholds: Option<[u32; 2]>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub connect_mode: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -610,6 +613,7 @@ impl PrfItem {
             theme_background: sub.theme.as_ref().and_then(|theme| theme.background.clone()),
             latency_style: sub.latency_style.map(|style| style.as_str().into()),
             disable_ping: sub.disable_ping.then_some(true),
+            ping_thresholds: sub.ping_thresholds,
             show_zero_hosts: sub.show_zero_hosts,
             refill_date: sub.refill_date,
             clock_skew: measured_skew,
@@ -1248,6 +1252,7 @@ impl PrfItem {
         self.theme_background = fresh.theme_background.clone();
         self.latency_style = fresh.latency_style.clone();
         self.disable_ping = fresh.disable_ping;
+        self.ping_thresholds = fresh.ping_thresholds;
         self.show_zero_hosts = fresh.show_zero_hosts;
 
         self.announce = fresh.announce.clone();
@@ -1617,6 +1622,23 @@ mod tests {
         stored.merge_panel_meta(&PrfItem::default());
         assert_eq!(stored.lock_mode, None);
         assert_eq!(stored.lock_permanent, None);
+    }
+
+    #[test]
+    fn ping_thresholds_are_replaced_and_vanish_with_the_header() {
+        let mut stored = PrfItem {
+            ping_thresholds: Some([150, 300]),
+            ..PrfItem::default()
+        };
+
+        stored.merge_panel_meta(&PrfItem {
+            ping_thresholds: Some([100, 250]),
+            ..PrfItem::default()
+        });
+        assert_eq!(stored.ping_thresholds, Some([100, 250]));
+
+        stored.merge_panel_meta(&PrfItem::default());
+        assert_eq!(stored.ping_thresholds, None);
     }
 
     #[test]

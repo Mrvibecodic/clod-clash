@@ -81,6 +81,7 @@ interface SortableItemProps {
   index: number
   isFirst: boolean
   isLast: boolean
+  pingBounds?: IProfileItem['ping_thresholds']
   onRemove: (id: string) => void
 }
 
@@ -104,6 +105,7 @@ const SortableItem = ({
   index,
   isFirst,
   isLast,
+  pingBounds,
   onRemove,
 }: SortableItemProps) => {
   const theme = useTheme()
@@ -225,7 +227,7 @@ const SortableItem = ({
             proxy.delay > 0 ? `${proxy.delay}ms` : t('shared.labels.timeout')
           }
           size="small"
-          color={delayTone(proxy.delay) ?? 'default'}
+          color={delayTone(proxy.delay, pingBounds) ?? 'default'}
           sx={{ mr: 1, fontSize: '0.7rem', minWidth: 50 }}
         />
       )}
@@ -607,6 +609,7 @@ export const ProxyChain = ({
                       isLast={
                         index === proxyChain.length - 1 && proxyChain.length > 1
                       }
+                      pingBounds={current?.ping_thresholds}
                       onRemove={handleRemoveProxy}
                     />
                     {index < proxyChain.length - 1 && (

@@ -659,10 +659,14 @@ class DelayManager {
     return `${delay}`
   }
 
-  formatDelayColor(delay: number, timeout = 10000) {
+  formatDelayColor(
+    delay: number,
+    timeout = 10000,
+    bounds?: IProfileItem['ping_thresholds'],
+  ) {
     if (delay < 0) return ''
     if (delay >= timeout) return 'error.main'
-    return delayColor(delay)
+    return delayColor(delay, bounds)
   }
 }
 

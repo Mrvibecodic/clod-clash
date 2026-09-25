@@ -11,6 +11,8 @@ pub const DEFAULT_NOTIFY_TRAFFIC_PERCENT: &[u32] = &[80, 90, 100];
 
 const MAX_THRESHOLDS: usize = 10;
 
+const PING_MAX_MS: u32 = 60_000;
+
 pub const MAX_MIGRATION_HOPS: u32 = 3;
 
 pub async fn build_identity_headers() -> HeaderMap {
@@ -195,6 +197,8 @@ pub struct SubHeaders {
 
     pub disable_ping: bool,
 
+    pub ping_thresholds: Option<[u32; 2]>,
+
     pub lock_mode: Option<bool>,
 
     pub lock_permanent: bool,
@@ -261,6 +265,7 @@ impl SubHeaders {
                 .or_else(|| bool_value(headers, "pxa-latency-dots").and_then(|dots| dots.then_some(LatencyStyle::Dot))),
             disable_ping: value(headers, "clod-disable-ping")
                 .is_some_and(|raw| raw.trim().eq_ignore_ascii_case("true")),
+            ping_thresholds: value(headers, "clod-ping").as_deref().and_then(ping_thresholds),
             hwid_limit_message: value(headers, "clod-hwid-limit")
                 .map(|text| truncate_banner(&text, ANNOUNCE_MAX_CHARS)),
             show_zero_hosts: bool_value(headers, "clod-show-0hosts"),
@@ -432,6 +437,18 @@ fn thresholds(raw: &str, min: u32, max: u32) -> Option<Vec<u32>> {
     values.truncate(MAX_THRESHOLDS);
 
     (!values.is_empty()).then_some(values)
+}
+
+fn ping_thresholds(raw: &str) -> Option<[u32; 2]> {
+    let number = |part: &str| {
+        let part = part.trim();
+        part.parse::<u32>()
+            .ok()
+            .filter(|_| part.bytes().all(|byte| byte.is_ascii_digit()))
+    };
+    let (good, fair) = raw.split_once('/')?;
+    let (good, fair) = (number(good)?, number(fair)?);
+    (good >= 1 && good < fair && fair <= PING_MAX_MS).then_some([good, fair])
 }
 
 fn https_url(value: &str) -> Option<String> {
@@ -895,6 +912,40 @@ mod tests {
         assert!(!SubHeaders::parse(&headers(&[("clod-disable-ping", "1")])).disable_ping);
         assert!(!SubHeaders::parse(&headers(&[("clod-disable-ping", "false")])).disable_ping);
         assert!(!SubHeaders::parse(&headers(&[])).disable_ping);
+    }
+
+    #[test]
+    fn ping_thresholds_take_two_ordered_whole_numbers() {
+        let parse = |raw: &str| SubHeaders::parse(&headers(&[("clod-ping", raw)])).ping_thresholds;
+
+        assert_eq!(parse("200/400"), Some([200, 400]));
+        assert_eq!(parse("150/300"), Some([150, 300]));
+        assert_eq!(parse(" 150 / 300 "), Some([150, 300]));
+        assert_eq!(parse("1/60000"), Some([1, 60_000]));
+
+        for raw in [
+            "400/200",
+            "300/300",
+            "0/400",
+            "0/0",
+            "200/60001",
+            "200",
+            "200/400/600",
+            "abc/400",
+            "200/xyz",
+            "200/",
+            "/400",
+            "-1/400",
+            "+200/400",
+            "200,400",
+            "2e2/400",
+            "200.5/400",
+            "",
+        ] {
+            assert_eq!(parse(raw), None, "{raw}");
+        }
+
+        assert_eq!(SubHeaders::parse(&headers(&[])).ping_thresholds, None);
     }
 
     #[test]

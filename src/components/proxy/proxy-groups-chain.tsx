@@ -234,6 +234,7 @@ function ProxyVirtualList({
   onCheckAll,
   onHeadState,
   onChangeProxy,
+  pingBounds,
 }: {
   parentRef: RefObject<HTMLDivElement | null>
   height: string
@@ -247,6 +248,7 @@ function ProxyVirtualList({
   onCheckAll: (groupName: string) => void
   onHeadState: (groupName: string, patch: Partial<HeadState>) => void
   onChangeProxy: (group: IProxyGroupItem, proxy: IProxyItem) => void
+  pingBounds?: IProfileItem['ping_thresholds']
 }) {
   const theme = useTheme()
   const stickyBackground =
@@ -290,6 +292,7 @@ function ProxyVirtualList({
               onHeadState={onHeadState}
               onChangeProxy={onChangeProxy}
               isChainMode={isChainMode}
+              pingBounds={pingBounds}
             />
           </div>
         ))}
@@ -439,6 +442,7 @@ export function ProxyGroupsChain(props: ProxyGroupsChainProps) {
       onCheckAll={onCheckAll}
       onHeadState={onHeadState}
       onChangeProxy={handleChangeProxy}
+      pingBounds={current?.ping_thresholds}
     />
   )
 
