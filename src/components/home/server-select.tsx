@@ -85,8 +85,9 @@ export const ServerSelect = ({ open, onClose }: Props) => {
   const { t } = useTranslation()
   const { proxies } = useProxiesData()
   const { refreshProxy } = useAppRefreshers()
+  const { verge } = useVerge()
   const { changeProxy } = useProxySelection({
-    enableConnectionCleanup: false,
+    enableConnectionCleanup: verge?.auto_close_connection_home ?? false,
     onSuccess: () => {
       refreshProxy().catch(() => {})
     },
@@ -94,7 +95,6 @@ export const ServerSelect = ({ open, onClose }: Props) => {
   })
   const [testing, setTesting] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
-  const { verge } = useVerge()
 
   const records = useMemo(
     () => (proxies?.records ?? {}) as Record<string, any>,
@@ -172,7 +172,8 @@ export const ServerSelect = ({ open, onClose }: Props) => {
 
   const select = useLockFn(async (nodeName: string) => {
     if (!group || !canSelect) return
-    await changeProxy(group.name, nodeName)
+    const previous = group.now !== nodeName ? group.now : undefined
+    await changeProxy(group.name, nodeName, previous)
     if (groups.length < 2) onClose()
   })
 

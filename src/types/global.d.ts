@@ -931,6 +931,7 @@ interface IVergeConfig {
     provider_theme?: boolean
   }
   auto_close_connection?: boolean
+  auto_close_connection_home?: boolean
   auto_check_update?: boolean
   receive_prereleases?: boolean
   default_latency_test?: string

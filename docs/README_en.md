@@ -110,7 +110,9 @@ editors) is kept — it is simply moved out of sight into an advanced mode.
   live connections: a download already in flight finishes through the previous server, new ones go
   through the chosen one. The Proxies page and the tray menu do close the connections of the
   previous node, for those who need the switch to be immediate; the shared "Automatically close
-  connections" switch turns that off on both of those paths.
+  connections" switch turns that off on both of those paths. Those who want the home screen to cut
+  the previous node's connections too turn on the "Close connections on Home server switch" switch
+  next to it (off by default).
 * **The client says what is wrong instead of staying silent behind a green icon.** A core that
   started but does not answer; a proxy port held by another application; a core that crashed and
   was restarted; a subscription update that failed or a configuration the core rejected; a

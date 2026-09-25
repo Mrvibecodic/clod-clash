@@ -460,6 +460,7 @@
         "appLogMaxCount": "App Log Max Count",
         "verboseDiagnostics": "Verbose diagnostics (for debugging)",
         "autoCloseConnections": "Auto Close Connections",
+        "autoCloseConnectionsHome": "Close connections on Home server switch",
         "autoCheckUpdate": "Auto Check Update",
         "enableBuiltinEnhanced": "Enable Builtin Enhanced",
         "proxyLayoutColumns": "Proxy Layout Columns",
@@ -469,6 +470,7 @@
       },
       "tooltips": {
         "autoCloseConnections": "Terminate established connections when the proxy group selection or proxy mode changes",
+        "autoCloseConnectionsHome": "Off by default: on Home a download that has already started finishes through the previous server. Turn it on to close the previous node's connections when you pick a server on Home, as the Proxies page and the tray do. Works only while Auto Close Connections is on.",
         "enableBuiltinEnhanced": "Compatibility handling for the configuration file. Applies the next time the config is rebuilt: a subscription update or switch, a change to Clash settings, or an app restart.",
         "defaultLatencyTest": "Used for HTTP client request testing only and won't make a difference to the configuration file",
         "verboseDiagnostics": "Detailed records of network changes and of every write of the system proxy settings. Only needed when investigating a problem: it adds a little background work and many more lines to the log."

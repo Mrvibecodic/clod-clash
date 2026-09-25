@@ -37,6 +37,7 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
     appLogMaxCount: DEFAULT_APP_LOG_MAX_COUNT,
     verboseDiagnostics: false,
     autoCloseConnection: true,
+    autoCloseConnectionHome: false,
     autoCheckUpdate: true,
     enableBuiltinEnhanced: true,
     proxyLayoutColumn: 6,
@@ -54,6 +55,7 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
         appLogMaxCount: verge?.app_log_max_count ?? DEFAULT_APP_LOG_MAX_COUNT,
         verboseDiagnostics: verge?.enable_verbose_diagnostics ?? false,
         autoCloseConnection: verge?.auto_close_connection ?? true,
+        autoCloseConnectionHome: verge?.auto_close_connection_home ?? false,
         autoCheckUpdate: verge?.auto_check_update ?? true,
         enableBuiltinEnhanced: verge?.enable_builtin_enhanced ?? true,
         proxyLayoutColumn: verge?.proxy_layout_column || 6,
@@ -87,6 +89,7 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
         app_log_max_count: values.appLogMaxCount,
         enable_verbose_diagnostics: values.verboseDiagnostics,
         auto_close_connection: values.autoCloseConnection,
+        auto_close_connection_home: values.autoCloseConnectionHome,
         auto_check_update: values.autoCheckUpdate,
         enable_builtin_enhanced: values.enableBuiltinEnhanced,
         proxy_layout_column: values.proxyLayoutColumn,
@@ -235,6 +238,26 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
             checked={values.autoCloseConnection}
             onChange={(_, c) =>
               setValues((v) => ({ ...v, autoCloseConnection: c }))
+            }
+            sx={{ marginLeft: 'auto' }}
+          />
+        </ListItem>
+
+        <ListItem sx={{ padding: '5px 2px' }}>
+          <ListItemText
+            primary={t('settings.modals.misc.fields.autoCloseConnectionsHome')}
+            sx={{ maxWidth: 'fit-content' }}
+          />
+          <TooltipIcon
+            title={t('settings.modals.misc.tooltips.autoCloseConnectionsHome')}
+            sx={{ opacity: '0.7' }}
+          />
+          <Switch
+            edge="end"
+            checked={values.autoCloseConnectionHome}
+            disabled={!values.autoCloseConnection}
+            onChange={(_, c) =>
+              setValues((v) => ({ ...v, autoCloseConnectionHome: c }))
             }
             sx={{ marginLeft: 'auto' }}
           />

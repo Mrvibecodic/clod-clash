@@ -103,6 +103,8 @@ pub struct IVerge {
 
     pub auto_close_connection: Option<bool>,
 
+    pub auto_close_connection_home: Option<bool>,
+
     pub auto_check_update: Option<bool>,
 
     pub receive_prereleases: Option<bool>,
@@ -564,6 +566,7 @@ impl IVerge {
         patch!(enable_global_hotkey);
 
         patch!(auto_close_connection);
+        patch!(auto_close_connection_home);
         patch!(auto_check_update);
         patch!(receive_prereleases);
         patch!(default_latency_test);

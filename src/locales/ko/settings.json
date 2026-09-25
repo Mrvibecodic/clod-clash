@@ -460,6 +460,7 @@
         "appLogMaxCount": "앱 로그 최대 개수",
         "verboseDiagnostics": "Verbose diagnostics (for debugging)",
         "autoCloseConnections": "연결 자동 종료",
+        "autoCloseConnectionsHome": "홈에서 서버 변경 시 연결 종료",
         "autoCheckUpdate": "업데이트 자동 확인",
         "enableBuiltinEnhanced": "내장 향상 기능 사용",
         "proxyLayoutColumns": "프록시 레이아웃 열 수",
@@ -469,6 +470,7 @@
       },
       "tooltips": {
         "autoCloseConnections": "프록시 그룹 선택 또는 프록시 모드 변경 시 기존 연결을 종료합니다",
+        "autoCloseConnectionsHome": "기본값은 꺼짐: 홈에서는 이미 시작된 다운로드가 이전 서버를 통해 끝까지 진행됩니다. 켜면 홈에서 서버를 선택할 때 이전 노드의 연결을 종료합니다(프록시 페이지와 트레이처럼). '연결 자동 종료'가 켜져 있을 때만 작동합니다.",
         "enableBuiltinEnhanced": "구성 파일에 대한 호환성 처리를 수행합니다. 다음에 구성 파일이 다시 만들어질 때 적용됩니다: 구독 업데이트나 변경, Clash 설정 변경, 앱 재시작.",
         "defaultLatencyTest": "HTTP 클라이언트 요청 테스트에만 사용되며 구성 파일에는 영향을 주지 않습니다",
         "verboseDiagnostics": "Detailed records of network changes and of every write of the system proxy settings. Only needed when investigating a problem: it adds a little background work and many more lines to the log."

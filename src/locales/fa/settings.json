@@ -460,6 +460,7 @@
         "appLogMaxCount": "App Log Max Count",
         "verboseDiagnostics": "Verbose diagnostics (for debugging)",
         "autoCloseConnections": "بستن خودکار اتصالات",
+        "autoCloseConnectionsHome": "بستن اتصالات هنگام تغییر سرور در صفحه اصلی",
         "autoCheckUpdate": "بررسی خودکار به‌روزرسانی",
         "enableBuiltinEnhanced": "فعال کردن تقویت داخلی",
         "proxyLayoutColumns": "ستون چیدمان پراکسی",
@@ -469,6 +470,7 @@
       },
       "tooltips": {
         "autoCloseConnections": "اتصالات برقرار شده را هنگام تغییر انتخاب گروه پروکسی یا حالت پروکسی خاتمه دهید",
+        "autoCloseConnectionsHome": "به‌طور پیش‌فرض خاموش است: در صفحه اصلی دانلودی که شروع شده از طریق سرور قبلی تمام می‌شود. آن را روشن کنید تا با انتخاب سرور در صفحه اصلی، اتصالات گره قبلی بسته شوند، مانند صفحه پروکسی‌ها و سینی سیستم. فقط وقتی «بستن خودکار اتصالات» روشن است کار می‌کند.",
         "enableBuiltinEnhanced": "مدیریت سازگاری برای فایل پیکربندی. در ساخت دوبارهٔ بعدی پیکربندی اعمال می‌شود: به‌روزرسانی یا تعویض اشتراک، تغییر تنظیمات Clash یا راه‌اندازی دوبارهٔ برنامه.",
         "defaultLatencyTest": "فقط برای تست درخواست‌های کلاینت HTTP استفاده می‌شود و بر فایل پیکربندی تأثیری نخواهد داشت",
         "verboseDiagnostics": "Detailed records of network changes and of every write of the system proxy settings. Only needed when investigating a problem: it adds a little background work and many more lines to the log."

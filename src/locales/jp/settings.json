@@ -460,6 +460,7 @@
         "appLogMaxCount": "App Log Max Count",
         "verboseDiagnostics": "Verbose diagnostics (for debugging)",
         "autoCloseConnections": "接続を自動的に閉じる",
+        "autoCloseConnectionsHome": "ホームでサーバーを切り替えたときに接続を閉じる",
         "autoCheckUpdate": "自動更新チェック",
         "enableBuiltinEnhanced": "組み込み拡張機能を有効にする",
         "proxyLayoutColumns": "プロキシページのレイアウト列数",
@@ -469,6 +470,7 @@
       },
       "tooltips": {
         "autoCloseConnections": "プロキシグループで選択されたノードまたはプロキシモードが変更されたときに、既存の接続を閉じます。",
+        "autoCloseConnectionsHome": "既定ではオフ：ホームでは開始済みのダウンロードは以前のサーバー経由で最後まで続きます。オンにすると、ホームでサーバーを選んだときに以前のノードの接続を閉じます（プロキシページやトレイと同じ）。「接続を自動的に閉じる」がオンのときのみ有効です。",
         "enableBuiltinEnhanced": "設定ファイルの互換性処理。次に設定ファイルが再構築されたとき（サブスクリプションの更新や切り替え、Clash設定の変更、アプリの再起動）に反映されます。",
         "defaultLatencyTest": "HTTPクライアントリクエストテストにのみ使用され、設定ファイルには影響しません。",
         "verboseDiagnostics": "Detailed records of network changes and of every write of the system proxy settings. Only needed when investigating a problem: it adds a little background work and many more lines to the log."

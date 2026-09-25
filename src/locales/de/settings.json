@@ -460,6 +460,7 @@
         "appLogMaxCount": "App Log Max Count",
         "verboseDiagnostics": "Verbose diagnostics (for debugging)",
         "autoCloseConnections": "Verbindungen automatisch schließen",
+        "autoCloseConnectionsHome": "Verbindungen beim Serverwechsel auf der Startseite schließen",
         "autoCheckUpdate": "Automatisch auf Updates prüfen",
         "enableBuiltinEnhanced": "Eingebaute Verbesserungen aktivieren",
         "proxyLayoutColumns": "Anzahl der Spalten im Proxy-Layout",
@@ -469,6 +470,7 @@
       },
       "tooltips": {
         "autoCloseConnections": "Wenn der ausgewählte Knoten in der Proxy-Gruppe oder der Proxy-Modus geändert wird, werden die bestehenden Verbindungen geschlossen.",
+        "autoCloseConnectionsHome": "Standardmäßig aus: Auf der Startseite läuft ein begonnener Download über den vorherigen Server zu Ende. Einschalten, um beim Serverwechsel auf der Startseite die Verbindungen des vorherigen Knotens zu schließen – wie auf der Proxy-Seite und im Tray. Wirkt nur, solange „Verbindungen automatisch schließen“ aktiv ist.",
         "enableBuiltinEnhanced": "Kompatibilitätsbehandlung der Konfigurationsdatei. Wird bei der nächsten Neuerstellung der Konfiguration übernommen: Abo-Update oder -Wechsel, Änderung der Clash-Einstellungen oder Neustart der App.",
         "defaultLatencyTest": "Dies wird nur für HTTP-Client-Anfragentests verwendet und hat keine Auswirkungen auf die Konfigurationsdatei.",
         "verboseDiagnostics": "Detailed records of network changes and of every write of the system proxy settings. Only needed when investigating a problem: it adds a little background work and many more lines to the log."

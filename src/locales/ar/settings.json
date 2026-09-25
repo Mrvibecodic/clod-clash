@@ -460,6 +460,7 @@
         "appLogMaxCount": "App Log Max Count",
         "verboseDiagnostics": "Verbose diagnostics (for debugging)",
         "autoCloseConnections": "إغلاق الاتصالات تلقائيًا",
+        "autoCloseConnectionsHome": "إغلاق الاتصالات عند تغيير الخادم من الصفحة الرئيسية",
         "autoCheckUpdate": "فحص التحديث تلقائيًا",
         "enableBuiltinEnhanced": "تفعيل التحسين المدمج",
         "proxyLayoutColumns": "أعمدة عرض الوكيل",
@@ -469,6 +470,7 @@
       },
       "tooltips": {
         "autoCloseConnections": "إنهاء الاتصالات القائمة عند تغيير اختيار مجموعة الوكيل أو وضع الوكيل",
+        "autoCloseConnectionsHome": "معطّل افتراضيًا: في الصفحة الرئيسية يكتمل التنزيل الذي بدأ عبر الخادم السابق. فعّله لإغلاق اتصالات العقدة السابقة عند اختيار خادم من الصفحة الرئيسية، كما تفعل صفحة الوكلاء وشريط النظام. يعمل فقط أثناء تفعيل «إغلاق الاتصالات تلقائيًا».",
         "enableBuiltinEnhanced": "معالجة توافق ملف التكوين. يُطبَّق عند إعادة بناء ملف التكوين في المرة التالية: تحديث الاشتراك أو تبديله، أو تغيير إعدادات Clash، أو إعادة تشغيل التطبيق.",
         "defaultLatencyTest": "يُستخدم فقط لاختبار طلب HTTP العميل. لن يؤثر على ملف التكوين",
         "verboseDiagnostics": "Detailed records of network changes and of every write of the system proxy settings. Only needed when investigating a problem: it adds a little background work and many more lines to the log."

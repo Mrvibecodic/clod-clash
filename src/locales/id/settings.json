@@ -460,6 +460,7 @@
         "appLogMaxCount": "App Log Max Count",
         "verboseDiagnostics": "Verbose diagnostics (for debugging)",
         "autoCloseConnections": "Tutup Koneksi Otomatis",
+        "autoCloseConnectionsHome": "Tutup koneksi saat mengganti server di Beranda",
         "autoCheckUpdate": "Periksa Pembaruan Otomatis",
         "enableBuiltinEnhanced": "Aktifkan Peningkatan Bawaan",
         "proxyLayoutColumns": "Kolom Tata Letak Proksi",
@@ -469,6 +470,7 @@
       },
       "tooltips": {
         "autoCloseConnections": "Hentikan koneksi yang sudah ada saat pemilihan grup proksi atau mode proksi berubah",
+        "autoCloseConnectionsHome": "Mati secara bawaan: di Beranda unduhan yang sudah berjalan selesai melalui server sebelumnya. Nyalakan agar koneksi node sebelumnya ditutup saat memilih server di Beranda, seperti di halaman Proksi dan baki. Hanya berlaku selama Tutup Koneksi Otomatis aktif.",
         "enableBuiltinEnhanced": "Penanganan kompatibilitas untuk file konfigurasi. Berlaku saat konfigurasi disusun ulang berikutnya: pembaruan atau pergantian langganan, perubahan pengaturan Clash, atau aplikasi dimulai ulang.",
         "defaultLatencyTest": "Digunakan hanya untuk pengujian permintaan klien HTTP dan tidak akan mempengaruhi file konfigurasi",
         "verboseDiagnostics": "Detailed records of network changes and of every write of the system proxy settings. Only needed when investigating a problem: it adds a little background work and many more lines to the log."

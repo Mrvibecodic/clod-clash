@@ -460,6 +460,7 @@
         "appLogMaxCount": "App Log Max Count",
         "verboseDiagnostics": "Verbose diagnostics (for debugging)",
         "autoCloseConnections": "Тоташуларны автоматик ябу",
+        "autoCloseConnectionsHome": "Баш биттә серверны алыштырганда тоташуларны ябу",
         "autoCheckUpdate": "Яңартуларны автоматик тикшерү",
         "enableBuiltinEnhanced": "Эчке камилләштерүне кабызу",
         "proxyLayoutColumns": "Прокси күрсәтү баганалары саны",
@@ -469,6 +470,7 @@
       },
       "tooltips": {
         "autoCloseConnections": "Прокси төркеме яисә режимын үзгәрткәндә актив тоташуларны өзү",
+        "autoCloseConnectionsHome": "Башлангычта сүндерелгән: баш биттә башланган йөкләү элекке сервер аша ахырына кадәр бара. Кабызсагыз, баш биттә сервер сайлаганда элекке төен тоташулары ябыла — «Прокси» битендәге һәм трейдагы кебек. «Тоташуларны автоматик ябу» кабызылган чакта гына эшли.",
         "enableBuiltinEnhanced": "Конфигурация файлы белән туры килә торган өстәмә оптимизация. Конфиг киләсе тапкыр яңадан җыелганда гамәлгә керә: язылуны яңарту яки алыштыру, Clash көйләүләрен үзгәртү яки кушымтаны яңадан башлау.",
         "defaultLatencyTest": "Бу фәкать клиентның HTTP сораулары тесты өчен кулланыла, конфигурация файлына йогынты ясамый",
         "verboseDiagnostics": "Detailed records of network changes and of every write of the system proxy settings. Only needed when investigating a problem: it adds a little background work and many more lines to the log."

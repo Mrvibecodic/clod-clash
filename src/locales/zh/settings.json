@@ -460,6 +460,7 @@
         "appLogMaxCount": "应用日志最大数量",
         "verboseDiagnostics": "Verbose diagnostics (for debugging)",
         "autoCloseConnections": "自动关闭连接",
+        "autoCloseConnectionsHome": "在主页切换服务器时关闭连接",
         "autoCheckUpdate": "自动检查更新",
         "enableBuiltinEnhanced": "内置增强功能",
         "proxyLayoutColumns": "代理页布局列数",
@@ -469,6 +470,7 @@
       },
       "tooltips": {
         "autoCloseConnections": "当代理组选中节点或代理模式变动时，关闭已建立的连接",
+        "autoCloseConnectionsHome": "默认关闭：在主页上，已开始的下载会继续通过之前的服务器完成。开启后，在主页选择服务器时会关闭之前节点的连接，与代理页面和托盘一致。仅在“自动关闭连接”开启时生效。",
         "enableBuiltinEnhanced": "配置文件的兼容性处理。在下次重新生成配置时生效：更新或切换订阅、修改 Clash 设置或重启应用。",
         "defaultLatencyTest": "仅用于 HTTP 客户端请求测试，不会对配置文件产生影响",
         "verboseDiagnostics": "Detailed records of network changes and of every write of the system proxy settings. Only needed when investigating a problem: it adds a little background work and many more lines to the log."

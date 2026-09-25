@@ -460,6 +460,7 @@
         "appLogMaxCount": "App Log Max Count",
         "verboseDiagnostics": "Verbose diagnostics (for debugging)",
         "autoCloseConnections": "Bağlantıları Otomatik Kapat",
+        "autoCloseConnectionsHome": "Ana sayfada sunucu değişince bağlantıları kapat",
         "autoCheckUpdate": "Otomatik Güncelleme Kontrolü",
         "enableBuiltinEnhanced": "Yerleşik Geliştirilmiş Modu Etkinleştir",
         "proxyLayoutColumns": "Vekil Düzeni Sütunları",
@@ -469,6 +470,7 @@
       },
       "tooltips": {
         "autoCloseConnections": "Vekil grup seçimi veya vekil modu değiştiğinde kurulan bağlantıları sonlandır",
+        "autoCloseConnectionsHome": "Varsayılan olarak kapalı: ana sayfada başlamış bir indirme önceki sunucu üzerinden tamamlanır. Açarsanız ana sayfada sunucu seçildiğinde önceki düğümün bağlantıları kapatılır; vekil sayfası ve tepsi gibi. Yalnızca 'Bağlantıları Otomatik Kapat' açıkken çalışır.",
         "enableBuiltinEnhanced": "Yapılandırma dosyası için uyumluluk işleme. Yapılandırma bir sonraki yeniden oluşturulduğunda uygulanır: abonelik güncellemesi veya değişikliği, Clash ayarlarının değişmesi ya da uygulamanın yeniden başlatılması.",
         "defaultLatencyTest": "Yalnızca HTTP istemci isteği testi için kullanılır ve yapılandırma dosyasında bir fark yaratmaz",
         "verboseDiagnostics": "Detailed records of network changes and of every write of the system proxy settings. Only needed when investigating a problem: it adds a little background work and many more lines to the log."
