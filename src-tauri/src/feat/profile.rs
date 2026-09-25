@@ -156,7 +156,21 @@ async fn should_update_profile(uid: &String, ignore_auto_update: bool) -> Result
     }
 }
 
+async fn disarmed_current_profile(uid: &String) -> Option<std::string::String> {
+    let file = Config::profiles().await.latest_arc().get_item(uid).ok()?.file.clone()?;
+    let data = tokio::fs::read_to_string(crate::utils::dirs::app_profiles_dir().ok()?.join(file.as_str()))
+        .await
+        .ok()?;
+    crate::config::disarmed_profile(&data)
+}
+
 async fn apply_updated_item(uid: &String, item: &mut PrfItem) -> Result<()> {
+    if item.device_refused == Some(true)
+        && let Some(disarmed) = disarmed_current_profile(uid).await
+    {
+        item.file_data = Some(disarmed.into());
+    }
+
     let migrate_url = item.migrate_url.clone();
     let request_option = item.option.clone();
 

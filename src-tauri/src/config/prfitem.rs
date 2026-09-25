@@ -180,6 +180,9 @@ pub struct PrfItem {
     pub migrate_url: Option<String>,
 
     #[serde(skip)]
+    pub device_refused: Option<bool>,
+
+    #[serde(skip)]
     pub hwid_max_devices: Option<u32>,
     #[serde(skip)]
     pub file_data: Option<String>,
@@ -275,9 +278,7 @@ impl PrfOption {
 impl PrfItem {
     fn is_worth_retrying_over_proxy(err: &anyhow::Error) -> bool {
         let text = err.to_string();
-        !text.contains("(x-hwid)")
-            && !text.contains("invalid profile item type")
-            && !text.contains("subscription URL must use https")
+        !text.contains("invalid profile item type") && !text.contains("subscription URL must use https")
     }
 
     pub async fn from_url_with_ladder(
@@ -479,7 +480,7 @@ impl PrfItem {
         log_panel_headers(&sub);
         sub.notify_device_state();
 
-        subscription_is_usable(&resp)?;
+        let refused_config = config_or_refusal(&resp, &sub)?;
 
         let header = resp.headers();
 
@@ -532,7 +533,7 @@ impl PrfItem {
         };
         let data = resp.text_with_charset()?;
 
-        let data = data.trim_start_matches('\u{feff}');
+        let data = refused_config.unwrap_or_else(|| data.trim_start_matches('\u{feff}'));
 
         if merge.is_none() {
             let merge_item = &mut Self::from_merge(None)?;
@@ -634,6 +635,7 @@ impl PrfItem {
             simple_mode: sub.simple_mode,
             name_from_header,
             migrate_url: sub.migration_target(url.as_str()),
+            device_refused: refused_config.is_some().then_some(true),
             hwid_max_devices: sub.hwid_max_devices,
             updated: Some(chrono::Local::now().timestamp() as usize),
             file_data: Some(data.into()),
@@ -767,6 +769,84 @@ fn parse_subscription_userinfo(headers: &reqwest::header::HeaderMap) -> Option<P
 
 const FETCH_HEAD_START: Duration = Duration::from_millis(250);
 
+const DEVICE_REFUSED_CONFIG: &str = "proxies: []\nrules:\n  - MATCH,REJECT\n";
+
+fn config_or_refusal(
+    resp: &crate::utils::network::HttpResponse,
+    sub: &sub_headers::SubHeaders,
+) -> Result<Option<&'static str>> {
+    match subscription_is_usable(resp) {
+        Ok(()) => Ok(None),
+        Err(_) if resp.status().is_success() && sub.refuses_device() => Ok(Some(DEVICE_REFUSED_CONFIG)),
+        Err(err) => Err(err),
+    }
+}
+
+pub fn disarmed_profile(data: &str) -> Option<std::string::String> {
+    let mut config = serde_yaml_ng::from_str::<Mapping>(data.trim_start_matches('\u{feff}')).ok()?;
+    let proxies = config.get("proxies").and_then(serde_yaml_ng::Value::as_sequence)?;
+
+    let placeholders: Vec<serde_yaml_ng::Value> = proxies
+        .iter()
+        .filter_map(|proxy| proxy.get("name"))
+        .filter(|name| {
+            matches!(
+                name,
+                serde_yaml_ng::Value::String(_) | serde_yaml_ng::Value::Number(_) | serde_yaml_ng::Value::Bool(_)
+            )
+        })
+        .map(|name| {
+            let mut placeholder = Mapping::new();
+            for (key, value) in [
+                ("name", name.clone()),
+                ("type", "vless".into()),
+                ("server", "0.0.0.0".into()),
+                ("port", 1.into()),
+                ("uuid", "00000000-0000-0000-0000-000000000000".into()),
+                ("network", "tcp".into()),
+                ("udp", true.into()),
+            ] {
+                placeholder.insert(key.into(), value);
+            }
+            serde_yaml_ng::Value::Mapping(placeholder)
+        })
+        .collect();
+
+    if placeholders.is_empty() {
+        return None;
+    }
+
+    config.insert("proxies".into(), serde_yaml_ng::Value::Sequence(placeholders));
+    config.remove("proxy-providers");
+
+    if let Some(groups) = config
+        .get_mut("proxy-groups")
+        .and_then(serde_yaml_ng::Value::as_sequence_mut)
+    {
+        for group in groups.iter_mut().filter_map(serde_yaml_ng::Value::as_mapping_mut) {
+            group.remove("use");
+            group.remove("include-all-providers");
+            if group.remove("include-all").and_then(|value| value.as_bool()) == Some(true) {
+                group.insert("include-all-proxies".into(), true.into());
+            }
+
+            let has_members = group
+                .get("proxies")
+                .and_then(serde_yaml_ng::Value::as_sequence)
+                .is_some_and(|members| !members.is_empty());
+            let includes_proxies =
+                group.get("include-all-proxies").and_then(serde_yaml_ng::Value::as_bool) == Some(true);
+            if !has_members && !includes_proxies {
+                group.insert("proxies".into(), serde_yaml_ng::Value::Sequence(vec!["REJECT".into()]));
+            }
+
+            group.entry("empty-fallback".into()).or_insert_with(|| "REJECT".into());
+        }
+    }
+
+    serde_yaml_ng::to_string(&config).ok()
+}
+
 /// Полный приговор: годится ли ответ как профиль для ядра.
 ///
 /// Выносится при разборе ответа. Гонка маршрутов пользуется не им, а более узким
@@ -861,7 +941,7 @@ fn judge_the_answer(goal: RaceGoal, resp: &crate::utils::network::HttpResponse) 
         // Тело защищённого канала зашифровано прослойкой, судить о нём нечем.
         RaceGoal::AnyDelivery => Verdict::Wins,
         RaceGoal::UsableProfile => {
-            if body_looks_like_a_stub(resp) {
+            if body_looks_like_a_stub(resp) && !sub_headers::SubHeaders::parse(resp.headers()).refuses_device() {
                 Verdict::ItIsAStub
             } else {
                 Verdict::Wins
@@ -1470,6 +1550,272 @@ mod tests {
         let links = "dm1lc3M6Ly9leGFtcGxlCnZtZXNzOi8vZXhhbXBsZQ==";
         let err = subscription_is_usable(&answer(200, links)).expect_err("список ссылок подпиской не считается");
         assert!(err.to_string().contains("clod-sub-link-list"), "{err}");
+    }
+
+    fn answer_with(status: u16, headers: &[(&str, &str)], body: &str) -> crate::utils::network::HttpResponse {
+        let mut map = reqwest::header::HeaderMap::new();
+        for (name, value) in headers {
+            map.insert(
+                reqwest::header::HeaderName::from_bytes(name.as_bytes()).expect("тестовое имя заголовка разбирается"),
+                reqwest::header::HeaderValue::from_str(value).expect("тестовое значение заголовка разбирается"),
+            );
+        }
+        crate::utils::network::HttpResponse::new(
+            reqwest::StatusCode::from_u16(status).expect("тестовый статус разбирается"),
+            map,
+            body.into(),
+        )
+    }
+
+    const REFUSALS: [&[(&str, &str)]; 4] = [
+        &[
+            ("x-hwid-active", "true"),
+            ("x-hwid-max-devices-reached", "true"),
+            ("x-hwid-limit", "true"),
+        ],
+        &[
+            ("x-hwid-active", "true"),
+            ("x-hwid-not-supported", "true"),
+            ("x-hwid-limit", "true"),
+        ],
+        &[("x-hwid-limit", "true")],
+        &[("x-hwid-not-supported", "true")],
+    ];
+
+    #[test]
+    fn a_device_refusal_without_a_config_takes_the_servers_away() {
+        use super::{DEVICE_REFUSED_CONFIG, config_or_refusal};
+
+        for headers in REFUSALS {
+            for body in [
+                "",
+                "  \n",
+                "<html><body>limit</body></html>",
+                "dm1lc3M6Ly9leGFtcGxlCnZtZXNzOi8vZXhhbXBsZQ==",
+            ] {
+                let resp = answer_with(200, headers, body);
+                let sub = crate::config::sub_headers::SubHeaders::parse(resp.headers());
+                let config = config_or_refusal(&resp, &sub).expect("отказ по устройству ошибкой не считается");
+                assert_eq!(config, Some(DEVICE_REFUSED_CONFIG), "{headers:?} {body:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_device_refusal_with_the_panels_placeholders_keeps_them() {
+        use super::config_or_refusal;
+
+        let placeholders = "proxies:\n  - name: Limit of devices reached\n    type: vless\n    server: 0.0.0.0\n    port: 1\n    uuid: 00000000-0000-0000-0000-000000000000\n";
+        for headers in REFUSALS {
+            let resp = answer_with(200, headers, placeholders);
+            let sub = crate::config::sub_headers::SubHeaders::parse(resp.headers());
+            assert_eq!(config_or_refusal(&resp, &sub).expect("годный конфиг принимается"), None);
+        }
+    }
+
+    #[test]
+    fn the_refusal_config_has_no_servers_and_rejects_everything() {
+        use super::DEVICE_REFUSED_CONFIG;
+
+        let config: serde_yaml_ng::Mapping =
+            serde_yaml_ng::from_str(DEVICE_REFUSED_CONFIG).expect("конфиг отказа разбирается");
+        assert_eq!(
+            config
+                .get("proxies")
+                .and_then(serde_yaml_ng::Value::as_sequence)
+                .map(Vec::len),
+            Some(0)
+        );
+        assert_eq!(
+            config
+                .get("rules")
+                .and_then(serde_yaml_ng::Value::as_sequence)
+                .map(|rules| rules
+                    .iter()
+                    .filter_map(serde_yaml_ng::Value::as_str)
+                    .collect::<Vec<_>>()),
+            Some(vec!["MATCH,REJECT"])
+        );
+    }
+
+    #[test]
+    fn a_disarmed_profile_keeps_every_name_and_drops_every_secret() {
+        let template = "proxies:\n  - name: A\n    type: vless\n    server: a.example.net\n    port: 443\n    uuid: 6f1c0f6d-1a2b-4c3d-8e9f-0a1b2c3d4e5f\n  - name: B\n    type: trojan\n    server: b.example.net\n    port: 443\n    password: secret\nproxy-providers:\n  extra:\n    type: http\n    url: https://example.net/extra\nproxy-groups:\n  - name: VPN\n    type: select\n    proxies: [A, B]\nrules:\n  - MATCH,VPN\n";
+        let disarmed = super::disarmed_profile(template).expect("шаблон с узлами обезоружен");
+        let config: serde_yaml_ng::Mapping = serde_yaml_ng::from_str(&disarmed).expect("результат разбирается");
+        let original: serde_yaml_ng::Mapping = serde_yaml_ng::from_str(template).expect("шаблон разбирается");
+
+        let proxies = config
+            .get("proxies")
+            .and_then(serde_yaml_ng::Value::as_sequence)
+            .cloned()
+            .unwrap_or_default();
+        let names: Vec<&str> = proxies
+            .iter()
+            .filter_map(|proxy| proxy.get("name").and_then(serde_yaml_ng::Value::as_str))
+            .collect();
+        assert_eq!(names, vec!["A", "B"]);
+        for proxy in &proxies {
+            assert_eq!(
+                proxy.get("server").and_then(serde_yaml_ng::Value::as_str),
+                Some("0.0.0.0")
+            );
+            assert_eq!(
+                proxy.get("uuid").and_then(serde_yaml_ng::Value::as_str),
+                Some("00000000-0000-0000-0000-000000000000")
+            );
+            assert!(proxy.get("password").is_none());
+        }
+        let mut groups = config.get("proxy-groups").cloned().unwrap_or_default();
+        for group in groups.as_sequence_mut().into_iter().flatten() {
+            let group = group.as_mapping_mut().expect("группа — словарь");
+            assert_eq!(
+                group
+                    .remove("empty-fallback")
+                    .as_ref()
+                    .and_then(serde_yaml_ng::Value::as_str),
+                Some("REJECT")
+            );
+        }
+        assert_eq!(Some(&groups), original.get("proxy-groups"));
+        assert_eq!(config.get("rules"), original.get("rules"));
+        assert!(config.get("proxy-providers").is_none());
+        assert!(
+            !disarmed.contains("a.example.net")
+                && !disarmed.contains("secret")
+                && !disarmed.contains("example.net/extra")
+        );
+        assert_eq!(super::disarmed_profile(&disarmed).as_deref(), Some(disarmed.as_str()));
+    }
+
+    #[test]
+    fn a_disarmed_profile_takes_the_providers_away() {
+        let template = "proxies:\n  - name: A\n    type: vless\n    server: a.example.net\n    port: 443\n    uuid: 6f1c0f6d-1a2b-4c3d-8e9f-0a1b2c3d4e5f\nproxy-providers:\n  inline:\n    type: inline\n    payload:\n      - name: A\n        type: ss\n        server: prov.example.net\n        port: 8388\n        cipher: aes-128-gcm\n        password: realpass\nproxy-groups:\n  - name: Mixed\n    type: select\n    use: [inline]\n    proxies: [A]\n  - name: FromProvider\n    type: url-test\n    use: [inline]\n  - name: Everything\n    type: select\n    include-all: true\n  - name: AllProviders\n    type: select\n    include-all-providers: true\nrules:\n  - MATCH,Mixed\n";
+        let disarmed = super::disarmed_profile(template).expect("шаблон с узлами обезоружен");
+        for secret in ["example.net", "realpass", "6f1c0f6d", "payload", "proxy-providers"] {
+            assert!(!disarmed.contains(secret), "{secret}: {disarmed}");
+        }
+
+        let config: serde_yaml_ng::Mapping = serde_yaml_ng::from_str(&disarmed).expect("результат разбирается");
+        let group = |name: &str| {
+            config
+                .get("proxy-groups")
+                .and_then(serde_yaml_ng::Value::as_sequence)
+                .and_then(|groups| {
+                    groups
+                        .iter()
+                        .find(|group| group.get("name").and_then(serde_yaml_ng::Value::as_str) == Some(name))
+                })
+                .and_then(serde_yaml_ng::Value::as_mapping)
+                .cloned()
+                .unwrap_or_default()
+        };
+        let members = |name: &str| {
+            group(name)
+                .get("proxies")
+                .and_then(serde_yaml_ng::Value::as_sequence)
+                .map(|members| {
+                    members
+                        .iter()
+                        .filter_map(serde_yaml_ng::Value::as_str)
+                        .map(str::to_owned)
+                        .collect::<Vec<_>>()
+                })
+        };
+
+        for name in ["Mixed", "FromProvider", "Everything", "AllProviders"] {
+            for key in ["use", "include-all", "include-all-providers"] {
+                assert!(group(name).get(key).is_none(), "{name}: {key}");
+            }
+            assert_eq!(
+                group(name).get("empty-fallback").and_then(serde_yaml_ng::Value::as_str),
+                Some("REJECT"),
+                "{name}"
+            );
+        }
+        assert_eq!(members("Mixed"), Some(vec!["A".to_owned()]));
+        assert_eq!(members("FromProvider"), Some(vec!["REJECT".to_owned()]));
+        assert_eq!(members("AllProviders"), Some(vec!["REJECT".to_owned()]));
+        assert_eq!(members("Everything"), None);
+        assert_eq!(
+            group("Everything")
+                .get("include-all-proxies")
+                .and_then(serde_yaml_ng::Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(super::disarmed_profile(&disarmed).as_deref(), Some(disarmed.as_str()));
+    }
+
+    #[test]
+    fn a_node_named_by_a_number_keeps_its_name() {
+        let disarmed = super::disarmed_profile("proxies:\n  - name: 123\n    type: ss\n    server: a.example.net\n    port: 8388\n    cipher: aes-128-gcm\n    password: secret\nproxy-groups:\n  - name: VPN\n    type: select\n    proxies: [123]\n").unwrap_or_default();
+        let config: serde_yaml_ng::Mapping = serde_yaml_ng::from_str(&disarmed).expect("результат разбирается");
+        let name = config
+            .get("proxies")
+            .and_then(serde_yaml_ng::Value::as_sequence)
+            .and_then(|proxies| proxies.first())
+            .and_then(|proxy| proxy.get("name"))
+            .cloned();
+        assert_eq!(name, Some(serde_yaml_ng::Value::from(123)));
+        assert!(!disarmed.contains("secret"));
+    }
+
+    #[test]
+    fn nothing_to_disarm_falls_back_to_the_refusal_config() {
+        for data in [
+            "",
+            "proxies: []\n",
+            "rules:\n  - MATCH,DIRECT\n",
+            "<html></html>",
+            "proxies:\n  - just-a-string\n",
+        ] {
+            assert_eq!(super::disarmed_profile(data), None, "{data:?}");
+        }
+    }
+
+    #[test]
+    fn no_refusal_headers_no_placeholder_config() {
+        use super::config_or_refusal;
+
+        for headers in [
+            &[][..],
+            &[("x-hwid-active", "true")][..],
+            &[("x-hwid-limit", "false"), ("x-hwid-not-supported", "0")][..],
+            &[("clod-hwid-limit", "текст")][..],
+        ] {
+            let resp = answer_with(200, headers, "");
+            let sub = crate::config::sub_headers::SubHeaders::parse(resp.headers());
+            let err = config_or_refusal(&resp, &sub).expect_err("пустое тело без отказа — ошибка");
+            assert!(err.to_string().contains("clod-sub-empty"), "{headers:?}: {err}");
+        }
+
+        for status in [403, 404, 500] {
+            let resp = answer_with(status, REFUSALS[0], "");
+            let sub = crate::config::sub_headers::SubHeaders::parse(resp.headers());
+            assert!(config_or_refusal(&resp, &sub).is_err(), "статус {status}");
+        }
+    }
+
+    #[test]
+    fn a_device_refusal_is_the_panels_last_word_in_the_race() {
+        use super::{RaceGoal, Verdict, judge_the_answer};
+
+        for headers in REFUSALS {
+            for body in ["", "<html><body>limit</body></html>"] {
+                assert_eq!(
+                    judge_the_answer(RaceGoal::UsableProfile, &answer_with(200, headers, body)),
+                    Verdict::Wins,
+                    "{headers:?} {body:?}"
+                );
+            }
+        }
+        assert_eq!(
+            judge_the_answer(
+                RaceGoal::UsableProfile,
+                &answer_with(200, &[("x-hwid-active", "true")], "")
+            ),
+            Verdict::ItIsAStub
+        );
     }
 
     #[test]

@@ -90,8 +90,8 @@ arrives without a migration request.
 | Header | Meaning | What the app does |
 | --- | --- | --- |
 | `x-hwid-active` | the device is registered | nothing, informational |
-| `x-hwid-not-supported` | the panel wants an id the client did not send | dialog: "The provider requires device identification. Turn it on?". **A working profile is never overwritten** — the body is the same stub as on a device limit. Outranks `x-hwid-limit`, which Remnawave sets in both blocking branches — without that precedence the user would be told about a limit they never hit |
-| `x-hwid-max-devices-reached`<br>`x-hwid-limit` | device limit is full | dialog with a "Support" button; the provider's own wording comes from `clod-hwid-limit`. **A working profile is never overwritten** — the panel's body is a stub in this case. While the state holds, the subscription card carries a red line saying why it is not updating |
+| `x-hwid-not-supported` | the panel wants an id the client did not send | dialog: "The provider requires device identification. Turn it on?". **The previous servers are taken away** — same as on a device limit. Outranks `x-hwid-limit`, which Remnawave sets in both blocking branches — without that precedence the user would be told about a limit they never hit |
+| `x-hwid-max-devices-reached`<br>`x-hwid-limit` | device limit is full | dialog with a "Support" button; the provider's own wording comes from `clod-hwid-limit`. **The previous servers are taken away**: the panel's placeholders replace them, and if placeholders are turned off in the panel and the body is empty, the client turns the previous servers into the same kind of placeholders itself — names and rules stay, addresses and keys are wiped, node providers are dropped. Spare addresses are not tried on such an answer. While the state holds, the subscription card carries a red line saying why it is not updating |
 | `x-hwid-max-devices` | how many devices are allowed | filled into the dialog text. Remnawave 3.x does not send it — without it the dialog simply has no number |
 | `clod-hwid-limit` | **optional** provider text for both device dialogs | shown under the dialog's own text — "unlink the old device in your account", say. Plain text or `base64:`, up to 500 characters, with the same `#RRGGBB` colouring as the banners. A header of its own rather than `announce`: the home banner is for everybody, this explanation is addressed to one blocked device. Without it the dialog does fine on its own wording |
 
@@ -225,7 +225,10 @@ response — the panel is saying "you have no servers right now", and the client
 overrule it with. A device over the limit used to keep using the servers it had saved, which
 meant the limit did not apply to it at all. Once the subscription is renewed or a slot is
 freed, the very next refresh brings the servers back — the "Refresh subscription" button sits
-right on the status screen.
+right on the status screen. On a device refusal (`x-hwid-*`) the previous configuration is
+replaced even when placeholders are turned off in the panel and the body is empty: the previous
+servers become placeholders with the same names and no addresses or keys, node providers
+are dropped.
 
 When a group ends up with no nodes at all, the client puts `REJECT` in it: mihomo answers an
 empty group with `` `use` or `proxies` missing `` and refuses to start, and `DIRECT` would

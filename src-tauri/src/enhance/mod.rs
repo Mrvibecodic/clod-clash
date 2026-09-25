@@ -3135,6 +3135,62 @@ proxy-groups:
     }
 
     #[test]
+    fn a_disarmed_profile_keeps_groups_and_rules_and_rejects() {
+        let disarmed = crate::config::disarmed_profile(
+            r#"
+proxies:
+  - name: "🇳🇱 Amsterdam"
+    type: vless
+    server: nl02.example.net
+    port: 443
+    uuid: 6f1c0f6d-1a2b-4c3d-8e9f-0a1b2c3d4e5f
+  - name: "🇩🇪 Frankfurt"
+    type: ss
+    server: de01.example.net
+    port: 8388
+    cipher: aes-128-gcm
+    password: secret
+proxy-providers:
+  inline:
+    type: inline
+    payload:
+      - name: "🇫🇮 Helsinki"
+        type: ss
+        server: fi01.example.net
+        port: 8388
+        cipher: aes-128-gcm
+        password: realpass
+proxy-groups:
+  - name: "VPN"
+    type: select
+    use: [inline]
+    proxies:
+      - "🇳🇱 Amsterdam"
+      - "🇩🇪 Frankfurt"
+  - name: "Provider"
+    type: url-test
+    use: [inline]
+rules:
+  - DOMAIN-SUFFIX,example.org,VPN
+  - DOMAIN-SUFFIX,example.com,Provider
+  - MATCH,VPN
+"#,
+        )
+        .unwrap_or_default();
+
+        let (config, report) = sentinel_pass(mapping(&disarmed));
+
+        assert!(proxy_names(&config).is_empty());
+        assert!(config.get("proxy-providers").is_none());
+        assert_eq!(group_members(&config, "VPN"), vec!["REJECT".to_owned()]);
+        assert_eq!(group_members(&config, "Provider"), vec!["REJECT".to_owned()]);
+        assert!(!disarmed.contains("fi01.example.net") && !disarmed.contains("realpass"));
+        assert!(report.only_sentinels);
+        assert!(!disarmed.contains("nl02.example.net") && !disarmed.contains("secret"));
+        assert!(disarmed.contains("MATCH,VPN"));
+    }
+
+    #[test]
     fn sentinels_are_dropped_next_to_live_nodes() {
         let config = mapping(
             r#"
