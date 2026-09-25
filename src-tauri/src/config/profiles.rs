@@ -289,10 +289,6 @@ impl IProfiles {
                 let interval_chosen = item.option.as_ref().is_some_and(|fresh| {
                     fresh.update_interval != each.option.as_ref().and_then(|stored| stored.update_interval)
                 });
-                let panel_changed = item
-                    .url
-                    .as_ref()
-                    .is_some_and(|fresh| points_at_another_panel(each.url.as_ref(), fresh));
 
                 patch!(each, item, itype);
                 patch!(each, item, name);
@@ -321,16 +317,6 @@ impl IProfiles {
                         .map(|_| false);
                 }
                 patch!(each, item, notified);
-
-                // Адрес подписки сменили — значит сменилась и панель, а `fallback-url`
-                // с `fallback-domain` остались от прежней. Без этого сброса неудача
-                // нового адреса тихо уводила обновление обратно к старому провайдеру.
-                // Свои хвосты новая панель пришлёт заголовками при первом же ответе.
-                if panel_changed {
-                    each.fallback_url = None;
-                    each.fallback_domain = None;
-                    each.mode_choice = None;
-                }
 
                 self.items = Some(items);
                 return self.save_file().await;
@@ -502,35 +488,6 @@ impl IProfiles {
         }
         None
     }
-}
-
-/// Ведёт ли новый адрес подписки к другой панели.
-///
-/// Сравниваем только origin — схему, хост и порт. Перевыпуск токена, лишний слэш,
-/// другой регистр хоста и переставленные параметры запроса ведут к той же панели, и
-/// её запасные адреса выбрасывать не за что: именно они и понадобятся, если новый
-/// адрес не ответит.
-fn points_at_another_panel(stored: Option<&String>, fresh: &String) -> bool {
-    let Some(stored) = stored else {
-        return false;
-    };
-
-    match (tauri::Url::parse(stored.as_str()), tauri::Url::parse(fresh.as_str())) {
-        (Ok(stored), Ok(fresh)) => panel_key(&stored) != panel_key(&fresh),
-        _ => stored.trim() != fresh.trim(),
-    }
-}
-
-/// Схема, хост и порт — то, что делает панель панелью.
-///
-/// Считаем руками, а не через `Url::origin`: у нестандартных схем он непрозрачный и
-/// не равен сам себе, и тогда даже неизменённый адрес считался бы сменой панели.
-fn panel_key(url: &tauri::Url) -> (std::string::String, Option<std::string::String>, Option<u16>) {
-    (
-        url.scheme().to_owned(),
-        url.host_str().map(str::to_owned),
-        url.port_or_known_default(),
-    )
 }
 
 use crate::config::Config;
@@ -1502,49 +1459,6 @@ mod tests {
         assert_eq!(items.len(), 2);
     }
 
-    #[test]
-    fn the_same_panel_is_not_a_new_panel() {
-        use super::points_at_another_panel;
-        let stored = String::from("https://Panel.Example/sub/abc");
-
-        for same in [
-            "https://panel.example/sub/abc",
-            "https://panel.example/sub/abc/",
-            "https://panel.example/sub/xyz",
-            "https://panel.example:443/sub/abc?b=2&a=1",
-        ] {
-            assert!(
-                !points_at_another_panel(Some(&stored), &String::from(same)),
-                "{same} — та же панель"
-            );
-        }
-    }
-
-    #[test]
-    fn another_host_is_another_panel() {
-        use super::points_at_another_panel;
-        let stored = String::from("https://panel.example/sub/abc");
-
-        for other in [
-            "https://other.example/sub/abc",
-            "https://panel.example:8443/sub/abc",
-            "http://panel.example/sub/abc",
-        ] {
-            assert!(
-                points_at_another_panel(Some(&stored), &String::from(other)),
-                "{other} — другая панель"
-            );
-        }
-    }
-
-    #[test]
-    fn without_a_stored_address_nothing_is_reset() {
-        use super::points_at_another_panel;
-        assert!(!points_at_another_panel(
-            None,
-            &String::from("https://panel.example/sub")
-        ));
-    }
     use super::*;
 
     fn selected(group: &str, node: &str) -> PrfSelected {
