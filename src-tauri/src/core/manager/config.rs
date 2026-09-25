@@ -137,8 +137,8 @@ impl CoreManager {
 
     /// Собранный черновик совпал с принятым конфигом, и ядро с ним работает.
     /// Перезагрузка тем же конфигом что-то дала бы только двум случаям: остановленное
-    /// ядро она поднимала бы, а пустой http-провайдер (первая загрузка не удалась,
-    /// кэша нет) — скачивала заново. Их не пропускаем.
+    /// ядро она поднимала бы, а пустой http-провайдер узлов или правил (первая
+    /// загрузка не удалась, кэша нет) — скачивала заново. Их не пропускаем.
     async fn runtime_unchanged(&self) -> bool {
         if matches!(*self.get_running_mode(), super::RunningMode::NotRunning) {
             return false;
@@ -149,7 +149,7 @@ impl CoreManager {
             let prev = runtime.data_arc();
             next.config.is_some() && next.config == prev.config
         };
-        same && proxy_providers_filled().await
+        same && providers_filled().await
     }
 
     pub(crate) async fn update_runtime_config<F>(&self, f: F) -> Result<ValidationOutcome>
@@ -491,19 +491,25 @@ async fn forget_the_not_applied_mark() {
 
 const PROVIDERS_LIST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
-/// У ядра нет пустых http-провайдеров. Не ответило — считаем, что есть.
-async fn proxy_providers_filled() -> bool {
-    let listed = tokio::time::timeout(
-        PROVIDERS_LIST_TIMEOUT,
-        crate::feat::environment::detached_core_client().get_proxy_providers(),
-    )
+/// У ядра нет пустых http-провайдеров — ни прокси, ни правил. Не ответило — считаем, что есть.
+async fn providers_filled() -> bool {
+    use tauri_plugin_mihomo::models::VehicleType;
+    let core = crate::feat::environment::detached_core_client();
+    let listed = tokio::time::timeout(PROVIDERS_LIST_TIMEOUT, async {
+        tokio::try_join!(core.get_proxy_providers(), core.get_rule_providers())
+    })
     .await;
-    let Ok(Ok(listed)) = listed else {
+    let Ok(Ok((proxies, rules))) = listed else {
         return false;
     };
-    listed.providers.values().all(|provider| {
-        !provider.proxies.is_empty() || !matches!(provider.vehicle_type, tauri_plugin_mihomo::models::VehicleType::HTTP)
-    })
+    proxies
+        .providers
+        .values()
+        .all(|provider| !provider.proxies.is_empty() || !matches!(provider.vehicle_type, VehicleType::HTTP))
+        && rules
+            .providers
+            .values()
+            .all(|provider| provider.rule_count > 0 || !matches!(provider.vehicle_type, VehicleType::HTTP))
 }
 
 async fn stage_with_confirmation<Ask, Fut>(confirm_within: std::time::Duration, ask: Ask) -> StageAttempt
