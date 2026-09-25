@@ -52,7 +52,7 @@
         "traffic": "{{used}} of {{total}} used. The quota resets on {{date}}.",
         "trafficNoDate": "{{used}} of {{total}} used. Top up the traffic to continue.",
         "provider": "The subscription is active, but the panel returned no servers at all. This is on the provider’s side.",
-        "deviceLimit": "La suscripción alcanzó su límite de dispositivos. Libera uno o escribe a soporte y los servidores volverán.",
+        "deviceLimit": "La suscripción alcanzó su límite de dispositivos. Escribe al soporte de tu proveedor.",
         "deviceNotIdentified": "El panel no reconoció este dispositivo y no entregó servidores."
       },
       "panelSays": "Nodos de marcador de posición eliminados de la suscripción: {{text}}",

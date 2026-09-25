@@ -105,8 +105,7 @@
     },
     "hwidDialog": {
       "limitTitle": "Device limit reached",
-      "limitBody": "Your provider does not allow another device on this subscription. Sign out on a device you no longer use, or contact support.",
-      "limitBodyWithCount": "Your provider allows {{count}} device(s) on this subscription and the limit is full. Sign out on a device you no longer use, or contact support.",
+      "limitBody": "Your provider does not allow another device on this subscription. Contact support.",
       "requiredTitle": "Device identification required",
       "requiredBody": "Your provider identifies devices and will not serve the subscription without a device id. Turn identification on and try again?",
       "enable": "Turn on",

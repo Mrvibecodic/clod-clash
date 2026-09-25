@@ -25,7 +25,6 @@ import { showNotice } from '@/services/notice-service'
  */
 interface HwidNotice {
   state: 'limit' | 'not_supported'
-  maxDevices?: number | null
   supportUrl?: string | null
   /** `clod-hwid-limit` — the provider's own explanation for this dialog. */
   message?: string | null
@@ -68,11 +67,7 @@ export const HwidLimitDialog = () => {
     ? t('profiles.components.hwidDialog.limitTitle')
     : t('profiles.components.hwidDialog.requiredTitle')
   const body = isLimit
-    ? notice.maxDevices
-      ? t('profiles.components.hwidDialog.limitBodyWithCount', {
-          count: notice.maxDevices,
-        })
-      : t('profiles.components.hwidDialog.limitBody')
+    ? t('profiles.components.hwidDialog.limitBody')
     : t('profiles.components.hwidDialog.requiredBody')
 
   return (

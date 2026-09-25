@@ -182,7 +182,6 @@ pub struct SubHeaders {
     pub new_url: Option<String>,
     pub new_domain: Option<String>,
     pub hwid_state: HwidState,
-    pub hwid_max_devices: Option<u32>,
     pub notify_expire_days: Option<Vec<u32>>,
     pub notify_traffic_percent: Option<Vec<u32>>,
     pub simple_mode: Option<bool>,
@@ -249,7 +248,6 @@ impl SubHeaders {
             new_url: value(headers, "new-url"),
             new_domain: value(headers, "new-domain"),
             hwid_state,
-            hwid_max_devices: value(headers, "x-hwid-max-devices").and_then(|raw| raw.trim().parse().ok()),
             notify_expire_days,
             notify_traffic_percent: value(headers, "notify-traffic-percent").and_then(|raw| thresholds(&raw, 1, 100)),
             simple_mode: bool_value(headers, "clod-simple-mode")
@@ -341,7 +339,6 @@ impl SubHeaders {
 
         crate::core::handle::Handle::hwid_notice(serde_json::json!({
             "state": self.hwid_state.as_str(),
-            "maxDevices": self.hwid_max_devices,
             "supportUrl": self.support_url.as_deref(),
             "message": self.hwid_limit_message.as_deref(),
         }));
@@ -1156,10 +1153,8 @@ mod tests {
         let parsed = SubHeaders::parse(&headers(&[
             ("x-hwid-active", "true"),
             ("x-hwid-max-devices-reached", "true"),
-            ("x-hwid-max-devices", "3"),
         ]));
         assert_eq!(parsed.hwid_state, HwidState::LimitReached);
-        assert_eq!(parsed.hwid_max_devices, Some(3));
         assert_eq!(parsed.hwid_state.as_str(), Some("limit"));
 
         let parsed = SubHeaders::parse(&headers(&[("x-hwid-limit", "true")]));

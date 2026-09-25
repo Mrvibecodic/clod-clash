@@ -52,7 +52,7 @@
         "traffic": "{{used}} of {{total}} used. The quota resets on {{date}}.",
         "trafficNoDate": "{{used}} of {{total}} used. Top up the traffic to continue.",
         "provider": "The subscription is active, but the panel returned no servers at all. This is on the provider’s side.",
-        "deviceLimit": "此訂閱的裝置數量已達上限。請解除多餘裝置或聯絡客服，伺服器就會恢復。",
+        "deviceLimit": "此訂閱的裝置數量已達上限。請聯絡服務商客服。",
         "deviceNotIdentified": "面板未能辨識此裝置，因此沒有下發伺服器。"
       },
       "panelSays": "已從訂閱中移除佔位節點：{{text}}",

@@ -52,7 +52,7 @@
         "traffic": "{{used}} of {{total}} used. The quota resets on {{date}}.",
         "trafficNoDate": "{{used}} of {{total}} used. Top up the traffic to continue.",
         "provider": "The subscription is active, but the panel returned no servers at all. This is on the provider’s side.",
-        "deviceLimit": "تم بلوغ الحد الأقصى لعدد الأجهزة لهذا الاشتراك. حرّر جهازًا أو تواصل مع الدعم لتعود الخوادم.",
+        "deviceLimit": "تم بلوغ الحد الأقصى لعدد الأجهزة لهذا الاشتراك. تواصل مع دعم مزوّد الخدمة.",
         "deviceNotIdentified": "لم يتعرف اللوحة على هذا الجهاز ولم تُصدر أي خوادم."
       },
       "panelSays": "أُزيلت العُقد النائبة من الاشتراك: {{text}}",

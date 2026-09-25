@@ -52,7 +52,7 @@
         "traffic": "{{used}} of {{total}} used. The quota resets on {{date}}.",
         "trafficNoDate": "{{used}} of {{total}} used. Top up the traffic to continue.",
         "provider": "The subscription is active, but the panel returned no servers at all. This is on the provider’s side.",
-        "deviceLimit": "Aboneliğin cihaz sınırına ulaşıldı. Bir cihazı serbest bırakın ya da desteğe yazın, sunucular geri gelir.",
+        "deviceLimit": "Aboneliğin cihaz sınırına ulaşıldı. Sağlayıcınızın desteğine yazın.",
         "deviceNotIdentified": "Panel bu cihazı tanımadı ve sunucu vermedi."
       },
       "panelSays": "Abonelikten yer tutucu düğümler çıkarıldı: {{text}}",

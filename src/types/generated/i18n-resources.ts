@@ -267,7 +267,6 @@ export interface TranslationResources {
           enable: string
           enabled: string
           limitBody: string
-          limitBodyWithCount: string
           limitTitle: string
           requiredBody: string
           requiredTitle: string

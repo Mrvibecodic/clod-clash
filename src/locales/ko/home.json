@@ -52,7 +52,7 @@
         "traffic": "{{used}} of {{total}} used. The quota resets on {{date}}.",
         "trafficNoDate": "{{used}} of {{total}} used. Top up the traffic to continue.",
         "provider": "The subscription is active, but the panel returned no servers at all. This is on the provider’s side.",
-        "deviceLimit": "이 구독의 기기 한도에 도달했습니다. 기기를 해제하거나 고객지원에 문의하면 서버가 돌아옵니다.",
+        "deviceLimit": "이 구독의 기기 한도에 도달했습니다. 제공업체 고객지원에 문의하세요.",
         "deviceNotIdentified": "패널이 이 기기를 인식하지 못해 서버를 내려주지 않았습니다."
       },
       "panelSays": "구독에서 자리표시자 노드를 제거했습니다: {{text}}",

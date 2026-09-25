@@ -52,7 +52,7 @@
         "traffic": "{{used}} of {{total}} used. The quota resets on {{date}}.",
         "trafficNoDate": "{{used}} of {{total}} used. Top up the traffic to continue.",
         "provider": "The subscription is active, but the panel returned no servers at all. This is on the provider’s side.",
-        "deviceLimit": "Langganan ini sudah mencapai batas perangkat. Lepaskan salah satu atau hubungi dukungan, dan server akan kembali.",
+        "deviceLimit": "Langganan ini sudah mencapai batas perangkat. Hubungi dukungan penyedia Anda.",
         "deviceNotIdentified": "Panel tidak mengenali perangkat ini dan tidak memberikan server."
       },
       "panelSays": "Node placeholder dihapus dari langganan: {{text}}",

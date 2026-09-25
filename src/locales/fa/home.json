@@ -52,7 +52,7 @@
         "traffic": "{{used}} of {{total}} used. The quota resets on {{date}}.",
         "trafficNoDate": "{{used}} of {{total}} used. Top up the traffic to continue.",
         "provider": "The subscription is active, but the panel returned no servers at all. This is on the provider’s side.",
-        "deviceLimit": "این اشتراک به سقف تعداد دستگاه رسیده است. یک دستگاه را آزاد کنید یا با پشتیبانی تماس بگیرید تا سرورها بازگردند.",
+        "deviceLimit": "این اشتراک به سقف تعداد دستگاه رسیده است. با پشتیبانی ارائه‌دهنده تماس بگیرید.",
         "deviceNotIdentified": "پنل این دستگاه را نشناخت و سروری ارائه نکرد."
       },
       "panelSays": "گره‌های جایگزین از اشتراک حذف شدند: {{text}}",

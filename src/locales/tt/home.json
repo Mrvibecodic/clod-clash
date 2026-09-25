@@ -52,7 +52,7 @@
         "traffic": "{{used}} of {{total}} used. The quota resets on {{date}}.",
         "trafficNoDate": "{{used}} of {{total}} used. Top up the traffic to continue.",
         "provider": "The subscription is active, but the panel returned no servers at all. This is on the provider’s side.",
-        "deviceLimit": "Бу язылуның җиһазлар чиге тулды. Артыгын аерыгыз яки ярдәм хезмәтенә языгыз — серверлар кайтачак.",
+        "deviceLimit": "Бу язылуның җиһазлар чиге тулды. Провайдерның ярдәм хезмәтенә языгыз.",
         "deviceNotIdentified": "Панель бу җиһазны танымады һәм серверлар бирмәде."
       },
       "panelSays": "Язылудан урын биләүче төеннәр алып ташланды: {{text}}",
