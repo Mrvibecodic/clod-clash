@@ -577,6 +577,16 @@ const SignalBars = ({ delay }: { delay?: number }) => {
 }
 
 let lastAutoDelayKey = ''
+const testNodesOf = (
+  group: { all?: { name: string }[] } | undefined,
+  records: Record<string, any>,
+) =>
+  (group?.all ?? [])
+    .filter((node) => !isCorePlaceholder(node.name))
+    .map((node) => records[node.name] as IProxyItem | undefined)
+    .filter((node): node is IProxyItem => !!node)
+const nodesSignature = (nodes: IProxyItem[]) =>
+  nodes.map((node) => node.name).join('\n')
 const CORE_MEASURED_TYPES = new Set(['urltest', 'fallback', 'loadbalance'])
 
 let lastKnownPing: { key: string; delay: number } | undefined
@@ -635,14 +645,9 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
   const groupName = group?.name
   const updatedAt = currentProfile?.updated ?? 0
   const timeout = effectiveLatencyTimeout(verge?.default_latency_timeout)
-  const testNodesRef = useRef<IProxyItem[]>([])
-  testNodesRef.current = (group?.all ?? [])
-    .filter((node) => !isCorePlaceholder(node.name))
-    .map((node) => records[node.name] as IProxyItem | undefined)
-    .filter((node): node is IProxyItem => !!node)
   // Состав узлов в ключе: профиль из трея сменил `updated` раньше, чем пришли
   // новые узлы, — без него автотест промерил бы узлы прежней подписки.
-  const testNodesSig = testNodesRef.current.map((node) => node.name).join('\n')
+  const testNodesSig = nodesSignature(testNodesOf(group, records))
   // Авто-группы ядро меряет само — при каждой загрузке конфига и раз в
   // interval; наш прогон поверх был бы вторым замером тех же узлов.
   const coreMeasures = CORE_MEASURED_TYPES.has(group?.type?.toLowerCase() ?? '')
@@ -652,14 +657,25 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
     if (!visible || !groupName || !testNodesSig || coreMeasures) return
     const key = `${groupName}|${updatedAt}|${testNodesSig}`
     if (lastAutoDelayKey === key) return
+    // Узлы берём из свежего ответа ядра, а не из отрисованных: после смены
+    // профиля они приезжают позже `updated`, и таймер застал бы прежние.
+    // Сменилась первая группа — эффект перезапустится сам с её именем.
     const timer = window.setTimeout(() => {
       lastAutoDelayKey = key
-      lastAutoPingAt = Date.now()
-      delayManager
-        .checkListDelay(testNodesRef.current, groupName, timeout)
-        .finally(() => {
-          refreshProxy().catch(() => {})
+      refreshProxy()
+        .then(({ data }) => {
+          const fresh = visibleGroups(data)[0]
+          if (fresh?.name !== groupName) return
+          const nodes = testNodesOf(fresh, data?.records ?? {})
+          lastAutoDelayKey = `${groupName}|${updatedAt}|${nodesSignature(nodes)}`
+          lastAutoPingAt = Date.now()
+          return delayManager
+            .checkListDelay(nodes, groupName, timeout)
+            .finally(() => {
+              refreshProxy().catch(() => {})
+            })
         })
+        .catch(() => {})
     }, 800)
     return () => window.clearTimeout(timer)
   }, [

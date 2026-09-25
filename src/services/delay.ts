@@ -567,8 +567,17 @@ class DelayManager {
     let index = 0
     const startTime = Date.now()
     const listener = this.groupListenerMap.get(group)
+    const profile = this.profile
 
     const help = async (): Promise<void> => {
+      // Подписка сменилась: у одноимённых узлов новой ключ тот же, и очередь
+      // прежней ставила бы им метку «идёт проверка» без замера за ней
+      if (this.profile !== profile) {
+        for (const name of names.slice(index)) {
+          this.queuedChecks.delete(hashKey(name, group))
+        }
+        return
+      }
       const currProxy = proxies[index++]
       if (!currProxy) return
       const currName = currProxy.name

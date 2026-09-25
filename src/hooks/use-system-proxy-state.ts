@@ -24,14 +24,25 @@ export const useSystemProxyState = () => {
 
   // Фактическое состояние ОС: enable + адрес совпадает с этим приложением
   const indicator = (() => {
-    const host = reachableProxyHost(proxy_host, runtime?.['allow-lan'] ?? false)
     if (proxy_auto_config) {
       if (!autoproxy?.enable) return false
       const pacPort = import.meta.env.DEV ? 11233 : 33331
       return autoproxy.url === `http://127.0.0.1:${pacPort}/commands/pac`
     } else {
       if (!sysproxy?.enable) return false
-      return isProxyServerAt(sysproxy.server, host, sysproxy.current_port)
+      // Пока конфиг ядра не прочитан, раздача неизвестна — годится любой из
+      // двух адресов, иначе внешний хост на старте мигал бы «выключено»
+      const lanSharing = runtime?.['allow-lan']
+      const hosts =
+        lanSharing === undefined
+          ? [
+              reachableProxyHost(proxy_host, true),
+              reachableProxyHost(proxy_host, false),
+            ]
+          : [reachableProxyHost(proxy_host, lanSharing)]
+      return hosts.some((host) =>
+        isProxyServerAt(sysproxy.server, host, sysproxy.current_port),
+      )
     }
   })()
 
