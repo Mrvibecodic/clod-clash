@@ -101,8 +101,8 @@ export default function DownloadPage() {
             <h2 className="mb-3 font-semibold">Обновления</h2>
             <p className="text-sm text-fd-muted-foreground">
               Приложение проверяет обновления само и предлагает поставить новую
-              версию. Вручную: Настройки → Продвинутые настройки → Проверить
-              обновления.
+              версию. Вручную: Настройки → Основные → строка «Версия Clod» →
+              «Проверить обновления».
             </p>
             <a
               href={allReleasesUrl}
