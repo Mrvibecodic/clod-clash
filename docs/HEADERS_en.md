@@ -91,7 +91,7 @@ arrives without a migration request.
 | --- | --- | --- |
 | `x-hwid-active` | the device is registered | nothing, informational |
 | `x-hwid-not-supported` | the panel wants an id the client did not send | dialog: "The provider requires device identification. Turn it on?". **The previous servers are taken away** — same as on a device limit. Outranks `x-hwid-limit`, which Remnawave sets in both blocking branches — without that precedence the user would be told about a limit they never hit |
-| `x-hwid-max-devices-reached`<br>`x-hwid-limit` | device limit is full | dialog with a "Support" button. **The previous servers are taken away**: the panel's placeholders replace them, and if placeholders are turned off in the panel and the body is empty, the client turns the previous servers into the same kind of placeholders itself — names and rules stay, addresses and keys are wiped, node providers are dropped. Spare addresses are not tried on such an answer. While the state holds, the subscription card carries a red line saying why it is not updating |
+| `x-hwid-max-devices-reached`<br>`x-hwid-limit` | device limit is full | dialog with the subscription name and a "Support" button — when it is added and on each of its updates. **The previous servers are taken away**: the panel's placeholders replace them, and if placeholders are turned off in the panel and the body is empty, the client turns the previous servers into the same kind of placeholders itself — names and rules stay, addresses and keys are wiped, node providers are dropped. Spare addresses are not tried on such an answer. While the state holds, the subscription card carries a red line saying why it is not updating |
 
 **Reminders**
 

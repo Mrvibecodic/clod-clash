@@ -122,6 +122,7 @@ pub async fn import_profile(url: std::string::String, option: Option<PrfOption>)
             uid
         );
         handle::Handle::notify_profile_changed(uid);
+        crate::feat::announce_device_refusal(uid).await;
         apply_if_it_became_current(uid).await;
     }
 
@@ -201,6 +202,7 @@ pub async fn create_profile(item: PrfItem, file_data: Option<String>) -> CmdResu
                     uid
                 );
                 handle::Handle::notify_profile_changed(uid);
+                crate::feat::announce_device_refusal(uid).await;
                 apply_if_it_became_current(uid).await;
             }
             Ok(())

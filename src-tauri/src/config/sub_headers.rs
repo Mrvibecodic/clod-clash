@@ -328,17 +328,6 @@ impl SubHeaders {
     pub const fn refuses_device(&self) -> bool {
         matches!(self.hwid_state, HwidState::LimitReached | HwidState::NotSupported)
     }
-
-    pub fn notify_device_state(&self) {
-        if !self.refuses_device() {
-            return;
-        }
-
-        crate::core::handle::Handle::hwid_notice(serde_json::json!({
-            "state": self.hwid_state.as_str(),
-            "supportUrl": self.support_url.as_deref(),
-        }));
-    }
 }
 
 fn value(headers: &HeaderMap, name: &str) -> Option<String> {

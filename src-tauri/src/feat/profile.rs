@@ -461,6 +461,31 @@ async fn announce_the_failure(uid: &String, status: &str, raw: &str) {
     handle::Handle::notice_message(status, public_failure_text(raw));
 }
 
+/// Окно лимита устройств — про ту подписку, которую только что добавили или
+/// обновили, и с её именем: иначе отказ фоновой подписки выглядел отказом текущей.
+pub async fn announce_device_refusal(uid: &String) {
+    let payload = {
+        let profiles = Config::profiles().await;
+        let profiles = profiles.latest_arc();
+        let Ok(item) = profiles.get_item(uid) else {
+            return;
+        };
+        let Some(state) = item
+            .hwid_state
+            .as_deref()
+            .filter(|state| matches!(*state, "limit" | "not_supported"))
+        else {
+            return;
+        };
+        serde_json::json!({
+            "state": state,
+            "supportUrl": item.support_url.as_deref(),
+            "name": item.display_name(),
+        })
+    };
+    handle::Handle::hwid_notice(payload);
+}
+
 async fn mark_the_update(uid: &String, failed: bool) {
     match crate::config::profiles::profiles_mark_update_failed(uid, failed).await {
         Ok(true) => handle::Handle::refresh_profiles(),
@@ -646,6 +671,7 @@ pub async fn update_profile(
                 Ok(()) => {
                     mark_the_update(uid, false).await;
                     logging_error!(Type::Timer, crate::core::Timer::global().refresh().await);
+                    announce_device_refusal(uid).await;
                     // Текущим профиль может стать и за время загрузки, поэтому
                     // спрашиваем после неё, а не до.
                     auto_refresh && Config::profiles().await.latest_arc().is_current_profile_index(uid)

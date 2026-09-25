@@ -479,7 +479,6 @@ impl PrfItem {
 
         let sub = sub_headers::SubHeaders::parse(resp.headers());
         log_panel_headers(&sub);
-        sub.notify_device_state();
 
         let refused_config = config_or_refusal(&resp, &sub)?;
 

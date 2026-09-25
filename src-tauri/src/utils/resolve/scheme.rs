@@ -113,6 +113,7 @@ async fn import_subscription(url: &str, name: Option<&String>) {
     }
     logging_error!(Type::Timer, Timer::global().refresh().await);
     handle::Handle::notice_message("import_sub_url::ok", "");
+    crate::feat::announce_device_refusal(&uid).await;
 
     post_import_updates(&uid, had_current_profile).await;
 }
