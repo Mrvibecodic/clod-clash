@@ -8,7 +8,7 @@ use crate::{
     },
 };
 use anyhow::Result;
-use std::{fmt::Write as _, path::PathBuf};
+use std::{borrow::Cow, fmt::Write as _, path::PathBuf};
 use tokio::fs;
 
 const LOG_TAIL_LINES: usize = 800;
@@ -41,7 +41,39 @@ async fn log_files(dir: Option<PathBuf>, matches: impl Fn(&str) -> bool + Send) 
     found.into_iter().map(|(_, path)| path).collect()
 }
 
-pub(crate) fn is_traffic_line(line: &str) -> bool {
+pub(crate) fn core_line_for_support(line: &str) -> Option<Cow<'_, str>> {
+    if let Some(error) = dial_error_without_addresses(line) {
+        return Some(Cow::Owned(error));
+    }
+    (!is_traffic_line(line)).then_some(Cow::Borrowed(line))
+}
+
+fn dial_error_without_addresses(line: &str) -> Option<std::string::String> {
+    let (tag_at, tag) = ["[TCP] dial ", "[UDP] dial "]
+        .into_iter()
+        .filter_map(|tag| line.find(tag).map(|at| (at, tag)))
+        .min_by_key(|(at, _)| *at)?;
+    let (head, rest) = line[tag_at + tag.len()..].split_once(" --> ")?;
+    let (remote, error) = rest.split_once(" error: ")?;
+    let port = remote.rsplit_once(':')?.1.parse::<u16>().ok()?;
+    let proxy = match head.split_once(" (match ") {
+        Some((proxy, _)) => proxy,
+        None => proxy_before_source(head)?,
+    };
+    Some(format!("{}{tag}{proxy} --> ***:{port} error: {error}", &line[..tag_at]))
+}
+
+fn proxy_before_source(head: &str) -> Option<&str> {
+    head.match_indices(' ')
+        .map(|(at, _)| at)
+        .find(|at| {
+            let source = head[at + 1..].split('(').next().unwrap_or_default();
+            source == "mihomo" || source.parse::<std::net::SocketAddr>().is_ok()
+        })
+        .map(|at| &head[..at])
+}
+
+fn is_traffic_line(line: &str) -> bool {
     const MARKERS: &[&str] = &[
         "[tcp]",
         "[udp]",
@@ -73,11 +105,17 @@ async fn tail_of(paths: &[PathBuf], lines: usize, kind: LogKind) -> (Option<std:
             continue;
         };
         for line in content.lines().rev() {
-            if kind == LogKind::Core && is_traffic_line(line) {
-                skipped += 1;
-                continue;
-            }
-            collected.push(redact_for_support(&scrub_home(line, home.as_deref())));
+            let line = match kind {
+                LogKind::App => Cow::Borrowed(line),
+                LogKind::Core => {
+                    let Some(line) = core_line_for_support(line) else {
+                        skipped += 1;
+                        continue;
+                    };
+                    line
+                }
+            };
+            collected.push(redact_for_support(&scrub_home(&line, home.as_deref())));
             if collected.len() >= lines {
                 break 'files;
             }
@@ -323,11 +361,11 @@ async fn core_tail_from_running_core(lines: usize) -> (Option<std::string::Strin
     let mut skipped = 0_usize;
 
     for line in logs.iter().rev() {
-        if is_traffic_line(line.as_str()) {
+        let Some(line) = core_line_for_support(line.as_str()) else {
             skipped += 1;
             continue;
-        }
-        collected.push(redact_for_support(&scrub_home(line.as_str(), home.as_deref())));
+        };
+        collected.push(redact_for_support(&scrub_home(&line, home.as_deref())));
         if collected.len() >= lines {
             break;
         }
@@ -354,7 +392,7 @@ async fn logs_section(out: &mut std::string::String, lines: usize) {
     }
 
     let core_logs = log_files(core_log_dir(), |name| name.ends_with(".log")).await;
-    let _ = writeln!(out, "\n## Лог ядра (последние {lines} строк, без строк о соединениях)");
+    let _ = writeln!(out, "\n## Лог ядра (последние {lines} строк, без адресов соединений)");
     let core_first = matches!(*CoreManager::global().get_running_mode(), RunningMode::Service);
     let (mut tail, mut skipped) = if core_first {
         core_tail_from_running_core(lines).await
@@ -398,8 +436,8 @@ pub async fn build(lines: Option<usize>) -> Result<std::string::String> {
     let _ = writeln!(
         out,
         "Токены, пароли и пути подписок заменены на `***`; строки ядра о соединениях\n\
-         и DNS не включены вовсе. Домен провайдера и версии остались — без них\n\
-         отчёт бесполезен.\n"
+         и DNS не включены, от ошибок соединений остались узел, порт и текст ошибки.\n\
+         Домен провайдера и версии остались — без них отчёт бесполезен.\n"
     );
 
     app_section(&mut out);

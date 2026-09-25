@@ -4,6 +4,7 @@ use crate::utils::{
 };
 use anyhow::{Context as _, Result};
 use std::{
+    borrow::Cow,
     io::{Read as _, Seek as _, SeekFrom, Write as _},
     path::{Path, PathBuf},
 };
@@ -64,11 +65,16 @@ fn redacted(content: &str, home: Option<&str>, core: bool) -> (String, usize) {
     let mut text = String::with_capacity(content.len());
     let mut skipped = 0usize;
     for line in content.lines() {
-        if core && crate::module::support_bundle::is_traffic_line(line) {
-            skipped += 1;
-            continue;
-        }
-        text.push_str(&redact_for_support(&scrub_home(line, home)));
+        let line = if core {
+            let Some(line) = crate::module::support_bundle::core_line_for_support(line) else {
+                skipped += 1;
+                continue;
+            };
+            line
+        } else {
+            Cow::Borrowed(line)
+        };
+        text.push_str(&redact_for_support(&scrub_home(&line, home)));
         text.push('\n');
     }
     (text, skipped)
@@ -198,6 +204,55 @@ mod tests {
         assert!(is_core_log(root, Path::new("/logs/service/service_latest.log")));
         assert!(!is_core_log(root, Path::new("/logs/latest.log")));
         assert!(!is_core_log(root, Path::new("/elsewhere/sidecar/a.log")));
+    }
+
+    #[test]
+    fn dial_errors_keep_the_reason_but_not_the_addresses() {
+        let cases = [
+            (
+                r#"time="t" level=warning msg="[TCP] dial Авто выбор (match DomainSuffix/mail.example.com) 127.0.0.1:52100(Mail App.exe) --> mail.example.com:443 error: dial tcp 93.184.216.34:443: i/o timeout""#,
+                "[TCP] dial Авто выбор --> ***:443 error: dial tcp ***:443: i/o timeout",
+            ),
+            (
+                "[TCP] dial PROXY[NL] 1 127.0.0.1:52100(chrome.exe) --> news.example.org:8443 error: context deadline exceeded",
+                "[TCP] dial PROXY[NL] 1 --> ***:8443 error: context deadline exceeded",
+            ),
+            (
+                "[TCP] dial Узел 2 mihomo --> rules.example.net:443 error: EOF",
+                "[TCP] dial Узел 2 --> ***:443 error: EOF",
+            ),
+            (
+                "[UDP] dial DIRECT (match Match/) [::1]:5353 --> [2001:db8::1]:443 error: lookup news.example.org: no such host",
+                "[UDP] dial DIRECT --> ***:443 error: lookup ***: no such host",
+            ),
+        ];
+        let leaks = [
+            "example.",
+            "93.184",
+            "2001:db8",
+            "52100",
+            "5353",
+            "chrome",
+            "Mail App",
+            "DomainSuffix",
+            "mihomo",
+        ];
+        for (raw, kept) in cases {
+            let (text, skipped) = redacted(raw, None, true);
+            assert_eq!(skipped, 0, "{raw}");
+            assert!(text.contains(kept), "{text}");
+            for leak in leaks {
+                assert!(!text.contains(leak), "{leak} in {text}");
+            }
+        }
+    }
+
+    #[test]
+    fn unrecognised_dial_lines_are_still_dropped() {
+        let raw = "[TCP] dial PROXY broken --> mail.example.com:443\n[TCP] dial chrome.exe opened mail.example.com:443 error: EOF\n";
+        let (text, skipped) = redacted(raw, None, true);
+        assert_eq!(skipped, 2);
+        assert!(text.is_empty(), "{text}");
     }
 
     #[test]
