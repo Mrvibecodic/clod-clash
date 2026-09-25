@@ -238,7 +238,9 @@ impl SubHeaders {
             profile_logo: value(headers, "profile-logo").and_then(|raw| https_url(&raw)),
             home: value(headers, "profile-web-page-url").and_then(|raw| https_url(&raw)),
             support_url: value(headers, "support-url").and_then(|raw| contact_url(&raw)),
-            announce: value(headers, "announce").map(|text| truncate_banner(&text, ANNOUNCE_MAX_CHARS)),
+            announce: value(headers, "clod-announce")
+                .or_else(|| value(headers, "announce"))
+                .map(|text| truncate_banner(&text, ANNOUNCE_MAX_CHARS)),
             announce_url: value(headers, "announce-url").and_then(|raw| https_url(&raw)),
             refill_date: value(headers, "subscription-refill-date").and_then(|raw| raw.trim().parse::<i64>().ok()),
             update_interval_hours: value(headers, "profile-update-interval").and_then(|raw| raw.trim().parse().ok()),
@@ -749,6 +751,20 @@ mod tests {
         let parsed = SubHeaders::parse(&headers(&[]));
         assert_eq!(parsed.portal_url, None);
         assert_eq!(parsed.promo, None);
+    }
+
+    #[test]
+    fn clod_announce_wins_over_the_panel_announce() {
+        let ours_first = SubHeaders::parse(&headers(&[("clod-announce", "ours"), ("announce", "panel")]));
+        let panel_first = SubHeaders::parse(&headers(&[("announce", "panel"), ("clod-announce", "ours")]));
+        assert_eq!(ours_first.announce.as_deref(), Some("ours"));
+        assert_eq!(panel_first.announce.as_deref(), Some("ours"));
+
+        let only_panel = SubHeaders::parse(&headers(&[("announce", "panel")]));
+        assert_eq!(only_panel.announce.as_deref(), Some("panel"));
+
+        let empty_ours = SubHeaders::parse(&headers(&[("announce", "panel"), ("clod-announce", " ")]));
+        assert_eq!(empty_ours.announce.as_deref(), Some("panel"));
     }
 
     #[test]

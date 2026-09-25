@@ -563,6 +563,7 @@ mod tests {
             "clod-bot-url",
             "clod-monitor-url",
             "clod-guide-url",
+            "clod-announce",
             "clod-promo",
             "clod-promo-url",
             "clod-renew-url",
