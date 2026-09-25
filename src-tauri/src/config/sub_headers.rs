@@ -195,8 +195,6 @@ pub struct SubHeaders {
 
     pub disable_ping: bool,
 
-    pub device_remove_url: Option<String>,
-
     pub lock_mode: Option<bool>,
 
     pub connect_mode: Option<ConnectMode>,
@@ -258,7 +256,6 @@ impl SubHeaders {
                 .or_else(|| bool_value(headers, "pxa-latency-dots").and_then(|dots| dots.then_some(LatencyStyle::Dot))),
             disable_ping: value(headers, "clod-disable-ping")
                 .is_some_and(|raw| raw.trim().eq_ignore_ascii_case("true")),
-            device_remove_url: value(headers, "clod-device-remove").and_then(|raw| https_url(&raw)),
             hwid_limit_message: value(headers, "clod-hwid-limit")
                 .map(|text| truncate_banner(&text, ANNOUNCE_MAX_CHARS)),
             show_zero_hosts: bool_value(headers, "clod-show-0hosts"),
@@ -328,7 +325,6 @@ impl SubHeaders {
             "state": state.as_str(),
             "maxDevices": self.hwid_max_devices,
             "supportUrl": self.support_url.as_deref(),
-            "removeUrl": self.device_remove_url.as_deref(),
             "message": self.hwid_limit_message.as_deref(),
         }));
     }
@@ -831,7 +827,7 @@ mod tests {
     }
 
     #[test]
-    fn latency_style_and_device_removal_link() {
+    fn latency_style_reads_our_header_and_the_pxa_synonym() {
         let parsed = SubHeaders::parse(&headers(&[("clod-latency-style", "Dot")]));
         assert_eq!(parsed.latency_style, Some(LatencyStyle::Dot));
         let parsed = SubHeaders::parse(&headers(&[("clod-latency-style", "number")]));
@@ -847,16 +843,6 @@ mod tests {
         assert_eq!(parsed.latency_style, Some(LatencyStyle::Bars));
         assert_eq!(
             SubHeaders::parse(&headers(&[("clod-latency-style", "blink")])).latency_style,
-            None
-        );
-
-        let parsed = SubHeaders::parse(&headers(&[("clod-device-remove", "https://panel.example/devices")]));
-        assert_eq!(
-            parsed.device_remove_url.as_deref(),
-            Some("https://panel.example/devices")
-        );
-        assert_eq!(
-            SubHeaders::parse(&headers(&[("clod-device-remove", "javascript:alert(1)")])).device_remove_url,
             None
         );
     }

@@ -27,11 +27,6 @@ interface HwidNotice {
   state: 'limit' | 'not_supported'
   maxDevices?: number | null
   supportUrl?: string | null
-  /**
-   * clod:device-remove — `clod-device-remove`: страница, где пользователь сам
-   * освобождает слот. Раньше из диалога вела одна дорога — в поддержку.
-   */
-  removeUrl?: string | null
   /** `clod-hwid-limit` — the provider's own explanation for this dialog. */
   message?: string | null
 }
@@ -101,27 +96,14 @@ export const HwidLimitDialog = () => {
       <DialogActions>
         <Button onClick={close}>{t('shared.actions.cancel')}</Button>
         {isLimit ? (
-          <>
-            {notice.supportUrl ? (
-              <Button
-                variant={notice.removeUrl ? 'outlined' : 'contained'}
-                onClick={() => void openLink(notice.supportUrl)}
-              >
-                {t('profiles.components.hwidDialog.support')}
-              </Button>
-            ) : null}
-            {/* clod:device-remove — главная кнопка, когда провайдер дал
-                страницу отвязки: слот освобождает сам пользователь, а не
-                переписка с поддержкой. */}
-            {notice.removeUrl ? (
-              <Button
-                variant="contained"
-                onClick={() => void openLink(notice.removeUrl)}
-              >
-                {t('profiles.components.hwidDialog.removeDevice')}
-              </Button>
-            ) : null}
-          </>
+          notice.supportUrl ? (
+            <Button
+              variant="contained"
+              onClick={() => void openLink(notice.supportUrl)}
+            >
+              {t('profiles.components.hwidDialog.support')}
+            </Button>
+          ) : null
         ) : (
           <Button variant="contained" onClick={enableHwid}>
             {t('profiles.components.hwidDialog.enable')}

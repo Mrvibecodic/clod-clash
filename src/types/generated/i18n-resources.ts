@@ -268,7 +268,6 @@ export interface TranslationResources {
           limitBody: string
           limitBodyWithCount: string
           limitTitle: string
-          removeDevice: string
           requiredBody: string
           requiredTitle: string
           support: string

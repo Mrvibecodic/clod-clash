@@ -232,7 +232,6 @@ export const translationKeys = [
   'profiles.components.hwidDialog.enable',
   'profiles.components.hwidDialog.support',
   'profiles.components.hwidDialog.enabled',
-  'profiles.components.hwidDialog.removeDevice',
   'profiles.modals.profileForm.title.create',
   'profiles.modals.profileForm.title.edit',
   'profiles.modals.profileForm.title.createLocal',

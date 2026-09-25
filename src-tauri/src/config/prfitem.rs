@@ -101,9 +101,6 @@ pub struct PrfItem {
     pub disable_ping: Option<bool>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub device_remove_url: Option<String>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub connect_mode: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -609,7 +606,6 @@ impl PrfItem {
             theme_background: sub.theme.as_ref().and_then(|theme| theme.background.clone()),
             latency_style: sub.latency_style.map(|style| style.as_str().into()),
             disable_ping: sub.disable_ping.then_some(true),
-            device_remove_url: sub.device_remove_url.clone(),
             show_zero_hosts: sub.show_zero_hosts,
             refill_date: sub.refill_date,
             clock_skew: measured_skew,
@@ -1247,7 +1243,6 @@ impl PrfItem {
         self.theme_background = fresh.theme_background.clone();
         self.latency_style = fresh.latency_style.clone();
         self.disable_ping = fresh.disable_ping;
-        self.device_remove_url = fresh.device_remove_url.clone();
         self.show_zero_hosts = fresh.show_zero_hosts;
 
         self.announce = fresh.announce.clone();

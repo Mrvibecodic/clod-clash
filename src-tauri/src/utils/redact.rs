@@ -568,7 +568,6 @@ mod tests {
             "clod-renew-url",
             "clod-latency-style",
             "clod-disable-ping",
-            "clod-device-remove",
             "clod-hwid-limit",
             "clod-show-0hosts",
             "clod-lock-mode",

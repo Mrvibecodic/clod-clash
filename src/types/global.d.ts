@@ -231,7 +231,6 @@ interface IProfileItem {
   theme_background?: string
   latency_style?: 'bars' | 'dot' | 'number'
   disable_ping?: boolean
-  device_remove_url?: string
   show_zero_hosts?: boolean
   refill_date?: number
   clock_skew?: number
