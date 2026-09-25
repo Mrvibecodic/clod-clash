@@ -34,7 +34,7 @@ default). Turning it off stops all of them.
 
 | Header | Meaning | What the app does |
 | --- | --- | --- |
-| `profile-title` | plan name | sets the profile name. A name the user typed is never overwritten |
+| `profile-title` | plan name | the profile name, refreshed on every answer. If the user set a name of their own, it is shown first with the panel name in brackets: "Own (panel)" |
 | `profile-logo` | provider logo URL | downloaded on every subscription update and kept locally: the logo does not blink on a cold start, works offline and is not pulled from a third-party host on every screen. A subscription added before the cache existed fetches it once, on first show. The fetch goes through the app's own core first and only then by the ordinary route — a decoration is not worth handing a third-party host the real address. `png`, `jpeg`, `webp`, `avif`, `gif`, `svg`, `bmp` and `ico` of at most 2 MiB are stored; anything else is not cached and the logo is loaded from the provider URL as before. `https` only, redirects included: a header cannot walk the client onto `http://` or into the local network |
 | `subscription-userinfo` | `upload`, `download`, `total`, `expire` | traffic and expiry on the subscription card. `total=0` → "Unlimited", `expire=0` → "No expiry". Between refreshes the app adds up proxied traffic on its own and marks the sum as approximate (`≈` plus a warning triangle); the panel's own number stays the only input for "traffic exhausted", critical states and the critical states |
 | `subscription-refill-date` | unix time of the traffic reset | "Traffic resets on {date}" |

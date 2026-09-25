@@ -83,6 +83,18 @@ describe('правка карточки подписки', () => {
     )
   })
 
+  it('своё название уходит, только когда его поменяли', () => {
+    const named: IProfileItem = { ...opened, custom_name: 'Работа' }
+    assert.deepEqual(profileEditPatch(named, { ...named }), {})
+    assert.deepEqual(profileEditPatch(named, { ...named, custom_name: '' }), {
+      custom_name: '',
+    })
+    assert.deepEqual(
+      profileEditPatch(opened, { ...opened, custom_name: 'Дом' }),
+      { custom_name: 'Дом' },
+    )
+  })
+
   it('выключенный и не заданный переключатель — одно и то же', () => {
     const selfProxied: IProfileItem = {
       ...opened,

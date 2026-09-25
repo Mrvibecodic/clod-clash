@@ -1,9 +1,9 @@
 type EditedProfile = Pick<
   IProfileItem,
-  'name' | 'desc' | 'group' | 'url' | 'option'
+  'name' | 'custom_name' | 'desc' | 'group' | 'url' | 'option'
 >
 
-const TEXT_FIELDS = ['name', 'desc', 'group', 'url'] as const
+const TEXT_FIELDS = ['name', 'custom_name', 'desc', 'group', 'url'] as const
 
 const unset = (key: keyof IProfileOption, value: unknown) =>
   key === 'allow_auto_update' ? value : value || undefined

@@ -17,6 +17,7 @@ import { useExpiryCountdown } from '@/hooks/use-expiry-countdown'
 import { useProfiles } from '@/hooks/use-profiles'
 import { getProfileLogo, updateProfile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
+import { profileDisplayName } from '@/utils/profile-name'
 import { clockSkew, toUnixSeconds } from '@/utils/subscription-status'
 
 interface Props {
@@ -119,7 +120,7 @@ export const ProviderHeader = ({ profile, showSettings }: Props) => {
       ) : null}
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography noWrap sx={{ fontSize: 15, fontWeight: 700 }}>
-          {profile.name}
+          {profileDisplayName(profile)}
         </Typography>
         <Typography
           noWrap

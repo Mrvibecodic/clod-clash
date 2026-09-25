@@ -156,7 +156,10 @@ pub struct PrfItem {
     pub hwid_state: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub name_customized: Option<bool>,
+    pub custom_name: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name_from_panel: Option<bool>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notify_expire_days: Option<Vec<u32>>,
@@ -172,9 +175,6 @@ pub struct PrfItem {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub simple_mode: Option<bool>,
-
-    #[serde(skip)]
-    pub name_from_header: Option<bool>,
 
     #[serde(skip)]
     pub migrate_url: Option<String>,
@@ -324,7 +324,7 @@ impl PrfItem {
                     .url
                     .as_ref()
                     .ok_or_else(|| anyhow::anyhow!("url should not be null"))?;
-                let name = item.name.as_ref();
+                let name = item.custom_name.as_ref();
                 let desc = item.desc.as_ref();
                 let option = item.option.as_ref();
                 Self::from_url_with_ladder(url, name, desc, option).await
@@ -484,7 +484,7 @@ impl PrfItem {
 
         let extra = parse_subscription_userinfo(header);
 
-        let filename = match header.get("Content-Disposition") {
+        let filename: Option<String> = match header.get("Content-Disposition") {
             Some(value) => {
                 let filename = format!("{value:?}");
                 let filename = filename.trim_matches('"');
@@ -503,9 +503,7 @@ impl PrfItem {
                     },
                 }
             }
-            None => {
-                Some(crate::utils::help::get_last_part_and_decode(url.as_str()).unwrap_or_else(|| "Remote File".into()))
-            }
+            None => None,
         };
         let (update_interval, interval_locked) = match update_interval {
             Some(val) => (Some(val), None),
@@ -519,16 +517,11 @@ impl PrfItem {
 
         let uid = help::get_uid("R").into();
         let file = format!("{uid}.yaml").into();
-        let (name, name_from_header) = match name {
-            Some(user_name) => (user_name.to_owned(), None),
-            None => match sub.profile_title.clone() {
-                Some(title) => (title, Some(true)),
-                None => (
-                    filename.map(Into::into).unwrap_or_else(|| String::from("Remote File")),
-                    None,
-                ),
-            },
-        };
+        let custom_name = name
+            .map(|custom| custom.trim())
+            .filter(|custom| !custom.is_empty())
+            .map(Into::into);
+        let (name, named_by_panel) = answer_name(sub.profile_title.clone().or(filename), url.as_str());
         let data = resp.text_with_charset()?;
 
         let data = refused_config.unwrap_or_else(|| data.trim_start_matches('\u{feff}'));
@@ -625,13 +618,13 @@ impl PrfItem {
             not_applied: None,
             update_failed: None,
             hwid_state: sub.hwid_state.as_str().map(Into::into),
-            name_customized: None,
+            custom_name,
             notify_expire_days: sub.notify_expire_days.clone(),
             notify_traffic_percent: sub.notify_traffic_percent.clone(),
             notified: None,
             from_fallback: None,
             simple_mode: sub.simple_mode,
-            name_from_header,
+            name_from_panel: named_by_panel.then_some(true),
             migrate_url: sub.migration_target(url.as_str()),
             device_refused: refused_config.is_some().then_some(true),
             updated: Some(chrono::Local::now().timestamp() as usize),
@@ -1278,6 +1271,21 @@ const fn to_unix_seconds(ts: u64) -> u64 {
     if ts > MILLIS_THRESHOLD { ts / 1000 } else { ts }
 }
 
+/// Имя подписки из ответа и признак, что его дала панель. Панель не назвала —
+/// запасное имя из адреса (обычно это токен), и рядом со своим названием его не
+/// показывают.
+fn answer_name(panel_name: Option<String>, url: &str) -> (String, bool) {
+    match panel_name.filter(|name| !name.trim().is_empty()) {
+        Some(name) => (name, true),
+        None => (
+            help::get_last_part_and_decode(url)
+                .filter(|part| !part.is_empty())
+                .map_or_else(|| "Remote File".into(), Into::into),
+            false,
+        ),
+    }
+}
+
 fn log_panel_headers(sub: &sub_headers::SubHeaders) {
     clash_verge_logging::logging!(
         info,
@@ -1296,8 +1304,9 @@ fn log_panel_headers(sub: &sub_headers::SubHeaders) {
 
 impl PrfItem {
     pub fn merge_panel_meta(&mut self, fresh: &Self) {
-        if fresh.name_from_header == Some(true) && self.name_customized != Some(true) && fresh.name.is_some() {
+        if fresh.name_from_panel == Some(true) {
             self.name = fresh.name.clone();
+            self.name_from_panel = Some(true);
         }
 
         self.support_url = fresh.support_url.clone();
@@ -1341,6 +1350,19 @@ impl PrfItem {
 
         if fresh.migrate_url.is_none() {
             self.migration_hops = None;
+        }
+    }
+
+    pub fn display_name(&self) -> Option<String> {
+        let custom = self.custom_name.as_ref().filter(|custom| !custom.trim().is_empty());
+        let panel = self
+            .name
+            .as_ref()
+            .filter(|name| self.name_from_panel == Some(true) && !name.trim().is_empty());
+        match (custom, panel) {
+            (Some(custom), Some(panel)) if custom != panel => Some(std::format!("{custom} ({panel})").into()),
+            (Some(custom), _) => Some(custom.clone()),
+            (None, _) => self.name.clone(),
         }
     }
 
@@ -1936,6 +1958,68 @@ mod tests {
 
         stored.merge_panel_meta(&PrfItem::default());
         assert_eq!(stored.bot_url, None);
+    }
+
+    #[test]
+    fn a_name_the_panel_did_not_send_never_shows_the_token_next_to_the_own_one() {
+        use super::answer_name;
+        let url = "https://sub.example/sub/AbCdEf123";
+
+        assert_eq!(answer_name(Some("Тариф".into()), url), ("Тариф".into(), true));
+        assert_eq!(answer_name(Some("  ".into()), url), ("AbCdEf123".into(), false));
+        assert_eq!(answer_name(None, url), ("AbCdEf123".into(), false));
+        assert_eq!(
+            answer_name(None, "https://sub.example/sub/"),
+            ("Remote File".into(), false)
+        );
+
+        let mut stored = PrfItem {
+            name: Some("AbCdEf123".into()),
+            custom_name: Some("Работа".into()),
+            ..PrfItem::default()
+        };
+        assert_eq!(stored.display_name().as_deref(), Some("Работа"));
+        stored.custom_name = Some("Дом".into());
+        assert_eq!(stored.display_name().as_deref(), Some("Дом"));
+        stored.custom_name = None;
+        assert_eq!(stored.display_name().as_deref(), Some("AbCdEf123"));
+    }
+
+    #[test]
+    fn the_panel_name_follows_every_answer_and_the_own_name_stays() {
+        let mut stored = PrfItem {
+            name: Some("Старое".into()),
+            custom_name: Some("Работа".into()),
+            ..PrfItem::default()
+        };
+
+        stored.merge_panel_meta(&PrfItem {
+            name: Some("токен-из-адреса".into()),
+            ..PrfItem::default()
+        });
+        assert_eq!(stored.name.as_deref(), Some("Старое"));
+
+        stored.merge_panel_meta(&PrfItem {
+            name: Some("Тариф".into()),
+            name_from_panel: Some(true),
+            ..PrfItem::default()
+        });
+        assert_eq!(stored.name.as_deref(), Some("Тариф"));
+        assert_eq!(stored.custom_name.as_deref(), Some("Работа"));
+        assert_eq!(stored.display_name().as_deref(), Some("Работа (Тариф)"));
+
+        stored.custom_name = Some("Тариф".into());
+        assert_eq!(stored.display_name().as_deref(), Some("Тариф"));
+
+        stored.custom_name = Some("  ".into());
+        assert_eq!(stored.display_name().as_deref(), Some("Тариф"));
+
+        stored.custom_name = None;
+        assert_eq!(stored.display_name().as_deref(), Some("Тариф"));
+
+        stored.custom_name = Some("Работа".into());
+        stored.name = Some("".into());
+        assert_eq!(stored.display_name().as_deref(), Some("Работа"));
     }
 
     #[test]

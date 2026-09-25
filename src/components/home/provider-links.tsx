@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { openProviderLink, useProviderLinks } from '@/hooks/use-provider-links'
 import { CARD_SURFACE, CARD_TITLE, SHAPE, TINT } from '@/pages/_theme'
+import { profileDisplayName } from '@/utils/profile-name'
 
 interface Props {
   profile?: IProfileItem | null
@@ -29,7 +30,7 @@ export const ProviderLinksCard = ({ profile, compact }: Props) => {
         noWrap
         sx={{ ...CARD_TITLE, display: 'block', mb: 0.5 }}
       >
-        {profile?.name || t('shared.providerLinks.title')}
+        {profileDisplayName(profile) || t('shared.providerLinks.title')}
       </Typography>
       <Box sx={{ display: 'flex', gap: 0.5 }}>
         {links.map((link) => (

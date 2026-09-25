@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useProfiles } from '@/hooks/use-profiles'
 import { openProviderLink, useProviderLinks } from '@/hooks/use-provider-links'
+import { profileDisplayName } from '@/utils/profile-name'
 
 import { SettingItem, SettingList } from './mods/setting-comp'
 
@@ -28,7 +29,9 @@ export const SettingProviderLinks = () => {
   if (!links.length) return null
 
   return (
-    <SettingList title={current?.name || t('shared.providerLinks.title')}>
+    <SettingList
+      title={profileDisplayName(current) || t('shared.providerLinks.title')}
+    >
       <Box sx={{ px: 2, mt: -1, mb: 0.5 }}>
         <Typography variant="caption" color="text.secondary">
           {t('shared.providerLinks.subtitle')}

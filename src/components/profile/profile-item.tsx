@@ -55,6 +55,7 @@ import { useLoadingCache, useSetLoadingCache } from '@/services/states'
 import type { TranslationKey } from '@/types/generated/i18n-keys'
 import { debugLog } from '@/utils/debug'
 import parseTraffic from '@/utils/parse-traffic'
+import { profileDisplayName } from '@/utils/profile-name'
 import { clockSkew, toUnixSeconds } from '@/utils/subscription-status'
 
 import { ProfileBox } from './profile-box'
@@ -129,13 +130,10 @@ const ProfileItemBase = (props: ProfileItemProps) => {
     [itemData.uid, setLoadingCache],
   )
 
-  const {
-    uid,
-    name = t('profiles.components.profileItem.untitled'),
-    extra,
-    updated = 0,
-    option,
-  } = itemData
+  const { uid, extra, updated = 0, option } = itemData
+  const name =
+    profileDisplayName(itemData) ??
+    t('profiles.components.profileItem.untitled')
   const [mountedAt] = useState(() => Date.now())
 
   const fetchNextUpdateTimeCallback = useCallback(
@@ -1138,7 +1136,11 @@ const ProfileItemBase = (props: ProfileItemProps) => {
       {qrOpen && itemData.url && (
         <QrViewer
           open={true}
-          value={`${itemData.url}${itemData.url.includes('?') ? '&' : '?'}name=${encodeURIComponent(name)}`}
+          value={
+            itemData.custom_name
+              ? `${itemData.url}${itemData.url.includes('?') ? '&' : '?'}name=${encodeURIComponent(itemData.custom_name)}`
+              : itemData.url
+          }
           onClose={() => setQrOpen(false)}
         />
       )}

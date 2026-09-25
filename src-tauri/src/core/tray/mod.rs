@@ -407,7 +407,7 @@ impl Tray {
             if let Some(current_profile_uid) = profiles.get_current()
                 && let Ok(profile) = profiles.get_item(current_profile_uid)
             {
-                current_profile_name = match &profile.name {
+                current_profile_name = match profile.display_name() {
                     Some(profile_name) => profile_name.to_string(),
                     None => current_profile_name,
                 };

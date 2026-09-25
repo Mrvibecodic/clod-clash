@@ -324,7 +324,11 @@ async fn collect_profile_items() -> Result<ProfileItems> {
         .cloned()
         .unwrap_or_else(|| "Groups".into());
 
-    let name = current_item.name.clone().unwrap_or_default();
+    let name = current_item
+        .custom_name
+        .clone()
+        .or_else(|| current_item.name.clone())
+        .unwrap_or_default();
     let profile_is_remote = current_item.itype.as_deref() == Some("remote");
     let profile_shows_zero_hosts = profile_is_remote && current_item.show_zero_hosts.unwrap_or(false);
     let mode_choice = mode_choice_of(current_item);

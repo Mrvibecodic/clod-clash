@@ -57,7 +57,7 @@ pub struct IProfiles {
 
 pub struct IProfilePreview<'a> {
     pub uid: &'a String,
-    pub name: &'a String,
+    pub name: String,
     pub is_current: bool,
 }
 
@@ -302,11 +302,11 @@ impl IProfiles {
                 patch!(each, item, updated);
                 patch!(each, item, option);
                 patch!(each, item, group);
-                if item.name.is_some() {
-                    each.name_customized = Some(true);
+                if let Some(custom) = item.custom_name.as_ref() {
+                    let custom = custom.trim();
+                    each.custom_name = (!custom.is_empty()).then(|| custom.into());
                 }
                 patch!(each, item, promo_seen);
-                patch!(each, item, name_customized);
                 patch!(each, item, fallback_url);
                 patch!(each, item, fallback_domain);
                 patch!(each, item, interval_locked);
@@ -464,7 +464,7 @@ impl IProfiles {
             items
                 .iter()
                 .filter_map(|e| {
-                    if let (Some(uid), Some(name)) = (e.uid.as_ref(), e.name.as_ref()) {
+                    if let (Some(uid), Some(name)) = (e.uid.as_ref(), e.display_name()) {
                         let is_current = self.is_current_profile_index(uid);
                         let preview = IProfilePreview { uid, name, is_current };
                         Some(preview)
@@ -476,11 +476,11 @@ impl IProfiles {
         })
     }
 
-    pub fn get_name_by_uid(&self, uid: &String) -> Option<&String> {
+    pub fn get_name_by_uid(&self, uid: &String) -> Option<String> {
         if let Some(items) = &self.items {
             for item in items {
                 if item.uid.as_ref() == Some(uid) {
-                    return item.name.as_ref();
+                    return item.display_name();
                 }
             }
         }

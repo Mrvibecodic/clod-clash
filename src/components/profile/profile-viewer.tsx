@@ -33,6 +33,7 @@ import { createProfile, getProfiles, patchProfile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import parseTraffic from '@/utils/parse-traffic'
 import { profileEditPatch } from '@/utils/profile-edit'
+import { profileDisplayName } from '@/utils/profile-name'
 import { toUnixSeconds } from '@/utils/subscription-status'
 import { version } from '@root/package.json'
 
@@ -100,6 +101,7 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
       defaultValues: {
         type: 'remote',
         name: '',
+        custom_name: '',
         desc: '',
         url: '',
         group: '',
@@ -241,14 +243,10 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
             }),
           )
         }
-        // clod:panel-name — пустое поле имени у ПОДПИСКИ означает «как назовёт
-        // панель», а не «придумай что-нибудь». Раньше отсюда всегда уезжала
-        // строка «remote file», бэкенд считал её выбором пользователя
-        // (явное имя перебивает `profile-title`) и заголовок панели пропадал:
-        // подписка добавлялась болванкой и получала настоящее имя только после
-        // ручного «Обновить» — обновление идёт уже без имени. Локальному
+        // clod:panel-name — у подписки `name` всегда даёт панель, а поле формы
+        // пишет в `custom_name`: пустое — значит «как назовёт панель». Локальному
         // конфигу заголовков ждать неоткуда, там подстановка остаётся.
-        const name = form.name || (isRemote ? undefined : `${form.type} file`)
+        const name = isRemote ? undefined : form.name || `${form.type} file`
         const group =
           form.group === NEW_GROUP ? newGroup.trim() : form.group?.trim()
         const item = { ...form, name, group: group || undefined, option }
@@ -308,7 +306,10 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
               .find((profile) =>
                 isRemote ? profile.url === form.url : profile.name === name,
               ) ?? items[items.length - 1]
-          setAdded(match ?? ({ name } as IProfileItem))
+          setAdded(
+            match ??
+              ({ name, custom_name: form.custom_name?.trim() } as IProfileItem),
+          )
         } else {
           setOpen(false)
         }
@@ -404,15 +405,21 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
     </>
   )
 
+  const panelName =
+    isRemote && !isNew && watch('name_from_panel') ? watch('name') : undefined
+
   const advanced = (
     <>
       <Controller
-        name="name"
+        key={isRemote ? 'custom_name' : 'name'}
+        name={isRemote ? 'custom_name' : 'name'}
         control={control}
         render={({ field }) => (
           <TextField
             {...text}
             {...field}
+            placeholder={panelName}
+            slotProps={panelName ? { inputLabel: { shrink: true } } : undefined}
             label={t('profiles.modals.profileForm.fields.displayName')}
           />
         )}
@@ -628,7 +635,7 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
             }}
           >
             <Typography sx={{ fontSize: 16, fontWeight: 600 }} noWrap>
-              {added.name}
+              {profileDisplayName(added)}
             </Typography>
             {added.extra ? (
               <>
