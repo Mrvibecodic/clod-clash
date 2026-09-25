@@ -645,6 +645,7 @@ pub async fn update_profile(
             match outcome {
                 Ok(()) => {
                     mark_the_update(uid, false).await;
+                    logging_error!(Type::Timer, crate::core::Timer::global().refresh().await);
                     // Текущим профиль может стать и за время загрузки, поэтому
                     // спрашиваем после неё, а не до.
                     auto_refresh && Config::profiles().await.latest_arc().is_current_profile_index(uid)

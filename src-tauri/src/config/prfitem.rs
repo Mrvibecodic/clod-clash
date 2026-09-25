@@ -177,6 +177,9 @@ pub struct PrfItem {
     pub simple_mode: Option<bool>,
 
     #[serde(skip)]
+    pub panel_interval: Option<u64>,
+
+    #[serde(skip)]
     pub migrate_url: Option<String>,
 
     #[serde(skip)]
@@ -505,10 +508,11 @@ impl PrfItem {
             }
             None => None,
         };
+        let panel_interval = sub.update_interval_hours.map(|hours| hours.saturating_mul(60));
         let (update_interval, interval_locked) = match update_interval {
-            Some(val) => (Some(val), None),
-            None => match sub.update_interval_hours {
-                Some(hours) => (Some(hours.saturating_mul(60)), Some(true)),
+            Some(val) => (Some(val), Some(false)),
+            None => match panel_interval {
+                Some(minutes) => (Some(minutes), Some(true)),
                 None => (None, None),
             },
         };
@@ -625,6 +629,7 @@ impl PrfItem {
             from_fallback: None,
             simple_mode: sub.simple_mode,
             name_from_panel: named_by_panel.then_some(true),
+            panel_interval,
             migrate_url: sub.migration_target(url.as_str()),
             device_refused: refused_config.is_some().then_some(true),
             updated: Some(chrono::Local::now().timestamp() as usize),
@@ -1313,7 +1318,13 @@ impl PrfItem {
         self.logo = fresh.logo.clone();
         self.announce_url = fresh.announce_url.clone();
         self.refill_date = fresh.refill_date;
-        self.interval_locked = fresh.interval_locked;
+        if let Some(minutes) = fresh.panel_interval {
+            if self.interval_locked != Some(false) {
+                self.option.get_or_insert_with(PrfOption::default).update_interval = Some(minutes);
+            }
+        } else if self.interval_locked == Some(true) {
+            self.interval_locked = None;
+        }
         self.fallback_url = fresh.fallback_url.clone();
         self.fallback_domain = fresh.fallback_domain.clone();
         self.hwid_state = fresh.hwid_state.clone();
@@ -2020,6 +2031,41 @@ mod tests {
         stored.custom_name = Some("Работа".into());
         stored.name = Some("".into());
         assert_eq!(stored.display_name().as_deref(), Some("Работа"));
+    }
+
+    #[test]
+    fn the_panel_interval_is_taken_on_every_answer_unless_the_user_set_one() {
+        let with_interval = |minutes: u64, locked: Option<bool>| PrfItem {
+            interval_locked: locked,
+            option: Some(PrfOption {
+                update_interval: Some(minutes),
+                ..PrfOption::default()
+            }),
+            ..PrfItem::default()
+        };
+        let answer = |minutes: Option<u64>| PrfItem {
+            panel_interval: minutes,
+            ..PrfItem::default()
+        };
+        let interval = |item: &PrfItem| item.option.as_ref().and_then(|option| option.update_interval);
+
+        let mut locked = with_interval(720, Some(true));
+        locked.merge_panel_meta(&answer(Some(60)));
+        assert_eq!((interval(&locked), locked.interval_locked), (Some(60), Some(true)));
+        locked.merge_panel_meta(&answer(None));
+        assert_eq!((interval(&locked), locked.interval_locked), (Some(60), None));
+
+        let mut earlier = with_interval(720, None);
+        earlier.merge_panel_meta(&answer(Some(720)));
+        assert_eq!((interval(&earlier), earlier.interval_locked), (Some(720), None));
+        earlier.merge_panel_meta(&answer(Some(60)));
+        assert_eq!((interval(&earlier), earlier.interval_locked), (Some(60), None));
+
+        let mut chosen = with_interval(30, Some(false));
+        chosen.merge_panel_meta(&answer(Some(60)));
+        assert_eq!((interval(&chosen), chosen.interval_locked), (Some(30), Some(false)));
+        chosen.merge_panel_meta(&answer(None));
+        assert_eq!((interval(&chosen), chosen.interval_locked), (Some(30), Some(false)));
     }
 
     #[test]

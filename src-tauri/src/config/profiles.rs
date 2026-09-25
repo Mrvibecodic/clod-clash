@@ -286,6 +286,9 @@ impl IProfiles {
 
         for each in items.iter_mut() {
             if each.uid.as_ref() == Some(uid) {
+                let interval_chosen = item.option.as_ref().is_some_and(|fresh| {
+                    fresh.update_interval != each.option.as_ref().and_then(|stored| stored.update_interval)
+                });
                 let panel_changed = item
                     .url
                     .as_ref()
@@ -310,6 +313,13 @@ impl IProfiles {
                 patch!(each, item, fallback_url);
                 patch!(each, item, fallback_domain);
                 patch!(each, item, interval_locked);
+                if interval_chosen {
+                    each.interval_locked = each
+                        .option
+                        .as_ref()
+                        .and_then(|option| option.update_interval)
+                        .map(|_| false);
+                }
                 patch!(each, item, notified);
 
                 // Адрес подписки сменили — значит сменилась и панель, а `fallback-url`
@@ -362,6 +372,12 @@ impl IProfiles {
                     each.extra = item.extra;
                     each.updated = item.updated;
                     each.home = item.home.to_owned();
+                    // Интервал в свежем ответе — эхо значения, отправленного в запрос до
+                    // загрузки; интервал панели приезжает в `panel_interval`. Эхо затёрло бы
+                    // интервал, который человек поменял, пока шла загрузка.
+                    if let Some(option) = item.option.as_mut() {
+                        option.update_interval = None;
+                    }
                     each.option = PrfOption::merge(each.option.as_ref(), item.option.as_ref());
                     each.merge_panel_meta(item);
                     if let Some(file_data) = item.file_data.take() {
