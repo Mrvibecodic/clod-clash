@@ -52,7 +52,7 @@
         "traffic": "{{used}} of {{total}} used. The quota resets on {{date}}.",
         "trafficNoDate": "{{used}} of {{total}} used. Top up the traffic to continue.",
         "provider": "The subscription is active, but the panel returned no servers at all. This is on the provider’s side.",
-        "deviceLimit": "このサブスクリプションは {{max}} 台を超えるデバイスで使われています。1 台を解除するかサポートに連絡すると、サーバーが戻ります。",
+        "deviceLimit": "このサブスクリプションはデバイス数の上限に達しています。1 台を解除するかサポートに連絡すると、サーバーが戻ります。",
         "deviceNotIdentified": "パネルがこのデバイスを認識できず、サーバーを配信しませんでした。"
       },
       "panelSays": "サブスクリプションからプレースホルダーのノードを除外しました: {{text}}",

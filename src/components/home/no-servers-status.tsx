@@ -138,11 +138,7 @@ export const NoServersStatus = ({ profile, onRefreshed, quiet }: Props) => {
         : reason === 'deviceLimit'
           ? profile.hwid_state === 'not_supported'
             ? t('home.components.serverStatus.body.deviceNotIdentified')
-            : t('home.components.serverStatus.body.deviceLimit', {
-                // clod: НЕ `count` — i18next считает его плюральным и полез бы
-                // за ключами `_one`/`_other`, которых наш генератор не делает.
-                max: profile.hwid_max_devices ?? 0,
-              })
+            : t('home.components.serverStatus.body.deviceLimit')
           : t('home.components.serverStatus.body.provider')
 
   // The panel's own words for the nodes it sent instead of servers: the only

@@ -183,8 +183,6 @@ pub struct PrfItem {
     pub device_refused: Option<bool>,
 
     #[serde(skip)]
-    pub hwid_max_devices: Option<u32>,
-    #[serde(skip)]
     pub file_data: Option<String>,
 }
 
@@ -636,7 +634,6 @@ impl PrfItem {
             name_from_header,
             migrate_url: sub.migration_target(url.as_str()),
             device_refused: refused_config.is_some().then_some(true),
-            hwid_max_devices: sub.hwid_max_devices,
             updated: Some(chrono::Local::now().timestamp() as usize),
             file_data: Some(data.into()),
         })

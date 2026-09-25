@@ -52,7 +52,7 @@
         "traffic": "已使用 {{used}} / {{total}}。配额将于 {{date}} 重置。",
         "trafficNoDate": "已使用 {{used}} / {{total}}。请购买流量以继续使用。",
         "provider": "订阅仍然有效，但面板的响应中没有任何服务器。这是服务商侧的问题。",
-        "deviceLimit": "该订阅已在超过 {{max}} 台设备上使用。请解绑多余设备或联系客服，服务器即可恢复。",
+        "deviceLimit": "该订阅的设备数量已达上限。请解绑多余设备或联系客服，服务器即可恢复。",
         "deviceNotIdentified": "面板未能识别此设备，因此没有下发服务器。"
       },
       "panelSays": "已从订阅中移除占位节点：{{text}}",

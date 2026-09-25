@@ -243,7 +243,6 @@ interface IProfileItem {
   previous_urls?: string[]
   migration_hops?: number
   hwid_state?: 'ok' | 'limit' | 'not_supported'
-  hwid_max_devices?: number
   name_customized?: boolean
   notify_expire_days?: number[]
   notify_traffic_percent?: number[]
