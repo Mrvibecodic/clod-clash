@@ -102,15 +102,20 @@ export function ClashCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
 
   // Ядро обновляет себя само (/upgrade): каждое из двух ходит на свой
   // источник — Clod Core на релизы clod-core, Mihomo на MetaCubeX — и
-  // подменяет свой файл в папке программы. На Windows только под службой:
-  // своим процессом ядро после подмены перезапускает себя дочерним процессом,
-  // приложение видит выход и поднимает второе ядро на том же порту (на
-  // macOS/Linux ядро делает exec — процесс и PID те же). Управляемый
-  // обновитель здесь не участвует: он подставил бы стоковое ядро из папки
-  // пользователя поверх выбранного.
+  // подменяет свой файл в папке программы. Под службой это возможно всегда.
+  // Своим процессом — только если папка программы доступна ядру на запись
+  // (в системной установке в /usr/lib или AppImage — нет: ядро упрётся в
+  // первый же mkdir и ничего не тронет) и не на Windows: там ядро после
+  // подмены перезапускает себя дочерним процессом, приложение видит выход и
+  // поднимает второе ядро на том же порту (на macOS/Linux ядро делает exec —
+  // процесс и PID те же). Управляемый обновитель здесь не участвует: он
+  // подставил бы стоковое ядро из папки пользователя поверх выбранного.
   const upgradeThroughCore = async () => {
     const status = await getCoreUpdaterStatus()
-    if (!status.service_mode && getSystem() === 'windows') {
+    const canReplaceItself =
+      status.service_mode ||
+      (getSystem() !== 'windows' && status.core_dir_writable)
+    if (!canReplaceItself) {
       showNotice.info('settings.modals.clashCore.upgradeHint')
       return null
     }
@@ -213,9 +218,7 @@ export function ClashCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
         ))}
       </List>
       <Typography variant="caption" color="text.secondary" component="p">
-        {verge?.use_managed_core
-          ? t('settings.modals.clashCore.managedActiveNote')
-          : t('settings.modals.clashCore.upgradeHint')}
+        {t('settings.modals.clashCore.upgradeHint')}
       </Typography>
     </BaseDialog>
   )

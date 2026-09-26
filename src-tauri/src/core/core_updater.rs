@@ -35,6 +35,10 @@ pub struct CoreUpdaterStatus {
     pub previous: Option<String>,
     pub running: Option<String>,
     pub service_mode: bool,
+    /// Папка встроенного ядра доступна на запись без прав администратора:
+    /// только тогда ядро своим процессом сможет подменить свой файл при
+    /// обновлении (`/upgrade`); в системной установке это делает служба.
+    pub core_dir_writable: bool,
     pub updating: bool,
 }
 
@@ -317,12 +321,17 @@ pub async fn status() -> CoreUpdaterStatus {
         *CoreManager::global().get_running_mode(),
         crate::core::manager::RunningMode::Service
     );
+    let core_dir_writable = match crate::core::service::bundled_core_path().await {
+        Ok(path) => crate::core::core_integrity::binary_dir_is_writable(&path),
+        Err(_) => false,
+    };
     CoreUpdaterStatus {
         managed_active: enabled && current.is_some() && !service_mode,
         current,
         previous,
         running: running_core_version().await,
         service_mode,
+        core_dir_writable,
         updating: UPDATING.load(Ordering::Acquire),
     }
 }

@@ -760,8 +760,16 @@ impl CoreManager {
             return Err(format!("Invalid clash core: {}", clash_core).into());
         }
 
+        // clod:core-choice — выбор ядра здесь должен действовать всегда.
+        // Управляемое ядро подставляет свой стоковый бинарь вместо любого
+        // выбранного, поэтому выбор ядра его выключает; включить снова можно
+        // в его окне, и тогда оно снова перекроет выбор — об этом говорит
+        // подсказка там.
         crate::feat::commit_verge_edit(|verge| {
             verge.clash_core = Some(clash_core.to_owned());
+            if verge.use_managed_core == Some(true) {
+                verge.use_managed_core = Some(false);
+            }
         })
         .await
         .map_err(|e| e.to_string())?;

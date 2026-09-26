@@ -642,7 +642,6 @@ export const translationKeys = [
   'settings.modals.clashPort.messages.saveFailed',
   'settings.modals.clashPort.messages.firewallRequired',
   'settings.modals.clashCore.upgradeHint',
-  'settings.modals.clashCore.managedActiveNote',
   'settings.modals.clashCore.variants.release',
   'settings.modals.clashCore.variants.alpha',
   'settings.modals.liteMode.title',

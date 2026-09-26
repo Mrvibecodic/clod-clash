@@ -362,8 +362,7 @@
       }
     },
     "clashCore": {
-      "upgradeHint": "The core upgrades itself: it fetches its latest build from its own source (Mihomo from MetaCubeX, Clod Core from the clod-core releases) and replaces its file in the program folder. On Windows only while the core runs through the service.",
-      "managedActiveNote": "The managed core is enabled: once it is downloaded and the core does not run through the service, the choice here has no effect.",
+      "upgradeHint": "The core upgrades itself: it fetches its latest build from its own source (Mihomo from MetaCubeX, Clod Core from the clod-core releases) and replaces its file in the program folder. Through the service — always; as its own process — only while the program folder is writable, and on Windows only through the service.",
       "variants": {
         "release": "MetaCubeX, unpatched",
         "alpha": "Ours, with patches"
@@ -687,7 +686,7 @@
       "entry": "Managed core (self-updating)",
       "title": "Managed Mihomo core",
       "useManaged": "Use the managed core",
-      "useManagedHint": "Run a self-downloaded core instead of the bundled one",
+      "useManagedHint": "Run a self-downloaded stock core instead of the bundled one — in place of whichever core is chosen in the \"Clash core\" window; choosing a core there turns this switch off",
       "channel": "Channel",
       "stable": "Stable",
       "alpha": "Alpha",

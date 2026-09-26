@@ -643,6 +643,7 @@ export interface CoreUpdaterStatus {
   previous?: string
   running?: string
   service_mode: boolean
+  core_dir_writable: boolean
   updating: boolean
 }
 

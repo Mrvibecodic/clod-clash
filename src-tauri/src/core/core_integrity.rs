@@ -213,6 +213,13 @@ fn write_access_of(dir: &Path, elevated: bool) -> WriteAccess {
     }
 }
 
+/// Папка бинарника доступна на запись текущему пользователю (без прав
+/// администратора) — тот же вопрос, что решает `write_access_of`, но с
+/// ответом «да/нет» для тех, кому важна не защита, а возможность записи.
+pub fn binary_dir_is_writable(path: &Path) -> bool {
+    directory_write_access(path) == WriteAccess::Unprivileged
+}
+
 fn directory_write_access(path: &Path) -> WriteAccess {
     let Some(dir) = path.parent() else {
         return WriteAccess::Unprivileged;

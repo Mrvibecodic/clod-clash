@@ -892,7 +892,6 @@ export interface TranslationResources {
           }
         }
         clashCore: {
-          managedActiveNote: string
           upgradeHint: string
           variants: {
             alpha: string
