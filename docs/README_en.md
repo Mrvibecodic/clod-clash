@@ -80,7 +80,7 @@ there: it lives in the advanced mode and the advanced settings.
   computer name never leave the device. Sending it can be switched off.
 * **Support report** with one button — without subscription addresses, tokens or browsing history.
 * **Two cores.** Stock Mihomo from MetaCubeX (the default) and
-  [Clod Core](https://github.com/Mrvibecodic/clod-core), our fork on the fresh Alpha branch: the new
+  [Clod Core](https://github.com/Mrvibecodic/clod-core), our fork of stable Mihomo: the new
   utls v1.9.0-mod-meta TLS fingerprint library (Firefox 148, Safari 26.3); a node whose check
   stalled or broke off is checked again and marked dead only if it fails that too, and an unstable
   node loses to a stable one. Switched in Settings → Advanced settings → Clash Setting → "Clash
