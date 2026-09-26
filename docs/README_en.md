@@ -78,8 +78,12 @@ there: it lives in the advanced mode and the advanced settings.
 * **Device limit.** The device id is stable across updates; the machine id itself and the
   computer name never leave the device. Sending it can be switched off.
 * **Support report** with one button — without subscription addresses, tokens or browsing history.
-* **Two cores.** Stock Mihomo from MetaCubeX (the default) and Clod Core, our patched fork.
-  Switched in Settings → Advanced settings → Clash Setting → "Clash Core".
+* **Two cores.** Stock Mihomo from MetaCubeX (the default) and
+  [Clod Core](https://github.com/Mrvibecodic/clod-core), our fork on the fresh Alpha branch: the
+  new utls v1.9.0-mod-meta TLS fingerprint library (Firefox 148, Safari 26.3), a node in
+  a group is marked dead only after a second failed check, and an unstable node loses to a
+  stable one. Switched in Settings → Advanced settings → Clash Setting → "Clash Core"; each core
+  updates from its own releases.
 * **Updates itself.** The "Pre-release builds" box in Settings → General adds alpha and beta
   versions; without it only stable releases arrive.
 * **Does not decide for the user.** The user's own settings beat the panel's hints; someone
