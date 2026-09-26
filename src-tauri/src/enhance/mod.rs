@@ -80,7 +80,13 @@ fn ladder_tun_on(tun: &mut Mapping, app_tun: Mapping, overrides: &TunOverrides, 
             tun.insert("stack".into(), Value::from(stack));
         }
         None => {
-            tun.remove("stack");
+            if let Some(unknown) = tun.remove("stack") {
+                logging!(
+                    warn,
+                    Type::Config,
+                    "tun.stack {unknown:?} from the subscription is not a stack the core knows, using the default"
+                );
+            }
         }
     }
     for (key, value) in app_tun.into_iter() {

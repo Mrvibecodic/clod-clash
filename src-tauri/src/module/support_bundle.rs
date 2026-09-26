@@ -1,6 +1,6 @@
 use crate::{
     config::{Config, IVerge},
-    core::{CoreManager, manager::RunningMode},
+    core::{CoreManager, core_updater, manager::RunningMode},
     enhance,
     utils::{
         dirs, hwid,
@@ -135,6 +135,10 @@ fn core_label(core: &str) -> std::string::String {
     }
 }
 
+fn running_core_label(chosen: &str, managed_version: Option<&str>) -> std::string::String {
+    managed_version.map_or_else(|| core_label(chosen), |version| format!("управляемое Mihomo {version}"))
+}
+
 const fn yes_no(value: bool) -> &'static str {
     if value { "да" } else { "нет" }
 }
@@ -183,13 +187,22 @@ fn app_section(out: &mut std::string::String) {
 }
 
 async fn settings_section(out: &mut std::string::String) {
+    let core = core_updater::status().await;
+    let managed_running = core.managed_active && core_updater::managed_core_binary().await.is_some();
     let verge = Config::verge().await;
     let data = verge.latest_arc();
+    let chosen = data.get_valid_clash_core();
     let _ = writeln!(out, "\n## Настройки");
     let _ = writeln!(
         out,
-        "- ядро: {} (управляемое: {})",
-        core_label(&data.get_valid_clash_core()),
+        "- работает ядро: {} (версия {})",
+        running_core_label(&chosen, core.current.as_deref().filter(|_| managed_running)),
+        core.running.as_deref().unwrap_or("—")
+    );
+    let _ = writeln!(
+        out,
+        "- выбрано в настройках: {} (управляемое: {})",
+        core_label(&chosen),
         yes_no(data.use_managed_core.unwrap_or(false))
     );
     let _ = writeln!(
@@ -470,6 +483,18 @@ mod tests {
             "Clod Core (verge-mihomo-alpha)"
         );
         assert_eq!(super::core_label("something-else"), "something-else");
+    }
+
+    #[test]
+    fn a_running_managed_core_is_named_instead_of_the_chosen_one() {
+        assert_eq!(
+            super::running_core_label("verge-mihomo-alpha", Some("v1.19.31")),
+            "управляемое Mihomo v1.19.31"
+        );
+        assert_eq!(
+            super::running_core_label("verge-mihomo-alpha", None),
+            "Clod Core (verge-mihomo-alpha)"
+        );
     }
 
     #[test]

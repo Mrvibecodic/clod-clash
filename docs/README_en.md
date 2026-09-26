@@ -62,10 +62,11 @@ there: it lives in the advanced mode and the advanced settings.
 * **System proxy or TUN.** TUN captures the traffic of every program. On Windows the installer
   sets up the background service it needs, on Linux the package does, on macOS the app itself on
   first use.
-* **The subscription loads even when the provider's domain is blocked.** Directly first, then
-  through the already running tunnel, then through the system proxy. Fallback addresses and a
+* **The subscription loads even when the provider's domain is blocked.** First the way the
+  subscription is set up (directly by default), then through the already running tunnel, then
+  through the system proxy. Fallback addresses and a
   move to a new subscription address are understood too.
-* **Clear states.** "Subscription expired", "Traffic used up", "Device limit reached", "The
+* **Clear states.** "Subscription expired", "Out of traffic", "Device limit reached", "The
   provider sent no servers" — in words, not as an empty server list.
 * **Expiry by the panel's clock.** A wrong clock on the computer does not shift it. When the
   subscription expires, it refreshes itself once to show a renewal or the expired state right away.
@@ -125,8 +126,9 @@ go into `customResponseHeaders`. Each one applies only to its own subscription.
 | `clod-latency-style` | `bars` / `dot` / `number` | how the selected server's ping is drawn: bars, a dot or a number. Without the header — bars | PC only |
 | `clod-theme` | `accent=#RRGGBB; mode=light\|dark; background=https://…` | accent colour, light or dark theme and window background | PC only |
 
-Instead of `true` / `false` you can send `1` / `0`, `yes` / `no`, `on` / `off`. Send non-ASCII
-text as `base64:<base64 text>`. A value the client does not understand counts as a missing header.
+Instead of `true` / `false` you can send `1` / `0`, `yes` / `no`, `on` / `off` (except
+`clod-disable-ping`). Send non-ASCII text as `base64:<base64 text>`. A value the client does not
+understand counts as a missing header.
 Every header in detail, plus the full list of standard ones, is in [HEADERS_en.md](./HEADERS_en.md).
 
 ## Documentation

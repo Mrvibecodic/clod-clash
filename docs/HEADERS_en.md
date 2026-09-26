@@ -95,8 +95,8 @@ links you send are shown; a header disappears — so does its button.
 * **`clod-promo`** — a temporary banner for offers. It can be closed. New text — the banner shows
   again. The panel stops sending it — the banner disappears on the next subscription update.
   **`clod-promo-url`** makes it clickable.
-* Both are limited to 500 visible characters (300 on Android). Long text collapses to five lines
-  with a "Show in full" button.
+* Both are limited to 500 visible characters (300 on Android). On PC long text collapses to five
+  lines with a "Show in full" button.
 * Words can be coloured with a colour code — see [Colour in announcements](#colour-in-announcements).
 
 ### Routing mode: `clod-lock-mode`
@@ -108,7 +108,7 @@ a hint is shown instead of the choice.
 | Value | What happens |
 | --- | --- |
 | `true` | the mode is locked while the panel keeps confirming it. If the subscription has not updated successfully for over 72 hours (or three update intervals, if longer), the lock lifts itself; the next successful update brings it back |
-| `lock` | the mode is locked for good: time does not lift it. It goes away only when a successful update arrives without the header or with `false` |
+| `lock` | the mode is locked for good: time does not lift it. A successful update with `true` turns it into the temporary lock; one without the header, with `false` or with `global-mode: true` lifts it |
 | `false` | no lock |
 
 For Prizrak-Box compatibility `global-mode` is understood: `global-mode: false` is the same as
@@ -132,7 +132,7 @@ For Prizrak-Box compatibility `global-mode` is understood: `global-mode: false` 
 Without the header the client recognises the panel's placeholder nodes and shows a screen with
 the reason instead (see [Placeholder nodes](#placeholder-nodes)). With `true` the client parses
 nothing: the panel's nodes go into the server list under their own names, there are no "no
-servers" screens, and such nodes have no ping. The device-limit dialog does not depend on this
+servers" screens, and the latency check fails for such nodes. The device-limit dialog does not depend on this
 header.
 
 ### Connection method: `clod-connect-mode` (PC only)
@@ -142,7 +142,7 @@ both. Synonyms: `tunnel`, `vpn` = `tun`; `system`, `system-proxy`, `sysproxy` = 
 `both`. Without the header — the system proxy.
 
 * If the user picked the connection method themselves, their choice wins.
-* If `clod-lock-mode` came along, the header decides: the connection switches are replaced by a
+* If the mode is locked (`clod-lock-mode` or `global-mode: false`), the header decides: the connection switches are replaced by a
   line "… — the connection method is set by your provider", and a method the header does not name
   is switched off by the app.
 
@@ -196,8 +196,9 @@ clod-theme: accent=#2E7CF6; mode=dark; background=https://cdn.provider.example/b
 **Update interval.** The interval from `profile-update-interval` is applied on every subscription
 update unless the user set their own. If it arrived when the subscription was added, the "Update
 Interval" field in its properties is locked with an explanation. `0` turns auto-update off.
-Without the header and without the user's own interval the subscription is not updated on a
-schedule.
+If the panel has never sent an interval and the user set none, the subscription is not updated on
+a schedule. If the panel stops sending the header, the last interval it sent stays in force and
+the field becomes editable again; to stop auto-updates send `profile-update-interval: 0`.
 
 **Expiry and the panel's clock.** On every update the client compares its clock with the `Date`
 header and counts expiry by the panel's clock — a wrong clock on the computer does not shift it.
@@ -290,7 +291,7 @@ announce: #EF4444IMPORTANT: node #F59E0BNetherlands under maintenance until 05:0
 * Codes do not count towards the length limit.
 * The colour is used as sent, the same in the light and the dark theme — pick shades readable on
   both.
-* The syntax is compatible with Prizrak-Box. On Android colour codes are shown as plain text.
+* The syntax is compatible with Prizrak-Box. Android works the same way.
 
 ## Placeholder nodes
 
@@ -331,4 +332,6 @@ empty group, and `DIRECT` would let traffic bypass the tunnel. Groups that wait 
 network (`include-all*` or a `type: http` provider) get `empty-fallback: REJECT` unless the
 template sets its own. More about the template — in [REMNAWAVE.md](./REMNAWAVE.md) (Russian).
 
-With `clod-show-0hosts: true` all of this is off — see [above](#placeholder-nodes-clod-show-0hosts).
+With `clod-show-0hosts: true` the client neither recognises nor cuts out placeholders and shows no
+reason screens — see [above](#placeholder-nodes-clod-show-0hosts). `REJECT` still goes into empty
+groups.
