@@ -127,6 +127,14 @@ async fn tail_of(paths: &[PathBuf], lines: usize, kind: LogKind) -> (Option<std:
     ((!text.trim().is_empty()).then_some(text), skipped)
 }
 
+fn core_label(core: &str) -> std::string::String {
+    match core {
+        "verge-mihomo" => "Mihomo (verge-mihomo)".into(),
+        "verge-mihomo-alpha" => "Clod Core (verge-mihomo-alpha)".into(),
+        other => other.into(),
+    }
+}
+
 const fn yes_no(value: bool) -> &'static str {
     if value { "да" } else { "нет" }
 }
@@ -181,7 +189,7 @@ async fn settings_section(out: &mut std::string::String) {
     let _ = writeln!(
         out,
         "- ядро: {} (управляемое: {})",
-        data.clash_core.as_deref().unwrap_or("—"),
+        core_label(&data.get_valid_clash_core()),
         yes_no(data.use_managed_core.unwrap_or(false))
     );
     let _ = writeln!(
@@ -453,6 +461,16 @@ pub async fn build(lines: Option<usize>) -> Result<std::string::String> {
 #[cfg(test)]
 mod tests {
     use super::redact;
+
+    #[test]
+    fn the_report_names_the_core_not_just_its_file() {
+        assert_eq!(super::core_label("verge-mihomo"), "Mihomo (verge-mihomo)");
+        assert_eq!(
+            super::core_label("verge-mihomo-alpha"),
+            "Clod Core (verge-mihomo-alpha)"
+        );
+        assert_eq!(super::core_label("something-else"), "something-else");
+    }
 
     #[test]
     fn subscription_url_loses_its_token() {

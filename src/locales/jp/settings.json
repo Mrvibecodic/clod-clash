@@ -198,7 +198,7 @@
       "interface": "外観と動作"
     },
     "basicGroup": {
-      "hint": "言語、テーマ、外観と通知"
+      "hint": "言語、テーマ、外観とアップデート"
     }
   },
   "components": {
