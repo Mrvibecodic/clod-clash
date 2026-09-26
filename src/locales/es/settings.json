@@ -691,7 +691,6 @@
       "channel": "Channel",
       "stable": "Stable",
       "alpha": "Alpha",
-      "clod": "Clod — nuestro, con parches",
       "autoCheck": "Check daily",
       "autoCheckHint": "Funciona con el núcleo gestionado activado",
       "running": "Running:",

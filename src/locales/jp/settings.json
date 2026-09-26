@@ -691,7 +691,6 @@
       "channel": "Channel",
       "stable": "Stable",
       "alpha": "Alpha",
-      "clod": "Clod（独自パッチ版）",
       "autoCheck": "Check daily",
       "autoCheckHint": "管理コアが有効なときに動作します",
       "running": "Running:",

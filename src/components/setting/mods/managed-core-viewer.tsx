@@ -44,11 +44,7 @@ export function ManagedCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState<Progress>()
 
-  const channel =
-    verge?.managed_core_channel === 'alpha' ||
-    verge?.managed_core_channel === 'clod'
-      ? verge.managed_core_channel
-      : 'stable'
+  const channel = verge?.managed_core_channel === 'alpha' ? 'alpha' : 'stable'
   const autoCheck = verge?.core_auto_check ?? true
 
   const refreshStatus = useLockFn(async () => {
@@ -183,16 +179,13 @@ export function ManagedCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
             size="small"
             value={channel}
             disabled={busy || (status?.updating ?? false)}
-            sx={{ width: 190 }}
+            sx={{ width: 150 }}
             onChange={(event) =>
               void patchVerge({
                 managed_core_channel: event.target.value,
               }).catch((error) => showNotice.error(error))
             }
           >
-            <MenuItem value="clod">
-              {t('settings.modals.managedCore.clod')}
-            </MenuItem>
             <MenuItem value="stable">
               {t('settings.modals.managedCore.stable')}
             </MenuItem>

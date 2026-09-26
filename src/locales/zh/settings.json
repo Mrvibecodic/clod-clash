@@ -691,7 +691,6 @@
       "channel": "通道",
       "stable": "稳定版",
       "alpha": "Alpha",
-      "clod": "Clod（我们的补丁版）",
       "autoCheck": "每日检查",
       "autoCheckHint": "仅在启用托管内核时生效",
       "running": "运行中：",

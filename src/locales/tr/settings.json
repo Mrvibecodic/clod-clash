@@ -691,7 +691,6 @@
       "channel": "Channel",
       "stable": "Stable",
       "alpha": "Alpha",
-      "clod": "Clod — bizim, yamalı",
       "autoCheck": "Check daily",
       "autoCheckHint": "Yönetilen çekirdek etkinken çalışır",
       "running": "Running:",

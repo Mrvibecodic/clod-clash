@@ -1061,7 +1061,6 @@ export interface TranslationResources {
           bundledTag: string
           channel: string
           check: string
-          clod: string
           entry: string
           managedTag: string
           notDownloadedNote: string

@@ -691,7 +691,6 @@
       "channel": "Channel",
       "stable": "Stable",
       "alpha": "Alpha",
-      "clod": "Clod（我們的修補版）",
       "autoCheck": "Check daily",
       "autoCheckHint": "僅在啟用託管核心時生效",
       "running": "Running:",
