@@ -84,7 +84,8 @@ fn ladder_tun_on(tun: &mut Mapping, app_tun: Mapping, overrides: &TunOverrides, 
                 logging!(
                     warn,
                     Type::Config,
-                    "tun.stack {unknown:?} from the subscription is not a stack the core knows, using the default"
+                    "tun.stack {} from the subscription is not a stack the core knows, ignored",
+                    unknown.as_str().map_or_else(|| format!("{unknown:?}"), str::to_owned)
                 );
             }
         }

@@ -63,7 +63,7 @@ there: it lives in the advanced mode and the advanced settings.
   sets up the background service it needs, on Linux the package does, on macOS the app itself on
   first use.
 * **The subscription loads even when the provider's domain is blocked.** First the way the
-  subscription is set up (directly by default), then through the already running tunnel, then
+  subscription is set up in the client's properties (directly by default), then through the already running tunnel, then
   through the system proxy. Fallback addresses and a
   move to a new subscription address are understood too.
 * **Clear states.** "Subscription expired", "Out of traffic", "Device limit reached", "The
@@ -80,9 +80,9 @@ there: it lives in the advanced mode and the advanced settings.
 * **Support report** with one button — without subscription addresses, tokens or browsing history.
 * **Two cores.** Stock Mihomo from MetaCubeX (the default) and
   [Clod Core](https://github.com/Mrvibecodic/clod-core), our fork on the fresh Alpha branch: the
-  new utls v1.9.0-mod-meta TLS fingerprint library (Firefox 148, Safari 26.3), a node in
-  a group is marked dead only after a second failed check, and an unstable node loses to a
-  stable one. Switched in Settings → Advanced settings → Clash Setting → "Clash Core"; each core
+  new utls v1.9.0-mod-meta TLS fingerprint library (Firefox 148, Safari 26.3); a node whose
+  check stalled or broke off is checked again and marked dead only if it fails that too, and an
+  unstable node loses to a stable one. Switched in Settings → Advanced settings → Clash Setting → "Clash Core"; each core
   updates from its own releases.
 * **Updates itself.** The "Pre-release builds" box in Settings → General adds alpha and beta
   versions; without it only stable releases arrive.

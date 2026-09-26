@@ -140,7 +140,24 @@ pub async fn repin_core_binaries() {
     }
 }
 
+static STARTED_MANAGED_CORE: parking_lot::Mutex<Option<String>> = parking_lot::const_mutex(None);
+
+/// Управляемое ядро, запущенное своим процессом: его версия, а `None` —
+/// работает встроенное. Ставит старт ядра, читает отчёт для поддержки: так
+/// подпись в отчёте — то, что реально запущено, а не то, что выбрано сейчас.
+pub fn note_started_core(managed_version: Option<String>) {
+    *STARTED_MANAGED_CORE.lock() = managed_version;
+}
+
+pub fn started_managed_core() -> Option<String> {
+    STARTED_MANAGED_CORE.lock().clone()
+}
+
 pub async fn managed_core_binary() -> Option<PathBuf> {
+    managed_core().await.map(|(_, binary)| binary)
+}
+
+pub async fn managed_core() -> Option<(String, PathBuf)> {
     let verge = Config::verge().await.latest_arc();
     if !verge.use_managed_core.unwrap_or(false) {
         return None;
@@ -168,7 +185,7 @@ pub async fn managed_core_binary() -> Option<PathBuf> {
             );
             None
         }
-        Ok(_) => Some(binary),
+        Ok(_) => Some((version, binary)),
         Err(err) => {
             logging!(
                 warn,

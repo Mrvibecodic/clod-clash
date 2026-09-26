@@ -623,9 +623,9 @@ impl CoreManager {
         #[cfg(unix)]
         discard_unwritable_core_cache(&config_dir);
 
-        let managed_binary = crate::core::core_updater::managed_core_binary().await;
-        let command = match &managed_binary {
-            Some(path) => {
+        let managed = crate::core::core_updater::managed_core().await;
+        let command = match &managed {
+            Some((_, path)) => {
                 logging!(info, Type::Core, "using managed core: {}", path.display());
                 app_handle.shell().command(path)
             }
@@ -683,6 +683,7 @@ impl CoreManager {
 
         self.set_running_child_sidecar(child);
         self.set_sidecar_pid(pid);
+        crate::core::core_updater::note_started_core(managed.map(|(version, _)| version));
         self.note_core_is_up(Backend::Sidecar);
         spawn_core_health_watchdog(CoreWatch::Sidecar { pid, silent: 0 });
 

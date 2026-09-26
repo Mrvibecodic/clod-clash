@@ -108,7 +108,7 @@ a hint is shown instead of the choice.
 | Value | What happens |
 | --- | --- |
 | `true` | the mode is locked while the panel keeps confirming it. If the subscription has not updated successfully for over 72 hours (or three update intervals, if longer), the lock lifts itself; the next successful update brings it back |
-| `lock` | the mode is locked for good: time does not lift it. A successful update with `true` turns it into the temporary lock; one without the header, with `false` or with `global-mode: true` lifts it |
+| `lock` | the mode is locked for good: time does not lift it. A successful update with `true` (or with `global-mode: false`) turns it into the temporary lock; one without the header, with `false` or with `global-mode: true` lifts it |
 | `false` | no lock |
 
 For Prizrak-Box compatibility `global-mode` is understood: `global-mode: false` is the same as
@@ -291,7 +291,7 @@ announce: #EF4444IMPORTANT: node #F59E0BNetherlands under maintenance until 05:0
 * Codes do not count towards the length limit.
 * The colour is used as sent, the same in the light and the dark theme — pick shades readable on
   both.
-* The syntax is compatible with Prizrak-Box. Android works the same way.
+* The syntax is compatible with Prizrak-Box. Android works the same way since 0.1.22-alpha.5.
 
 ## Placeholder nodes
 
