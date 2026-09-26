@@ -691,6 +691,7 @@
       "channel": "Channel",
       "stable": "Stable",
       "alpha": "Alpha",
+      "clod": "Clod — безнеке, төзәтмәләр белән",
       "autoCheck": "Check daily",
       "autoCheckHint": "Идарәле ядро кабызылганда эшли",
       "running": "Running:",

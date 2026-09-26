@@ -691,6 +691,7 @@
       "channel": "Channel",
       "stable": "Stable",
       "alpha": "Alpha",
+      "clod": "Clod (자체 패치)",
       "autoCheck": "Check daily",
       "autoCheckHint": "관리 코어가 켜져 있을 때 동작합니다",
       "running": "Running:",

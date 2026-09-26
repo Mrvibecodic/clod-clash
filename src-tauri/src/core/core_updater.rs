@@ -21,6 +21,9 @@ use clash_verge_logging::{Type, logging, logging_error};
 
 const RELEASE_API_STABLE: &str = "https://api.github.com/repos/MetaCubeX/mihomo/releases/latest";
 const RELEASE_API_ALPHA: &str = "https://api.github.com/repos/MetaCubeX/mihomo/releases/tags/Prerelease-Alpha";
+/// Our fork of mihomo with the Clod patches; its releases name assets the same
+/// way as MetaCubeX, so picking and verifying work unchanged.
+const RELEASE_API_CLOD: &str = "https://api.github.com/repos/Mrvibecodic/clod-core/releases/latest";
 const DOWNLOAD_TIMEOUT_SECS: u64 = 300;
 const API_TIMEOUT_SECS: u64 = 30;
 const REACHABILITY_TIMEOUT_SECS: u64 = 15;
@@ -184,15 +187,16 @@ pub async fn managed_core_binary() -> Option<PathBuf> {
 fn configured_channel(verge: &IVerge) -> String {
     match verge.managed_core_channel.as_deref() {
         Some("alpha") => "alpha".into(),
+        Some("clod") => "clod".into(),
         _ => "stable".into(),
     }
 }
 
 fn release_url(channel: &str) -> &'static str {
-    if channel == "alpha" {
-        RELEASE_API_ALPHA
-    } else {
-        RELEASE_API_STABLE
+    match channel {
+        "alpha" => RELEASE_API_ALPHA,
+        "clod" => RELEASE_API_CLOD,
+        _ => RELEASE_API_STABLE,
     }
 }
 
@@ -744,6 +748,38 @@ mod tests {
         )
         .expect("an asset without a digest must still parse");
         assert_eq!(parsed.digest, None);
+    }
+
+    #[test]
+    fn channel_setting_maps_to_its_release() {
+        let with = |channel: Option<&str>| IVerge {
+            managed_core_channel: channel.map(Into::into),
+            ..IVerge::default()
+        };
+        assert_eq!(configured_channel(&with(None)), "stable");
+        assert_eq!(configured_channel(&with(Some("alpha"))), "alpha");
+        assert_eq!(configured_channel(&with(Some("clod"))), "clod");
+        assert_eq!(configured_channel(&with(Some("nightly"))), "stable");
+        assert_eq!(release_url("stable"), RELEASE_API_STABLE);
+        assert_eq!(release_url("alpha"), RELEASE_API_ALPHA);
+        assert_eq!(release_url("clod"), RELEASE_API_CLOD);
+    }
+
+    #[test]
+    fn picks_clod_core_asset_and_version() {
+        let assets = vec![
+            asset("mihomo-windows-amd64-v1.19.31-clod.3.zip"),
+            asset("mihomo-windows-amd64-v1.19.31-clod.3.zip.sha256"),
+            asset("mihomo-linux-amd64-v1.19.31-clod.3.gz.sha256"),
+            asset("mihomo-linux-amd64-v1.19.31-clod.3.gz"),
+            asset("mihomo-linux-arm64-v1.19.31-clod.3.gz"),
+        ];
+        let (picked, version) = pick_asset(&assets, "linux", "amd64").expect("linux asset");
+        assert_eq!(picked.name, "mihomo-linux-amd64-v1.19.31-clod.3.gz");
+        assert_eq!(version, "v1.19.31-clod.3");
+        let (picked, version) = pick_asset(&assets, "windows", "amd64").expect("windows asset");
+        assert_eq!(picked.name, "mihomo-windows-amd64-v1.19.31-clod.3.zip");
+        assert_eq!(version, "v1.19.31-clod.3");
     }
 
     #[test]

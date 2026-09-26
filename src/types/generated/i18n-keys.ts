@@ -838,6 +838,7 @@ export const translationKeys = [
   'settings.modals.managedCore.channel',
   'settings.modals.managedCore.stable',
   'settings.modals.managedCore.alpha',
+  'settings.modals.managedCore.clod',
   'settings.modals.managedCore.autoCheck',
   'settings.modals.managedCore.autoCheckHint',
   'settings.modals.managedCore.running',

@@ -691,6 +691,7 @@
       "channel": "Channel",
       "stable": "Stable",
       "alpha": "Alpha",
+      "clod": "Clod — نسخهٔ وصله‌شدهٔ ما",
       "autoCheck": "Check daily",
       "autoCheckHint": "فقط وقتی هستهٔ مدیریت‌شده روشن است کار می‌کند",
       "running": "Running:",
