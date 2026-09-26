@@ -63,13 +63,14 @@ there: it lives in the advanced mode and the advanced settings.
   sets up the background service it needs, on Linux the package does, on macOS the app itself on
   first use.
 * **The subscription loads even when the provider's domain is blocked.** First the way the
-  subscription is set up in the client's properties (directly by default), then through the already running tunnel, then
-  through the system proxy. Fallback addresses and a
-  move to a new subscription address are understood too.
+  subscription is set up in the client's properties (directly by default), then through the
+  already running tunnel, then through the system proxy. Fallback addresses and a move to a new
+  subscription address are understood too.
 * **Clear states.** "Subscription expired", "Out of traffic", "Device limit reached", "The
   provider sent no servers" — in words, not as an empty server list.
 * **Expiry by the panel's clock.** A wrong clock on the computer does not shift it. When the
-  subscription expires, it refreshes itself once to show a renewal or the expired state right away.
+  subscription expires, it refreshes itself to show a renewal or the expired state right away
+  (retrying with pauses if that fails).
 * **The chosen server sticks** through latency tests, subscription updates and restarts.
   Favourite servers sit at the top of the list.
 * **A failed update does not break the working profile.** A config the core rejects is not
@@ -79,12 +80,12 @@ there: it lives in the advanced mode and the advanced settings.
   computer name never leave the device. Sending it can be switched off.
 * **Support report** with one button — without subscription addresses, tokens or browsing history.
 * **Two cores.** Stock Mihomo from MetaCubeX (the default) and
-  [Clod Core](https://github.com/Mrvibecodic/clod-core), our fork on the fresh Alpha branch: the
-  new utls v1.9.0-mod-meta TLS fingerprint library (Firefox 148, Safari 26.3); a node whose
-  check stalled or broke off is checked again and marked dead only if it fails that too, and an
-  unstable node loses to a stable one. Switched in Settings → Advanced settings → Clash Setting → "Clash Core"; each core
-  updates from its own releases.
-* **Updates itself.** The "Pre-release builds" box in Settings → General adds alpha and beta
+  [Clod Core](https://github.com/Mrvibecodic/clod-core), our fork on the fresh Alpha branch: the new
+  utls v1.9.0-mod-meta TLS fingerprint library (Firefox 148, Safari 26.3); a node whose check
+  stalled or broke off is checked again and marked dead only if it fails that too, and an unstable
+  node loses to a stable one. Switched in Settings → Advanced settings → Clash Setting → "Clash
+  Core"; each core updates from its own releases.
+* **Updates itself.** The "Pre-release builds" switch in Settings → General adds alpha and beta
   versions; without it only stable releases arrive.
 * **Does not decide for the user.** The user's own settings beat the panel's hints; someone
   else's system proxy is left alone; an empty server group rejects traffic instead of letting it
@@ -100,7 +101,8 @@ Every build is on the [download page](https://mrvibecodic.github.io/clod-clash/d
 | macOS 11+ (Apple Silicon and Intel) | `.dmg`. The build has no Apple certificate: allow the first launch in "System Settings → Privacy & Security". Or run one command in Terminal: `curl -fsSL https://mrvibecodic.github.io/clod-clash/install-macos.sh \| bash` |
 | Linux x86_64 | `.deb` or `.rpm`. On systemd systems the package registers the TUN service right away |
 
-Details are in the ["Installation"](https://mrvibecodic.github.io/clod-clash/docs/install) section (Russian).
+Details are in the ["Installation"](https://mrvibecodic.github.io/clod-clash/docs/install) section
+(Russian).
 
 ## For providers
 
@@ -147,7 +149,8 @@ Every header in detail, plus the full list of standard ones, is in [HEADERS_en.m
 
 ## Building
 
-In short: `pnpm install`, `pnpm prebuild`, `pnpm dev`. Details are in [BUILDING_en.md](./BUILDING_en.md).
+In short: `pnpm install`, `pnpm prebuild`, `pnpm dev`. Details are in
+[BUILDING_en.md](./BUILDING_en.md).
 
 ## Acknowledgements
 
@@ -168,8 +171,8 @@ Clod Clash would not exist without these projects:
 
 Components that ship with the application:
 
-* [clash-verge-rev/clash-verge-service-ipc](https://github.com/clash-verge-rev/clash-verge-service-ipc) —
-  the system service TUN cannot work without, and the protocol used to talk to it.
+* [clash-verge-rev/clash-verge-service-ipc](https://github.com/clash-verge-rev/clash-verge-service-ipc)
+  — the system service TUN cannot work without, and the protocol used to talk to it.
 * [clash-verge-rev/sysproxy-rs](https://github.com/clash-verge-rev/sysproxy-rs),
   [tauri-plugin-mihomo](https://github.com/clash-verge-rev/tauri-plugin-mihomo),
   [clash-verge-logger](https://github.com/clash-verge-rev/clash-verge-logger) — the system proxy,

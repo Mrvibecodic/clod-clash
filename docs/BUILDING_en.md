@@ -8,15 +8,15 @@ news and releases — the [Telegram group](https://t.me/+2lmP1yhxpCE3MDcy).
 
 ---
 
-You need Rust (the version is pinned in `rust-toolchain.toml`), Node.js 24 and pnpm 11 (as in
-CI), and Tauri's system dependencies — see the [Tauri guide](https://tauri.app/start/prerequisites/).
+You need Rust (the version is pinned in `rust-toolchain.toml`), Node.js 24 and pnpm 11 (as in CI),
+and Tauri's system dependencies — see the [Tauri guide](https://tauri.app/start/prerequisites/).
 
 ```bash
 pnpm install
 pnpm prebuild          # downloads both cores, the background service and the geo databases
 pnpm dev               # run in development mode
 pnpm build             # build the installer
-pnpm portable <target> # portable zip for Windows (after pnpm build)
+pnpm portable          # portable zip for Windows (after pnpm build)
 ```
 
 `pnpm prebuild` puts two cores into `src-tauri/sidecar`:

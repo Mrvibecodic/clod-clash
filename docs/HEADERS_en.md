@@ -97,7 +97,8 @@ links you send are shown; a header disappears — so does its button.
   **`clod-promo-url`** makes it clickable.
 * Both are limited to 500 visible characters (300 on Android). On PC long text collapses to five
   lines with a "Show in full" button.
-* Words can be coloured with a colour code — see [Colour in announcements](#colour-in-announcements).
+* Words can be coloured with a colour code — see
+  [Colour in announcements](#colour-in-announcements).
 
 ### Routing mode: `clod-lock-mode`
 
@@ -129,11 +130,11 @@ For Prizrak-Box compatibility `global-mode` is understood: `global-mode: false` 
 
 ### Placeholder nodes: `clod-show-0hosts`
 
-Without the header the client recognises the panel's placeholder nodes and shows a screen with
-the reason instead (see [Placeholder nodes](#placeholder-nodes)). With `true` the client parses
+Without the header the client recognises the panel's placeholder nodes and shows a screen with the
+reason instead (see [Placeholder nodes](#placeholder-nodes)). With `true` the client parses
 nothing: the panel's nodes go into the server list under their own names, there are no "no
-servers" screens, and the latency check fails for such nodes. The device-limit dialog does not depend on this
-header.
+servers" screens, and the latency check fails for such nodes. The device-limit dialog does not
+depend on this header.
 
 ### Connection method: `clod-connect-mode` (PC only)
 
@@ -142,9 +143,9 @@ both. Synonyms: `tunnel`, `vpn` = `tun`; `system`, `system-proxy`, `sysproxy` = 
 `both`. Without the header — the system proxy.
 
 * If the user picked the connection method themselves, their choice wins.
-* If the mode is locked (`clod-lock-mode` or `global-mode: false`), the header decides: the connection switches are replaced by a
-  line "… — the connection method is set by your provider", and a method the header does not name
-  is switched off by the app.
+* If the mode is locked (`clod-lock-mode` or `global-mode: false`), the header decides: the
+  switches are replaced by a line "… — the connection method is set by your provider", and a
+  method missing from the header is switched off.
 
 ### Interface view: `clod-simple-mode` (PC only)
 
@@ -203,8 +204,9 @@ the field becomes editable again; to stop auto-updates send `profile-update-inte
 **Expiry and the panel's clock.** On every update the client compares its clock with the `Date`
 header and counts expiry by the panel's clock — a wrong clock on the computer does not shift it.
 A cached answer (`Age` above zero) is not used for this. A minute and a half after `expire` the
-client updates the subscription once by itself — to show a renewal or the expired state right
-away. This works even without an update interval; an unchecked "Allow Auto Update" forbids it.
+client updates the subscription by itself — to show a renewal or the expired state right away; if
+that fails, it retries with pauses from 15 minutes to 5 hours. This works even without an update
+interval; an unchecked "Allow Auto Update" forbids it.
 
 ### Subscription address: fallback and new
 
@@ -236,8 +238,9 @@ away. This works even without an update interval; an unchecked "Allow Auto Updat
 | `x-hwid-not-supported` | the panel requires an id but none was sent | the "Device identification required" dialog with an "Enable" button |
 | `x-hwid-max-devices-reached` or `x-hwid-limit` | the device limit is used up | the "Device limit reached" dialog with the subscription name and a "Support" button |
 
-* Only a **200** answer with one of these headers counts as a refusal. An error answer (403, 404,
-  500…) is an ordinary failed update: the previous servers stay.
+* Only a successful answer (**2xx**, 200 for Remnawave) with one of these headers counts as a
+  refusal. An error answer (403, 404, 500…) is an ordinary failed update: the previous servers
+  stay.
 * On a refusal **the previous servers are removed** — otherwise an extra device would keep using
   them. If the panel sent placeholders, they take the servers' place; if it sent an empty body or
   a page, the client itself wipes addresses and keys from the previous servers (names and rules
@@ -315,7 +318,7 @@ sees the reason:
 
 | What the answer holds | What the user sees |
 | --- | --- |
-| a device refusal (`x-hwid-*` in a 200 answer) | "Device limit reached" |
+| a device refusal (`x-hwid-*` in a successful answer) | "Device limit reached" |
 | `expire` in the past | "Subscription expired" |
 | the whole `total` used | "Out of traffic" and the reset date from `subscription-refill-date` |
 | expiry and traffic are fine | "The provider sent no servers" and the placeholder names (up to four) |

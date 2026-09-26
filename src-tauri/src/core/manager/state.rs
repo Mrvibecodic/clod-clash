@@ -683,7 +683,7 @@ impl CoreManager {
 
         self.set_running_child_sidecar(child);
         self.set_sidecar_pid(pid);
-        crate::core::core_updater::note_started_core(managed.map(|(version, _)| version));
+        crate::core::core_updater::note_started_core(clash_core.to_string(), managed.map(|(version, _)| version));
         self.note_core_is_up(Backend::Sidecar);
         spawn_core_health_watchdog(CoreWatch::Sidecar { pid, silent: 0 });
 
@@ -799,6 +799,12 @@ impl CoreManager {
         gone
     }
 
+    /// Служба всегда запускает встроенное ядро, управляемое под ней не действует.
+    async fn note_service_core_started(&self) {
+        let core = Config::verge().await.latest_arc().get_valid_clash_core();
+        crate::core::core_updater::note_started_core(core.to_string(), None);
+    }
+
     pub(super) async fn start_core_by_service(&self) -> Result<()> {
         self.refuse_to_double_the_core()?;
         logging!(info, Type::Core, "Starting core in service mode");
@@ -814,6 +820,7 @@ impl CoreManager {
             for attempt in 0..timing::SERVICE_START_RETRIES {
                 match service::run_core_by_service(&config_file).await {
                     Ok(()) => {
+                        self.note_service_core_started().await;
                         self.note_core_is_up(Backend::Service);
                         spawn_core_health_watchdog(CoreWatch::Service(HealthWatch::default()));
                         return Ok(());
@@ -841,6 +848,7 @@ impl CoreManager {
         #[cfg(not(target_os = "windows"))]
         {
             service::run_core_by_service(&config_file).await?;
+            self.note_service_core_started().await;
             self.note_core_is_up(Backend::Service);
             spawn_core_health_watchdog(CoreWatch::Service(HealthWatch::default()));
             Ok(())

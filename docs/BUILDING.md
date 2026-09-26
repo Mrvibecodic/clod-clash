@@ -15,7 +15,7 @@ pnpm install
 pnpm prebuild          # скачивает оба ядра, фоновую службу и geo-базы
 pnpm dev               # запуск в режиме разработки
 pnpm build             # сборка установщика
-pnpm portable <target> # портативный zip для Windows (после pnpm build)
+pnpm portable          # портативный zip для Windows (после pnpm build)
 ```
 
 `pnpm prebuild` кладёт в `src-tauri/sidecar` два ядра:

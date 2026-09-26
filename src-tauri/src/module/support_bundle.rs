@@ -135,11 +135,20 @@ fn core_label(core: &str) -> std::string::String {
     }
 }
 
-fn running_core_label(mode: &RunningMode, chosen: &str, managed_version: Option<&str>) -> std::string::String {
-    match (mode, managed_version) {
-        (RunningMode::NotRunning, _) => "не запущено".into(),
-        (RunningMode::Sidecar, Some(version)) => format!("управляемое Mihomo {version}"),
-        _ => core_label(chosen),
+fn running_core_label(
+    mode: &RunningMode,
+    started: Option<&core_updater::StartedCore>,
+    chosen: &str,
+) -> std::string::String {
+    if matches!(mode, RunningMode::NotRunning) {
+        return "не запущено".into();
+    }
+    match started {
+        Some(core_updater::StartedCore {
+            managed: Some(version), ..
+        }) => format!("управляемое Mihomo {version}"),
+        Some(started) => core_label(&started.core),
+        None => core_label(chosen),
     }
 }
 
@@ -192,7 +201,11 @@ fn app_section(out: &mut std::string::String) {
 
 async fn settings_section(out: &mut std::string::String) {
     let mode = CoreManager::global().get_running_mode();
-    let running_version = core_updater::status().await.running;
+    let running_version = if matches!(*mode, RunningMode::NotRunning) {
+        None
+    } else {
+        core_updater::running_core_version().await
+    };
     let verge = Config::verge().await;
     let data = verge.latest_arc();
     let chosen = data.get_valid_clash_core();
@@ -200,7 +213,7 @@ async fn settings_section(out: &mut std::string::String) {
     let _ = writeln!(
         out,
         "- работает ядро: {} (версия {})",
-        running_core_label(&mode, &chosen, core_updater::started_managed_core().as_deref()),
+        running_core_label(&mode, core_updater::started_core().as_ref(), &chosen),
         running_version.as_deref().unwrap_or("—")
     );
     let _ = writeln!(
@@ -490,23 +503,31 @@ mod tests {
     }
 
     #[test]
-    fn a_running_managed_core_is_named_instead_of_the_chosen_one() {
-        use super::RunningMode;
-        let chosen = "verge-mihomo-alpha";
+    fn the_report_names_the_core_that_was_started() {
+        use super::{RunningMode, core_updater::StartedCore};
+        let clod = StartedCore {
+            core: "verge-mihomo-alpha".into(),
+            managed: None,
+        };
+        let managed = StartedCore {
+            core: "verge-mihomo-alpha".into(),
+            managed: Some("v1.19.31".into()),
+        };
+        let label = super::running_core_label;
         assert_eq!(
-            super::running_core_label(&RunningMode::Sidecar, chosen, Some("v1.19.31")),
+            label(&RunningMode::Sidecar, Some(&managed), "verge-mihomo"),
             "управляемое Mihomo v1.19.31"
         );
         assert_eq!(
-            super::running_core_label(&RunningMode::Sidecar, chosen, None),
+            label(&RunningMode::Service, Some(&clod), "verge-mihomo"),
             "Clod Core (verge-mihomo-alpha)"
         );
         assert_eq!(
-            super::running_core_label(&RunningMode::Service, chosen, Some("v1.19.31")),
-            "Clod Core (verge-mihomo-alpha)"
+            label(&RunningMode::Sidecar, None, "verge-mihomo"),
+            "Mihomo (verge-mihomo)"
         );
         assert_eq!(
-            super::running_core_label(&RunningMode::NotRunning, chosen, Some("v1.19.31")),
+            label(&RunningMode::NotRunning, Some(&managed), "verge-mihomo"),
             "не запущено"
         );
     }

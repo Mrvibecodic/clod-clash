@@ -140,17 +140,24 @@ pub async fn repin_core_binaries() {
     }
 }
 
-static STARTED_MANAGED_CORE: parking_lot::Mutex<Option<String>> = parking_lot::const_mutex(None);
-
-/// Управляемое ядро, запущенное своим процессом: его версия, а `None` —
-/// работает встроенное. Ставит старт ядра, читает отчёт для поддержки: так
-/// подпись в отчёте — то, что реально запущено, а не то, что выбрано сейчас.
-pub fn note_started_core(managed_version: Option<String>) {
-    *STARTED_MANAGED_CORE.lock() = managed_version;
+/// Какое ядро запущено сейчас: имя встроенного ядра и версия управляемого,
+/// если своим процессом поднято оно. Ставит старт ядра, читает отчёт для
+/// поддержки: так подпись в отчёте — то, что реально запущено, а не то, что
+/// выбрано в настройках сейчас.
+#[derive(Clone)]
+pub struct StartedCore {
+    pub core: String,
+    pub managed: Option<String>,
 }
 
-pub fn started_managed_core() -> Option<String> {
-    STARTED_MANAGED_CORE.lock().clone()
+static STARTED_CORE: parking_lot::Mutex<Option<StartedCore>> = parking_lot::const_mutex(None);
+
+pub fn note_started_core(core: String, managed: Option<String>) {
+    *STARTED_CORE.lock() = Some(StartedCore { core, managed });
+}
+
+pub fn started_core() -> Option<StartedCore> {
+    STARTED_CORE.lock().clone()
 }
 
 pub async fn managed_core_binary() -> Option<PathBuf> {
@@ -296,7 +303,7 @@ async fn fetch_release(channel: &str) -> Result<GhRelease> {
     Err(last_error.context("failed to reach the Mihomo release channel"))
 }
 
-async fn running_core_version() -> Option<String> {
+pub async fn running_core_version() -> Option<String> {
     let version = handle::Handle::mihomo().get_version().await.ok()?;
     Some(version.version)
 }

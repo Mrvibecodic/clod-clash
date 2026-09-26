@@ -77,6 +77,26 @@ jobs:
           fi
           echo "release_id=$id" >> "$GITHUB_OUTPUT"
 
+      # Как в release-clod.yml: без этого постоянные ссылки
+      # /releases/latest/download/<файл> (страница загрузки, install-macos.sh)
+      # после публикации запасным путём вели бы в 404.
+      - name: Drop the version from asset names
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RELEASE_ID="${{ steps.publish.outputs.release_id }}"
+          VERSION="${GITHUB_REF_NAME#publish-clod-v}"
+          gh api "repos/${{ github.repository }}/releases/$RELEASE_ID/assets?per_page=100" \
+            --jq '.[] | "\(.id) \(.name)"' > assets.list
+          while read -r id name; do
+            new="${name/_${VERSION}_/_}"
+            new="${new/-${VERSION}-1./-}"
+            if [ "$new" = "$name" ]; then
+              continue
+            fi
+            gh api -X PATCH "repos/${{ github.repository }}/releases/assets/$id" -f name="$new" --jq .name
+          done < assets.list
+
       - name: Roll latest.json into the updater release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

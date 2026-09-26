@@ -484,8 +484,6 @@ impl IVerge {
             enable_dns_settings: Some(false),
             enable_external_controller: Some(false),
             enable_hwid: Some(Self::DEFAULT_ENABLE_HWID),
-            connect_system_proxy: Some(Self::DEFAULT_CONNECT_SYSTEM_PROXY),
-            connect_tun_mode: Some(Self::DEFAULT_CONNECT_TUN_MODE),
             connect_on_launch: Some(false),
             ..Self::default()
         }
