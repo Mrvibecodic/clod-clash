@@ -41,6 +41,12 @@ export const StackModeSwitch = (props: Props) => {
       >
         Mixed
       </Button>
+      <Button
+        variant={value?.toLowerCase() === 'mips' ? 'contained' : 'outlined'}
+        onClick={() => onChange?.('mips')}
+      >
+        MIPS
+      </Button>
     </ButtonGroup>
   )
 }

@@ -39,7 +39,7 @@ struct TunOverrides {
 fn parse_tun_overrides(stack: Option<&str>, strict_route: Option<&str>, dns_hijack: Option<&str>) -> TunOverrides {
     TunOverrides {
         stack: match stack.map(str::trim) {
-            Some(value @ ("gvisor" | "system" | "mixed")) => Some(Value::from(value)),
+            Some(value @ ("gvisor" | "system" | "mixed" | "mips")) => Some(Value::from(value)),
             _ => None,
         },
         strict_route: match strict_route.map(str::trim) {
@@ -64,16 +64,24 @@ fn ladder_tun(tun: &mut Mapping, app_tun: Mapping, overrides: &TunOverrides) {
     ladder_tun_on(tun, app_tun, overrides, cfg!(target_os = "windows"));
 }
 
-fn subscription_stack_is_capped(tun: &Mapping) -> bool {
-    tun.get("stack")
-        .and_then(Value::as_str)
-        .map(str::to_ascii_lowercase)
-        .is_some_and(|stack| stack == "system" || stack == "mixed")
+fn subscription_stack(tun: &Mapping) -> Option<&'static str> {
+    let stack = tun.get("stack")?.as_str()?.trim().to_ascii_lowercase();
+    ["gvisor", "system", "mixed", "mips"]
+        .into_iter()
+        .find(|known| *known == stack)
 }
 
 fn ladder_tun_on(tun: &mut Mapping, app_tun: Mapping, overrides: &TunOverrides, cap_subscription_stack: bool) {
-    if cap_subscription_stack && subscription_stack_is_capped(tun) {
-        tun.remove("stack");
+    match subscription_stack(tun) {
+        Some("system" | "mixed") if cap_subscription_stack => {
+            tun.remove("stack");
+        }
+        Some(stack) => {
+            tun.insert("stack".into(), Value::from(stack));
+        }
+        None => {
+            tun.remove("stack");
+        }
     }
     for (key, value) in app_tun.into_iter() {
         let deferred = matches!(key.as_str(), Some("stack" | "strict-route" | "dns-hijack"));
@@ -2016,7 +2024,7 @@ mod tests {
     }
 
     #[test]
-    fn windows_takes_only_gvisor_from_the_subscription() {
+    fn windows_drops_the_listening_stacks_of_the_subscription() {
         let mut tun = mapping("{stack: system}");
         let app = mapping("{stack: gvisor}");
         super::ladder_tun_on(&mut tun, app, &super::TunOverrides::default(), true);
@@ -2032,6 +2040,44 @@ mod tests {
         let app = mapping("{stack: gvisor}");
         super::ladder_tun_on(&mut tun, app, &super::TunOverrides::default(), false);
         assert_eq!(tun.get("stack"), Some(&serde_yaml_ng::Value::from("system")));
+    }
+
+    #[test]
+    fn mips_from_the_subscription_reaches_the_core_on_every_platform() {
+        for cap in [true, false] {
+            for written in ["mips", "MIPS", " Mips "] {
+                let mut tun = mapping(&format!("{{stack: \"{written}\"}}"));
+                let app = mapping("{stack: gvisor}");
+                super::ladder_tun_on(&mut tun, app, &super::TunOverrides::default(), cap);
+                assert_eq!(tun.get("stack"), Some(&serde_yaml_ng::Value::from("mips")));
+            }
+        }
+    }
+
+    #[test]
+    fn a_stack_the_core_does_not_know_falls_back_to_the_default() {
+        for written in ["lwip", "\"\"", "1", "[gvisor]"] {
+            let mut tun = mapping(&format!("{{stack: {written}}}"));
+            super::ladder_tun_on(
+                &mut tun,
+                serde_yaml_ng::Mapping::new(),
+                &super::TunOverrides::default(),
+                false,
+            );
+            assert_eq!(
+                tun.get("stack"),
+                Some(&serde_yaml_ng::Value::from(crate::constants::tun::DEFAULT_STACK)),
+                "stack {written} reached the core"
+            );
+        }
+    }
+
+    #[test]
+    fn the_user_may_pick_mips() {
+        let chosen = super::parse_tun_overrides(Some("mips"), None, None);
+        let mut tun = mapping("{stack: system}");
+        super::ladder_tun_on(&mut tun, mapping("{stack: gvisor}"), &chosen, true);
+        assert_eq!(tun.get("stack"), Some(&serde_yaml_ng::Value::from("mips")));
     }
 
     #[test]
