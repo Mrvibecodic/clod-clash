@@ -8,6 +8,68 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.1.11-alpha.3
+
+<!-- lang:en -->
+
+### Added
+
+- Ping color thresholds can come from the subscription (`clod-ping` header)
+- `clod-lock-mode: lock` locks the routing mode permanently; `clod-announce` takes priority over the panel's `announce`
+- Option "Close connections when picking a server on the Home page"
+- macOS: the app bundle is signed without a certificate; installation with a single command, documented
+
+### Changed
+
+- Your own subscription name is stored separately from the panel's name; the update interval from the panel applies on every update
+- When the panel rejects the device, the previous servers are removed and mirrors are not polled; the device limit screen names the subscription and shows no device count
+- Ping scale as on Android (200/400 ms); latency is measured per node instead of the core's group test; provider nodes get fresh pings; no numbers in the tray
+- System proxy uses an external host only when LAN sharing is on, otherwise 127.0.0.1; the PAC address always stays on the loopback
+- Removed non-working settings: start page, backup on change, theme CSS, diagnostics export; the window always opens on Home
+- `clod-hwid-limit` and `clod-device-remove` headers are no longer read
+- Documentation updated to match the code, with a page on the `clod-*` headers
+
+### Fixed
+
+- The core is not reloaded with an unchanged config; a subscription update with unchanged content no longer duplicates auto-group tests
+- Skipping the reload takes empty rule sets into account
+- Changing a subscription address in the card no longer resets anything
+- Home page auto-test uses the fresh node list; the test queue does not survive a subscription switch; the proxy indicator waits for the core's answer
+- Backup schedule counts from the last backup, starts without waiting for a settings save and is not reset by unrelated saves
+- Support report shows the real proxy host; core connection errors get into the report and the log archive with addresses stripped
+- More precise hints for the proxy host, the managed core, built-in enhancements and the web UI
+
+<!-- lang:ru -->
+
+### Добавлено
+
+- Границы цвета пинга могут задаваться подпиской (заголовок `clod-ping`)
+- `clod-lock-mode: lock` — постоянный замок режима; `clod-announce` важнее панельного `announce`
+- Галка «Закрывать соединения при выборе сервера на главной»
+- macOS: пакет приложения подписывается без сертификата; установка одной командой описана в документации
+
+### Изменено
+
+- Своё название подписки хранится отдельно от названия панели; интервал обновления от панели применяется при каждом обновлении
+- Отказ панели по устройству убирает прежние серверы и не опрашивает запасные адреса; окно лимита устройств называет подписку и не показывает число устройств
+- Шкала пинга как на Android (200/400 мс); замер по узлам вместо группового теста ядра, свежие пинги узлов провайдеров, без цифр в трее
+- Системный прокси использует внешний хост только при раздаче в локальную сеть, иначе 127.0.0.1; адрес PAC всегда на петле
+- Убраны неработающие пункты настроек: стартовая страница, копия при изменениях, CSS темы, экспорт диагностики; окно всегда открывается на Главной
+- Заголовки `clod-hwid-limit` и `clod-device-remove` больше не читаются
+- Документация приведена под код, добавлена страница заголовков `clod-*`
+
+### Исправлено
+
+- Ядро не перезагружается тем же конфигом; обновление подписки с прежним содержимым не дублирует замер авто-групп
+- Пропуск перезагрузки учитывает пустые наборы правил
+- Смена адреса подписки в карточке больше ничего не сбрасывает
+- Автозамер Главной берёт свежие узлы; очередь замера не переживает смену подписки; индикатор прокси ждёт ответа ядра
+- Расписание копий считает срок от последней копии, стартует без ожидания сохранения настроек и не сбивается посторонними сохранениями
+- Отчёт поддержки показывает реальный хост прокси; ошибки соединений ядра попадают в отчёт и архив логов без адресов
+- Точнее подсказки хоста прокси, управляемого ядра, встроенных улучшений и веб-интерфейса
+
+---
+
 ## v0.1.11-alpha.2
 
 <!-- lang:en -->
