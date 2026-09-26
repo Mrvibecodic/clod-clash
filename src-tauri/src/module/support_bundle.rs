@@ -1,5 +1,5 @@
 use crate::{
-    config::{Config, IVerge},
+    config::{Config, IVerge, PrfItem},
     core::{CoreManager, core_updater, manager::RunningMode},
     enhance,
     utils::{
@@ -228,11 +228,17 @@ async fn settings_section(out: &mut std::string::String) {
         data.managed_core_channel.as_deref().unwrap_or("—")
     );
     let _ = writeln!(out, "- TUN: {}", yes_no(data.enable_tun_mode.unwrap_or(false)));
+    let (connect_sys, connect_tun) = {
+        let profiles = Config::profiles().await.latest_arc();
+        let current = profiles.current.as_ref().and_then(|uid| profiles.get_item(uid).ok());
+        let no_profile = PrfItem::default();
+        crate::feat::connect_targets(&data, current.unwrap_or(&no_profile))
+    };
     let _ = writeln!(
         out,
         "- Connect дёргает: системный прокси {}, TUN {}",
-        yes_no(data.connect_system_proxy.unwrap_or(true)),
-        yes_no(data.connect_tun_mode.unwrap_or(false))
+        yes_no(connect_sys),
+        yes_no(connect_tun)
     );
     let _ = writeln!(
         out,

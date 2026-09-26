@@ -799,12 +799,6 @@ impl CoreManager {
         gone
     }
 
-    /// Служба всегда запускает встроенное ядро, управляемое под ней не действует.
-    async fn note_service_core_started(&self) {
-        let core = Config::verge().await.latest_arc().get_valid_clash_core();
-        crate::core::core_updater::note_started_core(core.to_string(), None);
-    }
-
     pub(super) async fn start_core_by_service(&self) -> Result<()> {
         self.refuse_to_double_the_core()?;
         logging!(info, Type::Core, "Starting core in service mode");
@@ -812,6 +806,9 @@ impl CoreManager {
         let service_ipc = dirs::service_ipc_path()?;
         point_core_client_at(dirs::path_to_str(&service_ipc)?);
 
+        // Служба всегда запускает встроенное ядро, управляемое под ней не
+        // действует. Имя читается до старта — тем же, что уйдёт службе.
+        let started_core = Config::verge().await.latest_arc().get_valid_clash_core().to_string();
         let config_file = Config::generate_file(crate::config::ConfigType::Run).await?;
 
         #[cfg(target_os = "windows")]
@@ -820,7 +817,7 @@ impl CoreManager {
             for attempt in 0..timing::SERVICE_START_RETRIES {
                 match service::run_core_by_service(&config_file).await {
                     Ok(()) => {
-                        self.note_service_core_started().await;
+                        crate::core::core_updater::note_started_core(started_core.clone(), None);
                         self.note_core_is_up(Backend::Service);
                         spawn_core_health_watchdog(CoreWatch::Service(HealthWatch::default()));
                         return Ok(());
@@ -848,7 +845,7 @@ impl CoreManager {
         #[cfg(not(target_os = "windows"))]
         {
             service::run_core_by_service(&config_file).await?;
-            self.note_service_core_started().await;
+            crate::core::core_updater::note_started_core(started_core, None);
             self.note_core_is_up(Backend::Service);
             spawn_core_health_watchdog(CoreWatch::Service(HealthWatch::default()));
             Ok(())

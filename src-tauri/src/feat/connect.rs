@@ -27,7 +27,7 @@ fn provider_targets(mode: &str) -> Option<(bool, bool)> {
 ///
 /// Зеркало `useConnectTargets` на фронте, включая последнее правило: способ
 /// не может быть пустым, системный прокси возвращается сам.
-fn connect_targets(verge: &IVerge, item: &PrfItem) -> (bool, bool) {
+pub(crate) fn connect_targets(verge: &IVerge, item: &PrfItem) -> (bool, bool) {
     let locked = item.lock_mode.unwrap_or(false);
     let provider = item.connect_mode.as_deref().and_then(provider_targets);
     let from_provider = |pick: fn((bool, bool)) -> bool| {
