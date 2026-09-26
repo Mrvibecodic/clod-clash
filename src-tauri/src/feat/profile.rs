@@ -569,15 +569,41 @@ fn settle_after_a_successful_update(uid: &String) {
     });
 }
 
+/// Кто запустил обновление подписки — от этого зависит, кому и как сообщать о провале.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UpdateTrigger {
+    /// Человек, кнопкой: ошибка вернётся ответом команды, тост не нужен.
+    Manual,
+    /// Расписание: о провале говорит тост (только у текущей подписки).
+    Scheduled,
+    /// Повтор по расписанию после провала (загрузка после истечения срока идёт
+    /// с бэкоффом без сдачи): о первом провале серии уже сказано, об остальных —
+    /// только в журнал, иначе тосты шли бы вечно раз в 5 ч.
+    ScheduledRetry,
+}
+
+impl UpdateTrigger {
+    const fn is_manual(self) -> bool {
+        matches!(self, Self::Manual)
+    }
+
+    const fn announces_failure(self) -> bool {
+        matches!(self, Self::Scheduled)
+    }
+}
+
 /// Отдать ядру обновлённый профиль и разобраться с тем, что оно ответило.
 async fn apply_the_updated_profile(
     uid: &String,
     snapshot: Option<crate::config::profiles::ProfileSnapshot>,
-    is_mannual_trigger: bool,
+    trigger: UpdateTrigger,
 ) -> Result<()> {
-    match CoreManager::global().update_config_with_force(is_mannual_trigger).await {
+    match CoreManager::global()
+        .update_config_with_force(trigger.is_manual())
+        .await
+    {
         Ok(outcome) if outcome.is_valid() => settle_after_a_successful_update(uid),
-        Ok(outcome @ (ValidationOutcome::Skipped { .. } | ValidationOutcome::Busy)) if !is_mannual_trigger => {
+        Ok(outcome @ (ValidationOutcome::Skipped { .. } | ValidationOutcome::Busy)) if !trigger.is_manual() => {
             logging!(
                 info,
                 Type::Config,
@@ -611,7 +637,7 @@ async fn apply_the_updated_profile(
                 "[Обновление подписки] Обновление не удалось: {}",
                 message
             );
-            if !is_mannual_trigger {
+            if trigger.announces_failure() {
                 announce_the_failure(uid, status, &message).await;
             }
             bail!(message);
@@ -626,7 +652,7 @@ pub async fn update_profile(
     option: Option<&PrfOption>,
     auto_refresh: bool,
     ignore_auto_update: bool,
-    is_mannual_trigger: bool,
+    trigger: UpdateTrigger,
 ) -> Result<()> {
     logging!(
         info,
@@ -639,7 +665,7 @@ pub async fn update_profile(
         Err(err) => {
             mark_the_update(uid, true).await;
             // Ручной вызов покажет ошибку сам — она вернётся ответом команды.
-            if !is_mannual_trigger {
+            if trigger.announces_failure() {
                 announce_the_failure(uid, "update_failed", &err.to_string()).await;
             }
             return Err(err);
@@ -683,7 +709,7 @@ pub async fn update_profile(
                     // уедет наверх и вернётся в интерфейс ответом команды; а вот
                     // автообновление до этой правки не сообщало о провале никак:
                     // расписание только писало в журнал.
-                    if !is_mannual_trigger {
+                    if trigger.announces_failure() {
                         announce_the_failure(uid, "update_failed", &err.to_string()).await;
                     }
                     return Err(err);
@@ -695,7 +721,7 @@ pub async fn update_profile(
 
     if should_refresh {
         logging!(info, Type::Config, "[Обновление подписки] Обновляю конфиг ядра");
-        apply_the_updated_profile(uid, snapshot, is_mannual_trigger).await?;
+        apply_the_updated_profile(uid, snapshot, trigger).await?;
     }
 
     Ok(())

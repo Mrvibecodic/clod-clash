@@ -694,6 +694,10 @@ pub fn spawn_environment_watchdog() {
 
             if slept {
                 hold_the_tun_rearm(crate::feat::tun::desired().await);
+                // clod: очередь обновления подписок стоит на таймерах tokio, а те во
+                // сне не идут (Linux/macOS) — цели перевзводятся по настенным часам,
+                // иначе загрузка после истечения срока опоздала бы на всё время сна.
+                crate::core::Timer::global().rearm_after_wake();
             }
 
             let Some(view) = view else {

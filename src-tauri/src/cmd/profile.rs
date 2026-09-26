@@ -219,7 +219,15 @@ pub async fn create_profile(item: PrfItem, file_data: Option<String>) -> CmdResu
 pub async fn update_profile(index: String, option: Option<PrfOption>) -> CmdResult {
     // clod:provider-links — `Box::pin`: карточка профиля подросла на ссылки
     // провайдера, и клиппи справедливо не хочет держать такой future на стеке.
-    match Box::pin(feat::update_profile(&index, option.as_ref(), true, true, true)).await {
+    match Box::pin(feat::update_profile(
+        &index,
+        option.as_ref(),
+        true,
+        true,
+        feat::UpdateTrigger::Manual,
+    ))
+    .await
+    {
         Ok(_) => Ok(()),
         Err(e) => {
             logging!(error, Type::Cmd, "{}", e);

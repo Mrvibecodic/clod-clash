@@ -255,7 +255,12 @@ editing an existing subscription it is open from the start, because that is what
 for. Your own name is stored apart from the panel's: an update never overwrites it, and it is shown
 everywhere as "Yours (panel's)". An interval the panel sends in `profile-update-interval` is taken
 from every answer and cannot be edited in the properties; one you set by hand is left alone by the
-panel. Changing the subscription address on the card resets nothing — spare addresses and the
+panel. The expiry from `subscription-userinfo` is also a moment for an extra update: a minute and a
+half after it the subscription is fetched again (the panel marks the user expired by a cron job, not
+at the exact second), so the panel's placeholders instead of servers, or a renewal, show up at once
+rather than with the next period; it is a single fetch, not polling, so it happens for
+subscriptions without an update interval too (an unticked "Allow auto-update" forbids it), and one
+missed while the app was closed happens at the next start. Changing the subscription address on the card resets nothing — spare addresses and the
 chosen mode stay. A second step shows what the link resolved to, so it is clear the right
 subscription was added. Errors stay in the window next to the field instead of flying off as a
 toast, and nothing typed is lost.
