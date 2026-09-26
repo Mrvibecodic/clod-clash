@@ -362,11 +362,11 @@
       }
     },
     "clashCore": {
-      "upgradeHint": "Without the service, updating downloads a fresh core and switches to the managed core.",
+      "upgradeHint": "The core upgrades itself: it fetches its latest build from its own source (Mihomo from MetaCubeX, Clod Core from the clod-core releases) and replaces its file in the program folder. On Windows only while the core runs through the service.",
       "managedActiveNote": "The managed core is enabled: once it is downloaded and the core does not run through the service, the choice here has no effect.",
       "variants": {
-        "release": "Release Version",
-        "alpha": "Alpha Version"
+        "release": "MetaCubeX, unpatched",
+        "alpha": "Ours, with patches"
       }
     },
     "liteMode": {

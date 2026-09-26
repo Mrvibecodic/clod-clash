@@ -362,11 +362,11 @@
       }
     },
     "clashCore": {
-      "upgradeHint": "サービスなしの場合、更新は新しいコアをダウンロードして管理コアに切り替えます。",
+      "upgradeHint": "The core upgrades itself: it fetches its latest build from its own source (Mihomo from MetaCubeX, Clod Core from the clod-core releases) and replaces its file in the program folder. On Windows only while the core runs through the service.",
       "managedActiveNote": "管理コアが有効です。ダウンロード済みでコアがサービス経由で動作していない場合、ここでの選択は反映されません。",
       "variants": {
-        "release": "正式版",
-        "alpha": "アルファ版"
+        "release": "MetaCubeX, unpatched",
+        "alpha": "Ours, with patches"
       }
     },
     "liteMode": {

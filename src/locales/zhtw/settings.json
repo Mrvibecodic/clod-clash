@@ -362,11 +362,11 @@
       }
     },
     "clashCore": {
-      "upgradeHint": "未安裝服務時，更新會下載新核心並切換到託管核心。",
+      "upgradeHint": "The core upgrades itself: it fetches its latest build from its own source (Mihomo from MetaCubeX, Clod Core from the clod-core releases) and replaces its file in the program folder. On Windows only while the core runs through the service.",
       "managedActiveNote": "已啟用託管核心：已下載且核心未透過服務執行時，此處的選擇不生效。",
       "variants": {
-        "release": "正式版",
-        "alpha": "預覽版"
+        "release": "MetaCubeX, unpatched",
+        "alpha": "Ours, with patches"
       }
     },
     "liteMode": {

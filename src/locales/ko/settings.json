@@ -362,11 +362,11 @@
       }
     },
     "clashCore": {
-      "upgradeHint": "서비스 없이 업데이트하면 새 코어를 내려받고 관리 코어로 전환합니다.",
+      "upgradeHint": "The core upgrades itself: it fetches its latest build from its own source (Mihomo from MetaCubeX, Clod Core from the clod-core releases) and replaces its file in the program folder. On Windows only while the core runs through the service.",
       "managedActiveNote": "관리 코어가 켜져 있어, 내려받았고 코어가 서비스를 거치지 않고 실행되면 여기서의 선택은 적용되지 않습니다.",
       "variants": {
-        "release": "안정 버전",
-        "alpha": "알파 버전"
+        "release": "MetaCubeX, unpatched",
+        "alpha": "Ours, with patches"
       }
     },
     "liteMode": {

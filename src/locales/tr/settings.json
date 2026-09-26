@@ -362,11 +362,11 @@
       }
     },
     "clashCore": {
-      "upgradeHint": "Hizmet olmadan güncelleme yeni bir çekirdek indirir ve yönetilen çekirdeğe geçer.",
+      "upgradeHint": "The core upgrades itself: it fetches its latest build from its own source (Mihomo from MetaCubeX, Clod Core from the clod-core releases) and replaces its file in the program folder. On Windows only while the core runs through the service.",
       "managedActiveNote": "Yönetilen çekirdek etkin: indirildiğinde ve çekirdek hizmet üzerinden çalışmadığında buradaki seçim etkisizdir.",
       "variants": {
-        "release": "Kararlı Sürüm",
-        "alpha": "Alfa Sürümü"
+        "release": "MetaCubeX, unpatched",
+        "alpha": "Ours, with patches"
       }
     },
     "liteMode": {

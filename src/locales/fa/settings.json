@@ -362,11 +362,11 @@
       }
     },
     "clashCore": {
-      "upgradeHint": "بدون سرویس، به‌روزرسانی یک هستهٔ تازه دانلود می‌کند و به هستهٔ مدیریت‌شده می‌رود.",
+      "upgradeHint": "The core upgrades itself: it fetches its latest build from its own source (Mihomo from MetaCubeX, Clod Core from the clod-core releases) and replaces its file in the program folder. On Windows only while the core runs through the service.",
       "managedActiveNote": "هستهٔ مدیریت‌شده روشن است: وقتی دانلود شده و هسته از طریق سرویس اجرا نمی‌شود، انتخاب اینجا اثری ندارد.",
       "variants": {
-        "release": "نسخه نهایی",
-        "alpha": "نسخه آلفا"
+        "release": "MetaCubeX, unpatched",
+        "alpha": "Ours, with patches"
       }
     },
     "liteMode": {

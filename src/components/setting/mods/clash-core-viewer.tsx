@@ -23,14 +23,17 @@ import { useClash, useClashInfo } from '@/hooks/use-clash'
 import { useVerge } from '@/hooks/use-verge'
 import {
   changeClashCore,
-  checkCoreUpdate,
-  downloadAndApplyCore,
   getCoreUpdaterStatus,
   repinCoreBinaries,
   restartCore,
 } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
+import getSystem from '@/utils/get-system'
 
+// Оба ядра лежат в установщике и работают и через службу, и своим процессом.
+// verge-mihomo — стоковый MetaCubeX (по умолчанию), verge-mihomo-alpha — Clod
+// Core (наш форк mihomo с патчами); имена файлов исторические, служба знает
+// только их.
 const VALID_CORE = [
   {
     name: 'Mihomo',
@@ -38,7 +41,7 @@ const VALID_CORE = [
     chipKey: 'settings.modals.clashCore.variants.release',
   },
   {
-    name: 'Mihomo Alpha',
+    name: 'Clod Core',
     core: 'verge-mihomo-alpha',
     chipKey: 'settings.modals.clashCore.variants.alpha',
   },
@@ -97,7 +100,20 @@ export function ClashCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
     }
   })
 
-  const upgradeThroughService = async () => {
+  // Ядро обновляет себя само (/upgrade): каждое из двух ходит на свой
+  // источник — Clod Core на релизы clod-core, Mihomo на MetaCubeX — и
+  // подменяет свой файл в папке программы. На Windows только под службой:
+  // своим процессом ядро после подмены перезапускает себя дочерним процессом,
+  // приложение видит выход и поднимает второе ядро на том же порту (на
+  // macOS/Linux ядро делает exec — процесс и PID те же). Управляемый
+  // обновитель здесь не участвует: он подставил бы стоковое ядро из папки
+  // пользователя поверх выбранного.
+  const upgradeThroughCore = async () => {
+    const status = await getCoreUpdaterStatus()
+    if (!status.service_mode && getSystem() === 'windows') {
+      showNotice.info('settings.modals.clashCore.upgradeHint')
+      return null
+    }
     try {
       await upgradeCore()
     } catch (err) {
@@ -110,23 +126,12 @@ export function ClashCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
     return true
   }
 
-  const upgradeThroughManagedUpdater = async () => {
-    const check = await checkCoreUpdate()
-    if (!check.update_available) {
-      return false
-    }
-    await downloadAndApplyCore()
-    return true
-  }
-
   const onUpgrade = useLockFn(async () => {
     try {
       setUpgrading(true)
-      const status = await getCoreUpdaterStatus()
-      const updated = status.service_mode
-        ? await upgradeThroughService()
-        : await upgradeThroughManagedUpdater()
+      const updated = await upgradeThroughCore()
       setUpgrading(false)
+      if (updated === null) return
       mutateVersion()
       if (!updated) {
         showNotice.info(
@@ -198,7 +203,7 @@ export function ClashCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
             onClick={() => onCoreChange(each.core)}
             disabled={changingCore !== null || restarting || upgrading}
           >
-            <ListItemText primary={each.name} secondary={`/${each.core}`} />
+            <ListItemText primary={each.name} />
             {changingCore === each.core ? (
               <CircularProgress size={20} sx={{ mr: 1 }} />
             ) : (

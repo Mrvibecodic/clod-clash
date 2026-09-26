@@ -362,11 +362,11 @@
       }
     },
     "clashCore": {
-      "upgradeHint": "Ohne Dienst lädt die Aktualisierung einen frischen Kern herunter und schaltet auf den verwalteten Kern um.",
+      "upgradeHint": "The core upgrades itself: it fetches its latest build from its own source (Mihomo from MetaCubeX, Clod Core from the clod-core releases) and replaces its file in the program folder. On Windows only while the core runs through the service.",
       "managedActiveNote": "Der verwaltete Kern ist aktiviert: Sobald er heruntergeladen ist und der Kern nicht über den Dienst läuft, wirkt die Auswahl hier nicht.",
       "variants": {
-        "release": "Stabile Version",
-        "alpha": "Alpha-Version"
+        "release": "MetaCubeX, unpatched",
+        "alpha": "Ours, with patches"
       }
     },
     "liteMode": {

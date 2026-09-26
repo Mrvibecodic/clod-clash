@@ -4,7 +4,9 @@
 
 <p align="center">
   Десктопный клиент для подписок Remnawave на ядре
-  <a href="https://github.com/MetaCubeX/mihomo">Mihomo</a>.
+  <a href="https://github.com/MetaCubeX/mihomo">Mihomo</a>; вторым ядром встроен
+  <a href="https://github.com/Mrvibecodic/clod-core">Clod Core</a> — наш форк
+  Mihomo с патчами, включается в настройках.
   <br>
   Форк <a href="https://github.com/clash-verge-rev/clash-verge-rev">Clash Verge Rev</a>.
 </p>

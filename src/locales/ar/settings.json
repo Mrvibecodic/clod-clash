@@ -362,11 +362,11 @@
       }
     },
     "clashCore": {
-      "upgradeHint": "من دون الخدمة، يُنزّل التحديث نواة جديدة ويتحول إلى النواة المُدارة.",
+      "upgradeHint": "The core upgrades itself: it fetches its latest build from its own source (Mihomo from MetaCubeX, Clod Core from the clod-core releases) and replaces its file in the program folder. On Windows only while the core runs through the service.",
       "managedActiveNote": "النواة المُدارة مفعلة: عند تنزيلها وعدم تشغيل النواة عبر الخدمة لا أثر للاختيار هنا.",
       "variants": {
-        "release": "الإصدار المستقر",
-        "alpha": "الإصدار التجريبي"
+        "release": "MetaCubeX, unpatched",
+        "alpha": "Ours, with patches"
       }
     },
     "liteMode": {

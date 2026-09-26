@@ -362,11 +362,11 @@
       }
     },
     "clashCore": {
-      "upgradeHint": "未安装服务时，更新会下载新内核并切换到托管内核。",
+      "upgradeHint": "The core upgrades itself: it fetches its latest build from its own source (Mihomo from MetaCubeX, Clod Core from the clod-core releases) and replaces its file in the program folder. On Windows only while the core runs through the service.",
       "managedActiveNote": "已启用托管内核：已下载且内核未通过服务运行时，此处的选择不生效。",
       "variants": {
-        "release": "正式版",
-        "alpha": "预览版"
+        "release": "MetaCubeX, unpatched",
+        "alpha": "Ours, with patches"
       }
     },
     "liteMode": {

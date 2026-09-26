@@ -167,30 +167,29 @@ async function updateHashCache(targetPath) {
 }
 
 // =======================
-// Meta maps (stable & alpha)
+// Core maps: verge-mihomo = стоковый MetaCubeX (последний стабильный, по
+// умолчанию), verge-mihomo-alpha = Clod Core (наш форк с патчами, релизы
+// Mrvibecodic/clod-core; имя файла историческое). Оба лежат в установщике,
+// служба знает оба; переключение — в окне «Ядро Clash».
 // =======================
-const META_ALPHA_VERSION_URL =
-  'https://github.com/MetaCubeX/mihomo/releases/download/Prerelease-Alpha/version.txt'
-const META_ALPHA_URL_PREFIX = `https://github.com/MetaCubeX/mihomo/releases/download/Prerelease-Alpha`
-let META_ALPHA_VERSION
+const CLOD_URL_PREFIX =
+  'https://github.com/Mrvibecodic/clod-core/releases/latest/download'
+const CLOD_VERSION_URL = `${CLOD_URL_PREFIX}/version.txt`
+let CLOD_VERSION
 
 const META_VERSION_URL =
   'https://github.com/MetaCubeX/mihomo/releases/latest/download/version.txt'
 const META_URL_PREFIX = `https://github.com/MetaCubeX/mihomo/releases/download`
 let META_VERSION
 
-const META_ALPHA_MAP = {
-  'win32-x64': 'mihomo-windows-amd64-v2',
-  'win32-ia32': 'mihomo-windows-386',
+// Имена как в CI clod-core: amd64 без уровня GOAMD64 (все сборки — v1)
+const CLOD_MAP = {
+  'win32-x64': 'mihomo-windows-amd64',
   'win32-arm64': 'mihomo-windows-arm64',
-  'darwin-x64': 'mihomo-darwin-amd64-v1-go122',
-  'darwin-arm64': 'mihomo-darwin-arm64-go122',
-  'linux-x64': 'mihomo-linux-amd64-v2',
-  'linux-ia32': 'mihomo-linux-386',
+  'darwin-x64': 'mihomo-darwin-amd64',
+  'darwin-arm64': 'mihomo-darwin-arm64',
+  'linux-x64': 'mihomo-linux-amd64',
   'linux-arm64': 'mihomo-linux-arm64',
-  'linux-arm': 'mihomo-linux-armv7',
-  'linux-riscv64': 'mihomo-linux-riscv64',
-  'linux-loong64': 'mihomo-linux-loong64',
 }
 
 const META_MAP = {
@@ -210,11 +209,11 @@ const META_MAP = {
 // =======================
 // Fetch latest versions
 // =======================
-async function getLatestAlphaVersion() {
+async function getLatestClodVersion() {
   if (!FORCE) {
-    const cached = await getCachedVersion('META_ALPHA_VERSION')
+    const cached = await getCachedVersion('CLOD_VERSION')
     if (cached) {
-      META_ALPHA_VERSION = cached
+      CLOD_VERSION = cached
       return
     }
   }
@@ -227,19 +226,17 @@ async function getLatestAlphaVersion() {
   if (httpProxy) options.agent = new HttpsProxyAgent(httpProxy)
 
   try {
-    const response = await fetch(META_ALPHA_VERSION_URL, {
+    const response = await fetch(CLOD_VERSION_URL, {
       ...options,
       method: 'GET',
     })
     if (!response.ok)
-      throw new Error(
-        `Failed to fetch ${META_ALPHA_VERSION_URL}: ${response.status}`,
-      )
-    META_ALPHA_VERSION = (await response.text()).trim()
-    log_info(`Latest alpha version: ${META_ALPHA_VERSION}`)
-    await setCachedVersion('META_ALPHA_VERSION', META_ALPHA_VERSION)
+      throw new Error(`Failed to fetch ${CLOD_VERSION_URL}: ${response.status}`)
+    CLOD_VERSION = (await response.text()).trim()
+    log_info(`Latest Clod Core version: ${CLOD_VERSION}`)
+    await setCachedVersion('CLOD_VERSION', CLOD_VERSION)
   } catch (err) {
-    log_error('Error fetching latest alpha version:', err.message)
+    log_error('Error fetching latest Clod Core version:', err.message)
     process.exit(1)
   }
 }
@@ -282,23 +279,23 @@ async function getLatestReleaseVersion() {
 if (!META_MAP[`${platform}-${arch}`]) {
   throw new Error(`clash meta unsupported platform "${platform}-${arch}"`)
 }
-if (!META_ALPHA_MAP[`${platform}-${arch}`]) {
-  throw new Error(`clash meta alpha unsupported platform "${platform}-${arch}"`)
+if (!CLOD_MAP[`${platform}-${arch}`]) {
+  throw new Error(`Clod Core unsupported platform "${platform}-${arch}"`)
 }
 
 // =======================
 // Build meta objects
 // =======================
-function clashMetaAlpha() {
-  const name = META_ALPHA_MAP[`${platform}-${arch}`]
+function clodCore() {
+  const name = CLOD_MAP[`${platform}-${arch}`]
   const isWin = platform === 'win32'
   const urlExt = isWin ? 'zip' : 'gz'
   return {
     name: 'verge-mihomo-alpha',
     targetFile: `verge-mihomo-alpha-${SIDECAR_HOST}${isWin ? '.exe' : ''}`,
     exeFile: `${name}${isWin ? '.exe' : ''}`,
-    zipFile: `${name}-${META_ALPHA_VERSION}.${urlExt}`,
-    downloadURL: `${META_ALPHA_URL_PREFIX}/${name}-${META_ALPHA_VERSION}.${urlExt}`,
+    zipFile: `${name}-${CLOD_VERSION}.${urlExt}`,
+    downloadURL: `${CLOD_URL_PREFIX}/${name}-${CLOD_VERSION}.${urlExt}`,
   }
 }
 
@@ -418,8 +415,17 @@ async function resolveSidecar(binInfo) {
   const sidecarPath = path.join(SIDECAR_DIR, targetFile)
   await fsp.mkdir(SIDECAR_DIR, { recursive: true })
 
-  if (!FORCE && fs.existsSync(sidecarPath)) {
-    log_success(`"${name}" already exists, skipping download`)
+  // Рядом с бинарём лежит имя архива, из которого он распакован: слоты
+  // меняли содержимое (verge-mihomo-alpha стал Clod Core), и один «файл есть»
+  // оставил бы у разработчика прежнее ядро до ручного --force
+  const sourceMark = `${sidecarPath}.src`
+  if (
+    !FORCE &&
+    fs.existsSync(sidecarPath) &&
+    fs.existsSync(sourceMark) &&
+    fs.readFileSync(sourceMark, 'utf-8').trim() === zipFile
+  ) {
+    log_success(`"${name}" already unpacked from ${zipFile}, skipping download`)
     return
   }
 
@@ -499,8 +505,10 @@ async function resolveSidecar(binInfo) {
       })
       log_success(`gz binary processed: "${name}"`)
     }
+    await fsp.writeFile(sourceMark, zipFile)
   } catch (err) {
     await fsp.rm(sidecarPath, { recursive: true, force: true })
+    await fsp.rm(sourceMark, { force: true })
     throw err
   } finally {
     await fsp.rm(tempDir, { recursive: true, force: true })
@@ -781,15 +789,14 @@ const resolveUnSetDnsScript = () =>
 // =======================
 const tasks = [
   {
-    name: 'verge-mihomo-alpha',
-    func: () =>
-      getLatestAlphaVersion().then(() => resolveSidecar(clashMetaAlpha())),
-    retry: 5,
-  },
-  {
     name: 'verge-mihomo',
     func: () =>
       getLatestReleaseVersion().then(() => resolveSidecar(clashMeta())),
+    retry: 5,
+  },
+  {
+    name: 'verge-mihomo-alpha',
+    func: () => getLatestClodVersion().then(() => resolveSidecar(clodCore())),
     retry: 5,
   },
   { name: 'plugin', func: resolvePlugin, retry: 5, winOnly: true },
