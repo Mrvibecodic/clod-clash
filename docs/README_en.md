@@ -3,8 +3,10 @@
 </h1>
 
 <p align="center">
-  A desktop client for Remnawave subscriptions, powered by the
-  <a href="https://github.com/MetaCubeX/mihomo">Mihomo</a> core.
+  A client for Remnawave subscriptions on Windows, macOS and Linux.
+  <br>
+  The core is <a href="https://github.com/MetaCubeX/mihomo">Mihomo</a>; the second built-in core is
+  <a href="https://github.com/Mrvibecodic/clod-core">Clod Core</a>, our patched fork of Mihomo.
   <br>
   A fork of <a href="https://github.com/clash-verge-rev/clash-verge-rev">Clash Verge Rev</a>.
 </p>
@@ -40,396 +42,114 @@
 
 ## What this is
 
-Clod Clash is Clash Verge Rev turned into a client for a panel's customers: the user
-pastes a subscription link and presses one button. Everything the panel wants to tell the
-client — plan name, logo, announcement, links to the customer portal and support, the
-device limit, a change of subscription address — is understood and shown.
+Paste a subscription link, press one button, and the computer is connected. Whatever the panel
+says about the subscription (plan, expiry, traffic, logo, announcements, links to the account
+page and support) is shown on the home screen.
 
-The Mihomo core is never modified: the official binary and its regular REST/IPC interface
-are used. The main part of Clash Verge Rev's technical surface (rules, connections, logs, config
-editors) is kept — it is simply moved out of sight into an advanced mode.
-
-> User and provider documentation (Russian):
-> **[mrvibecodic.github.io/clod-clash](https://mrvibecodic.github.io/clod-clash/)**.
-> Panel setup guide: [REMNAWAVE.md](./REMNAWAVE.md) (Russian).
+The technical side of Clash Verge Rev — rules, connections, logs, config editors — is still
+there: it lives in the advanced mode and the advanced settings.
 
 <p align="center">
   <img src="../website/public/screenshots/01-home-simple.png" alt="Simple mode" width="260">
-  <img src="../website/public/screenshots/03-servers.png" alt="Server picker" width="260">
+  <img src="../website/public/screenshots/03-servers.png" alt="Server selection" width="260">
   <img src="../website/public/screenshots/07-home-dark.png" alt="Dark theme" width="260">
 </p>
 
-<p align="center">
-  <img src="../website/public/screenshots/04-home-advanced.png" alt="Advanced mode" width="800">
-</p>
+## Features
 
-## What Clod Clash gives you
-
-* **Every Remnawave and Happ response header** plus synonyms for compatibility with other clients
-  and our own `clod-*`; on the request the client sends six of its own. Through the response
-  headers the panel passes the plan name, logo, announcement, promo banner, customer portal,
-  support, bot and guide links, theming, interface mode and ping colour thresholds. The full list is in [HEADERS_en.md](./HEADERS_en.md).
-* **Device identity** (`x-hwid`) with a device limit the user can actually understand.
-* **A spare subscription address** (`fallback-url`, `fallback-domain`) and **a provider-driven
-  address change** (`new-url`, `new-domain`) — the new address is adopted only after a successful
-  probe download.
-* **The subscription is fetched through the tunnel** when the direct route fails: directly first,
-  then through the app's own core, then through the system proxy — when adding through the window
-  as well as on refresh (a deep-link import goes direct only).
-* **Adding a subscription takes one field**: the link; everything else is folded away, and what the
-  link resolved to is shown afterwards. Subscriptions can carry group labels.
-* **The state of a subscription reads at a glance**: the active one is filled with the accent
-  colour, an expiring one is marked amber, an expired one is dimmed and marked red, and exhausted
-  traffic is its own state.
-* **An empty answer from the panel is explained in words.** With nothing to serve, Remnawave
-  replies with a config full of `0.0.0.0` decoys rather than an error. The client recognises them
-  structurally, not by name, and shows the reason — subscription expired, traffic exhausted, device
-  limit reached, or the provider served no servers — quoting the panel's own words. A provider can
-  take the explaining back with the `clod-show-0hosts` header, and then its nodes are shown as they are.
-* **Unmetered traffic and no expiry** are spelled out instead of showing "0 B" and a dash.
-* **The expiry is counted on the panel's clock**, not only on the device's: the difference is
-  read from the ordinary `Date` header on every subscription refresh, so a machine whose
-  clock is off does not get a wrong countdown or wrong reminders — and it works offline. The
-  last day is counted in hours.
-* **Traffic used between subscription refreshes** is counted locally and marked as an estimate; how
-  often the core is polled follows the subscription's own refresh interval.
-* **TUN sets itself up**: on Windows the app installer registers the helper service, so there is no
-  separate elevation prompt on install or on update, and on Linux the `.deb`/`.rpm` package does;
-  the user's choice is never erased, and a failed
-  start is visible on screen, not only in the log.
-* **A simple interface mode** — a single Connect button on the home screen; all of Clash Verge
-  Rev's technical side stays in the advanced one (the "Advanced mode" switch in Settings →
-  General). The settings screen is the same in both modes and short too: "System Setting" (TUN,
-  system proxy, connect on launch, start with the system, start in the tray), the provider's links
-  and a folded "General" block — language, theme, advanced mode, fitting the window to its
-  content, device identification, the support report, the version and pre-release builds. The rest is not taken away but tucked under
-  "Advanced settings" — a collapsible block of four groups ("Appearance and behaviour", "Clash
-  Setting", "Tools", "Maintenance") holding the core, the network, appearance, diagnostics and the
-  entrances to the technical screens.
-* **Pre-release builds are a choice.** Settings → General has a "Pre-release builds" switch: with
-  it on, alpha and beta versions arrive as well; with it off, only stable releases. It is off on a
-  fresh install; installs that predate the change keep their previous value.
-* **Quick actions on the advanced home screen**: system proxy, TUN, connect on launch, start with
-  the system and start in the tray, without opening the settings. When the provider set the
-  connection method, the first two switches give way to a line saying so.
-* **Server selection is not reset** by delay tests or subscription updates; starred servers float
-  to the top and replace one that disappeared. Picking a server on the home screen does not cut
-  live connections: a download already in flight finishes through the previous server, new ones go
-  through the chosen one. The Proxies page and the tray menu do close the connections of the
-  previous node, for those who need the switch to be immediate; the shared "Auto Close Connections"
-  switch (Settings → Advanced settings → Appearance and behaviour → "Miscellaneous") turns that off
-  on both of those paths. Those who want the home screen to cut the previous node's connections too
-  turn on the "Close connections on Home server switch" switch in the same dialog (off by default,
-  and it only works while "Auto Close Connections" is on).
-* **Ping colours** — green, amber and red with the boundaries at 200 and 400 ms; a provider sets
-  its own boundaries with the `clod-ping` header, and they apply on the home screen and on the
-  Proxies page.
-* **The client says what is wrong instead of staying silent behind a green icon.** A core that
-  started but does not answer; a proxy port held by another application; a core that crashed and
-  was restarted; a subscription update that failed or a configuration the core rejected; a
-  configuration the background service cannot take — each shows a notification with the cause
-  and, where possible, the action.
-* **The client does not decide for you.** Settings are not rewritten with its own values, someone
-  else's system proxy is left alone, nothing is written while the proxy switch is off, and an empty
-  node group yields `REJECT` rather than letting traffic bypass the tunnel.
-* **Connections are not dropped without a reason.** The core's listeners are recreated only when
-  ports, the tunnel or LAN access change; on a network change connections are closed only when the
-  old path is really gone; sleep is noticed on every platform, Windows included, and after waking
-  stale connections are closed once, with the sleep duration written to the log.
-* **A failed subscription update does not take the working profile away.** A configuration the
-  core rejected, or one that cannot be assembled for the background service, is rolled back, the
-  card is marked "not applied", and the reason is shown in words. The exception is a device
-  refusal from the panel: then the previous servers are removed on purpose (names and rules stay,
-  addresses and keys are wiped), otherwise the device limit would not apply on this machine.
-* **The provider's own words about each server** — the panel puts them in the subscription (a
-  host's Server description) and the client shows them under the name instead of the node type.
-  What to switch on in the panel is in [REMNAWAVE.md](REMNAWAVE.md).
-* **The Mihomo core updates separately from the app** — a managed core in the settings.
-
----
-
-## TUN mode
-
-TUN captures the traffic of every application, including those that ignore the system
-proxy. It needs a privileged helper — a background service. In Clash Verge Rev you install
-that service by hand from the settings, and until you do, the TUN switch is dead.
-
-Here the only thing the user touches is the switch itself:
-
-* **On Windows the app installer registers the service.** It already runs elevated, so
-  there is no extra prompt on install or on update: an update replaces the service binary
-  together with the app and starts it again, so the two never drift apart in version. Only
-  the **service** runs elevated: the app and its WebView stay unprivileged. On Linux the `.deb`/`.rpm`
-  package registers the service the same way.
-* **If the service is missing anyway, the app finishes the job** — but not blindly. It first
-  asks the system what it knows about the service and does the smallest thing that helps:
-  registered and coming up — just wait (on an autostart the service starts later than the
-  app); stopped — start it; answering but outdated — repair it; absent — install it. One
-  elevation prompt (UAC on Windows, an administrator password on macOS, `pkexec` on Linux).
-* **The service exists for TUN, so with TUN off it is left alone.** No privileged checks, no
-  installs: a switch that is off is no reason to show a system dialog.
-* **A refusal is respected, and the attempt is never repeated in a loop.** If the prompt is
-  dismissed, or the service stays silent after being installed, the app keeps running through
-  the system proxy and never asks on its own again — until the next version. What counts is
-  the fact, not the installer's word: on Windows it reports success even when the service was
-  already registered. The TUN switch still works: turning it on means "install the helper and
-  turn TUN on", because now the user is the one asking.
-* **The user's choice is never erased.** The app used to write `enable_tun_mode: false`
-  straight into the config at startup whenever the service had not answered yet — and on an
-  autostart it answers later than the app. Unavailability is now scoped to the running
-  session; the settings file is left alone.
-* **The core does not wait in silence.** If the service comes up slower than the app, the
-  core starts without it and moves over to the service as soon as it answers, without
-  dropping connections. This works on all three systems.
-* **Fact, not promise.** The core's output is parsed: when mihomo cannot bring the device up
-  (`Start TUN listening error: … operation not permitted`), TUN honestly turns off instead of
-  staying green over a dead tunnel. The tray icon and the tray checkmark say the same thing the
-  home screen does — the state of the tunnel, not the stored setting. A failed start gets three
-  attempts, then the tunnel is held down with a named reason; switching it off takes the device
-  down at once; after sleep a tunnel held down for lack of rights is not poked again — sleep does
-  not grant rights.
-* **The core is watched in both modes.** A core that dies on its own is restarted — up to three
-  times in a row — and that covers the core started by the system service too: every half a minute
-  the app asks the service whether the core process is alive and how many times it has been
-  brought back, and checks that the core answers. When the service restarted the core itself, the
-  app restores the server selection, the tray menu and the system proxy and reports the restart;
-  when the core went silent, the app restarts it. A start is confirmed by the core's answer, not by
-  the fact of the process launching: a core that came up and does not answer is stopped with a
-  message instead of staying green.
-* **A configuration the service cannot take does not break the start silently.** When a provider
-  path leads outside the config folder or two providers write to one file, the service refuses the
-  set: the core comes up without it, TUN is unavailable, and the screen says what to fix. After the
-  fix and a core restart the handoff to the service is done again.
-* **Checking the state repairs nothing.** That check can no longer install anything: when the
-  service on disk is older, the app says so once and offers to repair it in the settings. Repairs
-  come either from that button or from the single per-version pass described above, and only while
-  TUN is on. The check used to run on every core start — and on Windows a start is retried up to
-  five times — so the elevation prompt appeared a dozen times in a row.
-* **The `tun` section belongs to the app.** A provider profile (or a manual merge/script) can
-  neither switch TUN off nor switch it on: a snapshot is taken before manual overrides and restored
-  after, and a key that was not there does not appear.
-* **Three tunnel keys are handed out anyway.** `stack`, `strict-route` and `dns-hijack` are resolved
-  as a ladder — user's choice, then the subscription template, then the client's own default
-  (`gvisor`, `false`, `any:53`) — so a provider can change them from the template without a new
-  client release. **Auto** in the "Tun Mode" dialog is exactly "follow the subscription". What breaks
-  easily is listed in [REMNAWAVE.md](./REMNAWAVE.md#4-граница-ответственности-что-ваше-что-клиента);
-  the short version: on Windows the `system` and `mixed` stacks carry traffic only when the
-  firewall lets the core accept inbound connections. The installer adds such a rule for the
-  bundled core; when it is missing (a downloaded managed core, for instance) the home screen warns
-  about it and offers a "Fix" button. That is why on Windows the client takes only `gvisor`
-  from the template; `system` and `mixed` there are enabled only by the user's explicit choice in
-  the "Tun Mode" dialog.
-* **Only a core we have already seen gets started.** The service launches the binary at the path
-  the app names, and it does so with system privileges — so a swapped core file would run as
-  SYSTEM. The file's digest is recorded on first sight (for a downloaded core, at install time from
-  bytes that were already checksum-verified) and checked before every start: on a mismatch the core
-  does not start and the screen says why. An app update legitimately brings a different binary, so
-  the digests are taken again after it.
-* **The system DNS comes back even after a crash.** On macOS, while TUN runs in fake-ip mode, the
-  system DNS is overridden (the "Override system DNS" switch in System Setting, on by default); the
-  original value and the network service name are now written next to the configs, and if the
-  previous run never restored it (crash, kill, power cut), it is restored on the next start. The
-  override is also no longer repeated on every config rebuild.
-* **It is on the screen, not only in a toast.** While the service is being installed, a line
-  under the switches (under the Connect button in the simple mode) reads "Setting TUN up —
-  confirm the system prompt": it is visible behind the system dialog and explains who raised
-  it. If TUN failed to come up, the same line stays as "TUN did not start, traffic is going
-  around the tunnel" with a "Set up" button — a toast disappears, this does not.
-
----
-
-## The subscriptions screen
-
-**The subscription is fetched through the tunnel when the domain is blocked.** Every download —
-adding through the window and refresh alike — walks a ladder: directly first, then through the
-app's own core, then through the system proxy (a deep-link import goes direct only). When the
-provider's domain is blocked, the live channel to it is the tunnel already running on the previous
-nodes. A device refusal from the panel (the limit, or an id it requires) is final: it is retried
-neither through a proxy nor on the spare addresses — the address is reachable, the service is
-answering.
-
-**Adding takes one field.** The "Add subscription" button opens a window showing only the link your
-service gave you: the name, expiry, traffic and servers arrive with it. Name, group, description,
-refresh interval, User-Agent, timeout and the switches live in a folded "Advanced" block — when
-editing an existing subscription it is open from the start, because that is what people come there
-for. Your own name is stored apart from the panel's: an update never overwrites it, and it is shown
-everywhere as "Yours (panel's)". An interval the panel sends in `profile-update-interval` is taken
-from every answer and cannot be edited in the properties; one you set by hand is left alone by the
-panel. The expiry from `subscription-userinfo` is also a moment for an extra update: a minute and a
-half after it the subscription is fetched again (the panel marks the user expired by a cron job, not
-at the exact second), so the panel's placeholders instead of servers, or a renewal, show up at once
-rather than with the next period; it is a single fetch, not polling, so it happens for
-subscriptions without an update interval too (an unticked "Allow auto-update" forbids it), and one
-missed while the app was closed happens at the next start. Changing the subscription address on the card resets nothing — spare addresses and the
-chosen mode stay. A second step shows what the link resolved to, so it is clear the right
-subscription was added. Errors stay in the window next to the field instead of flying off as a
-toast, and nothing typed is lost.
-
-**State reads at a glance.** The active subscription is filled with the accent colour and labelled
-"Active", an expiring one (≤ 3 days left) gets an amber "Expiring" label, an expired one is dimmed,
-greyed out and labelled "Expired" in red, and traffic exhausted while the plan is still valid is its
-own state, "Out of traffic", with a red usage bar. The active
-subscription is never dimmed: even expired, it stays readable, because that is the one in use.
-
-**Groups.** A subscription can carry a group label (set in its properties, where a new group is also
-created), and a filter row with per-group counts appears above the grid. The group is purely visual —
-the core knows nothing about it. An empty group disappears by itself, and with no groups at all the
-row is not shown.
-
----
-
-## Subscription headers
-
-The full list of what the client sends and what it understands in the answer is in
-[HEADERS_en.md](./HEADERS_en.md), together with the parsing rules, the coloured words in
-announcements and the placeholder-node filter.
-
----
-
-## Configuring a Remnawave panel
-
-The full guide is **[REMNAWAVE.md](./REMNAWAVE.md)** (in Russian): the User-Agent rule,
-modifying the MIHOMO response template (routing rules, groups, the
-`# LEAVE THIS LINE!` marker, `remnawave:` keys), which template keys the client
-overwrites, and header setup. In short:
-
-**User-Agent rule.** Remnawave's default subscription-response rules do not know about this
-client. Add a rule matching `^ClodClash` (or `^clodclash` with `caseSensitive: false`) with the
-**MIHOMO** format, otherwise the panel serves its default response and the app reports "The panel
-returned a link list instead of a configuration — it did not recognise the client…".
-
-**Extra headers.** `announce`, `announce-url`, `profile-logo`, `support-url`,
-`new-url`, `fallback-url`, `notify-*`, our `clod-*` family (`clod-portal-url`, `clod-bot-url`,
-`clod-monitor-url`, `clod-guide-url`, `clod-announce`, `clod-promo`,
-`clod-promo-url`, `clod-simple-mode`, `clod-lock-mode`,
-`clod-connect-mode`,
-`clod-latency-style`, `clod-disable-ping`, `clod-ping`, `clod-show-0hosts`, `clod-theme`)
-and the rest that are not part of Remnawave's standard set are configured through
-`customResponseHeaders`. Values with non-ASCII text are safer to send as
-`base64:<payload>`; every link must be `https://`.
-
-**Device limit.** With the limit enabled the panel refuses to serve the subscription without
-`x-hwid`. The client sends it by default, and the id is stable across restarts and app
-updates, so a device is not registered twice. When the panel refuses the device, then after the
-subscription is added (through the window, from a link or a deep link) and after every update of
-it the app shows a window naming that subscription: for the limit — with a "Support" button (when
-the panel sent `support-url`), for identification turned off — offering to turn it back on.
-Several such windows are shown one after another.
-
-**Where the line is drawn.** `external-controller`, `secret`, the ports other than
-`mixed-port` and most of the `tun` section are overwritten by the app's own settings;
-`profile.store-selected` is forced to `true`, so the chosen server survives subscription
-updates. `mode`, `mixed-port`, `log-level` and `unified-delay` follow a ladder — the
-user's choice, then the template, then the client's default (`rule`, `7897`, `info`,
-`true`); the mode is chosen per subscription, and under `clod-lock-mode` the template's
-mode applies. `ipv6` comes from the template. Everything else — `dns`,
-`hosts`, `sniffer`, rules and groups included — is left entirely to the template, and
-`tun.stack`, `tun.strict-route` and `tun.dns-hijack` are yours until the user picks them
-himself. The full breakdown of what belongs to whom, and of what is easiest to get wrong
-(the TUN stack against the Windows firewall, `fake-ip-range`, local-network exclusions),
-lives in [REMNAWAVE.md, section 4](./REMNAWAVE.md#4-граница-ответственности-что-ваше-что-клиента).
-
----
+* **One button.** Simple mode by default: connect, server, traffic and expiry. The advanced mode
+  is switched on in Settings → General.
+* **System proxy or TUN.** TUN captures the traffic of every program. On Windows the installer
+  sets up the background service it needs, on Linux the package does, on macOS the app itself on
+  first use.
+* **The subscription loads even when the provider's domain is blocked.** Directly first, then
+  through the already running tunnel, then through the system proxy. Fallback addresses and a
+  move to a new subscription address are understood too.
+* **Clear states.** "Subscription expired", "Traffic used up", "Device limit reached", "The
+  provider sent no servers" — in words, not as an empty server list.
+* **Expiry by the panel's clock.** A wrong clock on the computer does not shift it. When the
+  subscription expires, it refreshes itself once to show a renewal or the expired state right away.
+* **The chosen server sticks** through latency tests, subscription updates and restarts.
+  Favourite servers sit at the top of the list.
+* **A failed update does not break the working profile.** A config the core rejects is not
+  applied; the previous one stays. The exception is a device-limit refusal from the panel: then
+  the previous servers are removed, otherwise the limit would not work.
+* **Device limit.** The device id is stable across updates; the machine id itself and the
+  computer name never leave the device. Sending it can be switched off.
+* **Support report** with one button — without subscription addresses, tokens or browsing history.
+* **Two cores.** Stock Mihomo from MetaCubeX (the default) and Clod Core, our patched fork.
+  Switched in Settings → Advanced settings → Clash Setting → "Clash Core".
+* **Updates itself.** The "Pre-release builds" box in Settings → General adds alpha and beta
+  versions; without it only stable releases arrive.
+* **Does not decide for the user.** The user's own settings beat the panel's hints; someone
+  else's system proxy is left alone; an empty server group rejects traffic instead of letting it
+  bypass the tunnel.
 
 ## Installation
 
-All builds are on the [download page](https://mrvibecodic.github.io/clod-clash/download).
+Every build is on the [download page](https://mrvibecodic.github.io/clod-clash/download).
 
-* **Windows x64** — an `.exe` installer: it installs the app, the background service for TUN and
-  a firewall rule for the core. There is also a portable archive; it does not update itself.
-* **macOS** (Apple Silicon and Intel) — a `.dmg`. The bundle is signed without an Apple
-  certificate (ad hoc), so the first launch is allowed in "System Settings → Privacy &
-  Security". One command in Terminal installs it without that prompt:
-  `curl -fsSL https://mrvibecodic.github.io/clod-clash/install-macos.sh | bash` — the script
-  picks the build for the processor, downloads the latest regular release from GitHub, puts it
-  into Applications and launches it.
-* **Linux x86_64** — `.deb` and `.rpm` packages; the package registers the background service
-  right away.
-
-From then on the app updates itself; the "Pre-release builds" switch picks the channel.
-
----
-
-## Support report
-
-Settings → General → **"Support report"**; the "Copy logs for support" button under any error
-notification does the same. The clipboard gets a ready-made text:
-
-* app version, OS, device, how the core is running;
-* the settings that affect connectivity: core and its channel, TUN, what Connect drives,
-  device identification, port, log level;
-* subscription state: name, traffic and expiry from `subscription-userinfo`, HWID state,
-  which headers the provider sent, whether a spare address was used;
-* what the sentinel filter dropped last time;
-* the tail of the app log and of the core log (800 lines each, across rotated files).
-
-**The core's per-connection lines are not in the report.** At its normal level mihomo writes
-one line per connection including the destination (`[TCP] … --> example.com:443 match …`),
-and at the verbose level every DNS query as well. A raw tail of that log is a browsing
-history, which has no business in a support chat, so those lines are dropped entirely — the
-report says how many. Everything else — core startup, config parsing, provider errors —
-stays.
-
-**Secrets are already masked.** Any address, of any scheme — not just `http`, and including
-`vless://`, `ss://` and links inside a deep link — is reduced to scheme and host: path,
-query and `user:pass@` go under `***`. Whatever follows `secret`, `token`, `password`,
-`passwd`, `uuid`, `authorization`, `api-key`, `x-hwid`, `hwid` or `sub-url` becomes `***`
-(the list is not exhaustive and keeps growing), including when key and value are glued
-together as in JSON; same for what follows `Bearer`, `Basic` and `Token`. On top of that,
-any "word" of 20 characters or more drawn from `A–Z a–z 0–9 - _ = . + /` is cut when it
-contains a digit or mixed case, as is any hex run of 16 or more. The home directory is
-replaced with `~` so the user's own name does not travel inside a path. Deliberately blunt —
-better to mask too much than to hand a subscription token to a chat.
-
-Kept on purpose: the provider's domain (the report is useless without it), versions,
-connection settings and the subscription figures.
-
-The report is only as useful as the log that went into it, so a fresh install starts at
-`debug` (an already configured app keeps whatever level it had). Rotation keeps that at
-1 MB per file and eight files; the level lives in Settings → Advanced settings → Appearance and
-behaviour → "Miscellaneous" → "App Log Level".
-
-When support needs the logs in full, "Export logs as an archive" (Advanced settings →
-"Maintenance") saves them to a zip — masked the same way as the report.
-
-## Device id
-
-Derived from the operating system's machine id:
-
-| System | Source |
+| System | What to download |
 | --- | --- |
-| Windows | `HKLM\SOFTWARE\Microsoft\Cryptography\MachineGuid` |
-| macOS | `IOPlatformUUID` |
-| Linux | `/etc/machine-id`, falling back to `/var/lib/dbus/machine-id` |
+| Windows x64 | the `.exe` installer — installs the app, the TUN service and a firewall rule for the cores. There is also a portable `.zip`: it runs without installing but does not download updates in the background |
+| macOS 11+ (Apple Silicon and Intel) | `.dmg`. The build has no Apple certificate: allow the first launch in "System Settings → Privacy & Security". Or run one command in Terminal: `curl -fsSL https://mrvibecodic.github.io/clod-clash/install-macos.sh \| bash` |
+| Linux x86_64 | `.deb` or `.rpm`. On systemd systems the package registers the TUN service right away |
 
-The value is salted, hashed with SHA-256, and the first 32 hex characters are what leaves
-the machine. **The machine id itself never does**, and the hostname is never sent at all. The result satisfies Remnawave 2.9's
-`^[a-zA-Z0-9=-]{10,64}$` check and is cached in the app config so it survives a change in
-how the underlying id is read. When no stable source is available a random id is generated
-and cached the same way.
+Details are in the ["Installation"](https://mrvibecodic.github.io/clod-clash/docs/install) section (Russian).
 
-The id is sent **only** to the subscription address and nowhere else. The
-**"Device identification"** switch in Settings → General turns it off; the tooltip next to
-it shows exactly what goes to the panel — `x-hwid`, `x-device-os`, `x-ver-os`,
-`x-device-model` and the `User-Agent`. Turning it off drops all four `x-*` at once; the
-`User-Agent` is always sent — it is what tells the panel which client is asking and which
-response format to pick. A panel that enforces a device limit may then refuse the
-subscription — the app offers to turn identification back on.
+## For providers
 
----
+**Required:** in the panel's Subscription response rules add a rule for `User-Agent` matching
+`^ClodClash` with the **MIHOMO** response format. Without it the panel sends its default answer
+and the client will not accept the subscription. Everything about the panel and the template is
+in [REMNAWAVE.md](./REMNAWAVE.md) (Russian).
+
+**`clod-*` headers** are our own response headers. The panel does not send them by itself: they
+go into `customResponseHeaders`. Each one applies only to its own subscription.
+
+| Header | Value | What it does | Platforms |
+| --- | --- | --- | --- |
+| `clod-portal-url` | an `https://` link | the "Account" button — the page where the plan is renewed | PC and Android |
+| `clod-bot-url` | an `https://`, `tg:` or `mailto:` link | the "Bot" button | PC and Android |
+| `clod-monitor-url` | an `https://` link | the "Status" button — server status page | PC and Android |
+| `clod-guide-url` | an `https://` link | the "Guide" button | PC and Android |
+| `clod-announce` | text | a permanent announcement; if `announce` came too, `clod-announce` is shown | PC and Android |
+| `clod-promo` | text | a promo banner the user can close | PC and Android |
+| `clod-promo-url` | an `https://` link | where a click on the promo leads | PC and Android |
+| `clod-lock-mode` | `true` / `lock` / `false` | locks the routing mode to `mode` from the template: `true` — while the panel keeps confirming it, `lock` — for good, `false` — no lock | PC and Android |
+| `clod-ping` | `A/B` in ms, e.g. `150/300` | ping colour bounds: green below `A`, yellow below `B`, red above. Without the header — `200/400` | PC and Android |
+| `clod-disable-ping` | `true` only | a tick or a cross instead of milliseconds | PC and Android |
+| `clod-show-0hosts` | `true` / `false` | show the panel's placeholder nodes as they are instead of the client's reason screen | PC and Android |
+| `clod-connect-mode` | `tun` / `proxy` / `both` | what the connect button turns on. Without the header — the system proxy | PC only |
+| `clod-simple-mode` | `true` / `false` | simple or advanced view by default. Without the header — simple | PC only |
+| `clod-latency-style` | `bars` / `dot` / `number` | how the selected server's ping is drawn: bars, a dot or a number. Without the header — bars | PC only |
+| `clod-theme` | `accent=#RRGGBB; mode=light\|dark; background=https://…` | accent colour, light or dark theme and window background | PC only |
+
+Instead of `true` / `false` you can send `1` / `0`, `yes` / `no`, `on` / `off`. Send non-ASCII
+text as `base64:<base64 text>`. A value the client does not understand counts as a missing header.
+Every header in detail, plus the full list of standard ones, is in [HEADERS_en.md](./HEADERS_en.md).
+
+## Documentation
+
+* [Documentation site](https://mrvibecodic.github.io/clod-clash/) (Russian) — installation, first
+  connection, settings, troubleshooting.
+* [HEADERS_en.md](./HEADERS_en.md) — every subscription header: what the client sends and what it
+  understands.
+* [REMNAWAVE.md](./REMNAWAVE.md) (Russian) — setting up the panel and the MIHOMO template.
+* [BUILDING_en.md](./BUILDING_en.md) — building from source.
+* [RELEASING.md](./RELEASING.md) (Russian) — cutting a release.
 
 ## Building
 
-Moved to its own document: [BUILDING_en.md](./BUILDING_en.md).
-
----
+In short: `pnpm install`, `pnpm prebuild`, `pnpm dev`. Details are in [BUILDING_en.md](./BUILDING_en.md).
 
 ## Acknowledgements
 
 Clod Clash would not exist without these projects:
 
 * [MetaCubeX/mihomo](https://github.com/MetaCubeX/mihomo) — the core everything runs on.
-  We neither modify nor fork it: the official binary is used.
+  By default the official binary is used unchanged; the second built-in core,
+  [Clod Core](https://github.com/Mrvibecodic/clod-core), is our patched fork of Mihomo.
 * [clash-verge-rev/clash-verge-rev](https://github.com/clash-verge-rev/clash-verge-rev) —
   the application Clod Clash forks. The entire interface, profile handling, system proxy,
   TUN, service and tray are their work.
