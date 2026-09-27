@@ -5,5 +5,5 @@ linker = "aarch64-linux-gnu-gcc"
 linker = "arm-linux-gnueabihf-gcc"
 
 [alias]
-clippy-all = "clippy --all-targets --all-features -- -D warnings"
-clippy-only = "clippy --all-targets  --features clippy -- -D warnings"
+clippy-all = "clippy --workspace --all-targets --all-features -- -D warnings"
+clippy-only = "clippy --workspace --all-targets --features clash-verge/clippy -- -D warnings"

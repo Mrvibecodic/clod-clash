@@ -47,6 +47,7 @@ Rust (из папки `src-tauri`):
 ```bash
 cargo clippy-all                      # на Linux; на Windows и macOS — cargo clippy-only
 cargo test --lib --features clippy
+cargo test --workspace --exclude clash-verge
 cargo test --test subscription_headers --features clippy
 cargo fmt --check
 ```
