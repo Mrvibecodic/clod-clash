@@ -158,33 +158,24 @@ const ProfileItemBase = (props: ProfileItemProps) => {
           )
 
           if (nextUpdate) {
-            const nextUpdateDate = dayjs(nextUpdate * 1000)
-            const now = dayjs()
+            const diffMinutes = dayjs(nextUpdate * 1000).diff(dayjs(), 'minute')
 
-            if (nextUpdateDate.isBefore(now)) {
-              setNextUpdateTime(
-                t('profiles.components.profileItem.status.lastUpdateFailed'),
-              )
-            } else {
-              const diffMinutes = nextUpdateDate.diff(now, 'minute')
-
-              if (diffMinutes < 60) {
-                if (diffMinutes <= 0) {
-                  setNextUpdateTime(
-                    `${t('profiles.components.profileItem.status.nextUp')} <1m`,
-                  )
-                } else {
-                  setNextUpdateTime(
-                    `${t('profiles.components.profileItem.status.nextUp')} ${diffMinutes}m`,
-                  )
-                }
-              } else {
-                const hours = Math.floor(diffMinutes / 60)
-                const mins = diffMinutes % 60
+            if (diffMinutes < 60) {
+              if (diffMinutes <= 0) {
                 setNextUpdateTime(
-                  `${t('profiles.components.profileItem.status.nextUp')} ${hours}h ${mins}m`,
+                  `${t('profiles.components.profileItem.status.nextUp')} <1m`,
+                )
+              } else {
+                setNextUpdateTime(
+                  `${t('profiles.components.profileItem.status.nextUp')} ${diffMinutes}m`,
                 )
               }
+            } else {
+              const hours = Math.floor(diffMinutes / 60)
+              const mins = diffMinutes % 60
+              setNextUpdateTime(
+                `${t('profiles.components.profileItem.status.nextUp')} ${hours}h ${mins}m`,
+              )
             }
           } else {
             debugLog(`Возвращено пустое время следующего обновления`)
