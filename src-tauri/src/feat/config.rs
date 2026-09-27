@@ -29,8 +29,7 @@ pub async fn patch_clash(patch: &Mapping) -> Result<()> {
             || patch.get("external-controller").is_some()
             || patch.get("external-controller-cors").is_some()
         {
-            Config::generate().await?;
-            CoreManager::global().restart_core().await?;
+            CoreManager::global().update_config_restarting().await?;
         } else if let Some(sharing) = patch.get("allow-lan") {
             // clod:lan-share — правка пришла от человека, а не из подписки:
             // запоминаем его слово, чтобы подписка его не перебивала.
@@ -221,8 +220,7 @@ fn determine_update_flags(patch: &IVerge) -> UpdateFlags {
 /// удавшегося перезапуска ядро уже обслуживает трафик по новым настройкам, и
 /// откатывать черновик из-за отказа любого следующего шага нельзя.
 async fn restart_core_for_patch() -> Result<()> {
-    Config::generate().await?;
-    CoreManager::global().restart_core().await
+    CoreManager::global().update_config_restarting().await
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

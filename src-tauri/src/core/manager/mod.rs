@@ -108,6 +108,10 @@ pub struct CoreManager {
     #[cfg(target_os = "windows")]
     job_handle: ArcSwapOption<OwnedHandle>,
     config_update_in_progress: AtomicBool,
+    /// Почему ядро нельзя запускать: собранный при старте приложения конфиг
+    /// ядро отвергло (или собрать его не удалось), а принятого в слоте нет.
+    /// Снимается первой же доставкой конфига, который ядро приняло.
+    startup_refusal: ArcSwapOption<String>,
     // Сериализует start/stop/restart и передачу sidecar→service.
     // Порядок блокировок фиксирован: config_update_in_progress → lifecycle_lock.
     lifecycle_lock: tokio::sync::Mutex<()>,
@@ -169,6 +173,7 @@ impl Default for CoreManager {
             #[cfg(target_os = "windows")]
             job_handle: ArcSwapOption::new(None),
             config_update_in_progress: AtomicBool::new(false),
+            startup_refusal: ArcSwapOption::new(None),
             lifecycle_lock: tokio::sync::Mutex::new(()),
             handoff_watcher_generation: AtomicU64::new(0),
             starting: AtomicBool::new(true),
@@ -397,6 +402,21 @@ impl CoreManager {
 
     fn finish_config_update(&self) {
         self.config_update_in_progress.store(false, Ordering::Release);
+    }
+
+    /// Запретить старт ядра: конфиг при запуске приложения отвергнут ядром или не
+    /// собрался. Ядро на пустом умолчании не поднимаем — при включённых прокси и
+    /// TUN это был бы весь трафик напрямую под зелёным значком.
+    pub fn refuse_to_start(&self, reason: impl Into<String>) {
+        self.startup_refusal.store(Some(Arc::new(reason.into())));
+    }
+
+    pub fn startup_refusal(&self) -> Option<Arc<String>> {
+        self.startup_refusal.load_full()
+    }
+
+    pub(super) fn lift_startup_refusal(&self) {
+        self.startup_refusal.store(None);
     }
 
     /// clod:core-health — ядру сейчас законно не до ответов: идёт применение

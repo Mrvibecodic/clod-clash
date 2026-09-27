@@ -127,7 +127,7 @@
     "validation": {
       "config": {
         "failed": "設定檢查未通過，變更已撤銷。錯誤：",
-        "bootFailed": "啟動訂閱配置校驗失敗，已使用預設配置啟動；請檢查訂閱配置文件，錯誤詳情：",
+        "bootFailed": "The core rejected the configuration at startup — the core is not running, there is no connection. Update the subscription or switch to another one. Error:",
         "processTerminated": "驗證程序被終止。請檢查是否有安全軟體阻止核心執行，以及本機 CPU 是否支援該核心建置。",
         "timeout": "設定更新逾時（30 秒）：檢查或核心未回應，已還原先前的設定檔。"
       },

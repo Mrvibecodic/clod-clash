@@ -237,6 +237,12 @@ impl CoreManager {
 
         self.refuse_to_double_the_core()?;
 
+        // Конфиг при запуске приложения отвергнут ядром (или не собрался), а
+        // принятого нет: поднимать нечего. Снимается первой принятой доставкой.
+        if let Some(reason) = self.startup_refusal() {
+            anyhow::bail!("ядро не запускается: конфиг отвергнут при запуске приложения — {reason}");
+        }
+
         // Идемпотентность при уже работающем ядре; для рестарта использовать restart_core.
         if !matches!(*self.get_running_mode(), RunningMode::NotRunning) {
             logging!(
@@ -276,8 +282,8 @@ impl CoreManager {
             );
             let rejected_bundle = {
                 let runtime = Config::runtime().await;
-                let latest = runtime.latest_arc();
-                latest
+                let accepted = runtime.data_arc();
+                accepted
                     .config
                     .as_ref()
                     .and_then(crate::core::service::bundle_rejection_for)
@@ -298,19 +304,6 @@ impl CoreManager {
         if Handle::global().is_exiting() {
             return result;
         }
-
-        // clod: the core has just been started from the draft build —
-        // `generate_file` writes `latest` — so the draft is now what mihomo
-        // actually runs and belongs in the committed slot. Without this commit
-        // the committed slot stayed empty for the whole cold start (nothing on
-        // the boot path calls `apply`), and everything answering "what is
-        // applied" — server descriptions, the sentinel report — reported
-        // nothing until the first `update_config_*` cycle.
-        //
-        // Strictly after a successful start: committing a build the core
-        // refused would defeat the point of the draft/committed split, see the
-        // note on `IRuntime::sentinel_report`.
-        Config::runtime().await.apply();
 
         // clod:dns-applied — конфиг живой, теперь можно ставить подмену DNS.
         #[cfg(target_os = "macos")]

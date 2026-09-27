@@ -127,7 +127,7 @@
     "validation": {
       "config": {
         "failed": "فشل فحص الإعدادات، وتم التراجع عن التغييرات. الخطأ:",
-        "bootFailed": "فشل التحقق من التكوين عند الإقلاع، تم استخدام التكوين الافتراضي، يرجى فحص ملف التكوين، تفاصيل الخطأ:",
+        "bootFailed": "The core rejected the configuration at startup — the core is not running, there is no connection. Update the subscription or switch to another one. Error:",
         "processTerminated": "تم إنهاء عملية التحقق. تحقق مما إذا كان برنامج أمان يمنع تشغيل النواة، وما إذا كان معالج هذا الجهاز يدعم إصدار النواة.",
         "timeout": "انتهت مهلة تحديث الإعدادات (30 ثانية): لم يستجب الفحص أو النواة. تمت إعادة الملف الشخصي السابق."
       },

@@ -95,6 +95,23 @@ impl<T: Clone> Draft<T> {
         guard.1 = None;
     }
 
+    /// Заменяет committed-данные готовым значением, минуя черновик; черновик,
+    /// если был, отбрасывается. Для слоёв, где кандидат живёт у вызывающего,
+    /// а слот хранит только принятое.
+    #[inline]
+    pub fn replace(&self, data: T) {
+        self.replace_shared(Arc::new(Box::new(data)));
+    }
+
+    /// То же, что [`Self::replace`], но снимком, полученным из `data_arc()`:
+    /// возврат прежнего значения без копирования.
+    #[inline]
+    pub fn replace_shared(&self, data: SharedDraft<T>) {
+        let mut guard = self.inner.data.lock();
+        guard.0 = data;
+        guard.1 = None;
+    }
+
     /// Асинхронно изменяет committed-данные через владение Box<T>: committed-данные
     /// клонируются один раз локально, асинхронное замыкание возвращает новый
     /// Box<T> (заменяет committed-данные) и результат R.

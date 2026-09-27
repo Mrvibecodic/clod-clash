@@ -509,13 +509,15 @@ mod tests {
     }
 
     #[test]
-    fn the_boot_fallback_leaves_the_notice_to_its_caller() {
-        let source = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/core/manager/config.rs"))
+    fn the_boot_refusal_leaves_the_notice_to_its_caller() {
+        // Отказ старта по отвергнутому конфигу уведомление не шлёт сам: его шлёт
+        // `init_runtime_config`, иначе человек получал бы два тоста об одном.
+        let source = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/core/manager/mod.rs"))
             .unwrap_or_default();
-        let body = fn_body(&source, "async fn use_default_config");
+        let body = fn_body(&source, "pub fn refuse_to_start");
         assert!(
             body.is_some_and(|body| !body.contains("notice_message")),
-            "запасной конфиг снова шлёт отказ сам — к уведомлению из init_runtime_config добавится второе"
+            "отказ старта снова шлёт уведомление сам — к уведомлению из init_runtime_config добавится второе"
         );
     }
 

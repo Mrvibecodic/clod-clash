@@ -370,7 +370,7 @@ pub(crate) async fn ensure_dns_config_file() -> Result<()> {
     }
 
     let runtime = Config::runtime().await;
-    let runtime = runtime.latest_arc();
+    let runtime = runtime.data_arc();
     let runtime_dns = runtime
         .config
         .as_ref()

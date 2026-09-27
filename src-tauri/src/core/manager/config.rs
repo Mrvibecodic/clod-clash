@@ -6,50 +6,105 @@ use crate::{
         handle,
         validate::{CoreConfigValidator, ValidationErrorKind, ValidationOutcome, ValidationSkipReason},
     },
-    utils::{dirs, help},
+    utils::dirs,
 };
 use anyhow::{Result, anyhow};
 use clash_verge_logging::{Type, logging};
 use clash_verge_service_ipc::StageRuntimeOutcome;
-use scopeguard::defer;
 use smartstring::alias::String;
-use std::{collections::HashSet, path::PathBuf, time::Instant};
+use std::{path::PathBuf, time::Instant};
 use tauri_plugin_mihomo::Error as MihomoError;
 
+/// Как отдать ядру принятый им конфиг.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Delivery {
+    /// Мягкая перезагрузка (`PUT /configs`); если ядро её не приняло — перезапуск.
+    Reload,
+    /// Сразу перезапуск: адрес контроллера, секрет и смену сборки ядра мягко
+    /// применить нельзя.
+    Restart,
+}
+
+/// Признак «идёт применение конфига»; снимается при выходе из области на любом пути.
+pub(crate) struct ConfigUpdateGuard<'a>(&'a CoreManager);
+
+impl Drop for ConfigUpdateGuard<'_> {
+    fn drop(&mut self) {
+        self.0.finish_config_update();
+    }
+}
+
+/// Сборка, которую ядро проверило и не отвергло.
+///
+/// Единственная дверь к слоту рантайма: пока `Staged` жив, признак применения
+/// держится, другой сборке в слот не попасть. Слот заменяется в `deliver` —
+/// только после того, как ядро приняло конфиг; отказ ничего не меняет, откатывать
+/// нечего. Брошенный `Staged` — проверка без доставки (подписка не текущая).
+#[must_use = "a staged build changes nothing until it is delivered"]
+pub struct Staged<'a> {
+    manager: &'a CoreManager,
+    build: IRuntime,
+    _guard: ConfigUpdateGuard<'a>,
+}
+
+impl Staged<'_> {
+    /// Отдать ядру. `Ok(Valid)` — ядро работает с этой сборкой и слот заменён;
+    /// `Ok(Invalid)` — служба отвергла бандл, ядро осталось на прежнем;
+    /// `Err` — доставка сорвалась (ядро о содержимом ничего не сказало).
+    pub async fn deliver(self, delivery: Delivery) -> Result<ValidationOutcome> {
+        let Self { manager, build, _guard } = self;
+        manager.deliver_build(build, delivery).await
+    }
+}
+
 impl CoreManager {
-    pub async fn use_default_config(&self) -> Result<()> {
-        use crate::constants::files::RUNTIME_CONFIG;
+    /// Взять признак применения конфига; `None` — уже идёт другое применение.
+    pub(crate) fn claim_config_update(&self) -> Option<ConfigUpdateGuard<'_>> {
+        // Гвард создаётся только при удавшемся захвате: `then_some` строил бы его и
+        // при отказе — и его Drop снимал бы признак у того, кто его держит.
+        self.try_start_config_update().then(|| ConfigUpdateGuard(self))
+    }
 
-        let runtime_path = dirs::app_home_dir()?.join(RUNTIME_CONFIG);
-        // clod:port-ladder — запасной конфиг собирается в обход `enhance()`, а
-        // значит и в обход умолчаний лесенки. Без этого у «как в подписке»
-        // (то есть у всех новых установок) ядро стартовало бы вообще без
-        // mixed-порта, а системный прокси указывал бы на пустое место.
-        let mut clash_config = Config::clash().await.latest_arc().0.clone();
-        crate::enhance::fill_the_ladder_defaults(&mut clash_config);
-        let clash_config = &clash_config;
+    /// Собрать конфиг из источников и проверить его ядром. Признак применения
+    /// берётся здесь и живёт до конца доставки.
+    pub async fn stage(&self) -> Result<std::result::Result<Staged<'_>, ValidationOutcome>> {
+        if handle::Handle::global().is_exiting() {
+            return Ok(Err(ValidationOutcome::Skipped {
+                reason: ValidationSkipReason::Exiting,
+            }));
+        }
+        let Some(guard) = self.claim_config_update() else {
+            logging!(info, Type::Core, "Configuration update is already running");
+            return Ok(Err(ValidationOutcome::Busy));
+        };
+        let build = match Config::build().await {
+            Ok(build) => build,
+            Err(err) => return Ok(Err(ValidationOutcome::invalid_from_message(err.to_string()))),
+        };
+        self.stage_under(guard, build).await
+    }
 
-        // clod:dns-applied — заявка на подмену системного DNS пришла от конфига,
-        // который мы сейчас заменяем запасным: доводить её до применения нельзя.
-        #[cfg(target_os = "macos")]
-        crate::utils::resolve::dns::forget_desire();
-
-        // Draft only, no `apply` here: this runs on the boot path before the
-        // core exists, so nothing has accepted this build yet. The core starts
-        // from the draft (`generate_file` prefers `latest`) and `start_core`
-        // commits it once the start succeeded.
-        Config::runtime().await.edit_draft(|d| {
-            *d = IRuntime {
-                config: Some(clash_config.to_owned()),
-                exists_keys: HashSet::new(),
-                chain_logs: Default::default(),
-                // Дефолтный конфиг — не от панели: заглушек в нём нет.
-                sentinel_report: Default::default(),
-            }
-        });
-
-        help::save_yaml(&runtime_path, &clash_config, Some("# Clash Verge Runtime")).await?;
-        Ok(())
+    async fn stage_under<'a>(
+        &'a self,
+        guard: ConfigUpdateGuard<'a>,
+        build: IRuntime,
+    ) -> Result<std::result::Result<Staged<'a>, ValidationOutcome>> {
+        let Some(config) = build.config.as_ref() else {
+            return Ok(Err(ValidationOutcome::invalid_from_message("собранный конфиг пуст")));
+        };
+        let outcome = CoreConfigValidator::global()
+            .validate_config_outcome_with(config)
+            .await?;
+        if !outcome.is_valid() {
+            #[cfg(target_os = "macos")]
+            crate::utils::resolve::dns::forget_desire();
+            return Ok(Err(outcome));
+        }
+        Ok(Ok(Staged {
+            manager: self,
+            build,
+            _guard: guard,
+        }))
     }
 
     pub async fn update_config_forced(&self) -> Result<ValidationOutcome> {
@@ -63,6 +118,20 @@ impl CoreManager {
         self.update_config(force, true).await
     }
 
+    /// Пересобрать из источников и отдать ядру перезапуском.
+    pub async fn update_config_restarting(&self) -> Result<()> {
+        let staged = match self.stage().await? {
+            Ok(staged) => staged,
+            Err(outcome) => return Err(anyhow!("{outcome}")),
+        };
+        let outcome = staged.deliver(Delivery::Restart).await?;
+        if outcome.is_valid() {
+            Ok(())
+        } else {
+            Err(anyhow!("{outcome}"))
+        }
+    }
+
     async fn update_config(&self, force: bool, skip_unchanged: bool) -> Result<ValidationOutcome> {
         if handle::Handle::global().is_exiting() {
             return Ok(ValidationOutcome::Skipped {
@@ -70,13 +139,10 @@ impl CoreManager {
             });
         }
 
-        if !self.try_start_config_update() {
+        let Some(guard) = self.claim_config_update() else {
             logging!(info, Type::Core, "Configuration update is already running");
             return Ok(ValidationOutcome::Busy);
-        }
-        defer! {
-            self.finish_config_update();
-        }
+        };
 
         if !force && !self.should_update_config() {
             logging!(debug, Type::Core, "Skipping config update due to debounce");
@@ -89,7 +155,25 @@ impl CoreManager {
             self.set_last_update(Instant::now());
         }
 
-        self.perform_config_update(skip_unchanged).await
+        let build = match Config::build().await {
+            Ok(build) => build,
+            Err(err) => return Ok(ValidationOutcome::invalid_from_message(err.to_string())),
+        };
+
+        if skip_unchanged && self.runtime_unchanged(&build).await {
+            // Сборку принимаем без ядра: конфиг тот же, но подписи заглушек
+            // (`sentinel_report`) могли смениться, а заявка на подмену DNS
+            // относится к работающему конфигу.
+            Config::runtime().await.replace(build);
+            forget_the_not_applied_mark().await;
+            logging!(info, Type::Core, "Runtime config unchanged, core reload skipped");
+            return Ok(ValidationOutcome::Valid);
+        }
+
+        match self.stage_under(guard, build).await? {
+            Ok(staged) => staged.deliver(Delivery::Reload).await,
+            Err(outcome) => Ok(outcome),
+        }
     }
 
     pub async fn update_config_checked(&self) -> Result<()> {
@@ -115,117 +199,85 @@ impl CoreManager {
         true
     }
 
-    async fn perform_config_update(&self, skip_unchanged: bool) -> Result<ValidationOutcome> {
-        if let Err(err) = Config::generate().await {
-            let message: String = err.to_string().into();
-            Config::runtime().await.discard();
-            return Ok(ValidationOutcome::invalid_from_message(message));
-        }
-
-        if skip_unchanged && self.runtime_unchanged().await {
-            // Черновик принимаем, а не выбрасываем: конфиг тот же, но подписи
-            // заглушек (`sentinel_report`) могли смениться, а заявка на подмену
-            // DNS относится к работающему конфигу.
-            Config::runtime().await.apply();
-            forget_the_not_applied_mark().await;
-            logging!(info, Type::Core, "Runtime config unchanged, core reload skipped");
-            return Ok(ValidationOutcome::Valid);
-        }
-
-        self.apply_generate_config_inner().await
-    }
-
-    /// Собранный черновик совпал с принятым конфигом, и ядро с ним работает.
+    /// Собранный кандидат совпал с принятым конфигом, и ядро с ним работает.
     /// Перезагрузка тем же конфигом что-то дала бы только двум случаям: остановленное
     /// ядро она поднимала бы, а пустой http-провайдер узлов или правил (первая
     /// загрузка не удалась, кэша нет) — скачивала заново. Их не пропускаем.
-    async fn runtime_unchanged(&self) -> bool {
+    async fn runtime_unchanged(&self, build: &IRuntime) -> bool {
         if matches!(*self.get_running_mode(), super::RunningMode::NotRunning) {
             return false;
         }
         let same = {
-            let runtime = Config::runtime().await;
-            let next = runtime.latest_arc();
-            let prev = runtime.data_arc();
-            next.config.is_some() && next.config == prev.config
+            let prev = Config::runtime().await.data_arc();
+            build.config.is_some() && build.config == prev.config
         };
         same && providers_filled().await
     }
 
+    /// Поправить принятый конфиг (цепочки прокси из окна) и отдать ядру.
     pub(crate) async fn update_runtime_config<F>(&self, f: F) -> Result<ValidationOutcome>
     where
         F: FnOnce(&mut IRuntime),
     {
-        if !self.try_start_config_update() {
+        let Some(guard) = self.claim_config_update() else {
             logging!(info, Type::Core, "Configuration update is already running");
             return Ok(ValidationOutcome::Busy);
-        }
-        defer! {
-            self.finish_config_update();
-        }
+        };
 
-        Config::runtime().await.edit_draft(f);
-        self.apply_generate_config_inner().await
-    }
-
-    async fn apply_generate_config_inner(&self) -> Result<ValidationOutcome> {
-        match CoreConfigValidator::global().validate_config_outcome().await {
-            Ok(outcome) if outcome.is_valid() => {
-                let run_path = Config::generate_file(ConfigType::Run).await?;
-                // clod:port-ladder — порт мог приехать из подписки: системный
-                // прокси и PAC указывают на него, и после смены их надо
-                // переписать, каким бы путём конфиг ни доехал до ядра.
-                let (mixed_port_changed, mode_changed, sharing_changed) = {
-                    let runtime = Config::runtime().await;
-                    let next = runtime.latest_arc();
-                    let prev = runtime.data_arc();
-                    let changed = |key: &str| {
-                        prev.config.as_ref().and_then(|config| config.get(key))
-                            != next.config.as_ref().and_then(|config| config.get(key))
-                    };
-                    (changed("mixed-port"), changed("mode"), changed("allow-lan"))
-                };
-                if let Err(error) = self.apply_config(run_path).await {
-                    #[cfg(target_os = "macos")]
-                    crate::utils::resolve::dns::forget_desire();
-                    if let Some(refused) = error.downcast_ref::<ServiceRefusedTheBundle>() {
-                        return Ok(ValidationOutcome::invalid(
-                            ValidationErrorKind::CoreRejected,
-                            refused.0.clone(),
-                        ));
-                    }
-                    return Err(error);
-                }
-                forget_the_not_applied_mark().await;
-                if mixed_port_changed || sharing_changed {
-                    Self::spawn_mixed_port_check(true);
-                }
-                if mode_changed {
-                    crate::process::AsyncHandler::spawn(|| async {
-                        let _ = crate::core::tray::Tray::global().update_menu().await;
-                    });
-                }
-                #[cfg(target_os = "macos")]
-                crate::utils::resolve::dns::apply_remembered_desire();
-                crate::process::AsyncHandler::spawn(|| async { crate::feat::tun::enforce_undesired_off().await });
-                Ok(ValidationOutcome::Valid)
-            }
-            Ok(outcome) => {
-                Config::runtime().await.discard();
-                #[cfg(target_os = "macos")]
-                crate::utils::resolve::dns::forget_desire();
-                Ok(outcome)
-            }
-            Err(e) => {
-                Config::runtime().await.discard();
-                #[cfg(target_os = "macos")]
-                crate::utils::resolve::dns::forget_desire();
-                Err(e)
-            }
+        let mut build = (**Config::runtime().await.data_arc()).clone();
+        f(&mut build);
+        match self.stage_under(guard, build).await? {
+            Ok(staged) => staged.deliver(Delivery::Reload).await,
+            Err(outcome) => Ok(outcome),
         }
     }
 
-    async fn apply_config(&self, path: PathBuf) -> Result<()> {
+    async fn deliver_build(&self, build: IRuntime, delivery: Delivery) -> Result<ValidationOutcome> {
+        let Some(config) = build.config.as_ref() else {
+            return Ok(ValidationOutcome::invalid_from_message("собранный конфиг пуст"));
+        };
+        let run_path = Config::write_config_file(ConfigType::Run, config).await?;
+        // clod:port-ladder — порт мог приехать из подписки: системный
+        // прокси и PAC указывают на него, и после смены их надо
+        // переписать, каким бы путём конфиг ни доехал до ядра.
+        let (mixed_port_changed, mode_changed, sharing_changed) = {
+            let prev = Config::runtime().await.data_arc();
+            let changed = |key: &str| prev.config.as_ref().and_then(|config| config.get(key)) != config.get(key);
+            (changed("mixed-port"), changed("mode"), changed("allow-lan"))
+        };
+        // Проверенная сборка есть — отказ старта, если он был, снят: стартовать
+        // будем с неё.
+        self.lift_startup_refusal();
+        if let Err(error) = self.apply_config(build, run_path, delivery).await {
+            #[cfg(target_os = "macos")]
+            crate::utils::resolve::dns::forget_desire();
+            if let Some(refused) = error.downcast_ref::<ServiceRefusedTheBundle>() {
+                return Ok(ValidationOutcome::invalid(
+                    ValidationErrorKind::CoreRejected,
+                    refused.0.clone(),
+                ));
+            }
+            return Err(error);
+        }
+        forget_the_not_applied_mark().await;
+        if mixed_port_changed || sharing_changed {
+            Self::spawn_mixed_port_check(true);
+        }
+        if mode_changed {
+            crate::process::AsyncHandler::spawn(|| async {
+                let _ = crate::core::tray::Tray::global().update_menu().await;
+            });
+        }
+        #[cfg(target_os = "macos")]
+        crate::utils::resolve::dns::apply_remembered_desire();
+        crate::process::AsyncHandler::spawn(|| async { crate::feat::tun::enforce_undesired_off().await });
+        Ok(ValidationOutcome::Valid)
+    }
+
+    async fn apply_config(&self, build: IRuntime, path: PathBuf, delivery: Delivery) -> Result<()> {
+        if delivery == Delivery::Restart {
+            return self.replace_core_and_apply(build).await;
+        }
         // clod:svc-2.6 — в service-режиме ядро работает не с нашим файлом, а с
         // копией в «поколении» службы: сначала просим службу привести поколение
         // к новому конфигу (staging), и ядру отдаётся ПУТЬ ИЗ ПОКОЛЕНИЯ.
@@ -247,7 +299,6 @@ impl CoreManager {
                         Type::Core,
                         "Service refused the runtime, leaving the core running: {message}"
                     );
-                    Config::runtime().await.discard();
                     return Err(anyhow!("{message}"));
                 }
                 StagedPath::Unbuildable(message) => {
@@ -256,8 +307,7 @@ impl CoreManager {
                         Type::Core,
                         "This configuration cannot be handed to the service, leaving the core running: {message}"
                     );
-                    Config::runtime().await.discard();
-                    return Err(ServiceRefusedTheBundle(message.to_string()).into());
+                    return Err(ServiceRefusedTheBundle(message).into());
                 }
                 // В service-режиме перезагрузка НАШИМ путём запрещена всегда:
                 // мягкий reload с непереписанными провайдерскими путями может
@@ -267,7 +317,7 @@ impl CoreManager {
                 // материализует свежий бандл сам.
                 StagedPath::NotStaged => {
                     logging!(info, Type::Core, "Staging unavailable; replacing the service core");
-                    return self.replace_core_and_apply().await;
+                    return self.replace_core_and_apply(build).await;
                 }
             }
         } else {
@@ -281,10 +331,8 @@ impl CoreManager {
         // конфига (порты, tun, allow-lan и т.п.). Прокси/группы/правила/DNS
         // mihomo применяет и при force=false.
         let force = {
-            let runtime = Config::runtime().await;
-            let next = runtime.latest_arc();
-            let prev = runtime.data_arc();
-            listeners_need_recreate(prev.config.as_ref(), next.config.as_ref())
+            let prev = Config::runtime().await.data_arc();
+            listeners_need_recreate(prev.config.as_ref(), build.config.as_ref())
         };
 
         let reloaded = match self.reload_config(force, path).await {
@@ -315,9 +363,9 @@ impl CoreManager {
                         Type::Core,
                         "core mode changed while applying the configuration ({mode_seen} -> {mode_now}); restarting the core to apply it"
                     );
-                    return self.replace_core_and_apply().await;
+                    return self.replace_core_and_apply(build).await;
                 }
-                Config::runtime().await.apply();
+                Config::runtime().await.replace(build);
                 logging!(info, Type::Core, "{message}");
                 Ok(())
             }
@@ -327,7 +375,7 @@ impl CoreManager {
                     Type::Core,
                     "Failed to apply configuration by mihomo api, restart core to apply it, error msg: {err}"
                 );
-                self.replace_core_and_apply().await
+                self.replace_core_and_apply(build).await
             }
         }
     }
@@ -338,19 +386,59 @@ impl CoreManager {
             .await
     }
 
-    /// Полный перезапуск ядра и итог по нему: применить черновик или откатить.
-    async fn replace_core_and_apply(&self) -> Result<()> {
+    /// Полный перезапуск ядра под новую сборку.
+    ///
+    /// Старт пишет файл ядра из слота, поэтому сборка ставится в слот до
+    /// перезапуска. Не поднялось — слот возвращается к прежнему принятому, и
+    /// если ядра при этом не осталось, оно поднимается на прежнем: отказ
+    /// новой сборки не должен оставлять человека без интернета с системным
+    /// прокси на мёртвом порту (Э3-07).
+    async fn replace_core_and_apply(&self, build: IRuntime) -> Result<()> {
+        let runtime = Config::runtime().await;
+        let previous = runtime.data_arc();
+        runtime.replace(build);
         match self.restart_core_during_config_update().await {
-            Ok(_) => {
-                Config::runtime().await.apply();
+            Ok(()) => {
                 logging!(info, Type::Core, "Configuration applied after restart");
                 Ok(())
             }
             Err(err) => {
                 logging!(error, Type::Core, "Failed to restart core: {}", err);
-                Config::runtime().await.discard();
+                runtime.replace_shared(previous);
+                self.bring_back_the_previous_core().await;
                 Err(anyhow!("Failed to apply config: {}", err))
             }
+        }
+    }
+
+    /// Ядро не поднялось на новой сборке и его больше нет — поднять прежнее.
+    /// Одна попытка: если не заведётся и оно, причина не в сборке, и ждать
+    /// осталось только человека.
+    async fn bring_back_the_previous_core(&self) {
+        if handle::Handle::global().is_exiting() || !matches!(*self.get_running_mode(), super::RunningMode::NotRunning)
+        {
+            return;
+        }
+        if Config::runtime().await.data_arc().config.is_none() {
+            logging!(
+                warn,
+                Type::Core,
+                "прежнего принятого конфига нет — поднимать ядро нечем"
+            );
+            return;
+        }
+        logging!(
+            warn,
+            Type::Core,
+            "новая сборка не поднялась, ядра нет — поднимаю ядро на прежнем принятом конфиге"
+        );
+        match self.start_core().await {
+            Ok(()) => logging!(info, Type::Core, "ядро снова работает на прежнем конфиге"),
+            Err(err) => logging!(
+                error,
+                Type::Core,
+                "прежний конфиг тоже не поднялся — причина не в сборке: {err:#}"
+            ),
         }
     }
 

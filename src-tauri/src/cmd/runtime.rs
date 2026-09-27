@@ -8,13 +8,13 @@ use std::collections::HashMap;
 
 #[tauri::command]
 pub async fn get_runtime_config() -> CmdResult<Option<Mapping>> {
-    Ok(Config::runtime().await.latest_arc().config.clone())
+    Ok(Config::runtime().await.data_arc().config.clone())
 }
 
 #[tauri::command]
 pub async fn get_runtime_proxy_group_order() -> CmdResult<Vec<String>> {
     let runtime = Config::runtime().await;
-    let runtime = runtime.latest_arc();
+    let runtime = runtime.data_arc();
 
     Ok(runtime
         .config
@@ -35,7 +35,7 @@ pub async fn get_runtime_proxy_group_order() -> CmdResult<Vec<String>> {
 #[tauri::command]
 pub async fn get_runtime_yaml() -> CmdResult<String> {
     let runtime = Config::runtime().await;
-    let runtime = runtime.latest_arc();
+    let runtime = runtime.data_arc();
 
     let config = runtime.config.as_ref();
     config
@@ -50,7 +50,7 @@ pub async fn get_runtime_yaml() -> CmdResult<String> {
 #[tauri::command]
 pub async fn get_runtime_proxy_chain_config(proxy_chain_exit_node: String) -> CmdResult<String> {
     let runtime = Config::runtime().await;
-    let runtime = runtime.latest_arc();
+    let runtime = runtime.data_arc();
 
     let config = runtime
         .config

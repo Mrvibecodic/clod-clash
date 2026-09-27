@@ -1064,12 +1064,10 @@ pub async fn server_descriptions() -> HashMap<String, String> {
 }
 
 fn server_descriptions_of(runtime: &Draft<IRuntime>) -> HashMap<String, String> {
-    let committed = runtime.data_arc();
-    let draft = runtime.latest_arc();
-    committed
+    runtime
+        .data_arc()
         .config
         .as_ref()
-        .or_else(|| draft.config.as_ref())
         .map(collect_server_descriptions)
         .unwrap_or_default()
 }
@@ -3106,51 +3104,20 @@ proxies:
     }
 
     #[test]
-    fn server_descriptions_survive_a_draft_that_was_never_committed() {
+    fn server_descriptions_come_from_the_accepted_config_only() {
         let runtime = Draft::new(IRuntime::new());
-        runtime.edit_draft(|draft| {
-            draft.config = Some(mapping(
-                r#"
-proxies:
-  - name: "Netherlands 01"
-    type: vless
-    server: nl-01.example.com
-    serverDescription: "10 Гбит · без лимита"
-"#,
-            ));
-        });
+        assert!(server_descriptions_of(&runtime).is_empty());
 
-        let descriptions = server_descriptions_of(&runtime);
-
-        assert_eq!(
-            descriptions.get("Netherlands 01").map(|value| value.as_str()),
-            Some("10 Гбит · без лимита")
-        );
-    }
-
-    #[test]
-    fn committed_server_descriptions_win_over_a_pending_draft() {
-        let runtime = Draft::new(IRuntime::new());
-        runtime.edit_draft(|draft| {
-            draft.config = Some(mapping(
+        runtime.replace(IRuntime {
+            config: Some(mapping(
                 r#"
 proxies:
   - name: "Netherlands 01"
     type: vless
     serverDescription: "applied"
 "#,
-            ));
-        });
-        runtime.apply();
-        runtime.edit_draft(|draft| {
-            draft.config = Some(mapping(
-                r#"
-proxies:
-  - name: "Netherlands 01"
-    type: vless
-    serverDescription: "not applied yet"
-"#,
-            ));
+            )),
+            ..IRuntime::new()
         });
 
         let descriptions = server_descriptions_of(&runtime);

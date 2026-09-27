@@ -616,7 +616,7 @@ impl CoreManager {
         let sidecar_ipc = dirs::sidecar_ipc_path()?;
         point_core_client_at(dirs::path_to_str(&sidecar_ipc)?);
 
-        let config_file = Config::generate_file(crate::config::ConfigType::Run).await?;
+        let config_file = Config::write_accepted_runtime_file().await?;
         let app_handle = handle::Handle::app_handle();
         let clash_core = Config::verge().await.latest_arc().get_valid_clash_core();
         let config_dir = dirs::app_home_dir()?;
@@ -809,7 +809,7 @@ impl CoreManager {
         // Служба всегда запускает встроенное ядро, управляемое под ней не
         // действует. Имя читается до старта — тем же, что уйдёт службе.
         let started_core = Config::verge().await.latest_arc().get_valid_clash_core().to_string();
-        let config_file = Config::generate_file(crate::config::ConfigType::Run).await?;
+        let config_file = Config::write_accepted_runtime_file().await?;
 
         #[cfg(target_os = "windows")]
         {

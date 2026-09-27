@@ -1,6 +1,7 @@
 use anyhow::Result;
 use scopeguard::defer;
 use serde::Serialize;
+use serde_yaml_ng::Mapping;
 use smartstring::alias::String;
 use std::{
     fmt,
@@ -441,8 +442,9 @@ impl CoreConfigValidator {
         }
     }
 
-    /// Проверяет runtime-конфиг
-    pub async fn validate_config_outcome(&self) -> Result<ValidationOutcome> {
+    /// Проверяет ядром собранный конфиг-кандидат. Кандидат приходит значением:
+    /// у проверки нет общего слота, из которого её мог бы подменить кто-то ещё.
+    pub async fn validate_config_outcome_with(&self, config: &Mapping) -> Result<ValidationOutcome> {
         if !self.try_start() {
             logging!(info, Type::Validate, "Проверка уже выполняется, новый запрос пропущен");
             return Ok(ValidationOutcome::Busy);
@@ -452,7 +454,7 @@ impl CoreConfigValidator {
         }
         logging!(info, Type::Validate, "Создание временного конфига для проверки");
 
-        let config_path = Config::generate_file(ConfigType::Check).await?;
+        let config_path = Config::write_config_file(ConfigType::Check, config).await?;
         let config_path = dirs::path_to_str(&config_path)?;
         Self::validate_config_internal_outcome(config_path).await
     }

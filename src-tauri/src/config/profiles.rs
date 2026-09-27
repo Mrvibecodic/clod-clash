@@ -1356,7 +1356,7 @@ async fn activate_selected_nodes_worker(
 }
 
 async fn lift_foreign_pins(generation: u64) {
-    let group_names = runtime_group_names(&Config::runtime().await.latest_arc());
+    let group_names = runtime_group_names(&Config::runtime().await.data_arc());
     let snapshot = tokio::time::timeout(MIHOMO_OPERATION_TIMEOUT, handle::Handle::mihomo().get_proxies()).await;
     let Ok(Ok(proxies)) = snapshot else {
         return;

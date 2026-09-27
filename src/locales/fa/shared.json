@@ -127,7 +127,7 @@
     "validation": {
       "config": {
         "failed": "بررسی پیکربندی ناموفق بود، تغییرات لغو شد. خطا:",
-        "bootFailed": "اعتبارسنجی پیکربندی هنگام راه‌اندازی ناموفق بود، پیکربندی پیش‌فرض استفاده شد، فایل پیکربندی را بررسی کنید، جزئیات خطا:",
+        "bootFailed": "The core rejected the configuration at startup — the core is not running, there is no connection. Update the subscription or switch to another one. Error:",
         "processTerminated": "فرایند اعتبارسنجی متوقف شد. بررسی کنید که نرم‌افزار امنیتی جلوی اجرای هسته را نگرفته باشد و پردازنده این رایانه از این نسخه هسته پشتیبانی کند.",
         "timeout": "به‌روزرسانی پیکربندی در ۳۰ ثانیه انجام نشد: بررسی یا هسته پاسخ ندادند. نمایهٔ قبلی بازگردانده شد."
       },

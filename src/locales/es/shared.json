@@ -127,7 +127,7 @@
     "validation": {
       "config": {
         "failed": "La comprobación de la configuración falló, cambios revertidos. Error:",
-        "bootFailed": "Error de validación de la configuración de la suscripción de arranque. Se ha iniciado con la configuración predeterminada. Compruebe el archivo de configuración de la suscripción. Detalles del error: ",
+        "bootFailed": "The core rejected the configuration at startup — the core is not running, there is no connection. Update the subscription or switch to another one. Error:",
         "processTerminated": "El proceso de validación se ha interrumpido. Compruebe si un software de seguridad bloquea el núcleo y si la CPU de este equipo admite esta compilación del núcleo.",
         "timeout": "La actualización de la configuración superó el tiempo límite (30 s): la comprobación o el núcleo no respondieron. Se ha restaurado el perfil anterior."
       },

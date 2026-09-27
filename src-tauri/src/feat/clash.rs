@@ -85,7 +85,7 @@ const CORE_MODE_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_se
 async fn runtime_mode_is(mode: &str) -> bool {
     Config::runtime()
         .await
-        .latest_arc()
+        .data_arc()
         .config
         .as_ref()
         .and_then(|config| config.get("mode"))
@@ -148,6 +148,17 @@ async fn remember_mode_choice<'a>(
 }
 
 async fn switch_clash_mode(mode: String, owner: Option<(String, bool)>) -> Result<(), String> {
+    // Под признаком применения конфига: пока чужая сборка едет к ядру, режим
+    // не переключаем (она уехала бы со старым и вернула его), а пока идёт
+    // PATCH — не стартует чужая сборка.
+    let Some(_applying) = CoreManager::global().claim_config_update() else {
+        logging!(
+            info,
+            Type::Core,
+            "mode change refused: a configuration update is running"
+        );
+        return Err(clash_verge_i18n::t!("common.modeSwitching").into_owned().into());
+    };
     let previous = remember_mode_choice(owner.as_ref(), &mode).await;
     let mut mapping = Mapping::new();
     mapping.insert(Value::from("mode"), Value::from(mode.as_str()));
@@ -165,13 +176,12 @@ async fn switch_clash_mode(mode: String, owner: Option<(String, bool)>) -> Resul
         return Err(err.to_string().into());
     }
 
-    // clod:Э3-06 — под замком правки Clash: иначе `apply()` зафиксировал бы
-    // чужую правку, которая ещё ждёт проверки ядром.
-    let _serialized = crate::feat::patch_clash_lock().lock().await;
+    // Ядро режим приняло — правим принятый слот и рабочий файл под ним.
     let runtime = Config::runtime().await;
-    runtime.edit_draft(|d| d.patch_config(&mapping));
-    runtime.apply();
-    if let Err(err) = Config::generate_file(crate::config::ConfigType::Run).await {
+    let mut accepted = (**runtime.data_arc()).clone();
+    accepted.patch_config(&mapping);
+    runtime.replace(accepted);
+    if let Err(err) = Config::write_accepted_runtime_file().await {
         logging!(
             warn,
             Type::Core,

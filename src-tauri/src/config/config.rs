@@ -2,7 +2,10 @@ use super::{IClashTemp, IProfiles, IVerge};
 use crate::{
     config::{PrfItem, profiles_append_item_to_safe, runtime::IRuntime},
     constants::{files, timing},
-    core::{CoreManager, handle, validate::CoreConfigValidator},
+    core::{
+        CoreManager, handle,
+        validate::{CoreConfigValidator, ValidationOutcome},
+    },
     enhance,
     process::AsyncHandler,
     utils::{dirs, help},
@@ -196,14 +199,9 @@ impl Config {
     /// Спрашивать про порт наши собственные настройки нельзя: системный прокси,
     /// PAC, проверка занятости и апдейтер указывали бы мимо ядра.
     pub async fn effective_mixed_port() -> u16 {
-        // Сначала ПРИМЕНЁННЫЙ конфиг: черновик может нести порт, который ядру
-        // ещё не отдали (или который отвергнут проверкой), и системный прокси
-        // указал бы на порт, которого у ядра никогда не было. Черновик берём
-        // только на холодном старте, пока применённого ещё нет.
-        let runtime = Self::runtime().await;
-        let from_runtime = mixed_port_in(runtime.data_arc().config.as_ref())
-            .or_else(|| mixed_port_in(runtime.latest_arc().config.as_ref()));
-        if let Some(port) = from_runtime {
+        // Слот рантайма хранит только принятое: порт, который ядру ещё не отдали
+        // или который оно отвергло, сюда не попадает.
+        if let Some(port) = mixed_port_in(Self::runtime().await.data_arc().config.as_ref()) {
             return port;
         }
         Self::clash().await.latest_arc().get_mixed_port()
@@ -216,10 +214,7 @@ impl Config {
     /// ядро встаёт на все интерфейсы, а не на петлю. Источник истины один, и
     /// это СОБРАННЫЙ конфиг — ровно как с портом.
     pub async fn effective_allow_lan() -> bool {
-        let runtime = Self::runtime().await;
-        let from_runtime = allow_lan_in(runtime.data_arc().config.as_ref())
-            .or_else(|| allow_lan_in(runtime.latest_arc().config.as_ref()));
-        if let Some(sharing) = from_runtime {
+        if let Some(sharing) = allow_lan_in(Self::runtime().await.data_arc().config.as_ref()) {
             return sharing;
         }
         Self::clash()
@@ -241,16 +236,11 @@ impl Config {
 
     /// Порт, с которым ядро только что ЗАПУЩЕНО или перезагружено.
     ///
-    /// clod:port-ladder — файл для ядра пишется из черновика (`generate_file`
-    /// берёт `latest`), а в применённый слот черновик попадает уже после
-    /// старта. Поэтому проверка «слушает ли ядро свой порт» обязана смотреть
-    /// на черновик первым: применённый слот в этот момент держит ПРЕЖНИЙ
-    /// конфиг, и при смене порта проверка сравнивала бы ядро со старым
-    /// значением. Для системного прокси и PAC верно обратное — им нужен
-    /// `effective_mixed_port`.
+    /// clod:port-ladder — файл для ядра пишется из принятого слота, и слот
+    /// заменяется до перезапуска ядра, так что здесь он всегда держит конфиг
+    /// стартующего ядра.
     pub async fn mixed_port_the_core_was_started_with() -> u16 {
-        let runtime = Self::runtime().await;
-        if let Some(port) = mixed_port_in(runtime.latest_arc().config.as_ref()) {
+        if let Some(port) = mixed_port_in(Self::runtime().await.data_arc().config.as_ref()) {
             return port;
         }
         Self::clash().await.latest_arc().get_mixed_port()
@@ -316,60 +306,73 @@ impl Config {
         Ok(())
     }
 
+    /// Собрать конфиг при старте приложения и спросить ядро, годится ли он.
+    ///
+    /// Судья — только само ядро. «Отвергло» — конфиг в слот не попадает и ядро
+    /// не запускается (`CoreManager::refuse_to_start`); поднимать его на пустом
+    /// умолчании с включёнными прокси и TUN значило бы гнать весь трафик напрямую
+    /// при зелёном значке. «Проверить не удалось» (антивирус прибил проверку,
+    /// таймаут) — не приговор конфигу: он попадает в слот, и ядро решит само.
     async fn generate_and_validate() -> Result<Option<(&'static str, String)>> {
-        // Генерируем runtime-конфиг
-        if let Err(err) = Self::generate().await {
-            let error_msg: String = err.to_string().into();
-            logging!(
-                error,
-                Type::Config,
-                "Не удалось сгенерировать runtime-конфиг: {}",
-                error_msg
-            );
-            CoreManager::global().use_default_config().await?;
-            return Ok(Some(("config_validate::boot_error", error_msg)));
-        }
+        let build = match Self::build().await {
+            Ok(build) => build,
+            Err(err) => {
+                let error_msg: String = err.to_string().into();
+                logging!(
+                    error,
+                    Type::Config,
+                    "Не удалось сгенерировать runtime-конфиг: {}",
+                    error_msg
+                );
+                CoreManager::global().refuse_to_start(error_msg.clone());
+                return Ok(Some(("config_validate::boot_error", error_msg)));
+            }
+        };
         logging!(info, Type::Config, "Runtime-конфиг сгенерирован успешно");
 
-        // Генерируем файл runtime-конфига и проверяем его
-        let config_result = Self::generate_file(ConfigType::Run).await;
+        let Some(config) = build.config.as_ref() else {
+            let error_msg: String = "собранный конфиг пуст".into();
+            CoreManager::global().refuse_to_start(error_msg.clone());
+            return Ok(Some(("config_validate::boot_error", error_msg)));
+        };
 
-        if config_result.is_ok() {
-            // Проверяем конфиг-файл
-            logging!(info, Type::Config, "Начинаю проверку конфига");
-
-            match CoreConfigValidator::global().validate_config_outcome().await {
-                Ok(outcome) if outcome.is_valid() => {
-                    logging!(info, Type::Config, "Проверка конфига успешна");
-                    // Фронтенду не нужно знать об успешной проверке, событие не требуется
-                    // Some(("config_validate::success", String::new()))
-                    Ok(None)
-                }
-                Ok(outcome) => {
-                    let error_msg: String = outcome.to_string().into();
-                    logging!(
-                        warn,
-                        Type::Config,
-                        "[Первый запуск] Проверка конфига не пройдена, запускаю с минимальным конфигом по умолчанию: {}",
-                        error_msg
-                    );
-                    CoreManager::global().use_default_config().await?;
-                    Ok(Some(("config_validate::boot_error", error_msg)))
-                }
-                Err(err) => {
-                    logging!(warn, Type::Config, "Не удалось выполнить проверку: {}", err);
-                    CoreManager::global().use_default_config().await?;
-                    Ok(Some(("config_validate::process_terminated", String::new())))
-                }
+        logging!(info, Type::Config, "Начинаю проверку конфига");
+        match CoreConfigValidator::global().validate_config_outcome_with(config).await {
+            Ok(outcome) if outcome.is_valid() => {
+                logging!(info, Type::Config, "Проверка конфига успешна");
+                Self::runtime().await.replace(build);
+                Ok(None)
             }
-        } else {
-            logging!(
-                warn,
-                Type::Config,
-                "Не удалось сгенерировать конфиг, использую конфиг по умолчанию"
-            );
-            CoreManager::global().use_default_config().await?;
-            Ok(Some(("config_validate::error", String::new())))
+            Ok(outcome @ ValidationOutcome::Invalid { .. }) => {
+                let error_msg: String = outcome.to_string().into();
+                logging!(
+                    warn,
+                    Type::Config,
+                    "Ядро отвергло конфиг при запуске, ядро не запускается: {}",
+                    error_msg
+                );
+                CoreManager::global().refuse_to_start(error_msg.clone());
+                Ok(Some(("config_validate::boot_error", error_msg)))
+            }
+            // «Занято» и «пропущено» — не слово ядра о конфиге.
+            Ok(outcome) => {
+                logging!(
+                    warn,
+                    Type::Config,
+                    "Проверка при запуске не состоялась ({outcome}) — ядро стартует на собранном конфиге и рассудит само"
+                );
+                Self::runtime().await.replace(build);
+                Ok(None)
+            }
+            Err(err) => {
+                logging!(
+                    warn,
+                    Type::Config,
+                    "Не удалось выполнить проверку ({err}) — ядро стартует на собранном конфиге и рассудит само"
+                );
+                Self::runtime().await.replace(build);
+                Ok(Some(("config_validate::process_terminated", String::new())))
+            }
         }
     }
 
@@ -380,29 +383,18 @@ impl Config {
     }
 
     pub async fn dns_page_check_config(page: &Mapping) -> Option<Mapping> {
-        let runtime = Self::runtime().await;
-        let runtime_latest = runtime.latest_arc();
-        let runtime_data = runtime.data_arc();
-        let working = runtime_latest.config.as_ref().or(runtime_data.config.as_ref())?;
+        let runtime = Self::runtime().await.data_arc();
+        let working = runtime.config.as_ref()?;
 
         Some(check_config_with_dns_page(working, page))
     }
 
-    pub async fn generate_file(typ: ConfigType) -> Result<PathBuf> {
+    /// Записать файл ядра из переданного конфига — рабочий или проверочный.
+    pub async fn write_config_file(typ: ConfigType, config: &Mapping) -> Result<PathBuf> {
         let path = match typ {
             ConfigType::Run => dirs::app_home_dir()?.join(files::RUNTIME_CONFIG),
             ConfigType::Check => dirs::app_home_dir()?.join(files::CHECK_CONFIG),
         };
-
-        let runtime = Self::runtime().await;
-        let runtime_lastest = runtime.latest_arc();
-        // Fall back to committed config if runtime config is missing
-        let runtime_data = runtime.data_arc();
-        let config = runtime_lastest
-            .config
-            .as_ref()
-            .or_else(|| runtime_data.config.as_ref())
-            .ok_or_else(|| anyhow!("failed to generate runtime config, might need to restart application"))?;
 
         match typ {
             ConfigType::Run => help::save_yaml(&path, config, Some("# Generated by Clash Verge")).await?,
@@ -414,21 +406,32 @@ impl Config {
         Ok(path)
     }
 
-    pub async fn generate() -> Result<()> {
+    /// Рабочий файл ядра из принятого слота — для путей старта ядра. Слот держит
+    /// только то, что ядро приняло (или что проверено при запуске приложения), так
+    /// что чужой непроверенный кандидат отсюда уехать не может.
+    pub async fn write_accepted_runtime_file() -> Result<PathBuf> {
+        let runtime = Self::runtime().await.data_arc();
+        let config = runtime
+            .config
+            .as_ref()
+            .ok_or_else(|| anyhow!("принятого конфига ядра нет — конфиг ещё не собран или отвергнут ядром"))?;
+        Self::write_config_file(ConfigType::Run, config).await
+    }
+
+    /// Собрать конфиг ядра из источников. Результат — значение у вызывающего:
+    /// в слот рантайма он попадает только через `CoreManager` после того, как
+    /// ядро его приняло.
+    pub async fn build() -> Result<IRuntime> {
         let (mut config, exists_keys, logs, sentinel_report) = enhance::enhance().await?;
 
         sanitize_tunnels_proxy(&mut config);
 
-        Self::runtime().await.edit_draft(|d| {
-            *d = IRuntime {
-                config: Some(config),
-                exists_keys,
-                chain_logs: logs,
-                sentinel_report,
-            }
-        });
-
-        Ok(())
+        Ok(IRuntime {
+            config: Some(config),
+            exists_keys,
+            chain_logs: logs,
+            sentinel_report,
+        })
     }
 
     pub async fn verify_config_initialization() {
@@ -439,10 +442,10 @@ impl Config {
             .with_max_times(10);
 
         if let Err(e) = (|| async {
-            if Self::runtime().await.latest_arc().config.is_some() {
+            if Self::runtime().await.data_arc().config.is_some() || CoreManager::global().startup_refusal().is_some() {
                 return Ok::<(), anyhow::Error>(());
             }
-            Self::generate().await
+            Self::generate_and_validate().await.map(|_| ())
         })
         .retry(backoff)
         .await
