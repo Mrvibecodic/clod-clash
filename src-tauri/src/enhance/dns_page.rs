@@ -242,18 +242,26 @@ fn collect_server_names(servers: &Value, out: &mut Vec<String>) {
     }
 }
 
-/// `rule-set:a,b` → `a`, `b`.
+/// `rule-set:a,b` → `a`, `b`; строка правила режима `rule`
+/// (`RULE-SET,name,…` в фильтре fake-ip) → `name`.
 fn collect_rule_sets(matcher: &str, out: &mut Vec<String>) {
-    let Some(names) = matcher.trim().strip_prefix("rule-set:") else {
+    let matcher = matcher.trim();
+    if let Some(names) = matcher.strip_prefix("rule-set:") {
+        out.extend(
+            names
+                .split(',')
+                .map(str::trim)
+                .filter(|name| !name.is_empty())
+                .map(str::to_owned),
+        );
         return;
-    };
-    out.extend(
-        names
-            .split(',')
-            .map(str::trim)
-            .filter(|name| !name.is_empty())
-            .map(str::to_owned),
-    );
+    }
+    let mut parts = matcher.split(',').map(str::trim);
+    if parts.next().is_some_and(|kind| kind.eq_ignore_ascii_case("rule-set"))
+        && let Some(name) = parts.next().filter(|name| !name.is_empty())
+    {
+        out.push(name.to_owned());
+    }
 }
 
 #[cfg(test)]
@@ -322,7 +330,7 @@ mod tests {
     #[test]
     fn references_name_groups_and_rule_sets_but_not_core_parameters() {
         let page = Page::parse(
-            "dns:\n  nameserver: ['https://dns.example/dns-query#GRP-A', 'tls://1.1.1.1#GRP-B&skip-cert-verify=true', 'udp://9.9.9.9']\n  nameserver-policy:\n    'rule-set:rs-one,rs-two': 'https://dns.example/dns-query#GRP-A'\n    '+.example.test': ['system#h3=true']\n  fake-ip-filter: ['*.lan', 'rule-set:rs-three', 'geosite:private']\n",
+            "dns:\n  nameserver: ['https://dns.example/dns-query#GRP-A', 'tls://1.1.1.1#GRP-B&skip-cert-verify=true', 'udp://9.9.9.9']\n  nameserver-policy:\n    'rule-set:rs-one,rs-two': 'https://dns.example/dns-query#GRP-A'\n    '+.example.test': ['system#h3=true']\n  fake-ip-filter: ['*.lan', 'rule-set:rs-three', 'geosite:private', 'RULE-SET,rs-four,fake-ip']\n",
         )
         .expect("page");
 
@@ -331,7 +339,12 @@ mod tests {
         assert_eq!(refs.proxies, vec!["GRP-A".to_owned(), "GRP-B".to_owned()]);
         assert_eq!(
             refs.rule_sets,
-            vec!["rs-one".to_owned(), "rs-three".to_owned(), "rs-two".to_owned()]
+            vec![
+                "rs-four".to_owned(),
+                "rs-one".to_owned(),
+                "rs-three".to_owned(),
+                "rs-two".to_owned()
+            ]
         );
     }
 

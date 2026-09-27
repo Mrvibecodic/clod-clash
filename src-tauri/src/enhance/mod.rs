@@ -700,11 +700,33 @@ fn enforce_tun(mut config: Mapping, snapshot: TunSnapshot, cap_chain_stack: bool
 /// Вернуть после цепочек merge и script ровно те ключи `dns`, что задала
 /// страница: они — слово человека, и цепочка их не переписывает. Остальные
 /// ключи блока цепочке доступны, как и без страницы.
-fn enforce_dns_page(mut config: Mapping, page: Option<&dns_page::Page>) -> Mapping {
-    if let Some(page) = page {
-        page.lay_over(&mut config);
+///
+/// clod:dns-page-diff — здесь же, по уже собранному конфигу (наборы правил из
+/// merge и script тоже объявлены), снимается ключ страницы со ссылкой на набор
+/// правил, которого нет: иначе он валил бы весь конфиг, и каждое обновление
+/// подписки отвергалось бы ядром. Такой ключ возвращается подписке (`base`), а
+/// человеку об этом говорит уведомление об отброшенных ключах.
+fn enforce_dns_page(
+    mut config: Mapping,
+    page: Option<&dns_page::Page>,
+    base: &dns_page::Base,
+) -> (Mapping, Vec<String>) {
+    let Some(page) = page else {
+        return (config, Vec::new());
+    };
+    let (page, dropped) = drop_the_rule_sets_the_subscription_lost(page.clone(), &config);
+    if !dropped.is_empty()
+        && let Some(dns) = config.get_mut("dns").and_then(Value::as_mapping_mut)
+    {
+        for key in dropped.iter().filter_map(|key| key.strip_prefix("dns.")) {
+            match base.dns.get(key) {
+                Some(value) => dns.insert(key.into(), value.clone()),
+                None => dns.remove(key),
+            };
+        }
     }
-    config
+    page.lay_over(&mut config);
+    (config, dropped)
 }
 
 /// Сеть из списка раздачи: адрес и длина префикса.
@@ -1848,37 +1870,41 @@ async fn apply_dns_settings(
     may_rewrite_a_legacy_page: bool,
     base: &dns_page::Base,
     candidate: Option<&dns_page::Page>,
-) -> (Mapping, Option<dns_page::Page>, Vec<String>) {
+) -> (Mapping, Option<dns_page::Page>) {
     let page = match candidate {
         Some(candidate) => candidate.clone(),
         None => {
             if !enable_dns_settings {
-                return (config, None, Vec::new());
+                return (config, None);
             }
             let Ok(dns_path) = dirs::dns_page_path(profile_uid) else {
-                return (config, None, Vec::new());
+                return (config, None);
             };
-            match read_dns_page(&dns_path, may_rewrite_a_legacy_page, base, &dns_page::Base::of(&config)).await {
+            // Формовка под TUN для сведения — как если бы TUN был включён:
+            // копия могла быть снята под ним, а сводиться при выключенном.
+            let shaped = dns_page::Base::of(&ensure_dns_for_tun(config.clone(), true));
+            match read_dns_page(&dns_path, may_rewrite_a_legacy_page, base, &shaped).await {
                 Some(page) => page,
-                None => return (config, None, Vec::new()),
+                None => return (config, None),
             }
         }
     };
 
-    let (page, discarded) = drop_the_rule_sets_the_subscription_lost(page, &config);
     page.lay_over(&mut config);
     if let Some(dns) = config.get_mut("dns").and_then(Value::as_mapping_mut) {
         ensure_fake_ip_range6(dns);
     }
     if page.is_empty() {
-        return (config, None, discarded);
+        return (config, None);
     }
     logging!(info, Type::Core, "apply the DNS page of {profile_uid}");
-    (config, Some(page), discarded)
+    (config, Some(page))
 }
 
 /// Прочитать страницу с диска; старую копию свести к отличиям и переписать
-/// (комментарии человека переносятся в шапку). Не читается — блок за подпиской.
+/// (комментарии человека переносятся в шапку). Файла нет — пустая страница:
+/// при включённом тумблере она есть у каждой подписки, пусть и без отличий.
+/// Не читается или не разбирается — блок целиком за подпиской.
 async fn read_dns_page(
     dns_path: &std::path::Path,
     may_rewrite_a_legacy_page: bool,
@@ -1887,7 +1913,7 @@ async fn read_dns_page(
 ) -> Option<dns_page::Page> {
     let raw = match fs::read_to_string(dns_path).await {
         Ok(raw) => raw,
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return None,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Some(dns_page::Page::default()),
         Err(err) => {
             logging!(
                 warn,
@@ -2041,7 +2067,7 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
         let _ = shaped_fake_ip;
         None
     };
-    let (config, dns_page, dns_page_discards) = apply_dns_settings(
+    let (config, dns_page) = apply_dns_settings(
         config,
         enable_dns_settings,
         &profile_uid,
@@ -2069,12 +2095,12 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
     let (config, exists_keys, result_map) =
         process_profile_items(config, exists_keys, result_map, merge_item, script_item, &profile_name).await;
 
-    let mut discarded_keys = dns_page_discards;
-    discarded_keys.extend(control_plane_discards(&config, &control_plane));
+    let mut discarded_keys = control_plane_discards(&config, &control_plane);
     let config = enforce_control_plane(config, control_plane);
     let (config, tun_discards) = enforce_tun(config, tun_snapshot, cfg!(target_os = "windows"));
     discarded_keys.extend(tun_discards);
-    let config = enforce_dns_page(config, dns_page.as_ref());
+    let (config, dns_page_discards) = enforce_dns_page(config, dns_page.as_ref(), &dns_base);
+    discarded_keys.extend(dns_page_discards);
     let mut config = ensure_dns_for_tun(config, enable_tun);
     // clod:dns-listen — цепочки merge и script отрабатывают после первого
     // прижатия и могут вернуть `dns.listen` наружу; при включённой странице DNS
@@ -3011,7 +3037,8 @@ mod tests {
         let hijacked = mapping(
             r#"{dns: {ipv6: true, enhanced-mode: redir-host, proxy-server-nameserver: ["8.8.8.8"]}, hosts: {a.test: 9.9.9.9}}"#,
         );
-        let result = super::enforce_dns_page(hijacked, Some(&page));
+        let (result, dropped) = super::enforce_dns_page(hijacked, Some(&page), &super::dns_page::Base::default());
+        assert!(dropped.is_empty());
 
         let dns = result.get("dns").expect("dns block");
         assert_eq!(dns.get("ipv6").and_then(serde_yaml_ng::Value::as_bool), Some(false));
@@ -3037,9 +3064,35 @@ mod tests {
     }
 
     #[test]
+    fn a_page_key_pointing_at_a_lost_rule_set_goes_back_to_the_subscription() {
+        let base = super::dns_page::Base::of(&mapping(r"{dns: {nameserver-policy: {'+.lan': system}}}"));
+        let page =
+            super::dns_page::Page::parse(r"dns: {ipv6: true, nameserver-policy: {'rule-set:rs-gone': ['1.1.1.1']}}")
+                .expect("page");
+        // После цепочек: набор из merge объявлен, rs-gone — нет.
+        let after_chains = mapping(
+            r"{rule-providers: {rs-merge: {type: http}}, dns: {ipv6: true, nameserver-policy: {'rule-set:rs-gone': ['1.1.1.1']}}}",
+        );
+        let (result, dropped) = super::enforce_dns_page(after_chains, Some(&page), &base);
+        assert_eq!(names(&dropped), ["dns.nameserver-policy"]);
+        assert_eq!(
+            result["dns"]["nameserver-policy"],
+            serde_yaml_ng::Value::Mapping(mapping(r"{'+.lan': system}")),
+            "ключ вернулся к значению подписки"
+        );
+        assert_eq!(result["dns"]["ipv6"], serde_yaml_ng::Value::Bool(true));
+
+        let kept =
+            super::dns_page::Page::parse(r"dns: {nameserver-policy: {'rule-set:rs-merge': system}}").expect("page");
+        let after_chains = mapping(r"{rule-providers: {rs-merge: {type: http}}, dns: {}}");
+        let (_, dropped) = super::enforce_dns_page(after_chains, Some(&kept), &base);
+        assert!(dropped.is_empty(), "набор из merge объявлен — ключ остаётся");
+    }
+
+    #[test]
     fn dns_page_never_removes_what_it_did_not_write() {
         let from_merge = mapping(r#"{dns: {enable: true, nameserver: ["9.9.9.9"]}}"#);
-        let result = super::enforce_dns_page(from_merge, None);
+        let (result, _) = super::enforce_dns_page(from_merge, None, &super::dns_page::Base::default());
         assert_eq!(
             result
                 .get("dns")

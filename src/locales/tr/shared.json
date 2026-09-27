@@ -121,7 +121,7 @@
         "saveSuccess": "Configuration saved successfully",
         "saveFailed": "Failed to save configuration",
         "configLoadFailed": "Bir ayar dosyası okunamadı: {{files}}. Yanına \".unreadable-<tarih>\" adıyla bir kopyası bırakıldı — hiçbir şey kaybolmadı. Abonelikler ve ayarlar sıfırlanmış görünebilir; dosyayı bu kopyadan veya bir yedekten geri yükleyin.",
-        "keysDiscarded": "Your Merge/Script wrote keys managed by the app settings ({{keys}}) — those writes were discarded. Change them in the settings instead.",
+        "keysDiscarded": "Writes to the keys {{keys}} were discarded: they are managed by the app settings, or the DNS page refers to a rule set the subscription does not have. Change them in the settings instead.",
         "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked",
         "logsExported": "Günlük arşivi kaydedildi — abonelik adresleri ve belirteçler gizlendi"
       }

@@ -22,6 +22,7 @@ interface DnsSaveOutcome {
   saved: boolean
   validation: ValidationOutcome
   warning?: string | null
+  deliveryError?: string | null
 }
 
 interface IConfigData {

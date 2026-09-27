@@ -121,7 +121,7 @@
         "saveSuccess": "Configuration saved successfully",
         "saveFailed": "Failed to save configuration",
         "configLoadFailed": "Could not read a settings file: {{files}}. A copy of it was set aside next to it, named \".unreadable-<date>\" — nothing is lost. Subscriptions and settings may look reset; restore the file from that copy or from a backup.",
-        "keysDiscarded": "Your Merge/Script wrote keys managed by the app settings ({{keys}}) — those writes were discarded. Change them in the settings instead.",
+        "keysDiscarded": "Writes to the keys {{keys}} were discarded: they are managed by the app settings, or the DNS page refers to a rule set the subscription does not have. Change them in the settings instead.",
         "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked",
         "logsExported": "Log archive saved — subscription addresses and tokens are masked"
       }

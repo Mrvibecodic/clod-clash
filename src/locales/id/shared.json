@@ -121,7 +121,7 @@
         "saveSuccess": "Configuration saved successfully",
         "saveFailed": "Failed to save configuration",
         "configLoadFailed": "Tidak dapat membaca berkas pengaturan: {{files}}. Salinannya disimpan di sebelahnya dengan nama \".unreadable-<tanggal>\" — tidak ada yang hilang. Langganan dan pengaturan mungkin tampak tereset; pulihkan berkas dari salinan itu atau dari cadangan.",
-        "keysDiscarded": "Your Merge/Script wrote keys managed by the app settings ({{keys}}) — those writes were discarded. Change them in the settings instead.",
+        "keysDiscarded": "Writes to the keys {{keys}} were discarded: they are managed by the app settings, or the DNS page refers to a rule set the subscription does not have. Change them in the settings instead.",
         "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked",
         "logsExported": "Arsip log disimpan — alamat langganan dan token disamarkan"
       }

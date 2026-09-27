@@ -154,16 +154,24 @@ async fn bring_tun_back(reason: &str) {
 /// если TUN хочется и в принятом его нет; иначе трафик шёл бы мимо туннеля до
 /// первой случайной пересборки.
 /// То же отдельной задачей: из путей передачи ядра службе, чьи будущие иначе
-/// замыкались бы сами на себя (перезапуск ядра снова заводит наблюдателя передачи).
+/// замыкались бы сами на себя (перезапуск ядра снова заводит наблюдателя
+/// передачи). Передача случается и посреди `patch_verge` (тумблер TUN, кнопка
+/// починки службы): сначала дождаться этой правки, иначе пересборка пошла бы
+/// из ещё не зафиксированных настроек и заняла бы дверь у самого `patch_verge`.
 pub fn spawn_bringing_tun_back_if_the_config_lacks_it(reason: &'static str) {
     AsyncHandler::spawn(move || {
-        Box::pin(bring_tun_back_if_the_config_lacks_it(reason))
-            as std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>
+        Box::pin(async move {
+            drop(crate::feat::patch_verge_lock().lock().await);
+            bring_tun_back_if_the_config_lacks_it(reason).await;
+        }) as std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>
     });
 }
 
 pub async fn bring_tun_back_if_the_config_lacks_it(reason: &str) {
-    if !claimed().await {
+    // По зафиксированным настройкам, не по черновику: идущая правка тумблера
+    // сама пересоберёт конфиг, когда её зафиксируют.
+    let wanted = Config::verge().await.data_arc().enable_tun_mode.unwrap_or(false);
+    if !is_claimed(wanted, is_suppressed()) {
         return;
     }
     let accepted_has_tun = Config::runtime()
@@ -974,7 +982,14 @@ async fn already_ready(user_initiated: bool) -> bool {
     if is_capable().await {
         clear_suppression();
         proven_alive_at_startup(user_initiated).await;
-        bring_tun_back_if_the_config_lacks_it("the service turned out to be available").await;
+        // Ядро ещё своим процессом без прав — TUN в нём не поднять: сначала
+        // передать ядро службе, возврат TUN пойдёт следом за передачей.
+        let manager = crate::core::CoreManager::global();
+        if matches!(*manager.get_running_mode(), crate::core::manager::RunningMode::Sidecar) && !is_app_elevated() {
+            manager.handoff_to_service_if_needed().await;
+        } else {
+            bring_tun_back_if_the_config_lacks_it("the service turned out to be available").await;
+        }
         return true;
     }
 

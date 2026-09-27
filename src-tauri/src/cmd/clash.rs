@@ -171,6 +171,9 @@ pub struct DnsSaveOutcome {
     /// Предостережение, с которым страница всё же сохранена: имена в хвостах
     /// `#имя`, которых ядро не знает как узлы или группы.
     warning: Option<String>,
+    /// Файл записан, но доставить сборку ядру не удалось (ядро о содержимом
+    /// ничего не сказало): применится при следующей сборке.
+    delivery_error: Option<String>,
 }
 
 const fn reached_a_verdict(outcome: &ValidationOutcome) -> bool {
@@ -294,6 +297,7 @@ pub async fn save_dns_config(dns_config: Mapping) -> CmdResult<DnsSaveOutcome> {
             saved: false,
             validation: ValidationOutcome::invalid(ValidationErrorKind::CoreRejected, refusal),
             warning: None,
+            delivery_error: None,
         });
     }
 
@@ -310,6 +314,7 @@ pub async fn save_dns_config(dns_config: Mapping) -> CmdResult<DnsSaveOutcome> {
                 saved: false,
                 validation,
                 warning: None,
+                delivery_error: None,
             });
         }
         Err(validation) => {
@@ -323,22 +328,34 @@ pub async fn save_dns_config(dns_config: Mapping) -> CmdResult<DnsSaveOutcome> {
                 saved: true,
                 validation,
                 warning: references.warning,
+                delivery_error: None,
             });
         }
     };
 
     write_dns_page(&dns_path, &page).await?;
-    let validation = if dns_settings_on {
-        staged.deliver_unless_unchanged().await.stringify_err()?
+    let (validation, delivery_error) = if dns_settings_on {
+        match staged.deliver_unless_unchanged().await {
+            Ok(validation) => (validation, None),
+            Err(err) => {
+                logging!(
+                    warn,
+                    Type::Config,
+                    "DNS page saved but not delivered to the core: {err:#}"
+                );
+                (ValidationOutcome::Valid, Some(format!("{err:#}").into()))
+            }
+        }
     } else {
         drop(staged);
-        ValidationOutcome::Valid
+        (ValidationOutcome::Valid, None)
     };
 
     Ok(DnsSaveOutcome {
         saved: true,
         validation,
         warning: references.warning,
+        delivery_error,
     })
 }
 

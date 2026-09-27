@@ -483,6 +483,9 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
     } catch (err) {
       console.error('Failed to initialize DNS config', err)
       showNotice.error(err)
+      // Прежние значения формы к этой странице не относятся — сохранять их
+      // поверх неразобранного файла нельзя.
+      setOpen(false)
     } finally {
       setSeeding(false)
     }
@@ -550,26 +553,21 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
         return
       }
 
-      if (verge?.enable_dns_settings) {
-        try {
-          await invoke('apply_dns_config', { apply: true })
-          mutateClash()
-        } catch (applyErr) {
-          setOpen(false)
-          showNotice.error(
-            'settings.modals.dns.messages.savedNotApplied',
-            applyErr,
-          )
-          return
-        }
-      }
+      // Бэкенд сам доставил сборку ядру, если тумблер включён; повторное
+      // применение отсюда перезагружало бы ядро второй раз.
+      if (verge?.enable_dns_settings) mutateClash()
 
       setOpen(false)
 
       if (outcome.warning) {
         showNotice.warning(outcome.warning, 0)
       }
-      if (outcome.validation.status === 'valid') {
+      if (outcome.deliveryError) {
+        showNotice.error(
+          'settings.modals.dns.messages.savedNotApplied',
+          outcome.deliveryError,
+        )
+      } else if (outcome.validation.status === 'valid') {
         showNotice.success('settings.modals.dns.messages.saved')
       } else {
         showNotice.info(
