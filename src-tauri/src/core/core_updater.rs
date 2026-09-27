@@ -178,15 +178,16 @@ pub async fn managed_core() -> Option<(String, PathBuf)> {
     if !verge.use_managed_core.unwrap_or(false) {
         return None;
     }
+    intact_download().await
+}
+
+/// Скачанное управляемое ядро — если его файл на месте и не подменён после
+/// установки.
+async fn intact_download() -> Option<(String, PathBuf)> {
     let version = read_pointer("current")?;
     let binary = version_binary(&version).ok()?;
     if !binary.is_file() {
-        logging!(
-            warn,
-            Type::Core,
-            "managed core {} is missing on disk, falling back to the bundled sidecar",
-            version
-        );
+        logging!(warn, Type::Core, "managed core {} is missing on disk", version);
         return None;
     }
 
@@ -195,20 +196,14 @@ pub async fn managed_core() -> Option<(String, PathBuf)> {
             logging!(
                 error,
                 Type::Core,
-                "managed core {} changed since it was installed (expected {expected}, got {actual}), \
-                 falling back to the bundled sidecar",
+                "managed core {} changed since it was installed (expected {expected}, got {actual})",
                 version
             );
             None
         }
         Ok(_) => Some((version, binary)),
         Err(err) => {
-            logging!(
-                warn,
-                Type::Core,
-                "failed to verify managed core {}: {err:#}, falling back to the bundled sidecar",
-                version
-            );
+            logging!(warn, Type::Core, "failed to verify managed core {}: {err:#}", version);
             None
         }
     }
@@ -353,10 +348,10 @@ pub async fn check_core_update() -> Result<CoreUpdateCheck> {
     let (_, latest) = pick_asset(&release.assets, os, arch)?;
     // clod:core-choice — управляемое ядро только про стоковое Mihomo, а версия
     // Clod Core (vX-clod.N) со стоковой не совпадёт никогда. Когда работает
-    // оно, сравниваем со скачанным управляемым ядром; не скачано — стоковое
-    // доступно к скачиванию.
+    // оно, сравниваем со скачанным управляемым ядром по тому же правилу, что и
+    // «Скачать и применить»: не скачано или подменено — доступно.
     let (current, update_available) = if runs_clod_core(started_core().as_ref()) {
-        let downloaded = downloaded_version("current");
+        let downloaded = intact_download().await.map(|(version, _)| version);
         let available = downloaded.as_deref() != Some(latest.as_str());
         (downloaded, available)
     } else {
@@ -654,7 +649,12 @@ async fn apply_core_update() -> Result<CoreUpdateCheck> {
     let release = fetch_release(&channel).await?;
     let (asset, version) = pick_asset(&release.assets, os, arch)?;
 
-    if read_pointer("current").as_deref() == Some(version.as_str()) && managed_core_binary().await.is_some() {
+    // Эта версия уже скачана и цела: не качаем её заново (иначе «предыдущей»
+    // станет она же и откат потеряет прежнюю), только включаем управляемое,
+    // если его выключил выбор ядра.
+    if intact_download().await.is_some_and(|(current, _)| current == version) {
+        emit_progress("applying", 0, 0);
+        ensure_managed_enabled().await?;
         emit_progress("done", 0, 0);
         return Ok(CoreUpdateCheck {
             channel,

@@ -123,9 +123,9 @@ export const useClash = () => {
     mutateClash()
   })
 
-  const version = versionData?.meta
-    ? `${versionData.version} Mihomo`
-    : versionData?.version || '-'
+  // Версия сама говорит, какое ядро работает (у Clod Core — vX-clod.N), а
+  // подпись «Mihomo» у Clod Core была бы неправдой.
+  const version = versionData?.version || '-'
 
   return {
     runtime,

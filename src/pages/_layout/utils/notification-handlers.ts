@@ -296,9 +296,7 @@ export const handleNoticeMessage = (
         msg,
       ),
     'config_core::change_success': () =>
-      showNotice.success(
-        'settings.feedback.notifications.clash.changeSuccess',
-      ),
+      showNotice.success('settings.feedback.notifications.clash.changeSuccess'),
     'config_core::change_error': () =>
       showNotice.error(
         'settings.feedback.notifications.clash.changeFailed',
