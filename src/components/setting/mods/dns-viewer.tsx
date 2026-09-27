@@ -173,8 +173,29 @@ const CORE_DEFAULTS = {
   'direct-nameserver-follow-policy': false,
 }
 
-const sameValue = (a: unknown, b: unknown) =>
-  JSON.stringify(a) === JSON.stringify(b)
+// Поле формы → ключ блока dns. Нетронутое поле не пишется по значению формы:
+// ключа не было — его не будет, был — уходит как был (форма режет списки по
+// запятым и не знает всех режимов ядра, а перепечатывать чужое нельзя).
+const FIELD_KEYS = {
+  enable: 'enable',
+  listen: 'listen',
+  enhancedMode: 'enhanced-mode',
+  fakeIpRange: 'fake-ip-range',
+  fakeIpRange6: 'fake-ip-range6',
+  fakeIpFilterMode: 'fake-ip-filter-mode',
+  preferH3: 'prefer-h3',
+  respectRules: 'respect-rules',
+  useHosts: 'use-hosts',
+  useSystemHosts: 'use-system-hosts',
+  ipv6: 'ipv6',
+  fakeIpFilter: 'fake-ip-filter',
+  defaultNameserver: 'default-nameserver',
+  nameserver: 'nameserver',
+  proxyServerNameserver: 'proxy-server-nameserver',
+  directNameserver: 'direct-nameserver',
+  directNameserverFollowPolicy: 'direct-nameserver-follow-policy',
+  nameserverPolicy: 'nameserver-policy',
+} as const
 
 export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const { t } = useTranslation()
@@ -188,6 +209,7 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const skipYamlSyncRef = useRef(false)
   const [seeding, setSeeding] = useState(false)
   const parsedDnsRef = useRef<unknown>({})
+  const touchedRef = useRef(new Set<string>())
   const baseHostsRef = useRef<unknown>(undefined)
   const renderedTextRef = useRef({ nameserverPolicy: '', hosts: '' })
   const editorRef = useRef<MonacoEditorInstance | null>(null)
@@ -249,6 +271,7 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
 
       parsedDnsRef.current = dnsConfig
       baseHostsRef.current = config.hosts
+      touchedRef.current = new Set()
 
       const nameserverPolicyText =
         formatNameserverPolicy(dnsConfig['nameserver-policy']) || ''
@@ -313,7 +336,7 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
   )
 
   const generateDnsConfig = useCallback(() => {
-    const formFields: Record<string, any> = {
+    let formFields: Record<string, any> = {
       enable: values.enable,
       ...(values.listen.trim() ? { listen: values.listen.trim() } : {}),
       'enhanced-mode': values.enhancedMode,
@@ -356,21 +379,20 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
       }
     }
 
-    // Ключа не было ни у подписки, ни на странице, и поле оставлено в
-    // положении «умолчание ядра» — человек его не задавал, не пишем.
+    // Нетронутые поля: ключ был — остаётся как был, не было — не появляется.
     const shown = asDnsMapping(parsedDnsRef.current) ?? {}
-    const untouched = (key: string) =>
-      !(key in shown) &&
-      key in CORE_DEFAULTS &&
-      sameValue(
-        formFields[key],
-        CORE_DEFAULTS[key as keyof typeof CORE_DEFAULTS],
-      )
-    const chosen = Object.fromEntries(
-      Object.entries(formFields).filter(([key]) => !untouched(key)),
-    )
+    for (const [field, key] of Object.entries(FIELD_KEYS)) {
+      if (touchedRef.current.has(field)) continue
+      if (key in shown) {
+        formFields[key] = shown[key]
+      } else {
+        formFields = Object.fromEntries(
+          Object.entries(formFields).filter(([name]) => name !== key),
+        )
+      }
+    }
 
-    return mergeDnsConfig(parsedDnsRef.current, chosen)
+    return mergeDnsConfig(parsedDnsRef.current, formFields)
   }, [values])
 
   const generateHostsConfig = useCallback(() => {
@@ -544,6 +566,9 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
 
       setOpen(false)
 
+      if (outcome.warning) {
+        showNotice.warning(outcome.warning, 0)
+      }
       if (outcome.validation.status === 'valid') {
         showNotice.success('settings.modals.dns.messages.saved')
       } else {
@@ -567,6 +592,7 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
         ? event.target.checked
         : event.target.value
 
+    touchedRef.current.add(field)
     setValues((prev) => ({ ...prev, [field]: value }))
   }
 
@@ -589,6 +615,7 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
               size="small"
               color="warning"
               startIcon={<RestartAltRounded />}
+              disabled={seeding}
               onClick={showTheSubscription}
             >
               {t('settings.modals.dns.actions.asInSubscription')}

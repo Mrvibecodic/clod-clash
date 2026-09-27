@@ -15,6 +15,27 @@ use serde_yaml_ng::{Mapping, Value};
 /// файл-копия, который надо один раз свести к отличиям.
 pub const PAGE_HEADER: &str = "# Clod DNS page: only what differs from the subscription";
 
+/// Файл новой раскладки узнаётся по шапке в первой строке.
+pub fn is_a_diff_page(raw: &str) -> bool {
+    raw.lines().next().map(str::trim) == Some(PAGE_HEADER)
+}
+
+/// Шапка для переписанного файла: наша строка плюс комментарии, которые человек
+/// оставил в старом файле, — они не теряются, хоть и переезжают наверх.
+pub fn header_keeping_the_comments(raw: &str) -> String {
+    let mut header = String::from(PAGE_HEADER);
+    for line in raw.lines().map(str::trim) {
+        if line.starts_with('#') && line != PAGE_HEADER && line != LEGACY_HEADER {
+            header.push('\n');
+            header.push_str(line);
+        }
+    }
+    header
+}
+
+/// Шапка файлов прежней раскладки — полной копии блока подписки.
+pub const LEGACY_HEADER: &str = "# Clash Verge DNS Config";
+
 /// Ключи блока `dns`, значения которых — списки серверов с возможным хвостом
 /// `#имя` (группа, узел или сетевой интерфейс).
 const SERVER_LIST_KEYS: &[&str] = &[
@@ -97,6 +118,34 @@ impl Page {
         if let Some(hosts) = self.hosts.as_ref().filter(|hosts| !hosts.is_empty()) {
             config.insert("hosts".into(), Value::Mapping(hosts.clone()));
         }
+    }
+
+    /// Убрать ключи, ссылающиеся через `rule-set:` на наборы правил, которых
+    /// подписка не объявляет (`declared` — есть ли такое имя). Возвращает
+    /// имена убранных ключей вида `dns.nameserver-policy`.
+    pub fn drop_keys_referring_to_missing_rule_sets(&mut self, declared: impl Fn(&str) -> bool) -> Vec<String> {
+        let mut dropped = Vec::new();
+        let mut policy_refs = Vec::new();
+        if let Some(policy) = self.dns.get("nameserver-policy").and_then(Value::as_mapping) {
+            for matcher in policy.keys().filter_map(Value::as_str) {
+                collect_rule_sets(matcher, &mut policy_refs);
+            }
+        }
+        if policy_refs.iter().any(|name| !declared(name)) {
+            self.dns.remove("nameserver-policy");
+            dropped.push("dns.nameserver-policy".to_owned());
+        }
+        let mut filter_refs = Vec::new();
+        if let Some(filter) = self.dns.get("fake-ip-filter").and_then(Value::as_sequence) {
+            for entry in filter.iter().filter_map(Value::as_str) {
+                collect_rule_sets(entry, &mut filter_refs);
+            }
+        }
+        if filter_refs.iter().any(|name| !declared(name)) {
+            self.dns.remove("fake-ip-filter");
+            dropped.push("dns.fake-ip-filter".to_owned());
+        }
+        dropped
     }
 
     /// Имена, на которые ссылается страница и которых в подписке может не
@@ -284,6 +333,30 @@ mod tests {
             refs.rule_sets,
             vec!["rs-one".to_owned(), "rs-three".to_owned(), "rs-two".to_owned()]
         );
+    }
+
+    #[test]
+    fn keys_pointing_at_a_lost_rule_set_go_back_to_the_subscription() {
+        let mut page = Page::parse(
+            "dns:\n  ipv6: true\n  nameserver-policy: {'rule-set:rs-old': system, '+.lan': system}\n  fake-ip-filter: ['*.lan', 'rule-set:rs-kept']\n",
+        )
+        .expect("page");
+        let dropped = page.drop_keys_referring_to_missing_rule_sets(|name| name == "rs-kept");
+        assert_eq!(dropped, vec!["dns.nameserver-policy".to_owned()]);
+        assert!(!page.dns.contains_key("nameserver-policy"));
+        assert!(
+            page.dns.contains_key("fake-ip-filter"),
+            "набор объявлен — ключ на месте"
+        );
+        assert!(page.dns.contains_key("ipv6"));
+    }
+
+    #[test]
+    fn a_legacy_page_is_told_apart_and_keeps_its_comments_in_the_header() {
+        assert!(is_a_diff_page(&format!("{PAGE_HEADER}\n\ndns: {{}}\n")));
+        assert!(!is_a_diff_page("# Clash Verge DNS Config\n\ndns: {enable: true}\n"));
+        let header = header_keeping_the_comments("# Clash Verge DNS Config\n\ndns:\n  # my note\n  ipv6: true\n");
+        assert_eq!(header, format!("{PAGE_HEADER}\n# my note"));
     }
 
     #[test]

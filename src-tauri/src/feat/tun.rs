@@ -147,6 +147,40 @@ async fn bring_tun_back(reason: &str) {
     drop_tun_from_the_running_config("a failed attempt to bring TUN back");
 }
 
+/// clod:tun-before-service — служба появилась (поставлена из запроса или
+/// кнопкой, ожила остановленная), подавление снято, а принятый конфиг был
+/// собран без TUN, пока службы не было. Ядро под службой стартует с принятого
+/// файла — то есть без туннеля, хотя тумблер говорит «включён». Пересобрать,
+/// если TUN хочется и в принятом его нет; иначе трафик шёл бы мимо туннеля до
+/// первой случайной пересборки.
+/// То же отдельной задачей: из путей передачи ядра службе, чьи будущие иначе
+/// замыкались бы сами на себя (перезапуск ядра снова заводит наблюдателя передачи).
+pub fn spawn_bringing_tun_back_if_the_config_lacks_it(reason: &'static str) {
+    AsyncHandler::spawn(move || {
+        Box::pin(bring_tun_back_if_the_config_lacks_it(reason))
+            as std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>
+    });
+}
+
+pub async fn bring_tun_back_if_the_config_lacks_it(reason: &str) {
+    if !claimed().await {
+        return;
+    }
+    let accepted_has_tun = Config::runtime()
+        .await
+        .data_arc()
+        .config
+        .as_ref()
+        .and_then(|config| config.get("tun"))
+        .and_then(|tun| tun.get("enable"))
+        .and_then(serde_yaml_ng::Value::as_bool)
+        .unwrap_or(false);
+    if accepted_has_tun {
+        return;
+    }
+    bring_tun_back(reason).await;
+}
+
 pub fn suppress(reason: &str) {
     if !SUPPRESSED.swap(true, Ordering::AcqRel) {
         logging!(warn, Type::Core, "TUN suppressed for this session: {}", reason);
@@ -940,6 +974,7 @@ async fn already_ready(user_initiated: bool) -> bool {
     if is_capable().await {
         clear_suppression();
         proven_alive_at_startup(user_initiated).await;
+        bring_tun_back_if_the_config_lacks_it("the service turned out to be available").await;
         return true;
     }
 
@@ -1085,7 +1120,7 @@ async fn wait_until_capable(trust_registration: bool) -> bool {
 pub async fn hold_down_without_a_service() {
     use crate::core::service::{ServiceRegistration, service_registration};
 
-    if !desired().await || is_app_elevated() {
+    if !wanted_at_launch().await || is_app_elevated() {
         return;
     }
     let registration = tokio::task::spawn_blocking(service_registration)
@@ -1100,6 +1135,17 @@ pub async fn hold_down_without_a_service() {
         "TUN is on, the app is not elevated and the service is not installed: starting without TUN"
     );
     hold_tun_down("the service is not installed", FAILURE_NO_RIGHTS, "tun::no_rights");
+}
+
+/// Будет ли TUN нужен в этом запуске: при «подключаться при запуске» решает
+/// цель подключения (она ляжет в настройки чуть позже, в `init_launch_connect_state`),
+/// иначе — сохранённый тумблер.
+async fn wanted_at_launch() -> bool {
+    let verge = Config::verge().await.latest_arc();
+    if verge.connect_on_launch.unwrap_or(false) {
+        return crate::feat::launch_connect_state().await.1;
+    }
+    verge.enable_tun_mode.unwrap_or(false)
 }
 
 pub async fn init_startup_setup() {

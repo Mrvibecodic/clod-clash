@@ -21,6 +21,7 @@ type ValidationOutcome =
 interface DnsSaveOutcome {
   saved: boolean
   validation: ValidationOutcome
+  warning?: string | null
 }
 
 interface IConfigData {

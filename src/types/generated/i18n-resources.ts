@@ -548,6 +548,7 @@ export interface TranslationResources {
           proxyCount: string
         }
         messages: {
+          badTestUrl: string
           directMode: string
           invalidTestUrl: string
         }
@@ -923,13 +924,15 @@ export interface TranslationResources {
           title: string
         }
         dns: {
+          actions: {
+            asInSubscription: string
+          }
           dialog: {
             replacesSubscription: string
             title: string
             warning: string
           }
           errors: {
-            emptyDns: string
             invalid: string
             invalidYaml: string
           }
@@ -1473,6 +1476,7 @@ export interface TranslationResources {
             permissionDenied: string
             portBusy: string
             proxyNotFound: string
+            ruleSetNotFound: string
             serverError: string
             subscriptionBudget: string
             subscriptionDowngrade: string
@@ -1498,6 +1502,7 @@ export interface TranslationResources {
           common: {
             configLoadFailed: string
             copySuccess: string
+            keysDiscarded: string
             logsExported: string
             saveFailed: string
             saveSuccess: string

@@ -23,6 +23,10 @@ static WAKE_REARM_SINCE: Mutex<Option<Instant>> = Mutex::new(None);
 /// clod:network-poke — толчок сторожу среды «сеть сменилась, не жди тика»:
 /// на macOS его даёт подписка на первичную сетевую службу системы.
 static NETWORK_POKE: tokio::sync::Notify = tokio::sync::Notify::const_new();
+/// Счётчик толчков: цикл сторожа сравнивает с тем, что видел, — так толчок не
+/// достаётся устаревшему циклу прежнего поколения (`notify_one` будит самого
+/// старого ожидающего), а `notify_waiters` будит всех, кто ждёт.
+static NETWORK_POKES: AtomicU64 = AtomicU64::new(0);
 /// Сколько дать сети устояться после толчка, прежде чем смотреть на неё.
 const NETWORK_POKE_SETTLE: Duration = Duration::from_secs(1);
 
@@ -648,7 +652,8 @@ async fn rearm_the_tun_after_wake() {
 /// отпечатка не меняет — потому толчок считается сменой сети сам по себе.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub fn poke_the_network() {
-    NETWORK_POKE.notify_one();
+    NETWORK_POKES.fetch_add(1, Ordering::AcqRel);
+    NETWORK_POKE.notify_waiters();
 }
 
 /// clod:УП-27 — на macOS подписаться на первичную сетевую службу системы
@@ -677,14 +682,24 @@ pub fn watch_the_primary_network_service() {
 }
 
 /// Ждать очередного тика или толчка; толчок — с паузой на устоявшуюся сеть.
-async fn tick_or_poke() -> bool {
-    tokio::select! {
-        () = tokio::time::sleep(timing::ENVIRONMENT_TICK) => false,
-        () = NETWORK_POKE.notified() => {
-            tokio::time::sleep(NETWORK_POKE_SETTLE).await;
-            true
+/// `seen` — сколько толчков цикл уже учёл: пришедший между проверкой и
+/// ожиданием не теряется, а `notified()` создаётся до проверки, чтобы не
+/// пропустить и тот, что придёт следом.
+async fn tick_or_poke(seen: &mut u64) -> bool {
+    let notified = NETWORK_POKE.notified();
+    let poked = if NETWORK_POKES.load(Ordering::Acquire) != *seen {
+        true
+    } else {
+        tokio::select! {
+            () = tokio::time::sleep(timing::ENVIRONMENT_TICK) => false,
+            () = notified => true,
         }
+    };
+    if poked {
+        *seen = NETWORK_POKES.load(Ordering::Acquire);
+        tokio::time::sleep(NETWORK_POKE_SETTLE).await;
     }
+    poked
 }
 
 pub fn spawn_environment_watchdog() {
@@ -710,9 +725,10 @@ pub fn spawn_environment_watchdog() {
         let mut last_awake = sleep_clock::reading();
         let mut last_network = first_fingerprint().await;
         let mut ticks: u32 = 0;
+        let mut pokes_seen = NETWORK_POKES.load(Ordering::Acquire);
 
         loop {
-            let poked = tick_or_poke().await;
+            let poked = tick_or_poke(&mut pokes_seen).await;
             ticks = ticks.wrapping_add(1);
             if handle::Handle::global().is_exiting() || WATCHDOG_GENERATION.load(Ordering::Acquire) != generation {
                 *stopped_on_purpose = true;

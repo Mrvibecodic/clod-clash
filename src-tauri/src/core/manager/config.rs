@@ -505,7 +505,10 @@ impl CoreManager {
     async fn replace_core_and_apply(&self, build: IRuntime) -> Result<()> {
         let runtime = Config::runtime().await;
         let previous = runtime.data_arc();
-        Self::note_the_accepted(&build);
+        // Отброшенные ключи объявляются после того, как ядро поднялось на сборке:
+        // сорвавшийся перезапуск возвращает прежнее принятое.
+        let discarded_keys = build.discarded_keys.clone();
+        Self::remember_dns_desire(&build);
         runtime.replace(build);
         // Проверенная сборка есть — отказ старта, если он был, снят: стартуем с неё.
         let was_refused = self.startup_refusal();
@@ -513,6 +516,7 @@ impl CoreManager {
         match self.restart_core_during_config_update().await {
             Ok(()) => {
                 logging!(info, Type::Core, "Configuration applied after restart");
+                announce_discarded_keys(&discarded_keys);
                 Ok(())
             }
             Err(err) => {
@@ -653,16 +657,6 @@ enum StageAttempt {
     Unanswered(std::string::String),
 }
 
-/// Снять с профиля сборки пометку «скачано, но не применено».
-///
-/// Ставит её приём подписки после отказа ядра (`feat/profile.rs`), а снимать её
-/// надо всюду, где ядро конфиг приняло: не только после удачного обновления
-/// подписки, но и после переключения профиля, ручной пересборки конфига и правки
-/// своих цепочек. Единственное такое место на всех путях — вот это, сразу за
-/// успешным применением; профиль — тот, из которого собрано (`IRuntime::profile_uid`).
-///
-/// Реестр трогаем, только если пометка действительно стоит: иначе на каждое
-/// применение конфига приходилась бы лишняя запись `profiles.yaml`.
 /// clod:tun-owned-keys — цепочка merge или script записала ключ, которым
 /// владеет приложение (плоскость управления, свои поля `tun`), и запись
 /// отброшена. Говорится один раз на набор ключей: каждая пересборка с тем же
@@ -693,6 +687,16 @@ fn announce_discarded_keys(discarded: &[String]) {
     handle::Handle::notice_message("clod_config::keys_discarded", discarded.join(", "));
 }
 
+/// Снять с профиля сборки пометку «скачано, но не применено».
+///
+/// Ставит её приём подписки после отказа ядра (`feat/profile.rs`), а снимать её
+/// надо всюду, где ядро конфиг приняло: не только после удачного обновления
+/// подписки, но и после переключения профиля, ручной пересборки конфига и правки
+/// своих цепочек. Единственное такое место на всех путях — вот это, сразу за
+/// успешным применением; профиль — тот, из которого собрано (`IRuntime::profile_uid`).
+///
+/// Реестр трогаем, только если пометка действительно стоит: иначе на каждое
+/// применение конфига приходилась бы лишняя запись `profiles.yaml`.
 async fn forget_the_not_applied_mark(profile_uid: Option<&String>) {
     let Some(uid) = profile_uid else { return };
     let marked = Config::profiles()

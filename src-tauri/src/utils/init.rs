@@ -263,7 +263,7 @@ async fn migrate_legacy_macos_logs() -> Result<()> {
     Ok(())
 }
 
-const DNS_CONFIG_HEADER: &str = "# Clash Verge DNS Config";
+const DNS_CONFIG_HEADER: &str = crate::enhance::dns_page::LEGACY_HEADER;
 
 /// Файл страницы годится, если это YAML-отображение, а `dns` в нём — либо
 /// отображение (пустое — тоже: страница без отличий), либо отсутствует.
@@ -475,7 +475,14 @@ async fn drop_legacy_dns_fallback() -> Result<()> {
     }
 
     let yaml_str = crate::utils::yaml_emitter::to_mihomo_config_string(&file_config)?;
-    let yaml_str = format!("{DNS_CONFIG_HEADER}\n\n{yaml_str}");
+    // Шапка остаётся той, что была: новую страницу нельзя переписать старой
+    // шапкой — при следующей сборке её сочли бы копией и свели бы ещё раз.
+    let header = if crate::enhance::dns_page::is_a_diff_page(&raw) {
+        crate::enhance::dns_page::PAGE_HEADER
+    } else {
+        DNS_CONFIG_HEADER
+    };
+    let yaml_str = format!("{header}\n\n{yaml_str}");
     help::write_atomic(&dns_path, yaml_str.as_bytes()).await?;
     logging!(info, Type::Setup, "Removed the legacy DNS keys from {:?}", dns_path);
 

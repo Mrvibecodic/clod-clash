@@ -380,17 +380,6 @@ impl Config {
         dirs::dns_page_path(&uid).ok()
     }
 
-    /// Проверочный конфиг для новой страницы DNS: рабочий конфиг, у которого
-    /// блок `dns` и `hosts` возвращены к подписке и поверх положена страница.
-    /// Нет собранного конфига — проверять нечем.
-    pub async fn dns_page_check_config(page: &enhance::dns_page::Page) -> Option<Mapping> {
-        let runtime = Self::runtime().await.data_arc();
-        let working = runtime.config.as_ref()?;
-        let base = runtime.dns_base.as_ref()?;
-
-        Some(check_config_with_dns_page(working, base, page))
-    }
-
     /// Записать файл ядра из переданного конфига — рабочий или проверочный.
     pub async fn write_config_file(typ: ConfigType, config: &Mapping) -> Result<PathBuf> {
         let path = match typ {
@@ -616,21 +605,6 @@ fn without_fake_ip_store(config: &Mapping) -> Mapping {
     config
 }
 
-pub(crate) fn check_config_with_dns_page(
-    working: &Mapping,
-    base: &enhance::dns_page::Base,
-    page: &enhance::dns_page::Page,
-) -> Mapping {
-    let mut config = without_fake_ip_store(working);
-    config.insert(Value::from("dns"), Value::Mapping(base.dns.clone()));
-    match base.hosts.as_ref() {
-        Some(hosts) => config.insert(Value::from("hosts"), Value::Mapping(hosts.clone())),
-        None => config.remove(Value::from("hosts")),
-    };
-    page.lay_over(&mut config);
-    config
-}
-
 #[derive(Debug)]
 pub enum ConfigType {
     Run,
@@ -754,116 +728,6 @@ mod tests {
     fn the_check_copy_leaves_a_config_without_a_profile_block_alone() {
         let config = Mapping::from_iter([(Value::from("mode"), Value::from("rule"))]);
         assert_eq!(without_fake_ip_store(&config), config);
-    }
-
-    fn working_config() -> Mapping {
-        let mut config = Mapping::new();
-        config.insert(
-            Value::from("rule-providers"),
-            Value::from(Mapping::from_iter([(Value::from("ru"), Value::from("stub"))])),
-        );
-        config.insert(
-            Value::from("profile"),
-            Value::from(Mapping::from_iter([(Value::from("store-fake-ip"), Value::from(true))])),
-        );
-        config.insert(
-            Value::from("dns"),
-            Value::from(Mapping::from_iter([(Value::from("ipv6"), Value::from(false))])),
-        );
-        config.insert(
-            Value::from("hosts"),
-            Value::from(Mapping::from_iter([(Value::from("a.test"), Value::from("1.2.3.4"))])),
-        );
-        config
-    }
-
-    fn base_of_working() -> enhance::dns_page::Base {
-        enhance::dns_page::Base::of(&working_config())
-    }
-
-    #[allow(clippy::expect_used)]
-    fn page(yaml: &str) -> enhance::dns_page::Page {
-        enhance::dns_page::Page::parse(yaml).expect("page")
-    }
-
-    #[test]
-    #[allow(clippy::expect_used)]
-    fn the_dns_page_is_checked_against_the_working_config() {
-        let checked = check_config_with_dns_page(
-            &working_config(),
-            &base_of_working(),
-            &page("dns: {nameserver-policy: {'+.test': 'rule-set:ru'}}\n"),
-        );
-
-        assert!(
-            checked.contains_key(Value::from("rule-providers")),
-            "the rule sets the policy points at have to be in the checked file"
-        );
-        let dns = checked
-            .get(Value::from("dns"))
-            .and_then(Value::as_mapping)
-            .expect("dns");
-        assert!(dns.contains_key(Value::from("nameserver-policy")));
-        assert_eq!(
-            dns.get(Value::from("ipv6")),
-            Some(&Value::from(false)),
-            "the subscription's own keys stay"
-        );
-        assert!(
-            !checked
-                .get(Value::from("profile"))
-                .and_then(Value::as_mapping)
-                .expect("profile")
-                .contains_key(Value::from("store-fake-ip")),
-            "the check copy still drops the fake-ip store"
-        );
-    }
-
-    #[test]
-    fn the_check_starts_from_the_subscription_not_from_the_page_applied_before() {
-        let mut working = working_config();
-        working.insert(
-            Value::from("dns"),
-            Value::from(Mapping::from_iter([
-                (Value::from("ipv6"), Value::from(true)),
-                (Value::from("listen"), Value::from("127.0.0.1:1053")),
-            ])),
-        );
-        let base = enhance::dns_page::Base::of(&working_config());
-
-        let checked = check_config_with_dns_page(&working, &base, &page("dns: {}\n"));
-
-        assert_eq!(
-            checked.get(Value::from("dns")),
-            working_config().get(Value::from("dns"))
-        );
-    }
-
-    #[test]
-    fn a_page_without_hosts_leaves_the_profile_hosts_alone() {
-        let checked = check_config_with_dns_page(&working_config(), &base_of_working(), &page("dns: {}\n"));
-
-        assert_eq!(
-            checked.get(Value::from("hosts")),
-            working_config().get(Value::from("hosts"))
-        );
-    }
-
-    #[test]
-    fn a_page_with_hosts_overrides_the_profile_hosts() {
-        let checked = check_config_with_dns_page(
-            &working_config(),
-            &base_of_working(),
-            &page("hosts: {b.test: 9.9.9.9}\n"),
-        );
-
-        assert_eq!(
-            checked.get(Value::from("hosts")),
-            Some(&Value::from(Mapping::from_iter([(
-                Value::from("b.test"),
-                Value::from("9.9.9.9")
-            )])))
-        );
     }
 
     #[tokio::test]

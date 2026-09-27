@@ -167,9 +167,18 @@ pub struct Sources {
     pub clash: Overlay<IClashTemp>,
     pub verge: Overlay<IVerge>,
     pub profiles: Overlay<IProfiles>,
+    /// Страница DNS, которую собирать вместо файла на диске — кандидат из
+    /// редактора: так его проверяет та же сборка, что потом пойдёт в ядро.
+    /// Ложится и при выключенном тумблере: проверяют именно её.
+    pub dns_page: Option<dns_page::Page>,
 }
 
 impl Sources {
+    pub fn with_dns_page(mut self, page: dns_page::Page) -> Self {
+        self.dns_page = Some(page);
+        self
+    }
+
     pub fn with_clash(mut self, clash: SharedDraft<IClashTemp>) -> Self {
         self.clash = Overlay::Value(clash);
         self
@@ -194,6 +203,7 @@ impl Sources {
             clash: self.clash.resolve(Config::clash().await.data_arc())?,
             verge: self.verge.resolve(Config::verge().await.data_arc())?,
             profiles: self.profiles.resolve(Config::profiles().await.data_arc())?,
+            dns_page: self.dns_page,
         })
     }
 }
@@ -203,6 +213,7 @@ pub struct Resolved {
     pub clash: SharedDraft<IClashTemp>,
     pub verge: SharedDraft<IVerge>,
     pub profiles: SharedDraft<IProfiles>,
+    pub dns_page: Option<dns_page::Page>,
 }
 
 #[derive(Debug)]
@@ -625,13 +636,25 @@ fn tun_owned_keys(app_tun: Option<&Mapping>, overrides: &TunOverrides) -> Vec<St
     owned
 }
 
-fn snapshot_tun(config: &Mapping, owned: &[String]) -> Mapping {
-    let mut snapshot = Mapping::new();
-    if let Some(tun) = config.get("tun").and_then(Value::as_mapping) {
-        for key in owned {
-            if let Some(value) = tun.get(key.as_str()) {
-                snapshot.insert(key.as_str().into(), value.clone());
-            }
+/// Снимок `tun` перед цепочками: ключи приложения — чтобы вернуть их
+/// поимённо, и весь блок — на случай, если цепочка снесёт `tun` целиком.
+#[derive(Debug, Default, Clone, PartialEq)]
+struct TunSnapshot {
+    owned: Mapping,
+    block: Mapping,
+}
+
+fn snapshot_tun(config: &Mapping, owned: &[String]) -> TunSnapshot {
+    let Some(tun) = config.get("tun").and_then(Value::as_mapping) else {
+        return TunSnapshot::default();
+    };
+    let mut snapshot = TunSnapshot {
+        owned: Mapping::new(),
+        block: tun.clone(),
+    };
+    for key in owned {
+        if let Some(value) = tun.get(key.as_str()) {
+            snapshot.owned.insert(key.as_str().into(), value.clone());
         }
     }
     snapshot
@@ -640,23 +663,22 @@ fn snapshot_tun(config: &Mapping, owned: &[String]) -> Mapping {
 /// Вернуть после цепочек ключи `tun`, которыми владеет приложение, и на
 /// Windows не пустить в ядро стек `system`/`mixed`, если его выбрала не
 /// настройка приложения, а цепочка: лесенка снимает такой стек у подписки,
-/// и цепочке его возвращать нельзя тем же правилом. Второе значение —
-/// имена отброшенных записей вида `tun.mtu`.
-fn enforce_tun(mut config: Mapping, snapshot: Mapping, cap_chain_stack: bool) -> (Mapping, Vec<String>) {
+/// и цепочке его возвращать нельзя тем же правилом. Выбор диалога стек не
+/// ограничивает — он и раньше доходил до ядра. Снесённый цепочкой блок `tun`
+/// возвращается целиком: вместе с умолчаниями лесенки, не только с ключами
+/// приложения. Второе значение — имена отброшенных записей вида `tun.mtu`.
+fn enforce_tun(mut config: Mapping, snapshot: TunSnapshot, cap_chain_stack: bool) -> (Mapping, Vec<String>) {
     let mut discarded = Vec::new();
+    let TunSnapshot { owned, block } = snapshot;
     let Some(tun) = config.get_mut("tun").and_then(Value::as_mapping_mut) else {
-        if !snapshot.is_empty() {
-            discarded.extend(
-                snapshot
-                    .keys()
-                    .filter_map(Value::as_str)
-                    .map(|key| format!("tun.{key}").into()),
-            );
-            config.insert("tun".into(), Value::Mapping(snapshot));
+        if !block.is_empty() {
+            discarded.push("tun".into());
+            config.insert("tun".into(), Value::Mapping(block));
         }
         return (config, discarded);
     };
-    for (key, value) in snapshot {
+    let stack_is_the_dialogs = owned.contains_key("stack");
+    for (key, value) in owned {
         if tun.get(&key) != Some(&value) {
             if let Some(name) = key.as_str() {
                 discarded.push(format!("tun.{name}").into());
@@ -665,6 +687,7 @@ fn enforce_tun(mut config: Mapping, snapshot: Mapping, cap_chain_stack: bool) ->
         }
     }
     if cap_chain_stack
+        && !stack_is_the_dialogs
         && let Some(stack) = tun.get("stack").and_then(Value::as_str)
         && matches!(stack.trim().to_ascii_lowercase().as_str(), "system" | "mixed")
     {
@@ -1811,30 +1834,67 @@ fn clamp_dns_listen(config: &mut Mapping) {
 ///
 /// clod:dns-page-diff — страница хранит только отличия от подписки; файла нет
 /// или он пуст — блок целиком за подпиской. Старый файл-копия при первом
-/// чтении сводится к отличиям от нынешнего блока и переписывается: иначе он
-/// продолжал бы подменять подписке всё, включая то, что человек не трогал.
+/// чтении с диска сводится к отличиям и переписывается: иначе он продолжал бы
+/// подменять подписке всё, включая то, что человек не трогал. Отличия
+/// считаются от блока подписки ДО формовки под TUN (`base`) и от него же ПОСЛЕ
+/// неё (`shaped`): что формовка ставит сама, выбором человека не считается.
+///
+/// `candidate` — страница из редактора: собирается вместо файла и независимо
+/// от тумблера, файл не читается и не переписывается.
 async fn apply_dns_settings(
     mut config: Mapping,
     enable_dns_settings: bool,
     profile_uid: &str,
     may_rewrite_a_legacy_page: bool,
-) -> (Mapping, Option<dns_page::Page>) {
-    if !enable_dns_settings {
-        return (config, None);
-    }
-    let Ok(dns_path) = dirs::dns_page_path(profile_uid) else {
-        return (config, None);
+    base: &dns_page::Base,
+    candidate: Option<&dns_page::Page>,
+) -> (Mapping, Option<dns_page::Page>, Vec<String>) {
+    let page = match candidate {
+        Some(candidate) => candidate.clone(),
+        None => {
+            if !enable_dns_settings {
+                return (config, None, Vec::new());
+            }
+            let Ok(dns_path) = dirs::dns_page_path(profile_uid) else {
+                return (config, None, Vec::new());
+            };
+            match read_dns_page(&dns_path, may_rewrite_a_legacy_page, base, &dns_page::Base::of(&config)).await {
+                Some(page) => page,
+                None => return (config, None, Vec::new()),
+            }
+        }
     };
-    let raw = match fs::read_to_string(&dns_path).await {
+
+    let (page, discarded) = drop_the_rule_sets_the_subscription_lost(page, &config);
+    page.lay_over(&mut config);
+    if let Some(dns) = config.get_mut("dns").and_then(Value::as_mapping_mut) {
+        ensure_fake_ip_range6(dns);
+    }
+    if page.is_empty() {
+        return (config, None, discarded);
+    }
+    logging!(info, Type::Core, "apply the DNS page of {profile_uid}");
+    (config, Some(page), discarded)
+}
+
+/// Прочитать страницу с диска; старую копию свести к отличиям и переписать
+/// (комментарии человека переносятся в шапку). Не читается — блок за подпиской.
+async fn read_dns_page(
+    dns_path: &std::path::Path,
+    may_rewrite_a_legacy_page: bool,
+    base: &dns_page::Base,
+    shaped: &dns_page::Base,
+) -> Option<dns_page::Page> {
+    let raw = match fs::read_to_string(dns_path).await {
         Ok(raw) => raw,
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return (config, None),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return None,
         Err(err) => {
             logging!(
                 warn,
                 Type::Core,
                 "страница DNS {dns_path:?} не читается ({err}), блок DNS остаётся за подпиской"
             );
-            return (config, None);
+            return None;
         }
     };
     let Some(mut page) = dns_page::Page::parse(&raw) else {
@@ -1843,15 +1903,15 @@ async fn apply_dns_settings(
             Type::Core,
             "страница DNS {dns_path:?} не разбирается, блок DNS остаётся за подпиской"
         );
-        return (config, None);
+        return None;
     };
-
     // Старая копия сводится к отличиям от ТОЙ подписки, с которой снята, — то
     // есть с файла на диске; против кандидата обновления её сверять нельзя:
     // всё, что провайдер поменял, стало бы «выбором человека».
-    if raw.lines().next().map(str::trim) != Some(dns_page::PAGE_HEADER) && may_rewrite_a_legacy_page {
-        page = page.differences_from(&dns_page::Base::of(&config));
-        match help::save_yaml(&dns_path, &page.to_file(), Some(dns_page::PAGE_HEADER)).await {
+    if !dns_page::is_a_diff_page(&raw) && may_rewrite_a_legacy_page {
+        page = page.differences_from(base).differences_from(shaped);
+        let header = dns_page::header_keeping_the_comments(&raw);
+        match help::save_yaml(dns_path, &page.to_file(), Some(&header)).await {
             Ok(()) => logging!(
                 info,
                 Type::Core,
@@ -1864,16 +1924,38 @@ async fn apply_dns_settings(
             ),
         }
     }
+    Some(page)
+}
 
-    if page.is_empty() {
-        return (config, None);
+/// clod:dns-page-diff — ссылка страницы на набор правил, которого в подписке
+/// больше нет (`rule-set:` в политике серверов или фильтре fake-ip), валила бы
+/// весь конфиг — и каждое обновление подписки отвергалось бы ядром. Такой ключ
+/// целиком возвращается подписке; человеку об этом говорит уведомление об
+/// отброшенных ключах. Наборы правил в конфиге объявлены все, так что сверка
+/// точна (в отличие от узлов из провайдеров).
+fn drop_the_rule_sets_the_subscription_lost(
+    mut page: dns_page::Page,
+    config: &Mapping,
+) -> (dns_page::Page, Vec<String>) {
+    let declared: HashSet<&str> = config
+        .get("rule-providers")
+        .and_then(Value::as_mapping)
+        .map(|providers| providers.keys().filter_map(Value::as_str).collect())
+        .unwrap_or_default();
+    let dropped: Vec<String> = page
+        .drop_keys_referring_to_missing_rule_sets(|name| declared.contains(name))
+        .into_iter()
+        .map(String::from)
+        .collect();
+    if !dropped.is_empty() {
+        logging!(
+            warn,
+            Type::Core,
+            "страница DNS ссылается на наборы правил, которых в подписке нет; ключи {} остаются за подпиской",
+            dropped.join(", ")
+        );
     }
-    page.lay_over(&mut config);
-    if let Some(dns) = config.get_mut("dns").and_then(Value::as_mapping_mut) {
-        ensure_fake_ip_range6(dns);
-    }
-    logging!(info, Type::Core, "apply {dns_path:?}");
-    (config, Some(page))
+    (page, dropped)
 }
 
 pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
@@ -1947,6 +2029,7 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
     );
 
     let config = apply_builtin_scripts(config, clash_core, enable_builtin).await;
+    let dns_base = dns_page::Base::of(&config);
     let (config, shaped_fake_ip) = use_tun(config, enable_tun);
     #[cfg(target_os = "macos")]
     let dns_desire = Some(crate::config::runtime::DnsDesire {
@@ -1958,9 +2041,15 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
         let _ = shaped_fake_ip;
         None
     };
-    let dns_base = dns_page::Base::of(&config);
-    let (config, dns_page) =
-        apply_dns_settings(config, enable_dns_settings, &profile_uid, !profile_is_a_candidate).await;
+    let (config, dns_page, dns_page_discards) = apply_dns_settings(
+        config,
+        enable_dns_settings,
+        &profile_uid,
+        !profile_is_a_candidate,
+        &dns_base,
+        sources.dns_page.as_ref(),
+    )
+    .await;
     let mut config = ensure_dns_for_tun(config, enable_tun);
     clamp_dns_listen(&mut config);
 
@@ -1980,7 +2069,8 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
     let (config, exists_keys, result_map) =
         process_profile_items(config, exists_keys, result_map, merge_item, script_item, &profile_name).await;
 
-    let mut discarded_keys = control_plane_discards(&config, &control_plane);
+    let mut discarded_keys = dns_page_discards;
+    discarded_keys.extend(control_plane_discards(&config, &control_plane));
     let config = enforce_control_plane(config, control_plane);
     let (config, tun_discards) = enforce_tun(config, tun_snapshot, cfg!(target_os = "windows"));
     discarded_keys.extend(tun_discards);
@@ -2488,8 +2578,9 @@ mod tests {
     }
 
     #[test]
-    fn on_windows_a_chain_cannot_bring_back_the_system_stack() {
-        let snapshot = mapping(r"{enable: true}");
+    fn on_windows_a_chain_cannot_bring_back_the_system_stack_but_the_dialog_can() {
+        let before = mapping(r"{tun: {enable: true, stack: gvisor}}");
+        let snapshot = super::snapshot_tun(&before, &[super::String::from("enable")]);
         let from_chain = mapping(r"{tun: {enable: true, stack: system}}");
         let (result, discarded) = super::enforce_tun(from_chain, snapshot, true);
         assert_eq!(
@@ -2497,6 +2588,25 @@ mod tests {
             Some(crate::constants::tun::DEFAULT_STACK)
         );
         assert_eq!(names(&discarded), ["tun.stack"]);
+
+        let chosen = mapping(r"{tun: {enable: true, stack: system}}");
+        let snapshot = super::snapshot_tun(&chosen, &[super::String::from("enable"), super::String::from("stack")]);
+        let (result, discarded) = super::enforce_tun(chosen, snapshot, true);
+        assert_eq!(
+            result["tun"]["stack"].as_str(),
+            Some("system"),
+            "выбор диалога не ограничивается"
+        );
+        assert!(discarded.is_empty());
+    }
+
+    #[test]
+    fn a_chain_that_deletes_tun_gets_the_whole_block_back() {
+        let before = mapping(r"{tun: {enable: true, stack: gvisor, dns-hijack: ['any:53']}}");
+        let snapshot = super::snapshot_tun(&before, &[super::String::from("enable")]);
+        let (result, discarded) = super::enforce_tun(mapping(r"{mode: rule}"), snapshot, false);
+        assert_eq!(result["tun"], before["tun"]);
+        assert_eq!(names(&discarded), ["tun"]);
     }
 
     #[test]

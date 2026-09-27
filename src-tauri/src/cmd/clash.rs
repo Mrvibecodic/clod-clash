@@ -1,14 +1,12 @@
 use super::CmdResult;
 use crate::enhance::dns_page;
 use crate::feat;
-use crate::utils::{dirs, yaml_emitter};
 use crate::{
     cmd::StringifyErr as _,
     config::{ClashInfo, Config},
-    constants,
     core::{
         CoreManager, handle,
-        validate::{CoreConfigValidator, ValidationErrorKind, ValidationOutcome},
+        validate::{ValidationErrorKind, ValidationOutcome},
     },
 };
 use clash_verge_logging::{Type, logging, logging_error};
@@ -170,6 +168,9 @@ pub async fn restart_core() -> CmdResult {
 pub struct DnsSaveOutcome {
     saved: bool,
     validation: ValidationOutcome,
+    /// Предостережение, с которым страница всё же сохранена: имена в хвостах
+    /// `#имя`, которых ядро не знает как узлы или группы.
+    warning: Option<String>,
 }
 
 const fn reached_a_verdict(outcome: &ValidationOutcome) -> bool {
@@ -188,18 +189,25 @@ const fn reached_a_verdict(outcome: &ValidationOutcome) -> bool {
 }
 
 /// Сколько ждать ответа ядра о его группах и наборах правил при сохранении
-/// страницы DNS. Не ответило — проверить ссылки нечем, страница сохраняется.
+/// страницы DNS. Не ответило — сверить ссылки нечем, страница сохраняется.
 const DNS_REFERENCES_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(1500);
 
-/// clod:dns-page-diff — ссылки страницы, которых нет у работающего ядра:
-/// хвост `#группа` у сервера ядро принимает молча и потом трактует как имя
-/// сетевого интерфейса (запросы к этому серверу проваливаются), а `rule-set:`
-/// на несуществующий набор валит весь конфиг английской ошибкой. Спрашиваем
-/// ядро, а не собранный конфиг: узлы из proxy-providers до старта не видны.
-async fn missing_dns_references(page: &dns_page::Page) -> Option<String> {
+/// Что сверка ссылок страницы сказала: набора правил нет — отказ (ядро всё
+/// равно отвергнет весь конфиг, а так причина названа словами); узла или группы
+/// нет — только предостережение: хвост `#имя` без такого прокси ядро понимает
+/// как сетевой интерфейс, и это штатная возможность.
+#[derive(Debug, Default, PartialEq, Eq)]
+struct DnsReferenceCheck {
+    refusal: Option<String>,
+    warning: Option<String>,
+}
+
+/// clod:dns-page-diff — сверить ссылки страницы с работающим ядром: `/proxies`
+/// знает и узлы из провайдеров, которых в собранном конфиге не видно.
+async fn check_dns_references(page: &dns_page::Page) -> DnsReferenceCheck {
     let refs = page.references();
     if refs.proxies.is_empty() && refs.rule_sets.is_empty() {
-        return None;
+        return DnsReferenceCheck::default();
     }
     let core = handle::Handle::mihomo();
     let listed = tokio::time::timeout(DNS_REFERENCES_TIMEOUT, async {
@@ -212,39 +220,53 @@ async fn missing_dns_references(page: &dns_page::Page) -> Option<String> {
             Type::Config,
             "ядро не ответило о группах и наборах правил — ссылки страницы DNS не сверены"
         );
-        return None;
+        return DnsReferenceCheck::default();
     };
+    let known_proxies: Vec<&str> = proxies.proxies.keys().map(std::string::String::as_str).collect();
+    let known_rule_sets: Vec<&str> = providers.providers.keys().map(std::string::String::as_str).collect();
+    dns_reference_check(&refs, &known_proxies, &known_rule_sets)
+}
 
-    let names = |missing: &[String]| {
+fn dns_reference_check(
+    refs: &dns_page::References,
+    known_proxies: &[&str],
+    known_rule_sets: &[&str],
+) -> DnsReferenceCheck {
+    let quoted = |missing: Vec<&str>| {
         missing
             .iter()
             .map(|name| format!("«{name}»"))
             .collect::<Vec<_>>()
             .join(", ")
     };
-    let proxies_missing: Vec<String> = refs
+    let proxies_missing: Vec<&str> = refs
         .proxies
         .iter()
-        .filter(|name| !proxies.proxies.contains_key(name.as_str()))
-        .map(|name| name.as_str().into())
+        .map(std::string::String::as_str)
+        .filter(|name| !known_proxies.contains(name))
         .collect();
-    let rule_sets_missing: Vec<String> = refs
+    let rule_sets_missing: Vec<&str> = refs
         .rule_sets
         .iter()
-        .filter(|name| !providers.providers.contains_key(name.as_str()))
-        .map(|name| name.as_str().into())
+        .map(std::string::String::as_str)
+        .filter(|name| !known_rule_sets.contains(name))
         .collect();
-
-    let mut problems = Vec::new();
-    if !proxies_missing.is_empty() {
-        problems.push(clash_verge_i18n::t!("dns.missingProxies", names = names(&proxies_missing)).into_owned());
+    DnsReferenceCheck {
+        refusal: (!rule_sets_missing.is_empty())
+            .then(|| clash_verge_i18n::t!("dns.missingRuleSets", names = quoted(rule_sets_missing)).into()),
+        warning: (!proxies_missing.is_empty())
+            .then(|| clash_verge_i18n::t!("dns.missingProxies", names = quoted(proxies_missing)).into()),
     }
-    if !rule_sets_missing.is_empty() {
-        problems.push(clash_verge_i18n::t!("dns.missingRuleSets", names = names(&rule_sets_missing)).into_owned());
-    }
-    (!problems.is_empty()).then(|| problems.join(" ").into())
 }
 
+/// Сохранить страницу DNS текущей подписки.
+///
+/// От присланного остаются только отличия от блока подписки; кандидат
+/// проверяется той же сборкой и тем же ядром, что потом с ним работает
+/// (`stage_with` с наложенной страницей), а не отдельным проверочным файлом.
+/// Принято — файл пишется, и при включённом тумблере сборка сразу едет в ядро.
+/// Проверка не состоялась (занято, не запустилась) — файл всё равно пишется:
+/// её отсутствие не приговор, ядро рассудит при следующей сборке.
 #[tauri::command]
 pub async fn save_dns_config(dns_config: Mapping) -> CmdResult<DnsSaveOutcome> {
     let dns_path = Config::current_dns_page_path()
@@ -254,76 +276,78 @@ pub async fn save_dns_config(dns_config: Mapping) -> CmdResult<DnsSaveOutcome> {
         return Err("the DNS page is not a YAML mapping".into());
     };
 
-    let runtime = Config::runtime().await.data_arc();
-    let base = runtime.dns_base.clone().unwrap_or_default();
-    // Только отличия: ключ, равный подписке, — не выбор человека.
+    let (base, dns_settings_on) = {
+        let runtime = Config::runtime().await.data_arc();
+        let on = Config::verge().await.latest_arc().enable_dns_settings.unwrap_or(false);
+        (runtime.dns_base.clone().unwrap_or_default(), on)
+    };
     let page = page.differences_from(&base);
 
-    if let Some(missing) = missing_dns_references(&page).await {
+    let references = check_dns_references(&page).await;
+    if let Some(refusal) = references.refusal {
         logging!(
             warn,
             Type::Config,
-            "DNS page refers to names the core does not know: {missing}"
+            "DNS page refers to rule sets the core does not know: {refusal}"
         );
         return Ok(DnsSaveOutcome {
             saved: false,
-            validation: ValidationOutcome::invalid(ValidationErrorKind::CoreRejected, missing),
+            validation: ValidationOutcome::invalid(ValidationErrorKind::CoreRejected, refusal),
+            warning: None,
         });
     }
 
-    let check_path = dirs::app_home_dir()
-        .stringify_err()?
-        .join(constants::files::DNS_CHECK_CONFIG);
-    let in_context = runtime
-        .config
-        .as_ref()
-        .map(|working| crate::config::check_config_with_dns_page(working, &base, &page));
-    let check_yaml = match in_context.as_ref() {
-        Some(context) => yaml_emitter::to_mihomo_config_string(context).stringify_err()?,
-        None => yaml_emitter::to_mihomo_config_string(&page.to_file()).stringify_err()?,
-    };
-
-    crate::utils::help::write_atomic(&check_path, check_yaml.as_bytes())
+    let manager = CoreManager::global();
+    let staged = manager
+        .stage_with(crate::enhance::Sources::default().with_dns_page(page.clone()))
         .await
         .stringify_err()?;
-
-    let outcome =
-        CoreConfigValidator::validate_config_file_outcome(check_path.to_str().unwrap_or_default(), None).await;
-    let _ = fs::remove_file(&check_path).await;
-
-    let validation = match outcome {
-        Ok(outcome) => outcome,
-        Err(err) => ValidationOutcome::invalid(
-            ValidationErrorKind::ProcessTerminated,
-            format!("Configuration check could not be run: {err}"),
-        ),
-    };
-
-    if !validation.is_valid() {
-        if in_context.is_some() && reached_a_verdict(&validation) {
-            logging!(warn, Type::Config, "DNS config rejected, nothing written: {validation}");
+    let staged = match staged {
+        Ok(staged) => staged,
+        Err(validation) if reached_a_verdict(&validation) => {
+            logging!(warn, Type::Config, "DNS page rejected, nothing written: {validation}");
             return Ok(DnsSaveOutcome {
                 saved: false,
                 validation,
+                warning: None,
             });
         }
+        Err(validation) => {
+            logging!(
+                warn,
+                Type::Config,
+                "DNS page check reached no verdict, saving anyway: {validation}"
+            );
+            write_dns_page(&dns_path, &page).await?;
+            return Ok(DnsSaveOutcome {
+                saved: true,
+                validation,
+                warning: references.warning,
+            });
+        }
+    };
 
-        logging!(
-            warn,
-            Type::Config,
-            "DNS config check reached no verdict, saving anyway: {validation}"
-        );
-    }
-
-    crate::utils::help::save_yaml(&dns_path, &page.to_file(), Some(dns_page::PAGE_HEADER))
-        .await
-        .stringify_err()?;
-    logging!(info, Type::Config, "DNS page saved to {dns_path:?}");
+    write_dns_page(&dns_path, &page).await?;
+    let validation = if dns_settings_on {
+        staged.deliver_unless_unchanged().await.stringify_err()?
+    } else {
+        drop(staged);
+        ValidationOutcome::Valid
+    };
 
     Ok(DnsSaveOutcome {
         saved: true,
         validation,
+        warning: references.warning,
     })
+}
+
+async fn write_dns_page(dns_path: &std::path::Path, page: &dns_page::Page) -> CmdResult {
+    crate::utils::help::save_yaml(dns_path, &page.to_file(), Some(dns_page::PAGE_HEADER))
+        .await
+        .stringify_err()?;
+    logging!(info, Type::Config, "DNS page saved to {dns_path:?}");
+    Ok(())
 }
 
 #[tauri::command]
@@ -375,8 +399,12 @@ pub async fn get_dns_page_view(bare: bool) -> CmdResult<Mapping> {
     } else {
         match Config::current_dns_page_path().await {
             Some(path) => match fs::read_to_string(&path).await {
-                Ok(raw) => dns_page::Page::parse(&raw).unwrap_or_default(),
-                Err(_) => dns_page::Page::default(),
+                // Неразбираемый файл не прячем за подпиской: сохранение
+                // затёрло бы его молча. Человек видит причину.
+                Ok(raw) => dns_page::Page::parse(&raw)
+                    .ok_or_else(|| format!("the DNS page {path:?} does not parse as YAML; fix or delete the file"))?,
+                Err(err) if err.kind() == std::io::ErrorKind::NotFound => dns_page::Page::default(),
+                Err(err) => return Err(format!("the DNS page {path:?} cannot be read: {err}").into()),
             },
             None => return Err("no subscription is selected".into()),
         }
@@ -392,9 +420,40 @@ pub async fn get_clash_logs() -> CmdResult<Vec<CompactString>> {
 
 #[cfg(test)]
 mod tests {
-    use super::{reached_a_verdict, read_ladder};
+    use super::{dns_reference_check, reached_a_verdict, read_ladder};
     use crate::core::validate::{ValidationErrorKind, ValidationOutcome, ValidationSkipReason};
+    use crate::enhance::dns_page::References;
     use serde_yaml_ng::{Mapping, Value};
+
+    #[test]
+    fn a_lost_rule_set_refuses_the_page_but_an_unknown_tail_only_warns() {
+        let refs = References {
+            proxies: vec!["GRP-A".to_owned(), "en0".to_owned()],
+            rule_sets: vec!["rs-one".to_owned()],
+        };
+        let all_known = dns_reference_check(&refs, &["GRP-A", "en0", "DIRECT"], &["rs-one"]);
+        assert_eq!(all_known, super::DnsReferenceCheck::default());
+
+        let tail_unknown = dns_reference_check(&refs, &["GRP-A", "DIRECT"], &["rs-one"]);
+        assert!(
+            tail_unknown.refusal.is_none(),
+            "хвост без прокси — интерфейс, отказывать нельзя"
+        );
+        assert!(
+            tail_unknown
+                .warning
+                .as_deref()
+                .is_some_and(|text| text.contains("«en0»"))
+        );
+
+        let rule_set_unknown = dns_reference_check(&refs, &["GRP-A", "en0"], &[]);
+        assert!(
+            rule_set_unknown
+                .refusal
+                .as_deref()
+                .is_some_and(|text| text.contains("«rs-one»"))
+        );
+    }
 
     #[test]
     fn the_core_judging_the_config_is_a_verdict() {

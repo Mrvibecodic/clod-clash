@@ -878,7 +878,9 @@ impl CoreManager {
             return;
         }
         match self.try_handoff_sidecar_to_service(HandoffReason::Tun).await {
-            HandoffOutcome::Done => {}
+            HandoffOutcome::Done => {
+                crate::feat::tun::spawn_bringing_tun_back_if_the_config_lacks_it("the core is under the service now");
+            }
             HandoffOutcome::NotReady => self.spawn_service_handoff_watcher(HandoffReason::Tun).await,
             HandoffOutcome::Failed => {
                 logging!(warn, Type::Core, "immediate handoff failed; staying in sidecar mode");
@@ -936,7 +938,12 @@ impl CoreManager {
                 }
                 match manager.try_handoff_sidecar_to_service(reason).await {
                     // Передано или не требуется
-                    HandoffOutcome::Done => break,
+                    HandoffOutcome::Done => {
+                        crate::feat::tun::spawn_bringing_tun_back_if_the_config_lacks_it(
+                            "the core is under the service now",
+                        );
+                        break;
+                    }
                     // Откат к sidecar выполнен, прекращаем попытки
                     HandoffOutcome::Failed => {
                         logging!(warn, Type::Core, "handoff attempt failed; staying in sidecar mode");
