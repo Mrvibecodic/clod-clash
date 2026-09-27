@@ -203,6 +203,11 @@ pub struct IVerge {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub connect_tun_mode: Option<bool>,
 
+    /// Разовая уборка способа подключения уже прошла (см.
+    /// `forget_the_template_connect_choice`); у новых установок — с самого начала.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub connect_template_cleared: Option<bool>,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub connect_on_launch: Option<bool>,
 
@@ -425,6 +430,7 @@ impl IVerge {
                         config.connect_system_proxy = Some(false);
                         config.connect_tun_mode = Some(true);
                     }
+                    forget_the_template_connect_choice(&mut config);
                     config
                 }
                 Err(err) => {
@@ -514,6 +520,7 @@ impl IVerge {
             enable_external_controller: Some(false),
             enable_hwid: Some(Self::DEFAULT_ENABLE_HWID),
             connect_on_launch: Some(false),
+            connect_template_cleared: Some(true),
             ..Self::default()
         }
     }
@@ -662,9 +669,28 @@ impl IVerge {
     }
 }
 
+/// Р27-05: прежний шаблон настроек записывал в `verge.yaml` способ подключения
+/// по умолчанию (системный прокси, без TUN), и у таких установок пожелание панели
+/// `clod-connect-mode` без замка не действовало — значение выглядело выбором
+/// человека. Отличить шаблон от выбора, совпавшего с умолчанием, по файлу нельзя,
+/// поэтому пара, равная умолчанию, снимается один раз; дальше её пишет только
+/// человек, и она остаётся его выбором.
+fn forget_the_template_connect_choice(config: &mut IVerge) {
+    if config.connect_template_cleared.is_some() {
+        return;
+    }
+    config.connect_template_cleared = Some(true);
+    if config.connect_system_proxy == Some(IVerge::DEFAULT_CONNECT_SYSTEM_PROXY)
+        && config.connect_tun_mode == Some(IVerge::DEFAULT_CONNECT_TUN_MODE)
+    {
+        config.connect_system_proxy = None;
+        config.connect_tun_mode = None;
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{DEFAULT_PAC, IVerge, pac_without_the_frozen_address};
+    use super::{DEFAULT_PAC, IVerge, forget_the_template_connect_choice, pac_without_the_frozen_address};
 
     #[test]
     fn core_facing_keeps_what_the_core_reads_and_drops_the_rest() {
@@ -711,6 +737,47 @@ mod tests {
             pac_without_the_frozen_address(frozen("127.0.0.1", "7890").trim_end()),
             Some(DEFAULT_PAC)
         );
+    }
+
+    #[test]
+    fn the_template_connect_choice_is_forgotten_once() {
+        let stored = |sys, tun, cleared| IVerge {
+            connect_system_proxy: sys,
+            connect_tun_mode: tun,
+            connect_template_cleared: cleared,
+            ..IVerge::default()
+        };
+        let migrated = |mut config: IVerge| {
+            forget_the_template_connect_choice(&mut config);
+            (
+                config.connect_system_proxy,
+                config.connect_tun_mode,
+                config.connect_template_cleared,
+            )
+        };
+
+        // Старая установка с парой из прежнего шаблона — снимается.
+        assert_eq!(
+            migrated(stored(Some(true), Some(false), None)),
+            (None, None, Some(true))
+        );
+        // Любой другой выбор остаётся.
+        assert_eq!(
+            migrated(stored(Some(false), Some(true), None)),
+            (Some(false), Some(true), Some(true))
+        );
+        assert_eq!(
+            migrated(stored(Some(true), Some(true), None)),
+            (Some(true), Some(true), Some(true))
+        );
+        assert_eq!(migrated(stored(Some(true), None, None)), (Some(true), None, Some(true)));
+        // Уборка прошла — выбор умолчания руками больше не снимается.
+        assert_eq!(
+            migrated(stored(Some(true), Some(false), Some(true))),
+            (Some(true), Some(false), Some(true))
+        );
+        // Новая установка несёт отметку с самого начала.
+        assert_eq!(IVerge::template().connect_template_cleared, Some(true));
     }
 
     #[test]
