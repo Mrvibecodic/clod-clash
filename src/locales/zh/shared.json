@@ -129,7 +129,7 @@
         "failed": "配置检查未通过，更改已撤销。错误：",
         "bootFailed": "The core rejected the configuration at startup — the core is not running, there is no connection. Update the subscription or switch to another one. Error:",
         "processTerminated": "验证进程被终止。请检查是否有安全软件阻止内核运行，以及本机 CPU 是否支持该内核构建。",
-        "timeout": "配置更新超时（30 秒）：校验或内核未响应，已恢复之前的配置。"
+        "timeout": "The configuration update did not finish within 30 s: the check or the core did not respond. The result will show once the core answers."
       },
       "script": {
         "syntaxError": "脚本语法错误，变更已撤销",

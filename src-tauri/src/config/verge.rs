@@ -379,6 +379,35 @@ impl IVerge {
         self.clash_core.clone().unwrap_or_else(|| "verge-mihomo".into())
     }
 
+    /// Только те поля, которые уезжают ядру в сборке (`enhance` их читает).
+    ///
+    /// Их принимает ядро, и они записываются в момент приёма; остальные поля
+    /// настроек принимает свой шаг (системный прокси, автозапуск, горячие
+    /// клавиши), и если тот шаг не прошёл, они к прежним и возвращаются.
+    pub fn core_facing(&self) -> Self {
+        Self {
+            enable_tun_mode: self.enable_tun_mode,
+            enable_builtin_enhanced: self.enable_builtin_enhanced,
+            verge_socks_enabled: self.verge_socks_enabled,
+            verge_http_enabled: self.verge_http_enabled,
+            enable_dns_settings: self.enable_dns_settings,
+            lan_sharing_declined: self.lan_sharing_declined,
+            tun_stack: self.tun_stack.clone(),
+            tun_strict_route: self.tun_strict_route.clone(),
+            tun_dns_hijack: self.tun_dns_hijack.clone(),
+            #[cfg(target_os = "macos")]
+            enable_dns_override: self.enable_dns_override,
+            #[cfg(not(target_os = "windows"))]
+            verge_redir_enabled: self.verge_redir_enabled,
+            #[cfg(target_os = "linux")]
+            verge_tproxy_enabled: self.verge_tproxy_enabled,
+            enable_external_controller: self.enable_external_controller,
+            clash_core: self.clash_core.clone(),
+            use_managed_core: self.use_managed_core,
+            ..Self::default()
+        }
+    }
+
     pub async fn new() -> Self {
         match dirs::verge_path() {
             Ok(path) => match help::read_yaml::<Self>(&path).await {
@@ -635,7 +664,34 @@ impl IVerge {
 
 #[cfg(test)]
 mod tests {
-    use super::{DEFAULT_PAC, pac_without_the_frozen_address};
+    use super::{DEFAULT_PAC, IVerge, pac_without_the_frozen_address};
+
+    #[test]
+    fn core_facing_keeps_what_the_core_reads_and_drops_the_rest() {
+        let patch = IVerge {
+            enable_tun_mode: Some(true),
+            verge_socks_enabled: Some(true),
+            enable_dns_settings: Some(true),
+            clash_core: Some("verge-mihomo-alpha".into()),
+            enable_system_proxy: Some(true),
+            enable_auto_launch: Some(true),
+            enable_global_hotkey: Some(false),
+            language: Some("ru".into()),
+            ..IVerge::default()
+        };
+        let core = patch.core_facing();
+        assert_eq!(core.enable_tun_mode, Some(true));
+        assert_eq!(core.verge_socks_enabled, Some(true));
+        assert_eq!(core.enable_dns_settings, Some(true));
+        assert_eq!(core.clash_core.as_deref(), Some("verge-mihomo-alpha"));
+        assert_eq!(
+            core.enable_system_proxy, None,
+            "системный прокси принимает свой шаг, не ядро"
+        );
+        assert_eq!(core.enable_auto_launch, None);
+        assert_eq!(core.enable_global_hotkey, None);
+        assert_eq!(core.language, None);
+    }
 
     fn frozen(host: &str, port: &str) -> std::string::String {
         DEFAULT_PAC.replace("%proxy_host%", host).replace("%mixed-port%", port)

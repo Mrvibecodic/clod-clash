@@ -1912,6 +1912,43 @@ mod tests {
     }
 
     #[test]
+    fn merging_an_update_keeps_the_file_name_and_drops_the_interval_echo() {
+        let mut profiles = profiles_with(vec![item("sub", "remote", "sub.yaml")], "sub");
+        let mut update = item("sub", "remote", "other.yaml");
+        update.updated = Some(42);
+        update.option = Some(PrfOption {
+            update_interval: Some(720),
+            ..PrfOption::default()
+        });
+
+        profiles.merge_updated_item(&"sub".into(), &mut update).unwrap();
+
+        let merged = profiles.get_item("sub").unwrap();
+        assert_eq!(
+            merged.file.as_deref(),
+            Some("sub.yaml"),
+            "имя файла в реестре не меняется"
+        );
+        assert_eq!(merged.updated, Some(42));
+        assert_eq!(
+            merged.option.as_ref().and_then(|option| option.update_interval),
+            None,
+            "эхо интервала из запроса не затирает выбор человека"
+        );
+
+        let mut with_body = item("sub", "remote", "sub.yaml");
+        with_body.file_data = Some("proxies: []".into());
+        assert!(
+            profiles.merge_updated_item(&"sub".into(), &mut with_body).is_err(),
+            "содержимое принимается до слияния, а не вместе с ним"
+        );
+        assert_eq!(
+            profiles.file_name_for(&"sub".into(), &with_body).unwrap().as_str(),
+            "sub.yaml"
+        );
+    }
+
+    #[test]
     fn delete_plan_collects_the_profile_and_its_attachments() {
         let attachments = PrfOption {
             merge: Some("merge-uid".into()),

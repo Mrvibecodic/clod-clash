@@ -190,6 +190,12 @@ fn is_staging_leftover(name: &str) -> bool {
         .is_some_and(|(base, id)| !base.is_empty() && id.len() == 8 && id.chars().all(|c| ALPHABET.contains(&c)))
 }
 
+/// Кандидат приёма подписки (`<файл>.new`), не доведённый до замены: приложение
+/// упало между проверкой и переименованием. Следующее обновление скачает заново.
+fn is_unpromoted_candidate(name: &str) -> bool {
+    name.strip_suffix(".new").is_some_and(|stem| !stem.is_empty())
+}
+
 pub async fn sweep_staging_leftovers(dir: &Path) -> usize {
     let Ok(mut entries) = tokio::fs::read_dir(dir).await else {
         return 0;
@@ -197,7 +203,9 @@ pub async fn sweep_staging_leftovers(dir: &Path) -> usize {
     let mut removed = 0;
     while let Ok(Some(entry)) = entries.next_entry().await {
         let name = entry.file_name().to_string_lossy().into_owned();
-        if is_staging_leftover(&name) && tokio::fs::remove_file(entry.path()).await.is_ok() {
+        if (is_staging_leftover(&name) || is_unpromoted_candidate(&name))
+            && tokio::fs::remove_file(entry.path()).await.is_ok()
+        {
             removed += 1;
         }
     }
@@ -504,6 +512,9 @@ mod tests {
     fn only_our_drafts_count_as_leftovers() {
         assert!(is_staging_leftover(".verge.yaml.aB3dE9xZ.tmp"));
         assert!(!is_staging_leftover("verge.yaml"));
+        assert!(super::is_unpromoted_candidate("sub.yaml.new"));
+        assert!(!super::is_unpromoted_candidate(".new"));
+        assert!(!super::is_unpromoted_candidate("sub.yaml.prev"));
         assert!(!is_staging_leftover(".hidden.tmp"));
         assert!(!is_staging_leftover(".verge.yaml.short.tmp"));
         assert!(!is_staging_leftover("notes.aB3dE9xZ.tmp"));

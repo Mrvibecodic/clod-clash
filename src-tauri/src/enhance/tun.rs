@@ -22,15 +22,6 @@ pub fn use_tun(mut config: Mapping, enable: bool) -> (Mapping, bool) {
     (config, shaped_fake_ip)
 }
 
-/// Запомнить, чего требует от подмены системного DNS собранный конфиг.
-///
-/// clod:dns-applied — само применение отложено до того момента, когда ядро
-/// приняло конфиг: сборка ещё ничего не решает, её могут отвергнуть.
-#[cfg(target_os = "macos")]
-pub fn remember_system_dns(enable: bool, shaped_fake_ip: bool, override_enabled: bool) {
-    crate::utils::resolve::dns::remember_desire(override_enabled && enable, shaped_fake_ip);
-}
-
 fn shape_dns_for_tun(config: &mut Mapping) -> bool {
     let dns_key = Value::from("dns");
     let mut dns_val = config.get(&dns_key).map_or_else(Mapping::new, |val| {

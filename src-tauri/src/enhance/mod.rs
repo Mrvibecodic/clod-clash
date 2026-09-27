@@ -128,40 +128,80 @@ fn ladder_tun_on(tun: &mut Mapping, app_tun: Mapping, overrides: &TunOverrides, 
     }
 }
 
-/// Из чего собирается конфиг ядра.
+/// Кандидат, выводимый из принятого состояния слоя в момент сборки.
+pub type Derive<T> = Box<dyn FnOnce(&T) -> Result<T> + Send>;
+
+/// Чем вызывающий перебивает принятое состояние слоя при сборке.
+#[derive(Default)]
+pub enum Overlay<T> {
+    /// Как принято — читается в момент сборки, под признаком применения.
+    #[default]
+    Accepted,
+    /// Готовый кандидат вызывающего.
+    Value(SharedDraft<T>),
+    /// Кандидат, выводимый из принятого в момент сборки — чтобы за время
+    /// ожидания признака принятое не уехало из-под кандидата.
+    Derived(Derive<T>),
+}
+
+impl<T: Clone> Overlay<T> {
+    fn resolve(self, accepted: SharedDraft<T>) -> Result<SharedDraft<T>> {
+        Ok(match self {
+            Self::Accepted => accepted,
+            Self::Value(value) => value,
+            Self::Derived(derive) => SharedDraft::new(Box::new(derive(&accepted)?)),
+        })
+    }
+}
+
+/// Из чего собирать конфиг ядра — заявка вызывающего.
 ///
 /// Сборка — функция от значений, а не от общих черновиков: по умолчанию это
 /// принятое состояние трёх слоёв, а вызывающий, который проверяет свою правку,
-/// подставляет свой кандидат. Чужая непроверенная правка в сборку попасть не может.
+/// подставляет свой кандидат. Чужая непроверенная правка в сборку попасть не
+/// может. Принятое читается уже под признаком применения (`resolve`), поэтому
+/// ожидание занятого признака не даёт сборке устареть.
+#[derive(Default)]
 pub struct Sources {
-    pub clash: SharedDraft<IClashTemp>,
-    pub verge: SharedDraft<IVerge>,
-    pub profiles: SharedDraft<IProfiles>,
+    pub clash: Overlay<IClashTemp>,
+    pub verge: Overlay<IVerge>,
+    pub profiles: Overlay<IProfiles>,
 }
 
 impl Sources {
-    pub async fn accepted() -> Self {
-        Self {
-            clash: Config::clash().await.data_arc(),
-            verge: Config::verge().await.data_arc(),
-            profiles: Config::profiles().await.data_arc(),
-        }
-    }
-
     pub fn with_clash(mut self, clash: SharedDraft<IClashTemp>) -> Self {
-        self.clash = clash;
+        self.clash = Overlay::Value(clash);
         self
     }
 
     pub fn with_verge(mut self, verge: SharedDraft<IVerge>) -> Self {
-        self.verge = verge;
+        self.verge = Overlay::Value(verge);
         self
     }
 
-    pub fn with_profiles(mut self, profiles: SharedDraft<IProfiles>) -> Self {
-        self.profiles = profiles;
+    pub fn with_profiles_derived(
+        mut self,
+        derive: impl FnOnce(&IProfiles) -> Result<IProfiles> + Send + 'static,
+    ) -> Self {
+        self.profiles = Overlay::Derived(Box::new(derive));
         self
     }
+
+    /// Снять принятое состояние слоёв и наложить заявку. Звать под признаком применения.
+    pub async fn resolve(self) -> Result<Resolved> {
+        Ok(Resolved {
+            clash: self.clash.resolve(Config::clash().await.data_arc())?,
+            verge: self.verge.resolve(Config::verge().await.data_arc())?,
+            profiles: self.profiles.resolve(Config::profiles().await.data_arc())?,
+        })
+    }
+}
+
+/// Источники сборки, снятые в один момент.
+pub struct Resolved {
+    pub clash: SharedDraft<IClashTemp>,
+    pub verge: SharedDraft<IVerge>,
+    pub profiles: SharedDraft<IProfiles>,
 }
 
 #[derive(Debug)]
@@ -249,7 +289,7 @@ async fn chain_item_or_default(item: Option<&PrfItem>, default_item: impl FnOnce
     }
 }
 
-fn get_config_values(sources: &Sources) -> ConfigValues {
+fn get_config_values(sources: &Resolved) -> ConfigValues {
     let clash_config = sources.clash.0.clone();
 
     let verge_arc = &sources.verge;
@@ -1755,9 +1795,7 @@ async fn apply_dns_settings(mut config: Mapping, enable_dns_settings: bool, prof
     (config, true)
 }
 
-pub async fn enhance(
-    sources: &Sources,
-) -> Result<(Mapping, HashSet<String>, HashMap<String, ResultLog>, SentinelReport)> {
+pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
     let cfg_vals = get_config_values(sources);
     let ConfigValues {
         mut clash_config,
@@ -1828,9 +1866,15 @@ pub async fn enhance(
     let config = apply_builtin_scripts(config, clash_core, enable_builtin).await;
     let (config, shaped_fake_ip) = use_tun(config, enable_tun);
     #[cfg(target_os = "macos")]
-    crate::enhance::tun::remember_system_dns(enable_tun, shaped_fake_ip, enable_dns_override);
+    let dns_desire = Some(crate::config::runtime::DnsDesire {
+        want_base: enable_dns_override && enable_tun,
+        shaped_fake_ip,
+    });
     #[cfg(not(target_os = "macos"))]
-    let _ = shaped_fake_ip;
+    let dns_desire = {
+        let _ = shaped_fake_ip;
+        None
+    };
     let (config, dns_page_applied) = apply_dns_settings(config, enable_dns_settings, &profile_uid).await;
     let mut config = ensure_dns_for_tun(config, enable_tun);
     clamp_dns_listen(&mut config);
@@ -1906,7 +1950,14 @@ pub async fn enhance(
     let mut exists_keys_set = HashSet::new();
     exists_keys_set.extend(exists_keys);
 
-    Ok((config, exists_keys_set, result_map, sentinel_report))
+    Ok(IRuntime {
+        config: Some(config),
+        profile_uid: (!profile_uid.is_empty()).then(|| profile_uid.clone()),
+        dns_desire,
+        exists_keys: exists_keys_set,
+        chain_logs: result_map,
+        sentinel_report,
+    })
 }
 
 #[allow(clippy::expect_used)]
@@ -1917,6 +1968,26 @@ mod tests {
         collect_server_descriptions, ensure_store_selected, filter_sentinel_proxies, process_global_items,
         process_profile_items, server_descriptions_of, unpin_providers_from_rejection, use_keys,
     };
+
+    #[test]
+    fn a_derived_overlay_is_built_from_the_accepted_state_at_resolve_time() {
+        use crate::config::IProfiles;
+        let accepted = super::SharedDraft::new(Box::new(IProfiles {
+            current: Some("a".into()),
+            items: None,
+        }));
+        let overlay: super::Overlay<IProfiles> = super::Overlay::Derived(Box::new(|accepted: &IProfiles| {
+            let mut candidate = accepted.clone();
+            candidate.current = Some("b".into());
+            Ok(candidate)
+        }));
+        let resolved = overlay.resolve(std::sync::Arc::clone(&accepted)).unwrap_or(accepted);
+        assert_eq!(resolved.current.as_deref(), Some("b"));
+        assert!(matches!(
+            super::Overlay::<IProfiles>::default(),
+            super::Overlay::Accepted
+        ));
+    }
     use std::collections::HashMap;
 
     fn mapping(yaml: &str) -> serde_yaml_ng::Mapping {

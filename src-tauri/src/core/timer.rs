@@ -43,6 +43,8 @@ const EXPIRY_SLACK: i64 = 5;
 /// есть, срабатывает своим чередом.
 const EXPIRY_RETRY: Duration = Duration::from_secs(15 * 60);
 const EXPIRY_RETRY_MAX: Duration = Duration::from_secs(5 * 60 * 60);
+/// Через сколько повторить задачу, которая не дошла до слова ядра.
+const RETRY_SOON: Duration = Duration::from_secs(5 * 60);
 
 /// Дольше этого очередь не взводится: у `DelayQueue` потолок ≈ 795 суток от
 /// момента её создания, а срок подписки бывает и на годы вперёд. Взведённая на
@@ -51,7 +53,12 @@ const MAX_ARM: Duration = Duration::from_secs(24 * 60 * 60);
 
 enum TimerCommand {
     Apply(HashMap<String, TaskSchedule>),
-    TaskFinished(String),
+    /// Задача отработала; `retry_soon` — до слова ядра не дошла (профиль уже
+    /// обновлялся, применение занято): повторить скоро, не считая провалом.
+    TaskFinished {
+        uid: String,
+        retry_soon: bool,
+    },
     /// Машина спала: таймеры tokio во сне не идут (Linux/macOS), цели
     /// пересчитываются по настенным часам.
     Rearm,
@@ -331,8 +338,8 @@ impl Timer {
                         Some(TimerCommand::Apply(new_map)) => {
                             Self::apply_timer_map(&mut queue, &mut tasks, new_map);
                         }
-                        Some(TimerCommand::TaskFinished(uid)) => {
-                            Self::finish_task(&mut queue, &mut tasks, uid);
+                        Some(TimerCommand::TaskFinished { uid, retry_soon }) => {
+                            Self::finish_task(&mut queue, &mut tasks, uid, retry_soon);
                         }
                         Some(TimerCommand::Rearm) => {
                             Self::rearm_all(&mut queue, &mut tasks, now_unix());
@@ -538,7 +545,12 @@ impl Timer {
         regular.into_iter().chain(expiry).min()
     }
 
-    fn finish_task(queue: &mut DelayQueue<String>, tasks: &mut HashMap<String, TaskState>, uid: String) {
+    fn finish_task(
+        queue: &mut DelayQueue<String>,
+        tasks: &mut HashMap<String, TaskState>,
+        uid: String,
+        retry_soon: bool,
+    ) {
         let Some(state) = tasks.get_mut(&uid) else {
             return;
         };
@@ -552,6 +564,14 @@ impl Timer {
                 "Dropped retired timer task now that its update finished: uid={}",
                 uid
             );
+            return;
+        }
+
+        if retry_soon {
+            // Загрузки не было или слова ядра нет — это не провал: цели и счёт
+            // неудач не трогаем, просто повторяем скоро.
+            state.started_at = None;
+            Self::arm(queue, &uid, state, RETRY_SOON);
             return;
         }
 
@@ -573,8 +593,8 @@ impl Timer {
         logging!(info, Type::Timer, "Starting timer task: uid={} ({trigger:?})", uid);
         AsyncHandler::spawn(move || async move {
             Self::wait_until_resolve_done(Duration::from_millis(5000)).await;
-            Box::pin(Self::async_task(&uid, trigger)).await;
-            let _ = command_tx.send(TimerCommand::TaskFinished(uid));
+            let retry_soon = Box::pin(Self::async_task(&uid, trigger)).await;
+            let _ = command_tx.send(TimerCommand::TaskFinished { uid, retry_soon });
         });
     }
 
@@ -606,7 +626,8 @@ impl Timer {
         }
     }
 
-    async fn async_task(uid: &String, trigger: feat::UpdateTrigger) {
+    /// `true` — повторить скоро (см. `TimerCommand::TaskFinished`).
+    async fn async_task(uid: &String, trigger: feat::UpdateTrigger) -> bool {
         let task_start = std::time::Instant::now();
         logging!(debug, Type::Timer, "Running timer task for profile: {}", uid);
 
@@ -623,26 +644,31 @@ impl Timer {
         })
         .await;
 
-        match result {
-            Ok(_) => {
+        let retry_soon = match result {
+            Ok(outcome) => {
                 logging!(
                     info,
                     Type::Timer,
-                    "Timer task completed for uid: {} (took {}ms)",
+                    "Timer task completed for uid: {} ({outcome:?}, took {}ms)",
                     uid,
                     task_start.elapsed().as_millis()
                 );
+                outcome == feat::UpdateOutcome::RetrySoon
             }
-            Err(e) => logging_error!(
-                Type::Timer,
-                "Failed to update profile uid {}: {} (took {}ms)",
-                uid,
-                e,
-                task_start.elapsed().as_millis()
-            ),
-        }
+            Err(e) => {
+                logging_error!(
+                    Type::Timer,
+                    "Failed to update profile uid {}: {} (took {}ms)",
+                    uid,
+                    e,
+                    task_start.elapsed().as_millis()
+                );
+                false
+            }
+        };
 
         Self::emit_update_event(uid, false);
+        retry_soon
     }
 
     async fn wait_until_resolve_done(max_wait: Duration) {
@@ -890,7 +916,7 @@ mod tests {
         map.insert(uid.clone(), TaskSchedule::new(HOUR * 24, None, now, Some(now - 10)));
         Timer::apply_timer_map(&mut queue, &mut tasks, map);
         pretend_running(&mut queue, &mut tasks, &uid);
-        Timer::finish_task(&mut queue, &mut tasks, uid.clone());
+        Timer::finish_task(&mut queue, &mut tasks, uid.clone(), false);
         assert_eq!(
             tasks.get(&uid).and_then(|state| queued_delay(&queue, state)),
             Some(EXPIRY_RETRY)
@@ -901,7 +927,7 @@ mod tests {
         map.insert(uid.clone(), TaskSchedule::new(HOUR * 24, Some(now as usize), now, None));
         Timer::apply_timer_map(&mut queue, &mut tasks, map);
         pretend_running(&mut queue, &mut tasks, &uid);
-        Timer::finish_task(&mut queue, &mut tasks, uid.clone());
+        Timer::finish_task(&mut queue, &mut tasks, uid.clone(), false);
         assert_eq!(
             tasks.get(&uid).and_then(|state| queued_delay(&queue, state)),
             Some(Duration::from_secs(24 * 3600))
@@ -921,7 +947,7 @@ mod tests {
         let expected = [15, 30, 60, 120, 240, 300, 300, 300].map(|minutes| Duration::from_secs(minutes * 60));
         for (attempt, delay) in expected.into_iter().enumerate() {
             pretend_running(&mut queue, &mut tasks, &uid);
-            Timer::finish_task(&mut queue, &mut tasks, uid.clone());
+            Timer::finish_task(&mut queue, &mut tasks, uid.clone(), false);
             assert_eq!(
                 tasks.get(&uid).and_then(|state| queued_delay(&queue, state)),
                 Some(delay),
@@ -936,7 +962,7 @@ mod tests {
         map.insert(uid.clone(), TaskSchedule::new(HOUR, None, now, Some(now - 10)));
         Timer::apply_timer_map(&mut queue, &mut tasks, map);
         pretend_running(&mut queue, &mut tasks, &uid);
-        Timer::finish_task(&mut queue, &mut tasks, uid.clone());
+        Timer::finish_task(&mut queue, &mut tasks, uid.clone(), false);
         assert_eq!(
             tasks.get(&uid).and_then(|state| queued_delay(&queue, state)),
             Some(Duration::from_secs(3600))
@@ -966,7 +992,7 @@ mod tests {
         );
         Timer::apply_timer_map(&mut queue, &mut tasks, map);
         pretend_running_since(&mut queue, &mut tasks, &uid, now - 60);
-        Timer::finish_task(&mut queue, &mut tasks, uid.clone());
+        Timer::finish_task(&mut queue, &mut tasks, uid.clone(), false);
         assert_eq!(
             tasks.get(&uid).and_then(|state| queued_delay(&queue, state)),
             Some(Duration::ZERO)
@@ -1016,7 +1042,7 @@ mod tests {
         pretend_running(&mut queue, &mut tasks, &uid);
         // refresh() после удачи выкидывает подписку из карты целиком.
         Timer::apply_timer_map(&mut queue, &mut tasks, HashMap::new());
-        Timer::finish_task(&mut queue, &mut tasks, uid.clone());
+        Timer::finish_task(&mut queue, &mut tasks, uid.clone(), false);
         assert!(!tasks.contains_key(&uid));
         assert_eq!(queue.len(), 0);
     }
@@ -1120,7 +1146,7 @@ mod tests {
         Timer::apply_timer_map(&mut queue, &mut tasks, HashMap::new());
         assert!(tasks.get(&uid).is_some_and(|state| state.retired));
 
-        Timer::finish_task(&mut queue, &mut tasks, uid.clone());
+        Timer::finish_task(&mut queue, &mut tasks, uid.clone(), false);
         assert!(!tasks.contains_key(&uid));
     }
 
@@ -1150,7 +1176,7 @@ mod tests {
                 .is_some_and(|state| state.running && !state.retired && state.key.is_none())
         );
 
-        Timer::finish_task(&mut queue, &mut tasks, uid.clone());
+        Timer::finish_task(&mut queue, &mut tasks, uid.clone(), false);
         assert!(
             tasks
                 .get(&uid)

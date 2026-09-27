@@ -35,6 +35,12 @@ pub enum ValidationErrorKind {
 }
 
 impl ValidationErrorKind {
+    /// Это слово ядра о конфиге, а не о среде: прибитая проверка и таймаут
+    /// про сам конфиг ничего не говорят.
+    pub const fn is_the_cores_verdict(self) -> bool {
+        !matches!(self, Self::ProcessTerminated | Self::Timeout)
+    }
+
     pub fn from_message(message: &str) -> Self {
         // clod: сообщения об ошибках теперь русские (их читает и пользователь, и
         // поддержка), поэтому классификатору нужны русские иглы — и полноценный
@@ -429,7 +435,11 @@ impl CoreConfigValidator {
             };
 
             logging!(info, Type::Validate, "-------- Проверка завершена --------");
-            let outcome = if status.code().is_none() {
+            // Ядро при отказе всегда называет причину; процесс без единого слова
+            // на выходе прибит снаружи (на Windows — с кодом выхода), и это не
+            // вердикт конфигу.
+            let silenced = status.code().is_none() || (stdout.is_empty() && stderr.is_empty());
+            let outcome = if silenced {
                 ValidationOutcome::invalid(ValidationErrorKind::ProcessTerminated, error_msg)
             } else {
                 ValidationOutcome::invalid_from_message(error_msg)

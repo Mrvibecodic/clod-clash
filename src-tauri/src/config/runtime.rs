@@ -9,9 +9,23 @@ use crate::enhance::field::use_keys;
 // возвращает старый режим в ядро.
 const PATCH_CONFIG_INNER: [&str; 6] = ["mode", "allow-lan", "ipv6", "log-level", "unified-delay", "tunnels"];
 
+/// Чего собранный конфиг просит от системного DNS (macOS): подменять ли его и
+/// «сформирован» ли fake-ip под туннель. Часть сборки, а не глобальное состояние:
+/// заявка относится ровно к тому конфигу, с которым едет, и применяется только
+/// после того, как ядро его приняло.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct DnsDesire {
+    pub want_base: bool,
+    pub shaped_fake_ip: bool,
+}
+
 #[derive(Default, Clone)]
 pub struct IRuntime {
     pub config: Option<Mapping>,
+    /// Профиль, из которого собран конфиг. Пометка «не применено» снимается с
+    /// него, а не с того, кто окажется текущим в реестре в момент доставки.
+    pub profile_uid: Option<String>,
+    pub dns_desire: Option<DnsDesire>,
     // Ключи, встречавшиеся в подписке (включая сгенерированные merge и script)
     // Эти ключи не обязательно все действуют
     pub exists_keys: HashSet<String>,

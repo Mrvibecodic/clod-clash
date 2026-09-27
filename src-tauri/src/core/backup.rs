@@ -293,6 +293,11 @@ pub async fn create_backup() -> Result<(String, PathBuf), Error> {
                 let file_name = file_name_os
                     .to_str()
                     .ok_or_else(|| anyhow::Error::msg("Invalid file name encoding"))?;
+                // Запасная копия прежней подписки и кандидат приёма — не данные
+                // человека: в копии им нечего делать (у прежней подписки — прежние ключи).
+                if file_name.ends_with(".prev") || file_name.ends_with(".new") {
+                    continue;
+                }
                 let backup_path = format!("profiles/{}", file_name);
                 zip.start_file(backup_path, options)?;
                 let file_content = fs::read(&path).await?;

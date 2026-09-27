@@ -12,7 +12,7 @@ use crate::{
         },
         profiles_append_item_safe,
     },
-    core::{CoreManager, handle, timer::Timer, tray::Tray, validate::ValidationOutcome},
+    core::{CoreManager, handle, manager::Delivery, timer::Timer, tray::Tray, validate::ValidationOutcome},
     enhance::Sources,
     feat,
     utils::{dirs, help},
@@ -454,7 +454,9 @@ fn handle_validation_failure(outcome: ValidationOutcome) -> ValidationOutcome {
 fn handle_update_error<E: std::fmt::Display>(e: E) -> ValidationOutcome {
     logging!(warn, Type::Cmd, "ошибка в процессе обновления: {}", e,);
     let message: String = super::public_error_text(&e);
-    handle::Handle::notice_message("config_validate::boot_error", message.clone());
+    // Ядро чаще всего работает на прежнем профиле: это «изменения отменены»,
+    // а не отказ старта.
+    handle::Handle::notice_message("config_validate::error", message.clone());
     ValidationOutcome::invalid_from_message(message)
 }
 
@@ -466,26 +468,39 @@ fn handle_timeout() -> ValidationOutcome {
     ValidationOutcome::invalid_from_message(timeout_msg)
 }
 
-/// Собрать конфиг из кандидата реестра и отдать ядру. Реестр в памяти и на диске
-/// меняется только на успехе (`handle_success`): при отказе ядро остаётся на
-/// прежнем профиле, и откатывать нечего.
-async fn perform_config_update(candidate: IProfiles, current_value: Option<&String>) -> CmdResult<ValidationOutcome> {
-    defer! {
-        CURRENT_SWITCHING_PROFILE.store(false, Ordering::Release);
-    }
-    let sources = Sources::accepted()
-        .await
-        .with_profiles(SharedDraft::new(Box::new(candidate)));
-    let update_result = tokio::time::timeout(
-        Duration::from_secs(30),
-        CoreManager::global().update_config_forced_with(&sources),
-    )
-    .await;
+/// Собрать конфиг из кандидата реестра (`patch` поверх принятого — под признаком
+/// применения, чтобы реестр не уехал из-под кандидата за время ожидания) и отдать
+/// ядру. Реестр в памяти и на диске меняется только на успехе (`handle_success`):
+/// при отказе ядро остаётся на прежнем профиле, и откатывать нечего.
+///
+/// Дверь идёт отдельной задачей: 30-секундный потолок — на ожидание ответа, а не
+/// на саму работу. Отменять применение посреди перезапуска ядра нельзя — слот и
+/// замок остались бы в промежуточном состоянии; задача доводит дело до конца, и
+/// итог доезжает событиями (`handle_success`), даже если ответ уже ушёл.
+async fn perform_config_update(patch: IProfiles, current_value: Option<String>) -> CmdResult<ValidationOutcome> {
+    let sources = Sources::default().with_profiles_derived(move |accepted| {
+        let mut candidate = accepted.clone();
+        candidate.patch_config(&patch);
+        Ok(candidate)
+    });
+    let task = tauri::async_runtime::spawn(async move {
+        defer! {
+            CURRENT_SWITCHING_PROFILE.store(false, Ordering::Release);
+        }
+        match CoreManager::global().stage_with(sources).await {
+            Ok(Ok(staged)) => match staged.deliver(Delivery::Reload).await {
+                Ok(outcome) if outcome.is_valid() => handle_success(current_value.as_ref()).await,
+                Ok(outcome) => Ok(handle_validation_failure(outcome)),
+                Err(e) => Ok(handle_update_error(e)),
+            },
+            Ok(Err(outcome)) => Ok(handle_validation_failure(outcome)),
+            Err(e) => Ok(handle_update_error(e)),
+        }
+    });
 
-    match update_result {
-        Ok(Ok(outcome)) if outcome.is_valid() => handle_success(current_value).await,
-        Ok(Ok(outcome)) => Ok(handle_validation_failure(outcome)),
-        Ok(Err(e)) => Ok(handle_update_error(e)),
+    match tokio::time::timeout(Duration::from_secs(30), task).await {
+        Ok(Ok(result)) => result,
+        Ok(Err(join_error)) => Ok(handle_update_error(join_error)),
         Err(_) => Ok(handle_timeout()),
     }
 }
@@ -510,11 +525,15 @@ pub async fn patch_profiles_config(profiles: IProfiles) -> CmdResult<ValidationO
         target_profile
     );
 
-    let mut candidate = (**Config::profiles().await.data_arc()).clone();
-    logging!(info, Type::Cmd, "текущий конфиг: {:?}", candidate.current);
-    candidate.patch_config(&profiles);
+    logging!(
+        info,
+        Type::Cmd,
+        "текущий конфиг: {:?}",
+        Config::profiles().await.data_arc().current
+    );
 
-    perform_config_update(candidate, target_profile).await
+    let target_profile = target_profile.cloned();
+    perform_config_update(profiles, target_profile).await
 }
 
 /// Изменяет profiles по имени profile

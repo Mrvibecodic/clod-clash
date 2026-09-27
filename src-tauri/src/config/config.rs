@@ -312,9 +312,17 @@ impl Config {
     /// не запускается (`CoreManager::refuse_to_start`); поднимать его на пустом
     /// умолчании с включёнными прокси и TUN значило бы гнать весь трафик напрямую
     /// при зелёном значке. «Проверить не удалось» (антивирус прибил проверку,
-    /// таймаут) — не приговор конфигу: он попадает в слот, и ядро решит само.
+    /// таймаут, занято) — не приговор конфигу: он попадает в слот, и ядро решит само.
     async fn generate_and_validate() -> Result<Option<(&'static str, String)>> {
-        let build = match Self::build(&enhance::Sources::accepted().await).await {
+        // Под признаком применения: первая же команда из окна может пройти дверь
+        // раньше, и бут-сборка не должна затирать то, что ядро уже приняло.
+        let manager = CoreManager::global();
+        let _applying = manager.claim_config_update_within(BOOT_CLAIM_WAIT).await;
+        if Self::runtime().await.data_arc().config.is_some() {
+            return Ok(None);
+        }
+
+        let build = match Self::build(enhance::Sources::default()).await {
             Ok(build) => build,
             Err(err) => {
                 let error_msg: String = err.to_string().into();
@@ -324,7 +332,7 @@ impl Config {
                     "Не удалось сгенерировать runtime-конфиг: {}",
                     error_msg
                 );
-                CoreManager::global().refuse_to_start(error_msg.clone());
+                manager.refuse_to_start(error_msg.clone());
                 return Ok(Some(("config_validate::boot_error", error_msg)));
             }
         };
@@ -332,45 +340,35 @@ impl Config {
 
         let Some(config) = build.config.as_ref() else {
             let error_msg: String = "собранный конфиг пуст".into();
-            CoreManager::global().refuse_to_start(error_msg.clone());
+            manager.refuse_to_start(error_msg.clone());
             return Ok(Some(("config_validate::boot_error", error_msg)));
         };
 
         logging!(info, Type::Config, "Начинаю проверку конфига");
-        match CoreConfigValidator::global().validate_config_outcome_with(config).await {
-            Ok(outcome) if outcome.is_valid() => {
+        let checked = CoreConfigValidator::global().validate_config_outcome_with(config).await;
+        match boot_verdict(&checked) {
+            BootVerdict::Accepted => {
                 logging!(info, Type::Config, "Проверка конфига успешна");
-                Self::runtime().await.replace(build);
+                manager.accept_at_boot(build).await;
                 Ok(None)
             }
-            Ok(outcome @ ValidationOutcome::Invalid { .. }) => {
-                let error_msg: String = outcome.to_string().into();
+            BootVerdict::Rejected(error_msg) => {
                 logging!(
                     warn,
                     Type::Config,
                     "Ядро отвергло конфиг при запуске, ядро не запускается: {}",
                     error_msg
                 );
-                CoreManager::global().refuse_to_start(error_msg.clone());
+                manager.refuse_to_start(error_msg.clone());
                 Ok(Some(("config_validate::boot_error", error_msg)))
             }
-            // «Занято» и «пропущено» — не слово ядра о конфиге.
-            Ok(outcome) => {
+            BootVerdict::Unchecked(reason) => {
                 logging!(
                     warn,
                     Type::Config,
-                    "Проверка при запуске не состоялась ({outcome}) — ядро стартует на собранном конфиге и рассудит само"
+                    "Проверка при запуске не состоялась ({reason}) — ядро стартует на собранном конфиге и рассудит само"
                 );
-                Self::runtime().await.replace(build);
-                Ok(None)
-            }
-            Err(err) => {
-                logging!(
-                    warn,
-                    Type::Config,
-                    "Не удалось выполнить проверку ({err}) — ядро стартует на собранном конфиге и рассудит само"
-                );
-                Self::runtime().await.replace(build);
+                manager.accept_at_boot(build).await;
                 Ok(Some(("config_validate::process_terminated", String::new())))
             }
         }
@@ -421,17 +419,13 @@ impl Config {
     /// Собрать конфиг ядра из источников. Результат — значение у вызывающего:
     /// в слот рантайма он попадает только через `CoreManager` после того, как
     /// ядро его приняло.
-    pub async fn build(sources: &enhance::Sources) -> Result<IRuntime> {
-        let (mut config, exists_keys, logs, sentinel_report) = enhance::enhance(sources).await?;
-
-        sanitize_tunnels_proxy(&mut config);
-
-        Ok(IRuntime {
-            config: Some(config),
-            exists_keys,
-            chain_logs: logs,
-            sentinel_report,
-        })
+    pub async fn build(sources: enhance::Sources) -> Result<IRuntime> {
+        let sources = sources.resolve().await?;
+        let mut build = enhance::enhance(&sources).await?;
+        if let Some(config) = build.config.as_mut() {
+            sanitize_tunnels_proxy(config);
+        }
+        Ok(build)
     }
 
     pub async fn verify_config_initialization() {
@@ -502,6 +496,32 @@ impl Config {
 
         let _ = tokio::join!(save_clash_task, save_verge_task, save_profiles_task);
         logging!(info, Type::Config, "save all draft data finished");
+    }
+}
+
+/// Сколько бут-сборка ждёт признак применения, если его уже держит команда из окна.
+const BOOT_CLAIM_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// Что делать с конфигом при старте по итогу проверки.
+#[derive(Debug, PartialEq, Eq)]
+enum BootVerdict {
+    /// Ядро приняло — в слот и стартовать.
+    Accepted,
+    /// Ядро отвергло сам конфиг — не стартовать, причина человеку.
+    Rejected(String),
+    /// Слова ядра нет (проверка прибита, таймаут, занято, не запустилась) —
+    /// в слот и стартовать: ядро рассудит само.
+    Unchecked(String),
+}
+
+fn boot_verdict(checked: &Result<ValidationOutcome>) -> BootVerdict {
+    match checked {
+        Ok(ValidationOutcome::Valid) => BootVerdict::Accepted,
+        Ok(outcome @ ValidationOutcome::Invalid { kind, .. }) if kind.is_the_cores_verdict() => {
+            BootVerdict::Rejected(outcome.to_string().into())
+        }
+        Ok(outcome) => BootVerdict::Unchecked(outcome.to_string().into()),
+        Err(err) => BootVerdict::Unchecked(err.to_string().into()),
     }
 }
 
@@ -610,7 +630,48 @@ pub enum ConfigType {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::validate::ValidationErrorKind;
     use std::mem;
+
+    #[test]
+    fn at_boot_only_the_cores_own_word_refuses_the_start() {
+        let refused = |kind| boot_verdict(&Ok(ValidationOutcome::invalid(kind, "why")));
+        for kind in [
+            ValidationErrorKind::CoreRejected,
+            ValidationErrorKind::YamlSyntax,
+            ValidationErrorKind::YamlMapping,
+            ValidationErrorKind::ScriptSyntax,
+            ValidationErrorKind::ScriptMissingMain,
+            ValidationErrorKind::FileMissing,
+            ValidationErrorKind::FileRead,
+        ] {
+            assert_eq!(
+                refused(kind),
+                BootVerdict::Rejected("why".into()),
+                "{kind:?} — слово ядра о конфиге"
+            );
+        }
+        // Прибитая проверка, таймаут, занято, пропущено, не запустилась — слова ядра нет:
+        // конфиг в слот, ядро стартует и рассудит само.
+        for outcome in [
+            ValidationOutcome::invalid(ValidationErrorKind::ProcessTerminated, "killed"),
+            ValidationOutcome::invalid(ValidationErrorKind::Timeout, "slow"),
+            ValidationOutcome::Busy,
+            ValidationOutcome::Skipped {
+                reason: crate::core::validate::ValidationSkipReason::Exiting,
+            },
+        ] {
+            assert!(
+                matches!(boot_verdict(&Ok(outcome.clone())), BootVerdict::Unchecked(_)),
+                "{outcome:?} не должен запрещать старт"
+            );
+        }
+        assert!(matches!(
+            boot_verdict(&Err(anyhow!("validator did not launch"))),
+            BootVerdict::Unchecked(_)
+        ));
+        assert_eq!(boot_verdict(&Ok(ValidationOutcome::Valid)), BootVerdict::Accepted);
+    }
 
     #[test]
     #[allow(unused_variables)]

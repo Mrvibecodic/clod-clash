@@ -129,7 +129,7 @@
         "failed": "Konfigurationsprüfung fehlgeschlagen, Änderungen zurückgenommen. Fehler:",
         "bootFailed": "The core rejected the configuration at startup — the core is not running, there is no connection. Update the subscription or switch to another one. Error:",
         "processTerminated": "Der Validierungsprozess wurde beendet. Prüfen Sie, ob eine Sicherheitssoftware den Kern blockiert und ob die CPU dieses Computers den Kern-Build unterstützt.",
-        "timeout": "Die Konfigurationsaktualisierung hat das Zeitlimit (30 s) überschritten: Prüfung oder Kern haben nicht geantwortet. Das vorherige Profil ist wieder aktiv."
+        "timeout": "The configuration update did not finish within 30 s: the check or the core did not respond. The result will show once the core answers."
       },
       "script": {
         "syntaxError": "Skript-Syntaxfehler. Die Änderungen wurden rückgängig gemacht.",

@@ -52,6 +52,7 @@ common:
   modeLocked: The routing mode is managed by your provider.
   modeSwitching: The subscription is switching — choose the mode once it has opened.
   updateInProgress: This subscription is already updating — wait for it to finish.
+  configApplying: The configuration is being applied right now — try again in a couple of seconds.
   exitInProgress: "La aplicación se está cerrando: la acción se rechazó mientras dura la salida."
   restoreNotApplied: "The backup was restored, but its settings could not be applied. Restart the app. Reason: {reason}"
 service:

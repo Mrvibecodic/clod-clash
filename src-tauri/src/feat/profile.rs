@@ -1,12 +1,11 @@
 use crate::{
     cmd,
     config::{Config, PrfItem, PrfOption, profiles::profiles_draft_update_item_safe, sub_headers},
-    core::{CoreManager, handle, manager::Delivery, tray, validate::ValidationOutcome},
+    core::{CoreManager, handle, tray, validate::ValidationOutcome},
     enhance::Sources,
     utils::help::{self, keep_the_clearer_error, mask_err, mask_url},
 };
 use anyhow::{Context as _, Result, bail};
-use clash_verge_draft::SharedDraft;
 use clash_verge_logging::{Type, logging, logging_error};
 use smartstring::alias::String;
 
@@ -171,28 +170,32 @@ enum Acceptance {
     /// Файл на диске заменён, реестр обновлён; `delivered` — ядро уже работает с
     /// новым конфигом (профиль текущий).
     Accepted { delivered: bool },
-    /// Ядро отвергло собранный из неё конфиг: файл на диске прежний, у профиля
-    /// пометка «не применено».
+    /// Ядро отвергло собранный из неё конфиг: файл на диске прежний, реестр
+    /// (срок, трафик, замки панели, отметка загрузки) обновлён как при приёме,
+    /// у профиля пометка «не применено».
     Rejected(ValidationOutcome),
-    /// Проверить сейчас нельзя (идёт другое применение, выход): файл прежний,
-    /// пометок нет — следующий тик попробует снова.
-    Postponed(ValidationOutcome),
+    /// Файл принят и заменён, но доставить ядру не удалось (не поднялось, служба
+    /// молчит): работает прежний конфиг, у профиля пометка «не применено».
+    DeliveryFailed(anyhow::Error),
+    /// Слова ядра нет (занято дольше ожидания, проверка прибита, выход): файл и
+    /// реестр прежние, пометок нет — загрузку надо повторить скоро.
+    Unverified(String),
 }
 
 /// Принять скачанную подписку: ядро проверяет её ДО того, как она ляжет на диск
 /// вместо рабочего файла.
 ///
-/// Тело пишется в файл-кандидат рядом, из реестра-кандидата (с этим профилем как
-/// текущим и файлом-кандидатом вместо рабочего) собирается конфиг и проверяется
-/// ядром — для любого профиля, не только текущего. Отказ — кандидат удалён,
-/// рабочий файл не тронут (FlClashX, Prizrak). Приём — прежний файл сохраняется
-/// в `<файл>.prev`, кандидат встаёт на его место, реестр обновляется, и если
-/// профиль текущий, та же проверенная сборка уходит ядру без второй проверки.
-/// Слепок в памяти для отката больше не нужен: до приёма на диске всё прежнее.
+/// Тело пишется в файл-кандидат рядом, из реестра-кандидата (этот профиль —
+/// текущий, файл — кандидат) собирается конфиг и проверяется ядром — для любого
+/// профиля, не только текущего. Отказ — кандидат удалён, рабочий файл не тронут
+/// (FlClashX, Prizrak), метаданные панели в реестр всё равно попадают. Приём —
+/// прежний файл сохраняется в `<файл>.prev`, кандидат встаёт на его место, реестр
+/// обновляется, и если профиль текущий, та же проверенная сборка уходит ядру без
+/// второй проверки. Слепок в памяти для отката не нужен: до приёма на диске всё
+/// прежнее.
 async fn accept_the_download(uid: &String, mut item: PrfItem) -> Result<Acceptance> {
-    if item.device_refused == Some(true)
-        && let Some(disarmed) = disarmed_current_profile(uid).await
-    {
+    let disarming = item.device_refused == Some(true);
+    if disarming && let Some(disarmed) = disarmed_current_profile(uid).await {
         item.file_data = Some(disarmed.into());
     }
     let Some(body) = item.file_data.take() else {
@@ -200,38 +203,119 @@ async fn accept_the_download(uid: &String, mut item: PrfItem) -> Result<Acceptan
     };
 
     let dir = crate::utils::dirs::app_profiles_dir()?;
-    let accepted = Config::profiles().await.data_arc();
-    let file = accepted.file_name_for(uid, &item)?;
+    let file = Config::profiles().await.data_arc().file_name_for(uid, &item)?;
     let candidate_path = dir.join(format!("{file}.new"));
     help::write_atomic(&candidate_path, body.as_bytes())
         .await
         .with_context(|| format!("failed to write the subscription candidate \"{file}.new\""))?;
 
-    let mut registry = (**accepted).clone();
-    registry.merge_updated_item(uid, &mut item.clone())?;
-    registry.point_item_file_at(uid, format!("{file}.new").into())?;
-    registry.current = Some(uid.clone());
-    let sources = Sources::accepted()
-        .await
-        .with_profiles(SharedDraft::new(Box::new(registry)));
+    // Реестр-кандидат выводится из принятого уже под признаком применения: за
+    // время ожидания профиль могли переименовать, переключить или удалить.
+    let sources = {
+        let uid = uid.clone();
+        let mut item = item.clone();
+        let candidate_file: String = format!("{file}.new").into();
+        Sources::default().with_profiles_derived(move |accepted| {
+            let mut registry = accepted.clone();
+            registry.merge_updated_item(&uid, &mut item)?;
+            registry.point_item_file_at(&uid, candidate_file)?;
+            registry.current = Some(uid);
+            Ok(registry)
+        })
+    };
 
-    let staged = match CoreManager::global().stage_within(&sources, ACCEPTANCE_WAIT).await {
+    let staged = match CoreManager::global().stage_within(sources, ACCEPTANCE_WAIT).await {
         Ok(Ok(staged)) => staged,
         Ok(Err(outcome)) => {
             let _ = tokio::fs::remove_file(&candidate_path).await;
-            return Ok(refused_before_the_disk(uid, outcome).await);
+            return refused_before_the_disk(uid, item, outcome).await;
         }
         Err(err) => {
             let _ = tokio::fs::remove_file(&candidate_path).await;
-            return Err(err.context("проверка ядром не состоялась, файл подписки не заменён"));
+            return Ok(Acceptance::Unverified(format!("{err:#}").into()));
         }
     };
 
-    promote_the_candidate(&dir, &file, &candidate_path).await?;
-
     let migrate_url = item.migrate_url.clone();
     let request_option = item.option.clone();
-    profiles_draft_update_item_safe(uid, &mut item).await?;
+    promote_and_record(uid, item, &dir, &file, &candidate_path, disarming).await?;
+
+    let acceptance = if Config::profiles().await.data_arc().is_current_profile_index(uid) {
+        deliver_the_accepted(uid, staged).await
+    } else {
+        drop(staged);
+        Acceptance::Accepted { delivered: false }
+    };
+    // Уже без признака применения: здесь запрос в сеть.
+    follow_migration(uid, migrate_url, request_option).await;
+    Ok(acceptance)
+}
+
+/// Проверка не пропустила кандидата. Слово ядра о конфиге — отказ: реестр
+/// получает метаданные панели как при приёме (срок, трафик, замки, отметка
+/// загрузки — иначе замок панели «истекал» бы, а срок стоял бы в прошлом), файл
+/// остаётся прежним, у профиля пометка «не применено». Всё прочее (занято,
+/// проверка прибита) — слова ядра нет, повторим скоро.
+async fn refused_before_the_disk(uid: &String, mut item: PrfItem, outcome: ValidationOutcome) -> Result<Acceptance> {
+    match &outcome {
+        ValidationOutcome::Invalid { kind, .. } if kind.is_the_cores_verdict() => {
+            logging!(
+                warn,
+                Type::Config,
+                "[Обновление подписки] ядро отвергло новую подписку, рабочий файл не тронут: {}",
+                outcome
+            );
+            profiles_draft_update_item_safe(uid, &mut item).await?;
+            mark_not_applied(uid).await;
+            Ok(Acceptance::Rejected(outcome))
+        }
+        _ => Ok(Acceptance::Unverified(outcome.to_string().into())),
+    }
+}
+
+/// Прежний файл — в `<файл>.prev`, кандидат — на его место, метаданные — в реестр.
+///
+/// Под разрешением реестра и с проверкой, что профиль ещё есть: удаление за время
+/// проверки не должно оставить файл без записи. Файл на диске есть в каждый
+/// момент: копия пишется до замены, замена — одним переименованием. При
+/// обезоруживании (панель отказала устройству) копия прежнего файла не пишется, а
+/// существующая удаляется: смысл обезоруживания — убрать ключи с диска.
+async fn promote_and_record(
+    uid: &String,
+    item: PrfItem,
+    dir: &std::path::Path,
+    file: &str,
+    candidate_path: &std::path::Path,
+    disarming: bool,
+) -> Result<()> {
+    let target = dir.join(file);
+    let spare = dir.join(format!("{file}.prev"));
+    let owner = uid.clone();
+    let mut item = item;
+    Config::profiles()
+        .await
+        .with_data_modify(|mut profiles| async move {
+            profiles
+                .get_item(&owner)
+                .with_context(|| "подписка удалена, пока шла проверка — файл не заменяем")?;
+            if disarming {
+                let _ = tokio::fs::remove_file(&spare).await;
+            } else if let Ok(previous) = tokio::fs::read(&target).await
+                && let Err(err) = help::write_atomic(&spare, &previous).await
+            {
+                logging!(
+                    warn,
+                    Type::Config,
+                    "Warning: [Обновление подписки] запасная копия прежнего файла не записана: {err:#}"
+                );
+            }
+            help::rename_into_place(candidate_path, &target)
+                .await
+                .with_context(|| format!("failed to replace the subscription file \"{file}\""))?;
+            profiles.update_item(&owner, &mut item).await?;
+            Ok((profiles, ()))
+        })
+        .await?;
     // Прежняя пометка «не применено» относилась к прежнему содержимому.
     if let Err(err) = crate::config::profiles::profiles_mark_not_applied(uid, false).await {
         logging!(
@@ -240,65 +324,27 @@ async fn accept_the_download(uid: &String, mut item: PrfItem) -> Result<Acceptan
             "Warning: не удалось снять пометку о непринятом профиле: {err}"
         );
     }
-
-    let acceptance = if Config::profiles().await.data_arc().is_current_profile_index(uid) {
-        deliver_the_accepted(uid, staged).await
-    } else {
-        drop(staged);
-        Ok(Acceptance::Accepted { delivered: false })
-    };
-    // Уже без признака применения: здесь запрос в сеть.
-    follow_migration(uid, migrate_url, request_option).await;
-    acceptance
-}
-
-/// Проверка не пропустила кандидата: отказ ядра — пометка, всё прочее — отложить.
-async fn refused_before_the_disk(uid: &String, outcome: ValidationOutcome) -> Acceptance {
-    if matches!(outcome, ValidationOutcome::Invalid { .. }) {
-        logging!(
-            warn,
-            Type::Config,
-            "[Обновление подписки] ядро отвергло новую подписку, рабочий файл не тронут: {}",
-            outcome
-        );
-        mark_not_applied(uid).await;
-        return Acceptance::Rejected(outcome);
-    }
-    Acceptance::Postponed(outcome)
-}
-
-/// Прежний файл — в `<файл>.prev`, кандидат — на его место. Файл на диске есть в
-/// каждый момент: копия пишется до замены, замена — одним переименованием.
-async fn promote_the_candidate(dir: &std::path::Path, file: &str, candidate_path: &std::path::Path) -> Result<()> {
-    let target = dir.join(file);
-    if let Ok(previous) = tokio::fs::read(&target).await {
-        let spare = dir.join(format!("{file}.prev"));
-        if let Err(err) = help::write_atomic(&spare, &previous).await {
-            logging!(
-                warn,
-                Type::Config,
-                "Warning: [Обновление подписки] запасная копия прежнего файла не записана: {err:#}"
-            );
-        }
-    }
-    help::rename_into_place(candidate_path, &target)
-        .await
-        .with_context(|| format!("failed to replace the subscription file \"{file}\""))
+    Ok(())
 }
 
 /// Профиль текущий — та же проверенная сборка уходит ядру без второй проверки.
-async fn deliver_the_accepted(uid: &String, staged: crate::core::manager::Staged<'_>) -> Result<Acceptance> {
-    match staged.deliver(Delivery::Reload).await {
-        Ok(outcome) if outcome.is_valid() => Ok(Acceptance::Accepted { delivered: true }),
+/// Если собранное совпало с работающим, ядро не трогается.
+async fn deliver_the_accepted(uid: &String, staged: crate::core::manager::Staged<'_>) -> Acceptance {
+    match staged.deliver_unless_unchanged().await {
+        Ok(outcome) if outcome.is_valid() => Acceptance::Accepted { delivered: true },
         Ok(outcome) => {
             mark_not_applied(uid).await;
-            Ok(Acceptance::Rejected(outcome))
+            Acceptance::Rejected(outcome)
         }
         Err(err) => {
-            // Ядро о содержимом ничего не сказало (не поднялось, служба молчит):
-            // файл на диске годный и остаётся, но работает прежний конфиг.
-            mark_not_applied(uid).await;
-            Err(err)
+            // Ядро о содержимом ничего не сказало (не поднялось, служба молчит,
+            // начался выход): файл на диске годный и остаётся, но работает
+            // прежний конфиг. На выходе пометку не ставим — она пережила бы
+            // перезапуск и врала бы о годной подписке.
+            if !handle::Handle::global().is_exiting() {
+                mark_not_applied(uid).await;
+            }
+            Acceptance::DeliveryFailed(err)
         }
     }
 }
@@ -414,7 +460,7 @@ const BUDGET_CEILING_SECS: u64 = 30 * 365 * 24 * 60 * 60;
 /// потолка на всё обновление поэтому нет: бюджет режет зависание отдельного адреса,
 /// а не суммарное время.
 ///
-/// Запись профиля в реестр (`apply_updated_item`) идёт вне бюджета, поэтому принятый
+/// Приём профиля (`accept_the_download`) идёт вне бюджета, поэтому принятый
 /// профиль не может оборваться на середине применения.
 fn address_budget(option: Option<&PrfOption>) -> std::time::Duration {
     let timeout = option.and_then(|o| o.timeout_seconds).unwrap_or(20);
@@ -741,71 +787,93 @@ async fn reapply_the_current_profile(uid: &String, trigger: UpdateTrigger) -> Re
     }
 }
 
+/// Провал обновления: в журнал, тостом (если положено) и ошибкой вызывающему.
+async fn failed(uid: &String, status: &str, what: &str, raw: &str, trigger: UpdateTrigger) -> anyhow::Error {
+    let message = public_failure_text(raw);
+    logging!(error, Type::Config, "[Обновление подписки] {what}: {message}");
+    if trigger.announces_failure() {
+        announce_the_failure(uid, status, &message).await;
+    }
+    anyhow::anyhow!(message)
+}
+
+/// Загрузка удалась — это записано, расписание и окно лимита устройств об этом знают.
+async fn note_the_download(uid: &String) {
+    mark_the_update(uid, false).await;
+    logging_error!(Type::Timer, crate::core::Timer::global().refresh().await);
+    announce_device_refusal(uid).await;
+}
+
 /// Скачанная подписка принята или отвергнута — сказать об этом тем, кому положено.
-async fn settle_the_download(uid: &String, downloaded: Downloaded, trigger: UpdateTrigger) -> Result<()> {
+async fn settle_the_download(uid: &String, downloaded: Downloaded, trigger: UpdateTrigger) -> Result<UpdateOutcome> {
     let Downloaded { item, notice } = downloaded;
     let profile_name = Config::profiles()
         .await
         .data_arc()
         .get_name_by_uid(uid)
         .unwrap_or_else(|| String::from("UnKnown Profile"));
-    let delivered = match accept_the_download(uid, item).await {
-        Ok(Acceptance::Accepted { delivered }) => delivered,
-        Ok(Acceptance::Postponed(outcome)) => {
-            logging!(
-                info,
-                Type::Config,
-                "[Обновление подписки] Приём подписки на этот раз отложен: {}",
-                outcome
-            );
-            if trigger.is_manual() {
-                bail!("{outcome}");
-            }
-            return Ok(());
-        }
-        Ok(Acceptance::Rejected(outcome)) => {
-            // Загрузка удалась — провалился приём: об этом говорит пометка
-            // «не применено», а не «обновление не удалось».
-            mark_the_update(uid, false).await;
-            let status = failure_notice_status(&Ok(outcome.clone()));
-            let message = public_failure_text(&outcome.to_string());
-            logging!(
-                error,
-                Type::Config,
-                "[Обновление подписки] Ядро отвергло подписку: {}",
-                message
-            );
-            if trigger.announces_failure() {
-                announce_the_failure(uid, status, &message).await;
-            }
-            bail!(message);
-        }
+    let acceptance = match accept_the_download(uid, item).await {
+        Ok(acceptance) => acceptance,
         Err(err) => {
             mark_the_update(uid, true).await;
-            let message = public_failure_text(&err.to_string());
-            logging!(
-                error,
-                Type::Config,
-                "[Обновление подписки] Обновление не удалось: {}",
-                message
-            );
-            if trigger.announces_failure() {
-                announce_the_failure(uid, "update_failed", &message).await;
-            }
-            bail!(message);
+            return Err(failed(uid, "update_failed", "Обновление не удалось", &err.to_string(), trigger).await);
         }
     };
 
-    mark_the_update(uid, false).await;
-    logging_error!(Type::Timer, crate::core::Timer::global().refresh().await);
-    announce_device_refusal(uid).await;
+    let delivered = match acceptance {
+        Acceptance::Accepted { delivered } => delivered,
+        Acceptance::Unverified(reason) => {
+            logging!(
+                info,
+                Type::Config,
+                "[Обновление подписки] Приём подписки отложен, слова ядра нет: {}",
+                reason
+            );
+            if trigger.is_manual() {
+                bail!("{}", clash_verge_i18n::t!("common.configApplying"));
+            }
+            return Ok(UpdateOutcome::RetrySoon);
+        }
+        Acceptance::Rejected(outcome) => {
+            // Загрузка удалась — провалился приём: об этом говорит пометка
+            // «не применено», а не «обновление не удалось».
+            note_the_download(uid).await;
+            let status = failure_notice_status(&Ok(outcome.clone()));
+            return Err(failed(uid, status, "Ядро отвергло подписку", &outcome.to_string(), trigger).await);
+        }
+        Acceptance::DeliveryFailed(err) => {
+            // Файл и реестр уже новые: загрузка удалась, не удалась доставка.
+            note_the_download(uid).await;
+            return Err(failed(
+                uid,
+                "update_failed",
+                "Подписка принята, но ядру не доставлена",
+                &err.to_string(),
+                trigger,
+            )
+            .await);
+        }
+    };
+
+    note_the_download(uid).await;
     if let Some(notice) = notice {
         handle::Handle::notice_message(notice, profile_name);
     }
     if delivered {
         settle_after_a_successful_update(uid);
     }
-    Ok(())
+    Ok(UpdateOutcome::Done)
+}
+
+/// Чем закончился запуск обновления — для расписания.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UpdateOutcome {
+    /// Сделано (или скачивать было нечего): дальше по расписанию.
+    Done,
+    /// Не дошло до слова ядра (уже обновляется, признак применения занят,
+    /// проверка не состоялась): повторить скоро, а не через интервал, и не
+    /// считать провалом загрузки.
+    RetrySoon,
 }
 
 /// Подписки, которые обновляются прямо сейчас — один вход у кнопки и у расписания,
@@ -813,8 +881,8 @@ async fn settle_the_download(uid: &String, downloaded: Downloaded, trigger: Upda
 static UPDATES_IN_FLIGHT: std::sync::LazyLock<parking_lot::Mutex<std::collections::HashSet<String>>> =
     std::sync::LazyLock::new(|| parking_lot::Mutex::new(std::collections::HashSet::new()));
 
-/// Одновременных загрузок подписок — не больше стольких. Просроченные на старте
-/// и «обновить все» идут очередью, а не залпом лестниц к панели.
+/// Одновременных загрузок подписок по расписанию — не больше стольких:
+/// просроченные на старте идут очередью, а не залпом лестниц к панели.
 const PARALLEL_DOWNLOADS: usize = 3;
 static DOWNLOAD_SLOTS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(PARALLEL_DOWNLOADS);
 
@@ -838,7 +906,7 @@ pub async fn update_profile(
     option: Option<&PrfOption>,
     ignore_auto_update: bool,
     trigger: UpdateTrigger,
-) -> Result<()> {
+) -> Result<UpdateOutcome> {
     let Some(_claim) = claim_update(uid) else {
         logging!(
             info,
@@ -848,7 +916,7 @@ pub async fn update_profile(
         if trigger.is_manual() {
             bail!("{}", clash_verge_i18n::t!("common.updateInProgress"));
         }
-        return Ok(());
+        return Ok(UpdateOutcome::RetrySoon);
     };
     logging!(
         info,
@@ -872,13 +940,19 @@ pub async fn update_profile(
         // Скачивать нечего (локальный профиль или запрет автообновления): кнопка на
         // текущем профиле пересобирает конфиг, расписанию делать нечего.
         if trigger.is_manual() && Config::profiles().await.data_arc().is_current_profile_index(uid) {
-            return reapply_the_current_profile(uid, trigger).await;
+            reapply_the_current_profile(uid, trigger).await?;
         }
-        return Ok(());
+        return Ok(UpdateOutcome::Done);
     };
 
     let downloaded = {
-        let _slot = DOWNLOAD_SLOTS.acquire().await;
+        // Очередь загрузок — для расписания: кнопка человека не должна стоять за
+        // залпом просроченных подписок.
+        let _slot = if trigger.is_manual() {
+            None
+        } else {
+            Some(DOWNLOAD_SLOTS.acquire().await)
+        };
         Box::pin(perform_profile_update(
             uid,
             &target.url,

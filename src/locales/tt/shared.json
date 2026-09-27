@@ -129,7 +129,7 @@
         "failed": "Конфигурация тикшерүе үтмәде, үзгәрешләр кире кайтарылды. Хата:",
         "bootFailed": "The core rejected the configuration at startup — the core is not running, there is no connection. Update the subscription or switch to another one. Error:",
         "processTerminated": "Тикшерү процессы туктатылды. Куркынычсызлык программасы ядроны блокламыймы һәм бу компьютерның процессоры ядро җыелмасын хуплыймы икәнен тикшерегез.",
-        "timeout": "Көйләүне яңарту 30 секундка сыймады: тикшерү яки төш җавап бирмәде. Элекке профиль кайтарылды."
+        "timeout": "The configuration update did not finish within 30 s: the check or the core did not respond. The result will show once the core answers."
       },
       "script": {
         "syntaxError": "Скрипт синтаксик хатасы, үзгәрешләр кире кайтарылды",

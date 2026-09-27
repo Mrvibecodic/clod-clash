@@ -13,7 +13,7 @@ use anyhow::{Result, anyhow};
 use clash_verge_logging::{Type, logging};
 use clash_verge_service_ipc::StageRuntimeOutcome;
 use smartstring::alias::String;
-use std::{path::PathBuf, time::Instant};
+use std::{path::PathBuf, time::Duration, time::Instant};
 use tauri_plugin_mihomo::Error as MihomoError;
 
 /// Как отдать ядру принятый им конфиг.
@@ -25,6 +25,11 @@ pub enum Delivery {
     /// применить нельзя.
     Restart,
 }
+
+/// Сколько обычное применение ждёт занятого признака. Занято — значит кто-то
+/// применяет свою правку секунду-другую; отвечать человеку «занято» вместо того,
+/// чтобы дождаться, — не честность, а невнимательность.
+const DOOR_WAIT: Duration = Duration::from_secs(5);
 
 /// Признак «идёт применение конфига»; снимается при выходе из области на любом пути.
 pub(crate) struct ConfigUpdateGuard<'a>(&'a CoreManager);
@@ -53,8 +58,33 @@ impl Staged<'_> {
     /// `Ok(Invalid)` — служба отвергла бандл, ядро осталось на прежнем;
     /// `Err` — доставка сорвалась (ядро о содержимом ничего не сказало).
     pub async fn deliver(self, delivery: Delivery) -> Result<ValidationOutcome> {
+        self.deliver_committing(delivery, || {}).await
+    }
+
+    /// То же, но после приёма ядром — ещё под признаком применения — выполнить
+    /// `commit`: записать в свой слой то, из чего собиралось. Иначе между
+    /// освобождением признака и записью чужая сборка читала бы прежнее принятое
+    /// и откатывала бы ядру то, что оно только что приняло.
+    pub async fn deliver_committing(self, delivery: Delivery, commit: impl FnOnce()) -> Result<ValidationOutcome> {
         let Self { manager, build, _guard } = self;
-        manager.deliver_build(build, delivery).await
+        let outcome = manager.deliver_build(build, delivery).await?;
+        if outcome.is_valid() {
+            commit();
+        }
+        Ok(outcome)
+    }
+
+    /// Обновление подписки: если собранный конфиг совпал с тем, что уже работает,
+    /// ядро не трогаем — перезагрузка стёрла бы историю задержек и заново
+    /// проверила бы все авто-группы, ничего не поменяв.
+    pub async fn deliver_unless_unchanged(self) -> Result<ValidationOutcome> {
+        if self.manager.runtime_unchanged(&self.build).await {
+            let Self { manager, build, _guard } = self;
+            manager.accept_without_the_core(build).await;
+            logging!(info, Type::Core, "Runtime config unchanged, core reload skipped");
+            return Ok(ValidationOutcome::Valid);
+        }
+        self.deliver(Delivery::Reload).await
     }
 }
 
@@ -66,9 +96,9 @@ impl CoreManager {
         self.try_start_config_update().then(|| ConfigUpdateGuard(self))
     }
 
-    /// То же, но подождать освобождения до `wait`: фоновой задаче «занято» значит
-    /// «чуть позже», а не «в другой раз».
-    async fn claim_config_update_within(&self, wait: std::time::Duration) -> Option<ConfigUpdateGuard<'_>> {
+    /// То же, но подождать освобождения до `wait`: занято — значит «чуть позже»,
+    /// а не «в другой раз».
+    pub(crate) async fn claim_config_update_within(&self, wait: Duration) -> Option<ConfigUpdateGuard<'_>> {
         let deadline = tokio::time::Instant::now() + wait;
         loop {
             let released = self.config_update_done.notified();
@@ -81,33 +111,50 @@ impl CoreManager {
         }
     }
 
-    /// Собрать конфиг из переданных источников (кандидат вызывающего поверх
-    /// принятого) и проверить его ядром. Признак применения берётся здесь и живёт
-    /// до конца доставки.
-    pub async fn stage_with(&self, sources: &Sources) -> Result<std::result::Result<Staged<'_>, ValidationOutcome>> {
-        self.stage_within(sources, std::time::Duration::ZERO).await
+    /// Собрать конфиг из источников (принятое читается под признаком применения)
+    /// и проверить его ядром. Признак живёт до конца доставки.
+    pub async fn stage_with(&self, sources: Sources) -> Result<std::result::Result<Staged<'_>, ValidationOutcome>> {
+        self.stage_within(sources, DOOR_WAIT).await
     }
 
     /// Как `stage_with`, но занятого признака применения ждёт до `wait`.
     pub async fn stage_within(
         &self,
-        sources: &Sources,
-        wait: std::time::Duration,
+        sources: Sources,
+        wait: Duration,
     ) -> Result<std::result::Result<Staged<'_>, ValidationOutcome>> {
-        if handle::Handle::global().is_exiting() {
-            return Ok(Err(ValidationOutcome::Skipped {
-                reason: ValidationSkipReason::Exiting,
-            }));
-        }
-        let Some(guard) = self.claim_config_update_within(wait).await else {
-            logging!(info, Type::Core, "Configuration update is already running");
-            return Ok(Err(ValidationOutcome::Busy));
+        let Some(guard) = self.claim_for_an_update(wait).await else {
+            return Ok(Err(self.why_not_now()));
         };
         let build = match Config::build(sources).await {
             Ok(build) => build,
             Err(err) => return Ok(Err(ValidationOutcome::invalid_from_message(err.to_string()))),
         };
         self.stage_under(guard, build).await
+    }
+
+    /// Признак для применения: не во время выхода и с ожиданием занятого.
+    async fn claim_for_an_update(&self, wait: Duration) -> Option<ConfigUpdateGuard<'_>> {
+        if handle::Handle::global().is_exiting() {
+            return None;
+        }
+        let guard = self.claim_config_update_within(wait).await?;
+        // Выход мог начаться, пока ждали.
+        if handle::Handle::global().is_exiting() {
+            return None;
+        }
+        Some(guard)
+    }
+
+    fn why_not_now(&self) -> ValidationOutcome {
+        if handle::Handle::global().is_exiting() {
+            ValidationOutcome::Skipped {
+                reason: ValidationSkipReason::Exiting,
+            }
+        } else {
+            logging!(info, Type::Core, "Configuration update is already running");
+            ValidationOutcome::Busy
+        }
     }
 
     async fn stage_under<'a>(
@@ -122,8 +169,6 @@ impl CoreManager {
             .validate_config_outcome_with(config)
             .await?;
         if !outcome.is_valid() {
-            #[cfg(target_os = "macos")]
-            crate::utils::resolve::dns::forget_desire();
             return Ok(Err(outcome));
         }
         Ok(Ok(Staged {
@@ -134,28 +179,27 @@ impl CoreManager {
     }
 
     pub async fn update_config_forced(&self) -> Result<ValidationOutcome> {
-        self.update_config_forced_with(&Sources::accepted().await).await
+        self.update_config(Sources::default(), true, false).await
     }
 
-    /// Пересобрать из переданных источников и отдать ядру.
-    pub async fn update_config_forced_with(&self, sources: &Sources) -> Result<ValidationOutcome> {
-        self.update_config(sources, true, false).await
-    }
-
-    /// Применить обновлённую подписку. Если собранный конфиг совпал с тем, что уже
-    /// работает, ядро не трогаем: перезагрузка стёрла бы историю задержек и
-    /// заново проверила бы все авто-группы, ничего не поменяв.
+    /// Применить обновлённую подписку: см. `Staged::deliver_unless_unchanged`.
     pub async fn update_config_with_force(&self, force: bool) -> Result<ValidationOutcome> {
-        self.update_config(&Sources::accepted().await, force, true).await
+        self.update_config(Sources::default(), force, true).await
     }
 
-    /// Пересобрать из переданных источников и отдать ядру перезапуском.
-    pub async fn update_config_restarting_with(&self, sources: &Sources) -> Result<()> {
+    /// Пересобрать из переданных источников, отдать ядру и — ещё под признаком
+    /// применения — записать принятое в свой слой (`commit`).
+    pub async fn update_config_committing(
+        &self,
+        sources: Sources,
+        delivery: Delivery,
+        commit: impl FnOnce(),
+    ) -> Result<()> {
         let staged = match self.stage_with(sources).await? {
             Ok(staged) => staged,
             Err(outcome) => return Err(anyhow!("{outcome}")),
         };
-        let outcome = staged.deliver(Delivery::Restart).await?;
+        let outcome = staged.deliver_committing(delivery, commit).await?;
         if outcome.is_valid() {
             Ok(())
         } else {
@@ -163,16 +207,9 @@ impl CoreManager {
         }
     }
 
-    async fn update_config(&self, sources: &Sources, force: bool, skip_unchanged: bool) -> Result<ValidationOutcome> {
-        if handle::Handle::global().is_exiting() {
-            return Ok(ValidationOutcome::Skipped {
-                reason: ValidationSkipReason::Exiting,
-            });
-        }
-
-        let Some(guard) = self.claim_config_update() else {
-            logging!(info, Type::Core, "Configuration update is already running");
-            return Ok(ValidationOutcome::Busy);
+    async fn update_config(&self, sources: Sources, force: bool, skip_unchanged: bool) -> Result<ValidationOutcome> {
+        let Some(guard) = self.claim_for_an_update(DOOR_WAIT).await else {
+            return Ok(self.why_not_now());
         };
 
         if !force && !self.should_update_config() {
@@ -192,11 +229,7 @@ impl CoreManager {
         };
 
         if skip_unchanged && self.runtime_unchanged(&build).await {
-            // Сборку принимаем без ядра: конфиг тот же, но подписи заглушек
-            // (`sentinel_report`) могли смениться, а заявка на подмену DNS
-            // относится к работающему конфигу.
-            Config::runtime().await.replace(build);
-            forget_the_not_applied_mark().await;
+            self.accept_without_the_core(build).await;
             logging!(info, Type::Core, "Runtime config unchanged, core reload skipped");
             return Ok(ValidationOutcome::Valid);
         }
@@ -208,11 +241,7 @@ impl CoreManager {
     }
 
     pub async fn update_config_checked(&self) -> Result<()> {
-        self.update_config_checked_with(&Sources::accepted().await).await
-    }
-
-    pub async fn update_config_checked_with(&self, sources: &Sources) -> Result<()> {
-        let outcome = self.update_config_forced_with(sources).await?;
+        let outcome = self.update_config_forced().await?;
         if outcome.is_valid() {
             Ok(())
         } else {
@@ -249,14 +278,44 @@ impl CoreManager {
         same && providers_filled().await
     }
 
+    /// Сборка принята без обращения к ядру: конфиг тот же, но подписи заглушек
+    /// (`sentinel_report`) могли смениться, а заявка на подмену DNS относится к
+    /// работающему конфигу.
+    async fn accept_without_the_core(&self, build: IRuntime) {
+        let profile_uid = build.profile_uid.clone();
+        Self::remember_dns_desire(&build);
+        Config::runtime().await.replace(build);
+        forget_the_not_applied_mark(profile_uid.as_ref()).await;
+    }
+
+    /// Конфиг проверен при старте приложения (или проверить его не вышло) — в слот,
+    /// ядро стартует с него.
+    pub(crate) async fn accept_at_boot(&self, build: IRuntime) {
+        Self::remember_dns_desire(&build);
+        Config::runtime().await.replace(build);
+    }
+
+    /// clod:dns-applied — заявка на подмену системного DNS едет вместе со сборкой
+    /// и запоминается только для принятой; применяется после того, как ядро с
+    /// ней работает (`apply_remembered_desire`).
+    #[cfg(target_os = "macos")]
+    fn remember_dns_desire(build: &IRuntime) {
+        match build.dns_desire {
+            Some(desire) => crate::utils::resolve::dns::remember_desire(desire.want_base, desire.shaped_fake_ip),
+            None => crate::utils::resolve::dns::forget_desire(),
+        }
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    const fn remember_dns_desire(_build: &IRuntime) {}
+
     /// Поправить принятый конфиг (цепочки прокси из окна) и отдать ядру.
     pub(crate) async fn update_runtime_config<F>(&self, f: F) -> Result<ValidationOutcome>
     where
         F: FnOnce(&mut IRuntime),
     {
-        let Some(guard) = self.claim_config_update() else {
-            logging!(info, Type::Core, "Configuration update is already running");
-            return Ok(ValidationOutcome::Busy);
+        let Some(guard) = self.claim_for_an_update(DOOR_WAIT).await else {
+            return Ok(self.why_not_now());
         };
 
         let mut build = (**Config::runtime().await.data_arc()).clone();
@@ -280,12 +339,8 @@ impl CoreManager {
             let changed = |key: &str| prev.config.as_ref().and_then(|config| config.get(key)) != config.get(key);
             (changed("mixed-port"), changed("mode"), changed("allow-lan"))
         };
-        // Проверенная сборка есть — отказ старта, если он был, снят: стартовать
-        // будем с неё.
-        self.lift_startup_refusal();
+        let profile_uid = build.profile_uid.clone();
         if let Err(error) = self.apply_config(build, run_path, delivery).await {
-            #[cfg(target_os = "macos")]
-            crate::utils::resolve::dns::forget_desire();
             if let Some(refused) = error.downcast_ref::<ServiceRefusedTheBundle>() {
                 return Ok(ValidationOutcome::invalid(
                     ValidationErrorKind::CoreRejected,
@@ -294,7 +349,7 @@ impl CoreManager {
             }
             return Err(error);
         }
-        forget_the_not_applied_mark().await;
+        forget_the_not_applied_mark(profile_uid.as_ref()).await;
         if mixed_port_changed || sharing_changed {
             Self::spawn_mixed_port_check(true);
         }
@@ -310,7 +365,8 @@ impl CoreManager {
     }
 
     async fn apply_config(&self, build: IRuntime, path: PathBuf, delivery: Delivery) -> Result<()> {
-        if delivery == Delivery::Restart {
+        // Ядра нет — перезагружать нечего, сразу старт с новой сборкой.
+        if delivery == Delivery::Restart || matches!(*self.get_running_mode(), super::RunningMode::NotRunning) {
             return self.replace_core_and_apply(build).await;
         }
         // clod:svc-2.6 — в service-режиме ядро работает не с нашим файлом, а с
@@ -400,6 +456,7 @@ impl CoreManager {
                     );
                     return self.replace_core_and_apply(build).await;
                 }
+                Self::remember_dns_desire(&build);
                 Config::runtime().await.replace(build);
                 logging!(info, Type::Core, "{message}");
                 Ok(())
@@ -431,7 +488,11 @@ impl CoreManager {
     async fn replace_core_and_apply(&self, build: IRuntime) -> Result<()> {
         let runtime = Config::runtime().await;
         let previous = runtime.data_arc();
+        Self::remember_dns_desire(&build);
         runtime.replace(build);
+        // Проверенная сборка есть — отказ старта, если он был, снят: стартуем с неё.
+        let was_refused = self.startup_refusal();
+        self.lift_startup_refusal();
         match self.restart_core_during_config_update().await {
             Ok(()) => {
                 logging!(info, Type::Core, "Configuration applied after restart");
@@ -439,7 +500,13 @@ impl CoreManager {
             }
             Err(err) => {
                 logging!(error, Type::Core, "Failed to restart core: {}", err);
+                Self::remember_dns_desire(&previous);
                 runtime.replace_shared(previous);
+                if was_refused.is_some() {
+                    // Прежнего принятого нет — причина отказа старта должна остаться
+                    // у человека, а не пропасть вместе с неудавшейся сборкой.
+                    self.refuse_to_start(format!("{err:#}"));
+                }
                 self.bring_back_the_previous_core().await;
                 Err(anyhow!("Failed to apply config: {}", err))
             }
@@ -585,23 +652,20 @@ enum StageAttempt {
 ///
 /// Реестр трогаем, только если пометка действительно стоит: иначе на каждое
 /// применение конфига приходилась бы лишняя запись `profiles.yaml`.
-async fn forget_the_not_applied_mark() {
-    let marked = {
-        let profiles = Config::profiles().await.latest_arc();
-        let Some(uid) = profiles.current.clone() else {
-            return;
-        };
-        profiles
-            .get_item(&uid)
-            .ok()
-            .and_then(|item| item.not_applied)
-            .unwrap_or(false)
-            .then_some(uid)
-    };
+async fn forget_the_not_applied_mark(profile_uid: Option<&String>) {
+    let Some(uid) = profile_uid else { return };
+    let marked = Config::profiles()
+        .await
+        .data_arc()
+        .get_item(uid)
+        .ok()
+        .and_then(|item| item.not_applied)
+        .unwrap_or(false);
+    if !marked {
+        return;
+    }
 
-    let Some(uid) = marked else { return };
-
-    if let Err(err) = crate::config::profiles::profiles_mark_not_applied(&uid, false).await {
+    if let Err(err) = crate::config::profiles::profiles_mark_not_applied(uid, false).await {
         logging!(
             warn,
             Type::Config,
@@ -751,7 +815,45 @@ fn listeners_need_recreate(prev: Option<&serde_yaml_ng::Mapping>, next: Option<&
 #[cfg(test)]
 mod tests {
     use super::{StageAttempt, listeners_need_recreate, stage_with_confirmation, the_core_changed_hands};
+    use crate::core::manager::CoreManager;
     use crate::core::manager::RunningMode::{NotRunning, Service, Sidecar};
+
+    #[tokio::test]
+    async fn a_waiting_claim_gets_the_flag_once_the_holder_is_done() {
+        let manager = std::sync::Arc::new(CoreManager::default());
+        let held = manager.claim_config_update();
+        assert!(held.is_some());
+        assert!(
+            manager.claim_config_update().is_none(),
+            "второй захват без ожидания — занято"
+        );
+
+        let waiter = {
+            let manager = std::sync::Arc::clone(&manager);
+            tokio::spawn(async move {
+                manager
+                    .claim_config_update_within(Duration::from_secs(5))
+                    .await
+                    .is_some()
+            })
+        };
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        drop(held);
+        assert!(
+            waiter.await.unwrap_or(false),
+            "ожидающий должен получить признак после освобождения, а не «занято»"
+        );
+
+        let held = manager.claim_config_update();
+        assert!(held.is_some());
+        assert!(
+            manager
+                .claim_config_update_within(Duration::from_millis(50))
+                .await
+                .is_none(),
+            "не дождался — честное «занято»"
+        );
+    }
     use crate::core::service::StageRequest;
     use clash_verge_service_ipc::StageRuntimeOutcome;
     use std::{

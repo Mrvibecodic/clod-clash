@@ -80,6 +80,8 @@ async fn mode_owner() -> Option<(String, bool)> {
 }
 
 static MODE_CHANGE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+/// Сколько смена режима ждёт занятого признака применения.
+const MODE_CHANGE_WAIT: std::time::Duration = std::time::Duration::from_secs(3);
 const CORE_MODE_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
 
 async fn runtime_mode_is(mode: &str) -> bool {
@@ -150,14 +152,14 @@ async fn remember_mode_choice<'a>(
 async fn switch_clash_mode(mode: String, owner: Option<(String, bool)>) -> Result<(), String> {
     // Под признаком применения конфига: пока чужая сборка едет к ядру, режим
     // не переключаем (она уехала бы со старым и вернула его), а пока идёт
-    // PATCH — не стартует чужая сборка.
-    let Some(_applying) = CoreManager::global().claim_config_update() else {
+    // PATCH — не стартует чужая сборка. Занято секунду-другую — дожидаемся.
+    let Some(_applying) = CoreManager::global().claim_config_update_within(MODE_CHANGE_WAIT).await else {
         logging!(
             info,
             Type::Core,
             "mode change refused: a configuration update is running"
         );
-        return Err(clash_verge_i18n::t!("common.modeSwitching").into_owned().into());
+        return Err(clash_verge_i18n::t!("common.configApplying").into_owned().into());
     };
     let previous = remember_mode_choice(owner.as_ref(), &mode).await;
     let mut mapping = Mapping::new();
