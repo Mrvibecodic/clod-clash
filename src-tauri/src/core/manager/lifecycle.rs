@@ -1098,6 +1098,7 @@ mod tests {
         the_verdict_without_a_diagnosis, who_holds_the_port, worth_asking_the_service,
     };
     use crate::constants::timing;
+    use crate::utils::source_scan::fn_body;
     use std::time::Duration;
 
     #[test]
@@ -1184,26 +1185,6 @@ mod tests {
     fn a_single_attempt_costs_only_its_probe() {
         assert_eq!(the_port_check_budget(1), timing::CORE_READY_PROBE_TIMEOUT);
         assert_eq!(the_port_check_budget(0), Duration::ZERO);
-    }
-
-    fn fn_body<'a>(source: &'a str, signature: &str) -> Option<&'a str> {
-        let at = source.find(signature)?;
-        let rest = &source[at..];
-        let open = rest.find('{')?;
-        let mut depth = 0usize;
-        for (index, byte) in rest.bytes().enumerate().skip(open) {
-            match byte {
-                b'{' => depth += 1,
-                b'}' => {
-                    depth -= 1;
-                    if depth == 0 {
-                        return Some(&rest[open..=index]);
-                    }
-                }
-                _ => {}
-            }
-        }
-        None
     }
 
     /// Дефект был не в таблице истинности, а в проводке: хвост проверки не

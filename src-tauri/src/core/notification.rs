@@ -302,6 +302,7 @@ mod tests {
         Delivery, FrontendEvent, NEVER_HELD_STATUSES, NotificationSystem, PENDING_NOTICES_CAP, PendingNotice,
         can_reach_the_page, collapse_into, decide_delivery, worth_holding,
     };
+    use crate::utils::source_scan::fn_body;
     use std::collections::{BTreeSet, VecDeque};
     use std::path::{Path, PathBuf};
 
@@ -523,26 +524,6 @@ mod tests {
             body.is_some_and(|body| !body.contains("notice_message")),
             "отказ старта снова шлёт уведомление сам — к уведомлению из init_runtime_config добавится второе"
         );
-    }
-
-    fn fn_body<'a>(source: &'a str, signature: &str) -> Option<&'a str> {
-        let at = source.find(signature)?;
-        let rest = &source[at..];
-        let open = rest.find('{')?;
-        let mut depth = 0usize;
-        for (index, byte) in rest.bytes().enumerate().skip(open) {
-            match byte {
-                b'{' => depth += 1,
-                b'}' => {
-                    depth -= 1;
-                    if depth == 0 {
-                        return Some(&rest[open..=index]);
-                    }
-                }
-                _ => {}
-            }
-        }
-        None
     }
 
     #[test]

@@ -15,6 +15,8 @@ pub mod resolve;
 pub mod schtasks;
 pub mod server;
 pub mod singleton;
+#[cfg(test)]
+pub mod source_scan;
 pub mod speed;
 pub mod startup;
 pub mod tmpl;

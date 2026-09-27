@@ -956,6 +956,66 @@ fn last_win32_error(operation: &'static str) -> anyhow::Error {
 mod stop_proof_tests {
     use super::the_core_is_gone;
     use crate::core::orphan::Look;
+    use crate::utils::source_scan::{fn_body, production_code};
+
+    fn body_of(signature: &str) -> &'static str {
+        fn_body(production_code(include_str!("state.rs")), signature).unwrap_or_default()
+    }
+
+    fn comes_before(body: &str, first: &str, then: &str) -> bool {
+        matches!((body.find(first), body.find(then)), (Some(first), Some(then)) if first < then)
+    }
+
+    /// Проводка развода намерения и факта (130aa669), которую таблицы
+    /// состояний не видят: признак плановой остановки ставится до убийства,
+    /// иначе поздняя смерть убитого ядра считается падением и воскрешается.
+    #[test]
+    fn a_stop_marks_itself_as_planned_before_it_kills() {
+        assert!(
+            comes_before(
+                body_of("async fn stop_core_by_sidecar"),
+                "self.note_stopping()",
+                "kill_the_sidecar_and_prove_it"
+            ),
+            "остановка sidecar убивает ядро раньше, чем помечает смерть плановой"
+        );
+        assert!(
+            comes_before(
+                body_of("async fn stop_core_by_service"),
+                "self.note_stopping()",
+                "service::stop_core_by_service()"
+            ),
+            "остановка через службу гасит ядро раньше, чем помечает смерть плановой"
+        );
+    }
+
+    /// Неудавшаяся остановка оставляет ядро живым: запуск из этого состояния
+    /// поднял бы второе. Отказ стоит первым в каждой точке порождения процесса.
+    #[test]
+    fn every_spawn_of_the_core_first_refuses_to_double_it() {
+        for signature in ["async fn start_core_by_sidecar", "async fn start_core_by_service"] {
+            let body = body_of(signature).trim_start_matches('{').trim_start();
+            assert!(
+                body.starts_with("self.refuse_to_double_the_core()?;"),
+                "{signature} порождает ядро без проверки, что прежнее остановлено"
+            );
+        }
+    }
+
+    /// Смерть, о которой просили, не взводит перезапуск.
+    #[test]
+    fn a_death_asked_for_returns_before_the_restart_is_armed() {
+        let exit = body_of("fn handle_core_exit");
+        let asked_for = fn_body(exit, "if asked_for").unwrap_or_default();
+        assert!(
+            asked_for.contains("return;"),
+            "ветка плановой смерти не выходит из обработчика"
+        );
+        assert!(
+            comes_before(exit, "if asked_for", "set_restart_pending("),
+            "перезапуск взводится раньше, чем отсеяна плановая смерть"
+        );
+    }
 
     /// Таблица процессов старше исхода команды в обе стороны; только когда
     /// её не прочитать, слово остаётся за командой.

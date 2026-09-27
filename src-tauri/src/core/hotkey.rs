@@ -523,30 +523,7 @@ impl Drop for Hotkey {
 #[cfg(test)]
 mod tests {
     use super::{EXIT_REFUSAL_STATUS, HotkeyFunction, PressVerdict, press_verdict};
-
-    fn production_code(source: &str) -> &str {
-        source.split("#[cfg(test)]").next().unwrap_or(source)
-    }
-
-    fn fn_body<'a>(source: &'a str, signature: &str) -> Option<&'a str> {
-        let at = source.find(signature)?;
-        let rest = &source[at..];
-        let open = rest.find('{')?;
-        let mut depth = 0usize;
-        for (index, byte) in rest.bytes().enumerate().skip(open) {
-            match byte {
-                b'{' => depth += 1,
-                b'}' => {
-                    depth -= 1;
-                    if depth == 0 {
-                        return Some(&rest[open..=index]);
-                    }
-                }
-                _ => {}
-            }
-        }
-        None
-    }
+    use crate::utils::source_scan::{fn_body, production_code};
 
     fn every_function() -> Vec<HotkeyFunction> {
         #[allow(unused_mut)]
