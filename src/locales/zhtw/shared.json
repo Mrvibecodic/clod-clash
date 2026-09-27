@@ -88,6 +88,7 @@
         "localFileIsNotYaml": "檔案不是有效的 YAML — 請檢查縮排和引號",
         "unsupportedProxy": "設定中有核心不認識的協定 — 請更新核心或詢問提供者",
         "proxyNotFound": "設定中已無該伺服器 — 請另選一個",
+        "ruleSetNotFound": "The configuration refers to a rule set the subscription does not have — usually a rule-set: key on the DNS page or in your edits",
         "tunFailed": "通道無法啟動 — 請檢查服務與權限",
         "unauthorized": "面板拒絕了訂閱金鑰 — 請在會員中心重新取得連結",
         "forbidden": "面板拒絕存取 — 訂閱可能已到期或被封鎖",

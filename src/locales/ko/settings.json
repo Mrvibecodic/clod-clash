@@ -173,7 +173,7 @@
           "logLevel": "코어 로그 수준(로그 폴더의 코어 파일). “구독 설정을 따름”은 템플릿의 수준(지정이 없으면 “info”)을 사용하며, 여기서 고른 수준이 구독보다 우선하고 업데이트 후에도 유지됩니다.",
           "openUwpTool": "Windows 8 이후 UWP 앱(예: Microsoft Store)은 로컬 호스트 네트워크 서비스에 직접 접근이 제한됩니다. 이 도구로 해당 제한을 우회할 수 있습니다",
           "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing.",
-          "dnsOverwrite": "Careful: while this is on, the DNS block from the subscription is fully replaced by these settings."
+          "dnsOverwrite": "While on, only the fields you changed on the DNS page are laid over the subscription's DNS block; everything else always comes from the subscription."
         },
         "options": {
           "logLevel": {
@@ -557,7 +557,10 @@
       "dialog": {
         "title": "DNS 덮어쓰기",
         "warning": "이 설정에 익숙하지 않다면 수정하지 말고 DNS 덮어쓰기를 비활성화 상태로 유지하세요",
-        "replacesSubscription": "이 설정은 구독의 DNS 블록을 완전히 대체합니다."
+        "replacesSubscription": "The values shown are the subscription's. Only your differences from them are saved — everything else follows the subscription on every update."
+      },
+      "actions": {
+        "asInSubscription": "As in the subscription"
       },
       "sections": {
         "general": "DNS 설정",
@@ -634,8 +637,7 @@
       },
       "errors": {
         "invalid": "잘못된 구성",
-        "invalidYaml": "잘못된 YAML 형식",
-        "emptyDns": "DNS 블록이 비어 있어 저장하지 않았습니다"
+        "invalidYaml": "잘못된 YAML 형식"
       },
       "options": {
         "hosts": {

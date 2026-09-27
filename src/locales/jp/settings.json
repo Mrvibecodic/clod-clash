@@ -173,7 +173,7 @@
           "logLevel": "コアのログレベル（ログフォルダ内のコアファイル）。「サブスクリプションに従う」はテンプレートのレベル（未指定なら「info」）を使い、ここで選んだレベルはサブスクリプションより優先され、更新後も維持されます。",
           "openUwpTool": "Windows 8以降では、UWPアプリケーション（Microsoft Storeなど）がローカルホストのネットワークサービスに直接アクセスすることが制限されています。このツールを使用すると、この制限を回避できます。",
           "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing.",
-          "dnsOverwrite": "Careful: while this is on, the DNS block from the subscription is fully replaced by these settings."
+          "dnsOverwrite": "While on, only the fields you changed on the DNS page are laid over the subscription's DNS block; everything else always comes from the subscription."
         },
         "options": {
           "logLevel": {
@@ -557,7 +557,10 @@
       "dialog": {
         "title": "DNS上書き",
         "warning": "ここの設定がわからない場合は、変更しないでください。DNS上書きを無効にしたままにしてください。",
-        "replacesSubscription": "これらの設定はサブスクリプションの DNS ブロックを完全に置き換えます。"
+        "replacesSubscription": "The values shown are the subscription's. Only your differences from them are saved — everything else follows the subscription on every update."
+      },
+      "actions": {
+        "asInSubscription": "As in the subscription"
       },
       "sections": {
         "general": "DNS設定",
@@ -634,8 +637,7 @@
       },
       "errors": {
         "invalid": "Invalid configuration",
-        "invalidYaml": "Invalid YAML format",
-        "emptyDns": "DNS ブロックが空のため保存されませんでした"
+        "invalidYaml": "Invalid YAML format"
       },
       "options": {
         "hosts": {

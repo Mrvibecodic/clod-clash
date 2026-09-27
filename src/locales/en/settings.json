@@ -173,7 +173,7 @@
           "logLevel": "Core log level (the core file in the logs folder). “As in the subscription” takes the level from the subscription template, or “info” when the template is silent; a level chosen here wins over the subscription and survives its updates.",
           "openUwpTool": "Since Windows 8, UWP apps (such as Microsoft Store) are restricted from directly accessing local host network services, and this tool can be used to bypass this restriction",
           "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing.",
-          "dnsOverwrite": "Careful: while this is on, the DNS block from the subscription is fully replaced by these settings."
+          "dnsOverwrite": "While on, only the fields you changed on the DNS page are laid over the subscription's DNS block; everything else always comes from the subscription."
         },
         "options": {
           "logLevel": {
@@ -557,7 +557,10 @@
       "dialog": {
         "title": "DNS Overwrite",
         "warning": "If you are not familiar with these settings, please do not modify them and keep DNS Overwrite disabled",
-        "replacesSubscription": "These settings fully replace the DNS block from the subscription."
+        "replacesSubscription": "The values shown are the subscription's. Only your differences from them are saved — everything else follows the subscription on every update."
+      },
+      "actions": {
+        "asInSubscription": "As in the subscription"
       },
       "sections": {
         "general": "DNS Settings",
@@ -634,8 +637,7 @@
       },
       "errors": {
         "invalid": "Invalid configuration",
-        "invalidYaml": "Invalid YAML format",
-        "emptyDns": "The DNS block is empty and was not saved"
+        "invalidYaml": "Invalid YAML format"
       },
       "options": {
         "hosts": {

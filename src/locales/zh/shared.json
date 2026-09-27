@@ -88,6 +88,7 @@
         "localFileIsNotYaml": "文件不是有效的 YAML — 请检查缩进和引号",
         "unsupportedProxy": "配置里有内核不认识的协议 — 请更新内核或询问提供方",
         "proxyNotFound": "配置里已经没有该服务器 — 请另选一个",
+        "ruleSetNotFound": "The configuration refers to a rule set the subscription does not have — usually a rule-set: key on the DNS page or in your edits",
         "tunFailed": "隧道未能启动 — 请检查服务与权限",
         "unauthorized": "面板拒绝了订阅密钥 — 请在用户中心重新获取链接",
         "forbidden": "面板拒绝访问 — 订阅可能已到期或被封禁",

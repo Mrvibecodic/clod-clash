@@ -88,6 +88,7 @@
         "localFileIsNotYaml": "ファイルが正しい YAML ではありません — インデントと引用符を確認してください",
         "unsupportedProxy": "コアが知らないプロトコルが設定にあります — コアを更新するか提供元に確認してください",
         "proxyNotFound": "そのサーバーは設定にもうありません — 別のものを選んでください",
+        "ruleSetNotFound": "The configuration refers to a rule set the subscription does not have — usually a rule-set: key on the DNS page or in your edits",
         "tunFailed": "トンネルを起動できません — サービスと権限を確認してください",
         "unauthorized": "パネルが購読キーを受け付けませんでした — マイページでリンクを取り直してください",
         "forbidden": "パネルにアクセスを拒否されました — 期限切れかブロックの可能性があります",

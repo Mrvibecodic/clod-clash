@@ -88,6 +88,7 @@
         "localFileIsNotYaml": "Berkas bukan YAML yang valid — periksa indentasi dan tanda kutip",
         "unsupportedProxy": "Konfigurasi memakai protokol yang tidak dikenal core — perbarui core atau tanyakan penyedia",
         "proxyNotFound": "Server itu tidak ada lagi di konfigurasi — pilih yang lain",
+        "ruleSetNotFound": "The configuration refers to a rule set the subscription does not have — usually a rule-set: key on the DNS page or in your edits",
         "tunFailed": "Terowongan gagal dijalankan — periksa layanan dan izinnya",
         "unauthorized": "Panel menolak kunci langganan — perbarui tautan di akun Anda",
         "forbidden": "Panel menolak akses — langganan mungkin habis atau diblokir",

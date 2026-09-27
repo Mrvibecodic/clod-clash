@@ -173,7 +173,7 @@
           "logLevel": "Protokollstufe des Kerns (Kerndatei im Logordner). „Wie im Abonnement“ nimmt die Stufe aus der Abonnementvorlage, bei fehlender Stufe „info“; eine hier gewählte Stufe hat Vorrang und überlebt Aktualisierungen.",
           "openUwpTool": "Ab Windows 8 wird die direkte Netzwerkverbindung von UWP-Anwendungen (z. B. Microsoft Store) zu lokalen Hosts eingeschränkt. Mit diesem Tool können Sie diese Einschränkung umgehen.",
           "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing.",
-          "dnsOverwrite": "Careful: while this is on, the DNS block from the subscription is fully replaced by these settings."
+          "dnsOverwrite": "While on, only the fields you changed on the DNS page are laid over the subscription's DNS block; everything else always comes from the subscription."
         },
         "options": {
           "logLevel": {
@@ -557,7 +557,10 @@
       "dialog": {
         "title": "DNS-Überschreibung",
         "warning": "Wenn Sie sich nicht mit diesen Einstellungen auskennen, ändern Sie sie nicht und lassen Sie die DNS-Überschreibung deaktiviert.",
-        "replacesSubscription": "Diese Einstellungen ersetzen den DNS-Block aus dem Abonnement vollständig."
+        "replacesSubscription": "The values shown are the subscription's. Only your differences from them are saved — everything else follows the subscription on every update."
+      },
+      "actions": {
+        "asInSubscription": "As in the subscription"
       },
       "sections": {
         "general": "DNS-Einstellungen",
@@ -634,8 +637,7 @@
       },
       "errors": {
         "invalid": "Invalid configuration",
-        "invalidYaml": "Invalid YAML format",
-        "emptyDns": "Der DNS-Block ist leer und wurde nicht gespeichert"
+        "invalidYaml": "Invalid YAML format"
       },
       "options": {
         "hosts": {

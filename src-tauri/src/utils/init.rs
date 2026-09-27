@@ -263,94 +263,23 @@ async fn migrate_legacy_macos_logs() -> Result<()> {
     Ok(())
 }
 
-/// clod:dns-listen — `listen` в заводском блоке НЕТ намеренно.
-///
-/// Ключ поднимает отдельный слушающий сокет и не подчиняется `allow-lan`:
-/// `:53` — это все интерфейсы, то есть открытый резолвер, а под службой захват
-/// привилегированного порта ещё и удаётся. Для перехвата DNS в туннеле сокет не
-/// нужен вовсе: ядро отвечает прямо в обработчике туннеля
-/// (`listener/sing_tun/dns.go`), а пустой `listen` оно принимает штатно и просто
-/// не открывает сокет (`dns/server.go`).
-fn default_dns_config() -> serde_yaml_ng::Mapping {
-    use serde_yaml_ng::Value;
-
-    serde_yaml_ng::Mapping::from_iter([
-        ("enable".into(), Value::Bool(true)),
-        ("ipv6".into(), Value::Bool(true)),
-        ("enhanced-mode".into(), Value::String("fake-ip".into())),
-        ("fake-ip-range".into(), Value::String("198.18.0.1/16".into())),
-        ("fake-ip-range6".into(), Value::String("2001:2::0/64".into())),
-        ("fake-ip-filter-mode".into(), Value::String("blacklist".into())),
-        ("prefer-h3".into(), Value::Bool(false)),
-        ("respect-rules".into(), Value::Bool(false)),
-        (
-            "fake-ip-filter".into(),
-            Value::Sequence(vec![
-                Value::String("*.lan".into()),
-                Value::String("*.local".into()),
-                Value::String("*.arpa".into()),
-                Value::String("time.*.com".into()),
-                Value::String("ntp.*.com".into()),
-                Value::String("time.*.com".into()),
-                Value::String("+.market.xiaomi.com".into()),
-                Value::String("localhost.ptlogin2.qq.com".into()),
-                Value::String("*.msftncsi.com".into()),
-                Value::String("www.msftconnecttest.com".into()),
-            ]),
-        ),
-        (
-            "default-nameserver".into(),
-            Value::Sequence(vec![
-                Value::String("system".into()),
-                Value::String("223.6.6.6".into()),
-                Value::String("8.8.8.8".into()),
-                Value::String("2400:3200::1".into()),
-                Value::String("2001:4860:4860::8888".into()),
-            ]),
-        ),
-        (
-            "nameserver".into(),
-            Value::Sequence(vec![
-                Value::String("8.8.8.8".into()),
-                Value::String("https://doh.pub/dns-query".into()),
-                Value::String("https://dns.alidns.com/dns-query".into()),
-            ]),
-        ),
-        (
-            "nameserver-policy".into(),
-            Value::Mapping(serde_yaml_ng::Mapping::new()),
-        ),
-        (
-            "proxy-server-nameserver".into(),
-            Value::Sequence(vec![
-                Value::String("https://doh.pub/dns-query".into()),
-                Value::String("https://dns.alidns.com/dns-query".into()),
-                Value::String("tls://223.5.5.5".into()),
-            ]),
-        ),
-        ("direct-nameserver".into(), Value::Sequence(vec![])),
-        ("direct-nameserver-follow-policy".into(), Value::Bool(false)),
-    ])
-}
-
 const DNS_CONFIG_HEADER: &str = "# Clash Verge DNS Config";
 
+/// Файл страницы годится, если это YAML-отображение, а `dns` в нём — либо
+/// отображение (пустое — тоже: страница без отличий), либо отсутствует.
 fn dns_config_problem(raw: &str) -> Option<std::string::String> {
     let parsed = match serde_yaml_ng::from_str::<serde_yaml_ng::Value>(raw) {
         Ok(parsed) => parsed,
         Err(err) => return Some(format!("the YAML in it does not parse: {err}")),
     };
 
-    let Some(mapping) = parsed.as_mapping().filter(|mapping| !mapping.is_empty()) else {
-        return Some("the YAML in it is empty or is not a mapping".into());
+    let Some(mapping) = parsed.as_mapping() else {
+        return Some("the YAML in it is not a mapping".into());
     };
 
     match mapping.get("dns") {
-        Some(dns) => match dns.as_mapping() {
-            Some(dns) if !dns.is_empty() => None,
-            _ => Some("the YAML `dns` block in it is empty or is not a mapping".into()),
-        },
-        None => None,
+        Some(dns) if !dns.is_mapping() => Some("the YAML `dns` block in it is not a mapping".into()),
+        _ => None,
     }
 }
 
@@ -369,43 +298,19 @@ pub(crate) async fn ensure_dns_config_file() -> Result<()> {
         };
     }
 
-    let runtime = Config::runtime().await;
-    let runtime = runtime.data_arc();
-    let runtime_dns = runtime
-        .config
-        .as_ref()
-        .and_then(|config| config.get("dns"))
-        .and_then(serde_yaml_ng::Value::as_mapping)
-        .filter(|dns| !dns.is_empty())
-        .cloned();
-
-    seed_dns_page(&dns_path, runtime_dns.as_ref()).await
+    seed_dns_page(&dns_path).await
 }
 
-/// Завести страницу DNS с собственного блока подписки, а если она о DNS
-/// молчит — с умолчаний ядра.
-///
-/// clod:hosts-ladder — блок пишется как есть. Раньше поверх него всегда
-/// ложились `use-hosts: false` и `use-system-hosts: false`: `/etc/hosts`
-/// переставал учитываться даже у шаблонов, которые просят обратного, и
-/// вернуть это было нечем. Теперь решает подписка, а если она молчит —
-/// умолчание самого ядра (оба включены).
-pub(crate) async fn seed_dns_page(dns_path: &Path, subscription_dns: Option<&serde_yaml_ng::Mapping>) -> Result<()> {
-    logging!(
-        info,
-        Type::Setup,
-        "Creating DNS config file from {}",
-        if subscription_dns.is_some() {
-            "the working config"
-        } else {
-            "the built-in defaults"
-        }
-    );
-
-    let dns_config = subscription_dns.cloned().unwrap_or_else(default_dns_config);
-    let file_config = serde_yaml_ng::Mapping::from_iter([("dns".into(), serde_yaml_ng::Value::Mapping(dns_config))]);
-
-    help::save_yaml(dns_path, &file_config, Some(DNS_CONFIG_HEADER)).await
+/// Завести пустую страницу DNS: без отличий от подписки. Заполняется она
+/// только руками человека в редакторе.
+pub(crate) async fn seed_dns_page(dns_path: &Path) -> Result<()> {
+    logging!(info, Type::Setup, "Creating an empty DNS page {:?}", dns_path);
+    help::save_yaml(
+        dns_path,
+        &crate::enhance::dns_page::Page::default().to_file(),
+        Some(crate::enhance::dns_page::PAGE_HEADER),
+    )
+    .await
 }
 
 fn legacy_fallback_filter() -> serde_yaml_ng::Mapping {
@@ -477,7 +382,7 @@ fn has_user_comments(raw: &str) -> bool {
     raw.lines()
         .map(str::trim)
         .filter(|line| line.starts_with('#'))
-        .any(|line| line != DNS_CONFIG_HEADER)
+        .any(|line| line != DNS_CONFIG_HEADER && line != crate::enhance::dns_page::PAGE_HEADER)
 }
 
 /// Заводской `listen: ":53"` прежних сборок.
@@ -984,8 +889,8 @@ async fn handle_copy(src: &PathBuf, dest: &PathBuf, file: &str) {
 #[cfg(test)]
 mod tests {
     use super::{
-        BundledAssetAction, DNS_CONFIG_HEADER, SECONDS_IN_A_DAY, bundled_asset_action, default_dns_config,
-        dns_config_problem, drop_legacy_dns_keys, has_untouched_legacy_fallback, has_user_comments, is_cleaned_by_age,
+        BundledAssetAction, DNS_CONFIG_HEADER, SECONDS_IN_A_DAY, bundled_asset_action, dns_config_problem,
+        drop_legacy_dns_keys, has_untouched_legacy_fallback, has_user_comments, is_cleaned_by_age,
         legacy_fallback_filter, older_than_days,
     };
     use serde_yaml_ng::{Mapping, Value};
@@ -1119,27 +1024,18 @@ mod tests {
     }
 
     #[test]
-    fn the_built_in_dns_block_leaves_the_hosts_keys_to_the_core() {
-        let built_in = default_dns_config();
-        assert!(!built_in.contains_key("use-hosts"));
-        assert!(!built_in.contains_key("use-system-hosts"));
-        assert!(
-            !built_in.contains_key("listen"),
-            "заводской блок не должен поднимать отдельный DNS-сервер"
-        );
-    }
-
-    #[test]
     fn a_healthy_file_has_no_problem() {
         assert_eq!(dns_config_problem("dns:\n  ipv6: true\n"), None);
         assert_eq!(dns_config_problem("ipv6: true\n"), None, "the legacy flat layout");
     }
 
     #[test]
-    fn an_empty_file_is_a_problem() {
-        for raw in ["", "\n", "# Clash Verge DNS Config\n", "{}\n"] {
+    fn an_empty_file_is_a_problem_but_an_empty_page_is_not() {
+        for raw in ["", "\n", "# Clash Verge DNS Config\n"] {
             assert!(dns_config_problem(raw).is_some(), "empty source {raw:?}");
         }
+        assert_eq!(dns_config_problem("{}\n"), None);
+        assert_eq!(dns_config_problem("dns: {}\nhosts: {}\n"), None, "страница без отличий");
     }
 
     #[test]
@@ -1154,14 +1050,14 @@ mod tests {
     }
 
     #[test]
-    fn an_empty_dns_block_is_a_problem() {
-        assert!(dns_config_problem("dns: {}\nhosts: {}\n").is_some());
+    fn a_dns_block_that_is_not_a_mapping_is_a_problem() {
         assert!(dns_config_problem("dns: nonsense\n").is_some());
+        assert!(dns_config_problem("dns: [1, 2]\n").is_some());
     }
 
     #[test]
     fn every_problem_names_yaml_so_the_frontend_can_explain_it() {
-        for raw in ["", "- one\n", "dns: {}\n", "dns:\n  a: 1\n b: 2\n"] {
+        for raw in ["", "- one\n", "dns: nonsense\n", "dns:\n  a: 1\n b: 2\n"] {
             let problem = dns_config_problem(raw).unwrap_or_default();
             assert!(
                 problem.to_lowercase().contains("yaml"),

@@ -35,7 +35,6 @@ import {
 import { useClash } from '@/hooks/use-clash'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useVerge } from '@/hooks/use-verge'
-import { getRuntimeConfig } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { useThemeMode } from '@/services/states'
 import type { MonacoEditorInstance } from '@/types/monaco'
@@ -153,47 +152,29 @@ const hostsChoiceOf = (value: boolean | undefined): HostsChoice =>
 const hostsKey = (key: string, choice: HostsChoice) =>
   choice === 'auto' ? {} : { [key]: choice === 'on' }
 
-const DEFAULT_DNS_CONFIG = {
-  enable: true,
-  'enhanced-mode': 'fake-ip' as 'fake-ip' | 'redir-host',
+// clod:dns-page-diff — чем поле показывается, когда ключа нет ни у подписки,
+// ни на странице: умолчаниями самого ядра, а не нашими. Поле, оставленное в
+// этом положении, в файл не пишется — ключ остаётся за подпиской.
+const CORE_DEFAULTS = {
+  enable: false,
+  'enhanced-mode': 'redir-host' as 'fake-ip' | 'redir-host',
   'fake-ip-range': '198.18.0.1/16',
-  'fake-ip-range6': '2001:2::0/64',
+  'fake-ip-range6': '',
   'fake-ip-filter-mode': 'blacklist' as 'blacklist' | 'whitelist',
   'prefer-h3': false,
   'respect-rules': false,
-  ipv6: true,
-  'fake-ip-filter': [
-    '*.lan',
-    '*.local',
-    '*.arpa',
-    'time.*.com',
-    'ntp.*.com',
-    '+.market.xiaomi.com',
-    'localhost.ptlogin2.qq.com',
-    '*.msftncsi.com',
-    'www.msftconnecttest.com',
-  ],
-  'default-nameserver': [
-    'system',
-    '223.6.6.6',
-    '8.8.8.8',
-    '2400:3200::1',
-    '2001:4860:4860::8888',
-  ],
-  nameserver: [
-    '8.8.8.8',
-    'https://doh.pub/dns-query',
-    'https://dns.alidns.com/dns-query',
-  ],
-  'nameserver-policy': {},
-  'proxy-server-nameserver': [
-    'https://doh.pub/dns-query',
-    'https://dns.alidns.com/dns-query',
-    'tls://223.5.5.5',
-  ],
-  'direct-nameserver': [],
+  ipv6: false,
+  'fake-ip-filter': [] as string[],
+  'default-nameserver': [] as string[],
+  nameserver: [] as string[],
+  'nameserver-policy': {} as Record<string, unknown>,
+  'proxy-server-nameserver': [] as string[],
+  'direct-nameserver': [] as string[],
   'direct-nameserver-follow-policy': false,
 }
+
+const sameValue = (a: unknown, b: unknown) =>
+  JSON.stringify(a) === JSON.stringify(b)
 
 export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const { t } = useTranslation()
@@ -231,25 +212,25 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
     nameserverPolicy: string
     hosts: string
   }>({
-    enable: DEFAULT_DNS_CONFIG.enable,
+    enable: CORE_DEFAULTS.enable,
     listen: '',
-    enhancedMode: DEFAULT_DNS_CONFIG['enhanced-mode'],
-    fakeIpRange: DEFAULT_DNS_CONFIG['fake-ip-range'],
-    fakeIpRange6: DEFAULT_DNS_CONFIG['fake-ip-range6'],
-    fakeIpFilterMode: DEFAULT_DNS_CONFIG['fake-ip-filter-mode'],
-    preferH3: DEFAULT_DNS_CONFIG['prefer-h3'],
-    respectRules: DEFAULT_DNS_CONFIG['respect-rules'],
+    enhancedMode: CORE_DEFAULTS['enhanced-mode'],
+    fakeIpRange: CORE_DEFAULTS['fake-ip-range'],
+    fakeIpRange6: CORE_DEFAULTS['fake-ip-range6'],
+    fakeIpFilterMode: CORE_DEFAULTS['fake-ip-filter-mode'],
+    preferH3: CORE_DEFAULTS['prefer-h3'],
+    respectRules: CORE_DEFAULTS['respect-rules'],
     useHosts: 'auto',
     useSystemHosts: 'auto',
-    ipv6: DEFAULT_DNS_CONFIG.ipv6,
-    fakeIpFilter: DEFAULT_DNS_CONFIG['fake-ip-filter'].join(', '),
-    defaultNameserver: DEFAULT_DNS_CONFIG['default-nameserver'].join(', '),
-    nameserver: DEFAULT_DNS_CONFIG.nameserver.join(', '),
+    ipv6: CORE_DEFAULTS.ipv6,
+    fakeIpFilter: CORE_DEFAULTS['fake-ip-filter'].join(', '),
+    defaultNameserver: CORE_DEFAULTS['default-nameserver'].join(', '),
+    nameserver: CORE_DEFAULTS.nameserver.join(', '),
     proxyServerNameserver:
-      DEFAULT_DNS_CONFIG['proxy-server-nameserver']?.join(', ') || '',
-    directNameserver: DEFAULT_DNS_CONFIG['direct-nameserver']?.join(', ') || '',
+      CORE_DEFAULTS['proxy-server-nameserver']?.join(', ') || '',
+    directNameserver: CORE_DEFAULTS['direct-nameserver']?.join(', ') || '',
     directNameserverFollowPolicy:
-      DEFAULT_DNS_CONFIG['direct-nameserver-follow-policy'] || false,
+      CORE_DEFAULTS['direct-nameserver-follow-policy'] || false,
     nameserverPolicy: '',
     hosts: '',
   })
@@ -278,53 +259,52 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
       }
 
       const enhancedMode =
-        dnsConfig['enhanced-mode'] || DEFAULT_DNS_CONFIG['enhanced-mode']
+        dnsConfig['enhanced-mode'] || CORE_DEFAULTS['enhanced-mode']
       const validEnhancedMode =
         enhancedMode === 'fake-ip' || enhancedMode === 'redir-host'
           ? enhancedMode
-          : DEFAULT_DNS_CONFIG['enhanced-mode']
+          : CORE_DEFAULTS['enhanced-mode']
 
       const fakeIpFilterMode =
-        dnsConfig['fake-ip-filter-mode'] ||
-        DEFAULT_DNS_CONFIG['fake-ip-filter-mode']
+        dnsConfig['fake-ip-filter-mode'] || CORE_DEFAULTS['fake-ip-filter-mode']
       const validFakeIpFilterMode =
         fakeIpFilterMode === 'blacklist' || fakeIpFilterMode === 'whitelist'
           ? fakeIpFilterMode
-          : DEFAULT_DNS_CONFIG['fake-ip-filter-mode']
+          : CORE_DEFAULTS['fake-ip-filter-mode']
 
       setValues({
-        enable: dnsConfig.enable ?? DEFAULT_DNS_CONFIG.enable,
+        enable: dnsConfig.enable ?? CORE_DEFAULTS.enable,
         listen: listenFieldFrom(dnsConfig.listen),
         enhancedMode: validEnhancedMode,
         fakeIpRange:
-          dnsConfig['fake-ip-range'] ?? DEFAULT_DNS_CONFIG['fake-ip-range'],
+          dnsConfig['fake-ip-range'] ?? CORE_DEFAULTS['fake-ip-range'],
         fakeIpRange6:
-          dnsConfig['fake-ip-range6'] ?? DEFAULT_DNS_CONFIG['fake-ip-range6'],
+          dnsConfig['fake-ip-range6'] ?? CORE_DEFAULTS['fake-ip-range6'],
         fakeIpFilterMode: validFakeIpFilterMode,
-        preferH3: dnsConfig['prefer-h3'] ?? DEFAULT_DNS_CONFIG['prefer-h3'],
+        preferH3: dnsConfig['prefer-h3'] ?? CORE_DEFAULTS['prefer-h3'],
         respectRules:
-          dnsConfig['respect-rules'] ?? DEFAULT_DNS_CONFIG['respect-rules'],
+          dnsConfig['respect-rules'] ?? CORE_DEFAULTS['respect-rules'],
         useHosts: hostsChoiceOf(dnsConfig['use-hosts']),
         useSystemHosts: hostsChoiceOf(dnsConfig['use-system-hosts']),
-        ipv6: dnsConfig.ipv6 ?? DEFAULT_DNS_CONFIG.ipv6,
+        ipv6: dnsConfig.ipv6 ?? CORE_DEFAULTS.ipv6,
         fakeIpFilter:
           dnsConfig['fake-ip-filter']?.join(', ') ??
-          DEFAULT_DNS_CONFIG['fake-ip-filter'].join(', '),
+          CORE_DEFAULTS['fake-ip-filter'].join(', '),
         nameserver:
           dnsConfig.nameserver?.join(', ') ??
-          DEFAULT_DNS_CONFIG.nameserver.join(', '),
+          CORE_DEFAULTS.nameserver.join(', '),
         defaultNameserver:
           dnsConfig['default-nameserver']?.join(', ') ??
-          DEFAULT_DNS_CONFIG['default-nameserver'].join(', '),
+          CORE_DEFAULTS['default-nameserver'].join(', '),
         proxyServerNameserver:
           dnsConfig['proxy-server-nameserver']?.join(', ') ??
-          (DEFAULT_DNS_CONFIG['proxy-server-nameserver']?.join(', ') || ''),
+          (CORE_DEFAULTS['proxy-server-nameserver']?.join(', ') || ''),
         directNameserver:
           dnsConfig['direct-nameserver']?.join(', ') ??
-          (DEFAULT_DNS_CONFIG['direct-nameserver']?.join(', ') || ''),
+          (CORE_DEFAULTS['direct-nameserver']?.join(', ') || ''),
         directNameserverFollowPolicy:
           dnsConfig['direct-nameserver-follow-policy'] ??
-          DEFAULT_DNS_CONFIG['direct-nameserver-follow-policy'],
+          CORE_DEFAULTS['direct-nameserver-follow-policy'],
         nameserverPolicy: nameserverPolicyText,
         hosts: hostsText,
       })
@@ -339,11 +319,12 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
       'enhanced-mode': values.enhancedMode,
       // clod:dns-page-fits — пустой диапазон ядро принимает молча и остаётся
       // без пула: fake-ip перестаёт работать, а сказать об этом некому. Пустое
-      // поле означает «как по умолчанию», ровно как у диапазона IPv6 ниже.
-      'fake-ip-range':
-        values.fakeIpRange || DEFAULT_DNS_CONFIG['fake-ip-range'],
-      'fake-ip-range6':
-        values.fakeIpRange6 || DEFAULT_DNS_CONFIG['fake-ip-range6'],
+      // поле означает «как по умолчанию». Пустой диапазон IPv6 — ключа нет:
+      // при включённом ipv6 бэкенд подставит свой.
+      'fake-ip-range': values.fakeIpRange || CORE_DEFAULTS['fake-ip-range'],
+      ...(values.fakeIpRange6.trim()
+        ? { 'fake-ip-range6': values.fakeIpRange6.trim() }
+        : {}),
       'fake-ip-filter-mode': values.fakeIpFilterMode,
       'prefer-h3': values.preferH3,
       'respect-rules': values.respectRules,
@@ -351,9 +332,9 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
       ...hostsKey('use-system-hosts', values.useSystemHosts),
       ipv6: values.ipv6,
       // Пустой список — значение, а не молчание: в чёрном списке он означает
-      // «исключений нет», в белом — «fake-ip выключен». Умолчание подставлено
-      // при заведении страницы; подменять им написанное человеком нельзя, тем
-      // более что умолчание — чёрный список, а режим может быть белым.
+      // «исключений нет», в белом — «fake-ip выключен». Подменять написанное
+      // человеком нашим списком нельзя. Список, которого не было ни у
+      // подписки, ни на странице, и который остался пустым, ниже выбрасывается.
       'fake-ip-filter': parseList(values.fakeIpFilter),
       'default-nameserver': parseList(values.defaultNameserver),
       nameserver: parseList(values.nameserver),
@@ -375,7 +356,21 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
       }
     }
 
-    return mergeDnsConfig(parsedDnsRef.current, formFields)
+    // Ключа не было ни у подписки, ни на странице, и поле оставлено в
+    // положении «умолчание ядра» — человек его не задавал, не пишем.
+    const shown = asDnsMapping(parsedDnsRef.current) ?? {}
+    const untouched = (key: string) =>
+      !(key in shown) &&
+      key in CORE_DEFAULTS &&
+      sameValue(
+        formFields[key],
+        CORE_DEFAULTS[key as keyof typeof CORE_DEFAULTS],
+      )
+    const chosen = Object.fromEntries(
+      Object.entries(formFields).filter(([key]) => !untouched(key)),
+    )
+
+    return mergeDnsConfig(parsedDnsRef.current, chosen)
   }, [values])
 
   const generateHostsConfig = useCallback(() => {
@@ -405,37 +400,21 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
     setYamlContent(yaml.dump(config, { forceQuotes: true }))
   }, [generateDnsConfig, generateHostsConfig, setYamlContent])
 
-  const resetToDefaults = useCallback(() => {
-    parsedDnsRef.current = { ...DEFAULT_DNS_CONFIG }
-    baseHostsRef.current = undefined
-    renderedTextRef.current = { nameserverPolicy: '', hosts: '' }
-    setValues({
-      enable: DEFAULT_DNS_CONFIG.enable,
-      listen: '',
-      enhancedMode: DEFAULT_DNS_CONFIG['enhanced-mode'],
-      fakeIpRange: DEFAULT_DNS_CONFIG['fake-ip-range'],
-      fakeIpRange6: DEFAULT_DNS_CONFIG['fake-ip-range6'],
-      fakeIpFilterMode: DEFAULT_DNS_CONFIG['fake-ip-filter-mode'],
-      preferH3: DEFAULT_DNS_CONFIG['prefer-h3'],
-      respectRules: DEFAULT_DNS_CONFIG['respect-rules'],
-      useHosts: 'auto',
-      useSystemHosts: 'auto',
-      ipv6: DEFAULT_DNS_CONFIG.ipv6,
-      fakeIpFilter: DEFAULT_DNS_CONFIG['fake-ip-filter'].join(', '),
-      defaultNameserver: DEFAULT_DNS_CONFIG['default-nameserver'].join(', '),
-      nameserver: DEFAULT_DNS_CONFIG.nameserver.join(', '),
-      proxyServerNameserver:
-        DEFAULT_DNS_CONFIG['proxy-server-nameserver']?.join(', ') || '',
-      directNameserver:
-        DEFAULT_DNS_CONFIG['direct-nameserver']?.join(', ') || '',
-      directNameserverFollowPolicy:
-        DEFAULT_DNS_CONFIG['direct-nameserver-follow-policy'] || false,
-      nameserverPolicy: '',
-      hosts: '',
-    })
-
-    updateYamlFromValues()
-  }, [setValues, updateYamlFromValues])
+  // clod:dns-page-diff — страница хранит только отличия от подписки, поэтому
+  // «сброс» здесь один: показать подписку как есть. Сохранение после него
+  // оставит страницу пустой.
+  const showTheSubscription = useCallback(async () => {
+    try {
+      const view = await invoke<Record<string, unknown>>('get_dns_page_view', {
+        bare: true,
+      })
+      skipYamlSyncRef.current = true
+      updateValuesFromConfig(view)
+      setYamlContent(yaml.dump(view, { forceQuotes: true }))
+    } catch (err) {
+      showNotice.error(err)
+    }
+  }, [setYamlContent, updateValuesFromConfig])
 
   const updateValuesFromYaml = () => {
     let parsedYaml: any
@@ -468,40 +447,24 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
     }
   }, [])
 
+  // Редактор показывает подписку, поверх неё — отличия со страницы; бэкенд
+  // при сохранении оставит от присланного ровно отличия.
   const initDnsConfig = useCallback(async () => {
     setSeeding(true)
     try {
-      const dnsConfigExists = await invoke<boolean>(
-        'check_dns_config_exists',
-        {},
-      )
-
-      if (dnsConfigExists) {
-        const dnsConfig = await invoke<string>('get_dns_config_content', {})
-        const config = yaml.load(dnsConfig) as any
-
-        updateValuesFromConfig(config)
-        setYamlContent(dnsConfig)
-        return
-      }
-
-      const runtimeDns = (await getRuntimeConfig())?.dns
-
-      if (runtimeDns && Object.keys(runtimeDns).length > 0) {
-        const config = { dns: { ...runtimeDns } }
-
-        updateValuesFromConfig(config)
-        setYamlContent(yaml.dump(config, { forceQuotes: true }))
-      } else {
-        resetToDefaults()
-      }
+      const view = await invoke<Record<string, unknown>>('get_dns_page_view', {
+        bare: false,
+      })
+      skipYamlSyncRef.current = true
+      updateValuesFromConfig(view)
+      setYamlContent(yaml.dump(view, { forceQuotes: true }))
     } catch (err) {
       console.error('Failed to initialize DNS config', err)
-      resetToDefaults()
+      showNotice.error(err)
     } finally {
       setSeeding(false)
     }
-  }, [resetToDefaults, setYamlContent, updateValuesFromConfig])
+  }, [setYamlContent, updateValuesFromConfig])
 
   // Страница DNS принадлежит подписке: и то, чем диалог засеян, и то, куда
   // уйдёт «Сохранить». Если подписку сменили из трея, пока диалог открыт, эти
@@ -551,11 +514,6 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
           throw new Error(t('settings.modals.dns.errors.invalid'))
         }
         config = parsedConfig as Record<string, any>
-      }
-
-      if (Object.keys(readDnsBlock(config)).length === 0) {
-        showNotice.error('settings.modals.dns.errors.emptyDns')
-        return
       }
 
       const outcome = await invoke<DnsSaveOutcome>('save_dns_config', {
@@ -631,9 +589,9 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
               size="small"
               color="warning"
               startIcon={<RestartAltRounded />}
-              onClick={resetToDefaults}
+              onClick={showTheSubscription}
             >
-              {t('shared.actions.resetToDefault')}
+              {t('settings.modals.dns.actions.asInSubscription')}
             </Button>
             <Button
               variant="contained"

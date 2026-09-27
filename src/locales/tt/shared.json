@@ -88,6 +88,7 @@
         "localFileIsNotYaml": "Файл дөрес YAML түгел — кертемнәрне һәм куштырнакларны тикшерегез",
         "unsupportedProxy": "Көйләнмәдә ядро белмәгән протокол бар — ядрону яңартыгыз яки тәэмин итүчедән сорагыз",
         "proxyNotFound": "Бу сервер көйләнмәдә юк инде — башкасын сайлагыз",
+        "ruleSetNotFound": "The configuration refers to a rule set the subscription does not have — usually a rule-set: key on the DNS page or in your edits",
         "tunFailed": "Тоннельне күтәреп булмады — хезмәтне һәм хокукларны тикшерегез",
         "unauthorized": "Панель язылу ачкычын кабул итмәде — кабинетта сылтаманы яңартыгыз",
         "forbidden": "Панель рөхсәт бирмәде — язылу тәмамланган яки блокланган булырга мөмкин",

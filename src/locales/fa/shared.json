@@ -88,6 +88,7 @@
         "localFileIsNotYaml": "فایل به‌عنوان YAML معتبر خوانده نشد — تورفتگی‌ها و گیومه‌ها را بررسی کنید",
         "unsupportedProxy": "پیکربندی از پروتکلی استفاده می‌کند که هسته نمی‌شناسد — هسته را به‌روز کنید یا از ارائه‌دهنده بپرسید",
         "proxyNotFound": "این سرور دیگر در پیکربندی نیست — سرور دیگری انتخاب کنید",
+        "ruleSetNotFound": "The configuration refers to a rule set the subscription does not have — usually a rule-set: key on the DNS page or in your edits",
         "tunFailed": "تونل بالا نیامد — سرویس و دسترسی‌ها را بررسی کنید",
         "unauthorized": "پنل کلید اشتراک را نپذیرفت — پیوند را در حساب خود تازه کنید",
         "forbidden": "پنل دسترسی نداد — ممکن است اشتراک تمام شده یا مسدود باشد",

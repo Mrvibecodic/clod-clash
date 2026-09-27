@@ -88,6 +88,7 @@
         "localFileIsNotYaml": "Dosya geçerli YAML değil — girintileri ve tırnakları kontrol edin",
         "unsupportedProxy": "Yapılandırmada çekirdeğin bilmediği bir protokol var — çekirdeği güncelleyin veya sağlayıcıya sorun",
         "proxyNotFound": "Bu sunucu artık yapılandırmada yok — başka birini seçin",
+        "ruleSetNotFound": "The configuration refers to a rule set the subscription does not have — usually a rule-set: key on the DNS page or in your edits",
         "tunFailed": "Tünel kaldırılamadı — hizmeti ve izinleri kontrol edin",
         "unauthorized": "Panel abonelik anahtarını kabul etmedi — hesabınızdan bağlantıyı yenileyin",
         "forbidden": "Panel erişimi reddetti — abonelik bitmiş veya engellenmiş olabilir",

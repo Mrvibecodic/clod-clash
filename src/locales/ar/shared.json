@@ -88,6 +88,7 @@
         "localFileIsNotYaml": "الملف ليس YAML صالحًا — تحقّق من المسافات البادئة وعلامات الاقتباس",
         "unsupportedProxy": "الإعدادات تستخدم بروتوكولًا لا تعرفه النواة — حدّث النواة أو اسأل المزوّد",
         "proxyNotFound": "هذا الخادم لم يعد موجودًا في الإعدادات — اختر غيره",
+        "ruleSetNotFound": "The configuration refers to a rule set the subscription does not have — usually a rule-set: key on the DNS page or in your edits",
         "tunFailed": "تعذّر تشغيل النفق — تحقّق من الخدمة والصلاحيات",
         "unauthorized": "رفضت اللوحة مفتاح الاشتراك — جدّد الرابط من حسابك",
         "forbidden": "رفضت اللوحة الوصول — قد يكون الاشتراك منتهيًا أو محظورًا",

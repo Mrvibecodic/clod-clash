@@ -94,3 +94,6 @@ tray:
     profile: プロファイル
     core: コア
     coreStopped: 未起動
+dns:
+  missingProxies: "The subscription has no proxy or group named {names} — the core would take the name for a network interface and queries to that server would fail."
+  missingRuleSets: "The subscription has no rule set named {names} — the core would refuse to load such a config."

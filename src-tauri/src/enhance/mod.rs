@@ -1,4 +1,5 @@
 mod chain;
+pub mod dns_page;
 pub mod field;
 mod merge;
 mod script;
@@ -17,7 +18,7 @@ use crate::utils::dirs;
 use crate::{
     config::{Config, IClashTemp, IProfiles, IVerge, PrfItem, runtime::IRuntime},
     constants,
-    utils::tmpl,
+    utils::{help, tmpl},
 };
 use anyhow::{Context as _, Result};
 use clash_verge_draft::{Draft, SharedDraft};
@@ -238,6 +239,8 @@ struct ProfileItems {
     profile_is_remote: bool,
     profile_shows_zero_hosts: bool,
     mode_choice: Option<String>,
+    /// Сборка идёт с кандидата подписки (`*.new`), а не с файла на диске.
+    profile_is_a_candidate: bool,
 }
 
 impl Default for ProfileItems {
@@ -249,6 +252,7 @@ impl Default for ProfileItems {
             profile_is_remote: false,
             profile_shows_zero_hosts: false,
             mode_choice: None,
+            profile_is_a_candidate: false,
             merge_item: ChainItem {
                 uid: "".into(),
                 data: ChainType::Merge(Mapping::new()),
@@ -457,6 +461,7 @@ async fn collect_profile_items(profiles_arc: &IProfiles) -> Result<ProfileItems>
         profile_is_remote,
         profile_shows_zero_hosts,
         mode_choice,
+        profile_is_a_candidate: current_item.file.as_deref().is_some_and(|file| file.ends_with(".new")),
     })
 }
 
@@ -575,21 +580,13 @@ fn enforce_control_plane(mut config: Mapping, snapshot: Mapping) -> Mapping {
     config
 }
 
-const DNS_PAGE_KEYS: &[&str] = &["dns"];
-
-fn snapshot_dns_page(config: &Mapping) -> Mapping {
-    let mut snapshot = Mapping::new();
-    for &key in DNS_PAGE_KEYS {
-        let key = Value::from(key);
-        if let Some(value) = config.get(&key) {
-            snapshot.insert(key, value.clone());
-        }
+/// Вернуть после цепочек merge и script ровно те ключи `dns`, что задала
+/// страница: они — слово человека, и цепочка их не переписывает. Остальные
+/// ключи блока цепочке доступны, как и без страницы.
+fn enforce_dns_page(mut config: Mapping, page: Option<&dns_page::Page>) -> Mapping {
+    if let Some(page) = page {
+        page.lay_over(&mut config);
     }
-    snapshot
-}
-
-fn enforce_dns_page(mut config: Mapping, snapshot: Mapping) -> Mapping {
-    config.extend(snapshot);
     config
 }
 
@@ -1715,84 +1712,74 @@ fn clamp_dns_listen(config: &mut Mapping) {
     dns.insert("listen".into(), Value::String(format!("127.0.0.1:{port}")));
 }
 
-/// Ключи hosts, у которых на странице DNS есть положение «как в подписке».
-const HOSTS_KEYS_THE_SUBSCRIPTION_MAY_DECIDE: &[&str] = &["use-hosts", "use-system-hosts"];
-
-/// Донести из блока подписки те ключи hosts, о которых страница промолчала.
+/// Наложить страницу DNS этой подписки поверх её блока. Возвращает страницу,
+/// если она легла, — те же ключи потом возвращаются после цепочек.
 ///
-/// Блок страницы заменяет блок подписки целиком, поэтому «как в подписке» для
-/// `use-hosts`/`use-system-hosts` без переноса означало бы «умолчание ядра»:
-/// значение провайдера до ядра не доезжало никогда. Переносятся только эти два
-/// ключа и только когда у страницы их нет — остальное решает страница.
-fn carry_hosts_keys_from(subscription: Option<&Mapping>, mut page: Mapping) -> Mapping {
-    if let Some(subscription) = subscription {
-        for key in HOSTS_KEYS_THE_SUBSCRIPTION_MAY_DECIDE {
-            let key = Value::from(*key);
-            if !page.contains_key(&key)
-                && let Some(value) = subscription.get(&key)
-            {
-                page.insert(key, value.clone());
-            }
-        }
-    }
-    page
-}
-
-/// Наложить страницу DNS этой подписки. Второе значение — легла ли она.
-///
-/// clod:dns-per-profile — пока тумблер включён, страница есть у КАЖДОЙ
-/// подписки: той, которой её ещё не заводили, она заводится с её же
-/// собственного блока. Тумблер один на приложение, а файл — у каждой свой;
-/// без этого он обещал бы управление DNS подписке, у которой страницы нет, и
-/// запирать её блок от цепочек merge и script было бы нечем.
-async fn apply_dns_settings(mut config: Mapping, enable_dns_settings: bool, profile_uid: &str) -> (Mapping, bool) {
+/// clod:dns-page-diff — страница хранит только отличия от подписки; файла нет
+/// или он пуст — блок целиком за подпиской. Старый файл-копия при первом
+/// чтении сводится к отличиям от нынешнего блока и переписывается: иначе он
+/// продолжал бы подменять подписке всё, включая то, что человек не трогал.
+async fn apply_dns_settings(
+    mut config: Mapping,
+    enable_dns_settings: bool,
+    profile_uid: &str,
+    may_rewrite_a_legacy_page: bool,
+) -> (Mapping, Option<dns_page::Page>) {
     if !enable_dns_settings {
-        return (config, false);
+        return (config, None);
     }
     let Ok(dns_path) = dirs::dns_page_path(profile_uid) else {
-        return (config, false);
+        return (config, None);
     };
-    if !dns_path.exists()
-        && let Err(err) =
-            crate::utils::init::seed_dns_page(&dns_path, config.get("dns").and_then(Value::as_mapping)).await
-    {
-        logging!(warn, Type::Core, "не завести страницу DNS {dns_path:?}: {err}");
-        return (config, false);
-    }
-
-    let page_file = fs::read_to_string(&dns_path)
-        .await
-        .ok()
-        .and_then(|raw| serde_yaml_ng::from_str::<serde_yaml_ng::Mapping>(&raw).ok());
-    let Some(dns_config) = page_file else {
+    let raw = match fs::read_to_string(&dns_path).await {
+        Ok(raw) => raw,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return (config, None),
+        Err(err) => {
+            logging!(
+                warn,
+                Type::Core,
+                "страница DNS {dns_path:?} не читается ({err}), блок DNS остаётся за подпиской"
+            );
+            return (config, None);
+        }
+    };
+    let Some(mut page) = dns_page::Page::parse(&raw) else {
         logging!(
             warn,
             Type::Core,
-            "страница DNS {dns_path:?} нечитаема, блок DNS остаётся за подпиской"
+            "страница DNS {dns_path:?} не разбирается, блок DNS остаётся за подпиской"
         );
-        return (config, false);
+        return (config, None);
     };
 
-    let hosts = dns_config.get("hosts").filter(|value| value.is_mapping()).cloned();
-    let page = match dns_config.get("dns") {
-        Some(dns_value) => dns_value.as_mapping().cloned(),
-        None => Some(dns_config),
-    };
-    let Some(mut page) = page else {
-        logging!(warn, Type::Core, "в странице DNS {dns_path:?} нет блока dns");
-        return (config, false);
-    };
-
-    if let Some(hosts) = hosts {
-        config.insert("hosts".into(), hosts);
-        logging!(info, Type::Core, "apply hosts configuration");
+    // Старая копия сводится к отличиям от ТОЙ подписки, с которой снята, — то
+    // есть с файла на диске; против кандидата обновления её сверять нельзя:
+    // всё, что провайдер поменял, стало бы «выбором человека».
+    if raw.lines().next().map(str::trim) != Some(dns_page::PAGE_HEADER) && may_rewrite_a_legacy_page {
+        page = page.differences_from(&dns_page::Base::of(&config));
+        match help::save_yaml(&dns_path, &page.to_file(), Some(dns_page::PAGE_HEADER)).await {
+            Ok(()) => logging!(
+                info,
+                Type::Core,
+                "страница DNS {dns_path:?} сведена к отличиям от подписки"
+            ),
+            Err(err) => logging!(
+                warn,
+                Type::Core,
+                "страница DNS {dns_path:?}: не переписать к отличиям: {err}"
+            ),
+        }
     }
 
-    ensure_fake_ip_range6(&mut page);
-    let page = carry_hosts_keys_from(config.get("dns").and_then(Value::as_mapping), page);
-    config.insert("dns".into(), page.into());
+    if page.is_empty() {
+        return (config, None);
+    }
+    page.lay_over(&mut config);
+    if let Some(dns) = config.get_mut("dns").and_then(Value::as_mapping_mut) {
+        ensure_fake_ip_range6(dns);
+    }
     logging!(info, Type::Core, "apply {dns_path:?}");
-    (config, true)
+    (config, Some(page))
 }
 
 pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
@@ -1829,6 +1816,7 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
     let profile_is_remote = profile.profile_is_remote;
     let profile_shows_zero_hosts = profile.profile_shows_zero_hosts;
     let mode_choice = profile.mode_choice;
+    let profile_is_a_candidate = profile.profile_is_a_candidate;
 
     let result_map = HashMap::new();
 
@@ -1875,16 +1863,13 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
         let _ = shaped_fake_ip;
         None
     };
-    let (config, dns_page_applied) = apply_dns_settings(config, enable_dns_settings, &profile_uid).await;
+    let dns_base = dns_page::Base::of(&config);
+    let (config, dns_page) =
+        apply_dns_settings(config, enable_dns_settings, &profile_uid, !profile_is_a_candidate).await;
     let mut config = ensure_dns_for_tun(config, enable_tun);
     clamp_dns_listen(&mut config);
 
     let control_plane = snapshot_control_plane(&config);
-    let dns_page = if dns_page_applied {
-        snapshot_dns_page(&config)
-    } else {
-        Mapping::new()
-    };
 
     let (config, exists_keys, result_map) = process_global_items(
         config,
@@ -1900,7 +1885,7 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
         process_profile_items(config, exists_keys, result_map, merge_item, script_item, &profile_name).await;
 
     let config = enforce_control_plane(config, control_plane);
-    let config = enforce_dns_page(config, dns_page);
+    let config = enforce_dns_page(config, dns_page.as_ref());
     let mut config = ensure_dns_for_tun(config, enable_tun);
     // clod:dns-listen — цепочки merge и script отрабатывают после первого
     // прижатия и могут вернуть `dns.listen` наружу; при включённой странице DNS
@@ -1954,6 +1939,7 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
         config: Some(config),
         profile_uid: (!profile_uid.is_empty()).then(|| profile_uid.clone()),
         dns_desire,
+        dns_base: Some(dns_base),
         exists_keys: exists_keys_set,
         chain_logs: result_map,
         sentinel_report,
@@ -2743,30 +2729,28 @@ mod tests {
     }
 
     #[test]
-    fn dns_page_owns_the_dns_block_but_not_hosts() {
-        let app_config = mapping(
-            r#"{dns: {ipv6: false, enhanced-mode: fake-ip, proxy-server-nameserver: ["1.1.1.1"]}, hosts: {a.test: 1.2.3.4}}"#,
-        );
-        let snapshot = super::snapshot_dns_page(&app_config);
-        assert!(!snapshot.contains_key("hosts"));
+    fn dns_page_keys_come_back_after_the_chains_but_the_rest_stays_with_them() {
+        let page =
+            super::dns_page::Page::parse(r#"dns: {ipv6: false, proxy-server-nameserver: ["1.1.1.1"]}"#).expect("page");
 
         let hijacked = mapping(
             r#"{dns: {ipv6: true, enhanced-mode: redir-host, proxy-server-nameserver: ["8.8.8.8"]}, hosts: {a.test: 9.9.9.9}}"#,
         );
-        let result = super::enforce_dns_page(hijacked, snapshot);
+        let result = super::enforce_dns_page(hijacked, Some(&page));
 
         let dns = result.get("dns").expect("dns block");
         assert_eq!(dns.get("ipv6").and_then(serde_yaml_ng::Value::as_bool), Some(false));
-        assert_eq!(
-            dns.get("enhanced-mode").and_then(serde_yaml_ng::Value::as_str),
-            Some("fake-ip")
-        );
         assert_eq!(
             dns.get("proxy-server-nameserver")
                 .and_then(serde_yaml_ng::Value::as_sequence)
                 .and_then(|seq| seq.first())
                 .and_then(serde_yaml_ng::Value::as_str),
             Some("1.1.1.1")
+        );
+        assert_eq!(
+            dns.get("enhanced-mode").and_then(serde_yaml_ng::Value::as_str),
+            Some("redir-host"),
+            "ключ, о котором страница молчит, остаётся цепочке"
         );
         assert_eq!(
             result
@@ -2779,11 +2763,8 @@ mod tests {
 
     #[test]
     fn dns_page_never_removes_what_it_did_not_write() {
-        let snapshot = super::snapshot_dns_page(&mapping(r"{mode: rule}"));
-        assert!(snapshot.is_empty());
-
         let from_merge = mapping(r#"{dns: {enable: true, nameserver: ["9.9.9.9"]}}"#);
-        let result = super::enforce_dns_page(from_merge, snapshot);
+        let result = super::enforce_dns_page(from_merge, None);
         assert_eq!(
             result
                 .get("dns")
@@ -4169,34 +4150,5 @@ proxy-groups:
             value.as_u64(),
             Some(u64::from(crate::constants::network::ports::DEFAULT_MIXED))
         );
-    }
-
-    #[test]
-    fn the_page_inherits_only_the_hosts_switches_it_left_to_the_subscription() {
-        use super::carry_hosts_keys_from;
-        use serde_yaml_ng::{Mapping, Value};
-
-        let subscription: Mapping =
-            serde_yaml_ng::from_str("use-hosts: true\nuse-system-hosts: false\nnameserver: [1.1.1.1]\nlisten: ':53'\n")
-                .expect("yaml");
-        let page: Mapping = serde_yaml_ng::from_str("enable: true\nuse-system-hosts: true\n").expect("yaml");
-
-        let merged = carry_hosts_keys_from(Some(&subscription), page);
-
-        assert_eq!(
-            merged.get("use-hosts"),
-            Some(&Value::Bool(true)),
-            "промолчала — берём у подписки"
-        );
-        assert_eq!(
-            merged.get("use-system-hosts"),
-            Some(&Value::Bool(true)),
-            "сказала сама — её слово"
-        );
-        assert!(merged.get("nameserver").is_none(), "остальное подписки не переносится");
-        assert!(merged.get("listen").is_none());
-
-        let untouched = carry_hosts_keys_from(None, serde_yaml_ng::from_str("enable: true\n").expect("yaml"));
-        assert!(untouched.get("use-hosts").is_none());
     }
 }

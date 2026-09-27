@@ -88,6 +88,7 @@
         "localFileIsNotYaml": "Die Datei ist kein gültiges YAML — prüfen Sie Einrückung und Anführungszeichen",
         "unsupportedProxy": "Die Konfiguration nutzt ein Protokoll, das der Kern nicht kennt — Kern aktualisieren oder Anbieter fragen",
         "proxyNotFound": "Diesen Server gibt es in der Konfiguration nicht mehr — wählen Sie einen anderen",
+        "ruleSetNotFound": "The configuration refers to a rule set the subscription does not have — usually a rule-set: key on the DNS page or in your edits",
         "tunFailed": "Der Tunnel ließ sich nicht starten — prüfen Sie Dienst und Rechte",
         "unauthorized": "Das Panel hat den Abo-Schlüssel abgelehnt — erneuern Sie den Link im Kundenkonto",
         "forbidden": "Das Panel verweigert den Zugriff — das Abo ist abgelaufen oder gesperrt",

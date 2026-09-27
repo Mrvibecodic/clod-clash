@@ -26,6 +26,9 @@ pub struct IRuntime {
     /// него, а не с того, кто окажется текущим в реестре в момент доставки.
     pub profile_uid: Option<String>,
     pub dns_desire: Option<DnsDesire>,
+    /// Блок `dns` и `hosts` подписки до страницы DNS: от него редактор
+    /// показывает значения, а сохранение считает отличия.
+    pub dns_base: Option<crate::enhance::dns_page::Base>,
     // Ключи, встречавшиеся в подписке (включая сгенерированные merge и script)
     // Эти ключи не обязательно все действуют
     pub exists_keys: HashSet<String>,

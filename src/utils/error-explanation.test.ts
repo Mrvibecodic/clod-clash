@@ -145,6 +145,10 @@ describe('explainErrorKey', () => {
       key('YAML syntax error: did not find expected key'),
       'badConfig',
     )
+    assert.equal(
+      key('parse config error: not found rule-set: rs-old'),
+      'ruleSetNotFound',
+    )
   })
 
   it('объясняет собственные жалобы приложения на сборку конфига', () => {

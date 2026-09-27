@@ -88,6 +88,7 @@
         "localFileIsNotYaml": "El archivo no es YAML válido: revise la indentación y las comillas",
         "unsupportedProxy": "La configuración usa un protocolo que el núcleo no conoce: actualiza el núcleo o consulta al proveedor",
         "proxyNotFound": "Ese servidor ya no está en la configuración: elige otro",
+        "ruleSetNotFound": "The configuration refers to a rule set the subscription does not have — usually a rule-set: key on the DNS page or in your edits",
         "tunFailed": "No se pudo levantar el túnel: revisa el servicio y los permisos",
         "unauthorized": "El panel rechazó la clave de la suscripción: renueva el enlace en tu cuenta",
         "forbidden": "El panel denegó el acceso: la suscripción pudo caducar o estar bloqueada",

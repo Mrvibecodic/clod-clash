@@ -173,7 +173,7 @@
           "logLevel": "مستوى سجل النواة (ملف النواة في مجلد السجلات). «كما في الاشتراك» يأخذ المستوى من قالب الاشتراك، وإن لم يحدّده فهو «info»؛ المستوى المختار هنا يتقدّم على الاشتراك ويبقى بعد تحديثه.",
           "openUwpTool": "منذ نظام ويندوز 8، يتم تقييد تطبيقات UWP من الوصول المباشر إلى المضيف المحلي. هذه الأداة تتيح تجاوز هذا التقييد",
           "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing.",
-          "dnsOverwrite": "Careful: while this is on, the DNS block from the subscription is fully replaced by these settings."
+          "dnsOverwrite": "While on, only the fields you changed on the DNS page are laid over the subscription's DNS block; everything else always comes from the subscription."
         },
         "options": {
           "logLevel": {
@@ -557,7 +557,10 @@
       "dialog": {
         "title": "DNS Overwrite",
         "warning": "If you are not familiar with these settings, please do not modify them and keep DNS Overwrite disabled",
-        "replacesSubscription": "These settings fully replace the DNS block from the subscription."
+        "replacesSubscription": "The values shown are the subscription's. Only your differences from them are saved — everything else follows the subscription on every update."
+      },
+      "actions": {
+        "asInSubscription": "As in the subscription"
       },
       "sections": {
         "general": "DNS Settings",
@@ -634,8 +637,7 @@
       },
       "errors": {
         "invalid": "Invalid configuration",
-        "invalidYaml": "Invalid YAML format",
-        "emptyDns": "كتلة DNS فارغة ولم يتم حفظها"
+        "invalidYaml": "Invalid YAML format"
       },
       "options": {
         "hosts": {

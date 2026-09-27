@@ -1,4 +1,5 @@
 use super::CmdResult;
+use crate::enhance::dns_page;
 use crate::feat;
 use crate::utils::{dirs, yaml_emitter};
 use crate::{
@@ -186,21 +187,100 @@ const fn reached_a_verdict(outcome: &ValidationOutcome) -> bool {
     }
 }
 
+/// Сколько ждать ответа ядра о его группах и наборах правил при сохранении
+/// страницы DNS. Не ответило — проверить ссылки нечем, страница сохраняется.
+const DNS_REFERENCES_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(1500);
+
+/// clod:dns-page-diff — ссылки страницы, которых нет у работающего ядра:
+/// хвост `#группа` у сервера ядро принимает молча и потом трактует как имя
+/// сетевого интерфейса (запросы к этому серверу проваливаются), а `rule-set:`
+/// на несуществующий набор валит весь конфиг английской ошибкой. Спрашиваем
+/// ядро, а не собранный конфиг: узлы из proxy-providers до старта не видны.
+async fn missing_dns_references(page: &dns_page::Page) -> Option<String> {
+    let refs = page.references();
+    if refs.proxies.is_empty() && refs.rule_sets.is_empty() {
+        return None;
+    }
+    let core = handle::Handle::mihomo();
+    let listed = tokio::time::timeout(DNS_REFERENCES_TIMEOUT, async {
+        tokio::try_join!(core.get_proxies(), core.get_rule_providers())
+    })
+    .await;
+    let Ok(Ok((proxies, providers))) = listed else {
+        logging!(
+            info,
+            Type::Config,
+            "ядро не ответило о группах и наборах правил — ссылки страницы DNS не сверены"
+        );
+        return None;
+    };
+
+    let names = |missing: &[String]| {
+        missing
+            .iter()
+            .map(|name| format!("«{name}»"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    let proxies_missing: Vec<String> = refs
+        .proxies
+        .iter()
+        .filter(|name| !proxies.proxies.contains_key(name.as_str()))
+        .map(|name| name.as_str().into())
+        .collect();
+    let rule_sets_missing: Vec<String> = refs
+        .rule_sets
+        .iter()
+        .filter(|name| !providers.providers.contains_key(name.as_str()))
+        .map(|name| name.as_str().into())
+        .collect();
+
+    let mut problems = Vec::new();
+    if !proxies_missing.is_empty() {
+        problems.push(clash_verge_i18n::t!("dns.missingProxies", names = names(&proxies_missing)).into_owned());
+    }
+    if !rule_sets_missing.is_empty() {
+        problems.push(clash_verge_i18n::t!("dns.missingRuleSets", names = names(&rule_sets_missing)).into_owned());
+    }
+    (!problems.is_empty()).then(|| problems.join(" ").into())
+}
+
 #[tauri::command]
 pub async fn save_dns_config(dns_config: Mapping) -> CmdResult<DnsSaveOutcome> {
     let dns_path = Config::current_dns_page_path()
         .await
         .ok_or_else(|| "no subscription is selected, there is nothing to set DNS for".to_owned())?;
+    let Some(page) = dns_page::Page::from_file(&dns_config) else {
+        return Err("the DNS page is not a YAML mapping".into());
+    };
+
+    let runtime = Config::runtime().await.data_arc();
+    let base = runtime.dns_base.clone().unwrap_or_default();
+    // Только отличия: ключ, равный подписке, — не выбор человека.
+    let page = page.differences_from(&base);
+
+    if let Some(missing) = missing_dns_references(&page).await {
+        logging!(
+            warn,
+            Type::Config,
+            "DNS page refers to names the core does not know: {missing}"
+        );
+        return Ok(DnsSaveOutcome {
+            saved: false,
+            validation: ValidationOutcome::invalid(ValidationErrorKind::CoreRejected, missing),
+        });
+    }
+
     let check_path = dirs::app_home_dir()
         .stringify_err()?
         .join(constants::files::DNS_CHECK_CONFIG);
-
-    let yaml_str = yaml_emitter::to_mihomo_config_string(&dns_config).stringify_err()?;
-
-    let in_context = Config::dns_page_check_config(&dns_config).await;
+    let in_context = runtime
+        .config
+        .as_ref()
+        .map(|working| crate::config::check_config_with_dns_page(working, &base, &page));
     let check_yaml = match in_context.as_ref() {
         Some(context) => yaml_emitter::to_mihomo_config_string(context).stringify_err()?,
-        None => yaml_str.clone(),
+        None => yaml_emitter::to_mihomo_config_string(&page.to_file()).stringify_err()?,
     };
 
     crate::utils::help::write_atomic(&check_path, check_yaml.as_bytes())
@@ -235,10 +315,10 @@ pub async fn save_dns_config(dns_config: Mapping) -> CmdResult<DnsSaveOutcome> {
         );
     }
 
-    crate::utils::help::write_atomic(&dns_path, yaml_str.as_bytes())
+    crate::utils::help::save_yaml(&dns_path, &page.to_file(), Some(dns_page::PAGE_HEADER))
         .await
         .stringify_err()?;
-    logging!(info, Type::Config, "DNS config saved to {dns_path:?}");
+    logging!(info, Type::Config, "DNS page saved to {dns_path:?}");
 
     Ok(DnsSaveOutcome {
         saved: true,
@@ -284,25 +364,24 @@ pub async fn apply_dns_config(apply: bool) -> CmdResult {
     Ok(())
 }
 
+/// Что показать в редакторе страницы DNS: блок подписки, поверх него —
+/// отличия со страницы. `bare` — подписка без страницы (кнопка «как в
+/// подписке»). Пока конфиг не собран, подписки нет — видна одна страница.
 #[tauri::command]
-pub async fn check_dns_config_exists() -> CmdResult<bool> {
-    Ok(Config::current_dns_page_path().await.is_some_and(|path| path.exists()))
-}
-
-#[tauri::command]
-pub async fn get_dns_config_content() -> CmdResult<String> {
-    use tokio::fs;
-
-    let dns_path = Config::current_dns_page_path()
-        .await
-        .ok_or_else(|| "no subscription is selected".to_owned())?;
-
-    if !fs::try_exists(&dns_path).await.stringify_err()? {
-        return Err("DNS config file not found".into());
-    }
-
-    let content = fs::read_to_string(&dns_path).await.stringify_err()?.into();
-    Ok(content)
+pub async fn get_dns_page_view(bare: bool) -> CmdResult<Mapping> {
+    let base = Config::runtime().await.data_arc().dns_base.clone().unwrap_or_default();
+    let page = if bare {
+        dns_page::Page::default()
+    } else {
+        match Config::current_dns_page_path().await {
+            Some(path) => match fs::read_to_string(&path).await {
+                Ok(raw) => dns_page::Page::parse(&raw).unwrap_or_default(),
+                Err(_) => dns_page::Page::default(),
+            },
+            None => return Err("no subscription is selected".into()),
+        }
+    };
+    Ok(base.with(&page).to_file())
 }
 
 #[tauri::command]

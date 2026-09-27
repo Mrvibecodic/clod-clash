@@ -88,6 +88,7 @@
         "localFileIsNotYaml": "파일이 올바른 YAML이 아닙니다 — 들여쓰기와 따옴표를 확인하세요",
         "unsupportedProxy": "코어가 모르는 프로토콜이 설정에 있습니다 — 코어를 업데이트하거나 제공자에게 문의하세요",
         "proxyNotFound": "그 서버는 설정에 더 이상 없습니다 — 다른 서버를 고르세요",
+        "ruleSetNotFound": "The configuration refers to a rule set the subscription does not have — usually a rule-set: key on the DNS page or in your edits",
         "tunFailed": "터널을 올리지 못했습니다 — 서비스와 권한을 확인하세요",
         "unauthorized": "패널이 구독 키를 거부했습니다 — 계정에서 링크를 새로 받으세요",
         "forbidden": "패널이 접근을 거부했습니다 — 구독이 만료되었거나 차단되었을 수 있습니다",

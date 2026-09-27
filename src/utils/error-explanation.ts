@@ -88,6 +88,9 @@ const RULES: ReadonlyArray<{ pattern: RegExp; key: string }> = [
     key: 'unsupportedProxy',
   },
   { pattern: /proxy .* not found|proxy not found/, key: 'proxyNotFound' },
+  // clod:dns-page-diff — ссылка на набор правил, которого нет: в самой
+  // подписке или на странице DNS (nameserver-policy, fake-ip-filter).
+  { pattern: /not found rule-set/, key: 'ruleSetNotFound' },
   {
     pattern:
       /(?:^|[^\w.\-/\\])yaml\b|cannot unmarshal|unmarshal errors|invalid config/,

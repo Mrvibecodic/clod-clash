@@ -173,7 +173,7 @@
           "logLevel": "内核日志级别（日志目录中的内核文件）。“与订阅一致”采用订阅模板中的级别，模板未指定时为“info”；此处选择的级别优先于订阅，并在订阅更新后保留。",
           "openUwpTool": "Windows 8 开始限制 UWP 应用（如微软商店）直接访问本地主机的网络服务，使用此工具可绕过该限制",
           "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing.",
-          "dnsOverwrite": "Careful: while this is on, the DNS block from the subscription is fully replaced by these settings."
+          "dnsOverwrite": "While on, only the fields you changed on the DNS page are laid over the subscription's DNS block; everything else always comes from the subscription."
         },
         "options": {
           "logLevel": {
@@ -557,7 +557,10 @@
       "dialog": {
         "title": "DNS 覆写",
         "warning": "如果你不清楚这里的设置请不要修改，并保持 DNS 覆写关闭",
-        "replacesSubscription": "这些设置会完全替换订阅中的 DNS 配置。"
+        "replacesSubscription": "The values shown are the subscription's. Only your differences from them are saved — everything else follows the subscription on every update."
+      },
+      "actions": {
+        "asInSubscription": "As in the subscription"
       },
       "sections": {
         "general": "DNS 设置",
@@ -634,8 +637,7 @@
       },
       "errors": {
         "invalid": "配置无效",
-        "invalidYaml": "YAML 格式无效",
-        "emptyDns": "DNS 配置块为空，未保存"
+        "invalidYaml": "YAML 格式无效"
       },
       "options": {
         "hosts": {

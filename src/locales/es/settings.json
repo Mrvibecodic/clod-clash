@@ -173,7 +173,7 @@
           "logLevel": "Nivel de registro del núcleo (archivo del núcleo en la carpeta de registros). «Como en la suscripción» toma el nivel de la plantilla, o «info» si la plantilla no lo indica; el elegido aquí prevalece y sobrevive a las actualizaciones.",
           "openUwpTool": "A partir de Windows 8, las aplicaciones UWP (como la Tienda de Microsoft) tienen restricciones para acceder directamente a los servicios de red del host local. Use esta herramienta para evitar esta restricción.",
           "routingMode": "Rule routing sends only what the rules match through the proxy; global routes everything, direct nothing.",
-          "dnsOverwrite": "Careful: while this is on, the DNS block from the subscription is fully replaced by these settings."
+          "dnsOverwrite": "While on, only the fields you changed on the DNS page are laid over the subscription's DNS block; everything else always comes from the subscription."
         },
         "options": {
           "logLevel": {
@@ -557,7 +557,10 @@
       "dialog": {
         "title": "Sobrescritura de DNS",
         "warning": "Si no está seguro de cómo configurar esto, no realice cambios y mantenga deshabilitada la sobrescritura de DNS.",
-        "replacesSubscription": "Estos ajustes reemplazan por completo el bloque DNS de la suscripción."
+        "replacesSubscription": "The values shown are the subscription's. Only your differences from them are saved — everything else follows the subscription on every update."
+      },
+      "actions": {
+        "asInSubscription": "As in the subscription"
       },
       "sections": {
         "general": "Configuración de DNS",
@@ -634,8 +637,7 @@
       },
       "errors": {
         "invalid": "Invalid configuration",
-        "invalidYaml": "Invalid YAML format",
-        "emptyDns": "El bloque DNS está vacío y no se guardó"
+        "invalidYaml": "Invalid YAML format"
       },
       "options": {
         "hosts": {
