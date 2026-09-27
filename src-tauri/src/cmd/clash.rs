@@ -117,7 +117,7 @@ pub async fn change_clash_core(clash_core: String) -> CmdResult<Option<String>> 
             match CoreManager::global().restart_core().await {
                 Ok(_) => {
                     logging!(info, Type::Core, "core changed and restarted to {clash_core}");
-                    handle::Handle::notice_message("config_core::change_success", clash_core);
+                    handle::Handle::notice_message("config_core::change_success", "");
                     handle::Handle::refresh_clash();
                     Ok(None)
                 }
