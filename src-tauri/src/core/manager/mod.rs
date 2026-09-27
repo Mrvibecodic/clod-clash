@@ -1,5 +1,5 @@
 mod config;
-pub use config::{Delivery, Staged};
+pub use config::{CommitFailed, Delivery, Staged};
 mod lifecycle;
 mod state;
 

@@ -103,6 +103,14 @@ impl<T: Clone> Draft<T> {
         self.replace_shared(Arc::new(Box::new(data)));
     }
 
+    /// Поправить committed-данные на месте, не трогая черновик: для одного поля,
+    /// которое принято раньше остального черновика.
+    #[inline]
+    pub fn modify_committed<F: FnOnce(&mut T)>(&self, f: F) {
+        let mut guard = self.inner.data.lock();
+        f(Arc::make_mut(&mut guard.0).as_mut());
+    }
+
     /// То же, что [`Self::replace`], но снимком, полученным из `data_arc()`:
     /// возврат прежнего значения без копирования.
     #[inline]

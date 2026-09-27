@@ -181,8 +181,9 @@ enum Acceptance {
     /// До проверки не дошло — признак применения занят дольше ожидания или идёт
     /// выход: файл и реестр прежние, пометок нет, загрузку надо повторить скоро.
     Unverified(ValidationOutcome),
-    /// Проверка не состоялась (прибита, таймаут): слова ядра нет, без него файл
-    /// не заменяем — это провал обновления со своим советом человеку.
+    /// Проверка не состоялась (прибита, не запустилась, таймаут): слова ядра нет,
+    /// без него файл не заменяем — провал обновления со своим советом человеку;
+    /// метаданные панели в реестр всё же попадают.
     Unchecked(ValidationOutcome),
 }
 
@@ -235,8 +236,14 @@ async fn accept_the_download(uid: &String, mut item: PrfItem) -> Result<Acceptan
             return refused_before_the_disk(uid, item, outcome).await;
         }
         Err(err) => {
+            // Проверка не запустилась (бинарь не нашёлся, антивирус не пустил):
+            // слова ядра нет — тот же исход, что у прибитой проверки.
             let _ = tokio::fs::remove_file(&candidate_path).await;
-            return Err(err.context("сборка конфига из подписки не удалась, файл подписки не заменён"));
+            let outcome = ValidationOutcome::invalid(
+                crate::core::validate::ValidationErrorKind::ProcessTerminated,
+                format!("{err:#}"),
+            );
+            return refused_before_the_disk(uid, item, outcome).await;
         }
     };
 
@@ -266,7 +273,12 @@ async fn accept_the_download(uid: &String, mut item: PrfItem) -> Result<Acceptan
 /// «Занято»/«выход» — до проверки не дошло, повторим скоро.
 async fn refused_before_the_disk(uid: &String, mut item: PrfItem, outcome: ValidationOutcome) -> Result<Acceptance> {
     match &outcome {
-        ValidationOutcome::Invalid { kind, .. } if !kind.is_the_cores_verdict() => Ok(Acceptance::Unchecked(outcome)),
+        // Метаданные панели — в реестр и здесь: замок панели, срок и лимит устройств
+        // не должны стареть из-за того, что проверку прибили.
+        ValidationOutcome::Invalid { kind, .. } if !kind.is_the_cores_verdict() => {
+            profiles_draft_update_item_safe(uid, &mut item).await?;
+            Ok(Acceptance::Unchecked(outcome))
+        }
         ValidationOutcome::Invalid { .. } => {
             logging!(
                 warn,
@@ -860,8 +872,11 @@ async fn settle_the_download(uid: &String, downloaded: Downloaded, trigger: Upda
             return Err(failed(uid, status, "Ядро отвергло подписку", &outcome.to_string(), trigger).await);
         }
         Acceptance::Unchecked(outcome) => {
-            // Скачано, но не проверено: файл прежний, обновления не случилось.
+            // Скачано, но не проверено: файл прежний, обновления не случилось;
+            // расписание и окно лимита устройств про загрузку всё же узнают.
             mark_the_update(uid, true).await;
+            logging_error!(Type::Timer, crate::core::Timer::global().refresh().await);
+            announce_device_refusal(uid).await;
             let status = failure_notice_status(&Ok(outcome.clone()));
             return Err(failed(
                 uid,

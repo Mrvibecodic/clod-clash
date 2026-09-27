@@ -282,9 +282,12 @@ async fn process_terminated_flags(update_flags: UpdateFlags, patch: &IVerge) -> 
         // Под признаком применения: идущая доставка собрана из принятого verge,
         // где подмена ещё включена, и вернула бы заявку; после захвата принятое
         // verge уже с выключенной подменой, и следующие сборки её не попросят.
+        // Принимается только это поле — остальной черновик ждёт своих шагов.
         {
             let _applying = CoreManager::global().claim_config_update_within(DNS_OFF_WAIT).await;
-            Config::verge().await.apply();
+            Config::verge()
+                .await
+                .modify_committed(|verge| verge.enable_dns_override = Some(false));
             crate::utils::resolve::dns::remember_desire(false, false);
             let runtime = Config::runtime().await;
             let mut accepted = (**runtime.data_arc()).clone();

@@ -9,7 +9,7 @@ use crate::{
     enhance::Sources,
     utils::dirs,
 };
-use anyhow::{Context as _, Result, anyhow};
+use anyhow::{Result, anyhow};
 use clash_verge_logging::{Type, logging};
 use clash_verge_service_ipc::StageRuntimeOutcome;
 use smartstring::alias::String;
@@ -75,9 +75,7 @@ impl Staged<'_> {
         let Self { manager, build, _guard } = self;
         let outcome = manager.deliver_build(build, delivery).await?;
         if outcome.is_valid() {
-            commit()
-                .await
-                .context("ядро приняло конфиг, но записать его источник не удалось")?;
+            commit().await.map_err(CommitFailed)?;
         }
         Ok(outcome)
     }
@@ -648,19 +646,13 @@ enum StageAttempt {
     Unanswered(std::string::String),
 }
 
-/// Спросить ещё раз, если служба промолчала.
+/// Снять с профиля сборки пометку «скачано, но не применено».
 ///
-/// Полный перезапуск ядра рвёт все соединения, и менять на него мягкую
-/// перезагрузку из-за потерянного по дороге ответа — слишком дорого. Повтор
-/// безопасен: подготовка идемпотентна, служба просто зафиксирует поколение
-/// заново. Второй вопрос ограничен по времени, чтобы молчащая служба не
-/// задержала применение конфига насовсем.
-/// Снять с текущего профиля пометку «скачано, но не применено».
-///
-/// Ставит её откат после отказа ядра (`feat/profile.rs`), а снимать её надо всюду,
-/// где ядро конфиг приняло: не только после удачного обновления подписки, но и
-/// после переключения профиля, ручной пересборки конфига и правки своих цепочек.
-/// Единственное такое место на всех путях — вот это, сразу за успешным применением.
+/// Ставит её приём подписки после отказа ядра (`feat/profile.rs`), а снимать её
+/// надо всюду, где ядро конфиг приняло: не только после удачного обновления
+/// подписки, но и после переключения профиля, ручной пересборки конфига и правки
+/// своих цепочек. Единственное такое место на всех путях — вот это, сразу за
+/// успешным применением; профиль — тот, из которого собрано (`IRuntime::profile_uid`).
 ///
 /// Реестр трогаем, только если пометка действительно стоит: иначе на каждое
 /// применение конфига приходилась бы лишняя запись `profiles.yaml`.
@@ -711,6 +703,13 @@ async fn providers_filled() -> bool {
             .all(|provider| provider.rule_count > 0 || !matches!(provider.vehicle_type, VehicleType::HTTP))
 }
 
+/// Спросить ещё раз, если служба промолчала.
+///
+/// Полный перезапуск ядра рвёт все соединения, и менять на него мягкую
+/// перезагрузку из-за потерянного по дороге ответа — слишком дорого. Повтор
+/// безопасен: подготовка идемпотентна, служба просто зафиксирует поколение
+/// заново. Второй вопрос ограничен по времени, чтобы молчащая служба не
+/// задержала применение конфига насовсем.
 async fn stage_with_confirmation<Ask, Fut>(confirm_within: std::time::Duration, ask: Ask) -> StageAttempt
 where
     Ask: Fn() -> Fut,
@@ -745,6 +744,23 @@ enum StagedPath {
     /// это приговор конфигу, а не среде.
     Unbuildable(std::string::String),
 }
+
+/// Ядро конфиг приняло, а записать его источник в свой слой не удалось:
+/// ядро работает на новом, слой остался на прежнем.
+#[derive(Debug)]
+pub struct CommitFailed(pub anyhow::Error);
+
+impl std::fmt::Display for CommitFailed {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "ядро приняло конфиг, но записать его источник не удалось: {:#}",
+            self.0
+        )
+    }
+}
+
+impl std::error::Error for CommitFailed {}
 
 #[derive(Debug)]
 pub(crate) struct ServiceRefusedTheBundle(pub(crate) std::string::String);

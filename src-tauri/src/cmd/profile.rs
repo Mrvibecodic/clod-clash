@@ -12,7 +12,13 @@ use crate::{
         },
         profiles_append_item_safe,
     },
-    core::{CoreManager, handle, manager::Delivery, timer::Timer, tray::Tray, validate::ValidationOutcome},
+    core::{
+        CoreManager, handle,
+        manager::{CommitFailed, Delivery},
+        timer::Timer,
+        tray::Tray,
+        validate::ValidationOutcome,
+    },
     enhance::Sources,
     feat,
     utils::{dirs, help},
@@ -491,6 +497,19 @@ async fn perform_config_update(patch: IProfiles, current_value: Option<String>) 
                 match staged.deliver_committing(Delivery::Reload, commit).await {
                     Ok(outcome) if outcome.is_valid() => handle_success(current_value.as_ref()).await,
                     Ok(outcome) => Ok(handle_validation_failure(outcome)),
+                    // Ядро уже на новом профиле — реестр обязан догнать: одна повторная
+                    // запись, и только если не вышло — честная ошибка, а не «отменено».
+                    Err(e) if e.downcast_ref::<CommitFailed>().is_some() => {
+                        match commit_current_profile(&Config::profiles().await, current_value.clone()).await {
+                            Ok(()) => handle_success(current_value.as_ref()).await,
+                            Err(err) => {
+                                let message: String = super::public_error_text(&format!("{e}; повтор: {err:#}"));
+                                logging!(error, Type::Cmd, "{message}");
+                                handle::Handle::notice_message("update_failed", message.clone());
+                                Ok(ValidationOutcome::invalid_from_message(message))
+                            }
+                        }
+                    }
                     Err(e) => Ok(handle_update_error(e)),
                 }
             }
