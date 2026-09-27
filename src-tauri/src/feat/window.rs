@@ -103,6 +103,16 @@ impl ExitPace {
             Self::SessionEnding => Duration::from_secs(3),
         }
     }
+
+    /// Потолки шага DNS, которые этот темп даёт на обоих путях уборки, — для
+    /// тестов шага, чтобы они проверяли настоящие бюджеты, а не их копию.
+    #[cfg(all(test, target_os = "macos"))]
+    pub(crate) const fn dns_ceilings(self) -> [Duration; 2] {
+        [
+            self.dns_budget(self.core_branch_with_cancel()),
+            self.dns_budget(self.core_branch_without_cancel()),
+        ]
+    }
 }
 
 const fn longest(one: Duration, other: Duration) -> Duration {

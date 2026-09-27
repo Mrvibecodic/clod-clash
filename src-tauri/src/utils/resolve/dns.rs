@@ -303,16 +303,21 @@ async fn restore_public_dns_locked(limit: Duration) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{SCRIPT_NEEDS_AT_LEAST, SCRIPT_TIMEOUT, exit_lock_wait, exit_script_time};
+    use crate::feat::ExitPace;
     use std::time::Duration;
 
-    /// Потолки, которые дают оба пути уборки и завершение сеанса, плюс заведомо тесные.
-    const CEILINGS: [Duration; 5] = [
-        Duration::from_secs(18),
-        Duration::from_secs(10),
-        Duration::from_secs(3),
-        Duration::from_secs(2),
-        Duration::from_secs(1),
-    ];
+    /// Потолки обычного выхода — с отменой и без неё.
+    const fn calm() -> [Duration; 2] {
+        ExitPace::Interactive.dns_ceilings()
+    }
+
+    /// Все потолки, которые даёт выход, плюс заведомо тесные.
+    fn every_ceiling() -> Vec<Duration> {
+        let mut all = calm().to_vec();
+        all.extend(ExitPace::SessionEnding.dns_ceilings());
+        all.extend([Duration::from_secs(2), Duration::from_secs(1)]);
+        all
+    }
 
     /// Докуда идущая подмена может додержать замок: `run_dns_script` снимает
     /// зависшего ребёнка только по своему таймеру.
@@ -320,24 +325,30 @@ mod tests {
 
     #[test]
     fn the_reverse_script_keeps_its_own_timeout_while_the_ceiling_allows_it() {
-        assert_eq!(exit_script_time(CEILINGS[0], Duration::ZERO), Some(SCRIPT_TIMEOUT));
-        assert_eq!(exit_script_time(CEILINGS[1], Duration::ZERO), Some(SCRIPT_TIMEOUT));
-        assert_eq!(exit_script_time(CEILINGS[2], Duration::ZERO), Some(CEILINGS[2]));
+        for ceiling in calm() {
+            assert_eq!(exit_script_time(ceiling, Duration::ZERO), Some(SCRIPT_TIMEOUT));
+        }
+        for ceiling in ExitPace::SessionEnding.dns_ceilings() {
+            assert!(ceiling < SCRIPT_TIMEOUT);
+            assert_eq!(exit_script_time(ceiling, Duration::ZERO), Some(ceiling));
+        }
     }
 
     #[test]
     fn the_wait_outlasts_an_override_that_holds_the_lock_to_its_last_second() {
-        assert!(exit_lock_wait(CEILINGS[0]) > A_HUNG_OVERRIDE_HOLDS_THE_LOCK_FOR);
+        let longest = calm().into_iter().max().unwrap_or_default();
+        assert!(exit_lock_wait(longest) > A_HUNG_OVERRIDE_HOLDS_THE_LOCK_FOR);
     }
 
     #[test]
     fn the_two_limits_are_not_a_split_of_the_ceiling() {
-        assert!(exit_lock_wait(CEILINGS[0]) + SCRIPT_TIMEOUT > CEILINGS[0]);
+        let longest = calm().into_iter().max().unwrap_or_default();
+        assert!(exit_lock_wait(longest) + SCRIPT_TIMEOUT > longest);
     }
 
     #[test]
     fn the_step_never_outlives_the_ceiling_it_is_given() {
-        for ceiling in CEILINGS {
+        for ceiling in every_ceiling() {
             let waited = exit_lock_wait(ceiling);
             assert!(waited <= ceiling);
             assert!(waited + exit_script_time(ceiling, waited).unwrap_or_default() <= ceiling);
@@ -354,13 +365,14 @@ mod tests {
 
     #[test]
     fn a_remainder_too_short_to_reach_the_work_does_not_start_the_script() {
-        let ceiling = CEILINGS[1];
-        let almost_all = ceiling - Duration::from_millis(50);
-        assert_eq!(exit_script_time(ceiling, almost_all), None);
-        assert_eq!(exit_script_time(ceiling, ceiling), None);
-        assert_eq!(
-            exit_script_time(ceiling, ceiling - SCRIPT_NEEDS_AT_LEAST),
-            Some(SCRIPT_NEEDS_AT_LEAST)
-        );
+        for ceiling in calm() {
+            let almost_all = ceiling - Duration::from_millis(50);
+            assert_eq!(exit_script_time(ceiling, almost_all), None);
+            assert_eq!(exit_script_time(ceiling, ceiling), None);
+            assert_eq!(
+                exit_script_time(ceiling, ceiling - SCRIPT_NEEDS_AT_LEAST),
+                Some(SCRIPT_NEEDS_AT_LEAST)
+            );
+        }
     }
 }
