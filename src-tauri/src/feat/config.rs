@@ -52,8 +52,9 @@ pub async fn patch_clash(patch: &Mapping) -> Result<()> {
     let clash = Config::clash().await;
     let sources = Sources::default().with_clash(std::sync::Arc::clone(&candidate));
     CoreManager::global()
-        .update_config_committing(sources, delivery, || {
-            clash.replace_shared(std::sync::Arc::clone(&candidate))
+        .update_config_committing(sources, delivery, async || {
+            clash.replace_shared(std::sync::Arc::clone(&candidate));
+            Ok(())
         })
         .await?;
     handle::Handle::refresh_clash();
@@ -224,9 +225,16 @@ async fn hand_the_settings_to_the_core(delivery: Delivery) -> Result<()> {
     let verge = Config::verge().await;
     let sources = Sources::default().with_verge(verge.latest_arc());
     CoreManager::global()
-        .update_config_committing(sources, delivery, || verge.apply())
+        .update_config_committing(sources, delivery, async || {
+            verge.apply();
+            Ok(())
+        })
         .await
 }
+
+/// Сколько выключение подмены DNS (macOS) ждёт занятого признака применения.
+#[cfg(target_os = "macos")]
+const DNS_OFF_WAIT: std::time::Duration = std::time::Duration::from_secs(5);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SysProxyStep {
@@ -268,8 +276,23 @@ async fn process_terminated_flags(update_flags: UpdateFlags, patch: &IVerge) -> 
     if patch.enable_dns_override == Some(false) {
         // clod:dns-applied — выключение тумблера пересборки конфига не вызывает,
         // так что заявку надо снять руками: иначе ближайший перезапуск ядра
-        // поставил бы подмену обратно при выключенной настройке.
-        crate::utils::resolve::dns::remember_desire(false, false);
+        // поставил бы подмену обратно при выключенной настройке. Снимается и в
+        // принятом слоте: возврат к прежней сборке после сорвавшегося перезапуска
+        // читает заявку оттуда.
+        // Под признаком применения: идущая доставка собрана из принятого verge,
+        // где подмена ещё включена, и вернула бы заявку; после захвата принятое
+        // verge уже с выключенной подменой, и следующие сборки её не попросят.
+        {
+            let _applying = CoreManager::global().claim_config_update_within(DNS_OFF_WAIT).await;
+            Config::verge().await.apply();
+            crate::utils::resolve::dns::remember_desire(false, false);
+            let runtime = Config::runtime().await;
+            let mut accepted = (**runtime.data_arc()).clone();
+            if let Some(desire) = accepted.dns_desire.as_mut() {
+                desire.want_base = false;
+                runtime.replace(accepted);
+            }
+        }
         crate::process::AsyncHandler::spawn(|| async {
             if !crate::utils::resolve::dns::restore_public_dns().await {
                 logging!(

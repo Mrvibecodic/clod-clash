@@ -43,8 +43,9 @@ const EXPIRY_SLACK: i64 = 5;
 /// есть, срабатывает своим чередом.
 const EXPIRY_RETRY: Duration = Duration::from_secs(15 * 60);
 const EXPIRY_RETRY_MAX: Duration = Duration::from_secs(5 * 60 * 60);
-/// Через сколько повторить задачу, которая не дошла до слова ядра.
+/// Через сколько повторить задачу, которая не дошла до проверки, и сколько раз подряд.
 const RETRY_SOON: Duration = Duration::from_secs(5 * 60);
+const RETRIES_SOON_MAX: u32 = 3;
 
 /// Дольше этого очередь не взводится: у `DelayQueue` потолок ≈ 795 суток от
 /// момента её создания, а срок подписки бывает и на годы вперёд. Взведённая на
@@ -53,7 +54,7 @@ const MAX_ARM: Duration = Duration::from_secs(24 * 60 * 60);
 
 enum TimerCommand {
     Apply(HashMap<String, TaskSchedule>),
-    /// Задача отработала; `retry_soon` — до слова ядра не дошла (профиль уже
+    /// Задача отработала; `retry_soon` — до проверки не дошла (профиль уже
     /// обновлялся, применение занято): повторить скоро, не считая провалом.
     TaskFinished {
         uid: String,
@@ -146,6 +147,8 @@ struct TaskState {
     /// Когда началась бегущая загрузка (unix): загрузка, начатая до дедлайна и
     /// закончившаяся после, — не попытка «после истечения».
     started_at: Option<i64>,
+    /// Сколько раз подряд задача повторялась «скоро», не дойдя до проверки.
+    retries_soon: u32,
     running: bool,
     retired: bool,
 }
@@ -161,6 +164,7 @@ impl TaskState {
             expiry_failures: 0,
             capped: false,
             started_at: None,
+            retries_soon: 0,
             running: false,
             retired: false,
         }
@@ -567,13 +571,16 @@ impl Timer {
             return;
         }
 
-        if retry_soon {
-            // Загрузки не было или слова ядра нет — это не провал: цели и счёт
-            // неудач не трогаем, просто повторяем скоро.
+        if retry_soon && state.retries_soon < RETRIES_SOON_MAX {
+            // До проверки не дошло (профиль уже обновлялся, применение занято) —
+            // это не провал: цели и счёт неудач не трогаем, повторяем скоро. Но не
+            // без конца: если занято раз за разом, дальше по обычному расписанию.
+            state.retries_soon += 1;
             state.started_at = None;
             Self::arm(queue, &uid, state, RETRY_SOON);
             return;
         }
+        state.retries_soon = 0;
 
         match Self::delay_after_finish(state, now_unix()) {
             Some(delay) => Self::arm(queue, &uid, state, delay),
@@ -685,8 +692,8 @@ impl Timer {
 #[cfg(test)]
 mod tests {
     use super::{
-        EXPIRY_GRACE, EXPIRY_RETRY, EXPIRY_RETRY_MAX, EXPIRY_SLACK, MAX_ARM, TaskSchedule, TaskState, Timer,
-        expiry_fetch_at,
+        EXPIRY_GRACE, EXPIRY_RETRY, EXPIRY_RETRY_MAX, EXPIRY_SLACK, MAX_ARM, RETRIES_SOON_MAX, RETRY_SOON,
+        TaskSchedule, TaskState, Timer, expiry_fetch_at,
     };
     use crate::config::{PrfExtra, PrfItem, PrfOption};
     use smartstring::alias::String;
@@ -932,6 +939,38 @@ mod tests {
             tasks.get(&uid).and_then(|state| queued_delay(&queue, state)),
             Some(Duration::from_secs(24 * 3600))
         );
+    }
+
+    #[tokio::test]
+    async fn a_task_that_never_reached_the_check_is_retried_soon_but_not_forever() {
+        let mut queue = DelayQueue::new();
+        let mut tasks = HashMap::new();
+        let uid = String::from("uid");
+        let now = super::now_unix();
+
+        // Срок позади: провал считался бы «после истечения» с бэкоффом, а
+        // «не дошло до проверки» — нет: повтор скоро, счётчик неудач не растёт.
+        let mut map = HashMap::new();
+        map.insert(uid.clone(), TaskSchedule::new(HOUR * 24, None, now, Some(now - 10)));
+        Timer::apply_timer_map(&mut queue, &mut tasks, map);
+        for _ in 0..RETRIES_SOON_MAX {
+            pretend_running(&mut queue, &mut tasks, &uid);
+            Timer::finish_task(&mut queue, &mut tasks, uid.clone(), true);
+            assert_eq!(
+                tasks.get(&uid).and_then(|state| queued_delay(&queue, state)),
+                Some(RETRY_SOON)
+            );
+            assert_eq!(tasks.get(&uid).map(|state| state.expiry_failures), Some(0));
+        }
+
+        // Занято раз за разом — дальше по обычному расписанию истечения.
+        pretend_running(&mut queue, &mut tasks, &uid);
+        Timer::finish_task(&mut queue, &mut tasks, uid.clone(), true);
+        assert_eq!(
+            tasks.get(&uid).and_then(|state| queued_delay(&queue, state)),
+            Some(EXPIRY_RETRY)
+        );
+        assert_eq!(tasks.get(&uid).map(|state| state.retries_soon), Some(0));
     }
 
     #[tokio::test]

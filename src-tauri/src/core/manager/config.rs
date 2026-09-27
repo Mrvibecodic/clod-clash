@@ -9,17 +9,18 @@ use crate::{
     enhance::Sources,
     utils::dirs,
 };
-use anyhow::{Result, anyhow};
+use anyhow::{Context as _, Result, anyhow};
 use clash_verge_logging::{Type, logging};
 use clash_verge_service_ipc::StageRuntimeOutcome;
 use smartstring::alias::String;
 use std::{path::PathBuf, time::Duration, time::Instant};
 use tauri_plugin_mihomo::Error as MihomoError;
 
-/// Как отдать ядру принятый им конфиг.
+/// Как отдать ядру проверенный конфиг.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Delivery {
-    /// Мягкая перезагрузка (`PUT /configs`); если ядро её не приняло — перезапуск.
+    /// Мягкая перезагрузка (`PUT /configs`); не прошла — перезапуск. Ядра нет —
+    /// сразу старт.
     Reload,
     /// Сразу перезапуск: адрес контроллера, секрет и смену сборки ядра мягко
     /// применить нельзя.
@@ -40,7 +41,7 @@ impl Drop for ConfigUpdateGuard<'_> {
     }
 }
 
-/// Сборка, которую ядро проверило и не отвергло.
+/// Сборка, которую ядро проверило (`mihomo -t`) и не отвергло.
 ///
 /// Единственная дверь к слоту рантайма: пока `Staged` жив, признак применения
 /// держится, другой сборке в слот не попасть. Слот заменяется в `deliver` —
@@ -58,18 +59,25 @@ impl Staged<'_> {
     /// `Ok(Invalid)` — служба отвергла бандл, ядро осталось на прежнем;
     /// `Err` — доставка сорвалась (ядро о содержимом ничего не сказало).
     pub async fn deliver(self, delivery: Delivery) -> Result<ValidationOutcome> {
-        self.deliver_committing(delivery, || {}).await
+        self.deliver_committing(delivery, async || Ok(())).await
     }
 
     /// То же, но после приёма ядром — ещё под признаком применения — выполнить
     /// `commit`: записать в свой слой то, из чего собиралось. Иначе между
     /// освобождением признака и записью чужая сборка читала бы прежнее принятое
-    /// и откатывала бы ядру то, что оно только что приняло.
-    pub async fn deliver_committing(self, delivery: Delivery, commit: impl FnOnce()) -> Result<ValidationOutcome> {
+    /// и откатывала бы ядру то, что оно только что приняло. Отказ записи — `Err`
+    /// с пометкой, что ядро конфиг уже приняло.
+    pub async fn deliver_committing(
+        self,
+        delivery: Delivery,
+        commit: impl AsyncFnOnce() -> Result<()>,
+    ) -> Result<ValidationOutcome> {
         let Self { manager, build, _guard } = self;
         let outcome = manager.deliver_build(build, delivery).await?;
         if outcome.is_valid() {
-            commit();
+            commit()
+                .await
+                .context("ядро приняло конфиг, но записать его источник не удалось")?;
         }
         Ok(outcome)
     }
@@ -79,7 +87,7 @@ impl Staged<'_> {
     /// проверила бы все авто-группы, ничего не поменяв.
     pub async fn deliver_unless_unchanged(self) -> Result<ValidationOutcome> {
         if self.manager.runtime_unchanged(&self.build).await {
-            let Self { manager, build, _guard } = self;
+            let Self { manager, build, .. } = self;
             manager.accept_without_the_core(build).await;
             logging!(info, Type::Core, "Runtime config unchanged, core reload skipped");
             return Ok(ValidationOutcome::Valid);
@@ -165,6 +173,10 @@ impl CoreManager {
         let Some(config) = build.config.as_ref() else {
             return Ok(Err(ValidationOutcome::invalid_from_message("собранный конфиг пуст")));
         };
+        // Любой не-Valid исход — вызывающему: отказ ядра, «занято», прибитая
+        // проверка различаются у него по виду (`ValidationErrorKind`). Без слова
+        // ядра сборка к нему не едет: слепой перезапуск на непроверенной оставлял
+        // бы человека без ядра, а мягкий reload расходился бы с поколением службы.
         let outcome = CoreConfigValidator::global()
             .validate_config_outcome_with(config)
             .await?;
@@ -193,7 +205,7 @@ impl CoreManager {
         &self,
         sources: Sources,
         delivery: Delivery,
-        commit: impl FnOnce(),
+        commit: impl AsyncFnOnce() -> Result<()>,
     ) -> Result<()> {
         let staged = match self.stage_with(sources).await? {
             Ok(staged) => staged,

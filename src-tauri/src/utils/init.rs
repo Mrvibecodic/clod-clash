@@ -705,6 +705,17 @@ pub async fn init_config() -> Result<()> {
     initialize_config_files().await?;
 
     AsyncHandler::spawn(|| async {
+        if let Ok(dir) = dirs::app_profiles_dir() {
+            let removed = crate::utils::help::sweep_unpromoted_candidates(&dir).await;
+            if removed > 0 {
+                logging!(
+                    info,
+                    Type::Setup,
+                    "removed {} unpromoted subscription candidates",
+                    removed
+                );
+            }
+        }
         for dir in [dirs::app_home_dir(), dirs::app_profiles_dir()].into_iter().flatten() {
             let removed = crate::utils::help::sweep_staging_leftovers(&dir).await;
             if removed > 0 {

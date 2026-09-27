@@ -395,10 +395,10 @@ async fn drop_system_proxy_without_profiles() {
     }
 }
 
-/// Выполняет обновление конфига и обрабатывает результат
 /// Записать выбор профиля в принятое состояние — только после того, как ядро
-/// приняло собранный из кандидата конфиг. До этого реестр не трогается, и при
-/// отказе восстанавливать нечего.
+/// приняло собранный из кандидата конфиг, и ещё под признаком применения
+/// (`deliver_committing`): до этого реестр не трогается, а после — чужая сборка
+/// уже не прочитает прежний `current`.
 async fn commit_current_profile(profiles: &Draft<IProfiles>, current: Option<String>) -> anyhow::Result<()> {
     let Some(current) = current else {
         return Ok(());
@@ -416,9 +416,6 @@ async fn commit_current_profile(profiles: &Draft<IProfiles>, current: Option<Str
 }
 
 async fn handle_success(current_value: Option<&String>) -> CmdResult<ValidationOutcome> {
-    commit_current_profile(&Config::profiles().await, current_value.cloned())
-        .await
-        .stringify_err()?;
     // Runtime refresh and tray rebuilding happen after saved node selections are restored.
     profiles::activate_selected_nodes().stringify_err()?;
 
@@ -488,11 +485,15 @@ async fn perform_config_update(patch: IProfiles, current_value: Option<String>) 
             CURRENT_SWITCHING_PROFILE.store(false, Ordering::Release);
         }
         match CoreManager::global().stage_with(sources).await {
-            Ok(Ok(staged)) => match staged.deliver(Delivery::Reload).await {
-                Ok(outcome) if outcome.is_valid() => handle_success(current_value.as_ref()).await,
-                Ok(outcome) => Ok(handle_validation_failure(outcome)),
-                Err(e) => Ok(handle_update_error(e)),
-            },
+            Ok(Ok(staged)) => {
+                let target = current_value.clone();
+                let commit = async || commit_current_profile(&Config::profiles().await, target).await;
+                match staged.deliver_committing(Delivery::Reload, commit).await {
+                    Ok(outcome) if outcome.is_valid() => handle_success(current_value.as_ref()).await,
+                    Ok(outcome) => Ok(handle_validation_failure(outcome)),
+                    Err(e) => Ok(handle_update_error(e)),
+                }
+            }
             Ok(Err(outcome)) => Ok(handle_validation_failure(outcome)),
             Err(e) => Ok(handle_update_error(e)),
         }

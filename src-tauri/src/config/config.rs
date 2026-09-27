@@ -362,14 +362,14 @@ impl Config {
                 manager.refuse_to_start(error_msg.clone());
                 Ok(Some(("config_validate::boot_error", error_msg)))
             }
-            BootVerdict::Unchecked(reason) => {
+            BootVerdict::Unchecked { reason, announce } => {
                 logging!(
                     warn,
                     Type::Config,
                     "Проверка при запуске не состоялась ({reason}) — ядро стартует на собранном конфиге и рассудит само"
                 );
                 manager.accept_at_boot(build).await;
-                Ok(Some(("config_validate::process_terminated", String::new())))
+                Ok(announce.then_some(("config_validate::process_terminated", String::new())))
             }
         }
     }
@@ -509,9 +509,10 @@ enum BootVerdict {
     Accepted,
     /// Ядро отвергло сам конфиг — не стартовать, причина человеку.
     Rejected(String),
-    /// Слова ядра нет (проверка прибита, таймаут, занято, не запустилась) —
-    /// в слот и стартовать: ядро рассудит само.
-    Unchecked(String),
+    /// Слова ядра нет — в слот и стартовать: ядро рассудит само. `announce` —
+    /// сказать человеку (проверка прибита, не запустилась, таймаут); «занято» и
+    /// «пропущено» — молча.
+    Unchecked { reason: String, announce: bool },
 }
 
 fn boot_verdict(checked: &Result<ValidationOutcome>) -> BootVerdict {
@@ -520,8 +521,18 @@ fn boot_verdict(checked: &Result<ValidationOutcome>) -> BootVerdict {
         Ok(outcome @ ValidationOutcome::Invalid { kind, .. }) if kind.is_the_cores_verdict() => {
             BootVerdict::Rejected(outcome.to_string().into())
         }
-        Ok(outcome) => BootVerdict::Unchecked(outcome.to_string().into()),
-        Err(err) => BootVerdict::Unchecked(err.to_string().into()),
+        Ok(outcome @ ValidationOutcome::Invalid { .. }) => BootVerdict::Unchecked {
+            reason: outcome.to_string().into(),
+            announce: true,
+        },
+        Ok(outcome) => BootVerdict::Unchecked {
+            reason: outcome.to_string().into(),
+            announce: false,
+        },
+        Err(err) => BootVerdict::Unchecked {
+            reason: err.to_string().into(),
+            announce: true,
+        },
     }
 }
 
@@ -653,22 +664,28 @@ mod tests {
         }
         // Прибитая проверка, таймаут, занято, пропущено, не запустилась — слова ядра нет:
         // конфиг в слот, ядро стартует и рассудит само.
-        for outcome in [
-            ValidationOutcome::invalid(ValidationErrorKind::ProcessTerminated, "killed"),
-            ValidationOutcome::invalid(ValidationErrorKind::Timeout, "slow"),
-            ValidationOutcome::Busy,
-            ValidationOutcome::Skipped {
-                reason: crate::core::validate::ValidationSkipReason::Exiting,
-            },
+        for (outcome, announce) in [
+            (
+                ValidationOutcome::invalid(ValidationErrorKind::ProcessTerminated, "killed"),
+                true,
+            ),
+            (ValidationOutcome::invalid(ValidationErrorKind::Timeout, "slow"), true),
+            (ValidationOutcome::Busy, false),
+            (
+                ValidationOutcome::Skipped {
+                    reason: crate::core::validate::ValidationSkipReason::Exiting,
+                },
+                false,
+            ),
         ] {
             assert!(
-                matches!(boot_verdict(&Ok(outcome.clone())), BootVerdict::Unchecked(_)),
-                "{outcome:?} не должен запрещать старт"
+                matches!(boot_verdict(&Ok(outcome.clone())), BootVerdict::Unchecked { announce: a, .. } if a == announce),
+                "{outcome:?} не должен запрещать старт; тост — только когда проверку прибили"
             );
         }
         assert!(matches!(
             boot_verdict(&Err(anyhow!("validator did not launch"))),
-            BootVerdict::Unchecked(_)
+            BootVerdict::Unchecked { announce: true, .. }
         ));
         assert_eq!(boot_verdict(&Ok(ValidationOutcome::Valid)), BootVerdict::Accepted);
     }

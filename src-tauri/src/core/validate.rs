@@ -112,6 +112,19 @@ impl ValidationOutcome {
         Self::invalid(ValidationErrorKind::from_message(&message), message)
     }
 
+    /// Отказ, произнесённый самим ядром (`mihomo -t` дало вывод и ненулевой код).
+    /// Вид — по тексту, но никогда не «прервано»/«таймаут»: слово `timeout` в
+    /// сообщении ядра — про поле конфига, а не про судьбу проверки, и такой
+    /// отказ остаётся вердиктом.
+    pub fn rejected_by_core(message: impl Into<String>) -> Self {
+        let message = message.into();
+        let kind = match ValidationErrorKind::from_message(&message) {
+            ValidationErrorKind::ProcessTerminated | ValidationErrorKind::Timeout => ValidationErrorKind::CoreRejected,
+            kind => kind,
+        };
+        Self::invalid(kind, message)
+    }
+
     pub const fn is_valid(&self) -> bool {
         matches!(self, Self::Valid)
     }
@@ -442,7 +455,7 @@ impl CoreConfigValidator {
             let outcome = if silenced {
                 ValidationOutcome::invalid(ValidationErrorKind::ProcessTerminated, error_msg)
             } else {
-                ValidationOutcome::invalid_from_message(error_msg)
+                ValidationOutcome::rejected_by_core(error_msg)
             };
             Ok(outcome)
         } else {
@@ -496,3 +509,27 @@ fn contains_any_keyword<'a>(buf: &'a [u8], keywords: &'a [&str]) -> bool {
 }
 
 singleton!(CoreConfigValidator, CORECONFIGVALIDATOR);
+
+#[cfg(test)]
+mod verdict_tests {
+    use super::{ValidationErrorKind, ValidationOutcome};
+
+    #[test]
+    fn the_cores_own_refusal_is_a_verdict_whatever_words_it_uses() {
+        let outcome = ValidationOutcome::rejected_by_core("proxy-groups[0].timeout: invalid type");
+        assert!(
+            matches!(outcome, ValidationOutcome::Invalid { kind, .. } if kind.is_the_cores_verdict()),
+            "слово timeout в тексте ядра — про поле конфига, отказ остаётся вердиктом"
+        );
+        let outcome = ValidationOutcome::rejected_by_core("yaml syntax error: did not find expected key");
+        assert!(matches!(
+            outcome,
+            ValidationOutcome::Invalid {
+                kind: ValidationErrorKind::YamlSyntax,
+                ..
+            }
+        ));
+        assert!(!ValidationErrorKind::ProcessTerminated.is_the_cores_verdict());
+        assert!(!ValidationErrorKind::Timeout.is_the_cores_verdict());
+    }
+}

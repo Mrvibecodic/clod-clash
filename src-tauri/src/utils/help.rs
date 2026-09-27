@@ -197,15 +197,22 @@ fn is_unpromoted_candidate(name: &str) -> bool {
 }
 
 pub async fn sweep_staging_leftovers(dir: &Path) -> usize {
+    sweep_matching(dir, is_staging_leftover).await
+}
+
+/// Только для каталога подписок: в других каталогах `*.new` — чужие файлы.
+pub async fn sweep_unpromoted_candidates(profiles_dir: &Path) -> usize {
+    sweep_matching(profiles_dir, is_unpromoted_candidate).await
+}
+
+async fn sweep_matching(dir: &Path, matches: fn(&str) -> bool) -> usize {
     let Ok(mut entries) = tokio::fs::read_dir(dir).await else {
         return 0;
     };
     let mut removed = 0;
     while let Ok(Some(entry)) = entries.next_entry().await {
         let name = entry.file_name().to_string_lossy().into_owned();
-        if (is_staging_leftover(&name) || is_unpromoted_candidate(&name))
-            && tokio::fs::remove_file(entry.path()).await.is_ok()
-        {
+        if matches(&name) && tokio::fs::remove_file(entry.path()).await.is_ok() {
             removed += 1;
         }
     }

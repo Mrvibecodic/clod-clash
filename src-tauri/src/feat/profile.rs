@@ -170,16 +170,20 @@ enum Acceptance {
     /// Файл на диске заменён, реестр обновлён; `delivered` — ядро уже работает с
     /// новым конфигом (профиль текущий).
     Accepted { delivered: bool },
-    /// Ядро отвергло собранный из неё конфиг: файл на диске прежний, реестр
-    /// (срок, трафик, замки панели, отметка загрузки) обновлён как при приёме,
-    /// у профиля пометка «не применено».
+    /// Ядро отвергло собранный из неё конфиг — на проверке (файл на диске прежний)
+    /// или уже при доставке (файл заменён, ядро осталось на прежнем). Реестр (срок,
+    /// трафик, замки панели, отметка загрузки) обновлён как при приёме, у профиля
+    /// пометка «не применено».
     Rejected(ValidationOutcome),
     /// Файл принят и заменён, но доставить ядру не удалось (не поднялось, служба
     /// молчит): работает прежний конфиг, у профиля пометка «не применено».
     DeliveryFailed(anyhow::Error),
-    /// Слова ядра нет (занято дольше ожидания, проверка прибита, выход): файл и
-    /// реестр прежние, пометок нет — загрузку надо повторить скоро.
-    Unverified(String),
+    /// До проверки не дошло — признак применения занят дольше ожидания или идёт
+    /// выход: файл и реестр прежние, пометок нет, загрузку надо повторить скоро.
+    Unverified(ValidationOutcome),
+    /// Проверка не состоялась (прибита, таймаут): слова ядра нет, без него файл
+    /// не заменяем — это провал обновления со своим советом человеку.
+    Unchecked(ValidationOutcome),
 }
 
 /// Принять скачанную подписку: ядро проверяет её ДО того, как она ляжет на диск
@@ -232,13 +236,16 @@ async fn accept_the_download(uid: &String, mut item: PrfItem) -> Result<Acceptan
         }
         Err(err) => {
             let _ = tokio::fs::remove_file(&candidate_path).await;
-            return Ok(Acceptance::Unverified(format!("{err:#}").into()));
+            return Err(err.context("сборка конфига из подписки не удалась, файл подписки не заменён"));
         }
     };
 
     let migrate_url = item.migrate_url.clone();
     let request_option = item.option.clone();
-    promote_and_record(uid, item, &dir, &file, &candidate_path, disarming).await?;
+    if let Err(err) = promote_and_record(uid, item, &dir, &file, &candidate_path, disarming).await {
+        let _ = tokio::fs::remove_file(&candidate_path).await;
+        return Err(err);
+    }
 
     let acceptance = if Config::profiles().await.data_arc().is_current_profile_index(uid) {
         deliver_the_accepted(uid, staged).await
@@ -254,11 +261,13 @@ async fn accept_the_download(uid: &String, mut item: PrfItem) -> Result<Acceptan
 /// Проверка не пропустила кандидата. Слово ядра о конфиге — отказ: реестр
 /// получает метаданные панели как при приёме (срок, трафик, замки, отметка
 /// загрузки — иначе замок панели «истекал» бы, а срок стоял бы в прошлом), файл
-/// остаётся прежним, у профиля пометка «не применено». Всё прочее (занято,
-/// проверка прибита) — слова ядра нет, повторим скоро.
+/// остаётся прежним, у профиля пометка «не применено». Проверка прибита или не
+/// уложилась — слова ядра нет, файл не заменяем, человеку — совет по виду отказа.
+/// «Занято»/«выход» — до проверки не дошло, повторим скоро.
 async fn refused_before_the_disk(uid: &String, mut item: PrfItem, outcome: ValidationOutcome) -> Result<Acceptance> {
     match &outcome {
-        ValidationOutcome::Invalid { kind, .. } if kind.is_the_cores_verdict() => {
+        ValidationOutcome::Invalid { kind, .. } if !kind.is_the_cores_verdict() => Ok(Acceptance::Unchecked(outcome)),
+        ValidationOutcome::Invalid { .. } => {
             logging!(
                 warn,
                 Type::Config,
@@ -269,7 +278,9 @@ async fn refused_before_the_disk(uid: &String, mut item: PrfItem, outcome: Valid
             mark_not_applied(uid).await;
             Ok(Acceptance::Rejected(outcome))
         }
-        _ => Ok(Acceptance::Unverified(outcome.to_string().into())),
+        ValidationOutcome::Valid | ValidationOutcome::Busy | ValidationOutcome::Skipped { .. } => {
+            Ok(Acceptance::Unverified(outcome))
+        }
     }
 }
 
@@ -822,15 +833,22 @@ async fn settle_the_download(uid: &String, downloaded: Downloaded, trigger: Upda
 
     let delivered = match acceptance {
         Acceptance::Accepted { delivered } => delivered,
-        Acceptance::Unverified(reason) => {
+        Acceptance::Unverified(outcome) => {
+            // Загрузка удалась — это записано; до проверки просто не дошло.
+            mark_the_update(uid, false).await;
             logging!(
                 info,
                 Type::Config,
-                "[Обновление подписки] Приём подписки отложен, слова ядра нет: {}",
-                reason
+                "[Обновление подписки] Приём подписки отложен: {}",
+                outcome
             );
             if trigger.is_manual() {
-                bail!("{}", clash_verge_i18n::t!("common.configApplying"));
+                let text = if matches!(outcome, ValidationOutcome::Skipped { .. }) {
+                    clash_verge_i18n::t!("common.exitInProgress")
+                } else {
+                    clash_verge_i18n::t!("common.configApplying")
+                };
+                bail!("{text}");
             }
             return Ok(UpdateOutcome::RetrySoon);
         }
@@ -840,6 +858,19 @@ async fn settle_the_download(uid: &String, downloaded: Downloaded, trigger: Upda
             note_the_download(uid).await;
             let status = failure_notice_status(&Ok(outcome.clone()));
             return Err(failed(uid, status, "Ядро отвергло подписку", &outcome.to_string(), trigger).await);
+        }
+        Acceptance::Unchecked(outcome) => {
+            // Скачано, но не проверено: файл прежний, обновления не случилось.
+            mark_the_update(uid, true).await;
+            let status = failure_notice_status(&Ok(outcome.clone()));
+            return Err(failed(
+                uid,
+                status,
+                "Проверка подписки не состоялась",
+                &outcome.to_string(),
+                trigger,
+            )
+            .await);
         }
         Acceptance::DeliveryFailed(err) => {
             // Файл и реестр уже новые: загрузка удалась, не удалась доставка.
@@ -870,9 +901,8 @@ async fn settle_the_download(uid: &String, downloaded: Downloaded, trigger: Upda
 pub enum UpdateOutcome {
     /// Сделано (или скачивать было нечего): дальше по расписанию.
     Done,
-    /// Не дошло до слова ядра (уже обновляется, признак применения занят,
-    /// проверка не состоялась): повторить скоро, а не через интервал, и не
-    /// считать провалом загрузки.
+    /// До проверки не дошло (уже обновляется, признак применения занят): повторить
+    /// скоро, а не через интервал, и не считать провалом загрузки.
     RetrySoon,
 }
 
