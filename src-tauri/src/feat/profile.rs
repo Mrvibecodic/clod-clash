@@ -765,9 +765,10 @@ pub enum UpdateTrigger {
     Manual,
     /// Расписание: о провале говорит тост (только у текущей подписки).
     Scheduled,
-    /// Повтор по расписанию после провала (загрузка после истечения срока идёт
-    /// с бэкоффом без сдачи): о первом провале серии уже сказано, об остальных —
-    /// только в журнал, иначе тосты шли бы вечно раз в 5 ч.
+    /// Расписание, когда о провале уже сказано: карточка подписки уже помечена
+    /// провалом или «не применено». Провал повторяется с бэкоффом, и тост на
+    /// каждый повтор шёл бы раз за разом; пометка лежит на диске, поэтому серия
+    /// не начинается заново и после перезапуска. Удача пометку снимает.
     ScheduledRetry,
 }
 
@@ -779,6 +780,23 @@ impl UpdateTrigger {
     const fn announces_failure(self) -> bool {
         matches!(self, Self::Scheduled)
     }
+
+    /// Расписание по помеченной карточке — см. [`Self::ScheduledRetry`].
+    const fn once_marked(self, marked: bool) -> Self {
+        match self {
+            Self::Scheduled if marked => Self::ScheduledRetry,
+            other => other,
+        }
+    }
+}
+
+/// Карточка подписки уже помечена провалом обновления или «не применено».
+async fn card_is_marked(uid: &String) -> bool {
+    Config::profiles()
+        .await
+        .latest_arc()
+        .get_item(uid)
+        .is_ok_and(|item| item.update_failed == Some(true) || item.not_applied == Some(true))
 }
 
 /// Кнопка на профиле, которому нечего скачивать (локальный или автообновление
@@ -869,7 +887,8 @@ async fn settle_the_download(uid: &String, downloaded: Downloaded, trigger: Upda
             // «не применено», а не «обновление не удалось».
             note_the_download(uid).await;
             let status = failure_notice_status(&Ok(outcome.clone()));
-            return Err(failed(uid, status, "Ядро отвергло подписку", &outcome.to_string(), trigger).await);
+            let err = failed(uid, status, "Ядро отвергло подписку", &outcome.to_string(), trigger).await;
+            return Err(RefusedByTheCore(err.to_string().into()).into());
         }
         Acceptance::Unchecked(outcome) => {
             // Скачано, но не проверено: файл прежний, обновления не случилось;
@@ -910,6 +929,21 @@ async fn settle_the_download(uid: &String, downloaded: Downloaded, trigger: Upda
     }
     Ok(UpdateOutcome::Done)
 }
+
+/// Ядро отвергло скачанную подписку. Это слово ядра о содержимом (шаблон панели,
+/// незнакомый ядру узел, цепочка merge/script человека), а не сбой: повтор через
+/// минуты скачал бы то же и получил бы тот же отказ — расписание ждёт обычного
+/// срока, а не повторяет с бэкоффом.
+#[derive(Debug)]
+pub struct RefusedByTheCore(pub(crate) String);
+
+impl std::fmt::Display for RefusedByTheCore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for RefusedByTheCore {}
 
 /// Чем закончился запуск обновления — для расписания.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -963,10 +997,11 @@ pub async fn update_profile(
         }
         return Ok(UpdateOutcome::RetrySoon);
     };
+    let trigger = trigger.once_marked(card_is_marked(uid).await);
     logging!(
         info,
         Type::Config,
-        "[Обновление подписки] Начинаю обновление подписки {}",
+        "[Обновление подписки] Начинаю обновление подписки {} ({trigger:?})",
         uid
     );
     let url_opt = match should_update_profile(uid, ignore_auto_update).await {
@@ -1193,8 +1228,27 @@ mod lock_expiry_tests {
 
 #[cfg(test)]
 mod failure_visibility_tests {
-    use super::{failure_notice_status, public_failure_text};
+    use super::{UpdateTrigger, failure_notice_status, public_failure_text};
     use crate::core::validate::{ValidationErrorKind, ValidationOutcome};
+
+    #[test]
+    fn a_scheduled_failure_is_announced_once_per_marked_card() {
+        // Тост — первому провалу серии; пока карточка помечена, повторы
+        // расписания (и после перезапуска) идут молча. Кнопку это не касается.
+        let cases = [
+            (UpdateTrigger::Scheduled, false, UpdateTrigger::Scheduled),
+            (UpdateTrigger::Scheduled, true, UpdateTrigger::ScheduledRetry),
+            (UpdateTrigger::Manual, true, UpdateTrigger::Manual),
+            (UpdateTrigger::Manual, false, UpdateTrigger::Manual),
+        ];
+        for (trigger, marked, expected) in cases {
+            assert_eq!(trigger.once_marked(marked), expected, "{trigger:?}, marked {marked}");
+            assert_eq!(
+                trigger.once_marked(marked).announces_failure(),
+                expected == UpdateTrigger::Scheduled
+            );
+        }
+    }
 
     #[test]
     fn each_kind_of_refusal_keeps_its_own_advice() {

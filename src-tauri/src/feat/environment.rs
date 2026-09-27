@@ -596,7 +596,8 @@ async fn refill_empty_rule_sets_once() {
     .await;
 }
 
-fn hold_the_tun_rearm(tun_is_wanted: bool) {
+/// После сна TUN и расписание подписок ждут адреса, по которому пойдёт трафик.
+fn hold_the_rearm_after_wake(tun_is_wanted: bool) {
     *WAKE_REARM_SINCE.lock() = Some(Instant::now());
     if WAKE_REARM_PENDING.swap(true, Ordering::AcqRel) || !tun_is_wanted {
         return;
@@ -616,7 +617,12 @@ fn worth_spelling_out(waited: Duration) -> Option<Duration> {
     (waited >= WAITED_WORTH_SPELLING_OUT).then_some(waited)
 }
 
-async fn rearm_the_tun_after_wake() {
+async fn rearm_after_wake() {
+    // clod: очередь обновления подписок стоит на таймерах tokio, а те во сне не
+    // идут (Linux/macOS) — цели перевзводятся по настенным часам. Не в момент
+    // пробуждения, а с появлением адреса: просроченная загрузка, ушедшая до
+    // подъёма сети, проваливалась бы на DNS.
+    crate::core::Timer::global().rearm_after_wake();
     let waited = WAKE_REARM_SINCE
         .lock()
         .take()
@@ -759,11 +765,7 @@ pub fn spawn_environment_watchdog() {
             }
 
             if slept {
-                hold_the_tun_rearm(crate::feat::tun::desired().await);
-                // clod: очередь обновления подписок стоит на таймерах tokio, а те во
-                // сне не идут (Linux/macOS) — цели перевзводятся по настенным часам,
-                // иначе загрузка после истечения срока опоздала бы на всё время сна.
-                crate::core::Timer::global().rearm_after_wake();
+                hold_the_rearm_after_wake(crate::feat::tun::desired().await);
             }
 
             let Some(view) = view else {
@@ -775,6 +777,8 @@ pub fn spawn_environment_watchdog() {
                     );
                 }
                 if slept {
+                    // Есть ли сеть, не узнать — расписание подписок не держим.
+                    crate::core::Timer::global().rearm_after_wake();
                     reconcile("woke up", true, false, false, false).await;
                 }
                 continue;
@@ -798,7 +802,7 @@ pub fn spawn_environment_watchdog() {
                 (false, true) => "network changed",
                 (false, false) => {
                     if rearm_is_now {
-                        rearm_the_tun_after_wake().await;
+                        rearm_after_wake().await;
                     }
                     continue;
                 }
@@ -806,7 +810,7 @@ pub fn spawn_environment_watchdog() {
 
             reconcile(reason, slept, path_is_gone, rearm_is_now, view_carries_traffic).await;
             if rearm_is_now {
-                rearm_the_tun_after_wake().await;
+                rearm_after_wake().await;
             }
         }
     });

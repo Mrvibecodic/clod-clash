@@ -36,13 +36,13 @@ const EXPIRY_GRACE: Duration = Duration::from_secs(90);
 /// ней сразу шла бы вторая. Много меньше запаса `EXPIRY_GRACE`.
 const EXPIRY_SLACK: i64 = 5;
 
-/// clod: провал загрузки после истечения срока повторяется с бэкоффом от вот
-/// столького до `EXPIRY_RETRY_MAX` (как у WorkManager на Android), а не через
-/// весь интервал подписки — человек ждёт перемену на экране; без сдачи: цель
-/// стоит, пока загрузка после срока не удастся, а обычный интервал, если он
-/// есть, срабатывает своим чередом.
-const EXPIRY_RETRY: Duration = Duration::from_secs(15 * 60);
-const EXPIRY_RETRY_MAX: Duration = Duration::from_secs(5 * 60 * 60);
+/// clod: провал загрузки по расписанию повторяется с бэкоффом от вот столького
+/// до `FAILURE_RETRY_MAX`, но не позже обычного тика (как у WorkManager на
+/// Android), а не через весь интервал подписки: разовый провал — сеть ещё не
+/// поднялась после сна или старта, панель мигнула — иначе стоил бы суток. Цель
+/// «загрузить после срока» стоит без сдачи, пока загрузка после срока не удастся.
+const FAILURE_RETRY: Duration = Duration::from_secs(15 * 60);
+const FAILURE_RETRY_MAX: Duration = Duration::from_secs(5 * 60 * 60);
 /// Через сколько повторить задачу, которая не дошла до проверки, и сколько раз подряд.
 const RETRY_SOON: Duration = Duration::from_secs(5 * 60);
 const RETRIES_SOON_MAX: u32 = 3;
@@ -54,15 +54,30 @@ const MAX_ARM: Duration = Duration::from_secs(24 * 60 * 60);
 
 enum TimerCommand {
     Apply(HashMap<String, TaskSchedule>),
-    /// Задача отработала; `retry_soon` — до проверки не дошла (профиль уже
-    /// обновлялся, применение занято): повторить скоро, не считая провалом.
+    /// Задача отработала — и чем кончилась.
     TaskFinished {
         uid: String,
-        retry_soon: bool,
+        ran: Ran,
     },
     /// Машина спала: таймеры tokio во сне не идут (Linux/macOS), цели
     /// пересчитываются по настенным часам.
     Rearm,
+    /// На когда взведена задача (настенное время) — для подсказки «следующее
+    /// обновление»; None — задачи нет или она сейчас бежит.
+    NextFire {
+        uid: String,
+        reply: tokio::sync::oneshot::Sender<Option<i64>>,
+    },
+}
+
+/// Чем кончился запуск задачи — от этого зависит, когда взводить её снова.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Ran {
+    Done,
+    Failed,
+    /// До проверки не дошло (профиль уже обновлялся, применение занято):
+    /// повторить скоро, не считая провалом.
+    NotReached,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -140,8 +155,8 @@ struct TaskState {
     interval_minutes: u64,
     expiry_fetch_at: Option<i64>,
     updated: Option<usize>,
-    /// Сколько раз загрузка после истечения уже не удалась.
-    expiry_failures: u32,
+    /// Сколько запусков подряд не удалось — степень бэкоффа повтора.
+    failures: u32,
     /// `key` взведён на потолок `MAX_ARM`, а не на саму цель.
     capped: bool,
     /// Когда началась бегущая загрузка (unix): загрузка, начатая до дедлайна и
@@ -161,7 +176,7 @@ impl TaskState {
             interval_minutes,
             expiry_fetch_at,
             updated,
-            expiry_failures: 0,
+            failures: 0,
             capped: false,
             started_at: None,
             retries_soon: 0,
@@ -172,14 +187,13 @@ impl TaskState {
 }
 
 /// Что известно о задаче снаружи планировщика — для сравнения «есть ли
-/// изменения» и для подсказки «следующее обновление».
+/// изменения».
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct TaskSlot {
     interval_minutes: u64,
     expiry_fetch_at: Option<i64>,
     /// Время последней загрузки: удачная загрузка (и ручная тоже) перевзводит
-    /// очередь от себя — ровно то, что подсказка «следующее обновление» и
-    /// показывает; провал `updated` не двигает, и очередь стоит как стояла.
+    /// очередь от себя; провал `updated` не двигает.
     updated: Option<usize>,
 }
 
@@ -342,11 +356,14 @@ impl Timer {
                         Some(TimerCommand::Apply(new_map)) => {
                             Self::apply_timer_map(&mut queue, &mut tasks, new_map);
                         }
-                        Some(TimerCommand::TaskFinished { uid, retry_soon }) => {
-                            Self::finish_task(&mut queue, &mut tasks, uid, retry_soon);
+                        Some(TimerCommand::TaskFinished { uid, ran }) => {
+                            Self::finish_task(&mut queue, &mut tasks, uid, ran);
                         }
                         Some(TimerCommand::Rearm) => {
                             Self::rearm_all(&mut queue, &mut tasks, now_unix());
+                        }
+                        Some(TimerCommand::NextFire { uid, reply }) => {
+                            let _ = reply.send(tasks.get(&uid).and_then(|state| state.fires_at));
                         }
                         None => break,
                     }
@@ -395,10 +412,14 @@ impl Timer {
                 || state.expiry_fetch_at != schedule.expiry_fetch_at
                 || state.updated != schedule.updated;
             state.interval_minutes = schedule.interval_minutes;
+            if !state.running && state.updated != schedule.updated {
+                // Загрузка удалась мимо расписания (кнопкой): серия провалов кончилась.
+                state.failures = 0;
+            }
             state.updated = schedule.updated;
             if state.expiry_fetch_at != schedule.expiry_fetch_at {
                 state.expiry_fetch_at = schedule.expiry_fetch_at;
-                state.expiry_failures = 0;
+                state.failures = 0;
             }
             if changed {
                 Self::update_task(queue, &uid, state, &schedule);
@@ -504,14 +525,7 @@ impl Timer {
             return;
         }
         state.started_at = Some(now);
-
-        // Повтор после провала — о нём не шумим (см. `UpdateTrigger`).
-        let trigger = if state.expiry_failures > 0 {
-            feat::UpdateTrigger::ScheduledRetry
-        } else {
-            feat::UpdateTrigger::Scheduled
-        };
-        Self::spawn_update_task(uid, trigger, command_tx);
+        Self::spawn_update_task(uid, command_tx);
     }
 
     fn mark_task_running(state: &mut TaskState, uid: &str) -> bool {
@@ -526,35 +540,39 @@ impl Timer {
 
     /// Через сколько взводить задачу после отработавшей загрузки.
     ///
-    /// Регулярная часть — полный интервал. Часть истечения: цель ещё впереди
-    /// (продление сдвинуло срок) — до неё; цель позади и всё ещё стоит, а
-    /// загрузка началась до неё (обычный тик, растянувшийся через дедлайн) —
-    /// сразу; иначе загрузка после истечения не удалась (удачная снимает цель
-    /// через `refresh()` до этого вызова): повтор с бэкоффом. None — задаче
-    /// нечего ждать.
-    fn delay_after_finish(state: &mut TaskState, now: i64) -> Option<Duration> {
-        let regular = (state.interval_minutes > 0).then(|| Self::interval_duration(state.interval_minutes));
+    /// Регулярная часть — полный интервал; пока идёт серия провалов — ещё и
+    /// повтор с бэкоффом.
+    /// Часть истечения: цель ещё впереди (продление сдвинуло срок) — до неё; цель
+    /// позади и всё ещё стоит, а загрузка началась до неё (обычный тик,
+    /// растянувшийся через дедлайн) — сразу; иначе загрузка после истечения не
+    /// удалась (удачная снимает цель через `refresh()` до этого вызова) — тот же
+    /// повтор с бэкоффом. Берётся ближайшее; None — задаче нечего ждать.
+    fn delay_after_finish(state: &mut TaskState, now: i64, ran: Ran) -> Option<Duration> {
         let started_at = state.started_at.take().unwrap_or(now);
+        match ran {
+            Ran::Done => state.failures = 0,
+            Ran::Failed => state.failures = state.failures.saturating_add(1),
+            Ran::NotReached => {}
+        }
+        let backoff = FAILURE_RETRY
+            .saturating_mul(1u32 << state.failures.saturating_sub(1).min(16))
+            .min(FAILURE_RETRY_MAX);
+
+        let regular = (state.interval_minutes > 0).then(|| Self::interval_duration(state.interval_minutes));
+        let retry = (state.failures > 0).then_some(backoff);
         let expiry = state.expiry_fetch_at.map(|at| {
             if at > now {
-                return Duration::from_secs((at - now) as u64);
+                Duration::from_secs((at - now) as u64)
+            } else if started_at < at {
+                Duration::ZERO
+            } else {
+                backoff
             }
-            if started_at < at {
-                return Duration::ZERO;
-            }
-            let backoff = EXPIRY_RETRY.saturating_mul(1u32 << state.expiry_failures.min(16));
-            state.expiry_failures = state.expiry_failures.saturating_add(1);
-            backoff.min(EXPIRY_RETRY_MAX)
         });
-        regular.into_iter().chain(expiry).min()
+        regular.into_iter().chain(retry).chain(expiry).min()
     }
 
-    fn finish_task(
-        queue: &mut DelayQueue<String>,
-        tasks: &mut HashMap<String, TaskState>,
-        uid: String,
-        retry_soon: bool,
-    ) {
+    fn finish_task(queue: &mut DelayQueue<String>, tasks: &mut HashMap<String, TaskState>, uid: String, ran: Ran) {
         let Some(state) = tasks.get_mut(&uid) else {
             return;
         };
@@ -571,7 +589,7 @@ impl Timer {
             return;
         }
 
-        if retry_soon && state.retries_soon < RETRIES_SOON_MAX {
+        if ran == Ran::NotReached && state.retries_soon < RETRIES_SOON_MAX {
             // До проверки не дошло (профиль уже обновлялся, применение занято) —
             // это не провал: цели и счёт неудач не трогаем, повторяем скоро. Но не
             // без конца: если занято раз за разом, дальше по обычному расписанию.
@@ -582,7 +600,7 @@ impl Timer {
         }
         state.retries_soon = 0;
 
-        match Self::delay_after_finish(state, now_unix()) {
+        match Self::delay_after_finish(state, now_unix(), ran) {
             Some(delay) => Self::arm(queue, &uid, state, delay),
             None => {
                 tasks.remove(&uid);
@@ -596,12 +614,16 @@ impl Timer {
         }
     }
 
-    fn spawn_update_task(uid: String, trigger: feat::UpdateTrigger, command_tx: mpsc::UnboundedSender<TimerCommand>) {
-        logging!(info, Type::Timer, "Starting timer task: uid={} ({trigger:?})", uid);
+    fn spawn_update_task(uid: String, command_tx: mpsc::UnboundedSender<TimerCommand>) {
+        logging!(info, Type::Timer, "Starting timer task: uid={}", uid);
         AsyncHandler::spawn(move || async move {
             Self::wait_until_resolve_done(Duration::from_millis(5000)).await;
-            let retry_soon = Box::pin(Self::async_task(&uid, trigger)).await;
-            let _ = command_tx.send(TimerCommand::TaskFinished { uid, retry_soon });
+            let ran = Box::pin(Self::async_task(&uid)).await;
+            // Сначала перевзвод, потом весть окну: подсказка «следующее
+            // обновление», запрошенная по этой вести, встаёт в ту же очередь
+            // команд позади него и видит новый срок.
+            let _ = command_tx.send(TimerCommand::TaskFinished { uid: uid.clone(), ran });
+            Self::emit_update_event(&uid, false);
         });
     }
 
@@ -609,20 +631,16 @@ impl Timer {
         Duration::from_secs(interval_minutes.saturating_mul(60))
     }
 
+    /// Когда задача сработает на самом деле — со всеми повторами после провала,
+    /// «занято» и целью по сроку: планировщик отвечает тем, на что взвёл её сам.
     pub async fn get_next_update_time(&self, uid: &str) -> Option<i64> {
         logging!(debug, Type::Timer, "Getting next update time, uid={}", uid);
 
-        let slot = *self.timer_map.read().get(uid)?;
-        let profiles = Config::profiles().await;
-        let profiles_guard = profiles.latest_arc();
-        let items = profiles_guard.get_items()?;
-
-        let profile = items.iter().find(|item| item.uid.as_deref() == Some(uid))?;
-        let updated = profile.updated.unwrap_or(0) as i64;
-
-        let regular = (slot.interval_minutes > 0 && updated > 0).then(|| updated + (slot.interval_minutes as i64 * 60));
-        let expiry = slot.expiry_fetch_at.filter(|at| *at > now_unix());
-        regular.into_iter().chain(expiry).min()
+        let (reply, answer) = tokio::sync::oneshot::channel();
+        self.command_tx
+            .send(TimerCommand::NextFire { uid: uid.into(), reply })
+            .ok()?;
+        answer.await.ok().flatten()
     }
 
     fn emit_update_event(uid: &String, is_start: bool) {
@@ -633,8 +651,7 @@ impl Timer {
         }
     }
 
-    /// `true` — повторить скоро (см. `TimerCommand::TaskFinished`).
-    async fn async_task(uid: &String, trigger: feat::UpdateTrigger) -> bool {
+    async fn async_task(uid: &String) -> Ran {
         let task_start = std::time::Instant::now();
         logging!(debug, Type::Timer, "Running timer task for profile: {}", uid);
 
@@ -647,35 +664,39 @@ impl Timer {
 
         let result = Box::pin(async {
             Self::emit_update_event(uid, true);
-            Box::pin(feat::update_profile(uid, None, false, trigger)).await
+            Box::pin(feat::update_profile(uid, None, false, feat::UpdateTrigger::Scheduled)).await
         })
         .await;
 
-        let retry_soon = match result {
-            Ok(outcome) => {
-                logging!(
-                    info,
-                    Type::Timer,
-                    "Timer task completed for uid: {} ({outcome:?}, took {}ms)",
-                    uid,
-                    task_start.elapsed().as_millis()
-                );
-                outcome == feat::UpdateOutcome::RetrySoon
-            }
-            Err(e) => {
-                logging_error!(
-                    Type::Timer,
-                    "Failed to update profile uid {}: {} (took {}ms)",
-                    uid,
-                    e,
-                    task_start.elapsed().as_millis()
-                );
-                false
-            }
-        };
+        match &result {
+            Ok(outcome) => logging!(
+                info,
+                Type::Timer,
+                "Timer task completed for uid: {} ({outcome:?}, took {}ms)",
+                uid,
+                task_start.elapsed().as_millis()
+            ),
+            Err(e) => logging_error!(
+                Type::Timer,
+                "Failed to update profile uid {}: {} (took {}ms)",
+                uid,
+                e,
+                task_start.elapsed().as_millis()
+            ),
+        }
+        Self::ran(&result)
+    }
 
-        Self::emit_update_event(uid, false);
-        retry_soon
+    /// Отказ ядра — не провал для расписания: повтор получил бы тот же ответ
+    /// (см. `feat::RefusedByTheCore`), ждём обычного срока. Бэкофф — сбоям,
+    /// которые проходят сами: сеть, панель, прибитая проверка, молчащее ядро.
+    fn ran(result: &Result<feat::UpdateOutcome>) -> Ran {
+        match result {
+            Ok(feat::UpdateOutcome::RetrySoon) => Ran::NotReached,
+            Ok(feat::UpdateOutcome::Done) => Ran::Done,
+            Err(e) if e.is::<feat::RefusedByTheCore>() => Ran::Done,
+            Err(_) => Ran::Failed,
+        }
     }
 
     async fn wait_until_resolve_done(max_wait: Duration) {
@@ -692,7 +713,7 @@ impl Timer {
 #[cfg(test)]
 mod tests {
     use super::{
-        EXPIRY_GRACE, EXPIRY_RETRY, EXPIRY_RETRY_MAX, EXPIRY_SLACK, MAX_ARM, RETRIES_SOON_MAX, RETRY_SOON,
+        EXPIRY_GRACE, EXPIRY_SLACK, FAILURE_RETRY, FAILURE_RETRY_MAX, MAX_ARM, RETRIES_SOON_MAX, RETRY_SOON, Ran,
         TaskSchedule, TaskState, Timer, expiry_fetch_at,
     };
     use crate::config::{PrfExtra, PrfItem, PrfOption};
@@ -923,10 +944,10 @@ mod tests {
         map.insert(uid.clone(), TaskSchedule::new(HOUR * 24, None, now, Some(now - 10)));
         Timer::apply_timer_map(&mut queue, &mut tasks, map);
         pretend_running(&mut queue, &mut tasks, &uid);
-        Timer::finish_task(&mut queue, &mut tasks, uid.clone(), false);
+        Timer::finish_task(&mut queue, &mut tasks, uid.clone(), Ran::Failed);
         assert_eq!(
             tasks.get(&uid).and_then(|state| queued_delay(&queue, state)),
-            Some(EXPIRY_RETRY)
+            Some(FAILURE_RETRY)
         );
 
         // Удачная загрузка сняла цель (refresh → Apply) до TaskFinished: полный интервал.
@@ -934,10 +955,105 @@ mod tests {
         map.insert(uid.clone(), TaskSchedule::new(HOUR * 24, Some(now as usize), now, None));
         Timer::apply_timer_map(&mut queue, &mut tasks, map);
         pretend_running(&mut queue, &mut tasks, &uid);
-        Timer::finish_task(&mut queue, &mut tasks, uid.clone(), false);
+        Timer::finish_task(&mut queue, &mut tasks, uid.clone(), Ran::Done);
         assert_eq!(
             tasks.get(&uid).and_then(|state| queued_delay(&queue, state)),
             Some(Duration::from_secs(24 * 3600))
+        );
+    }
+
+    #[tokio::test]
+    async fn a_failed_regular_fetch_is_retried_with_backoff_within_the_interval() {
+        let mut queue = DelayQueue::new();
+        let mut tasks = HashMap::new();
+        let uid = String::from("uid");
+        let now = super::now_unix();
+
+        // Провал обычного тика (сеть не поднялась после сна, панель мигнула) не
+        // стоит суток: повтор через 15, 30, 60… минут, но не позже самого тика.
+        let mut map = HashMap::new();
+        map.insert(uid.clone(), TaskSchedule::new(HOUR * 3, Some(now as usize), now, None));
+        Timer::apply_timer_map(&mut queue, &mut tasks, map);
+        let expected = [15, 30, 60, 120, 180, 180].map(|minutes| Duration::from_secs(minutes * 60));
+        for (attempt, delay) in expected.into_iter().enumerate() {
+            pretend_running(&mut queue, &mut tasks, &uid);
+            Timer::finish_task(&mut queue, &mut tasks, uid.clone(), Ran::Failed);
+            assert_eq!(
+                tasks.get(&uid).and_then(|state| queued_delay(&queue, state)),
+                Some(delay),
+                "attempt {attempt}"
+            );
+        }
+
+        // Удача обнуляет счёт: следующий тик — через полный интервал, а новый
+        // провал снова повторяется через 15 минут.
+        pretend_running(&mut queue, &mut tasks, &uid);
+        Timer::finish_task(&mut queue, &mut tasks, uid.clone(), Ran::Done);
+        assert_eq!(
+            tasks.get(&uid).and_then(|state| queued_delay(&queue, state)),
+            Some(Duration::from_secs(3 * 3600))
+        );
+        pretend_running(&mut queue, &mut tasks, &uid);
+        Timer::finish_task(&mut queue, &mut tasks, uid.clone(), Ran::Failed);
+        assert_eq!(
+            tasks.get(&uid).and_then(|state| queued_delay(&queue, state)),
+            Some(FAILURE_RETRY)
+        );
+        // Подсказка «следующее обновление» берёт этот же срок, а не полный интервал.
+        let fires_at = tasks.get(&uid).and_then(|state| state.fires_at).unwrap_or_default();
+        assert!((fires_at - super::now_unix() - FAILURE_RETRY.as_secs() as i64).abs() <= 1);
+    }
+
+    #[test]
+    fn a_refusal_by_the_core_waits_for_the_interval_and_a_glitch_is_retried() {
+        use crate::feat::{RefusedByTheCore, UpdateOutcome};
+        assert_eq!(Timer::ran(&Ok(UpdateOutcome::Done)), Ran::Done);
+        assert_eq!(Timer::ran(&Ok(UpdateOutcome::RetrySoon)), Ran::NotReached);
+        assert_eq!(
+            Timer::ran(&Err(RefusedByTheCore("invalid config".into()).into())),
+            Ran::Done
+        );
+        assert_eq!(Timer::ran(&Err(anyhow::anyhow!("dns lookup failed"))), Ran::Failed);
+    }
+
+    #[tokio::test]
+    async fn a_failure_series_survives_a_busy_run_and_ends_with_a_manual_success() {
+        let mut queue = DelayQueue::new();
+        let mut tasks = HashMap::new();
+        let uid = String::from("uid");
+        let now = super::now_unix();
+
+        let mut map = HashMap::new();
+        map.insert(uid.clone(), TaskSchedule::new(HOUR * 24, Some(now as usize), now, None));
+        Timer::apply_timer_map(&mut queue, &mut tasks, map);
+        for _ in 0..2 {
+            pretend_running(&mut queue, &mut tasks, &uid);
+            Timer::finish_task(&mut queue, &mut tasks, uid.clone(), Ran::Failed);
+        }
+
+        // «Занято» раз за разом посреди серии провалов — повтор серии, а не сутки.
+        for _ in 0..=RETRIES_SOON_MAX {
+            pretend_running(&mut queue, &mut tasks, &uid);
+            Timer::finish_task(&mut queue, &mut tasks, uid.clone(), Ran::NotReached);
+        }
+        assert_eq!(
+            tasks.get(&uid).and_then(|state| queued_delay(&queue, state)),
+            Some(FAILURE_RETRY * 2)
+        );
+
+        // Кнопка обновила подписку — серия кончилась: новый провал снова через 15 минут.
+        let mut map = HashMap::new();
+        map.insert(
+            uid.clone(),
+            TaskSchedule::new(HOUR * 24, Some((now + 1) as usize), now, None),
+        );
+        Timer::apply_timer_map(&mut queue, &mut tasks, map);
+        assert_eq!(tasks.get(&uid).map(|state| state.failures), Some(0));
+        pretend_running(&mut queue, &mut tasks, &uid);
+        Timer::finish_task(&mut queue, &mut tasks, uid.clone(), Ran::Failed);
+        assert_eq!(
+            tasks.get(&uid).and_then(|state| queued_delay(&queue, state)),
+            Some(FAILURE_RETRY)
         );
     }
 
@@ -955,20 +1071,20 @@ mod tests {
         Timer::apply_timer_map(&mut queue, &mut tasks, map);
         for _ in 0..RETRIES_SOON_MAX {
             pretend_running(&mut queue, &mut tasks, &uid);
-            Timer::finish_task(&mut queue, &mut tasks, uid.clone(), true);
+            Timer::finish_task(&mut queue, &mut tasks, uid.clone(), Ran::NotReached);
             assert_eq!(
                 tasks.get(&uid).and_then(|state| queued_delay(&queue, state)),
                 Some(RETRY_SOON)
             );
-            assert_eq!(tasks.get(&uid).map(|state| state.expiry_failures), Some(0));
+            assert_eq!(tasks.get(&uid).map(|state| state.failures), Some(0));
         }
 
         // Занято раз за разом — дальше по обычному расписанию истечения.
         pretend_running(&mut queue, &mut tasks, &uid);
-        Timer::finish_task(&mut queue, &mut tasks, uid.clone(), true);
+        Timer::finish_task(&mut queue, &mut tasks, uid.clone(), Ran::NotReached);
         assert_eq!(
             tasks.get(&uid).and_then(|state| queued_delay(&queue, state)),
-            Some(EXPIRY_RETRY)
+            Some(FAILURE_RETRY)
         );
         assert_eq!(tasks.get(&uid).map(|state| state.retries_soon), Some(0));
     }
@@ -986,22 +1102,22 @@ mod tests {
         let expected = [15, 30, 60, 120, 240, 300, 300, 300].map(|minutes| Duration::from_secs(minutes * 60));
         for (attempt, delay) in expected.into_iter().enumerate() {
             pretend_running(&mut queue, &mut tasks, &uid);
-            Timer::finish_task(&mut queue, &mut tasks, uid.clone(), false);
+            Timer::finish_task(&mut queue, &mut tasks, uid.clone(), Ran::Failed);
             assert_eq!(
                 tasks.get(&uid).and_then(|state| queued_delay(&queue, state)),
                 Some(delay),
                 "attempt {attempt}"
             );
         }
-        assert_eq!(expected[5], EXPIRY_RETRY_MAX);
-        assert_eq!(expected[0], EXPIRY_RETRY);
+        assert_eq!(expected[5], FAILURE_RETRY_MAX);
+        assert_eq!(expected[0], FAILURE_RETRY);
 
         // Обычный интервал короче бэкоффа — ждём его.
         let mut map = HashMap::new();
         map.insert(uid.clone(), TaskSchedule::new(HOUR, None, now, Some(now - 10)));
         Timer::apply_timer_map(&mut queue, &mut tasks, map);
         pretend_running(&mut queue, &mut tasks, &uid);
-        Timer::finish_task(&mut queue, &mut tasks, uid.clone(), false);
+        Timer::finish_task(&mut queue, &mut tasks, uid.clone(), Ran::Failed);
         assert_eq!(
             tasks.get(&uid).and_then(|state| queued_delay(&queue, state)),
             Some(Duration::from_secs(3600))
@@ -1014,7 +1130,7 @@ mod tests {
             TaskSchedule::new(HOUR * 24, Some(now as usize), now, Some(now + 60)),
         );
         Timer::apply_timer_map(&mut queue, &mut tasks, map);
-        assert_eq!(tasks.get(&uid).map(|state| state.expiry_failures), Some(0));
+        assert_eq!(tasks.get(&uid).map(|state| state.failures), Some(0));
     }
 
     #[tokio::test]
@@ -1031,12 +1147,12 @@ mod tests {
         );
         Timer::apply_timer_map(&mut queue, &mut tasks, map);
         pretend_running_since(&mut queue, &mut tasks, &uid, now - 60);
-        Timer::finish_task(&mut queue, &mut tasks, uid.clone(), false);
+        Timer::finish_task(&mut queue, &mut tasks, uid.clone(), Ran::Done);
         assert_eq!(
             tasks.get(&uid).and_then(|state| queued_delay(&queue, state)),
             Some(Duration::ZERO)
         );
-        assert_eq!(tasks.get(&uid).map(|state| state.expiry_failures), Some(0));
+        assert_eq!(tasks.get(&uid).map(|state| state.failures), Some(0));
     }
 
     #[tokio::test]
@@ -1081,7 +1197,7 @@ mod tests {
         pretend_running(&mut queue, &mut tasks, &uid);
         // refresh() после удачи выкидывает подписку из карты целиком.
         Timer::apply_timer_map(&mut queue, &mut tasks, HashMap::new());
-        Timer::finish_task(&mut queue, &mut tasks, uid.clone(), false);
+        Timer::finish_task(&mut queue, &mut tasks, uid.clone(), Ran::Done);
         assert!(!tasks.contains_key(&uid));
         assert_eq!(queue.len(), 0);
     }
@@ -1185,7 +1301,7 @@ mod tests {
         Timer::apply_timer_map(&mut queue, &mut tasks, HashMap::new());
         assert!(tasks.get(&uid).is_some_and(|state| state.retired));
 
-        Timer::finish_task(&mut queue, &mut tasks, uid.clone(), false);
+        Timer::finish_task(&mut queue, &mut tasks, uid.clone(), Ran::Done);
         assert!(!tasks.contains_key(&uid));
     }
 
@@ -1215,7 +1331,7 @@ mod tests {
                 .is_some_and(|state| state.running && !state.retired && state.key.is_none())
         );
 
-        Timer::finish_task(&mut queue, &mut tasks, uid.clone(), false);
+        Timer::finish_task(&mut queue, &mut tasks, uid.clone(), Ran::Done);
         assert!(
             tasks
                 .get(&uid)

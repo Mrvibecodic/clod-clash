@@ -197,6 +197,9 @@ clod-theme: accent=#2E7CF6; mode=dark; background=https://cdn.provider.example/b
 **Update interval.** The interval from `profile-update-interval` is applied on every subscription
 update unless the user set their own. If it arrived when the subscription was added, the "Update
 Interval" field in its properties is locked with an explanation. `0` turns auto-update off.
+A failed scheduled update is retried after 15 minutes, then with pauses that double, but never
+longer than the interval or 5 hours. If the core rejects the config the panel sent, the next attempt
+comes at the regular time.
 If the panel has never sent an interval and the user set none, the subscription is not updated on
 a schedule. If the panel stops sending the header, the last interval it sent stays in force and
 the field becomes editable again; to stop auto-updates send `profile-update-interval: 0`.
