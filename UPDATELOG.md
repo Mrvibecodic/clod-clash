@@ -8,6 +8,58 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.1.11-alpha.4
+
+<!-- lang:en -->
+
+### Added
+
+- Second built-in core: Clod Core (our Mihomo fork with patches) next to stock Mihomo; both are in the "Clash core" window
+- The core "Update" button asks the core itself to upgrade, each from its own source (Mihomo from MetaCubeX, Clod Core from clod-core releases)
+- MIPS TUN stack in the "TUN mode" dialog and from the subscription template
+- A subscription is reloaded shortly after its expiry date from the panel, so stubs or a renewal show up at once; a failed reload is retried from 15 min up to 5 h
+
+### Changed
+
+- "Auto" TUN stack without a stack in the subscription now means gVisor; an unknown stack value in the template is dropped instead of breaking the profile
+- Picking a core turns the managed core off, so the chosen core always runs
+- The core "Update" button works under the service always, and without the service only where the core folder is writable and not on Windows; otherwise it shows a hint
+- The "Clod" channel of the managed core is removed (replaced by the built-in Clod Core)
+- New installs no longer store the default connection method as a user choice, so `clod-connect-mode` from the subscription applies
+- Simpler README and documentation, Clod Core described
+
+### Fixed
+
+- The support report names the running core (Mihomo / Clod Core), says "not running" when it is stopped and counts the connection method the same way as the button
+- Subscription update queue is re-armed by the wall clock after sleep
+- The "General" group hint no longer promises notifications
+
+<!-- lang:ru -->
+
+### Добавлено
+
+- Второе встроенное ядро — Clod Core (наш форк Mihomo с патчами) рядом со стоковым Mihomo; оба в окне «Ядро Clash»
+- Кнопка «Обновить» у ядра просит само ядро обновиться, каждое из своего источника (Mihomo — MetaCubeX, Clod Core — релизы clod-core)
+- Стек TUN MIPS в диалоге «Режим TUN» и из шаблона подписки
+- Подписка загружается заново вскоре после истечения срока из панели — заглушки или продление видны сразу; неудача повторяется с паузой от 15 мин до 5 ч
+
+### Изменено
+
+- «Авто» без стека в подписке теперь означает gVisor; незнакомый стек в шаблоне отбрасывается, а не ломает профиль
+- Выбор ядра выключает управляемое ядро — выбранное запускается всегда
+- Кнопка «Обновить» у ядра работает под службой всегда, без службы — только если папка ядра доступна на запись и не на Windows; иначе показывает подсказку
+- Канал «Clod» у управляемого ядра убран (его заменило встроенное Clod Core)
+- Новые установки не записывают способ подключения по умолчанию как выбор пользователя — `clod-connect-mode` из подписки действует
+- Проще README и документация, описано Clod Core
+
+### Исправлено
+
+- Отчёт для поддержки называет работающее ядро (Mihomo / Clod Core), при остановленном пишет «не запущено» и считает способ подключения так же, как кнопка
+- Очередь обновления подписок после сна перевзводится по настенным часам
+- Подсказка группы «Основные» больше не обещает уведомления
+
+---
+
 ## v0.1.11-alpha.3
 
 <!-- lang:en -->
