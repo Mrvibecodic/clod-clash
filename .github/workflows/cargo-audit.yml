@@ -10,7 +10,8 @@ on:
       - 'Cargo.lock'
       - 'src-tauri/Cargo.toml'
       - '.cargo/audit.toml'
-      - 'scripts/audit-guard.py'
+      - '.github/workflows/release-clod.yml'
+      - 'src-tauri/tauri*.conf.json'
       - 'pnpm-lock.yaml'
       - 'package.json'
       - '.github/workflows/cargo-audit.yml'
@@ -19,7 +20,8 @@ on:
       - 'Cargo.lock'
       - 'src-tauri/Cargo.toml'
       - '.cargo/audit.toml'
-      - 'scripts/audit-guard.py'
+      - '.github/workflows/release-clod.yml'
+      - 'src-tauri/tauri*.conf.json'
       - 'pnpm-lock.yaml'
       - 'package.json'
       - '.github/workflows/cargo-audit.yml'
@@ -37,8 +39,40 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v7
 
-      - name: Guard h2 On The Release Path
-        run: python3 scripts/audit-guard.py
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@fa04a1451ff1842e2626ccb99004d0195b455a88
+        with:
+          toolchain: '1.95.0'
+
+      # Заглушка в .cargo/audit.toml законна, только пока ringbuf не едет в
+      # релиз. Ответ даёт сам cargo: дерево сборки с фичами по умолчанию (так
+      # собирает release-clod.yml) для всех платформ.
+      - name: Guard The Ignored Advisory
+        shell: bash
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$1"; exit 1; }
+
+          expected=$'[advisories]\nignore = ["RUSTSEC-2026-0293"]'
+          actual=$(grep -vE '^[[:space:]]*(#|$)' .cargo/audit.toml)
+          [ "$actual" = "$expected" ] ||
+            fail ".cargo/audit.toml изменился — сторож проверяет не то, что заглушено: ${actual//$'\n'/; }"
+
+          grep -q '^name = "ringbuf"$' Cargo.lock ||
+            fail "ringbuf в Cargo.lock не осталось — ignore RUSTSEC-2026-0293 больше не нужен"
+
+          if grep -nE '^[[:space:]]*args:.*(--features|--all-features|--no-default-features|(^|[[:space:]])-f[[:space:]])' .github/workflows/release-clod.yml ||
+             grep -n '"features"' src-tauri/tauri*.conf.json; then
+            fail "релиз собирается не с фичами по умолчанию — дерево ниже проверяет не ту сборку"
+          fi
+
+          tree=$(cargo tree --locked -p clash-verge -e normal,build --target all --prefix none --format '{p}')
+          grep -q '^tauri v' <<<"$tree" || fail "cargo tree вернул пустое дерево"
+          if grep -q '^ringbuf v' <<<"$tree"; then
+            cargo tree --locked -p clash-verge -e normal,build --target all -i ringbuf
+            fail "ringbuf попал в релизную сборку — RUSTSEC-2026-0293 затрагивает не только dev"
+          fi
+          echo "ringbuf только в dev-сборке (фича tauri-dev), в релизном дереве его нет"
 
   audit:
     runs-on: ubuntu-22.04
