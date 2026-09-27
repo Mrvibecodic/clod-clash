@@ -111,6 +111,11 @@ fn read_pointer(name: &str) -> Option<String> {
     (!trimmed.is_empty()).then(|| trimmed.to_string())
 }
 
+/// Версия управляемого ядра по указателю — только если её файл на месте.
+fn downloaded_version(name: &str) -> Option<String> {
+    read_pointer(name).filter(|v| version_binary(v).is_ok_and(|p| p.is_file()))
+}
+
 fn write_pointer(name: &str, version: Option<&str>) -> Result<()> {
     let path = pointer_file(name)?;
     match version {
@@ -315,8 +320,8 @@ pub async fn running_core_version() -> Option<String> {
 pub async fn status() -> CoreUpdaterStatus {
     let verge = Config::verge().await.latest_arc();
     let enabled = verge.use_managed_core.unwrap_or(false);
-    let current = read_pointer("current").filter(|v| version_binary(v).map(|p| p.is_file()).unwrap_or(false));
-    let previous = read_pointer("previous").filter(|v| version_binary(v).map(|p| p.is_file()).unwrap_or(false));
+    let current = downloaded_version("current");
+    let previous = downloaded_version("previous");
     let service_mode = matches!(
         *CoreManager::global().get_running_mode(),
         crate::core::manager::RunningMode::Service
@@ -336,14 +341,29 @@ pub async fn status() -> CoreUpdaterStatus {
     }
 }
 
+fn runs_clod_core(started: Option<&StartedCore>) -> bool {
+    started.is_some_and(|s| s.managed.is_none() && s.core == "verge-mihomo-alpha")
+}
+
 pub async fn check_core_update() -> Result<CoreUpdateCheck> {
     let verge = Config::verge().await.latest_arc();
     let channel = configured_channel(&verge);
     let (os, arch) = target_os_arch()?;
     let release = fetch_release(&channel).await?;
     let (_, latest) = pick_asset(&release.assets, os, arch)?;
-    let current = running_core_version().await;
-    let update_available = current.as_deref().is_some_and(|v| v != latest.as_str());
+    // clod:core-choice — управляемое ядро только про стоковое Mihomo, а версия
+    // Clod Core (vX-clod.N) со стоковой не совпадёт никогда. Когда работает
+    // оно, сравниваем со скачанным управляемым ядром; не скачано — стоковое
+    // доступно к скачиванию.
+    let (current, update_available) = if runs_clod_core(started_core().as_ref()) {
+        let downloaded = downloaded_version("current");
+        let available = downloaded.as_deref() != Some(latest.as_str());
+        (downloaded, available)
+    } else {
+        let running = running_core_version().await;
+        let available = running.as_deref().is_some_and(|v| v != latest.as_str());
+        (running, available)
+    };
     Ok(CoreUpdateCheck {
         channel,
         current,
@@ -675,9 +695,7 @@ async fn apply_core_update() -> Result<CoreUpdateCheck> {
 pub async fn revert_core() -> Result<()> {
     let _guard = UpdateGuard::acquire()?;
 
-    let previous = read_pointer("previous")
-        .filter(|v| version_binary(v).map(|p| p.is_file()).unwrap_or(false))
-        .ok_or_else(|| anyhow!("no previous core version to revert to"))?;
+    let previous = downloaded_version("previous").ok_or_else(|| anyhow!("no previous core version to revert to"))?;
 
     swap_to_version(&previous).await
 }
@@ -890,5 +908,17 @@ mod tests {
     fn broken_archives_are_rejected() {
         assert!(unpack_binary("mihomo-linux-amd64-v1.gz", b"garbage").is_err());
         assert!(unpack_binary("mihomo-windows-amd64-v1.zip", b"garbage").is_err());
+    }
+
+    #[test]
+    fn only_the_bundled_clod_core_is_checked_against_the_download() {
+        let started = |core: &str, managed: Option<&str>| StartedCore {
+            core: core.into(),
+            managed: managed.map(Into::into),
+        };
+        assert!(runs_clod_core(Some(&started("verge-mihomo-alpha", None))));
+        assert!(!runs_clod_core(Some(&started("verge-mihomo", None))));
+        assert!(!runs_clod_core(Some(&started("verge-mihomo-alpha", Some("v1.19.31")))));
+        assert!(!runs_clod_core(None));
     }
 }
