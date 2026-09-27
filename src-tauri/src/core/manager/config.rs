@@ -66,16 +66,40 @@ impl CoreManager {
         self.try_start_config_update().then(|| ConfigUpdateGuard(self))
     }
 
+    /// То же, но подождать освобождения до `wait`: фоновой задаче «занято» значит
+    /// «чуть позже», а не «в другой раз».
+    async fn claim_config_update_within(&self, wait: std::time::Duration) -> Option<ConfigUpdateGuard<'_>> {
+        let deadline = tokio::time::Instant::now() + wait;
+        loop {
+            let released = self.config_update_done.notified();
+            if let Some(guard) = self.claim_config_update() {
+                return Some(guard);
+            }
+            if tokio::time::timeout_at(deadline, released).await.is_err() {
+                return self.claim_config_update();
+            }
+        }
+    }
+
     /// Собрать конфиг из переданных источников (кандидат вызывающего поверх
     /// принятого) и проверить его ядром. Признак применения берётся здесь и живёт
     /// до конца доставки.
     pub async fn stage_with(&self, sources: &Sources) -> Result<std::result::Result<Staged<'_>, ValidationOutcome>> {
+        self.stage_within(sources, std::time::Duration::ZERO).await
+    }
+
+    /// Как `stage_with`, но занятого признака применения ждёт до `wait`.
+    pub async fn stage_within(
+        &self,
+        sources: &Sources,
+        wait: std::time::Duration,
+    ) -> Result<std::result::Result<Staged<'_>, ValidationOutcome>> {
         if handle::Handle::global().is_exiting() {
             return Ok(Err(ValidationOutcome::Skipped {
                 reason: ValidationSkipReason::Exiting,
             }));
         }
-        let Some(guard) = self.claim_config_update() else {
+        let Some(guard) = self.claim_config_update_within(wait).await else {
             logging!(info, Type::Core, "Configuration update is already running");
             return Ok(Err(ValidationOutcome::Busy));
         };

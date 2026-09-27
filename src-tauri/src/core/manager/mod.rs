@@ -1,4 +1,5 @@
 mod config;
+pub use config::{Delivery, Staged};
 mod lifecycle;
 mod state;
 
@@ -108,6 +109,8 @@ pub struct CoreManager {
     #[cfg(target_os = "windows")]
     job_handle: ArcSwapOption<OwnedHandle>,
     config_update_in_progress: AtomicBool,
+    /// Будит тех, кто ждёт освобождения признака применения.
+    config_update_done: tokio::sync::Notify,
     /// Почему ядро нельзя запускать: собранный при старте приложения конфиг
     /// ядро отвергло (или собрать его не удалось), а принятого в слоте нет.
     /// Снимается первой же доставкой конфига, который ядро приняло.
@@ -173,6 +176,7 @@ impl Default for CoreManager {
             #[cfg(target_os = "windows")]
             job_handle: ArcSwapOption::new(None),
             config_update_in_progress: AtomicBool::new(false),
+            config_update_done: tokio::sync::Notify::new(),
             startup_refusal: ArcSwapOption::new(None),
             lifecycle_lock: tokio::sync::Mutex::new(()),
             handoff_watcher_generation: AtomicU64::new(0),
@@ -402,6 +406,7 @@ impl CoreManager {
 
     fn finish_config_update(&self) {
         self.config_update_in_progress.store(false, Ordering::Release);
+        self.config_update_done.notify_waiters();
     }
 
     /// Запретить старт ядра: конфиг при запуске приложения отвергнут ядром или не

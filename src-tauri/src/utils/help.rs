@@ -152,11 +152,21 @@ pub async fn write_atomic(path: &Path, contents: &[u8]) -> Result<()> {
         let _ = tokio::fs::set_permissions(&staging, std::fs::Permissions::from_mode(mode)).await;
     }
 
+    if let Err(err) = rename_into_place(&staging, path).await {
+        let _ = tokio::fs::remove_file(&staging).await;
+        return Err(err);
+    }
+    Ok(())
+}
+
+/// Переименовать с повторами: под антивирусом на Windows цель бывает занята
+/// на доли секунды. Существующая цель заменяется.
+pub async fn rename_into_place(from: &Path, to: &Path) -> Result<()> {
     let mut last_error = None;
     for attempt in 0..ATOMIC_RENAME_ATTEMPTS {
-        match tokio::fs::rename(&staging, path).await {
+        match tokio::fs::rename(from, to).await {
             Ok(()) => {
-                sync_parent_directory(path).await;
+                sync_parent_directory(to).await;
                 return Ok(());
             }
             Err(err) => {
@@ -168,9 +178,8 @@ pub async fn write_atomic(path: &Path, contents: &[u8]) -> Result<()> {
         }
     }
 
-    let _ = tokio::fs::remove_file(&staging).await;
     let last_error = last_error.unwrap_or_else(|| std::io::Error::other("rename was never attempted"));
-    Err(anyhow!(last_error)).with_context(|| format!("failed to move file into place \"{}\"", path.display()))
+    Err(anyhow!(last_error)).with_context(|| format!("failed to move file into place \"{}\"", to.display()))
 }
 
 fn is_staging_leftover(name: &str) -> bool {

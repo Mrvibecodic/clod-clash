@@ -343,48 +343,63 @@ impl IProfiles {
         Ok(())
     }
 
+    /// Имя файла подписки: записанное в реестре, иначе пришедшее с ответом, иначе `<uid>.yaml`.
+    pub fn file_name_for(&self, uid: &String, item: &PrfItem) -> Result<String> {
+        let each = self.get_item(uid)?;
+        Ok(each
+            .file
+            .clone()
+            .or_else(|| item.file.clone())
+            .unwrap_or_else(|| format!("{uid}.yaml").into()))
+    }
+
+    /// Слить в реестр обновлённый профиль — метаданные панели, настройки, отметку
+    /// времени. Содержимое файла сюда не относится: его приёмом (проверка ядром,
+    /// замена на диске) занимается вызывающий до этого слияния.
+    pub fn merge_updated_item(&mut self, uid: &String, item: &mut PrfItem) -> Result<()> {
+        if item.file_data.is_some() {
+            bail!("содержимое подписки принимается до слияния в реестр, а не вместе с ним");
+        }
+        let file = self.file_name_for(uid, item)?;
+        let Some(each) = self
+            .items
+            .as_mut()
+            .and_then(|items| items.iter_mut().find(|each| each.uid.as_ref() == Some(uid)))
+        else {
+            bail!("failed to find the profile item \"uid:{uid}\"");
+        };
+
+        each.extra = item.extra;
+        each.updated = item.updated;
+        each.home = item.home.to_owned();
+        // Интервал в свежем ответе — эхо значения, отправленного в запрос до
+        // загрузки; интервал панели приезжает в `panel_interval`. Эхо затёрло бы
+        // интервал, который человек поменял, пока шла загрузка.
+        if let Some(option) = item.option.as_mut() {
+            option.update_interval = None;
+        }
+        each.option = PrfOption::merge(each.option.as_ref(), item.option.as_ref());
+        each.merge_panel_meta(item);
+        each.file = Some(file);
+        Ok(())
+    }
+
+    /// Подменить файл профиля в реестре — для кандидата сборки, который проверяется
+    /// на файле-кандидате рядом с рабочим.
+    pub fn point_item_file_at(&mut self, uid: &String, file: String) -> Result<()> {
+        let Some(each) = self
+            .items
+            .as_mut()
+            .and_then(|items| items.iter_mut().find(|each| each.uid.as_ref() == Some(uid)))
+        else {
+            bail!("failed to find the profile item \"uid:{uid}\"");
+        };
+        each.file = Some(file);
+        Ok(())
+    }
+
     pub async fn update_item(&mut self, uid: &String, item: &mut PrfItem) -> Result<()> {
-        if self.items.is_none() {
-            self.items = Some(vec![]);
-        }
-
-        let _ = self.get_item(uid)?;
-
-        if let Some(items) = self.items.as_mut() {
-            let some_uid = Some(uid.clone());
-
-            for each in items.iter_mut() {
-                if each.uid == some_uid {
-                    each.extra = item.extra;
-                    each.updated = item.updated;
-                    each.home = item.home.to_owned();
-                    // Интервал в свежем ответе — эхо значения, отправленного в запрос до
-                    // загрузки; интервал панели приезжает в `panel_interval`. Эхо затёрло бы
-                    // интервал, который человек поменял, пока шла загрузка.
-                    if let Some(option) = item.option.as_mut() {
-                        option.update_interval = None;
-                    }
-                    each.option = PrfOption::merge(each.option.as_ref(), item.option.as_ref());
-                    each.merge_panel_meta(item);
-                    if let Some(file_data) = item.file_data.take() {
-                        let file = each.file.take();
-                        let file =
-                            file.unwrap_or_else(|| item.file.take().unwrap_or_else(|| format!("{}.yaml", uid).into()));
-
-                        each.file = Some(file.clone());
-
-                        let path = dirs::app_profiles_dir()?.join(file.as_str());
-
-                        help::write_atomic(&path, file_data.as_bytes())
-                            .await
-                            .with_context(|| format!("failed to write to file \"{file}\""))?;
-                    }
-
-                    break;
-                }
-            }
-        }
-
+        self.merge_updated_item(uid, item)?;
         self.save_file().await
     }
 
@@ -416,6 +431,9 @@ impl IProfiles {
         let mut pending = PendingProfileFiles::default();
 
         if let Some(file) = Self::take_item_file_by_uid(&mut items, Some(uid.as_str())) {
+            // Запасная копия и недоприёмный кандидат уходят вместе с файлом.
+            pending.push(format!("{file}.prev").into());
+            pending.push(format!("{file}.new").into());
             pending.push(file);
         }
         // clod:dns-per-profile — страница DNS этой подписки уходит вместе с ней.
@@ -681,77 +699,10 @@ pub async fn profiles_save_file_safe() -> Result<()> {
         .await
 }
 
-/// Слепок рабочего профиля: тот YAML, который лежал на диске до попытки обновления.
-///
-/// Обновление подписки пишет файл ещё до того, как ядро скажет, годится ли новый
-/// конфиг. Рантайм при отказе откатывается, а файл — нет, и после перезапуска
-/// приложения от рабочего профиля не оставалось ничего.
-///
-/// В слепке намеренно только содержимое файла. Отметку `updated` откат не трогает:
-/// понять, виновата ли в отказе ядра именно подписка, нельзя — ядро проверяет уже
-/// слитый конфиг вместе с пользовательскими цепочками merge/script/rules/groups и
-/// об одинаковой ошибке сообщает одинаково. Если бы откат возвращал и `updated`,
-/// посторонняя поломка заставляла бы качать подписку заново на каждом тике.
-/// Прочие поля (имя, выбранный узел, настройки) пользователь может править прямо во
-/// время загрузки, и откат их тоже не трогает.
-#[derive(Debug)]
-pub struct ProfileSnapshot {
-    uid: String,
-    file: String,
-    bytes: Vec<u8>,
-}
-
-pub async fn profiles_snapshot_item(uid: &String) -> Option<ProfileSnapshot> {
-    let item = Config::profiles().await.data_arc().get_item(uid).ok().cloned()?;
-
-    let file = item.file.as_ref()?;
-    let path = dirs::app_profiles_dir().ok()?.join(file.as_str());
-    let bytes = match tokio::fs::read(&path).await {
-        Ok(bytes) => bytes,
-        Err(err) => {
-            logging!(
-                warn,
-                Type::Config,
-                "Warning: [clod] не удалось снять слепок файла профиля {}: {}",
-                file,
-                err
-            );
-            return None;
-        }
-    };
-
-    Some(ProfileSnapshot {
-        uid: uid.clone(),
-        file: file.clone(),
-        bytes,
-    })
-}
-
-pub async fn profiles_restore_item(snapshot: ProfileSnapshot) -> Result<()> {
-    let ProfileSnapshot { uid, file, bytes } = snapshot;
-
-    // Профиль могли удалить, пока шла загрузка: возвращать его файл на диск нельзя,
-    // он остался бы сиротой.
-    let still_ours = Config::profiles()
-        .await
-        .data_arc()
-        .get_item(&uid)
-        .is_ok_and(|item| item.file.as_ref() == Some(&file));
-    if !still_ours {
-        bail!("the profile \"uid:{uid}\" is gone, nothing to restore");
-    }
-
-    let path = dirs::app_profiles_dir()?.join(file.as_str());
-    help::write_atomic(&path, &bytes)
-        .await
-        .with_context(|| format!("failed to restore the profile file \"{file}\""))
-}
-
 /// Пометить профиль как «скачано, но не применено» — или снять пометку.
 ///
-/// Ставится при откате после отказа ядра, снимается при удачном применении. Без
-/// неё карточка показывала бы свежую дату и новые счётчики над старым конфигом:
-/// отметку времени откат намеренно не трогает.
+/// Ставится, когда ядро отвергло скачанную подписку (файл на диске остался
+/// прежним) или не приняло доставку принятой; снимается при удачном применении.
 pub async fn profiles_mark_not_applied(uid: &String, not_applied: bool) -> Result<()> {
     profiles_set_mark(uid, not_applied, |item| &mut item.not_applied)
         .await
@@ -1986,7 +1937,14 @@ mod tests {
         assert!(!was_current, "удалили не текущую подписку");
         assert_eq!(
             pending.files(),
-            ["victim.yaml", "dns-victim.yaml", "merge.yaml", "script.js"],
+            [
+                "victim.yaml.prev",
+                "victim.yaml.new",
+                "victim.yaml",
+                "dns-victim.yaml",
+                "merge.yaml",
+                "script.js"
+            ],
             "страница DNS настроена под эту подписку и уходит вместе с ней"
         );
         assert_eq!(
@@ -2011,7 +1969,10 @@ mod tests {
         let (was_current, pending) = profiles.plan_delete_item(&"victim".into()).unwrap();
 
         assert!(was_current, "удалили текущую подписку — конфиг надо пересобрать");
-        assert_eq!(pending.files(), ["victim.yaml", "dns-victim.yaml"]);
+        assert_eq!(
+            pending.files(),
+            ["victim.yaml.prev", "victim.yaml.new", "victim.yaml", "dns-victim.yaml"]
+        );
         assert_eq!(
             profiles.current.as_deref(),
             Some("keeper"),

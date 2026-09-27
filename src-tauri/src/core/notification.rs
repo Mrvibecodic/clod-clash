@@ -398,7 +398,10 @@ mod tests {
     /// Статусы, которые код шлёт по имени константы, а не литералом: для теста
     /// покрытия использование константы — такая же отправка, как и литерал,
     /// иначе приведение последнего литерала к константе красит сборку.
-    const STATUS_CONSTANTS: &[(&str, &str)] = &[("EXIT_REFUSAL_STATUS", super::EXIT_REFUSAL_STATUS)];
+    const STATUS_CONSTANTS: &[(&str, &str)] = &[
+        ("EXIT_REFUSAL_STATUS", super::EXIT_REFUSAL_STATUS),
+        ("UPDATED_VIA_PROXY", crate::feat::UPDATED_VIA_PROXY),
+    ];
 
     fn statuses_in(source: &str) -> Vec<String> {
         let mut found = literals_after(source, "notice_message(");
