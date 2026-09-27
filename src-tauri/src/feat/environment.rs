@@ -20,6 +20,11 @@ static WAKE_REARM_PENDING: AtomicBool = AtomicBool::new(false);
 static LISTING_FAILED: AtomicBool = AtomicBool::new(false);
 static CLOCK_FAILED: AtomicBool = AtomicBool::new(false);
 static WAKE_REARM_SINCE: Mutex<Option<Instant>> = Mutex::new(None);
+/// clod:network-poke — толчок сторожу среды «сеть сменилась, не жди тика»:
+/// на macOS его даёт подписка на первичную сетевую службу системы.
+static NETWORK_POKE: tokio::sync::Notify = tokio::sync::Notify::const_new();
+/// Сколько дать сети устояться после толчка, прежде чем смотреть на неё.
+const NETWORK_POKE_SETTLE: Duration = Duration::from_secs(1);
 
 const SLEEP_SLACK: Duration = Duration::from_secs(20);
 
@@ -637,6 +642,51 @@ async fn rearm_the_tun_after_wake() {
     AsyncHandler::spawn(|| async { crate::feat::tun::rearm_after_wake().await });
 }
 
+/// Разбудить сторож среды сейчас: он снимет отпечаток сети и, что бы тот ни
+/// показал, переприменит системный прокси. На macOS прокси живёт у каждой
+/// сетевой службы своей записью, и смена первичной службы при тех же адресах
+/// отпечатка не меняет — потому толчок считается сменой сети сам по себе.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub fn poke_the_network() {
+    NETWORK_POKE.notify_one();
+}
+
+/// clod:УП-27 — на macOS подписаться на первичную сетевую службу системы
+/// (`State:/Network/Global/IPv4`): при входе в систему приложение поднимается
+/// раньше сети и запись прокси уходит в пустоту, а Wi-Fi → кабель оставляет
+/// прокси на прежней службе. Опрос раз в 15 с это чинил с опозданием; событие —
+/// сразу. Подписка живёт до конца процесса.
+#[cfg(target_os = "macos")]
+pub fn watch_the_primary_network_service() {
+    static MONITOR: Mutex<Option<sysproxy::NetworkServiceMonitor>> = Mutex::new(None);
+    match sysproxy::NetworkServiceMonitor::start(poke_the_network) {
+        Ok(monitor) => {
+            *MONITOR.lock() = Some(monitor);
+            logging!(
+                info,
+                Type::Core,
+                "[clod] watching the primary network service; the environment is reconciled on change"
+            );
+        }
+        Err(err) => logging!(
+            warn,
+            Type::Core,
+            "[clod] could not watch the primary network service, the 15 s tick stays the only watch: {err}"
+        ),
+    }
+}
+
+/// Ждать очередного тика или толчка; толчок — с паузой на устоявшуюся сеть.
+async fn tick_or_poke() -> bool {
+    tokio::select! {
+        () = tokio::time::sleep(timing::ENVIRONMENT_TICK) => false,
+        () = NETWORK_POKE.notified() => {
+            tokio::time::sleep(NETWORK_POKE_SETTLE).await;
+            true
+        }
+    }
+}
+
 pub fn spawn_environment_watchdog() {
     if handle::Handle::global().is_exiting() {
         return;
@@ -662,7 +712,7 @@ pub fn spawn_environment_watchdog() {
         let mut ticks: u32 = 0;
 
         loop {
-            tokio::time::sleep(timing::ENVIRONMENT_TICK).await;
+            let poked = tick_or_poke().await;
             ticks = ticks.wrapping_add(1);
             if handle::Handle::global().is_exiting() || WATCHDOG_GENERATION.load(Ordering::Acquire) != generation {
                 *stopped_on_purpose = true;
@@ -715,8 +765,9 @@ pub fn spawn_environment_watchdog() {
             };
             LISTING_FAILED.store(false, Ordering::Release);
 
-            let (network_changed, path_is_gone) = changes_from(last_network.as_ref(), &view);
-            if network_changed && let Some(before) = last_network.as_ref() {
+            let (fingerprint_changed, path_is_gone) = changes_from(last_network.as_ref(), &view);
+            let network_changed = fingerprint_changed || poked;
+            if fingerprint_changed && let Some(before) = last_network.as_ref() {
                 report_fingerprint_change(before, &view, verbose_diagnostics().await);
             }
             let view_carries_traffic = !view.is_empty();
@@ -727,6 +778,7 @@ pub fn spawn_environment_watchdog() {
             let reason = match (slept, network_changed) {
                 (true, true) => "woke up, network differs",
                 (true, false) => "woke up",
+                (false, true) if !fingerprint_changed => "the primary network service changed",
                 (false, true) => "network changed",
                 (false, false) => {
                     if rearm_is_now {
