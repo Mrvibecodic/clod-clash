@@ -15,12 +15,12 @@ use self::{
 };
 use crate::utils::dirs;
 use crate::{
-    config::{Config, IVerge, PrfItem, runtime::IRuntime},
+    config::{Config, IClashTemp, IProfiles, IVerge, PrfItem, runtime::IRuntime},
     constants,
     utils::tmpl,
 };
 use anyhow::{Context as _, Result};
-use clash_verge_draft::Draft;
+use clash_verge_draft::{Draft, SharedDraft};
 use clash_verge_logging::{Type, logging};
 use serde_yaml_ng::{Mapping, Value};
 use smartstring::alias::String;
@@ -128,6 +128,42 @@ fn ladder_tun_on(tun: &mut Mapping, app_tun: Mapping, overrides: &TunOverrides, 
     }
 }
 
+/// Из чего собирается конфиг ядра.
+///
+/// Сборка — функция от значений, а не от общих черновиков: по умолчанию это
+/// принятое состояние трёх слоёв, а вызывающий, который проверяет свою правку,
+/// подставляет свой кандидат. Чужая непроверенная правка в сборку попасть не может.
+pub struct Sources {
+    pub clash: SharedDraft<IClashTemp>,
+    pub verge: SharedDraft<IVerge>,
+    pub profiles: SharedDraft<IProfiles>,
+}
+
+impl Sources {
+    pub async fn accepted() -> Self {
+        Self {
+            clash: Config::clash().await.data_arc(),
+            verge: Config::verge().await.data_arc(),
+            profiles: Config::profiles().await.data_arc(),
+        }
+    }
+
+    pub fn with_clash(mut self, clash: SharedDraft<IClashTemp>) -> Self {
+        self.clash = clash;
+        self
+    }
+
+    pub fn with_verge(mut self, verge: SharedDraft<IVerge>) -> Self {
+        self.verge = verge;
+        self
+    }
+
+    pub fn with_profiles(mut self, profiles: SharedDraft<IProfiles>) -> Self {
+        self.profiles = profiles;
+        self
+    }
+}
+
 #[derive(Debug)]
 struct ConfigValues {
     clash_config: Mapping,
@@ -213,16 +249,10 @@ async fn chain_item_or_default(item: Option<&PrfItem>, default_item: impl FnOnce
     }
 }
 
-async fn get_config_values() -> ConfigValues {
-    let clash = Config::clash().await;
-    let clash_arc = clash.latest_arc();
-    let clash_config = clash_arc.0.clone();
-    drop(clash_arc);
-    drop(clash);
+fn get_config_values(sources: &Sources) -> ConfigValues {
+    let clash_config = sources.clash.0.clone();
 
-    let verge = Config::verge().await;
-
-    let verge_arc = verge.latest_arc();
+    let verge_arc = &sources.verge;
     let IVerge {
         ref enable_tun_mode,
         ref enable_builtin_enhanced,
@@ -234,7 +264,7 @@ async fn get_config_values() -> ConfigValues {
         ref tun_strict_route,
         ref tun_dns_hijack,
         ..
-    } = **verge_arc;
+    } = ***verge_arc;
 
     let tun_overrides = parse_tun_overrides(
         tun_stack.as_deref(),
@@ -264,9 +294,6 @@ async fn get_config_values() -> ConfigValues {
     #[cfg(target_os = "linux")]
     let tproxy_enabled = verge_arc.verge_tproxy_enabled.unwrap_or(false);
 
-    drop(verge_arc);
-    drop(verge);
-
     ConfigValues {
         clash_config,
         clash_core,
@@ -287,15 +314,10 @@ async fn get_config_values() -> ConfigValues {
 }
 
 #[allow(clippy::cognitive_complexity)]
-async fn collect_profile_items() -> Result<ProfileItems> {
-    let profiles = Config::profiles().await;
-    let profiles_arc = profiles.latest_arc();
-    drop(profiles);
-
+async fn collect_profile_items(profiles_arc: &IProfiles) -> Result<ProfileItems> {
     let current_profile_uid = match profiles_arc.get_current().cloned() {
         Some(uid) => uid,
         None => {
-            drop(profiles_arc);
             return Ok(ProfileItems::default());
         }
     };
@@ -380,8 +402,6 @@ async fn collect_profile_items() -> Result<ProfileItems> {
             data: ChainType::Script(tmpl::ITEM_SCRIPT.into()),
         },),
     );
-
-    drop(profiles_arc);
 
     Ok(ProfileItems {
         config: current,
@@ -895,7 +915,7 @@ fn subscription_or_app(subscription: &Mapping, key: &str, app_value: &Value) -> 
     subscription.get(key).cloned().unwrap_or_else(|| app_value.clone())
 }
 
-async fn merge_default_config(
+fn merge_default_config(
     mut config: Mapping,
     clash_config: Mapping,
     socks_enabled: bool,
@@ -969,21 +989,7 @@ async fn merge_default_config(
                     continue;
                 }
             }
-            if key.as_str() == Some("external-controller") {
-                let enable_external_controller = Config::verge()
-                    .await
-                    .latest_arc()
-                    .enable_external_controller
-                    .unwrap_or(false);
-
-                if enable_external_controller {
-                    config.insert(key, value);
-                } else {
-                    config.insert(key, "".into());
-                }
-            } else {
-                config.insert(key, value);
-            }
+            config.insert(key, value);
         }
     }
 
@@ -1749,10 +1755,12 @@ async fn apply_dns_settings(mut config: Mapping, enable_dns_settings: bool, prof
     (config, true)
 }
 
-pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, ResultLog>, SentinelReport)> {
-    let cfg_vals = get_config_values().await;
+pub async fn enhance(
+    sources: &Sources,
+) -> Result<(Mapping, HashSet<String>, HashMap<String, ResultLog>, SentinelReport)> {
+    let cfg_vals = get_config_values(sources);
     let ConfigValues {
-        clash_config,
+        mut clash_config,
         clash_core,
         enable_tun,
         enable_builtin,
@@ -1769,7 +1777,7 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
         tproxy_enabled,
     } = cfg_vals;
 
-    let profile = collect_profile_items().await?;
+    let profile = collect_profile_items(&sources.profiles).await?;
     let config = profile.config;
     let merge_item = profile.merge_item;
     let script_item = profile.script_item;
@@ -1797,6 +1805,14 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
     let mode = decide_mode(&config, mode_choice.as_deref());
     config.insert("mode".into(), mode);
 
+    // Внешний контроллер выключен настройкой — адрес из наших настроек ядру не
+    // отдаём; ключ в шаблоне Clash есть всегда, так что подписочный он перебьёт.
+    if !sources.verge.enable_external_controller.unwrap_or(false)
+        && let Some(address) = clash_config.get_mut("external-controller")
+    {
+        *address = "".into();
+    }
+
     let config = merge_default_config(
         config,
         clash_config,
@@ -1807,8 +1823,7 @@ pub async fn enhance() -> Result<(Mapping, HashSet<String>, HashMap<String, Resu
         redir_enabled,
         #[cfg(target_os = "linux")]
         tproxy_enabled,
-    )
-    .await;
+    );
 
     let config = apply_builtin_scripts(config, clash_core, enable_builtin).await;
     let (config, shaped_fake_ip) = use_tun(config, enable_tun);

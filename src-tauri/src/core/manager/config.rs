@@ -6,6 +6,7 @@ use crate::{
         handle,
         validate::{CoreConfigValidator, ValidationErrorKind, ValidationOutcome, ValidationSkipReason},
     },
+    enhance::Sources,
     utils::dirs,
 };
 use anyhow::{Result, anyhow};
@@ -65,9 +66,10 @@ impl CoreManager {
         self.try_start_config_update().then(|| ConfigUpdateGuard(self))
     }
 
-    /// Собрать конфиг из источников и проверить его ядром. Признак применения
-    /// берётся здесь и живёт до конца доставки.
-    pub async fn stage(&self) -> Result<std::result::Result<Staged<'_>, ValidationOutcome>> {
+    /// Собрать конфиг из переданных источников (кандидат вызывающего поверх
+    /// принятого) и проверить его ядром. Признак применения берётся здесь и живёт
+    /// до конца доставки.
+    pub async fn stage_with(&self, sources: &Sources) -> Result<std::result::Result<Staged<'_>, ValidationOutcome>> {
         if handle::Handle::global().is_exiting() {
             return Ok(Err(ValidationOutcome::Skipped {
                 reason: ValidationSkipReason::Exiting,
@@ -77,7 +79,7 @@ impl CoreManager {
             logging!(info, Type::Core, "Configuration update is already running");
             return Ok(Err(ValidationOutcome::Busy));
         };
-        let build = match Config::build().await {
+        let build = match Config::build(sources).await {
             Ok(build) => build,
             Err(err) => return Ok(Err(ValidationOutcome::invalid_from_message(err.to_string()))),
         };
@@ -108,19 +110,24 @@ impl CoreManager {
     }
 
     pub async fn update_config_forced(&self) -> Result<ValidationOutcome> {
-        self.update_config(true, false).await
+        self.update_config_forced_with(&Sources::accepted().await).await
+    }
+
+    /// Пересобрать из переданных источников и отдать ядру.
+    pub async fn update_config_forced_with(&self, sources: &Sources) -> Result<ValidationOutcome> {
+        self.update_config(sources, true, false).await
     }
 
     /// Применить обновлённую подписку. Если собранный конфиг совпал с тем, что уже
     /// работает, ядро не трогаем: перезагрузка стёрла бы историю задержек и
     /// заново проверила бы все авто-группы, ничего не поменяв.
     pub async fn update_config_with_force(&self, force: bool) -> Result<ValidationOutcome> {
-        self.update_config(force, true).await
+        self.update_config(&Sources::accepted().await, force, true).await
     }
 
-    /// Пересобрать из источников и отдать ядру перезапуском.
-    pub async fn update_config_restarting(&self) -> Result<()> {
-        let staged = match self.stage().await? {
+    /// Пересобрать из переданных источников и отдать ядру перезапуском.
+    pub async fn update_config_restarting_with(&self, sources: &Sources) -> Result<()> {
+        let staged = match self.stage_with(sources).await? {
             Ok(staged) => staged,
             Err(outcome) => return Err(anyhow!("{outcome}")),
         };
@@ -132,7 +139,7 @@ impl CoreManager {
         }
     }
 
-    async fn update_config(&self, force: bool, skip_unchanged: bool) -> Result<ValidationOutcome> {
+    async fn update_config(&self, sources: &Sources, force: bool, skip_unchanged: bool) -> Result<ValidationOutcome> {
         if handle::Handle::global().is_exiting() {
             return Ok(ValidationOutcome::Skipped {
                 reason: ValidationSkipReason::Exiting,
@@ -155,7 +162,7 @@ impl CoreManager {
             self.set_last_update(Instant::now());
         }
 
-        let build = match Config::build().await {
+        let build = match Config::build(sources).await {
             Ok(build) => build,
             Err(err) => return Ok(ValidationOutcome::invalid_from_message(err.to_string())),
         };
@@ -177,7 +184,11 @@ impl CoreManager {
     }
 
     pub async fn update_config_checked(&self) -> Result<()> {
-        let outcome = self.update_config_forced().await?;
+        self.update_config_checked_with(&Sources::accepted().await).await
+    }
+
+    pub async fn update_config_checked_with(&self, sources: &Sources) -> Result<()> {
+        let outcome = self.update_config_forced_with(sources).await?;
         if outcome.is_valid() {
             Ok(())
         } else {

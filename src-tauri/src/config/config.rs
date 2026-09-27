@@ -314,7 +314,7 @@ impl Config {
     /// при зелёном значке. «Проверить не удалось» (антивирус прибил проверку,
     /// таймаут) — не приговор конфигу: он попадает в слот, и ядро решит само.
     async fn generate_and_validate() -> Result<Option<(&'static str, String)>> {
-        let build = match Self::build().await {
+        let build = match Self::build(&enhance::Sources::accepted().await).await {
             Ok(build) => build,
             Err(err) => {
                 let error_msg: String = err.to_string().into();
@@ -421,8 +421,8 @@ impl Config {
     /// Собрать конфиг ядра из источников. Результат — значение у вызывающего:
     /// в слот рантайма он попадает только через `CoreManager` после того, как
     /// ядро его приняло.
-    pub async fn build() -> Result<IRuntime> {
-        let (mut config, exists_keys, logs, sentinel_report) = enhance::enhance().await?;
+    pub async fn build(sources: &enhance::Sources) -> Result<IRuntime> {
+        let (mut config, exists_keys, logs, sentinel_report) = enhance::enhance(sources).await?;
 
         sanitize_tunnels_proxy(&mut config);
 
@@ -497,11 +497,6 @@ impl Config {
                 return;
             }
             let profiles = Self::profiles().await;
-            // clod:Э10-05 — черновик профилей здесь не коммитим: он живёт только на
-            // время переключения подписки, и незавершённое переключение при выходе
-            // фиксировать нечего. Слепое `apply()` вдобавок затирало результат
-            // параллельного обновления, которое пишет committed напрямую.
-            profiles.discard();
             logging_error!(Type::Config, profiles.data_arc().save_file().await);
         });
 

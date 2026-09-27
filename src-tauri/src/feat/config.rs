@@ -1,3 +1,4 @@
+use crate::enhance::Sources;
 use crate::{
     config::{Config, IVerge},
     core::{CoreManager, autostart, handle, hotkey, logger::Logger, sysopt, tray},
@@ -9,28 +10,32 @@ use clash_verge_draft::SharedDraft;
 use clash_verge_logging::{Type, logging, logging_error};
 use serde_yaml_ng::Mapping;
 
-/// clod:Э3-06 — черновик конфига Clash один на всех, а фиксируют его два места:
-/// эта правка (после проверки ядром) и смена режима из трея (сразу). Без общего
-/// замка щелчок по режиму во время проверки фиксировал бы и чужую правку — и
-/// проваленной проверке было бы уже нечего откатывать.
+/// Правки конфига Clash идут по одной: каждая собирает кандидата от принятого
+/// состояния, и параллельная правка затёрла бы предыдущую при записи.
 static PATCH_CLASH_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 pub(crate) const fn patch_clash_lock() -> &'static tokio::sync::Mutex<()> {
     &PATCH_CLASH_LOCK
 }
 
+/// Кандидат — локальная копия принятого с правкой; в общий слот он попадает
+/// только после того, как ядро приняло собранный из него конфиг. До этого
+/// ни одна чужая сборка его не увидит.
 pub async fn patch_clash(patch: &Mapping) -> Result<()> {
     super::refuse_while_exiting()?;
     let _serialized = PATCH_CLASH_LOCK.lock().await;
-    Config::clash().await.edit_draft(|d| d.patch_config(patch));
+    let mut candidate = (**Config::clash().await.data_arc()).clone();
+    candidate.patch_config(patch);
+    let candidate = SharedDraft::new(Box::new(candidate));
 
-    let res: Result<()> = async {
-        if patch.get("secret").is_some()
-            || patch.get("external-controller").is_some()
-            || patch.get("external-controller-cors").is_some()
-        {
-            CoreManager::global().update_config_restarting().await?;
-        } else if let Some(sharing) = patch.get("allow-lan") {
+    if patch.get("secret").is_some()
+        || patch.get("external-controller").is_some()
+        || patch.get("external-controller-cors").is_some()
+    {
+        let sources = Sources::accepted().await.with_clash(std::sync::Arc::clone(&candidate));
+        CoreManager::global().update_config_restarting_with(&sources).await?;
+    } else {
+        if let Some(sharing) = patch.get("allow-lan") {
             // clod:lan-share — правка пришла от человека, а не из подписки:
             // запоминаем его слово, чтобы подписка его не перебивала.
             let declined = !sharing.as_bool().unwrap_or(false);
@@ -41,26 +46,15 @@ pub async fn patch_clash(patch: &Mapping) -> Result<()> {
                     "слово человека о раздаче в локальную сеть не записано: {error:#}"
                 );
             }
-            CoreManager::global().update_config_checked().await?;
-        } else {
-            CoreManager::global().update_config_checked().await?;
         }
-        handle::Handle::refresh_clash();
-        Ok(())
+        let sources = Sources::accepted().await.with_clash(std::sync::Arc::clone(&candidate));
+        CoreManager::global().update_config_checked_with(&sources).await?;
     }
-    .await;
-    match res {
-        Ok(()) => {
-            Config::clash().await.apply();
-            let clash_data = Config::clash().await.data_arc();
-            clash_data.save_config().await?;
-            Ok(())
-        }
-        Err(err) => {
-            Config::clash().await.discard();
-            Err(err)
-        }
-    }
+    handle::Handle::refresh_clash();
+
+    Config::clash().await.replace_shared(std::sync::Arc::clone(&candidate));
+    candidate.save_config().await?;
+    Ok(())
 }
 
 bitflags! {
@@ -220,7 +214,15 @@ fn determine_update_flags(patch: &IVerge) -> UpdateFlags {
 /// удавшегося перезапуска ядро уже обслуживает трафик по новым настройкам, и
 /// откатывать черновик из-за отказа любого следующего шага нельзя.
 async fn restart_core_for_patch() -> Result<()> {
-    CoreManager::global().update_config_restarting().await
+    CoreManager::global()
+        .update_config_restarting_with(&pending_verge_sources().await)
+        .await
+}
+
+/// Источники сборки для правки настроек: черновик verge — свой, его держит эта
+/// же правка (`patch_verge`), остальное — принятое.
+async fn pending_verge_sources() -> Sources {
+    Sources::accepted().await.with_verge(Config::verge().await.latest_arc())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -276,7 +278,9 @@ async fn process_terminated_flags(update_flags: UpdateFlags, patch: &IVerge) -> 
         });
     }
     if update_flags.contains(UpdateFlags::CLASH_CONFIG) {
-        CoreManager::global().update_config_checked().await?;
+        CoreManager::global()
+            .update_config_checked_with(&pending_verge_sources().await)
+            .await?;
         handle::Handle::refresh_clash();
     }
     if update_flags.contains(UpdateFlags::VERGE_CONFIG) {

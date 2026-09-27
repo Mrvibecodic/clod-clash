@@ -101,7 +101,6 @@ async fn import_subscription(url: &str, name: Option<&String>) {
     let uid = item.uid.clone().unwrap_or_default();
     if let Err(e) = profiles::profiles_append_item_safe(&mut item).await {
         logging!(error, Type::Config, "failed to import subscription url: {:?}", e);
-        Config::profiles().await.discard();
         handle::Handle::notice_message("import_sub_url::error", e.to_string());
         return;
     }

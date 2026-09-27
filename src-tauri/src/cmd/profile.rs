@@ -13,6 +13,7 @@ use crate::{
         profiles_append_item_safe,
     },
     core::{CoreManager, handle, timer::Timer, tray::Tray, validate::ValidationOutcome},
+    enhance::Sources,
     feat,
     utils::{dirs, help},
 };
@@ -395,40 +396,10 @@ async fn drop_system_proxy_without_profiles() {
 }
 
 /// Выполняет обновление конфига и обрабатывает результат
-async fn restore_previous_profile(prev_profile: &String) -> CmdResult<()> {
-    logging!(
-        info,
-        Type::Cmd,
-        "попытка восстановить предыдущий конфиг: {}",
-        prev_profile
-    );
-    // clod:Э10-05 — раньше здесь был `edit_draft` + `apply()`. `apply()` заменяет
-    // закоммиченное состояние черновиком целиком и версию не сверяет: параллельное
-    // обновление подписки, которое пишет закоммиченное напрямую, откатывалось этим
-    // движением назад. `commit_current_profile` делает то же самое безопасно —
-    // отбрасывает черновик и правит закоммиченное под общим разрешением.
-    match commit_current_profile(&Config::profiles().await, Some(prev_profile.to_owned())).await {
-        Ok(()) => logging!(info, Type::Cmd, "предыдущий конфиг успешно восстановлен"),
-        Err(e) => logging!(
-            warn,
-            Type::Cmd,
-            "Warning: не удалось вернуть прежний выбранный конфиг: {e}"
-        ),
-    }
-    crate::process::AsyncHandler::spawn(|| async move {
-        if let Err(e) = profiles_save_file_safe().await {
-            logging!(
-                warn,
-                Type::Cmd,
-                "Warning: не удалось асинхронно сохранить восстановленный файл конфига: {e}"
-            );
-        }
-    });
-    Ok(())
-}
-
+/// Записать выбор профиля в принятое состояние — только после того, как ядро
+/// приняло собранный из кандидата конфиг. До этого реестр не трогается, и при
+/// отказе восстанавливать нечего.
 async fn commit_current_profile(profiles: &Draft<IProfiles>, current: Option<String>) -> anyhow::Result<()> {
-    profiles.discard();
     let Some(current) = current else {
         return Ok(());
     };
@@ -474,59 +445,48 @@ async fn handle_success(current_value: Option<&String>) -> CmdResult<ValidationO
     Ok(ValidationOutcome::Valid)
 }
 
-async fn discard_and_restore(current_profile: Option<&String>) -> CmdResult<()> {
-    Config::profiles().await.discard();
-    if let Some(prev_profile) = current_profile {
-        restore_previous_profile(prev_profile).await?;
-    }
-    Ok(())
-}
-
-async fn handle_validation_failure(
-    outcome: ValidationOutcome,
-    current_profile: Option<&String>,
-) -> CmdResult<ValidationOutcome> {
+fn handle_validation_failure(outcome: ValidationOutcome) -> ValidationOutcome {
     logging!(warn, Type::Cmd, "не удалось проверить конфиг: {}", outcome);
-    discard_and_restore(current_profile).await?;
     handle_validation_notice(&outcome, ValidationNoticeTarget::Runtime, "рабочий конфиг");
-    Ok(outcome)
+    outcome
 }
 
-async fn handle_update_error<E: std::fmt::Display>(
-    e: E,
-    current_profile: Option<&String>,
-) -> CmdResult<ValidationOutcome> {
+fn handle_update_error<E: std::fmt::Display>(e: E) -> ValidationOutcome {
     logging!(warn, Type::Cmd, "ошибка в процессе обновления: {}", e,);
-    discard_and_restore(current_profile).await?;
     let message: String = super::public_error_text(&e);
     handle::Handle::notice_message("config_validate::boot_error", message.clone());
-    Ok(ValidationOutcome::invalid_from_message(message))
+    ValidationOutcome::invalid_from_message(message)
 }
 
-async fn handle_timeout(current_profile: Option<&String>) -> CmdResult<ValidationOutcome> {
+fn handle_timeout() -> ValidationOutcome {
     let timeout_msg: String =
         "таймаут обновления конфига (30 сек), возможно зависла проверка конфига или связь с ядром".into();
     logging!(error, Type::Cmd, "{}", timeout_msg);
-    discard_and_restore(current_profile).await?;
     handle::Handle::notice_message("config_validate::timeout", timeout_msg.clone());
-    Ok(ValidationOutcome::invalid_from_message(timeout_msg))
+    ValidationOutcome::invalid_from_message(timeout_msg)
 }
 
-async fn perform_config_update(
-    current_value: Option<&String>,
-    current_profile: Option<&String>,
-) -> CmdResult<ValidationOutcome> {
+/// Собрать конфиг из кандидата реестра и отдать ядру. Реестр в памяти и на диске
+/// меняется только на успехе (`handle_success`): при отказе ядро остаётся на
+/// прежнем профиле, и откатывать нечего.
+async fn perform_config_update(candidate: IProfiles, current_value: Option<&String>) -> CmdResult<ValidationOutcome> {
     defer! {
         CURRENT_SWITCHING_PROFILE.store(false, Ordering::Release);
     }
-    let update_result =
-        tokio::time::timeout(Duration::from_secs(30), CoreManager::global().update_config_forced()).await;
+    let sources = Sources::accepted()
+        .await
+        .with_profiles(SharedDraft::new(Box::new(candidate)));
+    let update_result = tokio::time::timeout(
+        Duration::from_secs(30),
+        CoreManager::global().update_config_forced_with(&sources),
+    )
+    .await;
 
     match update_result {
         Ok(Ok(outcome)) if outcome.is_valid() => handle_success(current_value).await,
-        Ok(Ok(outcome)) => handle_validation_failure(outcome, current_profile).await,
-        Ok(Err(e)) => handle_update_error(e, current_profile).await,
-        Err(_) => handle_timeout(current_profile).await,
+        Ok(Ok(outcome)) => Ok(handle_validation_failure(outcome)),
+        Ok(Err(e)) => Ok(handle_update_error(e)),
+        Err(_) => Ok(handle_timeout()),
     }
 }
 
@@ -550,13 +510,11 @@ pub async fn patch_profiles_config(profiles: IProfiles) -> CmdResult<ValidationO
         target_profile
     );
 
-    // Сохраняем текущий конфиг, чтобы восстановить его при неудачной проверке
-    let previous_profile = Config::profiles().await.data_arc().current.clone();
-    logging!(info, Type::Cmd, "текущий конфиг: {:?}", previous_profile);
+    let mut candidate = (**Config::profiles().await.data_arc()).clone();
+    logging!(info, Type::Cmd, "текущий конфиг: {:?}", candidate.current);
+    candidate.patch_config(&profiles);
 
-    Config::profiles().await.edit_draft(|d| d.patch_config(&profiles));
-
-    perform_config_update(target_profile, previous_profile.as_ref()).await
+    perform_config_update(candidate, target_profile).await
 }
 
 /// Изменяет profiles по имени profile
