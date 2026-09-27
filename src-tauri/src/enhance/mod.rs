@@ -702,29 +702,15 @@ fn enforce_tun(mut config: Mapping, snapshot: TunSnapshot, cap_chain_stack: bool
 /// ключи блока цепочке доступны, как и без страницы.
 ///
 /// clod:dns-page-diff — здесь же, по уже собранному конфигу (наборы правил из
-/// merge и script тоже объявлены), снимается ключ страницы со ссылкой на набор
-/// правил, которого нет: иначе он валил бы весь конфиг, и каждое обновление
-/// подписки отвергалось бы ядром. Такой ключ возвращается подписке (`base`), а
-/// человеку об этом говорит уведомление об отброшенных ключах.
-fn enforce_dns_page(
-    mut config: Mapping,
-    page: Option<&dns_page::Page>,
-    base: &dns_page::Base,
-) -> (Mapping, Vec<String>) {
+/// merge и script тоже объявлены), из страницы убираются записи со ссылкой на
+/// набор правил, которого нет: иначе они валили бы весь конфиг, и каждое
+/// обновление подписки отвергалось бы ядром. Остальные записи ключа остаются;
+/// человеку об убранных говорит уведомление об отброшенных ключах.
+fn enforce_dns_page(mut config: Mapping, page: Option<&dns_page::Page>) -> (Mapping, Vec<String>) {
     let Some(page) = page else {
         return (config, Vec::new());
     };
     let (page, dropped) = drop_the_rule_sets_the_subscription_lost(page.clone(), &config);
-    if !dropped.is_empty()
-        && let Some(dns) = config.get_mut("dns").and_then(Value::as_mapping_mut)
-    {
-        for key in dropped.iter().filter_map(|key| key.strip_prefix("dns.")) {
-            match base.dns.get(key) {
-                Some(value) => dns.insert(key.into(), value.clone()),
-                None => dns.remove(key),
-            };
-        }
-    }
     page.lay_over(&mut config);
     (config, dropped)
 }
@@ -1882,7 +1868,10 @@ async fn apply_dns_settings(
             };
             // Формовка под TUN для сведения — как если бы TUN был включён:
             // копия могла быть снята под ним, а сводиться при выключенном.
-            let shaped = dns_page::Base::of(&ensure_dns_for_tun(config.clone(), true));
+            // `enable` формовке не отдаётся: без TUN умолчание ядра — выключено,
+            // и копия, включавшая DNS, должна включать его и дальше.
+            let mut shaped = dns_page::Base::of(&ensure_dns_for_tun(config.clone(), true));
+            shaped.dns.remove("enable");
             match read_dns_page(&dns_path, may_rewrite_a_legacy_page, base, &shaped).await {
                 Some(page) => page,
                 None => return (config, None),
@@ -1969,7 +1958,7 @@ fn drop_the_rule_sets_the_subscription_lost(
         .map(|providers| providers.keys().filter_map(Value::as_str).collect())
         .unwrap_or_default();
     let dropped: Vec<String> = page
-        .drop_keys_referring_to_missing_rule_sets(|name| declared.contains(name))
+        .drop_entries_referring_to_missing_rule_sets(|name| declared.contains(name))
         .into_iter()
         .map(String::from)
         .collect();
@@ -1977,7 +1966,7 @@ fn drop_the_rule_sets_the_subscription_lost(
         logging!(
             warn,
             Type::Core,
-            "страница DNS ссылается на наборы правил, которых в подписке нет; ключи {} остаются за подпиской",
+            "страница DNS ссылается на наборы правил, которых в подписке нет; записи убраны: {}",
             dropped.join(", ")
         );
     }
@@ -2099,7 +2088,7 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
     let config = enforce_control_plane(config, control_plane);
     let (config, tun_discards) = enforce_tun(config, tun_snapshot, cfg!(target_os = "windows"));
     discarded_keys.extend(tun_discards);
-    let (config, dns_page_discards) = enforce_dns_page(config, dns_page.as_ref(), &dns_base);
+    let (config, dns_page_discards) = enforce_dns_page(config, dns_page.as_ref());
     discarded_keys.extend(dns_page_discards);
     let mut config = ensure_dns_for_tun(config, enable_tun);
     // clod:dns-listen — цепочки merge и script отрабатывают после первого
@@ -3037,7 +3026,7 @@ mod tests {
         let hijacked = mapping(
             r#"{dns: {ipv6: true, enhanced-mode: redir-host, proxy-server-nameserver: ["8.8.8.8"]}, hosts: {a.test: 9.9.9.9}}"#,
         );
-        let (result, dropped) = super::enforce_dns_page(hijacked, Some(&page), &super::dns_page::Base::default());
+        let (result, dropped) = super::enforce_dns_page(hijacked, Some(&page));
         assert!(dropped.is_empty());
 
         let dns = result.get("dns").expect("dns block");
@@ -3064,35 +3053,35 @@ mod tests {
     }
 
     #[test]
-    fn a_page_key_pointing_at_a_lost_rule_set_goes_back_to_the_subscription() {
-        let base = super::dns_page::Base::of(&mapping(r"{dns: {nameserver-policy: {'+.lan': system}}}"));
-        let page =
-            super::dns_page::Page::parse(r"dns: {ipv6: true, nameserver-policy: {'rule-set:rs-gone': ['1.1.1.1']}}")
-                .expect("page");
+    fn a_page_entry_pointing_at_a_lost_rule_set_is_dropped_after_the_chains() {
+        let page = super::dns_page::Page::parse(
+            r"dns: {ipv6: true, nameserver-policy: {'rule-set:rs-gone': ['1.1.1.1'], '+.lan': system}}",
+        )
+        .expect("page");
         // После цепочек: набор из merge объявлен, rs-gone — нет.
         let after_chains = mapping(
-            r"{rule-providers: {rs-merge: {type: http}}, dns: {ipv6: true, nameserver-policy: {'rule-set:rs-gone': ['1.1.1.1']}}}",
+            r"{rule-providers: {rs-merge: {type: http}}, dns: {ipv6: true, nameserver-policy: {'rule-set:rs-gone': ['1.1.1.1'], '+.lan': system}}}",
         );
-        let (result, dropped) = super::enforce_dns_page(after_chains, Some(&page), &base);
-        assert_eq!(names(&dropped), ["dns.nameserver-policy"]);
+        let (result, dropped) = super::enforce_dns_page(after_chains, Some(&page));
+        assert_eq!(names(&dropped), ["dns.nameserver-policy[rule-set:rs-gone]"]);
         assert_eq!(
             result["dns"]["nameserver-policy"],
             serde_yaml_ng::Value::Mapping(mapping(r"{'+.lan': system}")),
-            "ключ вернулся к значению подписки"
+            "остальные записи ключа остаются"
         );
         assert_eq!(result["dns"]["ipv6"], serde_yaml_ng::Value::Bool(true));
 
         let kept =
             super::dns_page::Page::parse(r"dns: {nameserver-policy: {'rule-set:rs-merge': system}}").expect("page");
         let after_chains = mapping(r"{rule-providers: {rs-merge: {type: http}}, dns: {}}");
-        let (_, dropped) = super::enforce_dns_page(after_chains, Some(&kept), &base);
-        assert!(dropped.is_empty(), "набор из merge объявлен — ключ остаётся");
+        let (_, dropped) = super::enforce_dns_page(after_chains, Some(&kept));
+        assert!(dropped.is_empty(), "набор из merge объявлен — запись остаётся");
     }
 
     #[test]
     fn dns_page_never_removes_what_it_did_not_write() {
         let from_merge = mapping(r#"{dns: {enable: true, nameserver: ["9.9.9.9"]}}"#);
-        let (result, _) = super::enforce_dns_page(from_merge, None, &super::dns_page::Base::default());
+        let (result, _) = super::enforce_dns_page(from_merge, None);
         assert_eq!(
             result
                 .get("dns")

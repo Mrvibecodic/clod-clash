@@ -324,11 +324,22 @@ pub async fn save_dns_config(dns_config: Mapping) -> CmdResult<DnsSaveOutcome> {
                 "DNS page check reached no verdict, saving anyway: {validation}"
             );
             write_dns_page(&dns_path, &page).await?;
+            // Без вердикта сборку никто не доставил: при включённом тумблере
+            // применить страницу обычным путём, отказ — отдельным полем.
+            let delivery_error = if dns_settings_on {
+                manager
+                    .update_config_checked()
+                    .await
+                    .err()
+                    .map(|err| format!("{err:#}").into())
+            } else {
+                None
+            };
             return Ok(DnsSaveOutcome {
                 saved: true,
                 validation,
                 warning: references.warning,
-                delivery_error: None,
+                delivery_error,
             });
         }
     };

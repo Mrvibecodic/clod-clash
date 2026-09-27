@@ -120,30 +120,39 @@ impl Page {
         }
     }
 
-    /// Убрать ключи, ссылающиеся через `rule-set:` на наборы правил, которых
-    /// подписка не объявляет (`declared` — есть ли такое имя). Возвращает
-    /// имена убранных ключей вида `dns.nameserver-policy`.
-    pub fn drop_keys_referring_to_missing_rule_sets(&mut self, declared: impl Fn(&str) -> bool) -> Vec<String> {
+    /// Убрать записи, ссылающиеся на наборы правил, которых подписка не
+    /// объявляет (`declared` — есть ли такое имя): матчеры `rule-set:` в
+    /// политике серверов и записи `rule-set:`/`RULE-SET,…` в фильтре fake-ip.
+    /// Остальные записи тех же ключей остаются. Возвращает имена убранных
+    /// записей вида `dns.nameserver-policy[rule-set:rs-old]`.
+    pub fn drop_entries_referring_to_missing_rule_sets(&mut self, declared: impl Fn(&str) -> bool) -> Vec<String> {
+        let refers_to_a_missing_set = |text: &str| {
+            let mut names = Vec::new();
+            collect_rule_sets(text, &mut names);
+            names.iter().any(|name| !declared(name))
+        };
         let mut dropped = Vec::new();
-        let mut policy_refs = Vec::new();
-        if let Some(policy) = self.dns.get("nameserver-policy").and_then(Value::as_mapping) {
-            for matcher in policy.keys().filter_map(Value::as_str) {
-                collect_rule_sets(matcher, &mut policy_refs);
+        if let Some(policy) = self.dns.get_mut("nameserver-policy").and_then(Value::as_mapping_mut) {
+            let gone: Vec<Value> = policy
+                .keys()
+                .filter(|matcher| matcher.as_str().is_some_and(refers_to_a_missing_set))
+                .cloned()
+                .collect();
+            for matcher in gone {
+                policy.remove(&matcher);
+                if let Some(text) = matcher.as_str() {
+                    dropped.push(format!("dns.nameserver-policy[{text}]"));
+                }
             }
         }
-        if policy_refs.iter().any(|name| !declared(name)) {
-            self.dns.remove("nameserver-policy");
-            dropped.push("dns.nameserver-policy".to_owned());
-        }
-        let mut filter_refs = Vec::new();
-        if let Some(filter) = self.dns.get("fake-ip-filter").and_then(Value::as_sequence) {
-            for entry in filter.iter().filter_map(Value::as_str) {
-                collect_rule_sets(entry, &mut filter_refs);
-            }
-        }
-        if filter_refs.iter().any(|name| !declared(name)) {
-            self.dns.remove("fake-ip-filter");
-            dropped.push("dns.fake-ip-filter".to_owned());
+        if let Some(filter) = self.dns.get_mut("fake-ip-filter").and_then(Value::as_sequence_mut) {
+            filter.retain(|entry| {
+                let gone = entry.as_str().is_some_and(refers_to_a_missing_set);
+                if gone && let Some(text) = entry.as_str() {
+                    dropped.push(format!("dns.fake-ip-filter[{text}]"));
+                }
+                !gone
+            });
         }
         dropped
     }
@@ -349,17 +358,26 @@ mod tests {
     }
 
     #[test]
-    fn keys_pointing_at_a_lost_rule_set_go_back_to_the_subscription() {
+    fn entries_pointing_at_a_lost_rule_set_are_dropped_and_the_rest_stays() {
         let mut page = Page::parse(
-            "dns:\n  ipv6: true\n  nameserver-policy: {'rule-set:rs-old': system, '+.lan': system}\n  fake-ip-filter: ['*.lan', 'rule-set:rs-kept']\n",
+            "dns:\n  ipv6: true\n  nameserver-policy: {'rule-set:rs-old': system, '+.lan': system}\n  fake-ip-filter: ['*.lan', 'rule-set:rs-kept', 'RULE-SET,rs-old,fake-ip']\n",
         )
         .expect("page");
-        let dropped = page.drop_keys_referring_to_missing_rule_sets(|name| name == "rs-kept");
-        assert_eq!(dropped, vec!["dns.nameserver-policy".to_owned()]);
-        assert!(!page.dns.contains_key("nameserver-policy"));
-        assert!(
-            page.dns.contains_key("fake-ip-filter"),
-            "набор объявлен — ключ на месте"
+        let dropped = page.drop_entries_referring_to_missing_rule_sets(|name| name == "rs-kept");
+        assert_eq!(
+            dropped,
+            vec![
+                "dns.nameserver-policy[rule-set:rs-old]".to_owned(),
+                "dns.fake-ip-filter[RULE-SET,rs-old,fake-ip]".to_owned()
+            ]
+        );
+        assert_eq!(
+            page.dns["nameserver-policy"],
+            Value::Mapping(mapping("'+.lan': system\n"))
+        );
+        assert_eq!(
+            page.dns["fake-ip-filter"],
+            Value::Sequence(vec!["*.lan".into(), "rule-set:rs-kept".into()])
         );
         assert!(page.dns.contains_key("ipv6"));
     }
