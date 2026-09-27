@@ -121,6 +121,7 @@
         "saveSuccess": "Configuration saved successfully",
         "saveFailed": "Failed to save configuration",
         "configLoadFailed": "تعذّرت قراءة ملف الإعدادات: {{files}}. حُفظت نسخة منه بجواره باسم «.unreadable-<التاريخ>» — لم يُفقد شيء. قد تبدو الاشتراكات والإعدادات وكأنها أُعيدت للوضع الأول؛ استعد الملف من تلك النسخة أو من نسخة احتياطية.",
+        "keysDiscarded": "Your Merge/Script wrote keys managed by the app settings ({{keys}}) — those writes were discarded. Change them in the settings instead.",
         "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked",
         "logsExported": "تم حفظ أرشيف السجلات — عناوين الاشتراك والرموز مخفية"
       }

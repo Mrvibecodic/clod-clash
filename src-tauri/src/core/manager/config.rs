@@ -293,7 +293,7 @@ impl CoreManager {
     /// работающему конфигу.
     async fn accept_without_the_core(&self, build: IRuntime) {
         let profile_uid = build.profile_uid.clone();
-        Self::remember_dns_desire(&build);
+        Self::note_the_accepted(&build);
         Config::runtime().await.replace(build);
         forget_the_not_applied_mark(profile_uid.as_ref()).await;
     }
@@ -301,8 +301,15 @@ impl CoreManager {
     /// Конфиг проверен при старте приложения (или проверить его не вышло) — в слот,
     /// ядро стартует с него.
     pub(crate) async fn accept_at_boot(&self, build: IRuntime) {
-        Self::remember_dns_desire(&build);
+        Self::note_the_accepted(&build);
         Config::runtime().await.replace(build);
+    }
+
+    /// Что сопровождает принятую сборку: заявка на подмену DNS и слово человеку
+    /// о записях цепочек, которые приложение отбросило.
+    fn note_the_accepted(build: &IRuntime) {
+        Self::remember_dns_desire(build);
+        announce_discarded_keys(&build.discarded_keys);
     }
 
     /// clod:dns-applied — заявка на подмену системного DNS едет вместе со сборкой
@@ -466,7 +473,7 @@ impl CoreManager {
                     );
                     return self.replace_core_and_apply(build).await;
                 }
-                Self::remember_dns_desire(&build);
+                Self::note_the_accepted(&build);
                 Config::runtime().await.replace(build);
                 logging!(info, Type::Core, "{message}");
                 Ok(())
@@ -498,7 +505,7 @@ impl CoreManager {
     async fn replace_core_and_apply(&self, build: IRuntime) -> Result<()> {
         let runtime = Config::runtime().await;
         let previous = runtime.data_arc();
-        Self::remember_dns_desire(&build);
+        Self::note_the_accepted(&build);
         runtime.replace(build);
         // Проверенная сборка есть — отказ старта, если он был, снят: стартуем с неё.
         let was_refused = self.startup_refusal();
@@ -656,6 +663,36 @@ enum StageAttempt {
 ///
 /// Реестр трогаем, только если пометка действительно стоит: иначе на каждое
 /// применение конфига приходилась бы лишняя запись `profiles.yaml`.
+/// clod:tun-owned-keys — цепочка merge или script записала ключ, которым
+/// владеет приложение (плоскость управления, свои поля `tun`), и запись
+/// отброшена. Говорится один раз на набор ключей: каждая пересборка с тем же
+/// набором молчит, новый набор — новое уведомление. Только для принятой
+/// сборки: кандидат, отвергнутый ядром, до человека не доехал.
+fn announce_discarded_keys(discarded: &[String]) {
+    static LAST_ANNOUNCED: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+    let changed = {
+        let mut last = match LAST_ANNOUNCED.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        let changed = last.as_slice() != discarded;
+        if changed {
+            *last = discarded.to_vec();
+        }
+        changed
+    };
+    if !changed || discarded.is_empty() {
+        return;
+    }
+    logging!(
+        warn,
+        Type::Config,
+        "merge/script wrote keys the app manages; the writes were discarded: {}",
+        discarded.join(", ")
+    );
+    handle::Handle::notice_message("clod_config::keys_discarded", discarded.join(", "));
+}
+
 async fn forget_the_not_applied_mark(profile_uid: Option<&String>) {
     let Some(uid) = profile_uid else { return };
     let marked = Config::profiles()

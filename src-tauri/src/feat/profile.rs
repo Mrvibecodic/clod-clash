@@ -835,7 +835,7 @@ async fn settle_the_download(uid: &String, downloaded: Downloaded, trigger: Upda
         .data_arc()
         .get_name_by_uid(uid)
         .unwrap_or_else(|| String::from("UnKnown Profile"));
-    let acceptance = match accept_the_download(uid, item).await {
+    let acceptance = match Box::pin(accept_the_download(uid, item)).await {
         Ok(acceptance) => acceptance,
         Err(err) => {
             mark_the_update(uid, true).await;

@@ -109,6 +109,14 @@ export const handleNoticeMessage = (
         { files: msg },
         0,
       ),
+    // clod:tun-owned-keys — merge/script записали ключ, которым управляют
+    // настройки приложения; запись отброшена, человеку говорят какая.
+    'clod_config::keys_discarded': () =>
+      showNotice.warning(
+        'shared.feedback.notifications.common.keysDiscarded',
+        { keys: msg },
+        0,
+      ),
     update_failed: () => showNotice.error(msg),
     'update::breaking_changes': () =>
       showNotice.info(

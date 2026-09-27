@@ -551,7 +551,6 @@ const CONTROL_PLANE_KEYS: &[&str] = &[
     "log-level",
     "ipv6",
     "unified-delay",
-    "tun",
 ];
 
 fn control_plane_keys() -> impl Iterator<Item = &'static str> {
@@ -578,6 +577,101 @@ fn enforce_control_plane(mut config: Mapping, snapshot: Mapping) -> Mapping {
     }
     config.extend(snapshot);
     config
+}
+
+/// Ключи верхнего уровня, которые цепочки merge и script записали, а
+/// приложение отбросило: значение не совпало со снимком или ключа в снимке
+/// нет вовсе. Имена — для уведомления человеку.
+fn control_plane_discards(after_chains: &Mapping, snapshot: &Mapping) -> Vec<String> {
+    control_plane_keys()
+        .filter(|key| after_chains.get(*key) != snapshot.get(*key))
+        .filter(|key| after_chains.contains_key(*key) || snapshot.contains_key(*key))
+        .map(String::from)
+        .collect()
+}
+
+/// Ключи `tun`, за которые отвечает приложение: остальные поля блока —
+/// цепочкам merge и script, как и любой другой ключ подписки.
+///
+/// clod:tun-owned-keys — раньше весь `tun` жил в плоскости управления, и
+/// `tun: {mtu: 9000}` из ручного merge пропадал молча. Владение теперь
+/// поимённое: `enable` всегда наше; ключи, сохранённые диалогом TUN в
+/// `clash.yaml`, — его; отложенные `stack`/`strict-route`/`dns-hijack` — его
+/// только когда в настройках выбрано не «как в подписке».
+const TUN_DEFERRED_KEYS: &[&str] = &["stack", "strict-route", "dns-hijack"];
+
+fn tun_owned_keys(app_tun: Option<&Mapping>, overrides: &TunOverrides) -> Vec<String> {
+    let mut owned: Vec<String> = vec!["enable".into()];
+    if let Some(app_tun) = app_tun {
+        owned.extend(
+            app_tun
+                .keys()
+                .filter_map(Value::as_str)
+                .filter(|key| !TUN_DEFERRED_KEYS.contains(key))
+                .map(String::from),
+        );
+    }
+    for (key, chosen) in [
+        ("stack", overrides.stack.is_some()),
+        ("strict-route", overrides.strict_route.is_some()),
+        ("dns-hijack", overrides.dns_hijack.is_some()),
+    ] {
+        if chosen {
+            owned.push(key.into());
+        }
+    }
+    owned.sort();
+    owned.dedup();
+    owned
+}
+
+fn snapshot_tun(config: &Mapping, owned: &[String]) -> Mapping {
+    let mut snapshot = Mapping::new();
+    if let Some(tun) = config.get("tun").and_then(Value::as_mapping) {
+        for key in owned {
+            if let Some(value) = tun.get(key.as_str()) {
+                snapshot.insert(key.as_str().into(), value.clone());
+            }
+        }
+    }
+    snapshot
+}
+
+/// Вернуть после цепочек ключи `tun`, которыми владеет приложение, и на
+/// Windows не пустить в ядро стек `system`/`mixed`, если его выбрала не
+/// настройка приложения, а цепочка: лесенка снимает такой стек у подписки,
+/// и цепочке его возвращать нельзя тем же правилом. Второе значение —
+/// имена отброшенных записей вида `tun.mtu`.
+fn enforce_tun(mut config: Mapping, snapshot: Mapping, cap_chain_stack: bool) -> (Mapping, Vec<String>) {
+    let mut discarded = Vec::new();
+    let Some(tun) = config.get_mut("tun").and_then(Value::as_mapping_mut) else {
+        if !snapshot.is_empty() {
+            discarded.extend(
+                snapshot
+                    .keys()
+                    .filter_map(Value::as_str)
+                    .map(|key| format!("tun.{key}").into()),
+            );
+            config.insert("tun".into(), Value::Mapping(snapshot));
+        }
+        return (config, discarded);
+    };
+    for (key, value) in snapshot {
+        if tun.get(&key) != Some(&value) {
+            if let Some(name) = key.as_str() {
+                discarded.push(format!("tun.{name}").into());
+            }
+            tun.insert(key, value);
+        }
+    }
+    if cap_chain_stack
+        && let Some(stack) = tun.get("stack").and_then(Value::as_str)
+        && matches!(stack.trim().to_ascii_lowercase().as_str(), "system" | "mixed")
+    {
+        tun.insert("stack".into(), crate::constants::tun::DEFAULT_STACK.into());
+        discarded.push("tun.stack".into());
+    }
+    (config, discarded)
 }
 
 /// Вернуть после цепочек merge и script ровно те ключи `dns`, что задала
@@ -1839,6 +1933,7 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
         *address = "".into();
     }
 
+    let tun_owned = tun_owned_keys(clash_config.get("tun").and_then(Value::as_mapping), &tun_overrides);
     let config = merge_default_config(
         config,
         clash_config,
@@ -1870,6 +1965,7 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
     clamp_dns_listen(&mut config);
 
     let control_plane = snapshot_control_plane(&config);
+    let tun_snapshot = snapshot_tun(&config, &tun_owned);
 
     let (config, exists_keys, result_map) = process_global_items(
         config,
@@ -1884,7 +1980,10 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
     let (config, exists_keys, result_map) =
         process_profile_items(config, exists_keys, result_map, merge_item, script_item, &profile_name).await;
 
+    let mut discarded_keys = control_plane_discards(&config, &control_plane);
     let config = enforce_control_plane(config, control_plane);
+    let (config, tun_discards) = enforce_tun(config, tun_snapshot, cfg!(target_os = "windows"));
+    discarded_keys.extend(tun_discards);
     let config = enforce_dns_page(config, dns_page.as_ref());
     let mut config = ensure_dns_for_tun(config, enable_tun);
     // clod:dns-listen — цепочки merge и script отрабатывают после первого
@@ -1940,6 +2039,7 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
         profile_uid: (!profile_uid.is_empty()).then(|| profile_uid.clone()),
         dns_desire,
         dns_base: Some(dns_base),
+        discarded_keys,
         exists_keys: exists_keys_set,
         chain_logs: result_map,
         sentinel_report,
@@ -2317,31 +2417,96 @@ mod tests {
         assert_eq!(empty.dns_hijack, Some(serde_yaml_ng::Value::Sequence(Vec::new())));
     }
 
+    fn owned_keys(app_tun: &str, overrides: &super::TunOverrides) -> Vec<super::String> {
+        let app = mapping(app_tun);
+        super::tun_owned_keys(app.get("tun").and_then(serde_yaml_ng::Value::as_mapping), overrides)
+    }
+
+    fn names(list: &[super::String]) -> Vec<&str> {
+        list.iter().map(|name| name.as_str()).collect()
+    }
+
     #[test]
     fn a_profile_cannot_switch_tun_off() {
+        let owned = owned_keys(r"{tun: {enable: true, stack: gvisor}}", &super::TunOverrides::default());
         let app_config = mapping(r"{tun: {enable: true, stack: gvisor}, mixed-port: 7890}");
-        let snapshot = super::snapshot_control_plane(&app_config);
+        let snapshot = super::snapshot_tun(&app_config, &owned);
 
-        let hijacked = mapping(r"{tun: {enable: false}, mixed-port: 1080}");
-        let result = super::enforce_control_plane(hijacked, snapshot);
+        let hijacked = mapping(r"{tun: {enable: false, stack: system}, mixed-port: 1080}");
+        let (result, discarded) = super::enforce_tun(hijacked, snapshot, false);
 
-        let tun = result.get("tun").and_then(serde_yaml_ng::Value::as_mapping);
+        let tun = result
+            .get("tun")
+            .and_then(serde_yaml_ng::Value::as_mapping)
+            .expect("tun");
+        assert_eq!(tun.get("enable").and_then(serde_yaml_ng::Value::as_bool), Some(true));
         assert_eq!(
-            tun.and_then(|tun| tun.get("enable"))
-                .and_then(serde_yaml_ng::Value::as_bool),
-            Some(true)
+            tun.get("stack").and_then(serde_yaml_ng::Value::as_str),
+            Some("system"),
+            "stack «как в подписке» — цепочке можно"
         );
+        assert_eq!(names(&discarded), ["tun.enable"]);
     }
 
     #[test]
     fn a_profile_cannot_switch_tun_on() {
-        let app_config = mapping(r"{mixed-port: 7890}");
-        let snapshot = super::snapshot_control_plane(&app_config);
+        let owned = owned_keys(r"{tun: {enable: false}}", &super::TunOverrides::default());
+        let app_config = mapping(r"{tun: {enable: false}, mixed-port: 7890}");
+        let snapshot = super::snapshot_tun(&app_config, &owned);
 
-        let hijacked = mapping(r"{tun: {enable: true}, mixed-port: 7890}");
-        let result = super::enforce_control_plane(hijacked, snapshot);
+        let hijacked = mapping(r"{tun: {enable: true, mtu: 9000}, mixed-port: 7890}");
+        let (result, discarded) = super::enforce_tun(hijacked, snapshot, false);
 
-        assert!(result.get("tun").is_none());
+        let tun = result
+            .get("tun")
+            .and_then(serde_yaml_ng::Value::as_mapping)
+            .expect("tun");
+        assert_eq!(tun.get("enable").and_then(serde_yaml_ng::Value::as_bool), Some(false));
+        assert_eq!(
+            tun.get("mtu").and_then(serde_yaml_ng::Value::as_u64),
+            Some(9000),
+            "поле, которым диалог не владеет, доезжает из цепочки"
+        );
+        assert_eq!(names(&discarded), ["tun.enable"]);
+    }
+
+    #[test]
+    fn the_dialog_owns_its_saved_keys_and_the_deferred_ones_only_when_chosen() {
+        let chosen = super::parse_tun_overrides(Some("gvisor"), None, Some("auto"));
+        let owned = owned_keys(
+            r"{tun: {enable: true, stack: gvisor, auto-route: true, mtu: 1500, strict-route: false, dns-hijack: [any:53]}}",
+            &chosen,
+        );
+        assert_eq!(
+            names(&owned),
+            ["auto-route", "enable", "mtu", "stack"],
+            "strict-route и dns-hijack на «как в подписке» — не наши, stack выбран — наш"
+        );
+
+        let none = owned_keys(r"{mixed-port: 7890}", &super::TunOverrides::default());
+        assert_eq!(names(&none), ["enable"]);
+    }
+
+    #[test]
+    fn on_windows_a_chain_cannot_bring_back_the_system_stack() {
+        let snapshot = mapping(r"{enable: true}");
+        let from_chain = mapping(r"{tun: {enable: true, stack: system}}");
+        let (result, discarded) = super::enforce_tun(from_chain, snapshot, true);
+        assert_eq!(
+            result["tun"]["stack"].as_str(),
+            Some(crate::constants::tun::DEFAULT_STACK)
+        );
+        assert_eq!(names(&discarded), ["tun.stack"]);
+    }
+
+    #[test]
+    fn control_plane_discards_are_named_for_the_human() {
+        let snapshot = super::snapshot_control_plane(&mapping(r"{mixed-port: 7890, mode: rule}"));
+        let after = mapping(r"{mixed-port: 1080, mode: rule, socks-port: 1081}");
+        let mut discarded = super::control_plane_discards(&after, &snapshot);
+        discarded.sort();
+        assert_eq!(names(&discarded), ["mixed-port", "socks-port"]);
+        assert!(super::control_plane_discards(&snapshot, &snapshot).is_empty());
     }
 
     #[test]
