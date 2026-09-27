@@ -19,6 +19,7 @@ import {
   effectiveLatencyTimeout,
 } from '@/services/delay'
 import { showNotice } from '@/services/notice-service'
+import { isValidUrl } from '@/utils/network'
 
 // Те же значения, что у шаблона настроек и запасных значений бэкенда
 // (`IVerge::DEFAULT_APP_LOG_MAX_SIZE` / `DEFAULT_APP_LOG_MAX_COUNT`): у формы
@@ -69,7 +70,17 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
     close: () => setOpen(false),
   }))
 
+  // clod:УП-33 — негодный адрес проверки в ядро и так не уходит, но человек
+  // узнавал об этом только по кнопке проверки; поле говорит об этом само.
+  const badTestUrl =
+    values.defaultLatencyTest.trim() !== '' &&
+    !isValidUrl(values.defaultLatencyTest)
+
   const onSave = useLockFn(async () => {
+    if (badTestUrl) {
+      showNotice.error('proxies.page.messages.badTestUrl')
+      return
+    }
     // Ядро разбирает тайм-аут как int16; отрицательный делал все узлы «тайм-аутом»
     if (
       effectiveLatencyTimeout(values.defaultLatencyTimeout) !==
@@ -391,6 +402,10 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
             spellCheck="false"
             sx={{ width: 250, marginLeft: 'auto' }}
             value={values.defaultLatencyTest}
+            error={badTestUrl}
+            helperText={
+              badTestUrl ? t('proxies.page.messages.badTestUrl') : undefined
+            }
             placeholder="http://cp.cloudflare.com/generate_204"
             onChange={(e) =>
               setValues((v) => ({ ...v, defaultLatencyTest: e.target.value }))

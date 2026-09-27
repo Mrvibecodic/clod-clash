@@ -375,6 +375,19 @@ async fn clean_core_first(pace: ExitPace) -> Result<CleanupOutcome, String> {
     let stop_budget = pace.core_stop_budget();
     let core = async {
         turn_the_tun_off(pace).await;
+        // clod:УП-20 — при выключении системы живые WebSocket-подписки окна
+        // (трафик, журнал, соединения) закрываются до остановки ядра, чтобы
+        // остановка не ждала их обрыва. Обычный выход отменяемый: там окно
+        // осталось бы без данных зря, поэтому только на завершении сессии.
+        if matches!(pace, ExitPace::SessionEnding)
+            && let Err(err) = handle::Handle::mihomo().clear_all_ws_connections()
+        {
+            logging!(
+                debug,
+                Type::System,
+                "не закрыть WebSocket-соединения перед остановкой ядра: {err}"
+            );
+        }
         logging!(info, Type::System, "stop core");
         CoreManager::global()
             .stop_core_for_exit(pace.lock_wait_budget(), stop_budget)

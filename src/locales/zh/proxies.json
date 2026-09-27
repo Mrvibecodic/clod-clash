@@ -60,7 +60,8 @@
     },
     "messages": {
       "directMode": "直连模式",
-      "invalidTestUrl": "The test address must start with http:// or https://; using the default address."
+      "invalidTestUrl": "The test address must start with http:// or https://; using the default address.",
+      "badTestUrl": "The address must start with http:// or https://"
     },
     "title": {
       "default": "代理组",

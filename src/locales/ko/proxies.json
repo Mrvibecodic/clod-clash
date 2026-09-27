@@ -60,7 +60,8 @@
     },
     "messages": {
       "directMode": "직접 모드",
-      "invalidTestUrl": "The test address must start with http:// or https://; using the default address."
+      "invalidTestUrl": "The test address must start with http:// or https://; using the default address.",
+      "badTestUrl": "The address must start with http:// or https://"
     },
     "title": {
       "default": "프록시 그룹",

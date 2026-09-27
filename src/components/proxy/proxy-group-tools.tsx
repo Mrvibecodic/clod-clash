@@ -48,6 +48,9 @@ export const ProxyGroupTools = memo(function ProxyGroupTools(props: Props) {
 
   const { t } = useTranslation()
   const inputRef = useRef<HTMLInputElement>(null)
+  // clod:УП-33 — негодный адрес подсвечивается в самом поле, а не только по кнопке проверки.
+  const badTestUrl =
+    testUrl !== undefined && testUrl.trim() !== '' && !isValidUrl(testUrl)
 
   useEffect(() => {
     const custom = testUrl?.trim()
@@ -113,6 +116,8 @@ export const ProxyGroupTools = memo(function ProxyGroupTools(props: Props) {
           value={testUrl}
           size="small"
           variant="outlined"
+          error={badTestUrl}
+          title={badTestUrl ? t('proxies.page.messages.badTestUrl') : undefined}
           placeholder={t('proxies.page.placeholders.delayCheckUrl')}
           onClick={(e) => {
             e.preventDefault()

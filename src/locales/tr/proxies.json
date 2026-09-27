@@ -60,7 +60,8 @@
     },
     "messages": {
       "directMode": "Doğrudan Mod",
-      "invalidTestUrl": "The test address must start with http:// or https://; using the default address."
+      "invalidTestUrl": "The test address must start with http:// or https://; using the default address.",
+      "badTestUrl": "The address must start with http:// or https://"
     },
     "title": {
       "default": "Vekil Grupları",

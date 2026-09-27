@@ -56,6 +56,9 @@ export const ProxyHead = ({
 
   const { t } = useTranslation()
   const [autoFocus, setAutoFocus] = useState(false)
+  // clod:УП-33 — негодный адрес подсвечивается в самом поле, а не только по кнопке проверки.
+  const badTestUrl =
+    testUrl !== undefined && testUrl.trim() !== '' && !isValidUrl(testUrl)
 
   useEffect(() => {
     // fix the focus conflict
@@ -204,6 +207,8 @@ export const ProxyHead = ({
           value={testUrl}
           size="small"
           variant="outlined"
+          error={badTestUrl}
+          title={badTestUrl ? t('proxies.page.messages.badTestUrl') : undefined}
           placeholder={t('proxies.page.placeholders.delayCheckUrl')}
           onChange={(e) => onHeadState({ testUrl: e.target.value })}
           sx={{ ml: 0.5, flex: '1 1 auto', input: { py: 0.65, px: 1 } }}
