@@ -27,7 +27,7 @@ tracing = []
 identifier = "io.clodclash.app"
 
 [build-dependencies]
-tauri-build = { version = "2.6.3", features = [] }
+tauri-build = { version = "2.7.0", features = [] }
 
 [dependencies]
 clash-verge-draft = { workspace = true }
