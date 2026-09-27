@@ -619,17 +619,7 @@ impl Timer {
 
         let result = Box::pin(async {
             Self::emit_update_event(uid, true);
-
-            let is_current = Config::profiles().await.latest_arc().current.as_ref() == Some(uid);
-            logging!(
-                debug,
-                Type::Timer,
-                "Profile {} is current active profile: {}",
-                uid,
-                is_current
-            );
-
-            Box::pin(feat::update_profile(uid, None, is_current, false, trigger)).await
+            Box::pin(feat::update_profile(uid, None, false, trigger)).await
         })
         .await;
 

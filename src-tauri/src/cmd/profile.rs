@@ -223,7 +223,6 @@ pub async fn update_profile(index: String, option: Option<PrfOption>) -> CmdResu
         &index,
         option.as_ref(),
         true,
-        true,
         feat::UpdateTrigger::Manual,
     ))
     .await

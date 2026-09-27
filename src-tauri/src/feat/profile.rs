@@ -647,13 +647,48 @@ async fn apply_the_updated_profile(
     Ok(())
 }
 
+/// Подписки, которые обновляются прямо сейчас — один вход у кнопки и у расписания,
+/// поэтому и признак «идёт» живёт здесь, а не в планировщике.
+static UPDATES_IN_FLIGHT: std::sync::LazyLock<parking_lot::Mutex<std::collections::HashSet<String>>> =
+    std::sync::LazyLock::new(|| parking_lot::Mutex::new(std::collections::HashSet::new()));
+
+/// Одновременных загрузок подписок — не больше стольких. Просроченные на старте
+/// и «обновить все» идут очередью, а не залпом лестниц к панели.
+const PARALLEL_DOWNLOADS: usize = 3;
+static DOWNLOAD_SLOTS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(PARALLEL_DOWNLOADS);
+
+struct UpdateClaim(String);
+
+impl Drop for UpdateClaim {
+    fn drop(&mut self) {
+        UPDATES_IN_FLIGHT.lock().remove(&self.0);
+    }
+}
+
+fn claim_update(uid: &String) -> Option<UpdateClaim> {
+    UPDATES_IN_FLIGHT
+        .lock()
+        .insert(uid.clone())
+        .then(|| UpdateClaim(uid.clone()))
+}
+
 pub async fn update_profile(
     uid: &String,
     option: Option<&PrfOption>,
-    auto_refresh: bool,
     ignore_auto_update: bool,
     trigger: UpdateTrigger,
 ) -> Result<()> {
+    let Some(_claim) = claim_update(uid) else {
+        logging!(
+            info,
+            Type::Config,
+            "[Обновление подписки] {uid} уже обновляется, повторный запуск ({trigger:?}) отклонён"
+        );
+        if trigger.is_manual() {
+            bail!("{}", clash_verge_i18n::t!("common.updateInProgress"));
+        }
+        return Ok(());
+    };
     logging!(
         info,
         Type::Config,
@@ -684,23 +719,26 @@ pub async fn update_profile(
 
     let should_refresh = match url_opt {
         Some(target) => {
-            let outcome = Box::pin(perform_profile_update(
-                uid,
-                &target.url,
-                target.option.as_ref(),
-                option,
-                target.fallback_url,
-                target.fallback_domain,
-            ))
-            .await;
+            let outcome = {
+                let _slot = DOWNLOAD_SLOTS.acquire().await;
+                Box::pin(perform_profile_update(
+                    uid,
+                    &target.url,
+                    target.option.as_ref(),
+                    option,
+                    target.fallback_url,
+                    target.fallback_domain,
+                ))
+                .await
+            };
             match outcome {
                 Ok(()) => {
                     mark_the_update(uid, false).await;
                     logging_error!(Type::Timer, crate::core::Timer::global().refresh().await);
                     announce_device_refusal(uid).await;
                     // Текущим профиль может стать и за время загрузки, поэтому
-                    // спрашиваем после неё, а не до.
-                    auto_refresh && Config::profiles().await.latest_arc().is_current_profile_index(uid)
+                    // спрашиваем после неё, а не до — и только здесь.
+                    Config::profiles().await.latest_arc().is_current_profile_index(uid)
                 }
                 Err(err) => {
                     release_stale_panel_locks().await;
@@ -716,7 +754,9 @@ pub async fn update_profile(
                 }
             }
         }
-        None => auto_refresh,
+        // Скачивать нечего (локальный профиль или запрет автообновления): кнопка на
+        // текущем профиле пересобирает конфиг, расписанию делать нечего.
+        None => trigger.is_manual() && Config::profiles().await.latest_arc().is_current_profile_index(uid),
     };
 
     if should_refresh {
@@ -1062,5 +1102,30 @@ mod update_budget_tests {
         let real = anyhow::anyhow!("failed to fetch remote profile with status 403 Forbidden");
 
         assert!(keep_the_clearer_error(budget, real).to_string().contains("403"));
+    }
+}
+
+#[cfg(test)]
+mod update_claim_tests {
+    use super::claim_update;
+
+    #[test]
+    fn a_profile_is_claimed_once_until_the_claim_is_dropped() {
+        let uid = super::String::from("claim-test-uid");
+        let first = claim_update(&uid);
+        assert!(first.is_some(), "первый запуск обновления берёт профиль");
+        assert!(
+            claim_update(&uid).is_none(),
+            "второй запуск того же профиля — кнопкой или расписанием — отклоняется"
+        );
+        assert!(
+            claim_update(&super::String::from("claim-test-other")).is_some(),
+            "другой профиль не задет"
+        );
+        drop(first);
+        assert!(
+            claim_update(&uid).is_some(),
+            "после окончания обновления профиль снова свободен"
+        );
     }
 }
