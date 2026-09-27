@@ -793,7 +793,9 @@ impl CoreManager {
         use crate::{config::Config, constants::timing, core::service};
         use backon::{ConstantBuilder, Retryable as _};
 
-        let tun_enabled = Config::verge().await.latest_arc().enable_tun_mode.unwrap_or(false);
+        // TUN, подавленный на этот сеанс (службы нет), ждать службу не просит.
+        let tun_enabled =
+            Config::verge().await.latest_arc().enable_tun_mode.unwrap_or(false) && !crate::feat::tun::is_suppressed();
         let service_ready = matches!(SERVICE_MANAGER.current().await, ServiceStatus::Ready);
         let is_admin = is_current_app_handle_admin(Handle::app_handle());
 

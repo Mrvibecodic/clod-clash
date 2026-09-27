@@ -1075,6 +1075,33 @@ async fn wait_until_capable(trust_registration: bool) -> bool {
     }
 }
 
+/// clod:tun-before-service — TUN включён, прав администратора нет, а службы
+/// нет вовсе: без неё туннель не поднимется, и ждать её (`SERVICE_WAIT_MAX`),
+/// а потом трижды пробовать туннель — только держать человека без ядра
+/// полминуты. Проверка дешёвая, без IPC: регистрация службы в системе. Флаг
+/// сеансовый, как и при отказе ядра: установит службу — `set_up_service` сам
+/// снимет подавление и передаст ядро службе. Остановленную службу сюда не
+/// относим — она может подняться, её ждём как прежде.
+pub async fn hold_down_without_a_service() {
+    use crate::core::service::{ServiceRegistration, service_registration};
+
+    if !desired().await || is_app_elevated() {
+        return;
+    }
+    let registration = tokio::task::spawn_blocking(service_registration)
+        .await
+        .unwrap_or(ServiceRegistration::Unknown);
+    if !matches!(registration, ServiceRegistration::Missing) {
+        return;
+    }
+    logging!(
+        warn,
+        Type::Core,
+        "TUN is on, the app is not elevated and the service is not installed: starting without TUN"
+    );
+    hold_tun_down("the service is not installed", FAILURE_NO_RIGHTS, "tun::no_rights");
+}
+
 pub async fn init_startup_setup() {
     if !desired().await {
         logging!(

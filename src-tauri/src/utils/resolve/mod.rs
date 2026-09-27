@@ -68,6 +68,9 @@ pub fn resolve_setup_async() {
                 "первичная инициализация конфига не удалась — рантайм всё равно собираем и проверяем"
             );
         }
+        // До сборки конфига: без службы и без прав TUN не поднять, и конфиг
+        // собирается сразу без него, а не после полуминуты ожидания службы.
+        crate::feat::tun::hold_down_without_a_service().await;
         init_verge_config().await;
         Config::verify_config_initialization().await;
 
