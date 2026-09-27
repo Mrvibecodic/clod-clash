@@ -959,7 +959,9 @@ mod stop_proof_tests {
     use crate::utils::source_scan::{fn_body, production_code};
 
     fn body_of(signature: &str) -> &'static str {
-        fn_body(production_code(include_str!("state.rs")), signature).unwrap_or_default()
+        let body = fn_body(production_code(include_str!("state.rs")), signature).unwrap_or_default();
+        assert!(!body.is_empty(), "тело {signature} не найдено — тест ослеп");
+        body
     }
 
     fn comes_before(body: &str, first: &str, then: &str) -> bool {
@@ -994,9 +996,14 @@ mod stop_proof_tests {
     #[test]
     fn every_spawn_of_the_core_first_refuses_to_double_it() {
         for signature in ["async fn start_core_by_sidecar", "async fn start_core_by_service"] {
-            let body = body_of(signature).trim_start_matches('{').trim_start();
+            let first = body_of(signature)
+                .trim_start_matches('{')
+                .lines()
+                .map(str::trim)
+                .find(|line| !line.is_empty() && !line.starts_with("//"))
+                .unwrap_or_default();
             assert!(
-                body.starts_with("self.refuse_to_double_the_core()?;"),
+                first == "self.refuse_to_double_the_core()?;",
                 "{signature} порождает ядро без проверки, что прежнее остановлено"
             );
         }
@@ -1008,8 +1015,8 @@ mod stop_proof_tests {
         let exit = body_of("fn handle_core_exit");
         let asked_for = fn_body(exit, "if asked_for").unwrap_or_default();
         assert!(
-            asked_for.contains("return;"),
-            "ветка плановой смерти не выходит из обработчика"
+            asked_for.trim_end_matches('}').trim_end().ends_with("return;"),
+            "ветка плановой смерти не выходит из обработчика безусловно"
         );
         assert!(
             comes_before(exit, "if asked_for", "set_restart_pending("),
