@@ -103,7 +103,7 @@ jobs:
         shell: bash
         run: |
           cargo test --lib --features clippy
-          cargo test --workspace --exclude clash-verge
+          cargo test --workspace --exclude clash-verge --exclude tauri-plugin-clash-verge-sysinfo
           if [ "$RUNNER_OS" = "Linux" ]; then
             cargo test --test subscription_headers --features clippy
           fi

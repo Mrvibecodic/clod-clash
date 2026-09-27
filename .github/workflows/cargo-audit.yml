@@ -54,25 +54,40 @@ jobs:
           fail() { echo "::error::$1"; exit 1; }
 
           expected=$'[advisories]\nignore = ["RUSTSEC-2026-0293"]'
-          actual=$(grep -vE '^[[:space:]]*(#|$)' .cargo/audit.toml)
+          actual=$(grep -vE '^[[:space:]]*(#|$)' .cargo/audit.toml || true)
           [ "$actual" = "$expected" ] ||
             fail ".cargo/audit.toml изменился — сторож проверяет не то, что заглушено: ${actual//$'\n'/; }"
 
-          grep -q '^name = "ringbuf"$' Cargo.lock ||
-            fail "ringbuf в Cargo.lock не осталось — ignore RUSTSEC-2026-0293 больше не нужен"
+          # Уязвимы ringbuf < 0.5.2. Нет их в локе — заглушка лишняя.
+          vulnerable='^(0\.[0-4]\.|0\.5\.[01]$)'
+          grep -A1 '^name = "ringbuf"$' Cargo.lock | sed -n 's/^version = "\(.*\)"$/\1/p' | grep -qE "$vulnerable" ||
+            fail "уязвимого ringbuf в Cargo.lock не осталось — ignore RUSTSEC-2026-0293 больше не нужен"
 
-          if grep -nE '^[[:space:]]*args:.*(--features|--all-features|--no-default-features|(^|[[:space:]])-f[[:space:]])' .github/workflows/release-clod.yml ||
-             grep -n '"features"' src-tauri/tauri*.conf.json; then
-            fail "релиз собирается не с фичами по умолчанию — дерево ниже проверяет не ту сборку"
+          # Дерево ниже верно, только пока релиз собирается с фичами по
+          # умолчанию: шаг tauri-action сверяется целиком, а не поиском флагов.
+          release=.github/workflows/release-clod.yml
+          [ -f "$release" ] || fail "$release не найден — сторож не видит, как собирается релиз"
+          args=$(grep -E '^[[:space:]]*args:' "$release" | sed 's/^[[:space:]]*//' || true)
+          [ "$args" = 'args: --target ${{ matrix.target }}' ] ||
+            fail "шаг сборки в $release передаёт не только --target: ${args//$'\n'/; }"
+          if grep -nE 'tauriScript|TAURI_CONFIG|CARGO_FEATURE|RUSTFLAGS' "$release"; then
+            fail "$release меняет сборку в обход args — дерево ниже проверяет не ту сборку"
+          fi
+          grep -q '^    "tauri": "tauri",$' package.json ||
+            fail "скрипт tauri в package.json изменился — релиз может собираться с другими фичами"
+          confs=(src-tauri/tauri*.conf.json)
+          [ -f "${confs[0]}" ] || fail "src-tauri/tauri*.conf.json не найдены"
+          if grep -n '"features"' "${confs[@]}"; then
+            fail "tauri*.conf.json задаёт фичи сборки — дерево ниже проверяет не ту сборку"
           fi
 
           tree=$(cargo tree --locked -p clash-verge -e normal,build --target all --prefix none --format '{p}')
           grep -q '^tauri v' <<<"$tree" || fail "cargo tree вернул пустое дерево"
-          if grep -q '^ringbuf v' <<<"$tree"; then
+          if grep -qE '^ringbuf v(0\.[0-4]\.|0\.5\.[01]( |$))' <<<"$tree"; then
             cargo tree --locked -p clash-verge -e normal,build --target all -i ringbuf
-            fail "ringbuf попал в релизную сборку — RUSTSEC-2026-0293 затрагивает не только dev"
+            fail "уязвимый ringbuf попал в релизную сборку — RUSTSEC-2026-0293 затрагивает не только dev"
           fi
-          echo "ringbuf только в dev-сборке (фича tauri-dev), в релизном дереве его нет"
+          echo "уязвимый ringbuf только в dev-сборке (фича tauri-dev), в релизном дереве его нет"
 
   audit:
     runs-on: ubuntu-22.04
