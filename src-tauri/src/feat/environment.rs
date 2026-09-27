@@ -257,13 +257,9 @@ fn v6_prefix(ip: std::net::Ipv6Addr) -> std::string::String {
     )
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum Belonging {
-    CarriesAPathOfItsOwn,
-    Apart,
-}
-
-/// Единственное место, где решается принадлежность интерфейса пути наружу.
+/// Единственное место, где решается принадлежность интерфейса пути наружу:
+/// `true` — интерфейс свой пути не несёт (наш туннель, песочница) и в перепись
+/// не попадает.
 ///
 /// clod:net-virtual — решение принимается один раз, при построении переписи.
 /// Повторять его на разнице двух переписей бессмысленно: отсеянное в перепись
@@ -273,12 +269,8 @@ enum Belonging {
 /// Принадлежность угадывается по имени, поэтому имена, которые песочница
 /// составляет сама, отделены от метки коммутатора: метка сравнивается целиком,
 /// а не подстрокой, иначе под правило попал бы коммутатор, названный человеком.
-fn belonging_of(name: &str) -> Belonging {
-    if is_our_tunnel(name) || names_its_own_sandbox(name) || switch_is_labelled_like_a_sandbox(name) {
-        Belonging::Apart
-    } else {
-        Belonging::CarriesAPathOfItsOwn
-    }
+fn stands_apart(name: &str) -> bool {
+    is_our_tunnel(name) || names_its_own_sandbox(name) || switch_is_labelled_like_a_sandbox(name)
 }
 
 /// Отпечаток сети — адреса, по которым трафик действительно может уйти.
@@ -293,17 +285,16 @@ fn fingerprint_of(interfaces: Vec<network_interface::NetworkInterface>) -> BTree
 
     for interface in interfaces {
         let network_interface::NetworkInterface { name, addr, .. } = interface;
-        let into = match belonging_of(&name) {
-            Belonging::CarriesAPathOfItsOwn => &mut entries,
-            Belonging::Apart => continue,
-        };
+        if stands_apart(&name) {
+            continue;
+        }
         for address in addr {
             match address {
                 network_interface::Addr::V4(v4) if v4_carries_traffic(v4.ip) => {
-                    into.insert(format!("{name}:{}", v4.ip));
+                    entries.insert(format!("{name}:{}", v4.ip));
                 }
                 network_interface::Addr::V6(v6) if v6_carries_traffic(v6.ip) => {
-                    into.insert(format!("{name}:{}", v6_prefix(v6.ip)));
+                    entries.insert(format!("{name}:{}", v6_prefix(v6.ip)));
                 }
                 _ => (),
             }
