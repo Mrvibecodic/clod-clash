@@ -7,7 +7,7 @@ use crate::{
         validate::{CoreConfigValidator, ValidationErrorKind, ValidationOutcome, ValidationSkipReason},
     },
     enhance::Sources,
-    utils::dirs,
+    utils::{dirs, help},
 };
 use anyhow::{Result, anyhow};
 use clash_verge_logging::{Type, logging};
@@ -293,7 +293,7 @@ impl CoreManager {
     /// работающему конфигу.
     async fn accept_without_the_core(&self, build: IRuntime) {
         let profile_uid = build.profile_uid.clone();
-        Self::note_the_accepted(&build);
+        Self::note_the_accepted(&build).await;
         Config::runtime().await.replace(build);
         forget_the_not_applied_mark(profile_uid.as_ref()).await;
     }
@@ -301,15 +301,15 @@ impl CoreManager {
     /// Конфиг проверен при старте приложения (или проверить его не вышло) — в слот,
     /// ядро стартует с него.
     pub(crate) async fn accept_at_boot(&self, build: IRuntime) {
-        Self::note_the_accepted(&build);
+        Self::note_the_accepted(&build).await;
         Config::runtime().await.replace(build);
     }
 
     /// Что сопровождает принятую сборку: заявка на подмену DNS и слово человеку
     /// о записях цепочек, которые приложение отбросило.
-    fn note_the_accepted(build: &IRuntime) {
+    async fn note_the_accepted(build: &IRuntime) {
         Self::remember_dns_desire(build);
-        announce_discarded_keys(&build.discarded_keys);
+        announce_discarded_keys(&build.discarded_keys).await;
     }
 
     /// clod:dns-applied — заявка на подмену системного DNS едет вместе со сборкой
@@ -473,7 +473,7 @@ impl CoreManager {
                     );
                     return self.replace_core_and_apply(build).await;
                 }
-                Self::note_the_accepted(&build);
+                Self::note_the_accepted(&build).await;
                 Config::runtime().await.replace(build);
                 logging!(info, Type::Core, "{message}");
                 Ok(())
@@ -516,7 +516,7 @@ impl CoreManager {
         match self.restart_core_during_config_update().await {
             Ok(()) => {
                 logging!(info, Type::Core, "Configuration applied after restart");
-                announce_discarded_keys(&discarded_keys);
+                announce_discarded_keys(&discarded_keys).await;
                 Ok(())
             }
             Err(err) => {
@@ -657,25 +657,43 @@ enum StageAttempt {
     Unanswered(std::string::String),
 }
 
+/// Последний объявленный набор отброшенных ключей — переживает перезапуск,
+/// иначе один и тот же merge давал бы предупреждение при каждом старте.
+const DISCARDED_KEYS_FILE: &str = "discarded-keys.yaml";
+
 /// clod:tun-owned-keys — цепочка merge или script записала ключ, которым
 /// владеет приложение (плоскость управления, свои поля `tun`), и запись
 /// отброшена. Говорится один раз на набор ключей: каждая пересборка с тем же
-/// набором молчит, новый набор — новое уведомление. Только для принятой
-/// сборки: кандидат, отвергнутый ядром, до человека не доехал.
-fn announce_discarded_keys(discarded: &[String]) {
-    static LAST_ANNOUNCED: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
-    let changed = {
-        let mut last = match LAST_ANNOUNCED.lock() {
-            Ok(guard) => guard,
-            Err(poisoned) => poisoned.into_inner(),
-        };
-        let changed = last.as_slice() != discarded;
-        if changed {
-            *last = discarded.to_vec();
-        }
-        changed
-    };
-    if !changed || discarded.is_empty() {
+/// набором молчит, новый набор — новое уведомление, и набор помнится на диске.
+/// Только для принятой сборки: кандидат, отвергнутый ядром, до человека не доехал.
+async fn announce_discarded_keys(discarded: &[String]) {
+    static LAST_ANNOUNCED: std::sync::LazyLock<tokio::sync::Mutex<Option<Vec<String>>>> =
+        std::sync::LazyLock::new(|| tokio::sync::Mutex::new(None));
+    let path = dirs::app_home_dir().ok().map(|dir| dir.join(DISCARDED_KEYS_FILE));
+    let mut last = LAST_ANNOUNCED.lock().await;
+    if last.is_none() {
+        *last = Some(match &path {
+            Some(path) => help::read_yaml(path).await.unwrap_or_default(),
+            None => Vec::new(),
+        });
+    }
+    let known = last.get_or_insert_with(Vec::new);
+    if known.as_slice() == discarded {
+        return;
+    }
+    *known = discarded.to_vec();
+    if let Some(path) = &path
+        && let Err(err) = help::save_yaml(
+            path,
+            &*known,
+            Some("# clod: набор ключей merge/script, о котором уже сказано"),
+        )
+        .await
+    {
+        logging!(warn, Type::Config, "failed to remember the discarded keys: {err:#}");
+    }
+    drop(last);
+    if discarded.is_empty() {
         return;
     }
     logging!(
