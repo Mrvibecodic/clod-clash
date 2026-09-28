@@ -8,6 +8,66 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.1.11-alpha.5
+
+<!-- lang:en -->
+
+### Added
+
+- The DNS page stores only what differs from the subscription; everything else always comes from the fresh subscription. "As in subscription" resets the page; an existing page is converted on the first start
+- Merge and script chains may now change `tun` and `dns` keys the app does not own itself; keys the app manages are dropped with a one-time notice per set
+- macOS: switching the primary network service (Wi-Fi ↔ cable) re-applies the system proxy within a second
+- The "next update" hint shows the real time of the next attempt, including retries
+
+### Changed
+
+- A config the core rejects at startup is no longer replaced by an empty default: the core does not start and the reason is shown; the first accepted config (profile switch, subscription update, TUN toggle, merge/script save) lifts it. If the check itself could not run, the core starts and judges the config itself
+- A subscription is checked by the core before it is written to disk; the previous file is kept as `.prev`
+- A failed scheduled subscription update is retried from 15 min up to 5 h; a subscription the core rejected waits for the regular time; one toast per series
+- One update per subscription at a time; scheduled downloads run at most three in parallel
+- With TUN on, no rights and no service, the core starts right away without TUN instead of waiting; TUN returns by itself once the service appears
+- Old installs: the connection method written by the previous template is cleared once, so `clod-connect-mode` from the subscription applies
+- Tauri 2.12: tray icon click on macOS 26/27
+- Managed core check compares with the last downloaded managed core while Clod Core is running; re-downloading the same version only switches to it
+- Core version line without the "Mihomo" suffix; core switch toast without the slot name
+
+### Fixed
+
+- Mode switch from the tray or hotkey while a config is being applied waits up to 3 s instead of racing it
+- A latency test URL that is not valid is highlighted and blocks saving the "Misc" dialog until fixed
+- Windows: window subscriptions are closed before the core stops at session end
+- Release notes in the update dialog are sanitized
+
+<!-- lang:ru -->
+
+### Добавлено
+
+- Страница DNS хранит только отличия от подписки; остальное всегда берётся из свежей подписки. «Как в подписке» сбрасывает страницу; старая страница переводится при первом запуске
+- Цепочки merge и script теперь могут менять ключи `tun` и `dns`, которыми приложение само не владеет; записи в ключи приложения отбрасываются с уведомлением один раз на набор
+- macOS: смена первичной сетевой службы (Wi-Fi ↔ кабель) переприменяет системный прокси в течение секунды
+- Подсказка «следующее обновление» показывает реальный срок следующей попытки, с учётом повторов
+
+### Изменено
+
+- Конфиг, отвергнутый ядром при запуске, больше не подменяется пустым умолчанием: ядро не запускается, причина показывается; первый принятый конфиг (смена профиля, обновление подписки, тумблер TUN, сохранение merge/script) снимает отказ. Если сама проверка не запустилась, ядро стартует и судит конфиг само
+- Подписка проверяется ядром до записи на диск; прежний файл сохраняется как `.prev`
+- Неудачное плановое обновление подписки повторяется с паузой от 15 мин до 5 ч; отвергнутая ядром подписка ждёт обычного срока; один тост на серию
+- Одно обновление подписки за раз; плановых загрузок — не больше трёх параллельно
+- При включённом TUN без прав и без службы ядро стартует сразу без TUN, а не ждёт; TUN возвращается сам, когда появится служба
+- Старые установки: способ подключения, записанный прежним шаблоном, снимается один раз, чтобы действовал `clod-connect-mode` из подписки
+- Tauri 2.12: клик по значку в трее на macOS 26/27
+- Проверка управляемого ядра при работающем Clod Core сравнивает с последним скачанным управляемым ядром; повторная загрузка той же версии только переключает на него
+- Строка версии ядра без подписи «Mihomo»; тост смены ядра без имени слота
+
+### Исправлено
+
+- Смена режима из трея или горячей клавишей во время применения конфига ждёт до 3 с, а не соревнуется с ним
+- Негодный адрес проверки задержки подсвечивается и не даёт сохранить диалог «Разное», пока не исправлен
+- Windows: подписки окна закрываются до остановки ядра при завершении сеанса
+- Примечания к выпуску в диалоге обновления проходят очистку
+
+---
+
 ## v0.1.11-alpha.4
 
 <!-- lang:en -->
