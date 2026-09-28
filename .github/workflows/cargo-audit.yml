@@ -68,7 +68,9 @@ jobs:
           release=.github/workflows/release-clod.yml
           [ -f "$release" ] || fail "$release не найден — сторож не видит, как собирается релиз"
           args=$(grep -E '^[[:space:]]*args:' "$release" | sed 's/^[[:space:]]*//' || true)
-          [ "$args" = 'args: --target ${{ matrix.target }}' ] ||
+          # Эталон собран printf: выражение GitHub в тексте шага подставилось бы
+          # ещё до запуска (здесь matrix нет — осталась бы пустая строка).
+          [ "$args" = "$(printf 'args: --target $%s' '{{ matrix.target }}')" ] ||
             fail "шаг сборки в $release передаёт не только --target: ${args//$'\n'/; }"
           if grep -nE 'tauriScript|TAURI_CONFIG' "$release"; then
             fail "$release меняет сборку в обход args — дерево ниже проверяет не ту сборку"
