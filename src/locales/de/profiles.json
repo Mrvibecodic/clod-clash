@@ -141,7 +141,8 @@
       },
       "hints": {
         "intervalLocked": "The provider set this interval with the profile-update-interval header, so it cannot be changed.",
-        "intervalFloor": "Höchstens einmal alle {{minutes}} Minuten — sonst erhält das Panel unnötige Anfragen."
+        "intervalFloor": "Höchstens einmal alle {{minutes}} Minuten — sonst erhält das Panel unnötige Anfragen.",
+        "secureChannel": "(make sure your provider supports this option)"
       },
       "feedback": {
         "notifications": {

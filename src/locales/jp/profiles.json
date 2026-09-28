@@ -141,7 +141,8 @@
       },
       "hints": {
         "intervalLocked": "The provider set this interval with the profile-update-interval header, so it cannot be changed.",
-        "intervalFloor": "{{minutes}} 分に 1 回までです — それ以上頻繁だとパネルに無駄な要求が届きます。"
+        "intervalFloor": "{{minutes}} 分に 1 回までです — それ以上頻繁だとパネルに無駄な要求が届きます。",
+        "secureChannel": "(make sure your provider supports this option)"
       },
       "feedback": {
         "notifications": {

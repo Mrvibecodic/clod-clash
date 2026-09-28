@@ -391,6 +391,14 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
         )}
       />
 
+      {!secureLocked && (
+        <Box sx={{ mt: -0.5, mb: 1, px: 0.5 }}>
+          <Typography variant="caption" color="text.secondary">
+            {t('profiles.modals.profileForm.hints.secureChannel')}
+          </Typography>
+        </Box>
+      )}
+
       {chanFingerprint && (
         <Box sx={{ mt: -0.5, mb: 1, px: 0.5 }}>
           <Typography variant="caption" color="text.secondary">

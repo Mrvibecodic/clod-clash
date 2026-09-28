@@ -141,7 +141,8 @@
       },
       "hints": {
         "intervalLocked": "The provider set this interval with the profile-update-interval header, so it cannot be changed.",
-        "intervalFloor": "En fazla {{minutes}} dakikada bir — daha sık olursa panele gereksiz istek gider."
+        "intervalFloor": "En fazla {{minutes}} dakikada bir — daha sık olursa panele gereksiz istek gider.",
+        "secureChannel": "(make sure your provider supports this option)"
       },
       "feedback": {
         "notifications": {

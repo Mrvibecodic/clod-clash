@@ -141,7 +141,8 @@
       },
       "hints": {
         "intervalLocked": "The provider set this interval with the profile-update-interval header, so it cannot be changed.",
-        "intervalFloor": "حداکثر هر {{minutes}} دقیقه یک بار — در غیر این صورت پنل درخواست‌های اضافی می‌گیرد."
+        "intervalFloor": "حداکثر هر {{minutes}} دقیقه یک بار — در غیر این صورت پنل درخواست‌های اضافی می‌گیرد.",
+        "secureChannel": "(make sure your provider supports this option)"
       },
       "feedback": {
         "notifications": {

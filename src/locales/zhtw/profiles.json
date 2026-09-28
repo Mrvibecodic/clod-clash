@@ -141,7 +141,8 @@
       },
       "hints": {
         "intervalLocked": "The provider set this interval with the profile-update-interval header, so it cannot be changed.",
-        "intervalFloor": "最快每 {{minutes}} 分鐘一次 — 更頻繁只會為面板帶來多餘請求。"
+        "intervalFloor": "最快每 {{minutes}} 分鐘一次 — 更頻繁只會為面板帶來多餘請求。",
+        "secureChannel": "(make sure your provider supports this option)"
       },
       "feedback": {
         "notifications": {

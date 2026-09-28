@@ -141,7 +141,8 @@
       },
       "hints": {
         "intervalLocked": "The provider set this interval with the profile-update-interval header, so it cannot be changed.",
-        "intervalFloor": "{{minutes}}분에 한 번보다 자주 요청하지 않습니다 — 그보다 잦으면 패널에 불필요한 요청이 갑니다."
+        "intervalFloor": "{{minutes}}분에 한 번보다 자주 요청하지 않습니다 — 그보다 잦으면 패널에 불필요한 요청이 갑니다.",
+        "secureChannel": "(make sure your provider supports this option)"
       },
       "feedback": {
         "notifications": {

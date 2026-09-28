@@ -141,7 +141,8 @@
       },
       "hints": {
         "intervalLocked": "The provider set this interval with the profile-update-interval header, so it cannot be changed.",
-        "intervalFloor": "Tidak lebih sering dari sekali setiap {{minutes}} menit — jika tidak, panel menerima permintaan yang tidak perlu."
+        "intervalFloor": "Tidak lebih sering dari sekali setiap {{minutes}} menit — jika tidak, panel menerima permintaan yang tidak perlu.",
+        "secureChannel": "(make sure your provider supports this option)"
       },
       "feedback": {
         "notifications": {

@@ -141,7 +141,8 @@
       },
       "hints": {
         "intervalLocked": "The provider set this interval with the profile-update-interval header, so it cannot be changed.",
-        "intervalFloor": "مرة واحدة كل {{minutes}} دقيقة على الأكثر — وإلا تتلقى اللوحة طلبات لا لزوم لها."
+        "intervalFloor": "مرة واحدة كل {{minutes}} دقيقة على الأكثر — وإلا تتلقى اللوحة طلبات لا لزوم لها.",
+        "secureChannel": "(make sure your provider supports this option)"
       },
       "feedback": {
         "notifications": {

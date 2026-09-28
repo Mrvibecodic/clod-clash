@@ -415,6 +415,7 @@ export interface TranslationResources {
           hints: {
             intervalFloor: string
             intervalLocked: string
+            secureChannel: string
           }
           title: {
             added: string

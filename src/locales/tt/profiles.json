@@ -141,7 +141,8 @@
       },
       "hints": {
         "intervalLocked": "The provider set this interval with the profile-update-interval header, so it cannot be changed.",
-        "intervalFloor": "{{minutes}} минутка бер тапкырдан ешрак түгел — югыйсә панель артык сорауларны ала."
+        "intervalFloor": "{{minutes}} минутка бер тапкырдан ешрак түгел — югыйсә панель артык сорауларны ала.",
+        "secureChannel": "(make sure your provider supports this option)"
       },
       "feedback": {
         "notifications": {
