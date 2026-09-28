@@ -8,7 +8,7 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
-## v0.1.11-alpha.5
+## v0.1.11-alpha.6
 
 <!-- lang:en -->
 
