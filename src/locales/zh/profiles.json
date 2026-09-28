@@ -145,9 +145,6 @@
         "secureChannel": "(make sure your provider supports this option)"
       },
       "feedback": {
-        "notifications": {
-          "creationRetry": "订阅创建失败，尝试使用 Clash 代理创建"
-        },
         "added": "✓ Subscription added!",
         "failed": "That did not work. Check the link or get a new one where you bought the subscription",
         "hint": "Your service gives you the link. The name, expiry and traffic come with it",

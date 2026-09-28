@@ -457,6 +457,12 @@ pub fn snapshot_path(original_path: &Path) -> Result<PathBuf> {
     Ok(temp_path)
 }
 
+/// Называет ли текст ошибки подписки причину словами (`clod-sub-…`), а не только
+/// сбой сети или исчерпанный срок.
+pub(crate) fn names_a_reason(text: &str) -> bool {
+    text.contains("clod-sub-") && !text.contains("clod-sub-budget")
+}
+
 /// Какую из двух причин отказа показать пользователю.
 ///
 /// Названная причина всегда лучше безымянной: `clod-sub-link-list` объясняет, что
@@ -464,7 +470,6 @@ pub fn snapshot_path(original_path: &Path) -> Result<PathBuf> {
 /// ступени» не объясняет ничего. Отказ по бюджету — самый бедный диагноз из всех: он
 /// говорит только, что времени не хватило, и настоящую причину не вытесняет никогда.
 pub fn keep_the_clearer_error(previous: anyhow::Error, fresh: anyhow::Error) -> anyhow::Error {
-    let names_a_reason = |text: &str| text.contains("clod-sub-") && !text.contains("clod-sub-budget");
     let (previous_text, fresh_text) = (previous.to_string(), fresh.to_string());
 
     if fresh_text.contains("clod-sub-budget") {

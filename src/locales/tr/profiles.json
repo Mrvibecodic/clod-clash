@@ -145,9 +145,6 @@
         "secureChannel": "(make sure your provider supports this option)"
       },
       "feedback": {
-        "notifications": {
-          "creationRetry": "Profil oluşturma başarısız oldu, Clash vekil ile yeniden deneniyor..."
-        },
         "added": "✓ Subscription added!",
         "failed": "That did not work. Check the link or get a new one where you bought the subscription",
         "hint": "Your service gives you the link. The name, expiry and traffic come with it",

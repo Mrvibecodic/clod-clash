@@ -145,9 +145,6 @@
         "secureChannel": "(make sure your provider supports this option)"
       },
       "feedback": {
-        "notifications": {
-          "creationRetry": "프로필 생성 실패, Clash 프록시로 다시 시도 중..."
-        },
         "added": "✓ Subscription added!",
         "failed": "That did not work. Check the link or get a new one where you bought the subscription",
         "hint": "Your service gives you the link. The name, expiry and traffic come with it",

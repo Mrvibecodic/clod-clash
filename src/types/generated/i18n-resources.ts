@@ -390,9 +390,6 @@ export interface TranslationResources {
             loading3: string
             loading4: string
             loading5: string
-            notifications: {
-              creationRetry: string
-            }
           }
           fields: {
             acceptInvalidCerts: string

@@ -449,68 +449,6 @@ struct Downloaded {
 /// Подписка скачана не напрямую, а через прокси (Clash или системный).
 pub(crate) const UPDATED_VIA_PROXY: &str = "update_with_clash_proxy";
 
-/// Ступеней лестницы маршрутов на один адрес.
-const LADDER_STEPS: u64 = 3;
-
-/// Любой запрос может быть повторён с запасными корнями TLS
-/// (`utils/network.rs`, `should_retry_with_static_webpki_roots`).
-const TLS_FALLBACK_ATTEMPTS: u64 = 2;
-
-/// Защищённый канал при неудаче повторяет запрос без закрепления ключа прослойки
-/// (`config/prfitem.rs`, `fetch_for_profile`) — ради ротации ключа он и заведён.
-const SECURE_CHANNEL_ATTEMPTS: u64 = 2;
-
-/// Запас поверх суммы ступеней: фора прямого маршрута в гонке, паузы между
-/// попытками и разбор ответа.
-const LADDER_SLACK: std::time::Duration = std::time::Duration::from_secs(10);
-
-/// Потолок самого бюджета. Существует только затем, чтобы прибавление к `Instant`
-/// не переполнилось: `Instant + Duration::MAX` — паника. Тридцать лет — то же
-/// значение, которое tokio берёт в `Instant::far_future` со ссылкой на переполнение
-/// на macOS и FreeBSD. Ни одна работающая настройка сюда не упирается.
-const BUDGET_CEILING_SECS: u64 = 30 * 365 * 24 * 60 * 60;
-
-/// Сколько времени отводится на ОДИН адрес подписки — основной или запасной.
-///
-/// Потолка не было вовсе: сумма таймаутов ступеней ничем не ограничивалась, и
-/// отменить ожидание было нечем. Бюджет считается от таймаута, который выбрал сам
-/// пользователь в карточке профиля, и от числа законных попыток внутри ступени,
-/// поэтому ни один работавший путь не укорачивается: обрывается только зависание
-/// сверх того, что лестница может занять честно.
-///
-/// У каждого адреса бюджет свой — иначе основной адрес съедал бы весь потолок и до
-/// запасного домена, ради которого он и заведён, дело не доходило бы никогда. Общего
-/// потолка на всё обновление поэтому нет: бюджет режет зависание отдельного адреса,
-/// а не суммарное время.
-///
-/// Приём профиля (`accept_the_download`) идёт вне бюджета, поэтому принятый
-/// профиль не может оборваться на середине применения.
-fn address_budget(option: Option<&PrfOption>) -> std::time::Duration {
-    let timeout = option.and_then(|o| o.timeout_seconds).unwrap_or(20);
-    let secure = option.is_some_and(|o| o.secure.unwrap_or(false));
-
-    let attempts_per_step = TLS_FALLBACK_ATTEMPTS * if secure { SECURE_CHANNEL_ATTEMPTS } else { 1 };
-    let seconds = timeout.saturating_mul(LADDER_STEPS).saturating_mul(attempts_per_step);
-
-    std::time::Duration::from_secs(seconds.min(BUDGET_CEILING_SECS)).saturating_add(LADDER_SLACK)
-}
-
-async fn within_budget<F>(deadline: tokio::time::Instant, work: F) -> Result<PrfItem>
-where
-    F: std::future::Future<Output = Result<PrfItem>>,
-{
-    // Бюджет уже вышел — запрос не отправляем вовсе, чтобы не дёргать панель
-    // соединением, которое всё равно будет оборвано.
-    if tokio::time::Instant::now() >= deadline {
-        bail!("clod-sub-budget: на этот адрес подписки отведённое время уже вышло");
-    }
-
-    match tokio::time::timeout_at(deadline, Box::pin(work)).await {
-        Ok(result) => result,
-        Err(_) => bail!("clod-sub-budget: адрес подписки не ответил за отведённое время"),
-    }
-}
-
 async fn perform_profile_update(
     uid: &String,
     url: &String,
@@ -524,86 +462,31 @@ async fn perform_profile_update(
         Type::Config,
         "[Обновление подписки] Начинаю загрузку нового содержимого подписки"
     );
-    let mut merged_opt = PrfOption::merge(opt, option);
-    let budget = address_budget(merged_opt.as_ref());
-    let deadline = tokio::time::Instant::now() + budget;
+    let merged_opt = PrfOption::merge(opt, option);
     let profiles = Config::profiles().await;
     let profiles_arc = profiles.latest_arc();
     let profile_name = profiles_arc
         .get_name_by_uid(uid)
         .unwrap_or_else(|| String::from("UnKnown Profile"));
 
-    let mut last_err;
-
-    match within_budget(deadline, PrfItem::from_url(url, None, None, merged_opt.as_ref())).await {
-        Ok(item) => {
+    let mut last_err = match PrfItem::from_url_with_ladder(url, None, None, merged_opt.as_ref()).await {
+        Ok(fetched) => {
             logging!(info, Type::Config, "[Обновление подписки] Подписка скачана");
-            return Ok(Downloaded { item, notice: None });
-        }
-        Err(err) => {
-            logging!(
-                warn,
-                Type::Config,
-                "Warning: [Обновление подписки] Обычное обновление не удалось: {}, пробую обновить через прокси Clash",
-                mask_err(&err.to_string())
-            );
-            last_err = err;
-        }
-    }
-
-    merged_opt.get_or_insert_with(PrfOption::default).self_proxy = Some(true);
-    merged_opt.get_or_insert_with(PrfOption::default).with_proxy = Some(false);
-
-    match within_budget(deadline, PrfItem::from_url(url, None, None, merged_opt.as_ref())).await {
-        Ok(item) => {
-            logging!(
-                info,
-                Type::Config,
-                "[Обновление подписки] Подписка скачана через прокси Clash"
-            );
-            drop(last_err);
             return Ok(Downloaded {
-                item,
-                notice: Some(UPDATED_VIA_PROXY),
+                item: fetched.item,
+                notice: fetched.detoured.then_some(UPDATED_VIA_PROXY),
             });
         }
         Err(err) => {
             logging!(
                 warn,
                 Type::Config,
-                "Warning: [Обновление подписки] Обновление через прокси Clash не удалось: {}, пробую обновить через системный прокси",
+                "Warning: [Обновление подписки] Основной адрес не ответил ни одним маршрутом: {}",
                 mask_err(&err.to_string())
             );
-            last_err = keep_the_clearer_error(last_err, err);
+            err
         }
-    }
-
-    merged_opt.get_or_insert_with(PrfOption::default).self_proxy = Some(false);
-    merged_opt.get_or_insert_with(PrfOption::default).with_proxy = Some(true);
-
-    match within_budget(deadline, PrfItem::from_url(url, None, None, merged_opt.as_ref())).await {
-        Ok(item) => {
-            logging!(
-                info,
-                Type::Config,
-                "[Обновление подписки] Подписка скачана через системный прокси"
-            );
-            drop(last_err);
-            return Ok(Downloaded {
-                item,
-                notice: Some(UPDATED_VIA_PROXY),
-            });
-        }
-        Err(err) => {
-            logging!(
-                warn,
-                Type::Config,
-                "Warning: [Обновление подписки] Обновление через системный прокси не удалось: {}, все попытки исчерпаны",
-                mask_err(&err.to_string())
-            );
-            last_err = keep_the_clearer_error(last_err, err);
-        }
-    }
+    };
 
     let spare_addresses = [
         fallback_url.filter(|value| !value.trim().is_empty()),
@@ -620,17 +503,11 @@ async fn perform_profile_update(
             mask_url(&spare)
         );
 
-        // У запасного адреса свой бюджет: он существует ровно для того случая,
-        // когда основной адрес молчит до последней секунды.
-        let spare_deadline = tokio::time::Instant::now() + budget;
-
-        match within_budget(
-            spare_deadline,
-            PrfItem::from_url_with_ladder(&spare, None, None, merged_opt.as_ref()),
-        )
-        .await
-        {
-            Ok(mut item) => {
+        // У запасного адреса свой бюджет (он внутри лестницы): запасной существует
+        // ровно для того случая, когда основной адрес молчит до последней секунды.
+        match PrfItem::from_url_with_ladder(&spare, None, None, merged_opt.as_ref()).await {
+            Ok(fetched) => {
+                let mut item = fetched.item;
                 item.from_fallback = Some(true);
                 drop(last_err);
                 return Ok(Downloaded {
@@ -1318,72 +1195,8 @@ mod failure_visibility_tests {
 }
 
 #[cfg(test)]
-mod update_budget_tests {
-    use super::{LADDER_SLACK, PrfOption, address_budget, keep_the_clearer_error};
-    use std::time::Duration;
-
-    fn option(timeout: Option<u64>, secure: Option<bool>) -> PrfOption {
-        PrfOption {
-            timeout_seconds: timeout,
-            secure,
-            ..PrfOption::default()
-        }
-    }
-
-    #[test]
-    fn the_default_ladder_fits_into_its_budget() {
-        // Три ступени по 20 с, каждая с возможным повтором на запасных корнях TLS.
-        assert_eq!(address_budget(None), Duration::from_secs(120) + LADDER_SLACK);
-        assert_eq!(
-            address_budget(Some(&option(Some(20), None))),
-            Duration::from_secs(120) + LADDER_SLACK
-        );
-    }
-
-    #[test]
-    fn the_secure_channel_gets_its_second_attempt() {
-        // Защищённый канал повторяет запрос без закрепления ключа — ступень стоит вдвое.
-        assert_eq!(
-            address_budget(Some(&option(Some(20), Some(true)))),
-            Duration::from_secs(240) + LADDER_SLACK
-        );
-    }
-
-    #[test]
-    fn a_users_own_timeout_is_never_undercut() {
-        // Числа здесь посчитаны руками, а не теми же константами, что и код: иначе
-        // тест был бы тождественно истинным и уронённую константу не поймал бы.
-        // Лестница — три ступени; каждая может быть повторена с запасными корнями
-        // TLS; в защищённом канале — ещё раз без закрепления ключа прослойки.
-        for (timeout, secure, honest_seconds) in [
-            (1_u64, None, 6_u64),
-            (5, None, 30),
-            (20, None, 120),
-            (60, None, 360),
-            (600, None, 3600),
-            (1, Some(true), 12),
-            (20, Some(true), 240),
-            (600, Some(true), 7200),
-        ] {
-            let budget = address_budget(Some(&option(Some(timeout), secure)));
-            assert!(
-                budget >= Duration::from_secs(honest_seconds),
-                "бюджет {budget:?} короче честной лестницы {honest_seconds} с при timeout={timeout}"
-            );
-        }
-    }
-
-    #[test]
-    fn an_absurd_timeout_does_not_panic_on_the_deadline() {
-        // Именно здесь и была бы паника: `Instant + Duration::MAX`.
-        for timeout in [u64::MAX, u64::MAX / 2, 1_000_000_000_000_000_000] {
-            for secure in [None, Some(true)] {
-                let budget = address_budget(Some(&option(Some(timeout), secure)));
-                let deadline = tokio::time::Instant::now() + budget;
-                assert!(deadline > tokio::time::Instant::now());
-            }
-        }
-    }
+mod update_error_tests {
+    use super::keep_the_clearer_error;
 
     #[test]
     fn the_budget_never_hides_a_real_reason() {

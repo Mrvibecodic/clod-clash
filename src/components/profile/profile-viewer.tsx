@@ -30,7 +30,6 @@ import { useTranslation } from 'react-i18next'
 import { BaseDialog, Switch } from '@/components/base'
 import { useProfiles } from '@/hooks/use-profiles'
 import { createProfile, getProfiles, patchProfile } from '@/services/cmds'
-import { showNotice } from '@/services/notice-service'
 import parseTraffic from '@/utils/parse-traffic'
 import { profileEditPatch } from '@/utils/profile-edit'
 import { profileDisplayName } from '@/utils/profile-name'
@@ -271,23 +270,10 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
           )
           changed = Object.keys(patch).length > 0
           if (changed) await patchProfile(form.uid, patch)
-        } else if (!isRemote) {
-          await createProfile(item, fileDataRef.current)
         } else {
-          try {
-            await createProfile(item, fileDataRef.current)
-          } catch {
-            showNotice.info(
-              'profiles.modals.profileForm.feedback.notifications.creationRetry',
-            )
-            await createProfile(
-              {
-                ...item,
-                option: { ...item.option, with_proxy: false, self_proxy: true },
-              },
-              fileDataRef.current,
-            )
-          }
+          // Подписку бэкенд сам качает по всем маршрутам (напрямую, через ядро,
+          // через системный прокси) со своим потолком времени.
+          await createProfile(item, fileDataRef.current)
         }
 
         onChange(isActivating && changed)
@@ -324,6 +310,9 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
   )
 
   const handleClose = () => {
+    // Идущую загрузку остановить нечем: закрытое окно не отменило бы её, и
+    // подписка появилась бы позже сама. Окно ждёт — у загрузки свой потолок.
+    if (loading) return
     sessionRef.current += 1
     setOpen(false)
     fileDataRef.current = null
@@ -531,7 +520,7 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
                 {...text}
                 {...field}
                 type="number"
-                placeholder="60"
+                placeholder="20"
                 label={t('profiles.modals.profileForm.fields.httpTimeout')}
                 slotProps={{
                   input: {
@@ -626,7 +615,7 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
       contentSx={{ width: 375, pb: 0, maxHeight: '80%' }}
       okBtn={okBtn}
       cancelBtn={t('shared.actions.cancel')}
-      disableCancel={Boolean(added)}
+      disableCancel={Boolean(added) || loading}
       onClose={handleClose}
       onCancel={handleClose}
       onOk={handleOk}

@@ -276,40 +276,237 @@ impl PrfOption {
     }
 }
 
-impl PrfItem {
-    fn is_worth_retrying_over_proxy(err: &anyhow::Error) -> bool {
-        let text = err.to_string();
-        !text.contains("invalid profile item type") && !text.contains("subscription URL must use https")
+/// Маршрут, которым скачивается подписка.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Route {
+    Direct,
+    /// Через своё ядро: заблокированный домен подписки достижим через уже
+    /// поднятый туннель.
+    Core,
+    System,
+}
+
+impl Route {
+    fn chosen_in(option: Option<&PrfOption>) -> Self {
+        if option.is_some_and(|o| o.self_proxy.unwrap_or(false)) {
+            Self::Core
+        } else if option.is_some_and(|o| o.with_proxy.unwrap_or(false)) {
+            Self::System
+        } else {
+            Self::Direct
+        }
     }
 
+    const fn proxy_type(self) -> ProxyType {
+        match self {
+            Self::Direct => ProxyType::None,
+            Self::Core => ProxyType::Localhost,
+            Self::System => ProxyType::System,
+        }
+    }
+}
+
+/// Сколько маршрутов пробовать.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Reach {
+    /// Только выбранный в карточке подписки.
+    ChosenRoute,
+    /// Выбранный, а за ним остальные.
+    Ladder,
+}
+
+/// Системный прокси глазами лестницы.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SystemProxy {
+    /// Не включён: маршрут «через системный прокси» — тот же прямой запрос,
+    /// построитель клиента прокси не ставит.
+    Absent,
+    /// Это наше же ядро (включён наш системный прокси): тот же маршрут, что и
+    /// «через своё ядро».
+    OurCore,
+    /// Чужой прокси — отдельный маршрут.
+    Foreign,
+}
+
+fn classify_system_proxy(found: Option<&str>, our_port: u16, our_host: &str) -> SystemProxy {
+    let Some(found) = found else {
+        return SystemProxy::Absent;
+    };
+    let Ok(url) = Url::parse(found) else {
+        return SystemProxy::Foreign;
+    };
+    // Наш системный прокси пишется с петлёй или, при раздаче в LAN, с хостом из
+    // настроек (`reachable_proxy_host`).
+    let bare = |host: &str| host.trim_start_matches('[').trim_end_matches(']').to_ascii_lowercase();
+    let ours = url
+        .host_str()
+        .map(bare)
+        .is_some_and(|host| matches!(host.as_str(), "127.0.0.1" | "localhost" | "::1") || host == bare(our_host));
+    if ours && url.port_or_known_default() == Some(our_port) {
+        SystemProxy::OurCore
+    } else {
+        SystemProxy::Foreign
+    }
+}
+
+/// Системный прокси сейчас. Чтение системы — блокирующий вызов (на Linux это
+/// запуск gsettings), поэтому не на рабочем потоке асинхронного исполнителя.
+async fn system_proxy_now() -> SystemProxy {
+    let found = tokio::task::spawn_blocking(crate::utils::network::system_proxy_url)
+        .await
+        .ok()
+        .flatten();
+    let our_port = crate::config::Config::effective_mixed_port().await;
+    let configured = crate::config::Config::verge()
+        .await
+        .latest_arc()
+        .proxy_host
+        .clone()
+        .unwrap_or_else(|| "127.0.0.1".into());
+    let our_host = crate::config::Config::reachable_proxy_host(&configured).await;
+    classify_system_proxy(found.as_deref(), our_port, &our_host)
+}
+
+/// Маршруты по порядку: выбранный первым, остальные за ним, каждый ровно один
+/// раз. Маршрут, физически совпадающий с другим, не повторяется.
+fn route_plan(chosen: Route, reach: Reach, system: SystemProxy) -> Vec<Route> {
+    let chosen = match (chosen, system) {
+        (Route::System, SystemProxy::Absent) => Route::Direct,
+        (Route::System, SystemProxy::OurCore) => Route::Core,
+        (chosen, _) => chosen,
+    };
+    let is_distinct = |route: &Route| *route != Route::System || system == SystemProxy::Foreign;
+    match reach {
+        Reach::ChosenRoute => vec![chosen],
+        Reach::Ladder => std::iter::once(chosen)
+            .chain([Route::Direct, Route::Core, Route::System])
+            .filter(is_distinct)
+            .fold(Vec::new(), |mut plan, route| {
+                if !plan.contains(&route) {
+                    plan.push(route);
+                }
+                plan
+            }),
+    }
+}
+
+/// Любой запрос может быть повторён с запасными корнями TLS
+/// (`utils/network.rs`, `should_retry_with_static_webpki_roots`).
+const TLS_FALLBACK_ATTEMPTS: u64 = 2;
+
+/// Защищённый канал при неудаче повторяет запрос без закрепления ключа прослойки
+/// (`fetch_for_profile`) — ради ротации ключа он и заведён.
+const SECURE_CHANNEL_ATTEMPTS: u64 = 2;
+
+/// Запас поверх суммы маршрутов: паузы после неудачи и разбор ответа.
+const LADDER_SLACK: Duration = Duration::from_secs(10);
+
+/// Потолок самого бюджета. Существует только затем, чтобы прибавление к `Instant`
+/// не переполнилось: `Instant + Duration::MAX` — паника. Тридцать лет — то же
+/// значение, которое tokio берёт в `Instant::far_future` со ссылкой на переполнение
+/// на macOS и FreeBSD. Ни одна работающая настройка сюда не упирается.
+const BUDGET_CEILING_SECS: u64 = 30 * 365 * 24 * 60 * 60;
+
+/// Сколько времени отводится на ОДИН адрес подписки — основной или запасной.
+///
+/// Считается от таймаута, который выбрал сам пользователь в карточке подписки, и
+/// от числа законных попыток на маршрут, поэтому ни один работавший путь не
+/// укорачивается: обрывается только зависание сверх того, что маршруты могут
+/// занять честно. У каждого адреса бюджет свой, иначе основной адрес съедал бы
+/// всё время и до запасного домена дело не доходило бы никогда.
+fn address_budget(option: Option<&PrfOption>, routes: usize) -> Duration {
+    let timeout = option.and_then(|o| o.timeout_seconds).unwrap_or(20);
+    let secure = option.is_some_and(|o| o.secure.unwrap_or(false));
+
+    let attempts_per_route = TLS_FALLBACK_ATTEMPTS * if secure { SECURE_CHANNEL_ATTEMPTS } else { 1 };
+    let seconds = timeout.saturating_mul(routes as u64).saturating_mul(attempts_per_route);
+
+    Duration::from_secs(seconds.min(BUDGET_CEILING_SECS)).saturating_add(LADDER_SLACK)
+}
+
+/// Ответил ли на маршруте кто-то вообще.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Answered {
+    /// Ответ пришёл, но профилем не оказался: код ошибки панели, список ссылок,
+    /// пустое тело, заглушка.
+    Yes,
+    /// Ответа нет: сеть, TLS, таймаут, срок адреса.
+    No,
+}
+
+/// Отказы маршрутов лестницы. Человеку показывается ответ, а не сбой сети: «403»
+/// или «панель вернула список ссылок» с одного маршрута объясняет больше, чем
+/// «соединение отклонено» на другом, где нет туннеля.
+#[derive(Default)]
+struct RouteFailures {
+    answered: Option<anyhow::Error>,
+    unanswered: Option<anyhow::Error>,
+}
+
+fn names_a_reason(err: &anyhow::Error) -> bool {
+    help::names_a_reason(&err.to_string())
+}
+
+impl RouteFailures {
+    fn note(&mut self, route: Route, err: anyhow::Error, answered: Answered) {
+        clash_verge_logging::logging!(
+            info,
+            clash_verge_logging::Type::Config,
+            "[clod] подписка не пришла маршрутом {:?}: {}",
+            route,
+            help::mask_err(&err.to_string())
+        );
+        match answered {
+            // Из ответов панели показываем ответ маршрута, пробованного раньше —
+            // начиная с выбранного, — если позже не пришла названная причина.
+            Answered::Yes => {
+                self.answered = Some(match self.answered.take() {
+                    Some(previous) if !names_a_reason(&err) || names_a_reason(&previous) => previous,
+                    _ => err,
+                });
+            }
+            Answered::No => {
+                self.unanswered = Some(match self.unanswered.take() {
+                    Some(previous) => help::keep_the_clearer_error(previous, err),
+                    None => err,
+                });
+            }
+        }
+    }
+
+    /// Ответ панели — первым: он про саму подписку. Причина без ответа (сбой
+    /// сети, переадресация на http посредником на одном маршруте) — только когда
+    /// панель не ответила ни на одном.
+    fn into_shown(self) -> anyhow::Error {
+        self.answered
+            .or(self.unanswered)
+            .unwrap_or_else(|| anyhow::anyhow!("subscription fetch produced no result"))
+    }
+}
+
+/// Подписка пришла через прокси, а не выбранным маршрутом: об этом человеку
+/// говорит уведомление обновления. Пришла напрямую — это не «через прокси».
+fn came_through_a_proxy_detour(first: Option<Route>, delivered: Route) -> bool {
+    first != Some(delivered) && delivered != Route::Direct
+}
+
+/// Скачанная подписка и то, пришла ли она не тем маршрутом, что выбран в карточке.
+pub struct Fetched {
+    pub item: PrfItem,
+    pub detoured: bool,
+}
+
+impl PrfItem {
+    /// Скачать подписку, перебирая маршруты: сначала выбранный, потом остальные.
+    /// Импорт (и по ссылке-приглашению), создание, обновление и запасные адреса
+    /// ходят только сюда.
     pub async fn from_url_with_ladder(
         url: &str,
         name: Option<&String>,
         desc: Option<&String>,
         option: Option<&PrfOption>,
-    ) -> Result<Self> {
-        let url = url.to_owned();
-        let mut attempt = option.cloned();
-        let mut last_err = match Self::from_url(&url, name, desc, attempt.as_ref()).await {
-            Ok(item) => return Ok(item),
-            Err(err) => err,
-        };
-
-        for (self_proxy, with_proxy) in [(true, false), (false, true)] {
-            if !Self::is_worth_retrying_over_proxy(&last_err) {
-                break;
-            }
-            let opt = attempt.get_or_insert_with(PrfOption::default);
-            opt.self_proxy = Some(self_proxy);
-            opt.with_proxy = Some(with_proxy);
-
-            match Self::from_url(&url, name, desc, attempt.as_ref()).await {
-                Ok(item) => return Ok(item),
-                Err(err) => last_err = help::keep_the_clearer_error(last_err, err),
-            }
-        }
-
-        Err(last_err)
+    ) -> Result<Fetched> {
+        Self::download(url, name, desc, option, Reach::Ladder).await
     }
 
     pub async fn from(item: &Self, file_data: Option<String>) -> Result<Self> {
@@ -330,7 +527,9 @@ impl PrfItem {
                 let name = item.custom_name.as_ref();
                 let desc = item.desc.as_ref();
                 let option = item.option.as_ref();
-                Self::from_url_with_ladder(url, name, desc, option).await
+                Self::from_url_with_ladder(url, name, desc, option)
+                    .await
+                    .map(|fetched| fetched.item)
             }
             "local" => {
                 let name = item.name.clone().unwrap_or_else(|| "Local File".into());
@@ -433,14 +632,25 @@ impl PrfItem {
         })
     }
 
+    /// Скачать подписку только выбранным в карточке маршрутом.
     pub async fn from_url(
         url: &str,
         name: Option<&String>,
         desc: Option<&String>,
         option: Option<&PrfOption>,
     ) -> Result<Self> {
-        let with_proxy = option.is_some_and(|o| o.with_proxy.unwrap_or(false));
-        let self_proxy = option.is_some_and(|o| o.self_proxy.unwrap_or(false));
+        Self::download(url, name, desc, option, Reach::ChosenRoute)
+            .await
+            .map(|fetched| fetched.item)
+    }
+
+    async fn download(
+        url: &str,
+        name: Option<&String>,
+        desc: Option<&String>,
+        option: Option<&PrfOption>,
+        reach: Reach,
+    ) -> Result<Fetched> {
         let accept_invalid_certs = option.is_some_and(|o| o.danger_accept_invalid_certs.unwrap_or(false));
         let allow_auto_update = Some(allow_auto_update_enabled(option));
         let user_agent = option.and_then(|o| o.user_agent.clone());
@@ -452,35 +662,61 @@ impl PrfItem {
         let mut proxies = option.and_then(|o| o.proxies.clone());
         let mut groups = option.and_then(|o| o.groups.clone());
 
-        let proxy_type = if self_proxy {
-            ProxyType::Localhost
-        } else if with_proxy {
-            ProxyType::System
-        } else {
-            ProxyType::None
-        };
-
         let url = fix_dirty_url(url)?;
 
         let identity_headers = sub_headers::build_identity_headers().await;
 
-        let (resp, learned_pin) = fetch_for_profile(
-            url.as_str(),
-            proxy_type,
-            timeout,
-            user_agent.clone(),
-            accept_invalid_certs,
-            &identity_headers,
-            option,
-        )
-        .await?;
+        let chosen = Route::chosen_in(option);
+        let plan = route_plan(chosen, reach, system_proxy_now().await);
+        let first_route = plan.first().copied();
+        let deadline = tokio::time::Instant::now() + address_budget(option, plan.len());
+
+        // Маршрут засчитывается, только если с него пришёл годный профиль или
+        // законный отказ панели по устройству. Заглушку вместо панели (портал
+        // сети, страница блокировки, чужой ответ с кодом 200) проверка годности
+        // отсеивает так же, как любой другой негодный ответ, и дело идёт дальше
+        // по маршрутам — без угадывания по виду тела.
+        let mut failures = RouteFailures::default();
+        let mut delivered = None;
+        for route in plan {
+            let fetched = within_budget(
+                deadline,
+                fetch_for_profile(
+                    url.as_str(),
+                    route.proxy_type(),
+                    timeout,
+                    user_agent.clone(),
+                    accept_invalid_certs,
+                    &identity_headers,
+                    option,
+                ),
+            )
+            .await;
+            let answered = match fetched {
+                Ok((resp, pin)) => {
+                    let sub = sub_headers::SubHeaders::parse(resp.headers());
+                    log_panel_headers(&sub);
+                    config_or_refusal(&resp, &sub).map(|refused| (resp, pin, sub, refused))
+                }
+                Err(err) => {
+                    failures.note(route, err, Answered::No);
+                    continue;
+                }
+            };
+            match answered {
+                Ok(answer) => {
+                    delivered = Some((answer, route));
+                    break;
+                }
+                Err(err) => failures.note(route, err, Answered::Yes),
+            }
+        }
+        let Some(((resp, learned_pin, sub, refused_config), route)) = delivered else {
+            return Err(failures.into_shown());
+        };
+        let detoured = came_through_a_proxy_detour(first_route, route);
 
         let answered_at = chrono::Local::now().timestamp();
-
-        let sub = sub_headers::SubHeaders::parse(resp.headers());
-        log_panel_headers(&sub);
-
-        let refused_config = config_or_refusal(&resp, &sub)?;
 
         let header = resp.headers();
 
@@ -561,7 +797,7 @@ impl PrfItem {
             .map(|panel| panel - answered_at)
             .filter(|skew| skew.abs() <= MAX_SKEW_SECS);
 
-        Ok(Self {
+        let item = Self {
             uid: Some(uid),
             itype: Some("remote".into()),
             name: Some(name),
@@ -633,7 +869,8 @@ impl PrfItem {
             device_refused: refused_config.is_some().then_some(true),
             updated: Some(chrono::Local::now().timestamp() as usize),
             file_data: Some(data.into()),
-        })
+        };
+        Ok(Fetched { item, detoured })
     }
 
     pub fn from_merge(uid: Option<String>) -> Result<Self> {
@@ -761,8 +998,6 @@ fn parse_subscription_userinfo(headers: &reqwest::header::HeaderMap) -> Option<P
     None
 }
 
-const FETCH_HEAD_START: Duration = Duration::from_millis(250);
-
 const DEVICE_REFUSED_CONFIG: &str = "proxies: []\nrules:\n  - MATCH,REJECT\n";
 
 fn config_or_refusal(
@@ -841,13 +1076,8 @@ pub fn disarmed_profile(data: &str) -> Option<std::string::String> {
     serde_yaml_ng::to_string(&config).ok()
 }
 
-/// Полный приговор: годится ли ответ как профиль для ядра.
-///
-/// Выносится при разборе ответа. Гонка маршрутов пользуется не им, а более узким
-/// `judge_the_answer`: там важно только, не подсунули ли нам вместо панели заглушку.
-///
-/// Единственный изменившийся здесь текст — пустое тело: раньше оно доезжало до
-/// пользователя как «invalid yaml», теперь как `clod-sub-empty`.
+/// Полный приговор: годится ли ответ как профиль для ядра. По нему же лестница
+/// маршрутов решает, засчитан ли маршрут.
 fn subscription_is_usable(resp: &crate::utils::network::HttpResponse) -> Result<()> {
     let status_code = resp.status();
     if !status_code.is_success() {
@@ -882,65 +1112,18 @@ fn subscription_is_usable(resp: &crate::utils::network::HttpResponse) -> Result<
     Ok(())
 }
 
-/// Чем ветка гонки считается выигравшей.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum RaceGoal {
-    /// Обычная подписка: побеждает только ответ, который годится как профиль.
-    UsableProfile,
-    /// Защищённый канал: тело зашифровано прослойкой, судить о нём здесь нечем.
-    AnyDelivery,
-}
-
-/// Похож ли ответ на заглушку, подсунутую вместо панели.
-///
-/// Ровно две формы, и обе — при успешном статусе: пустое тело и веб-страница. Так
-/// выглядит перехват — капча провайдера, портал сети, страница «сайт заблокирован»,
-/// отданные с кодом 200. Неуспешный статус сюда не попадает намеренно: свою
-/// HTML-страницу ошибки отдаёт и сама панель, и придерживать её значило бы растянуть
-/// понятный отказ (истёкшая подписка, лимит устройств) с долей секунды до минут.
-fn body_looks_like_a_stub(resp: &crate::utils::network::HttpResponse) -> bool {
-    resp.text_with_charset().is_ok_and(|data| {
-        let data = data.trim_start_matches('\u{feff}');
-        data.trim().is_empty() || body_is_web_page(data)
-    })
-}
-
-/// Что делать с ответом, который доехал по одной из веток гонки.
-#[derive(Debug, PartialEq, Eq)]
-enum Verdict {
-    /// Годен — гонка окончена.
-    Wins,
-    /// Ответ окончательный: ждать вторую ветку незачем. Быстрый отказ доезжает до
-    /// пользователя за секунды, как и до этой правки.
-    TheirLastWord,
-    /// Вместо панели ответил кто-то другой. Ради этого случая гонка и существует:
-    /// придерживаем ответ и дожидаемся второй ветки. Ценой ожидания — до двух
-    /// таймаутов ступени (запрос плюс возможный повтор с запасными корнями TLS),
-    /// если вторая ветка молчит.
-    ItIsAStub,
-}
-
-/// Приговор ответу внутри гонки маршрутов.
-///
-/// Он намеренно уже полного (`subscription_is_usable`): здесь решается не «годится
-/// ли это как профиль», а «панель ли вообще отвечает». Список ссылок вместо конфига,
-/// чужой шаблон, конфиг без узлов, код ошибки — это ответы самой панели, и второй
-/// маршрут их не изменит: ждать его значило бы растянуть понятный отказ на минуты.
-fn judge_the_answer(goal: RaceGoal, resp: &crate::utils::network::HttpResponse) -> Verdict {
-    if !resp.status().is_success() {
-        return Verdict::TheirLastWord;
+/// Бюджет адреса вышел — запрос не отправляем вовсе, чтобы не дёргать панель
+/// соединением, которое всё равно будет оборвано.
+async fn within_budget<T>(
+    deadline: tokio::time::Instant,
+    work: impl std::future::Future<Output = Result<T>>,
+) -> Result<T> {
+    if tokio::time::Instant::now() >= deadline {
+        bail!("clod-sub-budget: на этот адрес подписки отведённое время уже вышло");
     }
-
-    match goal {
-        // Тело защищённого канала зашифровано прослойкой, судить о нём нечем.
-        RaceGoal::AnyDelivery => Verdict::Wins,
-        RaceGoal::UsableProfile => {
-            if body_looks_like_a_stub(resp) && !sub_headers::SubHeaders::parse(resp.headers()).refuses_device() {
-                Verdict::ItIsAStub
-            } else {
-                Verdict::Wins
-            }
-        }
+    match tokio::time::timeout_at(deadline, work).await {
+        Ok(result) => result,
+        Err(_) => bail!("clod-sub-budget: адрес подписки не ответил за отведённое время"),
     }
 }
 
@@ -964,120 +1147,6 @@ async fn fetch_once(
         .await
 }
 
-async fn fetch_subscription(
-    url: &str,
-    preferred: ProxyType,
-    timeout: u64,
-    user_agent: Option<String>,
-    accept_invalid_certs: bool,
-    headers: &reqwest::header::HeaderMap,
-    goal: RaceGoal,
-) -> Result<crate::utils::network::HttpResponse> {
-    // clod:Э9-07 — при выключенном системном прокси ступень «через системный
-    // прокси» физически совпадает с прямым маршрутом: построитель клиента в
-    // этом случае прокси не ставит, а всё остальное — заголовки, UA, режим
-    // корней TLS, таймаут — от типа прокси не зависит. Гонка выродилась бы в
-    // два одинаковых запроса с разницей в фору: лишняя нагрузка на панель без
-    // единого шанса получить другой ответ.
-    let preferred = match preferred {
-        ProxyType::System if crate::utils::network::system_proxy_url().is_none() => ProxyType::None,
-        other => other,
-    };
-
-    if matches!(preferred, ProxyType::None) {
-        return fetch_once(url, ProxyType::None, timeout, user_agent, accept_invalid_certs, headers).await;
-    }
-
-    let chosen = std::pin::pin!(fetch_once(
-        url,
-        preferred,
-        timeout,
-        user_agent.clone(),
-        accept_invalid_certs,
-        headers
-    ));
-    let direct = std::pin::pin!(async {
-        tokio::time::sleep(FETCH_HEAD_START).await;
-        fetch_once(url, ProxyType::None, timeout, user_agent, accept_invalid_certs, headers).await
-    });
-    let (mut chosen, mut direct) = (chosen, direct);
-
-    let (mut chosen_done, mut direct_done) = (false, false);
-    let (mut chosen_error, mut direct_error) = (None, None);
-    // Ответ доехал, но подпиской не оказался. Держим его, чтобы вернуть, если ничего
-    // лучше не придёт: тогда разбор ответа даст пользователю тот же текст, что и раньше.
-    let (mut chosen_rejected, mut direct_rejected) = (None, None);
-
-    while !(chosen_done && direct_done) {
-        tokio::select! {
-            biased;
-            result = &mut chosen, if !chosen_done => {
-                chosen_done = true;
-                match result {
-                    Ok(response) => match judge_the_answer(goal, &response) {
-                        Verdict::Wins | Verdict::TheirLastWord => return Ok(response),
-                        Verdict::ItIsAStub => {
-                            clash_verge_logging::logging!(
-                                info,
-                                clash_verge_logging::Type::Config,
-                                "[clod] на выбранном маршруте вместо панели ответила заглушка, ждём прямой"
-                            );
-                            chosen_rejected = Some(response);
-                        }
-                    },
-                    Err(e) => {
-                        clash_verge_logging::logging!(
-                            info,
-                            clash_verge_logging::Type::Config,
-                            "[clod] subscription fetch failed on the chosen route, waiting for the direct one: {e}"
-                        );
-                        chosen_error = Some(e);
-                    }
-                }
-            }
-            result = &mut direct, if !direct_done => {
-                direct_done = true;
-                match result {
-                    Ok(response) => match judge_the_answer(goal, &response) {
-                        Verdict::Wins | Verdict::TheirLastWord => {
-                            clash_verge_logging::logging!(
-                                info,
-                                clash_verge_logging::Type::Config,
-                                "[clod] subscription answered on the direct route"
-                            );
-                            return Ok(response);
-                        }
-                        Verdict::ItIsAStub => {
-                            clash_verge_logging::logging!(
-                                info,
-                                clash_verge_logging::Type::Config,
-                                "[clod] на прямом маршруте вместо панели ответила заглушка"
-                            );
-                            direct_rejected = Some(response);
-                        }
-                    },
-                    Err(e) => {
-                        clash_verge_logging::logging!(
-                            info,
-                            clash_verge_logging::Type::Config,
-                            "[clod] прямой маршрут тоже не принёс подписку: {e}"
-                        );
-                        direct_error = Some(e);
-                    }
-                }
-            }
-        }
-    }
-
-    if let Some(response) = chosen_rejected.or(direct_rejected) {
-        return Ok(response);
-    }
-
-    Err(chosen_error
-        .or(direct_error)
-        .unwrap_or_else(|| anyhow::anyhow!("subscription fetch produced no result")))
-}
-
 async fn fetch_for_profile(
     url: &str,
     proxy_type: ProxyType,
@@ -1090,14 +1159,13 @@ async fn fetch_for_profile(
     let secure = option.is_some_and(|o| o.secure.unwrap_or(false));
 
     if !secure {
-        return match fetch_subscription(
+        return match fetch_once(
             url,
             proxy_type,
             timeout,
             user_agent,
             accept_invalid_certs,
             identity_headers,
-            RaceGoal::UsableProfile,
         )
         .await
         {
@@ -1227,14 +1295,13 @@ async fn fetch_secure(
     let now = chrono::Local::now().timestamp();
     let (secure_url, session) = chan::build(url, pin, &fields, now)?;
 
-    let response = fetch_subscription(
+    let response = fetch_once(
         secure_url.as_str(),
         proxy_type,
         timeout,
         Some(CHAN_NEUTRAL_UA.into()),
         accept_invalid_certs,
         &reqwest::header::HeaderMap::new(),
-        RaceGoal::AnyDelivery,
     )
     .await?;
 
@@ -1824,92 +1891,260 @@ mod tests {
     }
 
     #[test]
-    fn a_device_refusal_is_the_panels_last_word_in_the_race() {
-        use super::{RaceGoal, Verdict, judge_the_answer};
+    fn the_panels_own_answer_is_shown_over_a_network_failure() {
+        use super::{Answered, Route, RouteFailures};
 
-        for headers in REFUSALS {
-            for body in ["", "<html><body>limit</body></html>"] {
-                assert_eq!(
-                    judge_the_answer(RaceGoal::UsableProfile, &answer_with(200, headers, body)),
-                    Verdict::Wins,
-                    "{headers:?} {body:?}"
-                );
+        // Прямо панель ответила «403», через ядро (которое не запущено) — отказ
+        // соединения: человек должен увидеть ответ панели, в каком бы порядке ни шли
+        // маршруты.
+        for panel_first in [true, false] {
+            let mut failures = RouteFailures::default();
+            let panel = || anyhow::anyhow!("failed to fetch remote profile with status 403 Forbidden");
+            let network = || anyhow::anyhow!("failed to fetch remote profile: connection refused");
+            if panel_first {
+                failures.note(Route::Direct, panel(), Answered::Yes);
+                failures.note(Route::Core, network(), Answered::No);
+            } else {
+                failures.note(Route::Core, network(), Answered::No);
+                failures.note(Route::Direct, panel(), Answered::Yes);
             }
+            assert!(
+                failures.into_shown().to_string().contains("403"),
+                "panel_first={panel_first}"
+            );
         }
-        assert_eq!(
-            judge_the_answer(
-                RaceGoal::UsableProfile,
-                &answer_with(200, &[("x-hwid-active", "true")], "")
+
+        let mut failures = RouteFailures::default();
+        failures.note(Route::Direct, anyhow::anyhow!("connection refused"), Answered::No);
+        assert!(failures.into_shown().to_string().contains("connection refused"));
+    }
+
+    #[test]
+    fn the_earlier_routes_answer_wins_among_unnamed_ones() {
+        use super::{Answered, Route, RouteFailures};
+
+        // Выбранный маршрут: панель говорит «404, подписки нет». Через ядро перед
+        // панелью стоит защита, которая режет адрес узла, — «403». Показываем ответ
+        // выбранного маршрута.
+        let mut failures = RouteFailures::default();
+        failures.note(
+            Route::Direct,
+            anyhow::anyhow!("failed to fetch remote profile with status 404 Not Found"),
+            Answered::Yes,
+        );
+        failures.note(
+            Route::Core,
+            anyhow::anyhow!("failed to fetch remote profile with status 403 Forbidden"),
+            Answered::Yes,
+        );
+        assert!(failures.into_shown().to_string().contains("404"));
+
+        // Но названная причина позже всё же важнее безымянного кода.
+        let mut failures = RouteFailures::default();
+        failures.note(
+            Route::Direct,
+            anyhow::anyhow!("failed to fetch remote profile with status 404 Not Found"),
+            Answered::Yes,
+        );
+        failures.note(
+            Route::Core,
+            anyhow::anyhow!("clod-sub-link-list: the panel returned a base64 link list"),
+            Answered::Yes,
+        );
+        assert!(failures.into_shown().to_string().contains("clod-sub-link-list"));
+    }
+
+    #[test]
+    fn the_panels_answer_is_shown_over_a_named_reason_without_one() {
+        use super::{Answered, Route, RouteFailures};
+
+        // Напрямую посредник уводит на http, через ядро панель отвечает «404,
+        // подписки нет»: показываем ответ панели — совет «поправьте адрес в
+        // панели» здесь был бы неверным.
+        let mut failures = RouteFailures::default();
+        failures.note(
+            Route::Direct,
+            anyhow::anyhow!("clod-sub-downgrade: the subscription address redirects to an insecure http address"),
+            Answered::No,
+        );
+        failures.note(
+            Route::Core,
+            anyhow::anyhow!("failed to fetch remote profile with status 404 Not Found"),
+            Answered::Yes,
+        );
+        assert!(failures.into_shown().to_string().contains("404"));
+
+        // Панель не ответила ни на одном маршруте — названная причина важнее сбоя сети.
+        let mut failures = RouteFailures::default();
+        failures.note(
+            Route::Direct,
+            anyhow::anyhow!("clod-sub-downgrade: the subscription address redirects to an insecure http address"),
+            Answered::No,
+        );
+        failures.note(Route::Core, anyhow::anyhow!("connection refused"), Answered::No);
+        assert!(failures.into_shown().to_string().contains("clod-sub-downgrade"));
+    }
+
+    #[test]
+    fn every_route_is_tried_once_starting_with_the_chosen_one() {
+        use super::{Reach, Route, SystemProxy, route_plan};
+
+        let cases = [
+            (
+                Route::Direct,
+                SystemProxy::Foreign,
+                vec![Route::Direct, Route::Core, Route::System],
             ),
-            Verdict::ItIsAStub
-        );
+            (
+                Route::Core,
+                SystemProxy::Foreign,
+                vec![Route::Core, Route::Direct, Route::System],
+            ),
+            (
+                Route::System,
+                SystemProxy::Foreign,
+                vec![Route::System, Route::Direct, Route::Core],
+            ),
+            // Без системного прокси маршрут «через систему» — тот же прямой запрос.
+            (Route::Direct, SystemProxy::Absent, vec![Route::Direct, Route::Core]),
+            (Route::Core, SystemProxy::Absent, vec![Route::Core, Route::Direct]),
+            (Route::System, SystemProxy::Absent, vec![Route::Direct, Route::Core]),
+            // Системный прокси — наше же ядро: тот же маршрут, что и «через ядро».
+            (Route::Direct, SystemProxy::OurCore, vec![Route::Direct, Route::Core]),
+            (Route::System, SystemProxy::OurCore, vec![Route::Core, Route::Direct]),
+        ];
+        for (chosen, system, expected) in cases {
+            assert_eq!(
+                route_plan(chosen, Reach::Ladder, system),
+                expected,
+                "{chosen:?}, системный прокси: {system:?}"
+            );
+        }
     }
 
     #[test]
-    fn an_authoritative_refusal_is_not_worth_waiting_out() {
-        use super::{RaceGoal, Verdict, judge_the_answer};
+    fn our_own_system_proxy_is_told_from_a_foreign_one() {
+        use super::{SystemProxy, classify_system_proxy};
 
-        // Код ошибки — ответ самой панели, в том числе её собственной HTML-страницей.
-        // Досиживать до таймаута второй ветки незачем: раньше он тоже доезжал сразу.
+        let ours = "127.0.0.1";
+        for (found, host, expected) in [
+            (None, ours, SystemProxy::Absent),
+            (Some("http://127.0.0.1:7897"), ours, SystemProxy::OurCore),
+            (Some("http://localhost:7897"), ours, SystemProxy::OurCore),
+            (Some("http://127.0.0.1:8080"), ours, SystemProxy::Foreign),
+            (Some("http://10.0.0.2:7897"), ours, SystemProxy::Foreign),
+            // Раздача в LAN: наш прокси записан с хостом из настроек.
+            (Some("http://192.168.1.5:7897"), "192.168.1.5", SystemProxy::OurCore),
+            (Some("not a url"), ours, SystemProxy::Foreign),
+        ] {
+            assert_eq!(classify_system_proxy(found, 7897, host), expected, "{found:?} {host}");
+        }
+    }
+
+    #[test]
+    fn only_a_proxy_route_other_than_the_chosen_one_is_a_detour() {
+        use super::{Route, came_through_a_proxy_detour};
+
+        assert!(!came_through_a_proxy_detour(Some(Route::Direct), Route::Direct));
+        assert!(came_through_a_proxy_detour(Some(Route::Direct), Route::Core));
+        assert!(came_through_a_proxy_detour(Some(Route::Direct), Route::System));
+        assert!(!came_through_a_proxy_detour(Some(Route::Core), Route::Core));
+        // Выбран «через ядро», а пришла напрямую — это не «обновлено через прокси».
+        assert!(!came_through_a_proxy_detour(Some(Route::Core), Route::Direct));
+        assert!(came_through_a_proxy_detour(Some(Route::Core), Route::System));
+    }
+
+    #[test]
+    fn a_single_route_download_stays_on_the_chosen_route() {
+        use super::{Reach, Route, SystemProxy, route_plan};
+
+        for (chosen, system, expected) in [
+            (Route::Core, SystemProxy::Foreign, Route::Core),
+            (Route::System, SystemProxy::Foreign, Route::System),
+            (Route::System, SystemProxy::Absent, Route::Direct),
+            (Route::System, SystemProxy::OurCore, Route::Core),
+        ] {
+            assert_eq!(
+                route_plan(chosen, Reach::ChosenRoute, system),
+                vec![expected],
+                "{chosen:?}, {system:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_stub_in_place_of_the_panel_does_not_count_as_a_delivered_route() {
+        use super::config_or_refusal;
+
+        // Подмена с кодом 200 — страница, пустое тело, чужой JSON или текст —
+        // маршрут не засчитывает: лестница идёт к следующему маршруту.
         for body in [
-            "{\"error\":\"expired\"}",
+            "<!DOCTYPE html><html><body>captcha</body></html>",
             "",
-            "<html><body>подписка истекла</body></html>",
+            "{\"error\":\"blocked\"}",
+            "access denied by policy",
         ] {
-            assert_eq!(
-                judge_the_answer(RaceGoal::UsableProfile, &answer(403, body)),
-                Verdict::TheirLastWord
-            );
+            let resp = answer(200, body);
+            let sub = crate::config::sub_headers::SubHeaders::parse(resp.headers());
+            assert!(config_or_refusal(&resp, &sub).is_err(), "{body:?}");
         }
-        assert_eq!(
-            judge_the_answer(RaceGoal::AnyDelivery, &answer(502, "")),
-            Verdict::TheirLastWord
-        );
+        // А годный профиль и законный отказ панели по устройству — засчитывают.
+        let resp = answer(200, A_REAL_PROFILE);
+        let sub = crate::config::sub_headers::SubHeaders::parse(resp.headers());
+        assert!(config_or_refusal(&resp, &sub).is_ok());
+        for headers in REFUSALS {
+            let resp = answer_with(200, headers, "");
+            let sub = crate::config::sub_headers::SubHeaders::parse(resp.headers());
+            assert!(config_or_refusal(&resp, &sub).is_ok(), "{headers:?}");
+        }
     }
 
-    #[test]
-    fn only_a_stub_makes_us_wait_for_the_other_route() {
-        use super::{RaceGoal, Verdict, judge_the_answer};
-
-        // Перехват выглядит так: капча, портал сети, страница «заблокировано» — и всё
-        // это с кодом 200, потому что подменивший панель отвечает от своего имени.
-        for body in ["<!DOCTYPE html><html><body>captcha</body></html>", "", "   "] {
-            assert_eq!(
-                judge_the_answer(RaceGoal::UsableProfile, &answer(200, body)),
-                Verdict::ItIsAStub,
-                "тело {body:?} — заглушка"
-            );
+    fn budget_option(timeout: Option<u64>, secure: Option<bool>) -> PrfOption {
+        PrfOption {
+            timeout_seconds: timeout,
+            secure,
+            ..PrfOption::default()
         }
     }
 
     #[test]
-    fn a_panels_own_answer_never_waits_for_the_other_route() {
-        use super::{RaceGoal, Verdict, judge_the_answer};
+    fn a_users_own_timeout_is_never_undercut() {
+        use super::address_budget;
+        use std::time::Duration;
 
-        // Другой маршрут этих ответов не изменит: их шлёт сама панель.
-        for body in [
-            A_REAL_PROFILE,
-            "rules:\n  - MATCH,DIRECT\n",
-            "dm1lc3M6Ly9leGFtcGxlCnZtZXNzOi8vZXhhbXBsZQ==",
+        // Числа здесь посчитаны руками, а не теми же константами, что и код: иначе
+        // тест был бы тождественно истинным и уронённую константу не поймал бы.
+        // Каждый маршрут может быть повторён с запасными корнями TLS; в защищённом
+        // канале — ещё раз без закрепления ключа прослойки.
+        for (timeout, secure, routes, honest_seconds) in [
+            (None, None, 3_usize, 120_u64),
+            (Some(1_u64), None, 3, 6),
+            (Some(20), None, 3, 120),
+            (Some(20), None, 2, 80),
+            (Some(20), None, 1, 40),
+            (Some(600), None, 3, 3600),
+            (Some(20), Some(true), 3, 240),
+            (Some(600), Some(true), 3, 7200),
         ] {
-            assert_eq!(
-                judge_the_answer(RaceGoal::UsableProfile, &answer(200, body)),
-                Verdict::Wins
+            let budget = address_budget(Some(&budget_option(timeout, secure)), routes);
+            assert!(
+                budget >= Duration::from_secs(honest_seconds),
+                "бюджет {budget:?} короче честных {honest_seconds} с при timeout={timeout:?}, маршрутов {routes}"
             );
         }
     }
 
     #[test]
-    fn the_secure_channel_is_judged_by_status_only() {
-        use super::{RaceGoal, Verdict, judge_the_answer};
+    fn an_absurd_timeout_does_not_panic_on_the_deadline() {
+        use super::address_budget;
 
-        // Тело зашифровано прослойкой: даже пустое или похожее на страницу оно
-        // приговора не меняет — судить о нём здесь нечем.
-        for body in ["\u{1}\u{2}зашифровано", "", "<!DOCTYPE html>"] {
-            assert_eq!(
-                judge_the_answer(RaceGoal::AnyDelivery, &answer(200, body)),
-                Verdict::Wins
-            );
+        // Именно здесь и была бы паника: `Instant + Duration::MAX`.
+        for timeout in [u64::MAX, u64::MAX / 2, 1_000_000_000_000_000_000] {
+            for secure in [None, Some(true)] {
+                let budget = address_budget(Some(&budget_option(Some(timeout), secure)), 3);
+                let deadline = tokio::time::Instant::now() + budget;
+                assert!(deadline > tokio::time::Instant::now());
+            }
         }
     }
 

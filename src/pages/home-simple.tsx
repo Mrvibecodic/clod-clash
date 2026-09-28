@@ -30,7 +30,7 @@ import { useConnectTargets } from '@/hooks/use-connect-targets'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useSimpleMode } from '@/hooks/use-simple-mode'
 import { useFitWindowToContent } from '@/hooks/use-window-fit'
-import { createProfile, importProfile } from '@/services/cmds'
+import { importProfile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { connectFailureText } from '@/utils/tun-notice'
 
@@ -86,14 +86,8 @@ const HomeSimplePage = () => {
       await importProfile(url, option)
       await mutateProfiles()
       setSubUrl('')
-    } catch {
-      try {
-        await createProfile({ type: 'remote', url, option })
-        await mutateProfiles()
-        setSubUrl('')
-      } catch (error) {
-        showNotice.error(error)
-      }
+    } catch (error) {
+      showNotice.error(error)
     }
   })
 

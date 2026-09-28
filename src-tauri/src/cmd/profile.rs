@@ -84,19 +84,16 @@ pub async fn import_profile(url: std::string::String, option: Option<PrfOption>)
         help::mask_url(&url)
     );
 
-    // Полагаемся напрямую на логику таймаута/повтора PrfItem::from_url,
-    // не оборачиваем в tokio::time::timeout
-    // clod: сначала напрямую, потом через собственное ядро, потом через
-    // системный прокси — заблокированный домен подписки достижим через уже
-    // поднятый туннель.
+    // Лестница маршрутов со своим бюджетом времени на адрес — та же, что у
+    // обновления: заблокированный домен подписки достижим через уже поднятый туннель.
     let item = &mut match PrfItem::from_url_with_ladder(&url, None, None, option.as_ref()).await {
-        Ok(it) => {
+        Ok(fetched) => {
             logging!(
                 info,
                 Type::Cmd,
                 "[импорт подписки] загрузка завершена, сохранение конфига"
             );
-            it
+            fetched.item
         }
         Err(e) => {
             logging!(error, Type::Cmd, "[импорт подписки] не удалось загрузить: {}", e);

@@ -118,8 +118,8 @@ async fn import_subscription(url: &str, name: Option<&String>) {
 }
 
 async fn fetch_profile_item(url: &str, name: Option<&String>) -> Option<PrfItem> {
-    match PrfItem::from_url(url, name, None, None).await {
-        Ok(item) => Some(item),
+    match PrfItem::from_url_with_ladder(url, name, None, None).await {
+        Ok(fetched) => Some(fetched.item),
         Err(e) => {
             logging!(error, Type::Config, "failed to parse profile from url: {:?}", e);
             handle::Handle::notice_message("import_sub_url::error", e.to_string());

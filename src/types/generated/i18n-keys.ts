@@ -255,7 +255,6 @@ export const translationKeys = [
   'profiles.modals.profileForm.hints.intervalLocked',
   'profiles.modals.profileForm.hints.intervalFloor',
   'profiles.modals.profileForm.hints.secureChannel',
-  'profiles.modals.profileForm.feedback.notifications.creationRetry',
   'profiles.modals.profileForm.feedback.added',
   'profiles.modals.profileForm.feedback.failed',
   'profiles.modals.profileForm.feedback.hint',
