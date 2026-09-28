@@ -366,6 +366,10 @@
       "variants": {
         "release": "MetaCubeX, unpatched",
         "alpha": "Ours, with patches"
+      },
+      "rebootAfterUpgrade": {
+        "title": "A restart will be needed",
+        "message": "On Windows this core leaves an extra copy of itself running after an update, and that copy keeps the port. Until you restart the computer the proxy may misbehave and the app may report that the port is busy. Update now?"
       }
     },
     "liteMode": {

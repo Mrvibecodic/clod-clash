@@ -378,6 +378,20 @@ fn notice_the_restart(reason: &str) {
     }
 }
 
+#[cfg(windows)]
+impl CoreManager {
+    /// Ядро сейчас выйдет само, и хозяин поднимет его снова; пользователь об
+    /// этом уже знает. Перезапуск, который заметит сторож, считается
+    /// объявленным — как если бы о нём только что сказали.
+    pub fn a_restart_the_user_knows_of(&self) {
+        let mut last = match LAST_RESTART_NOTICE.lock() {
+            Ok(last) => last,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        *last = Some(Instant::now());
+    }
+}
+
 async fn after_core_came_back(reason: &str) -> bool {
     handle::Handle::refresh_clash();
     if let Err(e) = crate::config::profiles::activate_selected_nodes() {

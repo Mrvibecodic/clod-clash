@@ -893,6 +893,10 @@ export interface TranslationResources {
           }
         }
         clashCore: {
+          rebootAfterUpgrade: {
+            message: string
+            title: string
+          }
           upgradeHint: string
           variants: {
             alpha: string

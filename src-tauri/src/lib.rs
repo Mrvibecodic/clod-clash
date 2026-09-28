@@ -152,7 +152,7 @@ mod app_init {
             cmd::check_app_update,
             cmd::download_and_apply_core,
             cmd::revert_core,
-            cmd::repin_core_binaries,
+            cmd::core_replaced_itself,
             cmd::disable_managed_core,
             cmd::get_running_mode,
             cmd::take_pending_notices,

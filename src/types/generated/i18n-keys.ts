@@ -645,6 +645,8 @@ export const translationKeys = [
   'settings.modals.clashCore.upgradeHint',
   'settings.modals.clashCore.variants.release',
   'settings.modals.clashCore.variants.alpha',
+  'settings.modals.clashCore.rebootAfterUpgrade.title',
+  'settings.modals.clashCore.rebootAfterUpgrade.message',
   'settings.modals.liteMode.title',
   'settings.modals.liteMode.actions.enterNow',
   'settings.modals.liteMode.toggles.autoEnter',

@@ -23,11 +23,12 @@ import { useClash, useClashInfo } from '@/hooks/use-clash'
 import { useVerge } from '@/hooks/use-verge'
 import {
   changeClashCore,
+  coreReplacedItself,
   getCoreUpdaterStatus,
-  repinCoreBinaries,
   restartCore,
 } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
+import { coreRestartsCleanly } from '@/utils/core-self-restart'
 import getSystem from '@/utils/get-system'
 
 // Оба ядра лежат в установщике и работают и через службу, и своим процессом.
@@ -56,6 +57,7 @@ export function ClashCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
 
   const [open, setOpen] = useState(false)
   const [upgrading, setUpgrading] = useState(false)
+  const [askingToReboot, setAskingToReboot] = useState(false)
   const [restarting, setRestarting] = useState(false)
   const [changingCore, setChangingCore] = useState<string | null>(null)
 
@@ -108,17 +110,12 @@ export function ClashCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
   // первый же mkdir и ничего не тронет) и не на Windows: там ядро после
   // подмены перезапускает себя дочерним процессом, приложение видит выход и
   // поднимает второе ядро на том же порту (на macOS/Linux ядро делает exec —
-  // процесс и PID те же). Управляемый обновитель здесь не участвует: он
-  // подставил бы стоковое ядро из папки пользователя поверх выбранного.
+  // процесс и PID те же). Под службой на Windows второе ядро поднимает
+  // служба, а копия держит порт до перезагрузки — об этом спрашиваем заранее;
+  // свежий Clod Core вместо копии просто выходит. Управляемый обновитель
+  // здесь не участвует: он подставил бы стоковое ядро из папки пользователя
+  // поверх выбранного.
   const upgradeThroughCore = async () => {
-    const status = await getCoreUpdaterStatus()
-    const canReplaceItself =
-      status.service_mode ||
-      (getSystem() !== 'windows' && status.core_dir_writable)
-    if (!canReplaceItself) {
-      showNotice.info('settings.modals.clashCore.upgradeHint')
-      return null
-    }
     try {
       await upgradeCore()
     } catch (err) {
@@ -127,16 +124,15 @@ export function ClashCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
       }
       throw err
     }
-    await repinCoreBinaries()
+    await coreReplacedItself()
     return true
   }
 
-  const onUpgrade = useLockFn(async () => {
+  const runUpgrade = useLockFn(async () => {
     try {
       setUpgrading(true)
       const updated = await upgradeThroughCore()
       setUpgrading(false)
-      if (updated === null) return
       mutateVersion()
       if (!updated) {
         showNotice.info(
@@ -153,6 +149,35 @@ export function ClashCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
       )
     }
   })
+
+  const onUpgrade = useLockFn(async () => {
+    try {
+      const status = await getCoreUpdaterStatus()
+      const onWindows = getSystem() === 'windows'
+      const canReplaceItself =
+        status.service_mode || (!onWindows && status.core_dir_writable)
+      if (!canReplaceItself) {
+        showNotice.info('settings.modals.clashCore.upgradeHint')
+        return
+      }
+      if (onWindows && !coreRestartsCleanly(status.running)) {
+        setAskingToReboot(true)
+        return
+      }
+    } catch (err) {
+      showNotice.error(
+        'settings.feedback.notifications.clash.upgradeFailed',
+        err,
+      )
+      return
+    }
+    await runUpgrade()
+  })
+
+  const upgradeAfterAsking = () => {
+    setAskingToReboot(false)
+    void runUpgrade()
+  }
 
   return (
     <BaseDialog
@@ -220,6 +245,20 @@ export function ClashCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
       <Typography variant="caption" color="text.secondary" component="p">
         {t('settings.modals.clashCore.upgradeHint')}
       </Typography>
+      <BaseDialog
+        open={askingToReboot}
+        title={t('settings.modals.clashCore.rebootAfterUpgrade.title')}
+        okBtn={t('shared.actions.upgrade')}
+        cancelBtn={t('shared.actions.cancel')}
+        contentSx={{ width: { xs: 320, sm: 420 } }}
+        onOk={upgradeAfterAsking}
+        onCancel={() => setAskingToReboot(false)}
+        onClose={() => setAskingToReboot(false)}
+      >
+        <Typography variant="body2">
+          {t('settings.modals.clashCore.rebootAfterUpgrade.message')}
+        </Typography>
+      </BaseDialog>
     </BaseDialog>
   )
 }

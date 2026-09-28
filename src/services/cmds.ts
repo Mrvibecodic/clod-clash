@@ -682,8 +682,8 @@ export async function revertCore() {
   return invoke<void>('revert_core')
 }
 
-export async function repinCoreBinaries() {
-  return invoke<void>('repin_core_binaries')
+export async function coreReplacedItself() {
+  return invoke<void>('core_replaced_itself')
 }
 
 export async function disableManagedCore() {
