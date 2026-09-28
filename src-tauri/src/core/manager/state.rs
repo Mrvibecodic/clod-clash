@@ -1013,13 +1013,20 @@ mod stop_proof_tests {
     #[test]
     fn a_death_asked_for_returns_before_the_restart_is_armed() {
         let exit = body_of("fn handle_core_exit");
-        let asked_for = fn_body(exit, "if asked_for").unwrap_or_default();
+        let asked_for = fn_body(exit, "if asked_for {").unwrap_or_default();
+        assert!(!asked_for.is_empty(), "ветка if asked_for не найдена — тест ослеп");
+        let last = asked_for
+            .trim_end_matches('}')
+            .lines()
+            .map(|line| line.split("//").next().unwrap_or_default().trim())
+            .rfind(|line| !line.is_empty())
+            .unwrap_or_default();
         assert!(
-            asked_for.trim_end_matches('}').trim_end().ends_with("return;"),
+            last == "return;",
             "ветка плановой смерти не выходит из обработчика безусловно"
         );
         assert!(
-            comes_before(exit, "if asked_for", "set_restart_pending("),
+            comes_before(exit, "if asked_for {", "set_restart_pending("),
             "перезапуск взводится раньше, чем отсеяна плановая смерть"
         );
     }

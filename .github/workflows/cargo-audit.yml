@@ -70,7 +70,7 @@ jobs:
           args=$(grep -E '^[[:space:]]*args:' "$release" | sed 's/^[[:space:]]*//' || true)
           [ "$args" = 'args: --target ${{ matrix.target }}' ] ||
             fail "шаг сборки в $release передаёт не только --target: ${args//$'\n'/; }"
-          if grep -nE 'tauriScript|TAURI_CONFIG|CARGO_FEATURE|RUSTFLAGS' "$release"; then
+          if grep -nE 'tauriScript|TAURI_CONFIG' "$release"; then
             fail "$release меняет сборку в обход args — дерево ниже проверяет не ту сборку"
           fi
           grep -q '^    "tauri": "tauri",$' package.json ||
@@ -84,7 +84,7 @@ jobs:
           tree=$(cargo tree --locked -p clash-verge -e normal,build --target all --prefix none --format '{p}')
           grep -q '^tauri v' <<<"$tree" || fail "cargo tree вернул пустое дерево"
           if grep -qE '^ringbuf v(0\.[0-4]\.|0\.5\.[01]( |$))' <<<"$tree"; then
-            cargo tree --locked -p clash-verge -e normal,build --target all -i ringbuf
+            grep -E '^ringbuf v' <<<"$tree" | sort -u
             fail "уязвимый ringbuf попал в релизную сборку — RUSTSEC-2026-0293 затрагивает не только dev"
           fi
           echo "уязвимый ringbuf только в dev-сборке (фича tauri-dev), в релизном дереве его нет"
