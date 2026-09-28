@@ -91,7 +91,7 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
   const [pacEditorValue, setPacEditorValue] = useState(DEFAULT_PAC)
   const [pacEditorSavedValue, setPacEditorSavedValue] = useState(DEFAULT_PAC)
   const [saving, setSaving] = useState(false)
-  const { verge, patchVerge, mutateVerge } = useVerge()
+  const { verge, patchVerge } = useVerge()
   const [hostOptions, setHostOptions] = useState<string[]>([])
   const { data: runtime } = useRuntimeConfig()
   const lanSharing = runtime?.['allow-lan'] ?? false
@@ -266,9 +266,6 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
       return
     }
 
-    setSaving(true)
-    setOpen(false)
-    setSaving(false)
     const patch: Partial<IVergeConfig> = {}
 
     if (value.guard !== enable_proxy_guard) {
@@ -308,23 +305,24 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
       patch.proxy_host = proxyHost
     }
 
-    Promise.resolve().then(async () => {
-      try {
-        // Оптимистично обновляем локальное состояние
-        if (Object.keys(patch).length > 0) {
-          mutateVerge({ ...verge, ...patch }, false)
-        }
-        if (Object.keys(patch).length > 0) {
-          await patchVerge(patch)
-        }
-        await invalidateProxyState()
-      } catch (err) {
-        console.error('Не удалось сохранить конфигурацию:', err)
-        mutateVerge()
-        showNotice.error(err)
-        // setOpen(true);
+    // Окно ждёт записи: закрывается только когда настройки приняты, а при
+    // отказе остаётся открытым со всем введённым — ничего не набирать заново.
+    setSaving(true)
+    try {
+      if (Object.keys(patch).length > 0) {
+        await patchVerge(patch)
       }
-    })
+    } catch (err) {
+      console.error('Не удалось сохранить конфигурацию:', err)
+      showNotice.error(err)
+      return
+    } finally {
+      setSaving(false)
+    }
+    setOpen(false)
+    void invalidateProxyState().catch((err) =>
+      console.error('Не удалось обновить состояние прокси:', err),
+    )
   })
 
   return (
@@ -334,11 +332,11 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
       contentSx={{ width: 450, maxHeight: 565 }}
       okBtn={t('shared.actions.save')}
       cancelBtn={t('shared.actions.cancel')}
-      onClose={() => setOpen(false)}
-      onCancel={() => setOpen(false)}
+      onClose={() => !saving && setOpen(false)}
+      onCancel={() => !saving && setOpen(false)}
       onOk={onSave}
       loading={saving}
-      disableOk={saving}
+      disableCancel={saving}
     >
       <List>
         <BaseFieldset
