@@ -1518,7 +1518,6 @@ export interface TranslationResources {
             bootFailed: string
             failed: string
             processTerminated: string
-            timeout: string
           }
           merge: {
             mappingError: string

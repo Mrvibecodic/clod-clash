@@ -635,19 +635,16 @@ impl CoreManager {
     /// Перезапуск ядра по просьбе снаружи: кнопка, трей, смена сборки ядра,
     /// настройка, требующая перезапуска.
     ///
-    /// clod:Э3-03 — перезапуск идёт под тем же признаком, что и применение
+    /// clod:Э3-03 — перезапуск идёт в той же очереди, что и применение
     /// конфига: пока конфиг едет к ядру, режим работы (sidecar/служба) менять
     /// нельзя — иначе staged-путь службы уезжал бы в sidecar, а наш путь — в
-    /// ядро под службой. Занято — честный отказ, как у апстрима, а не тихое
-    /// вклинивание. Применение конфига само перезапускает ядро через
-    /// `restart_core_during_config_update`, признак у него уже есть.
+    /// ядро под службой. Идёт применение — перезапуск дожидается его, а не
+    /// вклинивается. Применение конфига само перезапускает ядро через
+    /// `restart_core_during_config_update`, очередь у него уже есть.
     pub async fn restart_core(&self) -> Result<()> {
-        if !self.try_start_config_update() {
-            anyhow::bail!("configuration update is already running");
-        }
-        defer! {
-            self.finish_config_update();
-        }
+        let Some(_turn) = self.queue_for_config_update().await else {
+            anyhow::bail!("очередь применения конфига закрыта");
+        };
         self.restart_core_during_config_update().await
     }
 
@@ -685,13 +682,10 @@ impl CoreManager {
         rollback: impl FnOnce() -> Result<()> + Send,
     ) -> Result<()> {
         // clod:Э3-03 — подмена сборки тоже меняет ядро под ногами у применения
-        // конфига; занято — отказ до обеих записей указателей, откатывать нечего.
-        if !self.try_start_config_update() {
-            anyhow::bail!("configuration update is already running");
-        }
-        defer! {
-            self.finish_config_update();
-        }
+        // конфига: ждёт своей очереди.
+        let Some(_turn) = self.queue_for_config_update().await else {
+            anyhow::bail!("очередь применения конфига закрыта");
+        };
         let _life = self.lifecycle_lock.lock().await;
         let _pause = self.planned_pause();
         if let Err(error) = self.stop_core_inner().await {
@@ -993,13 +987,11 @@ impl CoreManager {
             return outcome;
         }
 
-        // Сначала захватываем блокировку config; при неудаче уступаем идущему обновлению.
-        if !self.try_start_config_update() {
+        // Сначала очередь применения конфига; занята — уступаем идущему применению,
+        // передача повторит себя сама.
+        let Some(_turn) = self.claim_config_update() else {
             return HandoffOutcome::NotReady;
-        }
-        defer! {
-            self.finish_config_update();
-        }
+        };
 
         // Затем захватываем блокировку lifecycle; порядок блокировок фиксирован: config→lifecycle.
         let _life = self.lifecycle_lock.lock().await;

@@ -419,15 +419,26 @@ impl CoreConfigValidator {
             None => app_handle.shell().sidecar(clash_core.as_str())?,
         }
         .args(["-t", "-d", app_dir_str, "-f", config_path]);
-        let output = command.output().await?;
-
-        let status = &output.status;
-        let stderr = &output.stderr;
-        let stdout = &output.stdout;
+        let Some(CheckRun { code, stdout, stderr }) = run_the_check(command).await? else {
+            logging!(
+                warn,
+                Type::Validate,
+                "Проверка конфига не уложилась в {} с — процесс проверки остановлен",
+                CHECK_TIMEOUT.as_secs()
+            );
+            return Ok(ValidationOutcome::invalid(
+                ValidationErrorKind::Timeout,
+                format!(
+                    "Проверка конфига ядром не уложилась в {} с (таймаут)",
+                    CHECK_TIMEOUT.as_secs()
+                ),
+            ));
+        };
+        let (stdout, stderr) = (&stdout, &stderr);
 
         // Проверяем код завершения процесса и вывод ошибок
         let error_keywords = ["FATA", "fatal", "Parse config error", "level=fatal"];
-        let has_error = !status.success() || contains_any_keyword(stderr, &error_keywords);
+        let has_error = code != Some(0) || contains_any_keyword(stderr, &error_keywords);
 
         logging!(info, Type::Validate, "-------- Результат проверки --------");
 
@@ -441,7 +452,7 @@ impl CoreConfigValidator {
                 str::from_utf8(stdout).unwrap_or_default().into()
             } else if !stderr.is_empty() {
                 str::from_utf8(stderr).unwrap_or_default().into()
-            } else if let Some(code) = status.code() {
+            } else if let Some(code) = code {
                 format!("Процесс проверки завершился аварийно, код выхода: {code}").into()
             } else {
                 "Процесс проверки был прерван".into()
@@ -451,7 +462,7 @@ impl CoreConfigValidator {
             // Ядро при отказе всегда называет причину; процесс без единого слова
             // на выходе прибит снаружи (на Windows — с кодом выхода), и это не
             // вердикт конфигу.
-            let silenced = status.code().is_none() || (stdout.is_empty() && stderr.is_empty());
+            let silenced = code.is_none() || (stdout.is_empty() && stderr.is_empty());
             let outcome = if silenced {
                 ValidationOutcome::invalid(ValidationErrorKind::ProcessTerminated, error_msg)
             } else {
@@ -481,6 +492,57 @@ impl CoreConfigValidator {
         let config_path = dirs::path_to_str(&config_path)?;
         Self::validate_config_internal_outcome(config_path).await
     }
+}
+
+/// Сколько ждём проверку конфига ядром (`mihomo -t`). Проверка идёт в очереди
+/// применения конфига: зависшая без срока остановила бы все применения разом.
+/// Ядро при разборе само докачивает недостающие гео-базы, до 90 с на каждую:
+/// срок покрывает две такие докачки подряд. Обрезанную базу ядро при следующем
+/// запуске проверяет и скачивает заново.
+const CHECK_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(180);
+
+/// Итог отработавшей проверки.
+struct CheckRun {
+    code: Option<i32>,
+    stdout: Vec<u8>,
+    stderr: Vec<u8>,
+}
+
+/// Запустить проверку и дождаться её не дольше `CHECK_TIMEOUT`; не уложилась —
+/// процесс снимается, `None`. `Command::output` плагина так не умеет: брошенное
+/// ожидание оставляет процесс жить.
+async fn run_the_check(command: tauri_plugin_shell::process::Command) -> Result<Option<CheckRun>> {
+    use tauri_plugin_shell::process::CommandEvent;
+
+    let (mut events, child) = command.spawn()?;
+    let mut run = CheckRun {
+        code: None,
+        stdout: Vec::new(),
+        stderr: Vec::new(),
+    };
+    let collect = async {
+        while let Some(event) = events.recv().await {
+            match event {
+                CommandEvent::Terminated(payload) => run.code = payload.code,
+                CommandEvent::Stdout(line) => {
+                    run.stdout.extend(line);
+                    run.stdout.push(b'\n');
+                }
+                CommandEvent::Stderr(line) => {
+                    run.stderr.extend(line);
+                    run.stderr.push(b'\n');
+                }
+                _ => {}
+            }
+        }
+    };
+    if tokio::time::timeout(CHECK_TIMEOUT, collect).await.is_err() {
+        if let Err(err) = child.kill() {
+            logging!(warn, Type::Validate, "не удалось остановить зависшую проверку: {}", err);
+        }
+        return Ok(None);
+    }
+    Ok(Some(run))
 }
 
 fn has_ext<P: AsRef<std::path::Path>>(path: P, ext: &str) -> bool {

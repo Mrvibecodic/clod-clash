@@ -178,8 +178,8 @@ enum Acceptance {
     /// Файл принят и заменён, но доставить ядру не удалось (не поднялось, служба
     /// молчит): работает прежний конфиг, у профиля пометка «не применено».
     DeliveryFailed(anyhow::Error),
-    /// До проверки не дошло — признак применения занят дольше ожидания или идёт
-    /// выход: файл и реестр прежние, пометок нет, загрузку надо повторить скоро.
+    /// До проверки не дошло — идёт выход: файл и реестр прежние, пометок нет,
+    /// загрузку надо повторить скоро.
     Unverified(ValidationOutcome),
     /// Проверка не состоялась (прибита, не запустилась, таймаут): слова ядра нет,
     /// без него файл не заменяем — провал обновления со своим советом человеку;
@@ -214,7 +214,7 @@ async fn accept_the_download(uid: &String, mut item: PrfItem) -> Result<Acceptan
         .await
         .with_context(|| format!("failed to write the subscription candidate \"{file}.new\""))?;
 
-    // Реестр-кандидат выводится из принятого уже под признаком применения: за
+    // Реестр-кандидат выводится из принятого уже в своей очереди применения: за
     // время ожидания профиль могли переименовать, переключить или удалить.
     let sources = {
         let uid = uid.clone();
@@ -229,7 +229,7 @@ async fn accept_the_download(uid: &String, mut item: PrfItem) -> Result<Acceptan
         })
     };
 
-    let staged = match CoreManager::global().stage_within(sources, ACCEPTANCE_WAIT).await {
+    let staged = match CoreManager::global().stage_with(sources).await {
         Ok(Ok(staged)) => staged,
         Ok(Err(outcome)) => {
             let _ = tokio::fs::remove_file(&candidate_path).await;
@@ -371,11 +371,6 @@ async fn deliver_the_accepted(uid: &String, staged: crate::core::manager::Staged
         }
     }
 }
-
-/// Сколько приём подписки ждёт занятого признака применения. Загрузки идут
-/// параллельно и заканчиваются почти одновременно, проверки — по одной; без
-/// ожидания вторая и третья подписка теряли бы свою загрузку до следующего тика.
-const ACCEPTANCE_WAIT: std::time::Duration = std::time::Duration::from_secs(30);
 
 async fn mark_not_applied(uid: &String) {
     if let Err(err) = crate::config::profiles::profiles_mark_not_applied(uid, true).await {
@@ -827,7 +822,7 @@ impl std::error::Error for RefusedByTheCore {}
 pub enum UpdateOutcome {
     /// Сделано (или скачивать было нечего): дальше по расписанию.
     Done,
-    /// До проверки не дошло (уже обновляется, признак применения занят): повторить
+    /// До проверки не дошло (подписка уже обновляется или идёт выход): повторить
     /// скоро, а не через интервал, и не считать провалом загрузки.
     RetrySoon,
 }

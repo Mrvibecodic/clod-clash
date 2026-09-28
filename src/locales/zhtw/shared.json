@@ -130,8 +130,7 @@
       "config": {
         "failed": "設定檢查未通過，變更已撤銷。錯誤：",
         "bootFailed": "The core rejected the configuration at startup — the core is not running, there is no connection. Update the subscription or switch to another one. Error:",
-        "processTerminated": "驗證程序被終止。請檢查是否有安全軟體阻止核心執行，以及本機 CPU 是否支援該核心建置。",
-        "timeout": "The configuration update did not finish within 30 s: the check or the core did not respond. The result will show once the core answers."
+        "processTerminated": "驗證程序被終止。請檢查是否有安全軟體阻止核心執行，以及本機 CPU 是否支援該核心建置。"
       },
       "script": {
         "syntaxError": "指令碼語法錯誤，變更已撤銷",

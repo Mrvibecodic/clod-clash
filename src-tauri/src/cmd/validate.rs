@@ -42,10 +42,10 @@ pub fn handle_validation_notice(outcome: &ValidationOutcome, target: ValidationN
             logging!(warn, Type::Config, "{}: проверка не пройдена: {}", file_type, message);
             handle::Handle::notice_message(status, message.to_owned());
         }
+        // Не приговор конфигу: применение не состоялось (идёт выход). Говорить
+        // человеку «проверка не пройдена» было бы неправдой.
         ValidationOutcome::Busy | ValidationOutcome::Skipped { .. } => {
-            let message = outcome.to_string();
-            logging!(warn, Type::Config, "{}: проверка пропущена: {}", file_type, message);
-            handle::Handle::notice_message("config_validate::error", message);
+            logging!(info, Type::Config, "{}: проверка пропущена: {}", file_type, outcome);
         }
         ValidationOutcome::Valid => {}
     }

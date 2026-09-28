@@ -80,8 +80,6 @@ async fn mode_owner() -> Option<(String, bool)> {
 }
 
 static MODE_CHANGE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
-/// Сколько смена режима ждёт занятого признака применения.
-const MODE_CHANGE_WAIT: std::time::Duration = std::time::Duration::from_secs(3);
 const CORE_MODE_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
 
 async fn runtime_mode_is(mode: &str) -> bool {
@@ -100,7 +98,15 @@ async fn core_mode_is(mode: &str) -> bool {
     matches!(config, Ok(Ok(config)) if config.mode.to_string() == mode)
 }
 
-fn refuse_mode_change(owner: Option<&(String, bool)>) -> Result<(), String> {
+fn refuse_while_the_subscription_switches() -> Result<(), String> {
+    if crate::cmd::profile_switch_in_progress() {
+        logging!(info, Type::Core, "mode change refused: the subscription is switching");
+        return Err(clash_verge_i18n::t!("common.modeSwitching").into_owned().into());
+    }
+    Ok(())
+}
+
+fn refuse_a_locked_mode(owner: Option<&(String, bool)>) -> Result<(), String> {
     if owner.is_some_and(|(_, locked)| *locked) {
         logging!(
             info,
@@ -109,21 +115,30 @@ fn refuse_mode_change(owner: Option<&(String, bool)>) -> Result<(), String> {
         );
         return Err(clash_verge_i18n::t!("common.modeLocked").into_owned().into());
     }
-    if crate::cmd::profile_switch_in_progress() {
-        logging!(info, Type::Core, "mode change refused: the subscription is switching");
-        return Err(clash_verge_i18n::t!("common.modeSwitching").into_owned().into());
-    }
     Ok(())
 }
 
 pub async fn change_clash_mode(mode: String) -> Result<(), String> {
     let _serialized = MODE_CHANGE_LOCK.lock().await;
+    // Идущее переключение подписки — отказ сразу, а не после ожидания очереди:
+    // его признак снимается уже после того, как оно освободило очередь.
+    refuse_while_the_subscription_switches()?;
+    // В очереди применения конфига: пока чужая сборка едет к ядру, режим не
+    // переключаем (она уехала бы со старым и вернула его), а пока идёт PATCH —
+    // не стартует чужая сборка. Владелец режима, замок панели и «режим уже
+    // такой» читаются уже в своей очереди: пока ждали, подписку могли сменить
+    // или обновить с новым замком.
+    let Some(turn) = CoreManager::global().claim_for_an_update().await else {
+        return Err(clash_verge_i18n::t!("common.exitInProgress").into_owned().into());
+    };
     let owner = mode_owner().await;
-    refuse_mode_change(owner.as_ref())?;
+    refuse_a_locked_mode(owner.as_ref())?;
     if runtime_mode_is(&mode).await && core_mode_is(&mode).await {
         // Режим уже такой, но нажатие — всё равно выбор человека: без записи
-        // следующая смена `mode` в подписке перебила бы его.
+        // следующая смена `mode` в подписке перебила бы его. Записывается ещё в
+        // своей очереди, чтобы следующая сборка его уже видела.
         remember_mode_choice(owner.as_ref(), &mode).await;
+        drop(turn);
         logging_error!(Type::Tray, tray::Tray::global().update_menu().await);
         return Ok(());
     }
@@ -149,18 +164,8 @@ async fn remember_mode_choice<'a>(
     }
 }
 
+/// Вызывающий держит очередь применения конфига.
 async fn switch_clash_mode(mode: String, owner: Option<(String, bool)>) -> Result<(), String> {
-    // Под признаком применения конфига: пока чужая сборка едет к ядру, режим
-    // не переключаем (она уехала бы со старым и вернула его), а пока идёт
-    // PATCH — не стартует чужая сборка. Занято секунду-другую — дожидаемся.
-    let Some(_applying) = CoreManager::global().claim_config_update_within(MODE_CHANGE_WAIT).await else {
-        logging!(
-            info,
-            Type::Core,
-            "mode change refused: a configuration update is running"
-        );
-        return Err(clash_verge_i18n::t!("common.configApplying").into_owned().into());
-    };
     let previous = remember_mode_choice(owner.as_ref(), &mode).await;
     let mut mapping = Mapping::new();
     mapping.insert(Value::from("mode"), Value::from(mode.as_str()));

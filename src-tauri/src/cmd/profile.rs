@@ -28,7 +28,6 @@ use clash_verge_logging::{Type, logging, logging_error};
 use scopeguard::defer;
 use smartstring::alias::String;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
 
 static CURRENT_SWITCHING_PROFILE: AtomicBool = AtomicBool::new(false);
 
@@ -315,6 +314,11 @@ pub async fn delete_profile(index: String) -> CmdResult {
                 );
                 handle::Handle::notify_profile_changed(&index);
             }
+            // Применение не состоялось (идёт выход) — удалению это не приговор:
+            // следующая сборка пойдёт уже без удалённой подписки.
+            Ok(outcome @ (ValidationOutcome::Busy | ValidationOutcome::Skipped { .. })) => {
+                logging!(info, Type::Cmd, "[удаление подписки] применение отложено: {}", outcome);
+            }
             Ok(outcome) => {
                 logging!(
                     warn,
@@ -460,23 +464,16 @@ fn handle_update_error<E: std::fmt::Display>(e: E) -> ValidationOutcome {
     ValidationOutcome::invalid_from_message(message)
 }
 
-fn handle_timeout() -> ValidationOutcome {
-    let timeout_msg: String =
-        "таймаут обновления конфига (30 сек), возможно зависла проверка конфига или связь с ядром".into();
-    logging!(error, Type::Cmd, "{}", timeout_msg);
-    handle::Handle::notice_message("config_validate::timeout", timeout_msg.clone());
-    ValidationOutcome::invalid_from_message(timeout_msg)
-}
-
-/// Собрать конфиг из кандидата реестра (`patch` поверх принятого — под признаком
-/// применения, чтобы реестр не уехал из-под кандидата за время ожидания) и отдать
-/// ядру. Реестр в памяти и на диске меняется только на успехе (`handle_success`):
-/// при отказе ядро остаётся на прежнем профиле, и откатывать нечего.
+/// Собрать конфиг из кандидата реестра (`patch` поверх принятого — уже в своей
+/// очереди применения, чтобы реестр не уехал из-под кандидата за время ожидания)
+/// и отдать ядру. Реестр в памяти и на диске меняется только на успехе
+/// (`handle_success`): при отказе ядро остаётся на прежнем профиле, и откатывать
+/// нечего.
 ///
-/// Дверь идёт отдельной задачей: 30-секундный потолок — на ожидание ответа, а не
-/// на саму работу. Отменять применение посреди перезапуска ядра нельзя — слот и
-/// замок остались бы в промежуточном состоянии; задача доводит дело до конца, и
-/// итог доезжает событиями (`handle_success`), даже если ответ уже ушёл.
+/// Применение идёт отдельной задачей: отменять его посреди перезапуска ядра нельзя
+/// — слот и очередь остались бы в промежуточном состоянии. Ответ приходит, когда
+/// задача довела дело до конца: время ожидания очереди — не зависание, и потолок
+/// на него давал бы ложный «таймаут» при успешном переключении.
 async fn perform_config_update(patch: IProfiles, current_value: Option<String>) -> CmdResult<ValidationOutcome> {
     let sources = Sources::default().with_profiles_derived(move |accepted| {
         let mut candidate = accepted.clone();
@@ -515,10 +512,9 @@ async fn perform_config_update(patch: IProfiles, current_value: Option<String>) 
         }
     });
 
-    match tokio::time::timeout(Duration::from_secs(30), task).await {
-        Ok(Ok(result)) => result,
-        Ok(Err(join_error)) => Ok(handle_update_error(join_error)),
-        Err(_) => Ok(handle_timeout()),
+    match task.await {
+        Ok(result) => result,
+        Err(join_error) => Ok(handle_update_error(join_error)),
     }
 }
 

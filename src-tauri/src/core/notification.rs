@@ -326,7 +326,6 @@ mod tests {
         "config_validate::script_error",
         "config_validate::script_missing_main",
         "config_validate::script_syntax_error",
-        "config_validate::timeout",
         "config_validate::yaml_mapping_error",
         "config_validate::yaml_read_error",
         "config_validate::yaml_syntax_error",

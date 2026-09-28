@@ -128,8 +128,6 @@ export const handleNoticeMessage = (
       showNotice.error('shared.feedback.validation.config.bootFailed', msg),
     'config_validate::error': () =>
       showNotice.error('shared.feedback.validation.config.failed', msg),
-    'config_validate::timeout': () =>
-      showNotice.error('shared.feedback.validation.config.timeout'),
     'config_validate::process_terminated': () =>
       // clod:Э10-12 — текст отказа нужен и здесь: на пути обновления подписки он
       // единственный говорит, на чём именно проверка оборвалась.

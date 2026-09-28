@@ -130,8 +130,7 @@
       "config": {
         "failed": "설정 검사에 실패했습니다. 변경 사항을 되돌렸습니다. 오류:",
         "bootFailed": "The core rejected the configuration at startup — the core is not running, there is no connection. Update the subscription or switch to another one. Error:",
-        "processTerminated": "검증 프로세스가 종료되었습니다. 보안 소프트웨어가 코어 실행을 차단하는지, 이 컴퓨터의 CPU가 코어 빌드를 지원하는지 확인하세요.",
-        "timeout": "The configuration update did not finish within 30 s: the check or the core did not respond. The result will show once the core answers."
+        "processTerminated": "검증 프로세스가 종료되었습니다. 보안 소프트웨어가 코어 실행을 차단하는지, 이 컴퓨터의 CPU가 코어 빌드를 지원하는지 확인하세요."
       },
       "script": {
         "syntaxError": "스크립트 구문 오류",

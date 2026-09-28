@@ -62,7 +62,6 @@ const TUN_TAKEDOWN_TIMEOUT: Duration = Duration::from_secs(5);
 const TUN_REARM_COOLDOWN: Duration = Duration::from_secs(300);
 const TUN_BRING_BACK_ATTEMPTS: u32 = 3;
 const TUN_BRING_BACK_RETRY_DELAY: Duration = Duration::from_secs(2);
-const TUN_BRING_BACK_BUSY_WAIT: Duration = Duration::from_secs(120);
 const TRAFFIC_PROBE_URL: &str = "https://cp.cloudflare.com/generate_204";
 const TRAFFIC_PROBE_TIMEOUT_SECS: u64 = 8;
 const TRAFFIC_PROBE_DELAY: Duration = Duration::from_secs(5);
@@ -88,7 +87,6 @@ async fn bring_tun_back(reason: &str) {
     }
 
     logging!(info, Type::Core, "bringing TUN back: {}", reason);
-    let busy_deadline = Instant::now() + TUN_BRING_BACK_BUSY_WAIT;
     let mut last;
     let mut refused = 0_u32;
     loop {
@@ -103,21 +101,6 @@ async fn bring_tun_back(reason: &str) {
             Ok(outcome @ ValidationOutcome::Skipped { .. }) => {
                 logging!(info, Type::Core, "not bringing TUN back right now: {}", outcome);
                 return;
-            }
-            Ok(ValidationOutcome::Busy) => {
-                if Instant::now() >= busy_deadline {
-                    last = std::string::String::from("another configuration update never finished");
-                } else {
-                    logging!(
-                        debug,
-                        Type::Core,
-                        "another configuration update is running; waiting before bringing TUN back"
-                    );
-                    if !wait_before_the_next_bring_back().await {
-                        return;
-                    }
-                    continue;
-                }
             }
             Ok(outcome) => last = outcome.to_string(),
             Err(e) => last = format!("{e}"),

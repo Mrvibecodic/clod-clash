@@ -232,10 +232,6 @@ async fn hand_the_settings_to_the_core(delivery: Delivery) -> Result<()> {
         .await
 }
 
-/// Сколько выключение подмены DNS (macOS) ждёт занятого признака применения.
-#[cfg(target_os = "macos")]
-const DNS_OFF_WAIT: std::time::Duration = std::time::Duration::from_secs(5);
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SysProxyStep {
     Write,
@@ -279,12 +275,12 @@ async fn process_terminated_flags(update_flags: UpdateFlags, patch: &IVerge) -> 
         // поставил бы подмену обратно при выключенной настройке. Снимается и в
         // принятом слоте: возврат к прежней сборке после сорвавшегося перезапуска
         // читает заявку оттуда.
-        // Под признаком применения: идущая доставка собрана из принятого verge,
-        // где подмена ещё включена, и вернула бы заявку; после захвата принятое
+        // В очереди применения: идущая доставка собрана из принятого verge, где
+        // подмена ещё включена, и вернула бы заявку; в своей очереди принятое
         // verge уже с выключенной подменой, и следующие сборки её не попросят.
         // Принимается только это поле — остальной черновик ждёт своих шагов.
         {
-            let _applying = CoreManager::global().claim_config_update_within(DNS_OFF_WAIT).await;
+            let _turn = CoreManager::global().queue_for_config_update().await;
             Config::verge()
                 .await
                 .modify_committed(|verge| verge.enable_dns_override = Some(false));

@@ -13,7 +13,7 @@ use anyhow::{Result, anyhow};
 use clash_verge_logging::{Type, logging};
 use clash_verge_service_ipc::StageRuntimeOutcome;
 use smartstring::alias::String;
-use std::{path::PathBuf, time::Duration, time::Instant};
+use std::{path::PathBuf, time::Instant};
 use tauri_plugin_mihomo::Error as MihomoError;
 
 /// Как отдать ядру проверенный конфиг.
@@ -27,24 +27,28 @@ pub enum Delivery {
     Restart,
 }
 
-/// Сколько обычное применение ждёт занятого признака. Занято — значит кто-то
-/// применяет свою правку секунду-другую; отвечать человеку «занято» вместо того,
-/// чтобы дождаться, — не честность, а невнимательность.
-const DOOR_WAIT: Duration = Duration::from_secs(5);
-
-/// Признак «идёт применение конфига»; снимается при выходе из области на любом пути.
+/// Место в очереди применения конфига; освобождается при выходе из области на
+/// любом пути.
 pub(crate) struct ConfigUpdateGuard<'a>(&'a CoreManager);
+
+impl<'a> ConfigUpdateGuard<'a> {
+    /// Разрешение очереди переходит гварду: вернёт его `Drop`.
+    fn holding(manager: &'a CoreManager, permit: tokio::sync::SemaphorePermit<'_>) -> Self {
+        permit.forget();
+        Self(manager)
+    }
+}
 
 impl Drop for ConfigUpdateGuard<'_> {
     fn drop(&mut self) {
-        self.0.finish_config_update();
+        self.0.config_update.add_permits(1);
     }
 }
 
 /// Сборка, которую ядро проверило (`mihomo -t`) и не отвергло.
 ///
-/// Единственная дверь к слоту рантайма: пока `Staged` жив, признак применения
-/// держится, другой сборке в слот не попасть. Слот заменяется в `deliver` —
+/// Единственный путь к слоту рантайма: пока `Staged` жив, он держит очередь
+/// применения, другой сборке в слот не попасть. Слот заменяется в `deliver` —
 /// только после того, как ядро приняло конфиг; отказ ничего не меняет, откатывать
 /// нечего. Брошенный `Staged` — проверка без доставки (подписка не текущая).
 #[must_use = "a staged build changes nothing until it is delivered"]
@@ -62,9 +66,9 @@ impl Staged<'_> {
         self.deliver_committing(delivery, async || Ok(())).await
     }
 
-    /// То же, но после приёма ядром — ещё под признаком применения — выполнить
-    /// `commit`: записать в свой слой то, из чего собиралось. Иначе между
-    /// освобождением признака и записью чужая сборка читала бы прежнее принятое
+    /// То же, но после приёма ядром — ещё в своей очереди — выполнить `commit`:
+    /// записать в свой слой то, из чего собиралось. Иначе между освобождением
+    /// очереди и записью чужая сборка читала бы прежнее принятое
     /// и откатывала бы ядру то, что оно только что приняло. Отказ записи — `Err`
     /// с пометкой, что ядро конфиг уже приняло.
     pub async fn deliver_committing(
@@ -95,41 +99,25 @@ impl Staged<'_> {
 }
 
 impl CoreManager {
-    /// Взять признак применения конфига; `None` — уже идёт другое применение.
+    /// Занять очередь, если она свободна прямо сейчас; `None` — идёт другое
+    /// применение. Только для фоновых дел, которые и так повторяют себя сами.
     pub(crate) fn claim_config_update(&self) -> Option<ConfigUpdateGuard<'_>> {
-        // Гвард создаётся только при удавшемся захвате: `then_some` строил бы его и
-        // при отказе — и его Drop снимал бы признак у того, кто его держит.
-        self.try_start_config_update().then(|| ConfigUpdateGuard(self))
+        let permit = self.config_update.try_acquire().ok()?;
+        Some(ConfigUpdateGuard::holding(self, permit))
     }
 
-    /// То же, но подождать освобождения до `wait`: занято — значит «чуть позже»,
-    /// а не «в другой раз».
-    pub(crate) async fn claim_config_update_within(&self, wait: Duration) -> Option<ConfigUpdateGuard<'_>> {
-        let deadline = tokio::time::Instant::now() + wait;
-        loop {
-            let released = self.config_update_done.notified();
-            if let Some(guard) = self.claim_config_update() {
-                return Some(guard);
-            }
-            if tokio::time::timeout_at(deadline, released).await.is_err() {
-                return self.claim_config_update();
-            }
-        }
+    /// Встать в очередь применения конфига и дождаться своей очереди. Очередь
+    /// честная: кто раньше встал, тот раньше и применяет. `None` — очередь
+    /// закрыта (этого не бывает: закрывать её некому).
+    pub(crate) async fn queue_for_config_update(&self) -> Option<ConfigUpdateGuard<'_>> {
+        let permit = self.config_update.acquire().await.ok()?;
+        Some(ConfigUpdateGuard::holding(self, permit))
     }
 
-    /// Собрать конфиг из источников (принятое читается под признаком применения)
-    /// и проверить его ядром. Признак живёт до конца доставки.
+    /// Собрать конфиг из источников (принятое читается уже в своей очереди) и
+    /// проверить его ядром. Очередь держится до конца доставки.
     pub async fn stage_with(&self, sources: Sources) -> Result<std::result::Result<Staged<'_>, ValidationOutcome>> {
-        self.stage_within(sources, DOOR_WAIT).await
-    }
-
-    /// Как `stage_with`, но занятого признака применения ждёт до `wait`.
-    pub async fn stage_within(
-        &self,
-        sources: Sources,
-        wait: Duration,
-    ) -> Result<std::result::Result<Staged<'_>, ValidationOutcome>> {
-        let Some(guard) = self.claim_for_an_update(wait).await else {
+        let Some(guard) = self.claim_for_an_update().await else {
             return Ok(Err(self.why_not_now()));
         };
         let build = match Config::build(sources).await {
@@ -139,12 +127,12 @@ impl CoreManager {
         self.stage_under(guard, build).await
     }
 
-    /// Признак для применения: не во время выхода и с ожиданием занятого.
-    async fn claim_for_an_update(&self, wait: Duration) -> Option<ConfigUpdateGuard<'_>> {
+    /// Очередь для применения — не во время выхода.
+    pub(crate) async fn claim_for_an_update(&self) -> Option<ConfigUpdateGuard<'_>> {
         if handle::Handle::global().is_exiting() {
             return None;
         }
-        let guard = self.claim_config_update_within(wait).await?;
+        let guard = self.queue_for_config_update().await?;
         // Выход мог начаться, пока ждали.
         if handle::Handle::global().is_exiting() {
             return None;
@@ -152,14 +140,10 @@ impl CoreManager {
         Some(guard)
     }
 
-    fn why_not_now(&self) -> ValidationOutcome {
-        if handle::Handle::global().is_exiting() {
-            ValidationOutcome::Skipped {
-                reason: ValidationSkipReason::Exiting,
-            }
-        } else {
-            logging!(info, Type::Core, "Configuration update is already running");
-            ValidationOutcome::Busy
+    /// Применение не состоялось: единственная причина — идёт выход.
+    const fn why_not_now(&self) -> ValidationOutcome {
+        ValidationOutcome::Skipped {
+            reason: ValidationSkipReason::Exiting,
         }
     }
 
@@ -197,8 +181,8 @@ impl CoreManager {
         self.update_config(Sources::default(), force, true).await
     }
 
-    /// Пересобрать из переданных источников, отдать ядру и — ещё под признаком
-    /// применения — записать принятое в свой слой (`commit`).
+    /// Пересобрать из переданных источников, отдать ядру и — ещё в своей очереди
+    /// — записать принятое в свой слой (`commit`).
     pub async fn update_config_committing(
         &self,
         sources: Sources,
@@ -218,7 +202,7 @@ impl CoreManager {
     }
 
     async fn update_config(&self, sources: Sources, force: bool, skip_unchanged: bool) -> Result<ValidationOutcome> {
-        let Some(guard) = self.claim_for_an_update(DOOR_WAIT).await else {
+        let Some(guard) = self.claim_for_an_update().await else {
             return Ok(self.why_not_now());
         };
 
@@ -331,7 +315,7 @@ impl CoreManager {
     where
         F: FnOnce(&mut IRuntime),
     {
-        let Some(guard) = self.claim_for_an_update(DOOR_WAIT).await else {
+        let Some(guard) = self.claim_for_an_update().await else {
             return Ok(self.why_not_now());
         };
 
@@ -906,40 +890,28 @@ mod tests {
     use crate::core::manager::RunningMode::{NotRunning, Service, Sidecar};
 
     #[tokio::test]
-    async fn a_waiting_claim_gets_the_flag_once_the_holder_is_done() {
+    async fn an_action_waits_its_turn_however_long_the_holder_takes() {
         let manager = std::sync::Arc::new(CoreManager::default());
         let held = manager.claim_config_update();
         assert!(held.is_some());
+        assert!(manager.is_config_update_in_progress());
         assert!(
             manager.claim_config_update().is_none(),
-            "второй захват без ожидания — занято"
+            "фоновое дело без ожидания видит занятую очередь"
         );
 
         let waiter = {
             let manager = std::sync::Arc::clone(&manager);
-            tokio::spawn(async move {
-                manager
-                    .claim_config_update_within(Duration::from_secs(5))
-                    .await
-                    .is_some()
-            })
+            tokio::spawn(async move { manager.queue_for_config_update().await.is_some() })
         };
-        tokio::time::sleep(Duration::from_millis(50)).await;
+        // Срока у ожидания нет: пока держатель работает (перезапуск ядра под
+        // применением идёт десятки секунд), ожидающий стоит в очереди, а не
+        // получает «занято».
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        assert!(!waiter.is_finished(), "очередь не пропускает вперёд держателя");
         drop(held);
-        assert!(
-            waiter.await.unwrap_or(false),
-            "ожидающий должен получить признак после освобождения, а не «занято»"
-        );
-
-        let held = manager.claim_config_update();
-        assert!(held.is_some());
-        assert!(
-            manager
-                .claim_config_update_within(Duration::from_millis(50))
-                .await
-                .is_none(),
-            "не дождался — честное «занято»"
-        );
+        assert!(waiter.await.unwrap_or(false), "ожидающий получает свою очередь");
+        assert!(!manager.is_config_update_in_progress());
     }
     use crate::core::service::StageRequest;
     use clash_verge_service_ipc::StageRuntimeOutcome;

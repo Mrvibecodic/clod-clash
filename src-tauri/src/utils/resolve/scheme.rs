@@ -152,6 +152,15 @@ async fn refresh_core_config() {
     );
     match crate::feat::enhance_profiles().await {
         Ok(outcome) if outcome.is_valid() => {}
+        // Применение не состоялось (идёт выход) — о подписке это ничего не говорит.
+        Ok(outcome @ crate::core::validate::ValidationOutcome::Skipped { .. }) => {
+            logging!(
+                info,
+                Type::Config,
+                "Deep link import: config apply postponed: {}",
+                outcome
+            );
+        }
         Ok(outcome) => {
             let message = outcome.to_string();
             logging!(warn, Type::Config, "Apply config failed: {}", message);

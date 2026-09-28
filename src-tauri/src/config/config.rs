@@ -314,10 +314,10 @@ impl Config {
     /// при зелёном значке. «Проверить не удалось» (антивирус прибил проверку,
     /// таймаут, занято) — не приговор конфигу: он попадает в слот, и ядро решит само.
     async fn generate_and_validate() -> Result<Option<(&'static str, String)>> {
-        // Под признаком применения: первая же команда из окна может пройти дверь
-        // раньше, и бут-сборка не должна затирать то, что ядро уже приняло.
+        // В очереди применения: первая же команда из окна может пройти раньше, и
+        // бут-сборка не должна затирать то, что ядро уже приняло.
         let manager = CoreManager::global();
-        let _applying = manager.claim_config_update_within(BOOT_CLAIM_WAIT).await;
+        let _turn = manager.queue_for_config_update().await;
         if Self::runtime().await.data_arc().config.is_some() {
             return Ok(None);
         }
@@ -491,9 +491,6 @@ impl Config {
         logging!(info, Type::Config, "save all draft data finished");
     }
 }
-
-/// Сколько бут-сборка ждёт признак применения, если его уже держит команда из окна.
-const BOOT_CLAIM_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
 
 /// Что делать с конфигом при старте по итогу проверки.
 #[derive(Debug, PartialEq, Eq)]

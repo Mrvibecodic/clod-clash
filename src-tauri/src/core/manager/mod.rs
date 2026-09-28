@@ -108,15 +108,16 @@ pub struct CoreManager {
     last_update: ArcSwapOption<Instant>,
     #[cfg(target_os = "windows")]
     job_handle: ArcSwapOption<OwnedHandle>,
-    config_update_in_progress: AtomicBool,
-    /// Будит тех, кто ждёт освобождения признака применения.
-    config_update_done: tokio::sync::Notify,
+    /// Очередь применения конфига: сборка, проверка ядром и доставка идут по
+    /// одной, в порядке прихода. Действие человека не получает «занято» — оно
+    /// ждёт своей очереди.
+    config_update: tokio::sync::Semaphore,
     /// Почему ядро нельзя запускать: собранный при старте приложения конфиг
     /// ядро отвергло (или собрать его не удалось), а принятого в слоте нет.
     /// Снимается первой же доставкой конфига, который ядро приняло.
     startup_refusal: ArcSwapOption<String>,
     // Сериализует start/stop/restart и передачу sidecar→service.
-    // Порядок блокировок фиксирован: config_update_in_progress → lifecycle_lock.
+    // Порядок блокировок фиксирован: config_update → lifecycle_lock.
     lifecycle_lock: tokio::sync::Mutex<()>,
     handoff_watcher_generation: AtomicU64,
     starting: AtomicBool,
@@ -175,8 +176,7 @@ impl Default for CoreManager {
             last_update: ArcSwapOption::new(None),
             #[cfg(target_os = "windows")]
             job_handle: ArcSwapOption::new(None),
-            config_update_in_progress: AtomicBool::new(false),
-            config_update_done: tokio::sync::Notify::new(),
+            config_update: tokio::sync::Semaphore::const_new(1),
             startup_refusal: ArcSwapOption::new(None),
             lifecycle_lock: tokio::sync::Mutex::new(()),
             handoff_watcher_generation: AtomicU64::new(0),
@@ -400,15 +400,6 @@ impl CoreManager {
         self.job_handle.store(handle.map(Arc::new));
     }
 
-    fn try_start_config_update(&self) -> bool {
-        !self.config_update_in_progress.swap(true, Ordering::AcqRel)
-    }
-
-    fn finish_config_update(&self) {
-        self.config_update_in_progress.store(false, Ordering::Release);
-        self.config_update_done.notify_waiters();
-    }
-
     /// Запретить старт ядра: конфиг при запуске приложения отвергнут ядром или не
     /// собрался. Ядро на пустом умолчании не поднимаем — при включённых прокси и
     /// TUN это был бы весь трафик напрямую под зелёным значком.
@@ -428,7 +419,7 @@ impl CoreManager {
     /// конфига. Сторож такой круг пропускает, иначе обычная перезагрузка
     /// конфига под службой засчиталась бы ему как смерть ядра.
     pub(super) fn is_config_update_in_progress(&self) -> bool {
-        self.config_update_in_progress.load(Ordering::Acquire)
+        self.config_update.available_permits() == 0
     }
 
     pub async fn init(&self) -> Result<()> {

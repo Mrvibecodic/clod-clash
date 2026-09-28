@@ -183,6 +183,12 @@ async fn handle_saved_profile_file(
     );
     match crate::feat::enhance_profiles().await {
         Ok(outcome) if outcome.is_valid() => Ok(ValidationOutcome::Valid),
+        // Применение не состоялось (идёт выход) — о файле это ничего не говорит:
+        // годная правка остаётся на диске и войдёт в следующую сборку.
+        Ok(outcome @ (ValidationOutcome::Busy | ValidationOutcome::Skipped { .. })) => {
+            handle_validation_notice(&outcome, ValidationNoticeTarget::Runtime, "runtime-конфиг");
+            Ok(outcome)
+        }
         Ok(outcome) => {
             logging!(
                 warn,
