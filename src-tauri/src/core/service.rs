@@ -930,13 +930,6 @@ async fn collect_service_runtime_bundle(config_file: &Path) -> Result<clash_verg
     drop(verge_config);
 
     let bin_ext = if cfg!(windows) { ".exe" } else { "" };
-    if crate::core::core_updater::managed_core_binary().await.is_some() {
-        logging!(
-            warn,
-            Type::Service,
-            "managed core is enabled but service mode runs the bundled core (privilege boundary)"
-        );
-    }
     let bin_path = service_core_path(&clash_core, bin_ext)?;
     crate::core::core_integrity::ensure_elevated_binary_is_known(&bin_path).await?;
     match collect_runtime_bundle(config_file, &bin_path).await {

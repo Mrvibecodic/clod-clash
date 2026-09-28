@@ -22,10 +22,12 @@ import { BaseDialog, DialogRef } from '@/components/base'
 import { useClash, useClashInfo } from '@/hooks/use-clash'
 import { useVerge } from '@/hooks/use-verge'
 import {
+  type CoreUpdaterStatus,
   changeClashCore,
   coreReplacedItself,
   getCoreUpdaterStatus,
   restartCore,
+  updateBundledCore,
 } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { coreRestartsCleanly } from '@/utils/core-self-restart'
@@ -102,19 +104,17 @@ export function ClashCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
     }
   })
 
-  // Ядро обновляет себя само (/upgrade): каждое из двух ходит на свой
-  // источник — Clod Core на релизы clod-core, Mihomo на MetaCubeX — и
-  // подменяет свой файл в папке программы. Под службой это возможно всегда.
-  // Своим процессом — только если папка программы доступна ядру на запись
-  // (в системной установке в /usr/lib или AppImage — нет: ядро упрётся в
-  // первый же mkdir и ничего не тронет) и не на Windows: там ядро после
-  // подмены перезапускает себя дочерним процессом, приложение видит выход и
-  // поднимает второе ядро на том же порту (на macOS/Linux ядро делает exec —
-  // процесс и PID те же). Под службой на Windows второе ядро поднимает
-  // служба, а копия держит порт до перезагрузки — об этом спрашиваем заранее;
-  // свежий Clod Core вместо копии просто выходит. Управляемый обновитель
-  // здесь не участвует: он подставил бы стоковое ядро из папки пользователя
-  // поверх выбранного.
+  // Каждое из двух ядер обновляется со своего источника: Clod Core — с
+  // релизов clod-core, Mihomo — с MetaCubeX. Кто заменит файл, решает бэкенд:
+  // - 'app' — папка программы доступна на запись (обычно macOS; на Linux
+  //   пакет ставит ядро в системную папку): приложение скачивает ядро, сверяет
+  //   sha256 и подменяет файл при остановленном ядре, а не поднялось новое —
+  //   возвращает прежнее;
+  // - 'core' — папка только для администратора: ядро обновляет себя само через
+  //   службу (/upgrade). На Windows после этого стоковое ядро и прежние сборки
+  //   Clod Core оставляют копию, которая держит порт до перезагрузки, — об
+  //   этом спрашиваем заранее; свежий Clod Core просто выходит;
+  // - 'unavailable' — обновится вместе с приложением.
   const upgradeThroughCore = async () => {
     try {
       await upgradeCore()
@@ -128,10 +128,13 @@ export function ClashCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
     return true
   }
 
-  const runUpgrade = useLockFn(async () => {
+  const runUpgrade = useLockFn(async (method: CoreUpdaterStatus['method']) => {
     try {
       setUpgrading(true)
-      const updated = await upgradeThroughCore()
+      const updated =
+        method === 'app'
+          ? (await updateBundledCore()).updated
+          : await upgradeThroughCore()
       setUpgrading(false)
       mutateVersion()
       if (!updated) {
@@ -143,6 +146,7 @@ export function ClashCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
       showNotice.success('settings.feedback.notifications.clash.versionUpdated')
     } catch (err) {
       setUpgrading(false)
+      mutateVersion()
       showNotice.error(
         'settings.feedback.notifications.clash.upgradeFailed',
         err,
@@ -151,16 +155,25 @@ export function ClashCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
   })
 
   const onUpgrade = useLockFn(async () => {
+    let method: CoreUpdaterStatus['method']
     try {
       const status = await getCoreUpdaterStatus()
-      const onWindows = getSystem() === 'windows'
-      const canReplaceItself =
-        status.service_mode || (!onWindows && status.core_dir_writable)
-      if (!canReplaceItself) {
+      method = status.method
+      if (method === 'unavailable') {
         showNotice.info('settings.modals.clashCore.upgradeHint')
         return
       }
-      if (onWindows && !coreRestartsCleanly(status.running)) {
+      // Приложение обновляет только работающее ядро: проверить, поднимется ли
+      // новое, на остановленном не на чем.
+      if (method === 'app' && !status.core_running) {
+        showNotice.info('settings.modals.clashCore.startCoreFirst')
+        return
+      }
+      if (
+        method === 'core' &&
+        getSystem() === 'windows' &&
+        !coreRestartsCleanly(status.running)
+      ) {
         setAskingToReboot(true)
         return
       }
@@ -171,12 +184,12 @@ export function ClashCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
       )
       return
     }
-    await runUpgrade()
+    await runUpgrade(method)
   })
 
   const upgradeAfterAsking = () => {
     setAskingToReboot(false)
-    void runUpgrade()
+    void runUpgrade('core')
   }
 
   return (

@@ -958,9 +958,6 @@ interface IVergeConfig {
   tun_setup_declined?: string
   window_fit_content?: boolean
   home_tool_shortcuts?: string[]
-  use_managed_core?: boolean
-  managed_core_channel?: string
-  core_auto_check?: boolean
   enable_sub_notifications?: boolean
 }
 

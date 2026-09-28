@@ -122,6 +122,10 @@ pub struct CoreManager {
     handoff_watcher_generation: AtomicU64,
     starting: AtomicBool,
     restart_pending: AtomicBool,
+    /// Идёт смена ядра: если новое ядро не поднялось, прежнее поднимает сама
+    /// смена — после того, как сняла выбор нового. Иначе возврат поднял бы
+    /// ещё раз то же новое ядро.
+    core_switch: AtomicBool,
     // Сколько плановых пауз ядра идёт прямо сейчас: обычный перезапуск,
     // замена сборки ядра, удаление службы, передача ядра службе. Счётчик, а не
     // флаг — паузы вкладываются друг в друга.
@@ -182,6 +186,7 @@ impl Default for CoreManager {
             handoff_watcher_generation: AtomicU64::new(0),
             starting: AtomicBool::new(true),
             restart_pending: AtomicBool::new(false),
+            core_switch: AtomicBool::new(false),
             planned_pauses: AtomicU32::new(0),
         }
     }

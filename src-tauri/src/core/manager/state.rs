@@ -637,14 +637,7 @@ impl CoreManager {
         #[cfg(unix)]
         discard_unwritable_core_cache(&config_dir);
 
-        let managed = crate::core::core_updater::managed_core().await;
-        let command = match &managed {
-            Some((_, path)) => {
-                logging!(info, Type::Core, "using managed core: {}", path.display());
-                app_handle.shell().command(path)
-            }
-            None => app_handle.shell().sidecar(clash_core.as_str())?,
-        };
+        let command = app_handle.shell().sidecar(clash_core.as_str())?;
 
         #[cfg(unix)]
         let previous_mask = unsafe { tauri_plugin_clash_verge_sysinfo::libc::umask(0o077) };
@@ -697,7 +690,7 @@ impl CoreManager {
 
         self.set_running_child_sidecar(child);
         self.set_sidecar_pid(pid);
-        crate::core::core_updater::note_started_core(clash_core.to_string(), managed.map(|(version, _)| version));
+        crate::core::core_updater::note_started_core(clash_core.to_string());
         self.note_core_is_up(Backend::Sidecar);
         spawn_core_health_watchdog(CoreWatch::Sidecar { pid, silent: 0 });
 
@@ -820,8 +813,8 @@ impl CoreManager {
         let service_ipc = dirs::service_ipc_path()?;
         point_core_client_at(dirs::path_to_str(&service_ipc)?);
 
-        // Служба всегда запускает встроенное ядро, управляемое под ней не
-        // действует. Имя читается до старта — тем же, что уйдёт службе.
+        // Служба запускает выбранное встроенное ядро. Имя читается до старта —
+        // тем же, что уйдёт службе.
         let started_core = Config::verge().await.latest_arc().get_valid_clash_core().to_string();
         let config_file = Config::write_accepted_runtime_file().await?;
 
@@ -831,7 +824,7 @@ impl CoreManager {
             for attempt in 0..timing::SERVICE_START_RETRIES {
                 match service::run_core_by_service(&config_file).await {
                     Ok(()) => {
-                        crate::core::core_updater::note_started_core(started_core.clone(), None);
+                        crate::core::core_updater::note_started_core(started_core.clone());
                         self.note_core_is_up(Backend::Service);
                         spawn_core_health_watchdog(CoreWatch::Service(HealthWatch::default()));
                         return Ok(());
@@ -859,7 +852,7 @@ impl CoreManager {
         #[cfg(not(target_os = "windows"))]
         {
             service::run_core_by_service(&config_file).await?;
-            crate::core::core_updater::note_started_core(started_core, None);
+            crate::core::core_updater::note_started_core(started_core);
             self.note_core_is_up(Backend::Service);
             spawn_core_health_watchdog(CoreWatch::Service(HealthWatch::default()));
             Ok(())

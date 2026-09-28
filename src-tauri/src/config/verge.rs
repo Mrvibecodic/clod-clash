@@ -239,15 +239,6 @@ pub struct IVerge {
     pub home_tool_shortcuts: Option<Vec<String>>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub use_managed_core: Option<bool>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub managed_core_channel: Option<String>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub core_auto_check: Option<bool>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_sub_notifications: Option<bool>,
 }
 
@@ -408,7 +399,6 @@ impl IVerge {
             verge_tproxy_enabled: self.verge_tproxy_enabled,
             enable_external_controller: self.enable_external_controller,
             clash_core: self.clash_core.clone(),
-            use_managed_core: self.use_managed_core,
             ..Self::default()
         }
     }
@@ -638,9 +628,6 @@ impl IVerge {
         patch!(window_pos_advanced);
         patch!(window_fit_content);
         patch!(home_tool_shortcuts);
-        patch!(use_managed_core);
-        patch!(managed_core_channel);
-        patch!(core_auto_check);
         patch!(enable_sub_notifications);
     }
 

@@ -362,7 +362,8 @@
       }
     },
     "clashCore": {
-      "upgradeHint": "The core upgrades itself: it fetches its latest build from its own source (Mihomo from MetaCubeX, Clod Core from the clod-core releases) and replaces its file in the program folder. Through the service — always; as its own process — only while the program folder is writable, and on Windows only through the service.",
+      "upgradeHint": "Each core updates from its own source: Mihomo from MetaCubeX, Clod Core from the clod-core releases. When the program folder is writable (usually macOS), the app downloads the core itself, checks its checksum and swaps the file, bringing the previous one back if the new core does not start. Otherwise the core updates through the service; without the service it updates together with the app.",
+      "startCoreFirst": "Start the core first: only a running core can be updated.",
       "variants": {
         "release": "MetaCubeX, unpatched",
         "alpha": "Ours, with patches"
@@ -687,37 +688,6 @@
         "ipAddress": "آدرس IP",
         "macAddress": "آدرس MAC"
       }
-    },
-    "managedCore": {
-      "entry": "Managed core (self-updating)",
-      "title": "Managed Mihomo core",
-      "useManaged": "Use the managed core",
-      "useManagedHint": "Run a self-downloaded core instead of the bundled one",
-      "channel": "Channel",
-      "stable": "Stable",
-      "alpha": "Alpha",
-      "autoCheck": "Check daily",
-      "autoCheckHint": "فقط وقتی هستهٔ مدیریت‌شده روشن است کار می‌کند",
-      "running": "Running:",
-      "managedTag": "managed",
-      "bundledTag": "bundled",
-      "available": "Update available: {{version}}",
-      "upToDate": "The core is up to date",
-      "check": "Check for update",
-      "update": "Download & apply",
-      "revert": "Revert to {{version}}",
-      "updated": "Core updated",
-      "reverted": "Core reverted",
-      "phase": {
-        "checking": "Checking…",
-        "downloading": "Downloading…",
-        "verifying": "Verifying…",
-        "applying": "Applying…"
-      },
-      "updatedTo": "Core updated to {{msg}}",
-      "updateNotice": "A newer core is available: {{msg}}",
-      "serviceModeNote": "با سرویس همیشه هستهٔ داخلی اجرا می‌شود: دانلود و بازگردانی در اینجا روی آن اثری ندارد.",
-      "notDownloadedNote": "هستهٔ مدیریت‌شده هنوز دانلود نشده است؛ فعلاً هستهٔ داخلی اجرا می‌شود."
     }
   },
   "feedback": {

@@ -21,9 +21,6 @@ fn run_powershell(script: String) -> Result<std::process::Output> {
 }
 
 async fn active_core_path() -> Option<PathBuf> {
-    if let Some(managed) = crate::core::core_updater::managed_binary_on_disk().await {
-        return Some(managed);
-    }
     crate::core::service::bundled_core_path().await.ok()
 }
 
@@ -70,9 +67,6 @@ pub async fn allow_inbound() -> Result<()> {
                 paths.push(("core", path));
             }
         }
-    }
-    if let Some(managed) = crate::core::core_updater::managed_binary_on_disk().await {
-        paths.push(("managed core", managed));
     }
     if paths.is_empty() {
         bail!("no core binaries found next to the app");

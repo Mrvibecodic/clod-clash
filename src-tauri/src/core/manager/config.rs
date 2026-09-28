@@ -13,7 +13,7 @@ use anyhow::{Result, anyhow};
 use clash_verge_logging::{Type, logging};
 use clash_verge_service_ipc::StageRuntimeOutcome;
 use smartstring::alias::String;
-use std::{path::PathBuf, time::Instant};
+use std::{path::PathBuf, sync::atomic::Ordering, time::Instant};
 use tauri_plugin_mihomo::Error as MihomoError;
 
 /// Как отдать ядру проверенный конфиг.
@@ -120,6 +120,16 @@ impl CoreManager {
         let Some(guard) = self.claim_for_an_update().await else {
             return Ok(Err(self.why_not_now()));
         };
+        self.stage_in_turn(guard, sources).await
+    }
+
+    /// Как `stage_with`, но место в очереди уже взято: вызывающему нужно что-то
+    /// сделать в своей очереди до сборки (смена ядра кладёт выбор в черновик).
+    pub(crate) async fn stage_in_turn<'a>(
+        &'a self,
+        guard: ConfigUpdateGuard<'a>,
+        sources: Sources,
+    ) -> Result<std::result::Result<Staged<'a>, ValidationOutcome>> {
         let build = match Config::build(sources).await {
             Ok(build) => build,
             Err(err) => return Ok(Err(ValidationOutcome::invalid_from_message(err.to_string()))),
@@ -141,7 +151,7 @@ impl CoreManager {
     }
 
     /// Применение не состоялось: единственная причина — идёт выход.
-    const fn why_not_now(&self) -> ValidationOutcome {
+    pub(crate) const fn why_not_now(&self) -> ValidationOutcome {
         ValidationOutcome::Skipped {
             reason: ValidationSkipReason::Exiting,
         }
@@ -512,7 +522,9 @@ impl CoreManager {
                     // у человека, а не пропасть вместе с неудавшейся сборкой.
                     self.refuse_to_start(format!("{err:#}"));
                 }
-                self.bring_back_the_previous_core().await;
+                if !self.core_switch.load(Ordering::Acquire) {
+                    self.bring_back_the_previous_core().await;
+                }
                 Err(anyhow!("Failed to apply config: {}", err))
             }
         }

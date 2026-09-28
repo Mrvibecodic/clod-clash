@@ -3,8 +3,6 @@ export const NOTICE_STATUSES = [
   'app_quit::in_progress',
   'clod_config::keys_discarded',
   'clod_config::load_failed',
-  'clod_core::update_available',
-  'clod_core::updated',
   'clod_sub::fallback_used',
   'clod_sub::url_migrated',
   'config_core::change_error',

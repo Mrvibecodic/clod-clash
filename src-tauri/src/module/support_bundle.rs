@@ -144,9 +144,6 @@ fn running_core_label(
         return "не запущено".into();
     }
     match started {
-        Some(core_updater::StartedCore {
-            managed: Some(version), ..
-        }) => format!("управляемое Mihomo {version}"),
         Some(started) => core_label(&started.core),
         None => core_label(chosen),
     }
@@ -216,17 +213,7 @@ async fn settings_section(out: &mut std::string::String) {
         running_core_label(&mode, core_updater::started_core().as_ref(), &chosen),
         running_version.as_deref().unwrap_or("—")
     );
-    let _ = writeln!(
-        out,
-        "- выбрано в настройках: {} (управляемое: {})",
-        core_label(&chosen),
-        yes_no(data.use_managed_core.unwrap_or(false))
-    );
-    let _ = writeln!(
-        out,
-        "- канал управляемого ядра: {}",
-        data.managed_core_channel.as_deref().unwrap_or("—")
-    );
+    let _ = writeln!(out, "- выбрано в настройках: {}", core_label(&chosen));
     let _ = writeln!(out, "- TUN: {}", yes_no(data.enable_tun_mode.unwrap_or(false)));
     let (connect_sys, connect_tun) = {
         let profiles = Config::profiles().await.latest_arc();
@@ -513,17 +500,8 @@ mod tests {
         use super::{RunningMode, core_updater::StartedCore};
         let clod = StartedCore {
             core: "verge-mihomo-alpha".into(),
-            managed: None,
-        };
-        let managed = StartedCore {
-            core: "verge-mihomo-alpha".into(),
-            managed: Some("v1.19.31".into()),
         };
         let label = super::running_core_label;
-        assert_eq!(
-            label(&RunningMode::Sidecar, Some(&managed), "verge-mihomo"),
-            "управляемое Mihomo v1.19.31"
-        );
         assert_eq!(
             label(&RunningMode::Service, Some(&clod), "verge-mihomo"),
             "Clod Core (verge-mihomo-alpha)"
@@ -533,7 +511,7 @@ mod tests {
             "Mihomo (verge-mihomo)"
         );
         assert_eq!(
-            label(&RunningMode::NotRunning, Some(&managed), "verge-mihomo"),
+            label(&RunningMode::NotRunning, Some(&clod), "verge-mihomo"),
             "не запущено"
         );
     }

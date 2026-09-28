@@ -205,7 +205,7 @@ async fn init_silent_updater() {
         SilentUpdater::global().start_background_check(app_handle).await;
     });
 
-    crate::core::core_updater::spawn_auto_check();
+    crate::core::core_updater::remove_leftover_managed_cores();
 
     crate::module::sub_watcher::spawn();
 

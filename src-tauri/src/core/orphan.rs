@@ -34,16 +34,13 @@ fn parent_shields_the_core(parent_name: Option<&std::ffi::OsStr>) -> bool {
     stem == SERVICE_FILE_STEM || (stem.len() >= 15 && SERVICE_FILE_STEM.starts_with(stem.as_str()))
 }
 
-async fn known_core_paths() -> Vec<String> {
+fn known_core_paths() -> Vec<String> {
     let mut known = Vec::new();
     if let Ok(exe) = std::env::current_exe() {
         for name in CORE_FILE_NAMES {
             let path = exe.with_file_name(name);
             known.push(comparable(&path.canonicalize().unwrap_or(path)));
         }
-    }
-    if let Some(managed) = crate::core::core_updater::managed_binary_on_disk().await {
-        known.push(comparable(&managed.canonicalize().unwrap_or(managed)));
     }
     known
 }
@@ -106,7 +103,7 @@ fn sweep_processes(system: &System, known: &[String], own_pid: Option<sysinfo::P
 }
 
 pub async fn another_core_of_ours_is_running(own_sidecar_pid: Option<u32>, under_service: bool) -> bool {
-    let known = known_core_paths().await;
+    let known = known_core_paths();
     if known.is_empty() {
         return false;
     }
@@ -199,7 +196,7 @@ pub async fn process_is_alive(pid: u32) -> bool {
 /// чужой процесс под старым номером не должен читаться как «ядро живо».
 /// Когда путь исполняемого файла не узнать, ошибаемся в сторону жизни.
 pub async fn pid_belongs_to_our_core(pid: u32) -> bool {
-    let known = known_core_paths().await;
+    let known = known_core_paths();
     tokio::task::spawn_blocking(move || {
         let pid = sysinfo::Pid::from_u32(pid);
         let mut system = System::new();
@@ -263,7 +260,7 @@ pub async fn kill_process(pid: u32) -> bool {
 }
 
 pub async fn sweep_orphan_cores() {
-    let known = known_core_paths().await;
+    let known = known_core_paths();
     if known.is_empty() {
         return;
     }

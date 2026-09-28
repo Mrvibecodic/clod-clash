@@ -895,6 +895,7 @@ export interface TranslationResources {
             message: string
             title: string
           }
+          startCoreFirst: string
           upgradeHint: string
           variants: {
             alpha: string
@@ -1056,37 +1057,6 @@ export interface TranslationResources {
           tooltips: {
             autoEnter: string
           }
-        }
-        managedCore: {
-          alpha: string
-          autoCheck: string
-          autoCheckHint: string
-          available: string
-          bundledTag: string
-          channel: string
-          check: string
-          entry: string
-          managedTag: string
-          notDownloadedNote: string
-          phase: {
-            applying: string
-            checking: string
-            downloading: string
-            verifying: string
-          }
-          revert: string
-          reverted: string
-          running: string
-          serviceModeNote: string
-          stable: string
-          title: string
-          update: string
-          updated: string
-          updatedTo: string
-          updateNotice: string
-          upToDate: string
-          useManaged: string
-          useManagedHint: string
         }
         misc: {
           fields: {

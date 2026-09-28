@@ -55,7 +55,6 @@ const HELD_STATUS_PREFIXES: &[&str] = &[
     "tun::",
     "config_validate::",
     "clod_config::",
-    "clod_core::",
     "update_failed",
     "update::",
     "app_quit::",
@@ -145,7 +144,6 @@ pub enum FrontendEvent<'a> {
     ProfileUpdateCompleted { uid: &'a String },
     HwidNotice { payload: serde_json::Value },
     RefreshProxyConfig,
-    CoreUpdateProgress { payload: serde_json::Value },
     WindowShown,
 }
 
@@ -219,7 +217,6 @@ impl NotificationSystem {
             FrontendEvent::ProfileUpdateCompleted { uid } => ("profile-update-completed", Ok(json!({ "uid": uid }))),
             FrontendEvent::HwidNotice { payload } => ("clod://hwid-notice", Ok(payload)),
             FrontendEvent::RefreshProxyConfig => ("verge://refresh-proxy-config", Ok(json!("yes"))),
-            FrontendEvent::CoreUpdateProgress { payload } => ("clod://core-update-progress", Ok(payload)),
             FrontendEvent::WindowShown => ("verge://window-shown", Ok(json!(null))),
         }
     }
@@ -311,8 +308,6 @@ mod tests {
         "app_quit::in_progress",
         "clod_config::keys_discarded",
         "clod_config::load_failed",
-        "clod_core::update_available",
-        "clod_core::updated",
         "clod_sub::fallback_used",
         "clod_sub::url_migrated",
         "config_core::change_error",
@@ -444,7 +439,6 @@ mod tests {
         assert!(worth_holding("app_quit::core_still_running"));
         assert!(worth_holding("update_failed"));
         assert!(worth_holding("update::breaking_changes"));
-        assert!(worth_holding("clod_core::updated"));
         assert!(!worth_holding("tun::setup_done"));
         assert!(!worth_holding("app_quit::in_progress"));
         assert!(!worth_holding("set_config::ok"));

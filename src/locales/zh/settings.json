@@ -362,7 +362,8 @@
       }
     },
     "clashCore": {
-      "upgradeHint": "The core upgrades itself: it fetches its latest build from its own source (Mihomo from MetaCubeX, Clod Core from the clod-core releases) and replaces its file in the program folder. Through the service — always; as its own process — only while the program folder is writable, and on Windows only through the service.",
+      "upgradeHint": "Each core updates from its own source: Mihomo from MetaCubeX, Clod Core from the clod-core releases. When the program folder is writable (usually macOS), the app downloads the core itself, checks its checksum and swaps the file, bringing the previous one back if the new core does not start. Otherwise the core updates through the service; without the service it updates together with the app.",
+      "startCoreFirst": "Start the core first: only a running core can be updated.",
       "variants": {
         "release": "MetaCubeX, unpatched",
         "alpha": "Ours, with patches"
@@ -687,37 +688,6 @@
         "ipAddress": "IP 地址",
         "macAddress": "MAC 地址"
       }
-    },
-    "managedCore": {
-      "entry": "托管内核（自动更新）",
-      "title": "托管 Mihomo 内核",
-      "useManaged": "使用托管内核",
-      "useManagedHint": "运行自行下载的内核，替代内置内核",
-      "channel": "通道",
-      "stable": "稳定版",
-      "alpha": "Alpha",
-      "autoCheck": "每日检查",
-      "autoCheckHint": "仅在启用托管内核时生效",
-      "running": "运行中：",
-      "managedTag": "托管",
-      "bundledTag": "内置",
-      "available": "有可用更新：{{version}}",
-      "upToDate": "内核已是最新",
-      "check": "检查更新",
-      "update": "下载并应用",
-      "revert": "回退到 {{version}}",
-      "updated": "内核已更新",
-      "reverted": "内核已回退",
-      "phase": {
-        "checking": "检查中…",
-        "downloading": "下载中…",
-        "verifying": "校验中…",
-        "applying": "应用中…"
-      },
-      "updatedTo": "内核已更新到 {{msg}}",
-      "updateNotice": "有新的内核可用：{{msg}}",
-      "serviceModeNote": "使用服务时始终运行内置内核：此处的下载和回滚不会影响它。",
-      "notDownloadedNote": "托管内核尚未下载，目前运行的是内置内核。"
     }
   },
   "feedback": {

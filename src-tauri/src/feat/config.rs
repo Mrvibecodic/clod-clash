@@ -138,7 +138,7 @@ fn determine_update_flags(patch: &IVerge) -> UpdateFlags {
     let log_max_size = patch.app_log_max_size;
     let log_max_count = patch.app_log_max_count;
 
-    let restart_core_needed = patch.use_managed_core.is_some() || enable_external_controller.is_some();
+    let restart_core_needed = enable_external_controller.is_some();
     #[cfg(target_os = "linux")]
     let restart_core_needed = restart_core_needed || tun_mode == Some(true);
 

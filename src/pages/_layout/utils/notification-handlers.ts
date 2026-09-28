@@ -96,10 +96,6 @@ export const handleNoticeMessage = (
       ),
     'clod_sub::fallback_used': () =>
       showNotice.info('profiles.page.feedback.notifications.fallbackUsed', msg),
-    'clod_core::updated': () =>
-      showNotice.success('settings.modals.managedCore.updatedTo', { msg }),
-    'clod_core::update_available': () =>
-      showNotice.info('settings.modals.managedCore.updateNotice', { msg }),
     'reactivate_profiles::error': () => showNotice.error(msg),
     // clod:Э10-02 — файл настроек не прочитался; мы его не перезаписываем, но
     // человек должен знать, почему список выглядит пустым.

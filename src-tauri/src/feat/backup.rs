@@ -89,9 +89,6 @@ pub(crate) const MACHINE_LOCAL_KEYS: &[&str] = &[
     "window_pos_simple",
     "window_pos_advanced",
     "core_log_keys_unpinned",
-    "use_managed_core",
-    "managed_core_channel",
-    "core_auto_check",
 ];
 
 type Settings = serde_json::Map<std::string::String, serde_json::Value>;
@@ -478,9 +475,6 @@ mod tests {
             window_pos_simple: Some((1, 2)),
             window_pos_advanced: Some((10, 20)),
             core_log_keys_unpinned: Some(true),
-            use_managed_core: Some(false),
-            managed_core_channel: Some("stable".into()),
-            core_auto_check: Some(false),
             language: Some("ru".into()),
             ..IVerge::default()
         }
@@ -499,9 +493,6 @@ mod tests {
             window_size_simple: Some((3840, 2000)),
             window_pos_advanced: Some((-1000, 5000)),
             core_log_keys_unpinned: None,
-            use_managed_core: Some(true),
-            managed_core_channel: Some("alpha".into()),
-            core_auto_check: Some(true),
             language: Some("en".into()),
             enable_tun_mode: Some(true),
             ..IVerge::default()
@@ -563,15 +554,6 @@ mod tests {
     }
 
     #[test]
-    fn a_backup_from_another_machine_does_not_switch_the_core_to_managed() {
-        let restored = restored_here(&the_other_machine(), &this_machine());
-
-        assert_eq!(restored.use_managed_core, Some(false));
-        assert_eq!(restored.managed_core_channel.as_deref(), Some("stable"));
-        assert_eq!(restored.core_auto_check, Some(false));
-    }
-
-    #[test]
     fn only_the_machine_bound_fields_are_taken_from_this_machine() {
         let local = machine_local_of(&this_machine()).unwrap_or_default();
         assert!(!local.is_empty());
@@ -603,7 +585,6 @@ mod tests {
 
         assert_eq!(restored.hwid, None);
         assert_eq!(restored.webdav_url, None);
-        assert_eq!(restored.use_managed_core, None);
     }
 
     #[test]

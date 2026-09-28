@@ -637,33 +637,26 @@ export const isPortInUse = async (port: number) => {
   }
 }
 
+// Кто заменит файл встроенного ядра: приложение (папка программы доступна на
+// запись), само ядро через службу или никто — ядро обновится с приложением.
 export interface CoreUpdaterStatus {
-  managed_active: boolean
-  current?: string
-  previous?: string
+  method: 'app' | 'core' | 'unavailable'
+  core_running: boolean
   running?: string
-  service_mode: boolean
-  core_dir_writable: boolean
   updating: boolean
 }
 
-export interface CoreUpdateCheck {
-  channel: string
-  current?: string
-  latest: string
-  update_available: boolean
+export interface BundledCoreUpdate {
+  updated: boolean
+  version: string
 }
 
 export async function getCoreUpdaterStatus() {
   return invoke<CoreUpdaterStatus>('get_core_updater_status')
 }
 
-export async function checkCoreUpdate() {
-  return invoke<CoreUpdateCheck>('check_core_update')
-}
-
-export async function downloadAndApplyCore() {
-  return invoke<CoreUpdateCheck>('download_and_apply_core')
+export async function updateBundledCore() {
+  return invoke<BundledCoreUpdate>('update_bundled_core')
 }
 
 interface AppUpdateMetadata {
@@ -678,14 +671,6 @@ export async function checkAppUpdate() {
   return invoke<AppUpdateMetadata | null>('check_app_update')
 }
 
-export async function revertCore() {
-  return invoke<void>('revert_core')
-}
-
 export async function coreReplacedItself() {
   return invoke<void>('core_replaced_itself')
-}
-
-export async function disableManagedCore() {
-  return invoke<void>('disable_managed_core')
 }

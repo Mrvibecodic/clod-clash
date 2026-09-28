@@ -1,5 +1,4 @@
 use super::{Backend, CoreManager, RunningMode};
-use crate::cmd::StringifyErr as _;
 use crate::config::{Config, IVerge};
 use crate::constants::timing;
 use crate::core::handle::Handle;
@@ -670,22 +669,27 @@ impl CoreManager {
         self.start_core_inner().await
     }
 
-    /// clod:core-updater — stop the core, run `swap` (pointer writes on disk),
-    /// start again; when the new core fails to start, run `rollback` and start
-    /// once more. The lifecycle lock is held across the whole sequence so no
-    /// concurrent lifecycle operation can slip in between stop and start and
-    /// resurrect the old binary mid-swap. Every error path attempts to leave
-    /// a core running — an update must never cost the user their connection.
+    /// clod:core-updater — остановить ядро, выполнить `swap` (замена файла ядра),
+    /// поднять снова; новое не поднялось — выполнить `rollback` и поднять ещё раз.
+    /// Замок жизненного цикла держится на всю последовательность, чтобы между
+    /// остановкой и стартом не вклинилась другая операция и не подняла ядро
+    /// посреди замены. Любой путь ошибки старается оставить ядро работающим:
+    /// обновление не должно стоить человеку связи.
     pub async fn restart_core_swapped(
         &self,
-        swap: impl FnOnce() -> Result<()> + Send,
-        rollback: impl FnOnce() -> Result<()> + Send,
+        swap: impl AsyncFnOnce() -> Result<()>,
+        rollback: impl AsyncFnOnce() -> Result<()>,
     ) -> Result<()> {
         // clod:Э3-03 — подмена сборки тоже меняет ядро под ногами у применения
         // конфига: ждёт своей очереди.
         let Some(_turn) = self.queue_for_config_update().await else {
             anyhow::bail!("очередь применения конфига закрыта");
         };
+        // Выход мог начаться, пока ждали очереди: ядро на выходе не стартует, и
+        // замена без проверки запуска осталась бы до следующего запуска.
+        if Handle::global().is_exiting() {
+            anyhow::bail!("замена ядра пропущена: выход уже идёт");
+        }
         let _life = self.lifecycle_lock.lock().await;
         let _pause = self.planned_pause();
         if let Err(error) = self.stop_core_inner().await {
@@ -703,7 +707,7 @@ impl CoreManager {
         // делает `start_core_inner`.
         crate::feat::tun::clear_suppression();
 
-        if let Err(swap_error) = swap() {
+        if let Err(swap_error) = swap().await {
             // Nothing switched; bring the old core back before reporting.
             if let Err(start_error) = self.start_core_inner().await {
                 return Err(swap_error.context(format!("and restarting the old core failed too: {start_error:#}")));
@@ -719,10 +723,9 @@ impl CoreManager {
                     Type::Core,
                     "new core failed to start, rolling back: {start_error:#}"
                 );
-                let rollback_result = rollback();
-                // Attempt a start even when the rollback write failed — a core
-                // resolved through whatever pointers remain (or the sidecar
-                // fallback) still beats no core at all.
+                let rollback_result = rollback().await;
+                // Поднять ядро даже при неудавшемся возврате: какой бы файл ядра
+                // ни стоял на месте, работающее ядро лучше, чем никакого.
                 let restart_result = self.start_core_inner().await;
                 match (rollback_result, restart_result) {
                     (Ok(()), Ok(())) => {
@@ -742,27 +745,82 @@ impl CoreManager {
         }
     }
 
+    /// Сменить встроенное ядро.
+    ///
+    /// clod:core-choice — тот же путь, что у правки настроек: выбор ложится в
+    /// черновик, принятый конфиг проверяется новым ядром, ядро перезапускается уже
+    /// им, и только тогда выбор записывается. Новое ядро отвергло конфиг — ничего
+    /// не тронуто. Не поднялось — выбор прежний, и поднимается прежнее ядро.
+    /// Так выбранное в настройках и работающее ядро не расходятся ни на каком пути.
     pub async fn change_core(&self, clash_core: &String) -> Result<(), String> {
         if !IVerge::VALID_CLASH_CORES.contains(&clash_core.as_str()) {
             return Err(format!("Invalid clash core: {}", clash_core).into());
         }
 
-        // clod:core-choice — выбор ядра здесь должен действовать всегда.
-        // Управляемое ядро подставляет свой стоковый бинарь вместо любого
-        // выбранного, поэтому выбор ядра его выключает; включить снова можно
-        // в его окне, и тогда оно снова перекроет выбор — об этом говорит
-        // подсказка там.
-        crate::feat::commit_verge_edit(|verge| {
-            verge.clash_core = Some(clash_core.to_owned());
-            if verge.use_managed_core == Some(true) {
-                verge.use_managed_core = Some(false);
-            }
-        })
-        .await
-        .map_err(|e| e.to_string())?;
+        // Пока обновляется файл ядра, ядро не меняем: обновление подменило бы файл
+        // уже не выбранного ядра, а проверкой ему служил бы старт другого.
+        if crate::core::core_updater::is_updating() {
+            return Err("идёт обновление ядра — смените ядро, когда оно закончится".into());
+        }
+        let _serialized = crate::feat::patch_verge_lock().lock().await;
+        // Выбор ложится в черновик уже в своей очереди: всё, что шло впереди,
+        // собиралось и запускалось с прежним ядром.
+        let Some(turn) = self.claim_for_an_update().await else {
+            return Err(self.why_not_now().to_string().into());
+        };
+        let verge = Config::verge().await;
+        verge.edit_draft(|draft| draft.clash_core = Some(clash_core.to_owned()));
+        let sources = crate::enhance::Sources::default().with_verge(verge.latest_arc());
 
-        self.update_config_checked().await.stringify_err()?;
-        Ok(())
+        let staged = match self.stage_in_turn(turn, sources).await {
+            Ok(Ok(staged)) => staged,
+            Ok(Err(outcome)) => {
+                verge.discard();
+                return Err(outcome.to_string().into());
+            }
+            Err(err) => {
+                verge.discard();
+                return Err(format!("{err:#}").into());
+            }
+        };
+
+        let delivered = {
+            self.core_switch.store(true, Ordering::Release);
+            defer! {
+                self.core_switch.store(false, Ordering::Release);
+            }
+            staged
+                .deliver_committing(super::Delivery::Restart, async || {
+                    verge.apply();
+                    Ok(())
+                })
+                .await
+        };
+
+        let failure: String = match delivered {
+            Ok(outcome) if outcome.is_valid() => {
+                // Ядро уже работает новым и выбор принят. Не записался файл — это
+                // не «не сменилось»: настройки допишутся при следующей записи или
+                // на выходе, а до тех пор работает выбранное.
+                if let Err(err) = verge.data_arc().save_file().await {
+                    logging!(warn, Type::Core, "выбор ядра не записан на диск: {err:#}");
+                }
+                return Ok(());
+            }
+            Ok(outcome) => outcome.to_string().into(),
+            Err(err) => format!("{err:#}").into(),
+        };
+
+        verge.discard();
+        logging!(
+            warn,
+            Type::Core,
+            "ядро {clash_core} не поднялось, возвращаю прежнее: {failure}"
+        );
+        if let Err(err) = self.restart_core().await {
+            logging!(error, Type::Core, "прежнее ядро тоже не поднялось: {err:#}");
+        }
+        Err(failure)
     }
 
     async fn prepare_startup(&self) {

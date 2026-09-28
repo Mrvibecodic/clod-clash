@@ -1,6 +1,21 @@
+//! Обновление двух встроенных ядер — стокового Mihomo (`verge-mihomo`) и Clod Core
+//! (`verge-mihomo-alpha`, имя файла историческое). Других ядер у приложения нет.
+//!
+//! Где папка программы доступна на запись без прав администратора (обычно macOS;
+//! на Linux пакет ставит ядро в системную папку), ядро обновляет само
+//! приложение: скачивает релиз источника этого ядра, сверяет sha256, кладёт новый
+//! файл рядом и подменяет его переименованием при остановленном ядре; не
+//! поднялось — возвращает прежний.
+//! Ядро, переписывающее работающий файл поверх себя (`/upgrade`), здесь не
+//! участвует: обрыв оставлял битый файл без отката, а на macOS переписанный на
+//! месте исполняемый файл система может убить при запуске.
+//!
+//! Где папка программы только для администратора (Program Files, /usr/lib), ядро
+//! обновляет себя само через службу (`/upgrade`, от её имени) — это делает окно.
+
 use std::{
     io::Read as _,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::atomic::{AtomicBool, Ordering},
     time::Duration,
 };
@@ -10,17 +25,15 @@ use serde::{Deserialize, Serialize};
 use sha2::Digest as _;
 
 use crate::{
-    config::{Config, IVerge},
-    core::{CoreManager, handle},
+    config::Config,
+    core::{CoreManager, core_integrity, handle},
     utils::{
         dirs,
         network::{NetworkManager, ProxyType},
     },
 };
-use clash_verge_logging::{Type, logging, logging_error};
+use clash_verge_logging::{Type, logging};
 
-const RELEASE_API_STABLE: &str = "https://api.github.com/repos/MetaCubeX/mihomo/releases/latest";
-const RELEASE_API_ALPHA: &str = "https://api.github.com/repos/MetaCubeX/mihomo/releases/tags/Prerelease-Alpha";
 const DOWNLOAD_TIMEOUT_SECS: u64 = 300;
 const API_TIMEOUT_SECS: u64 = 30;
 const REACHABILITY_TIMEOUT_SECS: u64 = 15;
@@ -28,33 +41,98 @@ const PROBE_TIMEOUT: Duration = Duration::from_secs(10);
 
 static UPDATING: AtomicBool = AtomicBool::new(false);
 
+/// Кто может заменить файл встроенного ядра.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UpdateMethod {
+    /// Приложение: папка программы доступна на запись.
+    App,
+    /// Само ядро через службу (`/upgrade`, от имени службы).
+    Core,
+    /// Некому: обновится вместе с приложением.
+    Unavailable,
+}
+
+/// Решение одно на все места: на Windows работающий файл ядра переименованием не
+/// подменить, там только служба.
+const fn update_method(windows: bool, service_mode: bool, core_dir_writable: bool) -> UpdateMethod {
+    if !windows && core_dir_writable {
+        UpdateMethod::App
+    } else if service_mode {
+        UpdateMethod::Core
+    } else {
+        UpdateMethod::Unavailable
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct CoreUpdaterStatus {
-    pub managed_active: bool,
-    pub current: Option<String>,
-    pub previous: Option<String>,
+    pub method: UpdateMethod,
+    /// Ядро работает (или прямо сейчас поднимается): обновить силами приложения
+    /// можно только его.
+    pub core_running: bool,
     pub running: Option<String>,
-    pub service_mode: bool,
-    /// Папка встроенного ядра доступна на запись без прав администратора:
-    /// только тогда ядро своим процессом сможет подменить свой файл при
-    /// обновлении (`/upgrade`); в системной установке это делает служба.
-    pub core_dir_writable: bool,
     pub updating: bool,
 }
 
+/// Итог обновления силами приложения.
 #[derive(Debug, Clone, Serialize)]
-pub struct CoreUpdateCheck {
-    pub channel: String,
-    pub current: Option<String>,
-    pub latest: String,
-    pub update_available: bool,
+pub struct BundledCoreUpdate {
+    pub updated: bool,
+    pub version: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
-struct Progress<'a> {
-    phase: &'a str,
-    received: u64,
-    total: u64,
+/// Какое из двух встроенных ядер.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CoreSlot {
+    /// `verge-mihomo` — стоковое Mihomo от MetaCubeX.
+    Stock,
+    /// `verge-mihomo-alpha` — Clod Core, наш форк с патчами.
+    Clod,
+}
+
+impl CoreSlot {
+    fn of(clash_core: &str) -> Self {
+        if clash_core == "verge-mihomo-alpha" {
+            Self::Clod
+        } else {
+            Self::Stock
+        }
+    }
+
+    const fn release_api(self) -> &'static str {
+        match self {
+            Self::Stock => "https://api.github.com/repos/MetaCubeX/mihomo/releases/latest",
+            Self::Clod => "https://api.github.com/repos/Mrvibecodic/clod-core/releases/latest",
+        }
+    }
+
+    /// Имя сборки без версии — тот же вариант, что кладёт в установщик
+    /// `scripts/prebuild.mjs` (`META_MAP` / `CLOD_MAP`): обновление не меняет
+    /// сборку, а только версию.
+    fn asset_base(self, os: &str, arch: &str) -> Option<&'static str> {
+        let name = match (self, os, arch) {
+            (Self::Clod, "windows", "x86_64") => "mihomo-windows-amd64",
+            (Self::Clod, "windows", "aarch64") => "mihomo-windows-arm64",
+            (Self::Clod, "macos", "x86_64") => "mihomo-darwin-amd64",
+            (Self::Clod, "macos", "aarch64") => "mihomo-darwin-arm64",
+            (Self::Clod, "linux", "x86_64") => "mihomo-linux-amd64",
+            (Self::Clod, "linux", "aarch64") => "mihomo-linux-arm64",
+            (Self::Stock, "windows", "x86_64") => "mihomo-windows-amd64-v2",
+            (Self::Stock, "windows", "x86") => "mihomo-windows-386",
+            (Self::Stock, "windows", "aarch64") => "mihomo-windows-arm64",
+            (Self::Stock, "macos", "x86_64") => "mihomo-darwin-amd64-v2-go122",
+            (Self::Stock, "macos", "aarch64") => "mihomo-darwin-arm64-go122",
+            (Self::Stock, "linux", "x86_64") => "mihomo-linux-amd64-v2",
+            (Self::Stock, "linux", "x86") => "mihomo-linux-386",
+            (Self::Stock, "linux", "aarch64") => "mihomo-linux-arm64",
+            (Self::Stock, "linux", "arm") => "mihomo-linux-armv7",
+            (Self::Stock, "linux", "riscv64") => "mihomo-linux-riscv64",
+            (Self::Stock, "linux", "loongarch64") => "mihomo-linux-loong64",
+            _ => return None,
+        };
+        Some(name)
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -71,206 +149,32 @@ struct GhAsset {
     digest: Option<String>,
 }
 
-fn core_binary_file_name() -> String {
-    format!("verge-mihomo{}", std::env::consts::EXE_SUFFIX)
-}
-
-pub fn cores_dir() -> Result<PathBuf> {
-    Ok(dirs::app_home_dir()?.join("cores"))
-}
-
-fn sanitize_version(version: &str) -> String {
-    version
-        .chars()
-        .map(|c| {
-            if c.is_alphanumeric() || c == '.' || c == '-' || c == '_' {
-                c
-            } else {
-                '_'
-            }
-        })
-        .collect()
-}
-
-fn version_dir(version: &str) -> Result<PathBuf> {
-    Ok(cores_dir()?.join(format!("mihomo-{}", sanitize_version(version))))
-}
-
-fn version_binary(version: &str) -> Result<PathBuf> {
-    Ok(version_dir(version)?.join(core_binary_file_name()))
-}
-
-fn pointer_file(name: &str) -> Result<PathBuf> {
-    Ok(cores_dir()?.join(name))
-}
-
-fn read_pointer(name: &str) -> Option<String> {
-    let path = pointer_file(name).ok()?;
-    let content = std::fs::read_to_string(path).ok()?;
-    let trimmed = content.trim();
-    (!trimmed.is_empty()).then(|| trimmed.to_string())
-}
-
-/// Версия управляемого ядра по указателю — только если её файл на месте.
-fn downloaded_version(name: &str) -> Option<String> {
-    read_pointer(name).filter(|v| version_binary(v).is_ok_and(|p| p.is_file()))
-}
-
-fn write_pointer(name: &str, version: Option<&str>) -> Result<()> {
-    let path = pointer_file(name)?;
-    match version {
-        Some(v) => {
-            let staging = path.with_extension("tmp");
-            std::fs::write(&staging, v).context("failed to write core pointer")?;
-            std::fs::rename(&staging, &path).context("failed to move core pointer in place")?;
-        }
-        None => {
-            let _ = std::fs::remove_file(&path);
-        }
-    }
-    Ok(())
-}
-
-pub async fn managed_binary_on_disk() -> Option<PathBuf> {
-    let verge = Config::verge().await.latest_arc();
-    if !verge.use_managed_core.unwrap_or(false) {
-        return None;
-    }
-    let binary = version_binary(&read_pointer("current")?).ok()?;
-    binary.is_file().then_some(binary)
-}
-
-pub async fn repin_core_binaries() {
-    if let Ok(path) = crate::core::service::bundled_core_path().await {
-        crate::core::core_integrity::repin_binary(&path).await;
-    }
-    if let Some(path) = managed_binary_on_disk().await {
-        crate::core::core_integrity::repin_binary(&path).await;
-    }
-}
-
-/// Какое ядро запущено сейчас: имя встроенного ядра и версия управляемого,
-/// если своим процессом поднято оно. Ставит старт ядра, читает отчёт для
-/// поддержки: так подпись в отчёте — то, что реально запущено, а не то, что
-/// выбрано в настройках сейчас.
-#[derive(Clone)]
-pub struct StartedCore {
-    pub core: String,
-    pub managed: Option<String>,
-}
-
-static STARTED_CORE: parking_lot::Mutex<Option<StartedCore>> = parking_lot::const_mutex(None);
-
-pub fn note_started_core(core: String, managed: Option<String>) {
-    *STARTED_CORE.lock() = Some(StartedCore { core, managed });
-}
-
-pub fn started_core() -> Option<StartedCore> {
-    STARTED_CORE.lock().clone()
-}
-
-pub async fn managed_core_binary() -> Option<PathBuf> {
-    managed_core().await.map(|(_, binary)| binary)
-}
-
-pub async fn managed_core() -> Option<(String, PathBuf)> {
-    let verge = Config::verge().await.latest_arc();
-    if !verge.use_managed_core.unwrap_or(false) {
-        return None;
-    }
-    intact_download().await
-}
-
-/// Скачанное управляемое ядро — если его файл на месте и не подменён после
-/// установки.
-async fn intact_download() -> Option<(String, PathBuf)> {
-    let version = read_pointer("current")?;
-    let binary = version_binary(&version).ok()?;
-    if !binary.is_file() {
-        logging!(warn, Type::Core, "managed core {} is missing on disk", version);
-        return None;
-    }
-
-    match crate::core::core_integrity::check_binary(&binary).await {
-        Ok(crate::core::core_integrity::PinCheck::Changed { expected, actual }) => {
-            logging!(
-                error,
-                Type::Core,
-                "managed core {} changed since it was installed (expected {expected}, got {actual})",
-                version
-            );
-            None
-        }
-        Ok(_) => Some((version, binary)),
-        Err(err) => {
-            logging!(warn, Type::Core, "failed to verify managed core {}: {err:#}", version);
-            None
-        }
-    }
-}
-
-fn configured_channel(verge: &IVerge) -> String {
-    match verge.managed_core_channel.as_deref() {
-        Some("alpha") => "alpha".into(),
-        _ => "stable".into(),
-    }
-}
-
-fn release_url(channel: &str) -> &'static str {
-    if channel == "alpha" {
-        RELEASE_API_ALPHA
-    } else {
-        RELEASE_API_STABLE
-    }
-}
-
-fn target_os_arch() -> Result<(&'static str, &'static str)> {
-    let os = match std::env::consts::OS {
-        os @ ("windows" | "linux") => os,
-        "macos" => "darwin",
-        other => bail!("unsupported platform for managed core: {other}"),
-    };
-    let arch = match std::env::consts::ARCH {
-        "x86_64" => "amd64",
-        "aarch64" => "arm64",
-        other => bail!("unsupported architecture for managed core: {other}"),
-    };
-    Ok((os, arch))
-}
-
+/// Версия в имени сборки: `v1.19.31`, `v1.19.31-clod.8`. Отсекает соседние
+/// варианты с тем же началом имени (`…-go120-v1.19.31`, `…-v3-v1.19.31`).
 fn is_plain_version(version: &str) -> bool {
-    if let Some(rest) = version.strip_prefix('v') {
+    version.strip_prefix('v').is_some_and(|rest| {
         let digits = rest.chars().take_while(char::is_ascii_digit).count();
-        return digits > 0 && rest[digits..].starts_with('.');
-    }
-    version.starts_with("alpha-")
+        digits > 0 && rest[digits..].starts_with('.')
+    })
 }
 
-fn pick_asset(assets: &[GhAsset], os: &str, arch: &str) -> Result<(GhAsset, String)> {
-    let prefix = format!("mihomo-{os}-{arch}-");
-    let ext = if os == "windows" { ".zip" } else { ".gz" };
+/// Одна и та же ли версия: ядро может сообщать её без ведущей `v`.
+fn same_version(running: &str, released: &str) -> bool {
+    let bare = |version: &str| version.trim().trim_start_matches('v').to_owned();
+    bare(running) == bare(released)
+}
 
-    let version_of = |a: &GhAsset| -> Option<String> {
-        (a.name.starts_with(&prefix) && a.name.ends_with(ext))
-            .then(|| a.name[prefix.len()..a.name.len() - ext.len()].to_string())
-    };
-
-    let picked = assets
+/// Сборка этого варианта и её версия.
+fn pick_asset(assets: &[GhAsset], base: &str) -> Result<(GhAsset, String)> {
+    let prefix = format!("{base}-");
+    assets
         .iter()
-        .find_map(|a| version_of(a).filter(|v| is_plain_version(v)).map(|v| (a.clone(), v)))
-        .or_else(|| {
-            assets
-                .iter()
-                .filter(|a| !a.name.contains("compatible") && !a.name.contains("-go1"))
-                .find_map(|a| version_of(a).map(|v| (a.clone(), v)))
+        .find_map(|asset| {
+            let rest = asset.name.strip_prefix(&prefix)?;
+            let version = rest.strip_suffix(".gz").or_else(|| rest.strip_suffix(".zip"))?;
+            is_plain_version(version).then(|| (asset.clone(), version.to_owned()))
         })
-        .or_else(|| assets.iter().find_map(|a| version_of(a).map(|v| (a.clone(), v))));
-
-    let (asset, version) = picked.ok_or_else(|| anyhow!("no release asset for {os}/{arch}"))?;
-    if version.is_empty() {
-        bail!("could not derive a version from asset name {}", asset.name);
-    }
-    Ok((asset, version))
+        .ok_or_else(|| anyhow!("в релизе нет сборки {base}"))
 }
 
 async fn http_client(proxy: ProxyType, timeout: u64) -> Result<reqwest::Client> {
@@ -284,8 +188,7 @@ async fn http_client(proxy: ProxyType, timeout: u64) -> Result<reqwest::Client> 
         .await
 }
 
-async fn fetch_release(channel: &str) -> Result<GhRelease> {
-    let url = release_url(channel);
+async fn fetch_release(url: &str) -> Result<GhRelease> {
     let mut last_error = anyhow!("release request not attempted");
     for proxy in [ProxyType::None, ProxyType::Localhost] {
         let attempt = async {
@@ -304,7 +207,32 @@ async fn fetch_release(channel: &str) -> Result<GhRelease> {
             }
         }
     }
-    Err(last_error.context("failed to reach the Mihomo release channel"))
+    Err(last_error.context("failed to reach the core release channel"))
+}
+
+/// Ядро заменило свой файл само (`/upgrade` через службу): отпечаток встроенного
+/// ядра снимается заново с того, что оно себе скачало.
+pub async fn repin_core_binaries() {
+    if let Ok(path) = crate::core::service::bundled_core_path().await {
+        core_integrity::repin_binary(&path).await;
+    }
+}
+
+/// Какое ядро запущено сейчас. Ставит старт ядра, читает отчёт для поддержки: так
+/// подпись в отчёте — то, что реально запущено, а не то, что выбрано сейчас.
+#[derive(Clone)]
+pub struct StartedCore {
+    pub core: String,
+}
+
+static STARTED_CORE: parking_lot::Mutex<Option<StartedCore>> = parking_lot::const_mutex(None);
+
+pub fn note_started_core(core: String) {
+    *STARTED_CORE.lock() = Some(StartedCore { core });
+}
+
+pub fn started_core() -> Option<StartedCore> {
+    STARTED_CORE.lock().clone()
 }
 
 pub async fn running_core_version() -> Option<String> {
@@ -313,65 +241,16 @@ pub async fn running_core_version() -> Option<String> {
 }
 
 pub async fn status() -> CoreUpdaterStatus {
-    let verge = Config::verge().await.latest_arc();
-    let enabled = verge.use_managed_core.unwrap_or(false);
-    let current = downloaded_version("current");
-    let previous = downloaded_version("previous");
     let service_mode = matches!(
         *CoreManager::global().get_running_mode(),
         crate::core::manager::RunningMode::Service
     );
-    let core_dir_writable = match crate::core::service::bundled_core_path().await {
-        Ok(path) => crate::core::core_integrity::binary_dir_is_writable(&path),
-        Err(_) => false,
-    };
+    let core_dir_writable = replaceable_core_file().await.is_some();
     CoreUpdaterStatus {
-        managed_active: enabled && current.is_some() && !service_mode,
-        current,
-        previous,
+        method: update_method(cfg!(windows), service_mode, core_dir_writable),
+        core_running: !CoreManager::global().is_down(),
         running: running_core_version().await,
-        service_mode,
-        core_dir_writable,
-        updating: UPDATING.load(Ordering::Acquire),
-    }
-}
-
-fn runs_clod_core(started: Option<&StartedCore>) -> bool {
-    started.is_some_and(|s| s.managed.is_none() && s.core == "verge-mihomo-alpha")
-}
-
-pub async fn check_core_update() -> Result<CoreUpdateCheck> {
-    let verge = Config::verge().await.latest_arc();
-    let channel = configured_channel(&verge);
-    let (os, arch) = target_os_arch()?;
-    let release = fetch_release(&channel).await?;
-    let (_, latest) = pick_asset(&release.assets, os, arch)?;
-    // clod:core-choice — управляемое ядро только про стоковое Mihomo, а версия
-    // Clod Core (vX-clod.N) со стоковой не совпадёт никогда. Когда работает
-    // оно, сравниваем со скачанным управляемым ядром по тому же правилу, что и
-    // «Скачать и применить»: не скачано или подменено — доступно.
-    let (current, update_available) = if runs_clod_core(started_core().as_ref()) {
-        let downloaded = intact_download().await.map(|(version, _)| version);
-        let available = downloaded.as_deref() != Some(latest.as_str());
-        (downloaded, available)
-    } else {
-        let running = running_core_version().await;
-        let available = running.as_deref().is_some_and(|v| v != latest.as_str());
-        (running, available)
-    };
-    Ok(CoreUpdateCheck {
-        channel,
-        current,
-        latest,
-        update_available,
-    })
-}
-
-fn emit_progress(phase: &str, received: u64, total: u64) {
-    let payload = Progress { phase, received, total };
-    match serde_json::to_value(&payload) {
-        Ok(value) => handle::Handle::notify_core_update_progress(value),
-        Err(err) => logging!(warn, Type::Core, "не удалось собрать событие прогресса: {err}"),
+        updating: is_updating(),
     }
 }
 
@@ -404,14 +283,8 @@ async fn download_asset(asset: &GhAsset) -> Result<Vec<u8>> {
             }
             let total = response.content_length().unwrap_or(asset.size);
             let mut bytes: Vec<u8> = Vec::with_capacity(total.min(64 * 1024 * 1024) as usize);
-            let mut last_emitted = 0u64;
             while let Some(chunk) = response.chunk().await? {
                 bytes.extend_from_slice(&chunk);
-                let received = bytes.len() as u64;
-                if received - last_emitted >= 256 * 1024 || received == total {
-                    emit_progress("downloading", received, total);
-                    last_emitted = received;
-                }
             }
             Ok::<Vec<u8>, anyhow::Error>(bytes)
         };
@@ -511,36 +384,7 @@ fn unpack_binary(asset_name: &str, bytes: &[u8]) -> Result<Vec<u8>> {
     Ok(data)
 }
 
-async fn install_binary(version: &str, data: &[u8]) -> Result<PathBuf> {
-    let dir = version_dir(version)?;
-    tokio::fs::create_dir_all(&dir).await?;
-    let target = version_binary(version)?;
-    let staging = dir.join(format!("{}.tmp", core_binary_file_name()));
-    tokio::fs::write(&staging, data).await?;
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt as _;
-        tokio::fs::set_permissions(&staging, std::fs::Permissions::from_mode(0o755)).await?;
-    }
-
-    tokio::fs::rename(&staging, &target).await?;
-
-    #[cfg(target_os = "macos")]
-    {
-        let _ = tokio::process::Command::new("xattr")
-            .arg("-c")
-            .arg(&target)
-            .output()
-            .await;
-    }
-
-    crate::core::core_integrity::pin_known_binary(&target, &crate::core::core_integrity::digest_of_bytes(data)).await;
-
-    Ok(target)
-}
-
-async fn probe_binary(binary: &PathBuf) -> Result<String> {
+async fn probe_binary(binary: &Path) -> Result<String> {
     let mut command = tokio::process::Command::new(binary);
     command.arg("-v");
     #[cfg(target_os = "windows")]
@@ -554,25 +398,6 @@ async fn probe_binary(binary: &PathBuf) -> Result<String> {
         bail!("core -v probe exited with {}", output.status);
     }
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
-}
-
-fn cleanup_versions() {
-    let Ok(dir) = cores_dir() else { return };
-    let keep: Vec<String> = ["current", "previous"]
-        .iter()
-        .filter_map(|name| read_pointer(name))
-        .map(|v| format!("mihomo-{}", sanitize_version(&v)))
-        .collect();
-
-    let Ok(entries) = std::fs::read_dir(&dir) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let name = entry.file_name().to_string_lossy().to_string();
-        if entry.path().is_dir() && name.starts_with("mihomo-") && !keep.iter().any(|k| k == &name) {
-            logging_error!(Type::Core, std::fs::remove_dir_all(entry.path()));
-        }
-    }
 }
 
 struct UpdateGuard;
@@ -592,160 +417,211 @@ impl Drop for UpdateGuard {
     }
 }
 
-async fn ensure_managed_enabled() -> Result<()> {
-    let verge = Config::verge().await.latest_arc();
-    if verge.use_managed_core.unwrap_or(false) {
-        return Ok(());
-    }
-    let patch = IVerge {
-        use_managed_core: Some(true),
-        ..IVerge::default()
-    };
-    crate::feat::patch_verge(&patch, false).await
+/// Файл рядом с ядром: `verge-mihomo.new`, `verge-mihomo.old`.
+fn beside(target: &Path, suffix: &str) -> Result<PathBuf> {
+    let name = target
+        .file_name()
+        .ok_or_else(|| anyhow!("у пути ядра нет имени файла: {}", target.display()))?;
+    let mut name = name.to_os_string();
+    name.push(".");
+    name.push(suffix);
+    Ok(target.with_file_name(name))
 }
 
-async fn swap_to_version(version: &str) -> Result<()> {
-    let old_current = read_pointer("current");
-    let old_previous = read_pointer("previous");
+async fn write_executable(path: &Path, data: &[u8]) -> Result<()> {
+    tokio::fs::write(path, data)
+        .await
+        .with_context(|| format!("не удалось записать {}", path.display()))?;
 
-    let new_version = version.to_string();
-    let swap_current = old_current.clone();
-    let rollback_current = old_current.clone();
-    let rollback_previous = old_previous.clone();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        tokio::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).await?;
+    }
 
-    CoreManager::global()
-        .restart_core_swapped(
-            move || {
-                write_pointer("previous", swap_current.as_deref())?;
-                write_pointer("current", Some(&new_version))
-            },
-            move || {
-                write_pointer("current", rollback_current.as_deref())?;
-                write_pointer("previous", rollback_previous.as_deref())
-            },
-        )
-        .await?;
-
-    cleanup_versions();
+    #[cfg(target_os = "macos")]
+    {
+        let _ = tokio::process::Command::new("xattr").arg("-c").arg(path).output().await;
+    }
     Ok(())
 }
 
-pub async fn download_and_apply_core() -> Result<CoreUpdateCheck> {
-    let result = apply_core_update().await;
-    if result.is_err() {
-        emit_progress("failed", 0, 0);
-    }
-    result
+/// Файл встроенного ядра, который приложение может заменить само: папка
+/// доступна на запись, и это тот самый файл, который запускает и приложение, и
+/// служба. У копии, запущенной macOS из временного места (транслокация), путь
+/// службы ведёт в другую установку — чужую заменять нельзя.
+async fn replaceable_core_file() -> Option<PathBuf> {
+    let path = crate::core::service::bundled_core_path().await.ok()?;
+    let started_from = std::env::current_exe().ok()?.with_file_name(path.file_name()?);
+    (path == started_from && core_integrity::binary_dir_is_writable(&path)).then_some(path)
 }
 
-async fn apply_core_update() -> Result<CoreUpdateCheck> {
+/// Выбранное ядро, если сейчас оно не меняется: пока идёт смена, выбор в
+/// черновике расходится с принятым, и файл, и сборка были бы не того ядра.
+async fn the_settled_choice() -> Result<String> {
+    let verge = Config::verge().await;
+    let accepted = verge.data_arc().get_valid_clash_core();
+    if verge.latest_arc().get_valid_clash_core() != accepted {
+        bail!("идёт смена ядра — обновите ядро, когда она закончится");
+    }
+    Ok(accepted.to_string())
+}
+
+/// Идёт ли обновление ядра прямо сейчас.
+pub fn is_updating() -> bool {
+    UPDATING.load(Ordering::Acquire)
+}
+
+/// Копия прежнего ядра рядом с ним. Совпадает с действующим файлом — это остаток
+/// оборванного обновления (выход между копией и подменой), убираем. Отличается —
+/// прошлый возврат не удался, и она единственная: новое обновление затёрло бы её,
+/// поэтому отказ.
+async fn keep_or_drop_a_leftover_backup(target: &Path, backup: &Path) -> Result<()> {
+    if !tokio::fs::try_exists(backup).await.unwrap_or(false) {
+        return Ok(());
+    }
+    let same = match (
+        core_integrity::digest_of(target).await,
+        core_integrity::digest_of(backup).await,
+    ) {
+        (Ok(current), Ok(copy)) => current == copy,
+        _ => false,
+    };
+    if same {
+        tokio::fs::remove_file(backup)
+            .await
+            .with_context(|| format!("не удалось убрать лишнюю копию ядра {}", backup.display()))?;
+        return Ok(());
+    }
+    bail!(
+        "рядом с ядром лежит копия прежнего ядра, отличная от работающего ({}): верните её на место или удалите",
+        backup.display()
+    );
+}
+
+/// Обновить выбранное встроенное ядро силами приложения.
+pub async fn update_bundled_core() -> Result<BundledCoreUpdate> {
     let _guard = UpdateGuard::acquire()?;
 
-    let verge = Config::verge().await.latest_arc();
-    let channel = configured_channel(&verge);
-    let (os, arch) = target_os_arch()?;
+    // Остановленное ядро не поднимаем обновлением: его остановил человек или
+    // конфиг, и проверить, поднимется ли новое, было бы не на чем.
+    if CoreManager::global().is_down() {
+        bail!("ядро не запущено — запустите его и повторите обновление");
+    }
+    let chosen = the_settled_choice().await?;
+    let target = replaceable_core_file()
+        .await
+        .ok_or_else(|| anyhow!("файл ядра этой установки приложению не заменить"))?;
+    let staged = beside(&target, "new")?;
+    let backup = beside(&target, "old")?;
+    keep_or_drop_a_leftover_backup(&target, &backup).await?;
+    let slot = CoreSlot::of(&chosen);
+    let base = slot
+        .asset_base(std::env::consts::OS, std::env::consts::ARCH)
+        .ok_or_else(|| anyhow!("для этой платформы сборки ядра нет"))?;
 
-    emit_progress("checking", 0, 0);
-    let release = fetch_release(&channel).await?;
-    let (asset, version) = pick_asset(&release.assets, os, arch)?;
-
-    // Эта версия уже скачана и цела: не качаем её заново (иначе «предыдущей»
-    // станет она же и откат потеряет прежнюю), только включаем управляемое,
-    // если его выключил выбор ядра.
-    if intact_download().await.is_some_and(|(current, _)| current == version) {
-        emit_progress("applying", 0, 0);
-        ensure_managed_enabled().await?;
-        emit_progress("done", 0, 0);
-        return Ok(CoreUpdateCheck {
-            channel,
-            current: Some(version.clone()),
-            latest: version,
-            update_available: false,
+    let release = fetch_release(slot.release_api()).await?;
+    let (asset, version) = pick_asset(&release.assets, base)?;
+    if running_core_version()
+        .await
+        .is_some_and(|running| same_version(&running, &version))
+    {
+        return Ok(BundledCoreUpdate {
+            updated: false,
+            version,
         });
     }
 
-    logging!(info, Type::Core, "updating managed core to {version} ({})", asset.name);
+    logging!(
+        info,
+        Type::Core,
+        "обновляю встроенное ядро до {version} ({})",
+        asset.name
+    );
+    let archive = download_asset(&asset).await?;
+    verify_sha256(&release, &asset, &archive).await?;
+    let binary = unpack_binary(&asset.name, &archive)?;
 
-    emit_progress("downloading", 0, asset.size);
-    let bytes = download_asset(&asset).await?;
-
-    emit_progress("verifying", 0, 0);
-    verify_sha256(&release, &asset, &bytes).await?;
-    let binary_data = unpack_binary(&asset.name, &bytes)?;
-    let binary = install_binary(&version, &binary_data).await?;
-    let probed = probe_binary(&binary).await?;
-    logging!(info, Type::Core, "managed core probe: {probed}");
-
-    ensure_managed_enabled().await?;
-
-    emit_progress("applying", 0, 0);
-    swap_to_version(&version).await?;
-
-    emit_progress("done", 0, 0);
-    handle::Handle::notice_message("clod_core::updated", version.clone());
-
-    Ok(CoreUpdateCheck {
-        channel,
-        current: Some(version.clone()),
-        latest: version,
-        update_available: false,
-    })
-}
-
-pub async fn revert_core() -> Result<()> {
-    let _guard = UpdateGuard::acquire()?;
-
-    let previous = downloaded_version("previous").ok_or_else(|| anyhow!("no previous core version to revert to"))?;
-
-    swap_to_version(&previous).await
-}
-
-pub async fn disable_managed_core() -> Result<()> {
-    let _guard = UpdateGuard::acquire()?;
-    let patch = IVerge {
-        use_managed_core: Some(false),
-        ..IVerge::default()
-    };
-    crate::feat::patch_verge(&patch, false).await
-}
-
-const AUTO_CHECK_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60);
-const AUTO_CHECK_STARTUP_DELAY: Duration = Duration::from_secs(90);
-
-static LAST_NOTIFIED: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
-
-fn should_notify(version: &str) -> bool {
-    let Ok(mut last) = LAST_NOTIFIED.lock() else {
-        return true;
-    };
-    if last.as_deref() == Some(version) {
-        return false;
+    // Пока качали, ядро могли остановить (остановленное не поднимаем) или
+    // сменить (файл был бы уже не выбранного ядра).
+    if CoreManager::global().is_down() {
+        bail!("ядро остановили, пока шло обновление — обновление отменено");
     }
-    *last = Some(version.to_string());
-    true
+    if the_settled_choice().await? != chosen {
+        bail!("ядро сменили, пока шло обновление — обновление отменено");
+    }
+    let old_digest = core_integrity::digest_of(&target).await.ok();
+    write_executable(&staged, &binary).await?;
+    let probed = probe_binary(&staged).await;
+    let swapped = match probed {
+        Ok(probe) => {
+            logging!(info, Type::Core, "новое ядро отвечает: {probe}");
+            let new_digest = core_integrity::digest_of_bytes(&binary);
+            swap_in(&target, &staged, &backup, &new_digest, old_digest.as_deref()).await
+        }
+        Err(err) => Err(err.context("скачанное ядро не запускается")),
+    };
+    let _ = tokio::fs::remove_file(&staged).await;
+    // Копия прежнего ядра не нужна, только когда на месте стоит либо новое
+    // рабочее, либо уже возвращённое прежнее. Иначе (возврат не удался) она —
+    // единственное, из чего прежнее ядро можно поставить руками.
+    let backup_is_redundant =
+        swapped.is_ok() || core_integrity::digest_of(&target).await.ok().as_deref() == old_digest.as_deref();
+    if backup_is_redundant {
+        let _ = tokio::fs::remove_file(&backup).await;
+    }
+    swapped?;
+
+    Ok(BundledCoreUpdate { updated: true, version })
 }
 
-pub fn spawn_auto_check() {
-    crate::process::AsyncHandler::spawn(|| async {
-        tokio::time::sleep(AUTO_CHECK_STARTUP_DELAY).await;
-        loop {
-            let verge = Config::verge().await.latest_arc();
-            let enabled = verge.use_managed_core.unwrap_or(false) && verge.core_auto_check.unwrap_or(true);
-            drop(verge);
-
-            if enabled {
-                match check_core_update().await {
-                    Ok(check) if check.update_available && should_notify(&check.latest) => {
-                        handle::Handle::notice_message("clod_core::update_available", check.latest.clone());
-                    }
-                    Ok(_) => {}
-                    Err(err) => {
-                        logging!(warn, Type::Core, "core auto-check failed: {err:#}");
-                    }
+/// Остановить ядро, поставить новый файл на место прежнего переименованием и
+/// поднять ядро снова. Не поднялось — вернуть прежний файл и поднять его.
+/// Отпечаток ядра меняется вместе с файлом: служба не стартует ядро, чей файл
+/// разошёлся с записанным отпечатком.
+async fn swap_in(
+    target: &Path,
+    staged: &Path,
+    backup: &Path,
+    new_digest: &str,
+    old_digest: Option<&str>,
+) -> Result<()> {
+    CoreManager::global()
+        .restart_core_swapped(
+            async || {
+                tokio::fs::copy(target, backup)
+                    .await
+                    .context("не удалось сохранить прежнее ядро")?;
+                tokio::fs::rename(staged, target)
+                    .await
+                    .context("не удалось поставить новое ядро на место")?;
+                core_integrity::pin_known_binary(target, new_digest).await;
+                Ok(())
+            },
+            async || {
+                tokio::fs::rename(backup, target)
+                    .await
+                    .context("не удалось вернуть прежнее ядро")?;
+                if let Some(digest) = old_digest {
+                    core_integrity::pin_known_binary(target, digest).await;
                 }
-            }
+                Ok(())
+            },
+        )
+        .await
+}
 
-            tokio::time::sleep(AUTO_CHECK_INTERVAL).await;
+/// Каталог прежнего «управляемого ядра» — отдельной скачанной копии стокового
+/// Mihomo, которая подменяла выбранное ядро. Его больше нет; копии не нужны.
+pub fn remove_leftover_managed_cores() {
+    crate::process::AsyncHandler::spawn(|| async {
+        let Ok(dir) = dirs::app_home_dir().map(|home| home.join("cores")) else {
+            return;
+        };
+        if tokio::fs::try_exists(&dir).await.unwrap_or(false)
+            && let Err(err) = tokio::fs::remove_dir_all(&dir).await
+        {
+            logging!(warn, Type::Core, "не удалось убрать прежние копии ядра: {err}");
         }
     });
 }
@@ -772,6 +648,112 @@ mod tests {
     }
 
     #[test]
+    fn the_app_updates_the_core_wherever_it_may_write_the_file() {
+        use UpdateMethod::{App, Core, Unavailable};
+        for (windows, service, writable, expected) in [
+            (false, false, true, App),
+            (false, true, true, App),
+            (false, true, false, Core),
+            (false, false, false, Unavailable),
+            (true, true, true, Core),
+            (true, true, false, Core),
+            (true, false, true, Unavailable),
+            (true, false, false, Unavailable),
+        ] {
+            assert_eq!(
+                update_method(windows, service, writable),
+                expected,
+                "windows={windows} service={service} writable={writable}"
+            );
+        }
+    }
+
+    #[test]
+    fn each_core_updates_from_its_own_source_to_the_same_build_variant() {
+        assert!(
+            CoreSlot::of("verge-mihomo-alpha")
+                .release_api()
+                .contains("Mrvibecodic/clod-core")
+        );
+        assert!(CoreSlot::of("verge-mihomo").release_api().contains("MetaCubeX/mihomo"));
+        assert!(CoreSlot::of("anything-else").release_api().contains("MetaCubeX/mihomo"));
+        assert_eq!(
+            CoreSlot::Stock.asset_base("macos", "aarch64"),
+            Some("mihomo-darwin-arm64-go122")
+        );
+        assert_eq!(
+            CoreSlot::Clod.asset_base("macos", "aarch64"),
+            Some("mihomo-darwin-arm64")
+        );
+        assert_eq!(
+            CoreSlot::Stock.asset_base("linux", "x86_64"),
+            Some("mihomo-linux-amd64-v2")
+        );
+        assert_eq!(CoreSlot::Clod.asset_base("linux", "x86_64"), Some("mihomo-linux-amd64"));
+        assert_eq!(CoreSlot::Clod.asset_base("linux", "riscv64"), None);
+    }
+
+    #[test]
+    fn the_exact_build_variant_is_picked_among_its_neighbours() {
+        let assets = vec![
+            asset("mihomo-darwin-arm64-v1.19.31.gz"),
+            asset("mihomo-darwin-arm64-go120-v1.19.31.gz"),
+            asset("mihomo-darwin-arm64-go122-v1.19.31.gz"),
+            asset("mihomo-darwin-arm64-go122-v1.19.31.gz.sha256"),
+        ];
+        let (picked, version) = pick_asset(&assets, "mihomo-darwin-arm64-go122").expect("go122");
+        assert_eq!(picked.name, "mihomo-darwin-arm64-go122-v1.19.31.gz");
+        assert_eq!(version, "v1.19.31");
+
+        let (picked, _) = pick_asset(&assets, "mihomo-darwin-arm64").expect("plain");
+        assert_eq!(picked.name, "mihomo-darwin-arm64-v1.19.31.gz");
+
+        let assets = vec![
+            asset("mihomo-linux-amd64-v3-v1.19.31.gz"),
+            asset("mihomo-linux-amd64-v2-v1.19.31.gz"),
+        ];
+        let (picked, _) = pick_asset(&assets, "mihomo-linux-amd64-v2").expect("v2");
+        assert_eq!(picked.name, "mihomo-linux-amd64-v2-v1.19.31.gz");
+        assert!(pick_asset(&assets, "mihomo-linux-arm64").is_err());
+    }
+
+    #[test]
+    fn the_clod_core_version_comes_from_the_asset_name() {
+        let assets = vec![
+            asset("version.txt"),
+            asset("mihomo-darwin-arm64-v1.19.31-clod.8.gz"),
+            asset("mihomo-darwin-arm64-v1.19.31-clod.8.gz.sha256"),
+            asset("mihomo-windows-amd64-v1.19.31-clod.8.zip"),
+        ];
+        let (_, version) = pick_asset(&assets, "mihomo-darwin-arm64").expect("clod darwin");
+        assert_eq!(version, "v1.19.31-clod.8");
+        let (picked, _) = pick_asset(&assets, "mihomo-windows-amd64").expect("clod windows");
+        assert_eq!(picked.name, "mihomo-windows-amd64-v1.19.31-clod.8.zip");
+    }
+
+    #[test]
+    fn a_version_reported_without_its_v_is_still_the_same() {
+        assert!(same_version("v1.19.31", "v1.19.31"));
+        assert!(same_version("1.19.31-clod.8", "v1.19.31-clod.8"));
+        assert!(same_version(" v1.19.31\n", "v1.19.31"));
+        assert!(!same_version("v1.19.31", "v1.19.31-clod.8"));
+        assert!(!same_version("v1.19.30", "v1.19.31"));
+    }
+
+    #[test]
+    fn the_new_and_old_files_live_next_to_the_core() {
+        let target = Path::new("/Applications/Clod Clash.app/Contents/MacOS/verge-mihomo-alpha");
+        assert_eq!(
+            beside(target, "new").expect("name"),
+            Path::new("/Applications/Clod Clash.app/Contents/MacOS/verge-mihomo-alpha.new")
+        );
+        assert_eq!(
+            beside(target, "old").expect("name"),
+            Path::new("/Applications/Clod Clash.app/Contents/MacOS/verge-mihomo-alpha.old")
+        );
+    }
+
+    #[test]
     fn api_digest_is_read_from_the_release_response() {
         let hex = "6B55C5C3C2F12EC2D020C64548D3E313A39ACEACC4E2471B33041FE7CB9E2F10";
         let picked = asset_with_digest("mihomo-linux-amd64-v1.19.2.gz", &format!("sha256:{hex}"));
@@ -795,86 +777,6 @@ mod tests {
         )
         .expect("an asset without a digest must still parse");
         assert_eq!(parsed.digest, None);
-    }
-
-    #[test]
-    fn picks_plain_stable_asset_and_version() {
-        let assets = vec![
-            asset("mihomo-linux-amd64-compatible-v1.19.2.gz"),
-            asset("mihomo-linux-amd64-v1.19.2.gz"),
-            asset("mihomo-linux-arm64-v1.19.2.gz"),
-            asset("mihomo-linux-amd64-v1.19.2.gz.sha256"),
-        ];
-        let (picked, version) = pick_asset(&assets, "linux", "amd64").expect("linux asset");
-        assert_eq!(picked.name, "mihomo-linux-amd64-v1.19.2.gz");
-        assert_eq!(version, "v1.19.2");
-    }
-
-    #[test]
-    fn microarch_variants_lose_to_the_plain_build_regardless_of_order() {
-        let assets = vec![
-            asset("mihomo-linux-amd64-v3-v1.19.2.gz"),
-            asset("mihomo-linux-amd64-v2-v1.19.2.gz"),
-            asset("mihomo-linux-amd64-v1.19.2.gz"),
-        ];
-        let (picked, version) = pick_asset(&assets, "linux", "amd64").expect("plain build");
-        assert_eq!(picked.name, "mihomo-linux-amd64-v1.19.2.gz");
-        assert_eq!(version, "v1.19.2");
-
-        let assets = vec![
-            asset("mihomo-windows-amd64-v3-alpha-g0a1b2c3.zip"),
-            asset("mihomo-windows-amd64-alpha-g0a1b2c3.zip"),
-        ];
-        let (picked, version) = pick_asset(&assets, "windows", "amd64").expect("plain alpha");
-        assert_eq!(picked.name, "mihomo-windows-amd64-alpha-g0a1b2c3.zip");
-        assert_eq!(version, "alpha-g0a1b2c3");
-
-        assert!(is_plain_version("v1.19.2"));
-        assert!(is_plain_version("alpha-g0a1b2c3"));
-        assert!(!is_plain_version("v3-v1.19.2"));
-        assert!(!is_plain_version("compatible-v1.19.2"));
-    }
-
-    #[test]
-    fn picks_windows_zip() {
-        let assets = vec![
-            asset("mihomo-windows-amd64-v1.19.2.zip"),
-            asset("mihomo-windows-amd64-v1.19.2.zip.sha256"),
-        ];
-        let (picked, version) = pick_asset(&assets, "windows", "amd64").expect("windows asset");
-        assert_eq!(picked.name, "mihomo-windows-amd64-v1.19.2.zip");
-        assert_eq!(version, "v1.19.2");
-    }
-
-    #[test]
-    fn derives_alpha_version_from_asset_name() {
-        let assets = vec![
-            asset("mihomo-darwin-arm64-alpha-g0a1b2c3.gz"),
-            asset("mihomo-darwin-amd64-alpha-g0a1b2c3.gz"),
-        ];
-        let (_, version) = pick_asset(&assets, "darwin", "arm64").expect("darwin asset");
-        assert_eq!(version, "alpha-g0a1b2c3");
-    }
-
-    #[test]
-    fn falls_back_to_compatible_when_nothing_else_fits() {
-        let assets = vec![asset("mihomo-linux-amd64-compatible-v1.19.2.gz")];
-        let (picked, version) = pick_asset(&assets, "linux", "amd64").expect("linux asset");
-        assert_eq!(picked.name, "mihomo-linux-amd64-compatible-v1.19.2.gz");
-        assert_eq!(version, "compatible-v1.19.2");
-    }
-
-    #[test]
-    fn rejects_missing_platform() {
-        let assets = vec![asset("mihomo-linux-amd64-v1.19.2.gz")];
-        assert!(pick_asset(&assets, "windows", "arm64").is_err());
-    }
-
-    #[test]
-    fn sanitizes_hostile_versions() {
-        assert_eq!(sanitize_version("v1.19.2"), "v1.19.2");
-        assert_eq!(sanitize_version("../../evil"), ".._.._evil");
-        assert_eq!(sanitize_version("alpha-g0a1b2c3"), "alpha-g0a1b2c3");
     }
 
     #[test]
@@ -908,17 +810,5 @@ mod tests {
     fn broken_archives_are_rejected() {
         assert!(unpack_binary("mihomo-linux-amd64-v1.gz", b"garbage").is_err());
         assert!(unpack_binary("mihomo-windows-amd64-v1.zip", b"garbage").is_err());
-    }
-
-    #[test]
-    fn only_the_bundled_clod_core_is_checked_against_the_download() {
-        let started = |core: &str, managed: Option<&str>| StartedCore {
-            core: core.into(),
-            managed: managed.map(Into::into),
-        };
-        assert!(runs_clod_core(Some(&started("verge-mihomo-alpha", None))));
-        assert!(!runs_clod_core(Some(&started("verge-mihomo", None))));
-        assert!(!runs_clod_core(Some(&started("verge-mihomo-alpha", Some("v1.19.31")))));
-        assert!(!runs_clod_core(None));
     }
 }
