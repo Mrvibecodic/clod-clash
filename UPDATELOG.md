@@ -8,6 +8,50 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.1.11-alpha.7
+
+<!-- lang:en -->
+
+### Added
+
+- A hint under "Secure connection": make sure your provider supports this option
+
+### Changed
+
+- The app has exactly two built-in cores, stock Mihomo and Clod Core, and the selected one always runs. The managed (downloaded) core is removed; its old copies are deleted at startup
+- Switching the core first checks the config with the new core; if the new core rejects it or does not start, the previous core stays selected and running
+- Core "Update" where the app folder is writable (usually macOS): the app downloads the release itself, verifies sha256, checks that it runs and swaps the file while the core is stopped, rolling back on failure. Where the folder is admin-only, the core updates itself through the service as before
+- Windows with the service: updating stock Mihomo or an older Clod Core first warns that a reboot is needed (Clod Core from core-v1.19.31-clod.8 does not need it); the core restart after an update no longer shows a "core crashed" toast
+- Config changes (profile switch, file save, subscription update, core restart, mode from the tray) wait in one queue instead of failing with "busy"; a valid file edit is no longer rolled back because the core was restarting. The core config check is limited to 180 s
+- Subscription download tries the route chosen in the card first, then the others, each once; a quick stub page on one route no longer beats a real answer on another; if all fail, the panel's own answer is shown
+- The add dialog and the home screen no longer repeat the whole download after a failure; the add dialog stays open while the subscription downloads; the timeout hint shows the real default of 20 s
+
+### Fixed
+
+- The system proxy dialog waits for the settings to be saved; on an error it stays open with everything entered
+
+<!-- lang:ru -->
+
+### Добавлено
+
+- Подсказка под «Защищённое соединение»: убедитесь, что ваш провайдер поддерживает эту опцию
+
+### Изменено
+
+- У приложения ровно два встроенных ядра — стоковое Mihomo и Clod Core, запускается всегда выбранное. Управляемое (скачиваемое) ядро убрано; его прежние копии удаляются при запуске
+- Смена ядра сначала проверяет конфиг новым ядром; если новое ядро конфиг отвергло или не поднялось, остаётся выбранным и работает прежнее
+- «Обновить» ядро там, где папка программы доступна на запись (обычно macOS): приложение само скачивает релиз, сверяет sha256, проверяет запуск и подменяет файл при остановленном ядре, при неудаче возвращает прежний. Где папка только для администратора, ядро обновляет себя через службу, как раньше
+- Windows со службой: обновление стокового Mihomo или старого Clod Core сначала предупреждает о перезагрузке (Clod Core с core-v1.19.31-clod.8 её не требует); перезапуск ядра после обновления больше не объявляется тостом «ядро упало»
+- Изменения конфига (смена подписки, сохранение файла, обновление подписки, перезапуск ядра, режим из трея) ждут в одной очереди, а не получают отказ «занято»; годная правка файла больше не откатывается из-за перезапуска ядра. Проверка конфига ядром ограничена 180 с
+- Подписка скачивается сначала выбранным в карточке маршрутом, потом остальными, каждым один раз; быстрая заглушка на одном маршруте больше не вытесняет настоящий ответ другого; если не удалось ни одним, показывается ответ самой панели
+- Окно добавления и главная больше не повторяют всю загрузку после отказа; окно добавления не закрывается, пока подписка скачивается; подсказка таймаута показывает настоящее умолчание — 20 с
+
+### Исправлено
+
+- Окно системного прокси ждёт записи настроек; при ошибке остаётся открытым со всем введённым
+
+---
+
 ## v0.1.11-alpha.6
 
 <!-- lang:en -->
