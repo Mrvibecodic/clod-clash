@@ -214,13 +214,6 @@ fn parse_endpoints(endpoints: &[String]) -> Result<Vec<tauri::Url>> {
         .collect()
 }
 
-fn prerelease_endpoints(app_handle: &tauri::AppHandle) -> Result<Vec<tauri::Url>> {
-    let mut endpoints = vec![PRERELEASE_UPDATER_ENDPOINT.to_owned()];
-    endpoints.extend(configured_endpoints(app_handle));
-
-    parse_endpoints(&endpoints)
-}
-
 fn stable_endpoints(app_handle: &tauri::AppHandle) -> Result<Vec<tauri::Url>> {
     let endpoints = configured_endpoints(app_handle);
     if endpoints.is_empty() {
@@ -582,7 +575,11 @@ async fn check_update_on_channel(
     proxy: Option<&tauri::Url>,
 ) -> Result<Option<Update>> {
     if receive_prereleases {
-        let (found, _) = check_endpoints(app_handle, language, prerelease_endpoints(app_handle)?, proxy).await?;
+        // Только манифест канала пре-релизов: релиз кладёт туда любую свежую версию,
+        // стабильную тоже. Запасной стабильный манифест при сбое этого подсунул бы
+        // старую версию — «обновлений нет» вместо ошибки и попытки другим путём.
+        let endpoints = parse_endpoints(&[PRERELEASE_UPDATER_ENDPOINT.to_owned()])?;
+        let (found, _) = check_endpoints(app_handle, language, endpoints, proxy).await?;
         return Ok(found);
     }
 
