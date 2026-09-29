@@ -68,6 +68,43 @@ export const handleNoticeMessage = (
   t: TranslateFunction,
   navigate: NavigateFunction,
 ): number | undefined => {
+  // Порт держит кто-то другой — ядро на нём не слушает. Смена порта лечит
+  // любой случай, поэтому ссылка одна на все тексты.
+  const offerToChangeThePort = (text: string, collapseKey: string): number => {
+    let id = 0
+    const openSettings = () => {
+      hideNotice(id)
+      void navigate('/settings')
+    }
+    id = showNotice.error(
+      createElement(
+        Fragment,
+        null,
+        text,
+        ' ',
+        createElement(
+          'a',
+          {
+            role: 'button',
+            tabIndex: 0,
+            onClick: openSettings,
+            onKeyDown: (event: KeyboardEvent<HTMLAnchorElement>) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                openSettings()
+              }
+            },
+            style: { cursor: 'pointer', textDecoration: 'underline' },
+          },
+          t('settings.sections.system.notifications.core.portBusyAction'),
+        ),
+      ),
+      collapseBy(collapseKey),
+      0,
+    )
+    return id
+  }
+
   const handlers: Record<NoticeStatus, () => number> = {
     'import_sub_url::ok': () => {
       navigate('/profile')
@@ -237,44 +274,20 @@ export const handleNoticeMessage = (
       showNotice.info(
         'settings.sections.system.notifications.core.exitInProgress',
       ),
-    'core::port_busy': () => {
-      let id = 0
-      const openSettings = () => {
-        hideNotice(id)
-        void navigate('/settings')
-      }
-      id = showNotice.error(
-        createElement(
-          Fragment,
-          null,
-          t('settings.sections.system.notifications.core.portBusy', {
-            port: msg,
-          }),
-          ' ',
-          t('settings.sections.system.notifications.core.portBusyHint'),
-          ' ',
-          createElement(
-            'a',
-            {
-              role: 'button',
-              tabIndex: 0,
-              onClick: openSettings,
-              onKeyDown: (event: KeyboardEvent<HTMLAnchorElement>) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault()
-                  openSettings()
-                }
-              },
-              style: { cursor: 'pointer', textDecoration: 'underline' },
-            },
-            t('settings.sections.system.notifications.core.portBusyAction'),
-          ),
-        ),
-        collapseBy(`core::port_busy|${msg}`),
-        0,
-      )
-      return id
-    },
+    'core::port_busy': () =>
+      offerToChangeThePort(
+        `${t('settings.sections.system.notifications.core.portBusy', {
+          port: msg,
+        })} ${t('settings.sections.system.notifications.core.portBusyHint')}`,
+        `core::port_busy|${msg}`,
+      ),
+    'core::port_held_by_our_copy': () =>
+      offerToChangeThePort(
+        t('settings.sections.system.notifications.core.portHeldByOurCopy', {
+          port: msg,
+        }),
+        `core::port_held_by_our_copy|${msg}`,
+      ),
     'sysproxy::core_gave_up': () =>
       offerToTurnTheProxyOff(
         'settings.sections.system.notifications.sysproxy.coreGaveUp',
@@ -286,6 +299,10 @@ export const handleNoticeMessage = (
         'settings.sections.system.notifications.sysproxy.coreNotRunning',
         t,
         `sysproxy::core_not_running|${msg}`,
+      ),
+    'sysproxy::guard_stood_down': () =>
+      showNotice.error(
+        'settings.sections.system.notifications.sysproxy.guardStoodDown',
       ),
     'sysproxy::write_failed': () =>
       showNotice.error(

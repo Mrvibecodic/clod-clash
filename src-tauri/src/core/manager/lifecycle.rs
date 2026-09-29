@@ -107,7 +107,23 @@ const fn worth_asking_the_service(holder: PortHolder, under_service: bool, alrea
     !under_service && !already_asked && !matches!(holder, PortHolder::NotEvenTaken)
 }
 
-fn say_who_holds_the_port(expected: u16, holder: PortHolder, the_proxy_is_wanted: bool) {
+/// О каком держателе порта говорить человеку.
+///
+/// Другое наше ядро лечит передача ядра службе. Если передавать некуда (ядро
+/// уже под службой) или передача не удалась, эту копию — переподчинённую
+/// системой после перезапуска службы или оставленную обновлением — не уберёт
+/// никто, а трафик идёт через неё мимо ядра, которым управляет клиент.
+/// «Служба не готова» сюда не относится: на Windows канал службы появляется
+/// позже её запуска, и передачу доводит сторож.
+const fn port_notice(holder: PortHolder, nothing_will_move_it: bool) -> Option<&'static str> {
+    match holder {
+        PortHolder::SomeoneElse => Some("core::port_busy"),
+        PortHolder::AnotherCoreOfOurs if nothing_will_move_it => Some("core::port_held_by_our_copy"),
+        PortHolder::AnotherCoreOfOurs | PortHolder::NotEvenTaken => None,
+    }
+}
+
+fn say_who_holds_the_port(expected: u16, holder: PortHolder, nothing_will_move_it: bool, the_proxy_is_wanted: bool) {
     match holder {
         PortHolder::NotEvenTaken => {
             logging!(
@@ -121,8 +137,13 @@ fn say_who_holds_the_port(expected: u16, holder: PortHolder, the_proxy_is_wanted
             logging!(
                 warn,
                 Type::Core,
-                "порт {} занят другим нашим же ядром — оставляем как есть",
-                expected
+                "порт {} занят другим нашим же ядром{}",
+                expected,
+                if nothing_will_move_it {
+                    " — убрать его некому"
+                } else {
+                    " — оставляем как есть"
+                }
             );
         }
         PortHolder::SomeoneElse => {
@@ -132,12 +153,13 @@ fn say_who_holds_the_port(expected: u16, holder: PortHolder, the_proxy_is_wanted
                 "порт {} занят посторонним приложением: ядро его не слушает, трафик через системный прокси не пойдёт",
                 expected
             );
-            if the_proxy_is_wanted
-                && PORT_BUSY_NOTICED.swap(u32::from(expected), Ordering::AcqRel) != u32::from(expected)
-            {
-                Handle::notice_message("core::port_busy", expected.to_string());
-            }
         }
+    }
+    if let Some(status) = port_notice(holder, nothing_will_move_it)
+        && the_proxy_is_wanted
+        && PORT_BUSY_NOTICED.swap(u32::from(expected), Ordering::AcqRel) != u32::from(expected)
+    {
+        Handle::notice_message(status, expected.to_string());
     }
 }
 
@@ -558,19 +580,20 @@ impl CoreManager {
                 return;
             }
             let already_asked = PORT_RECLAIMED.load(Ordering::Acquire) == u32::from(expected);
+            let mut nothing_will_move_it = under_service;
             if worth_asking_the_service(holder, under_service, already_asked) {
                 PORT_RECLAIMED.store(u32::from(expected), Ordering::Release);
                 let manager = Self::global();
                 match manager.try_handoff_sidecar_to_service(HandoffReason::PortTaken).await {
                     HandoffOutcome::Done => return,
                     HandoffOutcome::NotReady => manager.spawn_service_handoff_watcher(HandoffReason::PortTaken).await,
-                    HandoffOutcome::Failed => {}
+                    HandoffOutcome::Failed => nothing_will_move_it = true,
                 }
                 if Self::the_port_check_is_called_off(generation) {
                     return;
                 }
             }
-            say_who_holds_the_port(expected, holder, the_proxy_is_wanted);
+            say_who_holds_the_port(expected, holder, nothing_will_move_it, the_proxy_is_wanted);
         });
         PortVerdict::Refuted
     }
@@ -1144,7 +1167,7 @@ impl CoreManager {
 #[cfg(test)]
 mod tests {
     use super::{
-        PortHolder, PortReport, PortVerdict, port_report, should_wait_for_service, the_port_check_budget,
+        PortHolder, PortReport, PortVerdict, port_notice, port_report, should_wait_for_service, the_port_check_budget,
         the_verdict_without_a_diagnosis, who_holds_the_port, worth_asking_the_service,
     };
     use crate::constants::timing;
@@ -1227,6 +1250,28 @@ mod tests {
             assert!(
                 !worth_asking_the_service(holder, under_service, already_restarted),
                 "{holder:?} служба={under_service} уже={already_restarted}"
+            );
+        }
+    }
+
+    /// Человеку говорят о постороннем держателе всегда, а о другом нашем ядре —
+    /// только когда его уже никто не уберёт: ядро под службой или передача
+    /// службе не удалась.
+    #[test]
+    fn a_copy_of_our_core_is_reported_only_when_nothing_will_move_it() {
+        use PortHolder::{AnotherCoreOfOurs, NotEvenTaken, SomeoneElse};
+        for (holder, nothing_will_move_it, expected) in [
+            (SomeoneElse, false, Some("core::port_busy")),
+            (SomeoneElse, true, Some("core::port_busy")),
+            (AnotherCoreOfOurs, true, Some("core::port_held_by_our_copy")),
+            (AnotherCoreOfOurs, false, None),
+            (NotEvenTaken, false, None),
+            (NotEvenTaken, true, None),
+        ] {
+            assert_eq!(
+                port_notice(holder, nothing_will_move_it),
+                expected,
+                "{holder:?} убрать некому={nothing_will_move_it}"
             );
         }
     }

@@ -1342,6 +1342,7 @@ export interface TranslationResources {
               portBusy: string
               portBusyAction: string
               portBusyHint: string
+              portHeldByOurCopy: string
               restarted: string
             }
             service: {
@@ -1351,6 +1352,7 @@ export interface TranslationResources {
             sysproxy: {
               coreGaveUp: string
               coreNotRunning: string
+              guardStoodDown: string
               turnOffAction: string
               writeFailed: string
             }

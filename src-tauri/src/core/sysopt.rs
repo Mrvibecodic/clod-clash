@@ -790,7 +790,9 @@ impl Sysopt {
                 if the_guard_may_keep_its_target(refusals_in_a_row) {
                     self.aim_guard(guard_type);
                 } else {
-                    if the_guard_has_just_stood_down(refusals_in_a_row) {
+                    // Снимать нечего, если сторож и не должен был следить: он
+                    // выключен в настройках или прокси выключают.
+                    if the_guard_has_just_stood_down(refusals_in_a_row) && !matches!(guard_type, GuardType::None) {
                         Self::say_the_guard_stood_down(refusals_in_a_row);
                     }
                     self.aim_guard(GuardType::None);
@@ -825,6 +827,7 @@ impl Sysopt {
             "система отвергла запись прокси {} раз подряд — сторож перестаёт её переписывать до первой удачной записи",
             refusals_in_a_row
         );
+        handle::Handle::notice_message("sysproxy::guard_stood_down", "");
     }
 
     fn remember_what_the_system_did(&self, pass: ProxyPass) -> u32 {

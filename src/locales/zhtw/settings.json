@@ -24,6 +24,7 @@
         "sysproxy": {
           "coreGaveUp": "The core stopped restarting, but the system proxy still points at it — nothing will go through it until the proxy is off or the core runs again.",
           "coreNotRunning": "The system proxy was not turned on: the core is not running.",
+          "guardStoodDown": "The system refused the proxy settings several times in a row, so the client stopped restoring them on its own. Once the cause is fixed, turn the system proxy off and on again.",
           "turnOffAction": "Turn the system proxy off",
           "writeFailed": "The system did not accept the proxy settings."
         },
@@ -51,6 +52,7 @@
           "portBusy": "連接埠 {{port}} 被其他程式占用：核心未監聽該連接埠，流量不會走系統代理。",
           "portBusyAction": "在設定中變更連接埠",
           "portBusyHint": "If the port is held by a previous copy of the core or the client, fully restart the client from the tray icon first.",
+          "portHeldByOurCopy": "Port {{port}} is held by another copy of the core, not the one the client controls: node selection and settings do not reach your traffic. Fully restart the client from the tray icon; if that does not help, restart the computer.",
           "restarted": "核心當機，已自動重新啟動"
         },
         "service": {
