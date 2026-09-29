@@ -545,9 +545,11 @@ fn updater_builder(
                 app.cleanup_before_exit();
             })
     };
+    // Без прокси — по-настоящему напрямую: иначе запрос молча ушёл бы через
+    // системный прокси, если он включён.
     let builder = match proxy {
         Some(proxy) => builder.proxy(proxy.clone()),
-        None => builder,
+        None => builder.no_proxy(),
     };
     builder
         .endpoints(endpoints)
@@ -618,17 +620,19 @@ pub async fn check_update_with_fallback(app_handle: &tauri::AppHandle) -> Result
     let receive_prereleases = verge
         .receive_prereleases
         .unwrap_or(crate::config::IVerge::DEFAULT_RECEIVE_PRERELEASES);
-    match check_update_on_channel(app_handle, language.as_deref(), receive_prereleases, None).await {
+    // Сначала через своё ядро: GitHub может быть недоступен напрямую. Ядро не
+    // запущено — отказ соединения приходит сразу, и дело идёт напрямую.
+    let port = crate::config::Config::effective_mixed_port().await;
+    let core = tauri::Url::parse(&format!("http://127.0.0.1:{port}"))?;
+    match check_update_on_channel(app_handle, language.as_deref(), receive_prereleases, Some(&core)).await {
         Ok(found) => Ok(found),
-        Err(direct_error) => {
-            let port = crate::config::Config::effective_mixed_port().await;
-            let proxy = tauri::Url::parse(&format!("http://127.0.0.1:{port}"))?;
+        Err(core_error) => {
             logging!(
                 warn,
                 Type::System,
-                "update check failed directly ({direct_error}), retrying via {proxy}"
+                "update check via {core} failed ({core_error}), retrying directly"
             );
-            check_update_on_channel(app_handle, language.as_deref(), receive_prereleases, Some(&proxy)).await
+            check_update_on_channel(app_handle, language.as_deref(), receive_prereleases, None).await
         }
     }
 }
