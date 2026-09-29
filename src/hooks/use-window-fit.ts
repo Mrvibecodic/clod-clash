@@ -3,46 +3,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useVerge } from '@/hooks/use-verge'
 import { useVisibility } from '@/hooks/use-visibility'
 import { fitWindowToContent } from '@/services/cmds'
-import { createStartupSettle } from '@/utils/window-settle'
 
 const FIT_DEBOUNCE_MS = 120
 
-const MINIMAL_HEIGHT = 520
+const RETRY_LIMIT_MS = 60_000
 
 const COMPACT_HYSTERESIS = 24
-
-const SELF_RESIZE_GRACE_MS = 1200
-
-const HEIGHT_MATCH_EPSILON = 3
-
-const startup = createStartupSettle(Date.now())
-
-export const isStartupWindowGrace = () => startup.isGrace(Date.now())
-
-export const markStartupWindowSettled = () => startup.markSettled()
-
-let selfResizeUntil = 0
-let acceptAnyUntil = 0
-const expectedHeights: number[] = []
-
-export const markSelfWindowResize = (height?: number) => {
-  selfResizeUntil = Date.now() + SELF_RESIZE_GRACE_MS
-  if (height === undefined) {
-    acceptAnyUntil = selfResizeUntil
-    return
-  }
-  expectedHeights.push(Math.round(height))
-  if (expectedHeights.length > 8) expectedHeights.shift()
-}
-
-export const isSelfWindowResize = (height: number) => {
-  const now = Date.now()
-  if (now < acceptAnyUntil) return true
-  if (now >= selfResizeUntil) return false
-  return expectedHeights.some(
-    (expected) => Math.abs(expected - height) <= HEIGHT_MATCH_EPSILON,
-  )
-}
 
 const measureContentHeight = (root: HTMLElement) => {
   const previous = root.style.height
@@ -50,22 +16,6 @@ const measureContentHeight = (root: HTMLElement) => {
   const height = root.scrollHeight
   root.style.height = previous
   return height
-}
-
-let fitSuspended = false
-
-export const suspendWindowFit = () => {
-  fitSuspended = true
-}
-
-export const resumeWindowFit = () => {
-  fitSuspended = false
-}
-
-const fitRequestListeners = new Set<() => void>()
-
-export const requestWindowFit = () => {
-  for (const listener of fitRequestListeners) listener()
 }
 
 export const useFitWindowToContent = () => {
@@ -82,27 +32,27 @@ export const useFitWindowToContent = () => {
   const normalHeightRef = useRef(0)
   const compactSavingRef = useRef(0)
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const chainRef = useRef(0)
 
-  const applyFit = useCallback(async () => {
-    if (!visibleRef.current) return
-    if (!enabled || fitSuspended) {
+  // true — человек тянет край окна, подгонку надо повторить позже.
+  const applyFit = useCallback(async (): Promise<boolean> => {
+    if (!visibleRef.current) return false
+    if (!enabled) {
       if (compactRef.current) {
         compactRef.current = false
         setCompact(false)
       }
-      return
+      return false
     }
-    if (!root) return
+    if (!root) return false
 
     const chrome = Math.max(0, window.innerHeight - root.clientHeight)
     const desired = measureContentHeight(root) + chrome
-    if (desired <= 0) return
+    if (desired <= 0) return false
 
-    markSelfWindowResize(desired)
-    startup.markFitAttempt(Date.now())
     const ceiling = await fitWindowToContent(desired).catch(() => 0)
-    if (!ceiling) return
-    markSelfWindowResize(Math.min(Math.max(desired, MINIMAL_HEIGHT), ceiling))
+    if (ceiling === null) return true
+    if (!ceiling) return false
 
     if (compactRef.current) {
       if (normalHeightRef.current > desired) {
@@ -113,7 +63,7 @@ export const useFitWindowToContent = () => {
         compactRef.current = false
         setCompact(false)
       }
-      return
+      return false
     }
 
     normalHeightRef.current = desired
@@ -121,32 +71,34 @@ export const useFitWindowToContent = () => {
       compactRef.current = true
       setCompact(true)
     }
+    return false
   }, [root, enabled])
 
   const schedule = useCallback(() => {
-    if (timerRef.current) clearTimeout(timerRef.current)
-    timerRef.current = setTimeout(() => {
-      timerRef.current = undefined
-      void applyFit()
-    }, FIT_DEBOUNCE_MS)
-  }, [applyFit])
-
-  useEffect(() => {
-    if (enabled) resumeWindowFit()
-  }, [enabled])
-
-  useEffect(() => {
-    fitRequestListeners.add(schedule)
-    return () => {
-      fitRequestListeners.delete(schedule)
+    const chain = ++chainRef.current
+    const startedAt = Date.now()
+    const run = () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+      timerRef.current = setTimeout(() => {
+        timerRef.current = undefined
+        void applyFit().then((later) => {
+          // Повтор, пока человек тянет край, обрывают новый вызов подгона,
+          // уход со страницы и слишком долгое ожидание — следующее изменение
+          // содержимого заведёт подгон заново.
+          const current = chain === chainRef.current
+          if (later && current && Date.now() - startedAt < RETRY_LIMIT_MS) {
+            run()
+          }
+        })
+      }, FIT_DEBOUNCE_MS)
     }
-  }, [schedule])
+    run()
+  }, [applyFit])
 
   useEffect(() => {
     const wasVisible = visibleRef.current
     visibleRef.current = visible
     if (!visible || wasVisible) return
-    markSelfWindowResize()
     schedule()
   }, [visible, schedule])
 
@@ -172,6 +124,7 @@ export const useFitWindowToContent = () => {
     return () => {
       observer.disconnect()
       mutations.disconnect()
+      chainRef.current += 1
       if (timerRef.current) {
         clearTimeout(timerRef.current)
         timerRef.current = undefined

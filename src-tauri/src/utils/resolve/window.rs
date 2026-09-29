@@ -153,6 +153,21 @@ const fn default_mode_size(simple: bool) -> (f64, f64) {
     if simple { SIMPLE_MODE_SIZE } else { ADVANCED_MODE_SIZE }
 }
 
+/// Подгон ведёт только высоту, и пока он включён, её не запоминаем — иначе
+/// «размер режима» стал бы памятью высоты последнего баннера; остаётся прежняя
+/// сохранённая или высота режима по умолчанию. Ширину человек выбирает и при
+/// подгоне — её запоминаем всегда.
+const fn size_to_remember(current: (u32, u32), height_while_fitting: Option<u32>) -> (u32, u32) {
+    match height_while_fitting {
+        Some(height) => (current.0, height),
+        None => current,
+    }
+}
+
+fn height_kept_while_fitting(verge: &crate::config::IVerge, simple: bool) -> u32 {
+    stored_mode_size(verge, simple).map_or_else(|| default_mode_size(simple).1 as u32, |(_, height)| height)
+}
+
 pub async fn save_window_size_for_mode(window: &WebviewWindow, simple: bool) {
     if window.is_maximized().unwrap_or(false) || window.is_fullscreen().unwrap_or(false) {
         return;
@@ -163,7 +178,16 @@ pub async fn save_window_size_for_mode(window: &WebviewWindow, simple: bool) {
     if restored_window_size_is_too_small(logical.width as u32, logical.height as u32) {
         return;
     }
-    let size = (!window_fit_content_enabled().await).then_some((logical.width as u32, logical.height as u32));
+    let height_while_fitting = if window_fit_content_enabled().await {
+        let verge = Config::verge().await.latest_arc();
+        Some(height_kept_while_fitting(&verge, simple))
+    } else {
+        None
+    };
+    let size = Some(size_to_remember(
+        (logical.width as u32, logical.height as u32),
+        height_while_fitting,
+    ));
     let pos = window.outer_position().ok().map(|pos| (pos.x, pos.y));
     let patch = crate::config::IVerge {
         window_size_simple: if simple { size } else { None },
@@ -263,38 +287,105 @@ const fn clamp_fit_height(content: f64, ceiling: f64) -> f64 {
     content.clamp(MINIMAL_HEIGHT, ceiling.max(MINIMAL_HEIGHT))
 }
 
-pub async fn fit_window_to_content(window: &WebviewWindow, content_height: f64) -> f64 {
+/// Последняя высота, которую подгон поставил окну, и высота до неё.
+#[derive(Clone, Copy)]
+struct FitAttempt {
+    target: f64,
+    before: f64,
+    at: std::time::Instant,
+}
+
+static LAST_FIT: parking_lot::Mutex<Option<FitAttempt>> = parking_lot::Mutex::new(None);
+
+/// Сколько после нашей подгонки возврат прежней высоты считается отказом
+/// системы, а не новым её действием (Snap, смена монитора).
+const REFUSAL_WINDOW: Duration = Duration::from_secs(1);
+
+/// Система сразу вернула высоту, которая была до нашей подгонки, — тайлинг
+/// не даёт окну её менять. Повторять ту же высоту значило бы бороться с ним
+/// бесконечно и мерцать; новая высота содержимого — уже другая попытка.
+fn the_system_refused(last: Option<FitAttempt>, target: f64, current: f64, now: std::time::Instant) -> bool {
+    last.is_some_and(|attempt| {
+        (attempt.target - target).abs() < 1.0
+            && (attempt.before - current).abs() < 1.0
+            && now.saturating_duration_since(attempt.at) < REFUSAL_WINDOW
+    })
+}
+
+/// Посадить окно на высоту содержимого. Возвращает потолок рабочей области
+/// (выше него фронт поджимает вёрстку) или `None`, пока человек тянет край
+/// окна: подгон повторит попытку, когда перетаскивание закончится.
+pub async fn fit_window_to_content(window: &WebviewWindow, content_height: f64) -> Option<f64> {
     let ceiling = content_height_ceiling(window).unwrap_or(MINIMAL_HEIGHT);
     if window.is_maximized().unwrap_or(false) || window.is_fullscreen().unwrap_or(false) {
-        return ceiling;
+        return Some(ceiling);
     }
     if window.is_minimized().unwrap_or(false) || !window.is_visible().unwrap_or(true) {
-        return ceiling;
+        return Some(ceiling);
     }
-    if !window_fit_content_enabled().await {
-        return ceiling;
+    if super::manual_resize::the_person_took_the_height() || !window_fit_content_enabled().await {
+        return Some(ceiling);
+    }
+    if super::manual_resize::a_person_is_resizing(window).await {
+        return None;
     }
     let target = clamp_fit_height(content_height, ceiling);
-    let Ok(inner) = window.inner_size() else { return ceiling };
+    let Ok(inner) = window.inner_size() else {
+        return Some(ceiling);
+    };
     if inner.width == 0 || inner.height == 0 {
-        return ceiling;
+        return Some(ceiling);
     }
     let scale = window.scale_factor().unwrap_or(1.0);
     let current: tauri::LogicalSize<f64> = inner.to_logical(scale);
     if (current.height - target).abs() < 1.0 {
-        return ceiling;
+        return Some(ceiling);
     }
+    let now = std::time::Instant::now();
+    if the_system_refused(*LAST_FIT.lock(), target, current.height, now) {
+        return Some(ceiling);
+    }
+    *LAST_FIT.lock() = Some(FitAttempt {
+        target,
+        before: current.height,
+        at: now,
+    });
     logging_error!(
         Type::Window,
         window.set_size(tauri::LogicalSize::new(current.width, target))
     );
     keep_window_on_screen(window);
-    ceiling
+    Some(ceiling)
 }
 
 #[cfg(test)]
 mod fit_tests {
-    use super::{MINIMAL_HEIGHT, clamp_fit_height};
+    use super::{FitAttempt, MINIMAL_HEIGHT, REFUSAL_WINDOW, clamp_fit_height, the_system_refused};
+    use std::time::{Duration, Instant};
+
+    /// Тайлинг вернул прежнюю высоту сразу — ту же высоту не повторяем; новую
+    /// высоту содержимого, позднее действие системы и первую попытку — ставим.
+    #[test]
+    fn a_height_the_system_just_refused_is_not_forced_again() {
+        let at = Instant::now();
+        let last = Some(FitAttempt {
+            target: 600.0,
+            before: 900.0,
+            at,
+        });
+        let soon = at + Duration::from_millis(200);
+        assert!(the_system_refused(last, 600.0, 900.0, soon));
+        assert!(!the_system_refused(last, 640.0, 900.0, soon), "содержимое стало другим");
+        assert!(
+            !the_system_refused(last, 600.0, 700.0, soon),
+            "система поставила новую высоту"
+        );
+        assert!(
+            !the_system_refused(last, 600.0, 900.0, at + REFUSAL_WINDOW),
+            "позднее действие системы — снова подгоняем"
+        );
+        assert!(!the_system_refused(None, 600.0, 900.0, soon));
+    }
 
     #[test]
     fn content_height_wins_between_the_bounds() {
@@ -391,6 +482,8 @@ pub async fn build_new_window() -> Result<WebviewWindow, String> {
             apply_window_size_for_mode(&window, effective_simple_mode().await).await;
             restore_position_if_offscreen(&window);
             crate::utils::ui_watchdog::watch(&window);
+            #[cfg(target_os = "windows")]
+            super::manual_resize::watch(&window);
             spawn_show_fallback(&window, shown);
             #[cfg(target_os = "macos")]
             take_webview_needs_reload();
@@ -475,8 +568,33 @@ pub fn reload_main_window_if_needed() {
 #[cfg(test)]
 mod tests {
     use super::{
-        ADVANCED_MODE_SIZE, LEGACY_ADVANCED_SIZE, drop_legacy_advanced_size, restored_window_size_is_too_small,
+        ADVANCED_MODE_SIZE, LEGACY_ADVANCED_SIZE, SIMPLE_MODE_SIZE, drop_legacy_advanced_size,
+        height_kept_while_fitting, restored_window_size_is_too_small, size_to_remember,
     };
+
+    /// Ширину, выбранную человеком, помним и при подгоне; высоту подгона — нет.
+    #[test]
+    fn the_width_is_kept_while_the_height_is_fitted() {
+        assert_eq!(size_to_remember((700, 610), Some(720)), (700, 720));
+        assert_eq!(size_to_remember((700, 610), None), (700, 610));
+    }
+
+    #[test]
+    fn while_fitting_the_height_stays_the_stored_or_the_default_one() {
+        let verge = crate::config::IVerge {
+            window_size_simple: Some((600, 800)),
+            ..Default::default()
+        };
+        assert_eq!(height_kept_while_fitting(&verge, true), 800);
+        assert_eq!(
+            height_kept_while_fitting(&crate::config::IVerge::default(), true),
+            SIMPLE_MODE_SIZE.1 as u32
+        );
+        assert_eq!(
+            height_kept_while_fitting(&crate::config::IVerge::default(), false),
+            ADVANCED_MODE_SIZE.1 as u32
+        );
+    }
 
     #[test]
     fn legacy_advanced_size_is_replaced_by_the_current_default() {

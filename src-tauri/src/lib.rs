@@ -485,6 +485,12 @@ pub fn run() {
                 }
                 event_handlers::handle_window_focus(focused);
             }
+            #[cfg(target_os = "macos")]
+            tauri::WindowEvent::Resized(size) => {
+                if let Some(window) = app_handle.get_webview_window("main") {
+                    crate::utils::resolve::manual_resize::on_resized(&window, size);
+                }
+            }
             tauri::WindowEvent::Destroyed => {
                 core::notification::frontend_stopped_listening();
                 #[cfg(target_os = "macos")]

@@ -154,9 +154,9 @@ pub async fn apply_window_size_for_mode(simple: bool) -> CmdResult<()> {
 }
 
 #[tauri::command]
-pub async fn fit_window_to_content(content_height: f64) -> CmdResult<f64> {
+pub async fn fit_window_to_content(content_height: f64) -> CmdResult<Option<f64>> {
     let Some(window) = crate::utils::window_manager::WindowManager::get_main_window() else {
-        return Ok(0.0);
+        return Ok(Some(0.0));
     };
     Ok(crate::utils::resolve::window::fit_window_to_content(&window, content_height).await)
 }

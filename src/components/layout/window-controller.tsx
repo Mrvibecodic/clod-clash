@@ -2,6 +2,7 @@ import { Close, CropSquare, FilterNone, Minimize } from '@mui/icons-material'
 import { Box, IconButton } from '@mui/material'
 import { type PointerEvent, useCallback } from 'react'
 
+import { useVerge } from '@/hooks/use-verge'
 import { useWindowControls } from '@/hooks/use-window'
 import getSystem from '@/utils/get-system'
 
@@ -16,8 +17,23 @@ const RESIZE_HANDLES = [
   { direction: 'NorthWest', position: 'north-west' },
 ] as const
 
+// Ручки, которые меняют высоту окна. На Linux рамку рисует интерфейс, и взять
+// окно за такую ручку — единственный признак того, что высоту меняет человек:
+// он выключает подгон окна под содержимое (на Windows и macOS признак даёт
+// система, manual_resize.rs).
+const CHANGES_HEIGHT: ReadonlySet<string> = new Set([
+  'North',
+  'NorthEast',
+  'South',
+  'SouthEast',
+  'SouthWest',
+  'NorthWest',
+])
+
 export const WindowResizeHandles = () => {
   const { currentWindow, maximized } = useWindowControls()
+  const { verge, patchVerge } = useVerge()
+  const fitEnabled = verge?.window_fit_content !== false
 
   const startResizeDragging = useCallback(
     (event: PointerEvent<HTMLDivElement>) => {
@@ -28,6 +44,14 @@ export const WindowResizeHandles = () => {
       const handle = RESIZE_HANDLES.find((item) => item.direction === direction)
 
       if (handle) {
+        if (fitEnabled && CHANGES_HEIGHT.has(handle.direction)) {
+          patchVerge({ window_fit_content: false }).catch((error) =>
+            console.warn(
+              '[WindowResizeHandles] Не удалось выключить подгон окна:',
+              error,
+            ),
+          )
+        }
         void currentWindow
           .startResizeDragging(handle.direction)
           .catch((error) =>
@@ -38,7 +62,7 @@ export const WindowResizeHandles = () => {
           )
       }
     },
-    [currentWindow],
+    [currentWindow, fitEnabled, patchVerge],
   )
 
   if (getSystem() !== 'linux' || maximized) return null

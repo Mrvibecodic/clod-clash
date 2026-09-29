@@ -584,8 +584,9 @@ export const closeConnectionsVia = async (previousProxy: string) => {
   return invoke<number>('close_connections_via', { previousProxy })
 }
 
+// null — человек тянет край окна: подгон повторит попытку позже.
 export const fitWindowToContent = async (contentHeight: number) => {
-  return invoke<number>('fit_window_to_content', { contentHeight })
+  return invoke<number | null>('fit_window_to_content', { contentHeight })
 }
 
 export const getTrafficEstimate = async () => {

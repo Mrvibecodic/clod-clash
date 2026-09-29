@@ -2,54 +2,23 @@ import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { useEffect, useRef } from 'react'
 
 import { useSimpleMode } from '@/hooks/use-simple-mode'
-import { useVerge } from '@/hooks/use-verge'
-import {
-  isSelfWindowResize,
-  isStartupWindowGrace,
-  markSelfWindowResize,
-  markStartupWindowSettled,
-  requestWindowFit,
-  resumeWindowFit,
-  suspendWindowFit,
-} from '@/hooks/use-window-fit'
 import { applyWindowSizeForMode, saveWindowSizeForMode } from '@/services/cmds'
 
 const SAVE_DEBOUNCE_MS = 800
 
-const MANUAL_VERDICT_DELAY_MS = 400
-
+// Размер и место окна запоминаются для каждого режима. Выключать подгон
+// окна под содержимое здесь больше не нужно: это делает признак ручного
+// изменения высоты от системы (manual_resize.rs), а на Linux — ручки рамки.
 export const useModeWindowSize = () => {
   const { simpleMode } = useSimpleMode()
-  const { verge, patchVerge } = useVerge()
 
   const simpleModeRef = useRef(simpleMode)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
   )
-  const verdictTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
-    undefined,
-  )
-  const fitEnabled = verge?.window_fit_content !== false
-  const fitEnabledRef = useRef(fitEnabled)
-  const patchVergeRef = useRef(patchVerge)
-
-  useEffect(() => {
-    fitEnabledRef.current = fitEnabled
-    patchVergeRef.current = patchVerge
-  })
 
   useEffect(() => {
     const appWindow = getCurrentWebviewWindow()
-    let wasMaximized = false
-    let wasMinimized = false
-    let lastHeight = 0
-    let scale = 1
-    void appWindow
-      .scaleFactor()
-      .then((value) => {
-        scale = value
-      })
-      .catch(() => {})
 
     const scheduleSave = () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
@@ -59,64 +28,13 @@ export const useModeWindowSize = () => {
       }, SAVE_DEBOUNCE_MS)
     }
 
-    const onResized = async (height: number) => {
-      if (!Number.isFinite(height) || height <= 0) return
-
-      const [maximized, minimized] = await Promise.all([
-        appWindow.isMaximized().catch(() => false),
-        appWindow.isMinimized().catch(() => false),
-      ])
-      const transient = maximized || wasMaximized || minimized || wasMinimized
-      const heightChanged = Math.abs(height - lastHeight) >= 1
-      wasMaximized = maximized
-      wasMinimized = minimized
-      lastHeight = height
-      if (transient) return
-
-      if (heightChanged && isSelfWindowResize(height)) {
-        markStartupWindowSettled()
-      } else if (
-        heightChanged &&
-        !isStartupWindowGrace() &&
-        fitEnabledRef.current
-      ) {
-        suspendWindowFit()
-        if (verdictTimerRef.current) clearTimeout(verdictTimerRef.current)
-        verdictTimerRef.current = setTimeout(() => {
-          verdictTimerRef.current = undefined
-          if (isSelfWindowResize(height)) {
-            markStartupWindowSettled()
-            resumeWindowFit()
-            requestWindowFit()
-            return
-          }
-          if (isStartupWindowGrace() || !fitEnabledRef.current) {
-            resumeWindowFit()
-            requestWindowFit()
-            return
-          }
-          patchVergeRef
-            .current({ window_fit_content: false })
-            .catch(() => resumeWindowFit())
-        }, MANUAL_VERDICT_DELAY_MS)
-      }
-      scheduleSave()
-    }
-
     const unlistenPromises = [
-      appWindow.onResized(
-        (event) => void onResized(event.payload.height / (scale || 1)),
-      ),
+      appWindow.onResized(scheduleSave),
       appWindow.onMoved(scheduleSave),
-      appWindow.onScaleChanged((event) => {
-        scale = event.payload.scaleFactor
-        markSelfWindowResize()
-      }),
     ]
 
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-      if (verdictTimerRef.current) clearTimeout(verdictTimerRef.current)
       for (const promise of unlistenPromises) {
         promise.then((unlisten) => unlisten()).catch(() => {})
       }
@@ -134,7 +52,6 @@ export const useModeWindowSize = () => {
         saveTimerRef.current = undefined
       }
       await saveWindowSizeForMode(previous).catch(() => {})
-      markSelfWindowResize()
       await applyWindowSizeForMode(simpleMode).catch(() => {})
     }
 

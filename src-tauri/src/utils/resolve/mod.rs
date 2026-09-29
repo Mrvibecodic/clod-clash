@@ -23,6 +23,7 @@ use clash_verge_logging::{Type, logging, logging_error};
 use clash_verge_signal;
 
 pub mod dns;
+pub mod manual_resize;
 pub mod scheme;
 pub mod window;
 pub mod window_script;

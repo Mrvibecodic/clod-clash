@@ -87,7 +87,9 @@ windows-sys = { version = "0.61.2", features = [
   "Win32_System_JobObjects",
   "Win32_System_WindowsProgramming",
   # clod:freeze-restore — сторож спрашивает окно, разбирает ли оно сообщения
-  "Win32_UI_WindowsAndMessaging"
+  "Win32_UI_WindowsAndMessaging",
+  # clod:manual-resize — подкласс окна слышит, когда человек тянет край
+  "Win32_UI_Shell"
 ] }
 # *********************************
 
