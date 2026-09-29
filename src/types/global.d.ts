@@ -240,10 +240,7 @@ interface IProfileItem {
   clock_skew?: number
   clock_skew_at?: number
   interval_locked?: boolean
-  fallback_url?: string
-  fallback_domain?: string
-  previous_urls?: string[]
-  migration_hops?: number
+  new_sub?: string
   hwid_state?: 'ok' | 'limit' | 'not_supported'
   custom_name?: string
   name_from_panel?: boolean

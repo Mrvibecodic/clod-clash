@@ -13,8 +13,6 @@ const MAX_THRESHOLDS: usize = 10;
 
 const PING_MAX_MS: u32 = 60_000;
 
-pub const MAX_MIGRATION_HOPS: u32 = 3;
-
 pub async fn build_identity_headers() -> HeaderMap {
     let mut headers = HeaderMap::new();
     headers.insert(ACCEPT, HeaderValue::from_static("*/*"));
@@ -177,10 +175,10 @@ pub struct SubHeaders {
     pub announce_url: Option<String>,
     pub refill_date: Option<i64>,
     pub update_interval_hours: Option<u64>,
-    pub fallback_url: Option<String>,
-    pub fallback_domain: Option<String>,
-    pub new_url: Option<String>,
-    pub new_domain: Option<String>,
+    /// `clod-new-sub`: запасной домен подписки (только имя хоста).
+    pub new_sub: Option<String>,
+    /// `clod-move-sub: true` вместе с `clod-new-sub`: перевести подписку на запасной адрес.
+    pub move_sub: bool,
     pub hwid_state: HwidState,
     pub notify_expire_days: Option<Vec<u32>>,
     pub notify_traffic_percent: Option<Vec<u32>>,
@@ -231,6 +229,8 @@ impl SubHeaders {
             .and_then(|raw| thresholds(&raw, 1, 365))
             .or_else(|| (flag(headers, "notification-subs-expire")).then(|| DEFAULT_NOTIFY_EXPIRE_DAYS.to_vec()));
 
+        let new_sub = value(headers, "clod-new-sub").and_then(|raw| spare_domain(&raw));
+
         Self {
             profile_title: value(headers, "profile-title"),
             profile_logo: value(headers, "profile-logo").and_then(|raw| https_url(&raw)),
@@ -242,10 +242,9 @@ impl SubHeaders {
             announce_url: value(headers, "announce-url").and_then(|raw| https_url(&raw)),
             refill_date: value(headers, "subscription-refill-date").and_then(|raw| raw.trim().parse::<i64>().ok()),
             update_interval_hours: value(headers, "profile-update-interval").and_then(|raw| raw.trim().parse().ok()),
-            fallback_url: value(headers, "fallback-url").and_then(|raw| https_url(&raw)),
-            fallback_domain: value(headers, "fallback-domain"),
-            new_url: value(headers, "new-url"),
-            new_domain: value(headers, "new-domain"),
+            new_sub: new_sub.clone(),
+            move_sub: new_sub.is_some()
+                && value(headers, "clod-move-sub").is_some_and(|raw| raw.trim().eq_ignore_ascii_case("true")),
             hwid_state,
             notify_expire_days,
             notify_traffic_percent: value(headers, "notify-traffic-percent").and_then(|raw| thresholds(&raw, 1, 100)),
@@ -312,19 +311,6 @@ fn http_date_secs(raw: &str) -> Option<i64> {
 }
 
 impl SubHeaders {
-    pub fn migration_target(&self, current: &str) -> Option<String> {
-        if let Some(new_url) = self.new_url.as_deref()
-            && let Some(validated) = validate_new_url(current, new_url)
-        {
-            return Some(validated);
-        }
-
-        self.new_domain
-            .as_deref()
-            .and_then(|domain| swap_domain(current, domain))
-            .filter(|candidate| candidate.as_str() != current)
-    }
-
     pub const fn refuses_device(&self) -> bool {
         matches!(self.hwid_state, HwidState::LimitReached | HwidState::NotSupported)
     }
@@ -503,46 +489,35 @@ fn truncate_banner(value: &str, limit: usize) -> String {
     out.into()
 }
 
-pub fn swap_domain(current: &str, new_domain: &str) -> Option<String> {
-    let mut url = tauri::Url::parse(current).ok()?;
-    let domain = new_domain.trim().trim_end_matches('/');
-    if domain.is_empty() {
-        return None;
-    }
+/// Значение `clod-new-sub`: только имя хоста — латиница, цифры, точки и дефисы,
+/// без схемы, порта, пути и логина. Хранится в нижнем регистре.
+fn spare_domain(raw: &str) -> Option<String> {
+    const DOMAIN_MAX_LEN: usize = 253;
 
-    let domain = domain
-        .split_once("://")
-        .map_or(domain, |(_scheme, rest)| rest)
-        .split('/')
-        .next()?;
-
-    let (host, port) = match domain.rsplit_once(':') {
-        Some((host, port)) if port.chars().all(|c| c.is_ascii_digit()) && !port.is_empty() => {
-            (host, Some(port.parse::<u16>().ok()?))
-        }
-        _ => (domain, None),
-    };
-
-    if host.is_empty() {
-        return None;
-    }
-
-    url.set_host(Some(host)).ok()?;
-    url.set_port(port).ok()?;
-
-    Some(url.as_str().into())
+    let domain = raw.trim().to_ascii_lowercase();
+    let well_formed = !domain.is_empty()
+        && domain.len() <= DOMAIN_MAX_LEN
+        && !domain.starts_with('.')
+        && !domain.ends_with('.')
+        && !domain.contains("..")
+        && domain
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '.' || c == '-');
+    well_formed.then(|| domain.into())
 }
 
-pub fn validate_new_url(current: &str, candidate: &str) -> Option<String> {
-    let candidate_url = tauri::Url::parse(candidate.trim()).ok()?;
-    if candidate_url.scheme() != "https" {
+/// Запасной адрес подписки: `https://` + запасной домен + путь и параметры
+/// основного адреса (порт и логин основного не переносятся). Домен совпадает с
+/// хостом основного — запасного нет.
+pub fn spare_address(main: &str, domain: &str) -> Option<String> {
+    let main = tauri::Url::parse(main).ok()?;
+    if main.host_str().is_none_or(|host| host.eq_ignore_ascii_case(domain)) {
         return None;
     }
-    if candidate_url.host_str().is_none_or(str::is_empty) {
-        return None;
-    }
-
-    (candidate_url.as_str() != current).then(|| candidate_url.as_str().into())
+    let mut spare = tauri::Url::parse(&format!("https://{domain}")).ok()?;
+    spare.set_path(main.path());
+    spare.set_query(main.query());
+    Some(spare.as_str().into())
 }
 
 #[allow(clippy::expect_used)]
@@ -550,7 +525,7 @@ pub fn validate_new_url(current: &str, candidate: &str) -> Option<String> {
 mod tests {
     use super::{
         ANNOUNCE_MAX_CHARS, ConnectMode, DEFAULT_NOTIFY_EXPIRE_DAYS, HwidState, LatencyStyle, ProviderTheme,
-        SubHeaders, ThemeMode, contact_url, decode_value, swap_domain, thresholds, truncate_banner, validate_new_url,
+        SubHeaders, ThemeMode, contact_url, decode_value, spare_address, thresholds, truncate_banner,
     };
     use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 
@@ -575,7 +550,7 @@ mod tests {
             ("announce", "base64:bGluZSBvbmUKbGluZSB0d28="),
             ("subscription-refill-date", "1785340800"),
             ("profile-update-interval", "12"),
-            ("fallback-url", "https://backup.example/sub"),
+            ("clod-new-sub", "backup.example"),
             ("x-hwid-active", "true"),
             ("notify-expire-days", "7,3,1"),
             ("notify-traffic-percent", "80,90,100"),
@@ -587,7 +562,8 @@ mod tests {
         assert_eq!(parsed.announce.as_deref(), Some("line one\nline two"));
         assert_eq!(parsed.refill_date, Some(1_785_340_800));
         assert_eq!(parsed.update_interval_hours, Some(12));
-        assert_eq!(parsed.fallback_url.as_deref(), Some("https://backup.example/sub"));
+        assert_eq!(parsed.new_sub.as_deref(), Some("backup.example"));
+        assert!(!parsed.move_sub);
         assert_eq!(parsed.hwid_state, HwidState::Active);
         assert_eq!(parsed.notify_expire_days.as_deref(), Some(&[1, 3, 7][..]));
         assert_eq!(parsed.notify_traffic_percent.as_deref(), Some(&[80, 90, 100][..]));
@@ -641,8 +617,8 @@ mod tests {
 
     #[test]
     fn does_not_match_a_header_that_merely_contains_the_name() {
-        let parsed = SubHeaders::parse(&headers(&[("renew-url", "https://evil.example/sub")]));
-        assert_eq!(parsed.new_url, None);
+        let parsed = SubHeaders::parse(&headers(&[("xclod-new-sub", "evil.example")]));
+        assert_eq!(parsed.new_sub, None);
     }
 
     #[test]
@@ -918,15 +894,13 @@ mod tests {
     }
 
     #[test]
-    fn promo_does_not_shadow_its_url_and_a_renew_url_is_not_new_url() {
+    fn promo_does_not_shadow_its_url() {
         let parsed = SubHeaders::parse(&headers(&[
             ("clod-promo", "sale"),
             ("clod-promo-url", "https://p.example/sale"),
-            ("clod-renew-url", "https://p.example/renew"),
         ]));
         assert_eq!(parsed.promo.as_deref(), Some("sale"));
         assert_eq!(parsed.promo_url.as_deref(), Some("https://p.example/sale"));
-        assert_eq!(parsed.new_url, None);
     }
 
     #[test]
@@ -936,20 +910,17 @@ mod tests {
             ("profile-web-page-url", "http://panel.example/home"),
             ("support-url", "http://help.example/chat"),
             ("clod-portal-url", "http://my.provider.example/cabinet"),
-            ("fallback-url", "http://backup.panel.example/sub/token"),
         ]));
         assert_eq!(parsed.profile_logo, None);
         assert_eq!(parsed.home, None);
         assert_eq!(parsed.support_url, None);
         assert_eq!(parsed.portal_url, None);
-        assert_eq!(parsed.fallback_url, None);
 
         let parsed = SubHeaders::parse(&headers(&[
             ("profile-logo", "https://cdn.example/logo.png"),
             ("profile-web-page-url", "https://panel.example/home"),
             ("support-url", "https://help.example/chat"),
             ("clod-portal-url", "https://my.provider.example/cabinet"),
-            ("fallback-url", "https://backup.panel.example/sub/token"),
         ]));
         assert_eq!(parsed.profile_logo.as_deref(), Some("https://cdn.example/logo.png"));
         assert_eq!(parsed.home.as_deref(), Some("https://panel.example/home"));
@@ -957,10 +928,6 @@ mod tests {
         assert_eq!(
             parsed.portal_url.as_deref(),
             Some("https://my.provider.example/cabinet")
-        );
-        assert_eq!(
-            parsed.fallback_url.as_deref(),
-            Some("https://backup.panel.example/sub/token")
         );
     }
 
@@ -1054,17 +1021,28 @@ mod tests {
     }
 
     #[test]
-    fn fallback_domain_is_kept_separate_from_fallback_url() {
-        let parsed = SubHeaders::parse(&headers(&[
-            ("fallback-url", "https://spare.example/sub"),
-            ("fallback-domain", "spare2.example:8443"),
-        ]));
-        assert_eq!(parsed.fallback_url.as_deref(), Some("https://spare.example/sub"));
-        assert_eq!(parsed.fallback_domain.as_deref(), Some("spare2.example:8443"));
-        assert_eq!(
-            swap_domain("https://old.example/sub?t=1", "spare2.example:8443").as_deref(),
-            Some("https://spare2.example:8443/sub?t=1")
-        );
+    fn the_spare_domain_is_a_bare_host_name_and_the_move_needs_it() {
+        for (raw, expected) in [
+            ("Spare.Example", Some("spare.example")),
+            (" spare-2.example ", Some("spare-2.example")),
+            ("https://spare.example", None),
+            ("spare.example:8443", None),
+            ("spare.example/sub", None),
+            ("user@spare.example", None),
+            ("spare.example?x=1", None),
+            (".spare.example", None),
+            ("spare..example", None),
+            ("", None),
+        ] {
+            let parsed = SubHeaders::parse(&headers(&[("clod-new-sub", raw), ("clod-move-sub", "TRUE")]));
+            assert_eq!(parsed.new_sub.as_deref(), expected, "{raw:?}");
+            assert_eq!(parsed.move_sub, expected.is_some(), "{raw:?}");
+        }
+
+        let parsed = SubHeaders::parse(&headers(&[("clod-new-sub", "spare.example"), ("clod-move-sub", "1")]));
+        assert!(!parsed.move_sub);
+        let parsed = SubHeaders::parse(&headers(&[("clod-move-sub", "true")]));
+        assert!(!parsed.move_sub);
     }
 
     #[test]
@@ -1175,46 +1153,17 @@ mod tests {
     }
 
     #[test]
-    fn swaps_host_and_port_keeping_path_and_query() {
+    fn the_spare_address_is_https_on_the_spare_domain_with_the_main_path_and_query() {
         assert_eq!(
-            swap_domain("https://old.example/sub/abc?token=1", "new.example").as_deref(),
+            spare_address("https://old.example/sub/abc?token=1", "new.example").as_deref(),
             Some("https://new.example/sub/abc?token=1")
         );
         assert_eq!(
-            swap_domain("https://old.example/sub", "new.example:8443").as_deref(),
-            Some("https://new.example:8443/sub")
-        );
-        assert_eq!(
-            swap_domain("https://old.example/sub", "https://new.example/ignored").as_deref(),
+            spare_address("http://user:pw@old.example:8080/sub#frag", "new.example").as_deref(),
             Some("https://new.example/sub")
         );
-        assert_eq!(swap_domain("https://old.example/sub", "   "), None);
-    }
-
-    #[test]
-    fn validates_new_url_candidates() {
-        assert_eq!(
-            validate_new_url("https://old.example/sub", "https://new.example/sub").as_deref(),
-            Some("https://new.example/sub")
-        );
-        assert_eq!(
-            validate_new_url("https://old.example/sub", "http://new.example/sub"),
-            None
-        );
-        assert_eq!(
-            validate_new_url("http://old.example/sub", "http://new.example/sub"),
-            None
-        );
-        assert!(validate_new_url("http://old.example/sub", "https://new.example/sub").is_some());
-        assert_eq!(validate_new_url("https://old.example/sub", "not a url"), None);
-        assert_eq!(
-            validate_new_url("https://old.example/sub", "ftp://new.example/sub"),
-            None
-        );
-        assert_eq!(
-            validate_new_url("https://old.example/sub", "https://old.example/sub"),
-            None
-        );
+        assert_eq!(spare_address("https://OLD.example/sub", "old.example"), None);
+        assert_eq!(spare_address("not a url", "new.example"), None);
     }
 
     #[test]

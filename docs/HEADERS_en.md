@@ -23,8 +23,8 @@ news and releases — the [Telegram group](https://t.me/+2lmP1yhxpCE3MDcy).
 
 ## What the client sends
 
-These go with every subscription download: when adding, when updating, to fallback addresses
-and to the new address during a move.
+These go with every subscription download: when adding, when updating and to the spare
+address.
 
 | Header | Value | Why |
 | --- | --- | --- |
@@ -63,13 +63,15 @@ Our own headers. The "Platforms" column shows which Clod Clash clients support t
 | `clod-ping` | `A/B` in ms, e.g. `150/300` | ping colour bounds | PC and Android |
 | `clod-disable-ping` | `true` only | a tick or a cross instead of milliseconds | PC and Android |
 | `clod-show-0hosts` | `true` or `false` | show the panel's placeholder nodes as they are | PC and Android |
+| `clod-new-sub` | a bare domain, e.g. `sub2.example.com` | spare subscription address: the same address on this domain over `https`, used when the main one does not answer | PC and Android |
+| `clod-move-sub` | only `true` | together with `clod-new-sub`: move the subscription to the spare address for good | PC and Android |
 | `clod-connect-mode` | `tun`, `proxy` or `both` | what the connect button turns on | PC only |
 | `clod-simple-mode` | `true` or `false` | simple or advanced view by default | PC only |
 | `clod-latency-style` | `bars`, `dot` or `number` | how the selected server's ping is drawn | PC only |
 | `clod-theme` | `accent=#RRGGBB; mode=light\|dark; background=https://…` | colour, theme and window background | PC only |
 
 Instead of `true` / `false` you can send `1` / `0`, `yes` / `no`, `on` / `off` (except
-`clod-disable-ping`, where only `true` works).
+`clod-disable-ping` and `clod-move-sub`, where only `true` works).
 
 No longer supported: `clod-device-remove` and `clod-hwid-limit`. On a device limit the client
 shows its own dialog with the subscription name.
@@ -211,27 +213,30 @@ client updates the subscription by itself — to show a renewal or the expired s
 that fails, it retries with pauses from 15 minutes to 5 hours. This works even without an update
 interval; an unchecked "Allow Auto Update" forbids it.
 
-### Subscription address: fallback and new
+### Spare subscription address: `clod-new-sub` and `clod-move-sub`
 
 | Header | Value | What it does |
 | --- | --- | --- |
-| `fallback-url` | a full `https://` address | a fallback address of the same panel |
-| `fallback-domain` | a host or `host:port` | the main address with the host swapped |
-| `new-url` | a full `https://` address | moves the subscription to a new address |
-| `new-domain` | a host or `host:port` | a move where only the host changes; path and parameters stay |
+| `clod-new-sub` | a bare domain, e.g. `sub2.example.com` | spare subscription address |
+| `clod-move-sub` | only `true` | together with `clod-new-sub`: move the subscription to the spare address for good |
 
-* **How the subscription loads.** The main address first: as set in the subscription properties →
-  through the client's core → through the system proxy. If no route produced a valid subscription
-  — `fallback-url`, then the main address with the host from `fallback-domain`, each the same way.
-  The main address itself is not changed.
-* Fallback addresses come from the previous successful answer, so there are none yet when the
+* **The spare address** is built from the main one: `https://`, the domain from `clod-new-sub`,
+  and the path and parameters of the main address. A scheme, port, path or login in the value is
+  not accepted — the client ignores such a header.
+* **When it is used.** The main address first: as set in the subscription properties → through
+  the client's core → through the system proxy. If no route produced a valid subscription — the
+  spare address, the same way. The main address itself is not changed.
+* **How long it is kept.** The domain comes from the last valid answer: the same one keeps it, a
+  different one replaces it, no header erases it. There is no spare address yet when the
   subscription is first added.
-* **Moving.** The new address is saved only if a trial download from it succeeds. If both
-  headers are valid, `new-url` wins. At most three moves in a row (protection against two panels
-  pointing at each other); the counter resets on an update without a move. A move is checked on
-  subscription updates, not when adding.
-* Fallback and new addresses get the same headers as the main one (including `x-hwid`), and their
-  answer is applied as the main one's.
+* **Moving.** With `clod-move-sub: true` the client downloads the subscription from the spare
+  address after an update. If that works, the spare address becomes the main one for good and the
+  user sees a notification. If it fails or the panel refuses the device, nothing changes and the
+  next update tries again. Server choice, mode and name are not reset by a move. The same headers
+  on both domains are safe: after the move the domain equals the main one and the header does
+  nothing.
+* The spare address gets the same headers as the main one (including `x-hwid`), and its answer is
+  applied as the main one's. On a device refusal the spare address is not tried.
 
 ### Device limit
 
@@ -247,7 +252,7 @@ interval; an unchecked "Allow Auto Update" forbids it.
 * On a refusal **the previous servers are removed** — otherwise an extra device would keep using
   them. If the panel sent placeholders, they take the servers' place; if it sent an empty body or
   a page, the client itself wipes addresses and keys from the previous servers (names and rules
-  stay). Other routes and fallback addresses are not tried on a refusal.
+  stay). Other routes and the spare address are not tried on a refusal.
 * `x-hwid-not-supported` beats `x-hwid-limit`: Remnawave sets the latter in both cases.
 * While the refusal holds, the subscription card shows the reason in a red line. The servers
   come back with the first successful update after renewing or freeing a slot.
@@ -270,7 +275,7 @@ active subscription. The user turns them all off with the "Subscription notifica
 
 * **Header names are case-insensitive:** `Profile-Title` and `profile-title` are the same.
 * **Storage prefixes are accepted.** Any prefix ending in `-` works: `x-amz-meta-profile-title`
-  reads as `profile-title`. An unrelated `renew-url` is not taken for `new-url`.
+  reads as `profile-title`.
 * **`base64:`** is decoded in any of four variants (standard, url-safe, padded and unpadded).
   Failed to decode — no header.
 * **Cyrillic without base64** (raw UTF-8 in the value) is read too, but a line break cannot be

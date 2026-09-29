@@ -10,7 +10,7 @@ use std::time::Duration;
 use app_lib::{
     config::{
         PrfItem,
-        sub_headers::{HwidState, SubHeaders},
+        sub_headers::{HwidState, SubHeaders, spare_address},
     },
     utils::network::{NetworkManager, ProxyType},
 };
@@ -34,8 +34,8 @@ const RESPONSE_HEADERS: &str = concat!(
     "announce: base64:0J/Qu9Cw0L3QvtCy0YvQtSDRgNCw0LHQvtGC0YsgMjAg0LDQstCz0YPRgdGC0LAK0YEgMDI6MDAg0LTQviAwNDowMCDQnNCh0Jo=\r\n",
     "subscription-refill-date: 1785340800\r\n",
     "profile-update-interval: 12\r\n",
-    "fallback-url: https://backup.example/sub\r\n",
-    "x-amz-meta-new-domain: moved.example:8443\r\n",
+    "x-amz-meta-clod-new-sub: moved.example\r\n",
+    "clod-move-sub: true\r\n",
     "x-hwid-active: true\r\n",
     "notify-traffic-percent: 50,90\r\n",
     "notify-expire-days: off\r\n",
@@ -131,17 +131,18 @@ async fn identity_headers_go_out_and_panel_headers_come_back() {
     );
     assert_eq!(parsed.refill_date, Some(1_785_340_800));
     assert_eq!(parsed.update_interval_hours, Some(12));
-    assert_eq!(parsed.fallback_url.as_deref(), Some("https://backup.example/sub"));
     assert_eq!(parsed.hwid_state, HwidState::Active);
     assert_eq!(parsed.notify_traffic_percent.as_deref(), Some(&[50, 90][..]));
     // `off` disables the reminders instead of falling back to the defaults.
     assert_eq!(parsed.notify_expire_days, Some(Vec::new()));
 
-    // The object-storage prefixed `new-domain` must be picked up and applied to
-    // the current URL, keeping path and query.
+    // The object-storage prefixed `clod-new-sub` must be picked up and applied
+    // to the current URL, keeping path and query.
+    assert_eq!(parsed.new_sub.as_deref(), Some("moved.example"));
+    assert!(parsed.move_sub);
     assert_eq!(
-        parsed.migration_target("https://old.example/sub/token?x=1").as_deref(),
-        Some("https://moved.example:8443/sub/token?x=1")
+        spare_address("https://old.example/sub/token?x=1", "moved.example").as_deref(),
+        Some("https://moved.example/sub/token?x=1")
     );
 
     assert_eq!(

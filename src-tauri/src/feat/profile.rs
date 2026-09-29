@@ -104,8 +104,7 @@ pub async fn switch_proxy_node(group_name: &str, proxy_name: &str) {
 struct UpdateTarget {
     url: String,
     option: Option<PrfOption>,
-    fallback_url: Option<String>,
-    fallback_domain: Option<String>,
+    new_sub: Option<String>,
 }
 
 async fn should_update_profile(uid: &String, ignore_auto_update: bool) -> Result<Option<UpdateTarget>> {
@@ -151,8 +150,7 @@ async fn should_update_profile(uid: &String, ignore_auto_update: bool) -> Result
         Ok(Some(UpdateTarget {
             url: item.url.clone().ok_or_else(|| anyhow::anyhow!("Profile URL is None"))?,
             option: item.option.clone(),
-            fallback_url: item.fallback_url.clone(),
-            fallback_domain: item.fallback_domain.clone(),
+            new_sub: item.new_sub.clone(),
         }))
     }
 }
@@ -198,7 +196,7 @@ enum Acceptance {
 /// обновляется, и если профиль текущий, та же проверенная сборка уходит ядру без
 /// второй проверки. Слепок в памяти для отката не нужен: до приёма на диске всё
 /// прежнее.
-async fn accept_the_download(uid: &String, mut item: PrfItem) -> Result<Acceptance> {
+async fn accept_the_download(uid: &String, mut item: PrfItem, move_to: Option<Move>) -> Result<Acceptance> {
     let disarming = item.device_refused == Some(true);
     if disarming && let Some(disarmed) = disarmed_current_profile(uid).await {
         item.file_data = Some(disarmed.into());
@@ -247,7 +245,6 @@ async fn accept_the_download(uid: &String, mut item: PrfItem) -> Result<Acceptan
         }
     };
 
-    let migrate_url = item.migrate_url.clone();
     let request_option = item.option.clone();
     if let Err(err) = promote_and_record(uid, item, &dir, &file, &candidate_path, disarming).await {
         let _ = tokio::fs::remove_file(&candidate_path).await;
@@ -261,7 +258,7 @@ async fn accept_the_download(uid: &String, mut item: PrfItem) -> Result<Acceptan
         Acceptance::Accepted { delivered: false }
     };
     // Уже без признака применения: здесь запрос в сеть.
-    follow_migration(uid, migrate_url, request_option).await;
+    follow_move(uid, move_to, request_option).await;
     Ok(acceptance)
 }
 
@@ -384,51 +381,37 @@ async fn mark_not_applied(uid: &String) {
     handle::Handle::refresh_profiles();
 }
 
-/// Панель попросила перейти на другой адрес подписки — проверить его и запомнить.
-async fn follow_migration(uid: &String, migrate_url: Option<String>, request_option: Option<PrfOption>) {
-    let Some(candidate) = migrate_url else {
+/// Панель велела перевести подписку на запасной адрес (`clod-move-sub`): адрес
+/// отдал годную подписку — он становится основным, иначе ждём следующего
+/// обновления. Отказ по устройству — не повод: основной даст тот же отказ.
+/// Основной адрес, пока шла проверка, сменил человек — перевод не применяется.
+async fn follow_move(uid: &String, move_to: Option<Move>, request_option: Option<PrfOption>) {
+    let Some(Move { from, to }) = move_to else {
         return;
     };
 
-    let hops = Config::profiles()
-        .await
-        .latest_arc()
-        .get_item(uid)
-        .map_or(0, |item| item.migration_hops.unwrap_or(0));
-    if hops >= sub_headers::MAX_MIGRATION_HOPS {
-        logging!(
-            warn,
-            Type::Config,
-            "Warning: [Обновление подписки] [clod] ignoring migration to {}: {} consecutive hops already followed",
-            mask_url(&candidate),
-            hops
-        );
-        return;
-    }
-
-    match PrfItem::from_url(&candidate, None, None, request_option.as_ref()).await {
-        Ok(_) => match crate::config::profiles::profiles_migrate_url_safe(uid, candidate.clone()).await {
-            Ok(()) => {
-                logging!(
-                    info,
-                    Type::Config,
-                    "[Обновление подписки] [clod] provider migrated the subscription URL to {}",
-                    mask_url(&candidate)
-                );
-                handle::Handle::notice_message("clod_sub::url_migrated", mask_url(&candidate));
-            }
-            Err(err) => logging!(
-                warn,
+    let verdict = match PrfItem::from_url_with_ladder(&to, None, None, request_option.as_ref()).await {
+        Ok(fetched) if fetched.item.device_refused != Some(true) => {
+            crate::config::profiles::profiles_move_url_safe(uid, from, to.clone()).await
+        }
+        Ok(_) => Err(anyhow::anyhow!("the panel refused this device")),
+        Err(err) => Err(err),
+    };
+    match verdict {
+        Ok(()) => {
+            logging!(
+                info,
                 Type::Config,
-                "Warning: [Обновление подписки] [clod] failed to persist the migrated subscription URL: {}",
-                mask_err(&err.to_string())
-            ),
-        },
+                "[Обновление подписки] [clod] provider moved the subscription to {}",
+                mask_url(&to)
+            );
+            handle::Handle::notice_message("clod_sub::url_migrated", mask_url(&to));
+        }
         Err(err) => logging!(
             warn,
             Type::Config,
-            "Warning: [Обновление подписки] [clod] candidate URL {} failed verification, keeping the current one: {}",
-            mask_url(&candidate),
+            "Warning: [Обновление подписки] [clod] spare address {} is not taken as the main one yet: {}",
+            mask_url(&to),
             mask_err(&err.to_string())
         ),
     }
@@ -439,6 +422,23 @@ async fn follow_migration(uid: &String, migrate_url: Option<String>, request_opt
 struct Downloaded {
     item: PrfItem,
     notice: Option<&'static str>,
+    /// Панель велела перевести подписку (`clod-move-sub`): с какого основного
+    /// адреса и на какой запасной.
+    move_to: Option<Move>,
+}
+
+/// Перевод подписки с основного адреса, с которого шло обновление, на запасной.
+struct Move {
+    from: String,
+    to: String,
+}
+
+/// Перевод, если панель его велела: запасной адрес строится от основного адреса
+/// этой подписки, с которого шло обновление, — не от адреса, откуда пришёл ответ.
+fn move_of(url: &String, item: &PrfItem) -> Option<Move> {
+    let domain = item.new_sub.as_deref().filter(|_| item.move_sub == Some(true))?;
+    let to = sub_headers::spare_address(url, domain)?;
+    Some(Move { from: url.clone(), to })
 }
 
 /// Подписка скачана не напрямую, а через прокси (Clash или системный).
@@ -449,8 +449,7 @@ async fn perform_profile_update(
     url: &String,
     opt: Option<&PrfOption>,
     option: Option<&PrfOption>,
-    fallback_url: Option<String>,
-    fallback_domain: Option<String>,
+    new_sub: Option<String>,
 ) -> Result<Downloaded> {
     logging!(
         info,
@@ -468,6 +467,7 @@ async fn perform_profile_update(
         Ok(fetched) => {
             logging!(info, Type::Config, "[Обновление подписки] Подписка скачана");
             return Ok(Downloaded {
+                move_to: move_of(url, &fetched.item),
                 item: fetched.item,
                 notice: fetched.detoured.then_some(UPDATED_VIA_PROXY),
             });
@@ -483,14 +483,7 @@ async fn perform_profile_update(
         }
     };
 
-    let spare_addresses = [
-        fallback_url.filter(|value| !value.trim().is_empty()),
-        fallback_domain
-            .filter(|value| !value.trim().is_empty())
-            .and_then(|domain| sub_headers::swap_domain(url, &domain)),
-    ];
-
-    for spare in spare_addresses.into_iter().flatten() {
+    if let Some(spare) = new_sub.and_then(|domain| sub_headers::spare_address(url, &domain)) {
         logging!(
             info,
             Type::Config,
@@ -506,6 +499,7 @@ async fn perform_profile_update(
                 item.from_fallback = Some(true);
                 drop(last_err);
                 return Ok(Downloaded {
+                    move_to: move_of(url, &item),
                     item,
                     notice: Some("clod_sub::fallback_used"),
                 });
@@ -719,13 +713,13 @@ async fn note_the_download(uid: &String) {
 
 /// Скачанная подписка принята или отвергнута — сказать об этом тем, кому положено.
 async fn settle_the_download(uid: &String, downloaded: Downloaded, trigger: UpdateTrigger) -> Result<UpdateOutcome> {
-    let Downloaded { item, notice } = downloaded;
+    let Downloaded { item, notice, move_to } = downloaded;
     let profile_name = Config::profiles()
         .await
         .data_arc()
         .get_name_by_uid(uid)
         .unwrap_or_else(|| String::from("UnKnown Profile"));
-    let acceptance = match Box::pin(accept_the_download(uid, item)).await {
+    let acceptance = match Box::pin(accept_the_download(uid, item, move_to)).await {
         Ok(acceptance) => acceptance,
         Err(err) => {
             mark_the_update(uid, true).await;
@@ -910,8 +904,7 @@ pub async fn update_profile(
             &target.url,
             target.option.as_ref(),
             option,
-            target.fallback_url,
-            target.fallback_domain,
+            target.new_sub,
         ))
         .await
     };
@@ -1249,5 +1242,37 @@ mod update_claim_tests {
             claim_update(&uid).is_some(),
             "после окончания обновления профиль снова свободен"
         );
+    }
+}
+
+#[allow(clippy::expect_used)]
+#[cfg(test)]
+mod move_tests {
+    use super::move_of;
+    use crate::config::PrfItem;
+    use smartstring::alias::String;
+
+    fn answer(new_sub: Option<&str>, move_sub: bool) -> PrfItem {
+        PrfItem {
+            new_sub: new_sub.map(Into::into),
+            move_sub: move_sub.then_some(true),
+            ..PrfItem::default()
+        }
+    }
+
+    #[test]
+    fn the_move_is_built_from_the_main_address_of_this_subscription() {
+        let main = String::from("https://main.example/sub/token?x=1");
+        let planned = move_of(&main, &answer(Some("spare.example"), true)).expect("move is ordered");
+        assert_eq!(planned.from, main);
+        assert_eq!(planned.to, "https://spare.example/sub/token?x=1");
+    }
+
+    #[test]
+    fn no_move_without_the_flag_the_domain_or_on_the_same_host() {
+        let main = String::from("https://main.example/sub");
+        assert!(move_of(&main, &answer(Some("spare.example"), false)).is_none());
+        assert!(move_of(&main, &answer(None, true)).is_none());
+        assert!(move_of(&main, &answer(Some("main.example"), true)).is_none());
     }
 }

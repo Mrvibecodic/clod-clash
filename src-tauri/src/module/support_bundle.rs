@@ -341,9 +341,9 @@ async fn subscription_section(out: &mut std::string::String) {
     );
     let _ = writeln!(
         out,
-        "- запасной адрес использован: {}, переездов подряд: {}",
-        yes_no(item.from_fallback.unwrap_or(false)),
-        item.migration_hops.unwrap_or(0)
+        "- запасной адрес: {}, использован: {}",
+        yes_no(item.new_sub.is_some()),
+        yes_no(item.from_fallback.unwrap_or(false))
     );
 }
 

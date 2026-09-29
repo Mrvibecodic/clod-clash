@@ -130,17 +130,10 @@ pub struct PrfItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub interval_locked: Option<bool>,
 
+    /// Запасной домен подписки из `clod-new-sub`; держится, пока панель его
+    /// присылает.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub fallback_url: Option<String>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub fallback_domain: Option<String>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub previous_urls: Option<Vec<String>>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub migration_hops: Option<u32>,
+    pub new_sub: Option<String>,
 
     /// Подписка скачалась, но ядро её не приняло, и на диск вернулся прежний
     /// профиль. Отметку времени откат намеренно не трогает (виновника отказа
@@ -179,8 +172,9 @@ pub struct PrfItem {
     #[serde(skip)]
     pub panel_interval: Option<u64>,
 
+    /// Панель велела перевести подписку на запасной адрес (`clod-move-sub`).
     #[serde(skip)]
-    pub migrate_url: Option<String>,
+    pub move_sub: Option<bool>,
 
     #[serde(skip)]
     pub device_refused: Option<bool>,
@@ -306,15 +300,6 @@ impl Route {
     }
 }
 
-/// Сколько маршрутов пробовать.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Reach {
-    /// Только выбранный в карточке подписки.
-    ChosenRoute,
-    /// Выбранный, а за ним остальные.
-    Ladder,
-}
-
 /// Системный прокси глазами лестницы.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SystemProxy {
@@ -369,25 +354,22 @@ async fn system_proxy_now() -> SystemProxy {
 
 /// Маршруты по порядку: выбранный первым, остальные за ним, каждый ровно один
 /// раз. Маршрут, физически совпадающий с другим, не повторяется.
-fn route_plan(chosen: Route, reach: Reach, system: SystemProxy) -> Vec<Route> {
+fn route_plan(chosen: Route, system: SystemProxy) -> Vec<Route> {
     let chosen = match (chosen, system) {
         (Route::System, SystemProxy::Absent) => Route::Direct,
         (Route::System, SystemProxy::OurCore) => Route::Core,
         (chosen, _) => chosen,
     };
     let is_distinct = |route: &Route| *route != Route::System || system == SystemProxy::Foreign;
-    match reach {
-        Reach::ChosenRoute => vec![chosen],
-        Reach::Ladder => std::iter::once(chosen)
-            .chain([Route::Direct, Route::Core, Route::System])
-            .filter(is_distinct)
-            .fold(Vec::new(), |mut plan, route| {
-                if !plan.contains(&route) {
-                    plan.push(route);
-                }
-                plan
-            }),
-    }
+    std::iter::once(chosen)
+        .chain([Route::Direct, Route::Core, Route::System])
+        .filter(is_distinct)
+        .fold(Vec::new(), |mut plan, route| {
+            if !plan.contains(&route) {
+                plan.push(route);
+            }
+            plan
+        })
 }
 
 /// Любой запрос может быть повторён с запасными корнями TLS
@@ -506,7 +488,7 @@ impl PrfItem {
         desc: Option<&String>,
         option: Option<&PrfOption>,
     ) -> Result<Fetched> {
-        Self::download(url, name, desc, option, Reach::Ladder).await
+        Self::download(url, name, desc, option).await
     }
 
     pub async fn from(item: &Self, file_data: Option<String>) -> Result<Self> {
@@ -632,24 +614,11 @@ impl PrfItem {
         })
     }
 
-    /// Скачать подписку только выбранным в карточке маршрутом.
-    pub async fn from_url(
-        url: &str,
-        name: Option<&String>,
-        desc: Option<&String>,
-        option: Option<&PrfOption>,
-    ) -> Result<Self> {
-        Self::download(url, name, desc, option, Reach::ChosenRoute)
-            .await
-            .map(|fetched| fetched.item)
-    }
-
     async fn download(
         url: &str,
         name: Option<&String>,
         desc: Option<&String>,
         option: Option<&PrfOption>,
-        reach: Reach,
     ) -> Result<Fetched> {
         let accept_invalid_certs = option.is_some_and(|o| o.danger_accept_invalid_certs.unwrap_or(false));
         let allow_auto_update = Some(allow_auto_update_enabled(option));
@@ -667,7 +636,7 @@ impl PrfItem {
         let identity_headers = sub_headers::build_identity_headers().await;
 
         let chosen = Route::chosen_in(option);
-        let plan = route_plan(chosen, reach, system_proxy_now().await);
+        let plan = route_plan(chosen, system_proxy_now().await);
         let first_route = plan.first().copied();
         let deadline = tokio::time::Instant::now() + address_budget(option, plan.len());
 
@@ -850,10 +819,7 @@ impl PrfItem {
             clock_skew: measured_skew,
             clock_skew_at: measured_skew.map(|_| answered_at),
             interval_locked,
-            fallback_url: sub.fallback_url.clone(),
-            fallback_domain: sub.fallback_domain.clone(),
-            previous_urls: None,
-            migration_hops: None,
+            new_sub: sub.new_sub.clone(),
             not_applied: None,
             update_failed: None,
             hwid_state: sub.hwid_state.as_str().map(Into::into),
@@ -865,7 +831,7 @@ impl PrfItem {
             simple_mode: sub.simple_mode,
             name_from_panel: named_by_panel.then_some(true),
             panel_interval,
-            migrate_url: sub.migration_target(url.as_str()),
+            move_sub: sub.move_sub.then_some(true),
             device_refused: refused_config.is_some().then_some(true),
             updated: Some(chrono::Local::now().timestamp() as usize),
             file_data: Some(data.into()),
@@ -1391,8 +1357,7 @@ impl PrfItem {
         } else if self.interval_locked == Some(true) {
             self.interval_locked = None;
         }
-        self.fallback_url = fresh.fallback_url.clone();
-        self.fallback_domain = fresh.fallback_domain.clone();
+        self.new_sub = fresh.new_sub.clone();
         self.hwid_state = fresh.hwid_state.clone();
         if fresh.clock_skew.is_some() {
             self.clock_skew = fresh.clock_skew;
@@ -1424,10 +1389,6 @@ impl PrfItem {
         }
         self.promo = fresh.promo.clone();
         self.promo_url = fresh.promo_url.clone();
-
-        if fresh.migrate_url.is_none() {
-            self.migration_hops = None;
-        }
     }
 
     pub fn display_name(&self) -> Option<String> {
@@ -1456,21 +1417,6 @@ impl PrfItem {
 
         let age = now - measured_at;
         if !(0..=MAX_AGE_SECS).contains(&age) { 0 } else { skew }
-    }
-
-    pub fn record_url_migration(&mut self, new_url: String) {
-        if let Some(previous) = self.url.take() {
-            let history = self.previous_urls.get_or_insert_with(Vec::new);
-            if !history.iter().any(|entry| entry == &previous) {
-                history.push(previous);
-            }
-            if history.len() > 10 {
-                let overflow = history.len() - 10;
-                history.drain(0..overflow);
-            }
-        }
-        self.url = Some(new_url);
-        self.migration_hops = Some(self.migration_hops.unwrap_or(0).saturating_add(1));
     }
 }
 
@@ -1987,7 +1933,7 @@ mod tests {
 
     #[test]
     fn every_route_is_tried_once_starting_with_the_chosen_one() {
-        use super::{Reach, Route, SystemProxy, route_plan};
+        use super::{Route, SystemProxy, route_plan};
 
         let cases = [
             (
@@ -2015,7 +1961,7 @@ mod tests {
         ];
         for (chosen, system, expected) in cases {
             assert_eq!(
-                route_plan(chosen, Reach::Ladder, system),
+                route_plan(chosen, system),
                 expected,
                 "{chosen:?}, системный прокси: {system:?}"
             );
@@ -2055,8 +2001,8 @@ mod tests {
     }
 
     #[test]
-    fn a_single_route_download_stays_on_the_chosen_route() {
-        use super::{Reach, Route, SystemProxy, route_plan};
+    fn the_chosen_route_leads_the_ladder_as_what_it_physically_is() {
+        use super::{Route, SystemProxy, route_plan};
 
         for (chosen, system, expected) in [
             (Route::Core, SystemProxy::Foreign, Route::Core),
@@ -2065,8 +2011,8 @@ mod tests {
             (Route::System, SystemProxy::OurCore, Route::Core),
         ] {
             assert_eq!(
-                route_plan(chosen, Reach::ChosenRoute, system),
-                vec![expected],
+                route_plan(chosen, system).first(),
+                Some(&expected),
                 "{chosen:?}, {system:?}"
             );
         }
