@@ -1093,7 +1093,11 @@ fn handle_menu_click(id: std::string::String) {
                     logging!(error, Type::Tray, "Failed to close all connections from tray: {err}");
                 }
             }
-            MenuIds::COPY_ENV => feat::copy_clash_env().await,
+            MenuIds::COPY_ENV => {
+                if let Err(err) = feat::copy_clash_env().await {
+                    logging!(error, Type::Tray, "{err}");
+                }
+            }
             MenuIds::CONF_DIR => {
                 let _ = cmd::open_app_dir().await;
             }

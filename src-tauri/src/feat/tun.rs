@@ -34,6 +34,7 @@ static WATCH_ANCHOR: Mutex<Option<String>> = Mutex::new(None);
 static LAST_FAILURE: Mutex<Option<&'static str>> = Mutex::new(None);
 static TRAFFIC_PROBE_RUNNING: AtomicBool = AtomicBool::new(false);
 static NO_TRAFFIC_NOTICED: AtomicBool = AtomicBool::new(false);
+static TRAFFIC_PROBE_EPOCH: AtomicU64 = AtomicU64::new(0);
 static LAST_REARM_AT: Mutex<Option<Instant>> = Mutex::new(None);
 static RECREATE_RUNNING: AtomicBool = AtomicBool::new(false);
 static BRING_BACK_RUNNING: AtomicBool = AtomicBool::new(false);
@@ -543,6 +544,15 @@ async fn probe_traffic(proxy_type: ProxyType) -> bool {
     }
 }
 
+/// Причину «трафик не идёт» могли только что убрать (починили брандмауэр).
+/// Идущая проба могла начать запросы до починки — её вердикт «не идёт» уже не
+/// публикуем; если трафика и правда нет, это скажет следующая проба.
+#[cfg(windows)]
+pub fn recheck_traffic() {
+    TRAFFIC_PROBE_EPOCH.fetch_add(1, Ordering::AcqRel);
+    spawn_traffic_probe();
+}
+
 fn spawn_traffic_probe() {
     if TRAFFIC_PROBE_RUNNING.swap(true, Ordering::AcqRel) {
         return;
@@ -551,6 +561,7 @@ fn spawn_traffic_probe() {
         scopeguard::defer! {
             TRAFFIC_PROBE_RUNNING.store(false, Ordering::Release);
         }
+        let epoch = TRAFFIC_PROBE_EPOCH.load(Ordering::Acquire);
         tokio::time::sleep(TRAFFIC_PROBE_DELAY).await;
         if !claimed().await {
             return;
@@ -573,6 +584,14 @@ fn spawn_traffic_probe() {
             return;
         }
         if !probe_traffic(ProxyType::Localhost).await {
+            return;
+        }
+        if TRAFFIC_PROBE_EPOCH.load(Ordering::Acquire) != epoch {
+            logging!(
+                info,
+                Type::Core,
+                "the traffic probe began before a fix and its verdict is stale; not reporting it"
+            );
             return;
         }
         let stack = runtime_stack().await.unwrap_or_else(|| String::from("unknown"));

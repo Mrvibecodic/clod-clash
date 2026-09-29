@@ -118,6 +118,7 @@
       "saved": "Saved successfully",
       "common": {
         "copySuccess": "تم النسخ بنجاح",
+        "copyFailed": "Failed to copy",
         "saveSuccess": "Configuration saved successfully",
         "saveFailed": "Failed to save configuration",
         "configLoadFailed": "تعذّرت قراءة ملف الإعدادات: {{files}}. حُفظت نسخة منه بجواره باسم «.unreadable-<التاريخ>» — لم يُفقد شيء. قد تبدو الاشتراكات والإعدادات وكأنها أُعيدت للوضع الأول؛ استعد الملف من تلك النسخة أو من نسخة احتياطية.",

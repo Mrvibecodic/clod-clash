@@ -118,6 +118,7 @@
       "saved": "Saved successfully",
       "common": {
         "copySuccess": "Salin Berhasil",
+        "copyFailed": "Failed to copy",
         "saveSuccess": "Configuration saved successfully",
         "saveFailed": "Failed to save configuration",
         "configLoadFailed": "Tidak dapat membaca berkas pengaturan: {{files}}. Salinannya disimpan di sebelahnya dengan nama \".unreadable-<tanggal>\" — tidak ada yang hilang. Langganan dan pengaturan mungkin tampak tereset; pulihkan berkas dari salinan itu atau dari cadangan.",

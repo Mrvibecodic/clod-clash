@@ -21,7 +21,8 @@ import { tunFailureKey, tunSetupNotice } from '@/utils/tun-notice'
 export const TunStatus = () => {
   const { t } = useTranslation()
   const { patchVerge } = useVerge()
-  const { tunDesired, tunBroken, tunFailure, mutateTunState } = useTunState()
+  const { tunDesired, tunBroken, tunNoTraffic, tunFailure, mutateTunState } =
+    useTunState()
   const { mutateSystemState } = useSystemState()
   const [busy, setBusy] = useState(false)
 
@@ -58,7 +59,7 @@ export const TunStatus = () => {
 
   const reasonKey = tunDesired ? tunFailureKey(tunFailure) : undefined
 
-  if (!tunBroken) return null
+  if (!tunBroken && !tunNoTraffic) return null
 
   return (
     <Stack
@@ -83,9 +84,11 @@ export const TunStatus = () => {
       >
         {t(reasonKey ?? 'home.components.tunStatus.broken')}
       </Typography>
-      <Button size="small" sx={{ flex: 'none' }} onClick={() => void fix()}>
-        {t('home.components.tunStatus.fix')}
-      </Button>
+      {tunBroken && (
+        <Button size="small" sx={{ flex: 'none' }} onClick={() => void fix()}>
+          {t('home.components.tunStatus.fix')}
+        </Button>
+      )}
     </Stack>
   )
 }

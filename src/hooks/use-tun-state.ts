@@ -30,6 +30,8 @@ export const useTunState = () => {
     tunCapable: tun.capable,
     tunNeedsRepair: tun.needs_repair,
     tunBroken: tun.desired && !tun.active,
+    // Туннель поднят, но проба не прошла: устройство есть, а трафик не идёт.
+    tunNoTraffic: tun.desired && tun.active && tun.failure === 'noTraffic',
     tunRuntimeStack: tun.runtime_stack ?? null,
     tunFailure: tun.failure ?? null,
     mutateTunState,

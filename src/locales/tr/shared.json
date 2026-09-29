@@ -118,6 +118,7 @@
       "saved": "Saved successfully",
       "common": {
         "copySuccess": "Kopyalama Başarılı",
+        "copyFailed": "Kopyalama başarısız",
         "saveSuccess": "Configuration saved successfully",
         "saveFailed": "Failed to save configuration",
         "configLoadFailed": "Bir ayar dosyası okunamadı: {{files}}. Yanına \".unreadable-<tarih>\" adıyla bir kopyası bırakıldı — hiçbir şey kaybolmadı. Abonelikler ve ayarlar sıfırlanmış görünebilir; dosyayı bu kopyadan veya bir yedekten geri yükleyin.",

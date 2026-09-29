@@ -944,6 +944,7 @@ export const translationKeys = [
   'shared.feedback.notifications.importSubscriptionSuccess',
   'shared.feedback.notifications.saved',
   'shared.feedback.notifications.common.copySuccess',
+  'shared.feedback.notifications.common.copyFailed',
   'shared.feedback.notifications.common.saveSuccess',
   'shared.feedback.notifications.common.saveFailed',
   'shared.feedback.notifications.common.configLoadFailed',

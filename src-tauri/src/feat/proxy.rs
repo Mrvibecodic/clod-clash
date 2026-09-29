@@ -202,7 +202,7 @@ pub async fn toggle_tun_mode(not_save_file: Option<bool>) -> bool {
     }
 }
 
-pub async fn copy_clash_env() {
+pub async fn copy_clash_env() -> anyhow::Result<()> {
     let env_ip = env::var("CLASH_VERGE_REV_IP").ok();
     let verge_cfg = Config::verge().await.latest_arc();
     let reachable = Config::reachable_proxy_host(verge_cfg.proxy_host.as_deref().unwrap_or(LOOPBACK_PROXY_HOST)).await;
@@ -237,15 +237,12 @@ pub async fn copy_clash_env() {
             format!("load-env {{ http_proxy: \"{http_proxy}\", https_proxy: \"{http_proxy}\" }}")
         }
         "fish" => format!("set -x http_proxy {http_proxy}; set -x https_proxy {http_proxy}"),
-        _ => {
-            logging!(error, Type::ProxyMode, "copy_clash_env: Invalid env type! {env_type}");
-            return;
-        }
+        _ => anyhow::bail!("copy_clash_env: invalid env type {env_type}"),
     };
 
-    if clipboard.write_text(&export_text).is_err() {
-        logging!(error, Type::ProxyMode, "Failed to write to clipboard");
-    }
+    clipboard
+        .write_text(&export_text)
+        .map_err(|err| anyhow::anyhow!("failed to write to clipboard: {err}"))
 }
 
 #[cfg(test)]

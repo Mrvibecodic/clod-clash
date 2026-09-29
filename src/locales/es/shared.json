@@ -118,6 +118,7 @@
       "saved": "Saved successfully",
       "common": {
         "copySuccess": "Copia exitosa",
+        "copyFailed": "Error al copiar",
         "saveSuccess": "Configuración aleatoria guardada correctamente",
         "saveFailed": "Failed to save configuration",
         "configLoadFailed": "No se pudo leer un archivo de configuración: {{files}}. Se guardó una copia junto a él con el nombre «.unreadable-<fecha>»: no se ha perdido nada. Las suscripciones y los ajustes pueden verse restablecidos; restaure el archivo desde esa copia o desde una copia de seguridad.",

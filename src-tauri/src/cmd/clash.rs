@@ -82,8 +82,9 @@ pub async fn get_core_ladder() -> CmdResult<CoreLadder> {
 
 #[tauri::command]
 pub async fn copy_clash_env() -> CmdResult {
-    feat::copy_clash_env().await;
-    Ok(())
+    feat::copy_clash_env().await.stringify_err_log(|err| {
+        logging!(error, Type::ProxyMode, "{err}");
+    })
 }
 
 #[tauri::command]

@@ -118,6 +118,7 @@
       "saved": "Saved successfully",
       "common": {
         "copySuccess": "Күчерелде",
+        "copyFailed": "Failed to copy",
         "saveSuccess": "Configuration saved successfully",
         "saveFailed": "Failed to save configuration",
         "configLoadFailed": "Көйләүләр файлын уку мөмкин булмады: {{files}}. Аның күчермәсе янәшәдә «.unreadable-<дата>» исеме белән калдырылды — бернәрсә дә югалмады. Язылулар һәм көйләүләр сброс ителгән кебек күренергә мөмкин; файлны шул күчермәдән яки резерв күчермәдән торгызыгыз.",

@@ -1475,6 +1475,7 @@ export interface TranslationResources {
         notifications: {
           common: {
             configLoadFailed: string
+            copyFailed: string
             copySuccess: string
             keysDiscarded: string
             logsExported: string

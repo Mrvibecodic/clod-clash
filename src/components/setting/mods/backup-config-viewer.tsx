@@ -25,7 +25,6 @@ import { isValidUrl } from '@/utils/network'
 
 interface BackupConfigViewerProps {
   onBackupSuccess: () => Promise<void>
-  onSaveSuccess: (signature?: string) => Promise<void>
   onRefresh: () => Promise<void>
   onInit: () => Promise<void>
   setLoading: (loading: boolean) => void
@@ -34,7 +33,6 @@ interface BackupConfigViewerProps {
 export const BackupConfigViewer = memo(
   ({
     onBackupSuccess,
-    onSaveSuccess,
     onRefresh,
     onInit,
     setLoading,
@@ -133,8 +131,9 @@ export const BackupConfigViewer = memo(
           false,
         )
         setWebdavStatus(signature, 'unknown')
+        // Проверку сервера после сохранения делает эффект автоинициализации:
+        // новые учётные данные меняют его зависимости.
         showNotice.success('settings.modals.backup.messages.webdavConfigSaved')
-        await onSaveSuccess(signature)
       } catch (error) {
         showNotice.error(
           'settings.modals.backup.messages.webdavConfigSaveFailed',

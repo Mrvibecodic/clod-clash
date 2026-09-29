@@ -99,6 +99,9 @@ mod firewall_platform {
 
     pub async fn repair() -> CmdResult<Option<bool>> {
         crate::core::firewall::allow_inbound().await.stringify_err()?;
+        // Правило могло быть причиной «TUN поднят, но трафик не идёт»: без
+        // новой пробы плашка об этом висела бы до следующего круга сторожа.
+        crate::feat::tun::recheck_traffic();
         Ok(crate::core::firewall::inbound_allowed().await)
     }
 }

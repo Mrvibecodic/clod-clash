@@ -1,5 +1,5 @@
 import { Box } from '@mui/material'
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseDialog, BaseLoadingOverlay } from '@/components/base'
@@ -28,10 +28,18 @@ export const BackupWebdavDialog = ({
   const [loading, setLoading] = useState(false)
   const webdavSignature = buildWebdavSignature(verge)
 
+  // Сохранение и проверка сервера после него идут параллельно: индикатор
+  // гаснет, когда закончилось последнее из дел.
+  const busyCountRef = useRef(0)
   const handleLoading = useCallback(
     (value: boolean) => {
-      setLoading(value)
-      setBusy?.(value)
+      busyCountRef.current = Math.max(
+        0,
+        busyCountRef.current + (value ? 1 : -1),
+      )
+      const busy = busyCountRef.current > 0
+      setLoading(busy)
+      setBusy?.(busy)
     },
     [setBusy],
   )
@@ -84,7 +92,6 @@ export const BackupWebdavDialog = ({
             await refreshSilently()
             onBackupSuccess?.()
           }}
-          onSaveSuccess={refreshSilently}
           onRefresh={refreshWebdav}
           onInit={refreshSilently}
         />
