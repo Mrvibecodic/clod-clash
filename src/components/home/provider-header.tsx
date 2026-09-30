@@ -1,6 +1,8 @@
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded'
 import {
+  alpha,
+  Badge,
   Box,
   CircularProgress,
   IconButton,
@@ -18,7 +20,11 @@ import { useProfiles } from '@/hooks/use-profiles'
 import { getProfileLogo, updateProfile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { profileDisplayName } from '@/utils/profile-name'
-import { clockSkew, toUnixSeconds } from '@/utils/subscription-status'
+import {
+  clockSkew,
+  missedUpdates,
+  toUnixSeconds,
+} from '@/utils/subscription-status'
 
 interface Props {
   profile: IProfileItem
@@ -99,6 +105,11 @@ export const ProviderHeader = ({ profile, showSettings }: Props) => {
   const expire = toUnixSeconds(profile.extra?.expire ?? 0)
   const countdown = useExpiryCountdown(expire, clockSkew(profile) ?? 0)
   const expired = expire > 0 && countdown.secondsLeft <= 0
+  // clod: два автообновления подряд не прошли — кнопка в янтарной обводке с точкой
+  const stale = !refreshing && missedUpdates(profile) >= 2
+  const refreshLabel = stale
+    ? t('profiles.components.profileItem.status.staleTitle')
+    : t('shared.actions.refresh')
 
   return (
     <Stack direction="row" sx={{ alignItems: 'center', gap: 1.5 }}>
@@ -135,10 +146,26 @@ export const ProviderHeader = ({ profile, showSettings }: Props) => {
       <IconButton
         onClick={() => void refresh()}
         disabled={refreshing}
-        aria-label={t('shared.actions.refresh')}
-        sx={{ borderRadius: '10px' }}
+        aria-label={refreshLabel}
+        title={stale ? refreshLabel : undefined}
+        sx={[
+          { borderRadius: '10px' },
+          stale &&
+            ((theme) => ({
+              color: 'warning.main',
+              border: `2px solid ${theme.palette.warning.main}`,
+              bgcolor: alpha(theme.palette.warning.main, 0.14),
+              '&:hover': { bgcolor: alpha(theme.palette.warning.main, 0.22) },
+            })),
+        ]}
       >
-        {refreshing ? <CircularProgress size={20} /> : <RefreshRoundedIcon />}
+        {refreshing ? (
+          <CircularProgress size={20} />
+        ) : (
+          <Badge variant="dot" color="warning" invisible={!stale}>
+            <RefreshRoundedIcon />
+          </Badge>
+        )}
       </IconButton>
       {showSettings ? (
         <IconButton

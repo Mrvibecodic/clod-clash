@@ -78,6 +78,9 @@
       },
       "status": {
         "lastUpdateFailed": "La última actualización falló",
+        "stale": "No actualizada · actualizada {{time}}",
+        "staleTitle": "Actualice la suscripción",
+        "staleDetail": "actualizada {{time}}, la actualización automática sigue fallando",
         "nextUp": "Próxima actualización",
         "noSchedule": "Sin programación",
         "unknown": "Desconocido",

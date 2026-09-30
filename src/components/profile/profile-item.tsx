@@ -17,6 +17,7 @@ import {
   Button,
   Chip,
   CircularProgress,
+  Divider,
   IconButton,
   keyframes,
   LinearProgress,
@@ -56,7 +57,11 @@ import type { TranslationKey } from '@/types/generated/i18n-keys'
 import { debugLog } from '@/utils/debug'
 import parseTraffic from '@/utils/parse-traffic'
 import { profileDisplayName } from '@/utils/profile-name'
-import { clockSkew, toUnixSeconds } from '@/utils/subscription-status'
+import {
+  clockSkew,
+  missedUpdates,
+  toUnixSeconds,
+} from '@/utils/subscription-status'
 
 import { ProfileBox } from './profile-box'
 import { ProxiesEditorViewer } from './proxies-editor-viewer'
@@ -306,6 +311,8 @@ const ProfileItemBase = (props: ProfileItemProps) => {
         : undefined
 
   const loading = loadingCache.has(itemData.uid)
+  const missed = missedUpdates(itemData)
+  const fetchedAgo = updated > 0 ? dayjs(updated * 1000).fromNow() : ''
 
   const [, forceRefresh] = useReducer((value: number) => value + 1, 0)
   const pageVisible = useVisibility()
@@ -657,6 +664,12 @@ const ProfileItemBase = (props: ProfileItemProps) => {
       <ProfileBox
         aria-selected={selected}
         dimmed={expired}
+        // clod: два автообновления подряд не прошли — янтарная рамка
+        sx={
+          missed >= 2
+            ? { borderColor: 'warning.main', borderWidth: '2px' }
+            : undefined
+        }
         onClick={(e) => {
           if (activating) {
             e.preventDefault()
@@ -957,6 +970,62 @@ const ProfileItemBase = (props: ProfileItemProps) => {
               {parseExpire(updated)}
             </span>
           </Box>
+        )}
+        {missed === 1 && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 1 }}>
+            <Box
+              sx={{
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                flexShrink: 0,
+                bgcolor: 'warning.main',
+              }}
+            />
+            <Typography noWrap sx={{ fontSize: 12, color: 'warning.main' }}>
+              {t('profiles.components.profileItem.status.stale', {
+                time: fetchedAgo,
+              })}
+            </Typography>
+          </Box>
+        )}
+        {missed >= 2 && (
+          <>
+            <Divider
+              sx={{
+                my: 1.25,
+                borderColor: (theme) => alpha(theme.palette.warning.main, 0.3),
+              }}
+            />
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography
+                  sx={{ fontSize: 14, fontWeight: 600, color: 'warning.main' }}
+                >
+                  {t('profiles.components.profileItem.status.staleTitle')}
+                </Typography>
+                <Typography sx={{ fontSize: 12 }}>
+                  {t('profiles.components.profileItem.status.staleDetail', {
+                    time: fetchedAgo,
+                  })}
+                </Typography>
+              </Box>
+              <Button
+                size="small"
+                variant="contained"
+                color="warning"
+                disabled={loading}
+                sx={{ flexShrink: 0 }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (activating || loading) return
+                  onUpdate(1)
+                }}
+              >
+                {t('profiles.components.menu.update')}
+              </Button>
+            </Box>
+          </>
         )}
         {hwidNotice && (
           <Typography

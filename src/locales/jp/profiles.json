@@ -78,6 +78,9 @@
       },
       "status": {
         "lastUpdateFailed": "前回の更新に失敗しました。",
+        "stale": "未更新 · 更新 {{time}}",
+        "staleTitle": "サブスクリプションを更新してください",
+        "staleDetail": "更新 {{time}}、自動更新が失敗し続けています",
         "nextUp": "次回の更新",
         "noSchedule": "予定がありません。",
         "unknown": "不明",

@@ -78,6 +78,9 @@
       },
       "status": {
         "lastUpdateFailed": "Son güncelleme başarısız oldu",
+        "stale": "Güncellenmedi · güncellendi {{time}}",
+        "staleTitle": "Aboneliği güncelleyin",
+        "staleDetail": "güncellendi {{time}}, otomatik güncelleme başarısız oluyor",
         "nextUp": "Sıradaki",
         "noSchedule": "Program yok",
         "unknown": "Bilinmiyor",

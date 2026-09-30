@@ -78,6 +78,9 @@
       },
       "status": {
         "lastUpdateFailed": "Last Update failed",
+        "stale": "به‌روز نشد · به‌روزرسانی {{time}}",
+        "staleTitle": "اشتراک را به‌روز کنید",
+        "staleDetail": "به‌روزرسانی {{time}}، به‌روزرسانی خودکار انجام نمی‌شود",
         "nextUp": "Next Up",
         "noSchedule": "No schedule",
         "unknown": "Unknown",

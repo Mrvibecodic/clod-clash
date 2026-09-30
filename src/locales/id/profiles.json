@@ -78,6 +78,9 @@
       },
       "status": {
         "lastUpdateFailed": "Last Update failed",
+        "stale": "Tidak diperbarui · diperbarui {{time}}",
+        "staleTitle": "Perbarui langganan",
+        "staleDetail": "diperbarui {{time}}, pembaruan otomatis terus gagal",
         "nextUp": "Next Up",
         "noSchedule": "No schedule",
         "unknown": "Unknown",

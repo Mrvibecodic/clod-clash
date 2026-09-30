@@ -78,6 +78,9 @@
       },
       "status": {
         "lastUpdateFailed": "Last Update failed",
+        "stale": "Not updated · updated {{time}}",
+        "staleTitle": "Update the subscription",
+        "staleDetail": "updated {{time}}, auto-update keeps failing",
         "nextUp": "Next Up",
         "noSchedule": "No schedule",
         "unknown": "Unknown",

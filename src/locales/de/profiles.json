@@ -78,6 +78,9 @@
       },
       "status": {
         "lastUpdateFailed": "Letzte Aktualisierung fehlgeschlagen",
+        "stale": "Nicht aktualisiert · aktualisiert {{time}}",
+        "staleTitle": "Abonnement aktualisieren",
+        "staleDetail": "aktualisiert {{time}}, die automatische Aktualisierung schlägt fehl",
         "nextUp": "Nächste Aktualisierung",
         "noSchedule": "Kein Zeitplan",
         "unknown": "Unbekannt",

@@ -47,6 +47,41 @@ export const clockSkew = (profile?: IProfileItem): number | undefined => {
   return age < 0 || age > SKEW_MAX_AGE_SECONDS ? undefined : skew
 }
 
+/** Запас на первый повтор после сбоя — как `FAILURE_RETRY` планировщика. */
+const FIRST_RETRY_SECONDS = 15 * 60
+
+/**
+ * clod: сколько автообновлений подписки подряд пропущено к `nowSeconds` (часы
+ * устройства): 0, 1 или 2 — больше не различаем. Счёт от последней удачной
+ * загрузки `updated`, от неё же планировщик ведёт расписание; удачная загрузка,
+ * своя или ручная, сдвигает её — и счёт обнуляется сам, хранить нечего.
+ * Пропуском считается только сбой: пока последняя попытка не провалилась
+ * (`update_failed`), ничего не пропущено — выключенный на выходные компьютер
+ * подписку не «пропускал», и при включении пометка не мигает, пока идёт
+ * обновление. Файловые подписки, подписки без автообновления и ни разу не
+ * загруженные — 0.
+ */
+export const missedUpdates = (
+  profile: IProfileItem | undefined,
+  nowSeconds = Date.now() / 1000,
+) => {
+  const interval = (profile?.option?.update_interval ?? 0) * 60
+  const updated = profile?.updated ?? 0
+  if (
+    !profile?.url ||
+    !profile.update_failed ||
+    profile.option?.allow_auto_update === false ||
+    interval <= 0 ||
+    updated <= 0
+  )
+    return 0
+
+  const missed = Math.floor(
+    (nowSeconds - updated - FIRST_RETRY_SECONDS) / interval,
+  )
+  return Math.min(2, Math.max(0, missed))
+}
+
 /** Сейчас по часам панели, в unix-секундах. */
 const panelNow = (profile?: IProfileItem) =>
   Date.now() / 1000 + (clockSkew(profile) ?? 0)

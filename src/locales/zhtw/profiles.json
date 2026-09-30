@@ -78,6 +78,9 @@
       },
       "status": {
         "lastUpdateFailed": "上次更新失敗",
+        "stale": "未更新 · 更新於 {{time}}",
+        "staleTitle": "請更新訂閱",
+        "staleDetail": "更新於 {{time}}，自動更新一直失敗",
         "nextUp": "下次更新",
         "noSchedule": "沒有排程",
         "unknown": "未知",

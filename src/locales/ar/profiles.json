@@ -78,6 +78,9 @@
       },
       "status": {
         "lastUpdateFailed": "Last Update failed",
+        "stale": "لم يُحدَّث · آخر تحديث {{time}}",
+        "staleTitle": "حدّث الاشتراك",
+        "staleDetail": "آخر تحديث {{time}}، التحديث التلقائي يفشل",
         "nextUp": "Next Up",
         "noSchedule": "No schedule",
         "unknown": "Unknown",

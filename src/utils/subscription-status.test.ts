@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 
 import {
   clockSkew,
+  missedUpdates,
   noServersReason,
   toUnixSeconds,
 } from './subscription-status.ts'
@@ -126,5 +127,51 @@ describe('noServersReason', () => {
       'provider',
     )
     assert.equal(noServersReason(undefined), 'provider')
+  })
+})
+
+describe('missedUpdates', () => {
+  const MIN = 60
+  const HOUR = 60 * MIN
+  const fetched = 1_000_000_000
+  const remote = (fields: Partial<IProfileItem> = {}) =>
+    profile({
+      url: 'https://example.com/sub',
+      updated: fetched,
+      update_failed: true,
+      option: { update_interval: 12 * 60 },
+      ...fields,
+    })
+
+  it('ничего не пропущено, пока не прошли интервал и первый повтор', () => {
+    const at = (seconds: number) => missedUpdates(remote(), fetched + seconds)
+    assert.equal(at(12 * HOUR), 0)
+    assert.equal(at(12 * HOUR + 15 * MIN - 1), 0)
+    assert.equal(at(12 * HOUR + 15 * MIN), 1)
+    assert.equal(at(24 * HOUR + 15 * MIN - 1), 1)
+    assert.equal(at(24 * HOUR + 15 * MIN), 2)
+    assert.equal(at(30 * 12 * HOUR), 2)
+  })
+
+  it('без провала последней попытки — не пропущено, сколько бы ни прошло', () => {
+    const later = fetched + 30 * 24 * HOUR
+    assert.equal(missedUpdates(remote({ update_failed: false }), later), 0)
+    assert.equal(missedUpdates(remote({ update_failed: undefined }), later), 0)
+  })
+
+  it('без автообновления, без загрузки и у файла — не пропущено', () => {
+    const later = fetched + 30 * 24 * HOUR
+    assert.equal(missedUpdates(remote({ option: {} }), later), 0)
+    assert.equal(
+      missedUpdates(
+        remote({ option: { update_interval: 60, allow_auto_update: false } }),
+        later,
+      ),
+      0,
+    )
+    assert.equal(missedUpdates(remote({ updated: 0 }), later), 0)
+    assert.equal(missedUpdates(remote({ url: undefined }), later), 0)
+    assert.equal(missedUpdates(remote(), fetched - HOUR), 0)
+    assert.equal(missedUpdates(undefined, later), 0)
   })
 })

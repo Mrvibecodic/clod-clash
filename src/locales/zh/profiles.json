@@ -78,6 +78,9 @@
       },
       "status": {
         "lastUpdateFailed": "上次更新失败",
+        "stale": "未更新 · 更新于 {{time}}",
+        "staleTitle": "请更新订阅",
+        "staleDetail": "更新于 {{time}}，自动更新一直失败",
         "nextUp": "下次更新",
         "noSchedule": "没有计划",
         "unknown": "未知",

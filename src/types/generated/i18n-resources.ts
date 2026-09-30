@@ -311,6 +311,9 @@ export interface TranslationResources {
             lastUpdateFailed: string
             nextUp: string
             noSchedule: string
+            stale: string
+            staleDetail: string
+            staleTitle: string
             unknown: string
           }
           tooltips: {
