@@ -6,7 +6,7 @@ mod state;
 pub use lifecycle::ExitStop;
 
 use anyhow::Result;
-use arc_swap::{ArcSwap, ArcSwapOption};
+use arc_swap::ArcSwapOption;
 use clash_verge_logger::AsyncLogger;
 use once_cell::sync::Lazy;
 use std::{
@@ -104,7 +104,14 @@ const fn a_death_we_asked_for(liveness: Liveness) -> bool {
 
 #[derive(Debug)]
 pub struct CoreManager {
-    state: ArcSwap<State>,
+    backend: AtomicU8,
+    liveness: AtomicU8,
+    child_sidecar: parking_lot::Mutex<Option<CommandChild>>,
+    sidecar_pid: AtomicU32,
+    /// Номер процесса ядра под службой — последний, о котором служба
+    /// сообщила. Нужен, чтобы доказать смерть ядра, когда сама служба
+    /// перестала отвечать.
+    service_core_pid: AtomicU32,
     last_update: ArcSwapOption<Instant>,
     #[cfg(target_os = "windows")]
     job_handle: ArcSwapOption<OwnedHandle>,
@@ -149,34 +156,14 @@ impl Drop for PlannedPause<'_> {
     }
 }
 
-#[derive(Debug)]
-struct State {
-    backend: AtomicU8,
-    liveness: AtomicU8,
-    child_sidecar: ArcSwapOption<CommandChild>,
-    sidecar_pid: AtomicU32,
-    /// Номер процесса ядра под службой — последний, о котором служба
-    /// сообщила. Нужен, чтобы доказать смерть ядра, когда сама служба
-    /// перестала отвечать.
-    service_core_pid: AtomicU32,
-}
-
-impl Default for State {
+impl Default for CoreManager {
     fn default() -> Self {
         Self {
             backend: AtomicU8::new(Backend::Sidecar as u8),
             liveness: AtomicU8::new(Liveness::Down as u8),
-            child_sidecar: ArcSwapOption::new(None),
+            child_sidecar: parking_lot::Mutex::new(None),
             sidecar_pid: AtomicU32::new(0),
             service_core_pid: AtomicU32::new(0),
-        }
-    }
-}
-
-impl Default for CoreManager {
-    fn default() -> Self {
-        Self {
-            state: ArcSwap::new(Arc::new(State::default())),
             last_update: ArcSwapOption::new(None),
             #[cfg(target_os = "windows")]
             job_handle: ArcSwapOption::new(None),
@@ -206,11 +193,11 @@ impl CoreManager {
     }
 
     pub(super) fn backend(&self) -> Backend {
-        Backend::from_u8(self.state.load().backend.load(Ordering::Acquire))
+        Backend::from_u8(self.backend.load(Ordering::Acquire))
     }
 
     fn liveness(&self) -> Liveness {
-        Liveness::from_u8(self.state.load().liveness.load(Ordering::Acquire))
+        Liveness::from_u8(self.liveness.load(Ordering::Acquire))
     }
 
     /// Остановка не удалась, и ядро прежнего запуска всё ещё живо.
@@ -233,22 +220,20 @@ impl CoreManager {
 
     /// Намерение: каким способом пойдёт следующий запуск.
     pub(super) fn aim_at(&self, backend: Backend) {
-        self.state.load().backend.store(backend as u8, Ordering::Release);
+        self.backend.store(backend as u8, Ordering::Release);
     }
 
     pub(super) fn note_core_is_up(&self, backend: Backend) {
-        let state = self.state.load();
-        state.backend.store(backend as u8, Ordering::Release);
-        state.liveness.store(Liveness::Up as u8, Ordering::Release);
+        self.backend.store(backend as u8, Ordering::Release);
+        self.liveness.store(Liveness::Up as u8, Ordering::Release);
     }
 
     /// Остановка объявляется только живому ядру: доказанно мёртвое (`Down`)
     /// от этого не оживает, а запоздалый выход мёртвого процесса и так
     /// отсекается режимом «не запущено».
     pub(super) fn note_stopping(&self) {
-        let state = self.state.load();
         for was in [Liveness::Up, Liveness::StopFailed] {
-            if state
+            if self
                 .liveness
                 .compare_exchange(was as u8, Liveness::Stopping as u8, Ordering::AcqRel, Ordering::Acquire)
                 .is_ok()
@@ -259,19 +244,14 @@ impl CoreManager {
     }
 
     pub(super) fn note_core_is_down(&self) {
-        self.state
-            .load()
-            .liveness
-            .store(Liveness::Down as u8, Ordering::Release);
+        self.liveness.store(Liveness::Down as u8, Ordering::Release);
     }
 
     /// Ядро, которое остановка не убила или не успела убить, снова рабочее:
     /// его смерть перестаёт числиться заказанной. `true` — было что вернуть.
     pub(super) fn take_the_core_back(&self) -> bool {
-        let state = self.state.load();
         [Liveness::Stopping, Liveness::StopFailed].into_iter().any(|was| {
-            state
-                .liveness
+            self.liveness
                 .compare_exchange(was as u8, Liveness::Up as u8, Ordering::AcqRel, Ordering::Acquire)
                 .is_ok()
         })
@@ -280,9 +260,8 @@ impl CoreManager {
     /// Отказ убийства применяется только к живому ядру: если оно тем временем
     /// умерло само, «не остановилось» было бы враньём.
     pub(super) fn note_stop_failed(&self) {
-        let state = self.state.load();
         for was in [Liveness::Stopping, Liveness::Up] {
-            if state
+            if self
                 .liveness
                 .compare_exchange(
                     was as u8,
@@ -315,9 +294,7 @@ impl CoreManager {
     }
 
     pub(super) fn claim_sidecar_exit(&self, pid: u32) -> bool {
-        self.state
-            .load()
-            .sidecar_pid
+        self.sidecar_pid
             .compare_exchange(pid, 0, Ordering::AcqRel, Ordering::Acquire)
             .is_ok()
     }
@@ -345,40 +322,33 @@ impl CoreManager {
     }
 
     pub fn sidecar_pid(&self) -> Option<u32> {
-        match self.state.load().sidecar_pid.load(Ordering::Acquire) {
+        match self.sidecar_pid.load(Ordering::Acquire) {
             0 => None,
             pid => Some(pid),
         }
     }
 
     pub(super) fn set_sidecar_pid(&self, pid: u32) {
-        self.state.load().sidecar_pid.store(pid, Ordering::Release);
+        self.sidecar_pid.store(pid, Ordering::Release);
     }
 
     pub(super) fn clear_sidecar_pid(&self) {
-        self.state.load().sidecar_pid.store(0, Ordering::Release);
+        self.sidecar_pid.store(0, Ordering::Release);
     }
 
     pub(super) fn service_core_pid(&self) -> Option<u32> {
-        match self.state.load().service_core_pid.load(Ordering::Acquire) {
+        match self.service_core_pid.load(Ordering::Acquire) {
             0 => None,
             pid => Some(pid),
         }
     }
 
     pub(super) fn remember_service_core_pid(&self, pid: Option<u32>) {
-        self.state
-            .load()
-            .service_core_pid
-            .store(pid.unwrap_or(0), Ordering::Release);
+        self.service_core_pid.store(pid.unwrap_or(0), Ordering::Release);
     }
 
     pub fn take_child_sidecar(&self) -> Option<CommandChild> {
-        self.state
-            .load()
-            .child_sidecar
-            .swap(None)
-            .and_then(|arc| Arc::try_unwrap(arc).ok())
+        self.child_sidecar.lock().take()
     }
 
     pub fn get_last_update(&self) -> Option<Arc<Instant>> {
@@ -386,8 +356,7 @@ impl CoreManager {
     }
 
     pub fn set_running_child_sidecar(&self, child: CommandChild) {
-        let state = self.state.load();
-        state.child_sidecar.store(Some(Arc::new(child)));
+        *self.child_sidecar.lock() = Some(child);
     }
 
     pub fn set_last_update(&self, time: Instant) {
