@@ -517,8 +517,8 @@
         "guardDuration": "مدة الحماية",
         "alwaysUseDefaultBypass": "إضافة التخطي الافتراضي",
         "enableBypassCheck": "التحقق من تنسيق تجاوز الوكيل",
-        "proxyBypass": "إعدادات تخطي الوكيل:",
-        "bypass": "التخطي الافتراضي:",
+        "proxyBypass": "إعدادات تخطي الوكيل",
+        "bypass": "التخطي الافتراضي",
         "pacScriptContent": "محتوى سكريبت PAC"
       },
       "tooltips": {

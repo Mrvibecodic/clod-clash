@@ -517,8 +517,8 @@
         "guardDuration": "Koruma Süresi",
         "alwaysUseDefaultBypass": "Varsayılan Baypası Ekle",
         "enableBypassCheck": "Proxy baypas biçimini doğrula",
-        "proxyBypass": "Vekil Baypas Ayarları: ",
-        "bypass": "Varsayılan Baypas: ",
+        "proxyBypass": "Vekil Baypas Ayarları",
+        "bypass": "Varsayılan Baypas",
         "pacScriptContent": "PAC Betiği İçeriği"
       },
       "tooltips": {

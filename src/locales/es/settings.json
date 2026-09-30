@@ -517,8 +517,8 @@
         "guardDuration": "Intervalo de guardia del proxy",
         "alwaysUseDefaultBypass": "Añadir la lista de omisión predeterminada",
         "enableBypassCheck": "Validar formato de bypass de proxy",
-        "proxyBypass": "Configuración de omisión del proxy: ",
-        "bypass": "Omisión predeterminada: ",
+        "proxyBypass": "Configuración de omisión del proxy",
+        "bypass": "Omisión predeterminada",
         "pacScriptContent": "Contenido del script PAC"
       },
       "tooltips": {

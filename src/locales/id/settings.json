@@ -517,8 +517,8 @@
         "guardDuration": "Durasi Penjagaan",
         "alwaysUseDefaultBypass": "Tambahkan Bypass Default",
         "enableBypassCheck": "Validasi format bypass proksi",
-        "proxyBypass": "Pengaturan Bypass Proksi: ",
-        "bypass": "Bypass Default: ",
+        "proxyBypass": "Pengaturan Bypass Proksi",
+        "bypass": "Bypass Default",
         "pacScriptContent": "Konten Skrip PAC"
       },
       "tooltips": {

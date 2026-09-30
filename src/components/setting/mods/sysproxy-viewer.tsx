@@ -556,9 +556,11 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
 
         {!value.pac && (value.use_default || !value.bypass) && (
           <>
-            <ListItemText
-              primary={t('settings.modals.sysproxy.fields.bypass')}
-            />
+            <ListItem sx={{ padding: '5px 2px' }}>
+              <ListItemText
+                primary={t('settings.modals.sysproxy.fields.bypass')}
+              />
+            </ListItem>
             <Box sx={{ padding: '0 2px 5px' }}>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                 {splitBypass(defaultBypass()).map((item) => (

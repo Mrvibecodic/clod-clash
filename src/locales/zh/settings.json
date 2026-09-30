@@ -517,8 +517,8 @@
         "guardDuration": "代理守卫间隔",
         "alwaysUseDefaultBypass": "追加默认绕过",
         "enableBypassCheck": "验证代理绕过格式",
-        "proxyBypass": "代理绕过设置：",
-        "bypass": "默认绕过：",
+        "proxyBypass": "代理绕过设置",
+        "bypass": "默认绕过",
         "pacScriptContent": "PAC 脚本内容"
       },
       "tooltips": {

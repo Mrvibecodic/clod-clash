@@ -517,8 +517,8 @@
         "guardDuration": "Guard Duration",
         "alwaysUseDefaultBypass": "Add Default Bypass",
         "enableBypassCheck": "Validate Proxy Bypass Format",
-        "proxyBypass": "Proxy Bypass Settings: ",
-        "bypass": "Default Bypass: ",
+        "proxyBypass": "Proxy Bypass Settings",
+        "bypass": "Default Bypass",
         "pacScriptContent": "PAC Script Content"
       },
       "tooltips": {

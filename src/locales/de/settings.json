@@ -517,8 +517,8 @@
         "guardDuration": "Proxy-Schutz-Intervall",
         "alwaysUseDefaultBypass": "Standard-Umgehung hinzufügen",
         "enableBypassCheck": "Proxy-Bypass-Format prüfen",
-        "proxyBypass": "Proxy-Umgehungseinstellungen: ",
-        "bypass": "Standard-Umgehung: ",
+        "proxyBypass": "Proxy-Umgehungseinstellungen",
+        "bypass": "Standard-Umgehung",
         "pacScriptContent": "PAC-Skriptinhalt"
       },
       "tooltips": {

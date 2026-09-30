@@ -521,8 +521,8 @@
         "guardDuration": "Период защиты",
         "alwaysUseDefaultBypass": "Добавлять стандартный обход",
         "enableBypassCheck": "Проверять формат обхода прокси",
-        "proxyBypass": "Игнорируемые адреса: ",
-        "bypass": "Стандартный обход: ",
+        "proxyBypass": "Игнорируемые адреса",
+        "bypass": "Стандартный обход",
         "pacScriptContent": "Содержимое PAC-скрипта"
       },
       "tooltips": {

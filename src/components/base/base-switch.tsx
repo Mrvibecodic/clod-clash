@@ -14,6 +14,15 @@ export const Switch = styled((props: SwitchProps) => (
     width: 40,
     height: 22,
     padding: 0,
+    // У стандартного переключателя MUI вокруг дорожки поле 12px, и edge
+    // выносит его на -8px, чтобы дорожка встала вровень с краем. У нашего
+    // поля нет — вынос сдвигал переключатель за край строки.
+    '&.MuiSwitch-edgeStart': {
+      marginLeft: 0,
+    },
+    '&.MuiSwitch-edgeEnd': {
+      marginRight: 0,
+    },
     '& .MuiSwitch-switchBase': {
       padding: 2,
       '&.Mui-checked': {

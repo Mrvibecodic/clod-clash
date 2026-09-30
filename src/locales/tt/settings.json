@@ -517,8 +517,8 @@
         "guardDuration": "Саклау вакыты",
         "alwaysUseDefaultBypass": "Төп Bypass-ны өстәү",
         "enableBypassCheck": "Прокси урап узу форматын тикшерү",
-        "proxyBypass": "Проксины әйләнеп узу:",
-        "bypass": "Төп әйләнеп узу:",
+        "proxyBypass": "Проксины әйләнеп узу",
+        "bypass": "Төп әйләнеп узу",
         "pacScriptContent": "PAC скрипты эчтәлеге"
       },
       "tooltips": {

@@ -517,8 +517,8 @@
         "guardDuration": "مدت محافظت",
         "alwaysUseDefaultBypass": "افزودن دور زدن پیش‌فرض",
         "enableBypassCheck": "اعتبارسنجی قالب دور زدن پراکسی",
-        "proxyBypass": "دور زدن پراکسی: ",
-        "bypass": "دور زدن پیش‌فرض: ",
+        "proxyBypass": "دور زدن پراکسی",
+        "bypass": "دور زدن پیش‌فرض",
         "pacScriptContent": "محتوای اسکریپت PAC"
       },
       "tooltips": {
