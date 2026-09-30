@@ -29,6 +29,18 @@ networksetup -setdnsservers "$hardware_port" $original_dns
 code=$?
 
 if [ "$code" -ne 0 ]; then
+    # Службы, на которой стоит подмена, больше нет (сбросили сеть, удалили
+    # адаптер) — вместе с ней ушла и подмена, возвращать некуда. Без этого
+    # запись висела бы вечно, а следующая подмена ложилась бы мимо неё.
+    # Список — только текущего размещения сети (Location): служба, оставшаяся
+    # в другом размещении, тоже считается ушедшей.
+    # Не удалось прочитать список — не знаем, поэтому запись держим.
+    services=$(networksetup -listallnetworkservices) || exit "$code"
+    if ! sed 's/^\*//' <<<"$services" | grep -Fxq -- "$hardware_port"; then
+        echo "network service $hardware_port is gone; nothing to restore"
+        rm -f "$state_file"
+        exit 0
+    fi
     exit "$code"
 fi
 

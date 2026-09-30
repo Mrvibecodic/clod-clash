@@ -208,8 +208,8 @@ pub async fn restore_public_dns_before_exit(budget: Duration) -> bool {
 }
 
 async fn run_dns_script(script_name: &str, args: Vec<String>, what: &str, limit: Duration) -> bool {
-    use crate::{core::handle, utils::dirs};
-    use tauri_plugin_shell::{ShellExt as _, process::CommandEvent};
+    use crate::utils::dirs;
+    use tokio::io::AsyncReadExt as _;
 
     logging!(info, Type::Config, "try to {what}");
     let resource_dir = match dirs::app_resources_dir() {
@@ -225,47 +225,82 @@ async fn run_dns_script(script_name: &str, args: Vec<String>, what: &str, limit:
         return false;
     }
 
-    let mut command_args = Vec::with_capacity(args.len() + 1);
-    command_args.push(script.to_string_lossy().into_owned());
-    command_args.extend(args);
-
-    let spawned = handle::Handle::app_handle()
-        .shell()
-        .command("bash")
-        .args(command_args)
-        .current_dir(resource_dir)
-        .spawn();
-    let (mut events, child) = match spawned {
-        Ok(spawned) => spawned,
+    // Своя группа процессов: по таймауту снимается вся — и bash, и зависший в
+    // нём networksetup. Иначе networksetup доделывал бы подмену или возврат
+    // уже после того, как замок отпущен и решение принято.
+    let mut child = match tokio::process::Command::new("bash")
+        .arg(&script)
+        .args(args)
+        .current_dir(&resource_dir)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .process_group(0)
+        .spawn()
+    {
+        Ok(child) => child,
         Err(err) => {
             logging!(error, Type::Config, "{what} failed: {err}");
             return false;
         }
     };
+    // Номер группы — сразу: после выхода bash `child.id()` его уже не отдаст,
+    // а держать трубу может оставшийся в группе процесс.
+    let group = child.id().and_then(|pid| libc::pid_t::try_from(pid).ok());
 
-    let terminated = async {
-        while let Some(event) = events.recv().await {
-            if let CommandEvent::Terminated(payload) = event {
-                return payload.code;
+    // Трубы читаются вместе с ожиданием и под тем же сроком: болтливый скрипт
+    // не встанет на полной трубе, а чужой держатель трубы не продлит замок.
+    let (mut out, mut err) = (child.stdout.take(), child.stderr.take());
+    let (mut said, mut said_err) = (Vec::new(), Vec::new());
+    let finished = tokio::time::timeout(limit, async {
+        let read_out = async {
+            if let Some(out) = out.as_mut() {
+                let _ = out.read_to_end(&mut said).await;
             }
-        }
-        None
-    };
+        };
+        let read_err = async {
+            if let Some(err) = err.as_mut() {
+                let _ = err.read_to_end(&mut said_err).await;
+            }
+        };
+        tokio::join!(child.wait(), read_out, read_err).0
+    })
+    .await;
 
-    match tokio::time::timeout(limit, terminated).await {
+    // Что скрипт сказал о причине: отказ networksetup, исчезнувшая служба,
+    // неудачная запись файла — и на каком шаге он встал, если не уложился.
+    said.extend(said_err);
+    for line in std::string::String::from_utf8_lossy(&said).lines() {
+        logging!(warn, Type::Config, "{what}: {line}");
+    }
+
+    match finished {
         Err(_) => {
             logging!(error, Type::Config, "{what} timed out");
-            if let Err(err) = child.kill() {
-                logging!(error, Type::Config, "{what} could not be stopped: {err}");
+            if let Some(group) = group
+                // SAFETY: сигнал группе, которую процесс возглавляет сам (`process_group(0)`).
+                && unsafe { libc::killpg(group, libc::SIGKILL) } != 0
+            {
+                logging!(
+                    error,
+                    Type::Config,
+                    "{what} could not be stopped: {}",
+                    std::io::Error::last_os_error()
+                );
             }
+            let _ = child.wait().await;
             false
         }
-        Ok(Some(0)) => {
+        Ok(Ok(status)) if status.success() => {
             logging!(info, Type::Config, "{what} successfully");
             true
         }
-        Ok(code) => {
-            logging!(error, Type::Config, "{what} failed: {}", code.unwrap_or(-1));
+        Ok(Ok(status)) => {
+            logging!(error, Type::Config, "{what} failed: {status}");
+            false
+        }
+        Ok(Err(err)) => {
+            logging!(error, Type::Config, "{what} failed: {err}");
             false
         }
     }

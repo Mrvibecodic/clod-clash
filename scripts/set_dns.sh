@@ -39,45 +39,47 @@ hardware_port=$(networksetup -listnetworkserviceorder | awk -v dev="$nic" '
 
 [ -z "$hardware_port" ] && echo "cannot resolve the network service for $nic" && exit 1
 
-state_written_now=false
-if [ ! -f "$state_file" ]; then
-    original_dns=$(networksetup -getdnsservers "$hardware_port")
+# Запись описывает ровно ту службу, на которой стоит подмена. Старая запись
+# (прошлый запуск не вернул DNS, или прошлая попытка оборвалась) сперва
+# возвращается на свою службу: иначе подмена легла бы на текущую без записи,
+# и её прежние адреса не вернул бы уже никто.
+bash "$(dirname "$0")/unset_dns.sh" "$state_file" || exit $?
 
-    is_valid_dns=false
-    for ip in $original_dns; do
-        ip=$(echo "$ip" | tr -d '[:space:]')
-        if [ -n "$ip" ] && (is_valid_ipv4 "$ip" || is_valid_ipv6 "$ip"); then
-            is_valid_dns=true
-            break
-        fi
-    done
+original_dns=$(networksetup -getdnsservers "$hardware_port")
 
-    tmp_file="$state_file.tmp"
-    if ! {
-        echo "$hardware_port"
-        if [ "$is_valid_dns" = false ]; then
-            echo "empty"
-        else
-            echo "$original_dns"
-        fi
-    } >"$tmp_file"; then
-        rm -f "$tmp_file"
-        echo "cannot write the original DNS for $hardware_port"
-        exit 1
+is_valid_dns=false
+for ip in $original_dns; do
+    ip=$(echo "$ip" | tr -d '[:space:]')
+    if [ -n "$ip" ] && (is_valid_ipv4 "$ip" || is_valid_ipv6 "$ip"); then
+        is_valid_dns=true
+        break
     fi
-    if ! mv -f "$tmp_file" "$state_file"; then
-        rm -f "$tmp_file"
-        echo "cannot record the original DNS for $hardware_port"
-        exit 1
+done
+
+tmp_file="$state_file.tmp"
+if ! {
+    echo "$hardware_port"
+    if [ "$is_valid_dns" = false ]; then
+        echo "empty"
+    else
+        echo "$original_dns"
     fi
-    state_written_now=true
+} >"$tmp_file"; then
+    rm -f "$tmp_file"
+    echo "cannot write the original DNS for $hardware_port"
+    exit 1
+fi
+if ! mv -f "$tmp_file" "$state_file"; then
+    rm -f "$tmp_file"
+    echo "cannot record the original DNS for $hardware_port"
+    exit 1
 fi
 
 networksetup -setdnsservers "$hardware_port" "$1"
 code=$?
 
 if [ "$code" -ne 0 ]; then
-    [ "$state_written_now" = true ] && rm -f "$state_file"
+    rm -f "$state_file"
     exit "$code"
 fi
 
