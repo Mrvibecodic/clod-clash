@@ -8,6 +8,108 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.1.11
+
+<!-- lang:en -->
+
+### Added
+
+- Second built-in core: Clod Core (our Mihomo fork with patches) next to stock Mihomo. Switching the core first checks the config with the new one; if it is rejected or does not start, the previous core stays. The managed (downloaded) core is removed
+- Subscription headers: `clod-ping` (ping color thresholds), `clod-lock-mode: lock` (permanent routing mode lock), `clod-announce` over the panel's `announce`, `clod-new-sub` (spare subscription domain) and `clod-move-sub` (move the subscription to it). `fallback-url`, `fallback-domain`, `new-url`, `new-domain`, `clod-hwid-limit` and `clod-device-remove` are no longer read
+- Routing mode comes from the subscription; a mode chosen by hand is remembered per subscription
+- Favorites star on the Proxies page; favorite nodes come first in a group; one latency color scale on every screen (200/400 ms as on Android)
+- MIPS TUN stack in the "TUN mode" dialog and from the subscription template; "Auto" without a stack in the subscription means gVisor
+- A subscription is reloaded shortly after its expiry date from the panel, so stubs or a renewal show up at once
+- Option "Close connections when picking a server on the Home page"; a hint under "Secure connection"
+- The DNS page stores only what differs from the subscription; merge and script chains may change `tun` and `dns` keys the app does not own itself
+- Notifications instead of log lines: the port is held by another copy of our core and nobody will move it; the system proxy watchdog stood down after repeated refusals; the "TUN is up but passes no traffic" strip on the Home page
+- macOS: the app bundle is signed without a certificate; installation with a single command, documented. Switching the primary network service re-applies the system proxy within a second
+
+### Changed
+
+- A config the core rejects at startup is no longer replaced by an empty default: the core does not start and the reason is shown; the first accepted config lifts it
+- A subscription is checked by the core before it is written to disk; the previous file is kept as `.prev`. Download tries the route chosen in the card first, then the others, each once; a spare domain from `clod-new-sub` is tried only when the main address answers on none of them
+- Config changes wait in one queue instead of failing with "busy"; the core config check is limited to 180 s; the core is not reloaded with an unchanged config
+- A failed scheduled subscription update is retried from 15 min up to 5 h; one update per subscription at a time; the queue is re-armed by the wall clock after sleep
+- When the panel rejects the device, the previous servers are removed and mirrors are not polled; the device limit screen names the subscription
+- Your own subscription name is stored separately from the panel's name; the update interval from the panel applies on every update
+- Latency is measured per node instead of the core's group test; groups are tested in parallel with a shared load cap; no numbers in the tray
+- With TUN on, no rights and no service, the core starts right away without TUN; TUN returns by itself once the service appears
+- System proxy uses an external host only when LAN sharing is on, otherwise 127.0.0.1; the PAC address always stays on the loopback
+- Update check goes through the app's own core first, then directly bypassing any proxy; the pre-release channel reads only its own manifest. The update splash is its own page
+- "Fit window to content" is turned off only when you drag the window height yourself (the system reports it); Snap and tiling do not count; the window width is remembered
+- Core "Update" where the app folder is writable (usually macOS) downloads and swaps the file itself with rollback; Windows with the service warns about a reboot for stock Mihomo or an older Clod Core
+- Old installs: the connection method written by the previous template is cleared once, so `clod-connect-mode` from the subscription applies
+- Removed non-working settings: start page, backup on change, theme CSS, diagnostics export, the service availability test page; the window always opens on Home
+- Tauri 2.12; a proxy chain is stored with its subscription; each subscription keeps its own DNS page file; lower background load on the core
+- Documentation updated to match the code, with a page on the `clod-*` headers
+
+### Fixed
+
+- Home page shows the real connection state, ping, subscription expiry and mode; the selected node keeps its ping fresh while the window is on screen
+- Notifications that arrive while the window is hidden wait for it to be shown
+- Applying the current subscription restores the node selection; the first added subscription is applied at once; changing a subscription address in the card no longer resets anything
+- Subscription editors no longer close or lose text when the core rejects a change; the add dialog stays open while the subscription downloads
+- Repeating the already active mode no longer drops connections; mode switch from the tray during a config apply waits instead of racing
+- Traffic speed and the connections table reset when the core goes away; the Log page shows what the core writes and remembers a clear; Connections page shows the real state
+- Backup schedule counts from the last backup and is not reset by unrelated saves; one WebDAV check after saving credentials
+- "Copy environment variables" reports a failure instead of a false "Copied"; the system proxy dialog waits for the settings to be saved and keeps what was entered on an error
+- Support report names the running core, shows the real proxy host, includes core connection errors with addresses stripped
+- Windows: window subscriptions are closed before the core stops at session end; after the firewall fix the traffic probe runs again at once
+- Settings dialogs validate input; update, backup and action errors are shown; "Update all" reports which providers failed
+- Switches sit flush with the other row elements; the "Current system proxy" block has separate labels and values
+
+<!-- lang:ru -->
+
+### Добавлено
+
+- Второе встроенное ядро — Clod Core (наш форк Mihomo с патчами) рядом со стоковым Mihomo. Смена ядра сначала проверяет конфиг новым ядром; если оно конфиг отвергло или не поднялось, остаётся прежнее. Управляемое (скачиваемое) ядро убрано
+- Заголовки подписки: `clod-ping` (границы цвета пинга), `clod-lock-mode: lock` (постоянный замок режима), `clod-announce` важнее панельного `announce`, `clod-new-sub` (запасной домен подписки) и `clod-move-sub` (перевод подписки на него). `fallback-url`, `fallback-domain`, `new-url`, `new-domain`, `clod-hwid-limit` и `clod-device-remove` больше не читаются
+- Режим маршрутизации берётся из подписки; выбранный руками режим помнится для каждой подписки
+- Звёздочка избранного на странице «Прокси»; избранные узлы стоят в группе первыми; одна шкала цвета задержки на всех экранах (200/400 мс, как на Android)
+- Стек TUN MIPS в диалоге «Режим TUN» и из шаблона подписки; «Авто» без стека в подписке означает gVisor
+- Подписка загружается заново вскоре после истечения срока из панели — заглушки или продление видны сразу
+- Галка «Закрывать соединения при выборе сервера на главной»; подсказка под «Защищённое соединение»
+- Страница DNS хранит только отличия от подписки; цепочки merge и script могут менять ключи `tun` и `dns`, которыми приложение само не владеет
+- Уведомления вместо строк в журнале: порт держит другая копия нашего ядра и убрать её некому; сторож системного прокси отступил после повторных отказов; плашка «TUN поднят, но трафик не идёт» на главной
+- macOS: пакет приложения подписывается без сертификата; установка одной командой, описана. Смена первичной сетевой службы переприменяет системный прокси в течение секунды
+
+### Изменено
+
+- Конфиг, отвергнутый ядром при запуске, больше не подменяется пустым умолчанием: ядро не запускается, причина показывается; первый принятый конфиг снимает отказ
+- Подписка проверяется ядром до записи на диск; прежний файл сохраняется как `.prev`. Загрузка идёт сначала выбранным в карточке маршрутом, потом остальными, каждым один раз; запасной домен из `clod-new-sub` пробуется, только когда основной адрес не ответил ни одним
+- Изменения конфига ждут в одной очереди, а не получают отказ «занято»; проверка конфига ядром ограничена 180 с; ядро не перезагружается тем же конфигом
+- Неудачное плановое обновление подписки повторяется с паузой от 15 мин до 5 ч; одно обновление подписки за раз; после сна очередь перевзводится по настенным часам
+- При отказе панели по устройству прежние серверы убираются, зеркала не опрашиваются; экран лимита устройств называет подписку
+- Своё название подписки хранится отдельно от названия панели; интервал обновления от панели применяется при каждом обновлении
+- Задержка меряется по узлам, а не групповым тестом ядра; группы проверяются параллельно с общим потолком нагрузки; в трее без цифр
+- При включённом TUN без прав и без службы ядро стартует сразу без TUN; TUN возвращается сам, когда появится служба
+- Системный прокси использует внешний хост только при раздаче в локальную сеть, иначе 127.0.0.1; адрес PAC всегда на петле
+- Проверка обновлений идёт сначала через своё ядро, потом напрямую в обход любого прокси; канал пре-релизов читает только свой манифест. Заставка установки обновления — своя страница
+- «Подгонять окно под содержимое» выключается только когда высоту окна тянете вы сами (признак от системы); Snap и тайлинг не считаются; ширина окна запоминается
+- «Обновить» ядро там, где папка программы доступна на запись (обычно macOS), скачивает и подменяет файл само с откатом; Windows со службой предупреждает о перезагрузке для стокового Mihomo или старого Clod Core
+- Старые установки: способ подключения, записанный прежним шаблоном, снимается один раз, чтобы действовал `clod-connect-mode` из подписки
+- Убраны неработающие настройки: стартовая страница, копия при изменениях, CSS темы, экспорт диагностики, страница проверки доступности сервисов; окно всегда открывается на Главной
+- Tauri 2.12; цепочка прокси хранится вместе со своей подпиской; у каждой подписки свой файл страницы DNS; меньше фоновой нагрузки на ядро
+- Документация приведена к коду, добавлена страница о заголовках `clod-*`
+
+### Исправлено
+
+- Главная показывает действительное состояние подключения, пинга, срока подписки и режима; выбранный узел обновляет пинг, пока окно на экране
+- Уведомления, пришедшие в скрытое окно, ждут его показа
+- Применение текущей подписки возвращает выбор узлов; первая добавленная подписка применяется сразу; смена адреса подписки в карточке больше ничего не сбрасывает
+- Редакторы подписки не закрываются и не теряют текст при отказе ядра; окно добавления не закрывается, пока подписка скачивается
+- Повтор уже активного режима не рвёт соединения; смена режима из трея во время применения конфига ждёт, а не соревнуется
+- Скорость и таблица соединений обнуляются при пропаже ядра; журнал показывает то, что пишет ядро, и помнит очистку; страница соединений показывает настоящее состояние
+- Расписание копий считает срок от последней копии и не сбивается посторонними сохранениями; одна проверка WebDAV после сохранения учётных данных
+- «Скопировать переменные окружения» сообщает об ошибке вместо ложного «Скопировано»; окно системного прокси ждёт записи настроек и при ошибке сохраняет введённое
+- Отчёт для поддержки называет работающее ядро, показывает реальный хост прокси, включает ошибки соединений ядра без адресов
+- Windows: подписки окна закрываются до остановки ядра при завершении сеанса; после починки брандмауэра проба трафика запускается заново сразу
+- Диалоги настроек проверяют ввод; ошибки обновления, резервных копий и действий видны; «Обновить все» сообщает, какие провайдеры не обновились
+- Переключатели стоят вровень с остальными элементами строки; блок «Текущий системный прокси» с раздельными подписями и значениями
+
+---
+
 ## v0.1.11-alpha.7
 
 <!-- lang:en -->
