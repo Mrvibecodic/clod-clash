@@ -237,7 +237,7 @@ async function getLatestClodVersion() {
     await setCachedVersion('CLOD_VERSION', CLOD_VERSION)
   } catch (err) {
     log_error('Error fetching latest Clod Core version:', err.message)
-    process.exit(1)
+    throw err
   }
 }
 
@@ -269,7 +269,7 @@ async function getLatestReleaseVersion() {
     await setCachedVersion('META_VERSION', META_VERSION)
   } catch (err) {
     log_error('Error fetching latest release version:', err.message)
-    process.exit(1)
+    throw err
   }
 }
 
@@ -845,9 +845,13 @@ async function runTask() {
     } catch (err) {
       log_error(`task::${task.name} try ${i} ==`, err.message)
       if (i === task.retry - 1) throw err
+      await new Promise((resolve) => setTimeout(resolve, (i + 1) * 3000))
     }
   }
   return runTask()
 }
 
-runTask()
+runTask().catch((err) => {
+  log_error('prebuild failed:', err.message)
+  process.exit(1)
+})
