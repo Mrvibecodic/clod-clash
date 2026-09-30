@@ -454,7 +454,6 @@ export const ProxyChain = ({
     }
   }, [chainConfigData, onUpdateChain])
 
-
   return (
     <Paper
       elevation={0}
