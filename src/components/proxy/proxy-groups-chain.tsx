@@ -408,17 +408,10 @@ export function ProxyGroupsChain(props: ProxyGroupsChainProps) {
           return prev // Возвращаем прежнее состояние без изменений
         }
 
-        // Безопасно получаем данные задержки, если их нет — undefined
-        const delay =
-          proxy.history && proxy.history.length > 0
-            ? proxy.history[proxy.history.length - 1].delay
-            : undefined
-
         const chainItem: ProxyChainItem = {
           id: `${proxy.name}_${Date.now()}`,
           name: proxy.name,
           type: proxy.type,
-          delay,
         }
 
         return [...prev, chainItem]

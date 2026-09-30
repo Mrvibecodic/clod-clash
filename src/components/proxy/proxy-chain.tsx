@@ -34,7 +34,7 @@ import {
   useTheme,
 } from '@mui/material'
 import yaml from 'js-yaml'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   closeAllConnections,
@@ -43,13 +43,13 @@ import {
 
 import { BaseEmpty, TooltipIcon } from '@/components/base'
 import { useProfiles } from '@/hooks/use-profiles'
-import { useVisibility } from '@/hooks/use-visibility'
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
 import {
   dismantleProxyChain,
   patchSelectedNode,
   updateProxyChainConfigInRuntime,
 } from '@/services/cmds'
+import delayManager from '@/services/delay'
 import { showNotice } from '@/services/notice-service'
 import {
   clearProxyChain,
@@ -78,6 +78,7 @@ interface ProxyChainProps {
 
 interface SortableItemProps {
   proxy: ProxyChainItem
+  delay?: number
   index: number
   isFirst: boolean
   isLast: boolean
@@ -95,13 +96,22 @@ const toChainItems = (
       id: `${proxy.name}_${timestamp}_${index}`,
       name: proxy.name,
       type: proxy.type,
-      delay: undefined,
     })) || []
   )
 }
 
+// Цифра строки — из тех же данных, что у всего экрана: свежее из своего замера
+// и истории ядра, по адресу, которым меряет режим цепочки. В самой цепочке её
+// не храним — копия отставала бы от ядра.
+const chainDelay = (record?: IProxyItem) => {
+  if (!record) return undefined
+  const delay = delayManager.getDelayFix(record, 'chain-mode', true)
+  return delay < 0 ? undefined : delay
+}
+
 const SortableItem = ({
   proxy,
+  delay,
   index,
   isFirst,
   isLast,
@@ -221,13 +231,15 @@ const SortableItem = ({
         />
       )}
 
-      {proxy.delay !== undefined && (
+      {delay !== undefined && (
         <Chip
           label={
-            proxy.delay > 0 ? `${proxy.delay}ms` : t('shared.labels.timeout')
+            delay > 0 && delay <= 1e5
+              ? `${delay}ms`
+              : t('shared.labels.timeout')
           }
           size="small"
-          color={delayTone(proxy.delay, pingBounds) ?? 'default'}
+          color={delayTone(delay, pingBounds) ?? 'default'}
           sx={{ mr: 1, fontSize: '0.7rem', minWidth: 50 }}
         />
       )}
@@ -262,7 +274,6 @@ export const ProxyChain = ({
   const { current } = useProfiles()
   const profileUid = current?.uid
   const { refreshProxy } = useAppRefreshers()
-  const pageVisible = useVisibility()
   const [isConnecting, setIsConnecting] = useState(false)
 
   const isConnected = useMemo(() => {
@@ -426,14 +437,6 @@ export const ProxyChain = ({
     profileUid,
   ])
 
-  const proxyChainRef = useRef(proxyChain)
-  const onUpdateChainRef = useRef(onUpdateChain)
-
-  useEffect(() => {
-    proxyChainRef.current = proxyChain
-    onUpdateChainRef.current = onUpdateChain
-  }, [proxyChain, onUpdateChain])
-
   // Обрабатываем данные конфига цепочки прокси
   useEffect(() => {
     if (chainConfigData) {
@@ -451,50 +454,6 @@ export const ProxyChain = ({
     }
   }, [chainConfigData, onUpdateChain])
 
-  // Периодически обновляем данные о задержке
-  useEffect(() => {
-    if (!proxies?.records) return
-
-    const updateDelays = () => {
-      const currentChain = proxyChainRef.current
-      if (currentChain.length === 0) return
-
-      const updatedChain = currentChain.map((item) => {
-        const proxyRecord = proxies.records[item.name]
-        if (
-          proxyRecord &&
-          proxyRecord.history &&
-          proxyRecord.history.length > 0
-        ) {
-          const latestDelay =
-            proxyRecord.history[proxyRecord.history.length - 1].delay
-          return { ...item, delay: latestDelay }
-        }
-        return item
-      })
-
-      // Обновляем, только если данные о задержке действительно изменились
-      const hasChanged = updatedChain.some(
-        (item, index) => item.delay !== currentChain[index]?.delay,
-      )
-
-      if (hasChanged) {
-        onUpdateChainRef.current(updatedChain)
-      }
-    }
-
-    // Сразу обновляем задержку один раз
-    updateDelays()
-
-    // clod: за окном в трее задержки перебирать некому — таймер там не нужен.
-    // Показали окно снова — сработает проход выше, и цифры сойдутся сразу.
-    if (!pageVisible) return
-
-    // Устанавливаем таймер, обновляем задержку раз в 5 секунд
-    const interval = setInterval(updateDelays, 5000)
-
-    return () => clearInterval(interval)
-  }, [proxies?.records, pageVisible]) // Зависим только от proxies.records
 
   return (
     <Paper
@@ -604,6 +563,7 @@ export const ProxyChain = ({
                   <Box key={proxy.id}>
                     <SortableItem
                       proxy={proxy}
+                      delay={chainDelay(proxies?.records?.[proxy.name])}
                       index={index}
                       isFirst={index === 0}
                       isLast={

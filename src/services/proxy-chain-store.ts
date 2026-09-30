@@ -2,7 +2,6 @@ export interface ProxyChainNode {
   id: string
   name: string
   type?: string
-  delay?: number
 }
 
 /** Цепочка принадлежит подписке: и группа, и узлы — имена из её конфига. */
