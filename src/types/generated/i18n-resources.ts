@@ -1147,6 +1147,7 @@ export interface TranslationResources {
           messages: {
             activeStack: string
             applied: string
+            emptyFollowsSubscription: string
             invalidRouteExcludeAddress: string
             routeExcludeAddressHint: string
             subscriptionStackCapped: string

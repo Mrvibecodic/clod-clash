@@ -557,7 +557,8 @@
         "routeExcludeAddressHint": "IPv4/IPv6 の CIDR のみ対応しています。例: 192.168.0.0/16、fd00::/8",
         "activeStack": "適用中のスタック: {{stack}}",
         "subscriptionStackCapped": "プロバイダーは {{stack}} スタックを要求しましたが、Windows ではファイアウォールでコアを手動で許可する必要があるため、gvisor を使用します。",
-        "windowsStackFirewall": "Windows では system と mixed スタックはファイアウォールでコアの受信接続を許可する必要があります。許可がないとトンネルの通信は流れません"
+        "windowsStackFirewall": "Windows では system と mixed スタックはファイアウォールでコアの受信接続を許可する必要があります。許可がないとトンネルの通信は流れません",
+        "emptyFollowsSubscription": "An empty field follows the subscription, or the core's default when the subscription is silent (MTU 9000, name Meta, utunN on macOS)."
       }
     },
     "dns": {

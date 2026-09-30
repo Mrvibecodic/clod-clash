@@ -2487,6 +2487,51 @@ mod tests {
     }
 
     #[test]
+    fn a_tun_patch_touches_only_the_named_fields() {
+        use serde_yaml_ng::Value;
+        let mut app = crate::config::IClashTemp(mapping(
+            "{tun: {enable: false, auto-route: true, device: X, mtu: 1400}}",
+        ));
+        app.patch_config(&mapping("{tun: {mtu: null, stack: gvisor}}"));
+        let tun = app.0.get("tun").and_then(Value::as_mapping).expect("tun block");
+        assert!(tun.get("mtu").is_none());
+        assert_eq!(tun.get("device"), Some(&Value::from("X")));
+        assert_eq!(tun.get("auto-route"), Some(&Value::from(true)));
+        assert_eq!(tun.get("enable"), Some(&Value::from(false)));
+        assert_eq!(tun.get("stack"), Some(&Value::from("gvisor")));
+    }
+
+    #[test]
+    fn the_window_defaults_of_old_installs_are_unpinned() {
+        use crate::config::IClashTemp;
+        let mut written = mapping(
+            "{tun: {enable: false, auto-route: true, device: Mihomo, mtu: 1500, route-exclude-address: [], auto-redirect: false}}",
+        );
+        assert!(IClashTemp::unpin_tun_window_defaults(&mut written));
+        assert_eq!(
+            written,
+            mapping("{tun: {enable: false, auto-route: true, device: Mihomo}}")
+        );
+        assert!(!IClashTemp::unpin_tun_window_defaults(&mut written));
+        let mut chosen = mapping("{tun: {mtu: 1400, route-exclude-address: [10.0.0.0/8], auto-redirect: true}}");
+        assert!(!IClashTemp::unpin_tun_window_defaults(&mut chosen));
+        assert!(!IClashTemp::unpin_tun_window_defaults(&mut mapping(
+            "{mixed-port: 7897}"
+        )));
+    }
+
+    #[test]
+    fn an_empty_window_leaves_the_subscription_mtu() {
+        let app = mapping("{enable: false, auto-route: true, auto-detect-interface: true}");
+        let mut tun = mapping("{mtu: 1280}");
+        super::ladder_tun(&mut tun, app.clone(), &super::TunOverrides::default());
+        assert_eq!(tun.get("mtu").and_then(serde_yaml_ng::Value::as_u64), Some(1280));
+        let mut silent = mapping("{}");
+        super::ladder_tun(&mut silent, app, &super::TunOverrides::default());
+        assert!(silent.get("mtu").is_none());
+    }
+
+    #[test]
     fn a_silent_subscription_gets_the_app_defaults() {
         let mut tun = mapping("{}");
         let app = mapping("{stack: gvisor, strict-route: false, dns-hijack: [\"any:53\"]}");

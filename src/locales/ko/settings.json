@@ -557,7 +557,8 @@
         "routeExcludeAddressHint": "IPv4/IPv6 CIDR만 지원합니다. 예: 192.168.0.0/16 또는 fd00::/8",
         "activeStack": "적용된 스택: {{stack}}",
         "subscriptionStackCapped": "제공자가 {{stack}} 스택을 요청했지만, Windows에서는 방화벽에서 코어를 수동으로 허용해야 하므로 gvisor를 사용합니다.",
-        "windowsStackFirewall": "Windows에서 system 및 mixed 스택은 방화벽에서 코어의 인바운드 연결을 허용해야 합니다. 허용하지 않으면 터널 트래픽이 흐르지 않습니다"
+        "windowsStackFirewall": "Windows에서 system 및 mixed 스택은 방화벽에서 코어의 인바운드 연결을 허용해야 합니다. 허용하지 않으면 터널 트래픽이 흐르지 않습니다",
+        "emptyFollowsSubscription": "An empty field follows the subscription, or the core's default when the subscription is silent (MTU 9000, name Meta, utunN on macOS)."
       }
     },
     "dns": {

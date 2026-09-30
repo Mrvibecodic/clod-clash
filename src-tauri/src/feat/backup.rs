@@ -89,6 +89,7 @@ pub(crate) const MACHINE_LOCAL_KEYS: &[&str] = &[
     "window_pos_simple",
     "window_pos_advanced",
     "core_log_keys_unpinned",
+    "tun_window_defaults_unpinned",
 ];
 
 type Settings = serde_json::Map<std::string::String, serde_json::Value>;
@@ -475,6 +476,7 @@ mod tests {
             window_pos_simple: Some((1, 2)),
             window_pos_advanced: Some((10, 20)),
             core_log_keys_unpinned: Some(true),
+            tun_window_defaults_unpinned: Some(true),
             language: Some("ru".into()),
             ..IVerge::default()
         }

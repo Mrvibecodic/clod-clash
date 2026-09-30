@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { getVersion } from 'tauri-plugin-mihomo-api'
 
 import {
+  type ClashConfigPatch,
   getClashInfo,
   getCoreLadder,
   getRuntimeConfig,
@@ -117,7 +118,7 @@ export const useClash = () => {
     })
   }
 
-  const patchClash = useLockFn(async (patch: Partial<IConfigData>) => {
+  const patchClash = useLockFn(async (patch: ClashConfigPatch) => {
     await patchClashConfig(patch)
     await refetchLadder()
     mutateClash()

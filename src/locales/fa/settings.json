@@ -557,7 +557,8 @@
         "routeExcludeAddressHint": "فقط CIDRهای IPv4/IPv6 پشتیبانی می‌شوند، مانند 192.168.0.0/16 یا fd00::/8",
         "activeStack": "پشتهٔ فعال: {{stack}}",
         "subscriptionStackCapped": "The provider asked for the {{stack}} stack; on Windows it needs the core allowed through the firewall by hand, so gvisor is used instead.",
-        "windowsStackFirewall": "در ویندوز پشته‌های system و mixed نیاز دارند هسته در فایروال برای اتصال‌های ورودی مجاز شود — بدون آن ترافیک تونل عبور نمی‌کند"
+        "windowsStackFirewall": "در ویندوز پشته‌های system و mixed نیاز دارند هسته در فایروال برای اتصال‌های ورودی مجاز شود — بدون آن ترافیک تونل عبور نمی‌کند",
+        "emptyFollowsSubscription": "An empty field follows the subscription, or the core's default when the subscription is silent (MTU 9000, name Meta, utunN on macOS)."
       }
     },
     "dns": {

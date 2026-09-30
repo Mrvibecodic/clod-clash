@@ -30,6 +30,13 @@ import { showNotice } from '@/services/notice-service'
 import { useQuery } from '@/services/query-client'
 import getSystem from '@/utils/get-system'
 import { areValidIpCidrs } from '@/utils/network'
+import {
+  TUN_RESET,
+  mtuIsValid,
+  splitRouteExcludeAddress,
+  tunFieldsFrom,
+  tunPatch,
+} from '@/utils/tun-window'
 
 import { StackModeSwitch } from './stack-mode-switch'
 
@@ -37,32 +44,25 @@ const OS = getSystem()
 
 const CAPPED_STACKS = ['system', 'mixed']
 
-const splitRouteExcludeAddress = (value: string) =>
-  value
-    .split(/[,\n;\r]+/)
-    .map((item) => item.trim())
-    .filter(Boolean)
+const FRESH = {
+  ...tunFieldsFrom(TUN_RESET, undefined, OS),
+  stack: 'auto',
+  dnsHijack: 'auto',
+  strictRoute: 'auto',
+}
 
 export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const { t } = useTranslation()
 
-  const { runtime, mutateClash, patchClash } = useClash()
+  const { runtime, ladder, patchClash } = useClash()
   const { verge, mutateVerge, patchVerge } = useVerge()
   const { tunRuntimeStack } = useTunState()
   const { current } = useProfiles()
 
   const [open, setOpen] = useState(false)
-  const [values, setValues] = useState({
-    stack: 'auto',
-    device: OS === 'macos' ? 'utun1024' : 'Mihomo',
-    autoRoute: true,
-    routeExcludeAddress: '',
-    autoRedirect: false,
-    autoDetectInterface: true,
-    dnsHijack: 'auto',
-    strictRoute: 'auto',
-    mtu: 1500,
-  })
+  const [values, setValues] = useState(FRESH)
+  // Что было при открытии: сохраняется только то, что человек поменял.
+  const [initial, setInitial] = useState(FRESH)
 
   const effectiveStack = (
     tunRuntimeStack ??
@@ -115,77 +115,51 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
   useImperativeHandle(ref, () => ({
     open: () => {
       setOpen(true)
-      const nextAutoRoute = runtime?.tun['auto-route'] ?? true
-      const rawAutoRedirect = runtime?.tun['auto-redirect'] ?? false
-      const computedAutoRedirect =
-        OS === 'linux' ? (nextAutoRoute ? rawAutoRedirect : false) : false
-      setValues({
+      const opened = {
+        ...tunFieldsFrom(ladder?.tun, runtime?.tun, OS),
         stack: verge?.tun_stack ?? 'auto',
-        device: runtime?.tun.device ?? (OS === 'macos' ? 'utun1024' : 'Mihomo'),
-        autoRoute: nextAutoRoute,
-        routeExcludeAddress: (runtime?.tun['route-exclude-address'] ?? []).join(
-          ',',
-        ),
-        autoRedirect: computedAutoRedirect,
-        autoDetectInterface: runtime?.tun['auto-detect-interface'] ?? true,
         dnsHijack: verge?.tun_dns_hijack ?? 'auto',
         strictRoute: verge?.tun_strict_route ?? 'auto',
-        mtu: runtime?.tun.mtu ?? 1500,
-      })
+      }
+      setValues(opened)
+      setInitial(opened)
     },
     close: () => setOpen(false),
   }))
 
   const onSave = useLockFn(async () => {
     try {
-      const routeExcludeAddress = routeExcludeAddressItems
-
       if (routeExcludeAddressError) {
         showNotice.error(
           'settings.modals.tun.messages.invalidRouteExcludeAddress',
         )
         return
       }
-      if (!Number.isFinite(values.mtu)) {
+      if (values.mtu !== initial.mtu && !mtuIsValid(values.mtu)) {
         showNotice.error('shared.validation.numberRequired', {
           field: t('settings.modals.tun.fields.mtu'),
         })
         return
       }
 
-      const tun: IConfigData['tun'] = {
-        device:
-          values.device === ''
-            ? OS === 'macos'
-              ? 'utun1024'
-              : 'Mihomo'
-            : values.device,
-        'auto-route': values.autoRoute,
-        'route-exclude-address': routeExcludeAddress,
-        ...(OS === 'linux'
-          ? {
-              'auto-redirect': values.autoRedirect,
-            }
-          : {}),
-        'auto-detect-interface': values.autoDetectInterface,
-        mtu: values.mtu,
+      if (
+        values.stack !== initial.stack ||
+        values.strictRoute !== initial.strictRoute ||
+        values.dnsHijack !== initial.dnsHijack
+      ) {
+        const overrides = {
+          tun_stack: values.stack,
+          tun_strict_route: values.strictRoute,
+          tun_dns_hijack:
+            values.dnsHijack.trim() === '' ? 'auto' : values.dnsHijack,
+        }
+        await patchVerge(overrides)
+        mutateVerge({ ...verge, ...overrides }, false)
       }
-      const overrides = {
-        tun_stack: values.stack,
-        tun_strict_route: values.strictRoute,
-        tun_dns_hijack:
-          values.dnsHijack.trim() === '' ? 'auto' : values.dnsHijack,
+      const tun = tunPatch(initial, values, OS)
+      if (Object.keys(tun).length > 0) {
+        await patchClash({ tun })
       }
-      await patchVerge(overrides)
-      await patchClash({ tun })
-      await mutateClash(
-        (old) => ({
-          ...old!,
-          tun: { ...old!.tun, ...tun },
-        }),
-        false,
-      )
-      mutateVerge({ ...verge, ...overrides }, false)
       setOpen(false)
       showNotice.success('settings.modals.tun.messages.applied')
     } catch (err: any) {
@@ -195,43 +169,15 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
 
   const onReset = useLockFn(async () => {
     try {
-      const tun: IConfigData['tun'] = {
-        device: OS === 'macos' ? 'utun1024' : 'Mihomo',
-        'auto-route': true,
-        ...(OS === 'linux'
-          ? {
-              'auto-redirect': false,
-            }
-          : {}),
-        'auto-detect-interface': true,
-        'route-exclude-address': [],
-        mtu: 1500,
-      }
       const overrides = {
         tun_stack: 'auto',
         tun_strict_route: 'auto',
         tun_dns_hijack: 'auto',
       }
-      setValues({
-        stack: 'auto',
-        device: OS === 'macos' ? 'utun1024' : 'Mihomo',
-        autoRoute: true,
-        routeExcludeAddress: '',
-        autoRedirect: false,
-        autoDetectInterface: true,
-        dnsHijack: 'auto',
-        strictRoute: 'auto',
-        mtu: 1500,
-      })
+      setValues(FRESH)
       await patchVerge(overrides)
-      await patchClash({ tun })
-      await mutateClash(
-        (old) => ({
-          ...old!,
-          tun: { ...old!.tun, ...tun },
-        }),
-        false,
-      )
+      await patchClash({ tun: TUN_RESET })
+      setInitial(FRESH)
       mutateVerge({ ...verge, ...overrides }, false)
     } catch (err: any) {
       showNotice.error(err)
@@ -312,7 +258,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
             spellCheck="false"
             sx={{ width: 250 }}
             value={values.device}
-            placeholder="Mihomo"
+            placeholder={OS === 'macos' ? 'utun' : 'Meta'}
             onChange={(e) =>
               setValues((v) => ({ ...v, device: e.target.value }))
             }
@@ -428,14 +374,15 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
             spellCheck="false"
             sx={{ width: 250 }}
             value={values.mtu}
-            placeholder="1500"
-            onChange={(e) =>
-              setValues((v) => ({
-                ...v,
-                mtu: parseInt(e.target.value),
-              }))
-            }
+            placeholder="9000"
+            onChange={(e) => setValues((v) => ({ ...v, mtu: e.target.value }))}
           />
+        </ListItem>
+
+        <ListItem sx={{ padding: '0 2px 5px' }}>
+          <Typography variant="caption" color="text.secondary">
+            {t('settings.modals.tun.messages.emptyFollowsSubscription')}
+          </Typography>
         </ListItem>
 
         <BaseSplitChipEditor

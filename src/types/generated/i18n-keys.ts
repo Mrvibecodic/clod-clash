@@ -767,6 +767,7 @@ export const translationKeys = [
   'settings.modals.tun.messages.activeStack',
   'settings.modals.tun.messages.subscriptionStackCapped',
   'settings.modals.tun.messages.windowsStackFirewall',
+  'settings.modals.tun.messages.emptyFollowsSubscription',
   'settings.modals.dns.dialog.title',
   'settings.modals.dns.dialog.warning',
   'settings.modals.dns.dialog.replacesSubscription',

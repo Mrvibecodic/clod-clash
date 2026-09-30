@@ -557,7 +557,8 @@
         "routeExcludeAddressHint": "Hanya CIDR IPv4/IPv6 yang didukung, seperti 192.168.0.0/16 atau fd00::/8",
         "activeStack": "Stack aktif: {{stack}}",
         "subscriptionStackCapped": "The provider asked for the {{stack}} stack; on Windows it needs the core allowed through the firewall by hand, so gvisor is used instead.",
-        "windowsStackFirewall": "Di Windows stack system dan mixed memerlukan izin firewall untuk koneksi masuk ke core — tanpanya lalu lintas terowongan tidak akan berjalan"
+        "windowsStackFirewall": "Di Windows stack system dan mixed memerlukan izin firewall untuk koneksi masuk ke core — tanpanya lalu lintas terowongan tidak akan berjalan",
+        "emptyFollowsSubscription": "An empty field follows the subscription, or the core's default when the subscription is silent (MTU 9000, name Meta, utunN on macOS)."
       }
     },
     "dns": {

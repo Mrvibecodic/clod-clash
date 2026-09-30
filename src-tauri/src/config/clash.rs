@@ -163,6 +163,22 @@ impl IClashTemp {
                 self.0.remove(key);
                 continue;
             }
+            // Окно TUN правит свои поля, а не весь блок: всё, что лежит в `tun`,
+            // становится ключом приложения поверх подписки. `null` снимает поле.
+            if key.as_str() == Some("tun")
+                && let Some(fields) = value.as_mapping()
+            {
+                let mut tun = self.0.get(key).and_then(Value::as_mapping).cloned().unwrap_or_default();
+                for (field, value) in fields {
+                    if value.is_null() {
+                        tun.remove(field);
+                    } else {
+                        tun.insert(field.to_owned(), value.to_owned());
+                    }
+                }
+                self.0.insert(key.to_owned(), Value::Mapping(tun));
+                continue;
+            }
             self.0.insert(key.to_owned(), value.to_owned());
         }
     }
@@ -186,6 +202,29 @@ impl IClashTemp {
             map.remove("unified-delay");
         }
         stock_log_level || stock_unified_delay
+    }
+
+    /// Окно TUN прошлых версий при любом «Сохранить» и «Сбросить» записывало
+    /// свои умолчания, и они перебивали подписку. Имя адаптера не снимаем: на
+    /// него могут опираться правила брандмауэра и маршрутов вне клиента.
+    pub fn unpin_tun_window_defaults(map: &mut Mapping) -> bool {
+        let Some(tun) = map.get_mut("tun").and_then(Value::as_mapping_mut) else {
+            return false;
+        };
+        let stale: Vec<Value> = tun
+            .iter()
+            .filter(|(key, value)| match key.as_str() {
+                Some("mtu") => value.as_u64() == Some(1500),
+                Some("route-exclude-address") => value.as_sequence().is_some_and(Vec::is_empty),
+                Some("auto-redirect") => value.as_bool() == Some(false),
+                _ => false,
+            })
+            .map(|(key, _)| key.to_owned())
+            .collect();
+        for key in &stale {
+            tun.remove(key);
+        }
+        !stale.is_empty()
     }
 
     pub async fn save_config(&self) -> Result<()> {

@@ -20,6 +20,8 @@ pub struct CoreLadder {
     log_level: Option<std::string::String>,
     unified_delay: Option<bool>,
     mixed_port: Option<u16>,
+    /// Закреплённое в `tun` у нас: окно TUN показывает его, а не собранный конфиг.
+    tun: Option<Mapping>,
 }
 
 fn read_ladder(clash: &Mapping) -> CoreLadder {
@@ -70,6 +72,7 @@ fn read_ladder(clash: &Mapping) -> CoreLadder {
         log_level,
         unified_delay,
         mixed_port,
+        tun: clash.get("tun").and_then(serde_yaml_ng::Value::as_mapping).cloned(),
     }
 }
 

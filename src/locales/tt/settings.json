@@ -557,7 +557,8 @@
         "routeExcludeAddressHint": "IPv4/IPv6 CIDR блоклары гына хуплана, мәсәлән 192.168.0.0/16 яки fd00::/8",
         "activeStack": "Кулланылган стек: {{stack}}",
         "subscriptionStackCapped": "The provider asked for the {{stack}} stack; on Windows it needs the core allowed through the firewall by hand, so gvisor is used instead.",
-        "windowsStackFirewall": "Windows'та system һәм mixed стеклары өчен брандмауэрда үзәккә керүче тоташуларны рөхсәт итәргә кирәк — башкача тоннель трафигы бармаячак"
+        "windowsStackFirewall": "Windows'та system һәм mixed стеклары өчен брандмауэрда үзәккә керүче тоташуларны рөхсәт итәргә кирәк — башкача тоннель трафигы бармаячак",
+        "emptyFollowsSubscription": "An empty field follows the subscription, or the core's default when the subscription is silent (MTU 9000, name Meta, utunN on macOS)."
       }
     },
     "dns": {

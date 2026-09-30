@@ -557,7 +557,8 @@
         "routeExcludeAddressHint": "Es werden nur IPv4-/IPv6-CIDR-Blöcke unterstützt, z. B. 192.168.0.0/16 oder fd00::/8",
         "activeStack": "Aktiver Stack: {{stack}}",
         "subscriptionStackCapped": "Der Anbieter hat den Stack {{stack}} angefordert; unter Windows muss der Core dafür manuell in der Firewall freigegeben werden, daher wird gvisor verwendet.",
-        "windowsStackFirewall": "Unter Windows müssen die Stacks system und mixed für den Kern in der Firewall für eingehende Verbindungen freigegeben werden — sonst fließt kein Tunnelverkehr"
+        "windowsStackFirewall": "Unter Windows müssen die Stacks system und mixed für den Kern in der Firewall für eingehende Verbindungen freigegeben werden — sonst fließt kein Tunnelverkehr",
+        "emptyFollowsSubscription": "An empty field follows the subscription, or the core's default when the subscription is silent (MTU 9000, name Meta, utunN on macOS)."
       }
     },
     "dns": {

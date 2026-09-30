@@ -557,7 +557,8 @@
         "routeExcludeAddressHint": "Solo se admiten bloques CIDR de IPv4/IPv6, como 192.168.0.0/16 o fd00::/8",
         "activeStack": "Pila activa: {{stack}}",
         "subscriptionStackCapped": "El proveedor pidió la pila {{stack}}; en Windows requiere permitir manualmente el núcleo en el cortafuegos, por eso se usa gvisor.",
-        "windowsStackFirewall": "En Windows las pilas system y mixed requieren permitir al núcleo las conexiones entrantes en el firewall; sin esto el tráfico del túnel no fluirá"
+        "windowsStackFirewall": "En Windows las pilas system y mixed requieren permitir al núcleo las conexiones entrantes en el firewall; sin esto el tráfico del túnel no fluirá",
+        "emptyFollowsSubscription": "An empty field follows the subscription, or the core's default when the subscription is silent (MTU 9000, name Meta, utunN on macOS)."
       }
     },
     "dns": {

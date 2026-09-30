@@ -557,7 +557,8 @@
         "routeExcludeAddressHint": "يتم دعم CIDR لـ IPv4/IPv6 فقط، مثل 192.168.0.0/16 أو fd00::/8",
         "activeStack": "المكدّس المفعّل: {{stack}}",
         "subscriptionStackCapped": "The provider asked for the {{stack}} stack; on Windows it needs the core allowed through the firewall by hand, so gvisor is used instead.",
-        "windowsStackFirewall": "على Windows يتطلب مكدّسا system و mixed السماح للنواة بالاتصالات الواردة في جدار الحماية — وبدونه لن يمر مرور النفق"
+        "windowsStackFirewall": "على Windows يتطلب مكدّسا system و mixed السماح للنواة بالاتصالات الواردة في جدار الحماية — وبدونه لن يمر مرور النفق",
+        "emptyFollowsSubscription": "An empty field follows the subscription, or the core's default when the subscription is silent (MTU 9000, name Meta, utunN on macOS)."
       }
     },
     "dns": {

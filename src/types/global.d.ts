@@ -45,14 +45,14 @@ interface IConfigData {
   'unified-delay'?: boolean | 'auto'
   tun: {
     stack?: string
-    device: string
+    device?: string
     'auto-route': boolean
     'auto-redirect'?: boolean
     'auto-detect-interface': boolean
     'dns-hijack'?: string[]
     'route-exclude-address'?: string[]
     'strict-route'?: boolean
-    mtu: number
+    mtu?: number
   }
   dns?: {
     enable?: boolean
@@ -859,6 +859,7 @@ interface ICoreLadder {
   log_level?: string | null
   unified_delay?: boolean | null
   mixed_port?: number | null
+  tun?: Record<string, unknown> | null
 }
 
 interface IVergeConfig {

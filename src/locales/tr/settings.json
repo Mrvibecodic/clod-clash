@@ -557,7 +557,8 @@
         "routeExcludeAddressHint": "Yalnızca IPv4/IPv6 CIDR blokları desteklenir; örneğin 192.168.0.0/16 veya fd00::/8",
         "activeStack": "Etkin yığın: {{stack}}",
         "subscriptionStackCapped": "Sağlayıcı {{stack}} yığınını istedi; Windows’ta çekirdeğin güvenlik duvarında elle izinlenmesi gerektiği için gvisor kullanılıyor.",
-        "windowsStackFirewall": "Windows'ta system ve mixed yığınları, çekirdeğin güvenlik duvarında gelen bağlantılara izin verilmesini gerektirir — aksi hâlde tünel trafiği akmaz"
+        "windowsStackFirewall": "Windows'ta system ve mixed yığınları, çekirdeğin güvenlik duvarında gelen bağlantılara izin verilmesini gerektirir — aksi hâlde tünel trafiği akmaz",
+        "emptyFollowsSubscription": "An empty field follows the subscription, or the core's default when the subscription is silent (MTU 9000, name Meta, utunN on macOS)."
       }
     },
     "dns": {

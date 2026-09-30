@@ -557,7 +557,8 @@
         "routeExcludeAddressHint": "僅支援 IPv4/IPv6 CIDR，例如 192.168.0.0/16 或 fd00::/8",
         "activeStack": "目前生效的堆疊: {{stack}}",
         "subscriptionStackCapped": "服務商要求 {{stack}} 堆疊；在 Windows 上需要手動在防火牆放行核心，因此改用 gvisor。",
-        "windowsStackFirewall": "在 Windows 上，system 與 mixed 堆疊需要在防火牆中允許核心的入站連線，否則通道流量無法通行"
+        "windowsStackFirewall": "在 Windows 上，system 與 mixed 堆疊需要在防火牆中允許核心的入站連線，否則通道流量無法通行",
+        "emptyFollowsSubscription": "An empty field follows the subscription, or the core's default when the subscription is silent (MTU 9000, name Meta, utunN on macOS)."
       }
     },
     "dns": {
