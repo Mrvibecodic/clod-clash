@@ -145,23 +145,7 @@ fn parse_json_safely(json_str: &str) -> Result<Mapping, Error> {
         anyhow::bail!("JSON string too large");
     }
 
-    let json_str = strip_outer_quotes(json_str);
     Ok(serde_json::from_str::<Mapping>(json_str)?)
-}
-
-// Безопасно удаляет внешние кавычки
-fn strip_outer_quotes(s: &str) -> &str {
-    let s = s.trim();
-
-    if s.len() < 2 {
-        return s;
-    }
-
-    if (s.starts_with('"') && s.ends_with('"')) || (s.starts_with('\'') && s.ends_with('\'')) {
-        &s[1..s.len() - 1]
-    } else {
-        s
-    }
 }
 
 // Безопасно экранирует строку
@@ -228,21 +212,8 @@ fn test_escape_unescape() {
     assert!(parsed.contains_key("key"));
     assert!(parsed.contains_key("nested"));
 
-    let quoted_json_str = r#""{"key":"value","nested":{"key":"value"}}""#;
-    let parsed_quoted = parse_json_safely(quoted_json_str).expect("Failed to parse quoted test JSON safely");
-
-    assert!(parsed_quoted.contains_key("key"));
-    assert!(parsed_quoted.contains_key("nested"));
-}
-
-#[test]
-fn test_strip_outer_quotes_edge_cases() {
-    assert_eq!(strip_outer_quotes(""), "");
-    assert_eq!(strip_outer_quotes("'"), "'");
-    assert_eq!(strip_outer_quotes("\""), "\"");
-    assert_eq!(strip_outer_quotes("''"), "");
-    assert_eq!(strip_outer_quotes("\"\""), "");
-    assert_eq!(strip_outer_quotes("'a'"), "a");
+    // Скрипт, вернувший строку вместо объекта, — ошибка, а не пустой конфиг.
+    assert!(parse_json_safely(r#""{}""#).is_err());
 }
 
 #[test]
