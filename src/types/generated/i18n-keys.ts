@@ -840,6 +840,8 @@ export const translationKeys = [
   'settings.feedback.notifications.clash.versionUpdated',
   'settings.feedback.notifications.clash.alreadyLatestVersion',
   'settings.feedback.notifications.clash.upgradeFailed',
+  'settings.feedback.notifications.clash.upgradeNotApplied',
+  'settings.feedback.notifications.clash.upgradeNoAnswer',
   'settings.feedback.notifications.clash.changeSuccess',
   'settings.feedback.notifications.clash.changeFailed',
   'settings.feedback.notifications.clash.geoDataUpdated',

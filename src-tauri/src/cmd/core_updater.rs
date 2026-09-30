@@ -15,14 +15,11 @@ pub async fn update_bundled_core() -> CmdResult<core_updater::BundledCoreUpdate>
         .map_err(|err| super::public_error_text(&format!("{err:#}")))
 }
 
-/// Ядро подменило свой файл (`/upgrade` через службу) и сейчас перезапустится. Об
-/// обновлении пользователь уже знает — «ядро упало» на этот перезапуск не пишем.
-/// Только на Windows: на macOS/Linux ядро делает exec, процесс тот же, и
-/// перезапуска, о котором мог бы сказать сторож, нет.
+/// Ядро обновляет себя само (`/upgrade` через службу); итог — по версии ядра,
+/// которое ответит после перезапуска.
 #[tauri::command]
-pub async fn core_replaced_itself() -> CmdResult {
-    #[cfg(windows)]
-    crate::core::CoreManager::global().a_restart_the_user_knows_of();
-    core_updater::repin_core_binaries().await;
-    Ok(())
+pub async fn upgrade_core_itself() -> CmdResult<core_updater::SelfUpgrade> {
+    core_updater::upgrade_through_core()
+        .await
+        .map_err(|err| super::public_error_text(&format!("{err:#}")))
 }

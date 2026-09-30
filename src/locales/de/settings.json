@@ -699,6 +699,8 @@
         "versionUpdated": "Kernversion wurde aktualisiert",
         "alreadyLatestVersion": "Bereits die neueste Kernversion in Verwendung",
         "upgradeFailed": "Der Kern konnte nicht aktualisiert werden:",
+        "upgradeNotApplied": "The core came back on the old version {{version}}; the update did not apply. The core log has the reason.",
+        "upgradeNoAnswer": "The core did not answer within {{seconds}} s after the update. If it does not come back by itself, press Restart.",
         "changeSuccess": "Kern erfolgreich gewechselt",
         "changeFailed": "Kernwechsel fehlgeschlagen",
         "geoDataUpdated": "Der Core hat die GeoData-Aktualisierung entgegengenommen"

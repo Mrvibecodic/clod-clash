@@ -699,6 +699,8 @@
         "versionUpdated": "內核版本已更新",
         "alreadyLatestVersion": "已經是最新內核版本",
         "upgradeFailed": "無法更新核心：",
+        "upgradeNotApplied": "The core came back on the old version {{version}}; the update did not apply. The core log has the reason.",
+        "upgradeNoAnswer": "The core did not answer within {{seconds}} s after the update. If it does not come back by itself, press Restart.",
         "changeSuccess": "內核切換成功",
         "changeFailed": "無法切換內核",
         "geoDataUpdated": "核心已接受 GeoData 更新請求"

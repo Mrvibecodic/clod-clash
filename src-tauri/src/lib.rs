@@ -150,7 +150,7 @@ mod app_init {
             cmd::get_core_updater_status,
             cmd::check_app_update,
             cmd::update_bundled_core,
-            cmd::core_replaced_itself,
+            cmd::upgrade_core_itself,
             cmd::get_running_mode,
             cmd::take_pending_notices,
             cmd::stop_listening_notices,

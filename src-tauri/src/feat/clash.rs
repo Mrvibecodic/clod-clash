@@ -250,8 +250,13 @@ pub async fn download_in_core(what: CoreDownload, name: &str) -> anyhow::Result<
     if response.status().is_success() {
         return Ok(());
     }
+    anyhow::bail!("{}", core_error_message(response).await)
+}
+
+/// Чем ядро объяснило отказ: его `message`, а без него — код ответа.
+pub async fn core_error_message(response: reqwest::Response) -> std::string::String {
     let status = response.status();
-    let message = response
+    response
         .json::<serde_json::Value>()
         .await
         .ok()
@@ -260,6 +265,5 @@ pub async fn download_in_core(what: CoreDownload, name: &str) -> anyhow::Result<
                 .and_then(serde_json::Value::as_str)
                 .map(str::to_owned)
         })
-        .unwrap_or_else(|| status.to_string());
-    anyhow::bail!("{message}")
+        .unwrap_or_else(|| status.to_string())
 }

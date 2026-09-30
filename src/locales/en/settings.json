@@ -699,6 +699,8 @@
         "versionUpdated": "Core Version Updated",
         "alreadyLatestVersion": "Already Using Latest Core Version",
         "upgradeFailed": "Could not update the core:",
+        "upgradeNotApplied": "The core came back on the old version {{version}}; the update did not apply. The core log has the reason.",
+        "upgradeNoAnswer": "The core did not answer within {{seconds}} s after the update. If it does not come back by itself, press Restart.",
         "changeSuccess": "Core changed successfully",
         "changeFailed": "Failed to change core",
         "geoDataUpdated": "The core accepted the GeoData update request"

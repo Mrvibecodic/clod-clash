@@ -16,18 +16,19 @@ import { useLockFn } from 'ahooks'
 import type { Ref } from 'react'
 import { useImperativeHandle, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { closeAllConnections, upgradeCore } from 'tauri-plugin-mihomo-api'
+import { closeAllConnections } from 'tauri-plugin-mihomo-api'
 
 import { BaseDialog, DialogRef } from '@/components/base'
 import { useClash, useClashInfo } from '@/hooks/use-clash'
 import { useVerge } from '@/hooks/use-verge'
 import {
   type CoreUpdaterStatus,
+  type SelfUpgrade,
   changeClashCore,
-  coreReplacedItself,
   getCoreUpdaterStatus,
   restartCore,
   updateBundledCore,
+  upgradeCoreItself,
 } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { coreRestartsCleanly } from '@/utils/core-self-restart'
@@ -111,39 +112,49 @@ export function ClashCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
   //   sha256 и подменяет файл при остановленном ядре, а не поднялось новое —
   //   возвращает прежнее;
   // - 'core' — папка только для администратора: ядро обновляет себя само через
-  //   службу (/upgrade). На Windows после этого стоковое ядро и прежние сборки
-  //   Clod Core оставляют копию, которая держит порт до перезагрузки, — об
-  //   этом спрашиваем заранее; свежий Clod Core просто выходит;
+  //   службу (/upgrade), а бэкенд дожидается его ответа и сверяет версию. На
+  //   Windows после этого стоковое ядро и прежние сборки Clod Core оставляют
+  //   копию, которая держит порт до перезагрузки, — об этом спрашиваем
+  //   заранее; свежий Clod Core просто выходит;
   // - 'unavailable' — обновится вместе с приложением.
-  const upgradeThroughCore = async () => {
-    try {
-      await upgradeCore()
-    } catch (err) {
-      if (String(err).includes('already using latest version')) {
-        return false
-      }
-      throw err
-    }
-    await coreReplacedItself()
-    return true
-  }
-
   const runUpgrade = useLockFn(async (method: CoreUpdaterStatus['method']) => {
     try {
       setUpgrading(true)
-      const updated =
-        method === 'app'
-          ? (await updateBundledCore()).updated
-          : await upgradeThroughCore()
+      let result: SelfUpgrade
+      if (method === 'app') {
+        const { updated, version } = await updateBundledCore()
+        result = updated
+          ? { outcome: 'updated', version }
+          : { outcome: 'already_latest' }
+      } else {
+        result = await upgradeCoreItself()
+      }
       setUpgrading(false)
       mutateVersion()
-      if (!updated) {
-        showNotice.info(
-          'settings.feedback.notifications.clash.alreadyLatestVersion',
-        )
-        return
+      switch (result.outcome) {
+        case 'updated':
+          showNotice.success(
+            'settings.feedback.notifications.clash.versionUpdated',
+          )
+          break
+        case 'already_latest':
+          showNotice.info(
+            'settings.feedback.notifications.clash.alreadyLatestVersion',
+          )
+          break
+        case 'still_old':
+          showNotice.warning(
+            'settings.feedback.notifications.clash.upgradeNotApplied',
+            { version: result.version },
+          )
+          break
+        case 'silent':
+          showNotice.error(
+            'settings.feedback.notifications.clash.upgradeNoAnswer',
+            { seconds: result.waited_secs },
+          )
+          break
       }
-      showNotice.success('settings.feedback.notifications.clash.versionUpdated')
     } catch (err) {
       setUpgrading(false)
       mutateVersion()

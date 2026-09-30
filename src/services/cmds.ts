@@ -672,6 +672,13 @@ export async function checkAppUpdate() {
   return invoke<AppUpdateMetadata | null>('check_app_update')
 }
 
-export async function coreReplacedItself() {
-  return invoke<void>('core_replaced_itself')
+// Итог обновления ядром самого себя — по версии ядра, ответившего после.
+export type SelfUpgrade =
+  | { outcome: 'updated'; version: string }
+  | { outcome: 'already_latest' }
+  | { outcome: 'still_old'; version: string }
+  | { outcome: 'silent'; waited_secs: number }
+
+export async function upgradeCoreItself() {
+  return invoke<SelfUpgrade>('upgrade_core_itself')
 }

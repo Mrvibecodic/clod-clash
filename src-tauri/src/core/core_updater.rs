@@ -11,7 +11,8 @@
 //! месте исполняемый файл система может убить при запуске.
 //!
 //! Где папка программы только для администратора (Program Files, /usr/lib), ядро
-//! обновляет себя само через службу (`/upgrade`, от её имени) — это делает окно.
+//! обновляет себя само через службу (`/upgrade`, от её имени); итог решает то,
+//! какое ядро ответит после перезапуска.
 
 use std::{
     io::Read as _,
@@ -26,6 +27,7 @@ use sha2::Digest as _;
 
 use crate::{
     config::Config,
+    constants::timing,
     core::{CoreManager, core_integrity, handle},
     utils::{
         dirs,
@@ -212,7 +214,7 @@ async fn fetch_release(url: &str) -> Result<GhRelease> {
 
 /// Ядро заменило свой файл само (`/upgrade` через службу): отпечаток встроенного
 /// ядра снимается заново с того, что оно себе скачало.
-pub async fn repin_core_binaries() {
+async fn repin_core_binaries() {
     if let Ok(path) = crate::core::service::bundled_core_path().await {
         core_integrity::repin_binary(&path).await;
     }
@@ -240,14 +242,18 @@ pub async fn running_core_version() -> Option<String> {
     Some(version.version)
 }
 
-pub async fn status() -> CoreUpdaterStatus {
+async fn current_update_method() -> UpdateMethod {
     let service_mode = matches!(
         *CoreManager::global().get_running_mode(),
         crate::core::manager::RunningMode::Service
     );
     let core_dir_writable = replaceable_core_file().await.is_some();
+    update_method(cfg!(windows), service_mode, core_dir_writable)
+}
+
+pub async fn status() -> CoreUpdaterStatus {
     CoreUpdaterStatus {
-        method: update_method(cfg!(windows), service_mode, core_dir_writable),
+        method: current_update_method().await,
         core_running: !CoreManager::global().is_down(),
         running: running_core_version().await,
         updating: is_updating(),
@@ -575,6 +581,104 @@ pub async fn update_bundled_core() -> Result<BundledCoreUpdate> {
     Ok(BundledCoreUpdate { updated: true, version })
 }
 
+/// Итог обновления ядром самого себя — по тому, чем ядро ответило после.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "outcome", rename_all = "snake_case")]
+pub enum SelfUpgrade {
+    Updated {
+        version: String,
+    },
+    AlreadyLatest,
+    /// Ядро снова отвечает, но прежней версией: обновление не применилось.
+    StillOld {
+        version: String,
+    },
+    /// За отведённое время ядро не ответило вовсе.
+    Silent {
+        waited_secs: u64,
+    },
+}
+
+/// Спрашивать версию, пока ядро не ответит иной, чем `before`. Не дождались —
+/// ответ последнего вопроса: прежняя версия или молчание.
+async fn wait_for_the_new_core<F, Fut>(before: &str, budget: Duration, step: Duration, mut ask: F) -> Option<String>
+where
+    F: FnMut() -> Fut,
+    Fut: Future<Output = Option<String>>,
+{
+    let deadline = tokio::time::Instant::now() + budget;
+    loop {
+        let seen = ask().await;
+        if seen.as_deref().is_some_and(|version| !same_version(version, before))
+            || tokio::time::Instant::now() >= deadline
+        {
+            return seen;
+        }
+        tokio::time::sleep(step).await;
+    }
+}
+
+/// Попросить ядро обновить себя (`/upgrade` через службу). Обновилось ли оно,
+/// видно не по ответу на запрос, а по версии ядра, которое ответит после.
+pub async fn upgrade_through_core() -> Result<SelfUpgrade> {
+    let _guard = UpdateGuard::acquire()?;
+    if current_update_method().await != UpdateMethod::Core {
+        bail!("ядро этой установки само себя не обновляет");
+    }
+    let before = running_core_version()
+        .await
+        .ok_or_else(|| anyhow!("ядро не отвечает — обновлять нечего"))?;
+    let request = handle::Handle::mihomo()
+        .load_ctx()
+        .build_request(reqwest::Method::POST, "/upgrade")
+        .map_err(|error| anyhow!("{error}"))?
+        .query(&[("channel", "auto"), ("force", "false")])
+        .timeout(timing::CORE_SELF_UPGRADE);
+    match request.send().await {
+        Ok(response) if response.status().is_success() => {}
+        Ok(response) => {
+            let message = crate::feat::core_error_message(response).await;
+            if message.to_lowercase().contains("already using latest version") {
+                return Ok(SelfUpgrade::AlreadyLatest);
+            }
+            bail!(message);
+        }
+        // Обрыв запроса ядро не останавливает: оно может докачать и перезапуститься.
+        Err(err) => logging!(
+            warn,
+            Type::Core,
+            "no answer to /upgrade ({err}); waiting for the core to report its version"
+        ),
+    }
+    // До выхода ядра: сторож может заметить перезапуск раньше, чем мы дождёмся.
+    #[cfg(windows)]
+    CoreManager::global().a_restart_the_user_knows_of();
+    let seen = wait_for_the_new_core(
+        &before,
+        timing::CORE_BACK_AFTER_SELF_UPGRADE,
+        timing::CORE_READY_PROBE_TIMEOUT,
+        || async {
+            tokio::time::timeout(timing::CORE_READY_PROBE_TIMEOUT, running_core_version())
+                .await
+                .ok()
+                .flatten()
+        },
+    )
+    .await;
+    // Ядро подменяет файл до ответа на запрос, а служба в следующий раз
+    // поднимет то, что лежит на диске, — чем бы ядро ни ответило и успело ли
+    // оно ответить. Отпечаток снимается с этого файла: со старым отпечатком в
+    // папке, доступной на запись, служба ядро больше не запустит.
+    repin_core_binaries().await;
+    Ok(match seen {
+        Some(version) if !same_version(&version, &before) => SelfUpgrade::Updated { version },
+        Some(version) => SelfUpgrade::StillOld { version },
+        None => SelfUpgrade::Silent {
+            waited_secs: timing::CORE_BACK_AFTER_SELF_UPGRADE.as_secs(),
+        },
+    })
+}
+
 /// Остановить ядро, поставить новый файл на место прежнего переименованием и
 /// поднять ядро снова. Не поднялось — вернуть прежний файл и поднять его.
 /// Отпечаток ядра меняется вместе с файлом: служба не стартует ядро, чей файл
@@ -738,6 +842,50 @@ mod tests {
         assert!(same_version(" v1.19.31\n", "v1.19.31"));
         assert!(!same_version("v1.19.31", "v1.19.31-clod.8"));
         assert!(!same_version("v1.19.30", "v1.19.31"));
+    }
+
+    /// Ответы ядра по очереди; кончились — повторяется последний.
+    async fn answers(before: &str, script: &[Option<&str>]) -> Option<String> {
+        let script: Vec<Option<String>> = script.iter().map(|seen| seen.map(str::to_owned)).collect();
+        let mut asked = 0;
+        wait_for_the_new_core(
+            before,
+            Duration::from_millis(200),
+            Duration::from_millis(5),
+            move || {
+                let seen = script[asked.min(script.len() - 1)].clone();
+                asked += 1;
+                async move { seen }
+            },
+        )
+        .await
+    }
+
+    #[tokio::test]
+    async fn the_update_is_confirmed_by_the_new_version_not_by_the_reply() {
+        let seen = answers("v1.19.31", &[None, Some("v1.19.31"), None, Some("v1.19.32")]).await;
+        assert_eq!(seen.as_deref(), Some("v1.19.32"));
+    }
+
+    #[tokio::test]
+    async fn the_old_core_answering_is_not_an_update() {
+        assert_eq!(
+            answers("v1.19.31", &[Some("1.19.31")]).await.as_deref(),
+            Some("1.19.31")
+        );
+    }
+
+    #[tokio::test]
+    async fn silence_is_reported_as_silence() {
+        assert_eq!(answers("v1.19.31", &[None]).await, None);
+        // Прежнее ядро ответило до выхода, новое так и не поднялось.
+        assert_eq!(answers("v1.19.31", &[Some("v1.19.31"), None]).await, None);
+    }
+
+    #[test]
+    fn the_request_budget_covers_the_core_download() {
+        // update_core.go: до 5 с на version.txt и до 90 с на загрузку.
+        assert!(timing::CORE_SELF_UPGRADE > Duration::from_secs(5 + 90));
     }
 
     #[test]

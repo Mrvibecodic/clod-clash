@@ -699,6 +699,8 @@
         "versionUpdated": "Versión del núcleo actualizada",
         "alreadyLatestVersion": "Ya estás utilizando la versión más reciente del núcleo",
         "upgradeFailed": "No se pudo actualizar el núcleo:",
+        "upgradeNotApplied": "The core came back on the old version {{version}}; the update did not apply. The core log has the reason.",
+        "upgradeNoAnswer": "The core did not answer within {{seconds}} s after the update. If it does not come back by itself, press Restart.",
         "changeSuccess": "Núcleo cambiado con éxito",
         "changeFailed": "No se pudo cambiar el núcleo",
         "geoDataUpdated": "El núcleo aceptó la solicitud de actualización de GeoData"

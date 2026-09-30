@@ -813,6 +813,8 @@ export interface TranslationResources {
             geoDataUpdated: string
             restartSuccess: string
             upgradeFailed: string
+            upgradeNoAnswer: string
+            upgradeNotApplied: string
             versionUpdated: string
           }
           clashService: {

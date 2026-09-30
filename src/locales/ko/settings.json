@@ -699,6 +699,8 @@
         "versionUpdated": "코어 버전이 업데이트되었습니다",
         "alreadyLatestVersion": "이미 최신 코어 버전을 사용 중입니다",
         "upgradeFailed": "코어를 업데이트하지 못했습니다:",
+        "upgradeNotApplied": "The core came back on the old version {{version}}; the update did not apply. The core log has the reason.",
+        "upgradeNoAnswer": "The core did not answer within {{seconds}} s after the update. If it does not come back by itself, press Restart.",
         "changeSuccess": "코어 변경 성공",
         "changeFailed": "코어 변경 실패",
         "geoDataUpdated": "코어가 GeoData 업데이트 요청을 접수했습니다"

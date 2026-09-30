@@ -699,6 +699,8 @@
         "versionUpdated": "内核版本已更新",
         "alreadyLatestVersion": "已经是最新内核版本",
         "upgradeFailed": "无法更新内核：",
+        "upgradeNotApplied": "The core came back on the old version {{version}}; the update did not apply. The core log has the reason.",
+        "upgradeNoAnswer": "The core did not answer within {{seconds}} s after the update. If it does not come back by itself, press Restart.",
         "changeSuccess": "内核切换成功",
         "changeFailed": "无法切换内核",
         "geoDataUpdated": "内核已接受 GeoData 更新请求"

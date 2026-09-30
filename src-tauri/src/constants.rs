@@ -99,6 +99,12 @@ pub mod timing {
     pub const CORE_PROVIDER_DOWNLOAD: Duration = Duration::from_secs(25);
     /// То же для гео-баз: ядро качает их до 90 с.
     pub const CORE_GEO_DOWNLOAD: Duration = Duration::from_secs(100);
+    /// Ядро обновляет себя само (`/upgrade`): до 5 с на version.txt и до 90 с
+    /// на загрузку (update_core.go), потом распаковка и подмена — с запасом.
+    pub const CORE_SELF_UPGRADE: Duration = Duration::from_secs(120);
+    /// Сколько ждать, пока ядро, заменившее себя, ответит снова: столько же,
+    /// сколько ждём любое свежезапущенное ядро (40 × 0,7 с), плюс его остановка.
+    pub const CORE_BACK_AFTER_SELF_UPGRADE: Duration = Duration::from_secs(30);
     pub const MIXED_PORT_CHECK_ATTEMPTS: u32 = 12;
     pub const MIXED_PORT_CONFIRM_ATTEMPTS: u32 = 2;
     pub const MIXED_PORT_CHECK_INTERVAL: Duration = Duration::from_millis(500);
