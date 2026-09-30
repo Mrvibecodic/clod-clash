@@ -3,6 +3,7 @@ import {
   healthcheckNodeInProvider,
 } from 'tauri-plugin-mihomo-api'
 
+import { currentFirst } from '@/utils/current-first'
 import { debugLog } from '@/utils/debug'
 import { delayColor } from '@/utils/delay-color'
 import { isValidUrl } from '@/utils/network'
@@ -549,14 +550,16 @@ class DelayManager {
   }
 
   async checkListDelay(
-    proxies: IProxyItem[],
+    list: IProxyItem[],
     group: string,
     timeout: number,
+    current?: string,
     concurrency = 10,
   ) {
     debugLog(
-      `[DelayManager] Начало пакетного теста задержки, группа: ${group}, количество: ${proxies.length}, параллельность: ${concurrency}`,
+      `[DelayManager] Начало пакетного теста задержки, группа: ${group}, количество: ${list.length}, параллельность: ${concurrency}`,
     )
+    const proxies = currentFirst(list, current)
     const names = proxies.map((p) => p.name)
     // Выставляем статус «идёт тест задержки»
     names.forEach((name) => {

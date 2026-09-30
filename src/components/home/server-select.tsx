@@ -190,6 +190,7 @@ export const ServerSelect = ({ open, onClose }: Props) => {
           .filter((node): node is IProxyItem => !!node),
         group.name,
         effectiveLatencyTimeout(verge?.default_latency_timeout),
+        group.now,
       )
     } finally {
       setTesting(false)
@@ -679,7 +680,7 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
           lastAutoDelayKey = `${groupName}|${updatedAt}|${nodesSignature(nodes)}`
           lastAutoPingAt = Date.now()
           return delayManager
-            .checkListDelay(nodes, groupName, timeout)
+            .checkListDelay(nodes, groupName, timeout, fresh.now)
             .finally(() => {
               refreshProxy().catch(() => {})
             })

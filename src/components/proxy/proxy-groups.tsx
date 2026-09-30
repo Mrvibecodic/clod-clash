@@ -127,7 +127,12 @@ function useProxyRenderState(
       debugLog(
         `[ProxyGroups] URL теста: ${delayManager.getUrl(groupName)}, тайм-аут: ${timeout}ms`,
       )
-      await delayManager.checkListDelay(proxies, groupName, timeout)
+      await delayManager.checkListDelay(
+        proxies,
+        groupName,
+        timeout,
+        renderList.find((e) => e.group?.name === groupName)?.group?.now,
+      )
       debugLog(
         `[ProxyGroups] Тестирование задержки завершено, группа: ${groupName}`,
       )
