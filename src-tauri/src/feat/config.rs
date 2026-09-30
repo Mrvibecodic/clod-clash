@@ -28,31 +28,25 @@ pub async fn patch_clash(patch: &Mapping) -> Result<()> {
     candidate.patch_config(patch);
     let candidate = SharedDraft::new(Box::new(candidate));
 
-    let delivery = if patch.get("secret").is_some()
-        || patch.get("external-controller").is_some()
-        || patch.get("external-controller-cors").is_some()
-    {
-        Delivery::Restart
-    } else {
-        if let Some(sharing) = patch.get("allow-lan") {
-            // clod:lan-share — правка пришла от человека, а не из подписки:
-            // запоминаем его слово, чтобы подписка его не перебивала.
-            let declined = !sharing.as_bool().unwrap_or(false);
-            if let Err(error) = commit_verge_edit(|verge| verge.lan_sharing_declined = Some(declined)).await {
-                logging!(
-                    warn,
-                    Type::Config,
-                    "слово человека о раздаче в локальную сеть не записано: {error:#}"
-                );
-            }
+    if let Some(sharing) = patch.get("allow-lan") {
+        // clod:lan-share — правка пришла от человека, а не из подписки:
+        // запоминаем его слово, чтобы подписка его не перебивала.
+        let declined = !sharing.as_bool().unwrap_or(false);
+        if let Err(error) = commit_verge_edit(|verge| verge.lan_sharing_declined = Some(declined)).await {
+            logging!(
+                warn,
+                Type::Config,
+                "слово человека о раздаче в локальную сеть не записано: {error:#}"
+            );
         }
-        Delivery::Reload
-    };
+    }
 
     let clash = Config::clash().await;
     let sources = Sources::default().with_clash(std::sync::Arc::clone(&candidate));
+    // Перезапуск ради адреса, секрета или CORS контроллера решает доставка —
+    // по собранному конфигу, в своей очереди.
     CoreManager::global()
-        .update_config_committing(sources, delivery, async || {
+        .update_config_committing(sources, Delivery::Reload, async || {
             clash.replace_shared(std::sync::Arc::clone(&candidate));
             Ok(())
         })

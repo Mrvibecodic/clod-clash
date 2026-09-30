@@ -22,8 +22,9 @@ pub enum Delivery {
     /// Мягкая перезагрузка (`PUT /configs`); не прошла — перезапуск. Ядра нет —
     /// сразу старт.
     Reload,
-    /// Сразу перезапуск: адрес контроллера, секрет и смену сборки ядра мягко
-    /// применить нельзя.
+    /// Сразу перезапуск — когда вызывающий заранее знает, что мягко нельзя
+    /// (смена сборки ядра). Любую смену контроллера — включение, адрес, секрет,
+    /// CORS — доставка распознаёт по собранному конфигу сама.
     Restart,
 }
 
@@ -345,10 +346,20 @@ impl CoreManager {
         // clod:port-ladder — порт мог приехать из подписки: системный
         // прокси и PAC указывают на него, и после смены их надо
         // переписать, каким бы путём конфиг ни доехал до ядра.
-        let (mixed_port_changed, mode_changed, sharing_changed) = {
+        let (mixed_port_changed, mode_changed, sharing_changed, controller_needs_restart) = {
             let prev = Config::runtime().await.data_arc();
             let changed = |key: &str| prev.config.as_ref().and_then(|config| config.get(key)) != config.get(key);
-            (changed("mixed-port"), changed("mode"), changed("allow-lan"))
+            (
+                changed("mixed-port"),
+                changed("mode"),
+                changed("allow-lan"),
+                controller_changed(prev.config.as_ref(), config),
+            )
+        };
+        let delivery = if controller_needs_restart {
+            Delivery::Restart
+        } else {
+            delivery
         };
         let profile_uid = build.profile_uid.clone();
         if let Err(error) = self.apply_config(build, run_path, delivery).await {
@@ -844,11 +855,6 @@ const LISTENER_KEYS: &[&str] = &[
     "authentication",
     "skip-auth-prefixes",
     "listeners",
-    "external-controller",
-    "external-controller-unix",
-    "external-controller-pipe",
-    "external-controller-cors",
-    "secret",
     "ipv6",
     // clod:e3-05 — mihomo пересоздаёт эти inbound-ы только под `force`.
     "ss-config",
@@ -888,6 +894,18 @@ pub(super) async fn point_system_proxy_at_the_core() {
     }
 }
 
+/// Контроллер ядро поднимает только при старте: смену адреса, а у слушающего
+/// контроллера — и секрета с CORS мягкая перезагрузка не применит. Выключенному
+/// контроллеру сборка адрес не отдаёт, и его секрет ядру не нужен.
+fn controller_changed(prev: Option<&serde_yaml_ng::Mapping>, next: &serde_yaml_ng::Mapping) -> bool {
+    let changed = |key: &str| prev.and_then(|config| config.get(key)) != next.get(key);
+    let listening = next
+        .get("external-controller")
+        .and_then(serde_yaml_ng::Value::as_str)
+        .is_some_and(|address| !address.is_empty());
+    changed("external-controller") || (listening && (changed("secret") || changed("external-controller-cors")))
+}
+
 fn listeners_need_recreate(prev: Option<&serde_yaml_ng::Mapping>, next: Option<&serde_yaml_ng::Mapping>) -> bool {
     let (Some(prev), Some(next)) = (prev, next) else {
         return true;
@@ -897,7 +915,9 @@ fn listeners_need_recreate(prev: Option<&serde_yaml_ng::Mapping>, next: Option<&
 
 #[cfg(test)]
 mod tests {
-    use super::{StageAttempt, listeners_need_recreate, stage_with_confirmation, the_core_changed_hands};
+    use super::{
+        StageAttempt, controller_changed, listeners_need_recreate, stage_with_confirmation, the_core_changed_hands,
+    };
     use crate::core::manager::CoreManager;
     use crate::core::manager::RunningMode::{NotRunning, Service, Sidecar};
 
@@ -1105,5 +1125,23 @@ mod tests {
         let next = mapping("{mixed-port: 7890}");
         assert!(listeners_need_recreate(None, Some(&next)));
         assert!(listeners_need_recreate(Some(&next), None));
+    }
+
+    #[test]
+    fn only_a_controller_that_listens_restarts_the_core_for_its_secret() {
+        let off = mapping("external-controller: ''\nsecret: a\n");
+        let off_new_secret = mapping("external-controller: ''\nsecret: b\n");
+        let on = mapping("external-controller: 127.0.0.1:9097\nsecret: a\n");
+        let on_new_secret = mapping("external-controller: 127.0.0.1:9097\nsecret: b\n");
+        let on_new_cors =
+            mapping("external-controller: 127.0.0.1:9097\nsecret: a\nexternal-controller-cors: {allow-origins: [x]}\n");
+        let moved = mapping("external-controller: 127.0.0.1:9098\nsecret: a\n");
+        assert!(!controller_changed(Some(&off), &off_new_secret));
+        assert!(!controller_changed(Some(&on), &on));
+        assert!(controller_changed(Some(&off), &on));
+        assert!(controller_changed(Some(&on), &off));
+        assert!(controller_changed(Some(&on), &on_new_secret));
+        assert!(controller_changed(Some(&on), &on_new_cors));
+        assert!(controller_changed(Some(&on), &moved));
     }
 }

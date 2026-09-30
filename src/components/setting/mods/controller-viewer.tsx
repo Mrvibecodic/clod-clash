@@ -63,9 +63,8 @@ export function ControllerViewer({ ref }: { ref?: Ref<DialogRef> }) {
     const wasEnabled = verge?.enable_external_controller ?? false
     try {
       setIsSaving(true)
-      if (enableController !== wasEnabled) {
-        await patchVerge({ enable_external_controller: enableController })
-      }
+      // Адрес и секрет — раньше включения: выключенный контроллер ядро не
+      // перезапускает, и включение поднимет его уже с ними, одним перезапуском.
       if (enableController) {
         await patchInfo({
           ...(controller !== clashInfo?.server && {
@@ -73,6 +72,9 @@ export function ControllerViewer({ ref }: { ref?: Ref<DialogRef> }) {
           }),
           ...(secret !== clashInfo?.secret && { secret }),
         })
+      }
+      if (enableController !== wasEnabled) {
+        await patchVerge({ enable_external_controller: enableController })
       }
 
       showNotice.success('shared.feedback.notifications.common.saveSuccess')
