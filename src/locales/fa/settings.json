@@ -509,8 +509,8 @@
       },
       "fields": {
         "enableStatus": "وضعیت فعال",
-        "serverAddr": "آدرس سرور: ",
-        "pacUrl": "PAC URL: ",
+        "serverAddr": "آدرس سرور",
+        "pacUrl": "PAC URL",
         "proxyHost": "میزبان پراکسی",
         "usePacMode": "استفاده از حالت PAC",
         "proxyGuard": "محافظ پراکسی",

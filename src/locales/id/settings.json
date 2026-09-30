@@ -508,9 +508,9 @@
         "currentStatus": "Proksi Sistem Saat Ini"
       },
       "fields": {
-        "enableStatus": "Status Pengaktifan:",
-        "serverAddr": "Alamat Server: ",
-        "pacUrl": "URL PAC: ",
+        "enableStatus": "Status Pengaktifan",
+        "serverAddr": "Alamat Server",
+        "pacUrl": "URL PAC",
         "proxyHost": "Host Proksi",
         "usePacMode": "Gunakan Mode PAC",
         "proxyGuard": "Penjaga Proksi",

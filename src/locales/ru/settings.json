@@ -513,8 +513,8 @@
       },
       "fields": {
         "enableStatus": "Статус",
-        "serverAddr": "Адрес сервера: ",
-        "pacUrl": "Адрес PAC: ",
+        "serverAddr": "Адрес сервера",
+        "pacUrl": "Адрес PAC",
         "proxyHost": "Хост прокси",
         "usePacMode": "Использовать режим PAC",
         "proxyGuard": "Защита прокси",

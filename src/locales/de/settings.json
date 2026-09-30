@@ -508,9 +508,9 @@
         "currentStatus": "Aktueller Systemproxy"
       },
       "fields": {
-        "enableStatus": "Aktivierungsstatus: ",
-        "serverAddr": "Serveradresse: ",
-        "pacUrl": "PAC-Adresse: ",
+        "enableStatus": "Aktivierungsstatus",
+        "serverAddr": "Serveradresse",
+        "pacUrl": "PAC-Adresse",
         "proxyHost": "Proxy-Host",
         "usePacMode": "PAC-Modus verwenden",
         "proxyGuard": "Systemproxy-Schutz",

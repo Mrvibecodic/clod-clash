@@ -1,5 +1,12 @@
-import { EditRounded } from '@mui/icons-material'
 import {
+  EditRounded,
+  LanRounded,
+  LinkRounded,
+  PauseCircleOutlineRounded,
+  PlayCircleOutlineRounded,
+} from '@mui/icons-material'
+import {
+  alpha,
   Autocomplete,
   Box,
   Button,
@@ -18,7 +25,6 @@ import { useTranslation } from 'react-i18next'
 
 import {
   BaseDialog,
-  BaseFieldset,
   BaseSplitChipEditor,
   DialogRef,
   Switch,
@@ -28,6 +34,7 @@ import { EditorViewer } from '@/components/profile/editor-viewer'
 import { useRuntimeConfig } from '@/hooks/use-clash'
 import { useSystemProxyState } from '@/hooks/use-system-proxy-state'
 import { useVerge } from '@/hooks/use-verge'
+import { TINT } from '@/pages/_theme'
 import { useSystemData } from '@/providers/app-data-context'
 import { getNetworkInterfacesInfo, getSystemHostname } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
@@ -339,37 +346,69 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
       disableCancel={saving}
     >
       <List>
-        <BaseFieldset
-          label={t('settings.modals.sysproxy.fieldsets.currentStatus')}
-          padding="15px 10px"
+        <Typography
+          variant="subtitle2"
+          color="text.secondary"
+          sx={{ px: 0.25, mb: 0.75 }}
         >
-          <FlexBox>
+          {t('settings.modals.sysproxy.fieldsets.currentStatus')}
+        </Typography>
+        <Box
+          sx={(theme) => {
+            const accent = isProxyReallyEnabled
+              ? theme.palette.success.main
+              : theme.palette.text.secondary
+            return {
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 1,
+              px: 1.5,
+              py: 1.25,
+              mx: 0.25,
+              mb: 0.5,
+              borderRadius: '12px',
+              bgcolor: alpha(accent, TINT.weak),
+              border: `1px solid ${alpha(accent, TINT.edge)}`,
+            }
+          }}
+        >
+          <StatusRow>
+            {isProxyReallyEnabled ? (
+              <PlayCircleOutlineRounded sx={{ color: 'success.main' }} />
+            ) : (
+              <PauseCircleOutlineRounded sx={{ color: 'text.disabled' }} />
+            )}
             <Typography className="label">
               {t('settings.modals.sysproxy.fields.enableStatus')}
             </Typography>
-            <Typography className="value">
+            <Typography
+              className="value"
+              sx={{
+                fontWeight: 500,
+                color: isProxyReallyEnabled ? 'success.main' : 'text.secondary',
+              }}
+            >
               {isProxyReallyEnabled
                 ? t('shared.statuses.enabled')
                 : t('shared.statuses.disabled')}
             </Typography>
-          </FlexBox>
-          {!value.pac && (
-            <FlexBox>
-              <Typography className="label">
-                {t('settings.modals.sysproxy.fields.serverAddr')}
-              </Typography>
-              <Typography className="value">{systemProxyAddress}</Typography>
-            </FlexBox>
-          )}
-          {value.pac && (
-            <FlexBox>
-              <Typography className="label">
-                {t('settings.modals.sysproxy.fields.pacUrl')}
-              </Typography>
-              <Typography className="value">{PAC_URL}</Typography>
-            </FlexBox>
-          )}
-        </BaseFieldset>
+          </StatusRow>
+          <StatusRow>
+            {value.pac ? (
+              <LinkRounded sx={{ color: 'text.secondary' }} />
+            ) : (
+              <LanRounded sx={{ color: 'text.secondary' }} />
+            )}
+            <Typography className="label">
+              {value.pac
+                ? t('settings.modals.sysproxy.fields.pacUrl')
+                : t('settings.modals.sysproxy.fields.serverAddr')}
+            </Typography>
+            <Typography className="value" sx={{ fontFamily: 'monospace' }}>
+              {value.pac ? PAC_URL : systemProxyAddress}
+            </Typography>
+          </StatusRow>
+        </Box>
         <ListItem sx={{ padding: '5px 2px' }}>
           <ListItemText
             primary={t('settings.modals.sysproxy.fields.proxyHost')}
@@ -563,12 +602,26 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
   )
 })
 
-const FlexBox = styled('div')`
-  display: flex;
-  margin-top: 4px;
-
-  .label {
-    flex: none;
-    //width: 85px;
-  }
-`
+// Строка состояния: иконка, подпись и значение справа. Промежутки даёт
+// вёрстка, а не пробелы и двоеточия в переводах.
+const StatusRow = styled('div')(({ theme }) => ({
+  display: 'flex',
+  alignItems: 'center',
+  gap: theme.spacing(1),
+  '& > .MuiSvgIcon-root': {
+    flex: 'none',
+    fontSize: 20,
+  },
+  '& .label': {
+    flex: 'none',
+    fontSize: 14,
+    color: theme.palette.text.secondary,
+  },
+  '& .value': {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 14,
+    textAlign: 'right',
+    wordBreak: 'break-all',
+  },
+}))

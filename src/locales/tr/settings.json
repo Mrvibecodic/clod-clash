@@ -508,9 +508,9 @@
         "currentStatus": "Geçerli Sistem Vekil'i"
       },
       "fields": {
-        "enableStatus": "Etkinlik Durumu:",
-        "serverAddr": "Sunucu Adresi: ",
-        "pacUrl": "PAC URL'si: ",
+        "enableStatus": "Etkinlik Durumu",
+        "serverAddr": "Sunucu Adresi",
+        "pacUrl": "PAC URL'si",
         "proxyHost": "Vekil Sunucusu",
         "usePacMode": "PAC Modunu Kullan",
         "proxyGuard": "Vekil Koruyucusu",

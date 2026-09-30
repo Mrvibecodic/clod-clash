@@ -508,9 +508,9 @@
         "currentStatus": "現在のシステムプロキシ"
       },
       "fields": {
-        "enableStatus": "有効状態：",
-        "serverAddr": "サーバーアドレス：",
-        "pacUrl": "PACアドレス：",
+        "enableStatus": "有効状態",
+        "serverAddr": "サーバーアドレス",
+        "pacUrl": "PACアドレス",
         "proxyHost": "プロキシホスト",
         "usePacMode": "PACモードを使用",
         "proxyGuard": "システムプロキシガード",

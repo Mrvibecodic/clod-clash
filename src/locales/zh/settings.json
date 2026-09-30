@@ -508,9 +508,9 @@
         "currentStatus": "当前系统代理"
       },
       "fields": {
-        "enableStatus": "开启状态：",
-        "serverAddr": "服务地址：",
-        "pacUrl": "PAC 地址：",
+        "enableStatus": "开启状态",
+        "serverAddr": "服务地址",
+        "pacUrl": "PAC 地址",
         "proxyHost": "代理主机",
         "usePacMode": "使用 PAC 模式",
         "proxyGuard": "系统代理守卫",

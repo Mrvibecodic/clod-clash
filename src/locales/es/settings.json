@@ -508,9 +508,9 @@
         "currentStatus": "Proxy del sistema actual"
       },
       "fields": {
-        "enableStatus": "Estado de habilitación: ",
-        "serverAddr": "Dirección del servidor: ",
-        "pacUrl": "URL del PAC: ",
+        "enableStatus": "Estado de habilitación",
+        "serverAddr": "Dirección del servidor",
+        "pacUrl": "URL del PAC",
         "proxyHost": "Host del proxy",
         "usePacMode": "Usar modo PAC",
         "proxyGuard": "Guardia del proxy del sistema",

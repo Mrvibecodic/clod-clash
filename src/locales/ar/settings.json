@@ -508,9 +508,9 @@
         "currentStatus": "الوكيل الحالي للنظام"
       },
       "fields": {
-        "enableStatus": "حالة التمكين:",
-        "serverAddr": "عنوان الخادم:",
-        "pacUrl": "رابط PAC:",
+        "enableStatus": "حالة التمكين",
+        "serverAddr": "عنوان الخادم",
+        "pacUrl": "رابط PAC",
         "proxyHost": "مضيف الوكيل",
         "usePacMode": "استخدام وضع PAC",
         "proxyGuard": "حماية الوكيل",

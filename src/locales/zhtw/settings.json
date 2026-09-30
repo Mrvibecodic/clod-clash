@@ -508,9 +508,9 @@
         "currentStatus": "目前系統代理"
       },
       "fields": {
-        "enableStatus": "啟用狀態：",
-        "serverAddr": "服務位址：",
-        "pacUrl": "PAC 位址：",
+        "enableStatus": "啟用狀態",
+        "serverAddr": "服務位址",
+        "pacUrl": "PAC 位址",
         "proxyHost": "代理主機",
         "usePacMode": "使用 PAC 模式",
         "proxyGuard": "系統代理守護",

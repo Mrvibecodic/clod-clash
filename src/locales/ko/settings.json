@@ -508,9 +508,9 @@
         "currentStatus": "현재 시스템 프록시"
       },
       "fields": {
-        "enableStatus": "활성 상태:",
-        "serverAddr": "서버 주소: ",
-        "pacUrl": "PAC URL: ",
+        "enableStatus": "활성 상태",
+        "serverAddr": "서버 주소",
+        "pacUrl": "PAC URL",
         "proxyHost": "프록시 호스트",
         "usePacMode": "PAC 모드 사용",
         "proxyGuard": "프록시 가드",
