@@ -860,7 +860,6 @@ fn fresh_failure<'a, S: AsRef<str>>(logs: &'a [S], anchor: Option<&str>) -> Opti
     logs[from..]
         .iter()
         .rev()
-        .take(200)
         .find(|line| line_reports_tun_failure(line.as_ref()))
 }
 
