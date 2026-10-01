@@ -38,7 +38,8 @@
       "delayCheckUrl": "URL Periksa Keterlambatan",
       "showBasic": "Dasar Proksi",
       "showDetail": "Detail Proksi",
-      "filter": "Filter"
+      "filter": "Filter",
+      "more": "More"
     },
     "placeholders": {
       "delayCheckUrl": "URL Periksa Keterlambatan"

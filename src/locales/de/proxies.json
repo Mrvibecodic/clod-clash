@@ -38,7 +38,8 @@
       "delayCheckUrl": "Latenztest-URL",
       "showBasic": "Knotendetails ausblenden",
       "showDetail": "Knotendetails anzeigen",
-      "filter": "Knoten filtern"
+      "filter": "Knoten filtern",
+      "more": "Mehr"
     },
     "placeholders": {
       "delayCheckUrl": "Latenztest-URL"

@@ -38,7 +38,8 @@
       "delayCheckUrl": "رابط فحص التأخير",
       "showBasic": "إعدادات الوكيل الأساسية",
       "showDetail": "تفاصيل الوكيل",
-      "filter": "تصفية"
+      "filter": "تصفية",
+      "more": "More"
     },
     "placeholders": {
       "delayCheckUrl": "رابط فحص التأخير"

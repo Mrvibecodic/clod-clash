@@ -299,8 +299,6 @@
         "fields": {
           "proxyGroupIcon": "Ikon Grup Proksi",
           "toastPosition": "Posisi toast",
-          "hoverNavigator": "Hover Jump Navigator",
-          "hoverNavigatorDelay": "Hover Jump Navigator Delay",
           "trayIcon": "Ikon Tray",
           "proxyGroupsDisplayMode": "Proxy Groups Display Mode",
           "showOutboundModesInline": "Show Outbound Modes Inline",
@@ -308,10 +306,6 @@
           "systemProxyTrayIcon": "Ikon Tray Proksi Sistem",
           "tunTrayIcon": "Ikon Tray Tun",
           "enableTraySpeed": "Aktifkan Tray Speed"
-        },
-        "tooltips": {
-          "hoverNavigator": "Automatically scroll to the corresponding proxy group when hovering over alphabet letters",
-          "hoverNavigatorDelay": "Delay before auto scrolling when hovering, in milliseconds"
         },
         "options": {
           "icon": {

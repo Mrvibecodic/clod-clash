@@ -183,10 +183,6 @@ pub struct IVerge {
 
     pub auto_light_weight_minutes: Option<u64>,
 
-    pub enable_hover_jump_navigator: Option<bool>,
-
-    pub hover_jump_navigator_delay: Option<u64>,
-
     pub enable_external_controller: Option<bool>,
 
     pub enable_hwid: Option<bool>,
@@ -465,8 +461,6 @@ impl IVerge {
             tun_tray_icon: Some(false),
             enable_auto_launch: Some(false),
             enable_silent_start: Some(false),
-            enable_hover_jump_navigator: Some(true),
-            hover_jump_navigator_delay: Some(280),
             enable_system_proxy: Some(false),
             proxy_auto_config: Some(false),
             pac_file_content: Some(DEFAULT_PAC.into()),
@@ -558,8 +552,6 @@ impl IVerge {
         patch!(tun_dns_hijack);
         patch!(enable_auto_launch);
         patch!(enable_silent_start);
-        patch!(enable_hover_jump_navigator);
-        patch!(hover_jump_navigator_delay);
         #[cfg(not(target_os = "windows"))]
         patch!(verge_redir_port);
         #[cfg(not(target_os = "windows"))]

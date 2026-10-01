@@ -299,8 +299,6 @@
         "fields": {
           "proxyGroupIcon": "Vekil Grup Simgesi",
           "toastPosition": "Toast konumu",
-          "hoverNavigator": "Hover Jump Navigator",
-          "hoverNavigatorDelay": "Hover Jump Navigator Delay",
           "trayIcon": "Tepsi Simgesi",
           "proxyGroupsDisplayMode": "Proxy Groups Display Mode",
           "showOutboundModesInline": "Show Outbound Modes Inline",
@@ -308,10 +306,6 @@
           "systemProxyTrayIcon": "Sistem Vekil Tepsi Simgesi",
           "tunTrayIcon": "Tun Tepsi Simgesi",
           "enableTraySpeed": "Tepsi Hızını Etkinleştir"
-        },
-        "tooltips": {
-          "hoverNavigator": "Automatically scroll to the corresponding proxy group when hovering over alphabet letters",
-          "hoverNavigatorDelay": "Delay before auto scrolling when hovering, in milliseconds"
         },
         "options": {
           "icon": {

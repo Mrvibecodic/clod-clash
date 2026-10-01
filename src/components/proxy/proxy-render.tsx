@@ -301,7 +301,7 @@ export const ProxyRender = memo(function ProxyRender(props: RenderProps) {
     return (
       <Box
         sx={{
-          height: 56,
+          minHeight: 56,
           display: 'grid',
           my: 0.5,
           gap: 1,

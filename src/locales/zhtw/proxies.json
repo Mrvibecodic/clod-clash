@@ -38,7 +38,8 @@
       "delayCheckUrl": "延遲測試網址",
       "showBasic": "隱藏節點細節",
       "showDetail": "展示節點細節",
-      "filter": "篩選節點"
+      "filter": "篩選節點",
+      "more": "更多"
     },
     "placeholders": {
       "delayCheckUrl": "延遲測試網址"

@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next'
 
 import { BaseLoading } from '@/components/base'
 import { useProxyDelayState } from '@/hooks/use-proxy-delay-state'
+import { useServerDescriptions } from '@/hooks/use-server-descriptions'
 import delayManager from '@/services/delay'
 
 import { ProxyFavorite } from './proxy-favorite'
@@ -66,6 +67,8 @@ export const ProxyItem = (props: Props) => {
     proxy,
     group.name,
   )
+  // clod: описание узла из панели — под типами и прячется вместе с ними.
+  const description = useServerDescriptions()[proxy.name]
 
   return (
     <ListItem sx={sx}>
@@ -102,7 +105,7 @@ export const ProxyItem = (props: Props) => {
               }),
               backgroundColor: bgcolor,
               marginBottom: '8px',
-              height: '40px',
+              minHeight: '40px',
             }
           },
         ]}
@@ -131,14 +134,23 @@ export const ProxyItem = (props: Props) => {
               {showType && proxy.tfo && <TypeBox>TFO</TypeBox>}
               {showType && proxy.mptcp && <TypeBox>MPTCP</TypeBox>}
               {showType && proxy.smux && <TypeBox>SMUX</TypeBox>}
+              {showType && description && (
+                <Box
+                  component="span"
+                  title={description}
+                  sx={{
+                    display: 'block',
+                    fontSize: 12,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {description}
+                </Box>
+              )}
             </>
           }
-        />
-
-        <ProxyFavorite
-          proxy={proxy}
-          favorite={favorite}
-          onToggle={onToggleFavorite}
         />
 
         <ListItemIcon
@@ -204,6 +216,12 @@ export const ProxyItem = (props: Props) => {
             />
           )}
         </ListItemIcon>
+
+        <ProxyFavorite
+          proxy={proxy}
+          favorite={favorite}
+          onToggle={onToggleFavorite}
+        />
       </ListItemButton>
     </ListItem>
   )

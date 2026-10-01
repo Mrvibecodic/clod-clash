@@ -1,18 +1,6 @@
-import {
-  AccessTimeRounded,
-  MyLocationRounded,
-  NetworkCheckRounded,
-  FilterAltRounded,
-  FilterAltOffRounded,
-  VisibilityRounded,
-  VisibilityOffRounded,
-  WifiTetheringRounded,
-  WifiTetheringOffRounded,
-  SortByAlphaRounded,
-  SortRounded,
-} from '@mui/icons-material'
+import { NetworkCheckRounded } from '@mui/icons-material'
 import { Box, IconButton, TextField, type SxProps } from '@mui/material'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseSearchBox } from '@/components/base'
@@ -21,7 +9,7 @@ import { showNotice } from '@/services/notice-service'
 import { debugLog } from '@/utils/debug'
 import { isValidUrl } from '@/utils/network'
 
-import type { ProxySortType } from './use-filter-sort'
+import { ProxyToolsMenu } from './proxy-tools-menu'
 import type { HeadState } from './use-head-state'
 
 interface Props {
@@ -44,8 +32,6 @@ export const ProxyHead = ({
   onCheckDelay,
 }: Props) => {
   const {
-    showType,
-    sortType,
     filterText,
     textState,
     testUrl,
@@ -56,6 +42,7 @@ export const ProxyHead = ({
 
   const { t } = useTranslation()
   const [autoFocus, setAutoFocus] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
   // clod:УП-33 — негодный адрес подсвечивается в самом поле, а не только по кнопке проверки.
   const badTestUrl =
     testUrl !== undefined && testUrl.trim() !== '' && !isValidUrl(testUrl)
@@ -84,15 +71,6 @@ export const ProxyHead = ({
       <IconButton
         size="small"
         color="inherit"
-        title={t('proxies.page.tooltips.locate')}
-        onClick={onLocation}
-      >
-        <MyLocationRounded />
-      </IconButton>
-
-      <IconButton
-        size="small"
-        color="inherit"
         title={t('proxies.page.tooltips.delayCheck')}
         onClick={() => {
           debugLog(
@@ -114,72 +92,18 @@ export const ProxyHead = ({
         <NetworkCheckRounded />
       </IconButton>
 
-      <IconButton
-        size="small"
-        color="inherit"
-        title={
-          [
-            t('proxies.page.tooltips.sortDefault'),
-            t('proxies.page.tooltips.sortDelay'),
-            t('proxies.page.tooltips.sortName'),
-          ][sortType]
-        }
-        onClick={() =>
-          onHeadState({ sortType: ((sortType + 1) % 3) as ProxySortType })
-        }
-      >
-        {sortType !== 1 && sortType !== 2 && <SortRounded />}
-        {sortType === 1 && <AccessTimeRounded />}
-        {sortType === 2 && <SortByAlphaRounded />}
-      </IconButton>
-
-      <IconButton
-        size="small"
-        color="inherit"
-        title={t('proxies.page.tooltips.delayCheckUrl')}
-        onClick={() =>
-          onHeadState({ textState: textState === 'url' ? null : 'url' })
-        }
-      >
-        {textState === 'url' ? (
-          <WifiTetheringRounded />
-        ) : (
-          <WifiTetheringOffRounded />
-        )}
-      </IconButton>
-
-      <IconButton
-        size="small"
-        color="inherit"
-        title={
-          showType
-            ? t('proxies.page.tooltips.showBasic')
-            : t('proxies.page.tooltips.showDetail')
-        }
-        onClick={() => onHeadState({ showType: !showType })}
-      >
-        {showType ? <VisibilityRounded /> : <VisibilityOffRounded />}
-      </IconButton>
-
-      <IconButton
-        size="small"
-        color="inherit"
-        title={t('proxies.page.tooltips.filter')}
-        onClick={() =>
-          onHeadState({ textState: textState === 'filter' ? null : 'filter' })
-        }
-      >
-        {textState === 'filter' ? (
-          <FilterAltRounded />
-        ) : (
-          <FilterAltOffRounded />
-        )}
-      </IconButton>
+      <ProxyToolsMenu
+        headState={headState}
+        onHeadState={onHeadState}
+        onLocation={onLocation}
+        onFieldShown={() => setTimeout(() => inputRef.current?.focus())}
+      />
 
       {textState === 'filter' && (
         <Box sx={{ ml: 0.5, flex: '1 1 auto' }}>
           <BaseSearchBox
             autoFocus={autoFocus}
+            inputRef={inputRef}
             value={filterText}
             searchState={{
               matchCase: filterMatchCase,
@@ -202,6 +126,7 @@ export const ProxyHead = ({
         <TextField
           autoComplete="new-password"
           autoFocus={autoFocus}
+          inputRef={inputRef}
           hiddenLabel
           autoSave="off"
           value={testUrl}

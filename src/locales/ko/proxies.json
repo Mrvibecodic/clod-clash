@@ -38,7 +38,8 @@
       "delayCheckUrl": "지연 확인 URL",
       "showBasic": "프록시 기본",
       "showDetail": "프록시 상세",
-      "filter": "필터"
+      "filter": "필터",
+      "more": "더 보기"
     },
     "placeholders": {
       "delayCheckUrl": "지연 확인 URL"

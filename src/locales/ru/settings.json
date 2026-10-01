@@ -299,8 +299,6 @@
         "fields": {
           "proxyGroupIcon": "Значок группы прокси",
           "toastPosition": "Расположение уведомлений",
-          "hoverNavigator": "Навигация по алфавиту при наведении",
-          "hoverNavigatorDelay": "Задержка навигации при наведении",
           "trayIcon": "Значок в трее",
           "proxyGroupsDisplayMode": "Режим отображения групп прокси",
           "showOutboundModesInline": "Показывать режимы исходящих соединений в строку",
@@ -308,10 +306,6 @@
           "systemProxyTrayIcon": "Значок системного прокси в трее",
           "tunTrayIcon": "Значок TUN в трее",
           "enableTraySpeed": "Показывать скорость в трее"
-        },
-        "tooltips": {
-          "hoverNavigator": "Автоматически прокручивает к группе прокси при наведении на буквы",
-          "hoverNavigatorDelay": "Задержка перед прокруткой при наведении (в миллисекундах)"
         },
         "options": {
           "icon": {

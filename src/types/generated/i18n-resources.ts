@@ -582,6 +582,7 @@ export interface TranslationResources {
           delayCheckUrl: string
           filter: string
           locate: string
+          more: string
           showBasic: string
           showDetail: string
           sortDefault: string
@@ -756,8 +757,6 @@ export interface TranslationResources {
             fields: {
               commonTrayIcon: string
               enableTraySpeed: string
-              hoverNavigator: string
-              hoverNavigatorDelay: string
               proxyGroupIcon: string
               proxyGroupsDisplayMode: string
               showOutboundModesInline: string
@@ -784,10 +783,6 @@ export interface TranslationResources {
               }
             }
             title: string
-            tooltips: {
-              hoverNavigator: string
-              hoverNavigatorDelay: string
-            }
           }
           theme: {
             fields: {

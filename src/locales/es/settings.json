@@ -299,8 +299,6 @@
         "fields": {
           "proxyGroupIcon": "Icono del grupo de proxy",
           "toastPosition": "Posición del aviso",
-          "hoverNavigator": "Hover Jump Navigator",
-          "hoverNavigatorDelay": "Hover Jump Navigator Delay",
           "trayIcon": "Icono de la bandeja",
           "proxyGroupsDisplayMode": "Proxy Groups Display Mode",
           "showOutboundModesInline": "Show Outbound Modes Inline",
@@ -308,10 +306,6 @@
           "systemProxyTrayIcon": "Icono de bandeja del proxy del sistema",
           "tunTrayIcon": "Icono de bandeja del modo TUN",
           "enableTraySpeed": "Habilitar velocidad en la bandeja"
-        },
-        "tooltips": {
-          "hoverNavigator": "Automatically scroll to the corresponding proxy group when hovering over alphabet letters",
-          "hoverNavigatorDelay": "Delay before auto scrolling when hovering, in milliseconds"
         },
         "options": {
           "icon": {

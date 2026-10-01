@@ -32,13 +32,14 @@
     "tooltips": {
       "locate": "Go to selected node",
       "delayCheck": "Delay check",
-      "sortDefault": "Sort by default",
-      "sortDelay": "Sort by delay",
-      "sortName": "Sort by name",
-      "delayCheckUrl": "Delay check URL",
-      "showBasic": "Proxy basic",
-      "showDetail": "Proxy detail",
-      "filter": "Filter"
+      "sortDefault": "Sort: default",
+      "sortDelay": "Sort: by delay",
+      "sortName": "Sort: by name",
+      "delayCheckUrl": "Custom test URL",
+      "showBasic": "Less node details",
+      "showDetail": "More node details",
+      "filter": "Filter by name",
+      "more": "More"
     },
     "placeholders": {
       "delayCheckUrl": "Delay check URL"

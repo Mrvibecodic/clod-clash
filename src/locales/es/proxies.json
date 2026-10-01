@@ -38,7 +38,8 @@
       "delayCheckUrl": "URL de prueba de latencia",
       "showBasic": "Ocultar detalles del nodo",
       "showDetail": "Mostrar detalles del nodo",
-      "filter": "Filtrar nodos"
+      "filter": "Filtrar nodos",
+      "more": "Más"
     },
     "placeholders": {
       "delayCheckUrl": "URL de prueba de latencia"

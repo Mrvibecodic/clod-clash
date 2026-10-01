@@ -29,10 +29,6 @@ import { useQuery } from '@/services/query-client'
 import { debugLog } from '@/utils/debug'
 import { isCorePolicy } from '@/utils/proxy-groups'
 
-import {
-  DEFAULT_HOVER_DELAY,
-  ProxyGroupNavigator,
-} from './proxy-group-navigator'
 import { ProxyRender } from './proxy-render'
 import { type IRenderItem, useRenderList } from './use-render-list'
 
@@ -371,7 +367,6 @@ function NormalProxyGroups(props: { mode: string }) {
   const { mode } = props
   const stickyListRef = useRef<StickyVirtualListHandle>(null)
   const {
-    verge,
     renderList,
     onProxies,
     onHeadState,
@@ -506,13 +501,6 @@ function NormalProxyGroups(props: { mode: string }) {
     [renderList],
   )
 
-  const proxyGroupNames = useMemo(() => {
-    const names = renderList
-      .filter((item) => item.type === 0 && item.group?.name)
-      .map((item) => item.group!.name)
-    return Array.from(new Set(names))
-  }, [renderList])
-
   const handleGroupToggle = useCallback(
     async (group: IProxyGroupItem) => {
       const index = renderList.findIndex(
@@ -601,15 +589,6 @@ function NormalProxyGroups(props: { mode: string }) {
         renderGroupItem={renderGroupItem}
         renderItem={renderProxyItem}
       />
-
-      {mode === 'rule' && (
-        <ProxyGroupNavigator
-          proxyGroupNames={proxyGroupNames}
-          onGroupLocation={handleGroupLocationByName}
-          enableHoverJump={verge?.enable_hover_jump_navigator ?? true}
-          hoverDelay={verge?.hover_jump_navigator_delay ?? DEFAULT_HOVER_DELAY}
-        />
-      )}
     </div>
   )
 }

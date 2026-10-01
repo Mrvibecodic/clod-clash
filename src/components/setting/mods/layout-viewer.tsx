@@ -1,13 +1,10 @@
 import {
-  Box,
   Button,
-  InputAdornment,
   List,
   ListItem,
   ListItemText,
   MenuItem,
   Select,
-  TextField,
   styled,
 } from '@mui/material'
 import { convertFileSrc } from '@tauri-apps/api/core'
@@ -15,8 +12,7 @@ import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { BaseDialog, DialogRef, Switch, TooltipIcon } from '@/components/base'
-import { DEFAULT_HOVER_DELAY } from '@/components/proxy/proxy-group-navigator'
+import { BaseDialog, DialogRef, Switch } from '@/components/base'
 import { useVerge } from '@/hooks/use-verge'
 import { copyIconFile, trayIconPath } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
@@ -25,13 +21,6 @@ import getSystem from '@/utils/get-system'
 import { GuardState } from './guard-state'
 
 const OS = getSystem()
-
-const clampHoverDelay = (value: number) => {
-  if (!Number.isFinite(value)) {
-    return DEFAULT_HOVER_DELAY
-  }
-  return Math.min(5000, Math.max(0, Math.round(value)))
-}
 
 export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
   const { t } = useTranslation()
@@ -139,93 +128,6 @@ export const LayoutViewer = forwardRef<DialogRef>((_, ref) => {
                 )}
               </MenuItem>
             </Select>
-          </GuardState>
-        </Item>
-
-        <Item>
-          <ListItemText
-            primary={
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <span>
-                  {t('settings.components.verge.layout.fields.hoverNavigator')}
-                </span>
-                <TooltipIcon
-                  title={t(
-                    'settings.components.verge.layout.tooltips.hoverNavigator',
-                  )}
-                  sx={{ opacity: '0.7' }}
-                />
-              </Box>
-            }
-          />
-          <GuardState
-            value={verge?.enable_hover_jump_navigator ?? true}
-            valueProps="checked"
-            onCatch={onError}
-            onFormat={onSwitchFormat}
-            onChange={(e) => onChangeData({ enable_hover_jump_navigator: e })}
-            onGuard={(e) => patchVerge({ enable_hover_jump_navigator: e })}
-          >
-            <Switch edge="end" />
-          </GuardState>
-        </Item>
-
-        <Item>
-          <ListItemText
-            primary={
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <span>
-                  {t(
-                    'settings.components.verge.layout.fields.hoverNavigatorDelay',
-                  )}
-                </span>
-                <TooltipIcon
-                  title={t(
-                    'settings.components.verge.layout.tooltips.hoverNavigatorDelay',
-                  )}
-                  sx={{ opacity: '0.7' }}
-                />
-              </Box>
-            }
-          />
-          <GuardState
-            value={verge?.hover_jump_navigator_delay ?? DEFAULT_HOVER_DELAY}
-            waitTime={400}
-            onCatch={onError}
-            onFormat={(e: any) => clampHoverDelay(Number(e.target.value))}
-            onChange={(value) =>
-              onChangeData({
-                hover_jump_navigator_delay: clampHoverDelay(value),
-              })
-            }
-            onGuard={(value) =>
-              patchVerge({ hover_jump_navigator_delay: clampHoverDelay(value) })
-            }
-          >
-            <TextField
-              type="number"
-              size="small"
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="off"
-              spellCheck={false}
-              sx={{ width: 120 }}
-              disabled={!(verge?.enable_hover_jump_navigator ?? true)}
-              slotProps={{
-                input: {
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      {t('shared.units.milliseconds')}
-                    </InputAdornment>
-                  ),
-                },
-                htmlInput: {
-                  min: 0,
-                  max: 5000,
-                  step: 20,
-                },
-              }}
-            />
           </GuardState>
         </Item>
 

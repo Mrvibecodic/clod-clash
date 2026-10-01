@@ -944,8 +944,6 @@ interface IVergeConfig {
   webdav_url?: string
   webdav_username?: string
   webdav_password?: string
-  enable_hover_jump_navigator?: boolean
-  hover_jump_navigator_delay?: number
   enable_external_controller?: boolean
   enable_hwid?: boolean
   hwid?: string

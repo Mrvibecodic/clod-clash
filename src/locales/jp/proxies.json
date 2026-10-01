@@ -38,7 +38,8 @@
       "delayCheckUrl": "遅延テストURL",
       "showBasic": "ノードの詳細を隠す",
       "showDetail": "ノードの詳細を表示する",
-      "filter": "ノードをフィルタリング"
+      "filter": "ノードをフィルタリング",
+      "more": "その他"
     },
     "placeholders": {
       "delayCheckUrl": "遅延テストURL"

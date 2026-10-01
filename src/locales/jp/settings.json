@@ -299,8 +299,6 @@
         "fields": {
           "proxyGroupIcon": "プロキシグループアイコン",
           "toastPosition": "トーストの表示位置",
-          "hoverNavigator": "Hover Jump Navigator",
-          "hoverNavigatorDelay": "Hover Jump Navigator Delay",
           "trayIcon": "トレイアイコン",
           "proxyGroupsDisplayMode": "Proxy Groups Display Mode",
           "showOutboundModesInline": "Show Outbound Modes Inline",
@@ -308,10 +306,6 @@
           "systemProxyTrayIcon": "システムプロキシトレイアイコン",
           "tunTrayIcon": "TUNモードトレイアイコン",
           "enableTraySpeed": "トレイの速度表示を有効にする"
-        },
-        "tooltips": {
-          "hoverNavigator": "Automatically scroll to the corresponding proxy group when hovering over alphabet letters",
-          "hoverNavigatorDelay": "Delay before auto scrolling when hovering, in milliseconds"
         },
         "options": {
           "icon": {
