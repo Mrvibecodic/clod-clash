@@ -130,11 +130,20 @@ export const ConnectButton = ({
         )}
       </Box>
 
-      <Typography variant="subtitle1" sx={{ color, fontWeight: 600 }}>
-        {label}
-      </Typography>
-
-      <ConnectUptime active={state === 'on'} />
+      {/* clod: при подключении надпись «Подключено» заменяет зелёный таймер
+          сессии — цвет и кнопка говорят то же самое; вслух состояние
+          произносит aria-label кнопки. Отступ сверху — чтобы строка не
+          липла к ореолу кнопки; снизу пустоты нет: режим под ней — часть
+          той же группы. */}
+      <Box sx={{ mt: 1.25 }}>
+        {state === 'on' ? (
+          <ConnectUptime color={color} fallback={label} />
+        ) : (
+          <Typography variant="subtitle1" sx={{ color, fontWeight: 600 }}>
+            {label}
+          </Typography>
+        )}
+      </Box>
 
       {state === 'error' && errorText ? (
         <Typography

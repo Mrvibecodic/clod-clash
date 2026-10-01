@@ -231,11 +231,14 @@ const HomeAdvancedPage = () => {
             onToggle={() => void toggle()}
           />
 
-          <ModeStatus
-            locked={Boolean(current.lock_mode)}
-            permanent={current.lock_permanent === true}
-            showTargets={false}
-          />
+          {/* Режим — часть группы кнопки: подтянут к подписи, как в простом. */}
+          <Box sx={{ mt: -1 }}>
+            <ModeStatus
+              locked={Boolean(current.lock_mode)}
+              permanent={current.lock_permanent === true}
+              showTargets={false}
+            />
+          </Box>
 
           <CoreStatus />
 

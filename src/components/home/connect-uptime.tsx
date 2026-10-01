@@ -4,7 +4,10 @@ import { memo } from 'react'
 import { useSessionUptime } from '@/hooks/use-session-uptime'
 
 interface Props {
-  active: boolean
+  /** Цвет состояния «подключено» — таймер стоит на месте надписи о нём. */
+  color: string
+  /** Что показать, пока бэкенд не вернул начало сессии. */
+  fallback: string
 }
 
 const formatUptime = (seconds: number) => {
@@ -18,22 +21,22 @@ const formatUptime = (seconds: number) => {
     : `${pad(minutes)}:${pad(secs)}`
 }
 
-const ConnectUptimeView = ({ active }: Props) => {
-  const uptime = useSessionUptime(active)
-  const shown = active && uptime !== undefined
+const ConnectUptimeView = ({ color, fallback }: Props) => {
+  const uptime = useSessionUptime(true)
 
   return (
     <Typography
-      variant="body1"
+      variant="subtitle1"
       sx={{
+        color,
         fontVariantNumeric: 'tabular-nums',
         letterSpacing: 1,
         fontWeight: 600,
-        minHeight: 24,
-        visibility: shown ? 'visible' : 'hidden',
+        fontSize: 18,
+        lineHeight: '28px',
       }}
     >
-      {shown ? formatUptime(uptime) : '00:00'}
+      {uptime === undefined ? fallback : formatUptime(uptime)}
     </Typography>
   )
 }

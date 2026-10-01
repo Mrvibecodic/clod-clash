@@ -266,6 +266,7 @@ export const SubscriptionCard = ({ profile }: Props) => {
       <InfoTile
         title={t('home.components.subscription.expiryTitle')}
         icon={<CalendarMonthRoundedIcon />}
+        lift={false}
       >
         {!info.forever ? (
           <>

@@ -7,15 +7,18 @@ export const InfoTile = ({
   title,
   icon,
   children,
+  lift = true,
 }: {
   title: string
   icon: ReactNode
   children: ReactNode
+  /** Подъём при наведении; плитке без действия по нажатию он ни к чему. */
+  lift?: boolean
 }) => (
   <Box
     sx={{
       ...CARD_SURFACE,
-      ...CARD_LIFT,
+      ...(lift && CARD_LIFT),
       position: 'relative',
       overflow: 'hidden',
       minWidth: 0,
