@@ -55,7 +55,7 @@
       "loading": "Loading..."
     },
     "menu": {
-      "home": "首 頁",
+      "subscriptionPage": "訂閱頁面",
       "select": "使用",
       "shareQrCode": "Share QR Code",
       "editInfo": "編輯資訊",
@@ -67,7 +67,8 @@
       "extendScript": "擴充指令碼",
       "openFile": "開啟檔案",
       "update": "更新",
-      "updateViaProxy": "更新（代理）"
+      "updateViaProxy": "更新（代理）",
+      "advanced": "進階"
     },
     "profileItem": {
       "tooltips": {

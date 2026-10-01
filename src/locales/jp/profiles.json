@@ -55,7 +55,7 @@
       "loading": "Loading..."
     },
     "menu": {
-      "home": "ホーム",
+      "subscriptionPage": "サブスクリプションページ",
       "select": "使用する",
       "shareQrCode": "Share QR Code",
       "editInfo": "情報を編集",
@@ -67,7 +67,8 @@
       "extendScript": "拡張スクリプト",
       "openFile": "ファイルを開く",
       "update": "更新",
-      "updateViaProxy": "Update via proxy"
+      "updateViaProxy": "Update via proxy",
+      "advanced": "詳細"
     },
     "profileItem": {
       "tooltips": {

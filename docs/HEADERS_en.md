@@ -191,7 +191,7 @@ clod-theme: accent=#2E7CF6; mode=dark; background=https://cdn.provider.example/b
 | `subscription-refill-date` | unix time | "Traffic resets on {date}" |
 | `profile-update-interval` | hours | auto-update interval, see below |
 | `Date` | a regular HTTP header | the panel's clock: expiry is counted by it, see below |
-| `profile-web-page-url` | an `https://` link | the "Home" item in the subscription card menu |
+| `profile-web-page-url` | an `https://` link | the "Subscription page" item in the subscription card menu |
 | `support-url` | an `https://`, `tg:` or `mailto:` link | the "Support" button |
 | `announce` | text | a permanent announcement (if there is no `clod-announce`) |
 | `announce-url` | an `https://` link | where a click on the announcement leads |

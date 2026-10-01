@@ -273,6 +273,7 @@ export interface TranslationResources {
           support: string
         }
         menu: {
+          advanced: string
           editFile: string
           editGroups: string
           editInfo: string
@@ -280,10 +281,10 @@ export interface TranslationResources {
           editRules: string
           extendConfig: string
           extendScript: string
-          home: string
           openFile: string
           select: string
           shareQrCode: string
+          subscriptionPage: string
           update: string
           updateViaProxy: string
         }

@@ -55,7 +55,7 @@
       "loading": "Загрузка…"
     },
     "menu": {
-      "home": "Главная",
+      "subscriptionPage": "Страница подписки",
       "select": "Выбрать",
       "shareQrCode": "Показать QR-код",
       "editInfo": "Изменить информацию",
@@ -67,7 +67,8 @@
       "extendScript": "Изменить Script",
       "openFile": "Открыть файл",
       "update": "Обновить",
-      "updateViaProxy": "Обновить через прокси"
+      "updateViaProxy": "Обновить через прокси",
+      "advanced": "Продвинутые"
     },
     "profileItem": {
       "tooltips": {

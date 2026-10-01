@@ -55,7 +55,7 @@
       "loading": "Loading..."
     },
     "menu": {
-      "home": "홈",
+      "subscriptionPage": "구독 페이지",
       "select": "선택",
       "shareQrCode": "Share QR Code",
       "editInfo": "정보 편집",
@@ -67,7 +67,8 @@
       "extendScript": "스크립트 확장",
       "openFile": "파일 열기",
       "update": "업데이트",
-      "updateViaProxy": "프록시를 통해 업데이트"
+      "updateViaProxy": "프록시를 통해 업데이트",
+      "advanced": "고급"
     },
     "profileItem": {
       "tooltips": {

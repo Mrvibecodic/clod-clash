@@ -55,7 +55,7 @@
       "loading": "Loading..."
     },
     "menu": {
-      "home": "Home",
+      "subscriptionPage": "Subscription page",
       "select": "Сайлау",
       "shareQrCode": "Share QR Code",
       "editInfo": "Мәгълүматны үзгәртү",
@@ -67,7 +67,8 @@
       "extendScript": "Script-ны үзгәртергә",
       "openFile": "Файлны ачу",
       "update": "Яңарту",
-      "updateViaProxy": "Update via proxy"
+      "updateViaProxy": "Update via proxy",
+      "advanced": "Advanced"
     },
     "profileItem": {
       "tooltips": {

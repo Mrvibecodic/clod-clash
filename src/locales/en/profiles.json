@@ -55,7 +55,7 @@
       "loading": "Loading..."
     },
     "menu": {
-      "home": "Home",
+      "subscriptionPage": "Subscription page",
       "select": "Select",
       "shareQrCode": "Share QR Code",
       "editInfo": "Edit Info",
@@ -67,7 +67,8 @@
       "extendScript": "Extend Script",
       "openFile": "Open File",
       "update": "Update",
-      "updateViaProxy": "Update via proxy"
+      "updateViaProxy": "Update via proxy",
+      "advanced": "Advanced"
     },
     "profileItem": {
       "tooltips": {

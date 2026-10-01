@@ -55,7 +55,7 @@
       "loading": "Loading..."
     },
     "menu": {
-      "home": "首 页",
+      "subscriptionPage": "订阅页面",
       "select": "使用",
       "shareQrCode": "分享二维码",
       "editInfo": "编辑信息",
@@ -67,7 +67,8 @@
       "extendScript": "扩展脚本",
       "openFile": "打开文件",
       "update": "更新",
-      "updateViaProxy": "更新（代理）"
+      "updateViaProxy": "更新（代理）",
+      "advanced": "高级"
     },
     "profileItem": {
       "tooltips": {

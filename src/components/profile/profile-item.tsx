@@ -6,7 +6,10 @@ import {
   CheckBoxOutlineBlankRounded,
   CheckBoxRounded,
   DragIndicatorRounded,
+  ExpandLessRounded,
+  ExpandMoreRounded,
   HomeWorkRounded,
+  OpenInNewRounded,
   RefreshRounded,
   ShieldRounded,
   SupportAgentRounded,
@@ -23,6 +26,7 @@ import {
   LinearProgress,
   Menu,
   MenuItem,
+  type PopoverActions,
   Typography,
 } from '@mui/material'
 import { useLockFn } from 'ahooks'
@@ -111,6 +115,8 @@ const ProfileItemBase = (props: ProfileItemProps) => {
   const { t } = useTranslation()
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
   const [position, setPosition] = useState({ left: 0, top: 0 })
+  const [advancedOpen, setAdvancedOpen] = useState(false)
+  const menuActionsRef = useRef<PopoverActions>(null)
   const loadingCache = useLoadingCache()
   const setLoadingCache = useSetLoadingCache()
 
@@ -470,13 +476,13 @@ const ProfileItemBase = (props: ProfileItemProps) => {
   })
 
   type ContextMenuItem = {
-    label: string
+    label: TranslationKey
     handler: () => void
     disabled: boolean
   }
 
-  const menuLabels: Record<string, TranslationKey> = {
-    home: 'profiles.components.menu.home',
+  const menuLabels = {
+    subscriptionPage: 'profiles.components.menu.subscriptionPage',
     select: 'profiles.components.menu.select',
     shareQrCode: 'profiles.components.menu.shareQrCode',
     editInfo: 'profiles.components.menu.editInfo',
@@ -489,101 +495,52 @@ const ProfileItemBase = (props: ProfileItemProps) => {
     openFile: 'profiles.components.menu.openFile',
     update: 'profiles.components.menu.update',
     updateViaProxy: 'profiles.components.menu.updateViaProxy',
+    advanced: 'profiles.components.menu.advanced',
     delete: 'shared.actions.delete',
-  } as const
+  } as const satisfies Record<string, TranslationKey>
 
-  const urlModeMenu: ContextMenuItem[] = [
-    ...(hasHome
+  const selectItem: ContextMenuItem = {
+    label: menuLabels.select,
+    handler: onForceSelect,
+    disabled: false,
+  }
+
+  const mainMenu: ContextMenuItem[] = hasUrl
+    ? [
+        ...(hasHome
+          ? [
+              {
+                label: menuLabels.subscriptionPage,
+                handler: onOpenHome,
+                disabled: false,
+              } satisfies ContextMenuItem,
+            ]
+          : []),
+        selectItem,
+        {
+          label: menuLabels.update,
+          handler: () => onUpdate(0),
+          disabled: false,
+        },
+        {
+          label: menuLabels.updateViaProxy,
+          handler: () => onUpdate(2),
+          disabled: false,
+        },
+      ]
+    : [selectItem]
+
+  const advancedMenu: ContextMenuItem[] = [
+    ...(hasUrl
       ? [
           {
-            label: menuLabels.home,
-            handler: onOpenHome,
+            label: menuLabels.shareQrCode,
+            handler: onShareQrCode,
             disabled: false,
           } satisfies ContextMenuItem,
         ]
       : []),
     {
-      label: menuLabels.select,
-      handler: onForceSelect,
-      disabled: false,
-    },
-    {
-      label: menuLabels.shareQrCode,
-      handler: onShareQrCode,
-      disabled: false,
-    },
-    {
-      label: menuLabels.editInfo,
-      handler: onEditInfo,
-      disabled: false,
-    },
-    {
-      label: menuLabels.editFile,
-      handler: onEditFile,
-      disabled: false,
-    },
-    {
-      label: menuLabels.editRules,
-      handler: onEditRules,
-      disabled: !option?.rules,
-    },
-    {
-      label: menuLabels.editProxies,
-      handler: onEditProxies,
-      disabled: !option?.proxies,
-    },
-    {
-      label: menuLabels.editGroups,
-      handler: onEditGroups,
-      disabled: !option?.groups,
-    },
-    {
-      label: menuLabels.extendConfig,
-      handler: onEditMerge,
-      disabled: !option?.merge,
-    },
-    {
-      label: menuLabels.extendScript,
-      handler: onEditScript,
-      disabled: !option?.script,
-    },
-    {
-      label: menuLabels.openFile,
-      handler: onOpenFile,
-      disabled: false,
-    },
-    {
-      label: menuLabels.update,
-      handler: () => onUpdate(0),
-      disabled: false,
-    },
-    {
-      label: menuLabels.updateViaProxy,
-      handler: () => onUpdate(2),
-      disabled: false,
-    },
-    {
-      label: menuLabels.delete,
-      handler: () => {
-        setAnchorEl(null)
-        if (batchMode) {
-          if (onSelectionChange) {
-            onSelectionChange()
-          }
-        } else {
-          setConfirmOpen(true)
-        }
-      },
-      disabled: false,
-    },
-  ]
-  const fileModeMenu: ContextMenuItem[] = [
-    {
-      label: menuLabels.select,
-      handler: onForceSelect,
-      disabled: false,
-    },
-    {
       label: menuLabels.editInfo,
       handler: onEditInfo,
       disabled: false,
@@ -638,6 +595,33 @@ const ProfileItemBase = (props: ProfileItemProps) => {
       disabled: false,
     },
   ]
+
+  useEffect(() => {
+    menuActionsRef.current?.updatePosition()
+  }, [advancedOpen])
+
+  const renderMenuItem = (item: ContextMenuItem, nested = false) => (
+    <MenuItem
+      key={item.label}
+      onClick={item.handler}
+      disabled={item.disabled}
+      sx={(theme) => ({
+        minWidth: 120,
+        gap: 1,
+        pl: nested ? 3.5 : 2,
+        color:
+          item.label === menuLabels.delete
+            ? theme.palette.error.main
+            : undefined,
+      })}
+      dense
+    >
+      {t(item.label)}
+      {item.label === menuLabels.subscriptionPage && (
+        <OpenInNewRounded sx={{ fontSize: 16, color: 'text.secondary' }} />
+      )}
+    </MenuItem>
+  )
 
   const handleSaveProfileDocument = useLockFn(async () => {
     const currentValue = profileDocument.value
@@ -681,6 +665,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
         onContextMenu={(event) => {
           const { clientX, clientY } = event
           setPosition({ top: clientY, left: clientX })
+          setAdvancedOpen(false)
           setAnchorEl(event.currentTarget as HTMLElement)
           event.preventDefault()
         }}
@@ -1071,6 +1056,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
       </ProfileBox>
 
       <Menu
+        action={menuActionsRef}
         open={!!anchorEl}
         anchorEl={anchorEl}
         onClose={() => setAnchorEl(null)}
@@ -1083,29 +1069,23 @@ const ProfileItemBase = (props: ProfileItemProps) => {
           e.preventDefault()
         }}
       >
-        {(hasUrl ? urlModeMenu : fileModeMenu).map((item) => (
-          <MenuItem
-            key={item.label}
-            onClick={item.handler}
-            disabled={item.disabled}
-            sx={[
-              {
-                minWidth: 120,
-              },
-              (theme) => {
-                return {
-                  color:
-                    item.label === menuLabels.delete
-                      ? theme.palette.error.main
-                      : undefined,
-                }
-              },
-            ]}
-            dense
-          >
-            {t(item.label)}
-          </MenuItem>
-        ))}
+        {mainMenu.map((item) => renderMenuItem(item))}
+        <Divider sx={{ my: 0.5 }} />
+        <MenuItem
+          onClick={() => setAdvancedOpen((open) => !open)}
+          sx={{ minWidth: 120, color: 'text.secondary', gap: 2 }}
+          dense
+        >
+          <Box component="span" sx={{ flex: 1 }}>
+            {t(menuLabels.advanced)}
+          </Box>
+          {advancedOpen ? (
+            <ExpandLessRounded fontSize="small" />
+          ) : (
+            <ExpandMoreRounded fontSize="small" />
+          )}
+        </MenuItem>
+        {advancedOpen && advancedMenu.map((item) => renderMenuItem(item, true))}
       </Menu>
       {fileOpen && (
         <EditorViewer

@@ -55,7 +55,7 @@
       "loading": "Loading..."
     },
     "menu": {
-      "home": "Home",
+      "subscriptionPage": "Subscription page",
       "select": "انتخاب",
       "shareQrCode": "Share QR Code",
       "editInfo": "ویرایش اطلاعات",
@@ -67,7 +67,8 @@
       "extendScript": "ادغام اسکریپت",
       "openFile": "باز کردن فایل",
       "update": "به‌روزرسانی",
-      "updateViaProxy": "Update via proxy"
+      "updateViaProxy": "Update via proxy",
+      "advanced": "Advanced"
     },
     "profileItem": {
       "tooltips": {

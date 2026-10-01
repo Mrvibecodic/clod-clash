@@ -190,7 +190,7 @@ clod-theme: accent=#2E7CF6; mode=dark; background=https://cdn.provider.example/b
 | `subscription-refill-date` | unix-время | «Трафик обновится {дата}» |
 | `profile-update-interval` | часы | интервал автообновления, см. ниже |
 | `Date` | обычный заголовок HTTP | часы панели: по ним считается срок, см. ниже |
-| `profile-web-page-url` | ссылка `https://` | пункт «Главная» в меню карточки подписки |
+| `profile-web-page-url` | ссылка `https://` | пункт «Страница подписки» в меню карточки подписки |
 | `support-url` | ссылка `https://`, `tg:` или `mailto:` | кнопка «Поддержка» |
 | `announce` | текст | постоянное объявление (если нет `clod-announce`) |
 | `announce-url` | ссылка `https://` | куда ведёт нажатие на объявление |

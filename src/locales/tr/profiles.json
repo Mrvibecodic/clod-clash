@@ -55,7 +55,7 @@
       "loading": "Loading..."
     },
     "menu": {
-      "home": "Ana Sayfa",
+      "subscriptionPage": "Abonelik sayfası",
       "select": "Seç",
       "shareQrCode": "Share QR Code",
       "editInfo": "Bilgileri Düzenle",
@@ -67,7 +67,8 @@
       "extendScript": "Betik Genişletme",
       "openFile": "Dosyayı Aç",
       "update": "Güncelle",
-      "updateViaProxy": "Update via proxy"
+      "updateViaProxy": "Update via proxy",
+      "advanced": "Gelişmiş"
     },
     "profileItem": {
       "tooltips": {
