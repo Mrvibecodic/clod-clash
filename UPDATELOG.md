@@ -8,6 +8,50 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.1.12-alpha.1
+
+<!-- lang:en -->
+
+### Added
+
+- A subscription that missed an update is marked: after one failed update — a line on its card; after the second — the card gets a frame with an "Update" button and the update button on the Home page is highlighted. A successful update clears it. Only failed attempts count, so a computer that was off does not trigger it
+
+### Changed
+
+- The node a group is using is measured first
+- The "TUN mode" dialog saves only the fields you changed; an empty MTU or adapter name means "as in the subscription, otherwise the core default" (MTU 9000, name Meta). "Reset" returns the fresh-install state. On older installs the MTU 1500, empty exclusions and disabled auto-redirect written by the old dialog are removed once
+- Changing the controller address, secret or CORS restarts the core once and only when it is really needed
+- Core "Update" through the service waits for the core to come back and checks its version; it says if the old version is still running or the core did not answer
+- Latency in the proxy chain panel is taken from the core's data
+- Built-in Clod Core on stable mihomo v1.19.32: a node is marked dead only after a second failed probe (including a closed port, unknown host or wrong response code); a group whose "dead" node actually passes traffic is rechecked sooner; after a provider update the remaining nodes keep their check results and new ones are checked at once
+
+### Fixed
+
+- macOS: the system DNS override is no longer left on a network service without a record to undo it
+- The result of a chain script is no longer corrupted when it contains quotes
+
+<!-- lang:ru -->
+
+### Добавлено
+
+- Подписка, пропустившая обновление, помечается: после одного неудачного обновления — строка на карточке, после второго — карточка в рамке с кнопкой «Обновить» и подсвеченная кнопка обновления на Главной. Удачное обновление всё снимает. Считаются только неудачные попытки, поэтому выключенный компьютер пометку не вызывает
+
+### Изменено
+
+- Узел, которым пользуется группа, меряется первым
+- Окно «Режим TUN» сохраняет только изменённые поля; пустые MTU или имя адаптера значат «как в подписке, иначе как у ядра» (MTU 9000, имя Meta). «Сбросить» возвращает состояние свежей установки. У старых установок записанные прежним окном MTU 1500, пустые исключения и выключенный auto-redirect один раз снимаются
+- Смена адреса, секрета или CORS контроллера перезапускает ядро один раз и только когда это действительно нужно
+- «Обновить» ядро через службу ждёт, пока ядро поднимется, и сверяет версию; сообщает, если осталась прежняя версия или ядро не ответило
+- Задержка в панели цепочки прокси берётся из данных ядра
+- Встроенное Clod Core на стабильном mihomo v1.19.32: узел помечается мёртвым только после второй неудачной пробы (в том числе при закрытом порте, неизвестном хосте или неверном коде ответа); группа, у которой «мёртвый» узел на деле пропускает трафик, перепроверяется раньше; после обновления провайдера оставшиеся узлы сохраняют результаты проверок, а новые проверяются сразу
+
+### Исправлено
+
+- macOS: подмена системного DNS больше не остаётся на сетевой службе без записи для её отмены
+- Результат скрипта цепочки больше не портится, если в нём есть кавычки
+
+---
+
 ## v0.1.11
 
 <!-- lang:en -->
