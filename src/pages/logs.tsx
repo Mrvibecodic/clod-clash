@@ -28,7 +28,7 @@ import { showNotice } from '@/services/notice-service'
 
 const LogPage = () => {
   const { t } = useTranslation()
-  const pageVisible = useVisibility()
+  const pageVisible = useVisibility({ keepWhileMinimized: true })
   const [clashLog, setClashLog] = useClashLog()
   const enableLog = clashLog.enable
   const logState = clashLog.logFilter

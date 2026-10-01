@@ -239,7 +239,10 @@ const HomeAdvancedPage = () => {
 
           <CoreStatus />
 
-          <ServerSelectRow onOpen={() => setServerOpen(true)} />
+          <ServerSelectRow
+            onOpen={() => setServerOpen(true)}
+            connected={connected}
+          />
           <ServerSelect
             open={serverOpen}
             onClose={() => setServerOpen(false)}

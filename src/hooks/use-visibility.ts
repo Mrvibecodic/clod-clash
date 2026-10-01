@@ -17,16 +17,22 @@ const isDocumentVisible = () =>
  *
  * Одного `document.hidden` мало: окно уезжает в трей целиком, а документ
  * продолжает считать себя видимым — поэтому ответ сверяется с окном Tauri.
+ * Свёрнутое окно тоже не видно: `isVisible()` на всех трёх системах для него
+ * отвечает «да», и без отдельного вопроса опросы и автопинги Главной шли бы
+ * всё время, пока окно лежит свёрнутым на панели задач.
  */
 let visible = isDocumentVisible()
+/** Свёрнуто отдельно от «видно»: потокам журналов это не повод останавливаться. */
+let minimized = false
 const listeners = new Set<() => void>()
 let stop: (() => void) | undefined
 /** Переспросить окно; есть, только пока слушатели заведены. */
 let recheck: (() => void) | undefined
 
-const set = (next: boolean) => {
-  if (next === visible) return
+const set = (next: boolean, nextMinimized = minimized) => {
+  if (next === visible && nextMinimized === minimized) return
   visible = next
+  minimized = nextMinimized
   listeners.forEach((listener) => listener())
 }
 
@@ -57,26 +63,37 @@ const start = () => {
 
   let stopped = false
   let timer: ReturnType<typeof setTimeout> | null = null
+  let late: ReturnType<typeof setTimeout> | null = null
   let watchdog: ReturnType<typeof setInterval> | null = null
 
   const check = async () => {
-    const windowVisible = await appWindow.isVisible().catch(() => true)
-    if (!stopped) set(isDocumentVisible() && windowVisible)
+    const [windowVisible, windowMinimized] = await Promise.all([
+      appWindow.isVisible().catch(() => true),
+      appWindow.isMinimized().catch(() => false),
+    ])
+    if (!stopped) set(isDocumentVisible() && windowVisible, windowMinimized)
   }
 
   // На одно изменение прилетает несколько событий (focus, visibilitychange,
-  // ответ окна) — склеиваем их в один вопрос к бэкенду.
+  // ответ окна) — склеиваем их в один вопрос к бэкенду. Второй вопрос чуть
+  // позже — для сворачивания: фокус окно теряет в начале анимации, а
+  // «свёрнуто» macOS и GTK сообщают только в её конце.
   const checkSoon = () => {
     if (timer) clearTimeout(timer)
+    if (late) clearTimeout(late)
     timer = setTimeout(() => {
       timer = null
       void check()
     }, 50)
+    late = setTimeout(() => {
+      late = null
+      void check()
+    }, 700)
   }
 
   // Пользователь щёлкнул или нажал клавишу — окно перед ним, что бы там ни
   // отвечали события. Самая дешёвая страховка из всех.
-  const shown = () => set(true)
+  const shown = () => set(true, false)
 
   document.addEventListener('focus', checkSoon)
   document.addEventListener('pointerdown', shown)
@@ -96,6 +113,9 @@ const start = () => {
   const unlistenShown = appWindow.listen('verge://window-shown', shown)
 
   const unlistenFocusChanged = appWindow.onFocusChanged(checkSoon)
+  // Сворачивание и разворачивание приходят и как смена размера — на случай,
+  // когда фокус окно уже потеряло раньше (свернули с панели задач).
+  const unlistenResized = appWindow.onResized(checkSoon)
   const unlistenCloseRequested = appWindow.listen(
     TauriEvent.WINDOW_CLOSE_REQUESTED,
     () => {
@@ -112,6 +132,7 @@ const start = () => {
     stopped = true
     recheck = undefined
     if (timer) clearTimeout(timer)
+    if (late) clearTimeout(late)
     if (watchdog) clearInterval(watchdog)
     document.removeEventListener('focus', checkSoon)
     document.removeEventListener('pointerdown', shown)
@@ -120,6 +141,7 @@ const start = () => {
     window.removeEventListener('focus', checkSoon)
     void unlistenShown.then((unlisten) => unlisten())
     void unlistenFocusChanged.then((unlisten) => unlisten())
+    void unlistenResized.then((unlisten) => unlisten())
     void unlistenCloseRequested.then((unlisten) => unlisten())
   }
 }
@@ -140,9 +162,19 @@ const subscribe = (listener: () => void) => {
   }
 }
 
-const snapshot = () => visible
+const onScreen = () => visible && !minimized
+const notInTray = () => visible
 /** Рендера на сервере тут нет; отвечаем «видно», как и при первом запуске. */
 const serverSnapshot = () => true
 
-export const useVisibility = () =>
-  useSyncExternalStore(subscribe, snapshot, serverSnapshot)
+/**
+ * `keepWhileMinimized` — для потоков, у которых пропуск нельзя добрать потом
+ * (журнал ядра, закрытые соединения): они гаснут только в трее, а свёрнутое
+ * окно продолжает их копить, как до правки про сворачивание.
+ */
+export const useVisibility = ({ keepWhileMinimized = false } = {}) =>
+  useSyncExternalStore(
+    subscribe,
+    keepWhileMinimized ? notInTray : onScreen,
+    serverSnapshot,
+  )

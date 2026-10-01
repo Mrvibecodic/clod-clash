@@ -95,7 +95,7 @@ const orderFunctionMap = ORDER_OPTIONS.reduce<Record<OrderKey, OrderFunc>>(
 const EMPTY_CONNECTIONS: IConnectionsItem[] = []
 const ConnectionsPage = () => {
   const { t } = useTranslation()
-  const pageVisible = useVisibility()
+  const pageVisible = useVisibility({ keepWhileMinimized: true })
   const [match, setMatch] = useState<(input: string) => boolean>(
     () => () => true,
   )

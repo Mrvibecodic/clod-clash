@@ -223,7 +223,10 @@ const HomeSimplePage = () => {
 
         <SessionTraffic />
 
-        <ServerSelectRow onOpen={() => setServerOpen(true)} />
+        <ServerSelectRow
+          onOpen={() => setServerOpen(true)}
+          connected={connected}
+        />
         <ServerSelect open={serverOpen} onClose={() => setServerOpen(false)} />
 
         <SubscriptionCard profile={current} />

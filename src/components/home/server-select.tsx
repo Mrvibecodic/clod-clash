@@ -529,6 +529,8 @@ export const ServerSelect = ({ open, onClose }: Props) => {
 
 interface RowProps {
   onOpen: () => void
+  /** Подключение включено (системный прокси или TUN). */
+  connected: boolean
 }
 
 interface LatencyProps {
@@ -607,12 +609,17 @@ const PING_RETRY_MS = 5_000
 const PING_RETRY_LIMIT = 6
 let lastAutoPingAt = 0
 
-export const ServerSelectRow = ({ onOpen }: RowProps) => {
+export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
   const { t } = useTranslation()
   const { proxies } = useProxiesData()
   const { current: currentProfile } = useProfiles()
   const descriptions = useServerDescriptions()
   const visible = useVisibility()
+  // clod: сама Главная пингует, только пока окно на экране И подключение
+  // включено. Выключенный клиент держит ядро, и любой автопинг шёл бы
+  // на сервер провайдера впустую, пока человек VPN не пользуется; по кнопке
+  // в списке серверов проверить можно всегда.
+  const autoPing = visible && connected
   const { verge } = useVerge()
   const { refreshProxy } = useAppRefreshers()
 
@@ -661,10 +668,10 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
   // Авто-группы ядро меряет само — при каждой загрузке конфига и раз в
   // interval; наш прогон поверх был бы вторым замером тех же узлов.
   const coreMeasures = CORE_MEASURED_TYPES.has(group?.type?.toLowerCase() ?? '')
-  // clod: автотест — только пока окно на экране (в трее — ничего) и по узлам:
-  // групповой обработчик ядра снимал закрепление url-test/fallback.
+  // clod: автотест — только пока окно на экране и подключение включено, и по
+  // узлам: групповой обработчик ядра снимал закрепление url-test/fallback.
   useEffect(() => {
-    if (!visible || !groupName || !testNodesSig || coreMeasures) return
+    if (!autoPing || !groupName || !testNodesSig || coreMeasures) return
     const key = `${groupName}|${updatedAt}|${testNodesSig}`
     if (lastAutoDelayKey === key) return
     // Узлы берём из свежего ответа ядра, а не из отрисованных: после смены
@@ -689,7 +696,7 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
     }, 800)
     return () => window.clearTimeout(timer)
   }, [
-    visible,
+    autoPing,
     groupName,
     updatedAt,
     testNodesSig,
@@ -699,7 +706,7 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
   ])
 
   useEffect(() => {
-    if (!visible || !groupName || !pingTarget) return
+    if (!autoPing || !groupName || !pingTarget) return
 
     let attempts = 0
     let cancelled = false
@@ -721,7 +728,7 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
     }
 
     const timer = window.setTimeout(measure, 600)
-    // Живой пинг, пока окно на экране (`visible`; в трее эффект снят, на
+    // Живой пинг, пока окно на экране и подключение включено (`autoPing`; иначе эффект снят, на
     // возврате — заново): раз в PING_GAP_MS сначала перечитываем прокси — у
     // url-test групп ядро мерит само, — и шлём свой запрос только если свежего
     // замера нет. Возраст берём из ref: перечитывание обновляет его мимо замыкания.
@@ -746,7 +753,7 @@ export const ServerSelectRow = ({ onOpen }: RowProps) => {
       if (retry !== undefined) window.clearInterval(retry)
     }
   }, [
-    visible,
+    autoPing,
     groupName,
     measuredAt,
     hasPing,
