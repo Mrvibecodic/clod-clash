@@ -114,7 +114,6 @@
         "add": "추가"
       },
       "messages": {
-        "alwaysIncluded": "항상 포함되는 오리진: {{urls}}",
         "onlyForPanels": "브라우저 웹 패널에만 필요하며 외부 컨트롤러가 켜져 있을 때 적용됩니다. 클라이언트 자체에는 필요하지 않습니다."
       },
       "tooltips": {

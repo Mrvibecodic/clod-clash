@@ -114,7 +114,6 @@
         "add": "新增"
       },
       "messages": {
-        "alwaysIncluded": "始終包含來源：{{urls}}",
         "onlyForPanels": "僅瀏覽器中的 Web 面板需要，且僅在啟用外部控制器時生效。用戶端本身不需要這些設定。"
       },
       "tooltips": {

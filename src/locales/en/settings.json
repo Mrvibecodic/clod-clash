@@ -114,7 +114,6 @@
         "add": "Add"
       },
       "messages": {
-        "alwaysIncluded": "Always included origins: {{urls}}",
         "onlyForPanels": "Only needed by browser web panels and applies while the external controller is enabled. The client itself does not need these settings."
       },
       "tooltips": {

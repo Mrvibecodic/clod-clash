@@ -110,7 +110,6 @@ export const BackupConfigViewer = memo(
       const signature = buildWebdavSignature({
         webdav_url: data.url,
         webdav_username: data.username,
-        webdav_password: data.password,
       })
       const trimmedUrl = data.url.trim()
       const trimmedUsername = data.username.trim()
@@ -118,6 +117,9 @@ export const BackupConfigViewer = memo(
       try {
         setLoading(true)
         await saveWebdavConfig(trimmedUrl, trimmedUsername, data.password)
+        // До обновления настроек: в подписи нет пароля, и отрисовка с новым
+        // паролем не должна застать прежний «не отвечает».
+        setWebdavStatus(signature, 'unknown')
         await mutateVerge(
           (current) =>
             current
@@ -130,7 +132,6 @@ export const BackupConfigViewer = memo(
               : current,
           false,
         )
-        setWebdavStatus(signature, 'unknown')
         // Проверку сервера после сохранения делает эффект автоинициализации:
         // новые учётные данные меняют его зависимости.
         showNotice.success('settings.modals.backup.messages.webdavConfigSaved')
@@ -150,7 +151,6 @@ export const BackupConfigViewer = memo(
       const signature = buildWebdavSignature({
         webdav_url: url,
         webdav_username: username,
-        webdav_password: password,
       })
 
       try {

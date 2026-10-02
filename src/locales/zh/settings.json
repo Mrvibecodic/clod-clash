@@ -114,7 +114,6 @@
         "add": "添加"
       },
       "messages": {
-        "alwaysIncluded": "始终包含来源：{{urls}}",
         "onlyForPanels": "仅浏览器中的 Web 面板需要，且仅在启用外部控制器时生效。客户端本身不需要这些设置。"
       },
       "tooltips": {

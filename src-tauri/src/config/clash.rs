@@ -104,10 +104,8 @@ impl IClashTemp {
         cors_map.insert(
             "allow-origins".into(),
             vec![
+                // Заглушка: пустой список ядро понимает как «пускать всех».
                 "tauri://localhost",
-                "http://tauri.localhost",
-                #[cfg(feature = "verge-dev")]
-                "http://localhost:3000",
                 "https://yacd.metacubex.one",
                 "https://metacubex.github.io",
                 "https://board.zash.run.place",

@@ -5,24 +5,27 @@ interface WebdavStatusCache {
   status: WebdavStatus
 }
 
-const WEBDAV_STATUS_KEY = 'webdav_status_cache'
+const WEBDAV_STATUS_KEY = 'webdav_status'
 
+// Прежняя запись хранила в подписи сам пароль открытым текстом.
+const LEGACY_WEBDAV_STATUS_KEY = 'webdav_status_cache'
+
+// Пароля в подписи нет: она лежит на диске в профиле окна. Новый пароль
+// приходит только через сохранение в диалоге, а оно сбрасывает статус.
 export const buildWebdavSignature = (
-  verge?: Pick<
-    IVergeConfig,
-    'webdav_url' | 'webdav_username' | 'webdav_password'
-  > | null,
+  verge?: Pick<IVergeConfig, 'webdav_url' | 'webdav_username'> | null,
 ) => {
   const url = verge?.webdav_url?.trim() ?? ''
   const username = verge?.webdav_username?.trim() ?? ''
-  const password = verge?.webdav_password ?? ''
 
-  if (!url && !username && !password) return ''
+  if (!url && !username) return ''
 
-  return JSON.stringify([url, username, password])
+  return JSON.stringify([url, username])
 }
 
 const canUseStorage = () => typeof localStorage !== 'undefined'
+
+if (canUseStorage()) localStorage.removeItem(LEGACY_WEBDAV_STATUS_KEY)
 
 export const getWebdavStatus = (signature: string): WebdavStatus => {
   if (!signature || !canUseStorage()) return 'unknown'

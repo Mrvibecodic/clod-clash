@@ -114,7 +114,6 @@
         "add": "Add"
       },
       "messages": {
-        "alwaysIncluded": "Always included origins: {{urls}}",
         "onlyForPanels": "Браузердагы веб-панельләргә генә кирәк һәм тышкы контроллер кабызылганда гамәлдә. Клиентның үзенә бу көйләүләр кирәкми."
       },
       "tooltips": {

@@ -114,7 +114,6 @@
         "add": "Ekle"
       },
       "messages": {
-        "alwaysIncluded": "Her zaman dahil edilen kökenler: {{urls}}",
         "onlyForPanels": "Yalnızca tarayıcıdaki web panelleri için gereklidir ve harici denetleyici etkinken uygulanır. İstemcinin kendisi bu ayarlara ihtiyaç duymaz."
       },
       "tooltips": {

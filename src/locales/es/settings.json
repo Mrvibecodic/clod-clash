@@ -114,7 +114,6 @@
         "add": "Agregar"
       },
       "messages": {
-        "alwaysIncluded": "Orígenes siempre incluidos: {{urls}}",
         "onlyForPanels": "Solo lo necesitan los paneles web del navegador y se aplica mientras el controlador externo esté activado. El cliente no necesita estos ajustes."
       },
       "tooltips": {

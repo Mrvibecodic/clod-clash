@@ -114,7 +114,6 @@
         "add": "Add"
       },
       "messages": {
-        "alwaysIncluded": "Always included origins: {{urls}}",
         "onlyForPanels": "تحتاجه لوحات الويب في المتصفح فقط، ويسري ما دامت وحدة التحكم الخارجية مفعلة. العميل نفسه لا يحتاج هذه الإعدادات."
       },
       "tooltips": {

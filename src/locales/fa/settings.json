@@ -114,7 +114,6 @@
         "add": "افزودن"
       },
       "messages": {
-        "alwaysIncluded": "Always included origins: {{urls}}",
         "onlyForPanels": "فقط پنل‌های وب در مرورگر به آن نیاز دارند و تا وقتی کنترل‌کنندهٔ خارجی روشن است اعمال می‌شود. خود کلاینت به این تنظیمات نیازی ندارد."
       },
       "tooltips": {

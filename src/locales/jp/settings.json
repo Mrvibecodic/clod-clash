@@ -114,7 +114,6 @@
         "add": "追加"
       },
       "messages": {
-        "alwaysIncluded": "常に含まれるオリジン: {{urls}}",
         "onlyForPanels": "ブラウザーの Web パネルにのみ必要で、外部コントローラーが有効な間だけ適用されます。クライアント自体にはこの設定は不要です。"
       },
       "tooltips": {

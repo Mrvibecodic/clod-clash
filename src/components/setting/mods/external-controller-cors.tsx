@@ -16,26 +16,30 @@ import { BaseDialog, Switch } from '@/components/base'
 import { useClash } from '@/hooks/use-clash'
 import { showNotice } from '@/services/notice-service'
 
-// Служебные источники: всегда добавляются к разрешённым при сохранении
-// и не показываются в списке
-const DEV_URLS = [
-  'tauri://localhost',
+// Пустой список ядро понимает как «пускать всех», поэтому в нём всегда стоит
+// источник, который страница в браузере прислать не может. Окну сами
+// источники не нужны: оно ходит к ядру через локальный сокет, а не по HTTP.
+const NO_WEB_PAGE_ORIGIN = 'tauri://localhost'
+
+// Скрытые из списка: заглушка выше и служебные адреса прежних версий, которые
+// при сохранении выбрасываются.
+const HIDDEN_ORIGINS = [
+  NO_WEB_PAGE_ORIGIN,
   'http://tauri.localhost',
   'http://localhost:3000',
 ]
 
-// Получить полный список источников, включая URL разработки
-const getFullOrigins = (origins: string[]) => {
-  // Объединяем текущие источники и URL разработки, убираем дубликаты
-  const allOrigins = [...origins, ...DEV_URLS]
-  const uniqueOrigins = [...new Set(allOrigins)]
-  return uniqueOrigins
-}
+const isHidden = (origin: string) => HIDDEN_ORIGINS.includes(origin.trim())
 
-// Отфильтровать базовые URL (для последующего добавления)
-const filterBaseOriginsForUI = (origins: string[]) => {
-  return origins.filter((origin: string) => !DEV_URLS.includes(origin.trim()))
-}
+const originsToSave = (origins: string[]) => [
+  ...new Set([
+    ...origins.filter((origin) => origin.trim() !== '' && !isHidden(origin)),
+    NO_WEB_PAGE_ORIGIN,
+  ]),
+]
+
+const filterBaseOriginsForUI = (origins: string[]) =>
+  origins.filter((origin) => !isHidden(origin))
 
 // Единый стиль кнопок
 const buttonStyle = {
@@ -143,16 +147,11 @@ export const HeaderConfiguration = forwardRef<ClashHeaderConfigingRef>(
     // Запрос на сохранение конфига
     const { loading, run: saveConfig } = useRequest(
       async () => {
-        // При сохранении используем полный список источников (включая URL разработки)
-        const fullOrigins = getFullOrigins(
-          corsConfig.allowOrigins.map((origin) => origin.value),
-        )
-
         await patchClash({
           'external-controller-cors': {
             'allow-private-network': corsConfig.allowPrivateNetwork,
-            'allow-origins': fullOrigins.filter(
-              (origin: string) => origin.trim() !== '',
+            'allow-origins': originsToSave(
+              corsConfig.allowOrigins.map((origin) => origin.value),
             ),
           },
         })
@@ -285,23 +284,6 @@ export const HeaderConfiguration = forwardRef<ClashHeaderConfigingRef>(
               >
                 {t('settings.sections.externalCors.actions.add')}
               </Button>
-
-              <div
-                style={{
-                  marginTop: 12,
-                  padding: 8,
-                  backgroundColor: '#f5f5f5',
-                  borderRadius: 4,
-                }}
-              >
-                <div
-                  style={{ color: '#666', fontSize: 12, fontStyle: 'italic' }}
-                >
-                  {t('settings.sections.externalCors.messages.alwaysIncluded', {
-                    urls: DEV_URLS.join(', '),
-                  })}
-                </div>
-              </div>
             </div>
           </ListItem>
         </List>

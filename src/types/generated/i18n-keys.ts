@@ -488,7 +488,6 @@ export const translationKeys = [
   'settings.sections.externalCors.fields.allowedOrigins',
   'settings.sections.externalCors.placeholders.origin',
   'settings.sections.externalCors.actions.add',
-  'settings.sections.externalCors.messages.alwaysIncluded',
   'settings.sections.externalCors.messages.onlyForPanels',
   'settings.sections.externalCors.tooltips.open',
   'settings.sections.appearance.light',

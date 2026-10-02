@@ -114,7 +114,6 @@
         "add": "Hinzufügen"
       },
       "messages": {
-        "alwaysIncluded": "Immer enthaltene Ursprünge: {{urls}}",
         "onlyForPanels": "Nur für Web-Panels im Browser nötig und wirksam, solange der externe Controller aktiviert ist. Der Client selbst braucht diese Einstellungen nicht."
       },
       "tooltips": {

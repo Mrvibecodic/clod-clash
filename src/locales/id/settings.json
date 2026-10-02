@@ -114,7 +114,6 @@
         "add": "Add"
       },
       "messages": {
-        "alwaysIncluded": "Always included origins: {{urls}}",
         "onlyForPanels": "Hanya diperlukan panel web di peramban dan berlaku selama pengontrol eksternal aktif. Klien sendiri tidak memerlukan pengaturan ini."
       },
       "tooltips": {
