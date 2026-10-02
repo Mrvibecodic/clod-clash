@@ -639,12 +639,6 @@ impl CoreManager {
 
         let command = app_handle.shell().sidecar(clash_core.as_str())?;
 
-        #[cfg(unix)]
-        let previous_mask = unsafe { tauri_plugin_clash_verge_sysinfo::libc::umask(0o077) };
-        #[cfg(unix)]
-        defer! {
-            unsafe { tauri_plugin_clash_verge_sysinfo::libc::umask(previous_mask) };
-        }
         let command = command.args([
             "-d",
             dirs::path_to_str(&config_dir)?,
@@ -662,7 +656,18 @@ impl CoreManager {
             "LISTEN_NAMEDPIPE_SDDL",
             crate::core::owner_identity::current_user_pipe_sddl()?,
         );
-        let (mut rx, child) = command.spawn()?;
+        // Маска прав общая на весь процесс, а ядру она нужна только в момент
+        // запуска — его файлы и сокет без доступа для других. Шире окно — и
+        // файлы соседних потоков создаются с той же маской.
+        let (mut rx, child) = {
+            #[cfg(unix)]
+            let previous_mask = unsafe { tauri_plugin_clash_verge_sysinfo::libc::umask(0o077) };
+            #[cfg(unix)]
+            defer! {
+                unsafe { tauri_plugin_clash_verge_sysinfo::libc::umask(previous_mask) };
+            }
+            command.spawn()?
+        };
         #[cfg(target_os = "windows")]
         {
             let job = match create_and_assign_sidecar_job(child.pid()) {

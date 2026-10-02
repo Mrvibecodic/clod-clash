@@ -2065,8 +2065,6 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
         sources.dns_page.as_ref(),
     )
     .await;
-    let mut config = ensure_dns_for_tun(config, enable_tun);
-    clamp_dns_listen(&mut config);
 
     let control_plane = snapshot_control_plane(&config);
     let tun_snapshot = snapshot_tun(&config, &tun_owned);
@@ -2091,10 +2089,9 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
     let (config, dns_page_discards) = enforce_dns_page(config, dns_page.as_ref());
     discarded_keys.extend(dns_page_discards);
     let mut config = ensure_dns_for_tun(config, enable_tun);
-    // clod:dns-listen — цепочки merge и script отрабатывают после первого
-    // прижатия и могут вернуть `dns.listen` наружу; при включённой странице DNS
-    // блок восстанавливается из снимка, при выключенной — никем. Второй проход
-    // идёт уже по нашему `allow-lan`, восстановленному из снимка control-plane.
+    // clod:dns-listen — один раз, после цепочек merge и script и после страницы
+    // DNS: любая из них может вернуть `dns.listen` наружу. `allow-lan` здесь уже
+    // наш, восстановленный из снимка control-plane.
     clamp_dns_listen(&mut config);
     // clod:lan-share — строго ПОСЛЕ прижатия `dns.listen`: раздача прокси
     // соседям по сети и открытый для них DNS-резолвер — разные решения, и
