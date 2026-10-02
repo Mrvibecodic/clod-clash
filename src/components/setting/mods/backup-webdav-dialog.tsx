@@ -86,15 +86,19 @@ export const BackupWebdavDialog = ({
     >
       <Box sx={{ position: 'relative' }}>
         <BaseLoadingOverlay isLoading={loading} />
-        <BackupConfigViewer
-          setLoading={handleLoading}
-          onBackupSuccess={async () => {
-            await refreshSilently()
-            onBackupSuccess?.()
-          }}
-          onRefresh={refreshWebdav}
-          onInit={refreshSilently}
-        />
+        {/* Пока идёт дело, форма недоступна и с клавиатуры: иначе ответ
+            проверки со старыми данными ложится после сохранения новых. */}
+        <Box inert={loading}>
+          <BackupConfigViewer
+            setLoading={handleLoading}
+            onBackupSuccess={async () => {
+              await refreshSilently()
+              onBackupSuccess?.()
+            }}
+            onRefresh={refreshWebdav}
+            onInit={refreshSilently}
+          />
+        </Box>
       </Box>
     </BaseDialog>
   )

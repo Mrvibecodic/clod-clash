@@ -17,29 +17,20 @@ import { useClash } from '@/hooks/use-clash'
 import { showNotice } from '@/services/notice-service'
 
 // Пустой список ядро понимает как «пускать всех», поэтому в нём всегда стоит
-// источник, который страница в браузере прислать не может. Окну сами
-// источники не нужны: оно ходит к ядру через локальный сокет, а не по HTTP.
+// источник, который страница в браузере прислать не может; в списке он не
+// показывается. Окну сами источники не нужны: оно ходит к ядру через
+// локальный сокет, а не по HTTP.
 const NO_WEB_PAGE_ORIGIN = 'tauri://localhost'
-
-// Скрытые из списка: заглушка выше и служебные адреса прежних версий, которые
-// при сохранении выбрасываются.
-const HIDDEN_ORIGINS = [
-  NO_WEB_PAGE_ORIGIN,
-  'http://tauri.localhost',
-  'http://localhost:3000',
-]
-
-const isHidden = (origin: string) => HIDDEN_ORIGINS.includes(origin.trim())
 
 const originsToSave = (origins: string[]) => [
   ...new Set([
-    ...origins.filter((origin) => origin.trim() !== '' && !isHidden(origin)),
+    ...origins.filter((origin) => origin.trim() !== ''),
     NO_WEB_PAGE_ORIGIN,
   ]),
 ]
 
 const filterBaseOriginsForUI = (origins: string[]) =>
-  origins.filter((origin) => !isHidden(origin))
+  origins.filter((origin) => origin.trim() !== NO_WEB_PAGE_ORIGIN)
 
 // Единый стиль кнопок
 const buttonStyle = {
