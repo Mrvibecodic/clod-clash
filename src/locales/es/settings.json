@@ -557,78 +557,69 @@
     "dns": {
       "dialog": {
         "title": "Sobrescritura de DNS",
-        "warning": "Si no está seguro de cómo configurar esto, no realice cambios y mantenga deshabilitada la sobrescritura de DNS.",
-        "replacesSubscription": "The values shown are the subscription's. Only your differences from them are saved — everything else follows the subscription on every update."
+        "note": "Se muestran los valores de la suscripción. Solo se guardan sus diferencias; lo demás sigue a la suscripción. Si no está seguro, no lo cambie.",
+        "fakeIpIdle": "Sin efecto: está seleccionado el modo redir-host"
       },
       "actions": {
-        "asInSubscription": "As in the subscription"
+        "asInSubscription": "Como en la suscripción"
       },
       "sections": {
-        "general": "Configuración de DNS",
-        "hosts": "Configuración de hosts"
+        "behavior": "Comportamiento"
       },
       "fields": {
         "enable": "Habilitar DNS",
-        "enableHint": "En modo TUN el DNS se activa automáticamente",
-        "listen": "Dirección de escucha de DNS",
-        "enhancedMode": "Modo mejorado",
-        "enhancedModeHint": "fake-ip solo tiene efecto en modo TUN o con una dirección de escucha",
-        "fakeIpRange": "Rango de Fake IP",
-        "fakeIpRange6": "Rango de Fake IP (IPv6)",
-        "fakeIpFilterMode": "Modo de filtrado de Fake IP",
+        "enableHint": "En modo TUN se activa solo",
+        "listen": "Dirección del servidor DNS",
+        "enhancedMode": "Modo",
+        "enhancedModeHint": "fake-ip funciona en TUN o con una dirección de servidor definida",
+        "fakeIpRange": "Rango IPv4",
+        "fakeIpRange6": "Rango IPv6",
+        "fakeIpFilterMode": "Dar fake-ip a",
         "ipv6": {
           "label": "IPv6",
-          "description": "Habilitar resolución DNS IPv6. En modo TUN con fake-ip, el valor lo fija la suscripción."
+          "description": "Responder con direcciones IPv6. En TUN con fake-ip decide la suscripción"
         },
         "preferH3": {
-          "label": "Prefiere HTTP/3",
-          "description": "DNS DOH utiliza el protocolo HTTP/3"
+          "label": "Preferir HTTP/3 para DoH"
         },
         "respectRules": {
-          "label": "Seguir las reglas de enrutamiento",
-          "description": "Las conexiones DNS siguen las reglas de enrutamiento"
+          "label": "Las consultas DNS siguen las reglas de enrutamiento"
         },
         "useHosts": {
-          "label": "Usar archivo hosts",
-          "description": "Habilitar la resolución de nombres de host a través del archivo hosts"
+          "label": "Entradas de la pestaña Hosts"
         },
         "useSystemHosts": {
-          "label": "Usar archivo hosts del sistema",
-          "description": "Habilitar la resolución de nombres de host a través del archivo hosts del sistema"
+          "label": "Archivo hosts del sistema"
         },
         "directPolicy": {
-          "label": "Los servidores DNS de conexión directa siguen la política",
-          "description": "Si seguir la configuración de la política de servidores DNS"
+          "label": "Las directas también siguen la política de dominios"
         },
         "defaultNameserver": {
-          "label": "Servidor DNS predeterminado",
-          "description": "Servidores DNS predeterminados utilizados para resolver servidores DNS"
+          "label": "Arranque",
+          "description": "Resuelven las direcciones de los propios servidores DNS"
         },
         "nameserver": {
-          "label": "Servidor DNS",
-          "description": "Lista de servidores DNS, separados por comas"
+          "label": "Principales"
         },
         "proxy": {
-          "label": "DNS del servidor proxy",
-          "description": "Servidor de resolución de nombres de dominio del nodo de proxy, separados por comas"
+          "label": "Para direcciones de nodos proxy"
         },
         "directNameserver": {
-          "label": "Servidor DNS de conexión directa",
-          "description": "Servidor de resolución de nombres de dominio de salida directa, admite la palabra clave 'system', separados por comas"
+          "label": "Para conexiones directas",
+          "description": "Se admite system"
         },
         "fakeIpFilter": {
-          "label": "Filtro de Fake IP",
-          "description": "Dominios que omiten la resolución de Fake IP, separados por comas"
+          "label": "Dominios del filtro"
         },
         "nameserverPolicy": {
-          "label": "Política de servidores DNS",
-          "description": "Servidor DNS específico de dominio, múltiples servidores separados por punto y coma, formato: dominio=server1;server2"
+          "label": "Política por dominio",
+          "description": "dominio=servidor, separados por comas; varios servidores con ;"
         },
         "hosts": {
-          "label": "Hosts",
-          "description": "Asignación personalizada de dominio a IP o dominio, separados por comas"
+          "label": "Entradas",
+          "description": "dominio=dirección, separados por comas; varias direcciones con ;"
         },
-        "listenHint": "Vacío: no se abre un servidor DNS; la intercepción en el túnel no lo necesita. Para servir DNS a la red, indique una dirección. Mientras el uso compartido en la red local esté desactivado, una dirección abierta a la red se sustituye por 127.0.0.1."
+        "listenHint": "Vacío: no se inicia ningún servidor. Sin compartir en LAN la dirección se fija en 127.0.0.1"
       },
       "messages": {
         "saved": "Configuración de DNS guardada",
@@ -645,7 +636,18 @@
           "auto": "Como en la suscripción",
           "on": "Activada",
           "off": "Desactivada"
+        },
+        "filterMode": {
+          "blacklist": "Salvo la lista",
+          "whitelist": "Solo la lista"
         }
+      },
+      "tabs": {
+        "main": "General",
+        "servers": "Servidores"
+      },
+      "modes": {
+        "form": "Formulario"
       }
     },
     "webUI": {

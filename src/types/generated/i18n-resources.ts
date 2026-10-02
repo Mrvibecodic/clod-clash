@@ -932,9 +932,9 @@ export interface TranslationResources {
             asInSubscription: string
           }
           dialog: {
-            replacesSubscription: string
+            fakeIpIdle: string
+            note: string
             title: string
-            warning: string
           }
           errors: {
             invalid: string
@@ -950,7 +950,6 @@ export interface TranslationResources {
               label: string
             }
             directPolicy: {
-              description: string
               label: string
             }
             enable: string
@@ -958,7 +957,6 @@ export interface TranslationResources {
             enhancedMode: string
             enhancedModeHint: string
             fakeIpFilter: {
-              description: string
               label: string
             }
             fakeIpFilterMode: string
@@ -975,7 +973,6 @@ export interface TranslationResources {
             listen: string
             listenHint: string
             nameserver: {
-              description: string
               label: string
             }
             nameserverPolicy: {
@@ -983,23 +980,18 @@ export interface TranslationResources {
               label: string
             }
             preferH3: {
-              description: string
               label: string
             }
             proxy: {
-              description: string
               label: string
             }
             respectRules: {
-              description: string
               label: string
             }
             useHosts: {
-              description: string
               label: string
             }
             useSystemHosts: {
-              description: string
               label: string
             }
           }
@@ -1009,7 +1001,14 @@ export interface TranslationResources {
             savedNotApplied: string
             savedUnchecked: string
           }
+          modes: {
+            form: string
+          }
           options: {
+            filterMode: {
+              blacklist: string
+              whitelist: string
+            }
             hosts: {
               auto: string
               off: string
@@ -1017,8 +1016,11 @@ export interface TranslationResources {
             }
           }
           sections: {
-            general: string
-            hosts: string
+            behavior: string
+          }
+          tabs: {
+            main: string
+            servers: string
           }
         }
         hotkey: {

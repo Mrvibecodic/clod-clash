@@ -557,78 +557,69 @@
     "dns": {
       "dialog": {
         "title": "DNS上書き",
-        "warning": "ここの設定がわからない場合は、変更しないでください。DNS上書きを無効にしたままにしてください。",
-        "replacesSubscription": "The values shown are the subscription's. Only your differences from them are saved — everything else follows the subscription on every update."
+        "note": "サブスクリプションの値を表示しています。保存されるのは変更点のみで、それ以外はサブスクリプションに従います。不明な場合は変更しないでください。",
+        "fakeIpIdle": "無効: redir-host モードが選択されています"
       },
       "actions": {
-        "asInSubscription": "As in the subscription"
+        "asInSubscription": "サブスクリプションに従う"
       },
       "sections": {
-        "general": "DNS設定",
-        "hosts": "Hosts設定"
+        "behavior": "動作"
       },
       "fields": {
-        "enable": "DNSを有効にする",
-        "enableHint": "TUN モードでは DNS は自動的に有効になります",
-        "listen": "DNS監視アドレス",
-        "enhancedMode": "拡張モード",
-        "enhancedModeHint": "fake-ip は TUN モードか待ち受けアドレス設定時のみ有効です",
-        "fakeIpRange": "Fake IP範囲",
-        "fakeIpRange6": "Fake IP範囲 (IPv6)",
-        "fakeIpFilterMode": "Fake IPフィルターモード",
+        "enable": "DNS を有効化",
+        "enableHint": "TUN モードでは自動で有効になります",
+        "listen": "DNS サーバーのアドレス",
+        "enhancedMode": "モード",
+        "enhancedModeHint": "fake-ip は TUN またはサーバーアドレス指定時に機能します",
+        "fakeIpRange": "IPv4 範囲",
+        "fakeIpRange6": "IPv6 範囲",
+        "fakeIpFilterMode": "fake-ip の割り当て先",
         "ipv6": {
           "label": "IPv6",
-          "description": "IPv6 DNS解決を有効にする。fake-ip の TUN モードでは、この値はサブスクリプションが決めます。"
+          "description": "IPv6 アドレスで応答します。TUN と fake-ip ではサブスクリプションが決定します"
         },
         "preferH3": {
-          "label": "HTTP/3を優先する",
-          "description": "DNS DOHでHTTP/3プロトコルを使用する"
+          "label": "DoH で HTTP/3 を優先"
         },
         "respectRules": {
-          "label": "ルートルールに従う",
-          "description": "DNS接続はルートルールに従います。"
+          "label": "DNS クエリをルーティングルールに従わせる"
         },
         "useHosts": {
-          "label": "Hostsファイルを使用する",
-          "description": "Hostsファイルを使用してホスト名を解決する"
+          "label": "Hosts タブのエントリ"
         },
         "useSystemHosts": {
-          "label": "システムのHostsファイルを使用する",
-          "description": "システムのHostsファイルを使用してホスト名を解決する"
+          "label": "システムの hosts ファイル"
         },
         "directPolicy": {
-          "label": "直接接続の名前解決サーバーはポリシーに従う",
-          "description": "名前解決サーバーのポリシーに従うかどうか"
+          "label": "直接接続もドメインポリシーに従う"
         },
         "defaultNameserver": {
-          "label": "デフォルトの名前解決サーバー",
-          "description": "名前解決サーバーを解決するために使用されるデフォルトのDNSサーバー"
+          "label": "ブートストラップ",
+          "description": "DNS サーバー自体のアドレスを解決します"
         },
         "nameserver": {
-          "label": "名前解決サーバー",
-          "description": "DNSサーバーのリスト。カンマで区切って指定します。"
+          "label": "メイン"
         },
         "proxy": {
-          "label": "プロキシサーバーの名前解決サーバー",
-          "description": "プロキシノードの名前解決サーバー。プロキシノードのドメイン名を解決するためにのみ使用されます。カンマで区切って指定します。"
+          "label": "プロキシノードのアドレス用"
         },
         "directNameserver": {
-          "label": "直接接続の名前解決サーバー",
-          "description": "直接接続の出口名前解決サーバー。systemキーワードをサポートします。カンマで区切って指定します。"
+          "label": "直接接続用",
+          "description": "system を指定できます"
         },
         "fakeIpFilter": {
-          "label": "Fake IPフィルター",
-          "description": "Fake IP解決をスキップするドメイン名。カンマで区切って指定します。"
+          "label": "フィルター対象ドメイン"
         },
         "nameserverPolicy": {
-          "label": "名前解決サーバーのポリシー",
-          "description": "特定のドメインのDNSサーバー。複数のサーバーはセミコロンで区切って指定します。形式: domain=server1;server2"
+          "label": "ドメイン別ポリシー",
+          "description": "ドメイン=サーバーをカンマ区切り、複数サーバーは ; で区切ります"
         },
         "hosts": {
-          "label": "Hosts",
-          "description": "カスタムのドメイン名からIPまたはドメイン名へのマッピング。カンマで区切って指定します。"
+          "label": "エントリ",
+          "description": "ドメイン=アドレスをカンマ区切り、複数アドレスは ; で区切ります"
         },
-        "listenHint": "空欄なら DNS サーバーを起動しません。トンネル内の横取りには不要です。ネットワークに DNS を提供するにはアドレスを入力してください。LAN 共有がオフの間は、ネットワークに開いたアドレスは 127.0.0.1 に置き換えられます。"
+        "listenHint": "空欄ならサーバーは起動しません。LAN 共有が無効の間は 127.0.0.1 に固定されます"
       },
       "messages": {
         "saved": "DNS設定が保存されました。",
@@ -645,7 +636,18 @@
           "auto": "サブスクリプションに従う",
           "on": "オン",
           "off": "オフ"
+        },
+        "filterMode": {
+          "blacklist": "リスト以外すべて",
+          "whitelist": "リストのみ"
         }
+      },
+      "tabs": {
+        "main": "基本",
+        "servers": "サーバー"
+      },
+      "modes": {
+        "form": "フォーム"
       }
     },
     "webUI": {

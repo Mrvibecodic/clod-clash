@@ -557,78 +557,69 @@
     "dns": {
       "dialog": {
         "title": "DNS Overwrite",
-        "warning": "If you are not familiar with these settings, please do not modify them and keep DNS Overwrite disabled",
-        "replacesSubscription": "The values shown are the subscription's. Only your differences from them are saved — everything else follows the subscription on every update."
+        "note": "Язылу кыйммәтләре күрсәтелә. Сезнең аермалар гына саклана — калганы язылуга иярә. Ышанмасагыз, үзгәртмәгез.",
+        "fakeIpIdle": "Тәэсир итми: redir-host режимы сайланган"
       },
       "actions": {
-        "asInSubscription": "As in the subscription"
+        "asInSubscription": "Язылудагыча"
       },
       "sections": {
-        "general": "DNS Settings",
-        "hosts": "Hosts Settings"
+        "behavior": "Тәртип"
       },
       "fields": {
-        "enable": "Enable DNS",
-        "enableHint": "TUN режимында DNS үзеннән-үзе кабына",
-        "listen": "DNS Listen",
-        "enhancedMode": "Enhanced Mode",
-        "enhancedModeHint": "fake-ip TUN режимында яки тыңлау адресы күрсәтелгәндә генә эшли",
-        "fakeIpRange": "Fake IP Range",
-        "fakeIpRange6": "Fake IP Range (IPv6)",
-        "fakeIpFilterMode": "Fake IP Filter Mode",
+        "enable": "DNS кабызу",
+        "enableHint": "TUN режимында үзе кабына",
+        "listen": "DNS-сервер адресы",
+        "enhancedMode": "Режим",
+        "enhancedModeHint": "fake-ip TUN режимында яки сервер адресы бирелгәндә эшли",
+        "fakeIpRange": "IPv4 диапазоны",
+        "fakeIpRange6": "IPv6 диапазоны",
+        "fakeIpFilterMode": "fake-ip кемгә бирелә",
         "ipv6": {
           "label": "IPv6",
-          "description": "IPv6 өчен DNS-чишүне кабызу. fake-ip белән TUN режимында бу кыйммәтне язылу билгели."
+          "description": "IPv6 адреслары белән җавап бирү. TUN һәм fake-ip белән язылу хәл итә"
         },
         "preferH3": {
-          "label": "Prefer H3",
-          "description": "DNS DOH uses HTTP/3"
+          "label": "DoH өчен HTTP/3 өстенрәк"
         },
         "respectRules": {
-          "label": "Respect Rules",
-          "description": "DNS connections follow routing rules"
+          "label": "DNS сораулары маршрутлау кагыйдәләренә буйсына"
         },
         "useHosts": {
-          "label": "Use Hosts",
-          "description": "Enable to resolve hosts through hosts file"
+          "label": "Hosts бүлегендәге язмалар"
         },
         "useSystemHosts": {
-          "label": "Use System Hosts",
-          "description": "Enable to resolve hosts through system hosts file"
+          "label": "Системаның hosts файлы"
         },
         "directPolicy": {
-          "label": "Direct Nameserver Follow Policy",
-          "description": "Whether to follow nameserver policy"
+          "label": "Туры тоташулар да домен сәясәтенә иярә"
         },
         "defaultNameserver": {
-          "label": "Default Nameserver",
-          "description": "Default DNS servers used to resolve DNS servers"
+          "label": "Башлангыч",
+          "description": "DNS-серверларның үз адресларын таба"
         },
         "nameserver": {
-          "label": "Nameserver",
-          "description": "List of DNS servers, comma separated"
+          "label": "Төп серверлар"
         },
         "proxy": {
-          "label": "Proxy Server Nameserver",
-          "description": "DNS servers for proxy node domain resolution"
+          "label": "Прокси-төеннәр адреслары өчен"
         },
         "directNameserver": {
-          "label": "Direct Nameserver",
-          "description": "DNS servers for direct exit domain resolution, supports 'system' keyword, comma separated"
+          "label": "Туры тоташулар өчен",
+          "description": "system күрсәтергә була"
         },
         "fakeIpFilter": {
-          "label": "Fake IP Filter",
-          "description": "Domains that skip fake IP resolution, comma separated"
+          "label": "Фильтр доменнары"
         },
         "nameserverPolicy": {
-          "label": "Nameserver Policy",
-          "description": "Domain-specific DNS server, multiple servers separated by semicolons, format: domain=server1;server2"
+          "label": "Доменнар буенча сәясәт",
+          "description": "домен=сервер өтер аша; берничә сервер ; аша"
         },
         "hosts": {
-          "label": "Hosts",
-          "description": "Custom domain to IP or domain mapping"
+          "label": "Язмалар",
+          "description": "домен=адрес өтер аша; берничә адрес ; аша"
         },
-        "listenHint": "Буш — DNS-сервер ачылмый, тоннельдә тотып алуга ул кирәкми. Челтәргә DNS бирер өчен адрес күрсәтегез. Җирле челтәргә тарату сүндерелгәндә, челтәргә ачык адрес 127.0.0.1 белән алыштырыла."
+        "listenHint": "Буш — сервер кабызылмый. Җирле челтәргә тарату сүнек чакта адрес 127.0.0.1 итеп куела"
       },
       "messages": {
         "saved": "DNS settings saved",
@@ -645,7 +636,18 @@
           "auto": "Язылудагыча",
           "on": "Кабызылган",
           "off": "Сүндерелгән"
+        },
+        "filterMode": {
+          "blacklist": "Исемлектән тыш",
+          "whitelist": "Исемлеккә генә"
         }
+      },
+      "tabs": {
+        "main": "Төп",
+        "servers": "Серверлар"
+      },
+      "modes": {
+        "form": "Форма"
       }
     },
     "webUI": {

@@ -557,78 +557,69 @@
     "dns": {
       "dialog": {
         "title": "DNS 覆寫",
-        "warning": "如果你不清楚這裡的設定請不要修改，並保持 DNS 覆寫關閉",
-        "replacesSubscription": "The values shown are the subscription's. Only your differences from them are saved — everything else follows the subscription on every update."
+        "note": "顯示的是訂閱中的值。僅儲存您的變更，其餘部分跟隨訂閱。不確定時請勿修改。",
+        "fakeIpIdle": "不生效：目前為 redir-host 模式"
       },
       "actions": {
-        "asInSubscription": "As in the subscription"
+        "asInSubscription": "與訂閱一致"
       },
       "sections": {
-        "general": "DNS 設定",
-        "hosts": "Hosts 設定"
+        "behavior": "行為"
       },
       "fields": {
         "enable": "啟用 DNS",
-        "enableHint": "TUN 模式下 DNS 會自動啟用",
-        "listen": "DNS 監聽位址",
-        "enhancedMode": "增強模式",
-        "enhancedModeHint": "fake-ip 僅在 TUN 模式或設定了監聽位址時生效",
-        "fakeIpRange": "Fake IP 範圍",
-        "fakeIpRange6": "Fake IP 範圍 (IPv6)",
-        "fakeIpFilterMode": "Fake IP 篩選模式",
+        "enableHint": "TUN 模式下會自動啟用",
+        "listen": "DNS 伺服器位址",
+        "enhancedMode": "模式",
+        "enhancedModeHint": "fake-ip 僅在 TUN 模式或設定了伺服器位址時生效",
+        "fakeIpRange": "IPv4 範圍",
+        "fakeIpRange6": "IPv6 範圍",
+        "fakeIpFilterMode": "分配 fake-ip 給",
         "ipv6": {
           "label": "IPv6",
-          "description": "啟用 IPv6 DNS 解析。在使用 fake-ip 的 TUN 模式下，此值由訂閱決定。"
+          "description": "使用 IPv6 位址回應。TUN 搭配 fake-ip 時由訂閱決定"
         },
         "preferH3": {
-          "label": "優先使用 HTTP/3",
-          "description": "DNS DOH 使用 HTTP/3 協定"
+          "label": "DoH 優先使用 HTTP/3"
         },
         "respectRules": {
-          "label": "遵循路由規則",
-          "description": "DNS 連線遵循路由規則"
+          "label": "DNS 查詢遵循路由規則"
         },
         "useHosts": {
-          "label": "使用 Hosts",
-          "description": "啟用透過 hosts 檔案解析網域"
+          "label": "Hosts 分頁中的項目"
         },
         "useSystemHosts": {
-          "label": "使用系統 Hosts",
-          "description": "啟用透過系統 hosts 檔案解析網域"
+          "label": "系統 hosts 檔案"
         },
         "directPolicy": {
-          "label": "直連域名伺服器遵循策略",
-          "description": "是否遵循 nameserver-policy 設定"
+          "label": "直連也遵循網域策略"
         },
         "defaultNameserver": {
-          "label": "預設域名伺服器",
-          "description": "用於解析 DNS 伺服器的預設 DNS 伺服器"
+          "label": "引導伺服器",
+          "description": "用於解析 DNS 伺服器本身的位址"
         },
         "nameserver": {
-          "label": "域名伺服器",
-          "description": "DNS 伺服器列表，用逗號分隔"
+          "label": "主伺服器"
         },
         "proxy": {
-          "label": "代理節點 DNS",
-          "description": "代理節點網域解析伺服器，僅用於解析代理節點的網域，用逗號分隔"
+          "label": "用於代理節點位址"
         },
         "directNameserver": {
-          "label": "直連域名伺服器",
-          "description": "直連輸出網域解析伺服器，支援 system 關鍵字，用逗號分隔"
+          "label": "用於直連",
+          "description": "可填寫 system"
         },
         "fakeIpFilter": {
-          "label": "Fake IP 篩選",
-          "description": "跳過 Fake IP 解析的網域，用逗號分隔"
+          "label": "過濾網域"
         },
         "nameserverPolicy": {
-          "label": "域名伺服器策略",
-          "description": "特定網域的 DNS 伺服器，多個伺服器使用分號分隔，格式: domain=server1;server2"
+          "label": "依網域策略",
+          "description": "網域=伺服器，以逗號分隔；多個伺服器以 ; 分隔"
         },
         "hosts": {
-          "label": "Hosts",
-          "description": "自訂網域到 IP 或網域的映射，用逗號分隔"
+          "label": "項目",
+          "description": "網域=位址，以逗號分隔；多個位址以 ; 分隔"
         },
-        "listenHint": "留空則不啟動 DNS 服務，隧道內的劫持無需它。若要向區域網路提供 DNS，請填寫地址。區域網路共享關閉時，對網路開放的位址會被替換為 127.0.0.1。"
+        "listenHint": "留空則不啟動伺服器。未開啟區域網路共享時，位址固定為 127.0.0.1"
       },
       "messages": {
         "saved": "DNS 設定已儲存",
@@ -645,7 +636,18 @@
           "auto": "與訂閱一致",
           "on": "開啟",
           "off": "關閉"
+        },
+        "filterMode": {
+          "blacklist": "清單以外全部",
+          "whitelist": "僅清單"
         }
+      },
+      "tabs": {
+        "main": "一般",
+        "servers": "伺服器"
+      },
+      "modes": {
+        "form": "表單"
       }
     },
     "webUI": {

@@ -557,78 +557,69 @@
     "dns": {
       "dialog": {
         "title": "DNS 덮어쓰기",
-        "warning": "이 설정에 익숙하지 않다면 수정하지 말고 DNS 덮어쓰기를 비활성화 상태로 유지하세요",
-        "replacesSubscription": "The values shown are the subscription's. Only your differences from them are saved — everything else follows the subscription on every update."
+        "note": "구독 값이 표시됩니다. 변경한 부분만 저장되며 나머지는 구독을 따릅니다. 잘 모르면 변경하지 마세요.",
+        "fakeIpIdle": "적용되지 않음: redir-host 모드가 선택됨"
       },
       "actions": {
-        "asInSubscription": "As in the subscription"
+        "asInSubscription": "구독 설정을 따름"
       },
       "sections": {
-        "general": "DNS 설정",
-        "hosts": "호스트 설정"
+        "behavior": "동작"
       },
       "fields": {
-        "enable": "DNS 사용",
-        "enableHint": "TUN 모드에서는 DNS가 자동으로 켜집니다",
-        "listen": "DNS 리슨",
-        "enhancedMode": "향상 모드",
-        "enhancedModeHint": "fake-ip는 TUN 모드이거나 수신 주소를 지정했을 때만 적용됩니다",
-        "fakeIpRange": "가짜 IP 범위",
-        "fakeIpRange6": "가짜 IP 범위 (IPv6)",
-        "fakeIpFilterMode": "가짜 IP 필터 모드",
+        "enable": "DNS 활성화",
+        "enableHint": "TUN 모드에서는 자동으로 켜집니다",
+        "listen": "DNS 서버 주소",
+        "enhancedMode": "모드",
+        "enhancedModeHint": "fake-ip는 TUN 또는 서버 주소가 지정된 경우에 동작합니다",
+        "fakeIpRange": "IPv4 범위",
+        "fakeIpRange6": "IPv6 범위",
+        "fakeIpFilterMode": "fake-ip 할당 대상",
         "ipv6": {
           "label": "IPv6",
-          "description": "IPv6 DNS 해석 사용. fake-ip를 쓰는 TUN 모드에서는 구독이 이 값을 정합니다."
+          "description": "IPv6 주소로 응답합니다. TUN과 fake-ip에서는 구독이 결정합니다"
         },
         "preferH3": {
-          "label": "H3 우선",
-          "description": "DNS DOH에서 HTTP/3 사용"
+          "label": "DoH에 HTTP/3 우선"
         },
         "respectRules": {
-          "label": "규칙 준수",
-          "description": "DNS 연결이 라우팅 규칙을 따릅니다"
+          "label": "DNS 쿼리가 라우팅 규칙을 따름"
         },
         "useHosts": {
-          "label": "Hosts 사용",
-          "description": "호스트 파일을 통해 해석하도록 활성화"
+          "label": "Hosts 탭의 항목"
         },
         "useSystemHosts": {
-          "label": "시스템 Hosts 사용",
-          "description": "시스템 호스트 파일을 통해 해석하도록 활성화"
+          "label": "시스템 hosts 파일"
         },
         "directPolicy": {
-          "label": "직접 Nameserver 정책 따르기",
-          "description": "Nameserver 정책을 따를지 여부"
+          "label": "직접 연결도 도메인 정책을 따름"
         },
         "defaultNameserver": {
-          "label": "기본 Nameserver",
-          "description": "DNS 서버 해석에 사용되는 기본 DNS 서버"
+          "label": "부트스트랩",
+          "description": "DNS 서버 자체의 주소를 확인합니다"
         },
         "nameserver": {
-          "label": "Nameserver",
-          "description": "DNS 서버 목록, 쉼표로 구분"
+          "label": "주 서버"
         },
         "proxy": {
-          "label": "프록시 서버 Nameserver",
-          "description": "프록시 노드 도메인 해석용 DNS 서버"
+          "label": "프록시 노드 주소용"
         },
         "directNameserver": {
-          "label": "직접 Nameserver",
-          "description": "직접 출구 도메인 해석용 DNS 서버, 'system' 키워드 지원, 쉼표로 구분"
+          "label": "직접 연결용",
+          "description": "system 사용 가능"
         },
         "fakeIpFilter": {
-          "label": "가짜 IP 필터",
-          "description": "가짜 IP 해석을 건너뛰는 도메인, 쉼표로 구분"
+          "label": "필터 도메인"
         },
         "nameserverPolicy": {
-          "label": "Nameserver 정책",
-          "description": "도메인별 DNS 서버, 여러 서버는 세미콜론으로 구분, 형식: domain=server1;server2"
+          "label": "도메인별 정책",
+          "description": "도메인=서버를 쉼표로 구분, 여러 서버는 ;로 구분"
         },
         "hosts": {
-          "label": "Hosts",
-          "description": "사용자 정의 도메인→IP 또는 도메인 매핑"
+          "label": "항목",
+          "description": "도메인=주소를 쉼표로 구분, 여러 주소는 ;로 구분"
         },
-        "listenHint": "비워 두면 DNS 서버를 열지 않습니다. 터널 내 가로채기에는 필요하지 않습니다. 네트워크에 DNS를 제공하려면 주소를 입력하세요. LAN 공유가 꺼져 있으면 네트워크에 열린 주소는 127.0.0.1로 바뀝니다."
+        "listenHint": "비워 두면 서버가 시작되지 않습니다. LAN 공유가 꺼져 있으면 127.0.0.1로 고정됩니다"
       },
       "messages": {
         "saved": "DNS 설정이 저장되었습니다",
@@ -645,7 +636,18 @@
           "auto": "구독 설정을 따름",
           "on": "켬",
           "off": "끔"
+        },
+        "filterMode": {
+          "blacklist": "목록 제외 전부",
+          "whitelist": "목록만"
         }
+      },
+      "tabs": {
+        "main": "기본",
+        "servers": "서버"
+      },
+      "modes": {
+        "form": "양식"
       }
     },
     "webUI": {

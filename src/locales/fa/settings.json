@@ -557,78 +557,69 @@
     "dns": {
       "dialog": {
         "title": "بازنویسی DNS",
-        "warning": "اگر با این تنظیمات آشنا نیستید، لطفاً آنها را تغییر ندهید و DNS Overwrite را غیرفعال نگه دارید.",
-        "replacesSubscription": "The values shown are the subscription's. Only your differences from them are saved — everything else follows the subscription on every update."
+        "note": "مقادیر اشتراک نمایش داده شده است. فقط تفاوت‌های شما ذخیره می‌شود و بقیه از اشتراک پیروی می‌کند. اگر مطمئن نیستید، تغییر ندهید.",
+        "fakeIpIdle": "بی‌اثر: حالت redir-host انتخاب شده است"
       },
       "actions": {
-        "asInSubscription": "As in the subscription"
+        "asInSubscription": "مطابق اشتراک"
       },
       "sections": {
-        "general": "تنظیمات DNS",
-        "hosts": "Hosts Settings"
+        "behavior": "رفتار"
       },
       "fields": {
-        "enable": "Enable DNS",
-        "enableHint": "در حالت TUN، DNS خودکار روشن می‌شود",
-        "listen": "DNS Listen",
-        "enhancedMode": "Enhanced Mode",
-        "enhancedModeHint": "fake-ip فقط در حالت TUN یا با نشانی شنود تعیین‌شده اثر دارد",
-        "fakeIpRange": "Fake IP Range",
-        "fakeIpRange6": "Fake IP Range (IPv6)",
-        "fakeIpFilterMode": "Fake IP Filter Mode",
+        "enable": "فعال‌سازی DNS",
+        "enableHint": "در حالت TUN خودکار فعال می‌شود",
+        "listen": "نشانی سرور DNS",
+        "enhancedMode": "حالت",
+        "enhancedModeHint": "fake-ip در TUN یا با نشانی سرور تعیین‌شده کار می‌کند",
+        "fakeIpRange": "محدوده IPv4",
+        "fakeIpRange6": "محدوده IPv6",
+        "fakeIpFilterMode": "اختصاص fake-ip به",
         "ipv6": {
           "label": "IPv6",
-          "description": "فعال‌سازی تفکیک DNS برای IPv6. در حالت TUN با fake-ip، این مقدار را اشتراک تعیین می‌کند."
+          "description": "پاسخ با نشانی‌های IPv6. در TUN با fake-ip اشتراک تصمیم می‌گیرد"
         },
         "preferH3": {
-          "label": "Prefer H3",
-          "description": "DNS DOH uses HTTP/3"
+          "label": "ترجیح HTTP/3 برای DoH"
         },
         "respectRules": {
-          "label": "Respect Rules",
-          "description": "اتصالات DNS از قوانین مسیریابی پیروی می‌کنند"
+          "label": "پرس‌وجوهای DNS از قوانین مسیریابی پیروی می‌کنند"
         },
         "useHosts": {
-          "label": "Use Hosts",
-          "description": "Enable to resolve hosts through hosts file"
+          "label": "ورودی‌های زبانه Hosts"
         },
         "useSystemHosts": {
-          "label": "Use System Hosts",
-          "description": "Enable to resolve hosts through system hosts file"
+          "label": "فایل hosts سیستم"
         },
         "directPolicy": {
-          "label": "Direct Nameserver Follow Policy",
-          "description": "Whether to follow nameserver policy"
+          "label": "اتصال‌های مستقیم هم از سیاست دامنه پیروی کنند"
         },
         "defaultNameserver": {
-          "label": "Default Nameserver",
-          "description": "Default DNS servers used to resolve DNS servers"
+          "label": "راه‌انداز",
+          "description": "نشانی خود سرورهای DNS را پیدا می‌کنند"
         },
         "nameserver": {
-          "label": "Nameserver",
-          "description": "فهرست سرورهای DNS، جدا شده با کاما"
+          "label": "اصلی"
         },
         "proxy": {
-          "label": "Proxy Server Nameserver",
-          "description": "DNS servers for proxy node domain resolution"
+          "label": "برای نشانی گره‌های پراکسی"
         },
         "directNameserver": {
-          "label": "Direct Nameserver",
-          "description": "DNS servers for direct exit domain resolution, supports 'system' keyword, comma separated"
+          "label": "برای اتصال‌های مستقیم",
+          "description": "می‌توان system را نوشت"
         },
         "fakeIpFilter": {
-          "label": "Fake IP Filter",
-          "description": "Domains that skip fake IP resolution, comma separated"
+          "label": "دامنه‌های فیلتر"
         },
         "nameserverPolicy": {
-          "label": "Nameserver Policy",
-          "description": "Domain-specific DNS server, multiple servers separated by semicolons, format: domain=server1;server2"
+          "label": "سیاست بر اساس دامنه",
+          "description": "دامنه=سرور با ویرگول جدا شود؛ چند سرور با ;"
         },
         "hosts": {
-          "label": "میزبان‌ها",
-          "description": "تبدیل دامنه به IP یا نگاشت دامنه سفارشی"
+          "label": "ورودی‌ها",
+          "description": "دامنه=نشانی با ویرگول جدا شود؛ چند نشانی با ;"
         },
-        "listenHint": "خالی — سرور DNS باز نمی‌شود؛ رهگیری در تونل به آن نیازی ندارد. برای ارائهٔ DNS به شبکه، یک نشانی وارد کنید. تا وقتی اشتراک در شبکهٔ محلی خاموش است، نشانیِ باز به شبکه با 127.0.0.1 جایگزین می‌شود."
+        "listenHint": "خالی — سرور راه‌اندازی نمی‌شود. بدون اشتراک‌گذاری در شبکه محلی، نشانی روی 127.0.0.1 ثابت می‌شود"
       },
       "messages": {
         "saved": "تنظیمات DNS ذخیره شد",
@@ -645,7 +636,18 @@
           "auto": "مطابق اشتراک",
           "on": "روشن",
           "off": "خاموش"
+        },
+        "filterMode": {
+          "blacklist": "همه به‌جز فهرست",
+          "whitelist": "فقط فهرست"
         }
+      },
+      "tabs": {
+        "main": "عمومی",
+        "servers": "سرورها"
+      },
+      "modes": {
+        "form": "فرم"
       }
     },
     "webUI": {

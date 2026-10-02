@@ -557,78 +557,69 @@
     "dns": {
       "dialog": {
         "title": "DNS Overwrite",
-        "warning": "If you are not familiar with these settings, please do not modify them and keep DNS Overwrite disabled",
-        "replacesSubscription": "The values shown are the subscription's. Only your differences from them are saved — everything else follows the subscription on every update."
+        "note": "Ditampilkan nilai dari langganan. Hanya perbedaan Anda yang disimpan — sisanya mengikuti langganan. Jika ragu, jangan diubah.",
+        "fakeIpIdle": "Tidak berlaku: mode redir-host dipilih"
       },
       "actions": {
-        "asInSubscription": "As in the subscription"
+        "asInSubscription": "Seperti di langganan"
       },
       "sections": {
-        "general": "DNS Settings",
-        "hosts": "Hosts Settings"
+        "behavior": "Perilaku"
       },
       "fields": {
-        "enable": "Enable DNS",
-        "enableHint": "Dalam mode TUN, DNS diaktifkan otomatis",
-        "listen": "DNS Listen",
-        "enhancedMode": "Enhanced Mode",
-        "enhancedModeHint": "fake-ip hanya berlaku dalam mode TUN atau dengan alamat dengar yang diisi",
-        "fakeIpRange": "Fake IP Range",
-        "fakeIpRange6": "Fake IP Range (IPv6)",
-        "fakeIpFilterMode": "Fake IP Filter Mode",
+        "enable": "Aktifkan DNS",
+        "enableHint": "Aktif sendiri dalam mode TUN",
+        "listen": "Alamat server DNS",
+        "enhancedMode": "Mode",
+        "enhancedModeHint": "fake-ip bekerja di TUN atau bila alamat server diisi",
+        "fakeIpRange": "Rentang IPv4",
+        "fakeIpRange6": "Rentang IPv6",
+        "fakeIpFilterMode": "Beri fake-ip ke",
         "ipv6": {
           "label": "IPv6",
-          "description": "Aktifkan resolusi DNS IPv6. Dalam mode TUN dengan fake-ip, nilai ini ditentukan langganan."
+          "description": "Menjawab dengan alamat IPv6. Di TUN dengan fake-ip, langganan yang menentukan"
         },
         "preferH3": {
-          "label": "Prefer H3",
-          "description": "DNS DOH uses HTTP/3"
+          "label": "Utamakan HTTP/3 untuk DoH"
         },
         "respectRules": {
-          "label": "Respect Rules",
-          "description": "DNS connections follow routing rules"
+          "label": "Kueri DNS mengikuti aturan perutean"
         },
         "useHosts": {
-          "label": "Use Hosts",
-          "description": "Enable to resolve hosts through hosts file"
+          "label": "Entri dari tab Hosts"
         },
         "useSystemHosts": {
-          "label": "Use System Hosts",
-          "description": "Enable to resolve hosts through system hosts file"
+          "label": "File hosts sistem"
         },
         "directPolicy": {
-          "label": "Direct Nameserver Follow Policy",
-          "description": "Whether to follow nameserver policy"
+          "label": "Koneksi langsung juga mengikuti kebijakan domain"
         },
         "defaultNameserver": {
-          "label": "Default Nameserver",
-          "description": "Default DNS servers used to resolve DNS servers"
+          "label": "Bootstrap",
+          "description": "Menemukan alamat server DNS itu sendiri"
         },
         "nameserver": {
-          "label": "Nameserver",
-          "description": "List of DNS servers, comma separated"
+          "label": "Utama"
         },
         "proxy": {
-          "label": "Proxy Server Nameserver",
-          "description": "DNS servers for proxy node domain resolution"
+          "label": "Untuk alamat node proxy"
         },
         "directNameserver": {
-          "label": "Direct Nameserver",
-          "description": "DNS servers for direct exit domain resolution, supports 'system' keyword, comma separated"
+          "label": "Untuk koneksi langsung",
+          "description": "Boleh menulis system"
         },
         "fakeIpFilter": {
-          "label": "Fake IP Filter",
-          "description": "Domains that skip fake IP resolution, comma separated"
+          "label": "Domain filter"
         },
         "nameserverPolicy": {
-          "label": "Nameserver Policy",
-          "description": "Domain-specific DNS server, multiple servers separated by semicolons, format: domain=server1;server2"
+          "label": "Kebijakan per domain",
+          "description": "domain=server dipisah koma; beberapa server dengan ;"
         },
         "hosts": {
-          "label": "Hosts",
-          "description": "Custom domain to IP or domain mapping"
+          "label": "Entri",
+          "description": "domain=alamat dipisah koma; beberapa alamat dengan ;"
         },
-        "listenHint": "Kosong — server DNS tidak dibuka; pencegatan di terowongan tidak memerlukannya. Untuk membagikan DNS ke jaringan, isi alamat. Selama berbagi LAN nonaktif, alamat yang terbuka ke jaringan diganti dengan 127.0.0.1."
+        "listenHint": "Kosong — server tidak dijalankan. Tanpa berbagi LAN, alamat dipatok ke 127.0.0.1"
       },
       "messages": {
         "saved": "DNS settings saved",
@@ -645,7 +636,18 @@
           "auto": "Seperti di langganan",
           "on": "Aktif",
           "off": "Nonaktif"
+        },
+        "filterMode": {
+          "blacklist": "Kecuali daftar",
+          "whitelist": "Hanya daftar"
         }
+      },
+      "tabs": {
+        "main": "Umum",
+        "servers": "Server"
+      },
+      "modes": {
+        "form": "Formulir"
       }
     },
     "webUI": {

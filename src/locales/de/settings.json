@@ -557,78 +557,69 @@
     "dns": {
       "dialog": {
         "title": "DNS-Überschreibung",
-        "warning": "Wenn Sie sich nicht mit diesen Einstellungen auskennen, ändern Sie sie nicht und lassen Sie die DNS-Überschreibung deaktiviert.",
-        "replacesSubscription": "The values shown are the subscription's. Only your differences from them are saved — everything else follows the subscription on every update."
+        "note": "Angezeigt werden die Werte des Abonnements. Gespeichert werden nur Ihre Abweichungen — alles andere folgt dem Abonnement. Im Zweifel nichts ändern.",
+        "fakeIpIdle": "Ohne Wirkung: Modus redir-host ist gewählt"
       },
       "actions": {
-        "asInSubscription": "As in the subscription"
+        "asInSubscription": "Wie im Abonnement"
       },
       "sections": {
-        "general": "DNS-Einstellungen",
-        "hosts": "Hosts-Einstellungen"
+        "behavior": "Verhalten"
       },
       "fields": {
         "enable": "DNS aktivieren",
-        "enableHint": "Im TUN-Modus wird DNS automatisch aktiviert",
-        "listen": "DNS-Lauschangabe",
-        "enhancedMode": "Erweiterter Modus",
-        "enhancedModeHint": "fake-ip wirkt nur im TUN-Modus oder mit gesetzter Abhöradresse",
-        "fakeIpRange": "Fake-IP-Bereich",
-        "fakeIpRange6": "Fake-IP-Bereich (IPv6)",
-        "fakeIpFilterMode": "Fake-IP-Filtermodus",
+        "enableHint": "Im TUN-Modus automatisch aktiv",
+        "listen": "DNS-Serveradresse",
+        "enhancedMode": "Modus",
+        "enhancedModeHint": "fake-ip wirkt im TUN-Modus oder mit gesetzter Serveradresse",
+        "fakeIpRange": "IPv4-Bereich",
+        "fakeIpRange6": "IPv6-Bereich",
+        "fakeIpFilterMode": "fake-ip vergeben an",
         "ipv6": {
           "label": "IPv6",
-          "description": "IPv6-DNS-Auflösung aktivieren. Im TUN-Modus mit fake-ip legt das Abonnement den Wert fest."
+          "description": "Mit IPv6-Adressen antworten. Bei TUN mit fake-ip entscheidet das Abonnement"
         },
         "preferH3": {
-          "label": "HTTP/3 bevorzugen",
-          "description": "DNS DOH verwendet HTTP/3-Protokoll"
+          "label": "HTTP/3 für DoH bevorzugen"
         },
         "respectRules": {
-          "label": "Routierungsregeln beachten",
-          "description": "DNS-Verbindungen folgen den Routierungsregeln"
+          "label": "DNS-Anfragen folgen den Routing-Regeln"
         },
         "useHosts": {
-          "label": "Hosts verwenden",
-          "description": "Aktivieren Sie die Auflösung von Hosts über die hosts-Datei"
+          "label": "Einträge aus dem Tab Hosts"
         },
         "useSystemHosts": {
-          "label": "System-Hosts verwenden",
-          "description": "Aktivieren Sie die Auflösung von Hosts über die System-hosts-Datei"
+          "label": "System-Hosts-Datei"
         },
         "directPolicy": {
-          "label": "Direkte Namenserver folgen der Strategie",
-          "description": "Ob die Namenserver-Strategie befolgt werden soll"
+          "label": "Direkte folgen ebenfalls der Domain-Richtlinie"
         },
         "defaultNameserver": {
-          "label": "Standard-Namenserver",
-          "description": "Standard-DNS-Server, die zum Auflösen von DNS-Servern verwendet werden"
+          "label": "Bootstrap",
+          "description": "Lösen die Adressen der DNS-Server selbst auf"
         },
         "nameserver": {
-          "label": "Namenserver",
-          "description": "Liste der DNS-Server, getrennt durch Kommas"
+          "label": "Haupt"
         },
         "proxy": {
-          "label": "Proxy-Server-Namenserver",
-          "description": "Proxy-Knoten-Namenserver, nur für die Auflösung der Domains von Proxy-Knoten verwendet, getrennt durch Kommas"
+          "label": "Für Adressen der Proxy-Knoten"
         },
         "directNameserver": {
-          "label": "Direkter Namenserver",
-          "description": "Direkter Ausgangs-Namenserver, unterstützt das Schlüsselwort system, getrennt durch Kommas"
+          "label": "Für direkte Verbindungen",
+          "description": "system ist erlaubt"
         },
         "fakeIpFilter": {
-          "label": "Fake-IP-Filter",
-          "description": "Domains, die die Fake-IP-Auflösung überspringen, getrennt durch Kommas"
+          "label": "Filter-Domains"
         },
         "nameserverPolicy": {
-          "label": "Namenserver-Strategie",
-          "description": "Domain-spezifischer DNS-Server, mehrere Server getrennt durch Semikolons, Format: domain=server1;server2"
+          "label": "Richtlinie pro Domain",
+          "description": "domain=server, durch Komma getrennt; mehrere Server mit ;"
         },
         "hosts": {
-          "label": "Hosts",
-          "description": "Benutzerdefinierte Zuordnung von Domains zu IPs oder Domains, getrennt durch Kommas"
+          "label": "Einträge",
+          "description": "domain=adresse, durch Komma getrennt; mehrere Adressen mit ;"
         },
-        "listenHint": "Leer — kein DNS-Server; das Abfangen im Tunnel braucht ihn nicht. Um DNS ins Netzwerk zu geben, eine Adresse eintragen. Solange die LAN-Freigabe aus ist, wird eine ins Netzwerk offene Adresse durch 127.0.0.1 ersetzt."
+        "listenHint": "Leer — kein Server wird gestartet. Ohne LAN-Freigabe wird die Adresse auf 127.0.0.1 gesetzt"
       },
       "messages": {
         "saved": "DNS-Einstellungen wurden gespeichert",
@@ -645,7 +636,18 @@
           "auto": "Wie im Abonnement",
           "on": "Ein",
           "off": "Aus"
+        },
+        "filterMode": {
+          "blacklist": "Außer Liste",
+          "whitelist": "Nur Liste"
         }
+      },
+      "tabs": {
+        "main": "Allgemein",
+        "servers": "Server"
+      },
+      "modes": {
+        "form": "Formular"
       }
     },
     "webUI": {

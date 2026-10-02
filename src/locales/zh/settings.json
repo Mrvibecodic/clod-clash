@@ -557,78 +557,69 @@
     "dns": {
       "dialog": {
         "title": "DNS 覆写",
-        "warning": "如果你不清楚这里的设置请不要修改，并保持 DNS 覆写关闭",
-        "replacesSubscription": "The values shown are the subscription's. Only your differences from them are saved — everything else follows the subscription on every update."
+        "note": "显示的是订阅中的值。仅保存您的改动，其余部分跟随订阅。不确定时请勿修改。",
+        "fakeIpIdle": "不生效：当前为 redir-host 模式"
       },
       "actions": {
-        "asInSubscription": "As in the subscription"
+        "asInSubscription": "与订阅一致"
       },
       "sections": {
-        "general": "DNS 设置",
-        "hosts": "Hosts 设置"
+        "behavior": "行为"
       },
       "fields": {
         "enable": "启用 DNS",
-        "enableHint": "TUN 模式下 DNS 会自动启用",
-        "listen": "DNS 监听地址",
-        "enhancedMode": "增强模式",
-        "enhancedModeHint": "fake-ip 仅在 TUN 模式或设置了监听地址时生效",
-        "fakeIpRange": "Fake IP 范围",
-        "fakeIpRange6": "Fake IP 范围 (IPv6)",
-        "fakeIpFilterMode": "Fake IP 过滤模式",
+        "enableHint": "TUN 模式下会自动启用",
+        "listen": "DNS 服务器地址",
+        "enhancedMode": "模式",
+        "enhancedModeHint": "fake-ip 仅在 TUN 模式或设置了服务器地址时生效",
+        "fakeIpRange": "IPv4 范围",
+        "fakeIpRange6": "IPv6 范围",
+        "fakeIpFilterMode": "分配 fake-ip 给",
         "ipv6": {
           "label": "IPv6",
-          "description": "启用 IPv6 DNS 解析。在使用 fake-ip 的 TUN 模式下，此值由订阅决定。"
+          "description": "使用 IPv6 地址应答。TUN 搭配 fake-ip 时由订阅决定"
         },
         "preferH3": {
-          "label": "优先使用 HTTP/3",
-          "description": "DNS DOH 使用 HTTP/3 协议"
+          "label": "DoH 优先使用 HTTP/3"
         },
         "respectRules": {
-          "label": "遵循路由规则",
-          "description": "DNS 连接遵循路由规则"
+          "label": "DNS 查询遵循路由规则"
         },
         "useHosts": {
-          "label": "使用 Hosts",
-          "description": "启用通过 hosts 文件解析域名"
+          "label": "Hosts 标签页中的条目"
         },
         "useSystemHosts": {
-          "label": "使用系统 Hosts",
-          "description": "启用通过系统 hosts 文件解析域名"
+          "label": "系统 hosts 文件"
         },
         "directPolicy": {
-          "label": "直连域名服务器遵循策略",
-          "description": "是否遵循 nameserver-policy 设置"
+          "label": "直连也遵循域名策略"
         },
         "defaultNameserver": {
-          "label": "默认域名服务器",
-          "description": "用于解析 DNS 服务器的默认 DNS 服务器"
+          "label": "引导服务器",
+          "description": "用于解析 DNS 服务器自身的地址"
         },
         "nameserver": {
-          "label": "域名服务器",
-          "description": "DNS 服务器列表，用逗号分隔"
+          "label": "主服务器"
         },
         "proxy": {
-          "label": "代理节点DNS",
-          "description": "代理节点域名解析服务器，仅用于解析代理节点的域名，用逗号分隔"
+          "label": "用于代理节点地址"
         },
         "directNameserver": {
-          "label": "直连域名服务器",
-          "description": "直连出口域名解析服务器，支持 system 关键字，用逗号分隔"
+          "label": "用于直连",
+          "description": "可填写 system"
         },
         "fakeIpFilter": {
-          "label": "Fake IP 过滤",
-          "description": "跳过 Fake IP 解析的域名，用逗号分隔"
+          "label": "过滤域名"
         },
         "nameserverPolicy": {
-          "label": "域名服务器策略",
-          "description": "特定域名的 DNS 服务器，多个服务器使用分号分隔，格式: domain=server1;server2"
+          "label": "按域名策略",
+          "description": "域名=服务器，用逗号分隔；多个服务器用 ; 分隔"
         },
         "hosts": {
-          "label": "Hosts",
-          "description": "自定义域名到 IP 或域名的映射，用逗号分隔"
+          "label": "条目",
+          "description": "域名=地址，用逗号分隔；多个地址用 ; 分隔"
         },
-        "listenHint": "留空则不启动 DNS 服务，隧道内的劫持无需它。若要向局域网提供 DNS，请填写地址。局域网共享关闭时，对网络开放的地址会被替换为 127.0.0.1。"
+        "listenHint": "留空则不启动服务器。未开启局域网共享时，地址固定为 127.0.0.1"
       },
       "messages": {
         "saved": "DNS 设置已保存",
@@ -645,7 +636,18 @@
           "auto": "与订阅一致",
           "on": "开启",
           "off": "关闭"
+        },
+        "filterMode": {
+          "blacklist": "列表以外全部",
+          "whitelist": "仅列表"
         }
+      },
+      "tabs": {
+        "main": "常规",
+        "servers": "服务器"
+      },
+      "modes": {
+        "form": "表单"
       }
     },
     "webUI": {

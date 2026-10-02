@@ -2,14 +2,13 @@ import { RestartAltRounded } from '@mui/icons-material'
 import {
   Box,
   Button,
-  FormControl,
-  List,
-  ListItem,
-  ListItemText,
   MenuItem,
   Select,
-  styled,
+  Tab,
+  Tabs,
   TextField,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
 } from '@mui/material'
 import { invoke } from '@tauri-apps/api/core'
@@ -46,15 +45,6 @@ import {
   summarizeValidation,
 } from '@/utils/dns-config'
 import getSystem from '@/utils/get-system'
-
-const Item = styled(ListItem)(() => ({
-  padding: '5px 2px',
-  '& textarea': {
-    lineHeight: 1.5,
-    fontSize: 14,
-    resize: 'vertical',
-  },
-}))
 
 type NameserverPolicy = Record<string, any>
 
@@ -135,8 +125,9 @@ function parseHosts(str: string): NameserverPolicy {
 
 function parseList(str: string): string[] {
   if (!str?.trim()) return []
+  // Поле многострочное: Enter — тоже разделитель, а не часть записи.
   return str
-    .split(',')
+    .split(/[,\n]/)
     .map((item) => item.trim())
     .filter(Boolean)
 }
@@ -197,6 +188,235 @@ const FIELD_KEYS = {
   nameserverPolicy: 'nameserver-policy',
 } as const
 
+interface DnsValues {
+  enable: boolean
+  listen: string
+  enhancedMode: 'fake-ip' | 'redir-host'
+  fakeIpRange: string
+  fakeIpRange6: string
+  fakeIpFilterMode: 'blacklist' | 'whitelist'
+  preferH3: boolean
+  respectRules: boolean
+  useHosts: HostsChoice
+  useSystemHosts: HostsChoice
+  ipv6: boolean
+  fakeIpFilter: string
+  nameserver: string
+  defaultNameserver: string
+  proxyServerNameserver: string
+  directNameserver: string
+  directNameserverFollowPolicy: boolean
+  nameserverPolicy: string
+  hosts: string
+}
+
+type DnsRow = { field: keyof DnsValues; label: string; hint?: string } & (
+  | { kind: 'switch' }
+  | { kind: 'select'; options: [string, string][] }
+  | { kind: 'text' | 'list'; placeholder?: string }
+)
+
+// Вкладки окна: каждая помещается без прокрутки и в окне простого режима.
+interface DnsTab {
+  id: 'main' | 'fakeIp' | 'servers' | 'hosts'
+  title: string
+  sections: { title?: string; rows: DnsRow[] }[]
+}
+
+const dnsTabs = (t: ReturnType<typeof useTranslation>['t']): DnsTab[] => {
+  const hostsOptions: [string, string][] = [
+    ['auto', t('settings.modals.dns.options.hosts.auto')],
+    ['on', t('settings.modals.dns.options.hosts.on')],
+    ['off', t('settings.modals.dns.options.hosts.off')],
+  ]
+  return [
+    {
+      id: 'main',
+      title: t('settings.modals.dns.tabs.main'),
+      sections: [
+        {
+          rows: [
+            {
+              kind: 'switch',
+              field: 'enable',
+              label: t('settings.modals.dns.fields.enable'),
+              hint: t('settings.modals.dns.fields.enableHint'),
+            },
+            {
+              kind: 'select',
+              field: 'enhancedMode',
+              label: t('settings.modals.dns.fields.enhancedMode'),
+              hint: t('settings.modals.dns.fields.enhancedModeHint'),
+              options: [
+                ['fake-ip', 'fake-ip'],
+                ['redir-host', 'redir-host'],
+              ],
+            },
+            {
+              kind: 'text',
+              field: 'listen',
+              label: t('settings.modals.dns.fields.listen'),
+              hint: t('settings.modals.dns.fields.listenHint'),
+              placeholder: '127.0.0.1:1053',
+            },
+            {
+              kind: 'switch',
+              field: 'ipv6',
+              label: t('settings.modals.dns.fields.ipv6.label'),
+              hint: t('settings.modals.dns.fields.ipv6.description'),
+            },
+          ],
+        },
+        {
+          title: t('settings.modals.dns.sections.behavior'),
+          rows: [
+            {
+              kind: 'switch',
+              field: 'respectRules',
+              label: t('settings.modals.dns.fields.respectRules.label'),
+            },
+            {
+              kind: 'switch',
+              field: 'preferH3',
+              label: t('settings.modals.dns.fields.preferH3.label'),
+            },
+            {
+              kind: 'select',
+              field: 'useHosts',
+              label: t('settings.modals.dns.fields.useHosts.label'),
+              options: hostsOptions,
+            },
+            {
+              kind: 'select',
+              field: 'useSystemHosts',
+              label: t('settings.modals.dns.fields.useSystemHosts.label'),
+              options: hostsOptions,
+            },
+          ],
+        },
+      ],
+    },
+    {
+      id: 'fakeIp',
+      title: 'FakeIP',
+      sections: [
+        {
+          rows: [
+            {
+              kind: 'text',
+              field: 'fakeIpRange',
+              label: t('settings.modals.dns.fields.fakeIpRange'),
+              placeholder: '198.18.0.1/16',
+            },
+            {
+              kind: 'text',
+              field: 'fakeIpRange6',
+              label: t('settings.modals.dns.fields.fakeIpRange6'),
+              placeholder: '2001:2::0/64',
+            },
+            {
+              kind: 'select',
+              field: 'fakeIpFilterMode',
+              label: t('settings.modals.dns.fields.fakeIpFilterMode'),
+              options: [
+                [
+                  'blacklist',
+                  t('settings.modals.dns.options.filterMode.blacklist'),
+                ],
+                [
+                  'whitelist',
+                  t('settings.modals.dns.options.filterMode.whitelist'),
+                ],
+              ],
+            },
+            {
+              kind: 'list',
+              field: 'fakeIpFilter',
+              label: t('settings.modals.dns.fields.fakeIpFilter.label'),
+              placeholder: '*.lan, *.local, localhost',
+            },
+          ],
+        },
+      ],
+    },
+    {
+      id: 'servers',
+      title: t('settings.modals.dns.tabs.servers'),
+      sections: [
+        {
+          rows: [
+            {
+              kind: 'list',
+              field: 'nameserver',
+              label: t('settings.modals.dns.fields.nameserver.label'),
+              placeholder: 'https://1.1.1.1/dns-query',
+            },
+            {
+              kind: 'list',
+              field: 'defaultNameserver',
+              label: t('settings.modals.dns.fields.defaultNameserver.label'),
+              hint: t(
+                'settings.modals.dns.fields.defaultNameserver.description',
+              ),
+              placeholder: '9.9.9.9, 1.1.1.1',
+            },
+            {
+              kind: 'list',
+              field: 'proxyServerNameserver',
+              label: t('settings.modals.dns.fields.proxy.label'),
+              placeholder: 'https://1.1.1.1/dns-query',
+            },
+            {
+              kind: 'list',
+              field: 'directNameserver',
+              label: t('settings.modals.dns.fields.directNameserver.label'),
+              hint: t(
+                'settings.modals.dns.fields.directNameserver.description',
+              ),
+              placeholder: 'system',
+            },
+            {
+              kind: 'switch',
+              field: 'directNameserverFollowPolicy',
+              label: t('settings.modals.dns.fields.directPolicy.label'),
+            },
+            {
+              kind: 'list',
+              field: 'nameserverPolicy',
+              label: t('settings.modals.dns.fields.nameserverPolicy.label'),
+              hint: t(
+                'settings.modals.dns.fields.nameserverPolicy.description',
+              ),
+              placeholder: '+.example.com=https://1.1.1.1/dns-query',
+            },
+          ],
+        },
+      ],
+    },
+    {
+      id: 'hosts',
+      title: 'Hosts',
+      sections: [
+        {
+          rows: [
+            {
+              kind: 'list',
+              field: 'hosts',
+              label: t('settings.modals.dns.fields.hosts.label'),
+              hint: t('settings.modals.dns.fields.hosts.description'),
+              placeholder: 'router.lan=192.168.1.1',
+            },
+          ],
+        },
+      ],
+    },
+  ]
+}
+
+// Ширина полей справа: одна на все строки, в узком окне простого режима
+// уступает подписи.
+const CONTROL_SX = { width: 'clamp(140px, 38%, 190px)', flexShrink: 0 }
+
 export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const { t } = useTranslation()
   const { mutateClash } = useClash()
@@ -213,27 +433,8 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const baseHostsRef = useRef<unknown>(undefined)
   const renderedTextRef = useRef({ nameserverPolicy: '', hosts: '' })
   const editorRef = useRef<MonacoEditorInstance | null>(null)
-  const [values, setValues] = useState<{
-    enable: boolean
-    listen: string
-    enhancedMode: 'fake-ip' | 'redir-host'
-    fakeIpRange: string
-    fakeIpRange6: string
-    fakeIpFilterMode: 'blacklist' | 'whitelist'
-    preferH3: boolean
-    respectRules: boolean
-    useHosts: HostsChoice
-    useSystemHosts: HostsChoice
-    ipv6: boolean
-    fakeIpFilter: string
-    nameserver: string
-    defaultNameserver: string
-    proxyServerNameserver: string
-    directNameserver: string
-    directNameserverFollowPolicy: boolean
-    nameserverPolicy: string
-    hosts: string
-  }>({
+  const [tab, setTab] = useState(0)
+  const [values, setValues] = useState<DnsValues>({
     enable: CORE_DEFAULTS.enable,
     listen: '',
     enhancedMode: CORE_DEFAULTS['enhanced-mode'],
@@ -509,6 +710,7 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
     () => ({
       open: () => {
         editedProfileRef.current = profiles?.current
+        setTab(0)
         setOpen(true)
         void initDnsConfig()
       },
@@ -594,46 +796,101 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
     setValues((prev) => ({ ...prev, [field]: value }))
   }
 
+  const tabs = dnsTabs(t)
+  const currentTab = tabs[tab] ?? tabs[0]
+  // Только когда redir-host назван явно: без ключа в TUN бэкенд сам ставит
+  // fake-ip, хотя поле показывает умолчание ядра.
+  const fakeIpIdle =
+    values.enhancedMode === 'redir-host' &&
+    (touchedRef.current.has('enhancedMode') ||
+      'enhanced-mode' in (asDnsMapping(parsedDnsRef.current) ?? {}))
+
+  const renderRow = (row: DnsRow) => {
+    const label = (
+      <Box sx={{ minWidth: 0, flex: 1 }}>
+        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+          {row.label}
+        </Typography>
+        {row.hint && (
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ display: 'block', lineHeight: 1.35 }}
+          >
+            {row.hint}
+          </Typography>
+        )}
+      </Box>
+    )
+    const value = values[row.field]
+
+    if (row.kind === 'list') {
+      return (
+        <Box key={row.field} sx={{ py: 0.5 }}>
+          {label}
+          <TextField
+            fullWidth
+            multiline
+            minRows={row.field === 'hosts' ? 8 : 1}
+            maxRows={row.field === 'hosts' ? 14 : 4}
+            size="small"
+            spellCheck="false"
+            value={value}
+            onChange={handleChange(row.field)}
+            placeholder={row.placeholder}
+            sx={{ mt: 0.5, '& textarea': { fontSize: 13, lineHeight: 1.5 } }}
+          />
+        </Box>
+      )
+    }
+
+    return (
+      <Box
+        key={row.field}
+        sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 0.5 }}
+      >
+        {label}
+        {row.kind === 'switch' && (
+          <Switch
+            edge="end"
+            checked={Boolean(value)}
+            onChange={handleChange(row.field)}
+          />
+        )}
+        {row.kind === 'select' && (
+          <Select
+            size="small"
+            sx={{ ...CONTROL_SX, fontSize: 14 }}
+            value={value}
+            onChange={handleChange(row.field)}
+          >
+            {row.options.map(([option, text]) => (
+              <MenuItem key={option} value={option}>
+                {text}
+              </MenuItem>
+            ))}
+          </Select>
+        )}
+        {row.kind === 'text' && (
+          <TextField
+            size="small"
+            autoComplete="off"
+            spellCheck="false"
+            value={value}
+            onChange={handleChange(row.field)}
+            placeholder={row.placeholder}
+            sx={{ ...CONTROL_SX, '& input': { fontSize: 14 } }}
+          />
+        )}
+      </Box>
+    )
+  }
+
   return (
     <BaseDialog
       open={open}
       disableEnforceFocus={!visualization}
-      title={
-        <Box
-          sx={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}
-        >
-          {t('settings.modals.dns.dialog.title')}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Button
-              variant="outlined"
-              size="small"
-              color="warning"
-              startIcon={<RestartAltRounded />}
-              disabled={seeding}
-              onClick={showTheSubscription}
-            >
-              {t('settings.modals.dns.actions.asInSubscription')}
-            </Button>
-            <Button
-              variant="contained"
-              size="small"
-              onClick={() => {
-                if (visualization || updateValuesFromYaml()) {
-                  setVisualization(!visualization)
-                }
-              }}
-            >
-              {visualization
-                ? t('shared.editorModes.advanced')
-                : t('shared.editorModes.visualization')}
-            </Button>
-          </Box>
-        </Box>
-      }
+      title={t('settings.modals.dns.dialog.title')}
       contentSx={{
         width: 550,
         overflow: 'auto',
@@ -648,357 +905,117 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
       onCancel={() => setOpen(false)}
       onOk={onSave}
     >
-      <Typography
-        variant="body2"
-        color="warning.main"
-        sx={{ mb: 2, mt: 0, fontStyle: 'italic' }}
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 1,
+          mb: 1,
+        }}
       >
-        {t('settings.modals.dns.dialog.warning')}
-      </Typography>
-
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2, mt: -1 }}>
-        {t('settings.modals.dns.dialog.replacesSubscription')}
+        <ToggleButtonGroup
+          size="small"
+          exclusive
+          value={visualization ? 'form' : 'yaml'}
+          onChange={(_, mode) => {
+            if (!mode || (mode === 'form') === visualization) return
+            if (visualization || updateValuesFromYaml()) {
+              setVisualization(!visualization)
+            }
+          }}
+          sx={{
+            '& .MuiToggleButton-root': {
+              textTransform: 'none',
+              px: 1.5,
+              py: 0.25,
+            },
+          }}
+        >
+          <ToggleButton value="form">
+            {t('settings.modals.dns.modes.form')}
+          </ToggleButton>
+          <ToggleButton value="yaml">YAML</ToggleButton>
+        </ToggleButtonGroup>
+        <Button
+          size="small"
+          color="warning"
+          startIcon={<RestartAltRounded />}
+          disabled={seeding}
+          onClick={showTheSubscription}
+          sx={{ textTransform: 'none' }}
+        >
+          {t('settings.modals.dns.actions.asInSubscription')}
+        </Button>
+      </Box>
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        sx={{ display: 'block', mb: 1, lineHeight: 1.4 }}
+      >
+        {t('settings.modals.dns.dialog.note')}
       </Typography>
 
       {visualization ? (
-        <List>
-          <Typography
-            variant="subtitle1"
-            sx={{ mt: 1, mb: 1, fontWeight: 'bold' }}
+        <Box>
+          <Tabs
+            value={tab}
+            onChange={(_, next) => setTab(next)}
+            variant="fullWidth"
+            sx={{
+              minHeight: 36,
+              borderBottom: 1,
+              borderColor: 'divider',
+              mb: 1,
+              '& .MuiTab-root': {
+                minHeight: 36,
+                minWidth: 0,
+                px: 1,
+                py: 0,
+                textTransform: 'none',
+              },
+            }}
           >
-            {t('settings.modals.dns.sections.general')}
-          </Typography>
-
-          <Item>
-            <ListItemText
-              primary={t('settings.modals.dns.fields.enable')}
-              secondary={t('settings.modals.dns.fields.enableHint')}
-            />
-            <Switch
-              edge="end"
-              checked={values.enable}
-              onChange={handleChange('enable')}
-            />
-          </Item>
-
-          <Item>
-            <ListItemText
-              primary={t('settings.modals.dns.fields.listen')}
-              secondary={t('settings.modals.dns.fields.listenHint')}
-            />
-            <TextField
-              size="small"
-              autoComplete="off"
-              spellCheck="false"
-              value={values.listen}
-              onChange={handleChange('listen')}
-              placeholder="127.0.0.1:1053"
-              sx={{ width: 150 }}
-            />
-          </Item>
-
-          <Item>
-            <ListItemText
-              primary={t('settings.modals.dns.fields.enhancedMode')}
-              secondary={t('settings.modals.dns.fields.enhancedModeHint')}
-            />
-            <FormControl size="small" sx={{ width: 150 }}>
-              <Select
-                value={values.enhancedMode}
-                onChange={handleChange('enhancedMode')}
+            {tabs.map((item) => (
+              <Tab key={item.id} label={item.title} />
+            ))}
+          </Tabs>
+          {/* Высота — по самой длинной вкладке, чтобы окно не прыгало. */}
+          <Box sx={{ minHeight: 'min(470px, calc(100vh - 340px))' }}>
+            {currentTab.id === 'fakeIp' && fakeIpIdle && (
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ display: 'block', mb: 0.5 }}
               >
-                <MenuItem value="fake-ip">fake-ip</MenuItem>
-                <MenuItem value="redir-host">redir-host</MenuItem>
-              </Select>
-            </FormControl>
-          </Item>
-
-          <Item>
-            <ListItemText
-              primary={t('settings.modals.dns.fields.fakeIpRange')}
-            />
-            <TextField
-              size="small"
-              autoComplete="off"
-              spellCheck="false"
-              value={values.fakeIpRange}
-              onChange={handleChange('fakeIpRange')}
-              placeholder="198.18.0.1/16"
-              sx={{ width: 150 }}
-            />
-          </Item>
-
-          <Item>
-            <ListItemText
-              primary={t('settings.modals.dns.fields.fakeIpRange6')}
-            />
-            <TextField
-              size="small"
-              autoComplete="off"
-              spellCheck="false"
-              value={values.fakeIpRange6}
-              onChange={handleChange('fakeIpRange6')}
-              placeholder="2001:2::0/64"
-              sx={{ width: 200 }}
-            />
-          </Item>
-
-          <Item>
-            <ListItemText
-              primary={t('settings.modals.dns.fields.fakeIpFilterMode')}
-            />
-            <FormControl size="small" sx={{ width: 150 }}>
-              <Select
-                value={values.fakeIpFilterMode}
-                onChange={handleChange('fakeIpFilterMode')}
-              >
-                <MenuItem value="blacklist">blacklist</MenuItem>
-                <MenuItem value="whitelist">whitelist</MenuItem>
-              </Select>
-            </FormControl>
-          </Item>
-
-          <Item>
-            <ListItemText
-              primary={t('settings.modals.dns.fields.ipv6.label')}
-              secondary={t('settings.modals.dns.fields.ipv6.description')}
-            />
-            <Switch
-              edge="end"
-              checked={values.ipv6}
-              onChange={handleChange('ipv6')}
-            />
-          </Item>
-
-          <Item>
-            <ListItemText
-              primary={t('settings.modals.dns.fields.preferH3.label')}
-              secondary={t('settings.modals.dns.fields.preferH3.description')}
-            />
-            <Switch
-              edge="end"
-              checked={values.preferH3}
-              onChange={handleChange('preferH3')}
-            />
-          </Item>
-
-          <Item>
-            <ListItemText
-              primary={t('settings.modals.dns.fields.respectRules.label')}
-              secondary={t(
-                'settings.modals.dns.fields.respectRules.description',
-              )}
-            />
-            <Switch
-              edge="end"
-              checked={values.respectRules}
-              onChange={handleChange('respectRules')}
-            />
-          </Item>
-
-          <Item>
-            <ListItemText
-              primary={t('settings.modals.dns.fields.useHosts.label')}
-              secondary={t('settings.modals.dns.fields.useHosts.description')}
-            />
-            <Select
-              size="small"
-              sx={{ width: 160 }}
-              value={values.useHosts}
-              onChange={handleChange('useHosts')}
+                {t('settings.modals.dns.dialog.fakeIpIdle')}
+              </Typography>
+            )}
+            <Box
+              sx={
+                currentTab.id === 'fakeIp' && fakeIpIdle
+                  ? { opacity: 0.55 }
+                  : undefined
+              }
             >
-              <MenuItem value="auto">
-                {t('settings.modals.dns.options.hosts.auto')}
-              </MenuItem>
-              <MenuItem value="on">
-                {t('settings.modals.dns.options.hosts.on')}
-              </MenuItem>
-              <MenuItem value="off">
-                {t('settings.modals.dns.options.hosts.off')}
-              </MenuItem>
-            </Select>
-          </Item>
-
-          <Item>
-            <ListItemText
-              primary={t('settings.modals.dns.fields.useSystemHosts.label')}
-              secondary={t(
-                'settings.modals.dns.fields.useSystemHosts.description',
-              )}
-            />
-            <Select
-              size="small"
-              sx={{ width: 160 }}
-              value={values.useSystemHosts}
-              onChange={handleChange('useSystemHosts')}
-            >
-              <MenuItem value="auto">
-                {t('settings.modals.dns.options.hosts.auto')}
-              </MenuItem>
-              <MenuItem value="on">
-                {t('settings.modals.dns.options.hosts.on')}
-              </MenuItem>
-              <MenuItem value="off">
-                {t('settings.modals.dns.options.hosts.off')}
-              </MenuItem>
-            </Select>
-          </Item>
-
-          <Item>
-            <ListItemText
-              primary={t('settings.modals.dns.fields.directPolicy.label')}
-              secondary={t(
-                'settings.modals.dns.fields.directPolicy.description',
-              )}
-            />
-            <Switch
-              edge="end"
-              checked={values.directNameserverFollowPolicy}
-              onChange={handleChange('directNameserverFollowPolicy')}
-            />
-          </Item>
-
-          <Item sx={{ flexDirection: 'column', alignItems: 'flex-start' }}>
-            <ListItemText
-              primary={t('settings.modals.dns.fields.defaultNameserver.label')}
-              secondary={t(
-                'settings.modals.dns.fields.defaultNameserver.description',
-              )}
-            />
-            <TextField
-              fullWidth
-              multiline
-              minRows={2}
-              maxRows={3}
-              size="small"
-              spellCheck="false"
-              value={values.defaultNameserver}
-              onChange={handleChange('defaultNameserver')}
-              placeholder="system,223.6.6.6, 8.8.8.8, 2400:3200::1, 2001:4860:4860::8888"
-            />
-          </Item>
-
-          <Item sx={{ flexDirection: 'column', alignItems: 'flex-start' }}>
-            <ListItemText
-              primary={t('settings.modals.dns.fields.nameserver.label')}
-              secondary={t('settings.modals.dns.fields.nameserver.description')}
-            />
-            <TextField
-              fullWidth
-              multiline
-              minRows={2}
-              maxRows={4}
-              size="small"
-              spellCheck="false"
-              value={values.nameserver}
-              onChange={handleChange('nameserver')}
-              placeholder="8.8.8.8, https://doh.pub/dns-query, https://dns.alidns.com/dns-query"
-            />
-          </Item>
-
-          <Item sx={{ flexDirection: 'column', alignItems: 'flex-start' }}>
-            <ListItemText
-              primary={t('settings.modals.dns.fields.proxy.label')}
-              secondary={t('settings.modals.dns.fields.proxy.description')}
-            />
-            <TextField
-              fullWidth
-              multiline
-              minRows={2}
-              maxRows={3}
-              size="small"
-              spellCheck="false"
-              value={values.proxyServerNameserver}
-              onChange={handleChange('proxyServerNameserver')}
-              placeholder="https://doh.pub/dns-query, https://dns.alidns.com/dns-query"
-            />
-          </Item>
-
-          <Item sx={{ flexDirection: 'column', alignItems: 'flex-start' }}>
-            <ListItemText
-              primary={t('settings.modals.dns.fields.directNameserver.label')}
-              secondary={t(
-                'settings.modals.dns.fields.directNameserver.description',
-              )}
-            />
-            <TextField
-              fullWidth
-              multiline
-              minRows={2}
-              maxRows={3}
-              size="small"
-              spellCheck="false"
-              value={values.directNameserver}
-              onChange={handleChange('directNameserver')}
-              placeholder="system, 223.6.6.6"
-            />
-          </Item>
-
-          <Item sx={{ flexDirection: 'column', alignItems: 'flex-start' }}>
-            <ListItemText
-              primary={t('settings.modals.dns.fields.fakeIpFilter.label')}
-              secondary={t(
-                'settings.modals.dns.fields.fakeIpFilter.description',
-              )}
-            />
-            <TextField
-              fullWidth
-              multiline
-              minRows={2}
-              maxRows={4}
-              size="small"
-              spellCheck="false"
-              value={values.fakeIpFilter}
-              onChange={handleChange('fakeIpFilter')}
-              placeholder="*.lan, *.local, localhost.ptlogin2.qq.com"
-            />
-          </Item>
-
-          <Item sx={{ flexDirection: 'column', alignItems: 'flex-start' }}>
-            <ListItemText
-              primary={t('settings.modals.dns.fields.nameserverPolicy.label')}
-              secondary={t(
-                'settings.modals.dns.fields.nameserverPolicy.description',
-              )}
-            />
-            <TextField
-              fullWidth
-              multiline
-              minRows={2}
-              maxRows={4}
-              size="small"
-              spellCheck="false"
-              value={values.nameserverPolicy}
-              onChange={handleChange('nameserverPolicy')}
-              placeholder="+.arpa=10.0.0.1, rule-set:cn=https://doh.pub/dns-query;https://dns.alidns.com/dns-query"
-            />
-          </Item>
-
-          <Typography
-            variant="subtitle1"
-            sx={{ mt: 3, mb: 0, fontWeight: 'bold' }}
-          >
-            {t('settings.modals.dns.sections.hosts')}
-          </Typography>
-
-          <Item sx={{ flexDirection: 'column', alignItems: 'flex-start' }}>
-            <ListItemText
-              primary={t('settings.modals.dns.fields.hosts.label')}
-              secondary={t('settings.modals.dns.fields.hosts.description')}
-            />
-            <TextField
-              fullWidth
-              multiline
-              minRows={2}
-              maxRows={4}
-              size="small"
-              spellCheck="false"
-              value={values.hosts}
-              onChange={handleChange('hosts')}
-              placeholder="*.clash.dev=127.0.0.1, alpha.clash.dev=::1, test.com=1.1.1.1;2.2.2.2, baidu.com=google.com"
-            />
-          </Item>
-        </List>
+              {currentTab.sections.map((section) => (
+                <Box key={section.title ?? currentTab.id}>
+                  {section.title && (
+                    <Typography
+                      variant="overline"
+                      color="text.secondary"
+                      sx={{ display: 'block', fontWeight: 700, mt: 1 }}
+                    >
+                      {section.title}
+                    </Typography>
+                  )}
+                  {section.rows.map(renderRow)}
+                </Box>
+              ))}
+            </Box>
+          </Box>
+        </Box>
       ) : (
         <MonacoEditor
           height="100vh"
@@ -1021,7 +1038,7 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
               other: true,
             },
             padding: {
-              top: 33,
+              top: 8,
             },
             fontFamily: `Fira Code, JetBrains Mono, Roboto Mono, "Source Code Pro", Consolas, Menlo, Monaco, monospace, "Courier New", "Apple Color Emoji"${
               getSystem() === 'windows' ? ', twemoji mozilla' : ''
