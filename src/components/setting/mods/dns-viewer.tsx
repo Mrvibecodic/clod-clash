@@ -52,7 +52,8 @@ function parseNameserverPolicy(str: string): NameserverPolicy {
   const result: NameserverPolicy = {}
   if (!str) return result
 
-  const ruleRegex = /\s*([^=]+?)\s*=\s*([^,]+)(?:,|$)/g
+  // Запись — до запятой или конца строки: поле многострочное.
+  const ruleRegex = /\s*([^=]+?)\s*=\s*([^,\n]+)(?:[,\n]|$)/g
   let match: RegExpExecArray | null
 
   while ((match = ruleRegex.exec(str)) !== null) {
@@ -103,7 +104,8 @@ function parseHosts(str: string): NameserverPolicy {
   const result: NameserverPolicy = {}
   if (!str) return result
 
-  str.split(',').forEach((item) => {
+  // Поле многострочное: Enter — тоже разделитель записей.
+  str.split(/[,\n]/).forEach((item) => {
     const parts = item.trim().split('=')
     if (parts.length < 2) return
 
