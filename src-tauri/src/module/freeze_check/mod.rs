@@ -484,18 +484,20 @@ async fn enabled_subscription(reason: &str, verbose: bool) -> Option<std::string
             .is_ok_and(|item| item.freeze_check == Some(true));
         (uid.to_string(), enabled)
     };
-    if enabled {
-        return Some(uid);
-    }
-    if verbose {
+    if !enabled && verbose {
         logging!(
             info,
             Type::Core,
             "[Freeze] {reason}: the panel has not turned the check on (clod-16-20-check), nothing to do"
         );
     }
-    announce(publish(&uid, BTreeMap::new())).await;
-    None
+    // Другая подписка: пометки прежней гаснут сразу, до её собственного захода —
+    // одноимённые узлы двух подписок не делят ничего. Выключенная — тоже без пометок.
+    let other = MARKS.lock().uid.as_deref() != Some(uid.as_str());
+    if !enabled || other {
+        announce(publish(&uid, BTreeMap::new())).await;
+    }
+    enabled.then_some(uid)
 }
 
 async fn pass(reason: &'static str) {
