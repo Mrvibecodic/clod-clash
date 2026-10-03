@@ -11,7 +11,8 @@
 //! чём. Проверяются отпечатки без итога в текущей сети, «работает» и
 //! «режется» старше 3 суток, «не отвечает» и попытки без итога старше 6 часов;
 //! одинаковые узлы делят результат по отпечатку. Если посреди захода сменились
-//! сеть или подписка, заход бросается; если не ответил никто — не записывается.
+//! сеть или подписка, заход бросается; если не ответил никто — не записывается,
+//! и в этой сети следующий — через 6 часов или после применения подписки.
 //! Ядро без отпечатков (чужое) — функция молчит. Включает проверку только
 //! панель — заголовком подписки `clod-16-20-check: true`; без него ни
 //! проверок, ни пометок.
@@ -66,6 +67,10 @@ static FOREIGN_CORE_TOLD: AtomicBool = AtomicBool::new(false);
 /// Итоги в сети, которую не удалось распознать: живут до конца сеанса, на диск
 /// не идут, но повторы в них считаются как везде.
 static UNPLACED: Mutex<store::Network> = Mutex::new(store::Network::new());
+/// Подписка и сеть, где в последнем заходе не прошло ничего ни через кого (нет
+/// интернета, страница входа Wi-Fi): там повтор не раньше чем через 6 часов, а
+/// не каждый повод. В памяти; применение подписки забывает всё.
+static QUIET: Mutex<BTreeMap<std::string::String, i64>> = Mutex::new(BTreeMap::new());
 
 #[derive(Default)]
 struct Marks {
@@ -102,6 +107,7 @@ pub(crate) async fn report(uid: &str) -> serde_json::Value {
 /// Подписка применена: загрузка, обновление, смена, перезапуск ядра. Идущий
 /// заход сам сверит в конце, те ли ещё узлы у ядра.
 pub fn profile_activated() {
+    QUIET.lock().clear();
     kick("profile applied", Standing::Kept);
 }
 
@@ -318,6 +324,33 @@ fn due_of(nodes: &[NodeRef], network: &store::Network, now: i64) -> Vec<NodeRef>
         .collect()
 }
 
+/// Кого проверять сейчас и `true`, если никого: в этой подписке и сети
+/// недавно не прошло ничего ни через кого.
+fn due_now(quiet_key: &str, nodes: &[NodeRef], network: &store::Network, now: i64) -> (Vec<NodeRef>, bool) {
+    let hushed = QUIET
+        .lock()
+        .get(quiet_key)
+        .is_some_and(|at| now.saturating_sub(*at) < plan::RETRY_AFTER);
+    if hushed {
+        return (Vec::new(), true);
+    }
+    (due_of(nodes, network, now), false)
+}
+
+/// После захода: не прошло ничего — повтор в этой подписке и сети через 6 часов.
+fn remember_quiet(quiet_key: std::string::String, stored: bool, now: i64) {
+    let mut quiet = QUIET.lock();
+    if stored {
+        quiet.remove(&quiet_key);
+    } else {
+        quiet.insert(quiet_key, now);
+    }
+}
+
+const fn hushed_note(hushed: bool) -> &'static str {
+    if hushed { " (nothing passed here last time)" } else { "" }
+}
+
 fn marks_of(nodes: &[NodeRef], network: &store::Network) -> BTreeMap<std::string::String, &'static str> {
     nodes
         .iter()
@@ -531,14 +564,16 @@ async fn pass(reason: &'static str) {
     // Пометки этой сети показываются сразу, не дожидаясь проверок.
     announce(publish(&uid, marks_of(&nodes, network))).await;
 
-    let due = due_of(&nodes, network, now);
+    let quiet_key = format!("{uid}/{shown_key}");
+    let (due, hushed) = due_now(&quiet_key, &nodes, network, now);
     let mut stored = false;
     if due.is_empty() {
         if verbose {
             logging!(
                 info,
                 Type::Core,
-                "[Freeze] {reason}: nothing due in network {shown_key}"
+                "[Freeze] {reason}: nothing due in network {shown_key}{}",
+                hushed_note(hushed)
             );
         }
     } else {
@@ -555,11 +590,12 @@ async fn pass(reason: &'static str) {
             }
         };
         stored = recorded(network, &outcomes, now, verbose);
+        remember_quiet(quiet_key, stored, now);
         let verdicts: Vec<plan::Outcome> = outcomes.iter().map(|(_, checked)| checked.outcome).collect();
         let tail = if stored {
             ""
         } else {
-            "; nothing passed anywhere, not recorded"
+            "; nothing passed anywhere, not recorded, next try in 6 h"
         };
         logging!(
             info,
