@@ -88,6 +88,9 @@ tray:
   vergeVersion: Uygulama Sürümü
   more: Daha Fazla
   exit: Çıkış
+  freeze:
+    frozen: cut off
+    dead: not responding
   tooltip:
     systemProxy: Sistem Vekil'i
     tun: TUN

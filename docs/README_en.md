@@ -127,6 +127,7 @@ go into `customResponseHeaders`. Each one applies only to its own subscription.
 | `clod-ping` | `A/B` in ms, e.g. `150/300` | ping colour bounds: green below `A`, yellow below `B`, red above. Without the header — `200/400` | PC and Android |
 | `clod-disable-ping` | `true` only | a tick or a cross instead of milliseconds | PC and Android |
 | `clod-show-0hosts` | `true` / `false` | show the panel's placeholder nodes as they are instead of the client's reason screen | PC and Android |
+| `clod-16-20-check` | `true` only | the 16–20 check: whether traffic through a server is cut off on the user's network; "cut off" and "not responding" marks | PC and Android |
 | `clod-new-sub` | a bare domain, e.g. `sub2.example.com` | spare subscription address: the same address on this domain over `https`, used when the main one does not answer | PC and Android |
 | `clod-move-sub` | only `true` | together with `clod-new-sub`: move the subscription to the spare address for good | PC and Android |
 | `clod-connect-mode` | `tun` / `proxy` / `both` | what the connect button turns on. Without the header — the system proxy | PC only |
@@ -135,7 +136,7 @@ go into `customResponseHeaders`. Each one applies only to its own subscription.
 | `clod-theme` | `accent=#RRGGBB; mode=light\|dark; background=https://…` | accent colour, light or dark theme and window background | PC only |
 
 Instead of `true` / `false` you can send `1` / `0`, `yes` / `no`, `on` / `off` (except
-`clod-disable-ping` and `clod-move-sub`). Send non-ASCII text as `base64:<base64 text>`. A value the client does not
+`clod-disable-ping`, `clod-16-20-check` and `clod-move-sub`). Send non-ASCII text as `base64:<base64 text>`. A value the client does not
 understand counts as a missing header.
 Every header in detail, plus the full list of standard ones, is in [HEADERS_en.md](./HEADERS_en.md).
 

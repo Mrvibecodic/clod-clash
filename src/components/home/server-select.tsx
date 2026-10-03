@@ -26,8 +26,10 @@ import { useTranslation } from 'react-i18next'
 
 import { CountryFlag } from '@/components/home/country-flag'
 import { NoServersStatus } from '@/components/home/no-servers-status'
+import { FreezeMark } from '@/components/proxy/freeze-mark'
 import { useDrawerCapHeight } from '@/hooks/use-drawer-cap-height'
 import { favoritesFirst, useFavorites } from '@/hooks/use-favorites'
+import { useFreezeMarks } from '@/hooks/use-freeze-marks'
 import { useNoServersStatus } from '@/hooks/use-no-servers-status'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useProxySelection } from '@/hooks/use-proxy-selection'
@@ -101,6 +103,7 @@ export const ServerSelect = ({ open, onClose }: Props) => {
     [proxies],
   )
   const descriptions = useServerDescriptions()
+  const freezeMarks = useFreezeMarks()
   const groups = useMemo(() => visibleGroups(proxies), [proxies])
   const [groupName, setGroupName] = useState<string>('')
   const group = useMemo(
@@ -224,6 +227,7 @@ export const ServerSelect = ({ open, onClose }: Props) => {
     const starred = favorites.has(node.name)
     const leaf = isGroup ? displayLeaf(records, node.name) : undefined
     const description = isGroup ? undefined : descriptions[node.name]
+    const freezeMark = isGroup ? undefined : freezeMarks[node.name]
 
     return (
       <ListItemButton
@@ -293,6 +297,7 @@ export const ServerSelect = ({ open, onClose }: Props) => {
                   : node.type)}
           </Typography>
         </Box>
+        <FreezeMark mark={freezeMark} />
         {current?.disable_ping ? (
           <PingVerdict delay={delay} />
         ) : (
@@ -614,6 +619,7 @@ export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
   const { proxies } = useProxiesData()
   const { current: currentProfile } = useProfiles()
   const descriptions = useServerDescriptions()
+  const freezeMarks = useFreezeMarks()
   const visible = useVisibility()
   // clod: сама Главная пингует, только пока окно на экране И подключение
   // включено. Выключенный клиент держит ядро, и любой автопинг шёл бы
@@ -795,6 +801,11 @@ export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
     (leaf ? descriptions[leaf] : undefined) ??
     (current ? descriptions[current] : undefined)
   const subject = description ?? (leaf ? nameWithoutFlag(leaf) : undefined)
+  // clod:freeze — строка-предупреждение только у того узла, через который
+  // сейчас идёт трафик; у остальных — лишь значок в списке.
+  const freezeMark =
+    (leaf ? freezeMarks[leaf] : undefined) ??
+    (current ? freezeMarks[current] : undefined)
   const caption = currentProfile?.disable_ping
     ? (subject ?? '—')
     : usableDelay(shownDelay)
@@ -862,6 +873,16 @@ export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
         >
           {statusCaption ?? caption}
         </Typography>
+        {!statusRow && freezeMark ? (
+          <Typography
+            noWrap
+            sx={{ fontSize: 12, display: 'block' }}
+            color={freezeMark === 'dead' ? 'error.main' : 'warning.main'}
+            title={t(`freeze.current.${freezeMark}`)}
+          >
+            {t(`freeze.current.${freezeMark}`)}
+          </Typography>
+        ) : null}
         {!statusRow && partiallyDropped && droppedTotal > 0 ? (
           <Typography
             noWrap
@@ -875,6 +896,7 @@ export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
         ) : null}
       </Box>
 
+      {statusRow ? null : <FreezeMark mark={freezeMark} />}
       {currentProfile?.disable_ping ? (
         <PingVerdict delay={shownDelay} />
       ) : currentProfile?.latency_style === 'dot' ? (

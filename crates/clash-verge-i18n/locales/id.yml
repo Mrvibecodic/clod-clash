@@ -88,6 +88,9 @@ tray:
   vergeVersion: Versi Aplikasi
   more: Lainnya
   exit: Keluar
+  freeze:
+    frozen: cut off
+    dead: not responding
   tooltip:
     systemProxy: Proksi Sistem
     tun: TUN

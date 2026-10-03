@@ -88,6 +88,9 @@ tray:
   vergeVersion: إصدار التطبيق
   more: المزيد
   exit: خروج
+  freeze:
+    frozen: cut off
+    dead: not responding
   tooltip:
     systemProxy: وكيل النظام
     tun: TUN

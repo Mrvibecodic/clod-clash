@@ -269,7 +269,7 @@ fn v6_prefix(ip: std::net::Ipv6Addr) -> std::string::String {
 /// Принадлежность угадывается по имени, поэтому имена, которые песочница
 /// составляет сама, отделены от метки коммутатора: метка сравнивается целиком,
 /// а не подстрокой, иначе под правило попал бы коммутатор, названный человеком.
-fn stands_apart(name: &str) -> bool {
+pub(crate) fn stands_apart(name: &str) -> bool {
     is_our_tunnel(name) || names_its_own_sandbox(name) || switch_is_labelled_like_a_sandbox(name)
 }
 
@@ -496,6 +496,7 @@ async fn reconcile(
     if network_carries_traffic {
         AsyncHandler::spawn(|| async { refill_empty_rule_sets().await });
     }
+    crate::module::freeze_check::network_changed();
 }
 
 static RULE_SETS_REFILLING: AtomicBool = AtomicBool::new(false);

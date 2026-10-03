@@ -107,6 +107,8 @@ const STARTUP_LANGUAGE_SECTIONS = [
   'settings',
   'profiles',
   'proxies',
+  // clod:freeze — пометки «режется» / «не отвечает» живут на главной и в прокси.
+  'freeze',
 ] as const
 
 const localeModules = import.meta.glob<LocaleModule>('@/locales/*/*.json')

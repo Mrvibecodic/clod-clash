@@ -88,6 +88,9 @@ tray:
   vergeVersion: アプリのバージョン
   more: その他
   exit: 終了
+  freeze:
+    frozen: cut off
+    dead: not responding
   tooltip:
     systemProxy: システムプロキシ
     tun: TUN

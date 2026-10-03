@@ -88,6 +88,9 @@ tray:
   vergeVersion: Версия приложения
   more: Еще
   exit: Выход
+  freeze:
+    frozen: режется
+    dead: не отвечает
   tooltip:
     systemProxy: Системный прокси
     tun: TUN

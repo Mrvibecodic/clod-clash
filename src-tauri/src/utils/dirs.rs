@@ -107,6 +107,11 @@ pub fn dns_page_file(uid: &str) -> String {
     format!("dns-{uid}.yaml")
 }
 
+/// clod:freeze — итоги проверки 16–20 этой подписки по сетям; уходят вместе с ней.
+pub fn freeze_file(uid: &str) -> String {
+    format!("freeze-{uid}.json")
+}
+
 pub fn dns_page_path(uid: &str) -> Result<PathBuf> {
     Ok(app_profiles_dir()?.join(dns_page_file(uid)))
 }

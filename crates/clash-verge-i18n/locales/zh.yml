@@ -88,6 +88,9 @@ tray:
   vergeVersion: 应用版本
   more: 更多
   exit: 退出
+  freeze:
+    frozen: cut off
+    dead: not responding
   tooltip:
     systemProxy: 系统代理
     tun: TUN

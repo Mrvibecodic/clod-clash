@@ -209,6 +209,7 @@ async fn init_silent_updater() {
     crate::core::core_updater::remove_leftover_managed_cores();
 
     crate::module::sub_watcher::spawn();
+    crate::module::freeze_check::spawn();
 
     logging!(info, Type::Setup, "Silent updater initialized");
 }

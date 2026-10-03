@@ -193,6 +193,10 @@ pub struct SubHeaders {
 
     pub disable_ping: bool,
 
+    /// `clod-16-20-check: true` — панель включает проверку 16–20 (режется ли
+    /// трафик через сервер) и пометки; любое другое значение — выключено.
+    pub freeze_check: bool,
+
     pub ping_thresholds: Option<[u32; 2]>,
 
     pub lock_mode: Option<bool>,
@@ -262,6 +266,8 @@ impl SubHeaders {
                 .and_then(LatencyStyle::parse)
                 .or_else(|| bool_value(headers, "pxa-latency-dots").and_then(|dots| dots.then_some(LatencyStyle::Dot))),
             disable_ping: value(headers, "clod-disable-ping")
+                .is_some_and(|raw| raw.trim().eq_ignore_ascii_case("true")),
+            freeze_check: value(headers, "clod-16-20-check")
                 .is_some_and(|raw| raw.trim().eq_ignore_ascii_case("true")),
             ping_thresholds: value(headers, "clod-ping").as_deref().and_then(ping_thresholds),
             show_zero_hosts: bool_value(headers, "clod-show-0hosts"),
@@ -848,6 +854,16 @@ mod tests {
             SubHeaders::parse(&headers(&[("clod-latency-style", "blink")])).latency_style,
             None
         );
+    }
+
+    #[test]
+    fn freeze_check_takes_only_a_literal_true() {
+        assert!(SubHeaders::parse(&headers(&[("clod-16-20-check", "true")])).freeze_check);
+        assert!(SubHeaders::parse(&headers(&[("clod-16-20-check", " True ")])).freeze_check);
+        assert!(!SubHeaders::parse(&headers(&[("clod-16-20-check", "1")])).freeze_check);
+        assert!(!SubHeaders::parse(&headers(&[("clod-16-20-check", "yes")])).freeze_check);
+        assert!(!SubHeaders::parse(&headers(&[("clod-16-20-check", "false")])).freeze_check);
+        assert!(!SubHeaders::parse(&headers(&[])).freeze_check);
     }
 
     #[test]

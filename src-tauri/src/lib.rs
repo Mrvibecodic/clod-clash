@@ -185,6 +185,7 @@ mod app_init {
             cmd::get_profile_background,
             cmd::get_sentinel_report,
             cmd::get_server_descriptions,
+            cmd::get_freeze_marks,
             cmd::copy_support_bundle,
             cmd::export_logs,
             cmd::save_log_text,

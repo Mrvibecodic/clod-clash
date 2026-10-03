@@ -1,4 +1,5 @@
 pub mod auto_backup;
+pub mod freeze_check;
 pub mod geo_assets;
 pub mod lightweight;
 pub mod log_export;

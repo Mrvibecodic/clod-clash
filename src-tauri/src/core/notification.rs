@@ -144,6 +144,7 @@ pub enum FrontendEvent<'a> {
     ProfileUpdateCompleted { uid: &'a String },
     HwidNotice { payload: serde_json::Value },
     RefreshProxyConfig,
+    RefreshFreezeMarks,
     WindowShown,
 }
 
@@ -217,6 +218,7 @@ impl NotificationSystem {
             FrontendEvent::ProfileUpdateCompleted { uid } => ("profile-update-completed", Ok(json!({ "uid": uid }))),
             FrontendEvent::HwidNotice { payload } => ("clod://hwid-notice", Ok(payload)),
             FrontendEvent::RefreshProxyConfig => ("verge://refresh-proxy-config", Ok(json!("yes"))),
+            FrontendEvent::RefreshFreezeMarks => ("clod://freeze-marks", Ok(json!("yes"))),
             FrontendEvent::WindowShown => ("verge://window-shown", Ok(json!(null))),
         }
     }

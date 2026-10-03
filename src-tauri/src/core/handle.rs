@@ -57,6 +57,11 @@ impl Handle {
         Self::send_event(FrontendEvent::RefreshProxyConfig);
     }
 
+    /// clod:freeze — пометки «режется» / «не отвечает» изменились.
+    pub fn refresh_freeze_marks() {
+        Self::send_event(FrontendEvent::RefreshFreezeMarks);
+    }
+
     pub fn notify_profile_changed(profile_id: &String) {
         Self::send_event(FrontendEvent::ProfileChanged {
             current_profile_id: profile_id,

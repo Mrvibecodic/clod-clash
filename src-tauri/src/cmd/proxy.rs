@@ -55,3 +55,11 @@ async fn run_tray_sync_loop() {
 pub async fn close_connections_via(previous_proxy: String) -> CmdResult<usize> {
     Ok(crate::feat::close_connections_via(&previous_proxy).await)
 }
+
+/// clod:freeze — пометки «режется» / «не отвечает» текущей подписки в текущей
+/// сети: имя узла → `frozen` | `dead`. Пусто — ничего не помечено или ядро
+/// без отпечатков.
+#[tauri::command]
+pub async fn get_freeze_marks() -> CmdResult<std::collections::BTreeMap<String, &'static str>> {
+    Ok(crate::module::freeze_check::marks())
+}

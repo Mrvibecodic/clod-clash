@@ -570,6 +570,7 @@ mod tests {
             "clod-move-sub",
             "clod-latency-style",
             "clod-disable-ping",
+            "clod-16-20-check",
             "clod-ping",
             "clod-show-0hosts",
             "clod-lock-mode",

@@ -29,7 +29,11 @@ const CLASH_CONFIG_KEYS_ON_RETURN = CLASH_CONFIG_KEYS_WHEN_VISIBLE.filter(
   (key) => key !== 'getClashConfig',
 )
 
-const CLASH_CONFIG_PREFIXES = ['sentinelReport', 'serverDescriptions'] as const
+const CLASH_CONFIG_PREFIXES = [
+  'sentinelReport',
+  'serverDescriptions',
+  'freezeMarks',
+] as const
 
 export const useLayoutEvents = (
   handleNotice: (payload: [string, string]) => void,
@@ -76,4 +80,9 @@ export const useLayoutEvents = (
   useTauriEvent<[string, string]>('verge://notice-message', ({ payload }) =>
     handleNotice(payload),
   )
+
+  // clod:freeze — пометки «режется» / «не отвечает» пересчитаны бэкендом.
+  useTauriEvent('clod://freeze-marks', () => {
+    void revalidateKeys(['freezeMarks'])
+  })
 }

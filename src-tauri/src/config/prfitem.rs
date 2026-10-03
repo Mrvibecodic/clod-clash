@@ -103,6 +103,10 @@ pub struct PrfItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disable_ping: Option<bool>,
 
+    /// clod:freeze — панель включила проверку 16–20 заголовком `clod-16-20-check: true`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub freeze_check: Option<bool>,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ping_thresholds: Option<[u32; 2]>,
 
@@ -813,6 +817,7 @@ impl PrfItem {
             theme_background: sub.theme.as_ref().and_then(|theme| theme.background.clone()),
             latency_style: sub.latency_style.map(|style| style.as_str().into()),
             disable_ping: sub.disable_ping.then_some(true),
+            freeze_check: sub.freeze_check.then_some(true),
             ping_thresholds: sub.ping_thresholds,
             show_zero_hosts: sub.show_zero_hosts,
             refill_date: sub.refill_date,
@@ -1379,6 +1384,7 @@ impl PrfItem {
         self.theme_background = fresh.theme_background.clone();
         self.latency_style = fresh.latency_style.clone();
         self.disable_ping = fresh.disable_ping;
+        self.freeze_check = fresh.freeze_check;
         self.ping_thresholds = fresh.ping_thresholds;
         self.show_zero_hosts = fresh.show_zero_hosts;
 

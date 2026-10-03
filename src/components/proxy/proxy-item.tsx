@@ -13,10 +13,12 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import { BaseLoading } from '@/components/base'
+import { useFreezeMarks } from '@/hooks/use-freeze-marks'
 import { useProxyDelayState } from '@/hooks/use-proxy-delay-state'
 import { useServerDescriptions } from '@/hooks/use-server-descriptions'
 import delayManager from '@/services/delay'
 
+import { FreezeMark } from './freeze-mark'
 import { ProxyFavorite } from './proxy-favorite'
 
 interface Props {
@@ -69,6 +71,8 @@ export const ProxyItem = (props: Props) => {
   )
   // clod: описание узла из панели — под типами и прячется вместе с ними.
   const description = useServerDescriptions()[proxy.name]
+  // clod:freeze — пометка рядом с пингом; пинг и выбор не трогает.
+  const freezeMark = useFreezeMarks()[proxy.name]
 
   return (
     <ListItem sx={sx}>
@@ -152,6 +156,8 @@ export const ProxyItem = (props: Props) => {
             </>
           }
         />
+
+        <FreezeMark mark={freezeMark} />
 
         <ListItemIcon
           sx={{

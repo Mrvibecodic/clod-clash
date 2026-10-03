@@ -370,6 +370,11 @@ export async function getServerDescriptions() {
   return invoke<Record<string, string>>('get_server_descriptions')
 }
 
+/** clod:freeze — пометки «режется» / «не отвечает» текущей подписки в текущей сети. */
+export async function getFreezeMarks() {
+  return invoke<Record<string, FreezeMark>>('get_freeze_marks')
+}
+
 export async function copySupportBundle(lines?: number) {
   return invoke<number>('copy_support_bundle', { lines })
 }

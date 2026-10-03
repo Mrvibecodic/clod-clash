@@ -88,6 +88,9 @@ tray:
   vergeVersion: 應用版本
   more: 更多
   exit: 離開
+  freeze:
+    frozen: cut off
+    dead: not responding
   tooltip:
     systemProxy: 系統代理
     tun: 虛擬網路介面卡

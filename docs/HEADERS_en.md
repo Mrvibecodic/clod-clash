@@ -63,6 +63,7 @@ Our own headers. The "Platforms" column shows which Clod Clash clients support t
 | `clod-ping` | `A/B` in ms, e.g. `150/300` | ping colour bounds | PC and Android |
 | `clod-disable-ping` | `true` only | a tick or a cross instead of milliseconds | PC and Android |
 | `clod-show-0hosts` | `true` or `false` | show the panel's placeholder nodes as they are | PC and Android |
+| `clod-16-20-check` | `true` only | the 16–20 check: whether traffic through a server is cut off on the user's network; "cut off" and "not responding" marks | PC and Android |
 | `clod-new-sub` | a bare domain, e.g. `sub2.example.com` | spare subscription address: the same address on this domain over `https`, used when the main one does not answer | PC and Android |
 | `clod-move-sub` | only `true` | together with `clod-new-sub`: move the subscription to the spare address for good | PC and Android |
 | `clod-connect-mode` | `tun`, `proxy` or `both` | what the connect button turns on | PC only |
@@ -71,7 +72,7 @@ Our own headers. The "Platforms" column shows which Clod Clash clients support t
 | `clod-theme` | `accent=#RRGGBB; mode=light\|dark; background=https://…` | colour, theme and window background | PC only |
 
 Instead of `true` / `false` you can send `1` / `0`, `yes` / `no`, `on` / `off` (except
-`clod-disable-ping` and `clod-move-sub`, where only `true` works).
+`clod-disable-ping`, `clod-16-20-check` and `clod-move-sub`, where only `true` works).
 
 No longer supported: `clod-device-remove` and `clod-hwid-limit`. On a device limit the client
 shows its own dialog with the subscription name.
@@ -137,6 +138,18 @@ reason instead (see [Placeholder nodes](#placeholder-nodes)). With `true` the cl
 nothing: the panel's nodes go into the server list under their own names, there are no "no
 servers" screens, and the latency check fails for such nodes. The device-limit dialog does not
 depend on this header.
+
+### The 16–20 check: `clod-16-20-check`
+
+With `true` the client checks every server of the subscription on the user's network itself: it
+downloads 64 KB through the server and sees whether all of it arrives, whether it stops after the
+first kilobytes ("cut off") or nothing gets through ("not responding"). The outcome is a mark next
+to the ping with a hint advising to contact support (the button is there when `support-url` was
+sent). The client does nothing to the servers: ping and selection stay as they were. New servers
+and servers whose connection data changed are checked; "working" and "cut off" are rechecked every
+3 days, "not responding" after 6 hours on the same network. Results are kept per subscription and
+per network. Without the header (or with any value other than `true`) there are no checks and no
+marks.
 
 ### Connection method: `clod-connect-mode` (PC only)
 

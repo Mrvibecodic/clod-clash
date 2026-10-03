@@ -88,6 +88,9 @@ tray:
   vergeVersion: 앱 버전
   more: 더 보기
   exit: 종료
+  freeze:
+    frozen: cut off
+    dead: not responding
   tooltip:
     systemProxy: 시스템 프록시
     tun: TUN

@@ -88,6 +88,9 @@ tray:
   vergeVersion: App-Version
   more: Mehr
   exit: Beenden
+  freeze:
+    frozen: cut off
+    dead: not responding
   tooltip:
     systemProxy: Systemproxy
     tun: TUN

@@ -56,6 +56,26 @@ export interface TranslationResources {
         title: string
       }
     }
+    freeze: {
+      checkedHere: string
+      current: {
+        dead: string
+        frozen: string
+      }
+      explain: {
+        dead: string
+        frozen: string
+      }
+      mark: {
+        dead: string
+        frozen: string
+      }
+      support: string
+      title: {
+        dead: string
+        frozen: string
+      }
+    }
     home: {
       components: {
         banners: {

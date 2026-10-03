@@ -88,6 +88,9 @@ tray:
   vergeVersion: Кушымта версиясе
   more: Күбрәк
   exit: Чыгу
+  freeze:
+    frozen: cut off
+    dead: not responding
   tooltip:
     systemProxy: Системалы прокси
     tun: TUN

@@ -3,11 +3,13 @@ import { alpha, Box, ListItemButton, styled, Typography } from '@mui/material'
 import { useTranslation } from 'react-i18next'
 
 import { BaseLoading } from '@/components/base'
+import { useFreezeMarks } from '@/hooks/use-freeze-marks'
 import { useProxyDelayState } from '@/hooks/use-proxy-delay-state'
 import { useServerDescriptions } from '@/hooks/use-server-descriptions'
 import { SHAPE } from '@/pages/_theme'
 import delayManager from '@/services/delay'
 
+import { FreezeMark } from './freeze-mark'
 import { ProxyFavorite } from './proxy-favorite'
 
 interface Props {
@@ -41,6 +43,8 @@ export const ProxyItemMini = (props: Props) => {
   )
   // clod: описание узла из панели — под типами и прячется вместе с ними.
   const description = useServerDescriptions()[proxy.name]
+  // clod:freeze — пометка рядом с пингом; пинг и выбор не трогает.
+  const freezeMark = useFreezeMarks()[proxy.name]
 
   return (
     <ListItemButton
@@ -179,6 +183,7 @@ export const ProxyItemMini = (props: Props) => {
           </Typography>
         )}
       </Box>
+      <FreezeMark mark={freezeMark} compact />
       <Box
         sx={{ ml: 0.5, color: 'primary.main', display: isPreset ? 'none' : '' }}
       >

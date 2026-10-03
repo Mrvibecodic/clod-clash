@@ -616,6 +616,10 @@ fn create_subcreate_proxy_menu_item(
     proxy_nodes_data: Option<Proxies>,
 ) -> Vec<MenuNode> {
     let mut submenus: Vec<(String, usize, MenuNode)> = Vec::new();
+    // clod:freeze — в меню картинок нет, поэтому пометка словом после имени.
+    let freeze_marks = crate::module::freeze_check::marks();
+    let frozen_text = clash_verge_i18n::t!("tray.freeze.frozen");
+    let dead_text = clash_verge_i18n::t!("tray.freeze.dead");
 
     if let Some(proxy_nodes_data) = proxy_nodes_data {
         for (group_name, group_data) in proxy_nodes_data.proxies.iter() {
@@ -642,7 +646,12 @@ fn create_subcreate_proxy_menu_item(
 
                     // Задержек в трее нет: меню собирается по событиям, и цифры в нём
                     // устаревали, а у узлов провайдеров их не было вовсе
-                    MenuNode::check(item_id, proxy_str.clone(), is_selected).skippable()
+                    let text = match freeze_marks.get(proxy_str.as_str()).copied() {
+                        Some("frozen") => format!("{proxy_str} — {frozen_text}"),
+                        Some("dead") => format!("{proxy_str} — {dead_text}"),
+                        _ => proxy_str.clone(),
+                    };
+                    MenuNode::check(item_id, text, is_selected).skippable()
                 })
                 .collect();
 
