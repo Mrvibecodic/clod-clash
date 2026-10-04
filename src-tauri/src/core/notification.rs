@@ -137,14 +137,32 @@ pub enum FrontendEvent<'a> {
     RefreshClash,
     RefreshVerge,
     RefreshProfiles,
-    NoticeMessage { status: &'a str, message: String },
-    ProfileChanged { current_profile_id: &'a String },
-    TimerUpdated { profile_index: &'a String },
-    ProfileUpdateStarted { uid: &'a String },
-    ProfileUpdateCompleted { uid: &'a String },
-    HwidNotice { payload: serde_json::Value },
+    NoticeMessage {
+        status: &'a str,
+        message: String,
+    },
+    ProfileChanged {
+        current_profile_id: &'a String,
+    },
+    TimerUpdated {
+        profile_index: &'a String,
+    },
+    ProfileUpdateStarted {
+        uid: &'a String,
+    },
+    ProfileUpdateCompleted {
+        uid: &'a String,
+    },
+    HwidNotice {
+        payload: serde_json::Value,
+    },
     RefreshProxyConfig,
     RefreshFreezeMarks,
+    /// Ход добавления подписки: проба защищённого канала, повтор, обычный путь.
+    AddStage {
+        stage: &'a str,
+        attempt: u8,
+    },
     WindowShown,
 }
 
@@ -219,6 +237,9 @@ impl NotificationSystem {
             FrontendEvent::HwidNotice { payload } => ("clod://hwid-notice", Ok(payload)),
             FrontendEvent::RefreshProxyConfig => ("verge://refresh-proxy-config", Ok(json!("yes"))),
             FrontendEvent::RefreshFreezeMarks => ("clod://freeze-marks", Ok(json!("yes"))),
+            FrontendEvent::AddStage { stage, attempt } => {
+                ("clod://add-stage", Ok(json!({ "stage": stage, "attempt": attempt })))
+            }
             FrontendEvent::WindowShown => ("verge://window-shown", Ok(json!(null))),
         }
     }

@@ -85,7 +85,7 @@ pub async fn import_profile(url: std::string::String, option: Option<PrfOption>)
 
     // Лестница маршрутов со своим бюджетом времени на адрес — та же, что у
     // обновления: заблокированный домен подписки достижим через уже поднятый туннель.
-    let item = &mut match PrfItem::from_url_with_ladder(&url, None, None, option.as_ref()).await {
+    let item = &mut match PrfItem::from_url_for_new(&url, None, None, option.as_ref()).await {
         Ok(fetched) => {
             logging!(
                 info,
@@ -215,6 +215,59 @@ pub async fn create_profile(item: PrfItem, file_data: Option<String>) -> CmdResu
             _ => Err(format!("add profile error: {}", super::public_error_text(&err)).into()),
         },
     }
+}
+
+/// clod:chan — включить или выключить защищённый канал у добавленной
+/// подписки. Включение — сначала проба: канала у провайдера нет или он не
+/// ответил — ошибка, признак не меняется. Выключение предупреждение показывает
+/// окно, здесь только запись.
+#[tauri::command]
+pub async fn set_secure_channel(index: String, on: bool) -> CmdResult {
+    let (url, option) = {
+        let profiles = Config::profiles().await.latest_arc();
+        let item = profiles.get_item(&index).stringify_err()?;
+        if item.itype.as_deref() != Some("remote") {
+            return Err("the secure channel needs a remote subscription".into());
+        }
+        let url = item
+            .url
+            .clone()
+            .ok_or_else(|| String::from("the subscription has no address"))?;
+        (url, item.option.clone().unwrap_or_default())
+    };
+
+    let mut option = option;
+    if on {
+        let probed = PrfItem::probe_channel(&url, Some(&option))
+            .await
+            .map_err(|err| super::public_error_text(&err))?;
+        option.secure = Some(true);
+        option.chan_pin = probed.chan_pin.or(option.chan_pin);
+        // Вспомогательные профили, которых у подписки не было, загрузка
+        // создала — иначе они остались бы в списке ничьими.
+        option.merge = option.merge.or(probed.merge);
+        option.script = option.script.or(probed.script);
+        option.rules = option.rules.or(probed.rules);
+        option.proxies = option.proxies.or(probed.proxies);
+        option.groups = option.groups.or(probed.groups);
+    } else {
+        option.secure = Some(false);
+    }
+    logging!(
+        info,
+        Type::Cmd,
+        "[clod] chan: secure channel {} for {}",
+        if on { "on" } else { "off" },
+        index
+    );
+
+    let patch = PrfItem {
+        option: Some(option),
+        ..PrfItem::default()
+    };
+    profiles_patch_item_safe(&index, &patch).await.stringify_err()?;
+    handle::Handle::refresh_profiles();
+    Ok(())
 }
 
 /// Обновляет конфиг

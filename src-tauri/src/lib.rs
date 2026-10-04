@@ -210,6 +210,7 @@ mod app_init {
             cmd::create_profile,
             cmd::create_profile_from_file,
             cmd::import_profile,
+            cmd::set_secure_channel,
             cmd::reorder_profile,
             cmd::update_profile,
             cmd::delete_profile,

@@ -352,7 +352,9 @@ impl Session {
             bail!("clod-chan-undecryptable");
         }
 
-        let body = B64.decode(wire.trim())?;
+        let body = B64
+            .decode(wire.trim())
+            .map_err(|_| anyhow!("clod-chan-undecryptable"))?;
         if body.len() < 48 {
             bail!("clod-chan-undecryptable");
         }

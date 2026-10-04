@@ -62,6 +62,11 @@ impl Handle {
         Self::send_event(FrontendEvent::RefreshFreezeMarks);
     }
 
+    /// clod:chan — ход добавления подписки для окна добавления.
+    pub fn add_stage(stage: &str, attempt: u8) {
+        Self::send_event(FrontendEvent::AddStage { stage, attempt });
+    }
+
     pub fn notify_profile_changed(profile_id: &String) {
         Self::send_event(FrontendEvent::ProfileChanged {
             current_profile_id: profile_id,
