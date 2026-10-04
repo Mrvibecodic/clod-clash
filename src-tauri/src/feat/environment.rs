@@ -451,6 +451,8 @@ async fn reconcile(
     network_carries_traffic: bool,
 ) {
     logging!(info, Type::Core, "[clod] environment changed ({reason}), reconciling");
+    // До закрытия соединений: их байты и замеры ещё принадлежат старой сети.
+    crate::module::client_report::network_changed().await;
 
     let verge = Config::verge().await.latest_arc();
     let wants_sysproxy = verge.enable_system_proxy.unwrap_or(false);

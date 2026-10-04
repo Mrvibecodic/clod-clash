@@ -210,6 +210,7 @@ async fn init_silent_updater() {
 
     crate::module::sub_watcher::spawn();
     crate::module::freeze_check::spawn();
+    crate::module::client_report::spawn();
 
     logging!(info, Type::Setup, "Silent updater initialized");
 }

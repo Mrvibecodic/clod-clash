@@ -438,6 +438,7 @@ impl IProfiles {
         // clod:dns-per-profile — страница DNS этой подписки уходит вместе с ней.
         pending.push(dirs::dns_page_file(uid).into());
         pending.push(dirs::freeze_file(uid).into());
+        pending.push(dirs::report_file(uid).into());
 
         for delete_uid in delete_uids {
             if let Some(file) = Self::take_item_file_by_uid(&mut items, delete_uid.as_deref()) {
@@ -1985,10 +1986,11 @@ mod tests {
                 "victim.yaml",
                 "dns-victim.yaml",
                 "freeze-victim.json",
+                "report-victim.json",
                 "merge.yaml",
                 "script.js"
             ],
-            "страница DNS и итоги проверки 16–20 настроены под эту подписку и уходят вместе с ней"
+            "страница DNS, итоги проверки 16–20 и замеры для отчёта — этой подписки и уходят вместе с ней"
         );
         assert_eq!(
             profiles.items.as_ref().map(Vec::len),
@@ -2019,7 +2021,8 @@ mod tests {
                 "victim.yaml.new",
                 "victim.yaml",
                 "dns-victim.yaml",
-                "freeze-victim.json"
+                "freeze-victim.json",
+                "report-victim.json"
             ]
         );
         assert_eq!(

@@ -19,7 +19,8 @@
 //! заход не записывается, и эти узлы ждут 6 часов.
 //! Ядро без отпечатков (чужое) — функция молчит. Включает проверку только
 //! панель — заголовком подписки `clod-16-20-check: true`; без него ни
-//! проверок, ни пометок.
+//! проверок, ни пометок. Итоги с вердиктом уходят и в отчёт прослойке
+//! (`module::client_report`) — там решается, копить ли их.
 
 mod network;
 mod plan;
@@ -107,20 +108,10 @@ pub(crate) fn marks() -> BTreeMap<std::string::String, &'static str> {
     MARKS.lock().by_name.clone()
 }
 
-/// Заготовка для прослойки: всё, что клиент знает о проверке 16–20 этой
-/// подписки, одним документом — по сетям (хеш) и отпечаткам узлов, с именем
-/// узла и кодом ответа последней проверки. Куда и когда отправлять, решится
-/// позже; здесь только форма.
-#[allow(dead_code)]
-pub(crate) async fn report(uid: &str) -> serde_json::Value {
-    let saved = store::load(uid).await;
-    serde_json::json!({
-        "version": 1,
-        "platform": "pc",
-        "client": env!("CARGO_PKG_VERSION"),
-        "subscription": uid,
-        "networks": saved.networks,
-    })
+/// Текущая сеть для отчёта прослойке: хеш ключа (тот же, что у итогов
+/// проверки) и вид сети. `None` — путь наружу не распознан.
+pub(crate) async fn current_network() -> Option<(std::string::String, &'static str)> {
+    network_key().await.map(|key| (key.hash, key.kind))
 }
 
 /// Повод для нового захода без новой сборки у ядра — подписка обновилась
@@ -586,6 +577,29 @@ fn recorded(network: &mut store::Network, outcomes: &[(NodeRef, plan::Checked)],
     true
 }
 
+/// Записанные вердикты — в отчёт прослойке; не записано или сеть не
+/// распознана — нечего и некуда.
+async fn report_verdicts(
+    stored: bool,
+    uid: &str,
+    key: Option<&str>,
+    kind: &'static str,
+    outcomes: &[(NodeRef, plan::Checked)],
+    now: i64,
+) {
+    let Some(key) = key.filter(|_| stored) else {
+        return;
+    };
+    let verdicts: Vec<(std::string::String, Verdict, i64)> = outcomes
+        .iter()
+        .filter_map(|(node, checked)| match checked.outcome {
+            plan::Outcome::Verdict(verdict) => Some((node.name.clone(), verdict, checked.status)),
+            plan::Outcome::Unknown { .. } => None,
+        })
+        .collect();
+    crate::module::client_report::note_freeze(uid, key, kind, &verdicts, now).await;
+}
+
 /// Ключ текущей сети; без MAC роутера там, где он положен, — переспросить
 /// чуть позже: запись о шлюзе в таблице соседей появляется с первым трафиком.
 async fn network_key() -> Option<network::Key> {
@@ -762,7 +776,9 @@ async fn pass(reason: &'static str) {
         return;
     }
 
-    let key = network_key().await.map(|key| key.hash);
+    let (key, kind) = network_key()
+        .await
+        .map_or((None, "other"), |key| (Some(key.hash), key.kind));
     let shown_key = key.as_deref().unwrap_or("?");
     let now = now_unix_secs();
     let (mut saved, mut unplaced) = saved_results(&uid, &nodes, settled, now).await;
@@ -792,6 +808,7 @@ async fn pass(reason: &'static str) {
         };
         stored = recorded(network, &outcomes, now, verbose);
         remember_quiet(quiet_key, &due_nodes, stored, now);
+        report_verdicts(stored, &uid, key.as_deref(), kind, &outcomes, now).await;
         let verdicts: Vec<plan::Outcome> = outcomes.iter().map(|(_, checked)| checked.outcome).collect();
         let tail = if stored {
             ""

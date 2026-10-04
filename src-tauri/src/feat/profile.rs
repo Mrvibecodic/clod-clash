@@ -927,7 +927,13 @@ pub async fn update_profile(
         }
     };
 
-    Box::pin(settle_the_download(uid, downloaded, trigger)).await
+    let outcome = Box::pin(settle_the_download(uid, downloaded, trigger)).await;
+    // clod:report — отчёт прослойке уходит только после планового обновления.
+    if outcome.is_ok() && !trigger.is_manual() {
+        let uid = uid.to_string();
+        crate::process::AsyncHandler::spawn(move || crate::module::client_report::after_scheduled_update(uid));
+    }
+    outcome
 }
 
 pub async fn enhance_profiles() -> Result<ValidationOutcome> {

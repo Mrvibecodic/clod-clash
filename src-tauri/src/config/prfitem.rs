@@ -1149,13 +1149,7 @@ async fn fetch_for_profile(
         };
     }
 
-    let pinned = option.and_then(|o| o.chan_pin.as_ref()).and_then(|raw| {
-        use base64::Engine as _;
-        let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD
-            .decode(raw.as_str())
-            .ok()?;
-        <[u8; 32]>::try_from(decoded).ok()
-    });
+    let pinned = pinned_of(option);
 
     let mut outcome = fetch_secure(
         url,
@@ -1234,6 +1228,113 @@ fn explain_the_failure(err: &anyhow::Error, otherwise: &'static str) -> String {
 
 const CHAN_NEUTRAL_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)";
 
+/// Закреплённый ключ прослойки из карточки подписки.
+fn pinned_of(option: Option<&PrfOption>) -> Option<[u8; 32]> {
+    option.and_then(|o| o.chan_pin.as_ref()).and_then(|raw| {
+        use base64::Engine as _;
+        let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .decode(raw.as_str())
+            .ok()?;
+        <[u8; 32]>::try_from(decoded).ok()
+    })
+}
+
+/// Карточка устройства внутри конверта канала: то, что в открытом режиме ушло
+/// бы заголовками опознания.
+fn chan_fields(identity: &reqwest::header::HeaderMap, user_agent: Option<&String>) -> chan::Fields {
+    let get = |name: &str| -> std::string::String {
+        identity
+            .get(name)
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or_default()
+            .to_owned()
+    };
+
+    chan::Fields {
+        hwid: get("x-hwid"),
+        os: get("x-device-os"),
+        osv: get("x-ver-os"),
+        model: get("x-device-model"),
+        ua: user_agent.map_or_else(|| crate::utils::hwid::user_agent().to_string(), |ua| ua.to_string()),
+        acc: "*/*".to_owned(),
+        q: std::string::String::new(),
+    }
+}
+
+/// Отчёт клиента прослойке по защищённому каналу (`op: rep`, тело — сжатый
+/// JSON). Маршруты — в том же порядке, что у загрузки подписки. `Ok(код)` —
+/// прослойка ответила каналом, код ответа приехал внутри шифра: 204 — принят,
+/// 403 — приём выключен, 429 — рано. Ошибка — каналом не ответил никто.
+pub async fn send_report(url: &str, option: Option<&PrfOption>, gz: &[u8]) -> Result<u16> {
+    let url = fix_dirty_url(url)?;
+    let accept_invalid_certs = option.is_some_and(|o| o.danger_accept_invalid_certs.unwrap_or(false));
+    let user_agent = option.and_then(|o| o.user_agent.clone());
+    let timeout = option.and_then(|o| o.timeout_seconds).unwrap_or(20);
+    let identity = sub_headers::build_identity_headers().await;
+    let fields = chan_fields(&identity, user_agent.as_ref());
+    let pinned = pinned_of(option);
+
+    let mut last = None;
+    for route in route_plan(Route::chosen_in(option), system_proxy_now().await) {
+        let mut sent = post_report(
+            url.as_str(),
+            route.proxy_type(),
+            timeout,
+            accept_invalid_certs,
+            &fields,
+            pinned,
+            gz,
+        )
+        .await;
+        if sent.is_err() && pinned.is_some() {
+            sent = post_report(
+                url.as_str(),
+                route.proxy_type(),
+                timeout,
+                accept_invalid_certs,
+                &fields,
+                None,
+                gz,
+            )
+            .await;
+        }
+        match sent {
+            Ok(status) => return Ok(status),
+            Err(err) => last = Some(err),
+        }
+    }
+    Err(last.unwrap_or_else(|| anyhow::anyhow!("clod-chan-refused: no route")))
+}
+
+async fn post_report(
+    url: &str,
+    proxy_type: ProxyType,
+    timeout: u64,
+    accept_invalid_certs: bool,
+    fields: &chan::Fields,
+    pin: Option<[u8; 32]>,
+    gz: &[u8],
+) -> Result<u16> {
+    let (secure_url, session) = chan::build_report(url, pin, fields, chrono::Local::now().timestamp())?;
+    let body = session.seal_report(gz)?;
+    let response = NetworkManager::new()
+        .post_with_interrupt_and_headers(
+            secure_url.as_str(),
+            proxy_type,
+            Some(timeout),
+            Some(CHAN_NEUTRAL_UA.into()),
+            accept_invalid_certs,
+            Some(&reqwest::header::HeaderMap::new()),
+            &body,
+        )
+        .await?;
+    if !response.status().is_success() {
+        bail!("clod-chan-refused: прослойка не приняла отчёт ({})", response.status());
+    }
+    let answer = session.open(response.text_with_charset()?, chrono::Local::now().timestamp())?;
+    Ok(answer.status)
+}
+
 async fn fetch_secure(
     url: &str,
     proxy_type: ProxyType,
@@ -1243,25 +1344,7 @@ async fn fetch_secure(
     identity: &reqwest::header::HeaderMap,
     pin: Option<[u8; 32]>,
 ) -> Result<(crate::utils::network::HttpResponse, [u8; 32])> {
-    let get = |name: &str| -> std::string::String {
-        identity
-            .get(name)
-            .and_then(|value| value.to_str().ok())
-            .unwrap_or_default()
-            .to_owned()
-    };
-
-    let fields = chan::Fields {
-        hwid: get("x-hwid"),
-        os: get("x-device-os"),
-        osv: get("x-ver-os"),
-        model: get("x-device-model"),
-        ua: user_agent
-            .clone()
-            .map_or_else(|| crate::utils::hwid::user_agent().to_string(), |ua| ua.to_string()),
-        acc: "*/*".to_owned(),
-        q: std::string::String::new(),
-    };
+    let fields = chan_fields(identity, user_agent.as_ref());
 
     let now = chrono::Local::now().timestamp();
     let (secure_url, session) = chan::build(url, pin, &fields, now)?;

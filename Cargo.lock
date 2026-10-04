@@ -1145,6 +1145,7 @@ dependencies = [
  "ksni",
  "libc",
  "log",
+ "md-5",
  "minisign-verify",
  "nanoid",
  "netdev",

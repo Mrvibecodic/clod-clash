@@ -112,6 +112,11 @@ pub fn freeze_file(uid: &str) -> String {
     format!("freeze-{uid}.json")
 }
 
+/// clod:report — замеры для отчёта прослойке по этой подписке; уходят вместе с ней.
+pub fn report_file(uid: &str) -> String {
+    format!("report-{uid}.json")
+}
+
 pub fn dns_page_path(uid: &str) -> Result<PathBuf> {
     Ok(app_profiles_dir()?.join(dns_page_file(uid)))
 }

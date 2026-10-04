@@ -47,6 +47,33 @@ fn kind_label(kind: InterfaceType) -> std::string::String {
 pub(super) struct Key {
     pub hash: std::string::String,
     pub mac_missing: bool,
+    /// Вид сети для отчёта прослойке: `wired` | `wifi` | `mobile` | `other`.
+    /// Сеть из нескольких подключений называется по самому «проводному».
+    pub kind: &'static str,
+}
+
+/// Вид одного подключения для отчёта; PPP бывает и PPPoE, и модемом — `other`.
+const fn kind_word(kind: InterfaceType) -> &'static str {
+    match kind {
+        InterfaceType::Ethernet
+        | InterfaceType::Ethernet3Megabit
+        | InterfaceType::FastEthernetT
+        | InterfaceType::FastEthernetFx
+        | InterfaceType::GigabitEthernet => "wired",
+        InterfaceType::Wireless80211 => "wifi",
+        InterfaceType::Wwanpp | InterfaceType::Wwanpp2 => "mobile",
+        _ => "other",
+    }
+}
+
+/// Порядок, в котором вид называет сеть из нескольких подключений.
+const fn kind_rank(word: &str) -> u8 {
+    match word.as_bytes() {
+        b"wired" => 0,
+        b"wifi" => 1,
+        b"mobile" => 2,
+        _ => 3,
+    }
 }
 
 /// MAC шлюза положен кабелю и Wi-Fi; у PPPoE и модема его не бывает.
@@ -93,11 +120,16 @@ fn part_of(seen: &Seen) -> Option<std::string::String> {
 pub(super) fn key_of(seen: &[Seen]) -> Option<Key> {
     let mut parts = BTreeSet::new();
     let mut mac_missing = false;
+    let mut kind = "other";
     for one in seen {
         let Some(part) = part_of(one) else {
             continue;
         };
         mac_missing |= one.gateway_mac.is_none() && kind_has_a_router_mac(one.kind);
+        let word = kind_word(one.kind);
+        if kind_rank(word) < kind_rank(kind) {
+            kind = word;
+        }
         parts.insert(part);
     }
     if parts.is_empty() {
@@ -108,6 +140,7 @@ pub(super) fn key_of(seen: &[Seen]) -> Option<Key> {
     Some(Key {
         hash: hex::encode(digest)[..KEY_HEX_LEN].to_owned(),
         mac_missing,
+        kind,
     })
 }
 
@@ -239,6 +272,19 @@ mod tests {
         let only_wifi = hash(&[wifi("aa:bb:cc:00:00:01")]);
         let both = hash(&[wifi("aa:bb:cc:00:00:01"), cable]);
         assert_ne!(only_wifi, both);
+    }
+
+    #[test]
+    fn the_kind_of_network_is_named_by_its_most_wired_link() {
+        let kind = |seen: &[Seen]| key_of(seen).map(|key| key.kind);
+        assert_eq!(kind(&[wifi("aa:bb:cc:00:00:01")]), Some("wifi"));
+        let mut cable = wifi("aa:bb:cc:00:00:02");
+        cable.kind = InterfaceType::GigabitEthernet;
+        assert_eq!(kind(&[wifi("aa:bb:cc:00:00:01"), cable]), Some("wired"));
+        let mut modem = pppoe(&["10.0.0.1"], &["8.8.8.8"]);
+        modem.kind = InterfaceType::Wwanpp;
+        assert_eq!(kind(&[modem]), Some("mobile"));
+        assert_eq!(kind(&[pppoe(&["10.0.0.1"], &["8.8.8.8"])]), Some("other"));
     }
 
     #[test]

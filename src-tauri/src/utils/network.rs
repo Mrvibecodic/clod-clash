@@ -231,7 +231,7 @@ impl NetworkManager {
     }
 
     #[allow(clippy::too_many_arguments)]
-    async fn get_with_tls_mode(
+    async fn send_with_tls_mode(
         &self,
         url: &str,
         proxy_type: ProxyType,
@@ -241,6 +241,8 @@ impl NetworkManager {
         tls_root_mode: TlsRootMode,
         // clod: caller supplied headers (subscription identity, see config::sub_headers)
         custom_headers: Option<&HeaderMap>,
+        // clod: тело запроса — тогда это POST (отчёт клиента по защищённому каналу)
+        body: Option<&str>,
     ) -> Result<HttpResponse> {
         let mut parsed = Url::parse(url)?;
         let mut extra_headers = HeaderMap::new();
@@ -279,7 +281,13 @@ impl NetworkManager {
             )
             .await?;
 
-        let mut request_builder = client.get(parsed);
+        let mut request_builder = match body {
+            Some(body) => client
+                .post(parsed)
+                .header(reqwest::header::CONTENT_TYPE, "text/plain")
+                .body(body.to_owned()),
+            None => client.get(parsed),
+        };
 
         for (key, value) in extra_headers.iter() {
             request_builder = request_builder.header(key, value);
@@ -348,8 +356,55 @@ impl NetworkManager {
         accept_invalid_certs: bool,
         custom_headers: Option<&HeaderMap>,
     ) -> Result<HttpResponse> {
+        self.send_with_fallback(
+            url,
+            proxy_type,
+            timeout_secs,
+            user_agent,
+            accept_invalid_certs,
+            custom_headers,
+            None,
+        )
+        .await
+    }
+
+    /// clod: то же, но POST с телом — отчёт клиента по защищённому каналу.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn post_with_interrupt_and_headers(
+        &self,
+        url: &str,
+        proxy_type: ProxyType,
+        timeout_secs: Option<u64>,
+        user_agent: Option<String>,
+        accept_invalid_certs: bool,
+        custom_headers: Option<&HeaderMap>,
+        body: &str,
+    ) -> Result<HttpResponse> {
+        self.send_with_fallback(
+            url,
+            proxy_type,
+            timeout_secs,
+            user_agent,
+            accept_invalid_certs,
+            custom_headers,
+            Some(body),
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn send_with_fallback(
+        &self,
+        url: &str,
+        proxy_type: ProxyType,
+        timeout_secs: Option<u64>,
+        user_agent: Option<String>,
+        accept_invalid_certs: bool,
+        custom_headers: Option<&HeaderMap>,
+        body: Option<&str>,
+    ) -> Result<HttpResponse> {
         let platform_result = self
-            .get_with_tls_mode(
+            .send_with_tls_mode(
                 url,
                 proxy_type,
                 timeout_secs,
@@ -357,13 +412,14 @@ impl NetworkManager {
                 accept_invalid_certs,
                 TlsRootMode::PlatformVerifier,
                 custom_headers,
+                body,
             )
             .await;
 
         match platform_result {
             Ok(response) => Ok(response),
             Err(err) if !accept_invalid_certs && Self::should_retry_with_static_webpki_roots(&err) => self
-                .get_with_tls_mode(
+                .send_with_tls_mode(
                     url,
                     proxy_type,
                     timeout_secs,
@@ -371,6 +427,7 @@ impl NetworkManager {
                     accept_invalid_certs,
                     TlsRootMode::StaticWebpkiRoots,
                     custom_headers,
+                    body,
                 )
                 .await
                 .map_err(|fallback_err| {

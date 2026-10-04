@@ -45,6 +45,12 @@ const PAD_BLOCK: usize = 512;
 /// `,"pad":""` — столько занимает сам ключ в JSON. Дополнить короче нечем,
 /// поэтому если до кратности осталось меньше, добирается целый блок.
 const PAD_KEY_LEN: usize = 9;
+/// Тело отчёта (`op: rep`) дополняется так, чтобы шифротекст с меткой
+/// подлинности был кратен этому размеру: в base64url это ровно 4096 знаков.
+/// По длине тела иначе читалось бы, сколько у человека узлов и сетей.
+const REPORT_PAD_BLOCK: usize = 3072;
+/// Метка подлинности ChaCha20-Poly1305.
+const TAG_LEN: usize = 16;
 
 /// То, что раньше ехало заголовками запроса открытым текстом.
 #[derive(Debug, Default, Clone, Serialize)]
@@ -70,8 +76,16 @@ struct Request<'a> {
     v: u8,
     t: i64,
     n: &'a str,
+    /// Служебная операция канала; у запроса подписки её нет вовсе.
+    #[serde(skip_serializing_if = "no_op")]
+    op: &'a str,
     #[serde(flatten)]
     fields: &'a Fields,
+}
+
+/// Запрос подписки идёт без поля `op`: так он байт в байт прежний.
+const fn no_op(op: &&str) -> bool {
+    op.is_empty()
 }
 
 #[derive(Deserialize)]
@@ -215,6 +229,16 @@ fn pad(mut plain: Vec<u8>) -> Vec<u8> {
 
 /// Собирает адрес защищённого запроса и состояние сеанса.
 pub fn build(base: &str, pinned: Option<[u8; 32]>, fields: &Fields, now: i64) -> Result<(String, Session)> {
+    build_op(base, pinned, fields, "", now)
+}
+
+/// Адрес отчёта клиента (`op: rep`) и сеанс: тело запечатывает
+/// [`Session::seal_report`], ответ разбирает [`Session::open`].
+pub fn build_report(base: &str, pinned: Option<[u8; 32]>, fields: &Fields, now: i64) -> Result<(String, Session)> {
+    build_op(base, pinned, fields, "rep", now)
+}
+
+fn build_op(base: &str, pinned: Option<[u8; 32]>, fields: &Fields, op: &str, now: i64) -> Result<(String, Session)> {
     let (prefix, token, query) = split(base)?;
 
     let mut fields = fields.clone();
@@ -243,6 +267,7 @@ pub fn build(base: &str, pinned: Option<[u8; 32]>, fields: &Fields, now: i64) ->
         v: VERSION,
         t: now,
         n: &nonce,
+        op,
         fields: &fields,
     })?);
 
@@ -277,7 +302,44 @@ pub fn build(base: &str, pinned: Option<[u8; 32]>, fields: &Fields, now: i64) ->
     ))
 }
 
+/// Тело отчёта перед шифрованием: длина сжатых данных (4 байта, big-endian),
+/// сами данные и нули до кратного [`REPORT_PAD_BLOCK`] вместе с меткой.
+fn report_frame(gz: &[u8]) -> Result<Vec<u8>> {
+    let len = u32::try_from(gz.len()).map_err(|_| anyhow!("clod-chan-report-too-big"))?;
+    let mut plain = len.to_be_bytes().to_vec();
+    plain.extend_from_slice(gz);
+    let need = (REPORT_PAD_BLOCK - (plain.len() + TAG_LEN) % REPORT_PAD_BLOCK) % REPORT_PAD_BLOCK;
+    plain.resize(plain.len() + need, 0);
+    Ok(plain)
+}
+
 impl Session {
+    /// Ключ тела отчёта: тот же материал, что у запроса, своя метка «rep».
+    fn report_key(&self) -> Result<[u8; 32]> {
+        let mut ikm = self.psk.to_vec();
+        ikm.extend_from_slice(&self.dh);
+        let mut info = b"rep".to_vec();
+        info.extend_from_slice(&self.eph_pub);
+        hkdf32(&ikm, &self.kid, &info)
+    }
+
+    /// Запечатывает сжатый отчёт в тело POST: base64url без выравнивания.
+    pub fn seal_report(&self, gz: &[u8]) -> Result<String> {
+        let cipher = ChaCha20Poly1305::new(Key::from_slice(&self.report_key()?));
+        let mut aad = format!("c1p{}", self.kid).into_bytes();
+        aad.extend_from_slice(&self.eph_pub);
+        let sealed = cipher
+            .encrypt(
+                Nonce::from_slice(&[0u8; 12]),
+                Payload {
+                    msg: &report_frame(gz)?,
+                    aad: &aad,
+                },
+            )
+            .map_err(|_| anyhow!("clod-chan-seal"))?;
+        Ok(B64.encode(sealed))
+    }
+
     /// Разбирает ответ прослойки.
     ///
     /// Любая неудача — ошибка, а не «ну ладно»: профиль, помеченный
@@ -559,6 +621,63 @@ mod tests {
             .decode(v["response"]["expect"]["config_binary"].as_str().unwrap())
             .unwrap();
         assert_eq!(answer.body.as_bytes(), String::from_utf8_lossy(&want).as_bytes());
+    }
+
+    #[test]
+    fn report_envelope_matches_vectors() {
+        let v = vectors();
+        let rep = &v["report"];
+        let fields = Fields {
+            hwid: "3f9c1d2e".into(),
+            os: "windows".into(),
+            ..Fields::default()
+        };
+        let plain = pad(serde_json::to_vec(&Request {
+            v: VERSION,
+            t: 1786500000,
+            n: "BAECAwQFBgcICQoLDA0ODw",
+            op: "rep",
+            fields: &fields,
+        })
+        .unwrap());
+        assert_eq!(std::str::from_utf8(&plain).unwrap(), rep["plain"].as_str().unwrap());
+
+        let session = session_from_vectors(&v, "BAECAwQFBgcICQoLDA0ODw");
+        assert_eq!(hex(&session.report_key().unwrap()), rep["key"].as_str().unwrap());
+
+        let gz = base64::engine::general_purpose::STANDARD
+            .decode(rep["gzip"].as_str().unwrap())
+            .unwrap();
+        assert_eq!(
+            report_frame(&gz).unwrap().len() as u64,
+            rep["frame_len"].as_u64().unwrap()
+        );
+        let body = session.seal_report(&gz).unwrap();
+        assert_eq!(body, rep["body"].as_str().unwrap());
+        assert_eq!(body.len() % 4096, 0);
+    }
+
+    #[test]
+    fn a_subscription_request_carries_no_operation() {
+        let plain = serde_json::to_string(&Request {
+            v: VERSION,
+            t: 1,
+            n: "x",
+            op: "",
+            fields: &Fields::default(),
+        })
+        .unwrap();
+        assert!(!plain.contains("\"op\""), "{plain}");
+    }
+
+    #[test]
+    fn report_body_length_hides_the_size() {
+        let (_, session) =
+            build_report("https://sub.dom/a7Kd93mQz1Lp0Xr8", None, &Fields::default(), 1786500000).unwrap();
+        let small = session.seal_report(&[1u8; 10]).unwrap();
+        let larger = session.seal_report(&[1u8; 2000]).unwrap();
+        assert_eq!(small.len(), larger.len());
+        assert_eq!(session.seal_report(&[1u8; 3100]).unwrap().len(), 8192);
     }
 
     #[test]
