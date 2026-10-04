@@ -1,8 +1,7 @@
 import {
   Box,
   Button,
-  Checkbox,
-  FormControlLabel,
+  LinearProgress,
   Stack,
   TextField,
   Typography,
@@ -26,6 +25,7 @@ import { ServerSelect, ServerSelectRow } from '@/components/home/server-select'
 import { SessionTraffic } from '@/components/home/session-traffic'
 import { SubscriptionCard } from '@/components/home/subscription-card'
 import { TunStatus } from '@/components/home/tun-status'
+import { addStageText, useAddStage } from '@/hooks/use-add-stage'
 import { useConnectTargets } from '@/hooks/use-connect-targets'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useSimpleMode } from '@/hooks/use-simple-mode'
@@ -52,7 +52,8 @@ const HomeSimplePage = () => {
   const [serverOpen, setServerOpen] = useState(false)
   const [intent, setIntent] = useState<'connecting' | 'disconnecting'>()
   const [subUrl, setSubUrl] = useState('')
-  const [subSecure, setSubSecure] = useState(false)
+  const [adding, setAdding] = useState(false)
+  const { stage: addStage, reset: resetAddStage } = useAddStage()
 
   const errorText = failure?.at === connected ? failure.text : undefined
 
@@ -81,13 +82,16 @@ const HomeSimplePage = () => {
   const addSubscription = useLockFn(async () => {
     const url = subUrl.trim()
     if (!url) return
-    const option = subSecure ? { secure: true } : undefined
+    resetAddStage()
+    setAdding(true)
     try {
-      await importProfile(url, option)
+      await importProfile(url)
       await mutateProfiles()
       setSubUrl('')
     } catch (error) {
       showNotice.error(error)
+    } finally {
+      setAdding(false)
     }
   })
 
@@ -125,27 +129,28 @@ const HomeSimplePage = () => {
             />
             <Button
               variant="contained"
-              disabled={!subUrl.trim()}
+              disabled={!subUrl.trim() || adding}
               onClick={() => void addSubscription()}
             >
               {t('shared.actions.add')}
             </Button>
           </Stack>
-          <FormControlLabel
-            sx={{ ml: 0.5, mr: 0 }}
-            control={
-              <Checkbox
-                size="small"
-                checked={subSecure}
-                onChange={(event) => setSubSecure(event.target.checked)}
-              />
-            }
-            label={
-              <Typography variant="body2" color="text.secondary">
-                {t('profiles.modals.profileForm.fields.secureChannel')}
+          {adding && (
+            <Box sx={{ px: 0.5 }}>
+              <LinearProgress />
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ display: 'block', mt: 0.5 }}
+              >
+                {t(
+                  ...addStageText(
+                    addStage ?? { stage: 'checking', attempt: 1 },
+                  ),
+                )}
               </Typography>
-            }
-          />
+            </Box>
+          )}
         </Stack>
         <Stack direction="row" sx={{ gap: 1 }}>
           <Button

@@ -12,7 +12,6 @@ const OPTION_FIELDS = [
   'user_agent',
   'with_proxy',
   'self_proxy',
-  'secure',
   'update_interval',
   'timeout_seconds',
   'danger_accept_invalid_certs',

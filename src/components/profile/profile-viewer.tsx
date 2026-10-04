@@ -28,8 +28,15 @@ import { Controller, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { BaseDialog, Switch } from '@/components/base'
+import { addStageText, useAddStage } from '@/hooks/use-add-stage'
 import { useProfiles } from '@/hooks/use-profiles'
-import { createProfile, getProfiles, patchProfile } from '@/services/cmds'
+import {
+  createProfile,
+  getProfiles,
+  patchProfile,
+  setSecureChannel,
+} from '@/services/cmds'
+import { explainErrorKey, trimRawError } from '@/utils/error-explanation'
 import parseTraffic from '@/utils/parse-traffic'
 import { profileEditPatch } from '@/utils/profile-edit'
 import { profileDisplayName } from '@/utils/profile-name'
@@ -88,7 +95,11 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
   const [errorText, setErrorText] = useState<string>()
   const [added, setAdded] = useState<IProfileItem>()
   const [newGroup, setNewGroup] = useState('')
-  const { profiles } = useProfiles()
+  const { profiles, mutateProfiles } = useProfiles()
+  const { stage: addStage, reset: resetAddStage } = useAddStage()
+  const [chanBusy, setChanBusy] = useState(false)
+  const [chanError, setChanError] = useState<string>()
+  const [chanOffAsked, setChanOffAsked] = useState(false)
 
   // file input
   const fileDataRef = useRef<string | null>(null)
@@ -125,6 +136,9 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
     setAdded(undefined)
     setErrorText(undefined)
     setNewGroup('')
+    setChanError(undefined)
+    setChanOffAsked(false)
+    resetAddStage()
   }
 
   useImperativeHandle(ref, () => ({
@@ -159,12 +173,30 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
       ? Math.min(MIN_UPDATE_INTERVAL_MINUTES, openedWith)
       : MIN_UPDATE_INTERVAL_MINUTES
 
-  // clod:chan — признак уже включённой защиты: он и запирает переключатель.
-  const secureLocked =
+  // clod:chan — защищённый канал у добавленной подписки: живое состояние из
+  // реестра, а не поле формы — переключатель действует сразу, без «Сохранить».
+  const editedUid = watch('uid')
+  const secureOn =
     openType === 'edit' &&
     profiles?.items?.some(
-      (item) => item.uid === watch('uid') && item.option?.secure === true,
-    )
+      (item) => item.uid === editedUid && item.option?.secure === true,
+    ) === true
+
+  const switchChannel = useLockFn(async (on: boolean) => {
+    if (!editedUid) return
+    setChanBusy(true)
+    setChanError(undefined)
+    try {
+      await setSecureChannel(editedUid, on)
+      await mutateProfiles()
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : String(err)
+      const explained = explainErrorKey(raw)
+      setChanError(explained ? t(explained) : trimRawError(raw))
+    } finally {
+      setChanBusy(false)
+    }
+  })
 
   // clod:chan — отпечаток закреплённого ключа прослойки. Нужен ровно для
   // одного: сверить голосом с тем, что показывает админка провайдера, если
@@ -193,6 +225,7 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
       }
 
       const session = sessionRef.current
+      resetAddStage()
       setLoading(true)
       setLoadingLine(
         LOADING_LINES[Math.floor(Math.random() * LOADING_LINES.length)],
@@ -302,7 +335,11 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
       } catch (err) {
         // clod: ошибка живёт в окне, а не улетает тостом — введённое не теряется.
         if (session !== sessionRef.current) return
-        setErrorText(err instanceof Error ? err.message : String(err))
+        // Причина — через словарь объяснений, как в уведомлениях: «Сервер
+        // провайдера не отвечает» вместо метки бэкенда.
+        const raw = err instanceof Error ? err.message : String(err)
+        const explained = explainErrorKey(raw)
+        setErrorText(explained ? t(explained) : raw)
       } finally {
         setLoading(false)
       }
@@ -352,35 +389,49 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
       ? t('shared.actions.add')
       : t('shared.actions.save')
 
-  /* clod:chan — галочка защищённого канала.
-     Поднять можно, снять нельзя: у уже защищённой подписки переключатель
-     заблокирован, и вернуть открытый режим можно только удалив профиль.
-     Иначе «сними галочку, у тебя не работает» становится способом заставить
-     клиента отдать адрес подписки посреднику открытым текстом.
-     При ДОБАВЛЕНИИ галочка стоит прямо под ссылкой, а не в «Дополнительно»:
-     решение принимается ровно один раз и потом необратимо — прятать его
-     за раскрывашкой значит терять его на ровном месте. */
+  /* clod:chan — защищённый канал добавленной подписки. При добавлении
+     переключателя нет: канал пробуется сам, а нет его у провайдера — подписка
+     идёт обычным путём. Здесь его можно включить (сначала проба) и выключить
+     (сначала предупреждение). */
   const secureField = (
     <>
-      <Controller
-        name="option.secure"
-        control={control}
-        render={({ field }) => (
-          <StyledBox>
-            <InputLabel>
-              {t('profiles.modals.profileForm.fields.secureChannel')}
-            </InputLabel>
-            <Switch
-              checked={!!field.value}
-              {...field}
-              disabled={!!secureLocked}
-              color="primary"
-            />
-          </StyledBox>
-        )}
-      />
+      <StyledBox>
+        <InputLabel>
+          {t('profiles.modals.profileForm.fields.secureChannel')}
+        </InputLabel>
+        <Switch
+          checked={secureOn}
+          disabled={chanBusy}
+          onChange={(_, on) => {
+            if (on) void switchChannel(true)
+            else setChanOffAsked(true)
+          }}
+          color="primary"
+        />
+      </StyledBox>
 
-      {!secureLocked && (
+      {chanBusy && (
+        <Box sx={{ mt: -0.5, mb: 1, px: 0.5 }}>
+          <LinearProgress />
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ display: 'block', mt: 0.5 }}
+          >
+            {t('profiles.modals.profileForm.stages.checking')}
+          </Typography>
+        </Box>
+      )}
+
+      {chanError && !chanBusy && (
+        <Box sx={{ mt: -0.5, mb: 1, px: 0.5 }}>
+          <Typography variant="caption" sx={{ color: 'error.main' }}>
+            {chanError}
+          </Typography>
+        </Box>
+      )}
+
+      {!secureOn && !chanBusy && !chanError && (
         <Box sx={{ mt: -0.5, mb: 1, px: 0.5 }}>
           <Typography variant="caption" color="text.secondary">
             {t('profiles.modals.profileForm.hints.secureChannel')}
@@ -388,7 +439,7 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
         </Box>
       )}
 
-      {chanFingerprint && (
+      {secureOn && chanFingerprint && (
         <Box sx={{ mt: -0.5, mb: 1, px: 0.5 }}>
           <Typography variant="caption" color="text.secondary">
             {t('profiles.modals.profileForm.fields.secureKey')}
@@ -561,8 +612,6 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
             )}
           />
 
-          {/* При добавлении галочка живёт под ссылкой — здесь она осталась
-              бы вторым таким же переключателем. */}
           {!isNew && secureField}
 
           <Controller
@@ -671,11 +720,22 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
               </Typography>
             )}
           </Box>
-          <Typography
-            sx={{ mt: 1.5, mb: 1, color: 'success.main', fontWeight: 500 }}
-          >
+          <Typography sx={{ mt: 1.5, color: 'success.main', fontWeight: 500 }}>
             {t('profiles.modals.profileForm.feedback.added')}
           </Typography>
+          {added.type === 'remote' && (
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{ display: 'block', mt: 0.5, mb: 1 }}
+            >
+              {t(
+                added.option?.secure
+                  ? 'profiles.modals.profileForm.feedback.channelOn'
+                  : 'profiles.modals.profileForm.feedback.channelOff',
+              )}
+            </Typography>
+          )}
         </Box>
       ) : (
         <>
@@ -698,8 +758,6 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
             />
           )}
 
-          {isNew && isRemote && secureField}
-
           {isLocal && isNew && (
             <FileInput
               onChange={(file, val) => {
@@ -717,7 +775,7 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
                 color="text.secondary"
                 sx={{ display: 'block', mt: 0.75 }}
               >
-                {t(loadingLine)}
+                {addStage ? t(...addStageText(addStage)) : t(loadingLine)}
               </Typography>
             </Box>
           )}
@@ -792,6 +850,23 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
           )}
         </>
       )}
+      <BaseDialog
+        open={chanOffAsked}
+        title={t('profiles.modals.profileForm.secureOff.title')}
+        okBtn={t('profiles.modals.profileForm.secureOff.confirm')}
+        cancelBtn={t('shared.actions.cancel')}
+        contentSx={{ width: { xs: 320, sm: 400 } }}
+        onCancel={() => setChanOffAsked(false)}
+        onClose={() => setChanOffAsked(false)}
+        onOk={() => {
+          setChanOffAsked(false)
+          void switchChannel(false)
+        }}
+      >
+        <Typography variant="body2">
+          {t('profiles.modals.profileForm.secureOff.body')}
+        </Typography>
+      </BaseDialog>
     </BaseDialog>
   )
 }

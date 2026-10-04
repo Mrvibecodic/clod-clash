@@ -63,6 +63,11 @@ export async function importProfile(url: string, option?: IProfileOption) {
   return invoke<void>('import_profile', { url, option })
 }
 
+/** clod:chan — включить (с пробой) или выключить защищённый канал подписки. */
+export async function setSecureChannel(index: string, on: boolean) {
+  return invoke<void>('set_secure_channel', { index, on })
+}
+
 export async function reorderProfile(activeId: string, overId: string) {
   return invoke<void>('reorder_profile', {
     activeId,

@@ -544,6 +544,8 @@ impl DownloadFailure {
 }
 
 /// Сколько раз при добавлении пробуется защищённый канал, пока сервер молчит.
+/// Метка ошибки добавления: канал так и не ответил — ни отказом, ни подпиской.
+const CHAN_SILENT: &str = "clod-chan-silent";
 const ADD_CHANNEL_ATTEMPTS: u8 = 3;
 const ADD_CHANNEL_PAUSE: Duration = Duration::from_secs(2);
 
@@ -620,8 +622,14 @@ impl PrfItem {
             if gave_no_answer && failures.channel.absent {
                 break;
             }
-            if !gave_no_answer || attempt == ADD_CHANNEL_ATTEMPTS {
+            if !gave_no_answer {
                 return Err(failures.into_shown());
+            }
+            if attempt == ADD_CHANNEL_ATTEMPTS {
+                // Подписка не добавляется: молчание ещё не значит, что канала нет.
+                return Err(failures.into_shown().context(format!(
+                    "{CHAN_SILENT}: the provider's server did not answer {ADD_CHANNEL_ATTEMPTS} times"
+                )));
             }
             tokio::time::sleep(ADD_CHANNEL_PAUSE).await;
         }

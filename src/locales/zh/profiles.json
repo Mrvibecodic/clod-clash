@@ -146,7 +146,7 @@
       "hints": {
         "intervalLocked": "The provider set this interval with the profile-update-interval header, so it cannot be changed.",
         "intervalFloor": "最快每 {{minutes}} 分钟一次 — 更频繁只会给面板带来多余请求。",
-        "secureChannel": "(make sure your provider supports this option)"
+        "secureChannel": "Turned on after a check: stays off unless the provider answers"
       },
       "feedback": {
         "added": "✓ Subscription added!",
@@ -156,7 +156,19 @@
         "loading2": "Fetching your servers. They are already running, honestly",
         "loading3": "Asking where you would like to live on the internet today…",
         "loading4": "Reading the link letter by letter. There are not many of them",
-        "loading5": "One second. The servers are pretending to be far away"
+        "loading5": "One second. The servers are pretending to be far away",
+        "channelOn": "Secure channel",
+        "channelOff": "No secure channel — the provider does not support it"
+      },
+      "stages": {
+        "checking": "Checking the provider’s secure channel…",
+        "retry": "No answer, trying again ({{attempt}} of {{total}})…",
+        "plain": "The provider has no secure channel — loading the usual way…"
+      },
+      "secureOff": {
+        "title": "Turn the secure connection off?",
+        "body": "Without it the subscription address, the device details and the server list travel to the provider in plain text, and anyone in between can see them. Turn it off only if the provider asks you to.",
+        "confirm": "Turn off"
       },
       "errors": {
         "urlRequired": "Paste the subscription link",

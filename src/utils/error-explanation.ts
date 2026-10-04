@@ -20,6 +20,9 @@ const RULES: ReadonlyArray<{ pattern: RegExp; key: string }> = [
   // --- Защищённый канал ----------------------------------------------------
   // clod:chan — стоят ПЕРВЫМИ: метка отказа содержит код ответа («404»),
   // и общее правило про 404 перехватило бы её, объяснив совсем не то.
+  { pattern: /clod-chan-absent/, key: 'chanAbsent' },
+  // Три попытки канала без ответа: под меткой — сетевая причина, она ниже.
+  { pattern: /clod-chan-silent/, key: 'chanSilent' },
   {
     pattern: /clod-chan-(undecryptable|version|bad-key|seal|kdf)/,
     key: 'chanBroken',

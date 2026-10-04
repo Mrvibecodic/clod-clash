@@ -407,6 +407,8 @@ export interface TranslationResources {
           }
           feedback: {
             added: string
+            channelOff: string
+            channelOn: string
             failed: string
             hint: string
             loading1: string
@@ -437,6 +439,16 @@ export interface TranslationResources {
             intervalFloor: string
             intervalLocked: string
             secureChannel: string
+          }
+          secureOff: {
+            body: string
+            confirm: string
+            title: string
+          }
+          stages: {
+            checking: string
+            plain: string
+            retry: string
           }
           title: {
             added: string
@@ -1455,10 +1467,12 @@ export interface TranslationResources {
         errors: {
           core: {
             badConfig: string
+            chanAbsent: string
             chanBadUrl: string
             chanBroken: string
             chanRefused: string
             chanReplay: string
+            chanSilent: string
             configBusy: string
             connectionRefused: string
             connectionReset: string
