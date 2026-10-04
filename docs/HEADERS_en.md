@@ -41,8 +41,9 @@ address.
   hashed); the machine id itself never leaves the device.
 * The version may carry a suffix (`-alpha.3`), so panel rules should match the `^ClodClash`
   prefix, not an exact version.
-* With "Secure connection" (a box in the subscription properties) all these values travel inside
-  the encrypted request. Only a neutral browser `User-Agent` is visible in the open.
+* Over the secure channel (the app tries it on its own when a subscription is added; it can be
+  turned off in the subscription properties) all these values travel inside the encrypted
+  request. Only a neutral browser `User-Agent` is visible in the open.
 
 ---
 
