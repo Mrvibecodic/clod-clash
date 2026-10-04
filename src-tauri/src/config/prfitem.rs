@@ -1310,7 +1310,7 @@ async fn fetch_for_profile(
     )
     .await;
 
-    if outcome.is_err() && pinned.is_some() {
+    if pinned.is_some() && outcome.as_ref().is_err_and(key_may_be_refused) {
         clash_verge_logging::logging!(
             warn,
             clash_verge_logging::Type::Config,
@@ -1376,6 +1376,21 @@ fn explain_the_failure(err: &anyhow::Error, otherwise: &'static str) -> String {
 
 const CHAN_NEUTRAL_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)";
 
+/// Повторять без закрепления ключа прослойки есть смысл, только если прослойка
+/// ответила: отказом снаружи (закреплённый ключ ей неизвестен — запрос ушёл в
+/// обычный конвейер) или шифротекстом, который не открылся. Сетевой сбой — не
+/// повод: без закрепления тело защищено одним адресом подписки, и повтор на
+/// любую ошибку позволил бы снять закрепление, просто оборвав первый запрос.
+fn key_may_be_refused(err: &anyhow::Error) -> bool {
+    if let Some(ChanRefused(status)) = err.downcast_ref::<ChanRefused>() {
+        return status.is_client_error();
+    }
+    err.chain().any(|cause| {
+        let text = cause.to_string();
+        text.contains("clod-chan-undecryptable") || text.contains("clod-chan-bad-key")
+    })
+}
+
 /// Закреплённый ключ прослойки из карточки подписки.
 fn pinned_of(option: Option<&PrfOption>) -> Option<[u8; 32]> {
     option.and_then(|o| o.chan_pin.as_ref()).and_then(|raw| {
@@ -1434,7 +1449,7 @@ pub async fn send_report(url: &str, option: Option<&PrfOption>, gz: &[u8]) -> Re
             gz,
         )
         .await;
-        if sent.is_err() && pinned.is_some() {
+        if pinned.is_some() && sent.as_ref().is_err_and(key_may_be_refused) {
             sent = post_report(
                 url.as_str(),
                 route.proxy_type(),
@@ -1477,7 +1492,7 @@ async fn post_report(
         )
         .await?;
     if !response.status().is_success() {
-        bail!("clod-chan-refused: прослойка не приняла отчёт ({})", response.status());
+        return Err(ChanRefused(response.status()).into());
     }
     let answer = session.open(response.text_with_charset()?, chrono::Local::now().timestamp())?;
     Ok(answer.status)
@@ -1797,7 +1812,25 @@ fn fix_dirty_url(input: &str) -> Result<Url> {
 
 #[cfg(test)]
 mod channel_tests {
-    use super::{ChanRefused, ChannelHeard, PrfOption, channel_heard};
+    use super::{ChanRefused, ChannelHeard, PrfOption, channel_heard, key_may_be_refused};
+
+    #[test]
+    fn the_pin_is_dropped_only_when_the_middleware_answered() {
+        // Прослойка не узнала закреплённый ключ: запрос ушёл в обычный конвейер.
+        assert!(key_may_be_refused(&ChanRefused(reqwest::StatusCode::NOT_FOUND).into()));
+        // Ответила шифротекстом, который этим ключом не открылся.
+        assert!(key_may_be_refused(&anyhow::anyhow!("clod-chan-undecryptable")));
+        assert!(key_may_be_refused(
+            &anyhow::anyhow!("clod-chan-bad-key").context("failed to fetch remote profile")
+        ));
+        // Сбой по дороге или ответ, который открылся: закрепление ни при чём.
+        assert!(!key_may_be_refused(
+            &ChanRefused(reqwest::StatusCode::BAD_GATEWAY).into()
+        ));
+        assert!(!key_may_be_refused(&anyhow::anyhow!("connection refused")));
+        assert!(!key_may_be_refused(&anyhow::anyhow!("clod-chan-stale")));
+        assert!(!key_may_be_refused(&anyhow::anyhow!("clod-chan-mismatch")));
+    }
 
     fn heard(err: anyhow::Error) -> ChannelHeard {
         channel_heard(&err.context("failed to fetch remote profile over the secure channel"))
