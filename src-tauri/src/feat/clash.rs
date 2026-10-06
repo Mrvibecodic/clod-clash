@@ -9,25 +9,15 @@ use clash_verge_logging::{Type, logging, logging_error};
 use serde_yaml_ng::{Mapping, Value};
 use smartstring::alias::String;
 
-pub async fn restart_clash_core() {
+/// Перезапуск ядра по просьбе человека — из трея и из окна. Выбор узлов
+/// возвращает сам запуск ядра.
+pub async fn restart_clash_core() -> anyhow::Result<()> {
+    crate::feat::refuse_while_exiting()?;
+    logging_error!(Type::Core, crate::config::profiles::profiles_save_file_safe().await);
     crate::feat::tun::clear_suppression();
-    match CoreManager::global().restart_core().await {
-        Ok(_) => {
-            handle::Handle::refresh_clash();
-            if let Err(err) = crate::config::profiles::activate_selected_nodes() {
-                logging!(
-                    warn,
-                    Type::Core,
-                    "Warning: restore selection after core restart failed: {err}"
-                );
-            }
-            handle::Handle::notice_message("set_config::ok", "ok");
-        }
-        Err(err) => {
-            handle::Handle::notice_message("set_config::error", format!("{err}"));
-            logging!(error, Type::Core, "{err}");
-        }
-    }
+    CoreManager::global().restart_core().await?;
+    handle::Handle::refresh_clash();
+    Ok(())
 }
 
 pub async fn restart_app() {

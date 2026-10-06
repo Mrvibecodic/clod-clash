@@ -149,14 +149,7 @@ pub async fn refresh_geo_assets() -> CmdResult<usize> {
 
 #[tauri::command]
 pub async fn restart_core() -> CmdResult {
-    feat::refuse_while_exiting().stringify_err()?;
-    logging_error!(Type::Core, crate::config::profiles::profiles_save_file_safe().await);
-    crate::feat::tun::clear_suppression();
-    let result = CoreManager::global().restart_core().await.stringify_err();
-    if result.is_ok() {
-        handle::Handle::refresh_clash();
-    }
-    result
+    feat::restart_clash_core().await.stringify_err()
 }
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]

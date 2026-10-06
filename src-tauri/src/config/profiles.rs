@@ -1336,8 +1336,13 @@ pub fn activate_selected_nodes() -> Result<()> {
         }
 
         let result = async {
+            // Выбор той подписки, на которой работает ядро, а не текущей в
+            // реестре: при смене подписки с перезапуском ядро поднимается на
+            // новой раньше, чем реестр её запишет, и выбор прежней лёг бы на её
+            // группы.
+            let running = Config::runtime().await.data_arc().profile_uid.clone();
             let profiles = Config::profiles().await.latest_arc();
-            let Some(current) = profiles.get_current().cloned() else {
+            let Some(current) = running else {
                 if is_activation_current(generation) {
                     handle::Handle::refresh_clash();
                 }

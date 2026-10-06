@@ -357,6 +357,7 @@ impl CoreManager {
 
         let Err(error) = self.confirm_core_ready().await else {
             Self::spawn_mixed_port_check(false);
+            Self::restore_selected_nodes();
             return Ok(());
         };
 
@@ -372,6 +373,19 @@ impl CoreManager {
             logging!(warn, Type::Core, "{stop_error:#}");
         }
         Err(error)
+    }
+
+    /// Новый процесс ядра поднимается с первым узлом каждой группы — выбор
+    /// человека возвращаем здесь, после любого запуска: при старте приложения,
+    /// перезапуске, смене ядра, переходе на службу и обратно, подъёме после
+    /// падения; ядро, которое перезапустила сама служба, — в стороже здоровья.
+    pub(super) fn restore_selected_nodes() {
+        if Handle::global().is_exiting() {
+            return;
+        }
+        if let Err(error) = crate::config::profiles::activate_selected_nodes() {
+            logging!(warn, Type::Core, "выбор узлов после запуска ядра не вернулся: {error}");
+        }
     }
 
     async fn confirm_core_ready(&self) -> Result<()> {
@@ -1105,17 +1119,6 @@ impl CoreManager {
         match self.start_and_confirm(true).await {
             Ok(()) => {
                 logging!(info, Type::Core, "handoff to service mode succeeded");
-                // clod: под службой поднимается НОВЫЙ процесс ядра — с первым
-                // узлом каждой группы. На Windows с TUN это основной путь
-                // запуска, и без возврата выбор пользователя терялся при каждом
-                // старте приложения.
-                if let Err(e) = crate::config::profiles::activate_selected_nodes() {
-                    logging!(
-                        warn,
-                        Type::Core,
-                        "Warning: restore selection after the handoff failed: {e}"
-                    );
-                }
                 HandoffOutcome::Done
             }
             Err(e) => {
@@ -1152,14 +1155,8 @@ impl CoreManager {
                 );
                 return;
             }
-        }
-
-        if let Err(error) = crate::config::profiles::activate_selected_nodes() {
-            logging!(
-                warn,
-                Type::Core,
-                "Warning: restore selection after the handoff rollback failed: {error}"
-            );
+            // Поднят без подтверждения готовности — выбор возвращаем сами.
+            Self::restore_selected_nodes();
         }
     }
 }

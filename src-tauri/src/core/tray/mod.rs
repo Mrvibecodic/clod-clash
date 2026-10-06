@@ -1132,7 +1132,13 @@ fn handle_menu_click(id: std::string::String) {
                     .await;
                 }
             }
-            MenuIds::RESTART_CLASH => feat::restart_clash_core().await,
+            MenuIds::RESTART_CLASH => match feat::restart_clash_core().await {
+                Ok(()) => handle::Handle::notice_message("set_config::ok", "ok"),
+                Err(err) => {
+                    logging!(error, Type::Core, "{err}");
+                    handle::Handle::notice_message("set_config::error", format!("{err}"));
+                }
+            },
             MenuIds::RESTART_APP => feat::restart_app().await,
             MenuIds::LIGHTWEIGHT_MODE => {
                 if !is_in_lightweight_mode() {

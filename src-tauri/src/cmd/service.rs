@@ -26,23 +26,12 @@ pub async fn uninstall_service() -> CmdResult {
         );
     }
     let result = execute_service_operation_sync(ServiceStatus::UninstallRequired, "Uninstall").await;
-    if core_is_ours_to_start_again {
-        match manager.start_core().await {
-            Ok(()) => {
-                if let Err(e) = crate::config::profiles::activate_selected_nodes() {
-                    logging!(
-                        warn,
-                        Type::Service,
-                        "после удаления службы выбор узлов не вернулся: {e}"
-                    );
-                }
-            }
-            Err(e) => logging!(
-                error,
-                Type::Service,
-                "после удаления службы ядро не поднялось своим процессом: {e:#}"
-            ),
-        }
+    if core_is_ours_to_start_again && let Err(e) = manager.start_core().await {
+        logging!(
+            error,
+            Type::Service,
+            "после удаления службы ядро не поднялось своим процессом: {e:#}"
+        );
     }
     result
 }

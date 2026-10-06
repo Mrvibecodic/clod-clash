@@ -394,13 +394,6 @@ impl CoreManager {
 
 async fn after_core_came_back(reason: &str) -> bool {
     handle::Handle::refresh_clash();
-    if let Err(e) = crate::config::profiles::activate_selected_nodes() {
-        logging!(
-            warn,
-            Type::Core,
-            "Warning: restore selection after a crash restart failed: {e}"
-        );
-    }
     if let Err(e) = crate::core::tray::Tray::global().update_menu().await {
         logging!(warn, Type::Core, "failed to refresh the tray after a restart: {}", e);
     }
@@ -483,6 +476,8 @@ async fn look_at_the_service(manager: &CoreManager, watch: &mut HealthWatch, gen
                 restarts,
                 reason
             );
+            // Новый процесс поднимала служба, мимо нашего запуска.
+            CoreManager::restore_selected_nodes();
             let _ = after_core_came_back(&reason).await;
             true
         }
