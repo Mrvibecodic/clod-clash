@@ -625,15 +625,23 @@ pub async fn get_proxies_stamp() -> CmdResult<std::string::String> {
     use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
     use std::hash::Hasher as _;
 
-    let providers: Vec<std::string::String> = super::runtime::runtime_proxy_provider_names()
-        .await
-        .iter()
-        .map(|name| format!("/providers/proxies/{}", utf8_percent_encode(name, NON_ALPHANUMERIC)))
-        .collect();
-
+    let read = |path: std::string::String| async move {
+        anyhow::Ok(
+            feat::core_send(reqwest::Method::GET, &path, PROXIES_STAMP_TIMEOUT)
+                .await?
+                .bytes()
+                .await?,
+        )
+    };
     let (proxies, providers) = tokio::join!(
-        core_body("/proxies"),
-        futures::future::join_all(providers.iter().map(|path| core_body(path)))
+        read("/proxies".into()),
+        futures::future::join_all(
+            super::runtime::runtime_proxy_provider_names()
+                .await
+                .iter()
+                .map(|name| format!("/providers/proxies/{}", utf8_percent_encode(name, NON_ALPHANUMERIC)))
+                .map(read)
+        )
     );
     let mut hasher = std::hash::DefaultHasher::new();
     hasher.write(proxies.stringify_err()?.as_ref());
@@ -650,18 +658,4 @@ pub async fn get_proxies_stamp() -> CmdResult<std::string::String> {
         }
     }
     Ok(format!("{:016x}", hasher.finish()))
-}
-
-async fn core_body(path: &str) -> anyhow::Result<impl AsRef<[u8]>> {
-    let response = handle::Handle::mihomo()
-        .load_ctx()
-        .build_request(reqwest::Method::GET, path)
-        .map_err(|error| anyhow::anyhow!("{error}"))?
-        .timeout(PROXIES_STAMP_TIMEOUT)
-        .send()
-        .await?;
-    if !response.status().is_success() {
-        anyhow::bail!("{}", feat::core_error_message(response).await);
-    }
-    Ok(response.bytes().await?)
 }

@@ -250,14 +250,7 @@ fn nodes_of(proxies: &serde_json::Value, providers: Option<&serde_json::Value>) 
 }
 
 async fn core_json(path: &str, budget: Duration) -> Option<serde_json::Value> {
-    let request = handle::Handle::mihomo()
-        .load_ctx()
-        .build_request(Method::GET, path)
-        .ok()?;
-    let response = request.timeout(budget).send().await.ok()?;
-    if !response.status().is_success() {
-        return None;
-    }
+    let response = crate::feat::core_send(Method::GET, path, budget).await.ok()?;
     response.json::<serde_json::Value>().await.ok()
 }
 

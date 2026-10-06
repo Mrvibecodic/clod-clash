@@ -232,13 +232,25 @@ pub async fn download_in_core(what: CoreDownload, name: &str) -> anyhow::Result<
             crate::constants::timing::CORE_GEO_DOWNLOAD,
         ),
     };
-    let request = handle::Handle::mihomo()
+    core_send(method, &path, budget).await.map(drop)
+}
+
+/// Запрос к ядру мимо готовых методов плагина — тем же клиентом и каналом, но
+/// со своим пределом ожидания. Отказ ядра — его же словами.
+pub async fn core_send(
+    method: reqwest::Method,
+    path: &str,
+    budget: std::time::Duration,
+) -> anyhow::Result<reqwest::Response> {
+    let response = handle::Handle::mihomo()
         .load_ctx()
-        .build_request(method, &path)
-        .map_err(|error| anyhow::anyhow!("{error}"))?;
-    let response = request.timeout(budget).send().await?;
+        .build_request(method, path)
+        .map_err(|error| anyhow::anyhow!("{error}"))?
+        .timeout(budget)
+        .send()
+        .await?;
     if response.status().is_success() {
-        return Ok(());
+        return Ok(response);
     }
     anyhow::bail!("{}", core_error_message(response).await)
 }
