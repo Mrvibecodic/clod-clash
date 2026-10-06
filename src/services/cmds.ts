@@ -1,10 +1,9 @@
 import { invoke } from '@tauri-apps/api/core'
 import dayjs from 'dayjs'
-import { getProxies, getProxyProviders } from 'tauri-plugin-mihomo-api'
+import { getProxies, getProxyProviderByName } from 'tauri-plugin-mihomo-api'
 
 import { showNotice } from '@/services/notice-service'
 import { clearProxyChain } from '@/services/proxy-chain-store'
-import { setCacheData } from '@/services/query-client'
 import { debugLog } from '@/utils/debug'
 import { enumText } from '@/utils/plugin-enum'
 
@@ -103,6 +102,10 @@ async function getRuntimeProxyGroupOrder() {
   return invoke<string[]>('get_runtime_proxy_group_order')
 }
 
+async function getRuntimeProxyProviderNames() {
+  return invoke<string[]>('get_runtime_proxy_provider_names')
+}
+
 export async function getRuntimeYaml() {
   return invoke<string | null>('get_runtime_yaml')
 }
@@ -150,11 +153,12 @@ export async function calcuProxies(): Promise<{
   groups: IProxyGroupItem[]
   records: Record<string, IProxyItem>
   proxies: IProxyItem[]
+  providers: ProxyProviderRecord
 }> {
   const [proxyResponse, providerResponse, runtimeGroupOrder] =
     await Promise.all([
       getProxies(),
-      freshProxyProviders(),
+      calcuProxyProviders(),
       getRuntimeProxyGroupOrder(),
     ])
 
@@ -269,29 +273,35 @@ export async function calcuProxies(): Promise<{
     groups,
     records: records as Record<string, IProxyItem>,
     proxies: (proxies as IProxyItem[]) ?? [],
+    providers: providerResponse,
   }
 }
 
-/**
- * Узлы провайдеров в GET /proxies не приходят: их задержки есть только в ответе
- * провайдеров, поэтому читаем его вместе с прокси, а заодно освежаем им запрос
- * провайдеров — тот сам по себе не опрашивается.
- */
-async function freshProxyProviders() {
-  const fresh = await calcuProxyProviders()
-  setCacheData(['getProxyProviders'], fresh)
-  return fresh
-}
+type ProxyProviderRecord = Awaited<ReturnType<typeof calcuProxyProviders>>
 
-export async function calcuProxyProviders() {
-  const providers = await getProxyProviders()
+/**
+ * Провайдеры узлов подписки (HTTP и File) — по одному, по именам из принятой
+ * сборки. Узлы провайдеров в GET /proxies не приходят, их задержки есть только
+ * здесь, поэтому провайдеры читаются вместе с группами и отдаются с ними же.
+ * Общий ответ ядра не годится: в нём ещё и провайдер на каждую группу, и
+ * каждый узел повторяется по разу на группу.
+ */
+async function calcuProxyProviders() {
+  const names = await getRuntimeProxyProviderNames()
+  // Сбой чтения одного провайдера — сбой всего чтения: молча выпавший
+  // провайдер показал бы свои узлы без типа и пингов.
+  const providers = await Promise.all(
+    names.map(
+      async (name) => [name, await getProxyProviderByName(name)] as const,
+    ),
+  )
   return Object.fromEntries(
-    Object.entries(providers.providers)
-      .sort()
+    providers
       .filter(
         ([_, item]) =>
-          item?.vehicleType === 'HTTP' || item?.vehicleType === 'File',
-      ),
+          item.vehicleType === 'HTTP' || item.vehicleType === 'File',
+      )
+      .sort(),
   )
 }
 

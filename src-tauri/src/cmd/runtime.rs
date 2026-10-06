@@ -11,12 +11,21 @@ pub async fn get_runtime_config() -> CmdResult<Option<Mapping>> {
     Ok(Config::runtime().await.data_arc().config.clone())
 }
 
-#[tauri::command]
-pub async fn get_runtime_proxy_group_order() -> CmdResult<Vec<String>> {
+/// Имя из YAML: строка, а число — как ядро его прочтёт, строкой.
+fn yaml_name(value: &serde_yaml_ng::Value) -> Option<String> {
+    match value {
+        serde_yaml_ng::Value::String(name) => Some(name.as_str().into()),
+        serde_yaml_ng::Value::Number(name) => Some(name.to_string().into()),
+        _ => None,
+    }
+}
+
+/// Порядок групп (`proxy-groups`) принятой сборки.
+pub(crate) async fn runtime_proxy_group_order() -> Vec<String> {
     let runtime = Config::runtime().await;
     let runtime = runtime.data_arc();
 
-    Ok(runtime
+    runtime
         .config
         .as_ref()
         .and_then(|config| config.get("proxy-groups"))
@@ -25,11 +34,35 @@ pub async fn get_runtime_proxy_group_order() -> CmdResult<Vec<String>> {
             groups
                 .iter()
                 .filter_map(|group| group.get("name"))
-                .filter_map(|name| name.as_str())
-                .map(String::from)
+                .filter_map(yaml_name)
                 .collect()
         })
-        .unwrap_or_default())
+        .unwrap_or_default()
+}
+
+/// Имена провайдеров узлов (`proxy-providers`) принятой сборки — то, что ядро
+/// отдаёт по `/providers/proxies/{имя}`.
+pub(crate) async fn runtime_proxy_provider_names() -> Vec<String> {
+    let runtime = Config::runtime().await;
+    let runtime = runtime.data_arc();
+
+    runtime
+        .config
+        .as_ref()
+        .and_then(|config| config.get("proxy-providers"))
+        .and_then(|providers| providers.as_mapping())
+        .map(|providers| providers.keys().filter_map(yaml_name).collect())
+        .unwrap_or_default()
+}
+
+#[tauri::command]
+pub async fn get_runtime_proxy_group_order() -> CmdResult<Vec<String>> {
+    Ok(runtime_proxy_group_order().await)
+}
+
+#[tauri::command]
+pub async fn get_runtime_proxy_provider_names() -> CmdResult<Vec<String>> {
+    Ok(runtime_proxy_provider_names().await)
 }
 
 #[tauri::command]

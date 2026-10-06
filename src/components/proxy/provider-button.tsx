@@ -18,7 +18,7 @@ import {
 } from '@mui/material'
 import { useLockFn } from 'ahooks'
 import dayjs from 'dayjs'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
@@ -50,12 +50,8 @@ export const ProviderButton = () => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const { proxyProviders } = useProxiesData()
-  const { refreshProxy, refreshProxyProviders } = useAppRefreshers()
+  const { refreshProxy } = useAppRefreshers()
   const [updating, setUpdating] = useState<Record<string, boolean>>({})
-
-  useEffect(() => {
-    refreshProxyProviders().catch(() => {})
-  }, [refreshProxyProviders])
 
   // Проверяем, есть ли провайдеры
   const hasProviders = Object.keys(proxyProviders || {}).length > 0
@@ -68,8 +64,7 @@ export const ProviderButton = () => {
 
       await updateCoreProxyProvider(name)
 
-      // Обновляем данные
-      await refreshProxyProviders()
+      // Провайдеры приходят вместе с группами
       await refreshProxy()
 
       showNotice.success(
@@ -121,8 +116,7 @@ export const ProviderButton = () => {
         }
       }
 
-      // Обновляем данные
-      await refreshProxyProviders()
+      // Провайдеры приходят вместе с группами
       await refreshProxy()
 
       if (failures.length === 0) {

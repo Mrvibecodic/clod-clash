@@ -52,9 +52,8 @@ export const useLayoutEvents = (
   }, [visible])
 
   useTauriEvent('verge://refresh-clash-config', () => {
-    void revalidateKeys(['getProxyProviders'])
-      .catch(() => undefined)
-      .then(() => revalidateKeys(CLASH_CONFIG_KEYS_ALWAYS))
+    // Провайдеров прокси перечитывает само чтение групп, когда ядро сменилось
+    void revalidateKeys(CLASH_CONFIG_KEYS_ALWAYS)
     void revalidateQueriesByPrefix(CLASH_CONFIG_PREFIXES)
     if (visibleRef.current) {
       void revalidateKeys(CLASH_CONFIG_KEYS_WHEN_VISIBLE)

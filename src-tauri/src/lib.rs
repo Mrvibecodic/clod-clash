@@ -167,6 +167,7 @@ mod app_init {
             cmd::change_clash_core,
             cmd::get_runtime_config,
             cmd::get_runtime_proxy_group_order,
+            cmd::get_runtime_proxy_provider_names,
             cmd::get_proxies_stamp,
             cmd::get_runtime_yaml,
             cmd::get_runtime_proxy_chain_config,

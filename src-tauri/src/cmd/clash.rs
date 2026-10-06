@@ -615,17 +615,40 @@ const PROXIES_STAMP_TIMEOUT: std::time::Duration = std::time::Duration::from_sec
 ///
 /// Ядро об этих переменах не сообщает, а целиком разбирать его ответ раз в
 /// секунду дорого. Поэтому окно спрашивает только отпечаток и перечитывает
-/// данные, лишь когда он сменился. Хватает двух ответов: у провайдеров есть
-/// встроенный `default` со всеми узлами и группами подписки, а `/group`
-/// добавляет то, чего в нём нет, — GLOBAL, если подписка его не задала.
+/// данные, лишь когда он сменился. В отпечатке всё, из чего окно собирает
+/// показ: `/proxies` (все группы, включая GLOBAL, и узлы самой подписки),
+/// ответы настоящих провайдеров из `proxy-providers` и порядок групп принятой
+/// сборки. Общий `/providers/proxies` не годится: ядро заводит провайдер ещё и
+/// на каждую группу, и узел в нём повторяется по разу на группу.
 #[tauri::command]
 pub async fn get_proxies_stamp() -> CmdResult<std::string::String> {
+    use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
     use std::hash::Hasher as _;
 
-    let (groups, providers) = tokio::join!(core_body("/group"), core_body("/providers/proxies"));
+    let providers: Vec<std::string::String> = super::runtime::runtime_proxy_provider_names()
+        .await
+        .iter()
+        .map(|name| format!("/providers/proxies/{}", utf8_percent_encode(name, NON_ALPHANUMERIC)))
+        .collect();
+
+    let (proxies, providers) = tokio::join!(
+        core_body("/proxies"),
+        futures::future::join_all(providers.iter().map(|path| core_body(path)))
+    );
     let mut hasher = std::hash::DefaultHasher::new();
-    hasher.write(groups.stringify_err()?.as_ref());
-    hasher.write(providers.stringify_err()?.as_ref());
+    hasher.write(proxies.stringify_err()?.as_ref());
+    for group in super::runtime::runtime_proxy_group_order().await {
+        hasher.write(group.as_bytes());
+        hasher.write_u8(0);
+    }
+    for provider in providers {
+        // Провайдер, которого ядро не отдало, отпечаток не роняет: остальное
+        // по-прежнему надо замечать.
+        match provider {
+            Ok(body) => hasher.write(body.as_ref()),
+            Err(_) => hasher.write(b"-"),
+        }
+    }
     Ok(format!("{:016x}", hasher.finish()))
 }
 

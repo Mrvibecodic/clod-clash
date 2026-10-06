@@ -11,7 +11,6 @@ import { useRefreshOnReturn } from '@/hooks/use-refresh-on-return'
 import { useVerge } from '@/hooks/use-verge'
 import {
   calcuProxies,
-  calcuProxyProviders,
   getAutotemProxy,
   getProxiesStamp,
   getSystemProxy,
@@ -152,13 +151,6 @@ export const AppDataProvider = ({
     ...TQ_MIHOMO,
   })
 
-  const { data: proxyProviders, refetch: _refetchProxyProviders } = useQuery({
-    queryKey: ['getProxyProviders'],
-    queryFn: calcuProxyProviders,
-    ...TQ_MIHOMO,
-    revalidateOnMount: false,
-  })
-
   const { data: ruleProviders, refetch: _refetchRuleProviders } = useQuery({
     queryKey: ['getRuleProviders'],
     queryFn: getRuleProviders,
@@ -201,7 +193,6 @@ export const AppDataProvider = ({
   const refreshProxy = useStableFn(_refetchProxy)
   const refreshClashConfig = useStableFn(_refetchClashConfig)
   const refreshRules = useStableFn(_refetchRules)
-  const refreshProxyProviders = useStableFn(_refetchProxyProviders)
   const refreshRuleProviders = useStableFn(_refetchRuleProviders)
 
   useEffect(() => {
@@ -305,9 +296,9 @@ export const AppDataProvider = ({
   const proxiesValue = useMemo(
     () => ({
       proxies: proxiesData,
-      proxyProviders: proxyProviders || {},
+      proxyProviders: proxiesData?.providers ?? {},
     }),
-    [proxiesData, proxyProviders],
+    [proxiesData],
   )
 
   const rulesValue = useMemo(
@@ -365,16 +356,9 @@ export const AppDataProvider = ({
       refreshProxy,
       refreshClashConfig,
       refreshRules,
-      refreshProxyProviders,
       refreshRuleProviders,
     }),
-    [
-      refreshProxy,
-      refreshClashConfig,
-      refreshRules,
-      refreshProxyProviders,
-      refreshRuleProviders,
-    ],
+    [refreshProxy, refreshClashConfig, refreshRules, refreshRuleProviders],
   )
 
   return (
