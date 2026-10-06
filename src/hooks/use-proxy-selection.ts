@@ -3,11 +3,7 @@ import { selectNodeForGroup } from 'tauri-plugin-mihomo-api'
 
 import { useProfiles } from '@/hooks/use-profiles'
 import { useVerge } from '@/hooks/use-verge'
-import {
-  closeConnectionsVia,
-  patchSelectedNode,
-  syncTrayProxySelection,
-} from '@/services/cmds'
+import { closeConnectionsVia, patchSelectedNode } from '@/services/cmds'
 import { debugLog } from '@/utils/debug'
 
 const cleanupConnections = async (previousProxy: string) => {
@@ -48,15 +44,6 @@ export const useProxySelection = (options: ProxySelectionOptions = {}) => {
     [verge?.auto_close_connection, enableConnectionCleanup],
   )
 
-  const syncTraySelection = useCallback(() => {
-    syncTrayProxySelection().catch((error) => {
-      console.error(
-        '[ProxySelection] Не удалось синхронизировать состояние трея:',
-        error,
-      )
-    })
-  }, [])
-
   const persistSelection = useCallback(
     (groupName: string, proxyName: string, skipConfigSave: boolean) => {
       if (!current || skipConfigSave) return
@@ -81,7 +68,6 @@ export const useProxySelection = (options: ProxySelectionOptions = {}) => {
       try {
         await selectNodeForGroup(groupName, proxyName)
         onSuccess?.()
-        syncTraySelection()
         persistSelection(groupName, proxyName, skipConfigSave)
         debugLog(
           `[ProxySelection] Прокси и состояние синхронизированы: ${groupName} -> ${proxyName}`,
@@ -104,7 +90,7 @@ export const useProxySelection = (options: ProxySelectionOptions = {}) => {
         onError?.(error)
       }
     },
-    [config, onError, onSuccess, persistSelection, syncTraySelection],
+    [config, onError, onSuccess, persistSelection],
   )
 
   const flushChangeQueue = useCallback(async () => {

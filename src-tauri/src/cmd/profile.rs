@@ -566,11 +566,16 @@ pub async fn patch_profiles_config_by_profile_index(profile_index: String) -> Cm
 /// подписки: два быстрых переключения подряд читали один снимок, и второе
 /// сохранение затирало первое. Слияние делается на бэкенде, поэтому гонки нет
 /// ни у интерфейса, ни у трея.
+///
+/// Выбор, сделанный в окне, сохраняется только здесь, — здесь же о нём узнаёт
+/// трей, с какого бы экрана ни выбирали.
 #[tauri::command]
 pub async fn patch_selected_node(group: String, node: String) -> CmdResult {
-    profiles::profiles_set_selected_node_safe(&group, &node)
+    let saved = profiles::profiles_set_selected_node_safe(&group, &node)
         .await
-        .stringify_err()
+        .stringify_err();
+    super::proxy::sync_tray_proxy_selection();
+    saved
 }
 
 /// Изменяет отдельный profile item

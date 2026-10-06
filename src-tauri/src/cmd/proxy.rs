@@ -7,9 +7,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 static TRAY_SYNC_RUNNING: AtomicBool = AtomicBool::new(false);
 static TRAY_SYNC_PENDING: AtomicBool = AtomicBool::new(false);
 
-/// Синхронизирует выбор прокси между треем и GUI
-#[tauri::command]
-pub async fn sync_tray_proxy_selection() -> CmdResult<()> {
+/// Пересобрать меню трея после выбора узла в окне. Частые выборы подряд
+/// сливаются в одну пересборку.
+pub fn sync_tray_proxy_selection() {
     if TRAY_SYNC_RUNNING
         .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
         .is_ok()
@@ -20,8 +20,6 @@ pub async fn sync_tray_proxy_selection() -> CmdResult<()> {
     } else {
         TRAY_SYNC_PENDING.store(true, Ordering::Release);
     }
-
-    Ok(())
 }
 
 async fn run_tray_sync_loop() {
