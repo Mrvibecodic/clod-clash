@@ -461,7 +461,16 @@ fn spawn_save_task(pace: ExitPace) -> tokio::task::JoinHandle<bool> {
     // Сохранение настроек идёт наравне с уборкой, а не перед ней: файлы, которые
     // мы пишем, к остановке ядра и к системному прокси отношения не имеют.
     tokio::task::spawn(async move {
-        match timeout(pace.save_budget(), Config::apply_all_and_save_file()).await {
+        // clod:report — накопленные замеры для отчёта живут в памяти и
+        // пишутся вместе с настройками.
+        let save_all = async {
+            let (settings, ()) = tokio::join!(
+                Config::apply_all_and_save_file(),
+                crate::module::client_report::flush_at_exit()
+            );
+            settings
+        };
+        match timeout(pace.save_budget(), save_all).await {
             Ok(()) => true,
             Err(_) => {
                 logging!(

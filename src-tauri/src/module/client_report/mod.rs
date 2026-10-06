@@ -4,7 +4,9 @@
 //! что ядро уже намерило (история задержек узлов из `/proxies`, байты
 //! соединений по узлам из `/connections`), и раскладывает по сети, часу и
 //! внешнему адресу клиента. Своих проб нет. Проверка 16–20 приносит свои итоги
-//! сама ([`note_freeze`]). Храним не больше 7 суток.
+//! сама ([`note_freeze`]). Храним не больше 7 суток: накопленное живёт в
+//! памяти, в файл уходит раз в пять минут, при закрытии часа, после отправки
+//! и на выходе.
 //!
 //! Все замеры: ядро держит у узла только 10 последних, поэтому сборщик читает
 //! их тем чаще, чем чаще узлы проверяются (от 20 секунд до 5 минут), и
@@ -14,9 +16,10 @@
 //! Замер лежит в той сети и при том адресе, где сделан. Сеть с адресом —
 //! «место» — узнаётся один раз и держится, пока сторож среды не увидит смену
 //! сети или пробуждение ([`network_changed`]): тогда всё намеренное до смены
-//! уходит в старое место, последние секунды перед тем, как смену заметили,
-//! отбрасываются (неясно, в какой сети они сделаны), а новое место узнаётся
-//! сразу, с новым адресом. Если же сеть при очередном чтении оказалась другой,
+//! уходит в старое место (сторож этого не ждёт: хвост трафика последних
+//! секунд дороже, чем задержка переподключения), последние секунды перед
+//! тем, как смену заметили, отбрасываются (неясно, в какой сети они
+//! сделаны), а новое место узнаётся сразу, с новым адресом. Если же сеть при очередном чтении оказалась другой,
 //! а сторож смолчал, окно с неизвестным моментом смены отбрасывается целиком.
 //! В одной сети адрес переспрашивается раз в час.
 //!
@@ -78,12 +81,22 @@ const IP_EVERY: i64 = 60 * 60;
 /// Не узнался — переспрашивается не чаще этого.
 const IP_RETRY: i64 = 5 * 60;
 const CORE_TIMEOUT: Duration = Duration::from_secs(5);
-/// Сколько сторож среды ждёт сброса замеров в старое место.
-const CHANGE_FLUSH_TIMEOUT: Duration = Duration::from_secs(4);
+/// Накопленное пишется в файл не чаще этого (ещё — при закрытии часа, после
+/// отправки и на выходе): при аварийном завершении теряется не больше этого.
+const SAVE_EVERY: i64 = 5 * 60;
 const DEVICE_FILE: &str = "report-device";
 
-/// Файлы накопленного читает и пишет кто-то один: сборщик, проверка 16–20 или отправка.
-static FILES: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+/// Накопленное одной подписки в памяти: файл читается один раз, пишется по
+/// [`SAVE_EVERY`]. Сборщик, проверка 16–20 и отправка ходят сюда по одному.
+struct Cached {
+    uid: String,
+    store: store::Store,
+    dirty: bool,
+    /// Когда файл писали в последний раз (или читали).
+    saved_at: i64,
+}
+
+static CACHE: tokio::sync::Mutex<Option<Cached>> = tokio::sync::Mutex::const_new(None);
 /// Чтение замеров и смена места идут по одному.
 static COLLECT: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 /// Сколько раз сторож среды видел смену сети или пробуждение.
@@ -141,6 +154,73 @@ fn now_secs() -> i64 {
 
 fn now_millis() -> i64 {
     chrono::Utc::now().timestamp_millis()
+}
+
+/// Записать накопленное в файл, если есть что. Подписки, которой в реестре
+/// уже нет, файл не возвращается: его убрало удаление подписки.
+async fn flush(entry: &mut Cached, now: i64) {
+    if !entry.dirty {
+        return;
+    }
+    let known = Config::profiles().await.latest_arc().get_item(&entry.uid).is_ok();
+    if known && let Err(err) = store::save(&entry.uid, &entry.store).await {
+        logging!(warn, Type::Core, "[Report] the measurements were not saved: {err:#}");
+        return;
+    }
+    entry.dirty = false;
+    entry.saved_at = now;
+}
+
+/// Накопленное подписки — в работу; `save` — писать в файл сразу (после
+/// отправки, вердикты 16–20), иначе по [`SAVE_EVERY`] и при закрытии часа.
+async fn with_store<T>(uid: &str, now: i64, save: bool, work: impl FnOnce(&mut store::Store) -> T) -> T {
+    let mut guard = CACHE.lock().await;
+    if guard.as_ref().is_none_or(|entry| entry.uid != uid) {
+        if let Some(old) = guard.as_mut() {
+            flush(old, now).await;
+        }
+        let store = store::load(uid).await;
+        *guard = Some(Cached {
+            uid: uid.to_owned(),
+            store,
+            dirty: false,
+            saved_at: now,
+        });
+    }
+    // Запись только что положена, закрытие не выполнится.
+    let entry = guard.get_or_insert_with(|| Cached {
+        uid: uid.to_owned(),
+        store: store::Store::default(),
+        dirty: false,
+        saved_at: now,
+    });
+    let out = work(&mut entry.store);
+    entry.dirty = true;
+    let due = now.saturating_sub(entry.saved_at) >= SAVE_EVERY || store::hour_of(now) != store::hour_of(entry.saved_at);
+    if save || due {
+        flush(entry, now).await;
+    }
+    drop(guard);
+    out
+}
+
+/// Накопленное — в файл: на выходе из приложения.
+pub async fn flush_at_exit() {
+    let mut guard = CACHE.lock().await;
+    if let Some(entry) = guard.as_mut() {
+        flush(entry, now_secs()).await;
+    }
+    drop(guard);
+}
+
+/// Сбор кончился — накопленное в файл, из памяти вон.
+async fn forget_store() {
+    let mut guard = CACHE.lock().await;
+    if let Some(entry) = guard.as_mut() {
+        flush(entry, now_secs()).await;
+    }
+    *guard = None;
+    drop(guard);
 }
 
 fn is_collected(item: &PrfItem) -> bool {
@@ -487,35 +567,33 @@ async fn record(uid: &str, place: &Place, window: Window) {
     }
     let Window { nodes, pings, traffic } = window;
     let now = now_secs();
-    let _files = FILES.lock().await;
-    let mut saved = store::load(uid).await;
-    for (name, at, delay) in pings {
-        let info = &nodes[&name];
-        let key = store::node_key(info);
-        saved.remember_node(&key, info);
-        saved.add_ping(place, at / 1000, &key, delay);
-    }
-    for (name, (up, down, sec)) in traffic {
-        let Some(info) = nodes.get(&name) else {
-            continue;
-        };
-        let key = store::node_key(info);
-        saved.remember_node(&key, info);
-        saved.add_use(
-            place,
-            now,
-            &key,
-            &Use {
-                up,
-                down,
-                sec: sec.max(1),
-            },
-        );
-    }
-    saved.prune(now);
-    if let Err(err) = store::save(uid, &saved).await {
-        logging!(warn, Type::Core, "[Report] the measurements were not saved: {err:#}");
-    }
+    with_store(uid, now, false, |saved| {
+        for (name, at, delay) in pings {
+            let info = &nodes[&name];
+            let key = store::node_key(info);
+            saved.remember_node(&key, info);
+            saved.add_ping(place, at / 1000, &key, delay);
+        }
+        for (name, (up, down, sec)) in traffic {
+            let Some(info) = nodes.get(&name) else {
+                continue;
+            };
+            let key = store::node_key(info);
+            saved.remember_node(&key, info);
+            saved.add_use(
+                place,
+                now,
+                &key,
+                &Use {
+                    up,
+                    down,
+                    sec: sec.max(1),
+                },
+            );
+        }
+        saved.prune(now);
+    })
+    .await;
 }
 
 /// Подписка сменилась (или сбор начался) — всё с чистого листа; замеры
@@ -547,6 +625,7 @@ async fn tick() {
         let _collect = COLLECT.lock().await;
         let Some(uid) = collecting_uid().await else {
             with_runtime(|runtime| *runtime = Runtime::default());
+            forget_store().await;
             return;
         };
         start_over_for(&uid);
@@ -626,24 +705,15 @@ async fn locate(changes: u64) -> Option<Spot> {
 
 /// Сторож среды увидел смену сети или пробуждение. Намеренное до смены уходит
 /// в старое место, последние [`CHANGE_GUARD_MS`] перед ней отбрасываются, новое
-/// место узнаётся сразу.
-pub(crate) async fn network_changed() {
+/// место узнаётся сразу. Сторожа это не задерживает: байты соединений,
+/// закрытых им раньше, чем дошёл сброс, — хвост последних секунд, не больше.
+pub(crate) fn network_changed() {
     let seen_at = now_millis();
     let before = CHANGES.fetch_add(1, Ordering::AcqRel);
-    let flushed = tokio::time::timeout(CHANGE_FLUSH_TIMEOUT, flush_before_change(seen_at, before)).await;
-    if flushed.is_err() {
-        logging!(
-            debug,
-            Type::Core,
-            "[Report] the core took too long, measurements before the network change are dropped"
-        );
-        with_runtime(|runtime| {
-            runtime.pings_until = runtime.pings_until.max(seen_at);
-            runtime.traffic.clear();
-            runtime.spot = None;
-        });
-    }
-    AsyncHandler::spawn(|| async { tick().await });
+    AsyncHandler::spawn(move || async move {
+        flush_before_change(seen_at, before).await;
+        tick().await;
+    });
 }
 
 async fn flush_before_change(seen_at: i64, before: u64) {
@@ -719,22 +789,20 @@ pub(crate) async fn note_freeze(
         }
     };
 
-    let _files = FILES.lock().await;
-    let mut saved = store::load(uid).await;
-    for (info, verdict, status) in known {
-        let key = store::node_key(info);
-        saved.remember_node(&key, info);
-        let word = match verdict {
-            Verdict::Ok => "ok",
-            Verdict::Frozen => "frozen",
-            Verdict::Dead => "dead",
-        };
-        saved.add_freeze(&place, now, &key, word, status);
-    }
-    saved.prune(now);
-    if let Err(err) = store::save(uid, &saved).await {
-        logging!(warn, Type::Core, "[Report] the 16–20 results were not saved: {err:#}");
-    }
+    with_store(uid, now, true, |saved| {
+        for (info, verdict, status) in known {
+            let key = store::node_key(info);
+            saved.remember_node(&key, info);
+            let word = match verdict {
+                Verdict::Ok => "ok",
+                Verdict::Frozen => "frozen",
+                Verdict::Dead => "dead",
+            };
+            saved.add_freeze(&place, now, &key, word, status);
+        }
+        saved.prune(now);
+    })
+    .await;
 }
 
 /// Случайная метка установки: ею прослойка различает устройства, когда
@@ -819,23 +887,22 @@ pub(crate) async fn after_scheduled_update(uid: String) {
     };
 
     let now = now_secs();
-    let (gz, until, hours) = {
-        let _files = FILES.lock().await;
-        let mut saved = store::load(&uid).await;
+    let packed = with_store(&uid, now, false, |saved| {
         saved.prune(now);
         if now.saturating_sub(saved.last_try) < SEND_EVERY {
-            return;
+            return None;
         }
-        let Some(oldest) = saved.oldest_closed(now) else {
-            return;
-        };
+        let oldest = saved.oldest_closed(now)?;
         let dev = device_id();
-        match pack_window(&saved, now, oldest, &dev) {
-            Ok(packed) => packed,
-            Err(err) => {
-                logging!(warn, Type::Core, "[Report] the report was not packed: {err}");
-                return;
-            }
+        Some(pack_window(saved, now, oldest, &dev))
+    })
+    .await;
+    let (gz, until, hours) = match packed {
+        None => return,
+        Some(Ok(packed)) => packed,
+        Some(Err(err)) => {
+            logging!(warn, Type::Core, "[Report] the report was not packed: {err}");
+            return;
         }
     };
 
@@ -858,15 +925,13 @@ pub(crate) async fn after_scheduled_update(uid: String) {
         }
     };
 
-    let _files = FILES.lock().await;
-    let mut saved = store::load(&uid).await;
-    saved.last_try = now;
-    if status == 204 {
-        saved.drop_sent(now, until);
-    }
-    if let Err(err) = store::save(&uid, &saved).await {
-        logging!(warn, Type::Core, "[Report] the report state was not saved: {err:#}");
-    }
+    with_store(&uid, now, true, |saved| {
+        saved.last_try = now;
+        if status == 204 {
+            saved.drop_sent(now, until);
+        }
+    })
+    .await;
     let outcome = match status {
         204 => "accepted",
         403 => "the middleware does not take reports",
