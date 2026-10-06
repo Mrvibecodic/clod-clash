@@ -17,8 +17,9 @@ import {
   getSystemProxy,
 } from '@/services/cmds'
 import {
+  getCacheError,
   revalidateQueries,
-  setCacheData,
+  revalidateQuery,
   useQuery,
 } from '@/services/query-client'
 import { reachableProxyHost } from '@/utils/ports'
@@ -39,7 +40,9 @@ import {
  */
 const refreshOnReturn = () =>
   revalidateQueries([
-    ['getProxies'],
+    // Группы и узлы — сверкой с ядром: перечитает их, только если за время в
+    // трее в ядре что-то сменилось.
+    ['syncProxies'],
     ['getClashConfig'],
     ['getSystemProxy'],
     ['getAutotemProxy'],
@@ -78,10 +81,12 @@ let shownProxiesStamp: string | undefined
 const syncProxies = async () => {
   const stamp = await getProxiesStamp()
   if (stamp !== shownProxiesStamp) {
-    // Напрямую, а не через запрос SWR: тот проглатывает ошибку, и неудачное
-    // чтение запомнило бы отпечаток без данных — до следующей перемены в ядре.
-    setCacheData(['getProxies'], await calcuProxies())
-    shownProxiesStamp = stamp
+    // Через запрос SWR, а не записью в кэш: из одновременных чтений он
+    // оставляет начатое позже, и сверка, начатая до выбора узла руками, не
+    // вернёт на экран прежний. Неудачное чтение отпечаток не запоминает —
+    // следующий тик попробует снова.
+    await revalidateQuery(['getProxies'])
+    if (getCacheError(['getProxies']) === undefined) shownProxiesStamp = stamp
   }
   return stamp
 }
