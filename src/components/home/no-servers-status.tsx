@@ -95,7 +95,10 @@ export const NoServersStatus = ({ profile, onRefreshed, quiet }: Props) => {
   const used = (extra?.upload ?? 0) + (extra?.download ?? 0)
   const skew = clockSkew(profile) ?? 0
   const expireDate = date(extra?.expire, skew)
-  const refillDate = date(profile.refill_date)
+  // Дата пополнения уже в секундах — её приводит разбор ответа панели.
+  const refillDate = profile.refill_date
+    ? dayjs(profile.refill_date * 1000).format('DD.MM.YYYY')
+    : undefined
 
   const severity =
     reason === 'expired'
