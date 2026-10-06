@@ -1,11 +1,14 @@
 import { useCallback, useMemo, useSyncExternalStore } from 'react'
 import { MihomoWebSocket } from 'tauri-plugin-mihomo-api'
 
-import { isWsErrorMessage } from '@/utils/ws-error'
+import {
+  createSharedSubscriptionEntry,
+  disposeSharedSubscriptionEntry,
+  type SharedSubscriptionEntry,
+} from './use-mihomo-ws-subscription'
 
 const MAX_CLOSED_CONNS_NUM = 500
 const CONNECTION_UPDATE_THROTTLE_MS = 500
-const CONNECTION_RECONNECT_DELAY_MS = 1_000
 /**
  * clod:Р10-77 — «скорость» соединения считалась разницей двух соседних
  * снимков и подписывалась «в секунду», хотя снимки идут не строго раз в
@@ -32,10 +35,7 @@ interface ConnectionMonitorData {
 }
 
 let connectionData: ConnectionMonitorData = initConnData
-let connectionSocket: MihomoWebSocket | null = null
-let connectionConnecting = false
-let reconnectTimer: ReturnType<typeof setTimeout> | null = null
-let staleTimer: ReturnType<typeof setTimeout> | null = null
+let connectionStream: SharedSubscriptionEntry | null = null
 let droppedAsDead = false
 let flushTimer: ReturnType<typeof setTimeout> | null = null
 let pendingMessageData: string | null = null
@@ -272,119 +272,53 @@ const enqueueConnectionMessage = (messageData: string) => {
   )
 }
 
-const clearReconnectTimer = () => {
-  if (!reconnectTimer) return
-  window.clearTimeout(reconnectTimer)
-  reconnectTimer = null
-}
-
-const clearStaleTimer = () => {
-  if (!staleTimer) return
-  window.clearTimeout(staleTimer)
-  staleTimer = null
-}
-
-const closeConnectionSocket = async () => {
-  clearStaleTimer()
-  const socket = connectionSocket
-  connectionSocket = null
-  if (!socket) return
-
-  try {
-    await socket.close()
-  } catch (err) {
-    console.warn('Failed to close connection websocket', err)
-  }
-}
-
-const scheduleReconnect = () => {
-  if (!hasConnectionSubscribers()) return
-  if (reconnectTimer) return
-  reconnectTimer = window.setTimeout(() => {
-    reconnectTimer = null
-    void connectConnectionSocket()
-  }, CONNECTION_RECONNECT_DELAY_MS)
-}
-
-async function reconnectConnectionSocket() {
-  if (!hasConnectionSubscribers()) return
-  await closeConnectionSocket()
-  scheduleReconnect()
-}
-
-function dropDeadConnectionSocket() {
+const dropPendingMessage = () => {
   pendingMessageData = null
   if (flushTimer) {
     window.clearTimeout(flushTimer)
     flushTimer = null
   }
-  if (connectionData.activeConnections.length > 0) {
-    connectionData = mergeConnectionSnapshot(
-      { uploadTotal: 0, downloadTotal: 0, connections: [] },
-      connectionData,
-      null,
-    )
-    droppedAsDead = true
-    notifyConnectionListeners()
-  }
-  void reconnectConnectionSocket()
 }
 
-function armStaleTimer(socket: MihomoWebSocket) {
-  clearStaleTimer()
-  staleTimer = window.setTimeout(() => {
-    staleTimer = null
-    if (connectionSocket === socket) dropDeadConnectionSocket()
-  }, CONNECTION_STALE_MS)
-}
-
-async function connectConnectionSocket() {
-  if (connectionSocket || connectionConnecting) return
-  if (!hasConnectionSubscribers()) return
-
-  clearReconnectTimer()
-  connectionConnecting = true
-
-  try {
-    const socket = await MihomoWebSocket.connect_connections()
-    if (!hasConnectionSubscribers()) {
-      await socket.close()
-      return
-    }
-    connectionSocket = socket
-    armStaleTimer(socket)
-    socket.addListener((message) => {
-      if (connectionSocket !== socket) return
-      if (message.type !== 'Text') return
-      if (isWsErrorMessage(message.data)) {
-        dropDeadConnectionSocket()
-        return
-      }
-
-      armStaleTimer(socket)
-      enqueueConnectionMessage(message.data)
-    })
-  } catch {
-    scheduleReconnect()
-  } finally {
-    connectionConnecting = false
-  }
+/**
+ * Поток замолчал или ядро прислало ошибку: живых соединений мы больше не
+ * знаем — уводим их в закрытые. Переподключается сам поток.
+ */
+function markConnectionsDead() {
+  dropPendingMessage()
+  if (connectionData.activeConnections.length === 0) return
+  connectionData = mergeConnectionSnapshot(
+    { uploadTotal: 0, downloadTotal: 0, connections: [] },
+    connectionData,
+    null,
+  )
+  droppedAsDead = true
+  notifyConnectionListeners()
 }
 
 const startConnectionMonitor = () => {
-  void connectConnectionSocket()
+  if (connectionStream) return
+  const stream = createSharedSubscriptionEntry(
+    () => MihomoWebSocket.connect_connections(),
+    CONNECTION_STALE_MS,
+  )
+  const owner = {
+    handleMessage: enqueueConnectionMessage,
+    onStale: markConnectionsDead,
+    isMounted: () => true,
+  }
+  stream.owners.add(owner)
+  stream.activeOwner = owner
+  connectionStream = stream
+  void stream.connectWs()
 }
 
 const stopConnectionMonitorIfIdle = () => {
-  if (hasConnectionSubscribers()) return
+  if (hasConnectionSubscribers() || !connectionStream) return
 
-  clearReconnectTimer()
-  pendingMessageData = null
-  if (flushTimer) {
-    window.clearTimeout(flushTimer)
-    flushTimer = null
-  }
-  void closeConnectionSocket()
+  dropPendingMessage()
+  disposeSharedSubscriptionEntry(connectionStream)
+  connectionStream = null
 }
 
 const getConnectionSnapshot = () => connectionData

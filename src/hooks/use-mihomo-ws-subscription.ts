@@ -20,7 +20,7 @@ interface SharedSubscriptionOwner {
   isMounted: () => boolean
 }
 
-interface SharedSubscriptionEntry {
+export interface SharedSubscriptionEntry {
   refs: number
   ws: MihomoWebSocket | null
   reconnectTimer: ReturnType<typeof setTimeout> | null
@@ -113,7 +113,12 @@ const closeSharedSocket = async (entry: SharedSubscriptionEntry) => {
   await closeSocket(ws)
 }
 
-const createSharedSubscriptionEntry = (
+/**
+ * Подписка на поток ядра: подключение, «протухание» без сообщений, повторное
+ * подключение и закрытие сокетов, чей `close()` отказал. Одна на все потоки —
+ * трафик, журнал и соединения.
+ */
+export const createSharedSubscriptionEntry = (
   connect: () => Promise<MihomoWebSocket>,
   staleMs: number,
 ): SharedSubscriptionEntry => {
@@ -166,12 +171,14 @@ const createSharedSubscriptionEntry = (
 
       const socket = ws
       socket.addListener((msg: Message) => {
+        // Запоздавшее сообщение закрытого или сменённого сокета — не наше
+        if (entry.ws !== socket) return
         if (msg.type !== 'Text') return
         if (isWsErrorMessage(msg.data)) {
           dropDeadSocket(entry, socket)
           return
         }
-        if (entry.ws === socket) armStaleTimer(entry, socket)
+        armStaleTimer(entry, socket)
         const activeOwner = pickActiveOwner(entry)
         if (!activeOwner) return
 
@@ -208,6 +215,21 @@ const createSharedSubscriptionEntry = (
   }
 
   return entry
+}
+
+/** Закрыть подписку насовсем: без переподключения, сокет — закрыть. */
+export const disposeSharedSubscriptionEntry = (
+  entry: SharedSubscriptionEntry,
+) => {
+  entry.closed = true
+  if (entry.reconnectTimer) {
+    clearTimeout(entry.reconnectTimer)
+    entry.reconnectTimer = null
+  }
+  clearStaleTimer(entry)
+  // Не ждём закрытия, но и оборваться на нём не должны: без `catch` отказ IPC
+  // улетал бы в unhandled rejection.
+  void closeSharedSocket(entry).catch(() => {})
 }
 
 /**
@@ -415,16 +437,8 @@ export const useMihomoWsSubscription = <T>(
 
       entry.refs -= 1
       if (entry.refs <= 0) {
-        entry.closed = true
-        if (entry.reconnectTimer) {
-          clearTimeout(entry.reconnectTimer)
-          entry.reconnectTimer = null
-        }
-        clearStaleTimer(entry)
         sharedSubscriptions.delete(subscriptionCacheKey)
-        // Размонтирование не ждёт закрытия, но и оборваться на нём не должно:
-        // без `catch` отказ IPC улетал бы в unhandled rejection.
-        void closeSharedSocket(entry).catch(() => {})
+        disposeSharedSubscriptionEntry(entry)
       }
     }
     // eslint-disable-next-line react-compiler/react-compiler
