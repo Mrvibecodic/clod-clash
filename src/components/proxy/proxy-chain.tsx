@@ -58,7 +58,7 @@ import {
   saveProxyChain,
 } from '@/services/proxy-chain-store'
 import { debugLog } from '@/utils/debug'
-import { delayTone } from '@/utils/delay-color'
+import { delayText, delayTone, usableDelay } from '@/utils/delay-color'
 
 interface ParsedChainConfig {
   proxies?: Array<{
@@ -234,9 +234,9 @@ const SortableItem = ({
       {delay !== undefined && (
         <Chip
           label={
-            delay > 0 && delay <= 1e5
+            usableDelay(delay)
               ? `${delay}ms`
-              : t('shared.labels.timeout')
+              : delayText(delay, t('shared.labels.timeout'))
           }
           size="small"
           color={delayTone(delay, pingBounds) ?? 'default'}

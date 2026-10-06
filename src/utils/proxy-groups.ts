@@ -114,57 +114,48 @@ const resolveLeaf = (
   return current
 }
 
-const DELAY_ERROR = 1e6
-
-export const usableDelay = (delay?: number): delay is number =>
-  delay !== undefined && delay > 0 && delay < DELAY_ERROR
-
-export const failedDelay = (delay?: number): boolean =>
-  delay !== undefined && (delay === 0 || delay >= DELAY_ERROR)
+/**
+ * Пинг записи группы: её собственный замер или замер листа, куда она ведёт
+ * (вложенная группа меряется по своему текущему узлу). Есть оба — берём
+ * свежий: неудачная проверка группы, после которой ядро увело её на живой
+ * узел и измерило его, не должна закрывать новый замер.
+ */
+const entryMeasurement = (
+  records: Record<string, any>,
+  name: string,
+  group: string,
+) => {
+  const measure = (target: string) => {
+    const record = (records[target] ?? { name: target }) as any
+    return {
+      target,
+      delay: delayManager.getDelayFix(record, group, true),
+      at: delayManager.getMeasuredAt(record, group),
+    }
+  }
+  const own = measure(name)
+  const leafName = resolveLeaf(records, name)
+  if (leafName === name) return own
+  const leaf = measure(leafName)
+  if (own.delay < 0) return leaf
+  if (leaf.delay < 0) return own
+  return own.at >= leaf.at ? own : leaf
+}
 
 export const entryDelay = (
   records: Record<string, any>,
   name: string,
   group: string,
-) => {
-  const record = records[name]
-  const direct = delayManager.getDelayFix(
-    (record ?? { name }) as any,
-    group,
-    true,
-  )
-  if (direct > 0) return direct
-  const leaf = resolveLeaf(records, name)
-  if (leaf === name) return direct
-  return delayManager.getDelayFix(
-    (records[leaf] ?? { name: leaf }) as any,
-    group,
-    true,
-  )
-}
+) => entryMeasurement(records, name, group).delay
 
 export const entryPingTarget = (
   records: Record<string, any>,
   name: string,
   group: string,
-) => {
-  const direct = delayManager.getDelayFix(
-    (records[name] ?? { name }) as any,
-    group,
-    true,
-  )
-  if (direct > 0) return name
-  return resolveLeaf(records, name)
-}
+) => entryMeasurement(records, name, group).target
 
 export const entryMeasuredAt = (
   records: Record<string, any>,
   name: string,
   group: string,
-) => {
-  const target = entryPingTarget(records, name, group)
-  return delayManager.getMeasuredAt(
-    (records[target] ?? { name: target }) as any,
-    group,
-  )
-}
+) => entryMeasurement(records, name, group).at

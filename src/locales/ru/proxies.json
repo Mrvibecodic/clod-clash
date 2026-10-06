@@ -26,8 +26,7 @@
     },
     "labels": {
       "proxyCount": "Количество прокси",
-      "noProxies": "Нет узлов",
-      "delayError": "Ошибка"
+      "noProxies": "Нет узлов"
     },
     "tooltips": {
       "locate": "К выбранному узлу",

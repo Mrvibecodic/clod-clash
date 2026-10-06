@@ -15,7 +15,6 @@ const INITIAL_DELAY: DelayUpdate = { delay: -1, updatedAt: 0 }
 export interface UseProxyDelayState {
   delayValue: number
   isPreset: boolean
-  timeout: number
   onDelay: (providerName?: string) => Promise<void>
 }
 
@@ -62,7 +61,6 @@ export function useProxyDelayState(
   return {
     delayValue: delayState.delay,
     isPreset,
-    timeout,
     onDelay,
   }
 }

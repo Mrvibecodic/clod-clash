@@ -26,8 +26,7 @@
     },
     "labels": {
       "proxyCount": "ノード数",
-      "noProxies": "No Proxies",
-      "delayError": "Error"
+      "noProxies": "No Proxies"
     },
     "tooltips": {
       "locate": "選択中のノードへ",

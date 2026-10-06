@@ -26,8 +26,7 @@
     },
     "labels": {
       "proxyCount": "Anzahl der Knoten",
-      "noProxies": "No Proxies",
-      "delayError": "Error"
+      "noProxies": "No Proxies"
     },
     "tooltips": {
       "locate": "Zum ausgewählten Knoten",

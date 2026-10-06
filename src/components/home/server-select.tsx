@@ -41,24 +41,31 @@ import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
 import delayManager, { effectiveLatencyTimeout } from '@/services/delay'
 import { showNotice } from '@/services/notice-service'
 import { nameWithoutFlag } from '@/utils/country'
-import { delayBars, delayColor } from '@/utils/delay-color'
+import {
+  delayBars,
+  delayColor,
+  failedDelay,
+  usableDelay,
+} from '@/utils/delay-color'
 import {
   AUTO_GROUP_TYPES,
   displayLeaf,
   entryDelay,
   entryMeasuredAt,
   entryPingTarget,
-  failedDelay,
   groupType,
   hasRealNodes,
   isCorePlaceholder,
   NON_NODE_TYPES,
   type ProxyNode,
   SELECTABLE_GROUP_TYPES,
-  usableDelay,
   visibleGroups,
 } from '@/utils/proxy-groups'
 import { toUnixSeconds } from '@/utils/subscription-status'
+
+/** Пинг на Главной: замер — в мс, неответ — словом, как на «Прокси», не мерили — прочерк. */
+const pingLabel = (delay: number | undefined, failed: string) =>
+  usableDelay(delay) ? `${delay} ms` : failedDelay(delay) ? failed : '—'
 
 const VIRTUALIZE_FROM = 50
 const ROW_HEIGHT = 52
@@ -294,13 +301,11 @@ export const ServerSelect = ({ open, onClose }: Props) => {
           <Typography
             variant="body2"
             sx={{
-              color: usableDelay(delay)
-                ? delayColor(delay, current?.ping_thresholds)
-                : 'text.disabled',
+              color: delayColor(delay, current?.ping_thresholds),
               fontVariantNumeric: 'tabular-nums',
             }}
           >
-            {usableDelay(delay) ? `${delay} ms` : '—'}
+            {pingLabel(delay, t('shared.labels.timeout'))}
           </Typography>
         )}
         {isGroup ? null : (
@@ -545,14 +550,17 @@ const SignalDot = ({ delay, bounds }: LatencyProps) => (
   />
 )
 
-const LatencyNumber = ({ delay, bounds }: LatencyProps) => (
-  <Typography
-    sx={{ fontSize: 12, flex: 'none', fontVariantNumeric: 'tabular-nums' }}
-    color={usableDelay(delay) ? delayColor(delay, bounds) : 'text.disabled'}
-  >
-    {usableDelay(delay) ? `${delay} ms` : '—'}
-  </Typography>
-)
+const LatencyNumber = ({ delay, bounds }: LatencyProps) => {
+  const { t } = useTranslation()
+  return (
+    <Typography
+      sx={{ fontSize: 12, flex: 'none', fontVariantNumeric: 'tabular-nums' }}
+      color={delayColor(delay, bounds)}
+    >
+      {pingLabel(delay, t('shared.labels.timeout'))}
+    </Typography>
+  )
+}
 
 const SignalBars = ({ delay, bounds }: LatencyProps) => {
   const lit = usableDelay(delay) ? delayBars(delay, bounds) : 0

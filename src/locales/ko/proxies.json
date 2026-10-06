@@ -26,8 +26,7 @@
     },
     "labels": {
       "proxyCount": "프록시 개수",
-      "noProxies": "No Proxies",
-      "delayError": "Error"
+      "noProxies": "No Proxies"
     },
     "tooltips": {
       "locate": "선택한 노드로 이동",

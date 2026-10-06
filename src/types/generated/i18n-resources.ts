@@ -565,7 +565,6 @@ export interface TranslationResources {
           warning: string
         }
         labels: {
-          delayError: string
           noProxies: string
           proxyCount: string
         }

@@ -81,7 +81,6 @@ type GroupCache = {
   all: IProxyItem[]
   headState: HeadState
   col: number
-  latencyTimeout: number | undefined
   favorites: Set<string>
   items: IRenderItem[]
 }
@@ -123,7 +122,6 @@ export const useRenderList = (
   const { favorites } = useFavorites()
   const { width } = useWindowWidth()
   const [headStates, setHeadState] = useHeadStateNew()
-  const latencyTimeout = effectiveLatencyTimeout(verge?.default_latency_timeout)
 
   // Получаем конфиг времени выполнения для режима цепочки прокси
   const { data: runtimeConfig } = useRuntimeConfig(!!isChainMode)
@@ -227,13 +225,7 @@ export const useRenderList = (
       if (selectedGroup) {
         const targetGroup = allGroups.find((g: any) => g.name === selectedGroup)
         if (targetGroup) {
-          const proxies = filterSort(
-            targetGroup.all,
-            targetGroup.name,
-            '',
-            0,
-            latencyTimeout,
-          )
+          const proxies = filterSort(targetGroup.all, targetGroup.name, '', 0)
 
           if (col > 1) {
             return groupProxies(proxies, col).map((proxyCol, colIndex) => ({
@@ -261,13 +253,7 @@ export const useRenderList = (
 
       // Если конкретная группа не выбрана, показываем узлы первой группы
       const firstGroup = allGroups[0]
-      const proxies = filterSort(
-        firstGroup.all,
-        firstGroup.name,
-        '',
-        0,
-        latencyTimeout,
-      )
+      const proxies = filterSort(firstGroup.all, firstGroup.name, '', 0)
 
       if (col > 1) {
         return groupProxies(proxies, col).map((proxyCol, colIndex) => ({
@@ -375,7 +361,6 @@ export const useRenderList = (
             sameNames(cached.all, group.all))) &&
         cached.headState === headState &&
         cached.col === col &&
-        cached.latencyTimeout === latencyTimeout &&
         cached.favorites === favorites
       ) {
         return cached.items
@@ -400,7 +385,6 @@ export const useRenderList = (
             group.name,
             headState.filterText,
             headState.sortType,
-            latencyTimeout,
             {
               matchCase: headState.filterMatchCase,
               matchWholeWord: headState.filterMatchWholeWord,
@@ -458,7 +442,6 @@ export const useRenderList = (
         all: group.all,
         headState,
         col,
-        latencyTimeout,
         favorites,
         items: ret,
       })
@@ -482,7 +465,6 @@ export const useRenderList = (
     isChainMode,
     runtimeConfig,
     selectedGroup,
-    latencyTimeout,
     favorites,
   ])
 

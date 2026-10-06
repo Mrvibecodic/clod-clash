@@ -12,6 +12,24 @@ type DelayBounds = readonly [good: number, fair: number]
 
 const DEFAULT_BOUNDS: DelayBounds = [GOOD_DELAY, FAIR_DELAY]
 
+/**
+ * Коды задержки во всём интерфейсе: `-1` — не мерили, `-2` — идёт проверка,
+ * `0` — узел не ответил (на нашу проверку или на проверку ядра), больше нуля —
+ * замер в миллисекундах.
+ */
+export const usableDelay = (delay?: number): delay is number =>
+  delay !== undefined && delay > 0
+
+export const failedDelay = (delay?: number): boolean => delay === 0
+
+/**
+ * Пинг текстом для всех экранов: замер — числом, даже если он больше
+ * тайм-аута из настроек (группу ядро могло мерить своим, более долгим), — это
+ * факт; неответ — словом.
+ */
+export const delayText = (delay: number, failedLabel: string) =>
+  usableDelay(delay) ? `${delay}` : failedDelay(delay) ? failedLabel : '-'
+
 export const delayTone = (
   delay: number | undefined,
   [good, fair]: DelayBounds = DEFAULT_BOUNDS,

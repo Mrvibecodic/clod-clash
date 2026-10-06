@@ -26,8 +26,7 @@
     },
     "labels": {
       "proxyCount": "Vekil Sayısı",
-      "noProxies": "No Proxies",
-      "delayError": "Error"
+      "noProxies": "No Proxies"
     },
     "tooltips": {
       "locate": "Seçili düğüme git",

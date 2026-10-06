@@ -5,7 +5,6 @@ import {
 
 import { currentFirst } from '@/utils/current-first'
 import { debugLog } from '@/utils/debug'
-import { delayColor } from '@/utils/delay-color'
 import { isValidUrl } from '@/utils/network'
 
 const hashKey = (name: string, group: string) => `${group ?? ''}::${name}`
@@ -424,10 +423,8 @@ class DelayManager {
     // half-hour-old figure (and a stuck `-2` meant a spinner that never ended).
     if (cached && (!core || cached.updatedAt >= core.at)) return cached.delay
 
-    if (core) {
-      // 0ms отображаем как error
-      return core.delay || 1e6
-    }
+    // Неответ в истории ядра — тоже 0, как и неответ на нашу проверку.
+    if (core) return core.delay
     return -1
   }
 
@@ -648,28 +645,6 @@ class DelayManager {
     debugLog(
       `[DelayManager] Пакетный тест задержки завершён, группа: ${group}, общее время: ${totalTime}ms`,
     )
-  }
-
-  formatDelay(
-    delay: number,
-    timeout: number,
-    labels: { timeout: string; error: string },
-  ) {
-    if (delay === -1) return '-'
-    if (delay === -2) return 'testing'
-    if (delay === 0 || (delay >= timeout && delay <= 1e5)) return labels.timeout
-    if (delay > 1e5) return labels.error
-    return `${delay}`
-  }
-
-  formatDelayColor(
-    delay: number,
-    timeout = 10000,
-    bounds?: IProfileItem['ping_thresholds'],
-  ) {
-    if (delay < 0) return ''
-    if (delay >= timeout) return 'error.main'
-    return delayColor(delay, bounds)
   }
 }
 

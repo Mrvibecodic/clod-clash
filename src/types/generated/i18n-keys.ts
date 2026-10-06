@@ -333,7 +333,6 @@ export const translationKeys = [
   'proxies.page.rules.select',
   'proxies.page.labels.proxyCount',
   'proxies.page.labels.noProxies',
-  'proxies.page.labels.delayError',
   'proxies.page.tooltips.locate',
   'proxies.page.tooltips.delayCheck',
   'proxies.page.tooltips.sortDefault',

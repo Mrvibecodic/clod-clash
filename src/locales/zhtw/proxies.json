@@ -26,8 +26,7 @@
     },
     "labels": {
       "proxyCount": "節點數量",
-      "noProxies": "No Proxies",
-      "delayError": "Error"
+      "noProxies": "No Proxies"
     },
     "tooltips": {
       "locate": "定位到所選節點",

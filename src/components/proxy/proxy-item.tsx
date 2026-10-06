@@ -16,7 +16,7 @@ import { BaseLoading } from '@/components/base'
 import { useFreezeMarks } from '@/hooks/use-freeze-marks'
 import { useProxyDelayState } from '@/hooks/use-proxy-delay-state'
 import { useServerDescriptions } from '@/hooks/use-server-descriptions'
-import delayManager from '@/services/delay'
+import { delayColor, delayText } from '@/utils/delay-color'
 
 import { FreezeMark } from './freeze-mark'
 import { ProxyFavorite } from './proxy-favorite'
@@ -65,7 +65,7 @@ export const ProxyItem = (props: Props) => {
   } = props
   const { t } = useTranslation()
 
-  const { delayValue, isPreset, timeout, onDelay } = useProxyDelayState(
+  const { delayValue, isPreset, onDelay } = useProxyDelayState(
     proxy,
     group.name,
   )
@@ -199,18 +199,11 @@ export const ProxyItem = (props: Props) => {
                 onDelay(proxy.provider)
               }}
               sx={({ palette }) => ({
-                color: delayManager.formatDelayColor(
-                  delayValue,
-                  timeout,
-                  pingBounds,
-                ),
+                color: delayColor(delayValue, pingBounds),
                 ':hover': { bgcolor: alpha(palette.primary.main, 0.15) },
               })}
             >
-              {delayManager.formatDelay(delayValue, timeout, {
-                timeout: t('shared.labels.timeout'),
-                error: t('proxies.page.labels.delayError'),
-              })}
+              {delayText(delayValue, t('shared.labels.timeout'))}
             </Widget>
           )}
 

@@ -26,8 +26,7 @@
     },
     "labels": {
       "proxyCount": "Número de nodos",
-      "noProxies": "No Proxies",
-      "delayError": "Error"
+      "noProxies": "No Proxies"
     },
     "tooltips": {
       "locate": "Ir al nodo seleccionado",

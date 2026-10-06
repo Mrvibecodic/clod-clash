@@ -1,4 +1,5 @@
 import delayManager from '@/services/delay'
+import { failedDelay, usableDelay } from '@/utils/delay-color'
 import { compileStringMatcher } from '@/utils/search-matcher'
 
 // default | delay | alphabet
@@ -15,11 +16,10 @@ export function filterSort(
   groupName: string,
   filterText: string,
   sortType: ProxySortType,
-  latencyTimeout?: number,
   searchState?: ProxySearchState,
 ) {
   const fp = filterProxies(proxies, groupName, filterText, searchState)
-  const sp = sortProxies(fp, groupName, sortType, latencyTimeout)
+  const sp = sortProxies(fp, groupName, sortType)
   return sp
 }
 
@@ -46,21 +46,19 @@ function filterProxies(
   if (res1) {
     const symbol = res1[1]
     const symbol2 = res1[2].toLowerCase()
-    const value =
-      symbol2 === 'error' ? 1e5 : symbol2 === 'timeout' ? 3000 : +symbol2
+    // «timeout» и «error» — одно и то же: узел не ответил
+    const failed = symbol2 === 'timeout' || symbol2 === 'error'
+    const value = +symbol2
 
     return proxies.filter((p) => {
       // Как и в сортировке: узел в очереди проверки не выпадает из фильтра
       const delay = delayManager.getDelayFix(p, groupName, true)
 
-      if (delay < 0) return false
-      if (symbol === '=' && symbol2 === 'error') return delay >= 1e5
-      if (symbol === '=' && symbol2 === 'timeout')
-        return delay < 1e5 && delay >= 3000
-      if (symbol === '=') return delay == value
+      if (failed) return symbol === '=' && failedDelay(delay)
+      if (!usableDelay(delay)) return false
+      if (symbol === '=') return delay === value
       if (symbol === '<') return delay <= value
-      if (symbol === '>') return delay >= value
-      return false
+      return delay >= value
     })
   }
 
@@ -92,29 +90,14 @@ function sortProxies(
   proxies: IProxyItem[],
   groupName: string,
   sortType: ProxySortType,
-  latencyTimeout?: number,
 ) {
   if (!proxies) return []
   if (sortType === 0) return proxies
 
-  const effectiveTimeout =
-    typeof latencyTimeout === 'number' && latencyTimeout > 0
-      ? latencyTimeout
-      : 10000
-
   if (sortType === 1) {
-    const categorizeDelay = (delay: number): [number, number] => {
-      if (!Number.isFinite(delay)) return [3, Number.MAX_SAFE_INTEGER]
-      if (delay > 1e5) return [4, delay]
-      if (delay === 0 || (delay >= effectiveTimeout && delay <= 1e5)) {
-        return [3, delay || effectiveTimeout]
-      }
-      if (delay < 0) {
-        // sentinel delays (-1, -2, etc.) should always sort after real measurements
-        return [5, Number.MAX_SAFE_INTEGER]
-      }
-      return [0, delay]
-    }
+    // Замеры по возрастанию, за ними не ответившие, в конце не мерянные
+    const categorizeDelay = (delay: number): [number, number] =>
+      usableDelay(delay) ? [0, delay] : failedDelay(delay) ? [1, 0] : [2, 0]
 
     const ranked = proxies.map((proxy) => ({
       proxy,
