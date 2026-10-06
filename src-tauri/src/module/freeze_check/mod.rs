@@ -13,9 +13,10 @@
 //! чём. Проверяются отпечатки без итога в текущей сети, «работает» и
 //! «режется» старше 3 суток, «не отвечает» и попытки без итога старше 6 часов;
 //! одинаковые узлы делят результат по отпечатку. Если посреди захода сменились
-//! сеть или подписка или ядро не ответило, заход бросается; если не ответил
-//! никто — не записывается, и в этой сети следующий — через 6 часов (новые
-//! узлы подписки проверяются и на паузе).
+//! сеть или подписка или ядро не ответило, заход бросается. Если через
+//! проверенные узлы не прошло ничего, заодно проверяется узел, рабочий в этой
+//! сети: прошёл он — итоги в счёт; не прошёл и он (или такого нет) — это сеть,
+//! заход не записывается, и эти узлы ждут 6 часов.
 //! Ядро без отпечатков (чужое) — функция молчит. Включает проверку только
 //! панель — заголовком подписки `clod-16-20-check: true`; без него ни
 //! проверок, ни пометок.
@@ -669,17 +670,31 @@ async fn saved_results(uid: &str, nodes: &[NodeRef], settled: bool, now: i64) ->
     (saved, unplaced)
 }
 
-/// Итоги проверок, если они ещё о тех же узлах в той же сети и подписке;
-/// `None` — заход не в счёт.
-async fn checked_in_place(
-    uid: &str,
-    due: Vec<NodeRef>,
-    key: Option<&str>,
-    epoch: u64,
-    reason: &str,
-) -> Option<Vec<(NodeRef, plan::Checked)>> {
-    let checked_nodes = due.clone();
-    let Some(outcomes) = checked(due, epoch).await else {
+/// Через проверенные узлы не прошло ничего — это сеть или только они? Узел,
+/// который в этой сети отмечен рабочим (свежее всех), — контрольный: прошёл
+/// он, значит сеть есть и итоги остальных в счёт. Без такого узла или если
+/// что-то уже прошло — проверять нечего.
+fn control_node(nodes: &[NodeRef], network: &store::Network, outcomes: &[(NodeRef, plan::Checked)]) -> Option<NodeRef> {
+    let verdicts: Vec<plan::Outcome> = outcomes.iter().map(|(_, checked)| checked.outcome).collect();
+    if plan::worth_recording(&verdicts) {
+        return None;
+    }
+    let tried: BTreeSet<&str> = outcomes.iter().map(|(node, _)| node.fingerprint.as_str()).collect();
+    nodes
+        .iter()
+        .filter(|node| !tried.contains(node.fingerprint.as_str()))
+        .filter_map(|node| {
+            let record = network.nodes.get(&node.fingerprint)?;
+            (record.verdict == Some(plan::Verdict::Ok)).then_some((record.at, node))
+        })
+        .max_by_key(|(at, _)| *at)
+        .map(|(_, node)| node.clone())
+}
+
+/// Проверить узлы; ядро замолчало или сменилась сеть — `None`.
+async fn checked_or_dropped(due: Vec<NodeRef>, epoch: u64, reason: &str) -> Option<Vec<(NodeRef, plan::Checked)>> {
+    let outcomes = checked(due, epoch).await;
+    if outcomes.is_none() {
         // Номер тот же — заход бросило молчание ядра: доделает следующий подъём.
         if EPOCH.load(Ordering::Acquire) == epoch {
             CORE_WAS_SILENT.store(true, Ordering::Release);
@@ -689,8 +704,34 @@ async fn checked_in_place(
             Type::Core,
             "[Freeze] {reason}: the network changed or the core did not answer mid-pass, results dropped"
         );
-        return None;
-    };
+    }
+    outcomes
+}
+
+/// Итоги проверок (с контрольным узлом, если через проверенные не прошло
+/// ничего), если они ещё о тех же узлах в той же сети и подписке; `None` —
+/// заход не в счёт.
+async fn checked_in_place(
+    uid: &str,
+    due: Vec<NodeRef>,
+    nodes: &[NodeRef],
+    network: &store::Network,
+    key: Option<&str>,
+    epoch: u64,
+    reason: &str,
+) -> Option<Vec<(NodeRef, plan::Checked)>> {
+    let mut checked_nodes = due.clone();
+    let mut outcomes = checked_or_dropped(due, epoch, reason).await?;
+    if let Some(control) = control_node(nodes, network, &outcomes) {
+        logging!(
+            info,
+            Type::Core,
+            "[Freeze] {reason}: nothing passed, checking {} that worked here to tell the network from the nodes",
+            control.name
+        );
+        checked_nodes.push(control.clone());
+        outcomes.extend(checked_or_dropped(vec![control], epoch, reason).await?);
+    }
     if !still_the_same(uid, &checked_nodes, key).await {
         logging!(
             info,
@@ -746,7 +787,7 @@ async fn pass(reason: &'static str) {
         }
     } else {
         let due_nodes = due.clone();
-        let Some(outcomes) = checked_in_place(&uid, due, key.as_deref(), epoch, reason).await else {
+        let Some(outcomes) = checked_in_place(&uid, due, &nodes, network, key.as_deref(), epoch, reason).await else {
             return;
         };
         stored = recorded(network, &outcomes, now, verbose);
@@ -791,8 +832,8 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        Listing, NodeRef, core_settled, download_path, due_now, due_of, marks_of, names_of, nodes_of, plan,
-        remember_quiet, store,
+        Listing, NodeRef, control_node, core_settled, download_path, due_now, due_of, marks_of, names_of, nodes_of,
+        plan, remember_quiet, store,
     };
 
     fn node(name: &str, fingerprint: &str) -> NodeRef {
@@ -801,6 +842,45 @@ mod tests {
             provider: None,
             fingerprint: fingerprint.into(),
         }
+    }
+
+    #[test]
+    fn when_nothing_passed_the_freshest_node_that_worked_here_is_the_control() {
+        use super::plan::{Checked, Node, Outcome, Verdict};
+        let silent = Checked {
+            outcome: Outcome::Unknown { answered: false },
+            status: 0,
+        };
+        let nodes = [
+            node("new", "f0"),
+            node("old", "f1"),
+            node("fresh", "f2"),
+            node("cut", "f3"),
+        ];
+        let mut network = store::Network::default();
+        let record = |verdict, at| Node {
+            verdict: Some(verdict),
+            at,
+            ..Node::default()
+        };
+        network.nodes.insert("f1".into(), record(Verdict::Ok, 100));
+        network.nodes.insert("f2".into(), record(Verdict::Ok, 200));
+        network.nodes.insert("f3".into(), record(Verdict::Frozen, 300));
+
+        let nothing = [(node("new", "f0"), silent)];
+        assert_eq!(control_node(&nodes, &network, &nothing), Some(node("fresh", "f2")));
+
+        let passed = [(
+            node("new", "f0"),
+            Checked {
+                outcome: Outcome::Verdict(Verdict::Frozen),
+                status: 200,
+            },
+        )];
+        assert_eq!(control_node(&nodes, &network, &passed), None);
+
+        let checked_too = [(node("new", "f0"), silent), (node("fresh", "f2"), silent)];
+        assert_eq!(control_node(&nodes, &network, &checked_too), Some(node("old", "f1")));
     }
 
     #[test]
