@@ -727,8 +727,11 @@ async fn settle_the_download(uid: &String, downloaded: Downloaded, trigger: Upda
         }
     };
     // Запись о подписке уже обновлена, принята она ядром или нет: панель могла
-    // включить или выключить проверку 16–20 заголовком.
-    crate::module::freeze_check::check_again("subscription updated");
+    // включить или выключить проверку 16–20 заголовком. Заход — только если это
+    // подписка, на которой работает ядро: другую он всё равно не проверит.
+    if Config::runtime().await.data_arc().profile_uid.as_deref() == Some(uid.as_str()) {
+        crate::module::freeze_check::check_again("subscription updated");
+    }
 
     let delivered = match acceptance {
         Acceptance::Accepted { delivered } => delivered,
