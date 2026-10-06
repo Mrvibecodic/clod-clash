@@ -255,9 +255,7 @@ export const SubscriptionCard = ({ profile }: Props) => {
         {profile.refill_date && !critical ? (
           <Typography variant="caption" color="text.secondary" noWrap>
             {t('home.components.subscription.refill', {
-              date: dayjs(toUnixSeconds(profile.refill_date) * 1000).format(
-                'DD.MM.YYYY',
-              ),
+              date: dayjs(profile.refill_date * 1000).format('DD.MM.YYYY'),
             })}
           </Typography>
         ) : null}

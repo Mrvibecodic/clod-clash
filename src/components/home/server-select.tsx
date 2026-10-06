@@ -61,7 +61,6 @@ import {
   SELECTABLE_GROUP_TYPES,
   visibleGroups,
 } from '@/utils/proxy-groups'
-import { toUnixSeconds } from '@/utils/subscription-status'
 
 /** Пинг на Главной: замер — в мс, неответ — словом, как на «Прокси», не мерили — прочерк. */
 const pingLabel = (delay: number | undefined, failed: string) =>
@@ -773,9 +772,7 @@ export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
   const listEmpty = Boolean(proxies) && !hasRealNodes(proxies)
   const statusRow = noServers && (listEmpty || onlySentinels)
   const refillDate = currentProfile?.refill_date
-    ? dayjs(toUnixSeconds(currentProfile.refill_date) * 1000).format(
-        'DD.MM.YYYY',
-      )
+    ? dayjs(currentProfile.refill_date * 1000).format('DD.MM.YYYY')
     : undefined
   const statusCaption = statusRow
     ? reason === 'traffic' && refillDate

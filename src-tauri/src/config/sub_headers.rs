@@ -244,7 +244,9 @@ impl SubHeaders {
                 .or_else(|| value(headers, "announce"))
                 .map(|text| truncate_banner(&text, ANNOUNCE_MAX_CHARS)),
             announce_url: value(headers, "announce-url").and_then(|raw| https_url(&raw)),
-            refill_date: value(headers, "subscription-refill-date").and_then(|raw| raw.trim().parse::<i64>().ok()),
+            refill_date: value(headers, "subscription-refill-date")
+                .and_then(|raw| raw.trim().parse::<u64>().ok())
+                .and_then(|ts| i64::try_from(super::prfitem::to_unix_seconds(ts)).ok()),
             update_interval_hours: value(headers, "profile-update-interval").and_then(|raw| raw.trim().parse().ok()),
             new_sub: new_sub.clone(),
             move_sub: new_sub.is_some()
@@ -573,6 +575,12 @@ mod tests {
         assert_eq!(parsed.hwid_state, HwidState::Active);
         assert_eq!(parsed.notify_expire_days.as_deref(), Some(&[1, 3, 7][..]));
         assert_eq!(parsed.notify_traffic_percent.as_deref(), Some(&[80, 90, 100][..]));
+    }
+
+    #[test]
+    fn refill_date_in_milliseconds_becomes_seconds() {
+        let parsed = SubHeaders::parse(&headers(&[("subscription-refill-date", "1785340800000")]));
+        assert_eq!(parsed.refill_date, Some(1_785_340_800));
     }
 
     #[test]

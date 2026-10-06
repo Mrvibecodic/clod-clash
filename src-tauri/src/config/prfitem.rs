@@ -122,7 +122,7 @@ pub struct PrfItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub theme_background: Option<String>,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "panel_seconds")]
     pub refill_date: Option<i64>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1309,8 +1309,21 @@ async fn fetch_secure(
 
 const MILLIS_THRESHOLD: u64 = 1_000_000_000_000;
 
-const fn to_unix_seconds(ts: u64) -> u64 {
+/// Метка времени панели в секундах: часть панелей шлёт миллисекунды.
+pub(crate) const fn to_unix_seconds(ts: u64) -> u64 {
     if ts > MILLIS_THRESHOLD { ts / 1000 } else { ts }
+}
+
+/// Метка панели из записи профиля — в секундах: прежние версии клиента
+/// сохраняли её как есть, и в миллисекундах тоже.
+fn panel_seconds<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Option<i64>, D::Error> {
+    let stored = <Option<i64> as serde::Deserialize>::deserialize(deserializer)?;
+    Ok(stored.map(|ts| {
+        u64::try_from(ts)
+            .ok()
+            .and_then(|ts| i64::try_from(to_unix_seconds(ts)).ok())
+            .unwrap_or(ts)
+    }))
 }
 
 /// Имя подписки из ответа и признак, что его дала панель. Панель не назвала —
@@ -2303,6 +2316,18 @@ mod tests {
         assert_eq!(to_unix_seconds(1_754_000_000), 1_754_000_000);
         assert_eq!(to_unix_seconds(1_754_000_000_000), 1_754_000_000);
         assert_eq!(to_unix_seconds(0), 0);
+    }
+
+    #[test]
+    fn a_refill_date_saved_in_milliseconds_reads_as_seconds() {
+        let stored: PrfItem =
+            serde_json::from_str(r#"{"refill_date": 1754000000000}"#).expect("a stored profile must parse");
+        assert_eq!(stored.refill_date, Some(1_754_000_000));
+        let stored: PrfItem =
+            serde_json::from_str(r#"{"refill_date": 1754000000}"#).expect("a stored profile must parse");
+        assert_eq!(stored.refill_date, Some(1_754_000_000));
+        let stored: PrfItem = serde_json::from_str("{}").expect("a stored profile must parse");
+        assert_eq!(stored.refill_date, None);
     }
 
     #[test]
