@@ -95,10 +95,6 @@ export const setCacheDataAsync = async <T>(
   return next
 }
 
-/** Ошибка последнего чтения запроса; `undefined` — прочитан удачно. */
-export const getCacheError = (queryKey: QueryKey): unknown =>
-  SWRConfig.defaultValue.cache.get(serializeQueryKey(queryKey))?.error
-
 export const revalidateQuery = (queryKey: QueryKey) => swrMutate(queryKey)
 
 export const revalidateQueries = (queryKeys: readonly QueryKey[]) =>

@@ -1,5 +1,11 @@
 import { listen } from '@tauri-apps/api/event'
-import React, { useCallback, useEffect, useMemo, useRef } from 'react'
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useSyncExternalStore,
+} from 'react'
 import {
   getBaseConfig,
   getRuleProviders,
@@ -9,6 +15,7 @@ import {
 import { useRuntimeConfig } from '@/hooks/use-clash'
 import { useRefreshOnReturn } from '@/hooks/use-refresh-on-return'
 import { useVerge } from '@/hooks/use-verge'
+import { router } from '@/pages/_routers'
 import {
   calcuProxies,
   getAutotemProxy,
@@ -16,9 +23,8 @@ import {
   getSystemProxy,
 } from '@/services/cmds'
 import {
-  getCacheError,
+  getCacheData,
   revalidateQueries,
-  revalidateQuery,
   useQuery,
 } from '@/services/query-client'
 import { reachableProxyHost } from '@/utils/ports'
@@ -39,9 +45,7 @@ import {
  */
 const refreshOnReturn = () =>
   revalidateQueries([
-    // Группы и узлы — сверкой с ядром: перечитает их, только если за время в
-    // трее в ядре что-то сменилось.
-    ['syncProxies'],
+    // Группы и узлы перечитываются ниже — при появлении на экране.
     ['getClashConfig'],
     ['getSystemProxy'],
     ['getAutotemProxy'],
@@ -63,32 +67,44 @@ const refreshOnReturn = () =>
 const SYS_PROXY_POLL_MS = 10_000
 
 /**
- * Как часто сверяемся с ядром, пока окно на экране.
+ * Как часто перечитываем группы и узлы, пока окно на экране.
  *
  * Ядро само ничего не сообщает: url-test и fallback меняют узел, проверки —
- * задержки, провайдер — состав узлов. Раз в тик бэкенд снимает с ответа ядра
- * отпечаток (`get_proxies_stamp`), и только при его смене окно перечитывает
- * группы и узлы целиком. Так факт доходит до всех экранов за тик, а разбор и
- * перерисовка случаются лишь тогда, когда в ядре что-то поменялось. Ядро такие
- * запросы не нагружают проверками: проб к серверам они не шлют.
+ * задержки, провайдер — состав узлов. Поэтому каждое чтение сначала берёт у
+ * бэкенда отпечаток ответа ядра (`get_proxies_stamp`) и разбирает группы
+ * целиком, только если он сменился, — иначе отдаёт уже показанное. Так факт
+ * доходит до всех экранов за тик, а разбор и перерисовка случаются лишь при
+ * переменах в ядре. Ядро такие чтения проверками не нагружают: проб к серверам
+ * они не шлют.
  */
-const PROXIES_SYNC_MS = 1000
+const PROXIES_POLL_MS = 1000
 
-/** Отпечаток, по которому сейчас нарисованы группы и узлы. */
-let shownProxiesStamp: string | undefined
-
-const syncProxies = async () => {
-  const stamp = await getProxiesStamp()
-  if (stamp !== shownProxiesStamp) {
-    // Через запрос SWR, а не записью в кэш: из одновременных чтений он
-    // оставляет начатое позже, и сверка, начатая до выбора узла руками, не
-    // вернёт на экран прежний. Неудачное чтение отпечаток не запоминает —
-    // следующий тик попробует снова.
-    await revalidateQuery(['getProxies'])
-    if (getCacheError(['getProxies']) === undefined) shownProxiesStamp = stamp
-  }
-  return stamp
+type ProxiesData = Awaited<ReturnType<typeof calcuProxies>> & {
+  /** Отпечаток ядра, по которому прочитаны эти данные. */
+  stamp: string | null
 }
+
+const readProxies = async (): Promise<ProxiesData | undefined> => {
+  const shown = getCacheData<ProxiesData>(['getProxies'])
+  const stamp = await getProxiesStamp().catch(() => null)
+  // Ядро не ответило или ничего не сменилось — остаётся показанное; без
+  // показанного пробуем прочитать: может, ядро уже отвечает.
+  if (shown && (stamp === null || stamp === shown.stamp)) return shown
+  try {
+    return { ...(await calcuProxies()), stamp }
+  } catch {
+    // Ядро не ответило или ещё не готово — остаётся прежний список. Ошибкой
+    // это не делаем: она остановила бы опрос SWR, а следующий тик и так
+    // спросит снова.
+    return shown
+  }
+}
+
+/** Экраны, где видны группы и узлы: Главная (со шторкой) и «Прокси». */
+const PROXIES_SCREENS = new Set(['/', '/proxies'])
+
+const onProxiesScreen = () =>
+  PROXIES_SCREENS.has(router.state.location.pathname)
 
 const TQ_MIHOMO = {
   refetchOnWindowFocus: false,
@@ -124,24 +140,20 @@ export const AppDataProvider = ({
   // дожидаясь первого тика опроса: свёрнутое окно ничего не опрашивает.
   const visible = useRefreshOnReturn(refreshOnReturn)
 
+  // Опрос — только пока группы на экране; на остальных экранах их не видно.
+  const proxiesOnScreen = useSyncExternalStore(
+    router.subscribe,
+    onProxiesScreen,
+  )
+  const proxiesLive = visible && proxiesOnScreen
   const { data: proxiesData, refetch: _refetchProxy } = useQuery({
     queryKey: ['getProxies'],
-    queryFn: calcuProxies,
-    ...TQ_MIHOMO,
-  })
-
-  useQuery({
-    queryKey: ['syncProxies'],
-    queryFn: syncProxies,
+    queryFn: readProxies,
     ...TQ_MIHOMO,
     // Склейка повторов короче тика: иначе каждый второй тик молча отдавал бы
     // прошлый ответ.
-    staleTime: PROXIES_SYNC_MS / 2,
-    // Пока в запросе ошибка, SWR опрос по таймеру не ведёт, — повторяем до
-    // ответа ядра (пауза растёт до 3 с), иначе сверка вставала бы насовсем
-    // после перезапуска ядра дольше трёх попыток.
-    retry: Number.POSITIVE_INFINITY,
-    refetchInterval: visible ? PROXIES_SYNC_MS : false,
+    staleTime: PROXIES_POLL_MS / 2,
+    refetchInterval: proxiesLive ? PROXIES_POLL_MS : false,
     refetchIntervalInBackground: false,
   })
 
@@ -191,6 +203,16 @@ export const AppDataProvider = ({
   })
 
   const refreshProxy = useStableFn(_refetchProxy)
+
+  // Группы снова на экране — окно вернулось из трея или открыли Главную или
+  // «Прокси»: перечитываем сразу, не дожидаясь первого тика опроса.
+  const proxiesWereLiveRef = useRef(proxiesLive)
+  useEffect(() => {
+    if (proxiesLive && !proxiesWereLiveRef.current) {
+      refreshProxy().catch(() => {})
+    }
+    proxiesWereLiveRef.current = proxiesLive
+  }, [proxiesLive, refreshProxy])
   const refreshClashConfig = useStableFn(_refetchClashConfig)
   const refreshRules = useStableFn(_refetchRules)
   const refreshRuleProviders = useStableFn(_refetchRuleProviders)

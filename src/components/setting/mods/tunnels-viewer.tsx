@@ -16,7 +16,7 @@ import { useTranslation } from 'react-i18next'
 
 import { BaseDialog } from '@/components/base'
 import { useClash } from '@/hooks/use-clash'
-import { useProxiesData } from '@/providers/app-data-context'
+import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
 import { isPortInUse } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import {
@@ -41,6 +41,7 @@ interface TunnelEntry {
 export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
   const { t } = useTranslation()
   const { runtime, mutateClash, patchClash } = useClash()
+  const { refreshProxy } = useAppRefreshers()
 
   const [open, setOpen] = useState(false)
   const [expanded, setExpanded] = useState(false)
@@ -67,6 +68,9 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
         proxy: '',
       }))
       setDraftTunnels(() => runtime?.tunnels ?? [])
+      // Группы опрашиваются, только пока они на Главной или «Прокси», — здесь
+      // их показываем свежими сами.
+      refreshProxy().catch(() => {})
       setOpen(true)
       // Если туннелей нет, разворачиваем автоматически
       setExpanded((runtime?.tunnels ?? []).length === 0)
