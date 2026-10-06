@@ -269,8 +269,7 @@ impl SubHeaders {
                 .or_else(|| bool_value(headers, "pxa-latency-dots").and_then(|dots| dots.then_some(LatencyStyle::Dot))),
             disable_ping: value(headers, "clod-disable-ping")
                 .is_some_and(|raw| raw.trim().eq_ignore_ascii_case("true")),
-            freeze_check: value(headers, "clod-16-20-check")
-                .is_some_and(|raw| raw.trim().eq_ignore_ascii_case("true")),
+            freeze_check: value(headers, "clod-16-20-check").is_some_and(|raw| raw.trim().eq_ignore_ascii_case("true")),
             ping_thresholds: value(headers, "clod-ping").as_deref().and_then(ping_thresholds),
             show_zero_hosts: bool_value(headers, "clod-show-0hosts"),
             lock_mode: lock_permanent
