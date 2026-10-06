@@ -4,7 +4,7 @@ import { getProxies, getProxyProviders } from 'tauri-plugin-mihomo-api'
 
 import { showNotice } from '@/services/notice-service'
 import { clearProxyChain } from '@/services/proxy-chain-store'
-import { getCacheData, setCacheData } from '@/services/query-client'
+import { setCacheData } from '@/services/query-client'
 import { debugLog } from '@/utils/debug'
 import { enumText } from '@/utils/plugin-enum'
 
@@ -94,6 +94,11 @@ export async function getRuntimeConfig() {
   return invoke<IConfigData | null>('get_runtime_config')
 }
 
+/** Отпечаток групп и узлов в ядре — см. `get_proxies_stamp` в бэкенде. */
+export async function getProxiesStamp() {
+  return invoke<string>('get_proxies_stamp')
+}
+
 async function getRuntimeProxyGroupOrder() {
   return invoke<string[]>('get_runtime_proxy_group_order')
 }
@@ -153,7 +158,7 @@ export async function calcuProxies(): Promise<{
   const [proxyResponse, providerResponse, runtimeGroupOrder] =
     await Promise.all([
       getProxies(),
-      cachedProxyProviders(),
+      freshProxyProviders(),
       getRuntimeProxyGroupOrder(),
     ])
 
@@ -271,23 +276,13 @@ export async function calcuProxies(): Promise<{
   }
 }
 
-type ProxyProviderRecord = Awaited<ReturnType<typeof calcuProxyProviders>>
-
 /**
  * Узлы провайдеров в GET /proxies не приходят: их задержки есть только в ответе
- * провайдеров. Кэш бережёт этот тяжёлый запрос от опроса раз в 5 с, но не дольше
- * минуты — иначе пинги таких узлов замерзали до обновления подписки.
+ * провайдеров, поэтому читаем его вместе с прокси, а заодно освежаем им запрос
+ * провайдеров — тот сам по себе не опрашивается.
  */
-const PROVIDERS_MAX_AGE_MS = 60_000
-let providersReadAt = 0
-
-async function cachedProxyProviders(): Promise<ProxyProviderRecord> {
-  const cached = getCacheData<ProxyProviderRecord>(['getProxyProviders'])
-  if (cached && Date.now() - providersReadAt < PROVIDERS_MAX_AGE_MS) {
-    return cached
-  }
+async function freshProxyProviders() {
   const fresh = await calcuProxyProviders()
-  providersReadAt = Date.now()
   setCacheData(['getProxyProviders'], fresh)
   return fresh
 }

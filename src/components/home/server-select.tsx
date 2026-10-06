@@ -74,8 +74,6 @@ const PingVerdict = ({ delay }: { delay?: number }) =>
     </Typography>
   )
 
-const DRAWER_REFRESH_MS = 5000
-
 const AGE_TICK_MS = 5000
 
 interface Props {
@@ -141,13 +139,6 @@ export const ServerSelect = ({ open, onClose }: Props) => {
   })
 
   const visible = useVisibility()
-  useEffect(() => {
-    if (!open || !visible) return
-    const timer = window.setInterval(() => {
-      refreshProxy().catch(() => {})
-    }, DRAWER_REFRESH_MS)
-    return () => window.clearInterval(timer)
-  }, [open, visible, refreshProxy])
 
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
@@ -735,14 +726,10 @@ export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
 
     const timer = window.setTimeout(measure, 600)
     // Живой пинг, пока окно на экране и подключение включено (`autoPing`; иначе эффект снят, на
-    // возврате — заново): раз в PING_GAP_MS сначала перечитываем прокси — у
-    // url-test групп ядро мерит само, — и шлём свой запрос только если свежего
-    // замера нет. Возраст берём из ref: перечитывание обновляет его мимо замыкания.
-    const live = window.setInterval(() => {
-      refreshProxy()
-        .catch(() => {})
-        .then(measure)
-    }, PING_GAP_MS)
+    // возврате — заново): раз в PING_GAP_MS шлём свой запрос, только если свежего
+    // замера нет — у url-test групп ядро мерит само, а его замеры приносит общий
+    // опрос. Возраст берём из ref: опрос обновляет его мимо замыкания.
+    const live = window.setInterval(measure, PING_GAP_MS)
     const retry = hasPing
       ? undefined
       : window.setInterval(() => {

@@ -13,9 +13,14 @@ import {
   calcuProxies,
   calcuProxyProviders,
   getAutotemProxy,
+  getProxiesStamp,
   getSystemProxy,
 } from '@/services/cmds'
-import { revalidateQueries, useQuery } from '@/services/query-client'
+import {
+  revalidateQueries,
+  setCacheData,
+  useQuery,
+} from '@/services/query-client'
 import { reachableProxyHost } from '@/utils/ports'
 
 import {
@@ -55,6 +60,32 @@ const refreshOnReturn = () =>
  */
 const SYS_PROXY_POLL_MS = 10_000
 
+/**
+ * Как часто сверяемся с ядром, пока окно на экране.
+ *
+ * Ядро само ничего не сообщает: url-test и fallback меняют узел, проверки —
+ * задержки, провайдер — состав узлов. Раз в тик бэкенд снимает с ответа ядра
+ * отпечаток (`get_proxies_stamp`), и только при его смене окно перечитывает
+ * группы и узлы целиком. Так факт доходит до всех экранов за тик, а разбор и
+ * перерисовка случаются лишь тогда, когда в ядре что-то поменялось. Ядро такие
+ * запросы не нагружают проверками: проб к серверам они не шлют.
+ */
+const PROXIES_SYNC_MS = 1000
+
+/** Отпечаток, по которому сейчас нарисованы группы и узлы. */
+let shownProxiesStamp: string | undefined
+
+const syncProxies = async () => {
+  const stamp = await getProxiesStamp()
+  if (stamp !== shownProxiesStamp) {
+    // Напрямую, а не через запрос SWR: тот проглатывает ошибку, и неудачное
+    // чтение запомнило бы отпечаток без данных — до следующей перемены в ядре.
+    setCacheData(['getProxies'], await calcuProxies())
+    shownProxiesStamp = stamp
+  }
+  return stamp
+}
+
 const TQ_MIHOMO = {
   refetchOnWindowFocus: false,
   refetchOnReconnect: false,
@@ -85,18 +116,29 @@ export const AppDataProvider = ({
   const { verge } = useVerge()
   const { data: runtime } = useRuntimeConfig()
 
-  // clod: окно вернулось из трея — общие данные ядра перечитываем сразу.
-  // Здесь их читает ВСЁ приложение, и на главной у них нет ни опроса, ни
-  // обновления по событию: задержки серверов, выбранный узел и состояние
-  // системного прокси оставались там от прошлого показа, сколько бы окно ни
-  // пролежало свёрнутым. Один запрос на возврат — и экран показывает то, что
-  // ядро знает сейчас.
+  // clod: окно вернулось из трея — общие данные ядра перечитываем сразу, не
+  // дожидаясь первого тика опроса: свёрнутое окно ничего не опрашивает.
   const visible = useRefreshOnReturn(refreshOnReturn)
 
   const { data: proxiesData, refetch: _refetchProxy } = useQuery({
     queryKey: ['getProxies'],
     queryFn: calcuProxies,
     ...TQ_MIHOMO,
+  })
+
+  useQuery({
+    queryKey: ['syncProxies'],
+    queryFn: syncProxies,
+    ...TQ_MIHOMO,
+    // Склейка повторов короче тика: иначе каждый второй тик молча отдавал бы
+    // прошлый ответ.
+    staleTime: PROXIES_SYNC_MS / 2,
+    // Пока в запросе ошибка, SWR опрос по таймеру не ведёт, — повторяем до
+    // ответа ядра (пауза растёт до 3 с), иначе сверка вставала бы насовсем
+    // после перезапуска ядра дольше трёх попыток.
+    retry: Number.POSITIVE_INFINITY,
+    refetchInterval: visible ? PROXIES_SYNC_MS : false,
+    refetchIntervalInBackground: false,
   })
 
   const { data: clashConfig, refetch: _refetchClashConfig } = useQuery({

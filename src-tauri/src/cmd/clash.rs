@@ -612,3 +612,40 @@ pub async fn download_in_core(what: feat::CoreDownload, name: Option<String>) ->
         .await
         .stringify_err()
 }
+
+/// Сколько ждём ядро на один запрос отпечатка: опрос идёт раз в секунду, и
+/// зависший запрос не должен копить следующие.
+const PROXIES_STAMP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// Отпечаток всего, что ядро меняет само: выбор url-test и fallback, задержки
+/// после проверок, состав узлов после обновления провайдера.
+///
+/// Ядро об этих переменах не сообщает, а целиком разбирать его ответ раз в
+/// секунду дорого. Поэтому окно спрашивает только отпечаток и перечитывает
+/// данные, лишь когда он сменился. Хватает двух ответов: у провайдеров есть
+/// встроенный `default` со всеми узлами и группами подписки, а `/group`
+/// добавляет то, чего в нём нет, — GLOBAL, если подписка его не задала.
+#[tauri::command]
+pub async fn get_proxies_stamp() -> CmdResult<std::string::String> {
+    use std::hash::Hasher as _;
+
+    let (groups, providers) = tokio::join!(core_body("/group"), core_body("/providers/proxies"));
+    let mut hasher = std::hash::DefaultHasher::new();
+    hasher.write(groups.stringify_err()?.as_ref());
+    hasher.write(providers.stringify_err()?.as_ref());
+    Ok(format!("{:016x}", hasher.finish()))
+}
+
+async fn core_body(path: &str) -> anyhow::Result<impl AsRef<[u8]>> {
+    let response = handle::Handle::mihomo()
+        .load_ctx()
+        .build_request(reqwest::Method::GET, path)
+        .map_err(|error| anyhow::anyhow!("{error}"))?
+        .timeout(PROXIES_STAMP_TIMEOUT)
+        .send()
+        .await?;
+    if !response.status().is_success() {
+        anyhow::bail!("{}", feat::core_error_message(response).await);
+    }
+    Ok(response.bytes().await?)
+}

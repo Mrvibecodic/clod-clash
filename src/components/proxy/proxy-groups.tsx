@@ -21,11 +21,8 @@ import { useFavorites } from '@/hooks/use-favorites'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useProxySelection } from '@/hooks/use-proxy-selection'
 import { useVerge } from '@/hooks/use-verge'
-import { useVisibility } from '@/hooks/use-visibility'
 import { useProxiesData } from '@/providers/app-data-context'
-import { calcuProxies } from '@/services/cmds'
 import delayManager, { effectiveLatencyTimeout } from '@/services/delay'
-import { useQuery } from '@/services/query-client'
 import { debugLog } from '@/utils/debug'
 import { isCorePolicy } from '@/utils/proxy-groups'
 
@@ -595,21 +592,6 @@ function NormalProxyGroups(props: { mode: string }) {
 
 export const ProxyGroups = (props: Props) => {
   const { mode, isChainMode = false, chainConfigData } = props
-
-  const pageVisible = useVisibility()
-  useQuery({
-    queryKey: ['getProxies'],
-    queryFn: calcuProxies,
-    // clod:Э11-07 — 5 с вместо 3 с, как в ящике выбора сервера на главной.
-    // Каждый такой опрос стирает у fallback-групп закрепление в памяти ядра
-    // (`MarshalJSON` → `Now()` → `selected = ""`), а смена узла и так приходит
-    // событием: опрос нужен для задержек и состава групп, а не для выбора.
-    refetchInterval: pageVisible ? 5000 : false,
-    refetchIntervalInBackground: false,
-    staleTime: 1500,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-  })
 
   if (mode === 'direct') {
     return <BaseEmpty textKey="proxies.page.messages.directMode" />
