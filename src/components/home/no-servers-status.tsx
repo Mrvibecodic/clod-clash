@@ -20,8 +20,6 @@ interface Props {
   quiet?: boolean
 }
 
-const traffic = (bytes: number) => parseTraffic(bytes).join(' ').trim()
-
 // clod: дату ИСТЕЧЕНИЯ показываем в часах устройства (`- skew`) — так же, как
 // карточка подписки, иначе при разошедшихся часах два экрана назовут разные
 // дни. Дату пополнения не сдвигаем: её рисуют ещё три экрана без поправки, и
@@ -127,13 +125,13 @@ export const NoServersStatus = ({ profile, onRefreshed, quiet }: Props) => {
       : reason === 'traffic'
         ? refillDate
           ? t('home.components.serverStatus.body.traffic', {
-              used: traffic(used),
-              total: traffic(extra?.total ?? 0),
+              used: parseTraffic(used),
+              total: parseTraffic(extra?.total ?? 0),
               date: refillDate,
             })
           : t('home.components.serverStatus.body.trafficNoDate', {
-              used: traffic(used),
-              total: traffic(extra?.total ?? 0),
+              used: parseTraffic(used),
+              total: parseTraffic(extra?.total ?? 0),
             })
         : reason === 'deviceLimit'
           ? profile.hwid_state === 'not_supported'

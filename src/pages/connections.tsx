@@ -34,7 +34,6 @@ import {
 } from '@/components/connection/connection-detail'
 import { ConnectionRowItem } from '@/components/connection/connection-row-item'
 import {
-  formatConnectionTraffic,
   getConnectionStartTime,
   useConnectionRowViews,
 } from '@/components/connection/connection-row-view'
@@ -49,6 +48,7 @@ import { useConnectionSetting } from '@/hooks/use-connection-setting'
 import { useTrafficData } from '@/hooks/use-traffic-data'
 import { useVisibility } from '@/hooks/use-visibility'
 import { showNotice } from '@/services/notice-service'
+import parseTraffic from '@/utils/parse-traffic'
 
 type OrderFunc = (list: IConnectionsItem[]) => IConnectionsItem[]
 
@@ -204,11 +204,10 @@ const ConnectionsPage = () => {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <Box sx={{ mx: 1 }}>
             {t('shared.labels.downloaded')}:{' '}
-            {formatConnectionTraffic(traffic?.downTotal || 0)}
+            {parseTraffic(traffic?.downTotal || 0)}
           </Box>
           <Box sx={{ mx: 1 }}>
-            {t('shared.labels.uploaded')}:{' '}
-            {formatConnectionTraffic(traffic?.upTotal || 0)}
+            {t('shared.labels.uploaded')}: {parseTraffic(traffic?.upTotal || 0)}
           </Box>
           <IconButton
             color="inherit"

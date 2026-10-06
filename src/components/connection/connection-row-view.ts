@@ -1,6 +1,6 @@
 import { useMemo, useRef } from 'react'
 
-import parseTraffic from '@/utils/parse-traffic'
+import { parseSpeed } from '@/utils/parse-traffic'
 
 export interface ConnectionRowView {
   id: string
@@ -14,11 +14,6 @@ export interface ConnectionRowView {
   downloadSpeedText: string
   uploadSpeed: number
   downloadSpeed: number
-}
-
-export const formatConnectionTraffic = (value?: number) => {
-  const [text, unit] = parseTraffic(value)
-  return unit ? `${text} ${unit}` : text
 }
 
 export const formatConnectionChains = (chains: string[]) => {
@@ -79,8 +74,8 @@ const createConnectionRowView = (connection: IConnectionsItem) => {
     type: connection.metadata.type,
     chains: formatConnectionChains(connection.chains),
     time: connection.start,
-    uploadSpeedText: `${formatConnectionTraffic(uploadSpeed)}/s`,
-    downloadSpeedText: `${formatConnectionTraffic(downloadSpeed)}/s`,
+    uploadSpeedText: parseSpeed(uploadSpeed),
+    downloadSpeedText: parseSpeed(downloadSpeed),
     uploadSpeed,
     downloadSpeed,
   } satisfies ConnectionRowView

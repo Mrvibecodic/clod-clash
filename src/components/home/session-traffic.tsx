@@ -17,8 +17,6 @@ export const SessionTraffic = () => {
     response: { data: traffic },
   } = useTrafficData({ enabled: pageVisible })
 
-  const total = (bytes: number) => parseTraffic(bytes).join(' ')
-
   return (
     <Stack
       direction="row"
@@ -31,13 +29,13 @@ export const SessionTraffic = () => {
       title={t('home.components.net.session')}
     >
       <Typography variant="caption" color="text.secondary">
-        ↓ {total(traffic?.downTotal ?? 0)}
+        ↓ {parseTraffic(traffic?.downTotal ?? 0)}
       </Typography>
       <Typography variant="caption" color="text.disabled">
         ·
       </Typography>
       <Typography variant="caption" color="text.secondary">
-        ↑ {total(traffic?.upTotal ?? 0)}
+        ↑ {parseTraffic(traffic?.upTotal ?? 0)}
       </Typography>
     </Stack>
   )

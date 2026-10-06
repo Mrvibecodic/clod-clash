@@ -32,9 +32,6 @@ const trafficColor = (usedPercent: number) => {
 
 const DAY = 24 * 60 * 60
 
-/** `parseTraffic` returns `[value, unit]`; join them the human way. */
-const traffic = (bytes: number) => parseTraffic(bytes).join(' ').trim()
-
 /** Days-left / traffic levels at which the plan counts as running out. */
 const CRITICAL_DAYS = 3
 const CRITICAL_TRAFFIC_PERCENT = 90
@@ -160,7 +157,7 @@ export const SubscriptionCard = ({ profile }: Props) => {
         <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5 }}>
           <Typography noWrap sx={CARD_VALUE}>
             {approximate ? '≈ ' : ''}
-            {traffic(shownUsed)}{' '}
+            {parseTraffic(shownUsed)}{' '}
             <Typography
               component="span"
               sx={{
@@ -173,7 +170,7 @@ export const SubscriptionCard = ({ profile }: Props) => {
               /{' '}
               {info.unlimited
                 ? t('profiles.components.profileItem.labels.unlimited')
-                : traffic(info.total)}
+                : parseTraffic(info.total)}
             </Typography>
           </Typography>
           {approximate ? (

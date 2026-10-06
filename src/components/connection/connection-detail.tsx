@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next'
 import { closeConnection } from 'tauri-plugin-mihomo-api'
 
 import { showNotice } from '@/services/notice-service'
-import parseTraffic from '@/utils/parse-traffic'
+import parseTraffic, { parseSpeed } from '@/utils/parse-traffic'
 
 import { RelativeTime } from './connection-relative-time'
 
@@ -106,19 +106,19 @@ const InnerConnectionDetail = ({ data, closed, onClose }: InnerProps) => {
     { label: t('connections.components.fields.host'), value: host },
     {
       label: t('shared.labels.downloaded'),
-      value: parseTraffic(data.download).join(' '),
+      value: parseTraffic(data.download),
     },
     {
       label: t('shared.labels.uploaded'),
-      value: parseTraffic(data.upload).join(' '),
+      value: parseTraffic(data.upload),
     },
     {
       label: t('connections.components.fields.dlSpeed'),
-      value: parseTraffic(data.curDownload ?? 0).join(' ') + '/s',
+      value: parseSpeed(data.curDownload ?? 0),
     },
     {
       label: t('connections.components.fields.ulSpeed'),
-      value: parseTraffic(data.curUpload ?? 0).join(' ') + '/s',
+      value: parseSpeed(data.curUpload ?? 0),
     },
     {
       label: t('connections.components.fields.chains'),

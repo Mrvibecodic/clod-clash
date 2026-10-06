@@ -6,7 +6,7 @@ import { InfoTile } from '@/components/home/info-tile'
 import { useTrafficData } from '@/hooks/use-traffic-data'
 import { useVisibility } from '@/hooks/use-visibility'
 import { CARD_VALUE } from '@/pages/_theme'
-import parseTraffic from '@/utils/parse-traffic'
+import parseTraffic, { parseSpeed } from '@/utils/parse-traffic'
 
 const Stat = ({
   label,
@@ -40,9 +40,6 @@ export const NetCard = () => {
     response: { data: traffic },
   } = useTrafficData({ enabled: pageVisible })
 
-  const speed = (bytes: number) => `${parseTraffic(bytes).join(' ')}/s`
-  const total = (bytes: number) => parseTraffic(bytes).join(' ')
-
   return (
     <InfoTile
       title={t('home.components.net.title')}
@@ -59,21 +56,21 @@ export const NetCard = () => {
       >
         <Stat
           label={`↓ ${t('home.components.net.downSpeed')}`}
-          value={speed(traffic?.down ?? 0)}
+          value={parseSpeed(traffic?.down ?? 0)}
           color="primary.main"
         />
         <Stat
           label={`↑ ${t('home.components.net.upSpeed')}`}
-          value={speed(traffic?.up ?? 0)}
+          value={parseSpeed(traffic?.up ?? 0)}
           color="secondary.main"
         />
         <Stat
           label={t('home.components.net.downloaded')}
-          value={total(traffic?.downTotal ?? 0)}
+          value={parseTraffic(traffic?.downTotal ?? 0)}
         />
         <Stat
           label={t('home.components.net.uploaded')}
-          value={total(traffic?.upTotal ?? 0)}
+          value={parseTraffic(traffic?.upTotal ?? 0)}
         />
       </Box>
     </InfoTile>

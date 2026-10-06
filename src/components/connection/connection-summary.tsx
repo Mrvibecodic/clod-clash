@@ -3,7 +3,7 @@ import { type ReactNode, memo, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { CARD_SURFACE, CARD_TITLE, CARD_VALUE } from '@/pages/_theme'
-import parseTraffic from '@/utils/parse-traffic'
+import parseTraffic, { parseSpeed } from '@/utils/parse-traffic'
 
 import {
   type ConnectionSummaryEntry,
@@ -13,9 +13,6 @@ import {
 // clod:design-v3 — полоса итогов над таблицей: сама таблица отвечает на вопрос
 // «что за соединение», а сводка — на «кто и через что съел трафик».
 const SUMMARY_HEIGHT = 126
-
-const formatTotal = (bytes: number) => parseTraffic(bytes).join(' ')
-const formatSpeed = (bytes: number) => `${parseTraffic(bytes).join(' ')}/s`
 
 const SummaryCard = ({
   title,
@@ -94,7 +91,7 @@ const SummaryBars = ({ entries }: { entries: ConnectionSummaryEntry[] }) => {
               fontVariantNumeric: 'tabular-nums',
             }}
           >
-            {formatTotal(entry.value)}
+            {parseTraffic(entry.value)}
           </Typography>
         </Box>
       ))}
@@ -137,19 +134,19 @@ export const ConnectionSummary = memo(function ConnectionSummary({
       {!closed && (
         <SummaryCard title={t('connections.components.summary.now')}>
           <Typography noWrap sx={{ ...CARD_VALUE, color: 'primary.main' }}>
-            ↓ {formatSpeed(stats.downloadSpeed)}
+            ↓ {parseSpeed(stats.downloadSpeed)}
           </Typography>
           <Typography noWrap sx={{ fontSize: 12.5, color: 'secondary.main' }}>
-            ↑ {formatSpeed(stats.uploadSpeed)}
+            ↑ {parseSpeed(stats.uploadSpeed)}
           </Typography>
         </SummaryCard>
       )}
       <SummaryCard title={t('connections.components.summary.volume')}>
         <Typography noWrap sx={CARD_VALUE}>
-          {formatTotal(stats.download + stats.upload)}
+          {parseTraffic(stats.download + stats.upload)}
         </Typography>
         <Typography noWrap sx={{ fontSize: 12.5, color: 'text.secondary' }}>
-          ↓ {formatTotal(stats.download)} · ↑ {formatTotal(stats.upload)}
+          ↓ {parseTraffic(stats.download)} · ↑ {parseTraffic(stats.upload)}
         </Typography>
         <Typography noWrap sx={{ fontSize: 12.5, color: 'text.secondary' }}>
           {t('connections.components.summary.shown')}: {connections.length} ·{' '}

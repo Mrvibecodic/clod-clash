@@ -16,6 +16,8 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import parseTraffic, { parseSpeed } from '@/utils/parse-traffic'
+
 import {
   ConnectionColumnManager,
   type ConnectionColumnOption,
@@ -23,7 +25,6 @@ import {
 import { RelativeTime } from './connection-relative-time'
 import {
   formatConnectionChains,
-  formatConnectionTraffic,
   getConnectionDestination,
   getConnectionHost,
   getConnectionProcess,
@@ -173,21 +174,17 @@ const createTableRowSnapshot = (
     startTime:
       sameStatic && previous ? previous.startTime : getConnectionStartTime(row),
     uploadText:
-      sameTraffic && previous
-        ? previous.uploadText
-        : formatConnectionTraffic(upload),
+      sameTraffic && previous ? previous.uploadText : parseTraffic(upload),
     downloadText:
-      sameTraffic && previous
-        ? previous.downloadText
-        : formatConnectionTraffic(download),
+      sameTraffic && previous ? previous.downloadText : parseTraffic(download),
     uploadSpeedText:
       sameTraffic && previous
         ? previous.uploadSpeedText
-        : `${formatConnectionTraffic(curUpload)}/s`,
+        : parseSpeed(curUpload),
     downloadSpeedText:
       sameTraffic && previous
         ? previous.downloadSpeedText
-        : `${formatConnectionTraffic(curDownload)}/s`,
+        : parseSpeed(curDownload),
   }
 }
 
@@ -357,10 +354,8 @@ const GroupRowComponent = memo(
               flex: 'none',
             }}
           >
-            ↓ {formatConnectionTraffic(group.download)} ↑{' '}
-            {formatConnectionTraffic(group.upload)} · ↓{' '}
-            {formatConnectionTraffic(group.downloadSpeed)}/s ↑{' '}
-            {formatConnectionTraffic(group.uploadSpeed)}/s
+            ↓ {parseTraffic(group.download)} ↑ {parseTraffic(group.upload)} · ↓{' '}
+            {parseSpeed(group.downloadSpeed)} ↑ {parseSpeed(group.uploadSpeed)}
           </span>
         </div>
       </Box>
