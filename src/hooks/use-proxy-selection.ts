@@ -87,10 +87,12 @@ export const useProxySelection = (options: ProxySelectionOptions = {}) => {
           `[ProxySelection] Прокси и состояние синхронизированы: ${groupName} -> ${proxyName}`,
         )
 
+        // Повторный выбор того же узла соединения не рвёт: узел не сменился.
         if (
           config.enableConnectionCleanup &&
           config.autoCloseConnection &&
-          previousProxy
+          previousProxy &&
+          previousProxy !== proxyName
         ) {
           void cleanupConnections(previousProxy)
         }

@@ -166,8 +166,7 @@ export const ServerSelect = ({ open, onClose }: Props) => {
 
   const select = useLockFn(async (nodeName: string) => {
     if (!group || !canSelect) return
-    const previous = group.now !== nodeName ? group.now : undefined
-    await changeProxy(group.name, nodeName, previous)
+    await changeProxy(group.name, nodeName, group.now)
     if (groups.length < 2) onClose()
   })
 
