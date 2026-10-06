@@ -301,8 +301,32 @@ fn history_of(entry: &serde_json::Value) -> Vec<(i64, u64)> {
         .unwrap_or_default()
 }
 
+/// Провайдеры подписки по именам из принятой сборки, каждый своим запросом,
+/// в форме общего ответа (`{"providers": {имя: …}}`). Общий `/providers/proxies`
+/// не годится: ядро заводит провайдер ещё и на каждую группу, и каждый узел в
+/// нём повторяется по разу на группу — читать его раз в 20 секунд дорого.
+/// `None` — провайдеров у подписки нет.
+async fn provider_lists() -> Option<serde_json::Value> {
+    use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
+    let names = crate::cmd::runtime::runtime_proxy_provider_names().await;
+    if names.is_empty() {
+        return None;
+    }
+    let mut providers = serde_json::Map::with_capacity(names.len());
+    for name in names {
+        let path = format!(
+            "/providers/proxies/{}",
+            utf8_percent_encode(name.as_str(), NON_ALPHANUMERIC)
+        );
+        if let Some(provider) = core_json(&path).await {
+            providers.insert(name.to_string(), provider);
+        }
+    }
+    Some(serde_json::json!({ "providers": providers }))
+}
+
 /// История задержек узлов из `wanted`: из `/proxies` (узлы самой подписки) и
-/// `/providers/proxies` (узлы провайдеров — в `/proxies` их нет).
+/// провайдеров подписки (узлы провайдеров — в `/proxies` их нет).
 fn histories(
     proxies: &serde_json::Value,
     providers: Option<&serde_json::Value>,
@@ -427,7 +451,7 @@ async fn read_window(uid: &str, until: i64) -> Option<Window> {
         return None;
     }
     let proxies = core_json("/proxies").await?;
-    let providers = core_json("/providers/proxies").await;
+    let providers = provider_lists().await;
     let listed = histories(&proxies, providers.as_ref(), &nodes);
     let since = with_runtime(|runtime| runtime.pings_until);
     let pings = pings_of(&listed, since, until);
