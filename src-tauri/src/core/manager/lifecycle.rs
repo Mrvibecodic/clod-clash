@@ -357,7 +357,7 @@ impl CoreManager {
 
         let Err(error) = self.confirm_core_ready().await else {
             Self::spawn_mixed_port_check(false);
-            Self::restore_selected_nodes();
+            Self::new_core_is_up();
             return Ok(());
         };
 
@@ -375,17 +375,19 @@ impl CoreManager {
         Err(error)
     }
 
-    /// Новый процесс ядра поднимается с первым узлом каждой группы — выбор
-    /// человека возвращаем здесь, после любого запуска: при старте приложения,
-    /// перезапуске, смене ядра, переходе на службу и обратно, подъёме после
-    /// падения; ядро, которое перезапустила сама служба, — в стороже здоровья.
-    pub(super) fn restore_selected_nodes() {
+    /// Новое ядро ответило. Процесс поднимается с первым узлом каждой группы —
+    /// выбор человека возвращаем здесь, после любого запуска: при старте
+    /// приложения, перезапуске, смене ядра, переходе на службу и обратно,
+    /// подъёме после падения; ядро, которое перезапустила сама служба, — в
+    /// стороже здоровья. Первый подъём за сеанс — ещё и повод проверки 16–20.
+    pub(super) fn new_core_is_up() {
         if Handle::global().is_exiting() {
             return;
         }
         if let Err(error) = crate::config::profiles::activate_selected_nodes() {
             logging!(warn, Type::Core, "выбор узлов после запуска ядра не вернулся: {error}");
         }
+        crate::module::freeze_check::core_came_up();
     }
 
     async fn confirm_core_ready(&self) -> Result<()> {
@@ -1156,7 +1158,7 @@ impl CoreManager {
                 return;
             }
             // Поднят без подтверждения готовности — выбор возвращаем сами.
-            Self::restore_selected_nodes();
+            Self::new_core_is_up();
         }
     }
 }

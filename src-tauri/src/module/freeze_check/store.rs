@@ -26,15 +26,6 @@ pub(super) struct Network {
     pub nodes: BTreeMap<std::string::String, Node>,
 }
 
-impl Network {
-    pub(super) const fn new() -> Self {
-        Self {
-            last_seen: 0,
-            nodes: BTreeMap::new(),
-        }
-    }
-}
-
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub(super) struct Store {
     /// Хеш ключа сети → итоги в ней.
@@ -43,10 +34,14 @@ pub(super) struct Store {
 }
 
 impl Store {
-    /// Выбросить забытые сети и отпечатки, которых в подписке больше нет.
-    pub(super) fn prune(&mut self, now: i64, live: &BTreeSet<std::string::String>) {
+    /// Забыть сети, где клиент не был 30 дней.
+    pub(super) fn forget_old_networks(&mut self, now: i64) {
         self.networks
             .retain(|_, network| now.saturating_sub(network.last_seen) < FORGET_NETWORK_AFTER);
+    }
+
+    /// Забыть итоги узлов, которых в подписке больше нет.
+    pub(super) fn forget_nodes_except(&mut self, live: &BTreeSet<std::string::String>) {
         for network in self.networks.values_mut() {
             network.nodes.retain(|fingerprint, _| live.contains(fingerprint));
         }
@@ -134,7 +129,8 @@ mod tests {
         );
 
         let live: BTreeSet<std::string::String> = BTreeSet::from(["live".to_owned()]);
-        store.prune(NOW, &live);
+        store.forget_old_networks(NOW);
+        store.forget_nodes_except(&live);
 
         assert!(!store.networks.contains_key("old"));
         assert!(store.networks.contains_key("recent"));

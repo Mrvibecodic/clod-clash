@@ -5,14 +5,17 @@
 //! хранение по подписке и сети и пометки «режется» / «не отвечает» для
 //! интерфейса. С узлами клиент ничего не делает: пинг как был, выбор как был.
 //!
-//! Поводы захода: подписка применена (загрузка, обновление, смена, перезапуск
-//! ядра), сеть сменилась, тик раз в час. От подключения заход не зависит:
+//! Поводы захода: сменилась сеть; сменились подписка, её узлы или ядро;
+//! подписка обновилась (панель могла включить или выключить проверку); ядро
+//! впервые поднялось за сеанс; тик раз в час. Перезапуск ядра или туннеля с
+//! той же сборкой поводом не служит. От подключения заход не зависит:
 //! проверяется путь от адреса клиента до адреса сервера, туннель тут ни при
 //! чём. Проверяются отпечатки без итога в текущей сети, «работает» и
 //! «режется» старше 3 суток, «не отвечает» и попытки без итога старше 6 часов;
 //! одинаковые узлы делят результат по отпечатку. Если посреди захода сменились
-//! сеть или подписка, заход бросается; если не ответил никто — не записывается,
-//! и в этой сети следующий — через 6 часов или после применения подписки.
+//! сеть или подписка или ядро не ответило, заход бросается; если не ответил
+//! никто — не записывается, и в этой сети следующий — через 6 часов (новые
+//! узлы подписки проверяются и на паузе).
 //! Ядро без отпечатков (чужое) — функция молчит. Включает проверку только
 //! панель — заголовком подписки `clod-16-20-check: true`; без него ни
 //! проверок, ни пометок.
@@ -49,6 +52,10 @@ const DOWNLOAD_STALL_MS: u32 = 4_000;
 /// Ядро ждёт очередь к хосту, качает, потом пингует: 3 + 10 + 5 + 3 с.
 const REQUEST_BUDGET: Duration = Duration::from_secs(30);
 const LIST_TIMEOUT: Duration = Duration::from_secs(5);
+/// Только что поднятое ядро отвечает раньше, чем разложит узлы и провайдеров:
+/// столько раз и с такой паузой ждём, пока разложит.
+const SETTLE_ATTEMPTS: u32 = 20;
+const SETTLE_PAUSE: Duration = Duration::from_millis(1500);
 const PARALLEL_CHECKS: usize = 3;
 const TICK: Duration = Duration::from_secs(60 * 60);
 /// Через сколько переспросить MAC роутера, если он не достался сразу.
@@ -66,11 +73,22 @@ static REASON: Mutex<&'static str> = Mutex::new("");
 static FOREIGN_CORE_TOLD: AtomicBool = AtomicBool::new(false);
 /// Итоги в сети, которую не удалось распознать: живут до конца сеанса, на диск
 /// не идут, но повторы в них считаются как везде.
-static UNPLACED: Mutex<store::Network> = Mutex::new(store::Network::new());
-/// Подписка и сеть, где в последнем заходе не прошло ничего ни через кого (нет
-/// интернета, страница входа Wi-Fi): там повтор не раньше чем через 6 часов, а
-/// не каждый повод. В памяти; применение подписки забывает всё.
-static QUIET: Mutex<BTreeMap<std::string::String, i64>> = Mutex::new(BTreeMap::new());
+static UNPLACED: Mutex<BTreeMap<std::string::String, store::Network>> = Mutex::new(BTreeMap::new());
+/// Следующий заход ждёт, пока ядро разложит узлы: оно только что поднялось
+/// или получило новую сборку. Остальным заходам ждать незачем — провайдер,
+/// пустой и через минуту, так и останется пустым.
+static AWAIT_LAYOUT: AtomicBool = AtomicBool::new(false);
+/// Подписка и сеть, где в последнем заходе не прошло ничего ни через кого
+/// (нет интернета, страница входа Wi-Fi): какие узлы так проверены и когда.
+/// Их повтор — не раньше чем через 6 часов от их проверки; прочие узлы пауза
+/// не держит. В памяти.
+static QUIET: Mutex<BTreeMap<std::string::String, BTreeMap<std::string::String, i64>>> = Mutex::new(BTreeMap::new());
+/// Ядро уже поднималось в этом сеансе — первый подъём служит поводом захода,
+/// остальные (перезапуски) нет.
+static CORE_CAME_UP: AtomicBool = AtomicBool::new(false);
+/// Заход бросили, потому что ядро замолчало: его продолжит следующий подъём
+/// ядра — это не новый повод, а недоделанный заход.
+static CORE_WAS_SILENT: AtomicBool = AtomicBool::new(false);
 
 #[derive(Default)]
 struct Marks {
@@ -104,11 +122,42 @@ pub(crate) async fn report(uid: &str) -> serde_json::Value {
     })
 }
 
-/// Подписка применена: загрузка, обновление, смена, перезапуск ядра. Идущий
-/// заход сам сверит в конце, те ли ещё узлы у ядра.
-pub fn profile_activated() {
-    QUIET.lock().clear();
-    kick("profile applied", Standing::Kept);
+/// Повод для нового захода без новой сборки у ядра — подписка обновилась
+/// (панель могла включить или выключить проверку). Перезапуск ядра или
+/// туннеля, правки DNS и прочих настроек поводом не служат.
+pub fn check_again(reason: &'static str) {
+    kick(reason, Standing::Kept);
+}
+
+/// Ядру доставлена другая подписка: пометки прежней гаснут сразу, её идущий
+/// заход бросается — подписки не делят ничего.
+pub fn subscription_changed() {
+    AWAIT_LAYOUT.store(true, Ordering::Release);
+    // Сначала новый номер захода: идущий заход прежней подписки после этого
+    // уже ничего не покажет.
+    kick("subscription changed", Standing::Dropped);
+    clear_marks();
+}
+
+/// Ядру доставлены новые узлы или провайдеры подписки, или сменилось ядро.
+pub fn nodes_changed() {
+    AWAIT_LAYOUT.store(true, Ordering::Release);
+    kick("nodes or core changed", Standing::Kept);
+}
+
+/// Новое ядро ответило. Первое за сеанс — повод захода (приложение
+/// запустилось); перезапуски — нет, кроме одного: заход, брошенный из-за
+/// замолчавшего ядра, продолжается.
+pub fn core_came_up() {
+    let first = !CORE_CAME_UP.swap(true, Ordering::AcqRel);
+    let unfinished = CORE_WAS_SILENT.swap(false, Ordering::AcqRel);
+    if first || unfinished {
+        AWAIT_LAYOUT.store(true, Ordering::Release);
+        kick(
+            if first { "app started" } else { "the core answers again" },
+            Standing::Kept,
+        );
+    }
 }
 
 /// Сторож среды увидел смену сети или пробуждение — идущий заход бросается.
@@ -254,12 +303,54 @@ async fn core_json(path: &str, budget: Duration) -> Option<serde_json::Value> {
     response.json::<serde_json::Value>().await.ok()
 }
 
-/// Все узлы с отпечатком: из списка прокси и из провайдеров. `None` — ядро
-/// не ответило.
-async fn list_nodes() -> Option<Listing> {
+/// Все узлы с отпечатком: из списка прокси и из провайдеров, и `true`, если
+/// ядро уже разложило сборку. `None` — ядро не ответило.
+async fn list_nodes() -> Option<(Listing, bool)> {
     let proxies = core_json("/proxies", LIST_TIMEOUT).await?;
     let providers = core_json("/providers/proxies", LIST_TIMEOUT).await;
-    Some(nodes_of(&proxies, providers.as_ref()))
+    let settled = core_settled(&proxies, providers.as_ref());
+    Some((nodes_of(&proxies, providers.as_ref()), settled))
+}
+
+/// Ядро разложило сборку: группы на месте (GLOBAL есть всегда) и у каждого
+/// провайдера по ссылке есть узлы. Только что поднятое ядро отвечает раньше.
+fn core_settled(proxies: &serde_json::Value, providers: Option<&serde_json::Value>) -> bool {
+    let groups = proxies.get("proxies").and_then(|map| map.get("GLOBAL")).is_some();
+    let filled = providers
+        .and_then(|providers| providers.get("providers"))
+        .and_then(serde_json::Value::as_object)
+        .is_some_and(|map| {
+            map.values().all(|provider| {
+                provider.get("vehicleType").and_then(serde_json::Value::as_str) != Some("HTTP")
+                    || provider
+                        .get("proxies")
+                        .and_then(serde_json::Value::as_array)
+                        .is_some_and(|members| !members.is_empty())
+            })
+        });
+    groups && filled
+}
+
+/// Узлы ядра, когда оно разложило сборку, и `true`, если дождались; не
+/// дождались — что есть. Новый повод (смена сети) ожидание прерывает.
+async fn settled_nodes(epoch: u64) -> Option<(Listing, bool)> {
+    let mut listed = list_nodes().await;
+    let attempts = if AWAIT_LAYOUT.swap(false, Ordering::AcqRel) {
+        SETTLE_ATTEMPTS
+    } else {
+        0
+    };
+    for _ in 0..attempts {
+        if matches!(listed, Some((_, true)))
+            || EPOCH.load(Ordering::Acquire) != epoch
+            || handle::Handle::global().is_exiting()
+        {
+            break;
+        }
+        tokio::time::sleep(SETTLE_PAUSE).await;
+        listed = list_nodes().await;
+    }
+    listed
 }
 
 /// Имя → отпечаток: по этому в конце захода видно, те ли ещё узлы у ядра.
@@ -289,13 +380,10 @@ fn download_path(node: &NodeRef) -> std::string::String {
     )
 }
 
-async fn check(node: &NodeRef) -> plan::Checked {
-    let Some(answer) = core_json(&download_path(node), REQUEST_BUDGET).await else {
-        return plan::Checked {
-            outcome: plan::Outcome::Unknown { answered: false },
-            status: 0,
-        };
-    };
+/// Итог проверки узла; `None` — не ответило само ядро (например, его
+/// перезапустили посреди захода): это не итог узла.
+async fn check(node: &NodeRef) -> Option<plan::Checked> {
+    let answer = core_json(&download_path(node), REQUEST_BUDGET).await?;
     let status = answer.get("status").and_then(serde_json::Value::as_i64).unwrap_or(0);
     let outcome = answer
         .get("verdict")
@@ -303,7 +391,7 @@ async fn check(node: &NodeRef) -> plan::Checked {
         .map_or(plan::Outcome::Unknown { answered: false }, |verdict| {
             plan::Outcome::parse(verdict, status)
         });
-    plan::Checked { outcome, status }
+    Some(plan::Checked { outcome, status })
 }
 
 /// Кого проверять: один узел на отпечаток, только просроченные.
@@ -317,27 +405,34 @@ fn due_of(nodes: &[NodeRef], network: &store::Network, now: i64) -> Vec<NodeRef>
         .collect()
 }
 
-/// Кого проверять сейчас и `true`, если никого: в этой подписке и сети
-/// недавно не прошло ничего ни через кого.
+/// Кого проверять сейчас и `true`, если некого из-за паузы: в этой подписке и
+/// сети через эти узлы недавно не прошло ничего.
 fn due_now(quiet_key: &str, nodes: &[NodeRef], network: &store::Network, now: i64) -> (Vec<NodeRef>, bool) {
-    let hushed = QUIET
-        .lock()
-        .get(quiet_key)
-        .is_some_and(|at| now.saturating_sub(*at) < plan::RETRY_AFTER);
-    if hushed {
-        return (Vec::new(), true);
-    }
-    (due_of(nodes, network, now), false)
+    let due = due_of(nodes, network, now);
+    let Some(held) = QUIET.lock().get(quiet_key).cloned() else {
+        return (due, false);
+    };
+    let paused = |node: &NodeRef| {
+        held.get(&node.fingerprint)
+            .is_some_and(|at| now.saturating_sub(*at) < plan::RETRY_AFTER)
+    };
+    let free: Vec<NodeRef> = due.iter().filter(|node| !paused(node)).cloned().collect();
+    let hushed = free.is_empty() && !due.is_empty();
+    (free, hushed)
 }
 
-/// После захода: не прошло ничего — повтор в этой подписке и сети через 6 часов.
-fn remember_quiet(quiet_key: std::string::String, stored: bool, now: i64) {
-    let mut quiet = QUIET.lock();
+/// После захода: не прошло ничего — эти узлы на паузе 6 часов; прошло хоть
+/// что-то — паузы в этой подписке и сети нет.
+fn remember_quiet(quiet_key: std::string::String, nodes: &[NodeRef], stored: bool, now: i64) {
     if stored {
-        quiet.remove(&quiet_key);
-    } else {
-        quiet.insert(quiet_key, now);
+        QUIET.lock().remove(&quiet_key);
+        return;
     }
+    QUIET
+        .lock()
+        .entry(quiet_key)
+        .or_default()
+        .extend(nodes.iter().map(|node| (node.fingerprint.clone(), now)));
 }
 
 const fn hushed_note(hushed: bool) -> &'static str {
@@ -355,8 +450,13 @@ fn marks_of(nodes: &[NodeRef], network: &store::Network) -> BTreeMap<std::string
 }
 
 /// Запомнить пометки для фронта и трея; `true` — они изменились.
-fn publish(uid: &str, by_name: BTreeMap<std::string::String, &'static str>) -> bool {
+/// Показать пометки захода с номером `epoch`; заход устарел (сменились сеть
+/// или подписка) — ничего не показывать.
+fn publish(uid: &str, by_name: BTreeMap<std::string::String, &'static str>, epoch: u64) -> bool {
     let mut marks = MARKS.lock();
+    if EPOCH.load(Ordering::Acquire) != epoch {
+        return false;
+    }
     let changed = marks.uid.as_deref() != Some(uid) || marks.by_name != by_name;
     marks.uid = Some(uid.to_owned());
     marks.by_name = by_name;
@@ -400,8 +500,9 @@ fn counted(outcomes: &[plan::Outcome]) -> std::string::String {
 }
 
 /// Узлы с отпечатком у ядра; `None` — ядро не ответило или отпечатков нет.
-async fn listed_nodes(uid: &str, reason: &str, verbose: bool) -> Option<Vec<NodeRef>> {
-    let Some(listing) = list_nodes().await else {
+async fn listed_nodes(uid: &str, reason: &str, verbose: bool, epoch: u64) -> Option<(Vec<NodeRef>, bool)> {
+    let Some((listing, settled)) = settled_nodes(epoch).await else {
+        CORE_WAS_SILENT.store(true, Ordering::Release);
         if verbose {
             logging!(
                 info,
@@ -423,28 +524,40 @@ async fn listed_nodes(uid: &str, reason: &str, verbose: bool) -> Option<Vec<Node
         } else if verbose {
             logging!(info, Type::Core, "[Freeze] {reason}: the subscription has no nodes");
         }
-        announce(publish(uid, BTreeMap::new())).await;
+        announce(publish(uid, BTreeMap::new(), epoch)).await;
         return None;
     }
     FOREIGN_CORE_TOLD.store(false, Ordering::Release);
-    Some(listing.nodes)
+    Some((listing.nodes, settled))
 }
 
-/// Проверить просроченные узлы по три за раз; `None` — заход устарел.
+/// Проверить просроченные узлы по три за раз. Итоги захода; `None` — заход не в счёт: сменилась сеть, идёт выход или
+/// ядро не ответило хоть на одну проверку.
 async fn checked(due: Vec<NodeRef>, epoch: u64) -> Option<Vec<(NodeRef, plan::Checked)>> {
-    let outcomes: Vec<(NodeRef, plan::Checked)> = futures::stream::iter(due)
+    // Ядро не ответило — заход уже не в счёт, остальные проверки не гоняем.
+    let silent = AtomicBool::new(false);
+    let silent = &silent;
+    let outcomes: Vec<Option<(NodeRef, plan::Checked)>> = futures::stream::iter(due)
         .map(|node| async move {
-            if EPOCH.load(Ordering::Acquire) != epoch || handle::Handle::global().is_exiting() {
+            if silent.load(Ordering::Acquire)
+                || EPOCH.load(Ordering::Acquire) != epoch
+                || handle::Handle::global().is_exiting()
+            {
                 return None;
             }
             let outcome = check(&node).await;
-            Some((node, outcome))
+            if outcome.is_none() {
+                silent.store(true, Ordering::Release);
+            }
+            outcome.map(|outcome| (node, outcome))
         })
         .buffer_unordered(PARALLEL_CHECKS)
-        .filter_map(futures::future::ready)
         .collect()
         .await;
-    (EPOCH.load(Ordering::Acquire) == epoch).then_some(outcomes)
+    if EPOCH.load(Ordering::Acquire) != epoch {
+        return None;
+    }
+    outcomes.into_iter().collect()
 }
 
 /// Записать итоги в сеть; `true` — записано.
@@ -484,32 +597,46 @@ async fn network_key() -> Option<network::Key> {
 }
 
 /// Тот ли ещё мир, в котором шёл заход: та же подписка, те же узлы, та же сеть.
-async fn still_the_same(uid: &str, nodes: &[NodeRef], key: Option<&str>) -> bool {
-    let current = Config::profiles().await.latest_arc().get_current().cloned();
-    if current.as_deref() != Some(uid) {
+async fn still_the_same(uid: &str, checked: &[NodeRef], key: Option<&str>) -> bool {
+    if running_subscription().await.as_deref() != Some(uid) {
         return false;
     }
-    let Some(listing) = list_nodes().await else {
+    let Some((listing, _)) = list_nodes().await else {
         return false;
     };
-    if names_of(&listing.nodes) != names_of(nodes) {
+    // Проверенные узлы на месте и те же; что ядро тем временем догрузило
+    // других, итогов не отменяет.
+    let now = names_of(&listing.nodes);
+    if !checked
+        .iter()
+        .all(|node| now.get(node.name.as_str()) == Some(&node.fingerprint.as_str()))
+    {
         return false;
     }
     let now_key = AsyncHandler::spawn_blocking(network::current).await.ok().flatten();
     now_key.as_ref().map(|key| key.hash.as_str()) == key
 }
 
-/// Текущая подписка, если панель включила проверку заголовком
+/// Подписка, на которой работает ядро. Не текущая в реестре: при смене
+/// подписки реестр записывает её только после того, как ядро её приняло.
+async fn running_subscription() -> Option<std::string::String> {
+    Config::runtime()
+        .await
+        .data_arc()
+        .profile_uid
+        .as_ref()
+        .map(ToString::to_string)
+}
+
+/// Подписка ядра, если панель включила проверку заголовком
 /// `clod-16-20-check: true`; иначе пометки гасятся и делать нечего.
-async fn enabled_subscription(reason: &str, verbose: bool) -> Option<std::string::String> {
-    let (uid, enabled) = {
-        let profiles = Config::profiles().await.latest_arc();
-        let uid = profiles.get_current().cloned()?;
-        let enabled = profiles
-            .get_item(&uid)
-            .is_ok_and(|item| item.freeze_check == Some(true));
-        (uid.to_string(), enabled)
-    };
+async fn enabled_subscription(reason: &str, verbose: bool, epoch: u64) -> Option<std::string::String> {
+    let uid = running_subscription().await?;
+    let enabled = Config::profiles()
+        .await
+        .latest_arc()
+        .get_item(&uid)
+        .is_ok_and(|item| item.freeze_check == Some(true));
     if !enabled && verbose {
         logging!(
             info,
@@ -521,9 +648,58 @@ async fn enabled_subscription(reason: &str, verbose: bool) -> Option<std::string
     // одноимённые узлы двух подписок не делят ничего. Выключенная — тоже без пометок.
     let other = MARKS.lock().uid.as_deref() != Some(uid.as_str());
     if !enabled || other {
-        announce(publish(&uid, BTreeMap::new())).await;
+        announce(publish(&uid, BTreeMap::new(), epoch)).await;
     }
     enabled.then_some(uid)
+}
+
+/// Итоги подписки с диска и итоги неопознанной сети (живут в памяти до конца
+/// сеанса) — без узлов, которых у ядра больше нет. Если ядро не разложило узлы
+/// до конца, по неполному списку не чистим: стёрлись бы итоги узлов, которых
+/// ядро просто ещё не показало.
+async fn saved_results(uid: &str, nodes: &[NodeRef], settled: bool, now: i64) -> (store::Store, store::Network) {
+    let mut saved = store::load(uid).await;
+    let mut unplaced = UNPLACED.lock().get(uid).cloned().unwrap_or_default();
+    if settled {
+        let live: BTreeSet<std::string::String> = nodes.iter().map(|node| node.fingerprint.clone()).collect();
+        saved.forget_nodes_except(&live);
+        unplaced.nodes.retain(|fingerprint, _| live.contains(fingerprint));
+    }
+    saved.forget_old_networks(now);
+    (saved, unplaced)
+}
+
+/// Итоги проверок, если они ещё о тех же узлах в той же сети и подписке;
+/// `None` — заход не в счёт.
+async fn checked_in_place(
+    uid: &str,
+    due: Vec<NodeRef>,
+    key: Option<&str>,
+    epoch: u64,
+    reason: &str,
+) -> Option<Vec<(NodeRef, plan::Checked)>> {
+    let checked_nodes = due.clone();
+    let Some(outcomes) = checked(due, epoch).await else {
+        // Номер тот же — заход бросило молчание ядра: доделает следующий подъём.
+        if EPOCH.load(Ordering::Acquire) == epoch {
+            CORE_WAS_SILENT.store(true, Ordering::Release);
+        }
+        logging!(
+            info,
+            Type::Core,
+            "[Freeze] {reason}: the network changed or the core did not answer mid-pass, results dropped"
+        );
+        return None;
+    };
+    if !still_the_same(uid, &checked_nodes, key).await {
+        logging!(
+            info,
+            Type::Core,
+            "[Freeze] {reason}: the network, the subscription or its checked nodes changed mid-pass, results dropped"
+        );
+        return None;
+    }
+    Some(outcomes)
 }
 
 async fn pass(reason: &'static str) {
@@ -534,28 +710,27 @@ async fn pass(reason: &'static str) {
         clear_marks();
         return;
     }
-    let Some(uid) = enabled_subscription(reason, verbose).await else {
+    let Some(uid) = enabled_subscription(reason, verbose, epoch).await else {
         return;
     };
-    let Some(nodes) = listed_nodes(&uid, reason, verbose).await else {
+    let Some((nodes, settled)) = listed_nodes(&uid, reason, verbose, epoch).await else {
         return;
     };
+    // Пока ждали ядро, сменились сеть или подписка — этот заход уже не их.
+    if EPOCH.load(Ordering::Acquire) != epoch {
+        return;
+    }
 
     let key = network_key().await.map(|key| key.hash);
     let shown_key = key.as_deref().unwrap_or("?");
     let now = now_unix_secs();
-    let live: BTreeSet<std::string::String> = nodes.iter().map(|node| node.fingerprint.clone()).collect();
-    let mut saved = store::load(&uid).await;
-    saved.prune(now, &live);
-    // Сеть не определилась: заход идёт, итог живёт в памяти до конца сеанса.
-    let mut unplaced = UNPLACED.lock().clone();
-    unplaced.nodes.retain(|fingerprint, _| live.contains(fingerprint));
+    let (mut saved, mut unplaced) = saved_results(&uid, &nodes, settled, now).await;
     let network = match key.as_deref() {
         Some(key) => saved.network_mut(key),
         None => &mut unplaced,
     };
     // Пометки этой сети показываются сразу, не дожидаясь проверок.
-    announce(publish(&uid, marks_of(&nodes, network))).await;
+    announce(publish(&uid, marks_of(&nodes, network), epoch)).await;
 
     let quiet_key = format!("{uid}/{shown_key}");
     let (due, hushed) = due_now(&quiet_key, &nodes, network, now);
@@ -570,20 +745,12 @@ async fn pass(reason: &'static str) {
             );
         }
     } else {
-        let outcomes = checked(due, epoch).await;
-        let outcomes = match outcomes {
-            Some(outcomes) if still_the_same(&uid, &nodes, key.as_deref()).await => outcomes,
-            _ => {
-                logging!(
-                    info,
-                    Type::Core,
-                    "[Freeze] {reason}: the network or the subscription changed mid-pass, results dropped"
-                );
-                return;
-            }
+        let due_nodes = due.clone();
+        let Some(outcomes) = checked_in_place(&uid, due, key.as_deref(), epoch, reason).await else {
+            return;
         };
         stored = recorded(network, &outcomes, now, verbose);
-        remember_quiet(quiet_key, stored, now);
+        remember_quiet(quiet_key, &due_nodes, stored, now);
         let verdicts: Vec<plan::Outcome> = outcomes.iter().map(|(_, checked)| checked.outcome).collect();
         let tail = if stored {
             ""
@@ -600,6 +767,9 @@ async fn pass(reason: &'static str) {
         );
     }
 
+    if EPOCH.load(Ordering::Acquire) != epoch {
+        return;
+    }
     let by_name = marks_of(&nodes, network);
     let known = network.last_seen != 0;
     if key.is_some() && (stored || (known && now.saturating_sub(network.last_seen) >= TOUCH_AFTER)) {
@@ -609,9 +779,9 @@ async fn pass(reason: &'static str) {
         }
     }
     if key.is_none() {
-        *UNPLACED.lock() = unplaced;
+        UNPLACED.lock().insert(uid.clone(), unplaced);
     }
-    announce(publish(&uid, by_name)).await;
+    announce(publish(&uid, by_name, epoch)).await;
 }
 
 #[cfg(test)]
@@ -620,7 +790,10 @@ mod tests {
 
     use serde_json::json;
 
-    use super::{Listing, NodeRef, download_path, due_of, marks_of, names_of, nodes_of, plan, store};
+    use super::{
+        Listing, NodeRef, core_settled, download_path, due_now, due_of, marks_of, names_of, nodes_of, plan,
+        remember_quiet, store,
+    };
 
     fn node(name: &str, fingerprint: &str) -> NodeRef {
         NodeRef {
@@ -628,6 +801,50 @@ mod tests {
             provider: None,
             fingerprint: fingerprint.into(),
         }
+    }
+
+    #[test]
+    fn a_freshly_started_core_is_settled_once_groups_and_link_providers_are_filled() {
+        let groups = json!({ "proxies": { "GLOBAL": { "all": [] } } });
+        let empty = json!({ "providers": { "sub": { "vehicleType": "HTTP", "proxies": [] } } });
+        let filled = json!({ "providers": {
+            "sub": { "vehicleType": "HTTP", "proxies": [{ "name": "a" }] },
+            "default": { "vehicleType": "Compatible", "proxies": [] },
+        } });
+        assert!(!core_settled(&json!({ "proxies": {} }), Some(&filled)));
+        assert!(!core_settled(&groups, Some(&empty)));
+        assert!(!core_settled(&groups, None));
+        assert!(core_settled(&groups, Some(&filled)));
+    }
+
+    #[test]
+    fn a_quiet_pause_holds_its_nodes_and_lets_new_ones_through() {
+        const AT: i64 = 1_800_000_000;
+        let key = "test-subscription/test-network".to_owned();
+        let network = store::Network::default();
+        let held = [node("a", "f1"), node("b", "f2")];
+        remember_quiet(key.clone(), &held, false, AT);
+
+        let (due, hushed) = due_now(&key, &held, &network, AT + 60);
+        assert!(due.is_empty() && hushed);
+
+        let grown = [node("a", "f1"), node("c", "f3")];
+        let (due, hushed) = due_now(&key, &grown, &network, AT + 60);
+        assert_eq!(due, vec![node("c", "f3")]);
+        assert!(!hushed);
+
+        let (due, hushed) = due_now(&key, &held, &network, AT + plan::RETRY_AFTER);
+        assert_eq!(due.len(), 2);
+        assert!(!hushed);
+
+        // У каждого узла своя пауза: узел, проверенный позже, держится дольше.
+        remember_quiet(key.clone(), &[node("c", "f3")], false, AT + 600);
+        let (due, _) = due_now(&key, &grown, &network, AT + plan::RETRY_AFTER);
+        assert_eq!(due, vec![node("a", "f1")]);
+
+        remember_quiet(key.clone(), &held, true, AT + 120);
+        let (due, _) = due_now(&key, &held, &network, AT + 180);
+        assert_eq!(due.len(), 2);
     }
 
     #[test]

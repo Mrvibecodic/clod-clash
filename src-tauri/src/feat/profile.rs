@@ -726,6 +726,9 @@ async fn settle_the_download(uid: &String, downloaded: Downloaded, trigger: Upda
             return Err(failed(uid, "update_failed", "Обновление не удалось", &err.to_string(), trigger).await);
         }
     };
+    // Запись о подписке уже обновлена, принята она ядром или нет: панель могла
+    // включить или выключить проверку 16–20 заголовком.
+    crate::module::freeze_check::check_again("subscription updated");
 
     let delivered = match acceptance {
         Acceptance::Accepted { delivered } => delivered,

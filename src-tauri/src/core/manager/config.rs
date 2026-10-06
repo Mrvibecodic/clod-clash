@@ -346,7 +346,14 @@ impl CoreManager {
         // clod:port-ladder — порт мог приехать из подписки: системный
         // прокси и PAC указывают на него, и после смены их надо
         // переписать, каким бы путём конфиг ни доехал до ядра.
-        let (mixed_port_changed, mode_changed, sharing_changed, controller_needs_restart) = {
+        let (
+            mixed_port_changed,
+            mode_changed,
+            sharing_changed,
+            controller_needs_restart,
+            subscription_changed,
+            nodes_may_change,
+        ) = {
             let prev = Config::runtime().await.data_arc();
             let changed = |key: &str| prev.config.as_ref().and_then(|config| config.get(key)) != config.get(key);
             (
@@ -354,6 +361,10 @@ impl CoreManager {
                 changed("mode"),
                 changed("allow-lan"),
                 controller_changed(prev.config.as_ref(), config),
+                // Поводы для проверки 16–20: другая подписка; её узлы или
+                // провайдеры, другое ядро. Туннель, DNS и прочие настройки — нет.
+                prev.profile_uid != build.profile_uid,
+                changed("proxies") || changed("proxy-providers") || self.core_switch.load(Ordering::Acquire),
             )
         };
         let delivery = if controller_needs_restart {
@@ -372,6 +383,11 @@ impl CoreManager {
             return Err(error);
         }
         forget_the_not_applied_mark(profile_uid.as_ref()).await;
+        if subscription_changed {
+            crate::module::freeze_check::subscription_changed();
+        } else if nodes_may_change {
+            crate::module::freeze_check::nodes_changed();
+        }
         if mixed_port_changed || sharing_changed {
             Self::spawn_mixed_port_check(true);
         }

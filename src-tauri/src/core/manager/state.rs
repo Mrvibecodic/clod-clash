@@ -477,7 +477,7 @@ async fn look_at_the_service(manager: &CoreManager, watch: &mut HealthWatch, gen
                 reason
             );
             // Новый процесс поднимала служба, мимо нашего запуска.
-            CoreManager::restore_selected_nodes();
+            CoreManager::new_core_is_up();
             let _ = after_core_came_back(&reason).await;
             true
         }

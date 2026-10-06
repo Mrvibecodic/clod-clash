@@ -1370,7 +1370,6 @@ pub fn activate_selected_nodes() -> Result<()> {
             }
             update_tray_after_activation(generation).await;
             logging!(info, Type::Config, "activating selected nodes done!");
-            crate::module::freeze_check::profile_activated();
         }
     });
     *active_task = Some(handle);
