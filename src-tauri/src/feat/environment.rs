@@ -597,7 +597,7 @@ fn hold_the_rearm_after_wake(tun_is_wanted: bool) {
     logging!(
         info,
         Type::Core,
-        "[clod] the TUN device waits for a routable address before it is re-created"
+        "[clod] the TUN device waits for a routable address before it is checked"
     );
 }
 
@@ -638,7 +638,7 @@ async fn rearm_after_wake() {
         logging!(
             info,
             Type::Core,
-            "[clod] the machine woke up with the network already there; the TUN device is switched off, nothing to re-create"
+            "[clod] the machine woke up with the network already there; the TUN device is switched off, nothing to check"
         );
     }
     AsyncHandler::spawn(|| async { crate::feat::tun::rearm_after_wake().await });

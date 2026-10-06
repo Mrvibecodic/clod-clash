@@ -6,6 +6,7 @@ use std::{
 use clash_verge_logging::{Type, logging};
 use parking_lot::Mutex;
 use tauri_plugin_clash_verge_sysinfo::is_current_app_handle_admin;
+use tauri_plugin_mihomo::models::TunConfig;
 
 use crate::{
     config::Config,
@@ -525,9 +526,144 @@ pub async fn rearm_after_wake() {
     stamp_rearm();
     if was_suppressed {
         bring_tun_back("the machine woke up into a new environment").await;
-    } else {
-        recreate_tun_device().await;
+        return;
     }
+    // clod:Р30П-11 — рабочий туннель после сна не трогаем: пересоздание рвёт
+    // его соединения и на время без маршрутов пускает трафик мимо. Пересоздаём
+    // только то, что по факту не работает.
+    match health_after_wake().await {
+        Health::Works => logging!(
+            info,
+            Type::Core,
+            "the TUN device works after the wake-up; left as it is"
+        ),
+        Health::Unknown(why) => logging!(
+            info,
+            Type::Core,
+            "the TUN device could not be checked after the wake-up ({}); left as it is",
+            why
+        ),
+        Health::Broken(why) => {
+            if !claimed().await {
+                return;
+            }
+            logging!(
+                warn,
+                Type::Core,
+                "the TUN device does not work after the wake-up ({}); re-creating it",
+                why
+            );
+            recreate_tun_device().await;
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Health {
+    Works,
+    Broken(&'static str),
+    Unknown(&'static str),
+}
+
+/// Состояние туннеля по фактам: что о нём говорит ядро, ведёт ли в него
+/// система путь наружу и идёт ли через него трафик.
+async fn health_after_wake() -> Health {
+    let Some(tun) = read_tun_config().await else {
+        return Health::Unknown("the core did not answer");
+    };
+    if !tun.enable {
+        return Health::Broken("the core reports the device is not up");
+    }
+    if system_route(&tun) == Route::Bypass {
+        return Health::Broken("the system route to the internet bypasses it");
+    }
+    match traffic_through_the_tunnel().await {
+        Traffic::Flows => {
+            traffic_seen_flowing();
+            Health::Works
+        }
+        Traffic::Stuck => Health::Broken("it passes no traffic"),
+        Traffic::Unknown => Health::Unknown("the proxy itself does not answer"),
+    }
+}
+
+/// Куда проверяется маршрут. Пакет туда не уходит: UDP-сокет только
+/// спрашивает систему, каким путём и с какого адреса она бы его отправила.
+/// Порт — как у обычного трафика, не 53: DNS у туннеля на Linux идёт
+/// отдельным правилом и показал бы туннель там, где остальное идёт мимо.
+const ROUTE_CHECK_TARGET: std::net::Ipv4Addr = std::net::Ipv4Addr::new(1, 1, 1, 1);
+const ROUTE_CHECK_PORT: u16 = 443;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Route {
+    Tunnel,
+    Bypass,
+    Unknown,
+}
+
+fn system_route(tun: &TunConfig) -> Route {
+    if !route_check_applies(tun) {
+        return Route::Unknown;
+    }
+    source_towards(ROUTE_CHECK_TARGET).map_or(Route::Unknown, |source| {
+        route_by_source(source, tun.inet4_address.as_deref().unwrap_or_default())
+    })
+}
+
+/// Путь в туннель система выбирает с адресом самого туннеля — так на всех
+/// трёх ОС. Любой другой адрес значит, что путь наружу идёт мимо него.
+fn route_by_source(source: std::net::IpAddr, tunnel_addresses: &[String]) -> Route {
+    let prefixes: Vec<_> = tunnel_addresses
+        .iter()
+        .filter_map(|text| crate::enhance::LanPrefix::parse(text))
+        .collect();
+    if prefixes.is_empty() || source.is_unspecified() || source.is_loopback() {
+        return Route::Unknown;
+    }
+    if prefixes.iter().any(|prefix| prefix.contains(source)) {
+        Route::Tunnel
+    } else {
+        Route::Bypass
+    }
+}
+
+/// Проверка маршрута честна, только когда туннель забирает весь путь наружу
+/// и наш процесс в нём. Сужения адресов, наборы исключений, правила по
+/// пользователям, интерфейсам и портам, auto-redirect — ответа «по маршруту» нет.
+fn route_check_applies(tun: &TunConfig) -> bool {
+    let target = std::net::IpAddr::V4(ROUTE_CHECK_TARGET);
+    let excluded = [&tun.route_exclude_address, &tun.inet4_route_exclude_address]
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|text| crate::enhance::LanPrefix::parse(text))
+        .any(|prefix| prefix.contains(target));
+    let none = |list: &Option<Vec<String>>| list.as_ref().is_none_or(Vec::is_empty);
+    let no_uids = |list: &Option<Vec<u32>>| list.as_ref().is_none_or(Vec::is_empty);
+    let no_ports = |list: &Option<Vec<u16>>| list.as_ref().is_none_or(Vec::is_empty);
+    tun.auto_route
+        && tun.auto_redirect != Some(true)
+        && !excluded
+        && none(&tun.route_address)
+        && none(&tun.route_address_set)
+        && none(&tun.inet4_route_address)
+        && none(&tun.route_exclude_address_set)
+        && none(&tun.include_interface)
+        && none(&tun.exclude_interface)
+        && no_uids(&tun.include_uid)
+        && none(&tun.include_uid_range)
+        && no_uids(&tun.exclude_uid)
+        && none(&tun.exclude_uid_range)
+        && no_ports(&tun.exclude_src_port)
+        && none(&tun.exclude_src_port_range)
+        && no_ports(&tun.exclude_dst_port)
+        && none(&tun.exclude_dst_port_range)
+}
+
+fn source_towards(target: std::net::Ipv4Addr) -> Option<std::net::IpAddr> {
+    let socket = std::net::UdpSocket::bind((std::net::Ipv4Addr::UNSPECIFIED, 0)).ok()?;
+    socket.connect((target, ROUTE_CHECK_PORT)).ok()?;
+    socket.local_addr().ok().map(|local| local.ip())
 }
 
 async fn probe_traffic(proxy_type: ProxyType) -> bool {
@@ -553,6 +689,40 @@ pub fn recheck_traffic() {
     spawn_traffic_probe();
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Traffic {
+    Flows,
+    Stuck,
+    Unknown,
+}
+
+/// Идёт ли трафик машины через туннель. «Не знаю» — когда не отвечает сам
+/// прокси (сеть или узел, а не туннель) или туннель перестали хотеть.
+async fn traffic_through_the_tunnel() -> Traffic {
+    if !probe_traffic(ProxyType::Localhost).await {
+        return Traffic::Unknown;
+    }
+    if probe_traffic(ProxyType::None).await {
+        return Traffic::Flows;
+    }
+    tokio::time::sleep(TRAFFIC_PROBE_RETRY_DELAY).await;
+    if !claimed().await {
+        return Traffic::Unknown;
+    }
+    if probe_traffic(ProxyType::None).await {
+        return Traffic::Flows;
+    }
+    if !probe_traffic(ProxyType::Localhost).await {
+        return Traffic::Unknown;
+    }
+    Traffic::Stuck
+}
+
+fn traffic_seen_flowing() {
+    NO_TRAFFIC_NOTICED.store(false, Ordering::Release);
+    clear_failure_tag(FAILURE_NO_TRAFFIC);
+}
+
 fn spawn_traffic_probe() {
     if TRAFFIC_PROBE_RUNNING.swap(true, Ordering::AcqRel) {
         return;
@@ -566,25 +736,13 @@ fn spawn_traffic_probe() {
         if !claimed().await {
             return;
         }
-        if !probe_traffic(ProxyType::Localhost).await {
-            return;
-        }
-        if probe_traffic(ProxyType::None).await {
-            NO_TRAFFIC_NOTICED.store(false, Ordering::Release);
-            clear_failure_tag(FAILURE_NO_TRAFFIC);
-            return;
-        }
-        tokio::time::sleep(TRAFFIC_PROBE_RETRY_DELAY).await;
-        if !claimed().await {
-            return;
-        }
-        if probe_traffic(ProxyType::None).await {
-            NO_TRAFFIC_NOTICED.store(false, Ordering::Release);
-            clear_failure_tag(FAILURE_NO_TRAFFIC);
-            return;
-        }
-        if !probe_traffic(ProxyType::Localhost).await {
-            return;
+        match traffic_through_the_tunnel().await {
+            Traffic::Unknown => return,
+            Traffic::Flows => {
+                traffic_seen_flowing();
+                return;
+            }
+            Traffic::Stuck => {}
         }
         if TRAFFIC_PROBE_EPOCH.load(Ordering::Acquire) != epoch {
             logging!(
@@ -608,22 +766,20 @@ fn spawn_traffic_probe() {
     });
 }
 
-async fn read_tun_state() -> Option<(bool, String)> {
+async fn read_tun_config() -> Option<TunConfig> {
     let core = crate::feat::environment::detached_core_client();
-    let outcome = tokio::time::timeout(TUN_READ_TIMEOUT, core.get_base_config()).await;
-    let config = match outcome {
-        Ok(Ok(config)) => config,
-        _ => return None,
-    };
-    Some((config.tun.enable, config.tun.stack.to_string()))
+    match tokio::time::timeout(TUN_READ_TIMEOUT, core.get_base_config()).await {
+        Ok(Ok(config)) => Some(config.tun),
+        _ => None,
+    }
 }
 
 pub async fn runtime_stack() -> Option<String> {
     if !claimed().await {
         return None;
     }
-    match read_tun_state().await {
-        Some((true, stack)) => Some(stack),
+    match read_tun_config().await {
+        Some(tun) if tun.enable => Some(tun.stack.to_string()),
         _ => None,
     }
 }
@@ -638,10 +794,10 @@ pub async fn enforce_undesired_off() {
     ) {
         return;
     }
-    let Some((enabled, _)) = read_tun_state().await else {
+    let Some(tun) = read_tun_config().await else {
         return;
     };
-    if !enabled || claimed().await {
+    if !tun.enable || claimed().await {
         return;
     }
     logging!(
@@ -773,7 +929,7 @@ enum Round {
 }
 
 async fn device_reported_up() -> Option<bool> {
-    read_tun_state().await.map(|(enabled, _)| enabled)
+    read_tun_config().await.map(|tun| tun.enable)
 }
 
 async fn verify_round() -> Round {
@@ -1181,6 +1337,102 @@ pub async fn init_startup_setup() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn tunnel(edit: impl FnOnce(&mut TunConfig)) -> TunConfig {
+        let mut tun = TunConfig {
+            enable: true,
+            auto_route: true,
+            inet4_address: Some(vec!["198.18.0.1/30".into()]),
+            ..TunConfig::default()
+        };
+        edit(&mut tun);
+        tun
+    }
+
+    #[test]
+    fn the_route_is_judged_by_the_source_the_system_picks() {
+        let ours = vec![String::from("198.18.0.1/30")];
+        let cases: [(&str, &[String], Route); 6] = [
+            ("198.18.0.1", &ours, Route::Tunnel),
+            ("198.18.0.2", &ours, Route::Tunnel),
+            ("192.168.1.20", &ours, Route::Bypass),
+            ("10.0.0.5", &ours, Route::Bypass),
+            ("127.0.0.1", &ours, Route::Unknown),
+            ("0.0.0.0", &ours, Route::Unknown),
+        ];
+        for (source, addresses, expected) in cases {
+            let source: std::net::IpAddr = source
+                .parse()
+                .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST));
+            assert_eq!(route_by_source(source, addresses), expected, "{source}");
+        }
+        let lan: std::net::IpAddr = std::net::IpAddr::V4(std::net::Ipv4Addr::new(192, 168, 1, 20));
+        assert_eq!(route_by_source(lan, &[]), Route::Unknown);
+        assert_eq!(route_by_source(lan, &[String::from("junk")]), Route::Unknown);
+    }
+
+    #[test]
+    fn the_route_is_checked_only_when_the_tunnel_takes_the_whole_way_out() {
+        let some = |items: &[&str]| Some(items.iter().map(|item| String::from(*item)).collect::<Vec<_>>());
+        let cases: Vec<(&str, TunConfig, bool)> = vec![
+            ("plain", tunnel(|_| {}), true),
+            ("empty lists", tunnel(|t| t.route_address = Some(vec![])), true),
+            (
+                "private exclusions",
+                tunnel(|t| t.route_exclude_address = some(&["10.0.0.0/8", "192.168.0.0/16"])),
+                true,
+            ),
+            ("no auto-route", tunnel(|t| t.auto_route = false), false),
+            ("auto-redirect", tunnel(|t| t.auto_redirect = Some(true)), false),
+            ("narrowed", tunnel(|t| t.route_address = some(&["8.8.8.0/24"])), false),
+            (
+                "narrowed, old key",
+                tunnel(|t| t.inet4_route_address = some(&["8.8.8.0/24"])),
+                false,
+            ),
+            (
+                "narrowed by a set",
+                tunnel(|t| t.route_address_set = some(&["geoip-us"])),
+                false,
+            ),
+            (
+                "target excluded",
+                tunnel(|t| t.route_exclude_address = some(&["1.1.1.0/24"])),
+                false,
+            ),
+            (
+                "target excluded, old key",
+                tunnel(|t| t.inet4_route_exclude_address = some(&["1.0.0.0/8"])),
+                false,
+            ),
+            (
+                "exclusion set",
+                tunnel(|t| t.route_exclude_address_set = some(&["geoip-ru"])),
+                false,
+            ),
+            ("interfaces", tunnel(|t| t.include_interface = some(&["eth0"])), false),
+            ("uids", tunnel(|t| t.include_uid = Some(vec![1000])), false),
+            (
+                "uid ranges",
+                tunnel(|t| t.exclude_uid_range = some(&["1000:2000"])),
+                false,
+            ),
+            ("source ports", tunnel(|t| t.exclude_src_port = Some(vec![5000])), false),
+            (
+                "destination ports",
+                tunnel(|t| t.exclude_dst_port = Some(vec![443])),
+                false,
+            ),
+            (
+                "destination port ranges",
+                tunnel(|t| t.exclude_dst_port_range = some(&["400:500"])),
+                false,
+            ),
+        ];
+        for (name, tun, expected) in cases {
+            assert_eq!(route_check_applies(&tun), expected, "{name}");
+        }
+    }
 
     #[test]
     fn tells_a_rights_failure_from_a_busy_adapter() {

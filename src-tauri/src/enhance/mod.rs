@@ -723,7 +723,7 @@ fn enforce_dns_page(mut config: Mapping, page: Option<&dns_page::Page>) -> (Mapp
 /// не выделяет. Поэтому список, в котором нет петли, отрезает приложение от его
 /// же прокси, а неразбираемая запись роняет старт ядра целиком.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct LanPrefix {
+pub(crate) struct LanPrefix {
     addr: std::net::IpAddr,
     bits: u8,
 }
@@ -732,7 +732,7 @@ impl LanPrefix {
     /// Разбор ровно по правилам `netip.ParsePrefix` ядра: без пробелов внутри,
     /// без знака и ведущих нулей в длине — иначе запись считается разобранной
     /// у нас и роняет старт ядра.
-    fn parse(text: &str) -> Option<Self> {
+    pub(crate) fn parse(text: &str) -> Option<Self> {
         let (addr, bits) = text.trim().split_once('/')?;
         let addr: std::net::IpAddr = addr.parse().ok()?;
         let plain_decimal = !bits.is_empty()
@@ -758,7 +758,7 @@ impl LanPrefix {
             .any(|local| local.contains_prefix(self))
     }
 
-    fn contains(self, other: std::net::IpAddr) -> bool {
+    pub(crate) fn contains(self, other: std::net::IpAddr) -> bool {
         match (self.addr, other) {
             (std::net::IpAddr::V4(net), std::net::IpAddr::V4(ip)) => {
                 shares_the_prefix(&net.octets(), &ip.octets(), self.bits)
