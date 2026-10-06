@@ -181,10 +181,29 @@ export function useQuery<T>(options: QueryOptions<T>): QueryResult<T> {
     refreshWhenHidden: refetchIntervalInBackground ?? false,
   })
 
+  // Поля SWR — геттерами: SWR перерисовывает хук только по прочитанным полям,
+  // а раскрытие `...swr` читало все — и каждое чтение запроса давало две лишние
+  // перерисовки (isValidating туда и обратно), даже если его никто не смотрит.
   return {
-    ...swr,
-    isFetching: swr.isValidating,
-    isPending: swr.isLoading,
+    get data() {
+      return swr.data
+    },
+    get error() {
+      return swr.error
+    },
+    get isValidating() {
+      return swr.isValidating
+    },
+    get isLoading() {
+      return swr.isLoading
+    },
+    get isFetching() {
+      return swr.isValidating
+    },
+    get isPending() {
+      return swr.isLoading
+    },
+    mutate: swr.mutate,
     refetch: async () => ({ data: await swr.mutate() }),
   }
 }
