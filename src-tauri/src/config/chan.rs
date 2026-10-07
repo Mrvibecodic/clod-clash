@@ -20,6 +20,7 @@ use chacha20poly1305::aead::{Aead as _, KeyInit as _, Payload};
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
 use hkdf::Hkdf;
 use hmac::{Hmac, Mac};
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
 use std::collections::HashMap;
@@ -33,7 +34,9 @@ use x25519_dalek::{PublicKey, StaticSecret};
 pub const VERSION: u8 = 1;
 const SALT: &[u8] = b"clod-chan-v1";
 /// Допустимый разбег часов, секунд. Симметричный: врут обе стороны.
-const SKEW: i64 = 300;
+pub const SKEW: i64 = 300;
+/// Значение заголовка не в UTF-8 прослойка присылает в base64 с этим префиксом.
+const META_B64: &str = "=?b64?";
 /// Больше этого ответ подписки не бывает — защита от бесконечного тела.
 const MAX_ANSWER: usize = 32 << 20;
 /// Запрос дополняется до кратного этому размеру.
@@ -114,7 +117,7 @@ struct RawAnswer {
 #[derive(Debug)]
 pub struct Answer {
     /// Заголовки, которые в открытом режиме приехали бы снаружи.
-    pub meta: HashMap<String, Vec<String>>,
+    pub meta: HeaderMap,
     pub body: String,
     /// Код ответа, приехавший внутри шифра.
     pub status: u16,
@@ -302,6 +305,33 @@ fn build_op(base: &str, pinned: Option<[u8; 32]>, fields: &Fields, op: &str, now
     ))
 }
 
+/// Расшифрованный ответ не разобрался: формат прослойки клиенту не знаком.
+fn malformed<E>(_: E) -> anyhow::Error {
+    anyhow!("clod-chan-version")
+}
+
+/// Заголовки панели из ответа. Значение не в UTF-8 едет в base64 с префиксом
+/// [`META_B64`] и возвращается байт в байт; заголовок, которого не бывает в HTTP,
+/// отбрасывается — так же, как отбросил бы его открытый путь.
+fn headers_of(meta: HashMap<String, Vec<String>>) -> HeaderMap {
+    let mut headers = HeaderMap::new();
+    for (name, values) in meta {
+        let Ok(name) = HeaderName::from_bytes(name.as_bytes()) else {
+            continue;
+        };
+        for value in values {
+            let raw = match value.strip_prefix(META_B64) {
+                Some(encoded) => B64.decode(encoded).ok(),
+                None => Some(value.into_bytes()),
+            };
+            if let Some(value) = raw.and_then(|raw| HeaderValue::from_bytes(&raw).ok()) {
+                headers.append(name.clone(), value);
+            }
+        }
+    }
+    headers
+}
+
 /// Тело отчёта перед шифрованием: длина сжатых данных (4 байта, big-endian),
 /// сами данные и нули до кратного [`REPORT_PAD_BLOCK`] вместе с меткой.
 fn report_frame(gz: &[u8]) -> Result<Vec<u8>> {
@@ -385,7 +415,9 @@ impl Session {
             )
             .map_err(|_| anyhow!("clod-chan-undecryptable"))?;
 
-        let answer: RawAnswer = serde_json::from_slice(&plain)?;
+        // Дальше ответ уже расшифрован, то есть пришёл от прослойки: любой
+        // непорядок внутри — несовместимый формат, а не «канала нет».
+        let answer: RawAnswer = serde_json::from_slice(&plain).map_err(malformed)?;
         if answer.v != VERSION {
             bail!("clod-chan-version");
         }
@@ -398,7 +430,7 @@ impl Session {
             bail!("clod-chan-stale");
         }
 
-        let sp_raw = B64.decode(&answer.sp)?;
+        let sp_raw = B64.decode(&answer.sp).map_err(malformed)?;
         let sp: [u8; 32] = sp_raw.try_into().map_err(|_| anyhow!("clod-chan-bad-key"))?;
 
         // Тело не в UTF-8 сюда доезжает отдельным полем. В `String` его не
@@ -407,15 +439,153 @@ impl Session {
         let body = if answer.body_b64.is_empty() {
             answer.body
         } else {
-            String::from_utf8_lossy(&B64.decode(&answer.body_b64)?).into_owned()
+            String::from_utf8_lossy(&B64.decode(&answer.body_b64).map_err(malformed)?).into_owned()
         };
 
         Ok(Answer {
-            meta: answer.meta,
+            meta: headers_of(answer.meta),
             body,
             status: if answer.st == 0 { 200 } else { answer.st },
             sp,
         })
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+pub(crate) mod relay {
+    //! Прослойка для тестов клиента: зеркало `chan_open` и `chan_seal` из
+    //! `lib/chan.php`, без индекса меток и без памяти о метках запроса.
+
+    use super::{
+        B64, ChaCha20Poly1305, Key, Nonce, Payload, PublicKey, SKEW, StaticSecret, VERSION, epoch, hkdf32, kid, psk,
+        random32,
+    };
+    use base64::Engine as _;
+    use chacha20poly1305::aead::{Aead as _, KeyInit as _};
+
+    /// Узнанный запрос: то, что прослойке нужно для ответа.
+    pub struct Opened {
+        psk: [u8; 32],
+        kid: String,
+        dh: Vec<u8>,
+        eph_pub: [u8; 32],
+        nonce: String,
+    }
+
+    pub struct Relay {
+        pub token: String,
+        /// Ключи прослойки; первый — текущий, он и уезжает клиенту в `sp`.
+        pub keys: Vec<StaticSecret>,
+    }
+
+    impl Relay {
+        pub fn new(token: &str, keys: &[u8]) -> Self {
+            Self {
+                token: token.into(),
+                keys: keys.iter().map(|seed| StaticSecret::from([*seed; 32])).collect(),
+            }
+        }
+
+        pub fn public(&self, index: usize) -> [u8; 32] {
+            PublicKey::from(&self.keys[index]).to_bytes()
+        }
+
+        /// `None` — запрос не узнан: прослойка отдаёт его обычному конвейеру.
+        pub fn open(&self, path: &str, now: i64) -> Option<Opened> {
+            let path = path.split('?').next()?;
+            let mut parts = path.rsplitn(4, '/');
+            let (blob, spid, label) = (parts.next()?, parts.next()?, parts.next()?);
+            if !parts.next()?.ends_with("/c1") {
+                return None;
+            }
+
+            let psk = psk(&self.token).ok()?;
+            let known = (-1..=1).any(|day| kid(&psk, epoch(now) + day).is_ok_and(|kid| kid == label));
+            let raw = B64.decode(blob).ok()?;
+            if !known || raw.len() < 49 {
+                return None;
+            }
+            let eph_pub: [u8; 32] = raw[..32].try_into().ok()?;
+
+            let dh = if spid == "0" {
+                Vec::new()
+            } else {
+                let key = self
+                    .keys
+                    .iter()
+                    .find(|key| super::spid(&PublicKey::from(*key).to_bytes()) == spid)?;
+                key.diffie_hellman(&PublicKey::from(eph_pub)).to_bytes().to_vec()
+            };
+
+            let mut ikm = psk.to_vec();
+            ikm.extend_from_slice(&dh);
+            let mut info = b"req".to_vec();
+            info.extend_from_slice(&eph_pub);
+            let mut aad = format!("c1{label}").into_bytes();
+            aad.extend_from_slice(&eph_pub);
+            let plain = ChaCha20Poly1305::new(Key::from_slice(&hkdf32(&ikm, label, &info).ok()?))
+                .decrypt(
+                    Nonce::from_slice(&[0u8; 12]),
+                    Payload {
+                        msg: &raw[32..],
+                        aad: &aad,
+                    },
+                )
+                .ok()?;
+
+            let request: serde_json::Value = serde_json::from_slice(&plain).ok()?;
+            let fresh = request["t"].as_i64().is_some_and(|t| t > 0 && (now - t).abs() <= SKEW);
+            let nonce = request["n"].as_str().filter(|n| n.len() == 22)?.to_string();
+            if request["v"] != VERSION || !fresh {
+                return None;
+            }
+
+            Some(Opened {
+                psk,
+                kid: label.into(),
+                dh,
+                eph_pub,
+                nonce,
+            })
+        }
+
+        /// Ответ канала: `st` — код ответа внутри шифра.
+        pub fn seal(&self, opened: &Opened, meta: serde_json::Value, body: &str, st: u16, now: i64) -> String {
+            let payload = serde_json::json!({
+                "v": VERSION,
+                "t": now,
+                "n": opened.nonce,
+                "st": st,
+                "sp": B64.encode(self.public(0)),
+                "meta": meta,
+                "body": body,
+            });
+            self.seal_plain(opened, payload.to_string().as_bytes())
+        }
+
+        /// Ответ канала с произвольным содержимым под шифром.
+        pub fn seal_plain(&self, opened: &Opened, plain: &[u8]) -> String {
+            let secret = StaticSecret::from(random32().unwrap());
+            let public = PublicKey::from(&secret).to_bytes();
+            let shared = secret.diffie_hellman(&PublicKey::from(opened.eph_pub)).to_bytes();
+
+            let mut ikm = opened.psk.to_vec();
+            ikm.extend_from_slice(&shared);
+            ikm.extend_from_slice(&opened.dh);
+            let mut info = b"res".to_vec();
+            info.extend_from_slice(&opened.eph_pub);
+            let mut aad = format!("c1r{}", opened.kid).into_bytes();
+            aad.extend_from_slice(&opened.eph_pub);
+            aad.extend_from_slice(&public);
+
+            let sealed = ChaCha20Poly1305::new(Key::from_slice(&hkdf32(&ikm, &opened.kid, &info).unwrap()))
+                .encrypt(Nonce::from_slice(&[0u8; 12]), Payload { msg: plain, aad: &aad })
+                .unwrap();
+            let mut wire = public.to_vec();
+            wire.extend_from_slice(&sealed);
+            B64.encode(wire)
+        }
     }
 }
 
@@ -529,8 +699,8 @@ mod tests {
 
         let answer = session.open(body, sealed_at).unwrap();
         assert_eq!(
-            answer.meta["announce"][0],
-            v["response"]["expect"]["meta_announce"].as_str().unwrap()
+            answer.meta.get("announce").map(HeaderValue::as_bytes),
+            v["response"]["expect"]["meta_announce"].as_str().map(str::as_bytes)
         );
         assert_eq!(answer.body, v["response"]["expect"]["config"].as_str().unwrap());
         assert_eq!(
@@ -680,6 +850,61 @@ mod tests {
         let larger = session.seal_report(&[1u8; 2000]).unwrap();
         assert_eq!(small.len(), larger.len());
         assert_eq!(session.seal_report(&[1u8; 3100]).unwrap().len(), 8192);
+    }
+
+    /// Запрос клиента, узнанный тестовой прослойкой.
+    fn exchange(relay: &relay::Relay, now: i64) -> (Session, relay::Opened) {
+        let (url, session) = build(
+            &format!("https://sub.example/{}", relay.token),
+            None,
+            &Fields::default(),
+            now,
+        )
+        .unwrap();
+        let opened = relay.open(url.trim_start_matches("https://sub.example"), now).unwrap();
+        (session, opened)
+    }
+
+    #[test]
+    fn a_header_value_not_in_utf8_arrives_byte_for_byte() {
+        let relay = relay::Relay::new("a7Kd93mQz1Lp0Xr8", &[7]);
+        let (session, opened) = exchange(&relay, 1786500000);
+        let meta = serde_json::json!({
+            "profile-title": [format!("=?b64?{}", B64.encode([0xcf, 0xf0, 0xe8]))],
+            "support-url": ["https://example.com/help"],
+        });
+        let answer = session
+            .open(&relay.seal(&opened, meta, "proxies: []", 200, 1786500000), 1786500000)
+            .unwrap();
+
+        assert_eq!(
+            answer.meta.get("profile-title").map(HeaderValue::as_bytes),
+            Some(&[0xcf, 0xf0, 0xe8][..])
+        );
+        assert_eq!(
+            answer.meta.get("support-url").map(HeaderValue::as_bytes),
+            Some(&b"https://example.com/help"[..])
+        );
+    }
+
+    #[test]
+    fn a_decrypted_answer_in_a_foreign_format_is_reported_as_such() {
+        let relay = relay::Relay::new("a7Kd93mQz1Lp0Xr8", &[7]);
+        for plain in [&b"not json"[..], br#"{"v":1,"t":1786500000,"n":"x","sp":"%%"}"#] {
+            let (session, opened) = exchange(&relay, 1786500000);
+            let mut plain = plain.to_vec();
+            if plain.starts_with(b"{") {
+                plain = String::from_utf8(plain)
+                    .unwrap()
+                    .replace("\"x\"", &format!("{:?}", session.nonce))
+                    .into_bytes();
+            }
+            let err = session
+                .open(&relay.seal_plain(&opened, &plain), 1786500000)
+                .unwrap_err()
+                .to_string();
+            assert!(err.contains("clod-chan-version"), "{err}");
+        }
     }
 
     #[test]

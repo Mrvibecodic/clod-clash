@@ -1528,22 +1528,10 @@ async fn fetch_secure(
 
     let answer = session.open(response.text_with_charset()?, chrono::Local::now().timestamp())?;
 
-    let mut headers = reqwest::header::HeaderMap::new();
-    for (name, values) in &answer.meta {
-        let Ok(name) = reqwest::header::HeaderName::from_bytes(name.as_bytes()) else {
-            continue;
-        };
-        for value in values {
-            if let Ok(value) = reqwest::header::HeaderValue::from_str(value) {
-                headers.append(name.clone(), value);
-            }
-        }
-    }
-
     Ok((
         crate::utils::network::HttpResponse::new(
             reqwest::StatusCode::from_u16(answer.status).unwrap_or(reqwest::StatusCode::OK),
-            headers,
+            answer.meta,
             answer.body.into(),
         ),
         answer.sp,
