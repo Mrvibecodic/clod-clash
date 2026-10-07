@@ -1965,9 +1965,24 @@ fn fix_dirty_url(input: &str) -> Result<Url> {
 #[cfg(test)]
 mod channel_tests {
     use super::{
-        Answered, ChanRefused, ChannelHeard, PrfOption, Route, RouteFailures, Verdict, channel_heard,
+        Answered, ChanRefused, ChannelHeard, PrfOption, Route, RouteFailures, Verdict, channel_heard, clock_correction,
         key_may_be_refused,
     };
+
+    #[test]
+    fn the_clock_is_corrected_as_on_android() {
+        for (served, current, want) in [
+            (None, 0, None),
+            (Some(0), 0, None),
+            (Some(1_100), 0, None),
+            (Some(4_600), 0, Some(3_600)),
+            (Some(4_600), 3_600, None),
+            (Some(1_010), 3_600, Some(0)),
+            (Some(1), 0, Some(-999)),
+        ] {
+            assert_eq!(clock_correction(served, 1_000, current), want, "{served:?} {current}");
+        }
+    }
 
     #[test]
     fn the_pin_is_dropped_only_when_the_middleware_did_not_know_it() {
@@ -2087,10 +2102,13 @@ mod channel_tests {
     }
 }
 
-#[cfg(test)]
+/// Настоящие обмены по сети через стек приложения: под Windows такой тестовый
+/// бинарник на раннере CI не запускается (`STATUS_ENTRYPOINT_NOT_FOUND`), как и
+/// проверка заголовков подписки.
+#[cfg(all(test, not(windows)))]
 #[allow(clippy::expect_used)]
 mod secure_fetch_tests {
-    use super::{PrfOption, clock_correction, fetch_for_profile, send_report};
+    use super::{PrfOption, fetch_for_profile, send_report};
     use crate::{config::chan::relay::Relay, utils::network::ProxyType};
     use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as B64};
     use std::sync::Arc;
@@ -2245,21 +2263,6 @@ mod secure_fetch_tests {
 
         assert_eq!(fetched.map(|(body, _)| body).as_deref(), Some(BODY));
         assert_eq!(seen.lock().len(), 2);
-    }
-
-    #[test]
-    fn the_clock_is_corrected_as_on_android() {
-        for (served, current, want) in [
-            (None, 0, None),
-            (Some(0), 0, None),
-            (Some(1_100), 0, None),
-            (Some(4_600), 0, Some(3_600)),
-            (Some(4_600), 3_600, None),
-            (Some(1_010), 3_600, Some(0)),
-            (Some(1), 0, Some(-999)),
-        ] {
-            assert_eq!(clock_correction(served, 1_000, current), want, "{served:?} {current}");
-        }
     }
 
     #[tokio::test]

@@ -559,6 +559,24 @@ mod redirect_tests {
 }
 
 #[cfg(test)]
+mod retry_tests {
+    use super::NetworkManager;
+
+    #[test]
+    fn only_a_single_use_request_is_not_sent_again_after_it_left() {
+        let cut = || {
+            anyhow::anyhow!("peer closed connection without sending TLS close_notify")
+                .context("Failed to read response body")
+        };
+        assert!(NetworkManager::should_retry_with_static_webpki_roots(&cut(), false));
+        assert!(!NetworkManager::should_retry_with_static_webpki_roots(&cut(), true));
+    }
+}
+
+/// Настоящие обмены по сети через стек приложения: под Windows такой тестовый
+/// бинарник на раннере CI не запускается (`STATUS_ENTRYPOINT_NOT_FOUND`), как и
+/// проверка заголовков подписки.
+#[cfg(all(test, not(windows)))]
 #[allow(clippy::expect_used)]
 mod transport_tests {
     use super::{NetworkManager, ProxyType};
@@ -655,15 +673,5 @@ mod transport_tests {
                 .is_some_and(reqwest::Error::is_connect))),
             "{err:?}"
         );
-    }
-
-    #[test]
-    fn only_a_single_use_request_is_not_sent_again_after_it_left() {
-        let cut = || {
-            anyhow::anyhow!("peer closed connection without sending TLS close_notify")
-                .context("Failed to read response body")
-        };
-        assert!(NetworkManager::should_retry_with_static_webpki_roots(&cut(), false));
-        assert!(!NetworkManager::should_retry_with_static_webpki_roots(&cut(), true));
     }
 }
