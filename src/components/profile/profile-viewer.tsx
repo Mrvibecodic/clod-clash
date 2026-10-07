@@ -36,6 +36,7 @@ import {
   patchProfile,
   setSecureChannel,
 } from '@/services/cmds'
+import { chanFingerprint } from '@/utils/chan-fingerprint'
 import { explainErrorKey, trimRawError } from '@/utils/error-explanation'
 import parseTraffic from '@/utils/parse-traffic'
 import { profileEditPatch } from '@/utils/profile-edit'
@@ -200,10 +201,24 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
 
   // clod:chan — отпечаток закреплённого ключа прослойки. Нужен ровно для
   // одного: сверить голосом с тем, что показывает админка провайдера, если
-  // возникло подозрение на подмену. Полный ключ показывать незачем.
-  const chanFingerprint = profiles?.items
-    ?.find((item) => item.uid === watch('uid'))
-    ?.option?.chan_pin?.slice(0, 12)
+  // возникло подозрение на подмену, — поэтому в том же виде, что у неё.
+  const chanPin = profiles?.items?.find((item) => item.uid === editedUid)
+    ?.option?.chan_pin
+  const [chanPrint, setChanPrint] = useState<{ pin: string; text?: string }>()
+  useEffect(() => {
+    if (!chanPin) return
+    let actual = true
+    void chanFingerprint(chanPin)
+      .catch(() => undefined)
+      .then((text) => {
+        if (actual) setChanPrint({ pin: chanPin, text })
+      })
+    return () => {
+      actual = false
+    }
+  }, [chanPin])
+  const chanFingerprintText =
+    chanPrint?.pin === chanPin ? chanPrint?.text : undefined
 
   const selfProxy = watch('option.self_proxy')
   const withProxy = watch('option.with_proxy')
@@ -439,13 +454,13 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
         </Box>
       )}
 
-      {secureOn && chanFingerprint && (
+      {secureOn && chanFingerprintText && (
         <Box sx={{ mt: -0.5, mb: 1, px: 0.5 }}>
           <Typography variant="caption" color="text.secondary">
             {t('profiles.modals.profileForm.fields.secureKey')}
             {': '}
             <Box component="span" sx={{ fontFamily: 'monospace' }}>
-              {chanFingerprint}
+              {chanFingerprintText}
             </Box>
           </Typography>
         </Box>
