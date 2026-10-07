@@ -371,11 +371,13 @@ impl IProfiles {
         each.extra = item.extra;
         each.updated = item.updated;
         each.home = item.home.to_owned();
-        // Интервал в свежем ответе — эхо значения, отправленного в запрос до
-        // загрузки; интервал панели приезжает в `panel_interval`. Эхо затёрло бы
-        // интервал, который человек поменял, пока шла загрузка.
+        // Интервал и признак защищённого канала в свежем ответе — эхо значений,
+        // отправленных в запрос до загрузки; интервал панели приезжает в
+        // `panel_interval`. Эхо затёрло бы выбор, который человек сделал, пока
+        // шла загрузка.
         if let Some(option) = item.option.as_mut() {
             option.update_interval = None;
+            option.secure = None;
         }
         each.option = PrfOption::merge(each.option.as_ref(), item.option.as_ref());
         each.merge_panel_meta(item);
@@ -539,6 +541,36 @@ pub async fn profiles_patch_item_safe(index: &String, item: &PrfItem) -> Result<
         .await
         .with_data_modify(|mut profiles| async move {
             profiles.patch_item(index, item).await?;
+            Ok((profiles, ()))
+        })
+        .await
+}
+
+/// Включить или выключить защищённый канал у подписки — поверх того, что в
+/// реестре сейчас, а не снимка до пробы канала: пока шла проба, подписку могли
+/// обновить или поправить. `probed` — настройки, с которыми канал ответил;
+/// `None` — канал выключается.
+pub async fn profiles_set_secure_safe(uid: &String, probed: Option<PrfOption>) -> Result<()> {
+    Config::profiles()
+        .await
+        .with_data_modify(|mut profiles| async move {
+            let mut option = profiles.get_item(uid)?.option.clone().unwrap_or_default();
+            option.secure = Some(probed.is_some());
+            if let Some(probed) = probed {
+                option.chan_pin = probed.chan_pin.or(option.chan_pin);
+                // Вспомогательные профили, которых у подписки не было, проба
+                // создала — иначе они остались бы в списке ничьими.
+                option.merge = option.merge.or(probed.merge);
+                option.script = option.script.or(probed.script);
+                option.rules = option.rules.or(probed.rules);
+                option.proxies = option.proxies.or(probed.proxies);
+                option.groups = option.groups.or(probed.groups);
+            }
+            let patch = PrfItem {
+                option: Some(option),
+                ..PrfItem::default()
+            };
+            profiles.patch_item(uid, &patch).await?;
             Ok((profiles, ()))
         })
         .await
@@ -1941,6 +1973,24 @@ mod tests {
             None,
             "эхо интервала из запроса не затирает выбор человека"
         );
+
+        // Защищённый канал выключили, пока шла загрузка по нему.
+        let mut switched_off = item("sub", "remote", "sub.yaml");
+        switched_off.option = Some(PrfOption {
+            secure: Some(false),
+            ..PrfOption::default()
+        });
+        let mut profiles = profiles_with(vec![switched_off], "sub");
+        let mut update = item("sub", "remote", "sub.yaml");
+        update.option = Some(PrfOption {
+            secure: Some(true),
+            chan_pin: Some("pin".into()),
+            ..PrfOption::default()
+        });
+        profiles.merge_updated_item(&"sub".into(), &mut update).unwrap();
+        let merged = profiles.get_item("sub").unwrap().option.clone().unwrap_or_default();
+        assert_eq!(merged.secure, Some(false), "эхо канала не включает его обратно");
+        assert_eq!(merged.chan_pin.as_deref(), Some("pin"), "ключ прослойки сохраняется");
 
         let mut with_body = item("sub", "remote", "sub.yaml");
         with_body.file_data = Some("proxies: []".into());

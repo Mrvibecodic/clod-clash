@@ -8,7 +8,7 @@ use crate::{
         Config, IProfiles, PrfItem, PrfOption,
         profiles::{
             profiles_append_item_with_filedata_safe, profiles_delete_item_safe, profiles_patch_item_safe,
-            profiles_reorder_safe, profiles_save_file_safe, profiles_undo_delete_safe,
+            profiles_reorder_safe, profiles_save_file_safe, profiles_set_secure_safe, profiles_undo_delete_safe,
         },
         profiles_append_item_safe,
     },
@@ -223,7 +223,7 @@ pub async fn create_profile(item: PrfItem, file_data: Option<String>) -> CmdResu
 /// окно, здесь только запись.
 #[tauri::command]
 pub async fn set_secure_channel(index: String, on: bool) -> CmdResult {
-    let (url, option, probe) = {
+    let (url, option) = {
         let profiles = Config::profiles().await.latest_arc();
         let item = profiles.get_item(&index).stringify_err()?;
         if item.itype.as_deref() != Some("remote") {
@@ -233,26 +233,18 @@ pub async fn set_secure_channel(index: String, on: bool) -> CmdResult {
             .url
             .clone()
             .ok_or_else(|| String::from("the subscription has no address"))?;
-        (url, item.option.clone().unwrap_or_default(), item.fetch_option())
+        (url, item.fetch_option())
     };
 
-    let mut option = option;
-    if on {
-        let probed = PrfItem::probe_channel(&url, probe.as_ref())
-            .await
-            .map_err(|err| super::public_error_text(&err))?;
-        option.secure = Some(true);
-        option.chan_pin = probed.chan_pin.or(option.chan_pin);
-        // Вспомогательные профили, которых у подписки не было, загрузка
-        // создала — иначе они остались бы в списке ничьими.
-        option.merge = option.merge.or(probed.merge);
-        option.script = option.script.or(probed.script);
-        option.rules = option.rules.or(probed.rules);
-        option.proxies = option.proxies.or(probed.proxies);
-        option.groups = option.groups.or(probed.groups);
+    let probed = if on {
+        Some(
+            PrfItem::probe_channel(&url, option.as_ref())
+                .await
+                .map_err(|err| super::public_error_text(&err))?,
+        )
     } else {
-        option.secure = Some(false);
-    }
+        None
+    };
     logging!(
         info,
         Type::Cmd,
@@ -261,11 +253,7 @@ pub async fn set_secure_channel(index: String, on: bool) -> CmdResult {
         index
     );
 
-    let patch = PrfItem {
-        option: Some(option),
-        ..PrfItem::default()
-    };
-    profiles_patch_item_safe(&index, &patch).await.stringify_err()?;
+    profiles_set_secure_safe(&index, probed).await.stringify_err()?;
     handle::Handle::refresh_profiles();
     Ok(())
 }
