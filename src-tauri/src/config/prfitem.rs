@@ -438,12 +438,29 @@ struct RouteFailures {
 /// Что слышно о защищённом канале с маршрутов, где подписка не пришла.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 struct ChannelHeard {
-    /// Сервер ответил, но не каналом: обычная панель без прослойки, канал
-    /// выключен, «нет такого адреса».
+    /// Сервер ответил, но не каналом: «нет такого адреса» или страница вместо
+    /// шифротекста — обычная панель без прослойки, канал выключен.
     absent: bool,
+    /// Отказ, по которому не скажешь, есть ли канал: его дал посредник перед
+    /// сервером (WAF, лимит запросов). Пробуется ещё раз.
+    doubt: bool,
     /// Канал ответил, но разговор не сложился: разъехались часы, чужой ответ,
-    /// переадресация на http. Это не повод уходить на открытый путь.
+    /// незнакомый формат, переадресация на http. Это не повод уходить на
+    /// открытый путь.
     answered: bool,
+}
+
+/// Чем кончилась попытка защищённого канала, где подписка не пришла.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Verdict {
+    /// Канал ответил: ошибка, на открытый путь нельзя.
+    Answered,
+    /// Канала нет.
+    Absent,
+    /// Отказ посредника: попробовать ещё.
+    Doubt,
+    /// Сервер молчит: попробовать ещё.
+    Silent,
 }
 
 /// Сервер на защищённый запрос ответил снаружи не 2xx.
@@ -462,12 +479,21 @@ impl std::fmt::Display for ChanRefused {
 
 impl std::error::Error for ChanRefused {}
 
+/// «Нет такого адреса»: так прослойка отвечает на запрос, который не узнала, —
+/// она отдаёт его обычному конвейеру, и панель отвечает как на любой чужой адрес.
+const fn is_not_found(status: reqwest::StatusCode) -> bool {
+    matches!(status.as_u16(), 404 | 410)
+}
+
 /// Что ошибка защищённого запроса говорит о канале у провайдера.
 fn channel_heard(err: &anyhow::Error) -> ChannelHeard {
     if let Some(ChanRefused(status)) = err.downcast_ref::<ChanRefused>() {
-        // 4xx — сервер на месте, а канала у него нет; 5xx — сбой по дороге.
+        // «Нет такого адреса» — прослойка канала не знает; прочий отказ 3xx/4xx
+        // дал посредник перед сервером; 5xx — сбой по дороге.
+        let absent = is_not_found(*status);
         return ChannelHeard {
-            absent: status.is_client_error(),
+            absent,
+            doubt: !absent && (status.is_client_error() || status.is_redirection()),
             answered: false,
         };
     }
@@ -475,12 +501,16 @@ fn channel_heard(err: &anyhow::Error) -> ChannelHeard {
     ChannelHeard {
         // Адрес без пути с меткой (метка в query) — канала по нему не бывает:
         // подписка идёт обычным путём, как и до появления канала.
-        absent: text.contains("clod-chan-undecryptable")
-            || text.contains("clod-chan-version")
-            || text.contains("clod-chan-bad-url"),
-        answered: ["clod-chan-stale", "clod-chan-mismatch", "clod-chan-bad-key"]
-            .iter()
-            .any(|mark| text.contains(mark))
+        absent: text.contains("clod-chan-undecryptable") || text.contains("clod-chan-bad-url"),
+        doubt: false,
+        answered: [
+            "clod-chan-stale",
+            "clod-chan-mismatch",
+            "clod-chan-bad-key",
+            "clod-chan-version",
+        ]
+        .iter()
+        .any(|mark| text.contains(mark))
             || text.contains(crate::utils::network::DOWNGRADE_REFUSED),
     }
 }
@@ -510,12 +540,27 @@ impl RouteFailures {
             Answered::No => {
                 let heard = channel_heard(&err);
                 self.channel.absent |= heard.absent;
+                self.channel.doubt |= heard.doubt;
                 self.channel.answered |= heard.answered;
                 self.unanswered = Some(match self.unanswered.take() {
                     Some(previous) => help::keep_the_clearer_error(previous, err),
                     None => err,
                 });
             }
+        }
+    }
+
+    /// Что попытка сказала о защищённом канале: ответ любого маршрута весомее
+    /// «канала нет», а оно — сомнения и молчания.
+    const fn verdict(&self) -> Verdict {
+        if self.answered.is_some() || self.channel.answered {
+            Verdict::Answered
+        } else if self.channel.absent {
+            Verdict::Absent
+        } else if self.channel.doubt {
+            Verdict::Doubt
+        } else {
+            Verdict::Silent
         }
     }
 
@@ -556,6 +601,14 @@ const CHAN_SILENT: &str = "clod-chan-silent";
 const ADD_CHANNEL_ATTEMPTS: u8 = 3;
 const ADD_CHANNEL_PAUSE: Duration = Duration::from_secs(2);
 
+/// Защищённый канал подписки не дал.
+enum NoChannel {
+    /// Канала у провайдера нет: можно обычным путём.
+    Absent,
+    /// Канал есть или мог быть, но не сложилось: ошибка.
+    Failed(anyhow::Error),
+}
+
 /// Подписка пришла через прокси, а не выбранным маршрутом: об этом человеку
 /// говорит уведомление обновления. Пришла напрямую — это не «через прокси».
 fn came_through_a_proxy_detour(first: Option<Route>, delivered: Route) -> bool {
@@ -584,61 +637,29 @@ impl PrfItem {
     }
 
     /// Включение защищённого канала у уже добавленной подписки: проба тем же
-    /// путём, что обновление. `Ok(настройки скачанного)` — канал есть, в них
+    /// путём, что добавление. `Ok(настройки скачанного)` — канал есть, в них
     /// ключ прослойки и созданные при загрузке вспомогательные профили; ошибка
     /// `clod-chan-absent` — у провайдера его нет; иначе — что помешало.
     pub async fn probe_channel(url: &str, option: Option<&PrfOption>) -> Result<PrfOption> {
-        let mut secure = option.cloned().unwrap_or_default();
-        secure.secure = Some(true);
-        secure.chan_pin = None;
-        match Self::download(url, None, None, Some(&secure)).await {
+        match Box::pin(Self::through_channel(url, None, None, option, false)).await {
             Ok(fetched) => Ok(fetched.item.option.unwrap_or_default()),
-            Err(DownloadFailure::Routes(failures))
-                if failures.answered.is_none() && !failures.channel.answered && failures.channel.absent =>
-            {
-                bail!("clod-chan-absent: the provider has no secure channel")
-            }
-            Err(failure) => Err(failure.into_error()),
+            Err(NoChannel::Absent) => bail!("clod-chan-absent: the provider has no secure channel"),
+            Err(NoChannel::Failed(err)) => Err(err),
         }
     }
 
     /// Новая подписка: сначала защищённый канал, и только если у провайдера его
-    /// нет — обычный путь. Сервер молчит — канал пробуется ещё раз, всего
-    /// [`ADD_CHANNEL_ATTEMPTS`]; на открытый путь из-за молчания не уходим: если
-    /// канал режут по дороге, подписка без защиты добавилась бы молча. Канал
-    /// ответил, но подписки не дал (отказ панели, разъехались часы) — ошибка.
-    /// Ход добавления виден в окне — событием `clod://add-stage`.
+    /// нет — обычный путь. Ход добавления виден в окне — событием `clod://add-stage`.
     pub async fn from_url_for_new(
         url: &str,
         name: Option<&String>,
         desc: Option<&String>,
         option: Option<&PrfOption>,
     ) -> Result<Fetched> {
-        let mut secure = option.cloned().unwrap_or_default();
-        secure.secure = Some(true);
-        secure.chan_pin = None;
-
-        for attempt in 1..=ADD_CHANNEL_ATTEMPTS {
-            crate::core::handle::Handle::add_stage(if attempt == 1 { "checking" } else { "retry" }, attempt);
-            let failures = match Self::download(url, name, desc, Some(&secure)).await {
-                Ok(fetched) => return Ok(fetched),
-                Err(DownloadFailure::Other(err)) => return Err(err),
-                Err(DownloadFailure::Routes(failures)) => failures,
-            };
-            let gave_no_answer = failures.answered.is_none() && !failures.channel.answered;
-            if gave_no_answer && failures.channel.absent {
-                break;
-            }
-            if !gave_no_answer {
-                return Err(failures.into_shown());
-            }
-            if attempt == ADD_CHANNEL_ATTEMPTS {
-                // Подписка не добавляется: молчание ещё не значит, что канала нет.
-                return Err(failures.into_shown().context(format!(
-                    "{CHAN_SILENT}: the provider's server did not answer {ADD_CHANNEL_ATTEMPTS} times"
-                )));
-            }
-            tokio::time::sleep(ADD_CHANNEL_PAUSE).await;
+        match Box::pin(Self::through_channel(url, name, desc, option, true)).await {
+            Ok(fetched) => return Ok(fetched),
+            Err(NoChannel::Failed(err)) => return Err(err),
+            Err(NoChannel::Absent) => {}
         }
 
         crate::core::handle::Handle::add_stage("plain", 0);
@@ -648,6 +669,57 @@ impl PrfItem {
         Self::download(url, name, desc, Some(&plain))
             .await
             .map_err(DownloadFailure::into_error)
+    }
+
+    /// Подписка защищённым каналом — при добавлении и при включении канала.
+    /// Сервер молчит или отказал посредник перед ним — канал пробуется ещё
+    /// раз, всего [`ADD_CHANNEL_ATTEMPTS`]. Канал ответил, но подписки не дал
+    /// (отказ панели, разъехались часы) — ошибка. «Канала нет» — сразу, если
+    /// так ответил сам сервер, и после всех попыток, если отказывал посредник:
+    /// провайдер за строгим WAF добавляется, как и раньше. Одно молчание — не
+    /// «канала нет»: если канал режут по дороге, подписка без защиты
+    /// добавилась бы молча.
+    async fn through_channel(
+        url: &str,
+        name: Option<&String>,
+        desc: Option<&String>,
+        option: Option<&PrfOption>,
+        stages: bool,
+    ) -> std::result::Result<Fetched, NoChannel> {
+        let mut secure = option.cloned().unwrap_or_default();
+        secure.secure = Some(true);
+        secure.chan_pin = None;
+
+        let mut doubted = false;
+        for attempt in 1..=ADD_CHANNEL_ATTEMPTS {
+            if stages {
+                crate::core::handle::Handle::add_stage(if attempt == 1 { "checking" } else { "retry" }, attempt);
+            }
+            let failures = match Self::download(url, name, desc, Some(&secure)).await {
+                Ok(fetched) => return Ok(fetched),
+                Err(DownloadFailure::Other(err)) => return Err(NoChannel::Failed(err)),
+                Err(DownloadFailure::Routes(failures)) => failures,
+            };
+            match failures.verdict() {
+                Verdict::Answered => return Err(NoChannel::Failed(failures.into_shown())),
+                Verdict::Absent => return Err(NoChannel::Absent),
+                Verdict::Doubt => doubted = true,
+                Verdict::Silent => {}
+            }
+            if attempt == ADD_CHANNEL_ATTEMPTS {
+                // Подписка не добавляется: молчание ещё не значит, что канала нет.
+                return Err(if doubted {
+                    NoChannel::Absent
+                } else {
+                    NoChannel::Failed(failures.into_shown().context(format!(
+                        "{CHAN_SILENT}: the provider's server did not answer {ADD_CHANNEL_ATTEMPTS} times"
+                    )))
+                });
+            }
+            tokio::time::sleep(ADD_CHANNEL_PAUSE).await;
+        }
+        // Сюда не доходит: последняя попытка решает сама.
+        Err(NoChannel::Absent)
     }
 
     pub async fn from(item: &Self, file_data: Option<String>) -> Result<Self> {
@@ -1892,7 +1964,10 @@ fn fix_dirty_url(input: &str) -> Result<Url> {
 
 #[cfg(test)]
 mod channel_tests {
-    use super::{ChanRefused, ChannelHeard, PrfOption, channel_heard, key_may_be_refused};
+    use super::{
+        Answered, ChanRefused, ChannelHeard, PrfOption, Route, RouteFailures, Verdict, channel_heard,
+        key_may_be_refused,
+    };
 
     #[test]
     fn the_pin_is_dropped_only_when_the_middleware_did_not_know_it() {
@@ -1924,32 +1999,65 @@ mod channel_tests {
     fn a_server_without_the_channel_is_told_apart_from_silence() {
         let absent = ChannelHeard {
             absent: true,
-            answered: false,
+            ..ChannelHeard::default()
         };
-        assert_eq!(heard(ChanRefused(reqwest::StatusCode::NOT_FOUND).into()), absent);
-        assert_eq!(heard(anyhow::anyhow!("clod-chan-undecryptable")), absent);
-        assert_eq!(heard(anyhow::anyhow!("clod-chan-version")), absent);
-        // Метка в query, пути нет: канала по такому адресу не бывает.
-        assert_eq!(heard(anyhow::anyhow!("clod-chan-bad-url")), absent);
-        // 5xx — сбой по дороге, а не отсутствие канала.
-        assert_eq!(
-            heard(ChanRefused(reqwest::StatusCode::BAD_GATEWAY).into()),
-            ChannelHeard::default()
-        );
-        assert_eq!(heard(anyhow::anyhow!("connection refused")), ChannelHeard::default());
+        let doubt = ChannelHeard {
+            doubt: true,
+            ..ChannelHeard::default()
+        };
+        let answered = ChannelHeard {
+            answered: true,
+            ..ChannelHeard::default()
+        };
+        let refused =
+            |status| -> anyhow::Error { ChanRefused(reqwest::StatusCode::from_u16(status).unwrap_or_default()).into() };
+        for (err, want) in [
+            // Прослойка канала не знает: панель ответила «нет такого адреса».
+            (refused(404), absent),
+            (refused(410), absent),
+            // Страница вместо шифротекста.
+            (anyhow::anyhow!("clod-chan-undecryptable"), absent),
+            // Метка в query, пути нет: канала по такому адресу не бывает.
+            (anyhow::anyhow!("clod-chan-bad-url"), absent),
+            // Отказ посредника перед сервером.
+            (refused(403), doubt),
+            (refused(429), doubt),
+            (refused(308), doubt),
+            // Сбой по дороге.
+            (refused(502), ChannelHeard::default()),
+            (anyhow::anyhow!("connection refused"), ChannelHeard::default()),
+            // Расшифровалось — значит, канал есть.
+            (anyhow::anyhow!("clod-chan-stale"), answered),
+            (anyhow::anyhow!("clod-chan-mismatch"), answered),
+            (anyhow::anyhow!("clod-chan-version"), answered),
+            (anyhow::anyhow!(crate::utils::network::DOWNGRADE_REFUSED), answered),
+        ] {
+            let text = err.to_string();
+            assert_eq!(heard(err), want, "{text}");
+        }
     }
 
     #[test]
-    fn a_channel_that_answered_is_never_left_for_the_open_path() {
-        let answered = ChannelHeard {
-            absent: false,
-            answered: true,
+    fn an_answer_outweighs_no_channel_and_no_channel_outweighs_doubt() {
+        let failures = |errors: Vec<anyhow::Error>| {
+            let mut failures = RouteFailures::default();
+            for err in errors {
+                failures.note(Route::Direct, err, Answered::No);
+            }
+            failures.verdict()
         };
-        assert_eq!(heard(anyhow::anyhow!("clod-chan-stale")), answered);
-        assert_eq!(heard(anyhow::anyhow!("clod-chan-mismatch")), answered);
+        let refused =
+            |status| -> anyhow::Error { ChanRefused(reqwest::StatusCode::from_u16(status).unwrap_or_default()).into() };
+        assert_eq!(failures(vec![]), Verdict::Silent);
+        assert_eq!(failures(vec![anyhow::anyhow!("timed out")]), Verdict::Silent);
         assert_eq!(
-            heard(anyhow::anyhow!(crate::utils::network::DOWNGRADE_REFUSED)),
-            answered
+            failures(vec![refused(403), anyhow::anyhow!("timed out")]),
+            Verdict::Doubt
+        );
+        assert_eq!(failures(vec![refused(403), refused(404)]), Verdict::Absent);
+        assert_eq!(
+            failures(vec![refused(404), anyhow::anyhow!("clod-chan-stale")]),
+            Verdict::Answered
         );
     }
 
