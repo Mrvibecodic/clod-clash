@@ -17,6 +17,8 @@
   <a href="https://mrvibecodic.github.io/clod-clash/">Docs (Russian)</a>
   ·
   <a href="https://mrvibecodic.github.io/clod-clash/download">Download</a>
+  ·
+  <a href="../PRIVACY_POLICY.md">Privacy</a>
 </p>
 
 <p align="center">
