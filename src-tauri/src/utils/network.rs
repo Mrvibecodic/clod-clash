@@ -50,6 +50,9 @@ enum TlsRootMode {
 
 const MAX_REDIRECTS: usize = 10;
 
+/// Больше этого тело ответа не читается: подписка столько не весит.
+const MAX_BODY: usize = 64 << 20;
+
 pub(crate) const DOWNGRADE_REFUSED: &str = "redirect from https to http is refused";
 
 /// Уводит ли редирект с закрытого адреса на открытый.
@@ -164,15 +167,25 @@ impl NetworkManager {
         Ok(config)
     }
 
-    fn should_retry_with_static_webpki_roots(err: &anyhow::Error) -> bool {
-        if err.chain().any(Self::is_legacy_tls_protocol_error) {
+    /// `single_use` — запрос одноразовый (защищённый канал): сервер, уже
+    /// принявший его, второй такой же отбросит как повтор.
+    fn should_retry_with_static_webpki_roots(err: &anyhow::Error, single_use: bool) -> bool {
+        // Одноразовый запрос повторяется, только если так и не ушёл: сертификат
+        // проверяется при установке соединения.
+        let never_sent = || {
+            err.chain().any(|e| {
+                e.downcast_ref::<reqwest::Error>()
+                    .is_some_and(reqwest::Error::is_connect)
+            })
+        };
+        if (single_use && !never_sent()) || err.chain().any(Self::is_legacy_tls_protocol_error) {
             return false;
         }
 
         // Наш отказ от понижения до http — не беда с сертификатами. Проверка ниже
-        // ищет ключевые слова во всей цепочке, а reqwest дописывает в неё полный
-        // адрес запроса: хост или токен, где случайно встретилось `ssl` или `crl`,
-        // запустил бы бессмысленный второй запрос к панели.
+        // ищет ключевые слова во всей цепочке, а в ней есть хост запроса: хост, где
+        // случайно встретилось `ssl` или `crl`, запустил бы бессмысленный второй
+        // запрос к панели.
         if err.chain().any(|e| e.to_string().contains(DOWNGRADE_REFUSED)) {
             return false;
         }
@@ -197,7 +210,17 @@ impl NetworkManager {
         })
     }
 
-    fn context_reqwest_error(err: reqwest::Error, context: &'static str) -> anyhow::Error {
+    fn context_reqwest_error(mut err: reqwest::Error, context: &'static str) -> anyhow::Error {
+        // reqwest печатает в тексте ошибки полный адрес запроса — с токеном
+        // подписки. От адреса остаются схема и хост: для разбора их хватает, а
+        // текст ошибки уходит в журнал и в окна.
+        if let Some(url) = err.url_mut() {
+            url.set_path("");
+            url.set_query(None);
+            url.set_fragment(None);
+            let _ = url.set_username("");
+            let _ = url.set_password(None);
+        }
         let legacy_tls = Self::is_legacy_tls_protocol_error(&err);
         let err = anyhow::Error::new(err).context(context);
 
@@ -302,14 +325,36 @@ impl NetworkManager {
 
         let status = response.status();
         let headers = response.headers().to_owned();
-        let body = match response.text().await {
-            Ok(text) => text.into(),
-            Err(e) => {
-                return Err(Self::context_reqwest_error(e, "Failed to read response body"));
-            }
-        };
+        let body = Self::read_capped(response, MAX_BODY).await?.into();
 
         Ok(HttpResponse::new(status, headers, body))
+    }
+
+    /// Тело ответа, но не больше `cap` байт после распаковки: бесконечный или
+    /// огромный ответ не должен съесть память. Текст декодируется ровно как
+    /// `Response::text` — по charset из `content-type`, по умолчанию UTF-8.
+    async fn read_capped(mut response: reqwest::Response, cap: usize) -> Result<std::string::String> {
+        let too_large = || anyhow::anyhow!("the response body is larger than {} MiB", cap >> 20);
+        if response.content_length().is_some_and(|len| len > cap as u64) {
+            return Err(too_large());
+        }
+
+        let read_failed = |e| Self::context_reqwest_error(e, "Failed to read response body");
+        let mut body = Vec::new();
+        while let Some(chunk) = response.chunk().await.map_err(read_failed)? {
+            if body.len() + chunk.len() > cap {
+                return Err(too_large());
+            }
+            body.extend_from_slice(&chunk);
+        }
+
+        let mut rebuilt = tauri::http::Response::new(body);
+        if let Some(kind) = response.headers().get(reqwest::header::CONTENT_TYPE) {
+            rebuilt
+                .headers_mut()
+                .insert(reqwest::header::CONTENT_TYPE, kind.clone());
+        }
+        reqwest::Response::from(rebuilt).text().await.map_err(read_failed)
     }
 
     async fn create_request_with_tls_mode(
@@ -364,11 +409,36 @@ impl NetworkManager {
             accept_invalid_certs,
             custom_headers,
             None,
+            false,
         )
         .await
     }
 
-    /// clod: то же, но POST с телом — отчёт клиента по защищённому каналу.
+    /// clod: то же для одноразового запроса защищённого канала: после того как
+    /// запрос ушёл, он второй раз не отправляется.
+    pub async fn get_once_with_headers(
+        &self,
+        url: &str,
+        proxy_type: ProxyType,
+        timeout_secs: Option<u64>,
+        user_agent: Option<String>,
+        accept_invalid_certs: bool,
+        custom_headers: Option<&HeaderMap>,
+    ) -> Result<HttpResponse> {
+        self.send_with_fallback(
+            url,
+            proxy_type,
+            timeout_secs,
+            user_agent,
+            accept_invalid_certs,
+            custom_headers,
+            None,
+            true,
+        )
+        .await
+    }
+
+    /// clod: POST с телом — отчёт клиента по защищённому каналу, одноразовый.
     #[allow(clippy::too_many_arguments)]
     pub async fn post_with_interrupt_and_headers(
         &self,
@@ -388,6 +458,7 @@ impl NetworkManager {
             accept_invalid_certs,
             custom_headers,
             Some(body),
+            true,
         )
         .await
     }
@@ -402,6 +473,7 @@ impl NetworkManager {
         accept_invalid_certs: bool,
         custom_headers: Option<&HeaderMap>,
         body: Option<&str>,
+        single_use: bool,
     ) -> Result<HttpResponse> {
         let platform_result = self
             .send_with_tls_mode(
@@ -418,7 +490,7 @@ impl NetworkManager {
 
         match platform_result {
             Ok(response) => Ok(response),
-            Err(err) if !accept_invalid_certs && Self::should_retry_with_static_webpki_roots(&err) => self
+            Err(err) if !accept_invalid_certs && Self::should_retry_with_static_webpki_roots(&err, single_use) => self
                 .send_with_tls_mode(
                     url,
                     proxy_type,
@@ -483,5 +555,115 @@ mod redirect_tests {
     #[test]
     fn without_a_first_address_there_is_nothing_to_downgrade() {
         assert!(!redirect_is_a_downgrade(None, &url("http://panel.example/sub")));
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod transport_tests {
+    use super::{NetworkManager, ProxyType};
+
+    /// Потолок тела ответа: 64 МиБ.
+    const CAP: usize = 64 << 20;
+    use tokio::{
+        io::{AsyncReadExt as _, AsyncWriteExt as _},
+        net::TcpListener,
+    };
+
+    /// Принимает одно соединение, дочитывает запрос и отвечает `head` и `body`.
+    async fn answer_once(head: &'static str, body: Vec<u8>) -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("порт для теста");
+        let port = listener.local_addr().expect("адрес слушателя").port();
+        tokio::spawn(async move {
+            let Ok((mut stream, _)) = listener.accept().await else {
+                return;
+            };
+            let mut request = Vec::new();
+            let mut buffer = [0_u8; 1024];
+            while let Ok(read) = stream.read(&mut buffer).await {
+                request.extend_from_slice(&buffer[..read]);
+                // Начало TLS (не текст HTTP) — отвечаем сразу, рукопожатия не будет.
+                let tls = request.first().is_some_and(|b| !b.is_ascii_alphabetic());
+                if read == 0 || tls || request.windows(4).any(|w| w == b"\r\n\r\n") {
+                    break;
+                }
+            }
+            let _ = stream.write_all(head.as_bytes()).await;
+            let _ = stream.write_all(&body).await;
+            let _ = stream.shutdown().await;
+        });
+        format!("127.0.0.1:{port}")
+    }
+
+    async fn get(url: &str) -> anyhow::Result<super::HttpResponse> {
+        NetworkManager::new()
+            .get_with_interrupt_and_headers(url, ProxyType::None, Some(10), Some("test".into()), false, None)
+            .await
+    }
+
+    #[tokio::test]
+    async fn an_error_keeps_the_host_but_not_the_subscription_token() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("порт для теста");
+        let port = listener.local_addr().expect("адрес слушателя").port();
+        drop(listener);
+
+        let text = get(&format!(
+            "http://user:pass@127.0.0.1:{port}/sub/a7Kd93mQz1Lp0Xr8?flag=q9Zx81"
+        ))
+        .await
+        .err()
+        .map(|e| format!("{e:?} {e:#}"))
+        .unwrap_or_default();
+
+        assert!(text.contains("127.0.0.1"), "{text}");
+        for secret in ["a7Kd93mQz1Lp0Xr8", "q9Zx81", "pass"] {
+            assert!(!text.contains(secret), "{secret}: {text}");
+        }
+    }
+
+    #[tokio::test]
+    async fn an_endless_body_is_cut_off() {
+        let addr = answer_once("HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n", vec![b'a'; CAP + 1]).await;
+        let text = get(&format!("http://{addr}/sub"))
+            .await
+            .err()
+            .map(|e| e.to_string())
+            .unwrap_or_default();
+        assert!(text.contains("larger than"), "{text}");
+    }
+
+    #[tokio::test]
+    async fn the_body_is_decoded_by_its_charset() {
+        // «Привет» в windows-1251
+        let body = vec![0xcf, 0xf0, 0xe8, 0xe2, 0xe5, 0xf2];
+        let addr = answer_once(
+            "HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=windows-1251\r\nContent-Length: 6\r\n\r\n",
+            body,
+        )
+        .await;
+        let response = get(&format!("http://{addr}/sub")).await.expect("ответ пришёл");
+        assert_eq!(response.text_with_charset().expect("текст"), "Привет");
+    }
+
+    #[tokio::test]
+    async fn a_failed_tls_handshake_is_a_failure_before_the_request_left() {
+        let addr = answer_once("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n", Vec::new()).await;
+        let err = get(&format!("https://{addr}/sub")).await.err();
+        assert!(
+            err.as_ref().is_some_and(|err| err.chain().any(|e| e
+                .downcast_ref::<reqwest::Error>()
+                .is_some_and(reqwest::Error::is_connect))),
+            "{err:?}"
+        );
+    }
+
+    #[test]
+    fn only_a_single_use_request_is_not_sent_again_after_it_left() {
+        let cut = || {
+            anyhow::anyhow!("peer closed connection without sending TLS close_notify")
+                .context("Failed to read response body")
+        };
+        assert!(NetworkManager::should_retry_with_static_webpki_roots(&cut(), false));
+        assert!(!NetworkManager::should_retry_with_static_webpki_roots(&cut(), true));
     }
 }
