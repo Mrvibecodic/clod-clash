@@ -880,7 +880,7 @@ pub(crate) async fn after_scheduled_update(uid: String) {
                 .new_sub
                 .as_deref()
                 .and_then(|domain| crate::config::sub_headers::spare_address(&url, domain));
-            Some((url, item.option.clone(), spare))
+            Some((url, item.fetch_option(), spare))
         })
     else {
         return;

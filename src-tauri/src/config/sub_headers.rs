@@ -281,16 +281,21 @@ impl SubHeaders {
                 .as_deref()
                 .and_then(ConnectMode::parse),
             theme: value(headers, "clod-theme").as_deref().and_then(ProviderTheme::parse),
-            server_time: (!is_cached(headers))
-                .then(|| {
-                    headers
-                        .get(reqwest::header::DATE)
-                        .and_then(|raw| raw.to_str().ok())
-                        .and_then(http_date_secs)
-                })
-                .flatten(),
+            server_time: server_time(headers),
         }
     }
+}
+
+/// Время сервера по `date` ответа. Ответ из кэша посредника (`age` больше нуля)
+/// о времени сервера не говорит.
+pub(crate) fn server_time(headers: &HeaderMap) -> Option<i64> {
+    if is_cached(headers) {
+        return None;
+    }
+    headers
+        .get(reqwest::header::DATE)
+        .and_then(|raw| raw.to_str().ok())
+        .and_then(http_date_secs)
 }
 
 fn is_cached(headers: &HeaderMap) -> bool {

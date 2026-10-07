@@ -149,7 +149,7 @@ async fn should_update_profile(uid: &String, ignore_auto_update: bool) -> Result
         );
         Ok(Some(UpdateTarget {
             url: item.url.clone().ok_or_else(|| anyhow::anyhow!("Profile URL is None"))?,
-            option: item.option.clone(),
+            option: item.fetch_option(),
             new_sub: item.new_sub.clone(),
         }))
     }

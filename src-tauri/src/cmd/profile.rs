@@ -223,7 +223,7 @@ pub async fn create_profile(item: PrfItem, file_data: Option<String>) -> CmdResu
 /// окно, здесь только запись.
 #[tauri::command]
 pub async fn set_secure_channel(index: String, on: bool) -> CmdResult {
-    let (url, option) = {
+    let (url, option, probe) = {
         let profiles = Config::profiles().await.latest_arc();
         let item = profiles.get_item(&index).stringify_err()?;
         if item.itype.as_deref() != Some("remote") {
@@ -233,12 +233,12 @@ pub async fn set_secure_channel(index: String, on: bool) -> CmdResult {
             .url
             .clone()
             .ok_or_else(|| String::from("the subscription has no address"))?;
-        (url, item.option.clone().unwrap_or_default())
+        (url, item.option.clone().unwrap_or_default(), item.fetch_option())
     };
 
     let mut option = option;
     if on {
-        let probed = PrfItem::probe_channel(&url, Some(&option))
+        let probed = PrfItem::probe_channel(&url, probe.as_ref())
             .await
             .map_err(|err| super::public_error_text(&err))?;
         option.secure = Some(true);

@@ -224,6 +224,11 @@ pub struct PrfOption {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub chan_pin: Option<String>,
 
+    /// Насколько часы прослойки впереди часов устройства, секунд. Не хранится:
+    /// перед загрузкой берётся из замера часов подписки ([`PrfItem::fetch_option`]).
+    #[serde(skip)]
+    pub chan_clock: Option<i64>,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub danger_accept_invalid_certs: Option<bool>,
 
@@ -262,6 +267,7 @@ impl PrfOption {
                 result.timeout_seconds = b_ref.timeout_seconds.or(result.timeout_seconds);
                 result.secure = b_ref.secure.or(result.secure);
                 result.chan_pin = b_ref.chan_pin.clone().or(result.chan_pin);
+                result.chan_clock = b_ref.chan_clock.or(result.chan_clock);
                 Some(result)
             }
             (Some(a_ref), None) => Some(a_ref.clone()),
@@ -377,9 +383,10 @@ fn route_plan(chosen: Route, system: SystemProxy) -> Vec<Route> {
 /// (`utils/network.rs`, `should_retry_with_static_webpki_roots`).
 const TLS_FALLBACK_ATTEMPTS: u64 = 2;
 
-/// Защищённый канал при неудаче повторяет запрос без закрепления ключа прослойки
-/// (`fetch_for_profile`) — ради ротации ключа он и заведён.
-const SECURE_CHANNEL_ATTEMPTS: u64 = 2;
+/// Защищённый канал при неудаче повторяет запрос по часам прослойки и без
+/// закрепления её ключа, а запрос без закрепления — тоже по часам прослойки
+/// (`fetch_for_profile`): до четырёх запросов на маршрут.
+const SECURE_CHANNEL_ATTEMPTS: u64 = 4;
 
 /// Запас поверх суммы маршрутов: паузы после неудачи и разбор ответа.
 const LADDER_SLACK: Duration = Duration::from_secs(10);
@@ -1298,35 +1305,44 @@ async fn fetch_for_profile(
     }
 
     let pinned = pinned_of(option);
-
-    let mut outcome = fetch_secure(
-        url,
-        proxy_type,
-        timeout,
-        user_agent.clone(),
-        accept_invalid_certs,
-        identity_headers,
-        pinned,
-    )
-    .await;
-
-    if pinned.is_some() && outcome.as_ref().is_err_and(key_may_be_refused) {
-        clash_verge_logging::logging!(
-            warn,
-            clash_verge_logging::Type::Config,
-            "[clod] chan: закреплённый ключ прослойки не принят, повтор без закрепления"
-        );
-
-        outcome = fetch_secure(
+    let clock = option.and_then(|o| o.chan_clock).unwrap_or_default();
+    let round = |pin, clock| {
+        fetch_secure(
             url,
             proxy_type,
             timeout,
-            user_agent,
+            user_agent.clone(),
             accept_invalid_certs,
             identity_headers,
-            None,
+            pin,
+            clock,
         )
-        .await;
+    };
+
+    let (mut outcome, clock) = Box::pin(on_relay_time(clock, |clock| round(pinned, clock))).await;
+
+    if let Some(old) = pinned
+        && outcome.as_ref().is_err_and(key_may_be_refused)
+    {
+        clash_verge_logging::logging!(
+            warn,
+            clash_verge_logging::Type::Config,
+            "[clod] chan: закреплённый ключ прослойки ей незнаком, повтор без закрепления"
+        );
+
+        outcome = Box::pin(on_relay_time(clock, |clock| round(None, clock))).await.0;
+
+        if let Ok((_, new)) = &outcome
+            && *new != old
+        {
+            clash_verge_logging::logging!(
+                warn,
+                clash_verge_logging::Type::Config,
+                "[clod] chan: ключ прослойки сменился: {} -> {}",
+                chan::spid(&old),
+                chan::spid(new)
+            );
+        }
     }
 
     match outcome {
@@ -1376,19 +1392,61 @@ fn explain_the_failure(err: &anyhow::Error, otherwise: &'static str) -> String {
 
 const CHAN_NEUTRAL_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)";
 
-/// Повторять без закрепления ключа прослойки есть смысл, только если прослойка
-/// ответила: отказом снаружи (закреплённый ключ ей неизвестен — запрос ушёл в
-/// обычный конвейер) или шифротекстом, который не открылся. Сетевой сбой — не
-/// повод: без закрепления тело защищено одним адресом подписки, и повтор на
-/// любую ошибку позволил бы снять закрепление, просто оборвав первый запрос.
+/// Повторять без закрепления ключа прослойки есть смысл, только если ответ
+/// пришёл не каналом: прослойка ключ не узнала (смена ключа, переустановка) и
+/// отдала запрос обычному конвейеру. Что тот ответит, зависит от сервера перед
+/// ней: 404, другой 4xx или страница вместо шифротекста. Сбой по дороге (5xx,
+/// сеть), переадресация и ответ, который открылся, — не повод: ключ тут ни при
+/// чём, а без закрепления тело защищено одним адресом подписки.
 fn key_may_be_refused(err: &anyhow::Error) -> bool {
-    if let Some(ChanRefused(status)) = err.downcast_ref::<ChanRefused>() {
-        return status.is_client_error();
+    err.downcast_ref::<ChanRefused>()
+        .is_some_and(|ChanRefused(status)| status.is_client_error())
+        || err.to_string().contains("clod-chan-undecryptable")
+}
+
+/// Поправка часов канала по `date` ответа (как `chanx.Correction` на Android).
+/// Разбег в пределах окна прослойки — не поправка: прежняя поправка устарела
+/// (часы устройства исправили), повтор идёт по часам устройства. `None` —
+/// повторять незачем.
+fn clock_correction(served: Option<i64>, now: i64, current: i64) -> Option<i64> {
+    let raw = served.filter(|served| *served > 0)? - now;
+    let raw = if raw.abs() <= chan::SKEW { 0 } else { raw };
+    (raw != current).then_some(raw)
+}
+
+/// Раунд канала по часам прослойки: не удался, а `date` ответа говорит, что
+/// часы разъехались, — ещё один раунд с поправкой. Вместе с исходом — поправка,
+/// с которой шёл последний раунд. Хранится поправка только после удачной
+/// загрузки: её замеряет сама загрузка по расшифрованному `date`.
+async fn on_relay_time<T, F, Fut>(clock: i64, round: F) -> (Result<T>, i64)
+where
+    F: Fn(i64) -> Fut + Send + Sync,
+    Fut: std::future::Future<Output = (Result<T>, Option<i64>)> + Send,
+    T: Send,
+{
+    let (outcome, served) = round(clock).await;
+    if outcome.is_ok() {
+        return (outcome, clock);
     }
-    err.chain().any(|cause| {
-        let text = cause.to_string();
-        text.contains("clod-chan-undecryptable") || text.contains("clod-chan-bad-key")
-    })
+    let Some(fixed) = clock_correction(served, chrono::Local::now().timestamp(), clock) else {
+        return (outcome, clock);
+    };
+    if fixed == 0 {
+        clash_verge_logging::logging!(
+            warn,
+            clash_verge_logging::Type::Config,
+            "[clod] chan: поправка часов {} с устарела, повтор по часам устройства",
+            clock
+        );
+    } else {
+        clash_verge_logging::logging!(
+            warn,
+            clash_verge_logging::Type::Config,
+            "[clod] chan: часы устройства расходятся с прослойкой на {} с, повтор по её времени",
+            fixed
+        );
+    }
+    (round(fixed).await.0, fixed)
 }
 
 /// Закреплённый ключ прослойки из карточки подписки.
@@ -1428,40 +1486,36 @@ fn chan_fields(identity: &reqwest::header::HeaderMap, user_agent: Option<&String
 /// JSON). Маршруты — в том же порядке, что у загрузки подписки. `Ok(код)` —
 /// прослойка ответила каналом, код ответа приехал внутри шифра: 204 — принят,
 /// 403 — приём выключен, 429 — рано. Ошибка — каналом не ответил никто.
+///
+/// Только с закреплённым ключом прослойки и без повтора без него: отчёт ждёт
+/// загрузки подписки, которая ключ закрепит.
 pub async fn send_report(url: &str, option: Option<&PrfOption>, gz: &[u8]) -> Result<u16> {
+    let Some(pin) = pinned_of(option) else {
+        bail!("the middleware key is not pinned yet");
+    };
     let url = fix_dirty_url(url)?;
     let accept_invalid_certs = option.is_some_and(|o| o.danger_accept_invalid_certs.unwrap_or(false));
     let user_agent = option.and_then(|o| o.user_agent.clone());
     let timeout = option.and_then(|o| o.timeout_seconds).unwrap_or(20);
+    let clock = option.and_then(|o| o.chan_clock).unwrap_or_default();
     let identity = sub_headers::build_identity_headers().await;
     let fields = chan_fields(&identity, user_agent.as_ref());
-    let pinned = pinned_of(option);
 
     let mut last = None;
     for route in route_plan(Route::chosen_in(option), system_proxy_now().await) {
-        let mut sent = post_report(
-            url.as_str(),
-            route.proxy_type(),
-            timeout,
-            accept_invalid_certs,
-            &fields,
-            pinned,
-            gz,
-        )
-        .await;
-        if pinned.is_some() && sent.as_ref().is_err_and(key_may_be_refused) {
-            sent = post_report(
+        let round = |clock| {
+            post_report(
                 url.as_str(),
                 route.proxy_type(),
                 timeout,
                 accept_invalid_certs,
                 &fields,
-                None,
+                pin,
+                clock,
                 gz,
             )
-            .await;
-        }
-        match sent {
+        };
+        match Box::pin(on_relay_time(clock, round)).await.0 {
             Ok(status) => return Ok(status),
             Err(err) => last = Some(err),
         }
@@ -1469,18 +1523,34 @@ pub async fn send_report(url: &str, option: Option<&PrfOption>, gz: &[u8]) -> Re
     Err(last.unwrap_or_else(|| anyhow::anyhow!("clod-chan-refused: no route")))
 }
 
+/// Ответ прослойки на защищённый запрос: снаружи не 2xx — отказ, иначе шифротекст.
+fn opened(session: &chan::Session, response: &crate::utils::network::HttpResponse, now: i64) -> Result<chan::Answer> {
+    if !response.status().is_success() {
+        return Err(ChanRefused(response.status()).into());
+    }
+    session.open(response.text_with_charset()?, now)
+}
+
+/// Один отчёт: исход и время прослойки из ответа, если ответ был.
+#[allow(clippy::too_many_arguments)]
 async fn post_report(
     url: &str,
     proxy_type: ProxyType,
     timeout: u64,
     accept_invalid_certs: bool,
     fields: &chan::Fields,
-    pin: Option<[u8; 32]>,
+    pin: [u8; 32],
+    clock: i64,
     gz: &[u8],
-) -> Result<u16> {
-    let (secure_url, session) = chan::build_report(url, pin, fields, chrono::Local::now().timestamp())?;
-    let body = session.seal_report(gz)?;
-    let response = NetworkManager::new()
+) -> (Result<u16>, Option<i64>) {
+    let now = || chrono::Local::now().timestamp() + clock;
+    let sealed = chan::build_report(url, Some(pin), fields, now())
+        .and_then(|(secure_url, session)| Ok((secure_url, session.seal_report(gz)?, session)));
+    let (secure_url, body, session) = match sealed {
+        Ok(sealed) => sealed,
+        Err(err) => return (Err(err), None),
+    };
+    let response = match NetworkManager::new()
         .post_with_interrupt_and_headers(
             secure_url.as_str(),
             proxy_type,
@@ -1490,14 +1560,18 @@ async fn post_report(
             Some(&reqwest::header::HeaderMap::new()),
             &body,
         )
-        .await?;
-    if !response.status().is_success() {
-        return Err(ChanRefused(response.status()).into());
-    }
-    let answer = session.open(response.text_with_charset()?, chrono::Local::now().timestamp())?;
-    Ok(answer.status)
+        .await
+    {
+        Ok(response) => response,
+        Err(err) => return (Err(err), None),
+    };
+    let served = sub_headers::server_time(response.headers());
+    (opened(&session, &response, now()).map(|answer| answer.status), served)
 }
 
+/// Один защищённый запрос подписки: исход и время прослойки из ответа, если
+/// ответ был.
+#[allow(clippy::too_many_arguments)]
 async fn fetch_secure(
     url: &str,
     proxy_type: ProxyType,
@@ -1506,36 +1580,43 @@ async fn fetch_secure(
     accept_invalid_certs: bool,
     identity: &reqwest::header::HeaderMap,
     pin: Option<[u8; 32]>,
-) -> Result<(crate::utils::network::HttpResponse, [u8; 32])> {
+    clock: i64,
+) -> (Result<(crate::utils::network::HttpResponse, [u8; 32])>, Option<i64>) {
     let fields = chan_fields(identity, user_agent.as_ref());
+    let now = || chrono::Local::now().timestamp() + clock;
 
-    let now = chrono::Local::now().timestamp();
-    let (secure_url, session) = chan::build(url, pin, &fields, now)?;
+    let (secure_url, session) = match chan::build(url, pin, &fields, now()) {
+        Ok(built) => built,
+        Err(err) => return (Err(err), None),
+    };
 
-    let response = fetch_once(
-        secure_url.as_str(),
-        proxy_type,
-        timeout,
-        Some(CHAN_NEUTRAL_UA.into()),
-        accept_invalid_certs,
-        &reqwest::header::HeaderMap::new(),
-    )
-    .await?;
+    let response = match NetworkManager::new()
+        .get_once_with_headers(
+            secure_url.as_str(),
+            proxy_type,
+            Some(timeout),
+            Some(CHAN_NEUTRAL_UA.into()),
+            accept_invalid_certs,
+            Some(&reqwest::header::HeaderMap::new()),
+        )
+        .await
+    {
+        Ok(response) => response,
+        Err(err) => return (Err(err), None),
+    };
+    let served = sub_headers::server_time(response.headers());
 
-    if !response.status().is_success() {
-        return Err(ChanRefused(response.status()).into());
-    }
-
-    let answer = session.open(response.text_with_charset()?, chrono::Local::now().timestamp())?;
-
-    Ok((
-        crate::utils::network::HttpResponse::new(
-            reqwest::StatusCode::from_u16(answer.status).unwrap_or(reqwest::StatusCode::OK),
-            answer.meta,
-            answer.body.into(),
-        ),
-        answer.sp,
-    ))
+    let outcome = opened(&session, &response, now()).map(|answer| {
+        (
+            crate::utils::network::HttpResponse::new(
+                reqwest::StatusCode::from_u16(answer.status).unwrap_or(reqwest::StatusCode::OK),
+                answer.meta,
+                answer.body.into(),
+            ),
+            answer.sp,
+        )
+    });
+    (outcome, served)
 }
 
 const MILLIS_THRESHOLD: u64 = 1_000_000_000_000;
@@ -1667,6 +1748,17 @@ impl PrfItem {
 
         let age = now - measured_at;
         if !(0..=MAX_AGE_SECS).contains(&age) { 0 } else { skew }
+    }
+
+    /// Настройки подписки для запроса к ней: с поправкой часов защищённого
+    /// канала, если часы устройства ушли дальше, чем прощает прослойка.
+    pub fn fetch_option(&self) -> Option<PrfOption> {
+        let skew = self.panel_clock_skew();
+        let clock = if skew.abs() <= chan::SKEW { 0 } else { skew };
+        self.option.clone().map(|option| PrfOption {
+            chan_clock: Some(clock),
+            ..option
+        })
     }
 }
 
@@ -1803,21 +1895,25 @@ mod channel_tests {
     use super::{ChanRefused, ChannelHeard, PrfOption, channel_heard, key_may_be_refused};
 
     #[test]
-    fn the_pin_is_dropped_only_when_the_middleware_answered() {
-        // Прослойка не узнала закреплённый ключ: запрос ушёл в обычный конвейер.
-        assert!(key_may_be_refused(&ChanRefused(reqwest::StatusCode::NOT_FOUND).into()));
-        // Ответила шифротекстом, который этим ключом не открылся.
+    fn the_pin_is_dropped_only_when_the_middleware_did_not_know_it() {
+        let refused =
+            |status| -> anyhow::Error { ChanRefused(reqwest::StatusCode::from_u16(status).unwrap_or_default()).into() };
+        for status in [400, 403, 404, 410, 429] {
+            assert!(key_may_be_refused(&refused(status)), "{status}");
+        }
+        for status in [308, 500, 502] {
+            assert!(!key_may_be_refused(&refused(status)), "{status}");
+        }
         assert!(key_may_be_refused(&anyhow::anyhow!("clod-chan-undecryptable")));
-        assert!(key_may_be_refused(
-            &anyhow::anyhow!("clod-chan-bad-key").context("failed to fetch remote profile")
-        ));
-        // Сбой по дороге или ответ, который открылся: закрепление ни при чём.
-        assert!(!key_may_be_refused(
-            &ChanRefused(reqwest::StatusCode::BAD_GATEWAY).into()
-        ));
-        assert!(!key_may_be_refused(&anyhow::anyhow!("connection refused")));
-        assert!(!key_may_be_refused(&anyhow::anyhow!("clod-chan-stale")));
-        assert!(!key_may_be_refused(&anyhow::anyhow!("clod-chan-mismatch")));
+        for text in [
+            "clod-chan-bad-key",
+            "clod-chan-version",
+            "clod-chan-stale",
+            "clod-chan-mismatch",
+            "connection refused",
+        ] {
+            assert!(!key_may_be_refused(&anyhow::anyhow!(text)), "{text}");
+        }
     }
 
     fn heard(err: anyhow::Error) -> ChannelHeard {
@@ -1880,6 +1976,193 @@ mod channel_tests {
             PrfOption::merge(Some(&off), Some(&on)).and_then(|o| o.secure),
             Some(true)
         );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod secure_fetch_tests {
+    use super::{PrfOption, clock_correction, fetch_for_profile, send_report};
+    use crate::{config::chan::relay::Relay, utils::network::ProxyType};
+    use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as B64};
+    use std::sync::Arc;
+    use tokio::{
+        io::{AsyncReadExt as _, AsyncWriteExt as _},
+        net::TcpListener,
+    };
+
+    const TOKEN: &str = "a7Kd93mQz1Lp0Xr8";
+    const BODY: &str = "proxies:\n  - {name: a, type: socks5, server: 127.0.0.1, port: 1080}\n";
+
+    /// Пути запросов, дошедших до тестового сервера.
+    type Seen = Arc<parking_lot::Mutex<Vec<String>>>;
+    /// Ответ тестового сервера: код, строки заголовков, тело.
+    type Reply = (u16, String, String);
+
+    /// Сервер подписки: на каждый запрос — `reply(путь)`.
+    async fn serve(reply: impl Fn(&str) -> Reply + Send + Sync + 'static) -> (String, Seen) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("порт для теста");
+        let addr = listener.local_addr().expect("адрес слушателя");
+        let seen = Seen::default();
+        let log = Arc::clone(&seen);
+        tokio::spawn(async move {
+            while let Ok((mut stream, _)) = listener.accept().await {
+                let mut request = Vec::new();
+                let mut buffer = [0_u8; 4096];
+                while let Ok(read) = stream.read(&mut buffer).await {
+                    request.extend_from_slice(&buffer[..read]);
+                    if read == 0 || request.windows(4).any(|w| w == b"\r\n\r\n") {
+                        break;
+                    }
+                }
+                let text = String::from_utf8_lossy(&request).into_owned();
+                let path = text.split_whitespace().nth(1).unwrap_or_default().to_owned();
+                let (status, headers, body) = reply(&path);
+                log.lock().push(path);
+                let head = format!(
+                    "HTTP/1.1 {status} X\r\n{headers}Content-Length: {}\r\nConnection: close\r\n\r\n",
+                    body.len()
+                );
+                let _ = stream.write_all(head.as_bytes()).await;
+                let _ = stream.write_all(body.as_bytes()).await;
+                let _ = stream.shutdown().await;
+            }
+        });
+        (format!("http://{addr}/{TOKEN}"), seen)
+    }
+
+    /// Прослойка за тестовым сервером; её часы на `ahead` секунд впереди.
+    /// Запрос, который она не узнала, получает 404, как от панели.
+    fn relay(relay: Relay, ahead: i64) -> impl Fn(&str) -> Reply + Send + Sync + 'static {
+        move |path| {
+            let now = chrono::Local::now().timestamp() + ahead;
+            let date = chrono::DateTime::from_timestamp(now, 0)
+                .map(|at| at.format("%a, %d %b %Y %H:%M:%S GMT").to_string())
+                .unwrap_or_default();
+            let headers = format!("Date: {date}\r\n");
+            match relay.open(path, now) {
+                Some(opened) => (200, headers, relay.seal(&opened, serde_json::json!({}), BODY, 200, now)),
+                None => (404, headers, "not found".into()),
+            }
+        }
+    }
+
+    fn secure(pin: Option<[u8; 32]>) -> PrfOption {
+        PrfOption {
+            secure: Some(true),
+            chan_pin: pin.map(|key| B64.encode(key).into()),
+            ..PrfOption::default()
+        }
+    }
+
+    async fn fetch(url: &str, option: &PrfOption) -> Option<(String, Option<String>)> {
+        Box::pin(fetch_for_profile(
+            url,
+            ProxyType::None,
+            5,
+            Some("ClodClash/test".into()),
+            false,
+            &reqwest::header::HeaderMap::new(),
+            Some(option),
+        ))
+        .await
+        .ok()
+        .map(|(response, pin)| {
+            (
+                response.text_with_charset().unwrap_or_default().to_owned(),
+                pin.map(|pin| pin.to_string()),
+            )
+        })
+    }
+
+    fn unpinned(seen: &Seen) -> bool {
+        seen.lock().iter().any(|path| path.contains("/0/"))
+    }
+
+    #[tokio::test]
+    async fn the_pin_is_dropped_only_when_the_middleware_lost_it() {
+        let pin = Relay::new(TOKEN, &[1]).public(0);
+        for (status, body, dropped) in [
+            (400, "bad request", true),
+            (403, "denied", true),
+            (429, "slow down", true),
+            (308, "moved", false),
+            (502, "bad gateway", false),
+            (200, "<html>a page</html>", true),
+            (404, "not found", true),
+            (410, "gone", true),
+        ] {
+            let (url, seen) = serve(move |_| (status, String::new(), body.into())).await;
+            let _ = fetch(&url, &secure(Some(pin))).await;
+            assert_eq!(unpinned(&seen), dropped, "{status}");
+        }
+    }
+
+    #[tokio::test]
+    async fn a_lost_key_is_replaced_by_the_one_the_middleware_answers_with() {
+        let middleware = Relay::new(TOKEN, &[2]);
+        let current = B64.encode(middleware.public(0));
+        let (url, seen) = serve(relay(middleware, 0)).await;
+
+        let fetched = fetch(&url, &secure(Some(Relay::new(TOKEN, &[1]).public(0)))).await;
+
+        assert_eq!(fetched, Some((BODY.into(), Some(current))));
+        assert!(unpinned(&seen));
+    }
+
+    #[tokio::test]
+    async fn a_wrong_device_clock_is_corrected_by_the_middleware_time() {
+        for pinned in [false, true] {
+            let middleware = Relay::new(TOKEN, &[2]);
+            let pin = pinned.then(|| middleware.public(0));
+            let (url, seen) = serve(relay(middleware, 3600)).await;
+
+            let fetched = fetch(&url, &secure(pin)).await;
+
+            assert_eq!(fetched.map(|(body, _)| body).as_deref(), Some(BODY), "pinned: {pinned}");
+            assert_eq!(seen.lock().len(), 2, "pinned: {pinned}");
+            assert!(!pinned || !unpinned(&seen), "часы — не повод снимать закрепление");
+        }
+    }
+
+    #[tokio::test]
+    async fn a_stale_clock_correction_gives_way_to_the_device_clock() {
+        let (url, seen) = serve(relay(Relay::new(TOKEN, &[2]), 0)).await;
+        let option = PrfOption {
+            chan_clock: Some(3600),
+            ..secure(None)
+        };
+
+        let fetched = fetch(&url, &option).await;
+
+        assert_eq!(fetched.map(|(body, _)| body).as_deref(), Some(BODY));
+        assert_eq!(seen.lock().len(), 2);
+    }
+
+    #[test]
+    fn the_clock_is_corrected_as_on_android() {
+        for (served, current, want) in [
+            (None, 0, None),
+            (Some(0), 0, None),
+            (Some(1_100), 0, None),
+            (Some(4_600), 0, Some(3_600)),
+            (Some(4_600), 3_600, None),
+            (Some(1_010), 3_600, Some(0)),
+            (Some(1), 0, Some(-999)),
+        ] {
+            assert_eq!(clock_correction(served, 1_000, current), want, "{served:?} {current}");
+        }
+    }
+
+    #[tokio::test]
+    async fn a_report_waits_for_a_pinned_key() {
+        let (url, seen) = serve(|_| (404, String::new(), String::new())).await;
+        let url = url.replacen("http://", "https://", 1);
+
+        let sent = send_report(&url, Some(&secure(None)), b"report").await;
+
+        assert!(sent.is_err_and(|err| err.to_string().contains("not pinned")));
+        assert!(seen.lock().is_empty());
     }
 }
 
@@ -2396,7 +2679,7 @@ mod tests {
         // Числа здесь посчитаны руками, а не теми же константами, что и код: иначе
         // тест был бы тождественно истинным и уронённую константу не поймал бы.
         // Каждый маршрут может быть повторён с запасными корнями TLS; в защищённом
-        // канале — ещё раз без закрепления ключа прослойки.
+        // канале — по часам прослойки и без закрепления её ключа, до четырёх раз.
         for (timeout, secure, routes, honest_seconds) in [
             (None, None, 3_usize, 120_u64),
             (Some(1_u64), None, 3, 6),
@@ -2404,8 +2687,8 @@ mod tests {
             (Some(20), None, 2, 80),
             (Some(20), None, 1, 40),
             (Some(600), None, 3, 3600),
-            (Some(20), Some(true), 3, 240),
-            (Some(600), Some(true), 3, 7200),
+            (Some(20), Some(true), 3, 480),
+            (Some(600), Some(true), 3, 14400),
         ] {
             let budget = address_budget(Some(&budget_option(timeout, secure)), routes);
             assert!(
