@@ -13,9 +13,7 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import { BaseLoading } from '@/components/base'
-import { useFreezeMarks } from '@/hooks/use-freeze-marks'
 import { useProxyDelayState } from '@/hooks/use-proxy-delay-state'
-import { useServerDescriptions } from '@/hooks/use-server-descriptions'
 import { delayColor, delayText } from '@/utils/delay-color'
 import { typeChips } from '@/utils/proxy-label'
 
@@ -32,6 +30,10 @@ interface Props {
   favorite?: boolean
   onToggleFavorite?: (name: string) => void
   pingBounds?: IProfileItem['ping_thresholds']
+  /** clod: описание узла из панели — под типами и прячется вместе с ними. */
+  description?: string
+  /** clod:freeze — пометка рядом с пингом; пинг и выбор не трогает. */
+  freezeMark?: Parameters<typeof FreezeMark>[0]['mark']
 }
 
 const Widget = styled(Box)(() => ({
@@ -63,6 +65,8 @@ export const ProxyItem = (props: Props) => {
     favorite,
     onToggleFavorite,
     pingBounds,
+    description,
+    freezeMark,
   } = props
   const { t } = useTranslation()
 
@@ -70,10 +74,6 @@ export const ProxyItem = (props: Props) => {
     proxy,
     group.name,
   )
-  // clod: описание узла из панели — под типами и прячется вместе с ними.
-  const description = useServerDescriptions()[proxy.name]
-  // clod:freeze — пометка рядом с пингом; пинг и выбор не трогает.
-  const freezeMark = useFreezeMarks()[proxy.name]
 
   return (
     <ListItem sx={sx}>

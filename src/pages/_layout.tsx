@@ -1,7 +1,7 @@
 import { Box, Paper, ThemeProvider } from '@mui/material'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
-import { lazy, Suspense, useCallback, useEffect, useMemo } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Outlet, useLocation, useNavigate } from 'react-router'
 
@@ -105,7 +105,11 @@ const Layout = () => {
 
   useLayoutEvents(handleNotice)
 
+  // Очередь уже забрана в этот показ окна: при показе из трея приходят и
+  // событие показа, и смена видимости, а второй забор был бы пустым.
+  const drainedRef = useRef(false)
   const drainPendingNotices = useCallback(() => {
+    drainedRef.current = true
     takePendingNotices()
       .then((pending) => {
         for (const [status, msg, repeats] of pending) {
@@ -122,11 +126,14 @@ const Layout = () => {
 
   // При монтировании и при каждом показе окна: пока окно спрятано в трее,
   // бэкенд придерживает уведомления, а забор очереди заодно говорит ему, что
-  // страница снова слушает.
+  // страница снова слушает. Событие показа забирает всегда — окно могут
+  // показать и без смены видимости; смена видимости — если события не было
+  // (разворачивание из панели задач).
   useEffect(() => {
     if (pageVisible) {
-      drainPendingNotices()
+      if (!drainedRef.current) drainPendingNotices()
     } else {
+      drainedRef.current = false
       stopListeningNotices().catch((error) => {
         console.error('[Обработка уведомлений] Скрытие не передано:', error)
       })

@@ -8,10 +8,7 @@ import { BasePage, TooltipIcon } from '@/components/base'
 import { ProviderButton } from '@/components/proxy/provider-button'
 import { ProxyGroups } from '@/components/proxy/proxy-groups'
 import { useProfiles } from '@/hooks/use-profiles'
-import {
-  useAppRefreshers,
-  useClashConfigData,
-} from '@/providers/app-data-context'
+import { useClashConfigData } from '@/providers/app-data-context'
 import {
   getRuntimeProxyChainConfig,
   patchClashMode,
@@ -46,7 +43,6 @@ const ProxyPage = () => {
   )
 
   const { clashConfig } = useClashConfigData()
-  const { refreshClashConfig } = useAppRefreshers()
 
   const updateChainConfigData = useCallback((value: string | null) => {
     dispatchChainConfigData(value)
@@ -66,8 +62,8 @@ const ProxyPage = () => {
     try {
       // patchClashMode отклоняется, если PATCH на бэкенде не удался — нужно уведомить
       // пользователя, а не проглатывать ошибку молча
+      // Режим на экране перечитывает событие обновления конфига от бэкенда.
       await patchClashMode(mode)
-      refreshClashConfig()
     } catch (error) {
       showNotice.error(error)
     }

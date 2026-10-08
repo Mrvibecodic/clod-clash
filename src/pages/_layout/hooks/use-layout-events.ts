@@ -1,9 +1,11 @@
 import { useEffect, useRef } from 'react'
+import { useLocation } from 'react-router'
 
 import { useTauriEvent } from '@/hooks/use-listen'
 import { useSubscriptionUpdateEvents } from '@/hooks/use-subscription-update'
 import { useVisibility } from '@/hooks/use-visibility'
 import {
+  removeCacheData,
   revalidateQueries,
   revalidateQueriesByPrefix,
 } from '@/services/query-client'
@@ -16,8 +18,6 @@ const CLASH_CONFIG_KEYS_ALWAYS = ['getProxies', 'getRuntimeConfig'] as const
 const CLASH_CONFIG_KEYS_WHEN_VISIBLE = [
   'getVersion',
   'getClashConfig',
-  'getRules',
-  'getRuleProviders',
   // clod:port-ladder — порт ядра и признак «как в подписке» живут в своих
   // запросах, и их не перечитывал никто: диалог портов после сохранения
   // показывал старое закрепление, повторное «ОК» молча возвращало его,
@@ -30,6 +30,14 @@ const CLASH_CONFIG_KEYS_ON_RETURN = CLASH_CONFIG_KEYS_WHEN_VISIBLE.filter(
   (key) => key !== 'getClashConfig',
 )
 
+/**
+ * Правила ядра и их провайдеры читает один экран «Правила», и при открытии он
+ * перечитывает их сам. Вне его пересборка конфига их только сбрасывает: ответ
+ * бывает большим, а при открытии иначе мелькнули бы прежние.
+ */
+const RULES_KEYS = ['getRules', 'getRuleProviders'] as const
+const RULES_PATH = '/rules'
+
 const CLASH_CONFIG_PREFIXES = [
   'sentinelReport',
   'serverDescriptions',
@@ -40,6 +48,7 @@ export const useLayoutEvents = (
   handleNotice: (payload: [string, string]) => void,
 ) => {
   const visible = useVisibility()
+  const { pathname } = useLocation()
   const visibleRef = useRef(visible)
   const pendingRef = useRef(false)
 
@@ -60,6 +69,12 @@ export const useLayoutEvents = (
       void revalidateKeys(CLASH_CONFIG_KEYS_WHEN_VISIBLE)
     } else {
       pendingRef.current = true
+    }
+    if (pathname !== RULES_PATH) {
+      for (const key of RULES_KEYS) void removeCacheData([key])
+    } else if (visibleRef.current) {
+      // В свёрнутом окне экран «Правила» перечитает их сам при показе.
+      void revalidateKeys(RULES_KEYS)
     }
   })
 

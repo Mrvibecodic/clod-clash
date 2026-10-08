@@ -20,10 +20,7 @@ import { useTranslation } from 'react-i18next'
 import { DialogRef, Switch, TooltipIcon } from '@/components/base'
 import { SysproxyViewer } from '@/components/setting/mods/sysproxy-viewer'
 import { TunViewer } from '@/components/setting/mods/tun-viewer'
-import {
-  useConnectTargets,
-  useRememberTargets,
-} from '@/hooks/use-connect-targets'
+import { useConnectTargets } from '@/hooks/use-connect-targets'
 import { useServiceUninstaller } from '@/hooks/use-service-uninstaller'
 import { useSystemProxyState } from '@/hooks/use-system-proxy-state'
 import { useSystemState } from '@/hooks/use-system-state'
@@ -184,9 +181,6 @@ const ProxyControlSwitches = ({ target, onError }: ProxySwitchProps) => {
   const { tunActive, tunCapable, tunNeedsRepair, mutateTunState } =
     useTunState()
   const { isServiceOk, mutateSystemState } = useSystemState()
-  // Тумблеры здесь и есть выбор режима для кнопки Connect — отдельной пары
-  // настроек «Подключение: …» больше нет.
-  const rememberTarget = useRememberTargets()
   // clod:connect-mode — настройки обязаны знать про замок ровно то же, что и
   // быстрые действия на главной. Без этого экран показывал два обычных
   // тумблера поверх заголовка «только TUN»: включённый здесь системный прокси
@@ -222,8 +216,9 @@ const ProxyControlSwitches = ({ target, onError }: ProxySwitchProps) => {
     }
     mutateVerge({ ...verge, enable_tun_mode: value }, false)
     try {
-      await patchVerge({ enable_tun_mode: value })
-      void rememberTarget('tun', value)
+      // Тумблеры здесь и есть выбор режима для кнопки Connect — отдельной
+      // пары настроек «Подключение: …» больше нет. Пишется той же записью.
+      await patchVerge({ enable_tun_mode: value, connect_tun_mode: value })
     } catch (err) {
       // Ошибка не обязательно значит откат: бэкенд мог сохранить настройку и
       // всё равно сообщить об отказе следующего шага. Перечитываем конфиг —
@@ -293,10 +288,7 @@ const ProxyControlSwitches = ({ target, onError }: ProxySwitchProps) => {
           busy={systemProxyBusy}
           infoTitle={t('settings.sections.proxyControl.tooltips.systemProxy')}
           onInfoClick={() => sysproxyRef.current?.open()}
-          onToggle={async (value) => {
-            await toggleSystemProxy(value)
-            void rememberTarget('sys', value)
-          }}
+          onToggle={(value) => toggleSystemProxy(value, true)}
           onError={onError}
           highlight={systemProxyIndicator}
           lockedNote={lockedNote}

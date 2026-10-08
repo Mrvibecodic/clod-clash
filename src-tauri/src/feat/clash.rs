@@ -129,6 +129,9 @@ pub async fn change_clash_mode(mode: String) -> Result<(), String> {
         // своей очереди, чтобы следующая сборка его уже видела.
         remember_mode_choice(owner.as_ref(), &mode).await;
         drop(turn);
+        // Окно перечитывает режим по событию на любом исходе: кнопка могла
+        // показывать отставший.
+        handle::Handle::refresh_clash();
         logging_error!(Type::Tray, tray::Tray::global().update_menu().await);
         return Ok(());
     }
@@ -366,5 +369,15 @@ mod tests {
         assert_eq!(providers, serde_json::json!({ "providers": {} }));
         assert_eq!(failed, 0);
         assert!(read(Err(anyhow::anyhow!("down")), &[]).into_json().is_none());
+    }
+
+    #[test]
+    fn a_mode_that_is_already_set_still_tells_the_window() {
+        let source = crate::utils::source_scan::production_code(include_str!("clash.rs"));
+        let change = crate::utils::source_scan::fn_body(source, "pub async fn change_clash_mode(").unwrap_or_default();
+        let same = change.find("core_mode_is(&mode)").unwrap_or(usize::MAX);
+        let told = change.find("refresh_clash()").unwrap_or(0);
+        let done = change.find("return Ok(());").unwrap_or(0);
+        assert!(same < told && told < done, "{change}");
     }
 }

@@ -19,7 +19,7 @@ import { useTranslation } from 'react-i18next'
 import { closeAllConnections } from 'tauri-plugin-mihomo-api'
 
 import { BaseDialog, DialogRef } from '@/components/base'
-import { useClash, useClashInfo } from '@/hooks/use-clash'
+import { useClash } from '@/hooks/use-clash'
 import { useVerge } from '@/hooks/use-verge'
 import {
   type CoreUpdaterStatus,
@@ -56,7 +56,6 @@ export function ClashCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
 
   const { verge, mutateVerge } = useVerge()
   const { mutateVersion } = useClash()
-  const { invalidateClashConfig } = useClashInfo()
 
   const [open, setOpen] = useState(false)
   const [upgrading, setUpgrading] = useState(false)
@@ -77,13 +76,10 @@ export function ClashCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
     try {
       setChangingCore(core)
       void closeAllConnections().catch(() => undefined)
-      const errorMsg = await changeClashCore(core)
+      // Версию и настройки нового ядра перечитывает событие обновления
+      // конфига: бэкенд шлёт его до возврата.
+      await changeClashCore(core)
       mutateVerge()
-      if (errorMsg) return
-
-      await new Promise((resolve) => setTimeout(resolve, 500))
-      invalidateClashConfig()
-      mutateVersion()
     } catch (err) {
       showNotice.error(err)
     } finally {

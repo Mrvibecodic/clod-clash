@@ -47,29 +47,41 @@ export const useSystemProxyState = () => {
   })()
 
   // Режим "применяется только последнее": при быстрых последовательных кликах выполняется только конечное состояние
-  const pendingRef = useRef<boolean | null>(null)
+  const pendingRef = useRef<{ enabled: boolean; remember: boolean } | null>(
+    null,
+  )
   const busyRef = useRef(false)
   // Бэкенд успевает спросить ядро про порт и записать настройки ОС — это
   // заметная пауза, и переключатель обязан показывать, что работа идёт, а не
   // выглядеть проигнорированным.
   const [busy, setBusy] = useState(false)
 
-  const toggleSystemProxy = async (enabled: boolean) => {
+  /**
+   * `remember` — нажатие самого тумблера: оно же выбор способа для кнопки
+   * «Подключить» (`connect_system_proxy`) и пишется той же записью настроек.
+   * Кнопка выбор не пишет: она выключает те же флаги при отключении, и одно
+   * нажатие «отключиться» стирало бы его.
+   */
+  const toggleSystemProxy = async (enabled: boolean, remember = false) => {
     mutateVerge(
       (prev) => (prev ? { ...prev, enable_system_proxy: enabled } : prev),
       false,
     )
-    pendingRef.current = enabled
+    pendingRef.current = { enabled, remember }
 
     if (busyRef.current) return
     busyRef.current = true
     setBusy(true)
 
+    let failed = true
     try {
       while (pendingRef.current !== null) {
-        const target = pendingRef.current
+        const { enabled: target, remember: chosen } = pendingRef.current
         pendingRef.current = null
-        await patchVerge({ enable_system_proxy: target })
+        await patchVerge({
+          enable_system_proxy: target,
+          ...(chosen && { connect_system_proxy: target }),
+        })
         if (
           !target &&
           verge?.auto_close_connection &&
@@ -78,11 +90,14 @@ export const useSystemProxyState = () => {
           await closeAllConnections().catch(() => {})
         }
       }
+      failed = false
     } finally {
       busyRef.current = false
       try {
+        // Настройки после удачного цикла уже перечитал `patchVerge`; после
+        // отказа в кэше осталось бы оптимистичное значение.
         await revalidateQueries([
-          ['getVergeConfig'],
+          ...(failed ? [['getVergeConfig']] : []),
           ['getSystemProxy'],
           ['getAutotemProxy'],
         ])

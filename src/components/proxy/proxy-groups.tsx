@@ -18,8 +18,10 @@ import {
   type StickyVirtualListHandle,
 } from '@/components/base'
 import { useFavorites } from '@/hooks/use-favorites'
+import { useFreezeMarks } from '@/hooks/use-freeze-marks'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useProxySelection } from '@/hooks/use-proxy-selection'
+import { useServerDescriptions } from '@/hooks/use-server-descriptions'
 import { useVerge } from '@/hooks/use-verge'
 import { useProxiesData } from '@/providers/app-data-context'
 import delayManager, { effectiveLatencyTimeout } from '@/services/delay'
@@ -373,6 +375,8 @@ function NormalProxyGroups(props: { mode: string }) {
   } = useProxyRenderState(mode, false, null)
   const { favorites, toggleFavorite } = useFavorites()
   const pingBounds = useProfiles().current?.ping_thresholds
+  const descriptions = useServerDescriptions()
+  const freezeMarks = useFreezeMarks()
   const renderFirstRef = useRef(true)
   const isRestoringRef = useRef(false)
 
@@ -536,6 +540,8 @@ function NormalProxyGroups(props: { mode: string }) {
         onChangeProxy={handleChangeProxy}
         onGroupToggle={handleGroupToggle}
         pingBounds={pingBounds}
+        descriptions={descriptions}
+        freezeMarks={freezeMarks}
       />
     ),
     [
@@ -546,6 +552,8 @@ function NormalProxyGroups(props: { mode: string }) {
       handleGroupToggle,
       handleGroupLocationByName,
       pingBounds,
+      descriptions,
+      freezeMarks,
     ],
   )
 
@@ -561,6 +569,8 @@ function NormalProxyGroups(props: { mode: string }) {
         favorites={favorites}
         onToggleFavorite={toggleFavorite}
         pingBounds={pingBounds}
+        descriptions={descriptions}
+        freezeMarks={freezeMarks}
       />
     ),
     [
@@ -571,6 +581,8 @@ function NormalProxyGroups(props: { mode: string }) {
       favorites,
       toggleFavorite,
       pingBounds,
+      descriptions,
+      freezeMarks,
     ],
   )
 

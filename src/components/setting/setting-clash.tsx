@@ -95,10 +95,8 @@ const SettingClash = ({ onError }: Props) => {
     try {
       await patchVerge({ enable_dns_settings: enable })
       settingStored = true
+      // Рабочий конфиг перечитывает событие обновления конфига от бэкенда.
       await invoke('apply_dns_config', { apply: enable })
-      setTimeout(() => {
-        mutateClash()
-      }, 500)
     } catch (err: any) {
       showNotice.error(err)
 

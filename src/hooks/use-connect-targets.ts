@@ -35,7 +35,8 @@ const providerTargets = (
  * (`verge.connect_system_proxy` / `verge.connect_tun_mode`). There is no
  * separate setting for them any more: the choice IS the pair of live switches
  * («Настройки системы» / «Быстрые действия»). Whatever the user turns on by
- * hand becomes what Connect restores next time — see `useRememberTargets`.
+ * hand becomes what Connect restores next time: the switches write
+ * `connect_*` in the same settings patch that flips them.
  * The default is the system proxy alone; when both end up off, the system
  * proxy silently steps back in — a Connect button that switches nothing is a
  * broken promise.
@@ -184,27 +185,4 @@ export const useConnectTargets = () => {
     targetsLocked,
     toggleConnection,
   }
-}
-
-/**
- * Пользователь дёрнул живой тумблер руками — значит, именно этот режим он и
- * имеет в виду, когда жмёт Connect. Вызывать ТОЛЬКО из обработчиков самих
- * тумблеров: кнопка Connect выключает те же флаги при отключении, и если бы
- * запоминание жило внутри них, одно нажатие «отключиться» стирало бы выбор.
- */
-export const useRememberTargets = () => {
-  const { patchVerge } = useVerge()
-
-  return useCallback(
-    (target: 'sys' | 'tun', enabled: boolean) =>
-      patchVerge(
-        target === 'sys'
-          ? { connect_system_proxy: enabled }
-          : { connect_tun_mode: enabled },
-      ).catch(() => {
-        // Запоминание — вторичное действие: сам тумблер уже сработал, и
-        // ронять его из-за не сохранившегося предпочтения незачем.
-      }),
-    [patchVerge],
-  )
 }

@@ -9,10 +9,7 @@ import { type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Switch } from '@/components/base'
-import {
-  useConnectTargets,
-  useRememberTargets,
-} from '@/hooks/use-connect-targets'
+import { useConnectTargets } from '@/hooks/use-connect-targets'
 import { useSystemProxyState } from '@/hooks/use-system-proxy-state'
 import { useSystemState } from '@/hooks/use-system-state'
 import { useTunState } from '@/hooks/use-tun-state'
@@ -105,15 +102,13 @@ export const QuickActions = () => {
   } = useSystemProxyState()
   const { mutateSystemState } = useSystemState()
   const { targetSys, targetTun, targetsLocked } = useConnectTargets()
-  const rememberTarget = useRememberTargets()
   const { tunActive, tunCapable, mutateTunState } = useTunState()
   const [installing, setInstalling] = useState(false)
   const [tunBusy, setTunBusy] = useState(false)
 
   const toggleSysproxy = useLockFn(async (next: boolean) => {
     try {
-      await toggleSystemProxy(next)
-      void rememberTarget('sys', next)
+      await toggleSystemProxy(next, true)
     } catch (error) {
       showNotice.error(error)
     }
@@ -134,8 +129,7 @@ export const QuickActions = () => {
         }
       }
       mutateVerge({ ...verge, enable_tun_mode: next }, false)
-      await patchVerge({ enable_tun_mode: next })
-      void rememberTarget('tun', next)
+      await patchVerge({ enable_tun_mode: next, connect_tun_mode: next })
     } catch (error) {
       showNotice.error(tunSetupNotice(error))
       mutateVerge()

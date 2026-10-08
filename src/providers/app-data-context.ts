@@ -27,7 +27,6 @@ export interface SystemContextType {
 
 export interface RefreshersContextType {
   refreshProxy: () => Promise<any>
-  refreshClashConfig: () => Promise<any>
   refreshRules: () => Promise<any>
   refreshRuleProviders: () => Promise<any>
 }

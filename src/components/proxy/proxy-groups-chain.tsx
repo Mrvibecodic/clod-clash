@@ -21,7 +21,9 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useFreezeMarks } from '@/hooks/use-freeze-marks'
 import { useProfiles } from '@/hooks/use-profiles'
+import { useServerDescriptions } from '@/hooks/use-server-descriptions'
 import { dismantleProxyChain } from '@/services/cmds'
 import {
   type ProxyChainNode as ProxyChainItem,
@@ -251,6 +253,8 @@ function ProxyVirtualList({
   pingBounds?: IProfileItem['ping_thresholds']
 }) {
   const theme = useTheme()
+  const descriptions = useServerDescriptions()
+  const freezeMarks = useFreezeMarks()
   const stickyBackground =
     theme.palette.mode === 'dark'
       ? theme.palette.background.paper
@@ -293,6 +297,8 @@ function ProxyVirtualList({
               onChangeProxy={onChangeProxy}
               isChainMode={isChainMode}
               pingBounds={pingBounds}
+              descriptions={descriptions}
+              freezeMarks={freezeMarks}
             />
           </div>
         ))}

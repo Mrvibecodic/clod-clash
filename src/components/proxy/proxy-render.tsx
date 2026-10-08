@@ -44,6 +44,13 @@ interface RenderProps {
   favorites?: Set<string>
   onToggleFavorite?: (name: string) => void
   pingBounds?: IProfileItem['ping_thresholds']
+  /**
+   * Описания узлов и пометки 16–20 читает список, а не строка: строки
+   * виртуального списка монтируются заново при прокрутке, и запрос в каждой
+   * перечитывал бы их на ходу.
+   */
+  descriptions?: Record<string, string>
+  freezeMarks?: Record<string, FreezeMark>
 }
 
 export const ProxyRender = memo(function ProxyRender(props: RenderProps) {
@@ -60,6 +67,8 @@ export const ProxyRender = memo(function ProxyRender(props: RenderProps) {
     onToggleFavorite,
     isChainMode = false,
     pingBounds,
+    descriptions,
+    freezeMarks,
   } = props
   const { type, group, headState, proxy, proxyCol } = item
   const selectable = isChainMode || SELECTABLE_GROUP_TYPES.has(groupType(group))
@@ -92,6 +101,8 @@ export const ProxyRender = memo(function ProxyRender(props: RenderProps) {
         favorite={favorites?.has(proxyItem?.name)}
         onToggleFavorite={onToggleFavorite}
         pingBounds={pingBounds}
+        description={descriptions?.[proxyItem?.name]}
+        freezeMark={freezeMarks?.[proxyItem?.name]}
       />
     ))
   }, [
@@ -105,6 +116,8 @@ export const ProxyRender = memo(function ProxyRender(props: RenderProps) {
     favorites,
     onToggleFavorite,
     pingBounds,
+    descriptions,
+    freezeMarks,
   ])
 
   if (type === 0) {
@@ -273,6 +286,8 @@ export const ProxyRender = memo(function ProxyRender(props: RenderProps) {
         favorite={favorites?.has(proxy!.name)}
         onToggleFavorite={onToggleFavorite}
         pingBounds={pingBounds}
+        description={descriptions?.[proxy!.name]}
+        freezeMark={freezeMarks?.[proxy!.name]}
       />
     )
   }

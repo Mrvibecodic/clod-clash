@@ -147,12 +147,15 @@ export const AppDataProvider = ({
     refetchIntervalInBackground: false,
   })
 
-  const { data: clashConfig, refetch: _refetchClashConfig } = useQuery({
+  const { data: clashConfig } = useQuery({
     queryKey: ['getClashConfig'],
     queryFn: getBaseConfig,
     ...TQ_MIHOMO,
   })
 
+  // Правила и их провайдеры нужны одному экрану «Правила»: он и читает их при
+  // открытии, а пересборка конфига вне его только сбрасывает их
+  // (`use-layout-events`). Ответ бывает большим — на старте не читаем.
   const { data: ruleProviders, refetch: _refetchRuleProviders } = useQuery({
     queryKey: ['getRuleProviders'],
     queryFn: getRuleProviders,
@@ -164,6 +167,7 @@ export const AppDataProvider = ({
     queryKey: ['getRules'],
     queryFn: getRules,
     ...TQ_MIHOMO,
+    revalidateOnMount: false,
   })
 
   // clod: кнопка Connect горит по ФАКТУ системного прокси в ОС, а не по флагу
@@ -203,7 +207,6 @@ export const AppDataProvider = ({
     }
     proxiesWereLiveRef.current = proxiesLive
   }, [proxiesLive, refreshProxy])
-  const refreshClashConfig = useStableFn(_refetchClashConfig)
   const refreshRules = useStableFn(_refetchRules)
   const refreshRuleProviders = useStableFn(_refetchRuleProviders)
 
@@ -366,11 +369,10 @@ export const AppDataProvider = ({
   const refreshersValue = useMemo(
     () => ({
       refreshProxy,
-      refreshClashConfig,
       refreshRules,
       refreshRuleProviders,
     }),
-    [refreshProxy, refreshClashConfig, refreshRules, refreshRuleProviders],
+    [refreshProxy, refreshRules, refreshRuleProviders],
   )
 
   return (

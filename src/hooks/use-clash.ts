@@ -9,12 +9,7 @@ import {
   getRuntimeConfig,
   patchClashConfig,
 } from '@/services/cmds'
-import {
-  getCacheData,
-  revalidateQuery,
-  setCacheData,
-  useQuery,
-} from '@/services/query-client'
+import { getCacheData, setCacheData, useQuery } from '@/services/query-client'
 import { MAX_PORT, MIN_PORT, portRangeVerdict } from '@/utils/ports'
 
 type MutateClashUpdater =
@@ -118,10 +113,12 @@ export const useClash = () => {
     })
   }
 
+  // Рабочий конфиг, настройки ядра и порт перечитывает событие обновления
+  // конфига: бэкенд шлёт его до возврата. Порт ждём здесь — на нём держится
+  // порядок для вызывающих.
   const patchClash = useLockFn(async (patch: ClashConfigPatch) => {
     await patchClashConfig(patch)
     await refetchLadder()
-    mutateClash()
   })
 
   // Версия сама говорит, какое ядро работает (у Clod Core — vX-clod.N), а
@@ -141,26 +138,23 @@ export const useClash = () => {
 
 export const useClashInfo = () => {
   const { t } = useTranslation()
-  const { data: clashInfo, refetch: mutateInfo } = useQuery({
+  const { data: clashInfo } = useQuery({
     queryKey: ['getClashInfo'],
     queryFn: getClashInfo,
   })
 
+  // Сведения о контроллере и настройки ядра перечитывает событие обновления
+  // конфига: бэкенд шлёт его до возврата.
   const patchInfo = useLockFn(async (patch: ClashInfoPatch) => {
     if (!hasClashInfoPayload(patch)) return
 
     validatePorts(patch, t)
 
     await patchClashConfig(patch)
-    mutateInfo()
-    revalidateQuery(['getClashConfig'])
   })
-
-  const invalidateClashConfig = () => revalidateQuery(['getClashConfig'])
 
   return {
     clashInfo,
     patchInfo,
-    invalidateClashConfig,
   }
 }

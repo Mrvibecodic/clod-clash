@@ -40,7 +40,7 @@ interface TunnelEntry {
 
 export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
   const { t } = useTranslation()
-  const { runtime, mutateClash, patchClash } = useClash()
+  const { runtime, patchClash } = useClash()
   const { refreshProxy } = useAppRefreshers()
 
   const [open, setOpen] = useState(false)
@@ -117,7 +117,6 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
   const handleSave = async () => {
     try {
       await patchClash({ tunnels: draftTunnels })
-      await mutateClash()
       showNotice.success('shared.feedback.notifications.common.saveSuccess')
       setOpen(false)
     } catch (err: any) {
