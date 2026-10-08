@@ -31,11 +31,11 @@ import { SubscriptionCard } from '@/components/home/subscription-card'
 import { useConnectTargets } from '@/hooks/use-connect-targets'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useSimpleMode } from '@/hooks/use-simple-mode'
+import { useSubscriptionUpdate } from '@/hooks/use-subscription-update'
 import { useToolShortcuts } from '@/hooks/use-tool-shortcuts'
 import { useVisibility } from '@/hooks/use-visibility'
 import { useFitWindowToContent } from '@/hooks/use-window-fit'
 import { CARD_SURFACE, SHAPE, TINT } from '@/pages/_theme'
-import { updateProfile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { connectFailureText } from '@/utils/tun-notice'
 
@@ -48,15 +48,25 @@ interface TileProps {
   onClick: () => void
   dense?: boolean
   warn?: boolean
+  disabled?: boolean
 }
 
 const STALE_REFRESH_MS = 48 * 60 * 60 * 1000
 
 const NOW_TICK_MS = 60_000
 
-const Tile = ({ icon, label, hint, onClick, dense, warn }: TileProps) => (
+const Tile = ({
+  icon,
+  label,
+  hint,
+  onClick,
+  dense,
+  warn,
+  disabled,
+}: TileProps) => (
   <ButtonBase
     onClick={onClick}
+    disabled={disabled}
     sx={{
       ...CARD_SURFACE,
       display: 'flex',
@@ -81,6 +91,7 @@ const Tile = ({ icon, label, hint, onClick, dense, warn }: TileProps) => (
         boxShadow: 'var(--card-shadow-hover)',
       },
       '&:active': { transform: 'none' },
+      '&.Mui-disabled': { opacity: 0.6 },
       '@media (prefers-reduced-motion: reduce)': {
         '&:hover': { transform: 'none' },
       },
@@ -167,16 +178,11 @@ const HomeAdvancedPage = () => {
     }
   })
 
-  const refreshSubscription = useLockFn(async () => {
-    if (!current?.uid) return
-    try {
-      await updateProfile(current.uid)
-      await mutateProfiles()
-      showNotice.success('home.components.subscription.updated')
-    } catch (error) {
-      showNotice.error(error)
-    }
-  })
+  const {
+    updating: refreshing,
+    paused: refreshPaused,
+    refresh: refreshSubscription,
+  } = useSubscriptionUpdate(current?.uid)
 
   if (!current) {
     return <HomeSimplePage />
@@ -299,6 +305,7 @@ const HomeAdvancedPage = () => {
               label={t('home.pages.advanced.tiles.refresh')}
               hint={refreshedHint}
               warn={refreshStale}
+              disabled={refreshing || refreshPaused}
               onClick={() => void refreshSubscription()}
             />
             <Tile

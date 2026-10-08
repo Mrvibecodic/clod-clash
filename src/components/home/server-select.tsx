@@ -116,7 +116,7 @@ export const ServerSelect = ({ open, onClose }: Props) => {
   )
   const canSelect = SELECTABLE_GROUP_TYPES.has(groupType(group))
 
-  const { current, mutateProfiles } = useProfiles()
+  const { current } = useProfiles()
   const { favorites, toggleFavorite } = useFavorites()
 
   const {
@@ -477,11 +477,7 @@ export const ServerSelect = ({ open, onClose }: Props) => {
         ) : null}
 
         {showStatus || partiallyDropped ? (
-          <NoServersStatus
-            profile={current}
-            onRefreshed={mutateProfiles}
-            quiet={!showStatus}
-          />
+          <NoServersStatus profile={current} quiet={!showStatus} />
         ) : null}
 
         {nodes.length === 0 ? (

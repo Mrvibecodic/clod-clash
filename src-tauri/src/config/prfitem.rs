@@ -198,6 +198,9 @@ pub struct PrfExtra {
     pub upload: u64,
     pub download: u64,
     pub total: u64,
+    /// Срок подписки, unix-секунды (0 — бессрочно). Прежние версии клиента
+    /// сохраняли миллисекунды, если их слала панель: приводится при чтении.
+    #[serde(deserialize_with = "panel_stamp")]
     pub expire: u64,
 }
 
@@ -1682,6 +1685,11 @@ pub(crate) const fn to_unix_seconds(ts: u64) -> u64 {
     if ts > MILLIS_THRESHOLD { ts / 1000 } else { ts }
 }
 
+/// Срок из записи профиля — в секундах (см. [`PrfExtra::expire`]).
+fn panel_stamp<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<u64, D::Error> {
+    <u64 as serde::Deserialize>::deserialize(deserializer).map(to_unix_seconds)
+}
+
 /// Метка панели из записи профиля — в секундах: прежние версии клиента
 /// сохраняли её как есть, и в миллисекундах тоже.
 fn panel_seconds<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Option<i64>, D::Error> {
@@ -3026,6 +3034,32 @@ mod tests {
         assert_eq!(to_unix_seconds(1_754_000_000), 1_754_000_000);
         assert_eq!(to_unix_seconds(1_754_000_000_000), 1_754_000_000);
         assert_eq!(to_unix_seconds(0), 0);
+    }
+
+    #[test]
+    fn an_expiry_saved_in_milliseconds_reads_as_seconds() {
+        for stored in [
+            r#"{"upload": 0, "download": 0, "total": 0, "expire": 1754000000000}"#,
+            r#"{"upload": 0, "download": 0, "total": 0, "expire": 1754000000}"#,
+        ] {
+            let extra: super::PrfExtra = serde_json::from_str(stored).expect("a stored profile must parse");
+            assert_eq!(extra.expire, 1_754_000_000, "{stored}");
+        }
+        // Реестр подписок — YAML: тот же срок в мс из profiles.yaml.
+        let expire = |stored: &str| {
+            serde_yaml_ng::from_str::<super::PrfExtra>(stored)
+                .map(|extra| extra.expire)
+                .ok()
+        };
+        assert_eq!(
+            expire("upload: 0\ndownload: 0\ntotal: 0\nexpire: 1754000000000\n"),
+            Some(1_754_000_000)
+        );
+        assert_eq!(
+            expire("upload: 0\ndownload: 0\ntotal: 0\nexpire: 1754000000\n"),
+            Some(1_754_000_000)
+        );
+        assert_eq!(expire("upload: 0\ndownload: 0\ntotal: 0\nexpire: 0\n"), Some(0));
     }
 
     #[test]

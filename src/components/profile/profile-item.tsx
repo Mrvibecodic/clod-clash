@@ -47,6 +47,11 @@ import { GroupsEditorViewer } from '@/components/profile/groups-editor-viewer'
 import { RulesEditorViewer } from '@/components/profile/rules-editor-viewer'
 import { useEditorDocument } from '@/hooks/use-editor-document'
 import { openProviderLink } from '@/hooks/use-provider-links'
+import {
+  beginOwnUpdate,
+  endOwnUpdate,
+  useSubscriptionUpdating,
+} from '@/hooks/use-subscription-update'
 import { useVisibility } from '@/hooks/use-visibility'
 import {
   getNextUpdateTime,
@@ -56,16 +61,11 @@ import {
   viewProfile,
 } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
-import { useLoadingCache, useSetLoadingCache } from '@/services/states'
 import type { TranslationKey } from '@/types/generated/i18n-keys'
 import { debugLog } from '@/utils/debug'
 import parseTraffic from '@/utils/parse-traffic'
 import { profileDisplayName } from '@/utils/profile-name'
-import {
-  clockSkew,
-  missedUpdates,
-  toUnixSeconds,
-} from '@/utils/subscription-status'
+import { clockSkew, missedUpdates } from '@/utils/subscription-status'
 
 import { ProfileBox } from './profile-box'
 import { ProxiesEditorViewer } from './proxies-editor-viewer'
@@ -87,7 +87,6 @@ export interface ProfileItemProps {
   isSelected?: boolean
   onSelectionChange?: () => void
   timerUpdateRevision: number
-  completedUpdateRevision: number
   dragHandleRef: (node: HTMLElement | null) => void
   dragHandleAttributes: DraggableAttributes
   dragHandleListeners: DraggableSyntheticListeners
@@ -106,7 +105,6 @@ const ProfileItemBase = (props: ProfileItemProps) => {
     isSelected,
     onSelectionChange,
     timerUpdateRevision,
-    completedUpdateRevision,
     dragHandleRef,
     dragHandleAttributes,
     dragHandleListeners,
@@ -117,28 +115,12 @@ const ProfileItemBase = (props: ProfileItemProps) => {
   const [position, setPosition] = useState({ left: 0, top: 0 })
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const menuActionsRef = useRef<PopoverActions>(null)
-  const loadingCache = useLoadingCache()
-  const setLoadingCache = useSetLoadingCache()
 
   const [showNextUpdate, setShowNextUpdate] = useState(false)
   const showNextUpdateRef = useRef(false)
   const [nextUpdateTime, setNextUpdateTime] = useState('')
   const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
-  )
-  const setLoading = useCallback(
-    (loading: boolean) => {
-      setLoadingCache((cache) => {
-        const next = new Set(cache)
-        if (loading) {
-          next.add(itemData.uid)
-        } else {
-          next.delete(itemData.uid)
-        }
-        return next
-      })
-    },
-    [itemData.uid, setLoadingCache],
   )
 
   const { uid, extra, updated = 0, option } = itemData
@@ -256,11 +238,6 @@ const ProfileItemBase = (props: ProfileItemProps) => {
     }
   }, [fetchNextUpdateTime, timerUpdateRevision])
 
-  useEffect(() => {
-    if (completedUpdateRevision === 0 || !showNextUpdateRef.current) return
-    fetchNextUpdateTime()
-  }, [completedUpdateRevision, fetchNextUpdateTime])
-
   const hasUrl = !!itemData.url
   const hasExtra = !!extra
   const hasHome = !!itemData.home
@@ -271,7 +248,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
   const description = itemData.desc
   const unlimitedTraffic = total === 0
   const neverExpires = !extra?.expire
-  const expireSeconds = toUnixSeconds(extra?.expire ?? 0)
+  const expireSeconds = extra?.expire ?? 0
   const skew = clockSkew(itemData) ?? 0
   const daysLeft = neverExpires
     ? undefined
@@ -316,7 +293,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
         ? ('hwidNotSupported' as const)
         : undefined
 
-  const loading = loadingCache.has(itemData.uid)
+  const loading = useSubscriptionUpdating(itemData.uid)
   const missed = missedUpdates(itemData)
   const fetchedAgo = updated > 0 ? dayjs(updated * 1000).fromNow() : ''
 
@@ -443,7 +420,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
 
   const onUpdate = useLockFn(async (type: 0 | 1 | 2): Promise<void> => {
     setAnchorEl(null)
-    setLoading(true)
+    beginOwnUpdate(itemData.uid)
 
     const option: Partial<IProfileOption> = {}
     if (type === 0) {
@@ -471,7 +448,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
       showNotice.error(error)
       void mutateProfiles()
     } finally {
-      setLoading(false)
+      endOwnUpdate(itemData.uid)
     }
   })
 

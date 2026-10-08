@@ -7,6 +7,7 @@ import { clearProxyChain } from '@/services/proxy-chain-store'
 import { debugLog } from '@/utils/debug'
 import { enumText } from '@/utils/plugin-enum'
 import { ambiguousNames, labelFor, own } from '@/utils/proxy-label'
+import type { UpdatesInFlight } from '@/utils/subscription-status'
 
 export async function getCoreLadder() {
   return invoke<ICoreLadder>('get_core_ladder')
@@ -78,6 +79,11 @@ export async function reorderProfile(activeId: string, overId: string) {
 
 export async function updateProfile(index: string, option?: IProfileOption) {
   return invoke<void>('update_profile', { index, option })
+}
+
+/** Какие подписки обновляются сейчас — кнопкой или расписанием. */
+export async function getUpdatingProfiles() {
+  return invoke<UpdatesInFlight>('get_updating_profiles')
 }
 
 export async function deleteProfile(index: string) {

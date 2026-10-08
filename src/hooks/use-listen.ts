@@ -5,14 +5,21 @@ import {
 } from '@tauri-apps/api/event'
 import { useEffect, useRef } from 'react'
 
+/**
+ * `onReady` — когда слушатель встал (или встать не смог): то, что случилось
+ * раньше, событием уже не придёт, и спрашивать о нём надо после этого.
+ */
 export const useTauriEvent = <T>(
   eventName: string,
   handler: EventCallback<T>,
+  onReady?: () => void,
 ) => {
   const handlerRef = useRef(handler)
+  const onReadyRef = useRef(onReady)
 
   useEffect(() => {
     handlerRef.current = handler
+    onReadyRef.current = onReady
   })
 
   useEffect(() => {
@@ -33,6 +40,9 @@ export const useTauriEvent = <T>(
           error,
         ),
       )
+      .finally(() => {
+        if (!disposed) onReadyRef.current?.()
+      })
 
     return () => {
       disposed = true

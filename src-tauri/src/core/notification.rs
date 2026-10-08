@@ -147,11 +147,14 @@ pub enum FrontendEvent<'a> {
     TimerUpdated {
         profile_index: &'a String,
     },
-    ProfileUpdateStarted {
-        uid: &'a String,
+    /// Какие подписки обновляются сейчас — снимок с номером состояния.
+    UpdatesInFlight {
+        snapshot: &'a crate::feat::UpdatesInFlight,
     },
-    ProfileUpdateCompleted {
-        uid: &'a String,
+    /// Картинка подписки скачана заново или убрана.
+    ProfilePicture {
+        uid: &'a str,
+        picture: &'static str,
     },
     HwidNotice {
         payload: serde_json::Value,
@@ -232,8 +235,10 @@ impl NotificationSystem {
             }
             FrontendEvent::ProfileChanged { current_profile_id } => ("profile-changed", Ok(json!(current_profile_id))),
             FrontendEvent::TimerUpdated { profile_index } => ("verge://timer-updated", Ok(json!(profile_index))),
-            FrontendEvent::ProfileUpdateStarted { uid } => ("profile-update-started", Ok(json!({ "uid": uid }))),
-            FrontendEvent::ProfileUpdateCompleted { uid } => ("profile-update-completed", Ok(json!({ "uid": uid }))),
+            FrontendEvent::UpdatesInFlight { snapshot } => ("clod://profiles-updating", serde_json::to_value(snapshot)),
+            FrontendEvent::ProfilePicture { uid, picture } => {
+                ("clod://profile-picture", Ok(json!({ "uid": uid, "picture": picture })))
+            }
             FrontendEvent::HwidNotice { payload } => ("clod://hwid-notice", Ok(payload)),
             FrontendEvent::RefreshProxyConfig => ("verge://refresh-proxy-config", Ok(json!("yes"))),
             FrontendEvent::RefreshFreezeMarks => ("clod://freeze-marks", Ok(json!("yes"))),

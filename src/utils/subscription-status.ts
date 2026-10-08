@@ -11,14 +11,6 @@
 export type NoServersReason = 'expired' | 'traffic' | 'deviceLimit' | 'provider'
 
 /**
- * Normalize a panel timestamp to unix seconds. Anything above ~1e12 can only
- * be milliseconds (that is the year 33658 in seconds) — some subscription
- * backends emit ms where the spec says seconds.
- */
-export const toUnixSeconds = (ts: number) =>
-  ts > 1e12 ? Math.round(ts / 1000) : ts
-
-/**
  * clod: поправка к часам устройства до времени панели, в секундах.
  * `undefined` — часов панели мы не знаем и считаем по своим.
  *
@@ -99,7 +91,7 @@ export const noServersReason = (profile?: IProfileItem): NoServersReason => {
 
   const extra = profile?.extra
   if (extra) {
-    const expire = toUnixSeconds(extra.expire ?? 0)
+    const expire = extra.expire ?? 0
     // Срок — абсолютный момент, поэтому сверяем его с часами панели: иначе
     // экран «нет серверов» и карточка подписки ответят на один и тот же
     // вопрос по-разному.
@@ -112,4 +104,71 @@ export const noServersReason = (profile?: IProfileItem): NoServersReason => {
   // Срок и трафик в порядке, а серверов нет: отключённая подписка или
   // ненастроенные хосты — по данным подписки их не различить.
   return 'provider'
+}
+
+/**
+ * Снимок бэкенда: какие подписки обновляются сейчас (кнопкой или
+ * расписанием) и номер этого состояния. Номер растёт при каждой смене набора.
+ */
+export interface UpdatesInFlight {
+  revision: number
+  uids: string[]
+}
+
+/**
+ * Из применённого и пришедшего снимков — более новый. Событие о смене и ответ
+ * сверки идут разными путями и приходят в любом порядке; по номеру старое
+ * не перебьёт новое.
+ */
+export const newerUpdatesInFlight = (
+  applied: UpdatesInFlight,
+  incoming: UpdatesInFlight,
+) => (incoming.revision > applied.revision ? incoming : applied)
+
+/**
+ * «Идёт обновление» по подписке для всего окна: снимок бэкенда или свой вызов
+ * окна, который ещё не вернулся (или ждёт очереди «Обновить все»). Два
+ * признака не смешиваются: снимок меняет только бэкенд, свой вызов — только
+ * тот, кто его начал.
+ */
+export const createUpdatesStore = () => {
+  let applied: UpdatesInFlight = { revision: -1, uids: [] }
+  const own = new Map<string, number>()
+  const listeners = new Set<() => void>()
+  const changed = () => {
+    for (const listener of listeners) listener()
+  }
+
+  return {
+    subscribe: (listener: () => void) => {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    },
+    isUpdating: (uid: string) => own.has(uid) || applied.uids.includes(uid),
+    /** Применить снимок; ответ — подписки, обновление которых закончилось. */
+    apply: (incoming: UpdatesInFlight): string[] => {
+      const next = newerUpdatesInFlight(applied, incoming)
+      if (next === applied) return []
+      const finished = applied.uids.filter((uid) => !next.uids.includes(uid))
+      applied = next
+      changed()
+      return finished
+    },
+    beginOwn: (uid: string) => {
+      own.set(uid, (own.get(uid) ?? 0) + 1)
+      changed()
+    },
+    endOwn: (uid: string) => {
+      const calls = own.get(uid)
+      if (calls === undefined) return
+      if (calls > 1) {
+        own.set(uid, calls - 1)
+      } else {
+        own.delete(uid)
+      }
+      changed()
+    },
+  }
 }

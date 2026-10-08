@@ -3,9 +3,10 @@ import { describe, it } from 'node:test'
 
 import {
   clockSkew,
+  createUpdatesStore,
   missedUpdates,
+  newerUpdatesInFlight,
   noServersReason,
-  toUnixSeconds,
 } from './subscription-status.ts'
 
 const DAY = 24 * 60 * 60
@@ -13,16 +14,6 @@ const now = () => Math.floor(Date.now() / 1000)
 
 const profile = (fields: Partial<IProfileItem>): IProfileItem =>
   ({ uid: 'test', type: 'remote', ...fields }) as IProfileItem
-
-describe('toUnixSeconds', () => {
-  it('распознаёт миллисекунды по величине', () => {
-    // Панели встречаются и те, что шлют миллисекунды там, где спека говорит
-    // секунды. Порог 1e12 — это год 33658 в секундах, спутать не с чем.
-    assert.equal(toUnixSeconds(1_754_000_000), 1_754_000_000)
-    assert.equal(toUnixSeconds(1_754_000_000_000), 1_754_000_000)
-    assert.equal(toUnixSeconds(0), 0)
-  })
-})
 
 describe('clockSkew', () => {
   it('берёт свежий замер и отбрасывает старый', () => {
@@ -173,5 +164,99 @@ describe('missedUpdates', () => {
     assert.equal(missedUpdates(remote({ url: undefined }), later), 0)
     assert.equal(missedUpdates(remote(), fetched - HOUR), 0)
     assert.equal(missedUpdates(undefined, later), 0)
+  })
+})
+
+const snapshot = (revision: number, ...uids: string[]) => ({ revision, uids })
+
+describe('newerUpdatesInFlight', () => {
+  it('новый снимок применяется, в каком бы порядке ни пришли событие и ответ', () => {
+    const started = snapshot(1, 'X')
+    const finished = snapshot(2)
+    const initial = snapshot(-1)
+    // Событие о конце раньше ответа сверки, снятого до него, и наоборот.
+    assert.equal(
+      newerUpdatesInFlight(newerUpdatesInFlight(initial, finished), started),
+      finished,
+    )
+    assert.equal(
+      newerUpdatesInFlight(newerUpdatesInFlight(initial, started), finished),
+      finished,
+    )
+  })
+
+  it('повтор и старый снимок применённое не меняют', () => {
+    const applied = snapshot(5, 'X')
+    assert.equal(newerUpdatesInFlight(applied, snapshot(5)), applied)
+    assert.equal(newerUpdatesInFlight(applied, snapshot(3, 'Y')), applied)
+  })
+
+  it('первый снимок нового окна применяется и с нулевым номером', () => {
+    const first = snapshot(0)
+    assert.equal(newerUpdatesInFlight(snapshot(-1), first), first)
+  })
+})
+
+describe('createUpdatesStore', () => {
+  it('идёт — пока подписка в снимке бэкенда; конец называет законченные', () => {
+    const store = createUpdatesStore()
+    assert.deepEqual(store.apply(snapshot(1, 'X', 'Y')), [])
+    assert.equal(store.isUpdating('X'), true)
+    assert.deepEqual(store.apply(snapshot(2, 'Y')), ['X'])
+    assert.equal(store.isUpdating('X'), false)
+    assert.equal(store.isUpdating('Y'), true)
+  })
+
+  it('опоздавший ответ сверки не зажигает законченное', () => {
+    const store = createUpdatesStore()
+    store.apply(snapshot(1, 'X'))
+    store.apply(snapshot(2))
+    assert.deepEqual(store.apply(snapshot(1, 'X')), [])
+    assert.equal(store.isUpdating('X'), false)
+  })
+
+  it('свой вызов занимает подписку, пока не вернулся, и не путается со снимком', () => {
+    const store = createUpdatesStore()
+    store.beginOwn('X')
+    assert.equal(store.isUpdating('X'), true, 'нажали — занято сразу')
+    store.apply(snapshot(1, 'X'))
+    store.apply(snapshot(2))
+    assert.equal(store.isUpdating('X'), true, 'снимок не гасит свой вызов')
+    store.endOwn('X')
+    assert.equal(store.isUpdating('X'), false)
+
+    store.apply(snapshot(3, 'X'))
+    store.endOwn('X')
+    assert.equal(
+      store.isUpdating('X'),
+      true,
+      'конец своего вызова не гасит снимок',
+    )
+  })
+
+  it('два своих вызова одной подписки: занято до конца последнего', () => {
+    const store = createUpdatesStore()
+    store.beginOwn('X')
+    store.beginOwn('X')
+    store.endOwn('X')
+    assert.equal(store.isUpdating('X'), true)
+    store.endOwn('X')
+    assert.equal(store.isUpdating('X'), false)
+  })
+
+  it('подписчики слышат только перемены', () => {
+    const store = createUpdatesStore()
+    let heard = 0
+    const unsubscribe = store.subscribe(() => {
+      heard += 1
+    })
+    store.apply(snapshot(1, 'X'))
+    store.apply(snapshot(1, 'X'))
+    store.apply(snapshot(0))
+    store.endOwn('Y')
+    assert.equal(heard, 1)
+    unsubscribe()
+    store.apply(snapshot(2))
+    assert.equal(heard, 1)
   })
 })

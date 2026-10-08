@@ -211,6 +211,7 @@ mod app_init {
             cmd::set_secure_channel,
             cmd::reorder_profile,
             cmd::update_profile,
+            cmd::get_updating_profiles,
             cmd::delete_profile,
             cmd::read_profile_file,
             cmd::save_profile_file,

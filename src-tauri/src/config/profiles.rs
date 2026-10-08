@@ -396,9 +396,19 @@ impl IProfiles {
         Ok(())
     }
 
-    pub async fn update_item(&mut self, uid: &String, item: &mut PrfItem) -> Result<()> {
+    /// Слить обновлённый профиль с пометками исхода и записать реестр — одной
+    /// записью. `true` — пометка «обновление не удалось» сменилась.
+    pub async fn update_item(&mut self, uid: &String, item: &mut PrfItem, marks: UpdateMarks) -> Result<bool> {
         self.merge_updated_item(uid, item)?;
-        self.save_file().await
+        let failed_mark_changed = marks.put_on(self.item_mut(uid)?);
+        self.save_file().await?;
+        Ok(failed_mark_changed)
+    }
+
+    /// Удаление подписки `uid` меняет текущую (или текущей нет вовсе): ядру нужна
+    /// новая сборка.
+    pub fn deleting_changes_current(&self, uid: &String) -> bool {
+        self.current.as_ref().is_none_or(|current| current == uid)
     }
 
     pub async fn delete_item(&mut self, uid: &String) -> Result<(bool, PendingProfileFiles)> {
@@ -407,9 +417,8 @@ impl IProfiles {
         Ok(outcome)
     }
 
-    fn plan_delete_item(&mut self, uid: &String) -> Result<(bool, PendingProfileFiles)> {
-        let current = self.current.as_ref().unwrap_or(uid);
-        let current = current.clone();
+    pub(crate) fn plan_delete_item(&mut self, uid: &String) -> Result<(bool, PendingProfileFiles)> {
+        let changes_current = self.deleting_changes_current(uid);
         let delete_uids: Vec<String> = self
             .get_item(uid)?
             .option
@@ -437,7 +446,7 @@ impl IProfiles {
             }
         }
 
-        if current == *uid {
+        if changes_current {
             self.current = None;
             for item in items.iter() {
                 if item.itype == Some("remote".into()) || item.itype == Some("local".into()) {
@@ -448,7 +457,7 @@ impl IProfiles {
         }
 
         self.items = Some(items);
-        Ok((current == *uid, pending))
+        Ok((changes_current, pending))
     }
 
     pub async fn current_mapping(&self) -> Result<Mapping> {
@@ -619,57 +628,6 @@ pub async fn profiles_set_selected_node_safe(group: &str, node: &str) -> Result<
     Ok(())
 }
 
-/// Вернуть снятые записи на их прежние места.
-///
-/// Позиции записаны по исходному списку. Если применять их по возрастанию, каждая
-/// вставка сдвигает вправо ровно те записи, что и были правее неё, и порядок
-/// восстанавливается точно. Уже вернувшиеся записи пропускаем: между отказом и
-/// возвратом их мог положить обратно кто-то ещё.
-fn reinsert_removed(items: &mut Vec<PrfItem>, removed: Vec<(usize, PrfItem)>) {
-    let mut removed = removed;
-    removed.sort_by_key(|(at, _)| *at);
-
-    for (at, item) in removed {
-        let Some(uid) = item.uid.clone() else { continue };
-        if items.iter().any(|each| each.uid.as_ref() == Some(&uid)) {
-            continue;
-        }
-        items.insert(at.min(items.len()), item);
-    }
-}
-
-/// Вернуть на место записи, которые забрало неудавшееся удаление.
-///
-/// Удаление подписки снимает не одну запись: вместе с ней из реестра уходят её
-/// цепочки — `merge`, `script`, `rules`, `proxies`, `groups`. Вернуть только саму
-/// подписку мало: она сошлётся на записи, которых больше нет, и уборщик сирот при
-/// следующем запуске сотрёт их файлы насовсем.
-///
-/// Слепок всего реестра для этого не годится: за время неудачного удаления соседние
-/// подписки успевают обновиться, и он стёр бы их свежие данные. Поэтому возвращаем
-/// ровно снятое — каждую запись на её прежнее место. Позиции записаны по исходному
-/// списку и применяются по возрастанию, так что порядок восстанавливается точно.
-pub async fn profiles_undo_delete_safe(removed: Vec<(usize, PrfItem)>, previous_current: Option<String>) -> Result<()> {
-    Config::profiles()
-        .await
-        .with_data_modify(|mut profiles| async move {
-            reinsert_removed(profiles.items.get_or_insert_with(Vec::new), removed);
-
-            // Выбранный профиль возвращаем, только если его сменило само удаление и
-            // прежний снова на месте: за это время человек мог переключиться из трея.
-            let previous_is_back = previous_current
-                .as_ref()
-                .is_some_and(|prev| profiles.get_item(prev).is_ok());
-            if profiles.current != previous_current && previous_is_back {
-                profiles.current = previous_current;
-            }
-
-            profiles.save_file().await?;
-            Ok((profiles, ()))
-        })
-        .await
-}
-
 pub async fn profiles_reorder_safe(active_id: &String, over_id: &String) -> Result<()> {
     Config::profiles()
         .await
@@ -742,14 +700,59 @@ async fn profiles_set_mark(
         .await
 }
 
-pub async fn profiles_draft_update_item_safe(index: &String, item: &mut PrfItem) -> Result<()> {
+/// Слить метаданные скачанного профиля в реестр вместе с пометками исхода.
+/// `true` — пометка «обновление не удалось» сменилась.
+pub async fn profiles_draft_update_item_safe(index: &String, item: &mut PrfItem, marks: UpdateMarks) -> Result<bool> {
     Config::profiles()
         .await
         .with_data_modify(|mut profiles| async move {
-            profiles.update_item(index, item).await?;
-            Ok((profiles, ()))
+            let failed_mark_changed = profiles.update_item(index, item, marks).await?;
+            Ok((profiles, failed_mark_changed))
         })
         .await
+}
+
+/// Пометки исхода обновления подписки, которые ложатся в ту же запись реестра,
+/// что и сама подписка. `None` — пометку не трогать.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UpdateMarks {
+    /// «Последнее обновление не удалось».
+    pub update_failed: Option<bool>,
+    /// «Скачано, но не применено».
+    pub not_applied: Option<bool>,
+}
+
+impl UpdateMarks {
+    /// Скачано и принято: обе пометки снимаются — прежнее «не применено»
+    /// относилось к прежнему содержимому.
+    pub const ACCEPTED: Self = Self {
+        update_failed: Some(false),
+        not_applied: Some(false),
+    };
+    /// Скачано, но ядро отвергло: загрузка удалась, не удался приём.
+    pub const REJECTED: Self = Self {
+        update_failed: Some(false),
+        not_applied: Some(true),
+    };
+    /// Скачано, но проверка не состоялась: обновления не случилось.
+    pub const UNCHECKED: Self = Self {
+        update_failed: Some(true),
+        not_applied: None,
+    };
+
+    /// Поставить пометки на запись; `true` — «обновление не удалось» сменилась.
+    fn put_on(self, item: &mut PrfItem) -> bool {
+        let mut failed_mark_changed = false;
+        if let Some(failed) = self.update_failed {
+            let wanted = failed.then_some(true);
+            failed_mark_changed = item.update_failed != wanted;
+            item.update_failed = wanted;
+        }
+        if let Some(not_applied) = self.not_applied {
+            item.not_applied = not_applied.then_some(true);
+        }
+        failed_mark_changed
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -1412,40 +1415,6 @@ pub fn activate_selected_nodes() -> Result<()> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
-
-    #[test]
-    fn a_cancelled_delete_puts_every_record_back_where_it_was() {
-        use super::reinsert_removed;
-
-        let named = |uid: &str| PrfItem {
-            uid: Some(String::from(uid)),
-            ..PrfItem::default()
-        };
-        let names = |items: &[PrfItem]| -> Vec<String> { items.iter().filter_map(|item| item.uid.clone()).collect() };
-
-        // Было: a, merge, script, b. Удаление сняло профиль `a` и обе его цепочки.
-        let removed = vec![(0, named("a")), (1, named("merge")), (2, named("script"))];
-        let mut items = vec![named("b")];
-
-        reinsert_removed(&mut items, removed);
-
-        assert_eq!(names(&items), vec!["a", "merge", "script", "b"]);
-    }
-
-    #[test]
-    fn a_record_that_is_already_back_is_not_duplicated() {
-        use super::reinsert_removed;
-
-        let named = |uid: &str| PrfItem {
-            uid: Some(String::from(uid)),
-            ..PrfItem::default()
-        };
-        let mut items = vec![named("a"), named("b")];
-
-        reinsert_removed(&mut items, vec![(0, named("a"))]);
-
-        assert_eq!(items.len(), 2);
-    }
 
     use super::*;
 
@@ -2176,6 +2145,25 @@ mod tests {
     #[tokio::test]
     async fn empty_plan_needs_no_directory() {
         PendingProfileFiles::default().cleanup().await;
+    }
+
+    #[test]
+    fn the_outcome_marks_are_put_on_the_record_itself() {
+        let mut record = item("a", "remote", "a.yaml");
+        record.update_failed = Some(true);
+        record.not_applied = Some(true);
+        assert!(UpdateMarks::ACCEPTED.put_on(&mut record), "провал снят");
+        assert_eq!((record.update_failed, record.not_applied), (None, None));
+
+        assert!(!UpdateMarks::REJECTED.put_on(&mut record), "провала и не было");
+        assert_eq!((record.update_failed, record.not_applied), (None, Some(true)));
+
+        assert!(UpdateMarks::UNCHECKED.put_on(&mut record));
+        assert_eq!(
+            (record.update_failed, record.not_applied),
+            (Some(true), Some(true)),
+            "«не применено» проверка, которая не состоялась, не трогает"
+        );
     }
 
     #[test]

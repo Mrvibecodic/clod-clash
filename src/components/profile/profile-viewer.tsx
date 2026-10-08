@@ -41,7 +41,6 @@ import { explainErrorKey, trimRawError } from '@/utils/error-explanation'
 import parseTraffic from '@/utils/parse-traffic'
 import { profileEditPatch } from '@/utils/profile-edit'
 import { profileDisplayName } from '@/utils/profile-name'
-import { toUnixSeconds } from '@/utils/subscription-status'
 import { version } from '@root/package.json'
 
 import { FileInput } from './file-input'
@@ -726,9 +725,7 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
                   sx={{ display: 'block' }}
                 >
                   {added.extra.expire
-                    ? new Date(
-                        toUnixSeconds(added.extra.expire) * 1000,
-                      ).toLocaleDateString()
+                    ? new Date(added.extra.expire * 1000).toLocaleDateString()
                     : t('profiles.components.profileItem.labels.neverExpires')}
                 </Typography>
               </>

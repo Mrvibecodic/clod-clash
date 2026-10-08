@@ -7,8 +7,8 @@ use crate::{
     config::{
         Config, IProfiles, PrfItem, PrfOption,
         profiles::{
-            profiles_delete_item_safe, profiles_patch_item_safe, profiles_reorder_safe, profiles_save_file_safe,
-            profiles_set_secure_safe, profiles_undo_delete_safe,
+            PendingProfileFiles, profiles_delete_item_safe, profiles_patch_item_safe, profiles_reorder_safe,
+            profiles_save_file_safe, profiles_set_secure_safe,
         },
     },
     core::{
@@ -270,55 +270,34 @@ pub async fn update_profile(index: String, option: Option<PrfOption>) -> CmdResu
     }
 }
 
+/// Какие подписки обновляются сейчас — кем угодно, кнопкой или расписанием, —
+/// тем же снимком, что окно получает событием.
+#[tauri::command]
+pub fn get_updating_profiles() -> feat::UpdatesInFlight {
+    feat::updates_in_flight()
+}
+
 /// Удаляет конфиг
 #[tauri::command]
 pub async fn delete_profile(index: String) -> CmdResult {
-    // clod: снимок ДО удаления. Если конфиг из оставшихся подписок не соберётся,
-    // удаление отменяется — файлы к этому моменту ещё на диске, их стирают
-    // последними. Запоминаем ровно то, что удаление забирает: саму запись И её
-    // цепочки (`merge`, `script`, `rules`, `proxies`, `groups`) с их местами в
-    // списке, плюс прежний выбранный профиль. Слепок всего реестра для этого не
-    // годится: соседние подписки за это время успевают обновиться, и он стёр бы их
-    // свежие данные.
-    let (removed_items, previous_current) = {
+    // clod: если удаляется текущая подписка, ядру сначала уходит сборка без неё,
+    // собранная из кандидата реестра. Реестр (одной записью `profiles.yaml`) и
+    // файлы меняются, только когда ядро её приняло: отказ ничего не трогает, и
+    // откатывать нечего — пользователь остаётся ровно там, где был.
+    let changes_current = {
         let profiles = Config::profiles().await.latest_arc();
-        let items = profiles.items.as_deref().unwrap_or_default();
-
-        let chain: Vec<String> = items
-            .iter()
-            .find(|item| item.uid.as_deref() == Some(index.as_str()))
-            .and_then(|item| item.option.as_ref())
-            .map(|option| {
-                [
-                    option.merge.clone(),
-                    option.script.clone(),
-                    option.rules.clone(),
-                    option.proxies.clone(),
-                    option.groups.clone(),
-                ]
-                .into_iter()
-                .flatten()
-                .collect()
-            })
-            .unwrap_or_default();
-
-        let removed: Vec<(usize, PrfItem)> = items
-            .iter()
-            .enumerate()
-            .filter(|(_, item)| {
-                item.uid
-                    .as_ref()
-                    .is_some_and(|uid| uid.as_str() == index.as_str() || chain.contains(uid))
-            })
-            .map(|(at, item)| (at, item.clone()))
-            .collect();
-
-        (removed, profiles.current.clone())
+        profiles.get_item(&index).stringify_err()?;
+        profiles.deleting_changes_current(&index)
+    };
+    let pending_files = if changes_current {
+        deliver_without(&index).await?
+    } else if let Some(files) = delete_unless_current(&index).await.stringify_err()? {
+        files
+    } else {
+        // Пока шли сюда, её сделали текущей — тогда как с текущей.
+        deliver_without(&index).await?
     };
 
-    // Используем Send-safe helper-функцию
-    let (should_update, pending_files) = profiles_delete_item_safe(&index).await.stringify_err()?;
-    profiles_save_file_safe().await.stringify_err()?;
     if let Err(e) = Tray::global().update_tooltip().await {
         logging!(
             warn,
@@ -334,41 +313,6 @@ pub async fn delete_profile(index: String) -> CmdResult {
             "Warning: не удалось асинхронно обновить меню трея: {e}"
         );
     }
-    if should_update {
-        match feat::enhance_profiles().await {
-            Ok(outcome) if outcome.is_valid() => {
-                // Отправляем уведомление об изменении конфига
-                logging!(
-                    info,
-                    Type::Cmd,
-                    "[удаление подписки] отправка уведомления об изменении конфига: {}",
-                    index
-                );
-                handle::Handle::notify_profile_changed(&index);
-            }
-            // Применение не состоялось (идёт выход) — удалению это не приговор:
-            // следующая сборка пойдёт уже без удалённой подписки.
-            Ok(outcome @ (ValidationOutcome::Busy | ValidationOutcome::Skipped { .. })) => {
-                logging!(info, Type::Cmd, "[удаление подписки] применение отложено: {}", outcome);
-            }
-            Ok(outcome) => {
-                logging!(
-                    warn,
-                    Type::Cmd,
-                    "не удалось обновить конфиг после удаления подписки: {}",
-                    outcome
-                );
-                restore_profiles_after_failed_delete(removed_items.clone(), previous_current.clone()).await;
-                handle_validation_notice(&outcome, ValidationNoticeTarget::Runtime, "рабочий конфиг");
-                return Err(outcome.to_string().into());
-            }
-            Err(e) => {
-                logging!(error, Type::Cmd, "{}", e);
-                restore_profiles_after_failed_delete(removed_items.clone(), previous_current.clone()).await;
-                return Err(super::public_error_text(&e));
-            }
-        }
-    }
 
     // clod: диск трогаем ПОСЛЕДНИМ — когда клиент уже доказал, что живёт без
     // этой подписки. Логотип провайдера лежит отдельным файлом в `logos/` и
@@ -381,38 +325,119 @@ pub async fn delete_profile(index: String) -> CmdResult {
     Ok(())
 }
 
-/// clod: вернуть подписки как было и поднять прежний конфиг.
-///
-/// Зовётся, только когда конфиг без удалённой подписки не собрался. Файлы к
-/// этому моменту ещё целы, поэтому возврата снимка достаточно: пользователь
-/// остаётся ровно там, где был до нажатия «удалить».
-async fn restore_profiles_after_failed_delete(removed: Vec<(usize, PrfItem)>, previous_current: Option<String>) {
-    if removed.is_empty() {
-        logging!(
-            warn,
-            Type::Cmd,
-            "нечего возвращать после неудачного удаления: записей уже не было"
-        );
-        return;
-    }
+/// Удалить не текущую подписку одной записью реестра. `None` — пока шли сюда,
+/// её сделали текущей: реестр не тронут, ядру сначала нужна сборка без неё.
+async fn delete_unless_current(index: &String) -> anyhow::Result<Option<PendingProfileFiles>> {
+    Config::profiles()
+        .await
+        .with_data_modify(|profiles| delete_unless_current_in(profiles, index))
+        .await
+}
 
-    if let Err(err) = profiles_undo_delete_safe(removed, previous_current).await {
-        logging!(
-            error,
-            Type::Cmd,
-            "не удалось вернуть подписки после неудачного удаления: {err}"
-        );
-        return;
+async fn delete_unless_current_in(
+    mut profiles: IProfiles,
+    index: &String,
+) -> anyhow::Result<(IProfiles, Option<PendingProfileFiles>)> {
+    if profiles.deleting_changes_current(index) {
+        return Ok((profiles, None));
     }
-    match feat::enhance_profiles().await {
-        Ok(outcome) if outcome.is_valid() => handle::Handle::refresh_profiles(),
-        Ok(outcome) => logging!(
-            warn,
-            Type::Cmd,
-            "подписки возвращены, но прежний конфиг тоже не собрался: {outcome}"
-        ),
-        Err(err) => logging!(error, Type::Cmd, "{err}"),
+    let (_, files) = profiles.delete_item(index).await?;
+    Ok((profiles, Some(files)))
+}
+
+/// Реестр-кандидат без подписки `index` и её цепочек; принятый не трогается.
+fn without(accepted: &IProfiles, index: &String) -> anyhow::Result<IProfiles> {
+    let mut candidate = accepted.clone();
+    candidate.plan_delete_item(index)?;
+    Ok(candidate)
+}
+
+/// Сборку без подписки не довели до проверки — что с удалением.
+#[derive(Debug, PartialEq, Eq)]
+enum OnStageRefused {
+    /// Применение не состоялось (идёт выход) — удалению это не приговор:
+    /// следующая сборка пойдёт уже без удалённой подписки.
+    DeleteNow,
+    /// Сборку отвергли — подписка остаётся, реестр не тронут.
+    Refuse,
+}
+
+const fn on_stage_refused(outcome: &ValidationOutcome) -> OnStageRefused {
+    match outcome {
+        ValidationOutcome::Busy | ValidationOutcome::Skipped { .. } => OnStageRefused::DeleteNow,
+        _ => OnStageRefused::Refuse,
     }
+}
+
+/// Отдать ядру сборку без подписки `index` и, когда ядро её приняло, — ещё в
+/// своей очереди — удалить подписку из реестра.
+async fn deliver_without(index: &String) -> CmdResult<PendingProfileFiles> {
+    let sources = {
+        let index = index.clone();
+        Sources::default().with_profiles_derived(move |accepted| without(accepted, &index))
+    };
+    let staged = match CoreManager::global().stage_with(sources).await {
+        Ok(Ok(staged)) => staged,
+        Ok(Err(outcome)) => match on_stage_refused(&outcome) {
+            OnStageRefused::DeleteNow => {
+                logging!(info, Type::Cmd, "[удаление подписки] применение отложено: {}", outcome);
+                return Ok(profiles_delete_item_safe(index).await.stringify_err()?.1);
+            }
+            OnStageRefused::Refuse => return Err(refused_delete(&outcome)),
+        },
+        Err(e) => {
+            logging!(error, Type::Cmd, "{}", e);
+            return Err(super::public_error_text(&e));
+        }
+    };
+
+    let mut pending = None;
+    let commit = async || {
+        pending = Some(profiles_delete_item_safe(index).await?.1);
+        Ok(())
+    };
+    let delivered = match staged.deliver_committing(Delivery::Reload, commit).await {
+        Ok(Ok(delivered)) => delivered,
+        Ok(Err(outcome)) => return Err(refused_delete(&outcome)),
+        // Ядро уже без этой подписки — реестр обязан догнать: одна повторная запись.
+        Err(e) => match e.downcast_ref::<CommitFailed>().map(|failed| failed.1) {
+            Some(delivered) => match profiles_delete_item_safe(index).await {
+                Ok((_, files)) => {
+                    pending = Some(files);
+                    delivered
+                }
+                Err(err) => {
+                    let message: String = super::public_error_text(&format!("{e}; повтор: {err:#}"));
+                    logging!(error, Type::Cmd, "{message}");
+                    return Err(message);
+                }
+            },
+            None => {
+                logging!(error, Type::Cmd, "{}", e);
+                return Err(super::public_error_text(&e));
+            }
+        },
+    };
+    feat::settle_after_delivery(delivered);
+    logging!(
+        info,
+        Type::Cmd,
+        "[удаление подписки] отправка уведомления об изменении конфига: {}",
+        index
+    );
+    handle::Handle::notify_profile_changed(index);
+    pending.ok_or_else(|| String::from("the profile registry was not updated"))
+}
+
+fn refused_delete(outcome: &ValidationOutcome) -> String {
+    logging!(
+        warn,
+        Type::Cmd,
+        "не удалось обновить конфиг после удаления подписки: {}",
+        outcome
+    );
+    handle_validation_notice(outcome, ValidationNoticeTarget::Runtime, "рабочий конфиг");
+    outcome.to_string().into()
 }
 
 /// clod: удалили последнюю подписку — маршрутизировать больше нечего, а
@@ -751,6 +776,91 @@ pub async fn get_profile_logo(uid: String) -> CmdResult<Option<String>> {
 #[tauri::command]
 pub async fn get_profile_background(uid: String) -> CmdResult<Option<String>> {
     Ok(crate::module::logo_cache::read_or_fetch(crate::module::logo_cache::Picture::Background, &uid).await)
+}
+
+#[cfg(test)]
+mod delete_tests {
+    use super::{OnStageRefused, delete_unless_current_in, on_stage_refused, without};
+    use crate::config::{IProfiles, PrfItem, PrfOption};
+    use crate::core::validate::{ValidationErrorKind, ValidationOutcome, ValidationSkipReason};
+
+    fn item(uid: &str, itype: &str, merge: Option<&str>) -> PrfItem {
+        PrfItem {
+            uid: Some(uid.into()),
+            itype: Some(itype.into()),
+            file: Some(format!("{uid}.yaml").into()),
+            option: merge.map(|merge| PrfOption {
+                merge: Some(merge.into()),
+                ..PrfOption::default()
+            }),
+            ..PrfItem::default()
+        }
+    }
+
+    fn registry(current: Option<&str>) -> IProfiles {
+        IProfiles {
+            current: current.map(Into::into),
+            items: Some(vec![
+                item("m1", "merge", None),
+                item("a", "remote", Some("m1")),
+                item("b", "local", None),
+            ]),
+        }
+    }
+
+    fn uids(profiles: &IProfiles) -> Vec<&str> {
+        profiles
+            .items
+            .iter()
+            .flatten()
+            .filter_map(|item| item.uid.as_deref())
+            .collect()
+    }
+
+    #[test]
+    fn the_candidate_goes_without_the_subscription_and_its_chains() {
+        let accepted = registry(Some("a"));
+        let candidate = without(&accepted, &"a".into()).unwrap_or_default();
+        assert_eq!(uids(&candidate), ["b"]);
+        assert_eq!(
+            candidate.current.as_deref(),
+            Some("b"),
+            "текущей стала следующая подписка"
+        );
+        assert_eq!(uids(&accepted), ["m1", "a", "b"], "принятый реестр не тронут");
+        assert_eq!(accepted.current.as_deref(), Some("a"));
+
+        let candidate = without(&accepted, &"b".into()).unwrap_or_default();
+        assert_eq!(uids(&candidate), ["m1", "a"]);
+        assert_eq!(candidate.current.as_deref(), Some("a"), "текущая не сменилась");
+        assert!(without(&accepted, &"ghost".into()).is_err());
+    }
+
+    #[test]
+    fn a_build_that_was_not_checked_still_deletes_and_a_refused_one_does_not() {
+        assert_eq!(on_stage_refused(&ValidationOutcome::Busy), OnStageRefused::DeleteNow);
+        assert_eq!(
+            on_stage_refused(&ValidationOutcome::Skipped {
+                reason: ValidationSkipReason::Exiting
+            }),
+            OnStageRefused::DeleteNow
+        );
+        assert_eq!(
+            on_stage_refused(&ValidationOutcome::invalid(ValidationErrorKind::CoreRejected, "why")),
+            OnStageRefused::Refuse
+        );
+    }
+
+    #[tokio::test]
+    async fn a_subscription_that_became_current_is_not_deleted_from_the_registry() {
+        for current in [Some("a"), None] {
+            let result = delete_unless_current_in(registry(current), &"a".into()).await;
+            let (kept, files) = result.unwrap_or_else(|_| (IProfiles::default(), Some(Default::default())));
+            assert!(files.is_none(), "{current:?}: ядру сначала нужна сборка без неё");
+            assert_eq!(uids(&kept), ["m1", "a", "b"], "{current:?}");
+            assert_eq!(kept.current.as_deref(), current);
+        }
+    }
 }
 
 #[cfg(test)]

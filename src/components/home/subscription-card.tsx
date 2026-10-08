@@ -21,7 +21,7 @@ import { useExpiryCountdown } from '@/hooks/use-expiry-countdown'
 import { useTrafficEstimate } from '@/hooks/use-traffic-estimate'
 import { CARD_VALUE } from '@/pages/_theme'
 import parseTraffic from '@/utils/parse-traffic'
-import { clockSkew, toUnixSeconds } from '@/utils/subscription-status'
+import { clockSkew } from '@/utils/subscription-status'
 
 /** Colour of the traffic bar: green, then amber, then red as the quota runs out. */
 const trafficColor = (usedPercent: number) => {
@@ -54,13 +54,12 @@ export const SubscriptionCard = ({ profile }: Props) => {
   // досчитал после неё, идёт ТОЛЬКО в показываемое число и в хвост полосы.
   // Пороги `critical` и «трафик закончился» считаются строго по данным
   // подписки, иначе клиент соврёт при живых серверах.
-  const { estimate, refreshing, refresh } = useTrafficEstimate(profile)
+  const { estimate, refreshing, paused, refresh } = useTrafficEstimate(profile)
   // clod: срок считается на клиенте и потому работает офлайн; часы устройства
   // при этом сдвинуты на разницу с часами панели, снятую при последнем
   // обновлении подписки. Подробности — в `use-expiry-countdown.ts`.
-  // Some panels emit milliseconds where unix seconds are expected; a timestamp
-  // past ~33658 AD in seconds can only be milliseconds.
-  const expire = toUnixSeconds(profile.extra?.expire ?? 0)
+  // Срок уже в секундах: миллисекунды некоторых панелей приводит бэкенд.
+  const expire = profile.extra?.expire ?? 0
   const skew = clockSkew(profile)
   const countdown = useExpiryCountdown(expire, skew ?? 0)
 
@@ -198,7 +197,7 @@ export const SubscriptionCard = ({ profile }: Props) => {
               <IconButton
                 size="small"
                 sx={{ p: 0.25 }}
-                disabled={refreshing}
+                disabled={refreshing || paused}
                 aria-label={t(
                   'home.components.subscription.approximate.refresh',
                 )}

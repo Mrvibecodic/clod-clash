@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 
 import { useTauriEvent } from '@/hooks/use-listen'
+import { useSubscriptionUpdateEvents } from '@/hooks/use-subscription-update'
 import { useVisibility } from '@/hooks/use-visibility'
 import {
   revalidateQueries,
@@ -84,4 +85,16 @@ export const useLayoutEvents = (
   useTauriEvent('clod://freeze-marks', () => {
     void revalidateKeys(['freezeMarks'])
   })
+
+  // clod: логотип или фон подписки на диске сменился — скачан заново или убран.
+  useTauriEvent<{ uid: string; picture: 'logo' | 'background' }>(
+    'clod://profile-picture',
+    ({ payload }) => {
+      const key =
+        payload.picture === 'logo' ? 'profileLogo' : 'profileBackground'
+      void revalidateQueries([[key, payload.uid]])
+    },
+  )
+
+  useSubscriptionUpdateEvents()
 }

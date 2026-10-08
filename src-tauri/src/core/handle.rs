@@ -77,12 +77,14 @@ impl Handle {
         Self::send_event(FrontendEvent::TimerUpdated { profile_index });
     }
 
-    pub fn notify_profile_update_started(uid: &String) {
-        Self::send_event(FrontendEvent::ProfileUpdateStarted { uid });
+    /// clod: набор обновляющихся подписок сменился — окну снимок целиком.
+    pub fn notify_updates_in_flight(snapshot: &crate::feat::UpdatesInFlight) {
+        Self::send_event(FrontendEvent::UpdatesInFlight { snapshot });
     }
 
-    pub fn notify_profile_update_completed(uid: &String) {
-        Self::send_event(FrontendEvent::ProfileUpdateCompleted { uid });
+    /// clod: картинка подписки (`logo` / `background`) на диске сменилась.
+    pub fn notify_profile_picture(uid: &str, picture: &'static str) {
+        Self::send_event(FrontendEvent::ProfilePicture { uid, picture });
     }
 
     pub fn notice_message<S: AsRef<str>, M: Into<String>>(status: S, msg: M) {

@@ -52,23 +52,35 @@ pub fn user_agent() -> String {
 ///
 /// clod: определение как в koala-clash — человекочитаемая версия
 /// (Windows `DisplayVersion` вроде `24H2`, macOS `productVersion`,
-/// дистрибутив на Linux), а не сырой номер ядра.
+/// дистрибутив на Linux), а не сырой номер ядра. Считается раз за процесс: на
+/// macOS это запуск внешней программы, а значение за время работы не меняется.
 pub fn os_version() -> String {
-    if let Some(version) = platform_os_version() {
-        return version;
-    }
-    sysinfo::System::os_version()
-        .or_else(sysinfo::System::kernel_version)
-        .map_or_else(|| String::from("unknown"), Into::into)
+    static OS_VERSION: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    worked_out_once(&OS_VERSION, || {
+        platform_os_version().unwrap_or_else(|| {
+            sysinfo::System::os_version()
+                .or_else(sysinfo::System::kernel_version)
+                .map_or_else(|| String::from("unknown"), Into::into)
+        })
+    })
+}
+
+/// Значение, которое за время работы не меняется: считается при первом
+/// вопросе, дальше отдаётся готовым.
+fn worked_out_once(cell: &std::sync::OnceLock<String>, work: impl FnOnce() -> String) -> String {
+    cell.get_or_init(work).clone()
 }
 
 /// Device description, sent as `x-device-model`.
 ///
 /// clod: как в koala-clash — модель/редакция системы, а НЕ имя компьютера:
 /// hostname часто содержит личные данные («Ivan-PC»), которым в панели
-/// провайдера делать нечего.
+/// провайдера делать нечего. Считается раз за процесс, как [`os_version`].
 pub fn device_model() -> String {
-    platform_device_model().unwrap_or_else(|| String::from(device_os()))
+    static DEVICE_MODEL: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    worked_out_once(&DEVICE_MODEL, || {
+        platform_device_model().unwrap_or_else(|| String::from(device_os()))
+    })
 }
 
 #[cfg(target_os = "windows")]
@@ -317,6 +329,29 @@ mod tests {
         HWID_HEX_LEN, apple_chip_from_brand, compute_hwid, digest_machine_id, is_valid_hwid,
         linux_os_version_from_release, os_release_field, parse_io_platform_uuid, user_agent, windows_product_name,
     };
+
+    #[test]
+    fn the_device_description_is_worked_out_once_per_process() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        static CELL: std::sync::OnceLock<super::String> = std::sync::OnceLock::new();
+        let worked = AtomicUsize::new(0);
+        let work = || {
+            worked.fetch_add(1, Ordering::Relaxed);
+            super::String::from("example")
+        };
+        assert_eq!(super::worked_out_once(&CELL, work).as_str(), "example");
+        assert_eq!(super::worked_out_once(&CELL, work).as_str(), "example");
+        assert_eq!(worked.load(Ordering::Relaxed), 1, "второй вопрос не считает заново");
+
+        let source = crate::utils::source_scan::production_code(include_str!("hwid.rs"));
+        for (signature, cell) in [
+            ("pub fn os_version(", "worked_out_once(&OS_VERSION,"),
+            ("pub fn device_model(", "worked_out_once(&DEVICE_MODEL,"),
+        ] {
+            let body = crate::utils::source_scan::fn_body(source, signature).unwrap_or_default();
+            assert!(body.contains(cell), "{signature}: {body}");
+        }
+    }
 
     #[test]
     fn hwid_is_32_lowercase_hex_chars() {

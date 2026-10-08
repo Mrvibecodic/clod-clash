@@ -8,15 +8,14 @@ import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useNoServersStatus } from '@/hooks/use-no-servers-status'
-import { openWebUrl, updateProfile } from '@/services/cmds'
+import { useSubscriptionUpdate } from '@/hooks/use-subscription-update'
+import { openWebUrl } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import parseTraffic from '@/utils/parse-traffic'
-import { clockSkew, toUnixSeconds } from '@/utils/subscription-status'
+import { clockSkew } from '@/utils/subscription-status'
 
 interface Props {
   profile?: IProfileItem
-  /** Refresh the profile list after a manual subscription update. */
-  onRefreshed?: () => Promise<unknown> | void
   quiet?: boolean
 }
 
@@ -26,9 +25,7 @@ interface Props {
 // расхождение внутри одного окна было бы хуже, чем сдвиг в сутки у того, у
 // кого часы и так врут.
 const date = (unix?: number, skew = 0) =>
-  unix
-    ? dayjs((toUnixSeconds(unix) - skew) * 1000).format('DD.MM.YYYY')
-    : undefined
+  unix ? dayjs((unix - skew) * 1000).format('DD.MM.YYYY') : undefined
 
 /**
  * clod: why there is nothing to connect to.
@@ -40,7 +37,7 @@ const date = (unix?: number, skew = 0) =>
  * (`support-url`), и кнопка есть только тогда, когда провайдер прислал этот
  * заголовок: своих ссылок приложение не выдумывает.
  */
-export const NoServersStatus = ({ profile, onRefreshed, quiet }: Props) => {
+export const NoServersStatus = ({ profile, quiet }: Props) => {
   const { t } = useTranslation()
   const { reason, show, partiallyDropped, droppedTotal, remarks } =
     useNoServersStatus(profile)
@@ -54,16 +51,7 @@ export const NoServersStatus = ({ profile, onRefreshed, quiet }: Props) => {
     }
   }, [])
 
-  const refresh = useCallback(async () => {
-    if (!profile?.uid) return
-    try {
-      await updateProfile(profile.uid)
-      await onRefreshed?.()
-      showNotice.success('home.components.subscription.updated')
-    } catch (error) {
-      showNotice.error(error)
-    }
-  }, [profile?.uid, onRefreshed])
+  const { updating, paused, refresh } = useSubscriptionUpdate(profile?.uid)
 
   const droppedNames = remarks.filter(Boolean)
   const droppedNamesText =
@@ -186,6 +174,7 @@ export const NoServersStatus = ({ profile, onRefreshed, quiet }: Props) => {
           size="small"
           variant="outlined"
           color={severity}
+          disabled={updating || paused}
           onClick={() => void refresh()}
         >
           {t('home.components.serverStatus.refresh')}

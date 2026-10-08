@@ -25,7 +25,7 @@ import {
   RefreshRounded,
 } from '@mui/icons-material'
 import { Box, Button, Chip, IconButton, Stack } from '@mui/material'
-import { listen, TauriEvent } from '@tauri-apps/api/event'
+import { TauriEvent } from '@tauri-apps/api/event'
 import { useLockFn } from 'ahooks'
 import { throttle } from 'lodash-es'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -41,6 +41,11 @@ import { SortableProfileItem } from '@/components/profile/sortable-profile-item'
 import { useTauriEvent } from '@/hooks/use-listen'
 import { useProfiles } from '@/hooks/use-profiles'
 import {
+  beginOwnUpdate,
+  endOwnUpdate,
+  isSubscriptionUpdating,
+} from '@/hooks/use-subscription-update'
+import {
   createProfileFromFile,
   deleteProfile,
   enhanceProfiles,
@@ -48,7 +53,6 @@ import {
   updateProfile,
 } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
-import { useLoadingCache, useSetLoadingCache } from '@/services/states'
 import { debugLog } from '@/utils/debug'
 import { explainErrorKey, trimRawError } from '@/utils/error-explanation'
 
@@ -115,9 +119,6 @@ const ProfilePage = () => {
     string | null
   >(null)
   const [timerUpdateRevisions, setTimerUpdateRevisions] = useState<
-    Map<string, number>
-  >(() => new Map())
-  const [completedUpdateRevisions, setCompletedUpdateRevisions] = useState<
     Map<string, number>
   >(() => new Map())
 
@@ -401,71 +402,16 @@ const ProfilePage = () => {
     }
   })
 
-  const loadingCache = useLoadingCache()
-  const setLoadingCache = useSetLoadingCache()
-  const setLoadingProfiles = useCallback(
-    (uids: string[], loading: boolean) => {
-      setLoadingCache((cache) => {
-        const next = new Set(cache)
-        for (const uid of uids) {
-          if (loading) {
-            next.add(uid)
-          } else {
-            next.delete(uid)
-          }
-        }
-        return next
-      })
-    },
-    [setLoadingCache],
-  )
-
-  useEffect(() => {
-    let disposed = false
-    let unlisteners: Array<() => void> = []
-
-    Promise.allSettled([
-      listen<{ uid?: string }>('profile-update-started', ({ payload }) => {
-        if (payload.uid) setLoadingProfiles([payload.uid], true)
-      }),
-      listen<{ uid?: string }>('profile-update-completed', ({ payload }) => {
-        const { uid } = payload
-        if (!uid) return
-        setLoadingProfiles([uid], false)
-        setCompletedUpdateRevisions((current) => {
-          const next = new Map(current)
-          next.set(uid, (next.get(uid) ?? 0) + 1)
-          return next
-        })
-        void mutateProfiles()
-      }),
-      listen<string>('verge://timer-updated', ({ payload: uid }) => {
-        setTimerUpdateRevisions((current) => {
-          const next = new Map(current)
-          next.set(uid, (next.get(uid) ?? 0) + 1)
-          return next
-        })
-      }),
-    ]).then((results) => {
-      const registeredUnlisteners = results.flatMap((result) =>
-        result.status === 'fulfilled' ? [result.value] : [],
-      )
-      results.forEach((result) => {
-        if (result.status === 'rejected') console.error(result.reason)
-      })
-
-      if (disposed) {
-        registeredUnlisteners.forEach((unlisten) => unlisten())
-      } else {
-        unlisteners = registeredUnlisteners
-      }
+  // «Идёт обновление» и перечитывание списка по концу обновления слушает
+  // каркас окна (`useSubscriptionUpdateEvents`); здесь — только перевзвод
+  // расписания для подсказки «следующее обновление».
+  useTauriEvent<string>('verge://timer-updated', ({ payload: uid }) => {
+    setTimerUpdateRevisions((current) => {
+      const next = new Map(current)
+      next.set(uid, (next.get(uid) ?? 0) + 1)
+      return next
     })
-
-    return () => {
-      disposed = true
-      unlisteners.forEach((unlisten) => unlisten())
-    }
-  }, [mutateProfiles, setLoadingProfiles])
+  })
 
   const runProfileUpdates = useCallback(
     async (uids: string[]) => {
@@ -487,6 +433,8 @@ const ProfilePage = () => {
         } catch (err: any) {
           console.error(`Не удалось обновить подписку ${uid}:`, err)
           failures.push(err)
+        } finally {
+          endOwnUpdate(uid)
         }
       }
 
@@ -501,8 +449,6 @@ const ProfilePage = () => {
         const active = Math.min(PROFILE_UPDATE_WORKER_LIMIT, uids.length)
         await Promise.allSettled(Array.from({ length: active }, worker))
       } finally {
-        setLoadingProfiles(uids, false)
-
         void mutateProfiles()
 
         if (failures.length > 0) {
@@ -519,15 +465,16 @@ const ProfilePage = () => {
         }
       }
     },
-    [mutateProfiles, setLoadingProfiles, t],
+    [mutateProfiles, t],
   )
   const onUpdateAll = useLockFn(async () => {
     const items = profileItems.filter((e) => e.type === 'remote')
     const target = items
       .map((item) => item.uid)
-      .filter((uid) => !loadingCache.has(uid))
+      .filter((uid) => !isSubscriptionUpdating(uid))
 
-    setLoadingProfiles(target, true)
+    // Очередь занята сразу: подписка ждёт своей очереди — её кнопка неактивна.
+    for (const uid of target) beginOwnUpdate(uid)
     await runProfileUpdates(target)
   })
 
@@ -799,9 +746,6 @@ const ProfilePage = () => {
                       itemData={item}
                       timerUpdateRevision={
                         timerUpdateRevisions.get(item.uid) ?? 0
-                      }
-                      completedUpdateRevision={
-                        completedUpdateRevisions.get(item.uid) ?? 0
                       }
                       mutateProfiles={mutateProfiles}
                       onSelect={(f) => onSelect(item.uid, f)}

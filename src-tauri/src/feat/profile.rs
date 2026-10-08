@@ -1,6 +1,10 @@
 use crate::{
     cmd,
-    config::{Config, PrfItem, PrfOption, profiles::profiles_draft_update_item_safe, sub_headers},
+    config::{
+        Config, PrfItem, PrfOption,
+        profiles::{UpdateMarks, profiles_draft_update_item_safe},
+        sub_headers,
+    },
     core::{
         CoreManager, handle,
         manager::{Applied, Delivered, Delivery},
@@ -287,7 +291,9 @@ async fn refused_before_the_disk(uid: &String, mut item: PrfItem, outcome: Valid
         // Метаданные панели — в реестр и здесь: замок панели, срок и лимит устройств
         // не должны стареть из-за того, что проверку прибили.
         ValidationOutcome::Invalid { kind, .. } if !kind.is_the_cores_verdict() => {
-            profiles_draft_update_item_safe(uid, &mut item).await?;
+            if profiles_draft_update_item_safe(uid, &mut item, UpdateMarks::UNCHECKED).await? {
+                handle::Handle::refresh_profiles();
+            }
             Ok(Acceptance::Unchecked(outcome))
         }
         ValidationOutcome::Invalid { .. } => {
@@ -297,8 +303,8 @@ async fn refused_before_the_disk(uid: &String, mut item: PrfItem, outcome: Valid
                 "[Обновление подписки] ядро отвергло новую подписку, рабочий файл не тронут: {}",
                 outcome
             );
-            profiles_draft_update_item_safe(uid, &mut item).await?;
-            mark_not_applied(uid).await;
+            profiles_draft_update_item_safe(uid, &mut item, UpdateMarks::REJECTED).await?;
+            handle::Handle::refresh_profiles();
             Ok(Acceptance::Rejected(outcome))
         }
         ValidationOutcome::Valid | ValidationOutcome::Busy | ValidationOutcome::Skipped { .. } => {
@@ -307,7 +313,9 @@ async fn refused_before_the_disk(uid: &String, mut item: PrfItem, outcome: Valid
     }
 }
 
-/// Прежний файл — в `<файл>.prev`, кандидат — на его место, метаданные — в реестр.
+/// Прежний файл — в `<файл>.prev`, кандидат — на его место, метаданные — в реестр
+/// одной записью вместе с пометками: загрузка удалась, прежнее «не применено»
+/// относилось к прежнему содержимому.
 ///
 /// Под разрешением реестра и с проверкой, что профиль ещё есть: удаление за время
 /// проверки не должно оставить файл без записи. Файл на диске есть в каждый
@@ -326,7 +334,7 @@ async fn promote_and_record(
     let spare = dir.join(format!("{file}.prev"));
     let owner = uid.clone();
     let mut item = item;
-    Config::profiles()
+    let failed_mark_changed = Config::profiles()
         .await
         .with_data_modify(|mut profiles| async move {
             profiles
@@ -346,17 +354,12 @@ async fn promote_and_record(
             help::rename_into_place(candidate_path, &target)
                 .await
                 .with_context(|| format!("failed to replace the subscription file \"{file}\""))?;
-            profiles.update_item(&owner, &mut item).await?;
-            Ok((profiles, ()))
+            let failed_mark_changed = profiles.update_item(&owner, &mut item, UpdateMarks::ACCEPTED).await?;
+            Ok((profiles, failed_mark_changed))
         })
         .await?;
-    // Прежняя пометка «не применено» относилась к прежнему содержимому.
-    if let Err(err) = crate::config::profiles::profiles_mark_not_applied(uid, false).await {
-        logging!(
-            warn,
-            Type::Config,
-            "Warning: не удалось снять пометку о непринятом профиле: {err}"
-        );
+    if failed_mark_changed {
+        handle::Handle::refresh_profiles();
     }
     Ok(())
 }
@@ -404,15 +407,19 @@ async fn mark_not_applied(uid: &String) {
 /// обновления. Отказ по устройству — не повод: основной даст тот же отказ.
 /// Основной адрес, пока шла проверка, сменил человек — перевод не применяется.
 async fn follow_move(uid: &String, move_to: Option<Move>, request_option: Option<PrfOption>) {
-    let Some(Move { from, to }) = move_to else {
+    let Some(Move { from, to, served }) = move_to else {
         return;
     };
 
-    let verdict = match PrfItem::from_url_with_ladder(&to, None, None, request_option.as_ref()).await {
-        Ok(fetched) if fetched.item.device_refused != Some(true) => {
-            crate::config::profiles::profiles_move_url_safe(uid, from, to.clone()).await
-        }
-        Ok(_) => Err(anyhow::anyhow!("the panel refused this device")),
+    let served = match served {
+        Some(served) => Ok(served),
+        None => PrfItem::from_url_with_ladder(&to, None, None, request_option.as_ref())
+            .await
+            .map(|fetched| fetched.item.device_refused != Some(true)),
+    };
+    let verdict = match served {
+        Ok(true) => crate::config::profiles::profiles_move_url_safe(uid, from, to.clone()).await,
+        Ok(false) => Err(anyhow::anyhow!("the panel refused this device")),
         Err(err) => Err(err),
     };
     match verdict {
@@ -449,6 +456,9 @@ struct Downloaded {
 struct Move {
     from: String,
     to: String,
+    /// Подписка только что пришла с этого самого запасного адреса: `true` — годная,
+    /// `false` — отказ по устройству. `None` — адрес ещё не спрашивали.
+    served: Option<bool>,
 }
 
 /// Перевод, если панель его велела: запасной адрес строится от основного адреса
@@ -456,7 +466,20 @@ struct Move {
 fn move_of(url: &String, item: &PrfItem) -> Option<Move> {
     let domain = item.new_sub.as_deref().filter(|_| item.move_sub == Some(true))?;
     let to = sub_headers::spare_address(url, domain)?;
-    Some(Move { from: url.clone(), to })
+    Some(Move {
+        from: url.clone(),
+        to,
+        served: None,
+    })
+}
+
+/// Перевод, если подписка пришла с запасного адреса `spare`: велено перейти на
+/// него же — второй раз его не спрашиваем.
+fn move_after_the_spare(url: &String, spare: &String, item: &PrfItem) -> Option<Move> {
+    move_of(url, item).map(|planned| Move {
+        served: (planned.to == *spare).then_some(item.device_refused != Some(true)),
+        ..planned
+    })
 }
 
 /// Подписка скачана не напрямую, а через прокси (Clash или системный).
@@ -517,7 +540,7 @@ async fn perform_profile_update(
                 item.from_fallback = Some(true);
                 drop(last_err);
                 return Ok(Downloaded {
-                    move_to: move_of(url, &item),
+                    move_to: move_after_the_spare(url, &spare, &item),
                     item,
                     notice: Some("clod_sub::fallback_used"),
                 });
@@ -624,7 +647,7 @@ const fn failure_notice_status(result: &Result<ValidationOutcome>) -> &'static s
 
 /// Ядро приняло пересобранный конфиг: окну — перечитать, выбор узлов — по
 /// тому, что стало с ядром.
-fn settle_after_delivery(delivered: Delivered) {
+pub(crate) fn settle_after_delivery(delivered: Delivered) {
     handle::Handle::refresh_clash();
     if let Err(err) = delivered.restore_selection() {
         logging!(warn, Type::Config, "Warning: restore selection failed: {err}");
@@ -726,9 +749,9 @@ async fn failed(uid: &String, status: &str, what: &str, raw: &str, trigger: Upda
     anyhow::anyhow!(message)
 }
 
-/// Загрузка удалась — это записано, расписание и окно лимита устройств об этом знают.
+/// Загрузка удалась — это записано вместе с самой подпиской; расписание и окно
+/// лимита устройств об этом знают.
 async fn note_the_download(uid: &String) {
-    mark_the_update(uid, false).await;
     logging_error!(Type::Timer, crate::core::Timer::global().refresh().await);
     announce_device_refusal(uid).await;
 }
@@ -807,9 +830,9 @@ async fn settle_the_download(uid: &String, downloaded: Downloaded, trigger: Upda
             return Err(RefusedByTheCore(err.to_string().into()).into());
         }
         Acceptance::Unchecked(outcome) => {
-            // Скачано, но не проверено: файл прежний, обновления не случилось;
-            // расписание и окно лимита устройств про загрузку всё же узнают.
-            mark_the_update(uid, true).await;
+            // Скачано, но не проверено: файл прежний, обновления не случилось
+            // (пометка уже в реестре); расписание и окно лимита устройств про
+            // загрузку всё же узнают.
             logging_error!(Type::Timer, crate::core::Timer::global().refresh().await);
             announce_device_refusal(uid).await;
             let status = failure_notice_status(&Ok(outcome.clone()));
@@ -874,27 +897,76 @@ pub enum UpdateOutcome {
 
 /// Подписки, которые обновляются прямо сейчас — один вход у кнопки и у расписания,
 /// поэтому и признак «идёт» живёт здесь, а не в планировщике.
-static UPDATES_IN_FLIGHT: std::sync::LazyLock<parking_lot::Mutex<std::collections::HashSet<String>>> =
-    std::sync::LazyLock::new(|| parking_lot::Mutex::new(std::collections::HashSet::new()));
+static UPDATES_IN_FLIGHT: std::sync::LazyLock<parking_lot::Mutex<InFlight>> =
+    std::sync::LazyLock::new(|| parking_lot::Mutex::new(InFlight::default()));
+
+/// Снимок для окна: какие подписки обновляются и номер этого состояния. Номер
+/// растёт при каждой смене набора, и окно берёт только снимок новее своего —
+/// событию и ответу команды порядок прихода не важен.
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize)]
+pub struct UpdatesInFlight {
+    pub revision: u64,
+    pub uids: Vec<String>,
+}
+
+#[derive(Debug, Default)]
+struct InFlight {
+    revision: u64,
+    uids: std::collections::BTreeSet<String>,
+}
+
+impl InFlight {
+    fn snapshot(&self) -> UpdatesInFlight {
+        UpdatesInFlight {
+            revision: self.revision,
+            uids: self.uids.iter().cloned().collect(),
+        }
+    }
+
+    /// Взять подписку; `None` — она уже обновляется, набор не сменился.
+    fn claim(&mut self, uid: &String) -> Option<UpdatesInFlight> {
+        self.uids.insert(uid.clone()).then(|| self.changed())
+    }
+
+    fn release(&mut self, uid: &String) -> Option<UpdatesInFlight> {
+        self.uids.remove(uid).then(|| self.changed())
+    }
+
+    fn changed(&mut self) -> UpdatesInFlight {
+        self.revision += 1;
+        self.snapshot()
+    }
+}
 
 /// Одновременных загрузок подписок по расписанию — не больше стольких:
 /// просроченные на старте идут очередью, а не залпом лестниц к панели.
 const PARALLEL_DOWNLOADS: usize = 3;
 static DOWNLOAD_SLOTS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(PARALLEL_DOWNLOADS);
 
+/// Заявка на обновление подписки. Взятие и снятие (любым путём, в том числе
+/// отменой задачи) шлют окну снимок набора — признак «идёт» у всех кнопок
+/// берётся из него, кнопкой обновляют или расписанием.
 struct UpdateClaim(String);
 
 impl Drop for UpdateClaim {
     fn drop(&mut self) {
-        UPDATES_IN_FLIGHT.lock().remove(&self.0);
+        let released = UPDATES_IN_FLIGHT.lock().release(&self.0);
+        if let Some(snapshot) = released {
+            handle::Handle::notify_updates_in_flight(&snapshot);
+        }
     }
 }
 
+/// Тот же снимок, что уходит окну событием: по нему окно сверяется при
+/// появлении и показе, когда события могли пройти мимо него.
+pub fn updates_in_flight() -> UpdatesInFlight {
+    UPDATES_IN_FLIGHT.lock().snapshot()
+}
+
 fn claim_update(uid: &String) -> Option<UpdateClaim> {
-    UPDATES_IN_FLIGHT
-        .lock()
-        .insert(uid.clone())
-        .then(|| UpdateClaim(uid.clone()))
+    let snapshot = UPDATES_IN_FLIGHT.lock().claim(uid)?;
+    handle::Handle::notify_updates_in_flight(&snapshot);
+    Some(UpdateClaim(uid.clone()))
 }
 
 pub async fn update_profile(
@@ -903,7 +975,7 @@ pub async fn update_profile(
     ignore_auto_update: bool,
     trigger: UpdateTrigger,
 ) -> Result<UpdateOutcome> {
-    let Some(_claim) = claim_update(uid) else {
+    let Some(claim) = claim_update(uid) else {
         logging!(
             info,
             Type::Config,
@@ -914,6 +986,17 @@ pub async fn update_profile(
         }
         return Ok(UpdateOutcome::RetrySoon);
     };
+    let outcome = Box::pin(update_claimed(uid, option, ignore_auto_update, trigger)).await;
+    drop(claim);
+    outcome
+}
+
+async fn update_claimed(
+    uid: &String,
+    option: Option<&PrfOption>,
+    ignore_auto_update: bool,
+    trigger: UpdateTrigger,
+) -> Result<UpdateOutcome> {
     let trigger = trigger.once_marked(card_is_marked(uid).await);
     logging!(
         info,
@@ -1257,7 +1340,7 @@ mod failure_visibility_tests {
         );
         assert!(!announce.contains("public_failure_text"), "{announce}");
 
-        let update: std::string::String = crate::utils::source_scan::fn_body(source, "pub async fn update_profile(")
+        let update: std::string::String = crate::utils::source_scan::fn_body(source, "async fn update_claimed(")
             .unwrap_or_default()
             .split_whitespace()
             .collect();
@@ -1323,25 +1406,63 @@ mod update_error_tests {
 
 #[cfg(test)]
 mod update_claim_tests {
-    use super::claim_update;
+    use super::{InFlight, String, UpdatesInFlight};
+
+    fn uid(name: &str) -> String {
+        String::from(name)
+    }
 
     #[test]
-    fn a_profile_is_claimed_once_until_the_claim_is_dropped() {
-        let uid = super::String::from("claim-test-uid");
-        let first = claim_update(&uid);
-        assert!(first.is_some(), "первый запуск обновления берёт профиль");
+    fn a_profile_is_claimed_once_until_it_is_released() {
+        let mut in_flight = InFlight::default();
+        assert!(in_flight.claim(&uid("a")).is_some(), "первый запуск берёт подписку");
         assert!(
-            claim_update(&uid).is_none(),
-            "второй запуск того же профиля — кнопкой или расписанием — отклоняется"
+            in_flight.claim(&uid("a")).is_none(),
+            "второй запуск той же подписки — кнопкой или расписанием — отклоняется"
         );
+        assert!(in_flight.claim(&uid("b")).is_some(), "другая подписка не задета");
+        assert!(in_flight.release(&uid("a")).is_some());
         assert!(
-            claim_update(&super::String::from("claim-test-other")).is_some(),
-            "другой профиль не задет"
+            in_flight.claim(&uid("a")).is_some(),
+            "после окончания подписка снова свободна"
         );
-        drop(first);
-        assert!(
-            claim_update(&uid).is_some(),
-            "после окончания обновления профиль снова свободен"
+    }
+
+    #[test]
+    fn every_change_of_the_set_raises_the_revision_and_the_snapshot_is_the_set() {
+        let mut in_flight = InFlight::default();
+        assert_eq!(in_flight.snapshot(), UpdatesInFlight::default());
+
+        let steps = [
+            (in_flight.claim(&uid("b")), 1, vec!["b"]),
+            (in_flight.claim(&uid("a")), 2, vec!["a", "b"]),
+            (in_flight.release(&uid("b")), 3, vec!["a"]),
+            (in_flight.release(&uid("a")), 4, vec![]),
+        ];
+        for (snapshot, revision, uids) in steps {
+            let expected = UpdatesInFlight {
+                revision,
+                uids: uids.into_iter().map(uid).collect(),
+            };
+            assert_eq!(snapshot, Some(expected));
+        }
+        assert_eq!(
+            in_flight.snapshot().revision,
+            4,
+            "снимок по запросу — тот же, что ушёл последним"
+        );
+    }
+
+    #[test]
+    fn a_refused_claim_or_an_empty_release_changes_nothing() {
+        let mut in_flight = InFlight::default();
+        let taken = in_flight.claim(&uid("a"));
+        assert!(in_flight.claim(&uid("a")).is_none());
+        assert!(in_flight.release(&uid("b")).is_none());
+        assert_eq!(
+            Some(in_flight.snapshot()),
+            taken,
+            "номер не сдвинулся — окну нечего слать"
         );
     }
 }
@@ -1349,7 +1470,7 @@ mod update_claim_tests {
 #[allow(clippy::expect_used)]
 #[cfg(test)]
 mod move_tests {
-    use super::move_of;
+    use super::{move_after_the_spare, move_of};
     use crate::config::PrfItem;
     use smartstring::alias::String;
 
@@ -1370,11 +1491,100 @@ mod move_tests {
     }
 
     #[test]
+    fn a_spare_that_just_served_the_subscription_is_not_asked_again() {
+        let main = String::from("https://main.example/sub/token");
+        let spare = String::from("https://spare.example/sub/token");
+
+        let served = move_after_the_spare(&main, &spare, &answer(Some("spare.example"), true)).expect("move");
+        assert_eq!(served.served, Some(true));
+
+        let mut refused = answer(Some("spare.example"), true);
+        refused.device_refused = Some(true);
+        let refused = move_after_the_spare(&main, &spare, &refused).expect("move");
+        assert_eq!(refused.served, Some(false), "отказ по устройству тоже уже известен");
+
+        let elsewhere = move_after_the_spare(&main, &spare, &answer(Some("third.example"), true)).expect("move");
+        assert_eq!(elsewhere.served, None, "другой адрес ещё не спрашивали");
+        assert!(move_of(&main, &answer(Some("spare.example"), true)).is_some_and(|planned| planned.served.is_none()));
+    }
+
+    #[test]
     fn no_move_without_the_flag_the_domain_or_on_the_same_host() {
         let main = String::from("https://main.example/sub");
         assert!(move_of(&main, &answer(Some("spare.example"), false)).is_none());
         assert!(move_of(&main, &answer(None, true)).is_none());
         assert!(move_of(&main, &answer(Some("main.example"), true)).is_none());
+    }
+}
+
+#[cfg(test)]
+mod one_write_tests {
+    use crate::utils::source_scan::fn_body;
+
+    fn squeezed(source: &str, signature: &str) -> std::string::String {
+        let body: std::string::String = fn_body(source, signature)
+            .unwrap_or_default()
+            .split_whitespace()
+            .collect();
+        assert!(!body.is_empty(), "тело {signature} не найдено — тест ослеп");
+        body
+    }
+
+    #[test]
+    fn the_outcome_marks_ride_in_the_same_write_as_the_subscription() {
+        let source = include_str!("profile.rs");
+        let promote = squeezed(source, "async fn promote_and_record(");
+        assert!(promote.contains("UpdateMarks::ACCEPTED"), "{promote}");
+        assert!(!promote.contains("profiles_mark_not_applied"), "{promote}");
+
+        let refused = squeezed(source, "async fn refused_before_the_disk(");
+        assert!(refused.contains("UpdateMarks::REJECTED") && refused.contains("UpdateMarks::UNCHECKED"));
+        assert!(!refused.contains("mark_not_applied("), "{refused}");
+
+        let noted = squeezed(source, "async fn note_the_download(");
+        assert!(!noted.contains("mark_the_update("), "{noted}");
+        let settle = squeezed(source, "async fn settle_the_download(");
+        assert_eq!(
+            settle.matches("mark_the_update(").count(),
+            2,
+            "только провал приёма и «до проверки не дошло»: {settle}"
+        );
+    }
+
+    #[test]
+    fn the_window_hears_of_every_change_of_the_claims() {
+        let source = include_str!("profile.rs");
+        let claim = squeezed(source, "fn claim_update(");
+        assert!(
+            claim.contains("lock().claim(uid)?;handle::Handle::notify_updates_in_flight(&snapshot)"),
+            "{claim}"
+        );
+        let release = squeezed(source, "impl Drop for UpdateClaim");
+        assert!(release.contains("lock().release(&self.0)"), "{release}");
+        assert!(
+            release.contains("handle::Handle::notify_updates_in_flight(&snapshot)"),
+            "{release}"
+        );
+
+        let timer = crate::utils::source_scan::production_code(include_str!("../core/timer.rs"));
+        assert!(
+            !timer.contains("notify_updates_in_flight"),
+            "расписание само о заявках не говорит"
+        );
+    }
+
+    #[test]
+    fn deleting_a_subscription_writes_the_registry_once() {
+        let commands = include_str!("../cmd/profile.rs");
+        let delete = squeezed(commands, "pub async fn delete_profile(");
+        assert!(!delete.contains("profiles_save_file_safe"), "{delete}");
+        // Не текущую удаляют, только если её не сделали текущей, пока шли сюда:
+        // иначе ядро осталось бы на сборке удалённой.
+        assert!(!delete.contains("profiles_delete_item_safe"), "{delete}");
+        assert!(delete.contains("delete_unless_current(&index)"), "{delete}");
+        let deliver = squeezed(commands, "async fn deliver_without(");
+        assert!(deliver.contains("deliver_committing("), "{deliver}");
+        assert!(!commands.contains("restore_profiles_after_failed_delete"));
     }
 }
 

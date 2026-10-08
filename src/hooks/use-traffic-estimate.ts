@@ -1,10 +1,9 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useMemo } from 'react'
 import useSWR from 'swr'
 
-import { useProfiles } from '@/hooks/use-profiles'
 import { useRefreshOnReturn } from '@/hooks/use-refresh-on-return'
-import { getTrafficEstimate, updateProfile } from '@/services/cmds'
-import { showNotice } from '@/services/notice-service'
+import { useSubscriptionUpdate } from '@/hooks/use-subscription-update'
+import { getTrafficEstimate } from '@/services/cmds'
 import { revalidateQuery } from '@/services/query-client'
 
 /** Как часто перечитываем счёт из бэкенда. */
@@ -14,8 +13,6 @@ const POLL_INTERVAL_MS = 10_000
  * подписки и так показывает ту же цифру, а лишний треугольник только пугает.
  */
 const MIN_VISIBLE_BYTES = 10 * 1024 * 1024
-/** Обновление подписки руками — не чаще, панель дёргать незачем. */
-const REFRESH_COOLDOWN_MS = 30_000
 
 interface Estimate {
   /** Байты, досчитанные клиентом поверх подписки (0 — показывать нечего). */
@@ -41,11 +38,8 @@ const EMPTY: Estimate = { localBytes: 0, approximate: false, baselineAt: 0 }
  * данным подписки.
  */
 export const useTrafficEstimate = (profile?: IProfileItem) => {
-  const { mutateProfiles } = useProfiles()
-  const [refreshing, setRefreshing] = useState(false)
-  const lastRefreshRef = useRef(0)
-
   const uid = profile?.uid
+  const { updating: refreshing, paused, refresh } = useSubscriptionUpdate(uid)
   const extra = profile?.extra
   const visible = useRefreshOnReturn(
     () => uid && revalidateQuery(['trafficEstimate', uid]),
@@ -78,22 +72,5 @@ export const useTrafficEstimate = (profile?: IProfileItem) => {
     }
   }, [data, uid, extra])
 
-  const refresh = useCallback(async () => {
-    if (!uid) return
-    const now = Date.now()
-    if (refreshing || now - lastRefreshRef.current < REFRESH_COOLDOWN_MS) return
-    setRefreshing(true)
-    try {
-      await updateProfile(uid)
-      lastRefreshRef.current = now
-      await mutateProfiles()
-      showNotice.success('home.components.subscription.updated')
-    } catch (error) {
-      showNotice.error(error)
-    } finally {
-      setRefreshing(false)
-    }
-  }, [uid, refreshing, mutateProfiles])
-
-  return { estimate, refreshing, refresh }
+  return { estimate, refreshing, paused, refresh }
 }

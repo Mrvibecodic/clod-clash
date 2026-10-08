@@ -208,17 +208,6 @@ async fn notify_alert(alert: Alert) {
     }
 }
 
-/// Normalise a panel timestamp to unix seconds.
-///
-/// Some panels put milliseconds where the spec says seconds; anything past
-/// ~1e12 can only be that (it is the year 33658 in seconds). The card does the
-/// same on the frontend — without it here the reminders would stay silent
-/// forever on such a subscription, since the deadline reads as tens of
-/// thousands of years away.
-const fn to_unix_secs(ts: u64) -> u64 {
-    if ts > 1_000_000_000_000 { ts / 1000 } else { ts }
-}
-
 fn now_unix_secs() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -266,7 +255,8 @@ pub async fn run_check() {
     let (used, total) = (extra.upload.saturating_add(extra.download), extra.total);
 
     let snap = Snapshot {
-        expire: to_unix_secs(extra.expire),
+        // Уже в секундах: срок приводится при чтении записи (`PrfExtra::expire`).
+        expire: extra.expire,
         total,
         used,
         expire_days,
@@ -436,13 +426,6 @@ mod tests {
         s.notified = corrected.notified;
         let later = evaluate(&s, now + 34 * DAY_SECS);
         assert_eq!(later.alerts, vec![Alert::ExpiresInDays(7)]);
-    }
-
-    #[test]
-    fn milliseconds_from_the_panel_are_normalised() {
-        assert_eq!(to_unix_secs(1_785_864_273), 1_785_864_273);
-        assert_eq!(to_unix_secs(1_785_864_273_000), 1_785_864_273);
-        assert_eq!(to_unix_secs(0), 0);
     }
 
     #[test]

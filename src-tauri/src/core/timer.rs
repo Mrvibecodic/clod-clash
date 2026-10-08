@@ -128,12 +128,6 @@ impl TaskSchedule {
 /// срока по часам панели, но её же ответ принесёт свежий замер, и по нему та же
 /// загрузка окажется «до дедлайна» — цель переставится уже по свежей поправке.
 fn expiry_fetch_at(expire: u64, clock_skew: i64, updated: Option<usize>) -> Option<i64> {
-    const MILLIS_THRESHOLD: u64 = 1_000_000_000_000;
-    let expire = if expire > MILLIS_THRESHOLD {
-        expire / 1000
-    } else {
-        expire
-    };
     if expire == 0 {
         return None;
     }
@@ -621,9 +615,10 @@ impl Timer {
             let ran = Box::pin(Self::async_task(&uid)).await;
             // Сначала перевзвод, потом весть окну: подсказка «следующее
             // обновление», запрошенная по этой вести, встаёт в ту же очередь
-            // команд позади него и видит новый срок.
+            // команд позади него и видит новый срок. О начале и конце самого
+            // обновления окну говорит `feat::update_profile`.
             let _ = command_tx.send(TimerCommand::TaskFinished { uid: uid.clone(), ran });
-            Self::emit_update_event(&uid, false);
+            super::handle::Handle::notify_timer_updated(&uid);
         });
     }
 
@@ -643,14 +638,6 @@ impl Timer {
         answer.await.ok().flatten()
     }
 
-    fn emit_update_event(uid: &String, is_start: bool) {
-        if is_start {
-            super::handle::Handle::notify_profile_update_started(uid);
-        } else {
-            super::handle::Handle::notify_profile_update_completed(uid);
-        }
-    }
-
     async fn async_task(uid: &String) -> Ran {
         let task_start = std::time::Instant::now();
         logging!(debug, Type::Timer, "Running timer task for profile: {}", uid);
@@ -662,11 +649,7 @@ impl Timer {
         // регулярное место, где просроченному замку и место истечь.
         crate::feat::release_stale_panel_locks().await;
 
-        let result = Box::pin(async {
-            Self::emit_update_event(uid, true);
-            Box::pin(feat::update_profile(uid, None, false, feat::UpdateTrigger::Scheduled)).await
-        })
-        .await;
+        let result = Box::pin(feat::update_profile(uid, None, false, feat::UpdateTrigger::Scheduled)).await;
 
         match &result {
             Ok(outcome) => logging!(
@@ -833,13 +816,11 @@ mod tests {
     #[test]
     fn the_expiry_fetch_is_due_once_after_the_panel_deadline() {
         let expire = (NOW + 600) as u64;
-        // Секунды и миллисекунды — один и тот же срок.
-        for stamp in [expire, expire * 1000] {
-            assert_eq!(
-                expiry_fetch_at(stamp, 0, Some((NOW - 1) as usize)),
-                Some(NOW + 600 + GRACE)
-            );
-        }
+        // Срок уже в секундах: миллисекунды приводит чтение записи (`PrfExtra`).
+        assert_eq!(
+            expiry_fetch_at(expire, 0, Some((NOW - 1) as usize)),
+            Some(NOW + 600 + GRACE)
+        );
         // Поправка часов: панель спешит на минуту → по часам устройства срок раньше.
         assert_eq!(expiry_fetch_at(expire, 60, Some(NOW as usize)), Some(NOW + 540 + GRACE));
         // Бессрочная подписка.
