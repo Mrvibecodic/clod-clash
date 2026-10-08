@@ -98,7 +98,9 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
   const [newGroup, setNewGroup] = useState('')
   const { profiles, mutateProfiles } = useProfiles()
   const { stage: addStage, reset: resetAddStage } = useAddStage()
-  const [chanBusy, setChanBusy] = useState(false)
+  // Подписка, у которой идёт проба канала: занятость принадлежит ей, а не
+  // окну — переоткрытое окно той же подписки видит пробу, другой — нет.
+  const [chanBusyFor, setChanBusyFor] = useState<string>()
   const [chanError, setChanError] = useState<string>()
   const [chanOffAsked, setChanOffAsked] = useState(false)
 
@@ -177,25 +179,30 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
   // clod:chan — защищённый канал у добавленной подписки: живое состояние из
   // реестра, а не поле формы — переключатель действует сразу, без «Сохранить».
   const editedUid = watch('uid')
+  const chanBusy = chanBusyFor !== undefined && chanBusyFor === editedUid
   const secureOn =
     openType === 'edit' &&
     profiles?.items?.some(
       (item) => item.uid === editedUid && item.option?.secure === true,
     ) === true
 
+  // Окно закрыли посреди пробы — её итог уже записан бэкендом за той
+  // подпиской; ошибка показывается только в окне, где пробу запускали.
   const switchChannel = useLockFn(async (on: boolean) => {
     if (!editedUid) return
-    setChanBusy(true)
+    const session = sessionRef.current
+    setChanBusyFor(editedUid)
     setChanError(undefined)
     try {
       await setSecureChannel(editedUid, on)
       await mutateProfiles()
     } catch (err) {
+      if (session !== sessionRef.current) return
       const raw = err instanceof Error ? err.message : String(err)
       const explained = explainErrorKey(raw)
       setChanError(explained ? t(explained) : trimRawError(raw))
     } finally {
-      setChanBusy(false)
+      setChanBusyFor(undefined)
     }
   })
 
@@ -683,7 +690,7 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
       onClose={handleClose}
       onCancel={handleClose}
       onOk={handleOk}
-      loading={loading}
+      loading={loading || chanBusy}
     >
       {/* Шаг 2: что нашлось по ссылке. */}
       {added ? (

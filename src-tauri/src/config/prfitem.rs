@@ -675,10 +675,10 @@ impl PrfItem {
     /// Сервер молчит или отказал посредник перед ним — канал пробуется ещё
     /// раз, всего [`ADD_CHANNEL_ATTEMPTS`]. Канал ответил, но подписки не дал
     /// (отказ панели, разъехались часы) — ошибка. «Канала нет» — сразу, если
-    /// так ответил сам сервер, и после всех попыток, если отказывал посредник:
-    /// провайдер за строгим WAF добавляется, как и раньше. Одно молчание — не
-    /// «канала нет»: если канал режут по дороге, подписка без защиты
-    /// добавилась бы молча.
+    /// так ответил сам сервер, и после всех попыток, если каждый раз отказывал
+    /// посредник: провайдер за строгим WAF добавляется, как и раньше. Молчание
+    /// хотя бы раз — не «канала нет»: если канал режут по дороге, подписка без
+    /// защиты добавилась бы молча.
     async fn through_channel(
         url: &str,
         name: Option<&String>,
@@ -690,7 +690,7 @@ impl PrfItem {
         secure.secure = Some(true);
         secure.chan_pin = None;
 
-        let mut doubted = false;
+        let mut always_doubted = true;
         for attempt in 1..=ADD_CHANNEL_ATTEMPTS {
             if stages {
                 crate::core::handle::Handle::add_stage(if attempt == 1 { "checking" } else { "retry" }, attempt);
@@ -703,16 +703,16 @@ impl PrfItem {
             match failures.verdict() {
                 Verdict::Answered => return Err(NoChannel::Failed(failures.into_shown())),
                 Verdict::Absent => return Err(NoChannel::Absent),
-                Verdict::Doubt => doubted = true,
-                Verdict::Silent => {}
+                Verdict::Doubt => {}
+                Verdict::Silent => always_doubted = false,
             }
             if attempt == ADD_CHANNEL_ATTEMPTS {
                 // Подписка не добавляется: молчание ещё не значит, что канала нет.
-                return Err(if doubted {
+                return Err(if always_doubted {
                     NoChannel::Absent
                 } else {
                     NoChannel::Failed(failures.into_shown().context(format!(
-                        "{CHAN_SILENT}: the provider's server did not answer {ADD_CHANNEL_ATTEMPTS} times"
+                        "{CHAN_SILENT}: the provider's server gave no answer over the secure channel in {ADD_CHANNEL_ATTEMPTS} attempts"
                     )))
                 });
             }
@@ -1444,6 +1444,18 @@ fn explain_the_failure(err: &anyhow::Error, otherwise: &'static str) -> String {
         return "clod-sub-downgrade: the subscription address redirects to an insecure http address".into();
     }
 
+    // Метка канала (`clod-chan-…`) — в заголовок: по ней словарь на экране
+    // объясняет отказ прослойки, разъехавшиеся часы или сломанный ответ, а
+    // иначе человек видел бы безымянный сбой защищённой загрузки.
+    if let Some(mark) = err
+        .chain()
+        .map(ToString::to_string)
+        .find(|text| text.contains("clod-chan-"))
+    {
+        let mark = crate::utils::redact::redact(help::mask_err(&mark).as_str());
+        return format!("{otherwise}: {mark}").into();
+    }
+
     // Самая глубокая причина цепочки — это ошибка ОС или TLS: «connection refused»,
     // «no such host», «certificate has expired». Именно по ней словарь на экране
     // подбирает человеку совет, а без неё до него доезжал безымянный сбой сети.
@@ -1966,7 +1978,7 @@ fn fix_dirty_url(input: &str) -> Result<Url> {
 mod channel_tests {
     use super::{
         Answered, ChanRefused, ChannelHeard, PrfOption, Route, RouteFailures, Verdict, channel_heard, clock_correction,
-        key_may_be_refused,
+        explain_the_failure, key_may_be_refused,
     };
 
     #[test]
@@ -2050,6 +2062,22 @@ mod channel_tests {
             let text = err.to_string();
             assert_eq!(heard(err), want, "{text}");
         }
+    }
+
+    #[test]
+    fn the_channel_mark_rises_to_the_headline() {
+        let stale = anyhow::anyhow!("clod-chan-stale");
+        let headline = explain_the_failure(&stale, "secure fetch failed");
+        assert_eq!(headline, "secure fetch failed: clod-chan-stale");
+        let refused: anyhow::Error = ChanRefused(reqwest::StatusCode::SERVICE_UNAVAILABLE).into();
+        let wrapped = refused.context("round failed");
+        assert!(
+            explain_the_failure(&wrapped, "secure fetch failed").contains("clod-chan-refused"),
+            "{}",
+            explain_the_failure(&wrapped, "secure fetch failed")
+        );
+        let plain = anyhow::anyhow!("connection refused");
+        assert_eq!(explain_the_failure(&plain, "fetch failed"), "fetch failed");
     }
 
     #[test]
