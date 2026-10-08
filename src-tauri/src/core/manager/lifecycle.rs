@@ -326,18 +326,6 @@ impl CoreManager {
             return result;
         }
 
-        // clod:dns-applied — конфиг живой, теперь можно ставить подмену DNS.
-        #[cfg(target_os = "macos")]
-        crate::utils::resolve::dns::apply_remembered_desire();
-
-        // clod:tun-ready — проверяем факт, а не заявку: если ядро не смогло
-        // поднять устройство, честно гасим TUN и говорим об этом.
-        if crate::feat::tun::desired().await && !crate::feat::tun::is_suppressed() {
-            crate::feat::tun::spawn_start_verification(crate::feat::tun::log_anchor().await);
-        } else {
-            AsyncHandler::spawn(|| async { crate::feat::tun::enforce_undesired_off().await });
-        }
-
         crate::feat::environment::spawn_environment_watchdog();
 
         // После отката к sidecar в фоне ждём готовности службы для передачи
@@ -357,7 +345,7 @@ impl CoreManager {
 
         let Err(error) = self.confirm_core_ready().await else {
             Self::spawn_mixed_port_check(false);
-            Self::new_core_is_up();
+            Self::new_core_is_up().await;
             return Ok(());
         };
 
@@ -380,7 +368,9 @@ impl CoreManager {
     /// приложения, перезапуске, смене ядра, переходе на службу и обратно,
     /// подъёме после падения; ядро, которое перезапустила сама служба, — в
     /// стороже здоровья. Первый подъём за сеанс — ещё и повод проверки 16–20.
-    pub(super) fn new_core_is_up() {
+    /// Здесь же хвост принятого конфига: подмена DNS (macOS), проверка
+    /// поднятого туннеля по факту и снятие ненужного.
+    pub(super) async fn new_core_is_up() {
         if Handle::global().is_exiting() {
             return;
         }
@@ -388,6 +378,10 @@ impl CoreManager {
             logging!(warn, Type::Core, "выбор узлов после запуска ядра не вернулся: {error}");
         }
         crate::module::freeze_check::core_came_up();
+        // clod:dns-applied — конфиг живой, теперь можно ставить подмену DNS.
+        #[cfg(target_os = "macos")]
+        crate::utils::resolve::dns::apply_remembered_desire();
+        crate::feat::tun::follow_up_on_a_new_core().await;
     }
 
     async fn confirm_core_ready(&self) -> Result<()> {
@@ -742,8 +736,9 @@ impl CoreManager {
         // Подавление ставится на сессию (ядро не смогло поднять устройство) и
         // в конфиг не пишется; пережив подмену бинаря, оно означало бы «TUN не
         // работает, потому что не работал у ПРОШЛОГО ядра» — а обновление ядра
-        // как раз и берут ради таких починок. Проверку факта после старта
-        // делает `start_core_inner`.
+        // как раз и берут ради таких починок. Туннель, выкинутый из конфига
+        // после прошлого провала, после старта возвращает, а поднятый проверяет
+        // по факту `new_core_is_up` (`feat::tun::follow_up_on_a_new_core`).
         crate::feat::tun::clear_suppression();
 
         if let Err(swap_error) = swap().await {
@@ -988,6 +983,24 @@ impl CoreManager {
         }
     }
 
+    /// Как доставить правку, включающую TUN. Ядро своим процессом, служба
+    /// готова — перезапуском: старт сам выберет службу (`prepare_startup`) и
+    /// поднимет ядро сразу с туннелем. Не готова — ждём её сторожем передачи.
+    pub async fn delivery_for_turning_tun_on(&self) -> super::Delivery {
+        if Handle::global().is_exiting() || !matches!(*self.get_running_mode(), RunningMode::Sidecar) {
+            return super::Delivery::Reload;
+        }
+        let reach = self.handoff_is_out_of_reach().await;
+        match reach {
+            Some(HandoffOutcome::NotReady) => self.spawn_service_handoff_watcher(HandoffReason::Tun).await,
+            Some(HandoffOutcome::Failed) => {
+                logging!(warn, Type::Core, "immediate handoff failed; staying in sidecar mode");
+            }
+            Some(HandoffOutcome::Done) | None => {}
+        }
+        delivery_when_the_tun_goes_on(reach.as_ref())
+    }
+
     /// Ждёт готовности службы в течение окна времени, затем передаёт от sidecar к service
     async fn spawn_service_handoff_watcher(&self, reason: HandoffReason) {
         use crate::constants::timing;
@@ -1164,8 +1177,17 @@ impl CoreManager {
                 return;
             }
             // Поднят без подтверждения готовности — выбор возвращаем сами.
-            Self::new_core_is_up();
+            Self::new_core_is_up().await;
         }
+    }
+}
+
+/// Служба готова принять ядро (`reach` пуст) — правка с TUN доставляется
+/// перезапуском; иначе ядро остаётся своим процессом и правка — перезагрузкой.
+const fn delivery_when_the_tun_goes_on(reach: Option<&HandoffOutcome>) -> super::Delivery {
+    match reach {
+        None => super::Delivery::Restart,
+        Some(_) => super::Delivery::Reload,
     }
 }
 
@@ -1322,5 +1344,52 @@ mod tests {
         assert!(!should_wait_for_service(true, false, true));
         assert!(!should_wait_for_service(true, true, false));
         assert!(!should_wait_for_service(false, false, false));
+    }
+
+    fn production_body(signature: &str) -> &'static str {
+        let source = include_str!("lifecycle.rs");
+        let production = crate::utils::source_scan::without_test_modules(source);
+        let body = fn_body(production, signature).unwrap_or_default();
+        assert!(!body.is_empty(), "тело {signature} не найдено — тест ослеп");
+        body
+    }
+
+    #[test]
+    fn the_tail_of_a_new_core_lives_where_the_core_comes_up() {
+        let up = production_body("pub(super) async fn new_core_is_up");
+        assert!(up.contains("apply_remembered_desire()"), "{up}");
+        assert!(up.contains("follow_up_on_a_new_core()"), "{up}");
+        let start = production_body("async fn start_core_inner");
+        for tail in [
+            "apply_remembered_desire",
+            "enforce_undesired_off",
+            "spawn_start_verification",
+        ] {
+            assert!(
+                !start.contains(tail),
+                "старт ядра не повторяет хвост нового процесса: {tail}"
+            );
+        }
+        let tun = crate::utils::source_scan::production_code(include_str!("../../feat/tun.rs"));
+        let follow_up = fn_body(tun, "pub async fn follow_up_on_a_new_core").unwrap_or_default();
+        assert!(
+            follow_up.contains("spawn_start_verification(") && follow_up.contains("enforce_undesired_off()"),
+            "{follow_up}"
+        );
+    }
+
+    #[test]
+    fn turning_the_tun_on_moves_the_core_only_by_the_delivery() {
+        use super::{HandoffOutcome, delivery_when_the_tun_goes_on};
+        use crate::core::manager::Delivery;
+        assert_eq!(delivery_when_the_tun_goes_on(None), Delivery::Restart);
+        for reach in [HandoffOutcome::NotReady, HandoffOutcome::Failed, HandoffOutcome::Done] {
+            assert_eq!(delivery_when_the_tun_goes_on(Some(&reach)), Delivery::Reload);
+        }
+        let decide = production_body("pub async fn delivery_for_turning_tun_on");
+        assert!(
+            !decide.contains("stop_core") && !decide.contains("start_and_confirm") && !decide.contains("try_handoff"),
+            "решение о доставке само ядро не перезапускает: {decide}"
+        );
     }
 }

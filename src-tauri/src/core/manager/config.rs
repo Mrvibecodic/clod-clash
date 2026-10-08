@@ -450,9 +450,6 @@ impl CoreManager {
                 let _ = crate::core::tray::Tray::global().update_menu().await;
             });
         }
-        #[cfg(target_os = "macos")]
-        crate::utils::resolve::dns::apply_remembered_desire();
-        crate::process::AsyncHandler::spawn(|| async { crate::feat::tun::enforce_undesired_off().await });
         Ok(Ok(delivered))
     }
 
@@ -555,6 +552,11 @@ impl CoreManager {
                 Self::note_the_accepted(&build).await;
                 Config::runtime().await.replace(build);
                 logging!(info, Type::Core, "{message}");
+                // Новый процесс не поднимался — хвост принятого конфига здесь,
+                // а не в `new_core_is_up`: подмена DNS (macOS), снятие ненужного TUN.
+                #[cfg(target_os = "macos")]
+                crate::utils::resolve::dns::apply_remembered_desire();
+                crate::process::AsyncHandler::spawn(|| async { crate::feat::tun::enforce_undesired_off().await });
                 Ok(Delivered::Reloaded)
             }
             Err(err) => {
@@ -1323,6 +1325,16 @@ mod tests {
             stage.matches(write).count() == 1 && staged < written,
             "служба: запись только после ответа Staged"
         );
+    }
+
+    #[test]
+    fn the_tail_of_the_config_follows_only_a_reload() {
+        let deliver = body_of(include_str!("config.rs"), "async fn deliver_build");
+        let apply = body_of(include_str!("config.rs"), "async fn apply_config");
+        for tail in ["apply_remembered_desire()", "enforce_undesired_off()"] {
+            assert!(!deliver.contains(tail), "доставка не знает, был ли перезапуск: {tail}");
+            assert_eq!(apply.matches(tail).count(), 1, "только удачная перезагрузка: {tail}");
+        }
     }
 
     #[test]

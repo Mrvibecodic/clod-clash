@@ -406,7 +406,6 @@ async fn after_core_came_back(reason: &str) -> bool {
     if wants_sysproxy {
         CoreManager::global().point_system_proxy_at_the_confirmed_port().await;
     }
-    crate::feat::tun::enforce_undesired_off().await;
     notice_the_restart(reason);
     true
 }
@@ -477,7 +476,7 @@ async fn look_at_the_service(manager: &CoreManager, watch: &mut HealthWatch, gen
                 reason
             );
             // Новый процесс поднимала служба, мимо нашего запуска.
-            CoreManager::new_core_is_up();
+            CoreManager::new_core_is_up().await;
             let _ = after_core_came_back(&reason).await;
             true
         }
@@ -1434,5 +1433,13 @@ mod health_tests {
         assert!(restart_notice_is_due(None, now));
         assert!(!restart_notice_is_due(Some(now), now + Duration::from_secs(5)));
         assert!(restart_notice_is_due(Some(now), now + super::CORE_STABLE_AFTER));
+    }
+
+    #[test]
+    fn a_core_back_after_a_crash_is_not_followed_up_twice() {
+        let source = crate::utils::source_scan::production_code(include_str!("state.rs"));
+        let body = crate::utils::source_scan::fn_body(source, "async fn after_core_came_back").unwrap_or_default();
+        assert!(!body.is_empty(), "тело after_core_came_back не найдено — тест ослеп");
+        assert!(!body.contains("enforce_undesired_off"), "{body}");
     }
 }

@@ -57,6 +57,7 @@ pub fn resolve_setup_async() {
         }
         init_startup_script().await;
         let config_initialized = init_verge_config_before_window().await;
+        init_launch_connect_state().await;
         init_window().await;
         init_resources().await;
         if let Err(e) = init::init_dns_config().await {
@@ -76,7 +77,6 @@ pub fn resolve_setup_async() {
         Config::verify_config_initialization().await;
 
         let core_init = AsyncHandler::spawn(|| async {
-            init_launch_connect_state().await;
             crate::core::orphan::sweep_orphan_cores().await;
             init_service_manager().await;
             init_core_manager().await;
@@ -250,6 +250,8 @@ pub(super) async fn init_core_manager() {
     logging_error!(Type::Setup, CoreManager::global().init().await);
 }
 
+/// Что поднято в этом сеансе. Решается до первого читателя — окна, трея,
+/// проверки службы и сборки конфига ядра.
 pub(super) async fn init_launch_connect_state() {
     let (sys, tun) = crate::feat::launch_connect_state().await;
 

@@ -159,7 +159,15 @@ pub async fn bring_tun_back_if_the_config_lacks_it(reason: &str) {
     if !is_claimed(wanted, is_suppressed()) {
         return;
     }
-    let accepted_has_tun = Config::runtime()
+    if accepted_has_tun().await {
+        return;
+    }
+    bring_tun_back(reason).await;
+}
+
+/// Есть ли туннель в принятом конфиге — в том, на котором работает ядро.
+async fn accepted_has_tun() -> bool {
+    Config::runtime()
         .await
         .data_arc()
         .config
@@ -167,11 +175,45 @@ pub async fn bring_tun_back_if_the_config_lacks_it(reason: &str) {
         .and_then(|config| config.get("tun"))
         .and_then(|tun| tun.get("enable"))
         .and_then(serde_yaml_ng::Value::as_bool)
-        .unwrap_or(false);
-    if accepted_has_tun {
-        return;
+        .unwrap_or(false)
+}
+
+/// Что сделать с туннелем у только что поднятого ядра.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum NewCoreTun {
+    /// Нужен и есть в конфиге — проверить по факту.
+    Verify,
+    /// Нужен, а конфиг собран без него (выкинут после провала в этом сеансе,
+    /// подавление сняли «Перезапуском ядра» или заменой ядра; ядро уехало к
+    /// службе) — вернуть в конфиг; возврат сам и проверит.
+    BringBack,
+    /// Не нужен — снять, если ядро его держит.
+    TakeDown,
+}
+
+const fn new_core_tun(claimed: bool, accepted_has_tun: bool) -> NewCoreTun {
+    match (claimed, accepted_has_tun) {
+        (true, true) => NewCoreTun::Verify,
+        (true, false) => NewCoreTun::BringBack,
+        (false, _) => NewCoreTun::TakeDown,
     }
-    bring_tun_back(reason).await;
+}
+
+/// Поднялся новый процесс ядра — любым путём, в том числе перезапуском самой
+/// службой. clod:tun-ready — туннель, который нужен и есть в его конфиге,
+/// проверяем по факту: если ядро не смогло поднять устройство, честно гасим
+/// TUN и говорим об этом. Нужный, но собранный без туннеля, возвращаем. Ненужный
+/// — снимаем.
+pub async fn follow_up_on_a_new_core() {
+    match new_core_tun(claimed().await, accepted_has_tun().await) {
+        NewCoreTun::Verify => spawn_start_verification(log_anchor().await),
+        NewCoreTun::BringBack => {
+            spawn_bringing_tun_back_if_the_config_lacks_it("the core came up without the TUN it should have");
+        }
+        NewCoreTun::TakeDown => {
+            AsyncHandler::spawn(|| async { enforce_undesired_off().await });
+        }
+    }
 }
 
 pub fn suppress(reason: &str) {
@@ -1303,7 +1345,7 @@ async fn wait_until_capable(trust_registration: bool) -> bool {
 pub async fn hold_down_without_a_service() {
     use crate::core::service::{ServiceRegistration, service_registration};
 
-    if !wanted_at_launch().await || is_app_elevated() {
+    if !desired().await || is_app_elevated() {
         return;
     }
     let registration = tokio::task::spawn_blocking(service_registration)
@@ -1318,17 +1360,6 @@ pub async fn hold_down_without_a_service() {
         "TUN is on, the app is not elevated and the service is not installed: starting without TUN"
     );
     hold_tun_down("the service is not installed", FAILURE_NO_RIGHTS, "tun::no_rights");
-}
-
-/// Будет ли TUN нужен в этом запуске: при «подключаться при запуске» решает
-/// цель подключения (она ляжет в настройки чуть позже, в `init_launch_connect_state`),
-/// иначе — сохранённый тумблер.
-async fn wanted_at_launch() -> bool {
-    let verge = Config::verge().await.latest_arc();
-    if verge.connect_on_launch.unwrap_or(false) {
-        return crate::feat::launch_connect_state().await.1;
-    }
-    verge.enable_tun_mode.unwrap_or(false)
 }
 
 pub async fn init_startup_setup() {
@@ -1641,5 +1672,45 @@ mod tests {
         assert!(should_retry(TUN_START_ATTEMPTS - 1));
         assert!(!should_retry(TUN_START_ATTEMPTS));
         assert!(!should_retry(TUN_START_ATTEMPTS + 1));
+    }
+
+    #[test]
+    fn what_this_session_brings_up_is_decided_before_anyone_reads_it() {
+        let resolve = crate::utils::source_scan::production_code(include_str!("../utils/resolve/mod.rs"));
+        let setup = crate::utils::source_scan::fn_body(resolve, "pub fn resolve_setup_async").unwrap_or_default();
+        assert_eq!(setup.matches("init_launch_connect_state()").count(), 1, "{setup}");
+        let decided = setup.find("init_launch_connect_state()").unwrap_or(usize::MAX);
+        for reader in [
+            "init_window()",
+            "hold_down_without_a_service()",
+            "init_verge_config()",
+            "init_core_manager()",
+        ] {
+            let read = setup.find(reader).unwrap_or_default();
+            assert!(decided < read, "{reader} читает флаги подключения до решения");
+        }
+        let tun = crate::utils::source_scan::production_code(include_str!("tun.rs"));
+        let hold_down =
+            crate::utils::source_scan::fn_body(tun, "pub async fn hold_down_without_a_service").unwrap_or_default();
+        assert!(hold_down.contains("desired().await"), "{hold_down}");
+        assert!(!tun.contains("launch_connect_state"), "второе знание того же решения");
+    }
+
+    #[test]
+    fn a_new_core_without_the_tun_it_should_have_gets_it_back() {
+        assert_eq!(new_core_tun(true, true), NewCoreTun::Verify);
+        // Туннель выкинут из конфига после провала, подавление сняли
+        // перезапуском или заменой ядра: включённым без проверки его не оставить.
+        assert_eq!(new_core_tun(true, false), NewCoreTun::BringBack);
+        assert_eq!(new_core_tun(false, true), NewCoreTun::TakeDown);
+        assert_eq!(new_core_tun(false, false), NewCoreTun::TakeDown);
+        let tun = crate::utils::source_scan::production_code(include_str!("tun.rs"));
+        let follow_up =
+            crate::utils::source_scan::fn_body(tun, "pub async fn follow_up_on_a_new_core").unwrap_or_default();
+        assert!(
+            follow_up.contains("new_core_tun(claimed().await, accepted_has_tun().await)")
+                && follow_up.contains("spawn_bringing_tun_back_if_the_config_lacks_it("),
+            "{follow_up}"
+        );
     }
 }

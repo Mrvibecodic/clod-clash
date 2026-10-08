@@ -427,12 +427,12 @@ pub async fn patch_verge(patch: &IVerge, not_save_file: bool) -> Result<()> {
     let before = verge.data_arc();
     verge.edit_draft(|d| d.patch_config(patch));
 
-    let tun_log_anchor = if patch.enable_tun_mode == Some(true) {
+    let (tun_log_anchor, tun_delivery) = if patch.enable_tun_mode == Some(true) {
         crate::feat::tun::clear_suppression();
-        crate::core::CoreManager::global().handoff_to_service_if_needed().await;
-        crate::feat::tun::log_anchor().await
+        let delivery = CoreManager::global().delivery_for_turning_tun_on().await;
+        (crate::feat::tun::log_anchor().await, delivery)
     } else {
-        None
+        (None, Delivery::Reload)
     };
 
     let update_flags = determine_update_flags(patch);
@@ -454,7 +454,7 @@ pub async fn patch_verge(patch: &IVerge, not_save_file: bool) -> Result<()> {
         handle::Handle::refresh_clash();
         true
     } else if update_flags.contains(UpdateFlags::CLASH_CONFIG) {
-        if let Err(err) = hand_the_settings_to_the_core(Delivery::Reload).await {
+        if let Err(err) = hand_the_settings_to_the_core(tun_delivery).await {
             verge.discard();
             return Err(err);
         }
@@ -593,5 +593,15 @@ mod tests {
             how_to_serve_the_sys_proxy_flag(true, true, Some(true)),
             SysProxyStep::Write
         );
+    }
+
+    #[test]
+    fn turning_the_tun_on_leaves_the_choice_of_the_backend_to_the_start() {
+        let source = crate::utils::source_scan::production_code(include_str!("config.rs"));
+        let body = crate::utils::source_scan::fn_body(source, "pub async fn patch_verge").unwrap_or_default();
+        assert!(!body.is_empty(), "тело patch_verge не найдено — тест ослеп");
+        assert!(!body.contains("handoff_to_service_if_needed"), "{body}");
+        assert!(body.contains("delivery_for_turning_tun_on()"), "{body}");
+        assert!(body.contains("hand_the_settings_to_the_core(tun_delivery)"), "{body}");
     }
 }
