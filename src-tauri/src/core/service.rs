@@ -11,7 +11,8 @@ use anyhow::{Context as _, Result, bail};
 use backon::{ConstantBuilder, Retryable as _};
 use clash_verge_logging::{Type, logging};
 use clash_verge_service_ipc::{
-    OwnerSessionProof, ServiceErrorCode, ServiceStatusSnapshot, StageRuntimeOutcome, StartClashRequest, WriterConfig,
+    IPC_AUTH_EXPECT, IpcCommand, MIN_REQUIRED_SERVICE_REVISION, OwnerSessionProof, ProtocolInfo, ProtocolVersion,
+    ServiceErrorCode, ServiceStatusSnapshot, StageRuntimeOutcome, StartClashRequest, WriterConfig,
 };
 use compact_str::CompactString;
 use once_cell::sync::Lazy;
@@ -63,33 +64,6 @@ pub(crate) fn clear_active_service_session() {
 
 pub(crate) fn has_active_service_session() -> bool {
     ACTIVE_SERVICE_SESSION.lock().is_some()
-}
-
-async fn probe_runtime_staging_support() -> bool {
-    match clash_verge_service_ipc::get_version().await {
-        Ok(response) if response.code == 0 => response
-            .data
-            .as_ref()
-            .is_some_and(clash_verge_service_ipc::ProtocolInfo::supports_runtime_staging),
-        Ok(response) => {
-            logging!(
-                warn,
-                Type::Service,
-                "service protocol query returned {}: {}; config changes take the restart path",
-                response.code,
-                response.message
-            );
-            false
-        }
-        Err(error) => {
-            logging!(
-                warn,
-                Type::Service,
-                "failed to query the service protocol: {error:#}; config changes take the restart path"
-            );
-            false
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -991,7 +965,7 @@ pub(crate) async fn stage_runtime_by_service(config_file: &Path) -> Result<Stage
         .context("служба не вернула результат подмены рантайма")
 }
 
-pub(super) async fn start_with_existing_service(config_file: &Path) -> Result<()> {
+pub(super) async fn start_with_existing_service(config_file: &Path, ready: ServiceReady) -> Result<()> {
     logging!(info, Type::Service, "Попытка запуска ядра через существующую службу");
     clear_active_service_session();
 
@@ -1015,30 +989,34 @@ pub(super) async fn start_with_existing_service(config_file: &Path) -> Result<()
     }
 
     let result = response.data.context("служба не вернула сведения о сессии")?;
-    let supports_runtime_staging = probe_runtime_staging_support().await;
     *ACTIVE_SERVICE_SESSION.lock() = Some(ActiveServiceSession {
         proof: OwnerSessionProof {
             generation: result.session.generation,
             token: proposed_session_token,
         },
-        supports_runtime_staging,
+        supports_runtime_staging: ready.staging,
     });
 
-    logging!(info, Type::Service, "Служба успешно запустила ядро");
+    logging!(
+        info,
+        Type::Service,
+        "Служба успешно запустила ядро (staging: {})",
+        ready.staging
+    );
     Ok(())
 }
 
 pub(super) async fn run_core_by_service(config_file: &Path) -> Result<()> {
     logging!(info, Type::Service, "Попытка запуска ядра через службу");
 
-    SERVICE_MANAGER.refresh().await?;
+    let ready = SERVICE_MANAGER.refresh().await?;
 
     logging!(
         info,
         Type::Service,
         "Служба уже запущена и версия совпадает, используем напрямую"
     );
-    start_with_existing_service(config_file).await
+    start_with_existing_service(config_file, ready).await
 }
 
 pub(super) async fn get_clash_logs_by_service() -> Result<Vec<CompactString>> {
@@ -1138,10 +1116,10 @@ fn ipc_path_busy(error: &std::io::Error) -> bool {
     cfg!(windows) && error.raw_os_error() == Some(WINDOWS_PIPE_BUSY)
 }
 
-pub async fn is_service_available() -> Result<()> {
+async fn ipc_path_present() -> std::io::Result<()> {
     match Path::metadata(clash_verge_service_ipc::IPC_PATH.as_ref()) {
-        Ok(_) => {}
-        Err(e) if ipc_path_busy(&e) => {}
+        Ok(_) => Ok(()),
+        Err(e) if ipc_path_busy(&e) => Ok(()),
         Err(e) => {
             let verge = Config::verge().await;
             let verge_last = verge.latest_arc();
@@ -1149,14 +1127,98 @@ pub async fn is_service_available() -> Result<()> {
             if is_enable {
                 logging!(warn, Type::Service, "Some issue with service IPC Path: {}", e);
             }
-            return Err(e.into());
+            Err(e)
         }
     }
+}
+
+pub async fn is_service_available() -> Result<()> {
+    ipc_path_present().await?;
     clash_verge_service_ipc::connect().await?;
     Ok(())
 }
 
-async fn wait_for_service_ipc(manager: &ServiceManager) -> Result<()> {
+/// Служба годится; `staging` — умеет подменять рантайм без перезапуска ядра.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ServiceReady {
+    pub staging: bool,
+}
+
+/// Ответ службы на один вопрос «кто ты»: рукопожатие и GetVersion одним клиентом.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum ServiceProbe {
+    /// Канала нет или рукопожатие не прошло.
+    Silent(String),
+    /// Рукопожатие прошло, а версия не прочлась или не годится.
+    Outdated,
+    Ready(ServiceReady),
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct VersionReply {
+    code: u16,
+    message: String,
+    data: Option<ProtocolInfo>,
+}
+
+// Проводной контракт службы: сервер пускает к GetVersion только с этим
+// заголовком. В крейте ключ приватный — при смене службы сверить.
+const IPC_MAGIC_HEADER: &str = "X-IPC-Magic";
+
+/// Что значит ответ на GetVersion; `None` — ответ не прочёлся (так отвечают
+/// старые службы, у которых версия не `ProtocolInfo`).
+const fn verdict(reply: Option<&VersionReply>) -> ServiceProbe {
+    match reply {
+        Some(VersionReply {
+            code: 0,
+            data: Some(info),
+            ..
+        }) if info.supports_client(ProtocolVersion::current(), MIN_REQUIRED_SERVICE_REVISION) => {
+            ServiceProbe::Ready(ServiceReady {
+                staging: info.supports_runtime_staging(),
+            })
+        }
+        _ => ServiceProbe::Outdated,
+    }
+}
+
+/// Один опрос службы: годится ли она нам и умеет ли staging. Кэша нет —
+/// каждая точка решения спрашивает свежо, но один раз.
+pub(crate) async fn probe_service() -> ServiceProbe {
+    if let Err(e) = ipc_path_present().await {
+        return ServiceProbe::Silent(e.to_string());
+    }
+    let client = match clash_verge_service_ipc::connect().await {
+        Ok(client) => client,
+        Err(e) => return ServiceProbe::Silent(format!("{e:#}")),
+    };
+    let reply = match client
+        .get(IpcCommand::GetVersion.as_ref())
+        .header(IPC_MAGIC_HEADER, IPC_AUTH_EXPECT)
+        .send()
+        .await
+    {
+        Ok(response) => response.json::<VersionReply>().map_err(|e| e.to_string()),
+        Err(e) => Err(e.to_string()),
+    };
+    let probe = verdict(reply.as_ref().ok());
+    if probe == ServiceProbe::Outdated {
+        match &reply {
+            Ok(reply) => logging!(
+                debug,
+                Type::Service,
+                "service version does not fit this client: code {} ({}), {:?}",
+                reply.code,
+                reply.message,
+                reply.data
+            ),
+            Err(e) => logging!(debug, Type::Service, "service version reply could not be read: {e}"),
+        }
+    }
+    probe
+}
+
+async fn wait_for_service_ipc(manager: &ServiceManager) -> Result<ServiceProbe> {
     let config = ServiceManager::config();
 
     let backoff = ConstantBuilder::default()
@@ -1167,16 +1229,19 @@ async fn wait_for_service_ipc(manager: &ServiceManager) -> Result<()> {
         if !is_service_ipc_path_exists() {
             bail!("IPC path not ready");
         }
-        clash_verge_service_ipc::connect().await.map(drop)
+        match probe_service().await {
+            ServiceProbe::Silent(reason) => bail!(reason),
+            answered => Ok(answered),
+        }
     })
     .retry(backoff)
     .await;
 
-    if result.is_ok() {
-        manager.set_status(ServiceStatus::Ready);
-    } else {
-        manager.set_status(ServiceStatus::Unavailable("Waiting for service to be available".into()));
-    }
+    manager.set_status(match &result {
+        Ok(ServiceProbe::Ready(_)) => ServiceStatus::Ready,
+        Ok(_) => ServiceStatus::NeedsReinstall,
+        Err(_) => ServiceStatus::Unavailable("Waiting for service to be available".into()),
+    });
 
     result
 }
@@ -1195,14 +1260,6 @@ impl ServiceManager {
             retry_delay: Duration::from_millis(500),
             max_retries: 20,
         }
-    }
-
-    pub async fn init(&self) -> Result<()> {
-        if let Err(e) = clash_verge_service_ipc::connect().await {
-            self.set_status(ServiceStatus::Unavailable(format!("Ошибка подключения к службе: {e}")));
-            return Err(e);
-        }
-        Ok(())
     }
 
     pub async fn current(&self) -> ServiceStatus {
@@ -1243,8 +1300,8 @@ impl ServiceManager {
         }
     }
 
-    async fn run_operation(&self, operation: impl Future<Output = Result<()>>) -> Result<()> {
-        {
+    async fn run_operation<T>(&self, operation: impl Future<Output = Result<T>>) -> Result<T> {
+        let value = {
             if self.operation_running.swap(true, Ordering::AcqRel) {
                 return Err(ServiceBusy.into());
             }
@@ -1255,8 +1312,8 @@ impl ServiceManager {
                 self.operation_done.notify_waiters();
             }
 
-            operation.await?;
-        }
+            operation.await?
+        };
 
         if let Err(e) = Tray::global().update_menu().await {
             logging!(
@@ -1265,30 +1322,34 @@ impl ServiceManager {
                 "tray menu refresh failed after a service operation: {e}"
             );
         }
-        Ok(())
+        Ok(value)
     }
 
-    pub async fn refresh(&self) -> Result<()> {
+    pub async fn refresh(&self) -> Result<ServiceReady> {
         self.run_operation(async {
-            if let Err(e) = is_service_available().await {
-                let reason = format!("service IPC is not answering: {e}");
-                self.set_status(ServiceStatus::Unavailable(reason.clone()));
-                bail!(reason);
-            }
-            if clash_verge_service_ipc::is_reinstall_service_needed().await {
-                self.set_status(ServiceStatus::NeedsReinstall);
-                if crate::feat::tun::desired().await && !REINSTALL_NOTICED.swap(true, Ordering::AcqRel) {
-                    logging!(
-                        warn,
-                        Type::Service,
-                        "service version mismatch; repair is up to the user"
-                    );
-                    Handle::notice_message("service::needs_repair", "");
+            match probe_service().await {
+                ServiceProbe::Ready(ready) => {
+                    self.set_status(ServiceStatus::Ready);
+                    Ok(ready)
                 }
-                bail!("service version mismatch");
+                ServiceProbe::Outdated => {
+                    self.set_status(ServiceStatus::NeedsReinstall);
+                    if crate::feat::tun::desired().await && !REINSTALL_NOTICED.swap(true, Ordering::AcqRel) {
+                        logging!(
+                            warn,
+                            Type::Service,
+                            "service version mismatch; repair is up to the user"
+                        );
+                        Handle::notice_message("service::needs_repair", "");
+                    }
+                    bail!("service version mismatch");
+                }
+                ServiceProbe::Silent(e) => {
+                    let reason = format!("service IPC is not answering: {e}");
+                    self.set_status(ServiceStatus::Unavailable(reason.clone()));
+                    bail!(reason);
+                }
             }
-            self.set_status(ServiceStatus::Ready);
-            Ok(())
         })
         .await
     }
@@ -1306,7 +1367,7 @@ impl ServiceManager {
             );
             self.set_status(ServiceStatus::NeedsReinstall);
             run_service_command(reinstall_service, "reinstall service").await?;
-            return wait_for_service_ipc(self).await;
+            return wait_for_service_ipc(self).await.map(drop);
         }
 
         logging!(
@@ -1315,15 +1376,13 @@ impl ServiceManager {
             "Требуется установка службы, запуск процесса установки"
         );
         run_service_command(install_service, "install service").await?;
-        wait_for_service_ipc(self).await?;
 
-        if clash_verge_service_ipc::is_reinstall_service_needed().await {
+        if wait_for_service_ipc(self).await? == ServiceProbe::Outdated {
             logging!(
                 warn,
                 Type::Service,
                 "Служба встала, но версия не совпала; ремонт — за пользователем"
             );
-            self.set_status(ServiceStatus::NeedsReinstall);
             if !REINSTALL_NOTICED.swap(true, Ordering::AcqRel) {
                 Handle::notice_message("service::needs_repair", "");
             }
@@ -1455,6 +1514,158 @@ mod ipc_probe_tests {
 
         let denied = std::io::Error::from(std::io::ErrorKind::PermissionDenied);
         assert!(!ipc_path_busy(&denied));
+    }
+}
+
+#[cfg(test)]
+mod probe_service_tests {
+    use super::{ServiceProbe, ServiceReady, VersionReply, verdict};
+    use crate::utils::source_scan::fn_body;
+    use clash_verge_service_ipc::{PROTOCOL_EPOCH, PROTOCOL_REVISION, ProtocolInfo, ProtocolVersion};
+    use std::path::{Path, PathBuf};
+
+    fn reply(code: u16, epoch: u16, revision: u16, min_client_revision: u16) -> VersionReply {
+        VersionReply {
+            code,
+            message: String::new(),
+            data: Some(ProtocolInfo {
+                build_version: "0.0.0-example".into(),
+                protocol: ProtocolVersion { epoch, revision },
+                min_client_revision,
+            }),
+        }
+    }
+
+    #[test]
+    fn one_version_reply_answers_fitness_and_staging() {
+        assert_eq!(
+            verdict(Some(&reply(0, PROTOCOL_EPOCH, 2, 1))),
+            ServiceProbe::Ready(ServiceReady { staging: true })
+        );
+        assert_eq!(
+            verdict(Some(&reply(0, PROTOCOL_EPOCH, 1, 1))),
+            ServiceProbe::Ready(ServiceReady { staging: false }),
+            "служба без staging годится — просто идёт путём перезапуска"
+        );
+    }
+
+    #[test]
+    fn a_service_that_does_not_fit_is_outdated() {
+        assert_eq!(
+            verdict(Some(&reply(0, PROTOCOL_EPOCH + 1, 2, 1))),
+            ServiceProbe::Outdated
+        );
+        assert_eq!(
+            verdict(Some(&reply(0, PROTOCOL_EPOCH, 2, PROTOCOL_REVISION + 1))),
+            ServiceProbe::Outdated,
+            "служба требует клиента новее нашего"
+        );
+        assert_eq!(verdict(Some(&reply(1, PROTOCOL_EPOCH, 2, 1))), ServiceProbe::Outdated);
+        let empty = VersionReply {
+            code: 0,
+            message: String::new(),
+            data: None,
+        };
+        assert_eq!(verdict(Some(&empty)), ServiceProbe::Outdated);
+        assert_eq!(verdict(None), ServiceProbe::Outdated);
+    }
+
+    #[test]
+    fn an_old_service_reply_is_not_read_and_asks_for_repair() {
+        let old = serde_json::from_str::<VersionReply>(r#"{"code":0,"message":"ok","data":"2.0.1"}"#);
+        assert!(old.is_err(), "ответ старой службы не похож на ProtocolInfo");
+        assert_eq!(verdict(old.as_ref().ok()), ServiceProbe::Outdated);
+    }
+
+    use crate::utils::source_scan::without_test_modules as without_tests;
+
+    fn rust_sources(dir: &Path, found: &mut Vec<PathBuf>) {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                rust_sources(&path, found);
+            } else if path.extension().and_then(std::ffi::OsStr::to_str) == Some("rs") {
+                found.push(path);
+            }
+        }
+    }
+
+    #[test]
+    fn nobody_asks_the_service_in_pieces() {
+        let mut files = Vec::new();
+        rust_sources(Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src")), &mut files);
+        assert!(!files.is_empty(), "исходники не найдены");
+        for path in &files {
+            let source = std::fs::read_to_string(path).unwrap_or_default();
+            let code = without_tests(&source);
+            for piece in [
+                "is_reinstall_service_needed",
+                concat!("service_ipc", "::get_version"),
+                "SERVICE_MANAGER.init",
+                "probe_runtime_staging_support",
+            ] {
+                assert!(!code.contains(piece), "{}: {piece}", path.display());
+            }
+        }
+        let service = without_tests(include_str!("service.rs"));
+        assert!(!service.contains("pub async fn init(&self)"));
+    }
+
+    fn body_of(source: &'static str, signature: &str) -> &'static str {
+        let body = fn_body(without_tests(source), signature).unwrap_or_default();
+        assert!(!body.is_empty(), "тело {signature} не найдено — тест ослеп");
+        body
+    }
+
+    #[test]
+    fn each_decision_point_asks_once() {
+        let service = include_str!("service.rs");
+        let tun = include_str!("../feat/tun.rs");
+        for body in [
+            body_of(service, "pub async fn refresh"),
+            body_of(tun, "async fn wait_until_capable"),
+            body_of(tun, "async fn capability_and_repair_now"),
+        ] {
+            assert_eq!(body.matches("probe_service()").count(), 1, "{body}");
+            assert!(!body.contains("is_service_available"), "{body}");
+        }
+    }
+
+    #[test]
+    fn the_core_starts_with_the_staging_answer_it_already_has() {
+        let service = include_str!("service.rs");
+        let start = body_of(service, "async fn start_with_existing_service");
+        assert!(!start.contains("get_version") && !start.contains("probe_"), "{start}");
+        assert!(start.contains("supports_runtime_staging: ready.staging"), "{start}");
+        let run = body_of(service, "pub(super) async fn run_core_by_service");
+        assert!(run.contains("let ready = SERVICE_MANAGER.refresh().await?;"), "{run}");
+        assert!(run.contains("start_with_existing_service(config_file, ready)"), "{run}");
+    }
+
+    #[test]
+    fn the_wait_for_the_service_is_bounded_by_its_deadline() {
+        let body = body_of(include_str!("../feat/tun.rs"), "async fn wait_until_capable");
+        assert!(
+            body.contains("tokio::time::timeout(left, probe_service())"),
+            "опрос подвисшей службы не переживает срок ожидания: {body}"
+        );
+    }
+
+    #[test]
+    fn an_outdated_service_is_not_waited_for_at_startup() {
+        let body = body_of(
+            include_str!("manager/lifecycle.rs"),
+            "async fn wait_for_service_if_needed",
+        );
+        let arm = body.find("ServiceStatus::NeedsReinstall =>").unwrap_or(usize::MAX);
+        assert!(arm != usize::MAX, "ответ «устарела» не прекращает ожидание: {body}");
+        let rest = &body[arm.min(body.len())..];
+        let ok = rest.find("Ok(())").unwrap_or(usize::MAX);
+        let next_arm = rest.find("_ =>").unwrap_or(usize::MAX);
+        assert!(ok < next_arm, "ветка «устарела» заканчивает ожидание: {rest}");
     }
 }
 

@@ -15,8 +15,8 @@ use crate::{
         handle::Handle,
         notification::EXIT_REFUSAL_STATUS,
         service::{
-            ElevationPending, SERVICE_MANAGER, ServiceBusy, ServiceRegistration, ServiceStatus, elevation_in_flight,
-            is_service_available, service_registration, start_registered_service,
+            ElevationPending, SERVICE_MANAGER, ServiceBusy, ServiceProbe, ServiceRegistration, ServiceStatus,
+            elevation_in_flight, probe_service, service_registration, start_registered_service,
         },
         validate::ValidationOutcome,
     },
@@ -214,13 +214,7 @@ pub fn is_app_elevated() -> bool {
 }
 
 pub async fn is_capable() -> bool {
-    if is_app_elevated() {
-        return true;
-    }
-    if is_service_available().await.is_err() {
-        return false;
-    }
-    !clash_verge_service_ipc::is_reinstall_service_needed().await
+    is_app_elevated() || matches!(probe_service().await, ServiceProbe::Ready(_))
 }
 
 pub async fn capability_and_repair() -> (bool, bool) {
@@ -240,15 +234,20 @@ pub fn forget_capability() {
 
 async fn capability_and_repair_now() -> (bool, bool) {
     let elevated = is_app_elevated();
-    if is_service_available().await.is_err() {
-        return (elevated, false);
+    capability_of(&probe_service().await, elevated)
+}
+
+/// (умеет ли TUN, нужна ли починка службы) по одному опросу службы.
+const fn capability_of(probe: &ServiceProbe, elevated: bool) -> (bool, bool) {
+    match probe {
+        ServiceProbe::Ready(_) => (true, false),
+        ServiceProbe::Outdated => (elevated, true),
+        ServiceProbe::Silent(_) => (elevated, false),
     }
-    let needs_repair = clash_verge_service_ipc::is_reinstall_service_needed().await;
-    (elevated || !needs_repair, needs_repair)
 }
 
 pub async fn service_needs_repair() -> bool {
-    is_service_available().await.is_ok() && clash_verge_service_ipc::is_reinstall_service_needed().await
+    probe_service().await == ServiceProbe::Outdated
 }
 
 const TUN_ADAPTER_BUSY_MARKERS: &[&str] = &["already exists", "file exists", "resource busy", "in use", "wintun"];
@@ -1266,15 +1265,27 @@ const fn action_for(registration: ServiceRegistration, needs_repair: bool) -> Se
 }
 
 async fn wait_until_capable(trust_registration: bool) -> bool {
+    if is_app_elevated() {
+        return true;
+    }
     let deadline = Instant::now() + timing::TUN_SERVICE_APPEAR_WAIT;
     loop {
-        if is_capable().await {
+        // Подвисшая служба держит опрос минутами — дольше срока не ждём. Опрос
+        // только читает, обрывать его безопасно; последнему кругу после срока
+        // остаётся один интервал.
+        let left = deadline
+            .saturating_duration_since(Instant::now())
+            .max(timing::TUN_SERVICE_APPEAR_INTERVAL);
+        let probe = tokio::time::timeout(left, probe_service())
+            .await
+            .unwrap_or_else(|_| ServiceProbe::Silent("no answer within the wait".into()));
+        if matches!(probe, ServiceProbe::Ready(_)) {
             return true;
         }
         let registration = service_registration();
         let pointless = matches!(registration, ServiceRegistration::Missing)
             || (trust_registration
-                && (matches!(registration, ServiceRegistration::Stopped) || service_needs_repair().await));
+                && (matches!(registration, ServiceRegistration::Stopped) || probe == ServiceProbe::Outdated));
         if pointless || Instant::now() >= deadline {
             return false;
         }
@@ -1337,6 +1348,19 @@ pub async fn init_startup_setup() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn capability_follows_one_probe_of_the_service() {
+        use crate::core::service::ServiceReady;
+
+        let ready = ServiceProbe::Ready(ServiceReady { staging: false });
+        let silent = ServiceProbe::Silent("example".into());
+        for elevated in [false, true] {
+            assert_eq!(capability_of(&ready, elevated), (true, false));
+            assert_eq!(capability_of(&ServiceProbe::Outdated, elevated), (elevated, true));
+            assert_eq!(capability_of(&silent, elevated), (elevated, false));
+        }
+    }
 
     fn tunnel(edit: impl FnOnce(&mut TunConfig)) -> TunConfig {
         let mut tun = TunConfig {

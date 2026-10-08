@@ -923,18 +923,27 @@ impl CoreManager {
             }
 
             // If the service IPC path is not ready yet, treat it as transient and retry.
-            // Running init/refresh too early can mark service state unavailable and break later config reloads.
+            // Running refresh too early can mark service state unavailable and break later config reloads.
             if !service::is_service_ipc_path_exists() {
                 return Err(anyhow::anyhow!("Service IPC not ready"));
             }
 
-            SERVICE_MANAGER.init().await?;
             let _ = SERVICE_MANAGER.refresh().await;
 
-            if matches!(SERVICE_MANAGER.current().await, ServiceStatus::Ready) {
-                Ok(())
-            } else {
-                Err(anyhow::anyhow!("Service not ready"))
+            match SERVICE_MANAGER.current().await {
+                ServiceStatus::Ready => Ok(()),
+                // Служба внятно ответила «устарела» — ждать её незачем: ядро
+                // поднимется своим процессом, а случайный ответ поправит
+                // наблюдатель передачи.
+                ServiceStatus::NeedsReinstall => {
+                    logging!(
+                        info,
+                        Type::Core,
+                        "служба ответила, что устарела, — не ждём её, поднимаемся своим процессом"
+                    );
+                    Ok(())
+                }
+                _ => Err(anyhow::anyhow!("Service not ready")),
             }
         })
         .retry(backoff);
@@ -1057,9 +1066,6 @@ impl CoreManager {
         // Принудительно обновляем состояние службы, чтобы кэшированное состояние
         // не блокировало передачу
         if !service::is_service_ipc_path_exists() {
-            return Some(HandoffOutcome::NotReady);
-        }
-        if SERVICE_MANAGER.init().await.is_err() {
             return Some(HandoffOutcome::NotReady);
         }
         let _ = SERVICE_MANAGER.refresh().await;

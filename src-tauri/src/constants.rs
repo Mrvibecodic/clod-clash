@@ -127,9 +127,9 @@ pub mod timing {
     // from the START of that operation, not from the call, so a caller that
     // asks in a loop (`wait_for_service_if_needed`) cannot stack the wait up.
     //
-    // 5 s is the cost of the longest non-privileged operation we have —
-    // `wait_for_service_ipc` is 20 × 250 ms — so a normal refresh/install still
-    // reports its real result. Past that the operation is waiting on a human
+    // 5 s covers a normal refresh (one probe of the service); the wait for the
+    // service after an install (`wait_for_service_ipc`, up to 20 × 500 ms)
+    // usually fits too. Past that the operation is waiting on a human
     // (UAC / osascript), and the honest answer is the last known status: the
     // caller falls back to sidecar and the handoff watcher picks the service up
     // later, instead of the whole core lifecycle hanging on a modal dialog.
