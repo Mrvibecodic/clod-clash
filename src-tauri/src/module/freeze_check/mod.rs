@@ -6,8 +6,8 @@
 //! интерфейса. С узлами клиент ничего не делает: пинг как был, выбор как был.
 //!
 //! Поводы захода: сменилась сеть; сменились подписка, её узлы или ядро;
-//! подписка обновилась (панель могла включить или выключить проверку); ядро
-//! впервые поднялось за сеанс; тик раз в час. Перезапуск ядра или туннеля с
+//! панель включила или выключила проверку; ядро впервые поднялось за сеанс;
+//! тик раз в час. Перезапуск ядра или туннеля с
 //! той же сборкой поводом не служит. От подключения заход не зависит:
 //! проверяется путь от адреса клиента до адреса сервера, туннель тут ни при
 //! чём. Проверяются отпечатки без итога в текущей сети, «работает» и
@@ -68,6 +68,9 @@ const TOUCH_AFTER: i64 = 24 * 60 * 60;
 /// Номер захода: каждый повод поднимает его, заход со старым номером
 /// бросается, не записав ничего.
 static EPOCH: AtomicU64 = AtomicU64::new(0);
+/// Сколько раз просили заход: по разнице до и после доставки подписки видно,
+/// позвал ли его уже кто-то.
+static ASKED: AtomicU64 = AtomicU64::new(0);
 static RUNNING: AtomicBool = AtomicBool::new(false);
 static ASKED_AGAIN: AtomicBool = AtomicBool::new(false);
 /// Последний повод — для журнала захода, который его обслужит.
@@ -116,11 +119,17 @@ pub(crate) async fn current_network() -> Option<(std::string::String, &'static s
     network_key().await.map(|key| (key.hash, key.kind))
 }
 
-/// Повод для нового захода без новой сборки у ядра — подписка обновилась
-/// (панель могла включить или выключить проверку). Перезапуск ядра или
-/// туннеля, правки DNS и прочих настроек поводом не служат.
+/// Повод для нового захода без новой сборки у ядра — панель включила или
+/// выключила проверку. Перезапуск ядра или туннеля, правки DNS и прочих
+/// настроек поводом не служат.
 pub fn check_again(reason: &'static str) {
     kick(reason, Standing::Kept);
+}
+
+/// Сколько раз просили заход: каждая просьба даёт заход, который начнётся
+/// после неё.
+pub fn passes_asked() -> u64 {
+    ASKED.load(Ordering::Acquire)
 }
 
 /// Ядру доставлена другая подписка: пометки прежней гаснут сразу, её идущий
@@ -158,10 +167,15 @@ pub fn core_came_up() {
 /// (с MAC роутера на месте) и машина не спала — идущий заход доходит: его
 /// итоги о той же сети, а бросать его на каждую перемену отпечатка значило бы
 /// начинать проверки заново без конца. Иначе — в том числе пока ключ без
-/// MAC и сеть ещё не опознана — заход бросается сразу, без ожидания.
+/// MAC и сеть ещё не опознана — заход бросается сразу, без ожидания. Захода
+/// нет — ключ сети не нужен: сравнивать не с чем.
 pub fn network_changed(woke_up: bool) {
+    if !compares_the_network(woke_up, RUNNING.load(Ordering::Acquire)) {
+        kick("network changed", Standing::Dropped);
+        return;
+    }
     AsyncHandler::spawn(move || async move {
-        let same_network = !woke_up && {
+        let same_network = {
             let key = AsyncHandler::spawn_blocking(network::current).await.ok().flatten();
             key.is_some_and(|key| !key.mac_missing && PASS_KEY.lock().as_deref() == Some(key.hash.as_str()))
         };
@@ -174,6 +188,11 @@ pub fn network_changed(woke_up: bool) {
             },
         );
     });
+}
+
+/// Сверять ли сеть с идущим заходом: только когда он идёт и машина не спала.
+const fn compares_the_network(woke_up: bool, running: bool) -> bool {
+    running && !woke_up
 }
 
 /// Тик раз в час: подхватывает просроченные повторы.
@@ -203,6 +222,7 @@ fn kick(reason: &'static str, standing: Standing) {
     if matches!(standing, Standing::Dropped) {
         EPOCH.fetch_add(1, Ordering::AcqRel);
     }
+    ASKED.fetch_add(1, Ordering::AcqRel);
     ASKED_AGAIN.store(true, Ordering::SeqCst);
     AsyncHandler::spawn(|| async { run_passes().await });
 }
@@ -314,13 +334,25 @@ async fn core_json(path: &str, budget: Duration) -> Option<serde_json::Value> {
     response.json::<serde_json::Value>().await.ok()
 }
 
-/// Все узлы с отпечатком: из списка прокси и из провайдеров, и `true`, если
-/// ядро уже разложило сборку. `None` — ядро не ответило.
+/// Все узлы с отпечатком: из списка прокси и из провайдеров сборки (каждый
+/// своим запросом — в общем `/providers/proxies` узел повторяется по разу на
+/// группу), и `true`, если ядро уже разложило сборку. `None` — ядро не ответило.
 async fn list_nodes() -> Option<(Listing, bool)> {
-    let proxies = core_json("/proxies", LIST_TIMEOUT).await?;
-    let providers = core_json("/providers/proxies", LIST_TIMEOUT).await;
-    let settled = core_settled(&proxies, providers.as_ref());
-    Some((nodes_of(&proxies, providers.as_ref()), settled))
+    let (proxies, providers, failed) = crate::feat::read_core_proxies(LIST_TIMEOUT).await.into_json()?;
+    Some(listing_of(&proxies, &providers, failed))
+}
+
+/// Узлы — из всех прочитанных провайдеров; разложена ли сборка — только когда
+/// прочитались все: сбой одного не выбрасывает из захода узлы остальных.
+fn listing_of(proxies: &serde_json::Value, providers: &serde_json::Value, failed: usize) -> (Listing, bool) {
+    let settled = core_settled(proxies, providers_if_all_read(providers, failed));
+    (nodes_of(proxies, Some(providers)), settled)
+}
+
+/// Провайдеры, если прочитались все: без хоть одного сборка не разложена.
+/// Провайдеров у сборки нет — разложено.
+fn providers_if_all_read(providers: &serde_json::Value, failed: usize) -> Option<&serde_json::Value> {
+    (failed == 0).then_some(providers)
 }
 
 /// Ядро разложило сборку: группы на месте (GLOBAL есть всегда) и у каждого
@@ -870,9 +902,50 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        Listing, NodeRef, control_node, core_settled, download_path, due_now, due_of, marks_of, names_of, nodes_of,
-        plan, remember_quiet, store,
+        Listing, NodeRef, compares_the_network, control_node, core_settled, download_path, due_now, due_of, listing_of,
+        marks_of, names_of, nodes_of, plan, providers_if_all_read, remember_quiet, store,
     };
+
+    fn production() -> &'static str {
+        crate::utils::source_scan::without_test_modules(include_str!("mod.rs"))
+    }
+
+    #[test]
+    fn nodes_are_listed_by_the_builds_own_providers_and_any_failed_one_means_not_laid_out() {
+        use crate::utils::source_scan::fn_body;
+        let list = fn_body(production(), "async fn list_nodes()").unwrap_or_default();
+        assert!(list.contains("read_core_proxies("), "{list}");
+        assert!(
+            !list.contains("\"/providers/proxies\""),
+            "общий список провайдеров повторяет узел на каждую группу: {list}"
+        );
+
+        let groups = json!({ "proxies": { "GLOBAL": { "all": [] } } });
+        let listed = json!({ "providers": { "sub": { "vehicleType": "HTTP", "proxies": [{ "name": "a" }] } } });
+        assert_eq!(providers_if_all_read(&listed, 1), None);
+        assert!(core_settled(&groups, providers_if_all_read(&listed, 0)));
+        // Провайдеров у сборки нет — ждать нечего.
+        let none = json!({ "providers": {} });
+        assert!(core_settled(&groups, providers_if_all_read(&none, 0)));
+        // Один провайдер не прочитался — не разложено, но узлы прочитанных в
+        // заходе остаются.
+        let read = json!({ "providers": { "sub": { "vehicleType": "HTTP", "proxies": [{ "name": "a", "fingerprint": "f" }] } } });
+        let (listing, settled) = listing_of(&groups, &read, 1);
+        assert!(!settled);
+        assert_eq!(names_of(&listing.nodes).get("a"), Some(&"f"), "{:?}", listing.nodes);
+    }
+
+    #[test]
+    fn the_network_key_is_read_only_against_a_running_pass() {
+        use crate::utils::source_scan::fn_body;
+        assert!(compares_the_network(false, true));
+        assert!(!compares_the_network(false, false), "захода нет — сравнивать не с чем");
+        assert!(!compares_the_network(true, true), "после сна заход бросается сразу");
+        let changed = fn_body(production(), "pub fn network_changed(").unwrap_or_default();
+        let gate = changed.find("compares_the_network(").unwrap_or(usize::MAX);
+        let read = changed.find("spawn_blocking(").unwrap_or(0);
+        assert!(gate < read, "ключ сети — только при идущем заходе: {changed}");
+    }
 
     fn node(name: &str, fingerprint: &str) -> NodeRef {
         NodeRef {

@@ -171,8 +171,14 @@ async fn disarmed_current_profile(uid: &String) -> Option<std::string::String> {
 /// Чем закончился приём скачанной подписки.
 enum Acceptance {
     /// Файл на диске заменён, реестр обновлён; `delivered` — что стало с ядром,
-    /// если профиль текущий (`None` — не текущий, ядру не отдавался).
-    Accepted { delivered: Option<Delivered> },
+    /// если профиль текущий (`None` — не текущий, ядру не отдавался);
+    /// `freeze_pass_asked` — за время доставки уже позвали заход проверки 16–20
+    /// (сама доставка — на новые узлы, или кто-то ещё), и он увидит реестр
+    /// с новой записью.
+    Accepted {
+        delivered: Option<Delivered>,
+        freeze_pass_asked: bool,
+    },
     /// Ядро отвергло собранный из неё конфиг — на проверке (файл на диске прежний)
     /// или уже при доставке (файл заменён, ядро осталось на прежнем). Реестр (срок,
     /// трафик, замки панели, отметка загрузки) обновлён как при приёме, у профиля
@@ -260,7 +266,10 @@ async fn accept_the_download(uid: &String, mut item: PrfItem, move_to: Option<Mo
         deliver_the_accepted(uid, staged).await
     } else {
         drop(staged);
-        Acceptance::Accepted { delivered: None }
+        Acceptance::Accepted {
+            delivered: None,
+            freeze_pass_asked: false,
+        }
     };
     // Уже без признака применения: здесь запрос в сеть.
     follow_move(uid, move_to, request_option).await;
@@ -355,9 +364,11 @@ async fn promote_and_record(
 /// Профиль текущий — та же проверенная сборка уходит ядру без второй проверки.
 /// Если собранное совпало с работающим, ядро не трогается.
 async fn deliver_the_accepted(uid: &String, staged: crate::core::manager::Staged<'_>) -> Acceptance {
+    let asked = crate::module::freeze_check::passes_asked();
     match staged.deliver(Delivery::Reload).await {
         Ok(Ok(delivered)) => Acceptance::Accepted {
             delivered: Some(delivered),
+            freeze_pass_asked: crate::module::freeze_check::passes_asked() != asked,
         },
         Ok(Err(outcome)) => {
             mark_not_applied(uid).await;
@@ -719,14 +730,26 @@ async fn note_the_download(uid: &String) {
     announce_device_refusal(uid).await;
 }
 
+/// Звать ли заход проверки 16–20 после обновления подписки: панель включила
+/// или выключила проверку заголовком, а заход после записи этого в реестр
+/// ещё никто не позвал.
+const fn asks_a_freeze_pass(was_on: bool, is_on: bool, already_asked: bool) -> bool {
+    was_on != is_on && !already_asked
+}
+
 /// Скачанная подписка принята или отвергнута — сказать об этом тем, кому положено.
 async fn settle_the_download(uid: &String, downloaded: Downloaded, trigger: UpdateTrigger) -> Result<UpdateOutcome> {
     let Downloaded { item, notice, move_to } = downloaded;
-    let profile_name = Config::profiles()
-        .await
-        .data_arc()
-        .get_name_by_uid(uid)
-        .unwrap_or_else(|| String::from("UnKnown Profile"));
+    let (profile_name, freeze_was_on) = {
+        let profiles = Config::profiles().await.data_arc();
+        (
+            profiles
+                .get_name_by_uid(uid)
+                .unwrap_or_else(|| String::from("UnKnown Profile")),
+            profiles.get_item(uid).is_ok_and(|item| item.freeze_check == Some(true)),
+        )
+    };
+    let freeze_is_on = item.freeze_check == Some(true);
     let acceptance = match Box::pin(accept_the_download(uid, item, move_to)).await {
         Ok(acceptance) => acceptance,
         Err(err) => {
@@ -734,15 +757,25 @@ async fn settle_the_download(uid: &String, downloaded: Downloaded, trigger: Upda
             return Err(failed(uid, "update_failed", "Обновление не удалось", &err.to_string(), trigger).await);
         }
     };
-    // Запись о подписке уже обновлена, принята она ядром или нет: панель могла
-    // включить или выключить проверку 16–20 заголовком. Заход — только если это
-    // подписка, на которой работает ядро: другую он всё равно не проверит.
-    if Config::runtime().await.data_arc().profile_uid.as_deref() == Some(uid.as_str()) {
-        crate::module::freeze_check::check_again("subscription updated");
+    // Запись о подписке уже обновлена, принята она ядром или нет. Панель
+    // включила или выключила проверку 16–20 заголовком — заход, если его ещё не
+    // позвала доставка (новые узлы). Только если это подписка, на которой
+    // работает ядро: другую он всё равно не проверит.
+    let already_asked = matches!(
+        acceptance,
+        Acceptance::Accepted {
+            freeze_pass_asked: true,
+            ..
+        }
+    );
+    if asks_a_freeze_pass(freeze_was_on, freeze_is_on, already_asked)
+        && Config::runtime().await.data_arc().profile_uid.as_deref() == Some(uid.as_str())
+    {
+        crate::module::freeze_check::check_again("the panel switched the check");
     }
 
     let delivered = match acceptance {
-        Acceptance::Accepted { delivered } => delivered,
+        Acceptance::Accepted { delivered, .. } => delivered,
         Acceptance::Unverified(outcome) => {
             // Загрузка удалась — это записано; до проверки просто не дошло.
             mark_the_update(uid, false).await;
@@ -1304,5 +1337,33 @@ mod move_tests {
         assert!(move_of(&main, &answer(Some("spare.example"), false)).is_none());
         assert!(move_of(&main, &answer(None, true)).is_none());
         assert!(move_of(&main, &answer(Some("main.example"), true)).is_none());
+    }
+}
+
+#[cfg(test)]
+mod freeze_pass_tests {
+    use super::asks_a_freeze_pass;
+
+    #[test]
+    fn an_update_asks_a_check_only_when_the_panel_switched_it_and_nobody_asked_yet() {
+        assert!(asks_a_freeze_pass(false, true, false), "панель включила проверку");
+        assert!(
+            asks_a_freeze_pass(true, false, false),
+            "панель выключила — пометки гаснут"
+        );
+        assert!(!asks_a_freeze_pass(true, true, false), "флаг тот же — повода нет");
+        assert!(!asks_a_freeze_pass(false, false, false));
+        assert!(
+            !asks_a_freeze_pass(false, true, true),
+            "доставка уже позвала заход, он увидит новый флаг"
+        );
+
+        let source = include_str!("profile.rs");
+        let settle = crate::utils::source_scan::fn_body(source, "async fn settle_the_download(").unwrap_or_default();
+        let gate = settle.find("asks_a_freeze_pass(").unwrap_or(usize::MAX);
+        let kick = settle.find("check_again(").unwrap_or(0);
+        assert!(gate < kick, "заход — только по смене флага: {settle}");
+        let deliver = crate::utils::source_scan::fn_body(source, "async fn deliver_the_accepted(").unwrap_or_default();
+        assert!(deliver.contains("passes_asked()"), "{deliver}");
     }
 }
