@@ -11,6 +11,7 @@ pub mod notification;
 pub mod public_url;
 pub mod redact;
 pub mod resolve;
+pub mod retry;
 #[cfg(target_os = "windows")]
 pub mod schtasks;
 pub mod server;

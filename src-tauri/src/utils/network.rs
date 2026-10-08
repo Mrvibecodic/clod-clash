@@ -333,7 +333,22 @@ impl NetworkManager {
     /// Тело ответа, но не больше `cap` байт после распаковки: бесконечный или
     /// огромный ответ не должен съесть память. Текст декодируется ровно как
     /// `Response::text` — по charset из `content-type`, по умолчанию UTF-8.
-    async fn read_capped(mut response: reqwest::Response, cap: usize) -> Result<std::string::String> {
+    async fn read_capped(response: reqwest::Response, cap: usize) -> Result<std::string::String> {
+        let kind = response.headers().get(reqwest::header::CONTENT_TYPE).cloned();
+        let body = Self::read_capped_bytes(response, cap).await?;
+
+        let mut rebuilt = tauri::http::Response::new(body);
+        if let Some(kind) = kind {
+            rebuilt.headers_mut().insert(reqwest::header::CONTENT_TYPE, kind);
+        }
+        reqwest::Response::from(rebuilt)
+            .text()
+            .await
+            .map_err(|e| Self::context_reqwest_error(e, "Failed to read response body"))
+    }
+
+    /// Тело ответа байтами, но не больше `cap` байт после распаковки.
+    pub(crate) async fn read_capped_bytes(mut response: reqwest::Response, cap: usize) -> Result<Vec<u8>> {
         let too_large = || anyhow::anyhow!("the response body is larger than {} MiB", cap >> 20);
         if response.content_length().is_some_and(|len| len > cap as u64) {
             return Err(too_large());
@@ -347,14 +362,7 @@ impl NetworkManager {
             }
             body.extend_from_slice(&chunk);
         }
-
-        let mut rebuilt = tauri::http::Response::new(body);
-        if let Some(kind) = response.headers().get(reqwest::header::CONTENT_TYPE) {
-            rebuilt
-                .headers_mut()
-                .insert(reqwest::header::CONTENT_TYPE, kind.clone());
-        }
-        reqwest::Response::from(rebuilt).text().await.map_err(read_failed)
+        Ok(body)
     }
 
     async fn create_request_with_tls_mode(

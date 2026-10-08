@@ -2,8 +2,9 @@ use crate::{
     config::Config,
     core::handle,
     utils::{
-        dirs, help, hwid,
+        dirs, help,
         network::{NetworkManager, ProxyType},
+        retry::try_strategies,
     },
 };
 use anyhow::{Result, bail};
@@ -191,11 +192,7 @@ async fn remember_validators(dir: &Path, stem: &str, validators: Option<Validato
         let _ = fs::remove_file(&path).await;
         return;
     };
-    let written = match serde_json::to_vec(&validators) {
-        Ok(json) => help::write_atomic(&path, &json).await,
-        Err(err) => Err(err.into()),
-    };
-    if let Err(err) = written {
+    if let Err(err) = help::save_json(&path, &validators).await {
         let _ = fs::remove_file(&path).await;
         logging!(debug, Type::Config, "picture validators not saved: {err:#}");
     }
@@ -204,20 +201,6 @@ async fn remember_validators(dir: &Path, stem: &str, validators: Option<Validato
 pub async fn clear(uid: &str) {
     clear_picture(Picture::Logo, uid).await;
     clear_picture(Picture::Background, uid).await;
-}
-
-async fn sweep_parts(dir: &std::path::Path, stem: &str) {
-    let Ok(mut entries) = fs::read_dir(dir).await else {
-        return;
-    };
-    let prefix = format!("{stem}.");
-    while let Ok(Some(entry)) = entries.next_entry().await {
-        let name = entry.file_name();
-        let Some(name) = name.to_str() else { continue };
-        if name.starts_with(&prefix) && name.ends_with(".part") {
-            let _ = fs::remove_file(entry.path()).await;
-        }
-    }
 }
 
 /// Что значит ответ сервера на запрос картинки.
@@ -253,7 +236,7 @@ async fn download(picture: Picture, uid: &str, url: &str) -> Result<bool> {
     let max_bytes = picture.max_bytes();
     let saved = match cache_dir() {
         Ok(dir) => {
-            sweep_parts(&dir, &stem).await;
+            help::sweep_staging_leftovers_of(&dir, &stem).await;
             saved_validators(&dir, &stem).await
         }
         Err(_) => None,
@@ -262,68 +245,45 @@ async fn download(picture: Picture, uid: &str, url: &str) -> Result<bool> {
         .as_ref()
         .map(|(validators, local)| validators.conditional_for(url, local))
         .unwrap_or_default();
-    let mut last_error = None;
+    let (conditional, stem) = (&conditional, stem.as_str());
+    try_strategies(ProxyType::Localhost, [ProxyType::System], |proxy| async move {
+        let client = NetworkManager::new()
+            .create_request(proxy, Some(TIMEOUT_SECS), None, false)
+            .await?;
+        let mut request = client.get(url).header(reqwest::header::ACCEPT, "image/*");
+        for (name, value) in conditional {
+            request = request.header(name, *value);
+        }
+        let response = request.send().await?;
+        match reply_to(!conditional.is_empty(), response.status()) {
+            Reply::Unchanged => return Ok(false),
+            Reply::Refused => bail!("logo request returned {}", response.status()),
+            Reply::Fresh => {}
+        }
+        if !crate::utils::public_url::is_public_https(response.url()) {
+            bail!("logo redirected somewhere we will not read from");
+        }
 
-    for proxy in [ProxyType::Localhost, ProxyType::System] {
-        let attempt = async {
-            let client = NetworkManager::new()
-                .create_request(proxy, Some(TIMEOUT_SECS), Some(hwid::user_agent()), false)
-                .await?;
-            let mut request = client.get(url).header(reqwest::header::ACCEPT, "image/*");
-            for (name, value) in &conditional {
-                request = request.header(name, *value);
-            }
-            let response = request.send().await?;
-            match reply_to(!conditional.is_empty(), response.status()) {
-                Reply::Unchanged => return Ok(false),
-                Reply::Refused => bail!("logo request returned {}", response.status()),
-                Reply::Fresh => {}
-            }
-            if !crate::utils::public_url::is_public_https(response.url()) {
-                bail!("logo redirected somewhere we will not read from");
-            }
-
-            let content_type = response
-                .headers()
-                .get(reqwest::header::CONTENT_TYPE)
-                .and_then(|value| value.to_str().ok())
-                .unwrap_or_default()
-                .to_owned();
-            let Some(extension) = extension_for(&content_type) else {
-                bail!("logo is not an image ({content_type})");
-            };
-
-            let validators_headers = response.headers().clone();
-            if response
-                .content_length()
-                .is_some_and(|length| length > max_bytes as u64)
-            {
-                bail!("logo is too large ({} bytes)", response.content_length().unwrap_or(0));
-            }
-
-            let mut bytes: Vec<u8> = Vec::new();
-            let mut response = response;
-            while let Some(chunk) = response.chunk().await? {
-                bytes.extend_from_slice(&chunk);
-                if bytes.len() > max_bytes {
-                    bail!("logo is too large (over {max_bytes} bytes)");
-                }
-            }
-            if bytes.is_empty() {
-                bail!("logo response is empty");
-            }
-
-            store_fresh(&cache_dir()?, &stem, url, extension, &validators_headers, &bytes).await?;
-            Ok::<bool, anyhow::Error>(true)
+        let content_type = response
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or_default()
+            .to_owned();
+        let Some(extension) = extension_for(&content_type) else {
+            bail!("logo is not an image ({content_type})");
         };
 
-        match attempt.await {
-            Ok(written) => return Ok(written),
-            Err(err) => last_error = Some(err),
+        let validators_headers = response.headers().clone();
+        let bytes = NetworkManager::read_capped_bytes(response, max_bytes).await?;
+        if bytes.is_empty() {
+            bail!("logo response is empty");
         }
-    }
 
-    Err(last_error.unwrap_or_else(|| anyhow::anyhow!("logo download was not attempted")))
+        store_fresh(&cache_dir()?, stem, url, extension, &validators_headers, &bytes).await?;
+        Ok(true)
+    })
+    .await
 }
 
 /// Записать свежую картинку: файл, затем убрать её прежнюю под другим
@@ -337,17 +297,7 @@ async fn store_fresh(
     bytes: &[u8],
 ) -> Result<()> {
     fs::create_dir_all(dir).await?;
-    let target = dir.join(format!("{stem}.{extension}"));
-    let attempt_id = PART_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let temporary = dir.join(format!("{stem}.{extension}.{}-{attempt_id}.part", std::process::id()));
-    if let Err(err) = fs::write(&temporary, bytes).await {
-        let _ = fs::remove_file(&temporary).await;
-        return Err(err.into());
-    }
-    if let Err(err) = fs::rename(&temporary, &target).await {
-        let _ = fs::remove_file(&temporary).await;
-        return Err(err.into());
-    }
+    help::write_atomic(&dir.join(format!("{stem}.{extension}")), bytes).await?;
     for stale in KNOWN_EXTENSIONS.iter().filter(|item| **item != extension) {
         let _ = fs::remove_file(dir.join(format!("{stem}.{stale}"))).await;
     }
@@ -382,7 +332,7 @@ async fn clear_picture(picture: Picture, uid: &str) -> bool {
         removed |= fs::remove_file(dir.join(format!("{stem}.{extension}"))).await.is_ok();
     }
     let _ = fs::remove_file(validators_path(&dir, &stem)).await;
-    sweep_parts(&dir, &stem).await;
+    help::sweep_staging_leftovers_of(&dir, &stem).await;
     removed
 }
 
@@ -416,8 +366,6 @@ pub async fn read(picture: Picture, uid: &str) -> Option<String> {
     }
     None
 }
-
-static PART_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 const RETRY_AFTER: std::time::Duration = std::time::Duration::from_secs(10 * 60);
 

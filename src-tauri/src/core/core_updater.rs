@@ -32,6 +32,7 @@ use crate::{
     utils::{
         dirs,
         network::{NetworkManager, ProxyType},
+        retry::try_strategies,
     },
 };
 use clash_verge_logging::{Type, logging};
@@ -191,8 +192,7 @@ async fn http_client(proxy: ProxyType, timeout: u64) -> Result<reqwest::Client> 
 }
 
 async fn fetch_release(url: &str) -> Result<GhRelease> {
-    let mut last_error = anyhow!("release request not attempted");
-    for proxy in [ProxyType::None, ProxyType::Localhost] {
+    try_strategies(ProxyType::None, [ProxyType::Localhost], |proxy| async move {
         let attempt = async {
             let client = http_client(proxy, API_TIMEOUT_SECS).await?;
             let response = client.get(url).send().await?;
@@ -200,16 +200,15 @@ async fn fetch_release(url: &str) -> Result<GhRelease> {
                 bail!("GitHub API returned {}", response.status());
             }
             Ok::<GhRelease, anyhow::Error>(response.json::<GhRelease>().await?)
-        };
-        match attempt.await {
-            Ok(release) => return Ok(release),
-            Err(err) => {
-                logging!(warn, Type::Core, "core release fetch via {proxy:?} failed: {err:#}");
-                last_error = err;
-            }
         }
-    }
-    Err(last_error.context("failed to reach the core release channel"))
+        .await;
+        if let Err(err) = &attempt {
+            logging!(warn, Type::Core, "core release fetch via {proxy:?} failed: {err:#}");
+        }
+        attempt
+    })
+    .await
+    .context("failed to reach the core release channel")
 }
 
 /// Ядро заменило свой файл само (`/upgrade` через службу): отпечаток встроенного
@@ -270,16 +269,14 @@ async fn route_is_alive(proxy: ProxyType, url: &str) -> bool {
 }
 
 async fn download_asset(asset: &GhAsset) -> Result<Vec<u8>> {
-    let mut last_error = anyhow!("download not attempted");
-    for proxy in [ProxyType::None, ProxyType::Localhost] {
+    try_strategies(ProxyType::None, [ProxyType::Localhost], |proxy| async move {
         if matches!(proxy, ProxyType::None) && !route_is_alive(proxy, &asset.browser_download_url).await {
             logging!(
                 warn,
                 Type::Core,
                 "direct route to GitHub looks dead, trying the core tunnel"
             );
-            last_error = anyhow!("direct connection to GitHub timed out");
-            continue;
+            bail!("direct connection to GitHub timed out");
         }
         let attempt = async {
             let client = http_client(proxy, DOWNLOAD_TIMEOUT_SECS).await?;
@@ -293,16 +290,15 @@ async fn download_asset(asset: &GhAsset) -> Result<Vec<u8>> {
                 bytes.extend_from_slice(&chunk);
             }
             Ok::<Vec<u8>, anyhow::Error>(bytes)
-        };
-        match attempt.await {
-            Ok(bytes) => return Ok(bytes),
-            Err(err) => {
-                logging!(warn, Type::Core, "core download via {proxy:?} failed: {err:#}");
-                last_error = err;
-            }
         }
-    }
-    Err(last_error.context("failed to download the core archive"))
+        .await;
+        if let Err(err) = &attempt {
+            logging!(warn, Type::Core, "core download via {proxy:?} failed: {err:#}");
+        }
+        attempt
+    })
+    .await
+    .context("failed to download the core archive")
 }
 
 fn api_digest(asset: &GhAsset) -> Option<String> {
@@ -334,28 +330,15 @@ async fn verify_sha256(release: &GhRelease, asset: &GhAsset, bytes: &[u8]) -> Re
         bail!("release publishes neither a digest nor {checksum_name}, refusing to install an unverified core");
     };
 
-    let text = {
-        let mut last_error = anyhow!("checksum download not attempted");
-        let mut result = None;
-        for proxy in [ProxyType::None, ProxyType::Localhost] {
-            let attempt = async {
-                let client = http_client(proxy, API_TIMEOUT_SECS).await?;
-                let response = client.get(&checksum_asset.browser_download_url).send().await?;
-                if !response.status().is_success() {
-                    bail!("checksum download returned {}", response.status());
-                }
-                Ok::<String, anyhow::Error>(response.text().await?)
-            };
-            match attempt.await {
-                Ok(t) => {
-                    result = Some(t);
-                    break;
-                }
-                Err(err) => last_error = err,
-            }
+    let text = try_strategies(ProxyType::None, [ProxyType::Localhost], |proxy| async move {
+        let client = http_client(proxy, API_TIMEOUT_SECS).await?;
+        let response = client.get(&checksum_asset.browser_download_url).send().await?;
+        if !response.status().is_success() {
+            bail!("checksum download returned {}", response.status());
         }
-        result.ok_or(last_error)?
-    };
+        Ok::<String, anyhow::Error>(response.text().await?)
+    })
+    .await?;
 
     let expected = text
         .split_whitespace()

@@ -2,8 +2,9 @@ use crate::{
     config::Config,
     core::{CoreManager, manager::RunningMode},
     utils::{
-        dirs, help, hwid,
+        dirs, help,
         network::{NetworkManager, ProxyType},
+        retry::try_strategies,
     },
 };
 use anyhow::{Result, bail};
@@ -70,37 +71,28 @@ fn looks_like_a_database(file: &str, data: &[u8]) -> bool {
 }
 
 async fn download(url: &str) -> Result<Vec<u8>> {
-    let mut last_error = None;
-    for proxy in [ProxyType::Localhost, ProxyType::System, ProxyType::None] {
-        let attempt = async {
-            let client = NetworkManager::new()
-                .create_request(proxy, Some(TIMEOUT_SECS), Some(hwid::user_agent()), false)
-                .await?;
-            let response = client.get(url).send().await?;
-            if !response.status().is_success() {
-                bail!("geo download returned {}", response.status());
+    try_strategies(
+        ProxyType::Localhost,
+        [ProxyType::System, ProxyType::None],
+        |proxy| async move {
+            let attempt = async {
+                let client = NetworkManager::new()
+                    .create_request(proxy, Some(TIMEOUT_SECS), None, false)
+                    .await?;
+                let response = client.get(url).send().await?;
+                if !response.status().is_success() {
+                    bail!("geo download returned {}", response.status());
+                }
+                NetworkManager::read_capped_bytes(response, MAX_BYTES).await
             }
-            if response
-                .content_length()
-                .is_some_and(|length| length as usize > MAX_BYTES)
-            {
-                bail!("geo file is larger than {MAX_BYTES} bytes");
-            }
-            let data = response.bytes().await?;
-            if data.len() > MAX_BYTES {
-                bail!("geo file is larger than {MAX_BYTES} bytes");
-            }
-            Ok(data.to_vec())
-        };
-        match attempt.await {
-            Ok(data) => return Ok(data),
-            Err(error) => {
+            .await;
+            if let Err(error) = &attempt {
                 logging!(debug, Type::Core, "geo download via {proxy:?} failed: {error:#}");
-                last_error = Some(error);
             }
-        }
-    }
-    Err(last_error.unwrap_or_else(|| anyhow::anyhow!("geo download failed")))
+            attempt
+        },
+    )
+    .await
 }
 
 pub async fn refresh_home_copies() -> Result<usize> {

@@ -228,12 +228,18 @@ pub async fn sweep_staging_leftovers(dir: &Path) -> usize {
     sweep_matching(dir, is_staging_leftover).await
 }
 
+/// Черновики `write_atomic`, брошенные на полпути, только для файлов `<stem>.*`.
+pub async fn sweep_staging_leftovers_of(dir: &Path, stem: &str) -> usize {
+    let prefix = format!(".{stem}.");
+    sweep_matching(dir, |name| name.starts_with(&prefix) && is_staging_leftover(name)).await
+}
+
 /// Только для каталога подписок: в других каталогах `*.new` — чужие файлы.
 pub async fn sweep_unpromoted_candidates(profiles_dir: &Path) -> usize {
     sweep_matching(profiles_dir, is_unpromoted_candidate).await
 }
 
-async fn sweep_matching(dir: &Path, matches: fn(&str) -> bool) -> usize {
+async fn sweep_matching(dir: &Path, matches: impl Fn(&str) -> bool + Send) -> usize {
     let Ok(mut entries) = tokio::fs::read_dir(dir).await else {
         return 0;
     };
@@ -516,7 +522,7 @@ pub fn keep_the_clearer_error(previous: anyhow::Error, fresh: anyhow::Error) -> 
 mod tests {
     use super::{
         apply_merge_transitively, contains_merge_key, is_placeholder_secret, is_staging_leftover, load_json_or_default,
-        random_secret, save_json, staging_path, sweep_staging_leftovers, write_atomic,
+        random_secret, save_json, staging_path, sweep_staging_leftovers, sweep_staging_leftovers_of, write_atomic,
     };
     use std::path::PathBuf;
 
@@ -542,6 +548,23 @@ mod tests {
         assert!(std::fs::write(&target, b"{not json").is_ok());
         let broken: Vec<u32> = load_json_or_default(&target, "[Test] the store").await;
         assert!(broken.is_empty());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn only_the_drafts_of_one_stem_are_swept() {
+        let dir = scratch_dir("stem-drafts");
+        for name in [
+            ".uid.png.AbCdEf12.tmp",
+            ".uid.bg.png.AbCdEf12.tmp",
+            ".other.png.AbCdEf12.tmp",
+            "uid.png",
+        ] {
+            assert!(std::fs::write(dir.join(name), b"x").is_ok());
+        }
+        assert_eq!(sweep_staging_leftovers_of(&dir, "uid").await, 2);
+        assert!(dir.join(".other.png.AbCdEf12.tmp").exists());
+        assert!(dir.join("uid.png").exists());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
