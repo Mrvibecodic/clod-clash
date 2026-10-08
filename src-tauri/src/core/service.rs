@@ -898,7 +898,9 @@ fn force_reinstall_service() -> Result<()> {
     })
 }
 
-async fn collect_service_runtime_bundle(config_file: &Path) -> Result<clash_verge_service_ipc::RuntimeBundle> {
+async fn collect_service_runtime_bundle(
+    config: &serde_yaml_ng::Mapping,
+) -> Result<clash_verge_service_ipc::RuntimeBundle> {
     let verge_config = Config::verge().await;
     let clash_core = verge_config.latest_arc().get_valid_clash_core();
     drop(verge_config);
@@ -906,7 +908,7 @@ async fn collect_service_runtime_bundle(config_file: &Path) -> Result<clash_verg
     let bin_ext = if cfg!(windows) { ".exe" } else { "" };
     let bin_path = service_core_path(&clash_core, bin_ext)?;
     crate::core::core_integrity::ensure_elevated_binary_is_known(&bin_path).await?;
-    match collect_runtime_bundle(config_file, &bin_path).await {
+    match collect_runtime_bundle(config, &crate::utils::dirs::app_home_dir()?, &bin_path) {
         Ok(bundle) => {
             forget_bundle_rejection();
             Ok(bundle)
@@ -937,10 +939,10 @@ impl StageRequest {
     }
 }
 
-pub(crate) async fn stage_runtime_by_service(config_file: &Path) -> Result<StageRequest> {
+pub(crate) async fn stage_runtime_by_service(config: &serde_yaml_ng::Mapping) -> Result<StageRequest> {
     let session = active_service_session()?;
     let credentials = current_owner_credentials()?;
-    let runtime = match collect_service_runtime_bundle(config_file).await {
+    let runtime = match collect_service_runtime_bundle(config).await {
         Ok(runtime) => runtime,
         Err(error) => {
             return match error.downcast_ref::<crate::core::runtime_bundle::UnusableBundle>() {
@@ -965,12 +967,12 @@ pub(crate) async fn stage_runtime_by_service(config_file: &Path) -> Result<Stage
         .context("служба не вернула результат подмены рантайма")
 }
 
-pub(super) async fn start_with_existing_service(config_file: &Path, ready: ServiceReady) -> Result<()> {
+pub(super) async fn start_with_existing_service(config: &serde_yaml_ng::Mapping, ready: ServiceReady) -> Result<()> {
     logging!(info, Type::Service, "Попытка запуска ядра через существующую службу");
     clear_active_service_session();
 
     let credentials = current_owner_credentials()?;
-    let runtime = collect_service_runtime_bundle(config_file).await?;
+    let runtime = collect_service_runtime_bundle(config).await?;
     let proposed_session_token = generate_service_session_token()?;
     let request = StartClashRequest {
         runtime,
@@ -1006,7 +1008,7 @@ pub(super) async fn start_with_existing_service(config_file: &Path, ready: Servi
     Ok(())
 }
 
-pub(super) async fn run_core_by_service(config_file: &Path) -> Result<()> {
+pub(super) async fn run_core_by_service(config: &serde_yaml_ng::Mapping) -> Result<()> {
     logging!(info, Type::Service, "Попытка запуска ядра через службу");
 
     let ready = SERVICE_MANAGER.refresh().await?;
@@ -1016,7 +1018,7 @@ pub(super) async fn run_core_by_service(config_file: &Path) -> Result<()> {
         Type::Service,
         "Служба уже запущена и версия совпадает, используем напрямую"
     );
-    start_with_existing_service(config_file, ready).await
+    start_with_existing_service(config, ready).await
 }
 
 pub(super) async fn get_clash_logs_by_service() -> Result<Vec<CompactString>> {
@@ -1642,7 +1644,7 @@ mod probe_service_tests {
         assert!(start.contains("supports_runtime_staging: ready.staging"), "{start}");
         let run = body_of(service, "pub(super) async fn run_core_by_service");
         assert!(run.contains("let ready = SERVICE_MANAGER.refresh().await?;"), "{run}");
-        assert!(run.contains("start_with_existing_service(config_file, ready)"), "{run}");
+        assert!(run.contains("start_with_existing_service(config, ready)"), "{run}");
     }
 
     #[test]

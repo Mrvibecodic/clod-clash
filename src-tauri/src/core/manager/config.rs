@@ -12,7 +12,7 @@ use anyhow::{Result, anyhow};
 use clash_verge_logging::{Type, logging};
 use clash_verge_service_ipc::StageRuntimeOutcome;
 use smartstring::alias::String;
-use std::{path::PathBuf, sync::atomic::Ordering};
+use std::sync::atomic::Ordering;
 use tauri_plugin_mihomo::Error as MihomoError;
 
 /// Как отдать ядру проверенный конфиг.
@@ -394,7 +394,6 @@ impl CoreManager {
         let Some(config) = build.config.as_ref() else {
             return Ok(Err(ValidationOutcome::invalid_from_message("собранный конфиг пуст")));
         };
-        let run_path = Config::write_config_file(ConfigType::Run, config).await?;
         // clod:port-ladder — порт мог приехать из подписки: системный
         // прокси и PAC указывают на него, и после смены их надо
         // переписать, каким бы путём конфиг ни доехал до ядра.
@@ -425,7 +424,7 @@ impl CoreManager {
             delivery
         };
         let profile_uid = build.profile_uid.clone();
-        let delivered = match self.apply_config(build, run_path, delivery).await {
+        let delivered = match self.apply_config(build, delivery).await {
             Ok(delivered) => delivered,
             Err(error) => {
                 if let Some(refused) = error.downcast_ref::<ServiceRefusedTheBundle>() {
@@ -457,11 +456,13 @@ impl CoreManager {
         Ok(Ok(delivered))
     }
 
-    async fn apply_config(&self, build: IRuntime, path: PathBuf, delivery: Delivery) -> Result<Delivered> {
-        // Ядра нет — перезагружать нечего, сразу старт с новой сборкой.
+    async fn apply_config(&self, build: IRuntime, delivery: Delivery) -> Result<Delivered> {
+        // Ядра нет — перезагружать нечего, сразу старт с новой сборкой: рабочий
+        // файл ядра пишет сам старт, из слота.
         if delivery == Delivery::Restart || matches!(*self.get_running_mode(), super::RunningMode::NotRunning) {
             return self.replace_core_and_apply(build).await;
         }
+        let config = build.config.as_ref().ok_or_else(|| anyhow!("собранный конфиг пуст"))?;
         // clod:svc-2.6 — в service-режиме ядро работает не с нашим файлом, а с
         // копией в «поколении» службы: сначала просим службу привести поколение
         // к новому конфигу (staging), и ядру отдаётся ПУТЬ ИЗ ПОКОЛЕНИЯ.
@@ -475,7 +476,7 @@ impl CoreManager {
         let mode_seen = self.get_running_mode();
         let service_mode = matches!(*mode_seen, super::RunningMode::Service);
         let reload_path: String = if service_mode {
-            match self.stage_into_service_generation(&path).await {
+            match self.stage_into_service_generation(config).await {
                 StagedPath::Staged(staged) => staged,
                 StagedPath::RefusedTheBundle(message) => {
                     logging!(
@@ -505,7 +506,9 @@ impl CoreManager {
                 }
             }
         } else {
-            dirs::path_to_str(&path)?.into()
+            // Ядро своим процессом читает наш файл — и при перезагрузке, и при
+            // самоперезапуске.
+            dirs::path_to_str(&Config::write_config_file(ConfigType::Run, config).await?)?.into()
         };
         let path = reload_path.as_str();
 
@@ -648,7 +651,7 @@ impl CoreManager {
     /// Зовётся только в service-режиме. Любой исход, кроме успеха и
     /// отказа-про-бандл, сводится к `NotStaged` — и вызывающий уходит в
     /// полный перезапуск ядра, который материализует свежий бандл сам.
-    async fn stage_into_service_generation(&self, path: &std::path::Path) -> StagedPath {
+    async fn stage_into_service_generation(&self, config: &serde_yaml_ng::Mapping) -> StagedPath {
         use crate::core::service;
 
         if !service::active_service_supports_runtime_staging() {
@@ -656,7 +659,7 @@ impl CoreManager {
         }
 
         let attempt = stage_with_confirmation(crate::constants::timing::STAGE_CONFIRM_TIMEOUT, || async {
-            match service::stage_runtime_by_service(path).await {
+            match service::stage_runtime_by_service(config).await {
                 Ok(request) => StageAttempt::Answered(request),
                 Err(error) => StageAttempt::Unanswered(format!("{error:#}")),
             }
@@ -665,6 +668,11 @@ impl CoreManager {
 
         match attempt {
             StageAttempt::Answered(service::StageRequest::Answered(StageRuntimeOutcome::Staged { config_path })) => {
+                // Ядро службы наш файл не читает; на диске — то, что оно получит.
+                // Не записался — доставке это не мешает.
+                if let Err(err) = Config::write_config_file(ConfigType::Run, config).await {
+                    logging!(warn, Type::Core, "failed to write the runtime config file: {err:#}");
+                }
                 StagedPath::Staged(config_path.into())
             }
             StageAttempt::Answered(service::StageRequest::Answered(StageRuntimeOutcome::RestartRequired {
@@ -1290,6 +1298,31 @@ mod tests {
         let replace = body_of(include_str!("config.rs"), "async fn replace_core_and_apply");
         assert!(replace.contains("Ok(Delivered::Restarted)"));
         assert!(!replace.contains("Delivered::Reloaded") && !replace.contains("Delivered::Unchanged"));
+    }
+
+    #[test]
+    fn the_runtime_file_is_written_where_it_is_read() {
+        let deliver = body_of(include_str!("config.rs"), "async fn deliver_build");
+        assert!(!deliver.contains("write_config_file"), "доставка не пишет файл заранее");
+        let apply = body_of(include_str!("config.rs"), "async fn apply_config");
+        let write = "write_config_file(ConfigType::Run";
+        assert_eq!(apply.matches(write).count(), 1, "{apply}");
+        let early_restart = apply
+            .find("return self.replace_core_and_apply(build)")
+            .unwrap_or(usize::MAX);
+        let written = apply.find(write).unwrap_or(usize::MAX);
+        let reload = apply.find("self.reload_config(").unwrap_or_default();
+        assert!(
+            early_restart < written && written < reload,
+            "sidecar: запись после раннего перезапуска, до перезагрузки"
+        );
+        let stage = body_of(include_str!("config.rs"), "async fn stage_into_service_generation");
+        let staged = stage.find("StageRuntimeOutcome::Staged").unwrap_or(usize::MAX);
+        let written = stage.find(write).unwrap_or_default();
+        assert!(
+            stage.matches(write).count() == 1 && staged < written,
+            "служба: запись только после ответа Staged"
+        );
     }
 
     #[test]

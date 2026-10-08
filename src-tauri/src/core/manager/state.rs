@@ -1,7 +1,7 @@
 use super::{Backend, CoreManager, RunningMode};
 use crate::{
     AsyncHandler,
-    config::{Config, IClashTemp},
+    config::{Config, ConfigType, IClashTemp},
     constants::timing,
     core::{handle, logger::Logger, manager::CLASH_LOGGER, service},
     logging,
@@ -816,13 +816,20 @@ impl CoreManager {
         // Служба запускает выбранное встроенное ядро. Имя читается до старта —
         // тем же, что уйдёт службе.
         let started_core = Config::verge().await.latest_arc().get_valid_clash_core().to_string();
-        let config_file = Config::write_accepted_runtime_file().await?;
+        // Служба получает пакет из принятого слота, а не из файла; файл на диске —
+        // то же, что получило ядро.
+        let accepted = Config::runtime().await.data_arc();
+        let config = accepted
+            .config
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("принятого конфига ядра нет — конфиг ещё не собран или отвергнут ядром"))?;
+        Config::write_config_file(ConfigType::Run, config).await?;
 
         #[cfg(target_os = "windows")]
         {
             let mut last_err = None;
             for attempt in 0..timing::SERVICE_START_RETRIES {
-                match service::run_core_by_service(&config_file).await {
+                match service::run_core_by_service(config).await {
                     Ok(()) => {
                         crate::core::core_updater::note_started_core(started_core.clone());
                         self.note_core_is_up(Backend::Service);
@@ -851,7 +858,7 @@ impl CoreManager {
 
         #[cfg(not(target_os = "windows"))]
         {
-            service::run_core_by_service(&config_file).await?;
+            service::run_core_by_service(config).await?;
             crate::core::core_updater::note_started_core(started_core);
             self.note_core_is_up(Backend::Service);
             spawn_core_health_watchdog(CoreWatch::Service(HealthWatch::default()));

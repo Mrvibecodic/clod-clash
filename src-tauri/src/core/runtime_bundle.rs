@@ -40,17 +40,16 @@ pub(crate) fn provider_fingerprint(config: &serde_yaml_ng::Mapping) -> u64 {
     hasher.finish()
 }
 
-pub(crate) async fn collect_runtime_bundle(config_file: &Path, core_path: &Path) -> Result<RuntimeBundle> {
-    let yaml = tokio::fs::read_to_string(config_file)
-        .await
-        .with_context(|| format!("failed to read runtime config {config_file:?}"))?;
-    let mut config: Value =
-        serde_yaml_ng::from_str(&yaml).with_context(|| format!("failed to parse runtime config {config_file:?}"))?;
-    let config_root = config_file
-        .parent()
-        .ok_or_else(|| anyhow::anyhow!("runtime config has no parent directory"))?;
+/// Пакет для службы — из того же `Mapping`, что получает ядро. `config_root` —
+/// каталог рабочего файла ядра: от него считаются относительные пути провайдеров.
+pub(crate) fn collect_runtime_bundle(
+    config: &serde_yaml_ng::Mapping,
+    config_root: &Path,
+    core_path: &Path,
+) -> Result<RuntimeBundle> {
+    let providers = provider_fingerprint(config);
+    let mut config = Value::Mapping(config.clone());
     let config_root = std::fs::canonicalize(config_root)?;
-    let providers = config.as_mapping().map(provider_fingerprint).unwrap_or_default();
     collect_runtime_bundle_from(&mut config, &config_root, core_path).map_err(|error| {
         match error.downcast::<UnusableBundle>() {
             Ok(unusable) => UnusableBundle { providers, ..unusable }.into(),
@@ -289,10 +288,21 @@ fn normalized_destination(relative: &Path) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::{UnusableBundle, collect_runtime_bundle, provider_fingerprint};
-    use serde_yaml_ng::Value;
+    use clash_verge_service_ipc::RuntimeBundle;
+    use serde_yaml_ng::{Mapping, Value};
+    use std::path::Path;
 
-    #[tokio::test]
-    async fn collects_only_local_providers_and_existing_geo_assets() -> anyhow::Result<()> {
+    /// Пакет из рабочего файла: каталог файла — корень относительных путей.
+    fn bundle_from_file(config_file: &Path, core: &Path) -> anyhow::Result<RuntimeBundle> {
+        let config: Mapping = serde_yaml_ng::from_str(&std::fs::read_to_string(config_file)?)?;
+        let root = config_file
+            .parent()
+            .ok_or_else(|| anyhow::anyhow!("runtime config has no parent directory"))?;
+        collect_runtime_bundle(&config, root, core)
+    }
+
+    #[test]
+    fn collects_only_local_providers_and_existing_geo_assets() -> anyhow::Result<()> {
         let root = std::env::temp_dir().join(format!("clash-verge-runtime-bundle-{}", std::process::id()));
         std::fs::create_dir_all(root.join("providers"))?;
         std::fs::write(root.join("providers/local.yaml"), b"proxies: []\n")?;
@@ -311,7 +321,7 @@ mod tests {
         let core = root.join("mihomo");
         std::fs::write(&core, b"core")?;
 
-        let bundle = collect_runtime_bundle(&config, &core).await?;
+        let bundle = bundle_from_file(&config, &core)?;
 
         let bundled_config: serde_yaml_ng::Value = serde_yaml_ng::from_str(&bundle.yaml)?;
         assert_eq!(
@@ -353,8 +363,8 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
-    async fn two_names_for_one_remote_file_are_folded_rather_than_refused() -> anyhow::Result<()> {
+    #[test]
+    fn two_names_for_one_remote_file_are_folded_rather_than_refused() -> anyhow::Result<()> {
         // The Service folds an identical repeat, so refusing it here would block a configuration
         // mihomo itself accepts — and this is also where a Service-mode *start* gets its bundle,
         // so the refusal would stop the core coming up at all.
@@ -369,7 +379,7 @@ mod tests {
         let core = root.join("mihomo");
         std::fs::write(&core, b"core")?;
 
-        let bundle = collect_runtime_bundle(&config, &core).await?;
+        let bundle = bundle_from_file(&config, &core)?;
 
         assert_eq!(bundle.remote_providers.len(), 1, "one file, declared twice");
         assert_eq!(bundle.remote_providers[0].destination, "rules/x.yaml");
@@ -377,8 +387,8 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
-    async fn two_sources_for_one_remote_file_are_refused() -> anyhow::Result<()> {
+    #[test]
+    fn two_sources_for_one_remote_file_are_refused() -> anyhow::Result<()> {
         let root = std::env::temp_dir().join(format!("clash-verge-bundle-conflict-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(&root)?;
@@ -390,7 +400,7 @@ mod tests {
         let core = root.join("mihomo");
         std::fs::write(&core, b"core")?;
 
-        let Err(error) = collect_runtime_bundle(&config, &core).await else {
+        let Err(error) = bundle_from_file(&config, &core) else {
             anyhow::bail!("two sources cannot own one file");
         };
 
@@ -399,8 +409,8 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
-    async fn an_odd_provider_is_left_alone_instead_of_failing_the_whole_bundle() -> anyhow::Result<()> {
+    #[test]
+    fn an_odd_provider_is_left_alone_instead_of_failing_the_whole_bundle() -> anyhow::Result<()> {
         // Measured against mihomo v1.19.26: it accepts a `http` provider with no url, and a
         // non-http provider whose path does not exist. Neither may stop the rest being materialised.
         let root = std::env::temp_dir().join(format!("clash-verge-bundle-odd-{}", std::process::id()));
@@ -414,7 +424,7 @@ mod tests {
         let core = root.join("mihomo");
         std::fs::write(&core, b"core")?;
 
-        let bundle = collect_runtime_bundle(&config, &core).await?;
+        let bundle = bundle_from_file(&config, &core)?;
 
         assert_eq!(
             bundle.remote_providers.len(),
@@ -452,8 +462,8 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
-    async fn outside_provider_rejection_carries_the_provider_fingerprint() -> anyhow::Result<()> {
+    #[test]
+    fn outside_provider_rejection_carries_the_provider_fingerprint() -> anyhow::Result<()> {
         let root = std::env::temp_dir().join(format!("clash-verge-runtime-bundle-fp-{}", std::process::id()));
         std::fs::create_dir_all(&root)?;
         let config = root.join("config.yaml");
@@ -469,7 +479,7 @@ mod tests {
         let core = root.join("mihomo");
         std::fs::write(&core, b"core")?;
 
-        let Err(error) = collect_runtime_bundle(&config, &core).await else {
+        let Err(error) = bundle_from_file(&config, &core) else {
             anyhow::bail!("outside provider path must be rejected");
         };
         let unusable = error
@@ -484,8 +494,8 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
-    async fn rejects_provider_paths_outside_the_config_root() -> anyhow::Result<()> {
+    #[test]
+    fn rejects_provider_paths_outside_the_config_root() -> anyhow::Result<()> {
         let root = std::env::temp_dir().join(format!("clash-verge-runtime-bundle-outside-{}", std::process::id()));
         std::fs::create_dir_all(&root)?;
         let config = root.join("config.yaml");
@@ -503,11 +513,45 @@ mod tests {
         let core = root.join("mihomo");
         std::fs::write(&core, b"core")?;
 
-        let Err(error) = collect_runtime_bundle(&config, &core).await else {
+        let Err(error) = bundle_from_file(&config, &core) else {
             anyhow::bail!("outside provider path must be rejected");
         };
 
         assert!(error.to_string().contains("outside the config root"));
+        std::fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn the_bundle_from_memory_is_the_bundle_from_the_written_file() -> anyhow::Result<()> {
+        let root = std::env::temp_dir().join(format!("clash-verge-bundle-same-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("providers"))?;
+        std::fs::write(root.join("providers/local.yaml"), b"proxies: []\n")?;
+        std::fs::write(root.join("Country.mmdb"), b"geo")?;
+        let core = root.join("mihomo");
+        std::fs::write(&core, b"core")?;
+        let config: Mapping = serde_yaml_ng::from_str(&format!(
+            "proxy-providers:\n  local:\n    type: file\n    path: {}\n  relative:\n    type: http\n    url: https://example.com/p.yaml\n    path: ./providers/remote.yaml\nrule-providers:\n  r:\n    type: http\n    url: https://example.com/r.yaml\n    path: rules/r.yaml\n    note: !mark tagged\nexponent: '1e3'\nanswer: 'yes'\ntagged: !mark value\n",
+            root.join("providers/local.yaml").display()
+        ))?;
+        let file = root.join("clash-verge.yaml");
+        crate::utils::help::save_yaml(&file, &config, Some("# Generated by Clash Verge")).await?;
+
+        let from_memory = collect_runtime_bundle(&config, &root, &core)?;
+        let from_file = bundle_from_file(&file, &core)?;
+
+        assert_eq!(from_memory, from_file);
+        let bundled: Value = serde_yaml_ng::from_str(&from_memory.yaml)?;
+        assert_eq!(bundled["exponent"].as_str(), Some("1e3"));
+        assert_eq!(bundled["answer"].as_str(), Some("yes"));
+        assert!(matches!(bundled["tagged"], Value::Tagged(_)), "{}", from_memory.yaml);
+        assert_eq!(
+            bundled["proxy-providers"]["local"]["path"].as_str(),
+            Some("providers/local.yaml")
+        );
+        let written: Mapping = serde_yaml_ng::from_str(&std::fs::read_to_string(&file)?)?;
+        assert_eq!(provider_fingerprint(&config), provider_fingerprint(&written));
         std::fs::remove_dir_all(root)?;
         Ok(())
     }
