@@ -8,6 +8,70 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.1.12-alpha.2
+
+<!-- lang:en -->
+
+### Added
+
+- Secure connection to the subscription: a new subscription first tries the provider's secure channel and shows what is going on while it is checked; if the provider has no such channel, the subscription is added the usual way. The channel can be turned on or off later in the subscription settings (turning it off shows a warning), and the key fingerprint is shown there the same way the provider's panel shows it
+- Subscription menu: "Subscription page", "Select", "Update" and "Update via proxy" at the top, the rest under "Advanced"
+- Servers carry separate badges for protocol, transport and security; the UDP and XUDP marks are gone
+- Privacy policy (PRIVACY_POLICY.md, in English and Russian)
+
+### Changed
+
+- The window follows the core's actual state — the node a group uses, groups and latencies — within a second while it is visible
+- Home: a green timer instead of "Connected"; the caption is moved away from the button; "Network" and "Expires" tiles no longer rise on hover; no auto-pings while the connection is off or the window is minimized
+- Proxies page: the letter bar is removed, group icons live in the "More" menu, the star is shown after the latency and the server description on the tile
+- DNS override dialog: tabs, one header line and clearer labels; Hosts and domain policies accept a line break as a separator, not only a comma
+- After sleep the tunnel is re-created only if it really stopped working
+- Subscriptions download more reliably; adding a subscription and turning on the secure connection do not give up on temporary server failures; the secure connection works with a wrong computer clock
+- Traffic volume is shown with a space before the unit everywhere
+- Config editor knows the TUN stack mips
+
+### Fixed
+
+- Node selection is restored after any core start
+- Reselecting the same node no longer drops connections
+- The tray learns about a node selection made in the window
+- The secure connection switch no longer resets itself during a subscription update; the provider's name and data are no longer garbled
+- The subscription address no longer gets into the error log
+- The refill date on the Home page is no longer converted twice
+- WebDAV dialog: the password is no longer kept in the window settings, the dialog is not reachable from the keyboard while checking; custom CORS sources are not lost
+
+<!-- lang:ru -->
+
+### Добавлено
+
+- Защищённое подключение к подписке: новая подписка сначала пробует защищённый канал провайдера и показывает ход проверки; если канала у провайдера нет, подписка добавляется обычным путём. Канал можно потом включить или выключить в настройках подписки (при выключении — предупреждение), там же показан отпечаток ключа в том же виде, что и в панели провайдера
+- Меню подписки: сверху «Страница подписки», «Выбрать», «Обновить», «Обновить через прокси», остальное в «Продвинутых»
+- У серверов отдельные плашки протокола, транспорта и защиты; пометки UDP и XUDP убраны
+- Политика конфиденциальности (PRIVACY_POLICY.md, на русском и английском)
+
+### Изменено
+
+- Окно отражает фактическое состояние ядра — узел группы, группы и задержки — в пределах секунды, пока оно видно
+- Главная: зелёный таймер вместо «Подключено»; подпись отодвинута от кнопки; плитки «Сеть» и «Срок» не поднимаются при наведении; без автопингов, пока подключение выключено или окно свёрнуто
+- Экран «Прокси»: полоса букв убрана, значки группы в меню «Дополнительно», звёздочка показана за пингом, описание сервера — на плитке
+- Окно переопределения DNS: вкладки, одна строка шапки и понятные подписи; записи Hosts и политики по доменам принимают перевод строки как разделитель, не только запятую
+- После сна туннель пересоздаётся только если он по факту перестал работать
+- Подписка скачивается надёжнее; добавление подписки и включение защищённого подключения не сдаются на временных отказах сервера; защищённое подключение работает при неверных часах на компьютере
+- Объём трафика везде показан с пробелом перед единицей
+- Редактор конфига знает стек TUN mips
+
+### Исправлено
+
+- Выбор узлов возвращается после любого запуска ядра
+- Повторный выбор того же узла не рвёт соединения
+- Трей узнаёт о выборе узла, сделанном в окне
+- Переключатель защищённого подключения больше не сбрасывается сам во время обновления подписки; название и данные провайдера больше не искажаются
+- Адрес подписки больше не попадает в журнал ошибок
+- Дата пополнения на Главной больше не переводится дважды
+- Окно WebDAV: пароль больше не хранится в настройках окна, окно недоступно с клавиатуры во время проверки; свои источники CORS не теряются
+
+---
+
 ## v0.1.12-alpha.1
 
 <!-- lang:en -->
