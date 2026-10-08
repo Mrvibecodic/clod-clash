@@ -251,13 +251,6 @@ async fn run_passes() {
     }
 }
 
-fn now_unix_secs() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
-}
-
 /// Узел из списка ядра, у которого есть отпечаток.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct NodeRef {
@@ -833,7 +826,7 @@ async fn pass(reason: &'static str) {
         .map_or((None, "other"), |key| (Some(key.hash), key.kind));
     *PASS_KEY.lock() = key.clone();
     let shown_key = key.as_deref().unwrap_or("?");
-    let now = now_unix_secs();
+    let now = crate::utils::help::now_secs();
     let (mut saved, mut unplaced) = saved_results(&uid, &nodes, settled, now).await;
     let network = match key.as_deref() {
         Some(key) => saved.network_mut(key),

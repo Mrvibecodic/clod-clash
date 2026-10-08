@@ -5,8 +5,9 @@ use std::path::PathBuf;
 use std::process::Command as StdCommand;
 use std::time::Duration;
 
+use super::orphan::CORE_FILE_NAMES;
+
 const PROBE_TIMEOUT: Duration = Duration::from_secs(15);
-const CORE_FILE_NAMES: [&str; 2] = ["verge-mihomo.exe", "verge-mihomo-alpha.exe"];
 
 fn ps_single_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', "''"))

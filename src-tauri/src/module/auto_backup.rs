@@ -10,7 +10,7 @@ use once_cell::sync::OnceCell;
 use std::{
     path::PathBuf,
     sync::atomic::{AtomicBool, Ordering},
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, UNIX_EPOCH},
 };
 use tokio::{fs, sync::watch};
 
@@ -181,10 +181,7 @@ fn append_auto_suffix(file_name: &str) -> String {
 }
 
 fn unix_now() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|dur| dur.as_secs())
-        .unwrap_or(0)
+    u64::try_from(crate::utils::help::now_secs()).unwrap_or(0)
 }
 
 fn wait_until_due(interval: Duration, last_backup: Option<u64>, now: u64) -> Duration {

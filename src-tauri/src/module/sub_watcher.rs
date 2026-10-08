@@ -208,13 +208,6 @@ async fn notify_alert(alert: Alert) {
     }
 }
 
-fn now_unix_secs() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
-}
-
 /// One full watcher pass over the current profile.
 pub async fn run_check() {
     // The user's global switch outranks whatever the panel configured.
@@ -267,7 +260,7 @@ pub async fn run_check() {
     // The same correction the card applies: reminders are counted against the
     // panel's clock when we know it, so "3 days left" does not arrive a day
     // early on a device whose clock is off.
-    let outcome = evaluate(&snap, now_unix_secs() + item.panel_clock_skew());
+    let outcome = evaluate(&snap, crate::utils::help::now_secs() + item.panel_clock_skew());
 
     for alert in &outcome.alerts {
         logging!(info, Type::System, "subscription alert: {alert:?}");

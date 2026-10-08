@@ -3,7 +3,6 @@ use crate::{
     config::{Config, DEFAULT_PAC, IVerge, LOOPBACK_PROXY_HOST},
     module::lightweight,
     process::AsyncHandler,
-    utils::window_manager::WindowManager,
 };
 use anyhow::{Result, bail};
 use clash_verge_logging::{Type, logging, logging_error};
@@ -274,9 +273,7 @@ pub fn embed_server() {
             "Обнаружено восстановление окна приложения из режима одиночного экземпляра"
         );
         AsyncHandler::spawn(|| async {
-            if !lightweight::exit_lightweight_mode().await {
-                WindowManager::show_main_window().await;
-            }
+            lightweight::wake_or_show().await;
             for link in take_the_pending_links().await {
                 logging_error!(Type::Setup, resolve::resolve_scheme(&link).await);
             }

@@ -333,7 +333,7 @@ impl IVerge {
 
         if needs_fix {
             logging!(info, Type::Config, "Сохраняю исправленный конфиг...");
-            help::save_yaml(&config_path, &config, Some("# Clash Verge Config")).await?;
+            help::save_yaml(&config_path, &config, Some(help::VERGE_CONFIG_HEADER)).await?;
             logging!(
                 info,
                 Type::Config,
@@ -513,7 +513,7 @@ impl IVerge {
     }
 
     pub async fn save_file(&self) -> Result<()> {
-        help::save_yaml(&dirs::verge_path()?, &self, Some("# Clash Verge Config")).await
+        help::save_yaml(&dirs::verge_path()?, &self, Some(help::VERGE_CONFIG_HEADER)).await
     }
 
     #[allow(clippy::cognitive_complexity)]

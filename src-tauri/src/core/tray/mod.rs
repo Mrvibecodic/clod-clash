@@ -4,7 +4,6 @@ use crate::core::tray::menu_def::TrayAction;
 use crate::module::lightweight;
 use crate::process::AsyncHandler;
 use crate::singleton;
-use crate::utils::window_manager::WindowManager;
 use crate::{Type, cmd, config::Config, feat, logging, module::lightweight::is_in_lightweight_mode, utils::help};
 use clash_verge_limiter::{Limiter, SystemClock, SystemLimiter};
 use clash_verge_logging::logging_error;
@@ -1016,11 +1015,6 @@ fn handle_primary_click() {
         let verge_tray_event = verge.tray_event.clone().unwrap_or_else(|| "main_window".into());
         let verge_tray_action = TrayAction::from(verge_tray_event.as_str());
         logging!(debug, Type::Tray, "tray event: {verge_tray_action:?}");
-        let show_main_window = || async {
-            if !lightweight::exit_lightweight_mode().await {
-                WindowManager::show_main_window().await;
-            }
-        };
         match verge_tray_action {
             TrayAction::SystemProxy => {
                 let _ = feat::toggle_system_proxy().await;
@@ -1028,10 +1022,10 @@ fn handle_primary_click() {
             TrayAction::TunMode => {
                 let _ = feat::toggle_tun_mode(None).await;
             }
-            TrayAction::MainWindow => show_main_window().await,
+            TrayAction::MainWindow => lightweight::wake_or_show().await,
             TrayAction::TrayMenu => {
                 #[cfg(target_os = "linux")]
-                show_main_window().await;
+                lightweight::wake_or_show().await;
             }
             TrayAction::Disabled => {}
             TrayAction::Unknown => {
@@ -1087,9 +1081,7 @@ fn handle_menu_click(id: std::string::String) {
             }
             MenuIds::DASHBOARD => {
                 logging!(info, Type::Tray, "Клик по меню трея: открываю окно");
-                if !lightweight::exit_lightweight_mode().await {
-                    WindowManager::show_main_window().await;
-                };
+                lightweight::wake_or_show().await;
             }
             MenuIds::SYSTEM_PROXY => {
                 feat::toggle_system_proxy().await;

@@ -75,7 +75,7 @@ pub async fn connect_traffic_stream() -> Result<MihomoWsEventStream<TrafficSpeed
     // Используем ограниченный mpsc-канал для приёма событий из колбэка, ограничивая накопление сообщений.
     let (message_tx, message_rx) = mpsc::channel::<InternalWsEvent<TrafficSpeedEvent>>(MIHOMO_WS_STREAM_BUFFER_SIZE);
     // Устанавливаем подписку WebSocket `/traffic` Mihomo.
-    let core = crate::feat::environment::detached_core_client();
+    let core = crate::core::handle::Handle::mihomo();
     let subscribed = tokio::time::timeout(
         MIHOMO_WS_CONNECT_TIMEOUT,
         core.ws_traffic({
@@ -145,7 +145,7 @@ impl<T> MihomoWsEventStream<T> {
 /// # Arguments
 /// * `connection_id` - ID целевого соединения
 pub async fn disconnect_connection(connection_id: WsConnectionId) {
-    let core = crate::feat::environment::detached_core_client();
+    let core = crate::core::handle::Handle::mihomo();
     if let Err(err) = core
         .disconnect(connection_id, Some(MIHOMO_WS_STREAM_FORCE_CLOSE_WAIT_MS))
         .await

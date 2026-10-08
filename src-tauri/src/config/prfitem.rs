@@ -381,13 +381,7 @@ async fn system_proxy_now() -> SystemProxy {
         .ok()
         .flatten();
     let our_port = crate::config::Config::effective_mixed_port().await;
-    let configured = crate::config::Config::verge()
-        .await
-        .latest_arc()
-        .proxy_host
-        .clone()
-        .unwrap_or_else(|| "127.0.0.1".into());
-    let our_host = crate::config::Config::reachable_proxy_host(&configured).await;
+    let our_host = crate::config::Config::our_proxy_host(&crate::config::Config::verge().await.latest_arc()).await;
     classify_system_proxy(found.as_deref(), our_port, &our_host)
 }
 
@@ -1805,12 +1799,7 @@ impl PrfItem {
         let (Some(skew), Some(measured_at)) = (self.clock_skew, self.clock_skew_at) else {
             return 0;
         };
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_secs() as i64)
-            .unwrap_or(0);
-
-        let age = now - measured_at;
+        let age = help::now_secs() - measured_at;
         if !(0..=MAX_AGE_SECS).contains(&age) { 0 } else { skew }
     }
 

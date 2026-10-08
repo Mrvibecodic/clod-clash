@@ -254,6 +254,42 @@ struct ProfileItems {
     profile_is_a_candidate: bool,
 }
 
+/// Пустые звенья цепочки — когда у подписки своего звена нет.
+fn empty_merge(uid: &str) -> ChainItem {
+    ChainItem {
+        uid: uid.into(),
+        data: ChainType::Merge(Mapping::new()),
+    }
+}
+
+fn empty_script(uid: &str) -> ChainItem {
+    ChainItem {
+        uid: uid.into(),
+        data: ChainType::Script(tmpl::ITEM_SCRIPT.into()),
+    }
+}
+
+fn empty_rules() -> ChainItem {
+    ChainItem {
+        uid: "".into(),
+        data: ChainType::Rules(SeqMap::default()),
+    }
+}
+
+fn empty_proxies() -> ChainItem {
+    ChainItem {
+        uid: "".into(),
+        data: ChainType::Proxies(SeqMap::default()),
+    }
+}
+
+fn empty_groups() -> ChainItem {
+    ChainItem {
+        uid: "".into(),
+        data: ChainType::Groups(SeqMap::default()),
+    }
+}
+
 impl Default for ProfileItems {
     fn default() -> Self {
         Self {
@@ -264,34 +300,13 @@ impl Default for ProfileItems {
             profile_shows_zero_hosts: false,
             mode_choice: None,
             profile_is_a_candidate: false,
-            merge_item: ChainItem {
-                uid: "".into(),
-                data: ChainType::Merge(Mapping::new()),
-            },
-            script_item: ChainItem {
-                uid: "".into(),
-                data: ChainType::Script(tmpl::ITEM_SCRIPT.into()),
-            },
-            rules_item: ChainItem {
-                uid: "".into(),
-                data: ChainType::Rules(SeqMap::default()),
-            },
-            proxies_item: ChainItem {
-                uid: "".into(),
-                data: ChainType::Proxies(SeqMap::default()),
-            },
-            groups_item: ChainItem {
-                uid: "".into(),
-                data: ChainType::Groups(SeqMap::default()),
-            },
-            global_merge: ChainItem {
-                uid: "Merge".into(),
-                data: ChainType::Merge(Mapping::new()),
-            },
-            global_script: ChainItem {
-                uid: "Script".into(),
-                data: ChainType::Script(tmpl::ITEM_SCRIPT.into()),
-            },
+            merge_item: empty_merge(""),
+            script_item: empty_script(""),
+            rules_item: empty_rules(),
+            proxies_item: empty_proxies(),
+            groups_item: empty_groups(),
+            global_merge: empty_merge("Merge"),
+            global_script: empty_script("Script"),
         }
     }
 }
@@ -428,34 +443,13 @@ async fn collect_profile_items(profiles_arc: &IProfiles) -> Result<ProfileItems>
     let mode_choice = mode_choice_of(current_item);
 
     let (merge_item, script_item, rules_item, proxies_item, groups_item, global_merge, global_script) = tokio::join!(
-        chain_item_or_default(profiles_arc.get_item(&merge_uid).ok(), || ChainItem {
-            uid: "".into(),
-            data: ChainType::Merge(Mapping::new()),
-        },),
-        chain_item_or_default(profiles_arc.get_item(&script_uid).ok(), || ChainItem {
-            uid: "".into(),
-            data: ChainType::Script(tmpl::ITEM_SCRIPT.into()),
-        },),
-        chain_item_or_default(profiles_arc.get_item(&rules_uid).ok(), || ChainItem {
-            uid: "".into(),
-            data: ChainType::Rules(SeqMap::default()),
-        },),
-        chain_item_or_default(profiles_arc.get_item(&proxies_uid).ok(), || ChainItem {
-            uid: "".into(),
-            data: ChainType::Proxies(SeqMap::default()),
-        },),
-        chain_item_or_default(profiles_arc.get_item(&groups_uid).ok(), || ChainItem {
-            uid: "".into(),
-            data: ChainType::Groups(SeqMap::default()),
-        },),
-        chain_item_or_default(profiles_arc.get_item("Merge").ok(), || ChainItem {
-            uid: "Merge".into(),
-            data: ChainType::Merge(Mapping::new()),
-        },),
-        chain_item_or_default(profiles_arc.get_item("Script").ok(), || ChainItem {
-            uid: "Script".into(),
-            data: ChainType::Script(tmpl::ITEM_SCRIPT.into()),
-        },),
+        chain_item_or_default(profiles_arc.get_item(&merge_uid).ok(), || empty_merge("")),
+        chain_item_or_default(profiles_arc.get_item(&script_uid).ok(), || empty_script("")),
+        chain_item_or_default(profiles_arc.get_item(&rules_uid).ok(), empty_rules),
+        chain_item_or_default(profiles_arc.get_item(&proxies_uid).ok(), empty_proxies),
+        chain_item_or_default(profiles_arc.get_item(&groups_uid).ok(), empty_groups),
+        chain_item_or_default(profiles_arc.get_item("Merge").ok(), || empty_merge("Merge")),
+        chain_item_or_default(profiles_arc.get_item("Script").ok(), || empty_script("Script")),
     );
 
     Ok(ProfileItems {

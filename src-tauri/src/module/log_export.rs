@@ -1,10 +1,6 @@
-use crate::utils::{
-    dirs,
-    redact::{home_prefix, redact_for_support, scrub_home},
-};
+use crate::utils::{dirs, redact::home_prefix};
 use anyhow::{Context as _, Result};
 use std::{
-    borrow::Cow,
     io::{Read as _, Seek as _, SeekFrom, Write as _},
     path::{Path, PathBuf},
 };
@@ -65,16 +61,11 @@ fn redacted(content: &str, home: Option<&str>, core: bool) -> (String, usize) {
     let mut text = String::with_capacity(content.len());
     let mut skipped = 0usize;
     for line in content.lines() {
-        let line = if core {
-            let Some(line) = crate::module::support_bundle::core_line_for_support(line) else {
-                skipped += 1;
-                continue;
-            };
-            line
-        } else {
-            Cow::Borrowed(line)
+        let Some(line) = crate::module::support_bundle::support_line(line, home, core) else {
+            skipped += 1;
+            continue;
         };
-        text.push_str(&redact_for_support(&scrub_home(&line, home)));
+        text.push_str(&line);
         text.push('\n');
     }
     (text, skipped)

@@ -213,7 +213,7 @@ pub(super) fn handle_core_exit(message: &str, expected: &RunningMode, terminated
 }
 
 async fn core_answers() -> bool {
-    let core = crate::feat::environment::detached_core_client();
+    let core = crate::core::handle::Handle::mihomo();
     tokio::time::timeout(timing::CORE_HEALTH_INTERVAL, core.get_version())
         .await
         .is_ok_and(|answered| answered.is_ok())

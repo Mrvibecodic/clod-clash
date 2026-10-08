@@ -20,13 +20,13 @@
 
 use std::collections::HashMap;
 use std::sync::OnceLock;
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 
 use crate::config::Config;
-use crate::utils::dirs;
+use crate::utils::{dirs, help};
 use clash_verge_logging::{Type, logging};
 
 /// Как часто опрашиваем ядро, когда счёт вообще нужен.
@@ -81,12 +81,6 @@ fn runtime() -> &'static Mutex<Runtime> {
     RUNTIME.get_or_init(|| Mutex::new(Runtime::default()))
 }
 
-fn now_secs() -> i64 {
-    SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .map_or(0, |value| i64::try_from(value.as_secs()).unwrap_or(i64::MAX))
-}
-
 fn state_path() -> Option<std::path::PathBuf> {
     dirs::app_home_dir().ok().map(|dir| dir.join(STATE_FILE))
 }
@@ -114,10 +108,8 @@ pub(crate) async fn save() {
         unsaved(&mut guard)
     };
     let Some(estimate) = estimate else { return };
-    let (Some(path), Ok(raw)) = (state_path(), serde_json::to_vec(&estimate)) else {
-        return;
-    };
-    if let Err(err) = crate::utils::help::write_atomic(&path, &raw).await {
+    let Some(path) = state_path() else { return };
+    if let Err(err) = help::save_json(&path, &estimate).await {
         logging!(warn, Type::Core, "не удалось сохранить счётчик трафика: {err:#}");
         // Записать ещё раз в следующий срок.
         runtime().lock().saved = None;
@@ -190,7 +182,7 @@ fn reconcile(runtime: &mut Runtime, uid: &str, upload: u64, download: u64) -> bo
     estimate.baseline_upload = upload;
     estimate.baseline_download = download;
     estimate.local_bytes = 0;
-    estimate.baseline_at = now_secs();
+    estimate.baseline_at = help::now_secs();
     // `seen` НЕ чистим: там лежат текущие счётчики открытых соединений, и
     // именно от них надо считать дальше. Очистка означала бы «посчитать их
     // с нуля ещё раз» — то есть удвоить трафик долгоживущих соединений.
@@ -368,7 +360,7 @@ mod tests {
             .next()
             .unwrap_or_default();
         assert!(!source.contains("std::fs::write"), "запись — только атомарная");
-        assert!(source.contains("write_atomic("));
+        assert!(source.contains("help::save_json("), "атомарная запись — общая");
     }
 
     #[test]

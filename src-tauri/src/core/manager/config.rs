@@ -571,9 +571,7 @@ impl CoreManager {
     }
 
     async fn reload_config(&self, force: bool, path: &str) -> Result<(), MihomoError> {
-        crate::feat::environment::detached_core_client()
-            .reload_config(force, path)
-            .await
+        crate::core::handle::Handle::mihomo().reload_config(force, path).await
     }
 
     /// Полный перезапуск ядра под новую сборку.
@@ -842,7 +840,7 @@ const PROVIDERS_LIST_TIMEOUT: std::time::Duration = std::time::Duration::from_se
 /// У ядра нет пустых http-провайдеров — ни прокси, ни правил. Не ответило — считаем, что есть.
 async fn providers_filled() -> bool {
     use tauri_plugin_mihomo::models::VehicleType;
-    let core = crate::feat::environment::detached_core_client();
+    let core = crate::core::handle::Handle::mihomo();
     let listed = tokio::time::timeout(PROVIDERS_LIST_TIMEOUT, async {
         tokio::try_join!(core.get_proxy_providers(), core.get_rule_providers())
     })

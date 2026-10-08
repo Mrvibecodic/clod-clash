@@ -49,7 +49,7 @@ use crate::{
     core::handle,
     module::freeze_check::Verdict,
     process::AsyncHandler,
-    utils::dirs,
+    utils::{dirs, help},
 };
 use store::{NodeInfo, Place, Use};
 
@@ -152,10 +152,6 @@ fn with_runtime<T>(f: impl FnOnce(&mut Runtime) -> T) -> T {
     f(guard.get_or_insert_with(Runtime::default))
 }
 
-fn now_secs() -> i64 {
-    chrono::Utc::now().timestamp()
-}
-
 fn now_millis() -> i64 {
     chrono::Utc::now().timestamp_millis()
 }
@@ -224,7 +220,7 @@ async fn with_store<T>(uid: &str, now: i64, save: bool, work: impl FnOnce(&mut s
 pub async fn flush_at_exit() {
     let mut guard = CACHE.lock().await;
     if let Some(entry) = guard.as_mut() {
-        flush(entry, now_secs()).await;
+        flush(entry, help::now_secs()).await;
     }
     drop(guard);
 }
@@ -233,7 +229,7 @@ pub async fn flush_at_exit() {
 async fn forget_store() {
     let mut guard = CACHE.lock().await;
     if let Some(entry) = guard.as_mut() {
-        flush(entry, now_secs()).await;
+        flush(entry, help::now_secs()).await;
     }
     *guard = None;
     drop(guard);
@@ -443,7 +439,7 @@ async fn record(uid: &str, place: &Place, window: Window) {
         return;
     }
     let Window { nodes, pings, traffic } = window;
-    let now = now_secs();
+    let now = help::now_secs();
     with_store(uid, now, false, |saved| {
         let mut changed = !pings.is_empty();
         for (name, at, delay) in pings {
@@ -520,7 +516,7 @@ async fn tick() {
         match spot {
             Some(spot) => {
                 record(&uid, &spot.place, window).await;
-                if spot.ip_is_due(now_secs()) {
+                if spot.ip_is_due(help::now_secs()) {
                     IpWork::Refresh(spot)
                 } else {
                     IpWork::None
@@ -562,7 +558,7 @@ async fn tick() {
                 spot.place.ip4 = ip4;
                 spot.place.ip6 = ip6;
             }
-            spot.ip_at = now_secs();
+            spot.ip_at = help::now_secs();
             with_runtime(|runtime| {
                 if runtime.spot.as_ref().is_some_and(|kept| kept.changes == spot.changes) {
                     runtime.spot = Some(spot);
@@ -579,7 +575,7 @@ async fn locate(changes: u64) -> Option<Spot> {
     Some(Spot {
         place: Place { net, kind, ip4, ip6 },
         changes,
-        ip_at: now_secs(),
+        ip_at: help::now_secs(),
     })
 }
 
@@ -774,7 +770,7 @@ pub(crate) async fn after_scheduled_update(uid: String) {
         return;
     };
 
-    let now = now_secs();
+    let now = help::now_secs();
     let packed = with_store(&uid, now, false, |saved| {
         let pruned = saved.prune(now);
         let packed = if now.saturating_sub(saved.last_try) < SEND_EVERY {

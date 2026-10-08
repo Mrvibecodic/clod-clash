@@ -6,10 +6,11 @@ use std::{
 use clash_verge_logging::{Type, logging};
 use sysinfo::{ProcessRefreshKind, ProcessStatus, ProcessesToUpdate, System, UpdateKind};
 
+/// Имена файлов наших ядер рядом с приложением.
 #[cfg(windows)]
-const CORE_FILE_NAMES: &[&str] = &["verge-mihomo.exe", "verge-mihomo-alpha.exe"];
+pub(crate) const CORE_FILE_NAMES: &[&str] = &["verge-mihomo.exe", "verge-mihomo-alpha.exe"];
 #[cfg(not(windows))]
-const CORE_FILE_NAMES: &[&str] = &["verge-mihomo", "verge-mihomo-alpha"];
+pub(crate) const CORE_FILE_NAMES: &[&str] = &["verge-mihomo", "verge-mihomo-alpha"];
 
 const SERVICE_FILE_STEM: &str = "clash-verge-service";
 

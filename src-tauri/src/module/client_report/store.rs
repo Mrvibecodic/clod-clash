@@ -4,11 +4,10 @@
 
 use std::collections::BTreeMap;
 
-use anyhow::{Context as _, Result};
-use clash_verge_logging::{Type, logging};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
-use crate::utils::dirs;
+use crate::utils::{dirs, help};
 
 /// Старше этого накопленное не хранится и не отправляется.
 pub(super) const KEEP: i64 = 7 * 24 * 60 * 60;
@@ -327,23 +326,11 @@ pub(super) async fn load(uid: &str) -> Store {
     let Ok(path) = file_path(uid) else {
         return Store::default();
     };
-    let Ok(bytes) = tokio::fs::read(&path).await else {
-        return Store::default();
-    };
-    serde_json::from_slice::<Store>(&bytes).unwrap_or_else(|err| {
-        logging!(
-            warn,
-            Type::Core,
-            "[Report] the saved measurements could not be read and start over: {err}"
-        );
-        Store::default()
-    })
+    help::load_json_or_default(&path, "[Report] the saved measurements").await
 }
 
 pub(super) async fn save(uid: &str, store: &Store) -> Result<()> {
-    let path = file_path(uid)?;
-    let bytes = serde_json::to_vec(store).context("serialize")?;
-    crate::utils::help::write_atomic(&path, &bytes).await
+    help::save_json(&file_path(uid)?, store).await
 }
 
 #[cfg(test)]

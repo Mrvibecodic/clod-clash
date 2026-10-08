@@ -79,28 +79,7 @@ impl WindowManager {
     }
 
     pub fn get_main_window_state() -> WindowState {
-        match Self::get_main_window() {
-            Some(window) => {
-                let is_minimized = window.is_minimized().unwrap_or(false);
-                let is_visible = window.is_visible().unwrap_or(false);
-                let is_focused = window.is_focused().unwrap_or(false);
-
-                if is_minimized {
-                    return WindowState::Minimized;
-                }
-
-                if !is_visible {
-                    return WindowState::Hidden;
-                }
-
-                if is_focused {
-                    WindowState::VisibleFocused
-                } else {
-                    WindowState::VisibleUnfocused
-                }
-            }
-            None => WindowState::NotExist,
-        }
+        Self::get_main_window_with_state().1
     }
 
     pub fn get_main_window() -> Option<WebviewWindow<Wry>> {
@@ -129,15 +108,11 @@ impl WindowManager {
 
         match current_state {
             WindowState::NotExist => {
-                logging!(info, Type::Window, "Окно не существует, создаю новое окно");
-                if Self::create_window(true).await {
-                    logging!(info, Type::Window, "Окно создано успешно");
+                let created = Self::create_missing_window().await;
+                if matches!(created, WindowOperationResult::Created) {
                     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-                    WindowOperationResult::Created
-                } else {
-                    logging!(warn, Type::Window, "Не удалось создать окно");
-                    WindowOperationResult::Failed
                 }
+                created
             }
             WindowState::VisibleFocused => {
                 logging!(info, Type::Window, "Окно уже видимо и в фокусе, действие не требуется");
@@ -188,17 +163,19 @@ impl WindowManager {
         logging!(debug, Type::Window, "Текущее состояние: {:?}", state);
 
         match state {
-            WindowState::NotExist => Self::handle_not_exist_toggle().await,
+            WindowState::NotExist => Self::create_missing_window().await,
             WindowState::VisibleFocused | WindowState::VisibleUnfocused => Self::hide_main_window(window.as_ref()),
             WindowState::Minimized | WindowState::Hidden => Self::activate_existing_main_window(window.as_ref()),
         }
     }
 
-    async fn handle_not_exist_toggle() -> WindowOperationResult {
+    async fn create_missing_window() -> WindowOperationResult {
         logging!(info, Type::Window, "Окно не существует, создаю новое окно");
         if Self::create_window(true).await {
+            logging!(info, Type::Window, "Окно создано успешно");
             WindowOperationResult::Created
         } else {
+            logging!(warn, Type::Window, "Не удалось создать окно");
             WindowOperationResult::Failed
         }
     }

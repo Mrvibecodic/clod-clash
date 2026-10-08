@@ -69,6 +69,11 @@ impl Page {
         Some(Self { dns, hosts })
     }
 
+    /// Записать страницу: атомарно, с шапкой новой раскладки.
+    pub async fn save(&self, path: &std::path::Path) -> anyhow::Result<()> {
+        crate::utils::help::save_yaml(path, &self.to_file(), Some(PAGE_HEADER)).await
+    }
+
     pub fn parse(raw: &str) -> Option<Self> {
         let file = serde_yaml_ng::from_str::<Mapping>(raw).ok()?;
         Self::from_file(&file)

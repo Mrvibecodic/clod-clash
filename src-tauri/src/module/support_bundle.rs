@@ -41,6 +41,18 @@ async fn log_files(dir: Option<PathBuf>, matches: impl Fn(&str) -> bool + Send) 
     found.into_iter().map(|(_, path)| path).collect()
 }
 
+/// Строка журнала в том виде, в каком она уходит в поддержку: строки ядра
+/// проходят фильтр трафика (`None` — строка выброшена), каждая — чистку
+/// домашнего каталога и секретов.
+pub(crate) fn support_line(line: &str, home: Option<&str>, core: bool) -> Option<std::string::String> {
+    let line = if core {
+        core_line_for_support(line)?
+    } else {
+        Cow::Borrowed(line)
+    };
+    Some(redact_for_support(&scrub_home(&line, home)))
+}
+
 pub(crate) fn core_line_for_support(line: &str) -> Option<Cow<'_, str>> {
     if let Some(error) = dial_error_without_addresses(line) {
         return Some(Cow::Owned(error));
@@ -105,17 +117,11 @@ async fn tail_of(paths: &[PathBuf], lines: usize, kind: LogKind) -> (Option<std:
             continue;
         };
         for line in content.lines().rev() {
-            let line = match kind {
-                LogKind::App => Cow::Borrowed(line),
-                LogKind::Core => {
-                    let Some(line) = core_line_for_support(line) else {
-                        skipped += 1;
-                        continue;
-                    };
-                    line
-                }
+            let Some(line) = support_line(line, home.as_deref(), kind == LogKind::Core) else {
+                skipped += 1;
+                continue;
             };
-            collected.push(redact_for_support(&scrub_home(&line, home.as_deref())));
+            collected.push(line);
             if collected.len() >= lines {
                 break 'files;
             }
@@ -247,7 +253,7 @@ async fn settings_section(out: &mut std::string::String) {
         out,
         "- системный прокси: {} (адрес {}, PAC {})",
         yes_no(data.enable_system_proxy.unwrap_or(false)),
-        Config::reachable_proxy_host(data.proxy_host.as_deref().unwrap_or("127.0.0.1")).await,
+        Config::our_proxy_host(&data).await,
         yes_no(data.proxy_auto_config.unwrap_or(false))
     );
     let _ = writeln!(
@@ -392,11 +398,11 @@ async fn core_tail_from_running_core(lines: usize) -> (Option<std::string::Strin
     let mut skipped = 0_usize;
 
     for line in logs.iter().rev() {
-        let Some(line) = core_line_for_support(line.as_str()) else {
+        let Some(line) = support_line(line.as_str(), home.as_deref(), true) else {
             skipped += 1;
             continue;
         };
-        collected.push(redact_for_support(&scrub_home(&line, home.as_deref())));
+        collected.push(line);
         if collected.len() >= lines {
             break;
         }
@@ -484,6 +490,26 @@ pub async fn build(lines: Option<usize>) -> Result<std::string::String> {
 #[cfg(test)]
 mod tests {
     use super::redact;
+
+    #[test]
+    fn a_support_line_is_cleaned_in_one_place() {
+        let traffic = "[TCP] 10.0.0.2:44100 --> mail.example.com:443 match GeoIP(private)";
+        assert_eq!(super::support_line(traffic, None, true), None);
+        let kept = super::support_line(traffic, None, false).unwrap_or_default();
+        assert!(!kept.is_empty() && !kept.contains("mail.example.com"), "{kept}");
+        let home = super::support_line("open /home/ivan/x.yaml", Some("/home/ivan"), false).unwrap_or_default();
+        assert_eq!(home, "open ~/x.yaml");
+
+        for (name, source) in [
+            ("support_bundle.rs", include_str!("support_bundle.rs")),
+            ("log_export.rs", include_str!("log_export.rs")),
+        ] {
+            let code = crate::utils::source_scan::production_code(source);
+            let own_loops = code.matches("redact_for_support(&scrub_home(").count();
+            let expected = usize::from(name == "support_bundle.rs");
+            assert_eq!(own_loops, expected, "{name}: чистка строки для поддержки повторена");
+        }
+    }
 
     #[test]
     fn the_report_names_the_core_not_just_its_file() {

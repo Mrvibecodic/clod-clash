@@ -129,6 +129,13 @@ pub async fn entry_lightweight_mode() -> bool {
     true
 }
 
+/// Открыть окно: выйти из лёгкого режима, а если в нём не были — показать.
+pub async fn wake_or_show() {
+    if !exit_lightweight_mode().await {
+        WindowManager::show_main_window().await;
+    }
+}
+
 pub async fn exit_lightweight_mode() -> bool {
     if !try_transition(LightweightState::In, LightweightState::Exiting) {
         logging!(

@@ -137,10 +137,6 @@ fn expiry_fetch_at(expire: u64, clock_skew: i64, updated: Option<usize>) -> Opti
     ((updated.unwrap_or(0) as i64).saturating_add(EXPIRY_SLACK) < deadline).then_some(deadline)
 }
 
-fn now_unix() -> i64 {
-    chrono::Local::now().timestamp()
-}
-
 struct TaskState {
     key: Option<Key>,
     /// Настенное время (unix), на которое взведён `key`; по нему задача
@@ -300,7 +296,7 @@ impl Timer {
 
     async fn gen_map(&self) -> HashMap<String, TaskSchedule> {
         if let Some(items) = Config::profiles().await.data_arc().get_items() {
-            return Self::gen_map_from_items(items, now_unix());
+            return Self::gen_map_from_items(items, crate::utils::help::now_secs());
         }
 
         HashMap::new()
@@ -354,7 +350,7 @@ impl Timer {
                             Self::finish_task(&mut queue, &mut tasks, uid, ran);
                         }
                         Some(TimerCommand::Rearm) => {
-                            Self::rearm_all(&mut queue, &mut tasks, now_unix());
+                            Self::rearm_all(&mut queue, &mut tasks, crate::utils::help::now_secs());
                         }
                         Some(TimerCommand::NextFire { uid, reply }) => {
                             let _ = reply.send(tasks.get(&uid).and_then(|state| state.fires_at));
@@ -461,7 +457,7 @@ impl Timer {
 
     /// Взвести задачу на `delay` от текущего момента, запомнив настенную цель.
     fn arm(queue: &mut DelayQueue<String>, uid: &str, state: &mut TaskState, delay: Duration) {
-        let now = now_unix();
+        let now = crate::utils::help::now_secs();
         state.fires_at = Some(now.saturating_add(delay.as_secs().min(i64::MAX as u64) as i64));
         state.capped = delay > MAX_ARM;
         state.key = Some(queue.insert(String::from(uid), delay.min(MAX_ARM)));
@@ -509,7 +505,7 @@ impl Timer {
         };
 
         state.key = None;
-        let now = now_unix();
+        let now = crate::utils::help::now_secs();
         if let Some(fires_at) = Self::woke_too_early(state.capped, state.fires_at, now) {
             Self::arm_at(queue, &uid, state, fires_at, now);
             return;
@@ -594,7 +590,7 @@ impl Timer {
         }
         state.retries_soon = 0;
 
-        match Self::delay_after_finish(state, now_unix(), ran) {
+        match Self::delay_after_finish(state, crate::utils::help::now_secs(), ran) {
             Some(delay) => Self::arm(queue, &uid, state, delay),
             None => {
                 tasks.remove(&uid);
@@ -734,7 +730,7 @@ mod tests {
 
     /// Задача ушла в загрузку: ключ снят с очереди, `running` взведён.
     fn pretend_running(queue: &mut DelayQueue<String>, tasks: &mut HashMap<String, TaskState>, uid: &String) {
-        pretend_running_since(queue, tasks, uid, super::now_unix());
+        pretend_running_since(queue, tasks, uid, crate::utils::help::now_secs());
     }
 
     fn pretend_running_since(
@@ -918,7 +914,7 @@ mod tests {
         let mut queue = DelayQueue::new();
         let mut tasks = HashMap::new();
         let uid = String::from("uid");
-        let now = super::now_unix();
+        let now = crate::utils::help::now_secs();
 
         // Срок позади и всё ещё стоит — загрузка не удалась: повтор через 15 мин.
         let mut map = HashMap::new();
@@ -948,7 +944,7 @@ mod tests {
         let mut queue = DelayQueue::new();
         let mut tasks = HashMap::new();
         let uid = String::from("uid");
-        let now = super::now_unix();
+        let now = crate::utils::help::now_secs();
 
         // Провал обычного тика (сеть не поднялась после сна, панель мигнула) не
         // стоит суток: повтор через 15, 30, 60… минут, но не позже самого тика.
@@ -982,7 +978,7 @@ mod tests {
         );
         // Подсказка «следующее обновление» берёт этот же срок, а не полный интервал.
         let fires_at = tasks.get(&uid).and_then(|state| state.fires_at).unwrap_or_default();
-        assert!((fires_at - super::now_unix() - FAILURE_RETRY.as_secs() as i64).abs() <= 1);
+        assert!((fires_at - crate::utils::help::now_secs() - FAILURE_RETRY.as_secs() as i64).abs() <= 1);
     }
 
     #[test]
@@ -1002,7 +998,7 @@ mod tests {
         let mut queue = DelayQueue::new();
         let mut tasks = HashMap::new();
         let uid = String::from("uid");
-        let now = super::now_unix();
+        let now = crate::utils::help::now_secs();
 
         let mut map = HashMap::new();
         map.insert(uid.clone(), TaskSchedule::new(HOUR * 24, Some(now as usize), now, None));
@@ -1043,7 +1039,7 @@ mod tests {
         let mut queue = DelayQueue::new();
         let mut tasks = HashMap::new();
         let uid = String::from("uid");
-        let now = super::now_unix();
+        let now = crate::utils::help::now_secs();
 
         // Срок позади: провал считался бы «после истечения» с бэкоффом, а
         // «не дошло до проверки» — нет: повтор скоро, счётчик неудач не растёт.
@@ -1075,7 +1071,7 @@ mod tests {
         let mut queue = DelayQueue::new();
         let mut tasks = HashMap::new();
         let uid = String::from("uid");
-        let now = super::now_unix();
+        let now = crate::utils::help::now_secs();
 
         let mut map = HashMap::new();
         map.insert(uid.clone(), TaskSchedule::new(0, None, now, Some(now - 10)));
@@ -1119,7 +1115,7 @@ mod tests {
         let mut queue = DelayQueue::new();
         let mut tasks = HashMap::new();
         let uid = String::from("uid");
-        let now = super::now_unix();
+        let now = crate::utils::help::now_secs();
 
         let mut map = HashMap::new();
         map.insert(
@@ -1141,7 +1137,7 @@ mod tests {
         let mut queue = DelayQueue::new();
         let mut tasks = HashMap::new();
         let uid = String::from("uid");
-        let now = super::now_unix();
+        let now = crate::utils::help::now_secs();
 
         let mut map = HashMap::new();
         map.insert(
@@ -1170,7 +1166,7 @@ mod tests {
         let mut queue = DelayQueue::new();
         let mut tasks = HashMap::new();
         let uid = String::from("uid");
-        let now = super::now_unix();
+        let now = crate::utils::help::now_secs();
 
         let mut map = HashMap::new();
         map.insert(uid.clone(), TaskSchedule::new(0, None, now, Some(now)));
@@ -1188,7 +1184,7 @@ mod tests {
         let mut queue = DelayQueue::new();
         let mut tasks = HashMap::new();
         let uid = String::from("uid");
-        let now = super::now_unix();
+        let now = crate::utils::help::now_secs();
 
         let mut map = HashMap::new();
         map.insert(
@@ -1219,7 +1215,7 @@ mod tests {
         let mut queue = DelayQueue::new();
         let mut tasks = HashMap::new();
         let uid = String::from("uid");
-        let now = super::now_unix();
+        let now = crate::utils::help::now_secs();
         let far = now + 5 * 365 * 24 * 3600;
 
         let mut map = HashMap::new();
@@ -1242,7 +1238,7 @@ mod tests {
         let mut queue = DelayQueue::new();
         let mut tasks = HashMap::new();
         let uid = String::from("uid");
-        let now = super::now_unix();
+        let now = crate::utils::help::now_secs();
 
         let mut map = HashMap::new();
         map.insert(uid.clone(), TaskSchedule::new(HOUR, Some(now as usize), now, None));

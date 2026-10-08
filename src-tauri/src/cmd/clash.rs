@@ -348,46 +348,33 @@ pub async fn save_dns_config(dns_config: Mapping) -> CmdResult<DnsSaveOutcome> {
 }
 
 async fn write_dns_page(dns_path: &std::path::Path, page: &dns_page::Page) -> CmdResult {
-    crate::utils::help::save_yaml(dns_path, &page.to_file(), Some(dns_page::PAGE_HEADER))
-        .await
-        .stringify_err()?;
+    page.save(dns_path).await.stringify_err()?;
     logging!(info, Type::Config, "DNS page saved to {dns_path:?}");
     Ok(())
 }
 
 #[tauri::command]
 pub async fn apply_dns_config(apply: bool) -> CmdResult {
-    if apply {
+    let (failed, done) = if apply {
         crate::utils::init::ensure_dns_config_file()
             .await
             .stringify_err_log(|e| {
                 logging!(error, Type::Config, "Failed to create DNS config: {e}");
             })?;
-
         logging!(info, Type::Config, "Applying DNS config from file");
-
-        CoreManager::global()
-            .update_config_checked()
-            .await
-            .stringify_err_log(|err| {
-                let err = format!("Failed to apply config with DNS: {err}");
-                logging!(error, Type::Config, "{err}");
-            })?;
-
-        logging!(info, Type::Config, "DNS config successfully applied");
+        ("Failed to apply config with DNS", "DNS config successfully applied")
     } else {
         logging!(info, Type::Config, "DNS settings disabled, regenerating config");
+        ("Failed to apply regenerated config", "Config regenerated successfully")
+    };
 
-        CoreManager::global()
-            .update_config_checked()
-            .await
-            .stringify_err_log(|err| {
-                let err = format!("Failed to apply regenerated config: {err}");
-                logging!(error, Type::Config, "{err}");
-            })?;
-
-        logging!(info, Type::Config, "Config regenerated successfully");
-    }
+    CoreManager::global()
+        .update_config_checked()
+        .await
+        .stringify_err_log(|err| {
+            logging!(error, Type::Config, "{failed}: {err}");
+        })?;
+    logging!(info, Type::Config, "{done}");
 
     handle::Handle::refresh_clash();
     Ok(())

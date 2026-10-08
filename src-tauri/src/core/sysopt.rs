@@ -104,6 +104,11 @@ struct AppliedProxy {
 
 const AUTO_SWITCH_READBACK_IS_TRUSTWORTHY: bool = !cfg!(target_os = "windows");
 
+/// Адрес нашего PAC-файла.
+fn pac_url_for(host: &str, pac_port: u16) -> std::string::String {
+    format!("http://{host}:{pac_port}/commands/pac")
+}
+
 fn bare_host(host: &str) -> &str {
     host.strip_prefix('[')
         .and_then(|rest| rest.strip_suffix(']'))
@@ -533,8 +538,8 @@ impl Sysopt {
         drop(verge);
         let port = Config::effective_mixed_port().await;
         let pac_port = IVerge::get_singleton_port();
-        let pac_url = format!("http://{LOOPBACK_PROXY_HOST}:{pac_port}/commands/pac");
-        let configured_pac_url = format!("http://{configured}:{pac_port}/commands/pac");
+        let pac_url = pac_url_for(LOOPBACK_PROXY_HOST, pac_port);
+        let configured_pac_url = pac_url_for(&configured, pac_port);
 
         let observed = tokio::task::spawn_blocking(ObservedProxy::read).await.ok()??;
 
@@ -633,7 +638,7 @@ impl Sysopt {
         let pac_port = IVerge::get_singleton_port();
         let bypass = get_bypass().await;
 
-        let proxy_host = Config::reachable_proxy_host(verge.proxy_host.as_deref().unwrap_or(LOOPBACK_PROXY_HOST)).await;
+        let proxy_host = Config::our_proxy_host(&verge).await;
         let (sys_enable, pac_enable, proxy_guard) = (
             verge.enable_system_proxy.unwrap_or_default(),
             verge.proxy_auto_config.unwrap_or_default(),
@@ -645,7 +650,7 @@ impl Sysopt {
             sys.host = proxy_host.into();
             sys.port = port;
             sys.bypass = bypass.into();
-            auto.url = format!("http://{LOOPBACK_PROXY_HOST}:{pac_port}/commands/pac");
+            auto.url = pac_url_for(LOOPBACK_PROXY_HOST, pac_port);
 
             let guard_type = if !sys_enable {
                 sys.enable = false;
@@ -871,14 +876,7 @@ impl Sysopt {
         }
 
         let port = Config::effective_mixed_port().await;
-        let configured = Config::verge()
-            .await
-            .latest_arc()
-            .proxy_host
-            .as_deref()
-            .unwrap_or(LOOPBACK_PROXY_HOST)
-            .to_owned();
-        let host = Config::reachable_proxy_host(&configured).await;
+        let host = Config::our_proxy_host(&Config::verge().await.latest_arc()).await;
         let pac_port = IVerge::get_singleton_port();
 
         let bypass = get_bypass().await;
@@ -891,7 +889,7 @@ impl Sysopt {
                 sys.bypass = bypass.as_str().into();
             }
             if auto.url.is_empty() {
-                auto.url = format!("http://{LOOPBACK_PROXY_HOST}:{pac_port}/commands/pac");
+                auto.url = pac_url_for(LOOPBACK_PROXY_HOST, pac_port);
             }
             sys.enable = false;
             auto.enable = false;

@@ -1118,7 +1118,7 @@ fn lock_expired(item: &PrfItem, now: i64) -> bool {
 }
 
 pub async fn release_stale_panel_locks() {
-    let now = chrono::Local::now().timestamp();
+    let now = help::now_secs();
 
     let stale: Vec<String> = {
         let profiles = Config::profiles().await.latest_arc();

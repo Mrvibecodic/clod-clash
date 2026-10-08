@@ -203,9 +203,7 @@ fn cancel_the_exit(reason: String) {
     AsyncHandler::spawn(move || async move {
         utils::notification::notify_event(utils::notification::NotificationEvent::QuitCancelled).await;
         handle::Handle::notice_message("app_quit::core_still_running", reason);
-        if !lightweight::exit_lightweight_mode().await {
-            WindowManager::show_main_window().await;
-        }
+        lightweight::wake_or_show().await;
         if let Err(error) = CoreManager::global().resume_after_a_cancelled_exit().await {
             logging!(
                 error,
@@ -347,7 +345,7 @@ async fn turn_the_tun_off(pace: ExitPace) {
 
     logging!(info, Type::System, "send disable tun request to mihomo");
     match timeout(pace.tun_off_budget(), async {
-        crate::feat::environment::detached_core_client()
+        crate::core::handle::Handle::mihomo()
             .patch_base_config(&disable_tun)
             .await
     })
