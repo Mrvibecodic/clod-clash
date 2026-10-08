@@ -326,7 +326,7 @@ impl CoreManager {
             return result;
         }
 
-        crate::feat::environment::spawn_environment_watchdog();
+        crate::feat::environment::ensure_environment_watchdog();
 
         // После отката к sidecar в фоне ждём готовности службы для передачи
         if matches!(*self.get_running_mode(), RunningMode::Sidecar) {

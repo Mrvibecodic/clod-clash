@@ -103,7 +103,7 @@ pub fn resolve_setup_async() {
             }
             init_system_proxy_guard().await;
             init_tun_ready().await;
-            crate::feat::environment::spawn_environment_watchdog();
+            crate::feat::environment::ensure_environment_watchdog();
             #[cfg(target_os = "macos")]
             crate::feat::environment::watch_the_primary_network_service();
             crate::core::sysopt::spawn_proxy_observer();

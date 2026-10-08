@@ -16,6 +16,8 @@ use std::{
 use tauri_plugin_mihomo::Mihomo;
 
 static WATCHDOG_GENERATION: AtomicU64 = AtomicU64::new(0);
+/// Поколение живого цикла сторожа среды; 0 — живого нет.
+static WATCHDOG_ALIVE: AtomicU64 = AtomicU64::new(0);
 static WAKE_REARM_PENDING: AtomicBool = AtomicBool::new(false);
 static LISTING_FAILED: AtomicBool = AtomicBool::new(false);
 static CLOCK_FAILED: AtomicBool = AtomicBool::new(false);
@@ -703,18 +705,32 @@ async fn tick_or_poke(seen: &mut u64) -> bool {
     poked
 }
 
-pub fn spawn_environment_watchdog() {
+/// Сторож один на процесс: стать им может только поколение, заставшее место пустым.
+fn claim_the_watch(alive: &AtomicU64, generation: u64) -> bool {
+    alive
+        .compare_exchange(0, generation, Ordering::AcqRel, Ordering::Acquire)
+        .is_ok()
+}
+
+/// Освободить место может только то поколение, что его заняло.
+fn release_the_watch(alive: &AtomicU64, generation: u64) {
+    let _ = alive.compare_exchange(generation, 0, Ordering::AcqRel, Ordering::Acquire);
+}
+
+/// Завести сторожа среды, если живого нет; живой не трогается.
+pub fn ensure_environment_watchdog() {
     if handle::Handle::global().is_exiting() {
         return;
     }
     let generation = WATCHDOG_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
+    if !claim_the_watch(&WATCHDOG_ALIVE, generation) {
+        return;
+    }
 
     AsyncHandler::spawn(move || async move {
-        let mut stopped_on_purpose = scopeguard::guard(false, move |on_purpose| {
-            if !on_purpose
-                && !handle::Handle::global().is_exiting()
-                && WATCHDOG_GENERATION.load(Ordering::Acquire) == generation
-            {
+        let _the_watch = scopeguard::guard((), move |()| {
+            release_the_watch(&WATCHDOG_ALIVE, generation);
+            if !handle::Handle::global().is_exiting() {
                 logging!(
                     warn,
                     Type::Core,
@@ -731,9 +747,9 @@ pub fn spawn_environment_watchdog() {
         loop {
             let poked = tick_or_poke(&mut pokes_seen).await;
             ticks = ticks.wrapping_add(1);
-            if handle::Handle::global().is_exiting() || WATCHDOG_GENERATION.load(Ordering::Acquire) != generation {
-                *stopped_on_purpose = true;
-                return;
+            // На выходе сторож молчит, а не уходит: отменённый выход застаёт его живым.
+            if handle::Handle::global().is_exiting() {
+                continue;
             }
 
             let now_tick = Instant::now();
@@ -1283,5 +1299,54 @@ mod tests {
         )));
         assert!(!v6_is_transition_tunnel(Ipv6Addr::new(0x2003, 1, 2, 3, 4, 5, 6, 7)));
         assert!(v6_carries_traffic(Ipv6Addr::new(0x2001, 0x0db8, 0, 0, 0, 0, 0, 1)));
+    }
+
+    #[test]
+    fn the_watch_is_held_by_one_generation_at_a_time() {
+        use super::{claim_the_watch, release_the_watch};
+        use std::sync::atomic::{AtomicU64, Ordering};
+        let alive = AtomicU64::new(0);
+
+        assert!(claim_the_watch(&alive, 1));
+        assert!(!claim_the_watch(&alive, 2), "живой сторож не заменяется");
+
+        release_the_watch(&alive, 7);
+        assert_eq!(alive.load(Ordering::Acquire), 1, "чужое поколение живого не снимает");
+        assert!(!claim_the_watch(&alive, 8));
+
+        release_the_watch(&alive, 1);
+        assert!(
+            claim_the_watch(&alive, 9),
+            "после ухода своего поколения место свободно"
+        );
+    }
+
+    #[test]
+    fn the_watchdog_stays_through_an_exit_and_is_only_ensured() {
+        use crate::utils::source_scan::fn_body;
+        // `#[cfg(test)]` встречается и до тестового модуля — режем по самому модулю.
+        let production = crate::utils::source_scan::without_test_modules;
+        let environment = production(include_str!("environment.rs"));
+        let ensure = fn_body(environment, "pub fn ensure_environment_watchdog()").unwrap_or_default();
+        assert!(ensure.contains("claim_the_watch("), "{ensure}");
+        let the_loop = fn_body(ensure, "loop {").unwrap_or_default();
+        assert!(the_loop.contains("is_exiting()"), "{the_loop}");
+        assert!(
+            !the_loop.contains("return"),
+            "на выходе цикл сторожа не уходит: {the_loop}"
+        );
+
+        assert!(!environment.contains("spawn_environment_watchdog"));
+        for (file, source) in [
+            ("lifecycle.rs", include_str!("../core/manager/lifecycle.rs")),
+            ("resolve/mod.rs", include_str!("../utils/resolve/mod.rs")),
+            ("window.rs", include_str!("window.rs")),
+        ] {
+            let source = production(source);
+            assert!(
+                !source.contains("spawn_environment_watchdog") && source.contains("ensure_environment_watchdog()"),
+                "{file}"
+            );
+        }
     }
 }

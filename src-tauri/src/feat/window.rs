@@ -231,10 +231,11 @@ fn cancel_the_exit(reason: String) {
         }
         #[cfg(target_os = "macos")]
         crate::utils::resolve::dns::apply_remembered_desire();
-        // Сторожа ядра и окружения выходят по флагу выхода и сами не
-        // возвращаются: запуск ядра их не заводит, если ядро числится живым.
+        // Сторож ядра выходит по флагу выхода и сам не возвращается: запуск
+        // ядра его не заводит, если ядро числится живым. Сторож среды на выходе
+        // молчит — здесь только проверка, что он жив.
         CoreManager::global().watch_the_core_again().await;
-        crate::feat::environment::spawn_environment_watchdog();
+        crate::feat::environment::ensure_environment_watchdog();
         #[cfg(target_os = "linux")]
         crate::core::tray::Tray::catch_up_after_a_cancelled_exit();
         handle::Handle::refresh_clash();
