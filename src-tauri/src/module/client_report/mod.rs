@@ -34,7 +34,7 @@
 mod ip;
 mod store;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::Write as _;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
@@ -194,8 +194,9 @@ async fn with_store<T>(uid: &str, now: i64, save: bool, work: impl FnOnce(&mut s
         dirty: false,
         saved_at: now,
     });
+    let before = entry.store.clone();
     let out = work(&mut entry.store);
-    entry.dirty = true;
+    entry.dirty |= entry.store != before;
     let due = now.saturating_sub(entry.saved_at) >= SAVE_EVERY || store::hour_of(now) != store::hour_of(entry.saved_at);
     if save || due {
         flush(entry, now).await;
@@ -490,6 +491,9 @@ async fn traffic_tick() {
             .unwrap_or(0)
             .clamp(1, TRAFFIC_TICK.as_secs() * 3);
         let mut alive = HashMap::with_capacity(connections.len());
+        // Секунды с трафиком узлу засчитываются раз за чтение, сколько бы
+        // соединений через него ни шло.
+        let mut counted = HashSet::new();
         for connection in connections {
             let Some(node) = connection.chains.first() else {
                 continue;
@@ -501,7 +505,9 @@ async fn traffic_tick() {
                 let sum = runtime.traffic.entry(node.clone()).or_default();
                 sum.0 = sum.0.saturating_add(up);
                 sum.1 = sum.1.saturating_add(down);
-                sum.2 = sum.2.max(secs);
+                if counted.insert(node.clone()) {
+                    sum.2 = sum.2.saturating_add(secs);
+                }
             }
             alive.insert(connection.id, (connection.upload, connection.download));
         }
@@ -876,6 +882,8 @@ pub(crate) async fn after_scheduled_update(uid: String) {
         .filter(|item| is_collected(item))
         .and_then(|item| {
             let url = item.url.clone()?;
+            // Ключ прослойки ещё не закреплён — отчёту не с чем идти.
+            item.option.as_ref()?.chan_pin.as_ref()?;
             let spare = item
                 .new_sub
                 .as_deref()

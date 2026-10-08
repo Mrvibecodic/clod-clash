@@ -499,7 +499,7 @@ async fn reconcile(
     if network_carries_traffic {
         AsyncHandler::spawn(|| async { refill_empty_rule_sets().await });
     }
-    crate::module::freeze_check::network_changed();
+    crate::module::freeze_check::network_changed(slept);
 }
 
 static RULE_SETS_REFILLING: AtomicBool = AtomicBool::new(false);

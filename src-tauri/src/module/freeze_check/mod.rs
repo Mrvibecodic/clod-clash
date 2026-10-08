@@ -72,6 +72,8 @@ static RUNNING: AtomicBool = AtomicBool::new(false);
 static ASKED_AGAIN: AtomicBool = AtomicBool::new(false);
 /// Последний повод — для журнала захода, который его обслужит.
 static REASON: Mutex<&'static str> = Mutex::new("");
+/// Ключ сети, в которой идёт текущий заход; `None` — заход его ещё не узнал.
+static PASS_KEY: Mutex<Option<std::string::String>> = Mutex::new(None);
 static FOREIGN_CORE_TOLD: AtomicBool = AtomicBool::new(false);
 /// Итоги в сети, которую не удалось распознать: живут до конца сеанса, на диск
 /// не идут, но повторы в них считаются как везде.
@@ -152,9 +154,26 @@ pub fn core_came_up() {
     }
 }
 
-/// Сторож среды увидел смену сети или пробуждение — идущий заход бросается.
-pub fn network_changed() {
-    kick("network changed", Standing::Dropped);
+/// Сторож среды увидел смену сети или пробуждение. Сеть по ключу та же
+/// (с MAC роутера на месте) и машина не спала — идущий заход доходит: его
+/// итоги о той же сети, а бросать его на каждую перемену отпечатка значило бы
+/// начинать проверки заново без конца. Иначе — в том числе пока ключ без
+/// MAC и сеть ещё не опознана — заход бросается сразу, без ожидания.
+pub fn network_changed(woke_up: bool) {
+    AsyncHandler::spawn(move || async move {
+        let same_network = !woke_up && {
+            let key = AsyncHandler::spawn_blocking(network::current).await.ok().flatten();
+            key.is_some_and(|key| !key.mac_missing && PASS_KEY.lock().as_deref() == Some(key.hash.as_str()))
+        };
+        kick(
+            "network changed",
+            if same_network {
+                Standing::Kept
+            } else {
+                Standing::Dropped
+            },
+        );
+    });
 }
 
 /// Тик раз в час: подхватывает просроченные повторы.
@@ -759,6 +778,7 @@ async fn checked_in_place(
 
 async fn pass(reason: &'static str) {
     let epoch = EPOCH.load(Ordering::Acquire);
+    *PASS_KEY.lock() = None;
     let verbose = verbose_diagnostics().await;
 
     if Config::profiles().await.latest_arc().get_current().is_none() {
@@ -779,6 +799,7 @@ async fn pass(reason: &'static str) {
     let (key, kind) = network_key()
         .await
         .map_or((None, "other"), |key| (Some(key.hash), key.kind));
+    *PASS_KEY.lock() = key.clone();
     let shown_key = key.as_deref().unwrap_or("?");
     let now = now_unix_secs();
     let (mut saved, mut unplaced) = saved_results(&uid, &nodes, settled, now).await;

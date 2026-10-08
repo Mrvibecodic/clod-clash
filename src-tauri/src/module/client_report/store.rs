@@ -325,13 +325,7 @@ pub(super) async fn load(uid: &str) -> Store {
 pub(super) async fn save(uid: &str, store: &Store) -> Result<()> {
     let path = file_path(uid)?;
     let bytes = serde_json::to_vec(store).context("serialize")?;
-    let next = path.with_extension("json.new");
-    tokio::fs::write(&next, bytes)
-        .await
-        .with_context(|| format!("write {}", next.display()))?;
-    tokio::fs::rename(&next, &path)
-        .await
-        .with_context(|| format!("rename {}", path.display()))
+    crate::utils::help::write_atomic(&path, &bytes).await
 }
 
 #[cfg(test)]
