@@ -55,31 +55,13 @@ pub(crate) async fn runtime_proxy_provider_names() -> Vec<String> {
         .unwrap_or_default()
 }
 
-#[tauri::command]
-pub async fn get_runtime_proxy_group_order() -> CmdResult<Vec<String>> {
-    Ok(runtime_proxy_group_order().await)
-}
-
-#[tauri::command]
-pub async fn get_runtime_proxy_provider_names() -> CmdResult<Vec<String>> {
-    Ok(runtime_proxy_provider_names().await)
-}
-
 /// Подписи узлов принятой сборки и их отпечаток. Сами подписи — только если
-/// отпечаток не тот, что уже есть у окна (`known`).
+/// отпечаток не тот, что уже есть у окна.
 #[derive(serde::Serialize)]
-pub struct ProxyLabelsAnswer {
-    stamp: std::string::String,
+pub(crate) struct ProxyLabelsAnswer {
+    pub(crate) stamp: std::string::String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    labels: Option<crate::config::proxy_label::Labels>,
-}
-
-/// Протокол, транспорт и защита узлов принятой сборки — одним ответом на все узлы.
-#[tauri::command]
-pub async fn get_runtime_proxy_labels(known: Option<std::string::String>) -> CmdResult<ProxyLabelsAnswer> {
-    let (stamp, labels) = crate::config::proxy_label::current().await;
-    let labels = (known.as_deref() != Some(stamp.as_str())).then(|| (*labels).clone());
-    Ok(ProxyLabelsAnswer { stamp, labels })
+    pub(crate) labels: Option<crate::config::proxy_label::Labels>,
 }
 
 #[tauri::command]

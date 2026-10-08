@@ -255,6 +255,40 @@ pub async fn core_send(
     anyhow::bail!("{}", core_error_message(response).await)
 }
 
+/// `/proxies` и провайдеры узлов принятой сборки — каждый своим запросом, все
+/// разом. Общий `/providers/proxies` не годится: ядро заводит провайдер ещё и на
+/// каждую группу, и узел в нём повторяется по разу на группу. Как понимать сбой
+/// провайдера — решает тот, кто читает.
+pub struct CoreProxies {
+    pub proxies: anyhow::Result<Vec<u8>>,
+    /// В порядке `proxy-providers` принятой сборки.
+    pub providers: Vec<(String, anyhow::Result<Vec<u8>>)>,
+}
+
+pub async fn read_core_proxies(budget: std::time::Duration) -> CoreProxies {
+    use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
+
+    let read = |path: std::string::String| async move {
+        anyhow::Ok(Vec::from(
+            core_send(reqwest::Method::GET, &path, budget).await?.bytes().await?,
+        ))
+    };
+    let names = crate::cmd::runtime::runtime_proxy_provider_names().await;
+    let (proxies, providers) = tokio::join!(
+        read("/proxies".into()),
+        futures::future::join_all(
+            names
+                .iter()
+                .map(|name| format!("/providers/proxies/{}", utf8_percent_encode(name, NON_ALPHANUMERIC)))
+                .map(read)
+        )
+    );
+    CoreProxies {
+        proxies,
+        providers: names.into_iter().zip(providers).collect(),
+    }
+}
+
 /// Чем ядро объяснило отказ: его `message`, а без него — код ответа.
 pub async fn core_error_message(response: reqwest::Response) -> std::string::String {
     let status = response.status();

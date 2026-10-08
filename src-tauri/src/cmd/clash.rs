@@ -595,6 +595,198 @@ mod tests {
             );
         }
     }
+
+    /// Чтение ядра: тело `/proxies` и провайдеры по порядку; `Err` — не ответил.
+    fn core_read(proxies: &str, providers: &[(&str, Result<&str, &str>)]) -> crate::feat::CoreProxies {
+        crate::feat::CoreProxies {
+            proxies: Ok(proxies.as_bytes().to_vec()),
+            providers: providers
+                .iter()
+                .map(|(name, body)| {
+                    (
+                        (*name).into(),
+                        body.map(|body| body.as_bytes().to_vec())
+                            .map_err(|error| anyhow::anyhow!("{error}")),
+                    )
+                })
+                .collect(),
+        }
+    }
+
+    const PROXIES: &str = r#"{"proxies":{
+        "GLOBAL":{"name":"GLOBAL","type":"Selector","all":["Auto"],"now":"Auto","history":[]},
+        "Auto":{"name":"Auto","type":"URLTest","all":["node-a"],"now":"node-a","history":[]},
+        "node-a":{"name":"node-a","type":"FutureProto","dialer-proxy":"hop","provider-name":"sub",
+            "routing-mark":3,"fingerprint":"ab12","history":[{"time":"t","delay":42}],"udp":true}}}"#;
+    const PROVIDER: &str = r#"{"name":"sub","type":"Proxy","vehicleType":"HTTP",
+        "proxies":[{"name":"node-b","type":"Vless","history":[]}],
+        "testUrl":"https://example.com/generate_204","expectedStatus":"*"}"#;
+
+    fn order() -> Vec<smartstring::alias::String> {
+        vec!["Auto".into()]
+    }
+
+    fn stamp_of(read: crate::feat::CoreProxies, order: &[smartstring::alias::String], labels: &str) -> String {
+        let no_labels = crate::config::proxy_label::Labels::default();
+        super::answer(read, order, (labels, &no_labels), None, None)
+            .map(|answer| answer.stamp)
+            .unwrap_or_default()
+    }
+
+    #[test]
+    fn a_snapshot_is_sent_only_when_the_stamp_differs() {
+        let no_labels = crate::config::proxy_label::Labels::default();
+        let first = super::answer(
+            core_read(PROXIES, &[("sub", Ok(PROVIDER))]),
+            &order(),
+            ("l1", &no_labels),
+            None,
+            None,
+        );
+        let first = first.ok();
+        let stamp = first.as_ref().map(|answer| answer.stamp.clone()).unwrap_or_default();
+        assert!(first.is_some_and(|answer| answer.snapshot.is_some()));
+        assert!(!stamp.is_empty());
+
+        let same = super::answer(
+            core_read(PROXIES, &[("sub", Ok(PROVIDER))]),
+            &order(),
+            ("l1", &no_labels),
+            Some(&stamp),
+            Some("l1"),
+        )
+        .ok();
+        assert!(same.as_ref().is_some_and(|answer| answer.snapshot.is_none()));
+        assert_eq!(same.map(|answer| answer.stamp).unwrap_or_default(), stamp);
+
+        let other = super::answer(
+            core_read(PROXIES, &[("sub", Ok(PROVIDER))]),
+            &order(),
+            ("l1", &no_labels),
+            Some("0000000000000000"),
+            Some("l1"),
+        );
+        assert!(other.is_ok_and(|answer| answer.snapshot.is_some()));
+    }
+
+    #[test]
+    fn the_snapshot_is_built_from_the_bytes_that_were_hashed() {
+        let no_labels = crate::config::proxy_label::Labels::default();
+        let before = stamp_of(core_read(PROXIES, &[]), &order(), "l1");
+        let moved = PROXIES.replace(r#""now":"node-a""#, r#""now":"node-z""#);
+        let after = super::answer(
+            core_read(&moved, &[]),
+            &order(),
+            ("l1", &no_labels),
+            Some(&before),
+            None,
+        )
+        .ok();
+        let after_stamp = after.as_ref().map(|answer| answer.stamp.clone()).unwrap_or_default();
+        assert_ne!(after_stamp, before);
+        assert_eq!(after_stamp, stamp_of(core_read(&moved, &[]), &order(), "l1"));
+        let now = after
+            .and_then(|answer| answer.snapshot)
+            .and_then(|snapshot| snapshot.proxies.proxies.get("Auto").and_then(|auto| auto.now.clone()));
+        assert_eq!(now.as_deref(), Some("node-z"));
+    }
+
+    #[test]
+    fn a_provider_that_did_not_answer_fails_the_whole_read() {
+        let no_labels = crate::config::proxy_label::Labels::default();
+        let read = core_read(PROXIES, &[("sub", Ok(PROVIDER)), ("other", Err("timed out"))]);
+        let answer = super::answer(read, &order(), ("l1", &no_labels), None, None);
+        assert!(answer.is_err_and(|error| format!("{error:#}").contains("other")));
+
+        let mut read = core_read(PROXIES, &[]);
+        read.proxies = Err(anyhow::anyhow!("refused"));
+        assert!(super::answer(read, &order(), ("l1", &no_labels), None, None).is_err());
+    }
+
+    #[test]
+    fn labels_travel_only_when_their_stamp_differs() {
+        let no_labels = crate::config::proxy_label::Labels::default();
+        let labels_of = |known_labels: Option<&str>| {
+            super::answer(
+                core_read(PROXIES, &[]),
+                &order(),
+                ("l1", &no_labels),
+                None,
+                known_labels,
+            )
+            .ok()
+            .and_then(|answer| answer.snapshot)
+            .map(|snapshot| (snapshot.labels.stamp, snapshot.labels.labels.is_some()))
+        };
+        assert_eq!(labels_of(Some("l1")), Some(("l1".to_owned(), false)));
+        assert_eq!(labels_of(Some("l0")), Some(("l1".to_owned(), true)));
+        assert_eq!(labels_of(None), Some(("l1".to_owned(), true)));
+    }
+
+    #[test]
+    fn the_snapshot_keeps_the_plugin_shape() {
+        let no_labels = crate::config::proxy_label::Labels::default();
+        let answer = super::answer(
+            core_read(PROXIES, &[("sub", Ok(PROVIDER))]),
+            &order(),
+            ("l1", &no_labels),
+            None,
+            None,
+        )
+        .ok()
+        .and_then(|answer| serde_json::to_value(answer).ok())
+        .unwrap_or_default();
+        let node = &answer["snapshot"]["proxies"]["proxies"]["node-a"];
+        assert_eq!(node["dialerProxy"], "hop");
+        assert_eq!(node["providerName"], "sub");
+        assert_eq!(node["routingMark"], 3);
+        assert_eq!(node["type"], "FutureProto");
+        assert_eq!(node["fingerprint"], "ab12");
+        assert_eq!(node["history"][0]["delay"], 42);
+        assert_eq!(node["tfo"], false, "отсутствующее поле — по умолчанию, как у плагина");
+        assert!(node.get("dialer-proxy").is_none());
+
+        let provider = &answer["snapshot"]["providers"][0];
+        assert_eq!(provider[0], "sub");
+        assert_eq!(provider[1]["vehicleType"], "HTTP");
+        assert_eq!(provider[1]["proxies"][0]["type"], "Vless");
+        assert_eq!(answer["snapshot"]["groupOrder"][0], "Auto");
+        assert_eq!(answer["snapshot"]["labels"]["stamp"], "l1");
+        assert!(answer["stamp"].is_string());
+    }
+
+    #[test]
+    fn the_stamp_moves_with_order_labels_and_providers() {
+        let base = || core_read(PROXIES, &[("sub", Ok(PROVIDER))]);
+        let stamp = stamp_of(base(), &order(), "l1");
+        assert!(!stamp.is_empty());
+        assert_eq!(stamp_of(base(), &order(), "l1"), stamp);
+        assert_ne!(stamp_of(base(), &["Other".into(), "Auto".into()], "l1"), stamp);
+        assert_ne!(stamp_of(base(), &order(), "l2"), stamp);
+        let provider = PROVIDER.replace("node-b", "node-c");
+        assert_ne!(
+            stamp_of(core_read(PROXIES, &[("sub", Ok(&provider))]), &order(), "l1"),
+            stamp
+        );
+    }
+
+    #[test]
+    fn the_first_read_waits_longer() {
+        use super::proxies_snapshot_budget as budget;
+        // Окну нечего показывать — ждём ядро дольше, чем при показанном.
+        assert!(budget(None) > budget(Some("0123abcd")));
+        // Решает только то, есть ли показанное, а не какой у него отпечаток.
+        assert_eq!(budget(Some("")), budget(Some("0123abcd")));
+        // Команда берёт предел по тому, что окно уже показывает.
+        // Тело команды стоит в файле ниже тестов: ищем по всему файлу, а
+        // подпись собираем по частям, чтобы не найти этот же тест.
+        let signature = concat!("pub async fn ", "get_proxies_snapshot(");
+        let snapshot = crate::utils::source_scan::fn_body(include_str!("clash.rs"), signature).unwrap_or_default();
+        assert!(
+            snapshot.contains("read_core_proxies(proxies_snapshot_budget(known.as_deref()))"),
+            "{snapshot}"
+        );
+    }
 }
 
 /// clod:Э13-04 — обновление провайдера, набора правил или гео-баз с пределом,
@@ -606,59 +798,116 @@ pub async fn download_in_core(what: feat::CoreDownload, name: Option<String>) ->
         .stringify_err()
 }
 
-/// Сколько ждём ядро на один запрос отпечатка: опрос идёт раз в секунду, и
-/// зависший запрос не должен копить следующие.
-const PROXIES_STAMP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(2);
+/// Сколько ждём ядро на один запрос: опрос идёт раз в секунду, и зависший
+/// запрос не должен копить следующие. Первое чтение — у окна нет показанного
+/// (`known`), — ждёт дольше.
+const fn proxies_snapshot_budget(known: Option<&str>) -> std::time::Duration {
+    std::time::Duration::from_secs(if known.is_some() { 2 } else { 5 })
+}
 
-/// Отпечаток всего, что ядро меняет само: выбор url-test и fallback, задержки
-/// после проверок, состав узлов после обновления провайдера.
+/// Ответ окну: отпечаток и — только если он не тот, что у окна, — сам снимок,
+/// разобранный из тех же байтов, по которым посчитан отпечаток.
+#[derive(serde::Serialize)]
+pub struct ProxiesAnswer {
+    stamp: std::string::String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    snapshot: Option<ProxiesSnapshot>,
+}
+
+/// Группы и узлы в той же форме, что отдаёт плагин ядра.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProxiesSnapshot {
+    proxies: tauri_plugin_mihomo::models::Proxies,
+    /// В порядке `proxy-providers` принятой сборки.
+    providers: Vec<(String, tauri_plugin_mihomo::models::ProxyProvider)>,
+    group_order: Vec<String>,
+    labels: super::runtime::ProxyLabelsAnswer,
+}
+
+/// Отпечаток всего, что ядро меняет само (выбор url-test и fallback, задержки
+/// после проверок, состав узлов после обновления провайдера), и снимок, если
+/// окно показывает другое (`known`).
 ///
 /// Ядро об этих переменах не сообщает, а целиком разбирать его ответ раз в
-/// секунду дорого. Поэтому окно спрашивает только отпечаток и перечитывает
-/// данные, лишь когда он сменился. В отпечатке всё, из чего окно собирает
-/// показ: `/proxies` (все группы, включая GLOBAL, и узлы самой подписки),
-/// ответы настоящих провайдеров из `proxy-providers` и порядок групп принятой
-/// сборки. Общий `/providers/proxies` не годится: ядро заводит провайдер ещё и
-/// на каждую группу, и узел в нём повторяется по разу на группу.
-#[tauri::command]
-pub async fn get_proxies_stamp() -> CmdResult<std::string::String> {
-    use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
+/// секунду дорого. Поэтому ответ разбирается, только когда отпечаток сменился.
+/// В отпечатке всё, из чего окно собирает показ: `/proxies`, ответы настоящих
+/// провайдеров, порядок групп принятой сборки и подписи узлов. Подписи едут,
+/// только если их отпечаток не тот, что у окна (`known_labels`).
+fn answer(
+    read: feat::CoreProxies,
+    group_order: &[String],
+    (labels_stamp, labels): (&str, &crate::config::proxy_label::Labels),
+    known: Option<&str>,
+    known_labels: Option<&str>,
+) -> anyhow::Result<ProxiesAnswer> {
+    use anyhow::Context as _;
     use std::hash::Hasher as _;
 
-    let read = |path: std::string::String| async move {
-        anyhow::Ok(
-            feat::core_send(reqwest::Method::GET, &path, PROXIES_STAMP_TIMEOUT)
-                .await?
-                .bytes()
-                .await?,
-        )
-    };
-    let (proxies, providers) = tokio::join!(
-        read("/proxies".into()),
-        futures::future::join_all(
-            super::runtime::runtime_proxy_provider_names()
-                .await
-                .iter()
-                .map(|name| format!("/providers/proxies/{}", utf8_percent_encode(name, NON_ALPHANUMERIC)))
-                .map(read)
-        )
-    );
+    let proxies = read.proxies?;
+    // Сбой одного провайдера — сбой всего чтения: молча выпавший провайдер
+    // показал бы свои узлы без типа и пингов.
+    let providers = read
+        .providers
+        .into_iter()
+        .map(|(name, body)| {
+            body.with_context(|| format!("provider {name}"))
+                .map(|body| (name, body))
+        })
+        .collect::<anyhow::Result<Vec<_>>>()?;
+
     let mut hasher = std::hash::DefaultHasher::new();
-    hasher.write(proxies.stringify_err()?.as_ref());
-    for group in super::runtime::runtime_proxy_group_order().await {
+    hasher.write(&proxies);
+    for group in group_order {
         hasher.write(group.as_bytes());
         hasher.write_u8(0);
     }
     // Подписи узлов берутся из подписки, а не из ядра: обновлённая подписка
     // может не изменить ответ ядра, а подписи — изменить.
-    hasher.write(crate::config::proxy_label::current().await.0.as_bytes());
-    for provider in providers {
-        // Провайдер, которого ядро не отдало, отпечаток не роняет: остальное
-        // по-прежнему надо замечать.
-        match provider {
-            Ok(body) => hasher.write(body.as_ref()),
-            Err(_) => hasher.write(b"-"),
-        }
+    hasher.write(labels_stamp.as_bytes());
+    for (_, body) in &providers {
+        hasher.write(body);
     }
-    Ok(format!("{:016x}", hasher.finish()))
+    let stamp = format!("{:016x}", hasher.finish());
+    if known == Some(stamp.as_str()) {
+        return Ok(ProxiesAnswer { stamp, snapshot: None });
+    }
+
+    let snapshot = ProxiesSnapshot {
+        proxies: serde_json::from_slice(&proxies)?,
+        providers: providers
+            .iter()
+            .map(|(name, body)| anyhow::Ok((name.clone(), serde_json::from_slice(body)?)))
+            .collect::<anyhow::Result<_>>()?,
+        group_order: group_order.to_vec(),
+        labels: super::runtime::ProxyLabelsAnswer {
+            stamp: labels_stamp.into(),
+            labels: (known_labels != Some(labels_stamp)).then(|| labels.clone()),
+        },
+    };
+    Ok(ProxiesAnswer {
+        stamp,
+        snapshot: Some(snapshot),
+    })
+}
+
+/// Группы и узлы для окна — одним чтением ядра и для отпечатка, и для показа.
+#[tauri::command]
+pub async fn get_proxies_snapshot(
+    known: Option<std::string::String>,
+    known_labels: Option<std::string::String>,
+) -> CmdResult<ProxiesAnswer> {
+    let (read, group_order, (labels_stamp, labels)) = tokio::join!(
+        feat::read_core_proxies(proxies_snapshot_budget(known.as_deref())),
+        super::runtime::runtime_proxy_group_order(),
+        crate::config::proxy_label::current(),
+    );
+    answer(
+        read,
+        &group_order,
+        (&labels_stamp, &labels),
+        known.as_deref(),
+        known_labels.as_deref(),
+    )
+    .stringify_err()
 }

@@ -19,7 +19,7 @@ import { router } from '@/pages/_routers'
 import {
   calcuProxies,
   getAutotemProxy,
-  getProxiesStamp,
+  getProxiesSnapshot,
   getSystemProxy,
 } from '@/services/cmds'
 import {
@@ -27,6 +27,7 @@ import {
   revalidateQueries,
   useQuery,
 } from '@/services/query-client'
+import { type ProxiesStamps, nextProxies } from '@/utils/next-proxies'
 import { reachableProxyHost } from '@/utils/ports'
 
 import {
@@ -70,34 +71,23 @@ const SYS_PROXY_POLL_MS = 10_000
  * Как часто перечитываем группы и узлы, пока окно на экране.
  *
  * Ядро само ничего не сообщает: url-test и fallback меняют узел, проверки —
- * задержки, провайдер — состав узлов. Поэтому каждое чтение сначала берёт у
- * бэкенда отпечаток ответа ядра (`get_proxies_stamp`) и разбирает группы
- * целиком, только если он сменился, — иначе отдаёт уже показанное. Так факт
- * доходит до всех экранов за тик, а разбор и перерисовка случаются лишь при
- * переменах в ядре. Ядро такие чтения проверками не нагружают: проб к серверам
- * они не шлют.
+ * задержки, провайдер — состав узлов. Поэтому каждое чтение отдаёт бэкенду
+ * отпечаток показанного (`get_proxies_snapshot`), и снимок приходит, только
+ * если в ядре другое, — иначе остаётся уже показанное. Так факт доходит до
+ * всех экранов за тик, а разбор и перерисовка случаются лишь при переменах в
+ * ядре. Ядро такие чтения проверками не нагружают: проб к серверам они не шлют.
  */
 const PROXIES_POLL_MS = 1000
 
-type ProxiesData = Awaited<ReturnType<typeof calcuProxies>> & {
-  /** Отпечаток ядра, по которому прочитаны эти данные. */
-  stamp: string | null
-}
+type ProxiesData = ReturnType<typeof calcuProxies> & ProxiesStamps
 
 const readProxies = async (): Promise<ProxiesData | undefined> => {
   const shown = getCacheData<ProxiesData>(['getProxies'])
-  const stamp = await getProxiesStamp().catch(() => null)
-  // Ядро не ответило или ничего не сменилось — остаётся показанное; без
-  // показанного пробуем прочитать: может, ядро уже отвечает.
-  if (shown && (stamp === null || stamp === shown.stamp)) return shown
-  try {
-    return { ...(await calcuProxies()), stamp }
-  } catch {
-    // Ядро не ответило или ещё не готово — остаётся прежний список. Ошибкой
-    // это не делаем: она остановила бы опрос SWR, а следующий тик и так
-    // спросит снова.
-    return shown
-  }
+  const answer = await getProxiesSnapshot(
+    shown?.stamp ?? null,
+    shown?.labels.stamp ?? null,
+  ).catch(() => null)
+  return nextProxies(shown, answer, calcuProxies)
 }
 
 /** Экраны, где видны группы и узлы: Главная (со шторкой) и «Прокси». */

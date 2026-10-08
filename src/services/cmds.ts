@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import dayjs from 'dayjs'
-import { getProxies, getProxyProviderByName } from 'tauri-plugin-mihomo-api'
+import type { Proxies, ProxyProvider } from 'tauri-plugin-mihomo-api'
 
 import { showNotice } from '@/services/notice-service'
 import { clearProxyChain } from '@/services/proxy-chain-store'
@@ -99,40 +99,28 @@ export async function getRuntimeConfig() {
   return invoke<IConfigData | null>('get_runtime_config')
 }
 
-/** Отпечаток групп и узлов в ядре — см. `get_proxies_stamp` в бэкенде. */
-export async function getProxiesStamp() {
-  return invoke<string>('get_proxies_stamp')
+/** Группы и узлы ядра одним чтением — см. `get_proxies_snapshot` в бэкенде. */
+interface ProxiesSnapshot {
+  proxies: Proxies
+  /** В порядке `proxy-providers` принятой сборки. */
+  providers: [string, ProxyProvider][]
+  groupOrder: string[]
+  /** Протокол, транспорт и защита узлов из подписки. */
+  labels: { stamp: string; labels?: IProxyLabels }
 }
 
-async function getRuntimeProxyGroupOrder() {
-  return invoke<string[]>('get_runtime_proxy_group_order')
-}
-
-async function getRuntimeProxyProviderNames() {
-  return invoke<string[]>('get_runtime_proxy_provider_names')
-}
-
-const NO_LABELS: IProxyLabels = { proxies: {}, providers: {} }
-/** Последние подписи и их отпечаток: неизменные бэкенд второй раз не шлёт. */
-let shownLabels: { stamp: string; labels: IProxyLabels } | undefined
-
-/** Протокол, транспорт и защита узлов из подписки — см. `get_runtime_proxy_labels`. */
-async function getRuntimeProxyLabels() {
-  const ask = (known: string | null) =>
-    invoke<{ stamp: string; labels?: IProxyLabels }>(
-      'get_runtime_proxy_labels',
-      { known },
-    )
-  let answer = await ask(shownLabels?.stamp ?? null)
-  // Отпечаток уже сменило соседнее чтение — спросим подписи целиком.
-  if (!answer.labels && answer.stamp !== shownLabels?.stamp) {
-    answer = await ask(null)
-  }
-  if (answer.labels) {
-    shownLabels = { stamp: answer.stamp, labels: answer.labels }
-    return answer.labels
-  }
-  return shownLabels?.stamp === answer.stamp ? shownLabels.labels : NO_LABELS
+/**
+ * Отпечаток групп и узлов в ядре и — только если он не `known` — сам снимок.
+ * Подписи в снимке — только если их отпечаток не `knownLabels`.
+ */
+export async function getProxiesSnapshot(
+  known: string | null,
+  knownLabels: string | null,
+) {
+  return invoke<{ stamp: string; snapshot?: ProxiesSnapshot }>(
+    'get_proxies_snapshot',
+    { known, knownLabels },
+  )
 }
 
 export async function getRuntimeYaml() {
@@ -176,22 +164,20 @@ export async function patchClashMode(payload: string) {
   return invoke<void>('patch_clash_mode', { payload })
 }
 
-export async function calcuProxies(): Promise<{
+export function calcuProxies(
+  snapshot: ProxiesSnapshot,
+  labels: IProxyLabels,
+): {
   global: IProxyGroupItem
   direct: IProxyItem
   groups: IProxyGroupItem[]
   records: Record<string, IProxyItem>
   proxies: IProxyItem[]
   providers: ProxyProviderRecord
-}> {
-  const [proxyResponse, providerLists, runtimeGroupOrder, labels] =
-    await Promise.all([
-      getProxies(),
-      calcuProxyProviders(),
-      getRuntimeProxyGroupOrder(),
-      // Подписи — украшение: без них список остаётся, просто без плашек.
-      getRuntimeProxyLabels().catch(() => NO_LABELS),
-    ])
+} {
+  const proxyResponse = snapshot.proxies
+  const providerLists = calcuProxyProviders(snapshot.providers)
+  const runtimeGroupOrder = snapshot.groupOrder
 
   // Подпись протокола — только у узлов: у групп остаётся их тип.
   const proxyEntries = Object.entries(proxyResponse.proxies).map(
@@ -339,26 +325,14 @@ export async function calcuProxies(): Promise<{
   }
 }
 
-type ProxyProviderRecord = Awaited<
-  ReturnType<typeof calcuProxyProviders>
->['shown']
+type ProxyProviderRecord = ReturnType<typeof calcuProxyProviders>['shown']
 
 /**
- * Провайдеры узлов подписки (HTTP и File) — по одному, по именам из принятой
- * сборки. Узлы провайдеров в GET /proxies не приходят, их задержки есть только
- * здесь, поэтому провайдеры читаются вместе с группами и отдаются с ними же.
- * Общий ответ ядра не годится: в нём ещё и провайдер на каждую группу, и
- * каждый узел повторяется по разу на группу.
+ * Провайдеры узлов подписки (HTTP и File) — по именам из принятой сборки. Узлы
+ * провайдеров в GET /proxies не приходят, их задержки есть только здесь,
+ * поэтому провайдеры читаются вместе с группами и отдаются с ними же.
  */
-async function calcuProxyProviders() {
-  const names = await getRuntimeProxyProviderNames()
-  // Сбой чтения одного провайдера — сбой всего чтения: молча выпавший
-  // провайдер показал бы свои узлы без типа и пингов.
-  const providers = await Promise.all(
-    names.map(
-      async (name) => [name, await getProxyProviderByName(name)] as const,
-    ),
-  )
+function calcuProxyProviders(providers: [string, ProxyProvider][]) {
   return {
     shown: Object.fromEntries(
       providers
