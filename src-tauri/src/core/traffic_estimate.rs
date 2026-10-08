@@ -15,8 +15,9 @@
 //! закрыться между двумя опросами, теряется: счёт занижен, но никогда не
 //! завышен — именно поэтому он и называется примерным.
 //!
-//! Таблицу соединений приносит общий опрос (`core::connections_poll`) — в срок
-//! оценки, даже если ради отчёта он ходит к ядру чаще.
+//! Таблицу соединений приносит общий опрос (`core::connections_poll`): в срок
+//! оценки, а пока ради отчёта он ходит к ядру чаще — каждый его снимок, и
+//! потерь меньше. Файл пишется всё равно в срок оценки.
 
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -41,7 +42,8 @@ const SAMPLE_MIN: Duration = Duration::from_secs(30);
 const SAMPLE_MAX: Duration = Duration::from_secs(300);
 /// Подписка обновляется не реже этого — досчитывать нечего, счёт выключен.
 const SUBSCRIPTION_FRESH_MINUTES: u64 = 60;
-/// Раз во столько опросов состояние сбрасывается на диск (если изменилось).
+/// Раз во столько сроков оценки состояние сбрасывается на диск (если
+/// изменилось) — сколько бы снимков ни пришло между ними.
 const PERSIST_EVERY_TICKS: u32 = 4;
 const STATE_FILE: &str = "traffic_estimate.json";
 
@@ -71,6 +73,7 @@ struct Runtime {
     /// Без этого уже открытые соединения принесли бы в расход всю свою
     /// историю — единственный способ завысить счёт, и его надо исключить.
     primed: bool,
+    /// Сколько сроков оценки прошло.
     ticks: u32,
     /// Что лежит в файле: то же — писать нечего.
     saved: Option<TrafficEstimate>,
@@ -201,8 +204,17 @@ pub(crate) async fn sample_every() -> Option<Duration> {
     every
 }
 
-/// Снимок соединений в срок оценки. `None` — ядро не ответило.
-pub(crate) async fn count(response: Option<&tauri_plugin_mihomo::models::Connections>) {
+/// Пора ли писать файл: `term` — снимок пришёл в срок оценки, а не чаще.
+const fn persist_now(runtime: &mut Runtime, term: bool) -> bool {
+    if !term {
+        return false;
+    }
+    runtime.ticks = runtime.ticks.wrapping_add(1);
+    runtime.ticks.is_multiple_of(PERSIST_EVERY_TICKS)
+}
+
+/// Снимок соединений; `term` — наступил срок оценки. `None` — ядро не ответило.
+pub(crate) async fn count(response: Option<&tauri_plugin_mihomo::models::Connections>, term: bool) {
     let Some((uid, upload, download)) = current_subscription().await else {
         return;
     };
@@ -246,8 +258,9 @@ pub(crate) async fn count(response: Option<&tauri_plugin_mihomo::models::Connect
         // держать их в карте больше не нужно.
         guard.seen = alive;
         guard.estimate.local_bytes = guard.estimate.local_bytes.saturating_add(added);
-        guard.ticks = guard.ticks.wrapping_add(1);
-        guard.ticks.is_multiple_of(PERSIST_EVERY_TICKS)
+        let persist = persist_now(&mut guard, term);
+        drop(guard);
+        persist
     };
 
     if should_persist {
@@ -283,7 +296,10 @@ pub fn init() {
 
 #[cfg(test)]
 mod tests {
-    use super::{Runtime, SAMPLE_MAX, SAMPLE_MIN, counts_as_proxy, interval_for_minutes, reconcile, unsaved};
+    use super::{
+        PERSIST_EVERY_TICKS, Runtime, SAMPLE_MAX, SAMPLE_MIN, counts_as_proxy, interval_for_minutes, persist_now,
+        reconcile, unsaved,
+    };
 
     #[test]
     fn sampling_follows_the_subscription_interval() {
@@ -361,6 +377,20 @@ mod tests {
             .unwrap_or_default();
         assert!(!source.contains("std::fs::write"), "запись — только атомарная");
         assert!(source.contains("help::save_json("), "атомарная запись — общая");
+    }
+
+    #[test]
+    fn the_file_is_written_in_the_estimate_term_not_on_every_snapshot() {
+        let mut runtime = Runtime::default();
+        // Снимки чаще срока оценки (опрос ради отчёта) файл не пишут.
+        for _ in 0..PERSIST_EVERY_TICKS * 10 {
+            assert!(!persist_now(&mut runtime, false));
+        }
+        // В срок — как прежде: раз в PERSIST_EVERY_TICKS сроков.
+        let written = (0..PERSIST_EVERY_TICKS * 3)
+            .filter(|_| persist_now(&mut runtime, true))
+            .count();
+        assert_eq!(written, 3);
     }
 
     #[test]

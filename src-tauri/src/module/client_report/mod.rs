@@ -61,7 +61,7 @@ const TICK_MIN: Duration = Duration::from_secs(20);
 /// байты по узлам. Ядро отдаёт только живые соединения, закрытое между
 /// чтениями теряется целиком — поэтому часто: теряется лишь хвост последних
 /// секунд каждого соединения.
-const TRAFFIC_TICK: Duration = Duration::from_secs(10);
+const TRAFFIC_TICK: Duration = Duration::from_secs(5);
 /// Столько последних замеров ядро держит у узла (`defaultHistoriesNum`).
 const HISTORY_CAP: usize = 10;
 /// Сторож среды замечает смену сети не позже чем через тик и паузу на
@@ -341,7 +341,11 @@ fn next_read(histories: &HashMap<String, Vec<(i64, u64)>>, since: i64) -> (Durat
 /// Сколько ждать между снимками соединений: [`TRAFFIC_TICK`], пока по
 /// текущей подписке копится отчёт; `None` — снимки не нужны.
 pub(crate) async fn traffic_every() -> Option<Duration> {
-    collecting_uid().await.map(|_| TRAFFIC_TICK)
+    traffic_every_while(collecting_uid().await.is_some())
+}
+
+pub(crate) fn traffic_every_while(collecting: bool) -> Option<Duration> {
+    collecting.then_some(TRAFFIC_TICK)
 }
 
 /// Прирост байтов соединений с прошлого снимка — в копилку по узлам. Первый
@@ -833,7 +837,7 @@ pub(crate) async fn after_scheduled_update(uid: String) {
 }
 
 /// Сборщик истории задержек: от раза в 20 секунд до раза в 5 минут (первое
-/// чтение сразу, чтобы место узналось). Соединения раз в 10 секунд приносит
+/// чтение сразу, чтобы место узналось). Соединения раз в 5 секунд приносит
 /// общий опрос ([`count_traffic`]). На выходе тик пропускается, а не кончает
 /// цикл: после отменённого выхода сбор идёт дальше сам.
 pub fn spawn() {
