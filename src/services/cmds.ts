@@ -260,8 +260,6 @@ export async function calcuProxies(): Promise<{
     return {
       name,
       type: 'unknown',
-      udp: false,
-      xudp: false,
       tfo: false,
       mptcp: false,
       smux: false,

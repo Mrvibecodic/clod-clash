@@ -162,16 +162,6 @@ export const ProxyItemMini = (props: Props) => {
                 {chip}
               </TypeBox>
             ))}
-            {proxy.udp && (
-              <TypeBox color="text.secondary" component="span">
-                UDP
-              </TypeBox>
-            )}
-            {proxy.xudp && (
-              <TypeBox color="text.secondary" component="span">
-                XUDP
-              </TypeBox>
-            )}
             {proxy.tfo && (
               <TypeBox color="text.secondary" component="span">
                 TFO

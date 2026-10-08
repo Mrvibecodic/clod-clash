@@ -19,8 +19,6 @@ import { useWindowWidth } from './use-window-width'
 interface IProxyItem {
   name: string
   type: string
-  udp: boolean
-  xudp: boolean
   tfo: boolean
   mptcp: boolean
   smux: boolean
@@ -37,8 +35,6 @@ interface IProxyItem {
 type ProxyGroup = {
   name: string
   type: string
-  udp: boolean
-  xudp: boolean
   tfo: boolean
   mptcp: boolean
   smux: boolean
@@ -301,8 +297,6 @@ export const useRenderList = (
       const virtualGroup: ProxyGroup = {
         name: 'All Proxies',
         type: 'Selector',
-        udp: false,
-        xudp: false,
         tfo: false,
         mptcp: false,
         smux: false,

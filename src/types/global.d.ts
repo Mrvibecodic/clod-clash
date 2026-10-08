@@ -107,8 +107,6 @@ interface IProxyItem {
   name: string
   type: string
   label?: IProxyLabel
-  udp: boolean
-  xudp: boolean
   tfo: boolean
   mptcp: boolean
   smux: boolean
