@@ -1,7 +1,6 @@
 use super::CoreManager;
 use crate::{
     config::{Config, ConfigType, runtime::IRuntime},
-    constants::timing,
     core::{
         handle,
         validate::{CoreConfigValidator, ValidationErrorKind, ValidationOutcome, ValidationSkipReason},
@@ -13,7 +12,7 @@ use anyhow::{Result, anyhow};
 use clash_verge_logging::{Type, logging};
 use clash_verge_service_ipc::StageRuntimeOutcome;
 use smartstring::alias::String;
-use std::{path::PathBuf, sync::atomic::Ordering, time::Instant};
+use std::{path::PathBuf, sync::atomic::Ordering};
 use tauri_plugin_mihomo::Error as MihomoError;
 
 /// Как отдать ядру проверенный конфиг.
@@ -46,7 +45,64 @@ impl Drop for ConfigUpdateGuard<'_> {
     }
 }
 
-/// Сборка, которую ядро проверило (`mihomo -t`) и не отвергло.
+/// Что стало с ядром после доставки, которую оно приняло.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Delivered {
+    /// Мягко перечитало конфиг (`PUT /configs`, в т.ч. из поколения службы):
+    /// группы пересобраны, выбор узлов не возвращён.
+    Reloaded,
+    /// Перезапущено (или поднято) под сборку: выбор узлов вернул сам запуск.
+    Restarted,
+    /// Сборка совпала с той, на которой ядро уже работает: ядро не трогали.
+    Unchanged,
+}
+
+/// Исход доставки: что стало с ядром, или почему сборка до него не доехала.
+pub type Applied = std::result::Result<Delivered, ValidationOutcome>;
+
+impl Delivered {
+    /// Возвращать ли выбор узлов. Перезапуск вернул его сам; ядро, которое не
+    /// трогали, держит прежний — кроме случая, когда последний возврат выбора
+    /// сдался, не дождавшись наполнения групп (`groups_were_left_filling`).
+    const fn brings_selection_back(self, groups_were_left_filling: bool) -> bool {
+        match self {
+            Self::Reloaded => true,
+            Self::Restarted => false,
+            Self::Unchanged => groups_were_left_filling,
+        }
+    }
+
+    /// Единственное место, где после доставки возвращается выбор узлов.
+    pub fn restore_selection(self) -> Result<()> {
+        let groups_were_left_filling = self == Self::Unchanged && crate::config::profiles::take_groups_left_filling();
+        if self.brings_selection_back(groups_were_left_filling) {
+            crate::config::profiles::activate_selected_nodes()
+        } else {
+            Ok(())
+        }
+    }
+}
+
+/// Сравнивать ли сборку с работающей до проверки ядром.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum IfUnchanged {
+    /// Проверить и доставить в любом случае.
+    Deliver,
+    /// Совпала с тем, на чём ядро уже работает, — не проверять и не трогать ядро.
+    Skip,
+}
+
+/// На каком слове ядра стоит сборка.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Verdict {
+    /// Ядро проверило её (`mihomo -t`) и не отвергло.
+    Checked,
+    /// Ядро уже работает ровно на ней: проверять и доставлять нечего.
+    AlreadyRunning,
+}
+
+/// Сборка, которую ядро проверило (`mihomo -t`) и не отвергло — или на которой
+/// оно уже работает.
 ///
 /// Единственный путь к слоту рантайма: пока `Staged` жив, он держит очередь
 /// применения, другой сборке в слот не попасть. Слот заменяется в `deliver` —
@@ -56,14 +112,15 @@ impl Drop for ConfigUpdateGuard<'_> {
 pub struct Staged<'a> {
     manager: &'a CoreManager,
     build: IRuntime,
+    verdict: Verdict,
     _guard: ConfigUpdateGuard<'a>,
 }
 
 impl Staged<'_> {
-    /// Отдать ядру. `Ok(Valid)` — ядро работает с этой сборкой и слот заменён;
-    /// `Ok(Invalid)` — служба отвергла бандл, ядро осталось на прежнем;
+    /// Отдать ядру. `Ok(Ok(_))` — ядро работает с этой сборкой и слот заменён;
+    /// `Ok(Err(_))` — служба отвергла бандл, ядро осталось на прежнем;
     /// `Err` — доставка сорвалась (ядро о содержимом ничего не сказало).
-    pub async fn deliver(self, delivery: Delivery) -> Result<ValidationOutcome> {
+    pub async fn deliver(self, delivery: Delivery) -> Result<Applied> {
         self.deliver_committing(delivery, async || Ok(())).await
     }
 
@@ -76,27 +133,34 @@ impl Staged<'_> {
         self,
         delivery: Delivery,
         commit: impl AsyncFnOnce() -> Result<()>,
-    ) -> Result<ValidationOutcome> {
-        let Self { manager, build, _guard } = self;
-        let outcome = manager.deliver_build(build, delivery).await?;
-        if outcome.is_valid() {
-            commit().await.map_err(CommitFailed)?;
-        }
-        Ok(outcome)
+    ) -> Result<Applied> {
+        let Self {
+            manager,
+            build,
+            verdict,
+            _guard,
+        } = self;
+        let applied = match verdict {
+            // Перезагрузка тем же конфигом стёрла бы историю задержек и заново
+            // проверила бы все авто-группы, ничего не поменяв.
+            Verdict::AlreadyRunning => {
+                manager.accept_without_the_core(build).await;
+                logging!(info, Type::Core, "Runtime config unchanged, core reload skipped");
+                Ok(Delivered::Unchanged)
+            }
+            Verdict::Checked => manager.deliver_build(build, delivery).await?,
+        };
+        commit_after(applied, commit).await
     }
+}
 
-    /// Обновление подписки: если собранный конфиг совпал с тем, что уже работает,
-    /// ядро не трогаем — перезагрузка стёрла бы историю задержек и заново
-    /// проверила бы все авто-группы, ничего не поменяв.
-    pub async fn deliver_unless_unchanged(self) -> Result<ValidationOutcome> {
-        if self.manager.runtime_unchanged(&self.build).await {
-            let Self { manager, build, .. } = self;
-            manager.accept_without_the_core(build).await;
-            logging!(info, Type::Core, "Runtime config unchanged, core reload skipped");
-            return Ok(ValidationOutcome::Valid);
-        }
-        self.deliver(Delivery::Reload).await
+/// Записать источник (`commit`) — только если ядро сборку приняло, и один раз.
+/// Отказ записи — `Err` с пометкой, что ядро конфиг уже приняло.
+async fn commit_after(applied: Applied, commit: impl AsyncFnOnce() -> Result<()>) -> Result<Applied> {
+    if let Ok(delivered) = applied {
+        commit().await.map_err(|error| CommitFailed(error, delivered))?;
     }
+    Ok(applied)
 }
 
 impl CoreManager {
@@ -118,24 +182,51 @@ impl CoreManager {
     /// Собрать конфиг из источников (принятое читается уже в своей очереди) и
     /// проверить его ядром. Очередь держится до конца доставки.
     pub async fn stage_with(&self, sources: Sources) -> Result<std::result::Result<Staged<'_>, ValidationOutcome>> {
+        self.stage(sources, IfUnchanged::Deliver).await
+    }
+
+    /// Как `stage_with`, но сборку, на которой ядро уже работает, не проверять:
+    /// её доставка ядро не тронет (`Delivered::Unchanged`).
+    pub async fn stage_unless_unchanged(
+        &self,
+        sources: Sources,
+    ) -> Result<std::result::Result<Staged<'_>, ValidationOutcome>> {
+        self.stage(sources, IfUnchanged::Skip).await
+    }
+
+    async fn stage(
+        &self,
+        sources: Sources,
+        if_unchanged: IfUnchanged,
+    ) -> Result<std::result::Result<Staged<'_>, ValidationOutcome>> {
         let Some(guard) = self.claim_for_an_update().await else {
             return Ok(Err(self.why_not_now()));
         };
-        self.stage_in_turn(guard, sources).await
+        self.build_and_stage(guard, sources, if_unchanged).await
     }
 
     /// Как `stage_with`, но место в очереди уже взято: вызывающему нужно что-то
     /// сделать в своей очереди до сборки (смена ядра кладёт выбор в черновик).
+    /// Проверка идёт всегда: новое ядро обязано проверить конфиг само.
     pub(crate) async fn stage_in_turn<'a>(
         &'a self,
         guard: ConfigUpdateGuard<'a>,
         sources: Sources,
     ) -> Result<std::result::Result<Staged<'a>, ValidationOutcome>> {
+        self.build_and_stage(guard, sources, IfUnchanged::Deliver).await
+    }
+
+    async fn build_and_stage<'a>(
+        &'a self,
+        guard: ConfigUpdateGuard<'a>,
+        sources: Sources,
+        if_unchanged: IfUnchanged,
+    ) -> Result<std::result::Result<Staged<'a>, ValidationOutcome>> {
         let build = match Config::build(sources).await {
             Ok(build) => build,
             Err(err) => return Ok(Err(ValidationOutcome::invalid_from_message(err.to_string()))),
         };
-        self.stage_under(guard, build).await
+        self.stage_under(guard, build, if_unchanged).await
     }
 
     /// Очередь для применения — не во время выхода.
@@ -158,38 +249,49 @@ impl CoreManager {
         }
     }
 
+    /// Единственное место решения «сборка не изменилась» — до проверки ядром:
+    /// то, на чём ядро уже работает, проверять незачем.
     async fn stage_under<'a>(
         &'a self,
         guard: ConfigUpdateGuard<'a>,
         build: IRuntime,
+        if_unchanged: IfUnchanged,
     ) -> Result<std::result::Result<Staged<'a>, ValidationOutcome>> {
         let Some(config) = build.config.as_ref() else {
             return Ok(Err(ValidationOutcome::invalid_from_message("собранный конфиг пуст")));
         };
-        // Любой не-Valid исход — вызывающему: отказ ядра, «занято», прибитая
-        // проверка различаются у него по виду (`ValidationErrorKind`). Без слова
-        // ядра сборка к нему не едет: слепой перезапуск на непроверенной оставлял
-        // бы человека без ядра, а мягкий reload расходился бы с поколением службы.
-        let outcome = CoreConfigValidator::global()
-            .validate_config_outcome_with(config)
-            .await?;
-        if !outcome.is_valid() {
-            return Ok(Err(outcome));
-        }
+        let verdict = if if_unchanged == IfUnchanged::Skip && self.same_as_running(&build).await {
+            logging!(debug, Type::Core, "Runtime config unchanged, check skipped");
+            Verdict::AlreadyRunning
+        } else {
+            // Любой не-Valid исход — вызывающему: отказ ядра, «занято», прибитая
+            // проверка различаются у него по виду (`ValidationErrorKind`). Без слова
+            // ядра сборка к нему не едет: слепой перезапуск на непроверенной оставлял
+            // бы человека без ядра, а мягкий reload расходился бы с поколением службы.
+            let outcome = CoreConfigValidator::global()
+                .validate_config_outcome_with(config)
+                .await?;
+            if !outcome.is_valid() {
+                return Ok(Err(outcome));
+            }
+            Verdict::Checked
+        };
         Ok(Ok(Staged {
             manager: self,
             build,
+            verdict,
             _guard: guard,
         }))
     }
 
-    pub async fn update_config_forced(&self) -> Result<ValidationOutcome> {
-        self.update_config(Sources::default(), true, false).await
+    /// Пересобрать и отдать ядру, даже если сборка совпала с работающей.
+    pub async fn update_config_forced(&self) -> Result<Applied> {
+        self.update_config(IfUnchanged::Deliver).await
     }
 
-    /// Применить обновлённую подписку: см. `Staged::deliver_unless_unchanged`.
-    pub async fn update_config_with_force(&self, force: bool) -> Result<ValidationOutcome> {
-        self.update_config(Sources::default(), force, true).await
+    /// Пересобрать; совпала с той, на которой ядро уже работает, — ядро не трогать.
+    pub async fn update_config_unless_unchanged(&self) -> Result<Applied> {
+        self.update_config(IfUnchanged::Skip).await
     }
 
     /// Пересобрать из переданных источников, отдать ядру и — ещё в своей очереди
@@ -204,82 +306,32 @@ impl CoreManager {
             Ok(staged) => staged,
             Err(outcome) => return Err(anyhow!("{outcome}")),
         };
-        let outcome = staged.deliver_committing(delivery, commit).await?;
-        if outcome.is_valid() {
-            Ok(())
-        } else {
-            Err(anyhow!("{outcome}"))
+        match staged.deliver_committing(delivery, commit).await? {
+            Ok(_) => Ok(()),
+            Err(outcome) => Err(anyhow!("{outcome}")),
         }
     }
 
-    async fn update_config(&self, sources: Sources, force: bool, skip_unchanged: bool) -> Result<ValidationOutcome> {
-        let Some(guard) = self.claim_for_an_update().await else {
-            return Ok(self.why_not_now());
-        };
-
-        if !force && !self.should_update_config() {
-            logging!(debug, Type::Core, "Skipping config update due to debounce");
-            return Ok(ValidationOutcome::Skipped {
-                reason: ValidationSkipReason::Debounced,
-            });
-        }
-
-        if force {
-            self.set_last_update(Instant::now());
-        }
-
-        let build = match Config::build(sources).await {
-            Ok(build) => build,
-            Err(err) => return Ok(ValidationOutcome::invalid_from_message(err.to_string())),
-        };
-
-        if skip_unchanged && self.runtime_unchanged(&build).await {
-            self.accept_without_the_core(build).await;
-            logging!(info, Type::Core, "Runtime config unchanged, core reload skipped");
-            return Ok(ValidationOutcome::Valid);
-        }
-
-        match self.stage_under(guard, build).await? {
+    async fn update_config(&self, if_unchanged: IfUnchanged) -> Result<Applied> {
+        match self.stage(Sources::default(), if_unchanged).await? {
             Ok(staged) => staged.deliver(Delivery::Reload).await,
-            Err(outcome) => Ok(outcome),
+            Err(outcome) => Ok(Err(outcome)),
         }
     }
 
     pub async fn update_config_checked(&self) -> Result<()> {
-        let outcome = self.update_config_forced().await?;
-        if outcome.is_valid() {
-            Ok(())
-        } else {
-            Err(anyhow!("{outcome}"))
+        match self.update_config_forced().await? {
+            Ok(_) => Ok(()),
+            Err(outcome) => Err(anyhow!("{outcome}")),
         }
-    }
-
-    fn should_update_config(&self) -> bool {
-        let now = Instant::now();
-        let last = self.get_last_update();
-
-        if let Some(last_time) = last
-            && now.duration_since(*last_time) < timing::CONFIG_UPDATE_DEBOUNCE
-        {
-            return false;
-        }
-
-        self.set_last_update(now);
-        true
     }
 
     /// Собранный кандидат совпал с принятым конфигом, и ядро с ним работает.
     /// Перезагрузка тем же конфигом что-то дала бы только двум случаям: остановленное
     /// ядро она поднимала бы, а пустой http-провайдер узлов или правил (первая
     /// загрузка не удалась, кэша нет) — скачивала заново. Их не пропускаем.
-    async fn runtime_unchanged(&self, build: &IRuntime) -> bool {
-        if matches!(*self.get_running_mode(), super::RunningMode::NotRunning) {
-            return false;
-        }
-        let same = {
-            let prev = Config::runtime().await.data_arc();
-            build.config.is_some() && build.config == prev.config
-        };
+    async fn same_as_running(&self, build: &IRuntime) -> bool {
+        let same = matches_the_running(build, &Config::runtime().await.data_arc(), &self.get_running_mode());
         same && providers_filled().await
     }
 
@@ -322,25 +374,25 @@ impl CoreManager {
     const fn remember_dns_desire(_build: &IRuntime) {}
 
     /// Поправить принятый конфиг (цепочки прокси из окна) и отдать ядру.
-    pub(crate) async fn update_runtime_config<F>(&self, f: F) -> Result<ValidationOutcome>
+    pub(crate) async fn update_runtime_config<F>(&self, f: F) -> Result<Applied>
     where
         F: FnOnce(&mut IRuntime),
     {
         let Some(guard) = self.claim_for_an_update().await else {
-            return Ok(self.why_not_now());
+            return Ok(Err(self.why_not_now()));
         };
 
         let mut build = (**Config::runtime().await.data_arc()).clone();
         f(&mut build);
-        match self.stage_under(guard, build).await? {
+        match self.stage_under(guard, build, IfUnchanged::Deliver).await? {
             Ok(staged) => staged.deliver(Delivery::Reload).await,
-            Err(outcome) => Ok(outcome),
+            Err(outcome) => Ok(Err(outcome)),
         }
     }
 
-    async fn deliver_build(&self, build: IRuntime, delivery: Delivery) -> Result<ValidationOutcome> {
+    async fn deliver_build(&self, build: IRuntime, delivery: Delivery) -> Result<Applied> {
         let Some(config) = build.config.as_ref() else {
-            return Ok(ValidationOutcome::invalid_from_message("собранный конфиг пуст"));
+            return Ok(Err(ValidationOutcome::invalid_from_message("собранный конфиг пуст")));
         };
         let run_path = Config::write_config_file(ConfigType::Run, config).await?;
         // clod:port-ladder — порт мог приехать из подписки: системный
@@ -373,15 +425,18 @@ impl CoreManager {
             delivery
         };
         let profile_uid = build.profile_uid.clone();
-        if let Err(error) = self.apply_config(build, run_path, delivery).await {
-            if let Some(refused) = error.downcast_ref::<ServiceRefusedTheBundle>() {
-                return Ok(ValidationOutcome::invalid(
-                    ValidationErrorKind::CoreRejected,
-                    refused.0.clone(),
-                ));
+        let delivered = match self.apply_config(build, run_path, delivery).await {
+            Ok(delivered) => delivered,
+            Err(error) => {
+                if let Some(refused) = error.downcast_ref::<ServiceRefusedTheBundle>() {
+                    return Ok(Err(ValidationOutcome::invalid(
+                        ValidationErrorKind::CoreRejected,
+                        refused.0.clone(),
+                    )));
+                }
+                return Err(error);
             }
-            return Err(error);
-        }
+        };
         forget_the_not_applied_mark(profile_uid.as_ref()).await;
         if subscription_changed {
             crate::module::freeze_check::subscription_changed();
@@ -399,10 +454,10 @@ impl CoreManager {
         #[cfg(target_os = "macos")]
         crate::utils::resolve::dns::apply_remembered_desire();
         crate::process::AsyncHandler::spawn(|| async { crate::feat::tun::enforce_undesired_off().await });
-        Ok(ValidationOutcome::Valid)
+        Ok(Ok(delivered))
     }
 
-    async fn apply_config(&self, build: IRuntime, path: PathBuf, delivery: Delivery) -> Result<()> {
+    async fn apply_config(&self, build: IRuntime, path: PathBuf, delivery: Delivery) -> Result<Delivered> {
         // Ядра нет — перезагружать нечего, сразу старт с новой сборкой.
         if delivery == Delivery::Restart || matches!(*self.get_running_mode(), super::RunningMode::NotRunning) {
             return self.replace_core_and_apply(build).await;
@@ -497,7 +552,7 @@ impl CoreManager {
                 Self::note_the_accepted(&build).await;
                 Config::runtime().await.replace(build);
                 logging!(info, Type::Core, "{message}");
-                Ok(())
+                Ok(Delivered::Reloaded)
             }
             Err(err) => {
                 logging!(
@@ -523,7 +578,7 @@ impl CoreManager {
     /// если ядра при этом не осталось, оно поднимается на прежнем: отказ
     /// новой сборки не должен оставлять человека без интернета с системным
     /// прокси на мёртвом порту (Э3-07).
-    async fn replace_core_and_apply(&self, build: IRuntime) -> Result<()> {
+    async fn replace_core_and_apply(&self, build: IRuntime) -> Result<Delivered> {
         let runtime = Config::runtime().await;
         let previous = runtime.data_arc();
         // Отброшенные ключи объявляются после того, как ядро поднялось на сборке:
@@ -538,7 +593,7 @@ impl CoreManager {
             Ok(()) => {
                 logging!(info, Type::Core, "Configuration applied after restart");
                 announce_discarded_keys(&discarded_keys).await;
-                Ok(())
+                Ok(Delivered::Restarted)
             }
             Err(err) => {
                 logging!(error, Type::Core, "Failed to restart core: {}", err);
@@ -762,6 +817,16 @@ async fn forget_the_not_applied_mark(profile_uid: Option<&String>) {
     }
 }
 
+/// Кандидат — ровно то, на чём ядро уже работает: ядро живо, а слот держит
+/// тот же конфиг той же подписки. Подписка сверяется отдельно: совпавший конфиг
+/// другой подписки (обновление нетекущей) ядро не проверяло.
+fn matches_the_running(build: &IRuntime, running: &IRuntime, mode: &super::RunningMode) -> bool {
+    !matches!(mode, super::RunningMode::NotRunning)
+        && build.config.is_some()
+        && build.config == running.config
+        && build.profile_uid == running.profile_uid
+}
+
 const PROVIDERS_LIST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// У ядра нет пустых http-провайдеров — ни прокси, ни правил. Не ответило — считаем, что есть.
@@ -828,9 +893,10 @@ enum StagedPath {
 }
 
 /// Ядро конфиг приняло, а записать его источник в свой слой не удалось:
-/// ядро работает на новом, слой остался на прежнем.
+/// ядро работает на новом, слой остался на прежнем. Второе поле — что стало
+/// с ядром при доставке.
 #[derive(Debug)]
-pub struct CommitFailed(pub anyhow::Error);
+pub struct CommitFailed(pub anyhow::Error, pub Delivered);
 
 impl std::fmt::Display for CommitFailed {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -932,7 +998,8 @@ fn listeners_need_recreate(prev: Option<&serde_yaml_ng::Mapping>, next: Option<&
 #[cfg(test)]
 mod tests {
     use super::{
-        StageAttempt, controller_changed, listeners_need_recreate, stage_with_confirmation, the_core_changed_hands,
+        Delivered, StageAttempt, controller_changed, listeners_need_recreate, matches_the_running,
+        stage_with_confirmation, the_core_changed_hands,
     };
     use crate::core::manager::CoreManager;
     use crate::core::manager::RunningMode::{NotRunning, Service, Sidecar};
@@ -1143,6 +1210,134 @@ mod tests {
         assert!(listeners_need_recreate(Some(&next), None));
     }
 
+    fn runtime(config: Option<&str>, profile_uid: Option<&str>) -> crate::config::runtime::IRuntime {
+        crate::config::runtime::IRuntime {
+            config: config.map(mapping),
+            profile_uid: profile_uid.map(Into::into),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn only_the_build_the_core_already_runs_skips_the_check() {
+        let running = runtime(Some("{mixed-port: 7890, proxies: [a]}"), Some("sub-a"));
+        let same = runtime(Some("{mixed-port: 7890, proxies: [a]}"), Some("sub-a"));
+        assert!(matches_the_running(&same, &running, &Sidecar));
+        assert!(matches_the_running(&same, &running, &Service));
+        // Ядра нет — доставка его поднимет.
+        assert!(!matches_the_running(&same, &running, &NotRunning));
+        // Тот же конфиг другой подписки (обновление нетекущей): ядро его не проверяло.
+        let other = runtime(Some("{mixed-port: 7890, proxies: [a]}"), Some("sub-b"));
+        assert!(!matches_the_running(&other, &running, &Sidecar));
+        // Слот пуст (отказ старта) или сборка пуста.
+        assert!(!matches_the_running(&same, &runtime(None, Some("sub-a")), &Sidecar));
+        assert!(!matches_the_running(
+            &runtime(None, Some("sub-a")),
+            &runtime(None, Some("sub-a")),
+            &Sidecar
+        ));
+        let changed = runtime(Some("{mixed-port: 7890, proxies: [a, b]}"), Some("sub-a"));
+        assert!(!matches_the_running(&changed, &running, &Sidecar));
+    }
+
+    #[test]
+    fn the_selection_comes_back_only_where_nothing_brought_it_back() {
+        // Мягкая перезагрузка пересобрала группы — выбор возвращает доставка.
+        assert!(Delivered::Reloaded.brings_selection_back(false));
+        // Перезапуск вернул его сам — вторая волна стёрла бы ручной выбор.
+        assert!(!Delivered::Restarted.brings_selection_back(false));
+        assert!(!Delivered::Restarted.brings_selection_back(true));
+        // Ядро не трогали — выбор на месте, если последний возврат дождался групп.
+        assert!(!Delivered::Unchanged.brings_selection_back(false));
+        assert!(Delivered::Unchanged.brings_selection_back(true));
+    }
+
+    fn production(source: &'static str) -> &'static str {
+        crate::utils::source_scan::production_code(source)
+    }
+
+    fn body_of(source: &'static str, signature: &str) -> &'static str {
+        let body = crate::utils::source_scan::fn_body(production(source), signature).unwrap_or_default();
+        assert!(!body.is_empty(), "тело {signature} не найдено — тест ослеп");
+        body
+    }
+
+    #[test]
+    fn an_unchanged_build_is_decided_before_the_core_checks_it() {
+        let stage_under = body_of(include_str!("config.rs"), "async fn stage_under");
+        assert!(
+            matches!(
+                (stage_under.find("same_as_running"), stage_under.find("validate_config_outcome_with")),
+                (Some(compare), Some(check)) if compare < check
+            ),
+            "сравнение с работающим должно стоять до проверки ядром"
+        );
+        assert!(
+            !production(include_str!("config.rs")).contains("deliver_unless_unchanged"),
+            "решение «не изменилось» — только в stage_under"
+        );
+    }
+
+    #[test]
+    fn every_restart_of_the_core_reports_itself_as_one() {
+        let apply = body_of(include_str!("config.rs"), "async fn apply_config");
+        assert_eq!(
+            apply.matches("Delivered::").count(),
+            1,
+            "у apply_config один свой исход — удачная мягкая перезагрузка"
+        );
+        assert!(apply.contains("Ok(Delivered::Reloaded)"));
+        let replace = body_of(include_str!("config.rs"), "async fn replace_core_and_apply");
+        assert!(replace.contains("Ok(Delivered::Restarted)"));
+        assert!(!replace.contains("Delivered::Reloaded") && !replace.contains("Delivered::Unchanged"));
+    }
+
+    #[test]
+    fn the_callers_restore_the_selection_through_the_delivery() {
+        for (file, source) in [
+            ("feat/profile.rs", include_str!("../../feat/profile.rs")),
+            ("cmd/profile.rs", include_str!("../../cmd/profile.rs")),
+        ] {
+            assert!(
+                !production(source).contains("activate_selected_nodes"),
+                "{file}: выбор узлов возвращает Delivered::restore_selection, а не вызывающий"
+            );
+        }
+    }
+
+    #[test]
+    fn editing_the_current_card_rebuilds_only_a_changed_config() {
+        let command = body_of(include_str!("../../cmd/profile.rs"), "pub async fn enhance_profiles");
+        assert!(command.contains("feat::apply_current_profile()"));
+        assert!(!command.contains("feat::enhance_profiles()"));
+    }
+
+    #[test]
+    fn the_flag_of_groups_left_filling_is_set_by_the_restore_itself() {
+        let worker = body_of(
+            include_str!("../../config/profiles.rs"),
+            "async fn activate_selected_nodes_worker",
+        );
+        let worker: std::string::String = worker.split_whitespace().collect();
+        // Ставится до ожидания: ядро, не ответившее списком вовсе, — тоже
+        // невозвращённый выбор.
+        let set = worker.find("GROUPS_LEFT_FILLING.store(true,");
+        let wait = worker.find("fetch_settled_proxies(");
+        assert!(
+            matches!((set, wait), (Some(set), Some(wait)) if set < wait),
+            "признак ставится до ожидания групп: {worker}"
+        );
+        let cleared =
+            "GROUPS_LEFT_FILLING.store(selection_left_undone(left_filling,&plan.activations,&completed_activations";
+        assert!(
+            matches!(
+                (worker.rfind("if!is_activation_current(generation)"), worker.find(cleared)),
+                (Some(current), Some(store)) if current < store
+            ),
+            "снимает признак только текущий возврат, по тому, что он вернул: {worker}"
+        );
+    }
+
     #[test]
     fn only_a_controller_that_listens_restarts_the_core_for_its_secret() {
         let off = mapping("external-controller: ''\nsecret: a\n");
@@ -1159,5 +1354,43 @@ mod tests {
         assert!(controller_changed(Some(&on), &on_new_secret));
         assert!(controller_changed(Some(&on), &on_new_cors));
         assert!(controller_changed(Some(&on), &moved));
+    }
+}
+
+#[cfg(test)]
+mod commit_tests {
+    use super::{CommitFailed, Delivered, commit_after};
+    use crate::core::validate::ValidationOutcome;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[tokio::test]
+    async fn the_source_is_written_once_and_only_after_the_core_took_the_build() {
+        let commits = AtomicUsize::new(0);
+        let commit = async || {
+            commits.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        };
+        let applied = commit_after(Ok(Delivered::Reloaded), commit).await;
+        assert!(matches!(applied, Ok(Ok(Delivered::Reloaded))), "{applied:?}");
+        assert_eq!(commits.load(Ordering::SeqCst), 1);
+
+        let commit = async || {
+            commits.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        };
+        let applied = commit_after(Err(ValidationOutcome::Busy), commit).await;
+        assert!(matches!(applied, Ok(Err(ValidationOutcome::Busy))), "{applied:?}");
+        assert_eq!(commits.load(Ordering::SeqCst), 1, "отвергнутую сборку не записываем");
+    }
+
+    #[tokio::test]
+    async fn a_failed_write_says_what_the_core_already_took() {
+        let failed = commit_after(Ok(Delivered::Restarted), async || Err(anyhow::anyhow!("disk full"))).await;
+        let delivered = failed
+            .as_ref()
+            .err()
+            .and_then(|error| error.downcast_ref::<CommitFailed>())
+            .map(|failed| failed.1);
+        assert_eq!(delivered, Some(Delivered::Restarted), "{failed:?}");
     }
 }

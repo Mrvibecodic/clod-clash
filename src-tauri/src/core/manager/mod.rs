@@ -1,5 +1,5 @@
 mod config;
-pub use config::{CommitFailed, Delivery, Staged};
+pub use config::{Applied, CommitFailed, Delivered, Delivery, Staged};
 mod lifecycle;
 mod state;
 
@@ -15,7 +15,6 @@ use std::{
         Arc, LazyLock,
         atomic::{AtomicBool, AtomicU8, AtomicU32, AtomicU64, Ordering},
     },
-    time::Instant,
 };
 use tauri_plugin_shell::process::CommandChild;
 
@@ -112,7 +111,6 @@ pub struct CoreManager {
     /// сообщила. Нужен, чтобы доказать смерть ядра, когда сама служба
     /// перестала отвечать.
     service_core_pid: AtomicU32,
-    last_update: ArcSwapOption<Instant>,
     #[cfg(target_os = "windows")]
     job_handle: ArcSwapOption<OwnedHandle>,
     /// Очередь применения конфига: сборка, проверка ядром и доставка идут по
@@ -164,7 +162,6 @@ impl Default for CoreManager {
             child_sidecar: parking_lot::Mutex::new(None),
             sidecar_pid: AtomicU32::new(0),
             service_core_pid: AtomicU32::new(0),
-            last_update: ArcSwapOption::new(None),
             #[cfg(target_os = "windows")]
             job_handle: ArcSwapOption::new(None),
             config_update: tokio::sync::Semaphore::const_new(1),
@@ -351,16 +348,8 @@ impl CoreManager {
         self.child_sidecar.lock().take()
     }
 
-    pub fn get_last_update(&self) -> Option<Arc<Instant>> {
-        self.last_update.load_full()
-    }
-
     pub fn set_running_child_sidecar(&self, child: CommandChild) {
         *self.child_sidecar.lock() = Some(child);
-    }
-
-    pub fn set_last_update(&self, time: Instant) {
-        self.last_update.store(Some(Arc::new(time)));
     }
 
     /// Replaces the Windows Job Object handle owned by the core manager

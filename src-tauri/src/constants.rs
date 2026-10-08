@@ -44,7 +44,6 @@ pub mod network {
 pub mod timing {
     use super::Duration;
 
-    pub const CONFIG_UPDATE_DEBOUNCE: Duration = Duration::from_millis(300);
     pub const STARTUP_ERROR_DELAY: Duration = Duration::from_secs(2);
 
     // Служба медленно запускается "с холода" (особенно на Windows), избегаем

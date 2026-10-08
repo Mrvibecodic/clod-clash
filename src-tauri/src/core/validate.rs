@@ -78,14 +78,12 @@ impl ValidationErrorKind {
 #[serde(rename_all = "camelCase")]
 pub enum ValidationSkipReason {
     Exiting,
-    Debounced,
 }
 
 impl fmt::Display for ValidationSkipReason {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Exiting => write!(f, "application is exiting"),
-            Self::Debounced => write!(f, "debounced"),
         }
     }
 }

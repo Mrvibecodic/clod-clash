@@ -837,7 +837,7 @@ impl CoreManager {
         };
 
         let failure: String = match delivered {
-            Ok(outcome) if outcome.is_valid() => {
+            Ok(Ok(_)) => {
                 // Ядро уже работает новым и выбор принят. Не записался файл — это
                 // не «не сменилось»: настройки допишутся при следующей записи или
                 // на выходе, а до тех пор работает выбранное.
@@ -846,7 +846,7 @@ impl CoreManager {
                 }
                 return Ok(());
             }
-            Ok(outcome) => outcome.to_string().into(),
+            Ok(Err(outcome)) => outcome.to_string().into(),
             Err(err) => format!("{err:#}").into(),
         };
 

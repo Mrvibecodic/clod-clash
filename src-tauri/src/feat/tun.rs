@@ -94,17 +94,17 @@ async fn bring_tun_back(reason: &str) {
     loop {
         let anchor = log_anchor().await;
         match crate::core::CoreManager::global().update_config_forced().await {
-            Ok(ValidationOutcome::Valid) => {
+            Ok(Ok(_)) => {
                 spawn_start_verification(anchor);
                 Handle::refresh_verge();
                 let _ = crate::core::tray::Tray::global().update_menu().await;
                 return;
             }
-            Ok(outcome @ ValidationOutcome::Skipped { .. }) => {
+            Ok(Err(outcome @ ValidationOutcome::Skipped { .. })) => {
                 logging!(info, Type::Core, "not bringing TUN back right now: {}", outcome);
                 return;
             }
-            Ok(outcome) => last = outcome.to_string(),
+            Ok(Err(outcome)) => last = outcome.to_string(),
             Err(e) => last = format!("{e}"),
         }
         refused += 1;

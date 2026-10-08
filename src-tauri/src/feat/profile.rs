@@ -1,7 +1,12 @@
 use crate::{
     cmd,
     config::{Config, PrfItem, PrfOption, profiles::profiles_draft_update_item_safe, sub_headers},
-    core::{CoreManager, handle, tray, validate::ValidationOutcome},
+    core::{
+        CoreManager, handle,
+        manager::{Applied, Delivered, Delivery},
+        tray,
+        validate::ValidationOutcome,
+    },
     enhance::Sources,
     utils::help::{self, keep_the_clearer_error, mask_err, mask_url},
 };
@@ -165,9 +170,9 @@ async fn disarmed_current_profile(uid: &String) -> Option<std::string::String> {
 
 /// Чем закончился приём скачанной подписки.
 enum Acceptance {
-    /// Файл на диске заменён, реестр обновлён; `delivered` — ядро уже работает с
-    /// новым конфигом (профиль текущий).
-    Accepted { delivered: bool },
+    /// Файл на диске заменён, реестр обновлён; `delivered` — что стало с ядром,
+    /// если профиль текущий (`None` — не текущий, ядру не отдавался).
+    Accepted { delivered: Option<Delivered> },
     /// Ядро отвергло собранный из неё конфиг — на проверке (файл на диске прежний)
     /// или уже при доставке (файл заменён, ядро осталось на прежнем). Реестр (срок,
     /// трафик, замки панели, отметка загрузки) обновлён как при приёме, у профиля
@@ -227,7 +232,7 @@ async fn accept_the_download(uid: &String, mut item: PrfItem, move_to: Option<Mo
         })
     };
 
-    let staged = match CoreManager::global().stage_with(sources).await {
+    let staged = match CoreManager::global().stage_unless_unchanged(sources).await {
         Ok(Ok(staged)) => staged,
         Ok(Err(outcome)) => {
             let _ = tokio::fs::remove_file(&candidate_path).await;
@@ -255,7 +260,7 @@ async fn accept_the_download(uid: &String, mut item: PrfItem, move_to: Option<Mo
         deliver_the_accepted(uid, staged).await
     } else {
         drop(staged);
-        Acceptance::Accepted { delivered: false }
+        Acceptance::Accepted { delivered: None }
     };
     // Уже без признака применения: здесь запрос в сеть.
     follow_move(uid, move_to, request_option).await;
@@ -350,9 +355,11 @@ async fn promote_and_record(
 /// Профиль текущий — та же проверенная сборка уходит ядру без второй проверки.
 /// Если собранное совпало с работающим, ядро не трогается.
 async fn deliver_the_accepted(uid: &String, staged: crate::core::manager::Staged<'_>) -> Acceptance {
-    match staged.deliver_unless_unchanged().await {
-        Ok(outcome) if outcome.is_valid() => Acceptance::Accepted { delivered: true },
-        Ok(outcome) => {
+    match staged.deliver(Delivery::Reload).await {
+        Ok(Ok(delivered)) => Acceptance::Accepted {
+            delivered: Some(delivered),
+        },
+        Ok(Err(outcome)) => {
             mark_not_applied(uid).await;
             Acceptance::Rejected(outcome)
         }
@@ -601,20 +608,21 @@ const fn failure_notice_status(result: &Result<ValidationOutcome>) -> &'static s
     }
 }
 
-/// Прибраться после того, как ядро приняло новый конфиг.
+/// Ядро приняло пересобранный конфиг: окну — перечитать, выбор узлов — по
+/// тому, что стало с ядром.
+fn settle_after_delivery(delivered: Delivered) {
+    handle::Handle::refresh_clash();
+    if let Err(err) = delivered.restore_selection() {
+        logging!(warn, Type::Config, "Warning: restore selection failed: {err}");
+    }
+}
+
+/// Прибраться после того, как ядро приняло конфиг обновлённой подписки.
 fn settle_after_a_successful_update(uid: &String) {
     // Пометку «скачано, но не применено» снимает сам путь применения конфига
     // (`core/manager/config.rs`) — там она снимается на всех путях сразу, включая
     // переключение профиля и ручную пересборку.
     logging!(info, Type::Config, "[Обновление подписки] Обновление успешно");
-    handle::Handle::refresh_clash();
-    if let Err(err) = crate::config::profiles::activate_selected_nodes() {
-        logging!(
-            warn,
-            Type::Config,
-            "Warning: [Обновление подписки] restore selection failed: {err}"
-        );
-    }
     crate::process::AsyncHandler::spawn(|| async {
         crate::module::sub_watcher::run_check().await;
     });
@@ -668,7 +676,7 @@ async fn card_is_marked(uid: &String) -> bool {
 /// Кнопка на профиле, которому нечего скачивать (локальный или автообновление
 /// запрещено): пересобрать конфиг ядра из того, что уже лежит на диске.
 async fn reapply_the_current_profile(uid: &String, trigger: UpdateTrigger) -> Result<()> {
-    match CoreManager::global().update_config_with_force(true).await {
+    match apply_current_profile().await {
         Ok(outcome) if outcome.is_valid() => {
             settle_after_a_successful_update(uid);
             Ok(())
@@ -796,7 +804,8 @@ async fn settle_the_download(uid: &String, downloaded: Downloaded, trigger: Upda
     if let Some(notice) = notice {
         handle::Handle::notice_message(notice, profile_name);
     }
-    if delivered {
+    if let Some(delivered) = delivered {
+        settle_after_delivery(delivered);
         settle_after_a_successful_update(uid);
     }
     Ok(UpdateOutcome::Done)
@@ -939,19 +948,28 @@ pub async fn update_profile(
     outcome
 }
 
+/// Пересобрать и отдать ядру всегда — даже если сборка не изменилась (горячая
+/// клавиша «Переприменить подписки», удаление и откат удаления, правка файла).
 pub async fn enhance_profiles() -> Result<ValidationOutcome> {
-    let outcome = CoreManager::global().update_config_forced().await?;
-    if outcome.is_valid() {
-        handle::Handle::refresh_clash();
-        if let Err(err) = crate::config::profiles::activate_selected_nodes() {
-            logging!(
-                warn,
-                Type::Config,
-                "Warning: restore selection after reapply failed: {err}"
-            );
+    Ok(settle_the_reapply(CoreManager::global().update_config_forced().await?))
+}
+
+/// Пересобрать текущую подписку с диска и отдать ядру, только если сборка
+/// изменилась (правка карточки, кнопка «Обновить» у локальной подписки).
+pub async fn apply_current_profile() -> Result<ValidationOutcome> {
+    Ok(settle_the_reapply(
+        CoreManager::global().update_config_unless_unchanged().await?,
+    ))
+}
+
+fn settle_the_reapply(applied: Applied) -> ValidationOutcome {
+    match applied {
+        Ok(delivered) => {
+            settle_after_delivery(delivered);
+            ValidationOutcome::Valid
         }
+        Err(outcome) => outcome,
     }
-    Ok(outcome)
 }
 
 const LOCK_GRACE_SECS: i64 = 72 * 60 * 60;

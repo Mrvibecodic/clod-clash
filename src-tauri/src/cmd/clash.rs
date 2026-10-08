@@ -291,7 +291,7 @@ pub async fn save_dns_config(dns_config: Mapping) -> CmdResult<DnsSaveOutcome> {
 
     let manager = CoreManager::global();
     let staged = manager
-        .stage_with(crate::enhance::Sources::default().with_dns_page(page.clone()))
+        .stage_unless_unchanged(crate::enhance::Sources::default().with_dns_page(page.clone()))
         .await
         .stringify_err()?;
     let staged = match staged {
@@ -334,8 +334,8 @@ pub async fn save_dns_config(dns_config: Mapping) -> CmdResult<DnsSaveOutcome> {
 
     write_dns_page(&dns_path, &page).await?;
     let (validation, delivery_error) = if dns_settings_on {
-        match staged.deliver_unless_unchanged().await {
-            Ok(validation) => (validation, None),
+        match staged.deliver(crate::core::manager::Delivery::Reload).await {
+            Ok(applied) => (applied.err().unwrap_or(ValidationOutcome::Valid), None),
             Err(err) => {
                 logging!(
                     warn,

@@ -21,7 +21,7 @@ use std::{
     path::{Component, Path},
     sync::{
         LazyLock,
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
     time::Duration,
 };
@@ -30,6 +30,14 @@ use tokio::task::JoinHandle;
 
 static ACTIVATE_SELECTED_TASK: LazyLock<Mutex<Option<JoinHandle<()>>>> = LazyLock::new(|| Mutex::new(None));
 static ACTIVATE_SELECTED_GENERATION: AtomicU64 = AtomicU64::new(0);
+/// Последний возврат выбора прошёл не целиком: время ожидания
+/// (`SELECTED_NODES_FILL_BUDGET`) кончилось, а часть сохранённых групп ещё
+/// наполнялась, ядро не ответило списком вовсе или не приняло выбор в группу.
+/// Ставит сам возврат в начале и снимает, только когда вернул всё по снимку, на
+/// котором закончил ждать; забирает доставка, которая ядро не трогала
+/// (`Delivered::Unchanged`): к ней ядро обычно уже готово, и выбор
+/// возвращается ещё раз.
+static GROUPS_LEFT_FILLING: AtomicBool = AtomicBool::new(false);
 
 const MIHOMO_OPERATION_TIMEOUT: Duration = Duration::from_secs(10);
 const SELECTED_NODES_RECHECK_DELAY: Duration = Duration::from_secs(1);
@@ -1134,6 +1142,21 @@ fn remaining_activations(
         .collect()
 }
 
+/// Остался ли выбор невозвращённым: группы ещё наполнялись или ядро не приняло
+/// выбор в группу. Группы, которые человек переключил сам, не в счёт — повтор
+/// их тоже обойдёт.
+fn selection_left_undone(
+    left_filling: bool,
+    activations: &[(String, String)],
+    completed: &HashMap<String, String>,
+    chosen_by_hand: impl Fn(&str) -> bool,
+) -> bool {
+    left_filling
+        || remaining_activations(activations, completed)
+            .iter()
+            .any(|(group, _)| !chosen_by_hand(group))
+}
+
 async fn apply_activations(
     activations: &[(String, String)],
     completed: &mut HashMap<String, String>,
@@ -1244,10 +1267,14 @@ async fn activate_selected_nodes_worker(
     favorites: Vec<String>,
     generation: u64,
 ) -> Result<()> {
+    GROUPS_LEFT_FILLING.store(true, Ordering::Release);
     let (first_snapshot, groups_are_settled) = fetch_settled_proxies(&selected, generation).await?;
     if !is_activation_current(generation) {
         return Ok(());
     }
+    // Не `groups_are_settled`: он ложен и тогда, когда сохранённых групп у ядра
+    // нет вовсе, — от повтора это не изменится.
+    let left_filling = some_groups_are_still_filling(&selected, &first_snapshot);
 
     if !groups_are_settled {
         logging!(
@@ -1325,6 +1352,15 @@ async fn activate_selected_nodes_worker(
     if !is_activation_current(generation) {
         return Ok(());
     }
+    GROUPS_LEFT_FILLING.store(
+        selection_left_undone(
+            left_filling,
+            &plan.activations,
+            &completed_activations,
+            group_was_chosen_by_hand,
+        ),
+        Ordering::Release,
+    );
 
     if plan.repaired_count > 0 && records_may_be_repaired && is_activation_current(generation) {
         logging!(
@@ -1351,6 +1387,13 @@ async fn lift_foreign_pins(generation: u64) {
     let plan = reconcile_selected_nodes(&[], &[], None, &proxies);
     let mut completed = HashSet::new();
     apply_unfixes(&plan.unfixes, &mut completed, generation).await;
+}
+
+/// Забрать признак «последний возврат выбора не дождался групп»
+/// (`GROUPS_LEFT_FILLING`): выбор ещё раз вернёт только первая доставка,
+/// которая ядро не трогала.
+pub fn take_groups_left_filling() -> bool {
+    GROUPS_LEFT_FILLING.swap(false, Ordering::AcqRel)
 }
 
 pub fn activate_selected_nodes() -> Result<()> {
@@ -1930,6 +1973,27 @@ mod tests {
                 ("second-group".into(), "new".into()),
                 ("first-group".into(), "replacement".into()),
             ]
+        );
+    }
+
+    #[test]
+    fn a_selection_the_core_did_not_take_is_brought_back_again() {
+        let activations = vec![("a".into(), "x".into()), ("b".into(), "y".into())];
+        let all = HashMap::from([("a".into(), "x".into()), ("b".into(), "y".into())]);
+        let only_a = HashMap::from([("a".into(), "x".into())]);
+        let nobody = |_: &str| false;
+        assert!(!selection_left_undone(false, &activations, &all, nobody));
+        assert!(
+            selection_left_undone(true, &activations, &all, nobody),
+            "группы ещё наполнялись"
+        );
+        assert!(
+            selection_left_undone(false, &activations, &only_a, nobody),
+            "ядро не приняло выбор в группу"
+        );
+        assert!(
+            !selection_left_undone(false, &activations, &only_a, |group| group == "b"),
+            "группу человек переключил сам — повтор её обойдёт"
         );
     }
 

@@ -14,7 +14,7 @@ use crate::{
     },
     core::{
         CoreManager, handle,
-        manager::{CommitFailed, Delivery},
+        manager::{CommitFailed, Delivered, Delivery},
         timer::Timer,
         tray::Tray,
         validate::ValidationOutcome,
@@ -51,10 +51,10 @@ pub async fn get_profiles() -> CmdResult<SharedDraft<IProfiles>> {
     Ok(data)
 }
 
-/// Расширенный конфиг
+/// Пересобрать конфиг текущей подписки и отдать ядру, если сборка изменилась.
 #[tauri::command]
 pub async fn enhance_profiles() -> CmdResult<ValidationOutcome> {
-    match feat::enhance_profiles().await {
+    match feat::apply_current_profile().await {
         Ok(outcome) if outcome.is_valid() => Ok(outcome),
         Ok(outcome) => {
             logging!(
@@ -463,9 +463,19 @@ async fn commit_current_profile(profiles: &Draft<IProfiles>, current: Option<Str
         .await
 }
 
-async fn handle_success(current_value: Option<&String>) -> CmdResult<ValidationOutcome> {
+async fn handle_success(delivered: Delivered, current_value: Option<&String>) -> CmdResult<ValidationOutcome> {
     // Runtime refresh and tray rebuilding happen after saved node selections are restored.
-    profiles::activate_selected_nodes().stringify_err()?;
+    delivered.restore_selection().stringify_err()?;
+    if delivered == Delivered::Restarted {
+        // Выбор вернул старт ядра — раньше, чем реестр записал новый профиль, и
+        // трей мог показать прежний.
+        if let Err(e) = Tray::global().update_tooltip().await {
+            logging!(warn, Type::Cmd, "Warning: не удалось обновить подсказку трея: {e}");
+        }
+        if let Err(e) = Tray::global().update_menu().await {
+            logging!(warn, Type::Cmd, "Warning: не удалось обновить меню трея: {e}");
+        }
+    }
 
     if let Err(e) = profiles_save_file_safe().await {
         logging!(
@@ -530,22 +540,24 @@ async fn perform_config_update(patch: IProfiles, current_value: Option<String>) 
                 let target = current_value.clone();
                 let commit = async || commit_current_profile(&Config::profiles().await, target).await;
                 match staged.deliver_committing(Delivery::Reload, commit).await {
-                    Ok(outcome) if outcome.is_valid() => handle_success(current_value.as_ref()).await,
-                    Ok(outcome) => Ok(handle_validation_failure(outcome)),
+                    Ok(Ok(delivered)) => handle_success(delivered, current_value.as_ref()).await,
+                    Ok(Err(outcome)) => Ok(handle_validation_failure(outcome)),
                     // Ядро уже на новом профиле — реестр обязан догнать: одна повторная
                     // запись, и только если не вышло — честная ошибка, а не «отменено».
-                    Err(e) if e.downcast_ref::<CommitFailed>().is_some() => {
-                        match commit_current_profile(&Config::profiles().await, current_value.clone()).await {
-                            Ok(()) => handle_success(current_value.as_ref()).await,
-                            Err(err) => {
-                                let message: String = super::public_error_text(&format!("{e}; повтор: {err:#}"));
-                                logging!(error, Type::Cmd, "{message}");
-                                handle::Handle::notice_message("update_failed", message.clone());
-                                Ok(ValidationOutcome::invalid_from_message(message))
+                    Err(e) => match e.downcast_ref::<CommitFailed>().map(|failed| failed.1) {
+                        Some(delivered) => {
+                            match commit_current_profile(&Config::profiles().await, current_value.clone()).await {
+                                Ok(()) => handle_success(delivered, current_value.as_ref()).await,
+                                Err(err) => {
+                                    let message: String = super::public_error_text(&format!("{e}; повтор: {err:#}"));
+                                    logging!(error, Type::Cmd, "{message}");
+                                    handle::Handle::notice_message("update_failed", message.clone());
+                                    Ok(ValidationOutcome::invalid_from_message(message))
+                                }
                             }
                         }
-                    }
-                    Err(e) => Ok(handle_update_error(e)),
+                        None => Ok(handle_update_error(e)),
+                    },
                 }
             }
             Ok(Err(outcome)) => Ok(handle_validation_failure(outcome)),
