@@ -1939,6 +1939,23 @@ mod tests {
     }
 
     #[test]
+    fn hidden_badges_belong_to_their_own_subscription() {
+        let mut profiles = profiles_with(vec![item("a", "remote", "a.yaml"), item("b", "remote", "b.yaml")], "a");
+        let hidden = |profiles: &IProfiles, uid: &str| profiles.get_item(uid).ok().and_then(|item| item.hide_badges);
+
+        let mut update = item("a", "remote", "a.yaml");
+        update.hide_badges = Some(true);
+        assert!(profiles.merge_updated_item(&"a".into(), &mut update).is_ok());
+        assert_eq!(hidden(&profiles, "a"), Some(true));
+        assert_eq!(hidden(&profiles, "b"), None, "соседняя подписка не задета");
+
+        // Панель перестала слать заголовок — плашки снова видны.
+        let mut update = item("a", "remote", "a.yaml");
+        assert!(profiles.merge_updated_item(&"a".into(), &mut update).is_ok());
+        assert_eq!(hidden(&profiles, "a"), None);
+    }
+
+    #[test]
     fn merging_an_update_keeps_the_file_name_and_drops_the_interval_echo() {
         let mut profiles = profiles_with(vec![item("sub", "remote", "sub.yaml")], "sub");
         let mut update = item("sub", "remote", "other.yaml");

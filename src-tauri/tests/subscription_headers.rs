@@ -211,6 +211,7 @@ async fn removed_panel_headers_clear_stored_values() {
         announce_url: sub.announce_url.clone(),
         portal_url: sub.portal_url.clone(),
         lock_mode: sub.lock_mode,
+        hide_badges: sub.hide_badges.then_some(true),
         ..PrfItem::default()
     };
 
@@ -223,6 +224,7 @@ async fn removed_panel_headers_clear_stored_values() {
         announce_url: Some("https://p.example/help".into()),
         portal_url: Some("https://p.example/cab".into()),
         lock_mode: Some(true),
+        hide_badges: Some(true),
         ..PrfItem::default()
     };
 
@@ -234,6 +236,10 @@ async fn removed_panel_headers_clear_stored_values() {
     assert_eq!(stored.announce_url, None);
     assert_eq!(stored.portal_url, None);
     assert_eq!(stored.lock_mode, None);
+    assert_eq!(
+        stored.hide_badges, None,
+        "hidden server badges come back with the header gone"
+    );
 }
 
 /// The one field deliberately NOT replaced: the panel-vs-device clock offset is

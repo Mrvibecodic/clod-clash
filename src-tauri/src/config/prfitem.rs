@@ -107,6 +107,11 @@ pub struct PrfItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub freeze_check: Option<bool>,
 
+    /// Провайдер спрятал у серверов плашки протокола, транспорта и защиты
+    /// заголовком `clod-hide-badges: true`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hide_badges: Option<bool>,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ping_thresholds: Option<[u32; 2]>,
 
@@ -1001,6 +1006,7 @@ impl PrfItem {
             latency_style: sub.latency_style.map(|style| style.as_str().into()),
             disable_ping: sub.disable_ping.then_some(true),
             freeze_check: sub.freeze_check.then_some(true),
+            hide_badges: sub.hide_badges.then_some(true),
             ping_thresholds: sub.ping_thresholds,
             show_zero_hosts: sub.show_zero_hosts,
             refill_date: sub.refill_date,
@@ -1768,6 +1774,7 @@ impl PrfItem {
         self.latency_style = fresh.latency_style.clone();
         self.disable_ping = fresh.disable_ping;
         self.freeze_check = fresh.freeze_check;
+        self.hide_badges = fresh.hide_badges;
         self.ping_thresholds = fresh.ping_thresholds;
         self.show_zero_hosts = fresh.show_zero_hosts;
 
@@ -2999,6 +3006,19 @@ mod tests {
         stored.merge_panel_meta(&PrfItem::default());
         assert_eq!(stored.lock_mode, None);
         assert_eq!(stored.lock_permanent, None);
+    }
+
+    #[test]
+    fn hidden_badges_follow_every_answer_and_vanish_with_the_header() {
+        let mut stored = PrfItem::default();
+        stored.merge_panel_meta(&PrfItem {
+            hide_badges: Some(true),
+            ..PrfItem::default()
+        });
+        assert_eq!(stored.hide_badges, Some(true));
+
+        stored.merge_panel_meta(&PrfItem::default());
+        assert_eq!(stored.hide_badges, None);
     }
 
     #[test]

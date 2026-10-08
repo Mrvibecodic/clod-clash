@@ -250,6 +250,8 @@ interface IProfileItem {
   theme_background?: string
   latency_style?: 'bars' | 'dot' | 'number'
   disable_ping?: boolean
+  /** Провайдер спрятал у серверов плашки протокола, транспорта и защиты (`clod-hide-badges`). */
+  hide_badges?: boolean
   ping_thresholds?: [number, number]
   show_zero_hosts?: boolean
   refill_date?: number

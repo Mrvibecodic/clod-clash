@@ -70,10 +70,11 @@ Our own headers. The "Platforms" column shows which Clod Clash clients support t
 | `clod-connect-mode` | `tun`, `proxy` or `both` | what the connect button turns on | PC only |
 | `clod-simple-mode` | `true` or `false` | simple or advanced view by default | PC only |
 | `clod-latency-style` | `bars`, `dot` or `number` | how the selected server's ping is drawn | PC only |
+| `clod-hide-badges` | `true` only | hide the servers' protocol, transport and security badges, `TFO`, `MPTCP`, `SMUX` | PC and Android |
 | `clod-theme` | `accent=#RRGGBB; mode=light\|dark; background=https://…` | colour, theme and window background | PC only |
 
 Instead of `true` / `false` you can send `1` / `0`, `yes` / `no`, `on` / `off` (except
-`clod-disable-ping`, `clod-16-20-check` and `clod-move-sub`, where only `true` works).
+`clod-disable-ping`, `clod-16-20-check`, `clod-hide-badges` and `clod-move-sub`, where only `true` works).
 
 No longer supported: `clod-device-remove` and `clod-hwid-limit`. On a device limit the client
 shows its own dialog with the subscription name.
@@ -167,6 +168,24 @@ both. Synonyms: `tunnel`, `vpn` = `tun`; `system`, `system-proxy`, `sysproxy` = 
 
 `true` — the simple view, `false` — the advanced one. Without the header — simple. The user's
 choice always wins. Synonyms: `pxa-simple-mode` (Prizrak-Box), `flclashx-newboard` (FlClashX).
+
+### Server badges: `clod-hide-badges`
+
+`true` hides the protocol, transport and security badges of the servers in the window — e.g.
+`VLESS`, `gRPC`, `Reality`, and with them `TFO`, `MPTCP`, `SMUX` — on the "Proxies" page, in the
+proxy chain and in the server list on the home screen. The server name, flag, ping, description,
+provider name and the "cut off" and "not responding" marks stay as they were. Groups in the list
+keep their type (Selector, URLTest and so on) — it is not a protocol; the built-in DIRECT and
+REJECT lose their type badge, like servers. Useful
+when your server names already say everything needed, or when you would rather not show what
+the servers run on. Only `true` works (case does not matter). The header is gone or carries
+another value — the badges come back after the next subscription update. Applies only to the
+active subscription. In the Android client the same header hides the protocol and transport line
+under the server name.
+
+```
+clod-hide-badges: true
+```
 
 ### Styling: `clod-theme` (PC only)
 

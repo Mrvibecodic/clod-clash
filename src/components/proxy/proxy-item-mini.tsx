@@ -6,7 +6,7 @@ import { BaseLoading } from '@/components/base'
 import { useProxyDelayState } from '@/hooks/use-proxy-delay-state'
 import { SHAPE } from '@/pages/_theme'
 import { delayColor, delayText } from '@/utils/delay-color'
-import { typeChips } from '@/utils/proxy-label'
+import { featureChips, typeChips } from '@/utils/proxy-label'
 
 import { FreezeMark } from './freeze-mark'
 import { ProxyFavorite } from './proxy-favorite'
@@ -20,6 +20,8 @@ interface Props {
   favorite?: boolean
   onToggleFavorite?: (name: string) => void
   pingBounds?: IProfileItem['ping_thresholds']
+  /** Провайдер спрятал плашки протокола, транспорта и защиты. */
+  hideBadges?: boolean
   /** clod: описание узла из панели — под типами и прячется вместе с ними. */
   description?: string
   /** clod:freeze — пометка рядом с пингом; пинг и выбор не трогает. */
@@ -37,6 +39,7 @@ export const ProxyItemMini = (props: Props) => {
     favorite,
     onToggleFavorite,
     pingBounds,
+    hideBadges,
     description,
     freezeMark,
   } = props
@@ -142,7 +145,7 @@ export const ProxyItemMini = (props: Props) => {
               </TypeBox>
             )}
             {/* Протокол держит ширину, транспорт и защита сжимаются первыми. */}
-            {typeChips(proxy).map((chip, index) => (
+            {typeChips(proxy, hideBadges).map((chip, index) => (
               <TypeBox
                 key={chip}
                 color="text.secondary"
@@ -162,21 +165,11 @@ export const ProxyItemMini = (props: Props) => {
                 {chip}
               </TypeBox>
             ))}
-            {proxy.tfo && (
-              <TypeBox color="text.secondary" component="span">
-                TFO
+            {featureChips(proxy, hideBadges).map((chip) => (
+              <TypeBox key={chip} color="text.secondary" component="span">
+                {chip}
               </TypeBox>
-            )}
-            {proxy.mptcp && (
-              <TypeBox color="text.secondary" component="span">
-                MPTCP
-              </TypeBox>
-            )}
-            {proxy.smux && (
-              <TypeBox color="text.secondary" component="span">
-                SMUX
-              </TypeBox>
-            )}
+            ))}
           </Box>
         )}
         {showType && description && (

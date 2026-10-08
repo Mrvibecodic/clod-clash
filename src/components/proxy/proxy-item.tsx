@@ -15,7 +15,7 @@ import { useTranslation } from 'react-i18next'
 import { BaseLoading } from '@/components/base'
 import { useProxyDelayState } from '@/hooks/use-proxy-delay-state'
 import { delayColor, delayText } from '@/utils/delay-color'
-import { typeChips } from '@/utils/proxy-label'
+import { featureChips, typeChips } from '@/utils/proxy-label'
 
 import { FreezeMark } from './freeze-mark'
 import { ProxyFavorite } from './proxy-favorite'
@@ -30,6 +30,8 @@ interface Props {
   favorite?: boolean
   onToggleFavorite?: (name: string) => void
   pingBounds?: IProfileItem['ping_thresholds']
+  /** Провайдер спрятал плашки протокола, транспорта и защиты. */
+  hideBadges?: boolean
   /** clod: описание узла из панели — под типами и прячется вместе с ними. */
   description?: string
   /** clod:freeze — пометка рядом с пингом; пинг и выбор не трогает. */
@@ -65,6 +67,7 @@ export const ProxyItem = (props: Props) => {
     favorite,
     onToggleFavorite,
     pingBounds,
+    hideBadges,
     description,
     freezeMark,
   } = props
@@ -134,14 +137,15 @@ export const ProxyItem = (props: Props) => {
                 <TypeBox>{proxy.provider}</TypeBox>
               )}
               {showType &&
-                typeChips(proxy).map((chip) => (
+                typeChips(proxy, hideBadges).map((chip) => (
                   <TypeBox key={chip} title={proxy.label?.text}>
                     {chip}
                   </TypeBox>
                 ))}
-              {showType && proxy.tfo && <TypeBox>TFO</TypeBox>}
-              {showType && proxy.mptcp && <TypeBox>MPTCP</TypeBox>}
-              {showType && proxy.smux && <TypeBox>SMUX</TypeBox>}
+              {showType &&
+                featureChips(proxy, hideBadges).map((chip) => (
+                  <TypeBox key={chip}>{chip}</TypeBox>
+                ))}
               {showType && description && (
                 <Box
                   component="span"

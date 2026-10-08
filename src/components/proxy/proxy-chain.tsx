@@ -59,6 +59,7 @@ import {
 } from '@/services/proxy-chain-store'
 import { debugLog } from '@/utils/debug'
 import { delayText, delayTone, usableDelay } from '@/utils/delay-color'
+import { typeText } from '@/utils/proxy-label'
 
 interface ParsedChainConfig {
   proxies?: Array<{
@@ -78,8 +79,11 @@ interface ProxyChainProps {
 
 interface SortableItemProps {
   proxy: ProxyChainItem
-  /** Подпись протокола из подписки, если узел в ней есть. */
-  label?: string
+  /**
+   * Плашка протокола: подпись из подписки или тип от ядра; пусто — плашки
+   * нет (провайдер спрятал).
+   */
+  label: string
   delay?: number
   index: number
   isFirst: boolean
@@ -113,7 +117,7 @@ const chainDelay = (record?: IProxyItem) => {
 
 const SortableItem = ({
   proxy,
-  label = proxy.type,
+  label,
   delay,
   index,
   isFirst,
@@ -560,7 +564,14 @@ export const ProxyChain = ({
                   <Box key={proxy.id}>
                     <SortableItem
                       proxy={proxy}
-                      label={proxies?.records?.[proxy.name]?.label?.text}
+                      label={typeText(
+                        {
+                          type: proxy.type,
+                          label: proxies?.records?.[proxy.name]?.label,
+                          all: proxies?.records?.[proxy.name]?.all,
+                        },
+                        current?.hide_badges,
+                      )}
                       delay={chainDelay(proxies?.records?.[proxy.name])}
                       index={index}
                       isFirst={index === 0}

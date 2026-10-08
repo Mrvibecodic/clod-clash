@@ -61,6 +61,7 @@ import {
   SELECTABLE_GROUP_TYPES,
   visibleGroups,
 } from '@/utils/proxy-groups'
+import { hidesType, typeText } from '@/utils/proxy-label'
 import { noServersSeverity } from '@/utils/subscription-status'
 
 /** Пинг на Главной: замер — в мс, неответ — словом, как на «Прокси», не мерили — прочерк. */
@@ -287,11 +288,11 @@ export const ServerSelect = ({ open, onClose }: Props) => {
                 ? isGroup && leaf
                   ? `${t('home.components.serverSelect.inUse')} · ${nameWithoutFlag(leaf)}`
                   : t('home.components.serverSelect.inUse')
-                : isGroup
+                : isGroup && !hidesType(record, current?.hide_badges)
                   ? leaf
                     ? `${typeLabel(type)} · ${nameWithoutFlag(leaf)}`
                     : typeLabel(type)
-                  : (node.label?.text ?? node.type))}
+                  : typeText(node, current?.hide_badges))}
           </Typography>
         </Box>
         <FreezeMark mark={freezeMark} />

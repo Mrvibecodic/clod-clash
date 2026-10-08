@@ -44,6 +44,8 @@ interface RenderProps {
   favorites?: Set<string>
   onToggleFavorite?: (name: string) => void
   pingBounds?: IProfileItem['ping_thresholds']
+  /** Провайдер спрятал плашки протокола, транспорта и защиты. */
+  hideBadges?: boolean
   /**
    * Описания узлов и пометки 16–20 читает список, а не строка: строки
    * виртуального списка монтируются заново при прокрутке, и запрос в каждой
@@ -67,6 +69,7 @@ export const ProxyRender = memo(function ProxyRender(props: RenderProps) {
     onToggleFavorite,
     isChainMode = false,
     pingBounds,
+    hideBadges,
     descriptions,
     freezeMarks,
   } = props
@@ -101,6 +104,7 @@ export const ProxyRender = memo(function ProxyRender(props: RenderProps) {
         favorite={favorites?.has(proxyItem?.name)}
         onToggleFavorite={onToggleFavorite}
         pingBounds={pingBounds}
+        hideBadges={hideBadges}
         description={descriptions?.[proxyItem?.name]}
         freezeMark={freezeMarks?.[proxyItem?.name]}
       />
@@ -116,6 +120,7 @@ export const ProxyRender = memo(function ProxyRender(props: RenderProps) {
     favorites,
     onToggleFavorite,
     pingBounds,
+    hideBadges,
     descriptions,
     freezeMarks,
   ])
@@ -286,6 +291,7 @@ export const ProxyRender = memo(function ProxyRender(props: RenderProps) {
         favorite={favorites?.has(proxy!.name)}
         onToggleFavorite={onToggleFavorite}
         pingBounds={pingBounds}
+        hideBadges={hideBadges}
         description={descriptions?.[proxy!.name]}
         freezeMark={freezeMarks?.[proxy!.name]}
       />

@@ -237,6 +237,7 @@ function ProxyVirtualList({
   onHeadState,
   onChangeProxy,
   pingBounds,
+  hideBadges,
 }: {
   parentRef: RefObject<HTMLDivElement | null>
   height: string
@@ -251,6 +252,7 @@ function ProxyVirtualList({
   onHeadState: (groupName: string, patch: Partial<HeadState>) => void
   onChangeProxy: (group: IProxyGroupItem, proxy: IProxyItem) => void
   pingBounds?: IProfileItem['ping_thresholds']
+  hideBadges?: boolean
 }) {
   const theme = useTheme()
   const descriptions = useServerDescriptions()
@@ -297,6 +299,7 @@ function ProxyVirtualList({
               onChangeProxy={onChangeProxy}
               isChainMode={isChainMode}
               pingBounds={pingBounds}
+              hideBadges={hideBadges}
               descriptions={descriptions}
               freezeMarks={freezeMarks}
             />
@@ -442,6 +445,7 @@ export function ProxyGroupsChain(props: ProxyGroupsChainProps) {
       onHeadState={onHeadState}
       onChangeProxy={handleChangeProxy}
       pingBounds={current?.ping_thresholds}
+      hideBadges={current?.hide_badges}
     />
   )
 

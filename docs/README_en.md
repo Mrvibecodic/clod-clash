@@ -135,10 +135,11 @@ go into `customResponseHeaders`. Each one applies only to its own subscription.
 | `clod-connect-mode` | `tun` / `proxy` / `both` | what the connect button turns on. Without the header — the system proxy | PC only |
 | `clod-simple-mode` | `true` / `false` | simple or advanced view by default. Without the header — simple | PC only |
 | `clod-latency-style` | `bars` / `dot` / `number` | how the selected server's ping is drawn: bars, a dot or a number. Without the header — bars | PC only |
+| `clod-hide-badges` | `true` only | hide the servers' protocol, transport and security badges (`VLESS`, `gRPC`, `Reality`) and the `TFO`, `MPTCP`, `SMUX` marks; name, ping, description and the type of groups stay | PC and Android |
 | `clod-theme` | `accent=#RRGGBB; mode=light\|dark; background=https://…` | accent colour, light or dark theme and window background | PC only |
 
 Instead of `true` / `false` you can send `1` / `0`, `yes` / `no`, `on` / `off` (except
-`clod-disable-ping`, `clod-16-20-check` and `clod-move-sub`). Send non-ASCII text as `base64:<base64 text>`. A value the client does not
+`clod-disable-ping`, `clod-16-20-check`, `clod-hide-badges` and `clod-move-sub`). Send non-ASCII text as `base64:<base64 text>`. A value the client does not
 understand counts as a missing header.
 Every header in detail, plus the full list of standard ones, is in [HEADERS_en.md](./HEADERS_en.md).
 

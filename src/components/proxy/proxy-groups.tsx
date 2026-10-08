@@ -374,7 +374,9 @@ function NormalProxyGroups(props: { mode: string }) {
     saveScrollPosition,
   } = useProxyRenderState(mode, false, null)
   const { favorites, toggleFavorite } = useFavorites()
-  const pingBounds = useProfiles().current?.ping_thresholds
+  const { current } = useProfiles()
+  const pingBounds = current?.ping_thresholds
+  const hideBadges = current?.hide_badges
   const descriptions = useServerDescriptions()
   const freezeMarks = useFreezeMarks()
   const renderFirstRef = useRef(true)
@@ -540,6 +542,7 @@ function NormalProxyGroups(props: { mode: string }) {
         onChangeProxy={handleChangeProxy}
         onGroupToggle={handleGroupToggle}
         pingBounds={pingBounds}
+        hideBadges={hideBadges}
         descriptions={descriptions}
         freezeMarks={freezeMarks}
       />
@@ -552,6 +555,7 @@ function NormalProxyGroups(props: { mode: string }) {
       handleGroupToggle,
       handleGroupLocationByName,
       pingBounds,
+      hideBadges,
       descriptions,
       freezeMarks,
     ],
@@ -569,6 +573,7 @@ function NormalProxyGroups(props: { mode: string }) {
         favorites={favorites}
         onToggleFavorite={toggleFavorite}
         pingBounds={pingBounds}
+        hideBadges={hideBadges}
         descriptions={descriptions}
         freezeMarks={freezeMarks}
       />
@@ -581,6 +586,7 @@ function NormalProxyGroups(props: { mode: string }) {
       favorites,
       toggleFavorite,
       pingBounds,
+      hideBadges,
       descriptions,
       freezeMarks,
     ],
