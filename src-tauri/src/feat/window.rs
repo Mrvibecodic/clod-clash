@@ -241,7 +241,6 @@ fn cancel_the_exit(reason: String) {
         handle::Handle::refresh_clash();
         handle::Handle::refresh_verge();
         tokio::time::sleep(Duration::from_secs(1)).await;
-        crate::core::traffic_estimate::resume();
         #[cfg(target_os = "macos")]
         {
             let enable_tray_speed = Config::verge().await.latest_arc().enable_tray_speed.unwrap_or(false);

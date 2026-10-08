@@ -28,6 +28,18 @@ pub(super) struct NodeInfo {
     pub port: u16,
 }
 
+impl NodeInfo {
+    /// Узел из общего разбора сборки.
+    pub(super) fn of(name: &str, address: &crate::config::proxy_label::Address) -> Self {
+        Self {
+            name: name.to_owned(),
+            kind: address.kind.clone(),
+            server: address.server.clone(),
+            port: address.port,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub(super) struct Ping {
     pub n: u64,
@@ -217,15 +229,21 @@ impl Store {
         );
     }
 
-    /// Выбросить старше [`KEEP`], пустые часы и сети и узлы, на которые никто не ссылается.
-    pub(super) fn prune(&mut self, now: i64) {
+    /// Выбросить старше [`KEEP`], пустые часы и сети и узлы, на которые никто
+    /// не ссылается; `true` — что-то выброшено.
+    pub(super) fn prune(&mut self, now: i64) -> bool {
         let oldest = hour_of(now - KEEP);
+        let mut removed = false;
         for network in self.networks.values_mut() {
+            let had = network.hours.len();
             network.hours.retain(|hour| hour.h >= oldest && hour.has_data());
+            removed |= network.hours.len() != had;
         }
         self.networks.retain(|_, network| !network.hours.is_empty());
         let used = self.referenced();
+        let had = self.nodes.len();
         self.nodes.retain(|key, _| used.contains(key));
+        removed || self.nodes.len() != had
     }
 
     fn referenced(&self) -> std::collections::BTreeSet<String> {
@@ -434,6 +452,20 @@ mod tests {
         store.prune(NOW);
         assert!(store.networks.is_empty());
         assert!(store.nodes.is_empty());
+    }
+
+    #[test]
+    fn pruning_tells_whether_it_removed_anything() {
+        let mut store = Store::default();
+        let key = node_key(&info());
+        store.remember_node(&key, &info());
+        store.add_ping(&place("n", ""), NOW, &key, 100);
+        assert!(!store.prune(NOW), "свежее не трогается");
+        store.remember_node("orphan", &info());
+        assert!(store.prune(NOW), "узел без ссылок выброшен");
+        assert!(!store.prune(NOW));
+        assert!(store.prune(NOW + KEEP + 2 * HOUR), "старый час выброшен");
+        assert!(store.networks.is_empty() && store.nodes.is_empty());
     }
 
     #[test]

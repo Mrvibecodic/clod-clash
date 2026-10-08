@@ -3,7 +3,8 @@
 //! и шифрования ядро не отдаёт (стоковое — тем более), поэтому всё берётся из
 //! принятой сборки: её `proxies` и провайдеров узлов — и читается так, как его
 //! читает clod-core. Где ядро может понять запись иначе, подписи нет: лучше
-//! никакой, чем чужая.
+//! никакой, чем чужая. Тем же обходом узлы получают и адрес — тип, сервер и
+//! порт, по которым их узнаёт отчёт.
 //!
 //! Правила сверены с кодом clod-core и стокового mihomo v1.19.32.
 
@@ -38,6 +39,22 @@ pub struct ProxyLabel {
 pub struct Labels {
     pub proxies: HashMap<String, ProxyLabel>,
     pub providers: HashMap<String, HashMap<String, ProxyLabel>>,
+}
+
+/// Тип, сервер и порт узла из его записи.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Address {
+    /// Тип строчными буквами.
+    pub kind: String,
+    pub server: String,
+    pub port: u16,
+}
+
+/// Узел, каким его заводит ядро: подпись и адрес — что из них прочлось.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Node {
+    label: Option<ProxyLabel>,
+    address: Option<Address>,
 }
 
 /// Поле записи, как его находит декодер ядра: точный ключ, иначе без учёта
@@ -305,6 +322,31 @@ pub fn label(proxy: &Mapping) -> Option<ProxyLabel> {
     })
 }
 
+/// Адрес узла: тип, сервер и порт 1–65535 (числом или строкой).
+fn address(proxy: &Mapping) -> Option<Address> {
+    let text = |key: &str| proxy.get(key).and_then(Value::as_str);
+    let port = proxy
+        .get("port")
+        .and_then(|port| {
+            port.as_u64()
+                .or_else(|| port.as_str().and_then(|s| s.trim().parse().ok()))
+        })
+        .and_then(|port| u16::try_from(port).ok())
+        .filter(|port| *port > 0)?;
+    Some(Address {
+        kind: text("type")?.to_lowercase(),
+        server: text("server")?.to_owned(),
+        port,
+    })
+}
+
+fn node(proxy: &Mapping) -> Node {
+    Node {
+        label: label(proxy),
+        address: address(proxy),
+    }
+}
+
 fn listed(proxies: Option<&Value>) -> impl Iterator<Item = &Mapping> {
     proxies
         .and_then(Value::as_sequence)
@@ -359,7 +401,7 @@ impl<'a> Shaping<'a> {
     /// Узлы, какими их заводит ядро: без исключённых типов, первый из
     /// одноимённых, имя с приставками. Фильтры по имени не нужны: одноимённые
     /// они пропускают или отбрасывают разом, а отброшенных ядро не покажет.
-    fn apply(&self, proxies: Option<&Value>) -> HashMap<String, ProxyLabel> {
+    fn apply(&self, proxies: Option<&Value>) -> HashMap<String, Node> {
         let mut seen = HashSet::new();
         let mut out = HashMap::new();
         for proxy in listed(proxies) {
@@ -377,9 +419,7 @@ impl<'a> Shaping<'a> {
             if !seen.insert(name) {
                 continue;
             }
-            if let Some(label) = label(proxy) {
-                out.insert(format!("{}{name}{}", self.prefix, self.suffix), label);
-            }
+            out.insert(format!("{}{name}{}", self.prefix, self.suffix), node(proxy));
         }
         out
     }
@@ -426,20 +466,42 @@ fn core_file(remote: bool, provider: &Mapping) -> Option<PathBuf> {
     })
 }
 
-/// Подписи сборки, файлы провайдеров, из которых они прочитаны (с состоянием
-/// до чтения), и не переписывался ли какой-то файл, пока его читали.
-/// `own_files` — файлы скачанных провайдеров лежат у приложения: ядро запущено
-/// им самим, а не службой (у службы они в её папке).
-fn build(config: &Mapping, own_files: bool) -> (Labels, Vec<(PathBuf, FileState)>, bool) {
-    let mut labels = Labels::default();
-    let mut files = Vec::new();
-    let mut steady = true;
+/// Что собрано из сборки за один обход.
+struct Built {
+    labels: Labels,
+    /// Адреса узлов по именам, какими их называет ядро: узлы самой подписки
+    /// первее провайдерских, провайдеры — по порядку в сборке.
+    addresses: HashMap<String, Address>,
+    /// Файлы провайдеров, из которых прочитано, с состоянием до чтения.
+    files: Vec<(PathBuf, FileState)>,
+    /// Ни один файл не переписывался, пока его читали.
+    steady: bool,
+}
+
+/// Подписи и адреса узлов сборки. `own_files` — файлы скачанных провайдеров
+/// лежат у приложения: ядро запущено им самим, а не службой. У службы они в её
+/// папке, закрытой для нас; файл в папке приложения — от прежнего запуска без
+/// службы: окну его подписи не показываются, отчёту адреса из него годятся.
+fn build(config: &Mapping, own_files: bool) -> Built {
+    let mut built = Built {
+        labels: Labels::default(),
+        addresses: HashMap::new(),
+        files: Vec::new(),
+        steady: true,
+    };
     for proxy in listed(config.get("proxies")) {
         if proxy.contains_key("<<") || proxy.values().any(crate::utils::help::contains_merge_key) {
             continue;
         }
-        if let (Some(name), Some(label)) = (proxy.get("name").and_then(Value::as_str), label(proxy)) {
-            labels.proxies.entry(name.to_owned()).or_insert(label);
+        let Some(name) = proxy.get("name").and_then(Value::as_str) else {
+            continue;
+        };
+        let Node { label, address } = node(proxy);
+        if let Some(label) = label {
+            built.labels.proxies.entry(name.to_owned()).or_insert(label);
+        }
+        if let Some(address) = address {
+            built.addresses.entry(name.to_owned()).or_insert(address);
         }
     }
     for (name, provider) in config
@@ -459,12 +521,10 @@ fn build(config: &Mapping, own_files: bool) -> (Labels, Vec<(PathBuf, FileState)
             continue;
         }
         let kind = field(provider, "type", false).and_then(Value::as_str);
+        let labelled = own_files || kind != Some("http");
         let nodes = match kind {
             Some("inline") => shaping.apply(payload),
             Some("file" | "http") => {
-                if kind == Some("http") && !own_files {
-                    continue;
-                }
                 let Some(path) = core_file(kind == Some("http"), provider) else {
                     continue;
                 };
@@ -472,43 +532,66 @@ fn build(config: &Mapping, own_files: bool) -> (Labels, Vec<(PathBuf, FileState)
                 let doc = before
                     .and_then(|_| std::fs::read_to_string(&path).ok())
                     .and_then(|text| serde_yaml_ng::from_str::<Value>(&text).ok());
-                steady &= file_state(&path) == before;
-                files.push((path, before));
+                built.steady &= file_state(&path) == before;
+                built.files.push((path, before));
                 let proxies = doc.as_ref().and_then(|doc| doc.get("proxies"));
                 if has_merge(proxies) {
                     continue;
                 }
                 // `payload` у них — запасной набор, пока файл не прочитан ядром.
-                // Какой из двух сейчас у ядра, не узнать: где они расходятся, подписи нет.
+                // Какой из двух сейчас у ядра, не узнать: где они расходятся,
+                // подписи (и адреса) нет.
                 let fallback = shaping.apply(payload);
                 let mut nodes = shaping.apply(proxies);
-                nodes.retain(|name, label| fallback.get(name).is_none_or(|other| other == label));
+                for (name, node) in &mut nodes {
+                    let Some(other) = fallback.get(name) else {
+                        continue;
+                    };
+                    if other.label.is_some() && other.label != node.label {
+                        node.label = None;
+                    }
+                    if other.address.is_some() && other.address != node.address {
+                        node.address = None;
+                    }
+                }
                 nodes
             }
             _ => continue,
         };
-        labels.providers.insert(name, nodes);
+        let mut labels = HashMap::with_capacity(nodes.len());
+        for (node_name, Node { label, address }) in nodes {
+            if let Some(address) = address {
+                built.addresses.entry(node_name.clone()).or_insert(address);
+            }
+            if let Some(label) = label {
+                labels.insert(node_name, label);
+            }
+        }
+        if labelled {
+            built.labels.providers.insert(name, labels);
+        }
     }
-    (labels, files, steady)
+    built
 }
 
-/// Последние подписи: по какой сборке, при каком запуске ядра и каких файлах
-/// провайдеров собраны. Сборку держим, а не помним адрес: адрес освобождённой
-/// мог бы достаться новой.
+/// Последние подписи и адреса: по какой сборке, при каком запуске ядра и каких
+/// файлах провайдеров собраны. Сборку держим, а не помним адрес: адрес
+/// освобождённой мог бы достаться новой.
 struct Cached {
     runtime: SharedDraft<IRuntime>,
     own_files: bool,
     files: Vec<(PathBuf, FileState)>,
     stamp: String,
     labels: Arc<Labels>,
+    addresses: Arc<HashMap<String, Address>>,
 }
 
 static CACHE: Mutex<Option<Arc<Cached>>> = Mutex::new(None);
 
-/// Подписи принятой сборки и их отпечаток. Пересобираются, только когда
-/// сменилась сборка, способ запуска ядра или файл провайдера; файлы читаются
-/// вне рантайма.
-pub async fn current() -> (String, Arc<Labels>) {
+/// Подписи и адреса принятой сборки. Пересобираются, только когда сменилась
+/// сборка, способ запуска ядра или файл провайдера; файлы читаются вне
+/// рантайма. `None` — разбор не состоялся.
+async fn cached() -> Option<Arc<Cached>> {
     use crate::core::{CoreManager, manager::RunningMode};
     let runtime = super::Config::runtime().await.data_arc();
     let own_files = matches!(*CoreManager::global().get_running_mode(), RunningMode::Sidecar);
@@ -521,8 +604,18 @@ pub async fn current() -> (String, Arc<Labels>) {
         {
             return (cached, true);
         }
-        let (labels, files, steady) = runtime.config.as_ref().map_or_else(
-            || (Labels::default(), Vec::new(), true),
+        let Built {
+            labels,
+            addresses,
+            files,
+            steady,
+        } = runtime.config.as_ref().map_or_else(
+            || Built {
+                labels: Labels::default(),
+                addresses: HashMap::new(),
+                files: Vec::new(),
+                steady: true,
+            },
             |config| build(config, own_files),
         );
         let stamp = {
@@ -539,21 +632,32 @@ pub async fn current() -> (String, Arc<Labels>) {
             files,
             stamp,
             labels: Arc::new(labels),
+            addresses: Arc::new(addresses),
         });
         (fresh, steady)
     })
     .await;
-    match fresh {
-        Ok((fresh, steady)) => {
-            let out = (fresh.stamp.clone(), Arc::clone(&fresh.labels));
-            // Файл переписывали, пока читали, — прочитанное не запоминаем.
-            if steady {
-                *CACHE.lock() = Some(fresh);
-            }
-            out
-        }
-        Err(_) => (String::new(), Arc::default()),
+    let (fresh, steady) = fresh.ok()?;
+    // Файл переписывали, пока читали, — прочитанное не запоминаем.
+    if steady {
+        *CACHE.lock() = Some(Arc::clone(&fresh));
     }
+    Some(fresh)
+}
+
+/// Подписи принятой сборки и их отпечаток.
+pub async fn current() -> (String, Arc<Labels>) {
+    cached().await.map_or_else(
+        || (String::new(), Arc::default()),
+        |cached| (cached.stamp.clone(), Arc::clone(&cached.labels)),
+    )
+}
+
+/// Адреса узлов принятой сборки по именам, какими их называет ядро; `None` —
+/// ядро работает не на подписке `uid`.
+pub async fn addresses(uid: &str) -> Option<Arc<HashMap<String, Address>>> {
+    let cached = cached().await?;
+    (cached.runtime.profile_uid.as_deref() == Some(uid)).then(|| Arc::clone(&cached.addresses))
 }
 
 /// Подписи в порядке имён: отпечаток не должен зависеть от порядка в таблице.
@@ -575,7 +679,7 @@ fn sorted(labels: &Labels) -> Vec<(&str, &str, &ProxyLabel)> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
-    use super::{build, go_int_is_nonzero, label};
+    use super::{Address, build, go_int_is_nonzero, label};
     use serde_yaml_ng::Mapping;
 
     fn yaml(text: &str) -> Mapping {
@@ -923,8 +1027,9 @@ mod tests {
             file.display(),
             dir.join("missing.yaml").display()
         ));
-        let (labels, files, steady) = build(&config, true);
-        let (service, _, _) = build(&config, false);
+        let built = build(&config, true);
+        let (labels, files, steady) = (built.labels, built.files, built.steady);
+        let service = build(&config, false).labels;
         std::fs::remove_dir_all(&dir).unwrap();
 
         assert_eq!(labels.proxies.len(), 1, "{labels:?}");
@@ -943,6 +1048,61 @@ mod tests {
         assert!(steady);
         assert!(!service.providers.contains_key("web"), "{service:?}");
         assert_eq!(service.providers["file"], labels.providers["file"]);
+    }
+
+    #[test]
+    fn node_addresses_come_from_the_same_walk_and_names_as_the_labels() {
+        let dir = std::env::temp_dir().join(format!("clod-proxy-address-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("provider.yaml");
+        std::fs::write(
+            &file,
+            "proxies:\n  - {name: A, type: ss, server: a.example.com, port: 1}\n  \
+             - {name: F, type: vless, server: f.example.com, port: 2}\n  \
+             - {name: S, type: trojan, server: z.example.com, port: 9}\n",
+        )
+        .unwrap();
+        let config = yaml(&format!(
+            "proxies:\n  - {{name: S, type: snell, server: s.example.com, port: '3'}}\n  \
+             - {{name: N, type: vless, server: n.example.com}}\n  \
+             - {{name: M, type: vless, server: m.example.com, port: 4, <<: {{network: ws}}}}\n\
+             proxy-providers:\n  \
+             inline:\n    type: inline\n    exclude-type: ss\n    override: {{additional-prefix: '[i] ', additional-suffix: ' *'}}\n    \
+             payload:\n      - {{name: D, type: ss, server: d.example.com, port: 5}}\n      \
+             - {{name: D, type: TUIC, server: e.example.com, port: 6}}\n      \
+             - {{name: S, type: vless, server: other.example.com, port: 7}}\n  \
+             web:\n    type: http\n    path: {}\n    payload: [{{name: F, type: vless, server: old.example.com, port: 2}}]\n  \
+             renamed:\n    type: inline\n    override: {{proxy-name: [{{pattern: a, target: b}}]}}\n    \
+             payload: [{{name: R, type: vless, server: r.example.com, port: 8}}]\n",
+            file.display()
+        ));
+        let own = build(&config, true).addresses;
+        let service = build(&config, false).addresses;
+        std::fs::remove_dir_all(&dir).unwrap();
+
+        let at = |kind: &str, server: &str, port| Address {
+            kind: kind.into(),
+            server: server.into(),
+            port,
+        };
+        // Узел без подписи (тип, которого нет в таблице) — с адресом; без порта и
+        // с ключом слияния — без.
+        assert_eq!(own.get("S"), Some(&at("snell", "s.example.com", 3)));
+        assert!(!own.contains_key("N") && !own.contains_key("M"), "{own:?}");
+        // Имя — с приставками провайдера, исключённый тип не в счёт, тип —
+        // строчными; одноимённый с узлом подписки — за подпиской.
+        assert_eq!(own.get("[i] D *"), Some(&at("tuic", "e.example.com", 6)));
+        assert!(!own.contains_key("D"), "{own:?}");
+        assert_eq!(own.get("[i] S *"), Some(&at("vless", "other.example.com", 7)));
+        // Файл и запасной набор расходятся адресом — какой у ядра, не узнать.
+        assert_eq!(own.get("A"), Some(&at("ss", "a.example.com", 1)));
+        assert!(!own.contains_key("F"), "{own:?}");
+        assert!(!own.contains_key("R"), "{own:?}");
+        // Под службой файл скачанного провайдера — от прежнего запуска в папке
+        // приложения: отчёту адреса из него годятся (подписей окну — нет).
+        assert_eq!(service.get("A"), own.get("A"), "{service:?}");
+        assert!(!service.contains_key("F"), "{service:?}");
+        assert_eq!(service.get("[i] D *"), own.get("[i] D *"));
     }
 
     #[test]
@@ -991,7 +1151,7 @@ mod tests {
              plain:\n    type: inline\n    payload: [{{name: K, type: ss}}]\n",
             file.display()
         ));
-        let (labels, _, _) = build(&config, true);
+        let labels = build(&config, true).labels;
         std::fs::remove_dir_all(&dir).unwrap();
 
         assert_eq!(labels.proxies.len(), 1, "{labels:?}");

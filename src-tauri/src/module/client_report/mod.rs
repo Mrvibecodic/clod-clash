@@ -36,16 +36,15 @@ mod store;
 
 use std::collections::{HashMap, HashSet};
 use std::io::Write as _;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use clash_verge_logging::{Type, logging};
 use parking_lot::Mutex;
-use reqwest::Method;
-use serde_yaml_ng::Value;
 
 use crate::{
-    config::{Config, PrfItem},
+    config::{Config, PrfItem, proxy_label::Address},
     constants::timing,
     core::handle,
     module::freeze_check::Verdict,
@@ -58,9 +57,10 @@ use store::{NodeInfo, Place, Use};
 const TICK: Duration = Duration::from_secs(5 * 60);
 /// И не чаще этого.
 const TICK_MIN: Duration = Duration::from_secs(20);
-/// Чтение соединений: байты по узлам. Ядро отдаёт только живые соединения,
-/// закрытое между чтениями теряется целиком — поэтому часто: теряется лишь
-/// хвост последних секунд каждого соединения.
+/// Снимок соединений (его приносит общий опрос, `core::connections_poll`):
+/// байты по узлам. Ядро отдаёт только живые соединения, закрытое между
+/// чтениями теряется целиком — поэтому часто: теряется лишь хвост последних
+/// секунд каждого соединения.
 const TRAFFIC_TICK: Duration = Duration::from_secs(10);
 /// Столько последних замеров ядро держит у узла (`defaultHistoriesNum`).
 const HISTORY_CAP: usize = 10;
@@ -94,6 +94,8 @@ struct Cached {
     dirty: bool,
     /// Когда файл писали в последний раз (или читали).
     saved_at: i64,
+    /// Начало часа, в котором накопленное чистили в последний раз.
+    pruned_hour: i64,
 }
 
 static CACHE: tokio::sync::Mutex<Option<Cached>> = tokio::sync::Mutex::const_new(None);
@@ -122,6 +124,10 @@ impl Spot {
 /// Байты через узел с прошлого сброса в файл: выгрузка, загрузка, секунды с трафиком.
 type Traffic = HashMap<String, (u64, u64, u64)>;
 
+/// Узлы подписки, которую крутит ядро: имя, каким его называет ядро, → тип,
+/// адрес и порт (общий разбор сборки, `config::proxy_label`).
+type Nodes = Arc<HashMap<String, Address>>;
+
 #[derive(Default)]
 struct Runtime {
     /// Подписка, для которой идёт сбор; сменилась — всё заново.
@@ -137,8 +143,6 @@ struct Runtime {
     spot: Option<Spot>,
     /// Через сколько читать историю задержек снова.
     next: Option<Duration>,
-    /// Файлы провайдеров: когда менялся → узлы из него.
-    provider_files: HashMap<std::path::PathBuf, (std::time::SystemTime, Vec<NodeInfo>)>,
 }
 
 static RUNTIME: Mutex<Option<Runtime>> = Mutex::new(None);
@@ -156,12 +160,15 @@ fn now_millis() -> i64 {
     chrono::Utc::now().timestamp_millis()
 }
 
-/// Записать накопленное в файл, если есть что. Подписки, которой в реестре
-/// уже нет, файл не возвращается: его убрало удаление подписки.
+/// Записать накопленное в файл, если есть что (перед записью — почистить).
+/// Подписки, которой в реестре уже нет, файл не возвращается: его убрало
+/// удаление подписки.
 async fn flush(entry: &mut Cached, now: i64) {
     if !entry.dirty {
         return;
     }
+    entry.store.prune(now);
+    entry.pruned_hour = store::hour_of(now);
     let known = Config::profiles().await.latest_arc().get_item(&entry.uid).is_ok();
     if known && let Err(err) = store::save(&entry.uid, &entry.store).await {
         logging!(warn, Type::Core, "[Report] the measurements were not saved: {err:#}");
@@ -171,9 +178,11 @@ async fn flush(entry: &mut Cached, now: i64) {
     entry.saved_at = now;
 }
 
-/// Накопленное подписки — в работу; `save` — писать в файл сразу (после
-/// отправки, вердикты 16–20), иначе по [`SAVE_EVERY`] и при закрытии часа.
-async fn with_store<T>(uid: &str, now: i64, save: bool, work: impl FnOnce(&mut store::Store) -> T) -> T {
+/// Накопленное подписки — в работу; `work` отвечает и тем, изменила ли она
+/// накопленное. `save` — писать в файл сразу (после отправки, вердикты 16–20),
+/// иначе по [`SAVE_EVERY`] и при закрытии часа. Старое чистится раз в час и
+/// перед записью в файл.
+async fn with_store<T>(uid: &str, now: i64, save: bool, work: impl FnOnce(&mut store::Store) -> (T, bool)) -> T {
     let mut guard = CACHE.lock().await;
     if guard.as_ref().is_none_or(|entry| entry.uid != uid) {
         if let Some(old) = guard.as_mut() {
@@ -185,6 +194,7 @@ async fn with_store<T>(uid: &str, now: i64, save: bool, work: impl FnOnce(&mut s
             store,
             dirty: false,
             saved_at: now,
+            pruned_hour: i64::MIN,
         });
     }
     // Запись только что положена, закрытие не выполнится.
@@ -193,10 +203,15 @@ async fn with_store<T>(uid: &str, now: i64, save: bool, work: impl FnOnce(&mut s
         store: store::Store::default(),
         dirty: false,
         saved_at: now,
+        pruned_hour: i64::MIN,
     });
-    let before = entry.store.clone();
-    let out = work(&mut entry.store);
-    entry.dirty |= entry.store != before;
+    let (out, changed) = work(&mut entry.store);
+    entry.dirty |= changed;
+    let hour = store::hour_of(now);
+    if hour != entry.pruned_hour {
+        entry.dirty |= entry.store.prune(now);
+        entry.pruned_hour = hour;
+    }
     let due = now.saturating_sub(entry.saved_at) >= SAVE_EVERY || store::hour_of(now) != store::hour_of(entry.saved_at);
     if save || due {
         flush(entry, now).await;
@@ -237,129 +252,6 @@ async fn collecting_uid() -> Option<String> {
     Some(uid)
 }
 
-/// Узел из записи `proxies` подписки или файла провайдера.
-fn node_of(proxy: &serde_yaml_ng::Mapping) -> Option<NodeInfo> {
-    let text = |key: &str| proxy.get(key).and_then(Value::as_str).map(str::to_owned);
-    let port = proxy
-        .get("port")
-        .and_then(|port| {
-            port.as_u64()
-                .or_else(|| port.as_str().and_then(|s| s.trim().parse().ok()))
-        })
-        .and_then(|port| u16::try_from(port).ok())
-        .filter(|port| *port > 0)?;
-    Some(NodeInfo {
-        name: text("name")?,
-        kind: text("type")?.to_lowercase(),
-        server: text("server")?,
-        port,
-    })
-}
-
-fn nodes_of(proxies: Option<&Value>) -> impl Iterator<Item = NodeInfo> + '_ {
-    proxies
-        .and_then(Value::as_sequence)
-        .into_iter()
-        .flatten()
-        .filter_map(Value::as_mapping)
-        .filter_map(node_of)
-}
-
-/// Файл провайдера узлов у ядра: `path` из подписки (относительно папки ядра)
-/// или, без него, `proxies/<md5 адреса>` — так его кладёт само ядро.
-fn provider_file(provider: &serde_yaml_ng::Mapping) -> Option<std::path::PathBuf> {
-    use md5::Digest as _;
-    let home = dirs::app_home_dir().ok()?;
-    if let Some(path) = provider
-        .get("path")
-        .and_then(Value::as_str)
-        .filter(|p| !p.trim().is_empty())
-    {
-        let path = std::path::Path::new(path.trim());
-        return Some(if path.is_absolute() {
-            path.to_path_buf()
-        } else {
-            home.join(path)
-        });
-    }
-    let url = provider.get("url").and_then(Value::as_str)?;
-    Some(home.join("proxies").join(hex::encode(md5::Md5::digest(url.as_bytes()))))
-}
-
-/// Узлы из провайдеров подписки: встроенные — из `payload`, скачанные — из
-/// файла у ядра. Файл перечитывается, когда менялся.
-fn provider_nodes(providers: Option<&Value>, nodes: &mut HashMap<String, NodeInfo>) {
-    let Some(providers) = providers.and_then(Value::as_mapping) else {
-        return;
-    };
-    for provider in providers.values().filter_map(Value::as_mapping) {
-        let kind = provider.get("type").and_then(Value::as_str).unwrap_or("http");
-        let listed: Vec<NodeInfo> = if kind.eq_ignore_ascii_case("inline") {
-            nodes_of(provider.get("payload")).collect()
-        } else {
-            let Some(path) = provider_file(provider) else {
-                continue;
-            };
-            let Ok(modified) = std::fs::metadata(&path).and_then(|meta| meta.modified()) else {
-                continue;
-            };
-            let cached = with_runtime(|runtime| {
-                runtime
-                    .provider_files
-                    .get(&path)
-                    .filter(|(at, _)| *at == modified)
-                    .map(|(_, listed)| listed.clone())
-            });
-            match cached {
-                Some(listed) => listed,
-                None => {
-                    let listed: Vec<NodeInfo> = std::fs::read_to_string(&path)
-                        .ok()
-                        .and_then(|text| serde_yaml_ng::from_str::<Value>(&text).ok())
-                        .map(|doc| nodes_of(doc.get("proxies")).collect())
-                        .unwrap_or_default();
-                    with_runtime(|runtime| {
-                        runtime.provider_files.insert(path, (modified, listed.clone()));
-                    });
-                    listed
-                }
-            }
-        };
-        for info in listed {
-            nodes.entry(info.name.clone()).or_insert(info);
-        }
-    }
-}
-
-/// Узлы подписки, которую сейчас крутит ядро: имя → тип, адрес, порт. Из
-/// самой подписки и из её провайдеров; одноимённым верх у подписки.
-async fn runtime_nodes(uid: &str) -> HashMap<String, NodeInfo> {
-    let runtime = Config::runtime().await.data_arc();
-    if runtime.profile_uid.as_deref() != Some(uid) {
-        return HashMap::new();
-    }
-    let Some(config) = runtime.config.as_ref() else {
-        return HashMap::new();
-    };
-    let mut nodes: HashMap<String, NodeInfo> = nodes_of(config.get("proxies"))
-        .map(|info| (info.name.clone(), info))
-        .collect();
-    provider_nodes(config.get("proxy-providers"), &mut nodes);
-    nodes
-}
-
-async fn core_json(path: &str) -> Option<serde_json::Value> {
-    let request = handle::Handle::mihomo()
-        .load_ctx()
-        .build_request(Method::GET, path)
-        .ok()?;
-    let response = request.timeout(CORE_TIMEOUT).send().await.ok()?;
-    if !response.status().is_success() {
-        return None;
-    }
-    response.json::<serde_json::Value>().await.ok()
-}
-
 /// Моменты (мс) и задержки истории узла по порядку записи.
 fn history_of(entry: &serde_json::Value) -> Vec<(i64, u64)> {
     entry
@@ -382,36 +274,12 @@ fn history_of(entry: &serde_json::Value) -> Vec<(i64, u64)> {
         .unwrap_or_default()
 }
 
-/// Провайдеры подписки по именам из принятой сборки, каждый своим запросом,
-/// в форме общего ответа (`{"providers": {имя: …}}`). Общий `/providers/proxies`
-/// не годится: ядро заводит провайдер ещё и на каждую группу, и каждый узел в
-/// нём повторяется по разу на группу — читать его раз в 20 секунд дорого.
-/// `None` — провайдеров у подписки нет.
-async fn provider_lists() -> Option<serde_json::Value> {
-    use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
-    let names = crate::cmd::runtime::runtime_proxy_provider_names().await;
-    if names.is_empty() {
-        return None;
-    }
-    let mut providers = serde_json::Map::with_capacity(names.len());
-    for name in names {
-        let path = format!(
-            "/providers/proxies/{}",
-            utf8_percent_encode(name.as_str(), NON_ALPHANUMERIC)
-        );
-        if let Some(provider) = core_json(&path).await {
-            providers.insert(name.to_string(), provider);
-        }
-    }
-    Some(serde_json::json!({ "providers": providers }))
-}
-
 /// История задержек узлов из `wanted`: из `/proxies` (узлы самой подписки) и
 /// провайдеров подписки (узлы провайдеров — в `/proxies` их нет).
 fn histories(
     proxies: &serde_json::Value,
     providers: Option<&serde_json::Value>,
-    wanted: &HashMap<String, NodeInfo>,
+    wanted: &HashMap<String, Address>,
 ) -> HashMap<String, Vec<(i64, u64)>> {
     let mut out = HashMap::new();
     if let Some(map) = proxies.get("proxies").and_then(serde_json::Value::as_object) {
@@ -474,16 +342,20 @@ fn next_read(histories: &HashMap<String, Vec<(i64, u64)>>, since: i64) -> (Durat
     (next.clamp(TICK_MIN, TICK), overflowed)
 }
 
-/// Прирост байтов соединений с прошлого чтения — в копилку по узлам. Первое
-/// чтение только запоминает счётчики: прошлое соединений не в счёт.
-async fn traffic_tick() {
-    if collecting_uid().await.is_none() {
-        return;
-    }
-    let Ok(response) = handle::Handle::mihomo().get_connections().await else {
+/// Сколько ждать между снимками соединений: [`TRAFFIC_TICK`], пока по
+/// текущей подписке копится отчёт; `None` — снимки не нужны.
+pub(crate) async fn traffic_every() -> Option<Duration> {
+    collecting_uid().await.map(|_| TRAFFIC_TICK)
+}
+
+/// Прирост байтов соединений с прошлого снимка — в копилку по узлам. Первый
+/// снимок только запоминает счётчики: прошлое соединений не в счёт. `None` —
+/// ядро не ответило.
+pub(crate) fn count_traffic(response: Option<&tauri_plugin_mihomo::models::Connections>) {
+    let Some(response) = response else {
         return;
     };
-    let connections = response.connections.unwrap_or_default();
+    let connections = response.connections.as_deref().unwrap_or_default();
     let now = now_millis();
     with_runtime(|runtime| {
         let was = std::mem::replace(&mut runtime.read_at, now);
@@ -509,7 +381,7 @@ async fn traffic_tick() {
                     sum.2 = sum.2.saturating_add(secs);
                 }
             }
-            alive.insert(connection.id, (connection.upload, connection.download));
+            alive.insert(connection.id.clone(), (connection.upload, connection.download));
         }
         runtime.seen = alive;
     });
@@ -517,7 +389,7 @@ async fn traffic_tick() {
 
 /// Что прочитано за окно: замеры задержки и накопленный трафик.
 struct Window {
-    nodes: HashMap<String, NodeInfo>,
+    nodes: Nodes,
     pings: Vec<(String, i64, u64)>,
     traffic: Traffic,
 }
@@ -532,13 +404,12 @@ impl Window {
 /// накопленный трафик. `None` — ядро не ответило: окно не сдвигается, замеры
 /// дождутся следующего чтения.
 async fn read_window(uid: &str, until: i64) -> Option<Window> {
-    let nodes = runtime_nodes(uid).await;
-    if nodes.is_empty() {
-        return None;
-    }
-    let proxies = core_json("/proxies").await?;
-    let providers = provider_lists().await;
-    let listed = histories(&proxies, providers.as_ref(), &nodes);
+    let nodes = crate::config::proxy_label::addresses(uid)
+        .await
+        .filter(|nodes| !nodes.is_empty())?;
+    // Сбойный провайдер пропускается: его замеры дождутся следующего чтения.
+    let (proxies, providers, _failed) = crate::feat::read_core_proxies(CORE_TIMEOUT).await.into_json()?;
+    let listed = histories(&proxies, Some(&providers), &nodes);
     let since = with_runtime(|runtime| runtime.pings_until);
     let pings = pings_of(&listed, since, until);
     let (next, overflowed) = next_read(&listed, since);
@@ -558,7 +429,7 @@ async fn read_window(uid: &str, until: i64) -> Option<Window> {
 }
 
 /// Только накопленный трафик, без чтения ядра.
-fn take_traffic(nodes: HashMap<String, NodeInfo>) -> Window {
+fn take_traffic(nodes: Nodes) -> Window {
     Window {
         nodes,
         pings: Vec::new(),
@@ -574,18 +445,21 @@ async fn record(uid: &str, place: &Place, window: Window) {
     let Window { nodes, pings, traffic } = window;
     let now = now_secs();
     with_store(uid, now, false, |saved| {
+        let mut changed = !pings.is_empty();
         for (name, at, delay) in pings {
-            let info = &nodes[&name];
-            let key = store::node_key(info);
-            saved.remember_node(&key, info);
+            let info = NodeInfo::of(&name, &nodes[&name]);
+            let key = store::node_key(&info);
+            saved.remember_node(&key, &info);
             saved.add_ping(place, at / 1000, &key, delay);
         }
         for (name, (up, down, sec)) in traffic {
-            let Some(info) = nodes.get(&name) else {
+            let Some(address) = nodes.get(&name) else {
                 continue;
             };
-            let key = store::node_key(info);
-            saved.remember_node(&key, info);
+            let info = NodeInfo::of(&name, address);
+            let key = store::node_key(&info);
+            saved.remember_node(&key, &info);
+            changed = true;
             saved.add_use(
                 place,
                 now,
@@ -597,7 +471,7 @@ async fn record(uid: &str, place: &Place, window: Window) {
                 },
             );
         }
-        saved.prune(now);
+        ((), changed)
     })
     .await;
 }
@@ -742,7 +616,9 @@ async fn flush_before_change(seen_at: i64, before: u64) {
     let window = if cut > since {
         read_window(&uid, cut).await
     } else {
-        Some(take_traffic(runtime_nodes(&uid).await))
+        Some(take_traffic(
+            crate::config::proxy_label::addresses(&uid).await.unwrap_or_default(),
+        ))
     };
     with_runtime(|runtime| runtime.pings_until = runtime.pings_until.max(seen_at));
     if let Some(window) = window {
@@ -769,10 +645,14 @@ pub(crate) async fn note_freeze(
     if !collected {
         return;
     }
-    let nodes = runtime_nodes(uid).await;
+    let nodes = crate::config::proxy_label::addresses(uid).await.unwrap_or_default();
     let known: Vec<_> = verdicts
         .iter()
-        .filter_map(|(name, verdict, status)| nodes.get(name).map(|info| (info, verdict, *status)))
+        .filter_map(|(name, verdict, status)| {
+            nodes
+                .get(name)
+                .map(|address| (NodeInfo::of(name, address), verdict, *status))
+        })
         .collect();
     if known.is_empty() {
         return;
@@ -797,8 +677,8 @@ pub(crate) async fn note_freeze(
 
     with_store(uid, now, true, |saved| {
         for (info, verdict, status) in known {
-            let key = store::node_key(info);
-            saved.remember_node(&key, info);
+            let key = store::node_key(&info);
+            saved.remember_node(&key, &info);
             let word = match verdict {
                 Verdict::Ok => "ok",
                 Verdict::Frozen => "frozen",
@@ -806,7 +686,7 @@ pub(crate) async fn note_freeze(
             };
             saved.add_freeze(&place, now, &key, word, status);
         }
-        saved.prune(now);
+        ((), true)
     })
     .await;
 }
@@ -896,13 +776,15 @@ pub(crate) async fn after_scheduled_update(uid: String) {
 
     let now = now_secs();
     let packed = with_store(&uid, now, false, |saved| {
-        saved.prune(now);
-        if now.saturating_sub(saved.last_try) < SEND_EVERY {
-            return None;
-        }
-        let oldest = saved.oldest_closed(now)?;
-        let dev = device_id();
-        Some(pack_window(saved, now, oldest, &dev))
+        let pruned = saved.prune(now);
+        let packed = if now.saturating_sub(saved.last_try) < SEND_EVERY {
+            None
+        } else {
+            saved
+                .oldest_closed(now)
+                .map(|oldest| pack_window(saved, now, oldest, &device_id()))
+        };
+        (packed, pruned)
     })
     .await;
     let (gz, until, hours) = match packed {
@@ -938,6 +820,7 @@ pub(crate) async fn after_scheduled_update(uid: String) {
         if status == 204 {
             saved.drop_sent(now, until);
         }
+        ((), true)
     })
     .await;
     let outcome = match status {
@@ -953,27 +836,20 @@ pub(crate) async fn after_scheduled_update(uid: String) {
     );
 }
 
-/// Сборщик: история задержек от раза в 20 секунд до раза в 5 минут (первое
-/// чтение сразу, чтобы место узналось), соединения раз в 10 секунд.
+/// Сборщик истории задержек: от раза в 20 секунд до раза в 5 минут (первое
+/// чтение сразу, чтобы место узналось). Соединения раз в 10 секунд приносит
+/// общий опрос ([`count_traffic`]). На выходе тик пропускается, а не кончает
+/// цикл: после отменённого выхода сбор идёт дальше сам.
 pub fn spawn() {
     AsyncHandler::spawn(|| async {
         let mut next = TICK_MIN;
         loop {
             tokio::time::sleep(next).await;
             if handle::Handle::global().is_exiting() {
-                return;
+                continue;
             }
             tick().await;
             next = with_runtime(|runtime| runtime.next).unwrap_or(TICK);
-        }
-    });
-    AsyncHandler::spawn(|| async {
-        loop {
-            tokio::time::sleep(TRAFFIC_TICK).await;
-            if handle::Handle::global().is_exiting() {
-                return;
-            }
-            traffic_tick().await;
         }
     });
 }
@@ -984,7 +860,7 @@ mod tests {
     use std::time::Duration;
 
     use super::store::{HOUR, Place, Store, hour_of};
-    use super::{NodeInfo, REPORT_MAX_GZ, SEND_WINDOW, TICK, TICK_MIN, histories, next_read, pack_within, pings_of};
+    use super::{Address, REPORT_MAX_GZ, SEND_WINDOW, TICK, TICK_MIN, histories, next_read, pack_within, pings_of};
 
     fn ms(text: &str) -> i64 {
         chrono::DateTime::parse_from_rfc3339(text)
@@ -992,10 +868,10 @@ mod tests {
             .unwrap_or(0)
     }
 
-    fn wanted(names: &[&str]) -> HashMap<String, NodeInfo> {
+    fn wanted(names: &[&str]) -> HashMap<String, Address> {
         names
             .iter()
-            .map(|name| ((*name).to_owned(), NodeInfo::default()))
+            .map(|name| ((*name).to_owned(), Address::default()))
             .collect()
     }
 
@@ -1071,6 +947,60 @@ mod tests {
             TICK_MIN
         );
         assert_eq!(next_read(&HashMap::new(), 0).0, TICK);
+    }
+
+    fn production() -> &'static str {
+        crate::utils::source_scan::without_test_modules(include_str!("mod.rs"))
+    }
+
+    #[test]
+    fn nodes_and_providers_come_from_the_shared_readers() {
+        let source = production();
+        // Узлы — из общего разбора сборки (имена как у ядра, с приставками
+        // провайдеров), а не своим обходом файлов подписки.
+        assert!(source.contains("proxy_label::addresses("), "общий разбор узлов");
+        for copy in [
+            "serde_yaml_ng",
+            "fn node_of",
+            "fn provider_file",
+            "provider_files",
+            "md5",
+        ] {
+            assert!(!source.contains(copy), "своя копия разбора узлов: {copy}");
+        }
+        // Ядро — общим читателем, а не своим помощником запросов.
+        assert!(source.contains("feat::read_core_proxies("));
+        assert!(!source.contains("build_request"), "свой помощник запросов к ядру");
+    }
+
+    #[test]
+    fn the_store_change_comes_from_the_work_itself() {
+        use crate::utils::source_scan::fn_body;
+        let source = production();
+        let with_store = fn_body(source, "async fn with_store").unwrap_or_default();
+        assert!(!with_store.is_empty());
+        assert!(
+            !with_store.contains("store.clone()") && !with_store.contains("!= before"),
+            "накопленное не копируется ради признака: {with_store}"
+        );
+        let record = fn_body(source, "async fn record(").unwrap_or_default();
+        assert!(!record.is_empty());
+        assert!(
+            !record.contains("prune("),
+            "чистка — раз в час и перед записью: {record}"
+        );
+    }
+
+    #[test]
+    fn the_collector_skips_ticks_while_exiting_instead_of_stopping() {
+        use crate::utils::source_scan::fn_body;
+        let spawn = fn_body(production(), "pub fn spawn()").unwrap_or_default();
+        let the_loop = fn_body(spawn, "loop {").unwrap_or_default();
+        assert!(the_loop.contains("is_exiting()"), "{the_loop}");
+        assert!(
+            !spawn.contains("return"),
+            "после отменённого выхода сбор идёт дальше: {spawn}"
+        );
     }
 
     fn backlog(hours: i64, now: i64) -> Store {

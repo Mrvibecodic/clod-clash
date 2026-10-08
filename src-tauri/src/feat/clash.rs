@@ -289,6 +289,27 @@ pub async fn read_core_proxies(budget: std::time::Duration) -> CoreProxies {
     }
 }
 
+impl CoreProxies {
+    /// Прочитанное — в форме общих ответов ядра, как их разбирают отчёт и
+    /// проверка узлов: `/proxies` и `{"providers": {имя: ответ}}`, и сколько
+    /// провайдеров не прочиталось или не разобралось (их в ответе нет). `None` —
+    /// не прочитался `/proxies`.
+    pub fn into_json(self) -> Option<(serde_json::Value, serde_json::Value, usize)> {
+        let proxies = serde_json::from_slice(&self.proxies.ok()?).ok()?;
+        let mut failed = 0;
+        let mut providers = serde_json::Map::with_capacity(self.providers.len());
+        for (name, body) in self.providers {
+            match body.ok().and_then(|body| serde_json::from_slice(&body).ok()) {
+                Some(provider) => {
+                    providers.insert(name.into(), provider);
+                }
+                None => failed += 1,
+            }
+        }
+        Some((proxies, serde_json::json!({ "providers": providers }), failed))
+    }
+}
+
 /// Чем ядро объяснило отказ: его `message`, а без него — код ответа.
 pub async fn core_error_message(response: reqwest::Response) -> std::string::String {
     let status = response.status();
@@ -302,4 +323,48 @@ pub async fn core_error_message(response: reqwest::Response) -> std::string::Str
                 .map(str::to_owned)
         })
         .unwrap_or_else(|| status.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::CoreProxies;
+
+    fn read(proxies: anyhow::Result<&str>, providers: &[(&str, anyhow::Result<&str>)]) -> CoreProxies {
+        CoreProxies {
+            proxies: proxies.map(|body| body.as_bytes().to_vec()),
+            providers: providers
+                .iter()
+                .map(|(name, body)| {
+                    let body = match body {
+                        Ok(body) => Ok(body.as_bytes().to_vec()),
+                        Err(err) => Err(anyhow::anyhow!("{err}")),
+                    };
+                    ((*name).into(), body)
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn the_read_takes_the_shape_of_the_cores_listing_and_counts_failed_providers() {
+        let (proxies, providers, failed) = read(
+            Ok(r#"{"proxies":{"a":{}}}"#),
+            &[
+                ("sub", Ok(r#"{"proxies":[{"name":"n"}]}"#)),
+                ("down", Err(anyhow::anyhow!("404"))),
+                ("broken", Ok("{")),
+            ],
+        )
+        .into_json()
+        .unwrap_or_default();
+        assert_eq!(proxies["proxies"]["a"], serde_json::json!({}));
+        assert_eq!(providers["providers"]["sub"]["proxies"][0]["name"], "n");
+        assert_eq!(providers["providers"].as_object().map(serde_json::Map::len), Some(1));
+        assert_eq!(failed, 2);
+
+        let (_, providers, failed) = read(Ok("{}"), &[]).into_json().unwrap_or_default();
+        assert_eq!(providers, serde_json::json!({ "providers": {} }));
+        assert_eq!(failed, 0);
+        assert!(read(Err(anyhow::anyhow!("down")), &[]).into_json().is_none());
+    }
 }

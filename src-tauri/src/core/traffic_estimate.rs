@@ -14,18 +14,18 @@
 //! именем, счёт от прокси не отличит. Соединение, успевшее открыться и
 //! закрыться между двумя опросами, теряется: счёт занижен, но никогда не
 //! завышен — именно поэтому он и называется примерным.
+//!
+//! Таблицу соединений приносит общий опрос (`core::connections_poll`) — в срок
+//! оценки, даже если ради отчёта он ходит к ядру чаще.
 
 use std::collections::HashMap;
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, SystemTime};
 
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 
 use crate::config::Config;
-use crate::core::handle;
-use crate::process::AsyncHandler;
 use crate::utils::dirs;
 use clash_verge_logging::{Type, logging};
 
@@ -41,14 +41,12 @@ const SAMPLE_MIN: Duration = Duration::from_secs(30);
 const SAMPLE_MAX: Duration = Duration::from_secs(300);
 /// Подписка обновляется не реже этого — досчитывать нечего, счёт выключен.
 const SUBSCRIPTION_FRESH_MINUTES: u64 = 60;
-/// Как часто перечитываем настройки, когда счёт выключен.
-const IDLE_INTERVAL: Duration = Duration::from_secs(300);
-/// Раз во столько опросов состояние сбрасывается на диск.
+/// Раз во столько опросов состояние сбрасывается на диск (если изменилось).
 const PERSIST_EVERY_TICKS: u32 = 4;
 const STATE_FILE: &str = "traffic_estimate.json";
 
 /// Снимок счётчика для фронтенда.
-#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TrafficEstimate {
     /// uid профиля, к которому относится счёт.
@@ -74,6 +72,8 @@ struct Runtime {
     /// историю — единственный способ завысить счёт, и его надо исключить.
     primed: bool,
     ticks: u32,
+    /// Что лежит в файле: то же — писать нечего.
+    saved: Option<TrafficEstimate>,
 }
 
 fn runtime() -> &'static Mutex<Runtime> {
@@ -97,13 +97,30 @@ fn load_persisted() -> Option<TrafficEstimate> {
     serde_json::from_str::<TrafficEstimate>(&raw).ok()
 }
 
-fn persist(estimate: &TrafficEstimate) {
-    let Some(path) = state_path() else { return };
-    let Ok(raw) = serde_json::to_string(estimate) else {
+/// Оценка, которую пора записать: она не та, что в файле. С этого момента
+/// считается записанной.
+fn unsaved(runtime: &mut Runtime) -> Option<TrafficEstimate> {
+    if runtime.saved.as_ref() == Some(&runtime.estimate) {
+        return None;
+    }
+    runtime.saved = Some(runtime.estimate.clone());
+    runtime.saved.clone()
+}
+
+/// Записать оценку, если она изменилась с прошлой записи.
+pub(crate) async fn save() {
+    let estimate = {
+        let mut guard = runtime().lock();
+        unsaved(&mut guard)
+    };
+    let Some(estimate) = estimate else { return };
+    let (Some(path), Ok(raw)) = (state_path(), serde_json::to_vec(&estimate)) else {
         return;
     };
-    if let Err(err) = std::fs::write(path, raw) {
-        logging!(warn, Type::Core, "не удалось сохранить счётчик трафика: {err}");
+    if let Err(err) = crate::utils::help::write_atomic(&path, &raw).await {
+        logging!(warn, Type::Core, "не удалось сохранить счётчик трафика: {err:#}");
+        // Записать ещё раз в следующий срок.
+        runtime().lock().saved = None;
     }
 }
 
@@ -180,7 +197,20 @@ fn reconcile(runtime: &mut Runtime, uid: &str, upload: u64, download: u64) -> bo
     true
 }
 
-async fn tick() {
+/// Как часто оценке нужен снимок соединений; `None` — счёт не нужен, и
+/// досчитанное сбрасывается.
+pub(crate) async fn sample_every() -> Option<Duration> {
+    let every = sample_interval().await;
+    if every.is_none() {
+        // Счёт выключен: обнуляем досчитанное, чтобы интерфейс показывал число
+        // подписки как есть, без пометки «≈».
+        clear_local().await;
+    }
+    every
+}
+
+/// Снимок соединений в срок оценки. `None` — ядро не ответило.
+pub(crate) async fn count(response: Option<&tauri_plugin_mihomo::models::Connections>) {
     let Some((uid, upload, download)) = current_subscription().await else {
         return;
     };
@@ -190,20 +220,16 @@ async fn tick() {
         reconcile(&mut guard, &uid, upload, download)
     };
     if reset {
-        persist(&snapshot());
+        save().await;
     }
 
-    let core = crate::feat::environment::detached_core_client();
-    let Ok(response) = core.get_connections().await else {
-        // Ядро может быть ещё не поднято или уже остановлено — это штатно,
-        // шуметь в лог на каждый опрос не за чем.
-        return;
-    };
-    let Some(connections) = response.connections else {
+    // Ядро может быть ещё не поднято или уже остановлено — это штатно,
+    // шуметь в лог на каждый опрос не за чем.
+    let Some(connections) = response.and_then(|response| response.connections.as_deref()) else {
         return;
     };
 
-    let (estimate, should_persist) = {
+    let should_persist = {
         let mut guard = runtime().lock();
         let mut alive = HashMap::with_capacity(connections.len());
         let mut added = 0_u64;
@@ -216,7 +242,7 @@ async fn tick() {
             // Перезапуск ядра раздаёт новые `id`, так что отрицательных
             // приростов быть не может; `saturating_sub` — страховка.
             added = added.saturating_add(total.saturating_sub(counted));
-            alive.insert(connection.id, total);
+            alive.insert(connection.id.clone(), total);
         }
         if !guard.primed {
             // Первый опрос: соединения могли жить ещё до запуска приложения,
@@ -229,12 +255,11 @@ async fn tick() {
         guard.seen = alive;
         guard.estimate.local_bytes = guard.estimate.local_bytes.saturating_add(added);
         guard.ticks = guard.ticks.wrapping_add(1);
-        let due = guard.ticks.is_multiple_of(PERSIST_EVERY_TICKS);
-        (guard.estimate.clone(), due)
+        guard.ticks.is_multiple_of(PERSIST_EVERY_TICKS)
     };
 
     if should_persist {
-        persist(&estimate);
+        save().await;
     }
 }
 
@@ -245,64 +270,28 @@ pub fn snapshot() -> TrafficEstimate {
 
 /// Сбросить досчитанное, оставив базу подписки. Нужно, когда счёт выключается:
 /// иначе последняя оценка застыла бы на карточке как вечная правда.
-fn clear_local() {
-    let changed = {
+async fn clear_local() {
+    {
         let mut guard = runtime().lock();
-        let had = guard.estimate.local_bytes != 0;
         guard.estimate.local_bytes = 0;
         guard.seen.clear();
         guard.primed = false;
-        had
-    };
-    if changed {
-        persist(&snapshot());
     }
+    save().await;
 }
 
-static POLLING_GENERATION: AtomicU64 = AtomicU64::new(0);
-
-/// Поднять счётчик и запустить опрос ядра.
+/// Поднять счётчик из файла. Опрос ядра для него ведёт `core::connections_poll`.
 pub fn init() {
     if let Some(persisted) = load_persisted() {
-        runtime().lock().estimate = persisted;
+        let mut guard = runtime().lock();
+        guard.saved = Some(persisted.clone());
+        guard.estimate = persisted;
     }
-    resume();
-}
-
-pub fn resume() {
-    if handle::Handle::global().is_exiting() {
-        return;
-    }
-    let generation = POLLING_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
-    AsyncHandler::spawn(move || async move {
-        loop {
-            if POLLING_GENERATION.load(Ordering::Acquire) != generation {
-                break;
-            }
-            if handle::Handle::global().is_exiting() {
-                let estimate = snapshot();
-                persist(&estimate);
-                break;
-            }
-            match sample_interval().await {
-                Some(interval) => {
-                    tick().await;
-                    tokio::time::sleep(interval).await;
-                }
-                None => {
-                    // Счёт выключен: обнуляем досчитанное, чтобы интерфейс
-                    // показывал число подписки как есть, без пометки «≈».
-                    clear_local();
-                    tokio::time::sleep(IDLE_INTERVAL).await;
-                }
-            }
-        }
-    });
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Runtime, SAMPLE_MAX, SAMPLE_MIN, counts_as_proxy, interval_for_minutes, reconcile};
+    use super::{Runtime, SAMPLE_MAX, SAMPLE_MIN, counts_as_proxy, interval_for_minutes, reconcile, unsaved};
 
     #[test]
     fn sampling_follows_the_subscription_interval() {
@@ -363,6 +352,23 @@ mod tests {
         // счётчики открытых соединений переживают сверку — иначе их трафик
         // будет посчитан заново поверх нового значения подписки
         assert_eq!(runtime.seen.get("conn-1"), Some(&1024));
+    }
+
+    #[test]
+    fn the_file_is_written_only_when_the_estimate_changed() {
+        let mut runtime = Runtime::default();
+        assert!(unsaved(&mut runtime).is_some(), "в файле ещё ничего");
+        assert!(unsaved(&mut runtime).is_none(), "то же — писать нечего");
+        runtime.estimate.local_bytes = 1;
+        assert_eq!(unsaved(&mut runtime).map(|estimate| estimate.local_bytes), Some(1));
+        assert!(unsaved(&mut runtime).is_none());
+
+        let source = include_str!("traffic_estimate.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .unwrap_or_default();
+        assert!(!source.contains("std::fs::write"), "запись — только атомарная");
+        assert!(source.contains("write_atomic("));
     }
 
     #[test]
