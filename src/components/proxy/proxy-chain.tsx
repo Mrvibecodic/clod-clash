@@ -78,6 +78,8 @@ interface ProxyChainProps {
 
 interface SortableItemProps {
   proxy: ProxyChainItem
+  /** Подпись протокола из подписки, если узел в ней есть. */
+  label?: string
   delay?: number
   index: number
   isFirst: boolean
@@ -111,6 +113,7 @@ const chainDelay = (record?: IProxyItem) => {
 
 const SortableItem = ({
   proxy,
+  label = proxy.type,
   delay,
   index,
   isFirst,
@@ -222,13 +225,8 @@ const SortableItem = ({
         {proxy.name}
       </Typography>
 
-      {proxy.type && (
-        <Chip
-          label={proxy.type}
-          size="small"
-          variant="outlined"
-          sx={{ mr: 1 }}
-        />
+      {label && (
+        <Chip label={label} size="small" variant="outlined" sx={{ mr: 1 }} />
       )}
 
       {delay !== undefined && (
@@ -562,6 +560,7 @@ export const ProxyChain = ({
                   <Box key={proxy.id}>
                     <SortableItem
                       proxy={proxy}
+                      label={proxies?.records?.[proxy.name]?.label?.text}
                       delay={chainDelay(proxies?.records?.[proxy.name])}
                       index={index}
                       isFirst={index === 0}

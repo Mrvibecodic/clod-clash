@@ -6,6 +6,7 @@ import { showNotice } from '@/services/notice-service'
 import { clearProxyChain } from '@/services/proxy-chain-store'
 import { debugLog } from '@/utils/debug'
 import { enumText } from '@/utils/plugin-enum'
+import { ambiguousNames, labelFor, own } from '@/utils/proxy-label'
 
 export async function getCoreLadder() {
   return invoke<ICoreLadder>('get_core_ladder')
@@ -111,6 +112,29 @@ async function getRuntimeProxyProviderNames() {
   return invoke<string[]>('get_runtime_proxy_provider_names')
 }
 
+const NO_LABELS: IProxyLabels = { proxies: {}, providers: {} }
+/** Последние подписи и их отпечаток: неизменные бэкенд второй раз не шлёт. */
+let shownLabels: { stamp: string; labels: IProxyLabels } | undefined
+
+/** Протокол, транспорт и защита узлов из подписки — см. `get_runtime_proxy_labels`. */
+async function getRuntimeProxyLabels() {
+  const ask = (known: string | null) =>
+    invoke<{ stamp: string; labels?: IProxyLabels }>(
+      'get_runtime_proxy_labels',
+      { known },
+    )
+  let answer = await ask(shownLabels?.stamp ?? null)
+  // Отпечаток уже сменило соседнее чтение — спросим подписи целиком.
+  if (!answer.labels && answer.stamp !== shownLabels?.stamp) {
+    answer = await ask(null)
+  }
+  if (answer.labels) {
+    shownLabels = { stamp: answer.stamp, labels: answer.labels }
+    return answer.labels
+  }
+  return shownLabels?.stamp === answer.stamp ? shownLabels.labels : NO_LABELS
+}
+
 export async function getRuntimeYaml() {
   return invoke<string | null>('get_runtime_yaml')
 }
@@ -160,19 +184,63 @@ export async function calcuProxies(): Promise<{
   proxies: IProxyItem[]
   providers: ProxyProviderRecord
 }> {
-  const [proxyResponse, providerResponse, runtimeGroupOrder] =
+  const [proxyResponse, providerLists, runtimeGroupOrder, labels] =
     await Promise.all([
       getProxies(),
       calcuProxyProviders(),
       getRuntimeProxyGroupOrder(),
+      // Подписи — украшение: без них список остаётся, просто без плашек.
+      getRuntimeProxyLabels().catch(() => NO_LABELS),
     ])
 
-  const proxyRecord = Object.fromEntries(
-    Object.entries(proxyResponse.proxies).map(([name, proxy]) => [
-      name,
-      { ...proxy, type: enumText(proxy.type) },
-    ]),
+  // Подпись протокола — только у узлов: у групп остаётся их тип.
+  const proxyEntries = Object.entries(proxyResponse.proxies).map(
+    ([name, proxy]) => {
+      const type = enumText(proxy.type)
+      const label = proxy.all
+        ? undefined
+        : labelFor(type, own(labels.proxies, name))
+      return [name, { ...proxy, type, label }] as const
+    },
   )
+  const providerResponse = providerLists.shown
+  const providerEntries = Object.entries(providerResponse).flatMap(
+    ([provider, item]) =>
+      item!.proxies.map((p) => {
+        const type = enumText(p.type)
+        const label = labelFor(
+          type,
+          own(own(labels.providers, provider), p.name),
+        )
+        return [p.name, { ...p, type, label, provider }] as const
+      }),
+  )
+  // Одноимённые узлы из разных мест с разными подписями — без подписи:
+  // чужая хуже никакой.
+  const inlineEntries = providerLists.inline.flatMap(([provider, item]) =>
+    item.proxies.map(
+      (p) =>
+        [
+          p.name,
+          labelFor(
+            enumText(p.type),
+            own(own(labels.providers, provider), p.name),
+          ),
+        ] as const,
+    ),
+  )
+  const ambiguous = ambiguousNames([
+    ...[...proxyEntries, ...providerEntries].map(
+      ([name, item]) => [name, item.label] as const,
+    ),
+    ...inlineEntries,
+  ])
+  const settle = <T extends { label?: IProxyLabel }>([name, item]: readonly [
+    string,
+    T,
+  ]) =>
+    [name, ambiguous.has(name) ? { ...item, label: undefined } : item] as const
+  const proxyRecord = Object.fromEntries(proxyEntries.map(settle))
 
   // clod:Э11-05 — ядро перезагружает конфиг за считанные миллисекунды, и очередное
   // чтение может застать его с пустой картой прокси. Успешный пустой
@@ -184,20 +252,11 @@ export async function calcuProxies(): Promise<{
     throw new Error('clod-core-not-ready: the core has no proxy groups yet')
   }
 
-  const providerRecord = providerResponse
-
-  const providerMap = Object.fromEntries(
-    Object.entries(providerRecord).flatMap(([provider, item]) =>
-      item!.proxies.map((p) => [
-        p.name,
-        { ...p, type: enumText(p.type), provider },
-      ]),
-    ),
-  )
+  const providerMap = Object.fromEntries(providerEntries.map(settle))
 
   const generateItem = (name: string) => {
-    if (proxyRecord[name]) return proxyRecord[name]
-    if (providerMap[name]) return providerMap[name]
+    const item = own(proxyRecord, name) ?? own(providerMap, name)
+    if (item) return item
     return {
       name,
       type: 'unknown',
@@ -282,7 +341,9 @@ export async function calcuProxies(): Promise<{
   }
 }
 
-type ProxyProviderRecord = Awaited<ReturnType<typeof calcuProxyProviders>>
+type ProxyProviderRecord = Awaited<
+  ReturnType<typeof calcuProxyProviders>
+>['shown']
 
 /**
  * Провайдеры узлов подписки (HTTP и File) — по одному, по именам из принятой
@@ -300,14 +361,19 @@ async function calcuProxyProviders() {
       async (name) => [name, await getProxyProviderByName(name)] as const,
     ),
   )
-  return Object.fromEntries(
-    providers
-      .filter(
-        ([_, item]) =>
-          item.vehicleType === 'HTTP' || item.vehicleType === 'File',
-      )
-      .sort(),
-  )
+  return {
+    shown: Object.fromEntries(
+      providers
+        .filter(
+          ([_, item]) =>
+            item.vehicleType === 'HTTP' || item.vehicleType === 'File',
+        )
+        .sort(),
+    ),
+    // Встроенные провайдеры не показываются, но их узлы ядро держит под теми же
+    // именами — они нужны проверке одноимённых подписей.
+    inline: providers.filter(([_, item]) => item.vehicleType === 'Inline'),
+  }
 }
 
 export async function getClashLogs() {

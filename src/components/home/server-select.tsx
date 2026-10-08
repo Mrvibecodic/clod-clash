@@ -290,7 +290,7 @@ export const ServerSelect = ({ open, onClose }: Props) => {
                   ? leaf
                     ? `${typeLabel(type)} · ${nameWithoutFlag(leaf)}`
                     : typeLabel(type)
-                  : node.type)}
+                  : (node.label?.text ?? node.type))}
           </Typography>
         </Box>
         <FreezeMark mark={freezeMark} />

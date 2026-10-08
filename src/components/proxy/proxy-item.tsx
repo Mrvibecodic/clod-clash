@@ -17,6 +17,7 @@ import { useFreezeMarks } from '@/hooks/use-freeze-marks'
 import { useProxyDelayState } from '@/hooks/use-proxy-delay-state'
 import { useServerDescriptions } from '@/hooks/use-server-descriptions'
 import { delayColor, delayText } from '@/utils/delay-color'
+import { typeChips } from '@/utils/proxy-label'
 
 import { FreezeMark } from './freeze-mark'
 import { ProxyFavorite } from './proxy-favorite'
@@ -132,7 +133,12 @@ export const ProxyItem = (props: Props) => {
               {showType && !!proxy.provider && (
                 <TypeBox>{proxy.provider}</TypeBox>
               )}
-              {showType && <TypeBox>{proxy.type}</TypeBox>}
+              {showType &&
+                typeChips(proxy).map((chip) => (
+                  <TypeBox key={chip} title={proxy.label?.text}>
+                    {chip}
+                  </TypeBox>
+                ))}
               {showType && proxy.udp && <TypeBox>UDP</TypeBox>}
               {showType && proxy.xudp && <TypeBox>XUDP</TypeBox>}
               {showType && proxy.tfo && <TypeBox>TFO</TypeBox>}

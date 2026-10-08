@@ -6,6 +6,7 @@ mod config;
 mod encrypt;
 mod prfitem;
 pub mod profiles;
+pub mod proxy_label;
 pub mod runtime;
 // clod: Remnawave / Happ subscription headers
 pub mod sub_headers;

@@ -51,7 +51,7 @@ pub async fn read_mapping(path: &PathBuf) -> Result<Mapping> {
 
 const MAX_MERGE_PASSES: usize = 16;
 
-fn contains_merge_key(root: &Value) -> bool {
+pub(crate) fn contains_merge_key(root: &Value) -> bool {
     let mut stack = vec![root];
 
     while let Some(node) = stack.pop() {

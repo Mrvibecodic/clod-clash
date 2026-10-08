@@ -3,6 +3,7 @@ import delayManager from '@/services/delay'
 export interface ProxyNode {
   name: string
   type?: string
+  label?: IProxyLabel
   history?: { time: string; delay: number }[]
 }
 

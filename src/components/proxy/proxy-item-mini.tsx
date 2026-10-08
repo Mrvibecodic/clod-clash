@@ -8,6 +8,7 @@ import { useProxyDelayState } from '@/hooks/use-proxy-delay-state'
 import { useServerDescriptions } from '@/hooks/use-server-descriptions'
 import { SHAPE } from '@/pages/_theme'
 import { delayColor, delayText } from '@/utils/delay-color'
+import { typeChips } from '@/utils/proxy-label'
 
 import { FreezeMark } from './freeze-mark'
 import { ProxyFavorite } from './proxy-favorite'
@@ -140,9 +141,27 @@ export const ProxyItemMini = (props: Props) => {
                 {proxy.provider}
               </TypeBox>
             )}
-            <TypeBox color="text.secondary" component="span">
-              {proxy.type}
-            </TypeBox>
+            {/* Протокол держит ширину, транспорт и защита сжимаются первыми. */}
+            {typeChips(proxy).map((chip, index) => (
+              <TypeBox
+                key={chip}
+                color="text.secondary"
+                component="span"
+                title={proxy.label?.text}
+                sx={
+                  index === 0
+                    ? { flexShrink: 0 }
+                    : {
+                        minWidth: 0,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }
+                }
+              >
+                {chip}
+              </TypeBox>
+            ))}
             {proxy.udp && (
               <TypeBox color="text.secondary" component="span">
                 UDP

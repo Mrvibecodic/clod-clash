@@ -168,6 +168,7 @@ mod app_init {
             cmd::get_runtime_config,
             cmd::get_runtime_proxy_group_order,
             cmd::get_runtime_proxy_provider_names,
+            cmd::get_runtime_proxy_labels,
             cmd::get_proxies_stamp,
             cmd::get_runtime_yaml,
             cmd::get_runtime_proxy_chain_config,

@@ -89,9 +89,24 @@ interface IConfigData {
   'proxy-groups'?: IProxyGroupItem[]
 }
 
+/** Протокол, транспорт и защита узла из подписки; `text` — они же строкой. */
+interface IProxyLabel {
+  proto: string
+  transport?: string
+  security?: string
+  text: string
+}
+
+/** Подписи узлов: самой подписки — по имени, провайдеров — по провайдеру и имени. */
+interface IProxyLabels {
+  proxies: Record<string, IProxyLabel>
+  providers: Record<string, Record<string, IProxyLabel>>
+}
+
 interface IProxyItem {
   name: string
   type: string
+  label?: IProxyLabel
   udp: boolean
   xudp: boolean
   tfo: boolean

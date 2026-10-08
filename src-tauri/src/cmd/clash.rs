@@ -649,6 +649,9 @@ pub async fn get_proxies_stamp() -> CmdResult<std::string::String> {
         hasher.write(group.as_bytes());
         hasher.write_u8(0);
     }
+    // Подписи узлов берутся из подписки, а не из ядра: обновлённая подписка
+    // может не изменить ответ ядра, а подписи — изменить.
+    hasher.write(crate::config::proxy_label::current().await.0.as_bytes());
     for provider in providers {
         // Провайдер, которого ядро не отдало, отпечаток не роняет: остальное
         // по-прежнему надо замечать.
