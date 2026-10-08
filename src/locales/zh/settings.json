@@ -712,10 +712,6 @@
     }
   },
   "statuses": {
-    "clash": {
-      "stopping": "停止内核中...",
-      "restarting": "重启内核中..."
-    },
     "clashService": {
       "uninstalling": "卸载服务中..."
     }

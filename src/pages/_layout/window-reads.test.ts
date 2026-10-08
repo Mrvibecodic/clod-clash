@@ -91,8 +91,12 @@ describe('окно не перечитывает лишнего', () => {
       const text = source(path)
       assert.doesNotMatch(text, /rememberTarget/, path)
       assert.match(text, /toggleSystemProxy\(\w+, true\)/, path)
-      assert.match(text, /connect_tun_mode: \w+/, path)
+      assert.match(text, /switchTun\(\w+\)/, path)
     }
+    assert.match(
+      source('../../hooks/use-tun-switch.ts'),
+      /enable_tun_mode: value, connect_tun_mode: value/,
+    )
   })
 
   it('очередь уведомлений забирается один раз за показ окна', () => {

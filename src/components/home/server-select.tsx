@@ -20,7 +20,6 @@ import {
 } from '@mui/material'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useLockFn } from 'ahooks'
-import dayjs from 'dayjs'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -41,6 +40,7 @@ import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
 import delayManager, { effectiveLatencyTimeout } from '@/services/delay'
 import { showNotice } from '@/services/notice-service'
 import { nameWithoutFlag } from '@/utils/country'
+import { refillDateText } from '@/utils/date-text'
 import {
   delayBars,
   delayColor,
@@ -61,6 +61,7 @@ import {
   SELECTABLE_GROUP_TYPES,
   visibleGroups,
 } from '@/utils/proxy-groups'
+import { noServersSeverity } from '@/utils/subscription-status'
 
 /** Пинг на Главной: замер — в мс, неответ — словом, как на «Прокси», не мерили — прочерк. */
 const pingLabel = (delay: number | undefined, failed: string) =>
@@ -767,9 +768,7 @@ export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
   } = useNoServersStatus(currentProfile)
   const listEmpty = Boolean(proxies) && !hasRealNodes(proxies)
   const statusRow = noServers && (listEmpty || onlySentinels)
-  const refillDate = currentProfile?.refill_date
-    ? dayjs(currentProfile.refill_date * 1000).format('DD.MM.YYYY')
-    : undefined
+  const refillDate = refillDateText(currentProfile)
   const statusCaption = statusRow
     ? reason === 'traffic' && refillDate
       ? t('home.components.serverStatus.row.traffic', { date: refillDate })
@@ -777,12 +776,9 @@ export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
           `home.components.serverStatus.row.${reason === 'traffic' ? 'trafficNoDate' : reason}`,
         )
     : undefined
+  const severity = noServersSeverity(reason)
   const statusColor =
-    reason === 'expired'
-      ? 'error.main'
-      : reason === 'traffic' || reason === 'deviceLimit'
-        ? 'warning.main'
-        : 'text.secondary'
+    severity === 'info' ? 'text.secondary' : `${severity}.main`
 
   const description =
     (leaf ? descriptions[leaf] : undefined) ??

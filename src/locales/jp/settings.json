@@ -712,10 +712,6 @@
     }
   },
   "statuses": {
-    "clash": {
-      "stopping": "コアを停止中...",
-      "restarting": "コアを再起動中..."
-    },
     "clashService": {
       "uninstalling": "サービスをアンインストール中..."
     }

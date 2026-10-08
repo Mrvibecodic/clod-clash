@@ -11,11 +11,10 @@ import { useTranslation } from 'react-i18next'
 import { Switch } from '@/components/base'
 import { useConnectTargets } from '@/hooks/use-connect-targets'
 import { useSystemProxyState } from '@/hooks/use-system-proxy-state'
-import { useSystemState } from '@/hooks/use-system-state'
 import { useTunState } from '@/hooks/use-tun-state'
+import { useTunSwitch } from '@/hooks/use-tun-switch'
 import { useVerge } from '@/hooks/use-verge'
 import { CARD_SURFACE, CARD_TITLE, SHAPE, TINT } from '@/pages/_theme'
-import { ensureTunReady } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { tunSetupNotice } from '@/utils/tun-notice'
 
@@ -94,15 +93,15 @@ const GroupCap = ({ label }: { label: string }) => (
 
 export const QuickActions = () => {
   const { t } = useTranslation()
-  const { verge, mutateVerge, patchVerge } = useVerge()
+  const { verge, patchVerge } = useVerge()
   const {
     indicator: sysproxyOn,
     busy: sysproxyBusy,
     toggleSystemProxy,
   } = useSystemProxyState()
-  const { mutateSystemState } = useSystemState()
   const { targetSys, targetTun, targetsLocked } = useConnectTargets()
-  const { tunActive, tunCapable, mutateTunState } = useTunState()
+  const { tunActive, tunCapable } = useTunState()
+  const { prepareTun, switchTun } = useTunSwitch()
   const [installing, setInstalling] = useState(false)
   const [tunBusy, setTunBusy] = useState(false)
 
@@ -119,8 +118,7 @@ export const QuickActions = () => {
     try {
       if (next && !tunCapable) {
         setInstalling(true)
-        const ready = await ensureTunReady().finally(() => setInstalling(false))
-        await Promise.all([mutateSystemState(), mutateTunState()])
+        const ready = await prepareTun().finally(() => setInstalling(false))
         if (!ready) {
           showNotice.error(
             'settings.sections.proxyControl.tooltips.tunUnavailable',
@@ -128,13 +126,10 @@ export const QuickActions = () => {
           return
         }
       }
-      mutateVerge({ ...verge, enable_tun_mode: next }, false)
-      await patchVerge({ enable_tun_mode: next, connect_tun_mode: next })
+      await switchTun(next)
     } catch (error) {
       showNotice.error(tunSetupNotice(error))
-      mutateVerge()
     } finally {
-      await mutateTunState()
       setTunBusy(false)
     }
   })

@@ -24,6 +24,7 @@ import { useTranslation } from 'react-i18next'
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
 import { updateCoreProxyProvider } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
+import { profileDate } from '@/utils/date-text'
 import parseTraffic from '@/utils/parse-traffic'
 import { enumText } from '@/utils/plugin-enum'
 
@@ -39,12 +40,6 @@ const TypeBox = styled(Box)<{ component?: React.ElementType }>(({ theme }) => ({
   padding: '0 2px',
   lineHeight: 1.25,
 }))
-
-// Разбор срока истечения
-const parseExpire = (expire?: number) => {
-  if (!expire) return '-'
-  return dayjs(expire * 1000).format('YYYY-MM-DD')
-}
 
 export const ProviderButton = () => {
   const { t } = useTranslation()
@@ -296,7 +291,7 @@ export const ProviderButton = () => {
                                     t('shared.labels.expireTime') as string
                                   }
                                 >
-                                  {parseExpire(expire)}
+                                  {profileDate(expire)}
                                 </span>
                               </Box>
 

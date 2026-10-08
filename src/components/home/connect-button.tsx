@@ -3,13 +3,7 @@ import { Box, CircularProgress, Typography, alpha } from '@mui/material'
 import { useTranslation } from 'react-i18next'
 
 import { ConnectUptime } from '@/components/home/connect-uptime'
-
-export type ConnectState =
-  | 'off'
-  | 'connecting'
-  | 'disconnecting'
-  | 'on'
-  | 'error'
+import type { ConnectState } from '@/utils/connect-state'
 
 interface Props {
   state: ConnectState

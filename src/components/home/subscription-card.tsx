@@ -20,6 +20,7 @@ import { InfoTile } from '@/components/home/info-tile'
 import { useExpiryCountdown } from '@/hooks/use-expiry-countdown'
 import { useTrafficEstimate } from '@/hooks/use-traffic-estimate'
 import { CARD_VALUE } from '@/pages/_theme'
+import { refillDateText } from '@/utils/date-text'
 import parseTraffic from '@/utils/parse-traffic'
 import { clockSkew } from '@/utils/subscription-status'
 
@@ -251,7 +252,7 @@ export const SubscriptionCard = ({ profile }: Props) => {
         {profile.refill_date && !critical ? (
           <Typography variant="caption" color="text.secondary" noWrap>
             {t('home.components.subscription.refill', {
-              date: dayjs(profile.refill_date * 1000).format('DD.MM.YYYY'),
+              date: refillDateText(profile),
             })}
           </Typography>
         ) : null}

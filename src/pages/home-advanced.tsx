@@ -9,16 +9,13 @@ import {
   Stack,
   Typography,
 } from '@mui/material'
-import { useInterval, useLockFn } from 'ahooks'
+import { useInterval } from 'ahooks'
 import dayjs from 'dayjs'
 import { type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
-import {
-  ConnectButton,
-  type ConnectState,
-} from '@/components/home/connect-button'
+import { ConnectButton } from '@/components/home/connect-button'
 import { CoreStatus } from '@/components/home/core-status'
 import { ModeStatus } from '@/components/home/mode-status'
 import { NetCard } from '@/components/home/net-card'
@@ -28,7 +25,7 @@ import { ProviderLinksCard } from '@/components/home/provider-links'
 import { QuickActions } from '@/components/home/quick-actions'
 import { ServerSelect, ServerSelectRow } from '@/components/home/server-select'
 import { SubscriptionCard } from '@/components/home/subscription-card'
-import { useConnectTargets } from '@/hooks/use-connect-targets'
+import { useConnectButton } from '@/hooks/use-connect-button'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useSimpleMode } from '@/hooks/use-simple-mode'
 import { useSubscriptionUpdate } from '@/hooks/use-subscription-update'
@@ -37,7 +34,6 @@ import { useVisibility } from '@/hooks/use-visibility'
 import { useFitWindowToContent } from '@/hooks/use-window-fit'
 import { CARD_SURFACE, SHAPE, TINT } from '@/pages/_theme'
 import { showNotice } from '@/services/notice-service'
-import { connectFailureText } from '@/utils/tun-notice'
 
 import HomeSimplePage from './home-simple'
 
@@ -141,41 +137,14 @@ const HomeAdvancedPage = () => {
   const { current, mutateProfiles } = useProfiles()
   const { setSimpleMode } = useSimpleMode()
   const { shortcuts } = useToolShortcuts()
-  const { connected, willConnect, toggleConnection } = useConnectTargets()
+  const { connected, state, errorText, toggle } = useConnectButton()
   const { fitRef, compact } = useFitWindowToContent()
 
-  const [busy, setBusy] = useState(false)
-  const [failure, setFailure] = useState<{ text: string; at: boolean }>()
   const [serverOpen, setServerOpen] = useState(false)
-  const [intent, setIntent] = useState<'connecting' | 'disconnecting'>()
   const visible = useVisibility()
   const [tick, setTick] = useState(() => Date.now())
   useInterval(() => setTick(Date.now()), visible ? NOW_TICK_MS : undefined, {
     immediate: true,
-  })
-
-  const errorText = failure?.at === connected ? failure.text : undefined
-
-  const state: ConnectState = errorText
-    ? 'error'
-    : busy
-      ? (intent ?? 'connecting')
-      : connected
-        ? 'on'
-        : 'off'
-
-  const toggle = useLockFn(async () => {
-    setIntent(willConnect ? 'connecting' : 'disconnecting')
-    setBusy(true)
-    setFailure(undefined)
-    try {
-      await toggleConnection()
-    } catch (error) {
-      setFailure({ text: connectFailureText(error, t), at: connected })
-    } finally {
-      setBusy(false)
-      setIntent(undefined)
-    }
   })
 
   const {

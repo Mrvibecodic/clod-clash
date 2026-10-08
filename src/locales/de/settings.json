@@ -712,10 +712,6 @@
     }
   },
   "statuses": {
-    "clash": {
-      "stopping": "Kern wird gestoppt...",
-      "restarting": "Kern wird neu gestartet..."
-    },
     "clashService": {
       "uninstalling": "Service wird deinstalliert..."
     }

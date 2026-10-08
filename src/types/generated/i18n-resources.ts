@@ -1418,10 +1418,6 @@ export interface TranslationResources {
         }
       }
       statuses: {
-        clash: {
-          restarting: string
-          stopping: string
-        }
         clashService: {
           uninstalling: string
         }

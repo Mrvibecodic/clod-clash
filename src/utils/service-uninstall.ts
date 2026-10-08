@@ -1,71 +1,49 @@
 /**
- * Удаление фоновой службы — три шага. Отказ шага объясняется РОВНО ОДИН раз:
- * раньше один клик давал три одинаковых сообщения, потому что ошибку показывал
- * и сам шаг, и перезапуск, и вызывающий поверх них.
- *
- * После отказавшей остановки перезапуск НЕ зовём. Отказ остановки не говорит,
- * легло ядро или живо: режим пишется в «не запущено» независимо от исхода, и
- * перезапуск, увидев этот режим, никого не убивает, а поднимает второй процесс
- * поверх живого первого — с потерянной ссылкой на него и с бодрым «ядро
- * перезапущено» в ответ. Остановленное ядро человек поднимет кнопкой; чужое
- * ядро, которое приложение больше не умеет найти, — уже ничем.
+ * Удаление фоновой службы целиком делает бэкенд (`uninstall_service`): ядро,
+ * работавшее под службой, он останавливает под плановой паузой и после
+ * поднимает своим процессом. Окну остаётся сказать, как прошёл каждый шаг, и
+ * отказ шага объяснить РОВНО ОДИН раз: раньше один клик давал три одинаковых
+ * сообщения.
  */
-
-export interface ServiceUninstallSteps {
-  stopCore: () => Promise<void>
-  uninstallService: () => Promise<void>
-  restartCore: () => Promise<void>
+export interface ServiceUninstallOutcome {
+  /** Ядро под службой не остановилось — службу не трогали. */
+  stop_error: string | null
+  uninstall_error: string | null
+  /** Ядро, остановленное ради удаления, поднималось своим процессом. */
+  restarted: boolean
+  restart_error: string | null
 }
 
-export interface ServiceUninstallTalk {
-  busy: (key: string) => void
-  done: (key: string) => void
-  failed: (error: unknown, consequence?: string) => void
-}
+export type ServiceUninstallNotice =
+  | { done: string }
+  | { error: string; consequence?: string }
 
-const UNINSTALL_STAGE = {
-  stopping: 'settings.statuses.clash.stopping',
+export const UNINSTALL_STAGE = {
   uninstalling: 'settings.statuses.clashService.uninstalling',
   uninstalled: 'settings.feedback.notifications.clashService.uninstallSuccess',
   skipped: 'settings.feedback.notifications.clashService.uninstallSkipped',
-  restarting: 'settings.statuses.clash.restarting',
   restarted: 'settings.feedback.notifications.clash.restartSuccess',
 } as const
 
-export const runServiceUninstall = async (
-  steps: ServiceUninstallSteps,
-  talk: ServiceUninstallTalk,
-): Promise<void> => {
-  talk.busy(UNINSTALL_STAGE.stopping)
-  try {
-    await steps.stopCore()
-  } catch (error) {
+export const serviceUninstallNotices = (
+  outcome: ServiceUninstallOutcome,
+): ServiceUninstallNotice[] => {
+  if (outcome.stop_error !== null) {
     // Человек нажимал «удалить службу», а не «остановить ядро»: одна причина
     // отказа остановки не говорит ему, что служба осталась на месте.
-    talk.failed(error, UNINSTALL_STAGE.skipped)
-    return
+    return [{ error: outcome.stop_error, consequence: UNINSTALL_STAGE.skipped }]
   }
-
-  talk.busy(UNINSTALL_STAGE.uninstalling)
-  let uninstalled = true
-  try {
-    await steps.uninstallService()
-  } catch (error) {
-    uninstalled = false
-    talk.failed(error)
+  const notices: ServiceUninstallNotice[] = [
+    outcome.uninstall_error === null
+      ? { done: UNINSTALL_STAGE.uninstalled }
+      : { error: outcome.uninstall_error },
+  ]
+  if (outcome.restarted) {
+    notices.push(
+      outcome.restart_error === null
+        ? { done: UNINSTALL_STAGE.restarted }
+        : { error: outcome.restart_error },
+    )
   }
-  if (uninstalled) {
-    talk.done(UNINSTALL_STAGE.uninstalled)
-  }
-
-  // Ядро остановили мы — поднять его обратно обязаны независимо от того,
-  // удалилась ли служба.
-  talk.busy(UNINSTALL_STAGE.restarting)
-  try {
-    await steps.restartCore()
-  } catch (error) {
-    talk.failed(error)
-    return
-  }
-  talk.done(UNINSTALL_STAGE.restarted)
+  return notices
 }

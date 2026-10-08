@@ -7,6 +7,7 @@ import { clearProxyChain } from '@/services/proxy-chain-store'
 import { debugLog } from '@/utils/debug'
 import { enumText } from '@/utils/plugin-enum'
 import { ambiguousNames, labelFor, own } from '@/utils/proxy-label'
+import type { ServiceUninstallOutcome } from '@/utils/service-uninstall'
 import type { UpdatesInFlight } from '@/utils/subscription-status'
 
 export async function getCoreLadder() {
@@ -472,10 +473,6 @@ export async function changeClashCore(clashCore: string) {
   return invoke<string | null>('change_clash_core', { clashCore })
 }
 
-export async function stopCore() {
-  return invoke<void>('stop_core')
-}
-
 export async function refreshGeoAssets() {
   return invoke<number>('refresh_geo_assets')
 }
@@ -654,7 +651,7 @@ export const getTrafficEstimate = async () => {
 }
 
 export const uninstallService = async () => {
-  return invoke<void>('uninstall_service')
+  return invoke<ServiceUninstallOutcome>('uninstall_service')
 }
 
 export const getTunState = async () => {

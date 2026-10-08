@@ -716,10 +716,6 @@
     }
   },
   "statuses": {
-    "clash": {
-      "stopping": "Остановка ядра...",
-      "restarting": "Перезапуск ядра..."
-    },
     "clashService": {
       "uninstalling": "Удаление службы..."
     }

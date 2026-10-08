@@ -5,8 +5,9 @@ import { useProfiles } from '@/hooks/use-profiles'
 import { useSystemProxyState } from '@/hooks/use-system-proxy-state'
 import { useSystemState } from '@/hooks/use-system-state'
 import { useTunState } from '@/hooks/use-tun-state'
+import { useTunSwitch } from '@/hooks/use-tun-switch'
 import { useVerge } from '@/hooks/use-verge'
-import { ensureTunReady, getRunningMode, restartCore } from '@/services/cmds'
+import { getRunningMode, restartCore } from '@/services/cmds'
 
 /**
  * clod:connect-mode — что просит поднимать провайдер (`clod-connect-mode`).
@@ -60,6 +61,7 @@ export const useConnectTargets = () => {
   // и по прежней формуле TUN считался доступным: `ensure_ready` не звался,
   // починка не запускалась, а ядро через такую службу всё равно не поднималось.
   const { tunActive, tunDesired, tunCapable, mutateTunState } = useTunState()
+  const { prepareTun } = useTunSwitch()
 
   const { current } = useProfiles()
   const providerMode = current?.connect_mode
@@ -144,9 +146,7 @@ export const useConnectTargets = () => {
     // «установите её сами»; теперь ставим (один запрос прав) и продолжаем, а
     // ошибка остаётся только для случая, когда пользователь отказал.
     if (next && targetTun && !tun.capable && !tun.active) {
-      const ready = await ensureTunReady()
-      await Promise.all([mutateSystemState(), mutateTunState()])
-      if (!ready) {
+      if (!(await prepareTun())) {
         throw new Error(t('home.components.connect.errors.serviceRequired'))
       }
     }
@@ -172,6 +172,7 @@ export const useConnectTargets = () => {
     tunCapable,
     mutateSystemState,
     mutateTunState,
+    prepareTun,
     patchVerge,
     toggleSystemProxy,
     t,

@@ -15,6 +15,7 @@ import {
 } from '@mui/material'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { useLockFn } from 'ahooks'
+import { debounce } from 'lodash-es'
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -22,7 +23,6 @@ import { BaseLoadingOverlay, MonacoEditor } from '@/components/base'
 import { showNotice } from '@/services/notice-service'
 import { useThemeMode } from '@/services/states'
 import type { MonacoEditorInstance } from '@/types/monaco'
-import debounce from '@/utils/debounce'
 import getSystem from '@/utils/get-system'
 
 const appWindow = getCurrentWebviewWindow()

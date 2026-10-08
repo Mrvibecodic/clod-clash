@@ -7,6 +7,7 @@ import {
   missedUpdates,
   newerUpdatesInFlight,
   noServersReason,
+  noServersSeverity,
 } from './subscription-status.ts'
 
 const DAY = 24 * 60 * 60
@@ -164,6 +165,15 @@ describe('missedUpdates', () => {
     assert.equal(missedUpdates(remote({ url: undefined }), later), 0)
     assert.equal(missedUpdates(remote(), fetched - HOUR), 0)
     assert.equal(missedUpdates(undefined, later), 0)
+  })
+})
+
+describe('noServersSeverity', () => {
+  it('истёкшая подписка — ошибка, трафик и устройства — предупреждение', () => {
+    assert.equal(noServersSeverity('expired'), 'error')
+    assert.equal(noServersSeverity('traffic'), 'warning')
+    assert.equal(noServersSeverity('deviceLimit'), 'warning')
+    assert.equal(noServersSeverity('provider'), 'info')
   })
 })
 

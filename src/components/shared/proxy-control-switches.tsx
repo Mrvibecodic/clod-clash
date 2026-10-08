@@ -25,8 +25,8 @@ import { useServiceUninstaller } from '@/hooks/use-service-uninstaller'
 import { useSystemProxyState } from '@/hooks/use-system-proxy-state'
 import { useSystemState } from '@/hooks/use-system-state'
 import { useTunState } from '@/hooks/use-tun-state'
+import { useTunSwitch } from '@/hooks/use-tun-switch'
 import { useVerge } from '@/hooks/use-verge'
-import { ensureTunReady } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { tunSetupKey, tunSetupNotice } from '@/utils/tun-notice'
 
@@ -164,7 +164,8 @@ const SwitchRow = ({
 
 const ProxyControlSwitches = ({ target, onError }: ProxySwitchProps) => {
   const { t } = useTranslation()
-  const { verge, mutateVerge, patchVerge } = useVerge()
+  const { verge, patchVerge } = useVerge()
+  const { prepareTun, switchTun } = useTunSwitch()
   const { uninstallServiceAndRestartCore } = useServiceUninstaller()
   const {
     indicator: systemProxyIndicator,
@@ -200,38 +201,19 @@ const ProxyControlSwitches = ({ target, onError }: ProxySwitchProps) => {
     // состояния: если службы нет, ставим её (один запрос прав). Ошибка
     // остаётся только для случая, когда пользователь отказал.
     if (value && !tunCapable) {
-      // Подготовка умеет не только «получилось/не получилось»: отказ («идёт
-      // выход», «уже спрашиваем права») приходит меткой, и её надо показать
-      // словами, а не звать ставить уже стоящую службу.
-      const ready = await ensureTunReady().catch((err: unknown) => {
+      const ready = await prepareTun().catch((err: unknown) => {
         const key = tunSetupKey(err)
         throw key ? new Error(t(key)) : err
       })
-      await Promise.all([mutateSystemState(), mutateTunState()])
       if (!ready) {
         const msgKey = 'settings.sections.proxyControl.tooltips.tunUnavailable'
         showErrorNotice(msgKey)
         throw new Error(t(msgKey))
       }
     }
-    mutateVerge({ ...verge, enable_tun_mode: value }, false)
-    try {
-      // Тумблеры здесь и есть выбор режима для кнопки Connect — отдельной
-      // пары настроек «Подключение: …» больше нет. Пишется той же записью.
-      await patchVerge({ enable_tun_mode: value, connect_tun_mode: value })
-    } catch (err) {
-      // Ошибка не обязательно значит откат: бэкенд мог сохранить настройку и
-      // всё равно сообщить об отказе следующего шага. Перечитываем конфиг —
-      // в кэше не должно остаться оптимистичное значение, факт узнаём у
-      // бэкенда.
-      mutateVerge()
-      throw err
-    } finally {
-      // Тумблер показывает факт — спрашиваем его у бэкенда после патча. В
-      // `finally`, а не в `try`: провал этого запроса не делает патч неудачным
-      // и не должен откатывать переключатель.
-      await mutateTunState().catch(() => undefined)
-    }
+    // Тумблеры здесь и есть выбор режима для кнопки Connect — отдельной пары
+    // настроек «Подключение: …» больше нет.
+    await switchTun(value)
   }
 
   // clod:service-repair — одна кнопка на оба случая: минимальное действие
@@ -239,8 +221,7 @@ const ProxyControlSwitches = ({ target, onError }: ProxySwitchProps) => {
   // это единственный путь, у которого одинаковая логика с тумблером.
   const onFixService = useLockFn(async () => {
     try {
-      const ready = await ensureTunReady()
-      await Promise.all([mutateSystemState(), mutateTunState()])
+      const ready = await prepareTun()
       // clod:e7 — служба поднялась, но конфиг ядра собирали, когда её ещё не
       // было: TUN в него не попал. Без повторной подачи настройки кнопка
       // «починить» оставляла тумблер включённым над выключенным туннелем.

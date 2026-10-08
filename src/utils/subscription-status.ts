@@ -10,6 +10,14 @@
  */
 export type NoServersReason = 'expired' | 'traffic' | 'deviceLimit' | 'provider'
 
+/** Насколько это серьёзно — один цвет на плашке и в строке шторки. */
+export const noServersSeverity = (reason: NoServersReason) =>
+  reason === 'expired'
+    ? 'error'
+    : reason === 'traffic' || reason === 'deviceLimit'
+      ? 'warning'
+      : 'info'
+
 /**
  * clod: поправка к часам устройства до времени панели, в секундах.
  * `undefined` — часов панели мы не знаем и считаем по своим.

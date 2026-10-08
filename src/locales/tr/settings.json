@@ -712,10 +712,6 @@
     }
   },
   "statuses": {
-    "clash": {
-      "stopping": "Stopping Core...",
-      "restarting": "Restarting Core..."
-    },
     "clashService": {
       "uninstalling": "Uninstalling Service..."
     }

@@ -143,7 +143,6 @@ mod app_init {
             cmd::get_network_interfaces,
             cmd::get_system_hostname,
             cmd::restart_app,
-            cmd::stop_core,
             cmd::restart_core,
             cmd::download_in_core,
             cmd::refresh_geo_assets,

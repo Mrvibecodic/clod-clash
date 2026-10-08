@@ -712,10 +712,6 @@
     }
   },
   "statuses": {
-    "clash": {
-      "stopping": "코어 중지 중...",
-      "restarting": "코어 재시작 중..."
-    },
     "clashService": {
       "uninstalling": "서비스 제거 중..."
     }

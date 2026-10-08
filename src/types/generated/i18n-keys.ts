@@ -863,8 +863,6 @@ export const translationKeys = [
   'settings.feedback.notifications.clashService.uninstallSkipped',
   'settings.feedback.notifications.updater.withClashProxySuccess',
   'settings.feedback.notifications.updater.breakingChanges',
-  'settings.statuses.clash.stopping',
-  'settings.statuses.clash.restarting',
   'settings.statuses.clashService.uninstalling',
   'shared.actions.cancel',
   'shared.actions.close',

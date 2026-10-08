@@ -132,17 +132,6 @@ pub async fn change_clash_core(clash_core: String) -> CmdResult<Option<String>> 
     }
 }
 #[tauri::command]
-pub async fn stop_core() -> CmdResult {
-    feat::refuse_while_exiting().stringify_err()?;
-    logging_error!(Type::Core, crate::config::profiles::profiles_save_file_safe().await);
-    let result = CoreManager::global().stop_core().await.stringify_err();
-    if result.is_ok() {
-        handle::Handle::refresh_clash();
-    }
-    result
-}
-
-#[tauri::command]
 pub async fn refresh_geo_assets() -> CmdResult<usize> {
     crate::module::geo_assets::refresh_home_copies().await.stringify_err()
 }

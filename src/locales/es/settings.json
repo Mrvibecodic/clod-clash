@@ -712,10 +712,6 @@
     }
   },
   "statuses": {
-    "clash": {
-      "stopping": "Deteniendo núcleo...",
-      "restarting": "Reiniciando núcleo..."
-    },
     "clashService": {
       "uninstalling": "Desinstalando servicio..."
     }

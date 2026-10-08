@@ -11,8 +11,9 @@ import { useNoServersStatus } from '@/hooks/use-no-servers-status'
 import { useSubscriptionUpdate } from '@/hooks/use-subscription-update'
 import { openWebUrl } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
+import { refillDateText } from '@/utils/date-text'
 import parseTraffic from '@/utils/parse-traffic'
-import { clockSkew } from '@/utils/subscription-status'
+import { clockSkew, noServersSeverity } from '@/utils/subscription-status'
 
 interface Props {
   profile?: IProfileItem
@@ -83,17 +84,9 @@ export const NoServersStatus = ({ profile, quiet }: Props) => {
   const used = (extra?.upload ?? 0) + (extra?.download ?? 0)
   const skew = clockSkew(profile) ?? 0
   const expireDate = date(extra?.expire, skew)
-  // Дата пополнения уже в секундах — её приводит разбор ответа панели.
-  const refillDate = profile.refill_date
-    ? dayjs(profile.refill_date * 1000).format('DD.MM.YYYY')
-    : undefined
+  const refillDate = refillDateText(profile)
 
-  const severity =
-    reason === 'expired'
-      ? 'error'
-      : reason === 'traffic' || reason === 'deviceLimit'
-        ? 'warning'
-        : 'info'
+  const severity = noServersSeverity(reason)
 
   const icon =
     reason === 'expired' ? (

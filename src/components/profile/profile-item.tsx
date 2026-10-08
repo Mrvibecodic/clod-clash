@@ -62,6 +62,7 @@ import {
 } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import type { TranslationKey } from '@/types/generated/i18n-keys'
+import { profileDate } from '@/utils/date-text'
 import { debugLog } from '@/utils/debug'
 import parseTraffic from '@/utils/parse-traffic'
 import { profileDisplayName } from '@/utils/profile-name'
@@ -261,11 +262,11 @@ const ProfileItemBase = (props: ProfileItemProps) => {
     : daysLeft !== undefined
       ? t('profiles.components.profileItem.labels.expiresIn', {
           count: daysLeft,
-          date: parseExpire(expireSeconds - skew),
+          date: profileDate(expireSeconds - skew),
         })
-      : parseExpire(expireSeconds - skew)
+      : profileDate(expireSeconds - skew)
   const refillDate = itemData.refill_date
-    ? parseExpire(itemData.refill_date)
+    ? profileDate(itemData.refill_date)
     : undefined
   const progress = Math.min(
     Math.round(((download + upload) * 100) / (total + 0.01)) + 1,
@@ -825,7 +826,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
               title={
                 showNextUpdate
                   ? t('profiles.components.profileItem.tooltips.showLast')
-                  : `${t('shared.labels.updateTime')}: ${parseExpire(updated)}\n${t('profiles.components.profileItem.tooltips.showNext')}`
+                  : `${t('shared.labels.updateTime')}: ${profileDate(updated)}\n${t('profiles.components.profileItem.tooltips.showNext')}`
               }
               sx={{
                 fontSize: 13,
@@ -929,7 +930,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
             }}
           >
             <span title={t('shared.labels.updateTime')}>
-              {parseExpire(updated)}
+              {profileDate(updated)}
             </span>
           </Box>
         )}
@@ -1179,9 +1180,4 @@ function parseUrl(url?: string) {
   } catch {
     return null
   }
-}
-
-function parseExpire(expire?: number) {
-  if (!expire) return '-'
-  return dayjs(expire * 1000).format('YYYY-MM-DD')
 }
