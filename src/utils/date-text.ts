@@ -13,3 +13,15 @@ export const refillDateText = (profile?: IProfileItem) =>
   profile?.refill_date
     ? dayjs(profile.refill_date * 1000).format('DD.MM.YYYY')
     : undefined
+
+/**
+ * Длительность сессии на кнопке подключения — как на Android: `MM:SS`, с часами
+ * `H:MM:SS`.
+ */
+export const sessionTimeText = (seconds: number) => {
+  const total = Math.max(0, Math.floor(seconds))
+  const pad = (value: number) => String(value).padStart(2, '0')
+  const hours = Math.floor(total / 3600)
+  const rest = `${pad(Math.floor((total % 3600) / 60))}:${pad(total % 60)}`
+  return hours > 0 ? `${hours}:${rest}` : rest
+}

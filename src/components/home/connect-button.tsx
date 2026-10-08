@@ -23,6 +23,7 @@ export const ConnectButton = ({
 }: Props) => {
   const { t } = useTranslation()
   const size = compact ? COMPACT_SIZE : SIZE
+  const iconSize = compact ? 50 : 64
 
   const palette = {
     off: 'text.disabled',
@@ -91,6 +92,7 @@ export const ConnectButton = ({
           cursor: 'pointer',
           opacity: 1,
           display: 'flex',
+          flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
           transition: theme.transitions.create(
@@ -119,24 +121,21 @@ export const ConnectButton = ({
       >
         {state === 'connecting' || state === 'disconnecting' ? (
           <CircularProgress size={compact ? 44 : 56} color="inherit" />
+        ) : state === 'on' ? (
+          <ConnectUptime iconSize={iconSize} compact={compact} />
         ) : (
-          <PowerSettingsNewRoundedIcon sx={{ fontSize: compact ? 50 : 64 }} />
+          <PowerSettingsNewRoundedIcon sx={{ fontSize: iconSize }} />
         )}
       </Box>
 
-      {/* clod: при подключении надпись «Подключено» заменяет зелёный таймер
-          сессии — цвет и кнопка говорят то же самое; вслух состояние
-          произносит aria-label кнопки. Отступ сверху — чтобы строка не
-          липла к ореолу кнопки; снизу пустоты нет: режим под ней — часть
-          той же группы. */}
+      {/* clod: состояние словами во всех состояниях, при подключении —
+          «Подключено»; таймер сессии — на самой кнопке. Отступ сверху —
+          чтобы строка не липла к ореолу кнопки; снизу пустоты нет: режим
+          под ней — часть той же группы. */}
       <Box sx={{ mt: 1.25 }}>
-        {state === 'on' ? (
-          <ConnectUptime color={color} fallback={label} />
-        ) : (
-          <Typography variant="subtitle1" sx={{ color, fontWeight: 600 }}>
-            {label}
-          </Typography>
-        )}
+        <Typography variant="subtitle1" sx={{ color, fontWeight: 600 }}>
+          {label}
+        </Typography>
       </Box>
 
       {state === 'error' && errorText ? (

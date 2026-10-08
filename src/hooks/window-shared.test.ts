@@ -41,6 +41,29 @@ describe('общие хуки и функции окна', () => {
     }
   })
 
+  it('кнопка «Подключить»: под ней всегда слово, таймер — на кнопке', () => {
+    const button = source('../components/home/connect-button.tsx')
+    // Подпись под кнопкой одна на все состояния, при подключении — «Подключено».
+    assert.match(
+      button,
+      /<Box sx=\{\{ mt: 1\.25 \}\}>\s*<Typography variant="subtitle1" sx=\{\{ color, fontWeight: 600 \}\}>\s*\{label\}\s*<\/Typography>\s*<\/Box>/,
+    )
+    // Таймер — внутри самой кнопки, имя кнопки для чтения с экрана — слово.
+    const face = button.slice(
+      button.indexOf('component="button"'),
+      button.indexOf('</Box>'),
+    )
+    assert.match(face, /aria-label=\{label\}/)
+    assert.match(
+      face,
+      /<ConnectUptime iconSize=\{iconSize\} compact=\{compact\} \/>/,
+    )
+    const uptime = source('../components/home/connect-uptime.tsx')
+    assert.match(uptime, /export const ConnectUptime = memo\(/)
+    assert.match(uptime, /aria-hidden/)
+    assert.match(uptime, /sessionTimeText\(seconds\)/)
+  })
+
   it('форматы дат и цвет причины не повторяются по экранам', () => {
     for (const file of [
       '../components/profile/profile-item.tsx',

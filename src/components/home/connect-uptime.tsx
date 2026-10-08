@@ -1,43 +1,54 @@
+import PowerSettingsNewRoundedIcon from '@mui/icons-material/PowerSettingsNewRounded'
 import { Typography } from '@mui/material'
 import { memo } from 'react'
 
 import { useSessionUptime } from '@/hooks/use-session-uptime'
+import { sessionTimeText } from '@/utils/date-text'
 
 interface Props {
-  /** Цвет состояния «подключено» — таймер стоит на месте надписи о нём. */
-  color: string
-  /** Что показать, пока бэкенд не вернул начало сессии. */
-  fallback: string
+  /** Размер значка кнопки без таймера. */
+  iconSize: number
+  compact?: boolean
 }
 
-const formatUptime = (seconds: number) => {
-  const total = Math.max(0, Math.floor(seconds))
-  const hours = Math.floor(total / 3600)
-  const minutes = Math.floor((total % 3600) / 60)
-  const secs = total % 60
-  const pad = (value: number) => String(value).padStart(2, '0')
-  return hours > 0
-    ? `${pad(hours)}:${pad(minutes)}:${pad(secs)}`
-    : `${pad(minutes)}:${pad(secs)}`
-}
+/** Значок над таймером меньше — как на Android (0,34 → 0,30 диаметра). */
+const ICON_WITH_TIMER = 0.3 / 0.34
 
-const ConnectUptimeView = ({ color, fallback }: Props) => {
+/**
+ * clod: значок кнопки подключения и таймер сессии под ним, внутри кнопки —
+ * как на Android. Секундный тик перерисовывает только это. Таймер — пока идёт
+ * сессия и прошла хотя бы секунда; вслух состояние произносит aria-label
+ * кнопки, цифры в него не попадают.
+ */
+const ConnectUptimeView = ({ iconSize, compact }: Props) => {
   const uptime = useSessionUptime(true)
+  const seconds = Math.floor(uptime ?? 0)
+  const timed = seconds > 0
 
   return (
-    <Typography
-      variant="subtitle1"
-      sx={{
-        color,
-        fontVariantNumeric: 'tabular-nums',
-        letterSpacing: 1,
-        fontWeight: 600,
-        fontSize: 18,
-        lineHeight: '28px',
-      }}
-    >
-      {uptime === undefined ? fallback : formatUptime(uptime)}
-    </Typography>
+    <>
+      <PowerSettingsNewRoundedIcon
+        sx={{
+          fontSize: timed ? Math.round(iconSize * ICON_WITH_TIMER) : iconSize,
+        }}
+      />
+      {timed ? (
+        <Typography
+          component="span"
+          aria-hidden
+          sx={{
+            mt: 0.5,
+            color: 'inherit',
+            fontSize: compact ? 13 : 15,
+            lineHeight: compact ? '16px' : '18px',
+            fontWeight: 600,
+            fontVariantNumeric: 'tabular-nums',
+          }}
+        >
+          {sessionTimeText(seconds)}
+        </Typography>
+      ) : null}
+    </>
   )
 }
 
