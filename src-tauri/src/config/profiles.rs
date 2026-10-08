@@ -152,13 +152,7 @@ impl IProfiles {
 
     /// Перевести подписку на новый адрес, только если основной — всё ещё `from`.
     pub async fn move_item_url(&mut self, uid: &String, from: String, to: String) -> Result<()> {
-        let Some(each) = self
-            .items
-            .as_mut()
-            .and_then(|items| items.iter_mut().find(|each| each.uid.as_ref() == Some(uid)))
-        else {
-            bail!("failed to find the profile item \"uid:{uid}\"");
-        };
+        let each = self.item_mut(uid)?;
         if each.url.as_ref() != Some(&from) {
             bail!("the subscription address was changed meanwhile");
         }
@@ -204,6 +198,14 @@ impl IProfiles {
         }
 
         bail!("failed to get the profile item \"uid:{}\"", uid_str);
+    }
+
+    /// Запись о подписке для правки.
+    pub fn item_mut(&mut self, uid: &str) -> Result<&mut PrfItem> {
+        self.items
+            .as_mut()
+            .and_then(|items| items.iter_mut().find(|each| each.uid.as_deref() == Some(uid)))
+            .with_context(|| format!("failed to find the profile item \"uid:{uid}\""))
     }
 
     pub fn set_selected_node(&mut self, group: &str, node: &str) -> bool {
@@ -368,13 +370,7 @@ impl IProfiles {
             bail!("содержимое подписки принимается до слияния в реестр, а не вместе с ним");
         }
         let file = self.file_name_for(uid, item)?;
-        let Some(each) = self
-            .items
-            .as_mut()
-            .and_then(|items| items.iter_mut().find(|each| each.uid.as_ref() == Some(uid)))
-        else {
-            bail!("failed to find the profile item \"uid:{uid}\"");
-        };
+        let each = self.item_mut(uid)?;
 
         each.extra = item.extra;
         each.updated = item.updated;
@@ -396,14 +392,7 @@ impl IProfiles {
     /// Подменить файл профиля в реестре — для кандидата сборки, который проверяется
     /// на файле-кандидате рядом с рабочим.
     pub fn point_item_file_at(&mut self, uid: &String, file: String) -> Result<()> {
-        let Some(each) = self
-            .items
-            .as_mut()
-            .and_then(|items| items.iter_mut().find(|each| each.uid.as_ref() == Some(uid)))
-        else {
-            bail!("failed to find the profile item \"uid:{uid}\"");
-        };
-        each.file = Some(file);
+        self.item_mut(uid)?.file = Some(file);
         Ok(())
     }
 
@@ -421,21 +410,13 @@ impl IProfiles {
     fn plan_delete_item(&mut self, uid: &String) -> Result<(bool, PendingProfileFiles)> {
         let current = self.current.as_ref().unwrap_or(uid);
         let current = current.clone();
-        let delete_uids = {
-            let item = self.get_item(uid)?;
-            let option = item.option.as_ref();
-            option.map_or(Vec::new(), |op| {
-                [
-                    op.merge.clone(),
-                    op.script.clone(),
-                    op.rules.clone(),
-                    op.proxies.clone(),
-                    op.groups.clone(),
-                ]
-                .into_iter()
-                .collect::<Vec<_>>()
-            })
-        };
+        let delete_uids: Vec<String> = self
+            .get_item(uid)?
+            .option
+            .iter()
+            .flat_map(PrfOption::chain_uids)
+            .cloned()
+            .collect();
         let mut items = self.items.take().unwrap_or_default();
         let mut pending = PendingProfileFiles::default();
 
@@ -451,7 +432,7 @@ impl IProfiles {
         pending.push(dirs::report_file(uid).into());
 
         for delete_uid in delete_uids {
-            if let Some(file) = Self::take_item_file_by_uid(&mut items, delete_uid.as_deref()) {
+            if let Some(file) = Self::take_item_file_by_uid(&mut items, Some(delete_uid.as_str())) {
                 pending.push(file);
             }
         }
@@ -521,15 +502,6 @@ impl IProfiles {
 
 use crate::config::Config;
 
-pub async fn profiles_append_item_with_filedata_safe(
-    item: &PrfItem,
-    file_data: Option<String>,
-) -> Result<Option<String>> {
-    let item = &mut PrfItem::from(item, file_data).await?;
-    profiles_append_item_safe(item).await?;
-    Ok(item.uid.clone())
-}
-
 pub async fn profiles_append_item_safe(item: &mut PrfItem) -> Result<()> {
     let profiles = Config::profiles().await;
     profiles_append_item_to_safe(&profiles, item).await
@@ -565,14 +537,10 @@ pub async fn profiles_set_secure_safe(uid: &String, probed: Option<PrfOption>) -
             let mut option = profiles.get_item(uid)?.option.clone().unwrap_or_default();
             option.secure = Some(probed.is_some());
             if let Some(probed) = probed {
-                option.chan_pin = probed.chan_pin.or(option.chan_pin);
                 // Вспомогательные профили, которых у подписки не было, проба
                 // создала — иначе они остались бы в списке ничьими.
-                option.merge = option.merge.or(probed.merge);
-                option.script = option.script.or(probed.script);
-                option.rules = option.rules.or(probed.rules);
-                option.proxies = option.proxies.or(probed.proxies);
-                option.groups = option.groups.or(probed.groups);
+                option.fill_missing_chains(&probed);
+                option.chan_pin = probed.chan_pin.or(option.chan_pin);
             }
             let patch = PrfItem {
                 option: Some(option),
@@ -588,15 +556,7 @@ pub async fn profiles_set_mode_choice_safe(uid: &String, mode: Option<String>) -
     Config::profiles()
         .await
         .with_data_modify(|mut profiles| async move {
-            let Some(item) = profiles
-                .items
-                .as_mut()
-                .into_iter()
-                .flatten()
-                .find(|item| item.uid.as_ref() == Some(uid))
-            else {
-                bail!("failed to find the profile item \"uid:{uid}\"");
-            };
+            let item = profiles.item_mut(uid)?;
             if item.mode_choice == mode {
                 return Ok((profiles, mode));
             }
@@ -766,17 +726,13 @@ async fn profiles_set_mark(
     Config::profiles()
         .await
         .with_data_modify(|mut profiles| async move {
-            let changed = profiles
-                .items
-                .as_mut()
-                .and_then(|items| items.iter_mut().find(|each| each.uid.as_ref() == Some(&uid)))
-                .is_some_and(|item| {
-                    let wanted = wanted.then_some(true);
-                    let mark = pick(item);
-                    let changed = *mark != wanted;
-                    *mark = wanted;
-                    changed
-                });
+            let changed = profiles.item_mut(&uid).ok().is_some_and(|item| {
+                let wanted = wanted.then_some(true);
+                let mark = pick(item);
+                let changed = *mark != wanted;
+                *mark = wanted;
+                changed
+            });
 
             if changed {
                 profiles.save_file().await?;
@@ -2220,5 +2176,21 @@ mod tests {
     #[tokio::test]
     async fn empty_plan_needs_no_directory() {
         PendingProfileFiles::default().cleanup().await;
+    }
+
+    #[test]
+    fn a_record_is_found_for_editing_by_its_uid() {
+        let mut profiles = profiles_with(vec![item("a", "remote", "a.yaml"), item("b", "remote", "b.yaml")], "a");
+        if let Ok(record) = profiles.item_mut("b") {
+            record.file = Some("edited.yaml".into());
+        }
+        let file = |profiles: &IProfiles, uid: &str| profiles.get_item(uid).ok().and_then(|item| item.file.clone());
+        assert_eq!(file(&profiles, "b").as_deref(), Some("edited.yaml"));
+        assert_eq!(
+            file(&profiles, "a").as_deref(),
+            Some("a.yaml"),
+            "соседняя запись не задета"
+        );
+        assert!(profiles.item_mut("ghost").is_err());
     }
 }

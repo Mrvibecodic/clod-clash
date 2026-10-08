@@ -7,10 +7,9 @@ use crate::{
     config::{
         Config, IProfiles, PrfItem, PrfOption,
         profiles::{
-            profiles_append_item_with_filedata_safe, profiles_delete_item_safe, profiles_patch_item_safe,
-            profiles_reorder_safe, profiles_save_file_safe, profiles_set_secure_safe, profiles_undo_delete_safe,
+            profiles_delete_item_safe, profiles_patch_item_safe, profiles_reorder_safe, profiles_save_file_safe,
+            profiles_set_secure_safe, profiles_undo_delete_safe,
         },
-        profiles_append_item_safe,
     },
     core::{
         CoreManager, handle,
@@ -24,7 +23,7 @@ use crate::{
     utils::{dirs, help},
 };
 use clash_verge_draft::{Draft, SharedDraft};
-use clash_verge_logging::{Type, logging, logging_error};
+use clash_verge_logging::{Type, logging};
 use scopeguard::defer;
 use smartstring::alias::String;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -100,22 +99,11 @@ pub async fn import_profile(url: std::string::String, option: Option<PrfOption>)
         }
     };
 
-    if let Err(e) = profiles_append_item_safe(item).await {
+    if let Err(e) = feat::add_profile(item).await {
         logging!(error, Type::Cmd, "[импорт подписки] не удалось сохранить конфиг: {}", e);
         return Err(format!("не удалось импортировать подписку: {}", super::public_error_text(&e)).into());
     }
-
-    if let Err(e) = profiles_save_file_safe().await {
-        logging!(
-            error,
-            Type::Cmd,
-            "[импорт подписки] не удалось сохранить файл конфига: {}",
-            e
-        );
-        return Err(format!("не удалось импортировать подписку: {}", super::public_error_text(&e)).into());
-    }
     logging!(info, Type::Cmd, "[импорт подписки] файл конфига сохранён");
-    logging_error!(Type::Timer, Timer::global().refresh().await);
 
     if let Some(uid) = &item.uid {
         logging!(
@@ -124,9 +112,7 @@ pub async fn import_profile(url: std::string::String, option: Option<PrfOption>)
             "[импорт подписки] отправка уведомления об изменении конфига: {}",
             uid
         );
-        handle::Handle::notify_profile_changed(uid);
-        crate::feat::announce_device_refusal(uid).await;
-        apply_if_it_became_current(uid).await;
+        announce_the_added(uid).await;
     }
 
     logging!(
@@ -138,7 +124,11 @@ pub async fn import_profile(url: std::string::String, option: Option<PrfOption>)
     Ok(())
 }
 
-async fn apply_if_it_became_current(uid: &String) {
+/// Подписка добавлена: окну — перечитать, окну лимита устройств — отказ панели,
+/// ядру — сборку, если она стала текущей.
+async fn announce_the_added(uid: &String) {
+    handle::Handle::notify_profile_changed(uid);
+    crate::feat::announce_device_refusal(uid).await;
     if Config::profiles().await.latest_arc().is_current_profile_index(uid)
         && let Err(err) = enhance_profiles().await
     {
@@ -192,10 +182,13 @@ pub async fn create_profile_from_file(item: PrfItem, path: String) -> CmdResult 
 /// Создаёт новый конфиг
 #[tauri::command]
 pub async fn create_profile(item: PrfItem, file_data: Option<String>) -> CmdResult {
-    match profiles_append_item_with_filedata_safe(&item, file_data).await {
+    let added = async {
+        let mut created = PrfItem::from(&item, file_data).await?;
+        feat::add_profile(&mut created).await?;
+        anyhow::Ok(created.uid)
+    };
+    match added.await {
         Ok(created) => {
-            profiles_save_file_safe().await.stringify_err()?;
-            logging_error!(Type::Timer, Timer::global().refresh().await);
             // Отправляем уведомление об изменении конфига
             if let Some(uid) = &created {
                 logging!(
@@ -204,9 +197,7 @@ pub async fn create_profile(item: PrfItem, file_data: Option<String>) -> CmdResu
                     "[создание подписки] отправка уведомления об изменении конфига: {}",
                     uid
                 );
-                handle::Handle::notify_profile_changed(uid);
-                crate::feat::announce_device_refusal(uid).await;
-                apply_if_it_became_current(uid).await;
+                announce_the_added(uid).await;
             }
             Ok(())
         }
@@ -765,6 +756,23 @@ pub async fn get_profile_background(uid: String) -> CmdResult<Option<String>> {
 #[cfg(test)]
 mod tests {
     use super::commit_current_profile;
+
+    #[test]
+    fn every_way_to_add_a_subscription_shares_one_tail() {
+        let commands = include_str!("profile.rs");
+        for signature in ["pub async fn import_profile(", "pub async fn create_profile("] {
+            let body = crate::utils::source_scan::fn_body(commands, signature).unwrap_or_default();
+            assert!(body.contains("feat::add_profile("), "{signature}");
+            assert!(body.contains("announce_the_added("), "{signature}");
+        }
+        let deep_link = crate::utils::source_scan::fn_body(
+            include_str!("../utils/resolve/scheme.rs"),
+            "async fn import_subscription(",
+        )
+        .unwrap_or_default();
+        assert!(deep_link.contains("feat::add_profile("), "{deep_link}");
+        assert!(!deep_link.contains("profiles_save_file_safe"), "{deep_link}");
+    }
     use crate::config::{IProfiles, PrfItem};
     use clash_verge_draft::Draft;
 

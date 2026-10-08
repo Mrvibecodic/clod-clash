@@ -4,11 +4,11 @@ use smartstring::alias::String;
 use tauri::Url;
 
 use crate::{
-    config::{Config, PrfItem, profiles},
-    core::{handle, timer::Timer},
+    config::{Config, PrfItem},
+    core::handle,
     utils::help,
 };
-use clash_verge_logging::{Type, logging, logging_error};
+use clash_verge_logging::{Type, logging};
 
 pub(super) async fn resolve_scheme(param: &str) -> Result<()> {
     let param_str = if param.starts_with("[") && param.len() > 4 {
@@ -99,18 +99,11 @@ async fn import_subscription(url: &str, name: Option<&String>) {
     };
 
     let uid = item.uid.clone().unwrap_or_default();
-    if let Err(e) = profiles::profiles_append_item_safe(&mut item).await {
+    if let Err(e) = crate::feat::add_profile(&mut item).await {
         logging!(error, Type::Config, "failed to import subscription url: {:?}", e);
         handle::Handle::notice_message("import_sub_url::error", e.to_string());
         return;
     }
-
-    if let Err(e) = profiles::profiles_save_file_safe().await {
-        logging!(error, Type::Config, "failed to save imported subscription: {}", e);
-        handle::Handle::notice_message("import_sub_url::error", e.to_string());
-        return;
-    }
-    logging_error!(Type::Timer, Timer::global().refresh().await);
     handle::Handle::notice_message("import_sub_url::ok", "");
     crate::feat::announce_device_refusal(&uid).await;
 

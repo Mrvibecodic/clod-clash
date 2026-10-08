@@ -328,27 +328,31 @@ impl SubHeaders {
     }
 }
 
-fn value(headers: &HeaderMap, name: &str) -> Option<String> {
-    for (key, raw) in headers.iter() {
+/// Заголовки с этим именем — сами по себе или с приставкой через дефис
+/// (`x-…`, `clod-…`) — как текст, по порядку.
+fn named<'a>(headers: &'a HeaderMap, name: &'a str) -> impl Iterator<Item = std::borrow::Cow<'a, str>> + 'a {
+    headers.iter().filter_map(move |(key, raw)| {
         let key_lower = key.as_str().to_ascii_lowercase();
         let matches = key_lower
             .strip_suffix(name)
             .is_some_and(|prefix| prefix.is_empty() || prefix.ends_with('-'));
-        if !matches {
-            continue;
-        }
-
-        let text = match raw.to_str() {
+        matches.then(|| match raw.to_str() {
             Ok(text) => std::borrow::Cow::Borrowed(text),
             Err(_) => std::string::String::from_utf8_lossy(raw.as_bytes()),
-        };
+        })
+    })
+}
 
-        let decoded = decode_value(&text);
-        if !decoded.is_empty() {
-            return Some(decoded);
-        }
-    }
-    None
+/// Первый заголовок с этим именем как есть: без расшифровки `base64:` и даже
+/// пустой.
+pub(crate) fn raw_value<'a>(headers: &'a HeaderMap, name: &'a str) -> Option<std::borrow::Cow<'a, str>> {
+    named(headers, name).next()
+}
+
+fn value(headers: &HeaderMap, name: &str) -> Option<String> {
+    named(headers, name)
+        .map(|text| decode_value(&text))
+        .find(|decoded| !decoded.is_empty())
 }
 
 fn decode_value(raw: &str) -> String {
@@ -537,7 +541,7 @@ pub fn spare_address(main: &str, domain: &str) -> Option<String> {
 mod tests {
     use super::{
         ANNOUNCE_MAX_CHARS, ConnectMode, DEFAULT_NOTIFY_EXPIRE_DAYS, HwidState, LatencyStyle, ProviderTheme,
-        SubHeaders, ThemeMode, contact_url, decode_value, spare_address, thresholds, truncate_banner,
+        SubHeaders, ThemeMode, contact_url, decode_value, raw_value, spare_address, thresholds, truncate_banner,
     };
     use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 
@@ -1249,5 +1253,22 @@ mod tests {
             let expected = case["truncated"].as_str().expect("fixture truncated");
             assert_eq!(truncate_banner(input, limit), expected, "{name}");
         }
+    }
+
+    #[test]
+    fn a_raw_value_is_taken_as_sent() {
+        let map = headers(&[("x-subscription-userinfo", "base64:dXBsb2FkPTE=")]);
+        assert_eq!(
+            raw_value(&map, "subscription-userinfo").as_deref(),
+            Some("base64:dXBsb2FkPTE=")
+        );
+        assert_eq!(
+            raw_value(&map, "info"),
+            None,
+            "имя сравнивается по дефисам, не хвостом слова"
+        );
+
+        let empty = headers(&[("subscription-userinfo", "")]);
+        assert_eq!(raw_value(&empty, "subscription-userinfo").as_deref(), Some(""));
     }
 }

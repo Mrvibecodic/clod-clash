@@ -538,32 +538,35 @@ async fn perform_profile_update(
     bail!("{profile_name} - {last_err}")
 }
 
-/// Текст отказа, пригодный для показа пользователю.
-///
-/// `mask_err` прячет адреса подписки, но не трогает путей файловой системы, а в
-/// сообщении ядра приезжает полный путь — вместе с именем пользователя ОС. Гоняем
-/// его через ту же чистку, что и ответы команд, чтобы в тост не уезжало лишнее.
+/// Текст отказа, пригодный для показа пользователю: адреса подписки, токены и
+/// домашний каталог (в сообщении ядра приезжает полный путь — с именем
+/// пользователя ОС) — вычищены, как в ответах команд.
 fn public_failure_text(raw: &str) -> String {
-    let masked = mask_err(raw);
-    let home = crate::utils::redact::home_prefix();
-    String::from(crate::utils::redact::redact(&crate::utils::redact::scrub_home(
-        masked.as_str(),
-        home.as_deref(),
-    )))
+    cmd::public_error_text(&mask_err(raw))
 }
 
-/// Сообщить о провале фонового обновления.
+/// Сообщить о провале фонового обновления. `message` уже вычищен
+/// ([`public_failure_text`]).
 ///
 /// Только про текущий профиль: расписание догоняет пропущенные задания пачкой, и
 /// при выключенной сети человек получил бы столько красных тостов, сколько у него
 /// подписок. О фоновых провалах остальных говорит пометка на их карточках.
-async fn announce_the_failure(uid: &String, status: &str, raw: &str) {
+async fn announce_the_failure(uid: &String, status: &str, message: &str) {
     let is_current = Config::profiles().await.latest_arc().is_current_profile_index(uid);
     if !is_current {
         return;
     }
 
-    handle::Handle::notice_message(status, public_failure_text(raw));
+    handle::Handle::notice_message(status, message);
+}
+
+/// Добавить подписку: запись в реестр, реестр на диск, расписание. Что сказать
+/// человеку о неудаче, решает вызывающий.
+pub async fn add_profile(item: &mut PrfItem) -> Result<()> {
+    crate::config::profiles_append_item_safe(item).await?;
+    crate::config::profiles::profiles_save_file_safe().await?;
+    logging_error!(Type::Timer, crate::core::Timer::global().refresh().await);
+    Ok(())
 }
 
 /// Окно лимита устройств — про ту подписку, которую только что добавили или
@@ -924,7 +927,7 @@ pub async fn update_profile(
             mark_the_update(uid, true).await;
             // Ручной вызов покажет ошибку сам — она вернётся ответом команды.
             if trigger.announces_failure() {
-                announce_the_failure(uid, "update_failed", &err.to_string()).await;
+                announce_the_failure(uid, "update_failed", &public_failure_text(&err.to_string())).await;
             }
             return Err(err);
         }
@@ -959,14 +962,17 @@ pub async fn update_profile(
     let downloaded = match downloaded {
         Ok(downloaded) => downloaded,
         Err(err) => {
-            release_stale_panel_locks().await;
+            // Расписание сняло просроченные замки панели в начале тика.
+            if trigger.is_manual() {
+                release_stale_panel_locks().await;
+            }
             mark_the_update(uid, true).await;
             // Загрузка провалилась. Ручной вызов покажет ошибку сам — она
             // уедет наверх и вернётся в интерфейс ответом команды; а вот
             // автообновление до этой правки не сообщало о провале никак:
             // расписание только писало в журнал.
             if trigger.announces_failure() {
-                announce_the_failure(uid, "update_failed", &err.to_string()).await;
+                announce_the_failure(uid, "update_failed", &public_failure_text(&err.to_string())).await;
             }
             return Err(err);
         }
@@ -1227,6 +1233,38 @@ mod failure_visibility_tests {
             assert!(!shown.contains("ab12cd"), "{shown}");
             assert!(!shown.contains("SECRET-TOKEN-VALUE-1234"), "{shown}");
         }
+    }
+
+    #[test]
+    fn a_failure_text_is_cleaned_once() {
+        // Адрес подписки с токеном и секрет вычищены, слова отказа остались.
+        let raw =
+            "error sending request for url (https://panel.example.com/sub/s3cr3tt0ken?flag=clash) secret: hunter2";
+        let shown = public_failure_text(raw);
+        assert_eq!(
+            shown,
+            "error sending request for url (https://panel.example.com/*** secret: ***"
+        );
+        // Окно получает уже вычищенный текст: вторая чистка его не меняет.
+        assert_eq!(public_failure_text(&shown), shown);
+
+        // Чистит тот, кто готовит текст, а не объявление.
+        let source = include_str!("profile.rs");
+        let announce = crate::utils::source_scan::fn_body(source, "async fn announce_the_failure(").unwrap_or_default();
+        assert!(
+            !announce.is_empty(),
+            "тело announce_the_failure не найдено — тест ослеп"
+        );
+        assert!(!announce.contains("public_failure_text"), "{announce}");
+
+        let update: std::string::String = crate::utils::source_scan::fn_body(source, "pub async fn update_profile(")
+            .unwrap_or_default()
+            .split_whitespace()
+            .collect();
+        assert!(
+            update.contains("iftrigger.is_manual(){release_stale_panel_locks().await;}"),
+            "расписание сняло замки в начале тика: {update}"
+        );
     }
 
     #[test]

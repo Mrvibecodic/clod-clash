@@ -275,6 +275,35 @@ impl PrfOption {
             (None, None) => None,
         }
     }
+
+    /// Цепочки подписки: merge, script, rules, proxies, groups — в этом порядке.
+    const fn chains(&self) -> [&Option<String>; 5] {
+        [&self.merge, &self.script, &self.rules, &self.proxies, &self.groups]
+    }
+
+    const fn chains_mut(&mut self) -> [&mut Option<String>; 5] {
+        [
+            &mut self.merge,
+            &mut self.script,
+            &mut self.rules,
+            &mut self.proxies,
+            &mut self.groups,
+        ]
+    }
+
+    /// Профили-цепочки этой подписки, какие есть.
+    pub fn chain_uids(&self) -> impl Iterator<Item = &String> {
+        self.chains().into_iter().flatten()
+    }
+
+    /// Недостающие цепочки — из `other`.
+    pub fn fill_missing_chains(&mut self, other: &Self) {
+        for (mine, theirs) in self.chains_mut().into_iter().zip(other.chains()) {
+            if mine.is_none() {
+                mine.clone_from(theirs);
+            }
+        }
+    }
 }
 
 /// Маршрут, которым скачивается подписка.
@@ -787,39 +816,8 @@ impl PrfItem {
 
         let uid = help::get_uid("L").into();
         let file = format!("{uid}.yaml").into();
-        let opt_ref = option.as_ref();
-        let update_interval = opt_ref.and_then(|o| o.update_interval);
-        let mut merge = opt_ref.and_then(|o| o.merge.clone());
-        let mut script = opt_ref.and_then(|o| o.script.clone());
-        let mut rules = opt_ref.and_then(|o| o.rules.clone());
-        let mut proxies = opt_ref.and_then(|o| o.proxies.clone());
-        let mut groups = opt_ref.and_then(|o| o.groups.clone());
-
-        if merge.is_none() {
-            let merge_item = &mut Self::from_merge(None)?;
-            profiles::profiles_append_item_safe(merge_item).await?;
-            merge = merge_item.uid.clone();
-        }
-        if script.is_none() {
-            let script_item = &mut Self::from_script(None)?;
-            profiles::profiles_append_item_safe(script_item).await?;
-            script = script_item.uid.clone();
-        }
-        if rules.is_none() {
-            let rules_item = &mut Self::from_rules()?;
-            profiles::profiles_append_item_safe(rules_item).await?;
-            rules = rules_item.uid.clone();
-        }
-        if proxies.is_none() {
-            let proxies_item = &mut Self::from_proxies()?;
-            profiles::profiles_append_item_safe(proxies_item).await?;
-            proxies = proxies_item.uid.clone();
-        }
-        if groups.is_none() {
-            let groups_item = &mut Self::from_groups()?;
-            profiles::profiles_append_item_safe(groups_item).await?;
-            groups = groups_item.uid.clone();
-        }
+        let update_interval = option.and_then(|o| o.update_interval);
+        let chains = Self::chains_or_new(option).await?;
         Ok(Self {
             uid: Some(uid),
             itype: Some("local".into()),
@@ -831,12 +829,7 @@ impl PrfItem {
             extra: None,
             option: Some(PrfOption {
                 update_interval,
-                merge,
-                script,
-                rules,
-                proxies,
-                groups,
-                ..PrfOption::default()
+                ..chains
             }),
             home: None,
             updated: Some(chrono::Local::now().timestamp() as usize),
@@ -856,11 +849,6 @@ impl PrfItem {
         let user_agent = option.and_then(|o| o.user_agent.clone());
         let update_interval = option.and_then(|o| o.update_interval);
         let timeout = option.and_then(|o| o.timeout_seconds).unwrap_or(20);
-        let mut merge = option.and_then(|o| o.merge.clone());
-        let mut script = option.and_then(|o| o.script.clone());
-        let mut rules = option.and_then(|o| o.rules.clone());
-        let mut proxies = option.and_then(|o| o.proxies.clone());
-        let mut groups = option.and_then(|o| o.groups.clone());
 
         let url = fix_dirty_url(url)?;
 
@@ -965,31 +953,7 @@ impl PrfItem {
 
         let data = refused_config.unwrap_or_else(|| data.trim_start_matches('\u{feff}'));
 
-        if merge.is_none() {
-            let merge_item = &mut Self::from_merge(None)?;
-            profiles::profiles_append_item_safe(merge_item).await?;
-            merge = merge_item.uid.clone();
-        }
-        if script.is_none() {
-            let script_item = &mut Self::from_script(None)?;
-            profiles::profiles_append_item_safe(script_item).await?;
-            script = script_item.uid.clone();
-        }
-        if rules.is_none() {
-            let rules_item = &mut Self::from_rules()?;
-            profiles::profiles_append_item_safe(rules_item).await?;
-            rules = rules_item.uid.clone();
-        }
-        if proxies.is_none() {
-            let proxies_item = &mut Self::from_proxies()?;
-            profiles::profiles_append_item_safe(proxies_item).await?;
-            proxies = proxies_item.uid.clone();
-        }
-        if groups.is_none() {
-            let groups_item = &mut Self::from_groups()?;
-            profiles::profiles_append_item_safe(groups_item).await?;
-            groups = groups_item.uid.clone();
-        }
+        let chains = Self::chains_or_new(option).await?;
 
         const MAX_SKEW_SECS: i64 = 366 * 24 * 60 * 60;
         let measured_skew = sub
@@ -1010,15 +974,10 @@ impl PrfItem {
             extra,
             option: Some(PrfOption {
                 update_interval,
-                merge,
-                script,
-                rules,
-                proxies,
-                groups,
                 allow_auto_update,
                 secure: option.and_then(|o| o.secure).filter(|on| *on),
                 chan_pin: learned_pin.or_else(|| option.and_then(|o| o.chan_pin.clone())),
-                ..PrfOption::default()
+                ..chains
             }),
             home,
             support_url: sub.support_url.clone(),
@@ -1069,6 +1028,32 @@ impl PrfItem {
             file_data: Some(data.into()),
         };
         Ok(Fetched { item, detoured })
+    }
+
+    /// Служебные профили цепочки — в порядке [`PrfOption::chains_mut`].
+    const CHAIN_MAKERS: [fn() -> Result<Self>; 5] = [
+        || Self::from_merge(None),
+        || Self::from_script(None),
+        Self::from_rules,
+        Self::from_proxies,
+        Self::from_groups,
+    ];
+
+    /// Цепочки подписки из `option`; недостающие — новые служебные профили в
+    /// реестре.
+    async fn chains_or_new(option: Option<&PrfOption>) -> Result<PrfOption> {
+        let mut chains = PrfOption::default();
+        if let Some(option) = option {
+            chains.fill_missing_chains(option);
+        }
+        for (chain, make) in chains.chains_mut().into_iter().zip(Self::CHAIN_MAKERS) {
+            if chain.is_none() {
+                let item = &mut make()?;
+                profiles::profiles_append_item_safe(item).await?;
+                chain.clone_from(&item.uid);
+            }
+        }
+        Ok(chains)
     }
 
     pub fn from_merge(uid: Option<String>) -> Result<Self> {
@@ -1173,27 +1158,14 @@ impl PrfItem {
 }
 
 fn parse_subscription_userinfo(headers: &reqwest::header::HeaderMap) -> Option<PrfExtra> {
-    for (k, v) in headers.iter() {
-        let key_lower = k.as_str().to_ascii_lowercase();
-        if !key_lower
-            .strip_suffix("subscription-userinfo")
-            .is_some_and(|prefix| prefix.is_empty() || prefix.ends_with('-'))
-        {
-            continue;
-        }
-        let raw_info = match v.to_str() {
-            Ok(text) => std::borrow::Cow::Borrowed(text),
-            Err(_) => std::string::String::from_utf8_lossy(v.as_bytes()),
-        };
-        let sub_info: &str = raw_info.as_ref();
-        return Some(PrfExtra {
-            upload: help::parse_str(sub_info, "upload").unwrap_or(0),
-            download: help::parse_str(sub_info, "download").unwrap_or(0),
-            total: help::parse_str(sub_info, "total").unwrap_or(0),
-            expire: to_unix_seconds(help::parse_str(sub_info, "expire").unwrap_or(0)),
-        });
-    }
-    None
+    let sub_info = sub_headers::raw_value(headers, "subscription-userinfo")?;
+    let sub_info: &str = sub_info.as_ref();
+    Some(PrfExtra {
+        upload: help::parse_str(sub_info, "upload").unwrap_or(0),
+        download: help::parse_str(sub_info, "download").unwrap_or(0),
+        total: help::parse_str(sub_info, "total").unwrap_or(0),
+        expire: to_unix_seconds(help::parse_str(sub_info, "expire").unwrap_or(0)),
+    })
 }
 
 const DEVICE_REFUSED_CONFIG: &str = "proxies: []\nrules:\n  - MATCH,REJECT\n";
@@ -3167,5 +3139,60 @@ mod tests {
 
         let no_groups: serde_yaml_ng::Mapping = serde_yaml_ng::from_str("proxies: []\n").expect("yaml");
         assert!(!targets_foreign_core(&no_groups));
+    }
+
+    #[test]
+    fn the_chains_of_a_subscription_come_in_one_order() {
+        let option = PrfOption {
+            merge: Some("m".into()),
+            rules: Some("r".into()),
+            groups: Some("g".into()),
+            ..PrfOption::default()
+        };
+        let uids: Vec<&str> = option.chain_uids().map(|uid| uid.as_str()).collect();
+        assert_eq!(uids, ["m", "r", "g"]);
+
+        let mut mine = PrfOption {
+            merge: Some("own".into()),
+            ..PrfOption::default()
+        };
+        mine.fill_missing_chains(&option);
+        assert_eq!(mine.merge.as_deref(), Some("own"), "своя цепочка не заменяется");
+        assert_eq!(mine.rules.as_deref(), Some("r"));
+        assert_eq!(mine.script, None);
+    }
+
+    #[test]
+    fn each_chain_slot_gets_a_profile_of_its_own_kind() {
+        for (slot, make) in PrfItem::CHAIN_MAKERS.into_iter().enumerate() {
+            let made = make().unwrap_or_default();
+            let mut chains = PrfOption::default();
+            if let Some(chain) = chains.chains_mut().into_iter().nth(slot) {
+                chain.clone_from(&made.uid);
+            }
+            let kind = made.itype.as_deref().unwrap_or_default();
+            let filled = match kind {
+                "merge" => &chains.merge,
+                "script" => &chains.script,
+                "rules" => &chains.rules,
+                "proxies" => &chains.proxies,
+                "groups" => &chains.groups,
+                _ => &None,
+            };
+            assert!(made.uid.is_some(), "слот {slot}: {made:?}");
+            assert_eq!(filled, &made.uid, "слот {slot} получил профиль «{kind}»");
+        }
+    }
+
+    #[test]
+    fn every_way_to_a_subscription_makes_its_chains_one_way() {
+        let source = crate::utils::source_scan::production_code(include_str!("prfitem.rs"));
+        for signature in ["pub async fn from_local(", "async fn download("] {
+            let body = crate::utils::source_scan::fn_body(source, signature).unwrap_or_default();
+            assert!(body.contains("Self::chains_or_new("), "{signature}");
+        }
+        let userinfo =
+            crate::utils::source_scan::fn_body(source, "fn parse_subscription_userinfo(").unwrap_or_default();
+        assert!(userinfo.contains("sub_headers::raw_value("), "{userinfo}");
     }
 }
