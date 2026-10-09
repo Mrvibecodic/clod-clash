@@ -36,6 +36,7 @@ type SearchProps = {
   matchWholeWord?: boolean
   useRegularExpression?: boolean
   searchState?: Partial<SearchOptionState>
+  placeholder?: string
   onSearch: (match: (content: string) => boolean, state: SearchState) => void
   onClick?: (e: MouseEvent<HTMLDivElement>) => void
 }
@@ -79,6 +80,7 @@ export const BaseSearchBox = ({
   autoFocus,
   inputRef,
   searchState,
+  placeholder,
   matchCase: defaultMatchCase = false,
   matchWholeWord: defaultMatchWholeWord = false,
   useRegularExpression: defaultUseRegularExpression = false,
@@ -208,7 +210,7 @@ export const BaseSearchBox = ({
         autoFocus={autoFocus}
         inputRef={inputRef}
         spellCheck="false"
-        placeholder={t('shared.placeholders.filter')}
+        placeholder={placeholder ?? t('shared.placeholders.filter')}
         sx={{ input: { py: 0.65, px: 1.25 } }}
         value={text}
         onClick={onClick}

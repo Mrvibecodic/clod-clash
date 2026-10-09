@@ -636,23 +636,120 @@ export interface TranslationResources {
       }
       modals: {
         editor: {
+          footer: {
+            noChanges: string
+            reordered: string
+            reset: string
+            unsaved: string
+          }
           form: {
             actions: {
-              appendRule: string
-              prependRule: string
+              add: string
             }
+            example: string
             labels: {
               content: string
+              position: string
               proxyPolicy: string
               type: string
             }
+            policyGroups: {
+              builtin: string
+              group: string
+              groups: string
+            }
+            position: {
+              append: string
+              appendHint: string
+              prepend: string
+              prependHint: string
+            }
+            preview: string
+            previewValue: string
             toggles: {
               noResolve: string
             }
             validation: {
               conditionRequired: string
+              duplicate: string
               invalidRule: string
             }
+          }
+          list: {
+            actions: {
+              delete: string
+              remove: string
+              restore: string
+            }
+            emptyPrepend: string
+            hints: {
+              append: string
+              original: string
+              prepend: string
+            }
+            notFound: string
+            search: string
+            sections: {
+              append: string
+              original: string
+              prepend: string
+            }
+            total: string
+            willDelete: string
+          }
+          mode: {
+            form: string
+          }
+          policies: {
+            DIRECT: string
+            PASS: string
+            REJECT: string
+            'REJECT-DROP': string
+          }
+          ruleGroups: {
+            domain: string
+            inbound: string
+            ip: string
+            logic: string
+            other: string
+            port: string
+            process: string
+            source: string
+          }
+          ruleHelp: {
+            AND: string
+            DOMAIN: string
+            'DOMAIN-KEYWORD': string
+            'DOMAIN-REGEX': string
+            'DOMAIN-SUFFIX': string
+            DSCP: string
+            'DST-PORT': string
+            GEOIP: string
+            GEOSITE: string
+            'IN-NAME': string
+            'IN-PORT': string
+            'IN-TYPE': string
+            'IN-USER': string
+            'IP-ASN': string
+            'IP-CIDR': string
+            'IP-CIDR6': string
+            'IP-SUFFIX': string
+            MATCH: string
+            NETWORK: string
+            NOT: string
+            OR: string
+            'PROCESS-NAME': string
+            'PROCESS-NAME-REGEX': string
+            'PROCESS-PATH': string
+            'PROCESS-PATH-REGEX': string
+            'RULE-SET': string
+            'SRC-GEOIP': string
+            'SRC-IP-ASN': string
+            'SRC-IP-CIDR': string
+            'SRC-IP-SUFFIX': string
+            'SRC-PORT': string
+            'SUB-RULE': string
+            UID: string
           }
           ruleTypes: {
             AND: string

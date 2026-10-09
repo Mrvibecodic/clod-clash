@@ -27,19 +27,44 @@
         "labels": {
           "type": "Regeltyp",
           "content": "Regelinhalt",
-          "proxyPolicy": "Proxy-Strategie"
+          "proxyPolicy": "Proxy-Strategie",
+          "position": "Position in der Liste"
         },
         "toggles": {
           "noResolve": "DNS-Auflösung überspringen"
         },
         "actions": {
-          "prependRule": "Vorherige Regel hinzufügen",
-          "appendRule": "Nachfolgende Regel hinzufügen"
+          "add": "Regel hinzufügen"
         },
         "validation": {
           "conditionRequired": "Regelbedingung fehlt",
-          "invalidRule": "Ungültige Regel"
+          "invalidRule": "Ungültige Regel",
+          "duplicate": "Diese Regel ist bereits vorhanden"
+        },
+        "position": {
+          "prepend": "Am Anfang",
+          "append": "Am Ende",
+          "prependHint": "Greift vor den Regeln des Abonnements.",
+          "appendHint": "Greift nach den Regeln des Abonnements."
+        },
+        "example": "Beispiel: {{example}}",
+        "preview": "Wird hinzugefügt",
+        "previewValue": "Wert",
+        "policyGroups": {
+          "groups": "Gruppen des Abonnements",
+          "builtin": "Integriert",
+          "group": "Gruppe"
         }
+      },
+      "ruleGroups": {
+        "domain": "Domain",
+        "ip": "IP-Adresse",
+        "source": "Quelle",
+        "port": "Port und Protokoll",
+        "process": "Prozess",
+        "inbound": "Eingehende Verbindung",
+        "logic": "Regelsätze und Logik",
+        "other": "Sonstiges"
       },
       "ruleTypes": {
         "DOMAIN": "Vollständigen Domainnamen übereinstimmen",
@@ -76,7 +101,79 @@
         "NOT": "Logisches NICHT",
         "MATCH": "Alle Anfragen übereinstimmen"
       },
-      "title": "Regeln bearbeiten"
+      "ruleHelp": {
+        "DOMAIN": "Vollständiger Domainname, ohne https:// und Pfad.",
+        "DOMAIN-SUFFIX": "Die Domain samt allen Subdomains.",
+        "DOMAIN-KEYWORD": "Jede Domain, die dieses Wort enthält.",
+        "DOMAIN-REGEX": "Regulärer Ausdruck für den Domainnamen.",
+        "GEOSITE": "Kategoriename aus der GeoSite-Datenbank.",
+        "IP-CIDR": "IPv4-Adresse mit Maske.",
+        "IP-CIDR6": "IPv6-Adresse mit Maske.",
+        "IP-SUFFIX": "Treffer über die letzten Bits der Adresse.",
+        "IP-ASN": "Nummer des autonomen Systems, ohne „AS“.",
+        "GEOIP": "Ländercode aus zwei Buchstaben.",
+        "SRC-IP-CIDR": "Adresse des Geräts, von dem die Anfrage kommt.",
+        "SRC-IP-SUFFIX": "Letzte Bits der Geräteadresse.",
+        "SRC-IP-ASN": "Autonomes System der Geräteadresse.",
+        "SRC-GEOIP": "Ländercode der Geräteadresse.",
+        "SRC-PORT": "Port des Geräts, von dem die Anfrage kommt.",
+        "DST-PORT": "Port des Zielservers.",
+        "IN-PORT": "Port, an dem die Anfrage im Client ankam.",
+        "NETWORK": "tcp oder udp.",
+        "DSCP": "Nur für eingehendes UDP über TPROXY.",
+        "PROCESS-NAME": "Dateiname des Programms.",
+        "PROCESS-PATH": "Vollständiger Pfad zur Programmdatei.",
+        "PROCESS-NAME-REGEX": "Regulärer Ausdruck für den Programmnamen.",
+        "PROCESS-PATH-REGEX": "Regulärer Ausdruck für den Programmpfad.",
+        "UID": "Linux-Benutzer-ID.",
+        "IN-TYPE": "Art der eingehenden Verbindung des Clients.",
+        "IN-USER": "Benutzername der eingehenden Verbindung.",
+        "IN-NAME": "Name der eingehenden Verbindung.",
+        "RULE-SET": "Name eines Regelsatzes aus dem Abonnement.",
+        "SUB-RULE": "Bedingung der Unterregel in Klammern.",
+        "AND": "Alle Bedingungen in Klammern müssen zutreffen.",
+        "OR": "Eine zutreffende Bedingung genügt.",
+        "NOT": "Greift, wenn die Bedingung nicht zutrifft.",
+        "MATCH": "Kein Wert nötig: Die Regel greift für alles, was die Regeln darüber nicht erfasst haben."
+      },
+      "policies": {
+        "DIRECT": "Direkt",
+        "REJECT": "Blockieren",
+        "REJECT-DROP": "Still blockieren",
+        "PASS": "Regel überspringen"
+      },
+      "title": "Regeln bearbeiten",
+      "list": {
+        "search": "Regeln durchsuchen",
+        "total": "Gesamt {{count}}",
+        "sections": {
+          "prepend": "Eigene — am Anfang",
+          "original": "Aus dem Abonnement",
+          "append": "Eigene — am Ende"
+        },
+        "hints": {
+          "prepend": "greifen zuerst",
+          "original": "Reihenfolge legt der Anbieter fest",
+          "append": "greifen zuletzt"
+        },
+        "emptyPrepend": "Hinzugefügte Regeln erscheinen hier.",
+        "notFound": "Nichts gefunden",
+        "willDelete": "wird entfernt",
+        "actions": {
+          "remove": "Entfernen",
+          "delete": "Aus dem Abonnement löschen",
+          "restore": "Wiederherstellen"
+        }
+      },
+      "footer": {
+        "unsaved": "Nicht gespeichert: +{{added}} · −{{removed}}",
+        "reordered": "Nicht gespeichert: Reihenfolge geändert",
+        "noChanges": "Keine Änderungen",
+        "reset": "Zurücksetzen"
+      },
+      "mode": {
+        "form": "Formular"
+      }
     }
   }
 }

@@ -27,19 +27,44 @@
         "labels": {
           "type": "Tipo de regla",
           "content": "Contenido de la regla",
-          "proxyPolicy": "Política de proxy"
+          "proxyPolicy": "Política de proxy",
+          "position": "Posición en la lista"
         },
         "toggles": {
           "noResolve": "Omitir resolución DNS"
         },
         "actions": {
-          "prependRule": "Agregar regla previa",
-          "appendRule": "Agregar regla posterior"
+          "add": "Añadir regla"
         },
         "validation": {
           "conditionRequired": "Falta la condición de la regla",
-          "invalidRule": "Regla no válida"
+          "invalidRule": "Regla no válida",
+          "duplicate": "Esta regla ya está en tus reglas"
+        },
+        "position": {
+          "prepend": "Al principio",
+          "append": "Al final",
+          "prependHint": "Se aplica antes que las reglas de la suscripción.",
+          "appendHint": "Se aplica después de las reglas de la suscripción."
+        },
+        "example": "Ejemplo: {{example}}",
+        "preview": "Se añadirá",
+        "previewValue": "valor",
+        "policyGroups": {
+          "groups": "Grupos de la suscripción",
+          "builtin": "Integradas",
+          "group": "grupo"
         }
+      },
+      "ruleGroups": {
+        "domain": "Dominio",
+        "ip": "Dirección IP",
+        "source": "Origen",
+        "port": "Puerto y protocolo",
+        "process": "Proceso",
+        "inbound": "Conexión entrante",
+        "logic": "Conjuntos y lógica",
+        "other": "Otros"
       },
       "ruleTypes": {
         "DOMAIN": "Coincidir con el nombre de dominio completo",
@@ -76,7 +101,79 @@
         "NOT": "No lógico",
         "MATCH": "Coincidir con todas las solicitudes"
       },
-      "title": "Editar reglas"
+      "ruleHelp": {
+        "DOMAIN": "Nombre de dominio completo, sin https:// ni ruta.",
+        "DOMAIN-SUFFIX": "El dominio junto con todos sus subdominios.",
+        "DOMAIN-KEYWORD": "Cualquier dominio que contenga esta palabra.",
+        "DOMAIN-REGEX": "Expresión regular para el nombre de dominio.",
+        "GEOSITE": "Nombre de categoría de la base GeoSite.",
+        "IP-CIDR": "Dirección IPv4 con máscara.",
+        "IP-CIDR6": "Dirección IPv6 con máscara.",
+        "IP-SUFFIX": "Coincide por los últimos bits de la dirección.",
+        "IP-ASN": "Número de sistema autónomo, sin «AS».",
+        "GEOIP": "Código de país de dos letras.",
+        "SRC-IP-CIDR": "Dirección del dispositivo del que sale la solicitud.",
+        "SRC-IP-SUFFIX": "Últimos bits de la dirección del dispositivo.",
+        "SRC-IP-ASN": "Sistema autónomo de la dirección del dispositivo.",
+        "SRC-GEOIP": "Código de país de la dirección del dispositivo.",
+        "SRC-PORT": "Puerto del dispositivo del que sale la solicitud.",
+        "DST-PORT": "Puerto del servidor de destino.",
+        "IN-PORT": "Puerto por el que la solicitud llegó al cliente.",
+        "NETWORK": "tcp o udp.",
+        "DSCP": "Solo para UDP entrante a través de TPROXY.",
+        "PROCESS-NAME": "Nombre del archivo del programa.",
+        "PROCESS-PATH": "Ruta completa al archivo del programa.",
+        "PROCESS-NAME-REGEX": "Expresión regular para el nombre del programa.",
+        "PROCESS-PATH-REGEX": "Expresión regular para la ruta del programa.",
+        "UID": "ID de usuario de Linux.",
+        "IN-TYPE": "Tipo de conexión entrante del cliente.",
+        "IN-USER": "Usuario de la conexión entrante.",
+        "IN-NAME": "Nombre de la conexión entrante.",
+        "RULE-SET": "Nombre de un conjunto de reglas de la suscripción.",
+        "SUB-RULE": "Condición de la subregla entre paréntesis.",
+        "AND": "Deben cumplirse todas las condiciones entre paréntesis.",
+        "OR": "Basta con que se cumpla una condición.",
+        "NOT": "Se aplica cuando la condición no se cumple.",
+        "MATCH": "No hace falta valor: la regla atrapa todo lo que no atraparon las reglas anteriores."
+      },
+      "policies": {
+        "DIRECT": "Directo",
+        "REJECT": "Bloquear",
+        "REJECT-DROP": "Bloquear en silencio",
+        "PASS": "Saltar regla"
+      },
+      "title": "Editar reglas",
+      "list": {
+        "search": "Buscar reglas",
+        "total": "Total {{count}}",
+        "sections": {
+          "prepend": "Mías — al principio",
+          "original": "De la suscripción",
+          "append": "Mías — al final"
+        },
+        "hints": {
+          "prepend": "se aplican primero",
+          "original": "el orden lo fija el proveedor",
+          "append": "se aplican al final"
+        },
+        "emptyPrepend": "Las reglas que añadas aparecerán aquí.",
+        "notFound": "No se encontró nada",
+        "willDelete": "se eliminará",
+        "actions": {
+          "remove": "Quitar",
+          "delete": "Eliminar de la suscripción",
+          "restore": "Restaurar"
+        }
+      },
+      "footer": {
+        "unsaved": "Sin guardar: +{{added}} · −{{removed}}",
+        "reordered": "Sin guardar: orden cambiado",
+        "noChanges": "Sin cambios",
+        "reset": "Restablecer"
+      },
+      "mode": {
+        "form": "Formulario"
+      }
     }
   }
 }

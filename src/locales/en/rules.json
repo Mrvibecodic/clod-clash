@@ -27,19 +27,44 @@
         "labels": {
           "type": "Rule Type",
           "content": "Rule Content",
-          "proxyPolicy": "Proxy Policy"
+          "proxyPolicy": "Proxy Policy",
+          "position": "Position in list"
         },
         "toggles": {
           "noResolve": "No Resolve"
         },
         "actions": {
-          "prependRule": "Prepend Rule",
-          "appendRule": "Append Rule"
+          "add": "Add rule"
         },
         "validation": {
           "conditionRequired": "Rule Condition Required",
-          "invalidRule": "Invalid Rule"
+          "invalidRule": "Invalid Rule",
+          "duplicate": "This rule is already in your rules"
+        },
+        "position": {
+          "prepend": "At the top",
+          "append": "At the bottom",
+          "prependHint": "Matches before the subscription rules.",
+          "appendHint": "Matches after the subscription rules."
+        },
+        "example": "Example: {{example}}",
+        "preview": "Will be added",
+        "previewValue": "value",
+        "policyGroups": {
+          "groups": "Subscription groups",
+          "builtin": "Built-in",
+          "group": "group"
         }
+      },
+      "ruleGroups": {
+        "domain": "Domain",
+        "ip": "IP address",
+        "source": "Source",
+        "port": "Port and protocol",
+        "process": "Process",
+        "inbound": "Inbound connection",
+        "logic": "Sets and logic",
+        "other": "Other"
       },
       "ruleTypes": {
         "DOMAIN": "Match full domain (DOMAIN)",
@@ -76,7 +101,79 @@
         "NOT": "Logical NOT (NOT)",
         "MATCH": "Match all requests (MATCH)"
       },
-      "title": "Edit Rules"
+      "ruleHelp": {
+        "DOMAIN": "Exact domain name, without https:// or a path.",
+        "DOMAIN-SUFFIX": "The domain together with all its subdomains.",
+        "DOMAIN-KEYWORD": "Any domain that contains this word.",
+        "DOMAIN-REGEX": "A regular expression for the domain name.",
+        "GEOSITE": "Category name from the GeoSite database.",
+        "IP-CIDR": "IPv4 address with a mask.",
+        "IP-CIDR6": "IPv6 address with a mask.",
+        "IP-SUFFIX": "Matches the last bits of the address.",
+        "IP-ASN": "Autonomous system number, without “AS”.",
+        "GEOIP": "Two-letter country code.",
+        "SRC-IP-CIDR": "Address of the device the request comes from.",
+        "SRC-IP-SUFFIX": "Last bits of the device address.",
+        "SRC-IP-ASN": "Autonomous system number of the device address.",
+        "SRC-GEOIP": "Country code of the device address.",
+        "SRC-PORT": "Port on the device the request comes from.",
+        "DST-PORT": "Port of the server the request goes to.",
+        "IN-PORT": "Port on which the request reached the client.",
+        "NETWORK": "tcp or udp.",
+        "DSCP": "Only for inbound UDP over TPROXY.",
+        "PROCESS-NAME": "Program file name.",
+        "PROCESS-PATH": "Full path to the program file.",
+        "PROCESS-NAME-REGEX": "A regular expression for the program name.",
+        "PROCESS-PATH-REGEX": "A regular expression for the program path.",
+        "UID": "Linux user ID.",
+        "IN-TYPE": "Type of the client’s inbound connection.",
+        "IN-USER": "User name of the inbound connection.",
+        "IN-NAME": "Name of the inbound connection.",
+        "RULE-SET": "Name of a rule set from the subscription.",
+        "SUB-RULE": "Sub-rule condition in brackets.",
+        "AND": "All conditions in brackets must match.",
+        "OR": "Any one of the conditions is enough.",
+        "NOT": "Matches when the condition does not.",
+        "MATCH": "No value needed: the rule catches everything the rules above did not."
+      },
+      "policies": {
+        "DIRECT": "Direct",
+        "REJECT": "Block",
+        "REJECT-DROP": "Block silently",
+        "PASS": "Skip rule"
+      },
+      "title": "Edit Rules",
+      "list": {
+        "search": "Search rules",
+        "total": "Total {{count}}",
+        "sections": {
+          "prepend": "Mine — at the top",
+          "original": "From subscription",
+          "append": "Mine — at the bottom"
+        },
+        "hints": {
+          "prepend": "match first",
+          "original": "order set by the provider",
+          "append": "match last"
+        },
+        "emptyPrepend": "Rules you add will appear here.",
+        "notFound": "Nothing found",
+        "willDelete": "will be removed",
+        "actions": {
+          "remove": "Remove",
+          "delete": "Delete from subscription",
+          "restore": "Restore"
+        }
+      },
+      "footer": {
+        "unsaved": "Unsaved: +{{added}} · −{{removed}}",
+        "reordered": "Unsaved: order changed",
+        "noChanges": "No changes",
+        "reset": "Reset"
+      },
+      "mode": {
+        "form": "Form"
+      }
     }
   }
 }

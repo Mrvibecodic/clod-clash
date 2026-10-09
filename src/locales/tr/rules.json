@@ -27,19 +27,44 @@
         "labels": {
           "type": "Kural Tipi",
           "content": "Kural İçeriği",
-          "proxyPolicy": "Vekil Politikası"
+          "proxyPolicy": "Vekil Politikası",
+          "position": "Listedeki konum"
         },
         "toggles": {
           "noResolve": "Çözümleme Yok"
         },
         "actions": {
-          "prependRule": "Kuralın Başına Ekle",
-          "appendRule": "Kuralın Sonuna Ekle"
+          "add": "Kural ekle"
         },
         "validation": {
           "conditionRequired": "Kural Koşulu Gerekli",
-          "invalidRule": "Geçersiz Kural"
+          "invalidRule": "Geçersiz Kural",
+          "duplicate": "Bu kural zaten kurallarınızda var"
+        },
+        "position": {
+          "prepend": "Başa",
+          "append": "Sona",
+          "prependHint": "Abonelik kurallarından önce eşleşir.",
+          "appendHint": "Abonelik kurallarından sonra eşleşir."
+        },
+        "example": "Örnek: {{example}}",
+        "preview": "Eklenecek",
+        "previewValue": "değer",
+        "policyGroups": {
+          "groups": "Abonelik grupları",
+          "builtin": "Yerleşik",
+          "group": "grup"
         }
+      },
+      "ruleGroups": {
+        "domain": "Alan adı",
+        "ip": "IP adresi",
+        "source": "Kaynak",
+        "port": "Port ve protokol",
+        "process": "İşlem",
+        "inbound": "Gelen bağlantı",
+        "logic": "Kural setleri ve mantık",
+        "other": "Diğer"
       },
       "ruleTypes": {
         "DOMAIN": "Tam alan adıyla eşleşir",
@@ -76,7 +101,79 @@
         "NOT": "Mantıksal DEĞİL",
         "MATCH": "Tüm isteklerle eşleşir"
       },
-      "title": "Kuralları Düzenle"
+      "ruleHelp": {
+        "DOMAIN": "Tam alan adı, https:// ve yol olmadan.",
+        "DOMAIN-SUFFIX": "Alan adı ve tüm alt alan adları.",
+        "DOMAIN-KEYWORD": "Bu kelimeyi içeren herhangi bir alan adı.",
+        "DOMAIN-REGEX": "Alan adı için düzenli ifade.",
+        "GEOSITE": "GeoSite veritabanındaki kategori adı.",
+        "IP-CIDR": "Maskeli IPv4 adresi.",
+        "IP-CIDR6": "Maskeli IPv6 adresi.",
+        "IP-SUFFIX": "Adresin son bitlerine göre eşleşir.",
+        "IP-ASN": "Otonom sistem numarası, “AS” olmadan.",
+        "GEOIP": "İki harfli ülke kodu.",
+        "SRC-IP-CIDR": "İsteğin geldiği cihazın adresi.",
+        "SRC-IP-SUFFIX": "Cihaz adresinin son bitleri.",
+        "SRC-IP-ASN": "Cihaz adresinin otonom sistem numarası.",
+        "SRC-GEOIP": "Cihaz adresinin ülke kodu.",
+        "SRC-PORT": "İsteğin geldiği cihazın portu.",
+        "DST-PORT": "İsteğin gittiği sunucunun portu.",
+        "IN-PORT": "İsteğin istemciye ulaştığı port.",
+        "NETWORK": "tcp veya udp.",
+        "DSCP": "Yalnızca TPROXY üzerinden gelen UDP için.",
+        "PROCESS-NAME": "Program dosyasının adı.",
+        "PROCESS-PATH": "Program dosyasının tam yolu.",
+        "PROCESS-NAME-REGEX": "Program adı için düzenli ifade.",
+        "PROCESS-PATH-REGEX": "Program yolu için düzenli ifade.",
+        "UID": "Linux kullanıcı kimliği.",
+        "IN-TYPE": "İstemcinin gelen bağlantı türü.",
+        "IN-USER": "Gelen bağlantının kullanıcı adı.",
+        "IN-NAME": "Gelen bağlantının adı.",
+        "RULE-SET": "Abonelikteki kural setinin adı.",
+        "SUB-RULE": "Parantez içinde alt kural koşulu.",
+        "AND": "Parantez içindeki tüm koşullar eşleşmeli.",
+        "OR": "Koşullardan birinin eşleşmesi yeterli.",
+        "NOT": "Koşul eşleşmediğinde uygulanır.",
+        "MATCH": "Değer gerekmez: kural, yukarıdaki kuralların yakalamadığı her şeyi yakalar."
+      },
+      "policies": {
+        "DIRECT": "Doğrudan",
+        "REJECT": "Engelle",
+        "REJECT-DROP": "Sessizce engelle",
+        "PASS": "Kuralı atla"
+      },
+      "title": "Kuralları Düzenle",
+      "list": {
+        "search": "Kurallarda ara",
+        "total": "Toplam {{count}}",
+        "sections": {
+          "prepend": "Benim — başta",
+          "original": "Abonelikten",
+          "append": "Benim — sonda"
+        },
+        "hints": {
+          "prepend": "ilk eşleşir",
+          "original": "sırayı sağlayıcı belirler",
+          "append": "en son eşleşir"
+        },
+        "emptyPrepend": "Eklediğiniz kurallar burada görünecek.",
+        "notFound": "Hiçbir şey bulunamadı",
+        "willDelete": "silinecek",
+        "actions": {
+          "remove": "Kaldır",
+          "delete": "Abonelikten sil",
+          "restore": "Geri al"
+        }
+      },
+      "footer": {
+        "unsaved": "Kaydedilmedi: +{{added}} · −{{removed}}",
+        "reordered": "Kaydedilmedi: sıra değişti",
+        "noChanges": "Değişiklik yok",
+        "reset": "Sıfırla"
+      },
+      "mode": {
+        "form": "Form"
+      }
     }
   }
 }

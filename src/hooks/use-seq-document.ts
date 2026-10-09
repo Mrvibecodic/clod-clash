@@ -50,6 +50,12 @@ export const useSeqDocument = <T>(
   const [prependSeq, setPrependSeq] = useState<T[]>([])
   const [appendSeq, setAppendSeq] = useState<T[]>([])
   const [deleteSeq, setDeleteSeq] = useState<string[]>([])
+  // Что лежит на диске: от него считаются несохранённые правки и «Сбросить».
+  const [baseline, setBaseline] = useState<{
+    prepend: T[]
+    append: T[]
+    delete: string[]
+  } | null>(null)
 
   const applyText = useCallback(
     (input: string) => {
@@ -75,7 +81,17 @@ export const useSeqDocument = <T>(
       .then((data) => {
         if (cancelled) return
         setText(data)
-        setVisualization(applyText(data))
+        const parsed = applyText(data) ? readSeqConfig(data, isItem) : undefined
+        setVisualization(parsed !== undefined)
+        setBaseline(
+          parsed === undefined
+            ? null
+            : {
+                prepend: toList<T>(parsed?.prepend),
+                append: toList<T>(parsed?.append),
+                delete: readDelete(parsed?.delete),
+              },
+        )
         setStatus('ready')
       })
       .catch((error) => {
@@ -86,7 +102,7 @@ export const useSeqDocument = <T>(
     return () => {
       cancelled = true
     }
-  }, [applyText, open, property])
+  }, [applyText, isItem, open, property, readDelete])
 
   const dump = () =>
     yaml.dump(
@@ -101,6 +117,13 @@ export const useSeqDocument = <T>(
     } else if (applyText(text)) {
       setVisualization(true)
     }
+  }
+
+  const reset = () => {
+    if (!baseline) return
+    setPrependSeq(baseline.prepend)
+    setAppendSeq(baseline.append)
+    setDeleteSeq(baseline.delete)
   }
 
   const save = async () => {
@@ -124,6 +147,8 @@ export const useSeqDocument = <T>(
     setAppendSeq,
     deleteSeq,
     setDeleteSeq,
+    baseline,
+    reset,
     save,
   }
 }

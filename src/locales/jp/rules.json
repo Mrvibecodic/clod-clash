@@ -27,19 +27,44 @@
         "labels": {
           "type": "ルールタイプ",
           "content": "ルール内容",
-          "proxyPolicy": "プロキシポリシー"
+          "proxyPolicy": "プロキシポリシー",
+          "position": "リスト内の位置"
         },
         "toggles": {
           "noResolve": "DNS解決をスキップ"
         },
         "actions": {
-          "prependRule": "前置ルールを追加",
-          "appendRule": "後置ルールを追加"
+          "add": "ルールを追加"
         },
         "validation": {
           "conditionRequired": "ルール条件が必要です",
-          "invalidRule": "無効なルール"
+          "invalidRule": "無効なルール",
+          "duplicate": "このルールはすでに追加されています"
+        },
+        "position": {
+          "prepend": "先頭",
+          "append": "末尾",
+          "prependHint": "サブスクリプションのルールより先に一致します。",
+          "appendHint": "サブスクリプションのルールの後に一致します。"
+        },
+        "example": "例：{{example}}",
+        "preview": "追加される内容",
+        "previewValue": "値",
+        "policyGroups": {
+          "groups": "サブスクリプションのグループ",
+          "builtin": "組み込み",
+          "group": "グループ"
         }
+      },
+      "ruleGroups": {
+        "domain": "ドメイン",
+        "ip": "IP アドレス",
+        "source": "送信元",
+        "port": "ポートとプロトコル",
+        "process": "プロセス",
+        "inbound": "インバウンド接続",
+        "logic": "ルールセットと論理",
+        "other": "その他"
       },
       "ruleTypes": {
         "DOMAIN": "完全なドメイン名を一致させる",
@@ -76,7 +101,79 @@
         "NOT": "論理否定",
         "MATCH": "すべてのリクエストを一致させる"
       },
-      "title": "ルールを編集"
+      "ruleHelp": {
+        "DOMAIN": "完全なドメイン名（https:// やパスは不要）。",
+        "DOMAIN-SUFFIX": "ドメインとそのすべてのサブドメイン。",
+        "DOMAIN-KEYWORD": "このキーワードを含む任意のドメイン。",
+        "DOMAIN-REGEX": "ドメイン名の正規表現。",
+        "GEOSITE": "GeoSite データベースのカテゴリ名。",
+        "IP-CIDR": "マスク付きの IPv4 アドレス。",
+        "IP-CIDR6": "マスク付きの IPv6 アドレス。",
+        "IP-SUFFIX": "アドレスの末尾ビットで一致。",
+        "IP-ASN": "自律システム番号（「AS」は不要）。",
+        "GEOIP": "2 文字の国コード。",
+        "SRC-IP-CIDR": "リクエスト元デバイスのアドレス。",
+        "SRC-IP-SUFFIX": "デバイスアドレスの末尾ビット。",
+        "SRC-IP-ASN": "デバイスアドレスの自律システム番号。",
+        "SRC-GEOIP": "デバイスアドレスの国コード。",
+        "SRC-PORT": "リクエスト元デバイスのポート。",
+        "DST-PORT": "リクエスト先サーバーのポート。",
+        "IN-PORT": "リクエストがクライアントに届いたポート。",
+        "NETWORK": "tcp または udp。",
+        "DSCP": "TPROXY 経由のインバウンド UDP のみ。",
+        "PROCESS-NAME": "プログラムのファイル名。",
+        "PROCESS-PATH": "プログラムファイルのフルパス。",
+        "PROCESS-NAME-REGEX": "プログラム名の正規表現。",
+        "PROCESS-PATH-REGEX": "プログラムパスの正規表現。",
+        "UID": "Linux のユーザー ID。",
+        "IN-TYPE": "クライアントのインバウンド接続の種類。",
+        "IN-USER": "インバウンド接続のユーザー名。",
+        "IN-NAME": "インバウンド接続の名前。",
+        "RULE-SET": "サブスクリプションのルールセット名。",
+        "SUB-RULE": "括弧内のサブルール条件。",
+        "AND": "括弧内のすべての条件に一致する必要があります。",
+        "OR": "いずれかの条件に一致すれば十分です。",
+        "NOT": "条件に一致しないときに適用されます。",
+        "MATCH": "値は不要：上のルールに一致しなかったすべてに適用されます。"
+      },
+      "policies": {
+        "DIRECT": "直接",
+        "REJECT": "ブロック",
+        "REJECT-DROP": "静かにブロック",
+        "PASS": "ルールをスキップ"
+      },
+      "title": "ルールを編集",
+      "list": {
+        "search": "ルールを検索",
+        "total": "合計 {{count}}",
+        "sections": {
+          "prepend": "自分のルール — 先頭",
+          "original": "サブスクリプションから",
+          "append": "自分のルール — 末尾"
+        },
+        "hints": {
+          "prepend": "最初に一致",
+          "original": "順序はプロバイダーが決定",
+          "append": "最後に一致"
+        },
+        "emptyPrepend": "追加したルールはここに表示されます。",
+        "notFound": "見つかりません",
+        "willDelete": "削除予定",
+        "actions": {
+          "remove": "外す",
+          "delete": "サブスクリプションから削除",
+          "restore": "元に戻す"
+        }
+      },
+      "footer": {
+        "unsaved": "未保存：+{{added}} · −{{removed}}",
+        "reordered": "未保存：順序を変更",
+        "noChanges": "変更なし",
+        "reset": "リセット"
+      },
+      "mode": {
+        "form": "フォーム"
+      }
     }
   }
 }

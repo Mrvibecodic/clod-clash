@@ -27,19 +27,44 @@
         "labels": {
           "type": "規則類型",
           "content": "規則內容",
-          "proxyPolicy": "代理策略"
+          "proxyPolicy": "代理策略",
+          "position": "列表位置"
         },
         "toggles": {
           "noResolve": "跳過 DNS 解析"
         },
         "actions": {
-          "prependRule": "新增前置規則",
-          "appendRule": "新增後置規則"
+          "add": "新增規則"
         },
         "validation": {
           "conditionRequired": "規則條件為必填",
-          "invalidRule": "無效規則"
+          "invalidRule": "無效規則",
+          "duplicate": "你的規則中已有此規則"
+        },
+        "position": {
+          "prepend": "置頂",
+          "append": "置底",
+          "prependHint": "先於訂閱規則匹配。",
+          "appendHint": "在訂閱規則之後匹配。"
+        },
+        "example": "範例：{{example}}",
+        "preview": "將要新增",
+        "previewValue": "值",
+        "policyGroups": {
+          "groups": "訂閱中的群組",
+          "builtin": "內建",
+          "group": "群組"
         }
+      },
+      "ruleGroups": {
+        "domain": "網域",
+        "ip": "IP 位址",
+        "source": "來源",
+        "port": "連接埠與協定",
+        "process": "處理程序",
+        "inbound": "入站連線",
+        "logic": "規則集與邏輯",
+        "other": "其他"
       },
       "ruleTypes": {
         "DOMAIN": "匹配完整網域 (DOMAIN)",
@@ -76,7 +101,79 @@
         "NOT": "邏輯非 (NOT)",
         "MATCH": "匹配所有請求 (MATCH)"
       },
-      "title": "編輯規則"
+      "ruleHelp": {
+        "DOMAIN": "完整網域，不含 https:// 和路徑。",
+        "DOMAIN-SUFFIX": "該網域及其所有子網域。",
+        "DOMAIN-KEYWORD": "包含該關鍵字的任意網域。",
+        "DOMAIN-REGEX": "網域的正規表示式。",
+        "GEOSITE": "GeoSite 資料庫中的分類名稱。",
+        "IP-CIDR": "帶遮罩的 IPv4 位址。",
+        "IP-CIDR6": "帶遮罩的 IPv6 位址。",
+        "IP-SUFFIX": "依位址末尾位元匹配。",
+        "IP-ASN": "自治系統編號，不含「AS」。",
+        "GEOIP": "兩位國家代碼。",
+        "SRC-IP-CIDR": "發出請求的裝置位址。",
+        "SRC-IP-SUFFIX": "裝置位址的末尾位元。",
+        "SRC-IP-ASN": "裝置位址的自治系統編號。",
+        "SRC-GEOIP": "裝置位址的國家代碼。",
+        "SRC-PORT": "發出請求的裝置連接埠。",
+        "DST-PORT": "請求目標伺服器的連接埠。",
+        "IN-PORT": "請求進入用戶端的連接埠。",
+        "NETWORK": "tcp 或 udp。",
+        "DSCP": "僅適用於經 TPROXY 的入站 UDP。",
+        "PROCESS-NAME": "程式檔名。",
+        "PROCESS-PATH": "程式檔案的完整路徑。",
+        "PROCESS-NAME-REGEX": "程式名稱的正規表示式。",
+        "PROCESS-PATH-REGEX": "程式路徑的正規表示式。",
+        "UID": "Linux 使用者 ID。",
+        "IN-TYPE": "用戶端入站連線的類型。",
+        "IN-USER": "入站連線的使用者名稱。",
+        "IN-NAME": "入站連線的名稱。",
+        "RULE-SET": "訂閱中的規則集名稱。",
+        "SUB-RULE": "括號中的子規則條件。",
+        "AND": "括號中的所有條件都須匹配。",
+        "OR": "任一條件匹配即可。",
+        "NOT": "條件不匹配時生效。",
+        "MATCH": "無需填寫值：此規則匹配上方規則未匹配的所有請求。"
+      },
+      "policies": {
+        "DIRECT": "直連",
+        "REJECT": "攔截",
+        "REJECT-DROP": "靜默攔截",
+        "PASS": "略過規則"
+      },
+      "title": "編輯規則",
+      "list": {
+        "search": "搜尋規則",
+        "total": "共 {{count}} 條",
+        "sections": {
+          "prepend": "我的 — 前置",
+          "original": "來自訂閱",
+          "append": "我的 — 後置"
+        },
+        "hints": {
+          "prepend": "最先匹配",
+          "original": "順序由服務商決定",
+          "append": "最後匹配"
+        },
+        "emptyPrepend": "新增的規則會顯示在這裡。",
+        "notFound": "找不到結果",
+        "willDelete": "將被刪除",
+        "actions": {
+          "remove": "移除",
+          "delete": "從訂閱中刪除",
+          "restore": "還原"
+        }
+      },
+      "footer": {
+        "unsaved": "未儲存：+{{added}} · −{{removed}}",
+        "reordered": "未儲存：順序已變更",
+        "noChanges": "沒有變更",
+        "reset": "重設"
+      },
+      "mode": {
+        "form": "表單"
+      }
     }
   }
 }

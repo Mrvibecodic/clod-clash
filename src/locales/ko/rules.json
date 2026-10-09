@@ -27,19 +27,44 @@
         "labels": {
           "type": "규칙 유형",
           "content": "규칙 내용",
-          "proxyPolicy": "프록시 정책"
+          "proxyPolicy": "프록시 정책",
+          "position": "목록 위치"
         },
         "toggles": {
           "noResolve": "해석 안함"
         },
         "actions": {
-          "prependRule": "규칙 앞에 추가",
-          "appendRule": "규칙 뒤에 추가"
+          "add": "규칙 추가"
         },
         "validation": {
           "conditionRequired": "규칙 조건 필요",
-          "invalidRule": "잘못된 규칙"
+          "invalidRule": "잘못된 규칙",
+          "duplicate": "이미 추가된 규칙입니다"
+        },
+        "position": {
+          "prepend": "맨 앞",
+          "append": "맨 뒤",
+          "prependHint": "구독 규칙보다 먼저 적용됩니다.",
+          "appendHint": "구독 규칙 다음에 적용됩니다."
+        },
+        "example": "예: {{example}}",
+        "preview": "추가될 규칙",
+        "previewValue": "값",
+        "policyGroups": {
+          "groups": "구독 그룹",
+          "builtin": "기본 제공",
+          "group": "그룹"
         }
+      },
+      "ruleGroups": {
+        "domain": "도메인",
+        "ip": "IP 주소",
+        "source": "출발지",
+        "port": "포트 및 프로토콜",
+        "process": "프로세스",
+        "inbound": "인바운드 연결",
+        "logic": "규칙 세트 및 논리",
+        "other": "기타"
       },
       "ruleTypes": {
         "DOMAIN": "전체 도메인 이름과 일치",
@@ -76,7 +101,79 @@
         "NOT": "논리 NOT",
         "MATCH": "모든 요청과 일치"
       },
-      "title": "규칙 편집"
+      "ruleHelp": {
+        "DOMAIN": "전체 도메인 이름(https://와 경로 제외).",
+        "DOMAIN-SUFFIX": "도메인과 모든 하위 도메인.",
+        "DOMAIN-KEYWORD": "이 키워드가 들어간 모든 도메인.",
+        "DOMAIN-REGEX": "도메인 이름의 정규식.",
+        "GEOSITE": "GeoSite 데이터베이스의 카테고리 이름.",
+        "IP-CIDR": "마스크가 있는 IPv4 주소.",
+        "IP-CIDR6": "마스크가 있는 IPv6 주소.",
+        "IP-SUFFIX": "주소의 마지막 비트로 일치.",
+        "IP-ASN": "자율 시스템 번호(“AS” 제외).",
+        "GEOIP": "두 글자 국가 코드.",
+        "SRC-IP-CIDR": "요청을 보낸 기기의 주소.",
+        "SRC-IP-SUFFIX": "기기 주소의 마지막 비트.",
+        "SRC-IP-ASN": "기기 주소의 자율 시스템 번호.",
+        "SRC-GEOIP": "기기 주소의 국가 코드.",
+        "SRC-PORT": "요청을 보낸 기기의 포트.",
+        "DST-PORT": "요청 대상 서버의 포트.",
+        "IN-PORT": "요청이 클라이언트에 들어온 포트.",
+        "NETWORK": "tcp 또는 udp.",
+        "DSCP": "TPROXY를 통한 인바운드 UDP 전용.",
+        "PROCESS-NAME": "프로그램 파일 이름.",
+        "PROCESS-PATH": "프로그램 파일의 전체 경로.",
+        "PROCESS-NAME-REGEX": "프로그램 이름의 정규식.",
+        "PROCESS-PATH-REGEX": "프로그램 경로의 정규식.",
+        "UID": "Linux 사용자 ID.",
+        "IN-TYPE": "클라이언트 인바운드 연결의 유형.",
+        "IN-USER": "인바운드 연결의 사용자 이름.",
+        "IN-NAME": "인바운드 연결의 이름.",
+        "RULE-SET": "구독의 규칙 세트 이름.",
+        "SUB-RULE": "괄호 안의 하위 규칙 조건.",
+        "AND": "괄호 안의 모든 조건이 일치해야 합니다.",
+        "OR": "조건 중 하나만 일치하면 됩니다.",
+        "NOT": "조건이 일치하지 않을 때 적용됩니다.",
+        "MATCH": "값 불필요: 위 규칙에 걸리지 않은 모든 요청에 적용됩니다."
+      },
+      "policies": {
+        "DIRECT": "직접",
+        "REJECT": "차단",
+        "REJECT-DROP": "조용히 차단",
+        "PASS": "규칙 건너뛰기"
+      },
+      "title": "규칙 편집",
+      "list": {
+        "search": "규칙 검색",
+        "total": "총 {{count}}개",
+        "sections": {
+          "prepend": "내 규칙 — 맨 앞",
+          "original": "구독에서",
+          "append": "내 규칙 — 맨 뒤"
+        },
+        "hints": {
+          "prepend": "가장 먼저 적용",
+          "original": "순서는 제공자가 정함",
+          "append": "가장 나중에 적용"
+        },
+        "emptyPrepend": "추가한 규칙이 여기에 표시됩니다.",
+        "notFound": "결과 없음",
+        "willDelete": "삭제 예정",
+        "actions": {
+          "remove": "빼기",
+          "delete": "구독에서 삭제",
+          "restore": "복원"
+        }
+      },
+      "footer": {
+        "unsaved": "저장 안 됨: +{{added}} · −{{removed}}",
+        "reordered": "저장 안 됨: 순서 변경",
+        "noChanges": "변경 사항 없음",
+        "reset": "초기화"
+      },
+      "mode": {
+        "form": "양식"
+      }
     }
   }
 }

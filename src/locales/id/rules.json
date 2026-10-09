@@ -27,19 +27,44 @@
         "labels": {
           "type": "Jenis Aturan",
           "content": "Konten Aturan",
-          "proxyPolicy": "Kebijakan Proksi"
+          "proxyPolicy": "Kebijakan Proksi",
+          "position": "Posisi dalam daftar"
         },
         "toggles": {
           "noResolve": "Tidak Menyelesaikan"
         },
         "actions": {
-          "prependRule": "Tambahkan Aturan di Awal",
-          "appendRule": "Tambahkan Aturan di Akhir"
+          "add": "Tambah aturan"
         },
         "validation": {
           "conditionRequired": "Kondisi Aturan Diperlukan",
-          "invalidRule": "Aturan Tidak Valid"
+          "invalidRule": "Aturan Tidak Valid",
+          "duplicate": "Aturan ini sudah ada di aturan Anda"
+        },
+        "position": {
+          "prepend": "Di awal",
+          "append": "Di akhir",
+          "prependHint": "Dicocokkan sebelum aturan langganan.",
+          "appendHint": "Dicocokkan setelah aturan langganan."
+        },
+        "example": "Contoh: {{example}}",
+        "preview": "Akan ditambahkan",
+        "previewValue": "nilai",
+        "policyGroups": {
+          "groups": "Grup langganan",
+          "builtin": "Bawaan",
+          "group": "grup"
         }
+      },
+      "ruleGroups": {
+        "domain": "Domain",
+        "ip": "Alamat IP",
+        "source": "Sumber",
+        "port": "Port dan protokol",
+        "process": "Proses",
+        "inbound": "Koneksi masuk",
+        "logic": "Set aturan dan logika",
+        "other": "Lainnya"
       },
       "ruleTypes": {
         "DOMAIN": "Cocok dengan nama domain lengkap",
@@ -76,7 +101,79 @@
         "NOT": "Logika TIDAK",
         "MATCH": "Cocok dengan semua permintaan"
       },
-      "title": "Ubah Aturan"
+      "ruleHelp": {
+        "DOMAIN": "Nama domain lengkap, tanpa https:// dan path.",
+        "DOMAIN-SUFFIX": "Domain beserta semua subdomainnya.",
+        "DOMAIN-KEYWORD": "Domain apa pun yang memuat kata ini.",
+        "DOMAIN-REGEX": "Ekspresi reguler untuk nama domain.",
+        "GEOSITE": "Nama kategori dari basis data GeoSite.",
+        "IP-CIDR": "Alamat IPv4 dengan mask.",
+        "IP-CIDR6": "Alamat IPv6 dengan mask.",
+        "IP-SUFFIX": "Cocok berdasarkan bit terakhir alamat.",
+        "IP-ASN": "Nomor sistem otonom, tanpa “AS”.",
+        "GEOIP": "Kode negara dua huruf.",
+        "SRC-IP-CIDR": "Alamat perangkat asal permintaan.",
+        "SRC-IP-SUFFIX": "Bit terakhir alamat perangkat.",
+        "SRC-IP-ASN": "Nomor sistem otonom alamat perangkat.",
+        "SRC-GEOIP": "Kode negara alamat perangkat.",
+        "SRC-PORT": "Port perangkat asal permintaan.",
+        "DST-PORT": "Port server tujuan permintaan.",
+        "IN-PORT": "Port tempat permintaan masuk ke klien.",
+        "NETWORK": "tcp atau udp.",
+        "DSCP": "Hanya untuk UDP masuk melalui TPROXY.",
+        "PROCESS-NAME": "Nama file program.",
+        "PROCESS-PATH": "Path lengkap ke file program.",
+        "PROCESS-NAME-REGEX": "Ekspresi reguler untuk nama program.",
+        "PROCESS-PATH-REGEX": "Ekspresi reguler untuk path program.",
+        "UID": "ID pengguna Linux.",
+        "IN-TYPE": "Jenis koneksi masuk klien.",
+        "IN-USER": "Nama pengguna koneksi masuk.",
+        "IN-NAME": "Nama koneksi masuk.",
+        "RULE-SET": "Nama set aturan dari langganan.",
+        "SUB-RULE": "Kondisi sub-aturan dalam kurung.",
+        "AND": "Semua kondisi dalam kurung harus cocok.",
+        "OR": "Cukup salah satu kondisi yang cocok.",
+        "NOT": "Berlaku saat kondisi tidak cocok.",
+        "MATCH": "Tidak perlu nilai: aturan menangkap semua yang tidak tertangkap aturan di atas."
+      },
+      "policies": {
+        "DIRECT": "Langsung",
+        "REJECT": "Blokir",
+        "REJECT-DROP": "Blokir diam-diam",
+        "PASS": "Lewati aturan"
+      },
+      "title": "Ubah Aturan",
+      "list": {
+        "search": "Cari aturan",
+        "total": "Total {{count}}",
+        "sections": {
+          "prepend": "Milik saya — di awal",
+          "original": "Dari langganan",
+          "append": "Milik saya — di akhir"
+        },
+        "hints": {
+          "prepend": "dicocokkan pertama",
+          "original": "urutan ditentukan penyedia",
+          "append": "dicocokkan terakhir"
+        },
+        "emptyPrepend": "Aturan yang Anda tambahkan akan muncul di sini.",
+        "notFound": "Tidak ditemukan",
+        "willDelete": "akan dihapus",
+        "actions": {
+          "remove": "Lepas",
+          "delete": "Hapus dari langganan",
+          "restore": "Pulihkan"
+        }
+      },
+      "footer": {
+        "unsaved": "Belum disimpan: +{{added}} · −{{removed}}",
+        "reordered": "Belum disimpan: urutan berubah",
+        "noChanges": "Tidak ada perubahan",
+        "reset": "Atur ulang"
+      },
+      "mode": {
+        "form": "Formulir"
+      }
     }
   }
 }
