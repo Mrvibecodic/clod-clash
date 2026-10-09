@@ -306,7 +306,7 @@ fn fingerprint_of(interfaces: Vec<network_interface::NetworkInterface>) -> BTree
 }
 
 fn network_fingerprint() -> Option<BTreeSet<std::string::String>> {
-    Some(fingerprint_of(crate::cmd::network::get_network_interfaces_info().ok()?))
+    Some(fingerprint_of(crate::cmd::network::network_interfaces_info().ok()?))
 }
 
 fn listing_just_failed() -> bool {

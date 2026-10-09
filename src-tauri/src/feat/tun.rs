@@ -1202,7 +1202,7 @@ async fn already_ready(user_initiated: bool) -> bool {
 }
 
 async fn nudge_registered_service() -> bool {
-    if !matches!(service_registration(), ServiceRegistration::Stopped) {
+    if !matches!(service_registration().await, ServiceRegistration::Stopped) {
         return false;
     }
 
@@ -1212,10 +1212,7 @@ async fn nudge_registered_service() -> bool {
         "the service is registered but stopped; starting it without asking for rights"
     );
 
-    let started = tokio::task::spawn_blocking(start_registered_service)
-        .await
-        .unwrap_or(false);
-    if !started {
+    if !start_registered_service().await {
         return false;
     }
 
@@ -1291,7 +1288,7 @@ async fn set_up_service() -> SetupOutcome {
 }
 
 async fn required_action() -> ServiceStatus {
-    action_for(service_registration(), service_needs_repair().await)
+    action_for(service_registration().await, service_needs_repair().await)
 }
 
 const fn action_for(registration: ServiceRegistration, needs_repair: bool) -> ServiceStatus {
@@ -1311,20 +1308,25 @@ async fn wait_until_capable(trust_registration: bool) -> bool {
         return true;
     }
     let deadline = Instant::now() + timing::TUN_SERVICE_APPEAR_WAIT;
-    loop {
-        // Подвисшая служба держит опрос минутами — дольше срока не ждём. Опрос
-        // только читает, обрывать его безопасно; последнему кругу после срока
-        // остаётся один интервал.
-        let left = deadline
+    // Подвисшая служба держит опрос минутами, занятый диспетчер служб — запрос
+    // регистрации; дольше срока не ждём ни того, ни другого. Оба только
+    // читают, обрывать их безопасно; каждому запросу после срока остаётся
+    // один интервал.
+    let left = || {
+        deadline
             .saturating_duration_since(Instant::now())
-            .max(timing::TUN_SERVICE_APPEAR_INTERVAL);
-        let probe = tokio::time::timeout(left, probe_service())
+            .max(timing::TUN_SERVICE_APPEAR_INTERVAL)
+    };
+    loop {
+        let probe = tokio::time::timeout(left(), probe_service())
             .await
             .unwrap_or_else(|_| ServiceProbe::Silent("no answer within the wait".into()));
         if matches!(probe, ServiceProbe::Ready(_)) {
             return true;
         }
-        let registration = service_registration();
+        let registration = tokio::time::timeout(left(), service_registration())
+            .await
+            .unwrap_or(ServiceRegistration::Unknown);
         let pointless = matches!(registration, ServiceRegistration::Missing)
             || (trust_registration
                 && (matches!(registration, ServiceRegistration::Stopped) || probe == ServiceProbe::Outdated));
@@ -1348,10 +1350,7 @@ pub async fn hold_down_without_a_service() {
     if !desired().await || is_app_elevated() {
         return;
     }
-    let registration = tokio::task::spawn_blocking(service_registration)
-        .await
-        .unwrap_or(ServiceRegistration::Unknown);
-    if !matches!(registration, ServiceRegistration::Missing) {
+    if !matches!(service_registration().await, ServiceRegistration::Missing) {
         return;
     }
     logging!(

@@ -323,12 +323,19 @@ pub fn remove_task(mode: TaskMode) -> Result<()> {
 }
 
 pub async fn set_auto_launch(is_enable: bool, is_admin: bool) -> Result<()> {
-    let target = if is_admin { TaskMode::Admin } else { TaskMode::User };
-    let other = if is_admin { TaskMode::User } else { TaskMode::Admin };
-
     if let Err(err) = cleanup_legacy_shortcuts().await {
         logging!(warn, Type::Setup, "Failed to cleanup legacy startup shortcuts: {}", err);
     }
+
+    // `schtasks` ждёт планировщик, а при входе в систему тот занят запуском
+    // задач — вызовы тянутся секундами. Они идут в отдельном потоке и не
+    // занимают рабочие, которые отвечают окну.
+    tokio::task::spawn_blocking(move || apply_auto_launch(is_enable, is_admin)).await?
+}
+
+fn apply_auto_launch(is_enable: bool, is_admin: bool) -> Result<()> {
+    let target = if is_admin { TaskMode::Admin } else { TaskMode::User };
+    let other = if is_admin { TaskMode::User } else { TaskMode::Admin };
 
     if is_enable {
         if is_admin {

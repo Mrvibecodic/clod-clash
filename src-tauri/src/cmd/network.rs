@@ -2,6 +2,7 @@ use super::CmdResult;
 use crate::cmd::StringifyErr as _;
 use crate::config::Config;
 use crate::core::sysopt::Sysopt;
+use crate::process::AsyncHandler;
 use clash_verge_logging::{Type, logging};
 use gethostname::gethostname;
 use network_interface::NetworkInterface;
@@ -80,18 +81,31 @@ pub fn get_system_hostname() -> String {
     }
 }
 
+// Перебор интерфейсов спрашивает систему и на старте или при смене сети
+// тянется заметно. Синхронная команда выполнялась бы в главном потоке и
+// замораживала окно, поэтому обе команды уходят в отдельный поток.
+
 /// Получить список сетевых интерфейсов
 #[tauri::command]
-pub fn get_network_interfaces() -> Vec<String> {
-    tauri_plugin_clash_verge_sysinfo::list_network_interfaces()
+pub async fn get_network_interfaces() -> Vec<String> {
+    AsyncHandler::spawn_blocking(tauri_plugin_clash_verge_sysinfo::list_network_interfaces)
+        .await
+        .unwrap_or_default()
 }
 
 /// Получить подробную информацию о сетевых интерфейсах
 #[tauri::command]
-pub fn get_network_interfaces_info() -> CmdResult<Vec<NetworkInterface>> {
+pub async fn get_network_interfaces_info() -> CmdResult<Vec<NetworkInterface>> {
+    AsyncHandler::spawn_blocking(network_interfaces_info)
+        .await
+        .stringify_err()?
+}
+
+/// Интерфейсы с адресами — только те, что система показывает человеку.
+pub fn network_interfaces_info() -> CmdResult<Vec<NetworkInterface>> {
     use network_interface::{NetworkInterface, NetworkInterfaceConfig as _};
 
-    let names = get_network_interfaces();
+    let names = tauri_plugin_clash_verge_sysinfo::list_network_interfaces();
     let interfaces = NetworkInterface::show().stringify_err()?;
 
     let mut result = Vec::new();

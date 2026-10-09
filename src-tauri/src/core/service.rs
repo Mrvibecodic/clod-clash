@@ -649,7 +649,7 @@ pub enum ServiceRegistration {
 }
 
 #[cfg(target_os = "windows")]
-pub fn service_registration() -> ServiceRegistration {
+fn read_service_registration() -> ServiceRegistration {
     use std::os::windows::process::CommandExt as _;
 
     const SERVICE_DOES_NOT_EXIST: i32 = 1060;
@@ -678,7 +678,7 @@ pub fn service_registration() -> ServiceRegistration {
 }
 
 #[cfg(target_os = "windows")]
-pub fn start_registered_service() -> bool {
+fn run_start_registered_service() -> bool {
     use std::os::windows::process::CommandExt as _;
 
     const CREATE_NO_WINDOW: u32 = 0x08000000;
@@ -707,12 +707,33 @@ pub fn start_registered_service() -> bool {
 }
 
 #[cfg(not(target_os = "windows"))]
-pub const fn start_registered_service() -> bool {
+#[allow(clippy::unused_async)]
+pub async fn start_registered_service() -> bool {
     false
 }
 
+/// Запустить зарегистрированную службу без запроса прав. `sc.exe` ждёт
+/// диспетчер служб, а на старте системы тот занят секундами, — поэтому вызов
+/// идёт в отдельном потоке и не занимает рабочие, которые отвечают окну.
+#[cfg(target_os = "windows")]
+pub async fn start_registered_service() -> bool {
+    tokio::task::spawn_blocking(run_start_registered_service)
+        .await
+        .unwrap_or(false)
+}
+
+/// Как служба зарегистрирована в системе. Опрос — внешняя программа
+/// (`sc.exe`, `systemctl`, `launchctl`), на старте системы она тянется
+/// секундами, — поэтому он идёт в отдельном потоке и не занимает рабочие,
+/// которые отвечают окну.
+pub async fn service_registration() -> ServiceRegistration {
+    tokio::task::spawn_blocking(read_service_registration)
+        .await
+        .unwrap_or(ServiceRegistration::Unknown)
+}
+
 #[cfg(target_os = "linux")]
-pub fn service_registration() -> ServiceRegistration {
+fn read_service_registration() -> ServiceRegistration {
     if !Path::new("/etc/systemd/system/clash-verge-service.service").exists() {
         return ServiceRegistration::Missing;
     }
@@ -730,7 +751,7 @@ pub fn service_registration() -> ServiceRegistration {
 }
 
 #[cfg(target_os = "macos")]
-pub fn service_registration() -> ServiceRegistration {
+fn read_service_registration() -> ServiceRegistration {
     const LABEL: &str = "io.github.clash-verge-rev.clash-verge-rev.service";
 
     if !Path::new("/Library/LaunchDaemons/io.github.clash-verge-rev.clash-verge-rev.service.plist").exists() {
@@ -1651,8 +1672,12 @@ mod probe_service_tests {
     fn the_wait_for_the_service_is_bounded_by_its_deadline() {
         let body = body_of(include_str!("../feat/tun.rs"), "async fn wait_until_capable");
         assert!(
-            body.contains("tokio::time::timeout(left, probe_service())"),
+            body.contains("tokio::time::timeout(left(), probe_service())"),
             "опрос подвисшей службы не переживает срок ожидания: {body}"
+        );
+        assert!(
+            body.contains("tokio::time::timeout(left(), service_registration())"),
+            "запрос регистрации у занятого диспетчера служб не переживает срок ожидания: {body}"
         );
     }
 
