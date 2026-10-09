@@ -44,21 +44,22 @@ described below covers the requests this app makes itself.
     request is a generic browser string. You can turn the channel off in the subscription
     properties (the app warns that this is less safe) and on again.
 *   **A quality report to your provider, over the secure channel only.** For a subscription
-    that uses the secure channel, after a successful scheduled refresh (not a manual one) and
-    at most once every 6 hours, the app sends the provider's subscription server what the core
-    has already measured: latency results and the "16–20" check results per server of that
-    subscription, traffic volume and minutes of use per server, the server list entries
-    involved (name, type, address and port from your subscription), the kind of network
-    (wired, Wi-Fi, mobile) and the external IP addresses the measurements were made from,
-    hour by hour. A network is identified by a hash of its properties (connection type and the
-    router's MAC address, or the gateway and DNS addresses when there is no router MAC); the
-    MAC and addresses themselves are never stored or sent. The report carries a random
-    per-install mark, the app version and the platform; like every secure-channel request, it
-    also carries the device values described above, encrypted, while "Device identification"
-    is on. The Wi-Fi name, location, visited sites and addresses, process names and the list
-    of programs are not included. The report is sent only if the provider has turned on
-    receiving reports; the app keeps unsent measurements for at most 7 days. Turning off the
-    secure channel for a subscription stops its reports.
+    that uses the secure channel, after a successful scheduled refresh (not a manual one), and
+    between refreshes if they are less frequent than every 6 hours (after a failed refresh,
+    from the next successful one), at most once every 6 hours, the app sends the provider's
+    subscription server what the core has already measured: latency results and the "16–20"
+    check results per server of that subscription, traffic volume and minutes of use per
+    server, the server list entries involved (name, type, address and port from your
+    subscription), the kind of network (wired, Wi-Fi, mobile) and the external IP addresses the
+    measurements were made from, hour by hour. A network is identified by a hash of its
+    properties (connection type and the router's MAC address, or the gateway and DNS addresses
+    when there is no router MAC); the MAC and addresses themselves are never stored or sent.
+    The report carries a random per-install mark, the app version and the platform; like every
+    secure-channel request, it also carries the device values described above, encrypted, while
+    "Device identification" is on. The Wi-Fi name, location, visited sites and addresses,
+    process names and the list of programs are not included. The report is sent only if the
+    provider has turned on receiving reports; the app keeps unsent measurements for at most 7
+    days. Turning off the secure channel for a subscription stops its reports.
 *   **To Yandex, to learn the external IP address.** For the report above, the app asks
     `ipv4-internet.yandex.net` and `ipv6-internet.yandex.net` (operated by Yandex) for the
     address your connection appears from — when the network changes or the computer wakes up,

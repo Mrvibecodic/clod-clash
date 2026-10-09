@@ -24,17 +24,19 @@
 //! В одной сети адрес переспрашивается раз в час.
 //!
 //! Уходит отчёт только по защищённому каналу, только после удачного планового
-//! обновления подписки и не чаще раза в 6 часов, закрытыми часами — от самых
-//! старых, не больше двух суток за раз и не больше, чем примет прослойка.
+//! обновления подписки, а если она обновляется реже раза в 6 часов, — и между
+//! обновлениями ([`send_between`]), и не чаще раза в 6 часов,
+//! закрытыми часами — от самых старых, не больше двух суток за раз и не
+//! больше, чем примет прослойка.
 //! Принят (204) — отправленное удаляется, остальное ждёт следующего раза. Приём выключен в прослойке (403), рано (429)
 //! или прослойка старая и ответила подпиской — накопленное остаётся, следующая
-//! попытка через 6 часов. Каналом не ответил никто — попытка при следующем
-//! плановом обновлении.
+//! попытка через 6 часов. Каналом не ответил никто — попытка при следующей
+//! отправке.
 
 mod ip;
 mod store;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::io::Write as _;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -103,6 +105,10 @@ static CACHE: tokio::sync::Mutex<Option<Cached>> = tokio::sync::Mutex::const_new
 static COLLECT: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 /// Сколько раз сторож среды видел смену сети или пробуждение.
 static CHANGES: AtomicU64 = AtomicU64::new(0);
+/// Отправки (после обновления и между обновлениями) идут по одной.
+static SENDING: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+/// Подписка → когда (с) снова пробовать отправить между обновлениями, см. [`send_between`].
+static NEXT: Mutex<BTreeMap<String, i64>> = Mutex::new(BTreeMap::new());
 
 /// Место, где сейчас делаются замеры.
 #[derive(Clone)]
@@ -754,10 +760,76 @@ fn pack_within(
 /// Плановое обновление подписки удалось: если подошло время, отправить отчёт.
 /// Зовётся только для обновления по расписанию.
 pub(crate) async fn after_scheduled_update(uid: String) {
+    let at = send(&uid).await;
+    NEXT.lock().insert(uid, at);
+}
+
+/// Обновления подписки реже, чем отчёт может уходить, и последнее удалось.
+fn sends_between(item: &PrfItem) -> bool {
+    let option = item.option.as_ref();
+    is_collected(item)
+        && item.update_failed != Some(true)
+        && option.and_then(|option| option.allow_auto_update).unwrap_or(true)
+        && option
+            .and_then(|option| option.update_interval)
+            .is_some_and(|minutes| i64::try_from(minutes).unwrap_or(i64::MAX).saturating_mul(60) > SEND_EVERY)
+}
+
+/// Подписки, которым пора попробовать отправить между обновлениями: срок из
+/// [`NEXT`] подошёл (или его нет — после запуска), накопленное есть на диске.
+/// Срок ставится сразу, чтобы следующий круг не позвал отправку повторно.
+fn due_between(next: &mut BTreeMap<String, i64>, wanted: &[(String, bool)], now: i64) -> Vec<String> {
+    next.retain(|uid, _| wanted.iter().any(|(wanted, _)| wanted == uid));
+    let mut due = Vec::new();
+    for (uid, stored) in wanted {
+        if *stored && next.get(uid).is_none_or(|at| *at <= now) {
+            next.insert(uid.clone(), now + SEND_EVERY);
+            due.push(uid.clone());
+        }
+    }
+    due
+}
+
+/// Отправка между редкими обновлениями. Решают сохранённое — отметка о
+/// неудачном обновлении в подписке и время прошлой попытки в накопленном, —
+/// поэтому перезапуск приложения отправкам не мешает; в памяти только срок
+/// следующей проверки, чтобы не читать накопленное каждый круг. Сети нет —
+/// попытка, как только она появится (проверка раз в [`TICK`]).
+async fn send_between() {
+    let wanted: Vec<(String, bool)> = Config::profiles()
+        .await
+        .latest_arc()
+        .get_items()
+        .into_iter()
+        .flatten()
+        .filter(|item| sends_between(item))
+        .filter_map(|item| item.uid.as_deref().map(str::to_owned))
+        .map(|uid| {
+            let stored = store::exists(&uid);
+            (uid, stored)
+        })
+        .collect();
+    let due = due_between(&mut NEXT.lock(), &wanted, help::now_secs());
+    for uid in due {
+        AsyncHandler::spawn(move || async move {
+            let at = if crate::module::freeze_check::current_network().await.is_some() {
+                send(&uid).await
+            } else {
+                help::now_secs() + TICK.as_secs().cast_signed()
+            };
+            NEXT.lock().insert(uid, at);
+        });
+    }
+}
+
+/// Если подошло время, отчёт подписки уходит. Возвращает, когда пробовать
+/// снова: через 6 часов от прошлой попытки или от этой.
+async fn send(uid: &str) -> i64 {
+    let _sending = SENDING.lock().await;
     let Some((url, option, spare)) = Config::profiles()
         .await
         .latest_arc()
-        .get_item(&uid)
+        .get_item(uid)
         .ok()
         .filter(|item| is_collected(item))
         .and_then(|item| {
@@ -771,28 +843,29 @@ pub(crate) async fn after_scheduled_update(uid: String) {
             Some((url, item.fetch_option(), spare))
         })
     else {
-        return;
+        return help::now_secs() + SEND_EVERY;
     };
 
     let now = help::now_secs();
-    let packed = with_store(&uid, now, false, |saved| {
+    let packed = with_store(uid, now, false, |saved| {
         let pruned = saved.prune(now);
         let packed = if now.saturating_sub(saved.last_try) < SEND_EVERY {
-            None
+            Err(saved.last_try + SEND_EVERY)
         } else {
             saved
                 .oldest_closed(now)
                 .map(|oldest| pack_window(saved, now, oldest, &device_id()))
+                .ok_or(now + SEND_EVERY)
         };
         (packed, pruned)
     })
     .await;
     let (gz, until, hours) = match packed {
-        None => return,
-        Some(Ok(packed)) => packed,
-        Some(Err(err)) => {
+        Err(at) => return at,
+        Ok(Ok(packed)) => packed,
+        Ok(Err(err)) => {
             logging!(warn, Type::Core, "[Report] the report was not packed: {err}");
-            return;
+            return now + SEND_EVERY;
         }
     };
 
@@ -808,14 +881,14 @@ pub(crate) async fn after_scheduled_update(uid: String) {
             logging!(
                 info,
                 Type::Core,
-                "[Report] the middleware did not answer over the secure channel, next try with the next scheduled update: {}",
+                "[Report] the middleware did not answer over the secure channel, next try with the next send: {}",
                 crate::utils::help::mask_err(&err.to_string())
             );
-            return;
+            return now + SEND_EVERY;
         }
     };
 
-    with_store(&uid, now, true, |saved| {
+    with_store(uid, now, true, |saved| {
         saved.last_try = now;
         if status == 204 {
             saved.drop_sent(now, until);
@@ -834,6 +907,7 @@ pub(crate) async fn after_scheduled_update(uid: String) {
         Type::Core,
         "[Report] {hours} hour(s) of measurements sent: {outcome} ({status})"
     );
+    now + SEND_EVERY
 }
 
 /// Сборщик истории задержек: от раза в 20 секунд до раза в 5 минут (первое
@@ -849,6 +923,7 @@ pub fn spawn() {
                 continue;
             }
             tick().await;
+            send_between().await;
             next = with_runtime(|runtime| runtime.next).unwrap_or(TICK);
         }
     });
@@ -860,7 +935,11 @@ mod tests {
     use std::time::Duration;
 
     use super::store::{HOUR, Place, Store, hour_of};
-    use super::{Address, REPORT_MAX_GZ, SEND_WINDOW, TICK, TICK_MIN, histories, next_read, pack_within, pings_of};
+    use super::{
+        Address, REPORT_MAX_GZ, SEND_EVERY, SEND_WINDOW, TICK, TICK_MIN, due_between, histories, next_read,
+        pack_within, pings_of, sends_between,
+    };
+    use crate::config::{PrfItem, PrfOption};
 
     fn ms(text: &str) -> i64 {
         chrono::DateTime::parse_from_rfc3339(text)
@@ -1061,5 +1140,49 @@ mod tests {
         let (_, until, hours) = pack_within(&store, now, oldest, "", 1, count).unwrap_or_default();
         assert_eq!(hours, 1);
         assert_eq!(until, oldest + HOUR);
+    }
+
+    fn subscription(secure: bool, minutes: Option<u64>, auto: Option<bool>) -> PrfItem {
+        PrfItem {
+            itype: Some("remote".into()),
+            option: Some(PrfOption {
+                secure: Some(secure),
+                update_interval: minutes,
+                allow_auto_update: auto,
+                ..PrfOption::default()
+            }),
+            ..PrfItem::default()
+        }
+    }
+
+    #[test]
+    fn only_rare_successful_updates_of_a_secure_subscription_send_between() {
+        assert!(sends_between(&subscription(true, Some(12 * 60), None)));
+        assert!(!sends_between(&subscription(true, Some(6 * 60), None)));
+        assert!(!sends_between(&subscription(true, Some(12 * 60), Some(false))));
+        assert!(!sends_between(&subscription(true, None, None)));
+        assert!(!sends_between(&subscription(false, Some(12 * 60), None)));
+        let failed = PrfItem {
+            update_failed: Some(true),
+            ..subscription(true, Some(12 * 60), None)
+        };
+        assert!(!sends_between(&failed));
+    }
+
+    #[test]
+    fn sends_between_updates_are_tried_once_per_term() {
+        let mut next = std::collections::BTreeMap::new();
+        let wanted = vec![("a".to_owned(), true), ("b".to_owned(), false)];
+
+        // После запуска срока нет — проверка сразу; без накопленного — нет
+        assert_eq!(due_between(&mut next, &wanted, 0), vec!["a".to_owned()]);
+        // Срок поставлен сразу: следующий круг не зовёт отправку повторно
+        assert!(due_between(&mut next, &wanted, 60).is_empty());
+        assert_eq!(next.get("a"), Some(&SEND_EVERY));
+        assert_eq!(due_between(&mut next, &wanted, SEND_EVERY), vec!["a".to_owned()]);
+
+        // Подписка выпала (обновление не удалось, частые обновления) — срок снят
+        assert!(due_between(&mut next, &[], SEND_EVERY).is_empty());
+        assert!(next.is_empty());
     }
 }

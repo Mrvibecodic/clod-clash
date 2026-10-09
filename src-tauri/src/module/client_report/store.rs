@@ -321,6 +321,11 @@ fn file_path(uid: &str) -> Result<std::path::PathBuf> {
     Ok(dirs::app_profiles_dir()?.join(dirs::report_file(uid)))
 }
 
+/// Накопленное подписки есть на диске.
+pub(super) fn exists(uid: &str) -> bool {
+    file_path(uid).is_ok_and(|path| path.is_file())
+}
+
 /// Прочитать накопленное; нет файла или он испорчен — пустое.
 pub(super) async fn load(uid: &str) -> Store {
     let Ok(path) = file_path(uid) else {
