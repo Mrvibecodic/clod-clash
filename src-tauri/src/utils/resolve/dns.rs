@@ -328,7 +328,13 @@ async fn set_public_dns_locked(dns_server: String) -> bool {
 }
 
 async fn restore_public_dns_locked(limit: Duration) -> bool {
-    let done = run_dns_script("unset_dns.sh", vec![state_arg()], "unset system dns", limit).await;
+    let done = run_dns_script(
+        "unset_dns.sh",
+        vec![state_arg(), OVERRIDE_SERVER.to_owned()],
+        "unset system dns",
+        limit,
+    )
+    .await;
     if done {
         OVERRIDE_CONFIRMED.store(false, Ordering::SeqCst);
     }

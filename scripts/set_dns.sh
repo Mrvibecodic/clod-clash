@@ -43,7 +43,7 @@ hardware_port=$(networksetup -listnetworkserviceorder | awk -v dev="$nic" '
 # (прошлый запуск не вернул DNS, или прошлая попытка оборвалась) сперва
 # возвращается на свою службу: иначе подмена легла бы на текущую без записи,
 # и её прежние адреса не вернул бы уже никто.
-bash "$(dirname "$0")/unset_dns.sh" "$state_file" || exit $?
+bash "$(dirname "$0")/unset_dns.sh" "$state_file" "$1" || exit $?
 
 original_dns=$(networksetup -getdnsservers "$hardware_port")
 
@@ -75,8 +75,11 @@ if ! mv -f "$tmp_file" "$state_file"; then
     exit 1
 fi
 
-networksetup -setdnsservers "$hardware_port" "$1"
+# networksetup умеет сообщить об отказе строкой «** Error» и выйти с нулём.
+out=$(networksetup -setdnsservers "$hardware_port" "$1" 2>&1)
 code=$?
+[ -n "$out" ] && echo "$out"
+[ "$code" -eq 0 ] && [[ "$out" == *"** Error"* ]] && code=1
 
 if [ "$code" -ne 0 ]; then
     rm -f "$state_file"

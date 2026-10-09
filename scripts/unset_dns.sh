@@ -1,6 +1,7 @@
 #!/bin/bash
 
 state_file="${1:-.original_dns.txt}"
+placeholder="${2:-}"
 
 [ ! -f "$state_file" ] && exit 0
 
@@ -25,8 +26,24 @@ fi
 [ -z "$hardware_port" ] && hardware_port=$(current_service)
 [ -z "$hardware_port" ] && exit 1
 
-networksetup -setdnsservers "$hardware_port" $original_dns
+# Подмены на службе уже нет: её сменили поверх нас (человек вручную, другая
+# программа) или она так и не встала. Выбор остаётся как есть, а записанные
+# адреса больше ничего не описывают. Прочитать не вышло — возвращаем, как и
+# прежде.
+if [ -n "$placeholder" ] && current=$(networksetup -getdnsservers "$hardware_port" 2>&1) &&
+    [ -n "$current" ] && [[ "$current" != *"** Error"* ]]; then
+    if [ "$(tr -d '[:space:]' <<<"$current")" != "$placeholder" ]; then
+        echo "DNS of $hardware_port is not the override any more; leaving it as it is"
+        rm -f "$state_file"
+        exit 0
+    fi
+fi
+
+# networksetup умеет сообщить об отказе строкой «** Error» и выйти с нулём.
+out=$(networksetup -setdnsservers "$hardware_port" $original_dns 2>&1)
 code=$?
+[ -n "$out" ] && echo "$out"
+[ "$code" -eq 0 ] && [[ "$out" == *"** Error"* ]] && code=1
 
 if [ "$code" -ne 0 ]; then
     # Службы, на которой стоит подмена, больше нет (сбросили сеть, удалили
