@@ -12,9 +12,79 @@ use std::{
     },
 };
 use tauri_plugin_updater::{Update, UpdaterExt as _};
+use tokio_util::sync::CancellationToken;
 
 pub struct SilentUpdater {
     update_ready: AtomicBool,
+    /// Отмена идущей ручной установки: ею владеет одна команда на всё
+    /// приложение, а окон обновления два — «Отмена» любого доходит сюда.
+    /// Номер — чтобы завершающаяся установка забрала свой жетон, а не чужой.
+    manual_cancel: parking_lot::Mutex<Option<(u64, CancellationToken)>>,
+}
+
+/// Ход ручной загрузки для окна обновления — в той же форме, что у плагина
+/// (`DownloadEvent` из `@tauri-apps/plugin-updater`).
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "event", content = "data")]
+pub enum DownloadEvent {
+    #[serde(rename_all = "camelCase")]
+    Started {
+        content_length: Option<u64>,
+    },
+    #[serde(rename_all = "camelCase")]
+    Progress {
+        chunk_length: usize,
+    },
+    Finished,
+}
+
+/// Установщик запущен и ещё не вернулся. Ставить два обновления разом нельзя:
+/// вопрос на старте и окно обновления живут одновременно.
+static INSTALLING: AtomicBool = AtomicBool::new(false);
+
+static MANUAL_INSTALLS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Признак «установщик работает», снимаемый при неудаче и при панике. После
+/// удачной установки процесс уже на пути к перезапуску — признак остаётся до
+/// его конца, и вторая установка той же версии поверх идущего перезапуска не
+/// начнётся.
+struct InstallerRunning;
+
+impl InstallerRunning {
+    fn claim() -> Option<Self> {
+        (!INSTALLING.swap(true, Ordering::AcqRel)).then_some(Self)
+    }
+}
+
+impl InstallerRunning {
+    fn run<E>(self, install: impl FnOnce() -> std::result::Result<(), E>) -> std::result::Result<(), E> {
+        let installed = install();
+        if installed.is_ok() {
+            std::mem::forget(self);
+        }
+        installed
+    }
+}
+
+impl Drop for InstallerRunning {
+    fn drop(&mut self) {
+        INSTALLING.store(false, Ordering::Release);
+    }
+}
+
+/// Место ручной установки: освобождается, как только её не стало, — даже если
+/// её уронили. Чужое место (следующей установки) не трогает.
+struct ManualSlot {
+    ticket: u64,
+}
+
+impl Drop for ManualSlot {
+    fn drop(&mut self) {
+        let mut slot = SilentUpdater::global().manual_cancel.lock();
+        if slot.as_ref().is_some_and(|(owner, _)| *owner == self.ticket) {
+            slot.take();
+        }
+    }
 }
 
 singleton!(SilentUpdater, SILENT_UPDATER);
@@ -23,6 +93,7 @@ impl SilentUpdater {
     const fn new() -> Self {
         Self {
             update_ready: AtomicBool::new(false),
+            manual_cancel: parking_lot::Mutex::new(None),
         }
     }
 
@@ -236,6 +307,52 @@ fn updater_pubkey(app_handle: &tauri::AppHandle) -> Result<String> {
 }
 
 impl SilentUpdater {
+    /// Нужна ли ещё скачанная версия; нет — кэш выбрасывает вызывающий.
+    async fn cache_still_wanted(cached_version: &str, current_version: &str) -> bool {
+        let verge = Config::verge().await.latest_arc();
+
+        // Кэш наполняет только автопроверка: выключил её человек — и готового
+        // обновления он не ждёт, спрашивать на старте незачем.
+        if !verge.auto_check_update.unwrap_or(true) {
+            logging!(
+                info,
+                Type::System,
+                "Auto update check is off, discarding the cached update ({})",
+                cached_version
+            );
+            return false;
+        }
+
+        if version_lte(cached_version, current_version) {
+            logging!(
+                info,
+                Type::System,
+                "Update cache version ({}) <= current ({}), cleaning up",
+                cached_version,
+                current_version
+            );
+            return false;
+        }
+
+        if is_prerelease_version(cached_version)
+            && !verge
+                .receive_prereleases
+                .unwrap_or(crate::config::IVerge::DEFAULT_RECEIVE_PRERELEASES)
+        {
+            logging!(
+                info,
+                Type::System,
+                "Cached update ({}) is a pre-release and pre-releases are off, cleaning up",
+                cached_version
+            );
+            return false;
+        }
+
+        true
+    }
+}
+
+impl SilentUpdater {
     pub async fn try_install_on_startup(&self, app_handle: &tauri::AppHandle) -> bool {
         let current_version = env!("CARGO_PKG_VERSION");
 
@@ -246,31 +363,7 @@ impl SilentUpdater {
 
         let cached_version = &meta.version;
 
-        if version_lte(cached_version, current_version) {
-            logging!(
-                info,
-                Type::System,
-                "Update cache version ({}) <= current ({}), cleaning up",
-                cached_version,
-                current_version
-            );
-            Self::delete_cache();
-            return false;
-        }
-
-        if is_prerelease_version(cached_version)
-            && !Config::verge()
-                .await
-                .latest_arc()
-                .receive_prereleases
-                .unwrap_or(crate::config::IVerge::DEFAULT_RECEIVE_PRERELEASES)
-        {
-            logging!(
-                info,
-                Type::System,
-                "Cached update ({}) is a pre-release and pre-releases are off, cleaning up",
-                cached_version
-            );
+        if !Self::cache_still_wanted(cached_version, current_version).await {
             Self::delete_cache();
             return false;
         }
@@ -352,31 +445,18 @@ impl SilentUpdater {
 
         Self::show_update_splash(app_handle, &version);
 
-        let install_result = tokio::task::spawn_blocking({
-            let bytes = bytes.clone();
-            let update = update.clone();
-            move || update.install(&bytes)
-        });
-
-        let success = match tokio::time::timeout(std::time::Duration::from_secs(30), install_result).await {
-            Ok(Ok(Ok(()))) => {
+        let install = tokio::time::timeout(std::time::Duration::from_secs(30), Self::install(update, bytes));
+        let success = match install.await {
+            Ok(Ok(())) => {
                 logging!(info, Type::System, "Update v{version} install triggered at startup");
                 Self::delete_cache();
                 true
-            }
-            Ok(Ok(Err(e))) => {
-                logging!(
-                    warn,
-                    Type::System,
-                    "Startup install failed: {e}, will retry next launch"
-                );
-                false
             }
             Ok(Err(e)) => {
                 logging!(
                     warn,
                     Type::System,
-                    "Startup install task panicked: {e}, will retry next launch"
+                    "Startup install failed: {e}, will retry next launch"
                 );
                 false
             }
@@ -584,7 +664,8 @@ pub async fn check_update_with_fallback(app_handle: &tauri::AppHandle) -> Result
     // запущено — отказ соединения приходит сразу, и дело идёт напрямую.
     let port = crate::config::Config::effective_mixed_port().await;
     let core = tauri::Url::parse(&format!("http://127.0.0.1:{port}"))?;
-    match check_update_on_channel(app_handle, language.as_deref(), receive_prereleases, Some(&core)).await {
+    let via_core = check_update_on_channel(app_handle, language.as_deref(), receive_prereleases, Some(&core));
+    match within_check_deadline(via_core).await {
         Ok(found) => Ok(found),
         Err(core_error) => {
             logging!(
@@ -592,12 +673,190 @@ pub async fn check_update_with_fallback(app_handle: &tauri::AppHandle) -> Result
                 Type::System,
                 "update check via {core} failed ({core_error}), retrying directly"
             );
-            check_update_on_channel(app_handle, language.as_deref(), receive_prereleases, None).await
+            within_check_deadline(check_update_on_channel(
+                app_handle,
+                language.as_deref(),
+                receive_prereleases,
+                None,
+            ))
+            .await
+        }
+    }
+}
+
+/// Сколько ждать ответа манифеста по одному пути (через ядро или напрямую).
+const CHECK_ATTEMPT_DEADLINE: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// Сколько загрузка обновления может не получать ни байта, прежде чем её бросить.
+const DOWNLOAD_STALL_LIMIT: std::time::Duration = std::time::Duration::from_secs(120);
+
+/// У запросов плагина нет своего срока: зависшее соединение держало бы
+/// проверку вечно — и с ней суточный цикл фоновой проверки, и запуск модулей
+/// после вопроса об установке на старте, и кнопку проверки в настройках.
+async fn within_check_deadline<F>(check: F) -> Result<Option<Update>>
+where
+    F: std::future::Future<Output = Result<Option<Update>>>,
+{
+    tokio::time::timeout(CHECK_ATTEMPT_DEADLINE, check)
+        .await
+        .unwrap_or_else(|_| Err(anyhow!("no answer within {}s", CHECK_ATTEMPT_DEADLINE.as_secs())))
+}
+
+/// Загрузка обновления со сторожем тишины. У загрузки плагина нет срока:
+/// замершее соединение держало бы её вечно. Срок — на тишину, а не на всю
+/// загрузку: медленная, но идущая не обрывается.
+async fn download_watched(update: &Update, mut on_chunk: impl FnMut(usize, Option<u64>) + Send) -> Result<Vec<u8>> {
+    let progress = Arc::new(tokio::sync::Notify::new());
+    let download = update.download(
+        {
+            let progress = Arc::clone(&progress);
+            move |chunk_len, content_len| {
+                progress.notify_one();
+                on_chunk(chunk_len, content_len);
+            }
+        },
+        || {},
+    );
+    tokio::pin!(download);
+    loop {
+        tokio::select! {
+            result = &mut download => return Ok(result?),
+            () = progress.notified() => {}
+            () = tokio::time::sleep(DOWNLOAD_STALL_LIMIT) => {
+                return Err(anyhow!(
+                    "the download of v{} received nothing for {}s",
+                    update.version,
+                    DOWNLOAD_STALL_LIMIT.as_secs()
+                ));
+            }
         }
     }
 }
 
 impl SilentUpdater {
+    /// Байты этого обновления из кэша, если он хранит именно эту версию и её
+    /// подпись сходится; кэш, который не сошёлся, выбрасывается.
+    async fn cached_bytes_for(app_handle: &tauri::AppHandle, update: &Update) -> Option<Vec<u8>> {
+        let meta = Self::read_cache_meta().ok()?;
+        if meta.version != update.version {
+            return None;
+        }
+        let pubkey = updater_pubkey(app_handle).ok()?;
+        let signature = update.signature.clone();
+        let verified = tokio::task::spawn_blocking(move || {
+            Self::read_cache_bytes().and_then(|bytes| {
+                verify_minisign(&pubkey, &signature, &bytes)?;
+                Ok(bytes)
+            })
+        })
+        .await;
+        match verified {
+            Ok(Ok(bytes)) => Some(bytes),
+            Ok(Err(e)) => {
+                logging!(
+                    warn,
+                    Type::System,
+                    "Cached update v{} does not match the published one ({e}), downloading it again",
+                    meta.version
+                );
+                Self::delete_cache();
+                None
+            }
+            Err(_) => None,
+        }
+    }
+
+    /// Запустить установщик. Одновременно — только один: признак снимается
+    /// там же, где установщик вернулся, а не там, где его перестали ждать.
+    async fn install(update: Update, bytes: Vec<u8>) -> Result<()> {
+        let Some(running) = InstallerRunning::claim() else {
+            return Err(anyhow!("another update is being installed right now"));
+        };
+        let installed = tokio::task::spawn_blocking(move || running.run(|| update.install(&bytes))).await;
+        Ok(installed??)
+    }
+
+    /// Установка из окна обновления. `false` — отменили до запуска установщика;
+    /// идущую установку отмена уже не останавливает.
+    pub async fn install_manually(
+        &self,
+        app_handle: &tauri::AppHandle,
+        update: Update,
+        on_event: impl Fn(DownloadEvent) + Send + Sync,
+    ) -> Result<bool> {
+        // Установщик уже работает (например, тот, что ставят на старте) —
+        // отказ сразу, а не после загрузки.
+        if INSTALLING.load(Ordering::Acquire) {
+            return Err(anyhow!("another update is being installed right now"));
+        }
+        let cancel = CancellationToken::new();
+        let ticket = MANUAL_INSTALLS.fetch_add(1, Ordering::Relaxed);
+        {
+            let mut slot = self.manual_cancel.lock();
+            if slot.is_some() {
+                return Err(anyhow!("the update is already being downloaded"));
+            }
+            *slot = Some((ticket, cancel.clone()));
+        }
+        let held = ManualSlot { ticket };
+        let version = update.version.clone();
+        let prepared = tokio::select! {
+            biased;
+            () = cancel.cancelled() => None,
+            bytes = Self::bytes_to_install(app_handle, &update, &on_event) => Some(bytes),
+        };
+        // Отмена ставится под тем же замком: после того как место освобождено,
+        // состояние жетона окончательное.
+        drop(held);
+        let Some(bytes) = prepared.filter(|_| !cancel.is_cancelled()).transpose()? else {
+            logging!(info, Type::System, "Update v{version} cancelled");
+            return Ok(false);
+        };
+
+        logging!(info, Type::System, "Installing update v{version}...");
+        Self::install(update, bytes).await?;
+        Self::delete_cache();
+        Ok(true)
+    }
+
+    /// Отменяет под замком: `install_manually`, забрав жетон под тем же
+    /// замком, видит отмену либо уже случившейся, либо не видит её вовсе.
+    pub fn cancel_manual_install(&self) {
+        let mut slot = self.manual_cancel.lock();
+        if let Some((_, cancel)) = slot.take() {
+            cancel.cancel();
+        }
+    }
+
+    /// Уже скачанное фоном — сразу, иначе загрузка с ходом для окна.
+    async fn bytes_to_install(
+        app_handle: &tauri::AppHandle,
+        update: &Update,
+        on_event: &(impl Fn(DownloadEvent) + Sync),
+    ) -> Result<Vec<u8>> {
+        if let Some(bytes) = Self::cached_bytes_for(app_handle, update).await {
+            logging!(info, Type::System, "Update v{} is taken from the cache", update.version);
+            on_event(DownloadEvent::Started {
+                content_length: Some(bytes.len() as u64),
+            });
+            on_event(DownloadEvent::Progress {
+                chunk_length: bytes.len(),
+            });
+            on_event(DownloadEvent::Finished);
+            return Ok(bytes);
+        }
+        let mut started = false;
+        let bytes = download_watched(update, |chunk_length, content_length| {
+            if !std::mem::replace(&mut started, true) {
+                on_event(DownloadEvent::Started { content_length });
+            }
+            on_event(DownloadEvent::Progress { chunk_length });
+        })
+        .await?;
+        on_event(DownloadEvent::Finished);
+        Ok(bytes)
+    }
+
     async fn check_and_download(&self, app_handle: &tauri::AppHandle) -> Result<()> {
         let is_portable = *dirs::PORTABLE_FLAG.get().unwrap_or(&false);
         if is_portable {
@@ -660,21 +919,28 @@ impl SilentUpdater {
             return Ok(());
         }
 
+        // Готовность жила только в памяти, а кэш — на диске: после «Позже» на
+        // старте то же обновление качалось заново при каждом запуске.
+        if Self::cached_bytes_for(app_handle, &update).await.is_some() {
+            self.update_ready.store(true, Ordering::Release);
+            logging!(
+                info,
+                Type::System,
+                "Silent updater: v{version} is already downloaded and verified, ready for startup install"
+            );
+            return Ok(());
+        }
+
         logging!(info, Type::System, "Silent updater: downloading v{version}...");
-        let bytes = update
-            .download(
-                |chunk_len, content_len| {
-                    logging!(
-                        debug,
-                        Type::System,
-                        "Silent updater download progress: chunk={chunk_len}, total={content_len:?}"
-                    );
-                },
-                || {
-                    logging!(info, Type::System, "Silent updater: download complete");
-                },
-            )
-            .await?;
+        let bytes = download_watched(&update, |chunk_len, content_len| {
+            logging!(
+                debug,
+                Type::System,
+                "Silent updater download progress: chunk={chunk_len}, total={content_len:?}"
+            );
+        })
+        .await?;
+        logging!(info, Type::System, "Silent updater: download complete");
 
         if let Err(e) = Self::write_cache(&bytes, &version).await {
             logging!(warn, Type::System, "Silent updater: failed to write cache: {e}");
@@ -708,6 +974,70 @@ impl SilentUpdater {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
+    #[test]
+    fn the_installer_flag_drops_after_a_failure_or_panic_and_stays_after_success() {
+        let running = InstallerRunning::claim();
+        assert!(running.is_some());
+        assert!(InstallerRunning::claim().is_none(), "a second installer must not start");
+
+        let crashed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
+            running.map(|running| running.run(|| -> Result<(), ()> { std::panic::resume_unwind(Box::new("crashed")) }))
+        }));
+        assert!(crashed.is_err());
+
+        let failed = InstallerRunning::claim().map(|running| running.run(|| Err::<(), _>("failed")));
+        assert_eq!(failed, Some(Err("failed")));
+
+        let installed = InstallerRunning::claim().map(|running| running.run(|| Ok::<(), ()>(())));
+        assert_eq!(installed, Some(Ok(())));
+        assert!(
+            InstallerRunning::claim().is_none(),
+            "after a successful install the process is restarting — no second install"
+        );
+        INSTALLING.store(false, Ordering::Release);
+    }
+
+    #[test]
+    fn a_finished_manual_install_frees_only_its_own_slot() {
+        let updater = SilentUpdater::global();
+        *updater.manual_cancel.lock() = Some((7, CancellationToken::new()));
+
+        drop(ManualSlot { ticket: 6 });
+        assert!(
+            updater.manual_cancel.lock().is_some(),
+            "an older install must not free a newer one"
+        );
+
+        drop(ManualSlot { ticket: 7 });
+        assert!(updater.manual_cancel.lock().is_none());
+    }
+
+    #[test]
+    fn download_events_keep_the_shape_the_update_dialog_reads() {
+        use serde_json::json;
+
+        let cases = [
+            (
+                DownloadEvent::Started {
+                    content_length: Some(5),
+                },
+                json!({"event": "Started", "data": {"contentLength": 5}}),
+            ),
+            (
+                DownloadEvent::Started { content_length: None },
+                json!({"event": "Started", "data": {"contentLength": null}}),
+            ),
+            (
+                DownloadEvent::Progress { chunk_length: 7 },
+                json!({"event": "Progress", "data": {"chunkLength": 7}}),
+            ),
+            (DownloadEvent::Finished, json!({"event": "Finished"})),
+        ];
+        for (event, expected) in cases {
+            assert_eq!(serde_json::to_value(&event).unwrap(), expected);
+        }
+    }
+
     use super::*;
 
     const TEST_PUBKEY: &str = "untrusted comment: minisign public key E7620F1842B4E81F\nRWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3";

@@ -5,12 +5,9 @@
   "windows": ["main"],
   "permissions": [
     "global-shortcut:default",
-    "updater:default",
     "dialog:default",
     "dialog:allow-ask",
     "dialog:allow-message",
-    "updater:allow-check",
-    "updater:allow-download-and-install",
     "deep-link:default",
     "autostart:allow-enable",
     "autostart:allow-disable",

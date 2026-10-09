@@ -1,4 +1,5 @@
-import { invoke } from '@tauri-apps/api/core'
+import { Channel, invoke } from '@tauri-apps/api/core'
+import type { DownloadEvent } from '@tauri-apps/plugin-updater'
 import dayjs from 'dayjs'
 import type { Proxies, ProxyProvider } from 'tauri-plugin-mihomo-api'
 
@@ -727,6 +728,20 @@ interface AppUpdateMetadata {
 
 export async function checkAppUpdate() {
   return invoke<AppUpdateMetadata | null>('check_app_update')
+}
+
+// Ставит обновление из проверки `rid`; `false` — отменили до установщика.
+export async function installAppUpdate(
+  rid: number,
+  onEvent: (event: DownloadEvent) => void,
+) {
+  const channel = new Channel<DownloadEvent>()
+  channel.onmessage = onEvent
+  return invoke<boolean>('install_app_update', { rid, onEvent: channel })
+}
+
+export async function cancelAppUpdate() {
+  return invoke<void>('cancel_app_update')
 }
 
 // Итог обновления ядром самого себя — по версии ядра, ответившего после.

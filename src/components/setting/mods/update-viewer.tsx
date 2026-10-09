@@ -14,7 +14,7 @@ import { useTranslation } from 'react-i18next'
 import type { Options as ReactMarkdownOptions } from 'react-markdown'
 
 import { BaseDialog, DialogRef } from '@/components/base'
-import { openWebUrl, restartApp } from '@/services/cmds'
+import { cancelAppUpdate, installAppUpdate, openWebUrl } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { useQuery } from '@/services/query-client'
 import { useSetUpdateState, useUpdateState } from '@/services/states'
@@ -153,6 +153,10 @@ const remarkGitHubAlerts = () => {
   return visit
 }
 
+// Установка одна на приложение, а окон обновления два: общее состояние React
+// обновляется не сразу, и два почти одновременных нажатия прошли бы оба.
+let installInFlight = false
+
 export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const { t, i18n } = useTranslation()
 
@@ -207,7 +211,8 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
       showNotice.error('settings.modals.update.messages.breakChangeError')
       return
     }
-    if (updateState) return
+    if (updateState || installInFlight) return
+    installInFlight = true
     setUpdateState(true)
     setDownloaded(0)
     setTotal(0)
@@ -239,14 +244,13 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
     }
 
     try {
-      await updateInfo.downloadAndInstall(onDownloadEvent)
-      // Штатный перезапуск: уборка выхода (ядро, системный прокси) и
-      // встроенный сервер гасятся до того, как встанет новая копия; на
-      // Windows сюда не доходит — установщик завершает процесс сам.
-      await restartApp()
+      // Загрузкой, установкой и перезапуском владеет бэкенд: «Отмена» из
+      // любого окна обновления доходит до идущей загрузки.
+      await installAppUpdate(updateInfo.rid, onDownloadEvent)
     } catch (err: any) {
       showNotice.error(err)
     } finally {
+      installInFlight = false
       setUpdateState(false)
       setDownloaded(0)
       setTotal(0)
@@ -282,7 +286,12 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
       disableOk={!updateInfo}
       cancelBtn={t('shared.actions.cancel')}
       onClose={() => setOpen(false)}
-      onCancel={() => setOpen(false)}
+      onCancel={() => {
+        // Без оглядки на состояние окна: загрузку могло начать окно, которого
+        // уже нет. Нечего отменять — бэкенд ничего не делает.
+        void cancelAppUpdate().catch(showNotice.error)
+        setOpen(false)
+      }}
       onOk={onUpdate}
     >
       <Box

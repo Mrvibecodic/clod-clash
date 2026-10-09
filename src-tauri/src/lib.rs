@@ -148,6 +148,8 @@ mod app_init {
             cmd::refresh_geo_assets,
             cmd::get_core_updater_status,
             cmd::check_app_update,
+            cmd::install_app_update,
+            cmd::cancel_app_update,
             cmd::update_bundled_core,
             cmd::upgrade_core_itself,
             cmd::get_running_mode,

@@ -1,6 +1,6 @@
 use super::CmdResult;
-use crate::core::updater;
-use tauri::{Manager as _, Webview};
+use crate::core::{SilentUpdater, updater};
+use tauri::{Manager as _, Webview, ipc::Channel};
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -33,4 +33,36 @@ pub async fn check_app_update(webview: Webview) -> CmdResult<Option<AppUpdateMet
         body,
         raw_json,
     }))
+}
+
+/// Поставить обновление, найденное `check_app_update`, и перезапуститься.
+/// `false` — отменили до запуска установщика. Перезапуск здесь, а не в окне:
+/// окно могло закрыться посреди загрузки (облегчённый режим), а поставленное
+/// без перезапуска оставило бы приложение на старой копии. На Windows
+/// установщик завершает процесс сам.
+#[tauri::command]
+pub async fn install_app_update(
+    webview: Webview,
+    rid: tauri::ResourceId,
+    on_event: Channel<updater::DownloadEvent>,
+) -> CmdResult<bool> {
+    let update = webview
+        .resources_table()
+        .get::<tauri_plugin_updater::Update>(rid)
+        .map_err(|err| super::public_error_text(&format!("{err:#}")))?;
+    let installed = SilentUpdater::global()
+        .install_manually(webview.app_handle(), (*update).clone(), |event| {
+            let _ = on_event.send(event);
+        })
+        .await
+        .map_err(|err| super::public_error_text(&format!("{err:#}")))?;
+    if installed {
+        crate::feat::restart_app().await;
+    }
+    Ok(installed)
+}
+
+#[tauri::command]
+pub fn cancel_app_update() {
+    SilentUpdater::global().cancel_manual_install();
 }

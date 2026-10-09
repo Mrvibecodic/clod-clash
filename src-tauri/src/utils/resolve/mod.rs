@@ -109,6 +109,8 @@ pub fn resolve_setup_async() {
             crate::core::sysopt::spawn_proxy_observer();
         });
 
+        init_silent_updater();
+
         let _ = futures::join!(
             core_init,
             init_tray(),
@@ -117,7 +119,6 @@ pub fn resolve_setup_async() {
             init_auto_lightweight_boot(),
             init_auto_backup(),
             init_auto_launch_resync(),
-            init_silent_updater(),
         );
 
         crate::core::traffic_estimate::init();
@@ -192,26 +193,11 @@ pub(super) async fn init_auto_launch_resync() {
     }
 }
 
-async fn init_silent_updater() {
+fn init_silent_updater() {
     use crate::core::SilentUpdater;
     use crate::core::handle::Handle;
 
     logging!(info, Type::Setup, "Initializing silent updater...");
-
-    let app_handle = Handle::app_handle();
-
-    if SilentUpdater::global().try_install_on_startup(app_handle).await {
-        logging!(info, Type::Setup, "Update installed at startup, restarting...");
-        // Штатный перезапуск: выход здесь не отменяется облегчённым режимом, а
-        // уборка и встроенный сервер гасятся до того, как встанет новая копия.
-        crate::feat::restart_app().await;
-        return;
-    }
-
-    let app_handle = app_handle.clone();
-    tokio::spawn(async move {
-        SilentUpdater::global().start_background_check(app_handle).await;
-    });
 
     crate::core::core_updater::remove_leftover_managed_cores();
 
@@ -219,6 +205,24 @@ async fn init_silent_updater() {
     crate::module::freeze_check::spawn();
     crate::module::client_report::spawn();
     crate::module::core_log_archive::spawn();
+
+    // Вопрос об установке ждёт человека сколько угодно, а в цепочке запуска он
+    // держал бы весь старт: расписание подписок ждёт его конца, модули выше не
+    // запускались. Поэтому вопрос, установка и следом фоновая проверка — своей
+    // задачей, по очереди: проверка не тронет кэш, пока его ставят. Модули
+    // пишут на диск атомарно, так что перезапуск на установку их не портит —
+    // прерванное повторится.
+    let app_handle = Handle::app_handle().clone();
+    tokio::spawn(async move {
+        if SilentUpdater::global().try_install_on_startup(&app_handle).await {
+            logging!(info, Type::Setup, "Update installed at startup, restarting...");
+            // Штатный перезапуск: выход здесь не отменяется облегчённым режимом, а
+            // уборка и встроенный сервер гасятся до того, как встанет новая копия.
+            crate::feat::restart_app().await;
+            return;
+        }
+        SilentUpdater::global().start_background_check(app_handle).await;
+    });
 
     logging!(info, Type::Setup, "Silent updater initialized");
 }
