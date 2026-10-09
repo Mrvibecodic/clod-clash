@@ -321,6 +321,8 @@ impl CoreManager {
             Handle::notice_message("core::not_ready", error.to_string());
             return result;
         }
+        // Ядро встало: прежний отказ, отложенный до появления страницы, уже неправда.
+        crate::core::notification::withdraw_pending_notice("core::not_ready");
 
         if Handle::global().is_exiting() {
             return result;
@@ -900,6 +902,18 @@ impl CoreManager {
                 info,
                 Type::Core,
                 "служба удалена в этом сеансе — ждать её незачем, поднимаемся своим процессом"
+            );
+            return;
+        }
+        // Служба остановлена насовсем (не «ещё не запускалась в эту загрузку»):
+        // сама она не поднимется, и всё ожидание — старт без ядра. Будим её
+        // сразу, без прав, как потом сделал бы `nudge_registered_service`; не
+        // встала — не ждём, поднимаемся своим процессом.
+        if service::stopped_for_good().await && !service::start_registered_service().await {
+            logging!(
+                info,
+                Type::Core,
+                "служба остановлена и без прав не запускается — не ждём её, поднимаемся своим процессом"
             );
             return;
         }

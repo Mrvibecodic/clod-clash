@@ -132,6 +132,20 @@ fn drop_notice(status: &str, why: &str) {
     logging!(info, Type::Frontend, "уведомление {} выброшено: {}", status, why);
 }
 
+/// Снять отложенное уведомление, которое перестало быть правдой, пока окна не
+/// было: страница показала бы его уже после того, как всё наладилось.
+pub fn withdraw_pending_notice(status: &str) {
+    if withdraw_from(&mut pending_notices(), status) {
+        drop_notice(status, "уже неправда");
+    }
+}
+
+fn withdraw_from(pending: &mut VecDeque<PendingNotice>, status: &str) -> bool {
+    let before = pending.len();
+    pending.retain(|notice| notice.status != status);
+    pending.len() != before
+}
+
 #[derive(Debug)]
 pub enum FrontendEvent<'a> {
     RefreshClash,
@@ -325,7 +339,7 @@ struct QueuedEvent {
 mod tests {
     use super::{
         Delivery, FrontendEvent, NEVER_HELD_STATUSES, NotificationSystem, PENDING_NOTICES_CAP, PendingNotice,
-        can_reach_the_page, collapse_into, decide_delivery, worth_holding,
+        can_reach_the_page, collapse_into, decide_delivery, withdraw_from, worth_holding,
     };
     use crate::utils::source_scan::fn_body;
     use std::collections::{BTreeSet, VecDeque};
@@ -572,6 +586,23 @@ mod tests {
                 },
             ]
         );
+    }
+
+    #[test]
+    fn a_withdrawn_status_leaves_the_queue_and_the_rest_stays() {
+        let mut pending = VecDeque::new();
+        collapse_into(&mut pending, "core::not_ready", "first");
+        collapse_into(&mut pending, "sysproxy::core_not_running", "");
+        collapse_into(&mut pending, "core::not_ready", "second");
+
+        assert!(withdraw_from(&mut pending, "core::not_ready"));
+        assert_eq!(pending.len(), 1);
+        assert!(
+            pending
+                .iter()
+                .all(|notice| notice.status == "sysproxy::core_not_running")
+        );
+        assert!(!withdraw_from(&mut pending, "core::not_ready"));
     }
 
     #[test]

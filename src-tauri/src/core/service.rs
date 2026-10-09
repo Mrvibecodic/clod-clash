@@ -722,6 +722,57 @@ pub async fn start_registered_service() -> bool {
         .unwrap_or(false)
 }
 
+/// `sc query` говорит, что служба остановлена после того, как уже работала.
+///
+/// Остановленная служба с кодом выхода 1077 (`ERROR_SERVICE_NEVER_STARTED`) —
+/// это служба, которую система в эту загрузку ещё не запускала: автозапуск
+/// поднимет её сам. Любой другой код — служба встала насовсем, и ждать, что
+/// она поднимется сама, нечего. Чего-то в ответе нет — не знаем, и тогда это
+/// не «насовсем».
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+fn stopped_after_running(sc_query: &str) -> bool {
+    const ERROR_SERVICE_NEVER_STARTED: u32 = 1077;
+
+    let value = |key: &str| {
+        sc_query.lines().find_map(|line| {
+            let (name, value) = line.split_once(':')?;
+            (name.trim() == key).then(|| value.trim().to_owned())
+        })
+    };
+    let stopped = value("STATE").is_some_and(|state| state.split_whitespace().any(|word| word == "STOPPED"));
+    let exit_code = value("WIN32_EXIT_CODE").and_then(|code| code.split_whitespace().next()?.parse::<u32>().ok());
+    stopped && exit_code.is_some_and(|code| code != ERROR_SERVICE_NEVER_STARTED)
+}
+
+#[cfg(target_os = "windows")]
+fn read_stopped_for_good() -> bool {
+    use std::os::windows::process::CommandExt as _;
+
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+    StdCommand::new("sc.exe")
+        .args(["query", "clash_verge_service"])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .is_ok_and(|output| output.status.success() && stopped_after_running(&String::from_utf8_lossy(&output.stdout)))
+}
+
+/// Служба Windows остановлена насовсем: сама, автозапуском, она уже не
+/// поднимется. Опрос — `sc.exe`, поэтому в отдельном потоке, как и
+/// `service_registration`.
+#[cfg(target_os = "windows")]
+pub async fn stopped_for_good() -> bool {
+    tokio::task::spawn_blocking(read_stopped_for_good)
+        .await
+        .unwrap_or(false)
+}
+
+#[cfg(not(target_os = "windows"))]
+#[allow(clippy::unused_async)]
+pub async fn stopped_for_good() -> bool {
+    false
+}
+
 /// Как служба зарегистрирована в системе. Опрос — внешняя программа
 /// (`sc.exe`, `systemctl`, `launchctl`), на старте системы она тянется
 /// секундами, — поэтому он идёт в отдельном потоке и не занимает рабочие,
@@ -1727,6 +1778,34 @@ mod failure_tests {
 
         assert_eq!(describe_failure(1223, b"", b"real stderr"), "real stderr");
         assert_eq!(describe_failure(1223, b"real stdout", b"   "), "real stdout");
+    }
+}
+
+#[cfg(test)]
+mod stopped_service_tests {
+    use super::stopped_after_running;
+
+    fn sc_query(state: &str, exit_code: &str) -> String {
+        format!(
+            "\r\nSERVICE_NAME: clash_verge_service\r\n        TYPE               : 10  WIN32_OWN_PROCESS\r\n        STATE              : {state}\r\n                                (STOPPABLE, NOT_PAUSABLE, ACCEPTS_SHUTDOWN)\r\n        WIN32_EXIT_CODE    : {exit_code}\r\n        SERVICE_EXIT_CODE  : 0  (0x0)\r\n        CHECKPOINT         : 0x0\r\n        WAIT_HINT          : 0x0\r\n"
+        )
+    }
+
+    #[test]
+    fn only_a_service_that_stopped_after_running_is_stopped_for_good() {
+        let cases = [
+            (sc_query("1  STOPPED", "0  (0x0)"), true),
+            (sc_query("1  STOPPED", "1067  (0x42b)"), true),
+            (sc_query("1  STOPPED", "1077  (0x435)"), false),
+            (sc_query("4  RUNNING", "0  (0x0)"), false),
+            (sc_query("2  START_PENDING", "0  (0x0)"), false),
+            (sc_query("1  STOPPED", ""), false),
+            (sc_query("1  STOPPED", "unreadable"), false),
+            (String::new(), false),
+        ];
+        for (output, expected) in cases {
+            assert_eq!(stopped_after_running(&output), expected, "{output}");
+        }
     }
 }
 
