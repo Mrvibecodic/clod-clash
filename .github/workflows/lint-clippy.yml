@@ -39,6 +39,7 @@ jobs:
             rust:
               - 'src-tauri/**'
               - 'crates/**'
+              - 'vendor/**'
               - 'Cargo.toml'
               - 'Cargo.lock'
               - 'rust-toolchain.toml'
@@ -59,6 +60,24 @@ jobs:
       - name: Checkout Repository
         if: steps.decide.outputs.run == 'true'
         uses: actions/checkout@v7
+
+      # vendor/muda подменяет muda из crates.io, только пока tauri тянет ту же
+      # версию: иначе cargo молча берёт крейт из реестра и пишет в Cargo.lock
+      # [[patch.unused]] — правка меню трея на Windows пропала бы без следа.
+      - name: Guard The Vendored Muda
+        if: steps.decide.outputs.run == 'true' && matrix.os == 'ubuntu-22.04'
+        shell: bash
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$1"; exit 1; }
+          if grep -q '^\[\[patch.unused\]\]' Cargo.lock; then
+            fail "Cargo.lock: [[patch.unused]] — vendor/muda больше не подменяет muda, которую тянет tauri"
+          fi
+          entry=$(grep -A2 '^name = "muda"$' Cargo.lock || true)
+          [ -n "$entry" ] || fail "muda пропала из Cargo.lock — проверить, нужен ли ещё vendor/muda"
+          if grep -q '^source = ' <<<"$entry"; then
+            fail "muda в Cargo.lock берётся не из vendor/muda"
+          fi
 
       - name: Install Rust
         if: steps.decide.outputs.run == 'true'
