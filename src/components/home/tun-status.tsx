@@ -48,7 +48,10 @@ export const TunStatus = () => {
 
   if (busy) {
     return (
-      <Stack direction="row" sx={{ alignItems: 'center', gap: 1, py: 0.5 }}>
+      <Stack
+        direction="row"
+        sx={{ alignItems: 'center', justifyContent: 'center', gap: 1, py: 0.5 }}
+      >
         <CircularProgress size={14} />
         <Typography variant="caption" color="text.secondary">
           {t('home.components.tunStatus.settingUp')}
@@ -67,7 +70,6 @@ export const TunStatus = () => {
       sx={{
         alignItems: 'center',
         gap: 1,
-        my: 0.25,
         px: 1.25,
         py: 0.75,
         borderRadius: '12px',

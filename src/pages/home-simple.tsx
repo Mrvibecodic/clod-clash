@@ -11,7 +11,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
-import { ConnectButton } from '@/components/home/connect-button'
+import { CONNECT_RING, ConnectButton } from '@/components/home/connect-button'
 import { CoreStatus } from '@/components/home/core-status'
 import { FirewallStatus } from '@/components/home/firewall-status'
 import { ModeStatus } from '@/components/home/mode-status'
@@ -163,39 +163,31 @@ const HomeSimplePage = () => {
 
         <ProviderBanners profile={current} onChanged={mutateProfiles} />
 
-        <Box
-          sx={{
-            display: 'flex',
-            justifyContent: 'center',
-            pt: compact ? 0 : 0.5,
-          }}
-        >
+        {/* Кнопка, режим и трафик — одна группа. Сверху место под ореол
+            кнопки, чтобы шаг до шапки считался от ореола и кнопка не
+            прыгала при подключении. */}
+        <Stack sx={{ alignItems: 'center', pt: `${CONNECT_RING}px` }}>
           <ConnectButton
             state={state}
             errorText={errorText}
             compact={compact}
             onToggle={() => void toggle()}
           />
-        </Box>
+          <Box sx={{ mt: 0.5 }}>
+            <ModeStatus
+              locked={Boolean(current.lock_mode)}
+              permanent={current.lock_permanent === true}
+            />
+          </Box>
+          <Box sx={{ mt: 0.5 }}>
+            <SessionTraffic />
+          </Box>
+        </Stack>
 
-        <Box sx={{ display: 'flex', justifyContent: 'center', mt: -1 }}>
-          <ModeStatus
-            locked={Boolean(current.lock_mode)}
-            permanent={current.lock_permanent === true}
-          />
-        </Box>
-
+        {/* Без обёрток: пустой блок не должен добавлять шаг. */}
         <CoreStatus />
-
-        <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-          <TunStatus />
-        </Box>
-
-        <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-          <FirewallStatus />
-        </Box>
-
-        <SessionTraffic />
+        <TunStatus />
+        <FirewallStatus />
 
         <ServerSelectRow
           onOpen={() => setServerOpen(true)}
@@ -207,7 +199,7 @@ const HomeSimplePage = () => {
 
         <ProviderLinksCard profile={current} compact={compact} />
 
-        <Box sx={{ mt: 'auto', textAlign: 'center', pt: 1 }}>
+        <Box sx={{ mt: 'auto', textAlign: 'center' }}>
           <Button
             size="small"
             color="inherit"

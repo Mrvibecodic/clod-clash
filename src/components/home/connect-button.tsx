@@ -15,6 +15,9 @@ interface Props {
 const SIZE = 160
 const COMPACT_SIZE = 124
 
+/** Ширина ореола вокруг кнопки; Главная держит под него место сверху. */
+export const CONNECT_RING = 10
+
 export const ConnectButton = ({
   state,
   errorText,
@@ -81,12 +84,12 @@ export const ConnectButton = ({
               : alpha(theme.palette[bgKey[state]].main, 0.06),
           boxShadow:
             state === 'on'
-              ? `0 0 0 10px ${alpha(
+              ? `0 0 0 ${CONNECT_RING}px ${alpha(
                   theme.palette.success.main,
                   0.1,
                 )}, 0 14px 34px ${alpha(theme.palette.success.main, 0.28)}`
               : state === 'connecting' || state === 'disconnecting'
-                ? `0 0 0 10px ${alpha(theme.palette.info.main, 0.08)}`
+                ? `0 0 0 ${CONNECT_RING}px ${alpha(theme.palette.info.main, 0.08)}`
                 : 'none',
           color,
           cursor: 'pointer',

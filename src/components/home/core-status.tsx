@@ -40,11 +40,9 @@ export const CoreStatus = () => {
     <Stack
       direction="row"
       sx={{
-        alignSelf: 'center',
         maxWidth: '100%',
         alignItems: 'center',
         gap: 1,
-        my: 0.25,
         px: 1.25,
         py: 0.75,
         borderRadius: '12px',
