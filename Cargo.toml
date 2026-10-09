@@ -8,7 +8,19 @@ members = [
   "crates/clash-verge-i18n",
   "crates/clash-verge-limiter",
 ]
+exclude = ["vendor/muda"]
 resolver = "2"
+
+# Меню трея на Windows: muda 0.20.0 раздаёт номера команд по возрастанию и не
+# переиспользует их, а WM_COMMAND несёт только 16 бит — после ~64,5 тыс. пунктов
+# за жизнь процесса (меню пересобирается на каждую смену узла, режима, подписки)
+# клики по меню перестают доходить. В vendor/muda — тот же 0.20.0, у которого
+# заменён только src/platform_impl/windows/mod.rs: номера удалённых пунктов
+# возвращаются в оборот, но лишь после исчерпания свежих — до этого поведение
+# прежнее. Перестанет совпадать с версией, которую тянет tauri, — Cargo.lock
+# получит [[patch.unused]], и CI упадёт.
+[patch.crates-io]
+muda = { path = "vendor/muda" }
 
 [profile.release]
 panic = "unwind"
