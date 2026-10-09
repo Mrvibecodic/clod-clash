@@ -13,28 +13,27 @@ use tokio::fs;
 
 const LOG_TAIL_LINES: usize = 800;
 
-async fn log_files(dir: Option<PathBuf>, matches: impl Fn(&str) -> bool + Send) -> Vec<PathBuf> {
-    let Some(dir) = dir else {
-        return Vec::new();
-    };
-    let Ok(mut entries) = fs::read_dir(&dir).await else {
-        return Vec::new();
-    };
-
+/// Журналы из каталогов `dirs`, самые свежие первыми.
+async fn log_files(dirs: &[Option<PathBuf>], matches: impl Fn(&str) -> bool + Send) -> Vec<PathBuf> {
     let mut found: Vec<(std::time::SystemTime, PathBuf)> = Vec::new();
-    while let Ok(Some(entry)) = entries.next_entry().await {
-        let path = entry.path();
-        let name = path.file_name().and_then(|name| name.to_str()).unwrap_or_default();
-        if !matches(name) {
+    for dir in dirs.iter().flatten() {
+        let Ok(mut entries) = fs::read_dir(dir).await else {
             continue;
+        };
+        while let Ok(Some(entry)) = entries.next_entry().await {
+            let path = entry.path();
+            let name = path.file_name().and_then(|name| name.to_str()).unwrap_or_default();
+            if !matches(name) {
+                continue;
+            }
+            let modified = entry
+                .metadata()
+                .await
+                .ok()
+                .and_then(|meta| meta.modified().ok())
+                .unwrap_or(std::time::UNIX_EPOCH);
+            found.push((modified, path));
         }
-        let modified = entry
-            .metadata()
-            .await
-            .ok()
-            .and_then(|meta| meta.modified().ok())
-            .unwrap_or(std::time::UNIX_EPOCH);
-        found.push((modified, path));
     }
 
     found.sort_by_key(|(modified, _)| std::cmp::Reverse(*modified));
@@ -381,13 +380,6 @@ async fn sentinel_section(out: &mut std::string::String) {
     );
 }
 
-fn core_log_dir() -> Option<PathBuf> {
-    match *CoreManager::global().get_running_mode() {
-        RunningMode::Service => dirs::service_log_dir().ok(),
-        RunningMode::Sidecar | RunningMode::NotRunning => dirs::sidecar_log_dir().ok(),
-    }
-}
-
 async fn core_tail_from_running_core(lines: usize) -> (Option<std::string::String>, usize) {
     let Ok(logs) = CoreManager::global().get_clash_logs().await else {
         return (None, 0);
@@ -414,7 +406,7 @@ async fn core_tail_from_running_core(lines: usize) -> (Option<std::string::Strin
 }
 
 async fn logs_section(out: &mut std::string::String, lines: usize) {
-    let app_logs = log_files(dirs::app_logs_dir().ok(), |name| {
+    let app_logs = log_files(&[dirs::app_logs_dir().ok()], |name| {
         name.ends_with(".log") && !name.starts_with("sidecar")
     })
     .await;
@@ -428,9 +420,18 @@ async fn logs_section(out: &mut std::string::String, lines: usize) {
         }
     }
 
-    let core_logs = log_files(core_log_dir(), |name| name.ends_with(".log")).await;
+    // Под службой журнал текущего запуска ядра сначала копируется к прошлым:
+    // хвост, как и у sidecar, идёт по файлам запусков, а не только по текущему.
+    // Не скопировался — первым идёт текущий запуск из памяти службы.
+    let service = matches!(*CoreManager::global().get_running_mode(), RunningMode::Service);
+    let core_first = service && !crate::module::core_log_archive::save().await;
+    // Оба каталога: ядро бывает и под службой, и sidecar, а остановленное —
+    // ни тем ни другим; свежие запуски идут первыми, откуда бы они ни были.
+    let core_logs = log_files(&[dirs::service_log_dir().ok(), dirs::sidecar_log_dir().ok()], |name| {
+        name.ends_with(".log")
+    })
+    .await;
     let _ = writeln!(out, "\n## Лог ядра (последние {lines} строк, без адресов соединений)");
-    let core_first = matches!(*CoreManager::global().get_running_mode(), RunningMode::Service);
     let (mut tail, mut skipped) = if core_first {
         core_tail_from_running_core(lines).await
     } else {

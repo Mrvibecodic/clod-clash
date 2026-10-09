@@ -994,6 +994,9 @@ pub(super) async fn start_with_existing_service(config: &serde_yaml_ng::Mapping,
 
     let credentials = current_owner_credentials()?;
     let runtime = collect_service_runtime_bundle(config).await?;
+    // Новое ядро служба начнёт писать в новый файл — журнал прошлого запуска
+    // сохраняется до этого.
+    crate::module::core_log_archive::before_new_run().await;
     let proposed_session_token = generate_service_session_token()?;
     let request = StartClashRequest {
         runtime,
@@ -1075,7 +1078,16 @@ pub(super) async fn get_clash_log_snapshot_by_service() -> Result<String> {
         bail!(response.message);
     }
 
-    Ok(response.data.unwrap_or_default())
+    Ok(text_of_snapshot(response.data.unwrap_or_default()))
+}
+
+/// Служба отдаёт файл журнала шестнадцатеричной строкой; строка журнала
+/// начинается с `[`, так что текст за неё не примется.
+fn text_of_snapshot(data: String) -> String {
+    match hex::decode(&data) {
+        Ok(bytes) => String::from_utf8_lossy(&bytes).into_owned(),
+        Err(_) => data,
+    }
 }
 
 pub(super) async fn service_status() -> Result<ServiceStatusSnapshot> {
@@ -1854,5 +1866,13 @@ mod tests {
 
         fs::remove_dir_all(root)?;
         Ok(())
+    }
+
+    #[test]
+    fn the_core_log_snapshot_comes_as_hex_and_plain_text_stays() {
+        let line = "[2026-10-09 17:29:15.415] level=info msg=\"Start\"\n";
+        assert_eq!(text_of_snapshot(hex::encode(line)), line);
+        assert_eq!(text_of_snapshot(line.to_owned()), line);
+        assert_eq!(text_of_snapshot(String::new()), "");
     }
 }

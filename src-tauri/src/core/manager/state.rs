@@ -873,6 +873,8 @@ impl CoreManager {
     /// Тогда смерть ядра проверяется по номеру процесса, который служба
     /// сообщала сторожу, а без номера — по таблице процессов целиком.
     pub(super) async fn stop_core_by_service(&self) -> Result<()> {
+        // После остановки служба журнал этого запуска ядра уже не отдаёт.
+        crate::module::core_log_archive::before_stop().await;
         logging!(info, Type::Core, "Stopping service");
         CORE_WATCHDOG_GENERATION.fetch_add(1, Ordering::AcqRel);
         self.note_stopping();
