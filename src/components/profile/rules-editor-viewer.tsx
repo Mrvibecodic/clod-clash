@@ -717,6 +717,13 @@ export const RulesEditorViewer = (props: Props) => {
         autoComplete="new-password"
         size="small"
         fullWidth
+        slotProps={{
+          htmlInput: {
+            autoCorrect: 'off',
+            autoCapitalize: 'off',
+            spellCheck: false,
+          },
+        }}
         value={ruleContent}
         error={showError}
         placeholder={ruleType.example}
