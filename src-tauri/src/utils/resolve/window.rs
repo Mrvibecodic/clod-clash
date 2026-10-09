@@ -481,7 +481,14 @@ pub async fn build_new_window() -> Result<WebviewWindow, String> {
             restore_default_size_if_needed(&window);
             apply_window_size_for_mode(&window, effective_simple_mode().await).await;
             restore_position_if_offscreen(&window);
-            crate::utils::ui_watchdog::watch(&window);
+            // Сторож главного потока — с первого построенного окна (или с
+            // конца запуска, если окно не открывали): раньше поток занят
+            // запуском, и долгий старт сошёл бы за зависание.
+            #[cfg(target_os = "windows")]
+            logging_error!(
+                Type::Window,
+                window.run_on_main_thread(crate::utils::ui_watchdog::start)
+            );
             #[cfg(target_os = "windows")]
             super::manual_resize::watch(&window);
             spawn_show_fallback(&window, shown);

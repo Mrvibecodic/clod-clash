@@ -136,6 +136,12 @@ pub fn resolve_setup_async() {
         CoreManager::global().the_boot_is_over();
         Handle::refresh_clash();
         resolve_done();
+        // Тихий старт окна не строит — сторож главного потока начинает здесь.
+        #[cfg(target_os = "windows")]
+        logging_error!(
+            Type::Window,
+            Handle::app_handle().run_on_main_thread(crate::utils::ui_watchdog::start)
+        );
         refresh_tray_menu().await;
         Handle::refresh_verge();
     });

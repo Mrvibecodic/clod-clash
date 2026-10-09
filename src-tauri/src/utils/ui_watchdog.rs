@@ -1,8 +1,5 @@
-#[cfg(not(target_os = "windows"))]
-pub const fn watch(_window: &tauri::WebviewWindow) {}
-
 #[cfg(target_os = "windows")]
-pub use windows_watchdog::{responds, watch};
+pub use windows_watchdog::{responds, start};
 
 #[cfg(target_os = "windows")]
 mod windows_watchdog {
@@ -21,21 +18,61 @@ mod windows_watchdog {
     const RESTART_AFTER: Duration = Duration::from_secs(20);
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
-    static MAIN_HWND: AtomicIsize = AtomicIsize::new(0);
+    static PROBE_HWND: AtomicIsize = AtomicIsize::new(0);
     static STARTED: AtomicBool = AtomicBool::new(false);
 
-    pub fn watch(window: &tauri::WebviewWindow) {
-        match window.hwnd() {
-            Ok(hwnd) => {
-                MAIN_HWND.store(hwnd.0 as isize, Ordering::Relaxed);
-                start();
-            }
-            Err(e) => logging!(warn, Type::Window, "Сторож интерфейса не получил окно: {}", e),
+    /// Начать смотреть за главным потоком. Вызывать в главном потоке: окно,
+    /// которому сторож шлёт пробу, принадлежит потоку, где его создали.
+    /// Повторный вызов ничего не делает.
+    ///
+    /// Проба идёт не главному окну, а своему невидимому окну без экрана. Главное
+    /// окно в облегчённом режиме уничтожают — пропавшее окно на сообщения не
+    /// отвечает, и это сошло бы за зависание; а пока главного окна нет,
+    /// настоящее зависание было бы не видно. Своё окно живёт, пока живёт
+    /// приложение.
+    pub fn start() {
+        if STARTED.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        let Some(hwnd) = probe_window() else {
+            STARTED.store(false, Ordering::SeqCst);
+            logging!(warn, Type::Window, "Сторож интерфейса не получил окно для проверки");
+            return;
+        };
+        PROBE_HWND.store(hwnd, Ordering::Relaxed);
+
+        match std::thread::Builder::new().name("ui-watchdog".into()).spawn(watch_loop) {
+            Ok(_) => logging!(info, Type::Window, "Сторож интерфейса запущен"),
+            Err(e) => logging!(warn, Type::Window, "Не удалось запустить сторож интерфейса: {}", e),
         }
     }
 
+    /// Невидимое окно только для сообщений, в текущем потоке.
+    fn probe_window() -> Option<isize> {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{CreateWindowExW, HWND_MESSAGE};
+
+        let class: Vec<u16> = "STATIC\0".encode_utf16().collect();
+        let hwnd = unsafe {
+            CreateWindowExW(
+                0,
+                class.as_ptr(),
+                std::ptr::null(),
+                0,
+                0,
+                0,
+                0,
+                0,
+                HWND_MESSAGE,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                std::ptr::null(),
+            )
+        };
+        (!hwnd.is_null()).then_some(hwnd as isize)
+    }
+
     pub fn responds() -> bool {
-        let hwnd = MAIN_HWND.load(Ordering::Relaxed);
+        let hwnd = PROBE_HWND.load(Ordering::Relaxed);
         hwnd == 0 || window_answers(hwnd)
     }
 
@@ -56,20 +93,6 @@ mod windows_watchdog {
         };
 
         sent != 0
-    }
-
-    fn start() {
-        if STARTED.swap(true, Ordering::SeqCst) {
-            return;
-        }
-
-        match std::thread::Builder::new().name("ui-watchdog".into()).spawn(watch_loop) {
-            Ok(_) => logging!(info, Type::Window, "Сторож интерфейса запущен"),
-            Err(e) => {
-                STARTED.store(false, Ordering::SeqCst);
-                logging!(warn, Type::Window, "Не удалось запустить сторож интерфейса: {}", e);
-            }
-        }
     }
 
     fn restart_self() {
@@ -111,12 +134,15 @@ mod windows_watchdog {
         loop {
             std::thread::sleep(POLL);
 
-            let hwnd = MAIN_HWND.load(Ordering::Relaxed);
-            if hwnd == 0 {
+            // Выход держит главный поток уборкой, и это не зависание:
+            // перезапуск посреди выхода поднял бы приложение снова. Выход
+            // могут и отменить — тогда сторож продолжает.
+            if crate::core::handle::Handle::global().is_exiting() {
+                hung_since = None;
                 continue;
             }
 
-            if window_answers(hwnd) {
+            if window_answers(PROBE_HWND.load(Ordering::Relaxed)) {
                 if let Some(since) = hung_since.take() {
                     logging!(
                         warn,
@@ -153,6 +179,23 @@ mod windows_watchdog {
                 }
                 Some(_) => {}
             }
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::{probe_window, window_answers};
+        use windows_sys::Win32::UI::WindowsAndMessaging::DestroyWindow;
+
+        /// Окно для пробы создаётся без экрана и отвечает, пока его поток
+        /// разбирает сообщения (из своего же потока ответ приходит сразу).
+        #[test]
+        fn the_probe_window_answers_for_its_thread() {
+            let hwnd = probe_window();
+            assert!(hwnd.is_some(), "окно для пробы не создалось");
+            let Some(hwnd) = hwnd else { return };
+            assert!(window_answers(hwnd));
+            unsafe { DestroyWindow(hwnd as *mut core::ffi::c_void) };
         }
     }
 }
