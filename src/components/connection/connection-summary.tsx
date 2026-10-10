@@ -2,7 +2,7 @@ import { Box, Typography } from '@mui/material'
 import { type ReactNode, memo, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { CARD_SURFACE, CARD_TITLE, CARD_VALUE } from '@/pages/_theme'
+import { CARD_SURFACE, CARD_TITLE, CARD_VALUE, NARROW } from '@/pages/_theme'
 import parseTraffic, { parseSpeed } from '@/utils/parse-traffic'
 
 import {
@@ -151,6 +151,11 @@ export const ConnectionSummary = memo(function ConnectionSummary({
         mt: 1,
         height: SUMMARY_HEIGHT,
         flex: '0 0 auto',
+        [NARROW]: {
+          display: 'grid',
+          gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+          height: 'auto',
+        },
       }}
     >
       {!closed && (

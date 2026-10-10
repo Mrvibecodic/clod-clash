@@ -61,14 +61,8 @@ const hostStyle = {
 } as const
 
 const metaStyle = {
-  display: 'flex',
-  flexWrap: 'wrap',
-  alignItems: 'center',
-  columnGap: 6,
-  rowGap: 2,
   marginTop: 3,
   fontSize: 12.5,
-  overflow: 'hidden',
 } as const
 
 const metaGroupStyle = {
@@ -128,8 +122,8 @@ export const ConnectionRowItem = memo(
             <div className="cc-mono" style={hostStyle}>
               <HostText host={row.host} port={row.port} />
             </div>
-            <div className="cc-sec" style={metaStyle}>
-              <span style={metaGroupStyle}>
+            <div className="cc-sec cc-meta" style={metaStyle}>
+              <span className="cc-mg" style={metaGroupStyle}>
                 <span className="cc-mchip">{row.network}</span>
                 <span className="cc-mchip">{row.type}</span>
                 {row.process && (
@@ -143,16 +137,14 @@ export const ConnectionRowItem = memo(
                 )}
               </span>
               {row.chainList.length > 0 && (
-                <span style={metaGroupStyle}>
-                  <span className="cc-sep">·</span>
+                <span className="cc-mg" style={metaGroupStyle}>
                   <ChainText
                     chains={row.chainList}
                     directLabel={t('connections.components.summary.direct')}
                   />
                 </span>
               )}
-              <span style={metaGroupStyle}>
-                <span className="cc-sep">·</span>
+              <span className="cc-mg" style={metaGroupStyle}>
                 <RelativeTime start={row.time} />
               </span>
             </div>

@@ -47,7 +47,17 @@ export const BasePage: React.FC<Props> = (props) => {
                 <ArrowBackRounded fontSize="small" />
               </IconButton>
             ) : null}
-            {title}
+            <span
+              data-tauri-drag-region="true"
+              style={{
+                minWidth: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {title}
+            </span>
           </Typography>
 
           {header}

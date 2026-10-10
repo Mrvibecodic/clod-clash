@@ -13,6 +13,7 @@ import {
   IconButton,
   MenuItem,
   Tooltip,
+  useMediaQuery,
   Zoom,
 } from '@mui/material'
 import { useLockFn } from 'ahooks'
@@ -49,6 +50,7 @@ import { useConnectionData } from '@/hooks/use-connection-data'
 import { useConnectionSetting } from '@/hooks/use-connection-setting'
 import { useTrafficData } from '@/hooks/use-traffic-data'
 import { useVisibility } from '@/hooks/use-visibility'
+import { NARROW_QUERY } from '@/pages/_theme'
 import { showNotice } from '@/services/notice-service'
 import parseTraffic from '@/utils/parse-traffic'
 
@@ -143,7 +145,8 @@ const ConnectionsPage = () => {
 
   const [setting, setSetting] = useConnectionSetting()
 
-  const isTableLayout = setting.layout === 'table'
+  const narrow = useMediaQuery(NARROW_QUERY, { noSsr: true })
+  const isTableLayout = setting.layout === 'table' && !narrow
   const groupBy = setting.groupBy ?? 'none'
   const [tableSorting, setTableSorting] = useState<ConnectionTableSorting>(null)
   const [tableCollapsed, setTableCollapsed] =
@@ -152,6 +155,11 @@ const ConnectionsPage = () => {
   const summaryVisible = setting.summary ?? true
 
   const [isColumnManagerOpen, setIsColumnManagerOpen] = useState(false)
+  const [tableShown, setTableShown] = useState(isTableLayout)
+  if (tableShown !== isTableLayout) {
+    setTableShown(isTableLayout)
+    if (!isTableLayout) setIsColumnManagerOpen(false)
+  }
 
   const selectedConnections =
     connectionsType === 'active'
@@ -214,11 +222,7 @@ const ConnectionsPage = () => {
   return (
     <BasePage
       full
-      title={
-        <span style={{ whiteSpace: 'nowrap' }}>
-          {t('connections.page.title')}
-        </span>
-      }
+      title={t('connections.page.title')}
       contentStyle={{
         height: '100%',
         display: 'flex',
@@ -269,23 +273,27 @@ const ConnectionsPage = () => {
               sx={{ opacity: summaryVisible ? 1 : 0.45 }}
             />
           </IconButton>
-          <IconButton
-            color="inherit"
-            size="small"
-            onClick={() =>
-              setSetting((o) =>
-                o?.layout !== 'table'
-                  ? { ...o, layout: 'table' }
-                  : { ...o, layout: 'list' },
-              )
-            }
-          >
-            {isTableLayout ? (
-              <TableRowsRounded titleAccess={t('shared.actions.listView')} />
-            ) : (
-              <TableChartRounded titleAccess={t('shared.actions.tableView')} />
-            )}
-          </IconButton>
+          {narrow ? null : (
+            <IconButton
+              color="inherit"
+              size="small"
+              onClick={() =>
+                setSetting((o) =>
+                  o?.layout !== 'table'
+                    ? { ...o, layout: 'table' }
+                    : { ...o, layout: 'list' },
+                )
+              }
+            >
+              {isTableLayout ? (
+                <TableRowsRounded titleAccess={t('shared.actions.listView')} />
+              ) : (
+                <TableChartRounded
+                  titleAccess={t('shared.actions.tableView')}
+                />
+              )}
+            </IconButton>
+          )}
           <Button
             size="small"
             variant="outlined"

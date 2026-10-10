@@ -65,6 +65,21 @@ export const connTextSx = ({ palette }: Theme) => ({
     overflow: 'hidden',
     textOverflow: 'ellipsis',
   },
+  '& .cc-meta': {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    rowGap: '2px',
+    marginLeft: '-12px',
+    clipPath: 'inset(0 0 0 12px)',
+  },
+  '& .cc-meta > .cc-mg': { position: 'relative', paddingLeft: '12px' },
+  '& .cc-meta > .cc-mg::before': {
+    content: '"·"',
+    position: 'absolute',
+    left: '3px',
+    color: palette.text.disabled,
+  },
   '& .cc-rule.cc-wrap': { alignItems: 'flex-start', whiteSpace: 'normal' },
   '& .cc-wrap .cc-pl': { wordBreak: 'break-all' },
 })

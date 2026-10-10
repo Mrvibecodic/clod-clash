@@ -24,6 +24,7 @@ import { useTranslation } from 'react-i18next'
 import { useFreezeMarks } from '@/hooks/use-freeze-marks'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useServerDescriptions } from '@/hooks/use-server-descriptions'
+import { NARROW } from '@/pages/_theme'
 import { dismantleProxyChain } from '@/services/cmds'
 import {
   type ProxyChainNode as ProxyChainItem,
@@ -453,8 +454,15 @@ export function ProxyGroupsChain(props: ProxyGroupsChainProps) {
 
   return (
     <>
-      <Box sx={{ display: 'flex', height: '100%', gap: 2 }}>
-        <Box sx={{ flex: 1, position: 'relative' }}>
+      <Box
+        sx={{
+          display: 'flex',
+          height: '100%',
+          gap: 2,
+          [NARROW]: { flexDirection: 'column', gap: 1 },
+        }}
+      >
+        <Box sx={{ flex: 1, minHeight: 0, position: 'relative' }}>
           {showRuleHeader && (
             <ChainRuleHeader
               title={t('proxies.page.rules.title')}
@@ -471,7 +479,18 @@ export function ProxyGroupsChain(props: ProxyGroupsChainProps) {
           <ScrollTopButton show={showScrollTop} onClick={onScrollToTop} />
         </Box>
 
-        <Box sx={{ width: '400px', minWidth: '300px' }}>
+        <Box
+          sx={{
+            width: '400px',
+            minWidth: '300px',
+            [NARROW]: {
+              width: '100%',
+              minWidth: 0,
+              height: '45%',
+              flex: 'none',
+            },
+          }}
+        >
           <ProxyChain
             proxyChain={proxyChain}
             onUpdateChain={setProxyChain}

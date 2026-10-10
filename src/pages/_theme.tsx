@@ -10,6 +10,9 @@ export const SHAPE = {
   overlay: '16px',
 } as const
 
+export const NARROW_QUERY = '(max-width: 720px)'
+export const NARROW = `@media ${NARROW_QUERY}`
+
 export const TINT = {
   weak: 0.07,
   base: 0.13,

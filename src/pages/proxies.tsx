@@ -8,6 +8,7 @@ import { BasePage, BaseSegmented, TooltipIcon } from '@/components/base'
 import { ProviderButton } from '@/components/proxy/provider-button'
 import { ProxyGroups } from '@/components/proxy/proxy-groups'
 import { useProfiles } from '@/hooks/use-profiles'
+import { NARROW } from '@/pages/_theme'
 import { useClashConfigData } from '@/providers/app-data-context'
 import {
   getRuntimeProxyChainConfig,
@@ -142,9 +143,20 @@ const ProxyPage = () => {
           <Box
             component="span"
             data-tauri-drag-region="true"
-            sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}
+            sx={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 0.75,
+              maxWidth: '100%',
+              verticalAlign: 'middle',
+            }}
           >
-            {t('proxies.page.title.chainMode')}
+            <Box
+              component="span"
+              sx={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}
+            >
+              {t('proxies.page.title.chainMode')}
+            </Box>
             <TooltipIcon
               title={chainWarning}
               icon={WarningRounded}
@@ -170,6 +182,11 @@ const ProxyPage = () => {
               onChange={(mode) => {
                 if (mode) onChangeMode(mode)
               }}
+              sx={{
+                [NARROW]: {
+                  '& .MuiToggleButton-root': { px: 1, fontSize: 12.5 },
+                },
+              }}
             />
           )}
 
@@ -181,7 +198,7 @@ const ProxyPage = () => {
             sx={{
               ml: 1,
               whiteSpace: 'nowrap',
-              '@media (max-width: 720px)': {
+              [NARROW]: {
                 minWidth: 0,
                 '& .chain-label': { display: 'none' },
                 '& .MuiButton-startIcon': { m: 0 },
