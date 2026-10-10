@@ -1,20 +1,21 @@
-import { styled, Typography } from '@mui/material'
+import { Box } from '@mui/material'
 import { useLockFn } from 'ahooks'
-import { forwardRef, useImperativeHandle, useState } from 'react'
+import { forwardRef, useImperativeHandle, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { BaseDialog, DialogRef, Switch } from '@/components/base'
+import {
+  BaseDialog,
+  DialogRef,
+  FormRow,
+  FormSection,
+  FormTile,
+  Switch,
+} from '@/components/base'
+import { useChangeCount } from '@/hooks/use-change-count'
 import { useVerge } from '@/hooks/use-verge'
 import { showNotice } from '@/services/notice-service'
 
 import { HotkeyInput } from './hotkey-input'
-
-const ItemWrapper = styled('div')`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-`
 
 const HOTKEY_FUNC = [
   'open_or_close_dashboard',
@@ -26,6 +27,12 @@ const HOTKEY_FUNC = [
   'entry_lightweight_mode',
   'reactivate_profiles',
 ] as const
+
+const snapshot = (map: Record<string, string[]>, enabled: boolean) => {
+  const result: Record<string, string | boolean> = { enabled }
+  for (const func of HOTKEY_FUNC) result[func] = (map[func] ?? []).join('+')
+  return result
+}
 
 const HOTKEY_FUNC_LABELS: Record<(typeof HOTKEY_FUNC)[number], string> = {
   open_or_close_dashboard:
@@ -50,6 +57,18 @@ export const HotkeyViewer = forwardRef<DialogRef>((props, ref) => {
   const [enableGlobalHotkey, setEnableGlobalHotkey] = useState(
     verge?.enable_global_hotkey ?? true,
   )
+  const [initial, setInitial] = useState({
+    map: hotkeyMap,
+    enabled: enableGlobalHotkey,
+  })
+  const [inputGeneration, setInputGeneration] = useState(0)
+  const changes = useChangeCount(
+    useMemo(() => snapshot(initial.map, initial.enabled), [initial]),
+    useMemo(
+      () => snapshot(hotkeyMap, enableGlobalHotkey),
+      [hotkeyMap, enableGlobalHotkey],
+    ),
+  )
 
   useImperativeHandle(ref, () => ({
     open: () => {
@@ -70,6 +89,7 @@ export const HotkeyViewer = forwardRef<DialogRef>((props, ref) => {
 
       setHotkeyMap(map)
       setEnableGlobalHotkey(verge?.enable_global_hotkey ?? true)
+      setInitial({ map, enabled: verge?.enable_global_hotkey ?? true })
     },
     close: () => setOpen(false),
   }))
@@ -126,32 +146,44 @@ export const HotkeyViewer = forwardRef<DialogRef>((props, ref) => {
     <BaseDialog
       open={open}
       title={t('settings.modals.hotkey.title')}
-      contentSx={{ width: 450, maxHeight: 380 }}
+      dividers
+      changes={changes}
+      onReset={() => {
+        setHotkeyMap(initial.map)
+        setEnableGlobalHotkey(initial.enabled)
+        setInputGeneration((n) => n + 1)
+      }}
+      contentSx={{ width: 572 }}
       okBtn={t('shared.actions.save')}
       cancelBtn={t('shared.actions.cancel')}
       onClose={() => setOpen(false)}
       onCancel={() => setOpen(false)}
       onOk={onSave}
     >
-      <ItemWrapper style={{ marginBottom: 16 }}>
-        <Typography>
-          {t('settings.modals.hotkey.toggles.enableGlobal')}
-        </Typography>
+      <FormRow label={t('settings.modals.hotkey.toggles.enableGlobal')}>
         <Switch
           edge="end"
           checked={enableGlobalHotkey}
           onChange={(e) => setEnableGlobalHotkey(e.target.checked)}
         />
-      </ItemWrapper>
+      </FormRow>
 
+      <FormSection
+        title={t('settings.modals.hotkey.sections.actions')}
+        count={HOTKEY_FUNC.length}
+        hint={t('settings.modals.hotkey.messages.recordHint')}
+      />
       {HOTKEY_FUNC.map((func) => (
-        <ItemWrapper key={func}>
-          <Typography>{t(HOTKEY_FUNC_LABELS[func])}</Typography>
+        <FormTile key={func} sx={{ pr: 0.5 }}>
+          <Box sx={{ flex: 1, minWidth: 0, fontSize: 14 }}>
+            {t(HOTKEY_FUNC_LABELS[func])}
+          </Box>
           <HotkeyInput
+            key={inputGeneration}
             value={hotkeyMap[func] ?? []}
             onChange={(v) => setHotkeyMap((m) => ({ ...m, [func]: v }))}
           />
-        </ItemWrapper>
+        </FormTile>
       ))}
     </BaseDialog>
   )

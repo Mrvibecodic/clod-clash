@@ -150,9 +150,11 @@
             "proxyNode": "프록시 노드",
             "protocols": "프로토콜",
             "existing": "기존 터널",
+            "empty": "No tunnels yet — add one below.",
             "default": "현재 설정 따르기",
             "followGroup": "그룹 선택 따르기",
             "optional": "선택 사항",
+            "preview": "Will be added",
             "messages": {
               "incomplete": "필수 터널 항목을 모두 입력해 주세요",
               "invalidLocalAddr": "유효하지 않은 로컬 수신 주소입니다",
@@ -291,6 +293,9 @@
           "accentPresets": "Accent presets",
           "providerTheme": "제공자 스타일",
           "providerThemeHint": "구독의 색상·테마·배경 — 직접 설정하기 전까지"
+        },
+        "sections": {
+          "colors": "Colors"
         }
       },
       "layout": {
@@ -322,6 +327,12 @@
             "inline": "Inline",
             "disable": "Disable"
           }
+        },
+        "sections": {
+          "proxies": "Proxies",
+          "notifications": "Notifications",
+          "tray": "Tray",
+          "trayIcons": "Tray icons"
         }
       }
     },
@@ -433,10 +444,10 @@
         "intervalLabel": "Backup frequency"
       },
       "manual": {
-        "title": "Manual backup",
         "local": "Creates a snapshot on this device, stored under the app data directory.",
         "webdav": "Upload a snapshot to your WebDAV server once credentials are set.",
-        "configureWebdav": "Configure WebDAV"
+        "configureWebdav": "Configure WebDAV",
+        "webdavNotConfigured": "Set up WebDAV to enable these buttons."
       },
       "history": {
         "title": "Backup history",
@@ -482,6 +493,12 @@
           "never": "정리 안 함",
           "retainDays": "{{n}}일 보관"
         }
+      },
+      "sections": {
+        "appLog": "App log",
+        "connections": "Connections",
+        "updates": "Updates and configuration",
+        "proxies": "Proxies"
       }
     },
     "update": {
@@ -524,7 +541,14 @@
         "invalidProxyHost": "잘못된 프록시 호스트 형식"
       },
       "actions": {
-        "editPac": "PAC 편집"
+        "editPac": "PAC 편집",
+        "showMore": "{{count}} more",
+        "showLess": "Show less"
+      },
+      "sections": {
+        "address": "Address",
+        "guard": "Guard",
+        "bypass": "Bypass"
       }
     },
     "tun": {
@@ -552,6 +576,10 @@
         "subscriptionStackCapped": "제공자가 {{stack}} 스택을 요청했지만, Windows에서는 방화벽에서 코어를 수동으로 허용해야 하므로 gvisor를 사용합니다.",
         "windowsStackFirewall": "Windows에서 system 및 mixed 스택은 방화벽에서 코어의 인바운드 연결을 허용해야 합니다. 허용하지 않으면 터널 트래픽이 흐르지 않습니다",
         "emptyFollowsSubscription": "An empty field follows the subscription, or the core's default when the subscription is silent (MTU 9000, name Meta, utunN on macOS)."
+      },
+      "sections": {
+        "routing": "Routing",
+        "interface": "Interface"
       }
     },
     "dns": {
@@ -659,6 +687,9 @@
         "supportedPlaceholders": "지원되는 자리표시자: %host, %port, %secret",
         "placeholderInstruction": "host, port, secret을 %host, %port, %secret로 바꿔 입력하세요",
         "needsController": "외부 컨트롤러가 켜져 있을 때만 패널이 코어에 연결됩니다."
+      },
+      "sections": {
+        "panels": "Panels"
       }
     },
     "hotkey": {
@@ -677,7 +708,12 @@
         "reactivateProfiles": "프로필 재활성화"
       },
       "messages": {
-        "duplicate": "\"{{func}}\"의 단축키 {{keys}}는 이미 \"{{other}}\"에 할당되어 있습니다"
+        "duplicate": "\"{{func}}\"의 단축키 {{keys}}는 이미 \"{{other}}\"에 할당되어 있습니다",
+        "recordHint": "Click a field and press the keys",
+        "notSet": "Not set"
+      },
+      "sections": {
+        "actions": "Actions"
       }
     },
     "networkInterface": {

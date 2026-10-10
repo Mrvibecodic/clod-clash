@@ -150,9 +150,11 @@
             "proxyNode": "عقدة الوكيل",
             "protocols": "البروتوكول",
             "existing": "الأنفاق الموجودة",
+            "empty": "No tunnels yet — add one below.",
             "default": "اتباع الإعدادات الحالية",
             "followGroup": "اتباع اختيار المجموعة",
             "optional": "اختياري",
+            "preview": "Will be added",
             "messages": {
               "incomplete": "يرجى تعبئة جميع حقول النفق المطلوبة",
               "invalidLocalAddr": "عنوان الاستماع المحلي غير صالح",
@@ -291,6 +293,9 @@
           "accentPresets": "Accent presets",
           "providerTheme": "مظهر من المزوّد",
           "providerThemeHint": "اللون والسمة والخلفية من الاشتراك — حتى تحدد الخاصة بك"
+        },
+        "sections": {
+          "colors": "Colors"
         }
       },
       "layout": {
@@ -322,6 +327,12 @@
             "inline": "Inline",
             "disable": "Disable"
           }
+        },
+        "sections": {
+          "proxies": "Proxies",
+          "notifications": "Notifications",
+          "tray": "Tray",
+          "trayIcons": "Tray icons"
         }
       }
     },
@@ -433,10 +444,10 @@
         "intervalLabel": "Backup frequency"
       },
       "manual": {
-        "title": "Manual backup",
         "local": "Creates a snapshot on this device, stored under the app data directory.",
         "webdav": "Upload a snapshot to your WebDAV server once credentials are set.",
-        "configureWebdav": "Configure WebDAV"
+        "configureWebdav": "Configure WebDAV",
+        "webdavNotConfigured": "Set up WebDAV to enable these buttons."
       },
       "history": {
         "title": "Backup history",
@@ -482,6 +493,12 @@
           "never": "عدم التنظيف أبدًا",
           "retainDays": "الاحتفاظ لمدة {{n}} يومًا"
         }
+      },
+      "sections": {
+        "appLog": "App log",
+        "connections": "Connections",
+        "updates": "Updates and configuration",
+        "proxies": "Proxies"
       }
     },
     "update": {
@@ -524,7 +541,14 @@
         "invalidProxyHost": "تنسيق مضيف الوكيل غير صالح"
       },
       "actions": {
-        "editPac": "تعديل PAC"
+        "editPac": "تعديل PAC",
+        "showMore": "{{count}} more",
+        "showLess": "Show less"
+      },
+      "sections": {
+        "address": "Address",
+        "guard": "Guard",
+        "bypass": "Bypass"
       }
     },
     "tun": {
@@ -552,6 +576,10 @@
         "subscriptionStackCapped": "The provider asked for the {{stack}} stack; on Windows it needs the core allowed through the firewall by hand, so gvisor is used instead.",
         "windowsStackFirewall": "على Windows يتطلب مكدّسا system و mixed السماح للنواة بالاتصالات الواردة في جدار الحماية — وبدونه لن يمر مرور النفق",
         "emptyFollowsSubscription": "An empty field follows the subscription, or the core's default when the subscription is silent (MTU 9000, name Meta, utunN on macOS)."
+      },
+      "sections": {
+        "routing": "Routing",
+        "interface": "Interface"
       }
     },
     "dns": {
@@ -659,6 +687,9 @@
         "supportedPlaceholders": "يدعم %host و%port و%secret",
         "placeholderInstruction": "استبدل المضيف والمنفذ والمفتاح بـ %host و%port و%secret",
         "needsController": "لا تتصل اللوحة بالنواة إلا عند تفعيل وحدة التحكم الخارجية."
+      },
+      "sections": {
+        "panels": "Panels"
       }
     },
     "hotkey": {
@@ -677,7 +708,12 @@
         "reactivateProfiles": "إعادة تنشيط الملفات الشخصية"
       },
       "messages": {
-        "duplicate": "الاختصار {{keys}} لـ «{{func}}» معيّن بالفعل لـ «{{other}}»"
+        "duplicate": "الاختصار {{keys}} لـ «{{func}}» معيّن بالفعل لـ «{{other}}»",
+        "recordHint": "Click a field and press the keys",
+        "notSet": "Not set"
+      },
+      "sections": {
+        "actions": "Actions"
       }
     },
     "networkInterface": {

@@ -150,9 +150,11 @@
             "proxyNode": "گره پراکسی",
             "protocols": "پروتکل",
             "existing": "تونل‌های موجود",
+            "empty": "No tunnels yet — add one below.",
             "default": "پیروی از تنظیمات فعلی",
             "followGroup": "پیروی از انتخاب گروه",
             "optional": "اختیاری",
+            "preview": "Will be added",
             "messages": {
               "incomplete": "لطفاً تمام فیلدهای الزامی تونل را تکمیل کنید",
               "invalidLocalAddr": "آدرس شنود محلی نامعتبر است",
@@ -291,6 +293,9 @@
           "accentPresets": "Accent presets",
           "providerTheme": "ظاهر از ارائه‌دهنده",
           "providerThemeHint": "رنگ، تم و پس‌زمینه از اشتراک — تا زمانی که خودتان تنظیم نکنید"
+        },
+        "sections": {
+          "colors": "Colors"
         }
       },
       "layout": {
@@ -322,6 +327,12 @@
             "inline": "Inline",
             "disable": "Disable"
           }
+        },
+        "sections": {
+          "proxies": "Proxies",
+          "notifications": "Notifications",
+          "tray": "Tray",
+          "trayIcons": "Tray icons"
         }
       }
     },
@@ -433,10 +444,10 @@
         "intervalLabel": "Backup frequency"
       },
       "manual": {
-        "title": "پشتیبان گیری دستی",
         "local": "یک اسنپ‌شات روی این دستگاه ایجاد می‌کند که در پوشه‌ی داده‌های برنامه ذخیره می‌شود.",
         "webdav": "پس از تنظیم اعتبارنامه‌ها، یک اسنپ‌شات (عکس فوری) در سرور WebDAV خود آپلود کنید.",
-        "configureWebdav": "پیکربندی WebDAV"
+        "configureWebdav": "پیکربندی WebDAV",
+        "webdavNotConfigured": "Set up WebDAV to enable these buttons."
       },
       "history": {
         "title": "تاریخچه پشتیبان گیری",
@@ -482,6 +493,12 @@
           "never": "هرگز پاک نکن",
           "retainDays": "نگهداری به مدت {{n}} روز"
         }
+      },
+      "sections": {
+        "appLog": "App log",
+        "connections": "Connections",
+        "updates": "Updates and configuration",
+        "proxies": "Proxies"
       }
     },
     "update": {
@@ -524,7 +541,14 @@
         "invalidProxyHost": "فرمت میزبان پراکسی نامعتبر است"
       },
       "actions": {
-        "editPac": "ویرایش PAC"
+        "editPac": "ویرایش PAC",
+        "showMore": "{{count}} more",
+        "showLess": "Show less"
+      },
+      "sections": {
+        "address": "Address",
+        "guard": "Guard",
+        "bypass": "Bypass"
       }
     },
     "tun": {
@@ -552,6 +576,10 @@
         "subscriptionStackCapped": "The provider asked for the {{stack}} stack; on Windows it needs the core allowed through the firewall by hand, so gvisor is used instead.",
         "windowsStackFirewall": "در ویندوز پشته‌های system و mixed نیاز دارند هسته در فایروال برای اتصال‌های ورودی مجاز شود — بدون آن ترافیک تونل عبور نمی‌کند",
         "emptyFollowsSubscription": "An empty field follows the subscription, or the core's default when the subscription is silent (MTU 9000, name Meta, utunN on macOS)."
+      },
+      "sections": {
+        "routing": "Routing",
+        "interface": "Interface"
       }
     },
     "dns": {
@@ -659,6 +687,9 @@
         "supportedPlaceholders": "پشتیبانی از %host، %port و %secret",
         "placeholderInstruction": "جایگزین کردن میزبان، پورت و رمز با %host، %port، %secret",
         "needsController": "پنل فقط وقتی کنترل‌کنندهٔ خارجی روشن باشد به هسته وصل می‌شود."
+      },
+      "sections": {
+        "panels": "Panels"
       }
     },
     "hotkey": {
@@ -677,7 +708,12 @@
         "reactivateProfiles": "فعال‌سازی مجدد پروفایل‌ها"
       },
       "messages": {
-        "duplicate": "میانبر {{keys}} برای «{{func}}» قبلاً به «{{other}}» اختصاص داده شده است"
+        "duplicate": "میانبر {{keys}} برای «{{func}}» قبلاً به «{{other}}» اختصاص داده شده است",
+        "recordHint": "Click a field and press the keys",
+        "notSet": "Not set"
+      },
+      "sections": {
+        "actions": "Actions"
       }
     },
     "networkInterface": {

@@ -1,18 +1,12 @@
 import { Shuffle } from '@mui/icons-material'
-import {
-  CircularProgress,
-  IconButton,
-  List,
-  ListItem,
-  ListItemText,
-  Stack,
-  TextField,
-} from '@mui/material'
+import { CircularProgress, IconButton, Stack, TextField } from '@mui/material'
 import { useLockFn, useRequest } from 'ahooks'
 import { forwardRef, useImperativeHandle, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { BaseDialog, Switch } from '@/components/base'
+import { BaseDialog, FormRow, Switch } from '@/components/base'
+import { MONO_INPUT } from '@/components/base/base-mono'
+import { useChangeCount } from '@/hooks/use-change-count'
 import { useClash, useClashInfo } from '@/hooks/use-clash'
 import { useVerge } from '@/hooks/use-verge'
 import { getCoreLadder, isPortInUse } from '@/services/cmds'
@@ -32,6 +26,14 @@ interface ClashPortViewerRef {
   open: () => void
   close: () => void
 }
+
+const PORT_SX = {
+  width: 84,
+  ...MONO_INPUT,
+  '& input': { textAlign: 'center' },
+}
+
+const parsePort = (text: string) => +text.replace(/\D+/g, '').slice(0, 5)
 
 const generateRandomPort = () =>
   Math.floor(Math.random() * (65535 - 1025 + 1)) + 1025
@@ -74,6 +76,33 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
   )
 
   const originalPortsRef = useRef<Record<string, any> | null>(null)
+  const [initial, setInitial] = useState<Record<string, unknown>>({})
+  const draft = {
+    mixedFollowsSubscription,
+    mixedPort,
+    socksPort,
+    socksEnabled,
+    httpPort,
+    httpEnabled,
+    redirPort,
+    redirEnabled,
+    tproxyPort,
+    tproxyEnabled,
+  }
+  const changes = useChangeCount(initial, draft)
+
+  const applyPorts = (ports: Record<string, any>) => {
+    setMixedFollowsSubscription(ports.mixedFollowsSubscription)
+    setMixedPort(ports.mixedPort)
+    setSocksPort(ports.socksPort)
+    setSocksEnabled(ports.socksEnabled)
+    setHttpPort(ports.httpPort)
+    setHttpEnabled(ports.httpEnabled)
+    setRedirPort(ports.redirPort)
+    setRedirEnabled(ports.redirEnabled)
+    setTproxyPort(ports.tproxyPort)
+    setTproxyEnabled(ports.tproxyEnabled)
+  }
 
   // Запрос на сохранение, предотвращает зависание GUI
   const { loading, run: saveSettings } = useRequest(
@@ -129,18 +158,8 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
         tproxyEnabled: verge?.verge_tproxy_enabled ?? false,
       }
 
-      setMixedFollowsSubscription(
-        originalPortsRef.current.mixedFollowsSubscription,
-      )
-      setMixedPort(originalPortsRef.current.mixedPort)
-      setSocksPort(originalPortsRef.current.socksPort)
-      setSocksEnabled(originalPortsRef.current.socksEnabled)
-      setHttpPort(originalPortsRef.current.httpPort)
-      setHttpEnabled(originalPortsRef.current.httpEnabled)
-      setRedirPort(originalPortsRef.current.redirPort)
-      setRedirEnabled(originalPortsRef.current.redirEnabled)
-      setTproxyPort(originalPortsRef.current.tproxyPort)
-      setTproxyEnabled(originalPortsRef.current.tproxyEnabled)
+      applyPorts(originalPortsRef.current)
+      setInitial({ ...originalPortsRef.current })
       setSubscriptionPort(
         freshLadder !== undefined && freshLadder.mixed_port == null
           ? clashInfo?.mixed_port
@@ -294,13 +313,53 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
     saveSettings({ clashConfig, vergeConfig, appliedPorts })
   })
 
+  const portRow = ({
+    label,
+    help,
+    port,
+    setPort,
+    enabled,
+    setEnabled,
+  }: {
+    label: string
+    help?: string
+    port: number
+    setPort: (port: number) => void
+    enabled: boolean
+    setEnabled: (enabled: boolean) => void
+  }) => (
+    <FormRow label={label} help={help}>
+      <TextField
+        size="small"
+        sx={PORT_SX}
+        value={port}
+        onChange={(e) => setPort(parsePort(e.target.value))}
+        disabled={!enabled}
+      />
+      <IconButton
+        size="small"
+        onClick={() => setPort(generateRandomPort())}
+        title={t('settings.modals.clashPort.actions.random')}
+        disabled={!enabled}
+      >
+        <Shuffle fontSize="small" />
+      </IconButton>
+      <Switch
+        size="small"
+        checked={enabled}
+        onChange={(_, c) => setEnabled(c)}
+      />
+    </FormRow>
+  )
+
   return (
     <BaseDialog
       open={open}
       title={t('settings.modals.clashPort.title')}
-      contentSx={{
-        width: 400,
-      }}
+      dividers
+      changes={changes}
+      onReset={() => applyPorts(initial)}
+      contentSx={{ width: 472 }}
       loading={loading}
       okBtn={
         loading ? (
@@ -317,219 +376,79 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
       onCancel={() => setOpen(false)}
       onOk={onSave}
     >
-      <List sx={{ width: '100%' }}>
-        <ListItem sx={{ padding: '4px 0', minHeight: 36 }}>
-          <ListItemText
-            primary={t('settings.modals.clashPort.fields.mixed')}
-            slotProps={{ primary: { sx: { fontSize: 12 } } }}
-          />
-          <div style={{ display: 'flex', alignItems: 'center' }}>
-            <TextField
-              size="small"
-              sx={{ width: 80, mr: 0.5, fontSize: 12 }}
-              value={
-                mixedFollowsSubscription ? (subscriptionPort ?? '') : mixedPort
-              }
-              placeholder={
-                mixedFollowsSubscription
-                  ? t(
-                      'settings.modals.clashPort.fields.subscriptionPortUnknown',
-                    )
-                  : undefined
-              }
-              disabled={mixedFollowsSubscription || !ladderRead}
-              onChange={(e) =>
-                setMixedPort(+e.target.value?.replace(/\D+/g, '').slice(0, 5))
-              }
-              slotProps={{ htmlInput: { style: { fontSize: 12 } } }}
-            />
-            <IconButton
-              size="small"
-              disabled={mixedFollowsSubscription || !ladderRead}
-              onClick={() => setMixedPort(generateRandomPort())}
-              title={t('settings.modals.clashPort.actions.random')}
-              sx={{ mr: 0.5 }}
-            >
-              <Shuffle fontSize="small" />
-            </IconButton>
-            <Switch
-              size="small"
-              checked={true}
-              disabled={true}
-              sx={{ ml: 0.5, opacity: 0.7 }}
-            />
-          </div>
-        </ListItem>
+      <FormRow
+        label={t('settings.modals.clashPort.fields.mixed')}
+        help={
+          mixedFollowsSubscription
+            ? t('settings.modals.clashPort.fields.subscriptionPortUnknown')
+            : undefined
+        }
+        disabled={mixedFollowsSubscription}
+      >
+        <TextField
+          size="small"
+          sx={PORT_SX}
+          value={
+            mixedFollowsSubscription ? (subscriptionPort ?? '') : mixedPort
+          }
+          placeholder={mixedFollowsSubscription ? '—' : undefined}
+          disabled={mixedFollowsSubscription || !ladderRead}
+          onChange={(e) => setMixedPort(parsePort(e.target.value))}
+        />
+        <IconButton
+          size="small"
+          disabled={mixedFollowsSubscription || !ladderRead}
+          onClick={() => setMixedPort(generateRandomPort())}
+          title={t('settings.modals.clashPort.actions.random')}
+        >
+          <Shuffle fontSize="small" />
+        </IconButton>
+        <Switch size="small" checked={true} disabled={true} />
+      </FormRow>
 
-        <ListItem sx={{ padding: '4px 0', minHeight: 36 }}>
-          <ListItemText
-            primary={t(
-              'settings.modals.clashPort.fields.mixedFollowsSubscription',
-            )}
-            slotProps={{ primary: { sx: { fontSize: 12 } } }}
-          />
-          <Switch
-            size="small"
-            checked={mixedFollowsSubscription}
-            disabled={!ladderRead}
-            onChange={(_, checked) => setMixedFollowsSubscription(checked)}
-          />
-        </ListItem>
+      <FormRow
+        label={t('settings.modals.clashPort.fields.mixedFollowsSubscription')}
+      >
+        <Switch
+          size="small"
+          checked={mixedFollowsSubscription}
+          disabled={!ladderRead}
+          onChange={(_, checked) => setMixedFollowsSubscription(checked)}
+        />
+      </FormRow>
 
-        <ListItem sx={{ padding: '4px 0', minHeight: 36 }}>
-          <ListItemText
-            primary={t('settings.modals.clashPort.fields.socks')}
-            slotProps={{ primary: { sx: { fontSize: 12 } } }}
-          />
-          <div style={{ display: 'flex', alignItems: 'center' }}>
-            <TextField
-              size="small"
-              sx={{ width: 80, mr: 0.5, fontSize: 12 }}
-              value={socksPort}
-              onChange={(e) =>
-                setSocksPort(+e.target.value?.replace(/\D+/g, '').slice(0, 5))
-              }
-              disabled={!socksEnabled}
-              slotProps={{ htmlInput: { style: { fontSize: 12 } } }}
-            />
-            <IconButton
-              size="small"
-              onClick={() => setSocksPort(generateRandomPort())}
-              title={t('settings.modals.clashPort.actions.random')}
-              disabled={!socksEnabled}
-              sx={{ mr: 0.5 }}
-            >
-              <Shuffle fontSize="small" />
-            </IconButton>
-            <Switch
-              size="small"
-              checked={socksEnabled}
-              onChange={(_, c) => setSocksEnabled(c)}
-              sx={{ ml: 0.5 }}
-            />
-          </div>
-        </ListItem>
-
-        <ListItem sx={{ padding: '4px 0', minHeight: 36 }}>
-          <ListItemText
-            primary={t('settings.modals.clashPort.fields.http')}
-            slotProps={{ primary: { sx: { fontSize: 12 } } }}
-          />
-          <div style={{ display: 'flex', alignItems: 'center' }}>
-            <TextField
-              size="small"
-              sx={{ width: 80, mr: 0.5, fontSize: 12 }}
-              value={httpPort}
-              onChange={(e) =>
-                setHttpPort(+e.target.value?.replace(/\D+/g, '').slice(0, 5))
-              }
-              disabled={!httpEnabled}
-              slotProps={{ htmlInput: { style: { fontSize: 12 } } }}
-            />
-            <IconButton
-              size="small"
-              onClick={() => setHttpPort(generateRandomPort())}
-              title={t('settings.modals.clashPort.actions.random')}
-              disabled={!httpEnabled}
-              sx={{ mr: 0.5 }}
-            >
-              <Shuffle fontSize="small" />
-            </IconButton>
-            <Switch
-              size="small"
-              checked={httpEnabled}
-              onChange={(_, c) => setHttpEnabled(c)}
-              sx={{ ml: 0.5 }}
-            />
-          </div>
-        </ListItem>
-
-        {OS !== 'windows' && (
-          <ListItem sx={{ padding: '4px 0', minHeight: 36 }}>
-            <ListItemText
-              primary={t('settings.modals.clashPort.fields.redir')}
-              secondary={t(
-                'settings.modals.clashPort.messages.firewallRequired',
-              )}
-              slotProps={{
-                primary: { sx: { fontSize: 12 } },
-                secondary: { sx: { fontSize: 11 } },
-              }}
-            />
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              <TextField
-                size="small"
-                sx={{ width: 80, mr: 0.5, fontSize: 12 }}
-                value={redirPort}
-                onChange={(e) =>
-                  setRedirPort(+e.target.value?.replace(/\D+/g, '').slice(0, 5))
-                }
-                disabled={!redirEnabled}
-                slotProps={{ htmlInput: { style: { fontSize: 12 } } }}
-              />
-              <IconButton
-                size="small"
-                onClick={() => setRedirPort(generateRandomPort())}
-                title={t('settings.modals.clashPort.actions.random')}
-                disabled={!redirEnabled}
-                sx={{ mr: 0.5 }}
-              >
-                <Shuffle fontSize="small" />
-              </IconButton>
-              <Switch
-                size="small"
-                checked={redirEnabled}
-                onChange={(_, c) => setRedirEnabled(c)}
-                sx={{ ml: 0.5 }}
-              />
-            </div>
-          </ListItem>
-        )}
-
-        {OS === 'linux' && (
-          <ListItem sx={{ padding: '4px 0', minHeight: 36 }}>
-            <ListItemText
-              primary={t('settings.modals.clashPort.fields.tproxy')}
-              secondary={t(
-                'settings.modals.clashPort.messages.firewallRequired',
-              )}
-              slotProps={{
-                primary: { sx: { fontSize: 12 } },
-                secondary: { sx: { fontSize: 11 } },
-              }}
-            />
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              <TextField
-                size="small"
-                sx={{ width: 80, mr: 0.5, fontSize: 12 }}
-                value={tproxyPort}
-                onChange={(e) =>
-                  setTproxyPort(
-                    +e.target.value?.replace(/\D+/g, '').slice(0, 5),
-                  )
-                }
-                disabled={!tproxyEnabled}
-                slotProps={{ htmlInput: { style: { fontSize: 12 } } }}
-              />
-              <IconButton
-                size="small"
-                onClick={() => setTproxyPort(generateRandomPort())}
-                title={t('settings.modals.clashPort.actions.random')}
-                disabled={!tproxyEnabled}
-                sx={{ mr: 0.5 }}
-              >
-                <Shuffle fontSize="small" />
-              </IconButton>
-              <Switch
-                size="small"
-                checked={tproxyEnabled}
-                onChange={(_, c) => setTproxyEnabled(c)}
-                sx={{ ml: 0.5 }}
-              />
-            </div>
-          </ListItem>
-        )}
-      </List>
+      {portRow({
+        label: t('settings.modals.clashPort.fields.socks'),
+        port: socksPort,
+        setPort: setSocksPort,
+        enabled: socksEnabled,
+        setEnabled: setSocksEnabled,
+      })}
+      {portRow({
+        label: t('settings.modals.clashPort.fields.http'),
+        port: httpPort,
+        setPort: setHttpPort,
+        enabled: httpEnabled,
+        setEnabled: setHttpEnabled,
+      })}
+      {OS !== 'windows' &&
+        portRow({
+          label: t('settings.modals.clashPort.fields.redir'),
+          help: t('settings.modals.clashPort.messages.firewallRequired'),
+          port: redirPort,
+          setPort: setRedirPort,
+          enabled: redirEnabled,
+          setEnabled: setRedirEnabled,
+        })}
+      {OS === 'linux' &&
+        portRow({
+          label: t('settings.modals.clashPort.fields.tproxy'),
+          help: t('settings.modals.clashPort.messages.firewallRequired'),
+          port: tproxyPort,
+          setPort: setTproxyPort,
+          enabled: tproxyEnabled,
+          setEnabled: setTproxyEnabled,
+        })}
     </BaseDialog>
   )
 })

@@ -150,9 +150,11 @@
             "proxyNode": "代理節點",
             "protocols": "協定",
             "existing": "已設定的通道",
+            "empty": "No tunnels yet — add one below.",
             "default": "跟隨目前設定",
             "followGroup": "跟隨代理組的選擇",
             "optional": "可選",
+            "preview": "Will be added",
             "messages": {
               "incomplete": "請完整填寫通道資訊",
               "invalidLocalAddr": "無效的本地監聽位址",
@@ -291,6 +293,9 @@
           "accentPresets": "Accent presets",
           "providerTheme": "服務商外觀",
           "providerThemeHint": "來自訂閱的強調色、主題與背景 — 直到您自行設定"
+        },
+        "sections": {
+          "colors": "Colors"
         }
       },
       "layout": {
@@ -322,6 +327,12 @@
             "inline": "一級選單",
             "disable": "停用"
           }
+        },
+        "sections": {
+          "proxies": "Proxies",
+          "notifications": "Notifications",
+          "tray": "Tray",
+          "trayIcons": "Tray icons"
         }
       }
     },
@@ -433,10 +444,10 @@
         "intervalLabel": "備份頻率"
       },
       "manual": {
-        "title": "手動備份",
         "local": "在本機應用資料資料夾建立備份檔。",
         "webdav": "設定 WebDAV 後，可直接上傳備份至伺服器。",
-        "configureWebdav": "設定 WebDAV"
+        "configureWebdav": "設定 WebDAV",
+        "webdavNotConfigured": "Set up WebDAV to enable these buttons."
       },
       "history": {
         "title": "備份紀錄",
@@ -482,6 +493,12 @@
           "never": "不清理",
           "retainDays": "保留 {{n}} 天"
         }
+      },
+      "sections": {
+        "appLog": "App log",
+        "connections": "Connections",
+        "updates": "Updates and configuration",
+        "proxies": "Proxies"
       }
     },
     "update": {
@@ -524,7 +541,14 @@
         "invalidProxyHost": "代理主機格式無效"
       },
       "actions": {
-        "editPac": "編輯 PAC"
+        "editPac": "編輯 PAC",
+        "showMore": "{{count}} more",
+        "showLess": "Show less"
+      },
+      "sections": {
+        "address": "Address",
+        "guard": "Guard",
+        "bypass": "Bypass"
       }
     },
     "tun": {
@@ -552,6 +576,10 @@
         "subscriptionStackCapped": "服務商要求 {{stack}} 堆疊；在 Windows 上需要手動在防火牆放行核心，因此改用 gvisor。",
         "windowsStackFirewall": "在 Windows 上，system 與 mixed 堆疊需要在防火牆中允許核心的入站連線，否則通道流量無法通行",
         "emptyFollowsSubscription": "An empty field follows the subscription, or the core's default when the subscription is silent (MTU 9000, name Meta, utunN on macOS)."
+      },
+      "sections": {
+        "routing": "Routing",
+        "interface": "Interface"
       }
     },
     "dns": {
@@ -659,6 +687,9 @@
         "supportedPlaceholders": "支援 %host, %port, %secret",
         "placeholderInstruction": "使用 %host, %port, %secret 表示 主機, 連接埠, 存取金鑰",
         "needsController": "僅在啟用外部控制器時面板才能連線到核心。"
+      },
+      "sections": {
+        "panels": "Panels"
       }
     },
     "hotkey": {
@@ -677,7 +708,12 @@
         "reactivateProfiles": "重新啟用訂閱"
       },
       "messages": {
-        "duplicate": "「{{func}}」的快捷鍵 {{keys}} 已被「{{other}}」使用"
+        "duplicate": "「{{func}}」的快捷鍵 {{keys}} 已被「{{other}}」使用",
+        "recordHint": "Click a field and press the keys",
+        "notSet": "Not set"
+      },
+      "sections": {
+        "actions": "Actions"
       }
     },
     "networkInterface": {

@@ -1,15 +1,10 @@
-import {
-  InputAdornment,
-  ListItem,
-  ListItemText,
-  Stack,
-  TextField,
-} from '@mui/material'
+import { InputAdornment, TextField } from '@mui/material'
 import { useLockFn } from 'ahooks'
-import { Fragment, useMemo, useState, type ChangeEvent } from 'react'
+import { useMemo, useState, type ChangeEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Switch } from '@/components/base'
+import { FormRow, Switch } from '@/components/base'
+import { MONO_INPUT } from '@/components/base/base-mono'
 import { useVerge } from '@/hooks/use-verge'
 import { showNotice } from '@/services/notice-service'
 
@@ -118,67 +113,57 @@ export function AutoBackupSettings() {
   const scheduleDisabled = disabled || !values.scheduleEnabled
 
   return (
-    <Fragment>
-      <ListItem divider disableGutters>
-        <Stack
-          direction="row"
-          spacing={1}
-          sx={{ alignItems: 'center', width: '100%' }}
-        >
-          <ListItemText
-            primary={t('settings.modals.backup.auto.scheduleLabel')}
-            secondary={t('settings.modals.backup.auto.scheduleHelper')}
-          />
-          <Switch
-            edge="end"
-            checked={values.scheduleEnabled}
-            onChange={handleScheduleToggle}
-            disabled={disabled}
-          />
-        </Stack>
-      </ListItem>
+    <>
+      <FormRow
+        label={t('settings.modals.backup.auto.scheduleLabel')}
+        help={t('settings.modals.backup.auto.scheduleHelper')}
+      >
+        <Switch
+          edge="end"
+          checked={values.scheduleEnabled}
+          onChange={handleScheduleToggle}
+          disabled={disabled}
+        />
+      </FormRow>
 
-      <ListItem divider disableGutters>
-        <Stack
-          direction="row"
-          spacing={2}
-          sx={{ alignItems: 'center', width: '100%' }}
-        >
-          <ListItemText
-            primary={t('settings.modals.backup.auto.intervalLabel')}
-          />
-          <TextField
-            label={t('settings.modals.backup.auto.intervalLabel')}
-            size="small"
-            type="number"
-            value={intervalInputDraft ?? values.intervalHours.toString()}
-            disabled={scheduleDisabled}
-            onChange={handleIntervalInputChange}
-            onBlur={commitIntervalInput}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                event.preventDefault()
-                commitIntervalInput()
-              }
-            }}
-            sx={{ minWidth: 160 }}
-            slotProps={{
-              input: {
-                endAdornment: (
-                  <InputAdornment position="end">
-                    {t('shared.units.hours')}
-                  </InputAdornment>
-                ),
-              },
-              htmlInput: {
-                min: MIN_INTERVAL_HOURS,
-                max: MAX_INTERVAL_HOURS,
-                inputMode: 'numeric',
-              },
-            }}
-          />
-        </Stack>
-      </ListItem>
-    </Fragment>
+      <FormRow
+        label={t('settings.modals.backup.auto.intervalLabel')}
+        disabled={scheduleDisabled}
+      >
+        <TextField
+          size="small"
+          type="number"
+          value={intervalInputDraft ?? values.intervalHours.toString()}
+          disabled={scheduleDisabled}
+          onChange={handleIntervalInputChange}
+          onBlur={commitIntervalInput}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault()
+              commitIntervalInput()
+            }
+          }}
+          sx={{ width: 110, ...MONO_INPUT }}
+          slotProps={{
+            input: {
+              endAdornment: (
+                <InputAdornment
+                  position="end"
+                  sx={{ '& p': { fontSize: 12.5 } }}
+                >
+                  {t('shared.units.hours')}
+                </InputAdornment>
+              ),
+            },
+            htmlInput: {
+              min: MIN_INTERVAL_HOURS,
+              max: MAX_INTERVAL_HOURS,
+              inputMode: 'numeric',
+              'aria-label': t('settings.modals.backup.auto.intervalLabel'),
+            },
+          }}
+        />
+      </FormRow>
+    </>
   )
 }

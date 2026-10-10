@@ -7,9 +7,6 @@ import {
   Tab,
   Tabs,
   TextField,
-  ToggleButton,
-  ToggleButtonGroup,
-  Typography,
 } from '@mui/material'
 import { invoke } from '@tauri-apps/api/core'
 import { useLockFn } from 'ahooks'
@@ -19,6 +16,7 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useReducer,
   useRef,
   useState,
@@ -27,10 +25,17 @@ import { useTranslation } from 'react-i18next'
 
 import {
   BaseDialog,
+  BaseSegmented,
   type DialogRef,
+  FormField,
+  FormHint,
+  FormRow,
+  FormSection,
   MonacoEditor,
   Switch,
 } from '@/components/base'
+import { MONO_INPUT } from '@/components/base/base-mono'
+import { useChangeCount } from '@/hooks/use-change-count'
 import { useClash } from '@/hooks/use-clash'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useVerge } from '@/hooks/use-verge'
@@ -190,7 +195,7 @@ const FIELD_KEYS = {
   nameserverPolicy: 'nameserver-policy',
 } as const
 
-interface DnsValues {
+type DnsValues = {
   enable: boolean
   listen: string
   enhancedMode: 'fake-ip' | 'redir-host'
@@ -417,7 +422,7 @@ const dnsTabs = (t: ReturnType<typeof useTranslation>['t']): DnsTab[] => {
 
 // Ширина полей справа: одна на все строки, в узком окне простого режима
 // уступает подписи.
-const CONTROL_SX = { width: 'clamp(140px, 38%, 190px)', flexShrink: 0 }
+const CONTROL_SX = { width: { xs: 150, sm: 180 } }
 
 export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const { t } = useTranslation()
@@ -430,9 +435,14 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const [visualization, setVisualization] = useState(true)
   const skipYamlSyncRef = useRef(false)
   const [seeding, setSeeding] = useState(false)
-  const parsedDnsRef = useRef<unknown>({})
+  // Основа формы: показанная конфигурация, поверх которой форма пишет свои
+  // поля. Ключи вне формы живут только в ней.
+  const [base, setBase] = useState<any>(null)
+  const parsedDns = useMemo<unknown>(
+    () => (base ? readDnsBlock(base) : {}),
+    [base],
+  )
   const touchedRef = useRef(new Set<string>())
-  const baseHostsRef = useRef<unknown>(undefined)
   const renderedTextRef = useRef({ nameserverPolicy: '', hosts: '' })
   const editorRef = useRef<MonacoEditorInstance | null>(null)
   const [tab, setTab] = useState(0)
@@ -464,16 +474,29 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
     (_: string, next: string) => next,
     '',
   )
+  const [opened, setOpened] = useState<{
+    view: unknown
+    values: DnsValues
+    yaml: string
+  }>(() => ({ view: null, values, yaml: '' }))
+  const formChanges = useChangeCount(
+    { ...opened.values, base: opened.view },
+    { ...values, base },
+  )
+  const changes = visualization
+    ? formChanges
+    : yamlContent === opened.yaml
+      ? 0
+      : Math.max(formChanges, 1)
 
   const updateValuesFromConfig = useCallback(
-    (config: any) => {
-      if (!config) return
+    (config: any): DnsValues | undefined => {
+      if (!config) return undefined
 
       const dnsConfig: any = readDnsBlock(config)
       const hostsConfig = config.hosts || {}
 
-      parsedDnsRef.current = dnsConfig
-      baseHostsRef.current = config.hosts
+      setBase(config)
       touchedRef.current = new Set()
 
       const nameserverPolicyText =
@@ -498,7 +521,7 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
           ? fakeIpFilterMode
           : CORE_DEFAULTS['fake-ip-filter-mode']
 
-      setValues({
+      const next: DnsValues = {
         enable: dnsConfig.enable ?? CORE_DEFAULTS.enable,
         listen: listenFieldFrom(dnsConfig.listen),
         enhancedMode: validEnhancedMode,
@@ -533,9 +556,11 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
           CORE_DEFAULTS['direct-nameserver-follow-policy'],
         nameserverPolicy: nameserverPolicyText,
         hosts: hostsText,
-      })
+      }
+      setValues(next)
+      return next
     },
-    [setValues],
+    [setValues, setBase],
   )
 
   const generateDnsConfig = useCallback(() => {
@@ -569,7 +594,7 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
       'direct-nameserver': parseList(values.directNameserver),
     }
 
-    const basePolicy = asDnsMapping(parsedDnsRef.current)?.['nameserver-policy']
+    const basePolicy = asDnsMapping(parsedDns)?.['nameserver-policy']
     if (
       values.nameserverPolicy === renderedTextRef.current.nameserverPolicy &&
       basePolicy !== undefined
@@ -583,7 +608,7 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
     }
 
     // Нетронутые поля: ключ был — остаётся как был, не было — не появляется.
-    const shown = asDnsMapping(parsedDnsRef.current) ?? {}
+    const shown = asDnsMapping(parsedDns) ?? {}
     for (const [field, key] of Object.entries(FIELD_KEYS)) {
       if (touchedRef.current.has(field)) continue
       if (key in shown) {
@@ -595,19 +620,19 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
       }
     }
 
-    return mergeDnsConfig(parsedDnsRef.current, formFields)
-  }, [values])
+    return mergeDnsConfig(parsedDns, formFields)
+  }, [values, parsedDns])
 
   const generateHostsConfig = useCallback(() => {
     if (
       values.hosts === renderedTextRef.current.hosts &&
-      baseHostsRef.current !== undefined
+      base?.hosts !== undefined
     ) {
-      return baseHostsRef.current
+      return base.hosts
     }
 
     return parseHosts(values.hosts)
-  }, [values.hosts])
+  }, [values.hosts, base])
 
   const updateYamlFromValues = useCallback(() => {
     const config: Record<string, any> = {}
@@ -640,6 +665,12 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
       showNotice.error(err)
     }
   }, [setYamlContent, updateValuesFromConfig])
+
+  const restoreOpened = () => {
+    skipYamlSyncRef.current = true
+    updateValuesFromConfig(opened.view)
+    setYamlContent(opened.yaml)
+  }
 
   const updateValuesFromYaml = () => {
     let parsedYaml: any
@@ -681,8 +712,10 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
         bare: false,
       })
       skipYamlSyncRef.current = true
-      updateValuesFromConfig(view)
-      setYamlContent(yaml.dump(view, { forceQuotes: true }))
+      const seeded = updateValuesFromConfig(view)
+      const seededYaml = yaml.dump(view, { forceQuotes: true })
+      setYamlContent(seededYaml)
+      if (seeded) setOpened({ view, values: seeded, yaml: seededYaml })
     } catch (err) {
       console.error('Failed to initialize DNS config', err)
       showNotice.error(err)
@@ -805,53 +838,33 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const fakeIpIdle =
     values.enhancedMode === 'redir-host' &&
     (touchedRef.current.has('enhancedMode') ||
-      'enhanced-mode' in (asDnsMapping(parsedDnsRef.current) ?? {}))
+      'enhanced-mode' in (asDnsMapping(parsedDns) ?? {}))
 
   const renderRow = (row: DnsRow) => {
-    const label = (
-      <Box sx={{ minWidth: 0, flex: 1 }}>
-        <Typography variant="body2" sx={{ fontWeight: 500 }}>
-          {row.label}
-        </Typography>
-        {row.hint && (
-          <Typography
-            variant="caption"
-            color="text.secondary"
-            sx={{ display: 'block', lineHeight: 1.35 }}
-          >
-            {row.hint}
-          </Typography>
-        )}
-      </Box>
-    )
     const value = values[row.field]
 
-    if (row.kind === 'list') {
+    if (row.kind === 'list' || row.kind === 'text') {
       return (
-        <Box key={row.field} sx={{ py: 0.5 }}>
-          {label}
+        <FormField key={row.field} label={row.label} help={row.hint}>
           <TextField
             fullWidth
-            multiline
+            multiline={row.kind === 'list'}
             minRows={row.field === 'hosts' ? 8 : 1}
             maxRows={row.field === 'hosts' ? 14 : 4}
             size="small"
+            autoComplete="off"
             spellCheck="false"
             value={value}
             onChange={handleChange(row.field)}
             placeholder={row.placeholder}
-            sx={{ mt: 0.5, '& textarea': { fontSize: 13, lineHeight: 1.5 } }}
+            sx={MONO_INPUT}
           />
-        </Box>
+        </FormField>
       )
     }
 
     return (
-      <Box
-        key={row.field}
-        sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 0.5 }}
-      >
-        {label}
+      <FormRow key={row.field} label={row.label} help={row.hint}>
         {row.kind === 'switch' && (
           <Switch
             edge="end"
@@ -873,18 +886,7 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
             ))}
           </Select>
         )}
-        {row.kind === 'text' && (
-          <TextField
-            size="small"
-            autoComplete="off"
-            spellCheck="false"
-            value={value}
-            onChange={handleChange(row.field)}
-            placeholder={row.placeholder}
-            sx={{ ...CONTROL_SX, '& input': { fontSize: 14 } }}
-          />
-        )}
-      </Box>
+      </FormRow>
     )
   }
 
@@ -893,6 +895,25 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
       open={open}
       disableEnforceFocus={!visualization}
       title={t('settings.modals.dns.dialog.title')}
+      titleExtra={
+        <BaseSegmented
+          value={visualization ? 'form' : 'yaml'}
+          options={[
+            { value: 'form', label: t('settings.modals.dns.modes.form') },
+            { value: 'yaml', label: 'YAML' },
+          ]}
+          onChange={(mode) => {
+            if ((mode === 'form') === visualization) return
+            if (visualization || updateValuesFromYaml()) {
+              setVisualization(!visualization)
+            }
+          }}
+          sx={{ flex: 'none' }}
+        />
+      }
+      dividers
+      changes={changes}
+      onReset={restoreOpened}
       contentSx={{
         width: 550,
         overflow: 'auto',
@@ -910,54 +931,33 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
       <Box
         sx={{
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: 1,
-          mb: 1,
+          alignItems: 'flex-start',
+          gap: 1.25,
+          mb: 0.5,
         }}
       >
-        <ToggleButtonGroup
-          size="small"
-          exclusive
-          value={visualization ? 'form' : 'yaml'}
-          onChange={(_, mode) => {
-            if (!mode || (mode === 'form') === visualization) return
-            if (visualization || updateValuesFromYaml()) {
-              setVisualization(!visualization)
-            }
-          }}
+        <Box
           sx={{
-            '& .MuiToggleButton-root': {
-              textTransform: 'none',
-              px: 1.5,
-              py: 0.25,
-            },
+            flex: 1,
+            minWidth: 0,
+            fontSize: 12.5,
+            lineHeight: 1.45,
+            color: 'text.secondary',
           }}
         >
-          <ToggleButton value="form">
-            {t('settings.modals.dns.modes.form')}
-          </ToggleButton>
-          <ToggleButton value="yaml">YAML</ToggleButton>
-        </ToggleButtonGroup>
+          {t('settings.modals.dns.dialog.note')}
+        </Box>
         <Button
           size="small"
           color="warning"
           startIcon={<RestartAltRounded />}
           disabled={seeding}
           onClick={showTheSubscription}
-          sx={{ textTransform: 'none' }}
+          sx={{ flex: 'none', mt: -0.5, textTransform: 'none' }}
         >
           {t('settings.modals.dns.actions.asInSubscription')}
         </Button>
       </Box>
-      <Typography
-        variant="caption"
-        color="text.secondary"
-        sx={{ display: 'block', mb: 1, lineHeight: 1.4 }}
-      >
-        {t('settings.modals.dns.dialog.note')}
-      </Typography>
 
       {visualization ? (
         <Box>
@@ -986,36 +986,24 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
           {/* Высота — по самой длинной вкладке, чтобы окно не прыгало. */}
           <Box sx={{ minHeight: 'min(470px, calc(100vh - 340px))' }}>
             {currentTab.id === 'fakeIp' && fakeIpIdle && (
-              <Typography
-                variant="caption"
-                color="text.secondary"
-                sx={{ display: 'block', mb: 0.5 }}
-              >
+              <FormHint sx={{ my: 0.75 }}>
                 {t('settings.modals.dns.dialog.fakeIpIdle')}
-              </Typography>
+              </FormHint>
             )}
-            <Box
-              sx={
-                currentTab.id === 'fakeIp' && fakeIpIdle
-                  ? { opacity: 0.55 }
-                  : undefined
-              }
-            >
-              {currentTab.sections.map((section) => (
-                <Box key={section.title ?? currentTab.id}>
-                  {section.title && (
-                    <Typography
-                      variant="overline"
-                      color="text.secondary"
-                      sx={{ display: 'block', fontWeight: 700, mt: 1 }}
-                    >
-                      {section.title}
-                    </Typography>
-                  )}
+            {currentTab.sections.map((section) => (
+              <Box key={section.title ?? currentTab.id}>
+                {section.title && <FormSection title={section.title} />}
+                <Box
+                  sx={
+                    currentTab.id === 'fakeIp' && fakeIpIdle
+                      ? { opacity: 0.55 }
+                      : undefined
+                  }
+                >
                   {section.rows.map(renderRow)}
                 </Box>
-              ))}
-            </Box>
+              </Box>
+            ))}
           </Box>
         </Box>
       ) : (

@@ -910,6 +910,12 @@ export interface TranslationResources {
                 topRight: string
               }
             }
+            sections: {
+              notifications: string
+              proxies: string
+              tray: string
+              trayIcons: string
+            }
             title: string
           }
           theme: {
@@ -926,6 +932,9 @@ export interface TranslationResources {
               secondaryText: string
               successColor: string
               warningColor: string
+            }
+            sections: {
+              colors: string
             }
             title: string
           }
@@ -986,8 +995,8 @@ export interface TranslationResources {
           manual: {
             configureWebdav: string
             local: string
-            title: string
             webdav: string
+            webdavNotConfigured: string
           }
           messages: {
             backupCreated: string
@@ -1164,6 +1173,11 @@ export interface TranslationResources {
           }
           messages: {
             duplicate: string
+            notSet: string
+            recordHint: string
+          }
+          sections: {
+            actions: string
           }
           title: string
           toggles: {
@@ -1213,6 +1227,12 @@ export interface TranslationResources {
               auto: string
             }
           }
+          sections: {
+            appLog: string
+            connections: string
+            proxies: string
+            updates: string
+          }
           title: string
           tooltips: {
             autoCloseConnections: string
@@ -1232,6 +1252,8 @@ export interface TranslationResources {
         sysproxy: {
           actions: {
             editPac: string
+            showLess: string
+            showMore: string
           }
           fields: {
             alwaysUseDefaultBypass: string
@@ -1254,6 +1276,11 @@ export interface TranslationResources {
             durationTooShort: string
             invalidBypass: string
             invalidProxyHost: string
+          }
+          sections: {
+            address: string
+            bypass: string
+            guard: string
           }
           title: string
           tooltips: {
@@ -1282,6 +1309,10 @@ export interface TranslationResources {
             subscriptionStackCapped: string
             windowsStackFirewall: string
           }
+          sections: {
+            interface: string
+            routing: string
+          }
           title: string
           tooltips: {
             autoRedirect: string
@@ -1307,6 +1338,9 @@ export interface TranslationResources {
             needsController: string
             placeholderInstruction: string
             supportedPlaceholders: string
+          }
+          sections: {
+            panels: string
           }
           title: string
         }
@@ -1346,6 +1380,7 @@ export interface TranslationResources {
                   addNew: string
                 }
                 default: string
+                empty: string
                 existing: string
                 followGroup: string
                 localAddr: string
@@ -1358,6 +1393,7 @@ export interface TranslationResources {
                   invalidTargetPort: string
                 }
                 optional: string
+                preview: string
                 protocols: string
                 proxyGroup: string
                 proxyNode: string

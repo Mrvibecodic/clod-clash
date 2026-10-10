@@ -1,4 +1,4 @@
-import { Button, ButtonGroup } from '@mui/material'
+import { BaseSegmented } from '@/components/base'
 
 interface Props {
   value?: string
@@ -6,47 +6,24 @@ interface Props {
   onChange?: (value: string) => void
 }
 
+const STACKS = [
+  { value: 'system', label: 'System' },
+  { value: 'gvisor', label: 'gVisor' },
+  { value: 'mixed', label: 'Mixed' },
+  { value: 'mips', label: 'MIPS' },
+]
+
 export const StackModeSwitch = (props: Props) => {
   const { value, allowAuto, onChange } = props
 
   return (
-    <ButtonGroup size="small" sx={{ my: '4px' }}>
-      {allowAuto && (
-        <Button
-          variant={value?.toLowerCase() === 'auto' ? 'contained' : 'outlined'}
-          onClick={() => onChange?.('auto')}
-          sx={{ textTransform: 'capitalize' }}
-        >
-          Auto
-        </Button>
-      )}
-      <Button
-        variant={value?.toLowerCase() === 'system' ? 'contained' : 'outlined'}
-        onClick={() => onChange?.('system')}
-        sx={{ textTransform: 'capitalize' }}
-      >
-        System
-      </Button>
-      <Button
-        variant={value?.toLowerCase() === 'gvisor' ? 'contained' : 'outlined'}
-        onClick={() => onChange?.('gvisor')}
-        sx={{ textTransform: 'capitalize' }}
-      >
-        gVisor
-      </Button>
-      <Button
-        variant={value?.toLowerCase() === 'mixed' ? 'contained' : 'outlined'}
-        onClick={() => onChange?.('mixed')}
-        sx={{ textTransform: 'capitalize' }}
-      >
-        Mixed
-      </Button>
-      <Button
-        variant={value?.toLowerCase() === 'mips' ? 'contained' : 'outlined'}
-        onClick={() => onChange?.('mips')}
-      >
-        MIPS
-      </Button>
-    </ButtonGroup>
+    <BaseSegmented
+      fullWidth
+      value={value?.toLowerCase() ?? ''}
+      options={
+        allowAuto ? [{ value: 'auto', label: 'Auto' }, ...STACKS] : STACKS
+      }
+      onChange={(next) => onChange?.(next)}
+    />
   )
 }

@@ -150,9 +150,11 @@
             "proxyNode": "プロキシノード",
             "protocols": "プロトコル",
             "existing": "既存のトンネル",
+            "empty": "No tunnels yet — add one below.",
             "default": "現在の設定に従う",
             "followGroup": "グループの選択に従う",
             "optional": "任意",
+            "preview": "Will be added",
             "messages": {
               "incomplete": "必須のトンネル項目をすべて入力してください",
               "invalidLocalAddr": "無効なローカル待受アドレスです",
@@ -291,6 +293,9 @@
           "accentPresets": "Accent presets",
           "providerTheme": "プロバイダーの外観",
           "providerThemeHint": "購読からのアクセント・テーマ・背景 — 自分で設定するまで"
+        },
+        "sections": {
+          "colors": "Colors"
         }
       },
       "layout": {
@@ -322,6 +327,12 @@
             "inline": "Inline",
             "disable": "Disable"
           }
+        },
+        "sections": {
+          "proxies": "Proxies",
+          "notifications": "Notifications",
+          "tray": "Tray",
+          "trayIcons": "Tray icons"
         }
       }
     },
@@ -433,10 +444,10 @@
         "intervalLabel": "Backup frequency"
       },
       "manual": {
-        "title": "Manual backup",
         "local": "Creates a snapshot on this device, stored under the app data directory.",
         "webdav": "Upload a snapshot to your WebDAV server once credentials are set.",
-        "configureWebdav": "Configure WebDAV"
+        "configureWebdav": "Configure WebDAV",
+        "webdavNotConfigured": "Set up WebDAV to enable these buttons."
       },
       "history": {
         "title": "Backup history",
@@ -482,6 +493,12 @@
           "never": "クリーンアップしない",
           "retainDays": "{{n}}日間保持"
         }
+      },
+      "sections": {
+        "appLog": "App log",
+        "connections": "Connections",
+        "updates": "Updates and configuration",
+        "proxies": "Proxies"
       }
     },
     "update": {
@@ -524,7 +541,14 @@
         "invalidProxyHost": "プロキシホストの形式が無効です"
       },
       "actions": {
-        "editPac": "編集 PAC"
+        "editPac": "編集 PAC",
+        "showMore": "{{count}} more",
+        "showLess": "Show less"
+      },
+      "sections": {
+        "address": "Address",
+        "guard": "Guard",
+        "bypass": "Bypass"
       }
     },
     "tun": {
@@ -552,6 +576,10 @@
         "subscriptionStackCapped": "プロバイダーは {{stack}} スタックを要求しましたが、Windows ではファイアウォールでコアを手動で許可する必要があるため、gvisor を使用します。",
         "windowsStackFirewall": "Windows では system と mixed スタックはファイアウォールでコアの受信接続を許可する必要があります。許可がないとトンネルの通信は流れません",
         "emptyFollowsSubscription": "An empty field follows the subscription, or the core's default when the subscription is silent (MTU 9000, name Meta, utunN on macOS)."
+      },
+      "sections": {
+        "routing": "Routing",
+        "interface": "Interface"
       }
     },
     "dns": {
@@ -659,6 +687,9 @@
         "supportedPlaceholders": "%host, %port, %secretをサポートします。",
         "placeholderInstruction": "%host, %port, %secretを使用してホスト、ポート、アクセスキーを表します。",
         "needsController": "外部コントローラーが有効なときだけ、パネルはコアに接続できます。"
+      },
+      "sections": {
+        "panels": "Panels"
       }
     },
     "hotkey": {
@@ -677,7 +708,12 @@
         "reactivateProfiles": "プロファイルを再アクティブ化"
       },
       "messages": {
-        "duplicate": "「{{func}}」のショートカット {{keys}} は既に「{{other}}」に割り当てられています"
+        "duplicate": "「{{func}}」のショートカット {{keys}} は既に「{{other}}」に割り当てられています",
+        "recordHint": "Click a field and press the keys",
+        "notSet": "Not set"
+      },
+      "sections": {
+        "actions": "Actions"
       }
     },
     "networkInterface": {

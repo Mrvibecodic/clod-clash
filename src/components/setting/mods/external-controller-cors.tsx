@@ -1,18 +1,17 @@
-import { Delete as DeleteIcon } from '@mui/icons-material'
-import {
-  Box,
-  Button,
-  Divider,
-  List,
-  ListItem,
-  TextField,
-  Typography,
-} from '@mui/material'
+import { Box } from '@mui/material'
 import { useLockFn, useRequest } from 'ahooks'
 import { forwardRef, useImperativeHandle, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { BaseDialog, Switch } from '@/components/base'
+import {
+  BaseDialog,
+  FormHint,
+  FormRow,
+  FormSection,
+  Switch,
+} from '@/components/base'
+import { BaseListTiles } from '@/components/base/base-split-chip-editor'
+import { useChangeCount } from '@/hooks/use-change-count'
 import { useClash } from '@/hooks/use-clash'
 import { showNotice } from '@/services/notice-service'
 
@@ -32,40 +31,16 @@ const originsToSave = (origins: string[]) => [
 const filterBaseOriginsForUI = (origins: string[]) =>
   origins.filter((origin) => origin.trim() !== NO_WEB_PAGE_ORIGIN)
 
-// Единый стиль кнопок
-const buttonStyle = {
-  borderRadius: '8px',
-  textTransform: 'none',
-  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-  transition: 'all 0.3s ease',
-  '&:hover': {
-    boxShadow: '0 4px 8px rgba(0,0,0,0.15)',
-    transform: 'translateY(-1px)',
-  },
-  '&:active': {
-    transform: 'translateY(0)',
-  },
-}
-
-// Стиль кнопки добавления
-const addButtonStyle = {
-  ...buttonStyle,
-  backgroundColor: '#4CAF50',
-  color: 'white',
-  '&:hover': {
-    backgroundColor: '#388E3C',
-  },
-}
-
-// Стиль кнопки удаления
-const deleteButtonStyle = {
-  ...buttonStyle,
-  backgroundColor: '#FF5252',
-  color: 'white',
-  '&:hover': {
-    backgroundColor: '#D32F2F',
-  },
-}
+const toComparable = (
+  config: { allowPrivateNetwork: boolean; allowOrigins: AllowOriginItem[] },
+  draft = '',
+) => ({
+  allowPrivateNetwork: config.allowPrivateNetwork,
+  allowOrigins: [
+    ...config.allowOrigins.map((origin) => origin.value),
+    ...(draft.trim() ? [draft.trim()] : []),
+  ],
+})
 
 interface ClashHeaderConfigingRef {
   open: () => void
@@ -101,6 +76,11 @@ export const HeaderConfiguration = forwardRef<ClashHeaderConfigingRef>(
       }
     })
 
+    const [draft, setDraft] = useState('')
+    const [initial, setInitial] = useState(() => toComparable(corsConfig))
+    const current = toComparable(corsConfig, draft)
+    const changes = useChangeCount(initial, current)
+
     // Обработка изменения конфига CORS
     const handleCorsConfigChange = (
       key: 'allowPrivateNetwork' | 'allowOrigins',
@@ -114,18 +94,14 @@ export const HeaderConfiguration = forwardRef<ClashHeaderConfigingRef>(
 
     // Добавить новый разрешённый источник
     const handleAddOrigin = () => {
+      const value = draft.trim()
+      if (!value) return
       lastKeyRef.current += 1
       handleCorsConfigChange('allowOrigins', [
         ...corsConfig.allowOrigins,
-        { key: lastKeyRef.current, value: '' },
+        { key: lastKeyRef.current, value },
       ])
-    }
-
-    // Обновить один элемент в списке разрешённых источников
-    const handleUpdateOrigin = (index: number, value: string) => {
-      const newOrigins = [...corsConfig.allowOrigins]
-      newOrigins[index] = { ...newOrigins[index], value }
-      handleCorsConfigChange('allowOrigins', newOrigins)
+      setDraft('')
     }
 
     // Удалить один элемент из списка разрешённых источников
@@ -140,10 +116,8 @@ export const HeaderConfiguration = forwardRef<ClashHeaderConfigingRef>(
       async () => {
         await patchClash({
           'external-controller-cors': {
-            'allow-private-network': corsConfig.allowPrivateNetwork,
-            'allow-origins': originsToSave(
-              corsConfig.allowOrigins.map((origin) => origin.value),
-            ),
+            'allow-private-network': current.allowPrivateNetwork,
+            'allow-origins': originsToSave(current.allowOrigins),
           },
         })
       },
@@ -167,13 +141,16 @@ export const HeaderConfiguration = forwardRef<ClashHeaderConfigingRef>(
         const cors = runtime?.['external-controller-cors']
         const origins = cors?.['allow-origins'] ?? []
         lastKeyRef.current = 0
-        setCorsConfig({
+        const opened = {
           allowPrivateNetwork: cors?.['allow-private-network'] ?? true,
           allowOrigins: filterBaseOriginsForUI(origins).map((origin) => {
             lastKeyRef.current += 1
             return { key: lastKeyRef.current, value: origin }
           }),
-        })
+        }
+        setCorsConfig(opened)
+        setInitial(toComparable(opened))
+        setDraft('')
         setOpen(true)
       },
       close: () => setOpen(false),
@@ -187,97 +164,58 @@ export const HeaderConfiguration = forwardRef<ClashHeaderConfigingRef>(
       <BaseDialog
         open={open}
         title={t('settings.sections.externalCors.title')}
-        contentSx={{ width: 500 }}
+        dividers
+        changes={changes}
+        onReset={() => {
+          lastKeyRef.current = 0
+          setCorsConfig({
+            allowPrivateNetwork: initial.allowPrivateNetwork,
+            allowOrigins: initial.allowOrigins.map((value) => {
+              lastKeyRef.current += 1
+              return { key: lastKeyRef.current, value }
+            }),
+          })
+          setDraft('')
+        }}
+        contentSx={{ width: 452 }}
         okBtn={loading ? t('shared.statuses.saving') : t('shared.actions.save')}
         cancelBtn={t('shared.actions.cancel')}
         onClose={() => setOpen(false)}
         onCancel={() => setOpen(false)}
         onOk={handleSave}
       >
-        <Typography
-          variant="caption"
-          color="text.secondary"
-          component="p"
-          sx={{ px: 2 }}
-        >
+        <FormHint sx={{ mb: 0.75 }}>
           {t('settings.sections.externalCors.messages.onlyForPanels')}
-        </Typography>
-        <List sx={{ width: '90%', padding: 2 }}>
-          <ListItem sx={{ padding: '8px 0' }}>
-            <Box
-              sx={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                width: '100%',
-              }}
-            >
-              <span style={{ fontWeight: 'normal' }}>
-                {t('settings.sections.externalCors.fields.allowPrivateNetwork')}
-              </span>
-              <Switch
-                edge="end"
-                checked={corsConfig.allowPrivateNetwork}
-                onChange={(e) =>
-                  handleCorsConfigChange(
-                    'allowPrivateNetwork',
-                    e.target.checked,
-                  )
-                }
-              />
-            </Box>
-          </ListItem>
+        </FormHint>
+        <FormRow
+          label={t('settings.sections.externalCors.fields.allowPrivateNetwork')}
+        >
+          <Switch
+            edge="end"
+            checked={corsConfig.allowPrivateNetwork}
+            onChange={(e) =>
+              handleCorsConfigChange('allowPrivateNetwork', e.target.checked)
+            }
+          />
+        </FormRow>
 
-          <Divider sx={{ my: 2 }} />
-
-          <ListItem sx={{ padding: '8px 0' }}>
-            <div style={{ width: '100%' }}>
-              <div style={{ marginBottom: 8, fontWeight: 'bold' }}>
-                {t('settings.sections.externalCors.fields.allowedOrigins')}
-              </div>
-              {corsConfig.allowOrigins.map(({ key, value: origin }, index) => (
-                <div
-                  key={key}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    marginBottom: 8,
-                  }}
-                >
-                  <TextField
-                    fullWidth
-                    size="small"
-                    sx={{ fontSize: 14, marginRight: 2 }}
-                    value={origin}
-                    onChange={(e) => handleUpdateOrigin(index, e.target.value)}
-                    placeholder={t(
-                      'settings.sections.externalCors.placeholders.origin',
-                    )}
-                    slotProps={{ htmlInput: { style: { fontSize: 14 } } }}
-                  />
-                  <Button
-                    variant="contained"
-                    color="error"
-                    size="small"
-                    onClick={() => handleDeleteOrigin(index)}
-                    disabled={corsConfig.allowOrigins.length <= 0}
-                    sx={deleteButtonStyle}
-                  >
-                    <DeleteIcon fontSize="small" />
-                  </Button>
-                </div>
-              ))}
-              <Button
-                variant="contained"
-                size="small"
-                onClick={handleAddOrigin}
-                sx={addButtonStyle}
-              >
-                {t('settings.sections.externalCors.actions.add')}
-              </Button>
-            </div>
-          </ListItem>
-        </List>
+        <FormSection
+          title={t('settings.sections.externalCors.fields.allowedOrigins')}
+          count={corsConfig.allowOrigins.length}
+        />
+        <Box sx={{ pb: 0.5 }}>
+          <BaseListTiles
+            items={corsConfig.allowOrigins}
+            onRemove={handleDeleteOrigin}
+            draft={draft}
+            onDraftChange={setDraft}
+            onAdd={handleAddOrigin}
+            placeholder={t(
+              'settings.sections.externalCors.placeholders.origin',
+            )}
+            addLabel={t('settings.sections.externalCors.actions.add')}
+          />
+        </Box>
       </BaseDialog>
     )
   },

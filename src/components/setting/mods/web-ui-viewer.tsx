@@ -1,10 +1,11 @@
-import { Box, Button, Typography } from '@mui/material'
+import { AddRounded } from '@mui/icons-material'
+import { Box, Button } from '@mui/material'
 import { useLockFn } from 'ahooks'
 import type { Ref } from 'react'
 import { useImperativeHandle, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { BaseDialog, BaseEmpty, DialogRef } from '@/components/base'
+import { BaseDialog, DialogRef, FormHint, FormSection } from '@/components/base'
 import { useClashInfo } from '@/hooks/use-clash'
 import { useVerge } from '@/hooks/use-verge'
 import { openWebUrl } from '@/services/cmds'
@@ -95,49 +96,38 @@ export function WebUIViewer({ ref }: { ref?: Ref<DialogRef> }) {
   return (
     <BaseDialog
       open={open}
-      title={
-        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-          {t('settings.modals.webUI.title')}
-          <Button
-            variant="contained"
-            size="small"
-            disabled={editing}
-            onClick={() => setEditing(true)}
-          >
-            {t('shared.actions.new')}
-          </Button>
-        </Box>
+      title={t('settings.modals.webUI.title')}
+      titleExtra={
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={<AddRounded />}
+          disabled={editing}
+          onClick={() => setEditing(true)}
+        >
+          {t('shared.actions.new')}
+        </Button>
       }
-      contentSx={{
-        width: 450,
-        height: 300,
-        pb: 1,
-        overflowY: 'auto',
-        userSelect: 'text',
-      }}
+      dividers
+      contentSx={{ width: 552, minHeight: 240, userSelect: 'text' }}
       cancelBtn={t('shared.actions.close')}
       disableOk
       onClose={() => setOpen(false)}
       onCancel={() => setOpen(false)}
     >
       {!verge?.enable_external_controller && (
-        <Typography
-          variant="caption"
-          color="warning.main"
-          component="p"
-          sx={{ mb: 1 }}
-        >
+        <Box sx={{ mt: 0.5, mb: 0.5, fontSize: 12.5, color: 'warning.main' }}>
           {t('settings.modals.webUI.messages.needsController')}
-        </Typography>
+        </Box>
       )}
+      <FormSection
+        title={t('settings.modals.webUI.sections.panels')}
+        count={webUIList.length}
+      />
       {!editing && webUIList.length === 0 && (
-        <BaseEmpty
-          extra={
-            <Typography sx={{ mt: 2, fontSize: '12px' }}>
-              {t('settings.modals.webUI.messages.placeholderInstruction')}
-            </Typography>
-          }
-        />
+        <FormHint>
+          {t('settings.modals.webUI.messages.placeholderInstruction')}
+        </FormHint>
       )}
 
       {webUIEntries.map(({ item, index, key }) => (

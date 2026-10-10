@@ -2,19 +2,7 @@ import DeleteOutlined from '@mui/icons-material/DeleteOutlined'
 import DownloadRounded from '@mui/icons-material/DownloadRounded'
 import RefreshRounded from '@mui/icons-material/RefreshRounded'
 import RestoreRounded from '@mui/icons-material/RestoreRounded'
-import {
-  Box,
-  Button,
-  IconButton,
-  List,
-  ListItem,
-  ListItemText,
-  ListSubheader,
-  Stack,
-  Tab,
-  Tabs,
-  Typography,
-} from '@mui/material'
+import { Box, Button, IconButton, Stack, Typography } from '@mui/material'
 import { useLockFn } from 'ahooks'
 import dayjs from 'dayjs'
 import customParseFormat from 'dayjs/plugin/customParseFormat'
@@ -22,7 +10,14 @@ import relativeTime from 'dayjs/plugin/relativeTime'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { BaseDialog, BaseLoadingOverlay } from '@/components/base'
+import {
+  BaseDialog,
+  BaseLoadingOverlay,
+  BaseSegmented,
+  FormHint,
+  FormTile,
+} from '@/components/base'
+import { MONO_TEXT } from '@/components/base/base-mono'
 import { useVerge } from '@/hooks/use-verge'
 import {
   deleteLocalBackup,
@@ -299,157 +294,131 @@ export const BackupHistoryViewer = ({
     <BaseDialog
       open={open}
       title={t('settings.modals.backup.history.title')}
-      contentSx={{ width: 520 }}
+      titleExtra={
+        <IconButton
+          size="small"
+          sx={{ color: 'text.secondary' }}
+          onClick={handleRefresh}
+          disabled={isBusy}
+        >
+          <RefreshRounded fontSize="small" />
+        </IconButton>
+      }
+      dividers
+      contentSx={{ width: 532 }}
       disableOk
       cancelBtn={t('shared.actions.close')}
       onCancel={onClose}
       onClose={onClose}
     >
-      <Box sx={{ position: 'relative', minHeight: 320 }}>
+      <Box sx={{ position: 'relative', minHeight: 320, pt: 1.5, pb: 1 }}>
         <BaseLoadingOverlay isLoading={isBusy} />
-        <Stack spacing={2}>
+        <BaseSegmented
+          fullWidth
+          value={source}
+          disabled={isBusy}
+          options={[
+            { value: 'local', label: t('settings.modals.backup.tabs.local') },
+            { value: 'webdav', label: t('settings.modals.backup.tabs.webdav') },
+          ]}
+          onChange={(next) => {
+            if (isBusy) return
+            onSourceChange(next)
+            onPageChange(0)
+          }}
+        />
+        <Box sx={{ mt: 1, mb: 1, fontSize: 12.5, color: 'text.secondary' }}>
+          {summary}
+        </Box>
+
+        {pagedRows.length === 0 ? (
+          <FormHint>{t('settings.modals.backup.history.empty')}</FormHint>
+        ) : (
+          pagedRows.map((row) => (
+            <FormTile key={`${row.platform}-${row.filename}`} sx={{ pr: 0.5 }}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Box
+                  title={row.filename}
+                  sx={{
+                    ...MONO_TEXT,
+                    fontSize: 13,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  {row.filename}
+                </Box>
+                <Box sx={{ fontSize: 12.5, color: 'text.secondary' }}>
+                  {`${row.platform} · ${row.display_time}`}
+                </Box>
+              </Box>
+              <Box sx={{ flex: 'none', display: 'flex' }}>
+                {isLocal && (
+                  <IconButton
+                    size="small"
+                    sx={{ color: 'text.secondary' }}
+                    disabled={isBusy}
+                    onClick={() => handleExport(row.filename)}
+                  >
+                    <DownloadRounded fontSize="small" />
+                  </IconButton>
+                )}
+                <IconButton
+                  size="small"
+                  title={t('settings.modals.backup.actions.deleteBackup')}
+                  sx={{ color: 'text.secondary' }}
+                  disabled={isBusy}
+                  onClick={() => handleDelete(row.filename)}
+                >
+                  <DeleteOutlined fontSize="small" />
+                </IconButton>
+                <IconButton
+                  size="small"
+                  title={t('settings.modals.backup.actions.restoreBackup')}
+                  sx={{ color: 'text.secondary' }}
+                  disabled={isBusy}
+                  onClick={() => handleRestore(row.filename)}
+                >
+                  <RestoreRounded fontSize="small" />
+                </IconButton>
+              </Box>
+            </FormTile>
+          ))
+        )}
+
+        {pageCount > 1 && (
           <Stack
             direction="row"
-            sx={{ alignItems: 'center', justifyContent: 'space-between' }}
+            spacing={1}
+            sx={{ mt: 1, justifyContent: 'flex-end', alignItems: 'center' }}
           >
-            <Tabs
-              value={source}
-              onChange={(_, val) => {
-                if (isBusy) return
-                onSourceChange(val as BackupSource)
-                onPageChange(0)
-              }}
-              textColor="primary"
-              indicatorColor="primary"
+            <Typography
+              variant="caption"
+              sx={{ fontVariantNumeric: 'tabular-nums' }}
             >
-              <Tab
-                value="local"
-                label={t('settings.modals.backup.tabs.local')}
-                disabled={isBusy}
-                sx={{ px: 2 }}
-              />
-              <Tab
-                value="webdav"
-                label={t('settings.modals.backup.tabs.webdav')}
-                disabled={isBusy}
-                sx={{ px: 2 }}
-              />
-            </Tabs>
-            <IconButton size="small" onClick={handleRefresh} disabled={isBusy}>
-              <RefreshRounded fontSize="small" />
-            </IconButton>
+              {currentPage + 1} / {pageCount}
+            </Typography>
+            <Button
+              size="small"
+              variant="text"
+              disabled={isBusy || currentPage === 0}
+              onClick={() => onPageChange(Math.max(0, currentPage - 1))}
+            >
+              {t('shared.actions.previous')}
+            </Button>
+            <Button
+              size="small"
+              variant="text"
+              disabled={isBusy || currentPage >= pageCount - 1}
+              onClick={() =>
+                onPageChange(Math.min(pageCount - 1, currentPage + 1))
+              }
+            >
+              {t('shared.actions.next')}
+            </Button>
           </Stack>
-          <Typography variant="body2" color="text.secondary">
-            {summary}
-          </Typography>
-
-          <List
-            disablePadding
-            subheader={
-              <ListSubheader disableSticky>
-                {t('settings.modals.backup.history.title')}
-              </ListSubheader>
-            }
-          >
-            {pagedRows.length === 0 ? (
-              <ListItem>
-                <ListItemText
-                  primary={t('settings.modals.backup.history.empty') || ''}
-                />
-              </ListItem>
-            ) : (
-              pagedRows.map((row) => (
-                <ListItem key={`${row.platform}-${row.filename}`} divider>
-                  <ListItemText
-                    primary={
-                      <Typography
-                        variant="body2"
-                        sx={{ wordBreak: 'break-all', fontWeight: 500 }}
-                      >
-                        {row.filename}
-                      </Typography>
-                    }
-                    secondary={
-                      <Stack
-                        direction="row"
-                        spacing={1.5}
-                        sx={{
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                        }}
-                      >
-                        <Typography variant="caption" color="text.secondary">
-                          {`${row.platform} · ${row.display_time}`}
-                        </Typography>
-                        <Stack
-                          direction="row"
-                          spacing={0.5}
-                          sx={{ alignItems: 'center' }}
-                        >
-                          {isLocal && (
-                            <IconButton
-                              size="small"
-                              disabled={isBusy}
-                              onClick={() => handleExport(row.filename)}
-                            >
-                              <DownloadRounded fontSize="small" />
-                            </IconButton>
-                          )}
-                          <IconButton
-                            size="small"
-                            disabled={isBusy}
-                            onClick={() => handleDelete(row.filename)}
-                          >
-                            <DeleteOutlined fontSize="small" />
-                          </IconButton>
-                          <IconButton
-                            size="small"
-                            disabled={isBusy}
-                            onClick={() => handleRestore(row.filename)}
-                          >
-                            <RestoreRounded fontSize="small" />
-                          </IconButton>
-                        </Stack>
-                      </Stack>
-                    }
-                  />
-                </ListItem>
-              ))
-            )}
-          </List>
-
-          {pageCount > 1 && (
-            <Stack
-              direction="row"
-              spacing={1}
-              sx={{ justifyContent: 'flex-end', alignItems: 'center' }}
-            >
-              <Typography variant="caption">
-                {currentPage + 1} / {pageCount}
-              </Typography>
-              <Stack direction="row" spacing={1}>
-                <Button
-                  size="small"
-                  variant="text"
-                  disabled={isBusy || currentPage === 0}
-                  onClick={() => onPageChange(Math.max(0, currentPage - 1))}
-                >
-                  {t('shared.actions.previous')}
-                </Button>
-                <Button
-                  size="small"
-                  variant="text"
-                  disabled={isBusy || currentPage >= pageCount - 1}
-                  onClick={() =>
-                    onPageChange(Math.min(pageCount - 1, currentPage + 1))
-                  }
-                >
-                  {t('shared.actions.next')}
-                </Button>
-              </Stack>
-            </Stack>
-          )}
-        </Stack>
+        )}
       </Box>
       <BaseDialog
         open={pendingConfirmation !== null}

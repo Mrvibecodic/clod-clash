@@ -1,20 +1,34 @@
-import { Delete, ExpandLess, ExpandMore } from '@mui/icons-material'
+import { AddRounded, DeleteRounded } from '@mui/icons-material'
 import {
+  Box,
   Button,
-  Divider,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemButton,
   IconButton,
-  TextField,
-  Select,
   MenuItem,
+  Select,
+  TextField,
+  Typography,
 } from '@mui/material'
-import { forwardRef, useImperativeHandle, useState, useMemo } from 'react'
+import {
+  forwardRef,
+  type ReactNode,
+  useImperativeHandle,
+  useMemo,
+  useState,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { BaseDialog } from '@/components/base'
+import {
+  BaseDialog,
+  BaseSegmented,
+  FormField,
+  FormHint,
+  FormRow,
+  FormSection,
+  FormTile,
+  TypeChip,
+} from '@/components/base'
+import { MONO_INPUT, MONO_TEXT } from '@/components/base/base-mono'
+import { useChangeCount } from '@/hooks/use-change-count'
 import { useClash } from '@/hooks/use-clash'
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
 import { isPortInUse } from '@/services/cmds'
@@ -38,13 +52,47 @@ interface TunnelEntry {
   proxy?: string
 }
 
+const NETWORK_OPTIONS = [
+  { value: 'tcp', label: 'TCP' },
+  { value: 'udp', label: 'UDP' },
+  { value: 'tcp+udp', label: 'TCP + UDP' },
+] as const
+
+const FIELD_SX = {
+  display: 'flex',
+  flexDirection: 'column',
+  justifyContent: 'flex-end',
+} as const
+
+const tunnelKey = (tunnel: TunnelEntry) =>
+  `${tunnel.address}_${tunnel.target}_${tunnel.network.join('+')}`
+
+const tunnelSet = (tunnels: TunnelEntry[]) => {
+  const counts: Record<string, number> = {}
+  const set: Record<string, string> = {}
+  for (const tunnel of tunnels) {
+    const base = tunnelKey(tunnel)
+    counts[base] = (counts[base] ?? 0) + 1
+    set[`${base}_${counts[base]}`] = tunnel.proxy ?? ''
+  }
+  return set
+}
+
+const Pending = ({ value, hint }: { value: string; hint: string }) =>
+  value ? (
+    <>{value}</>
+  ) : (
+    <Box component="span" sx={{ color: 'text.disabled' }}>
+      {hint}
+    </Box>
+  )
+
 export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
   const { t } = useTranslation()
   const { runtime, patchClash } = useClash()
   const { refreshProxy } = useAppRefreshers()
 
   const [open, setOpen] = useState(false)
-  const [expanded, setExpanded] = useState(false)
   const [values, setValues] = useState({
     localAddr: '',
     localPort: '',
@@ -55,6 +103,11 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
     proxy: '',
   })
   const [draftTunnels, setDraftTunnels] = useState<TunnelEntry[]>([])
+  const [initialTunnels, setInitialTunnels] = useState<TunnelEntry[]>([])
+  const changes = useChangeCount(
+    useMemo(() => tunnelSet(initialTunnels), [initialTunnels]),
+    useMemo(() => tunnelSet(draftTunnels), [draftTunnels]),
+  )
 
   useImperativeHandle(ref, () => ({
     open: () => {
@@ -68,12 +121,11 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
         proxy: '',
       }))
       setDraftTunnels(() => runtime?.tunnels ?? [])
+      setInitialTunnels(runtime?.tunnels ?? [])
       // Группы опрашиваются, только пока они на Главной или «Прокси», — здесь
       // их показываем свежими сами.
       refreshProxy().catch(() => {})
       setOpen(true)
-      // Если туннелей нет, разворачиваем автоматически
-      setExpanded((runtime?.tunnels ?? []).length === 0)
     },
     close: () => {
       setOpen(false)
@@ -83,7 +135,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
   const tunnelEntries = useMemo(() => {
     const counts: Record<string, number> = {}
     return draftTunnels.map((tunnel, index) => {
-      const base = `${tunnel.address}_${tunnel.target}_${tunnel.network.join('+')}`
+      const base = tunnelKey(tunnel)
       const occurrence = (counts[base] = (counts[base] ?? 0) + 1)
       return {
         index,
@@ -202,11 +254,35 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
     setDraftTunnels((prev) => prev.filter((_, i) => i !== index))
   }
 
+  const field = (
+    key: 'localAddr' | 'localPort' | 'targetAddr' | 'targetPort',
+    placeholder: string,
+    label: ReactNode,
+  ) => (
+    <FormField label={label} sx={FIELD_SX}>
+      <TextField
+        autoComplete="new-password"
+        size="small"
+        fullWidth
+        type={key.endsWith('Port') ? 'number' : undefined}
+        value={values[key]}
+        placeholder={placeholder}
+        sx={MONO_INPUT}
+        onChange={(e) => setValues((v) => ({ ...v, [key]: e.target.value }))}
+      />
+    </FormField>
+  )
+
+  const optional = t('settings.sections.clash.form.fields.tunnels.optional')
+
   return (
     <BaseDialog
       open={open}
       title={t('settings.sections.clash.form.fields.tunnels.title')}
-      contentSx={{ width: 450 }}
+      dividers
+      changes={changes}
+      onReset={() => setDraftTunnels(initialTunnels)}
+      contentSx={{ width: 532 }}
       okBtn={t('shared.actions.save')}
       cancelBtn={t('shared.actions.cancel')}
       onClose={() => {
@@ -217,277 +293,210 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
       }}
       onOk={handleSave}
     >
-      <List>
-        {draftTunnels.length > 0 && (
-          <>
-            <ListItem sx={{ padding: '4px 0', opacity: 0.6 }}>
-              <ListItemText
-                primary={t(
-                  'settings.sections.clash.form.fields.tunnels.existing',
-                )}
-              />
-            </ListItem>
-            <List component="nav">
-              {tunnelEntries.map((item) => (
-                <ListItem
-                  key={`${item.key}`}
-                  sx={{ padding: '4px 0' }}
-                  secondaryAction={
-                    <IconButton
-                      edge="end"
-                      size="small"
-                      color="error"
-                      onClick={() => handleDelete(item.index)}
-                    >
-                      <Delete fontSize="small" />
-                    </IconButton>
-                  }
-                >
-                  <ListItemText
-                    primary={`${item.address} → ${item.target}`}
-                    secondary={`${item.network.join(', ')} · ${
-                      item.proxy ??
-                      t('settings.sections.clash.form.fields.tunnels.default')
-                    }`}
-                  />
-                </ListItem>
-              ))}
-            </List>
-            <Divider sx={{ my: 2 }} />
-          </>
-        )}
-        <ListItemButton
-          sx={{ padding: '4px 0', opacity: 0.8 }}
-          onClick={() => setExpanded((v) => !v)}
-        >
-          <ListItemText
-            primary={t(
-              'settings.sections.clash.form.fields.tunnels.actions.addNew',
-            )}
-          />
-          {expanded ? <ExpandLess /> : <ExpandMore />}
-        </ListItemButton>
-        {expanded && (
-          <ListItem sx={{ padding: '8px 0' }}>
-            <div style={{ width: '100%' }}>
-              {/* Область полей ввода */}
-              {/* Протокол */}
-              <ListItem sx={{ padding: '6px 2px' }}>
-                <ListItemText
-                  primary={t(
-                    'settings.sections.clash.form.fields.tunnels.protocols',
-                  )}
-                />
-                <Select
-                  size="small"
-                  sx={{ width: 200, '> div': { py: '7.5px' } }}
-                  value={values.network}
-                  onChange={(e) =>
-                    setValues((v) => ({
-                      ...v,
-                      network: e.target.value as string,
-                    }))
-                  }
-                >
-                  <MenuItem value="tcp">TCP</MenuItem>
-                  <MenuItem value="udp">UDP</MenuItem>
-                  <MenuItem value="tcp+udp">TCP + UDP</MenuItem>
-                </Select>
-              </ListItem>
-
-              {/* Локальный адрес прослушивания */}
-              <ListItem sx={{ padding: '6px 2px' }}>
-                <ListItemText
-                  primary={t(
-                    'settings.sections.clash.form.fields.tunnels.localAddr',
-                  )}
-                />
-                <TextField
-                  autoComplete="new-password"
-                  size="small"
-                  sx={{ width: 200 }}
-                  value={values.localAddr}
-                  placeholder="127.0.0.1"
-                  onChange={(e) =>
-                    setValues((v) => ({ ...v, localAddr: e.target.value }))
-                  }
-                />
-              </ListItem>
-
-              {/* Локальный порт прослушивания */}
-              <ListItem sx={{ padding: '6px 2px' }}>
-                <ListItemText
-                  primary={t(
-                    'settings.sections.clash.form.fields.tunnels.localPort',
-                  )}
-                />
-                <TextField
-                  autoComplete="new-password"
-                  size="small"
-                  type="number"
-                  sx={{ width: 200 }}
-                  value={values.localPort}
-                  placeholder="6553"
-                  onChange={(e) =>
-                    setValues((v) => ({ ...v, localPort: e.target.value }))
-                  }
-                />
-              </ListItem>
-
-              {/* Адрес целевого сервера */}
-              <ListItem sx={{ padding: '6px 2px' }}>
-                <ListItemText
-                  primary={t(
-                    'settings.sections.clash.form.fields.tunnels.targetAddr',
-                  )}
-                />
-                <TextField
-                  autoComplete="new-password"
-                  size="small"
-                  sx={{ width: 200 }}
-                  value={values.targetAddr}
-                  placeholder="8.8.8.8"
-                  onChange={(e) =>
-                    setValues((v) => ({ ...v, targetAddr: e.target.value }))
-                  }
-                />
-              </ListItem>
-
-              {/* Порт целевого сервера */}
-              <ListItem sx={{ padding: '6px 2px' }}>
-                <ListItemText
-                  primary={t(
-                    'settings.sections.clash.form.fields.tunnels.targetPort',
-                  )}
-                />
-                <TextField
-                  autoComplete="new-password"
-                  size="small"
-                  type="number"
-                  sx={{ width: 200 }}
-                  value={values.targetPort}
-                  placeholder="53"
-                  onChange={(e) =>
-                    setValues((v) => ({ ...v, targetPort: e.target.value }))
-                  }
-                />
-              </ListItem>
-
-              {/* Группа прокси */}
-              <ListItem sx={{ padding: '6px 2px' }}>
-                <ListItemText
-                  primary={
-                    <>
-                      {t(
-                        'settings.sections.clash.form.fields.tunnels.proxyGroup',
-                      )}
-                      <span style={{ fontSize: '0.9rem', color: 'gray' }}>
-                        {' '}
-                        (
-                        {t(
-                          'settings.sections.clash.form.fields.tunnels.optional',
-                        )}
-                        )
-                      </span>
-                    </>
-                  }
-                />
-                <Select
-                  size="small"
-                  sx={{ width: 200, '> div': { py: '7.5px' } }}
-                  value={values.group}
-                  displayEmpty
-                  onChange={(e) => {
-                    const nextGroup = e.target.value as string
-
-                    setValues((v) => ({
-                      ...v,
-                      group: nextGroup,
-                      proxy: nextGroup,
-                    }))
-                  }}
-                >
-                  <MenuItem value="">
-                    {t('settings.sections.clash.form.fields.tunnels.default')}
-                  </MenuItem>
-                  {groupNames.map((name) => (
-                    <MenuItem key={name} value={name}>
-                      {name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </ListItem>
-
-              {/* Узел прокси */}
-              <ListItem sx={{ padding: '6px 2px' }}>
-                <ListItemText
-                  primary={
-                    <>
-                      {t(
-                        'settings.sections.clash.form.fields.tunnels.proxyNode',
-                      )}
-                      <span style={{ fontSize: '0.9rem', color: 'gray' }}>
-                        {' '}
-                        (
-                        {t(
-                          'settings.sections.clash.form.fields.tunnels.optional',
-                        )}
-                        )
-                      </span>
-                    </>
-                  }
-                />
-                <Select
-                  size="small"
-                  sx={{ width: 200, '> div': { py: '7.5px' } }}
-                  value={values.proxy}
-                  displayEmpty
-                  onChange={(e) =>
-                    setValues((v) => ({
-                      ...v,
-                      proxy: e.target.value as string,
-                    }))
-                  }
-                  disabled={!values.group} // отключено, если группа не выбрана
-                >
-                  {values.group ? (
-                    <MenuItem value={values.group}>
-                      {t(
-                        'settings.sections.clash.form.fields.tunnels.followGroup',
-                      )}
-                    </MenuItem>
-                  ) : (
-                    <MenuItem value="">
-                      {t('settings.sections.clash.form.fields.tunnels.default')}
-                    </MenuItem>
-                  )}
-                  {proxyOptions.map((node) => (
-                    <MenuItem key={node.name} value={node.name}>
-                      {node.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </ListItem>
-
-              {/* Кнопка добавления */}
-              <Button
-                variant="contained"
-                size="small"
+      <FormSection
+        title={t('settings.sections.clash.form.fields.tunnels.existing')}
+        count={draftTunnels.length}
+      />
+      {tunnelEntries.length === 0 ? (
+        <FormHint>
+          {t('settings.sections.clash.form.fields.tunnels.empty')}
+        </FormHint>
+      ) : (
+        tunnelEntries.map((item) => (
+          <FormTile key={item.key}>
+            <TypeChip>{item.network.join('+')}</TypeChip>
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Box
+                title={`${item.address} → ${item.target}`}
                 sx={{
-                  marginTop: '6px',
-                  marginRight: '2px',
-                  marginLeft: 'auto',
-                  display: 'block',
+                  ...MONO_TEXT,
+                  fontSize: 13.5,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
                 }}
-                color="success"
-                onClick={handleAdd}
               >
-                {t('settings.sections.clash.form.fields.tunnels.actions.add')}
-              </Button>
-            </div>
-          </ListItem>
+                {item.address} → {item.target}
+              </Box>
+              <Box
+                sx={{
+                  fontSize: 12.5,
+                  color: 'text.secondary',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {item.proxy ??
+                  t('settings.sections.clash.form.fields.tunnels.default')}
+              </Box>
+            </Box>
+            <IconButton
+              size="small"
+              title={t('shared.actions.delete')}
+              sx={{
+                color: 'text.secondary',
+                '&:hover': { color: 'error.main' },
+              }}
+              onClick={() => handleDelete(item.index)}
+            >
+              <DeleteRounded fontSize="small" />
+            </IconButton>
+          </FormTile>
+        ))
+      )}
+
+      <FormSection
+        title={t('settings.sections.clash.form.fields.tunnels.actions.addNew')}
+      />
+      <FormRow
+        label={t('settings.sections.clash.form.fields.tunnels.protocols')}
+      >
+        <BaseSegmented
+          value={values.network}
+          options={NETWORK_OPTIONS}
+          onChange={(network) => setValues((v) => ({ ...v, network }))}
+        />
+      </FormRow>
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+          columnGap: 1.5,
+          borderTop: 1,
+          borderColor: 'divider',
+        }}
+      >
+        {field(
+          'localAddr',
+          '127.0.0.1',
+          t('settings.sections.clash.form.fields.tunnels.localAddr'),
         )}
-      </List>
+        {field(
+          'localPort',
+          '6553',
+          t('settings.sections.clash.form.fields.tunnels.localPort'),
+        )}
+        {field(
+          'targetAddr',
+          '8.8.8.8',
+          t('settings.sections.clash.form.fields.tunnels.targetAddr'),
+        )}
+        {field(
+          'targetPort',
+          '53',
+          t('settings.sections.clash.form.fields.tunnels.targetPort'),
+        )}
+
+        <FormField
+          sx={FIELD_SX}
+          label={t('settings.sections.clash.form.fields.tunnels.proxyGroup')}
+          optional={optional}
+        >
+          <Select
+            size="small"
+            fullWidth
+            sx={{ fontSize: 14 }}
+            value={values.group}
+            displayEmpty
+            onChange={(e) => {
+              const nextGroup = e.target.value as string
+
+              setValues((v) => ({
+                ...v,
+                group: nextGroup,
+                proxy: nextGroup,
+              }))
+            }}
+          >
+            <MenuItem value="">
+              {t('settings.sections.clash.form.fields.tunnels.default')}
+            </MenuItem>
+            {groupNames.map((name) => (
+              <MenuItem key={name} value={name}>
+                {name}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormField>
+
+        <FormField
+          sx={FIELD_SX}
+          label={t('settings.sections.clash.form.fields.tunnels.proxyNode')}
+          optional={optional}
+        >
+          <Select
+            size="small"
+            fullWidth
+            sx={{ fontSize: 14 }}
+            value={values.proxy}
+            displayEmpty
+            onChange={(e) =>
+              setValues((v) => ({
+                ...v,
+                proxy: e.target.value as string,
+              }))
+            }
+            disabled={!values.group}
+          >
+            {values.group ? (
+              <MenuItem value={values.group}>
+                {t('settings.sections.clash.form.fields.tunnels.followGroup')}
+              </MenuItem>
+            ) : (
+              <MenuItem value="">
+                {t('settings.sections.clash.form.fields.tunnels.default')}
+              </MenuItem>
+            )}
+            {proxyOptions.map((node) => (
+              <MenuItem key={node.name} value={node.name}>
+                {node.name}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormField>
+      </Box>
+
+      <Box
+        sx={{
+          mt: 0.75,
+          mb: 1.25,
+          px: 1.25,
+          py: 0.75,
+          border: '1px dashed',
+          borderColor: 'divider',
+          borderRadius: '8px',
+          ...MONO_TEXT,
+          fontSize: 12.5,
+          overflowWrap: 'anywhere',
+        }}
+      >
+        <Typography
+          component="div"
+          color="text.secondary"
+          sx={{ fontSize: 11.5, fontWeight: 600, mb: 0.25 }}
+        >
+          {t('settings.sections.clash.form.fields.tunnels.preview')}
+        </Typography>
+        {values.network} <Pending value={values.localAddr} hint="127.0.0.1" />:
+        <Pending value={values.localPort} hint="6553" />
+        {' → '}
+        <Pending value={values.targetAddr} hint="8.8.8.8" />:
+        <Pending value={values.targetPort} hint="53" />
+        {' · '}
+        {values.proxy ||
+          t('settings.sections.clash.form.fields.tunnels.default')}
+      </Box>
+
+      <Button
+        fullWidth
+        variant="outlined"
+        startIcon={<AddRounded />}
+        sx={{ mb: 1 }}
+        onClick={handleAdd}
+      >
+        {t('settings.sections.clash.form.fields.tunnels.actions.add')}
+      </Button>
     </BaseDialog>
   )
 })

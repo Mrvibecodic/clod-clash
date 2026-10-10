@@ -4,9 +4,7 @@ import {
   Box,
   CircularProgress,
   IconButton,
-  List,
-  ListItem,
-  ListItemText,
+  InputAdornment,
   Snackbar,
   TextField,
   Tooltip,
@@ -15,7 +13,15 @@ import { useLockFn } from 'ahooks'
 import { useImperativeHandle, useState, type Ref } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { BaseDialog, DialogRef, Switch } from '@/components/base'
+import {
+  BaseDialog,
+  DialogRef,
+  FormField,
+  FormRow,
+  Switch,
+} from '@/components/base'
+import { MONO_INPUT } from '@/components/base/base-mono'
+import { useChangeCount } from '@/hooks/use-change-count'
 import { useClashInfo } from '@/hooks/use-clash'
 import { useVerge } from '@/hooks/use-verge'
 import { showNotice } from '@/services/notice-service'
@@ -35,13 +41,30 @@ export function ControllerViewer({ ref }: { ref?: Ref<DialogRef> }) {
     verge?.enable_external_controller ?? false,
   )
 
+  const [initial, setInitial] = useState({
+    controller,
+    secret,
+    enableController,
+  })
+  const changes = useChangeCount(initial, {
+    controller,
+    secret,
+    enableController,
+  })
+
   // Инициализация конфига при открытии диалога
   useImperativeHandle(ref, () => ({
     open: async () => {
+      const opened = {
+        controller: clashInfo?.server || '',
+        secret: clashInfo?.secret || '',
+        enableController: verge?.enable_external_controller ?? false,
+      }
       setOpen(true)
-      setController(clashInfo?.server || '')
-      setSecret(clashInfo?.secret || '')
-      setEnableController(verge?.enable_external_controller ?? false)
+      setController(opened.controller)
+      setSecret(opened.secret)
+      setEnableController(opened.enableController)
+      setInitial(opened)
     },
     close: () => setOpen(false),
   }))
@@ -106,11 +129,68 @@ export function ControllerViewer({ ref }: { ref?: Ref<DialogRef> }) {
     },
   )
 
+  const field = (
+    label: string,
+    value: string,
+    placeholder: string,
+    onChange: (value: string) => void,
+    type: 'controller' | 'secret',
+  ) => (
+    <FormField label={label}>
+      <TextField
+        size="small"
+        fullWidth
+        sx={({ typography }) => ({
+          opacity: enableController ? 1 : 0.5,
+          pointerEvents: enableController ? 'auto' : 'none',
+          transition: 'opacity 150ms',
+          ...MONO_INPUT,
+          '& input::placeholder': { fontFamily: typography.fontFamily },
+        })}
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={isSaving || !enableController}
+        slotProps={{
+          input: {
+            endAdornment: (
+              <InputAdornment position="end">
+                <Tooltip
+                  title={t(
+                    'settings.sections.externalController.tooltips.copy',
+                  )}
+                >
+                  <span>
+                    <IconButton
+                      size="small"
+                      edge="end"
+                      onClick={() => handleCopyToClipboard(value, type)}
+                      disabled={isSaving || !enableController}
+                    >
+                      <ContentCopy fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              </InputAdornment>
+            ),
+          },
+        }}
+      />
+    </FormField>
+  )
+
   return (
     <BaseDialog
       open={open}
       title={t('settings.sections.externalController.title')}
-      contentSx={{ width: 400 }}
+      dividers
+      changes={changes}
+      onReset={() => {
+        setController(initial.controller)
+        setSecret(initial.secret)
+        setEnableController(initial.enableController)
+      }}
+      contentSx={{ width: 432 }}
       okBtn={
         isSaving ? (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -126,105 +206,28 @@ export function ControllerViewer({ ref }: { ref?: Ref<DialogRef> }) {
       onCancel={() => setOpen(false)}
       onOk={onSave}
     >
-      <List>
-        <ListItem
-          sx={{
-            padding: '5px 2px',
-            display: 'flex',
-            justifyContent: 'space-between',
-          }}
-        >
-          <ListItemText
-            primary={t('settings.sections.externalController.fields.enable')}
-          />
-          <Switch
-            edge="end"
-            checked={enableController}
-            onChange={(e) => setEnableController(e.target.checked)}
-            disabled={isSaving}
-          />
-        </ListItem>
-
-        <ListItem
-          sx={{
-            padding: '5px 2px',
-            display: 'flex',
-            justifyContent: 'space-between',
-          }}
-        >
-          <ListItemText
-            primary={t('settings.sections.externalController.fields.address')}
-          />
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <TextField
-              size="small"
-              sx={{
-                width: 175,
-                opacity: enableController ? 1 : 0.5,
-                pointerEvents: enableController ? 'auto' : 'none',
-              }}
-              value={controller}
-              placeholder={t(
-                'settings.sections.externalController.placeholders.address',
-              )}
-              onChange={(e) => setController(e.target.value)}
-              disabled={isSaving || !enableController}
-            />
-            <Tooltip
-              title={t('settings.sections.externalController.tooltips.copy')}
-            >
-              <IconButton
-                size="small"
-                onClick={() => handleCopyToClipboard(controller, 'controller')}
-                color="primary"
-                disabled={isSaving || !enableController}
-              >
-                <ContentCopy fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          </Box>
-        </ListItem>
-
-        <ListItem
-          sx={{
-            padding: '5px 2px',
-            display: 'flex',
-            justifyContent: 'space-between',
-          }}
-        >
-          <ListItemText
-            primary={t('settings.sections.externalController.fields.secret')}
-          />
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <TextField
-              size="small"
-              sx={{
-                width: 175,
-                opacity: enableController ? 1 : 0.5,
-                pointerEvents: enableController ? 'auto' : 'none',
-              }}
-              value={secret}
-              placeholder={t(
-                'settings.sections.externalController.placeholders.secret',
-              )}
-              onChange={(e) => setSecret(e.target.value)}
-              disabled={isSaving || !enableController}
-            />
-            <Tooltip
-              title={t('settings.sections.externalController.tooltips.copy')}
-            >
-              <IconButton
-                size="small"
-                onClick={() => handleCopyToClipboard(secret, 'secret')}
-                color="primary"
-                disabled={isSaving || !enableController}
-              >
-                <ContentCopy fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          </Box>
-        </ListItem>
-      </List>
+      <FormRow label={t('settings.sections.externalController.fields.enable')}>
+        <Switch
+          edge="end"
+          checked={enableController}
+          onChange={(e) => setEnableController(e.target.checked)}
+          disabled={isSaving}
+        />
+      </FormRow>
+      {field(
+        t('settings.sections.externalController.fields.address'),
+        controller,
+        t('settings.sections.externalController.placeholders.address'),
+        setController,
+        'controller',
+      )}
+      {field(
+        t('settings.sections.externalController.fields.secret'),
+        secret,
+        t('settings.sections.externalController.placeholders.secret'),
+        setSecret,
+        'secret',
+      )}
 
       <Snackbar
         open={copiedOpen}

@@ -5,15 +5,14 @@ import {
   EditRounded,
   OpenInNewRounded,
 } from '@mui/icons-material'
-import {
-  Divider,
-  IconButton,
-  Stack,
-  TextField,
-  Typography,
-} from '@mui/material'
+import { Box, IconButton, TextField } from '@mui/material'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { FormTile, TypeChip } from '@/components/base'
+import { MONO_INPUT, MONO_TEXT } from '@/components/base/base-mono'
+
+const ACTION_SX = { color: 'text.secondary' } as const
 
 interface Props {
   value?: string
@@ -48,47 +47,41 @@ export const WebUIItem = (props: Props) => {
 
   if (editing || onlyEdit) {
     return (
-      <>
-        <Stack
-          spacing={0.75}
-          direction="row"
-          sx={{ mt: 1, mb: 1, alignItems: 'center' }}
+      <FormTile sx={{ pl: 0.75 }}>
+        <TextField
+          autoComplete="new-password"
+          fullWidth
+          size="small"
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          placeholder={t(
+            'settings.modals.webUI.messages.supportedPlaceholders',
+          )}
+          sx={MONO_INPUT}
+        />
+        <IconButton
+          size="small"
+          title={t('shared.actions.save')}
+          sx={{ color: 'primary.main' }}
+          onClick={() => {
+            onChange(editValue)
+            setEditing(false)
+          }}
         >
-          <TextField
-            autoComplete="new-password"
-            fullWidth
-            size="small"
-            value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            placeholder={t(
-              'settings.modals.webUI.messages.supportedPlaceholders',
-            )}
-          />
-          <IconButton
-            size="small"
-            title={t('shared.actions.save')}
-            color="inherit"
-            onClick={() => {
-              onChange(editValue)
-              setEditing(false)
-            }}
-          >
-            <CheckRounded fontSize="inherit" />
-          </IconButton>
-          <IconButton
-            size="small"
-            title={t('shared.actions.cancel')}
-            color="inherit"
-            onClick={() => {
-              onCancel?.()
-              setEditing(false)
-            }}
-          >
-            <CloseRounded fontSize="inherit" />
-          </IconButton>
-        </Stack>
-        <Divider />
-      </>
+          <CheckRounded fontSize="small" />
+        </IconButton>
+        <IconButton
+          size="small"
+          title={t('shared.actions.cancel')}
+          sx={ACTION_SX}
+          onClick={() => {
+            onCancel?.()
+            setEditing(false)
+          }}
+        >
+          <CloseRounded fontSize="small" />
+        </IconButton>
+      </FormTile>
     )
   }
 
@@ -100,64 +93,61 @@ export const WebUIItem = (props: Props) => {
       .filter((prev) => prev === part).length
     const key = `${part || 'empty'}-${repeatIndex}`
 
-    return (
-      <span key={key} className={isPlaceholder ? 'placeholder' : undefined}>
+    return isPlaceholder ? (
+      <TypeChip key={key} sx={{ mx: 0.25 }}>
         {part}
-      </span>
+      </TypeChip>
+    ) : (
+      <span key={key}>{part}</span>
     )
   })
 
   return (
-    <>
-      <Stack
-        spacing={0.75}
-        direction="row"
-        sx={{ alignItems: 'center', mt: 1, mb: 1 }}
+    <FormTile>
+      <Box
+        title={value}
+        sx={{
+          flex: 1,
+          minWidth: 0,
+          ...MONO_TEXT,
+          fontSize: 13.5,
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          color: value ? 'text.primary' : 'text.secondary',
+        }}
       >
-        <Typography
-          component="div"
-          title={value}
-          color={value ? 'text.primary' : 'text.secondary'}
-          sx={({ palette }) => ({
-            width: '100%',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            '> .placeholder': {
-              color: palette.primary.main,
-            },
-          })}
-        >
-          {renderedParts}
-        </Typography>
+        {renderedParts}
+      </Box>
+      <Box sx={{ flex: 'none', display: 'flex' }}>
         <IconButton
           size="small"
           title={t('settings.modals.webUI.actions.openUrl')}
-          color="inherit"
+          sx={ACTION_SX}
           onClick={() => onOpenUrl?.(value)}
         >
-          <OpenInNewRounded fontSize="inherit" />
+          <OpenInNewRounded fontSize="small" />
         </IconButton>
         <IconButton
           size="small"
           title={t('shared.actions.edit')}
-          color="inherit"
+          sx={ACTION_SX}
           onClick={() => {
             setEditing(true)
             setEditValue(value)
           }}
         >
-          <EditRounded fontSize="inherit" />
+          <EditRounded fontSize="small" />
         </IconButton>
         <IconButton
           size="small"
           title={t('shared.actions.delete')}
-          color="inherit"
+          sx={ACTION_SX}
           onClick={onDelete}
         >
-          <DeleteRounded fontSize="inherit" />
+          <DeleteRounded fontSize="small" />
         </IconButton>
-      </Stack>
-      <Divider />
-    </>
+      </Box>
+    </FormTile>
   )
 }

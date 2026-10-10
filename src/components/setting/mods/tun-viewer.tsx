@@ -1,13 +1,5 @@
-import {
-  Box,
-  Button,
-  ButtonGroup,
-  List,
-  ListItem,
-  ListItemText,
-  TextField,
-  Typography,
-} from '@mui/material'
+import { UndoRounded } from '@mui/icons-material'
+import { Box, Button, TextField } from '@mui/material'
 import { useLockFn } from 'ahooks'
 import yaml from 'js-yaml'
 import type { Ref } from 'react'
@@ -16,11 +8,16 @@ import { useTranslation } from 'react-i18next'
 
 import {
   BaseDialog,
+  BaseSegmented,
   BaseSplitChipEditor,
-  TooltipIcon,
   type DialogRef,
+  FormField,
+  FormRow,
+  FormSection,
   Switch,
 } from '@/components/base'
+import { MONO_INPUT } from '@/components/base/base-mono'
+import { useChangeCount } from '@/hooks/use-change-count'
 import { useClash } from '@/hooks/use-clash'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useTunState } from '@/hooks/use-tun-state'
@@ -43,6 +40,14 @@ import { StackModeSwitch } from './stack-mode-switch'
 const OS = getSystem()
 
 const CAPPED_STACKS = ['system', 'mixed']
+
+const STRICT_ROUTE = [
+  { value: 'auto', label: 'Auto' },
+  { value: 'on', label: 'On' },
+  { value: 'off', label: 'Off' },
+]
+
+const DNS_HIJACK_AUTO = [{ value: 'auto', label: 'Auto' }]
 
 const FRESH = {
   ...tunFieldsFrom(TUN_RESET, undefined, OS),
@@ -100,6 +105,8 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
     Boolean(subscriptionStack) &&
     CAPPED_STACKS.includes(subscriptionStack as string) &&
     effectiveStack === 'gvisor'
+
+  const changes = useChangeCount(initial, values)
 
   const routeExcludeAddressItems = splitRouteExcludeAddress(
     values.routeExcludeAddress,
@@ -184,187 +191,144 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
     }
   })
 
+  const help = (text: string, color = 'text.secondary') => (
+    <Box sx={{ mt: 0.75, fontSize: 12.5, color }}>{text}</Box>
+  )
+
   return (
     <BaseDialog
       open={open}
-      title={
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
-          <Typography variant="h6">{t('settings.modals.tun.title')}</Typography>
-          <Button variant="outlined" size="small" onClick={onReset}>
-            {t('shared.actions.resetToDefault')}
-          </Button>
-        </Box>
+      title={t('settings.modals.tun.title')}
+      titleExtra={
+        <Button
+          size="small"
+          startIcon={<UndoRounded />}
+          onClick={onReset}
+          sx={{ flex: 'none', textTransform: 'none' }}
+        >
+          {t('shared.actions.resetToDefault')}
+        </Button>
       }
-      contentSx={{ width: 450 }}
+      dividers
+      changes={changes}
+      onReset={() => setValues(initial)}
+      contentSx={{ width: 512 }}
       okBtn={t('shared.actions.save')}
       cancelBtn={t('shared.actions.cancel')}
       onClose={() => setOpen(false)}
       onCancel={() => setOpen(false)}
       onOk={onSave}
     >
-      <List>
-        <ListItem sx={{ padding: '5px 2px' }}>
-          <ListItemText primary={t('settings.modals.tun.fields.stack')} />
-          <StackModeSwitch
-            value={values.stack}
-            allowAuto
-            onChange={(value) => {
+      <FormSection title={t('settings.modals.tun.fields.stack')} />
+      <StackModeSwitch
+        value={values.stack}
+        allowAuto
+        onChange={(value) => {
+          setValues((v) => ({
+            ...v,
+            stack: value,
+          }))
+        }}
+      />
+      {tunRuntimeStack &&
+        help(
+          t('settings.modals.tun.messages.activeStack', {
+            stack: tunRuntimeStack,
+          }),
+        )}
+      {stackCapped &&
+        help(
+          t('settings.modals.tun.messages.subscriptionStackCapped', {
+            stack: subscriptionStack,
+          }),
+        )}
+      {OS === 'windows' &&
+        CAPPED_STACKS.includes(
+          (tunRuntimeStack ?? values.stack).toLowerCase(),
+        ) &&
+        help(
+          t('settings.modals.tun.messages.windowsStackFirewall'),
+          'warning.main',
+        )}
+
+      <FormSection title={t('settings.modals.tun.sections.routing')} />
+      <FormRow label={t('settings.modals.tun.fields.autoRoute')}>
+        <Switch
+          edge="end"
+          checked={values.autoRoute}
+          onChange={(_, c) =>
+            setValues((v) => ({
+              ...v,
+              autoRoute: c,
+              autoRedirect: c ? v.autoRedirect : false,
+            }))
+          }
+        />
+      </FormRow>
+      {OS === 'linux' && (
+        <FormRow
+          label={t('settings.modals.tun.fields.autoRedirect')}
+          help={t('settings.modals.tun.tooltips.autoRedirect')}
+          disabled={!values.autoRoute}
+        >
+          <Switch
+            edge="end"
+            checked={values.autoRedirect}
+            onChange={(_, c) =>
               setValues((v) => ({
                 ...v,
-                stack: value,
+                autoRedirect: v.autoRoute ? c : v.autoRedirect,
               }))
-            }}
+            }
+            disabled={!values.autoRoute}
           />
-        </ListItem>
+        </FormRow>
+      )}
+      <FormRow label={t('settings.modals.tun.fields.strictRoute')}>
+        <BaseSegmented
+          value={values.strictRoute}
+          options={STRICT_ROUTE}
+          onChange={(mode) => setValues((v) => ({ ...v, strictRoute: mode }))}
+        />
+      </FormRow>
+      <FormRow label={t('settings.modals.tun.fields.autoDetectInterface')}>
+        <Switch
+          edge="end"
+          checked={values.autoDetectInterface}
+          onChange={(_, c) =>
+            setValues((v) => ({ ...v, autoDetectInterface: c }))
+          }
+        />
+      </FormRow>
 
-        {tunRuntimeStack && (
-          <ListItem sx={{ padding: '0 2px 5px' }}>
-            <Typography variant="caption" color="text.secondary">
-              {t('settings.modals.tun.messages.activeStack', {
-                stack: tunRuntimeStack,
-              })}
-            </Typography>
-          </ListItem>
-        )}
-
-        {stackCapped && (
-          <ListItem sx={{ padding: '0 2px 5px' }}>
-            <Typography variant="caption" color="text.secondary">
-              {t('settings.modals.tun.messages.subscriptionStackCapped', {
-                stack: subscriptionStack,
-              })}
-            </Typography>
-          </ListItem>
-        )}
-
-        {OS === 'windows' &&
-          CAPPED_STACKS.includes(
-            (tunRuntimeStack ?? values.stack).toLowerCase(),
-          ) && (
-            <ListItem sx={{ padding: '0 2px 5px' }}>
-              <Typography variant="caption" color="warning.main">
-                {t('settings.modals.tun.messages.windowsStackFirewall')}
-              </Typography>
-            </ListItem>
-          )}
-
-        <ListItem sx={{ padding: '5px 2px' }}>
-          <ListItemText primary={t('settings.modals.tun.fields.device')} />
+      <FormSection title={t('settings.modals.tun.sections.interface')} />
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+          columnGap: 1.5,
+        }}
+      >
+        <FormField
+          label={t('settings.modals.tun.fields.device')}
+          sx={{ pt: 0.5 }}
+        >
           <TextField
             autoComplete="new-password"
             size="small"
             autoCorrect="off"
             autoCapitalize="off"
             spellCheck="false"
-            sx={{ width: 250 }}
+            fullWidth
+            sx={MONO_INPUT}
             value={values.device}
             placeholder={OS === 'macos' ? 'utun' : 'Meta'}
             onChange={(e) =>
               setValues((v) => ({ ...v, device: e.target.value }))
             }
           />
-        </ListItem>
-
-        <ListItem sx={{ padding: '5px 2px' }}>
-          <ListItemText primary={t('settings.modals.tun.fields.autoRoute')} />
-          <Switch
-            edge="end"
-            checked={values.autoRoute}
-            onChange={(_, c) =>
-              setValues((v) => ({
-                ...v,
-                autoRoute: c,
-                autoRedirect: c ? v.autoRedirect : false,
-              }))
-            }
-          />
-        </ListItem>
-
-        {OS === 'linux' && (
-          <ListItem sx={{ padding: '5px 2px' }}>
-            <ListItemText
-              primary={t('settings.modals.tun.fields.autoRedirect')}
-              sx={{ maxWidth: 'fit-content' }}
-            />
-            <TooltipIcon
-              title={t('settings.modals.tun.tooltips.autoRedirect')}
-              sx={{ opacity: values.autoRoute ? 0.7 : 0.3 }}
-            />
-            <Switch
-              edge="end"
-              checked={values.autoRedirect}
-              onChange={(_, c) =>
-                setValues((v) => ({
-                  ...v,
-                  autoRedirect: v.autoRoute ? c : v.autoRedirect,
-                }))
-              }
-              disabled={!values.autoRoute}
-              sx={{ marginLeft: 'auto' }}
-            />
-          </ListItem>
-        )}
-
-        <ListItem sx={{ padding: '5px 2px' }}>
-          <ListItemText primary={t('settings.modals.tun.fields.strictRoute')} />
-          <ButtonGroup size="small" sx={{ my: '4px' }}>
-            {(['auto', 'on', 'off'] as const).map((mode) => (
-              <Button
-                key={mode}
-                variant={values.strictRoute === mode ? 'contained' : 'outlined'}
-                onClick={() => setValues((v) => ({ ...v, strictRoute: mode }))}
-                sx={{ textTransform: 'capitalize' }}
-              >
-                {mode}
-              </Button>
-            ))}
-          </ButtonGroup>
-        </ListItem>
-
-        <ListItem sx={{ padding: '5px 2px' }}>
-          <ListItemText
-            primary={t('settings.modals.tun.fields.autoDetectInterface')}
-          />
-          <Switch
-            edge="end"
-            checked={values.autoDetectInterface}
-            onChange={(_, c) =>
-              setValues((v) => ({ ...v, autoDetectInterface: c }))
-            }
-          />
-        </ListItem>
-
-        <ListItem sx={{ padding: '5px 2px' }}>
-          <ListItemText primary={t('settings.modals.tun.fields.dnsHijack')} />
-          <ButtonGroup size="small" sx={{ my: '4px', marginRight: 1 }}>
-            <Button
-              variant={values.dnsHijack === 'auto' ? 'contained' : 'outlined'}
-              onClick={() => setValues((v) => ({ ...v, dnsHijack: 'auto' }))}
-              sx={{ textTransform: 'capitalize' }}
-            >
-              Auto
-            </Button>
-          </ButtonGroup>
-          <TextField
-            autoComplete="new-password"
-            size="small"
-            autoCorrect="off"
-            autoCapitalize="off"
-            spellCheck="false"
-            sx={{ width: 180 }}
-            value={values.dnsHijack === 'auto' ? '' : values.dnsHijack}
-            placeholder={t('settings.modals.tun.tooltips.dnsHijack')}
-            onChange={(e) =>
-              setValues((v) => ({
-                ...v,
-                dnsHijack: e.target.value === '' ? 'auto' : e.target.value,
-              }))
-            }
-          />
-        </ListItem>
-
-        <ListItem sx={{ padding: '5px 2px' }}>
-          <ListItemText primary={t('settings.modals.tun.fields.mtu')} />
+        </FormField>
+        <FormField label={t('settings.modals.tun.fields.mtu')} sx={{ pt: 0.5 }}>
           <TextField
             autoComplete="new-password"
             size="small"
@@ -372,41 +336,64 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
             autoCorrect="off"
             autoCapitalize="off"
             spellCheck="false"
-            sx={{ width: 250 }}
+            fullWidth
+            sx={MONO_INPUT}
             value={values.mtu}
             placeholder="9000"
             onChange={(e) => setValues((v) => ({ ...v, mtu: e.target.value }))}
           />
-        </ListItem>
+        </FormField>
+      </Box>
+      <Box sx={{ fontSize: 12.5, color: 'text.secondary' }}>
+        {t('settings.modals.tun.messages.emptyFollowsSubscription')}
+      </Box>
 
-        <ListItem sx={{ padding: '0 2px 5px' }}>
-          <Typography variant="caption" color="text.secondary">
-            {t('settings.modals.tun.messages.emptyFollowsSubscription')}
-          </Typography>
-        </ListItem>
-
-        <BaseSplitChipEditor
-          value={values.routeExcludeAddress}
-          placeholder="192.168.0.0/16"
-          ariaLabel={t('settings.modals.tun.fields.routeExcludeAddress')}
-          disabled={!values.autoRoute}
-          error={routeExcludeAddressError}
-          helperText={routeExcludeAddressHelperText}
-          onChange={(nextValue) =>
-            setValues((v) => ({ ...v, routeExcludeAddress: nextValue }))
-          }
-          renderHeader={(modeToggle) => (
-            <ListItem sx={{ padding: '5px 2px' }}>
-              <ListItemText
-                primary={t('settings.modals.tun.fields.routeExcludeAddress')}
-              />
-              {modeToggle ? (
-                <Box sx={{ marginLeft: 'auto' }}>{modeToggle}</Box>
-              ) : null}
-            </ListItem>
-          )}
+      <FormSection title={t('settings.modals.tun.fields.dnsHijack')} />
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <BaseSegmented
+          value={values.dnsHijack === 'auto' ? 'auto' : 'custom'}
+          options={DNS_HIJACK_AUTO}
+          onChange={() => setValues((v) => ({ ...v, dnsHijack: 'auto' }))}
+          sx={{ flex: 'none' }}
         />
-      </List>
+        <TextField
+          autoComplete="new-password"
+          size="small"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck="false"
+          fullWidth
+          sx={MONO_INPUT}
+          value={values.dnsHijack === 'auto' ? '' : values.dnsHijack}
+          placeholder="any:53, tcp://any:53"
+          onChange={(e) =>
+            setValues((v) => ({
+              ...v,
+              dnsHijack: e.target.value === '' ? 'auto' : e.target.value,
+            }))
+          }
+        />
+      </Box>
+      {help(t('settings.modals.tun.tooltips.dnsHijack'))}
+
+      <BaseSplitChipEditor
+        value={values.routeExcludeAddress}
+        placeholder="192.168.0.0/16"
+        ariaLabel={t('settings.modals.tun.fields.routeExcludeAddress')}
+        disabled={!values.autoRoute}
+        error={routeExcludeAddressError}
+        helperText={routeExcludeAddressHelperText}
+        onChange={(nextValue) =>
+          setValues((v) => ({ ...v, routeExcludeAddress: nextValue }))
+        }
+        renderHeader={(modeToggle) => (
+          <FormSection
+            title={t('settings.modals.tun.fields.routeExcludeAddress')}
+            count={routeExcludeAddressItems.length}
+            extra={modeToggle}
+          />
+        )}
+      />
     </BaseDialog>
   )
 }

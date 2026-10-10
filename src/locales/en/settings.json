@@ -150,9 +150,11 @@
             "proxyNode": "Proxy Node",
             "protocols": "Protocol",
             "existing": "Existing Tunnels",
+            "empty": "No tunnels yet — add one below.",
             "default": "Follow Current Configuration",
             "followGroup": "Follow the group's selection",
-            "optional": "Optional",
+            "optional": "optional",
+            "preview": "Will be added",
             "messages": {
               "incomplete": "Please fill in all required tunnel fields",
               "invalidLocalAddr": "Invalid local listen address",
@@ -291,6 +293,9 @@
           "accentPresets": "Accent presets",
           "providerTheme": "Provider styling",
           "providerThemeHint": "Accent, theme and background from the subscription — until you set your own"
+        },
+        "sections": {
+          "colors": "Colors"
         }
       },
       "layout": {
@@ -322,6 +327,12 @@
             "inline": "Inline",
             "disable": "Disable"
           }
+        },
+        "sections": {
+          "proxies": "Proxies",
+          "notifications": "Notifications",
+          "tray": "Tray",
+          "trayIcons": "Tray icons"
         }
       }
     },
@@ -433,10 +444,10 @@
         "intervalLabel": "Backup frequency"
       },
       "manual": {
-        "title": "Manual backup",
         "local": "Creates a snapshot on this device, stored under the app data directory.",
         "webdav": "Upload a snapshot to your WebDAV server once credentials are set.",
-        "configureWebdav": "Configure WebDAV"
+        "configureWebdav": "Configure WebDAV",
+        "webdavNotConfigured": "Set up WebDAV to enable these buttons."
       },
       "history": {
         "title": "Backup history",
@@ -482,6 +493,12 @@
           "never": "Never Clean",
           "retainDays": "Retain {{n}} Days"
         }
+      },
+      "sections": {
+        "appLog": "App log",
+        "connections": "Connections",
+        "updates": "Updates and configuration",
+        "proxies": "Proxies"
       }
     },
     "update": {
@@ -524,7 +541,14 @@
         "invalidProxyHost": "Invalid Proxy Host Format"
       },
       "actions": {
-        "editPac": "Edit PAC"
+        "editPac": "Edit PAC",
+        "showMore": "{{count}} more",
+        "showLess": "Show less"
+      },
+      "sections": {
+        "address": "Address",
+        "guard": "Guard",
+        "bypass": "Bypass"
       }
     },
     "tun": {
@@ -552,6 +576,10 @@
         "subscriptionStackCapped": "The provider asked for the {{stack}} stack; on Windows it needs the core allowed through the firewall by hand, so gvisor is used instead.",
         "windowsStackFirewall": "On Windows the system and mixed stacks need the core allowed through the firewall for inbound connections — without it tunnel traffic will not flow",
         "emptyFollowsSubscription": "An empty field follows the subscription, or the core's default when the subscription is silent (MTU 9000, name Meta, utunN on macOS)."
+      },
+      "sections": {
+        "routing": "Routing",
+        "interface": "Interface"
       }
     },
     "dns": {
@@ -659,6 +687,9 @@
         "supportedPlaceholders": "Support %host, %port, %secret",
         "placeholderInstruction": "Replace host, port, secret with %host, %port, %secret",
         "needsController": "The panel can connect to the core only while the external controller is enabled."
+      },
+      "sections": {
+        "panels": "Panels"
       }
     },
     "hotkey": {
@@ -677,7 +708,12 @@
         "reactivateProfiles": "Reapply Subscription"
       },
       "messages": {
-        "duplicate": "Shortcut {{keys}} for \"{{func}}\" is already assigned to \"{{other}}\""
+        "duplicate": "Shortcut {{keys}} for \"{{func}}\" is already assigned to \"{{other}}\"",
+        "recordHint": "Click a field and press the keys",
+        "notSet": "Not set"
+      },
+      "sections": {
+        "actions": "Actions"
       }
     },
     "networkInterface": {

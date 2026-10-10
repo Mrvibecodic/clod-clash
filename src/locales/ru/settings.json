@@ -150,9 +150,11 @@
             "proxyNode": "Прокси-узел",
             "protocols": "Протокол",
             "existing": "Существующие туннели",
+            "empty": "Туннелей пока нет — добавьте ниже.",
             "default": "Следовать текущей конфигурации",
             "followGroup": "Следовать выбору группы",
-            "optional": "Необязательно",
+            "optional": "необязательно",
+            "preview": "Будет добавлено",
             "messages": {
               "incomplete": "Пожалуйста, заполните все обязательные поля туннеля",
               "invalidLocalAddr": "Недопустимый локальный адрес прослушивания",
@@ -291,6 +293,9 @@
           "accentPresets": "Готовые акценты",
           "providerTheme": "Оформление от провайдера",
           "providerThemeHint": "Цвет, тема и фон из подписки — пока вы не задали свои"
+        },
+        "sections": {
+          "colors": "Цвета"
         }
       },
       "layout": {
@@ -322,6 +327,12 @@
             "inline": "В строку",
             "disable": "Отключено"
           }
+        },
+        "sections": {
+          "proxies": "Прокси",
+          "notifications": "Уведомления",
+          "tray": "Трей",
+          "trayIcons": "Значки в трее"
         }
       }
     },
@@ -435,10 +446,10 @@
         "intervalLabel": "Частота резервного копирования"
       },
       "manual": {
-        "title": "Ручное резервное копирование",
         "local": "Создаёт снимок на этом устройстве и сохраняет его в каталоге данных приложения.",
         "webdav": "Загружает снимок на ваш сервер WebDAV после настройки учётных данных.",
-        "configureWebdav": "Настроить WebDAV"
+        "configureWebdav": "Настроить WebDAV",
+        "webdavNotConfigured": "Пока WebDAV не настроен, кнопки неактивны."
       },
       "history": {
         "title": "История резервных копий",
@@ -486,6 +497,12 @@
           "never": "Никогда не очищать",
           "retainDays": "Хранить {{n}} дней"
         }
+      },
+      "sections": {
+        "appLog": "Журнал приложения",
+        "connections": "Соединения",
+        "updates": "Обновления и конфигурация",
+        "proxies": "Прокси"
       }
     },
     "update": {
@@ -528,7 +545,14 @@
         "invalidProxyHost": "Неверный формат хоста прокси"
       },
       "actions": {
-        "editPac": "Редактировать PAC"
+        "editPac": "Редактировать PAC",
+        "showMore": "Ещё {{count}}",
+        "showLess": "Свернуть"
+      },
+      "sections": {
+        "address": "Адрес",
+        "guard": "Защита",
+        "bypass": "Обход"
       }
     },
     "tun": {
@@ -556,6 +580,10 @@
         "subscriptionStackCapped": "Провайдер просил стек {{stack}}; на Windows он требует ручного разрешения ядра в брандмауэре, поэтому используется gvisor.",
         "windowsStackFirewall": "Стеки system и mixed на Windows требуют разрешить ядру входящие подключения в брандмауэре — без этого трафик через туннель не пойдёт",
         "emptyFollowsSubscription": "Пустое поле — как в подписке, а если она молчит — как у ядра (MTU 9000, имя Meta, на macOS utunN)."
+      },
+      "sections": {
+        "routing": "Маршрутизация",
+        "interface": "Интерфейс"
       }
     },
     "dns": {
@@ -663,6 +691,9 @@
         "supportedPlaceholders": "Поддерживаются %host, %port, %secret",
         "placeholderInstruction": "Замените хост, порт и секрет на %host, %port, %secret",
         "needsController": "Панель подключится к ядру, только когда включён внешний контроллер."
+      },
+      "sections": {
+        "panels": "Панели"
       }
     },
     "hotkey": {
@@ -681,7 +712,12 @@
         "reactivateProfiles": "Применить подписку заново"
       },
       "messages": {
-        "duplicate": "Комбинация {{keys}} для «{{func}}» уже назначена на «{{other}}»"
+        "duplicate": "Комбинация {{keys}} для «{{func}}» уже назначена на «{{other}}»",
+        "recordHint": "Щёлкните поле и нажмите сочетание",
+        "notSet": "Не задано"
+      },
+      "sections": {
+        "actions": "Действия"
       }
     },
     "networkInterface": {

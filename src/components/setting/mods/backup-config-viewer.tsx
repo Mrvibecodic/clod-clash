@@ -1,18 +1,19 @@
 import Visibility from '@mui/icons-material/Visibility'
 import VisibilityOff from '@mui/icons-material/VisibilityOff'
 import {
-  TextField,
+  Box,
   Button,
-  Grid,
-  Stack,
   IconButton,
   InputAdornment,
+  TextField,
 } from '@mui/material'
 import { useLockFn } from 'ahooks'
 import { useState, useRef, memo, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
+import { FormField } from '@/components/base'
+import { MONO_INPUT } from '@/components/base/base-mono'
 import { useVerge } from '@/hooks/use-verge'
 import { saveWebdavConfig, createWebdavBackup } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
@@ -22,6 +23,14 @@ import {
   setWebdavStatus,
 } from '@/services/webdav-status'
 import { isValidUrl } from '@/utils/network'
+
+const TEXT_PROPS = {
+  fullWidth: true,
+  size: 'small',
+  autoCorrect: 'off',
+  autoCapitalize: 'off',
+  spellCheck: 'false',
+} as const
 
 interface BackupConfigViewerProps {
   onBackupSuccess: () => Promise<void>
@@ -172,110 +181,89 @@ export const BackupConfigViewer = memo(
 
     return (
       <form onSubmit={(e) => e.preventDefault()}>
-        <Grid container spacing={2}>
-          <Grid size={{ xs: 12, sm: 9 }}>
-            <Grid container spacing={2}>
-              <Grid size={{ xs: 12 }}>
-                <TextField
-                  fullWidth
-                  label={t('settings.modals.backup.fields.webdavUrl')}
-                  variant="outlined"
-                  size="small"
-                  {...register('url')}
-                  autoCorrect="off"
-                  autoCapitalize="off"
-                  spellCheck="false"
-                  inputRef={urlRef}
-                  sx={{ mt: 1 }}
-                />
-              </Grid>
-              <Grid size={{ xs: 6 }}>
-                <TextField
-                  label={t('settings.modals.backup.fields.username')}
-                  variant="outlined"
-                  size="small"
-                  {...register('username')}
-                  autoCorrect="off"
-                  autoCapitalize="off"
-                  spellCheck="false"
-                  inputRef={usernameRef}
-                />
-              </Grid>
-              <Grid size={{ xs: 6 }}>
-                <TextField
-                  label={t('shared.labels.password')}
-                  type={showPassword ? 'text' : 'password'}
-                  variant="outlined"
-                  size="small"
-                  autoCorrect="off"
-                  autoCapitalize="off"
-                  spellCheck="false"
-                  inputRef={passwordRef}
-                  {...register('password')}
-                  slotProps={{
-                    input: {
-                      endAdornment: (
-                        <InputAdornment position="end">
-                          <IconButton
-                            onClick={handleClickShowPassword}
-                            edge="end"
-                          >
-                            {showPassword ? <VisibilityOff /> : <Visibility />}
-                          </IconButton>
-                        </InputAdornment>
-                      ),
-                    },
-                  }}
-                />
-              </Grid>
-            </Grid>
-          </Grid>
-          <Grid size={{ xs: 12, sm: 3 }}>
-            <Stack
-              direction="column"
-              sx={{
-                justifyContent: 'space-between',
-                alignItems: 'stretch',
-                height: '100%',
+        <FormField label={t('settings.modals.backup.fields.webdavUrl')}>
+          <TextField
+            {...TEXT_PROPS}
+            {...register('url')}
+            inputRef={urlRef}
+            sx={MONO_INPUT}
+          />
+        </FormField>
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+            columnGap: 1.5,
+          }}
+        >
+          <FormField label={t('settings.modals.backup.fields.username')}>
+            <TextField
+              {...TEXT_PROPS}
+              {...register('username')}
+              inputRef={usernameRef}
+            />
+          </FormField>
+          <FormField label={t('shared.labels.password')}>
+            <TextField
+              {...TEXT_PROPS}
+              type={showPassword ? 'text' : 'password'}
+              inputRef={passwordRef}
+              {...register('password')}
+              slotProps={{
+                input: {
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        size="small"
+                        edge="end"
+                        sx={{ color: 'text.secondary' }}
+                        onClick={handleClickShowPassword}
+                      >
+                        {showPassword ? (
+                          <VisibilityOff fontSize="small" />
+                        ) : (
+                          <Visibility fontSize="small" />
+                        )}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                },
               }}
+            />
+          </FormField>
+        </Box>
+        <Box
+          sx={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            justifyContent: 'flex-end',
+            gap: 1,
+            pt: 0.75,
+            pb: 1.25,
+          }}
+        >
+          {webdavChanged ||
+          webdav_url === undefined ||
+          webdav_username === undefined ||
+          webdav_password === undefined ? (
+            <Button
+              variant="contained"
+              type="button"
+              onClick={handleSubmit(save)}
             >
-              {webdavChanged ||
-              webdav_url === undefined ||
-              webdav_username === undefined ||
-              webdav_password === undefined ? (
-                <Button
-                  variant="contained"
-                  color={'primary'}
-                  sx={{ height: '100%' }}
-                  type="button"
-                  onClick={handleSubmit(save)}
-                >
-                  {t('shared.actions.save')}
-                </Button>
-              ) : (
-                <>
-                  <Button
-                    variant="contained"
-                    color="success"
-                    onClick={handleBackup}
-                    type="button"
-                    size="large"
-                  >
-                    {t('settings.modals.backup.actions.backup')}
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    onClick={onRefresh}
-                    type="button"
-                    size="large"
-                  >
-                    {t('settings.modals.backup.actions.checkConnection')}
-                  </Button>
-                </>
-              )}
-            </Stack>
-          </Grid>
-        </Grid>
+              {t('shared.actions.save')}
+            </Button>
+          ) : (
+            <>
+              <Button variant="outlined" onClick={onRefresh} type="button">
+                {t('settings.modals.backup.actions.checkConnection')}
+              </Button>
+              <Button variant="contained" onClick={handleBackup} type="button">
+                {t('settings.modals.backup.actions.backup')}
+              </Button>
+            </>
+          )}
+        </Box>
       </form>
     )
   },

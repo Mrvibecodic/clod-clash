@@ -150,9 +150,11 @@
             "proxyNode": "Nodo Proxy",
             "protocols": "Protocolo",
             "existing": "Túneles Existentes",
+            "empty": "No tunnels yet — add one below.",
             "default": "Seguir la Configuración Actual",
             "followGroup": "Seguir la selección del grupo",
             "optional": "Opcional",
+            "preview": "Will be added",
             "messages": {
               "incomplete": "Por favor complete todos los campos obligatorios del túnel",
               "invalidLocalAddr": "Dirección de escucha local no válida",
@@ -291,6 +293,9 @@
           "accentPresets": "Accent presets",
           "providerTheme": "Estilo del proveedor",
           "providerThemeHint": "Color, tema y fondo de la suscripción — hasta que definas los tuyos"
+        },
+        "sections": {
+          "colors": "Colors"
         }
       },
       "layout": {
@@ -322,6 +327,12 @@
             "inline": "Inline",
             "disable": "Disable"
           }
+        },
+        "sections": {
+          "proxies": "Proxies",
+          "notifications": "Notifications",
+          "tray": "Tray",
+          "trayIcons": "Tray icons"
         }
       }
     },
@@ -433,10 +444,10 @@
         "intervalLabel": "Backup frequency"
       },
       "manual": {
-        "title": "Manual backup",
         "local": "Creates a snapshot on this device, stored under the app data directory.",
         "webdav": "Upload a snapshot to your WebDAV server once credentials are set.",
-        "configureWebdav": "Configure WebDAV"
+        "configureWebdav": "Configure WebDAV",
+        "webdavNotConfigured": "Set up WebDAV to enable these buttons."
       },
       "history": {
         "title": "Backup history",
@@ -482,6 +493,12 @@
           "never": "No limpiar",
           "retainDays": "Retener {{n}} días"
         }
+      },
+      "sections": {
+        "appLog": "App log",
+        "connections": "Connections",
+        "updates": "Updates and configuration",
+        "proxies": "Proxies"
       }
     },
     "update": {
@@ -524,7 +541,14 @@
         "invalidProxyHost": "Formato de host del proxy no válido"
       },
       "actions": {
-        "editPac": "Editar PAC"
+        "editPac": "Editar PAC",
+        "showMore": "{{count}} more",
+        "showLess": "Show less"
+      },
+      "sections": {
+        "address": "Address",
+        "guard": "Guard",
+        "bypass": "Bypass"
       }
     },
     "tun": {
@@ -552,6 +576,10 @@
         "subscriptionStackCapped": "El proveedor pidió la pila {{stack}}; en Windows requiere permitir manualmente el núcleo en el cortafuegos, por eso se usa gvisor.",
         "windowsStackFirewall": "En Windows las pilas system y mixed requieren permitir al núcleo las conexiones entrantes en el firewall; sin esto el tráfico del túnel no fluirá",
         "emptyFollowsSubscription": "An empty field follows the subscription, or the core's default when the subscription is silent (MTU 9000, name Meta, utunN on macOS)."
+      },
+      "sections": {
+        "routing": "Routing",
+        "interface": "Interface"
       }
     },
     "dns": {
@@ -659,6 +687,9 @@
         "supportedPlaceholders": "Soporta %host, %port, %secret",
         "placeholderInstruction": "Utilice %host, %port, %secret para representar el host, el puerto y la clave de acceso.",
         "needsController": "El panel solo puede conectarse al núcleo con el controlador externo activado."
+      },
+      "sections": {
+        "panels": "Panels"
       }
     },
     "hotkey": {
@@ -677,7 +708,12 @@
         "reactivateProfiles": "Reactivar suscripciones"
       },
       "messages": {
-        "duplicate": "El atajo {{keys}} para «{{func}}» ya está asignado a «{{other}}»"
+        "duplicate": "El atajo {{keys}} para «{{func}}» ya está asignado a «{{other}}»",
+        "recordHint": "Click a field and press the keys",
+        "notSet": "Not set"
+      },
+      "sections": {
+        "actions": "Actions"
       }
     },
     "networkInterface": {

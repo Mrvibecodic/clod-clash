@@ -1,17 +1,18 @@
-import {
-  InputAdornment,
-  List,
-  ListItem,
-  ListItemText,
-  MenuItem,
-  Select,
-  TextField,
-} from '@mui/material'
+import { InputAdornment, MenuItem, Select, TextField } from '@mui/material'
 import { useLockFn } from 'ahooks'
 import { forwardRef, useImperativeHandle, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { BaseDialog, DialogRef, Switch, TooltipIcon } from '@/components/base'
+import {
+  BaseDialog,
+  DialogRef,
+  FormField,
+  FormRow,
+  FormSection,
+  Switch,
+} from '@/components/base'
+import { MONO_INPUT } from '@/components/base/base-mono'
+import { useChangeCount } from '@/hooks/use-change-count'
 import { useVerge } from '@/hooks/use-verge'
 import {
   LATENCY_TIMEOUT_MAX,
@@ -27,12 +28,31 @@ import { isValidUrl } from '@/utils/network'
 const DEFAULT_APP_LOG_MAX_SIZE = 1024
 const DEFAULT_APP_LOG_MAX_COUNT = 8
 
+const NUMBER_PROPS = {
+  autoComplete: 'new-password',
+  size: 'small',
+  type: 'number',
+  autoCorrect: 'off',
+  autoCapitalize: 'off',
+  spellCheck: 'false',
+} as const
+
+const withUnit = (unit: string) => ({
+  input: {
+    endAdornment: (
+      <InputAdornment position="end" sx={{ '& p': { fontSize: 12.5 } }}>
+        {unit}
+      </InputAdornment>
+    ),
+  },
+})
+
 export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
   const { t } = useTranslation()
   const { verge, patchVerge } = useVerge()
 
   const [open, setOpen] = useState(false)
-  const [values, setValues] = useState({
+  const [values, setValues] = useState(() => ({
     appLogLevel: 'info',
     appLogMaxSize: DEFAULT_APP_LOG_MAX_SIZE,
     appLogMaxCount: DEFAULT_APP_LOG_MAX_COUNT,
@@ -45,12 +65,14 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
     defaultLatencyTest: '',
     autoLogClean: 2,
     defaultLatencyTimeout: 10000,
-  })
+  }))
+  const [initialValues, setInitialValues] = useState(values)
+  const changes = useChangeCount(initialValues, values)
 
   useImperativeHandle(ref, () => ({
     open: () => {
       setOpen(true)
-      setValues({
+      const next = {
         appLogLevel: verge?.app_log_level ?? 'info',
         appLogMaxSize: verge?.app_log_max_size ?? DEFAULT_APP_LOG_MAX_SIZE,
         appLogMaxCount: verge?.app_log_max_count ?? DEFAULT_APP_LOG_MAX_COUNT,
@@ -65,7 +87,9 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
         defaultLatencyTimeout: effectiveLatencyTimeout(
           verge?.default_latency_timeout,
         ),
-      })
+      }
+      setValues(next)
+      setInitialValues(next)
     },
     close: () => setOpen(false),
   }))
@@ -118,333 +142,248 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
     <BaseDialog
       open={open}
       title={t('settings.modals.misc.title')}
-      contentSx={{ width: 450 }}
+      dividers
+      changes={changes}
+      onReset={() => setValues(initialValues)}
+      contentSx={{ width: 552 }}
       okBtn={t('shared.actions.save')}
       cancelBtn={t('shared.actions.cancel')}
       onClose={() => setOpen(false)}
       onCancel={() => setOpen(false)}
       onOk={onSave}
     >
-      <List>
-        <ListItem sx={{ padding: '5px 2px' }}>
-          <ListItemText
-            primary={t('settings.modals.misc.fields.appLogLevel')}
-          />
-          <Select
-            size="small"
-            sx={{ width: 100, '> div': { py: '7.5px' } }}
-            value={values.appLogLevel}
-            onChange={(e) =>
-              setValues((v) => ({
-                ...v,
-                appLogLevel: e.target.value as string,
-              }))
-            }
-          >
-            {['trace', 'debug', 'info', 'warn', 'error', 'silent'].map((i) => (
-              <MenuItem value={i} key={i}>
-                {i[0].toUpperCase() + i.slice(1).toLowerCase()}
-              </MenuItem>
-            ))}
-          </Select>
-        </ListItem>
-
-        <ListItem sx={{ padding: '5px 2px' }}>
-          <ListItemText
-            primary={t('settings.modals.misc.fields.appLogMaxSize')}
-            sx={{ maxWidth: 'fit-content' }}
-          />
-          <TextField
-            autoComplete="new-password"
-            size="small"
-            type="number"
-            autoCorrect="off"
-            autoCapitalize="off"
-            spellCheck="false"
-            sx={{ width: 140, marginLeft: 'auto' }}
-            value={values.appLogMaxSize}
-            onChange={(e) =>
-              setValues((v) => ({
-                ...v,
-                appLogMaxSize: Math.max(
-                  1,
-                  parseInt(e.target.value) || DEFAULT_APP_LOG_MAX_SIZE,
-                ),
-              }))
-            }
-            slotProps={{
-              input: {
-                endAdornment: (
-                  <InputAdornment position="end">
-                    {t('shared.units.kilobytes')}
-                  </InputAdornment>
-                ),
-              },
-            }}
-          />
-        </ListItem>
-
-        <ListItem sx={{ padding: '5px 2px' }}>
-          <ListItemText
-            primary={t('settings.modals.misc.fields.appLogMaxCount')}
-            sx={{ maxWidth: 'fit-content' }}
-          />
-          <TextField
-            autoComplete="new-password"
-            size="small"
-            type="number"
-            autoCorrect="off"
-            autoCapitalize="off"
-            spellCheck="false"
-            sx={{ width: 140, marginLeft: 'auto' }}
-            value={values.appLogMaxCount}
-            onChange={(e) =>
-              setValues((v) => ({
-                ...v,
-                appLogMaxCount: Math.max(1, parseInt(e.target.value) || 1),
-              }))
-            }
-            slotProps={{
-              input: {
-                endAdornment: (
-                  <InputAdornment position="end">
-                    {t('shared.units.files')}
-                  </InputAdornment>
-                ),
-              },
-            }}
-          />
-        </ListItem>
-
-        <ListItem sx={{ padding: '5px 2px' }}>
-          <ListItemText
-            primary={t('settings.modals.misc.fields.verboseDiagnostics')}
-            sx={{ maxWidth: 'fit-content' }}
-          />
-          <TooltipIcon
-            title={t('settings.modals.misc.tooltips.verboseDiagnostics')}
-            sx={{ opacity: '0.7' }}
-          />
-          <Switch
-            edge="end"
-            checked={values.verboseDiagnostics}
-            onChange={(_, c) =>
-              setValues((v) => ({ ...v, verboseDiagnostics: c }))
-            }
-            sx={{ marginLeft: 'auto' }}
-          />
-        </ListItem>
-
-        <ListItem sx={{ padding: '5px 2px' }}>
-          <ListItemText
-            primary={t('settings.modals.misc.fields.autoCloseConnections')}
-            sx={{ maxWidth: 'fit-content' }}
-          />
-          <TooltipIcon
-            title={t('settings.modals.misc.tooltips.autoCloseConnections')}
-            sx={{ opacity: '0.7' }}
-          />
-          <Switch
-            edge="end"
-            checked={values.autoCloseConnection}
-            onChange={(_, c) =>
-              setValues((v) => ({ ...v, autoCloseConnection: c }))
-            }
-            sx={{ marginLeft: 'auto' }}
-          />
-        </ListItem>
-
-        <ListItem sx={{ padding: '5px 2px' }}>
-          <ListItemText
-            primary={t('settings.modals.misc.fields.autoCloseConnectionsHome')}
-            sx={{ maxWidth: 'fit-content' }}
-          />
-          <TooltipIcon
-            title={t('settings.modals.misc.tooltips.autoCloseConnectionsHome')}
-            sx={{ opacity: '0.7' }}
-          />
-          <Switch
-            edge="end"
-            checked={values.autoCloseConnectionHome}
-            disabled={!values.autoCloseConnection}
-            onChange={(_, c) =>
-              setValues((v) => ({ ...v, autoCloseConnectionHome: c }))
-            }
-            sx={{ marginLeft: 'auto' }}
-          />
-        </ListItem>
-
-        <ListItem sx={{ padding: '5px 2px' }}>
-          <ListItemText
-            primary={t('settings.modals.misc.fields.autoCheckUpdate')}
-          />
-          <Switch
-            edge="end"
-            checked={values.autoCheckUpdate}
-            onChange={(_, c) =>
-              setValues((v) => ({ ...v, autoCheckUpdate: c }))
-            }
-          />
-        </ListItem>
-
-        <ListItem sx={{ padding: '5px 2px' }}>
-          <ListItemText
-            primary={t('settings.modals.misc.fields.enableBuiltinEnhanced')}
-            sx={{ maxWidth: 'fit-content' }}
-          />
-          <TooltipIcon
-            title={t('settings.modals.misc.tooltips.enableBuiltinEnhanced')}
-            sx={{ opacity: '0.7' }}
-          />
-          <Switch
-            edge="end"
-            checked={values.enableBuiltinEnhanced}
-            onChange={(_, c) =>
-              setValues((v) => ({ ...v, enableBuiltinEnhanced: c }))
-            }
-            sx={{ marginLeft: 'auto' }}
-          />
-        </ListItem>
-
-        <ListItem sx={{ padding: '5px 2px' }}>
-          <ListItemText
-            primary={t('settings.modals.misc.fields.proxyLayoutColumns')}
-          />
-          <Select
-            size="small"
-            sx={{ width: 160, '> div': { py: '7.5px' } }}
-            value={values.proxyLayoutColumn}
-            onChange={(e) =>
-              setValues((v) => ({
-                ...v,
-                proxyLayoutColumn: e.target.value as number,
-              }))
-            }
-          >
-            <MenuItem value={6} key={6}>
-              {t('settings.modals.misc.options.proxyLayoutColumns.auto')}
+      <FormSection title={t('settings.modals.misc.sections.appLog')} />
+      <FormRow label={t('settings.modals.misc.fields.appLogLevel')}>
+        <Select
+          size="small"
+          sx={{ width: 140, fontSize: 14 }}
+          value={values.appLogLevel}
+          onChange={(e) =>
+            setValues((v) => ({
+              ...v,
+              appLogLevel: e.target.value as string,
+            }))
+          }
+        >
+          {['trace', 'debug', 'info', 'warn', 'error', 'silent'].map((i) => (
+            <MenuItem value={i} key={i}>
+              {i[0].toUpperCase() + i.slice(1).toLowerCase()}
             </MenuItem>
-            {[1, 2, 3, 4, 5].map((i) => (
-              <MenuItem value={i} key={i}>
-                {i}
-              </MenuItem>
-            ))}
-          </Select>
-        </ListItem>
+          ))}
+        </Select>
+      </FormRow>
 
-        <ListItem sx={{ padding: '5px 2px' }}>
-          <ListItemText
-            primary={t('settings.modals.misc.fields.autoLogClean')}
-          />
-          <Select
-            size="small"
-            sx={{ width: 160, '> div': { py: '7.5px' } }}
-            value={values.autoLogClean}
-            onChange={(e) =>
-              setValues((v) => ({
-                ...v,
-                autoLogClean: e.target.value as number,
-              }))
-            }
-          >
-            {/* 1: 1 день, 2: 7 дней, 3: 30 дней, 4: 90 дней*/}
-            {[
-              {
-                key: t('settings.modals.misc.options.autoLogClean.never'),
-                value: 0,
-              },
-              {
-                key: t('settings.modals.misc.options.autoLogClean.retainDays', {
-                  n: 1,
-                }),
-                value: 1,
-              },
-              {
-                key: t('settings.modals.misc.options.autoLogClean.retainDays', {
-                  n: 7,
-                }),
-                value: 2,
-              },
-              {
-                key: t('settings.modals.misc.options.autoLogClean.retainDays', {
-                  n: 30,
-                }),
-                value: 3,
-              },
-              {
-                key: t('settings.modals.misc.options.autoLogClean.retainDays', {
-                  n: 90,
-                }),
-                value: 4,
-              },
-            ].map((i) => (
-              <MenuItem key={i.value} value={i.value}>
-                {i.key}
-              </MenuItem>
-            ))}
-          </Select>
-        </ListItem>
+      <FormRow label={t('settings.modals.misc.fields.appLogMaxSize')}>
+        <TextField
+          {...NUMBER_PROPS}
+          sx={{ width: 140, ...MONO_INPUT }}
+          value={values.appLogMaxSize}
+          onChange={(e) =>
+            setValues((v) => ({
+              ...v,
+              appLogMaxSize: Math.max(
+                1,
+                parseInt(e.target.value) || DEFAULT_APP_LOG_MAX_SIZE,
+              ),
+            }))
+          }
+          slotProps={withUnit(t('shared.units.kilobytes'))}
+        />
+      </FormRow>
 
-        <ListItem sx={{ padding: '5px 2px' }}>
-          <ListItemText
-            primary={t('settings.modals.misc.fields.defaultLatencyTest')}
-            sx={{ maxWidth: 'fit-content' }}
-          />
-          <TooltipIcon
-            title={t('settings.modals.misc.tooltips.defaultLatencyTest')}
-            sx={{ opacity: '0.7' }}
-          />
-          <TextField
-            autoComplete="new-password"
-            size="small"
-            autoCorrect="off"
-            autoCapitalize="off"
-            spellCheck="false"
-            sx={{ width: 250, marginLeft: 'auto' }}
-            value={values.defaultLatencyTest}
-            error={badTestUrl}
-            helperText={
-              badTestUrl ? t('proxies.page.messages.badTestUrl') : undefined
-            }
-            placeholder="http://cp.cloudflare.com/generate_204"
-            onChange={(e) =>
-              setValues((v) => ({ ...v, defaultLatencyTest: e.target.value }))
-            }
-          />
-        </ListItem>
+      <FormRow label={t('settings.modals.misc.fields.appLogMaxCount')}>
+        <TextField
+          {...NUMBER_PROPS}
+          sx={{ width: 140, ...MONO_INPUT }}
+          value={values.appLogMaxCount}
+          onChange={(e) =>
+            setValues((v) => ({
+              ...v,
+              appLogMaxCount: Math.max(1, parseInt(e.target.value) || 1),
+            }))
+          }
+          slotProps={withUnit(t('shared.units.files'))}
+        />
+      </FormRow>
 
-        <ListItem sx={{ padding: '5px 2px' }}>
-          <ListItemText
-            primary={t('settings.modals.misc.fields.defaultLatencyTimeout')}
-          />
-          <TextField
-            autoComplete="new-password"
-            size="small"
-            type="number"
-            autoCorrect="off"
-            autoCapitalize="off"
-            spellCheck="false"
-            sx={{ width: 250 }}
-            value={values.defaultLatencyTimeout}
-            placeholder="10000"
-            onChange={(e) =>
-              setValues((v) => ({
-                ...v,
-                defaultLatencyTimeout: parseInt(e.target.value),
-              }))
-            }
-            slotProps={{
-              input: {
-                endAdornment: (
-                  <InputAdornment position="end">
-                    {t('shared.units.milliseconds')}
-                  </InputAdornment>
-                ),
-              },
-            }}
-          />
-        </ListItem>
-      </List>
+      <FormRow label={t('settings.modals.misc.fields.autoLogClean')}>
+        <Select
+          size="small"
+          sx={{ width: 190, fontSize: 14 }}
+          value={values.autoLogClean}
+          onChange={(e) =>
+            setValues((v) => ({
+              ...v,
+              autoLogClean: e.target.value as number,
+            }))
+          }
+        >
+          {/* 1: 1 день, 2: 7 дней, 3: 30 дней, 4: 90 дней*/}
+          {[
+            {
+              key: t('settings.modals.misc.options.autoLogClean.never'),
+              value: 0,
+            },
+            {
+              key: t('settings.modals.misc.options.autoLogClean.retainDays', {
+                n: 1,
+              }),
+              value: 1,
+            },
+            {
+              key: t('settings.modals.misc.options.autoLogClean.retainDays', {
+                n: 7,
+              }),
+              value: 2,
+            },
+            {
+              key: t('settings.modals.misc.options.autoLogClean.retainDays', {
+                n: 30,
+              }),
+              value: 3,
+            },
+            {
+              key: t('settings.modals.misc.options.autoLogClean.retainDays', {
+                n: 90,
+              }),
+              value: 4,
+            },
+          ].map((i) => (
+            <MenuItem key={i.value} value={i.value}>
+              {i.key}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormRow>
+
+      <FormRow
+        label={t('settings.modals.misc.fields.verboseDiagnostics')}
+        help={t('settings.modals.misc.tooltips.verboseDiagnostics')}
+      >
+        <Switch
+          edge="end"
+          checked={values.verboseDiagnostics}
+          onChange={(_, c) =>
+            setValues((v) => ({ ...v, verboseDiagnostics: c }))
+          }
+        />
+      </FormRow>
+
+      <FormSection title={t('settings.modals.misc.sections.connections')} />
+      <FormRow
+        label={t('settings.modals.misc.fields.autoCloseConnections')}
+        help={t('settings.modals.misc.tooltips.autoCloseConnections')}
+      >
+        <Switch
+          edge="end"
+          checked={values.autoCloseConnection}
+          onChange={(_, c) =>
+            setValues((v) => ({ ...v, autoCloseConnection: c }))
+          }
+        />
+      </FormRow>
+
+      <FormRow
+        label={t('settings.modals.misc.fields.autoCloseConnectionsHome')}
+        help={t('settings.modals.misc.tooltips.autoCloseConnectionsHome')}
+        disabled={!values.autoCloseConnection}
+      >
+        <Switch
+          edge="end"
+          checked={values.autoCloseConnectionHome}
+          disabled={!values.autoCloseConnection}
+          onChange={(_, c) =>
+            setValues((v) => ({ ...v, autoCloseConnectionHome: c }))
+          }
+        />
+      </FormRow>
+
+      <FormSection title={t('settings.modals.misc.sections.updates')} />
+      <FormRow label={t('settings.modals.misc.fields.autoCheckUpdate')}>
+        <Switch
+          edge="end"
+          checked={values.autoCheckUpdate}
+          onChange={(_, c) => setValues((v) => ({ ...v, autoCheckUpdate: c }))}
+        />
+      </FormRow>
+
+      <FormRow
+        label={t('settings.modals.misc.fields.enableBuiltinEnhanced')}
+        help={t('settings.modals.misc.tooltips.enableBuiltinEnhanced')}
+      >
+        <Switch
+          edge="end"
+          checked={values.enableBuiltinEnhanced}
+          onChange={(_, c) =>
+            setValues((v) => ({ ...v, enableBuiltinEnhanced: c }))
+          }
+        />
+      </FormRow>
+
+      <FormSection title={t('settings.modals.misc.sections.proxies')} />
+      <FormRow label={t('settings.modals.misc.fields.proxyLayoutColumns')}>
+        <Select
+          size="small"
+          sx={{ width: 160, fontSize: 14 }}
+          value={values.proxyLayoutColumn}
+          onChange={(e) =>
+            setValues((v) => ({
+              ...v,
+              proxyLayoutColumn: e.target.value as number,
+            }))
+          }
+        >
+          <MenuItem value={6} key={6}>
+            {t('settings.modals.misc.options.proxyLayoutColumns.auto')}
+          </MenuItem>
+          {[1, 2, 3, 4, 5].map((i) => (
+            <MenuItem value={i} key={i}>
+              {i}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormRow>
+
+      <FormField
+        label={t('settings.modals.misc.fields.defaultLatencyTest')}
+        help={t('settings.modals.misc.tooltips.defaultLatencyTest')}
+        sx={{ borderTop: 1, borderBottom: 1, borderColor: 'divider' }}
+      >
+        <TextField
+          autoComplete="new-password"
+          size="small"
+          fullWidth
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck="false"
+          value={values.defaultLatencyTest}
+          error={badTestUrl}
+          helperText={
+            badTestUrl ? t('proxies.page.messages.badTestUrl') : undefined
+          }
+          placeholder="http://cp.cloudflare.com/generate_204"
+          sx={MONO_INPUT}
+          onChange={(e) =>
+            setValues((v) => ({ ...v, defaultLatencyTest: e.target.value }))
+          }
+        />
+      </FormField>
+
+      <FormRow label={t('settings.modals.misc.fields.defaultLatencyTimeout')}>
+        <TextField
+          {...NUMBER_PROPS}
+          sx={{ width: 140, ...MONO_INPUT }}
+          value={values.defaultLatencyTimeout}
+          placeholder="10000"
+          onChange={(e) =>
+            setValues((v) => ({
+              ...v,
+              defaultLatencyTimeout: parseInt(e.target.value),
+            }))
+          }
+          slotProps={withUnit(t('shared.units.milliseconds'))}
+        />
+      </FormRow>
     </BaseDialog>
   )
 })

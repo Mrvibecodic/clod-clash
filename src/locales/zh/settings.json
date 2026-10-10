@@ -150,9 +150,11 @@
             "proxyNode": "代理节点",
             "protocols": "协议",
             "existing": "已配置的隧道",
+            "empty": "No tunnels yet — add one below.",
             "default": "跟随当前配置",
             "followGroup": "跟随代理组的选择",
             "optional": "可选",
+            "preview": "Will be added",
             "messages": {
               "incomplete": "请完整填写隧道信息",
               "invalidLocalAddr": "无效的本地监听地址",
@@ -291,6 +293,9 @@
           "accentPresets": "预设强调色",
           "providerTheme": "服务商外观",
           "providerThemeHint": "来自订阅的强调色、主题和背景 — 直到您自行设置"
+        },
+        "sections": {
+          "colors": "Colors"
         }
       },
       "layout": {
@@ -322,6 +327,12 @@
             "inline": "一级菜单",
             "disable": "禁用"
           }
+        },
+        "sections": {
+          "proxies": "Proxies",
+          "notifications": "Notifications",
+          "tray": "Tray",
+          "trayIcons": "Tray icons"
         }
       }
     },
@@ -433,10 +444,10 @@
         "intervalLabel": "备份频率"
       },
       "manual": {
-        "title": "手动备份",
         "local": "在本设备的应用数据目录中创建备份。",
         "webdav": "配置 WebDAV 后，可直接上传备份到服务器。",
-        "configureWebdav": "配置 WebDAV"
+        "configureWebdav": "配置 WebDAV",
+        "webdavNotConfigured": "Set up WebDAV to enable these buttons."
       },
       "history": {
         "title": "备份记录",
@@ -482,6 +493,12 @@
           "never": "不清理",
           "retainDays": "保留 {{n}} 天"
         }
+      },
+      "sections": {
+        "appLog": "App log",
+        "connections": "Connections",
+        "updates": "Updates and configuration",
+        "proxies": "Proxies"
       }
     },
     "update": {
@@ -524,7 +541,14 @@
         "invalidProxyHost": "代理主机格式无效"
       },
       "actions": {
-        "editPac": "编辑 PAC"
+        "editPac": "编辑 PAC",
+        "showMore": "{{count}} more",
+        "showLess": "Show less"
+      },
+      "sections": {
+        "address": "Address",
+        "guard": "Guard",
+        "bypass": "Bypass"
       }
     },
     "tun": {
@@ -552,6 +576,10 @@
         "subscriptionStackCapped": "服务商要求 {{stack}} 栈；在 Windows 上它需要手动在防火墙中放行内核，因此改用 gvisor。",
         "windowsStackFirewall": "在 Windows 上，system 和 mixed 栈需要在防火墙中允许核心的入站连接，否则隧道流量无法通行",
         "emptyFollowsSubscription": "An empty field follows the subscription, or the core's default when the subscription is silent (MTU 9000, name Meta, utunN on macOS)."
+      },
+      "sections": {
+        "routing": "Routing",
+        "interface": "Interface"
       }
     },
     "dns": {
@@ -659,6 +687,9 @@
         "supportedPlaceholders": "支持 %host, %port, %secret",
         "placeholderInstruction": "使用 %host, %port, %secret 表示 主机, 端口, 访问密钥",
         "needsController": "仅在启用外部控制器时面板才能连接到内核。"
+      },
+      "sections": {
+        "panels": "Panels"
       }
     },
     "hotkey": {
@@ -677,7 +708,12 @@
         "reactivateProfiles": "重新激活订阅"
       },
       "messages": {
-        "duplicate": "「{{func}}」的快捷键 {{keys}} 已被「{{other}}」占用"
+        "duplicate": "「{{func}}」的快捷键 {{keys}} 已被「{{other}}」占用",
+        "recordHint": "Click a field and press the keys",
+        "notSet": "Not set"
+      },
+      "sections": {
+        "actions": "Actions"
       }
     },
     "networkInterface": {

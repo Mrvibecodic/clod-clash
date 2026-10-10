@@ -1,17 +1,17 @@
-import { CodeRounded, ViewModuleRounded } from '@mui/icons-material'
+import { AddRounded, DeleteOutlineRounded } from '@mui/icons-material'
 import {
   Box,
   Button,
-  Chip,
   FormHelperText,
   IconButton,
   TextField,
-  Tooltip,
-  Typography,
 } from '@mui/material'
 import type { ReactNode } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { BaseSegmented, FormHint, FormTile } from './base-form'
+import { MONO_INPUT, MONO_TEXT } from './base-mono'
 
 type BaseSplitChipEditorMode = 'visual' | 'advanced'
 
@@ -34,6 +34,102 @@ const splitValue = (value: string) =>
     .split(DEFAULT_SPLIT_PATTERN)
     .map((item) => item.trim())
     .filter(Boolean)
+
+interface BaseListTilesProps {
+  items: { key: string | number; value: string }[]
+  onRemove: (index: number) => void
+  draft: string
+  onDraftChange: (draft: string) => void
+  onAdd: () => void
+  placeholder?: string
+  disabled?: boolean
+  error?: boolean
+  addLabel?: ReactNode
+}
+
+export const BaseListTiles = ({
+  items,
+  onRemove,
+  draft,
+  onDraftChange,
+  onAdd,
+  placeholder,
+  disabled = false,
+  error = false,
+  addLabel,
+}: BaseListTilesProps) => {
+  const { t } = useTranslation()
+
+  return (
+    <>
+      {items.length ? (
+        items.map((item, index) => (
+          <FormTile key={item.key} sx={{ minHeight: 38 }}>
+            <Box
+              component="span"
+              title={item.value}
+              sx={{
+                ...MONO_TEXT,
+                fontSize: 13.5,
+                flex: 1,
+                minWidth: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                color: disabled ? 'text.secondary' : 'text.primary',
+              }}
+            >
+              {item.value}
+            </Box>
+            <IconButton
+              size="small"
+              aria-label={t('shared.actions.delete')}
+              title={t('shared.actions.delete')}
+              disabled={disabled}
+              onClick={() => onRemove(index)}
+            >
+              <DeleteOutlineRounded fontSize="small" />
+            </IconButton>
+          </FormTile>
+        ))
+      ) : (
+        <FormHint sx={{ my: 0.625 }}>{t('shared.statuses.empty')}</FormHint>
+      )}
+      <Box sx={{ display: 'flex', gap: 1, mt: 1, alignItems: 'center' }}>
+        <TextField
+          disabled={disabled}
+          size="small"
+          fullWidth
+          value={draft}
+          placeholder={placeholder}
+          error={error}
+          autoComplete="off"
+          spellCheck="false"
+          sx={({ typography }) => ({
+            ...MONO_INPUT,
+            '& input::placeholder': { fontFamily: typography.fontFamily },
+          })}
+          onChange={(event) => onDraftChange(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault()
+              onAdd()
+            }
+          }}
+        />
+        <Button
+          variant="outlined"
+          startIcon={<AddRounded />}
+          onClick={onAdd}
+          disabled={disabled || !draft.trim()}
+          sx={{ flex: 'none', whiteSpace: 'nowrap' }}
+        >
+          {addLabel ?? t('shared.actions.add')}
+        </Button>
+      </Box>
+    </>
+  )
+}
 
 export const BaseSplitChipEditor = ({
   value = '',
@@ -79,95 +175,52 @@ export const BaseSplitChipEditor = ({
     onChange(nextValue.join(separator))
   }
 
-  const nextMode = mode === 'visual' ? 'advanced' : 'visual'
-  const toggleLabel =
-    nextMode === 'visual'
-      ? t('shared.editorModes.visualization')
-      : t('shared.editorModes.advanced')
-  const ToggleIcon = nextMode === 'visual' ? ViewModuleRounded : CodeRounded
-  const resolvedAriaLabel = ariaLabel ?? toggleLabel
-
   const modeToggle = (
-    <Tooltip title={toggleLabel}>
-      <IconButton
-        size="small"
-        aria-label={resolvedAriaLabel}
-        onClick={() => {
+    <Box role="group" aria-label={ariaLabel}>
+      <BaseSegmented
+        value={mode}
+        options={[
+          { value: 'visual', label: t('shared.editorModes.list') },
+          { value: 'advanced', label: t('shared.editorModes.text') },
+        ]}
+        onChange={(nextMode) => {
           setMode(nextMode)
           if (nextMode === 'visual') {
             setDraft('')
           }
         }}
-      >
-        <ToggleIcon fontSize="small" />
-      </IconButton>
-    </Tooltip>
+      />
+    </Box>
   )
 
   return (
     <>
-      {renderHeader ? renderHeader(modeToggle) : modeToggle}
+      {renderHeader ? (
+        renderHeader(modeToggle)
+      ) : (
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 0.5 }}>
+          {modeToggle}
+        </Box>
+      )}
       {mode === 'visual' ? (
-        <Box sx={{ padding: '0 2px 5px' }}>
-          <Box
-            sx={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: 1,
-              minHeight: 32,
-            }}
-          >
-            {items.length ? (
-              items.map((item, index) => (
-                <Chip
-                  key={item.key}
-                  label={item.value}
-                  size="small"
-                  onDelete={
-                    disabled ? undefined : () => handleRemoveItem(index)
-                  }
-                />
-              ))
-            ) : (
-              <Typography variant="body2" color="text.secondary">
-                {t('shared.statuses.empty')}
-              </Typography>
-            )}
-          </Box>
-          <Box
-            sx={{ display: 'flex', gap: 1, marginTop: 1, alignItems: 'center' }}
-          >
-            <TextField
-              disabled={disabled}
-              size="small"
-              fullWidth
-              value={draft}
-              placeholder={placeholder}
-              error={error}
-              sx={{
-                '& .MuiInputBase-root': { minHeight: 32 },
-                '& .MuiInputBase-input': { padding: '4px 8px' },
-              }}
-              onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault()
-                  handleAddDraft()
-                }
-              }}
-            />
-            <Button
-              variant="outlined"
-              size="small"
-              onClick={handleAddDraft}
-              disabled={disabled || !draft.trim()}
-              sx={{ minHeight: 32, padding: '2px 8px' }}
-            >
-              {t('shared.actions.new')}
-            </Button>
-          </Box>
+        <Box sx={{ pb: 0.5 }}>
+          <BaseListTiles
+            items={items}
+            onRemove={handleRemoveItem}
+            draft={draft}
+            onDraftChange={setDraft}
+            onAdd={handleAddDraft}
+            placeholder={placeholder}
+            disabled={disabled}
+            error={error}
+          />
           {helperText && (
-            <FormHelperText error={error}>{helperText}</FormHelperText>
+            <FormHelperText
+              error={error}
+              sx={{ mx: 0, mt: 0.75, fontSize: 12.5 }}
+            >
+              {helperText}
+            </FormHelperText>
           )}
         </Box>
       ) : (
@@ -177,9 +230,10 @@ export const BaseSplitChipEditor = ({
           size="small"
           multiline
           rows={4}
-          sx={{ width: '100%' }}
+          sx={{ width: '100%', ...MONO_INPUT }}
           value={value}
           helperText={helperText}
+          spellCheck="false"
           onChange={(event) => {
             onChange(event.target.value)
           }}

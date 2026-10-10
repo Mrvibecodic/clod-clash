@@ -2,23 +2,14 @@ import {
   RestartAltRounded,
   SwitchAccessShortcutRounded,
 } from '@mui/icons-material'
-import {
-  Box,
-  Button,
-  Chip,
-  CircularProgress,
-  List,
-  ListItemButton,
-  ListItemText,
-  Typography,
-} from '@mui/material'
+import { Box, Button, CircularProgress, Radio, Typography } from '@mui/material'
 import { useLockFn } from 'ahooks'
 import type { Ref } from 'react'
 import { useImperativeHandle, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { closeAllConnections } from 'tauri-plugin-mihomo-api'
 
-import { BaseDialog, DialogRef } from '@/components/base'
+import { BaseDialog, CodeChip, DialogRef, FormTile } from '@/components/base'
 import { useClash } from '@/hooks/use-clash'
 import { useVerge } from '@/hooks/use-verge'
 import {
@@ -55,7 +46,7 @@ export function ClashCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const { t } = useTranslation()
 
   const { verge, mutateVerge } = useVerge()
-  const { mutateVersion } = useClash()
+  const { version, mutateVersion } = useClash()
 
   const [open, setOpen] = useState(false)
   const [upgrading, setUpgrading] = useState(false)
@@ -199,72 +190,97 @@ export function ClashCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
     void runUpgrade('core')
   }
 
+  const busy = changingCore !== null || restarting || upgrading
+
   return (
     <BaseDialog
       open={open}
-      title={
-        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-          {t('settings.sections.clash.form.fields.clashCore')}
-          <Box>
-            <Button
-              variant="contained"
-              size="small"
-              startIcon={<SwitchAccessShortcutRounded />}
-              loadingPosition="start"
-              loading={upgrading}
-              disabled={restarting || changingCore !== null}
-              sx={{ marginRight: '8px' }}
-              onClick={onUpgrade}
-            >
-              {t('shared.actions.upgrade')}
-            </Button>
-            <Button
-              variant="contained"
-              size="small"
-              startIcon={<RestartAltRounded />}
-              loadingPosition="start"
-              loading={restarting}
-              disabled={upgrading}
-              onClick={onRestart}
-            >
-              {t('shared.actions.restart')}
-            </Button>
-          </Box>
+      title={t('settings.sections.clash.form.fields.clashCore')}
+      titleExtra={
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<SwitchAccessShortcutRounded />}
+            loadingPosition="start"
+            loading={upgrading}
+            disabled={restarting || changingCore !== null}
+            onClick={onUpgrade}
+          >
+            {t('shared.actions.upgrade')}
+          </Button>
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<RestartAltRounded />}
+            loadingPosition="start"
+            loading={restarting}
+            disabled={upgrading}
+            onClick={onRestart}
+          >
+            {t('shared.actions.restart')}
+          </Button>
         </Box>
       }
-      contentSx={{
-        pb: 0,
-        width: 400,
-        height: 240,
-        overflowY: 'auto',
-        userSelect: 'text',
-        marginTop: '-8px',
-      }}
+      dividers
+      contentSx={{ width: 492, userSelect: 'text' }}
       disableOk
       cancelBtn={t('shared.actions.close')}
       onClose={() => setOpen(false)}
       onCancel={() => setOpen(false)}
     >
-      <List component="nav">
-        {VALID_CORE.map((each) => (
-          <ListItemButton
-            key={each.core}
-            selected={each.core === clash_core}
-            onClick={() => onCoreChange(each.core)}
-            disabled={changingCore !== null || restarting || upgrading}
-          >
-            <ListItemText primary={each.name} />
-            {changingCore === each.core ? (
-              <CircularProgress size={20} sx={{ mr: 1 }} />
-            ) : (
-              <Chip label={t(each.chipKey)} size="small" />
-            )}
-          </ListItemButton>
-        ))}
-      </List>
-      <Typography variant="caption" color="text.secondary" component="p">
+      <Box role="radiogroup" sx={{ pt: 0.5 }}>
+        {VALID_CORE.map((each) => {
+          const selected = each.core === clash_core
+          return (
+            <FormTile
+              key={each.core}
+              selected={selected}
+              onClick={busy ? undefined : () => onCoreChange(each.core)}
+              sx={{
+                minHeight: 52,
+                pl: 1,
+                pr: 1.25,
+                opacity: busy && changingCore !== each.core ? 0.6 : 1,
+                transition: 'background-color 150ms, opacity 150ms',
+              }}
+            >
+              <Radio
+                size="small"
+                checked={selected}
+                disabled={busy}
+                disableRipple
+                slotProps={{ input: { 'aria-label': each.name } }}
+                sx={{ p: 0.5 }}
+              />
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Box sx={{ fontSize: 14, fontWeight: 600 }}>{each.name}</Box>
+                {selected && version !== '-' ? (
+                  <CodeChip sx={{ mt: 0.25, color: 'text.primary' }}>
+                    {version}
+                  </CodeChip>
+                ) : null}
+              </Box>
+              {changingCore === each.core ? (
+                <CircularProgress size={18} sx={{ mr: 0.5 }} />
+              ) : (
+                <CodeChip sx={{ flex: 'none' }}>{t(each.chipKey)}</CodeChip>
+              )}
+            </FormTile>
+          )
+        })}
+      </Box>
+      <Box
+        sx={{
+          mt: 1.5,
+          mb: 0.5,
+          fontSize: 13,
+          lineHeight: 1.55,
+          color: 'text.secondary',
+        }}
+      >
         {t('settings.modals.clashCore.upgradeHint')}
-      </Typography>
+      </Box>
       <BaseDialog
         open={askingToReboot}
         title={t('settings.modals.clashCore.rebootAfterUpgrade.title')}

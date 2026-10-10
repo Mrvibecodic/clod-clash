@@ -1,23 +1,11 @@
-import {
-  EditRounded,
-  LanRounded,
-  LinkRounded,
-  PauseCircleOutlineRounded,
-  PlayCircleOutlineRounded,
-} from '@mui/icons-material'
+import { EditRounded } from '@mui/icons-material'
 import {
   alpha,
   Autocomplete,
   Box,
   Button,
-  Chip,
   InputAdornment,
-  List,
-  ListItem,
-  ListItemText,
-  styled,
   TextField,
-  Typography,
 } from '@mui/material'
 import { useLockFn } from 'ahooks'
 import { forwardRef, useImperativeHandle, useMemo, useState } from 'react'
@@ -26,15 +14,19 @@ import { useTranslation } from 'react-i18next'
 import {
   BaseDialog,
   BaseSplitChipEditor,
+  CodeChip,
   DialogRef,
+  FormField,
+  FormRow,
+  FormSection,
   Switch,
-  TooltipIcon,
 } from '@/components/base'
+import { MONO_INPUT } from '@/components/base/base-mono'
 import { EditorViewer } from '@/components/profile/editor-viewer'
+import { useChangeCount } from '@/hooks/use-change-count'
 import { useRuntimeConfig } from '@/hooks/use-clash'
 import { useSystemProxyState } from '@/hooks/use-system-proxy-state'
 import { useVerge } from '@/hooks/use-verge'
-import { TINT } from '@/pages/_theme'
 import { useSystemData } from '@/providers/app-data-context'
 import { getNetworkInterfacesInfo, getSystemHostname } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
@@ -61,6 +53,8 @@ const ipv4_part = String.raw`\d{1,3}`
 const ipv6_part = '(?:[a-fA-F0-9:])+'
 
 const rLocal = `localhost|<local>|localdomain`
+
+const BYPASS_PREVIEW = 8
 
 const PAC_URL = `http://127.0.0.1:${import.meta.env.DEV ? 11233 : 33331}/commands/pac`
 
@@ -119,7 +113,7 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
     proxy_host,
   } = verge ?? {}
 
-  const [value, setValue] = useState({
+  const snapshot = () => ({
     guard: enable_proxy_guard,
     enable_bypass_check: enable_bypass_check ?? true,
     bypass: system_proxy_bypass,
@@ -129,6 +123,11 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
     pac_content: pac_file_content ?? DEFAULT_PAC,
     proxy_host: proxy_host ?? '127.0.0.1',
   })
+
+  const [value, setValue] = useState(snapshot)
+  const [initial, setInitial] = useState(value)
+  const changes = useChangeCount(initial, value)
+  const [bypassExpanded, setBypassExpanded] = useState(false)
 
   const separator = useMemo(() => (isWindows ? ';' : ','), [isWindows])
 
@@ -167,16 +166,10 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
   useImperativeHandle(ref, () => ({
     open: () => {
       setOpen(true)
-      setValue({
-        guard: enable_proxy_guard,
-        enable_bypass_check: enable_bypass_check ?? true,
-        bypass: system_proxy_bypass,
-        duration: proxy_guard_duration ?? 30,
-        use_default: use_default_bypass ?? true,
-        pac: proxy_auto_config,
-        pac_content: pac_file_content ?? DEFAULT_PAC,
-        proxy_host: proxy_host ?? '127.0.0.1',
-      })
+      const opened = snapshot()
+      setValue(opened)
+      setInitial(opened)
+      setBypassExpanded(false)
       fetchNetworkInterfaces()
     },
     close: () => setOpen(false),
@@ -332,11 +325,19 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
     )
   })
 
+  const standardBypass = splitBypass(defaultBypass())
+  const shownBypass = bypassExpanded
+    ? standardBypass
+    : standardBypass.slice(0, BYPASS_PREVIEW)
+
   return (
     <BaseDialog
       open={open}
       title={t('settings.modals.sysproxy.title')}
-      contentSx={{ width: 450, maxHeight: 565 }}
+      dividers
+      changes={changes}
+      onReset={() => setValue(initial)}
+      contentSx={{ width: 532 }}
       okBtn={t('shared.actions.save')}
       cancelBtn={t('shared.actions.cancel')}
       onClose={() => !saving && setOpen(false)}
@@ -345,175 +346,192 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
       loading={saving}
       disableCancel={saving}
     >
-      <List>
-        <Typography
-          variant="subtitle2"
-          color="text.secondary"
-          sx={{ px: 0.25, mb: 0.75 }}
-        >
+      <Box
+        sx={({ palette }) => ({
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          columnGap: 1.25,
+          rowGap: 0.75,
+          px: 1.5,
+          py: 1,
+          mb: 0.5,
+          borderRadius: '10px',
+          bgcolor: alpha(palette.text.primary, 0.045),
+        })}
+      >
+        <Box component="span" sx={{ fontSize: 13, color: 'text.secondary' }}>
           {t('settings.modals.sysproxy.fieldsets.currentStatus')}
-        </Typography>
+        </Box>
         <Box
-          sx={(theme) => {
+          component="span"
+          title={t('settings.modals.sysproxy.fields.enableStatus')}
+          sx={({ palette }) => {
             const accent = isProxyReallyEnabled
-              ? theme.palette.success.main
-              : theme.palette.text.secondary
+              ? palette.success.main
+              : palette.text.secondary
             return {
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 1,
-              px: 1.5,
-              py: 1.25,
-              mx: 0.25,
-              mb: 0.5,
-              borderRadius: '12px',
-              bgcolor: alpha(accent, TINT.weak),
-              border: `1px solid ${alpha(accent, TINT.edge)}`,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 0.75,
+              px: 1,
+              py: 0.25,
+              borderRadius: '999px',
+              fontSize: 12,
+              fontWeight: 600,
+              color: accent,
+              bgcolor: alpha(accent, 0.14),
+              transition: 'background-color 150ms, color 150ms',
+              '&::before': {
+                content: '""',
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                bgcolor: 'currentColor',
+              },
             }
           }}
         >
-          <StatusRow>
-            {isProxyReallyEnabled ? (
-              <PlayCircleOutlineRounded sx={{ color: 'success.main' }} />
-            ) : (
-              <PauseCircleOutlineRounded sx={{ color: 'text.disabled' }} />
-            )}
-            <Typography className="label">
-              {t('settings.modals.sysproxy.fields.enableStatus')}
-            </Typography>
-            <Typography
-              className="value"
-              sx={{
-                fontWeight: 500,
-                color: isProxyReallyEnabled ? 'success.main' : 'text.secondary',
-              }}
-            >
-              {isProxyReallyEnabled
-                ? t('shared.statuses.enabled')
-                : t('shared.statuses.disabled')}
-            </Typography>
-          </StatusRow>
-          <StatusRow>
-            {value.pac ? (
-              <LinkRounded sx={{ color: 'text.secondary' }} />
-            ) : (
-              <LanRounded sx={{ color: 'text.secondary' }} />
-            )}
-            <Typography className="label">
-              {value.pac
-                ? t('settings.modals.sysproxy.fields.pacUrl')
-                : t('settings.modals.sysproxy.fields.serverAddr')}
-            </Typography>
-            <Typography className="value" sx={{ fontFamily: 'monospace' }}>
-              {value.pac ? PAC_URL : systemProxyAddress}
-            </Typography>
-          </StatusRow>
+          {isProxyReallyEnabled
+            ? t('shared.statuses.enabled')
+            : t('shared.statuses.disabled')}
         </Box>
-        <ListItem sx={{ padding: '5px 2px' }}>
-          <ListItemText
-            primary={t('settings.modals.sysproxy.fields.proxyHost')}
-            sx={{ maxWidth: 'fit-content' }}
-          />
-          <TooltipIcon
-            title={t('settings.modals.sysproxy.tooltips.proxyHost')}
-            sx={{ opacity: '0.7' }}
-          />
-          <Autocomplete
-            size="small"
-            sx={{ width: 150, marginLeft: 'auto' }}
-            options={shownHostOptions}
-            value={value.proxy_host}
-            freeSolo
-            renderInput={(params) => (
-              <TextField {...params} placeholder="127.0.0.1" size="small" />
-            )}
-            onChange={(_, newValue) => {
-              setValue((v) => ({
-                ...v,
-                proxy_host: newValue || '127.0.0.1',
-              }))
-            }}
-            onInputChange={(_, newInputValue) => {
-              setValue((v) => ({
-                ...v,
-                proxy_host: newInputValue || '127.0.0.1',
-              }))
-            }}
-          />
-        </ListItem>
-        <ListItem sx={{ padding: '5px 2px' }}>
-          <ListItemText
-            primary={t('settings.modals.sysproxy.fields.usePacMode')}
-          />
-          <Switch
-            edge="end"
-            disabled={!enabled}
-            checked={value.pac}
-            onChange={(_, e) => setValue((v) => ({ ...v, pac: e }))}
-          />
-        </ListItem>
+        <CodeChip
+          title={
+            value.pac
+              ? t('settings.modals.sysproxy.fields.pacUrl')
+              : t('settings.modals.sysproxy.fields.serverAddr')
+          }
+          sx={{ ml: 'auto', maxWidth: '100%', fontSize: 12.5 }}
+        >
+          {value.pac ? PAC_URL : systemProxyAddress}
+        </CodeChip>
+      </Box>
 
-        <ListItem sx={{ padding: '5px 2px' }}>
-          <ListItemText
-            primary={t('settings.modals.sysproxy.fields.proxyGuard')}
-            sx={{ maxWidth: 'fit-content' }}
-          />
-          <TooltipIcon
-            title={t('settings.modals.sysproxy.tooltips.proxyGuard')}
-            sx={{ opacity: '0.7' }}
-          />
-          <Switch
-            edge="end"
-            disabled={!enabled}
-            checked={value.guard}
-            onChange={(_, e) => setValue((v) => ({ ...v, guard: e }))}
-            sx={{ marginLeft: 'auto' }}
-          />
-        </ListItem>
-
-        <ListItem sx={{ padding: '5px 2px' }}>
-          <ListItemText
-            primary={t('settings.modals.sysproxy.fields.guardDuration')}
-          />
-          <TextField
-            disabled={!enabled}
-            size="small"
-            value={value.duration}
-            sx={{ width: 100 }}
-            slotProps={{
-              input: {
-                endAdornment: <InputAdornment position="end">s</InputAdornment>,
-              },
-            }}
-            onChange={(e) => {
-              setValue((v) => ({
-                ...v,
-                duration: +e.target.value.replace(/\D/g, ''),
-              }))
-            }}
-          />
-        </ListItem>
-        {!value.pac && (
-          <ListItem sx={{ padding: '5px 2px' }}>
-            <ListItemText
-              primary={t(
-                'settings.modals.sysproxy.fields.alwaysUseDefaultBypass',
-              )}
+      <FormSection title={t('settings.modals.sysproxy.sections.address')} />
+      <FormField
+        label={t('settings.modals.sysproxy.fields.proxyHost')}
+        help={t('settings.modals.sysproxy.tooltips.proxyHost')}
+        sx={{ pt: 0.5 }}
+      >
+        <Autocomplete
+          size="small"
+          fullWidth
+          options={shownHostOptions}
+          value={value.proxy_host}
+          freeSolo
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              placeholder="127.0.0.1"
+              size="small"
+              sx={MONO_INPUT}
             />
+          )}
+          onChange={(_, newValue) => {
+            setValue((v) => ({
+              ...v,
+              proxy_host: newValue || '127.0.0.1',
+            }))
+          }}
+          onInputChange={(_, newInputValue) => {
+            setValue((v) => ({
+              ...v,
+              proxy_host: newInputValue || '127.0.0.1',
+            }))
+          }}
+        />
+      </FormField>
+      <FormRow label={t('settings.modals.sysproxy.fields.usePacMode')}>
+        <Switch
+          edge="end"
+          disabled={!enabled}
+          checked={value.pac}
+          onChange={(_, e) => setValue((v) => ({ ...v, pac: e }))}
+        />
+      </FormRow>
+      {value.pac && (
+        <FormRow label={t('settings.modals.sysproxy.fields.pacScriptContent')}>
+          <Button
+            startIcon={<EditRounded />}
+            variant="outlined"
+            size="small"
+            onClick={openPacEditor}
+          >
+            {t('settings.modals.sysproxy.actions.editPac')}
+          </Button>
+          {editorOpen && (
+            <EditorViewer
+              open={true}
+              title={t('settings.modals.sysproxy.actions.editPac')}
+              value={pacEditorValue}
+              language="javascript"
+              path="sysproxy-pac.js"
+              dirty={pacEditorValue !== pacEditorSavedValue}
+              onChange={setPacEditorValue}
+              onSave={handleSavePac}
+              onClose={() => setEditorOpen(false)}
+            />
+          )}
+        </FormRow>
+      )}
+
+      <FormSection title={t('settings.modals.sysproxy.sections.guard')} />
+      <FormRow
+        label={t('settings.modals.sysproxy.fields.proxyGuard')}
+        help={t('settings.modals.sysproxy.tooltips.proxyGuard')}
+      >
+        <Switch
+          edge="end"
+          disabled={!enabled}
+          checked={value.guard}
+          onChange={(_, e) => setValue((v) => ({ ...v, guard: e }))}
+        />
+      </FormRow>
+      <FormRow
+        label={t('settings.modals.sysproxy.fields.guardDuration')}
+        disabled={!value.guard}
+      >
+        <TextField
+          disabled={!enabled}
+          size="small"
+          value={value.duration}
+          sx={{
+            width: 110,
+            opacity: value.guard ? 1 : 0.6,
+            transition: 'opacity 150ms',
+            ...MONO_INPUT,
+          }}
+          slotProps={{
+            input: {
+              endAdornment: <InputAdornment position="end">s</InputAdornment>,
+            },
+          }}
+          onChange={(e) => {
+            setValue((v) => ({
+              ...v,
+              duration: +e.target.value.replace(/\D/g, ''),
+            }))
+          }}
+        />
+      </FormRow>
+
+      {!value.pac && (
+        <>
+          <FormSection title={t('settings.modals.sysproxy.sections.bypass')} />
+          <FormRow
+            label={t('settings.modals.sysproxy.fields.alwaysUseDefaultBypass')}
+          >
             <Switch
               edge="end"
               disabled={!enabled}
               checked={value.use_default}
               onChange={(_, e) => setValue((v) => ({ ...v, use_default: e }))}
             />
-          </ListItem>
-        )}
-
-        {!value.pac && (
-          <ListItem sx={{ padding: '5px 2px' }}>
-            <ListItemText
-              primary={t('settings.modals.sysproxy.fields.enableBypassCheck')}
-            />
+          </FormRow>
+          <FormRow
+            label={t('settings.modals.sysproxy.fields.enableBypassCheck')}
+          >
             <Switch
               edge="end"
               disabled={!enabled}
@@ -522,10 +540,7 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
                 setValue((v) => ({ ...v, enable_bypass_check: e }))
               }
             />
-          </ListItem>
-        )}
-
-        {!value.pac && (
+          </FormRow>
           <BaseSplitChipEditor
             value={value.bypass ?? ''}
             separator={separator}
@@ -542,88 +557,50 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
               setValue((v) => ({ ...v, bypass: nextValue }))
             }}
             renderHeader={(modeToggle) => (
-              <ListItem sx={{ padding: '5px 2px' }}>
-                <ListItemText
-                  primary={t('settings.modals.sysproxy.fields.proxyBypass')}
-                />
-                {modeToggle ? (
-                  <Box sx={{ marginLeft: 'auto' }}>{modeToggle}</Box>
-                ) : null}
-              </ListItem>
+              <FormSection
+                title={t('settings.modals.sysproxy.fields.proxyBypass')}
+                count={splitBypass(value.bypass).length}
+                extra={modeToggle}
+              />
             )}
           />
-        )}
+        </>
+      )}
 
-        {!value.pac && (value.use_default || !value.bypass) && (
-          <>
-            <ListItem sx={{ padding: '5px 2px' }}>
-              <ListItemText
-                primary={t('settings.modals.sysproxy.fields.bypass')}
-              />
-            </ListItem>
-            <Box sx={{ padding: '0 2px 5px' }}>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                {splitBypass(defaultBypass()).map((item) => (
-                  <Chip key={item} label={item} size="small" />
-                ))}
-              </Box>
-            </Box>
-          </>
-        )}
-
-        {value.pac && (
-          <ListItem sx={{ padding: '5px 2px', alignItems: 'start' }}>
-            <ListItemText
-              primary={t('settings.modals.sysproxy.fields.pacScriptContent')}
-              sx={{ padding: '3px 0' }}
-            />
-            <Button
-              startIcon={<EditRounded />}
-              variant="outlined"
-              onClick={openPacEditor}
-            >
-              {t('settings.modals.sysproxy.actions.editPac')}
-            </Button>
-            {editorOpen && (
-              <EditorViewer
-                open={true}
-                title={t('settings.modals.sysproxy.actions.editPac')}
-                value={pacEditorValue}
-                language="javascript"
-                path="sysproxy-pac.js"
-                dirty={pacEditorValue !== pacEditorSavedValue}
-                onChange={setPacEditorValue}
-                onSave={handleSavePac}
-                onClose={() => setEditorOpen(false)}
-              />
+      {!value.pac && (value.use_default || !value.bypass) && (
+        <>
+          <FormSection
+            title={t('settings.modals.sysproxy.fields.bypass')}
+            count={standardBypass.length}
+          />
+          <Box
+            sx={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              gap: 0.75,
+              pb: 0.5,
+            }}
+          >
+            {shownBypass.map((item) => (
+              <CodeChip key={item}>{item}</CodeChip>
+            ))}
+            {standardBypass.length > BYPASS_PREVIEW && (
+              <Button
+                size="small"
+                onClick={() => setBypassExpanded((x) => !x)}
+                sx={{ minWidth: 0, py: 0, textTransform: 'none' }}
+              >
+                {bypassExpanded
+                  ? t('settings.modals.sysproxy.actions.showLess')
+                  : t('settings.modals.sysproxy.actions.showMore', {
+                      count: standardBypass.length - BYPASS_PREVIEW,
+                    })}
+              </Button>
             )}
-          </ListItem>
-        )}
-      </List>
+          </Box>
+        </>
+      )}
     </BaseDialog>
   )
 })
-
-// Строка состояния: иконка, подпись и значение справа. Промежутки даёт
-// вёрстка, а не пробелы и двоеточия в переводах.
-const StatusRow = styled('div')(({ theme }) => ({
-  display: 'flex',
-  alignItems: 'center',
-  gap: theme.spacing(1),
-  '& > .MuiSvgIcon-root': {
-    flex: 'none',
-    fontSize: 20,
-  },
-  '& .label': {
-    flex: 'none',
-    fontSize: 14,
-    color: theme.palette.text.secondary,
-  },
-  '& .value': {
-    flex: 1,
-    minWidth: 0,
-    fontSize: 14,
-    textAlign: 'right',
-    wordBreak: 'break-all',
-  },
-}))
