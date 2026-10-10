@@ -1,6 +1,8 @@
 //! clod:report — отчёт прослойке о качестве узлов.
 //!
-//! Копится только у текущей подписки с защищённым каналом: сборщик берёт то,
+//! Копится только у текущей подписки с защищённым каналом, пока прослойка
+//! принимает отчёты: о приёме она говорит меткой в ответе подписки по каналу
+//! ([`PrfItem::report`]); сказала «нет» — накопленное стирается. Сборщик берёт то,
 //! что ядро уже намерило (история задержек узлов из `/proxies`, байты
 //! соединений по узлам из `/connections`), и раскладывает по сети, часу и
 //! внешнему адресу клиента. Своих проб нет. Проверка 16–20 приносит свои итоги
@@ -11,7 +13,8 @@
 //! Все замеры: ядро держит у узла только 10 последних, поэтому сборщик читает
 //! их тем чаще, чем чаще узлы проверяются (от 20 секунд до 5 минут), и
 //! отсчитывает окно по миллисекундам — ни один замер не теряется и не
-//! считается дважды.
+//! считается дважды. Окно кончается на [`LAG`] раньше чтения: часть замеров
+//! ядро кладёт в историю позже, чем помечает.
 //!
 //! Замер лежит в той сети и при том адресе, где сделан. Сеть с адресом —
 //! «место» — узнаётся один раз и держится, пока сторож среды не увидит смену
@@ -27,7 +30,10 @@
 //! обновления подписки, а если она обновляется реже раза в 6 часов, — и между
 //! обновлениями ([`send_between`]), и не чаще раза в 6 часов,
 //! закрытыми часами — от самых старых, не больше двух суток за раз и не
-//! больше, чем примет прослойка.
+//! больше, чем примет прослойка. Закрытый час — тот, в который уже ничего не
+//! ляжет: перед отправкой сборщик дочитывает окно, и граница — час прочитанного.
+//! Велик (413) — окно тут же уполовинивается; час, который не влез и один,
+//! отбрасывается.
 //! Принят (204) — отправленное удаляется, остальное ждёт следующего раза. Приём выключен в прослойке (403), рано (429)
 //! или прослойка старая и ответила подпиской — накопленное остаётся, следующая
 //! попытка через 6 часов. Каналом не ответил никто — попытка при следующей
@@ -59,6 +65,12 @@ use store::{NodeInfo, Place, Use};
 const TICK: Duration = Duration::from_secs(5 * 60);
 /// И не чаще этого.
 const TICK_MIN: Duration = Duration::from_secs(20);
+/// Окно замеров кончается на столько (мс) раньше чтения. Clod Core кладёт
+/// неудачу пробы, которую спасла повторная, в историю, когда та ответила, а
+/// помечает началом первой: позже не больше чем на 1,25 с и тайм-аут проверки
+/// группы (5 с по умолчанию). Больше не надо: история узла — 10 записей, и
+/// лишнее отставание теряло бы замеры у часто проверяемых узлов.
+const LAG: i64 = 20 * 1000;
 /// Снимок соединений (его приносит общий опрос, `core::connections_poll`):
 /// байты по узлам. Ядро отдаёт только живые соединения, закрытое между
 /// чтениями теряется целиком — поэтому часто: теряется лишь хвост последних
@@ -121,9 +133,10 @@ struct Spot {
 }
 
 impl Spot {
+    /// Часы ушли назад — спросить сейчас, а не ждать, пока догонят.
     const fn ip_is_due(&self, now: i64) -> bool {
         let unknown = self.place.ip4.is_empty() && self.place.ip6.is_empty();
-        now.saturating_sub(self.ip_at) >= if unknown { IP_RETRY } else { IP_EVERY }
+        self.ip_at > now || now.saturating_sub(self.ip_at) >= if unknown { IP_RETRY } else { IP_EVERY }
     }
 }
 
@@ -163,17 +176,26 @@ fn now_millis() -> i64 {
 }
 
 /// Записать накопленное в файл, если есть что (перед записью — почистить).
-/// Подписки, которой в реестре уже нет, файл не возвращается: его убрало
-/// удаление подписки.
+/// Подписка, по которой отчёт больше не копится (удалена, прослойка не
+/// принимает отчёты, канал выключен), файла не получает, а прежний теряет.
 async fn flush(entry: &mut Cached, now: i64) {
     if !entry.dirty {
         return;
     }
     entry.store.prune(now);
     entry.pruned_hour = store::hour_of(now);
-    let known = Config::profiles().await.latest_arc().get_item(&entry.uid).is_ok();
-    if known && let Err(err) = store::save(&entry.uid, &entry.store).await {
-        logging!(warn, Type::Core, "[Report] the measurements were not saved: {err:#}");
+    let collected = Config::profiles()
+        .await
+        .latest_arc()
+        .get_item(&entry.uid)
+        .is_ok_and(is_collected);
+    let written = if collected {
+        store::save(&entry.uid, &entry.store).await
+    } else {
+        store::remove(&entry.uid).await
+    };
+    if let Err(err) = written {
+        logging!(warn, Type::Core, "[Report] the measurements were not written: {err:#}");
         return;
     }
     entry.dirty = false;
@@ -241,12 +263,16 @@ async fn forget_store() {
     drop(guard);
 }
 
+/// Копится ли отчёт по подписке: удалённая, с защищённым каналом — только им
+/// отчёт и может уйти — и прослойка не сказала, что отчёты не принимает. Метки
+/// не было (прослойка старее или подписка обновлялась до неё) — копится.
 fn is_collected(item: &PrfItem) -> bool {
-    item.itype.as_deref() == Some("remote") && item.option.as_ref().is_some_and(|o| o.secure == Some(true))
+    item.itype.as_deref() == Some("remote")
+        && item.option.as_ref().is_some_and(|o| o.secure == Some(true))
+        && item.report != Some(false)
 }
 
-/// Текущая подписка, если по ней копится отчёт: удалённая и с защищённым
-/// каналом — только им отчёт и может уйти.
+/// Текущая подписка, если по ней копится отчёт.
 async fn collecting_uid() -> Option<String> {
     let profiles = Config::profiles().await.latest_arc();
     let uid = profiles.get_current()?.to_string();
@@ -277,7 +303,8 @@ fn history_of(entry: &serde_json::Value) -> Vec<(i64, u64)> {
 }
 
 /// История задержек узлов из `wanted`: из `/proxies` (узлы самой подписки) и
-/// провайдеров подписки (узлы провайдеров — в `/proxies` их нет).
+/// провайдеров подписки (узлы провайдеров — в `/proxies` их нет) — у того же
+/// узла, чей адрес у `wanted`: одноимённый узел другого провайдера не в счёт.
 fn histories(
     proxies: &serde_json::Value,
     providers: Option<&serde_json::Value>,
@@ -286,7 +313,7 @@ fn histories(
     let mut out = HashMap::new();
     if let Some(map) = proxies.get("proxies").and_then(serde_json::Value::as_object) {
         for (name, entry) in map {
-            if wanted.contains_key(name) {
+            if wanted.get(name).is_some_and(|address| address.provider.is_empty()) {
                 out.insert(name.clone(), history_of(entry));
             }
         }
@@ -294,15 +321,15 @@ fn histories(
     let listed = providers
         .and_then(|providers| providers.get("providers"))
         .and_then(serde_json::Value::as_object);
-    for provider in listed.into_iter().flat_map(|map| map.values()) {
-        let Some(members) = provider.get("proxies").and_then(serde_json::Value::as_array) else {
+    for (provider, listing) in listed.into_iter().flatten() {
+        let Some(members) = listing.get("proxies").and_then(serde_json::Value::as_array) else {
             continue;
         };
         for member in members {
             let Some(name) = member.get("name").and_then(serde_json::Value::as_str) else {
                 continue;
             };
-            if wanted.contains_key(name) && !out.contains_key(name) {
+            if wanted.get(name).is_some_and(|address| address.provider == *provider) && !out.contains_key(name) {
                 out.insert(name.to_owned(), history_of(member));
             }
         }
@@ -324,7 +351,8 @@ fn pings_of(histories: &HashMap<String, Vec<(i64, u64)>>, since: i64, until: i64
 }
 
 /// Через сколько читать историю снова, чтобы застать каждый замер: у узла с
-/// полной историей десять замеров уложились в `span` — читать вдвое чаще.
+/// полной историей десять замеров уложились в `span`, а окно отстаёт на
+/// [`LAG`] — читать вдвое чаще, чем `span` без него.
 /// Второе — сколько узлов, возможно, уже потеряли замеры с окна `since`.
 fn next_read(histories: &HashMap<String, Vec<(i64, u64)>>, since: i64) -> (Duration, usize) {
     let mut next = TICK;
@@ -338,7 +366,7 @@ fn next_read(histories: &HashMap<String, Vec<(i64, u64)>>, since: i64) -> (Durat
         if since > 0 && oldest > since {
             overflowed += 1;
         }
-        let half = Duration::from_millis(u64::try_from((newest - oldest) / 2).unwrap_or(0));
+        let half = Duration::from_millis(u64::try_from((newest - oldest - LAG) / 2).unwrap_or(0));
         next = next.min(half);
     }
     (next.clamp(TICK_MIN, TICK), overflowed)
@@ -406,9 +434,9 @@ impl Window {
     }
 }
 
-/// Прочитать у ядра замеры с прошлого чтения по `until` (мс) и забрать
-/// накопленный трафик. `None` — ядро не ответило: окно не сдвигается, замеры
-/// дождутся следующего чтения.
+/// Прочитать у ядра замеры с прошлого чтения по `until` (мс; окно назад не
+/// сдвигается) и забрать накопленный трафик. `None` — ядро не ответило: окно
+/// не сдвигается, замеры дождутся следующего чтения.
 async fn read_window(uid: &str, until: i64) -> Option<Window> {
     let nodes = crate::config::proxy_label::addresses(uid)
         .await
@@ -417,6 +445,7 @@ async fn read_window(uid: &str, until: i64) -> Option<Window> {
     let (proxies, providers, _failed) = crate::feat::read_core_proxies(CORE_TIMEOUT).await.into_json()?;
     let listed = histories(&proxies, Some(&providers), &nodes);
     let since = with_runtime(|runtime| runtime.pings_until);
+    let until = until.max(since);
     let pings = pings_of(&listed, since, until);
     let (next, overflowed) = next_read(&listed, since);
     if overflowed > 0 {
@@ -506,51 +535,65 @@ enum IpWork {
     Refresh(Spot),
 }
 
+/// Прочитать окно (по [`LAG`] назад от нынешнего) и разложить в место; под
+/// замком сборщика. Что делать с адресом — решает вызвавший.
+async fn collect() -> IpWork {
+    let Some(uid) = collecting_uid().await else {
+        with_runtime(|runtime| *runtime = Runtime::default());
+        forget_store().await;
+        return IpWork::None;
+    };
+    start_over_for(&uid);
+    let now = now_millis();
+    // Часы ушли назад: окно — от нынешнего момента, иначе замеров не было бы,
+    // пока часы не догонят прежнее.
+    with_runtime(|runtime| runtime.pings_until = runtime.pings_until.min(now));
+    let Some(window) = read_window(&uid, now - LAG).await else {
+        return IpWork::None;
+    };
+    let changes = CHANGES.load(Ordering::Acquire);
+    let here = crate::module::freeze_check::current_network().await;
+    let spot = with_runtime(|runtime| runtime.spot.clone())
+        .filter(|spot| spot.changes == changes && here.as_ref().is_some_and(|(net, _)| *net == spot.place.net));
+    match spot {
+        Some(spot) => {
+            record(&uid, &spot.place, window).await;
+            if spot.ip_is_due(help::now_secs()) {
+                IpWork::Refresh(spot)
+            } else {
+                IpWork::None
+            }
+        }
+        None => {
+            // Места нет или сеть уже другая, а когда сменилась — неизвестно:
+            // окно не к чему привязать. Узнаём место заново.
+            if !window.is_empty() {
+                logging!(
+                    debug,
+                    Type::Core,
+                    "[Report] {} measurement(s) dropped: the network they were made in is not known for sure",
+                    window.pings.len() + window.traffic.len()
+                );
+            }
+            if here.is_some() {
+                IpWork::Locate(changes)
+            } else {
+                IpWork::None
+            }
+        }
+    }
+}
+
 async fn tick() {
     let work = {
         let _collect = COLLECT.lock().await;
-        let Some(uid) = collecting_uid().await else {
-            with_runtime(|runtime| *runtime = Runtime::default());
-            forget_store().await;
-            return;
-        };
-        start_over_for(&uid);
-        let until = now_millis();
-        let Some(window) = read_window(&uid, until).await else {
-            return;
-        };
-        let changes = CHANGES.load(Ordering::Acquire);
-        let here = crate::module::freeze_check::current_network().await;
-        let spot = with_runtime(|runtime| runtime.spot.clone())
-            .filter(|spot| spot.changes == changes && here.as_ref().is_some_and(|(net, _)| *net == spot.place.net));
-        match spot {
-            Some(spot) => {
-                record(&uid, &spot.place, window).await;
-                if spot.ip_is_due(help::now_secs()) {
-                    IpWork::Refresh(spot)
-                } else {
-                    IpWork::None
-                }
-            }
-            None => {
-                // Места нет или сеть уже другая, а когда сменилась — неизвестно:
-                // окно не к чему привязать. Узнаём место заново.
-                if !window.is_empty() {
-                    logging!(
-                        debug,
-                        Type::Core,
-                        "[Report] {} measurement(s) dropped: the network they were made in is not known for sure",
-                        window.pings.len() + window.traffic.len()
-                    );
-                }
-                if here.is_some() {
-                    IpWork::Locate(changes)
-                } else {
-                    IpWork::None
-                }
-            }
-        }
+        collect().await
     };
+    settle(work).await;
+}
+
+/// Узнать место или переспросить адрес места — уже без замка сборщика.
+async fn settle(work: IpWork) {
     match work {
         IpWork::None => {}
         IpWork::Locate(changes) => {
@@ -590,7 +633,7 @@ async fn locate(changes: u64) -> Option<Spot> {
 }
 
 /// Сторож среды увидел смену сети или пробуждение. Намеренное до смены уходит
-/// в старое место, последние [`CHANGE_GUARD_MS`] перед ней отбрасываются, новое
+/// в старое место, последние [`CHANGE_GUARD_MS`] (не меньше [`LAG`]) перед ней отбрасываются, новое
 /// место узнаётся сразу. Сторожа это не задерживает: байты соединений,
 /// закрытых им раньше, чем дошёл сброс, — хвост последних секунд, не больше.
 pub(crate) fn network_changed() {
@@ -609,7 +652,8 @@ async fn flush_before_change(seen_at: i64, before: u64) {
     };
     start_over_for(&uid);
     let old = with_runtime(|runtime| runtime.spot.take()).filter(|spot| spot.changes == before);
-    let cut = seen_at - CHANGE_GUARD_MS;
+    // Раньше среза история уже полна: позже помеченное ядро могло ещё не положить.
+    let cut = seen_at - CHANGE_GUARD_MS.max(LAG);
     let Some(old) = old else {
         with_runtime(|runtime| {
             runtime.pings_until = runtime.pings_until.max(seen_at);
@@ -632,14 +676,10 @@ async fn flush_before_change(seen_at: i64, before: u64) {
     }
 }
 
-/// Проверка 16–20 вынесла вердикты в сети `net`: в отчёт, если по этой подписке он копится.
-pub(crate) async fn note_freeze(
-    uid: &str,
-    net: &str,
-    kind: &'static str,
-    verdicts: &[(String, Verdict, i64)],
-    now: i64,
-) {
+/// Проверка 16–20 вынесла вердикты в сети `net`: в отчёт, если по этой подписке
+/// он копится. Вердикт ложится в час, когда записан: в отправленный час уже
+/// ничего не ложится.
+pub(crate) async fn note_freeze(uid: &str, net: &str, kind: &'static str, verdicts: &[(String, Verdict, i64)]) {
     if verdicts.is_empty() {
         return;
     }
@@ -681,7 +721,8 @@ pub(crate) async fn note_freeze(
         }
     };
 
-    with_store(uid, now, true, |saved| {
+    with_store(uid, help::now_secs(), true, |saved| {
+        let now = help::now_secs();
         for (info, verdict, status) in known {
             let key = store::node_key(&info);
             saved.remember_node(&key, &info);
@@ -726,11 +767,20 @@ fn gzip(bytes: &[u8]) -> std::io::Result<Vec<u8>> {
     encoder.finish()
 }
 
-/// Сжатый отчёт, граница отправленного (часы раньше неё) и число записей в нём.
-/// Окно — от самого старого закрытого часа на [`SEND_WINDOW`], но не дальше
-/// текущего часа; не влезло в [`REPORT_MAX_GZ`] — окно уполовинивается.
-fn pack_window(saved: &store::Store, now: i64, oldest: i64, dev: &str) -> std::io::Result<(Vec<u8>, i64, usize)> {
-    pack_within(saved, now, oldest, dev, REPORT_MAX_GZ, |report| {
+/// Отчёт к отправке: сжатый, граница отправленного (часы раньше неё), сколько
+/// часов он охватывает и сколько в нём записей часов.
+struct Packed {
+    gz: Vec<u8>,
+    until: i64,
+    span: i64,
+    records: usize,
+}
+
+/// Отчёт из закрытых часов (раньше `closed`): от самого старого на `hours`
+/// часов; не влез в [`REPORT_MAX_GZ`] — окно уполовинивается. `None` —
+/// отправлять нечего.
+fn pack_window(saved: &store::Store, now: i64, closed: i64, hours: i64, dev: &str) -> Option<std::io::Result<Packed>> {
+    pack_within(saved, now, closed, hours, dev, REPORT_MAX_GZ, |report| {
         serde_json::to_vec(report)
             .map_err(std::io::Error::other)
             .and_then(|json| gzip(&json))
@@ -740,28 +790,71 @@ fn pack_window(saved: &store::Store, now: i64, oldest: i64, dev: &str) -> std::i
 fn pack_within(
     saved: &store::Store,
     now: i64,
-    oldest: i64,
+    closed: i64,
+    hours: i64,
     dev: &str,
     limit: usize,
     pack: impl Fn(&serde_json::Value) -> std::io::Result<Vec<u8>>,
-) -> std::io::Result<(Vec<u8>, i64, usize)> {
-    let current = store::hour_of(now);
-    let mut hours = SEND_WINDOW / store::HOUR;
-    loop {
-        let until = (oldest + hours * store::HOUR).min(current);
-        let gz = pack(&saved.report(now, until, dev))?;
-        if gz.len() <= limit || hours <= 1 {
-            return Ok((gz, until, saved.hours_before(until)));
+) -> Option<std::io::Result<Packed>> {
+    let oldest = saved.oldest_before(closed)?;
+    let mut hours = hours.max(1);
+    Some(loop {
+        let until = (oldest + hours * store::HOUR).min(closed);
+        let gz = match pack(&saved.report(now, until, dev)) {
+            Ok(gz) => gz,
+            Err(err) => break Err(err),
+        };
+        let span = (until - oldest) / store::HOUR;
+        if gz.len() <= limit || span <= 1 {
+            break Ok(Packed {
+                gz,
+                until,
+                span,
+                records: saved.hours_before(until),
+            });
         }
-        hours = (hours / 2).max(1);
+        hours = (span / 2).max(1);
+    })
+}
+
+/// Граница закрытых часов подписки: в часы раньше неё уже ничего не ляжет.
+/// Замер задержки ложится в час, когда сделан, но не раньше прочитанного окна
+/// (`pings_until`), всё прочее — в час, когда записано. Окно прочитано по
+/// подписке, которую собирают, — граница по нему; по остальным — нынешний час.
+fn closed_before(uid: &str, now: i64) -> i64 {
+    let read = with_runtime(|runtime| (runtime.uid.as_deref() == Some(uid)).then_some(runtime.pings_until / 1000));
+    store::hour_of(read.map_or(now, |read| read.min(now)))
+}
+
+/// Подписка обновилась. Отчёт по ней больше не копится (прослойка сказала, что
+/// не принимает, канал выключили) — накопленное стирается; обновление плановое —
+/// отчёт уходит, если подошло время.
+pub(crate) async fn after_update(uid: String, scheduled: bool) {
+    let collected = Config::profiles()
+        .await
+        .latest_arc()
+        .get_item(&uid)
+        .is_ok_and(is_collected);
+    if !collected {
+        forget(&uid).await;
+        return;
+    }
+    if scheduled {
+        let at = send(&uid).await;
+        NEXT.lock().insert(uid, at);
     }
 }
 
-/// Плановое обновление подписки удалось: если подошло время, отправить отчёт.
-/// Зовётся только для обновления по расписанию.
-pub(crate) async fn after_scheduled_update(uid: String) {
-    let at = send(&uid).await;
-    NEXT.lock().insert(uid, at);
+/// Накопленное подписки — вон из памяти и с диска.
+async fn forget(uid: &str) {
+    let mut guard = CACHE.lock().await;
+    if guard.as_ref().is_some_and(|entry| entry.uid == uid) {
+        *guard = None;
+    }
+    if let Err(err) = store::remove(uid).await {
+        logging!(warn, Type::Core, "[Report] the measurements were not removed: {err:#}");
+    }
+    drop(guard);
 }
 
 /// Обновления подписки реже, чем отчёт может уходить, и последнее удалось.
@@ -782,7 +875,8 @@ fn due_between(next: &mut BTreeMap<String, i64>, wanted: &[(String, bool)], now:
     next.retain(|uid, _| wanted.iter().any(|(wanted, _)| wanted == uid));
     let mut due = Vec::new();
     for (uid, stored) in wanted {
-        if *stored && next.get(uid).is_none_or(|at| *at <= now) {
+        // Срок дальше, чем ставится, — часы ушли назад: пора.
+        if *stored && next.get(uid).is_none_or(|at| *at <= now || *at > now + SEND_EVERY) {
             next.insert(uid.clone(), now + SEND_EVERY);
             due.push(uid.clone());
         }
@@ -847,67 +941,101 @@ async fn send(uid: &str) -> i64 {
     };
 
     let now = help::now_secs();
-    let packed = with_store(uid, now, false, |saved| {
-        let pruned = saved.prune(now);
-        let packed = if now.saturating_sub(saved.last_try) < SEND_EVERY {
-            Err(saved.last_try + SEND_EVERY)
-        } else {
-            saved
-                .oldest_closed(now)
-                .map(|oldest| pack_window(saved, now, oldest, &device_id()))
-                .ok_or(now + SEND_EVERY)
-        };
-        (packed, pruned)
+    let early = with_store(uid, now, false, |saved| {
+        (too_early(saved.last_try, now), saved.prune(now))
     })
     .await;
-    let (gz, until, hours) = match packed {
-        Err(at) => return at,
-        Ok(Ok(packed)) => packed,
-        Ok(Err(err)) => {
-            logging!(warn, Type::Core, "[Report] the report was not packed: {err}");
-            return now + SEND_EVERY;
-        }
-    };
-
-    let mut sent = crate::config::send_report(&url, option.as_ref(), &gz).await;
-    if sent.is_err()
-        && let Some(spare) = spare
-    {
-        sent = crate::config::send_report(&spare, option.as_ref(), &gz).await;
+    if let Some(at) = early {
+        return at;
     }
-    let status = match sent {
-        Ok(status) => status,
-        Err(err) => {
-            logging!(
-                info,
-                Type::Core,
-                "[Report] the middleware did not answer over the secure channel, next try with the next send: {}",
-                crate::utils::help::mask_err(&err.to_string())
-            );
+    // Сборщик дочитывает окно: граница закрытых часов — по прочитанному.
+    let (closed, work) = {
+        let _collect = COLLECT.lock().await;
+        let work = collect().await;
+        (closed_before(uid, now), work)
+    };
+    settle(work).await;
+
+    let dev = device_id();
+    let mut hours = SEND_WINDOW / store::HOUR;
+    loop {
+        let packed = with_store(uid, now, false, |saved| {
+            (pack_window(saved, now, closed, hours, &dev), false)
+        })
+        .await;
+        let packed = match packed {
+            None => return now + SEND_EVERY,
+            Some(Ok(packed)) => packed,
+            Some(Err(err)) => {
+                logging!(warn, Type::Core, "[Report] the report was not packed: {err}");
+                return now + SEND_EVERY;
+            }
+        };
+
+        let mut sent = crate::config::send_report(&url, option.as_ref(), &packed.gz).await;
+        if sent.is_err()
+            && let Some(spare) = spare.as_deref()
+        {
+            sent = crate::config::send_report(spare, option.as_ref(), &packed.gz).await;
+        }
+        let status = match sent {
+            Ok(status) => status,
+            Err(err) => {
+                logging!(
+                    info,
+                    Type::Core,
+                    "[Report] the middleware did not answer over the secure channel, next try with the next send: {}",
+                    crate::utils::help::mask_err(&err.to_string())
+                );
+                return now + SEND_EVERY;
+            }
+        };
+        // Велик — тут же вдвое меньшее окно.
+        if status == 413 && packed.span > 1 {
+            hours = packed.span / 2;
+            continue;
+        }
+        // Час, не влезший и один, отброшен ниже — дальше снова полное окно.
+        if status == 413 {
+            hours = SEND_WINDOW / store::HOUR;
+        }
+
+        with_store(uid, now, true, |saved| {
+            saved.last_try = now;
+            // Час, который не влез и один, не уйдёт никогда — он отбрасывается.
+            if status == 204 || status == 413 {
+                saved.drop_sent(now, packed.until);
+            }
+            ((), true)
+        })
+        .await;
+        let outcome = match status {
+            204 => "accepted",
+            403 => "the middleware does not take reports",
+            413 => "too big for the middleware even alone, dropped",
+            429 => "too early for the middleware",
+            _ => "the middleware does not know reports",
+        };
+        logging!(
+            info,
+            Type::Core,
+            "[Report] {} hour(s) of measurements sent: {outcome} ({status})",
+            packed.records
+        );
+        if status != 413 {
             return now + SEND_EVERY;
         }
-    };
+    }
+}
 
-    with_store(uid, now, true, |saved| {
-        saved.last_try = now;
-        if status == 204 {
-            saved.drop_sent(now, until);
-        }
-        ((), true)
-    })
-    .await;
-    let outcome = match status {
-        204 => "accepted",
-        403 => "the middleware does not take reports",
-        429 => "too early for the middleware",
-        _ => "the middleware does not know reports",
-    };
-    logging!(
-        info,
-        Type::Core,
-        "[Report] {hours} hour(s) of measurements sent: {outcome} ({status})"
-    );
-    now + SEND_EVERY
+/// Рано ли отправлять: меньше 6 часов с прошлого ответа прослойки — тогда
+/// когда. Часы ушли назад (прошлый ответ «в будущем») — не рано.
+const fn too_early(last_try: i64, now: i64) -> Option<i64> {
+    if last_try <= now && now - last_try < SEND_EVERY {
+        Some(last_try + SEND_EVERY)
+    } else {
+        None
+    }
 }
 
 /// Сборщик истории задержек: от раза в 20 секунд до раза в 5 минут (первое
@@ -936,8 +1064,8 @@ mod tests {
 
     use super::store::{HOUR, Place, Store, hour_of};
     use super::{
-        Address, REPORT_MAX_GZ, SEND_EVERY, SEND_WINDOW, TICK, TICK_MIN, due_between, histories, next_read,
-        pack_within, pings_of, sends_between,
+        Address, Packed, REPORT_MAX_GZ, SEND_EVERY, SEND_WINDOW, Spot, TICK, TICK_MIN, closed_before, due_between,
+        histories, next_read, pack_within, pings_of, sends_between, too_early, with_runtime,
     };
     use crate::config::{PrfItem, PrfOption};
 
@@ -989,9 +1117,16 @@ mod tests {
                 {"name": "Чужой", "history": [{"time": "2026-10-04T10:00:01Z", "delay": 7}]},
                 {"name": "Свой", "history": [{"time": "2026-10-04T10:00:02Z", "delay": 9}]}
             ]},
+            // Одноимённый узел провайдера, чьего адреса у отчёта нет (имена
+            // переписаны), — не тот узел.
+            "a-renamed": {"proxies": [{"name": "Чужой", "history": [{"time": "2026-10-04T10:00:03Z", "delay": 99}]}]},
             "default": {"proxies": [{"name": "Группа", "history": []}]}
         }});
-        let listed = histories(&proxies, Some(&providers), &wanted(&["Свой", "Чужой"]));
+        let mut wanted = wanted(&["Свой", "Чужой"]);
+        if let Some(address) = wanted.get_mut("Чужой") {
+            address.provider = "panel".into();
+        }
+        let listed = histories(&proxies, Some(&providers), &wanted);
         assert_eq!(listed.len(), 2);
         // Одноимённый узел подписки первее провайдерского.
         assert_eq!(listed["Свой"][0].1, 5);
@@ -1008,10 +1143,10 @@ mod tests {
             "Редкий": {"history": [{"time": "2026-10-04T10:00:00Z", "delay": 50}]}
         }});
         let listed = histories(&proxies, None, &wanted(&["Частый", "Редкий"]));
-        // Десять замеров за 9 минут — читать раз в 4,5 минуты. Прошлое чтение
-        // застало самый старый из десяти — ничего не ушло.
+        // Десять замеров за 9 минут, окно отстаёт на 20 с — читать раз в
+        // 4 мин 20 с. Прошлое чтение застало самый старый из десяти — ничего не ушло.
         let (next, lost) = next_read(&listed, ms("2026-10-04T10:00:30Z"));
-        assert_eq!(next, Duration::from_secs(270));
+        assert_eq!(next, Duration::from_secs(260));
         assert_eq!(lost, 0);
         // Прошлое чтение было раньше самого старого из десяти — часть могла уйти.
         let (_, lost) = next_read(&listed, ms("2026-10-04T09:59:00Z"));
@@ -1096,55 +1231,138 @@ mod tests {
         store
     }
 
+    /// Граница отправленного, сколько часов охвачено и записей — или ничего.
+    fn packed(
+        store: &Store,
+        now: i64,
+        closed: i64,
+        hours: i64,
+        limit: usize,
+        size: impl Fn(&serde_json::Value) -> Vec<u8>,
+    ) -> Option<(i64, i64, usize)> {
+        pack_within(store, now, closed, hours, "", limit, |report| Ok(size(report)))
+            .and_then(Result::ok)
+            .map(
+                |Packed {
+                     until, span, records, ..
+                 }| (until, span, records),
+            )
+    }
+
+    fn plain(report: &serde_json::Value) -> Vec<u8> {
+        report.to_string().into_bytes()
+    }
+
     #[test]
-    fn a_report_takes_the_oldest_two_days_and_nothing_newer_than_the_closed_hour() {
+    fn a_report_takes_the_oldest_two_days_and_nothing_from_the_open_hours() {
         let now = 1_800_000_000;
         let store = backlog(7 * 24, now);
-        let oldest = store.oldest_closed(now).unwrap_or(0);
-        let size = |report: &serde_json::Value| Ok(report.to_string().into_bytes());
-        let (_, until, hours) = pack_within(&store, now, oldest, "", REPORT_MAX_GZ, size).unwrap_or_default();
-        assert_eq!(until, oldest + SEND_WINDOW);
-        assert_eq!(hours, 48);
+        let oldest = store.oldest_before(hour_of(now)).unwrap_or(0);
+        let hours = SEND_WINDOW / HOUR;
+        assert_eq!(
+            packed(&store, now, hour_of(now), hours, REPORT_MAX_GZ, plain),
+            Some((oldest + SEND_WINDOW, hours, 48))
+        );
 
-        // Завал меньше окна — граница на текущем часе, он сам не уходит.
+        // Завал меньше окна — граница на закрытых часах, остальное не уходит.
         let small = backlog(3, now);
-        let oldest = small.oldest_closed(now).unwrap_or(0);
-        let (_, until, hours) = pack_within(&small, now, oldest, "", REPORT_MAX_GZ, size).unwrap_or_default();
-        assert_eq!(until, hour_of(now));
-        assert_eq!(hours, 3);
+        assert_eq!(
+            packed(&small, now, hour_of(now), hours, REPORT_MAX_GZ, plain),
+            Some((hour_of(now), 3, 3))
+        );
+        // Граница раньше нынешнего часа (окно ещё не дочитано) — час перед ней не уходит.
+        assert_eq!(
+            packed(&small, now, hour_of(now) - HOUR, hours, REPORT_MAX_GZ, plain),
+            Some((hour_of(now) - HOUR, 2, 2))
+        );
+        // Закрытых часов нет — отправлять нечего.
+        assert_eq!(
+            packed(&small, now, hour_of(now) - 3 * HOUR, hours, REPORT_MAX_GZ, plain),
+            None
+        );
+        // Окно задано меньше — столько часов и уходит (прослойка сказала «велик»).
+        assert_eq!(
+            packed(&store, now, hour_of(now), 6, REPORT_MAX_GZ, plain),
+            Some((oldest + 6 * HOUR, 6, 6))
+        );
     }
 
     #[test]
     fn a_report_that_does_not_fit_shrinks_its_window() {
         let now = 1_800_000_000;
         let store = backlog(7 * 24, now);
-        let oldest = store.oldest_closed(now).unwrap_or(0);
+        let oldest = store.oldest_before(hour_of(now)).unwrap_or(0);
         // «Сжатие» — число записей часов: лимит в 10 записей.
         let count = |report: &serde_json::Value| {
-            Ok(vec![
-                0u8;
-                report["networks"]["n"]["hours"].as_array().map_or(0, Vec::len)
-                    * 100
-            ])
+            vec![0u8; report["networks"]["n"]["hours"].as_array().map_or(0, Vec::len) * 100]
         };
-        let (gz, until, hours) = pack_within(&store, now, oldest, "", 1000, count).unwrap_or_default();
-        assert!(
-            gz.len() <= 1000 && hours <= 10,
-            "{hours} записей, «сжато» до {}",
-            gz.len()
+        assert_eq!(
+            packed(&store, now, hour_of(now), SEND_WINDOW / HOUR, 1000, count),
+            Some((oldest + 6 * HOUR, 6, 6))
         );
-        assert_eq!(hours, 6);
-        assert_eq!(until, oldest + 6 * HOUR);
-
         // Даже одна запись не влезает — уходит всё равно она одна, не бесконечный цикл.
-        let (_, until, hours) = pack_within(&store, now, oldest, "", 1, count).unwrap_or_default();
-        assert_eq!(hours, 1);
-        assert_eq!(until, oldest + HOUR);
+        assert_eq!(
+            packed(&store, now, hour_of(now), SEND_WINDOW / HOUR, 1, count),
+            Some((oldest + HOUR, 1, 1))
+        );
+
+        // Окно больше завала уполовинивается от того, что охвачено, а не от заданного.
+        let small = backlog(3, now);
+        let shrunk = packed(&small, now, hour_of(now), SEND_WINDOW / HOUR, 250, count);
+        assert_eq!(shrunk, Some((hour_of(now) - 2 * HOUR, 1, 1)));
+    }
+
+    #[test]
+    fn hours_are_closed_by_what_the_collector_has_read() {
+        let now = 1_800_000_000;
+        let read = (hour_of(now) - HOUR + 600) * 1000;
+        with_runtime(|runtime| {
+            runtime.uid = Some("собираемая".into());
+            runtime.pings_until = read;
+        });
+        assert_eq!(closed_before("собираемая", now), hour_of(now) - HOUR);
+        assert_eq!(closed_before("другая", now), hour_of(now));
+        // Прочитанное «впереди» нынешнего — часы ушли назад: граница по нынешнему.
+        with_runtime(|runtime| runtime.pings_until = (now + 2 * HOUR) * 1000);
+        assert_eq!(closed_before("собираемая", now), hour_of(now));
+        with_runtime(|runtime| *runtime = super::Runtime::default());
+    }
+
+    #[test]
+    fn a_clock_turned_back_does_not_hold_up_sends_or_the_address() {
+        let now = 1_800_000_000;
+        assert_eq!(too_early(now - 60, now), Some(now - 60 + SEND_EVERY));
+        assert_eq!(too_early(now - SEND_EVERY, now), None);
+        assert_eq!(too_early(0, now), None);
+        // Прошлый ответ «в будущем» — часы ушли назад: не рано.
+        assert_eq!(too_early(now + 3 * HOUR, now), None);
+
+        let mut next = std::collections::BTreeMap::new();
+        next.insert("a".to_owned(), now + 3 * SEND_EVERY);
+        assert_eq!(
+            due_between(&mut next, &[("a".to_owned(), true)], now),
+            vec!["a".to_owned()]
+        );
+
+        let spot = |ip4: &str, ip_at| Spot {
+            place: Place {
+                net: "n".into(),
+                kind: "wifi",
+                ip4: ip4.into(),
+                ip6: String::new(),
+            },
+            changes: 0,
+            ip_at,
+        };
+        assert!(!spot("203.0.113.7", now - 60).ip_is_due(now));
+        assert!(spot("203.0.113.7", now - HOUR).ip_is_due(now));
+        assert!(spot("203.0.113.7", now + HOUR).ip_is_due(now), "часы ушли назад");
     }
 
     fn subscription(secure: bool, minutes: Option<u64>, auto: Option<bool>) -> PrfItem {
         PrfItem {
             itype: Some("remote".into()),
+            report: Some(true),
             option: Some(PrfOption {
                 secure: Some(secure),
                 update_interval: minutes,
@@ -1167,6 +1385,18 @@ mod tests {
             ..subscription(true, Some(12 * 60), None)
         };
         assert!(!sends_between(&failed));
+        // Прослойка сказала, что отчёты не принимает, — отчёт не копится и не
+        // уходит; метки не было — копится.
+        let refused = PrfItem {
+            report: Some(false),
+            ..subscription(true, Some(12 * 60), None)
+        };
+        assert!(!sends_between(&refused));
+        let unknown = PrfItem {
+            report: None,
+            ..subscription(true, Some(12 * 60), None)
+        };
+        assert!(sends_between(&unknown));
     }
 
     #[test]

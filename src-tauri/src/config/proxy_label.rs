@@ -41,13 +41,17 @@ pub struct Labels {
     pub providers: HashMap<String, HashMap<String, ProxyLabel>>,
 }
 
-/// Тип, сервер и порт узла из его записи.
+/// Тип, сервер и порт узла из его записи и чем он отличается от соседей на
+/// том же адресе и порту ([`via`]).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Address {
     /// Тип строчными буквами.
     pub kind: String,
     pub server: String,
     pub port: u16,
+    pub via: String,
+    /// Провайдер, у которого ядро держит узел; пусто — узел самой подписки.
+    pub provider: String,
 }
 
 /// Узел, каким его заводит ядро: подпись и адрес — что из них прочлось.
@@ -333,11 +337,74 @@ fn address(proxy: &Mapping) -> Option<Address> {
         })
         .and_then(|port| u16::try_from(port).ok())
         .filter(|port| *port > 0)?;
+    let kind = text("type")?.to_ascii_lowercase();
     Some(Address {
-        kind: text("type")?.to_lowercase(),
+        via: via(&kind, proxy),
+        kind,
         server: text("server")?.to_owned(),
         port,
+        provider: String::new(),
     })
+}
+
+/// Строка поля или первая строка списка.
+fn first_text(value: Option<&Value>) -> &str {
+    match value {
+        Some(Value::String(text)) => text.trim(),
+        Some(Value::Sequence(list)) => list.first().and_then(Value::as_str).map_or("", str::trim),
+        _ => "",
+    }
+}
+
+/// Поле `key` блока опций `block` узла.
+fn inner<'a>(proxy: &'a Mapping, block: &str, key: &str) -> &'a str {
+    first_text(
+        opt(proxy, block)
+            .and_then(Value::as_mapping)
+            .and_then(|block| opt(block, key)),
+    )
+}
+
+/// Заголовок `Host` блока опций `block` узла.
+fn host_header<'a>(proxy: &'a Mapping, block: &str) -> &'a str {
+    first_text(
+        opt(proxy, block)
+            .and_then(Value::as_mapping)
+            .and_then(|block| opt(block, "headers"))
+            .and_then(Value::as_mapping)
+            .and_then(|headers| opt(headers, "host")),
+    )
+}
+
+/// Чем узел отличается от соседей на том же адресе и порту — так панель
+/// разводит хосты за одним доменом: транспорт, имя сервера TLS, `Host` и путь
+/// (у gRPC — имя сервиса). Пусто, если ничего из этого нет. Правило то же, что
+/// у Android (`report.Via`): по этой строке прослойка узнаёт один узел с обеих
+/// платформ.
+fn via(kind: &str, proxy: &Mapping) -> String {
+    // Регистр — только латиница, как у Android и прослойки (strings.ToLower на
+    // ASCII-строке, PHP strtolower).
+    let network = first_text(opt(proxy, "network")).to_ascii_lowercase();
+    let sni = [first_text(opt(proxy, "servername")), first_text(opt(proxy, "sni"))]
+        .into_iter()
+        .find(|name| !name.is_empty())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let (host, path) = match network.as_str() {
+        "ws" => (host_header(proxy, "ws-opts"), inner(proxy, "ws-opts", "path")),
+        "grpc" => ("", inner(proxy, "grpc-opts", "grpc-service-name")),
+        "h2" => (inner(proxy, "h2-opts", "host"), inner(proxy, "h2-opts", "path")),
+        "http" => (host_header(proxy, "http-opts"), inner(proxy, "http-opts", "path")),
+        "xhttp" => (inner(proxy, "xhttp-opts", "host"), inner(proxy, "xhttp-opts", "path")),
+        _ if kind == "ss" => (inner(proxy, "plugin-opts", "host"), inner(proxy, "plugin-opts", "path")),
+        _ => ("", ""),
+    };
+    let network = if network == "tcp" { "" } else { network.as_str() };
+    let host = host.to_ascii_lowercase();
+    if network.is_empty() && sni.is_empty() && host.is_empty() && path.is_empty() {
+        return String::new();
+    }
+    format!("{network}|{sni}|{host}|{path}")
 }
 
 fn node(proxy: &Mapping) -> Node {
@@ -470,7 +537,7 @@ fn core_file(remote: bool, provider: &Mapping) -> Option<PathBuf> {
 struct Built {
     labels: Labels,
     /// Адреса узлов по именам, какими их называет ядро: узлы самой подписки
-    /// первее провайдерских, провайдеры — по порядку в сборке.
+    /// первее провайдерских, провайдеры — по порядку имён.
     addresses: HashMap<String, Address>,
     /// Файлы провайдеров, из которых прочитано, с состоянием до чтения.
     files: Vec<(PathBuf, FileState)>,
@@ -504,15 +571,17 @@ fn build(config: &Mapping, own_files: bool) -> Built {
             built.addresses.entry(name.to_owned()).or_insert(address);
         }
     }
-    for (name, provider) in config
+    // Провайдеры — по порядку имён, как их отдаёт ядро и как их обходит
+    // Android: одноимённый узел двух провайдеров берётся у одного и того же.
+    let mut providers: Vec<(String, &Mapping)> = config
         .get("proxy-providers")
         .and_then(Value::as_mapping)
         .into_iter()
         .flatten()
-    {
-        let (Some(name), Some(provider)) = (yaml_name(name), provider.as_mapping()) else {
-            continue;
-        };
+        .filter_map(|(name, provider)| Some((yaml_name(name)?, provider.as_mapping()?)))
+        .collect();
+    providers.sort_by(|a, b| a.0.cmp(&b.0));
+    for (name, provider) in providers {
         let Some(shaping) = Shaping::of(provider) else {
             continue;
         };
@@ -561,7 +630,10 @@ fn build(config: &Mapping, own_files: bool) -> Built {
         let mut labels = HashMap::with_capacity(nodes.len());
         for (node_name, Node { label, address }) in nodes {
             if let Some(address) = address {
-                built.addresses.entry(node_name.clone()).or_insert(address);
+                built.addresses.entry(node_name.clone()).or_insert_with(|| Address {
+                    provider: name.clone(),
+                    ..address
+                });
             }
             if let Some(label) = label {
                 labels.insert(node_name, label);
@@ -679,7 +751,7 @@ fn sorted(labels: &Labels) -> Vec<(&str, &str, &ProxyLabel)> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
-    use super::{Address, build, go_int_is_nonzero, label};
+    use super::{Address, build, go_int_is_nonzero, label, via};
     use serde_yaml_ng::Mapping;
 
     fn yaml(text: &str) -> Mapping {
@@ -1004,6 +1076,53 @@ mod tests {
         }
     }
 
+    /// Те же записи и строки, что в тесте Android (`report.Via`): по `via`
+    /// прослойка узнаёт один узел с обеих платформ.
+    #[test]
+    fn via_tells_nodes_on_one_address_apart() {
+        for (proxy, want) in [
+            ("{type: vless, server: a.example.com, port: 443}", ""),
+            (
+                "{type: vless, network: tcp, servername: Edge.Example.com, reality-opts: {public-key: k}}",
+                "|edge.example.com||",
+            ),
+            (
+                "{type: vless, network: ws, tls: true, servername: cdn.example.com, ws-opts: {path: /a?ed=2048, headers: {Host: CDN.example.com}}}",
+                "ws|cdn.example.com|cdn.example.com|/a?ed=2048",
+            ),
+            (
+                "{type: trojan, network: grpc, sni: g.example.com, grpc-opts: {grpc-service-name: svc}}",
+                "grpc|g.example.com||svc",
+            ),
+            (
+                "{type: vless, network: xhttp, servername: x.example.com, xhttp-opts: {path: /x, host: X.example.com}}",
+                "xhttp|x.example.com|x.example.com|/x",
+            ),
+            (
+                "{type: vmess, network: h2, h2-opts: {host: [h.example.com, i.example.com], path: /h}}",
+                "h2||h.example.com|/h",
+            ),
+            (
+                "{type: vmess, network: http, http-opts: {path: [/p, /q], headers: {Host: [p.example.com]}}}",
+                "http||p.example.com|/p",
+            ),
+            (
+                "{type: ss, plugin: v2ray-plugin, plugin-opts: {mode: websocket, host: s.example.com, path: /s}}",
+                "||s.example.com|/s",
+            ),
+            ("{type: hysteria2, sni: hy.example.com}", "|hy.example.com||"),
+            ("{type: vless, network: ws, ws_opts: {path: /u}}", "ws|||/u"),
+            ("{type: vless, network: grpc, ws-opts: {path: /ignored}}", "grpc|||"),
+        ] {
+            let proxy = yaml(proxy);
+            let kind = proxy
+                .get("type")
+                .and_then(serde_yaml_ng::Value::as_str)
+                .unwrap_or_default();
+            assert_eq!(via(kind, &proxy), want, "{proxy:?}");
+        }
+    }
+
     #[test]
     fn provider_nodes_are_labelled_as_the_core_names_them() {
         let dir = std::env::temp_dir().join(format!("clod-proxy-label-{}", std::process::id()));
@@ -1080,22 +1199,25 @@ mod tests {
         let service = build(&config, false).addresses;
         std::fs::remove_dir_all(&dir).unwrap();
 
-        let at = |kind: &str, server: &str, port| Address {
+        let at = |kind: &str, server: &str, port, provider: &str| Address {
             kind: kind.into(),
             server: server.into(),
             port,
+            via: String::new(),
+            provider: provider.into(),
         };
         // Узел без подписи (тип, которого нет в таблице) — с адресом; без порта и
         // с ключом слияния — без.
-        assert_eq!(own.get("S"), Some(&at("snell", "s.example.com", 3)));
+        assert_eq!(own.get("S"), Some(&at("snell", "s.example.com", 3, "")));
         assert!(!own.contains_key("N") && !own.contains_key("M"), "{own:?}");
         // Имя — с приставками провайдера, исключённый тип не в счёт, тип —
-        // строчными; одноимённый с узлом подписки — за подпиской.
-        assert_eq!(own.get("[i] D *"), Some(&at("tuic", "e.example.com", 6)));
+        // строчными; одноимённый с узлом подписки — за подпиской; у узла
+        // провайдера — его имя, чтобы история бралась у него же.
+        assert_eq!(own.get("[i] D *"), Some(&at("tuic", "e.example.com", 6, "inline")));
         assert!(!own.contains_key("D"), "{own:?}");
-        assert_eq!(own.get("[i] S *"), Some(&at("vless", "other.example.com", 7)));
+        assert_eq!(own.get("[i] S *"), Some(&at("vless", "other.example.com", 7, "inline")));
         // Файл и запасной набор расходятся адресом — какой у ядра, не узнать.
-        assert_eq!(own.get("A"), Some(&at("ss", "a.example.com", 1)));
+        assert_eq!(own.get("A"), Some(&at("ss", "a.example.com", 1, "web")));
         assert!(!own.contains_key("F"), "{own:?}");
         assert!(!own.contains_key("R"), "{own:?}");
         // Под службой файл скачанного провайдера — от прежнего запуска в папке

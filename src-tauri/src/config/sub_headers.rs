@@ -197,6 +197,10 @@ pub struct SubHeaders {
     /// трафик через сервер) и пометки; любое другое значение — выключено.
     pub freeze_check: bool,
 
+    /// `clod-report: true` / `false` — принимает ли прослойка отчёты о качестве
+    /// узлов; её метка внутри защищённого канала. Нет метки — прослойка старее.
+    pub report: Option<bool>,
+
     /// `clod-hide-badges: true` — у серверов в окне не видно плашек протокола,
     /// транспорта и защиты; любое другое значение — видно.
     pub hide_badges: bool,
@@ -274,6 +278,7 @@ impl SubHeaders {
             disable_ping: value(headers, "clod-disable-ping")
                 .is_some_and(|raw| raw.trim().eq_ignore_ascii_case("true")),
             freeze_check: value(headers, "clod-16-20-check").is_some_and(|raw| raw.trim().eq_ignore_ascii_case("true")),
+            report: bool_value(headers, "clod-report"),
             hide_badges: value(headers, "clod-hide-badges").is_some_and(|raw| raw.trim().eq_ignore_ascii_case("true")),
             ping_thresholds: value(headers, "clod-ping").as_deref().and_then(ping_thresholds),
             show_zero_hosts: bool_value(headers, "clod-show-0hosts"),
@@ -885,6 +890,15 @@ mod tests {
         assert!(!SubHeaders::parse(&headers(&[("clod-16-20-check", "yes")])).freeze_check);
         assert!(!SubHeaders::parse(&headers(&[("clod-16-20-check", "false")])).freeze_check);
         assert!(!SubHeaders::parse(&headers(&[])).freeze_check);
+    }
+
+    #[test]
+    fn the_report_mark_says_yes_no_or_nothing() {
+        let parse = |raw: &str| SubHeaders::parse(&headers(&[("clod-report", raw)])).report;
+        assert_eq!(parse("true"), Some(true));
+        assert_eq!(parse(" FALSE "), Some(false));
+        assert_eq!(parse("мусор"), None);
+        assert_eq!(SubHeaders::parse(&headers(&[])).report, None);
     }
 
     #[test]

@@ -107,6 +107,12 @@ pub struct PrfItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub freeze_check: Option<bool>,
 
+    /// clod:report — принимает ли прослойка отчёты о качестве узлов: метка
+    /// `clod-report: true` / `false` в ответе по защищённому каналу. `None` —
+    /// метки не было (прослойка старее или подписка обновлялась до неё).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub report: Option<bool>,
+
     /// Провайдер спрятал у серверов плашки протокола, транспорта и защиты
     /// заголовком `clod-hide-badges: true`.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -963,6 +969,10 @@ impl PrfItem {
             .map(|panel| panel - answered_at)
             .filter(|skew| skew.abs() <= MAX_SKEW_SECS);
 
+        // Метку приёма отчётов ставит только прослойка и только внутри шифра:
+        // открытому ответу она не верится.
+        let report = sub.report.filter(|_| learned_pin.is_some());
+
         let item = Self {
             uid: Some(uid),
             itype: Some("remote".into()),
@@ -1006,6 +1016,7 @@ impl PrfItem {
             latency_style: sub.latency_style.map(|style| style.as_str().into()),
             disable_ping: sub.disable_ping.then_some(true),
             freeze_check: sub.freeze_check.then_some(true),
+            report,
             hide_badges: sub.hide_badges.then_some(true),
             ping_thresholds: sub.ping_thresholds,
             show_zero_hosts: sub.show_zero_hosts,
@@ -1774,6 +1785,7 @@ impl PrfItem {
         self.latency_style = fresh.latency_style.clone();
         self.disable_ping = fresh.disable_ping;
         self.freeze_check = fresh.freeze_check;
+        self.report = fresh.report;
         self.hide_badges = fresh.hide_badges;
         self.ping_thresholds = fresh.ping_thresholds;
         self.show_zero_hosts = fresh.show_zero_hosts;
@@ -3006,6 +3018,19 @@ mod tests {
         stored.merge_panel_meta(&PrfItem::default());
         assert_eq!(stored.lock_mode, None);
         assert_eq!(stored.lock_permanent, None);
+    }
+
+    #[test]
+    fn the_report_mark_follows_every_answer() {
+        let mut stored = PrfItem::default();
+        assert_eq!(stored.report, None, "до первого ответа — неизвестно");
+        for mark in [Some(true), Some(false), None, Some(true)] {
+            stored.merge_panel_meta(&PrfItem {
+                report: mark,
+                ..PrfItem::default()
+            });
+            assert_eq!(stored.report, mark);
+        }
     }
 
     #[test]

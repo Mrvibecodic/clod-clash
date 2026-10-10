@@ -1062,11 +1062,12 @@ async fn update_claimed(
     };
 
     let outcome = Box::pin(settle_the_download(uid, downloaded, trigger)).await;
-    // clod:report — отчёт прослойке уходит только после планового обновления.
-    if outcome.is_ok() && !trigger.is_manual() {
-        let uid = uid.to_string();
-        crate::process::AsyncHandler::spawn(move || crate::module::client_report::after_scheduled_update(uid));
-    }
+    // clod:report — прослойка могла перестать принимать отчёты: панель слита в
+    // реестр, даже если ядро сборку отвергло. Отчёт уходит только после
+    // удачного планового обновления.
+    let uid = uid.to_string();
+    let scheduled = matches!(outcome, Ok(UpdateOutcome::Done)) && !trigger.is_manual();
+    crate::process::AsyncHandler::spawn(move || crate::module::client_report::after_update(uid, scheduled));
     outcome
 }
 

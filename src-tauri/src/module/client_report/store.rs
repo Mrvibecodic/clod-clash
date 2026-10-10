@@ -17,7 +17,8 @@ pub(super) const HOUR: i64 = 60 * 60;
 const BUCKET_EDGES: [u64; 5] = [100, 200, 400, 800, 1500];
 pub(super) const BUCKETS: usize = BUCKET_EDGES.len() + 1;
 
-/// Узел, как его узнаёт прослойка: тип, адрес и порт из файла подписки.
+/// Узел, как его узнаёт прослойка: тип, адрес и порт из файла подписки и чем
+/// он отличается от соседей на том же адресе и порту.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub(super) struct NodeInfo {
     pub name: String,
@@ -25,6 +26,8 @@ pub(super) struct NodeInfo {
     pub kind: String,
     pub server: String,
     pub port: u16,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub via: String,
 }
 
 impl NodeInfo {
@@ -35,6 +38,7 @@ impl NodeInfo {
             kind: address.kind.clone(),
             server: address.server.clone(),
             port: address.port,
+            via: address.via.clone(),
         }
     }
 }
@@ -144,9 +148,6 @@ pub(super) struct Store {
     /// Когда прослойка в последний раз ответила на отчёт каналом (любым кодом).
     #[serde(default)]
     pub last_try: i64,
-    /// Когда отчёт в последний раз был принят: начало следующего периода.
-    #[serde(default)]
-    pub last_sent: i64,
     /// Ключ узла → тип, адрес и порт.
     #[serde(default)]
     pub nodes: BTreeMap<String, NodeInfo>,
@@ -163,7 +164,11 @@ pub(super) const fn hour_of(at: i64) -> i64 {
 /// Ключ узла для прослойки: тот же расчёт, что у неё (`rep_node_key`).
 pub(super) fn node_key(info: &NodeInfo) -> String {
     use sha2::{Digest as _, Sha256};
-    let text = format!("{}|{}|{}", info.kind, info.server.to_lowercase(), info.port);
+    let mut text = format!("{}|{}|{}", info.kind, info.server.to_ascii_lowercase(), info.port);
+    if !info.via.is_empty() {
+        text.push('|');
+        text.push_str(&info.via);
+    }
     hex::encode(Sha256::digest(text.as_bytes()))[..12].to_owned()
 }
 
@@ -254,14 +259,14 @@ impl Store {
             .collect()
     }
 
-    /// Самый старый закрытый час — тот, что уже не пополнится; `None` — отправлять нечего.
-    pub(super) fn oldest_closed(&self, now: i64) -> Option<i64> {
-        let current = hour_of(now);
+    /// Самый старый час раньше `closed` — границы, раньше которой ничего уже
+    /// не ляжет; `None` — отправлять нечего.
+    pub(super) fn oldest_before(&self, closed: i64) -> Option<i64> {
         self.networks
             .values()
             .flat_map(|network| network.hours.iter())
             .map(|hour| hour.h)
-            .filter(|h| *h < current)
+            .filter(|h| *h < closed)
             .min()
     }
 
@@ -307,12 +312,12 @@ impl Store {
         })
     }
 
-    /// Отчёт принят: отправленные часы (раньше `until`) уходят, остальное остаётся.
+    /// Отчёт принят (или час не влез и один): отправленные часы (раньше
+    /// `until`) уходят, остальное остаётся.
     pub(super) fn drop_sent(&mut self, now: i64, until: i64) {
         for network in self.networks.values_mut() {
             network.hours.retain(|hour| hour.h >= until);
         }
-        self.last_sent = now;
         self.prune(now);
     }
 }
@@ -338,6 +343,14 @@ pub(super) async fn save(uid: &str, store: &Store) -> Result<()> {
     help::save_json(&file_path(uid)?, store).await
 }
 
+/// Стереть накопленное; файла и так нет — не ошибка.
+pub(super) async fn remove(uid: &str) -> Result<()> {
+    match tokio::fs::remove_file(file_path(uid)?).await {
+        Err(err) if err.kind() != std::io::ErrorKind::NotFound => Err(err.into()),
+        _ => Ok(()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{HOUR, KEEP, NodeInfo, Place, Store, Use, bucket_of, hour_of, node_key};
@@ -354,6 +367,7 @@ mod tests {
             kind: "vless".into(),
             server: "Node.Example.com".into(),
             port: 443,
+            via: String::new(),
         }
     }
 
@@ -370,6 +384,12 @@ mod tests {
     fn the_node_key_matches_the_middleware() {
         // php: substr(hash('sha256', 'vless|node.example.com|443'), 0, 12) — см. lib/reports.php
         assert_eq!(node_key(&info()), "5b9a8536deff");
+        // С `via` — через ту же черту после порта.
+        let behind_cdn = NodeInfo {
+            via: "ws|cdn.example.com|cdn.example.com|/a".into(),
+            ..info()
+        };
+        assert_eq!(node_key(&behind_cdn), "550497e8fdee");
     }
 
     #[test]
@@ -395,7 +415,7 @@ mod tests {
         store.add_use(&here, past + 30, &key, &used(10, 20, 61));
         store.add_ping(&here, NOW, &key, 50);
 
-        assert_eq!(store.oldest_closed(NOW), Some(past));
+        assert_eq!(store.oldest_before(hour_of(NOW)), Some(past));
         assert_eq!(store.hours_before(hour_of(NOW)), 1);
         let report = store.report(NOW, hour_of(NOW), "0123456789abcdef");
         let hours = &report["networks"]["net0000000000000"]["hours"];
@@ -412,8 +432,7 @@ mod tests {
         assert_eq!(report["networks"]["net0000000000000"]["kind"], "wifi");
 
         store.drop_sent(NOW, hour_of(NOW));
-        assert_eq!(store.oldest_closed(NOW), None);
-        assert_eq!(store.last_sent, NOW);
+        assert_eq!(store.oldest_before(hour_of(NOW)), None);
         assert!(store.nodes.contains_key(&key), "узел текущего часа остаётся");
     }
 

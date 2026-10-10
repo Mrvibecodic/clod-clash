@@ -629,7 +629,6 @@ async fn report_verdicts(
     key: Option<&str>,
     kind: &'static str,
     outcomes: &[(NodeRef, plan::Checked)],
-    now: i64,
 ) {
     let Some(key) = key.filter(|_| stored) else {
         return;
@@ -641,7 +640,7 @@ async fn report_verdicts(
             plan::Outcome::Unknown { .. } => None,
         })
         .collect();
-    crate::module::client_report::note_freeze(uid, key, kind, &verdicts, now).await;
+    crate::module::client_report::note_freeze(uid, key, kind, &verdicts).await;
 }
 
 /// Ключ текущей сети; без MAC роутера там, где он положен, — переспросить
@@ -854,7 +853,7 @@ async fn pass(reason: &'static str) {
         };
         stored = recorded(network, &outcomes, now, verbose);
         remember_quiet(quiet_key, &due_nodes, stored, now);
-        report_verdicts(stored, &uid, key.as_deref(), kind, &outcomes, now).await;
+        report_verdicts(stored, &uid, key.as_deref(), kind, &outcomes).await;
         let verdicts: Vec<plan::Outcome> = outcomes.iter().map(|(_, checked)| checked.outcome).collect();
         let tail = if stored {
             ""
