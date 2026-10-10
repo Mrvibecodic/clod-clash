@@ -1546,8 +1546,16 @@ export interface TranslationResources {
         tableView: string
         upgrade: string
       }
+      dialog: {
+        noChanges: string
+        reset: string
+        unsaved: string
+        unsaved_one: string
+      }
       editorModes: {
         advanced: string
+        list: string
+        text: string
         visualization: string
       }
       feedback: {
@@ -1688,6 +1696,7 @@ export interface TranslationResources {
         kilobytes: string
         milliseconds: string
         minutes: string
+        ms: string
         seconds: string
       }
       validation: {

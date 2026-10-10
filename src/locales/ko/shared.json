@@ -44,6 +44,7 @@
   },
   "units": {
     "milliseconds": "밀리초",
+    "ms": "ms",
     "seconds": "초",
     "minutes": "분",
     "hours": "시간",
@@ -68,7 +69,9 @@
   },
   "editorModes": {
     "visualization": "시각화",
-    "advanced": "고급"
+    "advanced": "고급",
+    "list": "List",
+    "text": "Text"
   },
   "feedback": {
     "errors": {
@@ -176,5 +179,11 @@
     "monitor": "상태",
     "guide": "가이드",
     "openError": "링크를 열 수 없습니다"
+  },
+  "dialog": {
+    "noChanges": "No changes",
+    "unsaved": "Unsaved: {{count}} changes",
+    "unsaved_one": "Unsaved: {{count}} change",
+    "reset": "Reset"
   }
 }

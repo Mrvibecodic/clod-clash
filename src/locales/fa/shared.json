@@ -44,6 +44,7 @@
   },
   "units": {
     "milliseconds": "میلی‌ثانیه",
+    "ms": "ms",
     "seconds": "ثانیه‌ها",
     "minutes": "دقیقه",
     "hours": "ساعت",
@@ -68,7 +69,9 @@
   },
   "editorModes": {
     "visualization": "تجسم",
-    "advanced": "پیشرفته"
+    "advanced": "پیشرفته",
+    "list": "List",
+    "text": "Text"
   },
   "feedback": {
     "errors": {
@@ -176,5 +179,11 @@
     "monitor": "وضعیت",
     "guide": "راهنما",
     "openError": "باز کردن پیوند ممکن نشد"
+  },
+  "dialog": {
+    "noChanges": "No changes",
+    "unsaved": "Unsaved: {{count}} changes",
+    "unsaved_one": "Unsaved: {{count}} change",
+    "reset": "Reset"
   }
 }

@@ -44,6 +44,7 @@
   },
   "units": {
     "milliseconds": "milidetik",
+    "ms": "ms",
     "seconds": "detik",
     "minutes": "menit",
     "hours": "jam",
@@ -68,7 +69,9 @@
   },
   "editorModes": {
     "visualization": "Visualisasi",
-    "advanced": "Lanjutan"
+    "advanced": "Lanjutan",
+    "list": "List",
+    "text": "Text"
   },
   "feedback": {
     "errors": {
@@ -176,5 +179,11 @@
     "monitor": "Status",
     "guide": "Panduan",
     "openError": "Tautan tidak dapat dibuka"
+  },
+  "dialog": {
+    "noChanges": "No changes",
+    "unsaved": "Unsaved: {{count}} changes",
+    "unsaved_one": "Unsaved: {{count}} change",
+    "reset": "Reset"
   }
 }

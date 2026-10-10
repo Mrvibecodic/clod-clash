@@ -44,6 +44,7 @@
   },
   "units": {
     "milliseconds": "毫秒",
+    "ms": "ms",
     "seconds": "秒",
     "minutes": "分鐘",
     "hours": "小時",
@@ -68,7 +69,9 @@
   },
   "editorModes": {
     "visualization": "視覺化",
-    "advanced": "進階"
+    "advanced": "進階",
+    "list": "List",
+    "text": "Text"
   },
   "feedback": {
     "errors": {
@@ -176,5 +179,11 @@
     "monitor": "狀態",
     "guide": "指南",
     "openError": "無法開啟連結"
+  },
+  "dialog": {
+    "noChanges": "No changes",
+    "unsaved": "Unsaved: {{count}} changes",
+    "unsaved_one": "Unsaved: {{count}} change",
+    "reset": "Reset"
   }
 }

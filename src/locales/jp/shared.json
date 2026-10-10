@@ -44,6 +44,7 @@
   },
   "units": {
     "milliseconds": "ミリ秒",
+    "ms": "ms",
     "seconds": "秒",
     "minutes": "分",
     "hours": "時間",
@@ -68,7 +69,9 @@
   },
   "editorModes": {
     "visualization": "可視化",
-    "advanced": "詳細設定"
+    "advanced": "詳細設定",
+    "list": "List",
+    "text": "Text"
   },
   "feedback": {
     "errors": {
@@ -176,5 +179,11 @@
     "monitor": "ステータス",
     "guide": "ガイド",
     "openError": "リンクを開けませんでした"
+  },
+  "dialog": {
+    "noChanges": "No changes",
+    "unsaved": "Unsaved: {{count}} changes",
+    "unsaved_one": "Unsaved: {{count}} change",
+    "reset": "Reset"
   }
 }

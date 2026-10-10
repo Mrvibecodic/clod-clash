@@ -44,6 +44,7 @@
   },
   "units": {
     "milliseconds": "毫秒",
+    "ms": "ms",
     "seconds": "秒",
     "minutes": "分钟",
     "hours": "小时",
@@ -68,7 +69,9 @@
   },
   "editorModes": {
     "visualization": "可视化",
-    "advanced": "高级"
+    "advanced": "高级",
+    "list": "List",
+    "text": "Text"
   },
   "feedback": {
     "errors": {
@@ -176,5 +179,11 @@
     "monitor": "状态",
     "guide": "指南",
     "openError": "无法打开链接"
+  },
+  "dialog": {
+    "noChanges": "No changes",
+    "unsaved": "Unsaved: {{count}} changes",
+    "unsaved_one": "Unsaved: {{count}} change",
+    "reset": "Reset"
   }
 }

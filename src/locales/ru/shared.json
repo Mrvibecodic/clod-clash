@@ -44,6 +44,7 @@
   },
   "units": {
     "milliseconds": "мс",
+    "ms": "мс",
     "seconds": "с",
     "minutes": "мин",
     "hours": "ч",
@@ -68,7 +69,9 @@
   },
   "editorModes": {
     "visualization": "Визуализация",
-    "advanced": "Дополнительно"
+    "advanced": "Дополнительно",
+    "list": "Список",
+    "text": "Текст"
   },
   "feedback": {
     "errors": {
@@ -176,5 +179,13 @@
     "monitor": "Мониторинг",
     "guide": "Инструкция",
     "openError": "Не удалось открыть ссылку"
+  },
+  "dialog": {
+    "noChanges": "Изменений нет",
+    "unsaved": "Не сохранено: {{count}} изменения",
+    "unsaved_one": "Не сохранено: {{count}} изменение",
+    "unsaved_few": "Не сохранено: {{count}} изменения",
+    "unsaved_many": "Не сохранено: {{count}} изменений",
+    "reset": "Сбросить"
   }
 }

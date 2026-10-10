@@ -44,6 +44,7 @@
   },
   "units": {
     "milliseconds": "ms",
+    "ms": "ms",
     "seconds": "saniye",
     "minutes": "dakika",
     "hours": "saat",
@@ -68,7 +69,9 @@
   },
   "editorModes": {
     "visualization": "Görselleştirme",
-    "advanced": "Gelişmiş"
+    "advanced": "Gelişmiş",
+    "list": "List",
+    "text": "Text"
   },
   "feedback": {
     "errors": {
@@ -176,5 +179,11 @@
     "monitor": "Durum",
     "guide": "Kılavuz",
     "openError": "Bağlantı açılamadı"
+  },
+  "dialog": {
+    "noChanges": "No changes",
+    "unsaved": "Unsaved: {{count}} changes",
+    "unsaved_one": "Unsaved: {{count}} change",
+    "reset": "Reset"
   }
 }

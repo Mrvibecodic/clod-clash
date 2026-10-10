@@ -44,6 +44,7 @@
   },
   "units": {
     "milliseconds": "ms",
+    "ms": "ms",
     "seconds": "seconds",
     "minutes": "mins",
     "hours": "hrs",
@@ -68,7 +69,9 @@
   },
   "editorModes": {
     "visualization": "Visualization",
-    "advanced": "Advanced"
+    "advanced": "Advanced",
+    "list": "List",
+    "text": "Text"
   },
   "feedback": {
     "errors": {
@@ -176,5 +179,11 @@
     "monitor": "Status",
     "guide": "Guide",
     "openError": "Could not open the link"
+  },
+  "dialog": {
+    "noChanges": "No changes",
+    "unsaved": "Unsaved: {{count}} changes",
+    "unsaved_one": "Unsaved: {{count}} change",
+    "reset": "Reset"
   }
 }

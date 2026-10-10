@@ -44,6 +44,7 @@
   },
   "units": {
     "milliseconds": "Миллисекундлар",
+    "ms": "ms",
     "seconds": "Секундлар",
     "minutes": "Минутлар",
     "hours": "Сәгатьләр",
@@ -68,7 +69,9 @@
   },
   "editorModes": {
     "visualization": "Визуализация",
-    "advanced": "Өстәмә"
+    "advanced": "Өстәмә",
+    "list": "List",
+    "text": "Text"
   },
   "feedback": {
     "errors": {
@@ -176,5 +179,11 @@
     "monitor": "Хәл",
     "guide": "Күрсәтмә",
     "openError": "Сылтаманы ачып булмады"
+  },
+  "dialog": {
+    "noChanges": "No changes",
+    "unsaved": "Unsaved: {{count}} changes",
+    "unsaved_one": "Unsaved: {{count}} change",
+    "reset": "Reset"
   }
 }

@@ -977,6 +977,7 @@ export const translationKeys = [
   'shared.statuses.saving',
   'shared.statuses.empty',
   'shared.units.milliseconds',
+  'shared.units.ms',
   'shared.units.seconds',
   'shared.units.minutes',
   'shared.units.hours',
@@ -994,6 +995,8 @@ export const translationKeys = [
   'shared.window.minimize',
   'shared.editorModes.visualization',
   'shared.editorModes.advanced',
+  'shared.editorModes.list',
+  'shared.editorModes.text',
   'shared.feedback.errors.core.noSuchHost',
   'shared.feedback.errors.core.connectionRefused',
   'shared.feedback.errors.core.connectionReset',
@@ -1071,6 +1074,10 @@ export const translationKeys = [
   'shared.providerLinks.monitor',
   'shared.providerLinks.guide',
   'shared.providerLinks.openError',
+  'shared.dialog.noChanges',
+  'shared.dialog.unsaved',
+  'shared.dialog.unsaved_one',
+  'shared.dialog.reset',
 ] as const
 
 export type TranslationKey = (typeof translationKeys)[number]

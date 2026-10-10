@@ -44,6 +44,7 @@
   },
   "units": {
     "milliseconds": "ميلي ثانية",
+    "ms": "ms",
     "seconds": "ثواني",
     "minutes": "دقائق",
     "hours": "ساعات",
@@ -68,7 +69,9 @@
   },
   "editorModes": {
     "visualization": "تصور",
-    "advanced": "متقدم"
+    "advanced": "متقدم",
+    "list": "List",
+    "text": "Text"
   },
   "feedback": {
     "errors": {
@@ -176,5 +179,11 @@
     "monitor": "الحالة",
     "guide": "الدليل",
     "openError": "تعذر فتح الرابط"
+  },
+  "dialog": {
+    "noChanges": "No changes",
+    "unsaved": "Unsaved: {{count}} changes",
+    "unsaved_one": "Unsaved: {{count}} change",
+    "reset": "Reset"
   }
 }
