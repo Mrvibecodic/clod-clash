@@ -493,6 +493,7 @@ const ConnectionsPage = () => {
             position: 'absolute',
             right: 16,
             bottom: isTableLayout ? 70 : 16,
+            textTransform: 'none',
           }}
           color="primary"
           onClick={() => clearClosedConnections()}

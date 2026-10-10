@@ -155,6 +155,7 @@ export const ConnectionSummary = memo(function ConnectionSummary({
           display: 'grid',
           gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
           height: 'auto',
+          '& > :last-child:nth-child(odd)': { gridColumn: '1 / -1' },
         },
       }}
     >

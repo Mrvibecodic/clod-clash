@@ -77,7 +77,9 @@ export const connTextSx = ({ palette }: Theme) => ({
   '& .cc-meta > .cc-mg::before': {
     content: '"·"',
     position: 'absolute',
-    left: '3px',
+    left: 0,
+    width: '12px',
+    textAlign: 'center',
     color: palette.text.disabled,
   },
   '& .cc-rule.cc-wrap': { alignItems: 'flex-start', whiteSpace: 'normal' },
