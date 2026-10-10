@@ -2,7 +2,7 @@
 
 Languages: **English** · [Русский](./PRIVACY_POLICY.ru.md)
 
-Effective: 7 October 2026. Applies to Clod Clash for Windows, macOS and Linux.
+Effective: 10 October 2026. Applies to Clod Clash for Windows, macOS and Linux.
 
 Clod Clash is an open source VPN client. It is provided free of charge and as is.
 
@@ -49,17 +49,19 @@ described below covers the requests this app makes itself.
     from the next successful one), at most once every 6 hours, the app sends the provider's
     subscription server what the core has already measured: latency results and the "16–20"
     check results per server of that subscription, traffic volume and minutes of use per
-    server, the server list entries involved (name, type, address and port from your
-    subscription), the kind of network (wired, Wi-Fi, mobile) and the external IP addresses the
+    server, the server list entries involved (name, type, address and port from your subscription, and the
+    transport, TLS server name, Host and path that tell servers on one address apart), the kind of network (wired, Wi-Fi, mobile) and the external IP addresses the
     measurements were made from, hour by hour. A network is identified by a hash of its
     properties (connection type and the router's MAC address, or the gateway and DNS addresses
     when there is no router MAC); the MAC and addresses themselves are never stored or sent.
     The report carries a random per-install mark, the app version and the platform; like every
     secure-channel request, it also carries the device values described above, encrypted, while
     "Device identification" is on. The Wi-Fi name, location, visited sites and addresses,
-    process names and the list of programs are not included. The report is sent only if the
-    provider has turned on receiving reports; the app keeps unsent measurements for at most 7
-    days. Turning off the secure channel for a subscription stops its reports.
+    process names and the list of programs are not included. The report is sent only if the provider has turned on receiving
+    reports; once the provider's server says in its encrypted answer to a subscription update
+    that it does not accept reports, the app stops collecting and deletes the collected
+    measurements. The app keeps unsent
+    measurements for at most 7 days. Turning off the secure channel for a subscription stops its reports.
 *   **To Yandex, to learn the external IP address.** For the report above, the app asks
     `ipv4-internet.yandex.net` and `ipv6-internet.yandex.net` (operated by Yandex) for the
     address your connection appears from — when the network changes or the computer wakes up,
