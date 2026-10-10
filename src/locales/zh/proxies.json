@@ -31,12 +31,8 @@
     "tooltips": {
       "locate": "定位到所选节点",
       "delayCheck": "延迟测试",
-      "sortDefault": "默认排序",
-      "sortDelay": "按延迟排序",
-      "sortName": "按名称排序",
       "delayCheckUrl": "延迟测试链接",
       "showBasic": "隐藏节点细节",
-      "showDetail": "展示节点细节",
       "filter": "过滤节点",
       "more": "更多"
     },
@@ -66,6 +62,15 @@
     "title": {
       "default": "代理组",
       "chainMode": "链式代理模式"
+    },
+    "menu": {
+      "view": "View",
+      "check": "Check",
+      "sort": "Sort",
+      "sortDefault": "default",
+      "sortDelay": "by delay",
+      "sortName": "by name",
+      "notSet": "not set"
     }
   },
   "feedback": {

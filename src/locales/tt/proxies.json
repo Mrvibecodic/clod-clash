@@ -31,12 +31,8 @@
     "tooltips": {
       "locate": "Сайланган төенгә",
       "delayCheck": "Задержканы тикшерү",
-      "sortDefault": "Башлангыч итеп сортлау",
-      "sortDelay": "Задержка буенча сортлау",
-      "sortName": "Исем буенча сортлау",
       "delayCheckUrl": "Задержканы тикшерү URL-ы",
       "showBasic": "Прокси турында кыскача мәгълүмат",
-      "showDetail": "Прокси турында тулы мәгълүмат",
       "filter": "Фильтр",
       "more": "More"
     },
@@ -66,6 +62,15 @@
     "title": {
       "default": "Прокси төркемнәре",
       "chainMode": "Proxy Chain Mode"
+    },
+    "menu": {
+      "view": "View",
+      "check": "Check",
+      "sort": "Sort",
+      "sortDefault": "default",
+      "sortDelay": "by delay",
+      "sortName": "by name",
+      "notSet": "not set"
     }
   },
   "feedback": {

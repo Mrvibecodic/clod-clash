@@ -31,12 +31,8 @@
     "tooltips": {
       "locate": "Seçili düğüme git",
       "delayCheck": "Gecikme kontrolü",
-      "sortDefault": "Varsayılana göre sırala",
-      "sortDelay": "Gecikmeye göre sırala",
-      "sortName": "İsme göre sırala",
       "delayCheckUrl": "Gecikme kontrol URL'si",
-      "showBasic": "Temel Vekil",
-      "showDetail": "Vekil detayı",
+      "showBasic": "Fewer node details",
       "filter": "Filtre",
       "more": "Daha fazla"
     },
@@ -66,6 +62,15 @@
     "title": {
       "default": "Vekil Grupları",
       "chainMode": "Proxy Chain Mode"
+    },
+    "menu": {
+      "view": "View",
+      "check": "Check",
+      "sort": "Sort",
+      "sortDefault": "default",
+      "sortDelay": "by delay",
+      "sortName": "by name",
+      "notSet": "not set"
     }
   },
   "feedback": {

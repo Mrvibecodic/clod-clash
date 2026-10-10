@@ -66,6 +66,7 @@ export interface IRenderItem {
   col?: number
   proxyCol?: IProxyItem[]
   headState?: HeadState
+  last?: boolean
   // Поддержка иконки и прочих метаданных
   icon?: string
   provider?: string
@@ -429,6 +430,7 @@ export const useRenderList = (
             })),
           )
         }
+        if (ret.length > 1) ret[ret.length - 1].last = true
       }
 
       cache.set(group.name, {

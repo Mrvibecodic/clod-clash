@@ -31,12 +31,8 @@
     "tooltips": {
       "locate": "선택한 노드로 이동",
       "delayCheck": "지연 확인",
-      "sortDefault": "기본 정렬",
-      "sortDelay": "지연으로 정렬",
-      "sortName": "이름으로 정렬",
       "delayCheckUrl": "지연 확인 URL",
-      "showBasic": "프록시 기본",
-      "showDetail": "프록시 상세",
+      "showBasic": "Fewer node details",
       "filter": "필터",
       "more": "더 보기"
     },
@@ -66,6 +62,15 @@
     "title": {
       "default": "프록시 그룹",
       "chainMode": "프록시 체인 모드"
+    },
+    "menu": {
+      "view": "View",
+      "check": "Check",
+      "sort": "Sort",
+      "sortDefault": "default",
+      "sortDelay": "by delay",
+      "sortName": "by name",
+      "notSet": "not set"
     }
   },
   "feedback": {

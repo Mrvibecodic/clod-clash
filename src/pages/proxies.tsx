@@ -1,10 +1,10 @@
 import { LanOutlined, LanRounded, WarningRounded } from '@mui/icons-material'
-import { Box, Button, ButtonGroup } from '@mui/material'
+import { Box, Button } from '@mui/material'
 import { useLockFn } from 'ahooks'
 import { useCallback, useEffect, useReducer, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { BasePage, TooltipIcon } from '@/components/base'
+import { BasePage, BaseSegmented, TooltipIcon } from '@/components/base'
 import { ProviderButton } from '@/components/proxy/provider-button'
 import { ProxyGroups } from '@/components/proxy/proxy-groups'
 import { useProfiles } from '@/hooks/use-profiles'
@@ -161,25 +161,32 @@ const ProxyPage = () => {
           <ProviderButton />
 
           {!modeLocked && (
-            <ButtonGroup size="small">
-              {MODES.map((mode) => (
-                <Button
-                  key={mode}
-                  variant={mode === curMode ? 'contained' : 'outlined'}
-                  onClick={() => onChangeMode(mode)}
-                  sx={{ textTransform: 'capitalize' }}
-                >
-                  {t(`proxies.page.modes.${mode}`)}
-                </Button>
-              ))}
-            </ButtonGroup>
+            <BaseSegmented<Mode | ''>
+              value={curMode ?? ''}
+              options={MODES.map((mode) => ({
+                value: mode,
+                label: t(`proxies.page.modes.${mode}`),
+              }))}
+              onChange={(mode) => {
+                if (mode) onChangeMode(mode)
+              }}
+            />
           )}
 
           <Button
             size="small"
             variant={isChainMode ? 'contained' : 'outlined'}
             onClick={onToggleChainMode}
-            sx={{ ml: 1 }}
+            title={t('proxies.page.actions.toggleChain')}
+            sx={{
+              ml: 1,
+              whiteSpace: 'nowrap',
+              '@media (max-width: 720px)': {
+                minWidth: 0,
+                '& .chain-label': { display: 'none' },
+                '& .MuiButton-startIcon': { m: 0 },
+              },
+            }}
             startIcon={
               isChainMode ? (
                 <LanRounded fontSize="small" />
@@ -188,7 +195,9 @@ const ProxyPage = () => {
               )
             }
           >
-            {t('proxies.page.actions.toggleChain')}
+            <span className="chain-label">
+              {t('proxies.page.actions.toggleChain')}
+            </span>
           </Button>
         </Box>
       }

@@ -591,6 +591,15 @@ export interface TranslationResources {
           noProxies: string
           proxyCount: string
         }
+        menu: {
+          check: string
+          notSet: string
+          sort: string
+          sortDefault: string
+          sortDelay: string
+          sortName: string
+          view: string
+        }
         messages: {
           badTestUrl: string
           directMode: string
@@ -626,10 +635,6 @@ export interface TranslationResources {
           locate: string
           more: string
           showBasic: string
-          showDetail: string
-          sortDefault: string
-          sortDelay: string
-          sortName: string
         }
       }
     }

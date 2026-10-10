@@ -31,12 +31,8 @@
     "tooltips": {
       "locate": "Ir al nodo seleccionado",
       "delayCheck": "Prueba de latencia",
-      "sortDefault": "Ordenación predeterminada",
-      "sortDelay": "Ordenar por latencia",
-      "sortName": "Ordenar por nombre",
       "delayCheckUrl": "URL de prueba de latencia",
       "showBasic": "Ocultar detalles del nodo",
-      "showDetail": "Mostrar detalles del nodo",
       "filter": "Filtrar nodos",
       "more": "Más"
     },
@@ -66,6 +62,15 @@
     "title": {
       "default": "Grupos de proxies",
       "chainMode": "Proxy Chain Mode"
+    },
+    "menu": {
+      "view": "View",
+      "check": "Check",
+      "sort": "Sort",
+      "sortDefault": "default",
+      "sortDelay": "by delay",
+      "sortName": "by name",
+      "notSet": "not set"
     }
   },
   "feedback": {

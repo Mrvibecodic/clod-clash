@@ -31,12 +31,8 @@
     "tooltips": {
       "locate": "Ke node terpilih",
       "delayCheck": "Periksa Keterlambatan",
-      "sortDefault": "Urutkan secara default",
-      "sortDelay": "Urutkan berdasarkan keterlambatan",
-      "sortName": "Urutkan berdasarkan nama",
       "delayCheckUrl": "URL Periksa Keterlambatan",
-      "showBasic": "Dasar Proksi",
-      "showDetail": "Detail Proksi",
+      "showBasic": "Fewer node details",
       "filter": "Filter",
       "more": "More"
     },
@@ -66,6 +62,15 @@
     "title": {
       "default": "Grup Proksi",
       "chainMode": "Proxy Chain Mode"
+    },
+    "menu": {
+      "view": "View",
+      "check": "Check",
+      "sort": "Sort",
+      "sortDefault": "default",
+      "sortDelay": "by delay",
+      "sortName": "by name",
+      "notSet": "not set"
     }
   },
   "feedback": {

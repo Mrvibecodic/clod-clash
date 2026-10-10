@@ -1,15 +1,20 @@
-import { CheckCircleOutlineRounded } from '@mui/icons-material'
+import {
+  ArrowForwardRounded,
+  CheckCircleOutlineRounded,
+} from '@mui/icons-material'
 import { alpha, Box, ListItemButton, styled, Typography } from '@mui/material'
 import { useTranslation } from 'react-i18next'
 
-import { BaseLoading } from '@/components/base'
+import { BaseLoading, CodeChip, TypeChip } from '@/components/base'
 import { useProxyDelayState } from '@/hooks/use-proxy-delay-state'
 import { SHAPE } from '@/pages/_theme'
-import { delayColor, delayText } from '@/utils/delay-color'
+import { delayColor, delayText, usableDelay } from '@/utils/delay-color'
 import { featureChips, typeChips } from '@/utils/proxy-label'
 
 import { FreezeMark } from './freeze-mark'
 import { ProxyFavorite } from './proxy-favorite'
+import { PingUnit } from './proxy-ping-unit'
+import { PING_SX, proxyTileSx } from './proxy-tile'
 
 interface Props {
   group: IProxyGroupItem
@@ -50,6 +55,11 @@ export const ProxyItemMini = (props: Props) => {
     group.name,
   )
 
+  const chip = [
+    ...typeChips(proxy, hideBadges),
+    ...featureChips(proxy, hideBadges),
+  ].join(' · ')
+
   return (
     <ListItemButton
       dense
@@ -61,37 +71,12 @@ export const ProxyItemMini = (props: Props) => {
           minHeight: 56,
           borderRadius: SHAPE.control,
           pl: 1.5,
-          pr: 1,
+          pr: 0.5,
+          gap: 0.5,
           justifyContent: 'space-between',
           alignItems: 'center',
         },
-        ({ palette: { mode, primary, background } }) => {
-          const bgcolor = background.paper
-          const selectedBg =
-            mode === 'light'
-              ? alpha(primary.main, 0.15)
-              : alpha(primary.main, 0.35)
-          const showDelay = delayValue >= 0
-          const selectColor = mode === 'light' ? primary.main : primary.light
-
-          return {
-            '&:hover .the-check': { display: !showDelay ? 'block' : 'none' },
-            '&:hover .the-delay': { display: showDelay ? 'block' : 'none' },
-            '&:hover .the-icon': { display: 'none' },
-            '&.Mui-selected': {
-              width: `calc(100% + 3px)`,
-              marginLeft: `-3px`,
-              borderLeft: `3px solid ${selectColor}`,
-              bgcolor: selectedBg,
-            },
-            ...(!onClick && {
-              cursor: 'default',
-              '&:hover': { backgroundColor: bgcolor },
-              '&.Mui-selected:hover': { bgcolor: selectedBg },
-            }),
-            backgroundColor: bgcolor,
-          }
-        },
+        proxyTileSx(!!onClick, delayValue >= 0),
       ]}
     >
       <Box
@@ -101,14 +86,8 @@ export const ProxyItemMini = (props: Props) => {
         <Typography
           variant="body2"
           component="div"
-          color="text.primary"
-          sx={{
-            display: 'block',
-            textOverflow: 'ellipsis',
-            wordBreak: 'break-all',
-            overflow: 'hidden',
-            whiteSpace: 'nowrap',
-          }}
+          noWrap
+          sx={{ color: 'text.primary', fontWeight: selected ? 600 : 400 }}
         >
           {proxy.name}
         </Typography>
@@ -117,69 +96,52 @@ export const ProxyItemMini = (props: Props) => {
           <Box
             sx={{
               display: 'flex',
-              flexWrap: 'nowrap',
-              flex: 'none',
-              marginTop: '4px',
+              alignItems: 'center',
+              gap: 0.75,
+              mt: '5px',
+              minWidth: 0,
             }}
           >
-            {proxy.now && (
-              <Typography
-                variant="body2"
-                component="div"
-                color="text.secondary"
-                sx={{
-                  display: 'block',
-                  textOverflow: 'ellipsis',
-                  wordBreak: 'break-all',
-                  overflow: 'hidden',
-                  whiteSpace: 'nowrap',
-                  marginRight: '8px',
-                }}
-              >
-                {proxy.now}
-              </Typography>
+            {proxy.all ? (
+              <>
+                {chip && <TypeChip>{chip}</TypeChip>}
+                {proxy.now && (
+                  <>
+                    <ArrowForwardRounded
+                      sx={{ fontSize: 14, color: 'text.disabled' }}
+                    />
+                    <Typography
+                      variant="body2"
+                      component="span"
+                      noWrap
+                      sx={{ color: 'text.primary', fontSize: 13, minWidth: 0 }}
+                    >
+                      {proxy.now}
+                    </Typography>
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                {chip && (
+                  <CodeChip title={proxy.label?.text} sx={{ minWidth: 0 }}>
+                    {chip}
+                  </CodeChip>
+                )}
+                {!!proxy.provider && (
+                  <CodeChip sx={{ minWidth: 0 }}>{proxy.provider}</CodeChip>
+                )}
+              </>
             )}
-            {!!proxy.provider && (
-              <TypeBox color="text.secondary" component="span">
-                {proxy.provider}
-              </TypeBox>
-            )}
-            {/* Протокол держит ширину, транспорт и защита сжимаются первыми. */}
-            {typeChips(proxy, hideBadges).map((chip, index) => (
-              <TypeBox
-                key={chip}
-                color="text.secondary"
-                component="span"
-                title={proxy.label?.text}
-                sx={
-                  index === 0
-                    ? { flexShrink: 0 }
-                    : {
-                        minWidth: 0,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }
-                }
-              >
-                {chip}
-              </TypeBox>
-            ))}
-            {featureChips(proxy, hideBadges).map((chip) => (
-              <TypeBox key={chip} color="text.secondary" component="span">
-                {chip}
-              </TypeBox>
-            ))}
           </Box>
         )}
         {showType && description && (
           <Typography
             variant="caption"
             component="div"
-            color="text.secondary"
             noWrap
             title={description}
-            sx={{ mt: '2px' }}
+            sx={{ mt: '3px', color: 'text.secondary' }}
           >
             {description}
           </Typography>
@@ -221,11 +183,13 @@ export const ProxyItemMini = (props: Props) => {
               onDelay(proxy.provider)
             }}
             sx={({ palette }) => ({
+              ...PING_SX,
               color: delayColor(delayValue, pingBounds),
               ':hover': { bgcolor: alpha(palette.primary.main, 0.15) },
             })}
           >
             {delayText(delayValue, t('shared.labels.timeout'))}
+            {usableDelay(delayValue) && <PingUnit />}
           </Widget>
         )}
         {proxy.type !== 'Direct' &&
@@ -239,34 +203,23 @@ export const ProxyItemMini = (props: Props) => {
             />
           )}
       </Box>
-      <ProxyFavorite
-        proxy={proxy}
-        favorite={favorite}
-        onToggle={onToggleFavorite}
-      />
+      {onToggleFavorite && (
+        <Box sx={{ width: 24, flex: 'none', display: 'flex' }}>
+          <ProxyFavorite
+            proxy={proxy}
+            favorite={favorite}
+            onToggle={onToggleFavorite}
+          />
+        </Box>
+      )}
     </ListItemButton>
   )
 }
 
 const Widget = styled(Box)(({ theme: { typography } }) => ({
   padding: '2px 4px',
-  fontSize: 14,
+  fontSize: 13.5,
   fontFamily: typography.fontFamily,
   borderRadius: '4px',
-}))
-
-const TypeBox = styled(Box, {
-  shouldForwardProp: (prop) => prop !== 'component',
-})<{ component?: React.ElementType }>(({ theme: { typography } }) => ({
-  display: 'inline-block',
-  border: '1px solid #ccc',
-  borderColor: 'text.secondary',
-  color: 'text.secondary',
-  borderRadius: 4,
-  fontSize: 10,
-  fontFamily: typography.fontFamily,
-  marginRight: '4px',
-  marginTop: 'auto',
-  padding: '0 4px',
-  lineHeight: 1.5,
+  whiteSpace: 'nowrap',
 }))

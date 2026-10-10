@@ -1,4 +1,7 @@
-import { CheckCircleOutlineRounded } from '@mui/icons-material'
+import {
+  ArrowForwardRounded,
+  CheckCircleOutlineRounded,
+} from '@mui/icons-material'
 import {
   alpha,
   Box,
@@ -12,13 +15,15 @@ import {
 } from '@mui/material'
 import { useTranslation } from 'react-i18next'
 
-import { BaseLoading } from '@/components/base'
+import { BaseLoading, CodeChip, TypeChip } from '@/components/base'
 import { useProxyDelayState } from '@/hooks/use-proxy-delay-state'
-import { delayColor, delayText } from '@/utils/delay-color'
+import { delayColor, delayText, usableDelay } from '@/utils/delay-color'
 import { featureChips, typeChips } from '@/utils/proxy-label'
 
 import { FreezeMark } from './freeze-mark'
 import { ProxyFavorite } from './proxy-favorite'
+import { PingUnit } from './proxy-ping-unit'
+import { PING_SX, proxyTileSx } from './proxy-tile'
 
 interface Props {
   group: IProxyGroupItem
@@ -40,20 +45,9 @@ interface Props {
 
 const Widget = styled(Box)(() => ({
   padding: '3px 6px',
-  fontSize: 14,
+  fontSize: 13.5,
   borderRadius: '4px',
-}))
-
-const TypeBox = styled('span')(({ theme }) => ({
-  display: 'inline-block',
-  border: '1px solid #ccc',
-  borderColor: alpha(theme.palette.text.secondary, 0.36),
-  color: alpha(theme.palette.text.secondary, 0.42),
-  borderRadius: 4,
-  fontSize: 10,
-  marginRight: '4px',
-  padding: '0 2px',
-  lineHeight: 1.25,
+  whiteSpace: 'nowrap',
 }))
 
 export const ProxyItem = (props: Props) => {
@@ -77,6 +71,10 @@ export const ProxyItem = (props: Props) => {
     proxy,
     group.name,
   )
+  const chip = [
+    ...typeChips(proxy, hideBadges),
+    ...featureChips(proxy, hideBadges),
+  ].join(' · ')
 
   return (
     <ListItem sx={sx}>
@@ -86,36 +84,13 @@ export const ProxyItem = (props: Props) => {
         disableRipple={!onClick}
         onClick={() => onClick?.(proxy.name)}
         sx={[
-          { borderRadius: 1 },
-          ({ palette: { mode, primary, background } }) => {
-            const bgcolor = background.paper
-            const selectedBg =
-              mode === 'light'
-                ? alpha(primary.main, 0.15)
-                : alpha(primary.main, 0.35)
-            const selectColor = mode === 'light' ? primary.main : primary.light
-            const showDelay = delayValue >= 0
-
-            return {
-              '&:hover .the-check': { display: !showDelay ? 'block' : 'none' },
-              '&:hover .the-delay': { display: showDelay ? 'block' : 'none' },
-              '&:hover .the-icon': { display: 'none' },
-              '&.Mui-selected': {
-                width: `calc(100% + 3px)`,
-                marginLeft: `-3px`,
-                borderLeft: `3px solid ${selectColor}`,
-                bgcolor: selectedBg,
-              },
-              ...(!onClick && {
-                cursor: 'default',
-                '&:hover': { backgroundColor: bgcolor },
-                '&.Mui-selected:hover': { bgcolor: selectedBg },
-              }),
-              backgroundColor: bgcolor,
-              marginBottom: '8px',
-              minHeight: '40px',
-            }
+          {
+            borderRadius: '10px',
+            gap: 0.5,
+            marginBottom: '8px',
+            minHeight: '40px',
           },
+          proxyTileSx(!!onClick, delayValue >= 0),
         ]}
       >
         <ListItemText
@@ -127,25 +102,45 @@ export const ProxyItem = (props: Props) => {
                   display: 'inline-block',
                   marginRight: '8px',
                   fontSize: '14px',
+                  fontWeight: selected ? 600 : 400,
                   color: 'text.primary',
                 }}
               >
                 {proxy.name}
-                {showType && proxy.now && ` - ${proxy.now}`}
               </Box>
-              {showType && !!proxy.provider && (
-                <TypeBox>{proxy.provider}</TypeBox>
-              )}
-              {showType &&
-                typeChips(proxy, hideBadges).map((chip) => (
-                  <TypeBox key={chip} title={proxy.label?.text}>
+              {showType && proxy.all ? (
+                <>
+                  {chip && <TypeChip sx={{ mr: '6px' }}>{chip}</TypeChip>}
+                  {proxy.now && (
+                    <>
+                      <ArrowForwardRounded
+                        sx={{
+                          fontSize: 14,
+                          mr: '6px',
+                          verticalAlign: 'middle',
+                          color: 'text.disabled',
+                        }}
+                      />
+                      <Box
+                        component="span"
+                        sx={{ fontSize: 13, color: 'text.primary' }}
+                      >
+                        {proxy.now}
+                      </Box>
+                    </>
+                  )}
+                </>
+              ) : (
+                showType &&
+                chip && (
+                  <CodeChip title={proxy.label?.text} sx={{ mr: '6px' }}>
                     {chip}
-                  </TypeBox>
-                ))}
-              {showType &&
-                featureChips(proxy, hideBadges).map((chip) => (
-                  <TypeBox key={chip}>{chip}</TypeBox>
-                ))}
+                  </CodeChip>
+                )
+              )}
+              {showType && !!proxy.provider && (
+                <CodeChip sx={{ mr: '6px' }}>{proxy.provider}</CodeChip>
+              )}
               {showType && description && (
                 <Box
                   component="span"
@@ -207,11 +202,13 @@ export const ProxyItem = (props: Props) => {
                 onDelay(proxy.provider)
               }}
               sx={({ palette }) => ({
+                ...PING_SX,
                 color: delayColor(delayValue, pingBounds),
                 ':hover': { bgcolor: alpha(palette.primary.main, 0.15) },
               })}
             >
               {delayText(delayValue, t('shared.labels.timeout'))}
+              {usableDelay(delayValue) && <PingUnit />}
             </Widget>
           )}
 
@@ -224,11 +221,15 @@ export const ProxyItem = (props: Props) => {
           )}
         </ListItemIcon>
 
-        <ProxyFavorite
-          proxy={proxy}
-          favorite={favorite}
-          onToggle={onToggleFavorite}
-        />
+        {onToggleFavorite && (
+          <Box sx={{ width: 24, flex: 'none', display: 'flex' }}>
+            <ProxyFavorite
+              proxy={proxy}
+              favorite={favorite}
+              onToggle={onToggleFavorite}
+            />
+          </Box>
+        )}
       </ListItemButton>
     </ListItem>
   )

@@ -11,8 +11,10 @@ import WifiTetheringOffRounded from '@mui/icons-material/WifiTetheringOffRounded
 import WifiTetheringRounded from '@mui/icons-material/WifiTetheringRounded'
 import {
   Badge,
+  Box,
   IconButton,
   ListItemIcon,
+  ListSubheader,
   Menu,
   MenuItem,
   type SvgIconProps,
@@ -49,87 +51,109 @@ export const ProxyToolsMenu = ({
   // Точка на кнопке: в меню включено то, что меняет список или проверку.
   const changed = sortType !== 0 || !!filterText.trim() || !!testUrl?.trim()
 
-  const items: {
-    key: string
-    icon: ReactNode
-    label: string
-    keepOpen?: boolean
-    run: () => void
+  const sortLabels = [
+    t('proxies.page.menu.sortDefault'),
+    t('proxies.page.menu.sortDelay'),
+    t('proxies.page.menu.sortName'),
+  ]
+
+  const sections: {
+    title: string
+    items: {
+      key: string
+      icon: ReactNode
+      label: string
+      value?: string
+      mono?: boolean
+      keepOpen?: boolean
+      run: () => void
+    }[]
   }[] = [
     {
-      key: 'locate',
-      icon: <MyLocationRounded fontSize="small" />,
-      label: t('proxies.page.tooltips.locate'),
-      run: () => {
-        ensureOpen?.()
-        onLocation()
-      },
+      title: t('proxies.page.menu.view'),
+      items: [
+        {
+          key: 'locate',
+          icon: <MyLocationRounded fontSize="small" />,
+          label: t('proxies.page.tooltips.locate'),
+          run: () => {
+            ensureOpen?.()
+            onLocation()
+          },
+        },
+        {
+          key: 'sort',
+          icon:
+            sortType === 1 ? (
+              <AccessTimeRounded fontSize="small" />
+            ) : sortType === 2 ? (
+              <SortByAlphaRounded fontSize="small" />
+            ) : (
+              <SortRounded fontSize="small" />
+            ),
+          label: t('proxies.page.menu.sort'),
+          value: sortLabels[sortType],
+          keepOpen: true,
+          run: () => {
+            ensureOpen?.()
+            onHeadState({ sortType: ((sortType + 1) % 3) as ProxySortType })
+          },
+        },
+        {
+          key: 'showType',
+          icon: showType ? (
+            <VisibilityRounded fontSize="small" />
+          ) : (
+            <VisibilityOffRounded fontSize="small" />
+          ),
+          label: t('proxies.page.tooltips.showBasic'),
+          value: showType
+            ? t('shared.statuses.disabled')
+            : t('shared.statuses.enabled'),
+          keepOpen: true,
+          run: () => {
+            ensureOpen?.()
+            onHeadState({ showType: !showType })
+          },
+        },
+        {
+          key: 'filter',
+          icon:
+            textState === 'filter' ? (
+              <FilterAltRounded fontSize="small" />
+            ) : (
+              <FilterAltOffRounded fontSize="small" />
+            ),
+          label: t('proxies.page.tooltips.filter'),
+          value: filterText.trim() || undefined,
+          run: () => {
+            if (textState !== 'filter') ensureOpen?.()
+            onHeadState({ textState: textState === 'filter' ? null : 'filter' })
+            onFieldShown?.()
+          },
+        },
+      ],
     },
     {
-      key: 'sort',
-      icon:
-        sortType === 1 ? (
-          <AccessTimeRounded fontSize="small" />
-        ) : sortType === 2 ? (
-          <SortByAlphaRounded fontSize="small" />
-        ) : (
-          <SortRounded fontSize="small" />
-        ),
-      label: [
-        t('proxies.page.tooltips.sortDefault'),
-        t('proxies.page.tooltips.sortDelay'),
-        t('proxies.page.tooltips.sortName'),
-      ][sortType],
-      keepOpen: true,
-      run: () => {
-        ensureOpen?.()
-        onHeadState({ sortType: ((sortType + 1) % 3) as ProxySortType })
-      },
-    },
-    {
-      key: 'url',
-      icon:
-        textState === 'url' ? (
-          <WifiTetheringRounded fontSize="small" />
-        ) : (
-          <WifiTetheringOffRounded fontSize="small" />
-        ),
-      label: t('proxies.page.tooltips.delayCheckUrl'),
-      run: () => {
-        onHeadState({ textState: textState === 'url' ? null : 'url' })
-        onFieldShown?.()
-      },
-    },
-    {
-      key: 'showType',
-      icon: showType ? (
-        <VisibilityRounded fontSize="small" />
-      ) : (
-        <VisibilityOffRounded fontSize="small" />
-      ),
-      label: showType
-        ? t('proxies.page.tooltips.showBasic')
-        : t('proxies.page.tooltips.showDetail'),
-      keepOpen: true,
-      run: () => {
-        ensureOpen?.()
-        onHeadState({ showType: !showType })
-      },
-    },
-    {
-      key: 'filter',
-      icon:
-        textState === 'filter' ? (
-          <FilterAltRounded fontSize="small" />
-        ) : (
-          <FilterAltOffRounded fontSize="small" />
-        ),
-      label: t('proxies.page.tooltips.filter'),
-      run: () => {
-        if (textState !== 'filter') ensureOpen?.()
-        onHeadState({ textState: textState === 'filter' ? null : 'filter' })
-        onFieldShown?.()
-      },
+      title: t('proxies.page.menu.check'),
+      items: [
+        {
+          key: 'url',
+          icon:
+            textState === 'url' ? (
+              <WifiTetheringRounded fontSize="small" />
+            ) : (
+              <WifiTetheringOffRounded fontSize="small" />
+            ),
+          label: t('proxies.page.tooltips.delayCheckUrl'),
+          value: testUrl?.trim() || t('proxies.page.menu.notSet'),
+          mono: !!testUrl?.trim(),
+          run: () => {
+            onHeadState({ textState: textState === 'url' ? null : 'url' })
+            onFieldShown?.()
+          },
+        },
+      ],
     },
   ]
 
@@ -161,20 +185,59 @@ export const ProxyToolsMenu = ({
         onFocus={(e) => e.stopPropagation()}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        slotProps={{ paper: { sx: { minWidth: 280, maxWidth: 360 } } }}
       >
-        {items.map((item) => (
-          <MenuItem
-            key={item.key}
-            dense
-            onClick={() => {
-              if (!item.keepOpen) setAnchorEl(null)
-              item.run()
+        {sections.flatMap((section) => [
+          <ListSubheader
+            key={section.title}
+            disableSticky
+            sx={{
+              bgcolor: 'transparent',
+              color: 'text.secondary',
+              fontSize: 11.5,
+              fontWeight: 700,
+              letterSpacing: '0.5px',
+              lineHeight: '28px',
+              textTransform: 'uppercase',
             }}
           >
-            <ListItemIcon>{item.icon}</ListItemIcon>
-            {item.label}
-          </MenuItem>
-        ))}
+            {section.title}
+          </ListSubheader>,
+          ...section.items.map((item) => (
+            <MenuItem
+              key={item.key}
+              dense
+              onClick={() => {
+                if (!item.keepOpen) setAnchorEl(null)
+                item.run()
+              }}
+            >
+              <ListItemIcon>{item.icon}</ListItemIcon>
+              <Box component="span" sx={{ flex: 1, whiteSpace: 'nowrap' }}>
+                {item.label}
+              </Box>
+              {item.value && (
+                <Box
+                  component="span"
+                  title={item.value}
+                  sx={{
+                    ml: 2,
+                    minWidth: 0,
+                    maxWidth: 140,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    fontSize: 12.5,
+                    color: 'text.secondary',
+                    fontFamily: item.mono ? 'monospace' : undefined,
+                  }}
+                >
+                  {item.value}
+                </Box>
+              )}
+            </MenuItem>
+          )),
+        ])}
       </Menu>
     </>
   )

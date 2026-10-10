@@ -31,12 +31,8 @@
     "tooltips": {
       "locate": "定位到所選節點",
       "delayCheck": "延遲測試",
-      "sortDefault": "預設排序",
-      "sortDelay": "按延遲排序",
-      "sortName": "按名稱排序",
       "delayCheckUrl": "延遲測試網址",
       "showBasic": "隱藏節點細節",
-      "showDetail": "展示節點細節",
       "filter": "篩選節點",
       "more": "更多"
     },
@@ -66,6 +62,15 @@
     "title": {
       "default": "代理組",
       "chainMode": "鏈式代理模式"
+    },
+    "menu": {
+      "view": "View",
+      "check": "Check",
+      "sort": "Sort",
+      "sortDefault": "default",
+      "sortDelay": "by delay",
+      "sortName": "by name",
+      "notSet": "not set"
     }
   },
   "feedback": {

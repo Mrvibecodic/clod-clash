@@ -31,12 +31,8 @@
     "tooltips": {
       "locate": "رفتن به گره انتخاب‌شده",
       "delayCheck": "بررسی تأخیر",
-      "sortDefault": "مرتب‌سازی بر اساس پیش‌فرض",
-      "sortDelay": "مرتب‌سازی بر اساس تأخیر",
-      "sortName": "مرتب‌سازی بر اساس نام",
       "delayCheckUrl": "آدرس بررسی تأخیر",
-      "showBasic": "پراکسی پایه",
-      "showDetail": "جزئیات پراکسی",
+      "showBasic": "Fewer node details",
       "filter": "فیلتر",
       "more": "More"
     },
@@ -66,6 +62,15 @@
     "title": {
       "default": "گروه‌های پراکسی",
       "chainMode": "Proxy Chain Mode"
+    },
+    "menu": {
+      "view": "View",
+      "check": "Check",
+      "sort": "Sort",
+      "sortDefault": "default",
+      "sortDelay": "by delay",
+      "sortName": "by name",
+      "notSet": "not set"
     }
   },
   "feedback": {

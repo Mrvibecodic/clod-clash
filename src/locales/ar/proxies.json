@@ -31,12 +31,8 @@
     "tooltips": {
       "locate": "الانتقال إلى العقدة المحددة",
       "delayCheck": "فحص التأخير",
-      "sortDefault": "الترتيب الافتراضي",
-      "sortDelay": "الترتيب حسب التأخير",
-      "sortName": "الترتيب حسب الاسم",
       "delayCheckUrl": "رابط فحص التأخير",
-      "showBasic": "إعدادات الوكيل الأساسية",
-      "showDetail": "تفاصيل الوكيل",
+      "showBasic": "Fewer node details",
       "filter": "تصفية",
       "more": "More"
     },
@@ -66,6 +62,15 @@
     "title": {
       "default": "مجموعات الوكلاء",
       "chainMode": "Proxy Chain Mode"
+    },
+    "menu": {
+      "view": "View",
+      "check": "Check",
+      "sort": "Sort",
+      "sortDefault": "default",
+      "sortDelay": "by delay",
+      "sortName": "by name",
+      "notSet": "not set"
     }
   },
   "feedback": {

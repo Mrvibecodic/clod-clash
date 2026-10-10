@@ -31,12 +31,8 @@
     "tooltips": {
       "locate": "選択中のノードへ",
       "delayCheck": "遅延テスト",
-      "sortDefault": "デフォルトでソート",
-      "sortDelay": "遅延でソート",
-      "sortName": "名前でソート",
       "delayCheckUrl": "遅延テストURL",
       "showBasic": "ノードの詳細を隠す",
-      "showDetail": "ノードの詳細を表示する",
       "filter": "ノードをフィルタリング",
       "more": "その他"
     },
@@ -66,6 +62,15 @@
     "title": {
       "default": "プロキシグループ",
       "chainMode": "Proxy Chain Mode"
+    },
+    "menu": {
+      "view": "View",
+      "check": "Check",
+      "sort": "Sort",
+      "sortDefault": "default",
+      "sortDelay": "by delay",
+      "sortName": "by name",
+      "notSet": "not set"
     }
   },
   "feedback": {

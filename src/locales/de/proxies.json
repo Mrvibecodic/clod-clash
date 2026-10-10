@@ -31,12 +31,8 @@
     "tooltips": {
       "locate": "Zum ausgewählten Knoten",
       "delayCheck": "Latenztest",
-      "sortDefault": "Standard Sortierung",
-      "sortDelay": "Nach Latenz sortieren",
-      "sortName": "Nach Name sortieren",
       "delayCheckUrl": "Latenztest-URL",
       "showBasic": "Knotendetails ausblenden",
-      "showDetail": "Knotendetails anzeigen",
       "filter": "Knoten filtern",
       "more": "Mehr"
     },
@@ -66,6 +62,15 @@
     "title": {
       "default": "Proxy-Gruppen",
       "chainMode": "Proxy Chain Mode"
+    },
+    "menu": {
+      "view": "View",
+      "check": "Check",
+      "sort": "Sort",
+      "sortDefault": "default",
+      "sortDelay": "by delay",
+      "sortName": "by name",
+      "notSet": "not set"
     }
   },
   "feedback": {

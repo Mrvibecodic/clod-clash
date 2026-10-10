@@ -31,12 +31,8 @@
     "tooltips": {
       "locate": "Go to selected node",
       "delayCheck": "Delay check",
-      "sortDefault": "Sort: default",
-      "sortDelay": "Sort: by delay",
-      "sortName": "Sort: by name",
       "delayCheckUrl": "Custom test URL",
       "showBasic": "Less node details",
-      "showDetail": "More node details",
       "filter": "Filter by name",
       "more": "More"
     },
@@ -66,6 +62,15 @@
     "title": {
       "default": "Proxy Groups",
       "chainMode": "Proxy Chain Mode"
+    },
+    "menu": {
+      "view": "View",
+      "check": "Check",
+      "sort": "Sort",
+      "sortDefault": "default",
+      "sortDelay": "by delay",
+      "sortName": "by name",
+      "notSet": "not set"
     }
   },
   "feedback": {
