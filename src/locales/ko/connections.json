@@ -10,6 +10,7 @@
       "chains": "체인",
       "rule": "규칙",
       "process": "프로세스",
+      "processPath": "Path",
       "time": "시간",
       "source": "소스",
       "destination": "목적지",
@@ -19,7 +20,8 @@
     "order": {
       "default": "기본",
       "uploadSpeed": "업로드 속도",
-      "downloadSpeed": "다운로드 속도"
+      "downloadSpeed": "다운로드 속도",
+      "label": "Order"
     },
     "group": {
       "label": "그룹화",
@@ -47,7 +49,16 @@
     },
     "columnManager": {
       "title": "열",
-      "dragHandle": "Drag handle"
+      "dragHandle": "Drag handle",
+      "shown": "{{shown}} of {{total}} shown"
+    },
+    "rule": {
+      "fallback": "everything else"
+    },
+    "detail": {
+      "traffic": "Traffic",
+      "route": "Route",
+      "details": "Details"
     }
   }
 }

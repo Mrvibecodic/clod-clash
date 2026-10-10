@@ -8,21 +8,12 @@ import {
 } from '@dnd-kit/core'
 import { arrayMove, SortableContext, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { DragIndicatorRounded } from '@mui/icons-material'
-import {
-  Button,
-  Checkbox,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  IconButton,
-  List,
-  ListItem,
-  ListItemText,
-} from '@mui/material'
+import { DragIndicatorRounded, UndoRounded } from '@mui/icons-material'
+import { alpha, Box, Button, Checkbox } from '@mui/material'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { BaseDialog } from '@/components/base'
 
 export interface ConnectionColumnOption {
   id: string
@@ -75,45 +66,58 @@ export const ConnectionColumnManager = ({
   )
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
-      <DialogTitle>
-        {t('connections.components.columnManager.title')}
-      </DialogTitle>
-      <DialogContent sx={{ pt: 1 }}>
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
+    <BaseDialog
+      open={open}
+      title={t('connections.components.columnManager.title')}
+      titleExtra={
+        <Box
+          component="span"
+          sx={{ fontSize: 12.5, fontWeight: 400, color: 'text.secondary' }}
         >
-          <SortableContext items={items}>
-            <List
-              dense
-              disablePadding
-              sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}
-            >
-              {columns.map((column) => (
-                <SortableColumnItem
-                  key={column.id}
-                  column={column}
-                  dragHandleLabel={t(
-                    'connections.components.columnManager.dragHandle',
-                  )}
-                  disableToggle={column.visible && visibleCount <= 1}
-                />
-              ))}
-            </List>
-          </SortableContext>
-        </DndContext>
-      </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button variant="text" onClick={onReset}>
+          {t('connections.components.columnManager.shown', {
+            shown: visibleCount,
+            total: columns.length,
+          })}
+        </Box>
+      }
+      dividers
+      fullWidth
+      maxWidth="xs"
+      contentSx={{ py: 1 }}
+      footerStart={
+        <Button
+          size="small"
+          startIcon={<UndoRounded />}
+          onClick={onReset}
+          sx={{ ml: -1 }}
+        >
           {t('shared.actions.resetToDefault')}
         </Button>
-        <Button variant="contained" onClick={onClose}>
-          {t('shared.actions.close')}
-        </Button>
-      </DialogActions>
-    </Dialog>
+      }
+      okBtn={t('shared.actions.close')}
+      disableCancel
+      onOk={onClose}
+      onClose={onClose}
+    >
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext items={items}>
+          {columns.map((column) => (
+            <SortableColumnItem
+              key={column.id}
+              column={column}
+              dragHandleLabel={t(
+                'connections.components.columnManager.dragHandle',
+              )}
+              disableToggle={column.visible && visibleCount <= 1}
+            />
+          ))}
+        </SortableContext>
+      </DndContext>
+    </BaseDialog>
   )
 }
 
@@ -137,51 +141,57 @@ const SortableColumnItem = ({
     isDragging,
   } = useSortable({ id: column.id })
 
-  const style = useMemo(
-    () => ({
-      transform: CSS.Transform.toString(transform),
-      transition,
-    }),
-    [transform, transition],
-  )
-
   return (
-    <ListItem
+    <Box
       ref={setNodeRef}
-      disableGutters
-      sx={{
-        px: 1,
-        py: 0.5,
-        borderRadius: 1,
-        border: (theme) => `1px solid ${theme.palette.divider}`,
-        backgroundColor: isDragging ? 'action.hover' : 'transparent',
+      sx={({ palette }) => ({
         display: 'flex',
         alignItems: 'center',
-        gap: 1,
-      }}
-      style={style}
+        gap: 0.5,
+        minHeight: 40,
+        my: 0.75,
+        pl: 0.5,
+        pr: 1.5,
+        borderRadius: '10px',
+        bgcolor: alpha(palette.text.primary, column.visible ? 0.07 : 0.035),
+        position: 'relative',
+        zIndex: isDragging ? 1 : undefined,
+      })}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
     >
-      <Checkbox
-        edge="start"
-        checked={column.visible}
-        disabled={disableToggle}
-        onChange={(event) => column.toggleVisibility(event.target.checked)}
-      />
-      <ListItemText
-        primary={column.label}
-        slotProps={{ primary: { variant: 'body2' } }}
-        sx={{ mr: 1 }}
-      />
-      <IconButton
-        edge="end"
-        size="small"
-        sx={{ cursor: isDragging ? 'grabbing' : 'grab' }}
+      <Box
+        component="span"
         aria-label={dragHandleLabel}
         {...attributes}
         {...listeners}
+        sx={{
+          display: 'flex',
+          p: 0.5,
+          color: 'text.disabled',
+          cursor: isDragging ? 'grabbing' : 'grab',
+          touchAction: 'none',
+        }}
       >
-        <DragIndicatorRounded fontSize="small" />
-      </IconButton>
-    </ListItem>
+        <DragIndicatorRounded sx={{ fontSize: 18 }} />
+      </Box>
+      <Checkbox
+        size="small"
+        checked={column.visible}
+        disabled={disableToggle}
+        onChange={(event) => column.toggleVisibility(event.target.checked)}
+        sx={{ p: 0.5 }}
+      />
+      <Box
+        component="span"
+        sx={{
+          ml: 0.5,
+          fontSize: 14,
+          color: column.visible ? 'text.primary' : 'text.secondary',
+          transition: 'color 150ms',
+        }}
+      >
+        {column.label}
+      </Box>
+    </Box>
   )
 }

@@ -10,6 +10,7 @@
       "chains": "Rantai",
       "rule": "Aturan",
       "process": "Proses",
+      "processPath": "Path",
       "time": "Waktu",
       "source": "Sumber",
       "destination": "IP Tujuan",
@@ -19,7 +20,8 @@
     "order": {
       "default": "Default",
       "uploadSpeed": "Kecepatan Unggah",
-      "downloadSpeed": "Kecepatan Unduh"
+      "downloadSpeed": "Kecepatan Unduh",
+      "label": "Order"
     },
     "group": {
       "label": "Pengelompokan",
@@ -47,7 +49,16 @@
     },
     "columnManager": {
       "title": "Kolom",
-      "dragHandle": "Drag handle"
+      "dragHandle": "Drag handle",
+      "shown": "{{shown}} of {{total}} shown"
+    },
+    "rule": {
+      "fallback": "everything else"
+    },
+    "detail": {
+      "traffic": "Traffic",
+      "route": "Route",
+      "details": "Details"
     }
   }
 }

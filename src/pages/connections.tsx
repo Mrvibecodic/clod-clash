@@ -1,4 +1,5 @@
 import {
+  CheckRounded,
   DeleteForeverRounded,
   InsightsRounded,
   TableChartRounded,
@@ -8,7 +9,6 @@ import {
 import {
   Box,
   Button,
-  ButtonGroup,
   Fab,
   IconButton,
   MenuItem,
@@ -24,6 +24,7 @@ import {
   BaseEmpty,
   BasePage,
   BaseSearchBox,
+  BaseSegmented,
   BaseStyledSelect,
   type SearchState,
   VirtualList,
@@ -43,6 +44,7 @@ import {
   type ConnectionTableCollapsed,
   type ConnectionTableSorting,
 } from '@/components/connection/connection-table'
+import { connTextSx } from '@/components/connection/connection-text'
 import { useConnectionData } from '@/hooks/use-connection-data'
 import { useConnectionSetting } from '@/hooks/use-connection-setting'
 import { useTrafficData } from '@/hooks/use-traffic-data'
@@ -93,6 +95,32 @@ const orderFunctionMap = ORDER_OPTIONS.reduce<Record<OrderKey, OrderFunc>>(
 )
 
 const EMPTY_CONNECTIONS: IConnectionsItem[] = []
+
+const selectLabel = (label: string, value: string) => (
+  <>
+    <Box component="span" sx={{ color: 'text.secondary', mr: 0.75 }}>
+      {label}:
+    </Box>
+    {value}
+  </>
+)
+
+const menuCheck = (on: boolean) =>
+  on ? (
+    <CheckRounded
+      fontSize="small"
+      sx={{ ml: 'auto', pl: 1.5, color: 'primary.main' }}
+    />
+  ) : null
+
+const SELECT_SX = {
+  width: 'auto',
+  minWidth: 200,
+  maxWidth: '100%',
+  fontSize: 14,
+}
+
+const menuItemSx = { display: 'flex', alignItems: 'center', fontSize: 14 }
 const ConnectionsPage = () => {
   const { t } = useTranslation()
   const pageVisible = useVisibility({ keepWhileMinimized: true })
@@ -120,8 +148,7 @@ const ConnectionsPage = () => {
   const [tableSorting, setTableSorting] = useState<ConnectionTableSorting>(null)
   const [tableCollapsed, setTableCollapsed] =
     useState<ConnectionTableCollapsed>(null)
-  const [isGroupMenuOpen, setIsGroupMenuOpen] = useState(false)
-  const [isGroupHovered, setIsGroupHovered] = useState(false)
+  const [detailId, setDetailId] = useState<string | null>(null)
   const summaryVisible = setting.summary ?? true
 
   const [isColumnManagerOpen, setIsColumnManagerOpen] = useState(false)
@@ -202,12 +229,30 @@ const ConnectionsPage = () => {
       }}
       header={
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Box sx={{ mx: 1 }}>
-            {t('shared.labels.downloaded')}:{' '}
-            {parseTraffic(traffic?.downTotal || 0)}
-          </Box>
-          <Box sx={{ mx: 1 }}>
-            {t('shared.labels.uploaded')}: {parseTraffic(traffic?.upTotal || 0)}
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: { xs: 'column', md: 'row' },
+              alignItems: 'flex-end',
+              columnGap: 3,
+              mx: 1,
+              fontSize: { xs: 12, md: 13 },
+              lineHeight: 1.35,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <span>
+              <Box component="span" sx={{ color: 'text.secondary', mr: 0.75 }}>
+                {t('shared.labels.downloaded')}
+              </Box>
+              <b>{parseTraffic(traffic?.downTotal || 0)}</b>
+            </span>
+            <span>
+              <Box component="span" sx={{ color: 'text.secondary', mr: 0.75 }}>
+                {t('shared.labels.uploaded')}
+              </Box>
+              <b>{parseTraffic(traffic?.upTotal || 0)}</b>
+            </span>
           </Box>
           <IconButton
             color="inherit"
@@ -241,7 +286,12 @@ const ConnectionsPage = () => {
               <TableChartRounded titleAccess={t('shared.actions.tableView')} />
             )}
           </IconButton>
-          <Button size="small" variant="contained" onClick={onCloseAll}>
+          <Button
+            size="small"
+            variant="outlined"
+            color="error"
+            onClick={onCloseAll}
+          >
             <span style={{ whiteSpace: 'nowrap' }}>
               {t('shared.actions.closeAll')}
             </span>
@@ -262,6 +312,7 @@ const ConnectionsPage = () => {
           mx: '10px',
           minHeight: '36px',
           display: 'flex',
+          flexWrap: 'wrap',
           alignItems: 'center',
           gap: 1,
           userSelect: 'text',
@@ -270,66 +321,87 @@ const ConnectionsPage = () => {
           zIndex: 2,
         }}
       >
-        <ButtonGroup sx={{ mr: 1, flexBasis: 'content' }}>
-          <Button
-            size="small"
-            variant={connectionsType === 'active' ? 'contained' : 'outlined'}
-            onClick={() => selectConnectionsType('active')}
-          >
-            {t('connections.components.actions.active')}{' '}
-            {connections?.activeConnections.length}
-          </Button>
-          <Button
-            size="small"
-            variant={connectionsType === 'closed' ? 'contained' : 'outlined'}
-            onClick={() => selectConnectionsType('closed')}
-          >
-            {t('connections.components.actions.closed')}{' '}
-            {connections?.closedConnections.length}
-          </Button>
-        </ButtonGroup>
+        <BaseSegmented
+          value={connectionsType}
+          onChange={selectConnectionsType}
+          options={[
+            {
+              value: 'active',
+              label: (
+                <>
+                  {t('connections.components.actions.active')}
+                  <Box component="span" sx={{ ml: 0.75, opacity: 0.7 }}>
+                    {connections?.activeConnections.length}
+                  </Box>
+                </>
+              ),
+            },
+            {
+              value: 'closed',
+              label: (
+                <>
+                  {t('connections.components.actions.closed')}
+                  <Box component="span" sx={{ ml: 0.75, opacity: 0.7 }}>
+                    {connections?.closedConnections.length}
+                  </Box>
+                </>
+              ),
+            },
+          ]}
+        />
         {isTableLayout ? (
-          <Tooltip
-            title={t('connections.components.group.label')}
-            disableInteractive
-            open={isGroupHovered && !isGroupMenuOpen}
-            onOpen={() => setIsGroupHovered(true)}
-            onClose={() => setIsGroupHovered(false)}
+          <BaseStyledSelect
+            sx={SELECT_SX}
+            value={groupBy}
+            renderValue={(value) =>
+              selectLabel(
+                t('connections.components.group.label'),
+                t(
+                  GROUP_OPTIONS.find((option) => option.id === value)
+                    ?.labelKey ?? GROUP_OPTIONS[0].labelKey,
+                ),
+              )
+            }
+            onChange={(e) =>
+              setSetting((o) => ({
+                ...(o ?? { layout: 'table' }),
+                groupBy: e.target.value as IConnectionGroupBy,
+              }))
+            }
           >
-            <BaseStyledSelect
-              sx={{ width: 150 }}
-              value={groupBy}
-              onOpen={() => setIsGroupMenuOpen(true)}
-              onClose={() => setIsGroupMenuOpen(false)}
-              onChange={(e) =>
-                setSetting((o) => ({
-                  ...(o ?? { layout: 'table' }),
-                  groupBy: e.target.value as IConnectionGroupBy,
-                }))
-              }
-            >
-              {GROUP_OPTIONS.map((option) => (
-                <MenuItem key={option.id} value={option.id}>
-                  <span style={{ fontSize: 14 }}>{t(option.labelKey)}</span>
-                </MenuItem>
-              ))}
-            </BaseStyledSelect>
-          </Tooltip>
+            {GROUP_OPTIONS.map((option) => (
+              <MenuItem key={option.id} value={option.id} sx={menuItemSx}>
+                {t(option.labelKey)}
+                {menuCheck(option.id === groupBy)}
+              </MenuItem>
+            ))}
+          </BaseStyledSelect>
         ) : (
           <BaseStyledSelect
+            sx={SELECT_SX}
             value={curOrderOpt}
+            renderValue={(value) =>
+              selectLabel(
+                t('connections.components.order.label'),
+                t(
+                  ORDER_OPTIONS.find((option) => option.id === value)
+                    ?.labelKey ?? ORDER_OPTIONS[0].labelKey,
+                ),
+              )
+            }
             onChange={(e) => setCurOrderOpt(e.target.value as OrderKey)}
           >
             {ORDER_OPTIONS.map((option) => (
-              <MenuItem key={option.id} value={option.id}>
-                <span style={{ fontSize: 14 }}>{t(option.labelKey)}</span>
+              <MenuItem key={option.id} value={option.id} sx={menuItemSx}>
+                {t(option.labelKey)}
+                {menuCheck(option.id === curOrderOpt)}
               </MenuItem>
             ))}
           </BaseStyledSelect>
         )}
         <Box
           sx={{
-            flex: 1,
+            flex: '1 1 220px',
             display: 'flex',
             alignItems: 'center',
             '& > *': {
@@ -364,33 +436,43 @@ const ConnectionsPage = () => {
           collapsed={tableCollapsed}
           onCollapsedChange={setTableCollapsed}
           onShowDetail={showDetailById}
+          selectedId={detailId}
           columnManagerOpen={isColumnManagerOpen}
           onCloseColumnManager={() => setIsColumnManagerOpen(false)}
         />
       ) : (
-        <VirtualList
-          key={connectionsType}
-          count={displayRows.length}
-          estimateSize={56}
-          renderItem={(i) => (
-            <ConnectionRowItem
-              row={displayRows[i]}
-              closed={connectionsType === 'closed'}
-              onShowDetail={showDetailById}
-            />
-          )}
-          style={{
-            flex: 1,
-            borderRadius: '8px',
-            WebkitOverflowScrolling: 'touch',
-            overscrollBehavior: 'contain',
-          }}
-        />
+        <Box
+          sx={[
+            connTextSx,
+            { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' },
+          ]}
+        >
+          <VirtualList
+            key={connectionsType}
+            count={displayRows.length}
+            estimateSize={58}
+            renderItem={(i) => (
+              <ConnectionRowItem
+                row={displayRows[i]}
+                closed={connectionsType === 'closed'}
+                selected={displayRows[i].id === detailId}
+                onShowDetail={showDetailById}
+              />
+            )}
+            style={{
+              flex: 1,
+              padding: '0 10px',
+              WebkitOverflowScrolling: 'touch',
+              overscrollBehavior: 'contain',
+            }}
+          />
+        </Box>
       )}
       <ConnectionDetail
         ref={detailRef}
         activeConnections={connections.activeConnections}
         closedConnections={connections.closedConnections}
+        onOpenChange={setDetailId}
       />
       <Zoom
         in={connectionsType === 'closed' && filterConn.length > 0}

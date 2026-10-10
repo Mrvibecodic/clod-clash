@@ -10,6 +10,7 @@
       "chains": "Cadenas",
       "rule": "Regla",
       "process": "Proceso",
+      "processPath": "Path",
       "time": "Tiempo de conexión",
       "source": "Dirección de origen",
       "destination": "Dirección de destino",
@@ -19,7 +20,8 @@
     "order": {
       "default": "Default",
       "uploadSpeed": "Velocidad de subida",
-      "downloadSpeed": "Velocidad de descarga"
+      "downloadSpeed": "Velocidad de descarga",
+      "label": "Order"
     },
     "group": {
       "label": "Agrupación",
@@ -47,7 +49,16 @@
     },
     "columnManager": {
       "title": "Columnas",
-      "dragHandle": "Drag handle"
+      "dragHandle": "Drag handle",
+      "shown": "{{shown}} of {{total}} shown"
+    },
+    "rule": {
+      "fallback": "everything else"
+    },
+    "detail": {
+      "traffic": "Traffic",
+      "route": "Route",
+      "details": "Details"
     }
   }
 }

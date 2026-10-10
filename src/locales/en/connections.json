@@ -10,6 +10,7 @@
       "chains": "Chains",
       "rule": "Rule",
       "process": "Process",
+      "processPath": "Path",
       "time": "Time",
       "source": "Source",
       "destination": "Destination",
@@ -19,7 +20,8 @@
     "order": {
       "default": "Default",
       "uploadSpeed": "Upload Speed",
-      "downloadSpeed": "Download Speed"
+      "downloadSpeed": "Download Speed",
+      "label": "Order"
     },
     "group": {
       "label": "Grouping",
@@ -47,7 +49,16 @@
     },
     "columnManager": {
       "title": "Columns",
-      "dragHandle": "Drag handle"
+      "dragHandle": "Drag handle",
+      "shown": "{{shown}} of {{total}} shown"
+    },
+    "rule": {
+      "fallback": "everything else"
+    },
+    "detail": {
+      "traffic": "Traffic",
+      "route": "Route",
+      "details": "Details"
     }
   }
 }

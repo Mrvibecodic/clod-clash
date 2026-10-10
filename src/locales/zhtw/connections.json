@@ -10,6 +10,7 @@
       "chains": "鏈路",
       "rule": "規則",
       "process": "處理程序",
+      "processPath": "Path",
       "time": "連線時間",
       "source": "來源位址",
       "destination": "目標位址",
@@ -19,7 +20,8 @@
     "order": {
       "default": "預設",
       "uploadSpeed": "上傳速度",
-      "downloadSpeed": "下載速度"
+      "downloadSpeed": "下載速度",
+      "label": "Order"
     },
     "group": {
       "label": "分組",
@@ -47,7 +49,16 @@
     },
     "columnManager": {
       "title": "欄位設定",
-      "dragHandle": "拖曳以移動"
+      "dragHandle": "拖曳以移動",
+      "shown": "{{shown}} of {{total}} shown"
+    },
+    "rule": {
+      "fallback": "everything else"
+    },
+    "detail": {
+      "traffic": "Traffic",
+      "route": "Route",
+      "details": "Details"
     }
   }
 }

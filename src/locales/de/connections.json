@@ -10,6 +10,7 @@
       "chains": "Ketten",
       "rule": "Regel",
       "process": "Prozess",
+      "processPath": "Path",
       "time": "Verbindungszeit",
       "source": "Quelladresse",
       "destination": "Zieladresse",
@@ -19,7 +20,8 @@
     "order": {
       "default": "Default",
       "uploadSpeed": "Upload-Geschwindigkeit",
-      "downloadSpeed": "Download-Geschwindigkeit"
+      "downloadSpeed": "Download-Geschwindigkeit",
+      "label": "Order"
     },
     "group": {
       "label": "Gruppierung",
@@ -47,7 +49,16 @@
     },
     "columnManager": {
       "title": "Spalten",
-      "dragHandle": "Drag handle"
+      "dragHandle": "Drag handle",
+      "shown": "{{shown}} of {{total}} shown"
+    },
+    "rule": {
+      "fallback": "everything else"
+    },
+    "detail": {
+      "traffic": "Traffic",
+      "route": "Route",
+      "details": "Details"
     }
   }
 }

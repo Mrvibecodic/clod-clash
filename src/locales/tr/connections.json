@@ -10,6 +10,7 @@
       "chains": "Zincirler",
       "rule": "Kural",
       "process": "İşlem",
+      "processPath": "Path",
       "time": "Zaman",
       "source": "Kaynak",
       "destination": "Hedef",
@@ -19,7 +20,8 @@
     "order": {
       "default": "Default",
       "uploadSpeed": "Yükleme Hızı",
-      "downloadSpeed": "İndirme Hızı"
+      "downloadSpeed": "İndirme Hızı",
+      "label": "Order"
     },
     "group": {
       "label": "Gruplama",
@@ -47,7 +49,16 @@
     },
     "columnManager": {
       "title": "Sütunlar",
-      "dragHandle": "Drag handle"
+      "dragHandle": "Drag handle",
+      "shown": "{{shown}} of {{total}} shown"
+    },
+    "rule": {
+      "fallback": "everything else"
+    },
+    "detail": {
+      "traffic": "Traffic",
+      "route": "Route",
+      "details": "Details"
     }
   }
 }

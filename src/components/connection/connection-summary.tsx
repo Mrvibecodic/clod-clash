@@ -37,7 +37,15 @@ const SummaryCard = ({
       variant="caption"
       color="text.secondary"
       noWrap
-      sx={{ ...CARD_TITLE, mb: 0.5, flexShrink: 0 }}
+      sx={{
+        ...CARD_TITLE,
+        fontSize: 11.5,
+        fontWeight: 700,
+        letterSpacing: '0.4px',
+        textTransform: 'uppercase',
+        mb: 0.5,
+        flexShrink: 0,
+      }}
     >
       {title}
     </Typography>
@@ -45,7 +53,13 @@ const SummaryCard = ({
   </Box>
 )
 
-const SummaryBars = ({ entries }: { entries: ConnectionSummaryEntry[] }) => {
+const SummaryBars = ({
+  entries,
+  accent,
+}: {
+  entries: ConnectionSummaryEntry[]
+  accent?: string
+}) => {
   const max = entries.length > 0 ? entries[0].value : 0
 
   return (
@@ -58,16 +72,24 @@ const SummaryBars = ({ entries }: { entries: ConnectionSummaryEntry[] }) => {
           <Typography
             noWrap
             title={entry.label}
-            sx={{ fontSize: 12, flex: '0 0 38%', minWidth: 0 }}
+            sx={{
+              fontSize: 12,
+              flex: '0 0 38%',
+              minWidth: 0,
+              ...(entry.label === accent && {
+                color: 'success.main',
+                fontWeight: 600,
+              }),
+            }}
           >
             {entry.label}
           </Typography>
           <Box
             sx={{
               flex: 1,
-              height: 6,
+              height: 4,
               minWidth: 0,
-              borderRadius: 3,
+              borderRadius: 2,
               bgcolor: 'action.hover',
               overflow: 'hidden',
             }}
@@ -75,7 +97,7 @@ const SummaryBars = ({ entries }: { entries: ConnectionSummaryEntry[] }) => {
             <Box
               sx={{
                 height: '100%',
-                borderRadius: 3,
+                borderRadius: 2,
                 bgcolor: 'primary.main',
                 width: `${max > 0 ? Math.max(2, (entry.value / max) * 100) : 0}%`,
               }}
@@ -157,7 +179,10 @@ export const ConnectionSummary = memo(function ConnectionSummary({
         <SummaryBars entries={stats.processes} />
       </SummaryCard>
       <SummaryCard title={t('connections.components.summary.routes')}>
-        <SummaryBars entries={stats.routes} />
+        <SummaryBars
+          entries={stats.routes}
+          accent={t('connections.components.summary.direct')}
+        />
       </SummaryCard>
     </Box>
   )

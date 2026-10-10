@@ -10,6 +10,7 @@
       "chains": "Цепочки",
       "rule": "Правило",
       "process": "Процесс",
+      "processPath": "Путь",
       "time": "Время подключения",
       "source": "Исходный адрес",
       "destination": "IP-адрес назначения",
@@ -19,7 +20,8 @@
     "order": {
       "default": "По умолчанию",
       "uploadSpeed": "Скорость загрузки",
-      "downloadSpeed": "Скорость скачивания"
+      "downloadSpeed": "Скорость скачивания",
+      "label": "Порядок"
     },
     "group": {
       "label": "Группировка",
@@ -47,7 +49,16 @@
     },
     "columnManager": {
       "title": "Столбцы",
-      "dragHandle": "Маркер перетаскивания"
+      "dragHandle": "Маркер перетаскивания",
+      "shown": "Показано {{shown}} из {{total}}"
+    },
+    "rule": {
+      "fallback": "всё остальное"
+    },
+    "detail": {
+      "traffic": "Трафик",
+      "route": "Маршрут",
+      "details": "Подробности"
     }
   }
 }

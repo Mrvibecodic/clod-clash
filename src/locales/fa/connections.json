@@ -10,6 +10,7 @@
       "chains": "زنجیره‌ها",
       "rule": "قانون",
       "process": "فرآیند",
+      "processPath": "Path",
       "time": "زمان",
       "source": "منبع",
       "destination": "آدرس IP مقصد",
@@ -19,7 +20,8 @@
     "order": {
       "default": "Default",
       "uploadSpeed": "سرعت بارگذاری",
-      "downloadSpeed": "سرعت دانلود"
+      "downloadSpeed": "سرعت دانلود",
+      "label": "Order"
     },
     "group": {
       "label": "گروه‌بندی",
@@ -47,7 +49,16 @@
     },
     "columnManager": {
       "title": "ستون‌ها",
-      "dragHandle": "Drag handle"
+      "dragHandle": "Drag handle",
+      "shown": "{{shown}} of {{total}} shown"
+    },
+    "rule": {
+      "fallback": "everything else"
+    },
+    "detail": {
+      "traffic": "Traffic",
+      "route": "Route",
+      "details": "Details"
     }
   }
 }

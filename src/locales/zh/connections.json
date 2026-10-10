@@ -10,6 +10,7 @@
       "chains": "链路",
       "rule": "规则",
       "process": "进程",
+      "processPath": "Path",
       "time": "连接时间",
       "source": "源地址",
       "destination": "目标地址",
@@ -19,7 +20,8 @@
     "order": {
       "default": "默认",
       "uploadSpeed": "上传速度",
-      "downloadSpeed": "下载速度"
+      "downloadSpeed": "下载速度",
+      "label": "Order"
     },
     "group": {
       "label": "分组",
@@ -47,7 +49,16 @@
     },
     "columnManager": {
       "title": "列设置",
-      "dragHandle": "拖拽控件"
+      "dragHandle": "拖拽控件",
+      "shown": "{{shown}} of {{total}} shown"
+    },
+    "rule": {
+      "fallback": "everything else"
+    },
+    "detail": {
+      "traffic": "Traffic",
+      "route": "Route",
+      "details": "Details"
     }
   }
 }

@@ -12,7 +12,13 @@ export interface TranslationResources {
         }
         columnManager: {
           dragHandle: string
+          shown: string
           title: string
+        }
+        detail: {
+          details: string
+          route: string
+          traffic: string
         }
         fields: {
           chains: string
@@ -21,6 +27,7 @@ export interface TranslationResources {
           dlSpeed: string
           host: string
           process: string
+          processPath: string
           rule: string
           source: string
           time: string
@@ -38,7 +45,11 @@ export interface TranslationResources {
         order: {
           default: string
           downloadSpeed: string
+          label: string
           uploadSpeed: string
+        }
+        rule: {
+          fallback: string
         }
         summary: {
           direct: string

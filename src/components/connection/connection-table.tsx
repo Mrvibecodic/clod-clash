@@ -1,3 +1,4 @@
+import { ExpandMoreRounded } from '@mui/icons-material'
 import { Box, Tooltip } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
 import { useLocalStorage } from 'foxact/use-local-storage'
@@ -22,11 +23,13 @@ import {
   ConnectionColumnManager,
   type ConnectionColumnOption,
 } from './connection-column-manager'
+import { ChainText, HostText, RuleText, SpeedText } from './connection-parts'
 import { RelativeTime } from './connection-relative-time'
 import {
   formatConnectionChains,
   getConnectionDestination,
   getConnectionHost,
+  getConnectionHostParts,
   getConnectionProcess,
   getConnectionRule,
   getConnectionSource,
@@ -34,8 +37,10 @@ import {
   getConnectionTypeLabel,
 } from './connection-row-view'
 import { type ConnectionGroup, buildConnectionGroups } from './connection-stats'
+import { connTextSx, connTileSx } from './connection-text'
 
-const ROW_HEIGHT = 40
+const ROW_HEIGHT = 44
+const TILE_GAP = 3
 const RESIZE_HANDLE_WIDTH = 6
 const OVERSCAN_ROWS = 6
 const MAX_ROW_SNAPSHOT_CACHE_SIZE = 2_000
@@ -77,7 +82,6 @@ interface BaseColumn {
   minWidth: number
   maxWidth?: number
   align?: 'left' | 'right'
-  cell?: (row: IConnectionsItem, snapshot: TableRowSnapshot) => string
 }
 
 interface DisplayColumn extends BaseColumn {
@@ -238,15 +242,73 @@ const compareConnectionCellValue = (
   return String(leftValue ?? '').localeCompare(String(rightValue ?? ''))
 }
 
+interface CellLabels {
+  direct: string
+  fallback: string
+}
+
 const renderCell = (
-  column: DisplayColumn,
-  row: IConnectionsItem,
+  field: ColumnField,
   snapshot: TableRowSnapshot,
+  labels: CellLabels,
 ) => {
-  if (column.cell) return column.cell(row, snapshot)
-  if (column.field === 'time')
-    return <RelativeTime start={snapshot.row.start} />
-  return getConnectionCellValue(column.field, snapshot)
+  const { row } = snapshot
+  switch (field) {
+    case 'host':
+      return (
+        <span className="cc-mono cc-cut">
+          <HostText {...getConnectionHostParts(row.metadata)} />
+        </span>
+      )
+    case 'download':
+      return snapshot.downloadText
+    case 'upload':
+      return snapshot.uploadText
+    case 'dlSpeed':
+      return (
+        <SpeedText
+          value={row.curDownload ?? 0}
+          text={snapshot.downloadSpeedText}
+        />
+      )
+    case 'ulSpeed':
+      return (
+        <SpeedText
+          value={row.curUpload ?? 0}
+          text={snapshot.uploadSpeedText}
+          up
+        />
+      )
+    case 'chains':
+      return <ChainText chains={row.chains} directLabel={labels.direct} />
+    case 'rule':
+      return (
+        <RuleText
+          rule={row.rule}
+          payload={row.rulePayload}
+          fallback={labels.fallback}
+        />
+      )
+    case 'time':
+      return (
+        <span className="cc-sec cc-cut">
+          <RelativeTime start={row.start} />
+        </span>
+      )
+    case 'source':
+    case 'remoteDestination':
+      return (
+        <span className="cc-mono cc-sec cc-cut">
+          {getConnectionCellValue(field, snapshot)}
+        </span>
+      )
+    default:
+      return (
+        <span className="cc-sec cc-cut">
+          {getConnectionCellValue(field, snapshot)}
+        </span>
+      )
+  }
 }
 
 const EMPTY_COLLAPSED: ReadonlySet<string> = new Set<string>()
@@ -280,9 +342,30 @@ interface GroupRowProps {
   group: ConnectionGroup
   collapsed: boolean
   onToggle: (key: string) => void
-  borderColor: string
+  width: number
   virtualTop: number
 }
+
+const groupRowSx = {
+  position: 'absolute',
+  left: 0,
+  right: 0,
+  height: ROW_HEIGHT,
+  display: 'flex',
+  alignItems: 'flex-end',
+  cursor: 'pointer',
+  userSelect: 'none',
+  '& .cc-chev': {
+    fontSize: 18,
+    color: 'text.secondary',
+    transition: 'transform 160ms cubic-bezier(0.2, 0, 0, 1)',
+    '@media (prefers-reduced-motion: reduce)': { transition: 'none' },
+  },
+  '&[data-collapsed="true"] .cc-chev': { transform: 'rotate(-90deg)' },
+  '&:hover .cc-gname': { color: 'primary.main' },
+} as const
+
+const groupSpeed = (value: number) => (value > 0 ? parseSpeed(value) : '—')
 
 // clod:design-v3 — заголовок группы прижат к левому краю окна: таблица шире
 // экрана, и без sticky имя приложения уезжало бы за границу при прокрутке.
@@ -291,7 +374,7 @@ const GroupRowComponent = memo(
     group,
     collapsed,
     onToggle,
-    borderColor,
+    width,
     virtualTop,
   }: GroupRowProps) {
     const handleClick = useCallback(
@@ -302,18 +385,9 @@ const GroupRowComponent = memo(
     return (
       <Box
         onClick={handleClick}
-        sx={{
-          display: 'flex',
-          position: 'absolute',
-          top: virtualTop,
-          left: 0,
-          right: 0,
-          height: ROW_HEIGHT,
-          cursor: 'pointer',
-          bgcolor: 'action.hover',
-          borderBottom: `1px solid ${borderColor}`,
-          '&:hover': { bgcolor: 'action.selected' },
-        }}
+        data-collapsed={collapsed}
+        sx={groupRowSx}
+        style={{ top: virtualTop }}
       >
         <div
           style={{
@@ -322,40 +396,41 @@ const GroupRowComponent = memo(
             display: 'flex',
             alignItems: 'center',
             gap: 8,
-            padding: '0 8px',
+            padding: '0 4px 6px',
+            boxSizing: 'border-box',
+            width: width || '100%',
             maxWidth: '100%',
             minWidth: 0,
           }}
         >
-          <span style={{ fontSize: 10, width: 10, flex: 'none' }}>
-            {collapsed ? '▶' : '▼'}
-          </span>
+          <ExpandMoreRounded className="cc-chev" />
           <span
-            style={{
-              fontSize: 13,
-              fontWeight: 600,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
+            className="cc-gname cc-cut"
+            style={{ fontSize: 13, fontWeight: 700 }}
             title={group.label}
           >
             {group.label}
           </span>
-          <span style={{ fontSize: 12, opacity: 0.7, flex: 'none' }}>
+          <span
+            className="cc-sec"
+            style={{ fontSize: 13, fontWeight: 600, flex: 'none' }}
+          >
             {group.rows.length}
           </span>
           <span
+            className="cc-sec"
             style={{
-              fontSize: 12,
-              opacity: 0.7,
+              marginLeft: 'auto',
+              paddingLeft: 12,
+              fontSize: 12.5,
               whiteSpace: 'nowrap',
               fontVariantNumeric: 'tabular-nums',
               flex: 'none',
             }}
           >
-            ↓ {parseTraffic(group.download)} ↑ {parseTraffic(group.upload)} · ↓{' '}
-            {parseSpeed(group.downloadSpeed)} ↑ {parseSpeed(group.uploadSpeed)}
+            ↓ {parseTraffic(group.download)} · ↑ {parseTraffic(group.upload)} ·
+            ↓ {groupSpeed(group.downloadSpeed)} ↑{' '}
+            {groupSpeed(group.uploadSpeed)}
           </span>
         </div>
       </Box>
@@ -366,7 +441,7 @@ const GroupRowComponent = memo(
     prev.collapsed === next.collapsed &&
     prev.virtualTop === next.virtualTop &&
     prev.onToggle === next.onToggle &&
-    prev.borderColor === next.borderColor,
+    prev.width === next.width,
 )
 
 interface RowComponentProps {
@@ -374,9 +449,22 @@ interface RowComponentProps {
   columns: DisplayColumn[]
   onShowDetail: (id: string) => void
   getSnapshot: (row: IConnectionsItem) => TableRowSnapshot
-  borderColor: string
+  labels: CellLabels
+  selected: boolean
   virtualTop: number
 }
+
+const rowSx = [
+  {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: ROW_HEIGHT - TILE_GAP * 2,
+    display: 'flex',
+    borderRadius: '8px',
+  },
+  connTileSx,
+] as const
 
 const RowComponent = memo(
   function RowComponent({
@@ -384,7 +472,8 @@ const RowComponent = memo(
     columns,
     onShowDetail,
     getSnapshot,
-    borderColor,
+    labels,
+    selected,
     virtualTop,
   }: RowComponentProps) {
     const handleClick = useCallback(
@@ -397,21 +486,9 @@ const RowComponent = memo(
       // clod:design-v3 — строка таблицы подсвечивается под курсором: в списке
       // из сотни соединений глазу не за что было зацепиться.
       <Box
-        sx={{
-          display: 'flex',
-          position: 'absolute',
-          top: virtualTop,
-          left: 0,
-          right: 0,
-          height: ROW_HEIGHT,
-          cursor: 'pointer',
-          borderBottom: `1px solid ${borderColor}`,
-          transition: (theme) =>
-            theme.transitions.create(['background-color'], {
-              duration: theme.transitions.duration.short,
-            }),
-          '&:hover': { bgcolor: 'action.hover' },
-        }}
+        sx={rowSx}
+        style={{ top: virtualTop + TILE_GAP }}
+        data-selected={selected}
         onClick={handleClick}
       >
         {columns.map((column) => (
@@ -422,7 +499,7 @@ const RowComponent = memo(
               flex: `0 0 ${column.size}px`,
               minWidth: column.minWidth,
               maxWidth: column.maxWidth,
-              padding: '8px',
+              padding: '0 8px',
               fontSize: 13,
               display: 'flex',
               alignItems: 'center',
@@ -434,10 +511,9 @@ const RowComponent = memo(
                 column.align === 'right' ? 'tabular-nums' : 'normal',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
-              textOverflow: 'ellipsis',
             }}
           >
-            {renderCell(column, row, snapshot)}
+            {renderCell(column.field, snapshot, labels)}
           </div>
         ))}
       </Box>
@@ -449,7 +525,8 @@ const RowComponent = memo(
     prev.virtualTop === next.virtualTop &&
     prev.onShowDetail === next.onShowDetail &&
     prev.getSnapshot === next.getSnapshot &&
-    prev.borderColor === next.borderColor,
+    prev.labels === next.labels &&
+    prev.selected === next.selected,
 )
 
 export type ConnectionTableSorting = SortingState | null
@@ -463,6 +540,7 @@ interface Props {
   collapsed: ConnectionTableCollapsed
   onCollapsedChange: Dispatch<SetStateAction<ConnectionTableCollapsed>>
   onShowDetail: (id: string) => void
+  selectedId?: string | null
   columnManagerOpen: boolean
   onCloseColumnManager: () => void
 }
@@ -476,6 +554,7 @@ export const ConnectionTable = (props: Props) => {
     collapsed: collapsedState,
     onCollapsedChange: setCollapsedState,
     onShowDetail: rawOnShowDetail,
+    selectedId,
     columnManagerOpen,
     onCloseColumnManager,
   } = props
@@ -541,7 +620,6 @@ export const ConnectionTable = (props: Props) => {
         width: 76,
         minWidth: 60,
         align: 'right',
-        cell: (_, snapshot) => snapshot.downloadText,
       },
       {
         field: 'upload',
@@ -549,7 +627,6 @@ export const ConnectionTable = (props: Props) => {
         width: 76,
         minWidth: 60,
         align: 'right',
-        cell: (_, snapshot) => snapshot.uploadText,
       },
       {
         field: 'dlSpeed',
@@ -558,7 +635,6 @@ export const ConnectionTable = (props: Props) => {
         width: 76,
         minWidth: 60,
         align: 'right',
-        cell: (_, snapshot) => snapshot.downloadSpeedText,
       },
       {
         field: 'ulSpeed',
@@ -567,7 +643,6 @@ export const ConnectionTable = (props: Props) => {
         width: 76,
         minWidth: 60,
         align: 'right',
-        cell: (_, snapshot) => snapshot.uploadSpeedText,
       },
       {
         field: 'chains',
@@ -658,7 +733,11 @@ export const ConnectionTable = (props: Props) => {
   // от прошлого режима просто перестают учитываться, без сброса в эффекте.
   const collapsedGroups =
     collapsedState?.groupBy === groupBy ? collapsedState.keys : EMPTY_COLLAPSED
-  const [viewport, setViewport] = useState({ scrollTop: 0, height: 0 })
+  const [viewport, setViewport] = useState({
+    scrollTop: 0,
+    height: 0,
+    width: 0,
+  })
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const rowSnapshotCacheRef = useRef(new Map<string, TableRowSnapshot>())
   const getRowSnapshot = useCallback((row: IConnectionsItem) => {
@@ -676,9 +755,11 @@ export const ConnectionTable = (props: Props) => {
       const next = {
         scrollTop: element.scrollTop,
         height: element.clientHeight,
+        width: element.clientWidth,
       }
       return current.scrollTop === next.scrollTop &&
-        current.height === next.height
+        current.height === next.height &&
+        current.width === next.width
         ? current
         : next
     })
@@ -732,6 +813,13 @@ export const ConnectionTable = (props: Props) => {
   }, [connections, sorting, getRowSnapshot])
 
   const otherGroupLabel = t('connections.components.group.other')
+  const cellLabels = useMemo<CellLabels>(
+    () => ({
+      direct: t('connections.components.summary.direct'),
+      fallback: t('connections.components.rule.fallback'),
+    }),
+    [t],
+  )
 
   const resolveGroupKey = useCallback(
     (row: IConnectionsItem) => getGroupKey(groupBy, getRowSnapshot(row)),
@@ -958,19 +1046,21 @@ export const ConnectionTable = (props: Props) => {
   )
 
   const borderColor = theme.palette.divider
-  const headerBackground = theme.palette.background.paper
-  const headerShadow = theme.shadows[2]
+  const headerBackground = theme.palette.background.default
   const textSecondary = theme.palette.text.secondary
+  const textPrimary = theme.palette.text.primary
 
   return (
     <>
-      <div
+      <Box
+        sx={connTextSx}
         style={{
           display: 'flex',
           flexDirection: 'column',
           flex: 1,
           minHeight: 0,
           position: 'relative',
+          padding: '0 10px',
           fontFamily: theme.typography.fontFamily,
         }}
       >
@@ -983,7 +1073,6 @@ export const ConnectionTable = (props: Props) => {
             overflow: 'auto',
             WebkitOverflowScrolling: 'touch',
             overscrollBehavior: 'contain',
-            borderRadius: 8,
           }}
         >
           <div
@@ -1004,8 +1093,6 @@ export const ConnectionTable = (props: Props) => {
                   display: 'flex',
                   borderBottom: `1px solid ${borderColor}`,
                   backgroundColor: headerBackground,
-                  // clod:design-v3 — липкая шапка отрывается от списка тенью.
-                  boxShadow: headerShadow,
                 }}
               >
                 {visibleColumns.map((column) => (
@@ -1019,9 +1106,14 @@ export const ConnectionTable = (props: Props) => {
                       flex: `0 0 ${column.size}px`,
                       minWidth: column.minWidth,
                       maxWidth: column.maxWidth,
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: textSecondary,
+                      fontSize: 11.5,
+                      fontWeight: 700,
+                      letterSpacing: '0.4px',
+                      textTransform: 'uppercase',
+                      color:
+                        sorting?.id === column.field
+                          ? textPrimary
+                          : textSecondary,
                       userSelect: 'none',
                     }}
                   >
@@ -1039,11 +1131,13 @@ export const ConnectionTable = (props: Props) => {
                               ? 'flex-end'
                               : 'flex-start',
                           gap: 4,
-                          padding: 8,
+                          padding: '8px 8px 7px',
                           border: 0,
                           background: 'transparent',
                           color: 'inherit',
                           font: 'inherit',
+                          letterSpacing: 'inherit',
+                          textTransform: 'inherit',
                           textAlign:
                             column.align === 'right' ? 'right' : 'left',
                           cursor: 'pointer',
@@ -1053,11 +1147,11 @@ export const ConnectionTable = (props: Props) => {
                         }}
                       >
                         {column.headerShort ?? column.headerName}
-                        {sorting?.id === column.field
-                          ? sorting.desc
-                            ? '▼'
-                            : '▲'
-                          : null}
+                        {sorting?.id === column.field ? (
+                          <span style={{ fontSize: 9 }}>
+                            {sorting.desc ? '▼' : '▲'}
+                          </span>
+                        ) : null}
                       </button>
                     </Tooltip>
                     <div
@@ -1100,7 +1194,7 @@ export const ConnectionTable = (props: Props) => {
                         group={item.group}
                         collapsed={item.collapsed}
                         onToggle={toggleGroup}
-                        borderColor={borderColor}
+                        width={viewport.width}
                         virtualTop={index * ROW_HEIGHT}
                       />
                     )
@@ -1116,7 +1210,8 @@ export const ConnectionTable = (props: Props) => {
                       columns={visibleColumns}
                       onShowDetail={onShowDetail}
                       getSnapshot={getRowSnapshot}
-                      borderColor={borderColor}
+                      labels={cellLabels}
+                      selected={row.id === selectedId}
                       virtualTop={index * ROW_HEIGHT}
                     />
                   )
@@ -1125,7 +1220,7 @@ export const ConnectionTable = (props: Props) => {
             </div>
           </div>
         </div>
-      </div>
+      </Box>
       <ConnectionColumnManager
         open={columnManagerOpen}
         columns={managerColumns}

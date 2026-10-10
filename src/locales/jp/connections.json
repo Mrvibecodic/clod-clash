@@ -10,6 +10,7 @@
       "chains": "チェーン",
       "rule": "ルール",
       "process": "プロセス",
+      "processPath": "Path",
       "time": "接続時間",
       "source": "送信元アドレス",
       "destination": "宛先アドレス",
@@ -19,7 +20,8 @@
     "order": {
       "default": "Default",
       "uploadSpeed": "アップロード速度",
-      "downloadSpeed": "ダウンロード速度"
+      "downloadSpeed": "ダウンロード速度",
+      "label": "Order"
     },
     "group": {
       "label": "グループ化",
@@ -47,7 +49,16 @@
     },
     "columnManager": {
       "title": "列",
-      "dragHandle": "Drag handle"
+      "dragHandle": "Drag handle",
+      "shown": "{{shown}} of {{total}} shown"
+    },
+    "rule": {
+      "fallback": "everything else"
+    },
+    "detail": {
+      "traffic": "Traffic",
+      "route": "Route",
+      "details": "Details"
     }
   }
 }

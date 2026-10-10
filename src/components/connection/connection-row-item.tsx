@@ -1,88 +1,103 @@
 import { CloseRounded } from '@mui/icons-material'
-import { Box, IconButton, type Theme } from '@mui/material'
+import { alpha, Box, IconButton, type Theme } from '@mui/material'
 import { useLockFn } from 'ahooks'
-import { memo, useCallback } from 'react'
+import { memo, type MouseEvent, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { closeConnection } from 'tauri-plugin-mihomo-api'
 
 import { showNotice } from '@/services/notice-service'
 
+import { ChainText, HostText, SpeedText } from './connection-parts'
 import { RelativeTime } from './connection-relative-time'
 import type { ConnectionRowView } from './connection-row-view'
+import { connTileSx } from './connection-text'
 
 interface Props {
   row: ConnectionRowView
   closed: boolean
+  selected?: boolean
   onShowDetail: (id: string) => void
 }
 
-const tagStyle = {
-  boxSizing: 'border-box',
-  maxWidth: '100%',
-  padding: '0 5px',
-  // clod:design-v3 — та же линия, что у карточек и разделителей, вместо
-  // собственного серого 0.35.
-  border: '1px solid var(--divider-color)',
-  borderRadius: 8,
-  fontSize: 10,
-  lineHeight: 1.375,
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-} as const
-
-// clod:design-v3 — строка переехала с инлайнового style на sx: инлайн не
-// умеет :hover, поэтому список соединений был единственным, который никак не
-// отзывался на курсор.
-const itemSx = {
-  boxSizing: 'border-box',
-  minHeight: 56,
-  display: 'flex',
-  alignItems: 'center',
-  gap: 1,
-  padding: '6px 48px 6px 12px',
-  borderBottom: '1px solid var(--divider-color)',
-  position: 'relative',
-  overflow: 'hidden',
-  transition: (theme: Theme) =>
-    theme.transitions.create(['background-color'], {
-      duration: theme.transitions.duration.short,
-    }),
-  '&:hover': { bgcolor: 'action.hover' },
-} as const
+// clod:design-v3 — строка на sx, а не на инлайновом style: инлайн не умеет
+// :hover, и список соединений никак не отзывался на курсор.
+const itemSx = [
+  ({ palette }: Theme) => ({
+    display: 'grid',
+    gridTemplateColumns: 'minmax(0, 1fr) auto 34px',
+    alignItems: 'center',
+    gap: 1.25,
+    minHeight: 52,
+    boxSizing: 'border-box',
+    py: 0.75,
+    pl: 1.5,
+    pr: 1,
+    borderRadius: '10px',
+    '& .cc-mchip': {
+      flex: 'none',
+      px: 0.625,
+      borderRadius: '5px',
+      bgcolor: alpha(palette.text.primary, 0.07),
+      color: 'text.secondary',
+      fontFamily: 'monospace',
+      fontSize: 11,
+      lineHeight: 1.6,
+    },
+  }),
+  connTileSx,
+] as const
 
 const contentStyle = {
   minWidth: 0,
-  flex: 1,
-  cursor: 'pointer',
   userSelect: 'text',
 } as const
 
-const primaryStyle = {
-  fontSize: 14,
+const hostStyle = {
+  fontSize: 13.5,
   lineHeight: 1.4,
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
 } as const
 
-const tagsStyle = {
+const metaStyle = {
   display: 'flex',
   flexWrap: 'wrap',
-  gap: 4,
-  marginTop: 4,
+  alignItems: 'center',
+  columnGap: 6,
+  rowGap: 2,
+  marginTop: 3,
+  fontSize: 12.5,
   overflow: 'hidden',
 } as const
 
-const actionStyle = {
-  position: 'absolute',
-  right: 8,
-  top: '50%',
-  transform: 'translateY(-50%)',
+const metaGroupStyle = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  minWidth: 0,
+  maxWidth: '100%',
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+} as const
+
+const processStyle = {
+  flex: '0 1 auto',
+  maxWidth: 180,
+} as const
+
+const speedStyle = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'flex-end',
+  gap: 2,
+  fontSize: 12.5,
+  fontVariantNumeric: 'tabular-nums',
+  whiteSpace: 'nowrap',
 } as const
 
 export const ConnectionRowItem = memo(
-  function ConnectionRowItem({ row, closed, onShowDetail }: Props) {
+  function ConnectionRowItem({ row, closed, selected, onShowDetail }: Props) {
     const { t } = useTranslation()
     const onDelete = useLockFn(async () => {
       try {
@@ -91,48 +106,91 @@ export const ConnectionRowItem = memo(
         showNotice.error(err)
       }
     })
+    const handleDelete = useCallback(
+      (event: MouseEvent) => {
+        event.stopPropagation()
+        onDelete()
+      },
+      [onDelete],
+    )
     const handleShowDetail = useCallback(
       () => onShowDetail(row.id),
       [onShowDetail, row.id],
     )
-    const showTraffic = row.uploadSpeed >= 100 || row.downloadSpeed >= 100
-
     return (
-      <Box sx={itemSx}>
-        <div style={contentStyle} onClick={handleShowDetail}>
-          <div style={primaryStyle}>{row.host}</div>
-          <div style={tagsStyle}>
-            <span style={tagStyle}>{row.network}</span>
-            <span style={tagStyle}>{row.type}</span>
-            {row.process && <span style={tagStyle}>{row.process}</span>}
-            {row.chains && <span style={tagStyle}>{row.chains}</span>}
-            <span style={tagStyle}>
-              <RelativeTime start={row.time} />
-            </span>
-            {showTraffic && (
-              <span style={tagStyle}>
-                {row.uploadSpeedText} / {row.downloadSpeedText}
+      <div style={{ padding: '3px 0' }}>
+        <Box
+          sx={itemSx}
+          data-selected={Boolean(selected)}
+          onClick={handleShowDetail}
+        >
+          <div style={contentStyle}>
+            <div className="cc-mono" style={hostStyle}>
+              <HostText host={row.host} port={row.port} />
+            </div>
+            <div className="cc-sec" style={metaStyle}>
+              <span style={metaGroupStyle}>
+                <span className="cc-mchip">{row.network}</span>
+                <span className="cc-mchip">{row.type}</span>
+                {row.process && (
+                  <span
+                    className="cc-cut"
+                    style={processStyle}
+                    title={row.process}
+                  >
+                    {row.process}
+                  </span>
+                )}
               </span>
-            )}
+              {row.chainList.length > 0 && (
+                <span style={metaGroupStyle}>
+                  <span className="cc-sep">·</span>
+                  <ChainText
+                    chains={row.chainList}
+                    directLabel={t('connections.components.summary.direct')}
+                  />
+                </span>
+              )}
+              <span style={metaGroupStyle}>
+                <span className="cc-sep">·</span>
+                <RelativeTime start={row.time} />
+              </span>
+            </div>
           </div>
-        </div>
-        {!closed && (
-          <IconButton
-            size="small"
-            color="inherit"
-            onClick={onDelete}
-            title={t('connections.components.actions.closeConnection')}
-            aria-label={t('connections.components.actions.closeConnection')}
-            sx={actionStyle}
-          >
-            <CloseRounded fontSize="small" />
-          </IconButton>
-        )}
-      </Box>
+          <div style={speedStyle}>
+            <SpeedText
+              value={row.downloadSpeed}
+              text={row.downloadSpeedText}
+              arrow
+            />
+            <SpeedText
+              value={row.uploadSpeed}
+              text={row.uploadSpeedText}
+              up
+              arrow
+            />
+          </div>
+          {!closed ? (
+            <IconButton
+              size="small"
+              color="inherit"
+              onClick={handleDelete}
+              title={t('connections.components.actions.closeConnection')}
+              aria-label={t('connections.components.actions.closeConnection')}
+              sx={{ color: 'text.secondary' }}
+            >
+              <CloseRounded fontSize="small" />
+            </IconButton>
+          ) : (
+            <span />
+          )}
+        </Box>
+      </div>
     )
   },
   (prev, next) =>
     prev.row === next.row &&
     prev.closed === next.closed &&
+    prev.selected === next.selected &&
     prev.onShowDetail === next.onShowDetail,
 )

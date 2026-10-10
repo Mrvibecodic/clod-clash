@@ -5,10 +5,12 @@ import { parseSpeed } from '@/utils/parse-traffic'
 export interface ConnectionRowView {
   id: string
   host: string
+  port: string
   process: string
   network: string
   type: string
   chains: string
+  chainList: string[]
   time: string
   uploadSpeedText: string
   downloadSpeedText: string
@@ -32,11 +34,16 @@ export const getConnectionDestination = (connection: IConnectionsItem) => {
     : `${metadata.remoteDestination}:${metadata.destinationPort}`
 }
 
+export const getConnectionHostParts = (
+  metadata: IConnectionsItem['metadata'],
+) => ({
+  host: metadata.host || metadata.destinationIP || metadata.remoteDestination,
+  port: metadata.destinationPort,
+})
+
 export const getConnectionHost = (connection: IConnectionsItem) => {
-  const { metadata } = connection
-  const host =
-    metadata.host || metadata.destinationIP || metadata.remoteDestination
-  return `${host}:${metadata.destinationPort}`
+  const { host, port } = getConnectionHostParts(connection.metadata)
+  return `${host}:${port}`
 }
 
 export const getConnectionProcess = (connection: IConnectionsItem) => {
@@ -66,13 +73,17 @@ const createConnectionRowView = (connection: IConnectionsItem) => {
   const uploadSpeed = connection.curUpload ?? 0
   const downloadSpeed = connection.curDownload ?? 0
 
+  const { host, port } = getConnectionHostParts(connection.metadata)
+
   return {
     id: connection.id,
-    host: getConnectionHost(connection),
+    host: host ?? '',
+    port,
     process: getConnectionProcess(connection),
     network: connection.metadata.network,
     type: connection.metadata.type,
     chains: formatConnectionChains(connection.chains),
+    chainList: connection.chains,
     time: connection.start,
     uploadSpeedText: parseSpeed(uploadSpeed),
     downloadSpeedText: parseSpeed(downloadSpeed),
@@ -86,6 +97,7 @@ const sameConnectionRowView = (
   right: ConnectionRowView,
 ) =>
   left.host === right.host &&
+  left.port === right.port &&
   left.process === right.process &&
   left.network === right.network &&
   left.type === right.type &&

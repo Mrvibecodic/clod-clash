@@ -10,6 +10,7 @@
       "chains": "السلاسل",
       "rule": "قاعدة",
       "process": "عملية",
+      "processPath": "Path",
       "time": "الوقت",
       "source": "المصدر",
       "destination": "عنوان IP الوجهة",
@@ -19,7 +20,8 @@
     "order": {
       "default": "Default",
       "uploadSpeed": "سرعة الرفع",
-      "downloadSpeed": "سرعة التنزيل"
+      "downloadSpeed": "سرعة التنزيل",
+      "label": "Order"
     },
     "group": {
       "label": "التجميع",
@@ -47,7 +49,16 @@
     },
     "columnManager": {
       "title": "الأعمدة",
-      "dragHandle": "Drag handle"
+      "dragHandle": "Drag handle",
+      "shown": "{{shown}} of {{total}} shown"
+    },
+    "rule": {
+      "fallback": "everything else"
+    },
+    "detail": {
+      "traffic": "Traffic",
+      "route": "Route",
+      "details": "Details"
     }
   }
 }

@@ -10,6 +10,7 @@
       "chains": "Чылбырлар",
       "rule": "Кагыйдә",
       "process": "Процесс",
+      "processPath": "Path",
       "time": "Тоташу вакыты",
       "source": "Чыганак адресы",
       "destination": "Максат IP-адресы",
@@ -19,7 +20,8 @@
     "order": {
       "default": "Default",
       "uploadSpeed": "Йөкләү (чыгару) тизлеге",
-      "downloadSpeed": "Йөкләү тизлеге"
+      "downloadSpeed": "Йөкләү тизлеге",
+      "label": "Order"
     },
     "group": {
       "label": "Төркемләү",
@@ -47,7 +49,16 @@
     },
     "columnManager": {
       "title": "Баганалар",
-      "dragHandle": "Drag handle"
+      "dragHandle": "Drag handle",
+      "shown": "{{shown}} of {{total}} shown"
+    },
+    "rule": {
+      "fallback": "everything else"
+    },
+    "detail": {
+      "traffic": "Traffic",
+      "route": "Route",
+      "details": "Details"
     }
   }
 }
