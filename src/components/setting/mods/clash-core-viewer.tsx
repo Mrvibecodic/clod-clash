@@ -26,19 +26,19 @@ import { coreRestartsCleanly } from '@/utils/core-self-restart'
 import getSystem from '@/utils/get-system'
 
 // Оба ядра лежат в установщике и работают и через службу, и своим процессом.
-// verge-mihomo — стоковый MetaCubeX (по умолчанию), verge-mihomo-alpha — Clod
-// Core (наш форк mihomo с патчами); имена файлов исторические, служба знает
+// verge-mihomo-alpha — Clod Core (наш форк mihomo с патчами, по умолчанию),
+// verge-mihomo — стоковый MetaCubeX; имена файлов исторические, служба знает
 // только их.
 const VALID_CORE = [
-  {
-    name: 'Mihomo',
-    core: 'verge-mihomo',
-    chipKey: 'settings.modals.clashCore.variants.release',
-  },
   {
     name: 'Clod Core',
     core: 'verge-mihomo-alpha',
     chipKey: 'settings.modals.clashCore.variants.alpha',
+  },
+  {
+    name: 'Mihomo',
+    core: 'verge-mihomo',
+    chipKey: 'settings.modals.clashCore.variants.release',
   },
 ]
 
@@ -59,7 +59,7 @@ export function ClashCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
     close: () => setOpen(false),
   }))
 
-  const { clash_core = 'verge-mihomo' } = verge ?? {}
+  const { clash_core = 'verge-mihomo-alpha' } = verge ?? {}
 
   const onCoreChange = useLockFn(async (core: string) => {
     if (core === clash_core) return
