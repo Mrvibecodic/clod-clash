@@ -5,8 +5,8 @@
 <p align="center">
   Клиент для подписок Remnawave на Windows, macOS и Linux.
   <br>
-  Ядро — <a href="https://github.com/MetaCubeX/mihomo">Mihomo</a>; вторым встроенным ядром идёт
-  <a href="https://github.com/Mrvibecodic/clod-core">Clod Core</a> — наш форк Mihomo с патчами.
+  Ядро — <a href="https://github.com/Mrvibecodic/clod-core">Clod Core</a>, наш форк Mihomo с патчами;
+  запасным встроенным ядром идёт стоковый <a href="https://github.com/MetaCubeX/mihomo">Mihomo</a>.
   <br>
   Форк <a href="https://github.com/clash-verge-rev/clash-verge-rev">Clash Verge Rev</a>.
 </p>
@@ -79,11 +79,11 @@
 * **Лимит устройств.** Идентификатор устройства стабилен между обновлениями; сам машинный
   идентификатор и имя компьютера никуда не уходят. Отправку можно выключить.
 * **Отчёт для поддержки** одной кнопкой — без адресов подписки, токенов и истории посещений.
-* **Два ядра.** Mihomo от MetaCubeX без изменений (по умолчанию) и
-  [Clod Core](https://github.com/Mrvibecodic/clod-core) — наш форк стабильного Mihomo: новая
+* **Два ядра.** [Clod Core](https://github.com/Mrvibecodic/clod-core) (по умолчанию) и запасной
+  Mihomo от MetaCubeX без изменений. Clod Core — наш форк стабильного Mihomo: новая
   библиотека TLS-отпечатков utls v1.9.0-mod-meta (Firefox 148, Safari 26.3); узел, у которого
   проверка зависла или оборвалась, проверяется второй раз и мёртвым считается, только если не
-  ответил и тогда, а нестабильный узел проигрывает стабильному. Переключаются в Настройки →
+  ответил и тогда, а нестабильный узел проигрывает стабильному. Переключаются только вручную: Настройки →
   Продвинутые настройки → Настройки Clash → «Ядро Clash»; каждое ядро обновляется из своих
   релизов.
 * **Обновляется само.** Переключатель «Предварительные сборки» в Настройки → Основные включает
@@ -160,8 +160,8 @@
 Clod Clash не существовал бы без этих проектов:
 
 * [MetaCubeX/mihomo](https://github.com/MetaCubeX/mihomo) — ядро, на котором всё работает.
-  По умолчанию используется официальный бинарник без изменений; второе встроенное ядро,
-  [Clod Core](https://github.com/Mrvibecodic/clod-core), — наш форк Mihomo с патчами.
+  По умолчанию стоит [Clod Core](https://github.com/Mrvibecodic/clod-core) — наш форк Mihomo
+  с патчами; официальный бинарник без изменений встроен запасным ядром.
 * [clash-verge-rev/clash-verge-rev](https://github.com/clash-verge-rev/clash-verge-rev) —
   приложение, форком которого является Clod Clash. Весь интерфейс, работа с профилями,
   системный прокси, TUN, служба, трей — их работа.

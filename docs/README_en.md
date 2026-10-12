@@ -5,8 +5,8 @@
 <p align="center">
   A client for Remnawave subscriptions on Windows, macOS and Linux.
   <br>
-  The core is <a href="https://github.com/MetaCubeX/mihomo">Mihomo</a>; the second built-in core is
-  <a href="https://github.com/Mrvibecodic/clod-core">Clod Core</a>, our patched fork of Mihomo.
+  The core is <a href="https://github.com/Mrvibecodic/clod-core">Clod Core</a>, our patched fork of Mihomo;
+  stock <a href="https://github.com/MetaCubeX/mihomo">Mihomo</a> is built in as the spare core.
   <br>
   A fork of <a href="https://github.com/clash-verge-rev/clash-verge-rev">Clash Verge Rev</a>.
 </p>
@@ -81,11 +81,11 @@ there: it lives in the advanced mode and the advanced settings.
 * **Device limit.** The device id is stable across updates; the machine id itself and the
   computer name never leave the device. Sending it can be switched off.
 * **Support report** with one button — without subscription addresses, tokens or browsing history.
-* **Two cores.** Stock Mihomo from MetaCubeX (the default) and
-  [Clod Core](https://github.com/Mrvibecodic/clod-core), our fork of stable Mihomo: the new
+* **Two cores.** [Clod Core](https://github.com/Mrvibecodic/clod-core) (the default) and stock
+  Mihomo from MetaCubeX as the spare. Clod Core is our fork of stable Mihomo: the new
   utls v1.9.0-mod-meta TLS fingerprint library (Firefox 148, Safari 26.3); a node whose check
   stalled or broke off is checked again and marked dead only if it fails that too, and an unstable
-  node loses to a stable one. Switched in Settings → Advanced settings → Clash Setting → "Clash
+  node loses to a stable one. Switched only by hand in Settings → Advanced settings → Clash Setting → "Clash
   Core"; each core updates from its own releases.
 * **Updates itself.** The "Pre-release builds" switch in Settings → General adds alpha and beta
   versions; without it only stable releases arrive.
@@ -163,8 +163,8 @@ In short: `pnpm install`, `pnpm prebuild`, `pnpm dev`. Details are in
 Clod Clash would not exist without these projects:
 
 * [MetaCubeX/mihomo](https://github.com/MetaCubeX/mihomo) — the core everything runs on.
-  By default the official binary is used unchanged; the second built-in core,
-  [Clod Core](https://github.com/Mrvibecodic/clod-core), is our patched fork of Mihomo.
+  [Clod Core](https://github.com/Mrvibecodic/clod-core), our patched fork of Mihomo, runs by
+  default; the official binary is built in unchanged as the spare core.
 * [clash-verge-rev/clash-verge-rev](https://github.com/clash-verge-rev/clash-verge-rev) —
   the application Clod Clash forks. The entire interface, profile handling, system proxy,
   TUN, service and tray are their work.
