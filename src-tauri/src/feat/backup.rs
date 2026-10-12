@@ -90,6 +90,7 @@ pub(crate) const MACHINE_LOCAL_KEYS: &[&str] = &[
     "window_pos_advanced",
     "core_log_keys_unpinned",
     "tun_window_defaults_unpinned",
+    "core_default_moved",
 ];
 
 type Settings = serde_json::Map<std::string::String, serde_json::Value>;
@@ -477,6 +478,7 @@ mod tests {
             window_pos_advanced: Some((10, 20)),
             core_log_keys_unpinned: Some(true),
             tun_window_defaults_unpinned: Some(true),
+            core_default_moved: Some(true),
             language: Some("ru".into()),
             ..IVerge::default()
         }
@@ -552,6 +554,7 @@ mod tests {
         assert_eq!(restored.window_size_simple, Some((900, 600)));
         assert_eq!(restored.window_pos_advanced, Some((10, 20)));
         assert_eq!(restored.core_log_keys_unpinned, Some(true));
+        assert_eq!(restored.core_default_moved, Some(true));
         assert_eq!(restored.enable_tun_mode, Some(true));
     }
 

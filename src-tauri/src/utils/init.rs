@@ -561,6 +561,10 @@ async fn initialize_config_files() -> Result<()> {
         logging!(info, Type::Setup, "Created profiles config at {:?}", path);
     }
 
+    if let Err(e) = move_to_the_default_core_once().await {
+        logging!(warn, Type::Setup, "Failed to move to the default core: {}", e);
+    }
+
     IVerge::validate_and_fix_config()
         .await
         .map_err(|e| anyhow::anyhow!("Failed to validate verge config: {}", e))?;
@@ -583,6 +587,37 @@ async fn initialize_config_files() -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Прошлые версии записывали стоковый Mihomo как умолчание, и от выбора
+/// человека его не отличить: переводим один раз, флаг бережёт выбор после этого.
+async fn move_to_the_default_core_once() -> Result<()> {
+    let verge_path = dirs::verge_path()?;
+    let mut verge = help::read_mapping(&verge_path).await?;
+    let Some(moved) = move_to_the_default_core(&mut verge) else {
+        return Ok(());
+    };
+    help::save_yaml(&verge_path, &verge, Some(help::VERGE_CONFIG_HEADER)).await?;
+    if moved {
+        logging!(info, Type::Setup, "core switched to {}", IVerge::DEFAULT_CLASH_CORE);
+    }
+    Ok(())
+}
+
+fn move_to_the_default_core(verge: &mut serde_yaml_ng::Mapping) -> Option<bool> {
+    use serde_yaml_ng::Value;
+
+    let flag = Value::from("core_default_moved");
+    if verge.get(&flag).and_then(Value::as_bool) == Some(true) {
+        return None;
+    }
+    verge.insert(flag, Value::from(true));
+    let core = Value::from("clash_core");
+    let moved = verge.get(&core).and_then(Value::as_str) == Some("verge-mihomo");
+    if moved {
+        verge.insert(core, Value::from(IVerge::DEFAULT_CLASH_CORE));
+    }
+    Some(moved)
 }
 
 /// Разово снять из clash.yaml значения, записанные прошлыми версиями за
@@ -905,10 +940,48 @@ mod tests {
     use super::{
         BundledAssetAction, DNS_CONFIG_HEADER, SECONDS_IN_A_DAY, bundled_asset_action, dns_config_problem,
         drop_legacy_dns_keys, has_untouched_legacy_fallback, has_user_comments, is_cleaned_by_age,
-        legacy_fallback_filter, older_than_days,
+        legacy_fallback_filter, move_to_the_default_core, older_than_days,
     };
     use serde_yaml_ng::{Mapping, Value};
     use std::time::{Duration, SystemTime};
+
+    fn settings(core: Option<&str>, moved: Option<bool>) -> Mapping {
+        let mut verge = Mapping::new();
+        if let Some(core) = core {
+            verge.insert("clash_core".into(), core.into());
+        }
+        if let Some(moved) = moved {
+            verge.insert("core_default_moved".into(), moved.into());
+        }
+        verge
+    }
+
+    #[test]
+    fn the_stock_core_moves_to_clod_core_once_and_the_choice_after_that_stays() {
+        let mut verge = settings(Some("verge-mihomo"), None);
+        assert_eq!(move_to_the_default_core(&mut verge), Some(true));
+        assert_eq!(verge, settings(Some("verge-mihomo-alpha"), Some(true)));
+        let read_back = serde_yaml_ng::from_value::<crate::config::IVerge>(Value::Mapping(verge));
+        assert!(read_back.is_ok(), "{read_back:?}");
+        let read_back = read_back.unwrap_or_default();
+        assert_eq!(read_back.core_default_moved, Some(true));
+        assert_eq!(read_back.get_valid_clash_core(), "verge-mihomo-alpha");
+
+        let mut chosen_again = settings(Some("verge-mihomo"), Some(true));
+        assert_eq!(move_to_the_default_core(&mut chosen_again), None);
+        assert_eq!(chosen_again, settings(Some("verge-mihomo"), Some(true)));
+    }
+
+    #[test]
+    fn other_settings_only_get_the_flag() {
+        for core in [Some("verge-mihomo-alpha"), Some("clash"), None] {
+            let mut verge = settings(core, None);
+            assert_eq!(move_to_the_default_core(&mut verge), Some(false), "{core:?}");
+            assert_eq!(verge, settings(core, Some(true)), "{core:?}");
+        }
+        let mut unset_flag = settings(Some("verge-mihomo"), Some(false));
+        assert_eq!(move_to_the_default_core(&mut unset_flag), Some(true));
+    }
 
     #[test]
     fn a_log_file_is_judged_by_its_age_whatever_its_name_looks_like() {

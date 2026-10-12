@@ -167,8 +167,8 @@ async function updateHashCache(targetPath) {
 }
 
 // =======================
-// Core maps: verge-mihomo = стоковый MetaCubeX (последний стабильный, по
-// умолчанию), verge-mihomo-alpha = Clod Core (наш форк с патчами, релизы
+// Core maps: verge-mihomo = стоковый MetaCubeX (последний стабильный),
+// verge-mihomo-alpha = Clod Core (наш форк с патчами, по умолчанию, релизы
 // Mrvibecodic/clod-core; имя файла историческое). Оба лежат в установщике,
 // служба знает оба; переключение — в окне «Ядро Clash».
 // =======================

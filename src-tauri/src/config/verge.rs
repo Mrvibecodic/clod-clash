@@ -220,6 +220,9 @@ pub struct IVerge {
     pub tun_window_defaults_unpinned: Option<bool>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub core_default_moved: Option<bool>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub window_size_simple: Option<(u32, u32)>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -275,6 +278,8 @@ fn pac_without_the_frozen_address(text: &str) -> Option<&'static str> {
 impl IVerge {
     pub const VALID_CLASH_CORES: &'static [&'static str] = &["verge-mihomo", "verge-mihomo-alpha"];
 
+    pub const DEFAULT_CLASH_CORE: &'static str = "verge-mihomo-alpha";
+
     pub const DEFAULT_RECEIVE_PRERELEASES: bool = false;
 
     pub const DEFAULT_ENABLE_HWID: bool = true;
@@ -315,19 +320,21 @@ impl IVerge {
                 logging!(
                     warn,
                     Type::Config,
-                    "При запуске обнаружена недопустимая конфигурация clash_core: '{}', автоматически исправлено на 'verge-mihomo'",
-                    core
+                    "При запуске обнаружена недопустимая конфигурация clash_core: '{}', автоматически исправлено на '{}'",
+                    core,
+                    Self::DEFAULT_CLASH_CORE
                 );
-                config.clash_core = Some("verge-mihomo".into());
+                config.clash_core = Some(Self::DEFAULT_CLASH_CORE.into());
                 needs_fix = true;
             }
         } else {
             logging!(
                 info,
                 Type::Config,
-                "При запуске обнаружено, что clash_core не задан, устанавливаю значение по умолчанию 'verge-mihomo'"
+                "При запуске обнаружено, что clash_core не задан, устанавливаю значение по умолчанию '{}'",
+                Self::DEFAULT_CLASH_CORE
             );
-            config.clash_core = Some("verge-mihomo".into());
+            config.clash_core = Some(Self::DEFAULT_CLASH_CORE.into());
             needs_fix = true;
         }
 
@@ -371,7 +378,9 @@ impl IVerge {
     }
 
     pub fn get_valid_clash_core(&self) -> String {
-        self.clash_core.clone().unwrap_or_else(|| "verge-mihomo".into())
+        self.clash_core
+            .clone()
+            .unwrap_or_else(|| Self::DEFAULT_CLASH_CORE.into())
     }
 
     /// Только те поля, которые уезжают ядру в сборке (`enhance` их читает).
@@ -445,7 +454,7 @@ impl IVerge {
             app_log_level: Some("debug".into()),
             app_log_max_size: Some(Self::DEFAULT_APP_LOG_MAX_SIZE),
             app_log_max_count: Some(Self::DEFAULT_APP_LOG_MAX_COUNT),
-            clash_core: Some("verge-mihomo".into()),
+            clash_core: Some(Self::DEFAULT_CLASH_CORE.into()),
             language: Some(clash_verge_i18n::system_language().into()),
             theme_mode: Some("system".into()),
             #[cfg(not(target_os = "windows"))]
@@ -537,6 +546,7 @@ impl IVerge {
         patch!(env_type);
         patch!(core_log_keys_unpinned);
         patch!(tun_window_defaults_unpinned);
+        patch!(core_default_moved);
         patch!(startup_script);
         patch!(enable_group_icon);
         #[cfg(target_os = "macos")]
@@ -761,6 +771,12 @@ mod tests {
         );
         // Новая установка несёт отметку с самого начала.
         assert_eq!(IVerge::template().connect_template_cleared, Some(true));
+    }
+
+    #[test]
+    fn clod_core_is_the_core_of_a_new_install_and_of_settings_without_one() {
+        assert_eq!(IVerge::template().clash_core.as_deref(), Some("verge-mihomo-alpha"));
+        assert_eq!(IVerge::default().get_valid_clash_core(), "verge-mihomo-alpha");
     }
 
     #[test]
