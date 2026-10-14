@@ -785,8 +785,7 @@ export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
     (leaf ? descriptions[leaf] : undefined) ??
     (current ? descriptions[current] : undefined)
   const subject = description ?? (leaf ? nameWithoutFlag(leaf) : undefined)
-  // clod:freeze — строка-предупреждение только у того узла, через который
-  // сейчас идёт трафик; у остальных — лишь значок в списке.
+  // clod:freeze — значок того узла, через который сейчас идёт трафик.
   const freezeMark =
     (leaf ? freezeMarks[leaf] : undefined) ??
     (current ? freezeMarks[current] : undefined)
@@ -857,16 +856,6 @@ export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
         >
           {statusCaption ?? caption}
         </Typography>
-        {!statusRow && freezeMark ? (
-          <Typography
-            noWrap
-            sx={{ fontSize: 12, display: 'block' }}
-            color={freezeMark === 'dead' ? 'error.main' : 'warning.main'}
-            title={t(`freeze.current.${freezeMark}`)}
-          >
-            {t(`freeze.current.${freezeMark}`)}
-          </Typography>
-        ) : null}
         {!statusRow && partiallyDropped && droppedTotal > 0 ? (
           <Typography
             noWrap

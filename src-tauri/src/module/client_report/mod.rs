@@ -729,7 +729,6 @@ pub(crate) async fn note_freeze(uid: &str, net: &str, kind: &'static str, verdic
             let word = match verdict {
                 Verdict::Ok => "ok",
                 Verdict::Frozen => "frozen",
-                Verdict::Dead => "dead",
             };
             saved.add_freeze(&place, now, &key, word, status);
         }

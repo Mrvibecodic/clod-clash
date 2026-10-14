@@ -147,7 +147,7 @@ export const ProxyItemMini = (props: Props) => {
           </Typography>
         )}
       </Box>
-      <FreezeMark mark={freezeMark} compact />
+      <FreezeMark mark={freezeMark} />
       <Box
         sx={{ ml: 0.5, color: 'primary.main', display: isPreset ? 'none' : '' }}
       >

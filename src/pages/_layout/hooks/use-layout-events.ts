@@ -96,7 +96,7 @@ export const useLayoutEvents = (
     handleNotice(payload),
   )
 
-  // clod:freeze — пометки «режется» / «не отвечает» пересчитаны бэкендом.
+  // clod:freeze — пометки «режется» пересчитаны бэкендом.
   useTauriEvent('clod://freeze-marks', () => {
     void revalidateKeys(['freezeMarks'])
   })

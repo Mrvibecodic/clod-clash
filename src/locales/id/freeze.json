@@ -1,20 +1,6 @@
 {
-  "mark": {
-    "frozen": "cut off",
-    "dead": "not responding"
-  },
-  "title": {
-    "frozen": "Cut off on your network",
-    "dead": "Not responding on your network"
-  },
-  "explain": {
-    "frozen": "On your network, traffic through this server stops after the first kilobytes: pages load halfway, videos and downloads hang. Pick another server and tell your VPN's support about it.",
-    "dead": "On your network, nothing gets through this server. Pick another server. If no server responds, check your internet; if only this one, tell your VPN's support about it."
-  },
-  "current": {
-    "frozen": "This server is cut off on your network — pages may load halfway. Pick another server.",
-    "dead": "This server is not responding on your network. Pick another server."
-  },
+  "title": "This server failed the automatic check",
+  "explain": "Access to it from this network may be cut off. Before using it, check the connection's stability yourself. If the connection drops or is slow, tell your VPN's support.",
   "checkedHere": "Checked on this network",
   "support": "Contact support"
 }

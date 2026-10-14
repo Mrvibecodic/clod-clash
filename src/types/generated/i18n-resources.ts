@@ -69,23 +69,9 @@ export interface TranslationResources {
     }
     freeze: {
       checkedHere: string
-      current: {
-        dead: string
-        frozen: string
-      }
-      explain: {
-        dead: string
-        frozen: string
-      }
-      mark: {
-        dead: string
-        frozen: string
-      }
+      explain: string
       support: string
-      title: {
-        dead: string
-        frozen: string
-      }
+      title: string
     }
     home: {
       components: {

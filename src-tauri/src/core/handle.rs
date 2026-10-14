@@ -57,7 +57,7 @@ impl Handle {
         Self::send_event(FrontendEvent::RefreshProxyConfig);
     }
 
-    /// clod:freeze — пометки «режется» / «не отвечает» изменились.
+    /// clod:freeze — пометки «режется» изменились.
     pub fn refresh_freeze_marks() {
         Self::send_event(FrontendEvent::RefreshFreezeMarks);
     }

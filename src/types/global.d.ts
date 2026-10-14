@@ -153,7 +153,7 @@ interface ILogItem {
 }
 
 /** clod:freeze — итог проверки 16–20 узла в текущей сети. */
-type FreezeMark = 'frozen' | 'dead'
+type FreezeMark = 'frozen'
 
 type LogFilter = 'all' | 'debug' | 'info' | 'warn' | 'err'
 type LogOrder = 'asc' | 'desc'

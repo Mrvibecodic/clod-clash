@@ -107,7 +107,7 @@ const STARTUP_LANGUAGE_SECTIONS = [
   'settings',
   'profiles',
   'proxies',
-  // clod:freeze — пометки «режется» / «не отвечает» живут на главной и в прокси.
+  // clod:freeze — значок «режется» живёт на главной и в прокси.
   'freeze',
 ] as const
 

@@ -1,25 +1,28 @@
-//! clod:freeze — проверка 16–20: режется ли трафик через узел в этой сети.
+//! clod:freeze — проверка 16–20: обрезается ли скачивание через узел в этой сети.
 //!
 //! Механизм — в ядре Clod Core (`GET /proxies/{name}/download`: узел качает
 //! 64 КБ и отвечает ok / frozen / dead / unknown). Здесь — когда звать,
-//! хранение по подписке и сети и пометки «режется» / «не отвечает» для
-//! интерфейса. С узлами клиент ничего не делает: пинг как был, выбор как был.
+//! хранение по подписке и сети и пометка для интерфейса. Итог один —
+//! обрезается ли скачивание: «работает» или «режется»; всё прочее (в том числе
+//! dead) итогом не считается и записывается только как попытка. С узлами
+//! клиент ничего не делает: пинг как был, выбор как был.
 //!
 //! Поводы захода: сменилась сеть; сменились подписка, её узлы или ядро;
 //! панель включила или выключила проверку; ядро впервые поднялось за сеанс;
 //! тик раз в час. Перезапуск ядра или туннеля с
 //! той же сборкой поводом не служит. От подключения заход не зависит:
 //! проверяется путь от адреса клиента до адреса сервера, туннель тут ни при
-//! чём. Проверяются отпечатки без итога в текущей сети, «работает» и
-//! «режется» старше 3 суток, «не отвечает» и попытки без итога старше 6 часов;
-//! одинаковые узлы делят результат по отпечатку. Если посреди захода сменились
-//! сеть или подписка или ядро не ответило, заход бросается. Если через
-//! проверенные узлы не прошло ничего, заодно проверяется узел, рабочий в этой
-//! сети: прошёл он — итоги в счёт; не прошёл и он (или такого нет) — это сеть,
-//! заход не записывается, и эти узлы ждут 6 часов.
+//! чём. Проверяются отпечатки без итога в текущей сети, итоги старше 3 суток,
+//! попытки без итога старше 6 часов; одинаковые узлы делят результат по
+//! отпечатку. Обрезанный узел через 10 с проверяется ещё дважды вместе с
+//! контрольным — рабочим в этой сети: «режется» — только если обрезались все
+//! три проверки, а контрольный прошёл; прошла последняя — «работает»; иначе
+//! (сравнить не с чем, контрольный не прошёл) итога нет. Если посреди захода
+//! сменились сеть или подписка или ядро не ответило, заход бросается. Сеть не
+//! распознана — ни проверок, ни пометок.
 //! Ядро без отпечатков (чужое) — функция молчит. Включает проверку только
 //! панель — заголовком подписки `clod-16-20-check: true`; без него ни
-//! проверок, ни пометок. Итоги с вердиктом уходят и в отчёт прослойке
+//! проверок, ни пометок. Итоги уходят и в отчёт прослойке
 //! (`module::client_report`) — там решается, копить ли их.
 
 mod network;
@@ -53,6 +56,8 @@ const DOWNLOAD_TIMEOUT_MS: u32 = 10_000;
 const DOWNLOAD_STALL_MS: u32 = 4_000;
 /// Ядро ждёт очередь к хосту, качает, потом пингует: 3 + 10 + 5 + 3 с.
 const REQUEST_BUDGET: Duration = Duration::from_secs(30);
+/// Пауза между повторами обрезанных узлов.
+const WAVE_PAUSE: Duration = Duration::from_secs(10);
 const LIST_TIMEOUT: Duration = Duration::from_secs(5);
 /// Только что поднятое ядро отвечает раньше, чем разложит узлы и провайдеров:
 /// столько раз и с такой паузой ждём, пока разложит.
@@ -78,18 +83,10 @@ static REASON: Mutex<&'static str> = Mutex::new("");
 /// Ключ сети, в которой идёт текущий заход; `None` — заход его ещё не узнал.
 static PASS_KEY: Mutex<Option<std::string::String>> = Mutex::new(None);
 static FOREIGN_CORE_TOLD: AtomicBool = AtomicBool::new(false);
-/// Итоги в сети, которую не удалось распознать: живут до конца сеанса, на диск
-/// не идут, но повторы в них считаются как везде.
-static UNPLACED: Mutex<BTreeMap<std::string::String, store::Network>> = Mutex::new(BTreeMap::new());
 /// Следующий заход ждёт, пока ядро разложит узлы: оно только что поднялось
 /// или получило новую сборку. Остальным заходам ждать незачем — провайдер,
 /// пустой и через минуту, так и останется пустым.
 static AWAIT_LAYOUT: AtomicBool = AtomicBool::new(false);
-/// Подписка и сеть, где в последнем заходе не прошло ничего ни через кого
-/// (нет интернета, страница входа Wi-Fi): какие узлы так проверены и когда.
-/// Их повтор — не раньше чем через 6 часов от их проверки; прочие узлы пауза
-/// не держит. В памяти.
-static QUIET: Mutex<BTreeMap<std::string::String, BTreeMap<std::string::String, i64>>> = Mutex::new(BTreeMap::new());
 /// Ядро уже поднималось в этом сеансе — первый подъём служит поводом захода,
 /// остальные (перезапуски) нет.
 static CORE_CAME_UP: AtomicBool = AtomicBool::new(false);
@@ -108,7 +105,7 @@ static MARKS: Mutex<Marks> = Mutex::new(Marks {
     by_name: BTreeMap::new(),
 });
 
-/// Пометки текущей подписки в текущей сети: имя узла → `frozen` | `dead`.
+/// Пометки текущей подписки в текущей сети: имя узла → `frozen`.
 pub(crate) fn marks() -> BTreeMap<std::string::String, &'static str> {
     MARKS.lock().by_name.clone()
 }
@@ -120,10 +117,11 @@ pub(crate) async fn current_network() -> Option<(std::string::String, &'static s
 }
 
 /// Повод для нового захода без новой сборки у ядра — панель включила или
-/// выключила проверку. Перезапуск ядра или туннеля, правки DNS и прочих
-/// настроек поводом не служат.
+/// выключила проверку: идущий заход бросается, пометки гаснут, и новый заход
+/// решает заново. Перезапуск ядра или туннеля, правки DNS и прочих настроек
+/// поводом не служат.
 pub fn check_again(reason: &'static str) {
-    kick(reason, Standing::Kept);
+    kick(reason, Standing::Dropped);
 }
 
 /// Сколько раз просили заход: каждая просьба даёт заход, который начнётся
@@ -132,14 +130,11 @@ pub fn passes_asked() -> u64 {
     ASKED.load(Ordering::Acquire)
 }
 
-/// Ядру доставлена другая подписка: пометки прежней гаснут сразу, её идущий
-/// заход бросается — подписки не делят ничего.
+/// Ядру доставлена другая подписка: её идущий заход бросается и пометки
+/// гаснут — подписки не делят ничего.
 pub fn subscription_changed() {
     AWAIT_LAYOUT.store(true, Ordering::Release);
-    // Сначала новый номер захода: идущий заход прежней подписки после этого
-    // уже ничего не покажет.
     kick("subscription changed", Standing::Dropped);
-    clear_marks();
 }
 
 /// Ядру доставлены новые узлы или провайдеры подписки, или сменилось ядро.
@@ -210,7 +205,8 @@ pub fn spawn() {
 enum Standing {
     /// Его итоги ещё верны — пусть дойдёт, следующий пойдёт за ним.
     Kept,
-    /// Сеть или узлы уже не те — итоги бросить.
+    /// Сеть или подписка уже не те — итоги бросить, пометки погасить: следующий
+    /// заход покажет пометки новой сети или подписки.
     Dropped,
 }
 
@@ -220,7 +216,9 @@ fn kick(reason: &'static str, standing: Standing) {
     }
     *REASON.lock() = reason;
     if matches!(standing, Standing::Dropped) {
+        // Сначала новый номер захода: идущий заход после этого уже ничего не покажет.
         EPOCH.fetch_add(1, Ordering::AcqRel);
+        clear_marks();
     }
     ASKED.fetch_add(1, Ordering::AcqRel);
     ASKED_AGAIN.store(true, Ordering::SeqCst);
@@ -421,13 +419,11 @@ fn download_path(node: &NodeRef) -> std::string::String {
 async fn check(node: &NodeRef) -> Option<plan::Checked> {
     let answer = core_json(&download_path(node), REQUEST_BUDGET).await?;
     let status = answer.get("status").and_then(serde_json::Value::as_i64).unwrap_or(0);
-    let outcome = answer
+    let verdict = answer
         .get("verdict")
         .and_then(serde_json::Value::as_str)
-        .map_or(plan::Outcome::Unknown { answered: false }, |verdict| {
-            plan::Outcome::parse(verdict, status)
-        });
-    Some(plan::Checked { outcome, status })
+        .and_then(Verdict::parse);
+    Some(plan::Checked { verdict, status })
 }
 
 /// Кого проверять: один узел на отпечаток, только просроченные.
@@ -439,40 +435,6 @@ fn due_of(nodes: &[NodeRef], network: &store::Network, now: i64) -> Vec<NodeRef>
         .filter(|node| plan::is_due(network.nodes.get(&node.fingerprint), now))
         .cloned()
         .collect()
-}
-
-/// Кого проверять сейчас и `true`, если некого из-за паузы: в этой подписке и
-/// сети через эти узлы недавно не прошло ничего.
-fn due_now(quiet_key: &str, nodes: &[NodeRef], network: &store::Network, now: i64) -> (Vec<NodeRef>, bool) {
-    let due = due_of(nodes, network, now);
-    let Some(held) = QUIET.lock().get(quiet_key).cloned() else {
-        return (due, false);
-    };
-    let paused = |node: &NodeRef| {
-        held.get(&node.fingerprint)
-            .is_some_and(|at| now.saturating_sub(*at) < plan::RETRY_AFTER)
-    };
-    let free: Vec<NodeRef> = due.iter().filter(|node| !paused(node)).cloned().collect();
-    let hushed = free.is_empty() && !due.is_empty();
-    (free, hushed)
-}
-
-/// После захода: не прошло ничего — эти узлы на паузе 6 часов; прошло хоть
-/// что-то — паузы в этой подписке и сети нет.
-fn remember_quiet(quiet_key: std::string::String, nodes: &[NodeRef], stored: bool, now: i64) {
-    if stored {
-        QUIET.lock().remove(&quiet_key);
-        return;
-    }
-    QUIET
-        .lock()
-        .entry(quiet_key)
-        .or_default()
-        .extend(nodes.iter().map(|node| (node.fingerprint.clone(), now)));
-}
-
-const fn hushed_note(hushed: bool) -> &'static str {
-    if hushed { " (nothing passed here last time)" } else { "" }
 }
 
 fn marks_of(nodes: &[NodeRef], network: &store::Network) -> BTreeMap<std::string::String, &'static str> {
@@ -505,7 +467,7 @@ fn clear_marks() {
     *marks = Marks::default();
     drop(marks);
     if changed {
-        handle::Handle::refresh_freeze_marks();
+        AsyncHandler::spawn(|| async { announce(true).await });
     }
 }
 
@@ -519,20 +481,14 @@ async fn announce(changed: bool) {
     }
 }
 
-fn counted(outcomes: &[plan::Outcome]) -> std::string::String {
-    let mut ok = 0_usize;
-    let mut frozen = 0_usize;
-    let mut dead = 0_usize;
-    let mut unknown = 0_usize;
-    for outcome in outcomes {
-        match outcome {
-            plan::Outcome::Verdict(Verdict::Ok) => ok += 1,
-            plan::Outcome::Verdict(Verdict::Frozen) => frozen += 1,
-            plan::Outcome::Verdict(Verdict::Dead) => dead += 1,
-            plan::Outcome::Unknown { .. } => unknown += 1,
-        }
-    }
-    format!("{ok} ok, {frozen} frozen, {dead} dead, {unknown} unknown")
+fn counted(checks: &[plan::Checked]) -> std::string::String {
+    let count = |verdict| checks.iter().filter(|checked| checked.verdict == verdict).count();
+    format!(
+        "{} ok, {} frozen, {} without a result",
+        count(Some(Verdict::Ok)),
+        count(Some(Verdict::Frozen)),
+        count(None)
+    )
 }
 
 /// Узлы с отпечатком у ядра; `None` — ядро не ответило или отпечатков нет.
@@ -596,12 +552,8 @@ async fn checked(due: Vec<NodeRef>, epoch: u64) -> Option<Vec<(NodeRef, plan::Ch
     outcomes.into_iter().collect()
 }
 
-/// Записать итоги в сеть; `true` — записано.
-fn recorded(network: &mut store::Network, outcomes: &[(NodeRef, plan::Checked)], now: i64, verbose: bool) -> bool {
-    let verdicts: Vec<plan::Outcome> = outcomes.iter().map(|(_, checked)| checked.outcome).collect();
-    if !plan::worth_recording(&verdicts) {
-        return false;
-    }
+/// Записать проверки захода в сеть.
+fn recorded(network: &mut store::Network, outcomes: &[(NodeRef, plan::Checked)], now: i64, verbose: bool) {
     for (node, checked) in outcomes {
         if verbose {
             logging!(
@@ -609,36 +561,22 @@ fn recorded(network: &mut store::Network, outcomes: &[(NodeRef, plan::Checked)],
                 Type::Core,
                 "[Freeze] {}: {:?} ({})",
                 node.name,
-                checked.outcome,
+                checked.verdict,
                 checked.status
             );
         }
         let record = network.nodes.entry(node.fingerprint.clone()).or_default();
-        plan::apply(record, checked.outcome, now);
+        plan::apply(record, checked.verdict, now);
         record.name = Some(node.name.clone());
         record.status = Some(checked.status);
     }
-    true
 }
 
-/// Записанные вердикты — в отчёт прослойке; не записано или сеть не
-/// распознана — нечего и некуда.
-async fn report_verdicts(
-    stored: bool,
-    uid: &str,
-    key: Option<&str>,
-    kind: &'static str,
-    outcomes: &[(NodeRef, plan::Checked)],
-) {
-    let Some(key) = key.filter(|_| stored) else {
-        return;
-    };
+/// Итоги захода — в отчёт прослойке.
+async fn report_verdicts(uid: &str, key: &str, kind: &'static str, outcomes: &[(NodeRef, plan::Checked)]) {
     let verdicts: Vec<(std::string::String, Verdict, i64)> = outcomes
         .iter()
-        .filter_map(|(node, checked)| match checked.outcome {
-            plan::Outcome::Verdict(verdict) => Some((node.name.clone(), verdict, checked.status)),
-            plan::Outcome::Unknown { .. } => None,
-        })
+        .filter_map(|(node, checked)| Some((node.name.clone(), checked.verdict?, checked.status)))
         .collect();
     crate::module::client_report::note_freeze(uid, key, kind, &verdicts).await;
 }
@@ -654,14 +592,14 @@ async fn network_key() -> Option<network::Key> {
     AsyncHandler::spawn_blocking(network::current).await.ok().flatten()
 }
 
-/// Тот ли ещё мир, в котором шёл заход: та же подписка, те же узлы, та же сеть.
-async fn still_the_same(uid: &str, checked: &[NodeRef], key: Option<&str>) -> bool {
+/// Тот ли ещё мир, в котором шёл заход: та же подписка, те же проверенные
+/// узлы, та же сеть. Узлы ядра сейчас — пометки ставятся по ним: имена прочих
+/// узлов могли смениться, пока шли проверки; `None` — мир уже не тот.
+async fn still_the_same(uid: &str, checked: &[NodeRef], key: &str) -> Option<Vec<NodeRef>> {
     if running_subscription().await.as_deref() != Some(uid) {
-        return false;
+        return None;
     }
-    let Some((listing, _)) = list_nodes().await else {
-        return false;
-    };
+    let (listing, _) = list_nodes().await?;
     // Проверенные узлы на месте и те же; что ядро тем временем догрузило
     // других, итогов не отменяет.
     let now = names_of(&listing.nodes);
@@ -669,10 +607,12 @@ async fn still_the_same(uid: &str, checked: &[NodeRef], key: Option<&str>) -> bo
         .iter()
         .all(|node| now.get(node.name.as_str()) == Some(&node.fingerprint.as_str()))
     {
-        return false;
+        return None;
     }
     let now_key = AsyncHandler::spawn_blocking(network::current).await.ok().flatten();
-    now_key.as_ref().map(|key| key.hash.as_str()) == key
+    now_key
+        .is_some_and(|now_key| now_key.hash == key)
+        .then_some(listing.nodes)
 }
 
 /// Подписка, на которой работает ядро. Не текущая в реестре: при смене
@@ -711,41 +651,172 @@ async fn enabled_subscription(reason: &str, verbose: bool, epoch: u64) -> Option
     enabled.then_some(uid)
 }
 
-/// Итоги подписки с диска и итоги неопознанной сети (живут в памяти до конца
-/// сеанса) — без узлов, которых у ядра больше нет. Если ядро не разложило узлы
-/// до конца, по неполному списку не чистим: стёрлись бы итоги узлов, которых
-/// ядро просто ещё не показало.
-async fn saved_results(uid: &str, nodes: &[NodeRef], settled: bool, now: i64) -> (store::Store, store::Network) {
+/// Итоги подписки с диска — без узлов, которых у ядра больше нет. Если ядро не
+/// разложило узлы до конца, по неполному списку не чистим: стёрлись бы итоги
+/// узлов, которых ядро просто ещё не показало.
+async fn saved_results(uid: &str, nodes: &[NodeRef], settled: bool, now: i64) -> store::Store {
     let mut saved = store::load(uid).await;
-    let mut unplaced = UNPLACED.lock().get(uid).cloned().unwrap_or_default();
     if settled {
         let live: BTreeSet<std::string::String> = nodes.iter().map(|node| node.fingerprint.clone()).collect();
         saved.forget_nodes_except(&live);
-        unplaced.nodes.retain(|fingerprint, _| live.contains(fingerprint));
     }
     saved.forget_old_networks(now);
-    (saved, unplaced)
+    saved
 }
 
-/// Через проверенные узлы не прошло ничего — это сеть или только они? Узел,
-/// который в этой сети отмечен рабочим (свежее всех), — контрольный: прошёл
-/// он, значит сеть есть и итоги остальных в счёт. Без такого узла или если
-/// что-то уже прошло — проверять нечего.
-fn control_node(nodes: &[NodeRef], network: &store::Network, outcomes: &[(NodeRef, plan::Checked)]) -> Option<NodeRef> {
-    let verdicts: Vec<plan::Outcome> = outcomes.iter().map(|(_, checked)| checked.outcome).collect();
-    if plan::worth_recording(&verdicts) {
-        return None;
+/// Контрольный узел к повторам обрезанных: прошедший в этом заходе, иначе
+/// рабочий в этой сети свежее всех, чья последняя попытка дала итог, и в
+/// заходе не проверенный. Обрезанные и их отпечатки не годятся. Нет такого —
+/// сравнить не с чем.
+fn wave_control(
+    nodes: &[NodeRef],
+    network: &store::Network,
+    outcomes: &[(NodeRef, plan::Checked)],
+    suspects: &[NodeRef],
+) -> Option<NodeRef> {
+    let doubted: BTreeSet<&str> = suspects.iter().map(|node| node.fingerprint.as_str()).collect();
+    let passed = outcomes
+        .iter()
+        .filter(|(node, checked)| checked.verdict == Some(Verdict::Ok) && !doubted.contains(node.fingerprint.as_str()))
+        .map(|(node, _)| node)
+        .min_by(|a, b| a.name.cmp(&b.name));
+    if let Some(passed) = passed {
+        return Some(passed.clone());
     }
     let tried: BTreeSet<&str> = outcomes.iter().map(|(node, _)| node.fingerprint.as_str()).collect();
     nodes
         .iter()
-        .filter(|node| !tried.contains(node.fingerprint.as_str()))
+        .filter(|node| !doubted.contains(node.fingerprint.as_str()) && !tried.contains(node.fingerprint.as_str()))
         .filter_map(|node| {
             let record = network.nodes.get(&node.fingerprint)?;
-            (record.verdict == Some(plan::Verdict::Ok)).then_some((record.at, node))
+            (record.verdict == Some(Verdict::Ok) && record.at >= record.tried).then_some((record.at, node))
         })
         .max_by_key(|(at, _)| *at)
         .map(|(_, node)| node.clone())
+}
+
+/// Проверки узлов захода.
+type Checks = Vec<(NodeRef, plan::Checked)>;
+
+/// Повтор обрезанных: контрольный не прошёл — `None` (это сеть, а не узлы);
+/// иначе снова обрезанные и прошедшие. Повтор без итога — узел выбывает.
+fn after_wave(left: &[NodeRef], control: &NodeRef, again: &[(NodeRef, plan::Checked)]) -> Option<(Checks, Checks)> {
+    let of = |node: &NodeRef| {
+        again
+            .iter()
+            .find(|(checked, _)| checked.name == node.name)
+            .map(|(_, checked)| *checked)
+    };
+    if of(control).and_then(|checked| checked.verdict) != Some(Verdict::Ok) {
+        return None;
+    }
+    let mut cut = Vec::new();
+    let mut passed = Vec::new();
+    for node in left {
+        match of(node) {
+            Some(checked) if checked.verdict == Some(Verdict::Frozen) => cut.push((node.clone(), checked)),
+            Some(checked) if checked.verdict == Some(Verdict::Ok) => passed.push((node.clone(), checked)),
+            _ => {}
+        }
+    }
+    Some((cut, passed))
+}
+
+/// Повторы обрезанных в первой проверке, `again` — одна проверка узлов
+/// (контрольный первым). Итоги: прошедшие в повторе — «работает», обрезанные
+/// во всех [`plan::WAVES`] проверках — «режется»; контрольный не прошёл или
+/// повтор без итога — итога нет. `None` — заход не в счёт.
+async fn repeated<F, Fut>(mut left: Vec<NodeRef>, control: &NodeRef, reason: &str, mut again: F) -> Option<Checks>
+where
+    F: FnMut(Vec<NodeRef>) -> Fut,
+    Fut: std::future::Future<Output = Option<Checks>>,
+{
+    let mut settled = Vec::new();
+    for wave in 2..=plan::WAVES {
+        let mut batch = vec![control.clone()];
+        batch.extend(left.iter().cloned());
+        let checked = again(batch).await?;
+        let Some((cut, passed)) = after_wave(&left, control, &checked) else {
+            logging!(
+                info,
+                Type::Core,
+                "[Freeze] {reason}: check {wave} of {}: {} that works here did not pass, the cut nodes are not marked",
+                plan::WAVES,
+                control.name
+            );
+            break;
+        };
+        logging!(
+            info,
+            Type::Core,
+            "[Freeze] {reason}: check {wave} of {}: {} cut node(s) — {} cut again, {} passed",
+            plan::WAVES,
+            left.len(),
+            cut.len(),
+            passed.len()
+        );
+        settled.extend(passed);
+        if wave == plan::WAVES {
+            settled.extend(cut);
+            break;
+        }
+        left = cut.into_iter().map(|(node, _)| node).collect();
+        if left.is_empty() {
+            break;
+        }
+    }
+    Some(settled)
+}
+
+/// Записать итог узла в проверки захода.
+fn settle(outcomes: &mut [(NodeRef, plan::Checked)], settled: Vec<(NodeRef, plan::Checked)>) {
+    for (node, checked) in settled {
+        if let Some(slot) = outcomes.iter_mut().find(|(known, _)| known.name == node.name) {
+            slot.1 = checked;
+        }
+    }
+}
+
+/// Обрезанным в первой проверке не верим: через 10 с они проверяются ещё
+/// дважды вместе с контрольным. «Режется» — только если обрезались все три
+/// проверки, а контрольный оба раза прошёл; прошла последняя — «работает»;
+/// иначе итога нет. Контрольный дописывается в `checked_nodes`. `None` — заход
+/// не в счёт.
+async fn confirmed<F, Fut>(
+    mut outcomes: Vec<(NodeRef, plan::Checked)>,
+    nodes: &[NodeRef],
+    network: &store::Network,
+    checked_nodes: &mut Vec<NodeRef>,
+    reason: &str,
+    again: F,
+) -> Option<Vec<(NodeRef, plan::Checked)>>
+where
+    F: FnMut(Vec<NodeRef>) -> Fut,
+    Fut: std::future::Future<Output = Option<Checks>>,
+{
+    let mut left: Vec<NodeRef> = Vec::new();
+    for (node, checked) in &mut outcomes {
+        if checked.verdict == Some(Verdict::Frozen) {
+            checked.verdict = None;
+            left.push(node.clone());
+        }
+    }
+    if left.is_empty() {
+        return Some(outcomes);
+    }
+    let Some(control) = wave_control(nodes, network, &outcomes, &left) else {
+        logging!(
+            info,
+            Type::Core,
+            "[Freeze] {reason}: {} node(s) cut, no node works here to compare with, not marked",
+            left.len()
+        );
+        return Some(outcomes);
+    };
+    checked_nodes.push(control.clone());
+    let settled = repeated(left, &control, reason, again).await?;
+    settle(&mut outcomes, settled);
+    Some(outcomes)
 }
 
 /// Проверить узлы; ядро замолчало или сменилась сеть — `None`.
@@ -765,39 +836,46 @@ async fn checked_or_dropped(due: Vec<NodeRef>, epoch: u64, reason: &str) -> Opti
     outcomes
 }
 
-/// Итоги проверок (с контрольным узлом, если через проверенные не прошло
-/// ничего), если они ещё о тех же узлах в той же сети и подписке; `None` —
-/// заход не в счёт.
+/// Итоги проверок, если они ещё о тех же узлах в той же сети и подписке, и
+/// узлы ядра на конец захода; `None` — заход не в счёт.
 async fn checked_in_place(
     uid: &str,
     due: Vec<NodeRef>,
     nodes: &[NodeRef],
     network: &store::Network,
-    key: Option<&str>,
+    key: &str,
     epoch: u64,
     reason: &str,
-) -> Option<Vec<(NodeRef, plan::Checked)>> {
+) -> Option<(Checks, Vec<NodeRef>)> {
     let mut checked_nodes = due.clone();
-    let mut outcomes = checked_or_dropped(due, epoch, reason).await?;
-    if let Some(control) = control_node(nodes, network, &outcomes) {
-        logging!(
-            info,
-            Type::Core,
-            "[Freeze] {reason}: nothing passed, checking {} that worked here to tell the network from the nodes",
-            control.name
-        );
-        checked_nodes.push(control.clone());
-        outcomes.extend(checked_or_dropped(vec![control], epoch, reason).await?);
-    }
-    if !still_the_same(uid, &checked_nodes, key).await {
+    let outcomes = checked_or_dropped(due, epoch, reason).await?;
+    // Повтор — через паузу; за неё могли смениться сеть или подписка, могли
+    // выйти из приложения.
+    let again = |batch| async move {
+        tokio::time::sleep(WAVE_PAUSE).await;
+        if handle::Handle::global().is_exiting() {
+            return None;
+        }
+        if EPOCH.load(Ordering::Acquire) != epoch {
+            logging!(
+                info,
+                Type::Core,
+                "[Freeze] {reason}: the network or the subscription changed mid-pass, results dropped"
+            );
+            return None;
+        }
+        checked_or_dropped(batch, epoch, reason).await
+    };
+    let outcomes = confirmed(outcomes, nodes, network, &mut checked_nodes, reason, again).await?;
+    let Some(now) = still_the_same(uid, &checked_nodes, key).await else {
         logging!(
             info,
             Type::Core,
             "[Freeze] {reason}: the network, the subscription or its checked nodes changed mid-pass, results dropped"
         );
         return None;
-    }
-    Some(outcomes)
+    };
+    Some((outcomes, now))
 }
 
 async fn pass(reason: &'static str) {
@@ -820,53 +898,52 @@ async fn pass(reason: &'static str) {
         return;
     }
 
-    let (key, kind) = network_key()
-        .await
-        .map_or((None, "other"), |key| (Some(key.hash), key.kind));
-    *PASS_KEY.lock() = key.clone();
-    let shown_key = key.as_deref().unwrap_or("?");
-    let now = crate::utils::help::now_secs();
-    let (mut saved, mut unplaced) = saved_results(&uid, &nodes, settled, now).await;
-    let network = match key.as_deref() {
-        Some(key) => saved.network_mut(key),
-        None => &mut unplaced,
-    };
-    // Пометки этой сети показываются сразу, не дожидаясь проверок.
-    announce(publish(&uid, marks_of(&nodes, network), epoch)).await;
-
-    let quiet_key = format!("{uid}/{shown_key}");
-    let (due, hushed) = due_now(&quiet_key, &nodes, network, now);
-    let mut stored = false;
-    if due.is_empty() {
+    // Сеть не распознана — итоги не к чему привязать: ни проверок, ни пометок.
+    let Some(key) = network_key().await else {
         if verbose {
             logging!(
                 info,
                 Type::Core,
-                "[Freeze] {reason}: nothing due in network {shown_key}{}",
-                hushed_note(hushed)
+                "[Freeze] {reason}: the network is not recognized, nothing checked"
             );
         }
-    } else {
-        let due_nodes = due.clone();
-        let Some(outcomes) = checked_in_place(&uid, due, &nodes, network, key.as_deref(), epoch, reason).await else {
+        announce(publish(&uid, BTreeMap::new(), epoch)).await;
+        return;
+    };
+    *PASS_KEY.lock() = Some(key.hash.clone());
+    let now = crate::utils::help::now_secs();
+    let mut saved = saved_results(&uid, &nodes, settled, now).await;
+    let network = saved.network_mut(&key.hash);
+    // Пометки этой сети показываются сразу, не дожидаясь проверок.
+    announce(publish(&uid, marks_of(&nodes, network), epoch)).await;
+
+    let due = due_of(&nodes, network, now);
+    let checked_any = !due.is_empty();
+    let mut nodes = nodes;
+    if checked_any {
+        let Some((outcomes, nodes_now)) = checked_in_place(&uid, due, &nodes, network, &key.hash, epoch, reason).await
+        else {
             return;
         };
-        stored = recorded(network, &outcomes, now, verbose);
-        remember_quiet(quiet_key, &due_nodes, stored, now);
-        report_verdicts(stored, &uid, key.as_deref(), kind, &outcomes).await;
-        let verdicts: Vec<plan::Outcome> = outcomes.iter().map(|(_, checked)| checked.outcome).collect();
-        let tail = if stored {
-            ""
-        } else {
-            "; nothing passed anywhere, not recorded, next try in 6 h"
-        };
+        recorded(network, &outcomes, now, verbose);
+        report_verdicts(&uid, &key.hash, key.kind, &outcomes).await;
+        let checks: Vec<plan::Checked> = outcomes.iter().map(|(_, checked)| *checked).collect();
         logging!(
             info,
             Type::Core,
-            "[Freeze] {reason}: {} of {} node(s) checked in network {shown_key} — {}{tail}",
+            "[Freeze] {reason}: {} of {} node(s) checked in network {} — {}",
             outcomes.len(),
             nodes.len(),
-            counted(&verdicts)
+            key.hash,
+            counted(&checks)
+        );
+        nodes = nodes_now;
+    } else if verbose {
+        logging!(
+            info,
+            Type::Core,
+            "[Freeze] {reason}: nothing due in network {}",
+            key.hash
         );
     }
 
@@ -875,14 +952,11 @@ async fn pass(reason: &'static str) {
     }
     let by_name = marks_of(&nodes, network);
     let known = network.last_seen != 0;
-    if key.is_some() && (stored || (known && now.saturating_sub(network.last_seen) >= TOUCH_AFTER)) {
+    if checked_any || (known && now.saturating_sub(network.last_seen) >= TOUCH_AFTER) {
         network.last_seen = now;
         if let Err(err) = store::save(&uid, &saved).await {
             logging!(warn, Type::Core, "[Freeze] the results were not saved: {err:#}");
         }
-    }
-    if key.is_none() {
-        UNPLACED.lock().insert(uid.clone(), unplaced);
     }
     announce(publish(&uid, by_name, epoch)).await;
 }
@@ -894,8 +968,8 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        Listing, NodeRef, compares_the_network, control_node, core_settled, download_path, due_now, due_of, listing_of,
-        marks_of, names_of, nodes_of, plan, providers_if_all_read, remember_quiet, store,
+        Checks, Listing, NodeRef, compares_the_network, core_settled, download_path, due_of, listing_of, marks_of,
+        names_of, nodes_of, plan, providers_if_all_read, recorded, repeated, store, wave_control,
     };
 
     fn production() -> &'static str {
@@ -947,43 +1021,205 @@ mod tests {
         }
     }
 
+    fn result(verdict: Option<plan::Verdict>) -> plan::Checked {
+        plan::Checked { verdict, status: 200 }
+    }
+
     #[test]
-    fn when_nothing_passed_the_freshest_node_that_worked_here_is_the_control() {
-        use super::plan::{Checked, Node, Outcome, Verdict};
-        let silent = Checked {
-            outcome: Outcome::Unknown { answered: false },
-            status: 0,
-        };
+    fn the_wave_control_passed_in_this_pass_or_worked_here_last_time_and_is_never_a_cut_one() {
+        use super::plan::{Node, Verdict};
         let nodes = [
-            node("new", "f0"),
-            node("old", "f1"),
-            node("fresh", "f2"),
-            node("cut", "f3"),
+            node("cut", "f1"),
+            node("twin", "f1"),
+            node("ok", "f2"),
+            node("old", "f3"),
+            node("silent", "f4"),
         ];
-        let mut network = store::Network::default();
-        let record = |verdict, at| Node {
-            verdict: Some(verdict),
+        let worked = |at, tried| Node {
+            verdict: Some(Verdict::Ok),
             at,
+            tried,
             ..Node::default()
         };
-        network.nodes.insert("f1".into(), record(Verdict::Ok, 100));
-        network.nodes.insert("f2".into(), record(Verdict::Ok, 200));
-        network.nodes.insert("f3".into(), record(Verdict::Frozen, 300));
+        let mut network = store::Network::default();
+        network.nodes.insert("f1".into(), worked(300, 300));
+        network.nodes.insert("f3".into(), worked(100, 100));
+        // Рабочий, но последняя попытка итога не дала — в контрольные не годится.
+        network.nodes.insert("f4".into(), worked(200, 250));
+        let suspects = [node("cut", "f1")];
+        let cut = (node("cut", "f1"), result(None));
+        let passed = [cut.clone(), (node("ok", "f2"), result(Some(Verdict::Ok)))];
+        assert_eq!(
+            wave_control(&nodes, &network, &passed, &suspects),
+            Some(node("ok", "f2"))
+        );
+        // Никто не прошёл — рабочий здесь, но не одноимённый обрезанному.
+        let only_cut = [cut.clone()];
+        assert_eq!(
+            wave_control(&nodes, &network, &only_cut, &suspects),
+            Some(node("old", "f3"))
+        );
+        // Проверенный в этом заходе и не прошедший — не контрольный.
+        let old_checked = [cut, (node("old", "f3"), result(None))];
+        assert_eq!(wave_control(&nodes, &network, &old_checked, &suspects), None);
+        assert_eq!(wave_control(&nodes[..2], &network, &only_cut, &suspects), None);
+    }
 
-        let nothing = [(node("new", "f0"), silent)];
-        assert_eq!(control_node(&nodes, &network, &nothing), Some(node("fresh", "f2")));
+    /// Повторы на заготовленных ответах ядра: каждый ответ — итоги одной проверки.
+    fn repeated_on(left: &[NodeRef], control: &NodeRef, answers: Vec<Vec<(NodeRef, plan::Checked)>>) -> Option<Checks> {
+        let mut answers = answers.into_iter();
+        let mut asked = 0;
+        let settled = futures::executor::block_on(repeated(left.to_vec(), control, "test", |batch| {
+            asked += 1;
+            assert_eq!(batch.first(), Some(control), "контрольный проверяется в каждом повторе");
+            let answer = answers.next();
+            async move { answer }
+        }));
+        assert!(asked < plan::WAVES, "повторов не больше двух");
+        settled
+    }
 
-        let passed = [(
-            node("new", "f0"),
-            Checked {
-                outcome: Outcome::Verdict(Verdict::Frozen),
-                status: 200,
+    #[test]
+    fn a_node_is_cut_only_when_all_three_checks_were_and_the_control_passed() {
+        use super::plan::Verdict;
+        let frozen = result(Some(Verdict::Frozen));
+        let ok = result(Some(Verdict::Ok));
+        let silent = result(None);
+        let (a, k) = (node("a", "f1"), node("k", "f9"));
+        let verdict_of = |settled: Option<Checks>| -> Option<Option<Verdict>> {
+            settled.map(|settled| {
+                settled
+                    .iter()
+                    .find(|(node, _)| node.name == "a")
+                    .and_then(|(_, checked)| checked.verdict)
+            })
+        };
+        let wave = |a_was: plan::Checked, k_was: plan::Checked| vec![(k.clone(), k_was), (a.clone(), a_was)];
+        let cases = [
+            (
+                "обрезан трижды, контрольный прошёл",
+                vec![wave(frozen, ok), wave(frozen, ok)],
+                Some(Some(Verdict::Frozen)),
+            ),
+            (
+                "последняя прошла",
+                vec![wave(frozen, ok), wave(ok, ok)],
+                Some(Some(Verdict::Ok)),
+            ),
+            ("прошёл во втором", vec![wave(ok, ok)], Some(Some(Verdict::Ok))),
+            (
+                "последняя без итога",
+                vec![wave(frozen, ok), wave(silent, ok)],
+                Some(None),
+            ),
+            (
+                "контрольный не прошёл во втором",
+                vec![wave(frozen, silent)],
+                Some(None),
+            ),
+            (
+                "контрольный обрезан в третьем",
+                vec![wave(frozen, ok), wave(frozen, frozen)],
+                Some(None),
+            ),
+            ("ядро замолчало", vec![wave(frozen, ok)], None),
+        ];
+        for (name, answers, expected) in cases {
+            assert_eq!(
+                verdict_of(repeated_on(std::slice::from_ref(&a), &k, answers)),
+                expected,
+                "{name}"
+            );
+        }
+    }
+
+    /// Обрезанные в первой проверке — через `confirmed` на заготовленных повторах.
+    fn confirmed_on(
+        outcomes: Checks,
+        nodes: &[NodeRef],
+        network: &store::Network,
+        answers: Vec<Checks>,
+    ) -> (Option<Vec<Option<plan::Verdict>>>, Vec<NodeRef>) {
+        let mut answers = answers.into_iter();
+        let mut checked_nodes = Vec::new();
+        let settled = futures::executor::block_on(super::confirmed(
+            outcomes,
+            nodes,
+            network,
+            &mut checked_nodes,
+            "test",
+            |_batch| {
+                let answer = answers.next();
+                async move { answer }
             },
-        )];
-        assert_eq!(control_node(&nodes, &network, &passed), None);
+        ));
+        let verdicts = settled.map(|settled| settled.iter().map(|(_, checked)| checked.verdict).collect());
+        (verdicts, checked_nodes)
+    }
 
-        let checked_too = [(node("new", "f0"), silent), (node("fresh", "f2"), silent)];
-        assert_eq!(control_node(&nodes, &network, &checked_too), Some(node("old", "f1")));
+    #[test]
+    fn three_cuts_with_a_control_mark_the_node_and_one_cut_without_a_control_marks_nothing() {
+        use super::plan::{Node, Verdict};
+        let frozen = result(Some(Verdict::Frozen));
+        let ok = result(Some(Verdict::Ok));
+        let (a, b, k) = (node("a", "f1"), node("b", "f2"), node("k", "f9"));
+        let nodes = [a.clone(), b.clone(), k.clone()];
+        let first = vec![(a.clone(), frozen), (b.clone(), frozen)];
+
+        // Сравнить не с чем — ни значка, ни повторов.
+        let (verdicts, checked) = confirmed_on(first.clone(), &nodes[..2], &store::Network::default(), Vec::new());
+        assert_eq!(verdicts, Some(vec![None, None]));
+        assert!(checked.is_empty());
+
+        // Контрольный — рабочий здесь по прошлой проверке: a обрезан трижды, b прошёл.
+        let mut network = store::Network::default();
+        network.nodes.insert(
+            "f9".into(),
+            Node {
+                verdict: Some(Verdict::Ok),
+                at: 100,
+                tried: 100,
+                ..Node::default()
+            },
+        );
+        let answers = vec![
+            vec![(k.clone(), ok), (a.clone(), frozen), (b, ok)],
+            vec![(k.clone(), ok), (a, frozen)],
+        ];
+        let (verdicts, checked) = confirmed_on(first, &nodes, &network, answers);
+        assert_eq!(verdicts, Some(vec![Some(Verdict::Frozen), Some(Verdict::Ok)]));
+        assert_eq!(
+            checked,
+            vec![k],
+            "контрольный сверяется в конце захода вместе с проверенными"
+        );
+    }
+
+    #[test]
+    fn a_check_without_a_result_is_written_as_an_attempt_only() {
+        use super::plan::{Node, Verdict};
+        const NOW: i64 = 1_800_000_000;
+        let mut network = store::Network::default();
+        let old = Node {
+            verdict: Some(Verdict::Frozen),
+            at: NOW - plan::RECHECK_AFTER,
+            tried: NOW - plan::RECHECK_AFTER,
+            ..Node::default()
+        };
+        network.nodes.insert("f1".into(), old);
+        let outcomes = [
+            (node("a", "f1"), result(None)),
+            (node("b", "f2"), result(Some(Verdict::Ok))),
+        ];
+        recorded(&mut network, &outcomes, NOW, false);
+        let a = network.nodes.get("f1").cloned().unwrap_or_default();
+        assert_eq!(
+            (a.verdict, a.at, a.tried),
+            (Some(Verdict::Frozen), NOW - plan::RECHECK_AFTER, NOW)
+        );
+        assert!(!plan::is_due(Some(&a), NOW));
+        assert!(plan::is_due(Some(&a), NOW + plan::RETRY_AFTER));
+        assert_eq!(network.nodes.get("f2").and_then(|node| node.verdict), Some(Verdict::Ok));
     }
 
     #[test]
@@ -998,36 +1234,6 @@ mod tests {
         assert!(!core_settled(&groups, Some(&empty)));
         assert!(!core_settled(&groups, None));
         assert!(core_settled(&groups, Some(&filled)));
-    }
-
-    #[test]
-    fn a_quiet_pause_holds_its_nodes_and_lets_new_ones_through() {
-        const AT: i64 = 1_800_000_000;
-        let key = "test-subscription/test-network".to_owned();
-        let network = store::Network::default();
-        let held = [node("a", "f1"), node("b", "f2")];
-        remember_quiet(key.clone(), &held, false, AT);
-
-        let (due, hushed) = due_now(&key, &held, &network, AT + 60);
-        assert!(due.is_empty() && hushed);
-
-        let grown = [node("a", "f1"), node("c", "f3")];
-        let (due, hushed) = due_now(&key, &grown, &network, AT + 60);
-        assert_eq!(due, vec![node("c", "f3")]);
-        assert!(!hushed);
-
-        let (due, hushed) = due_now(&key, &held, &network, AT + plan::RETRY_AFTER);
-        assert_eq!(due.len(), 2);
-        assert!(!hushed);
-
-        // У каждого узла своя пауза: узел, проверенный позже, держится дольше.
-        remember_quiet(key.clone(), &[node("c", "f3")], false, AT + 600);
-        let (due, _) = due_now(&key, &grown, &network, AT + plan::RETRY_AFTER);
-        assert_eq!(due, vec![node("a", "f1")]);
-
-        remember_quiet(key.clone(), &held, true, AT + 120);
-        let (due, _) = due_now(&key, &held, &network, AT + 180);
-        assert_eq!(due.len(), 2);
     }
 
     #[test]
@@ -1140,7 +1346,6 @@ mod tests {
         };
         network.nodes.insert("f1".into(), verdict(plan::Verdict::Frozen));
         network.nodes.insert("f2".into(), verdict(plan::Verdict::Ok));
-        network.nodes.insert("f3".into(), verdict(plan::Verdict::Dead));
         let nodes = vec![
             node("a", "f1"),
             node("a2", "f1"),
@@ -1149,13 +1354,10 @@ mod tests {
             node("d", "f4"),
         ];
         let marks = marks_of(&nodes, &network);
-        let expected: BTreeMap<std::string::String, &'static str> = [
-            ("a".to_owned(), "frozen"),
-            ("a2".to_owned(), "frozen"),
-            ("c".to_owned(), "dead"),
-        ]
-        .into_iter()
-        .collect();
+        let expected: BTreeMap<std::string::String, &'static str> =
+            [("a".to_owned(), "frozen"), ("a2".to_owned(), "frozen")]
+                .into_iter()
+                .collect();
         assert_eq!(marks, expected);
     }
 }
