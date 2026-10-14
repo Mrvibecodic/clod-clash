@@ -195,6 +195,7 @@ export const translationKeys = [
   'profiles.page.feedback.notifications.fallbackUsed',
   'profiles.page.feedback.notifications.editorBrokenYaml',
   'profiles.page.feedback.notifications.proxyLinksSkipped',
+  'profiles.page.feedback.notifications.justUpdated',
   'profiles.page.feedback.notices.forceRefreshCompleted',
   'profiles.page.feedback.notices.emergencyRefreshFailed',
   'profiles.page.title',

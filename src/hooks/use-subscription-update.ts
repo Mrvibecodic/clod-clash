@@ -13,7 +13,8 @@ import {
 /** Обновление подписки руками — не чаще, панель дёргать незачем. */
 const REFRESH_COOLDOWN_MS = 30_000
 
-/** Подписки на паузе после ручного обновления — одна пауза на всё окно. */
+/** Подписки на паузе после ручного обновления — одна пауза на всё окно и на
+ * все кнопки: Главная, «Подписки», их меню и «Обновить все». */
 const paused = new Map<string, ReturnType<typeof setTimeout>>()
 const pauseListeners = new Set<() => void>()
 
@@ -28,7 +29,8 @@ const subscribeToPause = (listener: () => void) => {
   }
 }
 
-const pause = (uid: string) => {
+/** Пауза после удачного ручного обновления подписки. */
+export const pauseSubscription = (uid: string) => {
   clearTimeout(paused.get(uid))
   paused.set(
     uid,
@@ -54,6 +56,11 @@ const syncWithBackend = async () => {
   const snapshot = await getUpdatingProfiles().catch(() => null)
   if (snapshot) applySnapshot(snapshot)
 }
+
+export const isSubscriptionPaused = (uid: string) => paused.has(uid)
+
+export const useSubscriptionPaused = (uid?: string) =>
+  useSyncExternalStore(subscribeToPause, () => !!uid && paused.has(uid))
 
 /** Свой вызов обновления: подписка занята, пока он не вернулся. */
 export const beginOwnUpdate = updates.beginOwn
@@ -91,17 +98,14 @@ export const useSubscriptionUpdateEvents = () => {
 export const useSubscriptionUpdate = (uid?: string) => {
   const { mutateProfiles } = useProfiles()
   const updating = useSubscriptionUpdating(uid)
-  const isPaused = useSyncExternalStore(
-    subscribeToPause,
-    () => !!uid && paused.has(uid),
-  )
+  const isPaused = useSubscriptionPaused(uid)
 
   const refresh = useCallback(async () => {
     if (!uid || updates.isUpdating(uid) || paused.has(uid)) return
     updates.beginOwn(uid)
     try {
       await updateProfile(uid)
-      pause(uid)
+      pauseSubscription(uid)
       await mutateProfiles()
       showNotice.success('home.components.subscription.updated')
     } catch (error) {

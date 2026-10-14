@@ -43,7 +43,9 @@ import { useProfiles } from '@/hooks/use-profiles'
 import {
   beginOwnUpdate,
   endOwnUpdate,
+  isSubscriptionPaused,
   isSubscriptionUpdating,
+  pauseSubscription,
 } from '@/hooks/use-subscription-update'
 import {
   createProfileFromFile,
@@ -429,6 +431,7 @@ const ProfilePage = () => {
       const updateOne = async (uid: string) => {
         try {
           await updateProfile(uid)
+          pauseSubscription(uid)
           throttleMutate()
         } catch (err: any) {
           console.error(`Не удалось обновить подписку ${uid}:`, err)
@@ -471,7 +474,19 @@ const ProfilePage = () => {
     const items = profileItems.filter((e) => e.type === 'remote')
     const target = items
       .map((item) => item.uid)
-      .filter((uid) => !isSubscriptionUpdating(uid))
+      // Только что обновлённые руками — на паузе, как и их кнопки
+      .filter(
+        (uid) => !isSubscriptionUpdating(uid) && !isSubscriptionPaused(uid),
+      )
+
+    // Обновлять нечего только из-за паузы — сказать, а не молчать
+    if (
+      target.length === 0 &&
+      items.some((item) => isSubscriptionPaused(item.uid))
+    ) {
+      showNotice.info('profiles.page.feedback.notifications.justUpdated')
+      return
+    }
 
     // Очередь занята сразу: подписка ждёт своей очереди — её кнопка неактивна.
     for (const uid of target) beginOwnUpdate(uid)

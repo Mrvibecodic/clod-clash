@@ -50,6 +50,10 @@ import { openProviderLink } from '@/hooks/use-provider-links'
 import {
   beginOwnUpdate,
   endOwnUpdate,
+  isSubscriptionPaused,
+  isSubscriptionUpdating,
+  pauseSubscription,
+  useSubscriptionPaused,
   useSubscriptionUpdating,
 } from '@/hooks/use-subscription-update'
 import { useVisibility } from '@/hooks/use-visibility'
@@ -295,6 +299,8 @@ const ProfileItemBase = (props: ProfileItemProps) => {
         : undefined
 
   const loading = useSubscriptionUpdating(itemData.uid)
+  // Пауза после ручного обновления — та же, что у кнопок Главной
+  const paused = useSubscriptionPaused(itemData.uid)
   const missed = missedUpdates(itemData)
   const fetchedAgo = updated > 0 ? dayjs(updated * 1000).fromNow() : ''
 
@@ -421,6 +427,12 @@ const ProfileItemBase = (props: ProfileItemProps) => {
 
   const onUpdate = useLockFn(async (type: 0 | 1 | 2): Promise<void> => {
     setAnchorEl(null)
+    if (
+      isSubscriptionUpdating(itemData.uid) ||
+      isSubscriptionPaused(itemData.uid)
+    ) {
+      return
+    }
     beginOwnUpdate(itemData.uid)
 
     const option: Partial<IProfileOption> = {}
@@ -440,6 +452,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
     try {
       const payload = Object.keys(option).length > 0 ? option : undefined
       await updateProfile(itemData.uid, payload)
+      pauseSubscription(itemData.uid)
 
       void mutateProfiles()
     } catch (error) {
@@ -498,12 +511,12 @@ const ProfileItemBase = (props: ProfileItemProps) => {
         {
           label: menuLabels.update,
           handler: () => onUpdate(0),
-          disabled: false,
+          disabled: loading || paused,
         },
         {
           label: menuLabels.updateViaProxy,
           handler: () => onUpdate(2),
-          disabled: false,
+          disabled: loading || paused,
         },
       ]
     : [selectItem]
@@ -741,10 +754,10 @@ const ProfileItemBase = (props: ProfileItemProps) => {
               }}
               size="small"
               color="inherit"
-              disabled={loading}
+              disabled={loading || paused}
               onClick={(e) => {
                 e.stopPropagation()
-                if (activating || loading) {
+                if (activating || loading || paused) {
                   return
                 }
                 onUpdate(1)
@@ -977,11 +990,11 @@ const ProfileItemBase = (props: ProfileItemProps) => {
                 size="small"
                 variant="contained"
                 color="warning"
-                disabled={loading}
+                disabled={loading || paused}
                 sx={{ flexShrink: 0 }}
                 onClick={(e) => {
                   e.stopPropagation()
-                  if (activating || loading) return
+                  if (activating || loading || paused) return
                   onUpdate(1)
                 }}
               >

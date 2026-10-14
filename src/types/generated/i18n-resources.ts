@@ -499,6 +499,7 @@ export interface TranslationResources {
             batchDeleted: string
             editorBrokenYaml: string
             fallbackUsed: string
+            justUpdated: string
             profileSwitched: string
             proxyLinksSkipped: string
             switchBusy: string

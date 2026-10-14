@@ -30,6 +30,41 @@ describe('кнопки «Обновить подписку»', () => {
     }
   })
 
+  it('пауза после обновления — та же на экране «Подписки», в меню и в «Обновить все»', () => {
+    const card = source('../components/profile/profile-item.tsx')
+    assert.match(card, /useSubscriptionPaused\(itemData\.uid\)/)
+    assert.equal(card.match(/disabled=\{loading \|\| paused\}/g)?.length, 2)
+    assert.equal(card.match(/disabled: loading \|\| paused,/g)?.length, 2)
+    assert.match(
+      card,
+      /isSubscriptionUpdating\(itemData\.uid\) \|\|\s+isSubscriptionPaused\(itemData\.uid\)\s+\) \{\s+return\s+\}\s+beginOwnUpdate/,
+    )
+    assert.match(
+      card,
+      /await updateProfile\(itemData\.uid, payload\)\s+pauseSubscription\(itemData\.uid\)/,
+    )
+
+    const page = source('../pages/profiles.tsx')
+    assert.match(page, /await updateProfile\(uid\)\s+pauseSubscription\(uid\)/)
+    assert.match(
+      page,
+      /!isSubscriptionUpdating\(uid\) && !isSubscriptionPaused\(uid\)/,
+    )
+
+    assert.match(
+      page,
+      /showNotice\.info\('profiles\.page\.feedback\.notifications\.justUpdated'\)/,
+    )
+
+    const hook = source('./use-subscription-update.ts')
+    assert.match(hook, /await updateProfile\(uid\)\s+pauseSubscription\(uid\)/)
+
+    // Пауза — только после удачи: неудача её не ставит, повтор (и через прокси) доступен
+    for (const text of [card, page, hook]) {
+      assert.equal(text.match(/pauseSubscription\(/g)?.length, 1)
+    }
+  })
+
   it('экран «Подписки» занят по тому же состоянию, своё — только на время вызова', () => {
     const card = source('../components/profile/profile-item.tsx')
     assert.match(card, /useSubscriptionUpdating\(itemData\.uid\)/)
