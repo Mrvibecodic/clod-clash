@@ -872,6 +872,11 @@ Section Install
     WriteRegStr SHCTX "Software\Classes\\{{protocol}}\shell\open\command" "" "$\"$INSTDIR\${MAINBINARYNAME}.exe$\" $\"%1$\""
   {{/each}}
 
+  ReadRegStr $R7 SHCTX "Software\Classes\clash-verge\shell\open\command" ""
+  ${If} $R7 == "$\"$INSTDIR\${MAINBINARYNAME}.exe$\" $\"%1$\""
+    DeleteRegKey SHCTX "Software\Classes\clash-verge"
+  ${EndIf}
+
   WriteUninstaller "$INSTDIR\uninstall.exe"
 
   WriteRegStr SHCTX "${MANUPRODUCTKEY}" "" $INSTDIR

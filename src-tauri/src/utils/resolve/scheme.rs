@@ -43,7 +43,7 @@ pub(super) async fn resolve_scheme(param: &str) -> Result<()> {
 }
 
 fn extract_subscription_info(link_parsed: &Url) -> Option<(std::string::String, Option<String>)> {
-    if !matches!(link_parsed.scheme(), "clash" | "clash-verge" | "clodclash") {
+    if !matches!(link_parsed.scheme(), "clash" | "clodclash") {
         return None;
     }
 
@@ -210,5 +210,6 @@ mod tests {
     #[test]
     fn only_our_own_and_upstream_link_schemes_are_answered() {
         assert!(subscription_url("https://panel.example/?url=https://panel.example/sub").is_none());
+        assert!(subscription_url("clash-verge://install-config?url=https://panel.example/sub").is_none());
     }
 }

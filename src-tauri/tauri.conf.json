@@ -42,7 +42,7 @@
     },
     "deep-link": {
       "desktop": {
-        "schemes": ["clash", "clash-verge", "clodclash"]
+        "schemes": ["clash", "clodclash"]
       }
     }
   },

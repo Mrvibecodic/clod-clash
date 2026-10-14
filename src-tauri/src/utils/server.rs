@@ -100,7 +100,7 @@ enum Handover {
 /// окна. На macOS ссылки приходят событием системы, а не аргументом, поэтому
 /// там вторая копия всегда просит показать окно.
 fn is_scheme_link(arg: &str) -> bool {
-    arg.starts_with("clash:") || arg.starts_with("clash-verge:") || arg.starts_with("clodclash:")
+    arg.starts_with("clash:") || arg.starts_with("clodclash:")
 }
 
 /// Каждая ссылка кладётся своим файлом: две подряд не затирают друг друга, а
@@ -349,10 +349,16 @@ mod tests {
     #[test]
     fn only_our_schemes_are_links() {
         use super::is_scheme_link;
-        for link in ["clodclash://install-config?url=x", "clash://a", "clash-verge://a"] {
+        for link in ["clodclash://install-config?url=x", "clash://a"] {
             assert!(is_scheme_link(link), "{link}");
         }
-        for other in ["--some-flag", "C:\\profile.yaml", "https://example.com", ""] {
+        for other in [
+            "--some-flag",
+            "C:\\profile.yaml",
+            "https://example.com",
+            "clash-verge://a",
+            "",
+        ] {
             assert!(!is_scheme_link(other), "{other}");
         }
     }
