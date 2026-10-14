@@ -1,8 +1,8 @@
 //! clod:report — отчёт прослойке о качестве узлов.
 //!
-//! Копится только у текущей подписки с защищённым каналом, пока прослойка
-//! принимает отчёты: о приёме она говорит меткой в ответе подписки по каналу
-//! ([`PrfItem::report`]); сказала «нет» — накопленное стирается. Сборщик берёт то,
+//! Копится только у текущей подписки с защищённым каналом и только когда
+//! прослойка подтвердила приём меткой в ответе подписки по каналу
+//! ([`PrfItem::report`]); метки в ответе нет — накопленное стирается. Сборщик берёт то,
 //! что ядро уже намерило (история задержек узлов из `/proxies`, байты
 //! соединений по узлам из `/connections`), и раскладывает по сети, часу и
 //! внешнему адресу клиента. Своих проб нет. Проверка 16–20 приносит свои итоги
@@ -34,7 +34,8 @@
 //! ляжет: перед отправкой сборщик дочитывает окно, и граница — час прочитанного.
 //! Велик (413) — окно тут же уполовинивается; час, который не влез и один,
 //! отбрасывается.
-//! Принят (204) — отправленное удаляется, остальное ждёт следующего раза. Приём выключен в прослойке (403), рано (429)
+//! Принят (204) или отклонён (400: то же окно отклонили бы снова) — отправленное
+//! удаляется, остальное ждёт следующего раза. Приём выключен в прослойке (403), рано (429)
 //! или прослойка старая и ответила подпиской — накопленное остаётся, следующая
 //! попытка через 6 часов. Каналом не ответил никто — попытка при следующей
 //! отправке.
@@ -45,7 +46,7 @@ mod store;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::io::Write as _;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 use std::time::Duration;
 
 use clash_verge_logging::{Type, logging};
@@ -117,6 +118,8 @@ static CACHE: tokio::sync::Mutex<Option<Cached>> = tokio::sync::Mutex::const_new
 static COLLECT: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 /// Сколько раз сторож среды видел смену сети или пробуждение.
 static CHANGES: AtomicU64 = AtomicU64::new(0);
+/// Когда (мс) ядро приняло другую подписку; 0 — за этот запуск не принимало.
+static SWITCHED_AT: AtomicI64 = AtomicI64::new(0);
 /// Отправки (после обновления и между обновлениями) идут по одной.
 static SENDING: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 /// Подписка → когда (с) снова пробовать отправить между обновлениями, см. [`send_between`].
@@ -157,6 +160,9 @@ struct Runtime {
     seen: HashMap<String, (u64, u64)>,
     /// Когда в последний раз читались соединения (мс); 0 — ещё не читались.
     read_at: i64,
+    /// Соединения, открытые раньше (мс), — прежней подписки: ядро их при смене
+    /// не закрывает. 0 — подписка за этот запуск не менялась, считаются все.
+    since: i64,
     /// Накопленный с прошлого сброса трафик по узлам.
     traffic: Traffic,
     spot: Option<Spot>,
@@ -264,12 +270,12 @@ async fn forget_store() {
 }
 
 /// Копится ли отчёт по подписке: удалённая, с защищённым каналом — только им
-/// отчёт и может уйти — и прослойка не сказала, что отчёты не принимает. Метки
-/// не было (прослойка старее или подписка обновлялась до неё) — копится.
+/// отчёт и может уйти — и прослойка сказала, что отчёты принимает. Метки не
+/// было (прослойка старее или подписка обновлялась до неё) — не копится.
 fn is_collected(item: &PrfItem) -> bool {
     item.itype.as_deref() == Some("remote")
         && item.option.as_ref().is_some_and(|o| o.secure == Some(true))
-        && item.report != Some(false)
+        && item.report == Some(true)
 }
 
 /// Текущая подписка, если по ней копится отчёт.
@@ -404,6 +410,9 @@ pub(crate) fn count_traffic(response: Option<&tauri_plugin_mihomo::models::Conne
             let Some(node) = connection.chains.first() else {
                 continue;
             };
+            if opened_before(&connection.start, runtime.since) {
+                continue;
+            }
             let (up_was, down_was) = runtime.seen.get(&connection.id).copied().unwrap_or_default();
             let up = connection.upload.saturating_sub(up_was);
             let down = connection.download.saturating_sub(down_was);
@@ -419,6 +428,17 @@ pub(crate) fn count_traffic(response: Option<&tauri_plugin_mihomo::models::Conne
         }
         runtime.seen = alive;
     });
+}
+
+/// Ядро приняло другую подписку: её соединения считаются с этого момента, а
+/// не с первого чтения сборщика — открытые до него иначе не считались бы вовсе.
+pub(crate) fn subscription_changed() {
+    SWITCHED_AT.store(now_millis(), Ordering::Release);
+}
+
+/// Соединение открыто раньше `since` (мс). Время не разобралось — считать.
+fn opened_before(start: &str, since: i64) -> bool {
+    chrono::DateTime::parse_from_rfc3339(start).is_ok_and(|start| start.timestamp_millis() < since)
 }
 
 /// Что прочитано за окно: замеры задержки и накопленный трафик.
@@ -519,6 +539,7 @@ fn start_over_for(uid: &str) {
             *runtime = Runtime {
                 uid: Some(uid.to_owned()),
                 pings_until: now_millis(),
+                since: SWITCHED_AT.load(Ordering::Acquire),
                 ..Runtime::default()
             };
         }
@@ -547,7 +568,10 @@ async fn collect() -> IpWork {
     let now = now_millis();
     // Часы ушли назад: окно — от нынешнего момента, иначе замеров не было бы,
     // пока часы не догонят прежнее.
-    with_runtime(|runtime| runtime.pings_until = runtime.pings_until.min(now));
+    with_runtime(|runtime| {
+        runtime.pings_until = runtime.pings_until.min(now);
+        runtime.since = runtime.since.min(now);
+    });
     let Some(window) = read_window(&uid, now - LAG).await else {
         return IpWork::None;
     };
@@ -721,6 +745,17 @@ pub(crate) async fn note_freeze(uid: &str, net: &str, kind: &'static str, verdic
         }
     };
 
+    // Под замком сборщика и с повторной сверкой: пока узнавали адрес, сбор по
+    // подписке могли выключить и стереть накопленное.
+    let _collect = COLLECT.lock().await;
+    let still = Config::profiles()
+        .await
+        .latest_arc()
+        .get_item(uid)
+        .is_ok_and(is_collected);
+    if !still {
+        return;
+    }
     with_store(uid, help::now_secs(), true, |saved| {
         let now = help::now_secs();
         for (info, verdict, status) in known {
@@ -844,8 +879,10 @@ pub(crate) async fn after_update(uid: String, scheduled: bool) {
     }
 }
 
-/// Накопленное подписки — вон из памяти и с диска.
+/// Накопленное подписки — вон из памяти и с диска. Под замком сборщика: чтение,
+/// начатое до этого, иначе положило бы замеры в уже стёртый файл.
 async fn forget(uid: &str) {
+    let _collect = COLLECT.lock().await;
     let mut guard = CACHE.lock().await;
     if guard.as_ref().is_some_and(|entry| entry.uid == uid) {
         *guard = None;
@@ -1001,8 +1038,7 @@ async fn send(uid: &str) -> i64 {
 
         with_store(uid, now, true, |saved| {
             saved.last_try = now;
-            // Час, который не влез и один, не уйдёт никогда — он отбрасывается.
-            if status == 204 || status == 413 {
+            if drops_sent(status) {
                 saved.drop_sent(now, packed.until);
             }
             ((), true)
@@ -1010,6 +1046,7 @@ async fn send(uid: &str) -> i64 {
         .await;
         let outcome = match status {
             204 => "accepted",
+            400 => "rejected by the middleware, dropped",
             403 => "the middleware does not take reports",
             413 => "too big for the middleware even alone, dropped",
             429 => "too early for the middleware",
@@ -1025,6 +1062,13 @@ async fn send(uid: &str) -> i64 {
             return now + SEND_EVERY;
         }
     }
+}
+
+/// Отправленное больше не нужно: принято (204), отклонено (400) — повтор того
+/// же окна отклонили бы снова и держали за ним новые часы — или час не влез и
+/// один (413).
+const fn drops_sent(status: u16) -> bool {
+    matches!(status, 204 | 400 | 413)
 }
 
 /// Рано ли отправлять: меньше 6 часов с прошлого ответа прослойки — тогда
@@ -1384,8 +1428,8 @@ mod tests {
             ..subscription(true, Some(12 * 60), None)
         };
         assert!(!sends_between(&failed));
-        // Прослойка сказала, что отчёты не принимает, — отчёт не копится и не
-        // уходит; метки не было — копится.
+        // Прослойка сказала, что отчёты не принимает, или метки не было —
+        // отчёт не копится и не уходит.
         let refused = PrfItem {
             report: Some(false),
             ..subscription(true, Some(12 * 60), None)
@@ -1395,7 +1439,33 @@ mod tests {
             report: None,
             ..subscription(true, Some(12 * 60), None)
         };
-        assert!(sends_between(&unknown));
+        assert!(!sends_between(&unknown));
+    }
+
+    #[test]
+    fn connections_opened_before_the_subscription_changed_are_not_counted() {
+        let since = ms("2026-01-01T10:00:00Z");
+        assert!(super::opened_before("2026-01-01T09:59:59.5+00:00", since));
+        assert!(super::opened_before("2026-01-01T12:59:59+03:00", since));
+        assert!(!super::opened_before("2026-01-01T10:00:00Z", since));
+        assert!(
+            !super::opened_before("", since),
+            "время не разобралось — соединение в счёт"
+        );
+        assert!(
+            !super::opened_before("2026-01-01T09:00:00Z", 0),
+            "сбор без смены подписки берёт всё"
+        );
+    }
+
+    #[test]
+    fn a_rejected_window_is_dropped_and_only_silence_and_refusals_keep_it() {
+        for status in [204, 400, 413] {
+            assert!(super::drops_sent(status), "{status}");
+        }
+        for status in [200, 403, 404, 429, 500, 502] {
+            assert!(!super::drops_sent(status), "{status}");
+        }
     }
 
     #[test]

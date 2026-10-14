@@ -439,6 +439,7 @@ impl CoreManager {
         forget_the_not_applied_mark(profile_uid.as_ref()).await;
         if subscription_changed {
             crate::module::freeze_check::subscription_changed();
+            crate::module::client_report::subscription_changed();
         } else if nodes_may_change {
             crate::module::freeze_check::nodes_changed();
         }

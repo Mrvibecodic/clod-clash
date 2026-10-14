@@ -16,6 +16,9 @@ pub(super) const HOUR: i64 = 60 * 60;
 /// 200 и 400 — те же границы, что у цвета пинга в клиенте.
 const BUCKET_EDGES: [u64; 5] = [100, 200, 400, 800, 1500];
 pub(super) const BUCKETS: usize = BUCKET_EDGES.len() + 1;
+/// Версия файла. Прежние копили и без согласия провайдера и с итогами 16–20 по
+/// прежним правилам — такой файл при чтении выбрасывается.
+const VERSION: u32 = 2;
 
 /// Узел, как его узнаёт прослойка: тип, адрес и порт из файла подписки и чем
 /// он отличается от соседей на том же адресе и порту.
@@ -143,8 +146,11 @@ pub(super) struct Network {
     pub hours: Vec<Hour>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(super) struct Store {
+    /// Версия файла; в прежних её не было.
+    #[serde(default)]
+    pub version: u32,
     /// Когда прослойка в последний раз ответила на отчёт каналом (любым кодом).
     #[serde(default)]
     pub last_try: i64,
@@ -177,6 +183,17 @@ pub(super) fn bucket_of(delay_ms: u64) -> usize {
         .iter()
         .position(|edge| delay_ms < *edge)
         .unwrap_or(BUCKET_EDGES.len())
+}
+
+impl Default for Store {
+    fn default() -> Self {
+        Self {
+            version: VERSION,
+            last_try: 0,
+            nodes: BTreeMap::new(),
+            networks: BTreeMap::new(),
+        }
+    }
 }
 
 impl Store {
@@ -336,7 +353,21 @@ pub(super) async fn load(uid: &str) -> Store {
     let Ok(path) = file_path(uid) else {
         return Store::default();
     };
-    help::load_json_or_default(&path, "[Report] the saved measurements").await
+    let saved: Store = help::load_json_or_default(&path, "[Report] the saved measurements").await;
+    // Файл прежней версии — с диска сразу, а не при первой записи: до неё его
+    // видели бы отправки между обновлениями.
+    if saved.version < VERSION && path.is_file() {
+        let _ = tokio::fs::remove_file(&path).await;
+    }
+    current(saved)
+}
+
+/// Накопленное прежней версии не в счёт.
+fn current(saved: Store) -> Store {
+    if saved.version < VERSION {
+        return Store::default();
+    }
+    saved
 }
 
 pub(super) async fn save(uid: &str, store: &Store) -> Result<()> {
@@ -353,7 +384,25 @@ pub(super) async fn remove(uid: &str) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{HOUR, KEEP, NodeInfo, Place, Store, Use, bucket_of, hour_of, node_key};
+    use super::{HOUR, KEEP, NodeInfo, Place, Store, Use, VERSION, bucket_of, current, hour_of, node_key};
+
+    #[test]
+    fn measurements_of_the_previous_version_are_dropped_once() {
+        let old: Store = serde_json::from_str(
+            r#"{"last_try":5,"nodes":{"k":{"name":"A","type":"vless","server":"a.example.com","port":443}},"networks":{}}"#,
+        )
+        .unwrap_or_default();
+        assert_eq!(old.version, 0);
+        assert_eq!(current(old), Store::default());
+        let fresh = Store {
+            last_try: 5,
+            ..Store::default()
+        };
+        assert_eq!(fresh.version, VERSION);
+        let text = serde_json::to_string(&fresh).unwrap_or_default();
+        let again: Store = serde_json::from_str(&text).unwrap_or_default();
+        assert_eq!(current(again), fresh, "файл этой версии читается как есть");
+    }
 
     const fn used(up: u64, down: u64, sec: u64) -> Use {
         Use { up, down, sec }
