@@ -64,7 +64,7 @@ Our own headers. The "Platforms" column shows which Clod Clash clients support t
 | `clod-ping` | `A/B` in ms, e.g. `150/300` | ping colour bounds | PC and Android |
 | `clod-disable-ping` | `true` only | a tick or a cross instead of milliseconds | PC and Android |
 | `clod-show-0hosts` | `true` or `false` | show the panel's placeholder nodes as they are | PC and Android |
-| `clod-16-20-check` | `true` only | the 16–20 check: whether traffic through a server is cut off on the user's network; "cut off" and "not responding" marks | PC and Android |
+| `clod-16-20-check` | `true` only | the 16–20 check: whether a download through a server is cut off on the user's network; the snowflake mark | PC and Android |
 | `clod-new-sub` | a bare domain, e.g. `sub2.example.com` | spare subscription address: the same address on this domain over `https`, used when the main one does not answer | PC and Android |
 | `clod-move-sub` | only `true` | together with `clod-new-sub`: move the subscription to the spare address for good | PC and Android |
 | `clod-connect-mode` | `tun`, `proxy` or `both` | what the connect button turns on | PC only |
@@ -144,14 +144,18 @@ depend on this header.
 ### The 16–20 check: `clod-16-20-check`
 
 With `true` the client checks every server of the subscription on the user's network itself: it
-downloads 64 KB through the server and sees whether all of it arrives, whether it stops after the
-first kilobytes ("cut off") or nothing gets through ("not responding"). The outcome is a mark next
-to the ping with a hint advising to contact support (the button is there when `support-url` was
-sent). The client does nothing to the servers: ping and selection stay as they were. New servers
-and servers whose connection data changed are checked; "working" and "cut off" are rechecked every
-3 days, "not responding" after 6 hours on the same network. Results are kept per subscription and
-per network. Without the header (or with any value other than `true`) there are no checks and no
-marks.
+downloads 64 KB through the server and looks at one thing only — whether all of it arrives or the
+download stops after the first kilobytes. A server where it stopped is checked twice more a few
+seconds later, together with a server that works on this network. The snowflake mark next to the
+ping is set only when all three checks were cut while the working server passed; if the last check
+passed, the server counts as working. With nothing to compare against, or if the working server
+failed too, no mark is set: that is more likely a bad network. Clicking the mark opens an
+explanation: check the connection yourself and tell support (the button is there when
+`support-url` was sent). The client does nothing to the servers: ping and selection stay as they
+were. New servers and servers whose connection data changed are checked; results are rechecked
+every 3 days, and a check that gave no result is retried after 6 hours on the same network. Results are kept
+per subscription and per network. Without the header (or with any value other than `true`) there
+are no checks and no marks.
 
 ### Connection method: `clod-connect-mode` (PC only)
 
@@ -174,7 +178,7 @@ choice always wins. Synonyms: `pxa-simple-mode` (Prizrak-Box), `flclashx-newboar
 `true` hides the protocol, transport and security badges of the servers in the window — e.g.
 `VLESS`, `gRPC`, `Reality`, and with them `TFO`, `MPTCP`, `SMUX` — on the "Proxies" page, in the
 proxy chain and in the server list on the home screen. The server name, flag, ping, description,
-provider name and the "cut off" and "not responding" marks stay as they were. Groups in the list
+provider name and the snowflake mark stay as they were. Groups in the list
 keep their type (Selector, URLTest and so on) — it is not a protocol; the built-in DIRECT and
 REJECT lose their type badge, like servers. Useful
 when your server names already say everything needed, or when you would rather not show what

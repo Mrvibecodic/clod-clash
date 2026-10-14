@@ -129,7 +129,7 @@ go into `customResponseHeaders`. Each one applies only to its own subscription.
 | `clod-ping` | `A/B` in ms, e.g. `150/300` | ping colour bounds: green below `A`, yellow below `B`, red above. Without the header — `200/400` | PC and Android |
 | `clod-disable-ping` | `true` only | a tick or a cross instead of milliseconds | PC and Android |
 | `clod-show-0hosts` | `true` / `false` | show the panel's placeholder nodes as they are instead of the client's reason screen | PC and Android |
-| `clod-16-20-check` | `true` only | the 16–20 check: whether traffic through a server is cut off on the user's network; "cut off" and "not responding" marks | PC and Android |
+| `clod-16-20-check` | `true` only | the 16–20 check: whether a download through a server is cut off on the user's network; the snowflake mark | PC and Android |
 | `clod-new-sub` | a bare domain, e.g. `sub2.example.com` | spare subscription address: the same address on this domain over `https`, used when the main one does not answer | PC and Android |
 | `clod-move-sub` | only `true` | together with `clod-new-sub`: move the subscription to the spare address for good | PC and Android |
 | `clod-connect-mode` | `tun` / `proxy` / `both` | what the connect button turns on. Without the header — the system proxy | PC only |

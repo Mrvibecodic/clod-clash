@@ -57,9 +57,9 @@ described below covers the requests this app makes itself.
     The report carries a random per-install mark, the app version and the platform; like every
     secure-channel request, it also carries the device values described above, encrypted, while
     "Device identification" is on. The Wi-Fi name, location, visited sites and addresses,
-    process names and the list of programs are not included. The report is sent only if the provider has turned on receiving
-    reports; once the provider's server says in its encrypted answer to a subscription update
-    that it does not accept reports, the app stops collecting and deletes the collected
+    process names and the list of programs are not included. Measurements are collected only after the provider's server has
+    confirmed in its encrypted answer to a subscription update that it accepts reports; once an
+    answer comes without that confirmation, the app stops collecting and deletes the collected
     measurements. The app keeps unsent
     measurements for at most 7 days. Turning off the secure channel for a subscription stops its reports.
 *   **To Yandex, to learn the external IP address.** For the report above, the app asks
@@ -80,8 +80,9 @@ described below covers the requests this app makes itself.
 *   **The "16–20" check.** Only if your provider turns it on with the `clod-16-20-check`
     subscription header, the app downloads 64 KB from `speed.cloudflare.com` (operated by
     Cloudflare) through each server to find servers whose traffic is being cut — when the
-    network changes, when the subscription or its servers change, and at most once an hour. No
-    identifier or device headers are attached.
+    network changes, when the subscription or its servers change, and at most once an hour; a
+    server whose traffic was cut is checked twice more a few seconds later, together with a
+    server that works on this network. No identifier or device headers are attached.
 *   **DNS.** Name resolution goes wherever your configuration says; the app adds no resolvers
     of its own. In TUN mode it turns DNS on in fake-ip mode. On macOS, while TUN mode is on in
     fake-ip mode and "Override system DNS" is enabled, the app sets the system DNS server to
@@ -97,7 +98,7 @@ described below covers the requests this app makes itself.
     downloads the rule and proxy providers your configuration lists.
 *   **To your WebDAV server, if you set one up.** Backups go to the server you configured:
     subscription files and their addresses, the configuration, the settings (without the
-    device identifier and the WebDAV credentials) and the locally stored measurements.
+    device identifier and the WebDAV credentials) and the "16–20" check results.
 *   **To an external dashboard, if you open one.** The web dashboards in the settings open in
     your browser. For yacd the app puts the secret of the local core controller into the
     address, so that site receives it; metacubexd and zashboard keep it in the part of the
@@ -113,7 +114,8 @@ Nothing else is transmitted. The app has no server of its own.
 Subscriptions, profiles, configuration files, credentials contained in them, selected
 servers, settings, logs, unsent report measurements and "16–20" results are stored in the
 app's data folder (`io.clodclash.app` in the system's application data folder, or next to the
-program in portable mode). The app itself uploads them only to a WebDAV server you configured.
+program in portable mode). The app itself uploads them, except the report measurements, only to a
+WebDAV server you configured.
 Local automatic backups are off by default. Logs are written locally with subscription tokens,
 secrets and destination hosts masked. The support report is copied to the clipboard and the log
 export is saved where you choose, both with addresses and secrets masked; they leave the
