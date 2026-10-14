@@ -1,0 +1,6 @@
+{
+  "title": "Провайдеру",
+  "description": "Панель, заголовки, ядро",
+  "root": true,
+  "pages": ["index", "panel", "headers", "clod-headers", "core"]
+}

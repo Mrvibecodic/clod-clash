@@ -1,0 +1,19 @@
+{
+  "title": "For users",
+  "description": "Installation, subscription, setup",
+  "root": true,
+  "pages": [
+    "index",
+    "install",
+    "subscription",
+    "setup",
+    "connection",
+    "servers",
+    "home",
+    "settings",
+    "updates",
+    "errors",
+    "support",
+    "help"
+  ]
+}

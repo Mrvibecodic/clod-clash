@@ -1,0 +1,43 @@
+---
+title: "Subscription headers"
+description: "What the client sends to the panel and what it understands in the response"
+---
+
+The full reference with parsing rules, synonyms and examples is in the repository:
+**[docs/HEADERS.md](https://github.com/Mrvibecodic/clod-clash/blob/main/docs/HEADERS.md)**.
+The client's own headers with per-platform support are on the
+[clod-* headers](/en/docs/provider/clod-headers) page.
+
+## What the client sends
+
+| Header | Value |
+| --- | --- |
+| `User-Agent` | `ClodClash/<version>`, for example `ClodClash/0.1.11-alpha.3`; if the "User Agent" field is filled in the subscription properties, that value is sent instead, and the `^ClodClash` rule in the panel may not match such a request |
+| `Accept` | `*/*` |
+| `x-hwid` | the device identifier — as long as "Device identification" is on (on by default) |
+| `x-device-os`, `x-ver-os`, `x-device-model` | the system, its version and model — together with `x-hwid`; the computer name is not sent |
+
+Over the secure channel (the app tries it by itself when a subscription is added) these
+values are sent not as headers but inside the encrypted request to the middleware.
+
+## What it understands in the response
+
+| Header | What it does |
+| --- | --- |
+| `profile-title` | subscription name, updated with every response; the user's own name is shown first: "Yours (from the panel)" |
+| `content-disposition` | fallback name if there's no `profile-title` |
+| `subscription-userinfo` | traffic and expiry on the card |
+| `subscription-refill-date` | traffic top-up date |
+| `profile-update-interval` | auto-update interval in hours; applied with every update until the user sets their own. If it has never arrived and there's no user value, the subscription isn't updated on a schedule; a missing header keeps the last interval; to stop, send `0` |
+| `profile-logo` | provider logo (`https` only), stored locally |
+| `profile-web-page-url` | the "Subscription page" item in the subscription card menu |
+| `support-url` | the "Support" button (`https`, `tg:`, `mailto:`) |
+| `announce`, `announce-url` | a permanent announcement and its link |
+| `x-hwid-not-supported`, `x-hwid-max-devices-reached`, `x-hwid-limit` | device refusal: a window with the subscription name; the previous servers are removed |
+| `notify-expire-days`, `notify-traffic-percent` | thresholds for expiry and traffic reminders (`off` turns them off) |
+| `Date` | the expiry is calculated by the panel's clock; a wrong time on the computer doesn't shift it |
+| `clod-*` | the client's own headers — see [clod-* headers](/en/docs/provider/clod-headers) |
+
+Additional headers are set in the panel via `customResponseHeaders`.
+Values with non-ASCII text are more reliably sent as `base64:<payload>`;
+links — `https://` only; `support-url` and `clod-bot-url` also accept `tg:` and `mailto:`.

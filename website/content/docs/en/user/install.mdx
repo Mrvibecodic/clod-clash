@@ -1,0 +1,117 @@
+---
+title: "Installation"
+description: "Where to download and how to install on Windows, macOS and Linux"
+---
+
+All builds are collected on the **[download page](/en/download)** — along with file sizes and
+permanent links of the form `/releases/latest/download/<file>`, which always point to the
+latest regular version.
+
+## Windows
+
+Download the `.exe` installer (x64) and run it. The installer asks for administrator
+rights — it installs the app and the background service that TUN mode needs. There will be
+no separate rights prompt for the service, either when you turn on TUN or when you
+update: the service is updated together with the app.
+
+The installer also adds Windows Firewall rules for both cores — without them the
+`system` and `mixed` stacks in TUN don't let traffic through. More details in the
+[Connection](/en/docs/user/connection#tun-on-windows) section.
+
+<Callout type="warn">
+The builds are not yet signed with a certificate, so SmartScreen may show an
+"Unknown publisher" warning. Click "More info" → "Run anyway".
+</Callout>
+
+### Portable build
+
+`Clod.Clash_x64_portable.zip` works without installation: unpack it and run it.
+The background service for TUN is not installed in this case — the app will ask for rights
+when you turn on TUN. The portable build doesn't download updates in the background: get the
+new version from the [download page](/en/download).
+
+## macOS
+
+Download the `.dmg` for your processor: **Apple Silicon** (`aarch64`) or
+**Intel** (`x64`), and drag the app into "Applications". macOS 11 or
+newer is required.
+
+<Callout type="warn">
+The builds are not signed with an Apple certificate, so on first launch macOS
+will say it cannot verify the app. Open **System Settings → Privacy &
+Security**, click "Open Anyway" at the bottom and confirm with your password.
+You only need to do this once: the app installs updates by itself, without this
+window. On macOS 15 and newer the "Open" item in the context menu no longer
+helps — only the settings route works.
+</Callout>
+
+If macOS says the app is damaged and should be moved to the
+Trash (this is how builds up to and including 0.1.11-alpha.2 open on Apple
+Silicon), remove the downloaded-from-the-internet flag from it:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Clod Clash.app"
+```
+
+TUN mode on macOS asks for the administrator password the first time you turn it
+on — once, to install the background service.
+
+### One-command install
+
+Paste into "Terminal":
+
+```bash
+curl -fsSL https://mrvibecodic.github.io/clod-clash/install-macos.sh | bash
+```
+
+The script picks the build for your processor, downloads the latest regular version
+from GitHub, puts it into "Applications" and launches it. macOS doesn't flag a file
+downloaded from the terminal as downloaded from the internet, so there will be no
+verification window.
+
+### How the script works
+
+The script is short, and you can read it before running it: open the address in a browser
+or run `curl -fsSL https://mrvibecodic.github.io/clod-clash/install-macos.sh | less`.
+Step by step, it:
+
+1. Checks that this is macOS and picks `Clod.Clash_aarch64.dmg` for
+   Apple Silicon or `Clod.Clash_x64.dmg` for Intel. The processor is detected
+   correctly even in a terminal running under Rosetta.
+2. If Clod Clash is running, stops and asks you to close the app.
+3. Downloads the `.dmg` of the latest regular version into a temporary folder using the same
+   permanent GitHub link as the download page.
+4. Mounts the image read-only, without a Finder icon, and copies the app from
+   it into a temporary folder.
+5. Replaces `/Applications/Clod Clash.app` with the copied one. The administrator
+   password is asked for only if your user account has no write
+   access to "Applications". If the download or the copy failed,
+   the previous version stays in place.
+6. Unmounts the image, deletes the temporary files and launches the app.
+
+The script doesn't change macOS security settings and doesn't touch other
+apps. It doesn't install the background service for TUN — the app installs it by itself
+the first time you turn on TUN. Settings and subscriptions are stored separately from the
+app, so running the script again simply installs a fresh version
+on top. The script doesn't install pre-release versions; those arrive through the
+update inside the app itself.
+
+## Linux
+
+`.deb` (Debian, Ubuntu, Mint) and `.rpm` (Fedora, openSUSE) packages are available for
+x86_64:
+
+```bash
+sudo apt install ./Clod.Clash_amd64.deb
+# or
+sudo dnf install ./Clod.Clash-x86_64.rpm
+```
+
+On systems with systemd the package registers the background service for TUN right away, so a password
+is usually not asked for when you turn on TUN. If the service still doesn't respond, the app
+will ask for rights through `pkexec` (polkit) — it must be installed.
+
+## What's next
+
+Launch the app and [add a subscription](/en/docs/user/subscription). How the app updates
+itself is covered in [Updates](/en/docs/user/updates).

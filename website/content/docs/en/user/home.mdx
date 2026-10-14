@@ -1,0 +1,77 @@
+---
+title: "Home screen"
+description: "Simple and advanced mode, what is shown where, the tray and hotkeys"
+---
+
+## Simple mode
+
+The window is compact by default. Everything you need every day is on one screen.
+
+<Shot src="ru/home-simple.png" alt="Simple mode: disconnected" />
+
+From top to bottom:
+
+1. **Header** — the subscription name and its state ("subscription active", "subscription expired"),
+   on the right — subscription update ↻ and settings ⚙.
+2. **Provider announcement** — scheduled maintenance, new servers, promotions. A promo banner can be
+   closed.
+3. **Connect button** and the state: "Disconnected", connecting, "Connected". While connected, a
+   session timer runs on the button.
+4. **Pill** with the connection method and routing mode, for example "System proxy · Rule", and the
+   session traffic. Tapping the pill opens the settings (unless the
+   provider has locked the mode; then it shows a tooltip about the lock).
+5. **Server** — flag, name and latency; tapping it opens the server list.
+6. **Traffic** and **Expires** — what's left according to the subscription.
+7. **Provider block** — buttons from the subscription: "Account", "Support", "Bot", "Status",
+   "Guide" (only the ones that were sent).
+8. **Advanced mode →** — switch to the advanced view.
+
+Warning lines with a reason and a button may appear under the connect button: TUN didn't start, the
+core is not running, the firewall is blocking traffic, and so on. What they mean is covered in
+[Common errors](/en/docs/user/errors).
+
+## If there are no servers
+
+When the provider doesn't hand out servers (the subscription expired, traffic ran out, device limit),
+a **"No servers"** card with the reason in words appears instead of the server.
+
+<Shot src="ru/expired.png" alt="Subscription expired: “No servers”" />
+
+## Advanced mode
+
+The **Advanced mode →** link expands the window to two columns: on the left the button, the server
+and **Quick actions** (system proxy, TUN, connect on launch, start with the system, start in the
+tray), on the right the traffic and expiry cards, **Network** (speed and volume for the session) and
+tool tiles. The same is available at **Settings → General → Advanced mode**. The provider can suggest
+advanced mode by default, but your choice takes priority.
+
+<Shot src="ru/home-advanced.png" alt="Advanced mode" width={720} />
+
+The tiles at the bottom are **Subscriptions**, **Refresh subscription**, **Settings** and shortcuts to
+the screens you've put on the home screen (the "On home" switch next to "Proxies", "Rules",
+"Connections" and "Logs" in **Advanced settings → Tools**).
+
+## Dark theme
+
+<Shot src="ru/home-dark.png" alt="Simple mode in the dark theme" />
+
+The theme is switched in **Settings → General → Theme Mode**: Light, Dark or System.
+The window height adjusts to its content; if you resize it by hand, the app remembers your
+size, and you can bring back auto-fit with the **Fit window to content** switch in the same place.
+
+## Tray
+
+The tray icon changes with the state: it looks different when off, with the system proxy and with
+TUN (monochrome on macOS by default). The menu has "Dashboard" (show the window), the routing mode
+(unless the provider has locked it), subscription switching ("Profiles"), server selection by group,
+"System Proxy", "TUN Mode", "Lightweight Mode", "Open Directory", "More" (including "Restart Core")
+and "Exit".
+
+Closing the window with the cross minimizes the app to the tray; **Exit** in the tray menu quits it
+and removes the system proxy.
+
+## Hotkeys
+
+Global shortcuts are assigned in **Advanced settings → Appearance and behaviour → Hotkey
+Setting**: show or hide the window, system proxy, TUN, each of the three modes, lightweight
+mode, "Reapply Subscription".

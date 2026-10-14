@@ -1,0 +1,170 @@
+---
+title: "clod-* headers"
+description: "Clod Clash's own headers — values, what each one does and on which platforms it works"
+---
+
+`clod-*` are headers that only Clod Clash understands. The panel doesn't send them by itself: they
+are entered in the subscription settings in `customResponseHeaders`. Each one applies only to its own
+subscription. Standard Remnawave headers are on the [Headers](/en/docs/provider/headers) page.
+
+## All headers
+
+| Header | Value | What it does | Where it works |
+| --- | --- | --- | --- |
+| `clod-portal-url` | `https://` link | the "Account" button — the account dashboard where the plan is renewed | PC and Android |
+| `clod-bot-url` | `https://`, `tg:` or `mailto:` link | the "Bot" button | PC and Android |
+| `clod-monitor-url` | `https://` link | the "Status" button — server status | PC and Android |
+| `clod-guide-url` | `https://` link | the "Guide" button | PC and Android |
+| `clod-announce` | text | a permanent announcement; if `announce` also arrived, `clod-announce` is shown | PC and Android |
+| `clod-promo` | text | a dismissible promo banner | PC and Android |
+| `clod-promo-url` | `https://` link | where tapping the promo leads | PC and Android |
+| `clod-lock-mode` | `true`, `lock` or `false` | locks the routing mode to the `mode` from the template | PC and Android |
+| `clod-ping` | `A/B` in ms, for example `150/300` | ping color thresholds. Without the header — `200/400` | PC and Android |
+| `clod-disable-ping` | `true` only | a check mark or a cross instead of milliseconds | PC and Android |
+| `clod-show-0hosts` | `true` or `false` | show the panel's placeholder nodes as is | PC and Android |
+| `clod-16-20-check` | `true` only | the 16–20 check: whether a download through the server breaks off on the user's network; snowflake icon | PC and Android |
+| `clod-new-sub` | domain only, for example `sub2.example.com` | backup subscription address: the same address on this domain over `https`, if the main one didn't respond | PC and Android |
+| `clod-move-sub` | `true` only | together with `clod-new-sub`: move the subscription to the backup address for good | PC and Android |
+| `clod-connect-mode` | `tun`, `proxy` or `both` | what the connect button turns on. Without the header — the system proxy | PC only |
+| `clod-simple-mode` | `true` or `false` | simple or advanced view by default. Without the header — simple | PC only |
+| `clod-latency-style` | `bars`, `dot` or `number` | how to draw the selected server's ping. Without the header — bars | PC only |
+| `clod-hide-badges` | `true` only | hide the protocol, transport and security badges, `TFO`, `MPTCP`, `SMUX` on servers | PC and Android |
+| `clod-theme` | `accent=#RRGGBB; mode=light\|dark; background=https://…` | window color, theme and background | PC only |
+
+Instead of `true` / `false` you can use `1` / `0`, `yes` / `no`, `on` / `off` (except for
+`clod-disable-ping`, `clod-16-20-check`, `clod-hide-badges` and `clod-move-sub`: only `true` works there). An unrecognized value is the same as no
+header. Send Cyrillic text as `base64:<text in base64>`.
+
+## Provider links
+
+The "Account", "Bot", "Status", "Guide" and "Support" (`support-url`) buttons are gathered into a
+row on the home screen and repeated in the settings. Only the links that were sent are shown.
+
+The account dashboard is a separate header because Remnawave's `profile-web-page-url` usually points
+to the page of the subscription itself. There are no "Renew" or "Pay" buttons in the client: the only
+place to pay is the account dashboard. The bot is separate from "Support", where a human answers.
+
+## Announcement and promo
+
+- **`clod-announce`** — a permanent announcement without a close button; it stays as long as the panel sends it.
+- **`clod-promo`** — a temporary banner for promotions. It can be closed; with new text it
+  appears again, and when the panel stops sending the header, it disappears on the next
+  subscription update. **`clod-promo-url`** makes it clickable.
+- Length — up to 500 visible characters (on Android — up to 300). On PC long text collapses to
+  five lines with a "Show in full" button.
+- Words can be colored: a `#RRGGBB` code right before a word, for example
+  `#EF4444IMPORTANT: node under maintenance`. The color applies up to the nearest space. On Android —
+  the same, starting with 0.1.22-alpha.5.
+
+## Routing mode: `clod-lock-mode`
+
+Locks the mode to the one in the template's `mode:` (without it — "Rule"). It can't be changed in the
+window, from the tray or with a hotkey.
+
+| Value | What happens |
+| --- | --- |
+| `true` | the mode is locked as long as the panel confirms it. If the subscription hasn't been updated successfully for more than 72 hours (or three update intervals, if that's longer), the lock lifts by itself; the next successful update brings it back |
+| `lock` | the mode is locked permanently. A successful update with `true` (or with `global-mode: false`) makes the lock temporary, and without the header, with `false` or with `global-mode: true` — removes it |
+| `false` | no lock |
+
+For compatibility with Prizrak-Box, `global-mode: false` is understood as `clod-lock-mode: true`,
+and `global-mode: true` as "no lock".
+
+## Ping
+
+- **`clod-ping: A/B`** — up to `A` ms the ping is green, up to `B` yellow, beyond that red. Two
+  integers separated by `/`, `1 ≤ A < B ≤ 60000`. Applies on the home screen and on the "Proxies" page.
+- **`clod-disable-ping: true`** — on the home screen, instead of milliseconds, a green check mark
+  (the check passed), a red cross (it failed) or a dash (not checked yet). On the
+  "Proxies" page the numbers remain.
+- **`clod-latency-style`** (PC only) — `bars` — four bars, `dot` — a colored dot,
+  `number` — a number. Synonyms: `signal`, `dots`, `ms`, `latency`; `pxa-latency-dots: 1` = `dot`.
+
+## Backup address: `clod-new-sub` and `clod-move-sub`
+
+- **`clod-new-sub`** — domain only, for example `sub2.example.com`. The client builds the backup
+  address from it: `https://`, this domain, and the path and parameters of the main subscription
+  address. The backup address is used only when no usable subscription could be fetched from the main one by
+  any route (directly, through the core, through the system proxy) — including when it answered with
+  an error.
+- How to write the domain so the client accepts and recognizes it:
+  - a Cyrillic domain — punycode only: `xn--e1afmkfd.xn--p1ai`, not `пример.рф`;
+  - no trailing dot: `sub2.example.com`, not `sub2.example.com.`;
+  - letter case doesn't matter;
+  - the backup server answers on port 443: the port of the main address is not carried over.
+- Write the domain in your users' subscription links the same way — in punycode and without a
+  trailing dot, so that PC and Android recognize it identically. Otherwise the client won't recognize
+  the main address's domain in `clod-new-sub`, will treat it as a backup one, and with `clod-move-sub`
+  will "move" the subscription to the same server.
+- The domain is kept as long as the panel sends it: a different one replaces it, no header erases it.
+- **`clod-move-sub: true`** together with `clod-new-sub` moves the subscription to the backup address
+  for good. The client first downloads the subscription from the new address; if that succeeds, the
+  address changes and a notification is shown; if not, everything stays as is and the attempt is
+  repeated on the next update. Servers, mode and name are not reset.
+- You can send identical headers from both domains: after the move the domain matches the
+  main one, and the header does nothing.
+
+## 16–20 check: `clod-16-20-check`
+
+With `true` the client itself checks every server of the subscription on the user's network: it
+downloads 64 KB through it and looks at one thing — whether everything arrives or the download breaks
+off after the first few kilobytes. A server where it broke off is checked twice more a few seconds
+later, together with a server that works on this network. The snowflake icon next to the ping is set
+only if all three checks broke off while the working server passed; if the last check passed, the
+server is considered working. If there's nothing to compare with, or the working server failed too,
+the icon isn't set: it's more likely a bad network. Tapping the icon opens an explanation: check the
+connection manually and report to support (the button is there if `support-url` was sent). The
+client does nothing to the servers themselves: ping and selection stay as they were. New servers and
+those whose connection details changed are checked; results are rechecked every 3 days, and a check
+that gave no result — after 6 hours on the same network. Results are stored separately for each
+subscription and network. Without the header (or with any value other than `true`) there are no
+checks and no icons.
+
+## Placeholder nodes: `clod-show-0hosts`
+
+Without the header the client recognizes the panel's placeholder nodes (subscription expired, traffic
+ran out, device limit, "no servers") and shows its own screen with the reason instead. With `true` it
+parses nothing: the panel's nodes go into the server list with their own names. The device limit
+window doesn't depend on this header.
+
+## PC only
+
+**`clod-connect-mode`** — what the connect button turns on: `tun`, `proxy` or `both` (synonyms
+`tunnel`/`vpn`, `system`/`system-proxy`/`sysproxy`, `all`). If the user has chosen the connection
+method themselves, their choice takes priority. If the mode is locked (`clod-lock-mode` or
+`global-mode: false`), the header decides: the switches are replaced with the line "… — the connection
+method is set by your provider".
+
+**`clod-simple-mode`** — `true` — simple view, `false` — advanced. The user's choice always takes
+priority. Synonyms: `pxa-simple-mode` (Prizrak-Box), `flclashx-newboard` (FlClashX).
+
+**`clod-hide-badges`** — `true` hides the protocol, transport and security badges on servers in the
+window — for example `VLESS`, `gRPC`, `Reality`, and along with them `TFO`, `MPTCP`, `SMUX` — on the
+"Proxies" page, in the proxy chain and in the server list on the home screen. The server name, flag,
+ping, description, provider name and snowflake icon stay as they were. Groups in the list keep their
+type (Selector, URLTest, etc.) — that's not a protocol; for the built-in DIRECT and REJECT the type
+badge is hidden, as for servers. Useful
+if the server names already say everything needed or you don't want to show what they run on.
+Only `true` works (case doesn't matter). If the header disappears or a different value arrives, the
+badges come back after the next subscription update. Applies only to the active subscription. In the Android client the same header hides the protocol and transport caption under the server name.
+
+```
+clod-hide-badges: true
+```
+
+**`clod-theme`** — styling for the provider:
+
+```
+clod-theme: accent=#2E7CF6; mode=dark; background=https://cdn.provider.example/bg.jpg
+```
+
+`accent` — the accent color, `mode` — `light` or `dark`, `background` — an image for the window
+background (`https` only, up to 4 MB). Parts are separated by `;`, any of them can be omitted. The
+color and theme chosen by the user take priority; the "Provider styling" toggle in the theme settings
+turns the header off entirely. Applies only to the active subscription.
+
+## No longer supported
+
+- `clod-device-remove` — support removed.
+- `clod-hwid-limit` — removed: with a device limit the client shows its own window with the
+  subscription name and a "Support" button (if the panel sent `support-url`).

@@ -1,0 +1,19 @@
+{
+  "title": "Пользователю",
+  "description": "Установка, подписка, настройка",
+  "root": true,
+  "pages": [
+    "index",
+    "install",
+    "subscription",
+    "setup",
+    "connection",
+    "servers",
+    "home",
+    "settings",
+    "updates",
+    "errors",
+    "support",
+    "help"
+  ]
+}

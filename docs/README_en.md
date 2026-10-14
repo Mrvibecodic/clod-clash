@@ -14,9 +14,9 @@
 <p align="center">
   Languages: <a href="../README.md">Русский</a> · <b>English</b>
   ·
-  <a href="https://mrvibecodic.github.io/clod-clash/">Docs (Russian)</a>
+  <a href="https://mrvibecodic.github.io/clod-clash/en/docs/">Docs</a>
   ·
-  <a href="https://mrvibecodic.github.io/clod-clash/download">Download</a>
+  <a href="https://mrvibecodic.github.io/clod-clash/en/download/">Download</a>
   ·
   <a href="../PRIVACY_POLICY.md">Privacy</a>
 </p>
@@ -52,9 +52,9 @@ The technical side of Clash Verge Rev — rules, connections, logs, config edito
 there: it lives in the advanced mode and the advanced settings.
 
 <p align="center">
-  <img src="../website/public/screenshots/01-home-simple.png" alt="Simple mode" width="260">
-  <img src="../website/public/screenshots/03-servers.png" alt="Server selection" width="260">
-  <img src="../website/public/screenshots/07-home-dark.png" alt="Dark theme" width="260">
+  <img src="../website/public/screenshots/ru/home-simple.png" alt="Simple mode" width="260">
+  <img src="../website/public/screenshots/ru/servers.png" alt="Server selection" width="260">
+  <img src="../website/public/screenshots/ru/home-dark.png" alt="Dark theme" width="260">
 </p>
 
 ## Features
@@ -95,7 +95,7 @@ there: it lives in the advanced mode and the advanced settings.
 
 ## Installation
 
-Every build is on the [download page](https://mrvibecodic.github.io/clod-clash/download).
+Every build is on the [download page](https://mrvibecodic.github.io/clod-clash/en/download/).
 
 | System | What to download |
 | --- | --- |
@@ -103,7 +103,7 @@ Every build is on the [download page](https://mrvibecodic.github.io/clod-clash/d
 | macOS 11+ (Apple Silicon and Intel) | `.dmg`. The build has no Apple certificate: allow the first launch in "System Settings → Privacy & Security". Or run one command in Terminal: `curl -fsSL https://mrvibecodic.github.io/clod-clash/install-macos.sh \| bash` |
 | Linux x86_64 | `.deb` or `.rpm`. On systemd systems the package registers the TUN service right away |
 
-Details are in the ["Installation"](https://mrvibecodic.github.io/clod-clash/docs/install) section
+Details are in the ["Installation"](https://mrvibecodic.github.io/clod-clash/en/docs/user/install/) section
 (Russian).
 
 ## For providers
@@ -145,8 +145,8 @@ Every header in detail, plus the full list of standard ones, is in [HEADERS_en.m
 
 ## Documentation
 
-* [Documentation site](https://mrvibecodic.github.io/clod-clash/) (Russian) — installation, first
-  connection, settings, troubleshooting.
+* [Documentation site](https://mrvibecodic.github.io/clod-clash/en/docs/) — for users (installation,
+  subscription, settings, common errors) and for providers (panel and headers).
 * [HEADERS_en.md](./HEADERS_en.md) — every subscription header: what the client sends and what it
   understands.
 * [REMNAWAVE.md](./REMNAWAVE.md) (Russian) — setting up the panel and the MIHOMO template.

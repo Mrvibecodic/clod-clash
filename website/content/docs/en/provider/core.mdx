@@ -1,0 +1,49 @@
+---
+title: "Clod Core"
+description: "Which cores are built into the PC client and how Clod Core differs from stock Mihomo"
+---
+
+Every build includes two cores. The user switches between them in **Settings → Advanced settings →
+Clash Setting → Clash Core**.
+
+- **[Clod Core](https://github.com/Mrvibecodic/clod-core)** (default) — our fork of stable
+  [Mihomo](https://github.com/MetaCubeX/mihomo), the `main` branch, releases `core-v<version>-clod.N`.
+- **Mihomo** — the fallback core: the latest stable MetaCubeX release, unmodified. It never turns on
+  by itself, only by manual choice.
+
+A client build takes the latest release of each core; separately, a core is updated with the "Upgrade"
+button in the same window — each from its own releases.
+
+## How Clod Core differs from Mihomo
+
+- **New TLS fingerprint library** — utls v1.9.0-mod-meta from MetaCubeX instead of v1.8.8: Firefox
+  148 and Safari 26.3 fingerprints with a post-quantum key, and fixes for TLS session resumption. The
+  chrome, ios and edge fingerprints don't change.
+- **Nodes don't "flicker" dead.** Any failed check of a live node — a hang, a broken connection, a
+  closed port, the wrong response code — gets a second probe (about a second later, later for slow
+  nodes); the node counts as dead only if that one fails too. Only a node that is already dead and an
+  unusable check address get no retry. Nodes in all groups and in proxy providers are checked this
+  way, and the manual latency test of a single node works the same.
+- **An unstable node loses to a stable one.** Check failures stay in the node's history, and
+  automatic selection (url-test) adds a penalty to its latency — a quarter of the timeout for each
+  failure in the last three probes. The core log (warning) gets a summary per check round: how many
+  nodes had their first probe hang and which nodes stopped responding.
+
+## What the client sets for the core itself
+
+The client always sets `external-controller`, `secret`, `socks-port`, `port`, `redir-port` (Linux and
+macOS) and `tproxy-port` (Linux); `external-ui*` from the template are dropped. `mode`, `mixed-port`,
+`log-level` and `unified-delay` are taken from the template until the user picks their own. Details
+in [Remnawave panel setup](/en/docs/provider/panel#2-mihomo-template).
+
+## TUN network stack
+
+The stack is taken from the template (`tun.stack`): `gvisor`, `system`, `mixed` or `mips`. With no
+stack in the template, "Auto" means **gvisor**. The user's choice in the "Tun Mode" window takes
+priority over the template.
+
+<Callout type="warn">
+On Windows the `system` and `mixed` stacks are not taken from the template — only by the user's
+explicit choice: they open a local listener, and the firewall may block traffic. On macOS and Linux
+the stack from the template applies.
+</Callout>

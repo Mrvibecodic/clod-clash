@@ -14,9 +14,9 @@
 <p align="center">
   Languages: <b>Русский</b> · <a href="./docs/README_en.md">English</a>
   ·
-  <a href="https://mrvibecodic.github.io/clod-clash/">Документация</a>
+  <a href="https://mrvibecodic.github.io/clod-clash/ru/docs/">Документация</a>
   ·
-  <a href="https://mrvibecodic.github.io/clod-clash/download">Скачать</a>
+  <a href="https://mrvibecodic.github.io/clod-clash/ru/download/">Скачать</a>
   ·
   <a href="./PRIVACY_POLICY.ru.md">Конфиденциальность</a>
 </p>
@@ -52,9 +52,9 @@
 делась: она в расширенном режиме и в продвинутых настройках.
 
 <p align="center">
-  <img src="./website/public/screenshots/01-home-simple.png" alt="Простой режим" width="260">
-  <img src="./website/public/screenshots/03-servers.png" alt="Выбор сервера" width="260">
-  <img src="./website/public/screenshots/07-home-dark.png" alt="Тёмная тема" width="260">
+  <img src="./website/public/screenshots/ru/home-simple.png" alt="Простой режим" width="260">
+  <img src="./website/public/screenshots/ru/servers.png" alt="Выбор сервера" width="260">
+  <img src="./website/public/screenshots/ru/home-dark.png" alt="Тёмная тема" width="260">
 </p>
 
 ## Что умеет
@@ -94,7 +94,7 @@
 
 ## Установка
 
-Все сборки — на [странице загрузки](https://mrvibecodic.github.io/clod-clash/download).
+Все сборки — на [странице загрузки](https://mrvibecodic.github.io/clod-clash/ru/download/).
 
 | Система | Что скачать |
 | --- | --- |
@@ -102,7 +102,7 @@
 | macOS 11+ (Apple Silicon и Intel) | `.dmg`. Сборка без сертификата Apple: первый запуск разрешается в «Системные настройки → Конфиденциальность и безопасность». Или одной командой в «Терминале»: `curl -fsSL https://mrvibecodic.github.io/clod-clash/install-macos.sh \| bash` |
 | Linux x86_64 | `.deb` или `.rpm`. На системах с systemd пакет сразу регистрирует службу для TUN |
 
-Подробно — в разделе [«Установка»](https://mrvibecodic.github.io/clod-clash/docs/install).
+Подробно — в разделе [«Установка»](https://mrvibecodic.github.io/clod-clash/ru/docs/user/install/).
 
 ## Провайдерам
 
@@ -143,8 +143,8 @@
 
 ## Документация
 
-* [Сайт с документацией](https://mrvibecodic.github.io/clod-clash/) — установка, первое
-  подключение, настройки, «если не работает».
+* [Сайт с документацией](https://mrvibecodic.github.io/clod-clash/ru/docs/) — для пользователей (установка,
+  подписка, настройки, типовые ошибки) и для провайдеров (панель и заголовки).
 * [docs/HEADERS.md](./docs/HEADERS.md) — все заголовки подписки: что клиент шлёт и что понимает.
 * [docs/REMNAWAVE.md](./docs/REMNAWAVE.md) — настройка панели и шаблона MIHOMO.
 * [docs/BUILDING.md](./docs/BUILDING.md) — сборка из исходников.

@@ -22,8 +22,19 @@ export interface ReleasePlatform {
   assets: ReleaseAsset[]
 }
 
+export interface ReleaseCardText {
+  locale: string
+  pending: string
+  date: string
+  notes: string
+  download: string
+  yours: string
+  megabytes: string
+}
+
 interface ReleaseCardProps {
   platforms: ReleasePlatform[]
+  text: ReleaseCardText
 }
 
 interface ReleaseInfo {
@@ -68,26 +79,26 @@ function detectPlatform(): PlatformId | null {
   return null
 }
 
-function formatSize(bytes: number | undefined): string {
+function formatSize(bytes: number | undefined, text: ReleaseCardText): string {
   if (!bytes) return ''
-  const value = new Intl.NumberFormat('ru-RU', {
+  const value = new Intl.NumberFormat(text.locale, {
     maximumFractionDigits: 1,
   }).format(bytes / 1024 / 1024)
-  return `${value} МБ`
+  return `${value} ${text.megabytes}`
 }
 
-function formatDate(value: string): string {
+function formatDate(value: string, locale: string): string {
   if (!value) return ''
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) return ''
-  return new Intl.DateTimeFormat('ru-RU', {
+  return new Intl.DateTimeFormat(locale, {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
   }).format(parsed)
 }
 
-export function ReleaseCard({ platforms }: ReleaseCardProps) {
+export function ReleaseCard({ platforms, text }: ReleaseCardProps) {
   const [release, setRelease] = useState<ReleaseInfo | null>(null)
   const [current, setCurrent] = useState<PlatformId | null>(null)
 
@@ -113,18 +124,18 @@ export function ReleaseCard({ platforms }: ReleaseCardProps) {
     }
   }, [])
 
-  const published = release ? formatDate(release.published) : ''
+  const published = release ? formatDate(release.published, text.locale) : ''
 
   return (
     <div className="flex w-full flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-fd-card px-6 py-4">
         <div className="flex flex-wrap items-center gap-3">
           <span className="rounded-full bg-fd-primary px-3 py-1 text-sm font-semibold tabular-nums text-fd-primary-foreground">
-            {release ? release.version : 'последняя версия'}
+            {release ? release.version : text.pending}
           </span>
           {published ? (
             <span className="text-sm text-fd-muted-foreground">
-              от {published}
+              {text.date} {published}
             </span>
           ) : null}
         </div>
@@ -132,7 +143,7 @@ export function ReleaseCard({ platforms }: ReleaseCardProps) {
           href={latestReleaseUrl}
           className="text-sm font-medium text-fd-primary hover:underline"
         >
-          Что нового →
+          {text.notes}
         </a>
       </div>
 
@@ -149,7 +160,7 @@ export function ReleaseCard({ platforms }: ReleaseCardProps) {
             <h2 className="font-semibold">{platform.title}</h2>
             {current === platform.id ? (
               <span className="rounded-full border border-fd-primary px-2 py-0.5 text-xs text-fd-primary">
-                похоже, ваша система
+                {text.yours}
               </span>
             ) : null}
           </header>
@@ -170,7 +181,7 @@ export function ReleaseCard({ platforms }: ReleaseCardProps) {
                   </div>
                 </div>
                 <span className="w-20 text-right text-sm tabular-nums text-fd-muted-foreground">
-                  {formatSize(release?.sizes[asset.file])}
+                  {formatSize(release?.sizes[asset.file], text)}
                 </span>
                 <a
                   href={latestAssetUrl(asset.file)}
@@ -180,7 +191,7 @@ export function ReleaseCard({ platforms }: ReleaseCardProps) {
                       : 'rounded-full border px-5 py-2 text-sm font-medium hover:bg-fd-accent'
                   }
                 >
-                  Скачать
+                  {text.download}
                 </a>
               </li>
             ))}

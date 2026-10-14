@@ -1,0 +1,62 @@
+---
+title: "Support report"
+description: "How to give support what it needs without giving away too much"
+---
+
+## One-click report
+
+**Settings → General → "Support report"** (the copy icon); the same
+report is put on the clipboard by the "Copy logs for support" button in any error
+notification. A ready-made text goes to the clipboard:
+the app and system version, the core's operating mode, the connection settings,
+the subscription state (name, traffic, expiry, which headers the panel sent), what the
+placeholder filter dropped last time, and the tails of the app and core logs.
+
+You can paste it into a support chat **without looking**:
+
+- of any address only the scheme and host remain — the path, query and `user:pass@`
+  are replaced with `***`;
+- values after `secret`, `token`, `password`, `uuid`, `authorization`,
+  `x-hwid` and similar keys are masked, as is everything after `Bearer`/`Basic`;
+- long random strings and hex sequences are cut out;
+- the home directory is replaced with `~`, there is no user name in paths;
+- core lines about connections (where you went) don't make it into the report; of connection
+  errors only the node, port and error text remain, without addresses.
+
+The provider's domain is deliberately kept — without it the report is useless — as are the
+subscription state figures.
+
+## Log archive
+
+If support needs the full log, not just the tail: **"Export logs as an archive"** in
+**Advanced settings → Maintenance**. The app asks where to save the
+`.zip` and puts the report and the app and core log files into it (for large ones,
+the last 8 MB) — each already passed through the same masking, with connection lines
+dropped and only the node, port and error text left of their errors.
+
+Masking is also applied in the log itself: log files on disk are already written without tokens
+and subscription addresses.
+
+## Device identifier
+
+The tooltip next to the **Settings → General → "Device
+identification"** switch shows exactly what is sent to the panel: `x-hwid`, `x-device-os`,
+`x-ver-os`, `x-device-model` and `User-Agent`. The identifier is sent only to the
+subscription addresses — the main one and the backup one.
+
+It's derived from the system's machine ID:
+
+| System | Source |
+| --- | --- |
+| Windows | `HKLM\SOFTWARE\Microsoft\Cryptography\MachineGuid` |
+| macOS | `IOPlatformUUID` |
+| Linux | `/etc/machine-id`, or if missing, `/var/lib/dbus/machine-id` |
+
+The value is salted and hashed with SHA-256, and the first 32 hex characters are sent out. The
+machine ID itself and the computer name are never sent anywhere. The result is
+remembered, so it doesn't change when the app is updated. If there's no system
+identifier, a random one is used and also remembered.
+
+Turning identification off removes all four `x-*` headers at once; `User-Agent` is always
+sent — the panel recognizes the client by it. A panel with a device limit may then
+refuse — the app will offer to turn identification back on.

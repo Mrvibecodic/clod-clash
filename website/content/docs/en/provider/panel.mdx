@@ -1,0 +1,117 @@
+---
+title: "Remnawave panel setup"
+description: "What needs to be done on the panel side for the client to work fully"
+---
+
+The full guide with template examples and a checklist is in the repository:
+**[docs/REMNAWAVE.md](https://github.com/Mrvibecodic/clod-clash/blob/main/docs/REMNAWAVE.md)**.
+Here is the minimum without which the client won't work.
+
+## 1. User-Agent rule
+
+In **Subscription response rules** add a rule with the regular expression
+`^ClodClash` (or case-insensitive — `caseSensitive: false`, as in the example below) and
+the **MIHOMO** format. Without it the panel returns its default response, and the client
+won't accept the subscription (for a base64 list of links it shows "The panel returned a link
+list instead of a configuration — it did not recognise the client").
+
+The client identifies itself as `ClodClash/<version>`, and the version may have a suffix
+(`0.1.11-alpha.3`) — so match the prefix, not an exact string. For server descriptions
+(`serverDescription`) to reach it, add `^ClodClash/` to
+`responseModifications.additionalExtendedClientsRegex` of the same rule —
+by prefix, not as an exact string, otherwise the rule will break with the
+next client update.
+
+```json
+{
+  "name": "Mihomo Clients",
+  "description": "Response with generated YAML config (Mihomo Template)",
+  "enabled": true,
+  "operator": "AND",
+  "conditions": [
+    {
+      "headerName": "user-agent",
+      "operator": "REGEX",
+      "value": "^(?:FlClash|FlClashX|Flowvy|[Cc]lash-[Vv]erge|[Kk]oala-[Cc]lash|[Cc]lash-?[Mm]eta|[Mm]urge|[Cc]lashX [Mm]eta|[Mm]ihomo|[Cc]lash-nyanpasu|clash.meta|prizrak-box|[Cc]lod[Cc]lash)",
+      "caseSensitive": false
+    }
+  ],
+  "responseType": "MIHOMO",
+  "responseModifications": {
+    "additionalExtendedClientsRegex": [
+      "^ClodClash/"
+    ]
+  }
+}
+```
+
+## 2. MIHOMO template
+
+In the MIHOMO response template the `# LEAVE THIS LINE!` marker must remain in the main
+group, and `rule-providers` must have `proxy:` pointing to the main group.
+
+The client always sets `external-controller`, `secret`, `socks-port`, `port`,
+`redir-port` (Linux and macOS) and `tproxy-port` (Linux) itself; `external-ui*` from the template
+are dropped. `mode`, `mixed-port`, `log-level` and `unified-delay` are taken from the
+template until the user picks their own (with no key in the template — `rule`, `7897`,
+`info`, `true`); the mode can be locked with the `clod-lock-mode` header. `ipv6` comes from the
+template; with no key it's off. Rules, groups and `sniffer` are left entirely to the template;
+`dns` — until the user turns on "DNS Overwrite", `hosts` — until
+they set their own there.
+If `profile-update-interval` has never arrived, the subscription isn't updated on a schedule;
+to stop auto-update, send `profile-update-interval: 0`.
+
+<Callout type="warn">
+On Windows the `system` and `mixed` TUN stacks are not taken from the template — only by the
+user's explicit choice in the TUN dialog. On macOS and Linux the stack from the template applies.
+</Callout>
+
+## 3. Headers
+
+The plan name, logo, announcement, account and support links, device
+limit, interface modes — the panel passes all of this in response headers.
+The full reference is on the [Headers](/en/docs/provider/headers) and
+[clod-* headers](/en/docs/provider/clod-headers) pages.
+
+## 4. Secure channel and reports
+
+The client tries the secure channel of the
+[remnawave-subscription-middleware](https://github.com/Mrvibecodic/remnawave-subscription-middleware)
+layer by itself when the user adds a subscription; if the provider has no channel, the subscription
+is downloaded the usual way. After a scheduled update (and, if updates are less frequent than once
+every 6 hours, also between them, no more often than once every 6 hours), a subscription with the
+channel sends a node quality report: pings and 16–20 results per node, traffic, network type and
+the external address the measurements were taken from. The reports are received and shown by the
+middleware (the Clod Clash tab → "Statistics"), if receiving is enabled in it. The client
+accumulates measurements only when the middleware has confirmed receiving them in the subscription
+response over the channel (recent middleware versions do this); if a response has no confirmation,
+it stops accumulating and erases what was collected.
+
+The external address and the device identifier linked to a subscription may be
+personal data under Russian Federal Law 152-FZ and the GDPR, and their controller is the provider,
+not the client's authors. When you turn on receiving reports or the 16–20 check, describe this in
+your privacy policy (purposes, legal basis, retention periods, recipients) and notify users. What
+exactly the client sends is described in the
+[client's privacy policy](https://github.com/Mrvibecodic/clod-clash/blob/main/PRIVACY_POLICY.ru.md).
+
+The client learns the measurement address from Yandex. In TUN mode this request follows the
+template's rules, so add both addresses to `DIRECT` above all other rules —
+otherwise the report will contain the server's exit address, not the user's:
+
+```yaml
+rules:
+  - DOMAIN,ipv4-internet.yandex.net,DIRECT
+  - DOMAIN,ipv6-internet.yandex.net,DIRECT
+  # … the rest of the rules
+```
+
+## 5. Device limit
+
+With the limit enabled, the panel doesn't serve the subscription without `x-hwid`. The client sends it
+by default, and the identifier is stable across updates — the device won't be
+registered again.
+
+On a successful response (2xx) with `x-hwid-max-devices-reached`, `x-hwid-limit` or
+`x-hwid-not-supported`, the client removes this subscription's previous servers (even if
+placeholders are turned off in the panel), and doesn't try other routes or the backup address.
+A response with an error code is an ordinary failed update; the previous servers stay.

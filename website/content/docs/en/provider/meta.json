@@ -1,0 +1,6 @@
+{
+  "title": "For providers",
+  "description": "Panel, headers, core",
+  "root": true,
+  "pages": ["index", "panel", "headers", "clod-headers", "core"]
+}
