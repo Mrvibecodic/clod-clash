@@ -210,7 +210,7 @@ pub async fn rename_into_place(from: &Path, to: &Path) -> Result<()> {
     Err(anyhow!(last_error)).with_context(|| format!("failed to move file into place \"{}\"", to.display()))
 }
 
-fn is_staging_leftover(name: &str) -> bool {
+pub(crate) fn is_staging_leftover(name: &str) -> bool {
     let Some(stem) = name.strip_prefix('.').and_then(|rest| rest.strip_suffix(".tmp")) else {
         return false;
     };

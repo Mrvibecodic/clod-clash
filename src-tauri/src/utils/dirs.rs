@@ -117,6 +117,12 @@ pub fn report_file(uid: &str) -> String {
     format!("report-{uid}.json")
 }
 
+/// Файл замеров отчёта: они этого компьютера — в резервную копию не идут и из
+/// неё не берутся.
+pub fn is_report_file(name: &str) -> bool {
+    name.starts_with("report-") && name.ends_with(".json")
+}
+
 pub fn dns_page_path(uid: &str) -> Result<PathBuf> {
     Ok(app_profiles_dir()?.join(dns_page_file(uid)))
 }

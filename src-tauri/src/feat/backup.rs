@@ -35,7 +35,11 @@ fn restorable_backup_entry(name: &str) -> Option<PathBuf> {
     match parts.next() {
         None => top_level_backup_files().contains(&first).then(|| PathBuf::from(first)),
         Some(second) => {
-            if first != "profiles" || parts.next().is_some() || !is_plain_file_name(second) {
+            if first != "profiles"
+                || parts.next().is_some()
+                || !is_plain_file_name(second)
+                || dirs::is_report_file(second)
+            {
                 return None;
             }
             Some(PathBuf::from("profiles").join(second))
@@ -51,8 +55,9 @@ async fn extract_backup(archive: PathBuf, target: PathBuf) -> Result<()> {
             let mut entry = zip.by_index(index)?;
             let raw_name = entry.name().to_owned();
             let Some(relative) = restorable_backup_entry(&raw_name) else {
-                // Запись каталога — часть устройства архива, а не потерянный файл.
-                if !raw_name.ends_with('/') {
+                // Запись каталога — часть устройства архива, а не потерянный файл;
+                // замеры отчёта из старых копий не берутся намеренно.
+                if !raw_name.ends_with('/') && !raw_name.strip_prefix("profiles/").is_some_and(dirs::is_report_file) {
                     logging!(
                         warn,
                         Type::Backup,
@@ -654,6 +659,7 @@ mod tests {
             "mihomo.exe",
             "logs/latest.log",
             "profiles/nested/evil.yaml",
+            "profiles/report-Rmc1x0.json",
             "profiles/",
             "",
         ] {

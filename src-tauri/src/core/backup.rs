@@ -293,9 +293,7 @@ pub async fn create_backup() -> Result<(String, PathBuf), Error> {
                 let file_name = file_name_os
                     .to_str()
                     .ok_or_else(|| anyhow::Error::msg("Invalid file name encoding"))?;
-                // Запасная копия прежней подписки и кандидат приёма — не данные
-                // человека: в копии им нечего делать (у прежней подписки — прежние ключи).
-                if file_name.ends_with(".prev") || file_name.ends_with(".new") {
+                if kept_out_of_backup(file_name) {
                     continue;
                 }
                 let backup_path = format!("profiles/{}", file_name);
@@ -320,4 +318,35 @@ pub async fn create_backup() -> Result<(String, PathBuf), Error> {
     zip.write_all(fs::read(dirs::profiles_path()?).await?.as_slice())?;
     zip.finish()?;
     Ok((zip_file_name, zip_path))
+}
+
+/// Файлы подписок, которые в копию не идут. Запасная копия прежней подписки и
+/// кандидат приёма — не данные человека: в копии им нечего делать (у прежней
+/// подписки — прежние ключи). Замеры отчёта — этого компьютера, недописанный
+/// файл — не файл.
+fn kept_out_of_backup(file_name: &str) -> bool {
+    file_name.ends_with(".prev")
+        || file_name.ends_with(".new")
+        || dirs::is_report_file(file_name)
+        || crate::utils::help::is_staging_leftover(file_name)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::kept_out_of_backup;
+
+    #[test]
+    fn report_measurements_and_leftovers_stay_out_of_the_backup() {
+        for name in [
+            "report-Rmc1x0.json",
+            "Rmc1x0.yaml.prev",
+            "Rmc1x0.yaml.new",
+            ".Rmc1x0.yaml.aB3dE9xZ.tmp",
+        ] {
+            assert!(kept_out_of_backup(name), "{name}");
+        }
+        for name in ["Rmc1x0.yaml", "freeze-Rmc1x0.json", "profiles.yaml"] {
+            assert!(!kept_out_of_backup(name), "{name}");
+        }
+    }
 }
