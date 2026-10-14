@@ -42,6 +42,8 @@ pub struct IRuntime {
     // переживал бы откат неудачной валидации и описывал бы конфиг, который
     // ядро не приняло.
     pub sentinel_report: crate::enhance::SentinelReport,
+    /// Узлы и провайдеры самой подписки — до «Прокси», Merge и Script.
+    pub own_nodes: crate::config::proxy_label::OwnNodes,
 }
 
 impl IRuntime {

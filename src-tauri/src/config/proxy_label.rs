@@ -326,7 +326,8 @@ pub fn label(proxy: &Mapping) -> Option<ProxyLabel> {
     })
 }
 
-/// Адрес узла: тип, сервер и порт 1–65535 (числом или строкой).
+/// Адрес узла: тип, сервер и порт 1–65535 (числом или строкой). У hysteria2 без
+/// `port` — первый порт из `ports` (смена портов).
 fn address(proxy: &Mapping) -> Option<Address> {
     let text = |key: &str| proxy.get(key).and_then(Value::as_str);
     let port = proxy
@@ -336,8 +337,9 @@ fn address(proxy: &Mapping) -> Option<Address> {
                 .or_else(|| port.as_str().and_then(|s| s.trim().parse().ok()))
         })
         .and_then(|port| u16::try_from(port).ok())
-        .filter(|port| *port > 0)?;
+        .filter(|port| *port > 0);
     let kind = text("type")?.to_ascii_lowercase();
+    let port = port.or_else(|| (kind == "hysteria2").then(|| first_port(proxy.get("ports")?)).flatten())?;
     Some(Address {
         via: via(&kind, proxy),
         kind,
@@ -345,6 +347,27 @@ fn address(proxy: &Mapping) -> Option<Address> {
         port,
         provider: String::new(),
     })
+}
+
+/// Первый порт списка `ports`, как его читает ядро: части через `,` или `/`,
+/// у диапазона `a-b` — меньший край; любая нечитаемая часть — узел ядро не
+/// примет, порта нет.
+fn first_port(ports: &Value) -> Option<u16> {
+    let text = ports
+        .as_u64()
+        .map_or_else(|| ports.as_str().map(str::to_owned), |port| Some(port.to_string()))?;
+    let mut first = None;
+    let edge = |edge: &str| edge.trim_matches(['[', ']', ' ']).parse::<u16>().ok();
+    for part in text.split([',', '/']).map(str::trim).filter(|part| !part.is_empty()) {
+        let edges: Vec<&str> = part.split('-').collect();
+        let (start, end) = match edges.as_slice() {
+            [one] => (edge(one)?, edge(one)?),
+            [start, end] => (edge(start)?, edge(end)?),
+            _ => return None,
+        };
+        first = first.or_else(|| Some(start.min(end)));
+    }
+    first.filter(|port| *port > 0)
 }
 
 /// Строка поля или первая строка списка.
@@ -405,6 +428,41 @@ fn via(kind: &str, proxy: &Mapping) -> String {
         return String::new();
     }
     format!("{network}|{sni}|{host}|{path}")
+}
+
+/// Узлы и провайдеры, которые принесла сама подписка, — до «Прокси», Merge и
+/// Script. В отчёт подписки идут только они: узел, добавленный руками, ей не
+/// принадлежит. Узел подписки, который цепочка только изменила, остаётся — с
+/// итоговыми полями; переименованный ею от добавленного не отличить.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct OwnNodes {
+    proxies: HashSet<String>,
+    providers: HashSet<String>,
+}
+
+impl OwnNodes {
+    pub fn of(subscription: &Mapping) -> Self {
+        Self {
+            proxies: listed(subscription.get("proxies"))
+                .filter_map(|proxy| proxy.get("name").and_then(Value::as_str).map(str::to_owned))
+                .collect(),
+            providers: subscription
+                .get("proxy-providers")
+                .and_then(Value::as_mapping)
+                .into_iter()
+                .flatten()
+                .filter_map(|(name, _)| yaml_name(name))
+                .collect(),
+        }
+    }
+
+    fn keeps(&self, name: &str, address: &Address) -> bool {
+        if address.provider.is_empty() {
+            self.proxies.contains(name)
+        } else {
+            self.providers.contains(&address.provider)
+        }
+    }
 }
 
 fn node(proxy: &Mapping) -> Node {
@@ -678,7 +736,7 @@ async fn cached() -> Option<Arc<Cached>> {
         }
         let Built {
             labels,
-            addresses,
+            mut addresses,
             files,
             steady,
         } = runtime.config.as_ref().map_or_else(
@@ -690,6 +748,7 @@ async fn cached() -> Option<Arc<Cached>> {
             },
             |config| build(config, own_files),
         );
+        addresses.retain(|name, address| runtime.own_nodes.keeps(name, address));
         let stamp = {
             use std::hash::{Hash as _, Hasher as _};
             let mut hasher = std::hash::DefaultHasher::new();
@@ -751,8 +810,9 @@ fn sorted(labels: &Labels) -> Vec<(&str, &str, &ProxyLabel)> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
-    use super::{Address, build, go_int_is_nonzero, label, via};
+    use super::{Address, OwnNodes, address, build, first_port, go_int_is_nonzero, label, via};
     use serde_yaml_ng::Mapping;
+    use serde_yaml_ng::Value;
 
     fn yaml(text: &str) -> Mapping {
         serde_yaml_ng::from_str(text).unwrap()
@@ -1281,5 +1341,78 @@ mod tests {
         assert!(!labels.providers.contains_key("file"), "{labels:?}");
         assert!(!labels.providers.contains_key("inline"), "{labels:?}");
         assert_eq!(labels.providers["plain"]["K"].text, "Shadowsocks");
+    }
+
+    #[test]
+    fn a_node_with_only_a_port_range_takes_its_first_port() {
+        for (ports, want) in [
+            ("20000-30000", Some(20000)),
+            ("443,8443", Some(443)),
+            ("30000-20000/443", Some(20000)),
+            (" [1000]-2000 ", Some(1000)),
+            ("443/abc", None),
+            ("1-2-3", None),
+            ("70000", None),
+            ("0", None),
+            ("", None),
+        ] {
+            assert_eq!(first_port(&Value::from(ports)), want, "{ports}");
+        }
+        assert_eq!(first_port(&Value::from(443)), Some(443));
+
+        let only_ports = yaml("{name: H, type: hysteria2, server: h.example.com, ports: 20000-30000}");
+        assert_eq!(address(&only_ports).map(|address| address.port), Some(20000));
+        let both = yaml("{name: H, type: hysteria2, server: h.example.com, port: 443, ports: 20000-30000}");
+        assert_eq!(address(&both).map(|address| address.port), Some(443));
+        let neither = yaml("{name: H, type: hysteria2, server: h.example.com}");
+        assert_eq!(address(&neither), None);
+        let other = yaml("{name: V, type: vless, server: v.example.com, ports: 20000-30000}");
+        assert_eq!(address(&other), None, "ports так читает ядро только у hysteria2");
+    }
+
+    #[test]
+    fn the_own_nodes_are_taken_before_the_chains_and_filter_the_report_addresses() {
+        use crate::utils::source_scan::{fn_body, without_test_modules};
+        let enhance = fn_body(
+            without_test_modules(include_str!("../enhance/mod.rs")),
+            "pub async fn enhance(",
+        )
+        .unwrap_or_default();
+        let own = enhance.find("OwnNodes::of(&config)").unwrap_or(usize::MAX);
+        let chains = enhance.find("process_seq_items(").unwrap_or(0);
+        assert!(own < chains, "узлы подписки — до «Прокси», Merge и Script: {enhance}");
+        let cached = fn_body(
+            without_test_modules(include_str!("proxy_label.rs")),
+            "async fn cached()",
+        )
+        .unwrap_or_default();
+        assert!(cached.contains("own_nodes.keeps("), "{cached}");
+    }
+
+    #[test]
+    fn only_the_subscriptions_own_nodes_get_addresses_for_the_report() {
+        let own = OwnNodes::of(&yaml(
+            "proxies:\n  - {name: A, type: vless, server: a.example.com, port: 1}\n  \
+             - {name: Gone, type: vless, server: g.example.com, port: 5}\n\
+             proxy-providers:\n  sub: {type: inline, payload: [{name: P, type: vless, server: p.example.com, port: 2}]}\n",
+        ));
+        // Сборка после «Прокси», Merge и Script: узел подписки изменён, другой
+        // удалён, добавлены свой узел и свой провайдер.
+        let built = yaml(
+            "proxies:\n  - {name: Added, type: vless, server: b.example.com, port: 3}\n  \
+             - {name: A, type: vless, server: changed.example.com, port: 1}\n\
+             proxy-providers:\n  \
+             sub: {type: inline, payload: [{name: P, type: vless, server: p.example.com, port: 2}]}\n  \
+             extra: {type: inline, payload: [{name: X, type: vless, server: x.example.com, port: 4}]}\n",
+        );
+        let mut addresses = build(&built, true).addresses;
+        addresses.retain(|name, address| own.keeps(name, address));
+        let mut names: Vec<&str> = addresses.keys().map(String::as_str).collect();
+        names.sort_unstable();
+        assert_eq!(names, vec!["A", "P"]);
+        assert_eq!(
+            addresses.get("A").map(|address| address.server.as_str()),
+            Some("changed.example.com")
+        );
     }
 }

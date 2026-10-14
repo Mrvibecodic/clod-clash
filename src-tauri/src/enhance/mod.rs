@@ -1989,6 +1989,7 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
 
     let profile = collect_profile_items(&sources.profiles).await?;
     let config = profile.config;
+    let own_nodes = crate::config::proxy_label::OwnNodes::of(&config);
     let merge_item = profile.merge_item;
     let script_item = profile.script_item;
     let rules_item = profile.rules_item;
@@ -2139,6 +2140,7 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
         exists_keys: exists_keys_set,
         chain_logs: result_map,
         sentinel_report,
+        own_nodes,
     })
 }
 
