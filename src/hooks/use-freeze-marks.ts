@@ -15,7 +15,7 @@ const EMPTY: Record<string, FreezeMark> = {}
  * (`clod-16-20-check`) или ядро чужое (без отпечатков узлов).
  */
 export const useFreezeMarks = () => {
-  const { data } = useSWR('freezeMarks', getFreezeMarks, {
+  const { data } = useSWR(['freezeMarks'], getFreezeMarks, {
     revalidateOnFocus: false,
   })
 
