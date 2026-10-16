@@ -2,7 +2,7 @@
 
 Языки: [English](./PRIVACY_POLICY.md) · **Русский**
 
-Действует с 10 октября 2026 года. Относится к Clod Clash для Windows, macOS и Linux.
+Действует с 14 октября 2026 года. Относится к Clod Clash для Windows, macOS и Linux.
 
 Clod Clash — VPN-клиент с открытым исходным кодом. Он распространяется бесплатно и «как есть».
 
