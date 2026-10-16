@@ -8,6 +8,14 @@ body; the app's update dialog picks the part matching the UI language
 (Russian UI → ru, anything else → en). Sections without markers are shown
 as-is.
 
+## v0.1.13
+
+### Исправлено
+
+- Подписка снова добавляется у провайдеров без защищённого канала
+
+---
+
 ## v0.1.12
 
 ### Добавлено
