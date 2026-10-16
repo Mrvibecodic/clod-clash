@@ -87,6 +87,28 @@ accumulates measurements only when the middleware has confirmed receiving them i
 response over the channel (recent middleware versions do this); if a response has no confirmation,
 it stops accumulating and erases what was collected.
 
+Without the middleware, your server answers the channel request (the `/c1/…`
+path on the subscription domain), and that answer decides whether the
+subscription is added:
+
+| Answer to an unknown path | What the client does |
+| --- | --- |
+| 404 or 410 | downloads the subscription the usual way right away |
+| another 4xx code | tries the channel twice more; if all three attempts got that answer — the usual way |
+| connection closed with no answer (for example, nginx `return 444`) | same as another 4xx code |
+| 5xx (for example, 502 from a reverse proxy) | treats it as a failure on the way: after three attempts the subscription is not added |
+
+Check what the subscription domain returns for any unknown path — it must not
+be a 5xx:
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' https://sub.example.com/c1/test
+```
+
+`404` is fine. `000` with the error `Empty reply from server` or an HTTP/2
+stream reset means the connection was closed with no answer — also fine. `502`
+and other 5xx — fix the reverse proxy so that it answers unknown paths with 404.
+
 The external address and the device identifier linked to a subscription may be
 personal data under Russian Federal Law 152-FZ and the GDPR, and their controller is the provider,
 not the client's authors. When you turn on receiving reports or the 16–20 check, describe this in
