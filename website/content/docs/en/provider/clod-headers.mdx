@@ -103,6 +103,9 @@ and `global-mode: true` as "no lock".
   repeated on the next update. Servers, mode and name are not reset.
 - You can send identical headers from both domains: after the move the domain matches the
   main one, and the header does nothing.
+- For a subscription with the secure channel, the backup address and the move go through the same
+  channel: the backup domain must run the same middleware and answer `/c1/…`. Without it the backup
+  address does not help and the move does not happen.
 
 ## 16–20 check: `clod-16-20-check`
 
