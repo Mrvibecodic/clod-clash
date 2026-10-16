@@ -55,6 +55,36 @@ const MAX_BODY: usize = 64 << 20;
 
 pub(crate) const DOWNGRADE_REFUSED: &str = "redirect from https to http is refused";
 
+/// Сервер принял запрос и закрыл его, не ответив: соединение (и TLS) уже
+/// было, запрос ушёл, ответа нет — конец потока или сброс (HTTP/1.1), сброс
+/// потока самим сервером (HTTP/2). Ошибка соединения, рукопожатия TLS и
+/// таймаут — не это: там сервер мог запроса и не услышать. Обрыв на чтении
+/// тела — тоже нет: сервер уже ответил.
+pub(crate) fn hung_up(err: &anyhow::Error) -> bool {
+    err.chain()
+        .filter_map(|e| e.downcast_ref::<reqwest::Error>())
+        .any(|e| e.is_request() && !e.is_connect() && !e.is_timeout() && closed_unanswered(e))
+}
+
+/// Причина под ошибкой запроса — закрытие без ответа. Ошибки hyper и h2 —
+/// не наших зависимостей, их не опознать по типу, только по тексту.
+fn closed_unanswered(err: &(dyn std::error::Error + 'static)) -> bool {
+    std::iter::successors(err.source(), |e| e.source()).any(|e| {
+        e.downcast_ref::<std::io::Error>().map_or_else(
+            || {
+                let text = e.to_string();
+                text == "connection closed before message completed" || text.starts_with("stream error received: ")
+            },
+            |io| {
+                matches!(
+                    io.kind(),
+                    std::io::ErrorKind::UnexpectedEof | std::io::ErrorKind::ConnectionReset
+                )
+            },
+        )
+    })
+}
+
 /// Уводит ли редирект с закрытого адреса на открытый.
 ///
 /// Смотрим на самый первый адрес цепочки, а не на предыдущий шаг: важно, что обещал
@@ -586,18 +616,22 @@ mod retry_tests {
 /// проверка заголовков подписки.
 #[cfg(all(test, not(windows)))]
 #[allow(clippy::expect_used)]
-mod transport_tests {
-    use super::{NetworkManager, ProxyType};
+pub(crate) mod transport_tests {
+    use super::{NetworkManager, ProxyType, hung_up};
 
     /// Потолок тела ответа: 64 МиБ.
     const CAP: usize = 64 << 20;
     use tokio::{
         io::{AsyncReadExt as _, AsyncWriteExt as _},
-        net::TcpListener,
+        net::{TcpListener, TcpStream},
     };
 
-    /// Принимает одно соединение, дочитывает запрос и отвечает `head` и `body`.
-    async fn answer_once(head: &'static str, body: Vec<u8>) -> String {
+    /// Принимает одно соединение, дочитывает запрос и передаёт соединение `then`.
+    async fn accept_once<F, Fut>(then: F) -> String
+    where
+        F: FnOnce(TcpStream) -> Fut + Send + 'static,
+        Fut: std::future::Future<Output = ()> + Send,
+    {
         let listener = TcpListener::bind("127.0.0.1:0").await.expect("порт для теста");
         let port = listener.local_addr().expect("адрес слушателя").port();
         tokio::spawn(async move {
@@ -614,11 +648,40 @@ mod transport_tests {
                     break;
                 }
             }
+            then(stream).await;
+        });
+        format!("127.0.0.1:{port}")
+    }
+
+    /// Принимает одно соединение, дочитывает запрос и отвечает `head` и `body`.
+    async fn answer_once(head: &'static str, body: Vec<u8>) -> String {
+        accept_once(move |mut stream| async move {
             let _ = stream.write_all(head.as_bytes()).await;
             let _ = stream.write_all(&body).await;
             let _ = stream.shutdown().await;
-        });
-        format!("127.0.0.1:{port}")
+        })
+        .await
+    }
+
+    /// Ошибка одноразового запроса, как у защищённого канала, с таймаутом в секунду.
+    async fn once(addr: &str) -> anyhow::Error {
+        NetworkManager::new()
+            .get_once_with_headers(
+                &format!("http://{addr}/c1/k/s/e"),
+                ProxyType::None,
+                Some(1),
+                Some("test".into()),
+                false,
+                None,
+            )
+            .await
+            .err()
+            .unwrap_or_else(|| anyhow::anyhow!("сервер ответил"))
+    }
+
+    /// Защищённый запрос, который сервер принял и закрыл, ничего не ответив.
+    pub(crate) async fn a_hung_up_request() -> anyhow::Error {
+        once(&answer_once("", Vec::new()).await).await
     }
 
     async fn get(url: &str) -> anyhow::Result<super::HttpResponse> {
@@ -678,8 +741,72 @@ mod transport_tests {
         assert!(
             err.as_ref().is_some_and(|err| err.chain().any(|e| e
                 .downcast_ref::<reqwest::Error>()
-                .is_some_and(reqwest::Error::is_connect))),
+                .is_some_and(reqwest::Error::is_connect))
+                && !hung_up(err)),
             "{err:?}"
         );
+    }
+
+    #[tokio::test]
+    async fn only_a_request_closed_unanswered_is_a_hang_up() {
+        let reset = accept_once(|stream| async move {
+            let _ = stream.set_zero_linger();
+        })
+        .await;
+        let held = accept_once(|stream| async move {
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            drop(stream);
+        })
+        .await;
+        let cut = answer_once("HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\n", b"abc".to_vec()).await;
+        let refused = TcpListener::bind("127.0.0.1:0")
+            .await
+            .and_then(|listener| listener.local_addr())
+            .map(|addr| addr.to_string())
+            .unwrap_or_default();
+
+        assert!(hung_up(&a_hung_up_request().await));
+        for (case, addr, want) in [
+            ("сброс", reset, true),
+            ("таймаут", held, false),
+            ("оборванное тело", cut, false),
+            ("отказ в соединении", refused, false),
+        ] {
+            let err = once(&addr).await;
+            assert_eq!(hung_up(&err), want, "{case}: {err:#}");
+        }
+    }
+
+    /// Ошибка с причиной — как ошибка hyper над ошибкой h2.
+    #[derive(Debug)]
+    struct Layer(&'static str, Option<Box<Self>>);
+
+    impl std::fmt::Display for Layer {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.write_str(self.0)
+        }
+    }
+
+    impl std::error::Error for Layer {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            self.1.as_deref().map(|e| e as _)
+        }
+    }
+
+    /// HTTP/2: поток сбросил сервер — обрыв; сбросил сам клиент — нет.
+    #[test]
+    fn a_stream_reset_by_the_server_is_closed_unanswered() {
+        let request = |cause| {
+            Layer(
+                "client error (SendRequest)",
+                Some(Box::new(Layer("http2 error", Some(Box::new(Layer(cause, None)))))),
+            )
+        };
+        assert!(super::closed_unanswered(&request(
+            "stream error received: unexpected internal error encountered"
+        )));
+        assert!(!super::closed_unanswered(&request(
+            "stream error sent by user: unexpected internal error encountered"
+        )));
     }
 }

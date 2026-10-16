@@ -479,7 +479,8 @@ struct ChannelHeard {
     /// шифротекста — обычная панель без прослойки, канал выключен.
     absent: bool,
     /// Отказ, по которому не скажешь, есть ли канал: его дал посредник перед
-    /// сервером (WAF, лимит запросов). Пробуется ещё раз.
+    /// сервером (WAF, лимит запросов) или сервер напрямую закрыл запрос без
+    /// ответа. Пробуется ещё раз.
     doubt: bool,
     /// Канал ответил, но разговор не сложился: разъехались часы, чужой ответ,
     /// незнакомый формат, переадресация на http. Это не повод уходить на
@@ -494,7 +495,7 @@ enum Verdict {
     Answered,
     /// Канала нет.
     Absent,
-    /// Отказ посредника: попробовать ещё.
+    /// Отказ посредника или обрыв: попробовать ещё.
     Doubt,
     /// Сервер молчит: попробовать ещё.
     Silent,
@@ -522,8 +523,9 @@ const fn is_not_found(status: reqwest::StatusCode) -> bool {
     matches!(status.as_u16(), 404 | 410)
 }
 
-/// Что ошибка защищённого запроса говорит о канале у провайдера.
-fn channel_heard(err: &anyhow::Error) -> ChannelHeard {
+/// Что ошибка защищённого запроса, сделанного маршрутом `route`, говорит о
+/// канале у провайдера.
+fn channel_heard(err: &anyhow::Error, route: Route) -> ChannelHeard {
     if let Some(ChanRefused(status)) = err.downcast_ref::<ChanRefused>() {
         // «Нет такого адреса» — прослойка канала не знает; прочий отказ 3xx/4xx
         // дал посредник перед сервером; 5xx — сбой по дороге.
@@ -539,7 +541,11 @@ fn channel_heard(err: &anyhow::Error) -> ChannelHeard {
         // Адрес без пути с меткой (метка в query) — канала по нему не бывает:
         // подписка идёт обычным путём, как и до появления канала.
         absent: text.contains("clod-chan-undecryptable") || text.contains("clod-chan-bad-url"),
-        doubt: false,
+        // Так незнакомый путь встречает панель без прослойки (и nginx перед ней —
+        // `return 444`): TLS с сервером уже установлен, и оборвать его после
+        // этого может только сервер. С запасом — только на прямом маршруте:
+        // через ядро или системный прокси это молчание.
+        doubt: route == Route::Direct && crate::utils::network::hung_up(err),
         answered: [
             "clod-chan-stale",
             "clod-chan-mismatch",
@@ -575,7 +581,7 @@ impl RouteFailures {
                 });
             }
             Answered::No => {
-                let heard = channel_heard(&err);
+                let heard = channel_heard(&err, route);
                 self.channel.absent |= heard.absent;
                 self.channel.doubt |= heard.doubt;
                 self.channel.answered |= heard.answered;
@@ -713,7 +719,8 @@ impl PrfItem {
     /// раз, всего [`ADD_CHANNEL_ATTEMPTS`]. Канал ответил, но подписки не дал
     /// (отказ панели, разъехались часы) — ошибка. «Канала нет» — сразу, если
     /// так ответил сам сервер, и после всех попыток, если каждый раз отказывал
-    /// посредник: провайдер за строгим WAF добавляется, как и раньше. Молчание
+    /// посредник или сервер напрямую обрывал запрос: провайдер за строгим WAF
+    /// или за nginx с `return 444` добавляется, как и раньше. Молчание
     /// хотя бы раз — не «канала нет»: если канал режут по дороге, подписка без
     /// защиты добавилась бы молча.
     async fn through_channel(
@@ -2007,7 +2014,36 @@ mod channel_tests {
     }
 
     fn heard(err: anyhow::Error) -> ChannelHeard {
-        channel_heard(&err.context("failed to fetch remote profile over the secure channel"))
+        channel_heard(
+            &err.context("failed to fetch remote profile over the secure channel"),
+            Route::Direct,
+        )
+    }
+
+    /// Обрыв напрямую — сомнение: все попытки так — «канала нет». Через прокси
+    /// обрыв мог дать узел — молчание.
+    #[cfg(not(windows))]
+    #[tokio::test]
+    async fn a_hang_up_casts_doubt_only_on_the_direct_route() {
+        use crate::utils::network::transport_tests::a_hung_up_request;
+        let doubt = ChannelHeard {
+            doubt: true,
+            ..ChannelHeard::default()
+        };
+        assert_eq!(heard(a_hung_up_request().await), doubt);
+        for route in [Route::Core, Route::System] {
+            assert_eq!(
+                channel_heard(&a_hung_up_request().await, route),
+                ChannelHeard::default(),
+                "{route:?}"
+            );
+        }
+
+        let mut failures = RouteFailures::default();
+        failures.note(Route::Core, a_hung_up_request().await, Answered::No);
+        assert_eq!(failures.verdict(), Verdict::Silent);
+        failures.note(Route::Direct, a_hung_up_request().await, Answered::No);
+        assert_eq!(failures.verdict(), Verdict::Doubt);
     }
 
     #[test]
