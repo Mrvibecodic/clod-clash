@@ -1392,7 +1392,7 @@ async fn fetch_for_profile(
         clash_verge_logging::logging!(
             warn,
             clash_verge_logging::Type::Config,
-            "[clod] chan: закреплённый ключ прослойки ей незнаком, повтор без закрепления"
+            "[clod] chan: закреплённый ключ прослойка не узнала или соединение оборвано, повтор без закрепления"
         );
 
         outcome = Box::pin(on_relay_time(clock, |clock| round(None, clock))).await.0;
@@ -1472,13 +1472,15 @@ const CHAN_NEUTRAL_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)";
 /// Повторять без закрепления ключа прослойки есть смысл, только если ответ
 /// пришёл не каналом: прослойка ключ не узнала (смена ключа, переустановка) и
 /// отдала запрос обычному конвейеру. Что тот ответит, зависит от сервера перед
-/// ней: 404, другой 4xx или страница вместо шифротекста. Сбой по дороге (5xx,
-/// сеть), переадресация и ответ, который открылся, — не повод: ключ тут ни при
-/// чём, а без закрепления тело защищено одним адресом подписки.
+/// ней: 404, другой 4xx, страница вместо шифротекста или обрыв без ответа
+/// (nginx `return 444`, если обрыв дошёл до клиента). Сбой по дороге (5xx, таймаут,
+/// отказ соединения), переадресация и ответ, который открылся, — не повод: ключ
+/// тут ни при чём, а без закрепления тело защищено одним адресом подписки.
 fn key_may_be_refused(err: &anyhow::Error) -> bool {
     err.downcast_ref::<ChanRefused>()
         .is_some_and(|ChanRefused(status)| status.is_client_error())
         || err.to_string().contains("clod-chan-undecryptable")
+        || crate::utils::network::hung_up(err)
 }
 
 /// Поправка часов канала по `date` ответа (как `chanx.Correction` на Android).
@@ -2013,6 +2015,16 @@ mod channel_tests {
         }
     }
 
+    #[cfg(not(windows))]
+    #[tokio::test]
+    async fn a_hang_up_drops_the_pin_on_any_route() {
+        use crate::utils::network::transport_tests::a_hung_up_request;
+        let err = a_hung_up_request().await;
+        assert!(key_may_be_refused(&err), "{err:#}");
+        let err = err.context("failed to fetch remote profile over the secure channel");
+        assert!(key_may_be_refused(&err), "{err:#}");
+    }
+
     fn heard(err: anyhow::Error) -> ChannelHeard {
         channel_heard(
             &err.context("failed to fetch remote profile over the secure channel"),
@@ -2176,6 +2188,8 @@ mod secure_fetch_tests {
     type Seen = Arc<parking_lot::Mutex<Vec<String>>>;
     /// Ответ тестового сервера: код, строки заголовков, тело.
     type Reply = (u16, String, String);
+    /// Код, на который тестовый сервер закрывает соединение, ничего не ответив.
+    const HANG_UP: u16 = 0;
 
     /// Сервер подписки: на каждый запрос — `reply(путь)`.
     async fn serve(reply: impl Fn(&str) -> Reply + Send + Sync + 'static) -> (String, Seen) {
@@ -2197,6 +2211,10 @@ mod secure_fetch_tests {
                 let path = text.split_whitespace().nth(1).unwrap_or_default().to_owned();
                 let (status, headers, body) = reply(&path);
                 log.lock().push(path);
+                if status == HANG_UP {
+                    let _ = stream.shutdown().await;
+                    continue;
+                }
                 let head = format!(
                     "HTTP/1.1 {status} X\r\n{headers}Content-Length: {}\r\nConnection: close\r\n\r\n",
                     body.len()
@@ -2269,6 +2287,7 @@ mod secure_fetch_tests {
             (200, "<html>a page</html>", true),
             (404, "not found", true),
             (410, "gone", true),
+            (HANG_UP, "", true),
         ] {
             let (url, seen) = serve(move |_| (status, String::new(), body.into())).await;
             let _ = fetch(&url, &secure(Some(pin))).await;
@@ -2285,6 +2304,28 @@ mod secure_fetch_tests {
         let fetched = fetch(&url, &secure(Some(Relay::new(TOKEN, &[1]).public(0)))).await;
 
         assert_eq!(fetched, Some((BODY.into(), Some(current))));
+        assert!(unpinned(&seen));
+    }
+
+    #[tokio::test]
+    async fn a_lost_key_is_replaced_even_when_the_server_hangs_up_on_it() {
+        let middleware = Relay::new(TOKEN, &[2]);
+        let current = B64.encode(middleware.public(0));
+        let answer = relay(middleware, 0);
+        let (url, seen) = serve(move |path| {
+            let reply = answer(path);
+            if reply.0 == 404 {
+                (HANG_UP, String::new(), String::new())
+            } else {
+                reply
+            }
+        })
+        .await;
+
+        let fetched = fetch(&url, &secure(Some(Relay::new(TOKEN, &[1]).public(0)))).await;
+
+        assert_eq!(fetched, Some((BODY.into(), Some(current))));
+        assert_eq!(seen.lock().len(), 2);
         assert!(unpinned(&seen));
     }
 
