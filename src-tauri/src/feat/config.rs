@@ -428,7 +428,7 @@ pub async fn patch_verge(patch: &IVerge, not_save_file: bool) -> Result<()> {
     verge.edit_draft(|d| d.patch_config(patch));
 
     let (tun_log_anchor, tun_delivery) = if patch.enable_tun_mode == Some(true) {
-        crate::feat::tun::clear_suppression();
+        crate::feat::tun::clear_suppression_by_hand();
         let delivery = CoreManager::global().delivery_for_turning_tun_on().await;
         (crate::feat::tun::log_anchor().await, delivery)
     } else {

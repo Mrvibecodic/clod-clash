@@ -226,9 +226,16 @@ fn forget_last_notice() {
     *LAST_NOTICED.lock() = None;
 }
 
+/// Новая попытка по действию человека: о повторной неудаче снова скажем.
+pub fn clear_suppression_by_hand() {
+    forget_last_notice();
+    clear_suppression();
+}
+
+/// Сама по себе (сон, смена сети) попытка память о сказанном не стирает: та же
+/// неудача после каждого пробуждения уходит в журнал, а не новым тостом.
 pub fn clear_suppression() {
     clear_failure();
-    forget_last_notice();
     SUPPRESSED.store(false, Ordering::Release);
     START_FAILED.store(false, Ordering::Release);
     START_ATTEMPTS.store(0, Ordering::Release);
@@ -556,6 +563,14 @@ pub async fn rearm_after_wake() {
             Type::Core,
             "TUN stays down after the wake-up: its last failure ({}) is not something a new environment fixes",
             last_failure().unwrap_or("unknown")
+        );
+        return;
+    }
+    if was_suppressed && !rights_have_arrived() && !rearm_cooldown_expired() {
+        logging!(
+            info,
+            Type::Core,
+            "TUN stays down after the wake-up: the pause since the last attempt is not over"
         );
         return;
     }
@@ -1278,7 +1293,7 @@ async fn set_up_service() -> SetupOutcome {
         return SetupOutcome::Failed;
     }
 
-    clear_suppression();
+    clear_suppression_by_hand();
     clear_setup_declined().await;
     logging!(info, Type::Service, "background service is up");
     Handle::notice_message("tun::setup_done", "");
@@ -1358,7 +1373,15 @@ pub async fn hold_down_without_a_service() {
         Type::Core,
         "TUN is on, the app is not elevated and the service is not installed: starting without TUN"
     );
-    hold_tun_down("the service is not installed", FAILURE_NO_RIGHTS, "tun::no_rights");
+    // Установку на этой версии ещё не отклоняли — следом её предложит
+    // стартовая подготовка, и итог скажет она; совет «поставьте службу сами»
+    // перед её же запросом прав только путает.
+    if setup_declined_for_this_version().await {
+        hold_tun_down("the service is not installed", FAILURE_NO_RIGHTS, "tun::no_rights");
+    } else {
+        suppress("the service is not installed");
+        set_failure(FAILURE_NO_RIGHTS);
+    }
 }
 
 pub async fn init_startup_setup() {
@@ -1604,6 +1627,15 @@ mod tests {
             verdict(&broken, Some(FAILURE)),
             Verdict::Clean(Some(FAILURE.to_owned()))
         );
+    }
+
+    #[test]
+    fn only_a_hand_made_retry_lets_the_same_failure_be_told_again() {
+        *LAST_NOTICED.lock() = Some(FAILURE_ADAPTER_BUSY);
+        clear_suppression();
+        assert_eq!(*LAST_NOTICED.lock(), Some(FAILURE_ADAPTER_BUSY));
+        clear_suppression_by_hand();
+        assert_eq!(*LAST_NOTICED.lock(), None);
     }
 
     #[test]

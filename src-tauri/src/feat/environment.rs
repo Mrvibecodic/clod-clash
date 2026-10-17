@@ -493,8 +493,10 @@ async fn reconcile(
         );
     }
 
+    // Своей задачей: проверка спрашивает журнал ядра у службы, а зависшая
+    // служба держала бы весь цикл сторожа — смену сети и пробуждение.
     if !slept && !tun_is_being_rearmed {
-        crate::feat::tun::recheck_after_network_change().await;
+        AsyncHandler::spawn(crate::feat::tun::recheck_after_network_change);
     }
 
     if network_carries_traffic {

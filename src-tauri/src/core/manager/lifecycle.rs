@@ -744,7 +744,7 @@ impl CoreManager {
         // как раз и берут ради таких починок. Туннель, выкинутый из конфига
         // после прошлого провала, после старта возвращает, а поднятый проверяет
         // по факту `new_core_is_up` (`feat::tun::follow_up_on_a_new_core`).
-        crate::feat::tun::clear_suppression();
+        crate::feat::tun::clear_suppression_by_hand();
 
         if let Err(swap_error) = swap().await {
             // Nothing switched; bring the old core back before reporting.

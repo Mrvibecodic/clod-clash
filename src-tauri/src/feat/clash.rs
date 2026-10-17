@@ -14,7 +14,7 @@ use smartstring::alias::String;
 pub async fn restart_clash_core() -> anyhow::Result<()> {
     crate::feat::refuse_while_exiting()?;
     logging_error!(Type::Core, crate::config::profiles::profiles_save_file_safe().await);
-    crate::feat::tun::clear_suppression();
+    crate::feat::tun::clear_suppression_by_hand();
     CoreManager::global().restart_core().await?;
     handle::Handle::refresh_clash();
     Ok(())
