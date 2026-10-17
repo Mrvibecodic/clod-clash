@@ -2,14 +2,24 @@
 #![recursion_limit = "512"]
 
 mod cmd;
-pub mod config;
+mod config;
 mod constants;
 mod core;
 mod enhance;
 mod feat;
 mod module;
 mod process;
-pub mod utils;
+mod utils;
+
+/// Для проверки подписочных заголовков в `tests/`.
+#[doc(hidden)]
+pub use crate::{
+    config::{
+        PrfItem,
+        sub_headers::{HwidState, SubHeaders, spare_address},
+    },
+    utils::network::{NetworkManager, ProxyType},
+};
 
 use crate::constants::files;
 use crate::{
@@ -463,7 +473,6 @@ pub fn run() {
             }
             logging!(info, Type::System, "Application exited");
         }),
-        #[allow(unused_variables)]
         tauri::RunEvent::ExitRequested { api, code, .. } => {
             if module::lightweight::is_in_lightweight_mode() && !handle::Handle::global().is_exiting() {
                 api.prevent_exit();

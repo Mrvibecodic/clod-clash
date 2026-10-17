@@ -481,7 +481,7 @@ async fn commit_current_profile(profiles: &Draft<IProfiles>, current: Option<Str
 
 async fn handle_success(delivered: Delivered, current_value: Option<&String>) -> CmdResult<ValidationOutcome> {
     // Runtime refresh and tray rebuilding happen after saved node selections are restored.
-    delivered.restore_selection().stringify_err()?;
+    delivered.restore_selection();
     if delivered == Delivered::Restarted {
         // Выбор вернул старт ядра — раньше, чем реестр записал новый профиль, и
         // трей мог показать прежний.

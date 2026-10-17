@@ -7,13 +7,7 @@
 
 use std::time::Duration;
 
-use app_lib::{
-    config::{
-        PrfItem,
-        sub_headers::{HwidState, SubHeaders, spare_address},
-    },
-    utils::network::{NetworkManager, ProxyType},
-};
+use app_lib::{HwidState, NetworkManager, PrfItem, ProxyType, SubHeaders, spare_address};
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use tokio::{
     io::{AsyncReadExt as _, AsyncWriteExt as _},
@@ -145,10 +139,7 @@ async fn identity_headers_go_out_and_panel_headers_come_back() {
         Some("https://moved.example/sub/token?x=1")
     );
 
-    assert_eq!(
-        response.text_with_charset().unwrap_or_default().trim_start(),
-        BODY.trim_start()
-    );
+    assert_eq!(response.text_with_charset().trim_start(), BODY.trim_start());
 }
 
 /// Serve one request whose response has NO panel headers at all.

@@ -85,10 +85,6 @@ impl PendingProfileFiles {
         self.0.push(file);
     }
 
-    pub fn files(&self) -> &[String] {
-        &self.0
-    }
-
     pub async fn cleanup(self) {
         if self.0.is_empty() {
             return;
@@ -1355,7 +1351,7 @@ pub fn take_groups_left_filling() -> bool {
     GROUPS_LEFT_FILLING.swap(false, Ordering::AcqRel)
 }
 
-pub fn activate_selected_nodes() -> Result<()> {
+pub fn activate_selected_nodes() {
     logging!(info, Type::Config, "starting activating selected nodes");
     let mut active_task = ACTIVATE_SELECTED_TASK.lock();
     let generation = ACTIVATE_SELECTED_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
@@ -1409,7 +1405,6 @@ pub fn activate_selected_nodes() -> Result<()> {
     });
     *active_task = Some(handle);
     drop(active_task);
-    Ok(())
 }
 
 #[cfg(test)]
@@ -2035,7 +2030,7 @@ mod tests {
 
         assert!(!was_current, "удалили не текущую подписку");
         assert_eq!(
-            pending.files(),
+            pending.0,
             [
                 "victim.yaml.prev",
                 "victim.yaml.new",
@@ -2071,7 +2066,7 @@ mod tests {
 
         assert!(was_current, "удалили текущую подписку — конфиг надо пересобрать");
         assert_eq!(
-            pending.files(),
+            pending.0,
             [
                 "victim.yaml.prev",
                 "victim.yaml.new",

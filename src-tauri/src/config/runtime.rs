@@ -24,6 +24,7 @@ pub struct IRuntime {
     /// Профиль, из которого собран конфиг. Пометка «не применено» снимается с
     /// него, а не с того, кто окажется текущим в реестре в момент доставки.
     pub profile_uid: Option<String>,
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     pub dns_desire: Option<DnsDesire>,
     /// Блок `dns` и `hosts` подписки до страницы DNS: от него редактор
     /// показывает значения, а сохранение считает отличия.

@@ -377,9 +377,7 @@ impl CoreManager {
         if Handle::global().is_exiting() {
             return;
         }
-        if let Err(error) = crate::config::profiles::activate_selected_nodes() {
-            logging!(warn, Type::Core, "выбор узлов после запуска ядра не вернулся: {error}");
-        }
+        crate::config::profiles::activate_selected_nodes();
         // Своей задачей: здесь бывают и внутри идущего применения конфига.
         AsyncHandler::spawn(crate::feat::bring_the_accepted_mode_back);
         crate::module::freeze_check::core_came_up();

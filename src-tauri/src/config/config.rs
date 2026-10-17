@@ -308,12 +308,6 @@ impl Config {
         Self::effective_mixed_port().await
     }
 
-    /// Инициализация подписки
-    pub async fn init_config() -> Result<()> {
-        Self::init_config_before_window().await?;
-        Self::init_runtime_config().await
-    }
-
     pub async fn init_config_before_window() -> Result<()> {
         let verge = Self::verge().await.latest_arc();
         clash_verge_i18n::sync_locale(verge.language.as_deref());

@@ -30,8 +30,8 @@ impl HttpResponse {
         &self.headers
     }
 
-    pub fn text_with_charset(&self) -> Result<&str> {
-        Ok(&self.body)
+    pub fn text_with_charset(&self) -> &str {
+        &self.body
     }
 }
 
@@ -730,7 +730,7 @@ pub(crate) mod transport_tests {
         )
         .await;
         let response = get(&format!("http://{addr}/sub")).await.expect("ответ пришёл");
-        assert_eq!(response.text_with_charset().expect("текст"), "Привет");
+        assert_eq!(response.text_with_charset(), "Привет");
     }
 
     #[tokio::test]

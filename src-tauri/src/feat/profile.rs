@@ -657,9 +657,7 @@ const fn failure_notice_status(result: &Result<ValidationOutcome>) -> &'static s
 /// тому, что стало с ядром.
 pub(crate) fn settle_after_delivery(delivered: Delivered) {
     handle::Handle::refresh_clash();
-    if let Err(err) = delivered.restore_selection() {
-        logging!(warn, Type::Config, "Warning: restore selection failed: {err}");
-    }
+    delivered.restore_selection();
 }
 
 /// Прибраться после того, как ядро приняло конфиг обновлённой подписки.

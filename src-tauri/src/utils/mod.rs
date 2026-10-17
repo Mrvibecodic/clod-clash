@@ -18,6 +18,7 @@ pub mod server;
 pub mod singleton;
 #[cfg(test)]
 pub mod source_scan;
+#[cfg(any(target_os = "macos", test))]
 pub mod speed;
 pub mod startup;
 pub mod tmpl;

@@ -979,7 +979,7 @@ impl PrfItem {
             .filter(|custom| !custom.is_empty())
             .map(Into::into);
         let (name, named_by_panel) = answer_name(sub.profile_title.clone().or(filename), url.as_str());
-        let data = resp.text_with_charset()?;
+        let data = resp.text_with_charset();
 
         let data = refused_config.unwrap_or_else(|| data.trim_start_matches('\u{feff}'));
 
@@ -1282,7 +1282,7 @@ fn subscription_is_usable(resp: &crate::utils::network::HttpResponse) -> Result<
         bail!("failed to fetch remote profile with status {status_code}")
     }
 
-    let data = resp.text_with_charset()?;
+    let data = resp.text_with_charset();
     let data = data.trim_start_matches('\u{feff}');
 
     if data.trim().is_empty() {
@@ -1623,7 +1623,7 @@ fn opened(session: &chan::Session, response: &crate::utils::network::HttpRespons
     if !response.status().is_success() {
         return Err(ChanRefused(response.status()).into());
     }
-    session.open(response.text_with_charset()?, now)
+    session.open(response.text_with_charset(), now)
 }
 
 /// Один отчёт: исход и время прослойки из ответа, если ответ был.
@@ -2279,12 +2279,7 @@ mod secure_fetch_tests {
         ))
         .await
         .ok()
-        .map(|(response, pin)| {
-            (
-                response.text_with_charset().unwrap_or_default().to_owned(),
-                pin.map(|pin| pin.to_string()),
-            )
-        })
+        .map(|(response, pin)| (response.text_with_charset().to_owned(), pin.map(|pin| pin.to_string())))
     }
 
     fn unpinned(seen: &Seen) -> bool {

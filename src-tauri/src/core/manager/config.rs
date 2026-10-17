@@ -73,12 +73,10 @@ impl Delivered {
     }
 
     /// Единственное место, где после доставки возвращается выбор узлов.
-    pub fn restore_selection(self) -> Result<()> {
+    pub fn restore_selection(self) {
         let groups_were_left_filling = self == Self::Unchanged && crate::config::profiles::take_groups_left_filling();
         if self.brings_selection_back(groups_were_left_filling) {
-            crate::config::profiles::activate_selected_nodes()
-        } else {
-            Ok(())
+            crate::config::profiles::activate_selected_nodes();
         }
     }
 }
