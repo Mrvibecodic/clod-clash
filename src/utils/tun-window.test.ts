@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import { TUN_RESET, mtuIsValid, tunFieldsFrom, tunPatch } from './tun-window.ts'
+import {
+  TUN_RESET,
+  dnsHijackSetting,
+  mtuIsValid,
+  tunFieldsFrom,
+  tunPatch,
+} from './tun-window.ts'
 
 // Так выглядит tun в clash.yaml свежей установки.
 const TEMPLATE = {
@@ -57,6 +63,14 @@ describe('окно TUN', () => {
     assert.deepEqual(tunPatch(empty, { ...empty, mtu: '1400' }, 'windows'), {
       mtu: 1400,
     })
+  })
+
+  it('перехват DNS без единой записи — «как в подписке»', () => {
+    for (const empty of [undefined, '', ',', ' , ,', ',,,']) {
+      assert.equal(dnsHijackSetting(empty), 'auto', JSON.stringify(empty))
+    }
+    assert.equal(dnsHijackSetting('auto'), 'auto')
+    assert.equal(dnsHijackSetting('any:53, '), 'any:53, ')
   })
 
   it('MTU — пусто или целое больше нуля', () => {

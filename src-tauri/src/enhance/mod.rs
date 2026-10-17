@@ -48,13 +48,15 @@ fn parse_tun_overrides(stack: Option<&str>, strict_route: Option<&str>, dns_hija
         },
         dns_hijack: match dns_hijack.map(str::trim) {
             None | Some("auto") => None,
-            Some(list) => Some(Value::Sequence(
-                list.split(',')
+            Some(list) => {
+                let entries: Vec<Value> = list
+                    .split(',')
                     .map(str::trim)
                     .filter(|entry| !entry.is_empty())
                     .map(Value::from)
-                    .collect(),
-            )),
+                    .collect();
+                (!entries.is_empty()).then_some(Value::Sequence(entries))
+            }
         },
     }
 }
@@ -2429,8 +2431,12 @@ mod tests {
         assert!(junk.strict_route.is_none());
         assert!(junk.dns_hijack.is_none());
 
-        let empty = super::parse_tun_overrides(None, None, Some(""));
-        assert_eq!(empty.dns_hijack, Some(serde_yaml_ng::Value::Sequence(Vec::new())));
+        for empty in ["", ",", " , ,", ",,,"] {
+            assert!(
+                super::parse_tun_overrides(None, None, Some(empty)).dns_hijack.is_none(),
+                "{empty:?}: пустой список перехвата снимал перехват DNS"
+            );
+        }
     }
 
     fn owned_keys(app_tun: &str, overrides: &super::TunOverrides) -> Vec<super::String> {

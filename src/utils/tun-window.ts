@@ -48,6 +48,10 @@ export function tunFieldsFrom(
   }
 }
 
+/** Перехват DNS без единой записи — «как в подписке», а не «не перехватывать». */
+export const dnsHijackSetting = (value = 'auto') =>
+  value.split(',').some((entry) => entry.trim() !== '') ? value : 'auto'
+
 /** Пусто — снять закрепление; иначе целое больше нуля. */
 export const mtuIsValid = (value: string) =>
   value.trim() === '' || (/^\d+$/.test(value.trim()) && Number(value) > 0)

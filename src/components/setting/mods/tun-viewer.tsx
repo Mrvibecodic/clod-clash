@@ -29,6 +29,7 @@ import getSystem from '@/utils/get-system'
 import { areValidIpCidrs } from '@/utils/network'
 import {
   TUN_RESET,
+  dnsHijackSetting,
   mtuIsValid,
   splitRouteExcludeAddress,
   stackLabel,
@@ -118,7 +119,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
       const opened = {
         ...tunFieldsFrom(ladder?.tun, runtime?.tun, OS),
         stack: verge?.tun_stack ?? 'auto',
-        dnsHijack: verge?.tun_dns_hijack ?? 'auto',
+        dnsHijack: dnsHijackSetting(verge?.tun_dns_hijack),
         strictRoute: verge?.tun_strict_route ?? 'auto',
       }
       setValues(opened)
@@ -150,8 +151,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
         const overrides = {
           tun_stack: values.stack,
           tun_strict_route: values.strictRoute,
-          tun_dns_hijack:
-            values.dnsHijack.trim() === '' ? 'auto' : values.dnsHijack,
+          tun_dns_hijack: dnsHijackSetting(values.dnsHijack),
         }
         await patchVerge(overrides)
         mutateVerge({ ...verge, ...overrides })
