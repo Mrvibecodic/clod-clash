@@ -271,13 +271,12 @@ impl NetworkManager {
         proxy_type: ProxyType,
         timeout_secs: Option<u64>,
         user_agent: Option<String>,
-        accept_invalid_certs: bool,
     ) -> Result<Client> {
         self.create_request_with_tls_mode(
             proxy_type,
             timeout_secs,
             user_agent,
-            accept_invalid_certs,
+            false,
             TlsRootMode::PlatformVerifier,
         )
         .await

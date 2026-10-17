@@ -3,7 +3,7 @@ use crate::process::AsyncHandler;
 use super::field::{use_lowercase, use_lowercase_owned};
 use anyhow::{Error, Result};
 use boa_engine::{Context, JsString, JsValue, Source, native_function::NativeFunction};
-use clash_verge_logging::{Type, logging_error};
+use clash_verge_logging::{Type, logging};
 use parking_lot::Mutex;
 use serde_yaml_ng::Mapping;
 use smartstring::alias::String;
@@ -15,7 +15,7 @@ const MAX_JSON_SIZE: usize = 10 * 1024 * 1024; // 10MB
 const MAX_LOOP_ITERATIONS: u64 = 10_000_000;
 const SCRIPT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
-pub async fn use_script(script: String, config: Mapping, name: String) -> Result<(Mapping, Vec<(String, String)>)> {
+pub async fn use_script(script: String, config: Mapping, name: String) -> Result<Mapping> {
     let handle = AsyncHandler::spawn_blocking(move || use_script_sync(script, &config, &name));
     match tokio::time::timeout(SCRIPT_TIMEOUT, handle).await {
         Ok(Ok(result)) => result,
@@ -24,18 +24,20 @@ pub async fn use_script(script: String, config: Mapping, name: String) -> Result
     }
 }
 
-fn use_script_sync(script: String, config: &Mapping, name: &String) -> Result<(Mapping, Vec<(String, String)>)> {
+/// Метка, с которой обёртка возвращает исключение `main`.
+const ERROR_FLAG: &str = "__error_flag__ ";
+
+fn use_script_sync(script: String, config: &Mapping, name: &String) -> Result<Mapping> {
     let mut context = Context::default();
 
     context
         .runtime_limits_mut()
         .set_loop_iteration_limit(MAX_LOOP_ITERATIONS);
 
-    let outputs = Arc::new(Mutex::new(vec![]));
-    let total_size = Arc::new(Mutex::new(0usize));
-
-    let outputs_clone = Arc::clone(&outputs);
-    let total_size_clone = Arc::clone(&total_size);
+    // Сколько раз скрипт уже писал в консоль и сколько написал.
+    let written = Arc::new(Mutex::new((0usize, 0usize)));
+    let written_clone = Arc::clone(&written);
+    let script_name = name.clone();
 
     let _ = context.register_global_builtin_callable("__verge_log__".into(), 2, unsafe {
         NativeFunction::from_closure(move |_: &JsValue, args: &[JsValue], context: &mut Context| {
@@ -55,23 +57,21 @@ fn use_script_sync(script: String, config: &Mapping, name: &String) -> Result<(M
                 boa_engine::JsError::from_opaque(JsString::from("Failed to convert data to string").into())
             })?;
 
-            // Проверяем лимит вывода
-            if outputs_clone.lock().len() >= MAX_OUTPUTS {
+            let mut written = written_clone.lock();
+            if written.0 >= MAX_OUTPUTS {
                 return Err(boa_engine::JsError::from_opaque(
                     JsString::from("Maximum number of log outputs exceeded").into(),
                 ));
             }
-
-            let mut size = total_size_clone.lock();
-            let new_size = *size + level.len() + data.len();
+            let new_size = written.1 + level.len() + data.len();
             if new_size > MAX_OUTPUT_SIZE {
                 return Err(boa_engine::JsError::from_opaque(
                     JsString::from("Maximum output size exceeded").into(),
                 ));
             }
-            *size = new_size;
-            drop(size);
-            outputs_clone.lock().push((level.into(), data.into()));
+            *written = (written.0 + 1, new_size);
+            drop(written);
+            logging!(debug, Type::Config, "[script {script_name}] console.{level}: {data}");
             Ok(JsValue::undefined())
         })
     });
@@ -104,40 +104,33 @@ fn use_script_sync(script: String, config: &Mapping, name: &String) -> Result<(M
         {script};
         JSON.stringify(main({config_str},'{safe_name}')||'')
       }} catch(err) {{
-        `__error_flag__ ${{err.toString()}}`
+        `{ERROR_FLAG}${{err.toString()}}`
       }}"
     );
 
-    if let Ok(result) = context.eval(Source::from_bytes(code.as_str())) {
-        if !result.is_string() {
-            anyhow::bail!("main function should return object");
-        }
-        let result = result
-            .to_string(&mut context)
-            .map_err(|e| anyhow::anyhow!("Failed to convert JS result to string: {}", e))?;
-        let result = result
-            .to_std_string()
-            .map_err(|_| anyhow::anyhow!("Failed to convert JS string to std string"))?;
-
-        if result.len() > MAX_JSON_SIZE {
-            anyhow::bail!("Script result exceeds maximum allowed size");
-        }
-
-        let res: Result<Mapping, Error> = parse_json_safely(&result);
-
-        match res {
-            Ok(config) => Ok((use_lowercase_owned(config), outputs.lock().to_vec())),
-            Err(err) => {
-                outputs
-                    .lock()
-                    .push(("exception".into(), "Script execution failed".into()));
-                logging_error!(Type::Config, "Script execution error: {}. Script name: {}", err, name);
-                Ok((config, outputs.lock().to_vec()))
-            }
-        }
-    } else {
+    let result = context
+        .eval(Source::from_bytes(code.as_str()))
+        .map_err(|err| anyhow::anyhow!("the script does not run: {err}"))?;
+    if !result.is_string() {
         anyhow::bail!("main function should return object");
     }
+    let result = result
+        .to_string(&mut context)
+        .map_err(|e| anyhow::anyhow!("Failed to convert JS result to string: {}", e))?;
+    let result = result
+        .to_std_string()
+        .map_err(|_| anyhow::anyhow!("Failed to convert JS string to std string"))?;
+
+    if let Some(thrown) = result.strip_prefix(ERROR_FLAG) {
+        anyhow::bail!("main threw: {thrown}");
+    }
+    if result.len() > MAX_JSON_SIZE {
+        anyhow::bail!("Script result exceeds maximum allowed size");
+    }
+
+    parse_json_safely(&result)
+        .map(use_lowercase_owned)
+        .map_err(|err| anyhow::anyhow!("main function should return object: {err}"))
 }
 
 fn parse_json_safely(json_str: &str) -> Result<Mapping, Error> {
@@ -163,7 +156,6 @@ fn escape_js_string_for_single_quote(s: &str) -> String {
 }
 
 #[test]
-#[allow(unused_variables)]
 #[allow(clippy::expect_used)]
 fn test_script() {
     let script = r#"
@@ -188,7 +180,7 @@ fn test_script() {
   ";
 
     let config = &serde_yaml_ng::from_str(config).expect("Failed to parse test config YAML");
-    let (config, results) =
+    let config =
         use_script_sync(script.into(), config, &String::from("")).expect("Script execution should succeed in test");
 
     let _ = serde_yaml_ng::to_string(&config).expect("Failed to serialize config to YAML");
@@ -231,6 +223,33 @@ fn test_memory_limits() {
     #[allow(clippy::expect_used)]
     let config = &serde_yaml_ng::from_str("test: value").expect("Failed to parse test YAML");
     let result = use_script_sync(script.into(), config, &String::from(""));
-    // Должно завершиться ошибкой или быть ограничено
-    assert!(result.is_ok()); // будет ограничено, но не приведёт к panic
+    // Лимит вывода — исключение в скрипте, а не panic.
+    assert!(
+        result
+            .as_ref()
+            .is_err_and(|err| err.to_string().contains("Maximum number of log outputs exceeded")),
+        "{result:?}"
+    );
+}
+
+#[test]
+fn a_script_error_keeps_its_own_words() {
+    let config = serde_yaml_ng::from_str::<Mapping>("test: value").unwrap_or_default();
+    let thrown = use_script_sync(
+        "function main(config) { throw new Error('no proxies here'); }".into(),
+        &config,
+        &String::from("sub"),
+    );
+    assert!(
+        thrown
+            .as_ref()
+            .is_err_and(|err| err.to_string().contains("no proxies here")),
+        "{thrown:?}"
+    );
+    let not_an_object = use_script_sync(
+        "function main(config) { return 1; }".into(),
+        &config,
+        &String::from("sub"),
+    );
+    assert!(not_an_object.is_err(), "{not_an_object:?}");
 }

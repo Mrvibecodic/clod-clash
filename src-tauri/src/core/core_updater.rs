@@ -190,7 +190,6 @@ async fn http_client(proxy: ProxyType, timeout: u64) -> Result<reqwest::Client> 
             proxy,
             Some(timeout),
             Some(format!("clod-clash/{}", env!("CARGO_PKG_VERSION")).into()),
-            false,
         )
         .await
 }

@@ -84,7 +84,7 @@ fn archive_name(root: &Path, path: &Path) -> String {
 }
 
 pub async fn write_archive(target: PathBuf) -> Result<usize> {
-    let report = crate::module::support_bundle::build(None).await?;
+    let report = crate::module::support_bundle::build().await?;
     let app_logs = dirs::app_logs_dir()?;
     let service_logs = dirs::service_logs_root_dir()?;
 

@@ -46,6 +46,7 @@ pub(crate) use plan::Verdict;
 use crate::{
     config::Config,
     core::{handle, sysopt::verbose_diagnostics, tray::Tray},
+    feat::CoreListing,
     process::AsyncHandler,
 };
 
@@ -276,46 +277,26 @@ fn is_a_node(entry: &serde_json::Value) -> bool {
     )
 }
 
-fn nodes_of(proxies: &serde_json::Value, providers: Option<&serde_json::Value>) -> Listing {
+fn nodes_of(listed: &CoreListing) -> Listing {
     let mut seen = BTreeSet::new();
     let mut listing = Listing::default();
-    let mut take = |name: &str, provider: Option<&str>, entry: &serde_json::Value| {
+    for (name, provider, entry) in listed.entries() {
         let fingerprint = entry
             .get("fingerprint")
             .and_then(serde_json::Value::as_str)
             .unwrap_or_default();
         if fingerprint.is_empty() {
             listing.without_fingerprint += usize::from(is_a_node(entry));
-            return;
+            continue;
         }
         if !seen.insert(name.to_owned()) {
-            return;
+            continue;
         }
         listing.nodes.push(NodeRef {
             name: name.to_owned(),
             provider: provider.map(str::to_owned),
             fingerprint: fingerprint.to_owned(),
         });
-    };
-    if let Some(map) = proxies.get("proxies").and_then(serde_json::Value::as_object) {
-        for (name, entry) in map {
-            take(name, None, entry);
-        }
-    }
-    let listed = providers
-        .and_then(|providers| providers.get("providers"))
-        .and_then(serde_json::Value::as_object);
-    if let Some(map) = listed {
-        for (provider, entry) in map {
-            let Some(members) = entry.get("proxies").and_then(serde_json::Value::as_array) else {
-                continue;
-            };
-            for member in members {
-                if let Some(name) = member.get("name").and_then(serde_json::Value::as_str) {
-                    take(name, Some(provider), member);
-                }
-            }
-        }
     }
     listing
 }
@@ -329,39 +310,32 @@ async fn core_json(path: &str, budget: Duration) -> Option<serde_json::Value> {
 /// своим запросом — в общем `/providers/proxies` узел повторяется по разу на
 /// группу), и `true`, если ядро уже разложило сборку. `None` — ядро не ответило.
 async fn list_nodes() -> Option<(Listing, bool)> {
-    let (proxies, providers, failed) = crate::feat::read_core_proxies(LIST_TIMEOUT).await.into_json()?;
-    Some(listing_of(&proxies, &providers, failed))
+    let listed = crate::feat::read_core_proxies(LIST_TIMEOUT).await.parsed()?;
+    Some(listing_of(&listed))
 }
 
 /// Узлы — из всех прочитанных провайдеров; разложена ли сборка — только когда
 /// прочитались все: сбой одного не выбрасывает из захода узлы остальных.
-fn listing_of(proxies: &serde_json::Value, providers: &serde_json::Value, failed: usize) -> (Listing, bool) {
-    let settled = core_settled(proxies, providers_if_all_read(providers, failed));
-    (nodes_of(proxies, Some(providers)), settled)
-}
-
-/// Провайдеры, если прочитались все: без хоть одного сборка не разложена.
-/// Провайдеров у сборки нет — разложено.
-fn providers_if_all_read(providers: &serde_json::Value, failed: usize) -> Option<&serde_json::Value> {
-    (failed == 0).then_some(providers)
+fn listing_of(listed: &CoreListing) -> (Listing, bool) {
+    let settled = listed.failed == 0 && core_settled(listed);
+    (nodes_of(listed), settled)
 }
 
 /// Ядро разложило сборку: группы на месте (GLOBAL есть всегда) и у каждого
 /// провайдера по ссылке есть узлы. Только что поднятое ядро отвечает раньше.
-fn core_settled(proxies: &serde_json::Value, providers: Option<&serde_json::Value>) -> bool {
-    let groups = proxies.get("proxies").and_then(|map| map.get("GLOBAL")).is_some();
-    let filled = providers
-        .and_then(|providers| providers.get("providers"))
-        .and_then(serde_json::Value::as_object)
-        .is_some_and(|map| {
-            map.values().all(|provider| {
-                provider.get("vehicleType").and_then(serde_json::Value::as_str) != Some("HTTP")
-                    || provider
-                        .get("proxies")
-                        .and_then(serde_json::Value::as_array)
-                        .is_some_and(|members| !members.is_empty())
-            })
-        });
+fn core_settled(listed: &CoreListing) -> bool {
+    let groups = listed
+        .proxies
+        .get("proxies")
+        .and_then(|map| map.get("GLOBAL"))
+        .is_some();
+    let filled = listed.providers.iter().all(|(_, provider)| {
+        provider.get("vehicleType").and_then(serde_json::Value::as_str) != Some("HTTP")
+            || provider
+                .get("proxies")
+                .and_then(serde_json::Value::as_array)
+                .is_some_and(|members| !members.is_empty())
+    });
     groups && filled
 }
 
@@ -973,8 +947,22 @@ mod tests {
 
     use super::{
         Checks, Listing, NodeRef, compares_the_network, core_settled, download_path, due_of, listing_of, marks_of,
-        names_of, nodes_of, plan, providers_if_all_read, recorded, repeated, store, wave_control,
+        names_of, nodes_of, plan, recorded, repeated, store, wave_control,
     };
+    use crate::feat::CoreListing;
+
+    fn listed(proxies: serde_json::Value, providers: serde_json::Value, failed: usize) -> CoreListing {
+        CoreListing {
+            proxies,
+            providers: providers
+                .as_object()
+                .into_iter()
+                .flatten()
+                .map(|(name, provider)| (name.as_str().into(), provider.clone()))
+                .collect(),
+            failed,
+        }
+    }
 
     fn production() -> &'static str {
         crate::utils::source_scan::without_test_modules(include_str!("mod.rs"))
@@ -991,16 +979,15 @@ mod tests {
         );
 
         let groups = json!({ "proxies": { "GLOBAL": { "all": [] } } });
-        let listed = json!({ "providers": { "sub": { "vehicleType": "HTTP", "proxies": [{ "name": "a" }] } } });
-        assert_eq!(providers_if_all_read(&listed, 1), None);
-        assert!(core_settled(&groups, providers_if_all_read(&listed, 0)));
+        let sub = json!({ "sub": { "vehicleType": "HTTP", "proxies": [{ "name": "a" }] } });
+        assert!(!listing_of(&listed(groups.clone(), sub.clone(), 1)).1);
+        assert!(listing_of(&listed(groups.clone(), sub, 0)).1);
         // Провайдеров у сборки нет — ждать нечего.
-        let none = json!({ "providers": {} });
-        assert!(core_settled(&groups, providers_if_all_read(&none, 0)));
+        assert!(listing_of(&listed(groups.clone(), json!({}), 0)).1);
         // Один провайдер не прочитался — не разложено, но узлы прочитанных в
         // заходе остаются.
-        let read = json!({ "providers": { "sub": { "vehicleType": "HTTP", "proxies": [{ "name": "a", "fingerprint": "f" }] } } });
-        let (listing, settled) = listing_of(&groups, &read, 1);
+        let read = json!({ "sub": { "vehicleType": "HTTP", "proxies": [{ "name": "a", "fingerprint": "f" }] } });
+        let (listing, settled) = listing_of(&listed(groups, read, 1));
         assert!(!settled);
         assert_eq!(names_of(&listing.nodes).get("a"), Some(&"f"), "{:?}", listing.nodes);
     }
@@ -1229,15 +1216,14 @@ mod tests {
     #[test]
     fn a_freshly_started_core_is_settled_once_groups_and_link_providers_are_filled() {
         let groups = json!({ "proxies": { "GLOBAL": { "all": [] } } });
-        let empty = json!({ "providers": { "sub": { "vehicleType": "HTTP", "proxies": [] } } });
-        let filled = json!({ "providers": {
+        let empty = json!({ "sub": { "vehicleType": "HTTP", "proxies": [] } });
+        let filled = json!({
             "sub": { "vehicleType": "HTTP", "proxies": [{ "name": "a" }] },
             "default": { "vehicleType": "Compatible", "proxies": [] },
-        } });
-        assert!(!core_settled(&json!({ "proxies": {} }), Some(&filled)));
-        assert!(!core_settled(&groups, Some(&empty)));
-        assert!(!core_settled(&groups, None));
-        assert!(core_settled(&groups, Some(&filled)));
+        });
+        assert!(!core_settled(&listed(json!({ "proxies": {} }), filled.clone(), 0)));
+        assert!(!core_settled(&listed(groups.clone(), empty, 0)));
+        assert!(core_settled(&listed(groups, filled, 0)));
     }
 
     #[test]
@@ -1248,11 +1234,11 @@ mod tests {
             "a": { "type": "VLESS", "fingerprint": "f1" },
             "b": { "type": "VLESS", "fingerprint": "" },
         }});
-        let providers = json!({ "providers": {
+        let providers = json!({
             "default": { "proxies": [ { "name": "a", "fingerprint": "f1" } ] },
             "sub": { "proxies": [ { "name": "c", "fingerprint": "f2" }, { "name": "d", "type": "Trojan" } ] },
-        }});
-        let listing = nodes_of(&proxies, Some(&providers));
+        });
+        let listing = nodes_of(&listed(proxies.clone(), providers, 0));
         assert_eq!(
             listing.nodes,
             vec![
@@ -1266,7 +1252,7 @@ mod tests {
         );
         // Узлы без отпечатка — `b` и `d`; группа и DIRECT не в счёт.
         assert_eq!(listing.without_fingerprint, 2);
-        assert_eq!(nodes_of(&proxies, None).nodes.len(), 1);
+        assert_eq!(nodes_of(&listed(proxies, json!({}), 0)).nodes.len(), 1);
     }
 
     #[test]
@@ -1276,7 +1262,7 @@ mod tests {
             "a": { "type": "VLESS" },
         }});
         assert_eq!(
-            nodes_of(&foreign, None),
+            nodes_of(&listed(foreign, json!({}), 0)),
             Listing {
                 nodes: Vec::new(),
                 without_fingerprint: 1
@@ -1288,7 +1274,7 @@ mod tests {
             "REJECT": { "type": "Reject" },
             "PASS-RULE": { "type": "PassRule" },
         }});
-        assert_eq!(nodes_of(&empty, None), Listing::default());
+        assert_eq!(nodes_of(&listed(empty, json!({}), 0)), Listing::default());
     }
 
     #[test]

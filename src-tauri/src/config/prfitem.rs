@@ -665,13 +665,8 @@ impl PrfItem {
     /// Скачать подписку, перебирая маршруты: сначала выбранный, потом остальные.
     /// Импорт (и по ссылке-приглашению), создание, обновление и запасные адреса
     /// ходят только сюда.
-    pub async fn from_url_with_ladder(
-        url: &str,
-        name: Option<&String>,
-        desc: Option<&String>,
-        option: Option<&PrfOption>,
-    ) -> Result<Fetched> {
-        Self::download(url, name, desc, option)
+    pub async fn from_url_with_ladder(url: &str, option: Option<&PrfOption>) -> Result<Fetched> {
+        Self::download(url, None, None, option)
             .await
             .map_err(DownloadFailure::into_error)
     }

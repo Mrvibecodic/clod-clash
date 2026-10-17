@@ -77,7 +77,7 @@ async fn download(url: &str) -> Result<Vec<u8>> {
         |proxy| async move {
             let attempt = async {
                 let client = NetworkManager::new()
-                    .create_request(proxy, Some(TIMEOUT_SECS), None, false)
+                    .create_request(proxy, Some(TIMEOUT_SECS), None)
                     .await?;
                 let response = client.get(url).send().await?;
                 if !response.status().is_success() {

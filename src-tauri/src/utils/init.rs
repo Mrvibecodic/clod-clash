@@ -183,52 +183,10 @@ fn available_legacy_path(parent: &Path, prefix: &str) -> Result<PathBuf> {
 }
 
 #[cfg(target_os = "macos")]
-async fn migrate_legacy_macos_service_logs(log_dir: &Path) -> Result<()> {
-    let legacy_service_dir = log_dir.join("service");
-    if !legacy_service_dir.exists() {
-        return Ok(());
-    }
-
-    let service_logs_root = dirs::service_logs_root_dir()?;
-    fs::create_dir_all(&service_logs_root)
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to create service logs root {:?}: {}", service_logs_root, e))?;
-
-    let archived_service_dir = available_legacy_path(&service_logs_root, "service.legacy")?;
-    fs::rename(&legacy_service_dir, &archived_service_dir)
-        .await
-        .map_err(|e| {
-            anyhow::anyhow!(
-                "Failed to archive legacy macOS service logs {:?} to {:?}: {}",
-                legacy_service_dir,
-                archived_service_dir,
-                e
-            )
-        })?;
-
-    logging!(
-        info,
-        Type::Setup,
-        "Archived legacy macOS service logs: {:?} -> {:?}",
-        legacy_service_dir,
-        archived_service_dir
-    );
-
-    Ok(())
-}
-
-#[cfg(target_os = "macos")]
-async fn migrate_legacy_macos_logs() -> Result<()> {
+async fn set_aside_unwritable_macos_logs() -> Result<()> {
     let log_dir = dirs::app_logs_dir()?;
 
-    if !log_dir.exists() {
-        return Ok(());
-    }
-
-    if is_logs_dir_writable(&log_dir).await {
-        if let Err(e) = migrate_legacy_macos_service_logs(&log_dir).await {
-            logging!(warn, Type::Setup, "Failed to migrate legacy macOS service logs: {}", e);
-        }
+    if !log_dir.exists() || is_logs_dir_writable(&log_dir).await {
         return Ok(());
     }
 
@@ -650,8 +608,13 @@ async fn unpin_once(flag: &str, unpin: fn(&mut serde_yaml_ng::Mapping) -> bool, 
 
 pub async fn init_config() -> Result<()> {
     #[cfg(target_os = "macos")]
-    if let Err(e) = migrate_legacy_macos_logs().await {
-        logging!(warn, Type::Setup, "Failed to migrate macOS logs directory: {}", e);
+    if let Err(e) = set_aside_unwritable_macos_logs().await {
+        logging!(
+            warn,
+            Type::Setup,
+            "Failed to set aside the unwritable macOS logs directory: {}",
+            e
+        );
     }
 
     ensure_directories().await?;

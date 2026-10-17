@@ -1,6 +1,5 @@
 use serde_yaml_ng::{Mapping, Value};
 use smartstring::alias::String;
-use std::collections::{HashMap, HashSet};
 
 use crate::enhance::field::use_keys;
 
@@ -32,11 +31,6 @@ pub struct IRuntime {
     /// Ключи, которые цепочки merge и script записали, а приложение отбросило
     /// (плоскость управления и свои поля `tun`) — человеку об этом говорят.
     pub discarded_keys: Vec<String>,
-    // Ключи, встречавшиеся в подписке (включая сгенерированные merge и script)
-    // Эти ключи не обязательно все действуют
-    pub exists_keys: HashSet<String>,
-    // TODO возможно, стоит хранить в FixMap для повышения эффективности
-    pub chain_logs: HashMap<String, Vec<(String, String)>>,
     // clod: отчёт фильтра заглушек — часть этой же сборки конфига. Живёт в
     // драфте и коммитится/откатывается вместе с ним: глобальный слот здесь
     // переживал бы откат неудачной валидации и описывал бы конфиг, который

@@ -201,7 +201,7 @@ impl Hotkey {
             }
             HotkeyFunction::ToggleTunMode => {
                 AsyncHandler::spawn(async move || {
-                    let is_tun_enable = feat::toggle_tun_mode(None).await;
+                    let is_tun_enable = feat::toggle_tun_mode().await;
                     notify_event(NotificationEvent::TunModeToggled(is_tun_enable)).await;
                 });
             }

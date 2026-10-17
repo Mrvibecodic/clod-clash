@@ -24,7 +24,7 @@ fn parse(body: &str, v6: bool) -> Option<String> {
 
 async fn ask(url: &str, v6: bool) -> Option<String> {
     let client = NetworkManager::new()
-        .create_request(ProxyType::None, Some(TIMEOUT_SECS), Some(BROWSER_UA.into()), false)
+        .create_request(ProxyType::None, Some(TIMEOUT_SECS), Some(BROWSER_UA.into()))
         .await
         .ok()?;
     let response = tokio::time::timeout(Duration::from_secs(TIMEOUT_SECS + 2), client.get(url).send())

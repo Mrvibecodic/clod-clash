@@ -22,12 +22,6 @@ pub enum ChainType {
     Groups(SeqMap),
 }
 
-#[derive(Debug, Clone)]
-pub enum ChainSupport {
-    ClashMeta,
-    ClashMetaAlpha,
-}
-
 pub trait AsyncChainItemFrom {
     async fn from_async(item: &PrfItem) -> Option<ChainItem>;
 }
@@ -78,33 +72,14 @@ impl AsyncChainItemFrom for Option<ChainItem> {
     }
 }
 impl ChainItem {
-    pub fn builtin() -> Vec<(ChainSupport, Self)> {
-        let hy_alpn = Self::to_script("verge_hy_alpn", include_str!("./builtin/meta_hy_alpn.js"));
-
-        let hy_alpn_alpha = Self::to_script("verge_hy_alpn", include_str!("./builtin/meta_hy_alpn.js"));
-
-        vec![
-            (ChainSupport::ClashMeta, hy_alpn),
-            (ChainSupport::ClashMetaAlpha, hy_alpn_alpha),
-        ]
+    pub fn builtin() -> Self {
+        Self::to_script("verge_hy_alpn", include_str!("./builtin/meta_hy_alpn.js"))
     }
 
     pub fn to_script<U: Into<String>, D: Into<String>>(uid: U, data: D) -> Self {
         Self {
             uid: uid.into(),
             data: ChainType::Script(data.into()),
-        }
-    }
-}
-
-impl ChainSupport {
-    pub fn is_support(&self, core: Option<&String>) -> bool {
-        match core {
-            Some(core) => matches!(
-                (self, core.as_str()),
-                (Self::ClashMeta, "verge-mihomo") | (Self::ClashMetaAlpha, "verge-mihomo-alpha")
-            ),
-            None => true,
         }
     }
 }

@@ -56,6 +56,7 @@ use crate::{
     config::{Config, PrfItem, proxy_label::Address},
     constants::timing,
     core::handle,
+    feat::CoreListing,
     module::freeze_check::Verdict,
     process::AsyncHandler,
     utils::{dirs, help},
@@ -311,33 +312,15 @@ fn history_of(entry: &serde_json::Value) -> Vec<(i64, u64)> {
 /// История задержек узлов из `wanted`: из `/proxies` (узлы самой подписки) и
 /// провайдеров подписки (узлы провайдеров — в `/proxies` их нет) — у того же
 /// узла, чей адрес у `wanted`: одноимённый узел другого провайдера не в счёт.
-fn histories(
-    proxies: &serde_json::Value,
-    providers: Option<&serde_json::Value>,
-    wanted: &HashMap<String, Address>,
-) -> HashMap<String, Vec<(i64, u64)>> {
+fn histories(listed: &CoreListing, wanted: &HashMap<String, Address>) -> HashMap<String, Vec<(i64, u64)>> {
     let mut out = HashMap::new();
-    if let Some(map) = proxies.get("proxies").and_then(serde_json::Value::as_object) {
-        for (name, entry) in map {
-            if wanted.get(name).is_some_and(|address| address.provider.is_empty()) {
-                out.insert(name.clone(), history_of(entry));
-            }
-        }
-    }
-    let listed = providers
-        .and_then(|providers| providers.get("providers"))
-        .and_then(serde_json::Value::as_object);
-    for (provider, listing) in listed.into_iter().flatten() {
-        let Some(members) = listing.get("proxies").and_then(serde_json::Value::as_array) else {
-            continue;
-        };
-        for member in members {
-            let Some(name) = member.get("name").and_then(serde_json::Value::as_str) else {
-                continue;
-            };
-            if wanted.get(name).is_some_and(|address| address.provider == *provider) && !out.contains_key(name) {
-                out.insert(name.to_owned(), history_of(member));
-            }
+    for (name, provider, entry) in listed.entries() {
+        if wanted
+            .get(name)
+            .is_some_and(|address| address.provider == provider.unwrap_or_default())
+            && !out.contains_key(name)
+        {
+            out.insert(name.to_owned(), history_of(entry));
         }
     }
     out
@@ -462,8 +445,7 @@ async fn read_window(uid: &str, until: i64) -> Option<Window> {
         .await
         .filter(|nodes| !nodes.is_empty())?;
     // Сбойный провайдер пропускается: его замеры дождутся следующего чтения.
-    let (proxies, providers, _failed) = crate::feat::read_core_proxies(CORE_TIMEOUT).await.into_json()?;
-    let listed = histories(&proxies, Some(&providers), &nodes);
+    let listed = histories(&crate::feat::read_core_proxies(CORE_TIMEOUT).await.parsed()?, &nodes);
     let since = with_runtime(|runtime| runtime.pings_until);
     let until = until.max(since);
     let pings = pings_of(&listed, since, until);
@@ -1111,11 +1093,20 @@ mod tests {
         histories, next_read, pack_within, pings_of, sends_between, too_early, with_runtime,
     };
     use crate::config::{PrfItem, PrfOption};
+    use crate::feat::CoreListing;
 
     fn ms(text: &str) -> i64 {
         chrono::DateTime::parse_from_rfc3339(text)
             .map(|t| t.timestamp_millis())
             .unwrap_or(0)
+    }
+
+    fn own(proxies: serde_json::Value) -> CoreListing {
+        CoreListing {
+            proxies,
+            providers: Vec::new(),
+            failed: 0,
+        }
     }
 
     fn wanted(names: &[&str]) -> HashMap<String, Address> {
@@ -1136,7 +1127,7 @@ mod tests {
             ]},
             "Группа": {"all": ["Узел"], "history": [{"time": "2026-10-04T10:04:30Z", "delay": 10}]}
         }});
-        let listed = histories(&proxies, None, &wanted(&["Узел"]));
+        let listed = histories(&own(proxies), &wanted(&["Узел"]));
         let since = ms("2026-10-04T07:00:00.5Z");
         let until = ms("2026-10-04T10:04:00.5Z");
         let got = pings_of(&listed, since, until);
@@ -1155,21 +1146,37 @@ mod tests {
         // В `/proxies` узлов провайдера нет — только в `/providers/proxies`.
         let proxies =
             serde_json::json!({"proxies": {"Свой": {"history": [{"time": "2026-10-04T10:00:00Z", "delay": 5}]}}});
-        let providers = serde_json::json!({"providers": {
-            "panel": {"proxies": [
-                {"name": "Чужой", "history": [{"time": "2026-10-04T10:00:01Z", "delay": 7}]},
-                {"name": "Свой", "history": [{"time": "2026-10-04T10:00:02Z", "delay": 9}]}
-            ]},
+        let providers = vec![
+            (
+                "panel".into(),
+                serde_json::json!({"proxies": [
+                    {"name": "Чужой", "history": [{"time": "2026-10-04T10:00:01Z", "delay": 7}]},
+                    {"name": "Свой", "history": [{"time": "2026-10-04T10:00:02Z", "delay": 9}]}
+                ]}),
+            ),
             // Одноимённый узел провайдера, чьего адреса у отчёта нет (имена
             // переписаны), — не тот узел.
-            "a-renamed": {"proxies": [{"name": "Чужой", "history": [{"time": "2026-10-04T10:00:03Z", "delay": 99}]}]},
-            "default": {"proxies": [{"name": "Группа", "history": []}]}
-        }});
+            (
+                "a-renamed".into(),
+                serde_json::json!({"proxies": [{"name": "Чужой", "history": [{"time": "2026-10-04T10:00:03Z", "delay": 99}]}]}),
+            ),
+            (
+                "default".into(),
+                serde_json::json!({"proxies": [{"name": "Группа", "history": []}]}),
+            ),
+        ];
         let mut wanted = wanted(&["Свой", "Чужой"]);
         if let Some(address) = wanted.get_mut("Чужой") {
             address.provider = "panel".into();
         }
-        let listed = histories(&proxies, Some(&providers), &wanted);
+        let listed = histories(
+            &CoreListing {
+                proxies,
+                providers,
+                failed: 0,
+            },
+            &wanted,
+        );
         assert_eq!(listed.len(), 2);
         // Одноимённый узел подписки первее провайдерского.
         assert_eq!(listed["Свой"][0].1, 5);
@@ -1185,7 +1192,7 @@ mod tests {
             "Частый": {"history": history},
             "Редкий": {"history": [{"time": "2026-10-04T10:00:00Z", "delay": 50}]}
         }});
-        let listed = histories(&proxies, None, &wanted(&["Частый", "Редкий"]));
+        let listed = histories(&own(proxies), &wanted(&["Частый", "Редкий"]));
         // Десять замеров за 9 минут, окно отстаёт на 20 с — читать раз в
         // 4 мин 20 с. Прошлое чтение застало самый старый из десяти — ничего не ушло.
         let (next, lost) = next_read(&listed, ms("2026-10-04T10:00:30Z"));
@@ -1200,7 +1207,7 @@ mod tests {
             .collect();
         let proxies = serde_json::json!({"proxies": {"Частый": {"history": dense}}});
         assert_eq!(
-            next_read(&histories(&proxies, None, &wanted(&["Частый"])), 0).0,
+            next_read(&histories(&own(proxies), &wanted(&["Частый"])), 0).0,
             TICK_MIN
         );
         assert_eq!(next_read(&HashMap::new(), 0).0, TICK);

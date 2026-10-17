@@ -1028,7 +1028,7 @@ fn handle_primary_click() {
                 let _ = feat::toggle_system_proxy().await;
             }
             TrayAction::TunMode => {
-                let _ = feat::toggle_tun_mode(None).await;
+                let _ = feat::toggle_tun_mode().await;
             }
             TrayAction::MainWindow => lightweight::wake_or_show().await,
             TrayAction::TrayMenu => {
@@ -1109,7 +1109,7 @@ fn handle_menu_click(id: std::string::String) {
                 feat::toggle_system_proxy().await;
             }
             MenuIds::TUN_MODE => {
-                feat::toggle_tun_mode(None).await;
+                feat::toggle_tun_mode().await;
             }
             MenuIds::CLOSE_ALL_CONNECTIONS => {
                 if let Err(err) = handle::Handle::mihomo().close_all_connections().await {

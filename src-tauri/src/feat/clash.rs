@@ -330,24 +330,60 @@ pub async fn read_core_proxies(budget: std::time::Duration) -> CoreProxies {
     }
 }
 
+/// Разобранное чтение ядра, как его читают отчёт и проверка узлов.
+pub struct CoreListing {
+    pub proxies: serde_json::Value,
+    /// Ответы прочитанных провайдеров — по порядку имён: так же обходят подписи
+    /// узлов и Android, и одноимённый узел двух провайдеров берётся у одного.
+    pub providers: Vec<(String, serde_json::Value)>,
+    /// Сколько провайдеров не прочиталось или не разобралось.
+    pub failed: usize,
+}
+
 impl CoreProxies {
-    /// Прочитанное — в форме общих ответов ядра, как их разбирают отчёт и
-    /// проверка узлов: `/proxies` и `{"providers": {имя: ответ}}`, и сколько
-    /// провайдеров не прочиталось или не разобралось (их в ответе нет). `None` —
-    /// не прочитался `/proxies`.
-    pub fn into_json(self) -> Option<(serde_json::Value, serde_json::Value, usize)> {
+    /// `None` — не прочитался `/proxies`.
+    pub fn parsed(self) -> Option<CoreListing> {
         let proxies = serde_json::from_slice(&self.proxies.ok()?).ok()?;
         let mut failed = 0;
-        let mut providers = serde_json::Map::with_capacity(self.providers.len());
+        let mut providers = Vec::with_capacity(self.providers.len());
         for (name, body) in self.providers {
             match body.ok().and_then(|body| serde_json::from_slice(&body).ok()) {
-                Some(provider) => {
-                    providers.insert(name.into(), provider);
-                }
+                Some(provider) => providers.push((name, provider)),
                 None => failed += 1,
             }
         }
-        Some((proxies, serde_json::json!({ "providers": providers }), failed))
+        providers.sort_by(|a, b| a.0.cmp(&b.0));
+        Some(CoreListing {
+            proxies,
+            providers,
+            failed,
+        })
+    }
+}
+
+impl CoreListing {
+    /// Записи `/proxies` (вместе с группами и встроенными), затем члены
+    /// провайдеров: имя, провайдер (`None` — из `/proxies`) и запись ядра.
+    pub fn entries(&self) -> impl Iterator<Item = (&str, Option<&str>, &serde_json::Value)> {
+        let own = self
+            .proxies
+            .get("proxies")
+            .and_then(serde_json::Value::as_object)
+            .into_iter()
+            .flatten()
+            .map(|(name, entry)| (name.as_str(), None, entry));
+        let members = self.providers.iter().flat_map(|(provider, listing)| {
+            listing
+                .get("proxies")
+                .and_then(serde_json::Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(move |member| {
+                    let name = member.get("name").and_then(serde_json::Value::as_str)?;
+                    Some((name, Some(provider.as_str()), member))
+                })
+        });
+        own.chain(members)
     }
 }
 
@@ -387,26 +423,36 @@ mod tests {
     }
 
     #[test]
-    fn the_read_takes_the_shape_of_the_cores_listing_and_counts_failed_providers() {
-        let (proxies, providers, failed) = read(
-            Ok(r#"{"proxies":{"a":{}}}"#),
+    fn the_read_lists_every_node_once_providers_by_name_and_counts_failed_ones() {
+        let listing = read(
+            Ok(r#"{"proxies":{"a":{},"GLOBAL":{"all":["a"]}}}"#),
             &[
-                ("sub", Ok(r#"{"proxies":[{"name":"n"}]}"#)),
+                ("sub", Ok(r#"{"proxies":[{"name":"n"},{"type":"no name"}]}"#)),
                 ("down", Err(anyhow::anyhow!("404"))),
                 ("broken", Ok("{")),
+                ("another", Ok(r#"{"proxies":[{"name":"m"}]}"#)),
             ],
         )
-        .into_json()
-        .unwrap_or_default();
-        assert_eq!(proxies["proxies"]["a"], serde_json::json!({}));
-        assert_eq!(providers["providers"]["sub"]["proxies"][0]["name"], "n");
-        assert_eq!(providers["providers"].as_object().map(serde_json::Map::len), Some(1));
-        assert_eq!(failed, 2);
+        .parsed();
+        let entries: Vec<_> = listing
+            .iter()
+            .flat_map(super::CoreListing::entries)
+            .map(|(name, provider, _)| (name, provider))
+            .collect();
+        assert_eq!(
+            entries,
+            [
+                ("GLOBAL", None),
+                ("a", None),
+                ("m", Some("another")),
+                ("n", Some("sub"))
+            ]
+        );
+        assert_eq!(listing.map(|listing| listing.failed), Some(2));
 
-        let (_, providers, failed) = read(Ok("{}"), &[]).into_json().unwrap_or_default();
-        assert_eq!(providers, serde_json::json!({ "providers": {} }));
-        assert_eq!(failed, 0);
-        assert!(read(Err(anyhow::anyhow!("down")), &[]).into_json().is_none());
+        let listing = read(Ok("{}"), &[]).parsed();
+        assert!(listing.is_some_and(|listing| listing.entries().next().is_none() && listing.failed == 0));
+        assert!(read(Err(anyhow::anyhow!("down")), &[]).parsed().is_none());
     }
 
     #[test]

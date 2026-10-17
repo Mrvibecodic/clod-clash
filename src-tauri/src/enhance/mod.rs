@@ -8,7 +8,7 @@ mod tun;
 
 use self::{
     chain::{AsyncChainItemFrom as _, ChainItem, ChainType},
-    field::{use_keys, use_lowercase, use_sort},
+    field::{use_lowercase, use_sort},
     merge::use_merge,
     script::use_script,
     seq::{SeqMap, use_seq},
@@ -27,8 +27,6 @@ use serde_yaml_ng::{Mapping, Value};
 use smartstring::alias::String;
 use std::collections::{HashMap, HashSet};
 use tokio::fs;
-
-type ResultLog = Vec<(String, String)>;
 
 #[derive(Debug, Default)]
 struct TunOverrides {
@@ -219,7 +217,6 @@ pub struct Resolved {
 #[derive(Debug)]
 struct ConfigValues {
     clash_config: Mapping,
-    clash_core: Option<String>,
     enable_tun: bool,
     enable_builtin: bool,
     socks_enabled: bool,
@@ -344,8 +341,7 @@ fn get_config_values(sources: &Resolved) -> ConfigValues {
 
     let lan_sharing_declined = lan_sharing_declined.unwrap_or(false);
 
-    let (clash_core, enable_tun, enable_builtin, socks_enabled, http_enabled, enable_dns_settings) = (
-        Some(verge_arc.get_valid_clash_core()),
+    let (enable_tun, enable_builtin, socks_enabled, http_enabled, enable_dns_settings) = (
         enable_tun_mode.unwrap_or(false) && !crate::feat::tun::is_suppressed(),
         enable_builtin_enhanced.unwrap_or(true),
         verge_socks_enabled.unwrap_or(false),
@@ -366,7 +362,6 @@ fn get_config_values(sources: &Resolved) -> ConfigValues {
 
     ConfigValues {
         clash_config,
-        clash_core,
         enable_tun,
         enable_builtin,
         socks_enabled,
@@ -472,31 +467,35 @@ async fn collect_profile_items(profiles_arc: &IProfiles) -> Result<ProfileItems>
 
 async fn process_global_items(
     mut config: Mapping,
-    mut exists_keys: Vec<String>,
-    mut result_map: HashMap<String, ResultLog>,
     global_merge: ChainItem,
     global_script: ChainItem,
     profile_name: &String,
-) -> (Mapping, Vec<String>, HashMap<String, ResultLog>) {
+) -> Mapping {
     if let ChainType::Merge(merge) = global_merge.data {
-        exists_keys.extend(use_keys(&merge));
         config = use_merge(&merge, config);
     }
 
     if let ChainType::Script(script) = global_script.data {
-        let mut logs = vec![];
-        match use_script(script, config.clone(), profile_name.clone()).await {
-            Ok((res_config, res_logs)) => {
-                extend_changed_keys(&mut exists_keys, &config, &res_config);
-                config = res_config;
-                logs.extend(res_logs);
-            }
-            Err(err) => logs.push(("exception".into(), err.to_string().into())),
-        }
-        result_map.insert(global_script.uid, logs);
+        config = run_script(script, config, profile_name, "global script").await;
     }
 
-    (config, exists_keys, result_map)
+    config
+}
+
+/// Скрипт человека над сборкой. Ошибка — в журнал с именем подписки, сборка
+/// остаётся, какой была до скрипта.
+async fn run_script(script: String, config: Mapping, profile_name: &String, which: &str) -> Mapping {
+    match use_script(script, config.clone(), profile_name.clone()).await {
+        Ok(config) => config,
+        Err(err) => {
+            logging!(
+                warn,
+                Type::Config,
+                "Warning: {which} for subscription {profile_name} failed, applied without it: {err:#}"
+            );
+            config
+        }
+    }
 }
 
 fn process_seq_items(
@@ -518,20 +517,6 @@ fn process_seq_items(
     }
 
     config
-}
-
-fn extend_changed_keys(exists_keys: &mut Vec<String>, config: &Mapping, res_config: &Mapping) {
-    exists_keys.extend(res_config.iter().filter_map(|(key, value)| {
-        if config.get(key) == Some(value) {
-            return None;
-        }
-
-        key.as_str().map(|key| {
-            let mut key: String = key.into();
-            key.make_ascii_lowercase();
-            key
-        })
-    }));
 }
 
 const EXTERNAL_UI_KEYS: &[&str] = &["external-ui", "external-ui-url", "external-ui-name"];
@@ -974,31 +959,19 @@ fn ensure_store_selected(mut config: Mapping) -> Mapping {
 
 async fn process_profile_items(
     mut config: Mapping,
-    mut exists_keys: Vec<String>,
-    mut result_map: HashMap<String, ResultLog>,
     merge_item: ChainItem,
     script_item: ChainItem,
     profile_name: &String,
-) -> (Mapping, Vec<String>, HashMap<String, ResultLog>) {
+) -> Mapping {
     if let ChainType::Merge(merge) = merge_item.data {
-        exists_keys.extend(use_keys(&merge));
         config = use_merge(&merge, config);
     }
 
     if let ChainType::Script(script) = script_item.data {
-        let mut logs = vec![];
-        match use_script(script, config.clone(), profile_name.clone()).await {
-            Ok((res_config, res_logs)) => {
-                extend_changed_keys(&mut exists_keys, &config, &res_config);
-                config = res_config;
-                logs.extend(res_logs);
-            }
-            Err(err) => logs.push(("exception".into(), err.to_string().into())),
-        }
-        result_map.insert(script_item.uid, logs);
+        config = run_script(script, config, profile_name, "script").await;
     }
 
-    (config, exists_keys, result_map)
+    config
 }
 
 const SUBSCRIPTION_DECIDES: &[&str] = &["ipv6"];
@@ -1178,23 +1151,17 @@ fn drop_an_unusable_subscription_port(config: &mut Mapping) {
     config.remove("mixed-port");
 }
 
-async fn apply_builtin_scripts(mut config: Mapping, clash_core: Option<String>, enable_builtin: bool) -> Mapping {
+async fn apply_builtin_scripts(mut config: Mapping, enable_builtin: bool) -> Mapping {
     if enable_builtin {
-        let items: Vec<_> = ChainItem::builtin()
-            .into_iter()
-            .filter(|(s, _)| s.is_support(clash_core.as_ref()))
-            .map(|(_, c)| c)
-            .collect();
-        for item in items {
-            logging!(debug, Type::Core, "run builtin script {}", item.uid);
-            if let ChainType::Script(script) = item.data {
-                match use_script(script, config.clone(), String::from("")).await {
-                    Ok((res_config, _)) => {
-                        config = res_config;
-                    }
-                    Err(err) => {
-                        logging!(error, Type::Core, "builtin script error `{err}`");
-                    }
+        let item = ChainItem::builtin();
+        logging!(debug, Type::Core, "run builtin script {}", item.uid);
+        if let ChainType::Script(script) = item.data {
+            match use_script(script, config.clone(), String::from("")).await {
+                Ok(res_config) => {
+                    config = res_config;
+                }
+                Err(err) => {
+                    logging!(error, Type::Core, "builtin script error `{err}`");
                 }
             }
         }
@@ -1971,7 +1938,6 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
     let cfg_vals = get_config_values(sources);
     let ConfigValues {
         mut clash_config,
-        clash_core,
         enable_tun,
         enable_builtin,
         socks_enabled,
@@ -2004,9 +1970,6 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
     let mode_choice = profile.mode_choice;
     let profile_is_a_candidate = profile.profile_is_a_candidate;
 
-    let result_map = HashMap::new();
-
-    let exists_keys = use_keys(&config).collect::<Vec<_>>();
     let config = process_seq_items(config, rules_item, proxies_item, groups_item);
 
     // clod:lan-share — просит ли подписка раздачу. Снимается здесь, потому что
@@ -2038,7 +2001,7 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
         tproxy_enabled,
     );
 
-    let config = apply_builtin_scripts(config, clash_core, enable_builtin).await;
+    let config = apply_builtin_scripts(config, enable_builtin).await;
     let dns_base = dns_page::Base::of(&config);
     let (config, shaped_fake_ip) = use_tun(config, enable_tun);
     #[cfg(target_os = "macos")]
@@ -2064,18 +2027,8 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
     let control_plane = snapshot_control_plane(&config);
     let tun_snapshot = snapshot_tun(&config, &tun_owned);
 
-    let (config, exists_keys, result_map) = process_global_items(
-        config,
-        exists_keys,
-        result_map,
-        global_merge,
-        global_script,
-        &profile_name,
-    )
-    .await;
-
-    let (config, exists_keys, result_map) =
-        process_profile_items(config, exists_keys, result_map, merge_item, script_item, &profile_name).await;
+    let config = process_global_items(config, global_merge, global_script, &profile_name).await;
+    let config = process_profile_items(config, merge_item, script_item, &profile_name).await;
 
     let mut discarded_keys = control_plane_discards(&config, &control_plane);
     let config = enforce_control_plane(config, control_plane);
@@ -2128,17 +2081,12 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
         }
     }
 
-    let mut exists_keys_set = HashSet::new();
-    exists_keys_set.extend(exists_keys);
-
     Ok(IRuntime {
         config: Some(config),
         profile_uid: (!profile_uid.is_empty()).then(|| profile_uid.clone()),
         dns_desire,
         dns_base: Some(dns_base),
         discarded_keys,
-        exists_keys: exists_keys_set,
-        chain_logs: result_map,
         sentinel_report,
         own_nodes,
     })
@@ -2150,7 +2098,7 @@ mod tests {
     use super::{
         ChainItem, ChainType, Draft, IRuntime, MAX_REPORTED_REMARKS, backfill_empty_groups, cleanup_proxy_groups,
         collect_server_descriptions, ensure_store_selected, filter_sentinel_proxies, process_global_items,
-        process_profile_items, server_descriptions_of, unpin_providers_from_rejection, use_keys,
+        process_profile_items, server_descriptions_of, unpin_providers_from_rejection,
     };
 
     #[test]
@@ -2172,7 +2120,6 @@ mod tests {
             super::Overlay::Accepted
         ));
     }
-    use std::collections::HashMap;
 
     fn mapping(yaml: &str) -> serde_yaml_ng::Mapping {
         serde_yaml_ng::from_str(yaml).expect("test config should be valid")
@@ -2213,7 +2160,6 @@ mod tests {
             r"{global-merge-wins: other, global-script-wins: other, profile-merge-wins: other,
                profile-script-wins: other, nested: {winner: other}, dns: {enable: true}, tun: {enable: true}}",
         );
-        let exists_keys = use_keys(&config).collect();
         config.insert("application-only".into(), true.into());
 
         let global_merge = ChainItem {
@@ -2251,24 +2197,8 @@ mod tests {
         );
 
         let profile_name = "test-profile".into();
-        let (config, exists_keys, result_map) = process_global_items(
-            config,
-            exists_keys,
-            HashMap::new(),
-            global_merge,
-            global_script,
-            &profile_name,
-        )
-        .await;
-        let (config, exists_keys, _) = process_profile_items(
-            config,
-            exists_keys,
-            result_map,
-            profile_merge,
-            profile_script,
-            &profile_name,
-        )
-        .await;
+        let config = process_global_items(config, global_merge, global_script, &profile_name).await;
+        let config = process_profile_items(config, profile_merge, profile_script, &profile_name).await;
 
         let string_value = |key| config.get(key).and_then(serde_yaml_ng::Value::as_str);
         assert_eq!(string_value("global-merge-wins"), Some("global-merge"));
@@ -2282,7 +2212,6 @@ mod tests {
                 .and_then(serde_yaml_ng::Value::as_str),
             Some("profile-script")
         );
-        assert!(!exists_keys.contains(&"application-only".into()));
     }
 
     #[test]

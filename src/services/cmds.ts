@@ -431,8 +431,8 @@ export async function getFreezeMarks() {
   return invoke<string[]>('get_freeze_marks')
 }
 
-export async function copySupportBundle(lines?: number) {
-  return invoke<number>('copy_support_bundle', { lines })
+export async function copySupportBundle() {
+  return invoke<number>('copy_support_bundle')
 }
 
 export async function saveLogText(filename: string, body: string) {

@@ -466,8 +466,7 @@ async fn logs_section(out: &mut std::string::String, lines: usize) {
     }
 }
 
-pub async fn build(lines: Option<usize>) -> Result<std::string::String> {
-    let lines = lines.unwrap_or(LOG_TAIL_LINES).clamp(50, 5000);
+pub async fn build() -> Result<std::string::String> {
     let mut out = std::string::String::with_capacity(64 * 1024);
 
     let _ = writeln!(out, "# Clod Clash — отчёт для поддержки");
@@ -482,7 +481,7 @@ pub async fn build(lines: Option<usize>) -> Result<std::string::String> {
     settings_section(&mut out).await;
     subscription_section(&mut out).await;
     sentinel_section(&mut out).await;
-    logs_section(&mut out, lines).await;
+    logs_section(&mut out, LOG_TAIL_LINES).await;
 
     Ok(out)
 }

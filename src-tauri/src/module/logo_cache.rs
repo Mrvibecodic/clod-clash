@@ -248,7 +248,7 @@ async fn download(picture: Picture, uid: &str, url: &str) -> Result<bool> {
     let (conditional, stem) = (&conditional, stem.as_str());
     try_strategies(ProxyType::Localhost, [ProxyType::System], |proxy| async move {
         let client = NetworkManager::new()
-            .create_request(proxy, Some(TIMEOUT_SECS), None, false)
+            .create_request(proxy, Some(TIMEOUT_SECS), None)
             .await?;
         let mut request = client.get(url).header(reqwest::header::ACCEPT, "image/*");
         for (name, value) in conditional {

@@ -724,7 +724,7 @@ fn source_towards(target: std::net::Ipv4Addr) -> Option<std::net::IpAddr> {
 
 async fn probe_traffic(proxy_type: ProxyType) -> bool {
     let client = match NetworkManager::new()
-        .create_request(proxy_type, Some(TRAFFIC_PROBE_TIMEOUT_SECS), None, false)
+        .create_request(proxy_type, Some(TRAFFIC_PROBE_TIMEOUT_SECS), None)
         .await
     {
         Ok(client) => client,

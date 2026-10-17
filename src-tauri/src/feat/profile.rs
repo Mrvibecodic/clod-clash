@@ -413,7 +413,7 @@ async fn follow_move(uid: &String, move_to: Option<Move>, request_option: Option
 
     let served = match served {
         Some(served) => Ok(served),
-        None => PrfItem::from_url_with_ladder(&to, None, None, request_option.as_ref())
+        None => PrfItem::from_url_with_ladder(&to, request_option.as_ref())
             .await
             .map(|fetched| fetched.item.device_refused != Some(true)),
     };
@@ -504,7 +504,7 @@ async fn perform_profile_update(
         .get_name_by_uid(uid)
         .unwrap_or_else(|| String::from("UnKnown Profile"));
 
-    let mut last_err = match PrfItem::from_url_with_ladder(url, None, None, merged_opt.as_ref()).await {
+    let mut last_err = match PrfItem::from_url_with_ladder(url, merged_opt.as_ref()).await {
         Ok(fetched) => {
             logging!(info, Type::Config, "[Обновление подписки] Подписка скачана");
             return Ok(Downloaded {
@@ -534,7 +534,7 @@ async fn perform_profile_update(
 
         // У запасного адреса свой бюджет (он внутри лестницы): запасной существует
         // ровно для того случая, когда основной адрес молчит до последней секунды.
-        match PrfItem::from_url_with_ladder(&spare, None, None, merged_opt.as_ref()).await {
+        match PrfItem::from_url_with_ladder(&spare, merged_opt.as_ref()).await {
             Ok(fetched) => {
                 let mut item = fetched.item;
                 item.from_fallback = Some(true);

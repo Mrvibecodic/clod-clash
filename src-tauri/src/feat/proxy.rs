@@ -167,7 +167,7 @@ const fn tun_step(exiting: bool, active: bool) -> TunStep {
     }
 }
 
-pub async fn toggle_tun_mode(not_save_file: Option<bool>) -> bool {
+pub async fn toggle_tun_mode() -> bool {
     let desired = Config::verge().await.latest_arc().enable_tun_mode.unwrap_or(false);
 
     let enable = match tun_step(exit_is_under_way(), crate::feat::tun::is_active_with(desired)) {
@@ -185,7 +185,7 @@ pub async fn toggle_tun_mode(not_save_file: Option<bool>) -> bool {
             connect_tun_mode: Some(enable),
             ..IVerge::default()
         },
-        not_save_file.unwrap_or(false),
+        false,
     )
     .await
     {

@@ -210,9 +210,6 @@ pub struct IVerge {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tun_setup_declined: Option<String>,
 
-    #[serde(skip_serializing)]
-    pub main_switch_mode: Option<String>,
-
     #[serde(skip_serializing_if = "Option::is_none")]
     pub core_log_keys_unpinned: Option<bool>,
 
@@ -419,14 +416,6 @@ impl IVerge {
                         && let Some(restored) = pac_without_the_frozen_address(pac)
                     {
                         config.pac_file_content = Some(restored.into());
-                    }
-                    if let Some(legacy) = config.main_switch_mode.take()
-                        && config.connect_system_proxy.is_none()
-                        && config.connect_tun_mode.is_none()
-                        && legacy == "tun"
-                    {
-                        config.connect_system_proxy = Some(false);
-                        config.connect_tun_mode = Some(true);
                     }
                     forget_the_template_connect_choice(&mut config);
                     config

@@ -68,7 +68,7 @@ const MAX_ICON_BYTES: usize = 2 * 1024 * 1024;
 async fn fetch_icon(url: &reqwest::Url) -> anyhow::Result<Vec<u8>> {
     try_strategies(ProxyType::Localhost, [ProxyType::System], |proxy| async move {
         let client = NetworkManager::new()
-            .create_request(proxy, Some(ICON_TIMEOUT_SECS), None, false)
+            .create_request(proxy, Some(ICON_TIMEOUT_SECS), None)
             .await?;
         let response = client.get(url.clone()).send().await?;
         if !is_public_https(response.url()) {
