@@ -47,6 +47,13 @@ const FAILURE_RETRY_MAX: Duration = Duration::from_secs(5 * 60 * 60);
 const RETRY_SOON: Duration = Duration::from_secs(5 * 60);
 const RETRIES_SOON_MAX: u32 = 3;
 
+/// Очередь выстрелила позже настенной цели больше чем на столько — машина
+/// спала: на Windows очередь идёт и во сне и выстреливает просроченное сразу
+/// после пробуждения, до сети.
+const LATE_FIRE_SECS: i64 = 60;
+/// Столько задача, просроченная во сне, ждёт сеть; не дождалась — грузит так.
+const WAKE_HOLD_MAX: Duration = Duration::from_secs(2 * 60);
+
 /// Дольше этого очередь не взводится: у `DelayQueue` потолок ≈ 795 суток от
 /// момента её создания, а срок подписки бывает и на годы вперёд. Взведённая на
 /// потолок задача, проснувшись раньше цели, просто взводится снова.
@@ -59,8 +66,9 @@ enum TimerCommand {
         uid: String,
         ran: Ran,
     },
-    /// Машина спала: таймеры tokio во сне не идут (Linux/macOS), цели
-    /// пересчитываются по настенным часам.
+    /// Машина проснулась, и сеть есть: цели пересчитываются по настенным
+    /// часам (таймеры tokio во сне не идут на Linux и macOS), просроченные во
+    /// сне задачи больше не ждут.
     Rearm,
     /// На когда взведена задача (настенное время) — для подсказки «следующее
     /// обновление»; None — задачи нет или она сейчас бежит.
@@ -149,6 +157,8 @@ struct TaskState {
     failures: u32,
     /// `key` взведён на потолок `MAX_ARM`, а не на саму цель.
     capped: bool,
+    /// Задача просрочена во сне и ждёт сети (`key` — на потолок ожидания).
+    held: bool,
     /// Когда началась бегущая загрузка (unix): загрузка, начатая до дедлайна и
     /// закончившаяся после, — не попытка «после истечения».
     started_at: Option<i64>,
@@ -168,6 +178,7 @@ impl TaskState {
             updated,
             failures: 0,
             capped: false,
+            held: false,
             started_at: None,
             retries_soon: 0,
             running: false,
@@ -333,12 +344,14 @@ impl Timer {
     ) {
         let mut queue = DelayQueue::new();
         let mut tasks = HashMap::new();
+        // Когда после сна в последний раз появилась сеть (настенные часы).
+        let mut network_seen_at = None;
 
         loop {
             tokio::select! {
                 Some(expired) = queue.next() => {
                     let uid = expired.into_inner();
-                    Self::run_expired_task(&mut queue, &mut tasks, uid, command_tx.clone());
+                    Self::run_expired_task(&mut queue, &mut tasks, uid, command_tx.clone(), network_seen_at);
                 }
 
                 command = command_rx.recv() => {
@@ -350,7 +363,9 @@ impl Timer {
                             Self::finish_task(&mut queue, &mut tasks, uid, ran);
                         }
                         Some(TimerCommand::Rearm) => {
-                            Self::rearm_all(&mut queue, &mut tasks, crate::utils::help::now_secs());
+                            let now = crate::utils::help::now_secs();
+                            network_seen_at = Some(now);
+                            Self::rearm_all(&mut queue, &mut tasks, now);
                         }
                         Some(TimerCommand::NextFire { uid, reply }) => {
                             let _ = reply.send(tasks.get(&uid).and_then(|state| state.fires_at));
@@ -460,6 +475,7 @@ impl Timer {
         let now = crate::utils::help::now_secs();
         state.fires_at = Some(now.saturating_add(delay.as_secs().min(i64::MAX as u64) as i64));
         state.capped = delay > MAX_ARM;
+        state.held = false;
         state.key = Some(queue.insert(String::from(uid), delay.min(MAX_ARM)));
     }
 
@@ -468,6 +484,7 @@ impl Timer {
         state.fires_at = Some(fires_at);
         let delay = Duration::from_secs(fires_at.saturating_sub(now).max(0) as u64);
         state.capped = delay > MAX_ARM;
+        state.held = false;
         state.key = Some(queue.insert(String::from(uid), delay.min(MAX_ARM)));
     }
 
@@ -494,23 +511,66 @@ impl Timer {
         }
     }
 
+    /// Очередь выстрелила намного позже цели, а сети с тех пор, как цель
+    /// наступила, ещё не видели: машина спала, загрузка ушла бы до сети.
+    const fn waits_for_the_network(held: bool, fires_at: Option<i64>, network_seen_at: Option<i64>, now: i64) -> bool {
+        let Some(due) = fires_at else {
+            return false;
+        };
+        if held || now.saturating_sub(due) <= LATE_FIRE_SECS {
+            return false;
+        }
+        match network_seen_at {
+            Some(seen) => seen < due,
+            None => true,
+        }
+    }
+
+    /// Пора ли грузить сработавшую задачу; нет — она снова взведена: до цели
+    /// (ранний выстрел с потолка) или до сети после сна.
+    fn due_now(
+        queue: &mut DelayQueue<String>,
+        state: &mut TaskState,
+        uid: &str,
+        now: i64,
+        network_seen_at: Option<i64>,
+    ) -> bool {
+        state.key = None;
+        if let Some(fires_at) = Self::woke_too_early(state.capped, state.fires_at, now) {
+            Self::arm_at(queue, uid, state, fires_at, now);
+            return false;
+        }
+        if Self::waits_for_the_network(state.held, state.fires_at, network_seen_at, now) {
+            logging!(
+                info,
+                Type::Timer,
+                "Timer task overdue through sleep waits for the network: uid={}",
+                uid
+            );
+            state.held = true;
+            state.key = Some(queue.insert(String::from(uid), WAKE_HOLD_MAX));
+            return false;
+        }
+        state.held = false;
+        state.fires_at = None;
+        true
+    }
+
     fn run_expired_task(
         queue: &mut DelayQueue<String>,
         tasks: &mut HashMap<String, TaskState>,
         uid: String,
         command_tx: mpsc::UnboundedSender<TimerCommand>,
+        network_seen_at: Option<i64>,
     ) {
         let Some(state) = tasks.get_mut(&uid) else {
             return;
         };
 
-        state.key = None;
         let now = crate::utils::help::now_secs();
-        if let Some(fires_at) = Self::woke_too_early(state.capped, state.fires_at, now) {
-            Self::arm_at(queue, &uid, state, fires_at, now);
+        if !Self::due_now(queue, state, &uid, now, network_seen_at) {
             return;
         }
-        state.fires_at = None;
         if !Self::mark_task_running(state, &uid) {
             return;
         }
@@ -692,8 +752,8 @@ impl Timer {
 #[cfg(test)]
 mod tests {
     use super::{
-        EXPIRY_GRACE, EXPIRY_SLACK, FAILURE_RETRY, FAILURE_RETRY_MAX, MAX_ARM, RETRIES_SOON_MAX, RETRY_SOON, Ran,
-        TaskSchedule, TaskState, Timer, expiry_fetch_at,
+        EXPIRY_GRACE, EXPIRY_SLACK, FAILURE_RETRY, FAILURE_RETRY_MAX, LATE_FIRE_SECS, MAX_ARM, RETRIES_SOON_MAX,
+        RETRY_SOON, Ran, TaskSchedule, TaskState, Timer, WAKE_HOLD_MAX, expiry_fetch_at,
     };
     use crate::config::{PrfExtra, PrfItem, PrfOption};
     use smartstring::alias::String;
@@ -1257,6 +1317,75 @@ mod tests {
             Some(Duration::ZERO)
         );
         assert_eq!(queue.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn a_task_overdue_through_sleep_waits_for_the_network() {
+        let mut queue = DelayQueue::new();
+        let mut tasks = HashMap::new();
+        let uid = String::from("uid");
+        let now = crate::utils::help::now_secs();
+        let due = now + 3600;
+
+        let mut map = HashMap::new();
+        map.insert(uid.clone(), TaskSchedule::new(HOUR, Some(now as usize), now, None));
+        Timer::apply_timer_map(&mut queue, &mut tasks, map);
+
+        // Вовремя — грузить.
+        let on_time = tasks
+            .get_mut(&uid)
+            .is_some_and(|state| Timer::due_now(&mut queue, state, &uid, due + 1, None));
+        assert!(on_time);
+
+        // Очередь выстрелила через ночь после цели, сети после пробуждения не
+        // видели: задача ждёт сеть, не дольше потолка, и цель помнит.
+        let woke = due + 8 * 3600;
+        if let Some(state) = tasks.get_mut(&uid) {
+            Timer::arm_at(&mut queue, &uid, state, due, now);
+            assert!(!Timer::due_now(&mut queue, state, &uid, woke, Some(now)));
+            assert!(state.held);
+            assert_eq!(state.fires_at, Some(due));
+        }
+        assert_eq!(
+            tasks.get(&uid).and_then(|state| queued_delay(&queue, state)),
+            Some(WAKE_HOLD_MAX)
+        );
+
+        // Сеть появилась: перевзвод по часам — сразу, и теперь пора.
+        Timer::rearm_all(&mut queue, &mut tasks, woke + 20);
+        assert_eq!(
+            tasks.get(&uid).and_then(|state| queued_delay(&queue, state)),
+            Some(Duration::ZERO)
+        );
+        let after_network = tasks
+            .get_mut(&uid)
+            .is_some_and(|state| Timer::due_now(&mut queue, state, &uid, woke + 20, Some(woke + 20)));
+        assert!(after_network);
+
+        // Сеть так и не появилась — по потолку ожидания грузить всё равно.
+        if let Some(state) = tasks.get_mut(&uid) {
+            Timer::arm_at(&mut queue, &uid, state, due, now);
+            assert!(!Timer::due_now(&mut queue, state, &uid, woke, None));
+            assert!(Timer::due_now(&mut queue, state, &uid, woke + 120, None));
+            assert!(!state.held && state.fires_at.is_none());
+        }
+    }
+
+    #[test]
+    fn only_a_fire_well_past_its_target_before_the_network_is_held() {
+        const DUE: i64 = NOW;
+        let late = DUE + LATE_FIRE_SECS + 1;
+        assert!(!Timer::waits_for_the_network(
+            false,
+            Some(DUE),
+            None,
+            DUE + LATE_FIRE_SECS
+        ));
+        assert!(Timer::waits_for_the_network(false, Some(DUE), None, late));
+        assert!(Timer::waits_for_the_network(false, Some(DUE), Some(DUE - 1), late));
+        assert!(!Timer::waits_for_the_network(false, Some(DUE), Some(DUE), late));
+        assert!(!Timer::waits_for_the_network(true, Some(DUE), None, late));
+        assert!(!Timer::waits_for_the_network(false, None, None, late));
     }
 
     #[tokio::test]
