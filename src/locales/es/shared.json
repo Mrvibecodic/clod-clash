@@ -110,7 +110,8 @@
         "subscriptionBudget": "La dirección de la suscripción no respondió a tiempo: revise la conexión e inténtelo de nuevo",
         "subscriptionDowngrade": "La dirección de la suscripción redirige a http inseguro: el token viajaría en claro; corrija el enlace en el panel del proveedor",
         "foreignCoreTemplate": "La plantilla está pensada para otra compilación del núcleo (grupo «selección inteligente»): nuestro núcleo no la admite, pida al proveedor la variante normal",
-        "trayIconRejected": "No se pudo establecer el icono: se necesita una imagen PNG o ICO"
+        "trayIconRejected": "No se pudo establecer el icono: se necesita una imagen PNG o ICO",
+        "autostartAdminTask": "Auto-launch was set up as administrator — run the app as administrator to change it"
       }
     },
     "notices": {

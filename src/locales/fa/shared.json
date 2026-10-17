@@ -110,7 +110,8 @@
         "subscriptionBudget": "نشانی اشتراک در زمان مقرر پاسخ نداد — اتصال را بررسی کنید و دوباره تلاش کنید",
         "subscriptionDowngrade": "نشانی اشتراک به http ناامن هدایت می‌کند — توکن به‌صورت آشکار منتقل می‌شد؛ پیوند را در پنل ارائه‌دهنده اصلاح کنید",
         "foreignCoreTemplate": "این الگو برای ساخت دیگری از هسته است (گروه «انتخاب هوشمند») — هستهٔ ما از آن پشتیبانی نمی‌کند، از ارائه‌دهنده نسخهٔ معمولی را بخواهید",
-        "trayIconRejected": "تنظیم آیکون ممکن نشد: یک تصویر PNG یا ICO لازم است"
+        "trayIconRejected": "تنظیم آیکون ممکن نشد: یک تصویر PNG یا ICO لازم است",
+        "autostartAdminTask": "Auto-launch was set up as administrator — run the app as administrator to change it"
       }
     },
     "notices": {

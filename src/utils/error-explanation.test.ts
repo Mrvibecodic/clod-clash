@@ -44,6 +44,15 @@ describe('explainErrorKey', () => {
     )
   })
 
+  it('узнаёт автозапуск, настроенный от администратора', () => {
+    assert.equal(
+      key(
+        'clod-autostart-admin-task: an administrator auto-launch task exists; run the app as administrator to remove it',
+      ),
+      'autostartAdminTask',
+    )
+  })
+
   it('узнаёт отказ, пока ядро применяет конфиг', () => {
     assert.equal(key('configuration update is already running'), 'configBusy')
   })

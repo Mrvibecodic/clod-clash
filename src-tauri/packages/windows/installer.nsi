@@ -1131,6 +1131,8 @@ Section Uninstall
 
   ${If} $UpdateMode <> 1
     DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${PRODUCTNAME}"
+    nsExec::Exec 'schtasks /Delete /TN "${PRODUCTNAME}" /F'
+    nsExec::Exec 'schtasks /Delete /TN "${PRODUCTNAME} (Admin)" /F'
   ${EndIf}
 
   ${If} $DeleteAppDataCheckboxState = 1

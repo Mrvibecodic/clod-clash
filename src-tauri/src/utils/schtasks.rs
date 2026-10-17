@@ -1,4 +1,4 @@
-use crate::utils::dirs::{self, PathBufExec as _};
+use crate::utils::dirs;
 use anyhow::{Result, anyhow};
 use clash_verge_logging::{Type, logging};
 use std::fs;
@@ -8,8 +8,11 @@ use std::process::{Command, Output};
 use windows::Win32::Globalization::{GetACP, GetOEMCP, MULTI_BYTE_TO_WIDE_CHAR_FLAGS, MultiByteToWideChar};
 
 const CREATE_NO_WINDOW: u32 = 0x08000000;
-const TASK_NAME_USER: &str = "Clash Verge";
-const TASK_NAME_ADMIN: &str = "Clash Verge (Admin)";
+const TASK_NAME_USER: &str = "Clod Clash";
+const TASK_NAME_ADMIN: &str = "Clod Clash (Admin)";
+/// Прежние имена задач — те же, что у Clash Verge Rev: убираем только задачу,
+/// которая запускает именно наш exe.
+const LEGACY_TASK_NAMES: [&str; 2] = ["Clash Verge", "Clash Verge (Admin)"];
 const TASK_XML_DIR: &str = "tasks";
 const TASK_XML_USER: &str = "clash-verge-task-user.xml";
 const TASK_XML_ADMIN: &str = "clash-verge-task-admin.xml";
@@ -79,30 +82,64 @@ fn get_task_user_id() -> Result<String> {
     Ok(username.to_string())
 }
 
-fn get_startup_dir() -> Result<PathBuf> {
-    let appdata = std::env::var("APPDATA").map_err(|_| anyhow!("failed to read APPDATA env var"))?;
-    let startup_dir = Path::new(&appdata)
-        .join("Microsoft")
-        .join("Windows")
-        .join("Start Menu")
-        .join("Programs")
-        .join("Startup");
-
-    if !startup_dir.exists() {
-        return Err(anyhow!("startup folder does not exist: {:?}", startup_dir));
-    }
-
-    Ok(startup_dir)
+/// Команда задачи из её XML (`schtasks /Query /XML`).
+fn task_command(xml: &str) -> Option<String> {
+    let (_, rest) = xml.split_once("<Command>")?;
+    let (command, _) = rest.split_once("</Command>")?;
+    let command = command
+        .replace("&quot;", "\"")
+        .replace("&apos;", "'")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&amp;", "&");
+    Some(command.trim().trim_matches('"').to_owned())
 }
 
-async fn cleanup_legacy_shortcuts() -> Result<()> {
-    let startup_dir = get_startup_dir()?;
-    let old_shortcut = startup_dir.join("Clash-Verge.lnk");
-    let new_shortcut = startup_dir.join("Clash Verge.lnk");
+fn launches(command: &str, exe: &Path) -> bool {
+    command.to_lowercase() == exe.to_string_lossy().to_lowercase()
+}
 
-    old_shortcut.remove_if_exists().await?;
-    new_shortcut.remove_if_exists().await?;
-    Ok(())
+/// Задачи под прежними именами, которые запускают наш exe, — снять: теперь
+/// автозапуск под своими именами, а чужую задачу с тем же именем не трогаем.
+fn drop_our_legacy_tasks() {
+    let Ok(exe) = get_exe_path() else {
+        return;
+    };
+    for name in LEGACY_TASK_NAMES {
+        let Ok(output) = schtasks_output({
+            let mut cmd = Command::new("schtasks");
+            cmd.args(["/Query", "/TN", name, "/XML"]);
+            cmd
+        }) else {
+            continue;
+        };
+        if !output.status.success()
+            || !task_command(&decode_console_output(&output.stdout).replace('\0', ""))
+                .is_some_and(|command| launches(&command, &exe))
+        {
+            continue;
+        }
+        match schtasks_output({
+            let mut cmd = Command::new("schtasks");
+            cmd.args(["/Delete", "/TN", name, "/F"]);
+            cmd
+        }) {
+            Ok(deleted) if deleted.status.success() => {
+                logging!(info, Type::Setup, "Removed the legacy auto-launch task {name}");
+            }
+            Ok(deleted) => logging!(
+                warn,
+                Type::Setup,
+                "The legacy auto-launch task {name} was not removed: {}",
+                output_message(&deleted)
+            ),
+            Err(err) => logging!(
+                warn,
+                Type::Setup,
+                "The legacy auto-launch task {name} was not removed: {err}"
+            ),
+        }
+    }
 }
 
 fn task_xml_path(mode: TaskMode) -> Result<PathBuf> {
@@ -323,14 +360,14 @@ pub fn remove_task(mode: TaskMode) -> Result<()> {
 }
 
 pub async fn set_auto_launch(is_enable: bool, is_admin: bool) -> Result<()> {
-    if let Err(err) = cleanup_legacy_shortcuts().await {
-        logging!(warn, Type::Setup, "Failed to cleanup legacy startup shortcuts: {}", err);
-    }
-
     // `schtasks` ждёт планировщик, а при входе в систему тот занят запуском
     // задач — вызовы тянутся секундами. Они идут в отдельном потоке и не
     // занимают рабочие, которые отвечают окну.
-    tokio::task::spawn_blocking(move || apply_auto_launch(is_enable, is_admin)).await?
+    tokio::task::spawn_blocking(move || {
+        drop_our_legacy_tasks();
+        apply_auto_launch(is_enable, is_admin)
+    })
+    .await?
 }
 
 fn apply_auto_launch(is_enable: bool, is_admin: bool) -> Result<()> {
@@ -347,7 +384,7 @@ fn apply_auto_launch(is_enable: bool, is_admin: bool) -> Result<()> {
         } else {
             if is_task_enabled(other)? {
                 return Err(anyhow!(
-                    "admin auto-launch task exists; run the app as administrator to remove it before creating a user task"
+                    "clod-autostart-admin-task: an administrator auto-launch task exists; run the app as administrator to remove it"
                 ));
             }
             create_task(target)?;
@@ -374,9 +411,34 @@ fn apply_auto_launch(is_enable: bool, is_admin: bool) -> Result<()> {
     remove_task(TaskMode::User)?;
     if is_task_enabled(TaskMode::Admin)? {
         return Err(anyhow!(
-            "admin auto-launch task exists; run the app as administrator to remove it"
+            "clod-autostart-admin-task: an administrator auto-launch task exists; run the app as administrator to remove it"
         ));
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{launches, task_command};
+    use std::path::Path;
+
+    #[test]
+    fn a_legacy_task_counts_as_ours_only_when_it_launches_our_exe() {
+        let xml = "<Task><Actions><Exec><Command>C:\\Program Files\\Clod Clash\\clod-clash.exe</Command></Exec></Actions></Task>";
+        let command = task_command(xml).unwrap_or_default();
+        assert!(launches(
+            &command,
+            Path::new("c:\\program files\\clod clash\\Clod-Clash.exe")
+        ));
+        assert!(!launches(
+            &command,
+            Path::new("C:\\Program Files\\Clash Verge\\clash-verge.exe")
+        ));
+        assert_eq!(
+            task_command("<Command>&quot;C:\\A &amp; B\\app.exe&quot;</Command>").as_deref(),
+            Some("C:\\A & B\\app.exe")
+        );
+        assert_eq!(task_command("<Task></Task>"), None);
+    }
 }

@@ -110,7 +110,8 @@
         "subscriptionBudget": "Язылу адресы бирелгән вакытта җавап бирмәде — бәйләнешне тикшереп кабатлагыз",
         "subscriptionDowngrade": "Язылу адресы куркынычсыз булмаган http'ка юнәлтә — токен ачык текст булып китәр иде; сылтаманы провайдер панелендә төзәтегез",
         "foreignCoreTemplate": "Калып башка төш җыелмасы өчен ясалган («акыллы сайлау» төркеме) — безнең төш аны танымый, провайдердан гадәти вариантны сорагыз",
-        "trayIconRejected": "Иконканы куеп булмады: PNG яки ICO рәсеме кирәк"
+        "trayIconRejected": "Иконканы куеп булмады: PNG яки ICO рәсеме кирәк",
+        "autostartAdminTask": "Auto-launch was set up as administrator — run the app as administrator to change it"
       }
     },
     "notices": {

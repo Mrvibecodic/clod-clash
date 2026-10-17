@@ -47,6 +47,7 @@ const RULES: ReadonlyArray<{ pattern: RegExp; key: string }> = [
   { pattern: /clod-local-bad-yaml/, key: 'localFileIsNotYaml' },
   { pattern: /clod-sub-foreign-core/, key: 'foreignCoreTemplate' },
   { pattern: /clod-icon-rejected/, key: 'trayIconRejected' },
+  { pattern: /clod-autostart-admin-task/, key: 'autostartAdminTask' },
 
   // --- Адрес подписки ------------------------------------------------------
   { pattern: /subscription url must use https/, key: 'subscriptionHttpsOnly' },

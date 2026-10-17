@@ -1606,6 +1606,7 @@ export interface TranslationResources {
         }
         errors: {
           core: {
+            autostartAdminTask: string
             badConfig: string
             chanAbsent: string
             chanBadUrl: string

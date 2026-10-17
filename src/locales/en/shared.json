@@ -110,7 +110,8 @@
         "subscriptionBudget": "The subscription address did not answer in time — check your connection and try again",
         "subscriptionDowngrade": "The subscription address redirects to insecure http — the token would travel in the clear; fix the link in your provider panel",
         "foreignCoreTemplate": "The template targets a different core build (a “smart” group) — our core does not support it, ask the provider for the regular variant",
-        "trayIconRejected": "Couldn't set the icon: a PNG or ICO image is required"
+        "trayIconRejected": "Couldn't set the icon: a PNG or ICO image is required",
+        "autostartAdminTask": "Auto-launch was set up as administrator — run the app as administrator to change it"
       }
     },
     "notices": {
