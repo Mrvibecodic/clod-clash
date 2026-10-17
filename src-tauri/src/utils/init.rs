@@ -855,7 +855,7 @@ pub const fn init_scheme() -> Result<()> {
 }
 
 #[cfg(target_os = "linux")]
-const DEEP_LINK_SCHEMES: &[&str] = &["clash", "clodclash"];
+use crate::constants::branding::DEEP_LINK_SCHEMES;
 
 pub async fn startup_script() -> Result<()> {
     let app_handle = handle::Handle::app_handle();

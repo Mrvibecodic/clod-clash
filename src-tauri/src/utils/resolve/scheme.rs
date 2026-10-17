@@ -43,7 +43,7 @@ pub(super) async fn resolve_scheme(param: &str) -> Result<()> {
 }
 
 fn extract_subscription_info(link_parsed: &Url) -> Option<(std::string::String, Option<String>)> {
-    if !matches!(link_parsed.scheme(), "clash" | "clodclash") {
+    if !crate::constants::branding::DEEP_LINK_SCHEMES.contains(&link_parsed.scheme()) {
         return None;
     }
 

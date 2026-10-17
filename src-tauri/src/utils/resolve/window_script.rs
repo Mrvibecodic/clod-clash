@@ -64,7 +64,6 @@ pub const WINDOW_INITIAL_SCRIPT: &str = r##"
         const bgColor = isDark ? initialColors.darkBg : initialColors.lightBg;
         const textColor = isDark ? "#ffffff" : "#333";
         if (root) {
-            root.dataset.theme = theme;
             root.style.setProperty("--bg-color", bgColor);
             root.style.setProperty("--text-color", textColor);
             root.style.colorScheme = isDark ? "dark" : "light";
@@ -78,11 +77,6 @@ pub const WINDOW_INITIAL_SCRIPT: &str = r##"
             document.addEventListener("DOMContentLoaded", paintBody, { once: true });
         } else {
             paintBody();
-        }
-        try {
-            localStorage.setItem("verge-theme-mode-cache", theme);
-        } catch (error) {
-            console.warn("[Tauri] не удалось закэшировать режим темы:", error);
         }
         return isDark;
     };

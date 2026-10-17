@@ -296,7 +296,9 @@ fn uninstall_service() -> Result<()> {
     let level = token.privilege_level()?;
     let status = match level {
         PrivilegeLevel::NotPrivileged => RunasCommand::new(uninstall_path).show(false).status()?,
-        _ => StdCommand::new(uninstall_path).creation_flags(0x08000000).status()?,
+        _ => StdCommand::new(uninstall_path)
+            .creation_flags(CREATE_NO_WINDOW)
+            .status()?,
     };
 
     if !status.success() {
@@ -336,7 +338,9 @@ fn install_service() -> Result<()> {
                 stderr: Vec::new(),
             }
         }
-        _ => StdCommand::new(&install_path).creation_flags(0x08000000).output()?,
+        _ => StdCommand::new(&install_path)
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()?,
     };
 
     if let Some((code, err)) = check_output_error(&output) {
@@ -649,23 +653,35 @@ pub enum ServiceRegistration {
 }
 
 #[cfg(target_os = "windows")]
-fn read_service_registration() -> ServiceRegistration {
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+/// Ответ `sc.exe query` о нашей службе: код выхода и вывод.
+#[cfg(target_os = "windows")]
+fn sc_query() -> Option<(Option<i32>, std::string::String)> {
     use std::os::windows::process::CommandExt as _;
 
-    const SERVICE_DOES_NOT_EXIST: i32 = 1060;
-    const CREATE_NO_WINDOW: u32 = 0x08000000;
-
-    let Ok(output) = StdCommand::new("sc.exe")
+    let output = StdCommand::new("sc.exe")
         .args(["query", "clash_verge_service"])
         .creation_flags(CREATE_NO_WINDOW)
         .output()
-    else {
+        .ok()?;
+    Some((
+        output.status.code(),
+        String::from_utf8_lossy(&output.stdout).into_owned(),
+    ))
+}
+
+#[cfg(target_os = "windows")]
+fn read_service_registration() -> ServiceRegistration {
+    const SERVICE_DOES_NOT_EXIST: i32 = 1060;
+
+    let Some((code, stdout)) = sc_query() else {
         return ServiceRegistration::Unknown;
     };
 
-    match output.status.code() {
+    match code {
         Some(0) => {
-            let state = String::from_utf8_lossy(&output.stdout).to_ascii_uppercase();
+            let state = stdout.to_ascii_uppercase();
             if state.contains("RUNNING") || state.contains("START_PENDING") {
                 ServiceRegistration::Running
             } else {
@@ -681,7 +697,6 @@ fn read_service_registration() -> ServiceRegistration {
 fn run_start_registered_service() -> bool {
     use std::os::windows::process::CommandExt as _;
 
-    const CREATE_NO_WINDOW: u32 = 0x08000000;
     const SERVICE_ALREADY_RUNNING: i32 = 1056;
 
     let Ok(output) = StdCommand::new("sc.exe")
@@ -746,15 +761,7 @@ fn stopped_after_running(sc_query: &str) -> bool {
 
 #[cfg(target_os = "windows")]
 fn read_stopped_for_good() -> bool {
-    use std::os::windows::process::CommandExt as _;
-
-    const CREATE_NO_WINDOW: u32 = 0x08000000;
-
-    StdCommand::new("sc.exe")
-        .args(["query", "clash_verge_service"])
-        .creation_flags(CREATE_NO_WINDOW)
-        .output()
-        .is_ok_and(|output| output.status.success() && stopped_after_running(&String::from_utf8_lossy(&output.stdout)))
+    sc_query().is_some_and(|(code, stdout)| code == Some(0) && stopped_after_running(&stdout))
 }
 
 /// Служба Windows остановлена насовсем: сама, автозапуском, она уже не
@@ -849,7 +856,7 @@ fn reinstall_service() -> Result<()> {
         PrivilegeLevel::NotPrivileged => RunasCommand::new("powershell.exe").args(&args).show(false).status()?,
         _ => StdCommand::new("powershell.exe")
             .args(args)
-            .creation_flags(0x08000000)
+            .creation_flags(CREATE_NO_WINDOW)
             .status()?,
     };
 

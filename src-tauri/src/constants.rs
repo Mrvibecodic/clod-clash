@@ -19,6 +19,9 @@ pub mod branding {
     /// (`-D dead-code`) quiet.
     #[cfg(target_os = "linux")]
     pub const APP_SLUG: &str = "clod-clash";
+
+    /// Схемы ссылок, которые приложение принимает.
+    pub const DEEP_LINK_SCHEMES: &[&str] = &["clash", "clodclash"];
 }
 // clod:branding end
 

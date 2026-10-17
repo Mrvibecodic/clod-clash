@@ -107,7 +107,8 @@ enum Handover {
 /// окна. На macOS ссылки приходят событием системы, а не аргументом, поэтому
 /// там вторая копия всегда просит показать окно.
 fn is_scheme_link(arg: &str) -> bool {
-    arg.starts_with("clash:") || arg.starts_with("clodclash:")
+    arg.split_once(':')
+        .is_some_and(|(scheme, _)| crate::constants::branding::DEEP_LINK_SCHEMES.contains(&scheme))
 }
 
 /// Каждая ссылка кладётся своим файлом: две подряд не затирают друг друга, а
