@@ -521,36 +521,6 @@ FunctionEnd
       nsis_tauri_utils::KillProcess "verge-mihomo.exe"
     !endif
   ${EndIf}
-
-  !if "${INSTALLMODE}" == "currentUser"
-    nsis_tauri_utils::FindProcessCurrentUser "clash-meta-alpha.exe"
-  !else
-    nsis_tauri_utils::FindProcess "clash-meta-alpha.exe"
-  !endif
-  Pop $R0
-  ${If} $R0 = 0
-    DetailPrint "Kill clash-meta-alpha.exe..."
-    !if "${INSTALLMODE}" == "currentUser"
-      nsis_tauri_utils::KillProcessCurrentUser "clash-meta-alpha.exe"
-    !else
-      nsis_tauri_utils::KillProcess "clash-meta-alpha.exe"
-    !endif
-  ${EndIf}
-
-  !if "${INSTALLMODE}" == "currentUser"
-    nsis_tauri_utils::FindProcessCurrentUser "clash-meta.exe"
-  !else
-    nsis_tauri_utils::FindProcess "clash-meta.exe"
-  !endif
-  Pop $R0
-  ${If} $R0 = 0
-    DetailPrint "Kill clash-meta.exe..."
-    !if "${INSTALLMODE}" == "currentUser"
-      nsis_tauri_utils::KillProcessCurrentUser "clash-meta.exe"
-    !else
-      nsis_tauri_utils::KillProcess "clash-meta.exe"
-    !endif
-  ${EndIf}
 !macroend
 
 !macro EnsureVergeService
@@ -815,33 +785,6 @@ Section Install
   CreateDirectory "$0"
   DetailPrint "Ensured user startup folder exists: $0"
 
-  DetailPrint "Removing window-state.json / .window-state.json"
-  Delete "$APPDATA\io.github.clash-verge-rev.clash-verge-rev\window-state.json"
-  Delete "$APPDATA\io.github.clash-verge-rev.clash-verge-rev\.window-state.json"
-
-  StrCpy $R1 "Software\Microsoft\Windows\CurrentVersion\Run"
-
-  SetRegView 64
-  ReadRegStr $R2 HKCU "$R1" "Clash Verge"
-  ${If} $R2 != ""
-    DeleteRegValue HKCU "$R1" "Clash Verge"
-  ${EndIf}
-  ReadRegStr $R2 HKLM "$R1" "Clash Verge"
-  ${If} $R2 != ""
-    DeleteRegValue HKLM "$R1" "Clash Verge"
-  ${EndIf}
-  ReadRegStr $R2 HKCU "$R1" "clash-verge"
-  ${If} $R2 != ""
-    DeleteRegValue HKCU "$R1" "clash-verge"
-  ${EndIf}
-  ReadRegStr $R2 HKLM "$R1" "clash-verge"
-  ${If} $R2 != ""
-    DeleteRegValue HKLM "$R1" "clash-verge"
-  ${EndIf}
-
-  IfFileExists "$INSTDIR\Clash Verge.exe" 0 +2
-    Delete "$INSTDIR\Clash Verge.exe"
-
   !insertmacro SetContext
 
   File "${MAINBINARYSRCPATH}"
@@ -979,34 +922,6 @@ Section Uninstall
   nsExec::Exec 'netsh advfirewall firewall delete rule name=all dir=in program="$INSTDIR\verge-mihomo.exe"'
   nsExec::Exec 'netsh advfirewall firewall delete rule name=all dir=in program="$INSTDIR\verge-mihomo-alpha.exe"'
 
-  DetailPrint "Removing window-state.json / .window-state.json"
-  SetShellVarContext current
-  Delete "$APPDATA\io.github.clash-verge-rev.clash-verge-rev\window-state.json"
-  Delete "$APPDATA\io.github.clash-verge-rev.clash-verge-rev\.window-state.json"
-
-  StrCpy $R1 "Software\Microsoft\Windows\CurrentVersion\Run"
-
-  SetRegView 64
-  ReadRegStr $R2 HKCU "$R1" "Clash Verge"
-  ${If} $R2 != ""
-    DeleteRegValue HKCU "$R1" "Clash Verge"
-  ${EndIf}
-  ReadRegStr $R2 HKLM "$R1" "Clash Verge"
-  ${If} $R2 != ""
-    DeleteRegValue HKLM "$R1" "Clash Verge"
-  ${EndIf}
-  ReadRegStr $R2 HKCU "$R1" "clash-verge"
-  ${If} $R2 != ""
-    DeleteRegValue HKCU "$R1" "clash-verge"
-  ${EndIf}
-  ReadRegStr $R2 HKLM "$R1" "clash-verge"
-  ${If} $R2 != ""
-    DeleteRegValue HKLM "$R1" "clash-verge"
-  ${EndIf}
-
-  IfFileExists "$INSTDIR\Clash Verge.exe" 0 +2
-    Delete "$INSTDIR\Clash Verge.exe"
-
   !insertmacro SetContext
 
   Delete "$INSTDIR\${MAINBINARYNAME}.exe"
@@ -1064,61 +979,6 @@ Section Uninstall
       Delete "$DESKTOP\${PRODUCTNAME}.lnk"
     ${EndIf}
 
-    Delete "C:\Users\Public\Desktop\Clash Verge.lnk"
-    Delete "C:\Users\Public\Desktop\clash-verge.lnk"
-
-    DetailPrint "Removing ${PRODUCTNAME} shortcuts from all user desktops..."
-    SetRegView 64
-    StrCpy $R1 0
-    LegacyUserLoop:
-      EnumRegKey $R2 HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList" $R1
-      ${If} $R2 == ""
-        Goto LegacyUserDone
-      ${EndIf}
-      ReadRegStr $R3 HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$R2" "ProfileImagePath"
-      ${If} $R3 != ""
-        StrCpy $R4 "$R3\Desktop"
-        Delete "$R4\Clash Verge.lnk"
-        Delete "$R4\clash-verge.lnk"
-      ${EndIf}
-      IntOp $R1 $R1 + 1
-      Goto LegacyUserLoop
-    LegacyUserDone:
-    !insertmacro SetContext
-
-    SetShellVarContext current
-    RMDir /r /REBOOTOK "$SMPROGRAMS\Clash Verge"
-    RMDir /r /REBOOTOK "$SMPROGRAMS\clash-verge"
-    !insertmacro SetContext
-    RMDir /r /REBOOTOK "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Clash Verge"
-    RMDir /r /REBOOTOK "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\clash-verge"
-
-    SetRegView 64
-    DeleteRegKey HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\Clash Verge.exe"
-    DeleteRegKey HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\clash-verge.exe"
-    DeleteRegKey HKLM "Software\Clash Verge Rev"
-    DeleteRegKey HKLM "Software\Clash Verge"
-    DeleteRegKey HKCU "Software\Clash Verge Rev"
-    DeleteRegKey HKCU "Software\Clash Verge"
-    DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\ClashVerge"
-    DeleteRegKey HKCU "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Clash Verge"
-
-    StrCpy $R1 0
-    LegacyUninstallLoop:
-      EnumRegKey $R2 HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall" $R1
-      ${If} $R2 == ""
-        Goto LegacyUninstallDone
-      ${EndIf}
-      ReadRegStr $R3 HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\$R2" "DisplayName"
-      ${If} $R3 != ""
-        StrCmp $R3 "Clash Verge" 0 +3
-        StrCmp $R3 "clash-verge" 0 +2
-        DeleteRegKey HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\$R2"
-      ${EndIf}
-      IntOp $R1 $R1 + 1
-      Goto LegacyUninstallLoop
-    LegacyUninstallDone:
-    !insertmacro SetContext
   ${EndIf}
 
   !if "${INSTALLMODE}" == "both"
