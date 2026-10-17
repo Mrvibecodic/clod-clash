@@ -448,9 +448,15 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
               remarkPlugins={[[remarkGitHubAlerts, t]]}
               components={{
                 a: ({ ...props }) => {
-                  const { children } = props
+                  const { children, href } = props
                   return (
-                    <a {...props} target="_blank" rel="noreferrer">
+                    <a
+                      {...props}
+                      onClick={(event) => {
+                        event.preventDefault()
+                        if (href) void openWebUrl(href)
+                      }}
+                    >
                       {children}
                     </a>
                   )
