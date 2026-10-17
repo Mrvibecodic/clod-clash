@@ -332,8 +332,8 @@ pub fn label(proxy: &Mapping) -> Option<ProxyLabel> {
     })
 }
 
-/// Адрес узла: тип, сервер и порт 1–65535 (числом или строкой). У hysteria2 без
-/// `port` — первый порт из `ports` (смена портов).
+/// Адрес узла: тип, сервер и порт 1–65535 (числом или строкой). У hysteria и
+/// hysteria2 без `port` — первый порт из `ports` (смена портов).
 fn address(proxy: &Mapping) -> Option<Address> {
     let text = |key: &str| proxy.get(key).and_then(Value::as_str);
     let port = proxy
@@ -345,7 +345,11 @@ fn address(proxy: &Mapping) -> Option<Address> {
         .and_then(|port| u16::try_from(port).ok())
         .filter(|port| *port > 0);
     let kind = text("type")?.to_ascii_lowercase();
-    let port = port.or_else(|| (kind == "hysteria2").then(|| first_port(proxy.get("ports")?)).flatten())?;
+    let port = port.or_else(|| {
+        matches!(kind.as_str(), "hysteria" | "hysteria2")
+            .then(|| first_port(proxy.get("ports")?))
+            .flatten()
+    })?;
     Some(Address {
         via: via(&kind, proxy),
         kind,
@@ -1428,8 +1432,14 @@ mod tests {
         assert_eq!(address(&both).map(|address| address.port), Some(443));
         let neither = yaml("{name: H, type: hysteria2, server: h.example.com}");
         assert_eq!(address(&neither), None);
+        let first_version = yaml("{name: H, type: hysteria, server: h.example.com, ports: 20000-30000}");
+        assert_eq!(address(&first_version).map(|address| address.port), Some(20000));
         let other = yaml("{name: V, type: vless, server: v.example.com, ports: 20000-30000}");
-        assert_eq!(address(&other), None, "ports так читает ядро только у hysteria2");
+        assert_eq!(
+            address(&other),
+            None,
+            "ports так читает ядро только у hysteria и hysteria2"
+        );
     }
 
     #[test]

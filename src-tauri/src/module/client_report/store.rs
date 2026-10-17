@@ -178,6 +178,23 @@ pub(super) fn node_key(info: &NodeInfo) -> String {
     hex::encode(Sha256::digest(text.as_bytes()))[..12].to_owned()
 }
 
+/// Метки установки в отчёте: `dev` уходит как есть, соль — только в ключах сетей.
+#[derive(Default)]
+pub(super) struct Install {
+    pub dev: String,
+    pub salt: String,
+}
+
+/// Ключ сети в отчёте: sha256 от «соль;ключ» той же длины, что ключ. Без соли
+/// ключ перебором признаков сети выдаёт MAC роутера или DNS провайдера, а
+/// одинаковый у разных людей — что они в одной сети.
+fn salted(salt: &str, net: &str) -> String {
+    use sha2::{Digest as _, Sha256};
+    let mut hex = hex::encode(Sha256::digest(format!("{salt};{net}").as_bytes()));
+    hex.truncate(net.len());
+    hex
+}
+
 pub(super) fn bucket_of(delay_ms: u64) -> usize {
     BUCKET_EDGES
         .iter()
@@ -296,7 +313,7 @@ impl Store {
     }
 
     /// Отчёт из часов раньше `until` (закрытых). Форма — та, что ждёт прослойка (`lib/reports.php`).
-    pub(super) fn report(&self, now: i64, until: i64, dev: &str) -> serde_json::Value {
+    pub(super) fn report(&self, now: i64, until: i64, install: &Install) -> serde_json::Value {
         let mut networks = serde_json::Map::new();
         let mut nodes = serde_json::Map::new();
         let mut from = i64::MAX;
@@ -314,14 +331,17 @@ impl Store {
                 hours.push(hour.to_report());
             }
             if !hours.is_empty() {
-                networks.insert(net.clone(), serde_json::json!({ "kind": network.kind, "hours": hours }));
+                networks.insert(
+                    salted(&install.salt, net),
+                    serde_json::json!({ "kind": network.kind, "hours": hours }),
+                );
             }
         }
         serde_json::json!({
             "v": 1,
             "platform": "pc",
             "client": env!("CARGO_PKG_VERSION"),
-            "dev": dev,
+            "dev": install.dev,
             "from": if from == i64::MAX { now } else { from },
             "to": now,
             "nodes": nodes,
@@ -384,7 +404,9 @@ pub(super) async fn remove(uid: &str) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{HOUR, KEEP, NodeInfo, Place, Store, Use, VERSION, bucket_of, current, hour_of, node_key};
+    use super::{
+        HOUR, Install, KEEP, NodeInfo, Place, Store, Use, VERSION, bucket_of, current, hour_of, node_key, salted,
+    };
 
     #[test]
     fn measurements_of_the_previous_version_are_dropped_once() {
@@ -466,8 +488,13 @@ mod tests {
 
         assert_eq!(store.oldest_before(hour_of(NOW)), Some(past));
         assert_eq!(store.hours_before(hour_of(NOW)), 1);
-        let report = store.report(NOW, hour_of(NOW), "0123456789abcdef");
-        let hours = &report["networks"]["net0000000000000"]["hours"];
+        let install = Install {
+            dev: "0123456789abcdef".into(),
+            salt: "s".into(),
+        };
+        let report = store.report(NOW, hour_of(NOW), &install);
+        let net = salted("s", "net0000000000000");
+        let hours = &report["networks"][&net]["hours"];
         assert_eq!(hours.as_array().map(Vec::len), Some(1));
         assert_eq!(hours[0]["h"], past);
         assert_eq!(hours[0]["ip4"], "203.0.113.7");
@@ -478,11 +505,34 @@ mod tests {
         assert_eq!(hours[0]["use"][&key]["min"], 2);
         assert_eq!(hours[0]["use"][&key]["sec"], serde_json::Value::Null);
         assert_eq!(report["nodes"][&key]["type"], "vless");
-        assert_eq!(report["networks"]["net0000000000000"]["kind"], "wifi");
+        assert_eq!(report["networks"][&net]["kind"], "wifi");
+        assert_eq!(report["dev"], "0123456789abcdef");
 
         store.drop_sent(NOW, hour_of(NOW));
         assert_eq!(store.oldest_before(hour_of(NOW)), None);
         assert!(store.nodes.contains_key(&key), "узел текущего часа остаётся");
+    }
+
+    #[test]
+    fn the_network_key_leaves_salted_and_as_long_as_it_was() {
+        let mut store = Store::default();
+        let net = "0123456789abcdef";
+        store.add_ping(&place(net, ""), hour_of(NOW) - HOUR, "k", 100);
+        let keys = |salt: &str| {
+            let install = Install {
+                dev: String::new(),
+                salt: salt.into(),
+            };
+            store.report(NOW, hour_of(NOW), &install)["networks"]
+                .as_object()
+                .map(|networks| networks.keys().cloned().collect::<Vec<_>>())
+                .unwrap_or_default()
+        };
+        // sha256("a;0123456789abcdef"), первые 16 знаков
+        assert_eq!(keys("a"), vec!["438158d1b4fd8718".to_owned()]);
+        assert_eq!(keys("a"), vec![salted("a", net)]);
+        assert_ne!(keys("a"), keys("b"), "у другой установки ключ той же сети другой");
+        assert!(keys("a").iter().all(|key| key != net && key.len() == net.len()));
     }
 
     #[test]
@@ -493,8 +543,11 @@ mod tests {
         store.add_ping(&place("n", "198.51.100.9"), past + 900, "k", 0);
         store.add_ping(&place("n", "203.0.113.7"), past + 1800, "k", 100);
 
-        let report = store.report(NOW, hour_of(NOW), "");
-        let hours = report["networks"]["n"]["hours"].as_array().cloned().unwrap_or_default();
+        let report = store.report(NOW, hour_of(NOW), &Install::default());
+        let hours = report["networks"][salted("", "n")]["hours"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
         assert_eq!(hours.len(), 2);
         assert_eq!(hours[0]["ip4"], "203.0.113.7");
         assert_eq!(hours[0]["ping"]["k"]["n"], 2);

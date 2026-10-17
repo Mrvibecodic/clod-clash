@@ -104,7 +104,11 @@ const EXIT_CORE_TIMEOUT: Duration = Duration::from_secs(2);
 /// Накопленное пишется в файл не чаще этого (ещё — при закрытии часа, после
 /// отправки и на выходе): при аварийном завершении теряется не больше этого.
 const SAVE_EVERY: i64 = 5 * 60;
+/// Случайная метка установки: ею прослойка различает устройства, когда
+/// опознание устройства (x-hwid) выключено.
 const DEVICE_FILE: &str = "report-device";
+/// Соль ключей сетей в отчёте: своя у установки и прослойке не уходит.
+const SALT_FILE: &str = "report-net-salt";
 
 /// Накопленное одной подписки в памяти: файл читается один раз, пишется по
 /// [`SAVE_EVERY`]. Сборщик, проверка 16–20 и отправка ходят сюда по одному.
@@ -819,27 +823,23 @@ pub(crate) async fn note_freeze(uid: &str, net: &str, kind: &'static str, verdic
     .await;
 }
 
-/// Случайная метка установки: ею прослойка различает устройства, когда
-/// опознание устройства (x-hwid) выключено.
-fn device_id() -> String {
-    let Ok(path) = dirs::app_home_dir().map(|dir| dir.join(DEVICE_FILE)) else {
-        return String::new();
-    };
+/// 16 случайных байт установки из файла `name` в папке приложения; файла нет
+/// или он испорчен — новые. `None` — нет папки или случайных байт.
+fn install_mark(name: &str) -> Option<String> {
+    let path = dirs::app_home_dir().ok()?.join(name);
     if let Ok(text) = std::fs::read_to_string(&path) {
         let text = text.trim();
         if text.len() == 32 && text.bytes().all(|b| b.is_ascii_hexdigit()) {
-            return text.to_owned();
+            return Some(text.to_owned());
         }
     }
     let mut raw = [0u8; 16];
-    if getrandom::fill(&mut raw).is_err() {
-        return String::new();
+    getrandom::fill(&mut raw).ok()?;
+    let mark = hex::encode(raw);
+    if let Err(err) = std::fs::write(&path, &mark) {
+        logging!(warn, Type::Core, "[Report] {name} was not saved: {err}");
     }
-    let id = hex::encode(raw);
-    if let Err(err) = std::fs::write(&path, &id) {
-        logging!(warn, Type::Core, "[Report] the device mark was not saved: {err}");
-    }
-    id
+    Some(mark)
 }
 
 fn gzip(bytes: &[u8]) -> std::io::Result<Vec<u8>> {
@@ -860,8 +860,14 @@ struct Packed {
 /// Отчёт из закрытых часов (раньше `closed`): от самого старого на `hours`
 /// часов; не влез в [`REPORT_MAX_GZ`] — окно уполовинивается. `None` —
 /// отправлять нечего.
-fn pack_window(saved: &store::Store, now: i64, closed: i64, hours: i64, dev: &str) -> Option<std::io::Result<Packed>> {
-    pack_within(saved, now, closed, hours, dev, REPORT_MAX_GZ, |report| {
+fn pack_window(
+    saved: &store::Store,
+    now: i64,
+    closed: i64,
+    hours: i64,
+    install: &store::Install,
+) -> Option<std::io::Result<Packed>> {
+    pack_within(saved, now, closed, hours, install, REPORT_MAX_GZ, |report| {
         serde_json::to_vec(report)
             .map_err(std::io::Error::other)
             .and_then(|json| gzip(&json))
@@ -873,7 +879,7 @@ fn pack_within(
     now: i64,
     closed: i64,
     hours: i64,
-    dev: &str,
+    install: &store::Install,
     limit: usize,
     pack: impl Fn(&serde_json::Value) -> std::io::Result<Vec<u8>>,
 ) -> Option<std::io::Result<Packed>> {
@@ -881,7 +887,7 @@ fn pack_within(
     let mut hours = hours.max(1);
     Some(loop {
         let until = (oldest + hours * store::HOUR).min(closed);
-        let gz = match pack(&saved.report(now, until, dev)) {
+        let gz = match pack(&saved.report(now, until, install)) {
             Ok(gz) => gz,
             Err(err) => break Err(err),
         };
@@ -1039,11 +1045,23 @@ async fn send(uid: &str) -> i64 {
     };
     settle(work).await;
 
-    let dev = device_id();
+    // Без соли ключ сети ушёл бы как есть — отчёт ждёт.
+    let Some(salt) = install_mark(SALT_FILE) else {
+        logging!(
+            warn,
+            Type::Core,
+            "[Report] no salt for the network keys, the report waits"
+        );
+        return now + SEND_EVERY;
+    };
+    let install = store::Install {
+        dev: install_mark(DEVICE_FILE).unwrap_or_default(),
+        salt,
+    };
     let mut hours = SEND_WINDOW / store::HOUR;
     loop {
         let packed = with_store(uid, now, false, |saved| {
-            (pack_window(saved, now, closed, hours, &dev), false)
+            (pack_window(saved, now, closed, hours, &install), false)
         })
         .await;
         let packed = match packed {
@@ -1152,7 +1170,7 @@ mod tests {
     use std::collections::HashMap;
     use std::time::Duration;
 
-    use super::store::{HOUR, Place, Store, hour_of};
+    use super::store::{HOUR, Install, Place, Store, hour_of};
     use super::{
         Address, Packed, REPORT_MAX_GZ, SEND_EVERY, SEND_WINDOW, Spot, TICK, TICK_MIN, closed_before, due_between,
         histories, next_read, pack_within, pings_of, sends_between, too_early, with_runtime,
@@ -1382,13 +1400,15 @@ mod tests {
         limit: usize,
         size: impl Fn(&serde_json::Value) -> Vec<u8>,
     ) -> Option<(i64, i64, usize)> {
-        pack_within(store, now, closed, hours, "", limit, |report| Ok(size(report)))
-            .and_then(Result::ok)
-            .map(
-                |Packed {
-                     until, span, records, ..
-                 }| (until, span, records),
-            )
+        pack_within(store, now, closed, hours, &Install::default(), limit, |report| {
+            Ok(size(report))
+        })
+        .and_then(Result::ok)
+        .map(
+            |Packed {
+                 until, span, records, ..
+             }| (until, span, records),
+        )
     }
 
     fn plain(report: &serde_json::Value) -> Vec<u8> {
@@ -1436,7 +1456,13 @@ mod tests {
         let oldest = store.oldest_before(hour_of(now)).unwrap_or(0);
         // «Сжатие» — число записей часов: лимит в 10 записей.
         let count = |report: &serde_json::Value| {
-            vec![0u8; report["networks"]["n"]["hours"].as_array().map_or(0, Vec::len) * 100]
+            let hours = report["networks"].as_object().map_or(0, |networks| {
+                networks
+                    .values()
+                    .map(|network| network["hours"].as_array().map_or(0, Vec::len))
+                    .sum()
+            });
+            vec![0u8; hours * 100]
         };
         assert_eq!(
             packed(&store, now, hour_of(now), SEND_WINDOW / HOUR, 1000, count),
