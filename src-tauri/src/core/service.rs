@@ -1011,7 +1011,18 @@ impl StageRequest {
     }
 }
 
+/// Вызов к службе без канала клиент IPC повторяет минутами; канала нет —
+/// служба не ответит, и ждать её незачем.
+fn the_service_channel_is_there() -> Result<()> {
+    if is_service_ipc_path_exists() {
+        Ok(())
+    } else {
+        bail!("служба не отвечает: её канала нет")
+    }
+}
+
 pub(crate) async fn stage_runtime_by_service(config: &serde_yaml_ng::Mapping) -> Result<StageRequest> {
+    the_service_channel_is_there()?;
     let session = active_service_session()?;
     let credentials = current_owner_credentials()?;
     let runtime = match collect_service_runtime_bundle(config).await {
@@ -1155,6 +1166,7 @@ pub(super) async fn service_status() -> Result<ServiceStatusSnapshot> {
 pub(super) async fn stop_core_by_service() -> Result<()> {
     logging!(info, Type::Service, "Остановка ядра через службу (IPC)");
 
+    the_service_channel_is_there()?;
     let credentials = current_owner_credentials()?;
     let session = active_service_session()?;
     let response = clash_verge_service_ipc::stop_clash(&credentials, &session)
