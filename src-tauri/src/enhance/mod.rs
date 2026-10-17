@@ -1633,23 +1633,106 @@ fn filter_sentinel_proxies(mut config: Mapping) -> (Mapping, SentinelReport) {
         );
     }
 
-    if dropped.is_empty() {
-        return (config, report);
-    }
-
-    if let Some(Value::Sequence(groups)) = config.get_mut("proxy-groups") {
-        for group in groups {
-            let Some(Value::Sequence(items)) = group.as_mapping_mut().and_then(|map| map.get_mut("proxies")) else {
-                continue;
-            };
-            items.retain(|item| match item.as_str() {
-                Some(name) => !dropped.contains(name),
-                None => true,
-            });
-        }
+    if !dropped.is_empty() {
+        forget_the_dropped_proxies(&mut config, &dropped);
     }
 
     (config, report)
+}
+
+/// Убрать вырезанные заглушки отовсюду, где ядро ищет узел по имени, иначе оно
+/// отвергнет конфиг целиком. Из групп имя просто уходит (опустевшую группу
+/// дозаполнит `backfill_empty_groups`); правила, подправила, `dialer-proxy` и
+/// `tunnels` получают `REJECT` — то же, что трафику давала заглушка, и не тихий
+/// директ. Сверка — с точным множеством вырезанных имён: имена наборов правил
+/// и подправил узлами не являются.
+fn forget_the_dropped_proxies(config: &mut Mapping, dropped: &HashSet<String>) {
+    for (key, value) in config.iter_mut() {
+        match key.as_str() {
+            Some("proxy-groups") => {
+                for group in value.as_sequence_mut().into_iter().flatten() {
+                    if let Some(Value::Sequence(items)) = group.get_mut("proxies") {
+                        items.retain(|item| item.as_str().is_none_or(|name| !dropped.contains(name)));
+                    }
+                }
+            }
+            Some("rules") => reject_the_rule_targets(value, dropped),
+            Some("sub-rules") => {
+                for rules in value.as_mapping_mut().into_iter().flat_map(Mapping::values_mut) {
+                    reject_the_rule_targets(rules, dropped);
+                }
+            }
+            Some("proxies") => reject_the_dialers(value, dropped),
+            Some("proxy-providers") => {
+                for provider in value.as_mapping_mut().into_iter().flat_map(Mapping::values_mut) {
+                    if let Some(overridden) = provider.get_mut("override") {
+                        reject_if_dropped(overridden.get_mut("dialer-proxy"), dropped);
+                    }
+                    if let Some(payload) = provider.get_mut("payload") {
+                        reject_the_dialers(payload, dropped);
+                    }
+                }
+            }
+            Some("tunnels") => {
+                for tunnel in value.as_sequence_mut().into_iter().flatten() {
+                    match tunnel {
+                        Value::Mapping(tunnel) => reject_if_dropped(tunnel.get_mut("proxy"), dropped),
+                        tunnel => reject_the_field(tunnel, |_| Some(3), dropped),
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn reject_the_rule_targets(rules: &mut Value, dropped: &HashSet<String>) {
+    for rule in rules.as_sequence_mut().into_iter().flatten() {
+        reject_the_field(rule, rule_target_field, dropped);
+    }
+}
+
+fn reject_the_dialers(proxies: &mut Value, dropped: &HashSet<String>) {
+    for proxy in proxies.as_sequence_mut().into_iter().flatten() {
+        reject_if_dropped(proxy.get_mut("dialer-proxy"), dropped);
+    }
+}
+
+fn reject_if_dropped(value: Option<&mut Value>, dropped: &HashSet<String>) {
+    if let Some(value) = value
+        && value.as_str().is_some_and(|name| dropped.contains(name))
+    {
+        *value = Value::from("REJECT");
+    }
+}
+
+/// Строка через запятую (правило, туннель строкой), у которой поле с именем
+/// узла — вырезанная заглушка: на её место встаёт `REJECT`.
+fn reject_the_field(value: &mut Value, at: fn(&[&str]) -> Option<usize>, dropped: &HashSet<String>) {
+    let rewritten = value.as_str().and_then(|text| {
+        let mut fields: Vec<&str> = text.split(',').collect();
+        let field = at(&fields)
+            .and_then(|at| fields.get_mut(at))
+            .filter(|field| dropped.contains(field.trim()))?;
+        *field = "REJECT";
+        Some(fields.join(","))
+    });
+    if let Some(rewritten) = rewritten {
+        *value = Value::from(rewritten);
+    }
+}
+
+/// Поле правила, где ядро ждёт узел или группу: из двух полей — второе; у
+/// логических и regex-правил — последнее (в их условии бывают запятые); у
+/// остальных — третье. `SUB-RULE` ведёт в подправило, а не в узел.
+fn rule_target_field(fields: &[&str]) -> Option<usize> {
+    let kind = fields.first()?.trim().to_ascii_uppercase();
+    match (kind.as_str(), fields.len()) {
+        ("SUB-RULE", _) | (_, 0 | 1) => None,
+        (_, 2) => Some(1),
+        ("AND" | "OR" | "NOT" | "DOMAIN-REGEX" | "PROCESS-NAME-REGEX" | "PROCESS-PATH-REGEX", count) => Some(count - 1),
+        _ => Some(2),
+    }
 }
 
 fn cleanup_proxy_groups(mut config: Mapping) -> Mapping {
@@ -3706,6 +3789,129 @@ proxy-groups:
         assert_eq!(
             group_members(&config, "VPN"),
             vec!["🇳🇱 Amsterdam", "🇩🇪 Frankfurt", "DIRECT"]
+        );
+    }
+
+    /// Ядро ищет узел по имени не только в группах: ссылка на вырезанную
+    /// заглушку из правила, подправила, цепочки или туннеля роняла бы весь
+    /// конфиг. Такие ссылки ведут в `REJECT`, всё, что узлом не является, —
+    /// наборы правил и подправила с тем же именем — остаётся как было.
+    #[test]
+    fn every_reference_to_a_dropped_sentinel_points_at_rejection() {
+        let config = mapping(
+            r#"
+proxies:
+  - name: "Live"
+    type: vless
+    server: nl02.example.net
+    port: 443
+    uuid: 6f1c0f6d-1a2b-4c3d-8e9f-0a1b2c3d4e5f
+    dialer-proxy: "Expired"
+  - name: "Expired"
+    type: vless
+    server: 0.0.0.0
+    port: 1
+    uuid: 00000000-0000-0000-0000-000000000000
+proxy-providers:
+  panel:
+    type: inline
+    override:
+      dialer-proxy: "Expired"
+    payload:
+      - name: "Inline"
+        type: vless
+        server: de01.example.net
+        port: 443
+        uuid: 7a2d1e7e-2b3c-4d5e-9f0a-1b2c3d4e5f60
+        dialer-proxy: "Expired"
+proxy-groups:
+  - name: "VPN"
+    type: select
+    proxies: ["Live", "Expired"]
+rules:
+  - "DOMAIN,example.com,Expired"
+  - "IP-CIDR,10.0.0.0/8,Expired,no-resolve"
+  - "AND,((DOMAIN,example.com),(NETWORK,UDP)),Expired"
+  - "DOMAIN-REGEX,^a{1,3}$,Expired"
+  - "RULE-SET,Expired,VPN"
+  - "SUB-RULE,(NETWORK,tcp),Expired"
+  - "DOMAIN,example.org,Live"
+  - "MATCH,Expired"
+sub-rules:
+  Expired:
+    - "DOMAIN,example.net,Expired"
+tunnels:
+  - {network: [tcp], address: "127.0.0.1:6553", target: "example.com:53", proxy: "Expired"}
+  - "tcp/udp,127.0.0.1:6554,example.com:53,Expired"
+  - "tcp,127.0.0.1:6555,example.com:53"
+"#,
+        );
+
+        let (config, _) = sentinel_pass(config);
+
+        let text =
+            |value: Option<&serde_yaml_ng::Value>| value.and_then(serde_yaml_ng::Value::as_str).map(str::to_owned);
+        let strings = |value: Option<&serde_yaml_ng::Value>| -> Vec<std::string::String> {
+            value
+                .and_then(serde_yaml_ng::Value::as_sequence)
+                .map(|items| {
+                    items
+                        .iter()
+                        .filter_map(serde_yaml_ng::Value::as_str)
+                        .map(str::to_owned)
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+        assert_eq!(group_members(&config, "VPN"), vec!["Live"]);
+        assert_eq!(
+            strings(config.get("rules")),
+            vec![
+                "DOMAIN,example.com,REJECT",
+                "IP-CIDR,10.0.0.0/8,REJECT,no-resolve",
+                "AND,((DOMAIN,example.com),(NETWORK,UDP)),REJECT",
+                "DOMAIN-REGEX,^a{1,3}$,REJECT",
+                "RULE-SET,Expired,VPN",
+                "SUB-RULE,(NETWORK,tcp),Expired",
+                "DOMAIN,example.org,Live",
+                "MATCH,REJECT",
+            ]
+        );
+        let sub_rules = config.get("sub-rules").and_then(|sub_rules| sub_rules.get("Expired"));
+        assert_eq!(strings(sub_rules), vec!["DOMAIN,example.net,REJECT"]);
+        let live = config.get("proxies").and_then(|proxies| proxies.get(0));
+        assert_eq!(
+            text(live.and_then(|live| live.get("dialer-proxy"))).as_deref(),
+            Some("REJECT")
+        );
+        let panel = config
+            .get("proxy-providers")
+            .and_then(|providers| providers.get("panel"));
+        let overridden = panel.and_then(|panel| panel.get("override"));
+        assert_eq!(
+            text(overridden.and_then(|o| o.get("dialer-proxy"))).as_deref(),
+            Some("REJECT")
+        );
+        let inline = panel
+            .and_then(|panel| panel.get("payload"))
+            .and_then(|payload| payload.get(0));
+        assert_eq!(
+            text(inline.and_then(|node| node.get("dialer-proxy"))).as_deref(),
+            Some("REJECT")
+        );
+        let tunnels = config.get("tunnels");
+        let first = tunnels.and_then(|tunnels| tunnels.get(0));
+        assert_eq!(
+            text(first.and_then(|tunnel| tunnel.get("proxy"))).as_deref(),
+            Some("REJECT")
+        );
+        assert_eq!(
+            text(tunnels.and_then(|tunnels| tunnels.get(1))).as_deref(),
+            Some("tcp/udp,127.0.0.1:6554,example.com:53,REJECT")
+        );
+        assert_eq!(
+            text(tunnels.and_then(|tunnels| tunnels.get(2))).as_deref(),
+            Some("tcp,127.0.0.1:6555,example.com:53")
         );
     }
 
