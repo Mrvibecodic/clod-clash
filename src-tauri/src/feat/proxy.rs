@@ -98,10 +98,12 @@ fn exit_is_under_way() -> bool {
 }
 
 pub async fn toggle_system_proxy() -> bool {
-    let (current, auto_close_connection, tun_carries_traffic) = {
+    // Направление — по тому, что стоит в системе, как у кнопки в окне: прокси
+    // мог снять кто-то другой, и тогда нажатие должно его включить.
+    let current = crate::core::sysopt::Sysopt::global().our_proxy_is_on().await;
+    let (auto_close_connection, tun_carries_traffic) = {
         let snapshot = Config::verge().await.latest_arc();
         (
-            snapshot.enable_system_proxy.unwrap_or(false),
             snapshot.auto_close_connection(),
             snapshot.enable_tun_mode.unwrap_or(false),
         )

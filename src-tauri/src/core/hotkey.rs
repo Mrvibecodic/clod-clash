@@ -172,21 +172,24 @@ impl Hotkey {
             HotkeyFunction::ClashModeRule => {
                 AsyncHandler::spawn(async move || {
                     if feat::change_clash_mode("rule".into()).await.is_ok() {
-                        notify_event(NotificationEvent::ClashModeChanged { mode: "Rule" }).await;
+                        let mode = clash_verge_i18n::t!("tray.rule");
+                        notify_event(NotificationEvent::ClashModeChanged { mode: &mode }).await;
                     }
                 });
             }
             HotkeyFunction::ClashModeGlobal => {
                 AsyncHandler::spawn(async move || {
                     if feat::change_clash_mode("global".into()).await.is_ok() {
-                        notify_event(NotificationEvent::ClashModeChanged { mode: "Global" }).await;
+                        let mode = clash_verge_i18n::t!("tray.global");
+                        notify_event(NotificationEvent::ClashModeChanged { mode: &mode }).await;
                     }
                 });
             }
             HotkeyFunction::ClashModeDirect => {
                 AsyncHandler::spawn(async move || {
                     if feat::change_clash_mode("direct".into()).await.is_ok() {
-                        notify_event(NotificationEvent::ClashModeChanged { mode: "Direct" }).await;
+                        let mode = clash_verge_i18n::t!("tray.direct");
+                        notify_event(NotificationEvent::ClashModeChanged { mode: &mode }).await;
                     }
                 });
             }

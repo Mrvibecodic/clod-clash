@@ -1,5 +1,5 @@
 use crate::config::{IProfilePreview, IVerge};
-use crate::core::service;
+use crate::core::sysopt::Sysopt;
 use crate::core::tray::menu_def::TrayAction;
 use crate::module::lightweight;
 use crate::process::AsyncHandler;
@@ -8,7 +8,6 @@ use crate::{Type, cmd, config::Config, feat, logging, module::lightweight::is_in
 use clash_verge_limiter::{Limiter, SystemClock, SystemLimiter};
 use clash_verge_logging::logging_error;
 use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
-use tauri_plugin_clash_verge_sysinfo::is_current_app_handle_admin;
 use tauri_plugin_mihomo::models::Proxies;
 use tokio::fs;
 
@@ -17,6 +16,7 @@ use anyhow::Result;
 use smartstring::alias::String;
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tauri::{
     AppHandle, Wry,
@@ -66,6 +66,7 @@ enum IconKind {
 
 pub struct Tray {
     limiter: SystemLimiter,
+    shown_system_proxy: AtomicBool,
     #[cfg(target_os = "linux")]
     activate_limiter: SystemLimiter,
     #[cfg(target_os = "macos")]
@@ -79,12 +80,11 @@ fn core_is_down() -> bool {
 impl TrayState {
     async fn get_tray_icon(verge: &IVerge) -> (bool, Cow<'_, [u8]>) {
         let tun_mode = feat::tun::is_active_with(verge.enable_tun_mode.unwrap_or(false));
-        let system_mode = verge.enable_system_proxy.unwrap_or(false);
         let kind = if core_is_down() {
             IconKind::Common
         } else if tun_mode {
             IconKind::Tun
-        } else if system_mode {
+        } else if Sysopt::global().our_proxy_is_on().await {
             IconKind::SysProxy
         } else {
             IconKind::Common
@@ -148,6 +148,7 @@ impl Default for Tray {
     fn default() -> Self {
         Self {
             limiter: Limiter::new(Duration::from_millis(TRAY_CLICK_DEBOUNCE_MS), SystemClock),
+            shown_system_proxy: AtomicBool::new(false),
             #[cfg(target_os = "linux")]
             activate_limiter: Limiter::new(Duration::from_millis(TRAY_CLICK_DEBOUNCE_MS), SystemClock),
             #[cfg(target_os = "macos")]
@@ -290,10 +291,9 @@ impl Tray {
         };
 
         let verge = Config::verge().await.latest_arc();
-        let system_proxy = verge.enable_system_proxy.as_ref().unwrap_or(&false);
+        let system_proxy = Sysopt::global().our_proxy_is_on().await;
+        self.shown_system_proxy.store(system_proxy, Ordering::Relaxed);
         let tun_mode = feat::tun::is_active_with(verge.enable_tun_mode.unwrap_or(false));
-        let tun_mode_available =
-            is_current_app_handle_admin(app_handle) || service::is_service_available().await.is_ok();
         let mode = Config::runtime()
             .await
             .latest_arc()
@@ -310,9 +310,8 @@ impl Tray {
 
         let menu_model = create_tray_menu_model(
             Some(mode.as_str()),
-            *system_proxy,
+            system_proxy,
             tun_mode,
-            tun_mode_available,
             profiles_preview,
             TrayMenuOptions {
                 is_lightweight_mode,
@@ -392,14 +391,18 @@ impl Tray {
         let app_handle = handle::Handle::app_handle();
 
         let verge = Config::verge().await.latest_arc();
-        let system_proxy = verge.enable_system_proxy.unwrap_or(false);
+        let system_proxy = Sysopt::global().our_proxy_is_on().await;
         let tun_mode = feat::tun::is_active_with(verge.enable_tun_mode.unwrap_or(false));
 
         let switch_str = |flag: bool| {
-            if flag { "on" } else { "off" }
+            if flag {
+                clash_verge_i18n::t!("tray.tooltip.on")
+            } else {
+                clash_verge_i18n::t!("tray.tooltip.off")
+            }
         };
 
-        let mut current_profile_name = "None".into();
+        let mut current_profile_name = clash_verge_i18n::t!("tray.tooltip.noProfile").to_string();
         {
             let profiles = Config::profiles().await;
             let profiles = profiles.latest_arc();
@@ -609,6 +612,17 @@ fn create_profile_menu_item(profiles_preview: Vec<IProfilePreview<'_>>) -> Vec<M
         .collect()
 }
 
+/// Имена группы и узла бывают с любыми знаками, поэтому в номере пункта перед
+/// ними стоит длина имени группы — иначе их не разделить обратно.
+fn proxy_item_id(group: &str, proxy: &str) -> std::string::String {
+    format!("proxy_{}_{group}{proxy}", group.len())
+}
+
+fn proxy_item_names(id: &str) -> Option<(&str, &str)> {
+    let (group_len, names) = id.strip_prefix("proxy_")?.split_once('_')?;
+    names.split_at_checked(group_len.parse().ok()?)
+}
+
 fn create_subcreate_proxy_menu_item(
     proxy_mode: &str,
     proxy_group_order_map: Option<HashMap<String, usize>>,
@@ -639,7 +653,7 @@ fn create_subcreate_proxy_menu_item(
                 .iter()
                 .map(|proxy_str| {
                     let is_selected = *proxy_str == now_proxy;
-                    let item_id = format!("proxy_{}_{}", group_name, proxy_str);
+                    let item_id = proxy_item_id(group_name, proxy_str);
 
                     // Задержек в трее нет: меню собирается по событиям, и цифры в нём
                     // устаревали, а у узлов провайдеров их не было вовсе
@@ -702,7 +716,6 @@ async fn create_tray_menu_model(
     mode: Option<&str>,
     system_proxy_enabled: bool,
     tun_mode_enabled: bool,
-    tun_mode_available: bool,
     profiles_preview: Vec<IProfilePreview<'_>>,
     options: TrayMenuOptions,
 ) -> Result<Vec<MenuNode>> {
@@ -851,7 +864,6 @@ async fn create_tray_menu_model(
         MenuNode::check(MenuIds::SYSTEM_PROXY, texts.system_proxy.as_ref(), system_proxy_enabled)
             .with_accelerator(hotkeys.get("toggle_system_proxy").copied()),
         MenuNode::check(MenuIds::TUN_MODE, texts.tun_mode.as_ref(), tun_mode_enabled)
-            .with_enabled(tun_mode_available)
             .with_accelerator(hotkeys.get("toggle_tun_mode").copied()),
         MenuNode::Separator,
         MenuNode::check(
@@ -1033,21 +1045,35 @@ fn handle_primary_click() {
     });
 }
 
-fn on_tray_icon_event(_tray_icon: &TrayIcon, tray_event: TrayIconEvent) {
-    if matches!(
-        tray_event,
-        TrayIconEvent::Move { .. } | TrayIconEvent::Leave { .. } | TrayIconEvent::Enter { .. }
-    ) {
+/// Прокси могут снять мимо приложения: с системой трей сверяется на каждом
+/// тике сторожа среды, а там, где значок сообщает о наведении мыши (Windows,
+/// macOS), ещё и перед открытием меню. Одна сверка за раз: зависшее чтение
+/// системы не копит за собой новые.
+pub fn catch_up_with_the_system_proxy() {
+    static CATCHING_UP: AtomicBool = AtomicBool::new(false);
+    if handle::Handle::global().is_exiting() || CATCHING_UP.swap(true, Ordering::AcqRel) {
         return;
     }
+    AsyncHandler::spawn(|| async {
+        let _done = scopeguard::guard((), |()| CATCHING_UP.store(false, Ordering::Release));
+        let tray = Tray::global();
+        if Sysopt::global().our_proxy_is_on().await == tray.shown_system_proxy.load(Ordering::Relaxed) {
+            return;
+        }
+        tray.update_menu_and_icon().await;
+        logging_error!(Type::Tray, tray.update_tooltip().await);
+    });
+}
 
-    if let TrayIconEvent::Click {
-        button: MouseButton::Left,
-        button_state: MouseButtonState::Down,
-        ..
-    } = tray_event
-    {
-        handle_primary_click();
+fn on_tray_icon_event(_tray_icon: &TrayIcon, tray_event: TrayIconEvent) {
+    match tray_event {
+        TrayIconEvent::Enter { .. } => catch_up_with_the_system_proxy(),
+        TrayIconEvent::Click {
+            button: MouseButton::Left,
+            button_state: MouseButtonState::Down,
+            ..
+        } => handle_primary_click(),
+        _ => {}
     }
 }
 
@@ -1148,13 +1174,8 @@ fn handle_menu_click(id: std::string::String) {
                 feat::toggle_proxy_profile(profile_index.into()).await;
             }
             id if id.starts_with("proxy_") => {
-                let rest = match id.strip_prefix("proxy_") {
-                    Some(r) => r,
-                    None => return,
-                };
-                let (group_name, proxy_name) = match rest.split_once('_') {
-                    Some((g, p)) => (g, p),
-                    None => return,
+                let Some((group_name, proxy_name)) = proxy_item_names(id) else {
+                    return;
                 };
                 feat::switch_proxy_node(group_name, proxy_name).await;
             }
@@ -1168,4 +1189,32 @@ fn handle_menu_click(id: std::string::String) {
             }
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{proxy_item_id, proxy_item_names};
+
+    #[test]
+    fn a_node_item_gives_back_the_group_and_the_node_whatever_their_names_hold() {
+        for (group, proxy) in [
+            ("Auto_Select", "Netherlands"),
+            ("Auto", "Select_Netherlands"),
+            ("Группа_1", "Узел_2_example.com"),
+            ("12_3", "4_5"),
+            ("GLOBAL", ""),
+        ] {
+            assert_eq!(
+                proxy_item_names(&proxy_item_id(group, proxy)),
+                Some((group, proxy)),
+                "{group} / {proxy}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_group_submenu_is_not_taken_for_a_node() {
+        assert_eq!(proxy_item_names("proxy_group_Auto_Select"), None);
+        assert_eq!(proxy_item_names("proxy_99_Auto"), None);
+    }
 }

@@ -765,6 +765,7 @@ pub fn ensure_environment_watchdog() {
 
             last_tick = now_tick;
             last_awake = now_awake;
+            crate::core::tray::catch_up_with_the_system_proxy();
 
             if slept || ticks.is_multiple_of(timing::TUN_UNWANTED_SWEEP_EVERY_TICKS) {
                 crate::feat::tun::enforce_undesired_off().await;
@@ -1343,5 +1344,22 @@ mod tests {
                 "{file}"
             );
         }
+    }
+
+    /// Значок на Linux о наведении мыши не сообщает: трей сверяется с системой
+    /// на каждом тике, а не только перед открытием меню.
+    #[test]
+    fn the_tray_catches_up_with_the_system_proxy_on_every_tick() {
+        use crate::utils::source_scan::fn_body;
+        let environment = crate::utils::source_scan::without_test_modules(include_str!("environment.rs"));
+        let ensure = fn_body(environment, "pub fn ensure_environment_watchdog()").unwrap_or_default();
+        let the_loop = fn_body(ensure, "loop {").unwrap_or_default();
+        let caught_up = the_loop.find("catch_up_with_the_system_proxy()");
+        let skips: Vec<usize> = the_loop.match_indices("continue;").map(|(at, _)| at).collect();
+        let first_quiet_skip = skips.get(1).copied().unwrap_or(usize::MAX);
+        assert!(
+            caught_up.is_some_and(|at| skips.first().is_some_and(|exit| *exit < at) && at < first_quiet_skip),
+            "{the_loop}"
+        );
     }
 }

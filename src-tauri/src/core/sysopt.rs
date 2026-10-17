@@ -155,6 +155,16 @@ fn how_the_system_proxy_stands(observed: &ObservedProxy, ours: &[(&str, u16, &st
     how_the_system_proxy_stands_with(observed, ours, AUTO_SWITCH_READBACK_IS_TRUSTWORTHY)
 }
 
+/// Включён ли в системе наш прокси — то же сравнение, по которому горит
+/// кнопка в окне: в режиме PAC наш адрес автонастройки, иначе наш хост и порт.
+fn our_proxy_is_on_in(observed: &ObservedProxy, pac: bool, host: &str, port: u16, pac_url: &str) -> bool {
+    if pac {
+        observed.auto_enable && observed.auto_url == pac_url
+    } else {
+        observed.sys_enable && bare_host(&observed.host) == bare_host(host) && observed.port == port
+    }
+}
+
 const fn nothing_of_ours_can_be_in_the_system(ever_applied: bool, wants_proxy: bool) -> bool {
     !ever_applied && !wants_proxy
 }
@@ -625,6 +635,21 @@ impl Sysopt {
 
     pub async fn wait_idle(&self) {
         let _ = self.update_lock.lock().await;
+    }
+
+    /// Наш прокси сейчас в системе — по факту, а не по настройке; если систему
+    /// прочитать не удалось, остаётся настройка.
+    pub async fn our_proxy_is_on(&self) -> bool {
+        self.wait_idle().await;
+        let verge = Config::verge().await.latest_arc();
+        let host = Config::our_proxy_host(&verge).await;
+        let port = Config::effective_mixed_port().await;
+        let pac_url = pac_url_for(LOOPBACK_PROXY_HOST, IVerge::get_singleton_port());
+        let pac = verge.proxy_auto_config.unwrap_or_default();
+        match tokio::task::spawn_blocking(ObservedProxy::read).await.ok().flatten() {
+            Some(observed) => our_proxy_is_on_in(&observed, pac, &host, port, &pac_url),
+            None => verge.enable_system_proxy.unwrap_or_default(),
+        }
     }
 
     pub async fn update_sysproxy(&self) -> Result<()> {

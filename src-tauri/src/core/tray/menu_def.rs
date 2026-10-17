@@ -140,14 +140,6 @@ impl MenuNode {
         self
     }
 
-    pub const fn with_enabled(mut self, value: bool) -> Self {
-        match &mut self {
-            Self::Item { enabled, .. } | Self::Check { enabled, .. } | Self::Sub { enabled, .. } => *enabled = value,
-            Self::Separator => {}
-        }
-        self
-    }
-
     pub const fn skippable(mut self) -> Self {
         match &mut self {
             Self::Item { skippable, .. } | Self::Check { skippable, .. } | Self::Sub { skippable, .. } => {
