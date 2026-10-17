@@ -81,7 +81,8 @@ pub fn resolve_setup_async() {
             init_service_manager().await;
             init_core_manager().await;
             let core_is_up = !matches!(*CoreManager::global().get_running_mode(), RunningMode::NotRunning);
-            let wants_proxy = Config::verge().await.latest_arc().enable_system_proxy.unwrap_or(false);
+            let wants_proxy = Config::verge().await.latest_arc().enable_system_proxy.unwrap_or(false)
+                || adopt_our_proxy_left_for_the_service_core().await;
             if !wants_proxy {
                 logging!(
                     info,
@@ -292,6 +293,31 @@ pub(super) async fn init_launch_connect_state() {
         Type::Setup,
         crate::feat::commit_verge_edit(|verge| verge.patch_config(&patch)).await
     );
+}
+
+/// Прокси прошлого сеанса, оставленный ради ядра под службой (установщик
+/// обновления, аварийный перезапуск): если в системе ровно наш адрес или наш
+/// PAC, а ядро под службой живо и на этом порту, подключение продолжается —
+/// со снятием на выходе и охраной, как у включённого. Чужой прокси и прокси
+/// без живого ядра не трогаем.
+async fn adopt_our_proxy_left_for_the_service_core() -> bool {
+    if !matches!(*CoreManager::global().get_running_mode(), RunningMode::Service)
+        || !sysopt::Sysopt::global().our_proxy_is_on().await
+    {
+        return false;
+    }
+    logging!(
+        info,
+        Type::Setup,
+        "в системе наш прокси, а ядро под службой работает — подключение продолжается"
+    );
+    let patch = crate::config::IVerge {
+        enable_system_proxy: Some(true),
+        ..Default::default()
+    };
+    crate::feat::commit_verge_edit(|verge| verge.patch_config(&patch))
+        .await
+        .is_ok()
 }
 
 pub(super) async fn init_system_proxy() {
