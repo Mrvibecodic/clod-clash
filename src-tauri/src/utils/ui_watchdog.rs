@@ -15,7 +15,10 @@ mod windows_watchdog {
     const POLL: Duration = Duration::from_secs(2);
     const ANSWER: Duration = Duration::from_millis(1500);
     const REMIND: Duration = Duration::from_secs(30);
-    const RESTART_AFTER: Duration = Duration::from_secs(20);
+    /// Зависание меряется промахами подряд, а не часами: `Instant` на Windows
+    /// считает и сон, и одна проба до сна с одной после него сошли бы за
+    /// зависание длиной в весь сон.
+    const RESTART_AFTER_MISSES: u32 = 10;
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
     static PROBE_HWND: AtomicIsize = AtomicIsize::new(0);
@@ -114,8 +117,8 @@ mod windows_watchdog {
                 logging!(
                     error,
                     Type::Window,
-                    "Интерфейс не ответил за {} с, приложение перезапускается",
-                    RESTART_AFTER.as_secs()
+                    "Интерфейс не ответил {} проверок подряд, приложение перезапускается",
+                    RESTART_AFTER_MISSES
                 );
                 crate::feat::tidy_up_before_an_abrupt_end("перезапуском");
                 log::logger().flush();
@@ -127,8 +130,13 @@ mod windows_watchdog {
         }
     }
 
+    const fn misses_after(misses: u32, answered: bool) -> u32 {
+        if answered { 0 } else { misses.saturating_add(1) }
+    }
+
     fn watch_loop() {
-        let mut hung_since: Option<Instant> = None;
+        let mut misses = 0_u32;
+        let mut hung_since = Instant::now();
         let mut reminded_at = Instant::now();
 
         loop {
@@ -138,25 +146,22 @@ mod windows_watchdog {
             // перезапуск посреди выхода поднял бы приложение снова. Выход
             // могут и отменить — тогда сторож продолжает.
             if crate::core::handle::Handle::global().is_exiting() {
-                hung_since = None;
+                misses = 0;
                 continue;
             }
 
-            if window_answers(PROBE_HWND.load(Ordering::Relaxed)) {
-                if let Some(since) = hung_since.take() {
-                    logging!(
-                        warn,
-                        Type::Window,
-                        "Интерфейс снова отвечает, не отвечал {} с",
-                        since.elapsed().as_secs()
-                    );
-                }
-                continue;
-            }
-
-            match hung_since {
-                None => {
-                    hung_since = Some(Instant::now());
+            let before = misses;
+            misses = misses_after(misses, window_answers(PROBE_HWND.load(Ordering::Relaxed)));
+            match misses {
+                0 if before > 0 => logging!(
+                    warn,
+                    Type::Window,
+                    "Интерфейс снова отвечает, не отвечал {} с",
+                    hung_since.elapsed().as_secs()
+                ),
+                0 => {}
+                1 => {
+                    hung_since = Instant::now();
                     reminded_at = Instant::now();
                     logging!(
                         error,
@@ -164,27 +169,38 @@ mod windows_watchdog {
                         "Главный поток перестал разбирать сообщения окна — интерфейс завис"
                     );
                 }
-                Some(since) if since.elapsed() >= RESTART_AFTER => {
+                _ if misses >= RESTART_AFTER_MISSES => {
                     restart_self();
-                    hung_since = None;
+                    misses = 0;
                 }
-                Some(since) if reminded_at.elapsed() >= REMIND => {
+                _ if reminded_at.elapsed() >= REMIND => {
                     reminded_at = Instant::now();
                     logging!(
                         error,
                         Type::Window,
                         "Интерфейс не отвечает уже {} с",
-                        since.elapsed().as_secs()
+                        hung_since.elapsed().as_secs()
                     );
                 }
-                Some(_) => {}
+                _ => {}
             }
         }
     }
 
     #[cfg(test)]
     mod tests {
-        use super::{probe_window, window_answers};
+        use super::{RESTART_AFTER_MISSES, misses_after, probe_window, window_answers};
+
+        #[test]
+        fn only_misses_in_a_row_lead_to_a_restart() {
+            let mut misses = 0;
+            for _ in 0..RESTART_AFTER_MISSES - 1 {
+                misses = misses_after(misses, false);
+            }
+            assert!(misses < RESTART_AFTER_MISSES);
+            assert_eq!(misses_after(misses, true), 0);
+            assert_eq!(misses_after(misses, false), RESTART_AFTER_MISSES);
+        }
         use windows_sys::Win32::UI::WindowsAndMessaging::DestroyWindow;
 
         /// Окно для пробы создаётся без экрана и отвечает, пока его поток

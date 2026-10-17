@@ -338,6 +338,11 @@ impl WindowManager {
             crate::core::notification::frontend_stopped_listening();
             let _ = window.destroy();
             logging!(info, Type::Window, "Окно уничтожено");
+            // Потоки страницы (трафик, соединения, журнал) у плагина живут
+            // отдельно от окна: без окна их данные разбирались бы впустую.
+            if let Err(err) = handle::Handle::mihomo().clear_all_ws_connections() {
+                logging!(warn, Type::Window, "потоки окна не закрыты: {err}");
+            }
             #[cfg(target_os = "macos")]
             {
                 logging!(info, Type::Window, "Применяю специфичную для macOS политику активации");

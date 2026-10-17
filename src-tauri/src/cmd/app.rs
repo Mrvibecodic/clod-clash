@@ -60,20 +60,20 @@ pub async fn tray_icon_path(name: String) -> CmdResult<String> {
 #[tauri::command]
 pub async fn open_app_dir() -> CmdResult<()> {
     let app_dir = dirs::app_home_dir().stringify_err()?;
-    open::that(app_dir).stringify_err()
+    open::that_detached(app_dir).stringify_err()
 }
 
 #[tauri::command]
 pub async fn open_core_dir() -> CmdResult<()> {
     let core_binary = tauri::utils::platform::current_exe().stringify_err()?;
     let core_dir = core_binary.parent().ok_or("failed to get core dir")?;
-    open::that(core_dir).stringify_err()
+    open::that_detached(core_dir).stringify_err()
 }
 
 #[tauri::command]
 pub async fn open_logs_dir() -> CmdResult<()> {
     let log_dir = dirs::app_logs_dir().stringify_err()?;
-    open::that(log_dir).stringify_err()
+    open::that_detached(log_dir).stringify_err()
 }
 
 const OPENABLE_URL_SCHEMES: &[&str] = &["https", "tg", "mailto"];
@@ -92,12 +92,14 @@ fn is_openable_url(url: &str) -> bool {
         })
 }
 
+/// Без ожидания открывшей программы: на Linux без рабочего стола `xdg-open`
+/// держит браузер, и ждущая команда замораживала окно, пока его не закроют.
 #[tauri::command]
-pub fn open_web_url(url: String) -> CmdResult<()> {
+pub async fn open_web_url(url: String) -> CmdResult<()> {
     if !is_openable_url(url.as_str()) {
         return Err("url scheme is not allowed".into());
     }
-    open::that(url.as_str()).stringify_err()
+    open::that_detached(url.as_str()).stringify_err()
 }
 
 #[tauri::command]
