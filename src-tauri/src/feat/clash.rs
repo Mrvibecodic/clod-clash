@@ -44,8 +44,18 @@ pub async fn restart_app() {
         if cleanup_result { 0 } else { 1 }
     );
 
+    // Тот же перезапуск, что `AppHandle::restart` с главного потока, но без
+    // ссылок в командной строке новой копии.
     let app_handle = handle::Handle::app_handle();
-    app_handle.restart();
+    let mut env = tauri::Manager::env(app_handle);
+    env.args_os = utils::server::without_links(env.args_os);
+    if let Err(e) = app_handle.run_on_main_thread(move || {
+        handle::Handle::app_handle().cleanup_before_exit();
+        tauri::process::restart(&env);
+    }) {
+        logging!(error, Type::System, "перезапуск на главном потоке не запустился: {e}");
+        app_handle.restart();
+    }
 }
 
 /// clod:Э11-10 — один запрос вместо сотен.

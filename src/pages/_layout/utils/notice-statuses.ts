@@ -27,6 +27,7 @@ export const NOTICE_STATUSES = [
   'core::port_held_by_our_copy',
   'core::restarted',
   'import_sub_url::error',
+  'import_sub_url::exists',
   'import_sub_url::ok',
   'reactivate_profiles::error',
   'service::bundle_rejected',

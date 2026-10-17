@@ -123,6 +123,7 @@
     },
     "notifications": {
       "importSubscriptionSuccess": "Berlangganan Berhasil Diimpor",
+      "importSubscriptionExists": "This subscription is already added",
       "saved": "Saved successfully",
       "common": {
         "copySuccess": "Salin Berhasil",

@@ -11,7 +11,7 @@ use clash_verge_logging::{Type, logging};
 use reqwest_dav::list_cmd::ListFile;
 use serde::Serialize;
 use smartstring::alias::String;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tokio::fs;
 
 #[derive(Debug, Serialize)]
@@ -48,34 +48,66 @@ fn restorable_backup_entry(name: &str) -> Option<PathBuf> {
 }
 
 async fn extract_backup(archive: PathBuf, target: PathBuf) -> Result<()> {
-    AsyncHandler::spawn_blocking(move || -> Result<()> {
-        let file = std::fs::File::open(&archive)?;
-        let mut zip = zip::ZipArchive::new(file)?;
-        for index in 0..zip.len() {
-            let mut entry = zip.by_index(index)?;
-            let raw_name = entry.name().to_owned();
-            let Some(relative) = restorable_backup_entry(&raw_name) else {
-                // Запись каталога — часть устройства архива, а не потерянный файл;
-                // замеры отчёта из старых копий не берутся намеренно.
-                if !raw_name.ends_with('/') && !raw_name.strip_prefix("profiles/").is_some_and(dirs::is_report_file) {
-                    logging!(
-                        warn,
-                        Type::Backup,
-                        "backup entry is not part of a backup and was not unpacked: {raw_name}"
-                    );
-                }
-                continue;
-            };
-            let destination = target.join(&relative);
-            if let Some(parent) = destination.parent() {
-                std::fs::create_dir_all(parent)?;
-            }
-            let mut written = std::fs::File::create(&destination)?;
-            std::io::copy(&mut entry, &mut written)?;
+    AsyncHandler::spawn_blocking(move || unpack(&archive, &target)).await?
+}
+
+/// Распаковать копию: сначала всё — во временные файлы рядом с рабочими, и
+/// только когда прочиталось всё, — на места переименованием. Не прочиталось
+/// (битая запись, кончилось место) — рабочие файлы не тронуты.
+fn unpack(archive: &Path, target: &Path) -> Result<()> {
+    let mut staged: Vec<(PathBuf, PathBuf)> = Vec::new();
+    let unpacked = stage_entries(archive, target, &mut staged);
+    if let Err(err) = unpacked {
+        for (staging, _) in &staged {
+            let _ = std::fs::remove_file(staging);
         }
-        Ok(())
-    })
-    .await?
+        return Err(err);
+    }
+    // Файлы подписок — раньше реестра и настроек: оборвись замена посередине,
+    // прежний реестр не укажет на файл, которого нет.
+    staged.sort_by_key(|(_, destination)| destination.parent() == Some(target));
+    let mut placed = staged.iter();
+    for (staging, destination) in placed.by_ref() {
+        if let Err(err) = std::fs::rename(staging, destination) {
+            let _ = std::fs::remove_file(staging);
+            for (left, _) in placed {
+                let _ = std::fs::remove_file(left);
+            }
+            return Err(anyhow!(err).context(format!("failed to put \"{}\" in place", destination.display())));
+        }
+    }
+    Ok(())
+}
+
+fn stage_entries(archive: &Path, target: &Path, staged: &mut Vec<(PathBuf, PathBuf)>) -> Result<()> {
+    let file = std::fs::File::open(archive)?;
+    let mut zip = zip::ZipArchive::new(file)?;
+    for index in 0..zip.len() {
+        let mut entry = zip.by_index(index)?;
+        let raw_name = entry.name().to_owned();
+        let Some(relative) = restorable_backup_entry(&raw_name) else {
+            // Запись каталога — часть устройства архива, а не потерянный файл;
+            // замеры отчёта из старых копий не берутся намеренно.
+            if !raw_name.ends_with('/') && !raw_name.strip_prefix("profiles/").is_some_and(dirs::is_report_file) {
+                logging!(
+                    warn,
+                    Type::Backup,
+                    "backup entry is not part of a backup and was not unpacked: {raw_name}"
+                );
+            }
+            continue;
+        };
+        let destination = target.join(&relative);
+        if let Some(parent) = destination.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let staging = crate::utils::help::staging_path(&destination);
+        staged.push((staging.clone(), destination));
+        let mut written = std::fs::File::create(&staging)?;
+        std::io::copy(&mut entry, &mut written)?;
+        written.sync_all()?;
+    }
+    Ok(())
 }
 
 pub(crate) const MACHINE_LOCAL_KEYS: &[&str] = &[
@@ -425,10 +457,77 @@ pub async fn export_local_backup(filename: String, dest_path: PathBuf) -> Result
 mod tests {
     use super::{
         MACHINE_LOCAL_KEYS, is_plain_file_name, machine_local_of, restorable_backup_entry, restored_settings,
-        strip_machine_local,
+        strip_machine_local, unpack,
     };
     use crate::config::IVerge;
-    use std::path::PathBuf;
+    use std::io::Write as _;
+    use std::path::{Path, PathBuf};
+
+    fn write_archive(archive: &Path, entries: &[(&str, &str)], broken: Option<&str>) -> zip::result::ZipResult<()> {
+        let mut zip = zip::ZipWriter::new(std::fs::File::create(archive)?);
+        let options = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+        for (name, body) in entries {
+            zip.start_file(*name, options)?;
+            zip.write_all(body.as_bytes())?;
+        }
+        zip.finish()?;
+        if let Some(broken) = broken {
+            // Тело записи — как есть: подмена байта ломает её контрольную сумму.
+            let bytes = std::fs::read(archive)?;
+            let at = bytes
+                .windows(broken.len())
+                .position(|w| w == broken.as_bytes())
+                .unwrap_or(0);
+            let mut bytes = bytes;
+            if let Some(byte) = bytes.get_mut(at) {
+                *byte ^= 1;
+            }
+            std::fs::write(archive, bytes)?;
+        }
+        Ok(())
+    }
+
+    fn read(path: &Path) -> String {
+        std::fs::read_to_string(path).unwrap_or_default()
+    }
+
+    fn leftovers(dir: &Path) -> usize {
+        [dir.to_path_buf(), dir.join("profiles")]
+            .iter()
+            .filter_map(|dir| std::fs::read_dir(dir).ok())
+            .flatten()
+            .flatten()
+            .filter(|entry| crate::utils::help::is_staging_leftover(&entry.file_name().to_string_lossy()))
+            .count()
+    }
+
+    #[test]
+    fn a_restore_that_cannot_read_everything_touches_nothing() {
+        let dir = std::env::temp_dir().join(format!("clod-restore-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(std::fs::create_dir_all(dir.join("profiles")).is_ok());
+        assert!(std::fs::write(dir.join("verge.yaml"), "old settings").is_ok());
+        assert!(std::fs::write(dir.join("profiles").join("R1.yaml"), "old subscription").is_ok());
+        let archive = dir.join("backup.zip");
+        let entries = [
+            ("profiles/R1.yaml", "new subscription"),
+            ("verge.yaml", "new settings in the backup"),
+        ];
+
+        assert!(write_archive(&archive, &entries, Some("new settings in the backup")).is_ok());
+        assert!(unpack(&archive, &dir).is_err());
+        assert_eq!(read(&dir.join("verge.yaml")), "old settings");
+        assert_eq!(read(&dir.join("profiles").join("R1.yaml")), "old subscription");
+        assert_eq!(leftovers(&dir), 0);
+
+        assert!(write_archive(&archive, &entries, None).is_ok());
+        assert!(unpack(&archive, &dir).is_ok());
+        assert_eq!(read(&dir.join("verge.yaml")), "new settings in the backup");
+        assert_eq!(read(&dir.join("profiles").join("R1.yaml")), "new subscription");
+        assert_eq!(leftovers(&dir), 0);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn names_that_leave_the_backup_directory_are_rejected() {

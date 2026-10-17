@@ -123,6 +123,7 @@
     },
     "notifications": {
       "importSubscriptionSuccess": "وارد کردن اشتراک با موفقیت انجام شد",
+      "importSubscriptionExists": "This subscription is already added",
       "saved": "Saved successfully",
       "common": {
         "copySuccess": "کپی با موفقیت انجام شد",

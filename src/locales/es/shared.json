@@ -123,6 +123,7 @@
     },
     "notifications": {
       "importSubscriptionSuccess": "Suscripción importada con éxito",
+      "importSubscriptionExists": "This subscription is already added",
       "saved": "Saved successfully",
       "common": {
         "copySuccess": "Copia exitosa",

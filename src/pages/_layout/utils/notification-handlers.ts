@@ -4,6 +4,7 @@ import { getProfiles, patchVergeConfig } from '@/services/cmds'
 import { collapseBy, hideNotice, showNotice } from '@/services/notice-service'
 import { getCacheData, revalidateQueries } from '@/services/query-client'
 import getSystem from '@/utils/get-system'
+import { resolveSimpleMode } from '@/utils/simple-mode'
 
 import { isNoticeStatus, type NoticeStatus } from './notice-statuses'
 
@@ -105,26 +106,34 @@ export const handleNoticeMessage = (
     return id
   }
 
+  // Подписка по ссылке провайдера — на Главную, к кнопке «Подключить»;
+  // список подписок нужен только в расширенном режиме, когда их несколько.
+  const openTheImportedSubscription = () => {
+    const userChoice = getCacheData<IVergeConfig>([
+      'getVergeConfig',
+    ])?.simple_mode
+    void getProfiles()
+      .then((profiles) => {
+        const items = profiles.items ?? []
+        const current = items.find((item) => item.uid === profiles.current)
+        const advanced = !resolveSimpleMode(userChoice, current?.simple_mode)
+        const many = items.filter((item) => item.type === 'remote').length > 1
+        navigate(advanced && many ? '/profile' : '/')
+      })
+      .catch(() => navigate('/'))
+  }
+
   const handlers: Record<NoticeStatus, () => number> = {
-    // Подписка по ссылке провайдера — на Главную, к кнопке «Подключить»;
-    // список подписок нужен только в расширенном режиме, когда их несколько.
     'import_sub_url::ok': () => {
-      const userChoice = getCacheData<IVergeConfig>([
-        'getVergeConfig',
-      ])?.simple_mode
-      void getProfiles()
-        .then((profiles) => {
-          const items = profiles.items ?? []
-          const current = items.find((item) => item.uid === profiles.current)
-          // Режим — как у `useSimpleMode`: выбор человека, затем провайдера.
-          const advanced =
-            (userChoice ?? current?.simple_mode ?? true) === false
-          const many = items.filter((item) => item.type === 'remote').length > 1
-          navigate(advanced && many ? '/profile' : '/')
-        })
-        .catch(() => navigate('/'))
+      openTheImportedSubscription()
       return showNotice.success(
         'shared.feedback.notifications.importSubscriptionSuccess',
+      )
+    },
+    'import_sub_url::exists': () => {
+      openTheImportedSubscription()
+      return showNotice.info(
+        'shared.feedback.notifications.importSubscriptionExists',
       )
     },
     'import_sub_url::error': () => showNotice.error(msg),

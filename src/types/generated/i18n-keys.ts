@@ -1077,6 +1077,7 @@ export const translationKeys = [
   'shared.feedback.notices.prefixedRaw',
   'shared.feedback.notices.explained',
   'shared.feedback.notifications.importSubscriptionSuccess',
+  'shared.feedback.notifications.importSubscriptionExists',
   'shared.feedback.notifications.saved',
   'shared.feedback.notifications.common.copySuccess',
   'shared.feedback.notifications.common.copyFailed',

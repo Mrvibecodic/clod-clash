@@ -123,6 +123,7 @@
     },
     "notifications": {
       "importSubscriptionSuccess": "구독 가져오기 성공",
+      "importSubscriptionExists": "This subscription is already added",
       "saved": "저장되었습니다",
       "common": {
         "copySuccess": "복사 성공",

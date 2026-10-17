@@ -123,6 +123,7 @@
     },
     "notifications": {
       "importSubscriptionSuccess": "Abonelik içe aktarımı başarılı",
+      "importSubscriptionExists": "This subscription is already added",
       "saved": "Saved successfully",
       "common": {
         "copySuccess": "Kopyalama Başarılı",

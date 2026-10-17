@@ -123,6 +123,7 @@
     },
     "notifications": {
       "importSubscriptionSuccess": "Import subscription successful",
+      "importSubscriptionExists": "This subscription is already added",
       "saved": "Saved successfully",
       "common": {
         "copySuccess": "Күчерелде",

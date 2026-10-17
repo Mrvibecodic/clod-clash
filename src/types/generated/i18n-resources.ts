@@ -1661,6 +1661,7 @@ export interface TranslationResources {
             saveSuccess: string
             supportBundleCopied: string
           }
+          importSubscriptionExists: string
           importSubscriptionSuccess: string
           saved: string
         }

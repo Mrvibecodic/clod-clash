@@ -123,6 +123,7 @@
     },
     "notifications": {
       "importSubscriptionSuccess": "Подписка успешно импортирована",
+      "importSubscriptionExists": "Эта подписка уже добавлена",
       "saved": "Успешно сохранено",
       "common": {
         "copySuccess": "Скопировано",

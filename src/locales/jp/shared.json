@@ -123,6 +123,7 @@
     },
     "notifications": {
       "importSubscriptionSuccess": "サブスクリプションのインポートに成功しました。",
+      "importSubscriptionExists": "This subscription is already added",
       "saved": "Saved successfully",
       "common": {
         "copySuccess": "コピー成功",

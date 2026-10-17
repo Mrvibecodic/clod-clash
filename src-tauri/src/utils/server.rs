@@ -111,6 +111,15 @@ fn is_scheme_link(arg: &str) -> bool {
         .is_some_and(|(scheme, _)| crate::constants::branding::DEEP_LINK_SCHEMES.contains(&scheme))
 }
 
+/// Командная строка для следующей копии этого процесса (перезапуск,
+/// установщик обновления) — без ссылок: их уже разобрала эта копия, и
+/// следующая добавила бы удалённую с тех пор подписку снова.
+pub fn without_links(args: impl IntoIterator<Item = std::ffi::OsString>) -> Vec<std::ffi::OsString> {
+    args.into_iter()
+        .filter(|arg| !arg.to_str().is_some_and(is_scheme_link))
+        .collect()
+}
+
 /// Каждая ссылка кладётся своим файлом: две подряд не затирают друг друга, а
 /// забирающий получает её только вместе с правом унести — переименованием.
 async fn leave_the_link_for_the_running_copy(link: &str) -> Result<std::path::PathBuf> {
@@ -493,6 +502,22 @@ mod tests {
         ] {
             assert!(!is_scheme_link(other), "{other}");
         }
+    }
+
+    #[test]
+    fn the_next_copy_does_not_get_the_links_again() {
+        use std::ffi::OsString;
+        let args = [
+            "C:\\Program Files\\Clod Clash\\clod-clash.exe",
+            "clodclash://install-config?url=https%3A%2F%2Fsub.example.com%2Fa",
+            "--minimized",
+            "clash://install-config?url=https://sub.example.com/b",
+        ]
+        .map(OsString::from);
+        assert_eq!(
+            super::without_links(args),
+            ["C:\\Program Files\\Clod Clash\\clod-clash.exe", "--minimized"].map(OsString::from)
+        );
     }
 
     #[test]

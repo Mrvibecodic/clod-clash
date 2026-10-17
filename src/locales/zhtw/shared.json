@@ -123,6 +123,7 @@
     },
     "notifications": {
       "importSubscriptionSuccess": "匯入訂閱成功",
+      "importSubscriptionExists": "This subscription is already added",
       "saved": "儲存成功",
       "common": {
         "copySuccess": "複製成功",
