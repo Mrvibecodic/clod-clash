@@ -228,10 +228,7 @@ impl WindowManager {
                 "Процесс рендеринга был завершён системой, перезагружаю страницу перед активацией окна"
             );
             match window.reload() {
-                Ok(()) => {
-                    crate::core::notification::frontend_stopped_listening();
-                    defer_show_to_page_load = true;
-                }
+                Ok(()) => defer_show_to_page_load = true,
                 Err(e) => logging!(
                     warn,
                     Type::Window,

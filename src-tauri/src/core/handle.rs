@@ -99,7 +99,8 @@ impl Handle {
 
     // clod:hwid begin
     /// Tell the UI what the panel said about this device.
-    pub fn hwid_notice(payload: serde_json::Value) {
+    pub fn hwid_notice(uid: &str, payload: serde_json::Value) {
+        NotificationSystem::keep_device_refusal_until_seen(Self::app_handle(), uid);
         Self::send_event(FrontendEvent::HwidNotice { payload });
     }
     // clod:hwid end

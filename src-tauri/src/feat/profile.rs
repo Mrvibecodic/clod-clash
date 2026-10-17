@@ -595,26 +595,25 @@ pub async fn add_profile(item: &mut PrfItem) -> Result<()> {
 /// Окно лимита устройств — про ту подписку, которую только что добавили или
 /// обновили, и с её именем: иначе отказ фоновой подписки выглядел отказом текущей.
 pub async fn announce_device_refusal(uid: &String) {
-    let payload = {
-        let profiles = Config::profiles().await;
-        let profiles = profiles.latest_arc();
-        let Ok(item) = profiles.get_item(uid) else {
-            return;
-        };
-        let Some(state) = item
-            .hwid_state
-            .as_deref()
-            .filter(|state| matches!(*state, "limit" | "not_supported"))
-        else {
-            return;
-        };
-        serde_json::json!({
-            "state": state,
-            "supportUrl": item.support_url.as_deref(),
-            "name": item.display_name(),
-        })
-    };
-    handle::Handle::hwid_notice(payload);
+    if let Some(payload) = device_refusal(uid).await {
+        handle::Handle::hwid_notice(uid, payload);
+    }
+}
+
+/// Отказ панели в этом устройстве, если подписка ещё есть и он ещё в силе.
+pub async fn device_refusal(uid: &str) -> Option<serde_json::Value> {
+    let profiles = Config::profiles().await;
+    let profiles = profiles.latest_arc();
+    let item = profiles.get_item(uid).ok()?;
+    let state = item
+        .hwid_state
+        .as_deref()
+        .filter(|state| matches!(*state, "limit" | "not_supported"))?;
+    Some(serde_json::json!({
+        "state": state,
+        "supportUrl": item.support_url.as_deref(),
+        "name": item.display_name(),
+    }))
 }
 
 async fn mark_the_update(uid: &String, failed: bool) {

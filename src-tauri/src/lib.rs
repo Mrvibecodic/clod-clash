@@ -154,6 +154,7 @@ mod app_init {
             cmd::upgrade_core_itself,
             cmd::get_running_mode,
             cmd::take_pending_notices,
+            cmd::take_unseen_device_refusals,
             cmd::stop_listening_notices,
             cmd::entry_lightweight_mode,
             cmd::uninstall_service,

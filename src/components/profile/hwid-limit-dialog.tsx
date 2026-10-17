@@ -6,11 +6,13 @@ import {
   DialogContentText,
   DialogTitle,
 } from '@mui/material'
-import { useCallback, useState } from 'react'
+import { invoke } from '@tauri-apps/api/core'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useTauriEvent } from '@/hooks/use-listen'
 import { useVerge } from '@/hooks/use-verge'
+import { useVisibility } from '@/hooks/use-visibility'
 import { openWebUrl } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 
@@ -36,16 +38,29 @@ export const HwidLimitDialog = () => {
   const [queue, setQueue] = useState<HwidNotice[]>([])
   const notice = queue[0] ?? null
 
-  useTauriEvent<HwidNotice>(EVENT_NAME, ({ payload }) =>
-    setQueue((pending) =>
-      pending.some(
-        (queued) =>
-          queued.name === payload.name && queued.state === payload.state,
-      )
-        ? pending
-        : [...pending, payload],
-    ),
+  const enqueue = useCallback(
+    (payload: HwidNotice) =>
+      setQueue((pending) =>
+        pending.some(
+          (queued) =>
+            queued.name === payload.name && queued.state === payload.state,
+        )
+          ? pending
+          : [...pending, payload],
+      ),
+    [],
   )
+
+  useTauriEvent<HwidNotice>(EVENT_NAME, ({ payload }) => enqueue(payload))
+
+  // Отказ, пришедший без окна (программа жила в трее), бэкенд держит до показа.
+  const visible = useVisibility()
+  useEffect(() => {
+    if (!visible) return
+    invoke<HwidNotice[]>('take_unseen_device_refusals')
+      .then((refusals) => refusals.forEach(enqueue))
+      .catch((error) => console.error('[hwid] refusals not taken:', error))
+  }, [visible, enqueue])
 
   const close = useCallback(
     () =>

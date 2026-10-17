@@ -455,6 +455,9 @@ pub async fn build_new_window() -> Result<WebviewWindow, String> {
         .general_autofill_enabled(false)
         .on_page_load(move |window, payload| {
             if payload.event() != PageLoadEvent::Finished {
+                // Прежняя страница ушла вместе со слушателями; новая скажет о
+                // себе, когда заберёт очередь.
+                crate::core::notification::frontend_stopped_listening();
                 return;
             }
 
@@ -510,6 +513,7 @@ pub fn take_webview_needs_reload() -> bool {
 
 #[cfg(target_os = "macos")]
 pub fn on_web_content_process_terminated(webview: &tauri::Webview) {
+    crate::core::notification::frontend_stopped_listening();
     if handle::Handle::global().is_exiting() {
         return;
     }
@@ -566,9 +570,8 @@ pub fn reload_main_window_if_needed() {
         Type::Window,
         "процесс рендеринга был завершён системой, страница перезагружена после фокуса окна"
     );
-    match window.reload() {
-        Ok(()) => crate::core::notification::frontend_stopped_listening(),
-        Err(e) => logging!(warn, Type::Window, "не удалось перезагрузить страницу: {e}"),
+    if let Err(e) = window.reload() {
+        logging!(warn, Type::Window, "не удалось перезагрузить страницу: {e}");
     }
 }
 
@@ -639,5 +642,21 @@ mod tests {
     fn restored_window_size_accepts_minimum_or_larger_dimensions() {
         assert!(!restored_window_size_is_too_small(520, 520));
         assert!(!restored_window_size_is_too_small(940, 700));
+    }
+
+    /// Новая загрузка страницы и гибель процесса страницы уносят слушателей:
+    /// уведомления и отказы по лимиту с этого момента ждут новую страницу.
+    #[test]
+    fn a_page_that_goes_away_stops_hearing_notices() {
+        use crate::utils::source_scan::fn_body;
+
+        let source = include_str!("window.rs");
+        for place in [
+            "if payload.event() != PageLoadEvent::Finished",
+            "pub fn on_web_content_process_terminated(",
+        ] {
+            let body = fn_body(source, place).unwrap_or_default();
+            assert!(body.contains("frontend_stopped_listening()"), "{place}: {body}");
+        }
     }
 }

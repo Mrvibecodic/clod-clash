@@ -12,6 +12,8 @@ use std::sync::{OnceLock, mpsc};
 
 const PENDING_NOTICES_CAP: usize = 20;
 static PENDING_NOTICES: Mutex<VecDeque<PendingNotice>> = Mutex::new(VecDeque::new());
+/// Подписки, чей отказ в устройстве ушёл, когда страница не слушала.
+static UNSEEN_DEVICE_REFUSALS: Mutex<Vec<std::string::String>> = Mutex::new(Vec::new());
 
 #[derive(Debug, PartialEq, Eq)]
 struct PendingNotice {
@@ -43,6 +45,13 @@ const fn can_reach_the_page(listening: bool, window_exists: bool) -> bool {
 
 fn pending_notices() -> std::sync::MutexGuard<'static, VecDeque<PendingNotice>> {
     match PENDING_NOTICES.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    }
+}
+
+fn unseen_device_refusals() -> std::sync::MutexGuard<'static, Vec<std::string::String>> {
+    match UNSEEN_DEVICE_REFUSALS.lock() {
         Ok(guard) => guard,
         Err(poisoned) => poisoned.into_inner(),
     }
@@ -193,6 +202,24 @@ impl NotificationSystem {
             .drain(..)
             .map(|notice| (notice.status, notice.message, notice.repeats))
             .collect()
+    }
+
+    /// Окно лимита устройств — не тост и в очередь уведомлений не идёт; если
+    /// страница сейчас не слушает, подписка запоминается, и страница спросит
+    /// отказ заново, когда её покажут.
+    pub fn keep_device_refusal_until_seen(app_handle: &AppHandle, uid: &str) {
+        let window_exists = app_handle.get_webview_window("main").is_some();
+        if can_reach_the_page(FRONTEND_LISTENING.load(Ordering::Acquire), window_exists) {
+            return;
+        }
+        let mut unseen = unseen_device_refusals();
+        if !unseen.iter().any(|held| held == uid) {
+            unseen.push(uid.to_owned());
+        }
+    }
+
+    pub fn take_unseen_device_refusals() -> Vec<std::string::String> {
+        std::mem::take(&mut *unseen_device_refusals())
     }
 
     pub fn speaks_to_a_window_that_is_still_up(event: &FrontendEvent) -> bool {
