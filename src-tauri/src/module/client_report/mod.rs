@@ -97,6 +97,10 @@ const IP_EVERY: i64 = 60 * 60;
 /// Не узнался — переспрашивается не чаще этого.
 const IP_RETRY: i64 = 5 * 60;
 const CORE_TIMEOUT: Duration = Duration::from_secs(5);
+/// На выходе последнее окно дочитывается не дольше этого: ядро тем временем
+/// останавливается, и ждать его нельзя.
+const EXIT_READ: Duration = Duration::from_secs(3);
+const EXIT_CORE_TIMEOUT: Duration = Duration::from_secs(2);
 /// Накопленное пишется в файл не чаще этого (ещё — при закрытии часа, после
 /// отправки и на выходе): при аварийном завершении теряется не больше этого.
 const SAVE_EVERY: i64 = 5 * 60;
@@ -169,6 +173,9 @@ struct Runtime {
     spot: Option<Spot>,
     /// Через сколько читать историю задержек снова.
     next: Option<Duration>,
+    /// Узлы подписки на последнем чтении: по ним трафик ложится в её место,
+    /// когда ядро уже работает на другой.
+    nodes: Nodes,
 }
 
 static RUNTIME: Mutex<Option<Runtime>> = Mutex::new(None);
@@ -251,13 +258,33 @@ async fn with_store<T>(uid: &str, now: i64, save: bool, work: impl FnOnce(&mut s
     out
 }
 
-/// Накопленное — в файл: на выходе из приложения.
+/// Накопленное — в файл: на выходе из приложения. Перед этим дочитывается
+/// последнее окно: трафик — всегда, задержки — если ядро ещё отвечает.
 pub async fn flush_at_exit() {
+    let _ = tokio::time::timeout(EXIT_READ, async {
+        let _collect = COLLECT.lock().await;
+        last_window().await;
+    })
+    .await;
     let mut guard = CACHE.lock().await;
     if let Some(entry) = guard.as_mut() {
         flush(entry, help::now_secs()).await;
     }
     drop(guard);
+}
+
+async fn last_window() {
+    let Some((uid, spot)) = with_runtime(|runtime| Some((runtime.uid.clone()?, runtime.spot.clone()?))) else {
+        return;
+    };
+    if spot.changes != CHANGES.load(Ordering::Acquire) {
+        return;
+    }
+    let window = match read_window(&uid, now_millis() - LAG, EXIT_CORE_TIMEOUT).await {
+        Some(window) => window,
+        None => take_traffic(with_runtime(|runtime| Arc::clone(&runtime.nodes))),
+    };
+    record(&uid, &spot.place, window).await;
 }
 
 /// Сбор кончился — накопленное в файл, из памяти вон.
@@ -415,8 +442,31 @@ pub(crate) fn count_traffic(response: Option<&tauri_plugin_mihomo::models::Conne
 
 /// Ядро приняло другую подписку: её соединения считаются с этого момента, а
 /// не с первого чтения сборщика — открытые до него иначе не считались бы вовсе.
+/// Трафик прежней, накопленный с её последнего чтения, уходит в её место.
 pub(crate) fn subscription_changed() {
-    SWITCHED_AT.store(now_millis(), Ordering::Release);
+    let at = now_millis();
+    SWITCHED_AT.store(at, Ordering::Release);
+    let previous = with_runtime(|runtime| {
+        let fresh = Runtime {
+            since: at,
+            read_at: runtime.read_at,
+            seen: std::mem::take(&mut runtime.seen),
+            ..Runtime::default()
+        };
+        std::mem::replace(runtime, fresh)
+    });
+    AsyncHandler::spawn(move || record_previous(previous));
+}
+
+async fn record_previous(previous: Runtime) {
+    let (Some(uid), Some(spot)) = (previous.uid, previous.spot) else {
+        return;
+    };
+    if spot.changes != CHANGES.load(Ordering::Acquire) {
+        return;
+    }
+    let _collect = COLLECT.lock().await;
+    record(&uid, &spot.place, take_traffic_of(previous.nodes, previous.traffic)).await;
 }
 
 /// Соединение открыто раньше `since` (мс). Время не разобралось — считать.
@@ -440,12 +490,12 @@ impl Window {
 /// Прочитать у ядра замеры с прошлого чтения по `until` (мс; окно назад не
 /// сдвигается) и забрать накопленный трафик. `None` — ядро не ответило: окно
 /// не сдвигается, замеры дождутся следующего чтения.
-async fn read_window(uid: &str, until: i64) -> Option<Window> {
+async fn read_window(uid: &str, until: i64, budget: Duration) -> Option<Window> {
     let nodes = crate::config::proxy_label::addresses(uid)
         .await
         .filter(|nodes| !nodes.is_empty())?;
     // Сбойный провайдер пропускается: его замеры дождутся следующего чтения.
-    let listed = histories(&crate::feat::read_core_proxies(CORE_TIMEOUT).await.parsed()?, &nodes);
+    let listed = histories(&crate::feat::read_core_proxies(budget).await.parsed()?, &nodes);
     let since = with_runtime(|runtime| runtime.pings_until);
     let until = until.max(since);
     let pings = pings_of(&listed, since, until);
@@ -460,6 +510,7 @@ async fn read_window(uid: &str, until: i64) -> Option<Window> {
     let traffic = with_runtime(|runtime| {
         runtime.pings_until = until;
         runtime.next = Some(next);
+        runtime.nodes = Arc::clone(&nodes);
         std::mem::take(&mut runtime.traffic)
     });
     Some(Window { nodes, pings, traffic })
@@ -467,10 +518,14 @@ async fn read_window(uid: &str, until: i64) -> Option<Window> {
 
 /// Только накопленный трафик, без чтения ядра.
 fn take_traffic(nodes: Nodes) -> Window {
+    take_traffic_of(nodes, with_runtime(|runtime| std::mem::take(&mut runtime.traffic)))
+}
+
+const fn take_traffic_of(nodes: Nodes, traffic: Traffic) -> Window {
     Window {
         nodes,
         pings: Vec::new(),
-        traffic: with_runtime(|runtime| std::mem::take(&mut runtime.traffic)),
+        traffic,
     }
 }
 
@@ -513,19 +568,29 @@ async fn record(uid: &str, place: &Place, window: Window) {
     .await;
 }
 
-/// Подписка сменилась (или сбор начался) — всё с чистого листа; замеры
-/// считаются с этого момента.
+/// Сбор начался (или подписка сменилась) — замеры считаются с этого момента.
+/// Трафик, накопленный с тех пор, как ядро приняло эту подписку, — её.
 fn start_over_for(uid: &str) {
-    with_runtime(|runtime| {
-        if runtime.uid.as_deref() != Some(uid) {
+    with_runtime(|runtime| start_over_in(runtime, uid, now_millis(), SWITCHED_AT.load(Ordering::Acquire)));
+}
+
+fn start_over_in(runtime: &mut Runtime, uid: &str, now: i64, switched_at: i64) {
+    match runtime.uid.as_deref() {
+        Some(collected) if collected == uid => {}
+        None => {
+            runtime.uid = Some(uid.to_owned());
+            runtime.pings_until = now;
+            runtime.since = runtime.since.max(switched_at);
+        }
+        Some(_) => {
             *runtime = Runtime {
                 uid: Some(uid.to_owned()),
-                pings_until: now_millis(),
-                since: SWITCHED_AT.load(Ordering::Acquire),
+                pings_until: now,
+                since: switched_at,
                 ..Runtime::default()
             };
         }
-    });
+    }
 }
 
 /// Что делать с адресом после чтения — уже без замка сборщика: запрос к
@@ -554,7 +619,7 @@ async fn collect() -> IpWork {
         runtime.pings_until = runtime.pings_until.min(now);
         runtime.since = runtime.since.min(now);
     });
-    let Some(window) = read_window(&uid, now - LAG).await else {
+    let Some(window) = read_window(&uid, now - LAG, CORE_TIMEOUT).await else {
         return IpWork::None;
     };
     let changes = CHANGES.load(Ordering::Acquire);
@@ -670,7 +735,7 @@ async fn flush_before_change(seen_at: i64, before: u64) {
     let since = with_runtime(|runtime| runtime.pings_until);
     // Трафик копился в старой сети — уходит туда даже без окна замеров.
     let window = if cut > since {
-        read_window(&uid, cut).await
+        read_window(&uid, cut, CORE_TIMEOUT).await
     } else {
         Some(take_traffic(
             crate::config::proxy_label::addresses(&uid).await.unwrap_or_default(),
@@ -1114,6 +1179,33 @@ mod tests {
             .iter()
             .map(|name| ((*name).to_owned(), Address::default()))
             .collect()
+    }
+
+    #[test]
+    fn the_traffic_since_the_switch_belongs_to_the_subscription_the_core_took() {
+        let counted = || -> super::Traffic { super::Traffic::from([("Узел".to_owned(), (1, 2, 3))]) };
+        // Ядро приняло подписку, сборщик её ещё не читал: накопленное — её.
+        let mut runtime = super::Runtime {
+            since: 50,
+            traffic: counted(),
+            ..super::Runtime::default()
+        };
+        super::start_over_in(&mut runtime, "B", 100, 50);
+        assert_eq!(runtime.uid.as_deref(), Some("B"));
+        assert_eq!((runtime.pings_until, runtime.since), (100, 50));
+        assert_eq!(runtime.traffic, counted());
+        // Та же подписка — ничего не меняется.
+        super::start_over_in(&mut runtime, "B", 200, 50);
+        assert_eq!(runtime.pings_until, 100);
+        assert_eq!(runtime.traffic, counted());
+        // Другая без смены у ядра — с чистого листа.
+        super::start_over_in(&mut runtime, "C", 300, 70);
+        assert_eq!((runtime.uid.as_deref(), runtime.since), (Some("C"), 70));
+        assert!(runtime.traffic.is_empty());
+        // Сбор начался заново: соединения прежней подписки не в счёт.
+        let mut runtime = super::Runtime::default();
+        super::start_over_in(&mut runtime, "A", 400, 70);
+        assert_eq!(runtime.since, 70);
     }
 
     #[test]
