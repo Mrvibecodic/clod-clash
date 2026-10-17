@@ -1,7 +1,7 @@
 //! Some config file template
 
 /// template for new a profile item
-pub const ITEM_LOCAL: &str = "# Profile Template for Clash Verge
+pub const ITEM_LOCAL: &str = "# Local profile
 
 proxies: []
 
@@ -10,14 +10,7 @@ proxy-groups: []
 rules: []
 ";
 
-/// enhanced profile
-pub const ITEM_MERGE: &str = "# Profile Enhancement Merge Template for Clash Verge
-
-profile:
-  store-selected: true
-";
-
-pub const ITEM_MERGE_EMPTY: &str = "# Profile Enhancement Merge Template for Clash Verge
+pub const ITEM_MERGE_EMPTY: &str = "# Merge: keys here override the subscription config
 
 ";
 
@@ -30,7 +23,7 @@ function main(config, profileName) {
 ";
 
 /// enhanced profile
-pub const ITEM_RULES: &str = "# Profile Enhancement Rules Template for Clash Verge
+pub const ITEM_RULES: &str = "# Rules: prepend, append or delete rules of the subscription
 
 prepend: []
 
@@ -40,7 +33,7 @@ delete: []
 ";
 
 /// enhanced profile
-pub const ITEM_PROXIES: &str = "# Profile Enhancement Proxies Template for Clash Verge
+pub const ITEM_PROXIES: &str = "# Proxies: prepend, append or delete proxies of the subscription
 
 prepend: []
 
@@ -50,7 +43,7 @@ delete: []
 ";
 
 /// enhanced profile
-pub const ITEM_GROUPS: &str = "# Profile Enhancement Groups Template for Clash Verge
+pub const ITEM_GROUPS: &str = "# Proxy groups: prepend, append or delete groups of the subscription
 
 prepend: []
 

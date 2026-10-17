@@ -676,8 +676,14 @@ pub enum ConfigType {
     Run,
     Check,
 }
-/// Общие Merge и Script прежних версий и их шаблоны.
-const GLOBAL_CHAINS: [(&str, &str); 2] = [("Merge", tmpl::ITEM_MERGE), ("Script", tmpl::ITEM_SCRIPT)];
+/// Общие Merge и Script прежних версий и шаблоны, которыми их создавали.
+const GLOBAL_CHAINS: [(&str, &str); 2] = [("Merge", GLOBAL_MERGE_TEMPLATE), ("Script", tmpl::ITEM_SCRIPT)];
+
+const GLOBAL_MERGE_TEMPLATE: &str = "# Profile Enhancement Merge Template for Clash Verge
+
+profile:
+  store-selected: true
+";
 
 /// Файл общей цепочки правили: он не совпадает со своим шаблоном.
 fn edited_global_chain(uid: &str, content: &str) -> bool {
@@ -842,7 +848,7 @@ mod tests {
         let left: Vec<_> = items.iter().filter_map(|item| item.uid.as_deref()).collect();
         assert_eq!(left, ["R1", "m1"]);
 
-        assert!(!super::edited_global_chain("Merge", crate::utils::tmpl::ITEM_MERGE));
+        assert!(!super::edited_global_chain("Merge", super::GLOBAL_MERGE_TEMPLATE));
         assert!(!super::edited_global_chain(
             "Script",
             &format!("{}\n", crate::utils::tmpl::ITEM_SCRIPT)
