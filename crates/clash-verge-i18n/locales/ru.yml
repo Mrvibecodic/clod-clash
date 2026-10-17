@@ -1,11 +1,11 @@
 _version: 1
 notifications:
   dashboardToggled:
-    title: Панель
-    body: Видимость панели обновлена.
+    title: Окно
+    body: Окно приложения показано или скрыто.
   clashModeChanged:
     title: Смена режима
-    body: Переключено на {mode}.
+    body: "Режим: {mode}."
   systemProxyToggled:
     title: Системный прокси
     'on': Системный прокси включён.
@@ -15,11 +15,11 @@ notifications:
     'on': Режим TUN включён.
     'off': Режим TUN выключен.
   lightweightModeEntered:
-    title: Легкий режим
-    body: Включен легкий режим.
+    title: Облегчённый режим
+    body: Включён облегчённый режим.
   profilesReactivated:
-    title: Профили
-    body: Профиль повторно активирован.
+    title: Подписка
+    body: Подписка применена заново.
   appQuit:
     title: Скорый выход
     body: Приложение скоро завершит работу.
@@ -68,20 +68,20 @@ service:
     SELinux не дал запустить фоновую службу. Выполните: sudo chcon -t bin_t /var/lib/clash-verge-service/bin/clash-verge-service
   translocatedCorePath: Приложение запущено из временного пути (App Translocation) и не может найти ядро. Переместите его в папку «Программы» и откройте заново.
 tray:
-  dashboard: Панель
-  ruleMode: Режим правил
-  globalMode: Глобальный режим
-  directMode: Прямой режим
-  outboundModes: Исходящие режимы
-  rule: Правило
+  dashboard: Открыть окно
+  ruleMode: "Режим: По правилам"
+  globalMode: "Режим: Глобальный"
+  directMode: "Режим: Прямой"
+  outboundModes: Режим
+  rule: По правилам
   direct: Прямой
   global: Глобальный
-  profiles: Профили
+  profiles: Подписки
   proxies: Прокси
   systemProxy: Системный прокси
   tunMode: Режим TUN
   closeAllConnections: Закрыть все соединения
-  lightweightMode: Легкий режим
+  lightweightMode: Облегчённый режим
   copyEnv: Копировать переменные среды
   confDir: Каталог конфигурации
   coreDir: Каталог ядра
@@ -92,12 +92,12 @@ tray:
   restartClash: Перезапустить ядро
   restartApp: Перезапустить приложение
   vergeVersion: Версия приложения
-  more: Еще
+  more: Ещё
   exit: Выход
   tooltip:
     systemProxy: Системный прокси
     tun: TUN
-    profile: Профиль
+    profile: Подписка
     core: Ядро
     coreStopped: не запущено
     'on': вкл.

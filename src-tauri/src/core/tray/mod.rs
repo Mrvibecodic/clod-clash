@@ -797,32 +797,26 @@ async fn create_tray_menu_model(
         MenuNode::Separator,
     ];
 
-    let mode_items = || {
+    // В подменю «Режим: …» пункты — одним словом, прямо в меню — «Режим: …».
+    let mode_items = |labels: [std::borrow::Cow<'static, str>; 3]| {
+        let [rule, global, direct] = labels;
         vec![
-            MenuNode::check(
-                MenuIds::RULE_MODE,
-                texts.rule_mode.as_ref(),
-                current_proxy_mode == "rule",
-            )
-            .with_accelerator(hotkeys.get("clash_mode_rule").copied()),
-            MenuNode::check(
-                MenuIds::GLOBAL_MODE,
-                texts.global_mode.as_ref(),
-                current_proxy_mode == "global",
-            )
-            .with_accelerator(hotkeys.get("clash_mode_global").copied()),
-            MenuNode::check(
-                MenuIds::DIRECT_MODE,
-                texts.direct_mode.as_ref(),
-                current_proxy_mode == "direct",
-            )
-            .with_accelerator(hotkeys.get("clash_mode_direct").copied()),
+            MenuNode::check(MenuIds::RULE_MODE, rule.as_ref(), current_proxy_mode == "rule")
+                .with_accelerator(hotkeys.get("clash_mode_rule").copied()),
+            MenuNode::check(MenuIds::GLOBAL_MODE, global.as_ref(), current_proxy_mode == "global")
+                .with_accelerator(hotkeys.get("clash_mode_global").copied()),
+            MenuNode::check(MenuIds::DIRECT_MODE, direct.as_ref(), current_proxy_mode == "direct")
+                .with_accelerator(hotkeys.get("clash_mode_direct").copied()),
         ]
     };
 
     if mode_locked {
     } else if show_outbound_modes_inline {
-        menu_items.extend(mode_items());
+        menu_items.extend(mode_items([
+            texts.rule_mode.clone(),
+            texts.global_mode.clone(),
+            texts.direct_mode.clone(),
+        ]));
     } else {
         let current_mode_text = match current_proxy_mode {
             "global" => clash_verge_i18n::t!("tray.global"),
@@ -831,8 +825,12 @@ async fn create_tray_menu_model(
         };
         menu_items.push(MenuNode::sub(
             MenuIds::OUTBOUND_MODES,
-            format!("{} ({})", texts.outbound_modes, current_mode_text),
-            mode_items(),
+            format!("{}: {}", texts.outbound_modes, current_mode_text),
+            mode_items([
+                clash_verge_i18n::t!("tray.rule"),
+                clash_verge_i18n::t!("tray.global"),
+                clash_verge_i18n::t!("tray.direct"),
+            ]),
         ));
     }
 

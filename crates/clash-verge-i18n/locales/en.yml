@@ -1,11 +1,11 @@
 _version: 1
 notifications:
   dashboardToggled:
-    title: Dashboard
-    body: Dashboard visibility has been updated.
+    title: Window
+    body: The app window was shown or hidden.
   clashModeChanged:
     title: Mode Switch
-    body: Switched to {mode}.
+    body: "Mode: {mode}."
   systemProxyToggled:
     title: System Proxy
     'on': System proxy has been enabled.
@@ -15,11 +15,11 @@ notifications:
     'on': TUN mode has been enabled.
     'off': TUN mode has been disabled.
   lightweightModeEntered:
-    title: Lightweight Mode
+    title: Lightweight mode
     body: Entered lightweight mode.
   profilesReactivated:
-    title: Profiles
-    body: Profile Reactivated.
+    title: Subscription
+    body: Subscription reapplied.
   appQuit:
     title: About to Exit
     body: The app is about to exit.
@@ -68,20 +68,20 @@ service:
     SELinux blocked the background service. Run: sudo chcon -t bin_t /var/lib/clash-verge-service/bin/clash-verge-service
   translocatedCorePath: The app is running from a temporary (App Translocation) path and can't locate the core. Please move it into the Applications folder and reopen it.
 tray:
-  dashboard: Dashboard
-  ruleMode: Rule Mode
-  globalMode: Global Mode
-  directMode: Direct Mode
-  outboundModes: Outbound Modes
+  dashboard: Open window
+  ruleMode: "Mode: Rule"
+  globalMode: "Mode: Global"
+  directMode: "Mode: Direct"
+  outboundModes: Mode
   rule: Rule
   direct: Direct
   global: Global
-  profiles: Profiles
+  profiles: Subscriptions
   proxies: Proxies
   systemProxy: System Proxy
   tunMode: TUN Mode
   closeAllConnections: Close All Connections
-  lightweightMode: Lightweight Mode
+  lightweightMode: Lightweight mode
   copyEnv: Copy Environment Variables
   confDir: Configuration Directory
   coreDir: Core Directory
@@ -97,7 +97,7 @@ tray:
   tooltip:
     systemProxy: System Proxy
     tun: TUN
-    profile: Profile
+    profile: Subscription
     core: Core
     coreStopped: not running
     'on': 'on'
