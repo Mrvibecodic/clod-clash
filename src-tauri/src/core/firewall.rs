@@ -80,8 +80,15 @@ pub async fn allow_inbound() -> Result<()> {
             .map_or_else(|| String::from("core"), |name| name.to_string_lossy().into_owned());
         let program = ps_single_quote(&format!("program={}", path.to_string_lossy()));
         let rule_name = ps_single_quote(&format!("name=Clod Clash {kind} ({file_name})"));
+        // Окно Windows «Разрешить доступ» оставляет для неотмеченных сетей
+        // правила «Блокировать», и блок сильнее нашего разрешения: их снимаем.
+        let path = ps_single_quote(&path.to_string_lossy());
         script.push_str(&format!(
-            "netsh advfirewall firewall delete rule {rule_name} dir=in | Out-Null; \
+            "$p={path}; Get-NetFirewallApplicationFilter -PolicyStore PersistentStore -ErrorAction SilentlyContinue | \
+             Where-Object {{ $_.Program -eq $p }} | Get-NetFirewallRule -ErrorAction SilentlyContinue | \
+             Where-Object {{ $_.Direction -eq 'Inbound' -and $_.Action -eq 'Block' }} | \
+             Remove-NetFirewallRule -ErrorAction SilentlyContinue; \
+             netsh advfirewall firewall delete rule {rule_name} dir=in | Out-Null; \
              netsh advfirewall firewall add rule {rule_name} dir=in action=allow {program} enable=yes | Out-Null; \
              if ($LASTEXITCODE -ne 0) {{ $fail=1 }}; "
         ));
