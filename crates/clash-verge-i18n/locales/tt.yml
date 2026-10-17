@@ -36,6 +36,8 @@ notifications:
     body: A new version (v{version}) has been downloaded and is ready to install.
     installNow: Install Now
     later: Later
+    installing: Installing the update…
+    notInstalled: The update could not be installed. We will try again at the next launch.
   logOpenFailed:
     title: Log
     body: "The log file could not be opened. Look for it in {path}."

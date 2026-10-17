@@ -17,6 +17,8 @@ pub enum NotificationEvent<'a> {
     QuitCancelled,
     /// Системный прокси не снялся при выходе и остаётся в системе.
     SysproxyLeftBehind,
+    /// Человек согласился поставить обновление на старте, а установка сорвалась.
+    UpdateNotInstalled,
     #[cfg(target_os = "macos")]
     AppHidden,
     LogOpenFailed {
@@ -95,6 +97,11 @@ pub async fn notify_event<'a>(event: NotificationEvent<'a>) {
         NotificationEvent::SysproxyLeftBehind => {
             let title = clash_verge_i18n::t!("notifications.systemProxyToggled.title");
             let body = clash_verge_i18n::t!("notifications.sysproxyLeftBehind.body");
+            notify(title, body);
+        }
+        NotificationEvent::UpdateNotInstalled => {
+            let title = clash_verge_i18n::t!("notifications.updateReady.title");
+            let body = clash_verge_i18n::t!("notifications.updateReady.notInstalled");
             notify(title, body);
         }
         #[cfg(target_os = "macos")]

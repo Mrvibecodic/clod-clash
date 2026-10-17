@@ -29,12 +29,15 @@
       <polyline points="7 10 12 15 17 10" />
       <line x1="12" y1="15" x2="12" y2="3" />
     </svg>
-    <div class="title">Installing Update...</div>
+    <div class="title" id="title">Installing update…</div>
     <div class="sub" id="version"></div>
     <div class="bar"><div class="fill"></div></div>
     <script>
       // Заставка установки обновления — отдельная страница без приложения:
-      // версию кладёт скрипт инициализации окна.
+      // версию и надпись на языке приложения кладёт скрипт инициализации окна.
+      if (window.__CLOD_UPDATE_TITLE__) {
+        document.getElementById('title').textContent = window.__CLOD_UPDATE_TITLE__
+      }
       document.getElementById('version').textContent =
         window.__CLOD_UPDATE_VERSION__ ? 'v' + window.__CLOD_UPDATE_VERSION__ : ''
     </script>

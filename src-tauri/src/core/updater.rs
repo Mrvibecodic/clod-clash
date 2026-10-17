@@ -353,6 +353,8 @@ impl SilentUpdater {
 }
 
 impl SilentUpdater {
+    /// Сначала сверка с сервером и подпись, потом вопрос: без сети или с
+    /// устаревшим кэшем человека не спрашивают — спросит следующий запуск.
     pub async fn try_install_on_startup(&self, app_handle: &tauri::AppHandle) -> bool {
         let current_version = env!("CARGO_PKG_VERSION");
 
@@ -367,32 +369,6 @@ impl SilentUpdater {
             Self::delete_cache();
             return false;
         }
-
-        logging!(
-            info,
-            Type::System,
-            "Update cache version ({}) > current ({}), asking user to install",
-            cached_version,
-            current_version
-        );
-
-        if !Self::ask_user_to_install(app_handle, cached_version).await {
-            logging!(info, Type::System, "User skipped update install, starting normally");
-            return false;
-        }
-
-        let bytes = match Self::read_cache_bytes() {
-            Ok(b) => b,
-            Err(e) => {
-                logging!(
-                    warn,
-                    Type::System,
-                    "Failed to read cached update bytes: {e}, cleaning up"
-                );
-                Self::delete_cache();
-                return false;
-            }
-        };
 
         let update = match check_update_with_fallback(app_handle).await {
             Ok(Some(u)) => u,
@@ -409,34 +385,34 @@ impl SilentUpdater {
                 logging!(
                     warn,
                     Type::System,
-                    "Failed to check for update at startup: {e}, will retry next launch"
+                    "Failed to check for update at startup: {e}, will ask next launch"
                 );
                 return false;
             }
         };
 
-        if update.version != *cached_version {
+        let Some(bytes) = Self::cached_bytes_for(app_handle, &update).await else {
             logging!(
                 info,
                 Type::System,
-                "Server version ({}) != cached version ({}), cache is stale, cleaning up",
-                update.version,
-                cached_version
+                "Cached update v{} is not the published v{}, cleaning up",
+                cached_version,
+                update.version
             );
             Self::delete_cache();
             return false;
-        }
+        };
 
-        if let Err(e) =
-            updater_pubkey(app_handle).and_then(|pubkey| verify_minisign(&pubkey, &update.signature, &bytes))
-        {
-            logging!(
-                error,
-                Type::System,
-                "Cached update v{} failed the signature check ({e}), discarding it",
-                cached_version
-            );
-            Self::delete_cache();
+        logging!(
+            info,
+            Type::System,
+            "Update cache version ({}) > current ({}), asking user to install",
+            cached_version,
+            current_version
+        );
+
+        if !Self::ask_user_to_install(app_handle, cached_version).await {
+            logging!(info, Type::System, "User skipped update install, starting normally");
             return false;
         }
 
@@ -472,6 +448,8 @@ impl SilentUpdater {
 
         if !success {
             Self::close_update_splash(app_handle);
+            crate::utils::notification::notify_event(crate::utils::notification::NotificationEvent::UpdateNotInstalled)
+                .await;
         }
 
         success
@@ -509,13 +487,18 @@ impl SilentUpdater {
 
         // Заставка — своя статичная страница: страница приложения запустила бы
         // в этом окне весь интерфейс с его командами и забором уведомлений.
-        let version_script = format!("window.__CLOD_UPDATE_VERSION__ = {};", serde_json::Value::from(version));
+        let installing = clash_verge_i18n::t!("notifications.updateReady.installing");
+        let version_script = format!(
+            "window.__CLOD_UPDATE_VERSION__ = {}; window.__CLOD_UPDATE_TITLE__ = {};",
+            serde_json::Value::from(version),
+            serde_json::Value::from(installing.as_ref())
+        );
         if let Err(e) = WebviewWindowBuilder::new(
             app_handle,
             "update-splash",
             WebviewUrl::App("update-splash.html".into()),
         )
-        .title(format!("{} - Updating", crate::constants::branding::APP_NAME))
+        .title(format!("{} — {installing}", crate::constants::branding::APP_NAME))
         .inner_size(300.0, 180.0)
         .resizable(false)
         .maximizable(false)

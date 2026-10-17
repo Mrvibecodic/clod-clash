@@ -36,6 +36,8 @@ notifications:
     body: 新版本 (v{version}) 已下载完成，是否立即安装？
     installNow: 立即安装
     later: 稍后
+    installing: Installing the update…
+    notInstalled: The update could not be installed. We will try again at the next launch.
   logOpenFailed:
     title: Log
     body: "The log file could not be opened. Look for it in {path}."
