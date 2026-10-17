@@ -16,19 +16,6 @@
       flex: 1 1 100%;
       height: 100%;
 
-      .the-bar {
-        height: 36px;
-        display: flex;
-        justify-content: end;
-        box-sizing: border-box;
-        z-index: 2;
-
-        .the-dragbar {
-          margin-top: 5px;
-          app-region: drag;
-        }
-      }
-
       .the-content {
         position: absolute;
         top: 0;

@@ -2,9 +2,7 @@
   "components": {
     "navigation": {
       "tabs": {
-        "home": "Home",
         "proxies": "Proksi",
-        "profiles": "Profil",
         "connections": "Koneksi",
         "rules": "Aturan",
         "logs": "Log",

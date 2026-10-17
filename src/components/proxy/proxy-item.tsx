@@ -33,7 +33,7 @@ interface Props {
   /** clod: описание узла из панели — под типами и прячется вместе с ними. */
   description?: string
   /** clod:freeze — пометка рядом с пингом; пинг и выбор не трогает. */
-  freezeMark?: Parameters<typeof FreezeMark>[0]['mark']
+  frozen?: boolean
 }
 
 export const ProxyItem = (props: Props) => {
@@ -49,7 +49,7 @@ export const ProxyItem = (props: Props) => {
     pingBounds,
     hideBadges,
     description,
-    freezeMark,
+    frozen,
   } = props
 
   const { delayValue, isPreset, onDelay } = useProxyDelayState(
@@ -145,7 +145,7 @@ export const ProxyItem = (props: Props) => {
           }
         />
 
-        <FreezeMark mark={freezeMark} />
+        <FreezeMark frozen={frozen} />
 
         <ListItemIcon
           sx={{

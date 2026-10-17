@@ -78,7 +78,7 @@ const SettingVergeBasic = ({ onError, variant }: Props) => {
   const layoutRef = useRef<DialogRef>(null)
 
   const onChangeData = (patch: any) => {
-    mutateVerge({ ...verge, ...patch }, false)
+    mutateVerge({ ...verge, ...patch })
   }
 
   const onCopyClashEnv = useCallback(async () => {

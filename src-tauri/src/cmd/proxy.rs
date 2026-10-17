@@ -54,10 +54,10 @@ pub async fn close_connections_via(previous_proxy: String) -> CmdResult<usize> {
     Ok(crate::feat::close_connections_via(&previous_proxy).await)
 }
 
-/// clod:freeze — пометки «режется» текущей подписки в текущей сети: имя
-/// узла → `frozen`. Пусто — ничего не помечено или ядро
+/// clod:freeze — пометки «режется» текущей подписки в текущей сети: имена
+/// помеченных узлов. Пусто — ничего не помечено или ядро
 /// без отпечатков.
 #[tauri::command]
-pub async fn get_freeze_marks() -> CmdResult<std::collections::BTreeMap<String, &'static str>> {
+pub async fn get_freeze_marks() -> CmdResult<std::collections::BTreeSet<String>> {
     Ok(crate::module::freeze_check::marks())
 }

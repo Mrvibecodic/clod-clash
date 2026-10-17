@@ -90,10 +90,7 @@ describe('общие хуки и функции окна', () => {
 
   it('своей копии debounce нет — берётся lodash-es', () => {
     assert.equal(existsSync(path('../utils/debounce.ts')), false)
-    for (const file of [
-      '../providers/window/window-provider.tsx',
-      '../components/profile/editor-viewer.tsx',
-    ]) {
+    for (const file of ['../providers/window/window-provider.tsx']) {
       assert.match(source(file), /import \{ debounce \} from 'lodash-es'/, file)
     }
   })

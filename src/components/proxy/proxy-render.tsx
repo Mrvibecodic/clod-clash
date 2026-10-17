@@ -38,7 +38,7 @@ interface RenderProps {
    * перечитывал бы их на ходу.
    */
   descriptions?: Record<string, string>
-  freezeMarks?: Record<string, FreezeMark>
+  freezeMarks?: ReadonlySet<string>
 }
 
 export const ProxyRender = memo(function ProxyRender(props: RenderProps) {
@@ -88,7 +88,7 @@ export const ProxyRender = memo(function ProxyRender(props: RenderProps) {
         pingBounds={pingBounds}
         hideBadges={hideBadges}
         description={descriptions?.[proxyItem?.name]}
-        freezeMark={freezeMarks?.[proxyItem?.name]}
+        frozen={freezeMarks?.has(proxyItem?.name)}
       />
     ))
   }, [
@@ -275,7 +275,7 @@ export const ProxyRender = memo(function ProxyRender(props: RenderProps) {
         pingBounds={pingBounds}
         hideBadges={hideBadges}
         description={descriptions?.[proxy!.name]}
-        freezeMark={freezeMarks?.[proxy!.name]}
+        frozen={freezeMarks?.has(proxy!.name)}
       />,
     )
   }

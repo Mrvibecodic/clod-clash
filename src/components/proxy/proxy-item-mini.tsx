@@ -25,7 +25,7 @@ interface Props {
   /** clod: описание узла из панели — под типами и прячется вместе с ними. */
   description?: string
   /** clod:freeze — пометка рядом с пингом; пинг и выбор не трогает. */
-  freezeMark?: Parameters<typeof FreezeMark>[0]['mark']
+  frozen?: boolean
 }
 
 // Многоколоночная раскладка
@@ -41,7 +41,7 @@ export const ProxyItemMini = (props: Props) => {
     pingBounds,
     hideBadges,
     description,
-    freezeMark,
+    frozen,
   } = props
 
   const { delayValue, isPreset, onDelay } = useProxyDelayState(
@@ -124,7 +124,7 @@ export const ProxyItemMini = (props: Props) => {
           </Typography>
         )}
       </Box>
-      <FreezeMark mark={freezeMark} />
+      <FreezeMark frozen={frozen} />
       <Box
         sx={{ ml: 0.5, color: 'primary.main', display: isPreset ? 'none' : '' }}
       >

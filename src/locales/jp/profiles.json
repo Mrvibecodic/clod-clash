@@ -53,7 +53,6 @@
     "menu": {
       "subscriptionPage": "サブスクリプションページ",
       "select": "使用する",
-      "shareQrCode": "Share QR Code",
       "editInfo": "情報を編集",
       "editFile": "ファイルを編集",
       "editRules": "ルールを編集",
@@ -239,9 +238,6 @@
     "confirmDelete": {
       "title": "削除を確認",
       "message": "この操作は元に戻せません"
-    },
-    "qrViewer": {
-      "title": "Subscription QR Code"
     }
   }
 }

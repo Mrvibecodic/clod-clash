@@ -154,7 +154,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
             values.dnsHijack.trim() === '' ? 'auto' : values.dnsHijack,
         }
         await patchVerge(overrides)
-        mutateVerge({ ...verge, ...overrides }, false)
+        mutateVerge({ ...verge, ...overrides })
       }
       const tun = tunPatch(initial, values, OS)
       if (Object.keys(tun).length > 0) {
@@ -178,7 +178,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
       await patchVerge(overrides)
       await patchClash({ tun: TUN_RESET })
       setInitial(FRESH)
-      mutateVerge({ ...verge, ...overrides }, false)
+      mutateVerge({ ...verge, ...overrides })
     } catch (err: any) {
       showNotice.error(err)
     }

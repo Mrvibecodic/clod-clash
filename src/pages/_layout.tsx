@@ -158,20 +158,6 @@ const Layout = () => {
       />
       <HwidLimitDialog />
       <UpdateButton />
-      <div
-        style={{
-          animation: 'fadeIn 0.5s',
-          WebkitAnimation: 'fadeIn 0.5s',
-        }}
-      />
-      <style>
-        {`
-            @keyframes fadeIn {
-              from { opacity: 0; }
-              to { opacity: 1; }
-            }
-          `}
-      </style>
       <Paper
         square
         elevation={0}
@@ -210,7 +196,6 @@ const Layout = () => {
 
         <div className="layout-content">
           <div className="layout-content__right">
-            <div className="the-bar"></div>
             <div className="the-content">
               <BaseErrorBoundary
                 resetKeys={[pathname]}

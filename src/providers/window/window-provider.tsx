@@ -64,6 +64,7 @@ export const WindowProvider: React.FC<{ children: React.ReactNode }> = ({
 
   useEffect(() => {
     void currentWindow.isDecorated().then(setDecorated)
+    void currentWindow.isMaximized().then(setMaximized)
     currentWindow.setMinimizable?.(true)
   }, [currentWindow])
 

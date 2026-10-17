@@ -332,7 +332,7 @@ export const useRenderList = (
     }
 
     // Логика рендера обычного режима
-    const useRule = mode === 'rule' || mode === 'script'
+    const useRule = mode === 'rule'
     const renderGroups =
       useRule && proxiesData.groups.length
         ? proxiesData.groups

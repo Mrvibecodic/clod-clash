@@ -22,35 +22,19 @@ export interface VirtualListHandle {
 interface VirtualListProps {
   count: number
   estimateSize: number
-  overscan?: number
-  getItemKey?: (index: number) => React.Key
   renderItem: (index: number) => ReactNode
   style?: CSSProperties
-  footer?: number
   onScroll?: (e: Event) => void
 }
 
 export const VirtualList = forwardRef<VirtualListHandle, VirtualListProps>(
-  (
-    {
-      count,
-      estimateSize,
-      overscan = 5,
-      getItemKey,
-      renderItem,
-      style,
-      footer,
-      onScroll,
-    },
-    ref,
-  ) => {
+  ({ count, estimateSize, renderItem, style, onScroll }, ref) => {
     const parentRef = useRef<HTMLDivElement>(null)
     const virtualizer = useVirtualizer({
       count,
       getScrollElement: () => parentRef.current,
       estimateSize: () => estimateSize,
-      overscan,
-      getItemKey,
+      overscan: 5,
     })
 
     useEffect(() => {
@@ -87,7 +71,6 @@ export const VirtualList = forwardRef<VirtualListHandle, VirtualListProps>(
               {renderItem(vi.index)}
             </div>
           ))}
-          {footer != null && <div style={{ height: footer }} />}
         </div>
       </div>
     )

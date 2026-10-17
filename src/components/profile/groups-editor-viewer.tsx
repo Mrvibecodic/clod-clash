@@ -47,10 +47,9 @@ import { GroupItem } from '@/components/profile/group-item'
 import { useSeqDocument } from '@/hooks/use-seq-document'
 import { getNetworkInterfaces, readProfileFile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
-import { useThemeMode } from '@/services/states'
 import type { TranslationKey } from '@/types/generated/i18n-keys'
 import type { MonacoEditorInstance } from '@/types/monaco'
-import getSystem from '@/utils/get-system'
+import { dismissUnlessDirty } from '@/utils/dialog-dismiss'
 import { optionalInt } from '@/utils/optional-int'
 import { BUILTIN_GROUP_POLICIES } from '@/utils/proxy-groups'
 import { parseYamlSafe } from '@/utils/yaml'
@@ -134,7 +133,6 @@ export const GroupsEditorViewer = (props: Props) => {
         : value,
     [t],
   )
-  const themeMode = useThemeMode()
   const editorRef = useRef<MonacoEditorInstance | null>(null)
   const {
     loading,
@@ -364,7 +362,6 @@ export const GroupsEditorViewer = (props: Props) => {
   const fetchProfile = useCallback(async () => {
     const data = await readProfileFile(profileUid)
     const mergeData = await readProfileFile(mergeUid)
-    const globalMergeData = await readProfileFile('Merge')
 
     const originGroupsObj = parseYamlSafe(data) as {
       'proxy-groups': IProxyGroupConfig[]
@@ -380,17 +377,7 @@ export const GroupsEditorViewer = (props: Props) => {
     } | null
     const moreProvider = moreProviderObj?.['proxy-providers'] || {}
 
-    const globalProviderObj = parseYamlSafe(globalMergeData) as {
-      'proxy-providers': Record<string, unknown>
-    } | null
-    const globalProvider = globalProviderObj?.['proxy-providers'] || {}
-
-    const provider = Object.assign(
-      {},
-      originProvider,
-      moreProvider,
-      globalProvider,
-    )
+    const provider = Object.assign({}, originProvider, moreProvider)
 
     setProxyProviderList(Object.keys(provider))
     setGroupList(originGroupsObj?.['proxy-groups'] || [])
@@ -453,8 +440,7 @@ export const GroupsEditorViewer = (props: Props) => {
   return (
     <Dialog
       open={open}
-      // Несохранённое Esc и щелчок мимо окна не теряют — только «Отмена».
-      onClose={dirty ? undefined : onClose}
+      onClose={dismissUnlessDirty(dirty, onClose)}
       maxWidth="xl"
       fullWidth
       disableEnforceFocus={!visualization}
@@ -1062,29 +1048,13 @@ export const GroupsEditorViewer = (props: Props) => {
             height="100%"
             language="yaml"
             value={text}
-            theme={themeMode === 'light' ? 'light' : 'vs-dark'}
             onMount={(editorInstance) => {
               editorRef.current = editorInstance
             }}
             options={{
-              tabSize: 2, // Размер отступа в зависимости от типа языка
-              minimap: {
-                enabled: document.documentElement.clientWidth >= 1500, // Показывать полосу прокрутки minimap при достаточной ширине
-              },
-              mouseWheelZoom: true, // Масштабирование колесом мыши при зажатом Ctrl
-              quickSuggestions: {
-                strings: true, // Подсказки для строк
-                comments: true, // Подсказки для комментариев
-                other: true, // Подсказки для остального
-              },
               padding: {
                 top: 33, // Верхний padding, чтобы не перекрывать snippets
               },
-              fontFamily: `Fira Code, JetBrains Mono, Roboto Mono, "Source Code Pro", Consolas, Menlo, Monaco, monospace, "Courier New", "Apple Color Emoji"${
-                getSystem() === 'windows' ? ', twemoji mozilla' : ''
-              }`,
-              fontLigatures: false, // Лигатуры
-              smoothScrolling: true, // Плавная прокрутка
             }}
             onChange={(value) => setText(value ?? '')}
           />

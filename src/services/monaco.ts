@@ -26,7 +26,6 @@ export const loadMonacoEditor = () => {
     import('@monaco-editor/react'),
     import('monaco-editor'),
     import('monaco-editor/esm/vs/editor/editor.worker?worker'),
-    import('monaco-editor/esm/vs/language/css/css.worker?worker'),
     import('monaco-editor/esm/vs/language/typescript/ts.worker?worker'),
     import('monaco-yaml'),
     import('meta-json-schema/schemas/meta-json-schema.json'),
@@ -37,7 +36,6 @@ export const loadMonacoEditor = () => {
       editorModule,
       monaco,
       { default: EditorWorker },
-      { default: CssWorker },
       { default: TsWorker },
       { configureMonacoYaml },
       { default: metaSchema },
@@ -45,9 +43,6 @@ export const loadMonacoEditor = () => {
       { default: YamlWorker },
     ]) => {
       const workers = {
-        css: CssWorker,
-        less: CssWorker,
-        scss: CssWorker,
         typescript: TsWorker,
         javascript: TsWorker,
         yaml: YamlWorker,

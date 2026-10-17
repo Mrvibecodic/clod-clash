@@ -1,6 +1,5 @@
 import './assets/styles/index.scss'
 
-import { ResizeObserver } from '@juggle/resize-observer'
 import { ComposeContextProvider } from 'foxact/compose-context-provider'
 import React from 'react'
 import { createRoot } from 'react-dom/client'
@@ -21,10 +20,6 @@ import {
 import { swrConfig } from './services/query-client'
 import { ThemeModeProvider, UpdateStateProvider } from './services/states'
 import { disableWebViewShortcuts } from './utils/disable-webview-shortcuts'
-
-if (!window.ResizeObserver) {
-  window.ResizeObserver = ResizeObserver
-}
 
 const mainElementId = 'root'
 const container = document.getElementById(mainElementId)

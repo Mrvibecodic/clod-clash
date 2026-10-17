@@ -97,16 +97,16 @@ static CORE_WAS_SILENT: AtomicBool = AtomicBool::new(false);
 #[derive(Default)]
 struct Marks {
     uid: Option<std::string::String>,
-    by_name: BTreeMap<std::string::String, &'static str>,
+    by_name: BTreeSet<std::string::String>,
 }
 
 static MARKS: Mutex<Marks> = Mutex::new(Marks {
     uid: None,
-    by_name: BTreeMap::new(),
+    by_name: BTreeSet::new(),
 });
 
-/// Пометки текущей подписки в текущей сети: имя узла → `frozen`.
-pub(crate) fn marks() -> BTreeMap<std::string::String, &'static str> {
+/// Пометки текущей подписки в текущей сети: имена помеченных узлов.
+pub(crate) fn marks() -> BTreeSet<std::string::String> {
     MARKS.lock().by_name.clone()
 }
 
@@ -437,20 +437,24 @@ fn due_of(nodes: &[NodeRef], network: &store::Network, now: i64) -> Vec<NodeRef>
         .collect()
 }
 
-fn marks_of(nodes: &[NodeRef], network: &store::Network) -> BTreeMap<std::string::String, &'static str> {
+fn marks_of(nodes: &[NodeRef], network: &store::Network) -> BTreeSet<std::string::String> {
     nodes
         .iter()
-        .filter_map(|node| {
-            let mark = network.nodes.get(&node.fingerprint)?.verdict?.mark()?;
-            Some((node.name.clone(), mark))
+        .filter(|node| {
+            network
+                .nodes
+                .get(&node.fingerprint)
+                .and_then(|checked| checked.verdict)
+                .is_some_and(plan::Verdict::is_frozen)
         })
+        .map(|node| node.name.clone())
         .collect()
 }
 
 /// Запомнить пометки для фронта и трея; `true` — они изменились.
 /// Показать пометки захода с номером `epoch`; заход устарел (сменились сеть
 /// или подписка) — ничего не показывать.
-fn publish(uid: &str, by_name: BTreeMap<std::string::String, &'static str>, epoch: u64) -> bool {
+fn publish(uid: &str, by_name: BTreeSet<std::string::String>, epoch: u64) -> bool {
     let mut marks = MARKS.lock();
     if EPOCH.load(Ordering::Acquire) != epoch {
         return false;
@@ -516,7 +520,7 @@ async fn listed_nodes(uid: &str, reason: &str, verbose: bool, epoch: u64) -> Opt
         } else if verbose {
             logging!(info, Type::Core, "[Freeze] {reason}: the subscription has no nodes");
         }
-        announce(publish(uid, BTreeMap::new(), epoch)).await;
+        announce(publish(uid, BTreeSet::new(), epoch)).await;
         return None;
     }
     FOREIGN_CORE_TOLD.store(false, Ordering::Release);
@@ -646,7 +650,7 @@ async fn enabled_subscription(reason: &str, verbose: bool, epoch: u64) -> Option
     // одноимённые узлы двух подписок не делят ничего. Выключенная — тоже без пометок.
     let other = MARKS.lock().uid.as_deref() != Some(uid.as_str());
     if !enabled || other {
-        announce(publish(&uid, BTreeMap::new(), epoch)).await;
+        announce(publish(&uid, BTreeSet::new(), epoch)).await;
     }
     enabled.then_some(uid)
 }
@@ -907,7 +911,7 @@ async fn pass(reason: &'static str) {
                 "[Freeze] {reason}: the network is not recognized, nothing checked"
             );
         }
-        announce(publish(&uid, BTreeMap::new(), epoch)).await;
+        announce(publish(&uid, BTreeSet::new(), epoch)).await;
         return;
     };
     *PASS_KEY.lock() = Some(key.hash.clone());
@@ -963,7 +967,7 @@ async fn pass(reason: &'static str) {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
+    use std::collections::BTreeSet;
 
     use serde_json::json;
 
@@ -1354,10 +1358,7 @@ mod tests {
             node("d", "f4"),
         ];
         let marks = marks_of(&nodes, &network);
-        let expected: BTreeMap<std::string::String, &'static str> =
-            [("a".to_owned(), "frozen"), ("a2".to_owned(), "frozen")]
-                .into_iter()
-                .collect();
+        let expected: BTreeSet<std::string::String> = ["a".to_owned(), "a2".to_owned()].into_iter().collect();
         assert_eq!(marks, expected);
     }
 }

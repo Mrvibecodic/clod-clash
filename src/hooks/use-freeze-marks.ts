@@ -3,19 +3,22 @@ import useSWR from 'swr'
 import { getFreezeMarks } from '@/services/cmds'
 
 /** Stable identity for "nothing is marked" — the common case. */
-const EMPTY: Record<string, FreezeMark> = {}
+const EMPTY: ReadonlySet<string> = new Set()
+
+const readMarks = async (): Promise<ReadonlySet<string>> =>
+  new Set(await getFreezeMarks())
 
 /**
- * clod:freeze — пометки «режется» по имени узла для текущей
+ * clod:freeze — имена узлов с пометкой «режется» для текущей
  * подписки в текущей сети. Бэкенд пересчитывает их после каждого захода
  * проверки и шлёт `clod://freeze-marks`; на смену подписки и перезапуск ядра
  * отвечает `verge://refresh-clash-config` (ключ в списке префиксов там).
  *
- * Пустая карта — норма: ничего не помечено, панель не включила проверку
+ * Пустое множество — норма: ничего не помечено, панель не включила проверку
  * (`clod-16-20-check`) или ядро чужое (без отпечатков узлов).
  */
 export const useFreezeMarks = () => {
-  const { data } = useSWR(['freezeMarks'], getFreezeMarks, {
+  const { data } = useSWR(['freezeMarks'], readMarks, {
     revalidateOnFocus: false,
   })
 

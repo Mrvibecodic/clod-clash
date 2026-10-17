@@ -8,6 +8,9 @@ import { getAutotemProxy } from '@/services/cmds'
 import { revalidateQueries, useQuery } from '@/services/query-client'
 import { isProxyServerAt, reachableProxyHost } from '@/utils/ports'
 
+/** Адрес PAC, который ставит в систему бэкенд (`utils/server.rs`). */
+export const PAC_URL = `http://127.0.0.1:${import.meta.env.DEV ? 11233 : 33331}/commands/pac`
+
 // Единая логика определения состояния системного прокси
 export const useSystemProxyState = () => {
   const { verge, mutateVerge, patchVerge } = useVerge()
@@ -26,8 +29,7 @@ export const useSystemProxyState = () => {
   const indicator = (() => {
     if (proxy_auto_config) {
       if (!autoproxy?.enable) return false
-      const pacPort = import.meta.env.DEV ? 11233 : 33331
-      return autoproxy.url === `http://127.0.0.1:${pacPort}/commands/pac`
+      return autoproxy.url === PAC_URL
     } else {
       if (!sysproxy?.enable) return false
       // При раздаче бэкенд пишет петлю, если выбранного адреса у машины уже
@@ -64,9 +66,8 @@ export const useSystemProxyState = () => {
    * нажатие «отключиться» стирало бы его.
    */
   const toggleSystemProxy = async (enabled: boolean, remember = false) => {
-    mutateVerge(
-      (prev) => (prev ? { ...prev, enable_system_proxy: enabled } : prev),
-      false,
+    mutateVerge((prev) =>
+      prev ? { ...prev, enable_system_proxy: enabled } : prev,
     )
     pendingRef.current = { enabled, remember }
 

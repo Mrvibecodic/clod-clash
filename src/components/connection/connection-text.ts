@@ -1,5 +1,7 @@
 import { alpha, type Theme } from '@mui/material'
 
+import { typeChipStyle } from '@/components/base/base-chips'
+
 const MONO = 'monospace'
 const DIRECT = 'DIRECT'
 
@@ -47,17 +49,7 @@ export const connTextSx = ({ palette }: Theme) => ({
     overflow: 'hidden',
     whiteSpace: 'nowrap',
   },
-  '& .cc-tchip': {
-    flex: 'none',
-    padding: '3px 6px',
-    borderRadius: '5px',
-    backgroundColor: alpha(palette.primary.main, 0.14),
-    color: palette.primary.main,
-    fontFamily: MONO,
-    fontSize: 11,
-    fontWeight: 600,
-    lineHeight: 1.3,
-  },
+  '& .cc-tchip': typeChipStyle(palette),
   '& .cc-pl': {
     minWidth: 0,
     fontFamily: MONO,

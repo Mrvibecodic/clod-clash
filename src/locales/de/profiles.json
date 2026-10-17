@@ -53,7 +53,6 @@
     "menu": {
       "subscriptionPage": "Abo-Seite",
       "select": "Verwenden",
-      "shareQrCode": "Share QR Code",
       "editInfo": "Informationen bearbeiten",
       "editFile": "Datei bearbeiten",
       "editRules": "Regeln bearbeiten",
@@ -239,9 +238,6 @@
     "confirmDelete": {
       "title": "Löschung bestätigen",
       "message": "Diese Operation kann nicht rückgängig gemacht werden"
-    },
-    "qrViewer": {
-      "title": "Subscription QR Code"
     }
   }
 }

@@ -53,7 +53,6 @@
     "menu": {
       "subscriptionPage": "Abonelik sayfası",
       "select": "Seç",
-      "shareQrCode": "Share QR Code",
       "editInfo": "Bilgileri Düzenle",
       "editFile": "Dosyayı Düzenle",
       "editRules": "Kuralları Düzenle",
@@ -239,9 +238,6 @@
     "confirmDelete": {
       "title": "Silmeyi Onayla",
       "message": "Bu işlem geri alınamaz"
-    },
-    "qrViewer": {
-      "title": "Subscription QR Code"
     }
   }
 }

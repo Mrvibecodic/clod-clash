@@ -2,9 +2,7 @@
   "components": {
     "navigation": {
       "tabs": {
-        "home": "Ana Sayfa",
         "proxies": "Vekil'ler",
-        "profiles": "Profiller",
         "connections": "Bağlantılar",
         "rules": "Kurallar",
         "logs": "Günlükler",

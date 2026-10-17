@@ -53,7 +53,6 @@
     "menu": {
       "subscriptionPage": "구독 페이지",
       "select": "선택",
-      "shareQrCode": "Share QR Code",
       "editInfo": "정보 편집",
       "editFile": "파일 편집",
       "editRules": "규칙 편집",
@@ -239,9 +238,6 @@
     "confirmDelete": {
       "title": "삭제 확인",
       "message": "이 작업은 되돌릴 수 없습니다"
-    },
-    "qrViewer": {
-      "title": "Subscription QR Code"
     }
   }
 }

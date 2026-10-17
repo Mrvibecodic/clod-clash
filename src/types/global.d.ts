@@ -152,9 +152,6 @@ interface ILogItem {
   payload: string
 }
 
-/** clod:freeze — итог проверки 16–20 узла в текущей сети. */
-type FreezeMark = 'frozen'
-
 type LogFilter = 'all' | 'debug' | 'info' | 'warn' | 'err'
 type LogOrder = 'asc' | 'desc'
 
@@ -253,19 +250,13 @@ interface IProfileItem {
   /** Провайдер спрятал у серверов плашки протокола, транспорта и защиты (`clod-hide-badges`). */
   hide_badges?: boolean
   ping_thresholds?: [number, number]
-  show_zero_hosts?: boolean
   refill_date?: number
   clock_skew?: number
   clock_skew_at?: number
   interval_locked?: boolean
-  new_sub?: string
   hwid_state?: 'ok' | 'limit' | 'not_supported'
   custom_name?: string
   name_from_panel?: boolean
-  notify_expire_days?: number[]
-  notify_traffic_percent?: number[]
-  notified?: Record<string, number>
-  from_fallback?: boolean
   /** Подписка скачалась, но ядро её не приняло — на диске прежний конфиг. */
   not_applied?: boolean
   update_failed?: boolean
@@ -969,7 +960,6 @@ interface IVergeConfig {
   connect_system_proxy?: boolean
   connect_tun_mode?: boolean
   connect_on_launch?: boolean
-  tun_setup_declined?: string
   window_fit_content?: boolean
   home_tool_shortcuts?: string[]
   enable_sub_notifications?: boolean

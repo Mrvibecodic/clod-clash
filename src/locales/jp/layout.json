@@ -2,9 +2,7 @@
   "components": {
     "navigation": {
       "tabs": {
-        "home": "ホーム",
         "proxies": "プロキシ",
-        "profiles": "プロファイル",
         "connections": "接続",
         "rules": "ルール",
         "logs": "ログ",

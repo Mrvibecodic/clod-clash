@@ -63,7 +63,6 @@ import { clockSkew, missedUpdates } from '@/utils/subscription-status'
 
 import { ProfileBox } from './profile-box'
 import { ProxiesEditorViewer } from './proxies-editor-viewer'
-import { QrViewer } from './qr-viewer'
 const round = keyframes`
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
@@ -279,7 +278,6 @@ const ProfileItemBase = (props: ProfileItemProps) => {
   const [mergeOpen, setMergeOpen] = useState(false)
   const [scriptOpen, setScriptOpen] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const [qrOpen, setQrOpen] = useState(false)
 
   const loadProfileDocument = useCallback(() => readProfileFile(uid), [uid])
   const loadMergeDocument = useCallback(
@@ -312,11 +310,6 @@ const ProfileItemBase = (props: ProfileItemProps) => {
   const onEditInfo = () => {
     setAnchorEl(null)
     onEdit()
-  }
-
-  const onShareQrCode = () => {
-    setAnchorEl(null)
-    setQrOpen(true)
   }
 
   const onEditFile = () => {
@@ -392,7 +385,6 @@ const ProfileItemBase = (props: ProfileItemProps) => {
   const menuLabels = {
     subscriptionPage: 'profiles.components.menu.subscriptionPage',
     select: 'profiles.components.menu.select',
-    shareQrCode: 'profiles.components.menu.shareQrCode',
     editInfo: 'profiles.components.menu.editInfo',
     editFile: 'profiles.components.menu.editFile',
     editRules: 'profiles.components.menu.editRules',
@@ -439,15 +431,6 @@ const ProfileItemBase = (props: ProfileItemProps) => {
     : [selectItem]
 
   const advancedMenu: ContextMenuItem[] = [
-    ...(hasUrl
-      ? [
-          {
-            label: menuLabels.shareQrCode,
-            handler: onShareQrCode,
-            disabled: false,
-          } satisfies ContextMenuItem,
-        ]
-      : []),
     {
       label: menuLabels.editInfo,
       handler: onEditInfo,
@@ -1087,17 +1070,6 @@ const ProfileItemBase = (props: ProfileItemProps) => {
           {t('profiles.modals.confirmDelete.message')}
         </Typography>
       </BaseDialog>
-      {qrOpen && itemData.url && (
-        <QrViewer
-          open={true}
-          value={
-            itemData.custom_name
-              ? `${itemData.url}${itemData.url.includes('?') ? '&' : '?'}name=${encodeURIComponent(itemData.custom_name)}`
-              : itemData.url
-          }
-          onClose={() => setQrOpen(false)}
-        />
-      )}
     </Box>
   )
 }

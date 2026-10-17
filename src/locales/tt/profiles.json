@@ -53,7 +53,6 @@
     "menu": {
       "subscriptionPage": "Subscription page",
       "select": "Сайлау",
-      "shareQrCode": "Share QR Code",
       "editInfo": "Мәгълүматны үзгәртү",
       "editFile": "Файлны үзгәртү",
       "editRules": "Кагыйдәләрне үзгәртү",
@@ -239,9 +238,6 @@
     "confirmDelete": {
       "title": "Бетерүне раслагыз",
       "message": "Бу гамәлне кире кайтарып булмый"
-    },
-    "qrViewer": {
-      "title": "Subscription QR Code"
     }
   }
 }

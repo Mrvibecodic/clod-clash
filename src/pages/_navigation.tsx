@@ -8,7 +8,6 @@ import { navigationItems } from './_navigation-meta'
 import HomePage from './home'
 
 type NavigationItem = {
-  label: (typeof navigationItems)[keyof typeof navigationItems]['label']
   path: string
   Component: ComponentType
   preload?: () => Promise<{ default: ComponentType }>

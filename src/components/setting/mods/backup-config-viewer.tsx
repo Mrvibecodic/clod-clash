@@ -129,17 +129,15 @@ export const BackupConfigViewer = memo(
         // До обновления настроек: в подписи нет пароля, и отрисовка с новым
         // паролем не должна застать прежний «не отвечает».
         setWebdavStatus(signature, 'unknown')
-        await mutateVerge(
-          (current) =>
-            current
-              ? {
-                  ...current,
-                  webdav_url: trimmedUrl,
-                  webdav_username: trimmedUsername,
-                  webdav_password: data.password,
-                }
-              : current,
-          false,
+        await mutateVerge((current) =>
+          current
+            ? {
+                ...current,
+                webdav_url: trimmedUrl,
+                webdav_username: trimmedUsername,
+                webdav_password: data.password,
+              }
+            : current,
         )
         // Проверку сервера после сохранения делает эффект автоинициализации:
         // новые учётные данные меняют его зависимости.

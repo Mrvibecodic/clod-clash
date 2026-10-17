@@ -657,7 +657,7 @@ fn create_subcreate_proxy_menu_item(
 
                     // Задержек в трее нет: меню собирается по событиям, и цифры в нём
                     // устаревали, а у узлов провайдеров их не было вовсе
-                    let text = if freeze_marks.contains_key(proxy_str.as_str()) {
+                    let text = if freeze_marks.contains(proxy_str.as_str()) {
                         format!("{proxy_str} ❄")
                     } else {
                         proxy_str.clone()

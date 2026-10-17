@@ -258,17 +258,11 @@ export const useCustomTheme = () => {
     if (rootEle) {
       const backgroundColor = mode === 'light' ? '#ECECEC' : dt.background_color
       const selectColor = mode === 'light' ? '#f5f5f5' : '#3E3E3E'
-      const scrollColor = mode === 'light' ? '#90939980' : '#555555'
       const card = cardSurfaceVars(mode)
       rootEle.style.setProperty('--divider-color', muiTheme.palette.divider)
       rootEle.style.setProperty('--background-color', backgroundColor)
       rootEle.style.setProperty('--selection-color', selectColor)
-      rootEle.style.setProperty('--scroller-color', scrollColor)
       rootEle.style.setProperty('--primary-main', muiTheme.palette.primary.main)
-      rootEle.style.setProperty(
-        '--background-color-alpha',
-        alpha(muiTheme.palette.primary.main, 0.1),
-      )
       rootEle.style.setProperty('--card-line', card.line)
       rootEle.style.setProperty('--card-shadow', card.shadow)
       rootEle.style.setProperty('--card-shadow-hover', card.shadowHover)

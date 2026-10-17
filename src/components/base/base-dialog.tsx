@@ -30,7 +30,6 @@ interface Props {
   disableEnforceFocus?: boolean
   disableOk?: boolean
   disableCancel?: boolean
-  disableFooter?: boolean
   contentSx?: SxProps<Theme>
   /** clod: узкое окно простого режима — диалог должен считаться от него. */
   fullWidth?: boolean
@@ -135,7 +134,6 @@ export const BaseDialog: React.FC<Props> = ({
   paperSx,
   disableCancel,
   disableOk,
-  disableFooter,
   loading,
   onOk,
   onCancel,
@@ -188,39 +186,37 @@ export const BaseDialog: React.FC<Props> = ({
         {children}
       </DialogContent>
 
-      {!disableFooter && (
-        <DialogActions sx={ACTIONS_FIT}>
-          {start !== null ? (
-            <Box
-              sx={{
-                flex: 1,
-                minWidth: 0,
-                display: 'flex',
-                alignItems: 'center',
-                fontSize: 13,
-                color: 'text.secondary',
-              }}
-            >
-              {start}
-            </Box>
-          ) : null}
-          {!disableCancel && (
-            <Button variant="outlined" onClick={onCancel}>
-              {cancelBtn}
-            </Button>
-          )}
-          {!disableOk && (
-            <Button
-              loading={loading}
-              variant="contained"
-              disabled={changes === 0}
-              onClick={onOk}
-            >
-              {okBtn}
-            </Button>
-          )}
-        </DialogActions>
-      )}
+      <DialogActions sx={ACTIONS_FIT}>
+        {start !== null ? (
+          <Box
+            sx={{
+              flex: 1,
+              minWidth: 0,
+              display: 'flex',
+              alignItems: 'center',
+              fontSize: 13,
+              color: 'text.secondary',
+            }}
+          >
+            {start}
+          </Box>
+        ) : null}
+        {!disableCancel && (
+          <Button variant="outlined" onClick={onCancel}>
+            {cancelBtn}
+          </Button>
+        )}
+        {!disableOk && (
+          <Button
+            loading={loading}
+            variant="contained"
+            disabled={changes === 0}
+            onClick={onOk}
+          >
+            {okBtn}
+          </Button>
+        )}
+      </DialogActions>
     </Dialog>
   )
 }

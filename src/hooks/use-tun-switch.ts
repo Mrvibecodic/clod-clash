@@ -32,7 +32,7 @@ export const useTunSwitch = () => {
    * (`connect_tun_mode`) — пишется той же записью настроек.
    */
   const switchTun = async (value: boolean) => {
-    mutateVerge({ ...verge, enable_tun_mode: value }, false)
+    mutateVerge({ ...verge, enable_tun_mode: value })
     try {
       await patchVerge({ enable_tun_mode: value, connect_tun_mode: value })
     } catch (err) {

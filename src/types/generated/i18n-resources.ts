@@ -247,9 +247,7 @@ export interface TranslationResources {
         navigation: {
           tabs: {
             connections: string
-            home: string
             logs: string
-            profiles: string
             proxies: string
             rules: string
             settings: string
@@ -297,7 +295,6 @@ export interface TranslationResources {
           extendScript: string
           openFile: string
           select: string
-          shareQrCode: string
           subscriptionPage: string
           update: string
           updateViaProxy: string
@@ -465,9 +462,6 @@ export interface TranslationResources {
           placeholders: {
             multiUri: string
           }
-          title: string
-        }
-        qrViewer: {
           title: string
         }
       }

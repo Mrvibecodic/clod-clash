@@ -8,7 +8,7 @@ import { openWebUrl } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 
 interface Props {
-  mark?: FreezeMark
+  frozen?: boolean
 }
 
 /**
@@ -19,7 +19,7 @@ interface Props {
  * дереву React) до строки не доходят: иначе вместе с объяснением выбирался бы
  * узел. Сам значок ничего не делает с узлом: пинг и выбор как раньше.
  */
-export const FreezeMark = ({ mark }: Props) => (mark ? <Snowflake /> : null)
+export const FreezeMark = ({ frozen }: Props) => (frozen ? <Snowflake /> : null)
 
 /** Значок с объяснением: живёт, пока есть пометка, — открытое объяснение
  * пропавшего значка с ним и закрывается, а не всплывает при его возврате. */

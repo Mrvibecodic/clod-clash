@@ -2,9 +2,7 @@
   "components": {
     "navigation": {
       "tabs": {
-        "home": "Home",
         "proxies": "Прокси",
-        "profiles": "Профильләр",
         "connections": "Тоташулар",
         "rules": "Кагыйдәләр",
         "logs": "Логлар",

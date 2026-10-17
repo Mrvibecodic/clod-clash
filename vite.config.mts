@@ -16,7 +16,6 @@ export default defineConfig({
       renderLegacyChunks: false,
       modernPolyfills: ['es.object.has-own', 'web.structured-clone'],
       additionalModernPolyfills: [
-        path.resolve('./src/polyfills/matchMedia.js'),
         path.resolve('./src/polyfills/WeakRef.js'),
         path.resolve('./src/polyfills/RegExp.js'),
       ],

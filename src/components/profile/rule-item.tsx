@@ -9,6 +9,8 @@ import {
 import { alpha, Box, IconButton, Tooltip } from '@mui/material'
 import { useTranslation } from 'react-i18next'
 
+import { TypeChip } from '@/components/base'
+import { outboundClass } from '@/components/connection/connection-text'
 import { policyName, ruleTypeName } from '@/utils/rule-labels'
 
 interface Props {
@@ -49,10 +51,11 @@ export const RuleItem = (props: Props) => {
       }
 
   const deleted = type === 'delete'
+  const policyClass = outboundClass(proxyPolicy)
   const policyColor =
-    proxyPolicy === 'DIRECT'
+    policyClass === 'cc-direct'
       ? 'success.main'
-      : proxyPolicy.startsWith('REJECT')
+      : policyClass === 'cc-reject'
         ? 'error.main'
         : 'text.primary'
   const actionLabel = deleted
@@ -98,28 +101,12 @@ export const RuleItem = (props: Props) => {
         <span />
       )}
 
-      <Box
-        component="span"
+      <TypeChip
         title={ruleTypeName(t, ruleType)}
-        sx={({ palette }) => ({
-          justifySelf: 'start',
-          maxWidth: '100%',
-          px: 0.75,
-          py: 0.375,
-          borderRadius: '5px',
-          bgcolor: alpha(palette.primary.main, 0.14),
-          color: 'primary.main',
-          fontFamily: 'monospace',
-          fontSize: 11,
-          fontWeight: 600,
-          lineHeight: 1.3,
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-        })}
+        sx={{ justifySelf: 'start', maxWidth: '100%' }}
       >
         {ruleType}
-      </Box>
+      </TypeChip>
 
       <Box
         sx={{

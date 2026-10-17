@@ -2,9 +2,7 @@
   "components": {
     "navigation": {
       "tabs": {
-        "home": "Hogar",
         "proxies": "Proxies",
-        "profiles": "Perfiles",
         "connections": "Conexiones",
         "rules": "Normas",
         "logs": "Registros",

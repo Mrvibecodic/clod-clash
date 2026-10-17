@@ -40,7 +40,6 @@ import { useClash } from '@/hooks/use-clash'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useVerge } from '@/hooks/use-verge'
 import { showNotice } from '@/services/notice-service'
-import { useThemeMode } from '@/services/states'
 import type { MonacoEditorInstance } from '@/types/monaco'
 import {
   asDnsMapping,
@@ -49,7 +48,6 @@ import {
   readDnsBlock,
   summarizeValidation,
 } from '@/utils/dns-config'
-import getSystem from '@/utils/get-system'
 
 type NameserverPolicy = Record<string, any>
 
@@ -429,7 +427,6 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const { mutateClash } = useClash()
   const { verge } = useVerge()
   const { profiles } = useProfiles()
-  const themeMode = useThemeMode()
 
   const [open, setOpen] = useState(false)
   const [visualization, setVisualization] = useState(true)
@@ -1011,30 +1008,14 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
           height="100vh"
           language="yaml"
           value={yamlContent}
-          theme={themeMode === 'light' ? 'light' : 'vs-dark'}
           className="flex-grow"
           onMount={(editorInstance) => {
             editorRef.current = editorInstance
           }}
           options={{
-            tabSize: 2,
-            minimap: {
-              enabled: document.documentElement.clientWidth >= 1500,
-            },
-            mouseWheelZoom: true,
-            quickSuggestions: {
-              strings: true,
-              comments: true,
-              other: true,
-            },
             padding: {
               top: 8,
             },
-            fontFamily: `Fira Code, JetBrains Mono, Roboto Mono, "Source Code Pro", Consolas, Menlo, Monaco, monospace, "Courier New", "Apple Color Emoji"${
-              getSystem() === 'windows' ? ', twemoji mozilla' : ''
-            }`,
-            fontLigatures: false,
-            smoothScrolling: true,
           }}
           onChange={handleYamlChange}
         />

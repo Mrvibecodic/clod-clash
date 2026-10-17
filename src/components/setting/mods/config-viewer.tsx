@@ -4,9 +4,7 @@ import {
   OpenInFullRounded,
 } from '@mui/icons-material'
 import { alpha, Box, IconButton } from '@mui/material'
-import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { useLockFn } from 'ahooks'
-import { debounce } from 'lodash-es'
 import {
   forwardRef,
   useCallback,
@@ -25,29 +23,21 @@ import {
   MonacoEditor,
 } from '@/components/base'
 import { useProfiles } from '@/hooks/use-profiles'
+import { useWindowControls } from '@/hooks/use-window'
 import { getRuntimeYaml, readProfileFile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
-import { useThemeMode } from '@/services/states'
 import type { MonacoEditorInstance } from '@/types/monaco'
 import { errorReason } from '@/utils/error-explanation'
-import getSystem from '@/utils/get-system'
 
 type ConfigSource = 'runtime' | 'provider'
-
-const appWindow = getCurrentWebviewWindow()
 
 const syncModel = (editor: MonacoEditorInstance | null, value: string) => {
   const model = editor?.getModel()
   if (model && model.getValue() !== value) model.setValue(value)
 }
 
-const EDITOR_FONT = `Fira Code, JetBrains Mono, Roboto Mono, "Source Code Pro", Consolas, Menlo, Monaco, monospace, "Courier New", "Apple Color Emoji"${
-  getSystem() === 'windows' ? ', twemoji mozilla' : ''
-}`
-
 export const ConfigViewer = forwardRef<DialogRef>((_, ref) => {
   const { t } = useTranslation()
-  const themeMode = useThemeMode()
   const { current } = useProfiles()
   const uid = current?.uid
   const [open, setOpen] = useState(false)
@@ -62,31 +52,12 @@ export const ConfigViewer = forwardRef<DialogRef>((_, ref) => {
 
   const providerText = providerConfig.uid === uid ? providerConfig.text : ''
 
-  const [isMaximized, setIsMaximized] = useState(false)
-
-  const syncMaximized = useCallback(async () => {
-    try {
-      setIsMaximized(await appWindow.isMaximized())
-    } catch {
-      setIsMaximized(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!open) return
-    void syncMaximized()
-    const onResized = debounce(() => void syncMaximized(), 100)
-    const unlisten = appWindow.onResized(onResized)
-    return () => {
-      onResized.cancel()
-      unlisten.then((fn) => fn())
-    }
-  }, [open, syncMaximized])
+  const { maximized: isMaximized, toggleMaximize: toggleWindow } =
+    useWindowControls()
 
   const toggleMaximize = useLockFn(async () => {
     try {
-      await appWindow.toggleMaximize()
-      await syncMaximized()
+      await toggleWindow()
     } catch (error) {
       showNotice.error(error)
     }
@@ -260,26 +231,17 @@ export const ConfigViewer = forwardRef<DialogRef>((_, ref) => {
               syncModel(editor, value)
             }}
             language="yaml"
-            theme={themeMode === 'light' ? 'light' : 'vs-dark'}
             loading={null}
             saveViewState
             keepCurrentModel={false}
             options={{
               automaticLayout: true,
-              tabSize: 2,
-              minimap: {
-                enabled: document.documentElement.clientWidth >= 1500,
-              },
-              mouseWheelZoom: true,
               readOnly: true,
               readOnlyMessage: {
                 value: t('profiles.modals.editor.messages.readOnly'),
               },
               renderValidationDecorations: 'on',
               padding: { top: 12 },
-              fontFamily: EDITOR_FONT,
-              fontLigatures: false,
-              smoothScrolling: true,
             }}
           />
         )}

@@ -40,6 +40,7 @@ import { useTranslation } from 'react-i18next'
 import {
   BaseLoadingOverlay,
   BaseSearchBox,
+  FormField,
   MonacoEditor,
   StickyVirtualList,
 } from '@/components/base'
@@ -48,9 +49,9 @@ import { useSeqDocument } from '@/hooks/use-seq-document'
 import { NARROW } from '@/pages/_theme'
 import { readProfileFile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
-import { useThemeMode } from '@/services/states'
 import type { TranslationKey } from '@/types/generated/i18n-keys'
 import type { MonacoEditorInstance } from '@/types/monaco'
+import { dismissUnlessDirty } from '@/utils/dialog-dismiss'
 import getSystem from '@/utils/get-system'
 import { isValidIpCidr } from '@/utils/network'
 import { BUILTIN_RULE_POLICIES } from '@/utils/proxy-groups'
@@ -308,18 +309,6 @@ const CodeHint = ({ children }: { children: ReactNode }) => (
   </Box>
 )
 
-const Field = ({ label, children }: { label: string; children: ReactNode }) => (
-  <Box>
-    <Typography
-      component="div"
-      sx={{ fontSize: 13, fontWeight: 600, mb: 0.75 }}
-    >
-      {label}
-    </Typography>
-    {children}
-  </Box>
-)
-
 const SectionHeader = ({
   title,
   count,
@@ -346,7 +335,6 @@ const SectionHeader = ({
 export const RulesEditorViewer = (props: Props) => {
   const { groupsUid, mergeUid, profileUid, property, open, onClose } = props
   const { t } = useTranslation()
-  const themeMode = useThemeMode()
 
   const editorRef = useRef<MonacoEditorInstance | null>(null)
 
@@ -559,7 +547,6 @@ export const RulesEditorViewer = (props: Props) => {
     const data = await readProfileFile(profileUid) // исходный конфиг-файл
     const groupsData = await readProfileFile(groupsUid) // конфиг-файл groups
     const mergeData = await readProfileFile(mergeUid) // конфиг-файл merge
-    const globalMergeData = await readProfileFile('Merge') // конфиг-файл global merge
 
     const rulesObj = parseYamlSafe(data) as { rules: [] } | null
 
@@ -601,11 +588,7 @@ export const RulesEditorViewer = (props: Props) => {
       'rule-providers': Record<string, unknown>
     } | null
     const moreRuleSet = moreRuleSetObj?.['rule-providers'] || {}
-    const globalRuleSetObj = parseYamlSafe(globalMergeData) as {
-      'rule-providers': Record<string, unknown>
-    } | null
-    const globalRuleSet = globalRuleSetObj?.['rule-providers'] || {}
-    const ruleSet = Object.assign({}, originRuleSet, moreRuleSet, globalRuleSet)
+    const ruleSet = Object.assign({}, originRuleSet, moreRuleSet)
 
     const originSubRuleObj = parseYamlSafe(data) as {
       'sub-rules': Record<string, unknown>
@@ -615,11 +598,7 @@ export const RulesEditorViewer = (props: Props) => {
       'sub-rules': Record<string, unknown>
     } | null
     const moreSubRule = moreSubRuleObj?.['sub-rules'] || {}
-    const globalSubRuleObj = parseYamlSafe(globalMergeData) as {
-      'sub-rules': Record<string, unknown>
-    } | null
-    const globalSubRule = globalSubRuleObj?.['sub-rules'] || {}
-    const subRule = Object.assign({}, originSubRule, moreSubRule, globalSubRule)
+    const subRule = Object.assign({}, originSubRule, moreSubRule)
     // Группы подписки — первыми: список политик показывает их под своим
     // заголовком, а встроенные — под своим.
     setProxyPolicyList(
@@ -742,8 +721,7 @@ export const RulesEditorViewer = (props: Props) => {
   return (
     <Dialog
       open={open}
-      // Несохранённое Esc и щелчок мимо окна не теряют — только «Отмена».
-      onClose={dirty ? undefined : onClose}
+      onClose={dismissUnlessDirty(dirty, onClose)}
       maxWidth="xl"
       fullWidth
       disableEnforceFocus={!visualization}
@@ -788,7 +766,6 @@ export const RulesEditorViewer = (props: Props) => {
           height: 'calc(100vh - 185px)',
           position: 'relative',
           p: 0,
-          // Узкое окно: форма над списком, а не рядом с ним.
           [NARROW]: { flexDirection: 'column' },
         }}
       >
@@ -816,7 +793,10 @@ export const RulesEditorViewer = (props: Props) => {
                 scrollbarGutter: 'stable',
               }}
             >
-              <Field label={t('rules.modals.editor.form.labels.type')}>
+              <FormField
+                sx={{ py: 0 }}
+                label={t('rules.modals.editor.form.labels.type')}
+              >
                 <Autocomplete
                   size="small"
                   fullWidth
@@ -864,10 +844,13 @@ export const RulesEditorViewer = (props: Props) => {
                     setTried(false)
                   }}
                 />
-              </Field>
+              </FormField>
 
               {required ? (
-                <Field label={t('rules.modals.editor.form.labels.content')}>
+                <FormField
+                  sx={{ py: 0 }}
+                  label={t('rules.modals.editor.form.labels.content')}
+                >
                   {contentField}
                   {/* Подсказка и ошибка лежат в одной ячейке, видна одна из
                       них: высота не меняется, поля ниже не сдвигаются. */}
@@ -906,7 +889,7 @@ export const RulesEditorViewer = (props: Props) => {
                       {ruleError}
                     </Typography>
                   </Box>
-                </Field>
+                </FormField>
               ) : (
                 <Typography color="text.secondary" sx={{ fontSize: 12.5 }}>
                   {t(
@@ -915,7 +898,10 @@ export const RulesEditorViewer = (props: Props) => {
                 </Typography>
               )}
 
-              <Field label={t('rules.modals.editor.form.labels.proxyPolicy')}>
+              <FormField
+                sx={{ py: 0 }}
+                label={t('rules.modals.editor.form.labels.proxyPolicy')}
+              >
                 <Autocomplete
                   size="small"
                   fullWidth
@@ -969,7 +955,7 @@ export const RulesEditorViewer = (props: Props) => {
                   )}
                   onChange={(_, next) => setProxyPolicy(next)}
                 />
-              </Field>
+              </FormField>
 
               {ruleType.noResolve ? (
                 <FormControlLabel
@@ -991,7 +977,10 @@ export const RulesEditorViewer = (props: Props) => {
                 />
               ) : null}
 
-              <Field label={t('rules.modals.editor.form.labels.position')}>
+              <FormField
+                sx={{ py: 0 }}
+                label={t('rules.modals.editor.form.labels.position')}
+              >
                 <ToggleButtonGroup
                   exclusive
                   fullWidth
@@ -1021,7 +1010,7 @@ export const RulesEditorViewer = (props: Props) => {
                     ? t('rules.modals.editor.form.position.prependHint')
                     : t('rules.modals.editor.form.position.appendHint')}
                 </Typography>
-              </Field>
+              </FormField>
 
               <Box
                 sx={{
@@ -1143,29 +1132,13 @@ export const RulesEditorViewer = (props: Props) => {
             height="100%"
             language="yaml"
             value={text}
-            theme={themeMode === 'light' ? 'light' : 'vs-dark'}
             onMount={(editorInstance) => {
               editorRef.current = editorInstance
             }}
             options={{
-              tabSize: 2, // Размер отступа в зависимости от языка
-              minimap: {
-                enabled: document.documentElement.clientWidth >= 1500, // Показывать полосу minimap при достаточной ширине
-              },
-              mouseWheelZoom: true, // Ctrl + колесо мыши регулирует масштаб
-              quickSuggestions: {
-                strings: true, // Подсказки для строк
-                comments: true, // Подсказки для комментариев
-                other: true, // Подсказки для остального
-              },
               padding: {
                 top: 33, // Верхний отступ, чтобы не перекрывать snippets
               },
-              fontFamily: `Fira Code, JetBrains Mono, Roboto Mono, "Source Code Pro", Consolas, Menlo, Monaco, monospace, "Courier New", "Apple Color Emoji"${
-                getSystem() === 'windows' ? ', twemoji mozilla' : ''
-              }`,
-              fontLigatures: false, // Лигатуры
-              smoothScrolling: true, // Плавная прокрутка
             }}
             onChange={(value) => setText(value ?? '')}
           />

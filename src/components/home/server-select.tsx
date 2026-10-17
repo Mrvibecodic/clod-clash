@@ -223,7 +223,7 @@ export const ServerSelect = ({ open, onClose }: Props) => {
     const starred = favorites.has(node.name)
     const leaf = isGroup ? displayLeaf(records, node.name) : undefined
     const description = isGroup ? undefined : descriptions[node.name]
-    const freezeMark = isGroup ? undefined : freezeMarks[node.name]
+    const frozen = !isGroup && freezeMarks.has(node.name)
 
     return (
       <ListItemButton
@@ -293,7 +293,7 @@ export const ServerSelect = ({ open, onClose }: Props) => {
                   : typeText(node, current?.hide_badges))}
           </Typography>
         </Box>
-        <FreezeMark mark={freezeMark} />
+        <FreezeMark frozen={frozen} />
         {current?.disable_ping ? (
           <PingVerdict delay={delay} />
         ) : (
@@ -793,9 +793,8 @@ export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
     (current ? descriptions[current] : undefined)
   const subject = description ?? (leaf ? nameWithoutFlag(leaf) : undefined)
   // clod:freeze — значок того узла, через который сейчас идёт трафик.
-  const freezeMark =
-    (leaf ? freezeMarks[leaf] : undefined) ??
-    (current ? freezeMarks[current] : undefined)
+  const frozen =
+    (!!leaf && freezeMarks.has(leaf)) || (!!current && freezeMarks.has(current))
   const caption = currentProfile?.disable_ping
     ? (subject ?? '—')
     : usableDelay(shownDelay)
@@ -877,7 +876,7 @@ export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
         ) : null}
       </Box>
 
-      {statusRow ? null : <FreezeMark mark={freezeMark} />}
+      {statusRow ? null : <FreezeMark frozen={frozen} />}
       {currentProfile?.disable_ping ? (
         <PingVerdict delay={shownDelay} />
       ) : currentProfile?.latency_style === 'dot' ? (

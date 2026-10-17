@@ -53,7 +53,6 @@
     "menu": {
       "subscriptionPage": "Subscription page",
       "select": "انتخاب",
-      "shareQrCode": "Share QR Code",
       "editInfo": "ویرایش اطلاعات",
       "editFile": "ویرایش فایل",
       "editRules": "ویرایش قوانین",
@@ -239,9 +238,6 @@
     "confirmDelete": {
       "title": "تأیید حذف",
       "message": "این عملیات قابل برگشت نیست"
-    },
-    "qrViewer": {
-      "title": "Subscription QR Code"
     }
   }
 }

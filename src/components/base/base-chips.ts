@@ -1,4 +1,4 @@
-import { alpha, styled } from '@mui/material'
+import { alpha, type Palette, styled } from '@mui/material'
 
 const chipBase = {
   display: 'inline-block',
@@ -13,13 +13,17 @@ const chipBase = {
   verticalAlign: 'middle',
 } as const
 
-export const TypeChip = styled('span')(({ theme }) => ({
+export const typeChipStyle = (palette: Palette) => ({
   ...chipBase,
   flex: 'none',
-  backgroundColor: alpha(theme.palette.primary.main, 0.14),
-  color: theme.palette.primary.main,
+  backgroundColor: alpha(palette.primary.main, 0.14),
+  color: palette.primary.main,
   fontWeight: 600,
-}))
+})
+
+export const TypeChip = styled('span')(({ theme }) =>
+  typeChipStyle(theme.palette),
+)
 
 export const CodeChip = styled('span')(({ theme }) => ({
   ...chipBase,

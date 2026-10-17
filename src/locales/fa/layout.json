@@ -2,9 +2,7 @@
   "components": {
     "navigation": {
       "tabs": {
-        "home": "Home",
         "proxies": "پراکسی‌ها",
-        "profiles": "پروفایل‌ها",
         "connections": "اتصالات",
         "rules": "قوانین",
         "logs": "لاگ‌ها",

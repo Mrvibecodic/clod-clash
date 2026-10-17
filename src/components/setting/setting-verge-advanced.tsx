@@ -242,7 +242,7 @@ const SettingVergeAdvanced = ({ onError, variant }: Props) => {
               onCatch={onError}
               onFormat={(_e: any, checked: boolean) => checked}
               onChange={(checked) =>
-                mutateVerge({ ...verge, receive_prereleases: checked }, false)
+                mutateVerge({ ...verge, receive_prereleases: checked })
               }
               onGuard={async (checked) => {
                 await patchVerge({ receive_prereleases: checked })

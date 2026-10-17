@@ -31,7 +31,7 @@ describe('окна с несохранённым', () => {
     ]) {
       assert.match(
         source(path),
-        /onClose=\{dirty \? undefined : (onClose|handleClose)\}/,
+        /onClose=\{dismissUnlessDirty\(dirty, (onClose|handleClose)\)\}/,
         path,
       )
     }

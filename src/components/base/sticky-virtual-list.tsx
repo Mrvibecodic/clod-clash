@@ -41,7 +41,6 @@ export interface StickyVirtualListHandle {
 }
 
 export interface StickyVirtualListProps<TItem> {
-  initialOffset?: number
   items: TItem[]
   isGroupItem: (item: TItem, index: number) => boolean
   getItemKey: (item: TItem, index: number) => React.Key
@@ -51,9 +50,7 @@ export interface StickyVirtualListProps<TItem> {
   estimateItemHeight: number
   renderGroupItem: (item: TItem, index: number, stickyed: boolean) => ReactNode
   renderItem: (item: TItem, index: number) => ReactNode
-  className?: string
   style?: React.CSSProperties
-  overscan?: number
 }
 
 export const StickyVirtualList = forwardRef(function StickyVirtualListInner<
@@ -63,7 +60,6 @@ export const StickyVirtualList = forwardRef(function StickyVirtualListInner<
   ref: React.ForwardedRef<StickyVirtualListHandle>,
 ) {
   const {
-    initialOffset = 0,
     items,
     isGroupItem,
     getItemKey,
@@ -71,9 +67,7 @@ export const StickyVirtualList = forwardRef(function StickyVirtualListInner<
     estimateItemHeight,
     renderGroupItem,
     renderItem,
-    className,
     style,
-    overscan = 8,
   } = props
   const scrollParentRef = useRef<HTMLDivElement>(null)
   const getEstimatedItemHeight = useCallback(
@@ -114,12 +108,11 @@ export const StickyVirtualList = forwardRef(function StickyVirtualListInner<
   }, [getEstimatedItemHeight, items.length])
 
   const rowVirtualizer = useVirtualizer({
-    initialOffset,
     count: items.length,
     estimateSize: getEstimatedItemHeight,
     getItemKey: (index) => getItemKey(items[index], index),
     getScrollElement: () => scrollParentRef.current,
-    overscan,
+    overscan: 8,
   })
 
   const virtualItems = rowVirtualizer.getVirtualItems()
@@ -201,7 +194,6 @@ export const StickyVirtualList = forwardRef(function StickyVirtualListInner<
   return (
     <div
       ref={scrollParentRef}
-      className={className}
       style={{
         overflowY: 'auto',
         contain: 'strict',

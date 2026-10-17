@@ -25,7 +25,7 @@ import { MONO_INPUT } from '@/components/base/base-mono'
 import { EditorViewer } from '@/components/profile/editor-viewer'
 import { useChangeCount } from '@/hooks/use-change-count'
 import { useRuntimeConfig } from '@/hooks/use-clash'
-import { useSystemProxyState } from '@/hooks/use-system-proxy-state'
+import { PAC_URL, useSystemProxyState } from '@/hooks/use-system-proxy-state'
 import { useVerge } from '@/hooks/use-verge'
 import { useSystemData } from '@/providers/app-data-context'
 import { getNetworkInterfacesInfo, getSystemHostname } from '@/services/cmds'
@@ -55,8 +55,6 @@ const ipv6_part = '(?:[a-fA-F0-9:])+'
 const rLocal = `localhost|<local>|localdomain`
 
 const BYPASS_PREVIEW = 8
-
-const PAC_URL = `http://127.0.0.1:${import.meta.env.DEV ? 11233 : 33331}/commands/pac`
 
 const getValidReg = (isWindows: boolean) => {
   // 127.0.0.1 (full ipv4)

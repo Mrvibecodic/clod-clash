@@ -57,7 +57,6 @@
     "menu": {
       "subscriptionPage": "Страница подписки",
       "select": "Выбрать",
-      "shareQrCode": "Показать QR-код",
       "editInfo": "Изменить информацию",
       "editFile": "Изменить файл",
       "editRules": "Редактировать правила",
@@ -243,9 +242,6 @@
     "confirmDelete": {
       "title": "Подтвердите удаление",
       "message": "Это действие необратимо"
-    },
-    "qrViewer": {
-      "title": "QR-код подписки"
     }
   }
 }

@@ -53,7 +53,6 @@
     "menu": {
       "subscriptionPage": "Página de la suscripción",
       "select": "Usar",
-      "shareQrCode": "Share QR Code",
       "editInfo": "Editar información",
       "editFile": "Editar archivo",
       "editRules": "Editar reglas",
@@ -239,9 +238,6 @@
     "confirmDelete": {
       "title": "Confirmar eliminación",
       "message": "Esta operación no se puede deshacer"
-    },
-    "qrViewer": {
-      "title": "Subscription QR Code"
     }
   }
 }

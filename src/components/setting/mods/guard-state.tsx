@@ -5,7 +5,6 @@ import noop from '@/utils/noop'
 interface Props<Value> {
   value?: Value
   valueProps?: string
-  waitTime?: number
   onChange?: (value: Value) => void
   onFormat?: (...args: any[]) => Value
   onGuard?: (value: Value, oldValue: Value) => Promise<void>
@@ -18,7 +17,6 @@ export function GuardState<T>(props: Props<T>) {
     value,
     children,
     valueProps = 'value',
-    waitTime = 0, // debounce wait time default 0
     onGuard = noop,
     onCatch = noop,
     onChange = noop,
@@ -26,9 +24,6 @@ export function GuardState<T>(props: Props<T>) {
   } = props
 
   const lockRef = useRef(false)
-  const saveRef = useRef(value)
-  const lastRef = useRef(0)
-  const timeRef = useRef<any>(undefined)
 
   if (!isValidElement(children)) {
     return children as any
@@ -46,39 +41,12 @@ export function GuardState<T>(props: Props<T>) {
       const newValue = onFormat ? onFormat(...args) : (args[0] as T)
       // Сначала отражаем действие в UI
       onChange(newValue)
-
-      const now = Date.now()
-
-      // save the old value
-      if (waitTime <= 0 || now - lastRef.current >= waitTime) {
-        saveRef.current = value
-      }
-
-      lastRef.current = now
-
-      if (waitTime <= 0) {
-        await onGuard(newValue, value!)
-        lockRef.current = false
-      } else {
-        // debounce guard
-        clearTimeout(timeRef.current)
-
-        timeRef.current = setTimeout(async () => {
-          try {
-            await onGuard(newValue, saveRef.current!)
-          } catch (err: any) {
-            // Откат состояния
-            onChange(saveRef.current!)
-            onCatch(err)
-          } finally {
-            lockRef.current = false
-          }
-        }, waitTime)
-      }
+      await onGuard(newValue, value!)
     } catch (err: any) {
       // Откат состояния
-      onChange(saveRef.current!)
+      onChange(value!)
       onCatch(err)
+    } finally {
       lockRef.current = false
     }
   }

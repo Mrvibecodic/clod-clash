@@ -2,9 +2,7 @@
   "components": {
     "navigation": {
       "tabs": {
-        "home": "Home",
         "proxies": "الوكلاء",
-        "profiles": "الملفات الشخصية",
         "connections": "الاتصالات",
         "rules": "القواعد",
         "logs": "السجلات",

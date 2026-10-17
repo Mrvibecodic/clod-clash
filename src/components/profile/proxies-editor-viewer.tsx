@@ -42,9 +42,8 @@ import { ProxyItem } from '@/components/profile/proxy-item'
 import { useSeqDocument } from '@/hooks/use-seq-document'
 import { readProfileFile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
-import { useThemeMode } from '@/services/states'
 import type { MonacoEditorInstance } from '@/types/monaco'
-import getSystem from '@/utils/get-system'
+import { dismissUnlessDirty } from '@/utils/dialog-dismiss'
 import parseUri from '@/utils/uri-parser'
 import { parseYamlSafe } from '@/utils/yaml'
 
@@ -58,7 +57,6 @@ interface Props {
 export const ProxiesEditorViewer = (props: Props) => {
   const { profileUid, property, open, onClose } = props
   const { t } = useTranslation()
-  const themeMode = useThemeMode()
   const editorRef = useRef<MonacoEditorInstance | null>(null)
   const {
     loading,
@@ -329,8 +327,7 @@ export const ProxiesEditorViewer = (props: Props) => {
   return (
     <Dialog
       open={open}
-      // Несохранённое Esc и щелчок мимо окна не теряют — только «Отмена».
-      onClose={dirty ? undefined : onClose}
+      onClose={dismissUnlessDirty(dirty, onClose)}
       maxWidth="xl"
       fullWidth
       disableEnforceFocus={!visualization}
@@ -446,29 +443,13 @@ export const ProxiesEditorViewer = (props: Props) => {
             height="100%"
             language="yaml"
             value={text}
-            theme={themeMode === 'light' ? 'light' : 'vs-dark'}
             onMount={(editorInstance) => {
               editorRef.current = editorInstance
             }}
             options={{
-              tabSize: 2, // Размер отступа в зависимости от типа языка
-              minimap: {
-                enabled: document.documentElement.clientWidth >= 1500, // Показывать полосу прокрутки minimap при достаточной ширине
-              },
-              mouseWheelZoom: true, // Масштабирование колесом мыши при зажатом Ctrl
-              quickSuggestions: {
-                strings: true, // Подсказки для строк
-                comments: true, // Подсказки для комментариев
-                other: true, // Подсказки для остального
-              },
               padding: {
                 top: 33, // Верхний padding, чтобы не перекрывать snippets
               },
-              fontFamily: `Fira Code, JetBrains Mono, Roboto Mono, "Source Code Pro", Consolas, Menlo, Monaco, monospace, "Courier New", "Apple Color Emoji"${
-                getSystem() === 'windows' ? ', twemoji mozilla' : ''
-              }`,
-              fontLigatures: false, // Лигатуры
-              smoothScrolling: true, // Плавная прокрутка
             }}
             onChange={(value) => setText(value ?? '')}
           />

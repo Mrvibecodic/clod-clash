@@ -13,21 +13,17 @@ import {
   DialogTitle,
   IconButton,
 } from '@mui/material'
-import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { useLockFn } from 'ahooks'
-import { debounce } from 'lodash-es'
-import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseLoadingOverlay, MonacoEditor } from '@/components/base'
+import { useWindowControls } from '@/hooks/use-window'
 import { showNotice } from '@/services/notice-service'
-import { useThemeMode } from '@/services/states'
 import type { MonacoEditorInstance } from '@/types/monaco'
-import getSystem from '@/utils/get-system'
+import { dismissUnlessDirty } from '@/utils/dialog-dismiss'
 
-const appWindow = getCurrentWebviewWindow()
-
-type EditorLanguage = 'yaml' | 'javascript' | 'css'
+type EditorLanguage = 'yaml' | 'javascript'
 
 export interface EditorViewerProps {
   open: boolean
@@ -35,7 +31,6 @@ export interface EditorViewerProps {
   value: string
   language: EditorLanguage
   path: string
-  readOnly?: boolean
   loading?: boolean
   dirty?: boolean
   onChange?: (value: string) => void
@@ -49,7 +44,6 @@ export const EditorViewer = ({
   value,
   language,
   path,
-  readOnly = false,
   loading = false,
   dirty,
   onChange,
@@ -57,8 +51,7 @@ export const EditorViewer = ({
   onClose,
 }: EditorViewerProps) => {
   const { t } = useTranslation()
-  const themeMode = useThemeMode()
-  const [isMaximized, setIsMaximized] = useState(false)
+  const { maximized: isMaximized, toggleMaximize } = useWindowControls()
   const editorRef = useRef<MonacoEditorInstance | null>(null)
 
   const resolvedTitle = title ?? t('profiles.components.menu.editFile')
@@ -71,17 +64,9 @@ export const EditorViewer = ({
     }
   }, [value])
 
-  const syncMaximizedState = useCallback(async () => {
-    try {
-      setIsMaximized(await appWindow.isMaximized())
-    } catch {
-      setIsMaximized(false)
-    }
-  }, [])
-
   const handleSave = useLockFn(async () => {
     try {
-      if (!readOnly && (await onSave?.()) === false) return
+      if ((await onSave?.()) === false) return
       onClose()
     } catch (error) {
       showNotice.error(error)
@@ -98,7 +83,7 @@ export const EditorViewer = ({
 
   const handlePaste = useLockFn(async () => {
     try {
-      if (readOnly || loading || !editorRef.current) return
+      if (loading || !editorRef.current) return
 
       const text = await navigator.clipboard.readText()
       if (!text) return
@@ -135,42 +120,16 @@ export const EditorViewer = ({
 
   const handleToggleMaximize = useLockFn(async () => {
     try {
-      await appWindow.toggleMaximize()
-      await syncMaximizedState()
-      editorRef.current?.layout()
+      await toggleMaximize()
     } catch (error) {
       showNotice.error(error)
     }
   })
 
   useEffect(() => {
-    if (!open) return
-    void syncMaximizedState()
-  }, [open, syncMaximizedState])
-
-  useEffect(() => {
     if (!open || loading) return
     syncEditorValue()
   }, [loading, open, syncEditorValue])
-
-  useEffect(() => {
-    if (!open) return
-
-    const onResized = debounce(() => {
-      void syncMaximizedState()
-      try {
-        editorRef.current?.layout()
-      } catch {
-        // Ignore transient layout errors during window transitions.
-      }
-    }, 100)
-
-    const unlistenResized = appWindow.onResized(onResized)
-
-    return () => {
-      unlistenResized.then((unlisten) => unlisten())
-    }
-  }, [open, syncMaximizedState])
 
   useEffect(() => {
     return () => {
@@ -182,8 +141,7 @@ export const EditorViewer = ({
   return (
     <Dialog
       open={open}
-      // Несохранённое Esc и щелчок мимо окна не теряют — только «Отмена».
-      onClose={dirty ? undefined : handleClose}
+      onClose={dismissUnlessDirty(dirty, handleClose)}
       maxWidth="xl"
       fullWidth
       disableEnforceFocus
@@ -207,7 +165,6 @@ export const EditorViewer = ({
               path={path}
               value={value}
               language={language}
-              theme={themeMode === 'light' ? 'light' : 'vs-dark'}
               loading={null}
               saveViewState
               keepCurrentModel={false}
@@ -218,31 +175,10 @@ export const EditorViewer = ({
               onChange={(nextValue) => onChange?.(nextValue ?? '')}
               options={{
                 automaticLayout: true,
-                tabSize: 2,
-                minimap: {
-                  enabled:
-                    typeof document !== 'undefined' &&
-                    document.documentElement.clientWidth >= 1500,
-                },
-                mouseWheelZoom: true,
-                readOnly,
-                readOnlyMessage: {
-                  value: t('profiles.modals.editor.messages.readOnly'),
-                },
                 renderValidationDecorations: 'on',
-                quickSuggestions: {
-                  strings: true,
-                  comments: true,
-                  other: true,
-                },
                 padding: {
                   top: 33,
                 },
-                fontFamily: `Fira Code, JetBrains Mono, Roboto Mono, "Source Code Pro", Consolas, Menlo, Monaco, monospace, "Courier New", "Apple Color Emoji"${
-                  getSystem() === 'windows' ? ', twemoji mozilla' : ''
-                }`,
-                fontLigatures: false,
-                smoothScrolling: true,
               }}
             />
           )}
@@ -255,7 +191,6 @@ export const EditorViewer = ({
           <IconButton
             size="medium"
             color="inherit"
-            sx={{ display: readOnly ? 'none' : '' }}
             title={t('profiles.page.importForm.actions.paste')}
             disabled={loading}
             onClick={() => {
@@ -267,7 +202,6 @@ export const EditorViewer = ({
           <IconButton
             size="medium"
             color="inherit"
-            sx={{ display: readOnly ? 'none' : '' }}
             title={t('profiles.modals.editor.actions.format')}
             disabled={loading}
             onClick={() => {
@@ -293,19 +227,17 @@ export const EditorViewer = ({
 
       <DialogActions>
         <Button onClick={handleClose} variant="outlined">
-          {t(readOnly ? 'shared.actions.close' : 'shared.actions.cancel')}
+          {t('shared.actions.cancel')}
         </Button>
-        {!readOnly && (
-          <Button
-            onClick={() => {
-              void handleSave()
-            }}
-            variant="contained"
-            disabled={disableSave}
-          >
-            {t('shared.actions.save')}
-          </Button>
-        )}
+        <Button
+          onClick={() => {
+            void handleSave()
+          }}
+          variant="contained"
+          disabled={disableSave}
+        >
+          {t('shared.actions.save')}
+        </Button>
       </DialogActions>
     </Dialog>
   )

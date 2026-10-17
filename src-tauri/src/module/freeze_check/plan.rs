@@ -28,12 +28,9 @@ impl Verdict {
         }
     }
 
-    /// Слово пометки для фронта и трея; «работает» пометкой не показывается.
-    pub(crate) const fn mark(self) -> Option<&'static str> {
-        match self {
-            Self::Ok => None,
-            Self::Frozen => Some("frozen"),
-        }
+    /// Помечается ли узел для фронта и трея; «работает» пометкой не показывается.
+    pub(crate) const fn is_frozen(self) -> bool {
+        matches!(self, Self::Frozen)
     }
 }
 
@@ -154,8 +151,8 @@ mod tests {
         for word in ["dead", "unknown", ""] {
             assert_eq!(Verdict::parse(word), None, "{word}");
         }
-        assert_eq!(Verdict::Ok.mark(), None);
-        assert_eq!(Verdict::Frozen.mark(), Some("frozen"));
+        assert!(!Verdict::Ok.is_frozen());
+        assert!(Verdict::Frozen.is_frozen());
     }
 
     #[test]

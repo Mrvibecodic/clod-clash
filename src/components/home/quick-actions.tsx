@@ -25,12 +25,11 @@ interface RowProps {
   label: string
   icon: ReactNode
   checked: boolean
-  disabled?: boolean
   busy?: boolean
   onToggle: (next: boolean) => void
 }
 
-const Row = ({ label, icon, checked, disabled, busy, onToggle }: RowProps) => (
+const Row = ({ label, icon, checked, busy, onToggle }: RowProps) => (
   <Stack
     direction="row"
     sx={(theme) => ({
@@ -68,7 +67,7 @@ const Row = ({ label, icon, checked, disabled, busy, onToggle }: RowProps) => (
     {busy ? <CircularProgress size={14} thickness={5} /> : null}
     <Switch
       checked={checked}
-      disabled={disabled || busy}
+      disabled={busy}
       slotProps={{ input: { 'aria-label': label } }}
       onChange={(_event, next) => onToggle(next)}
     />

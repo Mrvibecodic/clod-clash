@@ -2,9 +2,7 @@
   "components": {
     "navigation": {
       "tabs": {
-        "home": "Главная",
         "proxies": "Прокси",
-        "profiles": "Подписки",
         "connections": "Соединения",
         "rules": "Правила",
         "logs": "Логи",

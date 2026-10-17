@@ -7,6 +7,8 @@ import { currentFirst } from '@/utils/current-first'
 import { debugLog } from '@/utils/debug'
 import { isValidUrl } from '@/utils/network'
 
+const LIST_CHECK_CONCURRENCY = 10
+
 const hashKey = (name: string, group: string) => `${group ?? ''}::${name}`
 
 export interface DelayUpdate {
@@ -551,10 +553,9 @@ class DelayManager {
     group: string,
     timeout: number,
     current?: string,
-    concurrency = 10,
   ) {
     debugLog(
-      `[DelayManager] Начало пакетного теста задержки, группа: ${group}, количество: ${list.length}, параллельность: ${concurrency}`,
+      `[DelayManager] Начало пакетного теста задержки, группа: ${group}, количество: ${list.length}, параллельность: ${LIST_CHECK_CONCURRENCY}`,
     )
     const proxies = currentFirst(list, current)
     const names = proxies.map((p) => p.name)
@@ -625,7 +626,7 @@ class DelayManager {
     }
 
     // Ограничиваем число одновременных запросов
-    const actualConcurrency = Math.min(concurrency, names.length, 10)
+    const actualConcurrency = Math.min(LIST_CHECK_CONCURRENCY, names.length)
     debugLog(`[DelayManager] Фактическая параллельность: ${actualConcurrency}`)
 
     const promiseList: Promise<void>[] = []

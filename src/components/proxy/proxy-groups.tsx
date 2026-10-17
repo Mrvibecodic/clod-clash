@@ -104,8 +104,7 @@ function useProxyRenderState(
     // означает, что ничего не совпало с фильтром, и мерить всё подряд, включая
     // отфильтрованное и встроенные DIRECT/REJECT, человек не просил.
     const collapsed =
-      (mode === 'rule' || mode === 'script') &&
-      getGroupHeadState(groupName)?.open === false
+      mode === 'rule' && getGroupHeadState(groupName)?.open === false
     const proxies = (
       rendered.length > 0
         ? rendered
