@@ -16,6 +16,7 @@ import {
   updateCoreGeo,
 } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
+import { revalidateQueries } from '@/services/query-client'
 import getSystem from '@/utils/get-system'
 
 import { ClashCoreViewer } from './mods/clash-core-viewer'
@@ -47,6 +48,10 @@ const SettingClash = ({ onError }: Props) => {
   const { verge, patchVerge } = useVerge()
 
   const { ipv6, mode, 'allow-lan': allowLan } = runtime ?? {}
+  // Раздачу просили, а сборка её не открыла: список адресов не читается.
+  // Тумблер стоит на просьбе — нажатие от неё отказывается.
+  const lanSharingHeld = ladder?.lan_sharing_held
+  const lanSharingAsked = Boolean(allowLan) || Boolean(lanSharingHeld)
 
   const { current } = useProfiles()
   const modeLocked = Boolean(current?.lock_mode)
@@ -180,6 +185,13 @@ const SettingClash = ({ onError }: Props) => {
 
       <SettingItem
         label={t('settings.sections.clash.form.fields.allowLan')}
+        secondary={
+          lanSharingHeld
+            ? t('settings.sections.clash.form.tooltips.lanSharingHeld', {
+                key: lanSharingHeld,
+              })
+            : undefined
+        }
         extra={
           <TooltipIcon
             title={t('settings.sections.clash.form.tooltips.networkInterface')}
@@ -192,11 +204,17 @@ const SettingClash = ({ onError }: Props) => {
         }
       >
         <GuardState
-          value={allowLan ?? false}
+          value={lanSharingAsked}
           valueProps="checked"
-          onCatch={onError}
+          onCatch={(err) => {
+            void revalidateQueries([['getRuntimeConfig'], ['getCoreLadder']])
+            onError(err)
+          }}
           onFormat={onSwitchFormat}
-          onChange={(e) => onChangeData({ 'allow-lan': e })}
+          onChange={(e) => {
+            onChangeData({ 'allow-lan': e })
+            mutateLadder({ lan_sharing_held: null })
+          }}
           onGuard={(e) => patchClash({ 'allow-lan': e })}
         >
           <Switch edge="end" />

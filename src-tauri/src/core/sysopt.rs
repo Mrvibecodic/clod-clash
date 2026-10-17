@@ -214,11 +214,11 @@ fn our_proxy_is_on_in(observed: &ObservedProxy, pac: bool, ours: &OurListener) -
     }
 }
 
-/// Пропавший выбранный адрес стоит уведомления, если прошлая запись знала о
-/// нём иное: один раз на пропажу, а не на каждую запись.
-fn the_missing_address_to_announce(before: Option<HostChoice>, now: Option<HostChoice>) -> Option<std::net::IpAddr> {
-    now.filter(|now| !now.present && before != Some(*now))
-        .map(|now| now.address)
+/// Негодный выбранный адрес (пропал у машины или не пускается списками
+/// раздачи) стоит уведомления, если прошлая запись знала о нём иное: один раз
+/// на перемену, а не на каждую запись.
+fn the_unusable_address_to_announce(before: Option<HostChoice>, now: Option<HostChoice>) -> Option<HostChoice> {
+    now.filter(|now| !now.usable() && before != Some(*now))
 }
 
 const fn nothing_of_ours_can_be_in_the_system(ever_applied: bool, wants_proxy: bool) -> bool {
@@ -716,17 +716,30 @@ impl Sysopt {
 
     fn remember_the_host_choice(&self, choice: Option<HostChoice>) {
         let before = std::mem::replace(&mut *self.host_choice.lock(), choice);
-        let Some(address) = the_missing_address_to_announce(before, choice) else {
+        let Some(unusable) = the_unusable_address_to_announce(before, choice) else {
             return;
         };
-        logging!(
-            warn,
-            Type::Core,
-            "proxy host {address} is not an address of this machine now, the system proxy points at the loopback"
-        );
+        let address = unusable.address;
+        if unusable.present {
+            logging!(
+                warn,
+                Type::Core,
+                "proxy host {address} is outside the LAN sharing lists, the system proxy points at the loopback"
+            );
+        } else {
+            logging!(
+                warn,
+                Type::Core,
+                "proxy host {address} is not an address of this machine now, the system proxy points at the loopback"
+            );
+        }
         AsyncHandler::spawn(move || async move {
-            crate::utils::notification::notify_event(crate::utils::notification::NotificationEvent::ProxyHostGone {
-                host: &address.to_string(),
+            use crate::utils::notification::{NotificationEvent, notify_event};
+            let host = address.to_string();
+            notify_event(if unusable.present {
+                NotificationEvent::ProxyHostRefused { host: &host }
+            } else {
+                NotificationEvent::ProxyHostGone { host: &host }
             })
             .await;
         });
@@ -1077,8 +1090,8 @@ mod tests {
         SysproxyTakeDown, SystemProxyOwnership, WantedProxy, everything_that_might_be_ours, format_bypass,
         how_the_system_proxy_stands, how_the_system_proxy_stands_with, nothing_of_ours_can_be_in_the_system,
         our_proxy_is_on_in, our_proxy_may_be_cleared, proxy_apply_steps, refused_by_the_system,
-        the_guard_has_just_stood_down, the_guard_may_keep_its_target, the_missing_address_to_announce,
-        the_system_holds_our_proxy_after, the_take_down_we_have_to_skip,
+        the_guard_has_just_stood_down, the_guard_may_keep_its_target, the_system_holds_our_proxy_after,
+        the_take_down_we_have_to_skip, the_unusable_address_to_announce,
     };
     use crate::config::HostChoice;
 
@@ -1147,22 +1160,25 @@ mod tests {
     }
 
     #[test]
-    fn a_missing_proxy_address_is_announced_once_per_loss() {
+    fn an_unusable_proxy_address_is_announced_once_per_change() {
         let lan: std::net::IpAddr = [192, 168, 1, 5].into();
-        let gone = Some(HostChoice {
-            address: lan,
-            present: false,
-        });
-        let back = Some(HostChoice {
-            address: lan,
-            present: true,
-        });
-        assert_eq!(the_missing_address_to_announce(None, gone), Some(lan));
-        assert_eq!(the_missing_address_to_announce(gone, gone), None);
-        assert_eq!(the_missing_address_to_announce(gone, back), None);
-        assert_eq!(the_missing_address_to_announce(back, gone), Some(lan));
-        assert_eq!(the_missing_address_to_announce(gone, None), None);
-        assert_eq!(the_missing_address_to_announce(None, back), None);
+        let choice = |present, admitted| {
+            Some(HostChoice {
+                address: lan,
+                present,
+                admitted,
+            })
+        };
+        let (gone, back, refused) = (choice(false, true), choice(true, true), choice(true, false));
+        assert_eq!(the_unusable_address_to_announce(None, gone), gone);
+        assert_eq!(the_unusable_address_to_announce(gone, gone), None);
+        assert_eq!(the_unusable_address_to_announce(gone, back), None);
+        assert_eq!(the_unusable_address_to_announce(back, gone), gone);
+        assert_eq!(the_unusable_address_to_announce(gone, None), None);
+        assert_eq!(the_unusable_address_to_announce(None, back), None);
+        assert_eq!(the_unusable_address_to_announce(back, refused), refused);
+        assert_eq!(the_unusable_address_to_announce(refused, refused), None);
+        assert_eq!(the_unusable_address_to_announce(refused, gone), gone);
     }
 
     #[test]

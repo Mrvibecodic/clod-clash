@@ -869,6 +869,7 @@ interface ICoreLadder {
   unified_delay?: boolean | null
   mixed_port?: number | null
   tun?: Record<string, unknown> | null
+  lan_sharing_held?: string | null
 }
 
 interface IVergeConfig {

@@ -31,10 +31,3 @@ export const findPortOutOfRange = (ports: readonly number[]) => {
 }
 
 export const LOOPBACK_PROXY_HOSTS = ['127.0.0.1', 'localhost']
-
-export const reachableProxyHost = (
-  host: string | undefined,
-  lanSharing: boolean,
-) => {
-  return lanSharing ? host || '127.0.0.1' : '127.0.0.1'
-}

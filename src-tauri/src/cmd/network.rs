@@ -33,6 +33,13 @@ pub async fn get_sys_proxy() -> CmdResult<Mapping> {
         "current_port".into(),
         u64::from(Config::effective_mixed_port().await).into(),
     );
+    map.insert(
+        "proxy_host".into(),
+        Config::our_proxy_host(&Config::verge().await.latest_arc())
+            .await
+            .as_str()
+            .into(),
+    );
     map.insert("ours".into(), OurListener::now().await.serves(host, *port).into());
 
     logging!(

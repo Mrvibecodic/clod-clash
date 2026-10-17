@@ -171,6 +171,7 @@
         },
         "tooltips": {
           "networkInterface": "Interfaz de red",
+          "lanSharingHeld": "Not on: {{key}} cannot be read as a list of networks",
           "ipv6": "IPv6 lo define la suscripción: el valor viene de su plantilla, así que este interruptor no tiene efecto. Si la suscripción no dice nada sobre IPv6, queda desactivado.",
           "unifiedDelay": "La latencia unificada mide dos veces en lugar de una para comparar con justicia nodos de distintos tipos. «Como en la suscripción» toma el valor de la plantilla de la suscripción, o «activado» si la plantilla no lo indica; el valor elegido aquí prevalece.",
           "logLevel": "Nivel de registro del núcleo (archivo del núcleo en la carpeta de registros). «Como en la suscripción» toma el nivel de la plantilla, o «info» si la plantilla no lo indica; el elegido aquí prevalece y sobrevive a las actualizaciones.",

@@ -28,29 +28,50 @@ pub async fn patch_clash(patch: &Mapping) -> Result<()> {
     candidate.patch_config(patch);
     let candidate = SharedDraft::new(Box::new(candidate));
 
-    if let Some(sharing) = patch.get("allow-lan") {
-        // clod:lan-share — правка пришла от человека, а не из подписки:
-        // запоминаем его слово, чтобы подписка его не перебивала.
-        let declined = !sharing.as_bool().unwrap_or(false);
-        if let Err(error) = commit_verge_edit(|verge| verge.lan_sharing_declined = Some(declined)).await {
-            logging!(
-                warn,
-                Type::Config,
-                "слово человека о раздаче в локальную сеть не записано: {error:#}"
-            );
-        }
-    }
-
     let clash = Config::clash().await;
-    let sources = Sources::default().with_clash(std::sync::Arc::clone(&candidate));
+    let verge = Config::verge().await;
+    let mut sources = Sources::default().with_clash(std::sync::Arc::clone(&candidate));
+    // clod:lan-share — правка пришла от человека, а не из подписки: его слово о
+    // раздаче едет в сборку вместе с правкой и остаётся, только если ядро её
+    // приняло, — чтобы подписка его не перебивала.
+    let word_on_sharing = patch
+        .get("allow-lan")
+        .map(|sharing| !sharing.as_bool().unwrap_or(false));
+    let _verge_serialized = match word_on_sharing {
+        Some(declined) => {
+            let serialized = PATCH_VERGE_LOCK.lock().await;
+            verge.edit_draft(|draft| draft.lan_sharing_declined = Some(declined));
+            sources = sources.with_verge(verge.latest_arc());
+            Some(serialized)
+        }
+        None => None,
+    };
     // Перезапуск ради адреса, секрета или CORS контроллера решает доставка —
     // по собранному конфигу, в своей очереди.
-    CoreManager::global()
+    let delivered = CoreManager::global()
         .update_config_committing(sources, Delivery::Reload, async || {
             clash.replace_shared(std::sync::Arc::clone(&candidate));
+            if word_on_sharing.is_some() {
+                verge.apply();
+            }
             Ok(())
         })
-        .await?;
+        .await;
+    if let Err(error) = delivered {
+        if word_on_sharing.is_some() {
+            verge.discard();
+        }
+        return Err(error);
+    }
+    if word_on_sharing.is_some()
+        && let Err(error) = verge.data_arc().save_file().await
+    {
+        logging!(
+            warn,
+            Type::Config,
+            "слово человека о раздаче в локальную сеть не записано: {error:#}"
+        );
+    }
     handle::Handle::refresh_clash();
 
     candidate.save_config().await?;
@@ -593,6 +614,24 @@ mod tests {
             how_to_serve_the_sys_proxy_flag(true, true, Some(true)),
             SysProxyStep::Write
         );
+    }
+
+    #[test]
+    fn the_word_on_sharing_stays_only_with_the_edit_the_core_accepted() {
+        let source = crate::utils::source_scan::production_code(include_str!("config.rs"));
+        let body = crate::utils::source_scan::fn_body(source, "pub async fn patch_clash(").unwrap_or_default();
+        assert!(!body.is_empty(), "тело patch_clash не найдено — тест ослеп");
+        assert!(
+            !body.contains("commit_verge_edit("),
+            "слово записано до приговора ядра: {body}"
+        );
+        assert!(
+            body.contains("with_verge(verge.latest_arc())"),
+            "сборка не видит слова: {body}"
+        );
+        let after_the_core = body.split("update_config_committing").nth(1).unwrap_or_default();
+        assert!(after_the_core.contains("verge.apply()"), "{body}");
+        assert!(after_the_core.contains("verge.discard()"), "{body}");
     }
 
     #[test]

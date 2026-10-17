@@ -7,7 +7,6 @@ import {
   MAX_PORT,
   MIN_PORT,
   portRangeVerdict,
-  reachableProxyHost,
 } from './ports.ts'
 
 test('находит первый повтор и называет именно его', () => {
@@ -61,12 +60,4 @@ test('нечисловое значение поля — негодный пор
     port: Number.NaN,
     verdict: 'tooLow',
   })
-})
-
-test('внешний хост прокси работает только при раздаче в локальную сеть', () => {
-  assert.equal(reachableProxyHost('192.168.1.5', false), '127.0.0.1')
-  assert.equal(reachableProxyHost('192.168.1.5', true), '192.168.1.5')
-  assert.equal(reachableProxyHost('localhost', false), '127.0.0.1')
-  assert.equal(reachableProxyHost('localhost', true), 'localhost')
-  assert.equal(reachableProxyHost(undefined, false), '127.0.0.1')
 })

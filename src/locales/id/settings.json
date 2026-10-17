@@ -171,6 +171,7 @@
         },
         "tooltips": {
           "networkInterface": "Antarmuka Jaringan",
+          "lanSharingHeld": "Not on: {{key}} cannot be read as a list of networks",
           "ipv6": "IPv6 ditentukan oleh langganan: nilainya berasal dari templat langganan, jadi sakelar ini tidak berpengaruh. Jika langganan tidak menyebut IPv6, fitur ini tetap mati.",
           "unifiedDelay": "Unified delay mengukur dua kali, bukan sekali, agar node dari jenis berbeda dibandingkan secara adil. “Seperti di langganan” mengambil nilai dari templat langganan, atau “aktif” bila templat tidak menentukannya; nilai yang dipilih di sini menang atas langganan.",
           "logLevel": "Tingkat log core (berkas core di folder log). “Seperti di langganan” mengambil tingkat dari templat langganan, atau “info” bila templat tidak menentukannya; tingkat yang dipilih di sini menang dan bertahan setelah pembaruan.",

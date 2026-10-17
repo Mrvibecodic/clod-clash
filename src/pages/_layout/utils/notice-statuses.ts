@@ -2,6 +2,7 @@ export const NOTICE_STATUSES = [
   'app_quit::core_still_running',
   'app_quit::in_progress',
   'clod_config::keys_discarded',
+  'clod_config::lan_list_unreadable',
   'clod_config::load_failed',
   'clod_sub::fallback_used',
   'clod_sub::url_migrated',

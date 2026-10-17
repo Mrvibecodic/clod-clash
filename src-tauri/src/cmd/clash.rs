@@ -22,6 +22,9 @@ pub struct CoreLadder {
     mixed_port: Option<u16>,
     /// Закреплённое в `tun` у нас: окно TUN показывает его, а не собранный конфиг.
     tun: Option<Mapping>,
+    /// Раздачу просил человек, а принятая сборка её не открыла: этот список
+    /// адресов не читается. Тумблер раздачи стоит на просьбе и говорит почему.
+    lan_sharing_held: Option<&'static str>,
 }
 
 fn read_ladder(clash: &Mapping) -> CoreLadder {
@@ -73,6 +76,7 @@ fn read_ladder(clash: &Mapping) -> CoreLadder {
         unified_delay,
         mixed_port,
         tun: clash.get("tun").and_then(serde_yaml_ng::Value::as_mapping).cloned(),
+        lan_sharing_held: None,
     }
 }
 
@@ -80,7 +84,9 @@ fn read_ladder(clash: &Mapping) -> CoreLadder {
 pub async fn get_core_ladder() -> CmdResult<CoreLadder> {
     let clash = Config::clash().await;
     let clash = clash.latest_arc();
-    Ok(read_ladder(&clash.0))
+    let mut ladder = read_ladder(&clash.0);
+    ladder.lan_sharing_held = Config::runtime().await.data_arc().unreadable_lan_list;
+    Ok(ladder)
 }
 
 #[tauri::command]

@@ -171,6 +171,7 @@
         },
         "tooltips": {
           "networkInterface": "Ağ Arayüzü",
+          "lanSharingHeld": "Not on: {{key}} cannot be read as a list of networks",
           "ipv6": "IPv6'yı abonelik belirler: değer aboneliğin şablonundan gelir, bu anahtarın etkisi yoktur. Abonelik IPv6 hakkında bir şey söylemiyorsa kapalı kalır.",
           "unifiedDelay": "Birleşik gecikme, farklı türdeki düğümleri adil karşılaştırmak için bir yerine iki ölçüm yapar. “Abonelikteki gibi” değeri abonelik şablonundan alır, şablon belirtmiyorsa “açık” olur; burada seçilen değer aboneliğe üstün gelir.",
           "logLevel": "Çekirdek günlük düzeyi (günlük klasöründeki çekirdek dosyası). “Abonelikteki gibi” düzeyi abonelik şablonundan alır, şablon belirtmiyorsa “info” olur; burada seçilen düzey aboneliğe üstün gelir ve güncellemelerden sonra korunur.",

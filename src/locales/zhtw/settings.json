@@ -171,6 +171,7 @@
         },
         "tooltips": {
           "networkInterface": "網路介面",
+          "lanSharingHeld": "Not on: {{key}} cannot be read as a list of networks",
           "ipv6": "IPv6 由訂閱決定：取值來自訂閱範本，此開關不起作用。訂閱未提及 IPv6 時保持關閉。",
           "unifiedDelay": "統一延遲會測量兩次而非一次，以公平比較不同類型的節點。「與訂閱一致」採用訂閱範本中的值，範本未指定時為「開啟」；此處選擇的值優先於訂閱。",
           "logLevel": "核心日誌等級（日誌目錄中的核心檔案）。「與訂閱一致」採用訂閱範本中的等級，範本未指定時為「info」；此處選擇的等級優先於訂閱，並在訂閱更新後保留。",

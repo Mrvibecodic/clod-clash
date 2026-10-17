@@ -171,6 +171,7 @@
         },
         "tooltips": {
           "networkInterface": "Network Interface",
+          "lanSharingHeld": "Not on: {{key}} cannot be read as a list of networks",
           "ipv6": "IPv6 is set by the subscription: the value comes from its template, so this switch has no effect. When the subscription says nothing about IPv6, it stays off.",
           "unifiedDelay": "Unified delay runs two measurements instead of one so that nodes of different types compare fairly. “As in the subscription” takes the value from the subscription template, or “on” when the template is silent; a value chosen here wins over the subscription.",
           "logLevel": "Core log level (the core file in the logs folder). “As in the subscription” takes the level from the subscription template, or “info” when the template is silent; a level chosen here wins over the subscription and survives its updates.",

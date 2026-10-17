@@ -29,6 +29,10 @@ pub enum NotificationEvent<'a> {
     ProxyHostGone {
         host: &'a str,
     },
+    /// Выбранный адрес для системного прокси не пускают списки раздачи.
+    ProxyHostRefused {
+        host: &'a str,
+    },
     #[cfg(target_os = "macos")]
     AppHidden,
     LogOpenFailed {
@@ -112,6 +116,13 @@ pub async fn notify_event<'a>(event: NotificationEvent<'a>) {
         NotificationEvent::ProxyHostGone { host } => {
             let title = clash_verge_i18n::t!("notifications.systemProxyToggled.title");
             let body = clash_verge_i18n::t!("notifications.proxyHostGone.body")
+                .replace("{host}", host)
+                .into();
+            notify(title, body);
+        }
+        NotificationEvent::ProxyHostRefused { host } => {
+            let title = clash_verge_i18n::t!("notifications.systemProxyToggled.title");
+            let body = clash_verge_i18n::t!("notifications.proxyHostRefused.body")
                 .replace("{host}", host)
                 .into();
             notify(title, body);

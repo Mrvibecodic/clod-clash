@@ -171,6 +171,7 @@
         },
         "tooltips": {
           "networkInterface": "Netzwerkschnittstelle",
+          "lanSharingHeld": "Not on: {{key}} cannot be read as a list of networks",
           "ipv6": "IPv6 wird vom Abonnement festgelegt: Der Wert stammt aus dessen Vorlage, dieser Schalter hat keine Wirkung. Sagt das Abonnement nichts zu IPv6, bleibt es aus.",
           "unifiedDelay": "Die einheitliche Verzögerung misst zweimal statt einmal, damit Knoten verschiedener Typen fair vergleichbar sind. „Wie im Abonnement“ nimmt den Wert aus der Abonnementvorlage, bei fehlendem Wert „ein“; ein hier gewählter Wert hat Vorrang.",
           "logLevel": "Protokollstufe des Kerns (Kerndatei im Logordner). „Wie im Abonnement“ nimmt die Stufe aus der Abonnementvorlage, bei fehlender Stufe „info“; eine hier gewählte Stufe hat Vorrang und überlebt Aktualisierungen.",

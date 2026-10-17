@@ -1,9 +1,15 @@
-import { Fragment, type KeyboardEvent, createElement } from 'react'
+import { Fragment, createElement } from 'react'
 
-import { getProfiles, patchVergeConfig } from '@/services/cmds'
+import {
+  getProfiles,
+  patchClashConfig,
+  patchVergeConfig,
+} from '@/services/cmds'
 import { collapseBy, hideNotice, showNotice } from '@/services/notice-service'
 import { getCacheData, revalidateQueries } from '@/services/query-client'
 import getSystem from '@/utils/get-system'
+import { runNoticeAction } from '@/utils/notice-action'
+import { pressable } from '@/utils/pressable'
 import { resolveSimpleMode } from '@/utils/simple-mode'
 
 import { isNoticeStatus, type NoticeStatus } from './notice-statuses'
@@ -16,45 +22,38 @@ type TranslateFunction = (
   params?: Record<string, unknown>,
 ) => string
 
-const offerToTurnTheProxyOff = (
-  messageKey: string,
-  t: TranslateFunction,
+/**
+ * Уведомление с действием: текст и ссылка-кнопка (мышь и клавиатура).
+ * Действие удалось — уведомление закрывается, нет — причина отдельной ошибкой.
+ */
+const offerAnAction = (
+  kind: 'error' | 'warning',
+  text: string,
+  label: string,
+  act: () => unknown,
   collapseKey: string,
 ): number => {
   let id = 0
-  const disableProxy = () => {
-    patchVergeConfig({ enable_system_proxy: false })
-      .then(() => {
-        hideNotice(id)
-        return revalidateQueries([
-          ['getVergeConfig'],
-          ['getSystemProxy'],
-          ['getAutotemProxy'],
-        ])
-      })
-      .catch((err) => showNotice.error(err))
-  }
-  id = showNotice.error(
+  const run = () =>
+    void runNoticeAction(
+      act,
+      () => hideNotice(id),
+      (err) => showNotice.error(err),
+    )
+  id = showNotice[kind](
     createElement(
       Fragment,
       null,
-      t(messageKey),
+      text,
       ' ',
       createElement(
         'a',
         {
-          role: 'button',
-          tabIndex: 0,
-          onClick: disableProxy,
-          onKeyDown: (event: KeyboardEvent<HTMLAnchorElement>) => {
-            if (event.key === 'Enter' || event.key === ' ') {
-              event.preventDefault()
-              disableProxy()
-            }
-          },
+          ...pressable(run),
+          onClick: run,
           style: { cursor: 'pointer', textDecoration: 'underline' },
         },
-        t('settings.sections.system.notifications.sysproxy.turnOffAction'),
+        label,
       ),
     ),
     collapseBy(collapseKey),
@@ -62,6 +61,26 @@ const offerToTurnTheProxyOff = (
   )
   return id
 }
+
+const offerToTurnTheProxyOff = (
+  messageKey: string,
+  t: TranslateFunction,
+  collapseKey: string,
+): number =>
+  offerAnAction(
+    'error',
+    t(messageKey),
+    t('settings.sections.system.notifications.sysproxy.turnOffAction'),
+    () =>
+      patchVergeConfig({ enable_system_proxy: false }).then(() =>
+        revalidateQueries([
+          ['getVergeConfig'],
+          ['getSystemProxy'],
+          ['getAutotemProxy'],
+        ]),
+      ),
+    collapseKey,
+  )
 
 export const handleNoticeMessage = (
   status: string,
@@ -71,40 +90,14 @@ export const handleNoticeMessage = (
 ): number | undefined => {
   // Порт держит кто-то другой — ядро на нём не слушает. Смена порта лечит
   // любой случай, поэтому ссылка одна на все тексты.
-  const offerToChangeThePort = (text: string, collapseKey: string): number => {
-    let id = 0
-    const openSettings = () => {
-      hideNotice(id)
-      void navigate('/settings')
-    }
-    id = showNotice.error(
-      createElement(
-        Fragment,
-        null,
-        text,
-        ' ',
-        createElement(
-          'a',
-          {
-            role: 'button',
-            tabIndex: 0,
-            onClick: openSettings,
-            onKeyDown: (event: KeyboardEvent<HTMLAnchorElement>) => {
-              if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault()
-                openSettings()
-              }
-            },
-            style: { cursor: 'pointer', textDecoration: 'underline' },
-          },
-          t('settings.sections.system.notifications.core.portBusyAction'),
-        ),
-      ),
-      collapseBy(collapseKey),
-      0,
+  const offerToChangeThePort = (text: string, collapseKey: string): number =>
+    offerAnAction(
+      'error',
+      text,
+      t('settings.sections.system.notifications.core.portBusyAction'),
+      () => navigate('/settings'),
+      collapseKey,
     )
-    return id
-  }
 
   // Подписка по ссылке провайдера — на Главную, к кнопке «Подключить»;
   // список подписок нужен только в расширенном режиме, когда их несколько.
@@ -170,6 +163,19 @@ export const handleNoticeMessage = (
         'shared.feedback.notifications.common.keysDiscarded',
         { keys: msg },
         0,
+      ),
+    'clod_config::lan_list_unreadable': () =>
+      offerAnAction(
+        'warning',
+        t('shared.feedback.notifications.common.lanListUnreadable', {
+          key: msg,
+        }),
+        t('shared.feedback.notifications.common.lanSharingOffAction'),
+        () =>
+          patchClashConfig({ 'allow-lan': false }).then(() =>
+            revalidateQueries([['getRuntimeConfig'], ['getCoreLadder']]),
+          ),
+        `clod_config::lan_list_unreadable|${msg}`,
       ),
     update_failed: () => showNotice.error(msg),
     'update::breaking_changes': () =>

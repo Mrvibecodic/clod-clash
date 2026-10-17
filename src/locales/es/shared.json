@@ -132,6 +132,8 @@
         "saveFailed": "Failed to save configuration",
         "configLoadFailed": "No se pudo leer un archivo de configuración: {{files}}. Se guardó una copia junto a él con el nombre «.unreadable-<fecha>»: no se ha perdido nada. Las suscripciones y los ajustes pueden verse restablecidos; restaure el archivo desde esa copia o desde una copia de seguridad.",
         "keysDiscarded": "Writes to the keys {{keys}} were discarded: they are managed by the app settings, or the DNS page refers to a rule set the subscription does not have. Change them in the settings instead.",
+        "lanListUnreadable": "LAN sharing is not on: {{key}} cannot be read as a list of networks. It stays off until the list is fixed in the subscription or its edits.",
+        "lanSharingOffAction": "Turn LAN sharing off",
         "supportBundleCopied": "Support report copied — subscription addresses and tokens are masked",
         "logsExported": "Archivo de registros guardado — direcciones de suscripción y tokens enmascarados"
       }

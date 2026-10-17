@@ -12,7 +12,6 @@ import {
   getRules,
 } from 'tauri-plugin-mihomo-api'
 
-import { useRuntimeConfig } from '@/hooks/use-clash'
 import { useRefreshOnReturn } from '@/hooks/use-refresh-on-return'
 import { useVerge } from '@/hooks/use-verge'
 import { router } from '@/pages/_routers'
@@ -28,7 +27,6 @@ import {
   useQuery,
 } from '@/services/query-client'
 import { type ProxiesStamps, nextProxies } from '@/utils/next-proxies'
-import { reachableProxyHost } from '@/utils/ports'
 
 import {
   ClashConfigContext,
@@ -124,7 +122,6 @@ export const AppDataProvider = ({
   children: React.ReactNode
 }) => {
   const { verge } = useVerge()
-  const { data: runtime } = useRuntimeConfig()
 
   // clod: окно вернулось из трея — общие данные ядра перечитываем сразу, не
   // дожидаясь первого тика опроса: свёрнутое окно ничего не опрашивает.
@@ -350,12 +347,8 @@ export const AppDataProvider = ({
           return systemServer
         } else {
           // Системный адрес недействителен, возвращаем ожидаемый адрес прокси
-          const proxyHost = reachableProxyHost(
-            verge.proxy_host,
-            runtime?.['allow-lan'] ?? false,
-          )
           return sysproxy?.current_port
-            ? `${proxyHost}:${sysproxy.current_port}`
+            ? `${sysproxy.proxy_host}:${sysproxy.current_port}`
             : '-'
         }
       }
@@ -365,7 +358,7 @@ export const AppDataProvider = ({
       sysproxy,
       systemProxyAddress: calculateSystemProxyAddress(),
     }
-  }, [sysproxy, verge, runtime])
+  }, [sysproxy, verge])
 
   const refreshersValue = useMemo(
     () => ({

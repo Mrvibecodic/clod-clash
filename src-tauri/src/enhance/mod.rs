@@ -762,12 +762,23 @@ const LOOPBACK_V6_PREFIX: &str = "::1/128";
 struct PrefixList {
     /// Записи, которые разобрались, в том же порядке.
     kept: Vec<std::string::String>,
-    /// Разобрались ли ВСЕ записи: одна негодная роняет старт ядра.
+    /// Разобрались ли ВСЕ записи: одна негодная роняет старт ядра. Не список
+    /// вовсе (строка, словарь) — не разобрался целиком.
     whole: bool,
 }
 
+/// `None` — ключа нет. `null` ядро читает как пустой список, так и мы.
 fn read_prefix_list(value: Option<&Value>) -> Option<PrefixList> {
-    let entries = value?.as_sequence()?;
+    let entries = match value? {
+        Value::Null => {
+            return Some(PrefixList {
+                kept: Vec::new(),
+                whole: true,
+            });
+        }
+        Value::Sequence(entries) => entries,
+        _ => return Some(PrefixList::default()),
+    };
     let mut kept = Vec::with_capacity(entries.len());
     let mut whole = true;
     for entry in entries {
@@ -813,6 +824,8 @@ enum LanSharing {
         allowed: Option<Vec<std::string::String>>,
         disallowed: Option<Vec<std::string::String>>,
     },
+    /// Раздачу просят, но этот список не читается — раздачи нет, как при `Off`.
+    Unreadable(&'static str),
 }
 
 /// Можно ли открыть раздачу по одной лишь просьбе подписки.
@@ -831,9 +844,6 @@ fn the_subscription_may_open_sharing(allowed: Option<&PrefixList>) -> bool {
 
 /// Список, в котором приложение наверняка достучится до собственного прокси.
 fn with_the_loopback(mut list: Vec<std::string::String>) -> Vec<std::string::String> {
-    if list.is_empty() {
-        return list;
-    }
     let prefixes = parsed(&list);
     if !prefixes.iter().any(|prefix| prefix.contains(LOOPBACK_V4)) {
         list.push(LOOPBACK_V4_PREFIX.to_owned());
@@ -842,6 +852,21 @@ fn with_the_loopback(mut list: Vec<std::string::String>) -> Vec<std::string::Str
         list.push(LOOPBACK_V6_PREFIX.to_owned());
     }
     list
+}
+
+/// Список, который нельзя ни исполнить, ни снять: снятый, он пустил бы больше,
+/// чем просили. Разрешённых — ни одной годной сети (строка, `null`, `[]`,
+/// сплошь негодные записи): без списка ядро пускает весь мир. Запрещённых —
+/// хоть одна запись не разобралась: без неё запрещено меньше задуманного.
+fn unreadable_list(request: &LanRequest) -> Option<&'static str> {
+    if request.allowed.as_ref().is_some_and(|list| list.kept.is_empty()) {
+        return Some("lan-allowed-ips");
+    }
+    request
+        .disallowed
+        .as_ref()
+        .is_some_and(|list| !list.whole)
+        .then_some("lan-disallowed-ips")
 }
 
 /// Из запрещённых убираем всё, что накрывает петлю: запрет сильнее разрешения.
@@ -865,12 +890,14 @@ fn decide_lan_sharing(user_wants: bool, user_declined: bool, request: &LanReques
     if !sharing {
         return LanSharing::Off;
     }
+    if let Some(key) = unreadable_list(request) {
+        return LanSharing::Unreadable(key);
+    }
 
     let allowed = request
         .allowed
         .as_ref()
-        .map(|list| with_the_loopback(list.kept.clone()))
-        .filter(|list| !list.is_empty());
+        .map(|list| with_the_loopback(list.kept.clone()));
     let disallowed = request
         .disallowed
         .as_ref()
@@ -878,6 +905,34 @@ fn decide_lan_sharing(user_wants: bool, user_declined: bool, request: &LanReques
         .filter(|list| !list.is_empty());
 
     LanSharing::On { allowed, disallowed }
+}
+
+/// Пустит ли ядро соединение с этого адреса по спискам раздачи собранного
+/// конфига: нет списка разрешённых — пускает всех, запрет сильнее разрешения.
+pub(crate) fn lan_lists_admit(config: &Mapping, address: std::net::IpAddr) -> bool {
+    let address = address.to_canonical();
+    let holds = |key: &str| {
+        config.get(key).and_then(Value::as_sequence).is_some_and(|list| {
+            list.iter()
+                .filter_map(Value::as_str)
+                .filter_map(LanPrefix::parse)
+                .any(|prefix| prefix.contains(address))
+        })
+    };
+    (!config.contains_key("lan-allowed-ips") || holds("lan-allowed-ips")) && !holds("lan-disallowed-ips")
+}
+
+/// Негодный список раздачи — в журнал всегда, человеку — когда раздачу просил он.
+fn the_unreadable_lan_list(sharing: &LanSharing, user_wants: bool) -> Option<&'static str> {
+    let LanSharing::Unreadable(key) = *sharing else {
+        return None;
+    };
+    logging!(
+        warn,
+        Type::Config,
+        "раздача в локальную сеть не открыта: {key} не читается как список сетей"
+    );
+    user_wants.then_some(key)
 }
 
 fn put_list(config: &mut Mapping, key: &str, list: Option<Vec<std::string::String>>) {
@@ -894,7 +949,7 @@ fn put_list(config: &mut Mapping, key: &str, list: Option<Vec<std::string::Strin
 
 fn apply_lan_sharing(mut config: Mapping, decision: LanSharing) -> Mapping {
     match decision {
-        LanSharing::Off => {
+        LanSharing::Off | LanSharing::Unreadable(_) => {
             config.insert(Value::from("allow-lan"), Value::from(false));
             config.remove("lan-allowed-ips");
             config.remove("lan-disallowed-ips");
@@ -2025,6 +2080,7 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
             "подписка открыла раздачу в локальную сеть под своим списком адресов"
         );
     }
+    let unreadable_lan_list = the_unreadable_lan_list(&sharing, user_wants_sharing);
     let config = apply_lan_sharing(config, sharing);
     let config = ensure_store_selected(config);
 
@@ -2058,6 +2114,7 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
         dns_desire,
         dns_base: Some(dns_base),
         discarded_keys,
+        unreadable_lan_list,
         sentinel_report,
         own_nodes,
     })
@@ -2653,14 +2710,14 @@ mod tests {
     fn allowed_of(decision: &super::LanSharing) -> Vec<std::string::String> {
         match decision {
             super::LanSharing::On { allowed, .. } => allowed.clone().unwrap_or_default(),
-            super::LanSharing::Off => Vec::new(),
+            super::LanSharing::Off | super::LanSharing::Unreadable(_) => Vec::new(),
         }
     }
 
     fn disallowed_of(decision: &super::LanSharing) -> Vec<std::string::String> {
         match decision {
             super::LanSharing::On { disallowed, .. } => disallowed.clone().unwrap_or_default(),
-            super::LanSharing::Off => Vec::new(),
+            super::LanSharing::Off | super::LanSharing::Unreadable(_) => Vec::new(),
         }
     }
 
@@ -2832,6 +2889,99 @@ mod tests {
         );
 
         assert_eq!(disallowed_of(&decision), vec!["192.168.1.50/32".to_owned()]);
+    }
+
+    /// Список не того вида — не «списка нет»: снятый ключ отдал бы ядру его
+    /// умолчание, весь мир. Раздача не открывается и по слову человека.
+    #[test]
+    fn an_unreadable_list_keeps_sharing_closed_even_for_the_user() {
+        for text in [
+            r#"{lan-allowed-ips: "192.168.1.0/24"}"#,
+            "{lan-allowed-ips: null}",
+            "{lan-allowed-ips: []}",
+            "{lan-allowed-ips: 7}",
+            r#"{lan-allowed-ips: ["мусор", "192.168.1.0/024"]}"#,
+        ] {
+            assert_eq!(
+                super::decide_lan_sharing(true, false, &lan(text)),
+                super::LanSharing::Unreadable("lan-allowed-ips"),
+                "{text}"
+            );
+        }
+        for text in [
+            r#"{lan-disallowed-ips: "192.168.1.50/32"}"#,
+            "{lan-disallowed-ips: {at: home}}",
+            r#"{lan-disallowed-ips: ["192.168.1.50/32", "мусор"]}"#,
+        ] {
+            assert_eq!(
+                super::decide_lan_sharing(true, false, &lan(text)),
+                super::LanSharing::Unreadable("lan-disallowed-ips"),
+                "{text}"
+            );
+        }
+        let asking =
+            lan(r#"{allow-lan: true, lan-allowed-ips: ["192.168.1.0/24"], lan-disallowed-ips: "192.168.1.50/32"}"#);
+        assert!(!shared(&super::decide_lan_sharing(false, false, &asking)));
+
+        let config = super::apply_lan_sharing(
+            mapping(r#"{allow-lan: true, lan-allowed-ips: "192.168.1.0/24"}"#),
+            super::LanSharing::Unreadable("lan-allowed-ips"),
+        );
+        assert_eq!(
+            config.get("allow-lan").and_then(serde_yaml_ng::Value::as_bool),
+            Some(false)
+        );
+        assert!(!config.contains_key("lan-allowed-ips"));
+    }
+
+    /// Пустой запрет ядро читает как «никого не запрещать», так и мы; разрешённые
+    /// с негодной записью сужаются до годных, как и раньше.
+    #[test]
+    fn an_empty_ban_and_a_partly_readable_allowance_still_share() {
+        for text in ["{lan-disallowed-ips: null}", "{lan-disallowed-ips: []}", "{}"] {
+            let decision = super::decide_lan_sharing(true, false, &lan(text));
+            assert!(shared(&decision), "{text}");
+            assert!(disallowed_of(&decision).is_empty(), "{text}");
+        }
+        let decision =
+            super::decide_lan_sharing(true, false, &lan(r#"{lan-allowed-ips: ["192.168.1.0/24", "мусор"]}"#));
+        assert_eq!(
+            allowed_of(&decision),
+            vec![
+                "192.168.1.0/24".to_owned(),
+                "127.0.0.0/8".to_owned(),
+                "::1/128".to_owned()
+            ]
+        );
+    }
+
+    /// Свой же адрес машины ядро пускает только по спискам раздачи — хост
+    /// прокси вне их отрезал бы машину от собственного прокси.
+    #[test]
+    fn the_lists_admit_an_address_as_the_core_would() {
+        let admits = |config: &str, ip: &str| ip.parse().is_ok_and(|ip| super::lan_lists_admit(&mapping(config), ip));
+        let narrow = r#"{lan-allowed-ips: ["192.168.1.0/24", "127.0.0.0/8"]}"#;
+        assert!(admits(narrow, "192.168.1.5"));
+        assert!(admits(narrow, "::ffff:192.168.1.5"), "ядро снимает с адреса v4-обёртку");
+        assert!(!admits(narrow, "172.20.0.1"));
+        assert!(
+            admits("{allow-lan: true}", "172.20.0.1"),
+            "без списка ядро пускает всех"
+        );
+        let banned = r#"{lan-disallowed-ips: ["172.20.0.1/32"]}"#;
+        assert!(!admits(banned, "172.20.0.1"));
+        assert!(admits(banned, "172.20.0.2"));
+    }
+
+    #[test]
+    fn an_unreadable_list_is_announced_only_when_the_user_asked_for_sharing() {
+        let unreadable = super::LanSharing::Unreadable("lan-allowed-ips");
+        assert_eq!(
+            super::the_unreadable_lan_list(&unreadable, true),
+            Some("lan-allowed-ips")
+        );
+        assert_eq!(super::the_unreadable_lan_list(&unreadable, false), None);
+        assert_eq!(super::the_unreadable_lan_list(&super::LanSharing::Off, true), None);
     }
 
     /// Боевой шаблон провайдера: раздача и продуманный список из шести подсетей.

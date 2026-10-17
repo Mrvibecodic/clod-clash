@@ -30,6 +30,8 @@ notifications:
     body: "終了時にシステムプロキシを解除できませんでした。まだ本アプリを指しているため、システム設定で解除するかアプリを再起動するまで通信できません。"
   proxyHostGone:
     body: "This computer has no address {host} right now, so the system proxy points at 127.0.0.1. It goes back to {host} once the address is back."
+  proxyHostRefused:
+    body: "The LAN sharing address lists do not let {host} in, so the system proxy points at 127.0.0.1. It goes back to {host} once the lists let it in."
   coreUpdateRolledBack:
     body: The new core kept crashing after the update, so the previous one is back.
   appHidden:

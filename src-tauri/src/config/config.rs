@@ -159,12 +159,13 @@ fn mixed_port_in(config: Option<&Mapping>) -> Option<u16> {
         .map(IClashTemp::guard_mixed_port)
 }
 
-/// Выбранный хост прокси — IP-адрес (не петля и не «все адреса») — и был ли он у
-/// машины, когда его проверяли.
+/// Выбранный хост прокси — IP-адрес (не петля и не «все адреса») — был ли он у
+/// машины, когда его проверяли, и пускает ли ядро соединения с него.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct HostChoice {
     pub address: std::net::IpAddr,
     pub present: bool,
+    pub admitted: bool,
 }
 
 /// Хост нашего прокси сейчас и выбранный адрес, от которого он зависит.
@@ -173,7 +174,11 @@ pub struct ProxyHostNow {
     pub choice: Option<HostChoice>,
 }
 
-fn host_choice(configured: &str, machine_has: impl FnOnce(std::net::IpAddr) -> bool) -> Option<HostChoice> {
+fn host_choice(
+    configured: &str,
+    machine_has: impl FnOnce(std::net::IpAddr) -> bool,
+    admits: impl FnOnce(std::net::IpAddr) -> bool,
+) -> Option<HostChoice> {
     let address = configured
         .trim_start_matches('[')
         .trim_end_matches(']')
@@ -183,6 +188,7 @@ fn host_choice(configured: &str, machine_has: impl FnOnce(std::net::IpAddr) -> b
     Some(HostChoice {
         address,
         present: machine_has(address),
+        admitted: admits(address),
     })
 }
 
@@ -198,6 +204,11 @@ fn machine_has(address: std::net::IpAddr) -> bool {
 }
 
 impl HostChoice {
+    /// Системе можно отдать этот адрес: он есть у машины, и ядро с него пускает.
+    pub const fn usable(self) -> bool {
+        self.present && self.admitted
+    }
+
     /// Адрес появился или пропал с тех пор, как его проверили. Блокирующий вызов.
     pub fn has_turned(self) -> bool {
         machine_has(self.address) != self.present
@@ -270,10 +281,11 @@ impl Config {
             .unwrap_or(false)
     }
 
-    /// Хост нашего прокси: выбранный, если ядро раздаёт в сеть и адрес у машины
-    /// есть, иначе петля — ядро с раздачей слушает и её. Адрес адаптера, которого
-    /// больше нет (новая подсеть WSL после перезагрузки, другая сеть), вёл бы в
-    /// никуда. Имя хоста и петля не проверяются.
+    /// Хост нашего прокси: выбранный, если ядро раздаёт в сеть, адрес у машины
+    /// есть и списки раздачи его пускают, иначе петля — ядро с раздачей слушает и
+    /// её. Адрес адаптера, которого больше нет (новая подсеть WSL после
+    /// перезагрузки, другая сеть), вёл бы в никуда, а адрес вне списков ядро
+    /// отвергло бы. Имя хоста и петля не проверяются.
     pub async fn proxy_host_now(verge: &IVerge) -> ProxyHostNow {
         if !Self::effective_allow_lan().await {
             return ProxyHostNow {
@@ -283,11 +295,18 @@ impl Config {
         }
         let configured: String = verge.proxy_host.as_deref().unwrap_or(LOOPBACK_PROXY_HOST).into();
         let probed = configured.clone();
-        let choice = AsyncHandler::spawn_blocking(move || host_choice(&probed, machine_has))
+        let runtime = Self::runtime().await.data_arc();
+        let admits = move |address| {
+            runtime
+                .config
+                .as_ref()
+                .is_none_or(|config| crate::enhance::lan_lists_admit(config, address))
+        };
+        let choice = AsyncHandler::spawn_blocking(move || host_choice(&probed, machine_has, admits))
             .await
             .ok()
             .flatten();
-        let host = if choice.is_some_and(|choice| !choice.present) {
+        let host = if choice.is_some_and(|choice| !choice.usable()) {
             LOOPBACK_PROXY_HOST.into()
         } else {
             configured
@@ -711,23 +730,32 @@ mod tests {
     fn a_proxy_host_the_machine_no_longer_has_gives_way_to_the_loopback() {
         let lan: std::net::IpAddr = [192, 168, 1, 5].into();
         assert_eq!(
-            host_choice("192.168.1.5", |_| false),
+            host_choice("192.168.1.5", |_| false, |_| true),
             Some(HostChoice {
                 address: lan,
-                present: false
+                present: false,
+                admitted: true
             })
         );
         assert_eq!(
-            host_choice("192.168.1.5", |address| address == lan),
+            host_choice("192.168.1.5", |address| address == lan, |_| true),
             Some(HostChoice {
                 address: lan,
-                present: true
+                present: true,
+                admitted: true
             })
         );
-        assert!(host_choice("[fe80::1]", |_| false).is_some_and(|choice| !choice.present));
+        assert!(host_choice("[fe80::1]", |_| false, |_| true).is_some_and(|choice| !choice.usable()));
         for kept in ["127.0.0.1", "0.0.0.0", "::1", "localhost", "example.com", ""] {
-            assert_eq!(host_choice(kept, |_| false), None, "{kept}");
+            assert_eq!(host_choice(kept, |_| false, |_| false), None, "{kept}");
         }
+    }
+
+    #[test]
+    fn a_proxy_host_the_sharing_lists_refuse_gives_way_to_the_loopback() {
+        let choice = host_choice("172.20.0.1", |_| true, |_| false);
+        assert!(choice.is_some_and(|choice| choice.present && !choice.usable()));
+        assert!(host_choice("172.20.0.1", |_| true, |_| true).is_some_and(HostChoice::usable));
     }
 
     #[test]

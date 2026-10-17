@@ -171,6 +171,7 @@
         },
         "tooltips": {
           "networkInterface": "网络接口",
+          "lanSharingHeld": "Not on: {{key}} cannot be read as a list of networks",
           "ipv6": "IPv6 由订阅决定：取值来自订阅模板，此开关不起作用。订阅未提及 IPv6 时保持关闭。",
           "unifiedDelay": "统一延迟会测量两次而不是一次，以便公平比较不同类型的节点。“与订阅一致”采用订阅模板中的值，模板未指定时为“开启”；此处选择的值优先于订阅。",
           "logLevel": "内核日志级别（日志目录中的内核文件）。“与订阅一致”采用订阅模板中的级别，模板未指定时为“info”；此处选择的级别优先于订阅，并在订阅更新后保留。",

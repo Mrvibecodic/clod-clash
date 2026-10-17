@@ -1428,6 +1428,7 @@ export interface TranslationResources {
             tooltips: {
               dnsOverwrite: string
               ipv6: string
+              lanSharingHeld: string
               logLevel: string
               networkInterface: string
               openUwpTool: string
@@ -1659,6 +1660,8 @@ export interface TranslationResources {
             copyFailed: string
             copySuccess: string
             keysDiscarded: string
+            lanListUnreadable: string
+            lanSharingOffAction: string
             logsExported: string
             saveFailed: string
             saveSuccess: string

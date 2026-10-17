@@ -351,10 +351,11 @@ impl CoreManager {
     }
 
     /// Что сопровождает принятую сборку: заявка на подмену DNS и слово человеку
-    /// о записях цепочек, которые приложение отбросило.
+    /// о записях цепочек, которые приложение отбросило, и о негодном списке раздачи.
     async fn note_the_accepted(build: &IRuntime) {
         Self::remember_dns_desire(build);
         announce_discarded_keys(&build.discarded_keys).await;
+        announce_an_unreadable_lan_list(build.unreadable_lan_list);
     }
 
     /// clod:dns-applied — заявка на подмену системного DNS едет вместе со сборкой
@@ -408,7 +409,8 @@ impl CoreManager {
             (
                 changed("mixed-port"),
                 changed("mode"),
-                changed("allow-lan"),
+                // Хост системного прокси зависит и от раздачи, и от её списков.
+                changed("allow-lan") || changed("lan-allowed-ips") || changed("lan-disallowed-ips"),
                 controller_changed(prev.config.as_ref(), config),
                 // Поводы для проверки 16–20: другая подписка; её узлы или
                 // провайдеры, другое ядро. Туннель, DNS и прочие настройки — нет.
@@ -586,6 +588,7 @@ impl CoreManager {
         // Отброшенные ключи объявляются после того, как ядро поднялось на сборке:
         // сорвавшийся перезапуск возвращает прежнее принятое.
         let discarded_keys = build.discarded_keys.clone();
+        let unreadable_lan_list = build.unreadable_lan_list;
         Self::remember_dns_desire(&build);
         runtime.replace(build);
         // Проверенная сборка есть — отказ старта, если он был, снят: стартуем с неё.
@@ -595,6 +598,7 @@ impl CoreManager {
             Ok(()) => {
                 logging!(info, Type::Core, "Configuration applied after restart");
                 announce_discarded_keys(&discarded_keys).await;
+                announce_an_unreadable_lan_list(unreadable_lan_list);
                 Ok(Delivered::Restarted)
             }
             Err(err) => {
@@ -788,6 +792,21 @@ async fn announce_discarded_keys(discarded: &[String]) {
         discarded.join(", ")
     );
     handle::Handle::notice_message("clod_config::keys_discarded", discarded.join(", "));
+}
+
+/// clod:lan-share — человек включил раздачу, а список адресов не читается, и
+/// раздача не открыта. Говорится, когда так стало или список сменился, а не с
+/// каждой сборкой: дальше это показывает тумблер раздачи.
+fn announce_an_unreadable_lan_list(key: Option<&'static str>) {
+    static ANNOUNCED: parking_lot::Mutex<Option<&'static str>> = parking_lot::Mutex::new(None);
+    let before = std::mem::replace(&mut *ANNOUNCED.lock(), key);
+    if let Some(key) = the_lan_list_to_announce(before, key) {
+        handle::Handle::notice_message("clod_config::lan_list_unreadable", key);
+    }
+}
+
+fn the_lan_list_to_announce(before: Option<&'static str>, now: Option<&'static str>) -> Option<&'static str> {
+    now.filter(|key| before != Some(*key))
 }
 
 /// Снять с профиля сборки пометку «скачано, но не применено».
@@ -1010,6 +1029,17 @@ mod tests {
     };
     use crate::core::manager::CoreManager;
     use crate::core::manager::RunningMode::{NotRunning, Service, Sidecar};
+
+    #[test]
+    fn an_unreadable_lan_list_is_told_when_it_appears_or_changes_not_with_every_build() {
+        let announce = super::the_lan_list_to_announce;
+        let (allowed, disallowed) = (Some("lan-allowed-ips"), Some("lan-disallowed-ips"));
+        assert_eq!(announce(None, allowed), allowed);
+        assert_eq!(announce(allowed, allowed), None);
+        assert_eq!(announce(allowed, disallowed), disallowed);
+        assert_eq!(announce(disallowed, None), None);
+        assert_eq!(announce(None, None), None);
+    }
 
     #[tokio::test]
     async fn an_action_waits_its_turn_however_long_the_holder_takes() {
