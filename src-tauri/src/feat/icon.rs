@@ -2,7 +2,9 @@ use crate::{
     cmd::{CmdResult, StringifyErr as _},
     utils::{
         dirs::{self, PathBufExec as _},
+        network::{NetworkManager, ProxyType},
         public_url::is_public_https,
+        retry::try_strategies,
     },
 };
 use clash_verge_logging::{Type, logging};
@@ -58,6 +60,26 @@ fn looks_like_svg(content: &[u8]) -> bool {
         || ((prefix.starts_with("<?xml") || prefix.starts_with("<!doctype svg")) && prefix.contains("<svg"))
 }
 
+/// Значок группы качается с тем же сроком и потолком, что логотип подписки:
+/// молчащий хост или огромный файл не держат запрос и память всю сессию.
+const ICON_TIMEOUT_SECS: u64 = 15;
+const MAX_ICON_BYTES: usize = 2 * 1024 * 1024;
+
+async fn fetch_icon(url: &reqwest::Url) -> anyhow::Result<Vec<u8>> {
+    try_strategies(ProxyType::Localhost, [ProxyType::System], |proxy| async move {
+        let client = NetworkManager::new()
+            .create_request(proxy, Some(ICON_TIMEOUT_SECS), None, false)
+            .await?;
+        let response = client.get(url.clone()).send().await?;
+        if !is_public_https(response.url()) {
+            anyhow::bail!("icon url must be a public https address");
+        }
+        let response = response.error_for_status()?;
+        NetworkManager::read_capped_bytes(response, MAX_ICON_BYTES).await
+    })
+    .await
+}
+
 fn is_supported_icon_content(content: &[u8]) -> bool {
     if looks_like_html(content) {
         return false;
@@ -86,12 +108,7 @@ pub async fn download_icon_cache(url: String, name: String) -> CmdResult<String>
     if !is_public_https(&parsed) {
         return Err("icon url must be a public https address".into());
     }
-    let response = reqwest::get(parsed).await.stringify_err()?;
-    if !is_public_https(response.url()) {
-        return Err("icon url must be a public https address".into());
-    }
-    let response = response.error_for_status().stringify_err()?;
-    let content = response.bytes().await.stringify_err()?;
+    let content = fetch_icon(&parsed).await.stringify_err()?;
 
     if !is_supported_icon_content(&content) {
         let _ = temp_path.remove_if_exists().await;
