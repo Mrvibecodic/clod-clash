@@ -24,6 +24,9 @@
       "favorite": "Сайланма",
       "autoHint": "The node in this group is picked automatically",
       "inUse": "In use",
+      "via": "via {{group}}",
+      "now": "Now: {{server}}",
+      "direct": "Direct",
       "types": {
         "selector": "group",
         "urltest": "auto · best ping",

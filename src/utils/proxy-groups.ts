@@ -1,4 +1,5 @@
 import delayManager from '@/services/delay'
+import { selectionEnd } from '@/utils/server-behind'
 
 export interface ProxyNode {
   name: string
@@ -72,7 +73,7 @@ export const displayLeaf = (
   records: Record<string, ProxyGroup | undefined>,
   name: string,
 ): string | undefined => {
-  const leaf = resolveLeaf(records, name)
+  const { leaf } = selectionEnd(records, name)
   if (leaf === name || isCorePlaceholder(leaf)) return undefined
   return leaf
 }
@@ -102,19 +103,6 @@ export const hasRealNodes = (proxies: any): boolean => {
   )
 }
 
-const resolveLeaf = (
-  records: Record<string, ProxyGroup | undefined>,
-  name: string,
-): string => {
-  let current = name
-  for (let hop = 0; hop < 6; hop += 1) {
-    const record = records[current]
-    if (!record?.now || record.now === current) break
-    current = record.now
-  }
-  return current
-}
-
 /**
  * Пинг записи группы: её собственный замер или замер листа, куда она ведёт
  * (вложенная группа меряется по своему текущему узлу). Есть оба — берём
@@ -135,7 +123,7 @@ const entryMeasurement = (
     }
   }
   const own = measure(name)
-  const leafName = resolveLeaf(records, name)
+  const { leaf: leafName } = selectionEnd(records, name)
   if (leafName === name) return own
   const leaf = measure(leafName)
   if (own.delay < 0) return leaf

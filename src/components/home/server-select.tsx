@@ -64,6 +64,7 @@ import {
   visibleGroups,
 } from '@/utils/proxy-groups'
 import { hidesType, typeText } from '@/utils/proxy-label'
+import { serverBehind } from '@/utils/server-behind'
 import { noServersSeverity } from '@/utils/subscription-status'
 
 const VIRTUALIZE_FROM = 50
@@ -222,6 +223,9 @@ export const ServerSelect = ({ open, onClose }: Props) => {
     const selected = group?.now === node.name
     const starred = favorites.has(node.name)
     const leaf = isGroup ? displayLeaf(records, node.name) : undefined
+    const behind = isGroup
+      ? serverBehind(records, node.name, isCorePlaceholder)
+      : undefined
     const description = isGroup ? undefined : descriptions[node.name]
     const frozen = !isGroup && freezeMarks.has(node.name)
 
@@ -277,20 +281,31 @@ export const ServerSelect = ({ open, onClose }: Props) => {
           <Typography noWrap>{nameWithoutFlag(node.name)}</Typography>
           <Typography
             variant="caption"
-            color={selected && !description ? 'success.main' : 'text.secondary'}
+            color={
+              selected && !description && !behind
+                ? 'success.main'
+                : 'text.secondary'
+            }
             noWrap
             title={description}
           >
             {description ??
-              (selected
-                ? isGroup && leaf
-                  ? `${t('home.components.serverSelect.inUse')} · ${nameWithoutFlag(leaf)}`
-                  : t('home.components.serverSelect.inUse')
-                : isGroup && !hidesType(record, current?.hide_badges)
-                  ? leaf
-                    ? `${typeLabel(type)} · ${nameWithoutFlag(leaf)}`
-                    : typeLabel(type)
-                  : typeText(node, current?.hide_badges))}
+              (behind
+                ? t('home.components.serverSelect.now', {
+                    server: serverName(
+                      behind.server,
+                      t('home.components.serverSelect.direct'),
+                    ),
+                  })
+                : selected
+                  ? isGroup && leaf
+                    ? `${t('home.components.serverSelect.inUse')} · ${serverName(leaf, t('home.components.serverSelect.direct'))}`
+                    : t('home.components.serverSelect.inUse')
+                  : isGroup && !hidesType(record, current?.hide_badges)
+                    ? leaf
+                      ? `${typeLabel(type)} · ${nameWithoutFlag(leaf)}`
+                      : typeLabel(type)
+                    : typeText(node, current?.hide_badges))}
           </Typography>
         </Box>
         <FreezeMark frozen={frozen} />
@@ -606,6 +621,9 @@ const testNodesOf = (
     .filter((node): node is IProxyItem => !!node)
 const nodesSignature = (nodes: IProxyItem[]) =>
   nodes.map((node) => node.name).join('\n')
+const serverName = (name: string, direct: string) =>
+  name === 'DIRECT' ? direct : nameWithoutFlag(name)
+
 const CORE_MEASURED_TYPES = new Set(['urltest', 'fallback', 'loadbalance'])
 
 let lastKnownPing: { key: string; delay: number } | undefined
@@ -636,6 +654,9 @@ export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
   const selection = group?.now
   const current = isCorePlaceholder(selection) ? undefined : selection
   const leaf = current ? displayLeaf(records, current) : undefined
+  const behind = current
+    ? serverBehind(records, current, isCorePlaceholder)
+    : undefined
   const flagName = leaf ?? current
   const delay = current
     ? entryDelay(records, current, group?.name ?? '')
@@ -791,7 +812,15 @@ export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
   const description =
     (leaf ? descriptions[leaf] : undefined) ??
     (current ? descriptions[current] : undefined)
-  const subject = description ?? (leaf ? nameWithoutFlag(leaf) : undefined)
+  const subject =
+    description ??
+    (behind
+      ? t('home.components.serverSelect.via', {
+          group: nameWithoutFlag(behind.via),
+        })
+      : leaf
+        ? nameWithoutFlag(leaf)
+        : undefined)
   // clod:freeze — значок того узла, через который сейчас идёт трафик.
   const frozen =
     (!!leaf && freezeMarks.has(leaf)) || (!!current && freezeMarks.has(current))
@@ -850,7 +879,10 @@ export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography noWrap sx={{ fontSize: 14, fontWeight: 700 }}>
           {current
-            ? nameWithoutFlag(current)
+            ? serverName(
+                behind?.server ?? current,
+                t('home.components.serverSelect.direct'),
+              )
             : statusRow
               ? t('home.components.serverStatus.noServers')
               : t('home.components.serverSelect.none')}

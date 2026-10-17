@@ -139,12 +139,14 @@ export interface TranslationResources {
         }
         serverSelect: {
           autoHint: string
+          direct: string
           empty: string
           favorite: string
           inUse: string
           measuredJustNow: string
           measuredMinutesAgo: string
           none: string
+          now: string
           test: string
           title: string
           types: {
@@ -154,6 +156,7 @@ export interface TranslationResources {
             smart: string
             urltest: string
           }
+          via: string
         }
         serverStatus: {
           body: {
