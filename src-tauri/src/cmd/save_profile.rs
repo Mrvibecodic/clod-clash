@@ -106,8 +106,8 @@ fn profile_affects_runtime(profiles: &IProfiles, index: &str) -> bool {
         return false;
     };
     [
-        item.current_merge().map_or("Merge", String::as_str),
-        item.current_script().map_or("Script", String::as_str),
+        item.current_merge().map_or("", String::as_str),
+        item.current_script().map_or("", String::as_str),
         item.current_rules().map_or("Rules", String::as_str),
         item.current_proxies().map_or("Proxies", String::as_str),
         item.current_groups().map_or("Groups", String::as_str),

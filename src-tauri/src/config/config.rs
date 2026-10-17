@@ -1,6 +1,6 @@
 use super::{IClashTemp, IProfiles, IVerge};
 use crate::{
-    config::{PrfItem, profiles_append_item_to_safe, runtime::IRuntime},
+    config::{PrfItem, runtime::IRuntime},
     constants::{files, timing},
     core::{
         CoreManager, handle,
@@ -8,7 +8,7 @@ use crate::{
     },
     enhance,
     process::AsyncHandler,
-    utils::{dirs, help},
+    utils::{dirs, help, tmpl},
 };
 use anyhow::{Result, anyhow};
 use backon::{ExponentialBuilder, Retryable as _};
@@ -315,10 +315,11 @@ impl Config {
     }
 
     pub async fn init_config_before_window() -> Result<()> {
-        Self::ensure_default_profile_items().await?;
-
         let verge = Self::verge().await.latest_arc();
         clash_verge_i18n::sync_locale(verge.language.as_deref());
+
+        // Не записался реестр — те же записи уберёт следующий старт.
+        logging_error!(Type::Config, Self::retire_global_chains().await);
 
         // clod:tun-ready — раньше здесь стоял «init Tun mode»: одна проверка
         // прав ДО того, как поднят менеджер службы, и запись
@@ -341,31 +342,43 @@ impl Config {
         Ok(())
     }
 
-    // Ensure "Merge" and "Script" profile items exist, adding them if missing.
-    async fn ensure_default_profile_items() -> Result<()> {
+    /// Общие Merge и Script сборка не применяет: их записи уходят из реестра,
+    /// файлы остаются на диске. Файл, который человек правил, — в журнал, чтобы
+    /// правку не искали в работе.
+    async fn retire_global_chains() -> Result<()> {
         let profiles = Self::profiles().await;
-        Self::ensure_default_profile_items_for(&profiles).await
-    }
-
-    async fn ensure_default_profile_items_for(profiles: &Draft<IProfiles>) -> Result<()> {
-        if profiles.latest_arc().get_items().is_none() {
-            logging!(
-                warn,
-                Type::Config,
-                "Не удалось загрузить элементы Profile, пропускаю инициализацию элементов по умолчанию, чтобы сохранить текущие конфиги"
-            );
+        let retired: Vec<PrfItem> = {
+            let latest = profiles.latest_arc();
+            GLOBAL_CHAINS
+                .iter()
+                .filter_map(|(uid, _)| latest.get_item(uid).ok().cloned())
+                .collect()
+        };
+        if retired.is_empty() {
             return Ok(());
         }
-
-        if profiles.latest_arc().get_item("Merge").is_err() {
-            let merge_item = &mut PrfItem::from_merge(Some("Merge".into()))?;
-            profiles_append_item_to_safe(profiles, merge_item).await?;
+        for item in &retired {
+            let Ok(content) = item.read_file().await else {
+                continue;
+            };
+            if edited_global_chain(item.uid.as_deref().unwrap_or_default(), &content) {
+                logging!(
+                    warn,
+                    Type::Config,
+                    "Warning: {} in the profiles folder is no longer applied to the configuration; the file stays as it is",
+                    item.file.as_deref().unwrap_or_default()
+                );
+            }
         }
-        if profiles.latest_arc().get_item("Script").is_err() {
-            let script_item = &mut PrfItem::from_script(Some("Script".into()))?;
-            profiles_append_item_to_safe(profiles, script_item).await?;
-        }
-        Ok(())
+        profiles
+            .with_data_modify(|mut profiles| async move {
+                if let Some(items) = profiles.items.as_mut() {
+                    without_global_chains(items);
+                }
+                profiles.save_file().await?;
+                Ok((profiles, ()))
+            })
+            .await
     }
 
     /// Собрать конфиг при старте приложения и спросить ядро, годится ли он.
@@ -669,11 +682,30 @@ pub enum ConfigType {
     Run,
     Check,
 }
+/// Общие Merge и Script прежних версий и их шаблоны.
+const GLOBAL_CHAINS: [(&str, &str); 2] = [("Merge", tmpl::ITEM_MERGE), ("Script", tmpl::ITEM_SCRIPT)];
+
+/// Файл общей цепочки правили: он не совпадает со своим шаблоном.
+fn edited_global_chain(uid: &str, content: &str) -> bool {
+    GLOBAL_CHAINS
+        .iter()
+        .find(|(global, _)| *global == uid)
+        .is_some_and(|(_, template)| content.trim() != template.trim())
+}
+
+fn without_global_chains(items: &mut Vec<PrfItem>) {
+    items.retain(|item| {
+        !item
+            .uid
+            .as_deref()
+            .is_some_and(|uid| GLOBAL_CHAINS.iter().any(|(global, _)| *global == uid))
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::core::validate::ValidationErrorKind;
-    use std::mem;
 
     #[test]
     fn a_proxy_host_the_machine_no_longer_has_gives_way_to_the_loopback() {
@@ -768,36 +800,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(unused_variables)]
-    #[allow(clippy::expect_used)]
-    fn test_prfitem_from_merge_size() {
-        let merge_item = PrfItem::from_merge(Some("Merge".into())).expect("Failed to create merge item in test");
-        let prfitem_size = mem::size_of_val(&merge_item);
-        // Boxed version
-        let boxed_merge_item = Box::new(merge_item);
-        let box_prfitem_size = mem::size_of_val(&boxed_merge_item);
-        // The size of Box<T> is always pointer-sized (usually 8 bytes on 64-bit)
-        // assert_eq!(box_prfitem_size, mem::size_of::<Box<PrfItem>>());
-        assert!(box_prfitem_size < prfitem_size);
-    }
-
-    #[test]
-    #[allow(unused_variables)]
-    fn test_draft_size_non_boxed() {
-        let draft = Draft::new(IRuntime::new());
-        let iruntime_size = std::mem::size_of_val(&draft);
-        assert_eq!(iruntime_size, std::mem::size_of::<Draft<IRuntime>>());
-    }
-
-    #[test]
-    #[allow(unused_variables)]
-    fn test_draft_size_boxed() {
-        let draft = Draft::new(Box::new(IRuntime::new()));
-        let box_iruntime_size = std::mem::size_of_val(&draft);
-        assert_eq!(box_iruntime_size, std::mem::size_of::<Draft<Box<IRuntime>>>());
-    }
-
-    #[test]
     #[allow(clippy::expect_used)]
     fn the_check_copy_drops_the_fake_ip_store_and_keeps_the_rest() {
         let mut profile = Mapping::new();
@@ -835,16 +837,26 @@ mod tests {
         assert_eq!(without_fake_ip_store(&config), config);
     }
 
-    #[tokio::test]
-    async fn failed_profile_index_is_not_replaced_by_defaults() -> Result<()> {
-        let profiles = Draft::new(IProfiles::default());
+    #[test]
+    fn the_global_chains_leave_the_registry_and_only_an_edited_one_is_told() {
+        let item = |uid: &str| PrfItem {
+            uid: Some(uid.into()),
+            ..PrfItem::default()
+        };
+        let mut items = vec![item("Merge"), item("R1"), item("Script"), item("m1")];
+        super::without_global_chains(&mut items);
+        let left: Vec<_> = items.iter().filter_map(|item| item.uid.as_deref()).collect();
+        assert_eq!(left, ["R1", "m1"]);
 
-        Config::ensure_default_profile_items_for(&profiles).await?;
-
-        assert!(
-            profiles.data_arc().get_items().is_none(),
-            "startup must not replace an unreadable profile index with defaults"
-        );
-        Ok(())
+        assert!(!super::edited_global_chain("Merge", crate::utils::tmpl::ITEM_MERGE));
+        assert!(!super::edited_global_chain(
+            "Script",
+            &format!("{}\n", crate::utils::tmpl::ITEM_SCRIPT)
+        ));
+        assert!(super::edited_global_chain(
+            "Merge",
+            "rules:\n  - DOMAIN,example.com,DIRECT\n"
+        ));
+        assert!(!super::edited_global_chain("m1", "anything"));
     }
 }

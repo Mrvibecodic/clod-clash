@@ -240,8 +240,6 @@ struct ProfileItems {
     rules_item: ChainItem,
     proxies_item: ChainItem,
     groups_item: ChainItem,
-    global_merge: ChainItem,
-    global_script: ChainItem,
     profile_name: String,
     profile_uid: String,
     profile_is_remote: bool,
@@ -252,16 +250,16 @@ struct ProfileItems {
 }
 
 /// Пустые звенья цепочки — когда у подписки своего звена нет.
-fn empty_merge(uid: &str) -> ChainItem {
+fn empty_merge() -> ChainItem {
     ChainItem {
-        uid: uid.into(),
+        uid: "".into(),
         data: ChainType::Merge(Mapping::new()),
     }
 }
 
-fn empty_script(uid: &str) -> ChainItem {
+fn empty_script() -> ChainItem {
     ChainItem {
-        uid: uid.into(),
+        uid: "".into(),
         data: ChainType::Script(tmpl::ITEM_SCRIPT.into()),
     }
 }
@@ -297,13 +295,11 @@ impl Default for ProfileItems {
             profile_shows_zero_hosts: false,
             mode_choice: None,
             profile_is_a_candidate: false,
-            merge_item: empty_merge(""),
-            script_item: empty_script(""),
+            merge_item: empty_merge(),
+            script_item: empty_script(),
             rules_item: empty_rules(),
             proxies_item: empty_proxies(),
             groups_item: empty_groups(),
-            global_merge: empty_merge("Merge"),
-            global_script: empty_script("Script"),
         }
     }
 }
@@ -413,11 +409,8 @@ async fn collect_profile_items(profiles_arc: &IProfiles) -> Result<ProfileItems>
         }
     };
 
-    let merge_uid = current_item.current_merge().cloned().unwrap_or_else(|| "Merge".into());
-    let script_uid = current_item
-        .current_script()
-        .cloned()
-        .unwrap_or_else(|| "Script".into());
+    let merge_uid = current_item.current_merge().cloned().unwrap_or_default();
+    let script_uid = current_item.current_script().cloned().unwrap_or_default();
     let rules_uid = current_item.current_rules().cloned().unwrap_or_else(|| "Rules".into());
     let proxies_uid = current_item
         .current_proxies()
@@ -437,14 +430,12 @@ async fn collect_profile_items(profiles_arc: &IProfiles) -> Result<ProfileItems>
     let profile_shows_zero_hosts = profile_is_remote && current_item.show_zero_hosts.unwrap_or(false);
     let mode_choice = mode_choice_of(current_item);
 
-    let (merge_item, script_item, rules_item, proxies_item, groups_item, global_merge, global_script) = tokio::join!(
-        chain_item_or_default(profiles_arc.get_item(&merge_uid).ok(), || empty_merge("")),
-        chain_item_or_default(profiles_arc.get_item(&script_uid).ok(), || empty_script("")),
+    let (merge_item, script_item, rules_item, proxies_item, groups_item) = tokio::join!(
+        chain_item_or_default(profiles_arc.get_item(&merge_uid).ok(), empty_merge),
+        chain_item_or_default(profiles_arc.get_item(&script_uid).ok(), empty_script),
         chain_item_or_default(profiles_arc.get_item(&rules_uid).ok(), empty_rules),
         chain_item_or_default(profiles_arc.get_item(&proxies_uid).ok(), empty_proxies),
         chain_item_or_default(profiles_arc.get_item(&groups_uid).ok(), empty_groups),
-        chain_item_or_default(profiles_arc.get_item("Merge").ok(), || empty_merge("Merge")),
-        chain_item_or_default(profiles_arc.get_item("Script").ok(), || empty_script("Script")),
     );
 
     Ok(ProfileItems {
@@ -454,8 +445,6 @@ async fn collect_profile_items(profiles_arc: &IProfiles) -> Result<ProfileItems>
         rules_item,
         proxies_item,
         groups_item,
-        global_merge,
-        global_script,
         profile_name: name,
         profile_uid: current_profile_uid,
         profile_is_remote,
@@ -465,33 +454,16 @@ async fn collect_profile_items(profiles_arc: &IProfiles) -> Result<ProfileItems>
     })
 }
 
-async fn process_global_items(
-    mut config: Mapping,
-    global_merge: ChainItem,
-    global_script: ChainItem,
-    profile_name: &String,
-) -> Mapping {
-    if let ChainType::Merge(merge) = global_merge.data {
-        config = use_merge(&merge, config);
-    }
-
-    if let ChainType::Script(script) = global_script.data {
-        config = run_script(script, config, profile_name, "global script").await;
-    }
-
-    config
-}
-
 /// Скрипт человека над сборкой. Ошибка — в журнал с именем подписки, сборка
 /// остаётся, какой была до скрипта.
-async fn run_script(script: String, config: Mapping, profile_name: &String, which: &str) -> Mapping {
+async fn run_script(script: String, config: Mapping, profile_name: &String) -> Mapping {
     match use_script(script, config.clone(), profile_name.clone()).await {
         Ok(config) => config,
         Err(err) => {
             logging!(
                 warn,
                 Type::Config,
-                "Warning: {which} for subscription {profile_name} failed, applied without it: {err:#}"
+                "Warning: script of subscription {profile_name} failed, applied without it: {err:#}"
             );
             config
         }
@@ -968,7 +940,7 @@ async fn process_profile_items(
     }
 
     if let ChainType::Script(script) = script_item.data {
-        config = run_script(script, config, profile_name, "script").await;
+        config = run_script(script, config, profile_name).await;
     }
 
     config
@@ -1961,8 +1933,6 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
     let rules_item = profile.rules_item;
     let proxies_item = profile.proxies_item;
     let groups_item = profile.groups_item;
-    let global_merge = profile.global_merge;
-    let global_script = profile.global_script;
     let profile_name = profile.profile_name;
     let profile_uid = profile.profile_uid;
     let profile_is_remote = profile.profile_is_remote;
@@ -2027,7 +1997,6 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
     let control_plane = snapshot_control_plane(&config);
     let tun_snapshot = snapshot_tun(&config, &tun_owned);
 
-    let config = process_global_items(config, global_merge, global_script, &profile_name).await;
     let config = process_profile_items(config, merge_item, script_item, &profile_name).await;
 
     let mut discarded_keys = control_plane_discards(&config, &control_plane);
@@ -2097,8 +2066,8 @@ pub async fn enhance(sources: &Resolved) -> Result<IRuntime> {
 mod tests {
     use super::{
         ChainItem, ChainType, Draft, IRuntime, MAX_REPORTED_REMARKS, backfill_empty_groups, cleanup_proxy_groups,
-        collect_server_descriptions, ensure_store_selected, filter_sentinel_proxies, process_global_items,
-        process_profile_items, server_descriptions_of, unpin_providers_from_rejection,
+        collect_server_descriptions, ensure_store_selected, filter_sentinel_proxies, process_profile_items,
+        server_descriptions_of, unpin_providers_from_rejection,
     };
 
     #[test]
@@ -2155,30 +2124,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn manual_overrides_follow_expected_priority() {
-        let mut config = mapping(
-            r"{global-merge-wins: other, global-script-wins: other, profile-merge-wins: other,
-               profile-script-wins: other, nested: {winner: other}, dns: {enable: true}, tun: {enable: true}}",
-        );
-        config.insert("application-only".into(), true.into());
-
-        let global_merge = ChainItem {
-            uid: "Merge".into(),
-            data: ChainType::Merge(mapping(
-                r"{global-merge-wins: global-merge, global-script-wins: global-merge,
-                   profile-merge-wins: global-merge, profile-script-wins: global-merge,
-                   nested: {winner: global-merge}, dns: {enable: false}, tun: {enable: false}}",
-            )),
-        };
-        let global_script = ChainItem::to_script(
-            "Script",
-            r#"function main(config) {
-              config["global-script-wins"] = "global-script";
-              config["profile-merge-wins"] = "global-script";
-              config["profile-script-wins"] = "global-script";
-              config.nested.winner = "global-script";
-              return config;
-            }"#,
+    async fn the_subscriptions_script_runs_after_its_merge() {
+        let config = mapping(
+            r"{profile-merge-wins: other, profile-script-wins: other, nested: {winner: other}, dns: {enable: true}}",
         );
         let profile_merge = ChainItem {
             uid: "profile-merge".into(),
@@ -2196,13 +2144,9 @@ mod tests {
             }"#,
         );
 
-        let profile_name = "test-profile".into();
-        let config = process_global_items(config, global_merge, global_script, &profile_name).await;
-        let config = process_profile_items(config, profile_merge, profile_script, &profile_name).await;
+        let config = process_profile_items(config, profile_merge, profile_script, &"test-profile".into()).await;
 
         let string_value = |key| config.get(key).and_then(serde_yaml_ng::Value::as_str);
-        assert_eq!(string_value("global-merge-wins"), Some("global-merge"));
-        assert_eq!(string_value("global-script-wins"), Some("global-script"));
         assert_eq!(string_value("profile-merge-wins"), Some("profile-merge"));
         assert_eq!(string_value("profile-script-wins"), Some("profile-script"));
         assert_eq!(

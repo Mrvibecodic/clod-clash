@@ -1068,8 +1068,8 @@ impl PrfItem {
 
     /// Служебные профили цепочки — в порядке [`PrfOption::chains_mut`].
     const CHAIN_MAKERS: [fn() -> Result<Self>; 5] = [
-        || Self::from_merge(None),
-        || Self::from_script(None),
+        Self::from_merge,
+        Self::from_script,
         Self::from_rules,
         Self::from_proxies,
         Self::from_groups,
@@ -1092,12 +1092,8 @@ impl PrfItem {
         Ok(chains)
     }
 
-    pub fn from_merge(uid: Option<String>) -> Result<Self> {
-        let (id, template) = if let Some(uid) = uid {
-            (uid, tmpl::ITEM_MERGE.into())
-        } else {
-            (help::get_uid("m").into(), tmpl::ITEM_MERGE_EMPTY.into())
-        };
+    pub fn from_merge() -> Result<Self> {
+        let id: String = help::get_uid("m").into();
         let file = format!("{id}.yaml").into();
 
         Ok(Self {
@@ -1105,17 +1101,13 @@ impl PrfItem {
             itype: Some("merge".into()),
             file: Some(file),
             updated: Some(chrono::Local::now().timestamp() as usize),
-            file_data: Some(template),
+            file_data: Some(tmpl::ITEM_MERGE_EMPTY.into()),
             ..Default::default()
         })
     }
 
-    pub fn from_script(uid: Option<String>) -> Result<Self> {
-        let id = if let Some(uid) = uid {
-            uid
-        } else {
-            help::get_uid("s").into()
-        };
+    pub fn from_script() -> Result<Self> {
+        let id: String = help::get_uid("s").into();
         let file = format!("{id}.js").into();
         Ok(Self {
             uid: Some(id),
