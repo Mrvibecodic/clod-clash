@@ -2,8 +2,8 @@ use rust_i18n::i18n;
 use std::borrow::Cow;
 use std::sync::LazyLock;
 
-const DEFAULT_LANGUAGE: &str = "zh";
-i18n!("locales", fallback = "zh");
+const DEFAULT_LANGUAGE: &str = "en";
+i18n!("locales", fallback = "en");
 
 static SUPPORTED_LOCALES: LazyLock<Vec<Cow<'static, str>>> = LazyLock::new(|| rust_i18n::available_locales!());
 
@@ -13,6 +13,9 @@ fn locale_alias(locale: &str) -> Option<&'static str> {
         "ja" | "ja-jp" | "jp" => Some("jp"),
         "zh" | "zh-cn" | "zh-hans" | "zh-sg" | "zh-my" | "zh-chs" => Some("zh"),
         "zh-tw" | "zh-hk" | "zh-hant" | "zh-mo" | "zh-cht" => Some("zhtw"),
+        // Языки, на которых говорят и по-русски: украинский, белорусский,
+        // казахский, узбекский, киргизский, таджикский.
+        "uk" | "be" | "kk" | "uz" | "ky" | "tg" => Some("ru"),
         _ => None,
     }
 }
@@ -103,5 +106,20 @@ mod test {
         assert_eq!(resolve_supported_language("jp").as_deref(), Some("jp"));
         assert_eq!(resolve_supported_language("ja-JP").as_deref(), Some("jp"));
         assert_eq!(resolve_supported_language("fr"), None);
+        for neighbour in ["uk", "uk-UA", "be-BY", "kk", "kk-KZ", "uz", "uz-Latn-UZ", "ky", "tg"] {
+            assert_eq!(
+                resolve_supported_language(neighbour).as_deref(),
+                Some("ru"),
+                "{neighbour}"
+            );
+        }
+        assert_eq!(resolve_supported_language("tt").as_deref(), Some("tt"));
+    }
+
+    #[test]
+    fn an_unsupported_language_falls_back_to_english() {
+        assert_eq!(super::DEFAULT_LANGUAGE, "en");
+        super::set_locale("fr");
+        assert_eq!(&*rust_i18n::locale(), "en");
     }
 }
