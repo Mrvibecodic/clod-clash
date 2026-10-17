@@ -44,7 +44,7 @@ use reqwest::Method;
 pub(crate) use plan::Verdict;
 
 use crate::{
-    config::Config,
+    config::{Config, proxy_label::Sentinels},
     core::{handle, sysopt::verbose_diagnostics, tray::Tray},
     feat::CoreListing,
     process::AsyncHandler,
@@ -277,10 +277,14 @@ fn is_a_node(entry: &serde_json::Value) -> bool {
     )
 }
 
-fn nodes_of(listed: &CoreListing) -> Listing {
+/// Узлы ядра без заглушек провайдера (`sentinels` — общий разбор сборки).
+fn nodes_of(listed: &CoreListing, sentinels: &Sentinels) -> Listing {
     let mut seen = BTreeSet::new();
     let mut listing = Listing::default();
     for (name, provider, entry) in listed.entries() {
+        if sentinels.contains(&(provider.unwrap_or_default().to_owned(), name.to_owned())) {
+            continue;
+        }
         let fingerprint = entry
             .get("fingerprint")
             .and_then(serde_json::Value::as_str)
@@ -311,14 +315,15 @@ async fn core_json(path: &str, budget: Duration) -> Option<serde_json::Value> {
 /// группу), и `true`, если ядро уже разложило сборку. `None` — ядро не ответило.
 async fn list_nodes() -> Option<(Listing, bool)> {
     let listed = crate::feat::read_core_proxies(LIST_TIMEOUT).await.parsed()?;
-    Some(listing_of(&listed))
+    let sentinels = crate::config::proxy_label::sentinels().await;
+    Some(listing_of(&listed, &sentinels))
 }
 
 /// Узлы — из всех прочитанных провайдеров; разложена ли сборка — только когда
 /// прочитались все: сбой одного не выбрасывает из захода узлы остальных.
-fn listing_of(listed: &CoreListing) -> (Listing, bool) {
+fn listing_of(listed: &CoreListing, sentinels: &Sentinels) -> (Listing, bool) {
     let settled = listed.failed == 0 && core_settled(listed);
-    (nodes_of(listed), settled)
+    (nodes_of(listed, sentinels), settled)
 }
 
 /// Ядро разложило сборку: группы на месте (GLOBAL есть всегда) и у каждого
@@ -949,6 +954,7 @@ mod tests {
         Checks, Listing, NodeRef, compares_the_network, core_settled, download_path, due_of, listing_of, marks_of,
         names_of, nodes_of, plan, recorded, repeated, store, wave_control,
     };
+    use crate::config::proxy_label::Sentinels;
     use crate::feat::CoreListing;
 
     fn listed(proxies: serde_json::Value, providers: serde_json::Value, failed: usize) -> CoreListing {
@@ -980,14 +986,14 @@ mod tests {
 
         let groups = json!({ "proxies": { "GLOBAL": { "all": [] } } });
         let sub = json!({ "sub": { "vehicleType": "HTTP", "proxies": [{ "name": "a" }] } });
-        assert!(!listing_of(&listed(groups.clone(), sub.clone(), 1)).1);
-        assert!(listing_of(&listed(groups.clone(), sub, 0)).1);
+        assert!(!listing_of(&listed(groups.clone(), sub.clone(), 1), &Sentinels::new()).1);
+        assert!(listing_of(&listed(groups.clone(), sub, 0), &Sentinels::new()).1);
         // Провайдеров у сборки нет — ждать нечего.
-        assert!(listing_of(&listed(groups.clone(), json!({}), 0)).1);
+        assert!(listing_of(&listed(groups.clone(), json!({}), 0), &Sentinels::new()).1);
         // Один провайдер не прочитался — не разложено, но узлы прочитанных в
         // заходе остаются.
         let read = json!({ "sub": { "vehicleType": "HTTP", "proxies": [{ "name": "a", "fingerprint": "f" }] } });
-        let (listing, settled) = listing_of(&listed(groups, read, 1));
+        let (listing, settled) = listing_of(&listed(groups, read, 1), &Sentinels::new());
         assert!(!settled);
         assert_eq!(names_of(&listing.nodes).get("a"), Some(&"f"), "{:?}", listing.nodes);
     }
@@ -1238,7 +1244,7 @@ mod tests {
             "default": { "proxies": [ { "name": "a", "fingerprint": "f1" } ] },
             "sub": { "proxies": [ { "name": "c", "fingerprint": "f2" }, { "name": "d", "type": "Trojan" } ] },
         });
-        let listing = nodes_of(&listed(proxies.clone(), providers, 0));
+        let listing = nodes_of(&listed(proxies.clone(), providers, 0), &Sentinels::new());
         assert_eq!(
             listing.nodes,
             vec![
@@ -1252,7 +1258,36 @@ mod tests {
         );
         // Узлы без отпечатка — `b` и `d`; группа и DIRECT не в счёт.
         assert_eq!(listing.without_fingerprint, 2);
-        assert_eq!(nodes_of(&listed(proxies, json!({}), 0)).nodes.len(), 1);
+        assert_eq!(
+            nodes_of(&listed(proxies, json!({}), 0), &Sentinels::new()).nodes.len(),
+            1
+        );
+    }
+
+    #[test]
+    fn the_providers_placeholders_are_never_checked() {
+        let proxies = json!({ "proxies": {
+            "Срок истёк": { "type": "VLESS", "fingerprint": "f0" },
+            "a": { "type": "VLESS", "fingerprint": "f1" },
+        }});
+        let providers = json!({
+            "sub": { "proxies": [
+                { "name": "Лимит устройств", "fingerprint": "f2" },
+                { "name": "c", "fingerprint": "f3" },
+            ] },
+        });
+        let sentinels: Sentinels = [
+            (String::new(), "Срок истёк".to_owned()),
+            ("sub".to_owned(), "Лимит устройств".to_owned()),
+            // Заглушка другого провайдера с тем же именем — не эта.
+            ("other".to_owned(), "c".to_owned()),
+        ]
+        .into_iter()
+        .collect();
+        let listing = nodes_of(&listed(proxies, providers, 0), &sentinels);
+        let names: Vec<&str> = listing.nodes.iter().map(|node| node.name.as_str()).collect();
+        assert_eq!(names, ["a", "c"]);
+        assert_eq!(listing.without_fingerprint, 0);
     }
 
     #[test]
@@ -1262,7 +1297,7 @@ mod tests {
             "a": { "type": "VLESS" },
         }});
         assert_eq!(
-            nodes_of(&listed(foreign, json!({}), 0)),
+            nodes_of(&listed(foreign, json!({}), 0), &Sentinels::new()),
             Listing {
                 nodes: Vec::new(),
                 without_fingerprint: 1
@@ -1274,7 +1309,10 @@ mod tests {
             "REJECT": { "type": "Reject" },
             "PASS-RULE": { "type": "PassRule" },
         }});
-        assert_eq!(nodes_of(&listed(empty, json!({}), 0)), Listing::default());
+        assert_eq!(
+            nodes_of(&listed(empty, json!({}), 0), &Sentinels::new()),
+            Listing::default()
+        );
     }
 
     #[test]

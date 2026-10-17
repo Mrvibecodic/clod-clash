@@ -59,7 +59,13 @@ pub struct Address {
 struct Node {
     label: Option<ProxyLabel>,
     address: Option<Address>,
+    /// Заглушка провайдера вместо сервера — то же правило, что у фильтра сборки.
+    sentinel: bool,
 }
+
+/// Узлы-заглушки сборки: провайдер (пусто — сама подписка) и имя, каким их
+/// называет ядро. Ни проверка 16–20, ни отчёт их не берут.
+pub type Sentinels = HashSet<(String, String)>;
 
 /// Поле записи, как его находит декодер ядра: точный ключ, иначе без учёта
 /// регистра (у узлов ещё и с `_` вместо `-`).
@@ -469,6 +475,7 @@ fn node(proxy: &Mapping) -> Node {
     Node {
         label: label(proxy),
         address: address(proxy),
+        sentinel: crate::enhance::is_sentinel_proxy(proxy),
     }
 }
 
@@ -595,8 +602,9 @@ fn core_file(remote: bool, provider: &Mapping) -> Option<PathBuf> {
 struct Built {
     labels: Labels,
     /// Адреса узлов по именам, какими их называет ядро: узлы самой подписки
-    /// первее провайдерских, провайдеры — по порядку имён.
+    /// первее провайдерских, провайдеры — по порядку имён. Заглушек нет.
     addresses: HashMap<String, Address>,
+    sentinels: Sentinels,
     /// Файлы провайдеров, из которых прочитано, с состоянием до чтения.
     files: Vec<(PathBuf, FileState)>,
     /// Ни один файл не переписывался, пока его читали.
@@ -611,6 +619,7 @@ fn build(config: &Mapping, own_files: bool) -> Built {
     let mut built = Built {
         labels: Labels::default(),
         addresses: HashMap::new(),
+        sentinels: Sentinels::new(),
         files: Vec::new(),
         steady: true,
     };
@@ -621,11 +630,17 @@ fn build(config: &Mapping, own_files: bool) -> Built {
         let Some(name) = proxy.get("name").and_then(Value::as_str) else {
             continue;
         };
-        let Node { label, address } = node(proxy);
+        let Node {
+            label,
+            address,
+            sentinel,
+        } = node(proxy);
         if let Some(label) = label {
             built.labels.proxies.entry(name.to_owned()).or_insert(label);
         }
-        if let Some(address) = address {
+        if sentinel {
+            built.sentinels.insert((String::new(), name.to_owned()));
+        } else if let Some(address) = address {
             built.addresses.entry(name.to_owned()).or_insert(address);
         }
     }
@@ -686,8 +701,18 @@ fn build(config: &Mapping, own_files: bool) -> Built {
             _ => continue,
         };
         let mut labels = HashMap::with_capacity(nodes.len());
-        for (node_name, Node { label, address }) in nodes {
-            if let Some(address) = address {
+        for (
+            node_name,
+            Node {
+                label,
+                address,
+                sentinel,
+            },
+        ) in nodes
+        {
+            if sentinel {
+                built.sentinels.insert((name.clone(), node_name.clone()));
+            } else if let Some(address) = address {
                 built.addresses.entry(node_name.clone()).or_insert_with(|| Address {
                     provider: name.clone(),
                     ..address
@@ -714,6 +739,7 @@ struct Cached {
     stamp: String,
     labels: Arc<Labels>,
     addresses: Arc<HashMap<String, Address>>,
+    sentinels: Arc<Sentinels>,
 }
 
 static CACHE: Mutex<Option<Arc<Cached>>> = Mutex::new(None);
@@ -737,12 +763,14 @@ async fn cached() -> Option<Arc<Cached>> {
         let Built {
             labels,
             mut addresses,
+            sentinels,
             files,
             steady,
         } = runtime.config.as_ref().map_or_else(
             || Built {
                 labels: Labels::default(),
                 addresses: HashMap::new(),
+                sentinels: Sentinels::new(),
                 files: Vec::new(),
                 steady: true,
             },
@@ -764,6 +792,7 @@ async fn cached() -> Option<Arc<Cached>> {
             stamp,
             labels: Arc::new(labels),
             addresses: Arc::new(addresses),
+            sentinels: Arc::new(sentinels),
         });
         (fresh, steady)
     })
@@ -791,6 +820,13 @@ pub async fn addresses(uid: &str) -> Option<Arc<HashMap<String, Address>>> {
     (cached.runtime.profile_uid.as_deref() == Some(uid)).then(|| Arc::clone(&cached.addresses))
 }
 
+/// Узлы-заглушки принятой сборки.
+pub async fn sentinels() -> Arc<Sentinels> {
+    cached()
+        .await
+        .map_or_else(Arc::default, |cached| Arc::clone(&cached.sentinels))
+}
+
 /// Подписи в порядке имён: отпечаток не должен зависеть от порядка в таблице.
 fn sorted(labels: &Labels) -> Vec<(&str, &str, &ProxyLabel)> {
     let mut out: Vec<_> = labels
@@ -810,7 +846,7 @@ fn sorted(labels: &Labels) -> Vec<(&str, &str, &ProxyLabel)> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
-    use super::{Address, OwnNodes, address, build, first_port, go_int_is_nonzero, label, via};
+    use super::{Address, OwnNodes, Sentinels, address, build, first_port, go_int_is_nonzero, label, via};
     use serde_yaml_ng::Mapping;
     use serde_yaml_ng::Value;
 
@@ -1236,7 +1272,7 @@ mod tests {
         let file = dir.join("provider.yaml");
         std::fs::write(
             &file,
-            "proxies:\n  - {name: A, type: ss, server: a.example.com, port: 1}\n  \
+            "proxies:\n  - {name: A, type: ss, server: a.example.com, port: 11}\n  \
              - {name: F, type: vless, server: f.example.com, port: 2}\n  \
              - {name: S, type: trojan, server: z.example.com, port: 9}\n",
         )
@@ -1277,7 +1313,7 @@ mod tests {
         assert!(!own.contains_key("D"), "{own:?}");
         assert_eq!(own.get("[i] S *"), Some(&at("vless", "other.example.com", 7, "inline")));
         // Файл и запасной набор расходятся адресом — какой у ядра, не узнать.
-        assert_eq!(own.get("A"), Some(&at("ss", "a.example.com", 1, "web")));
+        assert_eq!(own.get("A"), Some(&at("ss", "a.example.com", 11, "web")));
         assert!(!own.contains_key("F"), "{own:?}");
         assert!(!own.contains_key("R"), "{own:?}");
         // Под службой файл скачанного провайдера — от прежнего запуска в папке
@@ -1285,6 +1321,32 @@ mod tests {
         assert_eq!(service.get("A"), own.get("A"), "{service:?}");
         assert!(!service.contains_key("F"), "{service:?}");
         assert_eq!(service.get("[i] D *"), own.get("[i] D *"));
+    }
+
+    #[test]
+    fn placeholders_get_no_address_and_are_named_for_the_freeze_check() {
+        let config = yaml(
+            "proxies:\n  - {name: Live, type: vless, server: live.example.com, port: 443, uuid: 1b2c}\n  \
+             - {name: Expired, type: vless, server: 0.0.0.0, port: 1, uuid: 00000000-0000-0000-0000-000000000000}\n\
+             proxy-providers:\n  \
+             inline:\n    type: inline\n    override: {additional-prefix: '[i] '}\n    \
+             payload:\n      - {name: Limit, type: trojan, server: '::', port: 443, password: x}\n      \
+             - {name: Node, type: trojan, server: node.example.com, port: 443, password: x}\n",
+        );
+        let built = build(&config, true);
+        assert!(built.addresses.contains_key("Live") && built.addresses.contains_key("[i] Node"));
+        assert!(
+            !built.addresses.contains_key("Expired") && !built.addresses.contains_key("[i] Limit"),
+            "{:?}",
+            built.addresses
+        );
+        let sentinels: Sentinels = [
+            (String::new(), "Expired".to_owned()),
+            ("inline".to_owned(), "[i] Limit".to_owned()),
+        ]
+        .into_iter()
+        .collect();
+        assert_eq!(built.sentinels, sentinels);
     }
 
     #[test]
@@ -1392,7 +1454,7 @@ mod tests {
     #[test]
     fn only_the_subscriptions_own_nodes_get_addresses_for_the_report() {
         let own = OwnNodes::of(&yaml(
-            "proxies:\n  - {name: A, type: vless, server: a.example.com, port: 1}\n  \
+            "proxies:\n  - {name: A, type: vless, server: a.example.com, port: 11}\n  \
              - {name: Gone, type: vless, server: g.example.com, port: 5}\n\
              proxy-providers:\n  sub: {type: inline, payload: [{name: P, type: vless, server: p.example.com, port: 2}]}\n",
         ));
@@ -1400,7 +1462,7 @@ mod tests {
         // удалён, добавлены свой узел и свой провайдер.
         let built = yaml(
             "proxies:\n  - {name: Added, type: vless, server: b.example.com, port: 3}\n  \
-             - {name: A, type: vless, server: changed.example.com, port: 1}\n\
+             - {name: A, type: vless, server: changed.example.com, port: 11}\n\
              proxy-providers:\n  \
              sub: {type: inline, payload: [{name: P, type: vless, server: p.example.com, port: 2}]}\n  \
              extra: {type: inline, payload: [{name: X, type: vless, server: x.example.com, port: 4}]}\n",

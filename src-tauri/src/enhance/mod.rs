@@ -1238,7 +1238,7 @@ fn is_serverless_proxy(proxy: &Mapping) -> bool {
         .is_some_and(|kind| SERVERLESS_TYPES.contains(&kind.trim().to_ascii_lowercase().as_str()))
 }
 
-fn is_sentinel_proxy(proxy: &Mapping) -> bool {
+pub(crate) fn is_sentinel_proxy(proxy: &Mapping) -> bool {
     const NIL_UUID: &str = "00000000-0000-0000-0000-000000000000";
 
     if is_serverless_proxy(proxy) {
