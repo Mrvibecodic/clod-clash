@@ -27,11 +27,9 @@ use crate::{
 static SUPPRESSED: AtomicBool = AtomicBool::new(false);
 static START_FAILED: AtomicBool = AtomicBool::new(false);
 static SETUP_RUNNING: AtomicBool = AtomicBool::new(false);
-static WATCHDOG_GENERATION: AtomicU64 = AtomicU64::new(0);
 static VERIFY_GENERATION: AtomicU64 = AtomicU64::new(0);
 static START_ATTEMPTS: AtomicU32 = AtomicU32::new(0);
 static RETRY_PENDING: AtomicBool = AtomicBool::new(false);
-static WATCH_ANCHOR: Mutex<Option<String>> = Mutex::new(None);
 static LAST_FAILURE: Mutex<Option<&'static str>> = Mutex::new(None);
 static TRAFFIC_PROBE_RUNNING: AtomicBool = AtomicBool::new(false);
 static NO_TRAFFIC_NOTICED: AtomicBool = AtomicBool::new(false);
@@ -962,16 +960,18 @@ pub async fn log_anchor() -> Option<String> {
         .and_then(|logs| logs.last().map(ToString::to_string))
 }
 
+/// Новая проверка сменяет прежнюю вместе с её сторожем: журнал читает одна
+/// проверка, от своего якоря.
 pub fn spawn_start_verification(anchor: Option<String>) {
-    *WATCH_ANCHOR.lock() = anchor;
     let generation = VERIFY_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
     AsyncHandler::spawn(move || async move {
+        let mut anchor = anchor;
         tokio::time::sleep(timing::TUN_VERIFY_DELAY).await;
         if VERIFY_GENERATION.load(Ordering::Acquire) != generation || !claimed().await {
             return;
         }
-        if !matches!(verify_round().await, Round::Done) {
-            spawn_watchdog();
+        if !matches!(verify_round(&mut anchor).await, Round::Done) {
+            spawn_watchdog(generation, anchor);
             spawn_traffic_probe();
         }
     });
@@ -988,8 +988,7 @@ async fn device_reported_up() -> Option<bool> {
     read_tun_config().await.map(|tun| tun.enable)
 }
 
-async fn verify_round() -> Round {
-    let anchor = WATCH_ANCHOR.lock().clone();
+async fn verify_round(anchor: &mut Option<String>) -> Round {
     let Ok(logs) = crate::core::CoreManager::global().get_clash_logs().await else {
         return Round::Unknown;
     };
@@ -999,25 +998,33 @@ async fn verify_round() -> Round {
             Round::Done
         }
         Verdict::Clean(next) => {
-            *WATCH_ANCHOR.lock() = next;
+            *anchor = next;
             Round::Clean
         }
     }
 }
 
-fn spawn_watchdog() {
-    let generation = WATCHDOG_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
+/// Отсутствие отказа в журнале — ещё не «устройство поднято»: строку отказа
+/// могло вытеснить из короткого журнала службы. Поднято — когда это говорит
+/// само ядро.
+const fn proven_up(reported_up: Option<bool>, round: Round) -> bool {
+    matches!((reported_up, round), (Some(true), Round::Clean))
+}
+
+fn spawn_watchdog(generation: u64, anchor: Option<String>) {
     AsyncHandler::spawn(move || async move {
+        let mut anchor = anchor;
         let mut rounds: u32 = 0;
         let mut down_rounds: u32 = 0;
         let mut probe_gap = TRAFFIC_RECHECK_ROUNDS;
         let mut next_probe = TRAFFIC_RECHECK_ROUNDS;
         loop {
             tokio::time::sleep(timing::TUN_WATCH_INTERVAL).await;
-            if WATCHDOG_GENERATION.load(Ordering::Acquire) != generation || !claimed().await {
+            if VERIFY_GENERATION.load(Ordering::Acquire) != generation || !claimed().await {
                 return;
             }
-            match device_reported_up().await {
+            let reported_up = device_reported_up().await;
+            match reported_up {
                 Some(false) => {
                     down_rounds += 1;
                     if down_rounds >= READBACK_DOWN_STRIKES {
@@ -1031,10 +1038,14 @@ fn spawn_watchdog() {
                 }
                 None => {}
             }
-            match verify_round().await {
+            let round = verify_round(&mut anchor).await;
+            if proven_up(reported_up, round) {
+                START_ATTEMPTS.store(0, Ordering::Release);
+                forget_last_notice();
+            }
+            match round {
                 Round::Done => return,
                 Round::Clean => {
-                    START_ATTEMPTS.store(0, Ordering::Release);
                     rounds = rounds.saturating_add(1);
                     if rounds >= next_probe {
                         spawn_traffic_probe();
@@ -1626,6 +1637,50 @@ mod tests {
         assert_eq!(
             verdict(&broken, Some(FAILURE)),
             Verdict::Clean(Some(FAILURE.to_owned()))
+        );
+    }
+
+    #[test]
+    fn only_the_core_saying_the_device_is_up_restores_the_start_budget() {
+        let cases = [
+            (Some(true), Round::Clean, true),
+            (Some(false), Round::Clean, false),
+            (None, Round::Clean, false),
+            (Some(true), Round::Unknown, false),
+            (Some(false), Round::Unknown, false),
+            (Some(true), Round::Done, false),
+        ];
+        for (reported_up, round, expected) in cases {
+            assert_eq!(proven_up(reported_up, round), expected, "{reported_up:?} {round:?}");
+        }
+        let tun = crate::utils::source_scan::production_code(include_str!("tun.rs"));
+        let watchdog = crate::utils::source_scan::fn_body(tun, "fn spawn_watchdog(").unwrap_or_default();
+        assert_eq!(watchdog.matches("START_ATTEMPTS.store(0").count(), 1, "{watchdog}");
+        let gate = watchdog.find("if proven_up(reported_up, round)").unwrap_or(usize::MAX);
+        let reset = watchdog.find("START_ATTEMPTS.store(0").unwrap_or_default();
+        assert!(
+            gate < reset,
+            "бюджет попыток возвращает не ядро, а чистый журнал: {watchdog}"
+        );
+        let after_the_gate = watchdog.get(gate..).unwrap_or_default();
+        let gate_block = after_the_gate.split('}').next().unwrap_or_default();
+        assert!(
+            gate_block.contains("forget_last_notice()"),
+            "поднявшийся туннель не стирает память о сказанном — тот же отказ потом молчит: {watchdog}"
+        );
+    }
+
+    #[test]
+    fn each_check_reads_the_log_from_its_own_anchor() {
+        let tun = crate::utils::source_scan::production_code(include_str!("tun.rs"));
+        assert!(!tun.contains("Mutex<Option<String>>"), "общий якорь журнала");
+        assert_eq!(
+            tun.matches("_GENERATION.fetch_add").count(),
+            1,
+            "у проверки и её сторожа одно поколение: новая проверка сменяет обоих"
+        );
+        assert!(
+            crate::utils::source_scan::fn_body(tun, "async fn verify_round(anchor: &mut Option<String>)").is_some()
         );
     }
 
