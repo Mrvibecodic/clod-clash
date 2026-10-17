@@ -476,6 +476,7 @@ async fn look_at_the_service(manager: &CoreManager, watch: &mut HealthWatch, gen
                 reason
             );
             // Новый процесс поднимала служба, мимо нашего запуска.
+            AsyncHandler::spawn(crate::module::core_log_archive::after_a_restart_by_the_service);
             CoreManager::new_core_is_up().await;
             let _ = after_core_came_back(&reason).await;
             true

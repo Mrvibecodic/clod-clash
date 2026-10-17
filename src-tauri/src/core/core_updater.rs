@@ -611,6 +611,13 @@ pub async fn upgrade_through_core() -> Result<SelfUpgrade> {
     let before = running_core_version()
         .await
         .ok_or_else(|| anyhow!("ядро не отвечает — обновлять нечего"))?;
+    // Обновлённое ядро служба поднимет в новый файл журнала.
+    if matches!(
+        *CoreManager::global().get_running_mode(),
+        crate::core::manager::RunningMode::Service
+    ) {
+        crate::module::core_log_archive::before_new_run().await;
+    }
     let request = handle::Handle::mihomo()
         .load_ctx()
         .build_request(reqwest::Method::POST, "/upgrade")

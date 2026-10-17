@@ -431,7 +431,7 @@ async fn core_log_snapshot() -> Option<PathBuf> {
     let home = crate::utils::redact::home_prefix();
     let mut snapshot = raw
         .lines()
-        .map(|line| crate::utils::redact::redact(&crate::utils::redact::scrub_home(line, home.as_deref())))
+        .map(|line| crate::utils::redact::core_line_for_disk(line, home.as_deref()))
         .collect::<Vec<_>>()
         .join("\n");
     snapshot.push('\n');

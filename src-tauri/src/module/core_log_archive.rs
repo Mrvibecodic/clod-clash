@@ -8,15 +8,19 @@
 //! копирует журнал к себе:
 //! - перед остановкой ядра (выход, перезапуск, обновление), не дольше
 //!   [`STOP_WAIT`], чтобы не съедать время выхода;
-//! - перед тем как служба запустит новое ядро (после падения ядра или после
-//!   перезагрузки, когда служба подняла ядро сама);
+//! - перед тем как служба запустит новое ядро по нашей просьбе (запуск,
+//!   обновление ядра);
+//! - сразу, как сторож заметил, что служба подняла ядро сама: копии идут уже
+//!   в файл нового запуска. Конец прошлого запуска служба к этому моменту не
+//!   отдаёт — в копии он есть до последней плановой копии;
 //! - раз в [`SAVE_EVERY`], пока ядро работает, — на случай выключения
 //!   компьютера и перезапуска службы; если с прошлой копии служба успела
 //!   начать новый файл, следующая копия — через [`SAVE_SOON`];
 //! - при выгрузке отчёта.
 //!
-//! Копия дописывает в файл запуска только новые строки, файл держит последние
-//! [`FILE_CAP`] байт. Хранится [`KEEP`] последних запусков; дальше их чистит и
+//! Строки ложатся на диск отредактированными, как у нашего логгера: без
+//! секретов, адресов и домашнего каталога. Копия дописывает в файл запуска
+//! только новые строки, файл держит последние [`FILE_CAP`] байт. Хранится [`KEEP`] последних запусков; дальше их чистит и
 //! общая уборка журналов по возрасту.
 
 use std::path::Path;
@@ -29,7 +33,7 @@ use tokio::time::Instant;
 use crate::{
     core::{CoreManager, handle, manager::RunningMode},
     process::AsyncHandler,
-    utils::{dirs, help::write_atomic},
+    utils::{dirs, help::write_atomic, redact},
 };
 
 const SAVE_EVERY: Duration = Duration::from_secs(10 * 60);
@@ -42,6 +46,8 @@ const STOP_WAIT: Duration = Duration::from_secs(1);
 const KEEP: usize = 10;
 const PREFIX: &str = "core_";
 const FILE_CAP: usize = 4 * 1024 * 1024;
+/// Метка в каталоге копий: копии, записанные до редакции, уже переписаны.
+const REDACTED_MARK: &str = ".redacted";
 
 /// Файл запуска ядра, который сейчас пишет служба: все копии этого запуска
 /// ложатся в него. Нет — имя даёт первая строка журнала.
@@ -73,9 +79,21 @@ pub async fn before_new_run() {
     drop(saving);
 }
 
+/// Служба сама подняла ядро заново и пишет новый файл: копии — в файл нового
+/// запуска.
+pub async fn after_a_restart_by_the_service() {
+    let deadline = Instant::now() + ANSWER_WAIT;
+    let saving = tokio::time::timeout_at(deadline, SAVING.lock()).await.ok();
+    *RUN.lock() = None;
+    if saving.is_some() {
+        let _ = save_locked(deadline).await;
+    }
+}
+
 /// Копия раз в [`SAVE_EVERY`], пока ядро работает под службой.
 pub fn spawn() {
     AsyncHandler::spawn(|| async {
+        redact_old_copies().await;
         let mut wait = SAVE_EVERY;
         loop {
             tokio::time::sleep(wait).await;
@@ -119,6 +137,7 @@ async fn save_locked(deadline: Instant) -> Option<bool> {
     if text.trim().is_empty() {
         return None;
     }
+    let text = for_disk(&text, redact::home_prefix().as_deref());
     let dir = dirs::service_log_dir().ok()?;
     let name = RUN
         .lock()
@@ -138,6 +157,67 @@ async fn save_locked(deadline: Instant) -> Option<bool> {
     }
     prune(&dir).await;
     Some(gap)
+}
+
+fn for_disk(text: &str, home: Option<&str>) -> String {
+    let mut clean: String = text
+        .lines()
+        .map(|line| redact::core_line_for_disk(line, home))
+        .collect::<Vec<_>>()
+        .join("\n");
+    clean.push('\n');
+    clean
+}
+
+/// Копии, которые прежние версии писали без редакции, переписываются один раз.
+async fn redact_old_copies() {
+    let Ok(dir) = dirs::service_log_dir() else {
+        return;
+    };
+    let mark = dir.join(REDACTED_MARK);
+    if tokio::fs::try_exists(&mark).await.unwrap_or(false) {
+        return;
+    }
+    let Ok(mut entries) = tokio::fs::read_dir(&dir).await else {
+        return;
+    };
+    let home = redact::home_prefix();
+    while let Ok(Some(entry)) = entries.next_entry().await {
+        let is_copy = entry
+            .file_name()
+            .to_str()
+            .is_some_and(|name| name.starts_with(PREFIX) && name.ends_with(".log"));
+        if !is_copy {
+            continue;
+        }
+        // Замок — на файл, а не на всю уборку: копия перед новым запуском ядра
+        // ждёт его недолго и не теряет конец прошлого запуска.
+        let _saving = SAVING.lock().await;
+        let Ok(text) = tokio::fs::read_to_string(entry.path()).await else {
+            continue;
+        };
+        let home = home.clone();
+        let Ok(clean) = tokio::task::spawn_blocking(move || {
+            let clean = for_disk(&text, home.as_deref());
+            (clean != text).then_some(clean)
+        })
+        .await
+        else {
+            continue;
+        };
+        if let Some(clean) = clean
+            && let Err(error) = write_atomic(&entry.path(), clean.as_bytes()).await
+        {
+            logging!(
+                warn,
+                Type::Core,
+                "an old core log copy was not redacted: {}: {error:#}",
+                entry.path().display()
+            );
+            return;
+        }
+    }
+    let _ = tokio::fs::write(&mark, b"").await;
 }
 
 /// Файл называется моментом запуска ядра — первой строкой журнала, — так и
@@ -223,10 +303,33 @@ fn surplus(names: Vec<String>) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{FILE_CAP, KEEP, file_name, merge, surplus};
+    use super::{FILE_CAP, KEEP, file_name, for_disk, merge, surplus};
+
+    /// Разовая уборка старых копий держит замок копий по файлу: копия перед
+    /// новым запуском ядра ждёт замок лишь [`super::ANSWER_WAIT`].
+    #[test]
+    fn the_one_time_redaction_lets_a_copy_in_between_files() {
+        let body =
+            crate::utils::source_scan::fn_body(include_str!("core_log_archive.rs"), "async fn redact_old_copies(")
+                .unwrap_or_default();
+        let each_file = body.find("while let").unwrap_or(usize::MAX);
+        let locked = body.find("SAVING.lock()").unwrap_or_default();
+        assert!(locked > each_file, "{body}");
+    }
 
     fn now() -> chrono::NaiveDateTime {
         chrono::NaiveDateTime::parse_from_str("2026-01-02 03:04:05", "%Y-%m-%d %H:%M:%S").unwrap_or_default()
+    }
+
+    #[test]
+    fn a_copy_goes_to_disk_redacted_and_a_second_pass_changes_nothing() {
+        let raw = "[2026-10-09 17:29:15.415] [TCP] 10.0.0.2:44100 --> mail.example.com:443 match Rule\n\
+                   [2026-10-09 17:29:16.000] open /home/someone/.config/app/core.yaml\n";
+        let once = for_disk(raw, Some("/home/someone"));
+        assert!(!once.contains("mail.example.com"), "{once}");
+        assert!(!once.contains("/home/someone"), "{once}");
+        assert_eq!(file_name(&once, now()), "core_2026-10-09_17-29-15.log");
+        assert_eq!(for_disk(&once, Some("/home/someone")), once);
     }
 
     #[test]
