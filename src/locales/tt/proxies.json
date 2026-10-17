@@ -11,7 +11,8 @@
       "disconnect": "Disconnect",
       "connecting": "Connecting...",
       "clearChainConfig": "Delete Chain Config",
-      "check": "Check"
+      "check": "Check",
+      "removeNode": "Remove the node from the chain"
     },
     "provider": {
       "title": "Прокси провайдеры",
@@ -79,8 +80,8 @@
         "updateSuccess": "{{name}} updated successfully",
         "updateFailed": "Failed to update {{name}}: {{message}}",
         "genericError": "Update failed: {{message}}",
-        "none": "No providers available to update",
-        "allUpdated": "All providers updated successfully"
+        "none": "No server sets to update",
+        "allUpdated": "All server sets updated"
       }
     }
   },

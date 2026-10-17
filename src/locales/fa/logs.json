@@ -8,6 +8,7 @@
     "export": "ذخیره در فایل"
   },
   "messages": {
-    "exported": "گزارش‌ها ذخیره شدند"
+    "exported": "گزارش‌ها ذخیره شدند",
+    "belowCoreLevel": "The core does not write entries of this level. Change it in Settings → “Log Level”"
   }
 }

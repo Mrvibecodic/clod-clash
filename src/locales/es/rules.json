@@ -16,8 +16,8 @@
         "updateSuccess": "{{name}} updated successfully",
         "updateFailed": "Failed to update {{name}}: {{message}}",
         "genericError": "Update failed: {{message}}",
-        "none": "No providers available to update",
-        "allUpdated": "All providers updated successfully"
+        "none": "No rule sets to update",
+        "allUpdated": "All rule sets updated"
       }
     }
   },

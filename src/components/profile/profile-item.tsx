@@ -31,14 +31,7 @@ import {
 } from '@mui/material'
 import { useLockFn } from 'ahooks'
 import dayjs from 'dayjs'
-import {
-  memo,
-  useCallback,
-  useEffect,
-  useReducer,
-  useRef,
-  useState,
-} from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseDialog } from '@/components/base'
@@ -48,11 +41,7 @@ import { RulesEditorViewer } from '@/components/profile/rules-editor-viewer'
 import { useEditorDocument } from '@/hooks/use-editor-document'
 import { openProviderLink } from '@/hooks/use-provider-links'
 import {
-  beginOwnUpdate,
-  endOwnUpdate,
-  isSubscriptionPaused,
-  isSubscriptionUpdating,
-  pauseSubscription,
+  updateSubscriptionNow,
   useSubscriptionPaused,
   useSubscriptionUpdating,
 } from '@/hooks/use-subscription-update'
@@ -61,7 +50,6 @@ import {
   getNextUpdateTime,
   readProfileFile,
   saveProfileFile,
-  updateProfile,
   viewProfile,
 } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
@@ -69,6 +57,7 @@ import type { TranslationKey } from '@/types/generated/i18n-keys'
 import { profileDate } from '@/utils/date-text'
 import { debugLog } from '@/utils/debug'
 import parseTraffic from '@/utils/parse-traffic'
+import { pressable } from '@/utils/pressable'
 import { profileDisplayName } from '@/utils/profile-name'
 import { clockSkew, missedUpdates } from '@/utils/subscription-status'
 
@@ -123,7 +112,9 @@ const ProfileItemBase = (props: ProfileItemProps) => {
 
   const [showNextUpdate, setShowNextUpdate] = useState(false)
   const showNextUpdateRef = useRef(false)
-  const [nextUpdateTime, setNextUpdateTime] = useState('')
+  // Момент следующего обновления со слов бэкенда: null — задачи нет,
+  // 'error' — не узнали; строка собирается при отрисовке от `now`.
+  const [nextUpdateAt, setNextUpdateAt] = useState<number | null | 'error'>()
   const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
   )
@@ -132,78 +123,58 @@ const ProfileItemBase = (props: ProfileItemProps) => {
   const name =
     profileDisplayName(itemData) ??
     t('profiles.components.profileItem.untitled')
-  const [mountedAt] = useState(() => Date.now())
+  const autoUpdateOff = option?.allow_auto_update === false
 
-  const fetchNextUpdateTimeCallback = useCallback(
-    async (forceRefresh = false) => {
-      if (
-        itemData.option?.update_interval &&
-        itemData.option.update_interval > 0
-      ) {
-        try {
-          debugLog(
-            `Попытка получить время следующего обновления для конфигурации ${itemData.uid}`,
-          )
+  // «Сейчас» экрана: дни до конца, «обновлено … назад» и следующее обновление
+  // не застывают, пока экран открыт.
+  const [now, setNow] = useState(() => Date.now())
+  const pageVisible = useVisibility()
+  useEffect(() => {
+    if (!pageVisible) return
+    const tick = () => setNow(Date.now())
+    const returned = setTimeout(tick, 0)
+    const timer = setInterval(tick, 60_000)
+    return () => {
+      clearTimeout(returned)
+      clearInterval(timer)
+    }
+  }, [pageVisible])
 
-          if (forceRefresh) {
-            debugLog(`Принудительное обновление задачи таймера`)
-          }
-
-          const nextUpdate = await getNextUpdateTime(itemData.uid)
-          debugLog(
-            `Результат получения времени следующего обновления:`,
-            nextUpdate,
-          )
-
-          if (nextUpdate) {
-            const diffMinutes = dayjs(nextUpdate * 1000).diff(dayjs(), 'minute')
-
-            if (diffMinutes < 60) {
-              if (diffMinutes <= 0) {
-                setNextUpdateTime(
-                  `${t('profiles.components.profileItem.status.nextUp')} <1m`,
-                )
-              } else {
-                setNextUpdateTime(
-                  `${t('profiles.components.profileItem.status.nextUp')} ${diffMinutes}m`,
-                )
-              }
-            } else {
-              const hours = Math.floor(diffMinutes / 60)
-              const mins = diffMinutes % 60
-              setNextUpdateTime(
-                `${t('profiles.components.profileItem.status.nextUp')} ${hours}h ${mins}m`,
-              )
-            }
-          } else {
-            debugLog(`Возвращено пустое время следующего обновления`)
-            setNextUpdateTime(
-              t('profiles.components.profileItem.status.noSchedule'),
-            )
-          }
-        } catch (err) {
-          console.error(
-            `Ошибка при получении времени следующего обновления:`,
-            err,
-          )
-          setNextUpdateTime(t('profiles.components.profileItem.status.unknown'))
-        }
-      } else {
-        debugLog(
-          `Для этой конфигурации не задан интервал обновления или он равен 0`,
-        )
-        setNextUpdateTime(
-          t('profiles.components.profileItem.status.autoUpdateDisabled'),
-        )
-      }
-    },
-    [itemData.option?.update_interval, itemData.uid, t],
-  )
+  const fetchNextUpdateTimeCallback = useCallback(async () => {
+    try {
+      const nextUpdate = await getNextUpdateTime(itemData.uid)
+      debugLog(`Следующее обновление ${itemData.uid}:`, nextUpdate)
+      setNextUpdateAt(nextUpdate ?? null)
+    } catch (err) {
+      console.error(`Ошибка при получении времени следующего обновления:`, err)
+      setNextUpdateAt('error')
+    }
+  }, [itemData.uid])
   const fetchNextUpdateTime = useLockFn(fetchNextUpdateTimeCallback)
 
-  const toggleUpdateTimeDisplay = (e: React.MouseEvent) => {
-    e.stopPropagation()
+  const nextUpdateText = (() => {
+    if (autoUpdateOff) {
+      return t('profiles.components.profileItem.status.autoUpdateDisabled')
+    }
+    if (nextUpdateAt === undefined) return ''
+    if (nextUpdateAt === 'error') {
+      return t('profiles.components.profileItem.status.unknown')
+    }
+    if (nextUpdateAt === null) {
+      return t('profiles.components.profileItem.status.noSchedule')
+    }
+    const minutes = Math.floor((nextUpdateAt * 1000 - now) / 60_000)
+    if (minutes < 1)
+      return t('profiles.components.profileItem.status.nextUpSoon')
+    return minutes < 60
+      ? t('profiles.components.profileItem.status.nextUpMinutes', { minutes })
+      : t('profiles.components.profileItem.status.nextUpHours', {
+          hours: Math.floor(minutes / 60),
+          minutes: minutes % 60,
+        })
+  })()
 
+  const toggleUpdateTimeDisplay = () => {
     if (!showNextUpdate) {
       fetchNextUpdateTime()
     }
@@ -222,7 +193,8 @@ const ProfileItemBase = (props: ProfileItemProps) => {
   }, [
     fetchNextUpdateTime,
     showNextUpdate,
-    itemData.option?.update_interval,
+    option?.update_interval,
+    option?.allow_auto_update,
     updated,
   ])
 
@@ -233,7 +205,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
       clearTimeout(refreshTimeoutRef.current)
     }
     refreshTimeoutRef.current = window.setTimeout(() => {
-      fetchNextUpdateTime(true)
+      fetchNextUpdateTime()
     }, 1000)
 
     return () => {
@@ -257,10 +229,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
   const skew = clockSkew(itemData) ?? 0
   const daysLeft = neverExpires
     ? undefined
-    : Math.max(
-        0,
-        Math.ceil((expireSeconds - (mountedAt / 1000 + skew)) / 86400),
-      )
+    : Math.max(0, Math.ceil((expireSeconds - (now / 1000 + skew)) / 86400))
   const expire = neverExpires
     ? t('profiles.components.profileItem.labels.neverExpires')
     : daysLeft !== undefined
@@ -281,15 +250,14 @@ const ProfileItemBase = (props: ProfileItemProps) => {
     !unlimitedTraffic && total > 0 && download + upload >= total
   const expired = daysLeft === 0 && !neverExpires
   const expiring = !expired && daysLeft !== undefined && daysLeft <= 3
-  const badge = selected
-    ? { key: 'active' as const, color: 'primary' as const }
-    : expired
-      ? { key: 'expired' as const, color: 'error' as const }
-      : trafficOut
-        ? { key: 'trafficOut' as const, color: 'error' as const }
-        : expiring
-          ? { key: 'expiring' as const, color: 'warning' as const }
-          : undefined
+  // Выбранность показывает рамка карточки, плашка — только состояние подписки.
+  const badge = expired
+    ? { key: 'expired' as const, color: 'error' as const }
+    : trafficOut
+      ? { key: 'trafficOut' as const, color: 'error' as const }
+      : expiring
+        ? { key: 'expiring' as const, color: 'warning' as const }
+        : undefined
 
   const hwidNotice =
     itemData.hwid_state === 'limit'
@@ -302,37 +270,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
   // Пауза после ручного обновления — та же, что у кнопок Главной
   const paused = useSubscriptionPaused(itemData.uid)
   const missed = missedUpdates(itemData)
-  const fetchedAgo = updated > 0 ? dayjs(updated * 1000).fromNow() : ''
-
-  const [, forceRefresh] = useReducer((value: number) => value + 1, 0)
-  const pageVisible = useVisibility()
-  useEffect(() => {
-    if (!pageVisible || !hasUrl) return
-
-    let timer: ReturnType<typeof setTimeout> | undefined
-
-    const handler = () => {
-      const now = Date.now()
-      const lastUpdate = updated * 1000
-      if (now - lastUpdate >= 24 * 36e5) return
-
-      const wait = now - lastUpdate >= 36e5 ? 30e5 : 5e4
-
-      timer = setTimeout(() => {
-        forceRefresh()
-        handler()
-      }, wait)
-    }
-
-    handler()
-
-    return () => {
-      if (timer) {
-        clearTimeout(timer)
-        timer = undefined
-      }
-    }
-  }, [forceRefresh, hasUrl, updated, pageVisible])
+  const fetchedAgo = updated > 0 ? dayjs(updated * 1000).from(now) : ''
 
   const [fileOpen, setFileOpen] = useState(false)
   const [rulesOpen, setRulesOpen] = useState(false)
@@ -425,44 +363,23 @@ const ProfileItemBase = (props: ProfileItemProps) => {
     }
   })
 
-  const onUpdate = useLockFn(async (type: 0 | 1 | 2): Promise<void> => {
+  // «Через прокси» — первым маршрутом своё ядро; без него — маршрут из
+  // настроек подписки, как у кнопки на карточке.
+  const onUpdate = useLockFn(async (viaProxy: boolean): Promise<void> => {
     setAnchorEl(null)
-    if (
-      isSubscriptionUpdating(itemData.uid) ||
-      isSubscriptionPaused(itemData.uid)
-    ) {
-      return
-    }
-    beginOwnUpdate(itemData.uid)
-
-    const option: Partial<IProfileOption> = {}
-    if (type === 0) {
-      option.with_proxy = false
-      option.self_proxy = false
-    } else if (type === 2) {
-      if (itemData.option?.self_proxy) {
-        option.with_proxy = false
-        option.self_proxy = true
-      } else {
-        option.with_proxy = true
-        option.self_proxy = false
-      }
-    }
-
     try {
-      const payload = Object.keys(option).length > 0 ? option : undefined
-      await updateProfile(itemData.uid, payload)
-      pauseSubscription(itemData.uid)
-
-      void mutateProfiles()
+      const option = viaProxy
+        ? { with_proxy: false, self_proxy: true }
+        : undefined
+      if (await updateSubscriptionNow(itemData.uid, option)) {
+        void mutateProfiles()
+      }
     } catch (error) {
       // clod:Э10-01 — раньше ошибка глоталась молча: человек жал «Обновить»,
       // спиннер гас, и он не узнавал ни о провале, ни о причине. Бэкенд на ручном
       // вызове уведомление не шлёт намеренно — показываем здесь, чтобы не было двух.
       showNotice.error(error)
       void mutateProfiles()
-    } finally {
-      endOwnUpdate(itemData.uid)
     }
   })
 
@@ -510,12 +427,12 @@ const ProfileItemBase = (props: ProfileItemProps) => {
         selectItem,
         {
           label: menuLabels.update,
-          handler: () => onUpdate(0),
+          handler: () => onUpdate(false),
           disabled: loading || paused,
         },
         {
           label: menuLabels.updateViaProxy,
-          handler: () => onUpdate(2),
+          handler: () => onUpdate(true),
           disabled: loading || paused,
         },
       ]
@@ -575,13 +492,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
       label: menuLabels.delete,
       handler: () => {
         setAnchorEl(null)
-        if (batchMode) {
-          if (onSelectionChange) {
-            onSelectionChange()
-          }
-        } else {
-          setConfirmOpen(true)
-        }
+        setConfirmOpen(true)
       },
       disabled: false,
     },
@@ -590,6 +501,11 @@ const ProfileItemBase = (props: ProfileItemProps) => {
   useEffect(() => {
     menuActionsRef.current?.updatePosition()
   }, [advancedOpen])
+
+  const pressCard = () => {
+    if (batchMode) onSelectionChange?.()
+    else onSelect(false)
+  }
 
   const renderMenuItem = (item: ContextMenuItem, nested = false) => (
     <MenuItem
@@ -651,8 +567,11 @@ const ProfileItemBase = (props: ProfileItemProps) => {
             e.stopPropagation()
             return
           }
-          onSelect(false)
+          pressCard()
         }}
+        {...pressable(() => {
+          if (!activating) pressCard()
+        })}
         onContextMenu={(event) => {
           const { clientX, clientY } = event
           setPosition({ top: clientY, left: clientX })
@@ -760,7 +679,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
                 if (activating || loading || paused) {
                   return
                 }
-                onUpdate(1)
+                onUpdate(false)
               }}
             >
               <RefreshRounded color="inherit" />
@@ -805,7 +724,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
               title={t('profiles.components.profileItem.tooltips.notApplied')}
               sx={{
                 fontSize: 13,
-                flexShrink: 0,
+                minWidth: 0,
                 mr: 0.75,
                 color: 'warning.main',
                 cursor: 'default',
@@ -814,7 +733,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
               {t('profiles.components.profileItem.labels.notApplied')}
             </Typography>
           )}
-          {itemData.update_failed && !itemData.not_applied && (
+          {itemData.update_failed && !itemData.not_applied && missed === 0 && (
             <Typography
               noWrap
               component="span"
@@ -823,7 +742,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
               )}
               sx={{
                 fontSize: 13,
-                flexShrink: 0,
+                minWidth: 0,
                 mr: 0.75,
                 color: 'error.main',
                 cursor: 'default',
@@ -852,13 +771,13 @@ const ProfileItemBase = (props: ProfileItemProps) => {
                   color: 'primary.main',
                 },
               }}
-              onClick={toggleUpdateTimeDisplay}
+              onClick={(event) => {
+                event.stopPropagation()
+                toggleUpdateTimeDisplay()
+              }}
+              {...pressable(toggleUpdateTimeDisplay)}
             >
-              {showNextUpdate
-                ? nextUpdateTime
-                : updated > 0
-                  ? dayjs(updated * 1000).fromNow()
-                  : ''}
+              {showNextUpdate ? nextUpdateText : fetchedAgo}
             </Typography>
           )}
         </Box>
@@ -995,7 +914,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
                 onClick={(e) => {
                   e.stopPropagation()
                   if (activating || loading || paused) return
-                  onUpdate(1)
+                  onUpdate(false)
                 }}
               >
                 {t('profiles.components.menu.update')}
@@ -1084,6 +1003,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
           value={profileDocument.value}
           language="yaml"
           path={`profile:${uid}.yaml`}
+          title={t(menuLabels.editFile)}
           loading={profileDocument.loading}
           dirty={profileDocument.dirty}
           onChange={profileDocument.setValue}
@@ -1127,6 +1047,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
           value={mergeDocument.value}
           language="yaml"
           path={`merge:${option?.merge ?? ''}.yaml`}
+          title={t(menuLabels.extendConfig)}
           loading={mergeDocument.loading}
           dirty={mergeDocument.dirty}
           onChange={mergeDocument.setValue}
@@ -1140,6 +1061,7 @@ const ProfileItemBase = (props: ProfileItemProps) => {
           value={scriptDocument.value}
           language="javascript"
           path={`script:${option?.script ?? ''}.js`}
+          title={t(menuLabels.extendScript)}
           loading={scriptDocument.loading}
           dirty={scriptDocument.dirty}
           onChange={scriptDocument.setValue}

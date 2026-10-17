@@ -21,6 +21,7 @@ import dayjs from 'dayjs'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { NARROW } from '@/pages/_theme'
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
 import { updateCoreProxyProvider } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
@@ -148,9 +149,20 @@ export const ProviderButton = () => {
         size="small"
         startIcon={<StorageOutlined />}
         onClick={() => setOpen(true)}
-        sx={{ mr: 1 }}
+        title={t('proxies.page.provider.title')}
+        sx={{
+          mr: 1,
+          whiteSpace: 'nowrap',
+          [NARROW]: {
+            minWidth: 0,
+            '& .provider-label': { display: 'none' },
+            '& .MuiButton-startIcon': { m: 0 },
+          },
+        }}
       >
-        {t('proxies.page.provider.title')}
+        <span className="provider-label">
+          {t('proxies.page.provider.title')}
+        </span>
       </Button>
 
       <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>

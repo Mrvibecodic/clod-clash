@@ -119,12 +119,8 @@ export const QuickActions = () => {
       if (next && !tunCapable) {
         setInstalling(true)
         const ready = await prepareTun().finally(() => setInstalling(false))
-        if (!ready) {
-          showNotice.error(
-            'settings.sections.proxyControl.tooltips.tunUnavailable',
-          )
-          return
-        }
+        // Причину отказа бэкенд уже показал уведомлением.
+        if (!ready) return
       }
       await switchTun(next)
     } catch (error) {
@@ -193,9 +189,9 @@ export const QuickActions = () => {
             busy={installing || tunBusy}
             onToggle={(next) => void toggleTun(next)}
           />
-          <TunStatus />
         </>
       )}
+      <TunStatus />
       <FirewallStatus />
 
       <GroupCap label={t('home.components.quickActions.groups.launch')} />

@@ -408,6 +408,12 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
         </CodeChip>
       </Box>
 
+      {!enabled && (
+        <Box sx={{ fontSize: 12.5, color: 'text.secondary', pt: 1 }}>
+          {t('settings.modals.sysproxy.messages.appliesOnConnect')}
+        </Box>
+      )}
+
       <FormSection title={t('settings.modals.sysproxy.sections.address')} />
       <FormField
         label={t('settings.modals.sysproxy.fields.proxyHost')}
@@ -445,7 +451,6 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
       <FormRow label={t('settings.modals.sysproxy.fields.usePacMode')}>
         <Switch
           edge="end"
-          disabled={!enabled}
           checked={value.pac}
           onChange={(_, e) => setValue((v) => ({ ...v, pac: e }))}
         />
@@ -483,7 +488,6 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
       >
         <Switch
           edge="end"
-          disabled={!enabled}
           checked={value.guard}
           onChange={(_, e) => setValue((v) => ({ ...v, guard: e }))}
         />
@@ -493,7 +497,6 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
         disabled={!value.guard}
       >
         <TextField
-          disabled={!enabled}
           size="small"
           value={value.duration}
           sx={{
@@ -504,7 +507,11 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
           }}
           slotProps={{
             input: {
-              endAdornment: <InputAdornment position="end">s</InputAdornment>,
+              endAdornment: (
+                <InputAdornment position="end">
+                  {t('shared.units.seconds')}
+                </InputAdornment>
+              ),
             },
           }}
           onChange={(e) => {
@@ -524,7 +531,6 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
           >
             <Switch
               edge="end"
-              disabled={!enabled}
               checked={value.use_default}
               onChange={(_, e) => setValue((v) => ({ ...v, use_default: e }))}
             />
@@ -534,7 +540,6 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
           >
             <Switch
               edge="end"
-              disabled={!enabled}
               checked={value.enable_bypass_check}
               onChange={(_, e) =>
                 setValue((v) => ({ ...v, enable_bypass_check: e }))
@@ -544,7 +549,6 @@ export const SysproxyViewer = forwardRef<DialogRef>((props, ref) => {
           <BaseSplitChipEditor
             value={value.bypass ?? ''}
             separator={separator}
-            disabled={!enabled}
             error={bypassError}
             helperText={
               bypassError

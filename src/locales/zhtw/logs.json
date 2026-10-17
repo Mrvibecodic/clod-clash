@@ -8,6 +8,7 @@
     "export": "儲存到檔案"
   },
   "messages": {
-    "exported": "日誌已儲存"
+    "exported": "日誌已儲存",
+    "belowCoreLevel": "The core does not write entries of this level. Change it in Settings → “Log Level”"
   }
 }

@@ -8,6 +8,7 @@
     "export": "In Datei speichern"
   },
   "messages": {
-    "exported": "Logs gespeichert"
+    "exported": "Logs gespeichert",
+    "belowCoreLevel": "The core does not write entries of this level. Change it in Settings → “Log Level”"
   }
 }

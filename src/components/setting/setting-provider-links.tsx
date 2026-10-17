@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useProfiles } from '@/hooks/use-profiles'
 import { openProviderLink, useProviderLinks } from '@/hooks/use-provider-links'
+import { CARD_SURFACE } from '@/pages/_theme'
 import { profileDisplayName } from '@/utils/profile-name'
 
 import { SettingItem, SettingList } from './mods/setting-comp'
@@ -29,40 +30,42 @@ export const SettingProviderLinks = () => {
   if (!links.length) return null
 
   return (
-    <SettingList
-      title={profileDisplayName(current) || t('shared.providerLinks.title')}
-    >
-      <Box sx={{ px: 2, mt: -1, mb: 0.5 }}>
-        <Typography variant="caption" color="text.secondary">
-          {t('shared.providerLinks.subtitle')}
-        </Typography>
-      </Box>
+    <Box sx={CARD_SURFACE}>
+      <SettingList
+        title={profileDisplayName(current) || t('shared.providerLinks.title')}
+      >
+        <Box sx={{ px: 2, mt: -1, mb: 0.5 }}>
+          <Typography variant="caption" color="text.secondary">
+            {t('shared.providerLinks.subtitle')}
+          </Typography>
+        </Box>
 
-      {links.map((link) => (
-        <SettingItem
-          key={link.key}
-          label={
-            <Box
-              component="span"
-              sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
-            >
+        {links.map((link) => (
+          <SettingItem
+            key={link.key}
+            label={
               <Box
                 component="span"
-                sx={{ display: 'flex', color: 'primary.main' }}
+                sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
               >
-                {link.icon}
+                <Box
+                  component="span"
+                  sx={{ display: 'flex', color: 'primary.main' }}
+                >
+                  {link.icon}
+                </Box>
+                {link.label}
               </Box>
-              {link.label}
-            </Box>
-          }
-          extra={
-            <OpenInNewRounded
-              sx={{ fontSize: 15, ml: 1, color: 'text.secondary' }}
-            />
-          }
-          onClick={() => openProviderLink(link.url)}
-        />
-      ))}
-    </SettingList>
+            }
+            extra={
+              <OpenInNewRounded
+                sx={{ fontSize: 15, ml: 1, color: 'text.secondary' }}
+              />
+            }
+            onClick={() => openProviderLink(link.url)}
+          />
+        ))}
+      </SettingList>
+    </Box>
   )
 }

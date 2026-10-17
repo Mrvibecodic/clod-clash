@@ -1,5 +1,11 @@
 import { Shuffle } from '@mui/icons-material'
-import { CircularProgress, IconButton, Stack, TextField } from '@mui/material'
+import {
+  Box,
+  CircularProgress,
+  IconButton,
+  Stack,
+  TextField,
+} from '@mui/material'
 import { useLockFn, useRequest } from 'ahooks'
 import { forwardRef, useImperativeHandle, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -403,7 +409,8 @@ export const ClashPortViewer = forwardRef<ClashPortViewerRef>((_, ref) => {
         >
           <Shuffle fontSize="small" />
         </IconButton>
-        <Switch size="small" checked={true} disabled={true} />
+        {/* Место выключателя соседних строк: у смешанного порта его нет. */}
+        <Box sx={{ width: 40, flex: 'none' }} />
       </FormRow>
 
       <FormRow

@@ -18,6 +18,7 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import parseTraffic, { parseSpeed } from '@/utils/parse-traffic'
+import { pressable } from '@/utils/pressable'
 
 import {
   ConnectionColumnManager,
@@ -30,13 +31,17 @@ import {
   getConnectionDestination,
   getConnectionHost,
   getConnectionHostParts,
-  getConnectionProcess,
-  getConnectionRule,
   getConnectionSource,
   getConnectionStartTime,
   getConnectionTypeLabel,
 } from './connection-row-view'
-import { type ConnectionGroup, buildConnectionGroups } from './connection-stats'
+import {
+  type ConnectionGroup,
+  buildConnectionGroups,
+  connectionGroupKey,
+  getConnectionProcess,
+  getConnectionRule,
+} from './connection-stats'
 import { connTextSx, connTileSx } from './connection-text'
 
 const ROW_HEIGHT = 44
@@ -322,22 +327,6 @@ type TableItem =
   | { kind: 'group'; group: ConnectionGroup; collapsed: boolean }
   | { kind: 'row'; row: IConnectionsItem }
 
-const getGroupKey = (
-  groupBy: IConnectionGroupBy,
-  snapshot: TableRowSnapshot,
-) => {
-  switch (groupBy) {
-    case 'process':
-      return snapshot.process
-    case 'chain':
-      return snapshot.chainsText
-    case 'rule':
-      return snapshot.ruleText
-    default:
-      return ''
-  }
-}
-
 interface GroupRowProps {
   group: ConnectionGroup
   collapsed: boolean
@@ -385,6 +374,8 @@ const GroupRowComponent = memo(
     return (
       <Box
         onClick={handleClick}
+        {...pressable(handleClick)}
+        aria-expanded={!collapsed}
         data-collapsed={collapsed}
         sx={groupRowSx}
         style={{ top: virtualTop }}
@@ -490,6 +481,7 @@ const RowComponent = memo(
         style={{ top: virtualTop + TILE_GAP }}
         data-selected={selected}
         onClick={handleClick}
+        {...pressable(handleClick)}
       >
         {columns.map((column) => (
           <div
@@ -822,8 +814,9 @@ export const ConnectionTable = (props: Props) => {
   )
 
   const resolveGroupKey = useCallback(
-    (row: IConnectionsItem) => getGroupKey(groupBy, getRowSnapshot(row)),
-    [getRowSnapshot, groupBy],
+    (row: IConnectionsItem) =>
+      connectionGroupKey(groupBy, row, cellLabels.direct),
+    [cellLabels.direct, groupBy],
   )
 
   const groupedItems = useMemo(() => {

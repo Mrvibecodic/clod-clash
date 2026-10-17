@@ -44,9 +44,11 @@ import { refillDateText } from '@/utils/date-text'
 import {
   delayBars,
   delayColor,
+  delayText,
   failedDelay,
   usableDelay,
 } from '@/utils/delay-color'
+import { pressable } from '@/utils/pressable'
 import {
   AUTO_GROUP_TYPES,
   displayLeaf,
@@ -63,10 +65,6 @@ import {
 } from '@/utils/proxy-groups'
 import { hidesType, typeText } from '@/utils/proxy-label'
 import { noServersSeverity } from '@/utils/subscription-status'
-
-/** Пинг на Главной: замер — в мс, неответ — словом, как на «Прокси», не мерили — прочерк. */
-const pingLabel = (delay: number | undefined, failed: string) =>
-  usableDelay(delay) ? `${delay} ms` : failedDelay(delay) ? failed : '—'
 
 const VIRTUALIZE_FROM = 50
 const ROW_HEIGHT = 52
@@ -301,12 +299,13 @@ export const ServerSelect = ({ open, onClose }: Props) => {
         ) : (
           <Typography
             variant="body2"
+            title={failedDelay(delay) ? t('shared.labels.timeout') : undefined}
             sx={{
               color: delayColor(delay, current?.ping_thresholds),
               fontVariantNumeric: 'tabular-nums',
             }}
           >
-            {pingLabel(delay, t('shared.labels.timeout'))}
+            {delayText(delay, t('shared.units.ms'))}
           </Typography>
         )}
         {isGroup ? null : (
@@ -542,7 +541,10 @@ const SignalDot = ({ delay, bounds }: LatencyProps) => (
       height: 10,
       flex: 'none',
       borderRadius: '50%',
-      bgcolor: usableDelay(delay) ? delayColor(delay, bounds) : 'divider',
+      bgcolor:
+        usableDelay(delay) || failedDelay(delay)
+          ? delayColor(delay, bounds)
+          : 'divider',
     }}
   />
 )
@@ -553,14 +555,19 @@ const LatencyNumber = ({ delay, bounds }: LatencyProps) => {
     <Typography
       sx={{ fontSize: 12, flex: 'none', fontVariantNumeric: 'tabular-nums' }}
       color={delayColor(delay, bounds)}
+      title={failedDelay(delay) ? t('shared.labels.timeout') : undefined}
     >
-      {pingLabel(delay, t('shared.labels.timeout'))}
+      {delayText(delay, t('shared.units.ms'))}
     </Typography>
   )
 }
 
 const SignalBars = ({ delay, bounds }: LatencyProps) => {
-  const lit = usableDelay(delay) ? delayBars(delay, bounds) : 0
+  const lit = usableDelay(delay)
+    ? delayBars(delay, bounds)
+    : failedDelay(delay)
+      ? 1
+      : 0
   const color = (index: number) =>
     index < lit ? delayColor(delay, bounds) : 'divider'
   return (
@@ -793,14 +800,15 @@ export const ServerSelectRow = ({ onOpen, connected }: RowProps) => {
     ? (subject ?? '—')
     : usableDelay(shownDelay)
       ? subject
-        ? `${subject} · ${shownDelay} ${t('home.components.serverSelect.ms')}`
-        : `${shownDelay} ${t('home.components.serverSelect.ms')}`
+        ? `${subject} · ${delayText(shownDelay, t('shared.units.ms'))}`
+        : delayText(shownDelay, t('shared.units.ms'))
       : (subject ?? '—')
 
   return (
     <Stack
       direction="row"
       onClick={onOpen}
+      {...pressable(onOpen)}
       sx={{
         alignItems: 'center',
         gap: 1.5,

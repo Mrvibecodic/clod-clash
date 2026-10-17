@@ -7,8 +7,8 @@ import {
   Suspense,
   useImperativeHandle,
   useMemo,
-  useRef,
   useState,
+  useSyncExternalStore,
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Options as ReactMarkdownOptions } from 'react-markdown'
@@ -19,7 +19,9 @@ import { showNotice } from '@/services/notice-service'
 import { useQuery } from '@/services/query-client'
 import { useSetUpdateState, useUpdateState } from '@/services/states'
 import { checkUpdateSafe } from '@/services/update'
+import type { TranslationKey } from '@/types/generated/i18n-keys'
 import { pickChangelogSection } from '@/utils/changelog'
+import parseTraffic from '@/utils/parse-traffic'
 
 type MarkdownNode = {
   type: string
@@ -31,12 +33,15 @@ type MarkdownNode = {
 }
 
 const GITHUB_ALERTS = {
-  note: { label: 'Note', color: '#0969da' },
-  tip: { label: 'Tip', color: '#1a7f37' },
-  important: { label: 'Important', color: '#8250df' },
-  warning: { label: 'Warning', color: '#9a6700' },
-  caution: { label: 'Caution', color: '#cf222e' },
-} as const
+  note: { label: 'settings.modals.update.alerts.note', color: '#0969da' },
+  tip: { label: 'settings.modals.update.alerts.tip', color: '#1a7f37' },
+  important: {
+    label: 'settings.modals.update.alerts.important',
+    color: '#8250df',
+  },
+  warning: { label: 'settings.modals.update.alerts.warning', color: '#9a6700' },
+  caution: { label: 'settings.modals.update.alerts.caution', color: '#cf222e' },
+} as const satisfies Record<string, { label: TranslationKey; color: string }>
 
 type GitHubAlertType = keyof typeof GITHUB_ALERTS
 
@@ -109,7 +114,7 @@ const findFirstTextNode = (node: MarkdownNode): MarkdownNode | null => {
   return null
 }
 
-const remarkGitHubAlerts = () => {
+const remarkGitHubAlerts = (translate: (key: TranslationKey) => string) => {
   const visit = (node: MarkdownNode) => {
     for (const child of node.children ?? []) {
       visit(child)
@@ -144,7 +149,7 @@ const remarkGitHubAlerts = () => {
       children: [
         {
           type: 'text',
-          value: GITHUB_ALERTS[alertType].label,
+          value: translate(GITHUB_ALERTS[alertType].label),
         },
       ],
     })
@@ -156,6 +161,21 @@ const remarkGitHubAlerts = () => {
 // Установка одна на приложение, а окон обновления два: общее состояние React
 // обновляется не сразу, и два почти одновременных нажатия прошли бы оба.
 let installInFlight = false
+
+// Ход загрузки — тоже один на приложение: его видит любое окно обновления,
+// в том числе открытое заново посреди загрузки.
+let installProgress = { downloaded: 0, total: 0 }
+const progressListeners = new Set<() => void>()
+const setInstallProgress = (next: typeof installProgress) => {
+  installProgress = next
+  for (const listener of progressListeners) listener()
+}
+const subscribeInstallProgress = (listener: () => void) => {
+  progressListeners.add(listener)
+  return () => {
+    progressListeners.delete(listener)
+  }
+}
 
 export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const { t, i18n } = useTranslation()
@@ -172,15 +192,11 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
     refetchOnWindowFocus: false,
   })
 
-  const [downloaded, setDownloaded] = useState(0)
-  const [total, setTotal] = useState(0)
-  const downloadedRef = useRef(0)
-  const totalRef = useRef(0)
-
-  const progress = useMemo(() => {
-    if (total <= 0) return 0
-    return Math.min((downloaded / total) * 100, 100)
-  }, [downloaded, total])
+  const { downloaded, total } = useSyncExternalStore(
+    subscribeInstallProgress,
+    () => installProgress,
+  )
+  const progress = total > 0 ? Math.min((downloaded / total) * 100, 100) : 0
 
   useImperativeHandle(ref, () => ({
     open: () => setOpen(true),
@@ -192,7 +208,7 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
       return t('settings.modals.update.messages.noData')
     }
     if (!updateInfo.body) {
-      return 'New Version is available'
+      return t('settings.modals.update.messages.noNotes')
     }
 
     return pickChangelogSection(updateInfo.body, i18n.language)
@@ -214,32 +230,22 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
     if (updateState || installInFlight) return
     installInFlight = true
     setUpdateState(true)
-    setDownloaded(0)
-    setTotal(0)
-    downloadedRef.current = 0
-    totalRef.current = 0
+    setInstallProgress({ downloaded: 0, total: 0 })
 
     const onDownloadEvent = (event: DownloadEvent) => {
+      const { downloaded, total } = installProgress
       if (event.event === 'Started') {
-        const contentLength = event.data.contentLength ?? 0
-        totalRef.current = contentLength
-        setTotal(contentLength)
-        setDownloaded(0)
-        downloadedRef.current = 0
-        return
-      }
-
-      if (event.event === 'Progress') {
-        setDownloaded((prev) => {
-          const next = prev + event.data.chunkLength
-          downloadedRef.current = next
-          return next
+        setInstallProgress({
+          downloaded: 0,
+          total: event.data.contentLength ?? 0,
         })
-      }
-
-      if (event.event === 'Finished' && totalRef.current === 0) {
-        totalRef.current = downloadedRef.current
-        setTotal(downloadedRef.current)
+      } else if (event.event === 'Progress') {
+        setInstallProgress({
+          downloaded: downloaded + event.data.chunkLength,
+          total,
+        })
+      } else if (event.event === 'Finished' && total === 0) {
+        setInstallProgress({ downloaded, total: downloaded })
       }
     }
 
@@ -252,10 +258,7 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
     } finally {
       installInFlight = false
       setUpdateState(false)
-      setDownloaded(0)
-      setTotal(0)
-      downloadedRef.current = 0
-      totalRef.current = 0
+      setInstallProgress({ downloaded: 0, total: 0 })
     }
   })
 
@@ -264,9 +267,11 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
       open={open}
       title={
         <Box sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>
-          {t('settings.modals.update.title', {
-            version: updateInfo?.version ?? '',
-          })}
+          {updateInfo?.version
+            ? t('settings.modals.update.title', {
+                version: updateInfo.version,
+              })
+            : t('settings.modals.update.titleNoVersion')}
         </Box>
       }
       fullWidth
@@ -282,14 +287,39 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
         overflowX: 'hidden',
         pb: 1,
       }}
-      okBtn={t('settings.modals.update.actions.update')}
+      okBtn={
+        updateState && total > 0
+          ? t('settings.modals.update.actions.downloading', {
+              percent: Math.floor(progress),
+            })
+          : t('settings.modals.update.actions.update')
+      }
+      changes={updateState ? 0 : undefined}
+      footerStart={
+        updateState
+          ? total > 0
+            ? t('settings.modals.update.messages.progress', {
+                downloaded: parseTraffic(downloaded),
+                total: parseTraffic(total),
+              })
+            : ''
+          : undefined
+      }
       disableOk={!updateInfo}
       cancelBtn={t('shared.actions.cancel')}
       onClose={() => setOpen(false)}
       onCancel={() => {
         // Без оглядки на состояние окна: загрузку могло начать окно, которого
         // уже нет. Нечего отменять — бэкенд ничего не делает.
-        void cancelAppUpdate().catch(showNotice.error)
+        if (updateState) {
+          void cancelAppUpdate()
+            .then(() =>
+              showNotice.info('settings.modals.update.messages.cancelled'),
+            )
+            .catch(showNotice.error)
+        } else {
+          void cancelAppUpdate().catch(showNotice.error)
+        }
         setOpen(false)
       }}
       onOk={onUpdate}
@@ -415,7 +445,7 @@ export function UpdateViewer({ ref }: { ref?: Ref<DialogRef> }) {
         {open && (
           <Suspense fallback={<LinearProgress />}>
             <LazyReactMarkdown
-              remarkPlugins={[remarkGitHubAlerts]}
+              remarkPlugins={[[remarkGitHubAlerts, t]]}
               components={{
                 a: ({ ...props }) => {
                   const { children } = props

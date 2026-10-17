@@ -58,7 +58,7 @@ import {
   saveProxyChain,
 } from '@/services/proxy-chain-store'
 import { debugLog } from '@/utils/debug'
-import { delayText, delayTone, usableDelay } from '@/utils/delay-color'
+import { delayText, delayTone, failedDelay } from '@/utils/delay-color'
 import { typeText } from '@/utils/proxy-label'
 
 interface ParsedChainConfig {
@@ -235,11 +235,8 @@ const SortableItem = ({
 
       {delay !== undefined && (
         <Chip
-          label={
-            usableDelay(delay)
-              ? `${delay}ms`
-              : delayText(delay, t('shared.labels.timeout'))
-          }
+          label={delayText(delay, t('shared.units.ms'))}
+          title={failedDelay(delay) ? t('shared.labels.timeout') : undefined}
           size="small"
           color={delayTone(delay, pingBounds) ?? 'default'}
           sx={{ mr: 1, fontSize: '0.7rem', minWidth: 50 }}
@@ -248,6 +245,8 @@ const SortableItem = ({
 
       <IconButton
         size="small"
+        aria-label={t('proxies.page.actions.removeNode')}
+        title={t('proxies.page.actions.removeNode')}
         onClick={() => onRemove(proxy.id)}
         sx={{
           color: theme.palette.error.main,

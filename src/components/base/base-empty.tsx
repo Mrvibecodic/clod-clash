@@ -29,7 +29,9 @@ export const BaseEmpty = ({
       })}
     >
       <InboxRounded sx={{ fontSize: '4em' }} />
-      <Typography sx={{ fontSize: '1.25em' }}>{t(textKey)}</Typography>
+      <Typography sx={{ fontSize: '1.25em', textAlign: 'center', px: 2 }}>
+        {t(textKey)}
+      </Typography>
       {extra}
     </Box>
   )

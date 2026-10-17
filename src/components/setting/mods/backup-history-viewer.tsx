@@ -35,6 +35,7 @@ import {
   getWebdavStatus,
   setWebdavStatus,
 } from '@/services/webdav-status'
+import { dateTimeText } from '@/utils/date-text'
 
 dayjs.extend(customParseFormat)
 dayjs.extend(relativeTime)
@@ -117,12 +118,11 @@ export const BackupHistoryViewer = ({
         filename,
         platform,
         backup_time: backupTime ?? null,
-        display_time:
-          backupTime?.format('YYYY-MM-DD HH:mm') ??
-          parsedFromModified?.format('YYYY-MM-DD HH:mm') ??
-          t('settings.modals.backup.history.unknownTime', {
-            defaultValue: 'Unknown time',
-          }),
+        display_time: backupTime
+          ? dateTimeText(backupTime)
+          : t('settings.modals.backup.history.unknownTime', {
+              defaultValue: 'Unknown time',
+            }),
         sort_value:
           backupTime?.valueOf() ??
           parsedFromModified?.valueOf() ??
@@ -357,6 +357,10 @@ export const BackupHistoryViewer = ({
                 {isLocal && (
                   <IconButton
                     size="small"
+                    title={t('settings.modals.backup.actions.exportBackup')}
+                    aria-label={t(
+                      'settings.modals.backup.actions.exportBackup',
+                    )}
                     sx={{ color: 'text.secondary' }}
                     disabled={isBusy}
                     onClick={() => handleExport(row.filename)}

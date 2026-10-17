@@ -1,6 +1,7 @@
 import { Close, CropSquare, FilterNone, Minimize } from '@mui/icons-material'
 import { Box, IconButton } from '@mui/material'
 import { type PointerEvent, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { useVerge } from '@/hooks/use-verge'
 import { useWindowControls } from '@/hooks/use-window'
@@ -86,8 +87,21 @@ export const WindowResizeHandles = () => {
 }
 
 export function WindowControls() {
+  const { t } = useTranslation()
   const OS = getSystem()
   const { maximized, minimize, close, toggleMaximize } = useWindowControls()
+  const label = (action: 'close' | 'minimize' | 'maximize') => {
+    const text = t(
+      action === 'close'
+        ? 'shared.actions.close'
+        : action === 'minimize'
+          ? 'shared.window.minimize'
+          : maximized
+            ? 'shared.window.restore'
+            : 'shared.window.maximize',
+    )
+    return { title: text, 'aria-label': text }
+  }
 
   return (
     <Box
@@ -103,16 +117,27 @@ export function WindowControls() {
       {OS === 'macos' && (
         <>
           {/* Стиль macOS: закрыть → свернуть → развернуть */}
-          <IconButton size="small" sx={{ fontSize: 14 }} onClick={close}>
+          <IconButton
+            size="small"
+            sx={{ fontSize: 14 }}
+            onClick={close}
+            {...label('close')}
+          >
             <Close fontSize="inherit" color="inherit" />
           </IconButton>
-          <IconButton size="small" sx={{ fontSize: 14 }} onClick={minimize}>
+          <IconButton
+            size="small"
+            sx={{ fontSize: 14 }}
+            onClick={minimize}
+            {...label('minimize')}
+          >
             <Minimize fontSize="inherit" color="inherit" />
           </IconButton>
           <IconButton
             size="small"
             sx={{ fontSize: 14 }}
             onClick={toggleMaximize}
+            {...label('maximize')}
           >
             {maximized ? (
               <FilterNone fontSize="inherit" color="inherit" />
@@ -126,13 +151,19 @@ export function WindowControls() {
       {OS === 'windows' && (
         <>
           {/* Стиль Windows: свернуть → развернуть → закрыть */}
-          <IconButton size="small" sx={{ fontSize: 16 }} onClick={minimize}>
+          <IconButton
+            size="small"
+            sx={{ fontSize: 16 }}
+            onClick={minimize}
+            {...label('minimize')}
+          >
             <Minimize fontSize="inherit" color="inherit" />
           </IconButton>
           <IconButton
             size="small"
             sx={{ fontSize: 16 }}
             onClick={toggleMaximize}
+            {...label('maximize')}
           >
             {maximized ? (
               <FilterNone fontSize="inherit" color="inherit" />
@@ -144,6 +175,7 @@ export function WindowControls() {
             size="small"
             sx={{ fontSize: 16, ':hover': { bgcolor: 'red', color: 'white' } }}
             onClick={close}
+            {...label('close')}
           >
             <Close fontSize="inherit" color="inherit" />
           </IconButton>
@@ -153,13 +185,19 @@ export function WindowControls() {
       {OS === 'linux' && (
         <>
           {/* Типичная раскладка Linux-десктопа (в GNOME/KDE обычно: свернуть → развернуть → закрыть) */}
-          <IconButton size="small" sx={{ fontSize: 16 }} onClick={minimize}>
+          <IconButton
+            size="small"
+            sx={{ fontSize: 16 }}
+            onClick={minimize}
+            {...label('minimize')}
+          >
             <Minimize fontSize="inherit" color="inherit" />
           </IconButton>
           <IconButton
             size="small"
             sx={{ fontSize: 16 }}
             onClick={toggleMaximize}
+            {...label('maximize')}
           >
             {maximized ? (
               <FilterNone fontSize="inherit" color="inherit" />
@@ -171,6 +209,7 @@ export function WindowControls() {
             size="small"
             sx={{ fontSize: 16, ':hover': { bgcolor: 'red', color: 'white' } }}
             onClick={close}
+            {...label('close')}
           >
             <Close fontSize="inherit" color="inherit" />
           </IconButton>

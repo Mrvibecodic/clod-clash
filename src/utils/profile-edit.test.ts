@@ -23,6 +23,14 @@ describe('правка карточки подписки', () => {
     assert.deepEqual(patch, { group: 'Работа' })
   })
 
+  it('«Без группы» снимает группу пустой строкой', () => {
+    const grouped = { ...opened, group: 'Работа' }
+    assert.deepEqual(profileEditPatch(grouped, { ...grouped, group: '' }), {
+      group: '',
+    })
+    assert.deepEqual(profileEditPatch(opened, { ...opened, group: '' }), {})
+  })
+
   it('поля, которых форма не правит, не возвращаются из снимка', () => {
     const patch = profileEditPatch(opened, { ...opened, desc: 'новое' })
     assert.equal('url' in patch, false)

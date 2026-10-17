@@ -13,6 +13,7 @@ export interface ProxiesContextType {
 
 export interface RulesContextType {
   rules: Rule[]
+  rulesLoaded: boolean
   ruleProviders: Record<string, RuleProvider | undefined>
 }
 
@@ -57,10 +58,14 @@ export const useProxiesData = () => {
 }
 
 export const useRulesData = () => {
-  const { rules, ruleProviders } = useCtx(RulesContext, 'useRulesData')
+  const { rules, rulesLoaded, ruleProviders } = useCtx(
+    RulesContext,
+    'useRulesData',
+  )
 
   return {
     rules,
+    rulesLoaded,
     ruleProviders: ruleProviders as Record<string, RuleProvider>,
   }
 }

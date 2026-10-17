@@ -20,7 +20,14 @@ type QueryOptions<T> = {
   staleTime?: number
   retry?: number | false
   retryDelay?: number | ((attempt: number) => number)
-  refetchInterval?: number | false
+  /**
+   * Запрос с опросом (поле задано — хоть `false`, пока окно скрыто) ошибку в
+   * кэше не держит: SWR не опрашивает, пока она там лежит, и экран застыл бы.
+   * Отказ оставляет прошлые данные, следующий тик спросит снова. Функция
+   * получает эти данные: так редкий опрос, ни разу не получивший ответа,
+   * спрашивает снова скоро, а не через свой долгий срок.
+   */
+  refetchInterval?: number | false | ((data: T | undefined) => number)
   refetchIntervalInBackground?: boolean
   revalidateOnMount?: boolean
   revalidateIfStale?: boolean
@@ -152,7 +159,19 @@ export function useQuery<T>(options: QueryOptions<T>): QueryResult<T> {
     fallbackCache.set(serializedKey, fallbackData)
   }
 
-  const swr = useSWR<T>(enabled ? queryKey : null, queryFn, {
+  const fetcher =
+    refetchInterval === undefined
+      ? queryFn
+      : async () => {
+          try {
+            return await queryFn()
+          } catch (error) {
+            console.warn('[query] опрос не удался', queryKey, error)
+            return getCacheData<T>(queryKey) as T
+          }
+        }
+
+  const swr = useSWR<T>(enabled ? queryKey : null, fetcher, {
     ...(staleTime !== undefined && { dedupingInterval: staleTime }),
     ...(retry !== undefined && {
       errorRetryCount: retry === false ? 0 : retry,

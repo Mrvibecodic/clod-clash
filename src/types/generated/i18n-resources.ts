@@ -88,9 +88,6 @@ export interface TranslationResources {
           }
         }
         connect: {
-          errors: {
-            serviceRequired: string
-          }
           states: {
             connecting: string
             disconnecting: string
@@ -147,7 +144,6 @@ export interface TranslationResources {
           inUse: string
           measuredJustNow: string
           measuredMinutesAgo: string
-          ms: string
           none: string
           test: string
           title: string
@@ -268,6 +264,7 @@ export interface TranslationResources {
         showDescending: string
       }
       messages: {
+        belowCoreLevel: string
         exported: string
       }
       page: {
@@ -310,7 +307,6 @@ export interface TranslationResources {
             portal: string
           }
           badges: {
-            active: string
             expired: string
             expiring: string
             trafficOut: string
@@ -327,7 +323,9 @@ export interface TranslationResources {
             hwidLimit: string
             hwidNotSupported: string
             lastUpdateFailed: string
-            nextUp: string
+            nextUpHours: string
+            nextUpMinutes: string
+            nextUpSoon: string
             noSchedule: string
             stale: string
             staleDetail: string
@@ -397,22 +395,26 @@ export interface TranslationResources {
             useLink: string
           }
           errors: {
+            fileRequired: string
             intervalTooShort: string
             profileMissing: string
-            typeRequired: string
             urlRequired: string
           }
           feedback: {
             added: string
+            addFailed: string
             channelOff: string
             channelOn: string
             failed: string
+            fileAdded: string
             hint: string
             loading1: string
             loading2: string
             loading3: string
             loading4: string
             loading5: string
+            saveFailed: string
+            unreachable: string
           }
           fields: {
             acceptInvalidCerts: string
@@ -436,6 +438,7 @@ export interface TranslationResources {
             intervalFloor: string
             intervalLocked: string
             secureChannel: string
+            secureSupport: string
           }
           secureOff: {
             body: string
@@ -480,20 +483,17 @@ export interface TranslationResources {
             done: string
             selectAll: string
           }
-          summary: {
-            items: string
-            selected: string
-          }
+          confirmDelete: string
+          confirmDelete_one: string
+          selected: string
+          selected_one: string
           title: string
         }
         feedback: {
           errors: {
+            loadFailed: string
             onlyYaml: string
             someUpdatesFailed: string
-          }
-          notices: {
-            emergencyRefreshFailed: string
-            forceRefreshCompleted: string
           }
           notifications: {
             batchDeleted: string
@@ -502,6 +502,7 @@ export interface TranslationResources {
             justUpdated: string
             profileSwitched: string
             proxyLinksSkipped: string
+            proxyLinksSkipped_one: string
             switchBusy: string
             urlMigrated: string
           }
@@ -515,9 +516,6 @@ export interface TranslationResources {
           }
         }
         title: string
-        tooltips: {
-          emergencyRefresh: string
-        }
       }
     }
     proxies: {
@@ -557,6 +555,7 @@ export interface TranslationResources {
           connect: string
           connecting: string
           disconnect: string
+          removeNode: string
           toggleChain: string
         }
         chain: {
@@ -972,6 +971,7 @@ export interface TranslationResources {
             backup: string
             checkConnection: string
             deleteBackup: string
+            exportBackup: string
             importBackup: string
             restoreBackup: string
             viewHistory: string
@@ -1067,10 +1067,10 @@ export interface TranslationResources {
           }
           title: string
         }
+        config: {
+          runtimeFailed: string
+        }
         dns: {
-          actions: {
-            asInSubscription: string
-          }
           dialog: {
             fakeIpIdle: string
             note: string
@@ -1149,11 +1149,6 @@ export interface TranslationResources {
               blacklist: string
               whitelist: string
             }
-            hosts: {
-              auto: string
-              off: string
-              on: string
-            }
           }
           sections: {
             behavior: string
@@ -1225,6 +1220,7 @@ export interface TranslationResources {
             autoLogClean: {
               never: string
               retainDays: string
+              retainDays_one: string
             }
             proxyLayoutColumns: {
               auto: string
@@ -1276,6 +1272,7 @@ export interface TranslationResources {
             currentStatus: string
           }
           messages: {
+            appliesOnConnect: string
             durationTooShort: string
             invalidBypass: string
             invalidProxyHost: string
@@ -1324,14 +1321,26 @@ export interface TranslationResources {
         }
         update: {
           actions: {
+            downloading: string
             goToRelease: string
             update: string
           }
+          alerts: {
+            caution: string
+            important: string
+            note: string
+            tip: string
+            warning: string
+          }
           messages: {
             breakChangeError: string
+            cancelled: string
             noData: string
+            noNotes: string
+            progress: string
           }
           title: string
+          titleNoVersion: string
         }
         webUI: {
           actions: {
@@ -1339,6 +1348,7 @@ export interface TranslationResources {
           }
           messages: {
             needsController: string
+            noController: string
             placeholderInstruction: string
             supportedPlaceholders: string
           }
@@ -1410,17 +1420,12 @@ export interface TranslationResources {
             }
             options: {
               logLevel: {
-                auto: string
                 debug: string
                 error: string
                 info: string
                 silent: string
+                trace: string
                 warning: string
-              }
-              unifiedDelay: {
-                auto: string
-                off: string
-                on: string
               }
             }
             tooltips: {
@@ -1581,6 +1586,7 @@ export interface TranslationResources {
         resetToDefault: string
         restart: string
         resume: string
+        retry: string
         save: string
         tableView: string
         upgrade: string
@@ -1601,6 +1607,7 @@ export interface TranslationResources {
         crash: {
           details: string
           home: string
+          reload: string
           retry: string
           title: string
         }
@@ -1707,6 +1714,11 @@ export interface TranslationResources {
         uploaded: string
         usedTotal: string
       }
+      options: {
+        fromSubscription: string
+        off: string
+        on: string
+      }
       placeholders: {
         filter: string
         matchCase: string
@@ -1747,6 +1759,7 @@ export interface TranslationResources {
       window: {
         maximize: string
         minimize: string
+        restore: string
       }
     }
   }

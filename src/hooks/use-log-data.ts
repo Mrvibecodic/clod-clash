@@ -152,5 +152,5 @@ export const useLogData = (options?: { enabled?: boolean }) => {
     }
   }
 
-  return { response, clearLogs }
+  return { response, clearLogs, allowedTypes }
 }

@@ -1,18 +1,20 @@
-import dayjs from 'dayjs'
+import dayjs, { type Dayjs } from 'dayjs'
 
-/** Дата на экране профилей и у провайдеров: `YYYY-MM-DD`, без даты — «-». */
+const DATE = 'DD.MM.YYYY'
+
+/** Дата в интерфейсе — одна на все экраны: `DD.MM.YYYY`, без даты — «-». */
 export const profileDate = (unix?: number) =>
-  unix ? dayjs(unix * 1000).format('YYYY-MM-DD') : '-'
+  unix ? dayjs(unix * 1000).format(DATE) : '-'
+
+/** Та же дата со временем — где за день бывает несколько записей. */
+export const dateTimeText = (time: Dayjs) => time.format(`${DATE} HH:mm`)
 
 /**
- * Дата пополнения трафика на Главной: `DD.MM.YYYY`. Уже в секундах — её
- * приводит разбор ответа панели; поправку часов не применяем — так её
- * показывают все экраны Главной.
+ * Дата пополнения трафика на Главной. Уже в секундах — её приводит разбор
+ * ответа панели; поправку часов не применяем — так её показывают все экраны.
  */
 export const refillDateText = (profile?: IProfileItem) =>
-  profile?.refill_date
-    ? dayjs(profile.refill_date * 1000).format('DD.MM.YYYY')
-    : undefined
+  profile?.refill_date ? profileDate(profile.refill_date) : undefined
 
 /**
  * Длительность сессии на кнопке подключения — как на Android: `MM:SS`, с часами

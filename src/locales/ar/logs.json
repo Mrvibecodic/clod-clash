@@ -8,6 +8,7 @@
     "export": "حفظ في ملف"
   },
   "messages": {
-    "exported": "تم حفظ السجلات"
+    "exported": "تم حفظ السجلات",
+    "belowCoreLevel": "The core does not write entries of this level. Change it in Settings → “Log Level”"
   }
 }

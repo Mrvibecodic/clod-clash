@@ -35,6 +35,39 @@ export const shortProcessName = (value: string) => {
   return separator >= 0 ? value.slice(separator + 1) : value
 }
 
+export const getConnectionProcess = (connection: IConnectionsItem) => {
+  const { metadata } = connection
+  return metadata.process || metadata.processPath || ''
+}
+
+export const getConnectionRule = (connection: IConnectionsItem) => {
+  const { rulePayload } = connection
+  return rulePayload ? `${connection.rule}(${rulePayload})` : connection.rule
+}
+
+/**
+ * Ключ группы соединения: приложение, узел выхода (`chains[0]` — им же
+ * считает сводка «Маршруты») или правило.
+ */
+export const connectionGroupKey = (
+  groupBy: IConnectionGroupBy,
+  connection: IConnectionsItem,
+  directLabel: string,
+) => {
+  switch (groupBy) {
+    case 'process':
+      return getConnectionProcess(connection)
+    case 'chain': {
+      const outbound = connection.chains[0] ?? ''
+      return outbound === DIRECT_OUTBOUND ? directLabel : outbound
+    }
+    case 'rule':
+      return getConnectionRule(connection)
+    default:
+      return ''
+  }
+}
+
 export const buildConnectionGroups = (
   connections: readonly IConnectionsItem[],
   resolveKey: (connection: IConnectionsItem) => string,

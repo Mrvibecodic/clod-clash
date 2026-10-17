@@ -1,7 +1,21 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import { delayBars, delayColor, delayTone } from './delay-color.ts'
+import { delayBars, delayColor, delayText, delayTone } from './delay-color.ts'
+
+describe('пинг текстом', () => {
+  it('замер — число, неответ — красный прочерк, не мерили — серый', () => {
+    assert.equal(delayText(48), '48')
+    assert.equal(delayText(0), '—')
+    assert.equal(delayColor(0), 'error.main')
+    assert.equal(delayText(-1), '—')
+    assert.equal(delayColor(-1), 'text.disabled')
+    assert.equal(delayText(undefined), '—')
+    assert.equal(delayText(48, 'мс'), '48 мс')
+    assert.equal(delayText(0, 'мс'), '—')
+    assert.equal(delayText(-1, 'мс'), '—')
+  })
+})
 
 describe('цвет пинга', () => {
   it('без границ подписки остаются 200/400', () => {

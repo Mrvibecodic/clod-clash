@@ -1,17 +1,13 @@
-import {
-  ArrowForwardRounded,
-  ExpandMoreRounded,
-  InboxRounded,
-} from '@mui/icons-material'
+import { ExpandMoreRounded, InboxRounded } from '@mui/icons-material'
 import { Box, ListItemButton, Typography, styled } from '@mui/material'
 import { memo, type ReactNode, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { TypeChip } from '@/components/base'
 import { useIconCache } from '@/hooks/use-icon-cache'
 import { useVerge } from '@/hooks/use-verge'
 import { groupType, SELECTABLE_GROUP_TYPES } from '@/utils/proxy-groups'
 
+import { GroupNow } from './proxy-group-now'
 import { ProxyGroupTools } from './proxy-group-tools'
 import { ProxyHead } from './proxy-head'
 import { ProxyItem } from './proxy-item'
@@ -178,22 +174,7 @@ export const ProxyRender = memo(function ProxyRender(props: RenderProps) {
                   minWidth: 0,
                 }}
               >
-                <TypeChip>{group.type}</TypeChip>
-                {group.now && (
-                  <>
-                    <ArrowForwardRounded
-                      sx={{ fontSize: 14, color: 'text.disabled' }}
-                    />
-                    <Typography
-                      component="span"
-                      noWrap
-                      title={group.now}
-                      sx={{ fontSize: 13, fontWeight: 600, minWidth: 0 }}
-                    >
-                      {group.now}
-                    </Typography>
-                  </>
-                )}
+                <GroupNow type={group.type} now={group.now} strong />
               </Box>
             </Box>
             <Box

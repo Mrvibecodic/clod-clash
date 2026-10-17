@@ -320,6 +320,14 @@ export const useCustomTheme = () => {
         ::-webkit-scrollbar-thumb:hover {
           background-color: ${mode === 'light' ? '#a1a1a1' : '#666666'};
         }
+        .monaco-editor .scrollbar .slider {
+          background: var(--scrollbar-thumb) !important;
+          border-radius: 4px;
+        }
+        .monaco-editor .scrollbar .slider:hover,
+        .monaco-editor .scrollbar .slider.active {
+          background: ${mode === 'light' ? '#a1a1a1' : '#666666'} !important;
+        }
 
         body {
           background-color: var(--background-color);

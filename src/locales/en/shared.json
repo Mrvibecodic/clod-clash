@@ -14,6 +14,7 @@
     "restart": "Restart",
     "resetToDefault": "Reset to Default",
     "refresh": "Refresh",
+    "retry": "Retry",
     "listView": "List View",
     "tableView": "Table View",
     "pause": "Pause",
@@ -65,7 +66,8 @@
   },
   "window": {
     "maximize": "Maximize",
-    "minimize": "Minimize"
+    "minimize": "Minimize",
+    "restore": "Restore size"
   },
   "editorModes": {
     "visualization": "Visualization",
@@ -93,22 +95,22 @@
         "proxyNotFound": "That server is no longer in the configuration — pick another one",
         "ruleSetNotFound": "The configuration refers to a rule set the subscription does not have — usually a rule-set: key on the DNS page or in your edits",
         "tunFailed": "The tunnel could not be raised — check the service and permissions",
-        "unauthorized": "The panel rejected the subscription key — refresh the link in your account",
-        "forbidden": "The panel denied access — the subscription may have expired or been blocked",
-        "notFound": "The panel has no subscription at this address",
-        "serverError": "The panel answered with an error of its own — try again later",
+        "unauthorized": "The provider rejected the subscription key — refresh the link in your account",
+        "forbidden": "The provider denied access — the subscription may have expired or been blocked",
+        "notFound": "The provider has no subscription at this address",
+        "serverError": "The provider’s server answered with an error of its own — try again later",
         "chanBroken": "The subscription response could not be decrypted — the connection was tampered with, or the provider turned the protection off",
         "chanReplay": "The subscription response does not answer our request — check the clock on this computer and try again",
-        "chanRefused": "The middleware refused the secure request — the connection to it is being blocked, or the protection is off",
+        "chanRefused": "The provider refused the secure request — the connection to it is being blocked, or the protection is off",
         "chanBadUrl": "This subscription address cannot be used with a secure connection",
         "chanAbsent": "The provider does not support the secure connection",
         "chanSilent": "The provider's server is not responding",
-        "subscriptionHttpsOnly": "The subscription address must start with https — change it in the provider panel or add the subscription again",
-        "subscriptionLinkList": "The panel returned a link list instead of a configuration — it did not recognise the client: ask the provider to add a panel rule for the client ^ClodClash/ with the MIHOMO format",
+        "subscriptionHttpsOnly": "The subscription address must start with https — tell your provider, or add the subscription again with an https link",
+        "subscriptionLinkList": "The provider returned a link list instead of a configuration — its panel did not recognise the client. Tell your provider: a rule for the client ^ClodClash/ with the MIHOMO format is needed",
         "subscriptionWebPage": "This address opened a web page, not a subscription — check the link in your provider account",
-        "subscriptionEmpty": "The panel answered with an empty body — no subscription arrived; try again later or contact your provider",
+        "subscriptionEmpty": "The provider answered with an empty body — no subscription arrived; try again later or contact your provider",
         "subscriptionBudget": "The subscription address did not answer in time — check your connection and try again",
-        "subscriptionDowngrade": "The subscription address redirects to insecure http — the token would travel in the clear; fix the link in your provider panel",
+        "subscriptionDowngrade": "The subscription address redirects to insecure http — the token would travel in the clear; tell your provider",
         "foreignCoreTemplate": "The template targets a different core build (a “smart” group) — our core does not support it, ask the provider for the regular variant",
         "trayIconRejected": "Couldn't set the icon: a PNG or ICO image is required",
         "autostartAdminTask": "Auto-launch was set up as administrator — run the app as administrator to change it"
@@ -159,7 +161,8 @@
       "title": "This screen crashed",
       "retry": "Try again",
       "details": "Details",
-      "home": "Go home"
+      "home": "Go home",
+      "reload": "Reload the window"
     }
   },
   "filters": {
@@ -186,5 +189,10 @@
     "unsaved": "Unsaved: {{count}} changes",
     "unsaved_one": "Unsaved: {{count}} change",
     "reset": "Reset"
+  },
+  "options": {
+    "fromSubscription": "As in the subscription",
+    "on": "On",
+    "off": "Off"
   }
 }

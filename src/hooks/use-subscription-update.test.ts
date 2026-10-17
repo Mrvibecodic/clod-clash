@@ -35,45 +35,56 @@ describe('кнопки «Обновить подписку»', () => {
     assert.match(card, /useSubscriptionPaused\(itemData\.uid\)/)
     assert.equal(card.match(/disabled=\{loading \|\| paused\}/g)?.length, 2)
     assert.equal(card.match(/disabled: loading \|\| paused,/g)?.length, 2)
-    assert.match(
-      card,
-      /isSubscriptionUpdating\(itemData\.uid\) \|\|\s+isSubscriptionPaused\(itemData\.uid\)\s+\) \{\s+return\s+\}\s+beginOwnUpdate/,
-    )
-    assert.match(
-      card,
-      /await updateProfile\(itemData\.uid, payload\)\s+pauseSubscription\(itemData\.uid\)/,
-    )
+    assert.match(card, /await updateSubscriptionNow\(itemData\.uid, option\)/)
 
     const page = source('../pages/profiles.tsx')
-    assert.match(page, /await updateProfile\(uid\)\s+pauseSubscription\(uid\)/)
-    assert.match(
-      page,
-      /!isSubscriptionUpdating\(uid\) && !isSubscriptionPaused\(uid\)/,
-    )
-
+    assert.match(page, /await runOwnUpdate\(uid\)/)
+    assert.match(page, /\.filter\(canUpdateNow\)/)
     assert.match(
       page,
       /showNotice\.info\('profiles\.page\.feedback\.notifications\.justUpdated'\)/,
     )
 
     const hook = source('./use-subscription-update.ts')
-    assert.match(hook, /await updateProfile\(uid\)\s+pauseSubscription\(uid\)/)
+    assert.match(hook, /await updateSubscriptionNow\(uid\)/)
+    assert.match(
+      hook,
+      /await updateProfile\(uid, option\)\s+pauseSubscription\(uid\)\s+\} finally \{\s+updates\.endOwn\(uid\)/,
+    )
+    assert.match(
+      hook,
+      /if \(!canUpdateNow\(uid\)\) return false\s+updates\.beginOwn\(uid\)/,
+    )
 
-    // Пауза — только после удачи: неудача её не ставит, повтор (и через прокси) доступен
-    for (const text of [card, page, hook]) {
-      assert.equal(text.match(/pauseSubscription\(/g)?.length, 1)
+    for (const text of [card, page]) {
+      assert.doesNotMatch(text, /pauseSubscription\(|updateProfile\(/)
     }
+    assert.equal(hook.match(/pauseSubscription\(/g)?.length, 1)
+  })
+
+  it('меню подписки: «Обновить» — маршрут из настроек, «через прокси» — первым своё ядро', () => {
+    const card = source('../components/profile/profile-item.tsx')
+    assert.match(
+      card,
+      /const option = viaProxy\s+\? \{ with_proxy: false, self_proxy: true \}\s+: undefined/,
+    )
+    assert.match(
+      card,
+      /label: menuLabels\.update,\s+handler: \(\) => onUpdate\(false\)/,
+    )
+    assert.match(
+      card,
+      /label: menuLabels\.updateViaProxy,\s+handler: \(\) => onUpdate\(true\)/,
+    )
+    assert.doesNotMatch(card, /onUpdate\([0-2]\)/)
   })
 
   it('экран «Подписки» занят по тому же состоянию, своё — только на время вызова', () => {
     const card = source('../components/profile/profile-item.tsx')
     assert.match(card, /useSubscriptionUpdating\(itemData\.uid\)/)
-    assert.match(card, /beginOwnUpdate\(itemData\.uid\)/)
-    assert.match(card, /finally \{\s+endOwnUpdate\(itemData\.uid\)/)
 
     const page = source('../pages/profiles.tsx')
-    assert.match(page, /isSubscriptionUpdating\(uid\)/)
-    assert.match(page, /finally \{\s+endOwnUpdate\(uid\)/)
+    assert.match(page, /for \(const uid of target\) beginOwnUpdate\(uid\)/)
     assert.doesNotMatch(page + card, /LoadingCache/)
   })
 })

@@ -46,7 +46,7 @@ describe('общие хуки и функции окна', () => {
     // Подпись под кнопкой одна на все состояния, при подключении — «Подключено».
     assert.match(
       button,
-      /<Box sx=\{\{ mt: 1\.25 \}\}>\s*<Typography variant="subtitle1" sx=\{\{ color, fontWeight: 600 \}\}>\s*\{label\}\s*<\/Typography>\s*<\/Box>/,
+      /<Box sx=\{\{ mt: 1\.25 \}\}>\s*<Typography\s+variant="subtitle1"\s+sx=\{\{[^}]*toneText\(textTone\)[^}]*fontWeight: 600,\s*\}\}\s*>\s*\{label\}\s*<\/Typography>\s*<\/Box>/,
     )
     // Таймер — внутри самой кнопки, имя кнопки для чтения с экрана — слово.
     const face = button.slice(

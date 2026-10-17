@@ -232,9 +232,9 @@ interface DnsTab {
 
 const dnsTabs = (t: ReturnType<typeof useTranslation>['t']): DnsTab[] => {
   const hostsOptions: [string, string][] = [
-    ['auto', t('settings.modals.dns.options.hosts.auto')],
-    ['on', t('settings.modals.dns.options.hosts.on')],
-    ['off', t('settings.modals.dns.options.hosts.off')],
+    ['auto', t('shared.options.fromSubscription')],
+    ['on', t('shared.options.on')],
+    ['off', t('shared.options.off')],
   ]
   return [
     {
@@ -955,7 +955,7 @@ export function DnsViewer({ ref }: { ref?: Ref<DialogRef> }) {
           onClick={showTheSubscription}
           sx={{ flex: 'none', mt: -0.5, textTransform: 'none' }}
         >
-          {t('settings.modals.dns.actions.asInSubscription')}
+          {t('shared.options.fromSubscription')}
         </Button>
       </Box>
 

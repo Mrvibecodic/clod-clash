@@ -319,6 +319,7 @@ export const AppDataProvider = ({
   const rulesValue = useMemo(
     () => ({
       rules: rulesData?.rules ?? [],
+      rulesLoaded: rulesData !== undefined,
       ruleProviders: ruleProviders?.providers || {},
     }),
     [rulesData, ruleProviders],

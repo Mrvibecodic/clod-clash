@@ -88,7 +88,7 @@
       },
       "placeholders": {
         "address": "必填",
-        "secret": "建議設定"
+        "secret": "Required"
       },
       "tooltips": {
         "copy": "複製到剪貼簿"
@@ -180,17 +180,12 @@
         },
         "options": {
           "logLevel": {
-            "auto": "與訂閱一致",
+            "trace": "Trace",
             "debug": "Debug",
             "info": "Info",
             "warning": "Warn",
             "error": "Error",
             "silent": "Silent"
-          },
-          "unifiedDelay": {
-            "auto": "與訂閱一致",
-            "on": "開啟",
-            "off": "關閉"
           }
         }
       }
@@ -237,7 +232,7 @@
         },
         "hints": {
           "subNotifications": "Warn about the subscription running out of traffic or time. Off silences these alerts regardless of the provider settings.",
-          "deviceIdentity": "Sends a hashed device id (x-hwid) with every subscription request so the provider can enforce its device limit. The raw machine id never leaves the device. Turning it off may make the panel refuse the subscription.",
+          "deviceIdentity": "Sends a hashed device id (x-hwid) with every subscription request so the provider can enforce its device limit. The raw machine id never leaves the device. Turning it off may make the provider refuse the subscription.",
           "windowFitContent": "視窗會依內容自動調整高度，避免內容被捲軸擋住。手動調整視窗大小後此功能會關閉，並保留你設定的大小。"
         }
       },
@@ -407,6 +402,7 @@
       "actions": {
         "backup": "備份",
         "importBackup": "匯入備份",
+        "exportBackup": "Save the backup to a file",
         "deleteBackup": "刪除備份",
         "restoreBackup": "還原備份",
         "viewHistory": "檢視紀錄",
@@ -491,7 +487,8 @@
         },
         "autoLogClean": {
           "never": "不清理",
-          "retainDays": "保留 {{n}} 天"
+          "retainDays": "保留 {{count}} 天",
+          "retainDays_one": "保留 {{count}} 天"
         }
       },
       "sections": {
@@ -503,13 +500,25 @@
     },
     "update": {
       "title": "新版本 v{{version}}",
+      "titleNoVersion": "New version",
       "actions": {
         "goToRelease": "前往發佈頁面",
-        "update": "更新"
+        "update": "更新",
+        "downloading": "Downloading {{percent}}%"
       },
       "messages": {
         "breakChangeError": "此版本為重大更新，不支援應用程式內更新，請解除安裝後手動下載安裝",
-        "noData": "無法取得更新資訊"
+        "noData": "無法取得更新資訊",
+        "noNotes": "A new version is available",
+        "progress": "{{downloaded}} of {{total}}",
+        "cancelled": "Update download cancelled"
+      },
+      "alerts": {
+        "note": "Note",
+        "tip": "Tip",
+        "important": "Important",
+        "warning": "Warning",
+        "caution": "Caution"
       }
     },
     "sysproxy": {
@@ -538,7 +547,8 @@
       "messages": {
         "durationTooShort": "代理守護間隔時間不得低於 1 秒",
         "invalidBypass": "無效的代理繞過格式",
-        "invalidProxyHost": "代理主機格式無效"
+        "invalidProxyHost": "代理主機格式無效",
+        "appliesOnConnect": "The system proxy is off — these settings apply when you connect"
       },
       "actions": {
         "editPac": "編輯 PAC",
@@ -565,7 +575,7 @@
         "autoRedirect": "自動重導"
       },
       "tooltips": {
-        "dnsHijack": "請用半形逗號來區隔多個 DNS 伺服器",
+        "dnsHijack": "Addresses to intercept DNS on — comma-separated or one per line",
         "autoRedirect": "自動配置 nftables/iptables 的 TCP 重導"
       },
       "messages": {
@@ -587,9 +597,6 @@
         "title": "DNS 覆寫",
         "note": "顯示的是訂閱中的值。僅儲存您的變更，其餘部分跟隨訂閱。不確定時請勿修改。",
         "fakeIpIdle": "不生效：目前為 redir-host 模式"
-      },
-      "actions": {
-        "asInSubscription": "與訂閱一致"
       },
       "sections": {
         "behavior": "行為"
@@ -660,11 +667,6 @@
         "invalidYaml": "YAML 格式無效"
       },
       "options": {
-        "hosts": {
-          "auto": "與訂閱一致",
-          "on": "開啟",
-          "off": "關閉"
-        },
         "filterMode": {
           "blacklist": "清單以外全部",
           "whitelist": "僅清單"
@@ -686,7 +688,8 @@
       "messages": {
         "supportedPlaceholders": "支援 %host, %port, %secret",
         "placeholderInstruction": "使用 %host, %port, %secret 表示 主機, 連接埠, 存取金鑰",
-        "needsController": "僅在啟用外部控制器時面板才能連線到核心。"
+        "needsController": "僅在啟用外部控制器時面板才能連線到核心。",
+        "noController": "No external controller address — enable it in the core settings"
       },
       "sections": {
         "panels": "Panels"
@@ -722,6 +725,9 @@
         "ipAddress": "IP 位址",
         "macAddress": "MAC 位址"
       }
+    },
+    "config": {
+      "runtimeFailed": "Could not get the current configuration"
     }
   },
   "feedback": {

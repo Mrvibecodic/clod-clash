@@ -73,6 +73,7 @@ export const ProxiesEditorViewer = (props: Props) => {
     setAppendSeq,
     deleteSeq,
     setDeleteSeq,
+    dirty,
     save,
   } = useSeqDocument<IProxyConfig>(property, open)
   const [match, setMatch] = useState(() => (_: string) => true)
@@ -328,7 +329,8 @@ export const ProxiesEditorViewer = (props: Props) => {
   return (
     <Dialog
       open={open}
-      onClose={onClose}
+      // Несохранённое Esc и щелчок мимо окна не теряют — только «Отмена».
+      onClose={dirty ? undefined : onClose}
       maxWidth="xl"
       fullWidth
       disableEnforceFocus={!visualization}

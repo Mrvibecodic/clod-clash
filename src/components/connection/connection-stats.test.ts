@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 
 import {
   buildConnectionGroups,
+  connectionGroupKey,
   shortProcessName,
   summarizeConnections,
 } from './connection-stats.ts'
@@ -127,6 +128,27 @@ describe('buildConnectionGroups', () => {
 
     assert.equal(groups[0].downloadSpeed, 15)
     assert.equal(groups[0].uploadSpeed, 3)
+  })
+})
+
+describe('connectionGroupKey', () => {
+  it('«Узлы» — по узлу выхода, как сводка, а не по всему пути', () => {
+    const viaA = connection({ id: 'a', chains: ['node-1', 'Group A'] })
+    const viaB = connection({ id: 'b', chains: ['node-1', 'Group B'] })
+    const direct = connection({ id: 'c', chains: ['DIRECT'] })
+    assert.equal(connectionGroupKey('chain', viaA, 'Напрямую'), 'node-1')
+    assert.equal(connectionGroupKey('chain', viaB, 'Напрямую'), 'node-1')
+    assert.equal(connectionGroupKey('chain', direct, 'Напрямую'), 'Напрямую')
+    assert.equal(
+      connectionGroupKey(
+        'process',
+        connection({ id: 'd', process: 'app' }),
+        '',
+      ),
+      'app',
+    )
+    assert.equal(connectionGroupKey('rule', direct, ''), 'Match')
+    assert.equal(connectionGroupKey('none', direct, ''), '')
   })
 })
 

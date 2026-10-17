@@ -14,7 +14,7 @@ import {
   useTheme,
 } from '@mui/material'
 import { useLockFn } from 'ahooks'
-import React, { useCallback, useRef, useState } from 'react'
+import React, { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DialogRef, Switch, TooltipIcon } from '@/components/base'
@@ -82,25 +82,18 @@ const SwitchRow = ({
 }: SwitchRowProps) => {
   const theme = useTheme()
   const [checked, setChecked] = useState(active)
-  const pendingRef = useRef(false)
+  // Пока щелчок не отработал, тумблер показывает желание; после — снова факт,
+  // каким бы ни был исход (отказ без исключения тоже).
+  const [inFlight, setInFlight] = useState(0)
 
-  if (pendingRef.current) {
-    if (active === checked) pendingRef.current = false
-  } else if (checked !== active) {
-    setChecked(active)
-  }
+  if (!inFlight && checked !== active) setChecked(active)
 
   const handleChange = (_: React.ChangeEvent, value: boolean) => {
-    pendingRef.current = true
     setChecked(value)
+    setInFlight((n) => n + 1)
     onToggle(value)
-      .catch((err: any) => {
-        setChecked(active)
-        onError?.(err)
-      })
-      .finally(() => {
-        pendingRef.current = false
-      })
+      .catch((err: any) => onError?.(err))
+      .finally(() => setInFlight((n) => n - 1))
   }
 
   return (
@@ -191,11 +184,6 @@ const ProxyControlSwitches = ({ target, onError }: ProxySwitchProps) => {
   const sysproxyRef = useRef<DialogRef>(null)
   const tunRef = useRef<DialogRef>(null)
 
-  const showErrorNotice = useCallback(
-    (msg: string) => showNotice.error(msg),
-    [],
-  )
-
   const handleTunToggle = async (value: boolean) => {
     // clod:tun-ready — включение TUN само доводит систему до рабочего
     // состояния: если службы нет, ставим её (один запрос прав). Ошибка
@@ -205,11 +193,8 @@ const ProxyControlSwitches = ({ target, onError }: ProxySwitchProps) => {
         const key = tunSetupKey(err)
         throw key ? new Error(t(key)) : err
       })
-      if (!ready) {
-        const msgKey = 'settings.sections.proxyControl.tooltips.tunUnavailable'
-        showErrorNotice(msgKey)
-        throw new Error(t(msgKey))
-      }
+      // Причину отказа бэкенд уже показал уведомлением.
+      if (!ready) return
     }
     // Тумблеры здесь и есть выбор режима для кнопки Connect — отдельной пары
     // настроек «Подключение: …» больше нет.

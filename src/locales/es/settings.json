@@ -88,7 +88,7 @@
       },
       "placeholders": {
         "address": "Requerido",
-        "secret": "Configuración recomendada"
+        "secret": "Required"
       },
       "tooltips": {
         "copy": "Copiar al portapapeles"
@@ -180,17 +180,12 @@
         },
         "options": {
           "logLevel": {
-            "auto": "Como en la suscripción",
+            "trace": "Trace",
             "debug": "Debug",
             "info": "Info",
             "warning": "Warn",
             "error": "Error",
             "silent": "Silent"
-          },
-          "unifiedDelay": {
-            "auto": "Como en la suscripción",
-            "on": "Activada",
-            "off": "Desactivada"
           }
         }
       }
@@ -237,7 +232,7 @@
         },
         "hints": {
           "subNotifications": "Warn about the subscription running out of traffic or time. Off silences these alerts regardless of the provider settings.",
-          "deviceIdentity": "Sends a hashed device id (x-hwid) with every subscription request so the provider can enforce its device limit. The raw machine id never leaves the device. Turning it off may make the panel refuse the subscription.",
+          "deviceIdentity": "Sends a hashed device id (x-hwid) with every subscription request so the provider can enforce its device limit. The raw machine id never leaves the device. Turning it off may make the provider refuse the subscription.",
           "windowFitContent": "La ventana ajusta su altura al contenido para que nada quede detrás de una barra de desplazamiento. Si cambias el tamaño de la ventana a mano, el ajuste se desactiva y se conserva tu tamaño."
         }
       },
@@ -407,6 +402,7 @@
       "actions": {
         "backup": "Copia de seguridad",
         "importBackup": "Import Backup",
+        "exportBackup": "Save the backup to a file",
         "deleteBackup": "Eliminar copia de seguridad",
         "restoreBackup": "Restaurar copia de seguridad",
         "viewHistory": "View history",
@@ -491,7 +487,8 @@
         },
         "autoLogClean": {
           "never": "No limpiar",
-          "retainDays": "Retener {{n}} días"
+          "retainDays": "Retener {{count}} días",
+          "retainDays_one": "Retener {{count}} días"
         }
       },
       "sections": {
@@ -503,13 +500,25 @@
     },
     "update": {
       "title": "New Version v{{version}}",
+      "titleNoVersion": "New version",
       "actions": {
         "goToRelease": "Ir a la página de lanzamiento",
-        "update": "Actualizar"
+        "update": "Actualizar",
+        "downloading": "Downloading {{percent}}%"
       },
       "messages": {
         "breakChangeError": "Esta es una actualización importante y no se admite la actualización desde dentro de la aplicación. Desinstale e instale manualmente la nueva versión.",
-        "noData": "No se pudo obtener la información de la actualización"
+        "noData": "No se pudo obtener la información de la actualización",
+        "noNotes": "A new version is available",
+        "progress": "{{downloaded}} of {{total}}",
+        "cancelled": "Update download cancelled"
+      },
+      "alerts": {
+        "note": "Note",
+        "tip": "Tip",
+        "important": "Important",
+        "warning": "Warning",
+        "caution": "Caution"
       }
     },
     "sysproxy": {
@@ -538,7 +547,8 @@
       "messages": {
         "durationTooShort": "El intervalo de tiempo del daemon de proxy no puede ser menor de 1 segundo",
         "invalidBypass": "Formato de omisión de proxy no válido",
-        "invalidProxyHost": "Formato de host del proxy no válido"
+        "invalidProxyHost": "Formato de host del proxy no válido",
+        "appliesOnConnect": "The system proxy is off — these settings apply when you connect"
       },
       "actions": {
         "editPac": "Editar PAC",
@@ -565,7 +575,7 @@
         "autoRedirect": "Auto Redirect"
       },
       "tooltips": {
-        "dnsHijack": "Please use , to separate multiple DNS servers",
+        "dnsHijack": "Addresses to intercept DNS on — comma-separated or one per line",
         "autoRedirect": "Automatically configures nftables/iptables TCP redirects"
       },
       "messages": {
@@ -587,9 +597,6 @@
         "title": "Sobrescritura de DNS",
         "note": "Se muestran los valores de la suscripción. Solo se guardan sus diferencias; lo demás sigue a la suscripción. Si no está seguro, no lo cambie.",
         "fakeIpIdle": "Sin efecto: está seleccionado el modo redir-host"
-      },
-      "actions": {
-        "asInSubscription": "Como en la suscripción"
       },
       "sections": {
         "behavior": "Comportamiento"
@@ -660,11 +667,6 @@
         "invalidYaml": "Invalid YAML format"
       },
       "options": {
-        "hosts": {
-          "auto": "Como en la suscripción",
-          "on": "Activada",
-          "off": "Desactivada"
-        },
         "filterMode": {
           "blacklist": "Salvo la lista",
           "whitelist": "Solo la lista"
@@ -686,7 +688,8 @@
       "messages": {
         "supportedPlaceholders": "Soporta %host, %port, %secret",
         "placeholderInstruction": "Utilice %host, %port, %secret para representar el host, el puerto y la clave de acceso.",
-        "needsController": "El panel solo puede conectarse al núcleo con el controlador externo activado."
+        "needsController": "El panel solo puede conectarse al núcleo con el controlador externo activado.",
+        "noController": "No external controller address — enable it in the core settings"
       },
       "sections": {
         "panels": "Panels"
@@ -722,6 +725,9 @@
         "ipAddress": "Dirección IP",
         "macAddress": "Dirección MAC"
       }
+    },
+    "config": {
+      "runtimeFailed": "Could not get the current configuration"
     }
   },
   "feedback": {

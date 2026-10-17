@@ -63,9 +63,7 @@ const SettingPage = () => {
           <SettingSystem onError={onError} />
         </Box>
 
-        <Box sx={card}>
-          <SettingProviderLinks />
-        </Box>
+        <SettingProviderLinks />
 
         <Box sx={card}>
           <SettingItem

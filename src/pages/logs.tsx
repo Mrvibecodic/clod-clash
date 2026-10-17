@@ -40,7 +40,11 @@ const LogPage = () => {
   const {
     response: { data: logData },
     clearLogs,
+    allowedTypes,
   } = useLogData({ enabled: pageVisible })
+  // Уровень ниже уровня журнала ядра до окна не доходит.
+  const belowCoreLevel =
+    logState !== 'all' && !allowedTypes.some((type) => type.includes(logState))
 
   const filterLogs = useMemo(() => {
     if (!logData || logData.length === 0) {
@@ -221,7 +225,9 @@ const LogPage = () => {
           style={{ flex: 1 }}
         />
       ) : (
-        <BaseEmpty />
+        <BaseEmpty
+          textKey={belowCoreLevel ? 'logs.messages.belowCoreLevel' : undefined}
+        />
       )}
     </BasePage>
   )

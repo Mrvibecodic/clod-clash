@@ -45,6 +45,7 @@ import {
 } from '@/components/base'
 import { RuleItem } from '@/components/profile/rule-item'
 import { useSeqDocument } from '@/hooks/use-seq-document'
+import { NARROW } from '@/pages/_theme'
 import { readProfileFile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { useThemeMode } from '@/services/states'
@@ -364,6 +365,7 @@ export const RulesEditorViewer = (props: Props) => {
     setDeleteSeq,
     baseline,
     reset,
+    dirty,
     save,
   } = useSeqDocument<string>(property, open, { isItem: isRule })
   const [match, setMatch] = useState(() => (_: string) => true)
@@ -740,7 +742,8 @@ export const RulesEditorViewer = (props: Props) => {
   return (
     <Dialog
       open={open}
-      onClose={onClose}
+      // Несохранённое Esc и щелчок мимо окна не теряют — только «Отмена».
+      onClose={dirty ? undefined : onClose}
       maxWidth="xl"
       fullWidth
       disableEnforceFocus={!visualization}
@@ -785,6 +788,8 @@ export const RulesEditorViewer = (props: Props) => {
           height: 'calc(100vh - 185px)',
           position: 'relative',
           p: 0,
+          // Узкое окно: форма над списком, а не рядом с ним.
+          [NARROW]: { flexDirection: 'column' },
         }}
       >
         <BaseLoadingOverlay isLoading={loading} />
@@ -800,6 +805,13 @@ export const RulesEditorViewer = (props: Props) => {
                 borderRight: 1,
                 borderColor: 'divider',
                 overflowY: 'auto',
+                [NARROW]: {
+                  width: 'auto',
+                  maxHeight: '45%',
+                  borderRight: 0,
+                  borderBottom: 1,
+                  borderColor: 'divider',
+                },
                 // Полоса прокрутки, если появится, не сдвигает поля.
                 scrollbarGutter: 'stable',
               }}

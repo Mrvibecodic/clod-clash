@@ -8,6 +8,7 @@
     "export": "파일로 저장"
   },
   "messages": {
-    "exported": "로그가 저장되었습니다"
+    "exported": "로그가 저장되었습니다",
+    "belowCoreLevel": "The core does not write entries of this level. Change it in Settings → “Log Level”"
   }
 }

@@ -1,5 +1,5 @@
 import yaml from 'js-yaml'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { readProfileFile, saveProfileFile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
@@ -56,6 +56,9 @@ export const useSeqDocument = <T>(
     append: T[]
     delete: string[]
   } | null>(null)
+  // Текст без несохранённых правок: прочитанный с диска или выгруженный из
+  // нетронутого наглядного вида.
+  const [cleanText, setCleanText] = useState('')
 
   const applyText = useCallback(
     (input: string) => {
@@ -81,6 +84,7 @@ export const useSeqDocument = <T>(
       .then((data) => {
         if (cancelled) return
         setText(data)
+        setCleanText(data)
         const parsed = applyText(data) ? readSeqConfig(data, isItem) : undefined
         setVisualization(parsed !== undefined)
         setBaseline(
@@ -110,9 +114,21 @@ export const useSeqDocument = <T>(
       { forceQuotes: true },
     )
 
+  const seqDirty =
+    baseline !== null &&
+    JSON.stringify([prependSeq, appendSeq, deleteSeq]) !==
+      JSON.stringify([baseline.prepend, baseline.append, baseline.delete])
+
+  const dirty = useMemo(
+    () => (visualization ? seqDirty : text !== cleanText),
+    [visualization, seqDirty, text, cleanText],
+  )
+
   const toggleVisualization = () => {
     if (visualization) {
-      setText(dump())
+      const dumped = dump()
+      setText(dumped)
+      if (!seqDirty) setCleanText(dumped)
       setVisualization(false)
     } else if (applyText(text)) {
       setVisualization(true)
@@ -148,6 +164,7 @@ export const useSeqDocument = <T>(
     deleteSeq,
     setDeleteSeq,
     baseline,
+    dirty,
     reset,
     save,
   }

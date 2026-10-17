@@ -1,6 +1,7 @@
 import {
   CheckRounded,
   DeleteForeverRounded,
+  ExpandMoreRounded,
   InsightsRounded,
   TableChartRounded,
   TableRowsRounded,
@@ -39,6 +40,10 @@ import {
   getConnectionStartTime,
   useConnectionRowViews,
 } from '@/components/connection/connection-row-view'
+import {
+  buildConnectionGroups,
+  connectionGroupKey,
+} from '@/components/connection/connection-stats'
 import { ConnectionSummary } from '@/components/connection/connection-summary'
 import {
   ConnectionTable,
@@ -53,6 +58,7 @@ import { useVisibility } from '@/hooks/use-visibility'
 import { NARROW_QUERY } from '@/pages/_theme'
 import { showNotice } from '@/services/notice-service'
 import parseTraffic from '@/utils/parse-traffic'
+import { pressable } from '@/utils/pressable'
 
 type OrderFunc = (list: IConnectionsItem[]) => IConnectionsItem[]
 
@@ -97,6 +103,72 @@ const orderFunctionMap = ORDER_OPTIONS.reduce<Record<OrderKey, OrderFunc>>(
 )
 
 const EMPTY_CONNECTIONS: IConnectionsItem[] = []
+
+const ListGroupHead = ({
+  group,
+  folded,
+  onToggle,
+}: {
+  group: ReturnType<typeof buildConnectionGroups>[number]
+  folded: boolean
+  onToggle: (key: string) => void
+}) => (
+  <Box
+    {...pressable(() => onToggle(group.key))}
+    aria-expanded={!folded}
+    onClick={() => onToggle(group.key)}
+    sx={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: 1,
+      px: 0.5,
+      pt: 1.25,
+      pb: 0.75,
+      fontSize: 13,
+      cursor: 'pointer',
+      userSelect: 'none',
+    }}
+  >
+    <ExpandMoreRounded
+      sx={{
+        fontSize: 18,
+        color: 'text.secondary',
+        transform: folded ? 'rotate(-90deg)' : 'none',
+        transition: 'transform 150ms',
+      }}
+    />
+    <Box
+      component="span"
+      title={group.label}
+      sx={{
+        fontWeight: 700,
+        minWidth: 0,
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {group.label}
+    </Box>
+    <Box component="span" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+      {group.rows.length}
+    </Box>
+    <Box
+      component="span"
+      sx={{
+        ml: 'auto',
+        pl: 1.5,
+        flex: 'none',
+        color: 'text.secondary',
+        fontSize: 12.5,
+        whiteSpace: 'nowrap',
+        fontVariantNumeric: 'tabular-nums',
+      }}
+    >
+      ↓ {parseTraffic(group.download)} · ↑ {parseTraffic(group.upload)}
+    </Box>
+  </Box>
+)
 
 const selectLabel = (label: string, value: string) => (
   <>
@@ -184,6 +256,53 @@ const ConnectionsPage = () => {
 
   const displayRows = useConnectionRowViews(
     isTableLayout ? EMPTY_CONNECTIONS : filterConn,
+  )
+
+  const [listCollapsed, setListCollapsed] = useState<{
+    groupBy: IConnectionGroupBy
+    keys: ReadonlySet<string>
+  }>()
+  const directLabel = t('connections.components.summary.direct')
+  const otherGroupLabel = t('connections.components.group.other')
+  const listItems = useMemo(() => {
+    if (isTableLayout || groupBy === 'none') return null
+    const collapsed =
+      listCollapsed?.groupBy === groupBy ? listCollapsed.keys : undefined
+    const views = new Map(displayRows.map((row) => [row.id, row]))
+    const groups = buildConnectionGroups(
+      filterConn,
+      (row) => connectionGroupKey(groupBy, row, directLabel),
+      otherGroupLabel,
+    )
+    return groups.flatMap((group) => {
+      const folded = collapsed?.has(group.key) ?? false
+      const head = { kind: 'group' as const, group, folded }
+      if (folded) return [head]
+      return [
+        head,
+        ...group.rows.flatMap((row) => {
+          const view = views.get(row.id)
+          return view ? [{ kind: 'row' as const, view }] : []
+        }),
+      ]
+    })
+  }, [
+    isTableLayout,
+    groupBy,
+    listCollapsed,
+    displayRows,
+    filterConn,
+    directLabel,
+    otherGroupLabel,
+  ])
+  const toggleListGroup = useCallback(
+    (key: string) =>
+      setListCollapsed((current) => {
+        const keys = new Set(current?.groupBy === groupBy ? current.keys : [])
+        if (!keys.delete(key)) keys.add(key)
+        return { groupBy, keys }
+      }),
+    [groupBy],
   )
 
   const detailRef = useRef<ConnectionDetailRef>(null!)
@@ -357,34 +476,33 @@ const ConnectionsPage = () => {
             },
           ]}
         />
-        {isTableLayout ? (
-          <BaseStyledSelect
-            sx={SELECT_SX}
-            value={groupBy}
-            renderValue={(value) =>
-              selectLabel(
-                t('connections.components.group.label'),
-                t(
-                  GROUP_OPTIONS.find((option) => option.id === value)
-                    ?.labelKey ?? GROUP_OPTIONS[0].labelKey,
-                ),
-              )
-            }
-            onChange={(e) =>
-              setSetting((o) => ({
-                ...(o ?? { layout: 'table' }),
-                groupBy: e.target.value as IConnectionGroupBy,
-              }))
-            }
-          >
-            {GROUP_OPTIONS.map((option) => (
-              <MenuItem key={option.id} value={option.id} sx={menuItemSx}>
-                {t(option.labelKey)}
-                {menuCheck(option.id === groupBy)}
-              </MenuItem>
-            ))}
-          </BaseStyledSelect>
-        ) : (
+        <BaseStyledSelect
+          sx={SELECT_SX}
+          value={groupBy}
+          renderValue={(value) =>
+            selectLabel(
+              t('connections.components.group.label'),
+              t(
+                GROUP_OPTIONS.find((option) => option.id === value)?.labelKey ??
+                  GROUP_OPTIONS[0].labelKey,
+              ),
+            )
+          }
+          onChange={(e) =>
+            setSetting((o) => ({
+              ...(o ?? { layout: 'table' }),
+              groupBy: e.target.value as IConnectionGroupBy,
+            }))
+          }
+        >
+          {GROUP_OPTIONS.map((option) => (
+            <MenuItem key={option.id} value={option.id} sx={menuItemSx}>
+              {t(option.labelKey)}
+              {menuCheck(option.id === groupBy)}
+            </MenuItem>
+          ))}
+        </BaseStyledSelect>
+        {isTableLayout ? null : (
           <BaseStyledSelect
             sx={SELECT_SX}
             value={curOrderOpt}
@@ -456,17 +574,30 @@ const ConnectionsPage = () => {
           ]}
         >
           <VirtualList
-            key={connectionsType}
-            count={displayRows.length}
+            key={`${connectionsType}:${groupBy}`}
+            count={listItems ? listItems.length : displayRows.length}
             estimateSize={58}
-            renderItem={(i) => (
-              <ConnectionRowItem
-                row={displayRows[i]}
-                closed={connectionsType === 'closed'}
-                selected={displayRows[i].id === detailId}
-                onShowDetail={showDetailById}
-              />
-            )}
+            renderItem={(i) => {
+              const item = listItems?.[i]
+              if (item?.kind === 'group') {
+                return (
+                  <ListGroupHead
+                    group={item.group}
+                    folded={item.folded}
+                    onToggle={toggleListGroup}
+                  />
+                )
+              }
+              const row = item ? item.view : displayRows[i]
+              return (
+                <ConnectionRowItem
+                  row={row}
+                  closed={connectionsType === 'closed'}
+                  selected={row.id === detailId}
+                  onShowDetail={showDetailById}
+                />
+              )
+            }}
             style={{
               flex: 1,
               padding: '0 10px',

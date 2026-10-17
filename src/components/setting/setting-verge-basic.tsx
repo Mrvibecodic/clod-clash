@@ -130,7 +130,7 @@ const SettingVergeBasic = ({ onError, variant }: Props) => {
             >
               <Select
                 size="small"
-                sx={{ width: 110, '> div': { py: '7.5px' } }}
+                sx={{ minWidth: 110, '> div': { py: '7.5px' } }}
               >
                 {languageOptions.map(({ code, label }) => (
                   <MenuItem key={code} value={code}>
@@ -291,7 +291,7 @@ const SettingVergeBasic = ({ onError, variant }: Props) => {
               >
                 <Select
                   size="small"
-                  sx={{ width: 140, '> div': { py: '7.5px' } }}
+                  sx={{ minWidth: 140, '> div': { py: '7.5px' } }}
                 >
                   <MenuItem value="main_window">
                     {t(
@@ -353,7 +353,7 @@ const SettingVergeBasic = ({ onError, variant }: Props) => {
             >
               <Select
                 size="small"
-                sx={{ width: 140, '> div': { py: '7.5px' } }}
+                sx={{ minWidth: 140, '> div': { py: '7.5px' } }}
               >
                 <MenuItem value="bash">Bash</MenuItem>
                 <MenuItem value="fish">Fish</MenuItem>

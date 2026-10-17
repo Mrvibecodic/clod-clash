@@ -5,6 +5,7 @@ import {
   RAW_TAIL_LIMIT,
   explainErrorKey,
   stripCoreLogPrefix,
+  subscriptionFault,
   trimRawError,
 } from './error-explanation.ts'
 
@@ -206,6 +207,29 @@ describe('explainErrorKey', () => {
     // Выдуманный перевод уводит чинить не то — молчим.
     assert.equal(explainErrorKey('boom'), undefined)
     assert.equal(explainErrorKey(''), undefined)
+  })
+})
+
+describe('subscriptionFault', () => {
+  it('виновата ссылка только там, где её надо поменять', () => {
+    const table: [string, 'link' | 'network' | 'other'][] = [
+      ['profile with status 404', 'link'],
+      ['profile with status 401', 'link'],
+      ['clod-sub-web-page', 'link'],
+      ['subscription url must use https', 'link'],
+      ['dns lookup failed', 'network'],
+      ['operation timed out', 'network'],
+      ['connection reset by peer', 'network'],
+      ['profile with status 502', 'network'],
+      ['clod-chan-silent', 'network'],
+      ['clod-sub-budget', 'network'],
+      ['clod-sub-empty', 'other'],
+      ['clod-sub-link-list', 'other'],
+      ['что-то незнакомое', 'other'],
+    ]
+    for (const [raw, fault] of table) {
+      assert.equal(subscriptionFault(explainErrorKey(raw)), fault, raw)
+    }
   })
 })
 

@@ -154,3 +154,43 @@ export const trimRawError = (raw: string): string => {
     ? `${compact.slice(0, RAW_TAIL_LIMIT - 1)}…`
     : compact
 }
+
+export const errorReason = (
+  err: unknown,
+  t: (key: string) => string,
+): string => {
+  const raw = err instanceof Error ? err.message : String(err)
+  const explained = explainErrorKey(raw)
+  return explained ? t(explained) : trimRawError(raw)
+}
+
+const LINK_FAULTS = new Set([
+  'unauthorized',
+  'forbidden',
+  'notFound',
+  'subscriptionHttpsOnly',
+  'subscriptionWebPage',
+  'subscriptionDowngrade',
+  'chanBadUrl',
+])
+
+const NETWORK_FAULTS = new Set([
+  'noSuchHost',
+  'connectionRefused',
+  'connectionReset',
+  'timeout',
+  'unreachable',
+  'tls',
+  'serverError',
+  'chanSilent',
+  'subscriptionBudget',
+])
+
+export const subscriptionFault = (
+  explainedKey: string | undefined,
+): 'link' | 'network' | 'other' => {
+  const key = explainedKey?.split('.').pop() ?? ''
+  if (LINK_FAULTS.has(key)) return 'link'
+  if (NETWORK_FAULTS.has(key)) return 'network'
+  return 'other'
+}

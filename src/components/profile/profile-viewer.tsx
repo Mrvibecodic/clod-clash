@@ -24,7 +24,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Controller, useForm } from 'react-hook-form'
+import { Controller, useForm, useFormState } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { BaseDialog, Switch } from '@/components/base'
@@ -36,11 +36,19 @@ import {
   patchProfile,
   setSecureChannel,
 } from '@/services/cmds'
+import type { TranslationKey } from '@/types/generated/i18n-keys'
 import { chanFingerprint } from '@/utils/chan-fingerprint'
-import { explainErrorKey, trimRawError } from '@/utils/error-explanation'
+import { profileDate } from '@/utils/date-text'
+import {
+  errorReason,
+  explainErrorKey,
+  subscriptionFault,
+  trimRawError,
+} from '@/utils/error-explanation'
 import parseTraffic from '@/utils/parse-traffic'
 import { profileEditPatch } from '@/utils/profile-edit'
 import { profileDisplayName } from '@/utils/profile-name'
+import { clockSkew } from '@/utils/subscription-status'
 import { version } from '@root/package.json'
 
 import { FileInput } from './file-input'
@@ -59,6 +67,13 @@ const MIN_UPDATE_INTERVAL_MINUTES = 60
 
 /** clod: «создать новую группу» как отдельный пункт списка. */
 const NEW_GROUP = '__clod_new_group__'
+
+const FAULT_TITLES = {
+  save: 'profiles.modals.profileForm.feedback.saveFailed',
+  link: 'profiles.modals.profileForm.feedback.failed',
+  network: 'profiles.modals.profileForm.feedback.unreachable',
+  other: 'profiles.modals.profileForm.feedback.addFailed',
+} as const satisfies Record<string, TranslationKey>
 
 /** clod: строк несколько, берём случайную — ожидание в пару секунд. */
 const LOADING_LINES = [
@@ -92,7 +107,12 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
   const [loadingLine, setLoadingLine] = useState<
     (typeof LOADING_LINES)[number]
   >(LOADING_LINES[0])
-  const [errorText, setErrorText] = useState<string>()
+  const [formError, setFormError] = useState<{
+    title: TranslationKey
+    text: string
+    url: boolean
+  }>()
+  const [intervalError, setIntervalError] = useState<string>()
   const [added, setAdded] = useState<IProfileItem>()
   const [newGroup, setNewGroup] = useState('')
   const { profiles, mutateProfiles } = useProfiles()
@@ -105,6 +125,7 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
 
   // file input
   const fileDataRef = useRef<string | null>(null)
+  const [fileName, setFileName] = useState<string>()
   const openedRef = useRef<IProfileItem | undefined>(undefined)
   const sessionRef = useRef(0)
 
@@ -120,9 +141,12 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
         option: {
           with_proxy: false,
           self_proxy: false,
+          // Бэкенд без значения ставит «да» — окно показывает то, что сохранится.
+          allow_auto_update: true,
         },
       },
     })
+  const { isDirty } = useFormState({ control })
 
   // Уже существующие группы — список для выбора.
   const groups = useMemo(() => {
@@ -136,10 +160,12 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
 
   const resetState = () => {
     setAdded(undefined)
-    setErrorText(undefined)
+    setFormError(undefined)
+    setIntervalError(undefined)
     setNewGroup('')
     setChanError(undefined)
     setChanOffAsked(false)
+    setFileName(undefined)
     resetAddStage()
   }
 
@@ -197,9 +223,7 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
       await mutateProfiles()
     } catch (err) {
       if (session !== sessionRef.current) return
-      const raw = err instanceof Error ? err.message : String(err)
-      const explained = explainErrorKey(raw)
-      setChanError(explained ? t(explained) : trimRawError(raw))
+      setChanError(errorReason(err, t))
     } finally {
       setChanBusyFor(undefined)
     }
@@ -251,13 +275,17 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
       setLoadingLine(
         LOADING_LINES[Math.floor(Math.random() * LOADING_LINES.length)],
       )
-      setErrorText(undefined)
+      setFormError(undefined)
+      setIntervalError(undefined)
+      const isUpdate = openType === 'edit'
       try {
-        // Базовая валидация
-        if (!form.type)
-          throw new Error(t('profiles.modals.profileForm.errors.typeRequired'))
         if (form.type === 'remote' && !form.url) {
-          throw new Error(t('profiles.modals.profileForm.errors.urlRequired'))
+          setFormError({
+            title: 'profiles.modals.profileForm.feedback.failed',
+            text: t('profiles.modals.profileForm.errors.urlRequired'),
+            url: true,
+          })
+          return
         }
 
         // Обработка данных формы
@@ -290,20 +318,31 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
           option.update_interval < MIN_UPDATE_INTERVAL_MINUTES &&
           option.update_interval !== openedRef.current?.option?.update_interval
         ) {
-          throw new Error(
+          setIntervalError(
             t('profiles.modals.profileForm.errors.intervalTooShort', {
               minutes: MIN_UPDATE_INTERVAL_MINUTES,
             }),
           )
+          return
         }
         // clod:panel-name — у подписки `name` всегда даёт панель, а поле формы
         // пишет в `custom_name`: пустое — значит «как назовёт панель». Локальному
         // конфигу заголовков ждать неоткуда, там подстановка остаётся.
-        const name = isRemote ? undefined : form.name || `${form.type} file`
+        const name = isRemote
+          ? undefined
+          : form.name?.trim() ||
+            fileName ||
+            openedRef.current?.name ||
+            t('profiles.components.profileItem.localFile')
         const group =
           form.group === NEW_GROUP ? newGroup.trim() : form.group?.trim()
-        const item = { ...form, name, group: group || undefined, option }
-        const isUpdate = openType === 'edit'
+        // При правке «Без группы» — пустая строка: незаданное поле правка пропускает.
+        const item = {
+          ...form,
+          name,
+          group: isUpdate ? (group ?? '') : group || undefined,
+          option,
+        }
 
         // Проверяем, является ли конфиг текущим активным
         const isActivating = isUpdate && form.uid === (profiles?.current ?? '')
@@ -360,7 +399,12 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
         // провайдера не отвечает» вместо метки бэкенда.
         const raw = err instanceof Error ? err.message : String(err)
         const explained = explainErrorKey(raw)
-        setErrorText(explained ? t(explained) : raw)
+        const fault = isUpdate ? 'save' : subscriptionFault(explained)
+        setFormError({
+          title: FAULT_TITLES[fault],
+          text: explained ? t(explained) : trimRawError(raw),
+          url: fault === 'link',
+        })
       } finally {
         setLoading(false)
       }
@@ -393,6 +437,7 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
   const isRemote = formType === 'remote'
   const isLocal = formType === 'local'
   const isNew = openType === 'new'
+  const needFile = isLocal && isNew && !added && !fileName
   // При правке поля нужны сразу: сюда заходят именно за ними.
   const detailsOpen = !isNew
 
@@ -430,6 +475,12 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
           color="primary"
         />
       </StyledBox>
+
+      <Box sx={{ mt: -0.5, mb: 1, px: 0.5 }}>
+        <Typography variant="caption" color="text.secondary">
+          {t('profiles.modals.profileForm.hints.secureSupport')}
+        </Typography>
+      </Box>
 
       {chanBusy && (
         <Box sx={{ mt: -0.5, mb: 1, px: 0.5 }}>
@@ -560,15 +611,18 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
                 {...field}
                 type="number"
                 disabled={intervalLocked}
+                error={Boolean(intervalError)}
                 label={t('profiles.modals.profileForm.fields.updateInterval')}
                 helperText={
                   intervalLocked
                     ? t('profiles.modals.profileForm.hints.intervalLocked')
-                    : intervalFloor < MIN_UPDATE_INTERVAL_MINUTES
-                      ? undefined
-                      : t('profiles.modals.profileForm.hints.intervalFloor', {
-                          minutes: MIN_UPDATE_INTERVAL_MINUTES,
-                        })
+                    : intervalError
+                      ? intervalError
+                      : intervalFloor < MIN_UPDATE_INTERVAL_MINUTES
+                        ? undefined
+                        : t('profiles.modals.profileForm.hints.intervalFloor', {
+                            minutes: MIN_UPDATE_INTERVAL_MINUTES,
+                          })
                 }
                 slotProps={{
                   htmlInput: { min: intervalFloor },
@@ -690,6 +744,14 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
       onCancel={handleClose}
       onOk={handleOk}
       loading={loading || chanBusy}
+      // Свой файл без файла добавлять нечего.
+      changes={needFile ? 0 : undefined}
+      dirty={!added && (isDirty || Boolean(fileName))}
+      footerStart={
+        needFile
+          ? t('profiles.modals.profileForm.errors.fileRequired')
+          : undefined
+      }
     >
       {/* Шаг 2: что нашлось по ссылке. */}
       {added ? (
@@ -725,7 +787,7 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
                   sx={{ display: 'block' }}
                 >
                   {added.extra.expire
-                    ? new Date(added.extra.expire * 1000).toLocaleDateString()
+                    ? profileDate(added.extra.expire - (clockSkew(added) ?? 0))
                     : t('profiles.components.profileItem.labels.neverExpires')}
                 </Typography>
               </>
@@ -733,14 +795,18 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
               <Typography
                 variant="caption"
                 color="text.secondary"
-                sx={{ display: 'block', mt: 0.5 }}
+                sx={{ display: 'block', mt: 0.5, overflowWrap: 'anywhere' }}
               >
                 {added.url}
               </Typography>
             )}
           </Box>
           <Typography sx={{ mt: 1.5, color: 'success.main', fontWeight: 500 }}>
-            {t('profiles.modals.profileForm.feedback.added')}
+            {t(
+              added.type === 'local'
+                ? 'profiles.modals.profileForm.feedback.fileAdded'
+                : 'profiles.modals.profileForm.feedback.added',
+            )}
           </Typography>
           {added.type === 'remote' && (
             <Typography
@@ -768,7 +834,14 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
                   {...field}
                   autoFocus={isNew}
                   multiline
-                  error={Boolean(errorText)}
+                  error={Boolean(formError?.url)}
+                  // Адрес — одна строка: Enter, как на приветствии, — «Добавить».
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && !event.shiftKey) {
+                      event.preventDefault()
+                      void handleOk()
+                    }
+                  }}
                   label={t(
                     'profiles.modals.profileForm.fields.subscriptionUrl',
                   )}
@@ -781,6 +854,7 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
             <FileInput
               onChange={(file, val) => {
                 setValue('name', getValues('name') || file.name)
+                setFileName(file.name)
                 fileDataRef.current = val
               }}
             />
@@ -799,22 +873,22 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
             </Box>
           )}
 
-          {errorText && (
+          {formError && (
             <Box sx={{ mt: 1 }}>
               <Typography variant="caption" sx={{ color: 'error.main' }}>
-                {t('profiles.modals.profileForm.feedback.failed')}
+                {t(formError.title)}
               </Typography>
               <Typography
                 variant="caption"
                 color="text.secondary"
                 sx={{ display: 'block', mt: 0.5, wordBreak: 'break-word' }}
               >
-                {errorText}
+                {formError.text}
               </Typography>
             </Box>
           )}
 
-          {isNew && isRemote && !loading && !errorText && (
+          {isNew && isRemote && !loading && !formError && (
             <Typography
               variant="caption"
               color="text.secondary"
@@ -858,7 +932,7 @@ export function ProfileViewer({ onChange, ref }: ProfileViewerProps) {
                 sx={{ px: 0 }}
                 onClick={() => {
                   setValue('type', isLocal ? 'remote' : 'local')
-                  setErrorText(undefined)
+                  setFormError(undefined)
                 }}
               >
                 {isLocal

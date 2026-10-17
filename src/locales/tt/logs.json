@@ -8,6 +8,7 @@
     "export": "Файлга саклау"
   },
   "messages": {
-    "exported": "Логлар сакланды"
+    "exported": "Логлар сакланды",
+    "belowCoreLevel": "The core does not write entries of this level. Change it in Settings → “Log Level”"
   }
 }

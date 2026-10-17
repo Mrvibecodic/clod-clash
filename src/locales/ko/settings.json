@@ -88,7 +88,7 @@
       },
       "placeholders": {
         "address": "필수",
-        "secret": "권장"
+        "secret": "Required"
       },
       "tooltips": {
         "copy": "클립보드에 복사"
@@ -180,17 +180,12 @@
         },
         "options": {
           "logLevel": {
-            "auto": "구독 설정을 따름",
+            "trace": "Trace",
             "debug": "디버그",
             "info": "정보",
             "warning": "경고",
             "error": "오류",
             "silent": "무음"
-          },
-          "unifiedDelay": {
-            "auto": "구독 설정을 따름",
-            "on": "켬",
-            "off": "끔"
           }
         }
       }
@@ -237,7 +232,7 @@
         },
         "hints": {
           "subNotifications": "Warn about the subscription running out of traffic or time. Off silences these alerts regardless of the provider settings.",
-          "deviceIdentity": "Sends a hashed device id (x-hwid) with every subscription request so the provider can enforce its device limit. The raw machine id never leaves the device. Turning it off may make the panel refuse the subscription.",
+          "deviceIdentity": "Sends a hashed device id (x-hwid) with every subscription request so the provider can enforce its device limit. The raw machine id never leaves the device. Turning it off may make the provider refuse the subscription.",
           "windowFitContent": "내용 높이에 맞춰 창 크기를 조절해 스크롤 뒤에 가려지는 부분이 없도록 합니다. 창 크기를 직접 조절하면 이 기능이 꺼지고 지정한 크기가 유지됩니다."
         }
       },
@@ -407,6 +402,7 @@
       "actions": {
         "backup": "백업",
         "importBackup": "백업 가져오기",
+        "exportBackup": "Save the backup to a file",
         "deleteBackup": "백업 삭제",
         "restoreBackup": "백업 복원",
         "viewHistory": "View history",
@@ -491,7 +487,8 @@
         },
         "autoLogClean": {
           "never": "정리 안 함",
-          "retainDays": "{{n}}일 보관"
+          "retainDays": "{{count}}일 보관",
+          "retainDays_one": "{{count}}일 보관"
         }
       },
       "sections": {
@@ -503,13 +500,25 @@
     },
     "update": {
       "title": "새 버전 v{{version}}",
+      "titleNoVersion": "New version",
       "actions": {
         "goToRelease": "릴리스 페이지로 이동",
-        "update": "업데이트"
+        "update": "업데이트",
+        "downloading": "Downloading {{percent}}%"
       },
       "messages": {
         "breakChangeError": "이 버전은 메이저 업데이트로 앱 내 업데이트를 지원하지 않습니다. 프로그램을 제거한 뒤 새 버전을 수동으로 설치하세요",
-        "noData": "업데이트 정보를 가져오지 못했습니다"
+        "noData": "업데이트 정보를 가져오지 못했습니다",
+        "noNotes": "A new version is available",
+        "progress": "{{downloaded}} of {{total}}",
+        "cancelled": "Update download cancelled"
+      },
+      "alerts": {
+        "note": "Note",
+        "tip": "Tip",
+        "important": "Important",
+        "warning": "Warning",
+        "caution": "Caution"
       }
     },
     "sysproxy": {
@@ -538,7 +547,8 @@
       "messages": {
         "durationTooShort": "프록시 데몬 지속시간은 1초 미만일 수 없습니다",
         "invalidBypass": "잘못된 우회 형식",
-        "invalidProxyHost": "잘못된 프록시 호스트 형식"
+        "invalidProxyHost": "잘못된 프록시 호스트 형식",
+        "appliesOnConnect": "The system proxy is off — these settings apply when you connect"
       },
       "actions": {
         "editPac": "PAC 편집",
@@ -565,7 +575,7 @@
         "autoRedirect": "Auto Redirect"
       },
       "tooltips": {
-        "dnsHijack": "여러 DNS 서버는 쉼표(,)로 구분하세요",
+        "dnsHijack": "Addresses to intercept DNS on — comma-separated or one per line",
         "autoRedirect": "Automatically configures nftables/iptables TCP redirects"
       },
       "messages": {
@@ -587,9 +597,6 @@
         "title": "DNS 덮어쓰기",
         "note": "구독 값이 표시됩니다. 변경한 부분만 저장되며 나머지는 구독을 따릅니다. 잘 모르면 변경하지 마세요.",
         "fakeIpIdle": "적용되지 않음: redir-host 모드가 선택됨"
-      },
-      "actions": {
-        "asInSubscription": "구독 설정을 따름"
       },
       "sections": {
         "behavior": "동작"
@@ -660,11 +667,6 @@
         "invalidYaml": "잘못된 YAML 형식"
       },
       "options": {
-        "hosts": {
-          "auto": "구독 설정을 따름",
-          "on": "켬",
-          "off": "끔"
-        },
         "filterMode": {
           "blacklist": "목록 제외 전부",
           "whitelist": "목록만"
@@ -686,7 +688,8 @@
       "messages": {
         "supportedPlaceholders": "지원되는 자리표시자: %host, %port, %secret",
         "placeholderInstruction": "host, port, secret을 %host, %port, %secret로 바꿔 입력하세요",
-        "needsController": "외부 컨트롤러가 켜져 있을 때만 패널이 코어에 연결됩니다."
+        "needsController": "외부 컨트롤러가 켜져 있을 때만 패널이 코어에 연결됩니다.",
+        "noController": "No external controller address — enable it in the core settings"
       },
       "sections": {
         "panels": "Panels"
@@ -722,6 +725,9 @@
         "ipAddress": "IP 주소",
         "macAddress": "MAC 주소"
       }
+    },
+    "config": {
+      "runtimeFailed": "Could not get the current configuration"
     }
   },
   "feedback": {

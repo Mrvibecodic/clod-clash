@@ -20,7 +20,7 @@ import { InfoTile } from '@/components/home/info-tile'
 import { useExpiryCountdown } from '@/hooks/use-expiry-countdown'
 import { useTrafficEstimate } from '@/hooks/use-traffic-estimate'
 import { CARD_VALUE } from '@/pages/_theme'
-import { refillDateText } from '@/utils/date-text'
+import { profileDate, refillDateText } from '@/utils/date-text'
 import parseTraffic from '@/utils/parse-traffic'
 import { clockSkew } from '@/utils/subscription-status'
 
@@ -88,9 +88,7 @@ export const SubscriptionCard = ({ profile }: Props) => {
       // панели, а «до 21:40» читалось бы по часам пользователя, и два числа
       // расходились бы ровно на поправку. Что часы разошлись, говорит значок
       // рядом с числом.
-      expireDate: forever
-        ? undefined
-        : dayjs((expire - (skew ?? 0)) * 1000).format('DD.MM.YYYY'),
+      expireDate: forever ? undefined : profileDate(expire - (skew ?? 0)),
       expireTime: forever
         ? undefined
         : dayjs((expire - (skew ?? 0)) * 1000).format('HH:mm'),
@@ -153,7 +151,6 @@ export const SubscriptionCard = ({ profile }: Props) => {
         title={t('home.components.subscription.trafficTitle')}
         icon={<DataUsageRoundedIcon />}
       >
-        {/* mockup: «12,4 ГБ / 100 ГБ» — used in bold, the quota greyed */}
         <Stack direction="row" sx={{ alignItems: 'center', gap: 0.5 }}>
           <Typography noWrap sx={CARD_VALUE}>
             {approximate ? '≈ ' : ''}
@@ -261,7 +258,6 @@ export const SubscriptionCard = ({ profile }: Props) => {
       <InfoTile
         title={t('home.components.subscription.expiryTitle')}
         icon={<CalendarMonthRoundedIcon />}
-        lift={false}
       >
         {!info.forever ? (
           <>
@@ -309,9 +305,11 @@ export const SubscriptionCard = ({ profile }: Props) => {
                 ? t(untilTimeKey, {
                     time: info.expireTime,
                   })
-                : t('home.components.subscription.untilDate', {
-                    date: info.expireDate,
-                  })}
+                : expired
+                  ? info.expireDate
+                  : t('home.components.subscription.untilDate', {
+                      date: info.expireDate,
+                    })}
             </Typography>
           </>
         ) : (

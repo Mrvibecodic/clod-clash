@@ -1,4 +1,4 @@
-import { Box } from '@mui/material'
+import { Box, CircularProgress } from '@mui/material'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -9,15 +9,20 @@ import {
   VirtualList,
   type VirtualListHandle,
 } from '@/components/base'
+import { CoreStatus } from '@/components/home/core-status'
 import { ScrollTopButton } from '@/components/layout/scroll-top-button'
 import { ProviderButton } from '@/components/rule/provider-button'
 import RuleItem from '@/components/rule/rule-item'
+import { useSystemState } from '@/hooks/use-system-state'
 import { useVisibility } from '@/hooks/use-visibility'
 import { useAppRefreshers, useRulesData } from '@/providers/app-data-context'
+import { enumText } from '@/utils/plugin-enum'
 
 const RulesPage = () => {
   const { t } = useTranslation()
-  const { rules = [] } = useRulesData()
+  const { rules = [], rulesLoaded } = useRulesData()
+  const { isCoreDown } = useSystemState()
+  const [searching, setSearching] = useState(false)
   const { refreshRules, refreshRuleProviders } = useAppRefreshers()
   const [match, setMatch] = useState(() => (_: string) => true)
   const virtuosoRef = useRef<VirtualListHandle>(null)
@@ -39,7 +44,9 @@ const RulesPage = () => {
       lineNo: index + 1,
     }))
 
-    return rulesWithLineNo.filter((item) => match(item.payload ?? ''))
+    return rulesWithLineNo.filter((item) =>
+      match(`${enumText(item.type)},${item.payload ?? ''},${item.proxy}`),
+    )
   }, [rules, match])
 
   const handleScroll = useCallback((e: Event) => {
@@ -76,7 +83,12 @@ const RulesPage = () => {
           alignItems: 'center',
         }}
       >
-        <BaseSearchBox onSearch={(match) => setMatch(() => match)} />
+        <BaseSearchBox
+          onSearch={(match, state) => {
+            setMatch(() => match)
+            setSearching(state.text !== '')
+          }}
+        />
       </Box>
 
       {filteredRules && filteredRules.length > 0 ? (
@@ -91,8 +103,22 @@ const RulesPage = () => {
           />
           <ScrollTopButton onClick={scrollToTop} show={showScrollTop} />
         </>
+      ) : isCoreDown ? (
+        <Box sx={{ m: 'auto', px: 2 }}>
+          <CoreStatus />
+        </Box>
+      ) : !rulesLoaded ? (
+        <Box sx={{ m: 'auto' }}>
+          <CircularProgress size={24} />
+        </Box>
       ) : (
-        <BaseEmpty />
+        <BaseEmpty
+          textKey={
+            searching && rules.length > 0
+              ? 'rules.modals.editor.list.notFound'
+              : undefined
+          }
+        />
       )}
     </BasePage>
   )

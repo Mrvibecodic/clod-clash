@@ -14,6 +14,7 @@
     "restart": "重启内核",
     "resetToDefault": "重置为默认值",
     "refresh": "刷新",
+    "retry": "Retry",
     "listView": "列表视图",
     "tableView": "表格视图",
     "pause": "暂停",
@@ -65,7 +66,8 @@
   },
   "window": {
     "maximize": "最大化",
-    "minimize": "最小化"
+    "minimize": "最小化",
+    "restore": "Restore size"
   },
   "editorModes": {
     "visualization": "可视化",
@@ -99,7 +101,7 @@
         "serverError": "面板返回了自身错误 — 请稍后再试",
         "chanBroken": "The subscription response could not be decrypted — the connection was tampered with, or the provider turned the protection off",
         "chanReplay": "The subscription response does not answer our request — check the clock on this computer and try again",
-        "chanRefused": "The middleware refused the secure request — the connection to it is being blocked, or the protection is off",
+        "chanRefused": "The provider refused the secure request — the connection to it is being blocked, or the protection is off",
         "chanBadUrl": "This subscription address cannot be used with a secure connection",
         "chanAbsent": "The provider does not support the secure connection",
         "chanSilent": "The provider's server is not responding",
@@ -159,7 +161,8 @@
       "title": "This screen crashed",
       "retry": "Try again",
       "details": "Details",
-      "home": "Go home"
+      "home": "Go home",
+      "reload": "Reload the window"
     }
   },
   "filters": {
@@ -186,5 +189,10 @@
     "unsaved": "Unsaved: {{count}} changes",
     "unsaved_one": "Unsaved: {{count}} change",
     "reset": "Reset"
+  },
+  "options": {
+    "fromSubscription": "与订阅一致",
+    "on": "开启",
+    "off": "关闭"
   }
 }

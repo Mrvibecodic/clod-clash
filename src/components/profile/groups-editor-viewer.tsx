@@ -51,6 +51,7 @@ import { useThemeMode } from '@/services/states'
 import type { TranslationKey } from '@/types/generated/i18n-keys'
 import type { MonacoEditorInstance } from '@/types/monaco'
 import getSystem from '@/utils/get-system'
+import { optionalInt } from '@/utils/optional-int'
 import { BUILTIN_GROUP_POLICIES } from '@/utils/proxy-groups'
 import { parseYamlSafe } from '@/utils/yaml'
 
@@ -148,6 +149,7 @@ export const GroupsEditorViewer = (props: Props) => {
     setAppendSeq,
     deleteSeq,
     setDeleteSeq,
+    dirty,
     save,
   } = useSeqDocument<IProxyGroupConfig>(property, open, {
     isItem: isGroup,
@@ -451,7 +453,8 @@ export const GroupsEditorViewer = (props: Props) => {
   return (
     <Dialog
       open={open}
-      onClose={onClose}
+      // Несохранённое Esc и щелчок мимо окна не теряют — только «Отмена».
+      onClose={dirty ? undefined : onClose}
       maxWidth="xl"
       fullWidth
       disableEnforceFocus={!visualization}
@@ -668,7 +671,8 @@ export const GroupsEditorViewer = (props: Props) => {
                         size="small"
                         sx={{ width: 'calc(100% - 150px)' }}
                         onChange={(e) => {
-                          field.onChange(parseInt(e.target.value))
+                          // У ядра это строка-шаблон («*», «200/302»), не число
+                          field.onChange(e.target.value.trim() || undefined)
                         }}
                       />
                     </Item>
@@ -691,11 +695,7 @@ export const GroupsEditorViewer = (props: Props) => {
                         size="small"
                         sx={{ width: 'calc(100% - 150px)' }}
                         onChange={(e) => {
-                          // Пустое поле — «не задано», а не NaN в конфиге
-                          const value = e.target.value.trim()
-                          field.onChange(
-                            value === '' ? undefined : parseInt(value),
-                          )
+                          field.onChange(optionalInt(e.target.value))
                         }}
                         slotProps={{
                           input: {
@@ -723,7 +723,7 @@ export const GroupsEditorViewer = (props: Props) => {
                         size="small"
                         sx={{ width: 'calc(100% - 150px)' }}
                         onChange={(e) => {
-                          field.onChange(parseInt(e.target.value))
+                          field.onChange(optionalInt(e.target.value))
                         }}
                         slotProps={{
                           input: {
@@ -755,7 +755,7 @@ export const GroupsEditorViewer = (props: Props) => {
                         size="small"
                         sx={{ width: 'calc(100% - 150px)' }}
                         onChange={(e) => {
-                          field.onChange(parseInt(e.target.value))
+                          field.onChange(optionalInt(e.target.value))
                         }}
                       />
                     </Item>
@@ -798,7 +798,7 @@ export const GroupsEditorViewer = (props: Props) => {
                         size="small"
                         sx={{ width: 'calc(100% - 150px)' }}
                         onChange={(e) => {
-                          field.onChange(parseInt(e.target.value))
+                          field.onChange(optionalInt(e.target.value))
                         }}
                       />
                     </Item>

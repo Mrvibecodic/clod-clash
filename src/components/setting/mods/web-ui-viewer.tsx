@@ -71,9 +71,8 @@ export function WebUIViewer({ ref }: { ref?: Ref<DialogRef> }) {
       let url = value.trim().replaceAll('%host', '127.0.0.1')
 
       if (url.includes('%port') || url.includes('%secret')) {
-        if (!clashInfo) throw new Error('failed to get clash info')
-        if (!clashInfo.server?.includes(':')) {
-          throw new Error(`failed to parse the server "${clashInfo.server}"`)
+        if (!clashInfo?.server?.includes(':')) {
+          throw new Error(t('settings.modals.webUI.messages.noController'))
         }
 
         const port = clashInfo.server

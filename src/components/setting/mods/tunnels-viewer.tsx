@@ -166,9 +166,24 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
     )
   }, [proxyGroups, values.group])
 
+  // Набранный, но не добавленный туннель — тоже изменение: «Сохранить»
+  // сначала добавляет его с теми же проверками.
+  const formFilled = Boolean(
+    values.localAddr ||
+      values.localPort ||
+      values.targetAddr ||
+      values.targetPort,
+  )
+
   const handleSave = async () => {
+    let tunnels = draftTunnels
+    if (formFilled) {
+      const entry = await tunnelFromForm()
+      if (!entry) return
+      tunnels = [...tunnels, entry]
+    }
     try {
-      await patchClash({ tunnels: draftTunnels })
+      await patchClash({ tunnels })
       showNotice.success('shared.feedback.notifications.common.saveSuccess')
       setOpen(false)
     } catch (err: any) {
@@ -176,7 +191,8 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
     }
   }
 
-  const handleAdd = async () => {
+  /** Туннель из формы; не прошёл проверку — `null`, причина уже показана. */
+  const tunnelFromForm = async (): Promise<TunnelEntry | null> => {
     const { localAddr, localPort, targetAddr, targetPort, network, proxy } =
       values
 
@@ -185,7 +201,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
       showNotice.error(
         'settings.sections.clash.form.fields.tunnels.messages.incomplete',
       )
-      return
+      return null
     }
 
     // Проверка локального адреса (host)
@@ -194,7 +210,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
       showNotice.error(
         'settings.sections.clash.form.fields.tunnels.messages.invalidLocalAddr',
       )
-      return
+      return null
     }
 
     // Проверка локального порта (port)
@@ -202,14 +218,14 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
       showNotice.error(
         'settings.sections.clash.form.fields.tunnels.messages.invalidLocalPort',
       )
-      return
+      return null
     }
     const inUse = await isPortInUse(Number(localPort))
     if (inUse) {
       showNotice.error('settings.modals.clashPort.messages.portInUse', {
         port: localPort,
       })
-      return
+      return null
     }
 
     // Проверка целевого адреса (host)
@@ -218,7 +234,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
       showNotice.error(
         'settings.sections.clash.form.fields.tunnels.messages.invalidTargetAddr',
       )
-      return
+      return null
     }
 
     // Проверка целевого порта (port)
@@ -226,18 +242,20 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
       showNotice.error(
         'settings.sections.clash.form.fields.tunnels.messages.invalidTargetPort',
       )
-      return
+      return null
     }
 
-    // Формируем новую entry
-    const entry: TunnelEntry = {
+    return {
       network: network === 'tcp+udp' ? ['tcp', 'udp'] : [network],
       address: formatHostPort(localHost, localPort),
       target: formatHostPort(targetHost, targetPort),
       ...(proxy ? { proxy } : {}),
     }
+  }
 
-    // Записываем в конфиг + очищаем ввод
+  const handleAdd = async () => {
+    const entry = await tunnelFromForm()
+    if (!entry) return
     setDraftTunnels((prev) => [...prev, entry])
 
     setValues((v) => ({
@@ -280,7 +298,7 @@ export const TunnelsViewer = forwardRef<TunnelsViewerRef>((_, ref) => {
       open={open}
       title={t('settings.sections.clash.form.fields.tunnels.title')}
       dividers
-      changes={changes}
+      changes={changes + (formFilled ? 1 : 0)}
       onReset={() => setDraftTunnels(initialTunnels)}
       contentSx={{ width: 532 }}
       okBtn={t('shared.actions.save')}

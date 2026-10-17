@@ -4,9 +4,6 @@
       "updateAll": "更新所有訂閱",
       "addSubscription": "Add subscription"
     },
-    "tooltips": {
-      "emergencyRefresh": "數據異常，點擊強制刷新"
-    },
     "batch": {
       "actions": {
         "delete": "刪除選取訂閱",
@@ -14,11 +11,11 @@
         "deselectAll": "取消選取",
         "done": "完成"
       },
-      "summary": {
-        "selected": "已選取",
-        "items": "項目"
-      },
-      "title": "批次操作"
+      "selected": "Selected: {{count}} subscriptions",
+      "selected_one": "Selected: {{count}} subscription",
+      "title": "批次操作",
+      "confirmDelete": "Delete {{count}} subscriptions? This cannot be undone",
+      "confirmDelete_one": "Delete {{count}} subscription? This cannot be undone"
     },
     "importForm": {
       "actions": {
@@ -28,7 +25,8 @@
     "feedback": {
       "errors": {
         "onlyYaml": "僅支援 YAML 檔案",
-        "someUpdatesFailed": "{{total}} 個訂閱中有 {{failed}} 個更新失敗：{{reason}}"
+        "someUpdatesFailed": "{{total}} 個訂閱中有 {{failed}} 個更新失敗：{{reason}}",
+        "loadFailed": "Could not read the subscription list"
       },
       "notifications": {
         "profileSwitched": "訂閱已切換",
@@ -38,11 +36,8 @@
         "fallbackUsed": "Updated from the provider's backup address",
         "editorBrokenYaml": "該檔案無法以 YAML 解析，已用文字方式開啟，避免覆蓋原有內容。請修正語法後再切回。",
         "proxyLinksSkipped": "有 {{count}} 條連結無法解析，已略過： {{lines}}",
+        "proxyLinksSkipped_one": "有 {{count}} 條連結無法解析，已略過： {{lines}}",
         "justUpdated": "Subscriptions were just updated — you can update them again in half a minute"
-      },
-      "notices": {
-        "forceRefreshCompleted": "Force refresh completed",
-        "emergencyRefreshFailed": "Emergency refresh failed: {{message}}"
       }
     },
     "title": "訂閱",
@@ -83,11 +78,13 @@
         "stale": "未更新 · 更新於 {{time}}",
         "staleTitle": "請更新訂閱",
         "staleDetail": "更新於 {{time}}，自動更新一直失敗",
-        "nextUp": "下次更新",
+        "nextUpSoon": "Next update in under a minute",
+        "nextUpMinutes": "Next update in {{minutes}} min",
+        "nextUpHours": "Next update in {{hours}} h {{minutes}} min",
         "noSchedule": "沒有排程",
         "unknown": "未知",
         "autoUpdateDisabled": "自動更新已停用",
-        "hwidLimit": "Not updating: the device limit is full",
+        "hwidLimit": "Not updating: device limit reached",
         "hwidNotSupported": "Not updating: the provider requires device identification"
       },
       "labels": {
@@ -100,7 +97,6 @@
         "portal": "Account"
       },
       "badges": {
-        "active": "Active",
         "expiring": "Expiring",
         "expired": "Expired",
         "trafficOut": "Out of traffic"
@@ -110,9 +106,9 @@
     },
     "hwidDialog": {
       "limitTitle": "Device limit reached",
-      "limitBody": "Your provider does not allow another device on this subscription. Contact support.",
+      "limitBody": "The provider does not allow one more device on this subscription — contact your provider's support.",
       "requiredTitle": "Device identification required",
-      "requiredBody": "Your provider identifies devices and will not serve the subscription without a device id. Turn identification on and try again?",
+      "requiredBody": "The provider counts devices and will not hand out the subscription without an identifier. Turn device identification on?",
       "enable": "Turn on",
       "support": "Support",
       "enabled": "Device identification enabled — update the subscription again"
@@ -147,24 +143,29 @@
       "hints": {
         "intervalLocked": "The provider set this interval with the profile-update-interval header, so it cannot be changed.",
         "intervalFloor": "最快每 {{minutes}} 分鐘一次 — 更頻繁只會為面板帶來多餘請求。",
+        "secureSupport": "(make sure your provider supports this option)",
         "secureChannel": "Turned on after a check: stays off unless the provider answers"
       },
       "feedback": {
         "added": "✓ Subscription added!",
+        "fileAdded": "✓ File added",
         "failed": "That did not work. Check the link or get a new one where you bought the subscription",
-        "hint": "Your service gives you the link. The name, expiry and traffic come with it",
+        "saveFailed": "Could not save",
+        "unreachable": "Could not reach the provider",
+        "addFailed": "Could not add",
+        "hint": "Your provider gives you the link. The name, expiry and traffic come with it",
         "loading1": "Looking at what is behind that link. Usually faster than reading this line",
         "loading2": "Fetching your servers. They are already running, honestly",
         "loading3": "Asking where you would like to live on the internet today…",
         "loading4": "Reading the link letter by letter. There are not many of them",
         "loading5": "One second. The servers are pretending to be far away",
-        "channelOn": "Secure channel",
-        "channelOff": "No secure channel — the provider does not support it"
+        "channelOn": "Secure connection",
+        "channelOff": "No secure connection — the provider does not support it"
       },
       "stages": {
-        "checking": "Checking the provider’s secure channel…",
+        "checking": "Checking whether the provider supports the secure connection…",
         "retry": "No answer, trying again ({{attempt}} of {{total}})…",
-        "plain": "The provider has no secure channel — loading the usual way…"
+        "plain": "The provider does not support the secure connection — loading the usual way…"
       },
       "secureOff": {
         "title": "Turn the secure connection off?",
@@ -173,9 +174,9 @@
       },
       "errors": {
         "urlRequired": "Paste the subscription link",
+        "fileRequired": "Choose a file",
         "intervalTooShort": "更新間隔不能短於 {{minutes}} 分鐘 — 更頻繁只會為面板帶來多餘請求。",
-        "typeRequired": "Choose the profile type",
-        "profileMissing": "The profile is gone — close this window and open it again"
+        "profileMissing": "The subscription is gone — close this window and open it again"
       },
       "actions": {
         "useFile": "Your own config file",

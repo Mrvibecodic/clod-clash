@@ -182,7 +182,8 @@ export const EditorViewer = ({
   return (
     <Dialog
       open={open}
-      onClose={handleClose}
+      // Несохранённое Esc и щелчок мимо окна не теряют — только «Отмена».
+      onClose={dirty ? undefined : handleClose}
       maxWidth="xl"
       fullWidth
       disableEnforceFocus
@@ -279,7 +280,7 @@ export const EditorViewer = ({
             size="medium"
             color="inherit"
             title={t(
-              isMaximized ? 'shared.window.minimize' : 'shared.window.maximize',
+              isMaximized ? 'shared.window.restore' : 'shared.window.maximize',
             )}
             onClick={() => {
               void handleToggleMaximize()

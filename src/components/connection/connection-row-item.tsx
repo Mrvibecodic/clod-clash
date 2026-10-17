@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { closeConnection } from 'tauri-plugin-mihomo-api'
 
 import { showNotice } from '@/services/notice-service'
+import { pressable } from '@/utils/pressable'
 
 import { ChainText, HostText, SpeedText } from './connection-parts'
 import { RelativeTime } from './connection-relative-time'
@@ -117,6 +118,7 @@ export const ConnectionRowItem = memo(
           sx={itemSx}
           data-selected={Boolean(selected)}
           onClick={handleShowDetail}
+          {...pressable(handleShowDetail)}
         >
           <div style={contentStyle}>
             <div className="cc-mono" style={hostStyle}>

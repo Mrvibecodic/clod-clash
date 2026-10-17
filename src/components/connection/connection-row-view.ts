@@ -2,6 +2,8 @@ import { useMemo, useRef } from 'react'
 
 import { parseSpeed } from '@/utils/parse-traffic'
 
+import { getConnectionProcess } from './connection-stats'
+
 export interface ConnectionRowView {
   id: string
   host: string
@@ -44,16 +46,6 @@ export const getConnectionHostParts = (
 export const getConnectionHost = (connection: IConnectionsItem) => {
   const { host, port } = getConnectionHostParts(connection.metadata)
   return `${host}:${port}`
-}
-
-export const getConnectionProcess = (connection: IConnectionsItem) => {
-  const { metadata } = connection
-  return metadata.process || metadata.processPath || ''
-}
-
-export const getConnectionRule = (connection: IConnectionsItem) => {
-  const { rulePayload } = connection
-  return rulePayload ? `${connection.rule}(${rulePayload})` : connection.rule
 }
 
 export const getConnectionSource = (connection: IConnectionsItem) => {

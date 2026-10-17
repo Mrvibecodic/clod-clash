@@ -13,11 +13,15 @@ import { keyframes } from '@mui/material/styles'
 import { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { dismissUnlessDirty } from '@/utils/dialog-dismiss'
+
 interface Props {
   title: ReactNode
   titleExtra?: ReactNode
   dividers?: boolean
   changes?: number
+  /** Несохранённое без счётчика `changes` (окно со своим признаком). */
+  dirty?: boolean
   onReset?: () => void
   footerStart?: ReactNode
   open: boolean
@@ -118,6 +122,7 @@ export const BaseDialog: React.FC<Props> = ({
   titleExtra,
   dividers,
   changes,
+  dirty,
   onReset,
   footerStart,
   children,
@@ -157,7 +162,7 @@ export const BaseDialog: React.FC<Props> = ({
   return (
     <Dialog
       open={open}
-      onClose={onClose}
+      onClose={dismissUnlessDirty(dirty ?? Boolean(changes), onClose)}
       disableEnforceFocus={disableEnforceFocus}
       fullWidth={fullWidth}
       maxWidth={maxWidth}

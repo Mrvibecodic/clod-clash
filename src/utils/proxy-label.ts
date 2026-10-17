@@ -51,16 +51,15 @@ export const hidesType = (
  * (`hidden`, заголовок `clod-hide-badges`) — ни одной, кроме типа группы.
  */
 export const typeChips = (
-  proxy: Pick<IProxyItem, 'type' | 'label' | 'all'>,
+  proxy: { type?: string; label?: IProxyLabel; all?: unknown },
   hidden = false,
 ) =>
   hidesType(proxy, hidden)
     ? []
-    : proxy.label
-      ? [proxy.label.proto, proxy.label.transport, proxy.label.security].filter(
-          (part): part is string => !!part,
-        )
-      : [proxy.type]
+    : (proxy.label
+        ? [proxy.label.proto, proxy.label.transport, proxy.label.security]
+        : [proxy.type]
+      ).filter((part): part is string => !!part)
 
 /** Пометки TFO, MPTCP и SMUX — тоже про транспорт: прячутся вместе с плашками. */
 export const featureChips = (
@@ -73,8 +72,7 @@ export const featureChips = (
         .filter((feature) => proxy[feature])
         .map((feature) => feature.toUpperCase())
 
-/** То же одной строкой — подпись под именем узла; спрятано — пусто. */
 export const typeText = (
   node: { type?: string; label?: IProxyLabel; all?: unknown },
   hidden = false,
-) => (hidesType(node, hidden) ? '' : (node.label?.text ?? node.type ?? ''))
+) => typeChips(node, hidden).join(' · ')

@@ -1,4 +1,7 @@
+import { useTranslation } from 'react-i18next'
+
 import { BaseSegmented } from '@/components/base'
+import { STACKS } from '@/utils/tun-window'
 
 interface Props {
   value?: string
@@ -6,22 +9,21 @@ interface Props {
   onChange?: (value: string) => void
 }
 
-const STACKS = [
-  { value: 'system', label: 'System' },
-  { value: 'gvisor', label: 'gVisor' },
-  { value: 'mixed', label: 'Mixed' },
-  { value: 'mips', label: 'MIPS' },
-]
-
 export const StackModeSwitch = (props: Props) => {
   const { value, allowAuto, onChange } = props
+  const { t } = useTranslation()
 
   return (
     <BaseSegmented
       fullWidth
       value={value?.toLowerCase() ?? ''}
       options={
-        allowAuto ? [{ value: 'auto', label: 'Auto' }, ...STACKS] : STACKS
+        allowAuto
+          ? [
+              { value: 'auto', label: t('shared.options.fromSubscription') },
+              ...STACKS,
+            ]
+          : STACKS
       }
       onChange={(next) => onChange?.(next)}
     />

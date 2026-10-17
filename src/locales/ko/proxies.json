@@ -11,7 +11,8 @@
       "disconnect": "연결 해제",
       "connecting": "연결 중...",
       "clearChainConfig": "체인 구성 삭제",
-      "check": "Check"
+      "check": "Check",
+      "removeNode": "Remove the node from the chain"
     },
     "provider": {
       "title": "프록시 제공자",

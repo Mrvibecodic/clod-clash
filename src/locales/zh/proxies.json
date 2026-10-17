@@ -11,7 +11,8 @@
       "disconnect": "断开",
       "connecting": "连接中...",
       "clearChainConfig": "删除链式配置",
-      "check": "Check"
+      "check": "Check",
+      "removeNode": "Remove the node from the chain"
     },
     "provider": {
       "title": "代理集合",

@@ -1,4 +1,4 @@
-import { ContentCopyRounded, SettingsRounded } from '@mui/icons-material'
+import { ContentCopyRounded } from '@mui/icons-material'
 import { Typography } from '@mui/material'
 import { useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -192,10 +192,10 @@ const SettingVergeAdvanced = ({ onError, variant }: Props) => {
         <>
           <SettingItem
             label={t('settings.components.verge.advanced.fields.supportBundle')}
+            onClick={() => void onCopySupportBundle()}
             extra={
               <TooltipIcon
                 icon={ContentCopyRounded}
-                onClick={() => void onCopySupportBundle()}
                 title={t(
                   'settings.components.verge.advanced.tooltips.supportBundle',
                 )}
@@ -204,24 +204,20 @@ const SettingVergeAdvanced = ({ onError, variant }: Props) => {
           ></SettingItem>
 
           <SettingItem
+            label={t('settings.components.verge.advanced.fields.checkUpdates')}
+            onClick={() => void onCheckUpdate()}
+          />
+
+          <SettingItem
             label={t('settings.components.verge.advanced.fields.vergeVersion')}
             extra={
-              <>
-                <TooltipIcon
-                  icon={SettingsRounded}
-                  onClick={() => void onCheckUpdate()}
-                  title={t(
-                    'settings.components.verge.advanced.fields.checkUpdates',
-                  )}
-                />
-                <TooltipIcon
-                  icon={ContentCopyRounded}
-                  onClick={() => void copyVersion()}
-                  title={t(
-                    'settings.components.verge.advanced.actions.copyVersion',
-                  )}
-                />
-              </>
+              <TooltipIcon
+                icon={ContentCopyRounded}
+                onClick={() => void copyVersion()}
+                title={t(
+                  'settings.components.verge.advanced.actions.copyVersion',
+                )}
+              />
             }
           >
             <Typography sx={{ py: '7px', pr: 1 }}>v{version}</Typography>

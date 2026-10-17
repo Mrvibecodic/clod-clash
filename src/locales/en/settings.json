@@ -10,7 +10,7 @@
         "systemProxy": "System Proxy"
       },
       "tooltips": {
-        "silentStart": "Start the program in background mode without displaying the panel",
+        "silentStart": "Start the program in background mode without showing the window",
         "connectOnLaunch": "Right after launch the app raises the same connection method the button would. Off by default: nothing is written into the system until you ask for it.",
         "dnsOverride": "macOS only: while the tunnel is up in fake-ip mode (the default; the override is not turned on under redir-host from the subscription) the system resolver is switched to a public one, so queries the system sends past the interface still go through the tunnel. Turn it off and part of them will go outside the tunnel."
       },
@@ -88,7 +88,7 @@
       },
       "placeholders": {
         "address": "Required",
-        "secret": "Recommended"
+        "secret": "Required"
       },
       "tooltips": {
         "copy": "Copy to clipboard"
@@ -129,7 +129,7 @@
       "title": "Clash Setting",
       "form": {
         "fields": {
-          "allowLan": "Allow LAN",
+          "allowLan": "LAN sharing",
           "dnsOverwrite": "DNS Overwrite",
           "ipv6": "IPv6",
           "unifiedDelay": "Unified Delay",
@@ -180,17 +180,12 @@
         },
         "options": {
           "logLevel": {
-            "auto": "As in the subscription",
+            "trace": "Trace",
             "debug": "Debug",
             "info": "Info",
             "warning": "Warn",
             "error": "Error",
             "silent": "Silent"
-          },
-          "unifiedDelay": {
-            "auto": "As in the subscription",
-            "on": "On",
-            "off": "Off"
           }
         }
       }
@@ -237,7 +232,7 @@
         },
         "hints": {
           "subNotifications": "Warn about the subscription running out of traffic or time. Off silences these alerts regardless of the provider settings.",
-          "deviceIdentity": "Sends a hashed device id (x-hwid) with every subscription request so the provider can enforce its device limit. The raw machine id never leaves the device. Turning it off may make the panel refuse the subscription.",
+          "deviceIdentity": "Sends a hashed device id (x-hwid) with every subscription request so the provider can enforce its device limit. The raw machine id never leaves the device. Turning it off may make the provider refuse the subscription.",
           "windowFitContent": "The window sizes its height to what is on the screen, so nothing hides behind a scrollbar. Resizing the window by hand turns this off and keeps your size."
         }
       },
@@ -246,7 +241,7 @@
         "tooltips": {
           "backupInfo": "Support local or WebDAV backup of configuration files",
           "openConfDir": "If the software runs abnormally, BACKUP and delete all files in this folder then restart the software",
-          "liteMode": "Close the GUI and keep only the kernel running",
+          "liteMode": "Only the core keeps running; the app window is closed",
           "supportBundle": "Copies versions, core and subscription state and the tail of both logs — with subscription addresses, tokens and secrets already masked. Paste it into the provider's support chat.",
           "receivePrereleases": "Update to alpha and beta versions as well. With this switched off only stable releases arrive."
         },
@@ -258,8 +253,8 @@
           "versionCopied": "Version copied to clipboard"
         },
         "messages": {
-          "noProfileSelected": "No profile selected",
-          "profileFileError": "Error getting profile file"
+          "noProfileSelected": "No subscription selected",
+          "profileFileError": "Could not read the subscription file"
         },
         "fields": {
           "backupSetting": "Backup Setting",
@@ -271,7 +266,7 @@
           "exportLogs": "Export logs as an archive",
           "checkUpdates": "Check for Updates",
           "openDevTools": "Dev Tools",
-          "liteModeSettings": "LightWeight Mode Settings",
+          "liteModeSettings": "Lightweight mode settings",
           "exit": "Exit",
           "supportBundle": "Support report",
           "vergeVersion": "Clod Version",
@@ -380,22 +375,22 @@
       }
     },
     "liteMode": {
-      "title": "LightWeight Mode Settings",
+      "title": "Lightweight mode settings",
       "actions": {
-        "enterNow": "Enter LightWeight Mode Now"
+        "enterNow": "Enter lightweight mode now"
       },
       "toggles": {
-        "autoEnter": "Auto Enter LightWeight Mode"
+        "autoEnter": "Enter lightweight mode automatically"
       },
       "tooltips": {
-        "autoEnter": "Enable to automatically activate LightWeight Mode after the window is closed for a period of time"
+        "autoEnter": "Turn lightweight mode on once the window has been closed for the set time"
       },
       "fields": {
-        "delay": "Auto Enter LightWeight Mode Delay"
+        "delay": "Delay before lightweight mode"
       },
       "messages": {
-        "autoEnterHint": "When closing the window, LightWeight Mode will be automatically activated after {{count}} minutes",
-        "autoEnterHint_one": "When closing the window, LightWeight Mode will be automatically activated after {{count}} minute"
+        "autoEnterHint": "After the window is closed, lightweight mode turns on in {{count}} minutes",
+        "autoEnterHint_one": "After the window is closed, lightweight mode turns on in {{count}} minute"
       }
     },
     "backup": {
@@ -407,6 +402,7 @@
       "actions": {
         "backup": "Backup",
         "importBackup": "Import Backup",
+        "exportBackup": "Save the backup to a file",
         "deleteBackup": "Delete Backup",
         "restoreBackup": "Restore Backup",
         "viewHistory": "View history",
@@ -476,7 +472,7 @@
         "proxyLayoutColumns": "Proxy Layout Columns",
         "autoLogClean": "Auto Log Clean",
         "defaultLatencyTest": "Default Latency Test",
-        "defaultLatencyTimeout": "Default Latency Timeout"
+        "defaultLatencyTimeout": "Default latency timeout"
       },
       "tooltips": {
         "autoCloseConnections": "Terminate established connections when the proxy group selection or proxy mode changes",
@@ -491,7 +487,8 @@
         },
         "autoLogClean": {
           "never": "Never Clean",
-          "retainDays": "Retain {{n}} Days"
+          "retainDays": "Keep {{count}} days",
+          "retainDays_one": "Keep {{count}} day"
         }
       },
       "sections": {
@@ -503,13 +500,25 @@
     },
     "update": {
       "title": "New Version v{{version}}",
+      "titleNoVersion": "New version",
       "actions": {
         "goToRelease": "Go to Release Page",
-        "update": "Update"
+        "update": "Update",
+        "downloading": "Downloading {{percent}}%"
       },
       "messages": {
         "breakChangeError": "This version is a major update and does not support in-app updates. Please uninstall it and manually download and install the new version",
-        "noData": "Could not get update information"
+        "noData": "Could not get update information",
+        "noNotes": "A new version is available",
+        "progress": "{{downloaded}} of {{total}}",
+        "cancelled": "Update download cancelled"
+      },
+      "alerts": {
+        "note": "Note",
+        "tip": "Tip",
+        "important": "Important",
+        "warning": "Warning",
+        "caution": "Caution"
       }
     },
     "sysproxy": {
@@ -538,7 +547,8 @@
       "messages": {
         "durationTooShort": "Proxy Daemon Duration Cannot be Less than 1 Second",
         "invalidBypass": "Invalid Bypass Format",
-        "invalidProxyHost": "Invalid Proxy Host Format"
+        "invalidProxyHost": "Invalid Proxy Host Format",
+        "appliesOnConnect": "The system proxy is off — these settings apply when you connect"
       },
       "actions": {
         "editPac": "Edit PAC",
@@ -565,7 +575,7 @@
         "autoRedirect": "Auto Redirect"
       },
       "tooltips": {
-        "dnsHijack": "Please use , to separate multiple DNS servers",
+        "dnsHijack": "Addresses to intercept DNS on — comma-separated or one per line",
         "autoRedirect": "Automatically configures nftables/iptables TCP redirects"
       },
       "messages": {
@@ -587,9 +597,6 @@
         "title": "DNS Overwrite",
         "note": "Subscription values are shown. Only your differences are saved — everything else follows the subscription. Not sure? Leave it as is.",
         "fakeIpIdle": "Has no effect: redir-host mode is selected"
-      },
-      "actions": {
-        "asInSubscription": "As in the subscription"
       },
       "sections": {
         "behavior": "Behavior"
@@ -660,11 +667,6 @@
         "invalidYaml": "Invalid YAML format"
       },
       "options": {
-        "hosts": {
-          "auto": "As in the subscription",
-          "on": "On",
-          "off": "Off"
-        },
         "filterMode": {
           "blacklist": "Except listed",
           "whitelist": "Only listed"
@@ -686,7 +688,8 @@
       "messages": {
         "supportedPlaceholders": "Support %host, %port, %secret",
         "placeholderInstruction": "Replace host, port, secret with %host, %port, %secret",
-        "needsController": "The panel can connect to the core only while the external controller is enabled."
+        "needsController": "The panel can connect to the core only while the external controller is enabled.",
+        "noController": "No external controller address — enable it in the core settings"
       },
       "sections": {
         "panels": "Panels"
@@ -698,13 +701,13 @@
       },
       "title": "Hotkey Setting",
       "functions": {
-        "rule": "Rule Mode",
-        "global": "Global Mode",
-        "openOrCloseDashboard": "Open/Close Dashboard",
+        "rule": "Mode: Rule",
+        "global": "Mode: Global",
+        "openOrCloseDashboard": "Show/hide the app window",
         "toggleSystemProxy": "Enable/Disable System Proxy",
         "toggleTunMode": "Enable/Disable Tun Mode",
-        "entryLightweightMode": "Entry Lightweight Mode",
-        "direct": "Direct Mode",
+        "entryLightweightMode": "Enter lightweight mode",
+        "direct": "Mode: Direct",
         "reactivateProfiles": "Reapply Subscription"
       },
       "messages": {
@@ -722,6 +725,9 @@
         "ipAddress": "IP Address",
         "macAddress": "MAC Address"
       }
+    },
+    "config": {
+      "runtimeFailed": "Could not get the current configuration"
     }
   },
   "feedback": {
@@ -742,7 +748,7 @@
         "uninstallSkipped": "The service was not removed: stopping the core failed."
       },
       "updater": {
-        "withClashProxySuccess": "Update with Clash proxy successfully",
+        "withClashProxySuccess": "Updated through the core proxy",
         "breakingChanges": "Version {{version}} contains breaking changes and was not installed automatically. Please update manually."
       }
     }

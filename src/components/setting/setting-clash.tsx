@@ -160,7 +160,10 @@ const SettingClash = ({ onError }: Props) => {
             onChange={(mode) => onChangeData({ mode })}
             onGuard={(mode) => patchClashMode(mode)}
           >
-            <Select size="small" sx={{ width: 140, '> div': { py: '7.5px' } }}>
+            <Select
+              size="small"
+              sx={{ minWidth: 140, '> div': { py: '7.5px' } }}
+            >
               <MenuItem value="rule">
                 {t('home.components.clashMode.labels.rule')}
               </MenuItem>
@@ -259,16 +262,12 @@ const SettingClash = ({ onError }: Props) => {
           }
           onGuard={(e) => patchClash({ 'unified-delay': unifiedDelayOf(e) })}
         >
-          <Select size="small" sx={{ width: 160, '> div': { py: '7.5px' } }}>
+          <Select size="small" sx={{ minWidth: 160, '> div': { py: '7.5px' } }}>
             <MenuItem value="auto">
-              {t('settings.sections.clash.form.options.unifiedDelay.auto')}
+              {t('shared.options.fromSubscription')}
             </MenuItem>
-            <MenuItem value="on">
-              {t('settings.sections.clash.form.options.unifiedDelay.on')}
-            </MenuItem>
-            <MenuItem value="off">
-              {t('settings.sections.clash.form.options.unifiedDelay.off')}
-            </MenuItem>
+            <MenuItem value="on">{t('shared.options.on')}</MenuItem>
+            <MenuItem value="off">{t('shared.options.off')}</MenuItem>
           </Select>
         </GuardState>
       </SettingItem>
@@ -293,9 +292,9 @@ const SettingClash = ({ onError }: Props) => {
           onChange={(e) => mutateLadder({ log_level: e === 'auto' ? null : e })}
           onGuard={(e) => patchClash({ 'log-level': e })}
         >
-          <Select size="small" sx={{ width: 160, '> div': { py: '7.5px' } }}>
+          <Select size="small" sx={{ minWidth: 160, '> div': { py: '7.5px' } }}>
             <MenuItem value="auto">
-              {t('settings.sections.clash.form.options.logLevel.auto')}
+              {t('shared.options.fromSubscription')}
             </MenuItem>
             <MenuItem value="debug">
               {t('settings.sections.clash.form.options.logLevel.debug')}

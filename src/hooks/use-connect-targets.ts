@@ -8,6 +8,7 @@ import { useTunState } from '@/hooks/use-tun-state'
 import { useTunSwitch } from '@/hooks/use-tun-switch'
 import { useVerge } from '@/hooks/use-verge'
 import { getRunningMode, restartCore } from '@/services/cmds'
+import { tunFailureKey } from '@/utils/tun-notice'
 
 /**
  * clod:connect-mode — что просит поднимать провайдер (`clod-connect-mode`).
@@ -145,9 +146,17 @@ export const useConnectTargets = () => {
     // clod:tun-ready — TUN нужна фоновая служба. Раньше кнопка просто ругалась
     // «установите её сами»; теперь ставим (один запрос прав) и продолжаем, а
     // ошибка остаётся только для случая, когда пользователь отказал.
+    // Отказ: уведомление с причиной уже пришло от бэкенда, у кнопки —
+    // короткий итог по той же причине.
     if (next && targetTun && !tun.capable && !tun.active) {
       if (!(await prepareTun())) {
-        throw new Error(t('home.components.connect.errors.serviceRequired'))
+        const { data } = await mutateTunState()
+        throw new Error(
+          t(
+            tunFailureKey(data?.failure) ??
+              'home.components.tunStatus.reasons.setupFailed',
+          ),
+        )
       }
     }
 

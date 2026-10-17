@@ -9,7 +9,6 @@ export const useProfiles = () => {
     data: profiles,
     refetch,
     error,
-    isFetching: isValidating,
   } = useQuery({
     queryKey: ['getProfiles'],
     queryFn: async () => {
@@ -25,7 +24,6 @@ export const useProfiles = () => {
     staleTime: 500,
     retry: 3,
     retryDelay: 1000,
-    refetchInterval: false,
   })
 
   const refetchRef = useRef(refetch)
@@ -77,8 +75,7 @@ export const useProfiles = () => {
     patchProfiles,
     patchCurrent,
     mutateProfiles,
-    // Добавленное состояние обнаружения сбоя
     error,
-    isStale: !profiles && !error && !isValidating, // Определяем, находится ли в нештатном состоянии
+    loading: !profiles && !error,
   }
 }

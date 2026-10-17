@@ -19,12 +19,19 @@ import {
   AddRounded,
   CheckBoxOutlineBlankRounded,
   CheckBoxRounded,
-  ClearRounded,
   DeleteRounded,
   IndeterminateCheckBoxRounded,
   RefreshRounded,
 } from '@mui/icons-material'
-import { Box, Button, Chip, IconButton, Stack } from '@mui/material'
+import {
+  Box,
+  Button,
+  Chip,
+  CircularProgress,
+  IconButton,
+  Stack,
+  Typography,
+} from '@mui/material'
 import { TauriEvent } from '@tauri-apps/api/event'
 import { useLockFn } from 'ahooks'
 import { throttle } from 'lodash-es'
@@ -32,7 +39,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { closeAllConnections } from 'tauri-plugin-mihomo-api'
 
-import { BasePage } from '@/components/base'
+import { BaseDialog, BaseEmpty, BasePage } from '@/components/base'
 import {
   ProfileViewer,
   type ProfileViewerRef,
@@ -42,21 +49,19 @@ import { useTauriEvent } from '@/hooks/use-listen'
 import { useProfiles } from '@/hooks/use-profiles'
 import {
   beginOwnUpdate,
-  endOwnUpdate,
+  canUpdateNow,
   isSubscriptionPaused,
-  isSubscriptionUpdating,
-  pauseSubscription,
+  runOwnUpdate,
 } from '@/hooks/use-subscription-update'
 import {
   createProfileFromFile,
   deleteProfile,
   enhanceProfiles,
   reorderProfile,
-  updateProfile,
 } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { debugLog } from '@/utils/debug'
-import { explainErrorKey, trimRawError } from '@/utils/error-explanation'
+import { errorReason } from '@/utils/error-explanation'
 
 const PROFILE_UPDATE_WORKER_LIMIT = 8
 const PROFILE_SWITCH_LOADING_DELAY = 400
@@ -125,6 +130,7 @@ const ProfilePage = () => {
   >(() => new Map())
 
   const [batchMode, setBatchMode] = useState(false)
+  const [batchDeleteAsked, setBatchDeleteAsked] = useState(false)
   const [selectedProfiles, setSelectedProfiles] = useState<Set<string>>(
     () => new Set(),
   )
@@ -151,7 +157,7 @@ const ProfilePage = () => {
     patchProfiles,
     mutateProfiles,
     error,
-    isStale,
+    loading,
   } = useProfiles()
 
   useEffect(() => {
@@ -181,28 +187,6 @@ const ProfilePage = () => {
       }
     }
     await mutateProfiles()
-  })
-
-  const onEmergencyRefresh = useLockFn(async () => {
-    debugLog(
-      '[Экстренное обновление] Начало принудительного обновления всех данных',
-    )
-
-    try {
-      await mutateProfiles()
-
-      showNotice.success(
-        'profiles.page.feedback.notices.forceRefreshCompleted',
-        2000,
-      )
-    } catch (error) {
-      console.error('[Экстренное обновление] Ошибка:', error)
-      showNotice.error(
-        'profiles.page.feedback.notices.emergencyRefreshFailed',
-        { message: String(error) },
-        4000,
-      )
-    }
   })
 
   const viewerRef = useRef<ProfileViewerRef>(null)
@@ -430,14 +414,11 @@ const ProfilePage = () => {
 
       const updateOne = async (uid: string) => {
         try {
-          await updateProfile(uid)
-          pauseSubscription(uid)
+          await runOwnUpdate(uid)
           throttleMutate()
         } catch (err: any) {
           console.error(`Не удалось обновить подписку ${uid}:`, err)
           failures.push(err)
-        } finally {
-          endOwnUpdate(uid)
         }
       }
 
@@ -455,15 +436,10 @@ const ProfilePage = () => {
         void mutateProfiles()
 
         if (failures.length > 0) {
-          const first = failures[0]
-          const raw = first instanceof Error ? first.message : String(first)
-          // Причина проходит тот же путь, что и одиночная ошибка: сначала словарь
-          // объяснений, и только если он не узнал — обрезанный исходный текст.
-          const explained = explainErrorKey(raw)
           showNotice.error('profiles.page.feedback.errors.someUpdatesFailed', {
             failed: failures.length,
             total: uids.length,
-            reason: explained ? t(explained) : trimRawError(raw),
+            reason: errorReason(failures[0], t),
           })
         }
       }
@@ -475,9 +451,7 @@ const ProfilePage = () => {
     const target = items
       .map((item) => item.uid)
       // Только что обновлённые руками — на паузе, как и их кнопки
-      .filter(
-        (uid) => !isSubscriptionUpdating(uid) && !isSubscriptionPaused(uid),
-      )
+      .filter(canUpdateNow)
 
     // Обновлять нечего только из-за паузы — сказать, а не молчать
     if (
@@ -585,7 +559,11 @@ const ProfilePage = () => {
     <BasePage
       full
       title={t('profiles.page.title')}
-      contentStyle={{ height: '100%' }}
+      contentStyle={{
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
       header={
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           {!batchMode ? (
@@ -607,25 +585,6 @@ const ProfilePage = () => {
               >
                 <RefreshRounded />
               </IconButton>
-
-              {(error || isStale) && (
-                <IconButton
-                  size="small"
-                  color="warning"
-                  title={t('profiles.page.tooltips.emergencyRefresh')}
-                  onClick={onEmergencyRefresh}
-                  sx={{
-                    animation: 'pulse 2s infinite',
-                    '@keyframes pulse': {
-                      '0%': { opacity: 1 },
-                      '50%': { opacity: 0.5 },
-                      '100%': { opacity: 1 },
-                    },
-                  }}
-                >
-                  <ClearRounded />
-                </IconButton>
-              )}
             </>
           ) : (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -653,7 +612,7 @@ const ProfilePage = () => {
                 size="small"
                 color="error"
                 title={t('profiles.page.batch.actions.delete')}
-                onClick={deleteSelectedProfiles}
+                onClick={() => setBatchDeleteAsked(true)}
                 disabled={selectedVisible.length === 0}
               >
                 <DeleteRounded />
@@ -664,9 +623,9 @@ const ProfilePage = () => {
               <Box
                 sx={{ flex: 1, textAlign: 'right', color: 'text.secondary' }}
               >
-                {t('profiles.page.batch.summary.selected')}{' '}
-                {selectedVisible.length}{' '}
-                {t('profiles.page.batch.summary.items')}
+                {t('profiles.page.batch.selected', {
+                  count: selectedVisible.length,
+                })}
               </Box>
             </Box>
           )}
@@ -730,10 +689,34 @@ const ProfilePage = () => {
           sx={{
             pl: '10px',
             pr: '10px',
-            height: 'calc(100% - 48px)',
+            flex: 1,
+            minHeight: 0,
             overflowY: 'auto',
           }}
         >
+          {loading && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+              <CircularProgress size={24} />
+            </Box>
+          )}
+          {error && profileItems.length === 0 && (
+            <BaseEmpty
+              textKey="profiles.page.feedback.errors.loadFailed"
+              extra={
+                <>
+                  <Typography
+                    variant="caption"
+                    sx={{ mt: 0.5, mb: 1, textAlign: 'center' }}
+                  >
+                    {errorReason(error, t)}
+                  </Typography>
+                  <Button size="small" onClick={() => void mutateProfiles()}>
+                    {t('shared.actions.retry')}
+                  </Button>
+                </>
+              }
+            />
+          )}
           <Box sx={{ mb: 1.5 }}>
             <Box
               sx={{
@@ -765,13 +748,7 @@ const ProfilePage = () => {
                       mutateProfiles={mutateProfiles}
                       onSelect={(f) => onSelect(item.uid, f)}
                       onEdit={() => viewerRef.current?.edit(item)}
-                      onDelete={() => {
-                        if (batchMode) {
-                          toggleProfileSelection(item.uid)
-                        } else {
-                          onDelete(item.uid)
-                        }
-                      }}
+                      onDelete={() => onDelete(item.uid)}
                       batchMode={batchMode}
                       isSelected={selectedProfiles.has(item.uid)}
                       onSelectionChange={() => toggleProfileSelection(item.uid)}
@@ -784,6 +761,24 @@ const ProfilePage = () => {
         </Box>
         <DragOverlay />
       </DndContext>
+
+      <BaseDialog
+        title={t('profiles.modals.confirmDelete.title')}
+        open={batchDeleteAsked}
+        okBtn={t('shared.actions.delete')}
+        cancelBtn={t('shared.actions.cancel')}
+        contentSx={{ width: { xs: 320, sm: 420 } }}
+        onCancel={() => setBatchDeleteAsked(false)}
+        onClose={() => setBatchDeleteAsked(false)}
+        onOk={() => {
+          setBatchDeleteAsked(false)
+          void deleteSelectedProfiles()
+        }}
+      >
+        {t('profiles.page.batch.confirmDelete', {
+          count: selectedVisible.length,
+        })}
+      </BaseDialog>
 
       <ProfileViewer
         ref={viewerRef}

@@ -1,24 +1,20 @@
 import { Box, Stack, Typography } from '@mui/material'
 import type { ReactNode } from 'react'
 
-import { CARD_LIFT, CARD_SURFACE, CARD_TITLE } from '@/pages/_theme'
+import { CARD_SURFACE, CARD_TITLE } from '@/pages/_theme'
 
 export const InfoTile = ({
   title,
   icon,
   children,
-  lift = true,
 }: {
   title: string
   icon: ReactNode
   children: ReactNode
-  /** Подъём при наведении; плитке без действия по нажатию он ни к чему. */
-  lift?: boolean
 }) => (
   <Box
     sx={{
       ...CARD_SURFACE,
-      ...(lift && CARD_LIFT),
       position: 'relative',
       overflow: 'hidden',
       minWidth: 0,

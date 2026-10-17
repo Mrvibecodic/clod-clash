@@ -35,20 +35,26 @@ export const useTrafficData = (options?: { enabled?: boolean }) => {
     connect: () => MihomoWebSocket.connect_traffic(),
     throttleMs: 200,
     staleMs: TRAFFIC_STALE_MS,
-    setupHandlers: ({ next }) => ({
-      onStale: () => next(null, FALLBACK_TRAFFIC),
-      handleMessage: (data) => {
-        try {
-          const parsed = JSON.parse(data) as Traffic
-          if (shouldSkipDuplicateTraffic(parsed)) {
-            return
+    setupHandlers: ({ next }) => {
+      return {
+        // Мгновенная скорость прошлого показа уже неправда — ноль до первого
+        // сообщения.
+        onResume: () =>
+          next(null, (current) => current && { ...current, up: 0, down: 0 }),
+        onStale: () => next(null, FALLBACK_TRAFFIC),
+        handleMessage: (data) => {
+          try {
+            const parsed = JSON.parse(data) as Traffic
+            if (shouldSkipDuplicateTraffic(parsed)) {
+              return
+            }
+            next(null, parsed)
+          } catch (error) {
+            next(error, FALLBACK_TRAFFIC)
           }
-          next(null, parsed)
-        } catch (error) {
-          next(error, FALLBACK_TRAFFIC)
-        }
-      },
-    }),
+        },
+      }
+    },
   })
 
   return { response }

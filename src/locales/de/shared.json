@@ -14,6 +14,7 @@
     "restart": "Kern neustarten",
     "resetToDefault": "Auf Standardwerte zurücksetzen",
     "refresh": "Aktualisieren",
+    "retry": "Retry",
     "listView": "Listenansicht",
     "tableView": "Tabellenansicht",
     "pause": "Pausieren",
@@ -65,7 +66,8 @@
   },
   "window": {
     "maximize": "Maximieren",
-    "minimize": "Minimieren"
+    "minimize": "Minimieren",
+    "restore": "Restore size"
   },
   "editorModes": {
     "visualization": "Visualisierung",
@@ -99,7 +101,7 @@
         "serverError": "Das Panel meldet einen eigenen Fehler — versuchen Sie es später erneut",
         "chanBroken": "The subscription response could not be decrypted — the connection was tampered with, or the provider turned the protection off",
         "chanReplay": "The subscription response does not answer our request — check the clock on this computer and try again",
-        "chanRefused": "The middleware refused the secure request — the connection to it is being blocked, or the protection is off",
+        "chanRefused": "The provider refused the secure request — the connection to it is being blocked, or the protection is off",
         "chanBadUrl": "This subscription address cannot be used with a secure connection",
         "chanAbsent": "The provider does not support the secure connection",
         "chanSilent": "The provider's server is not responding",
@@ -159,7 +161,8 @@
       "title": "This screen crashed",
       "retry": "Try again",
       "details": "Details",
-      "home": "Go home"
+      "home": "Go home",
+      "reload": "Reload the window"
     }
   },
   "filters": {
@@ -186,5 +189,10 @@
     "unsaved": "Unsaved: {{count}} changes",
     "unsaved_one": "Unsaved: {{count}} change",
     "reset": "Reset"
+  },
+  "options": {
+    "fromSubscription": "Wie im Abonnement",
+    "on": "Ein",
+    "off": "Aus"
   }
 }

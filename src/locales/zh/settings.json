@@ -88,7 +88,7 @@
       },
       "placeholders": {
         "address": "必填",
-        "secret": "建议设置"
+        "secret": "Required"
       },
       "tooltips": {
         "copy": "复制到剪贴板"
@@ -180,17 +180,12 @@
         },
         "options": {
           "logLevel": {
-            "auto": "与订阅一致",
+            "trace": "Trace",
             "debug": "Debug",
             "info": "Info",
             "warning": "Warn",
             "error": "Error",
             "silent": "Silent"
-          },
-          "unifiedDelay": {
-            "auto": "与订阅一致",
-            "on": "开启",
-            "off": "关闭"
           }
         }
       }
@@ -407,6 +402,7 @@
       "actions": {
         "backup": "备份",
         "importBackup": "导入备份",
+        "exportBackup": "Save the backup to a file",
         "deleteBackup": "删除备份",
         "restoreBackup": "恢复备份",
         "viewHistory": "查看记录",
@@ -491,7 +487,8 @@
         },
         "autoLogClean": {
           "never": "不清理",
-          "retainDays": "保留 {{n}} 天"
+          "retainDays": "保留 {{count}} 天",
+          "retainDays_one": "保留 {{count}} 天"
         }
       },
       "sections": {
@@ -503,13 +500,25 @@
     },
     "update": {
       "title": "新版本 v{{version}}",
+      "titleNoVersion": "New version",
       "actions": {
         "goToRelease": "前往发布页",
-        "update": "更新"
+        "update": "更新",
+        "downloading": "Downloading {{percent}}%"
       },
       "messages": {
         "breakChangeError": "此版本为重大更新，不支持应用内更新，请卸载后手动下载安装",
-        "noData": "无法获取更新信息"
+        "noData": "无法获取更新信息",
+        "noNotes": "A new version is available",
+        "progress": "{{downloaded}} of {{total}}",
+        "cancelled": "Update download cancelled"
+      },
+      "alerts": {
+        "note": "Note",
+        "tip": "Tip",
+        "important": "Important",
+        "warning": "Warning",
+        "caution": "Caution"
       }
     },
     "sysproxy": {
@@ -538,7 +547,8 @@
       "messages": {
         "durationTooShort": "代理守护间隔时间不得低于 1 秒",
         "invalidBypass": "无效的代理绕过格式",
-        "invalidProxyHost": "代理主机格式无效"
+        "invalidProxyHost": "代理主机格式无效",
+        "appliesOnConnect": "The system proxy is off — these settings apply when you connect"
       },
       "actions": {
         "editPac": "编辑 PAC",
@@ -565,7 +575,7 @@
         "autoRedirect": "自动重定向"
       },
       "tooltips": {
-        "dnsHijack": "多个 DNS 服务器请使用 , 分隔",
+        "dnsHijack": "Addresses to intercept DNS on — comma-separated or one per line",
         "autoRedirect": "自动配置 nftables/iptables 的 TCP 重定向"
       },
       "messages": {
@@ -587,9 +597,6 @@
         "title": "DNS 覆写",
         "note": "显示的是订阅中的值。仅保存您的改动，其余部分跟随订阅。不确定时请勿修改。",
         "fakeIpIdle": "不生效：当前为 redir-host 模式"
-      },
-      "actions": {
-        "asInSubscription": "与订阅一致"
       },
       "sections": {
         "behavior": "行为"
@@ -660,11 +667,6 @@
         "invalidYaml": "YAML 格式无效"
       },
       "options": {
-        "hosts": {
-          "auto": "与订阅一致",
-          "on": "开启",
-          "off": "关闭"
-        },
         "filterMode": {
           "blacklist": "列表以外全部",
           "whitelist": "仅列表"
@@ -686,7 +688,8 @@
       "messages": {
         "supportedPlaceholders": "支持 %host, %port, %secret",
         "placeholderInstruction": "使用 %host, %port, %secret 表示 主机, 端口, 访问密钥",
-        "needsController": "仅在启用外部控制器时面板才能连接到内核。"
+        "needsController": "仅在启用外部控制器时面板才能连接到内核。",
+        "noController": "No external controller address — enable it in the core settings"
       },
       "sections": {
         "panels": "Panels"
@@ -722,6 +725,9 @@
         "ipAddress": "IP 地址",
         "macAddress": "MAC 地址"
       }
+    },
+    "config": {
+      "runtimeFailed": "Could not get the current configuration"
     }
   },
   "feedback": {

@@ -2,6 +2,7 @@ import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded'
 import { IconButton, Typography } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
 import React, { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router'
 
 import { BaseErrorBoundary } from './base-error-boundary'
@@ -16,6 +17,7 @@ interface Props {
 
 export const BasePage: React.FC<Props> = (props) => {
   const { title, header, contentStyle, full, children } = props
+  const { t } = useTranslation()
   const theme = useTheme()
   const navigate = useNavigate()
   const location = useLocation()
@@ -24,7 +26,10 @@ export const BasePage: React.FC<Props> = (props) => {
   const showBack = location.pathname !== '/'
 
   return (
-    <BaseErrorBoundary onHome={showBack ? () => void navigate('/') : undefined}>
+    <BaseErrorBoundary
+      atHome={!showBack}
+      onNavigate={(path) => void navigate(path)}
+    >
       <div className="base-page">
         <header data-tauri-drag-region="true" style={{ userSelect: 'none' }}>
           <Typography
@@ -40,7 +45,8 @@ export const BasePage: React.FC<Props> = (props) => {
             {showBack ? (
               <IconButton
                 size="small"
-                aria-label="back"
+                aria-label={t('shared.actions.previous')}
+                title={t('shared.actions.previous')}
                 onClick={() => void navigate('/')}
                 sx={{ mr: 0.25 }}
               >

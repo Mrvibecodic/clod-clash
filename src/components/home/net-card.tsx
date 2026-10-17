@@ -44,7 +44,6 @@ export const NetCard = () => {
     <InfoTile
       title={t('home.components.net.title')}
       icon={<NetworkCheckRoundedIcon />}
-      lift={false}
     >
       <Box
         sx={{

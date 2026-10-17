@@ -1,6 +1,6 @@
 {
   "title": "This server failed the automatic check",
-  "explain": "Access to it from this network may be cut off. Before using it, check the connection's stability yourself. If the connection drops or is slow, tell your VPN's support.",
+  "explain": "Access to it from this network may be cut off. Before using it, check the connection's stability yourself. If the connection drops or is slow, tell your provider's support.",
   "checkedHere": "Checked on this network",
   "support": "Contact support"
 }

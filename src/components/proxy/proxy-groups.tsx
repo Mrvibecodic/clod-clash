@@ -1,3 +1,4 @@
+import { Box, CircularProgress } from '@mui/material'
 import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual'
 import { throttle } from 'lodash-es'
 import {
@@ -17,11 +18,13 @@ import {
   StickyVirtualList,
   type StickyVirtualListHandle,
 } from '@/components/base'
+import { CoreStatus } from '@/components/home/core-status'
 import { useFavorites } from '@/hooks/use-favorites'
 import { useFreezeMarks } from '@/hooks/use-freeze-marks'
 import { useProfiles } from '@/hooks/use-profiles'
 import { useProxySelection } from '@/hooks/use-proxy-selection'
 import { useServerDescriptions } from '@/hooks/use-server-descriptions'
+import { useSystemState } from '@/hooks/use-system-state'
 import { useVerge } from '@/hooks/use-verge'
 import { useProxiesData } from '@/providers/app-data-context'
 import delayManager, { effectiveLatencyTimeout } from '@/services/delay'
@@ -592,6 +595,8 @@ function NormalProxyGroups(props: { mode: string }) {
     ],
   )
 
+  if (renderList.length === 0) return <EmptyGroups />
+
   return (
     <div style={{ position: 'relative', height: '100%' }}>
       <StickyVirtualList
@@ -605,6 +610,28 @@ function NormalProxyGroups(props: { mode: string }) {
         renderItem={renderProxyItem}
       />
     </div>
+  )
+}
+
+const EmptyGroups = () => {
+  const { isCoreDown } = useSystemState()
+  const { proxies } = useProxiesData()
+
+  if (!isCoreDown && proxies) {
+    return <BaseEmpty textKey="proxies.page.chain.noGroups" />
+  }
+  return (
+    <Box
+      sx={{
+        height: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        px: 2,
+      }}
+    >
+      {isCoreDown ? <CoreStatus /> : <CircularProgress size={24} />}
+    </Box>
   )
 }
 

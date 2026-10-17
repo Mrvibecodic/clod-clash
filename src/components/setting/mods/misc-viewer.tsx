@@ -20,7 +20,17 @@ import {
   effectiveLatencyTimeout,
 } from '@/services/delay'
 import { showNotice } from '@/services/notice-service'
+import type { TranslationKey } from '@/types/generated/i18n-keys'
 import { isValidUrl } from '@/utils/network'
+
+const APP_LOG_LEVELS = [
+  ['trace', 'settings.sections.clash.form.options.logLevel.trace'],
+  ['debug', 'settings.sections.clash.form.options.logLevel.debug'],
+  ['info', 'settings.sections.clash.form.options.logLevel.info'],
+  ['warn', 'settings.sections.clash.form.options.logLevel.warning'],
+  ['error', 'settings.sections.clash.form.options.logLevel.error'],
+  ['silent', 'settings.sections.clash.form.options.logLevel.silent'],
+] as const satisfies readonly (readonly [string, TranslationKey])[]
 
 // Те же значения, что у шаблона настроек и запасных значений бэкенда
 // (`IVerge::DEFAULT_APP_LOG_MAX_SIZE` / `DEFAULT_APP_LOG_MAX_COUNT`): у формы
@@ -165,9 +175,9 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
             }))
           }
         >
-          {['trace', 'debug', 'info', 'warn', 'error', 'silent'].map((i) => (
-            <MenuItem value={i} key={i}>
-              {i[0].toUpperCase() + i.slice(1).toLowerCase()}
+          {APP_LOG_LEVELS.map(([value, label]) => (
+            <MenuItem value={value} key={value}>
+              {t(label)}
             </MenuItem>
           ))}
         </Select>
@@ -226,25 +236,25 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
             },
             {
               key: t('settings.modals.misc.options.autoLogClean.retainDays', {
-                n: 1,
+                count: 1,
               }),
               value: 1,
             },
             {
               key: t('settings.modals.misc.options.autoLogClean.retainDays', {
-                n: 7,
+                count: 7,
               }),
               value: 2,
             },
             {
               key: t('settings.modals.misc.options.autoLogClean.retainDays', {
-                n: 30,
+                count: 30,
               }),
               value: 3,
             },
             {
               key: t('settings.modals.misc.options.autoLogClean.retainDays', {
-                n: 90,
+                count: 90,
               }),
               value: 4,
             },

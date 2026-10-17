@@ -91,3 +91,13 @@ export const TUN_RESET: Readonly<Record<string, unknown>> = {
   'auto-route': true,
   'auto-detect-interface': true,
 }
+
+export const STACKS = [
+  { value: 'system', label: 'System' },
+  { value: 'gvisor', label: 'gVisor' },
+  { value: 'mixed', label: 'Mixed' },
+  { value: 'mips', label: 'MIPS' },
+]
+
+export const stackLabel = (value: string) =>
+  STACKS.find((stack) => stack.value === value.toLowerCase())?.label ?? value

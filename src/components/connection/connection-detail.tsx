@@ -70,10 +70,7 @@ export function ConnectionDetail({
   }, [])
 
   useImperativeHandle(ref, () => ({
-    open: (id: string) => {
-      if (detail) return
-      setDetailId(id)
-    },
+    open: (id: string) => setDetailId(id),
     close: onClose,
   }))
 
@@ -81,7 +78,10 @@ export function ConnectionDetail({
     <Snackbar
       anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       open={detail !== undefined}
-      onClose={onClose}
+      // Закрывают крестик и Esc: щелчок по другой строке открывает её.
+      onClose={(_, reason) => {
+        if (reason !== 'clickaway') onClose()
+      }}
       sx={{
         '.MuiSnackbarContent-root': {
           width: 420,

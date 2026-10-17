@@ -88,7 +88,7 @@
       },
       "placeholders": {
         "address": "مورد نیاز",
-        "secret": "توصیه شده"
+        "secret": "Required"
       },
       "tooltips": {
         "copy": "کپی در کلیپ بورد"
@@ -180,17 +180,12 @@
         },
         "options": {
           "logLevel": {
-            "auto": "مطابق اشتراک",
+            "trace": "Trace",
             "debug": "Debug",
             "info": "Info",
             "warning": "Warn",
             "error": "Error",
             "silent": "Silent"
-          },
-          "unifiedDelay": {
-            "auto": "مطابق اشتراک",
-            "on": "روشن",
-            "off": "خاموش"
           }
         }
       }
@@ -237,7 +232,7 @@
         },
         "hints": {
           "subNotifications": "Warn about the subscription running out of traffic or time. Off silences these alerts regardless of the provider settings.",
-          "deviceIdentity": "Sends a hashed device id (x-hwid) with every subscription request so the provider can enforce its device limit. The raw machine id never leaves the device. Turning it off may make the panel refuse the subscription.",
+          "deviceIdentity": "Sends a hashed device id (x-hwid) with every subscription request so the provider can enforce its device limit. The raw machine id never leaves the device. Turning it off may make the provider refuse the subscription.",
           "windowFitContent": "پنجره ارتفاع خود را با محتوا تنظیم می‌کند تا چیزی پشت نوار پیمایش پنهان نشود. اگر اندازه پنجره را دستی تغییر دهید، این تنظیم خاموش می‌شود و اندازه شما باقی می‌ماند."
         }
       },
@@ -258,8 +253,8 @@
           "versionCopied": "نسخه در کلیپ بورد کپی شد"
         },
         "messages": {
-          "noProfileSelected": "No profile selected",
-          "profileFileError": "Error getting profile file"
+          "noProfileSelected": "No subscription selected",
+          "profileFileError": "Could not read the subscription file"
         },
         "fields": {
           "backupSetting": "تنظیمات پشتیبان گیری",
@@ -271,7 +266,7 @@
           "exportLogs": "خروجی گرفتن از گزارش‌ها به صورت آرشیو",
           "checkUpdates": "بررسی برای به‌روزرسانی‌ها",
           "openDevTools": "باز کردن ابزارهای توسعه‌دهنده",
-          "liteModeSettings": "LightWeight Mode Settings",
+          "liteModeSettings": "Lightweight mode settings",
           "exit": "خروج",
           "supportBundle": "Support report",
           "vergeVersion": "نسخه Clod",
@@ -380,12 +375,12 @@
       }
     },
     "liteMode": {
-      "title": "LightWeight Mode Settings",
+      "title": "Lightweight mode settings",
       "actions": {
-        "enterNow": "Enter LightWeight Mode Now"
+        "enterNow": "Enter lightweight mode now"
       },
       "toggles": {
-        "autoEnter": "Auto Enter LightWeight Mode"
+        "autoEnter": "Enter lightweight mode automatically"
       },
       "tooltips": {
         "autoEnter": "فعال کردن حالت LightWeight به صورت خودکار پس از بسته شدن پنجره برای مدت زمانی خاص"
@@ -407,6 +402,7 @@
       "actions": {
         "backup": "پشتیبان‌گیری",
         "importBackup": "Import Backup",
+        "exportBackup": "Save the backup to a file",
         "deleteBackup": "حذف پشتیبان",
         "restoreBackup": "بازیابی پشتیبان",
         "viewHistory": "View history",
@@ -491,7 +487,8 @@
         },
         "autoLogClean": {
           "never": "هرگز پاک نکن",
-          "retainDays": "نگهداری به مدت {{n}} روز"
+          "retainDays": "نگهداری به مدت {{count}} روز",
+          "retainDays_one": "نگهداری به مدت {{count}} روز"
         }
       },
       "sections": {
@@ -503,13 +500,25 @@
     },
     "update": {
       "title": "New Version v{{version}}",
+      "titleNoVersion": "New version",
       "actions": {
         "goToRelease": "رفتن به صفحه انتشار",
-        "update": "به‌روزرسانی"
+        "update": "به‌روزرسانی",
+        "downloading": "Downloading {{percent}}%"
       },
       "messages": {
         "breakChangeError": "این نسخه یک به‌روزرسانی اساسی است و پشتیبانی از به‌روزرسانی درون برنامه را پشتیبانی نمی‌کند. لطفاً پس از حذف، دستی دانلود و نصب کنید.",
-        "noData": "دریافت اطلاعات به‌روزرسانی ممکن نشد"
+        "noData": "دریافت اطلاعات به‌روزرسانی ممکن نشد",
+        "noNotes": "A new version is available",
+        "progress": "{{downloaded}} of {{total}}",
+        "cancelled": "Update download cancelled"
+      },
+      "alerts": {
+        "note": "Note",
+        "tip": "Tip",
+        "important": "Important",
+        "warning": "Warning",
+        "caution": "Caution"
       }
     },
     "sysproxy": {
@@ -538,7 +547,8 @@
       "messages": {
         "durationTooShort": "مدت زمان دیمن پراکسی نمی‌تواند کمتر از 1 ثانیه باشد",
         "invalidBypass": "فرمت عبور نامعتبر است",
-        "invalidProxyHost": "فرمت میزبان پراکسی نامعتبر است"
+        "invalidProxyHost": "فرمت میزبان پراکسی نامعتبر است",
+        "appliesOnConnect": "The system proxy is off — these settings apply when you connect"
       },
       "actions": {
         "editPac": "ویرایش PAC",
@@ -565,7 +575,7 @@
         "autoRedirect": "Auto Redirect"
       },
       "tooltips": {
-        "dnsHijack": "لطفا برای جدا کردن چندین سرور DNS از , استفاده کنید.",
+        "dnsHijack": "Addresses to intercept DNS on — comma-separated or one per line",
         "autoRedirect": "پیکربندی خودکار ریدایرکت‌های TCP در nftables/iptables"
       },
       "messages": {
@@ -587,9 +597,6 @@
         "title": "بازنویسی DNS",
         "note": "مقادیر اشتراک نمایش داده شده است. فقط تفاوت‌های شما ذخیره می‌شود و بقیه از اشتراک پیروی می‌کند. اگر مطمئن نیستید، تغییر ندهید.",
         "fakeIpIdle": "بی‌اثر: حالت redir-host انتخاب شده است"
-      },
-      "actions": {
-        "asInSubscription": "مطابق اشتراک"
       },
       "sections": {
         "behavior": "رفتار"
@@ -660,11 +667,6 @@
         "invalidYaml": "قالب YAML نامعتبر است"
       },
       "options": {
-        "hosts": {
-          "auto": "مطابق اشتراک",
-          "on": "روشن",
-          "off": "خاموش"
-        },
         "filterMode": {
           "blacklist": "همه به‌جز فهرست",
           "whitelist": "فقط فهرست"
@@ -686,7 +688,8 @@
       "messages": {
         "supportedPlaceholders": "پشتیبانی از %host، %port و %secret",
         "placeholderInstruction": "جایگزین کردن میزبان، پورت و رمز با %host، %port، %secret",
-        "needsController": "پنل فقط وقتی کنترل‌کنندهٔ خارجی روشن باشد به هسته وصل می‌شود."
+        "needsController": "پنل فقط وقتی کنترل‌کنندهٔ خارجی روشن باشد به هسته وصل می‌شود.",
+        "noController": "No external controller address — enable it in the core settings"
       },
       "sections": {
         "panels": "Panels"
@@ -703,7 +706,7 @@
         "openOrCloseDashboard": "باز/بستن داشبورد",
         "toggleSystemProxy": "فعال/غیرفعال کردن پراکسی سیستم",
         "toggleTunMode": "فعال/غیرفعال کردن حالت Tun",
-        "entryLightweightMode": "Entry Lightweight Mode",
+        "entryLightweightMode": "Enter lightweight mode",
         "direct": "حالت مستقیم",
         "reactivateProfiles": "فعال‌سازی مجدد پروفایل‌ها"
       },
@@ -722,6 +725,9 @@
         "ipAddress": "آدرس IP",
         "macAddress": "آدرس MAC"
       }
+    },
+    "config": {
+      "runtimeFailed": "Could not get the current configuration"
     }
   },
   "feedback": {

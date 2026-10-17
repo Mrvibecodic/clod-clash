@@ -152,7 +152,10 @@ const Layout = () => {
 
   return (
     <ThemeProvider theme={theme}>
-      <NoticeManager position={verge?.notice_position} />
+      <NoticeManager
+        position={verge?.notice_position}
+        belowTitlebar={decorated === false}
+      />
       <HwidLimitDialog />
       <UpdateButton />
       <div
@@ -211,7 +214,8 @@ const Layout = () => {
             <div className="the-content">
               <BaseErrorBoundary
                 resetKeys={[pathname]}
-                onHome={isHome ? undefined : () => void navigate('/')}
+                atHome={isHome}
+                onNavigate={(path) => void navigate(path)}
               >
                 <Outlet />
               </BaseErrorBoundary>

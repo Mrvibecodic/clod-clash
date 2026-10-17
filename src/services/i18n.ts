@@ -1,48 +1,17 @@
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
-export const supportedLanguages = [
-  'en',
-  'ru',
-  'zh',
-  'fa',
-  'tt',
-  'id',
-  'ar',
-  'ko',
-  'tr',
-  'de',
-  'es',
-  'jp',
-  'zhtw',
-]
+import {
+  FALLBACK_LANGUAGE,
+  localeTag,
+  resolveLanguage,
+  supportedLanguages,
+} from '@/utils/language'
+import { setTrafficLocale } from '@/utils/parse-traffic'
 
-export const FALLBACK_LANGUAGE = 'zh'
+export { FALLBACK_LANGUAGE, resolveLanguage, supportedLanguages }
+
 const LANGUAGE_STORAGE_KEY = 'verge-language'
-
-const normalizeLanguage = (language?: string) =>
-  language?.toLowerCase().replace(/_/g, '-')
-
-export const resolveLanguage = (language?: string) => {
-  const normalized = normalizeLanguage(language)
-  if (!normalized) {
-    return FALLBACK_LANGUAGE
-  }
-
-  if (normalized === 'zh-tw') return 'zhtw'
-  if (normalized === 'zh-cn') return 'zh'
-
-  if (supportedLanguages.includes(normalized)) {
-    return normalized
-  }
-
-  const baseLanguage = normalized.split('-')[0]
-  if (supportedLanguages.includes(baseLanguage)) {
-    return baseLanguage
-  }
-
-  return FALLBACK_LANGUAGE
-}
 
 const getLanguageStorage = () => {
   if (typeof window === 'undefined') return null
@@ -199,6 +168,9 @@ export const changeLanguage = async (language: string) => {
   )
 
   await i18n.changeLanguage(targetLanguage)
+  // Диктор читает страницу голосом её языка.
+  document.documentElement.lang = localeTag(targetLanguage)
+  setTrafficLocale(localeTag(targetLanguage))
   cacheLanguage(targetLanguage)
 }
 

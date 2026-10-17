@@ -78,7 +78,11 @@ describe('clod-hide-badges', () => {
       'gRPC',
       'TLS',
     ])
-    assert.equal(typeText({ type: 'Vless', label }), 'VLESS gRPC · TLS')
+    assert.equal(
+      typeText({ type: 'Vless', label }),
+      typeChips({ type: 'Vless', label }).join(' · '),
+    )
+    assert.equal(typeText({ type: 'Vless', label }), 'VLESS · gRPC · TLS')
     assert.equal(typeText({ type: 'Vless' }), 'Vless')
     assert.equal(typeText({}), '')
   })

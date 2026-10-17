@@ -29,6 +29,7 @@ import { getRuntimeYaml, readProfileFile } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
 import { useThemeMode } from '@/services/states'
 import type { MonacoEditorInstance } from '@/types/monaco'
+import { errorReason } from '@/utils/error-explanation'
 import getSystem from '@/utils/get-system'
 
 type ConfigSource = 'runtime' | 'provider'
@@ -138,12 +139,14 @@ export const ConfigViewer = forwardRef<DialogRef>((_, ref) => {
       setRuntimeLoading(true)
       setProviderLoading(false)
       setOpen(true)
+      const failed = (reason?: string) =>
+        `# ${t('settings.modals.config.runtimeFailed')}${reason ? `: ${reason}` : ''}\n`
       getRuntimeYaml()
         .then((data) => {
-          setRuntimeConfig(data ?? '# Error getting runtime yaml\n')
+          setRuntimeConfig(data ?? failed())
         })
-        .catch(() => {
-          setRuntimeConfig('# Error getting runtime yaml\n')
+        .catch((err: unknown) => {
+          setRuntimeConfig(failed(errorReason(err, t)))
         })
         .finally(() => {
           setRuntimeLoading(false)
@@ -217,7 +220,7 @@ export const ConfigViewer = forwardRef<DialogRef>((_, ref) => {
       footerStart={
         <IconButton
           title={t(
-            isMaximized ? 'shared.window.minimize' : 'shared.window.maximize',
+            isMaximized ? 'shared.window.restore' : 'shared.window.maximize',
           )}
           sx={{ ml: -1, color: 'text.secondary' }}
           onClick={() => void toggleMaximize()}

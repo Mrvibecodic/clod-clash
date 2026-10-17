@@ -1,16 +1,27 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import { profileDate, refillDateText, sessionTimeText } from './date-text.ts'
+import dayjs from 'dayjs'
+
+import {
+  dateTimeText,
+  profileDate,
+  refillDateText,
+  sessionTimeText,
+} from './date-text.ts'
 
 // Полдень по UTC: в любом поясе от −11 до +11 это тот же день.
 const NOON = Date.UTC(2027, 1, 3, 12) / 1000
 
 describe('даты подписки', () => {
-  it('экран профилей пишет YYYY-MM-DD, без даты — прочерк', () => {
-    assert.equal(profileDate(NOON), '2027-02-03')
+  it('одна запись даты на все экраны — DD.MM.YYYY, без даты — прочерк', () => {
+    assert.equal(profileDate(NOON), '03.02.2027')
     assert.equal(profileDate(undefined), '-')
     assert.equal(profileDate(0), '-')
+  })
+
+  it('со временем — та же запись даты и часы с минутами', () => {
+    assert.equal(dateTimeText(dayjs('2027-02-03T09:05:00')), '03.02.2027 09:05')
   })
 
   it('дата пополнения на Главной — DD.MM.YYYY, без даты — ничего', () => {

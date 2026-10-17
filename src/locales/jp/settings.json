@@ -88,7 +88,7 @@
       },
       "placeholders": {
         "address": "必須",
-        "secret": "推奨設定"
+        "secret": "Required"
       },
       "tooltips": {
         "copy": "クリップボードにコピー"
@@ -180,17 +180,12 @@
         },
         "options": {
           "logLevel": {
-            "auto": "サブスクリプションに従う",
+            "trace": "Trace",
             "debug": "Debug",
             "info": "Info",
             "warning": "Warn",
             "error": "Error",
             "silent": "Silent"
-          },
-          "unifiedDelay": {
-            "auto": "サブスクリプションに従う",
-            "on": "オン",
-            "off": "オフ"
           }
         }
       }
@@ -237,7 +232,7 @@
         },
         "hints": {
           "subNotifications": "Warn about the subscription running out of traffic or time. Off silences these alerts regardless of the provider settings.",
-          "deviceIdentity": "Sends a hashed device id (x-hwid) with every subscription request so the provider can enforce its device limit. The raw machine id never leaves the device. Turning it off may make the panel refuse the subscription.",
+          "deviceIdentity": "Sends a hashed device id (x-hwid) with every subscription request so the provider can enforce its device limit. The raw machine id never leaves the device. Turning it off may make the provider refuse the subscription.",
           "windowFitContent": "内容の高さに合わせてウィンドウの大きさを調整し、スクロールバーに隠れる部分をなくします。手動でサイズを変更すると調整はオフになり、その大きさが保たれます。"
         }
       },
@@ -407,6 +402,7 @@
       "actions": {
         "backup": "バックアップ",
         "importBackup": "バックアップをインポート",
+        "exportBackup": "Save the backup to a file",
         "deleteBackup": "バックアップを削除",
         "restoreBackup": "バックアップを復元",
         "viewHistory": "View history",
@@ -491,7 +487,8 @@
         },
         "autoLogClean": {
           "never": "クリーンアップしない",
-          "retainDays": "{{n}}日間保持"
+          "retainDays": "{{count}}日間保持",
+          "retainDays_one": "{{count}}日間保持"
         }
       },
       "sections": {
@@ -503,13 +500,25 @@
     },
     "update": {
       "title": "New Version v{{version}}",
+      "titleNoVersion": "New version",
       "actions": {
         "goToRelease": "リリースページに移動",
-        "update": "更新"
+        "update": "更新",
+        "downloading": "Downloading {{percent}}%"
       },
       "messages": {
         "breakChangeError": "このバージョンは重大な更新であり、アプリケーション内での更新はサポートされていません。アンインストールしてから手動でダウンロードしてインストールしてください。",
-        "noData": "アップデート情報を取得できませんでした"
+        "noData": "アップデート情報を取得できませんでした",
+        "noNotes": "A new version is available",
+        "progress": "{{downloaded}} of {{total}}",
+        "cancelled": "Update download cancelled"
+      },
+      "alerts": {
+        "note": "Note",
+        "tip": "Tip",
+        "important": "Important",
+        "warning": "Warning",
+        "caution": "Caution"
       }
     },
     "sysproxy": {
@@ -538,7 +547,8 @@
       "messages": {
         "durationTooShort": "プロキシデーモンの間隔は1秒以上に設定する必要があります。",
         "invalidBypass": "無効なバイパス形式",
-        "invalidProxyHost": "プロキシホストの形式が無効です"
+        "invalidProxyHost": "プロキシホストの形式が無効です",
+        "appliesOnConnect": "The system proxy is off — these settings apply when you connect"
       },
       "actions": {
         "editPac": "編集 PAC",
@@ -565,7 +575,7 @@
         "autoRedirect": "Auto Redirect"
       },
       "tooltips": {
-        "dnsHijack": "Please use , to separate multiple DNS servers",
+        "dnsHijack": "Addresses to intercept DNS on — comma-separated or one per line",
         "autoRedirect": "Automatically configures nftables/iptables TCP redirects"
       },
       "messages": {
@@ -587,9 +597,6 @@
         "title": "DNS上書き",
         "note": "サブスクリプションの値を表示しています。保存されるのは変更点のみで、それ以外はサブスクリプションに従います。不明な場合は変更しないでください。",
         "fakeIpIdle": "無効: redir-host モードが選択されています"
-      },
-      "actions": {
-        "asInSubscription": "サブスクリプションに従う"
       },
       "sections": {
         "behavior": "動作"
@@ -660,11 +667,6 @@
         "invalidYaml": "Invalid YAML format"
       },
       "options": {
-        "hosts": {
-          "auto": "サブスクリプションに従う",
-          "on": "オン",
-          "off": "オフ"
-        },
         "filterMode": {
           "blacklist": "リスト以外すべて",
           "whitelist": "リストのみ"
@@ -686,7 +688,8 @@
       "messages": {
         "supportedPlaceholders": "%host, %port, %secretをサポートします。",
         "placeholderInstruction": "%host, %port, %secretを使用してホスト、ポート、アクセスキーを表します。",
-        "needsController": "外部コントローラーが有効なときだけ、パネルはコアに接続できます。"
+        "needsController": "外部コントローラーが有効なときだけ、パネルはコアに接続できます。",
+        "noController": "No external controller address — enable it in the core settings"
       },
       "sections": {
         "panels": "Panels"
@@ -722,6 +725,9 @@
         "ipAddress": "IPアドレス",
         "macAddress": "MACアドレス"
       }
+    },
+    "config": {
+      "runtimeFailed": "Could not get the current configuration"
     }
   },
   "feedback": {

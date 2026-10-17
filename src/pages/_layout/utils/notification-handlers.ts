@@ -1,8 +1,8 @@
 import { Fragment, type KeyboardEvent, createElement } from 'react'
 
-import { patchVergeConfig } from '@/services/cmds'
+import { getProfiles, patchVergeConfig } from '@/services/cmds'
 import { collapseBy, hideNotice, showNotice } from '@/services/notice-service'
-import { revalidateQueries } from '@/services/query-client'
+import { getCacheData, revalidateQueries } from '@/services/query-client'
 import getSystem from '@/utils/get-system'
 
 import { isNoticeStatus, type NoticeStatus } from './notice-statuses'
@@ -106,16 +106,28 @@ export const handleNoticeMessage = (
   }
 
   const handlers: Record<NoticeStatus, () => number> = {
+    // Подписка по ссылке провайдера — на Главную, к кнопке «Подключить»;
+    // список подписок нужен только в расширенном режиме, когда их несколько.
     'import_sub_url::ok': () => {
-      navigate('/profile')
+      const userChoice = getCacheData<IVergeConfig>([
+        'getVergeConfig',
+      ])?.simple_mode
+      void getProfiles()
+        .then((profiles) => {
+          const items = profiles.items ?? []
+          const current = items.find((item) => item.uid === profiles.current)
+          // Режим — как у `useSimpleMode`: выбор человека, затем провайдера.
+          const advanced =
+            (userChoice ?? current?.simple_mode ?? true) === false
+          const many = items.filter((item) => item.type === 'remote').length > 1
+          navigate(advanced && many ? '/profile' : '/')
+        })
+        .catch(() => navigate('/'))
       return showNotice.success(
         'shared.feedback.notifications.importSubscriptionSuccess',
       )
     },
-    'import_sub_url::error': () => {
-      navigate('/profile')
-      return showNotice.error(msg)
-    },
+    'import_sub_url::error': () => showNotice.error(msg),
     'set_config::ok': () =>
       showNotice.success(
         'settings.feedback.notifications.clash.restartSuccess',

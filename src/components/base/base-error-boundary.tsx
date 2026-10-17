@@ -1,13 +1,23 @@
 import { Button } from '@mui/material'
 import { ReactNode } from 'react'
-import { ErrorBoundary, FallbackProps } from 'react-error-boundary'
+import { ErrorBoundary } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
+import { useLocation, useNavigate, useRouteError } from 'react-router'
+
+interface Exit {
+  label: string
+  onClick: () => void
+}
 
 function ErrorFallback({
   error,
-  resetErrorBoundary,
-  onHome,
-}: FallbackProps & { onHome?: () => void }) {
+  onRetry,
+  exits,
+}: {
+  error: unknown
+  onRetry: () => void
+  exits?: Exit[]
+}) {
   const { t } = useTranslation()
   const errorMessage = error instanceof Error ? error.message : String(error)
   const errorStack = error instanceof Error ? error.stack : undefined
@@ -18,14 +28,19 @@ function ErrorFallback({
 
       <pre>{errorMessage}</pre>
 
-      <Button variant="contained" size="small" onClick={resetErrorBoundary}>
+      <Button variant="contained" size="small" onClick={onRetry}>
         {t('shared.feedback.crash.retry')}
       </Button>
-      {onHome ? (
-        <Button size="small" sx={{ ml: 1 }} onClick={onHome}>
-          {t('shared.feedback.crash.home')}
+      {exits?.map((exit) => (
+        <Button
+          key={exit.label}
+          size="small"
+          sx={{ ml: 1 }}
+          onClick={exit.onClick}
+        >
+          {exit.label}
         </Button>
-      ) : null}
+      ))}
 
       <details>
         <summary>{t('shared.feedback.crash.details')}</summary>
@@ -38,16 +53,75 @@ function ErrorFallback({
 interface Props {
   children?: ReactNode
   resetKeys?: unknown[]
-  onHome?: () => void
+  onNavigate?: (path: string) => void
+  atHome?: boolean
 }
 
-export const BaseErrorBoundary = ({ children, resetKeys, onHome }: Props) => {
+export const BaseErrorBoundary = ({
+  children,
+  resetKeys,
+  onNavigate,
+  atHome,
+}: Props) => {
+  const { t } = useTranslation()
+  const exits: Exit[] = !onNavigate
+    ? []
+    : atHome
+      ? [
+          {
+            label: t('profiles.page.title'),
+            onClick: () => onNavigate('/profile'),
+          },
+          {
+            label: t('settings.page.title'),
+            onClick: () => onNavigate('/settings'),
+          },
+        ]
+      : [
+          {
+            label: t('shared.feedback.crash.home'),
+            onClick: () => onNavigate('/'),
+          },
+        ]
+
   return (
     <ErrorBoundary
-      fallbackRender={(props) => <ErrorFallback {...props} onHome={onHome} />}
+      fallbackRender={({ error, resetErrorBoundary }) => (
+        <ErrorFallback
+          error={error}
+          onRetry={resetErrorBoundary}
+          exits={exits}
+        />
+      )}
       resetKeys={resetKeys}
     >
       {children}
     </ErrorBoundary>
+  )
+}
+
+/**
+ * Сбой в рамке окна (уведомления, окна поверх экранов, заголовок): тот же
+ * запасной экран, что у страниц. F5 в окне выключен — перезагрузка кнопкой.
+ */
+export const RouteCrash = () => {
+  const { t } = useTranslation()
+  const error = useRouteError()
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  return (
+    <ErrorFallback
+      error={error}
+      onRetry={() =>
+        void navigate(location.pathname, { replace: true, state: Date.now() })
+      }
+      exits={[
+        {
+          label: t('shared.feedback.crash.reload'),
+          onClick: () => window.location.reload(),
+        },
+      ]}
+    />
   )
 }

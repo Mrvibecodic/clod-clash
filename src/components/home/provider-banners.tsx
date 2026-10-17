@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next'
 import { BannerText, BaseDialog } from '@/components/base'
 import { patchProfile, openWebUrl } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
+import { pressable } from '@/utils/pressable'
 
 interface Props {
   profile: IProfileItem
@@ -78,6 +79,8 @@ export const ProviderBanners = ({ profile, onChanged }: Props) => {
           severity="info"
           icon={<PercentRoundedIcon fontSize="inherit" />}
           onClick={() => void openLink(profile.promo_url)}
+          {...(profile.promo_url &&
+            pressable(() => void openLink(profile.promo_url)))}
           sx={{
             whiteSpace: 'pre-line',
             cursor: profile.promo_url ? 'pointer' : 'default',
@@ -124,6 +127,8 @@ export const ProviderBanners = ({ profile, onChanged }: Props) => {
           severity="info"
           icon={<InfoOutlinedIcon fontSize="inherit" />}
           onClick={() => void openLink(profile.announce_url)}
+          {...(profile.announce_url &&
+            pressable(() => void openLink(profile.announce_url)))}
           sx={{
             whiteSpace: 'pre-line',
             cursor: profile.announce_url ? 'pointer' : 'default',

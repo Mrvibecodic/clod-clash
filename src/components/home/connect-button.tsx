@@ -3,6 +3,7 @@ import { Box, CircularProgress, Typography, alpha } from '@mui/material'
 import { useTranslation } from 'react-i18next'
 
 import { ConnectUptime } from '@/components/home/connect-uptime'
+import { toneText } from '@/pages/_theme'
 import type { ConnectState } from '@/utils/connect-state'
 
 interface Props {
@@ -44,6 +45,9 @@ export const ConnectButton = ({
     on: 'success',
     error: 'error',
   } as const
+
+  const tone = bgKey[state]
+  const textTone = tone === 'primary' ? undefined : tone
 
   const label = {
     off: t('home.components.connect.states.off'),
@@ -136,7 +140,13 @@ export const ConnectButton = ({
           чтобы строка не липла к ореолу кнопки; снизу пустоты нет: режим
           под ней — часть той же группы. */}
       <Box sx={{ mt: 1.25 }}>
-        <Typography variant="subtitle1" sx={{ color, fontWeight: 600 }}>
+        <Typography
+          variant="subtitle1"
+          sx={{
+            color: textTone ? toneText(textTone) : 'text.secondary',
+            fontWeight: 600,
+          }}
+        >
           {label}
         </Typography>
       </Box>

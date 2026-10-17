@@ -9,7 +9,7 @@
       "ulSpeed": "UL Speed",
       "chains": "Chains",
       "rule": "Rule",
-      "process": "Process",
+      "process": "App",
       "processPath": "Path",
       "time": "Time",
       "source": "Source",
@@ -19,7 +19,7 @@
     },
     "order": {
       "default": "Default",
-      "uploadSpeed": "Upload Speed",
+      "uploadSpeed": "Upload speed",
       "downloadSpeed": "Download Speed",
       "label": "Order"
     },
@@ -27,7 +27,7 @@
       "label": "Grouping",
       "none": "No grouping",
       "process": "Apps",
-      "chain": "Chains",
+      "chain": "Nodes",
       "rule": "Rules",
       "other": "Other"
     },

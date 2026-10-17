@@ -8,6 +8,7 @@
     "export": "Dosyaya kaydet"
   },
   "messages": {
-    "exported": "Günlükler kaydedildi"
+    "exported": "Günlükler kaydedildi",
+    "belowCoreLevel": "The core does not write entries of this level. Change it in Settings → “Log Level”"
   }
 }

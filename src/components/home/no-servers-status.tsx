@@ -3,7 +3,6 @@ import DataUsageRoundedIcon from '@mui/icons-material/DataUsageRounded'
 import DevicesRoundedIcon from '@mui/icons-material/DevicesRounded'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import { Alert, AlertTitle, Button, Stack, Typography } from '@mui/material'
-import dayjs from 'dayjs'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -11,7 +10,7 @@ import { useNoServersStatus } from '@/hooks/use-no-servers-status'
 import { useSubscriptionUpdate } from '@/hooks/use-subscription-update'
 import { openWebUrl } from '@/services/cmds'
 import { showNotice } from '@/services/notice-service'
-import { refillDateText } from '@/utils/date-text'
+import { profileDate, refillDateText } from '@/utils/date-text'
 import parseTraffic from '@/utils/parse-traffic'
 import { clockSkew, noServersSeverity } from '@/utils/subscription-status'
 
@@ -26,7 +25,7 @@ interface Props {
 // расхождение внутри одного окна было бы хуже, чем сдвиг в сутки у того, у
 // кого часы и так врут.
 const date = (unix?: number, skew = 0) =>
-  unix ? dayjs((unix - skew) * 1000).format('DD.MM.YYYY') : undefined
+  unix ? profileDate(unix - skew) : undefined
 
 /**
  * clod: why there is nothing to connect to.

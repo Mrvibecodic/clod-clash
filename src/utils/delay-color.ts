@@ -25,10 +25,11 @@ export const failedDelay = (delay?: number): boolean => delay === 0
 /**
  * Пинг текстом для всех экранов: замер — числом, даже если он больше
  * тайм-аута из настроек (группу ядро могло мерить своим, более долгим), — это
- * факт; неответ — словом.
+ * факт; неответ и «не мерили» — прочерк, их различает цвет (`delayColor`):
+ * красный и серый.
  */
-export const delayText = (delay: number, failedLabel: string) =>
-  usableDelay(delay) ? `${delay}` : failedDelay(delay) ? failedLabel : '-'
+export const delayText = (delay?: number, unit?: string) =>
+  usableDelay(delay) ? (unit ? `${delay} ${unit}` : `${delay}`) : '—'
 
 export const delayTone = (
   delay: number | undefined,

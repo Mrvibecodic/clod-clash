@@ -190,6 +190,9 @@ export const createSharedSubscriptionEntry = (
       clearReconnectTimer()
     } catch (ignoreError) {
       if (ws && entry.ws !== ws) void closeSocket(ws)
+      // Сокета нет и не будет: прежние данные потока устарели так же, как у
+      // замолчавшего сокета.
+      if (!entry.closed && !entry.ws) pickActiveOwner(entry)?.onStale?.()
       if (!entry.closed && !entry.ws) {
         clearReconnectTimer()
         entry.reconnectTimer = setTimeout(entry.connectWs, RECONNECT_DELAY_MS)
@@ -252,6 +255,7 @@ interface HandlerResult {
   handleMessage: (data: string) => void
   onConnected?: (ws: MihomoWebSocket) => Promise<void> | void
   onStale?: () => void
+  onResume?: () => void
   cleanup?: () => void
 }
 
@@ -322,7 +326,8 @@ export const useMihomoWsSubscription = <T>(
       getCacheData<T>([responseCacheKey ?? '$sub$__disabled__']) ??
       fallbackData,
     staleTime: Infinity,
-    enabled: subscriptionCacheKey !== null,
+    // На паузе экран держит прошлые данные — и видит их правку (очистку).
+    enabled: responseCacheKey !== null,
   })
 
   useEffect(() => {
@@ -330,6 +335,7 @@ export const useMihomoWsSubscription = <T>(
 
     let isMounted = true
     let entry = sharedSubscriptions.get(subscriptionCacheKey)
+    const resumed = !entry
     if (!entry) {
       entry = createSharedSubscriptionEntry(connect, staleMs ?? 0)
       sharedSubscriptions.set(subscriptionCacheKey, entry)
@@ -395,12 +401,14 @@ export const useMihomoWsSubscription = <T>(
       handleMessage: handleTextMessage,
       onConnected,
       onStale,
+      onResume,
       cleanup,
     } = setupHandlers({
       next: wrappedNext,
       isMounted: () => isMounted,
       cacheKey: subscriptionCacheKey,
     })
+    if (resumed) onResume?.()
 
     const owner: SharedSubscriptionOwner = {
       handleMessage: handleTextMessage,

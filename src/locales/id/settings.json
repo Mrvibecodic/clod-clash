@@ -88,7 +88,7 @@
       },
       "placeholders": {
         "address": "Required",
-        "secret": "Direkomendasikan"
+        "secret": "Required"
       },
       "tooltips": {
         "copy": "Copy to clipboard"
@@ -180,17 +180,12 @@
         },
         "options": {
           "logLevel": {
-            "auto": "Seperti di langganan",
+            "trace": "Trace",
             "debug": "Debug",
             "info": "Info",
             "warning": "Warn",
             "error": "Error",
             "silent": "Silent"
-          },
-          "unifiedDelay": {
-            "auto": "Seperti di langganan",
-            "on": "Aktif",
-            "off": "Nonaktif"
           }
         }
       }
@@ -237,7 +232,7 @@
         },
         "hints": {
           "subNotifications": "Warn about the subscription running out of traffic or time. Off silences these alerts regardless of the provider settings.",
-          "deviceIdentity": "Sends a hashed device id (x-hwid) with every subscription request so the provider can enforce its device limit. The raw machine id never leaves the device. Turning it off may make the panel refuse the subscription.",
+          "deviceIdentity": "Sends a hashed device id (x-hwid) with every subscription request so the provider can enforce its device limit. The raw machine id never leaves the device. Turning it off may make the provider refuse the subscription.",
           "windowFitContent": "Jendela menyesuaikan tingginya dengan konten agar tidak ada yang tersembunyi di balik bilah gulir. Mengubah ukuran jendela secara manual akan mematikan penyesuaian ini dan mempertahankan ukuran Anda."
         }
       },
@@ -258,8 +253,8 @@
           "versionCopied": "Version copied to clipboard"
         },
         "messages": {
-          "noProfileSelected": "No profile selected",
-          "profileFileError": "Error getting profile file"
+          "noProfileSelected": "No subscription selected",
+          "profileFileError": "Could not read the subscription file"
         },
         "fields": {
           "backupSetting": "Pengaturan Cadangan",
@@ -271,7 +266,7 @@
           "exportLogs": "Ekspor log sebagai arsip",
           "checkUpdates": "Periksa Pembaruan",
           "openDevTools": "Buka Alat Pengembang",
-          "liteModeSettings": "LightWeight Mode Settings",
+          "liteModeSettings": "Lightweight mode settings",
           "exit": "Keluar",
           "supportBundle": "Support report",
           "vergeVersion": "Versi Clod",
@@ -380,21 +375,21 @@
       }
     },
     "liteMode": {
-      "title": "LightWeight Mode Settings",
+      "title": "Lightweight mode settings",
       "actions": {
-        "enterNow": "Enter LightWeight Mode Now"
+        "enterNow": "Enter lightweight mode now"
       },
       "toggles": {
-        "autoEnter": "Auto Enter LightWeight Mode"
+        "autoEnter": "Enter lightweight mode automatically"
       },
       "tooltips": {
-        "autoEnter": "Enable to automatically activate LightWeight Mode after the window is closed for a period of time"
+        "autoEnter": "Turn lightweight mode on once the window has been closed for the set time"
       },
       "fields": {
-        "delay": "Auto Enter LightWeight Mode Delay"
+        "delay": "Delay before lightweight mode"
       },
       "messages": {
-        "autoEnterHint": "When closing the window, LightWeight Mode will be automatically activated after {{count}} minutes",
+        "autoEnterHint": "After the window is closed, lightweight mode turns on in {{count}} minutes",
         "autoEnterHint_one": "When closing the window, LightWeight Mode will be automatically activated after {{count}} minutes"
       }
     },
@@ -407,6 +402,7 @@
       "actions": {
         "backup": "Cadangan",
         "importBackup": "Import Backup",
+        "exportBackup": "Save the backup to a file",
         "deleteBackup": "Hapus Cadangan",
         "restoreBackup": "Pulihkan Cadangan",
         "viewHistory": "View history",
@@ -491,7 +487,8 @@
         },
         "autoLogClean": {
           "never": "Jangan Pernah Bersihkan",
-          "retainDays": "Simpan {{n}} Hari"
+          "retainDays": "Simpan {{count}} Hari",
+          "retainDays_one": "Simpan {{count}} Hari"
         }
       },
       "sections": {
@@ -503,13 +500,25 @@
     },
     "update": {
       "title": "New Version v{{version}}",
+      "titleNoVersion": "New version",
       "actions": {
         "goToRelease": "Pergi ke Halaman Rilis",
-        "update": "Perbarui"
+        "update": "Perbarui",
+        "downloading": "Downloading {{percent}}%"
       },
       "messages": {
         "breakChangeError": "Versi ini adalah pembaruan besar dan tidak mendukung pembaruan dalam aplikasi. Harap hapus instalasi dan unduh serta instal versi baru secara manual",
-        "noData": "Tidak dapat mengambil informasi pembaruan"
+        "noData": "Tidak dapat mengambil informasi pembaruan",
+        "noNotes": "A new version is available",
+        "progress": "{{downloaded}} of {{total}}",
+        "cancelled": "Update download cancelled"
+      },
+      "alerts": {
+        "note": "Note",
+        "tip": "Tip",
+        "important": "Important",
+        "warning": "Warning",
+        "caution": "Caution"
       }
     },
     "sysproxy": {
@@ -538,7 +547,8 @@
       "messages": {
         "durationTooShort": "Durasi Daemon Proksi Tidak Boleh Kurang dari 1 Detik",
         "invalidBypass": "Format Bypass Tidak Valid",
-        "invalidProxyHost": "Format Host Proksi Tidak Valid"
+        "invalidProxyHost": "Format Host Proksi Tidak Valid",
+        "appliesOnConnect": "The system proxy is off — these settings apply when you connect"
       },
       "actions": {
         "editPac": "Ubah PAC",
@@ -565,7 +575,7 @@
         "autoRedirect": "Auto Redirect"
       },
       "tooltips": {
-        "dnsHijack": "Please use , to separate multiple DNS servers",
+        "dnsHijack": "Addresses to intercept DNS on — comma-separated or one per line",
         "autoRedirect": "Automatically configures nftables/iptables TCP redirects"
       },
       "messages": {
@@ -587,9 +597,6 @@
         "title": "DNS Overwrite",
         "note": "Ditampilkan nilai dari langganan. Hanya perbedaan Anda yang disimpan — sisanya mengikuti langganan. Jika ragu, jangan diubah.",
         "fakeIpIdle": "Tidak berlaku: mode redir-host dipilih"
-      },
-      "actions": {
-        "asInSubscription": "Seperti di langganan"
       },
       "sections": {
         "behavior": "Perilaku"
@@ -660,11 +667,6 @@
         "invalidYaml": "Invalid YAML format"
       },
       "options": {
-        "hosts": {
-          "auto": "Seperti di langganan",
-          "on": "Aktif",
-          "off": "Nonaktif"
-        },
         "filterMode": {
           "blacklist": "Kecuali daftar",
           "whitelist": "Hanya daftar"
@@ -686,7 +688,8 @@
       "messages": {
         "supportedPlaceholders": "Dukung %host, %port, %secret",
         "placeholderInstruction": "Ganti host, port, rahasia dengan %host, %port, %secret",
-        "needsController": "Panel hanya dapat terhubung ke inti saat pengontrol eksternal diaktifkan."
+        "needsController": "Panel hanya dapat terhubung ke inti saat pengontrol eksternal diaktifkan.",
+        "noController": "No external controller address — enable it in the core settings"
       },
       "sections": {
         "panels": "Panels"
@@ -703,7 +706,7 @@
         "openOrCloseDashboard": "Buka/Tutup Dasbor",
         "toggleSystemProxy": "Aktifkan/Nonaktifkan Proksi Sistem",
         "toggleTunMode": "Aktifkan/Nonaktifkan Mode Tun",
-        "entryLightweightMode": "Entry Lightweight Mode",
+        "entryLightweightMode": "Enter lightweight mode",
         "direct": "Mode Langsung",
         "reactivateProfiles": "Reaktivasi Profil"
       },
@@ -722,6 +725,9 @@
         "ipAddress": "Alamat IP",
         "macAddress": "Alamat MAC"
       }
+    },
+    "config": {
+      "runtimeFailed": "Could not get the current configuration"
     }
   },
   "feedback": {
@@ -742,7 +748,7 @@
         "uninstallSkipped": "The service was not removed: stopping the core failed."
       },
       "updater": {
-        "withClashProxySuccess": "Update with Clash proxy successfully",
+        "withClashProxySuccess": "Updated through the core proxy",
         "breakingChanges": "Versi {{version}} berisi perubahan besar dan tidak dipasang otomatis. Perbarui secara manual."
       }
     }

@@ -31,6 +31,7 @@ import {
   TUN_RESET,
   mtuIsValid,
   splitRouteExcludeAddress,
+  stackLabel,
   tunFieldsFrom,
   tunPatch,
 } from '@/utils/tun-window'
@@ -40,14 +41,6 @@ import { StackModeSwitch } from './stack-mode-switch'
 const OS = getSystem()
 
 const CAPPED_STACKS = ['system', 'mixed']
-
-const STRICT_ROUTE = [
-  { value: 'auto', label: 'Auto' },
-  { value: 'on', label: 'On' },
-  { value: 'off', label: 'Off' },
-]
-
-const DNS_HIJACK_AUTO = [{ value: 'auto', label: 'Auto' }]
 
 const FRESH = {
   ...tunFieldsFrom(TUN_RESET, undefined, OS),
@@ -233,7 +226,7 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
       {tunRuntimeStack &&
         help(
           t('settings.modals.tun.messages.activeStack', {
-            stack: tunRuntimeStack,
+            stack: stackLabel(tunRuntimeStack),
           }),
         )}
       {stackCapped &&
@@ -287,7 +280,11 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
       <FormRow label={t('settings.modals.tun.fields.strictRoute')}>
         <BaseSegmented
           value={values.strictRoute}
-          options={STRICT_ROUTE}
+          options={[
+            { value: 'auto', label: t('shared.options.fromSubscription') },
+            { value: 'on', label: t('shared.options.on') },
+            { value: 'off', label: t('shared.options.off') },
+          ]}
           onChange={(mode) => setValues((v) => ({ ...v, strictRoute: mode }))}
         />
       </FormRow>
@@ -352,7 +349,9 @@ export function TunViewer({ ref }: { ref?: Ref<DialogRef> }) {
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <BaseSegmented
           value={values.dnsHijack === 'auto' ? 'auto' : 'custom'}
-          options={DNS_HIJACK_AUTO}
+          options={[
+            { value: 'auto', label: t('shared.options.fromSubscription') },
+          ]}
           onChange={() => setValues((v) => ({ ...v, dnsHijack: 'auto' }))}
           sx={{ flex: 'none' }}
         />

@@ -8,6 +8,7 @@
     "export": "ファイルに保存"
   },
   "messages": {
-    "exported": "ログを保存しました"
+    "exported": "ログを保存しました",
+    "belowCoreLevel": "The core does not write entries of this level. Change it in Settings → “Log Level”"
   }
 }

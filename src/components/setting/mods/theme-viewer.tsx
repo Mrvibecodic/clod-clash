@@ -16,6 +16,7 @@ import { useChangeCount } from '@/hooks/use-change-count'
 import { useVerge } from '@/hooks/use-verge'
 import { ACCENT_PRESETS, defaultDarkTheme, defaultTheme } from '@/pages/_theme'
 import { showNotice } from '@/services/notice-service'
+import { pressable } from '@/utils/pressable'
 
 export function ThemeViewer(props: { ref?: React.Ref<DialogRef> }) {
   const { ref } = props
@@ -30,9 +31,15 @@ export function ThemeViewer(props: { ref?: React.Ref<DialogRef> }) {
 
   useImperativeHandle(ref, () => ({
     open: () => {
+      // Черновик хранит то, что показывает тумблер: «не задано» — включено,
+      // иначе выключение не отличить от нетронутого.
+      const shown = {
+        ...theme_setting,
+        provider_theme: theme_setting?.provider_theme !== false,
+      }
       setOpen(true)
-      setTheme({ ...theme_setting })
-      setInitialTheme({ ...theme_setting })
+      setTheme(shown)
+      setInitialTheme(shown)
     },
     close: () => setOpen(false),
   }))
@@ -167,8 +174,11 @@ export function ThemeViewer(props: { ref?: React.Ref<DialogRef> }) {
           return (
             <Box
               key={color}
-              role="button"
+              {...pressable(() =>
+                setTheme((prev) => ({ ...prev, primary_color: color })),
+              )}
               aria-pressed={selected}
+              aria-label={color}
               title={color}
               onClick={() =>
                 setTheme((prev) => ({ ...prev, primary_color: color }))

@@ -298,6 +298,19 @@ function markConnectionsDead() {
 
 const startConnectionMonitor = () => {
   if (connectionStream) return
+  // Снимок прошлого показа: скорости в нём устарели — ноль до первого снимка.
+  if (
+    connectionData.activeConnections.some((c) => c.curUpload || c.curDownload)
+  ) {
+    connectionData = {
+      ...connectionData,
+      activeConnections: connectionData.activeConnections.map((c) =>
+        c.curUpload || c.curDownload
+          ? { ...c, curUpload: 0, curDownload: 0 }
+          : c,
+      ),
+    }
+  }
   const stream = createSharedSubscriptionEntry(
     () => MihomoWebSocket.connect_connections(),
     CONNECTION_STALE_MS,

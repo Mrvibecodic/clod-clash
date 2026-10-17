@@ -1,29 +1,22 @@
+import { ArrowForwardRounded } from '@mui/icons-material'
 import {
-  ArrowForwardRounded,
-  CheckCircleOutlineRounded,
-} from '@mui/icons-material'
-import {
-  alpha,
   Box,
   ListItem,
   ListItemButton,
   ListItemIcon,
   ListItemText,
-  styled,
   type SxProps,
   type Theme,
 } from '@mui/material'
-import { useTranslation } from 'react-i18next'
 
-import { BaseLoading, CodeChip, TypeChip } from '@/components/base'
+import { CodeChip, TypeChip } from '@/components/base'
 import { useProxyDelayState } from '@/hooks/use-proxy-delay-state'
-import { delayColor, delayText, usableDelay } from '@/utils/delay-color'
 import { featureChips, typeChips } from '@/utils/proxy-label'
 
 import { FreezeMark } from './freeze-mark'
 import { ProxyFavorite } from './proxy-favorite'
-import { PingUnit } from './proxy-ping-unit'
-import { PING_SX, proxyTileSx } from './proxy-tile'
+import { ProxyPing } from './proxy-ping'
+import { proxyTileSx } from './proxy-tile'
 
 interface Props {
   group: IProxyGroupItem
@@ -43,13 +36,6 @@ interface Props {
   freezeMark?: Parameters<typeof FreezeMark>[0]['mark']
 }
 
-const Widget = styled(Box)(() => ({
-  padding: '3px 6px',
-  fontSize: 13.5,
-  borderRadius: '4px',
-  whiteSpace: 'nowrap',
-}))
-
 export const ProxyItem = (props: Props) => {
   const {
     group,
@@ -65,7 +51,6 @@ export const ProxyItem = (props: Props) => {
     description,
     freezeMark,
   } = props
-  const { t } = useTranslation()
 
   const { delayValue, isPreset, onDelay } = useProxyDelayState(
     proxy,
@@ -169,56 +154,12 @@ export const ProxyItem = (props: Props) => {
             display: isPreset ? 'none' : '',
           }}
         >
-          {delayValue === -2 && (
-            <Widget>
-              <BaseLoading />
-            </Widget>
-          )}
-
-          {delayValue !== -2 && (
-            <Widget
-              className="the-check"
-              onClick={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                onDelay(proxy.provider)
-              }}
-              sx={({ palette }) => ({
-                display: 'none', // показывать при hover
-                ':hover': { bgcolor: alpha(palette.primary.main, 0.15) },
-              })}
-            >
-              {t('proxies.page.actions.check')}
-            </Widget>
-          )}
-
-          {delayValue >= 0 && (
-            // отображение задержки
-            <Widget
-              className="the-delay"
-              onClick={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                onDelay(proxy.provider)
-              }}
-              sx={({ palette }) => ({
-                ...PING_SX,
-                color: delayColor(delayValue, pingBounds),
-                ':hover': { bgcolor: alpha(palette.primary.main, 0.15) },
-              })}
-            >
-              {delayText(delayValue, t('shared.labels.timeout'))}
-              {usableDelay(delayValue) && <PingUnit />}
-            </Widget>
-          )}
-
-          {delayValue !== -2 && delayValue < 0 && selected && (
-            // отображение иконки выбранного
-            <CheckCircleOutlineRounded
-              className="the-icon"
-              sx={{ fontSize: 16 }}
-            />
-          )}
+          <ProxyPing
+            delay={delayValue}
+            selected={selected}
+            bounds={pingBounds}
+            onCheck={() => onDelay(proxy.provider)}
+          />
         </ListItemIcon>
 
         {onToggleFavorite && (

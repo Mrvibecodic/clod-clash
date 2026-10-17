@@ -59,8 +59,13 @@ const RuleItem = (props: Props) => {
         {value.lineNo}
       </Typography>
 
-      <Box sx={{ userSelect: 'text' }}>
-        <Typography component="h6" variant="subtitle1" color="text.primary">
+      <Box sx={{ userSelect: 'text', minWidth: 0 }}>
+        <Typography
+          component="h6"
+          variant="subtitle1"
+          color="text.primary"
+          sx={{ overflowWrap: 'anywhere' }}
+        >
           {value.payload || '-'}
         </Typography>
 

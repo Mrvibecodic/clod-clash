@@ -183,9 +183,14 @@ const resolveNoticeCopyText = (
 
 interface NoticeManagerProps {
   position?: NoticePosition | null
+  /** Над окном свой заголовок (36 px): стопка сверху опускается под него. */
+  belowTitlebar?: boolean
 }
 
-export const NoticeManager: React.FC<NoticeManagerProps> = ({ position }) => {
+export const NoticeManager: React.FC<NoticeManagerProps> = ({
+  position,
+  belowTitlebar,
+}) => {
   const { t } = useTranslation()
   const resolvedPosition = useMemo(() => resolvePosition(position), [position])
   const anchorOrigin = useMemo(
@@ -241,7 +246,12 @@ export const NoticeManager: React.FC<NoticeManagerProps> = ({ position }) => {
     <Box
       sx={{
         position: 'fixed',
-        top: anchorOrigin.vertical === 'top' ? '20px' : 'auto',
+        top:
+          anchorOrigin.vertical === 'top'
+            ? belowTitlebar
+              ? '56px'
+              : '20px'
+            : 'auto',
         bottom: anchorOrigin.vertical === 'bottom' ? '20px' : 'auto',
         left: anchorOrigin.horizontal === 'left' ? '20px' : 'auto',
         right: anchorOrigin.horizontal === 'right' ? '20px' : 'auto',
@@ -280,6 +290,7 @@ export const NoticeManager: React.FC<NoticeManagerProps> = ({ position }) => {
               <IconButton
                 size="small"
                 color="inherit"
+                aria-label={t('shared.actions.close')}
                 onClick={() => handleClose(notice.id)}
               >
                 <CloseRounded fontSize="inherit" />

@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { MONO_TEXT } from '@/components/base/base-mono'
+import { isHotkeyCombo } from '@/utils/hotkey-combo'
 import { parseHotkey } from '@/utils/parse-hotkey'
 
 const KeyWrapper = styled('div')(({ theme }) => ({
@@ -76,14 +77,31 @@ export const HotkeyInput = (props: Props) => {
         <input
           onKeyUp={() => {
             const ret = changeRef.current.slice()
-            if (ret.length) {
+            if (!ret.length) return
+            changeRef.current = []
+            if (isHotkeyCombo(ret)) {
               onChange(ret)
-              changeRef.current = []
+            } else {
+              setKeys(value)
             }
           }}
           onKeyDown={(e) => {
+            const bare = !e.ctrlKey && !e.altKey && !e.metaKey
+            // Tab и Esc — переход и закрытие окна, а не сочетание.
+            if (bare && (e.key === 'Tab' || e.key === 'Escape')) return
             e.preventDefault()
             e.stopPropagation()
+
+            if (
+              bare &&
+              !e.shiftKey &&
+              (e.key === 'Backspace' || e.key === 'Delete')
+            ) {
+              changeRef.current = []
+              onChange([])
+              setKeys([])
+              return
+            }
 
             const key = parseHotkey(e)
             if (key === 'UNIDENTIFIED') return

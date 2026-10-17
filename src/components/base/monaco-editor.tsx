@@ -25,8 +25,21 @@ const MonacoEditorContent = lazy(async () => {
   return { default: MonacoEditorView }
 })
 
-export const MonacoEditor = (props: MonacoEditorProps) => (
+/** Полосы прокрутки — как у остального окна: 8 px, без теней (цвет — в теме). */
+const SCROLLBAR = {
+  verticalScrollbarSize: 8,
+  horizontalScrollbarSize: 8,
+  useShadows: false,
+} as const
+
+export const MonacoEditor = ({ options, ...props }: MonacoEditorProps) => (
   <Suspense fallback={null}>
-    <MonacoEditorContent {...props} />
+    <MonacoEditorContent
+      {...props}
+      options={{
+        ...options,
+        scrollbar: { ...SCROLLBAR, ...options?.scrollbar },
+      }}
+    />
   </Suspense>
 )

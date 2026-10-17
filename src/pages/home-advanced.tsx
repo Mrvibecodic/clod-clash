@@ -32,7 +32,7 @@ import { useSubscriptionUpdate } from '@/hooks/use-subscription-update'
 import { useToolShortcuts } from '@/hooks/use-tool-shortcuts'
 import { useVisibility } from '@/hooks/use-visibility'
 import { useFitWindowToContent } from '@/hooks/use-window-fit'
-import { CARD_SURFACE, SHAPE, TINT } from '@/pages/_theme'
+import { CARD_SURFACE, SHAPE, TINT, toneText } from '@/pages/_theme'
 import { showNotice } from '@/services/notice-service'
 
 import HomeSimplePage from './home-simple'
@@ -120,9 +120,11 @@ const Tile = ({
       {hint ? (
         <Typography
           variant="caption"
-          color={warn ? 'warning.main' : 'text.secondary'}
           noWrap
-          sx={{ display: 'block' }}
+          sx={{
+            display: 'block',
+            color: warn ? toneText('warning') : 'text.secondary',
+          }}
         >
           {hint}
         </Typography>

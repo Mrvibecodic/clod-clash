@@ -88,7 +88,7 @@
       },
       "placeholders": {
         "address": "Gerekli",
-        "secret": "Önerilen"
+        "secret": "Required"
       },
       "tooltips": {
         "copy": "Panoya kopyala"
@@ -180,17 +180,12 @@
         },
         "options": {
           "logLevel": {
-            "auto": "Abonelikteki gibi",
+            "trace": "Trace",
             "debug": "Debug",
             "info": "Info",
             "warning": "Warn",
             "error": "Error",
             "silent": "Silent"
-          },
-          "unifiedDelay": {
-            "auto": "Abonelikteki gibi",
-            "on": "Açık",
-            "off": "Kapalı"
           }
         }
       }
@@ -237,7 +232,7 @@
         },
         "hints": {
           "subNotifications": "Warn about the subscription running out of traffic or time. Off silences these alerts regardless of the provider settings.",
-          "deviceIdentity": "Sends a hashed device id (x-hwid) with every subscription request so the provider can enforce its device limit. The raw machine id never leaves the device. Turning it off may make the panel refuse the subscription.",
+          "deviceIdentity": "Sends a hashed device id (x-hwid) with every subscription request so the provider can enforce its device limit. The raw machine id never leaves the device. Turning it off may make the provider refuse the subscription.",
           "windowFitContent": "Pencere yüksekliğini içeriğe göre ayarlar, böylece hiçbir şey kaydırma çubuğunun arkasında kalmaz. Pencereyi elle yeniden boyutlandırmak bu ayarı kapatır ve sizin boyutunuz korunur."
         }
       },
@@ -407,6 +402,7 @@
       "actions": {
         "backup": "Yedekle",
         "importBackup": "Import Backup",
+        "exportBackup": "Save the backup to a file",
         "deleteBackup": "Yedeği Sil",
         "restoreBackup": "Yedeği Geri Yükle",
         "viewHistory": "View history",
@@ -491,7 +487,8 @@
         },
         "autoLogClean": {
           "never": "Asla Temizleme",
-          "retainDays": "{{n}} Gün Sakla"
+          "retainDays": "{{count}} Gün Sakla",
+          "retainDays_one": "{{count}} Gün Sakla"
         }
       },
       "sections": {
@@ -503,13 +500,25 @@
     },
     "update": {
       "title": "New Version v{{version}}",
+      "titleNoVersion": "New version",
       "actions": {
         "goToRelease": "Sürüm Sayfasına Git",
-        "update": "Güncelle"
+        "update": "Güncelle",
+        "downloading": "Downloading {{percent}}%"
       },
       "messages": {
         "breakChangeError": "Bu sürüm büyük bir güncellemedir ve uygulama içi güncellemeleri desteklemez. Lütfen kaldırın ve yeni sürümü manuel olarak indirip kurun",
-        "noData": "Güncelleme bilgisi alınamadı"
+        "noData": "Güncelleme bilgisi alınamadı",
+        "noNotes": "A new version is available",
+        "progress": "{{downloaded}} of {{total}}",
+        "cancelled": "Update download cancelled"
+      },
+      "alerts": {
+        "note": "Note",
+        "tip": "Tip",
+        "important": "Important",
+        "warning": "Warning",
+        "caution": "Caution"
       }
     },
     "sysproxy": {
@@ -538,7 +547,8 @@
       "messages": {
         "durationTooShort": "Vekil Koruyucu Süresi 1 Saniyeden Az Olamaz",
         "invalidBypass": "Geçersiz Baypas Formatı",
-        "invalidProxyHost": "Geçersiz Vekil Sunucusu Formatı"
+        "invalidProxyHost": "Geçersiz Vekil Sunucusu Formatı",
+        "appliesOnConnect": "The system proxy is off — these settings apply when you connect"
       },
       "actions": {
         "editPac": "Düzenle PAC",
@@ -565,7 +575,7 @@
         "autoRedirect": "Auto Redirect"
       },
       "tooltips": {
-        "dnsHijack": "Please use , to separate multiple DNS servers",
+        "dnsHijack": "Addresses to intercept DNS on — comma-separated or one per line",
         "autoRedirect": "Automatically configures nftables/iptables TCP redirects"
       },
       "messages": {
@@ -587,9 +597,6 @@
         "title": "DNS Üzerine Yazma",
         "note": "Abonelik değerleri gösteriliyor. Yalnızca farklarınız kaydedilir — gerisi aboneliği izler. Emin değilseniz değiştirmeyin.",
         "fakeIpIdle": "Etkisiz: redir-host modu seçili"
-      },
-      "actions": {
-        "asInSubscription": "Abonelikteki gibi"
       },
       "sections": {
         "behavior": "Davranış"
@@ -660,11 +667,6 @@
         "invalidYaml": "Invalid YAML format"
       },
       "options": {
-        "hosts": {
-          "auto": "Abonelikteki gibi",
-          "on": "Açık",
-          "off": "Kapalı"
-        },
         "filterMode": {
           "blacklist": "Liste dışı",
           "whitelist": "Yalnız liste"
@@ -686,7 +688,8 @@
       "messages": {
         "supportedPlaceholders": "%host, %port, %secret destekler",
         "placeholderInstruction": "Ana bilgisayar, port, sırrı %host, %port, %secret ile değiştirin",
-        "needsController": "Panel çekirdeğe yalnızca harici denetleyici etkinken bağlanabilir."
+        "needsController": "Panel çekirdeğe yalnızca harici denetleyici etkinken bağlanabilir.",
+        "noController": "No external controller address — enable it in the core settings"
       },
       "sections": {
         "panels": "Panels"
@@ -722,6 +725,9 @@
         "ipAddress": "IP Adresi",
         "macAddress": "MAC Adresi"
       }
+    },
+    "config": {
+      "runtimeFailed": "Could not get the current configuration"
     }
   },
   "feedback": {

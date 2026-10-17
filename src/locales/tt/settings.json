@@ -88,7 +88,7 @@
       },
       "placeholders": {
         "address": "Required",
-        "secret": "Тавсия ителә"
+        "secret": "Required"
       },
       "tooltips": {
         "copy": "Copy to clipboard"
@@ -180,17 +180,12 @@
         },
         "options": {
           "logLevel": {
-            "auto": "Язылудагыча",
+            "trace": "Trace",
             "debug": "Debug",
             "info": "Info",
             "warning": "Warn",
             "error": "Error",
             "silent": "Silent"
-          },
-          "unifiedDelay": {
-            "auto": "Язылудагыча",
-            "on": "Кабызылган",
-            "off": "Сүндерелгән"
           }
         }
       }
@@ -237,7 +232,7 @@
         },
         "hints": {
           "subNotifications": "Warn about the subscription running out of traffic or time. Off silences these alerts regardless of the provider settings.",
-          "deviceIdentity": "Sends a hashed device id (x-hwid) with every subscription request so the provider can enforce its device limit. The raw machine id never leaves the device. Turning it off may make the panel refuse the subscription.",
+          "deviceIdentity": "Sends a hashed device id (x-hwid) with every subscription request so the provider can enforce its device limit. The raw machine id never leaves the device. Turning it off may make the provider refuse the subscription.",
           "windowFitContent": "Тәрәзә биеклеген эчтәлеккә карап җайлый, шуңа күрә берни дә тәгәрәтү тасмасы артында калмый. Тәрәзә зурлыгын кул белән үзгәрткәч, җайлау сүнә һәм сезнең зурлык саклана."
         }
       },
@@ -258,8 +253,8 @@
           "versionCopied": "Version copied to clipboard"
         },
         "messages": {
-          "noProfileSelected": "No profile selected",
-          "profileFileError": "Error getting profile file"
+          "noProfileSelected": "No subscription selected",
+          "profileFileError": "Could not read the subscription file"
         },
         "fields": {
           "backupSetting": "Резерв копия көйләүләре",
@@ -271,7 +266,7 @@
           "exportLogs": "Логларны архивка чыгару",
           "checkUpdates": "Яңартуларны тикшерү",
           "openDevTools": "Разработчик коралларын ачу",
-          "liteModeSettings": "LightWeight Mode Settings",
+          "liteModeSettings": "Lightweight mode settings",
           "exit": "Чыгу",
           "supportBundle": "Support report",
           "vergeVersion": "Clod версиясе",
@@ -380,21 +375,21 @@
       }
     },
     "liteMode": {
-      "title": "LightWeight Mode Settings",
+      "title": "Lightweight mode settings",
       "actions": {
-        "enterNow": "Enter LightWeight Mode Now"
+        "enterNow": "Enter lightweight mode now"
       },
       "toggles": {
-        "autoEnter": "Auto Enter LightWeight Mode"
+        "autoEnter": "Enter lightweight mode automatically"
       },
       "tooltips": {
-        "autoEnter": "Enable to automatically activate LightWeight Mode after the window is closed for a period of time"
+        "autoEnter": "Turn lightweight mode on once the window has been closed for the set time"
       },
       "fields": {
-        "delay": "Auto Enter LightWeight Mode Delay"
+        "delay": "Delay before lightweight mode"
       },
       "messages": {
-        "autoEnterHint": "When closing the window, LightWeight Mode will be automatically activated after {{count}} minutes",
+        "autoEnterHint": "After the window is closed, lightweight mode turns on in {{count}} minutes",
         "autoEnterHint_one": "When closing the window, LightWeight Mode will be automatically activated after {{count}} minutes"
       }
     },
@@ -407,6 +402,7 @@
       "actions": {
         "backup": "Резерв копия",
         "importBackup": "Import Backup",
+        "exportBackup": "Save the backup to a file",
         "deleteBackup": "Резерв копияне бетерү",
         "restoreBackup": "Резерв копияне кайтару",
         "viewHistory": "View history",
@@ -491,7 +487,8 @@
         },
         "autoLogClean": {
           "never": "Беркайчан чистартмаска",
-          "retainDays": "{{n}} көн саклау"
+          "retainDays": "{{count}} көн саклау",
+          "retainDays_one": "{{count}} көн саклау"
         }
       },
       "sections": {
@@ -503,13 +500,25 @@
     },
     "update": {
       "title": "New Version v{{version}}",
+      "titleNoVersion": "New version",
       "actions": {
         "goToRelease": "Релизлар битенә күчү",
-        "update": "Яңарту"
+        "update": "Яңарту",
+        "downloading": "Downloading {{percent}}%"
       },
       "messages": {
         "breakChangeError": "Бу зур яңарту, ул кушымта эчендә яңартылмый. Борып алып ташлап, яңадан урнаштыру сорала.",
-        "noData": "Яңарту турында мәгълүмат алып булмады"
+        "noData": "Яңарту турында мәгълүмат алып булмады",
+        "noNotes": "A new version is available",
+        "progress": "{{downloaded}} of {{total}}",
+        "cancelled": "Update download cancelled"
+      },
+      "alerts": {
+        "note": "Note",
+        "tip": "Tip",
+        "important": "Important",
+        "warning": "Warning",
+        "caution": "Caution"
       }
     },
     "sysproxy": {
@@ -538,7 +547,8 @@
       "messages": {
         "durationTooShort": "Прокси-демон эш вакыты 1 секундтан ким була алмый",
         "invalidBypass": "Дөрес булмаган Bypass форматы",
-        "invalidProxyHost": "Прокси хосты форматы дөрес түгел"
+        "invalidProxyHost": "Прокси хосты форматы дөрес түгел",
+        "appliesOnConnect": "The system proxy is off — these settings apply when you connect"
       },
       "actions": {
         "editPac": "Үзгәртү PAC",
@@ -565,7 +575,7 @@
         "autoRedirect": "Auto Redirect"
       },
       "tooltips": {
-        "dnsHijack": "Please use , to separate multiple DNS servers",
+        "dnsHijack": "Addresses to intercept DNS on — comma-separated or one per line",
         "autoRedirect": "Automatically configures nftables/iptables TCP redirects"
       },
       "messages": {
@@ -587,9 +597,6 @@
         "title": "DNS Overwrite",
         "note": "Язылу кыйммәтләре күрсәтелә. Сезнең аермалар гына саклана — калганы язылуга иярә. Ышанмасагыз, үзгәртмәгез.",
         "fakeIpIdle": "Тәэсир итми: redir-host режимы сайланган"
-      },
-      "actions": {
-        "asInSubscription": "Язылудагыча"
       },
       "sections": {
         "behavior": "Тәртип"
@@ -660,11 +667,6 @@
         "invalidYaml": "Invalid YAML format"
       },
       "options": {
-        "hosts": {
-          "auto": "Язылудагыча",
-          "on": "Кабызылган",
-          "off": "Сүндерелгән"
-        },
         "filterMode": {
           "blacklist": "Исемлектән тыш",
           "whitelist": "Исемлеккә генә"
@@ -686,7 +688,8 @@
       "messages": {
         "supportedPlaceholders": "%host, %port, %secret макросларын хуплау",
         "placeholderInstruction": "Хост, порт, серсүзне %host, %port, %secret белән алмаштырыгыз",
-        "needsController": "Панель ядрога тышкы контроллер кабызылганда гына тоташа ала."
+        "needsController": "Панель ядрога тышкы контроллер кабызылганда гына тоташа ала.",
+        "noController": "No external controller address — enable it in the core settings"
       },
       "sections": {
         "panels": "Panels"
@@ -703,7 +706,7 @@
         "openOrCloseDashboard": "Панельне ачу/ябу",
         "toggleSystemProxy": "Системалы проксины кабызу/сүндерү",
         "toggleTunMode": "Tun режимын кабызу/сүндерү",
-        "entryLightweightMode": "Entry Lightweight Mode",
+        "entryLightweightMode": "Enter lightweight mode",
         "direct": "Туры режим",
         "reactivateProfiles": "Профильләрне янәдән активлаштыру"
       },
@@ -722,6 +725,9 @@
         "ipAddress": "IP адресы",
         "macAddress": "MAC адресы"
       }
+    },
+    "config": {
+      "runtimeFailed": "Could not get the current configuration"
     }
   },
   "feedback": {
@@ -742,7 +748,7 @@
         "uninstallSkipped": "The service was not removed: stopping the core failed."
       },
       "updater": {
-        "withClashProxySuccess": "Update with Clash proxy successfully",
+        "withClashProxySuccess": "Updated through the core proxy",
         "breakingChanges": "{{version}} версиясендә туры килмәүче үзгәрешләр бар, ул автоматик рәвештә урнаштырылмады. Кул белән яңартыгыз."
       }
     }

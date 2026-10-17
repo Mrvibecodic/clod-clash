@@ -30,7 +30,7 @@ const subscribeToPause = (listener: () => void) => {
 }
 
 /** Пауза после удачного ручного обновления подписки. */
-export const pauseSubscription = (uid: string) => {
+const pauseSubscription = (uid: string) => {
   clearTimeout(paused.get(uid))
   paused.set(
     uid,
@@ -64,8 +64,29 @@ export const useSubscriptionPaused = (uid?: string) =>
 
 /** Свой вызов обновления: подписка занята, пока он не вернулся. */
 export const beginOwnUpdate = updates.beginOwn
-export const endOwnUpdate = updates.endOwn
-export const isSubscriptionUpdating = updates.isUpdating
+
+export const canUpdateNow = (uid: string) =>
+  !updates.isUpdating(uid) && !paused.has(uid)
+
+export const runOwnUpdate = async (uid: string, option?: IProfileOption) => {
+  try {
+    await updateProfile(uid, option)
+    pauseSubscription(uid)
+  } finally {
+    updates.endOwn(uid)
+  }
+}
+
+/** Обновить подписку руками сейчас; `false` — занята или на паузе. */
+export const updateSubscriptionNow = async (
+  uid: string,
+  option?: IProfileOption,
+) => {
+  if (!canUpdateNow(uid)) return false
+  updates.beginOwn(uid)
+  await runOwnUpdate(uid, option)
+  return true
+}
 
 export const useSubscriptionUpdating = (uid?: string) =>
   useSyncExternalStore(
@@ -101,17 +122,13 @@ export const useSubscriptionUpdate = (uid?: string) => {
   const isPaused = useSubscriptionPaused(uid)
 
   const refresh = useCallback(async () => {
-    if (!uid || updates.isUpdating(uid) || paused.has(uid)) return
-    updates.beginOwn(uid)
+    if (!uid) return
     try {
-      await updateProfile(uid)
-      pauseSubscription(uid)
+      if (!(await updateSubscriptionNow(uid))) return
       await mutateProfiles()
       showNotice.success('home.components.subscription.updated')
     } catch (error) {
       showNotice.error(error)
-    } finally {
-      updates.endOwn(uid)
     }
   }, [uid, mutateProfiles])
 

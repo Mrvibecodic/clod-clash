@@ -31,12 +31,8 @@ export const TunStatus = () => {
     try {
       const ready = await ensureTunReady()
       await mutateSystemState()
-      if (!ready) {
-        showNotice.error(
-          'settings.sections.proxyControl.tooltips.tunUnavailable',
-        )
-        return
-      }
+      // Причину отказа бэкенд уже показал уведомлением.
+      if (!ready) return
       await patchVerge({ enable_tun_mode: true })
     } catch (error) {
       showNotice.error(tunSetupNotice(error))

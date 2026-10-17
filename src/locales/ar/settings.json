@@ -88,7 +88,7 @@
       },
       "placeholders": {
         "address": "Required",
-        "secret": "موصى به"
+        "secret": "Required"
       },
       "tooltips": {
         "copy": "Copy to clipboard"
@@ -180,17 +180,12 @@
         },
         "options": {
           "logLevel": {
-            "auto": "كما في الاشتراك",
+            "trace": "Trace",
             "debug": "Debug",
             "info": "Info",
             "warning": "Warn",
             "error": "Error",
             "silent": "Silent"
-          },
-          "unifiedDelay": {
-            "auto": "كما في الاشتراك",
-            "on": "مفعّل",
-            "off": "معطّل"
           }
         }
       }
@@ -237,7 +232,7 @@
         },
         "hints": {
           "subNotifications": "Warn about the subscription running out of traffic or time. Off silences these alerts regardless of the provider settings.",
-          "deviceIdentity": "Sends a hashed device id (x-hwid) with every subscription request so the provider can enforce its device limit. The raw machine id never leaves the device. Turning it off may make the panel refuse the subscription.",
+          "deviceIdentity": "Sends a hashed device id (x-hwid) with every subscription request so the provider can enforce its device limit. The raw machine id never leaves the device. Turning it off may make the provider refuse the subscription.",
           "windowFitContent": "تضبط النافذة ارتفاعها حسب المحتوى حتى لا يختفي شيء خلف شريط التمرير. تغيير حجم النافذة يدوياً يوقف هذه الميزة ويحتفظ بالحجم الذي اخترته."
         }
       },
@@ -258,8 +253,8 @@
           "versionCopied": "Version copied to clipboard"
         },
         "messages": {
-          "noProfileSelected": "No profile selected",
-          "profileFileError": "Error getting profile file"
+          "noProfileSelected": "No subscription selected",
+          "profileFileError": "Could not read the subscription file"
         },
         "fields": {
           "backupSetting": "إعداد النسخ الاحتياطي",
@@ -271,7 +266,7 @@
           "exportLogs": "تصدير السجلات كأرشيف",
           "checkUpdates": "التحقق من وجود تحديثات",
           "openDevTools": "أدوات المطور",
-          "liteModeSettings": "LightWeight Mode Settings",
+          "liteModeSettings": "Lightweight mode settings",
           "exit": "خروج",
           "supportBundle": "Support report",
           "vergeVersion": "إصدار Clod",
@@ -380,21 +375,21 @@
       }
     },
     "liteMode": {
-      "title": "LightWeight Mode Settings",
+      "title": "Lightweight mode settings",
       "actions": {
-        "enterNow": "Enter LightWeight Mode Now"
+        "enterNow": "Enter lightweight mode now"
       },
       "toggles": {
-        "autoEnter": "Auto Enter LightWeight Mode"
+        "autoEnter": "Enter lightweight mode automatically"
       },
       "tooltips": {
-        "autoEnter": "Enable to automatically activate LightWeight Mode after the window is closed for a period of time"
+        "autoEnter": "Turn lightweight mode on once the window has been closed for the set time"
       },
       "fields": {
-        "delay": "Auto Enter LightWeight Mode Delay"
+        "delay": "Delay before lightweight mode"
       },
       "messages": {
-        "autoEnterHint": "When closing the window, LightWeight Mode will be automatically activated after {{count}} minutes",
+        "autoEnterHint": "After the window is closed, lightweight mode turns on in {{count}} minutes",
         "autoEnterHint_one": "When closing the window, LightWeight Mode will be automatically activated after {{count}} minutes"
       }
     },
@@ -407,6 +402,7 @@
       "actions": {
         "backup": "نسخ احتياطي",
         "importBackup": "Import Backup",
+        "exportBackup": "Save the backup to a file",
         "deleteBackup": "حذف النسخة الاحتياطية",
         "restoreBackup": "استعادة النسخة الاحتياطية",
         "viewHistory": "View history",
@@ -491,7 +487,8 @@
         },
         "autoLogClean": {
           "never": "عدم التنظيف أبدًا",
-          "retainDays": "الاحتفاظ لمدة {{n}} يومًا"
+          "retainDays": "الاحتفاظ لمدة {{count}} يومًا",
+          "retainDays_one": "الاحتفاظ لمدة {{count}} يومًا"
         }
       },
       "sections": {
@@ -503,13 +500,25 @@
     },
     "update": {
       "title": "New Version v{{version}}",
+      "titleNoVersion": "New version",
       "actions": {
         "goToRelease": "الانتقال إلى صفحة الإصدارات",
-        "update": "تحديث"
+        "update": "تحديث",
+        "downloading": "Downloading {{percent}}%"
       },
       "messages": {
         "breakChangeError": "هذا الإصدار هو تحديث رئيسي ولا يدعم التحديث داخل التطبيق. يرجى إلغاء التثبيت وتنزيل الإصدار الجديد وتثبيته يدويًا",
-        "noData": "تعذّر الحصول على معلومات التحديث"
+        "noData": "تعذّر الحصول على معلومات التحديث",
+        "noNotes": "A new version is available",
+        "progress": "{{downloaded}} of {{total}}",
+        "cancelled": "Update download cancelled"
+      },
+      "alerts": {
+        "note": "Note",
+        "tip": "Tip",
+        "important": "Important",
+        "warning": "Warning",
+        "caution": "Caution"
       }
     },
     "sysproxy": {
@@ -538,7 +547,8 @@
       "messages": {
         "durationTooShort": "لا يمكن أن تقل مدة خادم الوكيل عن ثانية واحدة",
         "invalidBypass": "تنسيق التخطي غير صالح",
-        "invalidProxyHost": "تنسيق مضيف الوكيل غير صالح"
+        "invalidProxyHost": "تنسيق مضيف الوكيل غير صالح",
+        "appliesOnConnect": "The system proxy is off — these settings apply when you connect"
       },
       "actions": {
         "editPac": "تعديل PAC",
@@ -565,7 +575,7 @@
         "autoRedirect": "Auto Redirect"
       },
       "tooltips": {
-        "dnsHijack": "Please use , to separate multiple DNS servers",
+        "dnsHijack": "Addresses to intercept DNS on — comma-separated or one per line",
         "autoRedirect": "Automatically configures nftables/iptables TCP redirects"
       },
       "messages": {
@@ -587,9 +597,6 @@
         "title": "DNS Overwrite",
         "note": "تُعرض قيم الاشتراك. تُحفظ اختلافاتك فقط، ويتبع الباقي الاشتراك. إن لم تكن متأكدًا فلا تغيّر شيئًا.",
         "fakeIpIdle": "بلا تأثير: الوضع redir-host محدد"
-      },
-      "actions": {
-        "asInSubscription": "كما في الاشتراك"
       },
       "sections": {
         "behavior": "السلوك"
@@ -660,11 +667,6 @@
         "invalidYaml": "Invalid YAML format"
       },
       "options": {
-        "hosts": {
-          "auto": "كما في الاشتراك",
-          "on": "مفعّل",
-          "off": "معطّل"
-        },
         "filterMode": {
           "blacklist": "الكل عدا القائمة",
           "whitelist": "القائمة فقط"
@@ -686,7 +688,8 @@
       "messages": {
         "supportedPlaceholders": "يدعم %host و%port و%secret",
         "placeholderInstruction": "استبدل المضيف والمنفذ والمفتاح بـ %host و%port و%secret",
-        "needsController": "لا تتصل اللوحة بالنواة إلا عند تفعيل وحدة التحكم الخارجية."
+        "needsController": "لا تتصل اللوحة بالنواة إلا عند تفعيل وحدة التحكم الخارجية.",
+        "noController": "No external controller address — enable it in the core settings"
       },
       "sections": {
         "panels": "Panels"
@@ -703,7 +706,7 @@
         "openOrCloseDashboard": "فتح/إغلاق لوحة التحكم",
         "toggleSystemProxy": "تفعيل/تعطيل وكيل النظام",
         "toggleTunMode": "تفعيل/تعطيل وضع TUN",
-        "entryLightweightMode": "Entry Lightweight Mode",
+        "entryLightweightMode": "Enter lightweight mode",
         "direct": "الوضع المباشر",
         "reactivateProfiles": "إعادة تنشيط الملفات الشخصية"
       },
@@ -722,6 +725,9 @@
         "ipAddress": "عنوان IP",
         "macAddress": "عنوان MAC"
       }
+    },
+    "config": {
+      "runtimeFailed": "Could not get the current configuration"
     }
   },
   "feedback": {
@@ -742,7 +748,7 @@
         "uninstallSkipped": "The service was not removed: stopping the core failed."
       },
       "updater": {
-        "withClashProxySuccess": "Update with Clash proxy successfully",
+        "withClashProxySuccess": "Updated through the core proxy",
         "breakingChanges": "يحتوي الإصدار {{version}} على تغييرات جذرية ولم يتم تثبيته تلقائيًا. يرجى التحديث يدويًا."
       }
     }

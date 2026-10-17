@@ -14,9 +14,6 @@
         "disconnecting": "Disconnecting…",
         "on": "Connected",
         "error": "Connection failed"
-      },
-      "errors": {
-        "serviceRequired": "TUN mode needs the background service. Install it in Settings: the wrench icon next to the TUN mode switch."
       }
     },
     "serverSelect": {
@@ -25,7 +22,6 @@
       "test": "Test",
       "empty": "No servers in this subscription",
       "favorite": "Сайланма",
-      "ms": "ms",
       "autoHint": "The node in this group is picked automatically",
       "inUse": "In use",
       "types": {
@@ -51,7 +47,7 @@
         "expiredNoDate": "The provider will hand out servers once the plan is renewed.",
         "traffic": "{{used}} of {{total}} used. The quota resets on {{date}}.",
         "trafficNoDate": "{{used}} of {{total}} used. Top up the traffic to continue.",
-        "provider": "The subscription is active, but the panel returned no servers at all. This is on the provider’s side.",
+        "provider": "The subscription is active, but the provider’s response has no servers at all. This is on the provider’s side.",
         "deviceLimit": "Бу язылуның җиһазлар чиге тулды. Провайдерның ярдәм хезмәтенә языгыз.",
         "deviceNotIdentified": "Панель бу җиһазны танымады һәм серверлар бирмәде."
       },
@@ -119,7 +115,7 @@
       "untilTimeToday": "today until {{time}}",
       "untilTimeTomorrow": "tomorrow until {{time}}",
       "expiryApproximate": "Counted by your device clock. Update the subscription to see the exact expiry time",
-      "expiryClockOff": "This device's clock disagrees with the panel; the countdown follows the panel's time",
+      "expiryClockOff": "This device's clock disagrees with the provider's time; the countdown follows the provider's time",
       "approximate": {
         "hint": "Traffic usage is estimated. Update the subscription for more precise numbers",
         "since": "Exact data as of {{time}}",
