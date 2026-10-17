@@ -30,23 +30,6 @@ export const findPortOutOfRange = (ports: readonly number[]) => {
   return undefined
 }
 
-const stripBrackets = (host: string) =>
-  host.startsWith('[') && host.endsWith(']') ? host.slice(1, -1) : host
-
-export const isProxyServerAt = (
-  server: string | undefined | null,
-  host: string,
-  port: number | undefined | null,
-) => {
-  if (!server || !port) return false
-  const colon = server.lastIndexOf(':')
-  if (colon <= 0) return false
-  return (
-    stripBrackets(server.slice(0, colon)) === stripBrackets(host) &&
-    server.slice(colon + 1) === String(port)
-  )
-}
-
 export const LOOPBACK_PROXY_HOSTS = ['127.0.0.1', 'localhost']
 
 export const reachableProxyHost = (

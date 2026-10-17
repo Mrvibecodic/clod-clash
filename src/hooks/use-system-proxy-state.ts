@@ -1,12 +1,10 @@
 import { useRef, useState } from 'react'
 import { closeAllConnections } from 'tauri-plugin-mihomo-api'
 
-import { useRuntimeConfig } from '@/hooks/use-clash'
 import { useVerge } from '@/hooks/use-verge'
 import { useSystemData } from '@/providers/app-data-context'
 import { getAutotemProxy } from '@/services/cmds'
 import { revalidateQueries, useQuery } from '@/services/query-client'
-import { isProxyServerAt, reachableProxyHost } from '@/utils/ports'
 
 /** Адрес PAC, который ставит в систему бэкенд (`utils/server.rs`). */
 export const PAC_URL = `http://127.0.0.1:${import.meta.env.DEV ? 11233 : 33331}/commands/pac`
@@ -15,7 +13,6 @@ export const PAC_URL = `http://127.0.0.1:${import.meta.env.DEV ? 11233 : 33331}/
 export const useSystemProxyState = () => {
   const { verge, mutateVerge, patchVerge } = useVerge()
   const { sysproxy } = useSystemData()
-  const { data: runtime } = useRuntimeConfig()
   const { data: autoproxy } = useQuery({
     queryKey: ['getAutotemProxy'],
     queryFn: getAutotemProxy,
@@ -23,31 +20,13 @@ export const useSystemProxyState = () => {
     refetchOnReconnect: true,
   })
 
-  const { enable_system_proxy, proxy_auto_config, proxy_host } = verge ?? {}
+  const { enable_system_proxy, proxy_auto_config } = verge ?? {}
 
-  // Фактическое состояние ОС: enable + адрес совпадает с этим приложением
-  const indicator = (() => {
-    if (proxy_auto_config) {
-      if (!autoproxy?.enable) return false
-      return autoproxy.url === PAC_URL
-    } else {
-      if (!sysproxy?.enable) return false
-      // При раздаче бэкенд пишет петлю, если выбранного адреса у машины уже
-      // нет, а пока конфиг ядра не прочитан, раздача неизвестна — в обоих
-      // случаях годится любой из двух адресов.
-      const lanSharing = runtime?.['allow-lan']
-      const hosts =
-        lanSharing === false
-          ? [reachableProxyHost(proxy_host, false)]
-          : [
-              reachableProxyHost(proxy_host, true),
-              reachableProxyHost(proxy_host, false),
-            ]
-      return hosts.some((host) =>
-        isProxyServerAt(sysproxy.server, host, sysproxy.current_port),
-      )
-    }
-  })()
+  // Фактическое состояние ОС; чей прокси в системе, решает бэкенд — тем же
+  // правилом, что трей и горячая клавиша.
+  const indicator = proxy_auto_config
+    ? Boolean(autoproxy?.enable && autoproxy.ours)
+    : Boolean(sysproxy?.enable && sysproxy.ours)
 
   // Режим "применяется только последнее": при быстрых последовательных кликах выполняется только конечное состояние
   const pendingRef = useRef<{ enabled: boolean; remember: boolean } | null>(

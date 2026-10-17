@@ -4,7 +4,6 @@ import { test } from 'node:test'
 import {
   findDuplicatePort,
   findPortOutOfRange,
-  isProxyServerAt,
   MAX_PORT,
   MIN_PORT,
   portRangeVerdict,
@@ -62,26 +61,6 @@ test('нечисловое значение поля — негодный пор
     port: Number.NaN,
     verdict: 'tooLow',
   })
-})
-
-test('адрес IPv6 узнаётся и со скобками, и без них', () => {
-  assert.equal(isProxyServerAt('::1:7897', '[::1]', 7897), true)
-  assert.equal(isProxyServerAt('[::1]:7897', '::1', 7897), true)
-  assert.equal(isProxyServerAt('::1:7897', '[::1]', 7890), false)
-  assert.equal(isProxyServerAt('::2:7897', '[::1]', 7897), false)
-})
-
-test('обычный адрес сравнивается по хосту и порту по отдельности', () => {
-  assert.equal(isProxyServerAt('127.0.0.1:7897', '127.0.0.1', 7897), true)
-  assert.equal(isProxyServerAt('127.0.0.1:7897', '127.0.0.1', 7898), false)
-  assert.equal(isProxyServerAt('127.0.0.1:78970', '127.0.0.1', 7897), false)
-})
-
-test('без адреса или без действующего порта совпадения нет', () => {
-  assert.equal(isProxyServerAt(undefined, '127.0.0.1', 7897), false)
-  assert.equal(isProxyServerAt('', '127.0.0.1', 7897), false)
-  assert.equal(isProxyServerAt(':7897', '127.0.0.1', 7897), false)
-  assert.equal(isProxyServerAt('127.0.0.1:7897', '127.0.0.1', undefined), false)
 })
 
 test('внешний хост прокси работает только при раздаче в локальную сеть', () => {
