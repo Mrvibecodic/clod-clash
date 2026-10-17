@@ -38,9 +38,7 @@
       "!Cargo.lock",
       "!pnpm-lock.yaml",
       "!README.md",
-      "!.changelog_backups",
       "!.github",
-      "!.pnpm-lock.yaml",
       "!.vfox",
       "!website"
     ]

@@ -3,8 +3,6 @@ allowBuilds:
   core-js: true
   meta-json-schema: true
   unrs-resolver: true
-minimumReleaseAgeExclude:
-  - dayjs@1.11.21
 
 # clod: monaco-editor пинит dompurify ТОЧНОЙ версией 3.2.7, поэтому 18 его
 # advisory (14 moderate + 4 low) бампом самого monaco не закрываются — только

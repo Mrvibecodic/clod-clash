@@ -5,20 +5,14 @@
     "targets": ["deb", "rpm"],
     "linux": {
       "deb": {
-        "depends": ["openssl", "libayatana-appindicator3-1"],
+        "depends": ["libayatana-appindicator3-1"],
         "desktopTemplate": "./packages/linux/clash-verge.desktop",
-        "provides": ["clod-clash"],
-        "conflicts": ["clod-clash"],
-        "replaces": ["clod-clash"],
         "postInstallScript": "./packages/linux/post-install.sh",
         "preRemoveScript": "./packages/linux/pre-remove.sh"
       },
       "rpm": {
-        "depends": ["openssl", "libayatana-appindicator-gtk3"],
+        "depends": ["libayatana-appindicator-gtk3"],
         "desktopTemplate": "./packages/linux/clash-verge.desktop",
-        "provides": ["clod-clash"],
-        "conflicts": ["clod-clash"],
-        "obsoletes": ["clod-clash"],
         "postInstallScript": "./packages/linux/post-install.sh",
         "preRemoveScript": "./packages/linux/pre-remove.sh"
       }
