@@ -48,6 +48,7 @@ export const NOTICE_STATUSES = [
   'tun::setup_started',
   'tun::start_failed',
   'update::breaking_changes',
+  'update::install_failed',
   'update_failed',
   'update_with_clash_proxy',
 ] as const

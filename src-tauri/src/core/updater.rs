@@ -421,38 +421,25 @@ impl SilentUpdater {
 
         Self::show_update_splash(app_handle, &version);
 
-        let install = tokio::time::timeout(std::time::Duration::from_secs(30), Self::install(update, bytes));
-        let success = match install.await {
-            Ok(Ok(())) => {
+        // Без срока: установка ждёт ответа на запрос прав, а человек не обязан
+        // успеть за отведённые секунды.
+        match Self::install(update, bytes).await {
+            Ok(()) => {
                 logging!(info, Type::System, "Update v{version} install triggered at startup");
                 Self::delete_cache();
                 true
             }
-            Ok(Err(e)) => {
+            Err(e) => {
                 logging!(
                     warn,
                     Type::System,
                     "Startup install failed: {e}, will retry next launch"
                 );
+                Self::close_update_splash(app_handle);
+                tell_the_install_failed(&e).await;
                 false
             }
-            Err(_) => {
-                logging!(
-                    warn,
-                    Type::System,
-                    "Startup install timed out (30s), will retry next launch"
-                );
-                false
-            }
-        };
-
-        if !success {
-            Self::close_update_splash(app_handle);
-            crate::utils::notification::notify_event(crate::utils::notification::NotificationEvent::UpdateNotInstalled)
-                .await;
         }
-
-        success
     }
 }
 
@@ -527,6 +514,264 @@ impl SilentUpdater {
     }
 }
 
+/// Установщик обновления не запустился; кто скажет об этом человеку, решает
+/// `tell_the_install_failed`.
+#[derive(Debug)]
+pub struct InstallerNotLaunched {
+    declined: bool,
+}
+
+impl std::fmt::Display for InstallerNotLaunched {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let text = if self.declined {
+            clash_verge_i18n::t!("notifications.updateReady.cancelledNoRights")
+        } else {
+            clash_verge_i18n::t!("notifications.updateReady.launchFailed")
+        };
+        f.write_str(&text)
+    }
+}
+
+impl std::error::Error for InstallerNotLaunched {}
+
+/// Как сказать, что обновление не встало, — одно решение для установки на
+/// старте и из окна: страница слушает — уведомлением в окне, не слушает
+/// (окна ещё нет, облегчённый режим, окно спрятано) — системным уведомлением.
+enum InstallFailureVoice {
+    Page(std::string::String),
+    System(crate::utils::notification::NotificationEvent<'static>),
+}
+
+const INSTALL_FAILED_STATUS: &str = "update::install_failed";
+
+fn install_failure_voice(page_hears: bool, failure: &anyhow::Error) -> InstallFailureVoice {
+    use crate::utils::notification::NotificationEvent;
+    if page_hears {
+        return InstallFailureVoice::Page(crate::cmd::public_error_text(&format!("{failure:#}")).into());
+    }
+    InstallFailureVoice::System(match failure.downcast_ref::<InstallerNotLaunched>() {
+        Some(not_launched) => NotificationEvent::UpdateInstallerNotLaunched {
+            declined: not_launched.declined,
+        },
+        None => NotificationEvent::UpdateNotInstalled,
+    })
+}
+
+async fn tell_the_install_failed(failure: &anyhow::Error) {
+    let page_hears =
+        crate::core::notification::NotificationSystem::the_page_hears(crate::core::handle::Handle::app_handle());
+    match install_failure_voice(page_hears, failure) {
+        InstallFailureVoice::Page(text) => crate::core::handle::Handle::notice_message(INSTALL_FAILED_STATUS, text),
+        InstallFailureVoice::System(event) => crate::utils::notification::notify_event(event).await,
+    }
+}
+
+/// Отказ в правах на запуск: `ERROR_CANCELLED`.
+#[cfg(any(target_os = "windows", test))]
+const ERROR_CANCELLED: u32 = 1223;
+
+#[cfg(any(target_os = "windows", test))]
+#[derive(Debug, PartialEq, Eq)]
+enum AfterTheLaunch {
+    /// Установщик запущен — приложение закрывается, дальше он.
+    Exit,
+    /// Не запущен — приложение остаётся и возвращает снятое уборкой.
+    BringBack { declined: bool },
+}
+
+#[cfg(any(target_os = "windows", test))]
+const fn after_the_launch(launch: std::result::Result<(), u32>) -> AfterTheLaunch {
+    match launch {
+        Ok(()) => AfterTheLaunch::Exit,
+        Err(code) => AfterTheLaunch::BringBack {
+            declined: code == ERROR_CANCELLED,
+        },
+    }
+}
+
+/// Ключи NSIS по режиму установки из `plugins.updater.windows.installMode`
+/// (как у плагина: `/P` — пассивно, `/S` — тихо, `/R` — запустить после).
+#[cfg(any(target_os = "windows", test))]
+fn nsis_mode_args(install_mode: &str) -> &'static [&'static str] {
+    match install_mode {
+        "passive" => &["/P", "/R"],
+        "quiet" => &["/S", "/R"],
+        _ => &[],
+    }
+}
+
+/// Аргумент нашего запуска для `/ARGS` — экранирование как у плагина: в
+/// кавычках при пробеле, табуляции и `/` (иначе NSIS примет его за свой ключ),
+/// обратные косые перед кавычкой удваиваются.
+#[cfg(any(target_os = "windows", test))]
+fn escape_nsis_arg(arg: &str) -> String {
+    let quote = arg.is_empty() || arg.chars().any(|c| c == ' ' || c == '\t' || c == '/');
+    let mut escaped = String::new();
+    if quote {
+        escaped.push('"');
+    }
+    let mut backslashes = 0_usize;
+    for c in arg.chars() {
+        if c == '\\' {
+            backslashes += 1;
+        } else {
+            if c == '"' {
+                escaped.extend(std::iter::repeat_n('\\', backslashes + 1));
+            }
+            backslashes = 0;
+        }
+        escaped.push(c);
+    }
+    if quote {
+        escaped.extend(std::iter::repeat_n('\\', backslashes));
+        escaped.push('"');
+    }
+    escaped
+}
+
+/// Командная строка установщика — та же, что собирал плагин: режим, `/UPDATE`,
+/// `/ARGS` с аргументами нашего запуска, язык.
+#[cfg(any(target_os = "windows", test))]
+fn nsis_parameters(install_mode: &str, current_args: &[String], language_arg: &str) -> String {
+    let mut parameters: Vec<String> = nsis_mode_args(install_mode)
+        .iter()
+        .map(|arg| (*arg).to_owned())
+        .collect();
+    parameters.push("/UPDATE".to_owned());
+    parameters.push("/ARGS".to_owned());
+    parameters.extend(current_args.iter().map(|arg| escape_nsis_arg(arg)));
+    parameters.push(language_arg.to_owned());
+    parameters.join(" ")
+}
+
+/// Установщик на Windows запускаем сами, а не шагом плагина: плагин после
+/// запуска завершает процесс безусловно, и отказ в правах администратора
+/// оставлял человека без приложения и без VPN.
+#[cfg(target_os = "windows")]
+mod windows_installer {
+    use super::{AfterTheLaunch, InstallerNotLaunched, after_the_launch, nsis_language_id, nsis_parameters};
+    use anyhow::{Result, bail};
+    use clash_verge_logging::{Type, logging};
+    use std::os::windows::ffi::OsStrExt as _;
+    use std::path::{Path, PathBuf};
+    use tauri_plugin_updater::Update;
+
+    pub(super) struct Launch {
+        file: PathBuf,
+        parameters: String,
+    }
+
+    fn install_mode() -> String {
+        crate::core::handle::Handle::app_handle()
+            .config()
+            .plugins
+            .0
+            .get("updater")
+            .and_then(|updater| updater.get("windows"))
+            .and_then(|windows| windows.get("installMode"))
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("passive")
+            .to_owned()
+    }
+
+    /// Установщик на диск и его командная строка — до уборки: не вышло здесь,
+    /// снимать и возвращать нечего.
+    pub(super) fn prepare(update: &Update, bytes: &[u8], language: Option<&str>) -> Result<Launch> {
+        if !bytes.starts_with(b"MZ") {
+            bail!("the downloaded update is not a Windows installer");
+        }
+        let app = crate::constants::branding::APP_NAME;
+        let dir = std::env::temp_dir().join(format!("{app}-{}-updater-{}", update.version, std::process::id()));
+        std::fs::create_dir_all(&dir)?;
+        let file = dir.join(format!("{app}-{}-installer.exe", update.version));
+        std::fs::write(&file, bytes)?;
+        let current: Vec<String> = crate::utils::server::without_links(std::env::args_os().skip(1))
+            .into_iter()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect();
+        let language = format!(
+            "/LANG={}",
+            nsis_language_id(&clash_verge_i18n::current_language(language))
+        );
+        Ok(Launch {
+            file,
+            parameters: nsis_parameters(&install_mode(), &current, &language),
+        })
+    }
+
+    fn wide(text: &std::ffi::OsStr) -> Vec<u16> {
+        text.encode_wide().chain(std::iter::once(0)).collect()
+    }
+
+    /// Запуск с повышением прав: вызов возвращается, когда человек ответил на
+    /// запрос и процесс установщика создан (или не создан), — конца установки
+    /// не ждём.
+    fn shell_execute_runas(file: &Path, parameters: &str) -> std::result::Result<(), u32> {
+        use windows_sys::Win32::{
+            Foundation::GetLastError,
+            UI::{Shell::ShellExecuteW, WindowsAndMessaging::SW_SHOW},
+        };
+
+        let verb = wide(std::ffi::OsStr::new("runas"));
+        let file = wide(file.as_os_str());
+        let parameters = wide(std::ffi::OsStr::new(parameters));
+        let instance = unsafe {
+            ShellExecuteW(
+                std::ptr::null_mut(),
+                verb.as_ptr(),
+                file.as_ptr(),
+                parameters.as_ptr(),
+                std::ptr::null(),
+                SW_SHOW,
+            )
+        };
+        // Больше 32 — запущен; иначе код ошибки, а причину (отказ в правах —
+        // ERROR_CANCELLED) говорит GetLastError.
+        let code = instance as isize;
+        if code > 32 {
+            return Ok(());
+        }
+        let last = unsafe { GetLastError() };
+        Err(if last == 0 {
+            u32::try_from(code).unwrap_or(u32::MAX)
+        } else {
+            last
+        })
+    }
+
+    pub(super) fn run(launch: &Launch) -> Result<()> {
+        // Уборка та же, что перед аварийным перезапуском: ядро под службой и
+        // его прокси переживают установку, своё ядро останавливается, прокси
+        // снимается.
+        let we_started_the_exit = crate::feat::tidy_up_before_an_abrupt_end("установкой обновления");
+        let launched = shell_execute_runas(&launch.file, &launch.parameters);
+        match after_the_launch(launched) {
+            AfterTheLaunch::Exit => {
+                logging!(
+                    info,
+                    Type::System,
+                    "установщик обновления запущен, приложение закрывается"
+                );
+                crate::core::handle::Handle::app_handle().cleanup_before_exit();
+                log::logger().flush();
+                std::process::exit(0);
+            }
+            AfterTheLaunch::BringBack { declined } => {
+                logging!(
+                    warn,
+                    Type::System,
+                    "установщик обновления не запустился (код {:?}) — приложение продолжает работать",
+                    launched.err()
+                );
+                if we_started_the_exit {
+                    crate::feat::bring_back_after_a_refused_installer();
+                }
+                Err(InstallerNotLaunched { declined }.into())
+            }
+        }
+    }
+}
+
 #[cfg(target_os = "windows")]
 fn nsis_language_id(app_language: &str) -> &'static str {
     match app_language {
@@ -538,32 +783,10 @@ fn nsis_language_id(app_language: &str) -> &'static str {
 
 fn updater_builder(
     app_handle: &tauri::AppHandle,
-    language: Option<&str>,
     endpoints: Vec<tauri::Url>,
     proxy: Option<&tauri::Url>,
 ) -> Result<tauri_plugin_updater::UpdaterBuilder> {
-    let _ = language;
     let builder = app_handle.updater_builder();
-    #[cfg(target_os = "windows")]
-    let builder = {
-        let lang_id = nsis_language_id(&clash_verge_i18n::current_language(language));
-        // Плагин перед установщиком завершает процесс сам, `exit(0)`, и наш
-        // выход не выполняется: уборка здесь та же, что перед аварийным
-        // перезапуском. Ядро под службой не трогаем — если человек откажет
-        // установщику в правах, процесс всё равно завершится, а VPN должен
-        // это пережить. Ядро, которое служба после установки поднимет сама,
-        // заменит запуск новой копии под службой, а если служба к её старту
-        // ещё не готова — перезапуск ядра, если к проверке порта она уже
-        // готова. Собственный хук плагина (уборка ресурсов Tauri)
-        // заменяется, поэтому зовётся следом.
-        let app = app_handle.clone();
-        builder
-            .installer_arg(format!("/LANG={lang_id}"))
-            .on_before_exit(move || {
-                crate::feat::tidy_up_before_an_abrupt_end("установкой обновления");
-                app.cleanup_before_exit();
-            })
-    };
     // Без прокси — по-настоящему напрямую: иначе запрос молча ушёл бы через
     // системный прокси, если он включён.
     let builder = match proxy {
@@ -577,13 +800,12 @@ fn updater_builder(
 
 async fn check_endpoints(
     app_handle: &tauri::AppHandle,
-    language: Option<&str>,
     endpoints: Vec<tauri::Url>,
     proxy: Option<&tauri::Url>,
 ) -> Result<(Option<Update>, Option<String>)> {
     let served_version: Arc<RwLock<Option<String>>> = Arc::default();
     let recorder = Arc::clone(&served_version);
-    let updater = updater_builder(app_handle, language, endpoints, proxy)?
+    let updater = updater_builder(app_handle, endpoints, proxy)?
         .version_comparator(move |current, release| {
             *recorder.write() = Some(release.version.to_string());
             release.version > current
@@ -596,7 +818,6 @@ async fn check_endpoints(
 
 async fn check_update_on_channel(
     app_handle: &tauri::AppHandle,
-    language: Option<&str>,
     receive_prereleases: bool,
     proxy: Option<&tauri::Url>,
 ) -> Result<Option<Update>> {
@@ -605,14 +826,14 @@ async fn check_update_on_channel(
         // стабильную тоже. Запасной стабильный манифест при сбое этого подсунул бы
         // старую версию — «обновлений нет» вместо ошибки и попытки другим путём.
         let endpoints = parse_endpoints(&[PRERELEASE_UPDATER_ENDPOINT.to_owned()])?;
-        let (found, _) = check_endpoints(app_handle, language, endpoints, proxy).await?;
+        let (found, _) = check_endpoints(app_handle, endpoints, proxy).await?;
         return Ok(found);
     }
 
     let mut last_error = None;
     for endpoint in stable_endpoints(app_handle)? {
         let url = endpoint.to_string();
-        match check_endpoints(app_handle, language, vec![endpoint], proxy).await {
+        match check_endpoints(app_handle, vec![endpoint], proxy).await {
             Ok((found, served)) => {
                 if manifest_answers_channel(served.as_deref(), receive_prereleases) {
                     return Ok(found);
@@ -639,7 +860,6 @@ async fn check_update_on_channel(
 
 pub async fn check_update_with_fallback(app_handle: &tauri::AppHandle) -> Result<Option<Update>> {
     let verge = Config::verge().await.latest_arc();
-    let language = verge.language.clone();
     let receive_prereleases = verge
         .receive_prereleases
         .unwrap_or(crate::config::IVerge::DEFAULT_RECEIVE_PRERELEASES);
@@ -647,7 +867,7 @@ pub async fn check_update_with_fallback(app_handle: &tauri::AppHandle) -> Result
     // запущено — отказ соединения приходит сразу, и дело идёт напрямую.
     let port = crate::config::Config::effective_mixed_port().await;
     let core = tauri::Url::parse(&format!("http://127.0.0.1:{port}"))?;
-    let via_core = check_update_on_channel(app_handle, language.as_deref(), receive_prereleases, Some(&core));
+    let via_core = check_update_on_channel(app_handle, receive_prereleases, Some(&core));
     match within_check_deadline(via_core).await {
         Ok(found) => Ok(found),
         Err(core_error) => {
@@ -656,13 +876,7 @@ pub async fn check_update_with_fallback(app_handle: &tauri::AppHandle) -> Result
                 Type::System,
                 "update check via {core} failed ({core_error}), retrying directly"
             );
-            within_check_deadline(check_update_on_channel(
-                app_handle,
-                language.as_deref(),
-                receive_prereleases,
-                None,
-            ))
-            .await
+            within_check_deadline(check_update_on_channel(app_handle, receive_prereleases, None)).await
         }
     }
 }
@@ -755,11 +969,26 @@ impl SilentUpdater {
         let Some(running) = InstallerRunning::claim() else {
             return Err(anyhow!("another update is being installed right now"));
         };
-        let installed = tokio::task::spawn_blocking(move || running.run(|| update.install(&bytes))).await;
-        Ok(installed??)
+        #[cfg(target_os = "windows")]
+        {
+            let language = Config::verge().await.latest_arc().language.clone();
+            tokio::task::spawn_blocking(move || {
+                running.run(|| {
+                    let launch = windows_installer::prepare(&update, &bytes, language.as_deref())?;
+                    windows_installer::run(&launch)
+                })
+            })
+            .await?
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            let installed = tokio::task::spawn_blocking(move || running.run(|| update.install(&bytes))).await;
+            Ok(installed??)
+        }
     }
 
-    /// Установка из окна обновления. `false` — отменили до запуска установщика;
+    /// Установка из окна обновления. `false` — не поставлено: отменили до
+    /// запуска установщика или установка сорвалась (о срыве уже сказано);
     /// идущую установку отмена уже не останавливает.
     pub async fn install_manually(
         &self,
@@ -797,7 +1026,11 @@ impl SilentUpdater {
         };
 
         logging!(info, Type::System, "Installing update v{version}...");
-        Self::install(update, bytes).await?;
+        if let Err(failure) = Self::install(update, bytes).await {
+            logging!(warn, Type::System, "Update v{version} was not installed: {failure:#}");
+            tell_the_install_failed(&failure).await;
+            return Ok(false);
+        }
         Self::delete_cache();
         Ok(true)
     }
@@ -1023,6 +1256,36 @@ mod tests {
 
     use super::*;
 
+    #[test]
+    fn only_a_launched_installer_lets_the_app_go() {
+        assert_eq!(after_the_launch(Ok(())), AfterTheLaunch::Exit);
+        assert_eq!(
+            after_the_launch(Err(ERROR_CANCELLED)),
+            AfterTheLaunch::BringBack { declined: true }
+        );
+        assert_eq!(after_the_launch(Err(2)), AfterTheLaunch::BringBack { declined: false });
+    }
+
+    #[test]
+    fn the_installer_gets_the_command_line_the_plugin_used_to_build() {
+        let args = vec![
+            "--flag".to_owned(),
+            r"C:\Program Files\x".to_owned(),
+            r#"say "hi""#.to_owned(),
+        ];
+        assert_eq!(
+            nsis_parameters("passive", &args, "/LANG=1049"),
+            r#"/P /R /UPDATE /ARGS --flag "C:\Program Files\x" "say \"hi\"" /LANG=1049"#
+        );
+        assert_eq!(
+            nsis_parameters("basicUi", &[], "/LANG=1033"),
+            "/UPDATE /ARGS /LANG=1033"
+        );
+        assert_eq!(escape_nsis_arg("a/b"), r#""a/b""#);
+        assert_eq!(escape_nsis_arg(""), r#""""#);
+        assert_eq!(escape_nsis_arg(r"a\b"), r"a\b");
+    }
+
     const TEST_PUBKEY: &str = "untrusted comment: minisign public key E7620F1842B4E81F\nRWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3";
     const TEST_SIGNATURE: &str = "untrusted comment: signature from minisign secret key\nRWQf6LRCGA9i59SLOFxz6NxvASXDJeRtuZykwQepbDEGt87ig1BNpWaVWuNrm73YiIiJbq71Wi+dP9eKL8OC351vwIasSSbXxwA=\ntrusted comment: timestamp:1555779966\tfile:test\nQtKMXWyYcwdpZAlPF7tE2ENJkRd1ujvKjlj1m9RtHTBnZPa5WKU5uWRs5GoP5M/VqE81QFuMKI5k/SfNQUaOAA==";
 
@@ -1179,5 +1442,66 @@ mod tests {
     fn test_cache_meta_missing_required_field() {
         let result = serde_json::from_str::<UpdateCacheMeta>(r#"{"version":"2.5.0"}"#);
         assert!(result.is_err());
+    }
+
+    /// Запрос прав на установку ждёт человека: срок на этот шаг слал «не
+    /// удалось», пока запрос ещё был на экране.
+    #[test]
+    fn the_startup_install_waits_for_the_person_as_long_as_it_takes() {
+        let body =
+            crate::utils::source_scan::fn_body(include_str!("updater.rs"), "pub async fn try_install_on_startup(")
+                .unwrap_or_default();
+        assert!(body.contains("Self::install(update, bytes)"), "{body}");
+        assert!(!body.contains("timeout("), "{body}");
+    }
+
+    /// Несостоявшаяся установка говорится один раз и из одного места: запуск
+    /// установщика молчит, а установка на старте и из окна обе зовут
+    /// `tell_the_install_failed`, и ошибкой в окно она больше не уходит.
+    #[test]
+    fn a_refused_installer_is_told_once_on_either_path() {
+        let source = crate::utils::source_scan::production_code(include_str!("updater.rs"));
+        let launch =
+            crate::utils::source_scan::fn_body(source, "pub(super) fn run(launch: &Launch)").unwrap_or_default();
+        assert!(!launch.is_empty(), "тело запуска установщика не найдено — тест ослеп");
+        assert!(!launch.contains("notify_event"), "{launch}");
+        for signature in ["pub async fn try_install_on_startup(", "pub async fn install_manually("] {
+            let body = crate::utils::source_scan::fn_body(source, signature).unwrap_or_default();
+            assert!(body.contains("tell_the_install_failed(&"), "{signature}: {body}");
+            assert!(!body.contains("notify_event"), "{signature}: {body}");
+            assert!(
+                !body.contains("Self::install(update, bytes).await?"),
+                "{signature}: {body}"
+            );
+        }
+    }
+
+    /// Слушает страница — скажет окно (на любом пути), не слушает — системное
+    /// уведомление с причиной: отказ в правах, иной срыв запуска, иной сбой.
+    #[test]
+    fn a_failed_install_is_told_by_the_window_only_while_the_page_hears() {
+        use super::{InstallFailureVoice, InstallerNotLaunched, install_failure_voice};
+        use crate::utils::notification::NotificationEvent;
+        let declined = anyhow::Error::from(InstallerNotLaunched { declined: true });
+        let not_started = anyhow::Error::from(InstallerNotLaunched { declined: false });
+        let other = anyhow::anyhow!("bad signature");
+        for failure in [&declined, &not_started, &other] {
+            assert!(
+                matches!(install_failure_voice(true, failure), InstallFailureVoice::Page(ref text) if !text.is_empty()),
+                "{failure}"
+            );
+        }
+        assert!(matches!(
+            install_failure_voice(false, &declined),
+            InstallFailureVoice::System(NotificationEvent::UpdateInstallerNotLaunched { declined: true })
+        ));
+        assert!(matches!(
+            install_failure_voice(false, &not_started),
+            InstallFailureVoice::System(NotificationEvent::UpdateInstallerNotLaunched { declined: false })
+        ));
+        assert!(matches!(
+            install_failure_voice(false, &other),
+            InstallFailureVoice::System(NotificationEvent::UpdateNotInstalled)
+        ));
     }
 }

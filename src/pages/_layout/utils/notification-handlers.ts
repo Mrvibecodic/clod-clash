@@ -178,6 +178,7 @@ export const handleNoticeMessage = (
         { version: msg },
         0,
       ),
+    'update::install_failed': () => showNotice.error(msg),
     'config_validate::boot_error': () =>
       showNotice.error('shared.feedback.validation.config.bootFailed', msg),
     'config_validate::error': () =>

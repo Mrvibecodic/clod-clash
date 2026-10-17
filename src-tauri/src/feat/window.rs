@@ -204,51 +204,64 @@ fn cancel_the_exit(reason: String) {
         utils::notification::notify_event(utils::notification::NotificationEvent::QuitCancelled).await;
         handle::Handle::notice_message("app_quit::core_still_running", reason);
         lightweight::wake_or_show().await;
-        if let Err(error) = CoreManager::global().resume_after_a_cancelled_exit().await {
-            logging!(
-                error,
-                Type::Core,
-                "после отменённого выхода ядро не поднялось заново: {error:#}"
-            );
-        }
-        // Уборка шла параллельно с остановкой ядра и успела снять то, что
-        // приложению теперь снова нужно. Каждый шаг — пустой, если снимать
-        // было нечего, а вернуть системный прокси может только живое ядро:
-        // без него человеку об этом говорят вслух.
-        crate::feat::tun::bring_back_after_a_cancelled_exit().await;
-        if Config::verge().await.latest_arc().enable_system_proxy.unwrap_or(false) {
-            if matches!(*CoreManager::global().get_running_mode(), RunningMode::NotRunning) {
-                logging!(
-                    error,
-                    Type::Window,
-                    "выход отменён, но ядра нет: системный прокси снят и вернётся, когда ядро поднимется"
-                );
-                handle::Handle::notice_message("sysproxy::core_not_running", "");
-            }
-            CoreManager::global().point_system_proxy_at_the_confirmed_port().await;
-        }
-        #[cfg(target_os = "macos")]
-        crate::utils::resolve::dns::apply_remembered_desire();
-        // Сторож ядра выходит по флагу выхода и сам не возвращается: запуск
-        // ядра его не заводит, если ядро числится живым. Сторож среды на выходе
-        // молчит — здесь только проверка, что он жив.
-        CoreManager::global().watch_the_core_again().await;
-        crate::feat::environment::ensure_environment_watchdog();
-        #[cfg(target_os = "linux")]
-        crate::core::tray::Tray::catch_up_after_a_cancelled_exit();
-        handle::Handle::refresh_clash();
-        handle::Handle::refresh_verge();
-        tokio::time::sleep(Duration::from_secs(1)).await;
-        #[cfg(target_os = "macos")]
-        {
-            let enable_tray_speed = Config::verge().await.latest_arc().enable_tray_speed.unwrap_or(false);
-            crate::core::tray::Tray::global().update_speed_task(enable_tray_speed);
-        }
+        bring_back_what_the_exit_took().await;
     });
 }
 
+/// Установщик обновления не запустился (отказ в правах), а уборка перед ним
+/// уже прошла: приложение остаётся и возвращает снятое — как при отменённом
+/// выходе.
+#[cfg(target_os = "windows")]
+pub fn bring_back_after_a_refused_installer() {
+    handle::Handle::global().clear_is_exiting();
+    AsyncHandler::spawn(bring_back_what_the_exit_took);
+}
+
+async fn bring_back_what_the_exit_took() {
+    if let Err(error) = CoreManager::global().resume_after_a_cancelled_exit().await {
+        logging!(
+            error,
+            Type::Core,
+            "после отменённого выхода ядро не поднялось заново: {error:#}"
+        );
+    }
+    // Уборка шла параллельно с остановкой ядра и успела снять то, что
+    // приложению теперь снова нужно. Каждый шаг — пустой, если снимать
+    // было нечего, а вернуть системный прокси может только живое ядро:
+    // без него человеку об этом говорят вслух.
+    crate::feat::tun::bring_back_after_a_cancelled_exit().await;
+    if Config::verge().await.latest_arc().enable_system_proxy.unwrap_or(false) {
+        if matches!(*CoreManager::global().get_running_mode(), RunningMode::NotRunning) {
+            logging!(
+                error,
+                Type::Window,
+                "выход отменён, но ядра нет: системный прокси снят и вернётся, когда ядро поднимется"
+            );
+            handle::Handle::notice_message("sysproxy::core_not_running", "");
+        }
+        CoreManager::global().point_system_proxy_at_the_confirmed_port().await;
+    }
+    #[cfg(target_os = "macos")]
+    crate::utils::resolve::dns::apply_remembered_desire();
+    // Сторож ядра выходит по флагу выхода и сам не возвращается: запуск
+    // ядра его не заводит, если ядро числится живым. Сторож среды на выходе
+    // молчит — здесь только проверка, что он жив.
+    CoreManager::global().watch_the_core_again().await;
+    crate::feat::environment::ensure_environment_watchdog();
+    #[cfg(target_os = "linux")]
+    crate::core::tray::Tray::catch_up_after_a_cancelled_exit();
+    handle::Handle::refresh_clash();
+    handle::Handle::refresh_verge();
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    #[cfg(target_os = "macos")]
+    {
+        let enable_tray_speed = Config::verge().await.latest_arc().enable_tray_speed.unwrap_or(false);
+        crate::core::tray::Tray::global().update_speed_task(enable_tray_speed);
+    }
+}
+
 /// Перед аварийным перезапуском при зависшем окне и перед установщиком
-/// обновления (плагин завершает процесс сам) настройки сохраняются
+/// обновления (после его запуска процесс завершается) настройки сохраняются
 /// всегда. Ядро под службой перезапуск переживает, прокси и туннель остаются
 /// рабочими, и снимать их значило бы пустить трафик напрямую. Во всех прочих
 /// случаях прокси после нас укажет в никуда: он снимается, а своё ядро
@@ -274,21 +287,22 @@ const TIDY_UP_BUDGET: Duration = Duration::from_secs(6);
 
 /// `tidy_up_for_a_forced_restart` с потока, который сам ждать асинхронно не
 /// может и за которым процесс завершится не нашим выходом (сторож окна перед
-/// перезапуском, хук апдейтера перед установщиком). Ждём её по часам, чтобы то,
+/// перезапуском, запуск установщика обновления). Ждём её по часам, чтобы то,
 /// что в ней встало, не остановило перезапуск. Если выход уже идёт, у него своя
 /// уборка — вторую поверх не запускаем, а даём первой закончить.
 ///
-/// Хук апдейтера зовётся синхронно из потока `spawn_blocking`, где идёт любая
+/// Запуск установщика зовёт её синхронно из потока `spawn_blocking`, где идёт любая
 /// установка. Если бы его позвали с рабочего потока tokio, `block_in_place`
 /// отдал бы этот поток рантайму — вместе с задачами из его LIFO-слота и
 /// драйверами таймеров, — иначе порождённая здесь уборка не начиналась бы.
 /// Вне рабочего потока (поток установки, сторож окна) он просто выполняет
 /// ожидание.
+/// `false` — выход уже шёл не от нас, и уборку делает он.
 #[cfg(target_os = "windows")]
-pub fn tidy_up_before_an_abrupt_end(what: &str) {
+pub fn tidy_up_before_an_abrupt_end(what: &str) -> bool {
     if !handle::Handle::global().begin_exiting(false) {
         std::thread::sleep(TIDY_UP_BUDGET);
-        return;
+        return false;
     }
     // Таймер создаётся внутри future: вне рантайма (сторож окна) его нельзя
     // построить до того, как `block_on` в рантайм вошёл.
@@ -308,6 +322,7 @@ pub fn tidy_up_before_an_abrupt_end(what: &str) {
             TIDY_UP_BUDGET.as_secs()
         ),
     }
+    true
 }
 
 pub struct CleanupOutcome {

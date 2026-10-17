@@ -208,14 +208,19 @@ impl NotificationSystem {
     /// страница сейчас не слушает, подписка запоминается, и страница спросит
     /// отказ заново, когда её покажут.
     pub fn keep_device_refusal_until_seen(app_handle: &AppHandle, uid: &str) {
-        let window_exists = app_handle.get_webview_window("main").is_some();
-        if can_reach_the_page(FRONTEND_LISTENING.load(Ordering::Acquire), window_exists) {
+        if Self::the_page_hears(app_handle) {
             return;
         }
         let mut unseen = unseen_device_refusals();
         if !unseen.iter().any(|held| held == uid) {
             unseen.push(uid.to_owned());
         }
+    }
+
+    /// Страница на месте и слушает: сказанное ей сейчас человек увидит.
+    pub fn the_page_hears(app_handle: &AppHandle) -> bool {
+        let window_exists = app_handle.get_webview_window("main").is_some();
+        can_reach_the_page(FRONTEND_LISTENING.load(Ordering::Acquire), window_exists)
     }
 
     pub fn take_unseen_device_refusals() -> Vec<std::string::String> {
@@ -422,6 +427,7 @@ mod tests {
         "tun::setup_started",
         "tun::start_failed",
         "update::breaking_changes",
+        "update::install_failed",
         "update_failed",
         "update_with_clash_proxy",
     ];

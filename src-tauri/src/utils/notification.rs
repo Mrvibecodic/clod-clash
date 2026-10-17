@@ -19,6 +19,10 @@ pub enum NotificationEvent<'a> {
     SysproxyLeftBehind,
     /// Человек согласился поставить обновление на старте, а установка сорвалась.
     UpdateNotInstalled,
+    /// Установщик обновления не запустился: отказ в правах или иная ошибка.
+    UpdateInstallerNotLaunched {
+        declined: bool,
+    },
     /// Обновлённое ядро упало вскоре после обновления, возвращено прежнее.
     CoreUpdateRolledBack,
     /// Выбранного адреса для системного прокси у машины сейчас нет.
@@ -115,6 +119,15 @@ pub async fn notify_event<'a>(event: NotificationEvent<'a>) {
         NotificationEvent::CoreUpdateRolledBack => {
             let title = clash_verge_i18n::t!("tray.tooltip.core");
             let body = clash_verge_i18n::t!("notifications.coreUpdateRolledBack.body");
+            notify(title, body);
+        }
+        NotificationEvent::UpdateInstallerNotLaunched { declined } => {
+            let title = clash_verge_i18n::t!("notifications.updateReady.title");
+            let body = if declined {
+                clash_verge_i18n::t!("notifications.updateReady.cancelledNoRights")
+            } else {
+                clash_verge_i18n::t!("notifications.updateReady.launchFailed")
+            };
             notify(title, body);
         }
         NotificationEvent::UpdateNotInstalled => {

@@ -42,6 +42,8 @@ notifications:
     later: 稍后
     installing: Installing the update…
     notInstalled: The update could not be installed. We will try again at the next launch.
+    cancelledNoRights: "The update was cancelled: no administrator rights. The app keeps running."
+    launchFailed: The update installer could not be started. The app keeps running.
   logOpenFailed:
     title: Log
     body: "The log file could not be opened. Look for it in {path}."
