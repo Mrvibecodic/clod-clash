@@ -29,13 +29,13 @@ use crate::{
 };
 use anyhow::Result;
 use clash_verge_logging::{Type, logging};
-use once_cell::sync::OnceCell;
+use std::sync::OnceLock;
 use tauri::{AppHandle, Manager as _};
 #[cfg(target_os = "macos")]
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_deep_link::DeepLinkExt as _;
 
-pub static APP_HANDLE: OnceCell<AppHandle> = OnceCell::new();
+pub static APP_HANDLE: OnceLock<AppHandle> = OnceLock::new();
 
 async fn resolve_deep_link_urls<'a>(urls: impl Iterator<Item = &'a str>) {
     for url in urls {

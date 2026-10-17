@@ -6,15 +6,14 @@ use crate::{
 };
 use anyhow::{Result, bail};
 use clash_verge_logging::{Type, logging, logging_error};
-use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
 use reqwest::ClientBuilder;
 use smartstring::alias::String;
-use std::time::Duration;
+use std::{sync::OnceLock, time::Duration};
 use tokio::sync::oneshot;
 use warp::Filter as _;
 
-static SHUTDOWN_SENDER: OnceCell<Mutex<Option<oneshot::Sender<()>>>> = OnceCell::new();
+static SHUTDOWN_SENDER: OnceLock<Mutex<Option<oneshot::Sender<()>>>> = OnceLock::new();
 
 /// Порт одиночного экземпляра держится с самой проверки: слушатель, занявший
 /// его, доживает здесь до запуска встроенного сервера.
@@ -37,7 +36,7 @@ const PENDING_LINK_FILE: &str = "pending-link";
 /// дотянется, а до файла — нет. PAC остаётся открытым — его берёт браузер.
 const INSTANCE_TOKEN_FILE: &str = "instance-token";
 const INSTANCE_TOKEN_HEADER: &str = "x-instance-token";
-static INSTANCE_TOKEN: OnceCell<std::string::String> = OnceCell::new();
+static INSTANCE_TOKEN: OnceLock<std::string::String> = OnceLock::new();
 
 /// Первый экземпляр занимает порт сразу, а отвечать начинает только после
 /// инициализации: второй ждёт его ответа, а не считает порт чужим.

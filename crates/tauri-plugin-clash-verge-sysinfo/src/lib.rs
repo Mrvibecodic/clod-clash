@@ -1,7 +1,5 @@
 #[cfg(windows)]
 use deelevate::{PrivilegeLevel, Token};
-#[cfg(unix)]
-pub use libc;
 use sysinfo::Networks;
 use tauri::{
     Manager as _, Runtime,

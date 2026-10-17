@@ -8,7 +8,6 @@ pub use lifecycle::ExitStop;
 use anyhow::Result;
 use arc_swap::ArcSwapOption;
 use clash_verge_logger::AsyncLogger;
-use once_cell::sync::Lazy;
 use std::{
     fmt,
     sync::{
@@ -22,7 +21,7 @@ use crate::singleton;
 #[cfg(target_os = "windows")]
 use std::os::windows::io::OwnedHandle;
 
-pub(crate) static CLASH_LOGGER: Lazy<Arc<AsyncLogger>> = Lazy::new(|| Arc::new(AsyncLogger::new()));
+pub(crate) static CLASH_LOGGER: LazyLock<Arc<AsyncLogger>> = LazyLock::new(|| Arc::new(AsyncLogger::new()));
 
 #[derive(Debug, serde::Serialize, PartialEq, Eq)]
 pub enum RunningMode {

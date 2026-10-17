@@ -7,6 +7,7 @@ use crate::{
 };
 use anyhow::Result;
 use clash_verge_logging::{Type, logging, logging_error};
+use futures::StreamExt as _;
 use parking_lot::{Mutex, RwLock};
 use smartstring::alias::String;
 use std::{
@@ -21,7 +22,6 @@ use tokio::{
     sync::mpsc,
     time::{sleep, timeout},
 };
-use tokio_stream::StreamExt as _;
 use tokio_util::time::{DelayQueue, delay_queue::Key};
 
 /// clod: запас после срока из `subscription-userinfo`, прежде чем спрашивать

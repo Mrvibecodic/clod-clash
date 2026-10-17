@@ -1,11 +1,9 @@
 use crate::core::{CoreManager, handle, manager::RunningMode};
 use anyhow::Result;
-use async_trait::async_trait;
 use clash_verge_logging::{Type, logging};
-use once_cell::sync::OnceCell;
 #[cfg(unix)]
 use std::path::Path;
-use std::{fs, path::PathBuf};
+use std::{fs, path::PathBuf, sync::OnceLock};
 use tauri::Manager as _;
 
 #[cfg(not(feature = "verge-dev"))]
@@ -18,7 +16,7 @@ pub static APP_ID: &str = "io.clodclash.app.dev";
 #[cfg(feature = "verge-dev")]
 pub static BACKUP_DIR: &str = "clod-clash-backup-dev";
 
-pub static PORTABLE_FLAG: OnceCell<bool> = OnceCell::new();
+pub static PORTABLE_FLAG: OnceLock<bool> = OnceLock::new();
 
 pub static CLASH_CONFIG: &str = "config.yaml";
 pub static VERGE_CONFIG: &str = "verge.yaml";
@@ -256,7 +254,7 @@ fn ipc_base_dirs() -> Vec<PathBuf> {
 fn owner_ipc_suffix() -> String {
     crate::core::owner_identity::current_owner_identity()
         .map(|identity| clash_verge_service_ipc::owner_key(&identity))
-        .unwrap_or_else(|_| unsafe { tauri_plugin_clash_verge_sysinfo::libc::geteuid() }.to_string())
+        .unwrap_or_else(|_| unsafe { libc::geteuid() }.to_string())
 }
 
 #[cfg(unix)]
@@ -273,7 +271,7 @@ fn ensure_private_dir(dir: &Path) -> Result<()> {
     if !meta.is_dir() {
         anyhow::bail!("{dir:?} занят не каталогом");
     }
-    if meta.uid() != unsafe { tauri_plugin_clash_verge_sysinfo::libc::geteuid() } {
+    if meta.uid() != unsafe { libc::geteuid() } {
         anyhow::bail!("{dir:?} принадлежит другому пользователю");
     }
     fs::set_permissions(dir, fs::Permissions::from_mode(0o700))?;
@@ -342,12 +340,10 @@ pub fn service_ipc_path() -> Result<PathBuf> {
         &crate::core::owner_identity::current_owner_identity()?,
     )))
 }
-#[async_trait]
 pub trait PathBufExec {
     async fn remove_if_exists(&self) -> Result<()>;
 }
 
-#[async_trait]
 impl PathBufExec for PathBuf {
     async fn remove_if_exists(&self) -> Result<()> {
         if self.exists() {

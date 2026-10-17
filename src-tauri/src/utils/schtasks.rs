@@ -5,7 +5,7 @@ use std::fs;
 use std::os::windows::process::CommandExt as _;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
-use windows::Win32::Globalization::{GetACP, GetOEMCP, MULTI_BYTE_TO_WIDE_CHAR_FLAGS, MultiByteToWideChar};
+use windows_sys::Win32::Globalization::{GetACP, GetOEMCP, MultiByteToWideChar};
 
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 const TASK_NAME_USER: &str = "Clod Clash";
@@ -238,19 +238,15 @@ fn decode_with_code_page(bytes: &[u8], code_page: u32) -> Option<String> {
         return Some(String::new());
     }
 
-    let len = bytes.len();
-    if len > i32::MAX as usize {
-        return None;
-    }
-
-    let required = unsafe { MultiByteToWideChar(code_page, MULTI_BYTE_TO_WIDE_CHAR_FLAGS(0), bytes, None) };
+    let len = i32::try_from(bytes.len()).ok()?;
+    let required = unsafe { MultiByteToWideChar(code_page, 0, bytes.as_ptr(), len, std::ptr::null_mut(), 0) };
 
     if required <= 0 {
         return None;
     }
 
     let mut wide = vec![0u16; required as usize];
-    let written = unsafe { MultiByteToWideChar(code_page, MULTI_BYTE_TO_WIDE_CHAR_FLAGS(0), bytes, Some(&mut wide)) };
+    let written = unsafe { MultiByteToWideChar(code_page, 0, bytes.as_ptr(), len, wide.as_mut_ptr(), required) };
 
     if written <= 0 {
         return None;

@@ -676,10 +676,10 @@ impl CoreManager {
         // файлы соседних потоков создаются с той же маской.
         let (mut rx, child) = {
             #[cfg(unix)]
-            let previous_mask = unsafe { tauri_plugin_clash_verge_sysinfo::libc::umask(0o077) };
+            let previous_mask = unsafe { libc::umask(0o077) };
             #[cfg(unix)]
             defer! {
-                unsafe { tauri_plugin_clash_verge_sysinfo::libc::umask(previous_mask) };
+                unsafe { libc::umask(previous_mask) };
             }
             command.spawn()?
         };
@@ -1194,7 +1194,7 @@ mod core_cache_tests {
 
     #[test]
     fn a_cache_the_user_cannot_write_is_discarded() {
-        if unsafe { tauri_plugin_clash_verge_sysinfo::libc::geteuid() } == 0 {
+        if unsafe { libc::geteuid() } == 0 {
             return;
         }
         let root = scratch("unwritable");

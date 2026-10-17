@@ -15,7 +15,6 @@ use clash_verge_service_ipc::{
     ServiceErrorCode, ServiceStatusSnapshot, StageRuntimeOutcome, StartClashRequest, WriterConfig,
 };
 use compact_str::CompactString;
-use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use scopeguard::defer;
 use std::{
@@ -24,12 +23,15 @@ use std::{
     future::Future,
     path::{Path, PathBuf},
     process::Command as StdCommand,
-    sync::atomic::{AtomicBool, Ordering},
+    sync::{
+        LazyLock,
+        atomic::{AtomicBool, Ordering},
+    },
     time::{Duration, Instant},
 };
 use tokio::sync::Notify;
 
-static ACTIVE_SERVICE_SESSION: Lazy<Mutex<Option<ActiveServiceSession>>> = Lazy::new(|| Mutex::new(None));
+static ACTIVE_SERVICE_SESSION: LazyLock<Mutex<Option<ActiveServiceSession>>> = LazyLock::new(|| Mutex::new(None));
 
 #[derive(Clone)]
 struct ActiveServiceSession {
@@ -89,8 +91,8 @@ impl std::fmt::Display for ElevationPending {
 impl std::error::Error for ElevationPending {}
 
 static ELEVATION_IN_FLIGHT: AtomicBool = AtomicBool::new(false);
-static BUNDLE_REJECTION: Lazy<Mutex<Option<crate::core::runtime_bundle::UnusableBundle>>> =
-    Lazy::new(|| Mutex::new(None));
+static BUNDLE_REJECTION: LazyLock<Mutex<Option<crate::core::runtime_bundle::UnusableBundle>>> =
+    LazyLock::new(|| Mutex::new(None));
 
 pub(crate) fn bundle_rejection() -> Option<String> {
     BUNDLE_REJECTION
@@ -1595,7 +1597,7 @@ pub fn was_uninstalled_this_session() -> bool {
     UNINSTALLED_THIS_SESSION.load(Ordering::Acquire)
 }
 
-pub static SERVICE_MANAGER: Lazy<ServiceManager> = Lazy::new(|| ServiceManager {
+pub static SERVICE_MANAGER: LazyLock<ServiceManager> = LazyLock::new(|| ServiceManager {
     status: Mutex::new(ServiceStatus::Unavailable("Need Checks".into())),
     operation_running: AtomicBool::new(false),
     operation_started: Mutex::new(None),

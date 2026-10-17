@@ -6,10 +6,12 @@ use crate::{
 };
 use anyhow::Result;
 use clash_verge_logging::{Type, logging};
-use once_cell::sync::OnceCell;
 use std::{
     path::PathBuf,
-    sync::atomic::{AtomicBool, Ordering},
+    sync::{
+        OnceLock,
+        atomic::{AtomicBool, Ordering},
+    },
     time::{Duration, UNIX_EPOCH},
 };
 use tokio::{fs, sync::watch};
@@ -57,7 +59,7 @@ pub struct AutoBackupManager {
 
 impl AutoBackupManager {
     pub fn global() -> &'static Self {
-        static INSTANCE: OnceCell<AutoBackupManager> = OnceCell::new();
+        static INSTANCE: OnceLock<AutoBackupManager> = OnceLock::new();
         INSTANCE.get_or_init(|| {
             let (tx, _rx) = watch::channel(AutoBackupSettings::default());
             Self {
