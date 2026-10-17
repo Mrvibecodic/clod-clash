@@ -21,16 +21,9 @@ const arch = target ? ARCH_MAP[target] : PROCESS_MAP[process.arch]
 async function resolvePortable() {
   if (process.platform !== 'win32') return
 
-  // clod: the fork's cargo workspace lives at the repo root, so the build
-  // lands in ./target; keep the upstream location as a fallback.
-  const releaseDirCandidates = target
-    ? [`./target/${target}/release`, `./src-tauri/target/${target}/release`]
-    : [`./target/release`, `./src-tauri/target/release`]
-  const releaseDir = releaseDirCandidates.find((dir) => fs.existsSync(dir))
-  if (!releaseDir) {
-    throw new Error(
-      `could not find the release dir (checked: ${releaseDirCandidates.join(', ')})`,
-    )
+  const releaseDir = target ? `./target/${target}/release` : './target/release'
+  if (!fs.existsSync(releaseDir)) {
+    throw new Error(`could not find the release dir ${releaseDir}`)
   }
   const configDir = path.join(releaseDir, '.config')
 

@@ -6,8 +6,6 @@ import path from 'path'
 import zlib from 'zlib'
 
 import AdmZip from 'adm-zip'
-import { glob } from 'glob'
-import { HttpsProxyAgent } from 'https-proxy-agent'
 import { extract } from 'tar'
 
 import { log_debug, log_error, log_info, log_success } from './utils.mjs'
@@ -16,7 +14,7 @@ import { log_debug, log_error, log_info, log_success } from './utils.mjs'
  * Prebuild script with optimization features:
  * 1. Skip downloading mihomo core if it already exists (unless --force is used)
  * 2. Cache version information for 1 hour to avoid repeated version checks
- * 3. Use file hash to detect changes and skip unnecessary chmod/copy operations
+ * 3. Use file hash to detect changes and skip unnecessary copy operations
  * 4. Use --force or -f flag to force re-download and update all resources
  *
  */
@@ -29,29 +27,19 @@ const HASH_CACHE_FILE = path.join(TEMP_DIR, '.hash_cache.json')
 
 const PLATFORM_MAP = {
   'x86_64-pc-windows-msvc': 'win32',
-  'i686-pc-windows-msvc': 'win32',
   'aarch64-pc-windows-msvc': 'win32',
   'x86_64-apple-darwin': 'darwin',
   'aarch64-apple-darwin': 'darwin',
   'x86_64-unknown-linux-gnu': 'linux',
-  'i686-unknown-linux-gnu': 'linux',
   'aarch64-unknown-linux-gnu': 'linux',
-  'armv7-unknown-linux-gnueabihf': 'linux',
-  'riscv64gc-unknown-linux-gnu': 'linux',
-  'loongarch64-unknown-linux-gnu': 'linux',
 }
 const ARCH_MAP = {
   'x86_64-pc-windows-msvc': 'x64',
-  'i686-pc-windows-msvc': 'ia32',
   'aarch64-pc-windows-msvc': 'arm64',
   'x86_64-apple-darwin': 'x64',
   'aarch64-apple-darwin': 'arm64',
   'x86_64-unknown-linux-gnu': 'x64',
-  'i686-unknown-linux-gnu': 'ia32',
   'aarch64-unknown-linux-gnu': 'arm64',
-  'armv7-unknown-linux-gnueabihf': 'arm',
-  'riscv64gc-unknown-linux-gnu': 'riscv64',
-  'loongarch64-unknown-linux-gnu': 'loong64',
 }
 
 const arg1 = process.argv.slice(2)[0]
@@ -175,12 +163,10 @@ async function updateHashCache(targetPath) {
 const CLOD_URL_PREFIX =
   'https://github.com/Mrvibecodic/clod-core/releases/latest/download'
 const CLOD_VERSION_URL = `${CLOD_URL_PREFIX}/version.txt`
-let CLOD_VERSION
 
 const META_VERSION_URL =
   'https://github.com/MetaCubeX/mihomo/releases/latest/download/version.txt'
 const META_URL_PREFIX = `https://github.com/MetaCubeX/mihomo/releases/download`
-let META_VERSION
 
 // Имена как в CI clod-core: amd64 без уровня GOAMD64 (все сборки — v1)
 const CLOD_MAP = {
@@ -194,81 +180,31 @@ const CLOD_MAP = {
 
 const META_MAP = {
   'win32-x64': 'mihomo-windows-amd64-v2',
-  'win32-ia32': 'mihomo-windows-386',
   'win32-arm64': 'mihomo-windows-arm64',
   'darwin-x64': 'mihomo-darwin-amd64-v2-go122',
   'darwin-arm64': 'mihomo-darwin-arm64-go122',
   'linux-x64': 'mihomo-linux-amd64-v2',
-  'linux-ia32': 'mihomo-linux-386',
   'linux-arm64': 'mihomo-linux-arm64',
-  'linux-arm': 'mihomo-linux-armv7',
-  'linux-riscv64': 'mihomo-linux-riscv64',
-  'linux-loong64': 'mihomo-linux-loong64',
 }
 
 // =======================
 // Fetch latest versions
 // =======================
-async function getLatestClodVersion() {
+async function getLatestVersion(cacheKey, url, label) {
   if (!FORCE) {
-    const cached = await getCachedVersion('CLOD_VERSION')
-    if (cached) {
-      CLOD_VERSION = cached
-      return
-    }
+    const cached = await getCachedVersion(cacheKey)
+    if (cached) return cached
   }
-  const options = {}
-  const httpProxy =
-    process.env.HTTP_PROXY ||
-    process.env.http_proxy ||
-    process.env.HTTPS_PROXY ||
-    process.env.https_proxy
-  if (httpProxy) options.agent = new HttpsProxyAgent(httpProxy)
-
   try {
-    const response = await fetch(CLOD_VERSION_URL, {
-      ...options,
-      method: 'GET',
-    })
+    const response = await fetch(url)
     if (!response.ok)
-      throw new Error(`Failed to fetch ${CLOD_VERSION_URL}: ${response.status}`)
-    CLOD_VERSION = (await response.text()).trim()
-    log_info(`Latest Clod Core version: ${CLOD_VERSION}`)
-    await setCachedVersion('CLOD_VERSION', CLOD_VERSION)
+      throw new Error(`Failed to fetch ${url}: ${response.status}`)
+    const version = (await response.text()).trim()
+    log_info(`Latest ${label} version: ${version}`)
+    await setCachedVersion(cacheKey, version)
+    return version
   } catch (err) {
-    log_error('Error fetching latest Clod Core version:', err.message)
-    throw err
-  }
-}
-
-async function getLatestReleaseVersion() {
-  if (!FORCE) {
-    const cached = await getCachedVersion('META_VERSION')
-    if (cached) {
-      META_VERSION = cached
-      return
-    }
-  }
-  const options = {}
-  const httpProxy =
-    process.env.HTTP_PROXY ||
-    process.env.http_proxy ||
-    process.env.HTTPS_PROXY ||
-    process.env.https_proxy
-  if (httpProxy) options.agent = new HttpsProxyAgent(httpProxy)
-
-  try {
-    const response = await fetch(META_VERSION_URL, {
-      ...options,
-      method: 'GET',
-    })
-    if (!response.ok)
-      throw new Error(`Failed to fetch ${META_VERSION_URL}: ${response.status}`)
-    META_VERSION = (await response.text()).trim()
-    log_info(`Latest release version: ${META_VERSION}`)
-    await setCachedVersion('META_VERSION', META_VERSION)
-  } catch (err) {
-    log_error('Error fetching latest release version:', err.message)
+    log_error(`Error fetching latest ${label} version:`, err.message)
     throw err
   }
 }
@@ -286,7 +222,7 @@ if (!CLOD_MAP[`${platform}-${arch}`]) {
 // =======================
 // Build meta objects
 // =======================
-function clodCore() {
+function clodCore(version) {
   const name = CLOD_MAP[`${platform}-${arch}`]
   const isWin = platform === 'win32'
   const urlExt = isWin ? 'zip' : 'gz'
@@ -294,12 +230,12 @@ function clodCore() {
     name: 'verge-mihomo-alpha',
     targetFile: `verge-mihomo-alpha-${SIDECAR_HOST}${isWin ? '.exe' : ''}`,
     exeFile: `${name}${isWin ? '.exe' : ''}`,
-    zipFile: `${name}-${CLOD_VERSION}.${urlExt}`,
-    downloadURL: `${CLOD_URL_PREFIX}/${name}-${CLOD_VERSION}.${urlExt}`,
+    zipFile: `${name}-${version}.${urlExt}`,
+    downloadURL: `${CLOD_URL_PREFIX}/${name}-${version}.${urlExt}`,
   }
 }
 
-function clashMeta() {
+function clashMeta(version) {
   const name = META_MAP[`${platform}-${arch}`]
   const isWin = platform === 'win32'
   const urlExt = isWin ? 'zip' : 'gz'
@@ -307,8 +243,8 @@ function clashMeta() {
     name: 'verge-mihomo',
     targetFile: `verge-mihomo-${SIDECAR_HOST}${isWin ? '.exe' : ''}`,
     exeFile: `${name}${isWin ? '.exe' : ''}`,
-    zipFile: `${name}-${META_VERSION}.${urlExt}`,
-    downloadURL: `${META_URL_PREFIX}/${META_VERSION}/${name}-${META_VERSION}.${urlExt}`,
+    zipFile: `${name}-${version}.${urlExt}`,
+    downloadURL: `${META_URL_PREFIX}/${version}/${name}-${version}.${urlExt}`,
   }
 }
 
@@ -316,17 +252,7 @@ function clashMeta() {
 // download helper (расширено: status + magic bytes)
 // =======================
 async function downloadFile(url, outPath) {
-  const options = {}
-  const httpProxy =
-    process.env.HTTP_PROXY ||
-    process.env.http_proxy ||
-    process.env.HTTPS_PROXY ||
-    process.env.https_proxy
-  if (httpProxy) options.agent = new HttpsProxyAgent(httpProxy)
-
   const response = await fetch(url, {
-    ...options,
-    method: 'GET',
     headers: { 'Content-Type': 'application/octet-stream' },
   })
   if (!response.ok) {
@@ -341,7 +267,7 @@ async function downloadFile(url, outPath) {
   await fsp.mkdir(path.dirname(outPath), { recursive: true })
 
   // Простая проверка magic bytes
-  if (url.endsWith('.gz') || url.endsWith('.tgz')) {
+  if (url.endsWith('.gz')) {
     if (!(buf[0] === 0x1f && buf[1] === 0x8b)) {
       await fsp.writeFile(outPath, buf)
       throw new Error(
@@ -361,54 +287,8 @@ async function downloadFile(url, outPath) {
   log_success(`download finished: ${url}`)
 }
 
-/**
- * clod: то же скачивание, но с лесенкой попыток.
- *
- * Релиз 0.0.21 упал ровно на этом: sourceforge отдал 403 на плагин NSIS —
- * не «нельзя», а «сейчас нельзя» (тот же URL из той же сети отвечал 200 через
- * минуту). Одна сетевая заминка не должна стоить 35-минутной пересборки всех
- * трёх платформ.
- *
- * `sha256` — если известен, файл сверяется с ним: битая или подменённая
- * закачка считается неудачной попыткой, а не поводом собрать инсталлятор
- * непонятно с чем.
- */
-async function downloadFileWithRetry(
-  url,
-  outPath,
-  { sha256, attempts = 5 } = {},
-) {
-  let lastError
-  for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    try {
-      await downloadFile(url, outPath)
-      if (sha256) {
-        const actual = createHash('sha256')
-          .update(await fsp.readFile(outPath))
-          .digest('hex')
-        if (actual !== sha256) {
-          throw new Error(
-            `Checksum mismatch for ${url}: expected ${sha256}, got ${actual}`,
-          )
-        }
-      }
-      return
-    } catch (error) {
-      lastError = error
-      await fsp.rm(outPath, { force: true })
-      if (attempt === attempts) break
-      const pause = attempt * 3000
-      log_error(
-        `${error}; retrying in ${pause / 1000}s (${attempt}/${attempts})`,
-      )
-      await new Promise((resolve) => setTimeout(resolve, pause))
-    }
-  }
-  throw lastError
-}
-
 // =======================
-// resolveSidecar (поддержка zip / tgz / gz)
+// resolveSidecar (поддержка zip / gz)
 // =======================
 async function resolveSidecar(binInfo) {
   const { name, targetFile, zipFile, exeFile, downloadURL } = binInfo
@@ -463,24 +343,6 @@ async function resolveSidecar(binInfo) {
       }
       if (platform !== 'win32') await fsp.chmod(sidecarPath, 0o755)
       log_success(`unzip finished: "${name}"`)
-    } else if (zipFile.endsWith('.tgz')) {
-      await extract({ cwd: tempDir, file: tempZip })
-      const files = await fsp.readdir(tempDir)
-      log_debug(`"${name}" extracted files:`, files)
-      // Сначала ищем заданный exeFile или известный префикс. «虚空终端» —
-      // самоназвание mihomo в его релизах: это имя файла в архиве, а не
-      // текст для пользователя, переводить нельзя.
-      let extracted = files.find(
-        (f) =>
-          f === path.basename(exeFile) ||
-          f.startsWith('虚空终端-') ||
-          !f.includes('.'),
-      )
-      if (!extracted) extracted = files[0]
-      if (!extracted) throw new Error(`Expected file not found in ${tempDir}`)
-      await fsp.rename(path.join(tempDir, extracted), sidecarPath)
-      await fsp.chmod(sidecarPath, 0o755)
-      log_success(`tgz processed: "${name}"`)
     } else {
       // .gz
       const readStream = fs.createReadStream(tempZip)
@@ -519,11 +381,6 @@ async function resolveResource(binInfo) {
   const { file, downloadURL, localPath, dir } = binInfo
   const baseDir = dir ?? RESOURCES_DIR
   const targetPath = path.join(baseDir, file)
-
-  if (!FORCE && fs.existsSync(targetPath) && !downloadURL && !localPath) {
-    log_success(`"${file}" already exists, skipping`)
-    return
-  }
 
   if (downloadURL) {
     if (!FORCE && fs.existsSync(targetPath)) {
@@ -570,7 +427,15 @@ const resolvePlugin = async () => {
   if (!FORCE && fs.existsSync(pluginPath)) return
   try {
     if (!fs.existsSync(tempZip)) {
-      await downloadFileWithRetry(url, tempZip, { sha256 })
+      await downloadFile(url, tempZip)
+    }
+    const actual = createHash('sha256')
+      .update(await fsp.readFile(tempZip))
+      .digest('hex')
+    if (actual !== sha256) {
+      throw new Error(
+        `Checksum mismatch for ${url}: expected ${sha256}, got ${actual}`,
+      )
     }
     const zip = new AdmZip(tempZip)
     zip
@@ -596,42 +461,6 @@ const resolvePlugin = async () => {
     }
   } finally {
     await fsp.rm(tempDir, { recursive: true, force: true })
-  }
-}
-
-// service chmod (сохраняем и используем glob)
-const resolveServicePermission = async () => {
-  const serviceExecutables = [
-    'clash-verge-service*',
-    'clash-verge-service-install*',
-    'clash-verge-service-uninstall*',
-  ]
-  const hashCache = await loadHashCache()
-  let hasChanges = false
-
-  for (const f of serviceExecutables) {
-    const files = glob.sync(path.join(SERVICE_DIR, f))
-    for (const filePath of files) {
-      if (fs.existsSync(filePath)) {
-        const currentHash = await calculateFileHash(filePath)
-        const cacheKey = `${filePath}_chmod`
-        if (!FORCE && hashCache[cacheKey] === currentHash) {
-          continue
-        }
-        try {
-          execSync(`chmod 755 ${filePath}`)
-          log_success(`chmod finished: "${filePath}"`)
-        } catch (e) {
-          log_error(`chmod failed for ${filePath}:`, e.message)
-        }
-        hashCache[cacheKey] = currentHash
-        hasChanges = true
-      }
-    }
-  }
-
-  if (hasChanges) {
-    await saveHashCache(hashCache)
   }
 }
 
@@ -791,12 +620,17 @@ const tasks = [
   {
     name: 'verge-mihomo',
     func: () =>
-      getLatestReleaseVersion().then(() => resolveSidecar(clashMeta())),
+      getLatestVersion('META_VERSION', META_VERSION_URL, 'mihomo').then(
+        (version) => resolveSidecar(clashMeta(version)),
+      ),
     retry: 5,
   },
   {
     name: 'verge-mihomo-alpha',
-    func: () => getLatestClodVersion().then(() => resolveSidecar(clodCore())),
+    func: () =>
+      getLatestVersion('CLOD_VERSION', CLOD_VERSION_URL, 'Clod Core').then(
+        (version) => resolveSidecar(clodCore(version)),
+      ),
     retry: 5,
   },
   { name: 'plugin', func: resolvePlugin, retry: 5, winOnly: true },
@@ -809,12 +643,6 @@ const tasks = [
     func: resolveEnableLoopback,
     retry: 5,
     winOnly: true,
-  },
-  {
-    name: 'service_chmod',
-    func: resolveServicePermission,
-    retry: 5,
-    unixOnly: platform === 'linux' || platform === 'darwin',
   },
   {
     name: 'set_dns_script',
@@ -833,10 +661,8 @@ const tasks = [
 async function runTask() {
   const task = tasks.shift()
   if (!task) return
-  if (task.unixOnly && platform === 'win32') return runTask()
   if (task.winOnly && platform !== 'win32') return runTask()
   if (task.macosOnly && platform !== 'darwin') return runTask()
-  if (task.linuxOnly && platform !== 'linux') return runTask()
 
   for (let i = 0; i < task.retry; i++) {
     try {

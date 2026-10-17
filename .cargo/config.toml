@@ -1,9 +1,3 @@
-[target.aarch64-unknown-linux-gnu]
-linker = "aarch64-linux-gnu-gcc"
-
-[target.armv7-unknown-linux-gnueabihf]
-linker = "arm-linux-gnueabihf-gcc"
-
 [alias]
 clippy-all = "clippy --workspace --all-targets --all-features -- -D warnings"
 clippy-only = "clippy --workspace --all-targets --features clash-verge/clippy -- -D warnings"
