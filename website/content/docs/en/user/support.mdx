@@ -9,7 +9,7 @@ description: "How to give support what it needs without giving away too much"
 report is put on the clipboard by the "Copy logs for support" button in any error
 notification. A ready-made text goes to the clipboard:
 the app and system version, the core's operating mode, the connection settings,
-the subscription state (name, traffic, expiry, which headers the panel sent), what the
+the subscription state (name, traffic, expiry, which headers the provider sent), what the
 placeholder filter dropped last time, and the tails of the app and core logs.
 
 You can paste it into a support chat **without looking**:
@@ -40,7 +40,7 @@ and subscription addresses.
 ## Device identifier
 
 The tooltip next to the **Settings → General → "Device
-identification"** switch shows exactly what is sent to the panel: `x-hwid`, `x-device-os`,
+identification"** switch shows exactly what is sent to the provider: `x-hwid`, `x-device-os`,
 `x-ver-os`, `x-device-model` and `User-Agent`. The identifier is sent only to the
 subscription addresses — the main one and the backup one.
 
@@ -58,5 +58,5 @@ remembered, so it doesn't change when the app is updated. If there's no system
 identifier, a random one is used and also remembered.
 
 Turning identification off removes all four `x-*` headers at once; `User-Agent` is always
-sent — the panel recognizes the client by it. A panel with a device limit may then
+sent — the provider recognizes the client by it. A provider with a device limit may then
 refuse — the app will offer to turn identification back on.

@@ -3,7 +3,7 @@ title: "Common errors"
 description: "What a message in the app means and what to do about it"
 ---
 
-## "The panel returned a link list instead of a configuration — it did not recognise the client"
+## "The provider returned a link list instead of a configuration — its panel did not recognise the client"
 
 The provider's panel doesn't know about Clod Clash and returned its default response. This is a
 setting on the provider's side — send support the link to the
@@ -13,13 +13,13 @@ specify a different User-Agent under "Advanced" when adding the subscription.
 ## "The subscription address must start with https"
 
 The app only accepts subscriptions over `https://`, otherwise the token would travel
-in plain text. Ask the provider to change the address in the panel, or add the
+in plain text. Ask the provider to change the address, or add the
 subscription again using a link that starts with `https://`.
 
 ## No servers
 
 The "No servers" card on the home screen explains the reason in words: the subscription expired,
-traffic ran out, the device limit was exceeded, device identification is required, or the provider
+traffic ran out, the device limit was reached, device identification is required, or the provider
 sent no servers. Renew the subscription or top up traffic with the provider and update the
 subscription with the ↻ button. With a device limit, only the provider can free up a slot — use the
 **Support** button in the limit window.
@@ -30,7 +30,7 @@ subscription with the ↻ button. With a device limit, only the provider can fre
 
 1. Press **Test** in the server list and pick a server that shows a latency, not
    "Timeout".
-2. Switch the mode to **Global** (tray menu → "Outbound Modes" or
+2. Switch the mode to **Global** (tray menu → "Mode" or
    Settings → Advanced settings → Clash Setting) — if it starts working, the problem is in the
    subscription's rules; report it to the provider.
 3. If you use TUN on Windows with the `system`/`mixed` stack, look for the
@@ -67,7 +67,7 @@ keeps happening, export the logs — the core log will show the reason.
 
 The new config was rejected by the core itself, or it can't be assembled for the background service
 (for example, two rule sets are written to the same file). The previous working
-profile stays on disk, traffic goes through it, and the reason is shown in a
+config stays on disk, traffic goes through it, and the reason is shown in a
 notification. The cause may be the provider's template or your own edits in merge,
 script, rules and groups: check your edits; everything else is fixed on the
 provider's side. The next successful update will be applied normally.
@@ -138,7 +138,7 @@ attach them to your request.
 
 ## Clock and subscription expiry
 
-The expiry is calculated by the panel's clock, not the computer's, so a wrong time
+The expiry is calculated by the provider's clock, not the computer's, so a wrong time
 on the machine doesn't shift it. If the expiry still looks odd, update the
 subscription manually.
 

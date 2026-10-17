@@ -5,7 +5,7 @@ description: "Where to get the link, how to add a subscription, set up its updat
 
 ## Where to get the link
 
-The subscription link comes from your VPN service — usually in your account dashboard, a Telegram bot
+The subscription link comes from your provider — usually in your account dashboard, a Telegram bot
 or an email after payment. It looks like this:
 
 ```
@@ -26,7 +26,7 @@ On first launch the home screen shows the **"Add your subscription"** field. Pas
 
 <Shot src="ru/welcome.png" alt="First launch: the “Add your subscription” field" />
 
-The app first checks the provider's secure channel and shows on screen what is happening, then
+The app first checks whether the provider supports the secure connection and shows on screen what is happening, then
 downloads the subscription. The name, expiry date, traffic and server list come with the link —
 there's nothing else to enter. You can connect right after that.
 
@@ -52,20 +52,20 @@ itself, even when minimized to the tray. The address inside the link must also b
 This is not ordinary HTTPS (which is always used) but additional encryption of the exchange with the
 provider on top of it: the subscription address, device data and the server list travel to the
 provider encrypted, and intermediaries along the way (CDNs, proxies) can't see them. It works if the
-provider supports the channel.
+provider supports it.
 
 There's no switch when adding — the app decides everything by itself:
 
-- the provider has the channel — the subscription is added through it;
-- there's no channel — the app downloads the subscription the usual way and says it was added
-  without the secure channel;
-- the server doesn't respond — the app retries over the secure channel, three times in total, and if
+- the provider supports it — the subscription is added with it;
+- it doesn't — the app downloads the subscription the usual way and says it was added
+  without the secure connection;
+- the server doesn't respond — the app retries with the secure connection, three times in total, and if
   there's still no answer, it shows "The provider's server is not responding"; the subscription is
   not added.
 
-In the subscription properties you can turn the channel off — the app will warn that this is
-unsafe — and turn it back on: when turning it on, the app first checks whether the channel responds,
-and if it doesn't, the channel stays off.
+In the subscription properties you can turn the secure connection off — the app will warn that
+this is unsafe — and turn it back on: when turning it on, the app first checks whether the provider
+responds, and if it doesn't, the secure connection stays off.
 
 ## Several subscriptions
 
@@ -107,7 +107,7 @@ Right-clicking a card opens the menu.
 <Shot src="ru/profile-edit.png" alt="Subscription properties" width={720} />
 
 - **Name (optional)** — your own name for the subscription. It's stored separately from the name the
-  panel sends and isn't overwritten by updates; it's shown as "Yours (Name from the panel)".
+  provider sends and isn't overwritten by updates; it's shown as "Yours (Name from the provider)".
 - **Group** — for convenience: a row of group filters appears above the cards. It doesn't affect
   how anything works.
 - **Update Interval** — in minutes, no less than 60. If the provider sent an interval when the
@@ -133,7 +133,7 @@ Manually:
 - the ↻ button next to the subscription name on the home screen;
 - in advanced mode — the **Refresh subscription** tile (its tooltip shows when the last update
   happened);
-- the ↻ button on a card on the **Subscriptions** screen, or the ↻ "Update All Profiles" button in its header.
+- the ↻ button on a card on the **Subscriptions** screen, or the ↻ "Update all subscriptions" button in its header.
 
 After a manual update you can repeat it in half a minute.
 
@@ -141,14 +141,14 @@ If the provider's domain is blocked, the download goes down a ladder: directly �
 own tunnel → through the system proxy. So you can update the subscription even when the provider's
 website doesn't open.
 
-A failed update doesn't take away a working subscription: if the panel responded with something other
+A failed update doesn't take away a working subscription: if the provider responded with something other
 than a config or the core didn't accept it, the previous file stays, the card is marked "not
 applied", and the reason is shown in a notification. Updating the subscription doesn't drop live
 connections or reset the selected server.
 
 ## Traffic and expiry
 
-The **Traffic** and **Expires** cards on the home screen get their data from the panel on every
+The **Traffic** and **Expires** cards on the home screen get their data from the provider on every
 update. The last day of the term is shown in hours, an unlimited plan in words. Usage between
 updates is calculated locally and marked as approximate.
 
@@ -165,7 +165,7 @@ serves the subscription, then replaces the link and lets you know.
 
 ## Device limit
 
-If your plan has a device limit, the panel recognizes the computer by its device identifier. It's
+If your plan has a device limit, the provider recognizes the computer by its device identifier. It's
 derived from the system's machine ID, hashed, and doesn't change between app updates; the machine ID
 itself and the computer name are never sent anywhere (more in
 [Support report](/en/docs/user/support#device-identifier)).
@@ -173,8 +173,8 @@ itself and the computer name are never sent anywhere (more in
 When the limit is reached, the app shows a "Device limit reached" window with the subscription name
 and a **Support** button — both when adding such a subscription and on every update of it. With
 such a response, the subscription's previous servers are removed, and the card shows the line "Not
-updating: the device limit is full". After a renewal or once a slot is freed, the very next update
+updating: device limit reached". After a renewal or once a slot is freed, the very next update
 brings the servers back.
 
 You can turn off sending the identifier in **Settings → General → Device identification** — but a
-panel with a device limit will then refuse, and the app will offer to turn identification back on.
+provider with a device limit will then refuse, and the app will offer to turn identification back on.
