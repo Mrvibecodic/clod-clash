@@ -7,6 +7,7 @@ import {
   getClashInfo,
   getCoreLadder,
   getRuntimeConfig,
+  getRuntimeOverview,
   patchClashConfig,
 } from '@/services/cmds'
 import { getCacheData, setCacheData, useQuery } from '@/services/query-client'
@@ -67,9 +68,22 @@ const validatePorts = (patch: ClashInfoPatch, t: Translate) => {
   })
 }
 
+/**
+ * Рабочий конфиг для окна — без правил и тел узлов (`get_runtime_overview`):
+ * его читает десяток экранов, а у большой подписки целиком это мегабайты.
+ */
 export const useRuntimeConfig = (shouldFetch: boolean = true) => {
   return useQuery({
     queryKey: ['getRuntimeConfig'],
+    queryFn: getRuntimeOverview,
+    enabled: shouldFetch,
+  })
+}
+
+/** Рабочий конфиг целиком — только режиму цепочки (ему нужны тела узлов). */
+export const useFullRuntimeConfig = (shouldFetch: boolean) => {
+  return useQuery({
+    queryKey: ['getRuntimeConfigFull'],
     queryFn: getRuntimeConfig,
     enabled: shouldFetch,
   })

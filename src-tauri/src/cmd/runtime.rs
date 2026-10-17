@@ -11,6 +11,24 @@ pub async fn get_runtime_config() -> CmdResult<Option<Mapping>> {
     Ok(Config::runtime().await.data_arc().config.clone())
 }
 
+/// Ключи, которые окну нужны только целиком в режиме цепочки: у большой
+/// подписки это мегабайты правил и узлов на каждое открытие экрана.
+const OVERVIEW_SKIPS: [&str; 3] = ["rules", "sub-rules", "proxies"];
+
+fn overview(config: &Mapping) -> Mapping {
+    config
+        .iter()
+        .filter(|(key, _)| key.as_str().is_none_or(|key| !OVERVIEW_SKIPS.contains(&key)))
+        .map(|(key, value)| (key.clone(), value.clone()))
+        .collect()
+}
+
+/// Срез рабочего конфига для окна — без правил и тел узлов.
+#[tauri::command]
+pub async fn get_runtime_overview() -> CmdResult<Option<Mapping>> {
+    Ok(Config::runtime().await.data_arc().config.as_ref().map(overview))
+}
+
 /// Имя из YAML: строка, а число — как ядро его прочтёт, строкой.
 fn yaml_name(value: &serde_yaml_ng::Value) -> Option<String> {
     match value {
@@ -145,4 +163,29 @@ pub async fn update_proxy_chain_config_in_runtime(proxy_chain_config: Option<ser
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::overview;
+    use serde_yaml_ng::{Mapping, Value};
+
+    #[test]
+    fn overview_drops_rules_and_node_bodies_only() {
+        let mut config = Mapping::new();
+        for key in ["mode", "rules", "sub-rules", "proxies", "proxy-groups", "tunnels"] {
+            config.insert(Value::from(key), Value::from(key));
+        }
+        config.insert(Value::from(7890), Value::from("number key"));
+
+        let slice = overview(&config);
+
+        for key in ["rules", "sub-rules", "proxies"] {
+            assert!(!slice.contains_key(key), "{key}");
+        }
+        for key in ["mode", "proxy-groups", "tunnels"] {
+            assert_eq!(slice.get(key), config.get(key), "{key}");
+        }
+        assert!(slice.contains_key(Value::from(7890)));
+    }
 }

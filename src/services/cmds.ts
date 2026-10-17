@@ -107,6 +107,10 @@ export async function getRuntimeConfig() {
   return invoke<IConfigData | null>('get_runtime_config')
 }
 
+export async function getRuntimeOverview() {
+  return invoke<IConfigData | null>('get_runtime_overview')
+}
+
 /** Группы и узлы ядра одним чтением — см. `get_proxies_snapshot` в бэкенде. */
 interface ProxiesSnapshot {
   proxies: Proxies

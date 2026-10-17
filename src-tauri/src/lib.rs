@@ -168,6 +168,7 @@ mod app_init {
             cmd::patch_clash_mode,
             cmd::change_clash_core,
             cmd::get_runtime_config,
+            cmd::get_runtime_overview,
             cmd::get_proxies_snapshot,
             cmd::get_runtime_yaml,
             cmd::get_runtime_proxy_chain_config,

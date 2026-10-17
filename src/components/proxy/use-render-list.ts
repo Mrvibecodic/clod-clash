@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react'
 
-import { useRuntimeConfig } from '@/hooks/use-clash'
+import { useFullRuntimeConfig } from '@/hooks/use-clash'
 import { favoritesFirst, useFavorites } from '@/hooks/use-favorites'
 import { useVerge } from '@/hooks/use-verge'
 import { useAppRefreshers, useProxiesData } from '@/providers/app-data-context'
@@ -121,7 +121,7 @@ export const useRenderList = (
   const [headStates, setHeadState] = useHeadStateNew()
 
   // Получаем конфиг времени выполнения для режима цепочки прокси
-  const { data: runtimeConfig } = useRuntimeConfig(!!isChainMode)
+  const { data: runtimeConfig } = useFullRuntimeConfig(!!isChainMode)
 
   // Считаем число колонок
   const col = useMemo(

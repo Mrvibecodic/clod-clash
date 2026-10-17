@@ -13,7 +13,11 @@ import {
 const revalidateKeys = (keys: readonly string[]) =>
   revalidateQueries(keys.map((key) => [key]))
 
-const CLASH_CONFIG_KEYS_ALWAYS = ['getProxies', 'getRuntimeConfig'] as const
+const CLASH_CONFIG_KEYS_ALWAYS = [
+  'getProxies',
+  'getRuntimeConfig',
+  'getRuntimeConfigFull',
+] as const
 
 const CLASH_CONFIG_KEYS_WHEN_VISIBLE = [
   'getVersion',
