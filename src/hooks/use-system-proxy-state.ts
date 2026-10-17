@@ -30,16 +30,17 @@ export const useSystemProxyState = () => {
       return autoproxy.url === `http://127.0.0.1:${pacPort}/commands/pac`
     } else {
       if (!sysproxy?.enable) return false
-      // Пока конфиг ядра не прочитан, раздача неизвестна — годится любой из
-      // двух адресов, иначе внешний хост на старте мигал бы «выключено»
+      // При раздаче бэкенд пишет петлю, если выбранного адреса у машины уже
+      // нет, а пока конфиг ядра не прочитан, раздача неизвестна — в обоих
+      // случаях годится любой из двух адресов.
       const lanSharing = runtime?.['allow-lan']
       const hosts =
-        lanSharing === undefined
-          ? [
+        lanSharing === false
+          ? [reachableProxyHost(proxy_host, false)]
+          : [
               reachableProxyHost(proxy_host, true),
               reachableProxyHost(proxy_host, false),
             ]
-          : [reachableProxyHost(proxy_host, lanSharing)]
       return hosts.some((host) =>
         isProxyServerAt(sysproxy.server, host, sysproxy.current_port),
       )

@@ -28,6 +28,8 @@ notifications:
     body: El núcleo no se detuvo; la aplicación sigue funcionando.
   sysproxyLeftBehind:
     body: "No se pudo quitar el proxy del sistema al salir. Sigue apuntando a esta aplicación: hasta que lo elimines en la configuración del sistema o vuelvas a abrirla, no habrá conexión."
+  proxyHostGone:
+    body: "This computer has no address {host} right now, so the system proxy points at 127.0.0.1. It goes back to {host} once the address is back."
   appHidden:
     title: Aplicación oculta
     body: La aplicación se está ejecutando en segundo plano.

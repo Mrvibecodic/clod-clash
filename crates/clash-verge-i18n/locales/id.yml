@@ -28,6 +28,8 @@ notifications:
     body: Inti tidak berhenti, aplikasi tetap berjalan.
   sysproxyLeftBehind:
     body: "Proksi sistem tidak dapat dilepas saat keluar. Ia masih menunjuk ke aplikasi ini: sampai Anda menghapusnya di pengaturan sistem atau menjalankan aplikasi lagi, koneksi tidak akan jalan."
+  proxyHostGone:
+    body: "This computer has no address {host} right now, so the system proxy points at 127.0.0.1. It goes back to {host} once the address is back."
   appHidden:
     title: Aplikasi Disembunyikan
     body: Aplikasi berjalan di latar belakang.

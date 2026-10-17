@@ -591,7 +591,7 @@ mod tests {
         let sysopt = production_code(include_str!("../core/sysopt.rs"));
         assert_eq!(sysopt.matches("/commands/pac").count(), 1);
         for (name, source) in [
-            ("core/sysopt.rs", sysopt),
+            ("core/tray/mod.rs", production_code(include_str!("../core/tray/mod.rs"))),
             ("feat/proxy.rs", production_code(include_str!("../feat/proxy.rs"))),
             (
                 "config/prfitem.rs",
@@ -603,7 +603,7 @@ mod tests {
             ),
         ] {
             assert!(
-                !source.contains("reachable_proxy_host("),
+                !source.contains("effective_allow_lan("),
                 "{name}: свой «наш хост прокси»"
             );
         }

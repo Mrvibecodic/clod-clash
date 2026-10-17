@@ -449,6 +449,7 @@ export async function getSystemProxy() {
     server: string
     bypass: string
     current_port: number
+    ours: boolean
   }>('get_sys_proxy')
 }
 
@@ -458,6 +459,7 @@ export async function getAutotemProxy() {
     const result = await invoke<{
       enable: boolean
       url: string
+      ours: boolean
     }>('get_auto_proxy')
     debugLog('[API] Вызов get_auto_proxy выполнен успешно:', result)
     return result
@@ -466,6 +468,7 @@ export async function getAutotemProxy() {
     return {
       enable: false,
       url: '',
+      ours: false,
     }
   }
 }

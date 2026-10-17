@@ -28,6 +28,8 @@ notifications:
     body: Çekirdek durmadı, uygulama çalışmaya devam ediyor.
   sysproxyLeftBehind:
     body: "Çıkışta sistem proxy’si kaldırılamadı. Hâlâ bu uygulamayı gösteriyor: sistem ayarlarından kaldırana ya da uygulamayı yeniden başlatana kadar internet çalışmayacak."
+  proxyHostGone:
+    body: "This computer has no address {host} right now, so the system proxy points at 127.0.0.1. It goes back to {host} once the address is back."
   appHidden:
     title: Uygulama Gizlendi
     body: Uygulama arka planda çalışıyor.

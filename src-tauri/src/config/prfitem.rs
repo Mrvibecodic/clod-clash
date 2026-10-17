@@ -363,21 +363,20 @@ enum SystemProxy {
     Foreign,
 }
 
-fn classify_system_proxy(found: Option<&str>, our_port: u16, our_host: &str) -> SystemProxy {
+fn classify_system_proxy(found: Option<&str>, ours: &crate::core::sysopt::OurListener) -> SystemProxy {
     let Some(found) = found else {
         return SystemProxy::Absent;
     };
     let Ok(url) = Url::parse(found) else {
         return SystemProxy::Foreign;
     };
-    // Наш системный прокси пишется с петлёй или, при раздаче в LAN, с хостом из
-    // настроек (`reachable_proxy_host`).
-    let bare = |host: &str| host.trim_start_matches('[').trim_end_matches(']').to_ascii_lowercase();
-    let ours = url
-        .host_str()
-        .map(bare)
-        .is_some_and(|host| matches!(host.as_str(), "127.0.0.1" | "localhost" | "::1") || host == bare(our_host));
-    if ours && url.port_or_known_default() == Some(our_port) {
+    // Иные имена петли ведут в то же ядро, хотя сами мы их не пишем.
+    let port = url.port_or_known_default().unwrap_or_default();
+    let our_core = url.host_str().is_some_and(|host| {
+        let host = host.trim_start_matches('[').trim_end_matches(']').to_ascii_lowercase();
+        ours.serves(&host, port) || (matches!(host.as_str(), "localhost" | "::1") && ours.serves("127.0.0.1", port))
+    });
+    if our_core {
         SystemProxy::OurCore
     } else {
         SystemProxy::Foreign
@@ -391,9 +390,7 @@ async fn system_proxy_now() -> SystemProxy {
         .await
         .ok()
         .flatten();
-    let our_port = crate::config::Config::effective_mixed_port().await;
-    let our_host = crate::config::Config::our_proxy_host(&crate::config::Config::verge().await.latest_arc()).await;
-    classify_system_proxy(found.as_deref(), our_port, &our_host)
+    classify_system_proxy(found.as_deref(), &crate::core::sysopt::OurListener::now().await)
 }
 
 /// Маршруты по порядку: выбранный первым, остальные за ним, каждый ровно один
@@ -2793,19 +2790,24 @@ mod tests {
     #[test]
     fn our_own_system_proxy_is_told_from_a_foreign_one() {
         use super::{SystemProxy, classify_system_proxy};
+        use crate::core::sysopt::OurListener;
 
-        let ours = "127.0.0.1";
-        for (found, host, expected) in [
-            (None, ours, SystemProxy::Absent),
-            (Some("http://127.0.0.1:7897"), ours, SystemProxy::OurCore),
-            (Some("http://localhost:7897"), ours, SystemProxy::OurCore),
-            (Some("http://127.0.0.1:8080"), ours, SystemProxy::Foreign),
-            (Some("http://10.0.0.2:7897"), ours, SystemProxy::Foreign),
-            // Раздача в LAN: наш прокси записан с хостом из настроек.
-            (Some("http://192.168.1.5:7897"), "192.168.1.5", SystemProxy::OurCore),
-            (Some("not a url"), ours, SystemProxy::Foreign),
+        let alone = OurListener::with("192.168.1.5", false, 7897);
+        let sharing = OurListener::with("192.168.1.5", true, 7897);
+        for (found, ours, expected) in [
+            (None, &alone, SystemProxy::Absent),
+            (Some("http://127.0.0.1:7897"), &alone, SystemProxy::OurCore),
+            (Some("http://localhost:7897"), &alone, SystemProxy::OurCore),
+            (Some("http://[::1]:7897"), &alone, SystemProxy::OurCore),
+            (Some("http://127.0.0.1:8080"), &alone, SystemProxy::Foreign),
+            (Some("http://10.0.0.2:7897"), &alone, SystemProxy::Foreign),
+            (Some("http://192.168.1.5:7897"), &alone, SystemProxy::Foreign),
+            // Раздача в LAN: наш прокси записан с хостом из настроек или с петлёй.
+            (Some("http://192.168.1.5:7897"), &sharing, SystemProxy::OurCore),
+            (Some("http://127.0.0.1:7897"), &sharing, SystemProxy::OurCore),
+            (Some("not a url"), &alone, SystemProxy::Foreign),
         ] {
-            assert_eq!(classify_system_proxy(found, 7897, host), expected, "{found:?} {host}");
+            assert_eq!(classify_system_proxy(found, ours), expected, "{found:?}");
         }
     }
 

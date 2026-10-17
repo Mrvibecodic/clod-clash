@@ -159,6 +159,51 @@ fn mixed_port_in(config: Option<&Mapping>) -> Option<u16> {
         .map(IClashTemp::guard_mixed_port)
 }
 
+/// Выбранный хост прокси — IP-адрес (не петля и не «все адреса») — и был ли он у
+/// машины, когда его проверяли.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HostChoice {
+    pub address: std::net::IpAddr,
+    pub present: bool,
+}
+
+/// Хост нашего прокси сейчас и выбранный адрес, от которого он зависит.
+pub struct ProxyHostNow {
+    pub host: String,
+    pub choice: Option<HostChoice>,
+}
+
+fn host_choice(configured: &str, machine_has: impl FnOnce(std::net::IpAddr) -> bool) -> Option<HostChoice> {
+    let address = configured
+        .trim_start_matches('[')
+        .trim_end_matches(']')
+        .parse::<std::net::IpAddr>()
+        .ok()
+        .filter(|address| !address.is_loopback() && !address.is_unspecified())?;
+    Some(HostChoice {
+        address,
+        present: machine_has(address),
+    })
+}
+
+/// Есть ли адрес у машины. Блокирующий вызов. Не удалось перечислить
+/// интерфейсы — адрес считается на месте.
+fn machine_has(address: std::net::IpAddr) -> bool {
+    use network_interface::{NetworkInterface, NetworkInterfaceConfig as _};
+    NetworkInterface::show().map_or(true, |interfaces| {
+        interfaces
+            .iter()
+            .any(|interface| interface.addr.iter().any(|addr| addr.ip() == address))
+    })
+}
+
+impl HostChoice {
+    /// Адрес появился или пропал с тех пор, как его проверили. Блокирующий вызов.
+    pub fn has_turned(self) -> bool {
+        machine_has(self.address) != self.present
+    }
+}
+
 impl Config {
     pub async fn global() -> &'static Self {
         static CONFIG: OnceCell<Config> = OnceCell::const_new();
@@ -225,17 +270,33 @@ impl Config {
             .unwrap_or(false)
     }
 
-    pub async fn reachable_proxy_host(configured: &str) -> String {
-        if Self::effective_allow_lan().await {
-            configured.into()
-        } else {
-            LOOPBACK_PROXY_HOST.into()
+    /// Хост нашего прокси: выбранный, если ядро раздаёт в сеть и адрес у машины
+    /// есть, иначе петля — ядро с раздачей слушает и её. Адрес адаптера, которого
+    /// больше нет (новая подсеть WSL после перезагрузки, другая сеть), вёл бы в
+    /// никуда. Имя хоста и петля не проверяются.
+    pub async fn proxy_host_now(verge: &IVerge) -> ProxyHostNow {
+        if !Self::effective_allow_lan().await {
+            return ProxyHostNow {
+                host: LOOPBACK_PROXY_HOST.into(),
+                choice: None,
+            };
         }
+        let configured: String = verge.proxy_host.as_deref().unwrap_or(LOOPBACK_PROXY_HOST).into();
+        let probed = configured.clone();
+        let choice = AsyncHandler::spawn_blocking(move || host_choice(&probed, machine_has))
+            .await
+            .ok()
+            .flatten();
+        let host = if choice.is_some_and(|choice| !choice.present) {
+            LOOPBACK_PROXY_HOST.into()
+        } else {
+            configured
+        };
+        ProxyHostNow { host, choice }
     }
 
-    /// Хост нашего прокси: из настроек, если ядро раздаёт в сеть, иначе петля.
     pub async fn our_proxy_host(verge: &IVerge) -> String {
-        Self::reachable_proxy_host(verge.proxy_host.as_deref().unwrap_or(LOOPBACK_PROXY_HOST)).await
+        Self::proxy_host_now(verge).await.host
     }
 
     /// Порт, с которым ядро только что ЗАПУЩЕНО или перезагружено.
@@ -613,6 +674,29 @@ mod tests {
     use super::*;
     use crate::core::validate::ValidationErrorKind;
     use std::mem;
+
+    #[test]
+    fn a_proxy_host_the_machine_no_longer_has_gives_way_to_the_loopback() {
+        let lan: std::net::IpAddr = [192, 168, 1, 5].into();
+        assert_eq!(
+            host_choice("192.168.1.5", |_| false),
+            Some(HostChoice {
+                address: lan,
+                present: false
+            })
+        );
+        assert_eq!(
+            host_choice("192.168.1.5", |address| address == lan),
+            Some(HostChoice {
+                address: lan,
+                present: true
+            })
+        );
+        assert!(host_choice("[fe80::1]", |_| false).is_some_and(|choice| !choice.present));
+        for kept in ["127.0.0.1", "0.0.0.0", "::1", "localhost", "example.com", ""] {
+            assert_eq!(host_choice(kept, |_| false), None, "{kept}");
+        }
+    }
 
     #[test]
     fn the_listener_port_is_read_one_way() {

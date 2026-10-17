@@ -19,6 +19,10 @@ pub enum NotificationEvent<'a> {
     SysproxyLeftBehind,
     /// Человек согласился поставить обновление на старте, а установка сорвалась.
     UpdateNotInstalled,
+    /// Выбранного адреса для системного прокси у машины сейчас нет.
+    ProxyHostGone {
+        host: &'a str,
+    },
     #[cfg(target_os = "macos")]
     AppHidden,
     LogOpenFailed {
@@ -97,6 +101,13 @@ pub async fn notify_event<'a>(event: NotificationEvent<'a>) {
         NotificationEvent::SysproxyLeftBehind => {
             let title = clash_verge_i18n::t!("notifications.systemProxyToggled.title");
             let body = clash_verge_i18n::t!("notifications.sysproxyLeftBehind.body");
+            notify(title, body);
+        }
+        NotificationEvent::ProxyHostGone { host } => {
+            let title = clash_verge_i18n::t!("notifications.systemProxyToggled.title");
+            let body = clash_verge_i18n::t!("notifications.proxyHostGone.body")
+                .replace("{host}", host)
+                .into();
             notify(title, body);
         }
         NotificationEvent::UpdateNotInstalled => {

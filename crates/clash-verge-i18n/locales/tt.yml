@@ -28,6 +28,8 @@ notifications:
     body: Үзәк туктамады, кушымта эшләвен дәвам итә.
   sysproxyLeftBehind:
     body: "Чыгуда система проксиен алып ташлап булмады. Ул һаман да бу кушымтага күрсәтә: система көйләүләрендә алып ташлаганчы яки кушымтаны яңадан җибәргәнче интернет эшләмәячәк."
+  proxyHostGone:
+    body: "This computer has no address {host} right now, so the system proxy points at 127.0.0.1. It goes back to {host} once the address is back."
   appHidden:
     title: Кушымта яшерелде
     body: Кушымта фон режимында эшли.

@@ -1,5 +1,5 @@
 use crate::{
-    config::{Config, IVerge, LOOPBACK_PROXY_HOST},
+    config::{Config, HostChoice, IVerge, LOOPBACK_PROXY_HOST, ProxyHostNow},
     core::handle,
     process::AsyncHandler,
     singleton,
@@ -22,6 +22,9 @@ use tokio::sync::Mutex as TokioMutex;
 
 const PROXY_OBSERVE_TICK: Duration = Duration::from_secs(5);
 const RESET_LOCK_BUDGET: Duration = Duration::from_millis(400);
+/// Сколько снятие, не дождавшееся идущей записи, ждёт её конца, чтобы
+/// проверить, не легла ли она поверх.
+const LATE_WRITE_WAIT: Duration = Duration::from_millis(1500);
 const GUARD_STAND_DOWN_BUDGET: Duration = Duration::from_secs(2);
 
 static OBSERVER_RUNNING: AtomicBool = AtomicBool::new(false);
@@ -155,14 +158,67 @@ fn how_the_system_proxy_stands(observed: &ObservedProxy, ours: &[(&str, u16, &st
     how_the_system_proxy_stands_with(observed, ours, AUTO_SWITCH_READBACK_IS_TRUSTWORTHY)
 }
 
-/// Включён ли в системе наш прокси — то же сравнение, по которому горит
-/// кнопка в окне: в режиме PAC наш адрес автонастройки, иначе наш хост и порт.
-fn our_proxy_is_on_in(observed: &ObservedProxy, pac: bool, host: &str, port: u16, pac_url: &str) -> bool {
-    if pac {
-        observed.auto_enable && observed.auto_url == pac_url
-    } else {
-        observed.sys_enable && bare_host(&observed.host) == bare_host(host) && observed.port == port
+/// Где система находит наш прокси — одно правило для трея, горячей клавиши,
+/// окна и загрузки подписки: петля — всегда (ядро слушает её и при раздаче, и
+/// ею заменяется пропавший выбранный адрес), выбранный хост — при раздаче;
+/// порт — тот, что слушает ядро; автонастройка — наш PAC.
+pub struct OurListener {
+    configured: std::string::String,
+    sharing: bool,
+    port: u16,
+    pac_url: std::string::String,
+}
+
+impl OurListener {
+    pub(crate) fn with(configured: &str, sharing: bool, port: u16) -> Self {
+        Self {
+            configured: configured.to_owned(),
+            sharing,
+            port,
+            pac_url: pac_url_for(LOOPBACK_PROXY_HOST, IVerge::get_singleton_port()),
+        }
     }
+
+    pub async fn now() -> Self {
+        let configured = Config::verge()
+            .await
+            .latest_arc()
+            .proxy_host
+            .as_deref()
+            .unwrap_or(LOOPBACK_PROXY_HOST)
+            .to_owned();
+        Self::with(
+            &configured,
+            Config::effective_allow_lan().await,
+            Config::effective_mixed_port().await,
+        )
+    }
+
+    pub fn serves(&self, host: &str, port: u16) -> bool {
+        let host = bare_host(host);
+        port == self.port && (host == LOOPBACK_PROXY_HOST || (self.sharing && host == bare_host(&self.configured)))
+    }
+
+    pub fn serves_pac(&self, url: &str) -> bool {
+        url == self.pac_url
+    }
+}
+
+/// Включён ли в системе наш прокси: в режиме PAC — наша автонастройка, иначе
+/// ручной прокси на нашем слушателе.
+fn our_proxy_is_on_in(observed: &ObservedProxy, pac: bool, ours: &OurListener) -> bool {
+    if pac {
+        observed.auto_enable && ours.serves_pac(&observed.auto_url)
+    } else {
+        observed.sys_enable && ours.serves(&observed.host, observed.port)
+    }
+}
+
+/// Пропавший выбранный адрес стоит уведомления, если прошлая запись знала о
+/// нём иное: один раз на пропажу, а не на каждую запись.
+fn the_missing_address_to_announce(before: Option<HostChoice>, now: Option<HostChoice>) -> Option<std::net::IpAddr> {
+    now.filter(|now| !now.present && before != Some(*now))
+        .map(|now| now.address)
 }
 
 const fn nothing_of_ours_can_be_in_the_system(ever_applied: bool, wants_proxy: bool) -> bool {
@@ -422,6 +478,7 @@ pub struct Sysopt {
     last_write_failed: AtomicBool,
     write_refusals: AtomicU32,
     ever_applied: AtomicBool,
+    host_choice: parking_lot::Mutex<Option<HostChoice>>,
     guard: Arc<RwLock<GuardMonitor>>,
 }
 
@@ -437,6 +494,7 @@ impl Default for Sysopt {
             last_write_failed: AtomicBool::new(false),
             write_refusals: AtomicU32::new(0),
             ever_applied: AtomicBool::new(false),
+            host_choice: parking_lot::Mutex::new(None),
             guard: Arc::new(RwLock::new(GuardMonitor::new(GuardType::None, Duration::from_secs(30)))),
         }
     }
@@ -642,14 +700,36 @@ impl Sysopt {
     pub async fn our_proxy_is_on(&self) -> bool {
         self.wait_idle().await;
         let verge = Config::verge().await.latest_arc();
-        let host = Config::our_proxy_host(&verge).await;
-        let port = Config::effective_mixed_port().await;
-        let pac_url = pac_url_for(LOOPBACK_PROXY_HOST, IVerge::get_singleton_port());
+        let ours = OurListener::now().await;
         let pac = verge.proxy_auto_config.unwrap_or_default();
         match tokio::task::spawn_blocking(ObservedProxy::read).await.ok().flatten() {
-            Some(observed) => our_proxy_is_on_in(&observed, pac, &host, port, &pac_url),
+            Some(observed) => our_proxy_is_on_in(&observed, pac, &ours),
             None => verge.enable_system_proxy.unwrap_or_default(),
         }
+    }
+
+    /// Выбранный адрес, к которому привязан записанный ручной прокси, и был ли
+    /// он у машины при записи.
+    pub fn host_choice(&self) -> Option<HostChoice> {
+        *self.host_choice.lock()
+    }
+
+    fn remember_the_host_choice(&self, choice: Option<HostChoice>) {
+        let before = std::mem::replace(&mut *self.host_choice.lock(), choice);
+        let Some(address) = the_missing_address_to_announce(before, choice) else {
+            return;
+        };
+        logging!(
+            warn,
+            Type::Core,
+            "proxy host {address} is not an address of this machine now, the system proxy points at the loopback"
+        );
+        AsyncHandler::spawn(move || async move {
+            crate::utils::notification::notify_event(crate::utils::notification::NotificationEvent::ProxyHostGone {
+                host: &address.to_string(),
+            })
+            .await;
+        });
     }
 
     pub async fn update_sysproxy(&self) -> Result<()> {
@@ -663,7 +743,10 @@ impl Sysopt {
         let pac_port = IVerge::get_singleton_port();
         let bypass = get_bypass().await;
 
-        let proxy_host = Config::our_proxy_host(&verge).await;
+        let ProxyHostNow {
+            host: proxy_host,
+            choice,
+        } = Config::proxy_host_now(&verge).await;
         let (sys_enable, pac_enable, proxy_guard) = (
             verge.enable_system_proxy.unwrap_or_default(),
             verge.proxy_auto_config.unwrap_or_default(),
@@ -701,6 +784,8 @@ impl Sysopt {
 
             (sys.clone(), auto.clone(), guard_type)
         };
+        // Хост важен только ручному прокси: PAC отдаётся с петли.
+        self.remember_the_host_choice(choice.filter(|_| sys.enable));
 
         let apply_steps = proxy_apply_steps(sys.enable, auto.enable);
         let wanted = WantedProxy {
@@ -889,9 +974,10 @@ impl Sysopt {
             self.reset_sysproxy.store(false, Ordering::SeqCst);
         }
 
-        let _lock = tokio::time::timeout(RESET_LOCK_BUDGET, self.update_lock.lock())
+        let lock = tokio::time::timeout(RESET_LOCK_BUDGET, self.update_lock.lock())
             .await
             .ok();
+        let a_write_may_land_after_ours = lock.is_none();
 
         {
             let guard = self.access_guard();
@@ -921,19 +1007,40 @@ impl Sysopt {
             (sys.clone(), auto.clone())
         };
         *self.applied_target.write() = None;
+        *self.host_choice.lock() = None;
 
-        let apply_steps = proxy_apply_steps(false, false);
-        let outcome = tokio::task::spawn_blocking(move || {
-            let mut steps = std::string::String::new();
-            apply_once(&sys, &auto, apply_steps, &mut steps)
-        })
-        .await?;
+        let mut outcome = Self::switch_both_off(&sys, &auto).await?;
+        if a_write_may_land_after_ours
+            && outcome.is_none()
+            && tokio::time::timeout(LATE_WRITE_WAIT, self.our_proxy_is_on())
+                .await
+                .unwrap_or(false)
+        {
+            logging!(
+                warn,
+                Type::Core,
+                "запись прокси, которую снятие не дождалось, легла поверх — снимаем ещё раз"
+            );
+            *self.applied_target.write() = None;
+            outcome = Self::switch_both_off(&sys, &auto).await?;
+        }
+        drop(lock);
 
         if outcome.is_none() {
             self.ever_applied.store(false, Ordering::SeqCst);
             *self.sent_to_the_system.write() = SentProxies::default();
         }
         outcome.map_or(Ok(()), Err)
+    }
+
+    async fn switch_both_off(sys: &Sysproxy, auto: &Autoproxy) -> Result<Option<anyhow::Error>> {
+        let (sys, auto) = (sys.clone(), auto.clone());
+        let apply_steps = proxy_apply_steps(false, false);
+        Ok(tokio::task::spawn_blocking(move || {
+            let mut steps = std::string::String::new();
+            apply_once(&sys, &auto, apply_steps, &mut steps)
+        })
+        .await?)
     }
 }
 
@@ -966,12 +1073,14 @@ fn with_system_call_retry(mut apply: impl FnMut() -> sysproxy::Result<()>) -> sy
 #[cfg(test)]
 mod tests {
     use super::{
-        BYPASS_SEPARATOR, DEFAULT_BYPASS, ObservedProxy, ProxyApplyStep, ProxyPass, Sysopt, SysproxyTakeDown,
-        SystemProxyOwnership, WantedProxy, everything_that_might_be_ours, format_bypass, how_the_system_proxy_stands,
-        how_the_system_proxy_stands_with, nothing_of_ours_can_be_in_the_system, our_proxy_may_be_cleared,
-        proxy_apply_steps, refused_by_the_system, the_guard_has_just_stood_down, the_guard_may_keep_its_target,
+        BYPASS_SEPARATOR, DEFAULT_BYPASS, ObservedProxy, OurListener, ProxyApplyStep, ProxyPass, Sysopt,
+        SysproxyTakeDown, SystemProxyOwnership, WantedProxy, everything_that_might_be_ours, format_bypass,
+        how_the_system_proxy_stands, how_the_system_proxy_stands_with, nothing_of_ours_can_be_in_the_system,
+        our_proxy_is_on_in, our_proxy_may_be_cleared, proxy_apply_steps, refused_by_the_system,
+        the_guard_has_just_stood_down, the_guard_may_keep_its_target, the_missing_address_to_announce,
         the_system_holds_our_proxy_after, the_take_down_we_have_to_skip,
     };
+    use crate::config::HostChoice;
 
     fn observed(sys_enable: bool, host: &str, port: u16, auto_enable: bool) -> ObservedProxy {
         ObservedProxy {
@@ -999,6 +1108,61 @@ mod tests {
         assert!(want.accepted_by(&observed(true, "127.0.0.1", 7897, false)));
         assert!(!want.accepted_by(&observed(false, "127.0.0.1", 7897, false)));
         assert!(!want.accepted_by(&observed(true, "127.0.0.1", 7890, false)));
+    }
+
+    #[test]
+    fn the_window_the_tray_and_the_hotkey_count_the_same_proxy_as_ours() {
+        let sharing = OurListener::with("192.168.1.5", true, 7897);
+        let alone = OurListener::with("192.168.1.5", false, 7897);
+        for (listener, host, port, ours) in [
+            // При раздаче петля тоже наша: ею заменяется пропавший выбранный адрес.
+            (&sharing, "127.0.0.1", 7897, true),
+            (&sharing, "192.168.1.5", 7897, true),
+            (&sharing, "192.168.1.6", 7897, false),
+            (&sharing, "127.0.0.1", 7890, false),
+            (&alone, "127.0.0.1", 7897, true),
+            (&alone, "192.168.1.5", 7897, false),
+        ] {
+            assert_eq!(
+                our_proxy_is_on_in(&observed(true, host, port, false), false, listener),
+                ours,
+                "{host}:{port} при раздаче {}",
+                listener.sharing
+            );
+            assert!(!our_proxy_is_on_in(
+                &observed(false, host, port, false),
+                false,
+                listener
+            ));
+        }
+        let v6 = OurListener::with("[fe80::1]", true, 7897);
+        assert!(our_proxy_is_on_in(&observed(true, "fe80::1", 7897, false), false, &v6));
+
+        let mut pac = observed(false, "", 0, true);
+        pac.auto_url = sharing.pac_url.clone();
+        assert!(our_proxy_is_on_in(&pac, true, &sharing));
+        assert!(!our_proxy_is_on_in(&pac, false, &sharing));
+        pac.auto_url = "http://192.168.1.5:33331/commands/pac".to_owned();
+        assert!(!our_proxy_is_on_in(&pac, true, &sharing));
+    }
+
+    #[test]
+    fn a_missing_proxy_address_is_announced_once_per_loss() {
+        let lan: std::net::IpAddr = [192, 168, 1, 5].into();
+        let gone = Some(HostChoice {
+            address: lan,
+            present: false,
+        });
+        let back = Some(HostChoice {
+            address: lan,
+            present: true,
+        });
+        assert_eq!(the_missing_address_to_announce(None, gone), Some(lan));
+        assert_eq!(the_missing_address_to_announce(gone, gone), None);
+        assert_eq!(the_missing_address_to_announce(gone, back), None);
+        assert_eq!(the_missing_address_to_announce(back, gone), Some(lan));
+        assert_eq!(the_missing_address_to_announce(gone, None), None);
+        assert_eq!(the_missing_address_to_announce(None, back), None);
     }
 
     #[test]

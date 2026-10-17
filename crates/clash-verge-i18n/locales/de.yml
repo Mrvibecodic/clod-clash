@@ -28,6 +28,8 @@ notifications:
     body: Der Kern wurde nicht gestoppt, die App läuft weiter.
   sysproxyLeftBehind:
     body: "Der System-Proxy konnte beim Beenden nicht entfernt werden. Er zeigt weiterhin auf diese App: Bis Sie ihn in den Systemeinstellungen entfernen oder die App erneut starten, läuft kein Datenverkehr."
+  proxyHostGone:
+    body: "This computer has no address {host} right now, so the system proxy points at 127.0.0.1. It goes back to {host} once the address is back."
   appHidden:
     title: Anwendung ausgeblendet
     body: Die App läuft im Hintergrund.

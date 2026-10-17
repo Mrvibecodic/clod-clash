@@ -761,7 +761,25 @@ pub fn ensure_environment_watchdog() {
                 );
             }
 
-            let view = AsyncHandler::spawn_blocking(network_fingerprint).await.ok().flatten();
+            // Адрес адаптера песочницы (WSL, Hyper-V, Docker) в отпечаток сети не
+            // входит, а прокси может быть привязан как раз к нему.
+            let host_choice = crate::core::sysopt::Sysopt::global().host_choice();
+            let (view, host_turned) = AsyncHandler::spawn_blocking(move || {
+                (
+                    network_fingerprint(),
+                    host_choice.is_some_and(crate::config::HostChoice::has_turned),
+                )
+            })
+            .await
+            .unwrap_or((None, false));
+            if host_turned {
+                logging!(
+                    info,
+                    Type::Core,
+                    "[clod] the chosen proxy address came or went, the system proxy follows it"
+                );
+                CoreManager::global().point_system_proxy_at_the_confirmed_port().await;
+            }
 
             last_tick = now_tick;
             last_awake = now_awake;

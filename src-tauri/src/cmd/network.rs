@@ -1,7 +1,7 @@
 use super::CmdResult;
 use crate::cmd::StringifyErr as _;
 use crate::config::Config;
-use crate::core::sysopt::Sysopt;
+use crate::core::sysopt::{OurListener, Sysopt};
 use crate::process::AsyncHandler;
 use clash_verge_logging::{Type, logging};
 use gethostname::gethostname;
@@ -33,6 +33,7 @@ pub async fn get_sys_proxy() -> CmdResult<Mapping> {
         "current_port".into(),
         u64::from(Config::effective_mixed_port().await).into(),
     );
+    map.insert("ours".into(), OurListener::now().await.serves(host, *port).into());
 
     logging!(
         debug,
@@ -55,6 +56,7 @@ pub async fn get_auto_proxy() -> CmdResult<Mapping> {
     let mut map = Mapping::new();
     map.insert("enable".into(), (*enable).into());
     map.insert("url".into(), url.as_str().into());
+    map.insert("ours".into(), OurListener::now().await.serves_pac(url).into());
 
     logging!(
         debug,
