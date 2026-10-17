@@ -4,16 +4,8 @@
   "webviews": ["main"],
   "windows": ["main"],
   "permissions": [
-    "global-shortcut:default",
-    "dialog:default",
-    "dialog:allow-ask",
-    "dialog:allow-message",
-    "deep-link:default",
-    "autostart:allow-enable",
-    "autostart:allow-disable",
-    "autostart:allow-is-enabled",
     "core:window:allow-set-theme",
-    "notification:default",
+    "notification:allow-is-permission-granted",
     "mihomo:default"
   ]
 }
