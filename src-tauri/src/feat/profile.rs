@@ -260,7 +260,6 @@ async fn accept_the_download(uid: &String, mut item: PrfItem, move_to: Option<Mo
         }
     };
 
-    let request_option = item.option.clone();
     if let Err(err) = promote_and_record(uid, item, &dir, &file, &candidate_path, disarming).await {
         let _ = tokio::fs::remove_file(&candidate_path).await;
         return Err(err);
@@ -276,7 +275,7 @@ async fn accept_the_download(uid: &String, mut item: PrfItem, move_to: Option<Mo
         }
     };
     // Уже без признака применения: здесь запрос в сеть.
-    follow_move(uid, move_to, request_option).await;
+    follow_move(uid, move_to).await;
     Ok(acceptance)
 }
 
@@ -406,14 +405,20 @@ async fn mark_not_applied(uid: &String) {
 /// отдал годную подписку — он становится основным, иначе ждём следующего
 /// обновления. Отказ по устройству — не повод: основной даст тот же отказ.
 /// Основной адрес, пока шла проверка, сменил человек — перевод не применяется.
-async fn follow_move(uid: &String, move_to: Option<Move>, request_option: Option<PrfOption>) {
-    let Some(Move { from, to, served }) = move_to else {
+async fn follow_move(uid: &String, move_to: Option<Move>) {
+    let Some(Move {
+        from,
+        to,
+        served,
+        option,
+    }) = move_to
+    else {
         return;
     };
 
     let served = match served {
         Some(served) => Ok(served),
-        None => PrfItem::from_url_with_ladder(&to, request_option.as_ref())
+        None => PrfItem::from_url_with_ladder(&to, option.as_ref())
             .await
             .map(|fetched| fetched.item.device_refused != Some(true)),
     };
@@ -459,24 +464,28 @@ struct Move {
     /// Подписка только что пришла с этого самого запасного адреса: `true` — годная,
     /// `false` — отказ по устройству. `None` — адрес ещё не спрашивали.
     served: Option<bool>,
+    /// С чем спрашивать запасной: настройки запроса обновления и то, что
+    /// узнала загрузка (ключ прослойки).
+    option: Option<PrfOption>,
 }
 
 /// Перевод, если панель его велела: запасной адрес строится от основного адреса
 /// этой подписки, с которого шло обновление, — не от адреса, откуда пришёл ответ.
-fn move_of(url: &String, item: &PrfItem) -> Option<Move> {
+fn move_of(url: &String, item: &PrfItem, request: Option<&PrfOption>) -> Option<Move> {
     let domain = item.new_sub.as_deref().filter(|_| item.move_sub == Some(true))?;
     let to = sub_headers::spare_address(url, domain)?;
     Some(Move {
         from: url.clone(),
         to,
         served: None,
+        option: PrfOption::merge(request, item.option.as_ref()),
     })
 }
 
 /// Перевод, если подписка пришла с запасного адреса `spare`: велено перейти на
 /// него же — второй раз его не спрашиваем.
-fn move_after_the_spare(url: &String, spare: &String, item: &PrfItem) -> Option<Move> {
-    move_of(url, item).map(|planned| Move {
+fn move_after_the_spare(url: &String, spare: &String, item: &PrfItem, request: Option<&PrfOption>) -> Option<Move> {
+    move_of(url, item, request).map(|planned| Move {
         served: (planned.to == *spare).then_some(item.device_refused != Some(true)),
         ..planned
     })
@@ -508,7 +517,7 @@ async fn perform_profile_update(
         Ok(fetched) => {
             logging!(info, Type::Config, "[Обновление подписки] Подписка скачана");
             return Ok(Downloaded {
-                move_to: move_of(url, &fetched.item),
+                move_to: move_of(url, &fetched.item, merged_opt.as_ref()),
                 item: fetched.item,
                 notice: fetched.detoured.then_some(UPDATED_VIA_PROXY),
             });
@@ -540,7 +549,7 @@ async fn perform_profile_update(
                 item.from_fallback = Some(true);
                 drop(last_err);
                 return Ok(Downloaded {
-                    move_to: move_after_the_spare(url, &spare, &item),
+                    move_to: move_after_the_spare(url, &spare, &item, merged_opt.as_ref()),
                     item,
                     notice: Some("clod_sub::fallback_used"),
                 });
@@ -654,17 +663,13 @@ pub(crate) fn settle_after_delivery(delivered: Delivered) {
 }
 
 /// Прибраться после того, как ядро приняло конфиг обновлённой подписки.
-fn settle_after_a_successful_update(uid: &String) {
+fn settle_after_a_successful_update() {
     // Пометку «скачано, но не применено» снимает сам путь применения конфига
     // (`core/manager/config.rs`) — там она снимается на всех путях сразу, включая
     // переключение профиля и ручную пересборку.
     logging!(info, Type::Config, "[Обновление подписки] Обновление успешно");
     crate::process::AsyncHandler::spawn(|| async {
         crate::module::sub_watcher::run_check().await;
-    });
-    let logo_uid = uid.clone();
-    crate::process::AsyncHandler::spawn(move || async move {
-        crate::module::logo_cache::sync(&logo_uid).await;
     });
 }
 
@@ -714,7 +719,7 @@ async fn card_is_marked(uid: &String) -> bool {
 async fn reapply_the_current_profile(uid: &String, trigger: UpdateTrigger) -> Result<()> {
     match apply_current_profile().await {
         Ok(outcome) if outcome.is_valid() => {
-            settle_after_a_successful_update(uid);
+            settle_after_a_successful_update();
             Ok(())
         }
         result => {
@@ -748,11 +753,16 @@ async fn failed(uid: &String, status: &str, what: &str, raw: &str, trigger: Upda
     anyhow::anyhow!(message)
 }
 
-/// Загрузка удалась — это записано вместе с самой подпиской; расписание и окно
-/// лимита устройств об этом знают.
+/// Загрузка удалась — это записано вместе с самой подпиской; расписание, окно
+/// лимита устройств и картинки провайдера об этом знают — принята подписка
+/// ядром или нет, текущая она или нет.
 async fn note_the_download(uid: &String) {
     logging_error!(Type::Timer, crate::core::Timer::global().refresh().await);
     announce_device_refusal(uid).await;
+    let logo_uid = uid.clone();
+    crate::process::AsyncHandler::spawn(move || async move {
+        crate::module::logo_cache::sync(&logo_uid).await;
+    });
 }
 
 /// Звать ли заход проверки 16–20 после обновления подписки: панель включила
@@ -830,10 +840,8 @@ async fn settle_the_download(uid: &String, downloaded: Downloaded, trigger: Upda
         }
         Acceptance::Unchecked(outcome) => {
             // Скачано, но не проверено: файл прежний, обновления не случилось
-            // (пометка уже в реестре); расписание и окно лимита устройств про
-            // загрузку всё же узнают.
-            logging_error!(Type::Timer, crate::core::Timer::global().refresh().await);
-            announce_device_refusal(uid).await;
+            // (пометка уже в реестре); про загрузку всё же узнают.
+            note_the_download(uid).await;
             let status = failure_notice_status(&Ok(outcome.clone()));
             return Err(failed(
                 uid,
@@ -864,7 +872,7 @@ async fn settle_the_download(uid: &String, downloaded: Downloaded, trigger: Upda
     }
     if let Some(delivered) = delivered {
         settle_after_delivery(delivered);
-        settle_after_a_successful_update(uid);
+        settle_after_a_successful_update();
     }
     Ok(UpdateOutcome::Done)
 }
@@ -1471,7 +1479,7 @@ mod update_claim_tests {
 #[cfg(test)]
 mod move_tests {
     use super::{move_after_the_spare, move_of};
-    use crate::config::PrfItem;
+    use crate::config::{PrfItem, PrfOption};
     use smartstring::alias::String;
 
     fn answer(new_sub: Option<&str>, move_sub: bool) -> PrfItem {
@@ -1485,7 +1493,7 @@ mod move_tests {
     #[test]
     fn the_move_is_built_from_the_main_address_of_this_subscription() {
         let main = String::from("https://main.example/sub/token?x=1");
-        let planned = move_of(&main, &answer(Some("spare.example"), true)).expect("move is ordered");
+        let planned = move_of(&main, &answer(Some("spare.example"), true), None).expect("move is ordered");
         assert_eq!(planned.from, main);
         assert_eq!(planned.to, "https://spare.example/sub/token?x=1");
     }
@@ -1495,25 +1503,57 @@ mod move_tests {
         let main = String::from("https://main.example/sub/token");
         let spare = String::from("https://spare.example/sub/token");
 
-        let served = move_after_the_spare(&main, &spare, &answer(Some("spare.example"), true)).expect("move");
+        let served = move_after_the_spare(&main, &spare, &answer(Some("spare.example"), true), None).expect("move");
         assert_eq!(served.served, Some(true));
 
         let mut refused = answer(Some("spare.example"), true);
         refused.device_refused = Some(true);
-        let refused = move_after_the_spare(&main, &spare, &refused).expect("move");
+        let refused = move_after_the_spare(&main, &spare, &refused, None).expect("move");
         assert_eq!(refused.served, Some(false), "отказ по устройству тоже уже известен");
 
-        let elsewhere = move_after_the_spare(&main, &spare, &answer(Some("third.example"), true)).expect("move");
+        let elsewhere = move_after_the_spare(&main, &spare, &answer(Some("third.example"), true), None).expect("move");
         assert_eq!(elsewhere.served, None, "другой адрес ещё не спрашивали");
-        assert!(move_of(&main, &answer(Some("spare.example"), true)).is_some_and(|planned| planned.served.is_none()));
+        assert!(
+            move_of(&main, &answer(Some("spare.example"), true), None).is_some_and(|planned| planned.served.is_none())
+        );
+    }
+
+    #[test]
+    fn the_spare_is_asked_with_the_settings_of_the_update() {
+        let main = String::from("https://main.example/sub");
+        let request = PrfOption {
+            user_agent: Some("ua/1".into()),
+            timeout_seconds: Some(45),
+            danger_accept_invalid_certs: Some(true),
+            self_proxy: Some(true),
+            chan_pin: Some("old".into()),
+            ..PrfOption::default()
+        };
+        let mut fetched = answer(Some("spare.example"), true);
+        fetched.option = Some(PrfOption {
+            chan_pin: Some("new".into()),
+            ..PrfOption::default()
+        });
+        let option = move_of(&main, &fetched, Some(&request))
+            .and_then(|planned| planned.option)
+            .unwrap_or_default();
+        assert_eq!(option.user_agent.as_deref(), Some("ua/1"));
+        assert_eq!(option.timeout_seconds, Some(45));
+        assert_eq!(option.danger_accept_invalid_certs, Some(true));
+        assert_eq!(option.self_proxy, Some(true));
+        assert_eq!(
+            option.chan_pin.as_deref(),
+            Some("new"),
+            "ключ — тот, что узнала загрузка"
+        );
     }
 
     #[test]
     fn no_move_without_the_flag_the_domain_or_on_the_same_host() {
         let main = String::from("https://main.example/sub");
-        assert!(move_of(&main, &answer(Some("spare.example"), false)).is_none());
-        assert!(move_of(&main, &answer(None, true)).is_none());
-        assert!(move_of(&main, &answer(Some("main.example"), true)).is_none());
+        assert!(move_of(&main, &answer(Some("spare.example"), false), None).is_none());
+        assert!(move_of(&main, &answer(None, true), None).is_none());
+        assert!(move_of(&main, &answer(Some("main.example"), true), None).is_none());
     }
 }
 
@@ -1548,6 +1588,19 @@ mod one_write_tests {
             settle.matches("mark_the_update(").count(),
             2,
             "только провал приёма и «до проверки не дошло»: {settle}"
+        );
+    }
+
+    #[test]
+    fn provider_pictures_follow_every_download_the_registry_took() {
+        let source = include_str!("profile.rs");
+        let noted = squeezed(source, "async fn note_the_download(");
+        assert!(noted.contains("logo_cache::sync("), "{noted}");
+        let settle = squeezed(source, "async fn settle_the_download(");
+        assert_eq!(
+            settle.matches("note_the_download(uid)").count(),
+            4,
+            "принята, отвергнута, не проверена, не доставлена: {settle}"
         );
     }
 

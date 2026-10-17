@@ -706,6 +706,11 @@ impl PrfItem {
             .map_err(DownloadFailure::into_error)
     }
 
+    /// Адрес подписки, каким его запишет загрузка; `None` — адрес не годится.
+    pub fn address_of(url: &str) -> Option<String> {
+        fix_dirty_url(url).ok().map(|url| url.as_str().into())
+    }
+
     /// Подписка защищённым каналом — при добавлении и при включении канала.
     /// Сервер молчит или отказал посредник перед ним — канал пробуется ещё
     /// раз, всего [`ADD_CHANNEL_ATTEMPTS`]. Канал ответил, но подписки не дал
@@ -767,7 +772,7 @@ impl PrfItem {
             .itype
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("type should not be null"))?;
-        match itype.as_str() {
+        let mut created = match itype.as_str() {
             "remote" => {
                 let url = item
                     .url
@@ -778,16 +783,34 @@ impl PrfItem {
                 let option = item.option.as_ref();
                 Self::from_url_for_new(url, name, desc, option)
                     .await
-                    .map(|fetched| fetched.item)
+                    .map(|fetched| fetched.item)?
             }
             "local" => {
                 let name = item.name.clone().unwrap_or_else(|| "Local File".into());
                 let desc = item.desc.clone().unwrap_or_else(|| "".into());
                 let option = item.option.as_ref();
-                Self::from_local(name, desc, file_data, option).await
+                Self::from_local(name, desc, file_data, option).await?
             }
             typ => bail!("invalid profile item type \"{typ}\""),
-        }
+        };
+        created.keep_what_was_asked(item);
+        Ok(created)
+    }
+
+    /// Что человек задал при добавлении и чего загрузка не касается: группа и
+    /// то, как ходить за подпиской. Загрузка сама решает канал, ключ прослойки,
+    /// цепочки и интервал.
+    fn keep_what_was_asked(&mut self, asked: &Self) {
+        self.group = asked.group.clone();
+        let Some(asked) = asked.option.as_ref() else {
+            return;
+        };
+        let option = self.option.get_or_insert_with(PrfOption::default);
+        option.user_agent = asked.user_agent.clone();
+        option.timeout_seconds = asked.timeout_seconds;
+        option.with_proxy = asked.with_proxy;
+        option.self_proxy = asked.self_proxy;
+        option.danger_accept_invalid_certs = asked.danger_accept_invalid_certs;
     }
 
     fn local_profile_is_readable(data: &str) -> Result<()> {
@@ -1410,11 +1433,20 @@ async fn fetch_for_profile(
         }
         Err(e) => {
             tokio::time::sleep(Duration::from_millis(100)).await;
+            // Обрыв и без закреплённого ключа: так адрес канала встречает сервер,
+            // где канала уже нет, — тот же отказ, что «нет такого адреса».
+            let e = if crate::utils::network::hung_up(&e) {
+                e.context(CHAN_HUNG_UP)
+            } else {
+                e
+            };
             let headline = explain_the_failure(&e, "failed to fetch remote profile over the secure channel");
             Err(e).context(headline)
         }
     }
 }
+
+const CHAN_HUNG_UP: &str = "clod-chan-refused: the server hung up on the secure request";
 
 /// Заголовок ошибки загрузки.
 ///
@@ -2319,6 +2351,25 @@ mod secure_fetch_tests {
         assert_eq!(fetched, Some((BODY.into(), Some(current))));
         assert_eq!(seen.lock().len(), 2);
         assert!(unpinned(&seen));
+    }
+
+    #[tokio::test]
+    async fn a_hang_up_without_a_key_reads_as_the_channel_refused() {
+        for pin in [Some(Relay::new(TOKEN, &[1]).public(0)), None] {
+            let (url, _) = serve(|_| (HANG_UP, String::new(), String::new())).await;
+            let failed = Box::pin(fetch_for_profile(
+                &url,
+                ProxyType::None,
+                5,
+                None,
+                false,
+                &reqwest::header::HeaderMap::new(),
+                Some(&secure(pin)),
+            ))
+            .await;
+            let headline = failed.err().map(|err| err.to_string()).unwrap_or_default();
+            assert!(headline.contains("clod-chan-refused"), "{headline}");
+        }
     }
 
     #[tokio::test]
@@ -3281,6 +3332,54 @@ mod tests {
 
         let no_groups: serde_yaml_ng::Mapping = serde_yaml_ng::from_str("proxies: []\n").expect("yaml");
         assert!(!targets_foreign_core(&no_groups));
+    }
+
+    #[test]
+    fn what_was_asked_when_adding_stays_with_the_subscription() {
+        let mut created = PrfItem {
+            option: Some(PrfOption {
+                update_interval: Some(120),
+                secure: Some(true),
+                chan_pin: Some("pin".into()),
+                merge: Some("m".into()),
+                ..PrfOption::default()
+            }),
+            ..PrfItem::default()
+        };
+        let asked = PrfItem {
+            group: Some("Работа".into()),
+            option: Some(PrfOption {
+                user_agent: Some("ua/1".into()),
+                timeout_seconds: Some(45),
+                self_proxy: Some(true),
+                with_proxy: Some(false),
+                danger_accept_invalid_certs: Some(true),
+                update_interval: Some(999),
+                ..PrfOption::default()
+            }),
+            ..PrfItem::default()
+        };
+        created.keep_what_was_asked(&asked);
+        assert_eq!(created.group.as_deref(), Some("Работа"));
+        let option = created.option.unwrap_or_default();
+        assert_eq!(option.user_agent.as_deref(), Some("ua/1"));
+        assert_eq!(option.timeout_seconds, Some(45));
+        assert_eq!(option.self_proxy, Some(true));
+        assert_eq!(option.with_proxy, Some(false));
+        assert_eq!(option.danger_accept_invalid_certs, Some(true));
+        // Что решила загрузка — её.
+        assert_eq!(option.update_interval, Some(120));
+        assert_eq!(option.secure, Some(true));
+        assert_eq!(option.chan_pin.as_deref(), Some("pin"));
+        assert_eq!(option.merge.as_deref(), Some("m"));
+
+        let mut local = PrfItem::default();
+        local.keep_what_was_asked(&PrfItem {
+            group: Some("Дом".into()),
+            ..PrfItem::default()
+        });
+        assert_eq!(local.group.as_deref(), Some("Дом"));
+        assert!(local.option.is_none());
     }
 
     #[test]
