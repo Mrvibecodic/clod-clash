@@ -19,6 +19,8 @@ pub enum NotificationEvent<'a> {
     SysproxyLeftBehind,
     /// Человек согласился поставить обновление на старте, а установка сорвалась.
     UpdateNotInstalled,
+    /// Обновлённое ядро упало вскоре после обновления, возвращено прежнее.
+    CoreUpdateRolledBack,
     /// Выбранного адреса для системного прокси у машины сейчас нет.
     ProxyHostGone {
         host: &'a str,
@@ -108,6 +110,11 @@ pub async fn notify_event<'a>(event: NotificationEvent<'a>) {
             let body = clash_verge_i18n::t!("notifications.proxyHostGone.body")
                 .replace("{host}", host)
                 .into();
+            notify(title, body);
+        }
+        NotificationEvent::CoreUpdateRolledBack => {
+            let title = clash_verge_i18n::t!("tray.tooltip.core");
+            let body = clash_verge_i18n::t!("notifications.coreUpdateRolledBack.body");
             notify(title, body);
         }
         NotificationEvent::UpdateNotInstalled => {

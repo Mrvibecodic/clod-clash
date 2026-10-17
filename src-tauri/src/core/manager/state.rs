@@ -41,6 +41,8 @@ use {
 
 static CRASH_RESTARTS: AtomicU32 = AtomicU32::new(0);
 static LAST_CRASH_AT: Mutex<Option<Instant>> = Mutex::new(None);
+/// Когда служба в последний раз сама поднимала упавшее ядро.
+static LAST_RAISED_BY_SERVICE_AT: Mutex<Option<Instant>> = Mutex::new(None);
 const MAX_CRASH_RESTARTS: u32 = 3;
 const CORE_RESTART_DELAY: Duration = Duration::from_secs(1);
 const CORE_RESTART_DELAY_CAP: Duration = Duration::from_secs(4);
@@ -381,6 +383,18 @@ fn notice_the_restart(reason: &str) {
     }
 }
 
+impl CoreManager {
+    /// Падало ли ядро (своим процессом или под службой) с этого момента.
+    pub fn fell_since(&self, since: Instant) -> bool {
+        let after = |at: &Mutex<Option<Instant>>| {
+            at.lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .is_some_and(|at| at >= since)
+        };
+        after(&LAST_CRASH_AT) || after(&LAST_RAISED_BY_SERVICE_AT)
+    }
+}
+
 #[cfg(windows)]
 impl CoreManager {
     /// Ядро сейчас выйдет само, и хозяин поднимет его снова; пользователь об
@@ -479,6 +493,9 @@ async fn look_at_the_service(manager: &CoreManager, watch: &mut HealthWatch, gen
                 reason
             );
             // Новый процесс поднимала служба, мимо нашего запуска.
+            *LAST_RAISED_BY_SERVICE_AT
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(Instant::now());
             AsyncHandler::spawn(crate::module::core_log_archive::after_a_restart_by_the_service);
             CoreManager::new_core_is_up().await;
             let _ = after_core_came_back(&reason).await;

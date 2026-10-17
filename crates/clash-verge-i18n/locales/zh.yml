@@ -30,6 +30,8 @@ notifications:
     body: "退出时未能清除系统代理。它仍指向本应用：在系统设置中清除或再次启动应用之前，网络将无法连通。"
   proxyHostGone:
     body: "This computer has no address {host} right now, so the system proxy points at 127.0.0.1. It goes back to {host} once the address is back."
+  coreUpdateRolledBack:
+    body: The new core kept crashing after the update, so the previous one is back.
   appHidden:
     title: 应用已隐藏
     body: 应用正在后台运行。

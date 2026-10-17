@@ -30,6 +30,8 @@ notifications:
     body: "The system proxy could not be removed on exit. It still points at this app, so traffic will not go through until you clear it in the system settings or start the app again."
   proxyHostGone:
     body: "This computer has no address {host} right now, so the system proxy points at 127.0.0.1. It goes back to {host} once the address is back."
+  coreUpdateRolledBack:
+    body: The new core kept crashing after the update, so the previous one is back.
   appHidden:
     title: Application Hidden
     body: The app keeps running in the background.

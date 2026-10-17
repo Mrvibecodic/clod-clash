@@ -41,6 +41,10 @@ const DOWNLOAD_TIMEOUT_SECS: u64 = 300;
 const API_TIMEOUT_SECS: u64 = 30;
 const REACHABILITY_TIMEOUT_SECS: u64 = 15;
 const PROBE_TIMEOUT: Duration = Duration::from_secs(10);
+/// Новое ядро прижилось, если столько проработало без падений; до тех пор
+/// копия прежнего лежит рядом, и падение возвращает его.
+const NEW_CORE_TRIAL: Duration = Duration::from_secs(60);
+const TRIAL_LOOK_EVERY: Duration = Duration::from_secs(1);
 
 static UPDATING: AtomicBool = AtomicBool::new(false);
 
@@ -461,25 +465,30 @@ pub fn is_updating() -> bool {
     UPDATING.load(Ordering::Acquire)
 }
 
-/// Копия прежнего ядра рядом с ним. Совпадает с действующим файлом — это остаток
-/// оборванного обновления (выход между копией и подменой), убираем. Отличается —
-/// прошлый возврат не удался, и она единственная: новое обновление затёрло бы её,
-/// поэтому отказ.
+/// Копия прежнего ядра лишняя, если совпадает с действующим файлом (остаток
+/// оборванного обновления: выход между копией и подменой) или если на месте
+/// стоит ядро, чья проверка после обновления не успела закончиться (выход,
+/// новое обновление) — его приняли.
+fn the_leftover_backup_is_spare(current: Option<&str>, copy: Option<&str>, on_trial: Option<&str>) -> bool {
+    current.is_some() && (current == copy || current == on_trial)
+}
+
+/// Копия прежнего ядра рядом с ним: лишняя — убираем. Иначе прошлый возврат
+/// не удался, и она единственная: новое обновление затёрло бы её, поэтому отказ.
 async fn keep_or_drop_a_leftover_backup(target: &Path, backup: &Path) -> Result<()> {
+    let trial = beside(target, "trial")?;
     if !tokio::fs::try_exists(backup).await.unwrap_or(false) {
+        let _ = tokio::fs::remove_file(&trial).await;
         return Ok(());
     }
-    let same = match (
-        core_integrity::digest_of(target).await,
-        core_integrity::digest_of(backup).await,
-    ) {
-        (Ok(current), Ok(copy)) => current == copy,
-        _ => false,
-    };
-    if same {
+    let current = core_integrity::digest_of(target).await.ok();
+    let copy = core_integrity::digest_of(backup).await.ok();
+    let on_trial = tokio::fs::read_to_string(&trial).await.ok();
+    if the_leftover_backup_is_spare(current.as_deref(), copy.as_deref(), on_trial.as_deref()) {
         tokio::fs::remove_file(backup)
             .await
             .with_context(|| format!("не удалось убрать лишнюю копию ядра {}", backup.display()))?;
+        let _ = tokio::fs::remove_file(&trial).await;
         return Ok(());
     }
     bail!(
@@ -540,28 +549,134 @@ pub async fn update_bundled_core() -> Result<BundledCoreUpdate> {
         bail!("ядро сменили, пока шло обновление — обновление отменено");
     }
     let old_digest = core_integrity::digest_of(&target).await.ok();
+    let new_digest = core_integrity::digest_of_bytes(&binary);
     write_executable(&staged, &binary).await?;
     let probed = probe_binary(&staged).await;
     let swapped = match probed {
         Ok(probe) => {
             logging!(info, Type::Core, "новое ядро отвечает: {probe}");
-            let new_digest = core_integrity::digest_of_bytes(&binary);
             swap_in(&target, &staged, &backup, &new_digest, old_digest.as_deref()).await
         }
         Err(err) => Err(err.context("скачанное ядро не запускается")),
     };
     let _ = tokio::fs::remove_file(&staged).await;
-    // Копия прежнего ядра не нужна, только когда на месте стоит либо новое
-    // рабочее, либо уже возвращённое прежнее. Иначе (возврат не удался) она —
-    // единственное, из чего прежнее ядро можно поставить руками.
-    let backup_is_redundant =
-        swapped.is_ok() || core_integrity::digest_of(&target).await.ok().as_deref() == old_digest.as_deref();
-    if backup_is_redundant {
-        let _ = tokio::fs::remove_file(&backup).await;
+    match (&swapped, old_digest) {
+        // Ответ версии ещё не значит, что ядро работает: копия прежнего
+        // остаётся, пока новое не проработает без падений.
+        (Ok(()), Some(old_digest)) => {
+            put_the_new_core_on_trial(chosen, target, backup, new_digest, old_digest).await;
+        }
+        (_, old_digest) => {
+            // Копия прежнего ядра не нужна, только когда на месте стоит либо
+            // новое рабочее, либо уже возвращённое прежнее. Иначе (возврат не
+            // удался) она — единственное, из чего прежнее ядро можно поставить
+            // руками.
+            let backup_is_redundant =
+                swapped.is_ok() || core_integrity::digest_of(&target).await.ok().as_deref() == old_digest.as_deref();
+            if backup_is_redundant {
+                let _ = tokio::fs::remove_file(&backup).await;
+            }
+        }
     }
     swapped?;
 
     Ok(BundledCoreUpdate { updated: true, version })
+}
+
+/// Проверка нового ядра после обновления: падение в первые [`NEW_CORE_TRIAL`]
+/// возвращает прежнее с сообщением, иначе копия прежнего убирается. Отметка
+/// проверки лежит рядом с ядром: оборванную выходом проверку закончит
+/// следующее обновление (`keep_or_drop_a_leftover_backup`).
+async fn put_the_new_core_on_trial(
+    chosen: String,
+    target: PathBuf,
+    backup: PathBuf,
+    new_digest: String,
+    old_digest: String,
+) {
+    let Ok(trial) = beside(&target, "trial") else {
+        let _ = tokio::fs::remove_file(&backup).await;
+        return;
+    };
+    if tokio::fs::write(&trial, new_digest.as_bytes()).await.is_err() {
+        let _ = tokio::fs::remove_file(&backup).await;
+        return;
+    }
+    let since = tokio::time::Instant::now();
+    crate::process::AsyncHandler::spawn(move || async move {
+        loop {
+            if handle::Handle::global().is_exiting() || !tokio::fs::try_exists(&trial).await.unwrap_or(false) {
+                return;
+            }
+            if CoreManager::global().fell_since(since.into_std()) {
+                give_the_old_core_back(&chosen, &target, &backup, &trial, &new_digest, &old_digest).await;
+                return;
+            }
+            if since.elapsed() >= NEW_CORE_TRIAL {
+                break;
+            }
+            tokio::time::sleep(TRIAL_LOOK_EVERY).await;
+        }
+        let _ = tokio::fs::remove_file(&backup).await;
+        let _ = tokio::fs::remove_file(&trial).await;
+        logging!(
+            info,
+            Type::Core,
+            "новое ядро проработало без падений — копия прежнего убрана"
+        );
+    });
+}
+
+async fn give_the_old_core_back(
+    chosen: &str,
+    target: &Path,
+    backup: &Path,
+    trial: &Path,
+    new_digest: &str,
+    old_digest: &str,
+) {
+    // Ядро сменили или обновляют снова — проверка этого файла кончилась.
+    let Ok(_guard) = UpdateGuard::acquire() else {
+        return;
+    };
+    let still_on_trial = the_settled_choice().await.is_ok_and(|now| now == chosen)
+        && core_integrity::digest_of(target)
+            .await
+            .is_ok_and(|now| now == new_digest);
+    if !still_on_trial {
+        let _ = tokio::fs::remove_file(backup).await;
+        let _ = tokio::fs::remove_file(trial).await;
+        return;
+    }
+    logging!(
+        warn,
+        Type::Core,
+        "новое ядро упало вскоре после обновления — возвращаю прежнее"
+    );
+    let back = CoreManager::global()
+        .restart_core_swapped(
+            async || {
+                tokio::fs::rename(backup, target)
+                    .await
+                    .context("не удалось вернуть прежнее ядро")?;
+                core_integrity::pin_known_binary(target, old_digest).await;
+                Ok(())
+            },
+            async || Ok(()),
+        )
+        .await;
+    let _ = tokio::fs::remove_file(trial).await;
+    match back {
+        Ok(()) => {
+            handle::Handle::refresh_clash();
+            handle::Handle::refresh_verge();
+            crate::utils::notification::notify_event(
+                crate::utils::notification::NotificationEvent::CoreUpdateRolledBack,
+            )
+            .await;
+        }
+        Err(err) => logging!(error, Type::Core, "прежнее ядро вернуть не удалось: {err:#}"),
+    }
 }
 
 /// Итог обновления ядром самого себя — по тому, чем ядро ответило после.
@@ -724,6 +839,15 @@ pub fn remove_leftover_managed_cores() {
 #[allow(clippy::expect_used)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_leftover_copy_of_the_old_core_is_spare_only_beside_a_settled_or_trial_core() {
+        assert!(the_leftover_backup_is_spare(Some("a"), Some("a"), None));
+        assert!(the_leftover_backup_is_spare(Some("new"), Some("old"), Some("new")));
+        assert!(!the_leftover_backup_is_spare(Some("new"), Some("old"), None));
+        assert!(!the_leftover_backup_is_spare(Some("other"), Some("old"), Some("new")));
+        assert!(!the_leftover_backup_is_spare(None, None, None));
+    }
 
     fn asset(name: &str) -> GhAsset {
         GhAsset {

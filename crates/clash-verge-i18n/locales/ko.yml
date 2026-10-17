@@ -30,6 +30,8 @@ notifications:
     body: "종료할 때 시스템 프록시를 해제하지 못했습니다. 여전히 이 앱을 가리키므로 시스템 설정에서 해제하거나 앱을 다시 실행할 때까지 인터넷이 되지 않습니다."
   proxyHostGone:
     body: "This computer has no address {host} right now, so the system proxy points at 127.0.0.1. It goes back to {host} once the address is back."
+  coreUpdateRolledBack:
+    body: The new core kept crashing after the update, so the previous one is back.
   appHidden:
     title: 앱이 숨겨짐
     body: 앱이 백그라운드에서 실행 중입니다.
