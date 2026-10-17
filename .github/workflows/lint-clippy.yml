@@ -85,7 +85,11 @@ jobs:
         with:
           toolchain: '1.95.0'
           targets: ${{ matrix.target }}
-          components: clippy
+          components: clippy, rustfmt
+
+      - name: Check Rust Formatting
+        if: steps.decide.outputs.run == 'true' && matrix.os == 'ubuntu-22.04'
+        run: cargo fmt --all -- --check
 
       - name: Rust Cache
         if: steps.decide.outputs.run == 'true'

@@ -64,19 +64,10 @@ jobs:
           node-version: '24.18.0'
           cache: 'pnpm'
 
-      - name: Restore pnpm cache
-        if: github.event_name != 'pull_request' || steps.check_frontend.outputs.frontend == 'true'
-        uses: actions/cache@v6
-        with:
-          path: ~/.pnpm-store
-          key: "pnpm-shared-stable-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}"
-          restore-keys: |
-            pnpm-shared-stable-${{ runner.os }}-
-
       - run: pnpm install --frozen-lockfile
         if: github.event_name != 'pull_request' || steps.check_frontend.outputs.frontend == 'true'
 
-      - name: Run Prettier check
+      - name: Run Biome format check
         if: github.event_name != 'pull_request' || steps.check_frontend.outputs.frontend == 'true'
         run: pnpm format:check
 
