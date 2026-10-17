@@ -32,6 +32,13 @@ const INSTANCE_LOCK_FILE: &str = "instance.lock";
 /// показать окно обычной командой.
 const PENDING_LINK_FILE: &str = "pending-link";
 
+/// Команды порта принимаются только от того, кто прочёл токен экземпляра из
+/// файла, доступного одному нашему пользователю: страница в браузере до порта
+/// дотянется, а до файла — нет. PAC остаётся открытым — его берёт браузер.
+const INSTANCE_TOKEN_FILE: &str = "instance-token";
+const INSTANCE_TOKEN_HEADER: &str = "x-instance-token";
+static INSTANCE_TOKEN: OnceCell<std::string::String> = OnceCell::new();
+
 /// Первый экземпляр занимает порт сразу, а отвечать начинает только после
 /// инициализации: второй ждёт его ответа, а не считает порт чужим.
 const HANDOVER_WAIT: Duration = Duration::from_secs(20);
@@ -142,17 +149,74 @@ pub async fn take_the_pending_links() -> Vec<String> {
     pending
 }
 
+fn instance_token_path() -> Result<std::path::PathBuf> {
+    Ok(crate::utils::dirs::preinit_app_home_dir()?.join(INSTANCE_TOKEN_FILE))
+}
+
+/// Новый токен на каждый запуск, в файл, закрытый от других пользователей.
+fn issue_the_instance_token() -> Result<std::string::String> {
+    use std::io::Write as _;
+
+    let mut bytes = [0_u8; 32];
+    getrandom::fill(&mut bytes).map_err(|error| anyhow::anyhow!("no randomness for the instance token: {error}"))?;
+    let token = hex::encode(bytes);
+    let path = instance_token_path()?;
+    let _ = std::fs::remove_file(&path);
+    #[cfg(windows)]
+    let mut file = crate::core::owner_identity::create_private_current_user_file(&path)?;
+    #[cfg(unix)]
+    let mut file = {
+        use std::os::unix::fs::OpenOptionsExt as _;
+        std::fs::File::options()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(&path)?
+    };
+    file.write_all(token.as_bytes())?;
+    Ok(token)
+}
+
+/// Токен работающей копии; пока она его не записала — нет, и вторая копия
+/// спросит ещё раз.
+fn read_the_instance_token() -> Option<std::string::String> {
+    use std::io::Read as _;
+
+    let path = instance_token_path().ok()?;
+    #[cfg(windows)]
+    let mut file = crate::core::owner_identity::open_private_current_user_file(&path).ok()?;
+    #[cfg(unix)]
+    let mut file = std::fs::File::open(&path).ok()?;
+    let mut token = std::string::String::new();
+    file.read_to_string(&mut token).ok()?;
+    Some(token.trim().to_owned()).filter(|token| !token.is_empty())
+}
+
+fn presents_the_token(presented: Option<&str>, issued: Option<&str>) -> bool {
+    match (presented, issued) {
+        (Some(presented), Some(issued)) => {
+            presented.len() == issued.len()
+                && presented
+                    .bytes()
+                    .zip(issued.bytes())
+                    .fold(0_u8, |differs, (a, b)| differs | (a ^ b))
+                    == 0
+        }
+        _ => false,
+    }
+}
+
 async fn ask_to_show_the_window(port: u16, wait: Duration) -> Handover {
     // Сосед на этой же машине: системный прокси между нами ни к чему.
     let client = match ClientBuilder::new().no_proxy().timeout(wait).build() {
         Ok(client) => client,
         Err(error) => return Handover::Failed(error.into()),
     };
-    match client
-        .get(format!("http://127.0.0.1:{port}/commands/visible"))
-        .send()
-        .await
-    {
+    let mut request = client.get(format!("http://127.0.0.1:{port}/commands/visible"));
+    if let Some(token) = read_the_instance_token() {
+        request = request.header(INSTANCE_TOKEN_HEADER, token);
+    }
+    match request.send().await {
         Ok(response) if response.status().is_success() => Handover::Delivered,
         Ok(response) => Handover::Failed(anyhow::anyhow!("ответ {}", response.status())),
         Err(error) => Handover::Failed(error.into()),
@@ -203,7 +267,8 @@ async fn look_for_the_running_copy(port: u16, left_at: &mut Option<std::path::Pa
         }
         leave_the_link_once(left_at).await;
         // Стартующая копия порт уже держит, и запрос дожидается её ответа;
-        // быстрым отказ бывает, когда порт закрыт, — тогда замок пробуем снова.
+        // быстрым отказ бывает, когда порт закрыт, токен ещё не записан или
+        // копия уходит, — тогда замок пробуем снова.
         match ask_to_show_the_window(port, HANDOVER_WAIT).await {
             Handover::Delivered => return leave_to_the_running_copy(),
             Handover::Failed(error) if started.elapsed() >= HANDOVER_WAIT => {
@@ -218,6 +283,16 @@ async fn look_for_the_running_copy(port: u16, left_at: &mut Option<std::path::Pa
 async fn claim_the_port(port: u16, lock: InstanceLock, left_at: &mut Option<std::path::PathBuf>) -> Result<()> {
     let refusal = match std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port)) {
         Ok(listener) => {
+            match issue_the_instance_token() {
+                Ok(token) => {
+                    let _ = INSTANCE_TOKEN.set(token);
+                }
+                Err(error) => logging!(
+                    error,
+                    Type::Window,
+                    "токен экземпляра не записан ({error:#}): второй запуск окно не покажет"
+                ),
+            }
             *CLAIMED_LISTENER.lock() = Some(listener);
             return Ok(());
         }
@@ -266,23 +341,43 @@ pub fn embed_server() {
     // Показ окна не привязан к соединению: вторая копия вправе оборвать его
     // раньше, чем окно построится, а брошенный на полпути показ оставляет
     // лёгкий режим в промежуточном состоянии.
-    let visible = warp::path!("commands" / "visible").and_then(|| async {
-        logging!(
-            info,
-            Type::Window,
-            "Обнаружено восстановление окна приложения из режима одиночного экземпляра"
-        );
-        AsyncHandler::spawn(|| async {
-            lightweight::wake_or_show().await;
-            for link in take_the_pending_links().await {
-                logging_error!(Type::Setup, resolve::resolve_scheme(&link).await);
-            }
+    // Пока идёт выход, команду не берём: вторая копия подождёт и встанет
+    // сама, а ссылка дождётся её, а не уходящей копии.
+    let visible = warp::path!("commands" / "visible")
+        .and(warp::header::optional::<std::string::String>(INSTANCE_TOKEN_HEADER))
+        .and_then(|presented: Option<std::string::String>| async move {
+            let status = if !presents_the_token(
+                presented.as_deref(),
+                INSTANCE_TOKEN.get().map(std::string::String::as_str),
+            ) {
+                logging!(
+                    warn,
+                    Type::Window,
+                    "команда показа окна без токена экземпляра отклонена"
+                );
+                warp::http::StatusCode::FORBIDDEN
+            } else if crate::core::handle::Handle::global().is_exiting() {
+                logging!(info, Type::Window, "команда показа окна отклонена: идёт выход");
+                warp::http::StatusCode::SERVICE_UNAVAILABLE
+            } else {
+                logging!(
+                    info,
+                    Type::Window,
+                    "Обнаружено восстановление окна приложения из режима одиночного экземпляра"
+                );
+                AsyncHandler::spawn(|| async {
+                    lightweight::wake_or_show().await;
+                    for link in take_the_pending_links().await {
+                        logging_error!(Type::Setup, resolve::resolve_scheme(&link).await);
+                    }
+                });
+                warp::http::StatusCode::OK
+            };
+            Ok::<_, warp::Rejection>(warp::reply::with_status::<std::string::String>(
+                status.canonical_reason().unwrap_or_default().to_owned(),
+                status,
+            ))
         });
-        Ok::<_, warp::Rejection>(warp::reply::with_status::<std::string::String>(
-            "ok".to_string(),
-            warp::http::StatusCode::OK,
-        ))
-    });
 
     let pac = warp::path!("commands" / "pac").and_then(|| async move {
         // clod:port-ladder — порт для PAC берётся из собранного конфига: при
@@ -325,18 +420,23 @@ pub fn embed_server() {
             })
             .run()
             .await;
+        INSTANCE_LOCK.lock().take();
     });
 }
 
 pub fn shutdown_embedded_server() {
     logging!(info, Type::Window, "shutting down embedded server");
-    // Вместе с сервером отпускается и замок экземпляра: копия, которую мы
-    // породим при перезапуске, не должна ждать нашей смерти.
-    INSTANCE_LOCK.lock().take();
-    if let Some(sender) = SHUTDOWN_SENDER.get()
-        && let Some(sender) = sender.lock().take()
+    // Замок экземпляра отпускается, когда порт закрыт, но не позже: копия,
+    // взявшая замок раньше, нашла бы порт занятым и осталась бы без сервера.
+    // Копия, которую мы породим при перезапуске, нашей смерти не ждёт.
+    let Some(sender) = SHUTDOWN_SENDER.get() else {
+        INSTANCE_LOCK.lock().take();
+        return;
+    };
+    if let Some(sender) = sender.lock().take()
+        && sender.send(()).is_err()
     {
-        sender.send(()).ok();
+        INSTANCE_LOCK.lock().take();
     }
 }
 
@@ -345,6 +445,37 @@ mod tests {
     use super::{InstanceLock, held_by_someone, lock_the_file};
     use std::net::{Ipv4Addr, TcpListener};
     use warp::Filter as _;
+
+    /// Замок экземпляра уходит, когда порт уже закрыт: копия, взявшая его,
+    /// всегда находит порт свободным.
+    #[test]
+    fn the_instance_lock_is_let_go_only_once_the_port_is_closed() {
+        use crate::utils::source_scan::fn_body;
+        let source = include_str!("server.rs");
+        let server = fn_body(source, "pub fn embed_server(").unwrap_or_default();
+        let served = server.find(".run()").unwrap_or(usize::MAX);
+        let released = server.find("INSTANCE_LOCK.lock().take()").unwrap_or_default();
+        assert!(released > served, "{server}");
+        let shutdown = fn_body(source, "pub fn shutdown_embedded_server(").unwrap_or_default();
+        let signalled = shutdown.find("sender.send(())").unwrap_or(usize::MAX);
+        assert!(
+            shutdown.matches("INSTANCE_LOCK.lock().take()").count() == 2
+                && shutdown.rfind("INSTANCE_LOCK.lock().take()").unwrap_or_default() > signalled,
+            "{shutdown}"
+        );
+    }
+
+    #[test]
+    fn only_the_issued_instance_token_opens_the_commands() {
+        use super::presents_the_token;
+        let issued = "0123456789abcdef";
+        assert!(presents_the_token(Some(issued), Some(issued)));
+        for presented in [None, Some(""), Some("0123456789abcdee"), Some("0123456789abcdef0")] {
+            assert!(!presents_the_token(presented, Some(issued)), "{presented:?}");
+        }
+        assert!(!presents_the_token(Some(issued), None));
+        assert!(!presents_the_token(None, None));
+    }
 
     #[test]
     fn only_our_schemes_are_links() {

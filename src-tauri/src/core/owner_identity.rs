@@ -52,25 +52,17 @@ fn windows_current_identity() -> Result<OwnerIdentity> {
     })
 }
 
-// clod: у апстрима эти четыре функции живут в utils/server.rs и manager/state.rs,
-// которых у нас нет; оживут при следующем портировании — файл намеренно держим
-// байт-в-байт близким к апстриму.
+/// Файл, доступный только текущему пользователю (и системе с
+/// администраторами), — так хранится токен экземпляра встроенного сервера.
 #[cfg(windows)]
-#[allow(dead_code)]
 pub(crate) fn create_private_current_user_file(path: &Path) -> Result<std::fs::File> {
     windows_owner::create_private_file(path)
 }
 
+/// Открыть такой файл, только если он и правда закрыт от других.
 #[cfg(windows)]
-#[allow(dead_code)]
 pub(crate) fn open_private_current_user_file(path: &Path) -> Result<std::fs::File> {
     windows_owner::open_private_file(path)
-}
-
-#[cfg(windows)]
-#[allow(dead_code)]
-pub(crate) fn open_or_create_private_current_user_file(path: &Path) -> Result<std::fs::File> {
-    windows_owner::open_or_create_private_file(path)
 }
 
 #[cfg(windows)]
@@ -202,24 +194,6 @@ mod windows_owner {
         let file = open_file(path)?;
         validate_private_file(&file, descriptor.owner()?)?;
         Ok(file)
-    }
-
-    pub(super) fn open_or_create_private_file(path: &Path) -> Result<std::fs::File> {
-        let sid = current_sid()?;
-        let descriptor = LocalSecurityDescriptor::from_sid(&sid)?;
-        match create_file(path, &descriptor) {
-            Ok(file) => Ok(file),
-            Err(error)
-                if error
-                    .downcast_ref::<std::io::Error>()
-                    .is_some_and(|error| error.raw_os_error() == Some(ERROR_FILE_EXISTS as i32)) =>
-            {
-                let file = open_file(path)?;
-                validate_private_file(&file, descriptor.owner()?)?;
-                Ok(file)
-            }
-            Err(error) => Err(error),
-        }
     }
 
     fn create_file(path: &Path, descriptor: &LocalSecurityDescriptor) -> Result<std::fs::File> {
