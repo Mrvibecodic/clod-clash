@@ -115,7 +115,7 @@ export const HwidLimitDialog = () => {
         </DialogContentText>
       </DialogContent>
       <DialogActions>
-        <Button onClick={close}>{t('shared.actions.cancel')}</Button>
+        <Button onClick={close}>{t('shared.actions.close')}</Button>
         {isLimit ? (
           notice.supportUrl ? (
             <Button
