@@ -93,12 +93,13 @@ const fn restart_delay(attempt: u32) -> Duration {
     }
 }
 
-fn crash_attempt_number(previous_crash: Option<Instant>, now: Instant) -> u32 {
-    let stale = previous_crash.is_none_or(|last| now.duration_since(last) >= CORE_STABLE_AFTER);
-    if stale {
-        CRASH_RESTARTS.store(0, Ordering::Release);
+/// Падения идут подряд, пока между ними меньше [`CORE_STABLE_AFTER`].
+fn crash_attempt_number(attempts_so_far: u32, previous_crash: Option<Instant>, now: Instant) -> u32 {
+    if previous_crash.is_none_or(|last| now.duration_since(last) >= CORE_STABLE_AFTER) {
+        1
+    } else {
+        attempts_so_far.saturating_add(1)
     }
-    CRASH_RESTARTS.fetch_add(1, Ordering::AcqRel) + 1
 }
 
 pub(super) fn handle_core_exit(message: &str, expected: &RunningMode, terminated_pid: Option<u32>) {
@@ -157,7 +158,8 @@ pub(super) fn handle_core_exit(message: &str, expected: &RunningMode, terminated
             Ok(last) => last,
             Err(poisoned) => poisoned.into_inner(),
         };
-        let attempt = crash_attempt_number(*last, now);
+        let attempt = crash_attempt_number(CRASH_RESTARTS.load(Ordering::Acquire), *last, now);
+        CRASH_RESTARTS.store(attempt, Ordering::Release);
         *last = Some(now);
         attempt
     };
@@ -176,6 +178,8 @@ pub(super) fn handle_core_exit(message: &str, expected: &RunningMode, terminated
                 return;
             }
             crate::core::sysopt::Sysopt::global().stop_proxy_guard();
+            // Охрану вернёт первый старт ядра, подтвердивший порт.
+            CoreManager::global().point_system_proxy_at_the_confirmed_port().await;
             handle::Handle::notice_message("sysproxy::core_gave_up", "");
         });
         return;
@@ -202,13 +206,7 @@ pub(super) fn handle_core_exit(message: &str, expected: &RunningMode, terminated
             manager.after_core_process();
             return;
         }
-        if !after_core_came_back(&message).await {
-            return;
-        }
-        tokio::time::sleep(CORE_STABLE_AFTER).await;
-        if !matches!(*CoreManager::global().get_running_mode(), RunningMode::NotRunning) {
-            CRASH_RESTARTS.store(0, Ordering::Release);
-        }
+        after_core_came_back(&message).await;
     });
 }
 
@@ -246,6 +244,7 @@ struct HealthWatch {
     silent: u32,
     missing_core: u32,
     restart_count: Option<u32>,
+    core_pid: Option<u32>,
 }
 
 const fn service_is_settling(state: ServiceLifecycleState) -> bool {
@@ -274,18 +273,22 @@ impl HealthWatch {
                 if !is_active {
                     return HealthStep::CoreLost("the service is no longer running the core for us");
                 }
-                let baseline = *self.restart_count.get_or_insert(restart_count);
+                let mut baseline = *self.restart_count.get_or_insert(restart_count);
                 if restart_count < baseline {
                     self.restart_count = Some(restart_count);
-                } else if restart_count > baseline
-                    && core_pid.is_some()
-                    && matches!(state, ServiceLifecycleState::Running)
-                {
+                    baseline = restart_count;
+                }
+                // Перезапуск виден по счётчику службы, а если служба сама
+                // перезапускалась и считает заново — по новому процессу ядра.
+                let alive = core_pid.is_some() && matches!(state, ServiceLifecycleState::Running);
+                let a_new_process =
+                    alive && std::mem::replace(&mut self.core_pid, core_pid).is_some_and(|seen| Some(seen) != core_pid);
+                if alive && (restart_count > baseline || a_new_process) {
                     self.restart_count = Some(restart_count);
                     self.missing_core = 0;
                     self.silent = 0;
                     return HealthStep::RestartedByService {
-                        restarts: restart_count - baseline,
+                        restarts: (restart_count - baseline).max(1),
                         reason: last_exit_reason.unwrap_or_default(),
                     };
                 }
@@ -1340,6 +1343,10 @@ mod health_tests {
     fn a_service_that_was_itself_restarted_starts_a_new_baseline() {
         let mut watch = HealthWatch::default();
         assert_eq!(watch.observe(running(Some(7), 42)), HealthStep::ProbeTheCore);
+        assert!(matches!(
+            watch.observe(running(Some(9), 0)),
+            HealthStep::RestartedByService { restarts: 1, .. }
+        ));
         assert_eq!(watch.observe(running(Some(9), 0)), HealthStep::ProbeTheCore);
         assert!(matches!(
             watch.observe(running(Some(10), 1)),
@@ -1428,6 +1435,22 @@ mod health_tests {
             last_exit_reason: None,
         };
         assert_eq!(watch.observe(stopped_on_paper), HealthStep::ProbeTheCore);
+    }
+
+    #[test]
+    fn a_core_that_falls_every_half_minute_reaches_the_give_up() {
+        let start = Instant::now();
+        let mut attempts = 0;
+        let mut last = None;
+        for crash in 0..4u64 {
+            let now = start + Duration::from_secs(30 * crash);
+            attempts = super::crash_attempt_number(attempts, last, now);
+            last = Some(now);
+        }
+        assert_eq!(attempts, 4);
+        assert!(attempts > super::MAX_CRASH_RESTARTS);
+        let calm = start + Duration::from_secs(90) + super::CORE_STABLE_AFTER;
+        assert_eq!(super::crash_attempt_number(attempts, last, calm), 1);
     }
 
     #[test]

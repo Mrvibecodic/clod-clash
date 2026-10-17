@@ -88,6 +88,44 @@ async fn core_mode_is(mode: &str) -> bool {
     matches!(config, Ok(Ok(config)) if config.mode.to_string() == mode)
 }
 
+/// Смена режима живёт в ядре и в принятом слоте, а не в сборке, из которой
+/// служба поднимает ядро сама (после падения, после обновления ядра): поднятое
+/// заново ядро возвращается к принятому режиму.
+pub async fn bring_the_accepted_mode_back() {
+    let Some(_turn) = CoreManager::global().queue_for_config_update().await else {
+        return;
+    };
+    let accepted = Config::runtime()
+        .await
+        .data_arc()
+        .config
+        .as_ref()
+        .and_then(|config| config.get("mode"))
+        .and_then(Value::as_str)
+        .map(str::to_owned);
+    let Some(mode) = accepted else {
+        return;
+    };
+    if handle::Handle::global().is_exiting() || core_mode_is(&mode).await {
+        return;
+    }
+    logging!(
+        info,
+        Type::Core,
+        "the core came up in another mode, bringing back {mode}"
+    );
+    match handle::Handle::mihomo()
+        .patch_base_config(&serde_json::json!({ "mode": mode }))
+        .await
+    {
+        Ok(()) => {
+            handle::Handle::refresh_clash();
+            tray::Tray::global().update_menu_and_icon().await;
+        }
+        Err(err) => logging!(warn, Type::Core, "the mode was not brought back: {err}"),
+    }
+}
+
 fn refuse_while_the_subscription_switches() -> Result<(), String> {
     if crate::cmd::profile_switch_in_progress() {
         logging!(info, Type::Core, "mode change refused: the subscription is switching");
