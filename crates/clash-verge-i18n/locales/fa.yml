@@ -79,6 +79,7 @@ tray:
   outboundModes: حالت‌های خروجی
   rule: قانون
   direct: مستقیم
+  directNode: مستقیم
   global: سراسری
   profiles: پروفایل‌ها
   proxies: پروکسی‌ها

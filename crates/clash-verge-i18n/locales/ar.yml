@@ -79,6 +79,7 @@ tray:
   outboundModes: أوضاع الخروج
   rule: قاعدة
   direct: مباشر
+  directNode: مباشر
   global: عام
   profiles: الملفات التعريفية
   proxies: وكلاء

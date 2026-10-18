@@ -79,6 +79,7 @@ tray:
   outboundModes: 出站模式
   rule: 规则
   direct: 直连
+  directNode: 直连
   global: 全局
   profiles: 订阅
   proxies: 代理

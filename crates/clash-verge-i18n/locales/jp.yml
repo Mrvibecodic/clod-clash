@@ -79,6 +79,7 @@ tray:
   outboundModes: アウトバウンドモード
   rule: ルール
   direct: ダイレクト
+  directNode: 直接接続
   global: グローバル
   profiles: プロファイル
   proxies: プロキシ

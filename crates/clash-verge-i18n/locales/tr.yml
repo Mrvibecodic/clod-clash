@@ -79,6 +79,7 @@ tray:
   outboundModes: Giden Modlar
   rule: Kural
   direct: Doğrudan
+  directNode: Doğrudan
   global: Küresel
   profiles: Profiller
   proxies: Vekil'ler

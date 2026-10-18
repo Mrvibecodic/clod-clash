@@ -79,6 +79,7 @@ tray:
   outboundModes: Mode Keluar
   rule: Aturan
   direct: Langsung
+  directNode: Langsung
   global: Global
   profiles: Profil
   proxies: Proksi

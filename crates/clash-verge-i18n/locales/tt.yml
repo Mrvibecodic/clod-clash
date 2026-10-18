@@ -79,6 +79,7 @@ tray:
   outboundModes: Чыгыш режимнары
   rule: Кагыйдә
   direct: Турыдан-туры
+  directNode: Туры
   global: Глобаль
   profiles: Профильләр
   proxies: Проксилар

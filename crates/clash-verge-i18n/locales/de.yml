@@ -79,6 +79,7 @@ tray:
   outboundModes: Ausgangsmodi
   rule: Regel
   direct: Direkt
+  directNode: Direkt
   global: Global
   profiles: Profile
   proxies: Proxy

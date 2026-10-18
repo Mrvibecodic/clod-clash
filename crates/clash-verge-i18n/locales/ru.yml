@@ -79,6 +79,7 @@ tray:
   outboundModes: Режим
   rule: По правилам
   direct: Прямой
+  directNode: Напрямую
   global: Глобальный
   profiles: Подписки
   proxies: Прокси

@@ -623,6 +623,14 @@ fn proxy_item_names(id: &str) -> Option<(&str, &str)> {
     names.split_at_checked(group_len.parse().ok()?)
 }
 
+fn node_title(name: &str) -> std::string::String {
+    if name == "DIRECT" {
+        clash_verge_i18n::t!("tray.directNode").to_string()
+    } else {
+        name.to_owned()
+    }
+}
+
 fn create_subcreate_proxy_menu_item(
     proxy_mode: &str,
     proxy_group_order_map: Option<HashMap<String, usize>>,
@@ -657,10 +665,11 @@ fn create_subcreate_proxy_menu_item(
 
                     // Задержек в трее нет: меню собирается по событиям, и цифры в нём
                     // устаревали, а у узлов провайдеров их не было вовсе
+                    let title = node_title(proxy_str);
                     let text = if freeze_marks.contains(proxy_str.as_str()) {
-                        format!("{proxy_str} ❄")
+                        format!("{title} ❄")
                     } else {
-                        proxy_str.clone()
+                        title
                     };
                     MenuNode::check(item_id, text, is_selected).skippable()
                 })
@@ -1191,7 +1200,7 @@ fn handle_menu_click(id: std::string::String) {
 
 #[cfg(test)]
 mod tests {
-    use super::{proxy_item_id, proxy_item_names};
+    use super::{node_title, proxy_item_id, proxy_item_names};
 
     #[test]
     fn a_node_item_gives_back_the_group_and_the_node_whatever_their_names_hold() {
@@ -1207,6 +1216,14 @@ mod tests {
                 Some((group, proxy)),
                 "{group} / {proxy}"
             );
+        }
+    }
+
+    #[test]
+    fn only_the_core_direct_gets_a_translated_title() {
+        assert_ne!(node_title("DIRECT"), "DIRECT");
+        for name in ["REJECT", "direct", "DIRECT-1", "Узел"] {
+            assert_eq!(node_title(name), name);
         }
     }
 

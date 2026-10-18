@@ -79,6 +79,7 @@ tray:
   outboundModes: Mode
   rule: Rule
   direct: Direct
+  directNode: Direct
   global: Global
   profiles: Subscriptions
   proxies: Proxies
